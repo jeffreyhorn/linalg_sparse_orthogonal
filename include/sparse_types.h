@@ -33,6 +33,7 @@ typedef enum {
     SPARSE_ERR_FWRITE   = 7,   /**< File write failure */
     SPARSE_ERR_PARSE    = 8,   /**< File format parse error */
     SPARSE_ERR_SHAPE    = 9,   /**< Matrix shape mismatch (e.g., non-square for LU) */
+    SPARSE_ERR_IO       = 10,  /**< I/O error with errno context (use sparse_errno()) */
 } sparse_err_t;
 
 /**
@@ -56,5 +57,16 @@ typedef enum {
  *         Returns "Unknown error" for unrecognized codes.
  */
 const char *sparse_strerror(sparse_err_t err);
+
+/**
+ * @brief Return the errno captured by the last I/O operation that failed.
+ *
+ * When a library function returns SPARSE_ERR_IO, this function returns the
+ * system errno that was active at the point of failure. Returns 0 if no
+ * errno has been captured or after a successful I/O operation.
+ *
+ * @return The captured errno value.
+ */
+int sparse_errno(void);
 
 #endif /* SPARSE_TYPES_H */

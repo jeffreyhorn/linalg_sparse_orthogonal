@@ -46,6 +46,11 @@ typedef struct SparseMatrix {
 } SparseMatrix;
 
 /*
+ * Internal errno capture (defined in sparse_types.c)
+ */
+void sparse_set_errno_(int errnum);
+
+/*
  * Internal pool operations (used by sparse_matrix.c and sparse_lu.c)
  */
 Node *pool_alloc(NodePool *pool);

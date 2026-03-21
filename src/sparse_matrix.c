@@ -5,6 +5,7 @@
 #include <string.h>
 #include <math.h>
 #include <inttypes.h>
+#include <errno.h>
 
 /* ─── Pool allocator ─────────────────────────────────────────────────── */
 
@@ -342,7 +343,10 @@ sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename)
     if (!mat || !filename) return SPARSE_ERR_NULL;
 
     FILE *fp = fopen(filename, "w");
-    if (!fp) return SPARSE_ERR_FOPEN;
+    if (!fp) {
+        sparse_set_errno_(errno);
+        return SPARSE_ERR_IO;
+    }
 
     fprintf(fp, "%%%%MatrixMarket matrix coordinate real general\n");
     fprintf(fp, "%" PRId32 " %" PRId32 " %" PRId32 "\n",
@@ -359,7 +363,11 @@ sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename)
         }
     }
 
-    if (fclose(fp) != 0) return SPARSE_ERR_FWRITE;
+    if (fclose(fp) != 0) {
+        sparse_set_errno_(errno);
+        return SPARSE_ERR_IO;
+    }
+    sparse_set_errno_(0);
     return SPARSE_OK;
 }
 
@@ -368,12 +376,16 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename)
     if (!mat_out || !filename) return SPARSE_ERR_NULL;
 
     FILE *fp = fopen(filename, "r");
-    if (!fp) return SPARSE_ERR_FOPEN;
+    if (!fp) {
+        sparse_set_errno_(errno);
+        return SPARSE_ERR_IO;
+    }
 
     char line[1024];
     if (!fgets(line, (int)sizeof(line), fp)) {
+        sparse_set_errno_(errno);
         fclose(fp);
-        return SPARSE_ERR_FREAD;
+        return SPARSE_ERR_IO;
     }
 
     if (strstr(line, "MatrixMarket") == NULL ||
@@ -409,15 +421,17 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename)
         double v = 1.0;  /* default for pattern matrices */
         if (is_pattern) {
             if (fscanf(fp, "%" PRId32 " %" PRId32, &i, &j) != 2) {
+                sparse_set_errno_(errno);
                 sparse_free(mat);
                 fclose(fp);
-                return SPARSE_ERR_FREAD;
+                return SPARSE_ERR_IO;
             }
         } else {
             if (fscanf(fp, "%" PRId32 " %" PRId32 " %lf", &i, &j, &v) != 3) {
+                sparse_set_errno_(errno);
                 sparse_free(mat);
                 fclose(fp);
-                return SPARSE_ERR_FREAD;
+                return SPARSE_ERR_IO;
             }
         }
         i--;  /* 1-based -> 0-based */
@@ -442,6 +456,7 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename)
     }
 
     fclose(fp);
+    sparse_set_errno_(0);
     *mat_out = mat;
     return SPARSE_OK;
 }

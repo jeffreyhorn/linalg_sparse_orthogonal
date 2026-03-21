@@ -208,10 +208,13 @@ sparse_err_t sparse_matvec(const SparseMatrix *mat,
  * Writes the matrix in "%%MatrixMarket matrix coordinate real general" format
  * with full double-precision values (%.15g). Only stored non-zeros are written.
  *
+ * On I/O failure, returns SPARSE_ERR_IO and captures the system errno,
+ * retrievable via sparse_errno(). On success, sparse_errno() is reset to 0.
+ *
  * @param mat       The matrix to save.
  * @param filename  Path to the output file.
- * @return SPARSE_OK on success, SPARSE_ERR_NULL, SPARSE_ERR_FOPEN, or
- *         SPARSE_ERR_FWRITE on failure.
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL if arguments are NULL,
+ *         SPARSE_ERR_IO on file open/write failure.
  */
 sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename);
 
@@ -222,10 +225,16 @@ sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename);
  * and general or symmetric symmetry. Symmetric matrices have their lower
  * triangle mirrored to the upper triangle. Pattern matrices use value 1.0.
  *
+ * On I/O failure, returns SPARSE_ERR_IO and captures the system errno,
+ * retrievable via sparse_errno(). On success, sparse_errno() is reset to 0.
+ * Format errors (bad header, dimension mismatch) return SPARSE_ERR_PARSE.
+ *
  * @param[out] mat_out  Pointer to receive the loaded matrix. Set to NULL on error.
  *                      The caller must free the matrix with sparse_free().
  * @param      filename Path to the input .mtx file.
- * @return SPARSE_OK on success, or an appropriate error code.
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL if arguments are NULL,
+ *         SPARSE_ERR_IO on file open/read failure, SPARSE_ERR_PARSE on
+ *         format error, SPARSE_ERR_ALLOC on memory failure.
  */
 sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename);
 

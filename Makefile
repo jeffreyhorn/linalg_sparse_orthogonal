@@ -1,0 +1,90 @@
+# Makefile for sparse_lu_orthogonal
+# Simple alternative to CMake for quick builds
+
+CC      = cc
+SYSROOT = $(shell /usr/bin/xcrun --show-sdk-path 2>/dev/null)
+CFLAGS  = -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2
+ifneq ($(SYSROOT),)
+CFLAGS += -isysroot $(SYSROOT)
+endif
+LDFLAGS = -lm
+INCLUDE = -Iinclude
+
+# Directories
+SRCDIR  = src
+TESTDIR = tests
+BENCHDIR = benchmarks
+BUILDDIR = build
+
+# Library sources
+LIB_SRCS = $(SRCDIR)/sparse_types.c \
+           $(SRCDIR)/sparse_matrix.c \
+           $(SRCDIR)/sparse_lu.c
+LIB_OBJS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(LIB_SRCS))
+LIB      = $(BUILDDIR)/libsparse_lu_ortho.a
+
+# Test sources (uncomment as created)
+# TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
+#             $(TESTDIR)/test_sparse_lu.c \
+#             $(TESTDIR)/test_sparse_io.c \
+#             $(TESTDIR)/test_integration.c
+# TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
+
+# Benchmark sources (uncomment as created)
+# BENCH_SRCS = $(BENCHDIR)/bench_main.c \
+#              $(BENCHDIR)/bench_scaling.c
+# BENCH_BINS = $(patsubst $(BENCHDIR)/%.c,$(BUILDDIR)/%,$(BENCH_SRCS))
+
+# Default target
+.PHONY: all
+all: $(LIB)
+
+# Build directory
+$(BUILDDIR):
+	/bin/mkdir -p $(BUILDDIR)
+
+# Library objects
+$(BUILDDIR)/%.o: $(SRCDIR)/%.c | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(INCLUDE) -c $< -o $@
+
+# Static library
+$(LIB): $(LIB_OBJS)
+	ar rcs $@ $^
+
+# Test executables
+$(BUILDDIR)/test_%: $(TESTDIR)/test_%.c $(LIB) | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
+
+# Benchmark executables
+$(BUILDDIR)/bench_%: $(BENCHDIR)/bench_%.c $(LIB) | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(INCLUDE) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
+
+# Run all tests
+.PHONY: test
+test: $(TEST_BINS)
+	@for t in $(TEST_BINS); do \
+		echo "=== Running $$(basename $$t) ==="; \
+		$$t || exit 1; \
+		echo; \
+	done
+	@echo "All tests passed."
+
+# Run benchmarks
+.PHONY: bench
+bench: $(BENCH_BINS)
+	@for b in $(BENCH_BINS); do \
+		echo "=== Running $$(basename $$b) ==="; \
+		$$b; \
+		echo; \
+	done
+
+# Build with sanitizers
+.PHONY: sanitize
+sanitize: CFLAGS += -fsanitize=address,undefined -fno-omit-frame-pointer -g
+sanitize: LDFLAGS += -fsanitize=address,undefined
+sanitize: clean all
+
+# Clean
+.PHONY: clean
+clean:
+	/bin/rm -rf $(BUILDDIR)

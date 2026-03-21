@@ -29,7 +29,8 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_sparse_lu.c \
             $(TESTDIR)/test_sparse_io.c \
             $(TESTDIR)/test_known_matrices.c \
-            $(TESTDIR)/test_sparse_vector.c
+            $(TESTDIR)/test_sparse_vector.c \
+            $(TESTDIR)/test_edge_cases.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
 # Benchmark sources
@@ -86,11 +87,11 @@ bench: $(BENCH_BINS)
 		echo; \
 	done
 
-# Build with sanitizers
+# Build and test with sanitizers (UBSan; add address for ASan if supported)
 .PHONY: sanitize
-sanitize: CFLAGS += -fsanitize=address,undefined -fno-omit-frame-pointer -g
-sanitize: LDFLAGS += -fsanitize=address,undefined
-sanitize: clean all
+sanitize: CFLAGS += -fsanitize=undefined -fno-omit-frame-pointer -g -O1
+sanitize: LDFLAGS += -fsanitize=undefined
+sanitize: clean test
 
 # Clean
 .PHONY: clean

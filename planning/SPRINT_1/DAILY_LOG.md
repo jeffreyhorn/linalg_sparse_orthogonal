@@ -251,3 +251,37 @@
 - Headers now serve as comprehensive API documentation
 - The algorithm doc covers all four bugs found during the project and their fixes
 - README performance table uses actual benchmark data from Day 6
+
+## Day 8 — Polish, Edge Cases & Hardening
+
+### Completed
+- **Compiler warning audit**: Zero warnings across library, all 6 test suites, and all 3 benchmarks with `-Wall -Wextra -Wpedantic -Wshadow -Wconversion`
+- **UBSan testing**: All tests pass under `-fsanitize=undefined` with zero undefined behavior detected
+  - ASan (`-fsanitize=address`) hangs on this macOS/sandbox environment even for trivial programs — this is a platform limitation, not a code issue
+  - Updated Makefile `sanitize` target to use UBSan only
+- Created `tests/test_edge_cases.c` — 20 edge case tests:
+  - **1x1 matrices**: complete lifecycle (create/factor/solve/refine with both pivot strategies), extreme values (large and small), matvec
+  - **Single non-zero**: off-diagonal singular detection, single diagonal element singular
+  - **Diagonal extremes**: multi-scale diagonal (1e-10 to 1e10) solve, negative diagonal values
+  - **Empty matrices**: copy empty, factor-singular detection, info accessors
+  - **Negative indices**: remove, set, get all reject with SPARSE_ERR_BOUNDS
+  - **Large/small values**: 2x2 solves with 1e150 and 1e-10 coefficients
+  - **Modification**: deep copy independence through multiple mutations, insert/remove/re-insert same position
+  - **Permutation**: perm/inv_perm consistency check after 6x6 factorization, factor with both strategies agree
+  - **Free-list stress**: insert 2500 elements, remove all, re-insert — memory unchanged (slab reuse verified)
+- Updated Makefile and CMakeLists.txt for new test target
+- Reviewed `archive/` directory — already has comprehensive README from Day 1
+
+### Test Results
+- `test_sparse_matrix`: 31/31 passed, 166 assertions
+- `test_sparse_lu`: 24/24 passed, 84 assertions
+- `test_sparse_io`: 18/18 passed, 142 assertions
+- `test_known_matrices`: 15/15 passed, 41 assertions
+- `test_sparse_vector`: 24/24 passed, 52 assertions
+- `test_edge_cases`: 20/20 passed, 114 assertions
+- **Total: 132 unit tests, 599 assertions, all passing**
+
+### Notes
+- Discovered that backward_sub's `|u_ii| < DROP_TOL` check acts as an absolute threshold — values below 1e-14 are treated as singular regardless of the problem's scale. This is a known limitation documented in the algorithm description.
+- The free-list reuse test confirms that after removing all 2500 entries and re-inserting, no additional slab allocations occur — memory_usage is identical.
+- All 132 tests also pass under UBSan

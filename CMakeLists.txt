@@ -52,7 +52,8 @@ endfunction()
 # Test executables
 add_sparse_test(test_sparse_matrix)
 add_sparse_test(test_sparse_lu)
-# add_sparse_test(test_sparse_io)
+add_sparse_test(test_sparse_io)
+add_sparse_test(test_known_matrices)
 # add_sparse_test(test_integration)
 
 # Benchmarks (not part of ctest)

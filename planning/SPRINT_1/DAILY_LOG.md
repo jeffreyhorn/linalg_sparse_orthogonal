@@ -100,3 +100,43 @@
 - The column permutation bug was latent — small test matrices happened to produce self-inverse permutations (simple swaps), masking the error
 - The tridiagonal n=20 test exposed the bug because complete pivoting produced a complex permutation
 - This is the fourth major bug found (after bugs 3.1, 3.3, 3.6 from the initial review)
+
+## Day 4 — Matrix Market I/O Tests & Reference Test Matrices
+
+### Completed
+- Created 8 reference test matrices in `tests/data/`:
+  - `identity_5.mtx` — 5x5 identity
+  - `diagonal_10.mtx` — 10x10 diagonal (d[i] = i+1)
+  - `tridiagonal_20.mtx` — 20x20 Poisson-1D tridiagonal (-1, 2, -1)
+  - `symmetric_4.mtx` — 4x4 symmetric (tests MM symmetric mirroring)
+  - `pattern_3.mtx` — 3x3 pattern-only (tests MM pattern format)
+  - `bcsstk01.mtx` — 6x6 SPD structural engineering matrix (two 3x3 blocks, inspired by BCS collection)
+  - `unsymm_5.mtx` — 5x5 unsymmetric diag-dominant matrix
+  - `bad_header.mtx` — deliberately invalid file for error testing
+- Created `tests/test_sparse_io.c` — 18 I/O tests:
+  - Round-trip: basic, single element, rectangular, precision (1e300 / 1e-300), nnz preservation
+  - Loading test data: identity, diagonal, symmetric (with mirroring), pattern (values = 1.0)
+  - Error paths: nonexistent file, bad header, null args (save and load), invalid path
+  - Edge cases: 1x1 matrix, empty matrix (nnz=0), negative values, round-trip after LU permutation
+- Created `tests/test_known_matrices.c` — 15 tests loading reference matrices:
+  - Identity (complete + partial pivot)
+  - Diagonal (complete + partial)
+  - Tridiagonal (complete + partial + refined)
+  - Symmetric (complete + partial)
+  - bcsstk01-inspired (complete + refined)
+  - Unsymmetric (complete + partial)
+  - Solution accuracy checks (compare x against known x_exact = [1,...,1])
+- Updated Makefile and CMakeLists.txt for new test targets
+
+### Test Results
+- `test_sparse_matrix`: 31/31 passed, 166 assertions
+- `test_sparse_lu`: 24/24 passed, 84 assertions
+- `test_sparse_io`: 18/18 passed, 142 assertions
+- `test_known_matrices`: 15/15 passed, 41 assertions
+- **Total: 88 unit tests, 433 assertions, all passing**
+
+### Notes
+- Caught an off-by-one in the hand-crafted bcsstk01.mtx (header said 13 nnz but file had 12 entries)
+- `%.15g` format in `sparse_save_mm` preserves double-precision values through round-trip
+- Both pivoting strategies produce correct results for all reference matrices
+- The bcsstk01-inspired matrix has entries of order 1e6, validating that the solver handles diverse magnitudes

@@ -202,3 +202,52 @@
 - All 112 unit tests still pass
 - Benchmarks are informational (not part of `make test`)
 - The O(n^3) complete pivoting search dominates for larger matrices; partial pivoting is strongly preferred for banded/structured matrices
+
+## Day 7 — Documentation & README
+
+### Completed
+- Created `README.md`:
+  - Project description and features
+  - Build instructions (Make and CMake)
+  - Quick start example (create, factor, solve, refine)
+  - API overview table linking to all four headers
+  - Key function summary
+  - Performance characteristics table with benchmark data
+  - Complexity notes
+  - Known limitations section
+  - Testing summary (112 tests, 485 assertions)
+  - Project structure diagram
+- Added Doxygen-style comments to all public functions in all four headers:
+  - `sparse_types.h` — file brief, enum documentation, `sparse_strerror`
+  - `sparse_matrix.h` — file brief, tuning constants, all 22 function prototypes documented with `@brief`, `@param`, `@return`, `@note`
+  - `sparse_lu.h` — file brief, usage example in `@code` block, all 8 function prototypes documented
+  - `sparse_vector.h` — file brief, NULL-safety noted, all 6 function prototypes documented
+- Created `docs/algorithm.md`:
+  - Orthogonal linked-list data structure description with Node struct
+  - Advantages and trade-offs vs CSR/CSC
+  - Slab pool allocator with free-list mechanism
+  - Permutation array documentation (4 arrays, invariants)
+  - LU factorization pseudocode with pivot selection
+  - Snapshot mechanism explanation (Bug 3.1 fix)
+  - Forward substitution fix explanation (Bug 3.3 fix)
+  - Full solve procedure (4-step chain)
+  - Iterative refinement algorithm
+  - Complexity analysis tables (space and time)
+  - Fill-in behavior table by matrix type
+  - Drop tolerance discussion
+- Created `docs/matrix_market.md`:
+  - Supported read/write features table
+  - Symmetry handling (automatic mirroring)
+  - Pattern matrix handling (value = 1.0)
+  - Unsupported features (array, complex, skew-symmetric, Hermitian)
+  - File format reference with examples
+  - Reference test matrix table
+  - SuiteSparse usage guide
+
+### Test Results
+- All 112 tests pass, 485 assertions — no regressions from header documentation changes
+
+### Notes
+- Headers now serve as comprehensive API documentation
+- The algorithm doc covers all four bugs found during the project and their fixes
+- README performance table uses actual benchmark data from Day 6

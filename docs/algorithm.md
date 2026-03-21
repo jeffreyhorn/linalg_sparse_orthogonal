@@ -1,0 +1,193 @@
+# Algorithm Description
+
+## Orthogonal Linked-List Data Structure
+
+The library stores sparse matrices in an **orthogonal linked-list** (also called a cross-linked list) representation. Each non-zero entry is a `Node` containing:
+
+```
+struct Node {
+    idx_t   row, col;     // physical position
+    double  value;
+    Node   *right;        // next non-zero in this row (by column)
+    Node   *down;         // next non-zero in this column (by row)
+};
+```
+
+Each node belongs to two sorted linked lists simultaneously:
+- A **row list** linking all non-zeros in the same row, sorted by column index
+- A **column list** linking all non-zeros in the same column, sorted by row index
+
+The matrix struct maintains header arrays `row_headers[0..m-1]` and `col_headers[0..n-1]` pointing to the first node in each row/column list.
+
+### Advantages
+
+- **Efficient row and column traversal** — both are O(nnz_row) or O(nnz_col)
+- **Efficient element insertion and deletion** — O(nnz_row + nnz_col) worst case
+- **Natural for LU factorization** — elimination needs both row and column access
+- **No reallocation on fill-in** — new nodes are allocated from the pool
+
+### Trade-offs
+
+- Higher per-element overhead than CSR/CSC (two pointers per node vs. one index)
+- Pointer chasing limits cache performance for SpMV compared to compressed formats
+- Not suitable for extremely large matrices where CSR/CSC memory density matters
+
+## Memory Management: Slab Pool Allocator
+
+Nodes are allocated from a slab pool with a free-list:
+
+1. **Slabs**: Fixed-size arrays of `NODES_PER_SLAB` (default 4096) nodes, allocated via `malloc` and chained together.
+
+2. **Allocation**: `pool_alloc()` first checks the free-list; if empty, it bumps the `used` counter in the current slab; if the slab is full, a new slab is allocated.
+
+3. **Deallocation**: `pool_release()` pushes the node onto the free-list (using the `right` pointer as the free-list link). The node is not zeroed — it is simply reused on the next allocation.
+
+4. **Bulk free**: `pool_free_all()` walks the slab chain and frees each slab. Called by `sparse_free()`.
+
+This design avoids per-node `malloc`/`free` calls, which is critical during LU factorization where thousands of nodes may be created and destroyed.
+
+## Permutation Arrays
+
+The matrix maintains four permutation arrays of length n (for square matrices):
+
+| Array | Mapping | Purpose |
+|-------|---------|---------|
+| `row_perm[i]` | logical row i → physical row | Encodes P in P·A·Q = L·U |
+| `inv_row_perm[j]` | physical row j → logical row | Inverse of row_perm |
+| `col_perm[i]` | logical col i → physical col | Encodes Q in P·A·Q = L·U |
+| `inv_col_perm[j]` | physical col j → logical col | Inverse of col_perm |
+
+Invariant: `row_perm[inv_row_perm[j]] == j` and `inv_row_perm[row_perm[i]] == i` for all i, j.
+
+Initially all permutations are the identity. During LU factorization, pivoting swaps entries in these arrays.
+
+## LU Factorization Algorithm
+
+The factorization computes P·A·Q = L·U where:
+- P is a row permutation (always applied)
+- Q is a column permutation (identity for partial pivoting, non-trivial for complete pivoting)
+- L is unit lower triangular (1s on diagonal, stored below diagonal)
+- U is upper triangular (stored on and above diagonal)
+
+### Pseudocode
+
+```
+for k = 0 to n-1:
+    // 1. Pivot selection
+    if COMPLETE pivoting:
+        find (p, q) = argmax |A(i, j)| for i >= k, j >= k  (in logical space)
+        swap logical rows k ↔ p
+        swap logical cols k ↔ q
+    else (PARTIAL pivoting):
+        find p = argmax |A(i, k)| for i >= k  (in logical space, column k only)
+        swap logical rows k ↔ p
+
+    // 2. Check pivot
+    pivot = A(k, k)   // logical (k,k) = physical (row_perm[k], col_perm[k])
+    if |pivot| < tol:
+        return SINGULAR
+
+    // 3. Snapshot: collect physical row indices that need elimination
+    snapshot = [physical rows in column col_perm[k] with logical row > k]
+
+    // 4. Elimination
+    for each physical row pr in snapshot:
+        logical_row = inv_row_perm[pr]
+        multiplier = A(logical_row, k) / pivot
+        A(logical_row, k) = multiplier       // store L entry
+
+        // Subtract multiplier * (pivot row) from this row
+        for each entry (k, j) in logical pivot row where j > k:
+            A(logical_row, j) -= multiplier * A(k, j)
+            // Drop if |value| < DROP_TOL * |pivot|
+```
+
+### Snapshot Mechanism (Bug 3.1 Fix)
+
+The elimination loop modifies entries in the pivot column, which changes the column list being traversed. To avoid corrupted traversal, the algorithm **snapshots** all physical row indices that need elimination before the loop begins. This is stored in a temporary array allocated once and reused for each pivot step.
+
+### Forward Substitution (Bug 3.3 Fix)
+
+Forward substitution solves L·y = b where L is unit lower triangular:
+
+```
+for i = 0 to n-1:
+    y[i] = b[i]
+    // Walk entire row i, accumulating L entries where col < i
+    for each entry (i, j) in logical row i:
+        if j < i:
+            y[i] -= L(i, j) * y[j]
+```
+
+The key fix: the row is traversed completely without early termination. In the orthogonal list, entries are stored in physical column order, which may not correspond to logical column order after pivoting. An early `break` on `j >= i` would miss L entries stored after U entries in the physical list.
+
+## Solve Procedure
+
+Given the factored matrix (containing L and U) with permutations P and Q:
+
+```
+Solve A*x = b:
+    1. pb = P * b              // pb[i] = b[row_perm[i]]
+    2. Solve L * y = pb        // forward substitution
+    3. Solve U * z = y         // backward substitution
+    4. x = Q * z               // x[i] = z[inv_col_perm[i]]
+```
+
+Step 4 uses `inv_col_perm` (not `col_perm`) because Q maps logical to physical columns, and we need the inverse to go from the factored column space back to the original.
+
+## Iterative Refinement
+
+Given the original matrix A, the LU factorization, and an initial solution x:
+
+```
+for iter = 1 to max_iters:
+    r = b - A * x              // residual (using original A, not LU)
+    if ||r|| / ||b|| < tol:
+        break
+    Solve A * d = r using LU   // correction
+    x = x + d                  // update
+```
+
+This exploits the fact that the LU factorization can be reused for multiple solves. The SpMV with the original matrix provides a more accurate residual than working with the L and U factors.
+
+## Complexity Analysis
+
+### Space
+
+| Component | Cost |
+|-----------|------|
+| Node storage | 2 × sizeof(pointer) + sizeof(double) + 2 × sizeof(idx_t) per non-zero ≈ 32 bytes/nnz |
+| Row/column headers | 2 × n × sizeof(pointer) |
+| Permutation arrays | 4 × n × sizeof(idx_t) |
+| Pool slabs | Rounded up to NODES_PER_SLAB granularity |
+
+### Time
+
+| Operation | Complexity | Notes |
+|-----------|-----------|-------|
+| Insert/remove | O(nnz_row + nnz_col) | List traversal to find position |
+| Get (physical) | O(nnz_row) | Row list scan |
+| SpMV (y = A*x) | O(nnz) | One pass over all entries |
+| LU factor (partial) | O(nnz × n) worst case | Depends on fill-in; O(nnz) for banded |
+| LU factor (complete) | O(n^2 × nnz) worst case | Submatrix search at each step |
+| Forward/backward sub | O(nnz_LU) | Traversal of L or U entries |
+| Iterative refinement | O(k × (nnz + nnz_LU)) | k iterations, one SpMV + one solve each |
+
+### Fill-in Behavior
+
+Fill-in during LU factorization depends heavily on matrix structure and pivoting:
+
+| Matrix type | Partial pivoting fill-in | Complete pivoting fill-in |
+|-------------|-------------------------|--------------------------|
+| Tridiagonal | 1.0x (no fill-in) | ~1.6x |
+| Pentadiagonal | ~1.5x | ~2-3x |
+| Arrow | Catastrophic (→ 100% dense) | Catastrophic |
+| Random sparse (k=5/row) | ~2-5x | ~3-8x |
+
+Fill-reducing reordering (AMD, RCM, etc.) is not currently implemented. For matrices with significant fill-in, consider reordering before factorization in a future version.
+
+## Drop Tolerance
+
+During elimination, new fill-in entries with |value| < DROP_TOL × |pivot| are dropped (not inserted). This controls memory growth at the expense of factorization accuracy. The default DROP_TOL of 1e-14 is conservative — it drops only entries that are negligible relative to the pivot, preserving near-exact arithmetic.
+
+For matrices where fill-in is a concern, a larger drop tolerance (e.g., 1e-8) can significantly reduce memory usage while maintaining acceptable accuracy, especially when followed by iterative refinement.

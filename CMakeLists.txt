@@ -57,7 +57,7 @@ add_sparse_test(test_sparse_io)
 add_sparse_test(test_known_matrices)
 add_sparse_test(test_sparse_vector)
 add_sparse_test(test_edge_cases)
-# add_sparse_test(test_integration)
+add_sparse_test(test_integration)
 
 # Benchmarks (not part of ctest)
 add_executable(bench_main benchmarks/bench_main.c)

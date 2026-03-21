@@ -285,3 +285,42 @@
 - Discovered that backward_sub's `|u_ii| < DROP_TOL` check acts as an absolute threshold — values below 1e-14 are treated as singular regardless of the problem's scale. This is a known limitation documented in the algorithm description.
 - The free-list reuse test confirms that after removing all 2500 entries and re-inserting, no additional slab allocations occur — memory_usage is identical.
 - All 132 tests also pass under UBSan
+
+## Day 9 — Integration Testing, CI Setup & Sprint Retrospective
+
+### Completed
+- Created `tests/test_integration.c` — 7 end-to-end integration tests:
+  - **Load → factor → solve → residual → save**: loads tridiagonal_20.mtx, solves with known RHS, checks residual < 1e-12, saves and reloads
+  - **Create → copy → factor → solve → refine → verify**: builds 10x10 pentadiagonal programmatically, preserves original via copy, solves, refines, checks solution accuracy
+  - **Multiple RHS**: loads symmetric_4.mtx, factors once, solves with 3 different RHS vectors, checks all residuals
+  - **Full round-trip**: creates 8x8 matrix, saves to MM, loads back, compares element-by-element, solves both and compares solutions
+  - **All reference matrices**: loops over all 6 solvable reference matrices, factors and solves each with partial pivoting, checks relative residual
+  - **Both pivots agree**: builds 15x15 matrix, solves with complete and partial pivoting, verifies solutions match
+  - **Error recovery**: attempts singular factorization, handles error, then successfully factors and solves a different matrix
+- Created `scripts/ci.sh` — CI script with options:
+  - `--sanitize` to run UBSan build
+  - `--bench` to run benchmarks (informational)
+  - Reports pass/fail status
+- Created `planning/SPRINT_1/RETROSPECTIVE.md`:
+  - Definition of Done checklist (all 12 items complete)
+  - Full review of all initial-review.md items with status (40+ items, all addressed or explicitly deferred)
+  - 5 bugs found during sprint documented with fix descriptions
+  - Final metrics table
+  - 9 Sprint 2 candidate items
+  - 5 lessons learned
+- Updated Makefile and CMakeLists.txt for integration test target
+
+### Test Results
+- `test_sparse_matrix`: 31/31 passed, 166 assertions
+- `test_sparse_lu`: 24/24 passed, 84 assertions
+- `test_sparse_io`: 18/18 passed, 142 assertions
+- `test_known_matrices`: 15/15 passed, 41 assertions
+- `test_sparse_vector`: 24/24 passed, 52 assertions
+- `test_edge_cases`: 20/20 passed, 114 assertions
+- `test_integration`: 7/7 passed, 184 assertions
+- **Total: 139 unit tests, 783 assertions, all passing**
+
+### Notes
+- Sprint 1 is complete. All items from the Definition of Done are satisfied.
+- The only review item deferred is errno preservation (4.4) — low priority.
+- Key Sprint 2 candidates: condition number estimation, Cholesky for SPD, fill-reducing reordering, relative drop tolerance.

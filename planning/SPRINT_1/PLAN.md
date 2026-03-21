@@ -1,4 +1,4 @@
-# Sprint 1 Plan: sparse_lu_orthogonal Library
+# Sprint 1 Plan: linalg_sparse_orthogonal Library
 
 **Sprint Duration:** 14 days
 **Goal:** Transform the prototype code into a proper C library with separated concerns, a build system, comprehensive tests, and bug fixes for all correctness issues identified in the initial review.
@@ -16,7 +16,7 @@
 ### Tasks
 1. Create directory structure:
    ```
-   sparse_lu_orthogonal/
+   linalg_sparse_orthogonal/
    ├── include/           # Public headers
    ├── src/               # Library implementation
    ├── tests/             # Unit tests

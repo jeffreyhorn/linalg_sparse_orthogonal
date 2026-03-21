@@ -1,4 +1,4 @@
-# sparse_lu_orthogonal
+# linalg_sparse_orthogonal
 
 A C library for sparse matrices using the **orthogonal linked-list** (cross-linked) representation, with LU decomposition and direct linear system solving.
 
@@ -154,7 +154,7 @@ make smoke   # quick smoke test
 ## Project Structure
 
 ```
-sparse_lu_orthogonal/
+linalg_sparse_orthogonal/
 ├── include/              Public headers
 │   ├── sparse_types.h
 │   ├── sparse_matrix.h

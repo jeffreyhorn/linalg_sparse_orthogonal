@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# CI script for sparse_lu_orthogonal
+# CI script for linalg_sparse_orthogonal
 #
 # Usage: ./scripts/ci.sh [--bench] [--sanitize]
 #
@@ -23,7 +23,7 @@ for arg in "$@"; do
 done
 
 echo "========================================"
-echo "  sparse_lu_orthogonal CI"
+echo "  linalg_sparse_orthogonal CI"
 echo "========================================"
 echo
 

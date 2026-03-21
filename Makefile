@@ -1,4 +1,4 @@
-# Makefile for sparse_lu_orthogonal
+# Makefile for linalg_sparse_orthogonal
 # Simple alternative to CMake for quick builds
 
 CC      = cc

@@ -1,8 +1,8 @@
-# Initial Code Review: sparse_lu_orthogonal
+# Initial Code Review: linalg_sparse_orthogonal
 
 **Date:** 2026-03-21
 **Reviewer:** Claude (automated review)
-**Scope:** All 7 source files in `sparse_lu_orthogonal/`
+**Scope:** All 7 source files in `linalg_sparse_orthogonal/`
 
 ---
 

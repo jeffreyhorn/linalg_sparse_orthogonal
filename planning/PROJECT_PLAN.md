@@ -1,4 +1,4 @@
-# Project Plan: sparse_lu_orthogonal — Sprints 2–4
+# Project Plan: linalg_sparse_orthogonal — Sprints 2–4
 
 Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into sprints with logical dependency ordering.
 

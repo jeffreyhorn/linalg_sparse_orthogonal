@@ -140,3 +140,33 @@
 - `%.15g` format in `sparse_save_mm` preserves double-precision values through round-trip
 - Both pivoting strategies produce correct results for all reference matrices
 - The bcsstk01-inspired matrix has entries of order 1e6, validating that the solver handles diverse magnitudes
+
+## Day 5 — Vector Utilities, SpMV Tests & Iterative Refinement Tests
+
+### Completed
+- Created `include/sparse_vector.h` and `src/sparse_vector.c` — dense vector utility module:
+  - `vec_norm2(v, n)` — 2-norm
+  - `vec_norminf(v, n)` — infinity-norm
+  - `vec_axpy(a, x, y, n)` — y += a*x
+  - `vec_copy(src, dst, n)` — copy
+  - `vec_zero(v, n)` — zero fill
+  - `vec_dot(x, y, n)` — dot product
+  - All functions are NULL-safe (no-op on NULL inputs)
+- Created `tests/test_sparse_vector.c` — 24 tests:
+  - Vector utilities: norm2, norminf, axpy, copy, zero, dot (basic, edge cases, null safety)
+  - SpMV: comparison vs dense matvec, rectangular matrix, empty matrix, extreme values (1e15 / 1e-15)
+  - Iterative refinement: ill-conditioned 8x8 Hilbert-like system, zero RHS, multiple RHS with same factorization
+- Updated Makefile and CMakeLists.txt: added sparse_vector.c to library sources, test_sparse_vector to test targets
+
+### Test Results
+- `test_sparse_matrix`: 31/31 passed, 166 assertions
+- `test_sparse_lu`: 24/24 passed, 84 assertions
+- `test_sparse_io`: 18/18 passed, 142 assertions
+- `test_known_matrices`: 15/15 passed, 41 assertions
+- `test_sparse_vector`: 24/24 passed, 52 assertions
+- **Total: 112 unit tests, 485 assertions, all passing**
+
+### Notes
+- SpMV and iterative refinement were already implemented; this day added the vector utility module and comprehensive tests
+- The ill-conditioned test verifies that refinement does not degrade the solution and achieves residual < 1e-12
+- Multiple-RHS test validates that the same LU factorization can be reused for different right-hand sides

@@ -29,6 +29,7 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_types.c
     src/sparse_matrix.c
     src/sparse_lu.c
+    src/sparse_vector.c
 )
 
 target_include_directories(sparse_lu_ortho
@@ -54,6 +55,7 @@ add_sparse_test(test_sparse_matrix)
 add_sparse_test(test_sparse_lu)
 add_sparse_test(test_sparse_io)
 add_sparse_test(test_known_matrices)
+add_sparse_test(test_sparse_vector)
 # add_sparse_test(test_integration)
 
 # Benchmarks (not part of ctest)

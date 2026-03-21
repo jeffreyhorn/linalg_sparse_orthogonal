@@ -18,7 +18,14 @@ typedef enum {
     SPARSE_ERR_FREAD    = 6,   /* File read failure */
     SPARSE_ERR_FWRITE   = 7,   /* File write failure */
     SPARSE_ERR_PARSE    = 8,   /* File format parse error */
+    SPARSE_ERR_SHAPE    = 9,   /* Matrix shape mismatch (e.g., non-square for LU) */
 } sparse_err_t;
+
+/* Pivoting strategy for LU factorization */
+typedef enum {
+    SPARSE_PIVOT_COMPLETE = 0,   /* Complete pivoting (max over entire submatrix) */
+    SPARSE_PIVOT_PARTIAL  = 1,   /* Partial pivoting (max in pivot column only) */
+} sparse_pivot_t;
 
 /* Return a human-readable string for an error code */
 const char *sparse_strerror(sparse_err_t err);

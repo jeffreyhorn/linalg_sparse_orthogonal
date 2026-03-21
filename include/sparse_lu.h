@@ -4,17 +4,26 @@
 #include "sparse_matrix.h"
 
 /*
- * LU decomposition with complete pivoting: P * A * Q = L * U
+ * LU decomposition: P * A * Q = L * U
  *
  * The factorization is performed in-place: after calling sparse_lu_factor,
  * the matrix stores L (below diagonal, unit diagonal not stored) and
  * U (on and above diagonal). The permutations P and Q are stored in the
  * matrix's row_perm and col_perm arrays.
  *
- * tol: pivot tolerance. If the largest pivot candidate is < tol,
- *      the matrix is declared singular and SPARSE_ERR_SINGULAR is returned.
+ * pivot: pivoting strategy (SPARSE_PIVOT_COMPLETE or SPARSE_PIVOT_PARTIAL).
+ *        Complete pivoting searches the entire remaining submatrix for the
+ *        largest element. Partial pivoting only searches the pivot column,
+ *        which is faster but may be less numerically stable.
+ *        With partial pivoting, Q is identity (no column permutation).
+ *
+ * tol:   pivot tolerance. If the largest pivot candidate is < tol,
+ *        the matrix is declared singular and SPARSE_ERR_SINGULAR is returned.
+ *
+ * Returns SPARSE_ERR_SHAPE if the matrix is not square.
  */
-sparse_err_t sparse_lu_factor(SparseMatrix *mat, double tol);
+sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot,
+                              double tol);
 
 /*
  * Solve A*x = b using a previously factored matrix.

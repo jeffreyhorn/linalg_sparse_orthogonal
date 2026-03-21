@@ -4,6 +4,25 @@
 #include "sparse_types.h"
 #include <stdio.h>
 
+/*
+ * Tuning constants (override at compile time with -D if needed):
+ *
+ * SPARSE_NODES_PER_SLAB — number of Node entries per slab in the pool
+ *                         allocator. Larger values reduce malloc overhead
+ *                         but may waste memory for small matrices.
+ *
+ * SPARSE_DROP_TOL       — entries with |value| < DROP_TOL * pivot are
+ *                         dropped to zero during LU factorization to
+ *                         reduce fill-in.
+ */
+#ifndef SPARSE_NODES_PER_SLAB
+#define SPARSE_NODES_PER_SLAB 4096
+#endif
+
+#ifndef SPARSE_DROP_TOL
+#define SPARSE_DROP_TOL 1e-14
+#endif
+
 /* Opaque sparse matrix type */
 typedef struct SparseMatrix SparseMatrix;
 

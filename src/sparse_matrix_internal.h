@@ -6,10 +6,10 @@
  * sparse_lu.c. NOT part of the public API.
  */
 
-#include "sparse_types.h"
+#include "sparse_matrix.h"  /* picks up SPARSE_NODES_PER_SLAB, SPARSE_DROP_TOL */
 
-#define NODES_PER_SLAB 4096
-#define DROP_TOL       1e-14
+#define NODES_PER_SLAB SPARSE_NODES_PER_SLAB
+#define DROP_TOL       SPARSE_DROP_TOL
 
 typedef struct Node {
     idx_t row;

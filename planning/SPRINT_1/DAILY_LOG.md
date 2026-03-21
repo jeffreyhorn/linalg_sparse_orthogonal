@@ -30,3 +30,28 @@
 - Pool allocator now includes a free-list for node reuse
 - API uses `const` correctness and `sparse_err_t` throughout
 - Rectangular matrices are supported in the data structure (`sparse_create(rows, cols)`)
+
+## Day 2 — Header Files & API Design (Review & Polish)
+
+### Completed
+- Reviewed all 3 headers and 3 implementation files against the Day 2 plan
+- Added `sparse_pivot_t` enum (`SPARSE_PIVOT_COMPLETE`, `SPARSE_PIVOT_PARTIAL`) to `sparse_types.h`
+- Updated `sparse_lu_factor` signature to accept a pivoting strategy parameter
+- Implemented partial pivoting in `sparse_lu.c` (searches only the pivot column)
+- Added `SPARSE_ERR_SHAPE` error code for non-square matrix passed to LU
+- Moved tuning constants to public header as overridable defines:
+  - `SPARSE_NODES_PER_SLAB` (default 4096) — pool slab size
+  - `SPARSE_DROP_TOL` (default 1e-14) — fill-in drop tolerance
+- Internal header now derives `NODES_PER_SLAB` / `DROP_TOL` from public defines
+- Added symmetric and pattern-only Matrix Market format support in `sparse_load_mm`
+- Created `tests/smoke_test.c` — end-to-end verification:
+  - Builds, links, and runs against the library
+  - Tests complete pivoting, partial pivoting, copy, solve, residual, iterative refinement, and MM round-trip
+  - All pass with zero residual
+- Updated Makefile with generic test build rule and `make smoke` target
+
+### Notes
+- Most Day 2 work (headers, API design) was already done in Day 1
+- Day 2 focused on reviewing for gaps and adding missing features from the plan
+- Both pivoting strategies produce the correct solution for the 3x3 test matrix
+- Days 3-6 from the original plan are also substantially complete

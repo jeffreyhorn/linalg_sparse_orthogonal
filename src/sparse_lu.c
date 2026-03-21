@@ -24,13 +24,14 @@ static void swap_col_perm(SparseMatrix *mat, idx_t log_a, idx_t log_b)
     mat->inv_col_perm[mat->col_perm[log_b]] = log_b;
 }
 
-/* ─── LU factorization with complete pivoting ────────────────────────── */
+/* ─── LU factorization ───────────────────────────────────────────────── */
 
-sparse_err_t sparse_lu_factor(SparseMatrix *mat, double tol)
+sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot,
+                              double tol)
 {
     if (!mat) return SPARSE_ERR_NULL;
     idx_t n = mat->rows;
-    if (n != mat->cols) return SPARSE_ERR_BOUNDS;  /* LU requires square */
+    if (n != mat->cols) return SPARSE_ERR_SHAPE;
 
     /*
      * Temporary buffer for collecting rows to eliminate.
@@ -41,14 +42,15 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, double tol)
     if (!elim_rows) return SPARSE_ERR_ALLOC;
 
     for (idx_t k = 0; k < n; k++) {
-        /* ── Pivot search: find max |A[i,j]| for logical i>=k, j>=k ── */
+        /* ── Pivot search ── */
         double max_val = 0.0;
         idx_t pivot_log_row = k;
         idx_t pivot_log_col = k;
 
-        for (idx_t log_j = k; log_j < n; log_j++) {
-            idx_t phys_j = mat->col_perm[log_j];
-            Node *curr = mat->col_headers[phys_j];
+        if (pivot == SPARSE_PIVOT_PARTIAL) {
+            /* Partial pivoting: search only the pivot column (log col k) */
+            idx_t phys_k = mat->col_perm[k];
+            Node *curr = mat->col_headers[phys_k];
             while (curr) {
                 idx_t log_i = mat->inv_row_perm[curr->row];
                 if (log_i >= k) {
@@ -56,10 +58,27 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, double tol)
                     if (av > max_val) {
                         max_val = av;
                         pivot_log_row = log_i;
-                        pivot_log_col = log_j;
                     }
                 }
                 curr = curr->down;
+            }
+        } else {
+            /* Complete pivoting: search entire remaining submatrix */
+            for (idx_t log_j = k; log_j < n; log_j++) {
+                idx_t phys_j = mat->col_perm[log_j];
+                Node *curr = mat->col_headers[phys_j];
+                while (curr) {
+                    idx_t log_i = mat->inv_row_perm[curr->row];
+                    if (log_i >= k) {
+                        double av = fabs(curr->value);
+                        if (av > max_val) {
+                            max_val = av;
+                            pivot_log_row = log_i;
+                            pivot_log_col = log_j;
+                        }
+                    }
+                    curr = curr->down;
+                }
             }
         }
 
@@ -68,10 +87,10 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, double tol)
             return SPARSE_ERR_SINGULAR;
         }
 
-        /* ── Swap rows and columns ── */
+        /* ── Swap rows (always) and columns (complete pivoting only) ── */
         if (pivot_log_row != k)
             swap_row_perm(mat, k, pivot_log_row);
-        if (pivot_log_col != k)
+        if (pivot == SPARSE_PIVOT_COMPLETE && pivot_log_col != k)
             swap_col_perm(mat, k, pivot_log_col);
 
         /* ── Snapshot: collect logical row indices for elimination ── */

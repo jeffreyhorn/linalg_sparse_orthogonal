@@ -12,6 +12,7 @@ const char *sparse_strerror(sparse_err_t err)
     case SPARSE_ERR_FREAD:    return "file read error";
     case SPARSE_ERR_FWRITE:   return "file write error";
     case SPARSE_ERR_PARSE:    return "file format parse error";
+    case SPARSE_ERR_SHAPE:    return "matrix shape mismatch";
     }
     return "unknown error";
 }

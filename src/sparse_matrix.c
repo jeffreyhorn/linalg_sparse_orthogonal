@@ -382,6 +382,10 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename)
         return SPARSE_ERR_PARSE;
     }
 
+    /* Detect symmetric and pattern-only formats from the header */
+    int is_symmetric = (strstr(line, "symmetric") != NULL);
+    int is_pattern   = (strstr(line, "pattern")   != NULL);
+
     /* Skip comment lines */
     while (fgets(line, (int)sizeof(line), fp)) {
         if (line[0] != '%') break;
@@ -402,11 +406,19 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename)
 
     for (idx_t k = 0; k < nnz_file; k++) {
         idx_t i, j;
-        double v;
-        if (fscanf(fp, "%" PRId32 " %" PRId32 " %lf", &i, &j, &v) != 3) {
-            sparse_free(mat);
-            fclose(fp);
-            return SPARSE_ERR_FREAD;
+        double v = 1.0;  /* default for pattern matrices */
+        if (is_pattern) {
+            if (fscanf(fp, "%" PRId32 " %" PRId32, &i, &j) != 2) {
+                sparse_free(mat);
+                fclose(fp);
+                return SPARSE_ERR_FREAD;
+            }
+        } else {
+            if (fscanf(fp, "%" PRId32 " %" PRId32 " %lf", &i, &j, &v) != 3) {
+                sparse_free(mat);
+                fclose(fp);
+                return SPARSE_ERR_FREAD;
+            }
         }
         i--;  /* 1-based -> 0-based */
         j--;
@@ -416,6 +428,15 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename)
                 sparse_free(mat);
                 fclose(fp);
                 return err;
+            }
+            /* For symmetric matrices, also insert the mirror entry */
+            if (is_symmetric && i != j && j < m && i < n) {
+                err = sparse_insert(mat, j, i, v);
+                if (err != SPARSE_OK) {
+                    sparse_free(mat);
+                    fclose(fp);
+                    return err;
+                }
             }
         }
     }

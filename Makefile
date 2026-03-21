@@ -51,13 +51,18 @@ $(BUILDDIR)/%.o: $(SRCDIR)/%.c | $(BUILDDIR)
 $(LIB): $(LIB_OBJS)
 	ar rcs $@ $^
 
-# Test executables
-$(BUILDDIR)/test_%: $(TESTDIR)/test_%.c $(LIB) | $(BUILDDIR)
+# Test executables (any .c in tests/)
+$(BUILDDIR)/%: $(TESTDIR)/%.c $(LIB) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
 
 # Benchmark executables
 $(BUILDDIR)/bench_%: $(BENCHDIR)/bench_%.c $(LIB) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(INCLUDE) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
+
+# Smoke test
+.PHONY: smoke
+smoke: $(BUILDDIR)/smoke_test
+	$(BUILDDIR)/smoke_test
 
 # Run all tests
 .PHONY: test

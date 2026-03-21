@@ -32,10 +32,11 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_sparse_vector.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
-# Benchmark sources (uncomment as created)
-# BENCH_SRCS = $(BENCHDIR)/bench_main.c \
-#              $(BENCHDIR)/bench_scaling.c
-# BENCH_BINS = $(patsubst $(BENCHDIR)/%.c,$(BUILDDIR)/%,$(BENCH_SRCS))
+# Benchmark sources
+BENCH_SRCS = $(BENCHDIR)/bench_main.c \
+             $(BENCHDIR)/bench_scaling.c \
+             $(BENCHDIR)/bench_fillin.c
+BENCH_BINS = $(patsubst $(BENCHDIR)/%.c,$(BUILDDIR)/%,$(BENCH_SRCS))
 
 # Default target
 .PHONY: all

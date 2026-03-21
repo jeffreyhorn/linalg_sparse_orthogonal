@@ -170,3 +170,35 @@
 - SpMV and iterative refinement were already implemented; this day added the vector utility module and comprehensive tests
 - The ill-conditioned test verifies that refinement does not degrade the solution and achieves residual < 1e-12
 - Multiple-RHS test validates that the same LU factorization can be reused for different right-hand sides
+
+## Day 6 — Performance Benchmarks
+
+### Completed
+- Created `benchmarks/bench_main.c` — general-purpose benchmark harness:
+  - CLI: `./bench_main [matrix.mtx]`, `--size N`, `--repeat R`
+  - Generates diag-dominant random sparse if no file provided
+  - Times SpMV, LU factorization, LU solve
+  - Reports nnz, fill-in ratio, memory, residual norm
+- Created `benchmarks/bench_scaling.c` — scaling analysis:
+  - Tridiagonal with partial and complete pivoting (n = 100..5000)
+  - Dense random with complete pivoting (n = 10..200)
+  - Tabular output: n, nnz, nnz_LU, factor/solve/spmv time, memory, residual
+- Created `benchmarks/bench_fillin.c` — fill-in analysis:
+  - 5 matrix types: tridiagonal, pentadiagonal, arrow, random sparse, dense
+  - Both pivoting strategies
+  - Reports nnz before/after, density percentage, fill-in ratio
+- Updated Makefile and CMakeLists.txt for benchmark targets (`make bench`)
+
+### Benchmark Highlights
+- **Tridiagonal (partial pivot)**: zero fill-in (ratio 1.00), linear scaling confirmed
+  - n=5000: factor 0.44ms, solve 0.20ms
+- **Tridiagonal (complete pivot)**: modest fill-in (ratio ~1.6) due to column pivoting
+  - n=5000: factor 256ms (much slower due to submatrix search)
+- **Arrow matrix**: catastrophic fill-in (100% dense after factorization) — expected
+- **Dense n=200**: factor 1.57s, residual 1.8e-15 (near machine epsilon)
+- **Partial pivoting is ~100-500x faster than complete pivoting** for structured matrices
+
+### Notes
+- All 112 unit tests still pass
+- Benchmarks are informational (not part of `make test`)
+- The O(n^3) complete pivoting search dominates for larger matrices; partial pivoting is strongly preferred for banded/structured matrices

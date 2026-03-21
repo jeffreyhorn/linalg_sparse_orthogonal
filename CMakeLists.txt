@@ -59,8 +59,11 @@ add_sparse_test(test_sparse_vector)
 # add_sparse_test(test_integration)
 
 # Benchmarks (not part of ctest)
-# add_executable(bench_main benchmarks/bench_main.c)
-# target_link_libraries(bench_main PRIVATE sparse_lu_ortho)
+add_executable(bench_main benchmarks/bench_main.c)
+target_link_libraries(bench_main PRIVATE sparse_lu_ortho)
 
-# add_executable(bench_scaling benchmarks/bench_scaling.c)
-# target_link_libraries(bench_scaling PRIVATE sparse_lu_ortho)
+add_executable(bench_scaling benchmarks/bench_scaling.c)
+target_link_libraries(bench_scaling PRIVATE sparse_lu_ortho)
+
+add_executable(bench_fillin benchmarks/bench_fillin.c)
+target_link_libraries(bench_fillin PRIVATE sparse_lu_ortho)

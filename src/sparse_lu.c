@@ -164,7 +164,7 @@ sparse_err_t sparse_apply_inv_col_perm(const SparseMatrix *mat,
 {
     if (!mat || !z || !x) return SPARSE_ERR_NULL;
     for (idx_t i = 0; i < mat->cols; i++)
-        x[i] = z[mat->col_perm[i]];
+        x[i] = z[mat->inv_col_perm[i]];
     return SPARSE_OK;
 }
 

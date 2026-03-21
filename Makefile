@@ -23,12 +23,10 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
 LIB_OBJS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(LIB_SRCS))
 LIB      = $(BUILDDIR)/libsparse_lu_ortho.a
 
-# Test sources (uncomment as created)
-# TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
-#             $(TESTDIR)/test_sparse_lu.c \
-#             $(TESTDIR)/test_sparse_io.c \
-#             $(TESTDIR)/test_integration.c
-# TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
+# Test sources
+TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
+            $(TESTDIR)/test_sparse_lu.c
+TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
 # Benchmark sources (uncomment as created)
 # BENCH_SRCS = $(BENCHDIR)/bench_main.c \

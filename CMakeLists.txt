@@ -49,9 +49,9 @@ function(add_sparse_test TEST_NAME)
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
 endfunction()
 
-# Test executables (uncomment as they are created)
-# add_sparse_test(test_sparse_matrix)
-# add_sparse_test(test_sparse_lu)
+# Test executables
+add_sparse_test(test_sparse_matrix)
+add_sparse_test(test_sparse_lu)
 # add_sparse_test(test_sparse_io)
 # add_sparse_test(test_integration)
 

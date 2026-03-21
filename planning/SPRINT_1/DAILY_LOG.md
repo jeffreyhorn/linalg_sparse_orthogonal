@@ -55,3 +55,48 @@
 - Day 2 focused on reviewing for gaps and adding missing features from the plan
 - Both pivoting strategies produce the correct solution for the 3x3 test matrix
 - Days 3-6 from the original plan are also substantially complete
+
+## Day 3 — Unit Test Framework & Test Suites
+
+### Completed
+- Created `tests/test_framework.h` — minimal macro-based test framework:
+  - `TEST_SUITE_BEGIN`/`TEST_SUITE_END` with summary and timing
+  - `RUN_TEST` with pass/fail reporting
+  - Assertion macros: `ASSERT_TRUE`, `ASSERT_FALSE`, `ASSERT_EQ`, `ASSERT_NEQ`, `ASSERT_NEAR`, `ASSERT_ERR`, `ASSERT_NULL`, `ASSERT_NOT_NULL`
+  - Reports all failures per test (does not stop at first assertion failure)
+  - Returns exit code 1 if any test failed
+- Created `tests/test_sparse_matrix.c` — 31 data structure tests:
+  - Creation (basic, rectangular, 1x1, invalid args, free NULL)
+  - Insert/get (single, multiple, overwrite, zero removes, empty matrix, row/col ordering)
+  - Logical get/set through permutations
+  - Remove (existing, nonexistent, middle of row, nnz tracking)
+  - Bounds checking (insert, remove, set, get out of bounds, null pointers)
+  - Copy (basic, independent modification, null)
+  - Matrix-vector product (identity, general, null args)
+  - Permutations (initial identity, reset)
+  - Memory usage
+- Created `tests/test_sparse_lu.c` — 24 LU factorization tests:
+  - Known solutions (1x1, 2x2, 3x3, 4x4)
+  - Special matrices (identity, diagonal, upper/lower triangular)
+  - Tridiagonal (Poisson 1D, n=20)
+  - Permutation consistency (complete and partial pivoting)
+  - Residual checks on 10x10 diag-dominant matrix
+  - Both pivoting strategies agree
+  - Singular detection (zero matrix, rank deficient, zero row)
+  - Error paths (null matrix, nonsquare, null solve/sub args)
+  - Iterative refinement
+  - Drop tolerance fill-in control
+- Updated Makefile: uncommented `TEST_SRCS`/`TEST_BINS` for test_sparse_matrix and test_sparse_lu
+- Updated CMakeLists.txt: uncommented `add_sparse_test` for both test suites
+- **Found and fixed bug**: `sparse_apply_inv_col_perm` used `col_perm[i]` instead of `inv_col_perm[i]`, computing Q^{-1}*z instead of Q*z during the column back-permutation step of the solve. This caused incorrect solutions when complete pivoting produced non-self-inverse column permutations (e.g., the n=20 tridiagonal)
+
+### Test Results
+- `test_sparse_matrix`: 31/31 passed, 166 assertions
+- `test_sparse_lu`: 24/24 passed, 84 assertions
+- `smoke_test`: passed
+- **Total: 55 unit tests, 250 assertions, all passing**
+
+### Notes
+- The column permutation bug was latent — small test matrices happened to produce self-inverse permutations (simple swaps), masking the error
+- The tridiagonal n=20 test exposed the bug because complete pivoting produced a complex permutation
+- This is the fourth major bug found (after bugs 3.1, 3.3, 3.6 from the initial review)

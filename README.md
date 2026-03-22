@@ -11,7 +11,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Iterative refinement** to improve solution accuracy
 - **Sparse matrix-vector product** (SpMV)
 - **Matrix Market I/O** — load and save `.mtx` files (coordinate real general, symmetric, and pattern formats)
-- **Drop tolerance** to control fill-in during factorization (relative to matrix norm)
+- **Drop tolerance** to control fill-in during factorization (relative to pivot magnitude)
 - **Matrix arithmetic** — scalar scaling (`sparse_scale`) and addition (`sparse_add`)
 - **Infinity norm** with internal caching (`sparse_norminf`)
 - **errno capture** for I/O errors (`sparse_errno`)

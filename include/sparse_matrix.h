@@ -183,8 +183,9 @@ size_t sparse_memory_usage(const SparseMatrix *mat);
  * @brief Compute the infinity norm of the matrix: ||A||_inf = max_i sum_j |a_ij|.
  *
  * The result is cached internally and invalidated when the matrix is modified
- * (via sparse_insert, sparse_remove, or sparse_set). Repeated calls without
- * modification return the cached value in O(1).
+ * (via sparse_insert, sparse_remove, sparse_set, sparse_scale, or
+ * sparse_add_inplace). Repeated calls without modification return the cached
+ * value in O(1).
  *
  * @param mat       The matrix (must not be NULL). May be mutated internally
  *                  to update the cached norm value.

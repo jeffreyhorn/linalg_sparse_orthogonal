@@ -74,6 +74,11 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot)
     double *b    = malloc((size_t)n * sizeof(double));
     double *x    = malloc((size_t)n * sizeof(double));
     double *r    = malloc((size_t)n * sizeof(double));
+    if (!ones || !b || !x || !r) {
+        fprintf(stderr, "Allocation failed\n");
+        free(ones); free(b); free(x); free(r);
+        return;
+    }
     for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
     sparse_matvec(A, ones, b);
 
@@ -108,8 +113,14 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot)
 
         /* --- Solve timing --- */
         t0 = wall_time();
-        sparse_lu_solve(LU, b, x);
+        sparse_err_t serr = sparse_lu_solve(LU, b, x);
         t_solve_total += wall_time() - t0;
+
+        if (serr != SPARSE_OK) {
+            printf("LU solve failed: %s\n", sparse_strerror(serr));
+            sparse_free(LU);
+            break;
+        }
 
         /* Residual (on last rep) */
         if (rep == repeats - 1) {
@@ -292,6 +303,11 @@ int main(int argc, char **argv)
         } else if (argv[i][0] != '-') {
             filename = argv[i];
         }
+    }
+
+    if (repeats < 1) {
+        fprintf(stderr, "Error: --repeat must be >= 1\n");
+        return 1;
     }
 
     if (dirpath) {

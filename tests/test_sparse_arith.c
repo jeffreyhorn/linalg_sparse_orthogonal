@@ -405,7 +405,7 @@ static void test_scale_then_factor_solve(void)
     sparse_insert(A, 2, 1, 1000.0);
     sparse_insert(A, 2, 2, 2000.0);
 
-    sparse_scale(A, 0.001);
+    ASSERT_ERR(sparse_scale(A, 0.001), SPARSE_OK);
 
     /* Now entries are 4, 1, 1, 3, 1, 1, 2 */
     ASSERT_NEAR(sparse_get_phys(A, 0, 0), 4.0, 1e-14);

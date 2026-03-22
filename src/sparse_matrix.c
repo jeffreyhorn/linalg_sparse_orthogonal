@@ -385,6 +385,7 @@ sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B,
                          double alpha, double beta, SparseMatrix **C_out)
 {
     if (!A || !B || !C_out) return SPARSE_ERR_NULL;
+    *C_out = NULL;
     if (A->rows != B->rows || A->cols != B->cols) return SPARSE_ERR_SHAPE;
 
     SparseMatrix *C = sparse_create(A->rows, A->cols);

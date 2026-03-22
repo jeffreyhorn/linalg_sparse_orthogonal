@@ -11,6 +11,7 @@
  * Reports wall-clock time for: construction, factorization, solve, SpMV.
  * Also reports nnz, fill-in, memory, and residual norm.
  */
+#define _POSIX_C_SOURCE 199309L
 #include "sparse_matrix.h"
 #include "sparse_lu.h"
 #include "sparse_vector.h"

@@ -32,7 +32,8 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_sparse_vector.c \
             $(TESTDIR)/test_edge_cases.c \
             $(TESTDIR)/test_integration.c \
-            $(TESTDIR)/test_sparse_arith.c
+            $(TESTDIR)/test_sparse_arith.c \
+            $(TESTDIR)/test_suitesparse.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
 # Benchmark sources

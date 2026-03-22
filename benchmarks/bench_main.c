@@ -298,8 +298,12 @@ int main(int argc, char **argv)
             i++;
             if (strcmp(argv[i], "partial") == 0)
                 pivot = SPARSE_PIVOT_PARTIAL;
-            else
+            else if (strcmp(argv[i], "complete") == 0)
                 pivot = SPARSE_PIVOT_COMPLETE;
+            else {
+                fprintf(stderr, "Error: unknown pivot mode '%s' (use 'partial' or 'complete')\n", argv[i]);
+                return 1;
+            }
         } else if (argv[i][0] != '-') {
             filename = argv[i];
         }

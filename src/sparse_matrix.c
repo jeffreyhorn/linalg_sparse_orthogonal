@@ -482,8 +482,13 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B,
                     na->value = val;
                 }
             } else {
-                /* No entry in A — insert */
-                sparse_err_t err = sparse_insert(A, i, target_col, beta * nb->value);
+                /* No entry in A — insert only if non-negligible */
+                double val = beta * nb->value;
+                if (fabs(val) < 1e-15) {
+                    nb = nb->right;
+                    continue;
+                }
+                sparse_err_t err = sparse_insert(A, i, target_col, val);
                 if (err != SPARSE_OK) return err;
                 /* Row structure changed; rescan but skip past target_col */
                 na = A->row_headers[i];

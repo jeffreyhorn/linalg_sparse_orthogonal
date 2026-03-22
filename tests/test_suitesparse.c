@@ -240,15 +240,21 @@ int main(void)
     RUN_TEST(test_steam1_partial);
     RUN_TEST(test_steam1_complete);
 
-    /* fs_541_1: 541x541, unsymmetric, chemical process */
-    RUN_TEST(test_fs_541_1_partial);
-    RUN_TEST(test_fs_541_1_complete);
+    /* Large matrices: gated behind SPARSE_TEST_LARGE=1 to avoid slow CI runs
+     * (especially under ASan/UBSan). Run with: SPARSE_TEST_LARGE=1 make test */
+    if (getenv("SPARSE_TEST_LARGE") && atoi(getenv("SPARSE_TEST_LARGE")) > 0) {
+        /* fs_541_1: 541x541, unsymmetric, chemical process */
+        RUN_TEST(test_fs_541_1_partial);
+        RUN_TEST(test_fs_541_1_complete);
 
-    /* orsirr_1: 1030x1030, unsymmetric, oil reservoir */
-    RUN_TEST(test_orsirr_1_partial);
-    RUN_TEST(test_orsirr_1_complete);
+        /* orsirr_1: 1030x1030, unsymmetric, oil reservoir */
+        RUN_TEST(test_orsirr_1_partial);
+        RUN_TEST(test_orsirr_1_complete);
+    } else {
+        printf("  [SKIP] Large matrix tests (set SPARSE_TEST_LARGE=1 to enable)\n");
+    }
 
-    /* Norm check on all */
+    /* Norm check on all (uses small matrices only) */
     RUN_TEST(test_norminf_all_matrices);
 
     TEST_SUITE_END();

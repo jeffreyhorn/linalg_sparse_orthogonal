@@ -381,6 +381,9 @@ sparse_err_t sparse_scale(SparseMatrix *mat, double alpha)
     return SPARSE_OK;
 }
 
+/* NOTE: sparse_add() and sparse_add_inplace() operate in physical index space.
+ * Do not use on matrices with non-identity permutations (e.g., after LU
+ * factorization) — results would not correspond to logical matrix entries. */
 sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B,
                          double alpha, double beta, SparseMatrix **C_out)
 {
@@ -650,7 +653,11 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename)
         }
     }
 
-    fclose(fp);
+    if (fclose(fp) != 0) {
+        sparse_set_errno_(errno);
+        sparse_free(mat);
+        return SPARSE_ERR_IO;
+    }
     sparse_set_errno_(0);
     *mat_out = mat;
     return SPARSE_OK;

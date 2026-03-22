@@ -235,6 +235,9 @@ sparse_err_t sparse_scale(SparseMatrix *mat, double alpha);
  * A and B must have the same dimensions. C is a newly allocated matrix.
  * Entries that cancel to zero (|value| < 1e-15) are not stored.
  *
+ * @note Operates in physical index space. Do not use on matrices with
+ *       non-identity permutations (e.g., after LU factorization).
+ *
  * @param A       First input matrix.
  * @param B       Second input matrix.
  * @param alpha   Scalar for A.
@@ -253,6 +256,9 @@ sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B,
  *
  * A and B must have the same dimensions. A is modified in-place.
  * Entries that cancel to zero are removed.
+ *
+ * @note Operates in physical index space. Do not use on matrices with
+ *       non-identity permutations (e.g., after LU factorization).
  *
  * @param A       Matrix to modify in-place (receives the result).
  * @param B       Second input matrix (read-only).

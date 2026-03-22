@@ -90,6 +90,12 @@ bench: $(BENCH_BINS)
 		echo; \
 	done
 
+# Benchmark SuiteSparse matrices (both pivoting modes)
+.PHONY: bench-suitesparse
+bench-suitesparse: $(BUILDDIR)/bench_main
+	@$(BUILDDIR)/bench_main --dir tests/data/suitesparse --pivot partial --repeat 3
+	@$(BUILDDIR)/bench_main --dir tests/data/suitesparse --pivot complete --repeat 3
+
 # Build and test with UBSan
 .PHONY: sanitize
 sanitize: CFLAGS += -fsanitize=undefined -fno-omit-frame-pointer -g -O1

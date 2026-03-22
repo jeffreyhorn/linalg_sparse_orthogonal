@@ -206,7 +206,7 @@ static void benchmark_tabular(const char *name, SparseMatrix *A,
     if (ok) {
         printf("%-20s %5d %7d %9d %6.2f  %10.3f %10.3f %10.3f %10zu  %.3e\n",
                name, (int)n, (int)nnz_orig, (int)nnz_after,
-               (double)nnz_after / (double)nnz_orig,
+               nnz_orig > 0 ? (double)nnz_after / (double)nnz_orig : 0.0,
                t_factor_total / repeats * 1000.0,
                t_solve_total / repeats * 1000.0,
                t_spmv,

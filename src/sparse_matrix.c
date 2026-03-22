@@ -465,7 +465,8 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B,
                 double val = na->value + beta * nb->value;
                 if (fabs(val) < 1e-15) {
                     /* Cancellation — remove via insert(0.0) and reset cursor */
-                    sparse_insert(A, i, nb->col, 0.0);
+                    sparse_err_t ierr = sparse_insert(A, i, nb->col, 0.0);
+                    if (ierr != SPARSE_OK) return ierr;
                     na = A->row_headers[i];
                 } else {
                     na->value = val;

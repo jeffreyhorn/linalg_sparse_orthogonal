@@ -147,9 +147,19 @@ The test suite contains **112 unit tests** with **485 assertions** covering:
 - Vector utilities, SpMV, and iterative refinement (24 tests)
 
 ```bash
-make test    # run all tests
-make smoke   # quick smoke test
+make test          # run all tests
+make smoke         # quick smoke test
+make sanitize      # UBSan (undefined behavior)
+make asan          # ASan (address sanitizer) — requires GCC or LLVM clang on macOS
+make sanitize-all  # both ASan + UBSan
 ```
+
+**Note:** Apple Clang's ASan hangs on macOS. Use an alternative compiler:
+```bash
+CC=gcc-14 make asan
+CC=/opt/homebrew/opt/llvm/bin/clang make asan
+```
+On Linux, `make asan` works with the default compiler.
 
 ## Project Structure
 

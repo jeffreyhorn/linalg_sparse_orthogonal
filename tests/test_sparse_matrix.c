@@ -462,6 +462,110 @@ static void test_memory_usage(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Infinity norm tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_norminf_identity(void)
+{
+    SparseMatrix *m = sparse_create(5, 5);
+    for (idx_t i = 0; i < 5; i++)
+        sparse_insert(m, i, i, 1.0);
+
+    double norm;
+    ASSERT_ERR(sparse_norminf(m, &norm), SPARSE_OK);
+    ASSERT_NEAR(norm, 1.0, 0.0);
+    sparse_free(m);
+}
+
+static void test_norminf_tridiagonal(void)
+{
+    /* 4x4 tridiagonal: diag=4, off-diag=1
+     * Row sums: row 0 = |4|+|1| = 5, rows 1-2 = |1|+|4|+|1| = 6, row 3 = |1|+|4| = 5 */
+    SparseMatrix *m = sparse_create(4, 4);
+    for (idx_t i = 0; i < 4; i++) {
+        sparse_insert(m, i, i, 4.0);
+        if (i > 0) sparse_insert(m, i, i - 1, 1.0);
+        if (i < 3) sparse_insert(m, i, i + 1, 1.0);
+    }
+
+    double norm;
+    ASSERT_ERR(sparse_norminf(m, &norm), SPARSE_OK);
+    ASSERT_NEAR(norm, 6.0, 0.0);
+    sparse_free(m);
+}
+
+static void test_norminf_empty(void)
+{
+    SparseMatrix *m = sparse_create(3, 3);
+    double norm;
+    ASSERT_ERR(sparse_norminf(m, &norm), SPARSE_OK);
+    ASSERT_NEAR(norm, 0.0, 0.0);
+    sparse_free(m);
+}
+
+static void test_norminf_rectangular(void)
+{
+    /* 2x4 matrix: row 0 = [1, 2, 0, 3] sum=6, row 1 = [0, 0, 4, 0] sum=4 */
+    SparseMatrix *m = sparse_create(2, 4);
+    sparse_insert(m, 0, 0, 1.0);
+    sparse_insert(m, 0, 1, 2.0);
+    sparse_insert(m, 0, 3, 3.0);
+    sparse_insert(m, 1, 2, 4.0);
+
+    double norm;
+    ASSERT_ERR(sparse_norminf(m, &norm), SPARSE_OK);
+    ASSERT_NEAR(norm, 6.0, 0.0);
+    sparse_free(m);
+}
+
+static void test_norminf_negative_values(void)
+{
+    /* Norm uses absolute values */
+    SparseMatrix *m = sparse_create(2, 2);
+    sparse_insert(m, 0, 0, -5.0);
+    sparse_insert(m, 0, 1, -3.0);
+    sparse_insert(m, 1, 0, 2.0);
+    sparse_insert(m, 1, 1, 1.0);
+
+    double norm;
+    ASSERT_ERR(sparse_norminf(m, &norm), SPARSE_OK);
+    ASSERT_NEAR(norm, 8.0, 0.0);  /* |-5| + |-3| = 8 */
+    sparse_free(m);
+}
+
+static void test_norminf_cached(void)
+{
+    SparseMatrix *m = sparse_create(2, 2);
+    sparse_insert(m, 0, 0, 1.0);
+    sparse_insert(m, 1, 1, 2.0);
+
+    double norm1, norm2;
+    ASSERT_ERR(sparse_norminf(m, &norm1), SPARSE_OK);
+    ASSERT_NEAR(norm1, 2.0, 0.0);
+
+    /* Second call should return cached value */
+    ASSERT_ERR(sparse_norminf(m, &norm2), SPARSE_OK);
+    ASSERT_NEAR(norm2, 2.0, 0.0);
+
+    /* Modify matrix — cache should invalidate */
+    sparse_insert(m, 0, 1, 5.0);
+    ASSERT_ERR(sparse_norminf(m, &norm1), SPARSE_OK);
+    ASSERT_NEAR(norm1, 6.0, 0.0);  /* row 0: |1|+|5| = 6 */
+
+    sparse_free(m);
+}
+
+static void test_norminf_null(void)
+{
+    double norm;
+    ASSERT_ERR(sparse_norminf(NULL, &norm), SPARSE_ERR_NULL);
+
+    SparseMatrix *m = sparse_create(2, 2);
+    ASSERT_ERR(sparse_norminf(m, NULL), SPARSE_ERR_NULL);
+    sparse_free(m);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -517,6 +621,15 @@ int main(void)
 
     /* Memory info */
     RUN_TEST(test_memory_usage);
+
+    /* Infinity norm */
+    RUN_TEST(test_norminf_identity);
+    RUN_TEST(test_norminf_tridiagonal);
+    RUN_TEST(test_norminf_empty);
+    RUN_TEST(test_norminf_rectangular);
+    RUN_TEST(test_norminf_negative_values);
+    RUN_TEST(test_norminf_cached);
+    RUN_TEST(test_norminf_null);
 
     TEST_SUITE_END();
 }

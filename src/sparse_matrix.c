@@ -82,6 +82,7 @@ SparseMatrix *sparse_create(idx_t rows, idx_t cols)
     mat->rows = rows;
     mat->cols = cols;
     mat->nnz  = 0;
+    mat->cached_norm = -1.0;
 
     mat->row_headers  = calloc((size_t)rows, sizeof(Node *));
     mat->col_headers  = calloc((size_t)cols, sizeof(Node *));
@@ -158,6 +159,9 @@ SparseMatrix *sparse_copy(const SparseMatrix *mat)
         }
     }
 
+    /* Preserve cached norm from source */
+    copy->cached_norm = mat->cached_norm;
+
     return copy;
 }
 
@@ -183,6 +187,7 @@ sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, double val)
     /* If node already exists, update its value */
     if (curr_r && curr_r->col == col) {
         curr_r->value = val;
+        mat->cached_norm = -1.0;
         return SPARSE_OK;
     }
 
@@ -190,6 +195,7 @@ sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, double val)
     Node *node = make_node(mat, row, col, val);
     if (!node) return SPARSE_ERR_ALLOC;
     mat->nnz++;
+    mat->cached_norm = -1.0;
 
     /* Link into row list */
     node->right = curr_r;
@@ -248,6 +254,7 @@ sparse_err_t sparse_remove(SparseMatrix *mat, idx_t row, idx_t col)
 
     pool_release(&mat->pool, curr);
     mat->nnz--;
+    mat->cached_norm = -1.0;
 
     return SPARSE_OK;
 }
@@ -307,6 +314,36 @@ size_t sparse_memory_usage(const SparseMatrix *mat)
          + (size_t)mat->rows * 2 * sizeof(idx_t)     /* row perms */
          + (size_t)mat->cols * 2 * sizeof(idx_t)     /* col perms */
          + (size_t)mat->pool.num_slabs * sizeof(NodeSlab);
+}
+
+/* ─── Infinity norm ──────────────────────────────────────────────────── */
+
+sparse_err_t sparse_norminf(const SparseMatrix *mat, double *norm)
+{
+    if (!mat || !norm) return SPARSE_ERR_NULL;
+
+    /* Return cached value if valid */
+    if (mat->cached_norm >= 0.0) {
+        *norm = mat->cached_norm;
+        return SPARSE_OK;
+    }
+
+    double max_row_sum = 0.0;
+    for (idx_t i = 0; i < mat->rows; i++) {
+        double row_sum = 0.0;
+        Node *node = mat->row_headers[i];
+        while (node) {
+            row_sum += fabs(node->value);
+            node = node->right;
+        }
+        if (row_sum > max_row_sum)
+            max_row_sum = row_sum;
+    }
+
+    /* Cache the result (cast away const for caching — internal detail) */
+    ((SparseMatrix *)mat)->cached_norm = max_row_sum;
+    *norm = max_row_sum;
+    return SPARSE_OK;
 }
 
 /* ─── Sparse matrix-vector product ───────────────────────────────────── */

@@ -43,6 +43,7 @@ typedef struct SparseMatrix {
     idx_t *inv_col_perm;   /* physical -> logical col */
     NodePool pool;
     idx_t nnz;
+    double cached_norm;    /* cached ||A||_inf, -1.0 = invalid */
 } SparseMatrix;
 
 /*

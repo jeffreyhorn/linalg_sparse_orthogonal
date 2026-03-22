@@ -179,6 +179,19 @@ idx_t  sparse_nnz(const SparseMatrix *mat);
  */
 size_t sparse_memory_usage(const SparseMatrix *mat);
 
+/**
+ * @brief Compute the infinity norm of the matrix: ||A||_inf = max_i sum_j |a_ij|.
+ *
+ * The result is cached internally and invalidated when the matrix is modified
+ * (via sparse_insert, sparse_remove, or sparse_set). Repeated calls without
+ * modification return the cached value in O(1).
+ *
+ * @param mat       The matrix (must not be NULL).
+ * @param[out] norm Pointer to receive the computed norm.
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL if mat or norm is NULL.
+ */
+sparse_err_t sparse_norminf(const SparseMatrix *mat, double *norm);
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * Sparse matrix-vector product
  * ═══════════════════════════════════════════════════════════════════════════ */

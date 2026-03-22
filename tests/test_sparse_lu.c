@@ -528,8 +528,6 @@ static void test_relative_tol_scaled_identity(void)
     for (idx_t i = 0; i < n; i++)
         sparse_insert(A, i, i, scale);
 
-    SparseMatrix *A_copy = sparse_copy(A);
-
     ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_PARTIAL, 1e-30), SPARSE_OK);
 
     /* Solve Ax = b where b = scale * [1,1,...,1], expect x = [1,1,...,1] */
@@ -541,7 +539,6 @@ static void test_relative_tol_scaled_identity(void)
         ASSERT_NEAR(x[i], 1.0, 1e-10);
 
     sparse_free(A);
-    sparse_free(A_copy);
 }
 
 static void test_relative_tol_singular_still_detected(void)

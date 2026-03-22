@@ -186,11 +186,12 @@ size_t sparse_memory_usage(const SparseMatrix *mat);
  * (via sparse_insert, sparse_remove, or sparse_set). Repeated calls without
  * modification return the cached value in O(1).
  *
- * @param mat       The matrix (must not be NULL).
+ * @param mat       The matrix (must not be NULL). May be mutated internally
+ *                  to update the cached norm value.
  * @param[out] norm Pointer to receive the computed norm.
  * @return SPARSE_OK on success, SPARSE_ERR_NULL if mat or norm is NULL.
  */
-sparse_err_t sparse_norminf(const SparseMatrix *mat, double *norm);
+sparse_err_t sparse_norminf(SparseMatrix *mat, double *norm);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Sparse matrix-vector product

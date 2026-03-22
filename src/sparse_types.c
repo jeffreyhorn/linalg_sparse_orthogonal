@@ -1,6 +1,6 @@
 #include "sparse_types.h"
 
-static int last_errno = 0;
+static _Thread_local int last_errno = 0;
 
 void sparse_set_errno_(int errnum)
 {

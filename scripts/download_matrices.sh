@@ -25,6 +25,9 @@ mkdir -p "$DEST"
 
 MATRICES="west0067 nos4 bcsstk04 steam1 fs_541_1 orsirr_1"
 
+TMPDIR_BASE=$(mktemp -d)
+trap 'rm -rf "$TMPDIR_BASE"' EXIT
+
 for name in $MATRICES; do
     mtx="${DEST}/${name}.mtx"
     if [ -f "$mtx" ]; then
@@ -33,26 +36,22 @@ for name in $MATRICES; do
     fi
 
     echo "  fetch: ${name} ..."
-    tmpdir=$(mktemp -d)
-    curl -sL -o "${tmpdir}/${name}.tar.gz" "${BASE_URL}/${name}.tar.gz"
+    curl -sL -o "${TMPDIR_BASE}/${name}.tar.gz" "${BASE_URL}/${name}.tar.gz"
 
     # Validate download
-    if ! file "${tmpdir}/${name}.tar.gz" | grep -q "gzip"; then
+    if ! file "${TMPDIR_BASE}/${name}.tar.gz" | grep -q "gzip"; then
         echo "  ERROR: ${name} download failed (not a gzip file)"
-        rm -rf "$tmpdir"
         continue
     fi
 
-    tar xzf "${tmpdir}/${name}.tar.gz" -C "$tmpdir"
+    tar xzf "${TMPDIR_BASE}/${name}.tar.gz" -C "$TMPDIR_BASE"
 
-    if [ -f "${tmpdir}/${name}/${name}.mtx" ]; then
-        cp "${tmpdir}/${name}/${name}.mtx" "$mtx"
+    if [ -f "${TMPDIR_BASE}/${name}/${name}.mtx" ]; then
+        cp "${TMPDIR_BASE}/${name}/${name}.mtx" "$mtx"
         echo "  done: ${name}.mtx"
     else
         echo "  ERROR: ${name}.mtx not found in archive"
     fi
-
-    rm -rf "$tmpdir"
 done
 
 echo

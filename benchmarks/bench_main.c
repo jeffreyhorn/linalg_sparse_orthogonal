@@ -142,6 +142,11 @@ static void benchmark_tabular(const char *name, SparseMatrix *A,
     double *b    = malloc((size_t)n * sizeof(double));
     double *x    = malloc((size_t)n * sizeof(double));
     double *r    = malloc((size_t)n * sizeof(double));
+    if (!ones || !b || !x || !r) {
+        fprintf(stderr, "benchmark_tabular: failed to allocate workspace\n");
+        free(ones); free(b); free(x); free(r);
+        return;
+    }
     for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
     sparse_matvec(A, ones, b);
 

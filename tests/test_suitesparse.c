@@ -14,7 +14,7 @@
 #define SS_DIR DATA_DIR "/suitesparse"
 
 /*
- * Helper: load matrix, factor, solve with random RHS, check residual.
+ * Helper: load matrix, factor, solve with b = A*ones (exact solution x = ones).
  * Returns 1 on success, 0 on expected failure (singular), -1 on error.
  */
 static int solve_and_check(const char *path, sparse_pivot_t pivot,
@@ -49,6 +49,11 @@ static int solve_and_check(const char *path, sparse_pivot_t pivot,
 
     /* Copy for residual check, then factor */
     SparseMatrix *A_orig = sparse_copy(A);
+    if (!A_orig) {
+        free(ones); free(b); free(x); free(r);
+        sparse_free(A);
+        return -1;
+    }
 
     err = sparse_lu_factor(A, pivot, tol);
     if (err == SPARSE_ERR_SINGULAR) {
@@ -107,85 +112,84 @@ static void test_west0067_partial(void)
 {
     int ok = solve_and_check(SS_DIR "/west0067.mtx",
                              SPARSE_PIVOT_PARTIAL, 1e-12, 1e-10);
-    ASSERT_TRUE(ok >= 0);  /* no errors */
-    /* west0067 may be singular with partial pivoting; ok==0 is acceptable */
+    ASSERT_EQ(ok, 1);
 }
 
 static void test_west0067_complete(void)
 {
     int ok = solve_and_check(SS_DIR "/west0067.mtx",
                              SPARSE_PIVOT_COMPLETE, 1e-12, 1e-10);
-    ASSERT_TRUE(ok >= 0);
+    ASSERT_EQ(ok, 1);
 }
 
 static void test_nos4_partial(void)
 {
     int ok = solve_and_check(SS_DIR "/nos4.mtx",
                              SPARSE_PIVOT_PARTIAL, 1e-12, 1e-10);
-    ASSERT_TRUE(ok >= 0);
+    ASSERT_EQ(ok, 1);
 }
 
 static void test_nos4_complete(void)
 {
     int ok = solve_and_check(SS_DIR "/nos4.mtx",
                              SPARSE_PIVOT_COMPLETE, 1e-12, 1e-10);
-    ASSERT_TRUE(ok >= 0);
+    ASSERT_EQ(ok, 1);
 }
 
 static void test_bcsstk04_partial(void)
 {
     int ok = solve_and_check(SS_DIR "/bcsstk04.mtx",
                              SPARSE_PIVOT_PARTIAL, 1e-12, 1e-8);
-    ASSERT_TRUE(ok >= 0);
+    ASSERT_EQ(ok, 1);
 }
 
 static void test_bcsstk04_complete(void)
 {
     int ok = solve_and_check(SS_DIR "/bcsstk04.mtx",
                              SPARSE_PIVOT_COMPLETE, 1e-12, 1e-8);
-    ASSERT_TRUE(ok >= 0);
+    ASSERT_EQ(ok, 1);
 }
 
 static void test_steam1_partial(void)
 {
     int ok = solve_and_check(SS_DIR "/steam1.mtx",
                              SPARSE_PIVOT_PARTIAL, 1e-12, 1e-10);
-    ASSERT_TRUE(ok >= 0);
+    ASSERT_EQ(ok, 1);
 }
 
 static void test_steam1_complete(void)
 {
     int ok = solve_and_check(SS_DIR "/steam1.mtx",
                              SPARSE_PIVOT_COMPLETE, 1e-12, 1e-10);
-    ASSERT_TRUE(ok >= 0);
+    ASSERT_EQ(ok, 1);
 }
 
 static void test_fs_541_1_partial(void)
 {
     int ok = solve_and_check(SS_DIR "/fs_541_1.mtx",
                              SPARSE_PIVOT_PARTIAL, 1e-12, 1e-8);
-    ASSERT_TRUE(ok >= 0);
+    ASSERT_EQ(ok, 1);
 }
 
 static void test_fs_541_1_complete(void)
 {
     int ok = solve_and_check(SS_DIR "/fs_541_1.mtx",
                              SPARSE_PIVOT_COMPLETE, 1e-12, 1e-8);
-    ASSERT_TRUE(ok >= 0);
+    ASSERT_EQ(ok, 1);
 }
 
 static void test_orsirr_1_partial(void)
 {
     int ok = solve_and_check(SS_DIR "/orsirr_1.mtx",
                              SPARSE_PIVOT_PARTIAL, 1e-12, 1e-8);
-    ASSERT_TRUE(ok >= 0);
+    ASSERT_EQ(ok, 1);
 }
 
 static void test_orsirr_1_complete(void)
 {
     int ok = solve_and_check(SS_DIR "/orsirr_1.mtx",
                              SPARSE_PIVOT_COMPLETE, 1e-12, 1e-8);
-    ASSERT_TRUE(ok >= 0);
+    ASSERT_EQ(ok, 1);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

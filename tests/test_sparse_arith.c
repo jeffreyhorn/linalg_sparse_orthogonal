@@ -3,6 +3,7 @@
 #include "sparse_types.h"
 #include "test_framework.h"
 #include <stdlib.h>
+#include <math.h>
 
 /* ═══════════════════════════════════════════════════════════════════════
  * sparse_scale tests
@@ -369,6 +370,7 @@ static void test_add_then_factor_solve(void)
 
     /* Copy for residual, factor, solve */
     SparseMatrix *A_orig = sparse_copy(A);
+    ASSERT_NOT_NULL(A_orig);
     ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
 
     double b[] = {1.0, 2.0, 3.0, 4.0, 5.0};
@@ -409,6 +411,7 @@ static void test_scale_then_factor_solve(void)
     ASSERT_NEAR(sparse_get_phys(A, 0, 0), 4.0, 1e-14);
 
     SparseMatrix *A_orig = sparse_copy(A);
+    ASSERT_NOT_NULL(A_orig);
     ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
 
     double b[] = {1.0, 1.0, 1.0};

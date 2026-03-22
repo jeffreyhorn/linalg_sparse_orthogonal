@@ -83,6 +83,7 @@ SparseMatrix *sparse_create(idx_t rows, idx_t cols)
     mat->cols = cols;
     mat->nnz  = 0;
     mat->cached_norm = -1.0;
+    mat->factor_norm = -1.0;
 
     mat->row_headers  = calloc((size_t)rows, sizeof(Node *));
     mat->col_headers  = calloc((size_t)cols, sizeof(Node *));

@@ -119,10 +119,14 @@ static void test_single_nnz_diagonal(void)
 
 static void test_diagonal_extreme_solve(void)
 {
-    /* Diagonal with entries spanning many orders of magnitude,
-     * but all above DROP_TOL (1e-14) so backward_sub succeeds. */
+    /*
+     * Diagonal with entries spanning moderate orders of magnitude.
+     * With relative drop tolerance (DROP_TOL * ||A||_inf), all entries
+     * must be large enough relative to the max entry to avoid being
+     * flagged as singular. Ratio of 1e8 is well within tolerance.
+     */
     idx_t n = 5;
-    double diag[] = {1e-10, 1e-5, 1.0, 1e5, 1e10};
+    double diag[] = {1e-4, 1e-2, 1.0, 1e2, 1e4};
     SparseMatrix *A = sparse_create(n, n);
     for (idx_t i = 0; i < n; i++)
         sparse_insert(A, i, i, diag[i]);

@@ -347,6 +347,40 @@ sparse_err_t sparse_norminf(const SparseMatrix *mat, double *norm)
     return SPARSE_OK;
 }
 
+/* ─── Matrix arithmetic ──────────────────────────────────────────────── */
+
+sparse_err_t sparse_scale(SparseMatrix *mat, double alpha)
+{
+    if (!mat) return SPARSE_ERR_NULL;
+
+    if (alpha == 0.0) {
+        /* Remove all entries */
+        for (idx_t i = 0; i < mat->rows; i++) {
+            Node *node = mat->row_headers[i];
+            while (node) {
+                Node *next = node->right;
+                pool_release(&mat->pool, node);
+                node = next;
+            }
+            mat->row_headers[i] = NULL;
+        }
+        for (idx_t j = 0; j < mat->cols; j++)
+            mat->col_headers[j] = NULL;
+        mat->nnz = 0;
+    } else {
+        for (idx_t i = 0; i < mat->rows; i++) {
+            Node *node = mat->row_headers[i];
+            while (node) {
+                node->value *= alpha;
+                node = node->right;
+            }
+        }
+    }
+
+    mat->cached_norm = -1.0;
+    return SPARSE_OK;
+}
+
 /* ─── Sparse matrix-vector product ───────────────────────────────────── */
 
 sparse_err_t sparse_matvec(const SparseMatrix *mat,

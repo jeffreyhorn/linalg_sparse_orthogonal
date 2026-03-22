@@ -212,6 +212,22 @@ sparse_err_t sparse_matvec(const SparseMatrix *mat,
                            const double *x, double *y);
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * Matrix arithmetic
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief Scale all entries of a matrix in-place: A = alpha * A.
+ *
+ * Multiplies every stored non-zero by alpha. If alpha is 0.0, all entries
+ * are removed and nnz becomes 0. Invalidates the cached infinity norm.
+ *
+ * @param mat    The matrix to scale.
+ * @param alpha  The scalar multiplier.
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL if mat is NULL.
+ */
+sparse_err_t sparse_scale(SparseMatrix *mat, double alpha);
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * Matrix Market I/O
  * ═══════════════════════════════════════════════════════════════════════════ */
 

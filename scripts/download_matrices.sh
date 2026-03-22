@@ -38,9 +38,9 @@ for name in $MATRICES; do
     echo "  fetch: ${name} ..."
     curl -sL -o "${TMPDIR_BASE}/${name}.tar.gz" "${BASE_URL}/${name}.tar.gz"
 
-    # Validate download
-    if ! file "${TMPDIR_BASE}/${name}.tar.gz" | grep -q "gzip"; then
-        echo "  ERROR: ${name} download failed (not a gzip file)"
+    # Validate download (gzip -t works in minimal environments without 'file')
+    if ! gzip -t "${TMPDIR_BASE}/${name}.tar.gz" 2>/dev/null; then
+        echo "  ERROR: ${name} download failed (not a valid gzip file)"
         continue
     fi
 

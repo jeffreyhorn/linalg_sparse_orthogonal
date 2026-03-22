@@ -55,7 +55,9 @@ if [ "$ASAN" -eq 1 ]; then
     echo "--- Step 3b: ASan build ---"
     if [ "$(uname)" = "Darwin" ]; then
         # Check if we're using Apple Clang (which hangs with ASan)
-        if ${CC:-cc} --version 2>&1 | grep -q "Apple clang"; then
+        CC_BIN=${CC:-cc}
+        CC_BIN=${CC_BIN%% *}
+        if "${CC_BIN}" --version 2>&1 | grep -q "Apple clang"; then
             echo "WARNING: Apple Clang ASan is known to hang on macOS."
             echo "  Skipping ASan. Use GCC or LLVM clang:"
             echo "    CC=gcc-14 ./scripts/ci.sh --asan"

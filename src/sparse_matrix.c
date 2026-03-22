@@ -452,30 +452,40 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B,
         if (err != SPARSE_OK) return err;
     }
 
-    /* Add beta * B using per-row cursor walk to avoid redundant lookups */
+    /* Add beta * B using per-row cursor walk.
+     * After insert/remove we must rescan from row head because the linked list
+     * structure has changed, but we fast-forward past columns we've already
+     * processed (nb->col) to avoid quadratic rescans. */
     for (idx_t i = 0; i < B->rows; i++) {
         Node *nb = B->row_headers[i];
         Node *na = A->row_headers[i];
         while (nb) {
+            idx_t target_col = nb->col;
             /* Advance A's cursor to find or pass nb->col */
-            while (na && na->col < nb->col)
+            while (na && na->col < target_col)
                 na = na->right;
-            if (na && na->col == nb->col) {
+            if (na && na->col == target_col) {
                 /* Entry exists in A — update in place */
                 double val = na->value + beta * nb->value;
                 if (fabs(val) < 1e-15) {
-                    /* Cancellation — remove via insert(0.0) and reset cursor */
-                    sparse_err_t ierr = sparse_insert(A, i, nb->col, 0.0);
+                    /* Cancellation — remove via insert(0.0) */
+                    sparse_err_t ierr = sparse_insert(A, i, target_col, 0.0);
                     if (ierr != SPARSE_OK) return ierr;
+                    /* Row structure changed; rescan but skip past target_col */
                     na = A->row_headers[i];
+                    while (na && na->col <= target_col)
+                        na = na->right;
                 } else {
                     na->value = val;
                 }
             } else {
-                /* No entry in A — insert and reset cursor (row structure changed) */
-                sparse_err_t err = sparse_insert(A, i, nb->col, beta * nb->value);
+                /* No entry in A — insert */
+                sparse_err_t err = sparse_insert(A, i, target_col, beta * nb->value);
                 if (err != SPARSE_OK) return err;
+                /* Row structure changed; rescan but skip past target_col */
                 na = A->row_headers[i];
+                while (na && na->col <= target_col)
+                    na = na->right;
             }
             nb = nb->right;
         }

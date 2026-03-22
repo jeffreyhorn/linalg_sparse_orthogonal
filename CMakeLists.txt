@@ -17,9 +17,16 @@ add_compile_options(
     -Wno-unused-parameter
 )
 
-# Optional sanitizers (enable with -DSANITIZE=ON)
-option(SANITIZE "Enable address and undefined behavior sanitizers" OFF)
-if(SANITIZE)
+# Optional sanitizers
+# Usage: -DSANITIZE=asan | -DSANITIZE=ubsan | -DSANITIZE=all | -DSANITIZE=ON (same as all)
+set(SANITIZE "" CACHE STRING "Sanitizer mode: asan, ubsan, all, or ON")
+if(SANITIZE STREQUAL "asan")
+    add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address)
+elseif(SANITIZE STREQUAL "ubsan")
+    add_compile_options(-fsanitize=undefined -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=undefined)
+elseif(SANITIZE STREQUAL "all" OR SANITIZE STREQUAL "ON")
     add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
     add_link_options(-fsanitize=address,undefined)
 endif()

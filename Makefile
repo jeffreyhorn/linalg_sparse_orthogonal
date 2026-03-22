@@ -88,11 +88,31 @@ bench: $(BENCH_BINS)
 		echo; \
 	done
 
-# Build and test with sanitizers (UBSan; add address for ASan if supported)
+# Build and test with UBSan
 .PHONY: sanitize
 sanitize: CFLAGS += -fsanitize=undefined -fno-omit-frame-pointer -g -O1
 sanitize: LDFLAGS += -fsanitize=undefined
 sanitize: clean test
+
+# Build and test with ASan
+# NOTE: Apple Clang ASan hangs on macOS. Use GCC or LLVM clang instead:
+#   make asan CC=gcc-14
+#   make asan CC=/opt/homebrew/opt/llvm/bin/clang
+# On Linux this works with the default compiler.
+.PHONY: asan
+asan: CFLAGS += -fsanitize=address -fno-omit-frame-pointer -g -O1
+asan: LDFLAGS += -fsanitize=address
+asan: export MallocNanoZone=0
+asan: export ASAN_OPTIONS=detect_leaks=0
+asan: clean test
+
+# Build and test with both ASan and UBSan
+.PHONY: sanitize-all
+sanitize-all: CFLAGS += -fsanitize=address,undefined -fno-omit-frame-pointer -g -O1
+sanitize-all: LDFLAGS += -fsanitize=address,undefined
+sanitize-all: export MallocNanoZone=0
+sanitize-all: export ASAN_OPTIONS=detect_leaks=0
+sanitize-all: clean test
 
 # Clean
 .PHONY: clean

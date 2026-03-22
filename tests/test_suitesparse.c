@@ -34,10 +34,6 @@ static int solve_and_check(const char *path, sparse_pivot_t pivot,
         return 0;
     }
 
-    /* Compute ||A||_inf for relative residual */
-    double anorm;
-    sparse_norminf(A, &anorm);
-
     /* Generate RHS: b = A * ones(n) so exact solution is x = ones(n) */
     double *ones = malloc((size_t)n * sizeof(double));
     double *b    = malloc((size_t)n * sizeof(double));
@@ -88,7 +84,7 @@ static int solve_and_check(const char *path, sparse_pivot_t pivot,
         if (bi > b_norm) b_norm = bi;
     }
 
-    double rel_res = (b_norm > 0.0) ? res_norm / (anorm * b_norm) : res_norm;
+    double rel_res = (b_norm > 0.0) ? res_norm / b_norm : res_norm;
 
     printf("    n=%d nnz=%d pivot=%s rel_res=%.3e %s\n",
            n, sparse_nnz(A_orig),

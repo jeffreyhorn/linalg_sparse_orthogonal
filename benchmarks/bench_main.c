@@ -175,8 +175,15 @@ static void benchmark_tabular(const char *name, SparseMatrix *A,
         }
         if (rep == 0) nnz_after = sparse_nnz(LU);
         t0 = wall_time();
-        sparse_lu_solve(LU, b, x);
+        err = sparse_lu_solve(LU, b, x);
         t_solve_total += wall_time() - t0;
+        if (err != SPARSE_OK) {
+            printf("%-20s %5d %7d   SOLVE FAILED: %s\n",
+                   name, (int)n, (int)nnz_orig, sparse_strerror(err));
+            sparse_free(LU);
+            ok = 0;
+            break;
+        }
         if (rep == repeats - 1) {
             sparse_matvec(A, x, r);
             for (idx_t i = 0; i < n; i++) r[i] -= b[i];

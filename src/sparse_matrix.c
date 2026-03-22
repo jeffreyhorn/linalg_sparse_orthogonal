@@ -451,15 +451,31 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B,
         if (err != SPARSE_OK) return err;
     }
 
-    /* Add beta * B */
+    /* Add beta * B using per-row cursor walk to avoid redundant lookups */
     for (idx_t i = 0; i < B->rows; i++) {
-        Node *node = B->row_headers[i];
-        while (node) {
-            double existing = sparse_get_phys(A, node->row, node->col);
-            double val = existing + beta * node->value;
-            sparse_err_t err = sparse_insert(A, node->row, node->col, val);
-            if (err != SPARSE_OK) return err;
-            node = node->right;
+        Node *nb = B->row_headers[i];
+        Node *na = A->row_headers[i];
+        while (nb) {
+            /* Advance A's cursor to find or pass nb->col */
+            while (na && na->col < nb->col)
+                na = na->right;
+            if (na && na->col == nb->col) {
+                /* Entry exists in A — update in place */
+                double val = na->value + beta * nb->value;
+                if (fabs(val) < 1e-15) {
+                    /* Cancellation — remove via insert(0.0) and reset cursor */
+                    sparse_insert(A, i, nb->col, 0.0);
+                    na = A->row_headers[i];
+                } else {
+                    na->value = val;
+                }
+            } else {
+                /* No entry in A — insert and reset cursor (row structure changed) */
+                sparse_err_t err = sparse_insert(A, i, nb->col, beta * nb->value);
+                if (err != SPARSE_OK) return err;
+                na = A->row_headers[i];
+            }
+            nb = nb->right;
         }
     }
 
@@ -532,6 +548,7 @@ sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename)
 sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename)
 {
     if (!mat_out || !filename) return SPARSE_ERR_NULL;
+    *mat_out = NULL;
 
     FILE *fp = fopen(filename, "r");
     if (!fp) {

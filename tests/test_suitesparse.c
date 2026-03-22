@@ -198,15 +198,17 @@ static void test_orsirr_1_complete(void)
 
 static void test_norminf_all_matrices(void)
 {
+    int large = getenv("SPARSE_TEST_LARGE") && atoi(getenv("SPARSE_TEST_LARGE")) > 0;
     const char *files[] = {
         SS_DIR "/west0067.mtx",
         SS_DIR "/nos4.mtx",
         SS_DIR "/bcsstk04.mtx",
         SS_DIR "/steam1.mtx",
-        SS_DIR "/fs_541_1.mtx",
-        SS_DIR "/orsirr_1.mtx",
+        SS_DIR "/fs_541_1.mtx",   /* large */
+        SS_DIR "/orsirr_1.mtx",   /* large */
     };
-    for (int i = 0; i < 6; i++) {
+    int count = large ? 6 : 4;
+    for (int i = 0; i < count; i++) {
         SparseMatrix *A = NULL;
         ASSERT_ERR(sparse_load_mm(&A, files[i]), SPARSE_OK);
         double norm;
@@ -254,7 +256,7 @@ int main(void)
         printf("  [SKIP] Large matrix tests (set SPARSE_TEST_LARGE=1 to enable)\n");
     }
 
-    /* Norm check on all (uses small matrices only) */
+    /* Norm check (small matrices only; includes large when SPARSE_TEST_LARGE=1) */
     RUN_TEST(test_norminf_all_matrices);
 
     TEST_SUITE_END();

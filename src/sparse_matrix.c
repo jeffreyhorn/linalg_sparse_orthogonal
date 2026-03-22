@@ -416,14 +416,14 @@ sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B,
                 nA = nA->right;
                 nB = nB->right;
             }
-            if (fabs(val) > 1e-15) {
+            if (fabs(val) >= 1e-15) {
                 sparse_err_t err = sparse_insert(C, i, col, val);
                 if (err != SPARSE_OK) { sparse_free(C); return err; }
             }
         }
         while (nA) {
             double val = alpha * nA->value;
-            if (fabs(val) > 1e-15) {
+            if (fabs(val) >= 1e-15) {
                 sparse_err_t err = sparse_insert(C, i, nA->col, val);
                 if (err != SPARSE_OK) { sparse_free(C); return err; }
             }
@@ -431,7 +431,7 @@ sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B,
         }
         while (nB) {
             double val = beta * nB->value;
-            if (fabs(val) > 1e-15) {
+            if (fabs(val) >= 1e-15) {
                 sparse_err_t err = sparse_insert(C, i, nB->col, val);
                 if (err != SPARSE_OK) { sparse_free(C); return err; }
             }
@@ -448,6 +448,9 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B,
 {
     if (!A || !B) return SPARSE_ERR_NULL;
     if (A->rows != B->rows || A->cols != B->cols) return SPARSE_ERR_SHAPE;
+
+    /* Invalidate cache early: A will be mutated even on partial failure */
+    A->cached_norm = -1.0;
 
     /* Scale A by alpha */
     if (alpha != 1.0) {
@@ -499,7 +502,6 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B,
         }
     }
 
-    A->cached_norm = -1.0;
     return SPARSE_OK;
 }
 

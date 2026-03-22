@@ -191,3 +191,29 @@ Fill-reducing reordering (AMD, RCM, etc.) is not currently implemented. For matr
 During elimination, new fill-in entries with |value| < DROP_TOL × |pivot| are dropped (not inserted). This controls memory growth at the expense of factorization accuracy. The default DROP_TOL of 1e-14 is conservative — it drops only entries that are negligible relative to the pivot, preserving near-exact arithmetic.
 
 For matrices where fill-in is a concern, a larger drop tolerance (e.g., 1e-8) can significantly reduce memory usage while maintaining acceptable accuracy, especially when followed by iterative refinement.
+
+## Singularity Detection: Relative Tolerance
+
+Backward substitution checks each diagonal element U(i,i) for near-zero values before dividing. This check uses a **relative** threshold:
+
+```
+threshold = DROP_TOL × ||A||_inf
+```
+
+where `||A||_inf` is the infinity norm (maximum absolute row sum) of the original matrix, computed and cached during `sparse_lu_factor()`.
+
+### Why Relative?
+
+An absolute threshold (the previous approach, using bare `DROP_TOL = 1e-14`) fails for two classes of matrices:
+
+1. **Matrices with uniformly small entries** — e.g., `A = 1e-16 × I`. Every diagonal entry is `1e-16`, which is smaller than `1e-14`, causing a false singular detection even though the matrix is perfectly well-conditioned (condition number = 1).
+
+2. **Matrices with very large entries** — e.g., diagonal entries of `1e15`. With an absolute threshold, even a near-zero diagonal entry like `1e-10` would pass, even though it represents catastrophic loss of significance relative to the matrix scale.
+
+The relative threshold `DROP_TOL × ||A||_inf` scales with the matrix, so:
+- A `1e-16 × I` matrix has threshold `1e-14 × 1e-16 = 1e-30`, correctly allowing `1e-16` pivots.
+- A matrix with `||A||_inf = 1e15` has threshold `1e-14 × 1e15 = 10`, correctly rejecting pivots smaller than 10.
+
+### Fallback
+
+If `factor_norm` is not set (e.g., backward substitution is called on a matrix that was not factored via `sparse_lu_factor`), the absolute `DROP_TOL` is used as a fallback for backward compatibility.

@@ -11,7 +11,10 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Iterative refinement** to improve solution accuracy
 - **Sparse matrix-vector product** (SpMV)
 - **Matrix Market I/O** — load and save `.mtx` files (coordinate real general, symmetric, and pattern formats)
-- **Drop tolerance** to control fill-in during factorization
+- **Drop tolerance** to control fill-in during factorization (relative to matrix norm)
+- **Matrix arithmetic** — scalar scaling (`sparse_scale`) and addition (`sparse_add`)
+- **Infinity norm** with internal caching (`sparse_norminf`)
+- **errno capture** for I/O errors (`sparse_errno`)
 
 ## Building
 
@@ -108,8 +111,15 @@ The library is split into four headers:
 - `sparse_lu_solve(mat, b, x)` — solve using factored matrix
 - `sparse_lu_refine(A, LU, b, x, max_iters, tol)` — iterative refinement
 
+**Matrix arithmetic:**
+- `sparse_scale(mat, alpha)` — in-place scalar multiplication
+- `sparse_add(A, B, alpha, beta, &C)` — C = alpha*A + beta*B
+- `sparse_add_inplace(A, B, alpha, beta)` — A = alpha*A + beta*B
+- `sparse_norminf(mat, &norm)` — infinity norm (cached)
+
 **I/O:**
 - `sparse_save_mm(mat, filename)` / `sparse_load_mm(&mat, filename)` — Matrix Market format
+- `sparse_errno()` — retrieve system errno after I/O failure
 
 All functions return `sparse_err_t` error codes (except accessors that return values directly). See `sparse_strerror()` for human-readable error messages.
 
@@ -117,10 +127,12 @@ All functions return `sparse_err_t` error codes (except accessors that return va
 
 | Matrix type | Pivoting | Factorization | Fill-in |
 |-------------|----------|---------------|---------|
-| Tridiagonal (n=5000) | Partial | 0.4 ms | 1.00x (zero fill-in) |
-| Tridiagonal (n=5000) | Complete | 256 ms | ~1.6x |
-| Arrow (n=200) | Either | — | catastrophic (→ 100% dense) |
-| Dense (n=200) | Complete | 1.6 s | 1.00x (already full) |
+| Tridiagonal (n=5000) | Partial | 0.5 ms | 1.00x (zero fill-in) |
+| Tridiagonal (n=5000) | Complete | 322 ms | ~1.7x |
+| west0067 (67×67) | Partial | 0.5 ms | 3.2x |
+| nos4 (100×100, sym) | Partial | 0.6 ms | 2.5x |
+| fs_541_1 (541×541) | Partial | 5.2 ms | 1.7x |
+| orsirr_1 (1030×1030) | Partial | 1,744 ms | 11.4x |
 
 **Complexity:**
 - Partial pivoting: O(nnz) per elimination step — strongly preferred for banded/structured matrices
@@ -138,13 +150,17 @@ All functions return `sparse_err_t` error codes (except accessors that return va
 
 ## Testing
 
-The test suite contains **112 unit tests** with **485 assertions** covering:
+The test suite contains **192 unit tests** with **962 assertions** across 9 test suites:
 
-- Sparse matrix data structure (31 tests)
-- LU factorization and solve (24 tests)
-- Matrix Market I/O (18 tests)
+- Sparse matrix data structure and norms (38 tests)
+- LU factorization and solve (26 tests)
+- Matrix Market I/O with errno validation (22 tests)
 - Known reference matrices (15 tests)
 - Vector utilities, SpMV, and iterative refinement (24 tests)
+- Edge cases and relative tolerance hardening (24 tests)
+- Integration tests (7 tests)
+- Matrix arithmetic — scale and add (23 tests)
+- SuiteSparse real-world matrix validation (13 tests)
 
 ```bash
 make test          # run all tests
@@ -183,7 +199,11 @@ linalg_sparse_orthogonal/
 │   ├── test_sparse_io.c
 │   ├── test_known_matrices.c
 │   ├── test_sparse_vector.c
-│   └── data/             Reference .mtx files
+│   ├── test_edge_cases.c
+│   ├── test_integration.c
+│   ├── test_sparse_arith.c
+│   ├── test_suitesparse.c
+│   └── data/             Reference .mtx files (8 + 6 SuiteSparse)
 ├── benchmarks/           Performance benchmarks
 ├── docs/                 Algorithm and format documentation
 ├── archive/              Original prototype files

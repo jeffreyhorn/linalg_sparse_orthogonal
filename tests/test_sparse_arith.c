@@ -121,6 +121,218 @@ static void test_scale_invalidates_norm(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * sparse_add tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_add_a_plus_zero(void)
+{
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 2.0);
+    sparse_insert(A, 2, 2, 3.0);
+
+    SparseMatrix *Z = sparse_create(3, 3); /* zero matrix */
+
+    SparseMatrix *C = NULL;
+    ASSERT_ERR(sparse_add(A, Z, 1.0, 1.0, &C), SPARSE_OK);
+    ASSERT_NOT_NULL(C);
+    ASSERT_EQ(sparse_nnz(C), 3);
+    ASSERT_NEAR(sparse_get_phys(C, 0, 0), 1.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(C, 1, 1), 2.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(C, 2, 2), 3.0, 0.0);
+
+    sparse_free(A);
+    sparse_free(Z);
+    sparse_free(C);
+}
+
+static void test_add_a_minus_a(void)
+{
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 5.0);
+    sparse_insert(A, 0, 2, 3.0);
+    sparse_insert(A, 1, 1, 7.0);
+    sparse_insert(A, 2, 0, -1.0);
+
+    SparseMatrix *C = NULL;
+    ASSERT_ERR(sparse_add(A, A, 1.0, -1.0, &C), SPARSE_OK);
+    ASSERT_NOT_NULL(C);
+    ASSERT_EQ(sparse_nnz(C), 0); /* everything cancels */
+
+    sparse_free(A);
+    sparse_free(C);
+}
+
+static void test_add_disjoint_patterns(void)
+{
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 2, 2, 3.0);
+
+    SparseMatrix *B = sparse_create(3, 3);
+    sparse_insert(B, 0, 2, 4.0);
+    sparse_insert(B, 1, 1, 5.0);
+
+    SparseMatrix *C = NULL;
+    ASSERT_ERR(sparse_add(A, B, 1.0, 1.0, &C), SPARSE_OK);
+    ASSERT_EQ(sparse_nnz(C), 4);
+    ASSERT_NEAR(sparse_get_phys(C, 0, 0), 1.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(C, 0, 2), 4.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(C, 1, 1), 5.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(C, 2, 2), 3.0, 0.0);
+
+    sparse_free(A);
+    sparse_free(B);
+    sparse_free(C);
+}
+
+static void test_add_overlapping_entries(void)
+{
+    SparseMatrix *A = sparse_create(2, 2);
+    sparse_insert(A, 0, 0, 3.0);
+    sparse_insert(A, 1, 1, 4.0);
+
+    SparseMatrix *B = sparse_create(2, 2);
+    sparse_insert(B, 0, 0, 7.0);
+    sparse_insert(B, 1, 1, 6.0);
+
+    SparseMatrix *C = NULL;
+    ASSERT_ERR(sparse_add(A, B, 2.0, 0.5, &C), SPARSE_OK);
+    /* C = 2*A + 0.5*B = (6+3.5, 0; 0, 8+3) = (9.5, 0; 0, 11) */
+    ASSERT_NEAR(sparse_get_phys(C, 0, 0), 9.5, 1e-14);
+    ASSERT_NEAR(sparse_get_phys(C, 1, 1), 11.0, 1e-14);
+
+    sparse_free(A);
+    sparse_free(B);
+    sparse_free(C);
+}
+
+static void test_add_dimension_mismatch(void)
+{
+    SparseMatrix *A = sparse_create(3, 3);
+    SparseMatrix *B = sparse_create(3, 4);
+    SparseMatrix *C = NULL;
+
+    ASSERT_ERR(sparse_add(A, B, 1.0, 1.0, &C), SPARSE_ERR_SHAPE);
+    ASSERT_NULL(C);
+
+    sparse_free(A);
+    sparse_free(B);
+}
+
+static void test_add_rectangular(void)
+{
+    SparseMatrix *A = sparse_create(2, 4);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 3, 2.0);
+
+    SparseMatrix *B = sparse_create(2, 4);
+    sparse_insert(B, 0, 0, 3.0);
+    sparse_insert(B, 0, 2, 4.0);
+
+    SparseMatrix *C = NULL;
+    ASSERT_ERR(sparse_add(A, B, 1.0, 1.0, &C), SPARSE_OK);
+    ASSERT_EQ(sparse_rows(C), 2);
+    ASSERT_EQ(sparse_cols(C), 4);
+    ASSERT_NEAR(sparse_get_phys(C, 0, 0), 4.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(C, 0, 2), 4.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(C, 1, 3), 2.0, 0.0);
+
+    sparse_free(A);
+    sparse_free(B);
+    sparse_free(C);
+}
+
+static void test_add_null_args(void)
+{
+    SparseMatrix *A = sparse_create(2, 2);
+    SparseMatrix *C = NULL;
+
+    ASSERT_ERR(sparse_add(NULL, A, 1.0, 1.0, &C), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_add(A, NULL, 1.0, 1.0, &C), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_add(A, A, 1.0, 1.0, NULL), SPARSE_ERR_NULL);
+
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * sparse_add_inplace tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_add_inplace_basic(void)
+{
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 2.0);
+
+    SparseMatrix *B = sparse_create(3, 3);
+    sparse_insert(B, 0, 0, 3.0);
+    sparse_insert(B, 2, 2, 4.0);
+
+    ASSERT_ERR(sparse_add_inplace(A, B, 1.0, 1.0), SPARSE_OK);
+    ASSERT_EQ(sparse_nnz(A), 3);
+    ASSERT_NEAR(sparse_get_phys(A, 0, 0), 4.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 1, 1), 2.0, 0.0);
+    ASSERT_NEAR(sparse_get_phys(A, 2, 2), 4.0, 0.0);
+
+    sparse_free(A);
+    sparse_free(B);
+}
+
+static void test_add_inplace_with_scaling(void)
+{
+    SparseMatrix *A = sparse_create(2, 2);
+    sparse_insert(A, 0, 0, 10.0);
+    sparse_insert(A, 1, 1, 20.0);
+
+    SparseMatrix *B = sparse_create(2, 2);
+    sparse_insert(B, 0, 0, 1.0);
+    sparse_insert(B, 1, 1, 2.0);
+
+    /* A = 0.5*A + 3*B = (5+3, 0; 0, 10+6) = (8, 0; 0, 16) */
+    ASSERT_ERR(sparse_add_inplace(A, B, 0.5, 3.0), SPARSE_OK);
+    ASSERT_NEAR(sparse_get_phys(A, 0, 0), 8.0, 1e-14);
+    ASSERT_NEAR(sparse_get_phys(A, 1, 1), 16.0, 1e-14);
+
+    sparse_free(A);
+    sparse_free(B);
+}
+
+static void test_add_inplace_cancellation(void)
+{
+    SparseMatrix *A = sparse_create(2, 2);
+    sparse_insert(A, 0, 0, 5.0);
+    sparse_insert(A, 1, 1, 3.0);
+
+    SparseMatrix *B = sparse_create(2, 2);
+    sparse_insert(B, 0, 0, 5.0);
+    sparse_insert(B, 1, 1, 3.0);
+
+    ASSERT_ERR(sparse_add_inplace(A, B, 1.0, -1.0), SPARSE_OK);
+    ASSERT_EQ(sparse_nnz(A), 0);
+
+    sparse_free(A);
+    sparse_free(B);
+}
+
+static void test_add_inplace_null(void)
+{
+    SparseMatrix *A = sparse_create(2, 2);
+    ASSERT_ERR(sparse_add_inplace(NULL, A, 1.0, 1.0), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_add_inplace(A, NULL, 1.0, 1.0), SPARSE_ERR_NULL);
+    sparse_free(A);
+}
+
+static void test_add_inplace_shape_mismatch(void)
+{
+    SparseMatrix *A = sparse_create(2, 2);
+    SparseMatrix *B = sparse_create(3, 3);
+    ASSERT_ERR(sparse_add_inplace(A, B, 1.0, 1.0), SPARSE_ERR_SHAPE);
+    sparse_free(A);
+    sparse_free(B);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -137,6 +349,22 @@ int main(void)
     RUN_TEST(test_scale_null);
     RUN_TEST(test_scale_empty_matrix);
     RUN_TEST(test_scale_invalidates_norm);
+
+    /* Add (out-of-place) */
+    RUN_TEST(test_add_a_plus_zero);
+    RUN_TEST(test_add_a_minus_a);
+    RUN_TEST(test_add_disjoint_patterns);
+    RUN_TEST(test_add_overlapping_entries);
+    RUN_TEST(test_add_dimension_mismatch);
+    RUN_TEST(test_add_rectangular);
+    RUN_TEST(test_add_null_args);
+
+    /* Add (in-place) */
+    RUN_TEST(test_add_inplace_basic);
+    RUN_TEST(test_add_inplace_with_scaling);
+    RUN_TEST(test_add_inplace_cancellation);
+    RUN_TEST(test_add_inplace_null);
+    RUN_TEST(test_add_inplace_shape_mismatch);
 
     TEST_SUITE_END();
 }

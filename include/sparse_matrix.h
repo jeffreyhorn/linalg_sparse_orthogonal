@@ -227,6 +227,41 @@ sparse_err_t sparse_matvec(const SparseMatrix *mat,
  */
 sparse_err_t sparse_scale(SparseMatrix *mat, double alpha);
 
+/**
+ * @brief Compute C = alpha*A + beta*B (sparse matrix addition with scaling).
+ *
+ * A and B must have the same dimensions. C is a newly allocated matrix.
+ * Entries that cancel to zero (|value| < 1e-15) are not stored.
+ *
+ * @param A       First input matrix.
+ * @param B       Second input matrix.
+ * @param alpha   Scalar for A.
+ * @param beta    Scalar for B.
+ * @param[out] C_out  Pointer to receive the result matrix. The caller must
+ *                    free with sparse_free().
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL if any pointer is NULL,
+ *         SPARSE_ERR_SHAPE if dimensions mismatch, SPARSE_ERR_ALLOC on
+ *         memory failure.
+ */
+sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B,
+                         double alpha, double beta, SparseMatrix **C_out);
+
+/**
+ * @brief Compute A = alpha*A + beta*B in-place.
+ *
+ * A and B must have the same dimensions. A is modified in-place.
+ * Entries that cancel to zero are removed.
+ *
+ * @param A       Matrix to modify in-place (receives the result).
+ * @param B       Second input matrix (read-only).
+ * @param alpha   Scalar for A.
+ * @param beta    Scalar for B.
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL if any pointer is NULL,
+ *         SPARSE_ERR_SHAPE if dimensions mismatch.
+ */
+sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B,
+                                 double alpha, double beta);
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * Matrix Market I/O
  * ═══════════════════════════════════════════════════════════════════════════ */

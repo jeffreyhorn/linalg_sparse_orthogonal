@@ -381,6 +381,72 @@ sparse_err_t sparse_scale(SparseMatrix *mat, double alpha)
     return SPARSE_OK;
 }
 
+sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B,
+                         double alpha, double beta, SparseMatrix **C_out)
+{
+    if (!A || !B || !C_out) return SPARSE_ERR_NULL;
+    if (A->rows != B->rows || A->cols != B->cols) return SPARSE_ERR_SHAPE;
+
+    SparseMatrix *C = sparse_create(A->rows, A->cols);
+    if (!C) return SPARSE_ERR_ALLOC;
+
+    /* Insert alpha * A entries */
+    for (idx_t i = 0; i < A->rows; i++) {
+        Node *node = A->row_headers[i];
+        while (node) {
+            double val = alpha * node->value;
+            if (fabs(val) > 1e-15) {
+                sparse_err_t err = sparse_insert(C, node->row, node->col, val);
+                if (err != SPARSE_OK) { sparse_free(C); return err; }
+            }
+            node = node->right;
+        }
+    }
+
+    /* Add beta * B entries */
+    for (idx_t i = 0; i < B->rows; i++) {
+        Node *node = B->row_headers[i];
+        while (node) {
+            double existing = sparse_get_phys(C, node->row, node->col);
+            double val = existing + beta * node->value;
+            sparse_err_t err = sparse_insert(C, node->row, node->col, val);
+            if (err != SPARSE_OK) { sparse_free(C); return err; }
+            node = node->right;
+        }
+    }
+
+    *C_out = C;
+    return SPARSE_OK;
+}
+
+sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B,
+                                 double alpha, double beta)
+{
+    if (!A || !B) return SPARSE_ERR_NULL;
+    if (A->rows != B->rows || A->cols != B->cols) return SPARSE_ERR_SHAPE;
+
+    /* Scale A by alpha */
+    if (alpha != 1.0) {
+        sparse_err_t err = sparse_scale(A, alpha);
+        if (err != SPARSE_OK) return err;
+    }
+
+    /* Add beta * B */
+    for (idx_t i = 0; i < B->rows; i++) {
+        Node *node = B->row_headers[i];
+        while (node) {
+            double existing = sparse_get_phys(A, node->row, node->col);
+            double val = existing + beta * node->value;
+            sparse_err_t err = sparse_insert(A, node->row, node->col, val);
+            if (err != SPARSE_OK) return err;
+            node = node->right;
+        }
+    }
+
+    A->cached_norm = -1.0;
+    return SPARSE_OK;
+}
+
 /* ─── Sparse matrix-vector product ───────────────────────────────────── */
 
 sparse_err_t sparse_matvec(const SparseMatrix *mat,

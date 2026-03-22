@@ -31,7 +31,9 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_known_matrices.c \
             $(TESTDIR)/test_sparse_vector.c \
             $(TESTDIR)/test_edge_cases.c \
-            $(TESTDIR)/test_integration.c
+            $(TESTDIR)/test_integration.c \
+            $(TESTDIR)/test_sparse_arith.c \
+            $(TESTDIR)/test_suitesparse.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
 # Benchmark sources
@@ -88,11 +90,37 @@ bench: $(BENCH_BINS)
 		echo; \
 	done
 
-# Build and test with sanitizers (UBSan; add address for ASan if supported)
+# Benchmark SuiteSparse matrices (both pivoting modes)
+.PHONY: bench-suitesparse
+bench-suitesparse: $(BUILDDIR)/bench_main
+	@$(BUILDDIR)/bench_main --dir tests/data/suitesparse --pivot partial --repeat 3
+	@$(BUILDDIR)/bench_main --dir tests/data/suitesparse --pivot complete --repeat 3
+
+# Build and test with UBSan
 .PHONY: sanitize
 sanitize: CFLAGS += -fsanitize=undefined -fno-omit-frame-pointer -g -O1
 sanitize: LDFLAGS += -fsanitize=undefined
 sanitize: clean test
+
+# Build and test with ASan
+# NOTE: Apple Clang ASan hangs on macOS. Use GCC or LLVM clang instead:
+#   make asan CC=gcc-14
+#   make asan CC=/opt/homebrew/opt/llvm/bin/clang
+# On Linux this works with the default compiler.
+.PHONY: asan
+asan: CFLAGS += -fsanitize=address -fno-omit-frame-pointer -g -O1
+asan: LDFLAGS += -fsanitize=address
+asan: export MallocNanoZone=0
+asan: export ASAN_OPTIONS=detect_leaks=0
+asan: clean test
+
+# Build and test with both ASan and UBSan
+.PHONY: sanitize-all
+sanitize-all: CFLAGS += -fsanitize=address,undefined -fno-omit-frame-pointer -g -O1
+sanitize-all: LDFLAGS += -fsanitize=address,undefined
+sanitize-all: export MallocNanoZone=0
+sanitize-all: export ASAN_OPTIONS=detect_leaks=0
+sanitize-all: clean test
 
 # Clean
 .PHONY: clean

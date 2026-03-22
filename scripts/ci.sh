@@ -2,7 +2,7 @@
 #
 # CI script for linalg_sparse_orthogonal
 #
-# Usage: ./scripts/ci.sh [--bench] [--sanitize]
+# Usage: ./scripts/ci.sh [--bench] [--sanitize] [--asan]
 #
 # Exits with non-zero status if any step fails.
 #
@@ -14,10 +14,12 @@ cd "$PROJECT_DIR"
 
 BENCH=0
 SANITIZE=0
+ASAN=0
 for arg in "$@"; do
     case "$arg" in
         --bench)    BENCH=1 ;;
         --sanitize) SANITIZE=1 ;;
+        --asan)     ASAN=1 ;;
         *)          echo "Unknown option: $arg"; exit 1 ;;
     esac
 done
@@ -43,6 +45,29 @@ echo
 if [ "$SANITIZE" -eq 1 ]; then
     echo "--- Step 3: Sanitizer build (UBSan) ---"
     make sanitize
+    echo
+fi
+
+# Step 3b: ASan build (optional)
+# NOTE: Apple Clang ASan hangs on macOS. This step requires GCC or LLVM clang.
+# On Linux with default compiler, or macOS with: CC=gcc-14 ./scripts/ci.sh --asan
+if [ "$ASAN" -eq 1 ]; then
+    echo "--- Step 3b: ASan build ---"
+    if [ "$(uname)" = "Darwin" ]; then
+        # Check if we're using Apple Clang (which hangs with ASan)
+        CC_BIN=${CC:-cc}
+        CC_BIN=${CC_BIN%% *}
+        if "${CC_BIN}" --version 2>&1 | grep -q "Apple clang"; then
+            echo "WARNING: Apple Clang ASan is known to hang on macOS."
+            echo "  Skipping ASan. Use GCC or LLVM clang:"
+            echo "    CC=gcc-14 ./scripts/ci.sh --asan"
+            echo "    CC=/opt/homebrew/opt/llvm/bin/clang ./scripts/ci.sh --asan"
+        else
+            make asan
+        fi
+    else
+        make asan
+    fi
     echo
 fi
 

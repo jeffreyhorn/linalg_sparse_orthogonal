@@ -12,6 +12,7 @@ archive/sparse_lu
 # Test outputs
 *.mtx
 !tests/data/*.mtx
+!tests/data/**/*.mtx
 
 # Editor / IDE
 .vscode/

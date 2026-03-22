@@ -119,10 +119,14 @@ static void test_single_nnz_diagonal(void)
 
 static void test_diagonal_extreme_solve(void)
 {
-    /* Diagonal with entries spanning many orders of magnitude,
-     * but all above DROP_TOL (1e-14) so backward_sub succeeds. */
+    /*
+     * Diagonal with entries spanning moderate orders of magnitude.
+     * With relative drop tolerance (DROP_TOL * ||A||_inf), all entries
+     * must be large enough relative to the max entry to avoid being
+     * flagged as singular. Ratio of 1e8 is well within tolerance.
+     */
     idx_t n = 5;
-    double diag[] = {1e-10, 1e-5, 1.0, 1e5, 1e10};
+    double diag[] = {1e-4, 1e-2, 1.0, 1e2, 1e4};
     SparseMatrix *A = sparse_create(n, n);
     for (idx_t i = 0; i < n; i++)
         sparse_insert(A, i, i, diag[i]);
@@ -447,6 +451,80 @@ static void test_freelist_reuse(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Relative tolerance edge cases
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_zero_matrix_factor_norm(void)
+{
+    /* All-zero matrix has norm 0. Factorization should detect singularity
+     * during pivot selection (max_val < tol), not in backward sub. */
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12),
+               SPARSE_ERR_SINGULAR);
+    sparse_free(A);
+}
+
+static void test_1x1_tiny_value_solves(void)
+{
+    /* 1x1 matrix with a tiny value. Relative tolerance should allow it
+     * since ||A||_inf == |val|, so threshold = DROP_TOL * |val| << |val|. */
+    SparseMatrix *A = sparse_create(1, 1);
+    sparse_insert(A, 0, 0, 1e-300);
+    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_PARTIAL, 1e-308), SPARSE_OK);
+
+    double b = 1e-300, x;
+    ASSERT_ERR(sparse_lu_solve(A, &b, &x), SPARSE_OK);
+    ASSERT_NEAR(x, 1.0, 1e-10);
+    sparse_free(A);
+}
+
+static void test_mixed_scale_no_false_singular(void)
+{
+    /* 3x3 with mixed but not extreme scales. All entries are well above
+     * relative threshold. Should solve cleanly. */
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 0.5);
+    sparse_insert(A, 1, 0, 0.5);
+    sparse_insert(A, 1, 1, 1.0);
+    sparse_insert(A, 1, 2, 0.5);
+    sparse_insert(A, 2, 1, 0.5);
+    sparse_insert(A, 2, 2, 1.0);
+
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    double b[] = {1.0, 1.0, 1.0};
+    double x[3];
+    ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_OK);
+
+    /* Verify via residual */
+    double r[3];
+    sparse_matvec(A, x, r);
+    for (idx_t i = 0; i < 3; i++)
+        ASSERT_NEAR(r[i], b[i], 1e-12);
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+static void test_large_norm_does_not_mask_singularity(void)
+{
+    /* Matrix with large entries but a zero row → singular.
+     * Large ||A||_inf makes relative threshold large, but pivot selection
+     * should catch the zero pivot before backward sub is reached. */
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 1e15);
+    sparse_insert(A, 0, 1, 1e15);
+    /* row 1 is all zeros → singular */
+    sparse_insert(A, 2, 2, 1e15);
+
+    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12),
+               SPARSE_ERR_SINGULAR);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -491,6 +569,12 @@ int main(void)
 
     /* Free-list stress */
     RUN_TEST(test_freelist_reuse);
+
+    /* Relative tolerance edge cases */
+    RUN_TEST(test_zero_matrix_factor_norm);
+    RUN_TEST(test_1x1_tiny_value_solves);
+    RUN_TEST(test_mixed_scale_no_false_singular);
+    RUN_TEST(test_large_norm_does_not_mask_singularity);
 
     TEST_SUITE_END();
 }

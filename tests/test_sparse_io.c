@@ -4,6 +4,7 @@
 #include "test_framework.h"
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 /*
  * Path helper: tests must find data files relative to the executable.
@@ -216,7 +217,7 @@ static void test_load_nonexistent_file(void)
 {
     SparseMatrix *A = NULL;
     ASSERT_ERR(sparse_load_mm(&A, "/tmp/no_such_file_xyz.mtx"),
-               SPARSE_ERR_FOPEN);
+               SPARSE_ERR_IO);
     ASSERT_NULL(A);
 }
 
@@ -247,8 +248,61 @@ static void test_save_invalid_path(void)
 {
     SparseMatrix *A = sparse_create(2, 2);
     sparse_insert(A, 0, 0, 1.0);
-    ASSERT_ERR(sparse_save_mm(A, "/no_such_dir/test.mtx"), SPARSE_ERR_FOPEN);
+    ASSERT_ERR(sparse_save_mm(A, "/no_such_dir/test.mtx"), SPARSE_ERR_IO);
     sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * errno capture tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_load_errno_enoent(void)
+{
+    SparseMatrix *A = NULL;
+    sparse_err_t err = sparse_load_mm(&A, "/tmp/no_such_file_errno_test.mtx");
+    ASSERT_ERR(err, SPARSE_ERR_IO);
+    ASSERT_NULL(A);
+    ASSERT_EQ(sparse_errno(), ENOENT);
+}
+
+static void test_save_errno_bad_path(void)
+{
+    SparseMatrix *A = sparse_create(2, 2);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_err_t err = sparse_save_mm(A, "/no_such_dir/errno_test.mtx");
+    ASSERT_ERR(err, SPARSE_ERR_IO);
+    ASSERT_TRUE(sparse_errno() != 0);
+    sparse_free(A);
+}
+
+static void test_errno_cleared_on_success(void)
+{
+    /* First, trigger an I/O error to set sparse_errno */
+    SparseMatrix *A = NULL;
+    sparse_load_mm(&A, "/tmp/no_such_file_clear_test.mtx");
+    ASSERT_TRUE(sparse_errno() != 0);
+
+    /* Now do a successful I/O operation */
+    SparseMatrix *B = sparse_create(2, 2);
+    sparse_insert(B, 0, 0, 1.0);
+    ASSERT_ERR(sparse_save_mm(B, "/tmp/test_errno_clear.mtx"), SPARSE_OK);
+    ASSERT_EQ(sparse_errno(), 0);
+
+    /* Also verify load clears it */
+    sparse_load_mm(&A, "/tmp/no_such_file_clear_test2.mtx");
+    ASSERT_TRUE(sparse_errno() != 0);
+    ASSERT_ERR(sparse_load_mm(&A, "/tmp/test_errno_clear.mtx"), SPARSE_OK);
+    ASSERT_EQ(sparse_errno(), 0);
+
+    sparse_free(A);
+    sparse_free(B);
+}
+
+static void test_strerror_io(void)
+{
+    const char *msg = sparse_strerror(SPARSE_ERR_IO);
+    ASSERT_NOT_NULL(msg);
+    ASSERT_TRUE(strlen(msg) > 0);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -376,6 +430,12 @@ int main(void)
     RUN_TEST(test_save_null_args);
     RUN_TEST(test_load_null_args);
     RUN_TEST(test_save_invalid_path);
+
+    /* errno capture */
+    RUN_TEST(test_load_errno_enoent);
+    RUN_TEST(test_save_errno_bad_path);
+    RUN_TEST(test_errno_cleared_on_success);
+    RUN_TEST(test_strerror_io);
 
     /* Edge cases */
     RUN_TEST(test_roundtrip_1x1);

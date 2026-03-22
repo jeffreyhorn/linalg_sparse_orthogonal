@@ -511,6 +511,52 @@ static void test_drop_tolerance_reduces_fillin(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Relative drop tolerance
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_relative_tol_scaled_identity(void)
+{
+    /*
+     * Scale identity by 1e-16. With absolute DROP_TOL=1e-14, the diagonal
+     * entries (1e-16) would be smaller than DROP_TOL, triggering a false
+     * singular detection. With relative tolerance (DROP_TOL * ||A||_inf),
+     * the threshold becomes 1e-14 * 1e-16 = 1e-30, so 1e-16 passes.
+     */
+    idx_t n = 5;
+    double scale = 1e-16;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, scale);
+
+    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_PARTIAL, 1e-30), SPARSE_OK);
+
+    /* Solve Ax = b where b = scale * [1,1,...,1], expect x = [1,1,...,1] */
+    double b[5], x[5];
+    for (idx_t i = 0; i < n; i++) b[i] = scale;
+
+    ASSERT_ERR(sparse_lu_solve(A, b, x), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-10);
+
+    sparse_free(A);
+}
+
+static void test_relative_tol_singular_still_detected(void)
+{
+    /* A genuinely singular matrix should still be caught */
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 1, 0, 2.0);
+    sparse_insert(A, 1, 1, 4.0);  /* row 1 = 2 * row 0 */
+    sparse_insert(A, 2, 2, 1.0);
+
+    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_PARTIAL, 1e-12),
+               SPARSE_ERR_SINGULAR);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -557,6 +603,10 @@ int main(void)
 
     /* Drop tolerance */
     RUN_TEST(test_drop_tolerance_reduces_fillin);
+
+    /* Relative tolerance */
+    RUN_TEST(test_relative_tol_scaled_identity);
+    RUN_TEST(test_relative_tol_singular_still_detected);
 
     TEST_SUITE_END();
 }

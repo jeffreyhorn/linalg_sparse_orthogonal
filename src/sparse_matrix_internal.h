@@ -43,7 +43,14 @@ typedef struct SparseMatrix {
     idx_t *inv_col_perm;   /* physical -> logical col */
     NodePool pool;
     idx_t nnz;
+    double cached_norm;    /* cached ||A||_inf, -1.0 = invalid */
+    double factor_norm;    /* ||A||_inf at factorization time, for relative tol */
 } SparseMatrix;
+
+/*
+ * Internal errno capture (defined in sparse_types.c)
+ */
+void sparse_set_errno_(int errnum);
 
 /*
  * Internal pool operations (used by sparse_matrix.c and sparse_lu.c)

@@ -5,6 +5,7 @@
 #include <string.h>
 #include <math.h>
 #include <inttypes.h>
+#include <errno.h>
 
 /* ─── Pool allocator ─────────────────────────────────────────────────── */
 
@@ -81,6 +82,8 @@ SparseMatrix *sparse_create(idx_t rows, idx_t cols)
     mat->rows = rows;
     mat->cols = cols;
     mat->nnz  = 0;
+    mat->cached_norm = -1.0;
+    mat->factor_norm = -1.0;
 
     mat->row_headers  = calloc((size_t)rows, sizeof(Node *));
     mat->col_headers  = calloc((size_t)cols, sizeof(Node *));
@@ -157,6 +160,10 @@ SparseMatrix *sparse_copy(const SparseMatrix *mat)
         }
     }
 
+    /* Preserve cached norm and factor norm from source */
+    copy->cached_norm = mat->cached_norm;
+    copy->factor_norm = mat->factor_norm;
+
     return copy;
 }
 
@@ -182,6 +189,7 @@ sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, double val)
     /* If node already exists, update its value */
     if (curr_r && curr_r->col == col) {
         curr_r->value = val;
+        mat->cached_norm = -1.0;
         return SPARSE_OK;
     }
 
@@ -189,6 +197,7 @@ sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, double val)
     Node *node = make_node(mat, row, col, val);
     if (!node) return SPARSE_ERR_ALLOC;
     mat->nnz++;
+    mat->cached_norm = -1.0;
 
     /* Link into row list */
     node->right = curr_r;
@@ -247,6 +256,7 @@ sparse_err_t sparse_remove(SparseMatrix *mat, idx_t row, idx_t col)
 
     pool_release(&mat->pool, curr);
     mat->nnz--;
+    mat->cached_norm = -1.0;
 
     return SPARSE_OK;
 }
@@ -308,6 +318,193 @@ size_t sparse_memory_usage(const SparseMatrix *mat)
          + (size_t)mat->pool.num_slabs * sizeof(NodeSlab);
 }
 
+/* ─── Infinity norm ──────────────────────────────────────────────────── */
+
+sparse_err_t sparse_norminf(SparseMatrix *mat, double *norm)
+{
+    if (!mat || !norm) return SPARSE_ERR_NULL;
+
+    /* Return cached value if valid */
+    if (mat->cached_norm >= 0.0) {
+        *norm = mat->cached_norm;
+        return SPARSE_OK;
+    }
+
+    double max_row_sum = 0.0;
+    for (idx_t i = 0; i < mat->rows; i++) {
+        double row_sum = 0.0;
+        Node *node = mat->row_headers[i];
+        while (node) {
+            row_sum += fabs(node->value);
+            node = node->right;
+        }
+        if (row_sum > max_row_sum)
+            max_row_sum = row_sum;
+    }
+
+    mat->cached_norm = max_row_sum;
+    *norm = max_row_sum;
+    return SPARSE_OK;
+}
+
+/* ─── Matrix arithmetic ──────────────────────────────────────────────── */
+
+sparse_err_t sparse_scale(SparseMatrix *mat, double alpha)
+{
+    if (!mat) return SPARSE_ERR_NULL;
+
+    if (alpha == 0.0) {
+        /* Remove all entries */
+        for (idx_t i = 0; i < mat->rows; i++) {
+            Node *node = mat->row_headers[i];
+            while (node) {
+                Node *next = node->right;
+                pool_release(&mat->pool, node);
+                node = next;
+            }
+            mat->row_headers[i] = NULL;
+        }
+        for (idx_t j = 0; j < mat->cols; j++)
+            mat->col_headers[j] = NULL;
+        mat->nnz = 0;
+    } else {
+        for (idx_t i = 0; i < mat->rows; i++) {
+            Node *node = mat->row_headers[i];
+            while (node) {
+                node->value *= alpha;
+                node = node->right;
+            }
+        }
+    }
+
+    mat->cached_norm = -1.0;
+    return SPARSE_OK;
+}
+
+/* NOTE: sparse_add() and sparse_add_inplace() operate in physical index space.
+ * Do not use on matrices with non-identity permutations (e.g., after LU
+ * factorization) — results would not correspond to logical matrix entries. */
+sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B,
+                         double alpha, double beta, SparseMatrix **C_out)
+{
+    if (!A || !B || !C_out) return SPARSE_ERR_NULL;
+    *C_out = NULL;
+    if (A->rows != B->rows || A->cols != B->cols) return SPARSE_ERR_SHAPE;
+
+    SparseMatrix *C = sparse_create(A->rows, A->cols);
+    if (!C) return SPARSE_ERR_ALLOC;
+
+    /* Row-wise merge of A and B using sorted row lists (two-pointer walk) */
+    for (idx_t i = 0; i < A->rows; i++) {
+        Node *nA = A->row_headers[i];
+        Node *nB = B->row_headers[i];
+
+        while (nA && nB) {
+            double val;
+            idx_t col;
+            if (nA->col < nB->col) {
+                val = alpha * nA->value;
+                col = nA->col;
+                nA = nA->right;
+            } else if (nB->col < nA->col) {
+                val = beta * nB->value;
+                col = nB->col;
+                nB = nB->right;
+            } else {
+                val = alpha * nA->value + beta * nB->value;
+                col = nA->col;
+                nA = nA->right;
+                nB = nB->right;
+            }
+            if (fabs(val) >= 1e-15) {
+                sparse_err_t err = sparse_insert(C, i, col, val);
+                if (err != SPARSE_OK) { sparse_free(C); return err; }
+            }
+        }
+        while (nA) {
+            double val = alpha * nA->value;
+            if (fabs(val) >= 1e-15) {
+                sparse_err_t err = sparse_insert(C, i, nA->col, val);
+                if (err != SPARSE_OK) { sparse_free(C); return err; }
+            }
+            nA = nA->right;
+        }
+        while (nB) {
+            double val = beta * nB->value;
+            if (fabs(val) >= 1e-15) {
+                sparse_err_t err = sparse_insert(C, i, nB->col, val);
+                if (err != SPARSE_OK) { sparse_free(C); return err; }
+            }
+            nB = nB->right;
+        }
+    }
+
+    *C_out = C;
+    return SPARSE_OK;
+}
+
+sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B,
+                                 double alpha, double beta)
+{
+    if (!A || !B) return SPARSE_ERR_NULL;
+    if (A->rows != B->rows || A->cols != B->cols) return SPARSE_ERR_SHAPE;
+
+    /* Invalidate cache early: A will be mutated even on partial failure */
+    A->cached_norm = -1.0;
+
+    /* Scale A by alpha */
+    if (alpha != 1.0) {
+        sparse_err_t err = sparse_scale(A, alpha);
+        if (err != SPARSE_OK) return err;
+    }
+
+    /* Add beta * B using per-row cursor walk.
+     * After insert/remove we must rescan from row head because the linked list
+     * structure has changed, but we fast-forward past columns we've already
+     * processed (nb->col) to avoid quadratic rescans. */
+    for (idx_t i = 0; i < B->rows; i++) {
+        Node *nb = B->row_headers[i];
+        Node *na = A->row_headers[i];
+        while (nb) {
+            idx_t target_col = nb->col;
+            /* Advance A's cursor to find or pass nb->col */
+            while (na && na->col < target_col)
+                na = na->right;
+            if (na && na->col == target_col) {
+                /* Entry exists in A — update in place */
+                double val = na->value + beta * nb->value;
+                if (fabs(val) < 1e-15) {
+                    /* Cancellation — remove via insert(0.0) */
+                    sparse_err_t ierr = sparse_insert(A, i, target_col, 0.0);
+                    if (ierr != SPARSE_OK) return ierr;
+                    /* Row structure changed; rescan but skip past target_col */
+                    na = A->row_headers[i];
+                    while (na && na->col <= target_col)
+                        na = na->right;
+                } else {
+                    na->value = val;
+                }
+            } else {
+                /* No entry in A — insert only if non-negligible */
+                double val = beta * nb->value;
+                if (fabs(val) < 1e-15) {
+                    nb = nb->right;
+                    continue;
+                }
+                sparse_err_t err = sparse_insert(A, i, target_col, val);
+                if (err != SPARSE_OK) return err;
+                /* Row structure changed; rescan but skip past target_col */
+                na = A->row_headers[i];
+                while (na && na->col <= target_col)
+                    na = na->right;
+            }
+            nb = nb->right;
+        }
+    }
+
+    return SPARSE_OK;
+}
+
 /* ─── Sparse matrix-vector product ───────────────────────────────────── */
 
 sparse_err_t sparse_matvec(const SparseMatrix *mat,
@@ -342,7 +539,10 @@ sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename)
     if (!mat || !filename) return SPARSE_ERR_NULL;
 
     FILE *fp = fopen(filename, "w");
-    if (!fp) return SPARSE_ERR_FOPEN;
+    if (!fp) {
+        sparse_set_errno_(errno);
+        return SPARSE_ERR_IO;
+    }
 
     fprintf(fp, "%%%%MatrixMarket matrix coordinate real general\n");
     fprintf(fp, "%" PRId32 " %" PRId32 " %" PRId32 "\n",
@@ -359,21 +559,34 @@ sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename)
         }
     }
 
-    if (fclose(fp) != 0) return SPARSE_ERR_FWRITE;
+    if (fclose(fp) != 0) {
+        sparse_set_errno_(errno);
+        return SPARSE_ERR_IO;
+    }
+    sparse_set_errno_(0);
     return SPARSE_OK;
 }
 
 sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename)
 {
     if (!mat_out || !filename) return SPARSE_ERR_NULL;
+    *mat_out = NULL;
 
     FILE *fp = fopen(filename, "r");
-    if (!fp) return SPARSE_ERR_FOPEN;
+    if (!fp) {
+        sparse_set_errno_(errno);
+        return SPARSE_ERR_IO;
+    }
 
     char line[1024];
     if (!fgets(line, (int)sizeof(line), fp)) {
+        if (ferror(fp)) {
+            sparse_set_errno_(errno);
+            fclose(fp);
+            return SPARSE_ERR_IO;
+        }
         fclose(fp);
-        return SPARSE_ERR_FREAD;
+        return SPARSE_ERR_PARSE;  /* empty file */
     }
 
     if (strstr(line, "MatrixMarket") == NULL ||
@@ -409,15 +622,21 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename)
         double v = 1.0;  /* default for pattern matrices */
         if (is_pattern) {
             if (fscanf(fp, "%" PRId32 " %" PRId32, &i, &j) != 2) {
+                sparse_err_t ioerr = ferror(fp)
+                    ? (sparse_set_errno_(errno), SPARSE_ERR_IO)
+                    : SPARSE_ERR_PARSE;
                 sparse_free(mat);
                 fclose(fp);
-                return SPARSE_ERR_FREAD;
+                return ioerr;
             }
         } else {
             if (fscanf(fp, "%" PRId32 " %" PRId32 " %lf", &i, &j, &v) != 3) {
+                sparse_err_t ioerr = ferror(fp)
+                    ? (sparse_set_errno_(errno), SPARSE_ERR_IO)
+                    : SPARSE_ERR_PARSE;
                 sparse_free(mat);
                 fclose(fp);
-                return SPARSE_ERR_FREAD;
+                return ioerr;
             }
         }
         i--;  /* 1-based -> 0-based */
@@ -441,7 +660,12 @@ sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename)
         }
     }
 
-    fclose(fp);
+    if (fclose(fp) != 0) {
+        sparse_set_errno_(errno);
+        sparse_free(mat);
+        return SPARSE_ERR_IO;
+    }
+    sparse_set_errno_(0);
     *mat_out = mat;
     return SPARSE_OK;
 }

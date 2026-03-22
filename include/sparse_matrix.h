@@ -179,6 +179,21 @@ idx_t  sparse_nnz(const SparseMatrix *mat);
  */
 size_t sparse_memory_usage(const SparseMatrix *mat);
 
+/**
+ * @brief Compute the infinity norm of the matrix: ||A||_inf = max_i sum_j |a_ij|.
+ *
+ * The result is cached internally and invalidated when the matrix is modified
+ * (via sparse_insert, sparse_remove, sparse_set, sparse_scale, or
+ * sparse_add_inplace). Repeated calls without modification return the cached
+ * value in O(1).
+ *
+ * @param mat       The matrix (must not be NULL). May be mutated internally
+ *                  to update the cached norm value.
+ * @param[out] norm Pointer to receive the computed norm.
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL if mat or norm is NULL.
+ */
+sparse_err_t sparse_norminf(SparseMatrix *mat, double *norm);
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * Sparse matrix-vector product
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -199,6 +214,63 @@ sparse_err_t sparse_matvec(const SparseMatrix *mat,
                            const double *x, double *y);
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * Matrix arithmetic
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief Scale all entries of a matrix in-place: A = alpha * A.
+ *
+ * Multiplies every stored non-zero by alpha. If alpha is 0.0, all entries
+ * are removed and nnz becomes 0. Invalidates the cached infinity norm.
+ *
+ * @param mat    The matrix to scale.
+ * @param alpha  The scalar multiplier.
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL if mat is NULL.
+ */
+sparse_err_t sparse_scale(SparseMatrix *mat, double alpha);
+
+/**
+ * @brief Compute C = alpha*A + beta*B (sparse matrix addition with scaling).
+ *
+ * A and B must have the same dimensions. C is a newly allocated matrix.
+ * Entries that cancel to zero (|value| < 1e-15) are not stored.
+ *
+ * @note Operates in physical index space. Do not use on matrices with
+ *       non-identity permutations (e.g., after LU factorization).
+ *
+ * @param A       First input matrix.
+ * @param B       Second input matrix.
+ * @param alpha   Scalar for A.
+ * @param beta    Scalar for B.
+ * @param[out] C_out  Pointer to receive the result matrix. The caller must
+ *                    free with sparse_free().
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL if any pointer is NULL,
+ *         SPARSE_ERR_SHAPE if dimensions mismatch, SPARSE_ERR_ALLOC on
+ *         memory failure.
+ */
+sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B,
+                         double alpha, double beta, SparseMatrix **C_out);
+
+/**
+ * @brief Compute A = alpha*A + beta*B in-place.
+ *
+ * A and B must have the same dimensions. A is modified in-place.
+ * Entries that cancel to zero are removed.
+ *
+ * @note Operates in physical index space. Do not use on matrices with
+ *       non-identity permutations (e.g., after LU factorization).
+ *
+ * @param A       Matrix to modify in-place (receives the result).
+ * @param B       Second input matrix (read-only).
+ * @param alpha   Scalar for A.
+ * @param beta    Scalar for B.
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL if any pointer is NULL,
+ *         SPARSE_ERR_SHAPE if dimensions mismatch.
+ */
+sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B,
+                                 double alpha, double beta);
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * Matrix Market I/O
  * ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -208,10 +280,13 @@ sparse_err_t sparse_matvec(const SparseMatrix *mat,
  * Writes the matrix in "%%MatrixMarket matrix coordinate real general" format
  * with full double-precision values (%.15g). Only stored non-zeros are written.
  *
+ * On I/O failure, returns SPARSE_ERR_IO and captures the system errno,
+ * retrievable via sparse_errno(). On success, sparse_errno() is reset to 0.
+ *
  * @param mat       The matrix to save.
  * @param filename  Path to the output file.
- * @return SPARSE_OK on success, SPARSE_ERR_NULL, SPARSE_ERR_FOPEN, or
- *         SPARSE_ERR_FWRITE on failure.
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL if arguments are NULL,
+ *         SPARSE_ERR_IO on file open/write failure.
  */
 sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename);
 
@@ -222,10 +297,16 @@ sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename);
  * and general or symmetric symmetry. Symmetric matrices have their lower
  * triangle mirrored to the upper triangle. Pattern matrices use value 1.0.
  *
+ * On I/O failure, returns SPARSE_ERR_IO and captures the system errno,
+ * retrievable via sparse_errno(). On success, sparse_errno() is reset to 0.
+ * Format errors (bad header, dimension mismatch) return SPARSE_ERR_PARSE.
+ *
  * @param[out] mat_out  Pointer to receive the loaded matrix. Set to NULL on error.
  *                      The caller must free the matrix with sparse_free().
  * @param      filename Path to the input .mtx file.
- * @return SPARSE_OK on success, or an appropriate error code.
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL if arguments are NULL,
+ *         SPARSE_ERR_IO on file open/read failure, SPARSE_ERR_PARSE on
+ *         format error, SPARSE_ERR_ALLOC on memory failure.
  */
 sparse_err_t sparse_load_mm(SparseMatrix **mat_out, const char *filename);
 

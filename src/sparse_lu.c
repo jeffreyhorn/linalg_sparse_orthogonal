@@ -41,6 +41,12 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot,
     idx_t *elim_rows = malloc((size_t)n * sizeof(idx_t));
     if (!elim_rows) return SPARSE_ERR_ALLOC;
 
+    /* Compute and cache ||A||_inf before factorization for relative tolerance */
+    double anorm;
+    sparse_err_t nerr = sparse_norminf(mat, &anorm);
+    if (nerr != SPARSE_OK) { free(elim_rows); return nerr; }
+    mat->factor_norm = anorm;
+
     for (idx_t k = 0; k < n; k++) {
         /* ── Pivot search ── */
         double max_val = 0.0;
@@ -218,7 +224,11 @@ sparse_err_t sparse_backward_sub(const SparseMatrix *mat,
             node = node->right;
         }
 
-        if (fabs(u_ii) < DROP_TOL)
+        /* Use relative tolerance if factor_norm is available, else absolute */
+        double sing_tol = (mat->factor_norm > 0.0)
+                        ? DROP_TOL * mat->factor_norm
+                        : DROP_TOL;
+        if (fabs(u_ii) < sing_tol)
             return SPARSE_ERR_SINGULAR;
 
         z[i] = (y[i] - sum) / u_ii;

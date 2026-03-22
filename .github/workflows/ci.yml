@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and test
+        run: make test
+
+      - name: UBSan
+        run: make sanitize
+
+      - name: ASan
+        run: make asan
+
+      - name: Benchmarks
+        run: make clean && make bench

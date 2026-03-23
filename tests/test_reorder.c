@@ -441,6 +441,11 @@ static void rcm_validate_matrix(const char *path, double res_tol)
     double *x    = malloc((size_t)n * sizeof(double));
     double *r    = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(ones);
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(pb);
+    ASSERT_NOT_NULL(xp);
+    ASSERT_NOT_NULL(x);
+    ASSERT_NOT_NULL(r);
     for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
     sparse_matvec(A, ones, b);
 
@@ -659,6 +664,11 @@ static void amd_validate_matrix(const char *path, double res_tol)
     double *x    = malloc((size_t)n * sizeof(double));
     double *r    = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(ones);
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(pb);
+    ASSERT_NOT_NULL(xp);
+    ASSERT_NOT_NULL(x);
+    ASSERT_NOT_NULL(r);
     for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
     sparse_matvec(A, ones, b);
     for (idx_t i = 0; i < n; i++) pb[i] = b[amd_perm[i]];

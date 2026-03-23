@@ -240,7 +240,7 @@ static void test_condest_suitesparse(void)
 
         double cond;
         ASSERT_ERR(sparse_lu_condest(A, LU, &cond), SPARSE_OK);
-        ASSERT_TRUE(cond > 0.0);  /* estimate must be positive and finite */
+        ASSERT_TRUE(cond > 0.0 && isfinite(cond));  /* estimate must be positive and finite */
 
         printf("    %s: condest = %.3e\n", files[i], cond);
 

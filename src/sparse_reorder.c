@@ -5,6 +5,14 @@
 #include <math.h>
 #include <string.h>
 
+/* Comparator for sorting idx_t arrays */
+static int cmp_idx(const void *a, const void *b)
+{
+    idx_t va = *(const idx_t *)a;
+    idx_t vb = *(const idx_t *)b;
+    return (va > vb) - (va < vb);
+}
+
 /* ─── Bandwidth ──────────────────────────────────────────────────────── */
 
 idx_t sparse_bandwidth(const SparseMatrix *A)
@@ -153,17 +161,9 @@ sparse_err_t sparse_build_adj(const SparseMatrix *A,
         idx_t len = cursor[i];
         if (len <= 1) { degree[i] = len; continue; }
 
-        /* Insertion sort */
+        /* Sort neighbors for dedup (O(d log d) via qsort) */
         idx_t *list = &adj_list[start];
-        for (idx_t a = 1; a < len; a++) {
-            idx_t key = list[a];
-            idx_t b = a - 1;
-            while (b >= 0 && list[b] > key) {
-                list[b + 1] = list[b];
-                b--;
-            }
-            list[b + 1] = key;
-        }
+        qsort(list, (size_t)len, sizeof(idx_t), cmp_idx);
 
         /* Remove consecutive duplicates */
         idx_t write = 1;

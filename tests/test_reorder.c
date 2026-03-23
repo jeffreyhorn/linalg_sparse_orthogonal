@@ -861,6 +861,95 @@ static void test_opts_suitesparse(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Edge cases
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Rectangular matrix → reordering returns SPARSE_ERR_SHAPE */
+static void test_reorder_nonsquare(void)
+{
+    SparseMatrix *A = sparse_create(3, 5);
+    idx_t perm[3];
+    ASSERT_ERR(sparse_reorder_rcm(A, perm), SPARSE_ERR_SHAPE);
+    ASSERT_ERR(sparse_reorder_amd(A, perm), SPARSE_ERR_SHAPE);
+    sparse_free(A);
+}
+
+/* 1x1 matrix → reordering is identity */
+static void test_reorder_1x1(void)
+{
+    SparseMatrix *A = sparse_create(1, 1);
+    sparse_insert(A, 0, 0, 42.0);
+
+    idx_t perm[1];
+    ASSERT_ERR(sparse_reorder_rcm(A, perm), SPARSE_OK);
+    ASSERT_EQ(perm[0], 0);
+
+    ASSERT_ERR(sparse_reorder_amd(A, perm), SPARSE_OK);
+    ASSERT_EQ(perm[0], 0);
+
+    sparse_free(A);
+}
+
+/* Empty matrix (n=0): sparse_create(0,0) returns NULL, reorder returns ERR_NULL */
+static void test_reorder_empty(void)
+{
+    SparseMatrix *A = sparse_create(0, 0);
+    ASSERT_NULL(A);
+    idx_t dummy;
+    ASSERT_ERR(sparse_reorder_rcm(A, &dummy), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_reorder_amd(A, &dummy), SPARSE_ERR_NULL);
+}
+
+/* Matrix with no off-diagonal entries → permutation is valid */
+static void test_reorder_no_offdiag(void)
+{
+    idx_t n = 10;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, (double)(i + 1));
+
+    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+
+    ASSERT_ERR(sparse_reorder_rcm(A, perm), SPARSE_OK);
+    ASSERT_TRUE(is_valid_perm(perm, n));
+
+    ASSERT_ERR(sparse_reorder_amd(A, perm), SPARSE_OK);
+    ASSERT_TRUE(is_valid_perm(perm, n));
+
+    free(perm);
+    sparse_free(A);
+}
+
+/* condest on unfactored → BADARG, condest NULL → NULL */
+static void test_condest_edge_cases(void)
+{
+    SparseMatrix *A = sparse_create(2, 2);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 1.0);
+
+    double cond;
+    /* Unfactored matrix */
+    ASSERT_ERR(sparse_lu_condest(A, A, &cond), SPARSE_ERR_BADARG);
+    /* NULL args */
+    ASSERT_ERR(sparse_lu_condest(NULL, A, &cond), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_lu_condest(A, NULL, &cond), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_lu_condest(A, A, NULL), SPARSE_ERR_NULL);
+
+    sparse_free(A);
+}
+
+/* factor_opts with NULL opts → SPARSE_ERR_NULL */
+static void test_factor_opts_null(void)
+{
+    SparseMatrix *A = sparse_create(2, 2);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 1.0);
+    ASSERT_ERR(sparse_lu_factor_opts(A, NULL), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_lu_factor_opts(NULL, NULL), SPARSE_ERR_NULL);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -915,6 +1004,14 @@ int main(void)
     RUN_TEST(test_opts_amd_complete);
     RUN_TEST(test_opts_none);
     RUN_TEST(test_opts_suitesparse);
+
+    /* Edge cases */
+    RUN_TEST(test_reorder_nonsquare);
+    RUN_TEST(test_reorder_1x1);
+    RUN_TEST(test_reorder_empty);
+    RUN_TEST(test_reorder_no_offdiag);
+    RUN_TEST(test_condest_edge_cases);
+    RUN_TEST(test_factor_opts_null);
 
     TEST_SUITE_END();
 }

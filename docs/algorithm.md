@@ -184,7 +184,7 @@ Fill-in during LU factorization depends heavily on matrix structure and pivoting
 | Arrow | Catastrophic (→ 100% dense) | Catastrophic |
 | Random sparse (k=5/row) | ~2-5x | ~3-8x |
 
-Fill-reducing reordering (AMD, RCM, etc.) is not currently implemented. For matrices with significant fill-in, consider reordering before factorization in a future version.
+Fill-reducing reordering (AMD, RCM) is available — see the **Fill-Reducing Reordering** section below.
 
 ## Drop Tolerance
 
@@ -217,3 +217,75 @@ The relative threshold `DROP_TOL × ||A||_inf` scales with the matrix, so:
 ### Fallback
 
 If `factor_norm` is not set (e.g., backward substitution is called on a matrix that was not factored via `sparse_lu_factor`), the absolute `DROP_TOL` is used as a fallback for backward compatibility.
+
+## Condition Number Estimation
+
+`sparse_lu_condest()` estimates the 1-norm condition number `κ₁(A) = ‖A‖₁ · ‖A⁻¹‖₁` using the Hager/Higham algorithm (Hager 1984, Higham 2000).
+
+### Algorithm
+
+The key insight is that `‖A⁻¹‖₁` can be estimated without forming the inverse, using only forward and transpose solves with the existing LU factors:
+
+```
+1. x = [1/n, ..., 1/n]
+2. Solve A·w = x
+3. ξ = sign(w)
+4. Solve Aᵀ·z = ξ
+5. If ‖z‖∞ ≤ zᵀ·w: converged, ‖A⁻¹‖₁ ≈ ‖w‖₁
+6. Otherwise: x = eⱼ where j = argmax|zⱼ|, go to 2
+7. Max 5 iterations
+```
+
+The transpose solve (`Aᵀ·z = b`) is implemented by reversing the order of operations: forward-substitute with Uᵀ (using column lists), backward-substitute with Lᵀ (unit diagonal), with appropriate permutation handling.
+
+### Limitations
+
+- The estimate is a lower bound on the true condition number (may underestimate)
+- Typically accurate to within a factor of 3-10
+- Requires both the original matrix A (for `‖A‖₁`) and the LU factors
+
+## Fill-Reducing Reordering
+
+Before LU factorization, a symmetric permutation P·A·Pᵀ can dramatically reduce fill-in. Two algorithms are provided:
+
+### Reverse Cuthill-McKee (RCM)
+
+BFS-based bandwidth reduction on the symmetrized adjacency graph (A + Aᵀ).
+
+**Algorithm:**
+1. Find a pseudo-peripheral starting node (repeated BFS heuristic)
+2. BFS visiting neighbors in order of increasing degree
+3. Reverse the resulting ordering
+
+**Characteristics:**
+- O(nnz) time complexity
+- Best for banded/structured matrices (e.g., FEM meshes, thermal problems)
+- On steam1 (240×240 thermal): bandwidth 146→52, fill-in 23k→15k (33% reduction), 5.5x factorization speedup
+
+### Approximate Minimum Degree (AMD)
+
+Greedy elimination ordering using bitset adjacency for efficient set operations.
+
+**Algorithm:**
+1. Build bitset adjacency matrix from the symmetrized sparsity pattern
+2. At each step: eliminate the uneliminated node with smallest degree
+3. Merge eliminated node's neighbors' adjacency sets (models fill-in)
+4. Update degrees
+
+**Characteristics:**
+- O(n² · n/64) time with bitset operations
+- Generally better fill-in reduction for unstructured matrices
+- On orsirr_1 (1030×1030 oil reservoir): fill-in 78k→55k (29% reduction)
+- On nos4 (100×100 structural): fill-in 1510→1174 (22% reduction)
+
+### Integration with Factorization
+
+The `sparse_lu_factor_opts()` function provides a unified interface:
+
+```c
+sparse_lu_opts_t opts = { SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_AMD, 1e-12 };
+sparse_lu_factor_opts(LU, &opts);
+sparse_lu_solve(LU, b, x);  // reorder/unpermute handled automatically
+```
+
+The reordering permutation is stored in the matrix and automatically applied during solve — callers do not need to manually permute/unpermute vectors.

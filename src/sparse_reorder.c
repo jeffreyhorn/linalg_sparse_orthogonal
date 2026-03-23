@@ -184,13 +184,155 @@ sparse_err_t sparse_build_adj(const SparseMatrix *A,
 
 /* ─── RCM ────────────────────────────────────────────────────────────── */
 
+/* Comparison function for sorting neighbor indices by degree (ascending) */
+typedef struct { idx_t node; idx_t deg; } node_deg_t;
+
+static int cmp_node_deg(const void *a, const void *b)
+{
+    idx_t da = ((const node_deg_t *)a)->deg;
+    idx_t db = ((const node_deg_t *)b)->deg;
+    return (da > db) - (da < db);
+}
+
+/* Find a pseudo-peripheral node using repeated BFS.
+ * Start from node 'start', BFS to find the farthest node, repeat
+ * until the eccentricity stops increasing. Returns a good starting node. */
+static idx_t find_pseudo_peripheral(idx_t n, const idx_t *adj_ptr,
+                                    const idx_t *adj_list, idx_t start,
+                                    idx_t *visited, idx_t *queue)
+{
+    idx_t best = start;
+    idx_t best_ecc = 0;
+
+    for (int attempt = 0; attempt < 5; attempt++) {
+        /* BFS from 'best' */
+        memset(visited, -1, (size_t)n * sizeof(idx_t));
+        idx_t head = 0, tail = 0;
+        queue[tail++] = best;
+        visited[best] = 0;
+        idx_t last = best;
+
+        while (head < tail) {
+            idx_t u = queue[head++];
+            last = u;
+            for (idx_t k = adj_ptr[u]; k < adj_ptr[u + 1]; k++) {
+                idx_t v = adj_list[k];
+                if (visited[v] < 0) {
+                    visited[v] = visited[u] + 1;
+                    queue[tail++] = v;
+                }
+            }
+        }
+
+        idx_t ecc = visited[last];
+        if (ecc <= best_ecc) break;  /* no improvement */
+        best_ecc = ecc;
+        best = last;
+    }
+
+    return best;
+}
+
 sparse_err_t sparse_reorder_rcm(const SparseMatrix *A, idx_t *perm)
 {
     if (!A || !perm) return SPARSE_ERR_NULL;
     if (A->rows != A->cols) return SPARSE_ERR_SHAPE;
-    /* TODO: implement in Day 7 */
+
     idx_t n = A->rows;
-    for (idx_t i = 0; i < n; i++) perm[i] = i;  /* identity for now */
+    if (n == 0) return SPARSE_OK;
+    if (n == 1) { perm[0] = 0; return SPARSE_OK; }
+
+    /* Build adjacency graph */
+    idx_t *adj_ptr = NULL, *adj_list = NULL;
+    sparse_err_t err = sparse_build_adj(A, &adj_ptr, &adj_list);
+    if (err != SPARSE_OK) return err;
+
+    /* Allocate workspace */
+    idx_t *visited = malloc((size_t)n * sizeof(idx_t));   /* -1 = unvisited, else BFS level */
+    idx_t *queue   = malloc((size_t)n * sizeof(idx_t));   /* BFS queue */
+    node_deg_t *nbuf = malloc((size_t)n * sizeof(node_deg_t)); /* neighbor sort buffer */
+    if (!visited || !queue || !nbuf) {
+        free(visited); free(queue); free(nbuf);
+        free(adj_ptr); free(adj_list);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    memset(visited, -1, (size_t)n * sizeof(idx_t));
+    idx_t perm_pos = 0;  /* next position in Cuthill-McKee ordering */
+
+    /* Process each connected component */
+    for (idx_t s = 0; s < n; s++) {
+        if (visited[s] >= 0) continue;  /* already visited */
+
+        /* Find pseudo-peripheral starting node for this component */
+        /* Use a temporary BFS for the heuristic (reuses visited/queue) */
+        idx_t start = find_pseudo_peripheral(n, adj_ptr, adj_list, s,
+                                             visited, queue);
+
+        /* Reset visited for the actual Cuthill-McKee BFS */
+        /* Only reset nodes that were marked in the pseudo-peripheral search */
+        for (idx_t i = 0; i < n; i++) {
+            if (visited[i] >= 0 && i != start)
+                visited[i] = -1;
+        }
+        /* Also need to reset start if it was set by the heuristic
+         * but we haven't done the "real" marking yet. Let's just
+         * re-mark everything fresh for this component. */
+
+        /* Actually, simpler: reset all unplaced nodes */
+        for (idx_t i = 0; i < n; i++) {
+            /* Keep visited[i] >= 0 only if already in perm (placed before this component) */
+            if (visited[i] >= 0) {
+                /* Check if it's already placed */
+                int placed = 0;
+                for (idx_t p = 0; p < perm_pos; p++) {
+                    if (perm[p] == i) { placed = 1; break; }
+                }
+                if (!placed) visited[i] = -1;
+            }
+        }
+
+        /* BFS from start, visiting neighbors in order of increasing degree */
+        idx_t head = 0, tail = 0;
+        queue[tail++] = start;
+        visited[start] = 0;
+
+        while (head < tail) {
+            idx_t u = queue[head++];
+            perm[perm_pos++] = u;
+
+            /* Collect unvisited neighbors and sort by degree */
+            idx_t ncount = 0;
+            for (idx_t k = adj_ptr[u]; k < adj_ptr[u + 1]; k++) {
+                idx_t v = adj_list[k];
+                if (visited[v] < 0) {
+                    nbuf[ncount].node = v;
+                    nbuf[ncount].deg = adj_ptr[v + 1] - adj_ptr[v];
+                    ncount++;
+                    visited[v] = 0;  /* mark to avoid re-adding */
+                }
+            }
+
+            if (ncount > 1)
+                qsort(nbuf, (size_t)ncount, sizeof(node_deg_t), cmp_node_deg);
+
+            for (idx_t k = 0; k < ncount; k++)
+                queue[tail++] = nbuf[k].node;
+        }
+    }
+
+    /* Reverse the ordering: Cuthill-McKee → Reverse Cuthill-McKee */
+    for (idx_t i = 0; i < n / 2; i++) {
+        idx_t tmp = perm[i];
+        perm[i] = perm[n - 1 - i];
+        perm[n - 1 - i] = tmp;
+    }
+
+    free(visited);
+    free(queue);
+    free(nbuf);
+    free(adj_ptr);
+    free(adj_list);
     return SPARSE_OK;
 }
 

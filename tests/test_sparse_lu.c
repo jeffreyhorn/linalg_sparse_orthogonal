@@ -717,6 +717,125 @@ static void test_transpose_solve_null(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Condition number estimation tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* condest(I) should be 1.0 */
+static void test_condest_identity(void)
+{
+    idx_t n = 5;
+    SparseMatrix *A = sparse_create(n, n);
+    SparseMatrix *LU = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 1.0);
+        sparse_insert(LU, i, i, 1.0);
+    }
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    double cond;
+    ASSERT_ERR(sparse_lu_condest(A, LU, &cond), SPARSE_OK);
+    ASSERT_NEAR(cond, 1.0, 1e-10);
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+/* condest of diagonal [1, 2, 3]: cond_1 = ||A||_1 * ||A^{-1}||_1 = 3 * 1 = 3 */
+static void test_condest_diagonal(void)
+{
+    SparseMatrix *A = sparse_create(3, 3);
+    SparseMatrix *LU = sparse_create(3, 3);
+    double diag[] = {1.0, 2.0, 3.0};
+    for (idx_t i = 0; i < 3; i++) {
+        sparse_insert(A, i, i, diag[i]);
+        sparse_insert(LU, i, i, diag[i]);
+    }
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    double cond;
+    ASSERT_ERR(sparse_lu_condest(A, LU, &cond), SPARSE_OK);
+    /* ||A||_1 = 3, ||A^{-1}||_1 = 1/1 = 1, so cond_1 = 3 */
+    ASSERT_NEAR(cond, 3.0, 1e-10);
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+/* Well-conditioned tridiagonal: condest should be modest */
+static void test_condest_tridiag_wellcond(void)
+{
+    idx_t n = 10;
+    SparseMatrix *A = sparse_create(n, n);
+    SparseMatrix *LU = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        sparse_insert(LU, i, i, 4.0);
+        if (i > 0) {
+            sparse_insert(A, i, i-1, -1.0);
+            sparse_insert(LU, i, i-1, -1.0);
+        }
+        if (i < n-1) {
+            sparse_insert(A, i, i+1, -1.0);
+            sparse_insert(LU, i, i+1, -1.0);
+        }
+    }
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    double cond;
+    ASSERT_ERR(sparse_lu_condest(A, LU, &cond), SPARSE_OK);
+    /* Diagonally dominant → well-conditioned, condest < 100 */
+    ASSERT_TRUE(cond > 0.0);
+    ASSERT_TRUE(cond < 100.0);
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+/* Ill-conditioned matrix: condest should be large */
+static void test_condest_illcond(void)
+{
+    /* Near-singular: diagonal with one very small entry */
+    idx_t n = 4;
+    SparseMatrix *A = sparse_create(n, n);
+    SparseMatrix *LU = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        double d = (i < n-1) ? 1.0 : 1e-10;
+        sparse_insert(A, i, i, d);
+        sparse_insert(LU, i, i, d);
+    }
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-14), SPARSE_OK);
+
+    double cond;
+    ASSERT_ERR(sparse_lu_condest(A, LU, &cond), SPARSE_OK);
+    /* cond_1 = ||A||_1 * ||A^{-1}||_1 = 1 * 1e10 = 1e10 */
+    ASSERT_TRUE(cond > 1e6);
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+/* condest with NULL args */
+static void test_condest_null(void)
+{
+    double cond;
+    ASSERT_ERR(sparse_lu_condest(NULL, NULL, &cond), SPARSE_ERR_NULL);
+}
+
+/* condest on unfactored matrix returns BADARG */
+static void test_condest_unfactored(void)
+{
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 1.0);
+    sparse_insert(A, 2, 2, 1.0);
+
+    double cond;
+    ASSERT_ERR(sparse_lu_condest(A, A, &cond), SPARSE_ERR_BADARG);
+
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -774,6 +893,14 @@ int main(void)
     RUN_TEST(test_transpose_solve_unsymmetric);
     RUN_TEST(test_transpose_solve_complete_pivot);
     RUN_TEST(test_transpose_solve_null);
+
+    /* Condition number estimation */
+    RUN_TEST(test_condest_identity);
+    RUN_TEST(test_condest_diagonal);
+    RUN_TEST(test_condest_tridiag_wellcond);
+    RUN_TEST(test_condest_illcond);
+    RUN_TEST(test_condest_null);
+    RUN_TEST(test_condest_unfactored);
 
     TEST_SUITE_END();
 }

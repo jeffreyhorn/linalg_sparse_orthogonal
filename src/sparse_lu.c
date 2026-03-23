@@ -226,6 +226,23 @@ sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat,
 
 /* ─── Condition number estimation ────────────────────────────────────── */
 
+/* Compute ||A||_1 = max column sum of |a_ij| */
+static double sparse_norm1(const SparseMatrix *mat)
+{
+    double max_col_sum = 0.0;
+    for (idx_t j = 0; j < mat->cols; j++) {
+        double col_sum = 0.0;
+        Node *node = mat->col_headers[j];
+        while (node) {
+            col_sum += fabs(node->value);
+            node = node->down;
+        }
+        if (col_sum > max_col_sum)
+            max_col_sum = col_sum;
+    }
+    return max_col_sum;
+}
+
 sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig,
                                const SparseMatrix *mat_lu,
                                double *condest)
@@ -233,10 +250,82 @@ sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig,
     if (!mat_orig || !mat_lu || !condest) return SPARSE_ERR_NULL;
     /* Check that mat_lu has been factored (factor_norm is set during factorization) */
     if (mat_lu->factor_norm < 0.0) return SPARSE_ERR_BADARG;
-    /* TODO: implement Hager's algorithm in Day 3 */
-    (void)mat_orig;
-    *condest = -1.0;
-    return SPARSE_ERR_BADARG;
+
+    idx_t n = mat_orig->rows;
+    if (n == 0) { *condest = 0.0; return SPARSE_OK; }
+
+    /* Compute ||A||_1 from the original matrix */
+    double norm_A = sparse_norm1(mat_orig);
+    if (norm_A == 0.0) { *condest = 0.0; return SPARSE_OK; }
+
+    /* Allocate workspace for Hager/Higham 1-norm estimator */
+    double *x = malloc((size_t)n * sizeof(double));
+    double *w = malloc((size_t)n * sizeof(double));
+    double *z = malloc((size_t)n * sizeof(double));
+    if (!x || !w || !z) {
+        free(x); free(w); free(z);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    /* Hager/Higham algorithm to estimate ||A^{-1}||_1:
+     * 1. x = [1/n, ..., 1/n]
+     * 2. Solve A*w = x
+     * 3. xi = sign(w)
+     * 4. Solve A^T*z = xi
+     * 5. If ||z||_inf <= z^T*w, converged: ||A^{-1}||_1 ≈ ||w||_1
+     * 6. Otherwise x = e_j where j = argmax|z_j|, goto 2
+     * Max 5 iterations. */
+
+    double inv_n = 1.0 / (double)n;
+    for (idx_t i = 0; i < n; i++)
+        x[i] = inv_n;
+
+    double est = 0.0;
+    int max_iter = 5;
+    sparse_err_t err;
+
+    for (int iter = 0; iter < max_iter; iter++) {
+        /* Solve A*w = x */
+        err = sparse_lu_solve(mat_lu, x, w);
+        if (err != SPARSE_OK) { free(x); free(w); free(z); return err; }
+
+        /* Compute ||w||_1 */
+        double w_norm1 = 0.0;
+        for (idx_t i = 0; i < n; i++)
+            w_norm1 += fabs(w[i]);
+        est = w_norm1;
+
+        /* xi = sign(w) */
+        for (idx_t i = 0; i < n; i++)
+            x[i] = (w[i] >= 0.0) ? 1.0 : -1.0;
+
+        /* Solve A^T*z = xi */
+        err = sparse_lu_solve_transpose(mat_lu, x, z);
+        if (err != SPARSE_OK) { free(x); free(w); free(z); return err; }
+
+        /* Check convergence: ||z||_inf <= z^T * w */
+        double z_inf = 0.0;
+        double zt_w = 0.0;
+        idx_t j_max = 0;
+        for (idx_t i = 0; i < n; i++) {
+            double az = fabs(z[i]);
+            if (az > z_inf) { z_inf = az; j_max = i; }
+            zt_w += z[i] * w[i];
+        }
+
+        if (z_inf <= zt_w || iter == max_iter - 1)
+            break;
+
+        /* Set x = e_{j_max} */
+        for (idx_t i = 0; i < n; i++)
+            x[i] = 0.0;
+        x[j_max] = 1.0;
+    }
+
+    *condest = norm_A * est;
+
+    free(x); free(w); free(z);
+    return SPARSE_OK;
 }
 
 /* ─── Solver phases ──────────────────────────────────────────────────── */

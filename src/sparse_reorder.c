@@ -41,6 +41,17 @@ sparse_err_t sparse_permute(const SparseMatrix *A,
     for (idx_t j = 0; j < nc; j++)
         if (col_perm[j] < 0 || col_perm[j] >= nc) return SPARSE_ERR_BADARG;
 
+    /* Validate row_perm is a true permutation: detect duplicates */
+    {
+        int *seen = calloc((size_t)m, sizeof(int));
+        if (!seen) return SPARSE_ERR_ALLOC;
+        for (idx_t i = 0; i < m; i++) {
+            if (seen[row_perm[i]]) { free(seen); return SPARSE_ERR_BADARG; }
+            seen[row_perm[i]] = 1;
+        }
+        free(seen);
+    }
+
     /* Build inverse column permutation: inv_col[old_j] = new_j */
     idx_t *inv_col = malloc((size_t)nc * sizeof(idx_t));
     if (!inv_col) return SPARSE_ERR_ALLOC;
@@ -262,68 +273,47 @@ sparse_err_t sparse_reorder_rcm(const SparseMatrix *A, idx_t *perm)
     if (err != SPARSE_OK) return err;
 
     /* Allocate workspace */
-    idx_t *visited = malloc((size_t)n * sizeof(idx_t));   /* -1 = unvisited, else BFS level */
+    idx_t *visited = malloc((size_t)n * sizeof(idx_t));   /* temp BFS workspace */
     idx_t *queue   = malloc((size_t)n * sizeof(idx_t));   /* BFS queue */
+    int   *placed  = calloc((size_t)n, sizeof(int));      /* 1 = already in perm */
     node_deg_t *nbuf = malloc((size_t)n * sizeof(node_deg_t)); /* neighbor sort buffer */
-    if (!visited || !queue || !nbuf) {
-        free(visited); free(queue); free(nbuf);
+    if (!visited || !queue || !placed || !nbuf) {
+        free(visited); free(queue); free(placed); free(nbuf);
         free(adj_ptr); free(adj_list);
         return SPARSE_ERR_ALLOC;
     }
 
-    memset(visited, -1, (size_t)n * sizeof(idx_t));
     idx_t perm_pos = 0;  /* next position in Cuthill-McKee ordering */
 
     /* Process each connected component */
     for (idx_t s = 0; s < n; s++) {
-        if (visited[s] >= 0) continue;  /* already visited */
+        if (placed[s]) continue;  /* already in a previous component */
 
-        /* Find pseudo-peripheral starting node for this component */
-        /* Use a temporary BFS for the heuristic (reuses visited/queue) */
+        /* Find pseudo-peripheral starting node for this component.
+         * find_pseudo_peripheral uses visited/queue as scratch — safe
+         * because we only read placed[] to determine component membership. */
         idx_t start = find_pseudo_peripheral(n, adj_ptr, adj_list, s,
                                              visited, queue);
 
-        /* Reset visited for the actual Cuthill-McKee BFS */
-        /* Only reset nodes that were marked in the pseudo-peripheral search */
-        for (idx_t i = 0; i < n; i++) {
-            if (visited[i] >= 0 && i != start)
-                visited[i] = -1;
-        }
-        /* Also need to reset start if it was set by the heuristic
-         * but we haven't done the "real" marking yet. Let's just
-         * re-mark everything fresh for this component. */
-
-        /* Actually, simpler: reset all unplaced nodes */
-        for (idx_t i = 0; i < n; i++) {
-            /* Keep visited[i] >= 0 only if already in perm (placed before this component) */
-            if (visited[i] >= 0) {
-                /* Check if it's already placed */
-                int placed = 0;
-                for (idx_t p = 0; p < perm_pos; p++) {
-                    if (perm[p] == i) { placed = 1; break; }
-                }
-                if (!placed) visited[i] = -1;
-            }
-        }
-
-        /* BFS from start, visiting neighbors in order of increasing degree */
+        /* BFS from start, visiting neighbors in order of increasing degree.
+         * Use placed[] (not visited[]) to track what's already in the perm. */
         idx_t head = 0, tail = 0;
         queue[tail++] = start;
-        visited[start] = 0;
+        placed[start] = 1;
 
         while (head < tail) {
             idx_t u = queue[head++];
             perm[perm_pos++] = u;
 
-            /* Collect unvisited neighbors and sort by degree */
+            /* Collect unplaced neighbors and sort by degree */
             idx_t ncount = 0;
             for (idx_t k = adj_ptr[u]; k < adj_ptr[u + 1]; k++) {
                 idx_t v = adj_list[k];
-                if (visited[v] < 0) {
+                if (!placed[v]) {
                     nbuf[ncount].node = v;
                     nbuf[ncount].deg = adj_ptr[v + 1] - adj_ptr[v];
                     ncount++;
-                    visited[v] = 0;  /* mark to avoid re-adding */
+                    placed[v] = 1;  /* mark to avoid re-adding */
                 }
             }
 
@@ -344,6 +334,7 @@ sparse_err_t sparse_reorder_rcm(const SparseMatrix *A, idx_t *perm)
 
     free(visited);
     free(queue);
+    free(placed);
     free(nbuf);
     free(adj_ptr);
     free(adj_list);

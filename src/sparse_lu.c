@@ -278,7 +278,7 @@ sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat,
                         ? DROP_TOL * mat->factor_norm
                         : DROP_TOL;
         if (fabs(u_ii) < sing_tol) {
-            free(c); free(d); free(w);
+            free(c); free(d); free(w); free(b_perm);
             return SPARSE_ERR_SINGULAR;
         }
         d[i] = (c[i] - sum) / u_ii;

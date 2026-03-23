@@ -26,6 +26,7 @@ const char *sparse_strerror(sparse_err_t err)
     case SPARSE_ERR_PARSE:    return "file format parse error";
     case SPARSE_ERR_SHAPE:    return "matrix shape mismatch";
     case SPARSE_ERR_IO:       return "I/O error (check sparse_errno())";
+    case SPARSE_ERR_BADARG:   return "invalid argument";
     }
     return "unknown error";
 }

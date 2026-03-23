@@ -20,7 +20,8 @@ BUILDDIR = build
 LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_matrix.c \
            $(SRCDIR)/sparse_lu.c \
-           $(SRCDIR)/sparse_vector.c
+           $(SRCDIR)/sparse_vector.c \
+           $(SRCDIR)/sparse_reorder.c
 LIB_OBJS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(LIB_SRCS))
 LIB      = $(BUILDDIR)/libsparse_lu_ortho.a
 
@@ -33,7 +34,8 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_edge_cases.c \
             $(TESTDIR)/test_integration.c \
             $(TESTDIR)/test_sparse_arith.c \
-            $(TESTDIR)/test_suitesparse.c
+            $(TESTDIR)/test_suitesparse.c \
+            $(TESTDIR)/test_reorder.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
 # Benchmark sources

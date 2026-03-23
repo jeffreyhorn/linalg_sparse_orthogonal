@@ -34,6 +34,7 @@ typedef enum {
     SPARSE_ERR_PARSE    = 8,   /**< File format parse error */
     SPARSE_ERR_SHAPE    = 9,   /**< Matrix shape mismatch (e.g., non-square for LU) */
     SPARSE_ERR_IO       = 10,  /**< I/O error with errno context (use sparse_errno()) */
+    SPARSE_ERR_BADARG   = 11,  /**< Invalid argument (e.g., unfactored matrix passed to condest) */
 } sparse_err_t;
 
 /**
@@ -48,6 +49,27 @@ typedef enum {
     SPARSE_PIVOT_COMPLETE = 0,   /**< Complete pivoting (max over submatrix) */
     SPARSE_PIVOT_PARTIAL  = 1,   /**< Partial pivoting (max in pivot column) */
 } sparse_pivot_t;
+
+/**
+ * @brief Reordering strategy for fill-reducing permutation before LU factorization.
+ *
+ * Reordering computes a permutation P such that P*A*P^T has reduced fill-in
+ * during LU factorization. This is applied as a symmetric permutation (same
+ * permutation for rows and columns).
+ *
+ * - NONE: natural ordering (no reordering)
+ * - RCM: Reverse Cuthill-McKee — BFS-based bandwidth reduction. Simple and
+ *   effective for banded/structured matrices. O(nnz log d_max) time
+ *   (includes neighbor sorting and graph construction).
+ * - AMD: Approximate Minimum Degree — greedy elimination ordering that
+ *   minimizes fill-in. More expensive but generally produces better orderings
+ *   for unstructured matrices. O(n^3/64) time, O(n^2/64) memory (bitset-based).
+ */
+typedef enum {
+    SPARSE_REORDER_NONE = 0,  /**< No reordering (natural order) */
+    SPARSE_REORDER_RCM  = 1,  /**< Reverse Cuthill-McKee ordering */
+    SPARSE_REORDER_AMD  = 2,  /**< Approximate Minimum Degree ordering */
+} sparse_reorder_t;
 
 /**
  * @brief Return a human-readable string for an error code.

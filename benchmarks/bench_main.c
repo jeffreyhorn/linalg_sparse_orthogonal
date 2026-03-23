@@ -7,6 +7,7 @@
  *   ./bench_main --size N --repeat R       Average over R repetitions
  *   ./bench_main --dir PATH                Benchmark all .mtx files in directory
  *   ./bench_main --dir PATH --pivot partial  Use partial pivoting (default: complete)
+ *   ./bench_main --reorder rcm|amd|none      Apply fill-reducing reordering
  *
  * Reports wall-clock time for: construction, factorization, solve, SpMV.
  * Also reports nnz, fill-in, memory, and residual norm.
@@ -14,6 +15,7 @@
 #define _POSIX_C_SOURCE 199309L
 #include "sparse_matrix.h"
 #include "sparse_lu.h"
+#include "sparse_reorder.h"
 #include "sparse_vector.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -59,15 +61,28 @@ static SparseMatrix *generate_sparse(idx_t n, unsigned seed)
 
 /* ─── Benchmark a single matrix ─────────────────────────────────────── */
 
-static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot)
+static const char *reorder_name(sparse_reorder_t r)
+{
+    switch (r) {
+    case SPARSE_REORDER_NONE: return "none";
+    case SPARSE_REORDER_RCM:  return "rcm";
+    case SPARSE_REORDER_AMD:  return "amd";
+    }
+    return "unknown";
+}
+
+static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot,
+                      sparse_reorder_t reorder)
 {
     idx_t n = sparse_rows(A);
     idx_t nnz_orig = sparse_nnz(A);
 
-    printf("Matrix: %d x %d, nnz = %d\n", (int)n, (int)n, (int)nnz_orig);
-    printf("Memory: %zu bytes\n", sparse_memory_usage(A));
-    printf("Pivot:  %s\n", pivot == SPARSE_PIVOT_PARTIAL ? "partial" : "complete");
-    printf("Repeats: %d\n\n", repeats);
+    printf("Matrix:  %d x %d, nnz = %d\n", (int)n, (int)n, (int)nnz_orig);
+    printf("Memory:  %zu bytes\n", sparse_memory_usage(A));
+    printf("Pivot:   %s\n", pivot == SPARSE_PIVOT_PARTIAL ? "partial" : "complete");
+    printf("Reorder: %s\n", reorder_name(reorder));
+    printf("Repeats: %d\n", repeats);
+    printf("Bandwidth: %d\n\n", (int)sparse_bandwidth(A));
 
     /* Prepare RHS: b = A * [1,1,...,1] */
     double *ones = malloc((size_t)n * sizeof(double));
@@ -94,12 +109,15 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot)
     double t_solve_total = 0.0;
     idx_t nnz_after = 0;
     double residual = 0.0;
+    double cond_est = 0.0;
+
+    sparse_lu_opts_t opts = { pivot, reorder, 1e-12 };
 
     for (int rep = 0; rep < repeats; rep++) {
         SparseMatrix *LU = sparse_copy(A);
 
         t0 = wall_time();
-        sparse_err_t err = sparse_lu_factor(LU, pivot, 1e-12);
+        sparse_err_t err = sparse_lu_factor_opts(LU, &opts);
         t_factor_total += wall_time() - t0;
 
         if (err != SPARSE_OK) {
@@ -108,8 +126,11 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot)
             break;
         }
 
-        if (rep == 0)
+        if (rep == 0) {
             nnz_after = sparse_nnz(LU);
+            if (sparse_lu_condest(A, LU, &cond_est) != SPARSE_OK)
+                cond_est = -1.0;
+        }
 
         /* --- Solve timing --- */
         t0 = wall_time();
@@ -137,6 +158,7 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot)
     printf("nnz after LU:  %d (fill-in ratio: %.2f)\n",
            (int)nnz_after, (double)nnz_after / (double)nnz_orig);
     printf("Residual:      %.3e\n", residual);
+    printf("Cond est:      %.3e\n", cond_est);
 
     free(ones); free(b); free(x); free(r);
 }
@@ -144,7 +166,8 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot)
 /* ─── Tabular benchmark for directory mode ─────────────────────────── */
 
 static void benchmark_tabular(const char *name, SparseMatrix *A,
-                               int repeats, sparse_pivot_t pivot)
+                               int repeats, sparse_pivot_t pivot,
+                               sparse_reorder_t reorder)
 {
     idx_t n = sparse_rows(A);
     idx_t nnz_orig = sparse_nnz(A);
@@ -171,12 +194,15 @@ static void benchmark_tabular(const char *name, SparseMatrix *A,
     double t_factor_total = 0.0, t_solve_total = 0.0;
     idx_t nnz_after = 0;
     double residual = 0.0;
+    double cond_est = 0.0;
     int ok = 1;
+
+    sparse_lu_opts_t opts = { pivot, reorder, 1e-12 };
 
     for (int rep = 0; rep < repeats; rep++) {
         SparseMatrix *LU = sparse_copy(A);
         t0 = wall_time();
-        sparse_err_t err = sparse_lu_factor(LU, pivot, 1e-12);
+        sparse_err_t err = sparse_lu_factor_opts(LU, &opts);
         t_factor_total += wall_time() - t0;
         if (err != SPARSE_OK) {
             printf("%-20s %5d %7d   SINGULAR\n", name, (int)n, (int)nnz_orig);
@@ -184,7 +210,11 @@ static void benchmark_tabular(const char *name, SparseMatrix *A,
             ok = 0;
             break;
         }
-        if (rep == 0) nnz_after = sparse_nnz(LU);
+        if (rep == 0) {
+            nnz_after = sparse_nnz(LU);
+            if (sparse_lu_condest(A, LU, &cond_est) != SPARSE_OK)
+                cond_est = -1.0;
+        }
         t0 = wall_time();
         err = sparse_lu_solve(LU, b, x);
         t_solve_total += wall_time() - t0;
@@ -204,14 +234,14 @@ static void benchmark_tabular(const char *name, SparseMatrix *A,
     }
 
     if (ok) {
-        printf("%-20s %5d %7d %9d %6.2f  %10.3f %10.3f %10.3f %10zu  %.3e\n",
+        printf("%-20s %5d %7d %9d %6.2f  %10.3f %10.3f %10.3f %10zu  %.3e  %.3e\n",
                name, (int)n, (int)nnz_orig, (int)nnz_after,
                nnz_orig > 0 ? (double)nnz_after / (double)nnz_orig : 0.0,
                t_factor_total / repeats * 1000.0,
                t_solve_total / repeats * 1000.0,
                t_spmv,
                sparse_memory_usage(A),
-               residual);
+               residual, cond_est);
     }
 
     free(ones); free(b); free(x); free(r);
@@ -226,7 +256,8 @@ static int ends_with(const char *s, const char *suffix)
     return strcmp(s + slen - suflen, suffix) == 0;
 }
 
-static void benchmark_dir(const char *dirpath, int repeats, sparse_pivot_t pivot)
+static void benchmark_dir(const char *dirpath, int repeats,
+                          sparse_pivot_t pivot, sparse_reorder_t reorder)
 {
     DIR *d = opendir(dirpath);
     if (!d) {
@@ -235,13 +266,15 @@ static void benchmark_dir(const char *dirpath, int repeats, sparse_pivot_t pivot
     }
 
     const char *piv_name = (pivot == SPARSE_PIVOT_PARTIAL) ? "partial" : "complete";
-    printf("=== Benchmarking %s (pivot=%s, repeats=%d) ===\n\n", dirpath, piv_name, repeats);
-    printf("%-20s %5s %7s %9s %6s  %10s %10s %10s %10s  %s\n",
+    printf("=== Benchmarking %s (pivot=%s, reorder=%s, repeats=%d) ===\n\n",
+           dirpath, piv_name, reorder_name(reorder), repeats);
+    printf("%-20s %5s %7s %9s %6s  %10s %10s %10s %10s  %10s  %10s\n",
            "name", "n", "nnz", "nnz_LU", "fill",
-           "factor(ms)", "solve(ms)", "spmv(ms)", "memory", "residual");
-    printf("%-20s %5s %7s %9s %6s  %10s %10s %10s %10s  %s\n",
+           "factor(ms)", "solve(ms)", "spmv(ms)", "memory", "residual", "condest");
+    printf("%-20s %5s %7s %9s %6s  %10s %10s %10s %10s  %10s  %10s\n",
            "----", "-----", "-------", "---------", "------",
-           "----------", "----------", "----------", "----------", "----------");
+           "----------", "----------", "----------", "----------",
+           "----------", "----------");
 
     struct dirent *ent;
     while ((ent = readdir(d)) != NULL) {
@@ -269,7 +302,7 @@ static void benchmark_dir(const char *dirpath, int repeats, sparse_pivot_t pivot
         char *dot = strrchr(name, '.');
         if (dot) *dot = '\0';
 
-        benchmark_tabular(name, A, repeats, pivot);
+        benchmark_tabular(name, A, repeats, pivot, reorder);
         sparse_free(A);
     }
 
@@ -286,6 +319,7 @@ int main(int argc, char **argv)
     idx_t size = 100;
     int repeats = 3;
     sparse_pivot_t pivot = SPARSE_PIVOT_COMPLETE;
+    sparse_reorder_t reorder = SPARSE_REORDER_NONE;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--size") == 0 && i + 1 < argc) {
@@ -304,6 +338,18 @@ int main(int argc, char **argv)
                 fprintf(stderr, "Error: unknown pivot mode '%s' (use 'partial' or 'complete')\n", argv[i]);
                 return 1;
             }
+        } else if (strcmp(argv[i], "--reorder") == 0 && i + 1 < argc) {
+            i++;
+            if (strcmp(argv[i], "none") == 0)
+                reorder = SPARSE_REORDER_NONE;
+            else if (strcmp(argv[i], "rcm") == 0)
+                reorder = SPARSE_REORDER_RCM;
+            else if (strcmp(argv[i], "amd") == 0)
+                reorder = SPARSE_REORDER_AMD;
+            else {
+                fprintf(stderr, "Error: unknown reorder mode '%s' (use 'none', 'rcm', or 'amd')\n", argv[i]);
+                return 1;
+            }
         } else if (argv[i][0] != '-') {
             filename = argv[i];
         }
@@ -315,7 +361,7 @@ int main(int argc, char **argv)
     }
 
     if (dirpath) {
-        benchmark_dir(dirpath, repeats, pivot);
+        benchmark_dir(dirpath, repeats, pivot, reorder);
         return 0;
     }
 
@@ -338,7 +384,7 @@ int main(int argc, char **argv)
         }
     }
 
-    benchmark(A, repeats, pivot);
+    benchmark(A, repeats, pivot, reorder);
     sparse_free(A);
     return 0;
 }

@@ -219,6 +219,37 @@ static void test_norminf_all_matrices(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Condition number estimation on SuiteSparse matrices
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_condest_suitesparse(void)
+{
+    const char *files[] = {
+        SS_DIR "/west0067.mtx",
+        SS_DIR "/nos4.mtx",
+        SS_DIR "/bcsstk04.mtx",
+        SS_DIR "/steam1.mtx",
+    };
+    for (int i = 0; i < 4; i++) {
+        SparseMatrix *A = NULL;
+        ASSERT_ERR(sparse_load_mm(&A, files[i]), SPARSE_OK);
+
+        SparseMatrix *LU = sparse_copy(A);
+        ASSERT_NOT_NULL(LU);
+        ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+        double cond;
+        ASSERT_ERR(sparse_lu_condest(A, LU, &cond), SPARSE_OK);
+        ASSERT_TRUE(cond > 0.0 && isfinite(cond));  /* estimate must be positive and finite */
+
+        printf("    %s: condest = %.3e\n", files[i], cond);
+
+        sparse_free(A);
+        sparse_free(LU);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -258,6 +289,9 @@ int main(void)
 
     /* Norm check (small matrices only; includes large when SPARSE_TEST_LARGE=1) */
     RUN_TEST(test_norminf_all_matrices);
+
+    /* Condition number estimation */
+    RUN_TEST(test_condest_suitesparse);
 
     TEST_SUITE_END();
 }

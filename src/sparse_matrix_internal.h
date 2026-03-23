@@ -45,6 +45,7 @@ typedef struct SparseMatrix {
     idx_t nnz;
     double cached_norm;    /* cached ||A||_inf, -1.0 = invalid */
     double factor_norm;    /* ||A||_inf at factorization time, for relative tol */
+    idx_t *reorder_perm;   /* fill-reducing reorder: perm[new] = old, or NULL */
 } SparseMatrix;
 
 /*
@@ -58,5 +59,13 @@ void sparse_set_errno_(int errnum);
 Node *pool_alloc(NodePool *pool);
 void  pool_release(NodePool *pool, Node *node);
 void  pool_free_all(NodePool *pool);
+
+/*
+ * Build CSR adjacency graph of A+A^T (symmetrized, no self-loops).
+ * adj_ptr[i]..adj_ptr[i+1]-1 index into adj_list for neighbors of i.
+ * Caller must free both adj_ptr and adj_list.
+ */
+sparse_err_t sparse_build_adj(const SparseMatrix *A,
+                              idx_t **adj_ptr, idx_t **adj_list);
 
 #endif /* SPARSE_MATRIX_INTERNAL_H */

@@ -12,6 +12,8 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Sparse matrix-vector product** (SpMV)
 - **Matrix Market I/O** — load and save `.mtx` files (coordinate real general, symmetric, and pattern formats)
 - **Drop tolerance** to control fill-in during factorization (relative to pivot magnitude)
+- **Fill-reducing reordering** — Reverse Cuthill-McKee (RCM) and Approximate Minimum Degree (AMD) orderings to reduce fill-in
+- **Condition number estimation** — Hager/Higham 1-norm estimator from LU factors (`sparse_lu_condest`)
 - **Matrix arithmetic** — scalar scaling (`sparse_scale`) and addition (`sparse_add`)
 - **Infinity norm** with internal caching (`sparse_norminf`)
 - **errno capture** for I/O errors (`sparse_errno`)
@@ -89,9 +91,10 @@ The library is split into four headers:
 
 | Header | Purpose |
 |--------|---------|
-| [`sparse_types.h`](include/sparse_types.h) | `idx_t`, error codes (`sparse_err_t`), pivot strategies |
+| [`sparse_types.h`](include/sparse_types.h) | `idx_t`, error codes (`sparse_err_t`), pivot/reorder strategies |
 | [`sparse_matrix.h`](include/sparse_matrix.h) | Sparse matrix lifecycle, element access, SpMV, Matrix Market I/O |
-| [`sparse_lu.h`](include/sparse_lu.h) | LU factorization, solve, iterative refinement |
+| [`sparse_lu.h`](include/sparse_lu.h) | LU factorization, solve, condition estimation, iterative refinement |
+| [`sparse_reorder.h`](include/sparse_reorder.h) | Fill-reducing reordering (RCM, AMD), permutation, bandwidth |
 | [`sparse_vector.h`](include/sparse_vector.h) | Dense vector utilities (norms, axpy, dot product) |
 
 ### Key Functions
@@ -108,8 +111,16 @@ The library is split into four headers:
 
 **Solving linear systems:**
 - `sparse_lu_factor(mat, pivot, tol)` — in-place LU decomposition
-- `sparse_lu_solve(mat, b, x)` — solve using factored matrix
+- `sparse_lu_factor_opts(mat, &opts)` — LU with optional fill-reducing reordering (RCM/AMD)
+- `sparse_lu_solve(mat, b, x)` — solve using factored matrix (auto-unpermutes if reordered)
+- `sparse_lu_condest(A, LU, &cond)` — estimate 1-norm condition number from LU factors
 - `sparse_lu_refine(A, LU, b, x, max_iters, tol)` — iterative refinement
+
+**Fill-reducing reordering:**
+- `sparse_reorder_rcm(A, perm)` — Reverse Cuthill-McKee ordering
+- `sparse_reorder_amd(A, perm)` — Approximate Minimum Degree ordering
+- `sparse_permute(A, row_perm, col_perm, &B)` — apply permutation
+- `sparse_bandwidth(A)` — compute matrix bandwidth
 
 **Matrix arithmetic:**
 - `sparse_scale(mat, alpha)` — in-place scalar multiplication
@@ -143,24 +154,24 @@ All functions return `sparse_err_t` error codes (except accessors that return va
 ## Known Limitations
 
 - **Not thread-safe.** All operations are single-threaded.
-- **No reordering.** There is no fill-reducing reordering (AMD, RCM, etc.) — fill-in depends entirely on pivoting.
 - **Dense vector RHS only.** The solver takes dense vectors for b and x.
 - **In-place factorization.** `sparse_lu_factor` overwrites the matrix; always work on a copy if you need the original.
 - **No complex or integer matrices.** Only real (double-precision) values are supported.
 
 ## Testing
 
-The test suite contains **192 unit tests** with **962 assertions** across 9 test suites:
+The test suite contains **242 unit tests** with **1255 assertions** across 10 test suites:
 
 - Sparse matrix data structure and norms (38 tests)
-- LU factorization and solve (26 tests)
+- LU factorization, solve, transpose solve, and condition estimation (37 tests)
 - Matrix Market I/O with errno validation (22 tests)
 - Known reference matrices (15 tests)
 - Vector utilities, SpMV, and iterative refinement (24 tests)
 - Edge cases and relative tolerance hardening (24 tests)
 - Integration tests (7 tests)
 - Matrix arithmetic — scale and add (23 tests)
-- SuiteSparse real-world matrix validation (13 tests)
+- SuiteSparse real-world matrix validation (10 tests)
+- Reordering — permute, bandwidth, RCM, AMD, factor_opts integration (38 tests)
 
 ```bash
 make test          # run all tests
@@ -185,11 +196,13 @@ linalg_sparse_orthogonal/
 │   ├── sparse_types.h
 │   ├── sparse_matrix.h
 │   ├── sparse_lu.h
+│   ├── sparse_reorder.h
 │   └── sparse_vector.h
 ├── src/                  Library implementation
 │   ├── sparse_types.c
 │   ├── sparse_matrix.c
 │   ├── sparse_lu.c
+│   ├── sparse_reorder.c
 │   ├── sparse_vector.c
 │   └── sparse_matrix_internal.h
 ├── tests/                Unit tests
@@ -203,6 +216,7 @@ linalg_sparse_orthogonal/
 │   ├── test_integration.c
 │   ├── test_sparse_arith.c
 │   ├── test_suitesparse.c
+│   ├── test_reorder.c
 │   └── data/             Reference .mtx files (8 + 6 SuiteSparse)
 ├── benchmarks/           Performance benchmarks
 ├── docs/                 Algorithm and format documentation

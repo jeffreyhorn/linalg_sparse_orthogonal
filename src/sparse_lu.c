@@ -1,7 +1,9 @@
 #include "sparse_lu.h"
+#include "sparse_reorder.h"
 #include "sparse_matrix_internal.h"
 
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 
 /* ─── Permutation swap helpers ───────────────────────────────────────── */
@@ -154,6 +156,283 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot,
     return SPARSE_OK;
 }
 
+/* ─── Factor with options (reordering + pivoting) ────────────────────── */
+
+sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat,
+                                   const sparse_lu_opts_t *opts)
+{
+    if (!mat || !opts) return SPARSE_ERR_NULL;
+    idx_t n = mat->rows;
+    if (n != mat->cols) return SPARSE_ERR_SHAPE;
+
+    /* Clear any previous reorder permutation */
+    free(mat->reorder_perm);
+    mat->reorder_perm = NULL;
+
+    /* Apply fill-reducing reordering if requested */
+    if (opts->reorder != SPARSE_REORDER_NONE && n > 1) {
+        idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+        if (!perm) return SPARSE_ERR_ALLOC;
+
+        sparse_err_t err;
+        switch (opts->reorder) {
+        case SPARSE_REORDER_RCM:
+            err = sparse_reorder_rcm(mat, perm);
+            break;
+        case SPARSE_REORDER_AMD:
+            err = sparse_reorder_amd(mat, perm);
+            break;
+        default:
+            free(perm);
+            return SPARSE_ERR_BADARG;
+        }
+
+        if (err != SPARSE_OK) { free(perm); return err; }
+
+        /* Apply symmetric permutation in-place:
+         * Create permuted copy, then swap contents into mat */
+        SparseMatrix *PA = NULL;
+        err = sparse_permute(mat, perm, perm, &PA);
+        if (err != SPARSE_OK) { free(perm); return err; }
+
+        /* Swap internal data from PA into mat:
+         * Free mat's old data, steal PA's data */
+        pool_free_all(&mat->pool);
+        free(mat->row_headers);
+        free(mat->col_headers);
+
+        mat->row_headers = PA->row_headers;
+        mat->col_headers = PA->col_headers;
+        mat->pool = PA->pool;
+        mat->nnz = PA->nnz;
+        mat->cached_norm = PA->cached_norm;
+
+        /* Prevent PA from freeing the data we stole */
+        PA->row_headers = NULL;
+        PA->col_headers = NULL;
+        PA->pool.head = NULL;
+        PA->pool.current = NULL;
+        PA->pool.free_list = NULL;
+        sparse_free(PA);
+
+        /* Reset row/col permutations to identity — the reordered matrix
+         * has fresh physical layout, so LU factorization must start from
+         * identity permutations regardless of any prior factorization. */
+        for (idx_t i = 0; i < n; i++) {
+            mat->row_perm[i] = i;
+            mat->inv_row_perm[i] = i;
+            mat->col_perm[i] = i;
+            mat->inv_col_perm[i] = i;
+        }
+
+        /* Store reorder permutation for solve to unpermute */
+        free(mat->reorder_perm);
+        mat->reorder_perm = perm;
+    }
+
+    /* Factor with given pivoting and tolerance */
+    return sparse_lu_factor(mat, opts->pivot, opts->tol);
+}
+
+/* ─── Transpose solve ────────────────────────────────────────────────── */
+
+sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat,
+                                       const double *b, double *x)
+{
+    if (!mat || !b || !x) return SPARSE_ERR_NULL;
+    idx_t n = mat->rows;
+    const idx_t *rperm = mat->reorder_perm;
+
+    double *c = malloc((size_t)n * sizeof(double));
+    double *d = malloc((size_t)n * sizeof(double));
+    double *w = malloc((size_t)n * sizeof(double));
+    double *b_perm = NULL;
+    if (rperm) {
+        b_perm = malloc((size_t)n * sizeof(double));
+        if (!b_perm) { free(c); free(d); free(w); return SPARSE_ERR_ALLOC; }
+    }
+    if (!c || !d || !w) {
+        free(c); free(d); free(w); free(b_perm);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    /* If reorder permutation exists, permute b first */
+    const double *b_eff = b;
+    if (rperm) {
+        for (idx_t i = 0; i < n; i++)
+            b_perm[i] = b[rperm[i]];
+        b_eff = b_perm;
+    }
+
+    /* Step 1: c = Q^T * b  →  c[i] = b_eff[col_perm[i]] */
+    for (idx_t i = 0; i < n; i++)
+        c[i] = b_eff[mat->col_perm[i]];
+
+    /* Step 2: Forward-substitute with U^T (lower triangular).
+     * U^T[i][j] = U[j][i], so walk column i to find U entries with log_row <= i.
+     * Solve: d[i] = (c[i] - sum_{j<i} U[j][i]*d[j]) / U[i][i] */
+    for (idx_t i = 0; i < n; i++) {
+        double sum = 0.0;
+        double u_ii = 0.0;
+        idx_t phys_col = mat->col_perm[i];
+        Node *node = mat->col_headers[phys_col];
+        while (node) {
+            idx_t log_j = mat->inv_row_perm[node->row];
+            if (log_j == i)
+                u_ii = node->value;
+            else if (log_j < i)
+                sum += node->value * d[log_j];
+            node = node->down;
+        }
+        double sing_tol = (mat->factor_norm > 0.0)
+                        ? DROP_TOL * mat->factor_norm
+                        : DROP_TOL;
+        if (fabs(u_ii) < sing_tol) {
+            free(c); free(d); free(w); free(b_perm);
+            return SPARSE_ERR_SINGULAR;
+        }
+        d[i] = (c[i] - sum) / u_ii;
+    }
+
+    /* Step 3: Backward-substitute with L^T (upper triangular, unit diagonal).
+     * L^T[i][j] = L[j][i], so walk column i to find L entries with log_row > i.
+     * Solve: w[i] = d[i] - sum_{j>i} L[j][i]*w[j] */
+    for (idx_t i = n - 1; i >= 0; i--) {
+        double sum = 0.0;
+        idx_t phys_col = mat->col_perm[i];
+        Node *node = mat->col_headers[phys_col];
+        while (node) {
+            idx_t log_j = mat->inv_row_perm[node->row];
+            if (log_j > i)
+                sum += node->value * w[log_j];
+            node = node->down;
+        }
+        w[i] = d[i] - sum;  /* L^T has unit diagonal */
+    }
+
+    /* Step 4: x = P^T * w = P^{-1} * w  →  x[i] = w[inv_row_perm[i]] */
+    for (idx_t i = 0; i < n; i++)
+        x[i] = w[mat->inv_row_perm[i]];
+
+    /* If reorder permutation exists, unpermute x */
+    if (rperm) {
+        memcpy(w, x, (size_t)n * sizeof(double)); /* reuse w as temp */
+        for (idx_t i = 0; i < n; i++)
+            x[rperm[i]] = w[i];
+    }
+
+    free(c); free(d); free(w); free(b_perm);
+    return SPARSE_OK;
+}
+
+/* ─── Condition number estimation ────────────────────────────────────── */
+
+/* Compute ||A||_1 = max column sum of |a_ij| */
+static double sparse_norm1(const SparseMatrix *mat)
+{
+    double max_col_sum = 0.0;
+    for (idx_t j = 0; j < mat->cols; j++) {
+        double col_sum = 0.0;
+        Node *node = mat->col_headers[j];
+        while (node) {
+            col_sum += fabs(node->value);
+            node = node->down;
+        }
+        if (col_sum > max_col_sum)
+            max_col_sum = col_sum;
+    }
+    return max_col_sum;
+}
+
+sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig,
+                               const SparseMatrix *mat_lu,
+                               double *condest)
+{
+    if (!mat_orig || !mat_lu || !condest) return SPARSE_ERR_NULL;
+    /* Check that mat_lu has been factored (factor_norm is set during factorization) */
+    if (mat_lu->factor_norm < 0.0) return SPARSE_ERR_BADARG;
+    /* Check dimensions match and are square */
+    if (mat_orig->rows != mat_orig->cols) return SPARSE_ERR_SHAPE;
+    if (mat_lu->rows != mat_lu->cols) return SPARSE_ERR_SHAPE;
+    if (mat_orig->rows != mat_lu->rows) return SPARSE_ERR_SHAPE;
+
+    idx_t n = mat_orig->rows;
+    if (n == 0) { *condest = 0.0; return SPARSE_OK; }
+
+    /* Compute ||A||_1 from the original matrix */
+    double norm_A = sparse_norm1(mat_orig);
+    if (norm_A == 0.0) { *condest = INFINITY; return SPARSE_OK; }
+
+    /* Allocate workspace for Hager/Higham 1-norm estimator */
+    double *x = malloc((size_t)n * sizeof(double));
+    double *w = malloc((size_t)n * sizeof(double));
+    double *z = malloc((size_t)n * sizeof(double));
+    if (!x || !w || !z) {
+        free(x); free(w); free(z);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    /* Hager/Higham algorithm to estimate ||A^{-1}||_1:
+     * 1. x = [1/n, ..., 1/n]
+     * 2. Solve A*w = x
+     * 3. xi = sign(w)
+     * 4. Solve A^T*z = xi
+     * 5. If ||z||_inf <= z^T*w, converged: ||A^{-1}||_1 ≈ ||w||_1
+     * 6. Otherwise x = e_j where j = argmax|z_j|, goto 2
+     * Max 5 iterations. */
+
+    double inv_n = 1.0 / (double)n;
+    for (idx_t i = 0; i < n; i++)
+        x[i] = inv_n;
+
+    double est = 0.0;
+    int max_iter = 5;
+    sparse_err_t err;
+
+    for (int iter = 0; iter < max_iter; iter++) {
+        /* Solve A*w = x */
+        err = sparse_lu_solve(mat_lu, x, w);
+        if (err != SPARSE_OK) { free(x); free(w); free(z); return err; }
+
+        /* Compute ||w||_1 */
+        double w_norm1 = 0.0;
+        for (idx_t i = 0; i < n; i++)
+            w_norm1 += fabs(w[i]);
+        est = w_norm1;
+
+        /* xi = sign(w) */
+        for (idx_t i = 0; i < n; i++)
+            x[i] = (w[i] >= 0.0) ? 1.0 : -1.0;
+
+        /* Solve A^T*z = xi */
+        err = sparse_lu_solve_transpose(mat_lu, x, z);
+        if (err != SPARSE_OK) { free(x); free(w); free(z); return err; }
+
+        /* Check convergence: ||z||_inf <= z^T * w */
+        double z_inf = 0.0;
+        double zt_w = 0.0;
+        idx_t j_max = 0;
+        for (idx_t i = 0; i < n; i++) {
+            double az = fabs(z[i]);
+            if (az > z_inf) { z_inf = az; j_max = i; }
+            zt_w += z[i] * w[i];
+        }
+
+        if (z_inf <= zt_w || iter == max_iter - 1)
+            break;
+
+        /* Set x = e_{j_max} */
+        for (idx_t i = 0; i < n; i++)
+            x[i] = 0.0;
+        x[j_max] = 1.0;
+    }
+
+    *condest = norm_A * est;
+
+    free(x); free(w); free(z);
+    return SPARSE_OK;
+}
+
 /* ─── Solver phases ──────────────────────────────────────────────────── */
 
 sparse_err_t sparse_apply_row_perm(const SparseMatrix *mat,
@@ -244,18 +523,32 @@ sparse_err_t sparse_lu_solve(const SparseMatrix *mat,
 {
     if (!mat || !b || !x) return SPARSE_ERR_NULL;
     idx_t n = mat->rows;
+    const idx_t *rperm = mat->reorder_perm;
 
     double *pb = malloc((size_t)n * sizeof(double));
     double *y  = malloc((size_t)n * sizeof(double));
     double *z  = malloc((size_t)n * sizeof(double));
+    double *b_perm = NULL;
+    if (rperm) {
+        b_perm = malloc((size_t)n * sizeof(double));
+        if (!b_perm) { free(pb); free(y); free(z); return SPARSE_ERR_ALLOC; }
+    }
     if (!pb || !y || !z) {
-        free(pb); free(y); free(z);
+        free(pb); free(y); free(z); free(b_perm);
         return SPARSE_ERR_ALLOC;
+    }
+
+    /* If reorder permutation exists, permute b first */
+    const double *b_eff = b;
+    if (rperm) {
+        for (idx_t i = 0; i < n; i++)
+            b_perm[i] = b[rperm[i]];
+        b_eff = b_perm;
     }
 
     sparse_err_t err;
 
-    err = sparse_apply_row_perm(mat, b, pb);
+    err = sparse_apply_row_perm(mat, b_eff, pb);
     if (err != SPARSE_OK) goto cleanup;
 
     err = sparse_forward_sub(mat, pb, y);
@@ -265,11 +558,22 @@ sparse_err_t sparse_lu_solve(const SparseMatrix *mat,
     if (err != SPARSE_OK) goto cleanup;
 
     err = sparse_apply_inv_col_perm(mat, z, x);
+    if (err != SPARSE_OK) goto cleanup;
+
+    /* If reorder permutation exists, unpermute x */
+    if (rperm) {
+        /* x currently holds solution in permuted space.
+         * We need x_orig[rperm[i]] = x_perm[i] */
+        memcpy(z, x, (size_t)n * sizeof(double)); /* reuse z as temp */
+        for (idx_t i = 0; i < n; i++)
+            x[rperm[i]] = z[i];
+    }
 
 cleanup:
     free(pb);
     free(y);
     free(z);
+    free(b_perm);
     return err;
 }
 

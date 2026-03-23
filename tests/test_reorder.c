@@ -495,6 +495,118 @@ static void test_rcm_steam1(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * AMD tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* AMD on small matrix: valid permutation and fill-in not worse */
+static void test_amd_small(void)
+{
+    /* 5x5 arrow matrix */
+    idx_t n = 5;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 5.0);
+        if (i > 0) {
+            sparse_insert(A, 0, i, 1.0);
+            sparse_insert(A, i, 0, 1.0);
+        }
+    }
+
+    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    ASSERT_ERR(sparse_reorder_amd(A, perm), SPARSE_OK);
+    ASSERT_TRUE(is_valid_perm(perm, n));
+
+    /* Factor original vs AMD-reordered, compare fill-in */
+    SparseMatrix *LU_orig = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU_orig, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+    idx_t fill_orig = sparse_nnz(LU_orig);
+
+    SparseMatrix *PA = NULL;
+    ASSERT_ERR(sparse_permute(A, perm, perm, &PA), SPARSE_OK);
+    SparseMatrix *LU_amd = sparse_copy(PA);
+    ASSERT_ERR(sparse_lu_factor(LU_amd, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+    idx_t fill_amd = sparse_nnz(LU_amd);
+
+    /* AMD should not increase fill-in vs natural on arrow matrix */
+    ASSERT_TRUE(fill_amd <= fill_orig);
+
+    free(perm);
+    sparse_free(A); sparse_free(PA);
+    sparse_free(LU_orig); sparse_free(LU_amd);
+}
+
+/* AMD on diagonal: valid permutation */
+static void test_amd_diagonal(void)
+{
+    idx_t n = 5;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, 1.0);
+
+    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    ASSERT_ERR(sparse_reorder_amd(A, perm), SPARSE_OK);
+    ASSERT_TRUE(is_valid_perm(perm, n));
+
+    free(perm);
+    sparse_free(A);
+}
+
+/* AMD + factor + solve produces correct result */
+static void test_amd_solve(void)
+{
+    idx_t n = 8;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, (double)(n + 1));
+        if (i > 0) {
+            sparse_insert(A, 0, i, 1.0);
+            sparse_insert(A, i, 0, 1.0);
+        }
+    }
+
+    idx_t *p = malloc((size_t)n * sizeof(idx_t));
+    ASSERT_ERR(sparse_reorder_amd(A, p), SPARSE_OK);
+
+    SparseMatrix *PA = NULL;
+    ASSERT_ERR(sparse_permute(A, p, p, &PA), SPARSE_OK);
+
+    double *ones = malloc((size_t)n * sizeof(double));
+    double *b    = malloc((size_t)n * sizeof(double));
+    for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
+    sparse_matvec(A, ones, b);
+
+    double *pb = malloc((size_t)n * sizeof(double));
+    for (idx_t i = 0; i < n; i++) pb[i] = b[p[i]];
+
+    ASSERT_ERR(sparse_lu_factor(PA, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+    double *xp = malloc((size_t)n * sizeof(double));
+    ASSERT_ERR(sparse_lu_solve(PA, pb, xp), SPARSE_OK);
+
+    double *x = malloc((size_t)n * sizeof(double));
+    for (idx_t i = 0; i < n; i++) x[p[i]] = xp[i];
+
+    double *r = malloc((size_t)n * sizeof(double));
+    sparse_matvec(A, x, r);
+    double rnorm = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        r[i] -= b[i];
+        double a = fabs(r[i]);
+        if (a > rnorm) rnorm = a;
+    }
+    ASSERT_TRUE(rnorm < 1e-10);
+
+    free(p); free(ones); free(b); free(pb); free(xp); free(x); free(r);
+    sparse_free(A); sparse_free(PA);
+}
+
+/* AMD NULL args */
+static void test_amd_null(void)
+{
+    idx_t perm[1];
+    ASSERT_ERR(sparse_reorder_amd(NULL, perm), SPARSE_ERR_NULL);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -530,6 +642,12 @@ int main(void)
     RUN_TEST(test_rcm_nos4);
     RUN_TEST(test_rcm_bcsstk04);
     RUN_TEST(test_rcm_steam1);
+
+    /* AMD */
+    RUN_TEST(test_amd_small);
+    RUN_TEST(test_amd_diagonal);
+    RUN_TEST(test_amd_solve);
+    RUN_TEST(test_amd_null);
 
     TEST_SUITE_END();
 }

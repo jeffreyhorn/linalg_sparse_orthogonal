@@ -338,12 +338,126 @@ sparse_err_t sparse_reorder_rcm(const SparseMatrix *A, idx_t *perm)
 
 /* ─── AMD ────────────────────────────────────────────────────────────── */
 
+/*
+ * Minimum degree ordering using bitset adjacency.
+ *
+ * For each elimination step:
+ *  1. Pick the uneliminated node with smallest degree
+ *  2. Record it in the permutation
+ *  3. For each uneliminated neighbor u, merge the eliminated node's
+ *     neighbors into u's adjacency (this models fill-in)
+ *  4. Remove the eliminated node from all adjacency sets
+ *
+ * Uses one bitset row per node (n bits each). For n=1030, total memory
+ * is ~130 KB — well within budget for our target matrix sizes.
+ */
+
+/* Bitset helpers: one bit per node, packed into 64-bit words */
+typedef uint64_t bword_t;
+#define BWORD_BITS 64
+#define BWORD_IDX(i)  ((i) / BWORD_BITS)
+#define BWORD_BIT(i)  ((bword_t)1 << ((i) % BWORD_BITS))
+
+static inline void bset(bword_t *bs, idx_t i)   { bs[BWORD_IDX(i)] |= BWORD_BIT(i); }
+static inline void bclr(bword_t *bs, idx_t i)   { bs[BWORD_IDX(i)] &= ~BWORD_BIT(i); }
+static inline int  btest(const bword_t *bs, idx_t i) { return (bs[BWORD_IDX(i)] & BWORD_BIT(i)) != 0; }
+
+/* Union: dst |= src */
+static void bunion(bword_t *dst, const bword_t *src, idx_t nwords)
+{
+    for (idx_t w = 0; w < nwords; w++)
+        dst[w] |= src[w];
+}
+
 sparse_err_t sparse_reorder_amd(const SparseMatrix *A, idx_t *perm)
 {
     if (!A || !perm) return SPARSE_ERR_NULL;
     if (A->rows != A->cols) return SPARSE_ERR_SHAPE;
-    /* TODO: implement in Day 9 */
+
     idx_t n = A->rows;
-    for (idx_t i = 0; i < n; i++) perm[i] = i;  /* identity for now */
+    if (n == 0) return SPARSE_OK;
+    if (n == 1) { perm[0] = 0; return SPARSE_OK; }
+
+    /* Build adjacency graph */
+    idx_t *adj_ptr = NULL, *adj_list = NULL;
+    sparse_err_t err = sparse_build_adj(A, &adj_ptr, &adj_list);
+    if (err != SPARSE_OK) return err;
+
+    /* Allocate bitset adjacency matrix: n rows, each with nwords words */
+    idx_t nwords = (n + BWORD_BITS - 1) / BWORD_BITS;
+    bword_t *adj_bits = calloc((size_t)n * (size_t)nwords, sizeof(bword_t));
+    int *eliminated = calloc((size_t)n, sizeof(int));
+    idx_t *degree = malloc((size_t)n * sizeof(idx_t));
+
+    if (!adj_bits || !eliminated || !degree) {
+        free(adj_bits); free(eliminated); free(degree);
+        free(adj_ptr); free(adj_list);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    /* Initialize bitset adjacency from CSR graph */
+    for (idx_t i = 0; i < n; i++) {
+        bword_t *row = &adj_bits[(size_t)i * (size_t)nwords];
+        for (idx_t k = adj_ptr[i]; k < adj_ptr[i + 1]; k++)
+            bset(row, adj_list[k]);
+        degree[i] = adj_ptr[i + 1] - adj_ptr[i];
+    }
+
+    free(adj_ptr);
+    free(adj_list);
+
+    /* Main elimination loop */
+    for (idx_t step = 0; step < n; step++) {
+        /* Find uneliminated node with minimum degree */
+        idx_t best = -1;
+        idx_t best_deg = n + 1;
+        for (idx_t i = 0; i < n; i++) {
+            if (!eliminated[i] && degree[i] < best_deg) {
+                best_deg = degree[i];
+                best = i;
+            }
+        }
+
+        perm[step] = best;
+        eliminated[best] = 1;
+
+        bword_t *best_row = &adj_bits[(size_t)best * (size_t)nwords];
+
+        /* For each uneliminated neighbor u of best:
+         *   adj[u] = (adj[u] | adj[best]) \ {best, u}
+         * This merges the eliminated node's connections into u's,
+         * modeling the fill-in that LU elimination would create. */
+        for (idx_t u = 0; u < n; u++) {
+            if (eliminated[u] || !btest(best_row, u)) continue;
+
+            bword_t *u_row = &adj_bits[(size_t)u * (size_t)nwords];
+            bunion(u_row, best_row, nwords);
+            bclr(u_row, best);  /* remove eliminated node */
+            bclr(u_row, u);     /* no self-loop */
+
+            /* Recount degree (number of uneliminated neighbors) */
+            idx_t deg = 0;
+            for (idx_t w = 0; w < nwords; w++) {
+                bword_t v = u_row[w];
+                while (v) { v &= v - 1; deg++; }
+            }
+            /* Subtract eliminated nodes from degree */
+            idx_t elim_in_adj = 0;
+            for (idx_t j = 0; j < n; j++) {
+                if (eliminated[j] && btest(u_row, j))
+                    elim_in_adj++;
+            }
+            degree[u] = deg - elim_in_adj;
+        }
+
+        /* Clear best from all adjacency rows */
+        for (idx_t i = 0; i < n; i++) {
+            bclr(&adj_bits[(size_t)i * (size_t)nwords], best);
+        }
+    }
+
+    free(adj_bits);
+    free(eliminated);
+    free(degree);
     return SPARSE_OK;
 }

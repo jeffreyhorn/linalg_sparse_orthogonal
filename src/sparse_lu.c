@@ -154,6 +154,32 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot,
     return SPARSE_OK;
 }
 
+/* ─── Transpose solve ────────────────────────────────────────────────── */
+
+sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat,
+                                       const double *b, double *x)
+{
+    if (!mat || !b || !x) return SPARSE_ERR_NULL;
+    /* TODO: implement in Day 2 */
+    (void)mat; (void)b; (void)x;
+    return SPARSE_ERR_BADARG;
+}
+
+/* ─── Condition number estimation ────────────────────────────────────── */
+
+sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig,
+                               const SparseMatrix *mat_lu,
+                               double *condest)
+{
+    if (!mat_orig || !mat_lu || !condest) return SPARSE_ERR_NULL;
+    /* Check that mat_lu has been factored (factor_norm is set during factorization) */
+    if (mat_lu->factor_norm < 0.0) return SPARSE_ERR_BADARG;
+    /* TODO: implement Hager's algorithm in Day 3 */
+    (void)mat_orig;
+    *condest = -1.0;
+    return SPARSE_ERR_BADARG;
+}
+
 /* ─── Solver phases ──────────────────────────────────────────────────── */
 
 sparse_err_t sparse_apply_row_perm(const SparseMatrix *mat,

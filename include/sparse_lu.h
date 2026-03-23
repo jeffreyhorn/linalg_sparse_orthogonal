@@ -69,6 +69,72 @@ sparse_err_t sparse_lu_solve(const SparseMatrix *mat,
                              const double *b, double *x);
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * Condition number estimation
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief Estimate the 1-norm condition number of A from its LU factors.
+ *
+ * Uses Hager's algorithm (Hager 1984, refined by Higham 2000) to estimate
+ * ||A^{-1}||_1 without forming the inverse. The condition estimate is:
+ *
+ *     condest = ||A||_1 * ||A^{-1}||_1_estimate
+ *
+ * **Algorithm outline (Hager/Higham 1-norm estimator):**
+ *  1. Start with x = [1/n, ..., 1/n]
+ *  2. Solve A*w = x  (using existing LU factors)
+ *  3. Set xi = sign(w)
+ *  4. Solve A^T*z = xi  (transpose solve)
+ *  5. If ||z||_inf <= z^T * w, converged: ||A^{-1}||_1 ~ ||w||_1
+ *  6. Otherwise, set x = e_j where j = argmax|z_j|, go to step 2
+ *  7. Limit to 5 iterations to bound cost
+ *
+ * **Design decisions:**
+ *  - Requires a transpose solve (A^T * z = b). This is implemented internally
+ *    as sparse_lu_solve_transpose(), which solves Q^T U^T L^T P^T x = b
+ *    using the same LU factors stored in the matrix.
+ *  - The 1-norm ||A||_1 (max column sum) is computed from the original matrix.
+ *    Since LU factorization overwrites A, the caller must pass the original
+ *    matrix separately (via mat_orig), or we compute ||A||_1 from ||L||_1*||U||_1
+ *    as an upper bound. We take the mat_orig approach for accuracy.
+ *  - Returns SPARSE_ERR_BADARG if the matrix has not been factored (no
+ *    row_perm allocated, or factor_norm not set).
+ *
+ * @param mat_orig  The original (unfactored) matrix A. Used to compute ||A||_1.
+ * @param mat_lu    The LU-factored matrix (from sparse_lu_factor).
+ * @param[out] condest  Pointer to receive the condition number estimate.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if any argument is NULL.
+ * @return SPARSE_ERR_BADARG if mat_lu has not been factored.
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails.
+ */
+sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig,
+                               const SparseMatrix *mat_lu,
+                               double *condest);
+
+/**
+ * @brief Solve A^T * x = b using a previously factored matrix.
+ *
+ * Given the factorization P*A*Q = L*U, solves:
+ *     A^T * x = b
+ * which is equivalent to:
+ *     Q^T * U^T * L^T * P^T * x = b
+ *
+ * Steps:
+ *  1. Apply Q permutation: qb[i] = b[col_perm[i]]
+ *  2. Forward-substitute with U^T (lower triangular solve)
+ *  3. Backward-substitute with L^T (upper triangular solve, unit diagonal)
+ *  4. Apply P^{-1} permutation: x[i] = result[inv_row_perm[i]]
+ *
+ * @param mat  A matrix that has been factored by sparse_lu_factor().
+ * @param b    Right-hand side vector of length n.
+ * @param x    Solution vector of length n (overwritten). May alias b.
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL if any argument is NULL.
+ */
+sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat,
+                                       const double *b, double *x);
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * Individual solver phases (exposed for testing and advanced use)
  * ═══════════════════════════════════════════════════════════════════════════ */
 

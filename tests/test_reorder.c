@@ -277,6 +277,7 @@ static void test_rcm_tridiag(void)
     ASSERT_EQ(bw_before, 1);
 
     idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    ASSERT_NOT_NULL(perm);
     ASSERT_ERR(sparse_reorder_rcm(A, perm), SPARSE_OK);
     ASSERT_TRUE(is_valid_perm(perm, n));
 
@@ -551,6 +552,7 @@ static void test_amd_diagonal(void)
         sparse_insert(A, i, i, 1.0);
 
     idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    ASSERT_NOT_NULL(perm);
     ASSERT_ERR(sparse_reorder_amd(A, perm), SPARSE_OK);
     ASSERT_TRUE(is_valid_perm(perm, n));
 

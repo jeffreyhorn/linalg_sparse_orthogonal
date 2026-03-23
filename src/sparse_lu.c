@@ -215,6 +215,16 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat,
         PA->pool.free_list = NULL;
         sparse_free(PA);
 
+        /* Reset row/col permutations to identity — the reordered matrix
+         * has fresh physical layout, so LU factorization must start from
+         * identity permutations regardless of any prior factorization. */
+        for (idx_t i = 0; i < n; i++) {
+            mat->row_perm[i] = i;
+            mat->inv_row_perm[i] = i;
+            mat->col_perm[i] = i;
+            mat->inv_col_perm[i] = i;
+        }
+
         /* Store reorder permutation for solve to unpermute */
         free(mat->reorder_perm);
         mat->reorder_perm = perm;

@@ -737,6 +737,7 @@ static void test_amd_stress(void)
         }
 
         idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+        ASSERT_NOT_NULL(perm);
         ASSERT_ERR(sparse_reorder_amd(A, perm), SPARSE_OK);
         ASSERT_TRUE(is_valid_perm(perm, n));
 
@@ -761,6 +762,8 @@ static void test_opts_rcm_partial(void)
 
     double *ones = malloc((size_t)n * sizeof(double));
     double *b    = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(ones);
+    ASSERT_NOT_NULL(b);
     for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
     sparse_matvec(A, ones, b);
 
@@ -770,6 +773,7 @@ static void test_opts_rcm_partial(void)
     ASSERT_ERR(sparse_lu_factor_opts(LU, &opts), SPARSE_OK);
 
     double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x);
     ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_OK);
 
     /* Verify: x should be ~ones (auto-unpermuted) */
@@ -792,6 +796,8 @@ static void test_opts_amd_complete(void)
 
     double *ones = malloc((size_t)n * sizeof(double));
     double *b    = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(ones);
+    ASSERT_NOT_NULL(b);
     for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
     sparse_matvec(A, ones, b);
 
@@ -801,6 +807,7 @@ static void test_opts_amd_complete(void)
     ASSERT_ERR(sparse_lu_factor_opts(LU, &opts), SPARSE_OK);
 
     double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x);
     ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_OK);
 
     for (idx_t i = 0; i < n; i++)
@@ -849,6 +856,8 @@ static void test_opts_suitesparse(void)
 
     double *ones = malloc((size_t)n * sizeof(double));
     double *b    = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(ones);
+    ASSERT_NOT_NULL(b);
     for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
     sparse_matvec(A, ones, b);
 
@@ -858,6 +867,7 @@ static void test_opts_suitesparse(void)
     ASSERT_ERR(sparse_lu_factor_opts(LU, &opts), SPARSE_OK);
 
     double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x);
     ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_OK);
 
     /* Verify x ≈ ones */

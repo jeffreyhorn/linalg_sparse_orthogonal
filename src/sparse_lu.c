@@ -160,9 +160,68 @@ sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat,
                                        const double *b, double *x)
 {
     if (!mat || !b || !x) return SPARSE_ERR_NULL;
-    /* TODO: implement in Day 2 */
-    (void)mat; (void)b; (void)x;
-    return SPARSE_ERR_BADARG;
+    idx_t n = mat->rows;
+
+    double *c = malloc((size_t)n * sizeof(double));
+    double *d = malloc((size_t)n * sizeof(double));
+    double *w = malloc((size_t)n * sizeof(double));
+    if (!c || !d || !w) {
+        free(c); free(d); free(w);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    /* Step 1: c = Q^T * b  →  c[i] = b[col_perm[i]] */
+    for (idx_t i = 0; i < n; i++)
+        c[i] = b[mat->col_perm[i]];
+
+    /* Step 2: Forward-substitute with U^T (lower triangular).
+     * U^T[i][j] = U[j][i], so walk column i to find U entries with log_row <= i.
+     * Solve: d[i] = (c[i] - sum_{j<i} U[j][i]*d[j]) / U[i][i] */
+    for (idx_t i = 0; i < n; i++) {
+        double sum = 0.0;
+        double u_ii = 0.0;
+        idx_t phys_col = mat->col_perm[i];
+        Node *node = mat->col_headers[phys_col];
+        while (node) {
+            idx_t log_j = mat->inv_row_perm[node->row];
+            if (log_j == i)
+                u_ii = node->value;
+            else if (log_j < i)
+                sum += node->value * d[log_j];
+            node = node->down;
+        }
+        double sing_tol = (mat->factor_norm > 0.0)
+                        ? DROP_TOL * mat->factor_norm
+                        : DROP_TOL;
+        if (fabs(u_ii) < sing_tol) {
+            free(c); free(d); free(w);
+            return SPARSE_ERR_SINGULAR;
+        }
+        d[i] = (c[i] - sum) / u_ii;
+    }
+
+    /* Step 3: Backward-substitute with L^T (upper triangular, unit diagonal).
+     * L^T[i][j] = L[j][i], so walk column i to find L entries with log_row > i.
+     * Solve: w[i] = d[i] - sum_{j>i} L[j][i]*w[j] */
+    for (idx_t i = n - 1; i >= 0; i--) {
+        double sum = 0.0;
+        idx_t phys_col = mat->col_perm[i];
+        Node *node = mat->col_headers[phys_col];
+        while (node) {
+            idx_t log_j = mat->inv_row_perm[node->row];
+            if (log_j > i)
+                sum += node->value * w[log_j];
+            node = node->down;
+        }
+        w[i] = d[i] - sum;  /* L^T has unit diagonal */
+    }
+
+    /* Step 4: x = P^T * w = P^{-1} * w  →  x[i] = w[inv_row_perm[i]] */
+    for (idx_t i = 0; i < n; i++)
+        x[i] = w[mat->inv_row_perm[i]];
+
+    free(c); free(d); free(w);
+    return SPARSE_OK;
 }
 
 /* ─── Condition number estimation ────────────────────────────────────── */

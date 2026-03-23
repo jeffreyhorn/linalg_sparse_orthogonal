@@ -3,6 +3,7 @@
 #include "sparse_types.h"
 #include "test_framework.h"
 #include <stdlib.h>
+#include <math.h>
 
 /* ─── Helpers ────────────────────────────────────────────────────────── */
 
@@ -557,6 +558,165 @@ static void test_relative_tol_singular_still_detected(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Transpose solve tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Small 3x3: factor, solve A*x=b and A^T*y=c, verify both */
+static void test_transpose_solve_3x3(void)
+{
+    /* A = [2 1 0; 1 3 1; 0 1 2] — symmetric positive definite */
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 2.0);
+
+    /* Copy for residual checks */
+    SparseMatrix *A_orig = sparse_copy(A);
+    ASSERT_NOT_NULL(A_orig);
+
+    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    /* Forward solve: A*x = b where b = [1, 2, 3] */
+    double b[] = {1.0, 2.0, 3.0};
+    double x[3];
+    ASSERT_ERR(sparse_lu_solve(A, b, x), SPARSE_OK);
+
+    /* Verify A*x ≈ b */
+    double r[3];
+    sparse_matvec(A_orig, x, r);
+    for (int i = 0; i < 3; i++) r[i] -= b[i];
+    ASSERT_TRUE(vec_norminf(r, 3) < 1e-12);
+
+    /* Transpose solve: A^T*y = c where c = [3, 2, 1] */
+    double c[] = {3.0, 2.0, 1.0};
+    double y[3];
+    ASSERT_ERR(sparse_lu_solve_transpose(A, c, y), SPARSE_OK);
+
+    /* Verify A^T*y ≈ c: compute A_orig * y (A is symmetric, so A^T = A) */
+    double rt[3];
+    sparse_matvec(A_orig, y, rt);  /* A^T = A for symmetric */
+    for (int i = 0; i < 3; i++) rt[i] -= c[i];
+    ASSERT_TRUE(vec_norminf(rt, 3) < 1e-12);
+
+    sparse_free(A);
+    sparse_free(A_orig);
+}
+
+/* Transpose solve on identity: should equal forward solve */
+static void test_transpose_solve_identity(void)
+{
+    idx_t n = 5;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, 1.0);
+
+    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    double b[] = {1.0, 2.0, 3.0, 4.0, 5.0};
+    double x[5];
+    ASSERT_ERR(sparse_lu_solve_transpose(A, b, x), SPARSE_OK);
+
+    /* For identity, transpose solve should return b */
+    for (int i = 0; i < 5; i++)
+        ASSERT_NEAR(x[i], b[i], 1e-15);
+
+    sparse_free(A);
+}
+
+/* Transpose solve on unsymmetric matrix: A^T*y ≠ A*y in general */
+static void test_transpose_solve_unsymmetric(void)
+{
+    /* A = [2 3 0; 1 4 1; 0 2 3] — unsymmetric */
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 1, 3.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 1, 2.0);
+    sparse_insert(A, 2, 2, 3.0);
+
+    /* A^T = [2 1 0; 3 4 2; 0 1 3] */
+    SparseMatrix *AT = sparse_create(3, 3);
+    sparse_insert(AT, 0, 0, 2.0);
+    sparse_insert(AT, 0, 1, 1.0);
+    sparse_insert(AT, 1, 0, 3.0);
+    sparse_insert(AT, 1, 1, 4.0);
+    sparse_insert(AT, 1, 2, 2.0);
+    sparse_insert(AT, 2, 1, 1.0);
+    sparse_insert(AT, 2, 2, 3.0);
+
+    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    double b[] = {1.0, 2.0, 3.0};
+    double y[3];
+    ASSERT_ERR(sparse_lu_solve_transpose(A, b, y), SPARSE_OK);
+
+    /* Verify: A^T * y ≈ b by computing AT * y */
+    double r[3];
+    sparse_matvec(AT, y, r);
+    for (int i = 0; i < 3; i++) r[i] -= b[i];
+    ASSERT_TRUE(vec_norminf(r, 3) < 1e-12);
+
+    sparse_free(A);
+    sparse_free(AT);
+}
+
+/* Transpose solve with complete pivoting (exercises column permutation) */
+static void test_transpose_solve_complete_pivot(void)
+{
+    /* A = [1 5 2; 4 2 1; 3 1 6] — complete pivoting will move entries around */
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 5.0);
+    sparse_insert(A, 0, 2, 2.0);
+    sparse_insert(A, 1, 0, 4.0);
+    sparse_insert(A, 1, 1, 2.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 0, 3.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 6.0);
+
+    /* Build A^T explicitly for verification */
+    SparseMatrix *AT = sparse_create(3, 3);
+    sparse_insert(AT, 0, 0, 1.0);
+    sparse_insert(AT, 0, 1, 4.0);
+    sparse_insert(AT, 0, 2, 3.0);
+    sparse_insert(AT, 1, 0, 5.0);
+    sparse_insert(AT, 1, 1, 2.0);
+    sparse_insert(AT, 1, 2, 1.0);
+    sparse_insert(AT, 2, 0, 2.0);
+    sparse_insert(AT, 2, 1, 1.0);
+    sparse_insert(AT, 2, 2, 6.0);
+
+    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12), SPARSE_OK);
+
+    double b[] = {7.0, 3.0, 5.0};
+    double y[3];
+    ASSERT_ERR(sparse_lu_solve_transpose(A, b, y), SPARSE_OK);
+
+    /* Verify: A^T * y ≈ b */
+    double r[3];
+    sparse_matvec(AT, y, r);
+    for (int i = 0; i < 3; i++) r[i] -= b[i];
+    ASSERT_TRUE(vec_norminf(r, 3) < 1e-12);
+
+    sparse_free(A);
+    sparse_free(AT);
+}
+
+/* Transpose solve NULL args */
+static void test_transpose_solve_null(void)
+{
+    double b[1] = {1.0}, x[1];
+    ASSERT_ERR(sparse_lu_solve_transpose(NULL, b, x), SPARSE_ERR_NULL);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -607,6 +767,13 @@ int main(void)
     /* Relative tolerance */
     RUN_TEST(test_relative_tol_scaled_identity);
     RUN_TEST(test_relative_tol_singular_still_detected);
+
+    /* Transpose solve */
+    RUN_TEST(test_transpose_solve_3x3);
+    RUN_TEST(test_transpose_solve_identity);
+    RUN_TEST(test_transpose_solve_unsymmetric);
+    RUN_TEST(test_transpose_solve_complete_pivot);
+    RUN_TEST(test_transpose_solve_null);
 
     TEST_SUITE_END();
 }

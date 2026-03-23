@@ -5,6 +5,7 @@
 #include "test_framework.h"
 #include <stdlib.h>
 #include <math.h>
+#include <stdio.h>
 
 /* ═══════════════════════════════════════════════════════════════════════
  * sparse_permute tests
@@ -390,6 +391,110 @@ static void test_rcm_solve(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * RCM on SuiteSparse matrices
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+#ifndef DATA_DIR
+#define DATA_DIR "tests/data"
+#endif
+#define SS_DIR DATA_DIR "/suitesparse"
+
+/* Helper: load matrix, RCM reorder, factor, solve, check residual.
+ * Also reports bandwidth before/after and fill-in comparison. */
+static void rcm_validate_matrix(const char *path, double res_tol)
+{
+    SparseMatrix *A = NULL;
+    ASSERT_ERR(sparse_load_mm(&A, path), SPARSE_OK);
+    idx_t n = sparse_rows(A);
+
+    /* Bandwidth before */
+    idx_t bw_before = sparse_bandwidth(A);
+
+    /* RCM */
+    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    ASSERT_NOT_NULL(perm);
+    ASSERT_ERR(sparse_reorder_rcm(A, perm), SPARSE_OK);
+    ASSERT_TRUE(is_valid_perm(perm, n));
+
+    SparseMatrix *PA = NULL;
+    ASSERT_ERR(sparse_permute(A, perm, perm, &PA), SPARSE_OK);
+
+    idx_t bw_after = sparse_bandwidth(PA);
+
+    /* Factor original (for fill-in comparison) */
+    SparseMatrix *LU_orig = sparse_copy(A);
+    ASSERT_NOT_NULL(LU_orig);
+    ASSERT_ERR(sparse_lu_factor(LU_orig, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+    idx_t fill_orig = sparse_nnz(LU_orig);
+
+    /* Factor reordered */
+    SparseMatrix *LU_rcm = sparse_copy(PA);
+    ASSERT_NOT_NULL(LU_rcm);
+    ASSERT_ERR(sparse_lu_factor(LU_rcm, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+    idx_t fill_rcm = sparse_nnz(LU_rcm);
+
+    /* Solve with RCM-reordered system */
+    double *ones = malloc((size_t)n * sizeof(double));
+    double *b    = malloc((size_t)n * sizeof(double));
+    double *pb   = malloc((size_t)n * sizeof(double));
+    double *xp   = malloc((size_t)n * sizeof(double));
+    double *x    = malloc((size_t)n * sizeof(double));
+    double *r    = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(ones);
+    for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
+    sparse_matvec(A, ones, b);
+
+    /* Permute RHS */
+    for (idx_t i = 0; i < n; i++) pb[i] = b[perm[i]];
+
+    ASSERT_ERR(sparse_lu_solve(LU_rcm, pb, xp), SPARSE_OK);
+
+    /* Unpermute solution */
+    for (idx_t i = 0; i < n; i++) x[perm[i]] = xp[i];
+
+    /* Residual */
+    sparse_matvec(A, x, r);
+    double rnorm = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        r[i] -= b[i];
+        double a = fabs(r[i]);
+        if (a > rnorm) rnorm = a;
+    }
+
+    printf("    %s: bw %d->%d, fill %d->%d (%.1fx), res=%.2e\n",
+           path, (int)bw_before, (int)bw_after,
+           (int)fill_orig, (int)fill_rcm,
+           fill_orig > 0 ? (double)fill_rcm / (double)fill_orig : 0.0,
+           rnorm);
+
+    ASSERT_TRUE(rnorm < res_tol);
+
+    free(perm); free(ones); free(b); free(pb); free(xp); free(x); free(r);
+    sparse_free(A); sparse_free(PA);
+    sparse_free(LU_orig); sparse_free(LU_rcm);
+}
+
+static void test_rcm_west0067(void)
+{
+    rcm_validate_matrix(SS_DIR "/west0067.mtx", 1e-8);
+}
+
+static void test_rcm_nos4(void)
+{
+    rcm_validate_matrix(SS_DIR "/nos4.mtx", 1e-8);
+}
+
+static void test_rcm_bcsstk04(void)
+{
+    rcm_validate_matrix(SS_DIR "/bcsstk04.mtx", 1e-4);
+}
+
+static void test_rcm_steam1(void)
+{
+    rcm_validate_matrix(SS_DIR "/steam1.mtx", 1e-2);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -419,6 +524,12 @@ int main(void)
     RUN_TEST(test_rcm_diagonal);
     RUN_TEST(test_rcm_disconnected);
     RUN_TEST(test_rcm_solve);
+
+    /* RCM on SuiteSparse matrices */
+    RUN_TEST(test_rcm_west0067);
+    RUN_TEST(test_rcm_nos4);
+    RUN_TEST(test_rcm_bcsstk04);
+    RUN_TEST(test_rcm_steam1);
 
     TEST_SUITE_END();
 }

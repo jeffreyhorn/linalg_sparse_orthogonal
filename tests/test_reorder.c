@@ -607,6 +607,133 @@ static void test_amd_null(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * AMD on SuiteSparse matrices — with comparison to natural & RCM
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Helper: validate AMD on a SuiteSparse matrix, compare fill-in */
+static void amd_validate_matrix(const char *path, double res_tol)
+{
+    SparseMatrix *A = NULL;
+    ASSERT_ERR(sparse_load_mm(&A, path), SPARSE_OK);
+    idx_t n = sparse_rows(A);
+
+    /* Natural ordering fill-in */
+    SparseMatrix *LU_nat = sparse_copy(A);
+    ASSERT_NOT_NULL(LU_nat);
+    ASSERT_ERR(sparse_lu_factor(LU_nat, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+    idx_t fill_nat = sparse_nnz(LU_nat);
+    sparse_free(LU_nat);
+
+    /* RCM fill-in */
+    idx_t *rcm_perm = malloc((size_t)n * sizeof(idx_t));
+    ASSERT_NOT_NULL(rcm_perm);
+    ASSERT_ERR(sparse_reorder_rcm(A, rcm_perm), SPARSE_OK);
+    SparseMatrix *PA_rcm = NULL;
+    ASSERT_ERR(sparse_permute(A, rcm_perm, rcm_perm, &PA_rcm), SPARSE_OK);
+    SparseMatrix *LU_rcm = sparse_copy(PA_rcm);
+    ASSERT_NOT_NULL(LU_rcm);
+    ASSERT_ERR(sparse_lu_factor(LU_rcm, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+    idx_t fill_rcm = sparse_nnz(LU_rcm);
+    sparse_free(LU_rcm);
+    sparse_free(PA_rcm);
+    free(rcm_perm);
+
+    /* AMD */
+    idx_t *amd_perm = malloc((size_t)n * sizeof(idx_t));
+    ASSERT_NOT_NULL(amd_perm);
+    ASSERT_ERR(sparse_reorder_amd(A, amd_perm), SPARSE_OK);
+    ASSERT_TRUE(is_valid_perm(amd_perm, n));
+
+    SparseMatrix *PA_amd = NULL;
+    ASSERT_ERR(sparse_permute(A, amd_perm, amd_perm, &PA_amd), SPARSE_OK);
+    SparseMatrix *LU_amd = sparse_copy(PA_amd);
+    ASSERT_NOT_NULL(LU_amd);
+    ASSERT_ERR(sparse_lu_factor(LU_amd, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+    idx_t fill_amd = sparse_nnz(LU_amd);
+
+    /* Solve with AMD ordering and check residual */
+    double *ones = malloc((size_t)n * sizeof(double));
+    double *b    = malloc((size_t)n * sizeof(double));
+    double *pb   = malloc((size_t)n * sizeof(double));
+    double *xp   = malloc((size_t)n * sizeof(double));
+    double *x    = malloc((size_t)n * sizeof(double));
+    double *r    = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(ones);
+    for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
+    sparse_matvec(A, ones, b);
+    for (idx_t i = 0; i < n; i++) pb[i] = b[amd_perm[i]];
+
+    ASSERT_ERR(sparse_lu_solve(LU_amd, pb, xp), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++) x[amd_perm[i]] = xp[i];
+
+    sparse_matvec(A, x, r);
+    double rnorm = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        r[i] -= b[i];
+        double a = fabs(r[i]);
+        if (a > rnorm) rnorm = a;
+    }
+
+    printf("    %s: fill nat=%d rcm=%d amd=%d (%.2fx/%.2fx), res=%.2e\n",
+           path, (int)fill_nat, (int)fill_rcm, (int)fill_amd,
+           (double)fill_rcm / (double)fill_nat,
+           (double)fill_amd / (double)fill_nat,
+           rnorm);
+
+    ASSERT_TRUE(rnorm < res_tol);
+
+    free(amd_perm); free(ones); free(b); free(pb); free(xp); free(x); free(r);
+    sparse_free(A); sparse_free(PA_amd); sparse_free(LU_amd);
+}
+
+static void test_amd_west0067(void)
+{
+    amd_validate_matrix(SS_DIR "/west0067.mtx", 1e-8);
+}
+
+static void test_amd_nos4(void)
+{
+    amd_validate_matrix(SS_DIR "/nos4.mtx", 1e-8);
+}
+
+static void test_amd_bcsstk04(void)
+{
+    amd_validate_matrix(SS_DIR "/bcsstk04.mtx", 1e-4);
+}
+
+static void test_amd_steam1(void)
+{
+    amd_validate_matrix(SS_DIR "/steam1.mtx", 1e-2);
+}
+
+/* Stress test: random sparse matrices of increasing size */
+static void test_amd_stress(void)
+{
+    /* Use deterministic "random" pattern */
+    idx_t sizes[] = {10, 50, 100};
+    for (int s = 0; s < 3; s++) {
+        idx_t n = sizes[s];
+        SparseMatrix *A = sparse_create(n, n);
+        /* Diagonal + some off-diagonal entries */
+        for (idx_t i = 0; i < n; i++) {
+            sparse_insert(A, i, i, (double)(n + 1));
+            idx_t j = (i * 7 + 3) % n;
+            if (j != i) {
+                sparse_insert(A, i, j, 1.0);
+                sparse_insert(A, j, i, 1.0);
+            }
+        }
+
+        idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+        ASSERT_ERR(sparse_reorder_amd(A, perm), SPARSE_OK);
+        ASSERT_TRUE(is_valid_perm(perm, n));
+
+        free(perm);
+        sparse_free(A);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -648,6 +775,13 @@ int main(void)
     RUN_TEST(test_amd_diagonal);
     RUN_TEST(test_amd_solve);
     RUN_TEST(test_amd_null);
+
+    /* AMD on SuiteSparse matrices */
+    RUN_TEST(test_amd_west0067);
+    RUN_TEST(test_amd_nos4);
+    RUN_TEST(test_amd_bcsstk04);
+    RUN_TEST(test_amd_steam1);
+    RUN_TEST(test_amd_stress);
 
     TEST_SUITE_END();
 }

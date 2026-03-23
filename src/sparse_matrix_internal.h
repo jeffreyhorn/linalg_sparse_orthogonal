@@ -45,6 +45,7 @@ typedef struct SparseMatrix {
     idx_t nnz;
     double cached_norm;    /* cached ||A||_inf, -1.0 = invalid */
     double factor_norm;    /* ||A||_inf at factorization time, for relative tol */
+    idx_t *reorder_perm;   /* fill-reducing reorder: perm[new] = old, or NULL */
 } SparseMatrix;
 
 /*

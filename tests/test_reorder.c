@@ -734,6 +734,133 @@ static void test_amd_stress(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * sparse_lu_factor_opts integration tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Factor with RCM + partial pivoting → solve → correct result */
+static void test_opts_rcm_partial(void)
+{
+    idx_t n = 10;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, (double)(n + 1));
+        if (i > 0) { sparse_insert(A, i, i-1, -1.0); sparse_insert(A, i-1, i, -1.0); }
+    }
+
+    double *ones = malloc((size_t)n * sizeof(double));
+    double *b    = malloc((size_t)n * sizeof(double));
+    for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
+    sparse_matvec(A, ones, b);
+
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_NOT_NULL(LU);
+    sparse_lu_opts_t opts = { SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_RCM, 1e-12 };
+    ASSERT_ERR(sparse_lu_factor_opts(LU, &opts), SPARSE_OK);
+
+    double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_OK);
+
+    /* Verify: x should be ~ones (auto-unpermuted) */
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-10);
+
+    free(ones); free(b); free(x);
+    sparse_free(A); sparse_free(LU);
+}
+
+/* Factor with AMD + complete pivoting → solve → correct result */
+static void test_opts_amd_complete(void)
+{
+    idx_t n = 8;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, (double)(n + 1));
+        if (i > 0) { sparse_insert(A, 0, i, 1.0); sparse_insert(A, i, 0, 1.0); }
+    }
+
+    double *ones = malloc((size_t)n * sizeof(double));
+    double *b    = malloc((size_t)n * sizeof(double));
+    for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
+    sparse_matvec(A, ones, b);
+
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_NOT_NULL(LU);
+    sparse_lu_opts_t opts = { SPARSE_PIVOT_COMPLETE, SPARSE_REORDER_AMD, 1e-12 };
+    ASSERT_ERR(sparse_lu_factor_opts(LU, &opts), SPARSE_OK);
+
+    double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_OK);
+
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-10);
+
+    free(ones); free(b); free(x);
+    sparse_free(A); sparse_free(LU);
+}
+
+/* Factor with NONE → same as sparse_lu_factor */
+static void test_opts_none(void)
+{
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 4.0); sparse_insert(A, 0, 1, -1.0);
+    sparse_insert(A, 1, 0, -1.0); sparse_insert(A, 1, 1, 4.0); sparse_insert(A, 1, 2, -1.0);
+    sparse_insert(A, 2, 1, -1.0); sparse_insert(A, 2, 2, 4.0);
+
+    double b[] = {1.0, 2.0, 3.0};
+
+    /* Solve with opts NONE */
+    SparseMatrix *LU1 = sparse_copy(A);
+    sparse_lu_opts_t opts = { SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_NONE, 1e-12 };
+    ASSERT_ERR(sparse_lu_factor_opts(LU1, &opts), SPARSE_OK);
+    double x1[3];
+    ASSERT_ERR(sparse_lu_solve(LU1, b, x1), SPARSE_OK);
+
+    /* Solve with plain sparse_lu_factor */
+    SparseMatrix *LU2 = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU2, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+    double x2[3];
+    ASSERT_ERR(sparse_lu_solve(LU2, b, x2), SPARSE_OK);
+
+    /* Results should match */
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x1[i], x2[i], 1e-14);
+
+    sparse_free(A); sparse_free(LU1); sparse_free(LU2);
+}
+
+/* Opts on SuiteSparse matrix */
+static void test_opts_suitesparse(void)
+{
+    SparseMatrix *A = NULL;
+    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/west0067.mtx"), SPARSE_OK);
+    idx_t n = sparse_rows(A);
+
+    double *ones = malloc((size_t)n * sizeof(double));
+    double *b    = malloc((size_t)n * sizeof(double));
+    for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
+    sparse_matvec(A, ones, b);
+
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_NOT_NULL(LU);
+    sparse_lu_opts_t opts = { SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_AMD, 1e-12 };
+    ASSERT_ERR(sparse_lu_factor_opts(LU, &opts), SPARSE_OK);
+
+    double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_OK);
+
+    /* Verify x ≈ ones */
+    double rnorm = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        double d = fabs(x[i] - 1.0);
+        if (d > rnorm) rnorm = d;
+    }
+    ASSERT_TRUE(rnorm < 1e-8);
+
+    free(ones); free(b); free(x);
+    sparse_free(A); sparse_free(LU);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -782,6 +909,12 @@ int main(void)
     RUN_TEST(test_amd_bcsstk04);
     RUN_TEST(test_amd_steam1);
     RUN_TEST(test_amd_stress);
+
+    /* sparse_lu_factor_opts integration */
+    RUN_TEST(test_opts_rcm_partial);
+    RUN_TEST(test_opts_amd_complete);
+    RUN_TEST(test_opts_none);
+    RUN_TEST(test_opts_suitesparse);
 
     TEST_SUITE_END();
 }

@@ -84,6 +84,7 @@ SparseMatrix *sparse_create(idx_t rows, idx_t cols)
     mat->nnz  = 0;
     mat->cached_norm = -1.0;
     mat->factor_norm = -1.0;
+    mat->reorder_perm = NULL;
 
     mat->row_headers  = calloc((size_t)rows, sizeof(Node *));
     mat->col_headers  = calloc((size_t)cols, sizeof(Node *));
@@ -132,6 +133,7 @@ void sparse_free(SparseMatrix *mat)
     free(mat->inv_row_perm);
     free(mat->col_perm);
     free(mat->inv_col_perm);
+    free(mat->reorder_perm);
     free(mat);
 }
 
@@ -163,6 +165,14 @@ SparseMatrix *sparse_copy(const SparseMatrix *mat)
     /* Preserve cached norm and factor norm from source */
     copy->cached_norm = mat->cached_norm;
     copy->factor_norm = mat->factor_norm;
+
+    /* Copy reorder permutation if present */
+    if (mat->reorder_perm) {
+        copy->reorder_perm = malloc((size_t)mat->rows * sizeof(idx_t));
+        if (!copy->reorder_perm) { sparse_free(copy); return NULL; }
+        memcpy(copy->reorder_perm, mat->reorder_perm,
+               (size_t)mat->rows * sizeof(idx_t));
+    }
 
     return copy;
 }

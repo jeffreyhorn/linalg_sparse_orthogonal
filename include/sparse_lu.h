@@ -32,6 +32,40 @@
 #include "sparse_matrix.h"
 
 /**
+ * @brief Options for LU factorization with optional fill-reducing reordering.
+ *
+ * Use with sparse_lu_factor_opts(). The reordering permutation is computed
+ * and applied automatically; sparse_lu_solve() will detect it and unpermute
+ * the solution transparently.
+ *
+ * @code
+ *   sparse_lu_opts_t opts = { SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_AMD, 1e-12 };
+ *   sparse_lu_factor_opts(A, &opts);
+ *   sparse_lu_solve(A, b, x);  // reorder/unpermute handled automatically
+ * @endcode
+ */
+typedef struct {
+    sparse_pivot_t  pivot;    /**< Pivoting strategy */
+    sparse_reorder_t reorder; /**< Fill-reducing reordering (NONE, RCM, or AMD) */
+    double          tol;      /**< Pivot tolerance */
+} sparse_lu_opts_t;
+
+/**
+ * @brief Compute LU factorization with options including fill-reducing reordering.
+ *
+ * If opts->reorder != SPARSE_REORDER_NONE, the matrix is symmetrically
+ * permuted before factorization. The reordering permutation is stored in
+ * the matrix so that sparse_lu_solve() can automatically unpermute the
+ * solution.
+ *
+ * @param mat   The matrix to factor (modified in-place: reordered, then factored).
+ * @param opts  Factorization options.
+ * @return SPARSE_OK on success, or an error code.
+ */
+sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat,
+                                   const sparse_lu_opts_t *opts);
+
+/**
  * @brief Compute the LU factorization of a sparse matrix in-place.
  *
  * Performs Gaussian elimination with the chosen pivoting strategy. After

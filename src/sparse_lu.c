@@ -1,7 +1,9 @@
 #include "sparse_lu.h"
+#include "sparse_reorder.h"
 #include "sparse_matrix_internal.h"
 
 #include <stdlib.h>
+#include <string.h>
 #include <math.h>
 
 /* ─── Permutation swap helpers ───────────────────────────────────────── */
@@ -152,6 +154,63 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot,
 
     free(elim_rows);
     return SPARSE_OK;
+}
+
+/* ─── Factor with options (reordering + pivoting) ────────────────────── */
+
+sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat,
+                                   const sparse_lu_opts_t *opts)
+{
+    if (!mat || !opts) return SPARSE_ERR_NULL;
+    idx_t n = mat->rows;
+    if (n != mat->cols) return SPARSE_ERR_SHAPE;
+
+    /* Apply fill-reducing reordering if requested */
+    if (opts->reorder != SPARSE_REORDER_NONE && n > 1) {
+        idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+        if (!perm) return SPARSE_ERR_ALLOC;
+
+        sparse_err_t err;
+        if (opts->reorder == SPARSE_REORDER_RCM)
+            err = sparse_reorder_rcm(mat, perm);
+        else
+            err = sparse_reorder_amd(mat, perm);
+
+        if (err != SPARSE_OK) { free(perm); return err; }
+
+        /* Apply symmetric permutation in-place:
+         * Create permuted copy, then swap contents into mat */
+        SparseMatrix *PA = NULL;
+        err = sparse_permute(mat, perm, perm, &PA);
+        if (err != SPARSE_OK) { free(perm); return err; }
+
+        /* Swap internal data from PA into mat:
+         * Free mat's old data, steal PA's data */
+        pool_free_all(&mat->pool);
+        free(mat->row_headers);
+        free(mat->col_headers);
+
+        mat->row_headers = PA->row_headers;
+        mat->col_headers = PA->col_headers;
+        mat->pool = PA->pool;
+        mat->nnz = PA->nnz;
+        mat->cached_norm = PA->cached_norm;
+
+        /* Prevent PA from freeing the data we stole */
+        PA->row_headers = NULL;
+        PA->col_headers = NULL;
+        PA->pool.head = NULL;
+        PA->pool.current = NULL;
+        PA->pool.free_list = NULL;
+        sparse_free(PA);
+
+        /* Store reorder permutation for solve to unpermute */
+        free(mat->reorder_perm);
+        mat->reorder_perm = perm;
+    }
+
+    /* Factor with given pivoting and tolerance */
+    return sparse_lu_factor(mat, opts->pivot, opts->tol);
 }
 
 /* ─── Transpose solve ────────────────────────────────────────────────── */
@@ -418,18 +477,32 @@ sparse_err_t sparse_lu_solve(const SparseMatrix *mat,
 {
     if (!mat || !b || !x) return SPARSE_ERR_NULL;
     idx_t n = mat->rows;
+    const idx_t *rperm = mat->reorder_perm;
 
     double *pb = malloc((size_t)n * sizeof(double));
     double *y  = malloc((size_t)n * sizeof(double));
     double *z  = malloc((size_t)n * sizeof(double));
+    double *b_perm = NULL;
+    if (rperm) {
+        b_perm = malloc((size_t)n * sizeof(double));
+        if (!b_perm) { free(pb); free(y); free(z); return SPARSE_ERR_ALLOC; }
+    }
     if (!pb || !y || !z) {
-        free(pb); free(y); free(z);
+        free(pb); free(y); free(z); free(b_perm);
         return SPARSE_ERR_ALLOC;
+    }
+
+    /* If reorder permutation exists, permute b first */
+    const double *b_eff = b;
+    if (rperm) {
+        for (idx_t i = 0; i < n; i++)
+            b_perm[i] = b[rperm[i]];
+        b_eff = b_perm;
     }
 
     sparse_err_t err;
 
-    err = sparse_apply_row_perm(mat, b, pb);
+    err = sparse_apply_row_perm(mat, b_eff, pb);
     if (err != SPARSE_OK) goto cleanup;
 
     err = sparse_forward_sub(mat, pb, y);
@@ -439,11 +512,22 @@ sparse_err_t sparse_lu_solve(const SparseMatrix *mat,
     if (err != SPARSE_OK) goto cleanup;
 
     err = sparse_apply_inv_col_perm(mat, z, x);
+    if (err != SPARSE_OK) goto cleanup;
+
+    /* If reorder permutation exists, unpermute x */
+    if (rperm) {
+        /* x currently holds solution in permuted space.
+         * We need x_orig[rperm[i]] = x_perm[i] */
+        memcpy(z, x, (size_t)n * sizeof(double)); /* reuse z as temp */
+        for (idx_t i = 0; i < n; i++)
+            x[rperm[i]] = z[i];
+    }
 
 cleanup:
     free(pb);
     free(y);
     free(z);
+    free(b_perm);
     return err;
 }
 

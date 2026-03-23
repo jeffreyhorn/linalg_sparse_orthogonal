@@ -160,17 +160,18 @@ All functions return `sparse_err_t` error codes (except accessors that return va
 
 ## Testing
 
-The test suite contains **192 unit tests** with **962 assertions** across 9 test suites:
+The test suite contains **242 unit tests** with **1255 assertions** across 10 test suites:
 
 - Sparse matrix data structure and norms (38 tests)
-- LU factorization and solve (26 tests)
+- LU factorization, solve, transpose solve, and condition estimation (37 tests)
 - Matrix Market I/O with errno validation (22 tests)
 - Known reference matrices (15 tests)
 - Vector utilities, SpMV, and iterative refinement (24 tests)
 - Edge cases and relative tolerance hardening (24 tests)
 - Integration tests (7 tests)
 - Matrix arithmetic — scale and add (23 tests)
-- SuiteSparse real-world matrix validation (13 tests)
+- SuiteSparse real-world matrix validation (10 tests)
+- Reordering — permute, bandwidth, RCM, AMD, factor_opts integration (38 tests)
 
 ```bash
 make test          # run all tests

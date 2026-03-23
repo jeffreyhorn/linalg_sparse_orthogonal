@@ -76,6 +76,8 @@ sparse_err_t sparse_reorder_amd(const SparseMatrix *A, idx_t *perm);
  *                  sparse_free(). Set to NULL on error.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
+ * @return SPARSE_ERR_BADARG if row_perm or col_perm is not a valid permutation
+ *         (out-of-range index or duplicate entry).
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  */
 sparse_err_t sparse_permute(const SparseMatrix *A,

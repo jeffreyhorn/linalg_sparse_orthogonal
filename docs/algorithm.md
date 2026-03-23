@@ -258,7 +258,7 @@ BFS-based bandwidth reduction on the symmetrized adjacency graph (A + Aᵀ).
 3. Reverse the resulting ordering
 
 **Characteristics:**
-- O(nnz) time complexity
+- O(nnz · log d_max) time (includes neighbor sorting during graph construction and BFS)
 - Best for banded/structured matrices (e.g., FEM meshes, thermal problems)
 - On steam1 (240×240 thermal): bandwidth 146→52, fill-in 23k→15k (33% reduction), 5.5x factorization speedup
 

@@ -169,7 +169,10 @@ sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig,
  * @param mat  A matrix that has been factored by sparse_lu_factor().
  * @param b    Right-hand side vector of length n.
  * @param x    Solution vector of length n (overwritten). May alias b.
- * @return SPARSE_OK on success, SPARSE_ERR_NULL if any argument is NULL.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if any argument is NULL.
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails.
+ * @return SPARSE_ERR_SINGULAR if a near-zero pivot is encountered during U^T solve.
  */
 sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat,
                                        const double *b, double *x);

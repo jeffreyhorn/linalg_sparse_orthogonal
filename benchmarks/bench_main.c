@@ -94,6 +94,7 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot)
     double t_solve_total = 0.0;
     idx_t nnz_after = 0;
     double residual = 0.0;
+    double cond_est = 0.0;
 
     for (int rep = 0; rep < repeats; rep++) {
         SparseMatrix *LU = sparse_copy(A);
@@ -108,8 +109,10 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot)
             break;
         }
 
-        if (rep == 0)
+        if (rep == 0) {
             nnz_after = sparse_nnz(LU);
+            sparse_lu_condest(A, LU, &cond_est);
+        }
 
         /* --- Solve timing --- */
         t0 = wall_time();
@@ -137,6 +140,7 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot)
     printf("nnz after LU:  %d (fill-in ratio: %.2f)\n",
            (int)nnz_after, (double)nnz_after / (double)nnz_orig);
     printf("Residual:      %.3e\n", residual);
+    printf("Cond est:      %.3e\n", cond_est);
 
     free(ones); free(b); free(x); free(r);
 }
@@ -171,6 +175,7 @@ static void benchmark_tabular(const char *name, SparseMatrix *A,
     double t_factor_total = 0.0, t_solve_total = 0.0;
     idx_t nnz_after = 0;
     double residual = 0.0;
+    double cond_est = 0.0;
     int ok = 1;
 
     for (int rep = 0; rep < repeats; rep++) {
@@ -184,7 +189,10 @@ static void benchmark_tabular(const char *name, SparseMatrix *A,
             ok = 0;
             break;
         }
-        if (rep == 0) nnz_after = sparse_nnz(LU);
+        if (rep == 0) {
+            nnz_after = sparse_nnz(LU);
+            sparse_lu_condest(A, LU, &cond_est);
+        }
         t0 = wall_time();
         err = sparse_lu_solve(LU, b, x);
         t_solve_total += wall_time() - t0;
@@ -204,14 +212,14 @@ static void benchmark_tabular(const char *name, SparseMatrix *A,
     }
 
     if (ok) {
-        printf("%-20s %5d %7d %9d %6.2f  %10.3f %10.3f %10.3f %10zu  %.3e\n",
+        printf("%-20s %5d %7d %9d %6.2f  %10.3f %10.3f %10.3f %10zu  %.3e  %.3e\n",
                name, (int)n, (int)nnz_orig, (int)nnz_after,
                nnz_orig > 0 ? (double)nnz_after / (double)nnz_orig : 0.0,
                t_factor_total / repeats * 1000.0,
                t_solve_total / repeats * 1000.0,
                t_spmv,
                sparse_memory_usage(A),
-               residual);
+               residual, cond_est);
     }
 
     free(ones); free(b); free(x); free(r);
@@ -236,12 +244,13 @@ static void benchmark_dir(const char *dirpath, int repeats, sparse_pivot_t pivot
 
     const char *piv_name = (pivot == SPARSE_PIVOT_PARTIAL) ? "partial" : "complete";
     printf("=== Benchmarking %s (pivot=%s, repeats=%d) ===\n\n", dirpath, piv_name, repeats);
-    printf("%-20s %5s %7s %9s %6s  %10s %10s %10s %10s  %s\n",
+    printf("%-20s %5s %7s %9s %6s  %10s %10s %10s %10s  %10s  %10s\n",
            "name", "n", "nnz", "nnz_LU", "fill",
-           "factor(ms)", "solve(ms)", "spmv(ms)", "memory", "residual");
-    printf("%-20s %5s %7s %9s %6s  %10s %10s %10s %10s  %s\n",
+           "factor(ms)", "solve(ms)", "spmv(ms)", "memory", "residual", "condest");
+    printf("%-20s %5s %7s %9s %6s  %10s %10s %10s %10s  %10s  %10s\n",
            "----", "-----", "-------", "---------", "------",
-           "----------", "----------", "----------", "----------", "----------");
+           "----------", "----------", "----------", "----------",
+           "----------", "----------");
 
     struct dirent *ent;
     while ((ent = readdir(d)) != NULL) {

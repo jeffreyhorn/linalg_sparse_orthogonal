@@ -21,6 +21,11 @@
  *   sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12);
  *   sparse_lu_solve(LU, b, x);                  // solve A*x = b
  *   sparse_lu_refine(A, LU, b, x, 5, 1e-15);   // optional refinement
+ *
+ *   // Check conditioning:
+ *   double cond;
+ *   sparse_lu_condest(A, LU, &cond);
+ *   if (cond > 1e12) fprintf(stderr, "Warning: ill-conditioned (cond ~%.1e)\n", cond);
  * @endcode
  */
 

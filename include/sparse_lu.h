@@ -136,8 +136,9 @@ sparse_err_t sparse_lu_solve(const SparseMatrix *mat,
  *    Since LU factorization overwrites A, the caller must pass the original
  *    matrix separately (via mat_orig), or we compute ||A||_1 from ||L||_1*||U||_1
  *    as an upper bound. We take the mat_orig approach for accuracy.
- *  - Returns SPARSE_ERR_BADARG if the matrix has not been factored (no
- *    row_perm allocated, or factor_norm not set).
+ *  - Returns SPARSE_ERR_BADARG if the matrix has not been factored
+ *    (detected via factor_norm < 0, which is set to ||A||_inf during
+ *    sparse_lu_factor()).
  *
  * @param mat_orig  The original (unfactored) matrix A. Used to compute ||A||_1.
  * @param mat_lu    The LU-factored matrix (from sparse_lu_factor).

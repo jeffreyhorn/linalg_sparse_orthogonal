@@ -59,7 +59,8 @@ typedef enum {
  *
  * - NONE: natural ordering (no reordering)
  * - RCM: Reverse Cuthill-McKee — BFS-based bandwidth reduction. Simple and
- *   effective for banded/structured matrices. O(nnz) time.
+ *   effective for banded/structured matrices. O(nnz log d_max) time
+ *   (includes neighbor sorting and graph construction).
  * - AMD: Approximate Minimum Degree — greedy elimination ordering that
  *   minimizes fill-in. More expensive but generally produces better orderings
  *   for unstructured matrices. O(n^3/64) time, O(n^2/64) memory (bitset-based).

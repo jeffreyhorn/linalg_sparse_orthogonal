@@ -35,11 +35,25 @@ sparse_err_t sparse_permute(const SparseMatrix *A,
     idx_t m = A->rows;
     idx_t nc = A->cols;
 
+    /* Validate permutation arrays: range check */
+    for (idx_t i = 0; i < m; i++)
+        if (row_perm[i] < 0 || row_perm[i] >= m) return SPARSE_ERR_BADARG;
+    for (idx_t j = 0; j < nc; j++)
+        if (col_perm[j] < 0 || col_perm[j] >= nc) return SPARSE_ERR_BADARG;
+
     /* Build inverse column permutation: inv_col[old_j] = new_j */
     idx_t *inv_col = malloc((size_t)nc * sizeof(idx_t));
     if (!inv_col) return SPARSE_ERR_ALLOC;
-    for (idx_t j = 0; j < nc; j++)
+    /* Initialize to -1 to detect duplicate entries */
+    memset(inv_col, -1, (size_t)nc * sizeof(idx_t));
+    for (idx_t j = 0; j < nc; j++) {
+        if (inv_col[col_perm[j]] >= 0) {
+            /* Duplicate in col_perm */
+            free(inv_col);
+            return SPARSE_ERR_BADARG;
+        }
         inv_col[col_perm[j]] = j;
+    }
 
     SparseMatrix *out = sparse_create(m, nc);
     if (!out) { free(inv_col); return SPARSE_ERR_ALLOC; }
@@ -435,19 +449,14 @@ sparse_err_t sparse_reorder_amd(const SparseMatrix *A, idx_t *perm)
             bclr(u_row, best);  /* remove eliminated node */
             bclr(u_row, u);     /* no self-loop */
 
-            /* Recount degree (number of uneliminated neighbors) */
+            /* Recount degree: popcount gives exact uneliminated neighbor count
+             * because eliminated nodes are cleared from all rows each step */
             idx_t deg = 0;
             for (idx_t w = 0; w < nwords; w++) {
                 bword_t v = u_row[w];
                 while (v) { v &= v - 1; deg++; }
             }
-            /* Subtract eliminated nodes from degree */
-            idx_t elim_in_adj = 0;
-            for (idx_t j = 0; j < n; j++) {
-                if (eliminated[j] && btest(u_row, j))
-                    elim_in_adj++;
-            }
-            degree[u] = deg - elim_in_adj;
+            degree[u] = deg;
         }
 
         /* Clear best from all adjacency rows */

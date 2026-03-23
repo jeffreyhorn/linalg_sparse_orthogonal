@@ -165,16 +165,27 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat,
     idx_t n = mat->rows;
     if (n != mat->cols) return SPARSE_ERR_SHAPE;
 
+    /* Clear any previous reorder permutation */
+    free(mat->reorder_perm);
+    mat->reorder_perm = NULL;
+
     /* Apply fill-reducing reordering if requested */
     if (opts->reorder != SPARSE_REORDER_NONE && n > 1) {
         idx_t *perm = malloc((size_t)n * sizeof(idx_t));
         if (!perm) return SPARSE_ERR_ALLOC;
 
         sparse_err_t err;
-        if (opts->reorder == SPARSE_REORDER_RCM)
+        switch (opts->reorder) {
+        case SPARSE_REORDER_RCM:
             err = sparse_reorder_rcm(mat, perm);
-        else
+            break;
+        case SPARSE_REORDER_AMD:
             err = sparse_reorder_amd(mat, perm);
+            break;
+        default:
+            free(perm);
+            return SPARSE_ERR_BADARG;
+        }
 
         if (err != SPARSE_OK) { free(perm); return err; }
 
@@ -220,18 +231,32 @@ sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat,
 {
     if (!mat || !b || !x) return SPARSE_ERR_NULL;
     idx_t n = mat->rows;
+    const idx_t *rperm = mat->reorder_perm;
 
     double *c = malloc((size_t)n * sizeof(double));
     double *d = malloc((size_t)n * sizeof(double));
     double *w = malloc((size_t)n * sizeof(double));
+    double *b_perm = NULL;
+    if (rperm) {
+        b_perm = malloc((size_t)n * sizeof(double));
+        if (!b_perm) { free(c); free(d); free(w); return SPARSE_ERR_ALLOC; }
+    }
     if (!c || !d || !w) {
-        free(c); free(d); free(w);
+        free(c); free(d); free(w); free(b_perm);
         return SPARSE_ERR_ALLOC;
     }
 
-    /* Step 1: c = Q^T * b  →  c[i] = b[col_perm[i]] */
+    /* If reorder permutation exists, permute b first */
+    const double *b_eff = b;
+    if (rperm) {
+        for (idx_t i = 0; i < n; i++)
+            b_perm[i] = b[rperm[i]];
+        b_eff = b_perm;
+    }
+
+    /* Step 1: c = Q^T * b  →  c[i] = b_eff[col_perm[i]] */
     for (idx_t i = 0; i < n; i++)
-        c[i] = b[mat->col_perm[i]];
+        c[i] = b_eff[mat->col_perm[i]];
 
     /* Step 2: Forward-substitute with U^T (lower triangular).
      * U^T[i][j] = U[j][i], so walk column i to find U entries with log_row <= i.
@@ -279,7 +304,14 @@ sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat,
     for (idx_t i = 0; i < n; i++)
         x[i] = w[mat->inv_row_perm[i]];
 
-    free(c); free(d); free(w);
+    /* If reorder permutation exists, unpermute x */
+    if (rperm) {
+        memcpy(w, x, (size_t)n * sizeof(double)); /* reuse w as temp */
+        for (idx_t i = 0; i < n; i++)
+            x[rperm[i]] = w[i];
+    }
+
+    free(c); free(d); free(w); free(b_perm);
     return SPARSE_OK;
 }
 
@@ -309,6 +341,10 @@ sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig,
     if (!mat_orig || !mat_lu || !condest) return SPARSE_ERR_NULL;
     /* Check that mat_lu has been factored (factor_norm is set during factorization) */
     if (mat_lu->factor_norm < 0.0) return SPARSE_ERR_BADARG;
+    /* Check dimensions match and are square */
+    if (mat_orig->rows != mat_orig->cols) return SPARSE_ERR_SHAPE;
+    if (mat_lu->rows != mat_lu->cols) return SPARSE_ERR_SHAPE;
+    if (mat_orig->rows != mat_lu->rows) return SPARSE_ERR_SHAPE;
 
     idx_t n = mat_orig->rows;
     if (n == 0) { *condest = 0.0; return SPARSE_OK; }

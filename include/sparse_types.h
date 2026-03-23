@@ -62,7 +62,7 @@ typedef enum {
  *   effective for banded/structured matrices. O(nnz) time.
  * - AMD: Approximate Minimum Degree — greedy elimination ordering that
  *   minimizes fill-in. More expensive but generally produces better orderings
- *   for unstructured matrices. O(nnz * log(n)) typical time.
+ *   for unstructured matrices. O(n^3/64) time, O(n^2/64) memory (bitset-based).
  */
 typedef enum {
     SPARSE_REORDER_NONE = 0,  /**< No reordering (natural order) */

@@ -128,7 +128,8 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot,
 
         if (rep == 0) {
             nnz_after = sparse_nnz(LU);
-            sparse_lu_condest(A, LU, &cond_est);
+            if (sparse_lu_condest(A, LU, &cond_est) != SPARSE_OK)
+                cond_est = -1.0;
         }
 
         /* --- Solve timing --- */
@@ -211,7 +212,8 @@ static void benchmark_tabular(const char *name, SparseMatrix *A,
         }
         if (rep == 0) {
             nnz_after = sparse_nnz(LU);
-            sparse_lu_condest(A, LU, &cond_est);
+            if (sparse_lu_condest(A, LU, &cond_est) != SPARSE_OK)
+                cond_est = -1.0;
         }
         t0 = wall_time();
         err = sparse_lu_solve(LU, b, x);

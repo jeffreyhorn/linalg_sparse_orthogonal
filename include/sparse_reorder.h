@@ -47,10 +47,11 @@ sparse_err_t sparse_reorder_rcm(const SparseMatrix *A, idx_t *perm);
 /**
  * @brief Compute an Approximate Minimum Degree ordering.
  *
- * Greedy elimination ordering on the symmetrized adjacency graph (A + A^T).
- * At each step, eliminates the node with the smallest approximate external
- * degree and updates neighbors. Generally produces better fill-in reduction
- * than RCM for unstructured matrices, at higher computational cost.
+ * Minimum-degree ordering on the symmetrized adjacency graph (A + A^T),
+ * implemented with bitset adjacency. At each step, eliminates the node with
+ * the smallest degree (exact, via popcount), merges its neighbors' adjacency
+ * sets to model fill-in, and updates degrees. Generally produces better
+ * fill-in reduction than RCM for unstructured matrices, at higher cost.
  *
  * @param A       Input matrix (must be square, not modified).
  * @param[out] perm  Permutation array of length n. On output, perm[new_i] = old_i.

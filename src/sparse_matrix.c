@@ -320,11 +320,14 @@ idx_t sparse_nnz(const SparseMatrix *mat)
 size_t sparse_memory_usage(const SparseMatrix *mat)
 {
     if (!mat) return 0;
+    size_t reorder_size = mat->reorder_perm
+                        ? (size_t)mat->rows * sizeof(idx_t) : 0;
     return sizeof(SparseMatrix)
          + (size_t)mat->rows * sizeof(Node *)       /* row_headers */
          + (size_t)mat->cols * sizeof(Node *)        /* col_headers */
          + (size_t)mat->rows * 2 * sizeof(idx_t)     /* row perms */
          + (size_t)mat->cols * 2 * sizeof(idx_t)     /* col perms */
+         + reorder_size                               /* reorder_perm */
          + (size_t)mat->pool.num_slabs * sizeof(NodeSlab);
 }
 

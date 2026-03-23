@@ -51,6 +51,26 @@ typedef enum {
 } sparse_pivot_t;
 
 /**
+ * @brief Reordering strategy for fill-reducing permutation before LU factorization.
+ *
+ * Reordering computes a permutation P such that P*A*P^T has reduced fill-in
+ * during LU factorization. This is applied as a symmetric permutation (same
+ * permutation for rows and columns).
+ *
+ * - NONE: natural ordering (no reordering)
+ * - RCM: Reverse Cuthill-McKee — BFS-based bandwidth reduction. Simple and
+ *   effective for banded/structured matrices. O(nnz) time.
+ * - AMD: Approximate Minimum Degree — greedy elimination ordering that
+ *   minimizes fill-in. More expensive but generally produces better orderings
+ *   for unstructured matrices. O(nnz * log(n)) typical time.
+ */
+typedef enum {
+    SPARSE_REORDER_NONE = 0,  /**< No reordering (natural order) */
+    SPARSE_REORDER_RCM  = 1,  /**< Reverse Cuthill-McKee ordering */
+    SPARSE_REORDER_AMD  = 2,  /**< Approximate Minimum Degree ordering */
+} sparse_reorder_t;
+
+/**
  * @brief Return a human-readable string for an error code.
  *
  * @param err  The error code to describe.

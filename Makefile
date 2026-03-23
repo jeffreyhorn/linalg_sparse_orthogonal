@@ -20,7 +20,8 @@ BUILDDIR = build
 LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_matrix.c \
            $(SRCDIR)/sparse_lu.c \
-           $(SRCDIR)/sparse_vector.c
+           $(SRCDIR)/sparse_vector.c \
+           $(SRCDIR)/sparse_reorder.c
 LIB_OBJS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(LIB_SRCS))
 LIB      = $(BUILDDIR)/libsparse_lu_ortho.a
 

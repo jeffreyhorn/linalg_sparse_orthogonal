@@ -66,9 +66,13 @@ sparse_err_t sparse_reorder_amd(const SparseMatrix *A, idx_t *perm);
 /**
  * @brief Apply a row and column permutation to create a reordered matrix.
  *
- * Creates a new matrix B where B(i,j) = A(row_perm[i], col_perm[j]).
- * For symmetric reordering (fill-reducing), pass the same array for both
- * row_perm and col_perm.
+ * Creates a new matrix B where B(i,j) = A(row_perm[i], col_perm[j])
+ * in physical index space. For symmetric reordering (fill-reducing),
+ * pass the same array for both row_perm and col_perm.
+ *
+ * @note Operates in physical index space. Intended for use on unfactored
+ *       matrices with identity permutations. Do not use on matrices that
+ *       have been LU-factored (non-identity row_perm/col_perm).
  *
  * @param A         Input matrix (not modified).
  * @param row_perm  Row permutation array of length A->rows. row_perm[new_i] = old_i.
@@ -91,6 +95,9 @@ sparse_err_t sparse_permute(const SparseMatrix *A,
  * The bandwidth is max |i - j| over all nonzero entries a_ij.
  * Useful for quantifying the effectiveness of bandwidth-reducing
  * reorderings like RCM.
+ *
+ * @note Operates in physical index space. Do not use on matrices with
+ *       non-identity permutations (e.g., after LU factorization).
  *
  * @param A  Input matrix (not modified).
  * @return The bandwidth, or 0 if A is NULL or empty.

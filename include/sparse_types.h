@@ -35,6 +35,7 @@ typedef enum {
     SPARSE_ERR_SHAPE    = 9,   /**< Matrix shape mismatch (e.g., non-square for LU) */
     SPARSE_ERR_IO       = 10,  /**< I/O error with errno context (use sparse_errno()) */
     SPARSE_ERR_BADARG   = 11,  /**< Invalid argument (e.g., unfactored matrix passed to condest) */
+    SPARSE_ERR_NOT_SPD  = 12,  /**< Matrix is not symmetric positive-definite */
 } sparse_err_t;
 
 /**

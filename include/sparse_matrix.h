@@ -180,6 +180,21 @@ idx_t  sparse_nnz(const SparseMatrix *mat);
 size_t sparse_memory_usage(const SparseMatrix *mat);
 
 /**
+ * @brief Check whether a matrix is symmetric within a tolerance.
+ *
+ * Returns 1 if for all nonzero entries A(i,j), |A(i,j) - A(j,i)| <= tol.
+ * Also checks that A is square.
+ *
+ * @note Operates in physical index space. Do not use on matrices with
+ *       non-identity permutations (e.g., after LU factorization).
+ *
+ * @param mat  Input matrix (not modified).
+ * @param tol  Absolute tolerance for symmetry check.
+ * @return 1 if symmetric, 0 if not symmetric or mat is NULL/non-square.
+ */
+int sparse_is_symmetric(const SparseMatrix *mat, double tol);
+
+/**
  * @brief Compute the infinity norm of the matrix: ||A||_inf = max_i sum_j |a_ij|.
  *
  * The result is cached internally and invalidated when the matrix is modified

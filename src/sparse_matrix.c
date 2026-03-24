@@ -331,6 +331,25 @@ size_t sparse_memory_usage(const SparseMatrix *mat)
          + (size_t)mat->pool.num_slabs * sizeof(NodeSlab);
 }
 
+/* ─── Symmetry check ─────────────────────────────────────────────────── */
+
+int sparse_is_symmetric(const SparseMatrix *mat, double tol)
+{
+    if (!mat) return 0;
+    if (mat->rows != mat->cols) return 0;
+
+    for (idx_t i = 0; i < mat->rows; i++) {
+        Node *node = mat->row_headers[i];
+        while (node) {
+            double a_ij = node->value;
+            double a_ji = sparse_get_phys(mat, node->col, node->row);
+            if (fabs(a_ij - a_ji) > tol) return 0;
+            node = node->right;
+        }
+    }
+    return 1;
+}
+
 /* ─── Infinity norm ──────────────────────────────────────────────────── */
 
 sparse_err_t sparse_norminf(SparseMatrix *mat, double *norm)

@@ -38,6 +38,7 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_lu.c
     src/sparse_vector.c
     src/sparse_reorder.c
+    src/sparse_cholesky.c
 )
 
 target_include_directories(sparse_lu_ortho

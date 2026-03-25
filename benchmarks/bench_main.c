@@ -179,7 +179,10 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot,
     printf("nnz after:     %d (fill-in ratio: %.2f)\n",
            (int)nnz_after, (double)nnz_after / (double)nnz_orig);
     printf("Residual:      %.3e\n", residual);
-    printf("Cond est:      %.3e\n", cond_est);
+    if (!use_cholesky)
+        printf("Cond est:      %.3e\n", cond_est);
+    else
+        printf("Cond est:      N/A (Cholesky)\n");
 
     free(ones); free(b); free(x); free(r);
 }

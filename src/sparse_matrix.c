@@ -361,6 +361,7 @@ int sparse_is_symmetric(const SparseMatrix *mat, double tol)
 {
     if (!mat) return 0;
     if (mat->rows != mat->cols) return 0;
+    if (tol < 0.0) return 0;
 
     for (idx_t i = 0; i < mat->rows; i++) {
         Node *node = mat->row_headers[i];

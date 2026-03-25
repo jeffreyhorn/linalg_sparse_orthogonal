@@ -36,7 +36,7 @@ static double compute_relative_residual(const SparseMatrix *A,
                                          idx_t n)
 {
     double *r = malloc((size_t)n * sizeof(double));
-    if (!r) return -1.0;
+    if (!r) return INFINITY;
     sparse_matvec(A, x, r);
     for (idx_t i = 0; i < n; i++)
         r[i] = b[i] - r[i];

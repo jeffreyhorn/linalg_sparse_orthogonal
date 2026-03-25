@@ -559,6 +559,10 @@ int main(int argc, char **argv)
             mode_iterative = 1;
         } else if (strcmp(argv[i], "--spmv-iters") == 0 && i + 1 < argc) {
             spmv_iters = atoi(argv[++i]);
+            if (spmv_iters <= 0) {
+                fprintf(stderr, "Error: --spmv-iters must be > 0\n");
+                return 1;
+            }
         } else if (strcmp(argv[i], "--size") == 0 && i + 1 < argc) {
             size = (idx_t)atoi(argv[++i]);
         } else if (strcmp(argv[i], "--repeat") == 0 && i + 1 < argc) {

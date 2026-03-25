@@ -72,7 +72,7 @@ typedef struct {
  */
 typedef struct {
     idx_t  iterations;     /**< Number of iterations performed */
-    double residual_norm;  /**< Final relative residual norm ||r||/||b|| */
+    double residual_norm;  /**< Final true relative residual norm ||b - A*x|| / ||b|| */
     int    converged;      /**< Nonzero if solver converged within tolerance */
 } sparse_iter_result_t;
 

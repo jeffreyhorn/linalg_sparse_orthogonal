@@ -24,7 +24,7 @@ static double compute_relative_residual(const SparseMatrix *A,
                                          idx_t n)
 {
     double *r = malloc((size_t)n * sizeof(double));
-    if (!r) return -1.0;
+    if (!r) return INFINITY;
     sparse_matvec(A, x, r);
     for (idx_t i = 0; i < n; i++)
         r[i] = b[i] - r[i];
@@ -67,6 +67,15 @@ static int load_system(test_system_t *sys, const char *path)
     sys->n = sparse_rows(sys->A);
     sys->x_exact = malloc((size_t)sys->n * sizeof(double));
     sys->b = malloc((size_t)sys->n * sizeof(double));
+    if (!sys->x_exact || !sys->b) {
+        free(sys->x_exact);
+        free(sys->b);
+        sparse_free(sys->A);
+        sys->A = NULL;
+        sys->x_exact = NULL;
+        sys->b = NULL;
+        return 0;
+    }
     for (idx_t i = 0; i < sys->n; i++)
         sys->x_exact[i] = (double)(i + 1);
     sparse_matvec(sys->A, sys->x_exact, sys->b);
@@ -180,8 +189,8 @@ static void test_integration_cholesky_vs_ilu_precond(void)
     double *x_chol = calloc((size_t)sys.n, sizeof(double));
     sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t result_chol;
-    sparse_solve_cg(sys.A, sys.b, x_chol, &opts,
-                     cholesky_precond_apply, L, &result_chol);
+    ASSERT_ERR(sparse_solve_cg(sys.A, sys.b, x_chol, &opts,
+                     cholesky_precond_apply, L, &result_chol), SPARSE_OK);
 
     /* ILU preconditioner (approximate) */
     sparse_ilu_t ilu;
@@ -189,8 +198,8 @@ static void test_integration_cholesky_vs_ilu_precond(void)
 
     double *x_ilu = calloc((size_t)sys.n, sizeof(double));
     sparse_iter_result_t result_ilu;
-    sparse_solve_cg(sys.A, sys.b, x_ilu, &opts,
-                     sparse_ilu_precond, &ilu, &result_ilu);
+    ASSERT_ERR(sparse_solve_cg(sys.A, sys.b, x_ilu, &opts,
+                     sparse_ilu_precond, &ilu, &result_ilu), SPARSE_OK);
 
     ASSERT_TRUE(result_chol.converged);
     ASSERT_TRUE(result_ilu.converged);
@@ -253,13 +262,13 @@ static void test_integration_all_solvers_nos4(void)
     double *x_cg = calloc((size_t)n, sizeof(double));
     sparse_iter_opts_t cg_opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t res_cg;
-    sparse_solve_cg(sys.A, sys.b, x_cg, &cg_opts, NULL, NULL, &res_cg);
+    ASSERT_ERR(sparse_solve_cg(sys.A, sys.b, x_cg, &cg_opts, NULL, NULL, &res_cg), SPARSE_OK);
 
     /* GMRES */
     double *x_gm = calloc((size_t)n, sizeof(double));
     sparse_gmres_opts_t gm_opts = {.max_iter = 500, .restart = 50, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t res_gm;
-    sparse_solve_gmres(sys.A, sys.b, x_gm, &gm_opts, NULL, NULL, &res_gm);
+    ASSERT_ERR(sparse_solve_gmres(sys.A, sys.b, x_gm, &gm_opts, NULL, NULL, &res_gm), SPARSE_OK);
 
     /* LU */
     SparseMatrix *LU = sparse_copy(sys.A);

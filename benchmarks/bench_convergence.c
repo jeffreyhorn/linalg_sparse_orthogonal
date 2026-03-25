@@ -43,6 +43,7 @@ static double compute_rel_residual(const SparseMatrix *A,
                                     const double *b, const double *x, idx_t n)
 {
     double *r = malloc((size_t)n * sizeof(double));
+    if (!r) return NAN;
     sparse_matvec(A, x, r);
     for (idx_t i = 0; i < n; i++) r[i] = b[i] - r[i];
     double rn = vec_norm2(r, n);

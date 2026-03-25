@@ -96,7 +96,7 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A,
 
     for (iter = 0; iter < o->max_iter; iter++) {
         /* Check convergence */
-        if (rnorm / bnorm < o->tol) {
+        if (rnorm / bnorm <= o->tol) {
             converged = 1;
             break;
         }
@@ -142,7 +142,7 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A,
     }
 
     /* Final convergence check if loop exhausted */
-    if (!converged && rnorm / bnorm < o->tol)
+    if (!converged && rnorm / bnorm <= o->tol)
         converged = 1;
 
     if (result) {
@@ -353,7 +353,7 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
             }
 
             /* Check convergence or lucky breakdown */
-            if (rel_res < o->tol || lucky) {
+            if (rel_res <= o->tol || lucky) {
                 j++;  /* include this column in the solution */
                 converged = 1;
                 break;
@@ -373,6 +373,15 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
         for (idx_t k = 0; k < j; k++)
             vec_axpy(y[k], V(k), x, n);
     }
+
+    /* Compute true residual: r = b - A*x, rel_res = ||r|| / ||b|| */
+    sparse_matvec(A, x, w);
+    for (idx_t i = 0; i < n; i++)
+        w[i] = b[i] - w[i];
+    rel_res = vec_norm2(w, n) / bnorm;
+
+    if (!converged && rel_res <= o->tol)
+        converged = 1;
 
     if (result) {
         result->iterations    = total_iter;

@@ -166,13 +166,21 @@ sanitize-all: clean test
 ifeq ($(shell uname -s),Darwin)
 # Apple Clang needs -Xpreprocessor -fopenmp and explicit libomp paths
 LIBOMP_PREFIX := $(firstword $(wildcard /usr/local/opt/libomp /opt/homebrew/opt/libomp))
+ifeq ($(LIBOMP_PREFIX),)
+omp:
+	@echo "error: libomp (OpenMP runtime) not found on this macOS system."
+	@echo "Install it with 'brew install libomp' or set LIBOMP_PREFIX to the libomp prefix."
+	@false
+else
 omp: CFLAGS += -DSPARSE_OPENMP -Xpreprocessor -fopenmp -I$(LIBOMP_PREFIX)/include
 omp: LDFLAGS += -L$(LIBOMP_PREFIX)/lib -lomp
+omp: clean test
+endif
 else
 omp: CFLAGS += -DSPARSE_OPENMP -fopenmp
 omp: LDFLAGS += -fopenmp
-endif
 omp: clean test
+endif
 
 # Thread Sanitizer (for thread safety tests)
 .PHONY: tsan

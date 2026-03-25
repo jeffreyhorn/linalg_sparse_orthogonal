@@ -21,7 +21,14 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu)
     if (n == 0) {
         ilu->L = sparse_create(0, 0);
         ilu->U = sparse_create(0, 0);
-        return (ilu->L && ilu->U) ? SPARSE_OK : SPARSE_ERR_ALLOC;
+        if (!ilu->L || !ilu->U) {
+            sparse_free(ilu->L);
+            sparse_free(ilu->U);
+            ilu->L = NULL;
+            ilu->U = NULL;
+            return SPARSE_ERR_ALLOC;
+        }
+        return SPARSE_OK;
     }
 
     /* Work on a copy of A (using physical indices, no permutations) */
@@ -60,13 +67,13 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu)
 
             /* For each j > k where W(k,j) != 0: update W(i,j) if it exists */
             Node *node_kj = W->row_headers[k];
+            Node *scan = W->row_headers[i];
             while (node_kj) {
                 idx_t j = node_kj->col;
                 if (j > k) {
-                    /* Check if W(i,j) exists in the sparsity pattern.
-                     * Walk row i to find the node at column j. Only update
-                     * if present (ILU(0) no-fill rule). */
-                    Node *scan = W->row_headers[i];
+                    /* Advance scan pointer to column >= j.
+                     * Row i entries are sorted by column, so we only
+                     * move forward (never restart from head). */
                     while (scan && scan->col < j)
                         scan = scan->right;
                     if (scan && scan->col == j) {
@@ -200,7 +207,8 @@ void sparse_ilu_free(sparse_ilu_t *ilu)
 sparse_err_t sparse_ilu_precond(const void *ctx, idx_t n,
                                  const double *r, double *z)
 {
+    if (!ctx) return SPARSE_ERR_NULL;
     const sparse_ilu_t *ilu = (const sparse_ilu_t *)ctx;
-    (void)n;
+    if (n != ilu->n) return SPARSE_ERR_SHAPE;
     return sparse_ilu_solve(ilu, r, z);
 }

@@ -537,6 +537,76 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B,
     return SPARSE_OK;
 }
 
+/* ─── Sparse matrix-matrix multiply (Gustavson's algorithm) ──────────── */
+
+sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B,
+                           SparseMatrix **C)
+{
+    if (!A || !B || !C) return SPARSE_ERR_NULL;
+    *C = NULL;
+    if (A->cols != B->rows) return SPARSE_ERR_SHAPE;
+
+    idx_t m = A->rows;
+    idx_t k = A->cols;
+    idx_t nc = B->cols;
+    (void)k;
+
+    SparseMatrix *out = sparse_create(m, nc);
+    if (!out) return SPARSE_ERR_ALLOC;
+
+    /* Dense accumulator for one row of C */
+    double *acc = calloc((size_t)nc, sizeof(double));
+    int *nz_flag = calloc((size_t)nc, sizeof(int));
+    if (!acc || !nz_flag) {
+        free(acc); free(nz_flag);
+        sparse_free(out);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    for (idx_t i = 0; i < m; i++) {
+        /* Accumulate row i of C: sum over j of A(i,j) * row_j(B) */
+        int has_entries = 0;
+        Node *a_node = A->row_headers[i];
+        while (a_node) {
+            idx_t j = a_node->col;
+            double a_ij = a_node->value;
+
+            /* Add a_ij * row_j(B) to accumulator */
+            Node *b_node = B->row_headers[j];
+            while (b_node) {
+                acc[b_node->col] += a_ij * b_node->value;
+                nz_flag[b_node->col] = 1;
+                has_entries = 1;
+                b_node = b_node->right;
+            }
+            a_node = a_node->right;
+        }
+
+        /* Flush accumulator to sparse output */
+        if (has_entries) {
+            for (idx_t col = 0; col < nc; col++) {
+                if (nz_flag[col]) {
+                    if (fabs(acc[col]) >= 1e-15) {
+                        sparse_err_t err = sparse_insert(out, i, col, acc[col]);
+                        if (err != SPARSE_OK) {
+                            free(acc); free(nz_flag);
+                            sparse_free(out);
+                            return err;
+                        }
+                    }
+                    acc[col] = 0.0;
+                    nz_flag[col] = 0;
+                }
+            }
+        }
+    }
+
+    free(acc);
+    free(nz_flag);
+    *C = out;
+    return SPARSE_OK;
+}
+
 /* ─── Sparse matrix-vector product ───────────────────────────────────── */
 
 sparse_err_t sparse_matvec(const SparseMatrix *mat,

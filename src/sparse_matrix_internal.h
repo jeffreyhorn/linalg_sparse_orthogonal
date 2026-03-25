@@ -10,8 +10,9 @@
 
 /*
  * Optional mutex support: compile with -DSPARSE_MUTEX to enable.
- * When enabled, sparse_insert locks the matrix mutex to allow safe
- * concurrent mutation of the same matrix.
+ * When enabled, sparse_insert and sparse_remove lock the matrix mutex
+ * to serialize concurrent insert/remove calls on the same matrix.
+ * Factorization functions are NOT mutex-protected.
  * Default: disabled (zero overhead).
  */
 #ifdef SPARSE_MUTEX

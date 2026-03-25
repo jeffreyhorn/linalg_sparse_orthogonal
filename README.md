@@ -177,7 +177,7 @@ The library is safe for concurrent use under the following contract:
 | `sparse_errno()` | Yes | Uses `_Thread_local` storage |
 | Concurrent mutation of the same matrix | **No** | Insert/remove/factor on a shared matrix requires external synchronization |
 
-**Optional mutex support:** Compile with `-DSPARSE_MUTEX` to add per-matrix mutex locking on `sparse_insert()`. This allows safe concurrent mutation of the same matrix at a performance cost. Not recommended — prefer separate matrices per thread.
+**Optional mutex support:** Compile with `-DSPARSE_MUTEX` and `-pthread` to add per-matrix mutex locking on `sparse_insert()` and `sparse_remove()`. This serializes concurrent insert/remove calls on the same matrix. Note: factorization (`sparse_lu_factor`, `sparse_cholesky_factor`) is not mutex-protected and must not be called concurrently on the same matrix. Not recommended — prefer separate matrices per thread.
 
 ## Known Limitations
 

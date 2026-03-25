@@ -185,6 +185,8 @@ SparseMatrix *sparse_copy(const SparseMatrix *mat)
 
 /* ─── Element access (physical) ──────────────────────────────────────── */
 
+static sparse_err_t sparse_remove_internal(SparseMatrix *mat, idx_t row, idx_t col);
+
 sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, double val)
 {
     if (!mat) return SPARSE_ERR_NULL;
@@ -194,7 +196,7 @@ sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, double val)
     SPARSE_LOCK(mat);
 
     if (val == 0.0) {
-        sparse_err_t err = sparse_remove(mat, row, col);
+        sparse_err_t err = sparse_remove_internal(mat, row, col);
         SPARSE_UNLOCK(mat);
         return err;
     }
@@ -245,12 +247,9 @@ sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, double val)
     return SPARSE_OK;
 }
 
-sparse_err_t sparse_remove(SparseMatrix *mat, idx_t row, idx_t col)
+/* Internal remove (no locking — called from within locked sparse_insert) */
+static sparse_err_t sparse_remove_internal(SparseMatrix *mat, idx_t row, idx_t col)
 {
-    if (!mat) return SPARSE_ERR_NULL;
-    if (row < 0 || row >= mat->rows || col < 0 || col >= mat->cols)
-        return SPARSE_ERR_BOUNDS;
-
     /* Find and unlink from row list */
     Node *prev = NULL;
     Node *curr = mat->row_headers[row];
@@ -282,6 +281,17 @@ sparse_err_t sparse_remove(SparseMatrix *mat, idx_t row, idx_t col)
     mat->cached_norm = -1.0;
 
     return SPARSE_OK;
+}
+
+sparse_err_t sparse_remove(SparseMatrix *mat, idx_t row, idx_t col)
+{
+    if (!mat) return SPARSE_ERR_NULL;
+    if (row < 0 || row >= mat->rows || col < 0 || col >= mat->cols)
+        return SPARSE_ERR_BOUNDS;
+    SPARSE_LOCK(mat);
+    sparse_err_t err = sparse_remove_internal(mat, row, col);
+    SPARSE_UNLOCK(mat);
+    return err;
 }
 
 double sparse_get_phys(const SparseMatrix *mat, idx_t row, idx_t col)
@@ -555,8 +565,9 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B,
 sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B,
                            SparseMatrix **C)
 {
-    if (!A || !B || !C) return SPARSE_ERR_NULL;
+    if (!C) return SPARSE_ERR_NULL;
     *C = NULL;
+    if (!A || !B) return SPARSE_ERR_NULL;
     if (A->cols != B->rows) return SPARSE_ERR_SHAPE;
 
     idx_t m = A->rows;

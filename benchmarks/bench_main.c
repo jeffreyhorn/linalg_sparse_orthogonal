@@ -120,6 +120,10 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot,
 
     for (int rep = 0; rep < repeats; rep++) {
         SparseMatrix *F = sparse_copy(A);
+        if (!F) {
+            fprintf(stderr, "Allocation failed during benchmark\n");
+            break;
+        }
 
         t0 = wall_time();
         sparse_err_t err;

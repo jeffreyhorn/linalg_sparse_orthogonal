@@ -352,10 +352,11 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
                         (int)total_iter, rel_res);
             }
 
-            /* Check convergence or lucky breakdown */
+            /* Stop inner Arnoldi loop on preconditioned convergence or
+             * lucky breakdown.  Final convergence is decided by the true
+             * residual check after x is updated. */
             if (rel_res <= o->tol || lucky) {
                 j++;  /* include this column in the solution */
-                converged = 1;
                 break;
             }
         }

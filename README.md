@@ -251,7 +251,7 @@ The library is safe for concurrent use under the following contract:
 
 ## Testing
 
-The test suite contains **401 unit tests** across 19 test suites:
+The test suite contains **406 unit tests** across 19 test suites:
 
 - Sparse matrix data structure, norms, and symmetry check (43 tests)
 - LU factorization, solve, transpose solve, and condition estimation (37 tests)

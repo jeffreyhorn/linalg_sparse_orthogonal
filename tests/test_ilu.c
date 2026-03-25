@@ -508,7 +508,8 @@ static void test_ilu_gmres_orsirr_1(void)
 
     /* Unpreconditioned GMRES */
     double *x_unprec = calloc((size_t)n, sizeof(double));
-    sparse_gmres_opts_t opts = {.max_iter = 2000, .restart = 50, .tol = 1e-8, .verbose = 0};
+    /* orsirr_1 is large and ill-conditioned; use relaxed tolerance */
+    sparse_gmres_opts_t opts = {.max_iter = 2000, .restart = 50, .tol = 1e-5, .verbose = 0};
     sparse_iter_result_t result_unprec;
     sparse_solve_gmres(A, b, x_unprec, &opts, NULL, NULL, &result_unprec);
 

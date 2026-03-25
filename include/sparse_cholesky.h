@@ -51,6 +51,9 @@ typedef struct {
  * @return SPARSE_ERR_SHAPE if mat is not square.
  * @return SPARSE_ERR_NOT_SPD if a non-positive pivot is encountered (matrix
  *         is not positive-definite).
+ *
+ * @threadsafety Mutates mat. Not safe to call concurrently on the same matrix.
+ *               Safe to call concurrently on different matrices.
  */
 sparse_err_t sparse_cholesky_factor(SparseMatrix *mat);
 
@@ -84,6 +87,9 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat,
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
+ *
+ * @threadsafety Read-only on mat. Safe to call concurrently on the same
+ *               factored matrix with different b/x vectors.
  */
 sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat,
                                    const double *b, double *x);

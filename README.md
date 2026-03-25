@@ -158,9 +158,20 @@ All functions return `sparse_err_t` error codes (except accessors that return va
 - Solve: O(nnz_LU) for forward/backward substitution
 - SpMV: O(nnz)
 
+## Thread Safety
+
+The library is safe for concurrent use under the following contract:
+
+| Operation | Thread-safe? | Notes |
+|-----------|:---:|-------|
+| Concurrent solves on the same factored matrix | Yes | Solve is pure read-only on the matrix |
+| Concurrent factorization of different matrices | Yes | Each matrix has its own pool allocator |
+| Concurrent read-only access (nnz, get, matvec) | Yes | No shared mutable state |
+| `sparse_errno()` | Yes | Uses `_Thread_local` storage |
+| Concurrent mutation of the same matrix | **No** | Insert/remove/factor on a shared matrix requires external synchronization |
+
 ## Known Limitations
 
-- **Not thread-safe.** All operations are single-threaded.
 - **Dense vector RHS only.** The solver takes dense vectors for b and x.
 - **In-place factorization.** `sparse_lu_factor` overwrites the matrix; always work on a copy if you need the original.
 - **No complex or integer matrices.** Only real (double-precision) values are supported.

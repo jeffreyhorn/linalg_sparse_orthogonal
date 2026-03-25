@@ -248,7 +248,18 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
     /* Outer restart loop */
     idx_t max_restarts = (o->max_iter + m - 1) / m;  /* ceil(max_iter / m) */
 
-    for (idx_t restart = 0; restart < max_restarts; restart++) {
+    /* Check initial true residual (handles max_iter==0 and exact initial guess) */
+    {
+        sparse_matvec(A, x, w);
+        for (idx_t i = 0; i < n; i++)
+            w[i] = b[i] - w[i];
+        rel_res = vec_norm2(w, n) / bnorm;
+        if (rel_res <= o->tol) {
+            converged = 1;
+        }
+    }
+
+    for (idx_t restart = 0; restart < max_restarts && !converged; restart++) {
         /* Compute r = b - A*x */
         sparse_matvec(A, x, w);
         for (idx_t i = 0; i < n; i++)

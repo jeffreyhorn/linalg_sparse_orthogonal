@@ -314,7 +314,7 @@ linalg_sparse_orthogonal/
 │   ├── sparse_reorder.c
 │   ├── sparse_vector.c
 │   └── sparse_matrix_internal.h
-├── tests/                Unit tests (19 suites, 401 tests)
+├── tests/                Unit tests (19 suites, 406 tests)
 │   ├── test_framework.h
 │   ├── test_sparse_matrix.c
 │   ├── test_sparse_lu.c

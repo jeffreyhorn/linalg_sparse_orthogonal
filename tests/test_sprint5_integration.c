@@ -441,8 +441,8 @@ static void test_integration_ilu_multi_rhs(void)
         double *x = calloc((size_t)n, sizeof(double));
         sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
         sparse_iter_result_t result;
-        sparse_solve_cg(sys.A, b, x, &opts, sparse_ilu_precond, &ilu, &result);
-
+        ASSERT_ERR(sparse_solve_cg(sys.A, b, x, &opts,
+                                    sparse_ilu_precond, &ilu, &result), SPARSE_OK);
         ASSERT_TRUE(result.converged);
         double res = compute_relative_residual(sys.A, b, x, n);
         ASSERT_TRUE(res < 1e-8);

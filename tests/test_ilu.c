@@ -180,7 +180,7 @@ static void test_ilu_drops_fill(void)
     /* Verify ILU solve is an approximation, not exact */
     double r[3] = {3.0, 5.0, 3.0};
     double z[3];
-    sparse_ilu_solve(&ilu, r, z);
+    ASSERT_ERR(sparse_ilu_solve(&ilu, r, z), SPARSE_OK);
 
     /* A*z should be close to r but not exact (due to dropped fill) */
     double *Az = malloc(3 * sizeof(double));
@@ -274,12 +274,12 @@ static void test_ilu_precond_cg(void)
     double *x_unprec = calloc((size_t)n, sizeof(double));
     sparse_iter_opts_t opts = {.max_iter = 100, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t result_unprec;
-    sparse_solve_cg(A, b, x_unprec, &opts, NULL, NULL, &result_unprec);
+    ASSERT_ERR(sparse_solve_cg(A, b, x_unprec, &opts, NULL, NULL, &result_unprec), SPARSE_OK);
 
     /* ILU-preconditioned CG */
     double *x_prec = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t result_prec;
-    sparse_solve_cg(A, b, x_prec, &opts, sparse_ilu_precond, &ilu, &result_prec);
+    ASSERT_ERR(sparse_solve_cg(A, b, x_prec, &opts, sparse_ilu_precond, &ilu, &result_prec), SPARSE_OK);
 
     ASSERT_TRUE(result_unprec.converged);
     ASSERT_TRUE(result_prec.converged);

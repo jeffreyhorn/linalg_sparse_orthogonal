@@ -31,6 +31,9 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat)
     if (!sparse_is_symmetric(mat, 1e-12))
         return SPARSE_ERR_NOT_SPD;
 
+    /* Reset factor_norm so LU-only APIs (condest) don't accept this matrix */
+    mat->factor_norm = -1.0;
+
     /* Dense accumulator for column k (indices k..n-1) */
     double *col_acc = calloc((size_t)n, sizeof(double));
     int *nz_row = calloc((size_t)n, sizeof(int));
@@ -184,6 +187,7 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat,
         mat->pool = PA->pool;
         mat->nnz = PA->nnz;
         mat->cached_norm = PA->cached_norm;
+        mat->factor_norm = -1.0;  /* reset: not LU-factored */
 
         PA->row_headers = NULL;
         PA->col_headers = NULL;

@@ -30,8 +30,9 @@ void sparse_csc_free(SparseCsc *csc)
 
 sparse_err_t sparse_to_csr(const SparseMatrix *mat, SparseCsr **csr_out)
 {
-    if (!mat || !csr_out) return SPARSE_ERR_NULL;
+    if (!csr_out) return SPARSE_ERR_NULL;
     *csr_out = NULL;
+    if (!mat) return SPARSE_ERR_NULL;
 
     idx_t m = mat->rows;
     idx_t nc = mat->cols;
@@ -74,8 +75,9 @@ sparse_err_t sparse_to_csr(const SparseMatrix *mat, SparseCsr **csr_out)
 
 sparse_err_t sparse_from_csr(const SparseCsr *csr, SparseMatrix **mat_out)
 {
-    if (!csr || !mat_out) return SPARSE_ERR_NULL;
+    if (!mat_out) return SPARSE_ERR_NULL;
     *mat_out = NULL;
+    if (!csr) return SPARSE_ERR_NULL;
 
     if (!csr->row_ptr || (!csr->col_idx && csr->nnz > 0) ||
         (!csr->values && csr->nnz > 0))
@@ -122,8 +124,9 @@ sparse_err_t sparse_from_csr(const SparseCsr *csr, SparseMatrix **mat_out)
 
 sparse_err_t sparse_to_csc(const SparseMatrix *mat, SparseCsc **csc_out)
 {
-    if (!mat || !csc_out) return SPARSE_ERR_NULL;
+    if (!csc_out) return SPARSE_ERR_NULL;
     *csc_out = NULL;
+    if (!mat) return SPARSE_ERR_NULL;
 
     idx_t m = mat->rows;
     idx_t nc = mat->cols;
@@ -166,8 +169,9 @@ sparse_err_t sparse_to_csc(const SparseMatrix *mat, SparseCsc **csc_out)
 
 sparse_err_t sparse_from_csc(const SparseCsc *csc, SparseMatrix **mat_out)
 {
-    if (!csc || !mat_out) return SPARSE_ERR_NULL;
+    if (!mat_out) return SPARSE_ERR_NULL;
     *mat_out = NULL;
+    if (!csc) return SPARSE_ERR_NULL;
 
     if (!csc->col_ptr || (!csc->row_idx && csc->nnz > 0) ||
         (!csc->values && csc->nnz > 0))

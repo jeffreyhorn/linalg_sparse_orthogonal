@@ -41,8 +41,8 @@ typedef struct {
  * is overwritten with L; the upper triangle entries are removed. No pivoting
  * is performed (SPD matrices have all-positive pivots).
  *
- * Fill-in entries with |value| < DROP_TOL * L(k,k) are dropped to control
- * memory growth.
+ * Fill-in entries with |value| < SPARSE_DROP_TOL * L(k,k) are dropped to
+ * control memory growth.
  *
  * @param mat  The SPD matrix to factor (modified in-place). Must be square
  *             and symmetric. After factorization, contains L in the lower triangle.

@@ -1,9 +1,16 @@
 #include "sparse_matrix.h"
 #include "sparse_cholesky.h"
+#include "sparse_lu.h"
 #include "sparse_types.h"
 #include "test_framework.h"
 #include <stdlib.h>
 #include <math.h>
+#include <stdio.h>
+
+#ifndef DATA_DIR
+#define DATA_DIR "tests/data"
+#endif
+#define SS_DIR DATA_DIR "/suitesparse"
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Cholesky factorization tests
@@ -338,6 +345,125 @@ static void test_cholesky_solve_null(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * SuiteSparse validation
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Helper: load, Cholesky factor+solve, check residual */
+static void cholesky_validate(const char *path, double res_tol,
+                               const sparse_cholesky_opts_t *opts)
+{
+    SparseMatrix *A = NULL;
+    ASSERT_ERR(sparse_load_mm(&A, path), SPARSE_OK);
+    idx_t n = sparse_rows(A);
+
+    double *ones = malloc((size_t)n * sizeof(double));
+    double *b    = malloc((size_t)n * sizeof(double));
+    double *x    = malloc((size_t)n * sizeof(double));
+    double *r    = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(ones);
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x);
+    ASSERT_NOT_NULL(r);
+    for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
+    sparse_matvec(A, ones, b);
+
+    SparseMatrix *L = sparse_copy(A);
+    ASSERT_NOT_NULL(L);
+    sparse_err_t err;
+    if (opts)
+        err = sparse_cholesky_factor_opts(L, opts);
+    else
+        err = sparse_cholesky_factor(L);
+    ASSERT_ERR(err, SPARSE_OK);
+
+    ASSERT_ERR(sparse_cholesky_solve(L, b, x), SPARSE_OK);
+
+    sparse_matvec(A, x, r);
+    double rnorm = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        r[i] -= b[i];
+        double a = fabs(r[i]);
+        if (a > rnorm) rnorm = a;
+    }
+
+    printf("    %s: nnz_L=%d, res=%.2e\n", path, (int)sparse_nnz(L), rnorm);
+    ASSERT_TRUE(rnorm < res_tol);
+
+    free(ones); free(b); free(x); free(r);
+    sparse_free(A); sparse_free(L);
+}
+
+static void test_cholesky_nos4(void)
+{
+    cholesky_validate(SS_DIR "/nos4.mtx", 1e-10, NULL);
+}
+
+static void test_cholesky_bcsstk04(void)
+{
+    cholesky_validate(SS_DIR "/bcsstk04.mtx", 1e-4, NULL);
+}
+
+static void test_cholesky_nos4_amd(void)
+{
+    sparse_cholesky_opts_t opts = { SPARSE_REORDER_AMD };
+    cholesky_validate(SS_DIR "/nos4.mtx", 1e-10, &opts);
+}
+
+static void test_cholesky_bcsstk04_rcm(void)
+{
+    sparse_cholesky_opts_t opts = { SPARSE_REORDER_RCM };
+    cholesky_validate(SS_DIR "/bcsstk04.mtx", 1e-4, &opts);
+}
+
+/* Compare Cholesky fill-in vs LU fill-in on SPD matrices */
+static void test_cholesky_fillin_vs_lu(void)
+{
+    SparseMatrix *A = NULL;
+    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/nos4.mtx"), SPARSE_OK);
+
+    SparseMatrix *L = sparse_copy(A);
+    ASSERT_NOT_NULL(L);
+    ASSERT_ERR(sparse_cholesky_factor(L), SPARSE_OK);
+    idx_t chol_nnz = sparse_nnz(L);
+
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_NOT_NULL(LU);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+    idx_t lu_nnz = sparse_nnz(LU);
+
+    printf("    nos4: Cholesky nnz=%d, LU nnz=%d\n", (int)chol_nnz, (int)lu_nnz);
+
+    /* Cholesky stores only lower triangle, so nnz should be ≤ LU */
+    ASSERT_TRUE(chol_nnz <= lu_nnz);
+
+    sparse_free(A); sparse_free(L); sparse_free(LU);
+}
+
+/* Nearly singular SPD: should factor but have large condition */
+static void test_cholesky_nearly_singular(void)
+{
+    idx_t n = 4;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, (i < n - 1) ? 1.0 : 1e-12);
+
+    SparseMatrix *L = sparse_copy(A);
+    ASSERT_NOT_NULL(L);
+    ASSERT_ERR(sparse_cholesky_factor(L), SPARSE_OK);
+
+    /* Solve should work but with reduced accuracy */
+    double b[] = {1.0, 1.0, 1.0, 1.0};
+    double x[4];
+    ASSERT_ERR(sparse_cholesky_solve(L, b, x), SPARSE_OK);
+
+    /* x should be [1, 1, 1, 1e12] approximately */
+    ASSERT_NEAR(x[0], 1.0, 1e-6);
+    ASSERT_NEAR(x[3], 1e12, 1e6);
+
+    sparse_free(A); sparse_free(L);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -362,6 +488,16 @@ int main(void)
     RUN_TEST(test_cholesky_solve_rcm);
     RUN_TEST(test_cholesky_solve_none);
     RUN_TEST(test_cholesky_solve_null);
+
+    /* SuiteSparse validation */
+    RUN_TEST(test_cholesky_nos4);
+    RUN_TEST(test_cholesky_bcsstk04);
+    RUN_TEST(test_cholesky_nos4_amd);
+    RUN_TEST(test_cholesky_bcsstk04_rcm);
+    RUN_TEST(test_cholesky_fillin_vs_lu);
+
+    /* Edge cases */
+    RUN_TEST(test_cholesky_nearly_singular);
 
     TEST_SUITE_END();
 }

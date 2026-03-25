@@ -218,6 +218,44 @@ The relative threshold `DROP_TOL × ||A||_inf` scales with the matrix, so:
 
 If `factor_norm` is not set (e.g., backward substitution is called on a matrix that was not factored via `sparse_lu_factor`), the absolute `DROP_TOL` is used as a fallback for backward compatibility.
 
+## Cholesky Factorization
+
+For symmetric positive-definite (SPD) matrices, Cholesky factorization computes A = L·L^T where L is lower triangular. This exploits symmetry for approximately half the storage and computation of LU.
+
+### Algorithm (left-looking, column-by-column)
+
+```
+for k = 0 to n-1:
+    L(k,k) = sqrt( A(k,k) - sum_{j<k} L(k,j)^2 )
+    if L(k,k) <= 0: return NOT_SPD
+
+    for each i > k with nonzero A(i,k) or fill-in:
+        L(i,k) = ( A(i,k) - sum_{j<k} L(i,j)*L(k,j) ) / L(k,k)
+```
+
+A dense column accumulator is used for each column k to efficiently handle fill-in. After accumulating contributions from previous columns, nonzero entries are written back to the sparse structure.
+
+### Advantages over LU for SPD matrices
+
+- **No pivoting needed** — SPD guarantees all pivots are positive
+- **Half the storage** — only L is stored (not both L and U)
+- **Half the computation** — symmetry halves the work
+- **Better numerical stability** — no need for pivot search or permutation
+
+### Complexity
+
+| Operation | Complexity |
+|-----------|-----------|
+| Cholesky factor | O(nnz_L × avg_col_nnz) |
+| Cholesky solve | O(nnz_L) forward + O(nnz_L) backward |
+
+### Fill-in comparison (SuiteSparse, no reordering)
+
+| Matrix | LU nnz | Cholesky nnz | Savings |
+|--------|-------:|---------:|---------|
+| nos4 (100×100) | 1510 | 805 | 47% |
+| bcsstk04 (132×132) | 8581 | 3664 | 57% |
+
 ## Condition Number Estimation
 
 `sparse_lu_condest()` estimates the 1-norm condition number `κ₁(A) = ‖A‖₁ · ‖A⁻¹‖₁` using the Hager/Higham algorithm (Hager 1984, Higham 2000).

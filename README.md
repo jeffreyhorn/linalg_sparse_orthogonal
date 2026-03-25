@@ -7,6 +7,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Orthogonal linked-list storage** — each non-zero is linked into both its row list and column list, enabling efficient row and column traversal
 - **Slab pool allocator** with free-list for fast node allocation and reuse
 - **LU factorization** with complete or partial pivoting (P·A·Q = L·U)
+- **Cholesky factorization** for symmetric positive-definite matrices (A = L·L^T, ~50% less storage than LU)
 - **Direct solve** via forward/backward substitution with permutation handling
 - **Iterative refinement** to improve solution accuracy
 - **Sparse matrix-vector product** (SpMV)
@@ -94,6 +95,7 @@ The library is split into four headers:
 | [`sparse_types.h`](include/sparse_types.h) | `idx_t`, error codes (`sparse_err_t`), pivot/reorder strategies |
 | [`sparse_matrix.h`](include/sparse_matrix.h) | Sparse matrix lifecycle, element access, SpMV, Matrix Market I/O |
 | [`sparse_lu.h`](include/sparse_lu.h) | LU factorization, solve, condition estimation, iterative refinement |
+| [`sparse_cholesky.h`](include/sparse_cholesky.h) | Cholesky factorization and solve for SPD matrices |
 | [`sparse_reorder.h`](include/sparse_reorder.h) | Fill-reducing reordering (RCM, AMD), permutation, bandwidth |
 | [`sparse_vector.h`](include/sparse_vector.h) | Dense vector utilities (norms, axpy, dot product) |
 
@@ -115,6 +117,11 @@ The library is split into four headers:
 - `sparse_lu_solve(mat, b, x)` — solve using factored matrix (auto-unpermutes if reordered)
 - `sparse_lu_condest(A, LU, &cond)` — estimate 1-norm condition number from LU factors
 - `sparse_lu_refine(A, LU, b, x, max_iters, tol)` — iterative refinement
+
+**Cholesky (SPD matrices):**
+- `sparse_cholesky_factor(mat)` — in-place A = L·L^T
+- `sparse_cholesky_factor_opts(mat, &opts)` — with optional AMD/RCM reordering
+- `sparse_cholesky_solve(mat, b, x)` — solve using Cholesky factors
 
 **Fill-reducing reordering:**
 - `sparse_reorder_rcm(A, perm)` — Reverse Cuthill-McKee ordering

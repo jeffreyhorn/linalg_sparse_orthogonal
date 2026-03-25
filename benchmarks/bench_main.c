@@ -8,6 +8,7 @@
  *   ./bench_main --dir PATH                Benchmark all .mtx files in directory
  *   ./bench_main --dir PATH --pivot partial  Use partial pivoting (default: complete)
  *   ./bench_main --reorder rcm|amd|none      Apply fill-reducing reordering
+ *   ./bench_main --cholesky                  Use Cholesky instead of LU (SPD matrices only)
  *
  * Reports wall-clock time for: construction, factorization, solve, SpMV.
  * Also reports nnz, fill-in, memory, and residual norm.
@@ -15,6 +16,7 @@
 #define _POSIX_C_SOURCE 199309L
 #include "sparse_matrix.h"
 #include "sparse_lu.h"
+#include "sparse_cholesky.h"
 #include "sparse_reorder.h"
 #include "sparse_vector.h"
 #include <stdio.h>
@@ -72,14 +74,16 @@ static const char *reorder_name(sparse_reorder_t r)
 }
 
 static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot,
-                      sparse_reorder_t reorder)
+                      sparse_reorder_t reorder, int use_cholesky)
 {
     idx_t n = sparse_rows(A);
     idx_t nnz_orig = sparse_nnz(A);
 
     printf("Matrix:  %d x %d, nnz = %d\n", (int)n, (int)n, (int)nnz_orig);
     printf("Memory:  %zu bytes\n", sparse_memory_usage(A));
-    printf("Pivot:   %s\n", pivot == SPARSE_PIVOT_PARTIAL ? "partial" : "complete");
+    printf("Solver:  %s\n", use_cholesky ? "Cholesky" : "LU");
+    if (!use_cholesky)
+        printf("Pivot:   %s\n", pivot == SPARSE_PIVOT_PARTIAL ? "partial" : "complete");
     printf("Reorder: %s\n", reorder_name(reorder));
     printf("Repeats: %d\n", repeats);
     printf("Bandwidth: %d\n\n", (int)sparse_bandwidth(A));
@@ -104,42 +108,55 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot,
     double t_spmv = (wall_time() - t0) / repeats;
     printf("SpMV:          %.6f s\n", t_spmv);
 
-    /* --- LU factorization timing --- */
+    /* --- Factorization timing --- */
     double t_factor_total = 0.0;
     double t_solve_total = 0.0;
     idx_t nnz_after = 0;
     double residual = 0.0;
     double cond_est = 0.0;
 
-    sparse_lu_opts_t opts = { pivot, reorder, 1e-12 };
+    sparse_lu_opts_t lu_opts = { pivot, reorder, 1e-12 };
+    sparse_cholesky_opts_t chol_opts = { reorder };
 
     for (int rep = 0; rep < repeats; rep++) {
-        SparseMatrix *LU = sparse_copy(A);
+        SparseMatrix *F = sparse_copy(A);
 
         t0 = wall_time();
-        sparse_err_t err = sparse_lu_factor_opts(LU, &opts);
+        sparse_err_t err;
+        if (use_cholesky)
+            err = sparse_cholesky_factor_opts(F, &chol_opts);
+        else
+            err = sparse_lu_factor_opts(F, &lu_opts);
         t_factor_total += wall_time() - t0;
 
         if (err != SPARSE_OK) {
-            printf("LU factor failed: %s\n", sparse_strerror(err));
-            sparse_free(LU);
+            printf("%s factor failed: %s\n",
+                   use_cholesky ? "Cholesky" : "LU", sparse_strerror(err));
+            sparse_free(F);
             break;
         }
 
         if (rep == 0) {
-            nnz_after = sparse_nnz(LU);
-            if (sparse_lu_condest(A, LU, &cond_est) != SPARSE_OK)
-                cond_est = -1.0;
+            nnz_after = sparse_nnz(F);
+            if (!use_cholesky) {
+                if (sparse_lu_condest(A, F, &cond_est) != SPARSE_OK)
+                    cond_est = -1.0;
+            }
         }
 
         /* --- Solve timing --- */
         t0 = wall_time();
-        sparse_err_t serr = sparse_lu_solve(LU, b, x);
+        sparse_err_t serr;
+        if (use_cholesky)
+            serr = sparse_cholesky_solve(F, b, x);
+        else
+            serr = sparse_lu_solve(F, b, x);
         t_solve_total += wall_time() - t0;
 
         if (serr != SPARSE_OK) {
-            printf("LU solve failed: %s\n", sparse_strerror(serr));
-            sparse_free(LU);
+            printf("%s solve failed: %s\n",
+                   use_cholesky ? "Cholesky" : "LU", sparse_strerror(serr));
+            sparse_free(F);
             break;
         }
 
@@ -150,12 +167,12 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot,
             residual = vec_norminf(r, n);
         }
 
-        sparse_free(LU);
+        sparse_free(F);
     }
 
-    printf("LU factor:     %.6f s\n", t_factor_total / repeats);
-    printf("LU solve:      %.6f s\n", t_solve_total / repeats);
-    printf("nnz after LU:  %d (fill-in ratio: %.2f)\n",
+    printf("Factor:        %.6f s\n", t_factor_total / repeats);
+    printf("Solve:         %.6f s\n", t_solve_total / repeats);
+    printf("nnz after:     %d (fill-in ratio: %.2f)\n",
            (int)nnz_after, (double)nnz_after / (double)nnz_orig);
     printf("Residual:      %.3e\n", residual);
     printf("Cond est:      %.3e\n", cond_est);
@@ -320,6 +337,7 @@ int main(int argc, char **argv)
     int repeats = 3;
     sparse_pivot_t pivot = SPARSE_PIVOT_COMPLETE;
     sparse_reorder_t reorder = SPARSE_REORDER_NONE;
+    int use_cholesky = 0;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--size") == 0 && i + 1 < argc) {
@@ -350,6 +368,8 @@ int main(int argc, char **argv)
                 fprintf(stderr, "Error: unknown reorder mode '%s' (use 'none', 'rcm', or 'amd')\n", argv[i]);
                 return 1;
             }
+        } else if (strcmp(argv[i], "--cholesky") == 0) {
+            use_cholesky = 1;
         } else if (argv[i][0] != '-') {
             filename = argv[i];
         }
@@ -384,7 +404,7 @@ int main(int argc, char **argv)
         }
     }
 
-    benchmark(A, repeats, pivot, reorder);
+    benchmark(A, repeats, pivot, reorder, use_cholesky);
     sparse_free(A);
     return 0;
 }

@@ -266,6 +266,113 @@ static void test_concurrent_cholesky_solve(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Stress tests: more threads, more iterations
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+#define STRESS_THREADS 8
+#define STRESS_ITERS   1000
+
+/* 8 threads × 1000 iterations on shared LU */
+static void test_lu_solve_stress(void)
+{
+    idx_t n = 30;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 10.0);
+        if (i > 0) { sparse_insert(A, i, i-1, -1.0); sparse_insert(A, i-1, i, -1.0); }
+    }
+
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_NOT_NULL(LU);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    pthread_t threads[STRESS_THREADS];
+    shared_solve_arg_t args[STRESS_THREADS];
+
+    for (int t = 0; t < STRESS_THREADS; t++) {
+        args[t].LU = LU;
+        args[t].A = A;
+        args[t].thread_id = t;
+        args[t].iterations = STRESS_ITERS;
+        int rc = pthread_create(&threads[t], NULL, thread_concurrent_solve, &args[t]);
+        ASSERT_EQ(rc, 0);
+    }
+
+    int all_pass = 1;
+    for (int t = 0; t < STRESS_THREADS; t++) {
+        pthread_join(threads[t], NULL);
+        if (!args[t].success) all_pass = 0;
+    }
+    printf("    LU stress: %d threads × %d iters, all_pass=%d\n",
+           STRESS_THREADS, STRESS_ITERS, all_pass);
+    ASSERT_TRUE(all_pass);
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+/* 8 threads × 1000 iterations on shared Cholesky */
+static void test_cholesky_solve_stress(void)
+{
+    idx_t n = 30;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 10.0);
+        if (i > 0) { sparse_insert(A, i, i-1, -1.0); sparse_insert(A, i-1, i, -1.0); }
+    }
+
+    SparseMatrix *L = sparse_copy(A);
+    ASSERT_NOT_NULL(L);
+    ASSERT_ERR(sparse_cholesky_factor(L), SPARSE_OK);
+
+    pthread_t threads[STRESS_THREADS];
+    chol_solve_arg_t args[STRESS_THREADS];
+
+    for (int t = 0; t < STRESS_THREADS; t++) {
+        args[t].L = L;
+        args[t].A = A;
+        args[t].thread_id = t;
+        args[t].iterations = STRESS_ITERS;
+        int rc = pthread_create(&threads[t], NULL, thread_concurrent_cholesky_solve, &args[t]);
+        ASSERT_EQ(rc, 0);
+    }
+
+    int all_pass = 1;
+    for (int t = 0; t < STRESS_THREADS; t++) {
+        pthread_join(threads[t], NULL);
+        if (!args[t].success) all_pass = 0;
+    }
+    printf("    Cholesky stress: %d threads × %d iters, all_pass=%d\n",
+           STRESS_THREADS, STRESS_ITERS, all_pass);
+    ASSERT_TRUE(all_pass);
+
+    sparse_free(A);
+    sparse_free(L);
+}
+
+/* Concurrent independent create+factor+solve (8 threads) */
+static void test_independent_stress(void)
+{
+    pthread_t threads[STRESS_THREADS];
+    thread_result_t results[STRESS_THREADS];
+
+    for (int t = 0; t < STRESS_THREADS; t++) {
+        results[t].thread_id = t;
+        int rc = pthread_create(&threads[t], NULL, thread_independent_lu, &results[t]);
+        ASSERT_EQ(rc, 0);
+    }
+
+    int all_pass = 1;
+    for (int t = 0; t < STRESS_THREADS; t++) {
+        pthread_join(threads[t], NULL);
+        if (!results[t].success) all_pass = 0;
+    }
+    printf("    Independent stress: %d threads, all_pass=%d\n",
+           STRESS_THREADS, all_pass);
+    ASSERT_TRUE(all_pass);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -276,6 +383,11 @@ int main(void)
     RUN_TEST(test_independent_lu_threads);
     RUN_TEST(test_concurrent_solve_shared);
     RUN_TEST(test_concurrent_cholesky_solve);
+
+    /* Stress tests */
+    RUN_TEST(test_lu_solve_stress);
+    RUN_TEST(test_cholesky_solve_stress);
+    RUN_TEST(test_independent_stress);
 
     TEST_SUITE_END();
 }

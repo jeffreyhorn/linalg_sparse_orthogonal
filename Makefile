@@ -134,6 +134,12 @@ sanitize-all: export MallocNanoZone=0
 sanitize-all: export ASAN_OPTIONS=detect_leaks=0
 sanitize-all: clean test
 
+# Thread Sanitizer (for thread safety tests)
+.PHONY: tsan
+tsan: CFLAGS += -fsanitize=thread -fno-omit-frame-pointer -g -O1
+tsan: LDFLAGS += -fsanitize=thread
+tsan: clean test
+
 # Clean
 .PHONY: clean
 clean:

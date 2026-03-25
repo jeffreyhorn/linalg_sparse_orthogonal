@@ -107,8 +107,68 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat,
                                          const sparse_cholesky_opts_t *opts)
 {
     if (!mat || !opts) return SPARSE_ERR_NULL;
-    if (mat->rows != mat->cols) return SPARSE_ERR_SHAPE;
-    /* TODO: implement reordering in Day 3 */
+    idx_t n = mat->rows;
+    if (n != mat->cols) return SPARSE_ERR_SHAPE;
+
+    /* Clear any previous reorder permutation */
+    free(mat->reorder_perm);
+    mat->reorder_perm = NULL;
+
+    /* Apply fill-reducing reordering if requested */
+    if (opts->reorder != SPARSE_REORDER_NONE && n > 1) {
+        idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+        if (!perm) return SPARSE_ERR_ALLOC;
+
+        sparse_err_t err;
+        switch (opts->reorder) {
+        case SPARSE_REORDER_RCM:
+            err = sparse_reorder_rcm(mat, perm);
+            break;
+        case SPARSE_REORDER_AMD:
+            err = sparse_reorder_amd(mat, perm);
+            break;
+        default:
+            free(perm);
+            return SPARSE_ERR_BADARG;
+        }
+
+        if (err != SPARSE_OK) { free(perm); return err; }
+
+        /* Apply symmetric permutation in-place */
+        SparseMatrix *PA = NULL;
+        err = sparse_permute(mat, perm, perm, &PA);
+        if (err != SPARSE_OK) { free(perm); return err; }
+
+        /* Swap internal data from PA into mat */
+        pool_free_all(&mat->pool);
+        free(mat->row_headers);
+        free(mat->col_headers);
+
+        mat->row_headers = PA->row_headers;
+        mat->col_headers = PA->col_headers;
+        mat->pool = PA->pool;
+        mat->nnz = PA->nnz;
+        mat->cached_norm = PA->cached_norm;
+
+        PA->row_headers = NULL;
+        PA->col_headers = NULL;
+        PA->pool.head = NULL;
+        PA->pool.current = NULL;
+        PA->pool.free_list = NULL;
+        sparse_free(PA);
+
+        /* Reset permutations to identity */
+        for (idx_t i = 0; i < n; i++) {
+            mat->row_perm[i] = i;
+            mat->inv_row_perm[i] = i;
+            mat->col_perm[i] = i;
+            mat->inv_col_perm[i] = i;
+        }
+
+        /* Store reorder permutation for solve to unpermute */
+        mat->reorder_perm = perm;
+    }
+
     return sparse_cholesky_factor(mat);
 }
 
@@ -118,7 +178,72 @@ sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat,
                                    const double *b, double *x)
 {
     if (!mat || !b || !x) return SPARSE_ERR_NULL;
-    /* TODO: implement in Day 3 */
-    (void)mat; (void)b; (void)x;
-    return SPARSE_ERR_BADARG;
+    idx_t n = mat->rows;
+    const idx_t *rperm = mat->reorder_perm;
+
+    double *y = malloc((size_t)n * sizeof(double));
+    double *b_perm = NULL;
+    if (rperm) {
+        b_perm = malloc((size_t)n * sizeof(double));
+        if (!b_perm) { free(y); return SPARSE_ERR_ALLOC; }
+    }
+    if (!y) { free(b_perm); return SPARSE_ERR_ALLOC; }
+
+    /* If reorder permutation exists, permute b */
+    const double *b_eff = b;
+    if (rperm) {
+        for (idx_t i = 0; i < n; i++)
+            b_perm[i] = b[rperm[i]];
+        b_eff = b_perm;
+    }
+
+    /* Forward substitution: solve L*y = b_eff
+     * L is lower triangular stored in lower triangle (physical indices).
+     * y[i] = (b[i] - sum_{j<i} L(i,j)*y[j]) / L(i,i) */
+    for (idx_t i = 0; i < n; i++) {
+        double sum = 0.0;
+        double l_ii = 0.0;
+        Node *node = mat->row_headers[i];
+        while (node) {
+            if (node->col < i)
+                sum += node->value * y[node->col];
+            else if (node->col == i)
+                l_ii = node->value;
+            node = node->right;
+        }
+        if (fabs(l_ii) < 1e-30) {
+            free(y); free(b_perm);
+            return SPARSE_ERR_SINGULAR;
+        }
+        y[i] = (b_eff[i] - sum) / l_ii;
+    }
+
+    /* Backward substitution: solve L^T*x = y
+     * L^T is upper triangular. L^T(i,j) = L(j,i).
+     * x[i] = (y[i] - sum_{j>i} L(j,i)*x[j]) / L(i,i)
+     * Walk column i to find L entries with row > i (these are L^T entries). */
+    for (idx_t i = n - 1; i >= 0; i--) {
+        double sum = 0.0;
+        double l_ii = 0.0;
+        Node *node = mat->col_headers[i];
+        while (node) {
+            if (node->row > i)
+                sum += node->value * x[node->row];
+            else if (node->row == i)
+                l_ii = node->value;
+            node = node->down;
+        }
+        x[i] = (y[i] - sum) / l_ii;
+    }
+
+    /* If reorder permutation exists, unpermute x */
+    if (rperm) {
+        memcpy(y, x, (size_t)n * sizeof(double)); /* reuse y as temp */
+        for (idx_t i = 0; i < n; i++)
+            x[rperm[i]] = y[i];
+    }
+
+    free(y);
+    free(b_perm);
+    return SPARSE_OK;
 }

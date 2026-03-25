@@ -132,7 +132,7 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot,
             err = sparse_cholesky_factor_opts(F, &chol_opts);
         else
             err = sparse_lu_factor_opts(F, &lu_opts);
-        t_factor_total += wall_time() - t0;
+        double t_factor = wall_time() - t0;
 
         if (err != SPARSE_OK) {
             printf("%s factor failed: %s\n",
@@ -140,6 +140,7 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot,
             sparse_free(F);
             break;
         }
+        t_factor_total += t_factor;
 
         if (rep == 0) {
             nnz_after = sparse_nnz(F);
@@ -156,7 +157,7 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot,
             serr = sparse_cholesky_solve(F, b, x);
         else
             serr = sparse_lu_solve(F, b, x);
-        t_solve_total += wall_time() - t0;
+        double t_solve = wall_time() - t0;
 
         if (serr != SPARSE_OK) {
             printf("%s solve failed: %s\n",
@@ -164,13 +165,12 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot,
             sparse_free(F);
             break;
         }
+        t_solve_total += t_solve;
 
-        /* Residual (on last rep) */
-        if (rep == repeats - 1) {
-            sparse_matvec(A, x, r);
-            for (idx_t i = 0; i < n; i++) r[i] -= b[i];
-            residual = vec_norminf(r, n);
-        }
+        /* Compute residual on every successful rep (last one is reported) */
+        sparse_matvec(A, x, r);
+        for (idx_t i = 0; i < n; i++) r[i] -= b[i];
+        residual = vec_norminf(r, n);
 
         sparse_free(F);
         reps_done++;

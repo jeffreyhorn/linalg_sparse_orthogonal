@@ -369,7 +369,7 @@ row_ptr[i] .. row_ptr[i+1]-1  →  indices into col_idx/values for row i
 ```
 
 - `sparse_to_csr()`: walks each row's linked list (already sorted by column) — O(nnz)
-- `sparse_from_csr()`: validates structure then inserts entries — O(nnz × log(nnz_row))
+- `sparse_from_csr()`: validates structure then inserts entries — O(nnz × avg_row_nnz) due to per-insert row-list scan
 
 ### CSC (Compressed Sparse Column)
 
@@ -378,7 +378,7 @@ col_ptr[j] .. col_ptr[j+1]-1  →  indices into row_idx/values for column j
 ```
 
 - `sparse_to_csc()`: walks each column's linked list (already sorted by row) — O(nnz)
-- `sparse_from_csc()`: validates structure then inserts entries — O(nnz × log(nnz_col))
+- `sparse_from_csc()`: validates structure then inserts entries — O(nnz × avg_row_nnz) due to per-insert row-list scan
 
 ### Transpose Relationship
 

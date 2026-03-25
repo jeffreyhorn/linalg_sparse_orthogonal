@@ -15,8 +15,11 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Drop tolerance** to control fill-in during factorization (relative to pivot magnitude)
 - **Fill-reducing reordering** — Reverse Cuthill-McKee (RCM) and Approximate Minimum Degree (AMD) orderings to reduce fill-in
 - **Condition number estimation** — Hager/Higham 1-norm estimator from LU factors (`sparse_lu_condest`)
+- **Sparse matrix-matrix multiply** — C = A*B via Gustavson's algorithm (`sparse_matmul`)
+- **CSR/CSC export/import** — convert to/from compressed sparse row/column formats
 - **Matrix arithmetic** — scalar scaling (`sparse_scale`) and addition (`sparse_add`)
 - **Infinity norm** with internal caching (`sparse_norminf`)
+- **Thread-safe** — concurrent solves on shared factored matrices, per-matrix pool allocators
 - **errno capture** for I/O errors (`sparse_errno`)
 
 ## Building
@@ -96,6 +99,7 @@ The library is split into four headers:
 | [`sparse_matrix.h`](include/sparse_matrix.h) | Sparse matrix lifecycle, element access, SpMV, Matrix Market I/O |
 | [`sparse_lu.h`](include/sparse_lu.h) | LU factorization, solve, condition estimation, iterative refinement |
 | [`sparse_cholesky.h`](include/sparse_cholesky.h) | Cholesky factorization and solve for SPD matrices |
+| [`sparse_csr.h`](include/sparse_csr.h) | CSR/CSC compressed format conversion |
 | [`sparse_reorder.h`](include/sparse_reorder.h) | Fill-reducing reordering (RCM, AMD), permutation, bandwidth |
 | [`sparse_vector.h`](include/sparse_vector.h) | Dense vector utilities (norms, axpy, dot product) |
 
@@ -130,13 +134,16 @@ The library is split into four headers:
 - `sparse_bandwidth(A)` — compute matrix bandwidth
 
 **Matrix arithmetic:**
+- `sparse_matmul(A, B, &C)` — sparse matrix-matrix multiply (Gustavson's algorithm)
 - `sparse_scale(mat, alpha)` — in-place scalar multiplication
 - `sparse_add(A, B, alpha, beta, &C)` — C = alpha*A + beta*B
 - `sparse_add_inplace(A, B, alpha, beta)` — A = alpha*A + beta*B
 - `sparse_norminf(mat, &norm)` — infinity norm (cached)
 
-**I/O:**
+**I/O and format conversion:**
 - `sparse_save_mm(mat, filename)` / `sparse_load_mm(&mat, filename)` — Matrix Market format
+- `sparse_to_csr(mat, &csr)` / `sparse_from_csr(csr, &mat)` — CSR conversion
+- `sparse_to_csc(mat, &csc)` / `sparse_from_csc(csc, &mat)` — CSC conversion
 - `sparse_errno()` — retrieve system errno after I/O failure
 
 All functions return `sparse_err_t` error codes (except accessors that return values directly). See `sparse_strerror()` for human-readable error messages.
@@ -180,9 +187,9 @@ The library is safe for concurrent use under the following contract:
 
 ## Testing
 
-The test suite contains **242 unit tests** with **1255 assertions** across 10 test suites:
+The test suite contains **305 unit tests** with **2212 assertions** across 15 test suites:
 
-- Sparse matrix data structure and norms (38 tests)
+- Sparse matrix data structure, norms, and symmetry check (43 tests)
 - LU factorization, solve, transpose solve, and condition estimation (37 tests)
 - Matrix Market I/O with errno validation (22 tests)
 - Known reference matrices (15 tests)
@@ -192,6 +199,11 @@ The test suite contains **242 unit tests** with **1255 assertions** across 10 te
 - Matrix arithmetic — scale and add (23 tests)
 - SuiteSparse real-world matrix validation (10 tests)
 - Reordering — permute, bandwidth, RCM, AMD, factor_opts integration (38 tests)
+- Cholesky factorization and solve (21 tests)
+- CSR/CSC conversion and round-trip (11 tests)
+- Sparse matrix-matrix multiply (14 tests)
+- Thread safety — concurrent solve and insert (7 tests)
+- Sprint 4 cross-feature integration (5 tests)
 
 ```bash
 make test          # run all tests
@@ -199,6 +211,7 @@ make smoke         # quick smoke test
 make sanitize      # UBSan (undefined behavior)
 make asan          # ASan (address sanitizer) — requires GCC or LLVM clang on macOS
 make sanitize-all  # both ASan + UBSan
+make tsan          # TSan (thread sanitizer) for concurrent tests
 ```
 
 **Note:** Apple Clang's ASan hangs on macOS. Use an alternative compiler:
@@ -216,16 +229,20 @@ linalg_sparse_orthogonal/
 │   ├── sparse_types.h
 │   ├── sparse_matrix.h
 │   ├── sparse_lu.h
+│   ├── sparse_cholesky.h
+│   ├── sparse_csr.h
 │   ├── sparse_reorder.h
 │   └── sparse_vector.h
 ├── src/                  Library implementation
 │   ├── sparse_types.c
 │   ├── sparse_matrix.c
 │   ├── sparse_lu.c
+│   ├── sparse_cholesky.c
+│   ├── sparse_csr.c
 │   ├── sparse_reorder.c
 │   ├── sparse_vector.c
 │   └── sparse_matrix_internal.h
-├── tests/                Unit tests
+├── tests/                Unit tests (15 suites, 305 tests)
 │   ├── test_framework.h
 │   ├── test_sparse_matrix.c
 │   ├── test_sparse_lu.c
@@ -237,6 +254,11 @@ linalg_sparse_orthogonal/
 │   ├── test_sparse_arith.c
 │   ├── test_suitesparse.c
 │   ├── test_reorder.c
+│   ├── test_cholesky.c
+│   ├── test_csr.c
+│   ├── test_matmul.c
+│   ├── test_threads.c
+│   ├── test_sprint4_integration.c
 │   └── data/             Reference .mtx files (8 + 6 SuiteSparse)
 ├── benchmarks/           Performance benchmarks
 ├── docs/                 Algorithm and format documentation

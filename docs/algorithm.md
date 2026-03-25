@@ -327,3 +327,74 @@ sparse_lu_solve(LU, b, x);  // reorder/unpermute handled automatically
 ```
 
 The reordering permutation is stored in the matrix and automatically applied during solve — callers do not need to manually permute/unpermute vectors.
+
+Similarly for Cholesky:
+
+```c
+sparse_cholesky_opts_t opts = { SPARSE_REORDER_AMD };
+sparse_cholesky_factor_opts(L, &opts);
+sparse_cholesky_solve(L, b, x);  // reorder/unpermute handled automatically
+```
+
+## Sparse Matrix-Matrix Multiply (SpMM)
+
+`sparse_matmul(A, B, &C)` computes C = A*B using Gustavson's row-wise algorithm.
+
+### Algorithm
+
+```
+for each row i of A:
+    initialize dense accumulator acc[0..n-1] = 0
+    for each nonzero A(i,j):
+        acc += A(i,j) * row_j(B)
+    flush nonzeros from acc into row i of C
+```
+
+The dense accumulator avoids hash-based or sort-based merging. Entries with |value| < 1e-15 are dropped during flush to avoid storing numerical zeros from cancellation.
+
+### Complexity
+
+- Time: O(nnz_A × avg_nnz_per_row_B + m × n) where m×n is the flush cost
+- Space: O(n) for the dense accumulator (reused per row)
+- The dense flush step scans all n columns, which dominates for very sparse products. For denser products, the accumulation dominates.
+
+## CSR/CSC Compressed Formats
+
+The library provides bidirectional conversion between the orthogonal linked-list format and standard compressed sparse formats.
+
+### CSR (Compressed Sparse Row)
+
+```
+row_ptr[i] .. row_ptr[i+1]-1  →  indices into col_idx/values for row i
+```
+
+- `sparse_to_csr()`: walks each row's linked list (already sorted by column) — O(nnz)
+- `sparse_from_csr()`: validates structure then inserts entries — O(nnz × log(nnz_row))
+
+### CSC (Compressed Sparse Column)
+
+```
+col_ptr[j] .. col_ptr[j+1]-1  →  indices into row_idx/values for column j
+```
+
+- `sparse_to_csc()`: walks each column's linked list (already sorted by row) — O(nnz)
+- `sparse_from_csc()`: validates structure then inserts entries — O(nnz × log(nnz_col))
+
+### Transpose Relationship
+
+CSR of A has the same structure as CSC of A^T. This means `sparse_to_csr(A)` produces arrays identical to `sparse_to_csc(A^T)`.
+
+## Thread Safety
+
+The library is safe for concurrent use under these conditions:
+
+**Safe operations (no synchronization needed):**
+- Concurrent solves (`sparse_lu_solve`, `sparse_cholesky_solve`) on the same factored matrix with different b/x vectors — solve is read-only on the matrix
+- Concurrent factorization of different matrices — each has its own pool allocator
+- Concurrent read-only access (nnz, get, matvec) to any matrix
+- `sparse_errno()` — uses `_Thread_local` storage
+
+**Unsafe operations (require external synchronization):**
+- Concurrent mutation (insert/remove/factor) of the same matrix
+
+**Optional mutex support:** Compile with `-DSPARSE_MUTEX` to add per-matrix mutex locking on `sparse_insert()`. This allows safe concurrent mutation at a performance cost. Zero overhead when compiled without the flag.

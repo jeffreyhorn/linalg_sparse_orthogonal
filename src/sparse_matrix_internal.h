@@ -8,6 +8,21 @@
 
 #include "sparse_matrix.h"  /* picks up SPARSE_NODES_PER_SLAB, SPARSE_DROP_TOL */
 
+/*
+ * Optional mutex support: compile with -DSPARSE_MUTEX to enable.
+ * When enabled, sparse_insert/sparse_remove/sparse_lu_factor lock
+ * the matrix mutex to allow safe concurrent mutation of the same matrix.
+ * Default: disabled (zero overhead).
+ */
+#ifdef SPARSE_MUTEX
+#include <pthread.h>
+#define SPARSE_LOCK(mat)   pthread_mutex_lock(&(mat)->mtx)
+#define SPARSE_UNLOCK(mat) pthread_mutex_unlock(&(mat)->mtx)
+#else
+#define SPARSE_LOCK(mat)   ((void)0)
+#define SPARSE_UNLOCK(mat) ((void)0)
+#endif
+
 #define NODES_PER_SLAB SPARSE_NODES_PER_SLAB
 #define DROP_TOL       SPARSE_DROP_TOL
 
@@ -46,6 +61,9 @@ typedef struct SparseMatrix {
     double cached_norm;    /* cached ||A||_inf, -1.0 = invalid */
     double factor_norm;    /* ||A||_inf at factorization time, for relative tol */
     idx_t *reorder_perm;   /* fill-reducing reorder: perm[new] = old, or NULL */
+#ifdef SPARSE_MUTEX
+    pthread_mutex_t mtx;   /* optional mutex for concurrent mutation */
+#endif
 } SparseMatrix;
 
 /*

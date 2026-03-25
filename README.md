@@ -170,6 +170,8 @@ The library is safe for concurrent use under the following contract:
 | `sparse_errno()` | Yes | Uses `_Thread_local` storage |
 | Concurrent mutation of the same matrix | **No** | Insert/remove/factor on a shared matrix requires external synchronization |
 
+**Optional mutex support:** Compile with `-DSPARSE_MUTEX` to add per-matrix mutex locking on `sparse_insert()`. This allows safe concurrent mutation of the same matrix at a performance cost. Not recommended — prefer separate matrices per thread.
+
 ## Known Limitations
 
 - **Dense vector RHS only.** The solver takes dense vectors for b and x.

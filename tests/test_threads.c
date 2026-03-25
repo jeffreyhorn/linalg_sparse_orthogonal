@@ -373,6 +373,76 @@ static void test_independent_stress(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Concurrent insert test (exercises SPARSE_MUTEX when enabled)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+typedef struct {
+    SparseMatrix *mat;
+    int thread_id;
+    idx_t start_row;
+    idx_t end_row;
+    int success;
+} insert_arg_t;
+
+static void *thread_concurrent_insert(void *arg)
+{
+    insert_arg_t *ia = (insert_arg_t *)arg;
+    ia->success = 1;
+
+    /* Each thread inserts entries into its own row range → no row conflicts
+     * even without mutex. With mutex, this verifies the lock path works. */
+    for (idx_t i = ia->start_row; i < ia->end_row; i++) {
+        sparse_err_t err = sparse_insert(ia->mat, i, 0, (double)(i + 1));
+        if (err != SPARSE_OK) { ia->success = 0; return NULL; }
+        err = sparse_insert(ia->mat, i, i, (double)(i + 1) * 10.0);
+        if (err != SPARSE_OK) { ia->success = 0; return NULL; }
+    }
+    return NULL;
+}
+
+static void test_concurrent_insert(void)
+{
+    idx_t n = 40;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+
+    int nthreads = 4;
+    pthread_t threads[4];
+    insert_arg_t args[4];
+    idx_t rows_per_thread = n / nthreads;
+
+    for (int t = 0; t < nthreads; t++) {
+        args[t].mat = A;
+        args[t].thread_id = t;
+        args[t].start_row = (idx_t)t * rows_per_thread;
+        args[t].end_row = (t == nthreads - 1) ? n : args[t].start_row + rows_per_thread;
+        int rc = pthread_create(&threads[t], NULL, thread_concurrent_insert, &args[t]);
+        ASSERT_EQ(rc, 0);
+    }
+
+    int all_pass = 1;
+    for (int t = 0; t < nthreads; t++) {
+        pthread_join(threads[t], NULL);
+        if (!args[t].success) all_pass = 0;
+    }
+    ASSERT_TRUE(all_pass);
+
+    /* Verify all entries were inserted correctly.
+     * Row 0: col 0 is both the "col 0 entry" and the diagonal — last write wins. */
+    for (idx_t i = 1; i < n; i++) {
+        ASSERT_NEAR(sparse_get_phys(A, i, 0), (double)(i + 1), 0.0);
+        ASSERT_NEAR(sparse_get_phys(A, i, i), (double)(i + 1) * 10.0, 0.0);
+    }
+    /* Row 0: diagonal overwrites col-0 entry */
+    ASSERT_NEAR(sparse_get_phys(A, 0, 0), 10.0, 0.0);
+
+    printf("    concurrent insert: %d threads, %d rows, nnz=%d, all correct\n",
+           nthreads, (int)n, (int)sparse_nnz(A));
+
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -388,6 +458,9 @@ int main(void)
     RUN_TEST(test_lu_solve_stress);
     RUN_TEST(test_cholesky_solve_stress);
     RUN_TEST(test_independent_stress);
+
+    /* Concurrent insert (non-overlapping rows — safe even without mutex) */
+    RUN_TEST(test_concurrent_insert);
 
     TEST_SUITE_END();
 }

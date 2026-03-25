@@ -85,6 +85,9 @@ SparseMatrix *sparse_create(idx_t rows, idx_t cols)
     mat->cached_norm = -1.0;
     mat->factor_norm = -1.0;
     mat->reorder_perm = NULL;
+#ifdef SPARSE_MUTEX
+    pthread_mutex_init(&mat->mtx, NULL);
+#endif
 
     mat->row_headers  = calloc((size_t)rows, sizeof(Node *));
     mat->col_headers  = calloc((size_t)cols, sizeof(Node *));
@@ -134,6 +137,9 @@ void sparse_free(SparseMatrix *mat)
     free(mat->col_perm);
     free(mat->inv_col_perm);
     free(mat->reorder_perm);
+#ifdef SPARSE_MUTEX
+    pthread_mutex_destroy(&mat->mtx);
+#endif
     free(mat);
 }
 
@@ -185,8 +191,13 @@ sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, double val)
     if (row < 0 || row >= mat->rows || col < 0 || col >= mat->cols)
         return SPARSE_ERR_BOUNDS;
 
-    if (val == 0.0)
-        return sparse_remove(mat, row, col);
+    SPARSE_LOCK(mat);
+
+    if (val == 0.0) {
+        sparse_err_t err = sparse_remove(mat, row, col);
+        SPARSE_UNLOCK(mat);
+        return err;
+    }
 
     /* Walk the row list to find insertion point (sorted by col) */
     Node *prev_r = NULL;
@@ -200,12 +211,13 @@ sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, double val)
     if (curr_r && curr_r->col == col) {
         curr_r->value = val;
         mat->cached_norm = -1.0;
+        SPARSE_UNLOCK(mat);
         return SPARSE_OK;
     }
 
     /* Create a new node */
     Node *node = make_node(mat, row, col, val);
-    if (!node) return SPARSE_ERR_ALLOC;
+    if (!node) { SPARSE_UNLOCK(mat); return SPARSE_ERR_ALLOC; }
     mat->nnz++;
     mat->cached_norm = -1.0;
 
@@ -229,6 +241,7 @@ sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, double val)
     else
         mat->col_headers[col] = node;
 
+    SPARSE_UNLOCK(mat);
     return SPARSE_OK;
 }
 

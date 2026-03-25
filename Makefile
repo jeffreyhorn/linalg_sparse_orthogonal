@@ -67,7 +67,9 @@ $(BUILDDIR)/%.o: $(SRCDIR)/%.c | $(BUILDDIR)
 $(LIB): $(LIB_OBJS)
 	ar rcs $@ $^
 
-# Thread tests need -pthread
+# Thread tests need -pthread.  When SPARSE_MUTEX is enabled (-DSPARSE_MUTEX),
+# ALL compilation units (library and tests) must be compiled with -DSPARSE_MUTEX
+# and linked with -pthread.
 $(BUILDDIR)/test_threads: $(TESTDIR)/test_threads.c $(LIB) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -pthread -o $@
 

@@ -567,18 +567,19 @@ sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B,
     SparseMatrix *out = sparse_create(m, nc);
     if (!out) return SPARSE_ERR_ALLOC;
 
-    /* Dense accumulator for one row of C */
+    /* Dense accumulator for one row of C, with compact touched-index list */
     double *acc = calloc((size_t)nc, sizeof(double));
     int *nz_flag = calloc((size_t)nc, sizeof(int));
-    if (!acc || !nz_flag) {
-        free(acc); free(nz_flag);
+    idx_t *touched = malloc((size_t)nc * sizeof(idx_t));
+    if (!acc || !nz_flag || !touched) {
+        free(acc); free(nz_flag); free(touched);
         sparse_free(out);
         return SPARSE_ERR_ALLOC;
     }
 
     for (idx_t i = 0; i < m; i++) {
         /* Accumulate row i of C: sum over j of A(i,j) * row_j(B) */
-        int has_entries = 0;
+        idx_t ntouched = 0;
         Node *a_node = A->row_headers[i];
         while (a_node) {
             idx_t j = a_node->col;
@@ -588,34 +589,34 @@ sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B,
             Node *b_node = B->row_headers[j];
             while (b_node) {
                 acc[b_node->col] += a_ij * b_node->value;
-                nz_flag[b_node->col] = 1;
-                has_entries = 1;
+                if (!nz_flag[b_node->col]) {
+                    nz_flag[b_node->col] = 1;
+                    touched[ntouched++] = b_node->col;
+                }
                 b_node = b_node->right;
             }
             a_node = a_node->right;
         }
 
-        /* Flush accumulator to sparse output */
-        if (has_entries) {
-            for (idx_t col = 0; col < nc; col++) {
-                if (nz_flag[col]) {
-                    if (fabs(acc[col]) >= 1e-15) {
-                        sparse_err_t err = sparse_insert(out, i, col, acc[col]);
-                        if (err != SPARSE_OK) {
-                            free(acc); free(nz_flag);
-                            sparse_free(out);
-                            return err;
-                        }
-                    }
-                    acc[col] = 0.0;
-                    nz_flag[col] = 0;
+        /* Flush accumulator to sparse output (only touched columns) */
+        for (idx_t t = 0; t < ntouched; t++) {
+            idx_t col = touched[t];
+            if (fabs(acc[col]) >= 1e-15) {
+                sparse_err_t err = sparse_insert(out, i, col, acc[col]);
+                if (err != SPARSE_OK) {
+                    free(acc); free(nz_flag); free(touched);
+                    sparse_free(out);
+                    return err;
                 }
             }
+            acc[col] = 0.0;
+            nz_flag[col] = 0;
         }
     }
 
     free(acc);
     free(nz_flag);
+    free(touched);
     *C = out;
     return SPARSE_OK;
 }

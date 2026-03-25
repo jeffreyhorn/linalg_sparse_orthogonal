@@ -84,6 +84,8 @@ sparse_err_t sparse_from_csr(const SparseCsr *csr, SparseMatrix **mat_out)
     idx_t m = csr->rows;
     idx_t nc = csr->cols;
 
+    if (csr->row_ptr[0] != 0) return SPARSE_ERR_BADARG;
+
     /* Validate: row_ptr must be monotonically non-decreasing */
     for (idx_t i = 0; i < m; i++) {
         if (csr->row_ptr[i] > csr->row_ptr[i + 1])
@@ -173,6 +175,8 @@ sparse_err_t sparse_from_csc(const SparseCsc *csc, SparseMatrix **mat_out)
 
     idx_t m = csc->rows;
     idx_t nc = csc->cols;
+
+    if (csc->col_ptr[0] != 0) return SPARSE_ERR_BADARG;
 
     /* Validate: col_ptr must be monotonically non-decreasing */
     for (idx_t j = 0; j < nc; j++) {

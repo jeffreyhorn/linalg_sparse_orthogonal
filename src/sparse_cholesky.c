@@ -29,7 +29,12 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat)
 
     /* Dense accumulator for column k (indices k..n-1) */
     double *col_acc = calloc((size_t)n, sizeof(double));
-    if (!col_acc) return SPARSE_ERR_ALLOC;
+    int *nz_row = calloc((size_t)n, sizeof(int));
+    idx_t *nz_rows = malloc((size_t)n * sizeof(idx_t));
+    if (!col_acc || !nz_row || !nz_rows) {
+        free(col_acc); free(nz_row); free(nz_rows);
+        return SPARSE_ERR_ALLOC;
+    }
 
     /* Remove upper triangle entries (we only store L) */
     for (idx_t i = 0; i < n; i++) {
@@ -44,12 +49,18 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat)
     }
 
     for (idx_t k = 0; k < n; k++) {
-        /* Initialize accumulator with column k of current matrix (rows >= k) */
-        memset(col_acc, 0, (size_t)n * sizeof(double));
+        /* Initialize accumulator with column k of current matrix (rows >= k).
+         * Track nonzero rows in nz_rows[] / nz_row[] for O(nnz) flush. */
+        idx_t nnz_rows = 0;
         Node *node = mat->col_headers[k];
         while (node) {
-            if (node->row >= k)
+            if (node->row >= k) {
                 col_acc[node->row] = node->value;
+                if (!nz_row[node->row]) {
+                    nz_row[node->row] = 1;
+                    nz_rows[nnz_rows++] = node->row;
+                }
+            }
             node = node->down;
         }
 
@@ -65,8 +76,13 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat)
             /* Walk column j for entries L(i,j) with i >= k */
             Node *col_j = mat->col_headers[j];
             while (col_j) {
-                if (col_j->row >= k)
+                if (col_j->row >= k) {
                     col_acc[col_j->row] -= col_j->value * l_kj;
+                    if (!nz_row[col_j->row]) {
+                        nz_row[col_j->row] = 1;
+                        nz_rows[nnz_rows++] = col_j->row;
+                    }
+                }
                 col_j = col_j->down;
             }
             row_k = row_k->right;
@@ -74,17 +90,27 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat)
 
         /* Diagonal: L(k,k) = sqrt(col_acc[k]) */
         if (col_acc[k] <= 0.0) {
-            free(col_acc);
+            free(col_acc); free(nz_row); free(nz_rows);
             return SPARSE_ERR_NOT_SPD;
         }
         double l_kk = sqrt(col_acc[k]);
 
         /* Write L(k,k) */
         sparse_err_t err = sparse_insert(mat, k, k, l_kk);
-        if (err != SPARSE_OK) { free(col_acc); return err; }
+        if (err != SPARSE_OK) {
+            free(col_acc); free(nz_row); free(nz_rows);
+            return err;
+        }
 
-        /* Off-diagonal: L(i,k) = col_acc[i] / L(k,k) for i > k */
-        for (idx_t i = k + 1; i < n; i++) {
+        /* Off-diagonal: walk only rows with nonzero accumulator values */
+        for (idx_t t = 0; t < nnz_rows; t++) {
+            idx_t i = nz_rows[t];
+            if (i <= k) {
+                /* Reset tracking for row k (diagonal already handled) */
+                col_acc[i] = 0.0;
+                nz_row[i] = 0;
+                continue;
+            }
             double l_ik = col_acc[i] / l_kk;
             if (fabs(l_ik) < DROP_TOL * l_kk) {
                 /* Drop small fill-in; remove if entry exists */
@@ -92,12 +118,17 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat)
                     sparse_insert(mat, i, k, 0.0);
             } else {
                 err = sparse_insert(mat, i, k, l_ik);
-                if (err != SPARSE_OK) { free(col_acc); return err; }
+                if (err != SPARSE_OK) {
+                    free(col_acc); free(nz_row); free(nz_rows);
+                    return err;
+                }
             }
+            col_acc[i] = 0.0;
+            nz_row[i] = 0;
         }
     }
 
-    free(col_acc);
+    free(col_acc); free(nz_row); free(nz_rows);
     return SPARSE_OK;
 }
 
@@ -232,6 +263,10 @@ sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat,
             else if (node->row == i)
                 l_ii = node->value;
             node = node->down;
+        }
+        if (fabs(l_ii) < 1e-30) {
+            free(y); free(b_perm);
+            return SPARSE_ERR_SINGULAR;
         }
         x[i] = (y[i] - sum) / l_ii;
     }

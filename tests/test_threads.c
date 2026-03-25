@@ -389,10 +389,12 @@ static void *thread_concurrent_insert(void *arg)
     insert_arg_t *ia = (insert_arg_t *)arg;
     ia->success = 1;
 
-    /* Each thread inserts entries into its own row range → no row conflicts
-     * even without mutex. With mutex, this verifies the lock path works. */
+    /* Each thread inserts entries into its own row AND column range so that
+     * no two threads touch the same row-header or column-header list.
+     * This makes the test safe even without SPARSE_MUTEX. */
     for (idx_t i = ia->start_row; i < ia->end_row; i++) {
-        sparse_err_t err = sparse_insert(ia->mat, i, 0, (double)(i + 1));
+        sparse_err_t err = sparse_insert(ia->mat, i, ia->start_row,
+                                         (double)(i + 1));
         if (err != SPARSE_OK) { ia->success = 0; return NULL; }
         err = sparse_insert(ia->mat, i, i, (double)(i + 1) * 10.0);
         if (err != SPARSE_OK) { ia->success = 0; return NULL; }
@@ -428,13 +430,24 @@ static void test_concurrent_insert(void)
     ASSERT_TRUE(all_pass);
 
     /* Verify all entries were inserted correctly.
-     * Row 0: col 0 is both the "col 0 entry" and the diagonal — last write wins. */
-    for (idx_t i = 1; i < n; i++) {
-        ASSERT_NEAR(sparse_get_phys(A, i, 0), (double)(i + 1), 0.0);
-        ASSERT_NEAR(sparse_get_phys(A, i, i), (double)(i + 1) * 10.0, 0.0);
+     * Each thread inserted into column start_row (its first row) and the
+     * diagonal.  Row 0: col 0 is both — diagonal wins (last write). */
+    for (int t = 0; t < nthreads; t++) {
+        idx_t sr = args[t].start_row;
+        idx_t er = args[t].end_row;
+        for (idx_t i = sr; i < er; i++) {
+            if (i == sr) {
+                /* col sr overlaps with diagonal when i == sr */
+                ASSERT_NEAR(sparse_get_phys(A, i, i),
+                            (double)(i + 1) * 10.0, 0.0);
+            } else {
+                ASSERT_NEAR(sparse_get_phys(A, i, sr),
+                            (double)(i + 1), 0.0);
+                ASSERT_NEAR(sparse_get_phys(A, i, i),
+                            (double)(i + 1) * 10.0, 0.0);
+            }
+        }
     }
-    /* Row 0: diagonal overwrites col-0 entry */
-    ASSERT_NEAR(sparse_get_phys(A, 0, 0), 10.0, 0.0);
 
     printf("    concurrent insert: %d threads, %d rows, nnz=%d, all correct\n",
            nthreads, (int)n, (int)sparse_nnz(A));

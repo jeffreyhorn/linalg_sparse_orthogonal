@@ -36,6 +36,10 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat)
         return SPARSE_ERR_ALLOC;
     }
 
+    /* Validate symmetry before proceeding */
+    if (!sparse_is_symmetric(mat, 1e-12))
+        return SPARSE_ERR_NOT_SPD;
+
     /* Remove upper triangle entries (we only store L) */
     for (idx_t i = 0; i < n; i++) {
         Node *node = mat->row_headers[i];

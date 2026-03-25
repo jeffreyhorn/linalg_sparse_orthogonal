@@ -85,9 +85,6 @@ SparseMatrix *sparse_create(idx_t rows, idx_t cols)
     mat->cached_norm = -1.0;
     mat->factor_norm = -1.0;
     mat->reorder_perm = NULL;
-#ifdef SPARSE_MUTEX
-    pthread_mutex_init(&mat->mtx, NULL);
-#endif
 
     mat->row_headers  = calloc((size_t)rows, sizeof(Node *));
     mat->col_headers  = calloc((size_t)cols, sizeof(Node *));
@@ -108,6 +105,10 @@ SparseMatrix *sparse_create(idx_t rows, idx_t cols)
         free(mat);
         return NULL;
     }
+
+#ifdef SPARSE_MUTEX
+    pthread_mutex_init(&mat->mtx, NULL);
+#endif
 
     for (idx_t i = 0; i < rows; i++) {
         mat->row_perm[i]     = i;

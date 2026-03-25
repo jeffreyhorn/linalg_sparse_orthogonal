@@ -373,8 +373,10 @@ static void test_independent_stress(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
- * Concurrent insert test (exercises SPARSE_MUTEX when enabled)
+ * Concurrent insert test (only safe with SPARSE_MUTEX — pool is shared)
  * ═══════════════════════════════════════════════════════════════════════ */
+
+#ifdef SPARSE_MUTEX
 
 typedef struct {
     SparseMatrix *mat;
@@ -455,6 +457,8 @@ static void test_concurrent_insert(void)
     sparse_free(A);
 }
 
+#endif /* SPARSE_MUTEX */
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -472,8 +476,12 @@ int main(void)
     RUN_TEST(test_cholesky_solve_stress);
     RUN_TEST(test_independent_stress);
 
-    /* Concurrent insert (non-overlapping rows — safe even without mutex) */
+    /* Concurrent insert — only safe with SPARSE_MUTEX (pool/nnz are shared state) */
+#ifdef SPARSE_MUTEX
     RUN_TEST(test_concurrent_insert);
+#else
+    printf("  [SKIP] test_concurrent_insert (requires -DSPARSE_MUTEX)\n");
+#endif
 
     TEST_SUITE_END();
 }

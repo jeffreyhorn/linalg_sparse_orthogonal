@@ -354,9 +354,9 @@ The dense accumulator avoids hash-based or sort-based merging. Entries with |val
 
 ### Complexity
 
-- Time: O(nnz_A × avg_nnz_per_row_B + m × n) where m×n is the flush cost
-- Space: O(n) for the dense accumulator (reused per row)
-- The dense flush step scans all n columns, which dominates for very sparse products. For denser products, the accumulation dominates.
+- Time: O(nnz_A × avg_nnz_per_row_B + nnz_C) where the second term is the total flush cost over all rows
+- Space: O(n) for the dense accumulator and touched-index list (reused per row)
+- The flush step iterates only columns touched during accumulation (via a compact index list), not all n columns.
 
 ## CSR/CSC Compressed Formats
 
@@ -397,4 +397,4 @@ The library is safe for concurrent use under these conditions:
 **Unsafe operations (require external synchronization):**
 - Concurrent mutation (insert/remove/factor) of the same matrix
 
-**Optional mutex support:** Compile with `-DSPARSE_MUTEX` to add per-matrix mutex locking on `sparse_insert()`. This allows safe concurrent mutation at a performance cost. Zero overhead when compiled without the flag.
+**Optional mutex support:** Compile with `-DSPARSE_MUTEX` and `-pthread` to add per-matrix mutex locking on `sparse_insert()` and `sparse_remove()`. This serializes concurrent insert/remove calls on the same matrix. Factorization functions are NOT mutex-protected. Zero overhead when compiled without the flag.

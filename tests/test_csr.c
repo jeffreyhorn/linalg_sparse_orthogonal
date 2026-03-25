@@ -4,6 +4,12 @@
 #include "test_framework.h"
 #include <stdlib.h>
 #include <math.h>
+#include <stdio.h>
+
+#ifndef DATA_DIR
+#define DATA_DIR "tests/data"
+#endif
+#define SS_DIR DATA_DIR "/suitesparse"
 
 /* ═══════════════════════════════════════════════════════════════════════
  * CSR tests
@@ -227,6 +233,116 @@ static void test_csc_null(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * SuiteSparse validation
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* CSR round-trip on west0067 */
+static void test_csr_suitesparse_west0067(void)
+{
+    SparseMatrix *A = NULL;
+    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/west0067.mtx"), SPARSE_OK);
+    idx_t orig_nnz = sparse_nnz(A);
+
+    SparseCsr *csr = NULL;
+    ASSERT_ERR(sparse_to_csr(A, &csr), SPARSE_OK);
+    ASSERT_EQ(csr->nnz, orig_nnz);
+    ASSERT_EQ(csr->rows, 67);
+    ASSERT_EQ(csr->cols, 67);
+
+    SparseMatrix *B = NULL;
+    ASSERT_ERR(sparse_from_csr(csr, &B), SPARSE_OK);
+    ASSERT_EQ(sparse_nnz(B), orig_nnz);
+
+    /* Verify sample entries match via CSR arrays */
+    for (idx_t i = 0; i < 67; i++) {
+        for (idx_t k = csr->row_ptr[i]; k < csr->row_ptr[i + 1]; k++) {
+            ASSERT_NEAR(sparse_get_phys(B, i, csr->col_idx[k]),
+                        csr->values[k], 0.0);
+        }
+    }
+
+    printf("    west0067: CSR round-trip OK, nnz=%d\n", (int)orig_nnz);
+
+    sparse_csr_free(csr);
+    sparse_free(A);
+    sparse_free(B);
+}
+
+/* CSC on nos4 — verify column structure */
+static void test_csc_suitesparse_nos4(void)
+{
+    SparseMatrix *A = NULL;
+    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/nos4.mtx"), SPARSE_OK);
+    idx_t orig_nnz = sparse_nnz(A);
+
+    SparseCsc *csc = NULL;
+    ASSERT_ERR(sparse_to_csc(A, &csc), SPARSE_OK);
+    ASSERT_EQ(csc->nnz, orig_nnz);
+    ASSERT_EQ(csc->rows, 100);
+    ASSERT_EQ(csc->cols, 100);
+
+    /* Verify col_ptr is monotonic and sums to nnz */
+    for (idx_t j = 0; j < 100; j++)
+        ASSERT_TRUE(csc->col_ptr[j] <= csc->col_ptr[j + 1]);
+    ASSERT_EQ(csc->col_ptr[100], orig_nnz);
+
+    /* Round-trip */
+    SparseMatrix *B = NULL;
+    ASSERT_ERR(sparse_from_csc(csc, &B), SPARSE_OK);
+    ASSERT_EQ(sparse_nnz(B), orig_nnz);
+
+    printf("    nos4: CSC round-trip OK, nnz=%d\n", (int)orig_nnz);
+
+    sparse_csc_free(csc);
+    sparse_free(A);
+    sparse_free(B);
+}
+
+/* Transpose relationship: CSR of A should match CSC of A^T
+ * Since we don't have sparse_transpose yet, build A and A^T manually */
+static void test_csr_csc_transpose(void)
+{
+    /* A = [[1, 0, 3], [0, 5, 0], [7, 0, 9]] */
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 2, 3.0);
+    sparse_insert(A, 1, 1, 5.0);
+    sparse_insert(A, 2, 0, 7.0);
+    sparse_insert(A, 2, 2, 9.0);
+
+    /* A^T = [[1, 0, 7], [0, 5, 0], [3, 0, 9]] */
+    SparseMatrix *AT = sparse_create(3, 3);
+    sparse_insert(AT, 0, 0, 1.0);
+    sparse_insert(AT, 0, 2, 7.0);
+    sparse_insert(AT, 1, 1, 5.0);
+    sparse_insert(AT, 2, 0, 3.0);
+    sparse_insert(AT, 2, 2, 9.0);
+
+    SparseCsr *csr_A = NULL;
+    ASSERT_ERR(sparse_to_csr(A, &csr_A), SPARSE_OK);
+
+    SparseCsc *csc_AT = NULL;
+    ASSERT_ERR(sparse_to_csc(AT, &csc_AT), SPARSE_OK);
+
+    /* CSR of A and CSC of A^T should have same structure:
+     * CSR row_ptr of A = CSC col_ptr of A^T
+     * CSR col_idx of A = CSC row_idx of A^T
+     * CSR values of A = CSC values of A^T */
+    ASSERT_EQ(csr_A->nnz, csc_AT->nnz);
+    for (idx_t i = 0; i <= 3; i++)
+        ASSERT_EQ(csr_A->row_ptr[i], csc_AT->col_ptr[i]);
+    for (idx_t k = 0; k < csr_A->nnz; k++) {
+        ASSERT_EQ(csr_A->col_idx[k], csc_AT->row_idx[k]);
+        ASSERT_NEAR(csr_A->values[k], csc_AT->values[k], 0.0);
+    }
+
+    sparse_csr_free(csr_A);
+    sparse_csc_free(csc_AT);
+    sparse_free(A);
+    sparse_free(AT);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -245,6 +361,13 @@ int main(void)
     RUN_TEST(test_csc_known);
     RUN_TEST(test_csc_roundtrip);
     RUN_TEST(test_csc_null);
+
+    /* SuiteSparse validation */
+    RUN_TEST(test_csr_suitesparse_west0067);
+    RUN_TEST(test_csc_suitesparse_nos4);
+
+    /* Transpose relationship */
+    RUN_TEST(test_csr_csc_transpose);
 
     TEST_SUITE_END();
 }

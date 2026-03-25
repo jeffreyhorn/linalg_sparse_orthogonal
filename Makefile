@@ -41,7 +41,8 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_cholesky.c \
             $(TESTDIR)/test_csr.c \
             $(TESTDIR)/test_matmul.c \
-            $(TESTDIR)/test_threads.c
+            $(TESTDIR)/test_threads.c \
+            $(TESTDIR)/test_sprint4_integration.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
 # Benchmark sources
@@ -66,8 +67,11 @@ $(BUILDDIR)/%.o: $(SRCDIR)/%.c | $(BUILDDIR)
 $(LIB): $(LIB_OBJS)
 	ar rcs $@ $^
 
-# Thread test needs -pthread
+# Thread tests need -pthread
 $(BUILDDIR)/test_threads: $(TESTDIR)/test_threads.c $(LIB) | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -pthread -o $@
+
+$(BUILDDIR)/test_sprint4_integration: $(TESTDIR)/test_sprint4_integration.c $(LIB) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -pthread -o $@
 
 # Test executables (any .c in tests/)

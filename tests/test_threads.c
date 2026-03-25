@@ -391,9 +391,9 @@ static void *thread_concurrent_insert(void *arg)
     insert_arg_t *ia = (insert_arg_t *)arg;
     ia->success = 1;
 
-    /* Each thread inserts entries into its own row AND column range so that
-     * no two threads touch the same row-header or column-header list.
-     * This makes the test safe even without SPARSE_MUTEX. */
+    /* Each thread inserts entries into its own row AND column range to
+     * avoid logical conflicts. However, the pool allocator and mat->nnz
+     * are shared, so SPARSE_MUTEX is required for thread safety. */
     for (idx_t i = ia->start_row; i < ia->end_row; i++) {
         sparse_err_t err = sparse_insert(ia->mat, i, ia->start_row,
                                          (double)(i + 1));

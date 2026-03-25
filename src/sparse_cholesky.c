@@ -27,6 +27,10 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat)
     if (n != mat->cols) return SPARSE_ERR_SHAPE;
     if (n == 0) return SPARSE_OK;
 
+    /* Validate symmetry before allocating or modifying anything */
+    if (!sparse_is_symmetric(mat, 1e-12))
+        return SPARSE_ERR_NOT_SPD;
+
     /* Dense accumulator for column k (indices k..n-1) */
     double *col_acc = calloc((size_t)n, sizeof(double));
     int *nz_row = calloc((size_t)n, sizeof(int));
@@ -35,10 +39,6 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat)
         free(col_acc); free(nz_row); free(nz_rows);
         return SPARSE_ERR_ALLOC;
     }
-
-    /* Validate symmetry before proceeding */
-    if (!sparse_is_symmetric(mat, 1e-12))
-        return SPARSE_ERR_NOT_SPD;
 
     /* Remove upper triangle entries (we only store L) */
     for (idx_t i = 0; i < n; i++) {

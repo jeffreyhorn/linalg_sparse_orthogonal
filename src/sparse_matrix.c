@@ -107,7 +107,13 @@ SparseMatrix *sparse_create(idx_t rows, idx_t cols)
     }
 
 #ifdef SPARSE_MUTEX
-    pthread_mutex_init(&mat->mtx, NULL);
+    if (pthread_mutex_init(&mat->mtx, NULL) != 0) {
+        free(mat->row_headers); free(mat->col_headers);
+        free(mat->row_perm); free(mat->inv_row_perm);
+        free(mat->col_perm); free(mat->inv_col_perm);
+        free(mat);
+        return NULL;
+    }
 #endif
 
     for (idx_t i = 0; i < rows; i++) {
@@ -361,7 +367,7 @@ int sparse_is_symmetric(const SparseMatrix *mat, double tol)
 {
     if (!mat) return 0;
     if (mat->rows != mat->cols) return 0;
-    if (tol < 0.0) return 0;
+    if (!(tol >= 0.0)) return 0;  /* rejects negative and NaN */
 
     /* O(nnz) check: for each entry A(i,j), walk column j's list to find
      * the matching A(j,i) entry. Since column lists are sorted by row,
@@ -642,8 +648,9 @@ sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B,
             a_node = a_node->right;
         }
 
-        /* Sort touched columns so inserts are in ascending order (O(1) each
-         * since the output row list is built in sorted order). */
+        /* Sort touched columns so inserts are in ascending order. Each insert
+         * still scans the row list from the head, but sorted order ensures the
+         * scan length grows linearly (amortized O(nnz_row) total per row). */
         if (ntouched > 1)
             qsort(touched, (size_t)ntouched, sizeof(idx_t), cmp_idx);
 

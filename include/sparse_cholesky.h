@@ -49,8 +49,8 @@ typedef struct {
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if mat is NULL.
  * @return SPARSE_ERR_SHAPE if mat is not square.
- * @return SPARSE_ERR_NOT_SPD if a non-positive pivot is encountered (matrix
- *         is not positive-definite).
+ * @return SPARSE_ERR_NOT_SPD if the matrix is not symmetric (checked first)
+ *         or a non-positive pivot is encountered during factorization.
  *
  * @threadsafety Mutates mat. Not safe to call concurrently on the same matrix.
  *               Safe to call concurrently on different matrices.

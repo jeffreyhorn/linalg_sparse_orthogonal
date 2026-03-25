@@ -248,7 +248,7 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
     /* Outer restart loop */
     idx_t max_restarts = (o->max_iter + m - 1) / m;  /* ceil(max_iter / m) */
 
-    for (idx_t restart = 0; restart < max_restarts && !converged; restart++) {
+    for (idx_t restart = 0; restart < max_restarts; restart++) {
         /* Compute r = b - A*x */
         sparse_matvec(A, x, w);
         for (idx_t i = 0; i < n; i++)
@@ -372,16 +372,20 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
         /* Update solution: x = x + V * y */
         for (idx_t k = 0; k < j; k++)
             vec_axpy(y[k], V(k), x, n);
+
+        /* Compute true residual to decide convergence */
+        sparse_matvec(A, x, w);
+        for (idx_t i = 0; i < n; i++)
+            w[i] = b[i] - w[i];
+        rel_res = vec_norm2(w, n) / bnorm;
+
+        if (rel_res <= o->tol) {
+            converged = 1;
+            break;
+        }
     }
 
-    /* Compute true residual: r = b - A*x, rel_res = ||r|| / ||b|| */
-    sparse_matvec(A, x, w);
-    for (idx_t i = 0; i < n; i++)
-        w[i] = b[i] - w[i];
-    rel_res = vec_norm2(w, n) / bnorm;
-
-    if (!converged && rel_res <= o->tol)
-        converged = 1;
+    /* converged is set only when the true residual meets tolerance */
 
     if (result) {
         result->iterations    = total_iter;

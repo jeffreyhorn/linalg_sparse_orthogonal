@@ -387,12 +387,12 @@ static void test_integration_identity_preconditioner(void)
     double x_unprec[5] = {0};
     sparse_iter_opts_t opts = {.max_iter = 100, .tol = 1e-12, .verbose = 0};
     sparse_iter_result_t res_unprec;
-    sparse_solve_cg(A, b, x_unprec, &opts, NULL, NULL, &res_unprec);
+    ASSERT_ERR(sparse_solve_cg(A, b, x_unprec, &opts, NULL, NULL, &res_unprec), SPARSE_OK);
 
     /* Identity preconditioned CG — should behave identically */
     double x_ident[5] = {0};
     sparse_iter_result_t res_ident;
-    sparse_solve_cg(A, b, x_ident, &opts, identity_precond, NULL, &res_ident);
+    ASSERT_ERR(sparse_solve_cg(A, b, x_ident, &opts, identity_precond, NULL, &res_ident), SPARSE_OK);
 
     ASSERT_TRUE(res_unprec.converged);
     ASSERT_TRUE(res_ident.converged);

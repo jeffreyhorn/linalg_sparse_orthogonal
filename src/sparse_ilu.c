@@ -18,18 +18,9 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu)
     ilu->U = NULL;
     ilu->n = n;
 
-    if (n == 0) {
-        ilu->L = sparse_create(0, 0);
-        ilu->U = sparse_create(0, 0);
-        if (!ilu->L || !ilu->U) {
-            sparse_free(ilu->L);
-            sparse_free(ilu->U);
-            ilu->L = NULL;
-            ilu->U = NULL;
-            return SPARSE_ERR_ALLOC;
-        }
-        return SPARSE_OK;
-    }
+    /* Empty matrix: treat as a valid no-op factorization.
+     * Leave L and U as NULL; sparse_ilu_solve handles n==0 early. */
+    if (n == 0) return SPARSE_OK;
 
     /* Work on a copy of A (using physical indices, no permutations) */
     SparseMatrix *W = sparse_copy(A);
@@ -142,10 +133,11 @@ sparse_err_t sparse_ilu_solve(const sparse_ilu_t *ilu,
                                const double *r, double *z)
 {
     if (!ilu || !r || !z) return SPARSE_ERR_NULL;
-    if (!ilu->L || !ilu->U) return SPARSE_ERR_NULL;
 
     idx_t n = ilu->n;
     if (n == 0) return SPARSE_OK;
+
+    if (!ilu->L || !ilu->U) return SPARSE_ERR_NULL;
 
     /* Allocate workspace for intermediate vector y */
     double *y = malloc((size_t)n * sizeof(double));

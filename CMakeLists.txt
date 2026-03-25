@@ -38,7 +38,17 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_lu.c
     src/sparse_vector.c
     src/sparse_reorder.c
+    src/sparse_cholesky.c
+    src/sparse_csr.c
 )
+
+# Optional mutex support: cmake -DSPARSE_MUTEX=ON ..
+option(SPARSE_MUTEX "Enable per-matrix mutex for concurrent insert/remove" OFF)
+if(SPARSE_MUTEX)
+    find_package(Threads REQUIRED)
+    target_compile_definitions(sparse_lu_ortho PUBLIC SPARSE_MUTEX)
+    target_link_libraries(sparse_lu_ortho PUBLIC Threads::Threads)
+endif()
 
 target_include_directories(sparse_lu_ortho
     PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/include

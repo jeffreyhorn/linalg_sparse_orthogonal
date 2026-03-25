@@ -7,6 +7,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Orthogonal linked-list storage** — each non-zero is linked into both its row list and column list, enabling efficient row and column traversal
 - **Slab pool allocator** with free-list for fast node allocation and reuse
 - **LU factorization** with complete or partial pivoting (P·A·Q = L·U)
+- **Cholesky factorization** for symmetric positive-definite matrices (A = L·L^T, ~50% less storage than LU)
 - **Direct solve** via forward/backward substitution with permutation handling
 - **Iterative refinement** to improve solution accuracy
 - **Sparse matrix-vector product** (SpMV)
@@ -14,8 +15,11 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Drop tolerance** to control fill-in during factorization (relative to pivot magnitude)
 - **Fill-reducing reordering** — Reverse Cuthill-McKee (RCM) and Approximate Minimum Degree (AMD) orderings to reduce fill-in
 - **Condition number estimation** — Hager/Higham 1-norm estimator from LU factors (`sparse_lu_condest`)
+- **Sparse matrix-matrix multiply** — C = A*B via Gustavson's algorithm (`sparse_matmul`)
+- **CSR/CSC export/import** — convert to/from compressed sparse row/column formats
 - **Matrix arithmetic** — scalar scaling (`sparse_scale`) and addition (`sparse_add`)
 - **Infinity norm** with internal caching (`sparse_norminf`)
+- **Thread-safe** — concurrent solves on shared factored matrices, per-matrix pool allocators
 - **errno capture** for I/O errors (`sparse_errno`)
 
 ## Building
@@ -94,6 +98,8 @@ The library is split into four headers:
 | [`sparse_types.h`](include/sparse_types.h) | `idx_t`, error codes (`sparse_err_t`), pivot/reorder strategies |
 | [`sparse_matrix.h`](include/sparse_matrix.h) | Sparse matrix lifecycle, element access, SpMV, Matrix Market I/O |
 | [`sparse_lu.h`](include/sparse_lu.h) | LU factorization, solve, condition estimation, iterative refinement |
+| [`sparse_cholesky.h`](include/sparse_cholesky.h) | Cholesky factorization and solve for SPD matrices |
+| [`sparse_csr.h`](include/sparse_csr.h) | CSR/CSC compressed format conversion |
 | [`sparse_reorder.h`](include/sparse_reorder.h) | Fill-reducing reordering (RCM, AMD), permutation, bandwidth |
 | [`sparse_vector.h`](include/sparse_vector.h) | Dense vector utilities (norms, axpy, dot product) |
 
@@ -116,6 +122,11 @@ The library is split into four headers:
 - `sparse_lu_condest(A, LU, &cond)` — estimate 1-norm condition number from LU factors
 - `sparse_lu_refine(A, LU, b, x, max_iters, tol)` — iterative refinement
 
+**Cholesky (SPD matrices):**
+- `sparse_cholesky_factor(mat)` — in-place A = L·L^T
+- `sparse_cholesky_factor_opts(mat, &opts)` — with optional AMD/RCM reordering
+- `sparse_cholesky_solve(mat, b, x)` — solve using Cholesky factors
+
 **Fill-reducing reordering:**
 - `sparse_reorder_rcm(A, perm)` — Reverse Cuthill-McKee ordering
 - `sparse_reorder_amd(A, perm)` — Approximate Minimum Degree ordering
@@ -123,13 +134,16 @@ The library is split into four headers:
 - `sparse_bandwidth(A)` — compute matrix bandwidth
 
 **Matrix arithmetic:**
+- `sparse_matmul(A, B, &C)` — sparse matrix-matrix multiply (Gustavson's algorithm)
 - `sparse_scale(mat, alpha)` — in-place scalar multiplication
 - `sparse_add(A, B, alpha, beta, &C)` — C = alpha*A + beta*B
 - `sparse_add_inplace(A, B, alpha, beta)` — A = alpha*A + beta*B
 - `sparse_norminf(mat, &norm)` — infinity norm (cached)
 
-**I/O:**
+**I/O and format conversion:**
 - `sparse_save_mm(mat, filename)` / `sparse_load_mm(&mat, filename)` — Matrix Market format
+- `sparse_to_csr(mat, &csr)` / `sparse_from_csr(csr, &mat)` — CSR conversion
+- `sparse_to_csc(mat, &csc)` / `sparse_from_csc(csc, &mat)` — CSC conversion
 - `sparse_errno()` — retrieve system errno after I/O failure
 
 All functions return `sparse_err_t` error codes (except accessors that return values directly). See `sparse_strerror()` for human-readable error messages.
@@ -151,18 +165,31 @@ All functions return `sparse_err_t` error codes (except accessors that return va
 - Solve: O(nnz_LU) for forward/backward substitution
 - SpMV: O(nnz)
 
+## Thread Safety
+
+The library is safe for concurrent use under the following contract:
+
+| Operation | Thread-safe? | Notes |
+|-----------|:---:|-------|
+| Concurrent solves on the same factored matrix | Yes | Solve is pure read-only on the matrix |
+| Concurrent factorization of different matrices | Yes | Each matrix has its own pool allocator |
+| Concurrent read-only access (nnz, get, matvec) | Yes | No shared mutable state |
+| `sparse_errno()` | Yes | Uses `_Thread_local` storage |
+| Concurrent mutation of the same matrix | **No** | Insert/remove/factor on a shared matrix requires external synchronization |
+
+**Optional mutex support:** Compile with `-DSPARSE_MUTEX` and `-pthread` to add per-matrix mutex locking on `sparse_insert()` and `sparse_remove()`. This serializes concurrent insert/remove calls on the same matrix. Note: factorization (`sparse_lu_factor`, `sparse_cholesky_factor`) is not mutex-protected and must not be called concurrently on the same matrix. Not recommended — prefer separate matrices per thread.
+
 ## Known Limitations
 
-- **Not thread-safe.** All operations are single-threaded.
 - **Dense vector RHS only.** The solver takes dense vectors for b and x.
 - **In-place factorization.** `sparse_lu_factor` overwrites the matrix; always work on a copy if you need the original.
 - **No complex or integer matrices.** Only real (double-precision) values are supported.
 
 ## Testing
 
-The test suite contains **242 unit tests** with **1255 assertions** across 10 test suites:
+The test suite contains **305 unit tests** with **2212 assertions** across 15 test suites:
 
-- Sparse matrix data structure and norms (38 tests)
+- Sparse matrix data structure, norms, and symmetry check (43 tests)
 - LU factorization, solve, transpose solve, and condition estimation (37 tests)
 - Matrix Market I/O with errno validation (22 tests)
 - Known reference matrices (15 tests)
@@ -172,6 +199,11 @@ The test suite contains **242 unit tests** with **1255 assertions** across 10 te
 - Matrix arithmetic — scale and add (23 tests)
 - SuiteSparse real-world matrix validation (10 tests)
 - Reordering — permute, bandwidth, RCM, AMD, factor_opts integration (38 tests)
+- Cholesky factorization and solve (21 tests)
+- CSR/CSC conversion and round-trip (11 tests)
+- Sparse matrix-matrix multiply (14 tests)
+- Thread safety — concurrent solve and insert (7 tests)
+- Sprint 4 cross-feature integration (5 tests)
 
 ```bash
 make test          # run all tests
@@ -179,6 +211,7 @@ make smoke         # quick smoke test
 make sanitize      # UBSan (undefined behavior)
 make asan          # ASan (address sanitizer) — requires GCC or LLVM clang on macOS
 make sanitize-all  # both ASan + UBSan
+make tsan          # TSan (thread sanitizer) for concurrent tests
 ```
 
 **Note:** Apple Clang's ASan hangs on macOS. Use an alternative compiler:
@@ -196,16 +229,20 @@ linalg_sparse_orthogonal/
 │   ├── sparse_types.h
 │   ├── sparse_matrix.h
 │   ├── sparse_lu.h
+│   ├── sparse_cholesky.h
+│   ├── sparse_csr.h
 │   ├── sparse_reorder.h
 │   └── sparse_vector.h
 ├── src/                  Library implementation
 │   ├── sparse_types.c
 │   ├── sparse_matrix.c
 │   ├── sparse_lu.c
+│   ├── sparse_cholesky.c
+│   ├── sparse_csr.c
 │   ├── sparse_reorder.c
 │   ├── sparse_vector.c
 │   └── sparse_matrix_internal.h
-├── tests/                Unit tests
+├── tests/                Unit tests (15 suites, 305 tests)
 │   ├── test_framework.h
 │   ├── test_sparse_matrix.c
 │   ├── test_sparse_lu.c
@@ -217,6 +254,11 @@ linalg_sparse_orthogonal/
 │   ├── test_sparse_arith.c
 │   ├── test_suitesparse.c
 │   ├── test_reorder.c
+│   ├── test_cholesky.c
+│   ├── test_csr.c
+│   ├── test_matmul.c
+│   ├── test_threads.c
+│   ├── test_sprint4_integration.c
 │   └── data/             Reference .mtx files (8 + 6 SuiteSparse)
 ├── benchmarks/           Performance benchmarks
 ├── docs/                 Algorithm and format documentation

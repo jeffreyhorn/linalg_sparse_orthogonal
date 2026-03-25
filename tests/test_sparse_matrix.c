@@ -566,6 +566,56 @@ static void test_norminf_null(void)
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Symmetry check tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_symmetric_spd(void)
+{
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 4.0);
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 1, 0, 2.0);
+    sparse_insert(A, 1, 1, 5.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 3.0);
+    ASSERT_TRUE(sparse_is_symmetric(A, 1e-15));
+    sparse_free(A);
+}
+
+static void test_symmetric_unsymmetric(void)
+{
+    SparseMatrix *A = sparse_create(2, 2);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 1, 0, 3.0);  /* != A(0,1) */
+    sparse_insert(A, 1, 1, 4.0);
+    ASSERT_FALSE(sparse_is_symmetric(A, 1e-15));
+    sparse_free(A);
+}
+
+static void test_symmetric_rectangular(void)
+{
+    SparseMatrix *A = sparse_create(2, 3);
+    ASSERT_FALSE(sparse_is_symmetric(A, 0.0));
+    sparse_free(A);
+}
+
+static void test_symmetric_null(void)
+{
+    ASSERT_FALSE(sparse_is_symmetric(NULL, 0.0));
+}
+
+static void test_symmetric_diagonal(void)
+{
+    SparseMatrix *A = sparse_create(4, 4);
+    for (idx_t i = 0; i < 4; i++)
+        sparse_insert(A, i, i, (double)(i + 1));
+    ASSERT_TRUE(sparse_is_symmetric(A, 0.0));
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -630,6 +680,13 @@ int main(void)
     RUN_TEST(test_norminf_negative_values);
     RUN_TEST(test_norminf_cached);
     RUN_TEST(test_norminf_null);
+
+    /* Symmetry check */
+    RUN_TEST(test_symmetric_spd);
+    RUN_TEST(test_symmetric_unsymmetric);
+    RUN_TEST(test_symmetric_rectangular);
+    RUN_TEST(test_symmetric_null);
+    RUN_TEST(test_symmetric_diagonal);
 
     TEST_SUITE_END();
 }

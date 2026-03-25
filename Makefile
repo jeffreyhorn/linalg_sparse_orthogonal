@@ -8,6 +8,11 @@ ifneq ($(SYSROOT),)
 CFLAGS += -isysroot $(SYSROOT)
 endif
 LDFLAGS = -lm
+# When SPARSE_MUTEX is enabled, all binaries need -pthread
+ifdef SPARSE_MUTEX
+CFLAGS  += -DSPARSE_MUTEX
+LDFLAGS += -pthread
+endif
 INCLUDE = -Iinclude
 
 # Directories
@@ -21,7 +26,9 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_matrix.c \
            $(SRCDIR)/sparse_lu.c \
            $(SRCDIR)/sparse_vector.c \
-           $(SRCDIR)/sparse_reorder.c
+           $(SRCDIR)/sparse_reorder.c \
+           $(SRCDIR)/sparse_cholesky.c \
+           $(SRCDIR)/sparse_csr.c
 LIB_OBJS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(LIB_SRCS))
 LIB      = $(BUILDDIR)/libsparse_lu_ortho.a
 
@@ -35,7 +42,12 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_integration.c \
             $(TESTDIR)/test_sparse_arith.c \
             $(TESTDIR)/test_suitesparse.c \
-            $(TESTDIR)/test_reorder.c
+            $(TESTDIR)/test_reorder.c \
+            $(TESTDIR)/test_cholesky.c \
+            $(TESTDIR)/test_csr.c \
+            $(TESTDIR)/test_matmul.c \
+            $(TESTDIR)/test_threads.c \
+            $(TESTDIR)/test_sprint4_integration.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
 # Benchmark sources
@@ -59,6 +71,15 @@ $(BUILDDIR)/%.o: $(SRCDIR)/%.c | $(BUILDDIR)
 # Static library
 $(LIB): $(LIB_OBJS)
 	ar rcs $@ $^
+
+# Thread tests need -pthread.  When SPARSE_MUTEX is enabled (-DSPARSE_MUTEX),
+# ALL compilation units (library and tests) must be compiled with -DSPARSE_MUTEX
+# and linked with -pthread.
+$(BUILDDIR)/test_threads: $(TESTDIR)/test_threads.c $(LIB) | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -pthread -o $@
+
+$(BUILDDIR)/test_sprint4_integration: $(TESTDIR)/test_sprint4_integration.c $(LIB) | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -pthread -o $@
 
 # Test executables (any .c in tests/)
 $(BUILDDIR)/%: $(TESTDIR)/%.c $(LIB) | $(BUILDDIR)
@@ -123,6 +144,12 @@ sanitize-all: LDFLAGS += -fsanitize=address,undefined
 sanitize-all: export MallocNanoZone=0
 sanitize-all: export ASAN_OPTIONS=detect_leaks=0
 sanitize-all: clean test
+
+# Thread Sanitizer (for thread safety tests)
+.PHONY: tsan
+tsan: CFLAGS += -fsanitize=thread -fno-omit-frame-pointer -g -O1
+tsan: LDFLAGS += -fsanitize=thread
+tsan: clean test
 
 # Clean
 .PHONY: clean

@@ -180,6 +180,21 @@ idx_t  sparse_nnz(const SparseMatrix *mat);
 size_t sparse_memory_usage(const SparseMatrix *mat);
 
 /**
+ * @brief Check whether a matrix is symmetric within a tolerance.
+ *
+ * Returns 1 if for all nonzero entries A(i,j), |A(i,j) - A(j,i)| <= tol.
+ * Also checks that A is square.
+ *
+ * @note Operates in physical index space. Do not use on matrices with
+ *       non-identity permutations (e.g., after LU factorization).
+ *
+ * @param mat  Input matrix (not modified).
+ * @param tol  Absolute tolerance for symmetry check.
+ * @return 1 if symmetric, 0 if not symmetric or mat is NULL/non-square.
+ */
+int sparse_is_symmetric(const SparseMatrix *mat, double tol);
+
+/**
  * @brief Compute the infinity norm of the matrix: ||A||_inf = max_i sum_j |a_ij|.
  *
  * The result is cached internally and invalidated when the matrix is modified
@@ -269,6 +284,31 @@ sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B,
  */
 sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B,
                                  double alpha, double beta);
+
+/**
+ * @brief Compute C = A * B (sparse matrix-matrix multiply).
+ *
+ * Uses Gustavson's row-wise algorithm: for each row i of A, row i of C
+ * is a linear combination of rows of B, weighted by A's entries. A dense
+ * accumulator is used per row and flushed to sparse output.
+ *
+ * A must be m×k and B must be k×n; C will be m×n.
+ * Entries with |value| < 1e-15 are dropped.
+ *
+ * @note Operates in physical index space. Do not use on matrices with
+ *       non-identity permutations (e.g., after LU factorization).
+ *
+ * @param A       Left input matrix (m×k).
+ * @param B       Right input matrix (k×n).
+ * @param[out] C  Pointer to receive the product matrix. Caller must free
+ *                with sparse_free(). Set to NULL on error.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if any argument is NULL.
+ * @return SPARSE_ERR_SHAPE if inner dimensions mismatch (A->cols != B->rows).
+ * @return SPARSE_ERR_ALLOC if memory allocation fails.
+ */
+sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B,
+                           SparseMatrix **C);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Matrix Market I/O

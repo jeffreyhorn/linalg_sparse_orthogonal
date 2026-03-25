@@ -104,6 +104,14 @@ sparse_err_t sparse_from_csr(const SparseCsr *csr, SparseMatrix **mat_out)
             return SPARSE_ERR_BADARG;
     }
 
+    /* Validate: col_idx within each row must be strictly increasing (no duplicates) */
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t k = csr->row_ptr[i] + 1; k < csr->row_ptr[i + 1]; k++) {
+            if (csr->col_idx[k] <= csr->col_idx[k - 1])
+                return SPARSE_ERR_BADARG;
+        }
+    }
+
     SparseMatrix *mat = sparse_create(m, nc);
     if (!mat) return SPARSE_ERR_ALLOC;
 
@@ -198,6 +206,14 @@ sparse_err_t sparse_from_csc(const SparseCsc *csc, SparseMatrix **mat_out)
     for (idx_t k = 0; k < csc->nnz; k++) {
         if (csc->row_idx[k] < 0 || csc->row_idx[k] >= m)
             return SPARSE_ERR_BADARG;
+    }
+
+    /* Validate: row_idx within each column must be strictly increasing (no duplicates) */
+    for (idx_t j = 0; j < nc; j++) {
+        for (idx_t k = csc->col_ptr[j] + 1; k < csc->col_ptr[j + 1]; k++) {
+            if (csc->row_idx[k] <= csc->row_idx[k - 1])
+                return SPARSE_ERR_BADARG;
+        }
     }
 
     SparseMatrix *mat = sparse_create(m, nc);

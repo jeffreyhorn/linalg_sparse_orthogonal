@@ -648,9 +648,10 @@ sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B,
             a_node = a_node->right;
         }
 
-        /* Sort touched columns so inserts are in ascending order. Each insert
-         * still scans the row list from the head, but sorted order ensures the
-         * scan length grows linearly (amortized O(nnz_row) total per row). */
+        /* Sort touched columns so inserts are in ascending order. sparse_insert
+         * scans from the row head each time, so total flush cost per row is
+         * O(nnz_row^2) in the worst case. Sorting avoids the pathological
+         * reverse-order case and gives good practical performance. */
         if (ntouched > 1)
             qsort(touched, (size_t)ntouched, sizeof(idx_t), cmp_idx);
 

@@ -363,13 +363,37 @@ int sparse_is_symmetric(const SparseMatrix *mat, double tol)
     if (mat->rows != mat->cols) return 0;
     if (tol < 0.0) return 0;
 
+    /* O(nnz) check: for each entry A(i,j), walk column j's list to find
+     * the matching A(j,i) entry. Since column lists are sorted by row,
+     * we can do a two-pointer walk per row/column pair. But the simplest
+     * O(nnz) approach: for each row i, compare the row list against
+     * column i's list — both are sorted, so a single parallel scan suffices. */
     for (idx_t i = 0; i < mat->rows; i++) {
-        Node *node = mat->row_headers[i];
-        while (node) {
-            double a_ij = node->value;
-            double a_ji = sparse_get_phys(mat, node->col, node->row);
-            if (fabs(a_ij - a_ji) > tol) return 0;
-            node = node->right;
+        Node *row_node = mat->row_headers[i];  /* entries in row i, sorted by col */
+        Node *col_node = mat->col_headers[i];  /* entries in col i, sorted by row */
+        while (row_node && col_node) {
+            if (row_node->col < col_node->row) {
+                /* Entry in row i, col j with no matching entry in col i, row j */
+                if (fabs(row_node->value) > tol) return 0;
+                row_node = row_node->right;
+            } else if (row_node->col > col_node->row) {
+                if (fabs(col_node->value) > tol) return 0;
+                col_node = col_node->down;
+            } else {
+                /* Same position: check A(i,j) == A(j,i) */
+                if (fabs(row_node->value - col_node->value) > tol) return 0;
+                row_node = row_node->right;
+                col_node = col_node->down;
+            }
+        }
+        /* Any remaining entries must be within tolerance of zero */
+        while (row_node) {
+            if (fabs(row_node->value) > tol) return 0;
+            row_node = row_node->right;
+        }
+        while (col_node) {
+            if (fabs(col_node->value) > tol) return 0;
+            col_node = col_node->down;
         }
     }
     return 1;

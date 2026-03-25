@@ -147,6 +147,7 @@ static void test_concurrent_solve_shared(void)
 {
     idx_t n = 20;
     SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, 10.0);
         if (i > 0) { sparse_insert(A, i, i-1, -1.0); sparse_insert(A, i-1, i, -1.0); }
@@ -232,6 +233,7 @@ static void test_concurrent_cholesky_solve(void)
 {
     idx_t n = 20;
     SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, 10.0);
         if (i > 0) { sparse_insert(A, i, i-1, -1.0); sparse_insert(A, i-1, i, -1.0); }

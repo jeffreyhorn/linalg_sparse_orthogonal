@@ -88,9 +88,11 @@ sparse_err_t sparse_from_csr(const SparseCsr *csr, SparseMatrix **mat_out)
 
     if (csr->row_ptr[0] != 0) return SPARSE_ERR_BADARG;
 
-    /* Validate: row_ptr must be monotonically non-decreasing */
-    for (idx_t i = 0; i < m; i++) {
-        if (csr->row_ptr[i] > csr->row_ptr[i + 1])
+    /* Validate: row_ptr must be monotonically non-decreasing and in [0, nnz] */
+    for (idx_t i = 0; i <= m; i++) {
+        if (csr->row_ptr[i] < 0 || csr->row_ptr[i] > csr->nnz)
+            return SPARSE_ERR_BADARG;
+        if (i > 0 && csr->row_ptr[i] < csr->row_ptr[i - 1])
             return SPARSE_ERR_BADARG;
     }
     if (csr->row_ptr[m] != csr->nnz)
@@ -182,9 +184,11 @@ sparse_err_t sparse_from_csc(const SparseCsc *csc, SparseMatrix **mat_out)
 
     if (csc->col_ptr[0] != 0) return SPARSE_ERR_BADARG;
 
-    /* Validate: col_ptr must be monotonically non-decreasing */
-    for (idx_t j = 0; j < nc; j++) {
-        if (csc->col_ptr[j] > csc->col_ptr[j + 1])
+    /* Validate: col_ptr must be monotonically non-decreasing and in [0, nnz] */
+    for (idx_t j = 0; j <= nc; j++) {
+        if (csc->col_ptr[j] < 0 || csc->col_ptr[j] > csc->nnz)
+            return SPARSE_ERR_BADARG;
+        if (j > 0 && csc->col_ptr[j] < csc->col_ptr[j - 1])
             return SPARSE_ERR_BADARG;
     }
     if (csc->col_ptr[nc] != csc->nnz)

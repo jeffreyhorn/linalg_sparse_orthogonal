@@ -8,6 +8,11 @@ ifneq ($(SYSROOT),)
 CFLAGS += -isysroot $(SYSROOT)
 endif
 LDFLAGS = -lm
+# When SPARSE_MUTEX is enabled, all binaries need -pthread
+ifdef SPARSE_MUTEX
+CFLAGS  += -DSPARSE_MUTEX
+LDFLAGS += -pthread
+endif
 INCLUDE = -Iinclude
 
 # Directories

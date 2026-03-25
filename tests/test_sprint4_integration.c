@@ -50,8 +50,8 @@ static void test_cholesky_csr_roundtrip_solve(void)
     ASSERT_ERR(sparse_from_csr(csr, &L2), SPARSE_OK);
     ASSERT_EQ(sparse_nnz(L2), sparse_nnz(L));
 
-    /* Solve using the round-tripped L2 — need to copy factor_norm */
-    /* Note: L2 doesn't have factor_norm set, but Cholesky solve doesn't use it */
+    /* Solve using the round-tripped L2; factor_norm is unset but Cholesky
+     * solve doesn't use it (only LU backward sub checks factor_norm). */
     double x[3];
     ASSERT_ERR(sparse_cholesky_solve(L2, b, x), SPARSE_OK);
 

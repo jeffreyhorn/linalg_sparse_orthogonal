@@ -40,7 +40,17 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_reorder.c
     src/sparse_cholesky.c
     src/sparse_csr.c
+    src/sparse_iterative.c
+    src/sparse_ilu.c
 )
+
+# Optional OpenMP support for parallel SpMV: cmake -DSPARSE_OPENMP=ON ..
+option(SPARSE_OPENMP "Enable OpenMP parallelization for SpMV" OFF)
+if(SPARSE_OPENMP)
+    find_package(OpenMP REQUIRED)
+    target_compile_definitions(sparse_lu_ortho PUBLIC SPARSE_OPENMP)
+    target_link_libraries(sparse_lu_ortho PUBLIC OpenMP::OpenMP_C)
+endif()
 
 # Optional mutex support: cmake -DSPARSE_MUTEX=ON ..
 option(SPARSE_MUTEX "Enable per-matrix mutex for concurrent insert/remove" OFF)

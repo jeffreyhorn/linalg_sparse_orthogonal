@@ -13,6 +13,11 @@ ifdef SPARSE_MUTEX
 CFLAGS  += -DSPARSE_MUTEX
 LDFLAGS += -pthread
 endif
+# When SPARSE_OPENMP is enabled, add OpenMP flags
+ifdef SPARSE_OPENMP
+CFLAGS  += -DSPARSE_OPENMP -fopenmp
+LDFLAGS += -fopenmp
+endif
 INCLUDE = -Iinclude
 
 # Directories
@@ -28,7 +33,9 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_vector.c \
            $(SRCDIR)/sparse_reorder.c \
            $(SRCDIR)/sparse_cholesky.c \
-           $(SRCDIR)/sparse_csr.c
+           $(SRCDIR)/sparse_csr.c \
+           $(SRCDIR)/sparse_iterative.c \
+           $(SRCDIR)/sparse_ilu.c
 LIB_OBJS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(LIB_SRCS))
 LIB      = $(BUILDDIR)/libsparse_lu_ortho.a
 
@@ -47,13 +54,18 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_csr.c \
             $(TESTDIR)/test_matmul.c \
             $(TESTDIR)/test_threads.c \
-            $(TESTDIR)/test_sprint4_integration.c
+            $(TESTDIR)/test_sprint4_integration.c \
+            $(TESTDIR)/test_iterative.c \
+            $(TESTDIR)/test_ilu.c \
+            $(TESTDIR)/test_omp.c \
+            $(TESTDIR)/test_sprint5_integration.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
 # Benchmark sources
 BENCH_SRCS = $(BENCHDIR)/bench_main.c \
              $(BENCHDIR)/bench_scaling.c \
-             $(BENCHDIR)/bench_fillin.c
+             $(BENCHDIR)/bench_fillin.c \
+             $(BENCHDIR)/bench_convergence.c
 BENCH_BINS = $(patsubst $(BENCHDIR)/%.c,$(BUILDDIR)/%,$(BENCH_SRCS))
 
 # Default target
@@ -144,6 +156,23 @@ sanitize-all: LDFLAGS += -fsanitize=address,undefined
 sanitize-all: export MallocNanoZone=0
 sanitize-all: export ASAN_OPTIONS=detect_leaks=0
 sanitize-all: clean test
+
+# Build and test with OpenMP-enabled SpMV
+# On Linux with GCC: make omp
+# On macOS with Apple Clang + Homebrew libomp: make omp
+#   (auto-detects /usr/local/opt/libomp or /opt/homebrew/opt/libomp)
+# On macOS with GCC: make omp CC=gcc-14
+.PHONY: omp
+ifeq ($(shell uname -s),Darwin)
+# Apple Clang needs -Xpreprocessor -fopenmp and explicit libomp paths
+LIBOMP_PREFIX := $(firstword $(wildcard /usr/local/opt/libomp /opt/homebrew/opt/libomp))
+omp: CFLAGS += -DSPARSE_OPENMP -Xpreprocessor -fopenmp -I$(LIBOMP_PREFIX)/include
+omp: LDFLAGS += -L$(LIBOMP_PREFIX)/lib -lomp
+else
+omp: CFLAGS += -DSPARSE_OPENMP -fopenmp
+omp: LDFLAGS += -fopenmp
+endif
+omp: clean test
 
 # Thread Sanitizer (for thread safety tests)
 .PHONY: tsan

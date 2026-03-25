@@ -185,7 +185,7 @@ static double vec_norminf(const double *v, idx_t n)
 /* Factor and solve 3x3 SPD → verify x matches known solution */
 static void test_cholesky_solve_3x3(void)
 {
-    /* A = [[4,2,0],[2,5,1],[0,1,3]], b = [8, 14, 10] → x = [1, 2, 3] (by construction) */
+    /* A = [[4,2,0],[2,5,1],[0,1,3]], b = A*[1,2,3] = [8, 15, 11] */
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 4.0); sparse_insert(A, 0, 1, 2.0);
     sparse_insert(A, 1, 0, 2.0); sparse_insert(A, 1, 1, 5.0); sparse_insert(A, 1, 2, 1.0);

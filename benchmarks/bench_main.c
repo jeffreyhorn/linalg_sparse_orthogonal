@@ -117,6 +117,7 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot,
 
     sparse_lu_opts_t lu_opts = { pivot, reorder, 1e-12 };
     sparse_cholesky_opts_t chol_opts = { reorder };
+    int reps_done = 0;
 
     for (int rep = 0; rep < repeats; rep++) {
         SparseMatrix *F = sparse_copy(A);
@@ -172,10 +173,17 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot,
         }
 
         sparse_free(F);
+        reps_done++;
     }
 
-    printf("Factor:        %.6f s\n", t_factor_total / repeats);
-    printf("Solve:         %.6f s\n", t_solve_total / repeats);
+    if (reps_done == 0) {
+        printf("No successful repetitions.\n");
+        free(ones); free(b); free(x); free(r);
+        return;
+    }
+
+    printf("Factor:        %.6f s\n", t_factor_total / reps_done);
+    printf("Solve:         %.6f s\n", t_solve_total / reps_done);
     printf("nnz after:     %d (fill-in ratio: %.2f)\n",
            (int)nnz_after, (double)nnz_after / (double)nnz_orig);
     printf("Residual:      %.3e\n", residual);

@@ -588,6 +588,13 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B,
 
 /* ─── Sparse matrix-matrix multiply (Gustavson's algorithm) ──────────── */
 
+static int cmp_idx(const void *a, const void *b)
+{
+    idx_t va = *(const idx_t *)a;
+    idx_t vb = *(const idx_t *)b;
+    return (va > vb) - (va < vb);
+}
+
 sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B,
                            SparseMatrix **C)
 {
@@ -634,6 +641,11 @@ sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B,
             }
             a_node = a_node->right;
         }
+
+        /* Sort touched columns so inserts are in ascending order (O(1) each
+         * since the output row list is built in sorted order). */
+        if (ntouched > 1)
+            qsort(touched, (size_t)ntouched, sizeof(idx_t), cmp_idx);
 
         /* Flush accumulator to sparse output (only touched columns) */
         for (idx_t t = 0; t < ntouched; t++) {

@@ -399,8 +399,10 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
             y[i] = g[i];
             for (idx_t k = i + 1; k < j; k++)
                 y[i] -= H(i, k) * y[k];
-            if (H(i, i) != 0.0)
+            if (fabs(H(i, i)) > 1e-30)
                 y[i] /= H(i, i);
+            else
+                y[i] = 0.0;  /* singular Hessenberg diagonal — treat as zero */
         }
 
         /* Update solution: x = x + V * y */

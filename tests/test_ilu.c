@@ -101,7 +101,9 @@ static void test_ilu_diagonal(void)
         sparse_insert(A, i, i, diags[i]);
 
     sparse_ilu_t ilu;
-    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+    { sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { sparse_free(A); return; } }
 
     /* L = I */
     for (idx_t i = 0; i < n; i++) {
@@ -164,7 +166,9 @@ static void test_ilu_drops_fill(void)
     sparse_insert(A, 2, 1, 1.0); sparse_insert(A, 2, 2, 2.0);
 
     sparse_ilu_t ilu;
-    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+    { sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { sparse_free(A); return; } }
 
     /* L(2,0) should be zero (fill position not in A's pattern) */
     ASSERT_NEAR(sparse_get_phys(ilu.L, 2, 0), 0.0, 1e-14);
@@ -219,7 +223,9 @@ static void test_ilu_solve_identity(void)
         sparse_insert(A, i, i, 1.0);
 
     sparse_ilu_t ilu;
-    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+    { sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { sparse_free(A); return; } }
 
     double r[4] = {1.0, 2.0, 3.0, 4.0};
     double z[4];
@@ -239,7 +245,9 @@ static void test_ilu_solve_roundtrip(void)
     SparseMatrix *A = build_spd_tridiag(n, 4.0, -1.0);
 
     sparse_ilu_t ilu;
-    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+    { sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { sparse_free(A); return; } }
 
     double *r = malloc((size_t)n * sizeof(double));
     double *z = malloc((size_t)n * sizeof(double));
@@ -283,7 +291,9 @@ static void test_ilu_precond_cg(void)
     sparse_matvec(A, x_exact, b);
 
     sparse_ilu_t ilu;
-    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+    { sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { sparse_free(A); return; } }
 
     /* Unpreconditioned CG */
     double *x_unprec = calloc((size_t)n, sizeof(double));
@@ -334,7 +344,9 @@ static void test_ilu_precond_gmres(void)
     sparse_matvec(A, x_exact, b);
 
     sparse_ilu_t ilu;
-    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+    { sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { sparse_free(A); return; } }
 
     double *x = calloc((size_t)n, sizeof(double));
     ASSERT_NOT_NULL(x);
@@ -377,11 +389,14 @@ static void test_ilu_cg_nos4(void)
     sparse_matvec(A, x_exact, b);
 
     sparse_ilu_t ilu;
-    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+    { sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { sparse_free(A); return; } }
 
     /* Unpreconditioned CG */
     double *x_unprec = calloc((size_t)n, sizeof(double));
     ASSERT_NOT_NULL(x_unprec);
+    if (!x_unprec) { free(x_exact); free(b); sparse_ilu_free(&ilu); sparse_free(A); return; }
     sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t result_unprec;
     ASSERT_ERR(sparse_solve_cg(A, b, x_unprec, &opts, NULL, NULL, &result_unprec), SPARSE_OK);
@@ -389,6 +404,7 @@ static void test_ilu_cg_nos4(void)
     /* ILU-preconditioned CG */
     double *x_prec = calloc((size_t)n, sizeof(double));
     ASSERT_NOT_NULL(x_prec);
+    if (!x_prec) { free(x_unprec); free(x_exact); free(b); sparse_ilu_free(&ilu); sparse_free(A); return; }
     sparse_iter_result_t result_prec;
     ASSERT_ERR(sparse_solve_cg(A, b, x_prec, &opts, sparse_ilu_precond, &ilu, &result_prec), SPARSE_OK);
 
@@ -428,7 +444,9 @@ static void test_ilu_cg_bcsstk04(void)
     sparse_matvec(A, x_exact, b);
 
     sparse_ilu_t ilu;
-    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+    { sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { sparse_free(A); return; } }
 
     /* Unpreconditioned CG */
     double *x_unprec = calloc((size_t)n, sizeof(double));
@@ -500,7 +518,9 @@ static void test_ilu_gmres_steam1(void)
     sparse_matvec(A, x_exact, b);
 
     sparse_ilu_t ilu;
-    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+    { sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { sparse_free(A); return; } }
 
     /* Unpreconditioned GMRES */
     double *x_unprec = calloc((size_t)n, sizeof(double));
@@ -556,7 +576,9 @@ static void test_ilu_gmres_orsirr_1(void)
     sparse_matvec(A, x_exact, b);
 
     sparse_ilu_t ilu;
-    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+    { sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { sparse_free(A); return; } }
 
     /* Unpreconditioned GMRES */
     double *x_unprec = calloc((size_t)n, sizeof(double));
@@ -688,7 +710,9 @@ static void test_ilu_speedup_illcond(void)
     sparse_matvec(A, x_exact, b);
 
     sparse_ilu_t ilu;
-    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+    { sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { sparse_free(A); return; } }
 
     sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
 

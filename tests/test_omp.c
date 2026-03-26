@@ -103,6 +103,8 @@ static void test_spmv_identity(void)
 {
     idx_t n = 50;
     SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     for (idx_t i = 0; i < n; i++)
         sparse_insert(A, i, i, 1.0);
 
@@ -227,6 +229,8 @@ static void test_spmv_reproducible(void)
 {
     idx_t n = 80;
     SparseMatrix *A = build_spd_tridiag(n, 4.0, -1.0);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
 
     double *x = malloc((size_t)n * sizeof(double));
     double *y1 = malloc((size_t)n * sizeof(double));
@@ -238,8 +242,8 @@ static void test_spmv_reproducible(void)
     for (idx_t i = 0; i < n; i++)
         x[i] = (double)(i + 1);
 
-    sparse_matvec(A, x, y1);
-    sparse_matvec(A, x, y2);
+    ASSERT_ERR(sparse_matvec(A, x, y1), SPARSE_OK);
+    ASSERT_ERR(sparse_matvec(A, x, y2), SPARSE_OK);
 
     /* Results must be bit-identical across calls */
     for (idx_t i = 0; i < n; i++)
@@ -253,6 +257,8 @@ static void test_spmv_reproducible(void)
 static void test_spmv_diagonal_small(void)
 {
     SparseMatrix *A = sparse_create(2, 2);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     sparse_insert(A, 0, 0, 3.0);
     sparse_insert(A, 1, 1, 5.0);
     double x[2] = {2.0, 4.0};
@@ -267,6 +273,8 @@ static void test_spmv_diagonal_small(void)
 static void test_spmv_1x1(void)
 {
     SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     sparse_insert(A, 0, 0, 7.0);
     double x = 3.0, y = 0.0;
     ASSERT_ERR(sparse_matvec(A, &x, &y), SPARSE_OK);
@@ -279,6 +287,8 @@ static void test_spmv_cg_integration(void)
 {
     idx_t n = 50;
     SparseMatrix *A = build_spd_tridiag(n, 4.0, -1.0);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
 
     double *x_exact = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
@@ -308,6 +318,8 @@ static void test_spmv_gmres_integration(void)
 {
     idx_t n = 30;
     SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, 5.0);
         if (i > 0)     sparse_insert(A, i, i - 1, -1.0);

@@ -500,14 +500,18 @@ static void test_ilu_gmres_steam1(void)
 
     /* Unpreconditioned GMRES */
     double *x_unprec = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_unprec);
+    if (!x_unprec) { free(x_exact); free(b); sparse_ilu_free(&ilu); sparse_free(A); return; }
     sparse_gmres_opts_t opts = {.max_iter = 1000, .restart = 50, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t result_unprec;
-    sparse_solve_gmres(A, b, x_unprec, &opts, NULL, NULL, &result_unprec);
+    sparse_solve_gmres(A, b, x_unprec, &opts, NULL, NULL, &result_unprec);  /* may not converge */
 
     /* ILU-preconditioned GMRES */
     double *x_prec = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_prec);
+    if (!x_prec) { free(x_exact); free(b); free(x_unprec); sparse_ilu_free(&ilu); sparse_free(A); return; }
     sparse_iter_result_t result_prec;
-    sparse_solve_gmres(A, b, x_prec, &opts, sparse_ilu_precond, &ilu, &result_prec);
+    ASSERT_ERR(sparse_solve_gmres(A, b, x_prec, &opts, sparse_ilu_precond, &ilu, &result_prec), SPARSE_OK);
 
     double res_unprec = compute_relative_residual(A, b, x_unprec, n);
     double res_prec = compute_relative_residual(A, b, x_prec, n);
@@ -540,6 +544,9 @@ static void test_ilu_gmres_orsirr_1(void)
 
     double *x_exact = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (!x_exact || !b) { free(x_exact); free(b); sparse_free(A); return; }
     for (idx_t i = 0; i < n; i++)
         x_exact[i] = sin((double)(i + 1) * 0.01);
     sparse_matvec(A, x_exact, b);
@@ -549,15 +556,19 @@ static void test_ilu_gmres_orsirr_1(void)
 
     /* Unpreconditioned GMRES */
     double *x_unprec = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_unprec);
+    if (!x_unprec) { free(x_exact); free(b); sparse_ilu_free(&ilu); sparse_free(A); return; }
     /* orsirr_1 is large and ill-conditioned; use relaxed tolerance */
     sparse_gmres_opts_t opts = {.max_iter = 2000, .restart = 50, .tol = 1e-5, .verbose = 0};
     sparse_iter_result_t result_unprec;
-    sparse_solve_gmres(A, b, x_unprec, &opts, NULL, NULL, &result_unprec);
+    ASSERT_ERR(sparse_solve_gmres(A, b, x_unprec, &opts, NULL, NULL, &result_unprec), SPARSE_OK);
 
     /* ILU-preconditioned GMRES */
     double *x_prec = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_prec);
+    if (!x_prec) { free(x_exact); free(b); free(x_unprec); sparse_ilu_free(&ilu); sparse_free(A); return; }
     sparse_iter_result_t result_prec;
-    sparse_solve_gmres(A, b, x_prec, &opts, sparse_ilu_precond, &ilu, &result_prec);
+    ASSERT_ERR(sparse_solve_gmres(A, b, x_prec, &opts, sparse_ilu_precond, &ilu, &result_prec), SPARSE_OK);
 
     double res_prec = compute_relative_residual(A, b, x_prec, n);
     printf("    orsirr_1 ILU-GMRES(50): unprec=%d iters (conv=%d), prec=%d iters (res=%.3e)\n",
@@ -602,25 +613,34 @@ static void test_cholesky_precond_cg_nos4(void)
 
     double *x_exact = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (!x_exact || !b) { free(x_exact); free(b); sparse_free(A); return; }
     for (idx_t i = 0; i < n; i++)
         x_exact[i] = (double)(i + 1);
     sparse_matvec(A, x_exact, b);
 
     /* Create Cholesky preconditioner from a copy of A */
     SparseMatrix *L = sparse_copy(A);
+    ASSERT_NOT_NULL(L);
+    if (!L) { free(x_exact); free(b); sparse_free(A); return; }
     ASSERT_ERR(sparse_cholesky_factor(L), SPARSE_OK);
     cholesky_precond_t pc = {.L = L};
 
     /* Unpreconditioned CG */
     double *x_unprec = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_unprec);
+    if (!x_unprec) { free(x_exact); free(b); sparse_free(L); sparse_free(A); return; }
     sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t result_unprec;
-    sparse_solve_cg(A, b, x_unprec, &opts, NULL, NULL, &result_unprec);
+    ASSERT_ERR(sparse_solve_cg(A, b, x_unprec, &opts, NULL, NULL, &result_unprec), SPARSE_OK);
 
     /* Cholesky-preconditioned CG (exact preconditioner → should converge in 1-2 iters) */
     double *x_prec = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_prec);
+    if (!x_prec) { free(x_exact); free(b); free(x_unprec); sparse_free(L); sparse_free(A); return; }
     sparse_iter_result_t result_prec;
-    sparse_solve_cg(A, b, x_prec, &opts, cholesky_precond_apply, &pc, &result_prec);
+    ASSERT_ERR(sparse_solve_cg(A, b, x_prec, &opts, cholesky_precond_apply, &pc, &result_prec), SPARSE_OK);
 
     double res_prec = compute_relative_residual(A, b, x_prec, n);
     printf("    nos4 Cholesky-CG: unprec=%d iters, prec=%d iters (res=%.3e)\n",

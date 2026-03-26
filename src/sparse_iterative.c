@@ -228,7 +228,17 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
     size_t sz_g  = (size_t)(m + 1);
     size_t sz_y  = (size_t)m;
     size_t sz_w  = (size_t)n;
+
+    /* Overflow checks for workspace sizing */
+    if (n > 0 && sz_v / (size_t)n != (size_t)(m + 1))
+        return SPARSE_ERR_ALLOC;
+    if (m > 0 && sz_h / (size_t)m != (size_t)(m + 1))
+        return SPARSE_ERR_ALLOC;
     size_t total = sz_v + sz_h + sz_cs + sz_sn + sz_g + sz_y + sz_w;
+    if (total < sz_v)  /* addition overflow */
+        return SPARSE_ERR_ALLOC;
+    if (total > (size_t)-1 / sizeof(double))
+        return SPARSE_ERR_ALLOC;
 
     double *mem = calloc(total, sizeof(double));
     if (!mem) return SPARSE_ERR_ALLOC;

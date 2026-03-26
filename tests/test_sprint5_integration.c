@@ -209,9 +209,13 @@ static void test_integration_cholesky_vs_ilu_precond(void)
 
     /* Cholesky preconditioner (exact) */
     SparseMatrix *L = sparse_copy(sys.A);
+    ASSERT_NOT_NULL(L);
+    if (!L) { free_system(&sys); return; }
     ASSERT_ERR(sparse_cholesky_factor(L), SPARSE_OK);
 
     double *x_chol = calloc((size_t)sys.n, sizeof(double));
+    ASSERT_NOT_NULL(x_chol);
+    if (!x_chol) { sparse_free(L); free_system(&sys); return; }
     sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t result_chol;
     ASSERT_ERR(sparse_solve_cg(sys.A, sys.b, x_chol, &opts,
@@ -256,6 +260,8 @@ static void test_integration_ilu_gmres_small_restart_orsirr(void)
     ASSERT_ERR(sparse_ilu_factor(sys.A, &ilu), SPARSE_OK);
 
     double *x = calloc((size_t)sys.n, sizeof(double));
+    ASSERT_NOT_NULL(x);
+    if (!x) { sparse_ilu_free(&ilu); free_system(&sys); return; }
     /* Small restart=10 + ILU should still converge */
     sparse_gmres_opts_t opts = {.max_iter = 2000, .restart = 10, .tol = 1e-8, .verbose = 0};
     sparse_iter_result_t result;
@@ -288,12 +294,16 @@ static void test_integration_all_solvers_nos4(void)
 
     /* CG */
     double *x_cg = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_cg);
+    if (!x_cg) { free_system(&sys); return; }
     sparse_iter_opts_t cg_opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t res_cg;
     ASSERT_ERR(sparse_solve_cg(sys.A, sys.b, x_cg, &cg_opts, NULL, NULL, &res_cg), SPARSE_OK);
 
     /* GMRES */
     double *x_gm = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_gm);
+    if (!x_gm) { free(x_cg); free_system(&sys); return; }
     sparse_gmres_opts_t gm_opts = {.max_iter = 500, .restart = 50, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t res_gm;
     ASSERT_ERR(sparse_solve_gmres(sys.A, sys.b, x_gm, &gm_opts, NULL, NULL, &res_gm), SPARSE_OK);

@@ -47,6 +47,11 @@ typedef struct {
  *
  * The original matrix A is not modified.
  *
+ * @note The factorization operates on the physical storage of A and assumes
+ *       identity permutations (i.e., an unfactored matrix).  Passing a matrix
+ *       whose permutation arrays have been modified by a prior factorization
+ *       will produce incorrect results.
+ *
  * @param A    The matrix to factor (not modified). Must be square.
  * @param ilu  Output: ILU(0) factors. Must be freed with sparse_ilu_free().
  * @return SPARSE_OK on success.

@@ -135,6 +135,8 @@ static void test_ilu_tridiagonal(void)
 
     /* Verify: A*z ≈ r (since tridiagonal has no fill, ILU(0) = exact LU) */
     double *Az = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(Az);
+    if (!Az) { sparse_ilu_free(&ilu); sparse_free(A); return; }
     sparse_matvec(A, z, Az);
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(Az[i], r[i], 1e-12);

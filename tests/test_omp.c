@@ -169,6 +169,8 @@ static void test_spmv_nos4(void)
     idx_t n = sparse_rows(A);
 
     double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x);
+    if (!x) { sparse_free(A); return; }
     for (idx_t i = 0; i < n; i++)
         x[i] = (double)(i + 1);
 
@@ -225,6 +227,10 @@ static void test_spmv_reproducible(void)
     double *x = malloc((size_t)n * sizeof(double));
     double *y1 = malloc((size_t)n * sizeof(double));
     double *y2 = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x);
+    ASSERT_NOT_NULL(y1);
+    ASSERT_NOT_NULL(y2);
+    if (!x || !y1 || !y2) { free(x); free(y1); free(y2); sparse_free(A); return; }
     for (idx_t i = 0; i < n; i++)
         x[i] = (double)(i + 1);
 
@@ -273,6 +279,10 @@ static void test_spmv_cg_integration(void)
     double *x_exact = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
     double *x = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x);
+    if (!x_exact || !b || !x) { free(x_exact); free(b); free(x); sparse_free(A); return; }
     for (idx_t i = 0; i < n; i++)
         x_exact[i] = (double)(i + 1);
     sparse_matvec(A, x_exact, b);

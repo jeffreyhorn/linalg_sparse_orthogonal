@@ -26,7 +26,10 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu)
     SparseMatrix *W = sparse_copy(A);
     if (!W) return SPARSE_ERR_ALLOC;
 
-    /* Reset permutations on the working copy so we operate in natural order */
+    /* Reset permutations on the working copy so we operate in natural order.
+     * Note: this only resets the perm arrays to identity; it does not reorder
+     * physical storage.  The caller must pass an unfactored matrix (one whose
+     * permutations are still identity) for correct results. */
     sparse_reset_perms(W);
 
     /* IKJ variant of ILU(0) Gaussian elimination:

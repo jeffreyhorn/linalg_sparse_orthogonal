@@ -645,7 +645,7 @@ int main(int argc, char **argv)
                 sparse_free(A);
                 return 1;
             }
-            benchmark_iterative(A, filename, 0);
+            benchmark_iterative(A, filename, sparse_is_symmetric(A, 1e-10));
             sparse_free(A);
         } else {
             SparseMatrix *A = generate_sparse(size, 42);

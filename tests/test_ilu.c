@@ -363,6 +363,9 @@ static void test_ilu_cg_nos4(void)
 
     double *x_exact = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (!x_exact || !b) { free(x_exact); free(b); sparse_free(A); return; }
     for (idx_t i = 0; i < n; i++)
         x_exact[i] = (double)(i + 1);
     sparse_matvec(A, x_exact, b);
@@ -372,14 +375,16 @@ static void test_ilu_cg_nos4(void)
 
     /* Unpreconditioned CG */
     double *x_unprec = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_unprec);
     sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t result_unprec;
-    sparse_solve_cg(A, b, x_unprec, &opts, NULL, NULL, &result_unprec);
+    ASSERT_ERR(sparse_solve_cg(A, b, x_unprec, &opts, NULL, NULL, &result_unprec), SPARSE_OK);
 
     /* ILU-preconditioned CG */
     double *x_prec = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_prec);
     sparse_iter_result_t result_prec;
-    sparse_solve_cg(A, b, x_prec, &opts, sparse_ilu_precond, &ilu, &result_prec);
+    ASSERT_ERR(sparse_solve_cg(A, b, x_prec, &opts, sparse_ilu_precond, &ilu, &result_prec), SPARSE_OK);
 
     ASSERT_TRUE(result_unprec.converged);
     ASSERT_TRUE(result_prec.converged);
@@ -409,6 +414,9 @@ static void test_ilu_cg_bcsstk04(void)
 
     double *x_exact = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (!x_exact || !b) { free(x_exact); free(b); sparse_free(A); return; }
     for (idx_t i = 0; i < n; i++)
         x_exact[i] = (double)(i + 1);
     sparse_matvec(A, x_exact, b);
@@ -418,14 +426,16 @@ static void test_ilu_cg_bcsstk04(void)
 
     /* Unpreconditioned CG */
     double *x_unprec = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_unprec);
     sparse_iter_opts_t opts = {.max_iter = 1000, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t result_unprec;
-    sparse_solve_cg(A, b, x_unprec, &opts, NULL, NULL, &result_unprec);
+    ASSERT_ERR(sparse_solve_cg(A, b, x_unprec, &opts, NULL, NULL, &result_unprec), SPARSE_OK);
 
     /* ILU-preconditioned CG */
     double *x_prec = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_prec);
     sparse_iter_result_t result_prec;
-    sparse_solve_cg(A, b, x_prec, &opts, sparse_ilu_precond, &ilu, &result_prec);
+    ASSERT_ERR(sparse_solve_cg(A, b, x_prec, &opts, sparse_ilu_precond, &ilu, &result_prec), SPARSE_OK);
 
     ASSERT_TRUE(result_unprec.converged);
     ASSERT_TRUE(result_prec.converged);

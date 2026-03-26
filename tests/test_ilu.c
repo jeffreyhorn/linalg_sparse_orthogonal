@@ -342,7 +342,9 @@ static void test_ilu_precond_gmres(void)
 static void test_ilu_cg_nos4(void)
 {
     SparseMatrix *A = NULL;
-    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/nos4.mtx"), SPARSE_OK);
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A) return;
     idx_t n = sparse_rows(A);
 
     double *x_exact = malloc((size_t)n * sizeof(double));
@@ -386,7 +388,9 @@ static void test_ilu_cg_nos4(void)
 static void test_ilu_cg_bcsstk04(void)
 {
     SparseMatrix *A = NULL;
-    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx"), SPARSE_OK);
+    { sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A) return; }
     idx_t n = sparse_rows(A);
 
     double *x_exact = malloc((size_t)n * sizeof(double));
@@ -433,7 +437,9 @@ static void test_ilu_cg_bcsstk04(void)
 static void test_ilu_gmres_west0067(void)
 {
     SparseMatrix *A = NULL;
-    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/west0067.mtx"), SPARSE_OK);
+    { sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/west0067.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A) return; }
 
     sparse_ilu_t ilu;
     sparse_err_t err = sparse_ilu_factor(A, &ilu);
@@ -449,7 +455,9 @@ static void test_ilu_gmres_west0067(void)
 static void test_ilu_gmres_steam1(void)
 {
     SparseMatrix *A = NULL;
-    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/steam1.mtx"), SPARSE_OK);
+    { sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/steam1.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A) return; }
     idx_t n = sparse_rows(A);
 
     double *x_exact = malloc((size_t)n * sizeof(double));
@@ -558,7 +566,9 @@ static sparse_err_t cholesky_precond_apply(const void *ctx, idx_t n,
 static void test_cholesky_precond_cg_nos4(void)
 {
     SparseMatrix *A = NULL;
-    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/nos4.mtx"), SPARSE_OK);
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A) return;
     idx_t n = sparse_rows(A);
 
     double *x_exact = malloc((size_t)n * sizeof(double));

@@ -163,7 +163,9 @@ static void test_spmv_laplacian(void)
 static void test_spmv_nos4(void)
 {
     SparseMatrix *A = NULL;
-    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/nos4.mtx"), SPARSE_OK);
+    { sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A) return; }
     idx_t n = sparse_rows(A);
 
     double *x = malloc((size_t)n * sizeof(double));
@@ -180,7 +182,9 @@ static void test_spmv_nos4(void)
 static void test_spmv_west0067(void)
 {
     SparseMatrix *A = NULL;
-    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/west0067.mtx"), SPARSE_OK);
+    { sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/west0067.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A) return; }
     idx_t n = sparse_rows(A);
 
     double *x = malloc((size_t)n * sizeof(double));
@@ -197,7 +201,9 @@ static void test_spmv_west0067(void)
 static void test_spmv_steam1(void)
 {
     SparseMatrix *A = NULL;
-    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/steam1.mtx"), SPARSE_OK);
+    { sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/steam1.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A) return; }
     idx_t n = sparse_rows(A);
 
     double *x = malloc((size_t)n * sizeof(double));

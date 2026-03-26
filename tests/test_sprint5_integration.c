@@ -202,7 +202,10 @@ static void test_integration_ilu_gmres_all_unsym(void)
 static void test_integration_cholesky_vs_ilu_precond(void)
 {
     test_system_t sys;
-    ASSERT_TRUE(load_system(&sys, SS_DIR "/nos4.mtx"));
+    if (!load_system(&sys, SS_DIR "/nos4.mtx")) {
+        ASSERT_TRUE(0);  /* record failure */
+        return;
+    }
 
     /* Cholesky preconditioner (exact) */
     SparseMatrix *L = sparse_copy(sys.A);
@@ -277,7 +280,10 @@ static void test_integration_ilu_gmres_small_restart_orsirr(void)
 static void test_integration_all_solvers_nos4(void)
 {
     test_system_t sys;
-    ASSERT_TRUE(load_system(&sys, SS_DIR "/nos4.mtx"));
+    if (!load_system(&sys, SS_DIR "/nos4.mtx")) {
+        ASSERT_TRUE(0);  /* record failure */
+        return;
+    }
     idx_t n = sys.n;
 
     /* CG */
@@ -432,7 +438,10 @@ static void test_integration_identity_preconditioner(void)
 static void test_integration_ilu_multi_rhs(void)
 {
     test_system_t sys;
-    ASSERT_TRUE(load_system(&sys, SS_DIR "/nos4.mtx"));
+    if (!load_system(&sys, SS_DIR "/nos4.mtx")) {
+        ASSERT_TRUE(0);  /* record failure */
+        return;
+    }
     idx_t n = sys.n;
 
     sparse_ilu_t ilu;

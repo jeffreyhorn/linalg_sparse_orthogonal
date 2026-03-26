@@ -766,7 +766,9 @@ static void test_ilu_null_inputs(void)
     ASSERT_ERR(sparse_ilu_solve(NULL, r, z), SPARSE_ERR_NULL);
 
     /* Factor first for solve NULL tests */
-    sparse_ilu_factor(A, &ilu);
+    { sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { sparse_free(A); return; } }
     ASSERT_ERR(sparse_ilu_solve(&ilu, NULL, z), SPARSE_ERR_NULL);
     ASSERT_ERR(sparse_ilu_solve(&ilu, r, NULL), SPARSE_ERR_NULL);
 

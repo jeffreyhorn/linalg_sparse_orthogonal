@@ -128,6 +128,8 @@ static void test_spmv_tridiag(void)
     SparseMatrix *A = build_spd_tridiag(n, 4.0, -1.0);
 
     double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x);
+    if (!x) { sparse_free(A); return; }
     for (idx_t i = 0; i < n; i++)
         x[i] = sin((double)(i + 1) * 0.1);
 

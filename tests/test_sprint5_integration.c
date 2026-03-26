@@ -114,6 +114,8 @@ static void test_integration_ilu_cg_all_spd(void)
         ASSERT_ERR(sparse_ilu_factor(sys.A, &ilu), SPARSE_OK);
 
         double *x = calloc((size_t)sys.n, sizeof(double));
+        ASSERT_NOT_NULL(x);
+        if (!x) { sparse_ilu_free(&ilu); free_system(&sys); continue; }
         sparse_iter_opts_t opts = {.max_iter = 2000, .tol = 1e-10, .verbose = 0};
         sparse_iter_result_t result;
         ASSERT_ERR(sparse_solve_cg(sys.A, sys.b, x, &opts,

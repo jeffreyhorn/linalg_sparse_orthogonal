@@ -72,6 +72,12 @@ static void convergence_table(const char *name, SparseMatrix *A)
     idx_t n = sparse_rows(A);
     double *x_exact = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
+    if (!x_exact || !b) {
+        fprintf(stderr, "convergence_table: out of memory for %s (n=%d)\n",
+                name, (int)n);
+        free(x_exact); free(b);
+        return;
+    }
     for (idx_t i = 0; i < n; i++) x_exact[i] = (double)(i + 1);
     sparse_matvec(A, x_exact, b);
 
@@ -207,6 +213,12 @@ static void convergence_history(SparseMatrix *A, const char *name)
 
     double *x_exact = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
+    if (!x_exact || !b) {
+        fprintf(stderr, "convergence_history: out of memory for %s (n=%d)\n",
+                name, (int)n);
+        free(x_exact); free(b);
+        return;
+    }
     for (idx_t i = 0; i < n; i++) x_exact[i] = (double)(i + 1);
     sparse_matvec(A, x_exact, b);
 

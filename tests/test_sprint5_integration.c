@@ -474,7 +474,9 @@ static void test_integration_ilu_multi_rhs(void)
     idx_t n = sys.n;
 
     sparse_ilu_t ilu;
-    ASSERT_ERR(sparse_ilu_factor(sys.A, &ilu), SPARSE_OK);
+    { sparse_err_t ferr = sparse_ilu_factor(sys.A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { free_system(&sys); return; } }
 
     /* Solve with 3 different RHS vectors using the same ILU factors */
     for (int rhs = 0; rhs < 3; rhs++) {

@@ -111,7 +111,9 @@ static void test_integration_ilu_cg_all_spd(void)
         ran++;
 
         sparse_ilu_t ilu;
-        ASSERT_ERR(sparse_ilu_factor(sys.A, &ilu), SPARSE_OK);
+        { sparse_err_t ferr = sparse_ilu_factor(sys.A, &ilu);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) { free_system(&sys); continue; } }
 
         double *x = calloc((size_t)sys.n, sizeof(double));
         ASSERT_NOT_NULL(x);
@@ -211,7 +213,9 @@ static void test_integration_cholesky_vs_ilu_precond(void)
     SparseMatrix *L = sparse_copy(sys.A);
     ASSERT_NOT_NULL(L);
     if (!L) { free_system(&sys); return; }
-    ASSERT_ERR(sparse_cholesky_factor(L), SPARSE_OK);
+    { sparse_err_t ferr = sparse_cholesky_factor(L);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { sparse_free(L); free_system(&sys); return; } }
 
     double *x_chol = calloc((size_t)sys.n, sizeof(double));
     ASSERT_NOT_NULL(x_chol);
@@ -223,7 +227,9 @@ static void test_integration_cholesky_vs_ilu_precond(void)
 
     /* ILU preconditioner (approximate) */
     sparse_ilu_t ilu;
-    ASSERT_ERR(sparse_ilu_factor(sys.A, &ilu), SPARSE_OK);
+    { sparse_err_t ferr = sparse_ilu_factor(sys.A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { free(x_chol); sparse_free(L); free_system(&sys); return; } }
 
     double *x_ilu = calloc((size_t)sys.n, sizeof(double));
     ASSERT_NOT_NULL(x_ilu);
@@ -259,7 +265,9 @@ static void test_integration_ilu_gmres_small_restart_orsirr(void)
     }
 
     sparse_ilu_t ilu;
-    ASSERT_ERR(sparse_ilu_factor(sys.A, &ilu), SPARSE_OK);
+    { sparse_err_t ferr = sparse_ilu_factor(sys.A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { free_system(&sys); return; } }
 
     double *x = calloc((size_t)sys.n, sizeof(double));
     ASSERT_NOT_NULL(x);
@@ -325,7 +333,9 @@ static void test_integration_all_solvers_nos4(void)
     double *x_ch = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(x_ch);
     if (!Ch || !x_ch) { sparse_free(Ch); free(x_ch); free(x_cg); free(x_gm); free(x_lu); sparse_free(LU); free_system(&sys); return; }
-    ASSERT_ERR(sparse_cholesky_factor(Ch), SPARSE_OK);
+    { sparse_err_t ferr = sparse_cholesky_factor(Ch);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { sparse_free(Ch); free(x_ch); free(x_cg); free(x_gm); free(x_lu); sparse_free(LU); free_system(&sys); return; } }
     ASSERT_ERR(sparse_cholesky_solve(Ch, sys.b, x_ch), SPARSE_OK);
 
     double rr_cg = compute_relative_residual(sys.A, sys.b, x_cg, n);
@@ -381,7 +391,9 @@ static void test_integration_1x1_all_solvers(void)
 
     /* ILU-preconditioned CG */
     sparse_ilu_t ilu;
-    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+    { sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { sparse_free(A); return; } }
     double x_pcg[1] = {0.0};
     ASSERT_ERR(sparse_solve_cg(A, b, x_pcg, NULL, sparse_ilu_precond, &ilu, &res), SPARSE_OK);
     ASSERT_NEAR(x_pcg[0], 3.0, 1e-14);

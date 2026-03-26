@@ -59,7 +59,9 @@ static void test_ilu_3x3_dense(void)
     sparse_insert(A, 2, 0, 8.0); sparse_insert(A, 2, 1, 7.0); sparse_insert(A, 2, 2, 9.0);
 
     sparse_ilu_t ilu;
-    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+    { sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { sparse_free(A); return; } }
     ASSERT_NOT_NULL(ilu.L);
     ASSERT_NOT_NULL(ilu.U);
 
@@ -126,7 +128,9 @@ static void test_ilu_tridiagonal(void)
     SparseMatrix *A = build_spd_tridiag(n, 4.0, -1.0);
 
     sparse_ilu_t ilu;
-    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+    { sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { sparse_free(A); return; } }
 
     /* Verify L*U*z = r via solve */
     double r[5] = {1.0, 2.0, 3.0, 4.0, 5.0};

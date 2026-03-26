@@ -65,7 +65,9 @@ static void verify_matvec(const SparseMatrix *A, const double *x,
     double *y = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(y);
     if (!y) return;  /* guard: framework assertions don't abort */
-    ASSERT_ERR(sparse_matvec(A, x, y), SPARSE_OK);
+    { sparse_err_t ferr = sparse_matvec(A, x, y);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) { free(y); return; } }
 
     /* Verify using sparse_get to compute the product independently */
     for (idx_t i = 0; i < n; i++) {

@@ -613,6 +613,12 @@ int main(int argc, char **argv)
                 fprintf(stderr, "Failed to load %s\n", filename);
                 return 1;
             }
+            if (sparse_rows(A) != sparse_cols(A)) {
+                fprintf(stderr, "Error: %s is non-square (%dx%d), skipping SpMV benchmark\n",
+                        filename, (int)sparse_rows(A), (int)sparse_cols(A));
+                sparse_free(A);
+                return 1;
+            }
             benchmark_spmv(A, filename, spmv_iters);
             sparse_free(A);
         } else {
@@ -631,6 +637,12 @@ int main(int argc, char **argv)
             SparseMatrix *A = NULL;
             if (sparse_load_mm(&A, filename) != SPARSE_OK) {
                 fprintf(stderr, "Failed to load %s\n", filename);
+                return 1;
+            }
+            if (sparse_rows(A) != sparse_cols(A)) {
+                fprintf(stderr, "Error: %s is non-square (%dx%d), skipping iterative benchmark\n",
+                        filename, (int)sparse_rows(A), (int)sparse_cols(A));
+                sparse_free(A);
                 return 1;
             }
             benchmark_iterative(A, filename, 0);

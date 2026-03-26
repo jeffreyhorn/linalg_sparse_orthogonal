@@ -100,18 +100,26 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu)
 
     for (idx_t i = 0; i < n; i++) {
         /* Unit diagonal for L */
-        sparse_insert(L, i, i, 1.0);
+        if (sparse_insert(L, i, i, 1.0) != SPARSE_OK) {
+            sparse_free(L); sparse_free(U); sparse_free(W);
+            return SPARSE_ERR_ALLOC;
+        }
 
         Node *node = W->row_headers[i];
         while (node) {
             idx_t j = node->col;
             double val = node->value;
+            sparse_err_t ins_err;
             if (j < i) {
                 /* Lower triangle → L */
-                sparse_insert(L, i, j, val);
+                ins_err = sparse_insert(L, i, j, val);
             } else {
                 /* Diagonal and upper triangle → U */
-                sparse_insert(U, i, j, val);
+                ins_err = sparse_insert(U, i, j, val);
+            }
+            if (ins_err != SPARSE_OK) {
+                sparse_free(L); sparse_free(U); sparse_free(W);
+                return SPARSE_ERR_ALLOC;
             }
             node = node->right;
         }

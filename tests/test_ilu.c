@@ -235,13 +235,17 @@ static void test_ilu_solve_roundtrip(void)
 
     double *r = malloc((size_t)n * sizeof(double));
     double *z = malloc((size_t)n * sizeof(double));
+    double *Az = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(r);
+    ASSERT_NOT_NULL(z);
+    ASSERT_NOT_NULL(Az);
+    if (!r || !z || !Az) { free(r); free(z); free(Az); sparse_ilu_free(&ilu); sparse_free(A); return; }
     for (idx_t i = 0; i < n; i++)
         r[i] = (double)(i + 1);
 
     ASSERT_ERR(sparse_ilu_solve(&ilu, r, z), SPARSE_OK);
 
     /* For tridiagonal, ILU(0) = exact LU, so A*z should equal r */
-    double *Az = malloc((size_t)n * sizeof(double));
     sparse_matvec(A, z, Az);
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(Az[i], r[i], 1e-10);

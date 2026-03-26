@@ -88,6 +88,10 @@ add_sparse_test(test_edge_cases)
 add_sparse_test(test_integration)
 add_sparse_test(test_sparse_arith)
 add_sparse_test(test_suitesparse)
+add_sparse_test(test_iterative)
+add_sparse_test(test_ilu)
+add_sparse_test(test_omp)
+add_sparse_test(test_sprint5_integration)
 
 # Benchmarks (not part of ctest)
 add_executable(bench_main benchmarks/bench_main.c)
@@ -98,3 +102,6 @@ target_link_libraries(bench_scaling PRIVATE sparse_lu_ortho)
 
 add_executable(bench_fillin benchmarks/bench_fillin.c)
 target_link_libraries(bench_fillin PRIVATE sparse_lu_ortho)
+
+add_executable(bench_convergence benchmarks/bench_convergence.c)
+target_link_libraries(bench_convergence PRIVATE sparse_lu_ortho)

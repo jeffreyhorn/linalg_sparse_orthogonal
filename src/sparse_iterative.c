@@ -359,8 +359,10 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
             rel_res = fabs(g[j + 1]) / bnorm;
 
             if (o->verbose) {
-                fprintf(stderr, "  GMRES iter %4d: ||r||/||b|| = %.6e\n",
-                        (int)total_iter, rel_res);
+                fprintf(stderr, "  GMRES iter %4d: %s||r||/||b|| = %.6e\n",
+                        (int)total_iter,
+                        precond ? "precond " : "",
+                        rel_res);
             }
 
             /* Stop inner Arnoldi loop on preconditioned convergence or

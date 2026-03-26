@@ -110,6 +110,7 @@ static void test_spmv_identity(void)
     double *y = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(x);
     ASSERT_NOT_NULL(y);
+    if (!x || !y) { free(x); free(y); sparse_free(A); return; }
     for (idx_t i = 0; i < n; i++)
         x[i] = (double)(i + 1);
 
@@ -147,6 +148,8 @@ static void test_spmv_laplacian(void)
     SparseMatrix *A = build_laplacian_2d(m);
 
     double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x);
+    if (!x) { sparse_free(A); return; }
     for (idx_t i = 0; i < n; i++)
         x[i] = (double)(i + 1);
 

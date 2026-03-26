@@ -61,6 +61,7 @@ static SparseMatrix *build_laplacian_2d(idx_t m)
 static void verify_matvec(const SparseMatrix *A, const double *x,
                            idx_t n, double tol)
 {
+    if (!A || !x) { ASSERT_NOT_NULL(A); ASSERT_NOT_NULL(x); return; }
     double *y = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(y);
     if (!y) return;  /* guard: framework assertions don't abort */
@@ -107,6 +108,8 @@ static void test_spmv_identity(void)
 
     double *x = malloc((size_t)n * sizeof(double));
     double *y = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x);
+    ASSERT_NOT_NULL(y);
     for (idx_t i = 0; i < n; i++)
         x[i] = (double)(i + 1);
 

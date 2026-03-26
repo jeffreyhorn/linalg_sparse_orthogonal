@@ -291,14 +291,16 @@ static void test_integration_all_solvers_nos4(void)
     /* LU */
     SparseMatrix *LU = sparse_copy(sys.A);
     double *x_lu = malloc((size_t)n * sizeof(double));
-    sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12);
-    sparse_lu_solve(LU, sys.b, x_lu);
+    ASSERT_NOT_NULL(x_lu);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+    ASSERT_ERR(sparse_lu_solve(LU, sys.b, x_lu), SPARSE_OK);
 
     /* Cholesky */
     SparseMatrix *Ch = sparse_copy(sys.A);
     double *x_ch = malloc((size_t)n * sizeof(double));
-    sparse_cholesky_factor(Ch);
-    sparse_cholesky_solve(Ch, sys.b, x_ch);
+    ASSERT_NOT_NULL(x_ch);
+    ASSERT_ERR(sparse_cholesky_factor(Ch), SPARSE_OK);
+    ASSERT_ERR(sparse_cholesky_solve(Ch, sys.b, x_ch), SPARSE_OK);
 
     double rr_cg = compute_relative_residual(sys.A, sys.b, x_cg, n);
     double rr_gm = compute_relative_residual(sys.A, sys.b, x_gm, n);

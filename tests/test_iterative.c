@@ -1851,8 +1851,8 @@ static void test_gmres_vs_lu_west0067(void)
 {
     SparseMatrix *A_gmres = NULL;
     SparseMatrix *A_lu = NULL;
-    sparse_load_mm(&A_gmres, SS_DIR "/west0067.mtx");
-    sparse_load_mm(&A_lu, SS_DIR "/west0067.mtx");
+    ASSERT_ERR(sparse_load_mm(&A_gmres, SS_DIR "/west0067.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_load_mm(&A_lu, SS_DIR "/west0067.mtx"), SPARSE_OK);
     idx_t n = sparse_rows(A_gmres);
 
     double *x_exact = malloc((size_t)n * sizeof(double));
@@ -1869,8 +1869,9 @@ static void test_gmres_vs_lu_west0067(void)
 
     /* LU solve */
     double *x_lu = malloc((size_t)n * sizeof(double));
-    sparse_lu_factor(A_lu, SPARSE_PIVOT_PARTIAL, 1e-14);
-    sparse_lu_solve(A_lu, b, x_lu);
+    ASSERT_NOT_NULL(x_lu);
+    ASSERT_ERR(sparse_lu_factor(A_lu, SPARSE_PIVOT_PARTIAL, 1e-14), SPARSE_OK);
+    ASSERT_ERR(sparse_lu_solve(A_lu, b, x_lu), SPARSE_OK);
 
     double res_gmres = compute_relative_residual(A_gmres, b, x_gmres, n);
     double res_lu = compute_relative_residual(A_gmres, b, x_lu, n);
@@ -1900,8 +1901,8 @@ static void test_gmres_vs_lu_steam1(void)
 {
     SparseMatrix *A_gmres = NULL;
     SparseMatrix *A_lu = NULL;
-    sparse_load_mm(&A_gmres, SS_DIR "/steam1.mtx");
-    sparse_load_mm(&A_lu, SS_DIR "/steam1.mtx");
+    ASSERT_ERR(sparse_load_mm(&A_gmres, SS_DIR "/steam1.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_load_mm(&A_lu, SS_DIR "/steam1.mtx"), SPARSE_OK);
     idx_t n = sparse_rows(A_gmres);
 
     double *x_exact = malloc((size_t)n * sizeof(double));
@@ -1918,8 +1919,9 @@ static void test_gmres_vs_lu_steam1(void)
 
     /* LU solve */
     double *x_lu = malloc((size_t)n * sizeof(double));
-    sparse_lu_factor(A_lu, SPARSE_PIVOT_PARTIAL, 1e-14);
-    sparse_lu_solve(A_lu, b, x_lu);
+    ASSERT_NOT_NULL(x_lu);
+    ASSERT_ERR(sparse_lu_factor(A_lu, SPARSE_PIVOT_PARTIAL, 1e-14), SPARSE_OK);
+    ASSERT_ERR(sparse_lu_solve(A_lu, b, x_lu), SPARSE_OK);
 
     double res_gmres = compute_relative_residual(A_gmres, b, x_gmres, n);
     double res_lu = compute_relative_residual(A_gmres, b, x_lu, n);

@@ -565,7 +565,8 @@ static void test_hardening_gmres_near_singular(void)
     sparse_iter_result_t result;
 
     /* Should not crash; may or may not converge */
-    sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &result);
+    sparse_err_t err = sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &result);
+    ASSERT_TRUE(err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED);
     ASSERT_TRUE(result.iterations >= 0);
 
     sparse_free(A);

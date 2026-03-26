@@ -312,15 +312,19 @@ static void test_integration_all_solvers_nos4(void)
 
     /* LU */
     SparseMatrix *LU = sparse_copy(sys.A);
+    ASSERT_NOT_NULL(LU);
     double *x_lu = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(x_lu);
+    if (!LU || !x_lu) { sparse_free(LU); free(x_lu); free(x_cg); free(x_gm); free_system(&sys); return; }
     ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
     ASSERT_ERR(sparse_lu_solve(LU, sys.b, x_lu), SPARSE_OK);
 
     /* Cholesky */
     SparseMatrix *Ch = sparse_copy(sys.A);
+    ASSERT_NOT_NULL(Ch);
     double *x_ch = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(x_ch);
+    if (!Ch || !x_ch) { sparse_free(Ch); free(x_ch); free(x_cg); free(x_gm); free(x_lu); sparse_free(LU); free_system(&sys); return; }
     ASSERT_ERR(sparse_cholesky_factor(Ch), SPARSE_OK);
     ASSERT_ERR(sparse_cholesky_solve(Ch, sys.b, x_ch), SPARSE_OK);
 
@@ -359,6 +363,8 @@ static void test_integration_all_solvers_nos4(void)
 static void test_integration_1x1_all_solvers(void)
 {
     SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     sparse_insert(A, 0, 0, 5.0);
     double b[1] = {15.0};
 
@@ -600,12 +606,14 @@ static void test_hardening_zero_max_iter(void)
     sparse_iter_result_t result;
 
     sparse_iter_opts_t cg_opts = {.max_iter = 0, .tol = 1e-10, .verbose = 0};
-    sparse_solve_cg(A, b, x, &cg_opts, NULL, NULL, &result);
+    sparse_err_t cg_err = sparse_solve_cg(A, b, x, &cg_opts, NULL, NULL, &result);
+    ASSERT_TRUE(cg_err == SPARSE_OK || cg_err == SPARSE_ERR_NOT_CONVERGED);
     ASSERT_EQ(result.iterations, 0);
 
     sparse_gmres_opts_t gm_opts = {.max_iter = 0, .restart = 10, .tol = 1e-10, .verbose = 0};
     double xg[3] = {0};
-    sparse_solve_gmres(A, b, xg, &gm_opts, NULL, NULL, &result);
+    sparse_err_t gm_err = sparse_solve_gmres(A, b, xg, &gm_opts, NULL, NULL, &result);
+    ASSERT_TRUE(gm_err == SPARSE_OK || gm_err == SPARSE_ERR_NOT_CONVERGED);
     ASSERT_EQ(result.iterations, 0);
 
     sparse_free(A);

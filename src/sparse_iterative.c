@@ -262,8 +262,9 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
     int converged = 0;
     double rel_res = 1.0;
 
-    /* Outer restart loop */
-    idx_t max_restarts = (o->max_iter + m - 1) / m;  /* ceil(max_iter / m) */
+    /* Outer restart loop — compute ceil(max_iter/m) in wider type to avoid
+     * signed overflow when max_iter is near INT32_MAX */
+    idx_t max_restarts = (idx_t)(((int64_t)o->max_iter + m - 1) / m);
 
     /* Check initial true residual (handles max_iter==0 and exact initial guess) */
     {

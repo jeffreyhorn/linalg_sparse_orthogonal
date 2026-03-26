@@ -406,6 +406,8 @@ static void test_integration_1x1_all_solvers(void)
 static void test_integration_zero_tolerance(void)
 {
     SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     sparse_insert(A, 0, 0, 4.0); sparse_insert(A, 0, 1, -1.0);
     sparse_insert(A, 1, 0, -1.0); sparse_insert(A, 1, 1, 4.0); sparse_insert(A, 1, 2, -1.0);
     sparse_insert(A, 2, 1, -1.0); sparse_insert(A, 2, 2, 4.0);
@@ -574,6 +576,8 @@ static void test_hardening_large_restart(void)
 {
     idx_t n = 5;
     SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, 4.0);
         if (i > 0)     sparse_insert(A, i, i - 1, -1.0);
@@ -598,6 +602,8 @@ static void test_hardening_ilu_tiny_diagonal(void)
 {
     idx_t n = 3;
     SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     sparse_insert(A, 0, 0, 1e-20);
     sparse_insert(A, 1, 1, 1e-20);
     sparse_insert(A, 2, 2, 1e-20);
@@ -617,6 +623,8 @@ static void test_hardening_ilu_tiny_diagonal(void)
 static void test_hardening_zero_max_iter(void)
 {
     SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     for (idx_t i = 0; i < 3; i++)
         sparse_insert(A, i, i, 4.0);
     double b[3] = {1.0, 2.0, 3.0};

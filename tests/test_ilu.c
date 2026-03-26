@@ -54,6 +54,8 @@ static double compute_relative_residual(const SparseMatrix *A,
 static void test_ilu_3x3_dense(void)
 {
     SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     sparse_insert(A, 0, 0, 2.0); sparse_insert(A, 0, 1, 1.0); sparse_insert(A, 0, 2, 1.0);
     sparse_insert(A, 1, 0, 4.0); sparse_insert(A, 1, 1, 3.0); sparse_insert(A, 1, 2, 3.0);
     sparse_insert(A, 2, 0, 8.0); sparse_insert(A, 2, 1, 7.0); sparse_insert(A, 2, 2, 9.0);
@@ -96,6 +98,8 @@ static void test_ilu_diagonal(void)
 {
     idx_t n = 5;
     SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     double diags[] = {3.0, 7.0, 2.0, 5.0, 1.0};
     for (idx_t i = 0; i < n; i++)
         sparse_insert(A, i, i, diags[i]);
@@ -161,6 +165,8 @@ static void test_ilu_drops_fill(void)
      * Exact LU would create fill at (2,0) and (0,2).
      * ILU(0) should not create these entries. */
     SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     sparse_insert(A, 0, 0, 2.0); sparse_insert(A, 0, 1, 1.0);
     sparse_insert(A, 1, 0, 1.0); sparse_insert(A, 1, 1, 3.0); sparse_insert(A, 1, 2, 1.0);
     sparse_insert(A, 2, 1, 1.0); sparse_insert(A, 2, 2, 2.0);
@@ -219,6 +225,8 @@ static void test_ilu_solve_identity(void)
 {
     idx_t n = 4;
     SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     for (idx_t i = 0; i < n; i++)
         sparse_insert(A, i, i, 1.0);
 
@@ -782,6 +790,8 @@ static void test_ilu_null_inputs(void)
 static void test_ilu_nonsquare(void)
 {
     SparseMatrix *A = sparse_create(3, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     sparse_insert(A, 0, 0, 1.0);
     sparse_ilu_t ilu;
 
@@ -794,6 +804,8 @@ static void test_ilu_singular(void)
 {
     /* Zero diagonal → singular */
     SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     sparse_insert(A, 0, 0, 0.0);  /* zero pivot */
     sparse_insert(A, 0, 1, 1.0);
     sparse_insert(A, 1, 0, 1.0);

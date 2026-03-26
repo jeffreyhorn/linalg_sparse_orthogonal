@@ -131,6 +131,8 @@ static void test_spmv_tridiag(void)
 {
     idx_t n = 100;
     SparseMatrix *A = build_spd_tridiag(n, 4.0, -1.0);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
 
     double *x = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(x);
@@ -150,6 +152,8 @@ static void test_spmv_laplacian(void)
     idx_t m = 8;
     idx_t n = m * m;  /* 64×64 */
     SparseMatrix *A = build_laplacian_2d(m);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
 
     double *x = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(x);

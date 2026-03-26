@@ -186,6 +186,8 @@ static void test_ilu_drops_fill(void)
 
     /* A*z should be close to r but not exact (due to dropped fill) */
     double *Az = malloc(3 * sizeof(double));
+    ASSERT_NOT_NULL(Az);
+    if (!Az) { sparse_ilu_free(&ilu); sparse_free(A); return; }
     sparse_matvec(A, z, Az);
     /* The approximation should be reasonable */
     double err = 0.0;
@@ -486,6 +488,9 @@ static void test_ilu_gmres_steam1(void)
 
     double *x_exact = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (!x_exact || !b) { free(x_exact); free(b); sparse_free(A); return; }
     for (idx_t i = 0; i < n; i++)
         x_exact[i] = (double)(i + 1);
     sparse_matvec(A, x_exact, b);

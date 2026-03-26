@@ -501,6 +501,8 @@ static void test_hardening_illcond_nconv(void)
     /* Hilbert-like 5×5 matrix: very ill-conditioned */
     idx_t n = 5;
     SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     for (idx_t i = 0; i < n; i++)
         for (idx_t j = 0; j < n; j++)
             sparse_insert(A, i, j, 1.0 / (double)(i + j + 1));
@@ -519,7 +521,8 @@ static void test_hardening_illcond_nconv(void)
     /* GMRES with very few iterations */
     double xg[5] = {0};
     sparse_gmres_opts_t gm_opts = {.max_iter = 3, .restart = 3, .tol = 1e-15, .verbose = 0};
-    sparse_solve_gmres(A, b, xg, &gm_opts, NULL, NULL, &result);
+    sparse_err_t gm_err = sparse_solve_gmres(A, b, xg, &gm_opts, NULL, NULL, &result);
+    ASSERT_TRUE(gm_err == SPARSE_OK || gm_err == SPARSE_ERR_NOT_CONVERGED);
     ASSERT_TRUE(result.iterations <= 3);
     ASSERT_TRUE(result.residual_norm >= 0.0);
 

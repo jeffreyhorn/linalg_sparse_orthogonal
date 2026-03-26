@@ -18,6 +18,19 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu)
     ilu->U = NULL;
     ilu->n = n;
 
+    /* Reject matrices with non-identity permutations (e.g., after LU pivoting).
+     * ILU(0) operates on physical storage and assumes identity perms. */
+    {
+        const idx_t *rp = sparse_row_perm(A);
+        const idx_t *cp = sparse_col_perm(A);
+        if (rp && cp) {
+            for (idx_t i = 0; i < n; i++) {
+                if (rp[i] != i || cp[i] != i)
+                    return SPARSE_ERR_BADARG;
+            }
+        }
+    }
+
     /* Empty matrix: treat as a valid no-op factorization.
      * Leave L and U as NULL; sparse_ilu_solve handles n==0 early. */
     if (n == 0) return SPARSE_OK;

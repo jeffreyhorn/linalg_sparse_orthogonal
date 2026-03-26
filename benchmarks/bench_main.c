@@ -651,6 +651,9 @@ int main(int argc, char **argv)
                 sparse_free(A);
                 return 1;
             }
+            /* Note: sparse_is_symmetric detects symmetry, not definiteness.
+             * CG requires SPD; symmetric-but-indefinite matrices may not
+             * converge.  This is a best-effort heuristic for benchmarking. */
             benchmark_iterative(A, filename, sparse_is_symmetric(A, 1e-10));
             sparse_free(A);
         } else {

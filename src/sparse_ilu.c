@@ -163,25 +163,21 @@ sparse_err_t sparse_ilu_solve(const sparse_ilu_t *ilu,
 
     if (!ilu->L || !ilu->U) return SPARSE_ERR_NULL;
 
-    /* Allocate workspace for intermediate vector y */
-    double *y = malloc((size_t)n * sizeof(double));
-    if (!y) return SPARSE_ERR_ALLOC;
-
-    /* Forward substitution: L*y = r
-     * L is unit lower triangular, so y[i] = r[i] - sum_{j<i} L(i,j)*y[j] */
+    /* Forward substitution: L*y = r  (store y in z to avoid allocation)
+     * L is unit lower triangular, so z[i] = r[i] - sum_{j<i} L(i,j)*z[j] */
     for (idx_t i = 0; i < n; i++) {
         double sum = 0.0;
         Node *node = ilu->L->row_headers[i];
         while (node) {
             if (node->col < i) {
-                sum += node->value * y[node->col];
+                sum += node->value * z[node->col];
             }
             node = node->right;
         }
-        y[i] = r[i] - sum;
+        z[i] = r[i] - sum;
     }
 
-    /* Backward substitution: U*z = y
+    /* Backward substitution: U*z = y  (y is already in z)
      * U is upper triangular with diagonal */
     for (idx_t i = n - 1; i >= 0; i--) {
         double sum = 0.0;
@@ -196,13 +192,11 @@ sparse_err_t sparse_ilu_solve(const sparse_ilu_t *ilu,
             node = node->right;
         }
         if (fabs(diag) < 1e-30) {
-            free(y);
             return SPARSE_ERR_SINGULAR;
         }
-        z[i] = (y[i] - sum) / diag;
+        z[i] = (z[i] - sum) / diag;
     }
 
-    free(y);
     return SPARSE_OK;
 }
 

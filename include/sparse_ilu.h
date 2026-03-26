@@ -57,6 +57,7 @@ typedef struct {
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or ilu is NULL.
  * @return SPARSE_ERR_SHAPE if A is not square.
+ * @return SPARSE_ERR_BADARG if A has non-identity permutations (e.g., after LU pivoting).
  * @return SPARSE_ERR_SINGULAR if a zero pivot is encountered.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  */

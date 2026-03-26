@@ -409,10 +409,9 @@ static void test_integration_zero_tolerance(void)
     sparse_iter_result_t result;
     sparse_err_t err = sparse_solve_cg(A, b, x, &opts, NULL, NULL, &result);
 
+    ASSERT_TRUE(err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED);
     ASSERT_TRUE(result.iterations >= 0);
     ASSERT_TRUE(result.iterations <= 5);
-    /* Either converged (residual reached 0) or hit max_iter — both OK */
-    (void)err;
 
     sparse_free(A);
 }
@@ -535,6 +534,8 @@ static void test_hardening_gmres_near_singular(void)
     /* Nearly singular: rank-1 matrix plus tiny perturbation */
     idx_t n = 4;
     SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     for (idx_t i = 0; i < n; i++)
         for (idx_t j = 0; j < n; j++)
             sparse_insert(A, i, j, 1.0);

@@ -93,6 +93,7 @@ static void convergence_table(const char *name, SparseMatrix *A)
     /* --- CG (SPD only) --- */
     if (spd) {
         double *x = calloc((size_t)n, sizeof(double));
+        if (!x) { free(x_exact); free(b); return; }
         sparse_iter_opts_t opts = {.max_iter = 2000, .tol = 1e-10, .verbose = 0};
         sparse_iter_result_t res;
         double t0 = wall_time();
@@ -135,6 +136,7 @@ static void convergence_table(const char *name, SparseMatrix *A)
     /* --- GMRES --- */
     {
         double *x = calloc((size_t)n, sizeof(double));
+        if (!x) { free(x_exact); free(b); return; }
         sparse_gmres_opts_t opts = {.max_iter = 2000, .restart = 50, .tol = 1e-10, .verbose = 0};
         sparse_iter_result_t res;
         double t0 = wall_time();
@@ -171,14 +173,18 @@ static void convergence_table(const char *name, SparseMatrix *A)
     {
         SparseMatrix *LU = sparse_copy(A);
         double *x = malloc((size_t)n * sizeof(double));
-        double t0 = wall_time();
-        sparse_err_t err = sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12);
-        if (err == SPARSE_OK) {
-            sparse_lu_solve(LU, b, x);
-            double t = wall_time() - t0;
-            double rr = compute_rel_residual(A, b, x, n);
-            printf("    %-20s %6s %10.6f %12.3e %6s\n",
-                   "LU direct", "-", t, rr, "yes");
+        if (!LU || !x) {
+            fprintf(stderr, "    LU direct: allocation failed\n");
+        } else {
+            double t0 = wall_time();
+            sparse_err_t err = sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12);
+            if (err == SPARSE_OK) {
+                sparse_lu_solve(LU, b, x);
+                double t = wall_time() - t0;
+                double rr = compute_rel_residual(A, b, x, n);
+                printf("    %-20s %6s %10.6f %12.3e %6s\n",
+                       "LU direct", "-", t, rr, "yes");
+            }
         }
         free(x);
         sparse_free(LU);

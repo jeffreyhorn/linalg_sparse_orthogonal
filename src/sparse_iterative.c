@@ -37,6 +37,7 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A,
     if (sparse_rows(A) != sparse_cols(A)) return SPARSE_ERR_SHAPE;
 
     const sparse_iter_opts_t *o = opts ? opts : &cg_defaults;
+    if (o->max_iter < 0 || o->tol < 0.0) return SPARSE_ERR_BADARG;
     idx_t n = sparse_rows(A);
 
     /* Populate result with defaults in case of early return */
@@ -184,6 +185,7 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
     if (sparse_rows(A) != sparse_cols(A)) return SPARSE_ERR_SHAPE;
 
     const sparse_gmres_opts_t *o = opts ? opts : &gmres_defaults;
+    if (o->max_iter < 0 || o->restart < 0 || o->tol < 0.0) return SPARSE_ERR_BADARG;
     idx_t n = sparse_rows(A);
     idx_t m = o->restart;  /* restart parameter */
 

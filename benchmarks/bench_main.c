@@ -430,6 +430,7 @@ static void benchmark_iterative(SparseMatrix *A, const char *name, int is_spd)
     /* --- CG (SPD only) --- */
     if (is_spd) {
         double *x = calloc((size_t)n, sizeof(double));
+        if (!x) { fprintf(stderr, "    CG: allocation failed\n"); free(x_exact); free(b); return; }
         sparse_iter_opts_t cg_opts = {.max_iter = 2000, .tol = 1e-10, .verbose = 0};
         sparse_iter_result_t res;
         double t0 = wall_time();
@@ -456,6 +457,7 @@ static void benchmark_iterative(SparseMatrix *A, const char *name, int is_spd)
     /* --- GMRES --- */
     {
         double *x = calloc((size_t)n, sizeof(double));
+        if (!x) { fprintf(stderr, "    GMRES: allocation failed\n"); free(x_exact); free(b); return; }
         sparse_gmres_opts_t gm_opts = {.max_iter = 2000, .restart = 50, .tol = 1e-10, .verbose = 0};
         sparse_iter_result_t res;
         double t0 = wall_time();
@@ -485,15 +487,19 @@ static void benchmark_iterative(SparseMatrix *A, const char *name, int is_spd)
     {
         SparseMatrix *LU = sparse_copy(A);
         double *x = malloc((size_t)n * sizeof(double));
-        double t0 = wall_time();
-        sparse_err_t err = sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12);
-        double t_factor = wall_time() - t0;
-        if (err == SPARSE_OK) {
-            t0 = wall_time();
-            sparse_lu_solve(LU, b, x);
-            double t_solve = wall_time() - t0;
-            printf("    LU direct:         factor=%.6f s  solve=%.6f s\n",
-                   t_factor, t_solve);
+        if (!LU || !x) {
+            fprintf(stderr, "    LU direct: allocation failed, skipping\n");
+        } else {
+            double t0 = wall_time();
+            sparse_err_t err = sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12);
+            double t_factor = wall_time() - t0;
+            if (err == SPARSE_OK) {
+                t0 = wall_time();
+                sparse_lu_solve(LU, b, x);
+                double t_solve = wall_time() - t0;
+                printf("    LU direct:         factor=%.6f s  solve=%.6f s\n",
+                       t_factor, t_solve);
+            }
         }
         free(x);
         sparse_free(LU);

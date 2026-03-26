@@ -444,11 +444,13 @@ static void benchmark_iterative(SparseMatrix *A, const char *name, int is_spd)
         sparse_ilu_t ilu;
         if (sparse_ilu_factor(A, &ilu) == SPARSE_OK) {
             x = calloc((size_t)n, sizeof(double));
-            t0 = wall_time();
-            sparse_solve_cg(A, b, x, &cg_opts, sparse_ilu_precond, &ilu, &res);
-            double t_pcg = wall_time() - t0;
-            printf("    ILU-CG:      %4d iters  %.6f s  res=%.3e  conv=%d\n",
-                   (int)res.iterations, t_pcg, res.residual_norm, res.converged);
+            if (x) {
+                t0 = wall_time();
+                sparse_solve_cg(A, b, x, &cg_opts, sparse_ilu_precond, &ilu, &res);
+                double t_pcg = wall_time() - t0;
+                printf("    ILU-CG:      %4d iters  %.6f s  res=%.3e  conv=%d\n",
+                       (int)res.iterations, t_pcg, res.residual_norm, res.converged);
+            }
             free(x);
             sparse_ilu_free(&ilu);
         }
@@ -471,11 +473,13 @@ static void benchmark_iterative(SparseMatrix *A, const char *name, int is_spd)
         sparse_ilu_t ilu;
         if (sparse_ilu_factor(A, &ilu) == SPARSE_OK) {
             x = calloc((size_t)n, sizeof(double));
-            t0 = wall_time();
-            sparse_solve_gmres(A, b, x, &gm_opts, sparse_ilu_precond, &ilu, &res);
-            double t_pgm = wall_time() - t0;
-            printf("    ILU-GMRES:   %4d iters  %.6f s  res=%.3e  conv=%d\n",
-                   (int)res.iterations, t_pgm, res.residual_norm, res.converged);
+            if (x) {
+                t0 = wall_time();
+                sparse_solve_gmres(A, b, x, &gm_opts, sparse_ilu_precond, &ilu, &res);
+                double t_pgm = wall_time() - t0;
+                printf("    ILU-GMRES:   %4d iters  %.6f s  res=%.3e  conv=%d\n",
+                       (int)res.iterations, t_pgm, res.residual_norm, res.converged);
+            }
             free(x);
             sparse_ilu_free(&ilu);
         } else {

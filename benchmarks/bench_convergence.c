@@ -108,12 +108,14 @@ static void convergence_table(const char *name, SparseMatrix *A)
         sparse_ilu_t ilu;
         if (sparse_ilu_factor(A, &ilu) == SPARSE_OK) {
             x = calloc((size_t)n, sizeof(double));
-            t0 = wall_time();
-            sparse_solve_cg(A, b, x, &opts, sparse_ilu_precond, &ilu, &res);
-            t = wall_time() - t0;
-            rr = compute_rel_residual(A, b, x, n);
-            printf("    %-20s %6d %10.6f %12.3e %6s\n",
-                   "ILU-CG", (int)res.iterations, t, rr, res.converged ? "yes" : "no");
+            if (x) {
+                t0 = wall_time();
+                sparse_solve_cg(A, b, x, &opts, sparse_ilu_precond, &ilu, &res);
+                t = wall_time() - t0;
+                rr = compute_rel_residual(A, b, x, n);
+                printf("    %-20s %6d %10.6f %12.3e %6s\n",
+                       "ILU-CG", (int)res.iterations, t, rr, res.converged ? "yes" : "no");
+            }
             free(x);
             sparse_ilu_free(&ilu);
         }
@@ -122,12 +124,14 @@ static void convergence_table(const char *name, SparseMatrix *A)
         SparseMatrix *L = sparse_copy(A);
         if (sparse_cholesky_factor(L) == SPARSE_OK) {
             x = calloc((size_t)n, sizeof(double));
-            t0 = wall_time();
-            sparse_solve_cg(A, b, x, &opts, cholesky_precond, L, &res);
-            t = wall_time() - t0;
-            rr = compute_rel_residual(A, b, x, n);
-            printf("    %-20s %6d %10.6f %12.3e %6s\n",
-                   "Cholesky-CG", (int)res.iterations, t, rr, res.converged ? "yes" : "no");
+            if (x) {
+                t0 = wall_time();
+                sparse_solve_cg(A, b, x, &opts, cholesky_precond, L, &res);
+                t = wall_time() - t0;
+                rr = compute_rel_residual(A, b, x, n);
+                printf("    %-20s %6d %10.6f %12.3e %6s\n",
+                       "Cholesky-CG", (int)res.iterations, t, rr, res.converged ? "yes" : "no");
+            }
             free(x);
         }
         sparse_free(L);
@@ -153,14 +157,16 @@ static void convergence_table(const char *name, SparseMatrix *A)
         sparse_ilu_t ilu;
         if (sparse_ilu_factor(A, &ilu) == SPARSE_OK) {
             double *x = calloc((size_t)n, sizeof(double));
-            sparse_gmres_opts_t opts = {.max_iter = 2000, .restart = 50, .tol = 1e-10, .verbose = 0};
-            sparse_iter_result_t res;
-            double t0 = wall_time();
-            sparse_solve_gmres(A, b, x, &opts, sparse_ilu_precond, &ilu, &res);
-            double t = wall_time() - t0;
-            double rr = compute_rel_residual(A, b, x, n);
-            printf("    %-20s %6d %10.6f %12.3e %6s\n",
-                   "ILU-GMRES(50)", (int)res.iterations, t, rr, res.converged ? "yes" : "no");
+            if (x) {
+                sparse_gmres_opts_t opts = {.max_iter = 2000, .restart = 50, .tol = 1e-10, .verbose = 0};
+                sparse_iter_result_t res;
+                double t0 = wall_time();
+                sparse_solve_gmres(A, b, x, &opts, sparse_ilu_precond, &ilu, &res);
+                double t = wall_time() - t0;
+                double rr = compute_rel_residual(A, b, x, n);
+                printf("    %-20s %6d %10.6f %12.3e %6s\n",
+                       "ILU-GMRES(50)", (int)res.iterations, t, rr, res.converged ? "yes" : "no");
+            }
             free(x);
             sparse_ilu_free(&ilu);
         } else {

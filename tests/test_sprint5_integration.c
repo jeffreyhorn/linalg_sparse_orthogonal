@@ -226,6 +226,8 @@ static void test_integration_cholesky_vs_ilu_precond(void)
     ASSERT_ERR(sparse_ilu_factor(sys.A, &ilu), SPARSE_OK);
 
     double *x_ilu = calloc((size_t)sys.n, sizeof(double));
+    ASSERT_NOT_NULL(x_ilu);
+    if (!x_ilu) { free(x_chol); sparse_free(L); sparse_ilu_free(&ilu); free_system(&sys); return; }
     sparse_iter_result_t result_ilu;
     ASSERT_ERR(sparse_solve_cg(sys.A, sys.b, x_ilu, &opts,
                      sparse_ilu_precond, &ilu, &result_ilu), SPARSE_OK);
@@ -460,10 +462,14 @@ static void test_integration_ilu_multi_rhs(void)
     /* Solve with 3 different RHS vectors using the same ILU factors */
     for (int rhs = 0; rhs < 3; rhs++) {
         double *b = malloc((size_t)n * sizeof(double));
+        ASSERT_NOT_NULL(b);
+        if (!b) break;
         for (idx_t i = 0; i < n; i++)
             b[i] = sin((double)(i + 1) * (0.1 * (double)(rhs + 1)));
 
         double *x = calloc((size_t)n, sizeof(double));
+        ASSERT_NOT_NULL(x);
+        if (!x) { free(b); break; }
         sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
         sparse_iter_result_t result;
         ASSERT_ERR(sparse_solve_cg(sys.A, b, x, &opts,
@@ -499,7 +505,8 @@ static void test_hardening_illcond_nconv(void)
     /* CG with very few iterations — should not crash */
     sparse_iter_opts_t cg_opts = {.max_iter = 3, .tol = 1e-15, .verbose = 0};
     sparse_iter_result_t result;
-    sparse_solve_cg(A, b, x, &cg_opts, NULL, NULL, &result);
+    sparse_err_t err = sparse_solve_cg(A, b, x, &cg_opts, NULL, NULL, &result);
+    ASSERT_TRUE(err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED);
     ASSERT_TRUE(result.iterations <= 3);
     ASSERT_TRUE(result.residual_norm >= 0.0);
 

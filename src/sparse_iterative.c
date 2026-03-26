@@ -1,6 +1,7 @@
 #include "sparse_iterative.h"
 #include "sparse_vector.h"
 #include <stdlib.h>
+#include <stdint.h>
 #include <math.h>
 #include <stdio.h>
 
@@ -65,6 +66,7 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A,
     }
 
     /* Allocate workspace: r, z, p, Ap (4 vectors of length n) */
+    if ((size_t)n > SIZE_MAX / (4 * sizeof(double))) return SPARSE_ERR_ALLOC;
     double *work = malloc(4 * (size_t)n * sizeof(double));
     if (!work) return SPARSE_ERR_ALLOC;
     double *r  = work;
@@ -234,10 +236,15 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
         return SPARSE_ERR_ALLOC;
     if (m > 0 && sz_h / (size_t)m != (size_t)(m + 1))
         return SPARSE_ERR_ALLOC;
-    size_t total = sz_v + sz_h + sz_cs + sz_sn + sz_g + sz_y + sz_w;
-    if (total < sz_v)  /* addition overflow */
-        return SPARSE_ERR_ALLOC;
-    if (total > (size_t)-1 / sizeof(double))
+    size_t total = 0;
+    {
+        size_t sizes[] = {sz_v, sz_h, sz_cs, sz_sn, sz_g, sz_y, sz_w};
+        for (int s = 0; s < 7; s++) {
+            if (sizes[s] > SIZE_MAX - total) return SPARSE_ERR_ALLOC;
+            total += sizes[s];
+        }
+    }
+    if (total > SIZE_MAX / sizeof(double))
         return SPARSE_ERR_ALLOC;
 
     double *mem = calloc(total, sizeof(double));

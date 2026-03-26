@@ -373,17 +373,17 @@ static void test_integration_zero_tolerance(void)
     double b[3] = {3.0, 2.0, 3.0};
     double x[3] = {0.0, 0.0, 0.0};
 
-    /* tol=0 means it can never converge via residual check; must hit max_iter */
+    /* tol=0 with <= check: convergence requires residual to reach exactly 0,
+     * which is extremely unlikely in floating point (but not impossible).
+     * CG on this 3×3 SPD system converges in ≤3 steps in exact arithmetic;
+     * in practice it will likely converge since the residual can reach 0. */
     sparse_iter_opts_t opts = {.max_iter = 5, .tol = 0.0, .verbose = 0};
     sparse_iter_result_t result;
     sparse_err_t err = sparse_solve_cg(A, b, x, &opts, NULL, NULL, &result);
 
-    /* CG on 3×3 SPD converges in ≤3 steps in exact arithmetic,
-     * but tol=0 means the residual check never triggers.
-     * It may converge via lucky breakdown or hit max_iter. */
     ASSERT_TRUE(result.iterations >= 0);
     ASSERT_TRUE(result.iterations <= 5);
-    /* Even if "not converged", the solution should be reasonable */
+    /* Either converged (residual reached 0) or hit max_iter — both OK */
     (void)err;
 
     sparse_free(A);

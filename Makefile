@@ -13,10 +13,23 @@ ifdef SPARSE_MUTEX
 CFLAGS  += -DSPARSE_MUTEX
 LDFLAGS += -pthread
 endif
-# When SPARSE_OPENMP is enabled, add OpenMP flags
+# When SPARSE_OPENMP is enabled, add OpenMP flags.
+# On macOS with Apple Clang, use -Xpreprocessor -fopenmp + Homebrew libomp.
+# On Linux/GCC, use -fopenmp directly.
+# Prefer the `make omp` target which handles this automatically.
 ifdef SPARSE_OPENMP
+ifeq ($(shell uname -s),Darwin)
+LIBOMP_FLAG_PREFIX := $(firstword $(wildcard /usr/local/opt/libomp /opt/homebrew/opt/libomp))
+ifneq ($(LIBOMP_FLAG_PREFIX),)
+CFLAGS  += -DSPARSE_OPENMP -Xpreprocessor -fopenmp -I$(LIBOMP_FLAG_PREFIX)/include
+LDFLAGS += -L$(LIBOMP_FLAG_PREFIX)/lib -lomp
+else
+$(error libomp not found. Install with 'brew install libomp' or use 'make omp')
+endif
+else
 CFLAGS  += -DSPARSE_OPENMP -fopenmp
 LDFLAGS += -fopenmp
+endif
 endif
 INCLUDE = -Iinclude
 

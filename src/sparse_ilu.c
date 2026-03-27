@@ -45,6 +45,20 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu)
      * permutations are still identity) for correct results. */
     sparse_reset_perms(W);
 
+    /* Cache diagonal node pointers for O(1) pivot access during elimination.
+     * This avoids repeated O(nnz_row) scans via sparse_get_phys(). */
+    Node **diag_nodes = malloc((size_t)n * sizeof(Node *));
+    if (!diag_nodes) { sparse_free(W); return SPARSE_ERR_ALLOC; }
+    for (idx_t i = 0; i < n; i++) {
+        diag_nodes[i] = NULL;
+        Node *nd = W->row_headers[i];
+        while (nd) {
+            if (nd->col == i) { diag_nodes[i] = nd; break; }
+            if (nd->col > i) break;
+            nd = nd->right;
+        }
+    }
+
     /* IKJ variant of ILU(0) Gaussian elimination:
      * For each row i = 1..n-1:
      *   For each k < i where W(i,k) != 0:
@@ -55,38 +69,30 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu)
      *       Else: drop (ILU(0) rule)
      */
     for (idx_t i = 1; i < n; i++) {
-        /* Collect column indices k < i where W(i,k) != 0.
-         * We need to process them in ascending order of k. */
         Node *node_ik = W->row_headers[i];
         while (node_ik) {
             idx_t k = node_ik->col;
-            if (k >= i) break;  /* only process k < i (lower triangle) */
+            if (k >= i) break;
 
-            double wkk = sparse_get_phys(W, k, k);
-            if (fabs(wkk) < 1e-30) {
+            if (!diag_nodes[k] || fabs(diag_nodes[k]->value) < 1e-30) {
+                free(diag_nodes);
                 sparse_free(W);
                 return SPARSE_ERR_SINGULAR;
             }
 
-            /* W(i,k) /= W(k,k) — store the multiplier */
-            double mult = node_ik->value / wkk;
+            double mult = node_ik->value / diag_nodes[k]->value;
             node_ik->value = mult;
 
-            /* For each j > k where W(k,j) != 0: update W(i,j) if it exists */
             Node *node_kj = W->row_headers[k];
             Node *scan = W->row_headers[i];
             while (node_kj) {
                 idx_t j = node_kj->col;
                 if (j > k) {
-                    /* Advance scan pointer to column >= j.
-                     * Row i entries are sorted by column, so we only
-                     * move forward (never restart from head). */
                     while (scan && scan->col < j)
                         scan = scan->right;
                     if (scan && scan->col == j) {
                         scan->value -= mult * node_kj->value;
                     }
-                    /* else: drop (ILU(0) no-fill rule) */
                 }
                 node_kj = node_kj->right;
             }
@@ -97,12 +103,14 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu)
 
     /* Verify all diagonal entries are nonzero (needed for backward sub) */
     for (idx_t i = 0; i < n; i++) {
-        double wii = sparse_get_phys(W, i, i);
+        double wii = diag_nodes[i] ? diag_nodes[i]->value : 0.0;
         if (fabs(wii) < 1e-30) {
+            free(diag_nodes);
             sparse_free(W);
             return SPARSE_ERR_SINGULAR;
         }
     }
+    free(diag_nodes);
 
     /* Extract L (unit lower triangular) and U (upper triangular with diagonal) */
     SparseMatrix *L = sparse_create(n, n);

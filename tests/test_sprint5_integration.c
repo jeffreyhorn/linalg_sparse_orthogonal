@@ -171,11 +171,7 @@ static void test_integration_ilu_gmres_all_unsym(void)
         double *x = calloc((size_t)sys.n, sizeof(double));
         ASSERT_NOT_NULL(x);
         if (!x) { sparse_ilu_free(&ilu); free_system(&sys); continue; }
-        /* Relaxed tolerance: with left preconditioning the true residual
-         * can lag behind the preconditioned residual on ill-conditioned
-         * matrices (orsirr_1, steam1). The actual residual is checked
-         * separately below. */
-        /* Use relaxed tolerance: on ill-conditioned matrices (steam1, orsirr_1)
+        /* Relaxed tolerance: on ill-conditioned matrices (steam1, orsirr_1)
          * the true residual can lag behind the preconditioned residual. */
         sparse_gmres_opts_t opts = {.max_iter = 2000, .restart = 50, .tol = 1e-2, .verbose = 0};
         sparse_iter_result_t result;

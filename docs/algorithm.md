@@ -411,7 +411,7 @@ Given SPD matrix A, right-hand side b, initial guess x_0:
     z_0 = M^{-1}*r_0          (or z_0 = r_0 if no preconditioner)
     p_0 = z_0
     for k = 0, 1, ..., max_iter:
-        if ||r_k|| / ||b|| < tol: converged
+        if ||r_k|| / ||b|| <= tol: converged
         alpha_k = (r_k^T * z_k) / (p_k^T * A*p_k)
         x_{k+1} = x_k + alpha_k * p_k
         r_{k+1} = r_k - alpha_k * A*p_k

@@ -136,7 +136,7 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 ---
 
-## Sprint 6: Iterative Solver Enhancements & Sparse QR Decomposition
+## Sprint 6: Iterative Enhancements & QR
 
 **Duration:** 14 days (~156 hours)
 
@@ -310,7 +310,7 @@ Sprint 4 (Cholesky/Threads/SpMM/CSR) ← needs reordering, condest
     │
     ├── Sprint 5 (Iterative Solvers)  ← needs Cholesky, SpMM, threads
     │       │
-    │       └── Sprint 6 (ILUT/Right-precond/QR) ← needs ILU, GMRES, CSR/CSC, SpMM
+    │       └── Sprint 6 (Iterative Enhancements & QR) ← needs ILU, GMRES, CSR/CSC, SpMM
     │               │
     │               └── Sprint 7 (QR Apps/Eigenvalues) ← needs QR
     │                       │

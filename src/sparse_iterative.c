@@ -212,8 +212,10 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
         return SPARSE_OK;
     }
 
-    /* Clamp restart to n (unrestarted GMRES if restart >= n) */
+    /* Clamp restart to min(n, max_iter) to avoid oversized allocations
+     * when restart is large but max_iter is small */
     if (m > n) m = n;
+    if (o->max_iter > 0 && m > o->max_iter) m = o->max_iter;
     if (m < 1) m = 1;
 
     /* Allocate workspace:

@@ -434,10 +434,13 @@ static void benchmark_iterative(SparseMatrix *A, const char *name, int is_spd)
         sparse_iter_opts_t cg_opts = {.max_iter = 2000, .tol = 1e-10, .verbose = 0};
         sparse_iter_result_t res;
         double t0 = wall_time();
-        sparse_solve_cg(A, b, x, &cg_opts, NULL, NULL, &res);
+        sparse_err_t cerr = sparse_solve_cg(A, b, x, &cg_opts, NULL, NULL, &res);
         double t_cg = wall_time() - t0;
-        printf("    CG:          %4d iters  %.6f s  res=%.3e  conv=%d\n",
-               (int)res.iterations, t_cg, res.residual_norm, res.converged);
+        if (cerr == SPARSE_OK || cerr == SPARSE_ERR_NOT_CONVERGED)
+            printf("    CG:          %4d iters  %.6f s  res=%.3e  conv=%d\n",
+                   (int)res.iterations, t_cg, res.residual_norm, res.converged);
+        else
+            printf("    CG:          error: %s\n", sparse_strerror(cerr));
         free(x);
 
         /* ILU-preconditioned CG */
@@ -463,10 +466,13 @@ static void benchmark_iterative(SparseMatrix *A, const char *name, int is_spd)
         sparse_gmres_opts_t gm_opts = {.max_iter = 2000, .restart = 50, .tol = 1e-10, .verbose = 0};
         sparse_iter_result_t res;
         double t0 = wall_time();
-        sparse_solve_gmres(A, b, x, &gm_opts, NULL, NULL, &res);
+        sparse_err_t gerr = sparse_solve_gmres(A, b, x, &gm_opts, NULL, NULL, &res);
         double t_gm = wall_time() - t0;
-        printf("    GMRES(50):   %4d iters  %.6f s  res=%.3e  conv=%d\n",
-               (int)res.iterations, t_gm, res.residual_norm, res.converged);
+        if (gerr == SPARSE_OK || gerr == SPARSE_ERR_NOT_CONVERGED)
+            printf("    GMRES(50):   %4d iters  %.6f s  res=%.3e  conv=%d\n",
+                   (int)res.iterations, t_gm, res.residual_norm, res.converged);
+        else
+            printf("    GMRES(50):   error: %s\n", sparse_strerror(gerr));
         free(x);
 
         /* ILU-preconditioned GMRES */
@@ -499,10 +505,13 @@ static void benchmark_iterative(SparseMatrix *A, const char *name, int is_spd)
             double t_factor = wall_time() - t0;
             if (err == SPARSE_OK) {
                 t0 = wall_time();
-                sparse_lu_solve(LU, b, x);
+                sparse_err_t serr = sparse_lu_solve(LU, b, x);
                 double t_solve = wall_time() - t0;
-                printf("    LU direct:         factor=%.6f s  solve=%.6f s\n",
-                       t_factor, t_solve);
+                if (serr == SPARSE_OK)
+                    printf("    LU direct:         factor=%.6f s  solve=%.6f s\n",
+                           t_factor, t_solve);
+                else
+                    printf("    LU direct:         solve failed: %s\n", sparse_strerror(serr));
             }
         }
         free(x);

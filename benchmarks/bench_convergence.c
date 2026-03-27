@@ -251,6 +251,7 @@ static void convergence_history(SparseMatrix *A, const char *name)
 
             /* Plain CG */
             double *x = calloc((size_t)n, sizeof(double));
+            if (!x) break;
             sparse_iter_opts_t opts = {.max_iter = (idx_t)mi, .tol = 1e-15, .verbose = 0};
             sparse_iter_result_t res;
             sparse_solve_cg(A, b, x, &opts, NULL, NULL, &res);
@@ -261,6 +262,7 @@ static void convergence_history(SparseMatrix *A, const char *name)
             double rr_ilu = -1.0;
             if (have_ilu) {
                 x = calloc((size_t)n, sizeof(double));
+                if (!x) break;
                 sparse_solve_cg(A, b, x, &opts, sparse_ilu_precond, &ilu, &res);
                 rr_ilu = compute_rel_residual(A, b, x, n);
                 free(x);
@@ -290,6 +292,7 @@ static void convergence_history(SparseMatrix *A, const char *name)
         if (mi > n * 2) break;
 
         double *x = calloc((size_t)n, sizeof(double));
+        if (!x) break;
         sparse_gmres_opts_t opts = {.max_iter = (idx_t)mi, .restart = 50, .tol = 1e-15, .verbose = 0};
         sparse_iter_result_t res;
         sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &res);
@@ -299,6 +302,7 @@ static void convergence_history(SparseMatrix *A, const char *name)
         double rr_ilu_gm = -1.0;
         if (have_ilu) {
             x = calloc((size_t)n, sizeof(double));
+            if (!x) break;
             sparse_solve_gmres(A, b, x, &opts, sparse_ilu_precond, &ilu, &res);
             rr_ilu_gm = compute_rel_residual(A, b, x, n);
             free(x);

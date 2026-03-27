@@ -72,9 +72,10 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu);
  * @param ilu  The ILU(0) factors from sparse_ilu_factor().
  * @param r    Input vector (right-hand side) of length n.
  * @param z    Output vector (preconditioned result) of length n.
- * @return SPARSE_OK on success.
- * @return SPARSE_ERR_NULL if any argument is NULL, or if ilu->L/ilu->U are NULL
- *         (e.g., factorization was not performed or failed).
+ * @return SPARSE_OK on success (including the n==0 no-op case, where L/U
+ *         may be NULL).
+ * @return SPARSE_ERR_NULL if any argument is NULL, or if ilu->L/ilu->U are
+ *         NULL when n > 0 (e.g., factorization was not performed or failed).
  * @return SPARSE_ERR_SINGULAR if a U diagonal pivot is zero or near-zero.
  */
 sparse_err_t sparse_ilu_solve(const sparse_ilu_t *ilu,

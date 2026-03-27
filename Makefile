@@ -242,7 +242,37 @@ lint:
 .PHONY: check
 check: format-check lint test
 
+# ─── Code coverage ────────────────────────────────────────────────────
+
+# Build with gcov instrumentation, run tests, generate coverage report.
+# Requires: gcc (real GCC, not Apple Clang shim), lcov, genhtml.
+# On Ubuntu:  apt install gcc lcov
+# On macOS:   brew install gcc lcov && make coverage CC=gcc-14
+# Apple Clang's gcov output is incompatible with lcov.
+COVDIR = coverage
+
+.PHONY: coverage
+coverage: CFLAGS += --coverage -fprofile-arcs -ftest-coverage -g -O0
+coverage: LDFLAGS += --coverage
+coverage: clean $(TEST_BINS)
+	@echo "Running tests for coverage..."
+	@for t in $(TEST_BINS); do \
+		$$t || true; \
+	done
+	@echo ""
+	@echo "Collecting coverage data..."
+	lcov --capture --directory $(BUILDDIR) --output-file $(COVDIR)/coverage.info \
+		--ignore-errors mismatch
+	lcov --remove $(COVDIR)/coverage.info '*/tests/*' '*/benchmarks/*' \
+		--output-file $(COVDIR)/coverage-src.info --ignore-errors unused
+	@echo ""
+	@echo "Generating HTML report..."
+	genhtml $(COVDIR)/coverage-src.info --output-directory $(COVDIR)/html
+	@echo ""
+	@echo "Coverage report: $(COVDIR)/html/index.html"
+	lcov --summary $(COVDIR)/coverage-src.info
+
 # Clean
 .PHONY: clean
 clean:
-	/bin/rm -rf $(BUILDDIR)
+	/bin/rm -rf $(BUILDDIR) $(COVDIR)

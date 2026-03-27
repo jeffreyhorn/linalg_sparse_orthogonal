@@ -29,5 +29,11 @@ cmake_install.cmake
 Makefile.cmake
 compile_commands.json
 
+# Coverage
+coverage/
+*.gcno
+*.gcda
+*.gcov
+
 # Claude Code
 .claude/

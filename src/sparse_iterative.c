@@ -384,7 +384,7 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
             {
                 double a = H(j, j);
                 double b_val = H(j + 1, j);
-                double r = sqrt(a * a + b_val * b_val);
+                double r = hypot(a, b_val);
                 if (r > 0.0) {
                     cs[j] = a / r;
                     sn[j] = b_val / r;

@@ -119,7 +119,10 @@ int main(void)
 {
     /* Load a matrix from Matrix Market file */
     SparseMatrix *A = NULL;
-    sparse_load_mm(&A, "matrix.mtx");
+    if (sparse_load_mm(&A, "matrix.mtx") != SPARSE_OK) {
+        fprintf(stderr, "Failed to load matrix\n");
+        return 1;
+    }
     int n = sparse_rows(A);
 
     double *b = malloc(n * sizeof(double));
@@ -128,14 +131,22 @@ int main(void)
 
     /* ILU(0) preconditioned GMRES */
     sparse_ilu_t ilu;
-    sparse_ilu_factor(A, &ilu);
+    if (sparse_ilu_factor(A, &ilu) != SPARSE_OK) {
+        fprintf(stderr, "ILU factorization failed\n");
+        free(b); free(x); sparse_free(A);
+        return 1;
+    }
 
     sparse_gmres_opts_t opts = { .max_iter = 1000, .restart = 50, .tol = 1e-10 };
     sparse_iter_result_t result;
-    sparse_solve_gmres(A, b, x, &opts, sparse_ilu_precond, &ilu, &result);
+    sparse_err_t err = sparse_solve_gmres(A, b, x, &opts,
+                                           sparse_ilu_precond, &ilu, &result);
 
-    printf("Converged in %d iterations, residual = %e\n",
-           result.iterations, result.residual_norm);
+    if (err == SPARSE_OK)
+        printf("Converged in %d iterations, residual = %e\n",
+               result.iterations, result.residual_norm);
+    else
+        printf("Solver returned: %s\n", sparse_strerror(err));
 
     sparse_ilu_free(&ilu);
     free(b); free(x);

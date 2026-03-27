@@ -132,6 +132,8 @@ static void test_ilu_tridiagonal(void)
 {
     idx_t n = 5;
     SparseMatrix *A = build_spd_tridiag(n, 4.0, -1.0);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
 
     sparse_ilu_t ilu;
     { sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
@@ -251,6 +253,8 @@ static void test_ilu_solve_roundtrip(void)
 {
     idx_t n = 10;
     SparseMatrix *A = build_spd_tridiag(n, 4.0, -1.0);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
 
     sparse_ilu_t ilu;
     { sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
@@ -288,6 +292,8 @@ static void test_ilu_precond_cg(void)
 {
     idx_t n = 20;
     SparseMatrix *A = build_spd_tridiag(n, 4.0, -1.0);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
 
     double *x_exact = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
@@ -336,6 +342,8 @@ static void test_ilu_precond_gmres(void)
 {
     idx_t n = 15;
     SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, 5.0);
         if (i > 0)     sparse_insert(A, i, i - 1, -1.0);
@@ -701,6 +709,8 @@ static void test_ilu_speedup_illcond(void)
     /* Build a poorly conditioned SPD tridiagonal with varying diagonal */
     idx_t n = 30;
     SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     for (idx_t i = 0; i < n; i++) {
         double d = 2.0 + 50.0 * (double)i / (double)(n - 1);  /* 2 to 52 */
         sparse_insert(A, i, i, d);
@@ -765,6 +775,8 @@ static void test_ilu_speedup_illcond(void)
 static void test_ilu_null_inputs(void)
 {
     SparseMatrix *A = build_spd_tridiag(3, 4.0, -1.0);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     sparse_ilu_t ilu;
     double r[3] = {1.0, 2.0, 3.0};
     double z[3];

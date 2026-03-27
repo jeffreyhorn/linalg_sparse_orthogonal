@@ -434,6 +434,8 @@ static void test_integration_zero_tolerance(void)
 static void test_integration_identity_preconditioner(void)
 {
     SparseMatrix *A = sparse_create(5, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A) return;
     for (idx_t i = 0; i < 5; i++) {
         sparse_insert(A, i, i, 4.0);
         if (i > 0)     sparse_insert(A, i, i - 1, -1.0);

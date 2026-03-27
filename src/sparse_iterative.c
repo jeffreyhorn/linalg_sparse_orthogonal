@@ -33,19 +33,19 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A,
                               const void *precond_ctx,
                               sparse_iter_result_t *result)
 {
+    /* Initialize result to safe defaults before any early return */
+    if (result) {
+        result->iterations    = 0;
+        result->residual_norm = 0.0;
+        result->converged     = 0;
+    }
+
     if (!A || !b || !x) return SPARSE_ERR_NULL;
     if (sparse_rows(A) != sparse_cols(A)) return SPARSE_ERR_SHAPE;
 
     const sparse_iter_opts_t *o = opts ? opts : &cg_defaults;
     if (o->max_iter < 0 || o->tol < 0.0) return SPARSE_ERR_BADARG;
     idx_t n = sparse_rows(A);
-
-    /* Populate result with defaults in case of early return */
-    if (result) {
-        result->iterations    = 0;
-        result->residual_norm = 0.0;
-        result->converged     = 0;
-    }
 
     /* Trivial case: zero-size system */
     if (n == 0) {
@@ -181,6 +181,13 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
                                  const void *precond_ctx,
                                  sparse_iter_result_t *result)
 {
+    /* Initialize result to safe defaults before any early return */
+    if (result) {
+        result->iterations    = 0;
+        result->residual_norm = 0.0;
+        result->converged     = 0;
+    }
+
     if (!A || !b || !x) return SPARSE_ERR_NULL;
     if (sparse_rows(A) != sparse_cols(A)) return SPARSE_ERR_SHAPE;
 
@@ -188,13 +195,6 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
     if (o->max_iter < 0 || o->restart <= 0 || o->tol < 0.0) return SPARSE_ERR_BADARG;
     idx_t n = sparse_rows(A);
     idx_t m = o->restart;  /* restart parameter */
-
-    /* Populate result with defaults */
-    if (result) {
-        result->iterations    = 0;
-        result->residual_norm = 0.0;
-        result->converged     = 0;
-    }
 
     /* Trivial case */
     if (n == 0) {

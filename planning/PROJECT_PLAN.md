@@ -101,9 +101,9 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 ---
 
-## Sprint 5: Iterative Solvers & Preconditioning
+## Sprint 5: Iterative Solvers & Preconditioning (COMPLETE)
 
-**Duration:** 14 days (~120 hours)
+**Duration:** 14 days
 
 **Goal:** Implement Krylov subspace iterative solvers (CG, GMRES) with ILU and Cholesky preconditioning, and add parallel SpMV. These solvers handle larger systems where direct methods are too expensive, and form the iterative backbone needed for QR and SVD convergence loops.
 
@@ -131,15 +131,16 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 - Convergence benchmarks: CG vs direct, GMRES vs LU, preconditioned vs unpreconditioned
 - All existing direct solver tests remain passing
 
-**Total estimate:** ~112 hours
+**Planned estimate:** ~112 hours
+**Actual:** ~121 hours
 
 ---
 
-## Sprint 6: Sparse QR Decomposition
+## Sprint 6: Iterative Enhancements & QR
 
-**Duration:** 14 days (~130 hours)
+**Duration:** 14 days (~156 hours)
 
-**Goal:** Implement full-featured sparse QR factorization using Householder reflections on the orthogonal linked-list structure. QR handles rectangular and rank-deficient matrices that LU cannot, and is the foundation for least-squares solving and SVD.
+**Goal:** Extend the iterative solver infrastructure with ILUT preconditioning and right preconditioning for GMRES, then implement full-featured sparse QR factorization using Householder reflections. ILUT handles matrices that ILU(0) cannot (e.g., structurally zero diagonals), right preconditioning gives direct access to the true residual, and QR handles rectangular and rank-deficient systems.
 
 ### Prerequisites from Sprint 4
 
@@ -148,21 +149,27 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 ### Prerequisites from Sprint 5
 
+- ILU(0) preconditioner (ILUT extends ILU(0) with threshold dropping and pivoting)
+- GMRES solver (right preconditioning extends the existing left preconditioning)
 - Iterative solvers (CG/GMRES can be used as alternatives for large least-squares problems; convergence infrastructure reused)
 
 ### Items
 
 | # | Item | Description | Estimate |
 |---|------|-------------|----------|
-| 1 | Householder reflections on sparse columns | Implement sparse Householder vector computation: given a sparse column vector x, compute v and beta such that (I - beta*v*v^T)*x = ||x||*e_1. Handle sparse fill-in efficiently — Householder reflections generally densify columns, so maintain a dense working column with sparse writeback. | 24 hrs |
-| 2 | Column-pivoted QR factorization | Implement `sparse_qr_factor()` with column pivoting for rank-revealing QR: A*P = Q*R. Use column norms for pivot selection (greedy largest-norm pivot). Store R in upper-triangular sparse matrix. Store Q implicitly as a sequence of Householder reflectors (v vectors + beta scalars). Track column permutation. | 36 hrs |
-| 3 | Q application and extraction | Implement `sparse_qr_apply_q()` to apply Q (or Q^T) to a vector or matrix without forming Q explicitly: Q*x = (I - beta_k*v_k*v_k^T)*...*(I - beta_1*v_1*v_1^T)*x. Implement `sparse_qr_form_q()` to explicitly form the Q matrix (for diagnostics/testing, not recommended for large matrices). | 20 hrs |
-| 4 | Least-squares solver | Implement `sparse_qr_solve()` for overdetermined systems (m > n): minimize ||Ax - b||_2. Steps: Q^T*b via Householder application, then back-substitute with R. Handle rank deficiency via column pivoting (truncate R at numerical rank). Return residual norm. | 16 hrs |
-| 5 | QR integration with reordering | Integrate fill-reducing column reordering (COLAMD-style or reuse AMD on A^T*A pattern) as optional pre-processing to reduce fill-in in R. Benchmark R fill-in with and without reordering. Test on rectangular SuiteSparse matrices. | 16 hrs |
-| 6 | Rank estimation and null space | Implement `sparse_qr_rank()` to estimate numerical rank from R diagonal (using tolerance relative to ||A||). Implement `sparse_qr_nullspace()` to extract null-space basis vectors from the trailing columns of Q corresponding to zero/tiny R diagonals. | 12 hrs |
+| 1 | ILUT preconditioner | Implement `sparse_ilut_factor()` — ILU with threshold dropping and optional pivoting. Unlike ILU(0) which preserves the original sparsity pattern, ILUT allows controlled fill-in based on a drop tolerance and maximum fill per row. Handles matrices with structurally zero diagonals (e.g., west0067) that ILU(0) cannot. Implement `sparse_ilut_solve()` and `sparse_ilut_precond()` callback. | 20 hrs |
+| 2 | Right preconditioning for GMRES | Add right preconditioning option to `sparse_solve_gmres()`: introduce y = M*x, solve A*M^{-1}*y = b for y via GMRES, then recover x = M^{-1}*y. The key advantage: the GMRES residual norm equals the true residual ||b - Ax|| (no preconditioned/true residual gap). Add `precond_side` option (left/right) to `sparse_gmres_opts_t`. | 12 hrs |
+| 3 | Householder reflections on sparse columns | Implement sparse Householder vector computation: given a sparse column vector x, compute v and beta such that (I - beta*v*v^T)*x = ||x||*e_1. Handle sparse fill-in efficiently — Householder reflections generally densify columns, so maintain a dense working column with sparse writeback. | 24 hrs |
+| 4 | Column-pivoted QR factorization | Implement `sparse_qr_factor()` with column pivoting for rank-revealing QR: A*P = Q*R. Use column norms for pivot selection (greedy largest-norm pivot). Store R in upper-triangular sparse matrix. Store Q implicitly as a sequence of Householder reflectors (v vectors + beta scalars). Track column permutation. | 36 hrs |
+| 5 | Q application and extraction | Implement `sparse_qr_apply_q()` to apply Q (or Q^T) to a vector or matrix without forming Q explicitly: Q*x = (I - beta_k*v_k*v_k^T)*...*(I - beta_1*v_1*v_1^T)*x. Implement `sparse_qr_form_q()` to explicitly form the Q matrix (for diagnostics/testing, not recommended for large matrices). | 20 hrs |
+| 6 | Least-squares solver | Implement `sparse_qr_solve()` for overdetermined systems (m > n): minimize ||Ax - b||_2. Steps: Q^T*b via Householder application, then back-substitute with R. Handle rank deficiency via column pivoting (truncate R at numerical rank). Return residual norm. | 16 hrs |
+| 7 | QR integration with reordering | Integrate fill-reducing column reordering (COLAMD-style or reuse AMD on A^T*A pattern) as optional pre-processing to reduce fill-in in R. Benchmark R fill-in with and without reordering. Test on rectangular SuiteSparse matrices. | 16 hrs |
+| 8 | Rank estimation and null space | Implement `sparse_qr_rank()` to estimate numerical rank from R diagonal (using tolerance relative to ||A||). Implement `sparse_qr_nullspace()` to extract null-space basis vectors from the trailing columns of Q corresponding to zero/tiny R diagonals. | 12 hrs |
 
 ### Deliverables
 
+- `sparse_ilut_factor()` / `sparse_ilut_solve()` / `sparse_ilut_precond()` — ILUT preconditioner with threshold dropping
+- Right preconditioning option for GMRES (true residual directly available)
 - `sparse_qr_factor()` with column pivoting (A*P = Q*R)
 - Q stored implicitly as Householder reflectors (memory-efficient)
 - `sparse_qr_apply_q()` and `sparse_qr_form_q()` for Q operations
@@ -175,7 +182,7 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 - Comprehensive tests on square, tall, wide, and rank-deficient matrices
 - Benchmark data on SuiteSparse matrices
 
-**Total estimate:** ~124 hours
+**Total estimate:** ~156 hours
 
 ---
 
@@ -256,9 +263,9 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 ## Sprint 9: Performance, Polish & Packaging
 
-**Duration:** 14 days (~100 hours)
+**Duration:** 14 days (~120 hours)
 
-**Goal:** Optimize performance across the library, add block operations for cache efficiency, improve documentation and examples, and package the library for external use.
+**Goal:** Optimize performance across the library, add block operations and block solvers for cache efficiency and multiple-RHS support, improve documentation and examples, and package the library for external use.
 
 ### Prerequisites from Sprint 8
 
@@ -270,15 +277,17 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 | # | Item | Description | Estimate |
 |---|------|-------------|----------|
 | 1 | Block LU factorization | Exploit dense subblocks within the sparse structure for better cache performance. Detect dense submatrices during factorization and use BLAS-like dense kernels for those blocks. Benchmark improvement on matrices with dense substructure. | 28 hrs |
-| 2 | Performance profiling & optimization | Profile all factorizations on large SuiteSparse matrices. Identify and optimize hot paths (pool allocation, node traversal, pivot search). Consider SIMD for dense inner loops. Target: ≥1.5x speedup on orsirr_1 factorization. | 24 hrs |
-| 3 | Comprehensive examples & tutorials | Write standalone example programs: basic solve, least-squares, SVD low-rank, preconditioned iterative solve. Add a tutorial document walking through common use cases. | 16 hrs |
-| 4 | API documentation generator | Add Doxygen configuration. Generate HTML API reference from header comments. Verify all public functions are documented. | 8 hrs |
-| 5 | Packaging & installation | Add `make install` target with configurable prefix. Add pkg-config `.pc` file. Add CMake `find_package` support. Write installation instructions for Linux, macOS, and Windows (MSVC). | 16 hrs |
-| 6 | Final test hardening | Add fuzz testing for Matrix Market parser. Add property-based tests (random matrices: factor → solve → verify residual). Achieve ≥95% line coverage on library source. | 8 hrs |
+| 2 | Block solvers | Implement block variants of direct and iterative solvers to handle multiple right-hand side vectors simultaneously: block LU solve, block CG, block GMRES. Amortize factorization cost across RHS vectors and exploit dense BLAS kernels for the block operations. | 20 hrs |
+| 3 | Performance profiling & optimization | Profile all factorizations on large SuiteSparse matrices. Identify and optimize hot paths (pool allocation, node traversal, pivot search). Consider SIMD for dense inner loops. Target: ≥1.5x speedup on orsirr_1 factorization. | 24 hrs |
+| 4 | Comprehensive examples & tutorials | Write standalone example programs: basic solve, least-squares, SVD low-rank, preconditioned iterative solve. Add a tutorial document walking through common use cases. | 16 hrs |
+| 5 | API documentation generator | Add Doxygen configuration. Generate HTML API reference from header comments. Verify all public functions are documented. | 8 hrs |
+| 6 | Packaging & installation | Add `make install` target with configurable prefix. Add pkg-config `.pc` file. Add CMake `find_package` support. Write installation instructions for Linux, macOS, and Windows (MSVC). | 16 hrs |
+| 7 | Final test hardening | Add fuzz testing for Matrix Market parser. Add property-based tests (random matrices: factor → solve → verify residual). Achieve ≥95% line coverage on library source. | 8 hrs |
 
 ### Deliverables
 
 - Block LU for cache-efficient dense subblock handling
+- Block solvers for multiple RHS vectors (direct and iterative)
 - Measurable performance improvements on benchmark suite
 - Standalone example programs and tutorial document
 - Doxygen-generated API reference
@@ -286,7 +295,7 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 - Fuzz and property-based tests for robustness
 - Production-ready library packaging
 
-**Total estimate:** ~100 hours
+**Total estimate:** ~120 hours
 
 ---
 
@@ -301,7 +310,7 @@ Sprint 4 (Cholesky/Threads/SpMM/CSR) ← needs reordering, condest
     │
     ├── Sprint 5 (Iterative Solvers)  ← needs Cholesky, SpMM, threads
     │       │
-    │       └── Sprint 6 (QR)         ← needs CSR/CSC, SpMM, iterative infra
+    │       └── Sprint 6 (Iterative Enhancements & QR) ← needs ILU, GMRES, CSR/CSC, SpMM
     │               │
     │               └── Sprint 7 (QR Apps/Eigenvalues) ← needs QR
     │                       │
@@ -318,9 +327,9 @@ Sprint 4 (Cholesky/Threads/SpMM/CSR) ← needs reordering, condest
 | 3 | Numerics & Reordering | 14 days | ~64 hrs | Condition estimation, AMD/RCM reordering |
 | 4 | Cholesky/Threads/SpMM/CSR | 14 days | ~116 hrs | Cholesky, thread safety, SpMM, CSR/CSC export |
 | 5 | Iterative Solvers | 14 days | ~112 hrs | CG, GMRES, ILU preconditioner, parallel SpMV |
-| 6 | Sparse QR | 14 days | ~124 hrs | Column-pivoted QR, least-squares, rank estimation |
+| 6 | Iterative Enhancements & QR | 14 days | ~156 hrs | ILUT, right preconditioning, column-pivoted QR, least-squares, rank estimation |
 | 7 | QR Apps & Eigenvalues | 14 days | ~112 hrs | Economy QR, bidiagonalization, tridiagonal QR, transpose |
 | 8 | Sparse SVD | 14 days | ~124 hrs | Full/partial SVD, pseudoinverse, low-rank approximation |
-| 9 | Performance & Polish | 14 days | ~100 hrs | Block LU, profiling, examples, packaging |
+| 9 | Performance & Polish | 14 days | ~120 hrs | Block LU, block solvers, profiling, examples, packaging |
 
-**Total across Sprints 2–9:** 112 days (~806 hours)
+**Total across Sprints 2–9:** 112 days (~858 hours)

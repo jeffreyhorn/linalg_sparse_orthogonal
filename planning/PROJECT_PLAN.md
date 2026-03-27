@@ -103,7 +103,7 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 ## Sprint 5: Iterative Solvers & Preconditioning (COMPLETE)
 
-**Duration:** 14 days (~121 hours actual)
+**Duration:** 14 days
 
 **Goal:** Implement Krylov subspace iterative solvers (CG, GMRES) with ILU and Cholesky preconditioning, and add parallel SpMV. These solvers handle larger systems where direct methods are too expensive, and form the iterative backbone needed for QR and SVD convergence loops.
 
@@ -131,7 +131,8 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 - Convergence benchmarks: CG vs direct, GMRES vs LU, preconditioned vs unpreconditioned
 - All existing direct solver tests remain passing
 
-**Total estimate:** ~112 hours
+**Planned estimate:** ~112 hours
+**Actual:** ~121 hours
 
 ---
 

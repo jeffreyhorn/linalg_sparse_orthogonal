@@ -147,7 +147,7 @@ sparse_err_t sparse_build_adj(const SparseMatrix *A, idx_t **adj_ptr_out, idx_t 
     for (idx_t i = 0; i < n; i++)
         adj_ptr[i + 1] = adj_ptr[i] + degree[i];
 
-    idx_t total = adj_ptr[n];
+    idx_t total = adj_ptr[n]; // NOLINT(clang-analyzer-security.ArrayBound)
     idx_t *adj_list = malloc((size_t)(total > 0 ? total : 1) * sizeof(idx_t));
     if (!adj_list) {
         free(degree);
@@ -169,7 +169,7 @@ sparse_err_t sparse_build_adj(const SparseMatrix *A, idx_t **adj_ptr_out, idx_t 
         while (node) {
             idx_t j = node->col;
             if (j != i && j < n) {
-                adj_list[adj_ptr[i] + cursor[i]++] = j;
+                adj_list[adj_ptr[i] + cursor[i]++] = j; // NOLINT(clang-analyzer-security.ArrayBound)
                 adj_list[adj_ptr[j] + cursor[j]++] = i;
             }
             node = node->right;

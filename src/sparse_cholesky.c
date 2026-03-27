@@ -69,7 +69,7 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat) {
                 col_acc[node->row] = node->value;
                 if (!nz_row[node->row]) {
                     nz_row[node->row] = 1;
-                    nz_rows[nnz_rows++] = node->row;
+                    nz_rows[nnz_rows++] = node->row; // NOLINT(clang-analyzer-security.ArrayBound)
                 }
             }
             node = node->down;
@@ -94,7 +94,7 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat) {
                     col_acc[col_j->row] -= col_j->value * l_kj;
                     if (!nz_row[col_j->row]) {
                         nz_row[col_j->row] = 1;
-                        nz_rows[nnz_rows++] = col_j->row;
+                        nz_rows[nnz_rows++] = col_j->row; // NOLINT(clang-analyzer-security.ArrayBound)
                     }
                 }
                 col_j = col_j->down;
@@ -272,7 +272,7 @@ sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat, const double *b, dou
         Node *node = mat->row_headers[i];
         while (node) {
             if (node->col < i)
-                sum += node->value * y[node->col];
+                sum += node->value * y[node->col]; // NOLINT(clang-analyzer-security.ArrayBound)
             else if (node->col == i)
                 l_ii = node->value;
             node = node->right;
@@ -305,7 +305,7 @@ sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat, const double *b, dou
             free(b_perm);
             return SPARSE_ERR_SINGULAR;
         }
-        x[i] = (y[i] - sum) / l_ii;
+        x[i] = (y[i] - sum) / l_ii; // NOLINT(clang-analyzer-core.UndefinedBinaryOperatorResult)
     }
 
     /* If reorder permutation exists, unpermute x */

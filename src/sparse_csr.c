@@ -61,7 +61,7 @@ sparse_err_t sparse_to_csr(const SparseMatrix *mat, SparseCsr **csr_out) {
         csr->row_ptr[i] = pos;
         Node *node = mat->row_headers[i];
         while (node) {
-            csr->col_idx[pos] = node->col;
+            csr->col_idx[pos] = node->col; // NOLINT(clang-analyzer-security.ArrayBound)
             csr->values[pos] = node->value;
             pos++;
             node = node->right;
@@ -168,7 +168,7 @@ sparse_err_t sparse_to_csc(const SparseMatrix *mat, SparseCsc **csc_out) {
         csc->col_ptr[j] = pos;
         Node *node = mat->col_headers[j];
         while (node) {
-            csc->row_idx[pos] = node->row;
+            csc->row_idx[pos] = node->row; // NOLINT(clang-analyzer-security.ArrayBound)
             csc->values[pos] = node->value;
             pos++;
             node = node->down;

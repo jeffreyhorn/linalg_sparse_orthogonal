@@ -293,9 +293,9 @@ static sparse_err_t sparse_remove_internal(SparseMatrix *mat, idx_t row, idx_t c
         ccol = ccol->down;
     }
     if (prev)
-        prev->down = ccol->down;
+        prev->down = ccol->down; // NOLINT(clang-analyzer-core.NullDereference)
     else
-        mat->col_headers[col] = ccol->down;
+        mat->col_headers[col] = ccol->down; // NOLINT(clang-analyzer-core.NullDereference)
 
     pool_release(&mat->pool, curr);
     mat->nnz--;

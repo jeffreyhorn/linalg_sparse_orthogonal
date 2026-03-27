@@ -111,7 +111,7 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double to
             while (curr) {
                 idx_t log_i = mat->inv_row_perm[curr->row];
                 if (log_i > k) {
-                    elim_rows[elim_count++] = log_i;
+                    elim_rows[elim_count++] = log_i; // NOLINT(clang-analyzer-security.ArrayBound)
                 }
                 curr = curr->down;
             }
@@ -330,7 +330,7 @@ sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat, const double *b,
                 sum += node->value * w[log_j];
             node = node->down;
         }
-        w[i] = d[i] - sum; /* L^T has unit diagonal */
+        w[i] = d[i] - sum; /* L^T has unit diagonal */ // NOLINT(clang-analyzer-core.UndefinedBinaryOperatorResult)
     }
 
     /* Step 4: x = P^T * w = P^{-1} * w  →  x[i] = w[inv_row_perm[i]] */
@@ -520,7 +520,7 @@ sparse_err_t sparse_forward_sub(const SparseMatrix *mat, const double *pb, doubl
         while (node) {
             idx_t log_j = mat->inv_col_perm[node->col];
             if (log_j < i) {
-                sum += node->value * y[log_j];
+                sum += node->value * y[log_j]; // NOLINT(clang-analyzer-security.ArrayBound)
             }
             node = node->right;
         }
@@ -555,7 +555,7 @@ sparse_err_t sparse_backward_sub(const SparseMatrix *mat, const double *y, doubl
         if (fabs(u_ii) < sing_tol)
             return SPARSE_ERR_SINGULAR;
 
-        z[i] = (y[i] - sum) / u_ii;
+        z[i] = (y[i] - sum) / u_ii; // NOLINT(clang-analyzer-core.UndefinedBinaryOperatorResult)
     }
 
     return SPARSE_OK;

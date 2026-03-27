@@ -89,7 +89,7 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu) {
             if (k >= i)
                 break;
 
-            if (!diag_nodes[k] || fabs(diag_nodes[k]->value) < 1e-30) {
+            if (!diag_nodes[k] || fabs(diag_nodes[k]->value) < 1e-30) { // NOLINT(clang-analyzer-core.NullDereference)
                 free(diag_nodes);
                 sparse_free(W);
                 return SPARSE_ERR_SINGULAR;

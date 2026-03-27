@@ -204,28 +204,29 @@ tsan: clean test
 # ─── Code quality targets ─────────────────────────────────────────────
 
 # Source files for formatting/linting
-ALL_SRC = $(shell find $(SRCDIR) -name '*.c' -o -name '*.h')
-ALL_TEST_SRC = $(shell find $(TESTDIR) -name '*.c' -o -name '*.h')
-ALL_BENCH_SRC = $(shell find $(BENCHDIR) -name '*.c')
+ALL_SRC = $(shell find $(SRCDIR) -type f \( -name '*.c' -o -name '*.h' \))
+ALL_TEST_SRC = $(shell find $(TESTDIR) -type f \( -name '*.c' -o -name '*.h' \))
+ALL_BENCH_SRC = $(shell find $(BENCHDIR) -type f -name '*.c')
+ALL_HEADERS = $(shell find include -type f -name '*.h')
 
 # Format all source files in-place
 .PHONY: format
 format:
 	@echo "Formatting with clang-format..."
-	clang-format -i $(ALL_SRC) $(ALL_TEST_SRC) $(ALL_BENCH_SRC) $(shell find include -name '*.h')
+	clang-format -i $(ALL_SRC) $(ALL_TEST_SRC) $(ALL_BENCH_SRC) $(ALL_HEADERS)
 
 # Check formatting without modifying files
 .PHONY: format-check
 format-check:
 	@echo "Checking formatting with clang-format..."
-	clang-format --dry-run --Werror $(ALL_SRC) $(ALL_TEST_SRC) $(ALL_BENCH_SRC) $(shell find include -name '*.h')
+	clang-format --dry-run --Werror $(ALL_SRC) $(ALL_TEST_SRC) $(ALL_BENCH_SRC) $(ALL_HEADERS)
 
 # Run all linters
 .PHONY: lint
 lint:
 	@echo "Compiling with strict warnings (-Werror)..."
-	$(CC) -std=c11 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wformat=2 \
-		-Wstrict-prototypes -Werror $(INCLUDE) -fsyntax-only $(shell find $(SRCDIR) -name '*.c')
+	$(CC) $(CFLAGS) -Wstrict-prototypes -Wformat=2 -Werror \
+		$(INCLUDE) -fsyntax-only $(shell find $(SRCDIR) -type f -name '*.c')
 	@echo ""
 	@echo "Running clang-tidy..."
 	clang-tidy $(shell find $(SRCDIR) -name '*.c') -- $(INCLUDE) $(CFLAGS)

@@ -1,14 +1,14 @@
-#include "sparse_matrix.h"
-#include "sparse_iterative.h"
-#include "sparse_ilu.h"
 #include "sparse_cholesky.h"
+#include "sparse_ilu.h"
+#include "sparse_iterative.h"
 #include "sparse_lu.h"
-#include "sparse_vector.h"
+#include "sparse_matrix.h"
 #include "sparse_types.h"
+#include "sparse_vector.h"
 #include "test_framework.h"
-#include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #ifndef DATA_DIR
 #define DATA_DIR "tests/data"
@@ -19,12 +19,11 @@
  * Helpers
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static double compute_relative_residual(const SparseMatrix *A,
-                                         const double *b, const double *x,
-                                         idx_t n)
-{
+static double compute_relative_residual(const SparseMatrix *A, const double *b, const double *x,
+                                        idx_t n) {
     double *r = malloc((size_t)n * sizeof(double));
-    if (!r) return INFINITY;
+    if (!r)
+        return INFINITY;
     sparse_matvec(A, x, r);
     for (idx_t i = 0; i < n; i++)
         r[i] = b[i] - r[i];
@@ -35,20 +34,17 @@ static double compute_relative_residual(const SparseMatrix *A,
 }
 
 /* Cholesky preconditioner */
-static sparse_err_t cholesky_precond_apply(const void *ctx, idx_t n,
-                                            const double *r, double *z)
-{
+static sparse_err_t cholesky_precond_apply(const void *ctx, idx_t n, const double *r, double *z) {
     const SparseMatrix *L = (const SparseMatrix *)ctx;
     (void)n;
     return sparse_cholesky_solve(L, r, z);
 }
 
 /* Identity preconditioner (passthrough) */
-static sparse_err_t identity_precond(const void *ctx, idx_t n,
-                                      const double *r, double *z)
-{
+static sparse_err_t identity_precond(const void *ctx, idx_t n, const double *r, double *z) {
     (void)ctx;
-    for (idx_t i = 0; i < n; i++) z[i] = r[i];
+    for (idx_t i = 0; i < n; i++)
+        z[i] = r[i];
     return SPARSE_OK;
 }
 
@@ -60,12 +56,14 @@ typedef struct {
     idx_t n;
 } test_system_t;
 
-static int load_system(test_system_t *sys, const char *path)
-{
+static int load_system(test_system_t *sys, const char *path) {
     sys->A = NULL;
-    if (sparse_load_mm(&sys->A, path) != SPARSE_OK) return 0;
+    if (sparse_load_mm(&sys->A, path) != SPARSE_OK)
+        return 0;
     if (sparse_rows(sys->A) != sparse_cols(sys->A)) {
-        sparse_free(sys->A); sys->A = NULL; return 0;
+        sparse_free(sys->A);
+        sys->A = NULL;
+        return 0;
     }
     sys->n = sparse_rows(sys->A);
     sys->x_exact = malloc((size_t)sys->n * sizeof(double));
@@ -85,8 +83,7 @@ static int load_system(test_system_t *sys, const char *path)
     return 1;
 }
 
-static void free_system(test_system_t *sys)
-{
+static void free_system(test_system_t *sys) {
     sparse_free(sys->A);
     free(sys->x_exact);
     free(sys->b);
@@ -96,13 +93,8 @@ static void free_system(test_system_t *sys)
  * Cross-feature: CG + ILU on all SPD SuiteSparse matrices
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_integration_ilu_cg_all_spd(void)
-{
-    const char *spd_files[] = {
-        SS_DIR "/nos4.mtx",
-        SS_DIR "/bcsstk04.mtx",
-        NULL
-    };
+static void test_integration_ilu_cg_all_spd(void) {
+    const char *spd_files[] = {SS_DIR "/nos4.mtx", SS_DIR "/bcsstk04.mtx", NULL};
 
     int ran = 0;
     for (int f = 0; spd_files[f]; f++) {
@@ -114,22 +106,30 @@ static void test_integration_ilu_cg_all_spd(void)
         ran++;
 
         sparse_ilu_t ilu;
-        { sparse_err_t ferr = sparse_ilu_factor(sys.A, &ilu);
-        ASSERT_ERR(ferr, SPARSE_OK);
-        if (ferr != SPARSE_OK) { free_system(&sys); continue; } }
+        {
+            sparse_err_t ferr = sparse_ilu_factor(sys.A, &ilu);
+            ASSERT_ERR(ferr, SPARSE_OK);
+            if (ferr != SPARSE_OK) {
+                free_system(&sys);
+                continue;
+            }
+        }
 
         double *x = calloc((size_t)sys.n, sizeof(double));
         ASSERT_NOT_NULL(x);
-        if (!x) { sparse_ilu_free(&ilu); free_system(&sys); continue; }
+        if (!x) {
+            sparse_ilu_free(&ilu);
+            free_system(&sys);
+            continue;
+        }
         sparse_iter_opts_t opts = {.max_iter = 2000, .tol = 1e-10, .verbose = 0};
         sparse_iter_result_t result;
-        ASSERT_ERR(sparse_solve_cg(sys.A, sys.b, x, &opts,
-                                    sparse_ilu_precond, &ilu, &result), SPARSE_OK);
+        ASSERT_ERR(sparse_solve_cg(sys.A, sys.b, x, &opts, sparse_ilu_precond, &ilu, &result),
+                   SPARSE_OK);
         ASSERT_TRUE(result.converged);
 
         double res = compute_relative_residual(sys.A, sys.b, x, sys.n);
-        printf("    ILU-CG %s: %d iters, res=%.3e\n",
-               spd_files[f], (int)result.iterations, res);
+        printf("    ILU-CG %s: %d iters, res=%.3e\n", spd_files[f], (int)result.iterations, res);
         ASSERT_TRUE(res < 1e-8);
 
         free(x);
@@ -144,14 +144,9 @@ static void test_integration_ilu_cg_all_spd(void)
  * Cross-feature: GMRES + ILU on all unsymmetric SuiteSparse matrices
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_integration_ilu_gmres_all_unsym(void)
-{
-    const char *unsym_files[] = {
-        SS_DIR "/steam1.mtx",
-        SS_DIR "/fs_541_1.mtx",
-        SS_DIR "/orsirr_1.mtx",
-        NULL
-    };
+static void test_integration_ilu_gmres_all_unsym(void) {
+    const char *unsym_files[] = {SS_DIR "/steam1.mtx", SS_DIR "/fs_541_1.mtx",
+                                 SS_DIR "/orsirr_1.mtx", NULL};
 
     int ran = 0;
     for (int f = 0; unsym_files[f]; f++) {
@@ -165,26 +160,30 @@ static void test_integration_ilu_gmres_all_unsym(void)
         sparse_ilu_t ilu;
         sparse_err_t ilu_err = sparse_ilu_factor(sys.A, &ilu);
         if (ilu_err != SPARSE_OK) {
-            printf("    ILU-GMRES %s: ILU factor failed (%s)\n",
-                   unsym_files[f], sparse_strerror(ilu_err));
+            printf("    ILU-GMRES %s: ILU factor failed (%s)\n", unsym_files[f],
+                   sparse_strerror(ilu_err));
             free_system(&sys);
             continue;
         }
 
         double *x = calloc((size_t)sys.n, sizeof(double));
         ASSERT_NOT_NULL(x);
-        if (!x) { sparse_ilu_free(&ilu); free_system(&sys); continue; }
+        if (!x) {
+            sparse_ilu_free(&ilu);
+            free_system(&sys);
+            continue;
+        }
         /* Relaxed tolerance: on ill-conditioned matrices (steam1, orsirr_1)
          * the true residual can lag behind the preconditioned residual. */
         sparse_gmres_opts_t opts = {.max_iter = 2000, .restart = 50, .tol = 1e-2, .verbose = 0};
         sparse_iter_result_t result;
-        ASSERT_ERR(sparse_solve_gmres(sys.A, sys.b, x, &opts,
-                                       sparse_ilu_precond, &ilu, &result), SPARSE_OK);
+        ASSERT_ERR(sparse_solve_gmres(sys.A, sys.b, x, &opts, sparse_ilu_precond, &ilu, &result),
+                   SPARSE_OK);
         ASSERT_TRUE(result.converged);
 
         double res = compute_relative_residual(sys.A, sys.b, x, sys.n);
-        printf("    ILU-GMRES %s: %d iters, res=%.3e\n",
-               unsym_files[f], (int)result.iterations, res);
+        printf("    ILU-GMRES %s: %d iters, res=%.3e\n", unsym_files[f], (int)result.iterations,
+               res);
         ASSERT_TRUE(res < 1e-2);
 
         free(x);
@@ -199,52 +198,79 @@ static void test_integration_ilu_gmres_all_unsym(void)
  * Cross-feature: Cholesky preconditioner vs ILU on SPD
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_integration_cholesky_vs_ilu_precond(void)
-{
+static void test_integration_cholesky_vs_ilu_precond(void) {
     test_system_t sys;
     if (!load_system(&sys, SS_DIR "/nos4.mtx")) {
-        ASSERT_TRUE(0);  /* record failure */
+        ASSERT_TRUE(0); /* record failure */
         return;
     }
 
     /* Cholesky preconditioner (exact) */
     SparseMatrix *L = sparse_copy(sys.A);
     ASSERT_NOT_NULL(L);
-    if (!L) { free_system(&sys); return; }
-    { sparse_err_t ferr = sparse_cholesky_factor(L);
-    ASSERT_ERR(ferr, SPARSE_OK);
-    if (ferr != SPARSE_OK) { sparse_free(L); free_system(&sys); return; } }
+    if (!L) {
+        free_system(&sys);
+        return;
+    }
+    {
+        sparse_err_t ferr = sparse_cholesky_factor(L);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            sparse_free(L);
+            free_system(&sys);
+            return;
+        }
+    }
 
     double *x_chol = calloc((size_t)sys.n, sizeof(double));
     ASSERT_NOT_NULL(x_chol);
-    if (!x_chol) { sparse_free(L); free_system(&sys); return; }
+    if (!x_chol) {
+        sparse_free(L);
+        free_system(&sys);
+        return;
+    }
     sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t result_chol;
-    ASSERT_ERR(sparse_solve_cg(sys.A, sys.b, x_chol, &opts,
-                     cholesky_precond_apply, L, &result_chol), SPARSE_OK);
+    ASSERT_ERR(
+        sparse_solve_cg(sys.A, sys.b, x_chol, &opts, cholesky_precond_apply, L, &result_chol),
+        SPARSE_OK);
 
     /* ILU preconditioner (approximate) */
     sparse_ilu_t ilu;
-    { sparse_err_t ferr = sparse_ilu_factor(sys.A, &ilu);
-    ASSERT_ERR(ferr, SPARSE_OK);
-    if (ferr != SPARSE_OK) { free(x_chol); sparse_free(L); free_system(&sys); return; } }
+    {
+        sparse_err_t ferr = sparse_ilu_factor(sys.A, &ilu);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            free(x_chol);
+            sparse_free(L);
+            free_system(&sys);
+            return;
+        }
+    }
 
     double *x_ilu = calloc((size_t)sys.n, sizeof(double));
     ASSERT_NOT_NULL(x_ilu);
-    if (!x_ilu) { free(x_chol); sparse_free(L); sparse_ilu_free(&ilu); free_system(&sys); return; }
+    if (!x_ilu) {
+        free(x_chol);
+        sparse_free(L);
+        sparse_ilu_free(&ilu);
+        free_system(&sys);
+        return;
+    }
     sparse_iter_result_t result_ilu;
-    ASSERT_ERR(sparse_solve_cg(sys.A, sys.b, x_ilu, &opts,
-                     sparse_ilu_precond, &ilu, &result_ilu), SPARSE_OK);
+    ASSERT_ERR(sparse_solve_cg(sys.A, sys.b, x_ilu, &opts, sparse_ilu_precond, &ilu, &result_ilu),
+               SPARSE_OK);
 
     ASSERT_TRUE(result_chol.converged);
     ASSERT_TRUE(result_ilu.converged);
     /* Cholesky (exact) should converge in fewer iterations than ILU */
     ASSERT_TRUE(result_chol.iterations <= result_ilu.iterations);
 
-    printf("    nos4 precond: Cholesky=%d iters, ILU=%d iters\n",
-           (int)result_chol.iterations, (int)result_ilu.iterations);
+    printf("    nos4 precond: Cholesky=%d iters, ILU=%d iters\n", (int)result_chol.iterations,
+           (int)result_ilu.iterations);
 
-    free(x_chol); free(x_ilu);
+    free(x_chol);
+    free(x_ilu);
     sparse_free(L);
     sparse_ilu_free(&ilu);
     free_system(&sys);
@@ -254,8 +280,7 @@ static void test_integration_cholesky_vs_ilu_precond(void)
  * Cross-feature: GMRES + ILU with small restart on orsirr_1
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_integration_ilu_gmres_small_restart_orsirr(void)
-{
+static void test_integration_ilu_gmres_small_restart_orsirr(void) {
     test_system_t sys;
     if (!load_system(&sys, SS_DIR "/orsirr_1.mtx")) {
         printf("    [SKIP] orsirr_1.mtx not found\n");
@@ -263,23 +288,31 @@ static void test_integration_ilu_gmres_small_restart_orsirr(void)
     }
 
     sparse_ilu_t ilu;
-    { sparse_err_t ferr = sparse_ilu_factor(sys.A, &ilu);
-    ASSERT_ERR(ferr, SPARSE_OK);
-    if (ferr != SPARSE_OK) { free_system(&sys); return; } }
+    {
+        sparse_err_t ferr = sparse_ilu_factor(sys.A, &ilu);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            free_system(&sys);
+            return;
+        }
+    }
 
     double *x = calloc((size_t)sys.n, sizeof(double));
     ASSERT_NOT_NULL(x);
-    if (!x) { sparse_ilu_free(&ilu); free_system(&sys); return; }
+    if (!x) {
+        sparse_ilu_free(&ilu);
+        free_system(&sys);
+        return;
+    }
     /* Small restart=10 + ILU on orsirr_1: relaxed tol for ill-conditioned matrix */
     sparse_gmres_opts_t opts = {.max_iter = 2000, .restart = 10, .tol = 1e-4, .verbose = 0};
     sparse_iter_result_t result;
-    ASSERT_ERR(sparse_solve_gmres(sys.A, sys.b, x, &opts,
-                                   sparse_ilu_precond, &ilu, &result), SPARSE_OK);
+    ASSERT_ERR(sparse_solve_gmres(sys.A, sys.b, x, &opts, sparse_ilu_precond, &ilu, &result),
+               SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
     double res = compute_relative_residual(sys.A, sys.b, x, sys.n);
-    printf("    orsirr_1 ILU-GMRES(10): %d iters, res=%.3e\n",
-           (int)result.iterations, res);
+    printf("    orsirr_1 ILU-GMRES(10): %d iters, res=%.3e\n", (int)result.iterations, res);
     ASSERT_TRUE(res < 1e-4);
 
     free(x);
@@ -291,11 +324,10 @@ static void test_integration_ilu_gmres_small_restart_orsirr(void)
  * Solver comparison: all solvers on same SPD system
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_integration_all_solvers_nos4(void)
-{
+static void test_integration_all_solvers_nos4(void) {
     test_system_t sys;
     if (!load_system(&sys, SS_DIR "/nos4.mtx")) {
-        ASSERT_TRUE(0);  /* record failure */
+        ASSERT_TRUE(0); /* record failure */
         return;
     }
     idx_t n = sys.n;
@@ -303,7 +335,10 @@ static void test_integration_all_solvers_nos4(void)
     /* CG */
     double *x_cg = calloc((size_t)n, sizeof(double));
     ASSERT_NOT_NULL(x_cg);
-    if (!x_cg) { free_system(&sys); return; }
+    if (!x_cg) {
+        free_system(&sys);
+        return;
+    }
     sparse_iter_opts_t cg_opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t res_cg;
     ASSERT_ERR(sparse_solve_cg(sys.A, sys.b, x_cg, &cg_opts, NULL, NULL, &res_cg), SPARSE_OK);
@@ -311,7 +346,11 @@ static void test_integration_all_solvers_nos4(void)
     /* GMRES */
     double *x_gm = calloc((size_t)n, sizeof(double));
     ASSERT_NOT_NULL(x_gm);
-    if (!x_gm) { free(x_cg); free_system(&sys); return; }
+    if (!x_gm) {
+        free(x_cg);
+        free_system(&sys);
+        return;
+    }
     sparse_gmres_opts_t gm_opts = {.max_iter = 500, .restart = 50, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t res_gm;
     ASSERT_ERR(sparse_solve_gmres(sys.A, sys.b, x_gm, &gm_opts, NULL, NULL, &res_gm), SPARSE_OK);
@@ -321,7 +360,14 @@ static void test_integration_all_solvers_nos4(void)
     ASSERT_NOT_NULL(LU);
     double *x_lu = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(x_lu);
-    if (!LU || !x_lu) { sparse_free(LU); free(x_lu); free(x_cg); free(x_gm); free_system(&sys); return; }
+    if (!LU || !x_lu) {
+        sparse_free(LU);
+        free(x_lu);
+        free(x_cg);
+        free(x_gm);
+        free_system(&sys);
+        return;
+    }
     ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
     ASSERT_ERR(sparse_lu_solve(LU, sys.b, x_lu), SPARSE_OK);
 
@@ -330,10 +376,30 @@ static void test_integration_all_solvers_nos4(void)
     ASSERT_NOT_NULL(Ch);
     double *x_ch = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(x_ch);
-    if (!Ch || !x_ch) { sparse_free(Ch); free(x_ch); free(x_cg); free(x_gm); free(x_lu); sparse_free(LU); free_system(&sys); return; }
-    { sparse_err_t ferr = sparse_cholesky_factor(Ch);
-    ASSERT_ERR(ferr, SPARSE_OK);
-    if (ferr != SPARSE_OK) { sparse_free(Ch); free(x_ch); free(x_cg); free(x_gm); free(x_lu); sparse_free(LU); free_system(&sys); return; } }
+    if (!Ch || !x_ch) {
+        sparse_free(Ch);
+        free(x_ch);
+        free(x_cg);
+        free(x_gm);
+        free(x_lu);
+        sparse_free(LU);
+        free_system(&sys);
+        return;
+    }
+    {
+        sparse_err_t ferr = sparse_cholesky_factor(Ch);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            sparse_free(Ch);
+            free(x_ch);
+            free(x_cg);
+            free(x_gm);
+            free(x_lu);
+            sparse_free(LU);
+            free_system(&sys);
+            return;
+        }
+    }
     ASSERT_ERR(sparse_cholesky_solve(Ch, sys.b, x_ch), SPARSE_OK);
 
     double rr_cg = compute_relative_residual(sys.A, sys.b, x_cg, n);
@@ -341,8 +407,8 @@ static void test_integration_all_solvers_nos4(void)
     double rr_lu = compute_relative_residual(sys.A, sys.b, x_lu, n);
     double rr_ch = compute_relative_residual(sys.A, sys.b, x_ch, n);
 
-    printf("    nos4 all solvers: CG=%.3e, GMRES=%.3e, LU=%.3e, Chol=%.3e\n",
-           rr_cg, rr_gm, rr_lu, rr_ch);
+    printf("    nos4 all solvers: CG=%.3e, GMRES=%.3e, LU=%.3e, Chol=%.3e\n", rr_cg, rr_gm, rr_lu,
+           rr_ch);
 
     ASSERT_TRUE(res_cg.converged);
     ASSERT_TRUE(res_gm.converged);
@@ -358,8 +424,12 @@ static void test_integration_all_solvers_nos4(void)
         ASSERT_NEAR(x_ch[i], x_lu[i], 1e-4);
     }
 
-    free(x_cg); free(x_gm); free(x_lu); free(x_ch);
-    sparse_free(LU); sparse_free(Ch);
+    free(x_cg);
+    free(x_gm);
+    free(x_lu);
+    free(x_ch);
+    sparse_free(LU);
+    sparse_free(Ch);
     free_system(&sys);
 }
 
@@ -368,11 +438,11 @@ static void test_integration_all_solvers_nos4(void)
  * ═══════════════════════════════════════════════════════════════════════ */
 
 /* All solvers on 1×1 system */
-static void test_integration_1x1_all_solvers(void)
-{
+static void test_integration_1x1_all_solvers(void) {
     SparseMatrix *A = sparse_create(1, 1);
     ASSERT_NOT_NULL(A);
-    if (!A) return;
+    if (!A)
+        return;
     sparse_insert(A, 0, 0, 5.0);
     double b[1] = {15.0};
 
@@ -389,9 +459,14 @@ static void test_integration_1x1_all_solvers(void)
 
     /* ILU-preconditioned CG */
     sparse_ilu_t ilu;
-    { sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
-    ASSERT_ERR(ferr, SPARSE_OK);
-    if (ferr != SPARSE_OK) { sparse_free(A); return; } }
+    {
+        sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            sparse_free(A);
+            return;
+        }
+    }
     double x_pcg[1] = {0.0};
     ASSERT_ERR(sparse_solve_cg(A, b, x_pcg, NULL, sparse_ilu_precond, &ilu, &res), SPARSE_OK);
     ASSERT_NEAR(x_pcg[0], 3.0, 1e-14);
@@ -401,14 +476,18 @@ static void test_integration_1x1_all_solvers(void)
 }
 
 /* Zero tolerance → runs to max_iter */
-static void test_integration_zero_tolerance(void)
-{
+static void test_integration_zero_tolerance(void) {
     SparseMatrix *A = sparse_create(3, 3);
     ASSERT_NOT_NULL(A);
-    if (!A) return;
-    sparse_insert(A, 0, 0, 4.0); sparse_insert(A, 0, 1, -1.0);
-    sparse_insert(A, 1, 0, -1.0); sparse_insert(A, 1, 1, 4.0); sparse_insert(A, 1, 2, -1.0);
-    sparse_insert(A, 2, 1, -1.0); sparse_insert(A, 2, 2, 4.0);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 4.0);
+    sparse_insert(A, 0, 1, -1.0);
+    sparse_insert(A, 1, 0, -1.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 1, 2, -1.0);
+    sparse_insert(A, 2, 1, -1.0);
+    sparse_insert(A, 2, 2, 4.0);
 
     double b[3] = {3.0, 2.0, 3.0};
     double x[3] = {0.0, 0.0, 0.0};
@@ -429,15 +508,17 @@ static void test_integration_zero_tolerance(void)
 }
 
 /* Identity preconditioner = unpreconditioned */
-static void test_integration_identity_preconditioner(void)
-{
+static void test_integration_identity_preconditioner(void) {
     SparseMatrix *A = sparse_create(5, 5);
     ASSERT_NOT_NULL(A);
-    if (!A) return;
+    if (!A)
+        return;
     for (idx_t i = 0; i < 5; i++) {
         sparse_insert(A, i, i, 4.0);
-        if (i > 0)     sparse_insert(A, i, i - 1, -1.0);
-        if (i < 4) sparse_insert(A, i, i + 1, -1.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < 4)
+            sparse_insert(A, i, i + 1, -1.0);
     }
 
     double x_exact[5] = {1.0, 2.0, 3.0, 4.0, 5.0};
@@ -453,7 +534,8 @@ static void test_integration_identity_preconditioner(void)
     /* Identity preconditioned CG — should behave identically */
     double x_ident[5] = {0};
     sparse_iter_result_t res_ident;
-    ASSERT_ERR(sparse_solve_cg(A, b, x_ident, &opts, identity_precond, NULL, &res_ident), SPARSE_OK);
+    ASSERT_ERR(sparse_solve_cg(A, b, x_ident, &opts, identity_precond, NULL, &res_ident),
+               SPARSE_OK);
 
     ASSERT_TRUE(res_unprec.converged);
     ASSERT_TRUE(res_ident.converged);
@@ -466,40 +548,49 @@ static void test_integration_identity_preconditioner(void)
 }
 
 /* ILU factor → solve → verify L*U*z ≈ A*z for multiple RHS */
-static void test_integration_ilu_multi_rhs(void)
-{
+static void test_integration_ilu_multi_rhs(void) {
     test_system_t sys;
     if (!load_system(&sys, SS_DIR "/nos4.mtx")) {
-        ASSERT_TRUE(0);  /* record failure */
+        ASSERT_TRUE(0); /* record failure */
         return;
     }
     idx_t n = sys.n;
 
     sparse_ilu_t ilu;
-    { sparse_err_t ferr = sparse_ilu_factor(sys.A, &ilu);
-    ASSERT_ERR(ferr, SPARSE_OK);
-    if (ferr != SPARSE_OK) { free_system(&sys); return; } }
+    {
+        sparse_err_t ferr = sparse_ilu_factor(sys.A, &ilu);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            free_system(&sys);
+            return;
+        }
+    }
 
     /* Solve with 3 different RHS vectors using the same ILU factors */
     for (int rhs = 0; rhs < 3; rhs++) {
         double *b = malloc((size_t)n * sizeof(double));
         ASSERT_NOT_NULL(b);
-        if (!b) break;
+        if (!b)
+            break;
         for (idx_t i = 0; i < n; i++)
             b[i] = sin((double)(i + 1) * (0.1 * (double)(rhs + 1)));
 
         double *x = calloc((size_t)n, sizeof(double));
         ASSERT_NOT_NULL(x);
-        if (!x) { free(b); break; }
+        if (!x) {
+            free(b);
+            break;
+        }
         sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
         sparse_iter_result_t result;
-        ASSERT_ERR(sparse_solve_cg(sys.A, b, x, &opts,
-                                    sparse_ilu_precond, &ilu, &result), SPARSE_OK);
+        ASSERT_ERR(sparse_solve_cg(sys.A, b, x, &opts, sparse_ilu_precond, &ilu, &result),
+                   SPARSE_OK);
         ASSERT_TRUE(result.converged);
         double res = compute_relative_residual(sys.A, b, x, n);
         ASSERT_TRUE(res < 1e-8);
 
-        free(b); free(x);
+        free(b);
+        free(x);
     }
 
     sparse_ilu_free(&ilu);
@@ -511,13 +602,13 @@ static void test_integration_ilu_multi_rhs(void)
  * ═══════════════════════════════════════════════════════════════════════ */
 
 /* Very ill-conditioned system: CG/GMRES report non-convergence gracefully */
-static void test_hardening_illcond_nconv(void)
-{
+static void test_hardening_illcond_nconv(void) {
     /* Hilbert-like 5×5 matrix: very ill-conditioned */
     idx_t n = 5;
     SparseMatrix *A = sparse_create(n, n);
     ASSERT_NOT_NULL(A);
-    if (!A) return;
+    if (!A)
+        return;
     for (idx_t i = 0; i < n; i++)
         for (idx_t j = 0; j < n; j++)
             sparse_insert(A, i, j, 1.0 / (double)(i + j + 1));
@@ -545,13 +636,13 @@ static void test_hardening_illcond_nconv(void)
 }
 
 /* GMRES handles singular-like system without crash */
-static void test_hardening_gmres_near_singular(void)
-{
+static void test_hardening_gmres_near_singular(void) {
     /* Nearly singular: rank-1 matrix plus tiny perturbation */
     idx_t n = 4;
     SparseMatrix *A = sparse_create(n, n);
     ASSERT_NOT_NULL(A);
-    if (!A) return;
+    if (!A)
+        return;
     for (idx_t i = 0; i < n; i++)
         for (idx_t j = 0; j < n; j++)
             sparse_insert(A, i, j, 1.0);
@@ -573,16 +664,18 @@ static void test_hardening_gmres_near_singular(void)
 }
 
 /* Very large restart value: no excessive memory (clamped to n) */
-static void test_hardening_large_restart(void)
-{
+static void test_hardening_large_restart(void) {
     idx_t n = 5;
     SparseMatrix *A = sparse_create(n, n);
     ASSERT_NOT_NULL(A);
-    if (!A) return;
+    if (!A)
+        return;
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, 4.0);
-        if (i > 0)     sparse_insert(A, i, i - 1, -1.0);
-        if (i < n - 1) sparse_insert(A, i, i + 1, -1.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -1.0);
     }
 
     double b[5] = {3.0, 2.0, 2.0, 2.0, 3.0};
@@ -599,12 +692,12 @@ static void test_hardening_large_restart(void)
 }
 
 /* ILU on matrix with very small diagonal */
-static void test_hardening_ilu_tiny_diagonal(void)
-{
+static void test_hardening_ilu_tiny_diagonal(void) {
     idx_t n = 3;
     SparseMatrix *A = sparse_create(n, n);
     ASSERT_NOT_NULL(A);
-    if (!A) return;
+    if (!A)
+        return;
     sparse_insert(A, 0, 0, 1e-20);
     sparse_insert(A, 1, 1, 1e-20);
     sparse_insert(A, 2, 2, 1e-20);
@@ -621,11 +714,11 @@ static void test_hardening_ilu_tiny_diagonal(void)
 }
 
 /* CG and GMRES with max_iter=0 */
-static void test_hardening_zero_max_iter(void)
-{
+static void test_hardening_zero_max_iter(void) {
     SparseMatrix *A = sparse_create(3, 3);
     ASSERT_NOT_NULL(A);
-    if (!A) return;
+    if (!A)
+        return;
     for (idx_t i = 0; i < 3; i++)
         sparse_insert(A, i, i, 4.0);
     double b[3] = {1.0, 2.0, 3.0};
@@ -650,8 +743,7 @@ static void test_hardening_zero_max_iter(void)
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
-int main(void)
-{
+int main(void) {
     TEST_SUITE_BEGIN("Sprint 5 Integration Tests");
 
     /* Cross-feature: iterative + ILU on SuiteSparse */

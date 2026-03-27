@@ -31,7 +31,7 @@
  * @brief Options for Cholesky factorization with optional fill-reducing reordering.
  */
 typedef struct {
-    sparse_reorder_t reorder;  /**< Fill-reducing reordering (NONE, RCM, or AMD) */
+    sparse_reorder_t reorder; /**< Fill-reducing reordering (NONE, RCM, or AMD) */
 } sparse_cholesky_opts_t;
 
 /**
@@ -68,8 +68,7 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat);
  * @param opts  Factorization options.
  * @return SPARSE_OK on success, or an error code.
  */
-sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat,
-                                         const sparse_cholesky_opts_t *opts);
+sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesky_opts_t *opts);
 
 /**
  * @brief Solve A*x = b using a Cholesky-factored matrix.
@@ -91,7 +90,6 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat,
  * @threadsafety Read-only on mat. Safe to call concurrently on the same
  *               factored matrix with different b/x vectors.
  */
-sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat,
-                                   const double *b, double *x);
+sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat, const double *b, double *x);
 
 #endif /* SPARSE_CHOLESKY_H */

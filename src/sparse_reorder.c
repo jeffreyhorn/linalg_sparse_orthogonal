@@ -1,13 +1,12 @@
 #include "sparse_reorder.h"
 #include "sparse_matrix_internal.h"
 
-#include <stdlib.h>
 #include <math.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* Comparator for sorting idx_t arrays */
-static int cmp_idx(const void *a, const void *b)
-{
+static int cmp_idx(const void *a, const void *b) {
     idx_t va = *(const idx_t *)a;
     idx_t vb = *(const idx_t *)b;
     return (va > vb) - (va < vb);
@@ -15,16 +14,18 @@ static int cmp_idx(const void *a, const void *b)
 
 /* ─── Bandwidth ──────────────────────────────────────────────────────── */
 
-idx_t sparse_bandwidth(const SparseMatrix *A)
-{
-    if (!A) return 0;
+idx_t sparse_bandwidth(const SparseMatrix *A) {
+    if (!A)
+        return 0;
     idx_t bw = 0;
     for (idx_t i = 0; i < A->rows; i++) {
         Node *node = A->row_headers[i];
         while (node) {
             idx_t diff = node->row - node->col;
-            if (diff < 0) diff = -diff;
-            if (diff > bw) bw = diff;
+            if (diff < 0)
+                diff = -diff;
+            if (diff > bw)
+                bw = diff;
             node = node->right;
         }
     }
@@ -33,11 +34,10 @@ idx_t sparse_bandwidth(const SparseMatrix *A)
 
 /* ─── Permute ────────────────────────────────────────────────────────── */
 
-sparse_err_t sparse_permute(const SparseMatrix *A,
-                            const idx_t *row_perm, const idx_t *col_perm,
-                            SparseMatrix **B)
-{
-    if (!A || !row_perm || !col_perm || !B) return SPARSE_ERR_NULL;
+sparse_err_t sparse_permute(const SparseMatrix *A, const idx_t *row_perm, const idx_t *col_perm,
+                            SparseMatrix **B) {
+    if (!A || !row_perm || !col_perm || !B)
+        return SPARSE_ERR_NULL;
     *B = NULL;
 
     idx_t m = A->rows;
@@ -45,16 +45,22 @@ sparse_err_t sparse_permute(const SparseMatrix *A,
 
     /* Validate permutation arrays: range check */
     for (idx_t i = 0; i < m; i++)
-        if (row_perm[i] < 0 || row_perm[i] >= m) return SPARSE_ERR_BADARG;
+        if (row_perm[i] < 0 || row_perm[i] >= m)
+            return SPARSE_ERR_BADARG;
     for (idx_t j = 0; j < nc; j++)
-        if (col_perm[j] < 0 || col_perm[j] >= nc) return SPARSE_ERR_BADARG;
+        if (col_perm[j] < 0 || col_perm[j] >= nc)
+            return SPARSE_ERR_BADARG;
 
     /* Validate row_perm is a true permutation: detect duplicates */
     {
         int *seen = calloc((size_t)m, sizeof(int));
-        if (!seen) return SPARSE_ERR_ALLOC;
+        if (!seen)
+            return SPARSE_ERR_ALLOC;
         for (idx_t i = 0; i < m; i++) {
-            if (seen[row_perm[i]]) { free(seen); return SPARSE_ERR_BADARG; }
+            if (seen[row_perm[i]]) {
+                free(seen);
+                return SPARSE_ERR_BADARG;
+            }
             seen[row_perm[i]] = 1;
         }
         free(seen);
@@ -62,7 +68,8 @@ sparse_err_t sparse_permute(const SparseMatrix *A,
 
     /* Build inverse column permutation: inv_col[old_j] = new_j */
     idx_t *inv_col = malloc((size_t)nc * sizeof(idx_t));
-    if (!inv_col) return SPARSE_ERR_ALLOC;
+    if (!inv_col)
+        return SPARSE_ERR_ALLOC;
     /* Initialize to -1 to detect duplicate entries */
     memset(inv_col, -1, (size_t)nc * sizeof(idx_t));
     for (idx_t j = 0; j < nc; j++) {
@@ -75,7 +82,10 @@ sparse_err_t sparse_permute(const SparseMatrix *A,
     }
 
     SparseMatrix *out = sparse_create(m, nc);
-    if (!out) { free(inv_col); return SPARSE_ERR_ALLOC; }
+    if (!out) {
+        free(inv_col);
+        return SPARSE_ERR_ALLOC;
+    }
 
     /* For each new row i, walk old row row_perm[i] and insert with mapped columns */
     for (idx_t i = 0; i < m; i++) {
@@ -105,15 +115,14 @@ sparse_err_t sparse_permute(const SparseMatrix *A,
  * Caller must free both adj_ptr and adj_list.
  * ═══════════════════════════════════════════════════════════════════════ */
 
-sparse_err_t sparse_build_adj(const SparseMatrix *A,
-                              idx_t **adj_ptr_out, idx_t **adj_list_out)
-{
+sparse_err_t sparse_build_adj(const SparseMatrix *A, idx_t **adj_ptr_out, idx_t **adj_list_out) {
     idx_t n = A->rows;
 
     /* Pass 1: count upper-bound degree per node.
      * For each off-diagonal (i,j) in A, both i and j get a neighbor. */
     idx_t *degree = calloc((size_t)n, sizeof(idx_t));
-    if (!degree) return SPARSE_ERR_ALLOC;
+    if (!degree)
+        return SPARSE_ERR_ALLOC;
 
     for (idx_t i = 0; i < n; i++) {
         Node *node = A->row_headers[i];
@@ -129,7 +138,10 @@ sparse_err_t sparse_build_adj(const SparseMatrix *A,
 
     /* Build initial CSR pointers (over-allocated for duplicates) */
     idx_t *adj_ptr = malloc((size_t)(n + 1) * sizeof(idx_t));
-    if (!adj_ptr) { free(degree); return SPARSE_ERR_ALLOC; }
+    if (!adj_ptr) {
+        free(degree);
+        return SPARSE_ERR_ALLOC;
+    }
 
     adj_ptr[0] = 0;
     for (idx_t i = 0; i < n; i++)
@@ -137,11 +149,20 @@ sparse_err_t sparse_build_adj(const SparseMatrix *A,
 
     idx_t total = adj_ptr[n];
     idx_t *adj_list = malloc((size_t)(total > 0 ? total : 1) * sizeof(idx_t));
-    if (!adj_list) { free(degree); free(adj_ptr); return SPARSE_ERR_ALLOC; }
+    if (!adj_list) {
+        free(degree);
+        free(adj_ptr);
+        return SPARSE_ERR_ALLOC;
+    }
 
     /* Pass 2: fill adjacency lists (may contain duplicates) */
     idx_t *cursor = calloc((size_t)n, sizeof(idx_t));
-    if (!cursor) { free(degree); free(adj_ptr); free(adj_list); return SPARSE_ERR_ALLOC; }
+    if (!cursor) {
+        free(degree);
+        free(adj_ptr);
+        free(adj_list);
+        return SPARSE_ERR_ALLOC;
+    }
 
     for (idx_t i = 0; i < n; i++) {
         Node *node = A->row_headers[i];
@@ -159,7 +180,10 @@ sparse_err_t sparse_build_adj(const SparseMatrix *A,
     for (idx_t i = 0; i < n; i++) {
         idx_t start = adj_ptr[i];
         idx_t len = cursor[i];
-        if (len <= 1) { degree[i] = len; continue; }
+        if (len <= 1) {
+            degree[i] = len;
+            continue;
+        }
 
         /* Sort neighbors for dedup (O(d log d) via qsort) */
         idx_t *list = &adj_list[start];
@@ -171,13 +195,16 @@ sparse_err_t sparse_build_adj(const SparseMatrix *A,
             if (list[a] != list[a - 1])
                 list[write++] = list[a];
         }
-        degree[i] = write;  /* compacted count */
+        degree[i] = write; /* compacted count */
     }
 
     /* Rebuild into compacted arrays */
     idx_t *final_ptr = malloc((size_t)(n + 1) * sizeof(idx_t));
     if (!final_ptr) {
-        free(degree); free(cursor); free(adj_ptr); free(adj_list);
+        free(degree);
+        free(cursor);
+        free(adj_ptr);
+        free(adj_list);
         return SPARSE_ERR_ALLOC;
     }
     final_ptr[0] = 0;
@@ -187,14 +214,16 @@ sparse_err_t sparse_build_adj(const SparseMatrix *A,
     idx_t final_total = final_ptr[n];
     idx_t *final_list = malloc((size_t)(final_total > 0 ? final_total : 1) * sizeof(idx_t));
     if (!final_list) {
-        free(degree); free(cursor); free(adj_ptr); free(adj_list); free(final_ptr);
+        free(degree);
+        free(cursor);
+        free(adj_ptr);
+        free(adj_list);
+        free(final_ptr);
         return SPARSE_ERR_ALLOC;
     }
 
     for (idx_t i = 0; i < n; i++) {
-        memcpy(&final_list[final_ptr[i]],
-               &adj_list[adj_ptr[i]],
-               (size_t)degree[i] * sizeof(idx_t));
+        memcpy(&final_list[final_ptr[i]], &adj_list[adj_ptr[i]], (size_t)degree[i] * sizeof(idx_t));
     }
 
     free(degree);
@@ -210,10 +239,12 @@ sparse_err_t sparse_build_adj(const SparseMatrix *A,
 /* ─── RCM ────────────────────────────────────────────────────────────── */
 
 /* Comparison function for sorting neighbor indices by degree (ascending) */
-typedef struct { idx_t node; idx_t deg; } node_deg_t;
+typedef struct {
+    idx_t node;
+    idx_t deg;
+} node_deg_t;
 
-static int cmp_node_deg(const void *a, const void *b)
-{
+static int cmp_node_deg(const void *a, const void *b) {
     idx_t da = ((const node_deg_t *)a)->deg;
     idx_t db = ((const node_deg_t *)b)->deg;
     return (da > db) - (da < db);
@@ -222,10 +253,8 @@ static int cmp_node_deg(const void *a, const void *b)
 /* Find a pseudo-peripheral node using repeated BFS.
  * Start from node 'start', BFS to find the farthest node, repeat
  * until the eccentricity stops increasing. Returns a good starting node. */
-static idx_t find_pseudo_peripheral(idx_t n, const idx_t *adj_ptr,
-                                    const idx_t *adj_list, idx_t start,
-                                    idx_t *visited, idx_t *queue)
-{
+static idx_t find_pseudo_peripheral(idx_t n, const idx_t *adj_ptr, const idx_t *adj_list,
+                                    idx_t start, idx_t *visited, idx_t *queue) {
     idx_t best = start;
     idx_t best_ecc = 0;
 
@@ -250,7 +279,8 @@ static idx_t find_pseudo_peripheral(idx_t n, const idx_t *adj_ptr,
         }
 
         idx_t ecc = visited[last];
-        if (ecc <= best_ecc) break;  /* no improvement */
+        if (ecc <= best_ecc)
+            break; /* no improvement */
         best_ecc = ecc;
         best = last;
     }
@@ -258,42 +288,52 @@ static idx_t find_pseudo_peripheral(idx_t n, const idx_t *adj_ptr,
     return best;
 }
 
-sparse_err_t sparse_reorder_rcm(const SparseMatrix *A, idx_t *perm)
-{
-    if (!A || !perm) return SPARSE_ERR_NULL;
-    if (A->rows != A->cols) return SPARSE_ERR_SHAPE;
+sparse_err_t sparse_reorder_rcm(const SparseMatrix *A, idx_t *perm) {
+    if (!A || !perm)
+        return SPARSE_ERR_NULL;
+    if (A->rows != A->cols)
+        return SPARSE_ERR_SHAPE;
 
     idx_t n = A->rows;
-    if (n == 0) return SPARSE_OK;
-    if (n == 1) { perm[0] = 0; return SPARSE_OK; }
+    if (n == 0)
+        return SPARSE_OK;
+    if (n == 1) {
+        perm[0] = 0;
+        return SPARSE_OK;
+    }
 
     /* Build adjacency graph */
     idx_t *adj_ptr = NULL, *adj_list = NULL;
     sparse_err_t err = sparse_build_adj(A, &adj_ptr, &adj_list);
-    if (err != SPARSE_OK) return err;
+    if (err != SPARSE_OK)
+        return err;
 
     /* Allocate workspace */
-    idx_t *visited = malloc((size_t)n * sizeof(idx_t));   /* temp BFS workspace */
-    idx_t *queue   = malloc((size_t)n * sizeof(idx_t));   /* BFS queue */
-    int   *placed  = calloc((size_t)n, sizeof(int));      /* 1 = already in perm */
+    idx_t *visited = malloc((size_t)n * sizeof(idx_t));        /* temp BFS workspace */
+    idx_t *queue = malloc((size_t)n * sizeof(idx_t));          /* BFS queue */
+    int *placed = calloc((size_t)n, sizeof(int));              /* 1 = already in perm */
     node_deg_t *nbuf = malloc((size_t)n * sizeof(node_deg_t)); /* neighbor sort buffer */
     if (!visited || !queue || !placed || !nbuf) {
-        free(visited); free(queue); free(placed); free(nbuf);
-        free(adj_ptr); free(adj_list);
+        free(visited);
+        free(queue);
+        free(placed);
+        free(nbuf);
+        free(adj_ptr);
+        free(adj_list);
         return SPARSE_ERR_ALLOC;
     }
 
-    idx_t perm_pos = 0;  /* next position in Cuthill-McKee ordering */
+    idx_t perm_pos = 0; /* next position in Cuthill-McKee ordering */
 
     /* Process each connected component */
     for (idx_t s = 0; s < n; s++) {
-        if (placed[s]) continue;  /* already in a previous component */
+        if (placed[s])
+            continue; /* already in a previous component */
 
         /* Find pseudo-peripheral starting node for this component.
          * find_pseudo_peripheral uses visited/queue as scratch — safe
          * because we only read placed[] to determine component membership. */
-        idx_t start = find_pseudo_peripheral(n, adj_ptr, adj_list, s,
-                                             visited, queue);
+        idx_t start = find_pseudo_peripheral(n, adj_ptr, adj_list, s, visited, queue);
 
         /* BFS from start, visiting neighbors in order of increasing degree.
          * Use placed[] (not visited[]) to track what's already in the perm. */
@@ -313,7 +353,7 @@ sparse_err_t sparse_reorder_rcm(const SparseMatrix *A, idx_t *perm)
                     nbuf[ncount].node = v;
                     nbuf[ncount].deg = adj_ptr[v + 1] - adj_ptr[v];
                     ncount++;
-                    placed[v] = 1;  /* mark to avoid re-adding */
+                    placed[v] = 1; /* mark to avoid re-adding */
                 }
             }
 
@@ -360,33 +400,40 @@ sparse_err_t sparse_reorder_rcm(const SparseMatrix *A, idx_t *perm)
 /* Bitset helpers: one bit per node, packed into 64-bit words */
 typedef uint64_t bword_t;
 #define BWORD_BITS 64
-#define BWORD_IDX(i)  ((i) / BWORD_BITS)
-#define BWORD_BIT(i)  ((bword_t)1 << ((i) % BWORD_BITS))
+#define BWORD_IDX(i) ((i) / BWORD_BITS)
+#define BWORD_BIT(i) ((bword_t)1 << ((i) % BWORD_BITS))
 
-static inline void bset(bword_t *bs, idx_t i)   { bs[BWORD_IDX(i)] |= BWORD_BIT(i); }
-static inline void bclr(bword_t *bs, idx_t i)   { bs[BWORD_IDX(i)] &= ~BWORD_BIT(i); }
-static inline int  btest(const bword_t *bs, idx_t i) { return (bs[BWORD_IDX(i)] & BWORD_BIT(i)) != 0; }
+static inline void bset(bword_t *bs, idx_t i) { bs[BWORD_IDX(i)] |= BWORD_BIT(i); }
+static inline void bclr(bword_t *bs, idx_t i) { bs[BWORD_IDX(i)] &= ~BWORD_BIT(i); }
+static inline int btest(const bword_t *bs, idx_t i) {
+    return (bs[BWORD_IDX(i)] & BWORD_BIT(i)) != 0;
+}
 
 /* Union: dst |= src */
-static void bunion(bword_t *dst, const bword_t *src, idx_t nwords)
-{
+static void bunion(bword_t *dst, const bword_t *src, idx_t nwords) {
     for (idx_t w = 0; w < nwords; w++)
         dst[w] |= src[w];
 }
 
-sparse_err_t sparse_reorder_amd(const SparseMatrix *A, idx_t *perm)
-{
-    if (!A || !perm) return SPARSE_ERR_NULL;
-    if (A->rows != A->cols) return SPARSE_ERR_SHAPE;
+sparse_err_t sparse_reorder_amd(const SparseMatrix *A, idx_t *perm) {
+    if (!A || !perm)
+        return SPARSE_ERR_NULL;
+    if (A->rows != A->cols)
+        return SPARSE_ERR_SHAPE;
 
     idx_t n = A->rows;
-    if (n == 0) return SPARSE_OK;
-    if (n == 1) { perm[0] = 0; return SPARSE_OK; }
+    if (n == 0)
+        return SPARSE_OK;
+    if (n == 1) {
+        perm[0] = 0;
+        return SPARSE_OK;
+    }
 
     /* Build adjacency graph */
     idx_t *adj_ptr = NULL, *adj_list = NULL;
     sparse_err_t err = sparse_build_adj(A, &adj_ptr, &adj_list);
-    if (err != SPARSE_OK) return err;
+    if (err != SPARSE_OK)
+        return err;
 
     /* Allocate bitset adjacency matrix: n rows, each with nwords words */
     idx_t nwords = (n + BWORD_BITS - 1) / BWORD_BITS;
@@ -395,8 +442,11 @@ sparse_err_t sparse_reorder_amd(const SparseMatrix *A, idx_t *perm)
     idx_t *degree = malloc((size_t)n * sizeof(idx_t));
 
     if (!adj_bits || !eliminated || !degree) {
-        free(adj_bits); free(eliminated); free(degree);
-        free(adj_ptr); free(adj_list);
+        free(adj_bits);
+        free(eliminated);
+        free(degree);
+        free(adj_ptr);
+        free(adj_list);
         return SPARSE_ERR_ALLOC;
     }
 
@@ -433,19 +483,23 @@ sparse_err_t sparse_reorder_amd(const SparseMatrix *A, idx_t *perm)
          * This merges the eliminated node's connections into u's,
          * modeling the fill-in that LU elimination would create. */
         for (idx_t u = 0; u < n; u++) {
-            if (eliminated[u] || !btest(best_row, u)) continue;
+            if (eliminated[u] || !btest(best_row, u))
+                continue;
 
             bword_t *u_row = &adj_bits[(size_t)u * (size_t)nwords];
             bunion(u_row, best_row, nwords);
-            bclr(u_row, best);  /* remove eliminated node */
-            bclr(u_row, u);     /* no self-loop */
+            bclr(u_row, best); /* remove eliminated node */
+            bclr(u_row, u);    /* no self-loop */
 
             /* Recount degree: popcount gives exact uneliminated neighbor count
              * because eliminated nodes are cleared from all rows each step */
             idx_t deg = 0;
             for (idx_t w = 0; w < nwords; w++) {
                 bword_t v = u_row[w];
-                while (v) { v &= v - 1; deg++; }
+                while (v) {
+                    v &= v - 1;
+                    deg++;
+                }
             }
             degree[u] = deg;
         }

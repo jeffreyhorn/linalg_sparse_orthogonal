@@ -1,11 +1,11 @@
-#include "sparse_matrix.h"
 #include "sparse_lu.h"
+#include "sparse_matrix.h"
 #include "sparse_types.h"
 #include "sparse_vector.h"
 #include "test_framework.h"
-#include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #ifndef DATA_DIR
 #define DATA_DIR "tests/data"
@@ -17,9 +17,8 @@
  * Helper: load matrix, factor, solve with b = A*ones (exact solution x = ones).
  * Returns 1 on success, 0 on expected failure (singular), -1 on error.
  */
-static int solve_and_check(const char *path, sparse_pivot_t pivot,
-                           double tol, double res_threshold)
-{
+static int solve_and_check(const char *path, sparse_pivot_t pivot, double tol,
+                           double res_threshold) {
     SparseMatrix *A = NULL;
     sparse_err_t err = sparse_load_mm(&A, path);
     if (err != SPARSE_OK) {
@@ -36,45 +35,63 @@ static int solve_and_check(const char *path, sparse_pivot_t pivot,
 
     /* Generate RHS: b = A * ones(n) so exact solution is x = ones(n) */
     double *ones = malloc((size_t)n * sizeof(double));
-    double *b    = malloc((size_t)n * sizeof(double));
-    double *x    = malloc((size_t)n * sizeof(double));
-    double *r    = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    double *r = malloc((size_t)n * sizeof(double));
     if (!ones || !b || !x || !r) {
-        free(ones); free(b); free(x); free(r);
+        free(ones);
+        free(b);
+        free(x);
+        free(r);
         sparse_free(A);
         return -1;
     }
-    for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
+    for (idx_t i = 0; i < n; i++)
+        ones[i] = 1.0;
     sparse_matvec(A, ones, b);
 
     /* Copy for residual check, then factor */
     SparseMatrix *A_orig = sparse_copy(A);
     if (!A_orig) {
-        free(ones); free(b); free(x); free(r);
+        free(ones);
+        free(b);
+        free(x);
+        free(r);
         sparse_free(A);
         return -1;
     }
 
     err = sparse_lu_factor(A, pivot, tol);
     if (err == SPARSE_ERR_SINGULAR) {
-        printf("    singular (pivot=%s)\n",
-               pivot == SPARSE_PIVOT_PARTIAL ? "partial" : "complete");
-        free(ones); free(b); free(x); free(r);
-        sparse_free(A); sparse_free(A_orig);
+        printf("    singular (pivot=%s)\n", pivot == SPARSE_PIVOT_PARTIAL ? "partial" : "complete");
+        free(ones);
+        free(b);
+        free(x);
+        free(r);
+        sparse_free(A);
+        sparse_free(A_orig);
         return 0;
     }
     if (err != SPARSE_OK) {
         printf("    factor failed: %s\n", sparse_strerror(err));
-        free(ones); free(b); free(x); free(r);
-        sparse_free(A); sparse_free(A_orig);
+        free(ones);
+        free(b);
+        free(x);
+        free(r);
+        sparse_free(A);
+        sparse_free(A_orig);
         return -1;
     }
 
     err = sparse_lu_solve(A, b, x);
     if (err != SPARSE_OK) {
         printf("    solve failed: %s\n", sparse_strerror(err));
-        free(ones); free(b); free(x); free(r);
-        sparse_free(A); sparse_free(A_orig);
+        free(ones);
+        free(b);
+        free(x);
+        free(r);
+        sparse_free(A);
+        sparse_free(A_orig);
         return -1;
     }
 
@@ -84,23 +101,27 @@ static int solve_and_check(const char *path, sparse_pivot_t pivot,
     double b_norm = 0.0;
     for (idx_t i = 0; i < n; i++) {
         double ri = fabs(b[i] - r[i]);
-        if (ri > res_norm) res_norm = ri;
+        if (ri > res_norm)
+            res_norm = ri;
         double bi = fabs(b[i]);
-        if (bi > b_norm) b_norm = bi;
+        if (bi > b_norm)
+            b_norm = bi;
     }
 
     double rel_res = (b_norm > 0.0) ? res_norm / b_norm : res_norm;
 
-    printf("    n=%d nnz=%d pivot=%s rel_res=%.3e %s\n",
-           n, sparse_nnz(A_orig),
-           pivot == SPARSE_PIVOT_PARTIAL ? "partial" : "complete",
-           rel_res,
+    printf("    n=%d nnz=%d pivot=%s rel_res=%.3e %s\n", n, sparse_nnz(A_orig),
+           pivot == SPARSE_PIVOT_PARTIAL ? "partial" : "complete", rel_res,
            rel_res < res_threshold ? "OK" : "HIGH");
 
     int result = (rel_res < res_threshold) ? 1 : 0;
 
-    free(ones); free(b); free(x); free(r);
-    sparse_free(A); sparse_free(A_orig);
+    free(ones);
+    free(b);
+    free(x);
+    free(r);
+    sparse_free(A);
+    sparse_free(A_orig);
     return result;
 }
 
@@ -108,87 +129,63 @@ static int solve_and_check(const char *path, sparse_pivot_t pivot,
  * Per-matrix tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_west0067_partial(void)
-{
-    int ok = solve_and_check(SS_DIR "/west0067.mtx",
-                             SPARSE_PIVOT_PARTIAL, 1e-12, 1e-10);
+static void test_west0067_partial(void) {
+    int ok = solve_and_check(SS_DIR "/west0067.mtx", SPARSE_PIVOT_PARTIAL, 1e-12, 1e-10);
     ASSERT_EQ(ok, 1);
 }
 
-static void test_west0067_complete(void)
-{
-    int ok = solve_and_check(SS_DIR "/west0067.mtx",
-                             SPARSE_PIVOT_COMPLETE, 1e-12, 1e-10);
+static void test_west0067_complete(void) {
+    int ok = solve_and_check(SS_DIR "/west0067.mtx", SPARSE_PIVOT_COMPLETE, 1e-12, 1e-10);
     ASSERT_EQ(ok, 1);
 }
 
-static void test_nos4_partial(void)
-{
-    int ok = solve_and_check(SS_DIR "/nos4.mtx",
-                             SPARSE_PIVOT_PARTIAL, 1e-12, 1e-10);
+static void test_nos4_partial(void) {
+    int ok = solve_and_check(SS_DIR "/nos4.mtx", SPARSE_PIVOT_PARTIAL, 1e-12, 1e-10);
     ASSERT_EQ(ok, 1);
 }
 
-static void test_nos4_complete(void)
-{
-    int ok = solve_and_check(SS_DIR "/nos4.mtx",
-                             SPARSE_PIVOT_COMPLETE, 1e-12, 1e-10);
+static void test_nos4_complete(void) {
+    int ok = solve_and_check(SS_DIR "/nos4.mtx", SPARSE_PIVOT_COMPLETE, 1e-12, 1e-10);
     ASSERT_EQ(ok, 1);
 }
 
-static void test_bcsstk04_partial(void)
-{
-    int ok = solve_and_check(SS_DIR "/bcsstk04.mtx",
-                             SPARSE_PIVOT_PARTIAL, 1e-12, 1e-8);
+static void test_bcsstk04_partial(void) {
+    int ok = solve_and_check(SS_DIR "/bcsstk04.mtx", SPARSE_PIVOT_PARTIAL, 1e-12, 1e-8);
     ASSERT_EQ(ok, 1);
 }
 
-static void test_bcsstk04_complete(void)
-{
-    int ok = solve_and_check(SS_DIR "/bcsstk04.mtx",
-                             SPARSE_PIVOT_COMPLETE, 1e-12, 1e-8);
+static void test_bcsstk04_complete(void) {
+    int ok = solve_and_check(SS_DIR "/bcsstk04.mtx", SPARSE_PIVOT_COMPLETE, 1e-12, 1e-8);
     ASSERT_EQ(ok, 1);
 }
 
-static void test_steam1_partial(void)
-{
-    int ok = solve_and_check(SS_DIR "/steam1.mtx",
-                             SPARSE_PIVOT_PARTIAL, 1e-12, 1e-10);
+static void test_steam1_partial(void) {
+    int ok = solve_and_check(SS_DIR "/steam1.mtx", SPARSE_PIVOT_PARTIAL, 1e-12, 1e-10);
     ASSERT_EQ(ok, 1);
 }
 
-static void test_steam1_complete(void)
-{
-    int ok = solve_and_check(SS_DIR "/steam1.mtx",
-                             SPARSE_PIVOT_COMPLETE, 1e-12, 1e-10);
+static void test_steam1_complete(void) {
+    int ok = solve_and_check(SS_DIR "/steam1.mtx", SPARSE_PIVOT_COMPLETE, 1e-12, 1e-10);
     ASSERT_EQ(ok, 1);
 }
 
-static void test_fs_541_1_partial(void)
-{
-    int ok = solve_and_check(SS_DIR "/fs_541_1.mtx",
-                             SPARSE_PIVOT_PARTIAL, 1e-12, 1e-8);
+static void test_fs_541_1_partial(void) {
+    int ok = solve_and_check(SS_DIR "/fs_541_1.mtx", SPARSE_PIVOT_PARTIAL, 1e-12, 1e-8);
     ASSERT_EQ(ok, 1);
 }
 
-static void test_fs_541_1_complete(void)
-{
-    int ok = solve_and_check(SS_DIR "/fs_541_1.mtx",
-                             SPARSE_PIVOT_COMPLETE, 1e-12, 1e-8);
+static void test_fs_541_1_complete(void) {
+    int ok = solve_and_check(SS_DIR "/fs_541_1.mtx", SPARSE_PIVOT_COMPLETE, 1e-12, 1e-8);
     ASSERT_EQ(ok, 1);
 }
 
-static void test_orsirr_1_partial(void)
-{
-    int ok = solve_and_check(SS_DIR "/orsirr_1.mtx",
-                             SPARSE_PIVOT_PARTIAL, 1e-12, 1e-8);
+static void test_orsirr_1_partial(void) {
+    int ok = solve_and_check(SS_DIR "/orsirr_1.mtx", SPARSE_PIVOT_PARTIAL, 1e-12, 1e-8);
     ASSERT_EQ(ok, 1);
 }
 
-static void test_orsirr_1_complete(void)
-{
-    int ok = solve_and_check(SS_DIR "/orsirr_1.mtx",
-                             SPARSE_PIVOT_COMPLETE, 1e-12, 1e-8);
+static void test_orsirr_1_complete(void) {
+    int ok = solve_and_check(SS_DIR "/orsirr_1.mtx", SPARSE_PIVOT_COMPLETE, 1e-12, 1e-8);
     ASSERT_EQ(ok, 1);
 }
 
@@ -196,16 +193,12 @@ static void test_orsirr_1_complete(void)
  * Norm-only tests for all matrices (always valid, even for singular)
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_norminf_all_matrices(void)
-{
+static void test_norminf_all_matrices(void) {
     int large = getenv("SPARSE_TEST_LARGE") && atoi(getenv("SPARSE_TEST_LARGE")) > 0;
     const char *files[] = {
-        SS_DIR "/west0067.mtx",
-        SS_DIR "/nos4.mtx",
-        SS_DIR "/bcsstk04.mtx",
-        SS_DIR "/steam1.mtx",
-        SS_DIR "/fs_541_1.mtx",   /* large */
-        SS_DIR "/orsirr_1.mtx",   /* large */
+        SS_DIR "/west0067.mtx", SS_DIR "/nos4.mtx",     SS_DIR "/bcsstk04.mtx",
+        SS_DIR "/steam1.mtx",   SS_DIR "/fs_541_1.mtx", /* large */
+        SS_DIR "/orsirr_1.mtx",                         /* large */
     };
     int count = large ? 6 : 4;
     for (int i = 0; i < count; i++) {
@@ -222,8 +215,7 @@ static void test_norminf_all_matrices(void)
  * Condition number estimation on SuiteSparse matrices
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_condest_suitesparse(void)
-{
+static void test_condest_suitesparse(void) {
     const char *files[] = {
         SS_DIR "/west0067.mtx",
         SS_DIR "/nos4.mtx",
@@ -240,7 +232,7 @@ static void test_condest_suitesparse(void)
 
         double cond;
         ASSERT_ERR(sparse_lu_condest(A, LU, &cond), SPARSE_OK);
-        ASSERT_TRUE(cond > 0.0 && isfinite(cond));  /* estimate must be positive and finite */
+        ASSERT_TRUE(cond > 0.0 && isfinite(cond)); /* estimate must be positive and finite */
 
         printf("    %s: condest = %.3e\n", files[i], cond);
 
@@ -253,8 +245,7 @@ static void test_condest_suitesparse(void)
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
-int main(void)
-{
+int main(void) {
     TEST_SUITE_BEGIN("SuiteSparse Matrix Tests");
 
     /* west0067: 67x67, unsymmetric, chemical engineering */

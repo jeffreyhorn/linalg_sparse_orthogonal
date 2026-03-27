@@ -1,16 +1,15 @@
-#include "sparse_matrix.h"
 #include "sparse_lu.h"
+#include "sparse_matrix.h"
 #include "sparse_types.h"
 #include "test_framework.h"
-#include <stdlib.h>
 #include <math.h>
+#include <stdlib.h>
 
 /* ═══════════════════════════════════════════════════════════════════════
  * sparse_scale tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_scale_identity_by_3(void)
-{
+static void test_scale_identity_by_3(void) {
     SparseMatrix *A = sparse_create(4, 4);
     for (idx_t i = 0; i < 4; i++)
         sparse_insert(A, i, i, 1.0);
@@ -23,8 +22,7 @@ static void test_scale_identity_by_3(void)
     sparse_free(A);
 }
 
-static void test_scale_by_1(void)
-{
+static void test_scale_by_1(void) {
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 5.0);
     sparse_insert(A, 1, 2, 7.0);
@@ -39,8 +37,7 @@ static void test_scale_by_1(void)
     sparse_free(A);
 }
 
-static void test_scale_by_0(void)
-{
+static void test_scale_by_0(void) {
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 1, 1, 2.0);
@@ -58,8 +55,7 @@ static void test_scale_by_0(void)
     sparse_free(A);
 }
 
-static void test_scale_by_negative_1(void)
-{
+static void test_scale_by_negative_1(void) {
     SparseMatrix *A = sparse_create(2, 2);
     sparse_insert(A, 0, 0, 4.0);
     sparse_insert(A, 0, 1, -2.0);
@@ -76,8 +72,7 @@ static void test_scale_by_negative_1(void)
     sparse_free(A);
 }
 
-static void test_scale_rectangular(void)
-{
+static void test_scale_rectangular(void) {
     SparseMatrix *A = sparse_create(2, 5);
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 0, 4, 2.0);
@@ -92,21 +87,16 @@ static void test_scale_rectangular(void)
     sparse_free(A);
 }
 
-static void test_scale_null(void)
-{
-    ASSERT_ERR(sparse_scale(NULL, 2.0), SPARSE_ERR_NULL);
-}
+static void test_scale_null(void) { ASSERT_ERR(sparse_scale(NULL, 2.0), SPARSE_ERR_NULL); }
 
-static void test_scale_empty_matrix(void)
-{
+static void test_scale_empty_matrix(void) {
     SparseMatrix *A = sparse_create(3, 3);
     ASSERT_ERR(sparse_scale(A, 5.0), SPARSE_OK);
     ASSERT_EQ(sparse_nnz(A), 0);
     sparse_free(A);
 }
 
-static void test_scale_invalidates_norm(void)
-{
+static void test_scale_invalidates_norm(void) {
     SparseMatrix *A = sparse_create(2, 2);
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 1, 1, 2.0);
@@ -127,8 +117,7 @@ static void test_scale_invalidates_norm(void)
  * sparse_add tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_add_a_plus_zero(void)
-{
+static void test_add_a_plus_zero(void) {
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 1, 1, 2.0);
@@ -149,8 +138,7 @@ static void test_add_a_plus_zero(void)
     sparse_free(C);
 }
 
-static void test_add_a_minus_a(void)
-{
+static void test_add_a_minus_a(void) {
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 5.0);
     sparse_insert(A, 0, 2, 3.0);
@@ -166,8 +154,7 @@ static void test_add_a_minus_a(void)
     sparse_free(C);
 }
 
-static void test_add_disjoint_patterns(void)
-{
+static void test_add_disjoint_patterns(void) {
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 2, 2, 3.0);
@@ -189,8 +176,7 @@ static void test_add_disjoint_patterns(void)
     sparse_free(C);
 }
 
-static void test_add_overlapping_entries(void)
-{
+static void test_add_overlapping_entries(void) {
     SparseMatrix *A = sparse_create(2, 2);
     sparse_insert(A, 0, 0, 3.0);
     sparse_insert(A, 1, 1, 4.0);
@@ -210,8 +196,7 @@ static void test_add_overlapping_entries(void)
     sparse_free(C);
 }
 
-static void test_add_dimension_mismatch(void)
-{
+static void test_add_dimension_mismatch(void) {
     SparseMatrix *A = sparse_create(3, 3);
     SparseMatrix *B = sparse_create(3, 4);
     SparseMatrix *C = NULL;
@@ -223,8 +208,7 @@ static void test_add_dimension_mismatch(void)
     sparse_free(B);
 }
 
-static void test_add_rectangular(void)
-{
+static void test_add_rectangular(void) {
     SparseMatrix *A = sparse_create(2, 4);
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 1, 3, 2.0);
@@ -246,8 +230,7 @@ static void test_add_rectangular(void)
     sparse_free(C);
 }
 
-static void test_add_null_args(void)
-{
+static void test_add_null_args(void) {
     SparseMatrix *A = sparse_create(2, 2);
     SparseMatrix *C = NULL;
 
@@ -262,8 +245,7 @@ static void test_add_null_args(void)
  * sparse_add_inplace tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_add_inplace_basic(void)
-{
+static void test_add_inplace_basic(void) {
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 1, 1, 2.0);
@@ -282,8 +264,7 @@ static void test_add_inplace_basic(void)
     sparse_free(B);
 }
 
-static void test_add_inplace_with_scaling(void)
-{
+static void test_add_inplace_with_scaling(void) {
     SparseMatrix *A = sparse_create(2, 2);
     sparse_insert(A, 0, 0, 10.0);
     sparse_insert(A, 1, 1, 20.0);
@@ -301,8 +282,7 @@ static void test_add_inplace_with_scaling(void)
     sparse_free(B);
 }
 
-static void test_add_inplace_cancellation(void)
-{
+static void test_add_inplace_cancellation(void) {
     SparseMatrix *A = sparse_create(2, 2);
     sparse_insert(A, 0, 0, 5.0);
     sparse_insert(A, 1, 1, 3.0);
@@ -318,16 +298,14 @@ static void test_add_inplace_cancellation(void)
     sparse_free(B);
 }
 
-static void test_add_inplace_null(void)
-{
+static void test_add_inplace_null(void) {
     SparseMatrix *A = sparse_create(2, 2);
     ASSERT_ERR(sparse_add_inplace(NULL, A, 1.0, 1.0), SPARSE_ERR_NULL);
     ASSERT_ERR(sparse_add_inplace(A, NULL, 1.0, 1.0), SPARSE_ERR_NULL);
     sparse_free(A);
 }
 
-static void test_add_inplace_shape_mismatch(void)
-{
+static void test_add_inplace_shape_mismatch(void) {
     SparseMatrix *A = sparse_create(2, 2);
     SparseMatrix *B = sparse_create(3, 3);
     ASSERT_ERR(sparse_add_inplace(A, B, 1.0, 1.0), SPARSE_ERR_SHAPE);
@@ -339,8 +317,7 @@ static void test_add_inplace_shape_mismatch(void)
  * Integration: arithmetic + solver
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_add_then_factor_solve(void)
-{
+static void test_add_then_factor_solve(void) {
     /*
      * Construct A = 4*I + T where T is tridiagonal (-1, 0, -1).
      * This gives a diagonally dominant 5x5 tridiagonal.
@@ -383,7 +360,8 @@ static void test_add_then_factor_solve(void)
     double max_res = 0.0;
     for (idx_t i = 0; i < n; i++) {
         double ri = fabs(b[i] - r[i]);
-        if (ri > max_res) max_res = ri;
+        if (ri > max_res)
+            max_res = ri;
     }
     ASSERT_TRUE(max_res < 1e-12);
 
@@ -393,8 +371,7 @@ static void test_add_then_factor_solve(void)
     sparse_free(A_orig);
 }
 
-static void test_scale_then_factor_solve(void)
-{
+static void test_scale_then_factor_solve(void) {
     /* Build 3x3 matrix, scale by 0.001, factor and solve */
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 4000.0);
@@ -428,8 +405,7 @@ static void test_scale_then_factor_solve(void)
     sparse_free(A_orig);
 }
 
-static void test_norminf_after_add(void)
-{
+static void test_norminf_after_add(void) {
     /* Verify norminf works correctly on a matrix produced by sparse_add */
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 1.0);
@@ -457,8 +433,7 @@ static void test_norminf_after_add(void)
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
-int main(void)
-{
+int main(void) {
     TEST_SUITE_BEGIN("Sparse Matrix Arithmetic Tests");
 
     /* Scale */

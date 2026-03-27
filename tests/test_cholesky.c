@@ -1,11 +1,11 @@
-#include "sparse_matrix.h"
 #include "sparse_cholesky.h"
 #include "sparse_lu.h"
+#include "sparse_matrix.h"
 #include "sparse_types.h"
 #include "test_framework.h"
-#include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #ifndef DATA_DIR
 #define DATA_DIR "tests/data"
@@ -17,8 +17,7 @@
  * ═══════════════════════════════════════════════════════════════════════ */
 
 /* 2x2 SPD: A = [[4, 2], [2, 3]] → L = [[2, 0], [1, sqrt(2)]] */
-static void test_cholesky_2x2(void)
-{
+static void test_cholesky_2x2(void) {
     SparseMatrix *A = sparse_create(2, 2);
     sparse_insert(A, 0, 0, 4.0);
     sparse_insert(A, 0, 1, 2.0);
@@ -38,12 +37,15 @@ static void test_cholesky_2x2(void)
 }
 
 /* 3x3 SPD tridiagonal: A = [[4,-1,0],[-1,4,-1],[0,-1,4]] */
-static void test_cholesky_3x3_tridiag(void)
-{
+static void test_cholesky_3x3_tridiag(void) {
     SparseMatrix *A = sparse_create(3, 3);
-    sparse_insert(A, 0, 0, 4.0);  sparse_insert(A, 0, 1, -1.0);
-    sparse_insert(A, 1, 0, -1.0); sparse_insert(A, 1, 1, 4.0);  sparse_insert(A, 1, 2, -1.0);
-    sparse_insert(A, 2, 1, -1.0); sparse_insert(A, 2, 2, 4.0);
+    sparse_insert(A, 0, 0, 4.0);
+    sparse_insert(A, 0, 1, -1.0);
+    sparse_insert(A, 1, 0, -1.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 1, 2, -1.0);
+    sparse_insert(A, 2, 1, -1.0);
+    sparse_insert(A, 2, 2, 4.0);
 
     ASSERT_ERR(sparse_cholesky_factor(A), SPARSE_OK);
 
@@ -64,8 +66,7 @@ static void test_cholesky_3x3_tridiag(void)
 }
 
 /* Non-SPD matrix → SPARSE_ERR_NOT_SPD */
-static void test_cholesky_not_spd(void)
-{
+static void test_cholesky_not_spd(void) {
     /* A = [[1, 2], [2, 1]] — symmetric but not positive definite (eigenvalues 3, -1) */
     SparseMatrix *A = sparse_create(2, 2);
     sparse_insert(A, 0, 0, 1.0);
@@ -78,22 +79,17 @@ static void test_cholesky_not_spd(void)
 }
 
 /* Non-square → SPARSE_ERR_SHAPE */
-static void test_cholesky_nonsquare(void)
-{
+static void test_cholesky_nonsquare(void) {
     SparseMatrix *A = sparse_create(2, 3);
     ASSERT_ERR(sparse_cholesky_factor(A), SPARSE_ERR_SHAPE);
     sparse_free(A);
 }
 
 /* NULL → SPARSE_ERR_NULL */
-static void test_cholesky_null(void)
-{
-    ASSERT_ERR(sparse_cholesky_factor(NULL), SPARSE_ERR_NULL);
-}
+static void test_cholesky_null(void) { ASSERT_ERR(sparse_cholesky_factor(NULL), SPARSE_ERR_NULL); }
 
 /* 1x1 SPD */
-static void test_cholesky_1x1(void)
-{
+static void test_cholesky_1x1(void) {
     SparseMatrix *A = sparse_create(1, 1);
     sparse_insert(A, 0, 0, 9.0);
     ASSERT_ERR(sparse_cholesky_factor(A), SPARSE_OK);
@@ -102,8 +98,7 @@ static void test_cholesky_1x1(void)
 }
 
 /* Identity → L = I */
-static void test_cholesky_identity(void)
-{
+static void test_cholesky_identity(void) {
     idx_t n = 5;
     SparseMatrix *A = sparse_create(n, n);
     for (idx_t i = 0; i < n; i++)
@@ -118,8 +113,7 @@ static void test_cholesky_identity(void)
 }
 
 /* Diagonal SPD → L = diag(sqrt(d_ii)) */
-static void test_cholesky_diagonal(void)
-{
+static void test_cholesky_diagonal(void) {
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 4.0);
     sparse_insert(A, 1, 1, 9.0);
@@ -136,13 +130,18 @@ static void test_cholesky_diagonal(void)
 }
 
 /* Verify L*L^T ≈ A using matvec */
-static void test_cholesky_reconstruct(void)
-{
+static void test_cholesky_reconstruct(void) {
     /* A = [[10, 1, 2], [1, 10, 1], [2, 1, 10]] */
     SparseMatrix *A = sparse_create(3, 3);
-    sparse_insert(A, 0, 0, 10.0); sparse_insert(A, 0, 1, 1.0); sparse_insert(A, 0, 2, 2.0);
-    sparse_insert(A, 1, 0, 1.0);  sparse_insert(A, 1, 1, 10.0); sparse_insert(A, 1, 2, 1.0);
-    sparse_insert(A, 2, 0, 2.0);  sparse_insert(A, 2, 1, 1.0); sparse_insert(A, 2, 2, 10.0);
+    sparse_insert(A, 0, 0, 10.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 0, 2, 2.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 10.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 0, 2.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 10.0);
 
     /* Save original entries */
     double orig[3][3];
@@ -172,26 +171,29 @@ static void test_cholesky_reconstruct(void)
  * Cholesky solve tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static double vec_norminf(const double *v, idx_t n)
-{
+static double vec_norminf(const double *v, idx_t n) {
     double mx = 0.0;
     for (idx_t i = 0; i < n; i++) {
         double a = fabs(v[i]);
-        if (a > mx) mx = a;
+        if (a > mx)
+            mx = a;
     }
     return mx;
 }
 
 /* Factor and solve 3x3 SPD → verify x matches known solution */
-static void test_cholesky_solve_3x3(void)
-{
+static void test_cholesky_solve_3x3(void) {
     /* A = [[4,2,0],[2,5,1],[0,1,3]], b = A*[1,2,3] = [8, 15, 11] */
     SparseMatrix *A = sparse_create(3, 3);
-    sparse_insert(A, 0, 0, 4.0); sparse_insert(A, 0, 1, 2.0);
-    sparse_insert(A, 1, 0, 2.0); sparse_insert(A, 1, 1, 5.0); sparse_insert(A, 1, 2, 1.0);
-    sparse_insert(A, 2, 1, 1.0); sparse_insert(A, 2, 2, 3.0);
+    sparse_insert(A, 0, 0, 4.0);
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 1, 0, 2.0);
+    sparse_insert(A, 1, 1, 5.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 3.0);
 
-    double b[] = {8.0, 15.0, 11.0};  /* A * [1,2,3] */
+    double b[] = {8.0, 15.0, 11.0}; /* A * [1,2,3] */
 
     SparseMatrix *L = sparse_copy(A);
     ASSERT_NOT_NULL(L);
@@ -203,7 +205,8 @@ static void test_cholesky_solve_3x3(void)
     /* Verify via residual: ||b - A*x|| */
     double r[3];
     sparse_matvec(A, x, r);
-    for (int i = 0; i < 3; i++) r[i] -= b[i];
+    for (int i = 0; i < 3; i++)
+        r[i] -= b[i];
     ASSERT_TRUE(vec_norminf(r, 3) < 1e-12);
 
     sparse_free(A);
@@ -211,13 +214,15 @@ static void test_cholesky_solve_3x3(void)
 }
 
 /* Factor and solve 5x5 SPD tridiagonal → verify residual */
-static void test_cholesky_solve_5x5_tridiag(void)
-{
+static void test_cholesky_solve_5x5_tridiag(void) {
     idx_t n = 5;
     SparseMatrix *A = sparse_create(n, n);
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, 4.0);
-        if (i > 0) { sparse_insert(A, i, i-1, -1.0); sparse_insert(A, i-1, i, -1.0); }
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
     }
 
     /* b = A * ones */
@@ -225,7 +230,8 @@ static void test_cholesky_solve_5x5_tridiag(void)
     double *b = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(ones);
     ASSERT_NOT_NULL(b);
-    for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
+    for (idx_t i = 0; i < n; i++)
+        ones[i] = 1.0;
     sparse_matvec(A, ones, b);
 
     SparseMatrix *L = sparse_copy(A);
@@ -240,30 +246,36 @@ static void test_cholesky_solve_5x5_tridiag(void)
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x[i], 1.0, 1e-12);
 
-    free(ones); free(b); free(x);
-    sparse_free(A); sparse_free(L);
+    free(ones);
+    free(b);
+    free(x);
+    sparse_free(A);
+    sparse_free(L);
 }
 
 /* Factor with AMD → solve → correct result */
-static void test_cholesky_solve_amd(void)
-{
+static void test_cholesky_solve_amd(void) {
     idx_t n = 8;
     SparseMatrix *A = sparse_create(n, n);
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, (double)(n + 1));
-        if (i > 0) { sparse_insert(A, i, i-1, -1.0); sparse_insert(A, i-1, i, -1.0); }
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
     }
 
     double *ones = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(ones);
     ASSERT_NOT_NULL(b);
-    for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
+    for (idx_t i = 0; i < n; i++)
+        ones[i] = 1.0;
     sparse_matvec(A, ones, b);
 
     SparseMatrix *L = sparse_copy(A);
     ASSERT_NOT_NULL(L);
-    sparse_cholesky_opts_t opts = { SPARSE_REORDER_AMD };
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD};
     ASSERT_ERR(sparse_cholesky_factor_opts(L, &opts), SPARSE_OK);
 
     double *x = malloc((size_t)n * sizeof(double));
@@ -273,30 +285,36 @@ static void test_cholesky_solve_amd(void)
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x[i], 1.0, 1e-10);
 
-    free(ones); free(b); free(x);
-    sparse_free(A); sparse_free(L);
+    free(ones);
+    free(b);
+    free(x);
+    sparse_free(A);
+    sparse_free(L);
 }
 
 /* Factor with RCM → solve → correct result */
-static void test_cholesky_solve_rcm(void)
-{
+static void test_cholesky_solve_rcm(void) {
     idx_t n = 8;
     SparseMatrix *A = sparse_create(n, n);
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, (double)(n + 1));
-        if (i > 0) { sparse_insert(A, i, i-1, -1.0); sparse_insert(A, i-1, i, -1.0); }
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
     }
 
     double *ones = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(ones);
     ASSERT_NOT_NULL(b);
-    for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
+    for (idx_t i = 0; i < n; i++)
+        ones[i] = 1.0;
     sparse_matvec(A, ones, b);
 
     SparseMatrix *L = sparse_copy(A);
     ASSERT_NOT_NULL(L);
-    sparse_cholesky_opts_t opts = { SPARSE_REORDER_RCM };
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_RCM};
     ASSERT_ERR(sparse_cholesky_factor_opts(L, &opts), SPARSE_OK);
 
     double *x = malloc((size_t)n * sizeof(double));
@@ -306,22 +324,28 @@ static void test_cholesky_solve_rcm(void)
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x[i], 1.0, 1e-10);
 
-    free(ones); free(b); free(x);
-    sparse_free(A); sparse_free(L);
+    free(ones);
+    free(b);
+    free(x);
+    sparse_free(A);
+    sparse_free(L);
 }
 
 /* Solve with NONE → same as plain cholesky_factor */
-static void test_cholesky_solve_none(void)
-{
+static void test_cholesky_solve_none(void) {
     SparseMatrix *A = sparse_create(3, 3);
-    sparse_insert(A, 0, 0, 4.0); sparse_insert(A, 0, 1, 2.0);
-    sparse_insert(A, 1, 0, 2.0); sparse_insert(A, 1, 1, 5.0); sparse_insert(A, 1, 2, 1.0);
-    sparse_insert(A, 2, 1, 1.0); sparse_insert(A, 2, 2, 3.0);
+    sparse_insert(A, 0, 0, 4.0);
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 1, 0, 2.0);
+    sparse_insert(A, 1, 1, 5.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 3.0);
 
     double b[] = {8.0, 15.0, 11.0};
 
     SparseMatrix *L1 = sparse_copy(A);
-    sparse_cholesky_opts_t opts = { SPARSE_REORDER_NONE };
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_NONE};
     ASSERT_ERR(sparse_cholesky_factor_opts(L1, &opts), SPARSE_OK);
     double x1[3];
     ASSERT_ERR(sparse_cholesky_solve(L1, b, x1), SPARSE_OK);
@@ -334,12 +358,13 @@ static void test_cholesky_solve_none(void)
     for (int i = 0; i < 3; i++)
         ASSERT_NEAR(x1[i], x2[i], 1e-14);
 
-    sparse_free(A); sparse_free(L1); sparse_free(L2);
+    sparse_free(A);
+    sparse_free(L1);
+    sparse_free(L2);
 }
 
 /* Solve NULL args */
-static void test_cholesky_solve_null(void)
-{
+static void test_cholesky_solve_null(void) {
     double b[1] = {1.0}, x[1];
     ASSERT_ERR(sparse_cholesky_solve(NULL, b, x), SPARSE_ERR_NULL);
 }
@@ -350,21 +375,21 @@ static void test_cholesky_solve_null(void)
 
 /* Helper: load, Cholesky factor+solve, check residual */
 static void cholesky_validate(const char *path, double res_tol,
-                               const sparse_cholesky_opts_t *opts)
-{
+                              const sparse_cholesky_opts_t *opts) {
     SparseMatrix *A = NULL;
     ASSERT_ERR(sparse_load_mm(&A, path), SPARSE_OK);
     idx_t n = sparse_rows(A);
 
     double *ones = malloc((size_t)n * sizeof(double));
-    double *b    = malloc((size_t)n * sizeof(double));
-    double *x    = malloc((size_t)n * sizeof(double));
-    double *r    = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    double *r = malloc((size_t)n * sizeof(double));
     ASSERT_NOT_NULL(ones);
     ASSERT_NOT_NULL(b);
     ASSERT_NOT_NULL(x);
     ASSERT_NOT_NULL(r);
-    for (idx_t i = 0; i < n; i++) ones[i] = 1.0;
+    for (idx_t i = 0; i < n; i++)
+        ones[i] = 1.0;
     sparse_matvec(A, ones, b);
 
     SparseMatrix *L = sparse_copy(A);
@@ -383,41 +408,37 @@ static void cholesky_validate(const char *path, double res_tol,
     for (idx_t i = 0; i < n; i++) {
         r[i] -= b[i];
         double a = fabs(r[i]);
-        if (a > rnorm) rnorm = a;
+        if (a > rnorm)
+            rnorm = a;
     }
 
     printf("    %s: nnz_L=%d, res=%.2e\n", path, (int)sparse_nnz(L), rnorm);
     ASSERT_TRUE(rnorm < res_tol);
 
-    free(ones); free(b); free(x); free(r);
-    sparse_free(A); sparse_free(L);
+    free(ones);
+    free(b);
+    free(x);
+    free(r);
+    sparse_free(A);
+    sparse_free(L);
 }
 
-static void test_cholesky_nos4(void)
-{
-    cholesky_validate(SS_DIR "/nos4.mtx", 1e-10, NULL);
-}
+static void test_cholesky_nos4(void) { cholesky_validate(SS_DIR "/nos4.mtx", 1e-10, NULL); }
 
-static void test_cholesky_bcsstk04(void)
-{
-    cholesky_validate(SS_DIR "/bcsstk04.mtx", 1e-4, NULL);
-}
+static void test_cholesky_bcsstk04(void) { cholesky_validate(SS_DIR "/bcsstk04.mtx", 1e-4, NULL); }
 
-static void test_cholesky_nos4_amd(void)
-{
-    sparse_cholesky_opts_t opts = { SPARSE_REORDER_AMD };
+static void test_cholesky_nos4_amd(void) {
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD};
     cholesky_validate(SS_DIR "/nos4.mtx", 1e-10, &opts);
 }
 
-static void test_cholesky_bcsstk04_rcm(void)
-{
-    sparse_cholesky_opts_t opts = { SPARSE_REORDER_RCM };
+static void test_cholesky_bcsstk04_rcm(void) {
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_RCM};
     cholesky_validate(SS_DIR "/bcsstk04.mtx", 1e-4, &opts);
 }
 
 /* Compare Cholesky fill-in vs LU fill-in on SPD matrices */
-static void test_cholesky_fillin_vs_lu(void)
-{
+static void test_cholesky_fillin_vs_lu(void) {
     SparseMatrix *A = NULL;
     ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/nos4.mtx"), SPARSE_OK);
 
@@ -436,12 +457,13 @@ static void test_cholesky_fillin_vs_lu(void)
     /* Cholesky stores only lower triangle, so nnz should be ≤ LU */
     ASSERT_TRUE(chol_nnz <= lu_nnz);
 
-    sparse_free(A); sparse_free(L); sparse_free(LU);
+    sparse_free(A);
+    sparse_free(L);
+    sparse_free(LU);
 }
 
 /* Nearly singular SPD: should factor but have large condition */
-static void test_cholesky_nearly_singular(void)
-{
+static void test_cholesky_nearly_singular(void) {
     idx_t n = 4;
     SparseMatrix *A = sparse_create(n, n);
     for (idx_t i = 0; i < n; i++)
@@ -460,15 +482,15 @@ static void test_cholesky_nearly_singular(void)
     ASSERT_NEAR(x[0], 1.0, 1e-6);
     ASSERT_NEAR(x[3], 1e12, 1e6);
 
-    sparse_free(A); sparse_free(L);
+    sparse_free(A);
+    sparse_free(L);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
-int main(void)
-{
+int main(void) {
     TEST_SUITE_BEGIN("Cholesky Factorization Tests");
 
     RUN_TEST(test_cholesky_2x2);

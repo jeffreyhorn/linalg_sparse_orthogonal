@@ -201,6 +201,47 @@ tsan: CFLAGS += -fsanitize=thread -fno-omit-frame-pointer -g -O1
 tsan: LDFLAGS += -fsanitize=thread
 tsan: clean test
 
+# ─── Code quality targets ─────────────────────────────────────────────
+
+# Source files for formatting/linting
+ALL_SRC = $(shell find $(SRCDIR) -name '*.c' -o -name '*.h')
+ALL_TEST_SRC = $(shell find $(TESTDIR) -name '*.c' -o -name '*.h')
+ALL_BENCH_SRC = $(shell find $(BENCHDIR) -name '*.c')
+
+# Format all source files in-place
+.PHONY: format
+format:
+	@echo "Formatting with clang-format..."
+	clang-format -i $(ALL_SRC) $(ALL_TEST_SRC) $(ALL_BENCH_SRC) $(shell find include -name '*.h')
+
+# Check formatting without modifying files
+.PHONY: format-check
+format-check:
+	@echo "Checking formatting with clang-format..."
+	clang-format --dry-run --Werror $(ALL_SRC) $(ALL_TEST_SRC) $(ALL_BENCH_SRC) $(shell find include -name '*.h')
+
+# Run all linters
+.PHONY: lint
+lint:
+	@echo "Compiling with strict warnings (-Werror)..."
+	$(CC) -std=c11 -Wall -Wextra -Wpedantic -Wconversion -Wshadow -Wformat=2 \
+		-Wstrict-prototypes -Werror $(INCLUDE) -fsyntax-only $(shell find $(SRCDIR) -name '*.c')
+	@echo ""
+	@echo "Running clang-tidy..."
+	clang-tidy $(shell find $(SRCDIR) -name '*.c') -- $(INCLUDE) $(CFLAGS)
+	@echo ""
+	@echo "Running cppcheck..."
+	cppcheck --enable=warning,style,performance,portability --error-exitcode=1 \
+		--suppress=missingIncludeSystem --suppress=constVariablePointer \
+		--suppress=constVariable --suppress=variableScope \
+		--suppress=nullPointerOutOfMemory --suppress=uninitvar \
+		--suppress=constParameterPointer --suppress=unreadVariable \
+		-I include $(SRCDIR) $(TESTDIR)
+
+# Run all quality checks: format + lint + test
+.PHONY: check
+check: format-check lint test
+
 # Clean
 .PHONY: clean
 clean:

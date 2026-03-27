@@ -23,8 +23,8 @@
  * @endcode
  */
 
-#include "sparse_matrix.h"
 #include "sparse_iterative.h"
+#include "sparse_matrix.h"
 
 /**
  * @brief ILU(0) factorization data.
@@ -33,9 +33,9 @@
  * L is unit lower triangular, U is upper triangular with diagonal.
  */
 typedef struct {
-    SparseMatrix *L;   /**< Unit lower triangular factor */
-    SparseMatrix *U;   /**< Upper triangular factor (includes diagonal) */
-    idx_t n;           /**< Matrix dimension */
+    SparseMatrix *L; /**< Unit lower triangular factor */
+    SparseMatrix *U; /**< Upper triangular factor (includes diagonal) */
+    idx_t n;         /**< Matrix dimension */
 } sparse_ilu_t;
 
 /**
@@ -78,8 +78,7 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu);
  *         NULL when n > 0 (e.g., factorization was not performed or failed).
  * @return SPARSE_ERR_SINGULAR if a U diagonal pivot is zero or near-zero.
  */
-sparse_err_t sparse_ilu_solve(const sparse_ilu_t *ilu,
-                               const double *r, double *z);
+sparse_err_t sparse_ilu_solve(const sparse_ilu_t *ilu, const double *r, double *z);
 
 /**
  * @brief Free the ILU(0) factorization data.
@@ -101,7 +100,6 @@ void sparse_ilu_free(sparse_ilu_t *ilu);
  * @param z    Output vector.
  * @return SPARSE_OK on success, or an error code.
  */
-sparse_err_t sparse_ilu_precond(const void *ctx, idx_t n,
-                                 const double *r, double *z);
+sparse_err_t sparse_ilu_precond(const void *ctx, idx_t n, const double *r, double *z);
 
 #endif /* SPARSE_ILU_H */

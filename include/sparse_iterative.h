@@ -46,9 +46,9 @@
  * max_iter = 1000, tol = 1e-10, verbose = 0.
  */
 typedef struct {
-    idx_t  max_iter;   /**< Maximum number of CG iterations (default: 1000) */
-    double tol;        /**< Convergence tolerance on relative residual ||r||/||b|| (default: 1e-10) */
-    int    verbose;    /**< If nonzero, print iteration log to stderr (default: 0) */
+    idx_t max_iter; /**< Maximum number of CG iterations (default: 1000) */
+    double tol;     /**< Convergence tolerance on relative residual ||r||/||b|| (default: 1e-10) */
+    int verbose;    /**< If nonzero, print iteration log to stderr (default: 0) */
 } sparse_iter_opts_t;
 
 /**
@@ -58,10 +58,10 @@ typedef struct {
  * max_iter = 1000, restart = 30, tol = 1e-10, verbose = 0.
  */
 typedef struct {
-    idx_t  max_iter;   /**< Maximum total number of GMRES iterations (default: 1000) */
-    idx_t  restart;    /**< Restart parameter k for GMRES(k) (default: 30) */
-    double tol;        /**< Convergence tolerance on relative residual ||r||/||b|| (default: 1e-10) */
-    int    verbose;    /**< If nonzero, print iteration log to stderr (default: 0) */
+    idx_t max_iter; /**< Maximum total number of GMRES iterations (default: 1000) */
+    idx_t restart;  /**< Restart parameter k for GMRES(k) (default: 30) */
+    double tol;     /**< Convergence tolerance on relative residual ||r||/||b|| (default: 1e-10) */
+    int verbose;    /**< If nonzero, print iteration log to stderr (default: 0) */
 } sparse_gmres_opts_t;
 
 /**
@@ -71,9 +71,9 @@ typedef struct {
  * Pass NULL if result information is not needed.
  */
 typedef struct {
-    idx_t  iterations;     /**< Number of iterations performed */
-    double residual_norm;  /**< Final true relative residual norm ||b - A*x|| / ||b|| */
-    int    converged;      /**< Nonzero if solver converged within tolerance */
+    idx_t iterations;     /**< Number of iterations performed */
+    double residual_norm; /**< Final true relative residual norm ||b - A*x|| / ||b|| */
+    int converged;        /**< Nonzero if solver converged within tolerance */
 } sparse_iter_result_t;
 
 /**
@@ -89,8 +89,7 @@ typedef struct {
  * @param z     Output vector (preconditioned residual).
  * @return SPARSE_OK on success, or an error code on failure.
  */
-typedef sparse_err_t (*sparse_precond_fn)(const void *ctx, idx_t n,
-                                          const double *r, double *z);
+typedef sparse_err_t (*sparse_precond_fn)(const void *ctx, idx_t n, const double *r, double *z);
 
 /**
  * @brief Solve A*x = b using the Preconditioned Conjugate Gradient method.
@@ -118,12 +117,9 @@ typedef sparse_err_t (*sparse_precond_fn)(const void *ctx, idx_t n,
  * @threadsafety Read-only on A. Safe to call concurrently on the same matrix
  *               with different b/x vectors.
  */
-sparse_err_t sparse_solve_cg(const SparseMatrix *A,
-                              const double *b, double *x,
-                              const sparse_iter_opts_t *opts,
-                              sparse_precond_fn precond,
-                              const void *precond_ctx,
-                              sparse_iter_result_t *result);
+sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
+                             const sparse_iter_opts_t *opts, sparse_precond_fn precond,
+                             const void *precond_ctx, sparse_iter_result_t *result);
 
 /**
  * @brief Solve A*x = b using the restarted GMRES(k) method.
@@ -151,11 +147,8 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A,
  * @threadsafety Read-only on A. Safe to call concurrently on the same matrix
  *               with different b/x vectors.
  */
-sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
-                                 const double *b, double *x,
-                                 const sparse_gmres_opts_t *opts,
-                                 sparse_precond_fn precond,
-                                 const void *precond_ctx,
-                                 sparse_iter_result_t *result);
+sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *x,
+                                const sparse_gmres_opts_t *opts, sparse_precond_fn precond,
+                                const void *precond_ctx, sparse_iter_result_t *result);
 
 #endif /* SPARSE_ITERATIVE_H */

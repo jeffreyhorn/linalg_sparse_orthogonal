@@ -1,10 +1,10 @@
 #include "sparse_cholesky.h"
-#include "sparse_reorder.h"
 #include "sparse_matrix_internal.h"
+#include "sparse_reorder.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
 
 /* ─── Cholesky factorization ─────────────────────────────────────────── */
 
@@ -20,12 +20,14 @@
  * We use a dense column accumulator for each column k to handle fill-in
  * efficiently, then write back nonzeros into the sparse structure.
  */
-sparse_err_t sparse_cholesky_factor(SparseMatrix *mat)
-{
-    if (!mat) return SPARSE_ERR_NULL;
+sparse_err_t sparse_cholesky_factor(SparseMatrix *mat) {
+    if (!mat)
+        return SPARSE_ERR_NULL;
     idx_t n = mat->rows;
-    if (n != mat->cols) return SPARSE_ERR_SHAPE;
-    if (n == 0) return SPARSE_OK;
+    if (n != mat->cols)
+        return SPARSE_ERR_SHAPE;
+    if (n == 0)
+        return SPARSE_OK;
 
     /* Validate symmetry before allocating or modifying anything */
     if (!sparse_is_symmetric(mat, 1e-12))
@@ -39,7 +41,9 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat)
     int *nz_row = calloc((size_t)n, sizeof(int));
     idx_t *nz_rows = malloc((size_t)n * sizeof(idx_t));
     if (!col_acc || !nz_row || !nz_rows) {
-        free(col_acc); free(nz_row); free(nz_rows);
+        free(col_acc);
+        free(nz_row);
+        free(nz_rows);
         return SPARSE_ERR_ALLOC;
     }
 
@@ -77,7 +81,10 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat)
         Node *row_k = mat->row_headers[k];
         while (row_k) {
             idx_t j = row_k->col;
-            if (j >= k) { row_k = row_k->right; continue; }
+            if (j >= k) {
+                row_k = row_k->right;
+                continue;
+            }
             double l_kj = row_k->value;
 
             /* Walk column j for entries L(i,j) with i >= k */
@@ -97,7 +104,9 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat)
 
         /* Diagonal: L(k,k) = sqrt(col_acc[k]) */
         if (col_acc[k] <= 0.0) {
-            free(col_acc); free(nz_row); free(nz_rows);
+            free(col_acc);
+            free(nz_row);
+            free(nz_rows);
             return SPARSE_ERR_NOT_SPD;
         }
         double l_kk = sqrt(col_acc[k]);
@@ -105,7 +114,9 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat)
         /* Write L(k,k) */
         sparse_err_t err = sparse_insert(mat, k, k, l_kk);
         if (err != SPARSE_OK) {
-            free(col_acc); free(nz_row); free(nz_rows);
+            free(col_acc);
+            free(nz_row);
+            free(nz_rows);
             return err;
         }
 
@@ -126,7 +137,9 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat)
             } else {
                 err = sparse_insert(mat, i, k, l_ik);
                 if (err != SPARSE_OK) {
-                    free(col_acc); free(nz_row); free(nz_rows);
+                    free(col_acc);
+                    free(nz_row);
+                    free(nz_rows);
                     return err;
                 }
             }
@@ -135,18 +148,20 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat)
         }
     }
 
-    free(col_acc); free(nz_row); free(nz_rows);
+    free(col_acc);
+    free(nz_row);
+    free(nz_rows);
     return SPARSE_OK;
 }
 
 /* ─── Cholesky factorization with options ────────────────────────────── */
 
-sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat,
-                                         const sparse_cholesky_opts_t *opts)
-{
-    if (!mat || !opts) return SPARSE_ERR_NULL;
+sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesky_opts_t *opts) {
+    if (!mat || !opts)
+        return SPARSE_ERR_NULL;
     idx_t n = mat->rows;
-    if (n != mat->cols) return SPARSE_ERR_SHAPE;
+    if (n != mat->cols)
+        return SPARSE_ERR_SHAPE;
 
     /* Clear any previous reorder permutation */
     free(mat->reorder_perm);
@@ -155,7 +170,8 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat,
     /* Apply fill-reducing reordering if requested */
     if (opts->reorder != SPARSE_REORDER_NONE && n > 1) {
         idx_t *perm = malloc((size_t)n * sizeof(idx_t));
-        if (!perm) return SPARSE_ERR_ALLOC;
+        if (!perm)
+            return SPARSE_ERR_ALLOC;
 
         sparse_err_t err;
         switch (opts->reorder) {
@@ -170,12 +186,18 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat,
             return SPARSE_ERR_BADARG;
         }
 
-        if (err != SPARSE_OK) { free(perm); return err; }
+        if (err != SPARSE_OK) {
+            free(perm);
+            return err;
+        }
 
         /* Apply symmetric permutation in-place */
         SparseMatrix *PA = NULL;
         err = sparse_permute(mat, perm, perm, &PA);
-        if (err != SPARSE_OK) { free(perm); return err; }
+        if (err != SPARSE_OK) {
+            free(perm);
+            return err;
+        }
 
         /* Swap internal data from PA into mat */
         pool_free_all(&mat->pool);
@@ -187,7 +209,7 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat,
         mat->pool = PA->pool;
         mat->nnz = PA->nnz;
         mat->cached_norm = PA->cached_norm;
-        mat->factor_norm = -1.0;  /* reset: not LU-factored */
+        mat->factor_norm = -1.0; /* reset: not LU-factored */
 
         PA->row_headers = NULL;
         PA->col_headers = NULL;
@@ -213,10 +235,9 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat,
 
 /* ─── Cholesky solve ─────────────────────────────────────────────────── */
 
-sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat,
-                                   const double *b, double *x)
-{
-    if (!mat || !b || !x) return SPARSE_ERR_NULL;
+sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat, const double *b, double *x) {
+    if (!mat || !b || !x)
+        return SPARSE_ERR_NULL;
     idx_t n = mat->rows;
     const idx_t *rperm = mat->reorder_perm;
 
@@ -224,9 +245,15 @@ sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat,
     double *b_perm = NULL;
     if (rperm) {
         b_perm = malloc((size_t)n * sizeof(double));
-        if (!b_perm) { free(y); return SPARSE_ERR_ALLOC; }
+        if (!b_perm) {
+            free(y);
+            return SPARSE_ERR_ALLOC;
+        }
     }
-    if (!y) { free(b_perm); return SPARSE_ERR_ALLOC; }
+    if (!y) {
+        free(b_perm);
+        return SPARSE_ERR_ALLOC;
+    }
 
     /* If reorder permutation exists, permute b */
     const double *b_eff = b;
@@ -251,7 +278,8 @@ sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat,
             node = node->right;
         }
         if (fabs(l_ii) < 1e-30) {
-            free(y); free(b_perm);
+            free(y);
+            free(b_perm);
             return SPARSE_ERR_SINGULAR;
         }
         y[i] = (b_eff[i] - sum) / l_ii;
@@ -273,7 +301,8 @@ sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat,
             node = node->down;
         }
         if (fabs(l_ii) < 1e-30) {
-            free(y); free(b_perm);
+            free(y);
+            free(b_perm);
             return SPARSE_ERR_SINGULAR;
         }
         x[i] = (y[i] - sum) / l_ii;

@@ -1,22 +1,24 @@
 #include "sparse_ilu.h"
 #include "sparse_matrix_internal.h"
 #include "sparse_vector.h"
-#include <stdlib.h>
 #include <math.h>
+#include <stdlib.h>
 
 /* ═══════════════════════════════════════════════════════════════════════
  * ILU(0) factorization
  * ═══════════════════════════════════════════════════════════════════════ */
 
-sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu)
-{
-    if (!ilu) return SPARSE_ERR_NULL;
+sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu) {
+    if (!ilu)
+        return SPARSE_ERR_NULL;
     /* Zero-initialize output so sparse_ilu_free() is safe on any error path */
     ilu->L = NULL;
     ilu->U = NULL;
     ilu->n = 0;
-    if (!A) return SPARSE_ERR_NULL;
-    if (A->rows != A->cols) return SPARSE_ERR_SHAPE;
+    if (!A)
+        return SPARSE_ERR_NULL;
+    if (A->rows != A->cols)
+        return SPARSE_ERR_SHAPE;
 
     idx_t n = A->rows;
     ilu->n = n;
@@ -36,11 +38,13 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu)
 
     /* Empty matrix: treat as a valid no-op factorization.
      * Leave L and U as NULL; sparse_ilu_solve handles n==0 early. */
-    if (n == 0) return SPARSE_OK;
+    if (n == 0)
+        return SPARSE_OK;
 
     /* Work on a copy of A (using physical indices, no permutations) */
     SparseMatrix *W = sparse_copy(A);
-    if (!W) return SPARSE_ERR_ALLOC;
+    if (!W)
+        return SPARSE_ERR_ALLOC;
 
     /* Reset permutations on the working copy so we operate in natural order.
      * Note: this only resets the perm arrays to identity; it does not reorder
@@ -51,13 +55,20 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu)
     /* Cache diagonal node pointers for O(1) pivot access during elimination.
      * This avoids repeated O(nnz_row) scans via sparse_get_phys(). */
     Node **diag_nodes = malloc((size_t)n * sizeof(Node *));
-    if (!diag_nodes) { sparse_free(W); return SPARSE_ERR_ALLOC; }
+    if (!diag_nodes) {
+        sparse_free(W);
+        return SPARSE_ERR_ALLOC;
+    }
     for (idx_t i = 0; i < n; i++) {
         diag_nodes[i] = NULL;
         Node *nd = W->row_headers[i];
         while (nd) {
-            if (nd->col == i) { diag_nodes[i] = nd; break; }
-            if (nd->col > i) break;
+            if (nd->col == i) {
+                diag_nodes[i] = nd;
+                break;
+            }
+            if (nd->col > i)
+                break;
             nd = nd->right;
         }
     }
@@ -75,7 +86,8 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu)
         Node *node_ik = W->row_headers[i];
         while (node_ik) {
             idx_t k = node_ik->col;
-            if (k >= i) break;
+            if (k >= i)
+                break;
 
             if (!diag_nodes[k] || fabs(diag_nodes[k]->value) < 1e-30) {
                 free(diag_nodes);
@@ -128,7 +140,9 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu)
     for (idx_t i = 0; i < n; i++) {
         /* Unit diagonal for L */
         if (sparse_insert(L, i, i, 1.0) != SPARSE_OK) {
-            sparse_free(L); sparse_free(U); sparse_free(W);
+            sparse_free(L);
+            sparse_free(U);
+            sparse_free(W);
             return SPARSE_ERR_ALLOC;
         }
 
@@ -145,7 +159,9 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu)
                 ins_err = sparse_insert(U, i, j, val);
             }
             if (ins_err != SPARSE_OK) {
-                sparse_free(L); sparse_free(U); sparse_free(W);
+                sparse_free(L);
+                sparse_free(U);
+                sparse_free(W);
                 return SPARSE_ERR_ALLOC;
             }
             node = node->right;
@@ -164,15 +180,16 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu)
  * ILU(0) solve: L*U*z = r  →  L*y = r (forward), U*z = y (backward)
  * ═══════════════════════════════════════════════════════════════════════ */
 
-sparse_err_t sparse_ilu_solve(const sparse_ilu_t *ilu,
-                               const double *r, double *z)
-{
-    if (!ilu || !r || !z) return SPARSE_ERR_NULL;
+sparse_err_t sparse_ilu_solve(const sparse_ilu_t *ilu, const double *r, double *z) {
+    if (!ilu || !r || !z)
+        return SPARSE_ERR_NULL;
 
     idx_t n = ilu->n;
-    if (n == 0) return SPARSE_OK;
+    if (n == 0)
+        return SPARSE_OK;
 
-    if (!ilu->L || !ilu->U) return SPARSE_ERR_NULL;
+    if (!ilu->L || !ilu->U)
+        return SPARSE_ERR_NULL;
 
     /* Forward substitution: L*y = r  (store y in z to avoid allocation)
      * L is unit lower triangular, so z[i] = r[i] - sum_{j<i} L(i,j)*z[j] */
@@ -215,9 +232,9 @@ sparse_err_t sparse_ilu_solve(const sparse_ilu_t *ilu,
  * Free & preconditioner callback
  * ═══════════════════════════════════════════════════════════════════════ */
 
-void sparse_ilu_free(sparse_ilu_t *ilu)
-{
-    if (!ilu) return;
+void sparse_ilu_free(sparse_ilu_t *ilu) {
+    if (!ilu)
+        return;
     sparse_free(ilu->L);
     sparse_free(ilu->U);
     ilu->L = NULL;
@@ -225,11 +242,11 @@ void sparse_ilu_free(sparse_ilu_t *ilu)
     ilu->n = 0;
 }
 
-sparse_err_t sparse_ilu_precond(const void *ctx, idx_t n,
-                                 const double *r, double *z)
-{
-    if (!ctx) return SPARSE_ERR_NULL;
+sparse_err_t sparse_ilu_precond(const void *ctx, idx_t n, const double *r, double *z) {
+    if (!ctx)
+        return SPARSE_ERR_NULL;
     const sparse_ilu_t *ilu = (const sparse_ilu_t *)ctx;
-    if (n != ilu->n) return SPARSE_ERR_SHAPE;
+    if (n != ilu->n)
+        return SPARSE_ERR_SHAPE;
     return sparse_ilu_solve(ilu, r, z);
 }

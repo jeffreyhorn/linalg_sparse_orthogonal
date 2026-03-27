@@ -1,10 +1,10 @@
-#include "sparse_matrix.h"
 #include "sparse_lu.h"
-#include "sparse_vector.h"
+#include "sparse_matrix.h"
 #include "sparse_types.h"
+#include "sparse_vector.h"
 #include "test_framework.h"
-#include <stdlib.h>
 #include <math.h>
+#include <stdlib.h>
 
 #ifndef DATA_DIR
 #define DATA_DIR "tests/data"
@@ -14,8 +14,7 @@
  * Workflow 1: Load MM -> factor -> solve -> check residual -> save result
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_load_factor_solve_save(void)
-{
+static void test_load_factor_solve_save(void) {
     /* Load the tridiagonal matrix */
     SparseMatrix *A = NULL;
     ASSERT_ERR(sparse_load_mm(&A, DATA_DIR "/tridiagonal_20.mtx"), SPARSE_OK);
@@ -29,7 +28,8 @@ static void test_load_factor_solve_save(void)
     double *b = malloc((size_t)n * sizeof(double));
     double *x = malloc((size_t)n * sizeof(double));
     double *r = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++) x_exact[i] = 1.0;
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = 1.0;
     sparse_matvec(A, x_exact, b);
 
     /* Factor a copy */
@@ -41,7 +41,8 @@ static void test_load_factor_solve_save(void)
 
     /* Residual: r = b - A*x */
     sparse_matvec(A, x, r);
-    for (idx_t i = 0; i < n; i++) r[i] = b[i] - r[i];
+    for (idx_t i = 0; i < n; i++)
+        r[i] = b[i] - r[i];
     double res = vec_norminf(r, n);
     ASSERT_TRUE(res < 1e-12);
 
@@ -57,7 +58,10 @@ static void test_load_factor_solve_save(void)
     ASSERT_EQ(sparse_rows(A2), n);
 
     sparse_free(A2);
-    free(x_exact); free(b); free(x); free(r);
+    free(x_exact);
+    free(b);
+    free(x);
+    free(r);
     sparse_free(LU);
     sparse_free(A);
 }
@@ -66,17 +70,20 @@ static void test_load_factor_solve_save(void)
  * Workflow 2: Create -> copy -> factor copy -> solve -> refine -> verify
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_create_copy_factor_refine(void)
-{
+static void test_create_copy_factor_refine(void) {
     /* Build a 10x10 diag-dominant matrix programmatically */
     idx_t n = 10;
     SparseMatrix *A = sparse_create(n, n);
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, 10.0);
-        if (i > 0)     sparse_insert(A, i, i - 1, -1.0);
-        if (i < n - 1) sparse_insert(A, i, i + 1, -1.0);
-        if (i > 1)     sparse_insert(A, i, i - 2, -0.5);
-        if (i < n - 2) sparse_insert(A, i, i + 2, -0.5);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -1.0);
+        if (i > 1)
+            sparse_insert(A, i, i - 2, -0.5);
+        if (i < n - 2)
+            sparse_insert(A, i, i + 2, -0.5);
     }
 
     /* RHS: b = A * [1, 2, 3, ..., n] */
@@ -84,7 +91,8 @@ static void test_create_copy_factor_refine(void)
     double *b = malloc((size_t)n * sizeof(double));
     double *x = malloc((size_t)n * sizeof(double));
     double *r = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++) x_exact[i] = (double)(i + 1);
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = (double)(i + 1);
     sparse_matvec(A, x_exact, b);
 
     /* Copy and factor the copy (preserving A for residual) */
@@ -100,7 +108,8 @@ static void test_create_copy_factor_refine(void)
 
     /* Check pre-refinement residual */
     sparse_matvec(A, x, r);
-    for (idx_t i = 0; i < n; i++) r[i] = b[i] - r[i];
+    for (idx_t i = 0; i < n; i++)
+        r[i] = b[i] - r[i];
     double res_before = vec_norminf(r, n);
 
     /* Refine */
@@ -108,7 +117,8 @@ static void test_create_copy_factor_refine(void)
 
     /* Check post-refinement residual */
     sparse_matvec(A, x, r);
-    for (idx_t i = 0; i < n; i++) r[i] = b[i] - r[i];
+    for (idx_t i = 0; i < n; i++)
+        r[i] = b[i] - r[i];
     double res_after = vec_norminf(r, n);
 
     ASSERT_TRUE(res_after <= res_before + 1e-15);
@@ -118,7 +128,10 @@ static void test_create_copy_factor_refine(void)
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x[i], x_exact[i], 1e-10);
 
-    free(x_exact); free(b); free(x); free(r);
+    free(x_exact);
+    free(b);
+    free(x);
+    free(r);
     sparse_free(LU);
     sparse_free(A);
 }
@@ -127,8 +140,7 @@ static void test_create_copy_factor_refine(void)
  * Workflow 3: Multiple solves with same factorization
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_multiple_rhs_same_factorization(void)
-{
+static void test_multiple_rhs_same_factorization(void) {
     /* Load symmetric matrix */
     SparseMatrix *A = NULL;
     ASSERT_ERR(sparse_load_mm(&A, DATA_DIR "/symmetric_4.mtx"), SPARSE_OK);
@@ -155,12 +167,15 @@ static void test_multiple_rhs_same_factorization(void)
 
         /* Residual check: r = b - A*x */
         sparse_matvec(A, x, r);
-        for (idx_t i = 0; i < n; i++) r[i] = b[i] - r[i];
+        for (idx_t i = 0; i < n; i++)
+            r[i] = b[i] - r[i];
         double res = vec_norminf(r, n);
         ASSERT_TRUE(res < 1e-12);
     }
 
-    free(b); free(x); free(r);
+    free(b);
+    free(x);
+    free(r);
     sparse_free(LU);
     sparse_free(A);
 }
@@ -169,15 +184,16 @@ static void test_multiple_rhs_same_factorization(void)
  * Workflow 4: Round-trip: create -> save -> load -> compare
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_full_roundtrip(void)
-{
+static void test_full_roundtrip(void) {
     /* Create a matrix with varied structure */
     idx_t n = 8;
     SparseMatrix *A = sparse_create(n, n);
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, (double)(i + 1) * 10.0);
-        if (i < n - 1) sparse_insert(A, i, i + 1, -1.5);
-        if (i > 0)     sparse_insert(A, i, i - 1, 2.3);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -1.5);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, 2.3);
     }
     /* Add a few scattered off-diagonals */
     sparse_insert(A, 0, n - 1, 0.01);
@@ -201,14 +217,14 @@ static void test_full_roundtrip(void)
     /* Element-by-element comparison */
     for (idx_t i = 0; i < n; i++)
         for (idx_t j = 0; j < n; j++)
-            ASSERT_NEAR(sparse_get_phys(A, i, j),
-                        sparse_get_phys(B, i, j), 1e-14);
+            ASSERT_NEAR(sparse_get_phys(A, i, j), sparse_get_phys(B, i, j), 1e-14);
 
     /* Both should produce the same solution */
     double *b = malloc((size_t)n * sizeof(double));
     double *x_a = malloc((size_t)n * sizeof(double));
     double *x_b = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++) b[i] = 1.0;
+    for (idx_t i = 0; i < n; i++)
+        b[i] = 1.0;
 
     SparseMatrix *LU_A = sparse_copy(A);
     SparseMatrix *LU_B = sparse_copy(B);
@@ -220,7 +236,9 @@ static void test_full_roundtrip(void)
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x_a[i], x_b[i], 1e-14);
 
-    free(b); free(x_a); free(x_b);
+    free(b);
+    free(x_a);
+    free(x_b);
     sparse_free(LU_A);
     sparse_free(LU_B);
     sparse_free(B);
@@ -231,15 +249,10 @@ static void test_full_roundtrip(void)
  * Workflow 5: Load all reference matrices, factor, solve
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_all_reference_matrices(void)
-{
+static void test_all_reference_matrices(void) {
     const char *files[] = {
-        DATA_DIR "/identity_5.mtx",
-        DATA_DIR "/diagonal_10.mtx",
-        DATA_DIR "/tridiagonal_20.mtx",
-        DATA_DIR "/symmetric_4.mtx",
-        DATA_DIR "/bcsstk01.mtx",
-        DATA_DIR "/unsymm_5.mtx",
+        DATA_DIR "/identity_5.mtx",  DATA_DIR "/diagonal_10.mtx", DATA_DIR "/tridiagonal_20.mtx",
+        DATA_DIR "/symmetric_4.mtx", DATA_DIR "/bcsstk01.mtx",    DATA_DIR "/unsymm_5.mtx",
     };
     int nfiles = 6;
 
@@ -254,7 +267,8 @@ static void test_all_reference_matrices(void)
         double *b = malloc((size_t)n * sizeof(double));
         double *x = malloc((size_t)n * sizeof(double));
         double *r = malloc((size_t)n * sizeof(double));
-        for (idx_t i = 0; i < n; i++) x_exact[i] = 1.0;
+        for (idx_t i = 0; i < n; i++)
+            x_exact[i] = 1.0;
         sparse_matvec(A, x_exact, b);
 
         SparseMatrix *LU = sparse_copy(A);
@@ -263,13 +277,17 @@ static void test_all_reference_matrices(void)
 
         /* Relative residual: ||r|| / ||b|| */
         sparse_matvec(A, x, r);
-        for (idx_t i = 0; i < n; i++) r[i] = b[i] - r[i];
+        for (idx_t i = 0; i < n; i++)
+            r[i] = b[i] - r[i];
         double res = vec_norminf(r, n);
         double bnorm = vec_norminf(b, n);
         double rel_res = (bnorm > 0) ? res / bnorm : res;
         ASSERT_TRUE(rel_res < 1e-10);
 
-        free(x_exact); free(b); free(x); free(r);
+        free(x_exact);
+        free(b);
+        free(x);
+        free(r);
         sparse_free(LU);
         sparse_free(A);
     }
@@ -279,22 +297,24 @@ static void test_all_reference_matrices(void)
  * Workflow 6: Both pivoting strategies produce same answer
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_both_pivots_agree_integration(void)
-{
+static void test_both_pivots_agree_integration(void) {
     /* Build a 15x15 matrix with some structure */
     idx_t n = 15;
     SparseMatrix *A = sparse_create(n, n);
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, 20.0);
-        if (i > 0) sparse_insert(A, i, i - 1, -2.0);
-        if (i < n - 1) sparse_insert(A, i, i + 1, -3.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -2.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -3.0);
         sparse_insert(A, i, (i + 5) % n, 0.5);
     }
 
     double *b = malloc((size_t)n * sizeof(double));
     double *x_comp = malloc((size_t)n * sizeof(double));
     double *x_part = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++) b[i] = (double)(i + 1);
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
 
     SparseMatrix *LU1 = sparse_copy(A);
     SparseMatrix *LU2 = sparse_copy(A);
@@ -307,7 +327,9 @@ static void test_both_pivots_agree_integration(void)
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x_comp[i], x_part[i], 1e-10);
 
-    free(b); free(x_comp); free(x_part);
+    free(b);
+    free(x_comp);
+    free(x_part);
     sparse_free(LU1);
     sparse_free(LU2);
     sparse_free(A);
@@ -317,8 +339,7 @@ static void test_both_pivots_agree_integration(void)
  * Workflow 7: Error recovery — handle failures gracefully
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_error_recovery(void)
-{
+static void test_error_recovery(void) {
     /* Attempt to factor singular matrix, then successfully factor a good one */
     SparseMatrix *bad = sparse_create(3, 3);
     sparse_insert(bad, 0, 0, 1.0);
@@ -329,8 +350,10 @@ static void test_error_recovery(void)
 
     /* Now factor a good matrix — should work fine */
     SparseMatrix *good = sparse_create(3, 3);
-    sparse_insert(good, 0, 0, 4.0); sparse_insert(good, 0, 1, 1.0);
-    sparse_insert(good, 1, 0, 1.0); sparse_insert(good, 1, 1, 3.0);
+    sparse_insert(good, 0, 0, 4.0);
+    sparse_insert(good, 0, 1, 1.0);
+    sparse_insert(good, 1, 0, 1.0);
+    sparse_insert(good, 1, 1, 3.0);
     sparse_insert(good, 2, 2, 2.0);
 
     SparseMatrix *LU = sparse_copy(good);
@@ -343,7 +366,8 @@ static void test_error_recovery(void)
     /* Verify */
     double r[3];
     sparse_matvec(good, x, r);
-    for (int i = 0; i < 3; i++) r[i] -= b[i];
+    for (int i = 0; i < 3; i++)
+        r[i] -= b[i];
     ASSERT_TRUE(vec_norminf(r, 3) < 1e-14);
 
     sparse_free(LU);
@@ -354,8 +378,7 @@ static void test_error_recovery(void)
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
-int main(void)
-{
+int main(void) {
     TEST_SUITE_BEGIN("Integration Tests");
 
     RUN_TEST(test_load_factor_solve_save);

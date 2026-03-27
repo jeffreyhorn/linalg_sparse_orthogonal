@@ -122,7 +122,9 @@ static void convergence_table(const char *name, SparseMatrix *A)
 
         /* Cholesky-preconditioned CG */
         SparseMatrix *L = sparse_copy(A);
-        if (sparse_cholesky_factor(L) == SPARSE_OK) {
+        if (!L) {
+            fprintf(stderr, "    Cholesky-CG: sparse_copy failed\n");
+        } else if (sparse_cholesky_factor(L) == SPARSE_OK) {
             x = calloc((size_t)n, sizeof(double));
             if (x) {
                 t0 = wall_time();

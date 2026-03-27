@@ -266,7 +266,7 @@ coverage: clean $(TEST_BINS)
 	@/bin/mkdir -p $(COVDIR)
 	@echo "Collecting coverage data..."
 	lcov --capture --directory $(BUILDDIR) --output-file $(COVDIR)/coverage.info \
-		--ignore-errors mismatch
+		--ignore-errors mismatch,negative
 	lcov --remove $(COVDIR)/coverage.info '*/tests/*' '*/benchmarks/*' \
 		--output-file $(COVDIR)/coverage-src.info --ignore-errors unused
 	@echo ""

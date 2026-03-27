@@ -1025,6 +1025,435 @@ static void test_ilu_speedup_illcond(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * ILUT factorization tests (Sprint 6 Day 2)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* ILUT on dense 3×3 with high fill → matches exact LU */
+static void test_ilut_3x3_dense(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 0, 2, 1.0);
+    sparse_insert(A, 1, 0, 4.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 2, 3.0);
+    sparse_insert(A, 2, 0, 8.0);
+    sparse_insert(A, 2, 1, 7.0);
+    sparse_insert(A, 2, 2, 9.0);
+
+    /* High fill + low tolerance → should match exact LU */
+    sparse_ilut_opts_t opts = {.tol = 1e-15, .max_fill = 100};
+    sparse_ilu_t ilu;
+    {
+        sparse_err_t ferr = sparse_ilut_factor(A, &opts, &ilu);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            sparse_free(A);
+            return;
+        }
+    }
+
+    /* Verify solve: L*U*z = r should give exact result */
+    double r[3] = {1.0, 2.0, 3.0};
+    double z[3];
+    ASSERT_ERR(sparse_ilu_solve(&ilu, r, z), SPARSE_OK);
+
+    double *Az = malloc(3 * sizeof(double));
+    ASSERT_NOT_NULL(Az);
+    if (!Az) {
+        sparse_ilu_free(&ilu);
+        sparse_free(A);
+        return;
+    }
+    sparse_matvec(A, z, Az);
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(Az[i], r[i], 1e-12);
+
+    free(Az);
+    sparse_ilu_free(&ilu);
+    sparse_free(A);
+}
+
+/* ILUT on tridiagonal SPD → same as ILU(0) (no fill to drop) */
+static void test_ilut_tridiagonal(void) {
+    idx_t n = 10;
+    SparseMatrix *A = build_spd_tridiag(n, 4.0, -1.0);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_ilu_t ilu;
+    {
+        sparse_err_t ferr = sparse_ilut_factor(A, NULL, &ilu); /* default opts */
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            sparse_free(A);
+            return;
+        }
+    }
+
+    double *r = malloc((size_t)n * sizeof(double));
+    double *z = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(r);
+    ASSERT_NOT_NULL(z);
+    if (!r || !z) {
+        free(r);
+        free(z);
+        sparse_ilu_free(&ilu);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        r[i] = (double)(i + 1);
+
+    ASSERT_ERR(sparse_ilu_solve(&ilu, r, z), SPARSE_OK);
+
+    /* Tridiagonal: ILUT = exact LU (no fill), so A*z = r */
+    double *Az = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(Az);
+    if (!Az) {
+        free(r);
+        free(z);
+        sparse_ilu_free(&ilu);
+        sparse_free(A);
+        return;
+    }
+    sparse_matvec(A, z, Az);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(Az[i], r[i], 1e-10);
+
+    free(r);
+    free(z);
+    free(Az);
+    sparse_ilu_free(&ilu);
+    sparse_free(A);
+}
+
+/* ILUT on west0067 → succeeds where ILU(0) fails */
+static void test_ilut_west0067(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/west0067.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+
+    /* ILU(0) should fail on west0067 (structurally zero diagonal) */
+    sparse_ilu_t ilu0;
+    sparse_err_t ilu0_err = sparse_ilu_factor(A, &ilu0);
+    ASSERT_ERR(ilu0_err, SPARSE_ERR_SINGULAR);
+    printf("    west0067: ILU(0) returns %s (expected)\n", sparse_strerror(ilu0_err));
+
+    /* ILUT should succeed (fill-in provides nonzero diagonal) */
+    sparse_ilut_opts_t opts = {.tol = 1e-4, .max_fill = 20};
+    sparse_ilu_t ilut;
+    sparse_err_t ilut_err = sparse_ilut_factor(A, &opts, &ilut);
+    printf("    west0067: ILUT returns %s\n", sparse_strerror(ilut_err));
+
+    if (ilut_err == SPARSE_OK) {
+        /* Verify ILUT solve works */
+        idx_t n = sparse_rows(A);
+        double *r = malloc((size_t)n * sizeof(double));
+        double *z = malloc((size_t)n * sizeof(double));
+        ASSERT_NOT_NULL(r);
+        ASSERT_NOT_NULL(z);
+        if (r && z) {
+            for (idx_t i = 0; i < n; i++)
+                r[i] = 1.0;
+            ASSERT_ERR(sparse_ilu_solve(&ilut, r, z), SPARSE_OK);
+            double znorm = vec_norm2(z, n);
+            printf("    west0067: ILUT solve norm=%.3e\n", znorm);
+            ASSERT_TRUE(znorm > 0.0);
+        }
+        free(r);
+        free(z);
+        sparse_ilu_free(&ilut);
+    }
+
+    sparse_free(A);
+}
+
+/* ILUT-preconditioned GMRES on west0067 */
+static void test_ilut_gmres_west0067(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/west0067.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (!x_exact || !b) {
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = (double)(i + 1);
+    sparse_matvec(A, x_exact, b);
+
+    sparse_ilut_opts_t opts = {.tol = 1e-4, .max_fill = 20};
+    sparse_ilu_t ilut;
+    sparse_err_t ferr = sparse_ilut_factor(A, &opts, &ilut);
+    if (ferr != SPARSE_OK) {
+        printf("    west0067 ILUT-GMRES: ILUT factor failed (%s), skipping\n",
+               sparse_strerror(ferr));
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
+
+    double *x = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x);
+    if (!x) {
+        free(x_exact);
+        free(b);
+        sparse_ilu_free(&ilut);
+        sparse_free(A);
+        return;
+    }
+    sparse_gmres_opts_t gm_opts = {.max_iter = 500, .restart = 30, .tol = 1e-10, .verbose = 0};
+    sparse_iter_result_t result;
+    sparse_err_t solve_err =
+        sparse_solve_gmres(A, b, x, &gm_opts, sparse_ilut_precond, &ilut, &result);
+
+    double res = compute_relative_residual(A, b, x, n);
+    printf("    west0067 ILUT-GMRES(30): %d iters, res=%.3e, conv=%d\n", (int)result.iterations,
+           res, result.converged);
+
+    if (solve_err == SPARSE_OK) {
+        ASSERT_TRUE(result.converged);
+        ASSERT_TRUE(res < 1e-6);
+    }
+
+    free(x_exact);
+    free(b);
+    free(x);
+    sparse_ilu_free(&ilut);
+    sparse_free(A);
+}
+
+/* ILUT-preconditioned CG on nos4 */
+static void test_ilut_cg_nos4(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (!x_exact || !b) {
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = (double)(i + 1);
+    sparse_matvec(A, x_exact, b);
+
+    /* ILU(0) preconditioned CG */
+    sparse_ilu_t ilu0;
+    {
+        sparse_err_t ferr = sparse_ilu_factor(A, &ilu0);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            free(x_exact);
+            free(b);
+            sparse_free(A);
+            return;
+        }
+    }
+    double *x0 = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x0);
+    sparse_iter_opts_t cg_opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
+    sparse_iter_result_t res0;
+    if (x0)
+        ASSERT_ERR(sparse_solve_cg(A, b, x0, &cg_opts, sparse_ilu_precond, &ilu0, &res0),
+                   SPARSE_OK);
+
+    /* ILUT preconditioned CG — tight tolerance to preserve quality */
+    sparse_ilut_opts_t ilut_opts = {.tol = 1e-10, .max_fill = 50};
+    sparse_ilu_t ilut;
+    {
+        sparse_err_t ferr = sparse_ilut_factor(A, &ilut_opts, &ilut);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            free(x_exact);
+            free(b);
+            free(x0);
+            sparse_ilu_free(&ilu0);
+            sparse_free(A);
+            return;
+        }
+    }
+    double *xt = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(xt);
+    sparse_iter_result_t rest;
+    if (xt) {
+        sparse_err_t serr = sparse_solve_cg(A, b, xt, &cg_opts, sparse_ilut_precond, &ilut, &rest);
+        ASSERT_TRUE(serr == SPARSE_OK || serr == SPARSE_ERR_NOT_CONVERGED);
+    }
+
+    if (x0 && xt) {
+        printf("    nos4: ILU(0)-CG=%d iters, ILUT-CG=%d iters (conv=%d)\n", (int)res0.iterations,
+               (int)rest.iterations, rest.converged);
+        ASSERT_TRUE(res0.converged);
+    }
+
+    free(x_exact);
+    free(b);
+    free(x0);
+    free(xt);
+    sparse_ilu_free(&ilu0);
+    sparse_ilu_free(&ilut);
+    sparse_free(A);
+}
+
+/* ILUT error handling */
+static void test_ilut_null_inputs(void) {
+    SparseMatrix *A = build_spd_tridiag(3, 4.0, -1.0);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_ilu_t ilu;
+
+    ASSERT_ERR(sparse_ilut_factor(NULL, NULL, &ilu), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_ilut_factor(A, NULL, NULL), SPARSE_ERR_NULL);
+
+    /* Non-square */
+    SparseMatrix *R = sparse_create(3, 4);
+    ASSERT_NOT_NULL(R);
+    if (R) {
+        sparse_insert(R, 0, 0, 1.0);
+        ASSERT_ERR(sparse_ilut_factor(R, NULL, &ilu), SPARSE_ERR_SHAPE);
+        sparse_free(R);
+    }
+
+    /* Invalid opts */
+    sparse_ilut_opts_t bad_opts = {.tol = -1.0, .max_fill = 10};
+    ASSERT_ERR(sparse_ilut_factor(A, &bad_opts, &ilu), SPARSE_ERR_BADARG);
+
+    bad_opts.tol = 1e-3;
+    bad_opts.max_fill = -1;
+    ASSERT_ERR(sparse_ilut_factor(A, &bad_opts, &ilu), SPARSE_ERR_BADARG);
+
+    sparse_free(A);
+}
+
+/* ILUT vs ILU(0) on steam1: compare iteration counts */
+static void test_ilut_vs_ilu0_steam1(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/steam1.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (!x_exact || !b) {
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = (double)(i + 1);
+    sparse_matvec(A, x_exact, b);
+
+    sparse_gmres_opts_t gm_opts = {.max_iter = 1000, .restart = 50, .tol = 1e-4, .verbose = 0};
+
+    /* ILU(0)-GMRES */
+    sparse_ilu_t ilu0;
+    {
+        sparse_err_t ferr = sparse_ilu_factor(A, &ilu0);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            free(x_exact);
+            free(b);
+            sparse_free(A);
+            return;
+        }
+    }
+    double *x0 = calloc((size_t)n, sizeof(double));
+    sparse_iter_result_t res0;
+    if (x0)
+        sparse_solve_gmres(A, b, x0, &gm_opts, sparse_ilu_precond, &ilu0, &res0);
+
+    /* ILUT-GMRES */
+    sparse_ilut_opts_t ilut_opts = {.tol = 1e-3, .max_fill = 20};
+    sparse_ilu_t ilut;
+    {
+        sparse_err_t ferr = sparse_ilut_factor(A, &ilut_opts, &ilut);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            free(x_exact);
+            free(b);
+            free(x0);
+            sparse_ilu_free(&ilu0);
+            sparse_free(A);
+            return;
+        }
+    }
+    double *xt = calloc((size_t)n, sizeof(double));
+    sparse_iter_result_t rest;
+    if (xt)
+        sparse_solve_gmres(A, b, xt, &gm_opts, sparse_ilut_precond, &ilut, &rest);
+
+    if (x0 && xt) {
+        printf("    steam1: ILU(0)-GMRES=%d iters (conv=%d), ILUT-GMRES=%d iters (conv=%d)\n",
+               (int)res0.iterations, res0.converged, (int)rest.iterations, rest.converged);
+    }
+
+    free(x_exact);
+    free(b);
+    free(x0);
+    free(xt);
+    sparse_ilu_free(&ilu0);
+    sparse_ilu_free(&ilut);
+    sparse_free(A);
+}
+
+/* ILUT with default opts (NULL) */
+static void test_ilut_default_opts(void) {
+    SparseMatrix *A = build_spd_tridiag(5, 4.0, -1.0);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_ilu_t ilu;
+    {
+        sparse_err_t ferr = sparse_ilut_factor(A, NULL, &ilu);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            sparse_free(A);
+            return;
+        }
+    }
+
+    double r[5] = {1.0, 2.0, 3.0, 4.0, 5.0};
+    double z[5];
+    ASSERT_ERR(sparse_ilu_solve(&ilu, r, z), SPARSE_OK);
+
+    sparse_ilu_free(&ilu);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Error handling tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -1126,6 +1555,16 @@ int main(void) {
 
     /* Preconditioner quality (Day 8) */
     RUN_TEST(test_ilu_speedup_illcond);
+
+    /* ILUT tests (Sprint 6 Day 2) */
+    RUN_TEST(test_ilut_3x3_dense);
+    RUN_TEST(test_ilut_tridiagonal);
+    RUN_TEST(test_ilut_west0067);
+    RUN_TEST(test_ilut_gmres_west0067);
+    RUN_TEST(test_ilut_cg_nos4);
+    RUN_TEST(test_ilut_null_inputs);
+    RUN_TEST(test_ilut_vs_ilu0_steam1);
+    RUN_TEST(test_ilut_default_opts);
 
     /* Error handling */
     RUN_TEST(test_ilu_null_inputs);

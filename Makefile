@@ -229,7 +229,7 @@ lint:
 		$(INCLUDE) -fsyntax-only $(shell find $(SRCDIR) -type f -name '*.c')
 	@echo ""
 	@echo "Running clang-tidy..."
-	clang-tidy $(shell find $(SRCDIR) -name '*.c') -- $(INCLUDE) $(CFLAGS)
+	clang-tidy $(shell find $(SRCDIR) -type f -name '*.c') -- $(INCLUDE) $(CFLAGS)
 	@echo ""
 	@echo "Running cppcheck..."
 	cppcheck --enable=warning,style,performance,portability --error-exitcode=1 \
@@ -257,9 +257,11 @@ coverage: CFLAGS += --coverage -fprofile-arcs -ftest-coverage -g -O0
 coverage: LDFLAGS += --coverage
 coverage: clean $(TEST_BINS)
 	@echo "Running tests for coverage..."
-	@for t in $(TEST_BINS); do \
-		$$t || true; \
-	done
+	@status=0; \
+	for t in $(TEST_BINS); do \
+		$$t || status=1; \
+	done; \
+	if [ $$status -ne 0 ]; then echo "Some tests failed"; exit 1; fi
 	@echo ""
 	@echo "Collecting coverage data..."
 	lcov --capture --directory $(BUILDDIR) --output-file $(COVDIR)/coverage.info \

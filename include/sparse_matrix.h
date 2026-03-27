@@ -218,7 +218,7 @@ sparse_err_t sparse_norminf(SparseMatrix *mat, double *norm);
  *
  * Traverses each physical row, accumulating into y using physical ordering.
  * The caller must allocate y (length = rows) and x (length = cols).
- * y is zeroed before accumulation.
+ * Each y[i] is fully overwritten (not accumulated into).
  *
  * @param mat  The matrix.
  * @param x    Input vector of length cols.

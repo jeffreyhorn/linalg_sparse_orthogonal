@@ -10,12 +10,15 @@
 
 sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu)
 {
-    if (!A || !ilu) return SPARSE_ERR_NULL;
+    if (!ilu) return SPARSE_ERR_NULL;
+    /* Zero-initialize output so sparse_ilu_free() is safe on any error path */
+    ilu->L = NULL;
+    ilu->U = NULL;
+    ilu->n = 0;
+    if (!A) return SPARSE_ERR_NULL;
     if (A->rows != A->cols) return SPARSE_ERR_SHAPE;
 
     idx_t n = A->rows;
-    ilu->L = NULL;
-    ilu->U = NULL;
     ilu->n = n;
 
     /* Reject matrices with non-identity permutations (e.g., after LU pivoting).

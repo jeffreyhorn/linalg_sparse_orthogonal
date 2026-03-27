@@ -263,6 +263,7 @@ coverage: clean $(TEST_BINS)
 	done; \
 	if [ $$status -ne 0 ]; then echo "Some tests failed"; exit 1; fi
 	@echo ""
+	@/bin/mkdir -p $(COVDIR)
 	@echo "Collecting coverage data..."
 	lcov --capture --directory $(BUILDDIR) --output-file $(COVDIR)/coverage.info \
 		--ignore-errors mismatch

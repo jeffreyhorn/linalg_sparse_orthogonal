@@ -212,10 +212,28 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
         return SPARSE_OK;
     }
 
+    /* Fast path for max_iter==0: compute initial residual without
+     * allocating the full Arnoldi workspace */
+    if (o->max_iter == 0) {
+        double *tmp = malloc((size_t)n * sizeof(double));
+        if (!tmp) return SPARSE_ERR_ALLOC;
+        sparse_matvec(A, x, tmp);
+        for (idx_t i = 0; i < n; i++) tmp[i] = b[i] - tmp[i];
+        double rr = vec_norm2(tmp, n) / bnorm;
+        free(tmp);
+        int conv = (rr <= o->tol);
+        if (result) {
+            result->iterations    = 0;
+            result->residual_norm = rr;
+            result->converged     = conv;
+        }
+        return conv ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
+    }
+
     /* Clamp restart to min(n, max_iter) to avoid oversized allocations
      * when restart is large but max_iter is small */
     if (m > n) m = n;
-    if (o->max_iter > 0 && m > o->max_iter) m = o->max_iter;
+    if (m > o->max_iter) m = o->max_iter;
     if (m < 1) m = 1;
 
     /* Allocate workspace:

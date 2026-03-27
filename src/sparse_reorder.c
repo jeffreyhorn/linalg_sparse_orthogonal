@@ -405,6 +405,7 @@ typedef uint64_t bword_t;
 #define BWORD_BIT(i) ((bword_t)1 << ((i) % BWORD_BITS))
 
 static inline void bset(bword_t *bs, idx_t i) { bs[BWORD_IDX(i)] |= BWORD_BIT(i); }
+// NOLINTNEXTLINE(clang-analyzer-core.BitwiseShift)
 static inline void bclr(bword_t *bs, idx_t i) { bs[BWORD_IDX(i)] &= ~BWORD_BIT(i); }
 static inline int btest(const bword_t *bs, idx_t i) {
     return (bs[BWORD_IDX(i)] & BWORD_BIT(i)) != 0;

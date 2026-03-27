@@ -102,4 +102,65 @@ void sparse_ilu_free(sparse_ilu_t *ilu);
  */
 sparse_err_t sparse_ilu_precond(const void *ctx, idx_t n, const double *r, double *z);
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * ILUT — Incomplete LU with Threshold dropping
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief Options for ILUT factorization.
+ *
+ * Controls the amount of fill-in allowed beyond the original sparsity pattern.
+ */
+typedef struct {
+    double tol;     /**< Drop tolerance: entries with |value| < tol * ||row|| are dropped
+                         (default: 1e-3) */
+    idx_t max_fill; /**< Maximum number of fill entries per row in L and U (default: 10) */
+} sparse_ilut_opts_t;
+
+/**
+ * @brief Compute the ILUT factorization of a sparse matrix.
+ *
+ * ILUT computes approximate L and U factors using dual drop rules:
+ * 1. Entries with |value| < tol * ||row_i|| are dropped.
+ * 2. At most max_fill largest entries are kept per row in L and U.
+ *
+ * Unlike ILU(0), ILUT allows controlled fill-in and can handle matrices
+ * with structurally zero diagonals (e.g., west0067) by using row swaps
+ * when the current pivot is too small.
+ *
+ * The original matrix A is not modified.
+ *
+ * @note The factorization operates on the physical storage of A and requires
+ *       identity permutations.  Passing a matrix whose permutation arrays
+ *       have been modified by a prior factorization will be rejected with
+ *       SPARSE_ERR_BADARG.
+ *
+ * @param A    The matrix to factor (not modified). Must be square.
+ * @param opts Factorization options (NULL for defaults: tol=1e-3, max_fill=10).
+ * @param ilu  Output: ILUT factors. Must be freed with sparse_ilu_free().
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if A or ilu is NULL.
+ * @return SPARSE_ERR_SHAPE if A is not square.
+ * @return SPARSE_ERR_BADARG if A has non-identity permutations or opts has
+ *         invalid values (tol < 0 or max_fill < 0).
+ * @return SPARSE_ERR_SINGULAR if a zero pivot is encountered after row swaps.
+ * @return SPARSE_ERR_ALLOC if memory allocation fails.
+ */
+sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t *opts,
+                                sparse_ilu_t *ilu);
+
+/**
+ * @brief Preconditioner callback for ILUT, compatible with sparse_precond_fn.
+ *
+ * Identical to sparse_ilu_precond() — ILUT produces the same sparse_ilu_t
+ * output format.  This is a convenience alias for clarity.
+ *
+ * @param ctx  Pointer to a sparse_ilu_t (cast from const void*).
+ * @param n    Vector length (must match ilu->n).
+ * @param r    Input vector.
+ * @param z    Output vector.
+ * @return SPARSE_OK on success, or an error code.
+ */
+sparse_err_t sparse_ilut_precond(const void *ctx, idx_t n, const double *r, double *z);
+
 #endif /* SPARSE_ILU_H */

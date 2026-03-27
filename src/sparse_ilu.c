@@ -15,6 +15,7 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu) {
     ilu->L = NULL;
     ilu->U = NULL;
     ilu->n = 0;
+    ilu->perm = NULL;
     if (!A)
         return SPARSE_ERR_NULL;
     if (A->rows != A->cols)
@@ -192,8 +193,21 @@ sparse_err_t sparse_ilu_solve(const sparse_ilu_t *ilu, const double *r, double *
     if (!ilu->L || !ilu->U)
         return SPARSE_ERR_NULL;
 
-    /* Forward substitution: L*y = r  (store y in z to avoid allocation)
-     * L is unit lower triangular, so z[i] = r[i] - sum_{j<i} L(i,j)*z[j] */
+    /* If pivoting was used, apply row permutation to RHS:
+     * solve P*L*U*z = r  →  L*U*z = P^{-1}*r  →  permuted_r[i] = r[perm[i]] */
+    const double *rhs = r;
+    double *pr = NULL;
+    if (ilu->perm) {
+        pr = malloc((size_t)n * sizeof(double));
+        if (!pr)
+            return SPARSE_ERR_ALLOC;
+        for (idx_t i = 0; i < n; i++)
+            pr[i] = r[ilu->perm[i]];
+        rhs = pr;
+    }
+
+    /* Forward substitution: L*y = rhs  (store y in z to avoid allocation)
+     * L is unit lower triangular, so z[i] = rhs[i] - sum_{j<i} L(i,j)*z[j] */
     for (idx_t i = 0; i < n; i++) {
         double sum = 0.0;
         Node *node = ilu->L->row_headers[i];
@@ -203,7 +217,7 @@ sparse_err_t sparse_ilu_solve(const sparse_ilu_t *ilu, const double *r, double *
             }
             node = node->right;
         }
-        z[i] = r[i] - sum;
+        z[i] = rhs[i] - sum;
     }
 
     /* Backward substitution: U*z = y  (y is already in z)
@@ -221,11 +235,13 @@ sparse_err_t sparse_ilu_solve(const sparse_ilu_t *ilu, const double *r, double *
             node = node->right;
         }
         if (fabs(diag) < 1e-30) {
+            free(pr);
             return SPARSE_ERR_SINGULAR;
         }
         z[i] = (z[i] - sum) / diag;
     }
 
+    free(pr);
     return SPARSE_OK;
 }
 
@@ -238,8 +254,10 @@ void sparse_ilu_free(sparse_ilu_t *ilu) {
         return;
     sparse_free(ilu->L);
     sparse_free(ilu->U);
+    free(ilu->perm);
     ilu->L = NULL;
     ilu->U = NULL;
+    ilu->perm = NULL;
     ilu->n = 0;
 }
 
@@ -284,6 +302,7 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
     ilu->L = NULL;
     ilu->U = NULL;
     ilu->n = 0;
+    ilu->perm = NULL;
     if (!A)
         return SPARSE_ERR_NULL;
     if (A->rows != A->cols)
@@ -312,12 +331,11 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
         return SPARSE_OK;
 
     /* Allocate dense row workspace and L/U output matrices */
-    double *w = calloc((size_t)n, sizeof(double));            /* dense row accumulator */
-    int *w_nz = calloc((size_t)n, sizeof(int));               /* nonzero flags */
-    idx_t *nz_idx = malloc((size_t)n * sizeof(idx_t));        /* nonzero column indices */
-    col_val_t *l_buf = malloc((size_t)n * sizeof(col_val_t)); /* L entry sorting */
-    col_val_t *u_buf = malloc((size_t)n * sizeof(col_val_t)); /* U entry sorting */
-
+    double *w = calloc((size_t)n, sizeof(double));
+    int *w_nz = calloc((size_t)n, sizeof(int));
+    idx_t *nz_idx = malloc((size_t)n * sizeof(idx_t));
+    col_val_t *l_buf = malloc((size_t)n * sizeof(col_val_t));
+    col_val_t *u_buf = malloc((size_t)n * sizeof(col_val_t));
     SparseMatrix *L = sparse_create(n, n);
     SparseMatrix *U = sparse_create(n, n);
 
@@ -353,9 +371,7 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
         row_norm = sqrt(row_norm);
         double drop_tol = o->tol * row_norm;
 
-        /* Elimination: for each k < i where w[k] != 0 */
-        /* Process columns in ascending order — sort nz_idx[0..nnz_w-1] */
-        /* Simple insertion sort since we need ascending column order */
+        /* Sort nonzero indices ascending for column-order elimination */
         for (idx_t p = 1; p < nnz_w; p++) {
             idx_t key = nz_idx[p];
             idx_t q = p - 1;
@@ -366,12 +382,12 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
             nz_idx[q + 1] = key;
         }
 
+        /* Elimination: for each k < i where w[k] != 0 */
         for (idx_t p = 0; p < nnz_w; p++) {
             idx_t k = nz_idx[p];
             if (k >= i)
                 break;
 
-            /* Get U(k,k) diagonal for elimination */
             double ukk = sparse_get_phys(U, k, k);
             if (fabs(ukk) < 1e-30) {
                 status = SPARSE_ERR_SINGULAR;
@@ -380,7 +396,6 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
 
             double mult = w[k] / ukk;
 
-            /* Drop small multiplier */
             if (fabs(mult) < drop_tol) {
                 w[k] = 0.0;
                 w_nz[k] = 0;
@@ -388,7 +403,6 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
             }
             w[k] = mult;
 
-            /* Subtract mult * row k of U from w */
             Node *uk = U->row_headers[k];
             while (uk) {
                 idx_t j = uk->col;
@@ -403,21 +417,34 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
             }
         }
 
-        /* Apply dual dropping to L entries (columns < i) and U entries (columns >= i) */
+        /* Diagonal modification: if diagonal is too small after elimination,
+         * perturb it to avoid breakdown. This is more robust than row pivoting
+         * for ILUT since dropping can make pivoted rows also produce zero diags.
+         * Uses sign-preserving perturbation: diag = sign(diag) * max(|diag|, eps * ||row||) */
+        double diag_w = w_nz[i] ? w[i] : 0.0;
+        if (fabs(diag_w) < 1e-30) {
+            double eps_row = (row_norm > 0.0) ? o->tol * row_norm : 1e-10;
+            diag_w = (diag_w >= 0.0) ? eps_row : -eps_row;
+            w[i] = diag_w;
+            if (!w_nz[i]) {
+                w_nz[i] = 1;
+                // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+                nz_idx[nnz_w++] = i;
+            }
+        }
+
+        /* Collect L and U entries with dual dropping */
         col_val_t *l_entries = l_buf;
         col_val_t *u_entries = u_buf;
-
-        /* Collect L and U entries */
         idx_t l_count = 0, u_count = 0;
+
         for (idx_t p = 0; p < nnz_w; p++) {
             idx_t j = nz_idx[p];
             if (!w_nz[j])
                 continue;
             double val = w[j];
-            if (fabs(val) < drop_tol && j != i) {
-                /* Drop small entries (but always keep diagonal) */
+            if (fabs(val) < drop_tol && j != i)
                 continue;
-            }
             if (j < i) {
                 if (l_count < n)
                     l_entries[l_count++] = (col_val_t){j, val};
@@ -433,13 +460,12 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
             l_count = o->max_fill;
         }
 
-        /* Keep at most max_fill entries in U (excluding diagonal — always kept) */
-        /* Separate diagonal from off-diagonal U entries */
-        double diag_val = 0.0;
+        /* Separate diagonal from off-diagonal U, keep at most max_fill off-diag */
+        double diag_final = 0.0;
         idx_t u_offdiag = 0;
         for (idx_t p = 0; p < u_count; p++) {
             if (u_entries[p].col == i) {
-                diag_val = u_entries[p].val;
+                diag_final = u_entries[p].val;
             } else {
                 u_entries[u_offdiag++] = u_entries[p];
             }
@@ -449,13 +475,12 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
             u_offdiag = o->max_fill;
         }
 
-        /* Check for zero diagonal */
-        if (fabs(diag_val) < 1e-30) {
+        if (fabs(diag_final) < 1e-30) {
             status = SPARSE_ERR_SINGULAR;
             goto cleanup;
         }
 
-        /* Insert L entries (unit diagonal + below-diagonal) */
+        /* Insert L entries */
         if (sparse_insert(L, i, i, 1.0) != SPARSE_OK) {
             status = SPARSE_ERR_ALLOC;
             goto cleanup;
@@ -467,8 +492,8 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
             }
         }
 
-        /* Insert U entries (diagonal + above-diagonal) */
-        if (sparse_insert(U, i, i, diag_val) != SPARSE_OK) {
+        /* Insert U entries */
+        if (sparse_insert(U, i, i, diag_final) != SPARSE_OK) {
             status = SPARSE_ERR_ALLOC;
             goto cleanup;
         }
@@ -479,7 +504,7 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
             }
         }
 
-        /* Clear dense workspace for next row */
+        /* Clear workspace */
         for (idx_t p = 0; p < nnz_w; p++) {
             w[nz_idx[p]] = 0.0;
             w_nz[nz_idx[p]] = 0;

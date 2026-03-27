@@ -27,15 +27,17 @@
 #include "sparse_matrix.h"
 
 /**
- * @brief ILU(0) factorization data.
+ * @brief ILU factorization data.
  *
  * Stores the L and U factors from incomplete LU factorization.
  * L is unit lower triangular, U is upper triangular with diagonal.
+ * If row pivoting was used (ILUT), perm holds the row permutation.
  */
 typedef struct {
     SparseMatrix *L; /**< Unit lower triangular factor */
     SparseMatrix *U; /**< Upper triangular factor (includes diagonal) */
     idx_t n;         /**< Matrix dimension */
+    idx_t *perm;     /**< Row permutation (NULL if no pivoting). perm[i] = original row. */
 } sparse_ilu_t;
 
 /**

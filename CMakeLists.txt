@@ -40,7 +40,17 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_reorder.c
     src/sparse_cholesky.c
     src/sparse_csr.c
+    src/sparse_iterative.c
+    src/sparse_ilu.c
 )
+
+# Optional OpenMP support for parallel SpMV: cmake -DSPARSE_OPENMP=ON ..
+option(SPARSE_OPENMP "Enable OpenMP parallelization for SpMV" OFF)
+if(SPARSE_OPENMP)
+    find_package(OpenMP REQUIRED)
+    target_compile_definitions(sparse_lu_ortho PUBLIC SPARSE_OPENMP)
+    target_link_libraries(sparse_lu_ortho PUBLIC OpenMP::OpenMP_C)
+endif()
 
 # Optional mutex support: cmake -DSPARSE_MUTEX=ON ..
 option(SPARSE_MUTEX "Enable per-matrix mutex for concurrent insert/remove" OFF)
@@ -78,6 +88,10 @@ add_sparse_test(test_edge_cases)
 add_sparse_test(test_integration)
 add_sparse_test(test_sparse_arith)
 add_sparse_test(test_suitesparse)
+add_sparse_test(test_iterative)
+add_sparse_test(test_ilu)
+add_sparse_test(test_omp)
+add_sparse_test(test_sprint5_integration)
 
 # Benchmarks (not part of ctest)
 add_executable(bench_main benchmarks/bench_main.c)
@@ -88,3 +102,6 @@ target_link_libraries(bench_scaling PRIVATE sparse_lu_ortho)
 
 add_executable(bench_fillin benchmarks/bench_fillin.c)
 target_link_libraries(bench_fillin PRIVATE sparse_lu_ortho)
+
+add_executable(bench_convergence benchmarks/bench_convergence.c)
+target_link_libraries(bench_convergence PRIVATE sparse_lu_ortho)

@@ -7,6 +7,13 @@
 #include <inttypes.h>
 #include <errno.h>
 
+#ifdef SPARSE_OPENMP
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#include <omp.h>
+#pragma GCC diagnostic pop
+#endif
+
 /* ─── Pool allocator ─────────────────────────────────────────────────── */
 
 Node *pool_alloc(NodePool *pool)
@@ -685,12 +692,15 @@ sparse_err_t sparse_matvec(const SparseMatrix *mat,
 {
     if (!mat || !x || !y) return SPARSE_ERR_NULL;
 
-    /* Zero the output */
-    for (idx_t i = 0; i < mat->rows; i++)
-        y[i] = 0.0;
+    idx_t nrows = mat->rows;
 
-    /* Walk each physical row, accumulate y[logical_row] */
-    for (idx_t log_i = 0; log_i < mat->rows; log_i++) {
+    /* Walk each physical row, accumulate y[logical_row].
+     * Each row writes to a distinct y[log_i], so rows are independent
+     * and safe to parallelize without synchronization. */
+#ifdef SPARSE_OPENMP
+    #pragma omp parallel for schedule(dynamic, 64)
+#endif
+    for (idx_t log_i = 0; log_i < nrows; log_i++) {
         idx_t phys_i = mat->row_perm[log_i];
         Node *node = mat->row_headers[phys_i];
         double sum = 0.0;

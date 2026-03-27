@@ -398,3 +398,168 @@ The library is safe for concurrent use under these conditions:
 - Concurrent mutation (insert/remove/factor) of the same matrix
 
 **Optional mutex support:** Compile with `-DSPARSE_MUTEX` and `-pthread` to add per-matrix mutex locking on `sparse_insert()` and `sparse_remove()`. This serializes concurrent insert/remove calls on the same matrix. Factorization functions are NOT mutex-protected. Zero overhead when compiled without the flag.
+
+## Conjugate Gradient (CG) Solver
+
+`sparse_solve_cg()` implements the Preconditioned Conjugate Gradient method for symmetric positive-definite (SPD) systems.
+
+### Algorithm
+
+```
+Given SPD matrix A, right-hand side b, initial guess x_0:
+    r_0 = b - A*x_0
+    z_0 = M^{-1}*r_0          (or z_0 = r_0 if no preconditioner)
+    p_0 = z_0
+    for k = 0, 1, ..., max_iter:
+        if ||r_k|| / ||b|| <= tol: converged
+        alpha_k = (r_k^T * z_k) / (p_k^T * A*p_k)
+        x_{k+1} = x_k + alpha_k * p_k
+        r_{k+1} = r_k - alpha_k * A*p_k
+        z_{k+1} = M^{-1}*r_{k+1}
+        beta_k  = (r_{k+1}^T * z_{k+1}) / (r_k^T * z_k)
+        p_{k+1} = z_{k+1} + beta_k * p_k
+```
+
+### Convergence Properties
+
+- CG converges in at most n iterations in exact arithmetic (finite termination)
+- The convergence rate depends on the condition number: `||e_k||_A ≤ 2 * ((sqrt(κ)-1)/(sqrt(κ)+1))^k * ||e_0||_A`
+- Preconditioning reduces the effective condition number, accelerating convergence
+- CG is only applicable to SPD matrices; use GMRES for general systems
+
+### Workspace
+
+4 vectors of length n (r, z, p, Ap), allocated as a single block.
+
+## GMRES Solver
+
+`sparse_solve_gmres()` implements the Restarted GMRES(k) method for general (possibly unsymmetric) square systems, with optional left preconditioning.
+
+### Arnoldi Process
+
+GMRES builds an orthonormal basis V = [v_1, ..., v_k] for the Krylov subspace K_k(A, r_0) = span{r_0, Ar_0, ..., A^{k-1}r_0} using Modified Gram-Schmidt orthogonalization:
+
+```
+for j = 0 to k-1:
+    w = A*v_j                          (or w = M^{-1}*A*v_j with left preconditioning)
+    for i = 0 to j:
+        H(i,j) = w^T * v_i            (Hessenberg matrix entry)
+        w = w - H(i,j) * v_i          (orthogonalize)
+    H(j+1,j) = ||w||
+    v_{j+1} = w / H(j+1,j)
+```
+
+### Givens Rotations
+
+Instead of solving the Hessenberg least-squares problem from scratch each iteration, Givens rotations are applied incrementally to triangularize H and transform the residual vector:
+
+```
+for each new column j of H:
+    apply all previous rotations (i = 0..j-1)
+    compute new rotation: cs[j], sn[j] from H(j,j), H(j+1,j)
+    apply to H and residual vector g
+    residual norm = |g[j+1]| / ||b||
+```
+
+This gives the residual norm cheaply without forming the solution each iteration.
+
+### Restart
+
+After k Arnoldi steps, the solution is formed: x = x_0 + V_k * y_k where y_k solves the upper triangular system from the Givens-transformed H. If not converged, x becomes the new initial guess and the process restarts. The restart parameter k controls memory usage (k+1 vectors of length n) versus convergence speed.
+
+### Lucky Breakdown
+
+If H(j+1,j) = 0, the Krylov subspace is invariant — the exact solution lies in the current subspace. This is detected before the Givens rotation zeroes H(j+1,j).
+
+### Workspace
+
+(k+1)×n for Arnoldi vectors, (k+1)×k for Hessenberg matrix, plus O(k) for Givens data and O(n) for temporaries.
+
+## ILU(0) Preconditioner
+
+`sparse_ilu_factor()` computes an Incomplete LU factorization that preserves the sparsity pattern of the original matrix.
+
+### Algorithm (IKJ variant)
+
+```
+W = copy(A)
+for i = 1 to n-1:
+    for each k < i where W(i,k) != 0:
+        W(i,k) = W(i,k) / W(k,k)              (multiplier → L)
+        for each j > k where W(k,j) != 0:
+            if W(i,j) exists in sparsity pattern:
+                W(i,j) -= W(i,k) * W(k,j)      (update)
+            else:
+                drop                             (ILU(0) no-fill rule)
+Extract L (unit lower, below diagonal), U (upper, with diagonal)
+```
+
+### Key Properties
+
+- **No fill-in:** L+U has nnz ≤ nnz(A). Only positions present in A are modified.
+- **Approximate:** L*U ≈ A, not exact. The quality depends on how much fill would have been dropped.
+- **Preconditioner application:** Solve L*U*z = r via forward substitution (L*y = r) then backward substitution (U*z = y).
+- **Limitation:** Requires nonzero diagonal entries. Matrices with structurally zero diagonal (e.g., west0067) cause `SPARSE_ERR_SINGULAR`.
+
+### Effectiveness
+
+ILU(0) preconditioning typically reduces CG iteration count by 3-16× and can make GMRES converge where unpreconditioned GMRES stalls (e.g., steam1: 2000 iterations → 2 iterations).
+
+## Preconditioning
+
+A preconditioner M ≈ A transforms the system to improve the condition number, accelerating iterative solver convergence.
+
+### Left Preconditioning
+
+Instead of solving Ax = b, solve M^{-1}Ax = M^{-1}b. The preconditioned system has condition number κ(M^{-1}A) which is ideally close to 1.
+
+### Preconditioner Interface
+
+The library uses a callback-based preconditioner interface:
+
+```c
+typedef sparse_err_t (*sparse_precond_fn)(const void *ctx, idx_t n,
+                                          const double *r, double *z);
+```
+
+The callback solves Mz = r given input r and outputs z. Available preconditioners:
+
+| Preconditioner | Function | Best for | Quality |
+|----------------|----------|----------|---------|
+| ILU(0) | `sparse_ilu_precond` | General matrices | Good (3-1000× speedup) |
+| Cholesky | Custom wrapper | SPD matrices | Exact (1 iteration) but expensive setup |
+| Diagonal (Jacobi) | Custom wrapper | Poorly scaled matrices | Modest improvement |
+| Identity | Pass NULL | Baseline | No preconditioning |
+
+### Selection Guide
+
+- For SPD systems: use ILU-CG (best balance of setup cost and iteration reduction)
+- For unsymmetric systems: use ILU-GMRES
+- If ILU fails (zero diagonal): use unpreconditioned GMRES with large restart, or LU direct
+- If exact solution needed: use direct solver (LU or Cholesky)
+
+## Parallel SpMV (OpenMP)
+
+When compiled with `-DSPARSE_OPENMP`, the sparse matrix-vector product `sparse_matvec()` is parallelized using OpenMP.
+
+### Implementation
+
+```c
+#pragma omp parallel for schedule(dynamic, 64)
+for (log_i = 0; log_i < nrows; log_i++) {
+    // compute y[log_i] = sum over row entries
+}
+```
+
+### Design
+
+- **Row-wise partitioning:** each thread computes a disjoint subset of output rows
+- **No synchronization needed:** each row writes only to its own y[i]
+- **Dynamic scheduling** with chunk size 64 handles load imbalance from varying row lengths
+- **Compile-time guard:** `#ifdef SPARSE_OPENMP` ensures zero overhead when disabled
+
+### Limitations
+
+- The linked-list row traversal is inherently less cache-friendly than CSR-based SpMV
+- Small matrices (n < 200) see no benefit due to thread overhead
+- Speedup is best on larger matrices (n > 1000) with balanced row lengths

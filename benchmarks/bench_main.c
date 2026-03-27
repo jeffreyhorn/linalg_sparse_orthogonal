@@ -9,6 +9,8 @@
  *   ./bench_main --dir PATH --pivot partial  Use partial pivoting (default: complete)
  *   ./bench_main --reorder rcm|amd|none      Apply fill-reducing reordering
  *   ./bench_main --cholesky                  Use Cholesky instead of LU (SPD matrices only)
+ *   ./bench_main --spmv [matrix.mtx|--dir PATH]  SpMV-only benchmark (throughput, MFLOP/s)
+ *   ./bench_main --iterative [matrix.mtx|--dir PATH]  Iterative solver benchmark
  *
  * Reports wall-clock time for: construction, factorization, solve, SpMV.
  * Also reports nnz, fill-in, memory, and residual norm.
@@ -18,6 +20,8 @@
 #include "sparse_lu.h"
 #include "sparse_cholesky.h"
 #include "sparse_reorder.h"
+#include "sparse_iterative.h"
+#include "sparse_ilu.h"
 #include "sparse_vector.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,6 +29,13 @@
 #include <time.h>
 #include <dirent.h>
 #include <math.h>
+
+#ifdef SPARSE_OPENMP
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#include <omp.h>
+#pragma GCC diagnostic pop
+#endif
 
 /* ─── Portable wall-clock timer ─────────────────────────────────────── */
 
@@ -342,6 +353,210 @@ static void benchmark_dir(const char *dirpath, int repeats,
     printf("\n");
 }
 
+/* ─── SpMV-only benchmark ──────────────────────────────────────────── */
+
+static void benchmark_spmv(SparseMatrix *A, const char *name, int iters)
+{
+    idx_t nrows = sparse_rows(A);
+    idx_t ncols = sparse_cols(A);
+    idx_t nnz = sparse_nnz(A);
+
+    double *x = malloc((size_t)ncols * sizeof(double));
+    double *y = malloc((size_t)nrows * sizeof(double));
+    if (!x || !y) { free(x); free(y); return; }
+    for (idx_t i = 0; i < ncols; i++) x[i] = 1.0;
+
+    /* Warm up */
+    sparse_matvec(A, x, y);
+
+    double t0 = wall_time();
+    for (int i = 0; i < iters; i++)
+        sparse_matvec(A, x, y);
+    double elapsed = wall_time() - t0;
+
+    double per_spmv = elapsed / iters;
+    /* 2 flops per nnz (multiply + add) */
+    double mflops = 2.0 * (double)nnz / per_spmv / 1e6;
+
+    printf("  %-20s  %dx%d  nnz=%7d  %d iters  %.6f s/iter  %.1f MFLOP/s\n",
+           name, (int)nrows, (int)ncols, (int)nnz, iters, per_spmv, mflops);
+
+    free(x); free(y);
+}
+
+static void benchmark_spmv_dir(const char *dirpath, int iters)
+{
+#ifdef SPARSE_OPENMP
+    printf("=== SpMV Benchmark (OpenMP, max_threads=%d) ===\n\n", omp_get_max_threads());
+#else
+    printf("=== SpMV Benchmark (serial) ===\n\n");
+#endif
+
+    DIR *d = opendir(dirpath);
+    if (!d) { fprintf(stderr, "Cannot open directory: %s\n", dirpath); return; }
+
+    struct dirent *ent;
+    while ((ent = readdir(d)) != NULL) {
+        if (!ends_with(ent->d_name, ".mtx")) continue;
+        char path[1024];
+        snprintf(path, sizeof(path), "%s/%s", dirpath, ent->d_name);
+        SparseMatrix *A = NULL;
+        if (sparse_load_mm(&A, path) != SPARSE_OK) continue;
+        if (sparse_rows(A) != sparse_cols(A)) { sparse_free(A); continue; }
+
+        char name[256];
+        snprintf(name, sizeof(name), "%s", ent->d_name);
+        char *dot = strrchr(name, '.'); if (dot) *dot = '\0';
+
+        benchmark_spmv(A, name, iters);
+        sparse_free(A);
+    }
+    closedir(d);
+    printf("\n");
+}
+
+/* ─── Iterative solver benchmark ───────────────────────────────────── */
+
+static void benchmark_iterative(SparseMatrix *A, const char *name, int is_spd)
+{
+    idx_t n = sparse_rows(A);
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    if (!x_exact || !b) { free(x_exact); free(b); return; }
+    for (idx_t i = 0; i < n; i++) x_exact[i] = (double)(i + 1);
+    sparse_matvec(A, x_exact, b);
+
+    printf("  %s (n=%d, nnz=%d):\n", name, (int)n, (int)sparse_nnz(A));
+
+    /* --- CG (SPD only) --- */
+    if (is_spd) {
+        double *x = calloc((size_t)n, sizeof(double));
+        if (!x) { fprintf(stderr, "    CG: allocation failed\n"); free(x_exact); free(b); return; }
+        sparse_iter_opts_t cg_opts = {.max_iter = 2000, .tol = 1e-10, .verbose = 0};
+        sparse_iter_result_t res;
+        double t0 = wall_time();
+        sparse_err_t cerr = sparse_solve_cg(A, b, x, &cg_opts, NULL, NULL, &res);
+        double t_cg = wall_time() - t0;
+        if (cerr == SPARSE_OK || cerr == SPARSE_ERR_NOT_CONVERGED)
+            printf("    CG:          %4d iters  %.6f s  res=%.3e  conv=%d\n",
+                   (int)res.iterations, t_cg, res.residual_norm, res.converged);
+        else
+            printf("    CG:          error: %s\n", sparse_strerror(cerr));
+        free(x);
+
+        /* ILU-preconditioned CG */
+        sparse_ilu_t ilu;
+        if (sparse_ilu_factor(A, &ilu) == SPARSE_OK) {
+            x = calloc((size_t)n, sizeof(double));
+            if (x) {
+                t0 = wall_time();
+                sparse_solve_cg(A, b, x, &cg_opts, sparse_ilu_precond, &ilu, &res);
+                double t_pcg = wall_time() - t0;
+                printf("    ILU-CG:      %4d iters  %.6f s  res=%.3e  conv=%d\n",
+                       (int)res.iterations, t_pcg, res.residual_norm, res.converged);
+            }
+            free(x);
+            sparse_ilu_free(&ilu);
+        }
+    }
+
+    /* --- GMRES --- */
+    {
+        double *x = calloc((size_t)n, sizeof(double));
+        if (!x) { fprintf(stderr, "    GMRES: allocation failed\n"); free(x_exact); free(b); return; }
+        sparse_gmres_opts_t gm_opts = {.max_iter = 2000, .restart = 50, .tol = 1e-10, .verbose = 0};
+        sparse_iter_result_t res;
+        double t0 = wall_time();
+        sparse_err_t gerr = sparse_solve_gmres(A, b, x, &gm_opts, NULL, NULL, &res);
+        double t_gm = wall_time() - t0;
+        if (gerr == SPARSE_OK || gerr == SPARSE_ERR_NOT_CONVERGED)
+            printf("    GMRES(50):   %4d iters  %.6f s  res=%.3e  conv=%d\n",
+                   (int)res.iterations, t_gm, res.residual_norm, res.converged);
+        else
+            printf("    GMRES(50):   error: %s\n", sparse_strerror(gerr));
+        free(x);
+
+        /* ILU-preconditioned GMRES */
+        sparse_ilu_t ilu;
+        if (sparse_ilu_factor(A, &ilu) == SPARSE_OK) {
+            x = calloc((size_t)n, sizeof(double));
+            if (x) {
+                t0 = wall_time();
+                sparse_solve_gmres(A, b, x, &gm_opts, sparse_ilu_precond, &ilu, &res);
+                double t_pgm = wall_time() - t0;
+                printf("    ILU-GMRES:   %4d iters  %.6f s  res=%.3e  conv=%d\n",
+                       (int)res.iterations, t_pgm, res.residual_norm, res.converged);
+            }
+            free(x);
+            sparse_ilu_free(&ilu);
+        } else {
+            printf("    ILU-GMRES:   (ILU factor failed — zero pivot)\n");
+        }
+    }
+
+    /* --- Direct (LU) for comparison --- */
+    {
+        SparseMatrix *LU = sparse_copy(A);
+        double *x = malloc((size_t)n * sizeof(double));
+        if (!LU || !x) {
+            fprintf(stderr, "    LU direct: allocation failed, skipping\n");
+        } else {
+            double t0 = wall_time();
+            sparse_err_t err = sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12);
+            double t_factor = wall_time() - t0;
+            if (err == SPARSE_OK) {
+                t0 = wall_time();
+                sparse_err_t serr = sparse_lu_solve(LU, b, x);
+                double t_solve = wall_time() - t0;
+                if (serr == SPARSE_OK)
+                    printf("    LU direct:         factor=%.6f s  solve=%.6f s\n",
+                           t_factor, t_solve);
+                else
+                    printf("    LU direct:         solve failed: %s\n", sparse_strerror(serr));
+            }
+        }
+        free(x);
+        sparse_free(LU);
+    }
+
+    free(x_exact); free(b);
+}
+
+static void benchmark_iterative_dir(const char *dirpath)
+{
+    printf("=== Iterative Solver Benchmark ===\n\n");
+
+    /* Known SPD matrices */
+    const char *spd[] = {"nos4.mtx", "bcsstk04.mtx", NULL};
+
+    DIR *d = opendir(dirpath);
+    if (!d) { fprintf(stderr, "Cannot open directory: %s\n", dirpath); return; }
+
+    struct dirent *ent;
+    while ((ent = readdir(d)) != NULL) {
+        if (!ends_with(ent->d_name, ".mtx")) continue;
+        char path[1024];
+        snprintf(path, sizeof(path), "%s/%s", dirpath, ent->d_name);
+        SparseMatrix *A = NULL;
+        if (sparse_load_mm(&A, path) != SPARSE_OK) continue;
+        if (sparse_rows(A) != sparse_cols(A)) { sparse_free(A); continue; }
+
+        char name[256];
+        snprintf(name, sizeof(name), "%s", ent->d_name);
+        char *dot = strrchr(name, '.'); if (dot) *dot = '\0';
+
+        int is_spd = 0;
+        for (int s = 0; spd[s]; s++) {
+            if (strcmp(ent->d_name, spd[s]) == 0) { is_spd = 1; break; }
+        }
+
+        benchmark_iterative(A, name, is_spd);
+        sparse_free(A);
+    }
+    closedir(d);
+    printf("\n");
+}
+
 /* ─── Main ──────────────────────────────────────────────────────────── */
 
 int main(int argc, char **argv)
@@ -353,9 +568,22 @@ int main(int argc, char **argv)
     sparse_pivot_t pivot = SPARSE_PIVOT_COMPLETE;
     sparse_reorder_t reorder = SPARSE_REORDER_NONE;
     int use_cholesky = 0;
+    int mode_spmv = 0;
+    int mode_iterative = 0;
+    int spmv_iters = 1000;
 
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--size") == 0 && i + 1 < argc) {
+        if (strcmp(argv[i], "--spmv") == 0) {
+            mode_spmv = 1;
+        } else if (strcmp(argv[i], "--iterative") == 0) {
+            mode_iterative = 1;
+        } else if (strcmp(argv[i], "--spmv-iters") == 0 && i + 1 < argc) {
+            spmv_iters = atoi(argv[++i]);
+            if (spmv_iters <= 0) {
+                fprintf(stderr, "Error: --spmv-iters must be > 0\n");
+                return 1;
+            }
+        } else if (strcmp(argv[i], "--size") == 0 && i + 1 < argc) {
             size = (idx_t)atoi(argv[++i]);
         } else if (strcmp(argv[i], "--repeat") == 0 && i + 1 < argc) {
             repeats = atoi(argv[++i]);
@@ -393,6 +621,55 @@ int main(int argc, char **argv)
     if (repeats < 1) {
         fprintf(stderr, "Error: --repeat must be >= 1\n");
         return 1;
+    }
+
+    /* SpMV-only benchmark mode */
+    if (mode_spmv) {
+        if (dirpath) {
+            benchmark_spmv_dir(dirpath, spmv_iters);
+        } else if (filename) {
+            SparseMatrix *A = NULL;
+            if (sparse_load_mm(&A, filename) != SPARSE_OK) {
+                fprintf(stderr, "Failed to load %s\n", filename);
+                return 1;
+            }
+            benchmark_spmv(A, filename, spmv_iters);
+            sparse_free(A);
+        } else {
+            SparseMatrix *A = generate_sparse(size, 42);
+            benchmark_spmv(A, "generated", spmv_iters);
+            sparse_free(A);
+        }
+        return 0;
+    }
+
+    /* Iterative solver benchmark mode */
+    if (mode_iterative) {
+        if (dirpath) {
+            benchmark_iterative_dir(dirpath);
+        } else if (filename) {
+            SparseMatrix *A = NULL;
+            if (sparse_load_mm(&A, filename) != SPARSE_OK) {
+                fprintf(stderr, "Failed to load %s\n", filename);
+                return 1;
+            }
+            if (sparse_rows(A) != sparse_cols(A)) {
+                fprintf(stderr, "Error: %s is non-square (%dx%d), skipping iterative benchmark\n",
+                        filename, (int)sparse_rows(A), (int)sparse_cols(A));
+                sparse_free(A);
+                return 1;
+            }
+            /* Note: sparse_is_symmetric detects symmetry, not definiteness.
+             * CG requires SPD; symmetric-but-indefinite matrices may not
+             * converge.  This is a best-effort heuristic for benchmarking. */
+            benchmark_iterative(A, filename, sparse_is_symmetric(A, 1e-10));
+            sparse_free(A);
+        } else {
+            SparseMatrix *A = generate_sparse(size, 42);
+            benchmark_iterative(A, "generated", 0);
+            sparse_free(A);
+        }
+        return 0;
     }
 
     if (dirpath) {

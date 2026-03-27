@@ -28,6 +28,7 @@ const char *sparse_strerror(sparse_err_t err)
     case SPARSE_ERR_IO:       return "I/O error (check sparse_errno())";
     case SPARSE_ERR_BADARG:   return "invalid argument";
     case SPARSE_ERR_NOT_SPD:  return "matrix is not symmetric positive-definite";
+    case SPARSE_ERR_NOT_CONVERGED: return "iterative solver did not converge";
     }
     return "unknown error";
 }

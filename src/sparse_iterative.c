@@ -236,6 +236,25 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
     if (m > o->max_iter) m = o->max_iter;
     if (m < 1) m = 1;
 
+    /* Check initial true residual before allocating the full workspace,
+     * so we return cheaply if the initial guess already satisfies tol */
+    {
+        double *tmp = malloc((size_t)n * sizeof(double));
+        if (!tmp) return SPARSE_ERR_ALLOC;
+        sparse_matvec(A, x, tmp);
+        for (idx_t i = 0; i < n; i++) tmp[i] = b[i] - tmp[i];
+        double rr = vec_norm2(tmp, n) / bnorm;
+        free(tmp);
+        if (rr <= o->tol) {
+            if (result) {
+                result->iterations    = 0;
+                result->residual_norm = rr;
+                result->converged     = 1;
+            }
+            return SPARSE_OK;
+        }
+    }
+
     /* Allocate workspace:
      *   v:  (m+1) * n        Arnoldi basis vectors
      *   h:  (m+1) * m        Upper Hessenberg matrix
@@ -287,17 +306,6 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
     /* Outer restart loop — compute ceil(max_iter/m) in wider type to avoid
      * signed overflow when max_iter is near INT32_MAX */
     idx_t max_restarts = (idx_t)(((int64_t)o->max_iter + m - 1) / m);
-
-    /* Check initial true residual (handles max_iter==0 and exact initial guess) */
-    {
-        sparse_matvec(A, x, w);
-        for (idx_t i = 0; i < n; i++)
-            w[i] = b[i] - w[i];
-        rel_res = vec_norm2(w, n) / bnorm;
-        if (rel_res <= o->tol) {
-            converged = 1;
-        }
-    }
 
     for (idx_t restart = 0; restart < max_restarts && !converged; restart++) {
         /* Compute r = b - A*x */

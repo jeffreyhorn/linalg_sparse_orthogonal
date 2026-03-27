@@ -185,11 +185,16 @@ static void convergence_table(const char *name, SparseMatrix *A)
             double t0 = wall_time();
             sparse_err_t err = sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12);
             if (err == SPARSE_OK) {
-                sparse_lu_solve(LU, b, x);
+                sparse_err_t serr = sparse_lu_solve(LU, b, x);
                 double t = wall_time() - t0;
-                double rr = compute_rel_residual(A, b, x, n);
-                printf("    %-20s %6s %10.6f %12.3e %6s\n",
-                       "LU direct", "-", t, rr, "yes");
+                if (serr == SPARSE_OK) {
+                    double rr = compute_rel_residual(A, b, x, n);
+                    printf("    %-20s %6s %10.6f %12.3e %6s\n",
+                           "LU direct", "-", t, rr, "yes");
+                } else {
+                    printf("    %-20s %6s %10s %12s %6s\n",
+                           "LU direct", "-", "-", "(solve fail)", "-");
+                }
             }
         }
         free(x);
@@ -200,13 +205,20 @@ static void convergence_table(const char *name, SparseMatrix *A)
     if (spd) {
         SparseMatrix *Ch = sparse_copy(A);
         double *x = malloc((size_t)n * sizeof(double));
-        double t0 = wall_time();
-        if (sparse_cholesky_factor(Ch) == SPARSE_OK) {
-            sparse_cholesky_solve(Ch, b, x);
-            double t = wall_time() - t0;
-            double rr = compute_rel_residual(A, b, x, n);
-            printf("    %-20s %6s %10.6f %12.3e %6s\n",
-                   "Cholesky direct", "-", t, rr, "yes");
+        if (!Ch || !x) {
+            fprintf(stderr, "    Cholesky direct: allocation failed\n");
+        } else {
+            double t0 = wall_time();
+            sparse_err_t cerr = sparse_cholesky_factor(Ch);
+            if (cerr == SPARSE_OK) {
+                sparse_err_t serr = sparse_cholesky_solve(Ch, b, x);
+                double t = wall_time() - t0;
+                if (serr == SPARSE_OK) {
+                    double rr = compute_rel_residual(A, b, x, n);
+                    printf("    %-20s %6s %10.6f %12.3e %6s\n",
+                           "Cholesky direct", "-", t, rr, "yes");
+                }
+            }
         }
         free(x);
         sparse_free(Ch);

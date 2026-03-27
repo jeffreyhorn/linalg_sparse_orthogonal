@@ -21,12 +21,12 @@
  * row_ptr has length rows+1, col_idx and values have length nnz.
  */
 typedef struct {
-    idx_t   rows;       /**< Number of rows */
-    idx_t   cols;       /**< Number of columns */
-    idx_t   nnz;        /**< Number of nonzeros */
-    idx_t  *row_ptr;    /**< Row pointers (length rows+1) */
-    idx_t  *col_idx;    /**< Column indices (length nnz) */
-    double *values;     /**< Nonzero values (length nnz) */
+    idx_t rows;     /**< Number of rows */
+    idx_t cols;     /**< Number of columns */
+    idx_t nnz;      /**< Number of nonzeros */
+    idx_t *row_ptr; /**< Row pointers (length rows+1) */
+    idx_t *col_idx; /**< Column indices (length nnz) */
+    double *values; /**< Nonzero values (length nnz) */
 } SparseCsr;
 
 /**
@@ -36,12 +36,12 @@ typedef struct {
  * col_ptr has length cols+1, row_idx and values have length nnz.
  */
 typedef struct {
-    idx_t   rows;       /**< Number of rows */
-    idx_t   cols;       /**< Number of columns */
-    idx_t   nnz;        /**< Number of nonzeros */
-    idx_t  *col_ptr;    /**< Column pointers (length cols+1) */
-    idx_t  *row_idx;    /**< Row indices (length nnz) */
-    double *values;     /**< Nonzero values (length nnz) */
+    idx_t rows;     /**< Number of rows */
+    idx_t cols;     /**< Number of columns */
+    idx_t nnz;      /**< Number of nonzeros */
+    idx_t *col_ptr; /**< Column pointers (length cols+1) */
+    idx_t *row_idx; /**< Row indices (length nnz) */
+    double *values; /**< Nonzero values (length nnz) */
 } SparseCsc;
 
 /**

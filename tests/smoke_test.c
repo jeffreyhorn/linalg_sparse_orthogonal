@@ -2,20 +2,22 @@
  * Quick smoke test: create matrix, factor, solve, check residual.
  * This is NOT the unit test framework — just a build/link verification.
  */
-#include "sparse_matrix.h"
 #include "sparse_lu.h"
-#include <stdio.h>
+#include "sparse_matrix.h"
 #include <math.h>
+#include <stdio.h>
 
-int main(void)
-{
+int main(void) {
     /* 3x3 test matrix:
      *   1  0  3
      *   0  5  0
      *   7  0  9
      */
     SparseMatrix *A = sparse_create(3, 3);
-    if (!A) { fprintf(stderr, "create failed\n"); return 1; }
+    if (!A) {
+        fprintf(stderr, "create failed\n");
+        return 1;
+    }
 
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 0, 2, 3.0);
@@ -25,7 +27,11 @@ int main(void)
 
     /* Copy before factoring (for residual check) */
     SparseMatrix *A_orig = sparse_copy(A);
-    if (!A_orig) { fprintf(stderr, "copy failed\n"); sparse_free(A); return 1; }
+    if (!A_orig) {
+        fprintf(stderr, "copy failed\n");
+        sparse_free(A);
+        return 1;
+    }
 
     printf("Original matrix:\n");
     sparse_print_dense(A, stdout);
@@ -35,7 +41,8 @@ int main(void)
     sparse_err_t err = sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-10);
     if (err != SPARSE_OK) {
         fprintf(stderr, "LU factor failed: %s\n", sparse_strerror(err));
-        sparse_free(A); sparse_free(A_orig);
+        sparse_free(A);
+        sparse_free(A_orig);
         return 1;
     }
 
@@ -49,7 +56,8 @@ int main(void)
     err = sparse_lu_solve(A, b, x);
     if (err != SPARSE_OK) {
         fprintf(stderr, "solve failed: %s\n", sparse_strerror(err));
-        sparse_free(A); sparse_free(A_orig);
+        sparse_free(A);
+        sparse_free(A_orig);
         return 1;
     }
 
@@ -62,7 +70,8 @@ int main(void)
     for (int i = 0; i < 3; i++) {
         r[i] -= b[i];
         double ar = fabs(r[i]);
-        if (ar > max_residual) max_residual = ar;
+        if (ar > max_residual)
+            max_residual = ar;
     }
     printf("Max residual: %.3e\n", max_residual);
 
@@ -77,7 +86,8 @@ int main(void)
     for (int i = 0; i < 3; i++) {
         r[i] -= b[i];
         double ar = fabs(r[i]);
-        if (ar > max_residual) max_residual = ar;
+        if (ar > max_residual)
+            max_residual = ar;
     }
     printf("Max residual after refinement: %.3e\n", max_residual);
 
@@ -89,8 +99,7 @@ int main(void)
     } else {
         double x2[3] = {0};
         sparse_lu_solve(B, b, x2);
-        printf("\nPartial pivot solution x = [%.6f, %.6f, %.6f]\n",
-               x2[0], x2[1], x2[2]);
+        printf("\nPartial pivot solution x = [%.6f, %.6f, %.6f]\n", x2[0], x2[1], x2[2]);
     }
     sparse_free(B);
 
@@ -100,8 +109,8 @@ int main(void)
         SparseMatrix *loaded = NULL;
         err = sparse_load_mm(&loaded, "/tmp/smoke_test.mtx");
         if (err == SPARSE_OK) {
-            printf("\nMM round-trip: loaded nnz = %d (expected %d)\n",
-                   (int)sparse_nnz(loaded), (int)sparse_nnz(A_orig));
+            printf("\nMM round-trip: loaded nnz = %d (expected %d)\n", (int)sparse_nnz(loaded),
+                   (int)sparse_nnz(A_orig));
             sparse_free(loaded);
         }
     }

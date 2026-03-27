@@ -1,17 +1,16 @@
-#include "sparse_matrix.h"
 #include "sparse_lu.h"
-#include "sparse_vector.h"
+#include "sparse_matrix.h"
 #include "sparse_types.h"
+#include "sparse_vector.h"
 #include "test_framework.h"
-#include <stdlib.h>
 #include <math.h>
+#include <stdlib.h>
 
 /* ═══════════════════════════════════════════════════════════════════════
  * 1x1 matrix edge cases
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_1x1_complete_lifecycle(void)
-{
+static void test_1x1_complete_lifecycle(void) {
     /* Create, insert, factor, solve, refine — all on a 1x1 matrix */
     SparseMatrix *A = sparse_create(1, 1);
     ASSERT_NOT_NULL(A);
@@ -41,8 +40,7 @@ static void test_1x1_complete_lifecycle(void)
     sparse_free(A);
 }
 
-static void test_1x1_extreme_values(void)
-{
+static void test_1x1_extreme_values(void) {
     /* 1x1 with very large value */
     SparseMatrix *A = sparse_create(1, 1);
     sparse_insert(A, 0, 0, 1e200);
@@ -69,8 +67,7 @@ static void test_1x1_extreme_values(void)
     sparse_free(A);
 }
 
-static void test_1x1_matvec(void)
-{
+static void test_1x1_matvec(void) {
     SparseMatrix *A = sparse_create(1, 1);
     sparse_insert(A, 0, 0, 42.0);
     double x[] = {3.0};
@@ -84,8 +81,7 @@ static void test_1x1_matvec(void)
  * Single non-zero element (off-diagonal)
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_single_nnz_offdiag_singular(void)
-{
+static void test_single_nnz_offdiag_singular(void) {
     /* A matrix with a single off-diagonal element is singular */
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 2, 5.0);
@@ -100,8 +96,7 @@ static void test_single_nnz_offdiag_singular(void)
     sparse_free(A);
 }
 
-static void test_single_nnz_diagonal(void)
-{
+static void test_single_nnz_diagonal(void) {
     /* 3x3 with only A(1,1)=5 — rows 0 and 2 have no pivot */
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 1, 1, 5.0);
@@ -117,8 +112,7 @@ static void test_single_nnz_diagonal(void)
  * All-diagonal matrices with extreme values
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_diagonal_extreme_solve(void)
-{
+static void test_diagonal_extreme_solve(void) {
     /*
      * Diagonal with entries spanning moderate orders of magnitude.
      * With relative drop tolerance (DROP_TOL * ||A||_inf), all entries
@@ -133,7 +127,8 @@ static void test_diagonal_extreme_solve(void)
 
     /* b = diag, so x should be all 1s */
     double b[5], x[5];
-    for (idx_t i = 0; i < n; i++) b[i] = diag[i];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = diag[i];
 
     SparseMatrix *LU = sparse_copy(A);
     ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_COMPLETE, 1e-12), SPARSE_OK);
@@ -146,8 +141,7 @@ static void test_diagonal_extreme_solve(void)
     sparse_free(A);
 }
 
-static void test_diagonal_negative_values(void)
-{
+static void test_diagonal_negative_values(void) {
     /* Diagonal with negative entries */
     idx_t n = 4;
     double diag[] = {-3.0, 2.0, -1.0, 4.0};
@@ -155,7 +149,7 @@ static void test_diagonal_negative_values(void)
     for (idx_t i = 0; i < n; i++)
         sparse_insert(A, i, i, diag[i]);
 
-    double b[] = {-6.0, 4.0, -2.0, 8.0};  /* x should be [2, 2, 2, 2] */
+    double b[] = {-6.0, 4.0, -2.0, 8.0}; /* x should be [2, 2, 2, 2] */
     double x[4];
 
     SparseMatrix *LU = sparse_copy(A);
@@ -173,8 +167,7 @@ static void test_diagonal_negative_values(void)
  * Empty matrix (nnz=0) operations
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_empty_matrix_copy(void)
-{
+static void test_empty_matrix_copy(void) {
     SparseMatrix *A = sparse_create(5, 5);
     ASSERT_EQ(sparse_nnz(A), 0);
 
@@ -188,19 +181,17 @@ static void test_empty_matrix_copy(void)
     sparse_free(A);
 }
 
-static void test_empty_matrix_factor_singular(void)
-{
+static void test_empty_matrix_factor_singular(void) {
     SparseMatrix *A = sparse_create(3, 3);
     sparse_err_t err = sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12);
     ASSERT_ERR(err, SPARSE_ERR_SINGULAR);
     sparse_free(A);
 }
 
-static void test_empty_matrix_info(void)
-{
+static void test_empty_matrix_info(void) {
     SparseMatrix *A = sparse_create(10, 10);
     ASSERT_EQ(sparse_nnz(A), 0);
-    ASSERT_TRUE(sparse_memory_usage(A) > 0);  /* struct + headers + perms */
+    ASSERT_TRUE(sparse_memory_usage(A) > 0); /* struct + headers + perms */
 
     /* Get on empty returns 0 */
     ASSERT_NEAR(sparse_get_phys(A, 0, 0), 0.0, 0.0);
@@ -213,28 +204,25 @@ static void test_empty_matrix_info(void)
  * Negative index bounds checking
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_negative_index_remove(void)
-{
+static void test_negative_index_remove(void) {
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 1.0);
     ASSERT_ERR(sparse_remove(A, -1, 0), SPARSE_ERR_BOUNDS);
     ASSERT_ERR(sparse_remove(A, 0, -1), SPARSE_ERR_BOUNDS);
     ASSERT_ERR(sparse_remove(A, -1, -1), SPARSE_ERR_BOUNDS);
-    ASSERT_EQ(sparse_nnz(A), 1);  /* unchanged */
+    ASSERT_EQ(sparse_nnz(A), 1); /* unchanged */
     sparse_free(A);
 }
 
-static void test_negative_index_set(void)
-{
+static void test_negative_index_set(void) {
     SparseMatrix *A = sparse_create(3, 3);
     ASSERT_ERR(sparse_set(A, -1, 0, 5.0), SPARSE_ERR_BOUNDS);
     ASSERT_ERR(sparse_set(A, 0, -1, 5.0), SPARSE_ERR_BOUNDS);
-    ASSERT_EQ(sparse_nnz(A), 0);  /* nothing inserted */
+    ASSERT_EQ(sparse_nnz(A), 0); /* nothing inserted */
     sparse_free(A);
 }
 
-static void test_negative_index_get(void)
-{
+static void test_negative_index_get(void) {
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 7.0);
     /* get with negative index should return 0.0, not crash */
@@ -248,8 +236,7 @@ static void test_negative_index_get(void)
  * Large/small values in factor and solve
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_large_value_solve(void)
-{
+static void test_large_value_solve(void) {
     /* 2x2 system with large coefficients */
     SparseMatrix *A = sparse_create(2, 2);
     sparse_insert(A, 0, 0, 1e150);
@@ -272,14 +259,13 @@ static void test_large_value_solve(void)
     sparse_free(A);
 }
 
-static void test_small_value_solve(void)
-{
+static void test_small_value_solve(void) {
     /* 2x2 with small entries (but above DROP_TOL) */
     SparseMatrix *A = sparse_create(2, 2);
     sparse_insert(A, 0, 0, 1e-10);
     sparse_insert(A, 1, 1, 2e-10);
 
-    double b[] = {1e-10, 4e-10};  /* x = [1, 2] */
+    double b[] = {1e-10, 4e-10}; /* x = [1, 2] */
     double x[2];
 
     SparseMatrix *LU = sparse_copy(A);
@@ -297,8 +283,7 @@ static void test_small_value_solve(void)
  * Matrix modification after operations
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_modify_after_copy(void)
-{
+static void test_modify_after_copy(void) {
     /* Ensure copy is truly independent through multiple modifications */
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 1.0);
@@ -320,14 +305,13 @@ static void test_modify_after_copy(void)
     /* Modify copy */
     sparse_remove(B, 0, 0);
     ASSERT_EQ(sparse_nnz(B), 2);
-    ASSERT_NEAR(sparse_get_phys(A, 0, 0), 1.0, 0.0);  /* original unchanged */
+    ASSERT_NEAR(sparse_get_phys(A, 0, 0), 1.0, 0.0); /* original unchanged */
 
     sparse_free(B);
     sparse_free(A);
 }
 
-static void test_insert_remove_insert_same_position(void)
-{
+static void test_insert_remove_insert_same_position(void) {
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 1, 1, 5.0);
     ASSERT_NEAR(sparse_get_phys(A, 1, 1), 5.0, 0.0);
@@ -348,16 +332,17 @@ static void test_insert_remove_insert_same_position(void)
  * Permutation edge cases
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_perms_after_factor_are_valid(void)
-{
+static void test_perms_after_factor_are_valid(void) {
     /* Verify perm[inv_perm[i]] == i for both row and col after factorization */
     idx_t n = 6;
     SparseMatrix *A = sparse_create(n, n);
     /* 6x6 diag-dominant with some off-diagonal structure */
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, 10.0);
-        if (i > 0)     sparse_insert(A, i, (i + 2) % n, 1.0);
-        if (i < n - 1) sparse_insert(A, i, (i + 3) % n, -0.5);
+        if (i > 0)
+            sparse_insert(A, i, (i + 2) % n, 1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, (i + 3) % n, -0.5);
     }
 
     SparseMatrix *LU = sparse_copy(A);
@@ -379,14 +364,17 @@ static void test_perms_after_factor_are_valid(void)
     sparse_free(A);
 }
 
-static void test_reset_perms_then_factor(void)
-{
+static void test_reset_perms_then_factor(void) {
     /* Factor, reset perms, re-factor (on a fresh copy) */
     idx_t n = 3;
     SparseMatrix *A = sparse_create(n, n);
-    sparse_insert(A, 0, 0, 4.0); sparse_insert(A, 0, 1, 1.0);
-    sparse_insert(A, 1, 0, 1.0); sparse_insert(A, 1, 1, 3.0); sparse_insert(A, 1, 2, 1.0);
-    sparse_insert(A, 2, 1, 1.0); sparse_insert(A, 2, 2, 4.0);
+    sparse_insert(A, 0, 0, 4.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 4.0);
 
     SparseMatrix *LU1 = sparse_copy(A);
     ASSERT_ERR(sparse_lu_factor(LU1, SPARSE_PIVOT_COMPLETE, 1e-12), SPARSE_OK);
@@ -413,8 +401,7 @@ static void test_reset_perms_then_factor(void)
  * Stress: many insert/remove cycles (exercises free-list)
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_freelist_reuse(void)
-{
+static void test_freelist_reuse(void) {
     /* Insert many elements, remove them all, insert again.
      * The free-list should allow reuse without new slab allocation. */
     SparseMatrix *A = sparse_create(50, 50);
@@ -454,18 +441,15 @@ static void test_freelist_reuse(void)
  * Relative tolerance edge cases
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_zero_matrix_factor_norm(void)
-{
+static void test_zero_matrix_factor_norm(void) {
     /* All-zero matrix has norm 0. Factorization should detect singularity
      * during pivot selection (max_val < tol), not in backward sub. */
     SparseMatrix *A = sparse_create(3, 3);
-    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12),
-               SPARSE_ERR_SINGULAR);
+    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12), SPARSE_ERR_SINGULAR);
     sparse_free(A);
 }
 
-static void test_1x1_tiny_value_solves(void)
-{
+static void test_1x1_tiny_value_solves(void) {
     /* 1x1 matrix with a tiny value. Relative tolerance should allow it
      * since ||A||_inf == |val|, so threshold = DROP_TOL * |val| << |val|. */
     SparseMatrix *A = sparse_create(1, 1);
@@ -478,8 +462,7 @@ static void test_1x1_tiny_value_solves(void)
     sparse_free(A);
 }
 
-static void test_mixed_scale_no_false_singular(void)
-{
+static void test_mixed_scale_no_false_singular(void) {
     /* 3x3 with mixed but not extreme scales. All entries are well above
      * relative threshold. Should solve cleanly. */
     SparseMatrix *A = sparse_create(3, 3);
@@ -508,8 +491,7 @@ static void test_mixed_scale_no_false_singular(void)
     sparse_free(LU);
 }
 
-static void test_large_norm_does_not_mask_singularity(void)
-{
+static void test_large_norm_does_not_mask_singularity(void) {
     /* Matrix with large entries but a zero row → singular.
      * Large ||A||_inf makes relative threshold large, but pivot selection
      * should catch the zero pivot before backward sub is reached. */
@@ -519,8 +501,7 @@ static void test_large_norm_does_not_mask_singularity(void)
     /* row 1 is all zeros → singular */
     sparse_insert(A, 2, 2, 1e15);
 
-    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12),
-               SPARSE_ERR_SINGULAR);
+    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12), SPARSE_ERR_SINGULAR);
     sparse_free(A);
 }
 
@@ -528,8 +509,7 @@ static void test_large_norm_does_not_mask_singularity(void)
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
-int main(void)
-{
+int main(void) {
     TEST_SUITE_BEGIN("Edge Case & Hardening Tests");
 
     /* 1x1 matrices */

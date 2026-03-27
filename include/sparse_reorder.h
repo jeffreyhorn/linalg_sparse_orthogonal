@@ -85,8 +85,7 @@ sparse_err_t sparse_reorder_amd(const SparseMatrix *A, idx_t *perm);
  *         (out-of-range index or duplicate entry).
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  */
-sparse_err_t sparse_permute(const SparseMatrix *A,
-                            const idx_t *row_perm, const idx_t *col_perm,
+sparse_err_t sparse_permute(const SparseMatrix *A, const idx_t *row_perm, const idx_t *col_perm,
                             SparseMatrix **B);
 
 /**

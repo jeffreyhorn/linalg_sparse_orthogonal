@@ -9,8 +9,8 @@
  * strategy enumeration used throughout the library.
  */
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 /** @brief Signed 32-bit index type for matrix dimensions and indices. */
 typedef int32_t idx_t;
@@ -23,19 +23,19 @@ typedef int32_t idx_t;
  * Use sparse_strerror() to obtain a human-readable description.
  */
 typedef enum {
-    SPARSE_OK           = 0,   /**< Success */
-    SPARSE_ERR_NULL     = 1,   /**< NULL pointer argument */
-    SPARSE_ERR_ALLOC    = 2,   /**< Memory allocation failure */
-    SPARSE_ERR_BOUNDS   = 3,   /**< Index out of bounds */
-    SPARSE_ERR_SINGULAR = 4,   /**< Matrix is singular or nearly singular */
-    SPARSE_ERR_FOPEN    = 5,   /**< File open failure */
-    SPARSE_ERR_FREAD    = 6,   /**< File read/parse failure */
-    SPARSE_ERR_FWRITE   = 7,   /**< File write failure */
-    SPARSE_ERR_PARSE    = 8,   /**< File format parse error */
-    SPARSE_ERR_SHAPE    = 9,   /**< Matrix shape mismatch (e.g., non-square for LU) */
-    SPARSE_ERR_IO       = 10,  /**< I/O error with errno context (use sparse_errno()) */
-    SPARSE_ERR_BADARG   = 11,  /**< Invalid argument (e.g., unfactored matrix passed to condest) */
-    SPARSE_ERR_NOT_SPD  = 12,  /**< Matrix is not symmetric positive-definite */
+    SPARSE_OK = 0,           /**< Success */
+    SPARSE_ERR_NULL = 1,     /**< NULL pointer argument */
+    SPARSE_ERR_ALLOC = 2,    /**< Memory allocation failure */
+    SPARSE_ERR_BOUNDS = 3,   /**< Index out of bounds */
+    SPARSE_ERR_SINGULAR = 4, /**< Matrix is singular or nearly singular */
+    SPARSE_ERR_FOPEN = 5,    /**< File open failure */
+    SPARSE_ERR_FREAD = 6,    /**< File read/parse failure */
+    SPARSE_ERR_FWRITE = 7,   /**< File write failure */
+    SPARSE_ERR_PARSE = 8,    /**< File format parse error */
+    SPARSE_ERR_SHAPE = 9,    /**< Matrix shape mismatch (e.g., non-square for LU) */
+    SPARSE_ERR_IO = 10,      /**< I/O error with errno context (use sparse_errno()) */
+    SPARSE_ERR_BADARG = 11,  /**< Invalid argument (e.g., unfactored matrix passed to condest) */
+    SPARSE_ERR_NOT_SPD = 12, /**< Matrix is not symmetric positive-definite */
     SPARSE_ERR_NOT_CONVERGED = 13, /**< Iterative solver did not converge within max iterations */
 } sparse_err_t;
 
@@ -48,8 +48,8 @@ typedef enum {
  * and is strongly preferred for banded or structured matrices.
  */
 typedef enum {
-    SPARSE_PIVOT_COMPLETE = 0,   /**< Complete pivoting (max over submatrix) */
-    SPARSE_PIVOT_PARTIAL  = 1,   /**< Partial pivoting (max in pivot column) */
+    SPARSE_PIVOT_COMPLETE = 0, /**< Complete pivoting (max over submatrix) */
+    SPARSE_PIVOT_PARTIAL = 1,  /**< Partial pivoting (max in pivot column) */
 } sparse_pivot_t;
 
 /**
@@ -68,9 +68,9 @@ typedef enum {
  *   for unstructured matrices. O(n^3/64) time, O(n^2/64) memory (bitset-based).
  */
 typedef enum {
-    SPARSE_REORDER_NONE = 0,  /**< No reordering (natural order) */
-    SPARSE_REORDER_RCM  = 1,  /**< Reverse Cuthill-McKee ordering */
-    SPARSE_REORDER_AMD  = 2,  /**< Approximate Minimum Degree ordering */
+    SPARSE_REORDER_NONE = 0, /**< No reordering (natural order) */
+    SPARSE_REORDER_RCM = 1,  /**< Reverse Cuthill-McKee ordering */
+    SPARSE_REORDER_AMD = 2,  /**< Approximate Minimum Degree ordering */
 } sparse_reorder_t;
 
 /**

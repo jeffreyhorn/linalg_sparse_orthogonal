@@ -6,8 +6,7 @@
  * Creation tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_create_basic(void)
-{
+static void test_create_basic(void) {
     SparseMatrix *m = sparse_create(5, 5);
     ASSERT_NOT_NULL(m);
     ASSERT_EQ(sparse_rows(m), 5);
@@ -16,8 +15,7 @@ static void test_create_basic(void)
     sparse_free(m);
 }
 
-static void test_create_rectangular(void)
-{
+static void test_create_rectangular(void) {
     SparseMatrix *m = sparse_create(3, 7);
     ASSERT_NOT_NULL(m);
     ASSERT_EQ(sparse_rows(m), 3);
@@ -25,8 +23,7 @@ static void test_create_rectangular(void)
     sparse_free(m);
 }
 
-static void test_create_1x1(void)
-{
+static void test_create_1x1(void) {
     SparseMatrix *m = sparse_create(1, 1);
     ASSERT_NOT_NULL(m);
     ASSERT_EQ(sparse_rows(m), 1);
@@ -34,8 +31,7 @@ static void test_create_1x1(void)
     sparse_free(m);
 }
 
-static void test_create_invalid(void)
-{
+static void test_create_invalid(void) {
     ASSERT_NULL(sparse_create(0, 5));
     ASSERT_NULL(sparse_create(5, 0));
     ASSERT_NULL(sparse_create(-1, 5));
@@ -43,8 +39,7 @@ static void test_create_invalid(void)
     ASSERT_NULL(sparse_create(0, 0));
 }
 
-static void test_free_null(void)
-{
+static void test_free_null(void) {
     /* Should not crash */
     sparse_free(NULL);
     ASSERT_TRUE(1);
@@ -54,8 +49,7 @@ static void test_free_null(void)
  * Insert / Get tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_insert_get_single(void)
-{
+static void test_insert_get_single(void) {
     SparseMatrix *m = sparse_create(3, 3);
     ASSERT_ERR(sparse_insert(m, 1, 2, 42.0), SPARSE_OK);
     ASSERT_EQ(sparse_nnz(m), 1);
@@ -66,8 +60,7 @@ static void test_insert_get_single(void)
     sparse_free(m);
 }
 
-static void test_insert_get_multiple(void)
-{
+static void test_insert_get_multiple(void) {
     SparseMatrix *m = sparse_create(4, 4);
     sparse_insert(m, 0, 0, 1.0);
     sparse_insert(m, 1, 2, 2.0);
@@ -85,8 +78,7 @@ static void test_insert_get_multiple(void)
     sparse_free(m);
 }
 
-static void test_insert_overwrite(void)
-{
+static void test_insert_overwrite(void) {
     SparseMatrix *m = sparse_create(3, 3);
     sparse_insert(m, 1, 1, 10.0);
     ASSERT_NEAR(sparse_get_phys(m, 1, 1), 10.0, 0.0);
@@ -95,12 +87,11 @@ static void test_insert_overwrite(void)
     /* Overwrite with new value */
     sparse_insert(m, 1, 1, 99.0);
     ASSERT_NEAR(sparse_get_phys(m, 1, 1), 99.0, 0.0);
-    ASSERT_EQ(sparse_nnz(m), 1);  /* still 1, not 2 */
+    ASSERT_EQ(sparse_nnz(m), 1); /* still 1, not 2 */
     sparse_free(m);
 }
 
-static void test_insert_zero_removes(void)
-{
+static void test_insert_zero_removes(void) {
     SparseMatrix *m = sparse_create(3, 3);
     sparse_insert(m, 0, 0, 5.0);
     ASSERT_EQ(sparse_nnz(m), 1);
@@ -112,8 +103,7 @@ static void test_insert_zero_removes(void)
     sparse_free(m);
 }
 
-static void test_get_empty(void)
-{
+static void test_get_empty(void) {
     SparseMatrix *m = sparse_create(5, 5);
     for (idx_t i = 0; i < 5; i++)
         for (idx_t j = 0; j < 5; j++)
@@ -121,8 +111,7 @@ static void test_get_empty(void)
     sparse_free(m);
 }
 
-static void test_insert_multiple_same_row(void)
-{
+static void test_insert_multiple_same_row(void) {
     /* Verify column ordering within a row */
     SparseMatrix *m = sparse_create(3, 5);
     sparse_insert(m, 1, 4, 40.0);
@@ -135,8 +124,7 @@ static void test_insert_multiple_same_row(void)
     sparse_free(m);
 }
 
-static void test_insert_multiple_same_col(void)
-{
+static void test_insert_multiple_same_col(void) {
     /* Verify row ordering within a column */
     SparseMatrix *m = sparse_create(5, 3);
     sparse_insert(m, 3, 1, 30.0);
@@ -153,8 +141,7 @@ static void test_insert_multiple_same_col(void)
  * Logical get/set (through permutations)
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_logical_get_set(void)
-{
+static void test_logical_get_set(void) {
     SparseMatrix *m = sparse_create(3, 3);
     /* With identity perms, logical == physical */
     ASSERT_ERR(sparse_set(m, 1, 2, 7.0), SPARSE_OK);
@@ -167,8 +154,7 @@ static void test_logical_get_set(void)
  * Remove tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_remove_existing(void)
-{
+static void test_remove_existing(void) {
     SparseMatrix *m = sparse_create(3, 3);
     sparse_insert(m, 1, 1, 5.0);
     ASSERT_EQ(sparse_nnz(m), 1);
@@ -179,8 +165,7 @@ static void test_remove_existing(void)
     sparse_free(m);
 }
 
-static void test_remove_nonexistent(void)
-{
+static void test_remove_nonexistent(void) {
     SparseMatrix *m = sparse_create(3, 3);
     /* Remove from empty matrix — should be no-op */
     ASSERT_ERR(sparse_remove(m, 1, 1), SPARSE_OK);
@@ -188,8 +173,7 @@ static void test_remove_nonexistent(void)
     sparse_free(m);
 }
 
-static void test_remove_middle_of_row(void)
-{
+static void test_remove_middle_of_row(void) {
     SparseMatrix *m = sparse_create(3, 5);
     sparse_insert(m, 0, 0, 1.0);
     sparse_insert(m, 0, 2, 2.0);
@@ -205,8 +189,7 @@ static void test_remove_middle_of_row(void)
     sparse_free(m);
 }
 
-static void test_nnz_tracking(void)
-{
+static void test_nnz_tracking(void) {
     SparseMatrix *m = sparse_create(4, 4);
     ASSERT_EQ(sparse_nnz(m), 0);
 
@@ -240,8 +223,7 @@ static void test_nnz_tracking(void)
  * Bounds checking
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_insert_out_of_bounds(void)
-{
+static void test_insert_out_of_bounds(void) {
     SparseMatrix *m = sparse_create(3, 3);
     ASSERT_ERR(sparse_insert(m, 3, 0, 1.0), SPARSE_ERR_BOUNDS);
     ASSERT_ERR(sparse_insert(m, 0, 3, 1.0), SPARSE_ERR_BOUNDS);
@@ -251,24 +233,21 @@ static void test_insert_out_of_bounds(void)
     sparse_free(m);
 }
 
-static void test_remove_out_of_bounds(void)
-{
+static void test_remove_out_of_bounds(void) {
     SparseMatrix *m = sparse_create(3, 3);
     ASSERT_ERR(sparse_remove(m, 5, 0), SPARSE_ERR_BOUNDS);
     ASSERT_ERR(sparse_remove(m, 0, 5), SPARSE_ERR_BOUNDS);
     sparse_free(m);
 }
 
-static void test_set_out_of_bounds(void)
-{
+static void test_set_out_of_bounds(void) {
     SparseMatrix *m = sparse_create(3, 3);
     ASSERT_ERR(sparse_set(m, 3, 0, 1.0), SPARSE_ERR_BOUNDS);
     ASSERT_ERR(sparse_set(m, 0, 3, 1.0), SPARSE_ERR_BOUNDS);
     sparse_free(m);
 }
 
-static void test_get_out_of_bounds(void)
-{
+static void test_get_out_of_bounds(void) {
     SparseMatrix *m = sparse_create(3, 3);
     /* get returns 0.0 for out-of-bounds (no error code available) */
     ASSERT_NEAR(sparse_get(m, 5, 0), 0.0, 0.0);
@@ -277,8 +256,7 @@ static void test_get_out_of_bounds(void)
     sparse_free(m);
 }
 
-static void test_null_pointer_args(void)
-{
+static void test_null_pointer_args(void) {
     ASSERT_ERR(sparse_insert(NULL, 0, 0, 1.0), SPARSE_ERR_NULL);
     ASSERT_ERR(sparse_remove(NULL, 0, 0), SPARSE_ERR_NULL);
     ASSERT_ERR(sparse_set(NULL, 0, 0, 1.0), SPARSE_ERR_NULL);
@@ -295,8 +273,7 @@ static void test_null_pointer_args(void)
  * Copy tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_copy_basic(void)
-{
+static void test_copy_basic(void) {
     SparseMatrix *m = sparse_create(3, 3);
     sparse_insert(m, 0, 0, 1.0);
     sparse_insert(m, 0, 2, 3.0);
@@ -313,15 +290,13 @@ static void test_copy_basic(void)
     /* Verify all elements match */
     for (idx_t i = 0; i < 3; i++)
         for (idx_t j = 0; j < 3; j++)
-            ASSERT_NEAR(sparse_get_phys(c, i, j),
-                        sparse_get_phys(m, i, j), 0.0);
+            ASSERT_NEAR(sparse_get_phys(c, i, j), sparse_get_phys(m, i, j), 0.0);
 
     sparse_free(c);
     sparse_free(m);
 }
 
-static void test_copy_independent(void)
-{
+static void test_copy_independent(void) {
     SparseMatrix *m = sparse_create(3, 3);
     sparse_insert(m, 0, 0, 1.0);
     sparse_insert(m, 1, 1, 2.0);
@@ -346,17 +321,13 @@ static void test_copy_independent(void)
     sparse_free(m);
 }
 
-static void test_copy_null(void)
-{
-    ASSERT_NULL(sparse_copy(NULL));
-}
+static void test_copy_null(void) { ASSERT_NULL(sparse_copy(NULL)); }
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Matrix-vector product tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_matvec_identity(void)
-{
+static void test_matvec_identity(void) {
     SparseMatrix *m = sparse_create(3, 3);
     sparse_insert(m, 0, 0, 1.0);
     sparse_insert(m, 1, 1, 1.0);
@@ -371,8 +342,7 @@ static void test_matvec_identity(void)
     sparse_free(m);
 }
 
-static void test_matvec_general(void)
-{
+static void test_matvec_general(void) {
     /* [1 0 3] [1]   [1 + 9]   [10]
      * [0 5 0] [2] = [10]    = [10]
      * [7 0 9] [3]   [7 + 27]  [34]
@@ -393,8 +363,7 @@ static void test_matvec_general(void)
     sparse_free(m);
 }
 
-static void test_matvec_null(void)
-{
+static void test_matvec_null(void) {
     SparseMatrix *m = sparse_create(2, 2);
     double x[2], y[2];
     ASSERT_ERR(sparse_matvec(NULL, x, y), SPARSE_ERR_NULL);
@@ -407,8 +376,7 @@ static void test_matvec_null(void)
  * Permutation tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_perms_initial_identity(void)
-{
+static void test_perms_initial_identity(void) {
     SparseMatrix *m = sparse_create(4, 4);
     const idx_t *rp = sparse_row_perm(m);
     const idx_t *cp = sparse_col_perm(m);
@@ -424,8 +392,7 @@ static void test_perms_initial_identity(void)
     sparse_free(m);
 }
 
-static void test_perms_reset(void)
-{
+static void test_perms_reset(void) {
     SparseMatrix *m = sparse_create(3, 3);
     /* Insert and do a factorization to scramble perms */
     sparse_insert(m, 0, 0, 1.0);
@@ -444,8 +411,7 @@ static void test_perms_reset(void)
  * Memory info tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_memory_usage(void)
-{
+static void test_memory_usage(void) {
     SparseMatrix *m = sparse_create(10, 10);
     size_t mem0 = sparse_memory_usage(m);
     ASSERT_TRUE(mem0 > 0);
@@ -465,8 +431,7 @@ static void test_memory_usage(void)
  * Infinity norm tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_norminf_identity(void)
-{
+static void test_norminf_identity(void) {
     SparseMatrix *m = sparse_create(5, 5);
     for (idx_t i = 0; i < 5; i++)
         sparse_insert(m, i, i, 1.0);
@@ -477,15 +442,16 @@ static void test_norminf_identity(void)
     sparse_free(m);
 }
 
-static void test_norminf_tridiagonal(void)
-{
+static void test_norminf_tridiagonal(void) {
     /* 4x4 tridiagonal: diag=4, off-diag=1
      * Row sums: row 0 = |4|+|1| = 5, rows 1-2 = |1|+|4|+|1| = 6, row 3 = |1|+|4| = 5 */
     SparseMatrix *m = sparse_create(4, 4);
     for (idx_t i = 0; i < 4; i++) {
         sparse_insert(m, i, i, 4.0);
-        if (i > 0) sparse_insert(m, i, i - 1, 1.0);
-        if (i < 3) sparse_insert(m, i, i + 1, 1.0);
+        if (i > 0)
+            sparse_insert(m, i, i - 1, 1.0);
+        if (i < 3)
+            sparse_insert(m, i, i + 1, 1.0);
     }
 
     double norm;
@@ -494,8 +460,7 @@ static void test_norminf_tridiagonal(void)
     sparse_free(m);
 }
 
-static void test_norminf_empty(void)
-{
+static void test_norminf_empty(void) {
     SparseMatrix *m = sparse_create(3, 3);
     double norm;
     ASSERT_ERR(sparse_norminf(m, &norm), SPARSE_OK);
@@ -503,8 +468,7 @@ static void test_norminf_empty(void)
     sparse_free(m);
 }
 
-static void test_norminf_rectangular(void)
-{
+static void test_norminf_rectangular(void) {
     /* 2x4 matrix: row 0 = [1, 2, 0, 3] sum=6, row 1 = [0, 0, 4, 0] sum=4 */
     SparseMatrix *m = sparse_create(2, 4);
     sparse_insert(m, 0, 0, 1.0);
@@ -518,8 +482,7 @@ static void test_norminf_rectangular(void)
     sparse_free(m);
 }
 
-static void test_norminf_negative_values(void)
-{
+static void test_norminf_negative_values(void) {
     /* Norm uses absolute values */
     SparseMatrix *m = sparse_create(2, 2);
     sparse_insert(m, 0, 0, -5.0);
@@ -529,12 +492,11 @@ static void test_norminf_negative_values(void)
 
     double norm;
     ASSERT_ERR(sparse_norminf(m, &norm), SPARSE_OK);
-    ASSERT_NEAR(norm, 8.0, 0.0);  /* |-5| + |-3| = 8 */
+    ASSERT_NEAR(norm, 8.0, 0.0); /* |-5| + |-3| = 8 */
     sparse_free(m);
 }
 
-static void test_norminf_cached(void)
-{
+static void test_norminf_cached(void) {
     SparseMatrix *m = sparse_create(2, 2);
     sparse_insert(m, 0, 0, 1.0);
     sparse_insert(m, 1, 1, 2.0);
@@ -550,13 +512,12 @@ static void test_norminf_cached(void)
     /* Modify matrix — cache should invalidate */
     sparse_insert(m, 0, 1, 5.0);
     ASSERT_ERR(sparse_norminf(m, &norm1), SPARSE_OK);
-    ASSERT_NEAR(norm1, 6.0, 0.0);  /* row 0: |1|+|5| = 6 */
+    ASSERT_NEAR(norm1, 6.0, 0.0); /* row 0: |1|+|5| = 6 */
 
     sparse_free(m);
 }
 
-static void test_norminf_null(void)
-{
+static void test_norminf_null(void) {
     double norm;
     ASSERT_ERR(sparse_norminf(NULL, &norm), SPARSE_ERR_NULL);
 
@@ -569,8 +530,7 @@ static void test_norminf_null(void)
  * Symmetry check tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_symmetric_spd(void)
-{
+static void test_symmetric_spd(void) {
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 4.0);
     sparse_insert(A, 0, 1, 2.0);
@@ -583,31 +543,25 @@ static void test_symmetric_spd(void)
     sparse_free(A);
 }
 
-static void test_symmetric_unsymmetric(void)
-{
+static void test_symmetric_unsymmetric(void) {
     SparseMatrix *A = sparse_create(2, 2);
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 0, 1, 2.0);
-    sparse_insert(A, 1, 0, 3.0);  /* != A(0,1) */
+    sparse_insert(A, 1, 0, 3.0); /* != A(0,1) */
     sparse_insert(A, 1, 1, 4.0);
     ASSERT_FALSE(sparse_is_symmetric(A, 1e-15));
     sparse_free(A);
 }
 
-static void test_symmetric_rectangular(void)
-{
+static void test_symmetric_rectangular(void) {
     SparseMatrix *A = sparse_create(2, 3);
     ASSERT_FALSE(sparse_is_symmetric(A, 0.0));
     sparse_free(A);
 }
 
-static void test_symmetric_null(void)
-{
-    ASSERT_FALSE(sparse_is_symmetric(NULL, 0.0));
-}
+static void test_symmetric_null(void) { ASSERT_FALSE(sparse_is_symmetric(NULL, 0.0)); }
 
-static void test_symmetric_diagonal(void)
-{
+static void test_symmetric_diagonal(void) {
     SparseMatrix *A = sparse_create(4, 4);
     for (idx_t i = 0; i < 4; i++)
         sparse_insert(A, i, i, (double)(i + 1));
@@ -619,8 +573,7 @@ static void test_symmetric_diagonal(void)
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
-int main(void)
-{
+int main(void) {
     TEST_SUITE_BEGIN("Sparse Matrix Data Structure Tests");
 
     /* Creation */

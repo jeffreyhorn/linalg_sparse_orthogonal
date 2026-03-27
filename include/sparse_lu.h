@@ -45,9 +45,9 @@
  * @endcode
  */
 typedef struct {
-    sparse_pivot_t  pivot;    /**< Pivoting strategy */
+    sparse_pivot_t pivot;     /**< Pivoting strategy */
     sparse_reorder_t reorder; /**< Fill-reducing reordering (NONE, RCM, or AMD) */
-    double          tol;      /**< Pivot tolerance */
+    double tol;               /**< Pivot tolerance */
 } sparse_lu_opts_t;
 
 /**
@@ -62,8 +62,7 @@ typedef struct {
  * @param opts  Factorization options.
  * @return SPARSE_OK on success, or an error code.
  */
-sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat,
-                                   const sparse_lu_opts_t *opts);
+sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *opts);
 
 /**
  * @brief Compute the LU factorization of a sparse matrix in-place.
@@ -93,8 +92,7 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat,
  * @threadsafety Mutates mat. Not safe to call concurrently on the same matrix.
  *               Safe to call concurrently on different matrices.
  */
-sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot,
-                              double tol);
+sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double tol);
 
 /**
  * @brief Solve A*x = b using a previously factored matrix.
@@ -110,8 +108,7 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot,
  * @threadsafety Read-only on mat. Safe to call concurrently on the same
  *               factored matrix with different b/x vectors.
  */
-sparse_err_t sparse_lu_solve(const SparseMatrix *mat,
-                             const double *b, double *x);
+sparse_err_t sparse_lu_solve(const SparseMatrix *mat, const double *b, double *x);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Condition number estimation
@@ -154,8 +151,7 @@ sparse_err_t sparse_lu_solve(const SparseMatrix *mat,
  * @return SPARSE_ERR_BADARG if mat_lu has not been factored.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
  */
-sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig,
-                               const SparseMatrix *mat_lu,
+sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig, const SparseMatrix *mat_lu,
                                double *condest);
 
 /**
@@ -180,8 +176,7 @@ sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig,
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
  * @return SPARSE_ERR_SINGULAR if a near-zero pivot is encountered during U^T solve.
  */
-sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat,
-                                       const double *b, double *x);
+sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat, const double *b, double *x);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Individual solver phases (exposed for testing and advanced use)
@@ -197,8 +192,7 @@ sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat,
  * @param pb   Output permuted vector of length n (overwritten).
  * @return SPARSE_OK on success.
  */
-sparse_err_t sparse_apply_row_perm(const SparseMatrix *mat,
-                                   const double *b, double *pb);
+sparse_err_t sparse_apply_row_perm(const SparseMatrix *mat, const double *b, double *pb);
 
 /**
  * @brief Apply inverse column permutation: x[i] = z[inv_col_perm[i]].
@@ -211,8 +205,7 @@ sparse_err_t sparse_apply_row_perm(const SparseMatrix *mat,
  * @param x    Output solution vector of length n (overwritten).
  * @return SPARSE_OK on success.
  */
-sparse_err_t sparse_apply_inv_col_perm(const SparseMatrix *mat,
-                                       const double *z, double *x);
+sparse_err_t sparse_apply_inv_col_perm(const SparseMatrix *mat, const double *z, double *x);
 
 /**
  * @brief Forward substitution: solve L*y = pb.
@@ -225,8 +218,7 @@ sparse_err_t sparse_apply_inv_col_perm(const SparseMatrix *mat,
  * @param y    Output vector (length n, overwritten).
  * @return SPARSE_OK on success.
  */
-sparse_err_t sparse_forward_sub(const SparseMatrix *mat,
-                                const double *pb, double *y);
+sparse_err_t sparse_forward_sub(const SparseMatrix *mat, const double *pb, double *y);
 
 /**
  * @brief Backward substitution: solve U*z = y.
@@ -239,8 +231,7 @@ sparse_err_t sparse_forward_sub(const SparseMatrix *mat,
  * @param z    Output vector (length n, overwritten).
  * @return SPARSE_OK on success.
  */
-sparse_err_t sparse_backward_sub(const SparseMatrix *mat,
-                                 const double *y, double *z);
+sparse_err_t sparse_backward_sub(const SparseMatrix *mat, const double *y, double *z);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Iterative refinement
@@ -261,9 +252,7 @@ sparse_err_t sparse_backward_sub(const SparseMatrix *mat,
  * @param tol        Convergence tolerance on relative residual.
  * @return SPARSE_OK on success, SPARSE_ERR_NULL if any argument is NULL.
  */
-sparse_err_t sparse_lu_refine(const SparseMatrix *mat_orig,
-                              const SparseMatrix *mat_lu,
-                              const double *b, double *x,
-                              int max_iters, double tol);
+sparse_err_t sparse_lu_refine(const SparseMatrix *mat_orig, const SparseMatrix *mat_lu,
+                              const double *b, double *x, int max_iters, double tol);
 
 #endif /* SPARSE_LU_H */

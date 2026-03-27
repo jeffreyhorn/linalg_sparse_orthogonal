@@ -1,36 +1,39 @@
-#include "sparse_matrix.h"
 #include "sparse_lu.h"
+#include "sparse_matrix.h"
 #include "sparse_types.h"
 #include "test_framework.h"
-#include <stdlib.h>
 #include <math.h>
+#include <stdlib.h>
 
 /* ─── Helpers ────────────────────────────────────────────────────────── */
 
 /* Compute infinity-norm of a vector */
-static double vec_norminf(const double *v, idx_t n)
-{
+static double vec_norminf(const double *v, idx_t n) {
     double mx = 0.0;
     for (idx_t i = 0; i < n; i++) {
         double a = fabs(v[i]);
-        if (a > mx) mx = a;
+        if (a > mx)
+            mx = a;
     }
     return mx;
 }
 
 /* Check that perm[inv_perm[i]] == i for all i */
-static int perms_consistent(const SparseMatrix *m)
-{
+static int perms_consistent(const SparseMatrix *m) {
     idx_t n = sparse_rows(m);
-    const idx_t *rp  = sparse_row_perm(m);
+    const idx_t *rp = sparse_row_perm(m);
     const idx_t *irp = sparse_inv_row_perm(m);
-    const idx_t *cp  = sparse_col_perm(m);
+    const idx_t *cp = sparse_col_perm(m);
     const idx_t *icp = sparse_inv_col_perm(m);
     for (idx_t i = 0; i < n; i++) {
-        if (irp[rp[i]] != i) return 0;
-        if (rp[irp[i]] != i) return 0;
-        if (icp[cp[i]] != i) return 0;
-        if (cp[icp[i]] != i) return 0;
+        if (irp[rp[i]] != i)
+            return 0;
+        if (rp[irp[i]] != i)
+            return 0;
+        if (icp[cp[i]] != i)
+            return 0;
+        if (cp[icp[i]] != i)
+            return 0;
     }
     return 1;
 }
@@ -40,17 +43,23 @@ static int perms_consistent(const SparseMatrix *m)
  * Returns max |A*x - b| using the original matrix.
  * pivot: which pivoting strategy to test.
  */
-static double solve_and_residual(SparseMatrix *A_orig, const double *b,
-                                 double *x, idx_t n, sparse_pivot_t pivot)
-{
+static double solve_and_residual(SparseMatrix *A_orig, const double *b, double *x, idx_t n,
+                                 sparse_pivot_t pivot) {
     SparseMatrix *A = sparse_copy(A_orig);
-    if (!A) return -1.0;
+    if (!A)
+        return -1.0;
 
     sparse_err_t err = sparse_lu_factor(A, pivot, 1e-12);
-    if (err != SPARSE_OK) { sparse_free(A); return -1.0; }
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return -1.0;
+    }
 
     err = sparse_lu_solve(A, b, x);
-    if (err != SPARSE_OK) { sparse_free(A); return -1.0; }
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return -1.0;
+    }
 
     /* Compute r = A_orig * x - b */
     double *r = malloc((size_t)n * sizeof(double));
@@ -65,34 +74,36 @@ static double solve_and_residual(SparseMatrix *A_orig, const double *b,
 }
 
 /* Build an n x n identity matrix */
-static SparseMatrix *make_identity(idx_t n)
-{
+static SparseMatrix *make_identity(idx_t n) {
     SparseMatrix *m = sparse_create(n, n);
-    if (!m) return NULL;
+    if (!m)
+        return NULL;
     for (idx_t i = 0; i < n; i++)
         sparse_insert(m, i, i, 1.0);
     return m;
 }
 
 /* Build an n x n diagonal matrix with diagonal d[i] = i+1 */
-static SparseMatrix *make_diagonal(idx_t n)
-{
+static SparseMatrix *make_diagonal(idx_t n) {
     SparseMatrix *m = sparse_create(n, n);
-    if (!m) return NULL;
+    if (!m)
+        return NULL;
     for (idx_t i = 0; i < n; i++)
         sparse_insert(m, i, i, (double)(i + 1));
     return m;
 }
 
 /* Build an n x n tridiagonal matrix: -1, 2, -1 (like Poisson 1D) */
-static SparseMatrix *make_tridiag(idx_t n)
-{
+static SparseMatrix *make_tridiag(idx_t n) {
     SparseMatrix *m = sparse_create(n, n);
-    if (!m) return NULL;
+    if (!m)
+        return NULL;
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(m, i, i, 2.0);
-        if (i > 0)     sparse_insert(m, i, i - 1, -1.0);
-        if (i < n - 1) sparse_insert(m, i, i + 1, -1.0);
+        if (i > 0)
+            sparse_insert(m, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(m, i, i + 1, -1.0);
     }
     return m;
 }
@@ -101,8 +112,7 @@ static SparseMatrix *make_tridiag(idx_t n)
  * Known solutions
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_solve_1x1(void)
-{
+static void test_solve_1x1(void) {
     SparseMatrix *A = sparse_create(1, 1);
     sparse_insert(A, 0, 0, 5.0);
     double b[1] = {10.0}, x[1] = {0};
@@ -112,8 +122,7 @@ static void test_solve_1x1(void)
     sparse_free(A);
 }
 
-static void test_solve_2x2(void)
-{
+static void test_solve_2x2(void) {
     /* [2 1] x = [5]  =>  x = [1, 3] */
     /* [1 3]     [10]                  */
     SparseMatrix *A = sparse_create(2, 2);
@@ -130,8 +139,7 @@ static void test_solve_2x2(void)
     sparse_free(A);
 }
 
-static void test_solve_3x3(void)
-{
+static void test_solve_3x3(void) {
     /* The original demo matrix:
      * [1 0 3] x = [1]
      * [0 5 0]     [2]
@@ -159,8 +167,7 @@ static void test_solve_3x3(void)
     sparse_free(A);
 }
 
-static void test_solve_4x4(void)
-{
+static void test_solve_4x4(void) {
     /* Dense 4x4:
      * [2  1  0  0]     [1]
      * [1  3  1  0] x = [2]
@@ -168,12 +175,16 @@ static void test_solve_4x4(void)
      * [0  0  1  5]     [4]
      */
     SparseMatrix *A = sparse_create(4, 4);
-    sparse_insert(A, 0, 0, 2.0); sparse_insert(A, 0, 1, 1.0);
-    sparse_insert(A, 1, 0, 1.0); sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 3.0);
     sparse_insert(A, 1, 2, 1.0);
-    sparse_insert(A, 2, 1, 1.0); sparse_insert(A, 2, 2, 4.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 4.0);
     sparse_insert(A, 2, 3, 1.0);
-    sparse_insert(A, 3, 2, 1.0); sparse_insert(A, 3, 3, 5.0);
+    sparse_insert(A, 3, 2, 1.0);
+    sparse_insert(A, 3, 3, 5.0);
 
     double b[4] = {1.0, 2.0, 3.0, 4.0}, x[4];
     double res = solve_and_residual(A, b, x, 4, SPARSE_PIVOT_COMPLETE);
@@ -186,8 +197,7 @@ static void test_solve_4x4(void)
  * Identity matrix
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_lu_identity(void)
-{
+static void test_lu_identity(void) {
     SparseMatrix *I = make_identity(5);
     SparseMatrix *LU = sparse_copy(I);
     ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_COMPLETE, 1e-12), SPARSE_OK);
@@ -213,13 +223,12 @@ static void test_lu_identity(void)
  * Diagonal matrix
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_lu_diagonal(void)
-{
+static void test_lu_diagonal(void) {
     idx_t n = 5;
     SparseMatrix *D = make_diagonal(n);
     double b[5], x[5];
     for (idx_t i = 0; i < n; i++)
-        b[i] = (double)(i + 1) * 10.0;  /* b[i] = 10, 20, 30, 40, 50 */
+        b[i] = (double)(i + 1) * 10.0; /* b[i] = 10, 20, 30, 40, 50 */
 
     double res = solve_and_residual(D, b, x, n, SPARSE_PIVOT_COMPLETE);
     ASSERT_NEAR(res, 0.0, 1e-13);
@@ -235,12 +244,14 @@ static void test_lu_diagonal(void)
  * Triangular matrices
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_lu_upper_triangular(void)
-{
+static void test_lu_upper_triangular(void) {
     /* Upper triangular: LU should give L=I, U=A (up to pivoting) */
     SparseMatrix *A = sparse_create(3, 3);
-    sparse_insert(A, 0, 0, 2.0); sparse_insert(A, 0, 1, 1.0); sparse_insert(A, 0, 2, 3.0);
-    sparse_insert(A, 1, 1, 4.0); sparse_insert(A, 1, 2, 5.0);
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 0, 2, 3.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 1, 2, 5.0);
     sparse_insert(A, 2, 2, 6.0);
 
     double b[3] = {1.0, 2.0, 3.0}, x[3];
@@ -249,12 +260,14 @@ static void test_lu_upper_triangular(void)
     sparse_free(A);
 }
 
-static void test_lu_lower_triangular(void)
-{
+static void test_lu_lower_triangular(void) {
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 3.0);
-    sparse_insert(A, 1, 0, 2.0); sparse_insert(A, 1, 1, 4.0);
-    sparse_insert(A, 2, 0, 1.0); sparse_insert(A, 2, 1, 5.0); sparse_insert(A, 2, 2, 6.0);
+    sparse_insert(A, 1, 0, 2.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 2, 0, 1.0);
+    sparse_insert(A, 2, 1, 5.0);
+    sparse_insert(A, 2, 2, 6.0);
 
     double b[3] = {3.0, 10.0, 28.0}, x[3];
     double res = solve_and_residual(A, b, x, 3, SPARSE_PIVOT_COMPLETE);
@@ -266,8 +279,7 @@ static void test_lu_lower_triangular(void)
  * Tridiagonal (Poisson 1D)
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_lu_tridiag(void)
-{
+static void test_lu_tridiag(void) {
     idx_t n = 20;
     SparseMatrix *A = make_tridiag(n);
     double *b = malloc((size_t)n * sizeof(double));
@@ -279,7 +291,8 @@ static void test_lu_tridiag(void)
     ASSERT_TRUE(res >= 0.0);
     ASSERT_NEAR(res, 0.0, 1e-11);
 
-    free(b); free(x);
+    free(b);
+    free(x);
     sparse_free(A);
 }
 
@@ -287,25 +300,29 @@ static void test_lu_tridiag(void)
  * Permutation consistency
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_perm_consistency_after_lu(void)
-{
+static void test_perm_consistency_after_lu(void) {
     SparseMatrix *A = sparse_create(4, 4);
-    sparse_insert(A, 0, 0, 1.0); sparse_insert(A, 0, 2, 3.0);
-    sparse_insert(A, 1, 1, 5.0); sparse_insert(A, 1, 3, 2.0);
-    sparse_insert(A, 2, 0, 7.0); sparse_insert(A, 2, 2, 9.0);
-    sparse_insert(A, 3, 1, 4.0); sparse_insert(A, 3, 3, 6.0);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 2, 3.0);
+    sparse_insert(A, 1, 1, 5.0);
+    sparse_insert(A, 1, 3, 2.0);
+    sparse_insert(A, 2, 0, 7.0);
+    sparse_insert(A, 2, 2, 9.0);
+    sparse_insert(A, 3, 1, 4.0);
+    sparse_insert(A, 3, 3, 6.0);
 
     ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12), SPARSE_OK);
     ASSERT_TRUE(perms_consistent(A));
     sparse_free(A);
 }
 
-static void test_perm_consistency_partial_pivot(void)
-{
+static void test_perm_consistency_partial_pivot(void) {
     SparseMatrix *A = sparse_create(3, 3);
-    sparse_insert(A, 0, 0, 1.0); sparse_insert(A, 0, 2, 3.0);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 2, 3.0);
     sparse_insert(A, 1, 1, 5.0);
-    sparse_insert(A, 2, 0, 7.0); sparse_insert(A, 2, 2, 9.0);
+    sparse_insert(A, 2, 0, 7.0);
+    sparse_insert(A, 2, 2, 9.0);
 
     ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
     ASSERT_TRUE(perms_consistent(A));
@@ -322,15 +339,14 @@ static void test_perm_consistency_partial_pivot(void)
  * Residual checks on larger matrices
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_residual_10x10(void)
-{
+static void test_residual_10x10(void) {
     idx_t n = 10;
     SparseMatrix *A = sparse_create(n, n);
 
     /* Dense-ish 10x10 with a known pattern */
     for (idx_t i = 0; i < n; i++) {
         for (idx_t j = 0; j < n; j++) {
-            double val = 1.0 / (double)(i + j + 1);  /* Hilbert-like */
+            double val = 1.0 / (double)(i + j + 1); /* Hilbert-like */
             if (fabs(val) > 0.05)
                 sparse_insert(A, i, j, val);
         }
@@ -345,19 +361,23 @@ static void test_residual_10x10(void)
 
     double res = solve_and_residual(A, b, x, n, SPARSE_PIVOT_COMPLETE);
     ASSERT_TRUE(res >= 0.0);
-    ASSERT_TRUE(res < 1e-10);  /* relaxed for ill-conditioning */
+    ASSERT_TRUE(res < 1e-10); /* relaxed for ill-conditioning */
 
-    free(b); free(x);
+    free(b);
+    free(x);
     sparse_free(A);
 }
 
-static void test_both_pivot_strategies_agree(void)
-{
+static void test_both_pivot_strategies_agree(void) {
     /* Both strategies should give close-enough solutions */
     SparseMatrix *A = sparse_create(3, 3);
-    sparse_insert(A, 0, 0, 2.0); sparse_insert(A, 0, 1, 1.0);
-    sparse_insert(A, 1, 0, 1.0); sparse_insert(A, 1, 1, 3.0); sparse_insert(A, 1, 2, 1.0);
-    sparse_insert(A, 2, 1, 1.0); sparse_insert(A, 2, 2, 4.0);
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 4.0);
 
     double b[3] = {3.0, 5.0, 5.0};
     double x_complete[3], x_partial[3];
@@ -375,36 +395,36 @@ static void test_both_pivot_strategies_agree(void)
  * Singular detection
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_singular_zero_matrix(void)
-{
+static void test_singular_zero_matrix(void) {
     SparseMatrix *A = sparse_create(3, 3);
     /* All zeros — nnz=0 */
-    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12),
-               SPARSE_ERR_SINGULAR);
+    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12), SPARSE_ERR_SINGULAR);
     sparse_free(A);
 }
 
-static void test_singular_rank_deficient(void)
-{
+static void test_singular_rank_deficient(void) {
     /* Row 1 = 2 * Row 0 */
     SparseMatrix *A = sparse_create(2, 2);
-    sparse_insert(A, 0, 0, 1.0); sparse_insert(A, 0, 1, 2.0);
-    sparse_insert(A, 1, 0, 2.0); sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 1, 0, 2.0);
+    sparse_insert(A, 1, 1, 4.0);
 
-    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12),
-               SPARSE_ERR_SINGULAR);
+    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12), SPARSE_ERR_SINGULAR);
     sparse_free(A);
 }
 
-static void test_singular_zero_row(void)
-{
+static void test_singular_zero_row(void) {
     SparseMatrix *A = sparse_create(3, 3);
-    sparse_insert(A, 0, 0, 1.0); sparse_insert(A, 0, 1, 2.0); sparse_insert(A, 0, 2, 3.0);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 0, 2, 3.0);
     /* row 1 all zeros */
-    sparse_insert(A, 2, 0, 4.0); sparse_insert(A, 2, 1, 5.0); sparse_insert(A, 2, 2, 6.0);
+    sparse_insert(A, 2, 0, 4.0);
+    sparse_insert(A, 2, 1, 5.0);
+    sparse_insert(A, 2, 2, 6.0);
 
-    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12),
-               SPARSE_ERR_SINGULAR);
+    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12), SPARSE_ERR_SINGULAR);
     sparse_free(A);
 }
 
@@ -412,22 +432,17 @@ static void test_singular_zero_row(void)
  * Error path tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_lu_null_matrix(void)
-{
-    ASSERT_ERR(sparse_lu_factor(NULL, SPARSE_PIVOT_COMPLETE, 1e-12),
-               SPARSE_ERR_NULL);
+static void test_lu_null_matrix(void) {
+    ASSERT_ERR(sparse_lu_factor(NULL, SPARSE_PIVOT_COMPLETE, 1e-12), SPARSE_ERR_NULL);
 }
 
-static void test_lu_nonsquare(void)
-{
+static void test_lu_nonsquare(void) {
     SparseMatrix *A = sparse_create(3, 5);
-    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12),
-               SPARSE_ERR_SHAPE);
+    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12), SPARSE_ERR_SHAPE);
     sparse_free(A);
 }
 
-static void test_solve_null_args(void)
-{
+static void test_solve_null_args(void) {
     SparseMatrix *A = sparse_create(2, 2);
     double b[2] = {1, 2}, x[2];
 
@@ -437,13 +452,11 @@ static void test_solve_null_args(void)
     sparse_free(A);
 }
 
-static void test_forward_sub_null(void)
-{
+static void test_forward_sub_null(void) {
     ASSERT_ERR(sparse_forward_sub(NULL, NULL, NULL), SPARSE_ERR_NULL);
 }
 
-static void test_backward_sub_null(void)
-{
+static void test_backward_sub_null(void) {
     ASSERT_ERR(sparse_backward_sub(NULL, NULL, NULL), SPARSE_ERR_NULL);
 }
 
@@ -451,8 +464,7 @@ static void test_backward_sub_null(void)
  * Iterative refinement
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_iterative_refinement(void)
-{
+static void test_iterative_refinement(void) {
     idx_t n = 10;
     SparseMatrix *A = make_tridiag(n);
     SparseMatrix *LU = sparse_copy(A);
@@ -474,13 +486,14 @@ static void test_iterative_refinement(void)
     double res = vec_norminf(r, n);
     ASSERT_TRUE(res < 1e-14);
 
-    free(r); free(b); free(x);
+    free(r);
+    free(b);
+    free(x);
     sparse_free(LU);
     sparse_free(A);
 }
 
-static void test_refine_null_args(void)
-{
+static void test_refine_null_args(void) {
     SparseMatrix *A = sparse_create(2, 2);
     double b[2], x[2];
     ASSERT_ERR(sparse_lu_refine(NULL, A, b, x, 1, 1e-10), SPARSE_ERR_NULL);
@@ -494,8 +507,7 @@ static void test_refine_null_args(void)
  * Drop tolerance
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_drop_tolerance_reduces_fillin(void)
-{
+static void test_drop_tolerance_reduces_fillin(void) {
     /* Use a matrix where factorization creates fill-in, and verify
      * nnz after factorization doesn't explode to n*n */
     idx_t n = 20;
@@ -507,7 +519,7 @@ static void test_drop_tolerance_reduces_fillin(void)
     idx_t nnz_after = sparse_nnz(A);
     /* For tridiagonal, fill-in should be modest */
     ASSERT_TRUE(nnz_after < n * n);
-    ASSERT_TRUE(nnz_after >= nnz_before);  /* can't lose entries */
+    ASSERT_TRUE(nnz_after >= nnz_before); /* can't lose entries */
     sparse_free(A);
 }
 
@@ -515,8 +527,7 @@ static void test_drop_tolerance_reduces_fillin(void)
  * Relative drop tolerance
  * ═══════════════════════════════════════════════════════════════════════ */
 
-static void test_relative_tol_scaled_identity(void)
-{
+static void test_relative_tol_scaled_identity(void) {
     /*
      * Scale identity by 1e-16. With absolute DROP_TOL=1e-14, the diagonal
      * entries (1e-16) would be smaller than DROP_TOL, triggering a false
@@ -533,7 +544,8 @@ static void test_relative_tol_scaled_identity(void)
 
     /* Solve Ax = b where b = scale * [1,1,...,1], expect x = [1,1,...,1] */
     double b[5], x[5];
-    for (idx_t i = 0; i < n; i++) b[i] = scale;
+    for (idx_t i = 0; i < n; i++)
+        b[i] = scale;
 
     ASSERT_ERR(sparse_lu_solve(A, b, x), SPARSE_OK);
     for (idx_t i = 0; i < n; i++)
@@ -542,18 +554,16 @@ static void test_relative_tol_scaled_identity(void)
     sparse_free(A);
 }
 
-static void test_relative_tol_singular_still_detected(void)
-{
+static void test_relative_tol_singular_still_detected(void) {
     /* A genuinely singular matrix should still be caught */
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 0, 1, 2.0);
     sparse_insert(A, 1, 0, 2.0);
-    sparse_insert(A, 1, 1, 4.0);  /* row 1 = 2 * row 0 */
+    sparse_insert(A, 1, 1, 4.0); /* row 1 = 2 * row 0 */
     sparse_insert(A, 2, 2, 1.0);
 
-    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_PARTIAL, 1e-12),
-               SPARSE_ERR_SINGULAR);
+    ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_ERR_SINGULAR);
     sparse_free(A);
 }
 
@@ -562,8 +572,7 @@ static void test_relative_tol_singular_still_detected(void)
  * ═══════════════════════════════════════════════════════════════════════ */
 
 /* Small 3x3: factor, solve A*x=b and A^T*y=c, verify both */
-static void test_transpose_solve_3x3(void)
-{
+static void test_transpose_solve_3x3(void) {
     /* A = [2 1 0; 1 3 1; 0 1 2] — symmetric positive definite */
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 2.0);
@@ -588,7 +597,8 @@ static void test_transpose_solve_3x3(void)
     /* Verify A*x ≈ b */
     double r[3];
     sparse_matvec(A_orig, x, r);
-    for (int i = 0; i < 3; i++) r[i] -= b[i];
+    for (int i = 0; i < 3; i++)
+        r[i] -= b[i];
     ASSERT_TRUE(vec_norminf(r, 3) < 1e-12);
 
     /* Transpose solve: A^T*y = c where c = [3, 2, 1] */
@@ -598,8 +608,9 @@ static void test_transpose_solve_3x3(void)
 
     /* Verify A^T*y ≈ c: compute A_orig * y (A is symmetric, so A^T = A) */
     double rt[3];
-    sparse_matvec(A_orig, y, rt);  /* A^T = A for symmetric */
-    for (int i = 0; i < 3; i++) rt[i] -= c[i];
+    sparse_matvec(A_orig, y, rt); /* A^T = A for symmetric */
+    for (int i = 0; i < 3; i++)
+        rt[i] -= c[i];
     ASSERT_TRUE(vec_norminf(rt, 3) < 1e-12);
 
     sparse_free(A);
@@ -607,8 +618,7 @@ static void test_transpose_solve_3x3(void)
 }
 
 /* Transpose solve on identity: should equal forward solve */
-static void test_transpose_solve_identity(void)
-{
+static void test_transpose_solve_identity(void) {
     idx_t n = 5;
     SparseMatrix *A = sparse_create(n, n);
     for (idx_t i = 0; i < n; i++)
@@ -628,8 +638,7 @@ static void test_transpose_solve_identity(void)
 }
 
 /* Transpose solve on unsymmetric matrix: A^T*y ≠ A*y in general */
-static void test_transpose_solve_unsymmetric(void)
-{
+static void test_transpose_solve_unsymmetric(void) {
     /* A = [2 3 0; 1 4 1; 0 2 3] — unsymmetric */
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 2.0);
@@ -659,7 +668,8 @@ static void test_transpose_solve_unsymmetric(void)
     /* Verify: A^T * y ≈ b by computing AT * y */
     double r[3];
     sparse_matvec(AT, y, r);
-    for (int i = 0; i < 3; i++) r[i] -= b[i];
+    for (int i = 0; i < 3; i++)
+        r[i] -= b[i];
     ASSERT_TRUE(vec_norminf(r, 3) < 1e-12);
 
     sparse_free(A);
@@ -667,8 +677,7 @@ static void test_transpose_solve_unsymmetric(void)
 }
 
 /* Transpose solve with complete pivoting (exercises column permutation) */
-static void test_transpose_solve_complete_pivot(void)
-{
+static void test_transpose_solve_complete_pivot(void) {
     /* A = [1 5 2; 4 2 1; 3 1 6] — complete pivoting will move entries around */
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 1.0);
@@ -702,7 +711,8 @@ static void test_transpose_solve_complete_pivot(void)
     /* Verify: A^T * y ≈ b */
     double r[3];
     sparse_matvec(AT, y, r);
-    for (int i = 0; i < 3; i++) r[i] -= b[i];
+    for (int i = 0; i < 3; i++)
+        r[i] -= b[i];
     ASSERT_TRUE(vec_norminf(r, 3) < 1e-12);
 
     sparse_free(A);
@@ -710,8 +720,7 @@ static void test_transpose_solve_complete_pivot(void)
 }
 
 /* Transpose solve NULL args */
-static void test_transpose_solve_null(void)
-{
+static void test_transpose_solve_null(void) {
     double b[1] = {1.0}, x[1];
     ASSERT_ERR(sparse_lu_solve_transpose(NULL, b, x), SPARSE_ERR_NULL);
 }
@@ -721,8 +730,7 @@ static void test_transpose_solve_null(void)
  * ═══════════════════════════════════════════════════════════════════════ */
 
 /* condest(I) should be 1.0 */
-static void test_condest_identity(void)
-{
+static void test_condest_identity(void) {
     idx_t n = 5;
     SparseMatrix *A = sparse_create(n, n);
     SparseMatrix *LU = sparse_create(n, n);
@@ -741,8 +749,7 @@ static void test_condest_identity(void)
 }
 
 /* condest of diagonal [1, 2, 3]: cond_1 = ||A||_1 * ||A^{-1}||_1 = 3 * 1 = 3 */
-static void test_condest_diagonal(void)
-{
+static void test_condest_diagonal(void) {
     SparseMatrix *A = sparse_create(3, 3);
     SparseMatrix *LU = sparse_create(3, 3);
     double diag[] = {1.0, 2.0, 3.0};
@@ -762,8 +769,7 @@ static void test_condest_diagonal(void)
 }
 
 /* Well-conditioned tridiagonal: condest should be modest */
-static void test_condest_tridiag_wellcond(void)
-{
+static void test_condest_tridiag_wellcond(void) {
     idx_t n = 10;
     SparseMatrix *A = sparse_create(n, n);
     SparseMatrix *LU = sparse_create(n, n);
@@ -771,12 +777,12 @@ static void test_condest_tridiag_wellcond(void)
         sparse_insert(A, i, i, 4.0);
         sparse_insert(LU, i, i, 4.0);
         if (i > 0) {
-            sparse_insert(A, i, i-1, -1.0);
-            sparse_insert(LU, i, i-1, -1.0);
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(LU, i, i - 1, -1.0);
         }
-        if (i < n-1) {
-            sparse_insert(A, i, i+1, -1.0);
-            sparse_insert(LU, i, i+1, -1.0);
+        if (i < n - 1) {
+            sparse_insert(A, i, i + 1, -1.0);
+            sparse_insert(LU, i, i + 1, -1.0);
         }
     }
     ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
@@ -792,14 +798,13 @@ static void test_condest_tridiag_wellcond(void)
 }
 
 /* Ill-conditioned matrix: condest should be large */
-static void test_condest_illcond(void)
-{
+static void test_condest_illcond(void) {
     /* Near-singular: diagonal with one very small entry */
     idx_t n = 4;
     SparseMatrix *A = sparse_create(n, n);
     SparseMatrix *LU = sparse_create(n, n);
     for (idx_t i = 0; i < n; i++) {
-        double d = (i < n-1) ? 1.0 : 1e-10;
+        double d = (i < n - 1) ? 1.0 : 1e-10;
         sparse_insert(A, i, i, d);
         sparse_insert(LU, i, i, d);
     }
@@ -815,15 +820,13 @@ static void test_condest_illcond(void)
 }
 
 /* condest with NULL args */
-static void test_condest_null(void)
-{
+static void test_condest_null(void) {
     double cond;
     ASSERT_ERR(sparse_lu_condest(NULL, NULL, &cond), SPARSE_ERR_NULL);
 }
 
 /* condest on unfactored matrix returns BADARG */
-static void test_condest_unfactored(void)
-{
+static void test_condest_unfactored(void) {
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 1, 1, 1.0);
@@ -839,8 +842,7 @@ static void test_condest_unfactored(void)
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
-int main(void)
-{
+int main(void) {
     TEST_SUITE_BEGIN("Sparse LU Factorization Tests");
 
     /* Known solutions */

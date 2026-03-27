@@ -159,13 +159,13 @@ sparse_err_t sparse_set(SparseMatrix *mat, idx_t row, idx_t col, double val);
  * ═══════════════════════════════════════════════════════════════════════════ */
 
 /** @brief Return the number of rows. Returns 0 if mat is NULL. */
-idx_t  sparse_rows(const SparseMatrix *mat);
+idx_t sparse_rows(const SparseMatrix *mat);
 
 /** @brief Return the number of columns. Returns 0 if mat is NULL. */
-idx_t  sparse_cols(const SparseMatrix *mat);
+idx_t sparse_cols(const SparseMatrix *mat);
 
 /** @brief Return the number of stored non-zero entries. Returns 0 if mat is NULL. */
-idx_t  sparse_nnz(const SparseMatrix *mat);
+idx_t sparse_nnz(const SparseMatrix *mat);
 
 /**
  * @brief Estimate the memory used by the matrix (bytes).
@@ -225,8 +225,7 @@ sparse_err_t sparse_norminf(SparseMatrix *mat, double *norm);
  * @param y    Output vector of length rows (overwritten).
  * @return SPARSE_OK on success, SPARSE_ERR_NULL if any argument is NULL.
  */
-sparse_err_t sparse_matvec(const SparseMatrix *mat,
-                           const double *x, double *y);
+sparse_err_t sparse_matvec(const SparseMatrix *mat, const double *x, double *y);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Matrix arithmetic
@@ -263,8 +262,8 @@ sparse_err_t sparse_scale(SparseMatrix *mat, double alpha);
  *         SPARSE_ERR_SHAPE if dimensions mismatch, SPARSE_ERR_ALLOC on
  *         memory failure.
  */
-sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B,
-                         double alpha, double beta, SparseMatrix **C_out);
+sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B, double alpha, double beta,
+                        SparseMatrix **C_out);
 
 /**
  * @brief Compute A = alpha*A + beta*B in-place.
@@ -282,8 +281,7 @@ sparse_err_t sparse_add(const SparseMatrix *A, const SparseMatrix *B,
  * @return SPARSE_OK on success, SPARSE_ERR_NULL if any pointer is NULL,
  *         SPARSE_ERR_SHAPE if dimensions mismatch.
  */
-sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B,
-                                 double alpha, double beta);
+sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B, double alpha, double beta);
 
 /**
  * @brief Compute C = A * B (sparse matrix-matrix multiply).
@@ -307,8 +305,7 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B,
  * @return SPARSE_ERR_SHAPE if inner dimensions mismatch (A->cols != B->rows).
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  */
-sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B,
-                           SparseMatrix **C);
+sparse_err_t sparse_matmul(const SparseMatrix *A, const SparseMatrix *B, SparseMatrix **C);
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Matrix Market I/O

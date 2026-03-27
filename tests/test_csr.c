@@ -1,10 +1,10 @@
-#include "sparse_matrix.h"
 #include "sparse_csr.h"
+#include "sparse_matrix.h"
 #include "sparse_types.h"
 #include "test_framework.h"
-#include <stdlib.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #ifndef DATA_DIR
 #define DATA_DIR "tests/data"
@@ -16,8 +16,7 @@
  * ═══════════════════════════════════════════════════════════════════════ */
 
 /* Known 3x3 → verify CSR arrays */
-static void test_csr_known(void)
-{
+static void test_csr_known(void) {
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 0, 2, 3.0);
@@ -60,8 +59,7 @@ static void test_csr_known(void)
 }
 
 /* Round-trip: matrix → CSR → matrix → verify entries */
-static void test_csr_roundtrip(void)
-{
+static void test_csr_roundtrip(void) {
     SparseMatrix *A = sparse_create(4, 3);
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 0, 2, 2.0);
@@ -94,8 +92,7 @@ static void test_csr_roundtrip(void)
 }
 
 /* Empty matrix → CSR with nnz=0 */
-static void test_csr_empty(void)
-{
+static void test_csr_empty(void) {
     SparseMatrix *A = sparse_create(3, 3);
 
     SparseCsr *csr = NULL;
@@ -116,8 +113,7 @@ static void test_csr_empty(void)
 }
 
 /* Dense 2x2 → all entries present */
-static void test_csr_dense(void)
-{
+static void test_csr_dense(void) {
     SparseMatrix *A = sparse_create(2, 2);
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 0, 1, 2.0);
@@ -143,8 +139,7 @@ static void test_csr_dense(void)
 }
 
 /* NULL inputs → proper error codes */
-static void test_csr_null(void)
-{
+static void test_csr_null(void) {
     SparseCsr *csr;
     SparseMatrix *mat;
     ASSERT_ERR(sparse_to_csr(NULL, &csr), SPARSE_ERR_NULL);
@@ -160,8 +155,7 @@ static void test_csr_null(void)
  * ═══════════════════════════════════════════════════════════════════════ */
 
 /* Known 3x3 → verify CSC arrays */
-static void test_csc_known(void)
-{
+static void test_csc_known(void) {
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 0, 2, 3.0);
@@ -192,8 +186,7 @@ static void test_csc_known(void)
 }
 
 /* CSC round-trip */
-static void test_csc_roundtrip(void)
-{
+static void test_csc_roundtrip(void) {
     SparseMatrix *A = sparse_create(3, 4);
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 0, 3, 2.0);
@@ -224,8 +217,7 @@ static void test_csc_roundtrip(void)
 }
 
 /* CSC NULL inputs */
-static void test_csc_null(void)
-{
+static void test_csc_null(void) {
     SparseCsc *csc;
     SparseMatrix *mat;
     ASSERT_ERR(sparse_to_csc(NULL, &csc), SPARSE_ERR_NULL);
@@ -237,8 +229,7 @@ static void test_csc_null(void)
  * ═══════════════════════════════════════════════════════════════════════ */
 
 /* CSR round-trip on west0067 */
-static void test_csr_suitesparse_west0067(void)
-{
+static void test_csr_suitesparse_west0067(void) {
     SparseMatrix *A = NULL;
     ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/west0067.mtx"), SPARSE_OK);
     idx_t orig_nnz = sparse_nnz(A);
@@ -256,8 +247,7 @@ static void test_csr_suitesparse_west0067(void)
     /* Verify sample entries match via CSR arrays */
     for (idx_t i = 0; i < 67; i++) {
         for (idx_t k = csr->row_ptr[i]; k < csr->row_ptr[i + 1]; k++) {
-            ASSERT_NEAR(sparse_get_phys(B, i, csr->col_idx[k]),
-                        csr->values[k], 0.0);
+            ASSERT_NEAR(sparse_get_phys(B, i, csr->col_idx[k]), csr->values[k], 0.0);
         }
     }
 
@@ -269,8 +259,7 @@ static void test_csr_suitesparse_west0067(void)
 }
 
 /* CSC on nos4 — verify column structure */
-static void test_csc_suitesparse_nos4(void)
-{
+static void test_csc_suitesparse_nos4(void) {
     SparseMatrix *A = NULL;
     ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/nos4.mtx"), SPARSE_OK);
     idx_t orig_nnz = sparse_nnz(A);
@@ -300,8 +289,7 @@ static void test_csc_suitesparse_nos4(void)
 
 /* Transpose relationship: CSR of A should match CSC of A^T
  * Since we don't have sparse_transpose yet, build A and A^T manually */
-static void test_csr_csc_transpose(void)
-{
+static void test_csr_csc_transpose(void) {
     /* A = [[1, 0, 3], [0, 5, 0], [7, 0, 9]] */
     SparseMatrix *A = sparse_create(3, 3);
     sparse_insert(A, 0, 0, 1.0);
@@ -346,8 +334,7 @@ static void test_csr_csc_transpose(void)
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
-int main(void)
-{
+int main(void) {
     TEST_SUITE_BEGIN("CSR/CSC Conversion Tests");
 
     /* CSR */

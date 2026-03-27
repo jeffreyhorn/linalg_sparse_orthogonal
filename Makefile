@@ -201,7 +201,82 @@ tsan: CFLAGS += -fsanitize=thread -fno-omit-frame-pointer -g -O1
 tsan: LDFLAGS += -fsanitize=thread
 tsan: clean test
 
+# ─── Code quality targets ─────────────────────────────────────────────
+
+# Source files for formatting/linting
+ALL_SRC = $(shell find $(SRCDIR) -type f \( -name '*.c' -o -name '*.h' \))
+ALL_TEST_SRC = $(shell find $(TESTDIR) -type f \( -name '*.c' -o -name '*.h' \))
+ALL_BENCH_SRC = $(shell find $(BENCHDIR) -type f -name '*.c')
+ALL_HEADERS = $(shell find include -type f -name '*.h')
+
+# Format all source files in-place
+.PHONY: format
+format:
+	@echo "Formatting with clang-format..."
+	clang-format -i $(ALL_SRC) $(ALL_TEST_SRC) $(ALL_BENCH_SRC) $(ALL_HEADERS)
+
+# Check formatting without modifying files
+.PHONY: format-check
+format-check:
+	@echo "Checking formatting with clang-format..."
+	clang-format --dry-run --Werror $(ALL_SRC) $(ALL_TEST_SRC) $(ALL_BENCH_SRC) $(ALL_HEADERS)
+
+# Run all linters
+.PHONY: lint
+lint:
+	@echo "Compiling with strict warnings (-Werror)..."
+	$(CC) $(CFLAGS) -Wstrict-prototypes -Wformat=2 -Werror \
+		$(INCLUDE) -fsyntax-only $(shell find $(SRCDIR) -type f -name '*.c')
+	@echo ""
+	@echo "Running clang-tidy..."
+	clang-tidy $(shell find $(SRCDIR) -type f -name '*.c') -- $(INCLUDE) $(CFLAGS)
+	@echo ""
+	@echo "Running cppcheck..."
+	cppcheck --enable=warning,style,performance,portability --error-exitcode=1 \
+		--suppress=missingIncludeSystem --suppress=constVariablePointer \
+		--suppress=constVariable --suppress=variableScope \
+		--suppress=nullPointerOutOfMemory --suppress=uninitvar \
+		--suppress=constParameterPointer --suppress=unreadVariable \
+		-I include $(SRCDIR) $(TESTDIR)
+
+# Run all quality checks: format + lint + test
+.PHONY: check
+check: format-check lint test
+
+# ─── Code coverage ────────────────────────────────────────────────────
+
+# Build with gcov instrumentation, run tests, generate coverage report.
+# Requires: gcc (real GCC, not Apple Clang shim), lcov, genhtml.
+# On Ubuntu:  apt install gcc lcov
+# On macOS:   brew install gcc lcov && make coverage CC=gcc-14
+# Apple Clang's gcov output is incompatible with lcov.
+COVDIR = coverage
+
+.PHONY: coverage
+coverage: CFLAGS += --coverage -fprofile-arcs -ftest-coverage -g -O0
+coverage: LDFLAGS += --coverage
+coverage: clean $(TEST_BINS)
+	@echo "Running tests for coverage..."
+	@status=0; \
+	for t in $(TEST_BINS); do \
+		$$t || status=1; \
+	done; \
+	if [ $$status -ne 0 ]; then echo "Some tests failed"; exit 1; fi
+	@echo ""
+	@/bin/mkdir -p $(COVDIR)
+	@echo "Collecting coverage data..."
+	lcov --capture --directory $(BUILDDIR) --output-file $(COVDIR)/coverage.info \
+		--ignore-errors mismatch,negative
+	lcov --remove $(COVDIR)/coverage.info '*/tests/*' '*/benchmarks/*' \
+		--output-file $(COVDIR)/coverage-src.info --ignore-errors unused
+	@echo ""
+	@echo "Generating HTML report..."
+	genhtml $(COVDIR)/coverage-src.info --output-directory $(COVDIR)/html
+	@echo ""
+	@echo "Coverage report: $(COVDIR)/html/index.html"
+	lcov --summary $(COVDIR)/coverage-src.info
+
 # Clean
 .PHONY: clean
 clean:
-	/bin/rm -rf $(BUILDDIR)
+	/bin/rm -rf $(BUILDDIR) $(COVDIR)

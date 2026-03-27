@@ -330,7 +330,8 @@ sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat, const double *b,
                 sum += node->value * w[log_j];
             node = node->down;
         }
-        w[i] = d[i] - sum; /* L^T has unit diagonal */ // NOLINT(clang-analyzer-core.UndefinedBinaryOperatorResult)
+        // NOLINTNEXTLINE(clang-analyzer-core.UndefinedBinaryOperatorResult)
+        w[i] = d[i] - sum; /* L^T has unit diagonal */
     }
 
     /* Step 4: x = P^T * w = P^{-1} * w  →  x[i] = w[inv_row_perm[i]] */

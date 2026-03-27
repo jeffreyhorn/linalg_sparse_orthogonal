@@ -169,7 +169,8 @@ sparse_err_t sparse_build_adj(const SparseMatrix *A, idx_t **adj_ptr_out, idx_t 
         while (node) {
             idx_t j = node->col;
             if (j != i && j < n) {
-                adj_list[adj_ptr[i] + cursor[i]++] = j; // NOLINT(clang-analyzer-security.ArrayBound)
+                // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+                adj_list[adj_ptr[i] + cursor[i]++] = j;
                 adj_list[adj_ptr[j] + cursor[j]++] = i;
             }
             node = node->right;

@@ -94,7 +94,8 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat) {
                     col_acc[col_j->row] -= col_j->value * l_kj;
                     if (!nz_row[col_j->row]) {
                         nz_row[col_j->row] = 1;
-                        nz_rows[nnz_rows++] = col_j->row; // NOLINT(clang-analyzer-security.ArrayBound)
+                        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+                        nz_rows[nnz_rows++] = col_j->row;
                     }
                 }
                 col_j = col_j->down;

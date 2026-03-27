@@ -542,7 +542,8 @@ static void test_ilu_gmres_steam1(void)
     double *x_unprec = calloc((size_t)n, sizeof(double));
     ASSERT_NOT_NULL(x_unprec);
     if (!x_unprec) { free(x_exact); free(b); sparse_ilu_free(&ilu); sparse_free(A); return; }
-    sparse_gmres_opts_t opts = {.max_iter = 1000, .restart = 50, .tol = 1e-10, .verbose = 0};
+    /* Relaxed tol: steam1 is ill-conditioned (condest ~3e7) */
+    sparse_gmres_opts_t opts = {.max_iter = 1000, .restart = 50, .tol = 1e-4, .verbose = 0};
     sparse_iter_result_t result_unprec;
     sparse_solve_gmres(A, b, x_unprec, &opts, NULL, NULL, &result_unprec);  /* may not converge */
 

@@ -216,7 +216,7 @@ sparse_err_t sparse_norminf(SparseMatrix *mat, double *norm);
 /**
  * @brief Compute y = A * x (sparse matrix-vector product).
  *
- * Traverses each physical row, accumulating into y using physical ordering.
+ * Computes the product by traversing each row's entries in physical ordering.
  * The caller must allocate y (length = rows) and x (length = cols).
  * Each y[i] is fully overwritten (not accumulated into).
  *

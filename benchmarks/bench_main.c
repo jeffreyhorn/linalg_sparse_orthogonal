@@ -357,13 +357,14 @@ static void benchmark_dir(const char *dirpath, int repeats,
 
 static void benchmark_spmv(SparseMatrix *A, const char *name, int iters)
 {
-    idx_t n = sparse_rows(A);
+    idx_t nrows = sparse_rows(A);
+    idx_t ncols = sparse_cols(A);
     idx_t nnz = sparse_nnz(A);
 
-    double *x = malloc((size_t)n * sizeof(double));
-    double *y = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)ncols * sizeof(double));
+    double *y = malloc((size_t)nrows * sizeof(double));
     if (!x || !y) { free(x); free(y); return; }
-    for (idx_t i = 0; i < n; i++) x[i] = 1.0;
+    for (idx_t i = 0; i < ncols; i++) x[i] = 1.0;
 
     /* Warm up */
     sparse_matvec(A, x, y);
@@ -377,8 +378,8 @@ static void benchmark_spmv(SparseMatrix *A, const char *name, int iters)
     /* 2 flops per nnz (multiply + add) */
     double mflops = 2.0 * (double)nnz / per_spmv / 1e6;
 
-    printf("  %-20s  n=%5d  nnz=%7d  %d iters  %.6f s/iter  %.1f MFLOP/s\n",
-           name, (int)n, (int)nnz, iters, per_spmv, mflops);
+    printf("  %-20s  %dx%d  nnz=%7d  %d iters  %.6f s/iter  %.1f MFLOP/s\n",
+           name, (int)nrows, (int)ncols, (int)nnz, iters, per_spmv, mflops);
 
     free(x); free(y);
 }
@@ -630,12 +631,6 @@ int main(int argc, char **argv)
             SparseMatrix *A = NULL;
             if (sparse_load_mm(&A, filename) != SPARSE_OK) {
                 fprintf(stderr, "Failed to load %s\n", filename);
-                return 1;
-            }
-            if (sparse_rows(A) != sparse_cols(A)) {
-                fprintf(stderr, "Error: %s is non-square (%dx%d), skipping SpMV benchmark\n",
-                        filename, (int)sparse_rows(A), (int)sparse_cols(A));
-                sparse_free(A);
                 return 1;
             }
             benchmark_spmv(A, filename, spmv_iters);

@@ -64,6 +64,9 @@ static int load_system(test_system_t *sys, const char *path)
 {
     sys->A = NULL;
     if (sparse_load_mm(&sys->A, path) != SPARSE_OK) return 0;
+    if (sparse_rows(sys->A) != sparse_cols(sys->A)) {
+        sparse_free(sys->A); sys->A = NULL; return 0;
+    }
     sys->n = sparse_rows(sys->A);
     sys->x_exact = malloc((size_t)sys->n * sizeof(double));
     sys->b = malloc((size_t)sys->n * sizeof(double));

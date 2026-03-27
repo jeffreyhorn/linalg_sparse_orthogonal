@@ -145,7 +145,7 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A,
  * @return SPARSE_ERR_NOT_CONVERGED if max_iter exceeded without convergence.
  * @return SPARSE_ERR_NULL if A, b, or x is NULL.
  * @return SPARSE_ERR_SHAPE if A is not square.
- * @return SPARSE_ERR_BADARG if opts has negative max_iter, restart, or tol.
+ * @return SPARSE_ERR_BADARG if opts has negative max_iter or tol, or restart <= 0.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails or overflows.
  *
  * @threadsafety Read-only on A. Safe to call concurrently on the same matrix

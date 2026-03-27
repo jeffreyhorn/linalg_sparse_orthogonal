@@ -185,7 +185,7 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
     if (sparse_rows(A) != sparse_cols(A)) return SPARSE_ERR_SHAPE;
 
     const sparse_gmres_opts_t *o = opts ? opts : &gmres_defaults;
-    if (o->max_iter < 0 || o->restart < 0 || o->tol < 0.0) return SPARSE_ERR_BADARG;
+    if (o->max_iter < 0 || o->restart <= 0 || o->tol < 0.0) return SPARSE_ERR_BADARG;
     idx_t n = sparse_rows(A);
     idx_t m = o->restart;  /* restart parameter */
 
@@ -234,7 +234,7 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A,
      * when restart is large but max_iter is small */
     if (m > n) m = n;
     if (m > o->max_iter) m = o->max_iter;
-    if (m < 1) m = 1;
+    /* m >= 1 guaranteed: restart <= 0 rejected above, n >= 1, max_iter >= 1 */
 
     /* Check initial true residual before allocating the full workspace,
      * so we return cheaply if the initial guess already satisfies tol */

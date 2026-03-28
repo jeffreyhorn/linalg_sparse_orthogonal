@@ -52,16 +52,25 @@ typedef struct {
 } sparse_iter_opts_t;
 
 /**
+ * @brief Preconditioning side for GMRES.
+ */
+typedef enum {
+    SPARSE_PRECOND_LEFT = 0,  /**< Left preconditioning: solve M^{-1}Ax = M^{-1}b */
+    SPARSE_PRECOND_RIGHT = 1, /**< Right preconditioning: solve AM^{-1}y = b, x = M^{-1}y */
+} sparse_precond_side_t;
+
+/**
  * @brief Options for the GMRES solver.
  *
  * Pass NULL to sparse_solve_gmres() to use defaults:
- * max_iter = 1000, restart = 30, tol = 1e-10, verbose = 0.
+ * max_iter = 1000, restart = 30, tol = 1e-10, verbose = 0, precond_side = LEFT.
  */
 typedef struct {
     idx_t max_iter; /**< Maximum total number of GMRES iterations (default: 1000) */
     idx_t restart;  /**< Restart parameter k for GMRES(k) (default: 30) */
-    double tol;     /**< Convergence tolerance on relative residual ||r||/||b|| (default: 1e-10) */
+    double tol;     /**< Convergence tolerance on relative residual (default: 1e-10) */
     int verbose;    /**< If nonzero, print iteration log to stderr (default: 0) */
+    sparse_precond_side_t precond_side; /**< Left or right preconditioning (default: LEFT) */
 } sparse_gmres_opts_t;
 
 /**
@@ -126,7 +135,9 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
  *
  * GMRES is applicable to general (possibly unsymmetric) square matrices.
  * Uses the Arnoldi process with Givens rotations for the Hessenberg
- * least-squares problem. Supports left preconditioning.
+ * least-squares problem. Supports left and right preconditioning via
+ * opts->precond_side (default: left). With right preconditioning, the
+ * GMRES residual norm equals the true residual ||b - Ax|| (no gap).
  *
  * The input x is used as the initial guess (pass a zero vector for no guess).
  *

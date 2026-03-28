@@ -235,6 +235,11 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
         /* Apply Householder to column step (produces R diagonal and zeros below) */
         householder_apply(hv, beta, col_ptr, col_len);
 
+        /* Check R diagonal: if tiny after reflection, this column is rank-deficient */
+        if (fabs(col_ptr[0]) < rank_tol) {
+            break;
+        }
+
         /* Apply Householder to remaining columns step+1..n-1 */
         for (idx_t j = step + 1; j < n; j++) {
             double *cj = &W[(size_t)j * (size_t)m + (size_t)step];

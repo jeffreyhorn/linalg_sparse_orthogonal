@@ -1,5 +1,6 @@
 #include "sparse_qr.h"
 #include "sparse_matrix_internal.h"
+#include "sparse_reorder.h"
 #include "sparse_vector.h"
 #include <math.h>
 #include <stdlib.h>
@@ -110,8 +111,6 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
     if (!A)
         return SPARSE_ERR_NULL;
 
-    (void)opts; /* reordering deferred to Day 11 */
-
     idx_t m = sparse_rows(A);
     idx_t n = sparse_cols(A);
     idx_t k = (m < n) ? m : n; /* min(m, n) */
@@ -121,6 +120,45 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
 
     if (m == 0 || n == 0)
         return SPARSE_OK;
+
+    /* Compute optional column reordering (AMD on A^T*A pattern) */
+    idx_t *col_reorder = NULL;
+    if (opts && opts->reorder != SPARSE_REORDER_NONE && n > 1) {
+        /* Build A^T*A pattern: an n×n matrix where (i,j) is nonzero if
+         * columns i and j of A share at least one row. */
+        SparseMatrix *AtA = sparse_create(n, n);
+        if (AtA) {
+            for (idx_t row = 0; row < m; row++) {
+                /* Collect column indices in this row */
+                Node *nd1 = A->row_headers[row];
+                while (nd1) {
+                    Node *nd2 = nd1->right;
+                    while (nd2) {
+                        sparse_insert(AtA, nd1->col, nd2->col, 1.0);
+                        sparse_insert(AtA, nd2->col, nd1->col, 1.0);
+                        nd2 = nd2->right;
+                    }
+                    /* Diagonal */
+                    sparse_insert(AtA, nd1->col, nd1->col, 1.0);
+                    nd1 = nd1->right;
+                }
+            }
+
+            col_reorder = malloc((size_t)n * sizeof(idx_t));
+            if (col_reorder) {
+                sparse_err_t rerr = SPARSE_ERR_BADARG;
+                if (opts->reorder == SPARSE_REORDER_AMD)
+                    rerr = sparse_reorder_amd(AtA, col_reorder);
+                else if (opts->reorder == SPARSE_REORDER_RCM)
+                    rerr = sparse_reorder_rcm(AtA, col_reorder);
+                if (rerr != SPARSE_OK) {
+                    free(col_reorder);
+                    col_reorder = NULL;
+                }
+            }
+            sparse_free(AtA);
+        }
+    }
 
     /* Allocate dense m×n working matrix (column-major) */
     double *W = calloc((size_t)m * (size_t)n, sizeof(double));
@@ -135,21 +173,34 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
         free(perm);
         free(betas);
         free(vecs);
+        free(col_reorder);
         return SPARSE_ERR_ALLOC;
     }
 
-    /* Copy A into dense column-major W */
+    /* Copy A into dense column-major W, applying column reorder if present */
     for (idx_t i = 0; i < m; i++) {
         Node *nd = A->row_headers[i];
         while (nd) {
-            W[(size_t)nd->col * (size_t)m + (size_t)i] = nd->value;
+            idx_t dest_col = nd->col;
+            if (col_reorder) {
+                /* Find where original column nd->col goes in reordered space */
+                /* col_reorder[new] = old, so we need inverse: inv[old] = new */
+                for (idx_t p = 0; p < n; p++) {
+                    if (col_reorder[p] == nd->col) {
+                        dest_col = p;
+                        break;
+                    }
+                }
+            }
+            W[(size_t)dest_col * (size_t)m + (size_t)i] = nd->value;
             nd = nd->right;
         }
     }
 
-    /* Initialize column permutation and norms */
+    /* Initialize column permutation: track original column indices.
+     * If col_reorder is present, perm[j] starts as col_reorder[j] (original col). */
     for (idx_t j = 0; j < n; j++) {
-        perm[j] = j;
+        perm[j] = col_reorder ? col_reorder[j] : j;
         double s = 0.0;
         for (idx_t i = 0; i < m; i++) {
             double v = W[(size_t)j * (size_t)m + (size_t)i];
@@ -157,6 +208,7 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
         }
         col_norms[j] = s; /* squared norm */
     }
+    free(col_reorder); /* consumed into perm */
 
     /* Dense Householder vector workspace */
     double *hv = malloc((size_t)m * sizeof(double));

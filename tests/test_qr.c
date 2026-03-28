@@ -1786,6 +1786,144 @@ static void test_rank_explicit_tol(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Column reordering tests (Day 11)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* QR with AMD reordering produces same solution as without */
+static void test_qr_reorder_amd_solve(void) {
+    SparseMatrix *A = sparse_create(4, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 2, 4.0);
+    sparse_insert(A, 2, 3, 1.0);
+    sparse_insert(A, 3, 3, 5.0);
+
+    double b[4] = {1.0, 2.0, 3.0, 4.0};
+
+    /* QR without reordering */
+    sparse_qr_t qr_none;
+    ASSERT_ERR(sparse_qr_factor(A, &qr_none), SPARSE_OK);
+    double x_none[4];
+    sparse_qr_solve(&qr_none, b, x_none, NULL);
+
+    /* QR with AMD reordering */
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_AMD};
+    sparse_qr_t qr_amd;
+    ASSERT_ERR(sparse_qr_factor_opts(A, &opts, &qr_amd), SPARSE_OK);
+    double x_amd[4];
+    sparse_qr_solve(&qr_amd, b, x_amd, NULL);
+
+    /* Solutions should agree */
+    for (int i = 0; i < 4; i++)
+        ASSERT_NEAR(x_none[i], x_amd[i], 1e-10);
+
+    double res_none = compute_rel_residual(A, b, x_none, 4);
+    double res_amd = compute_rel_residual(A, b, x_amd, 4);
+    printf("    AMD reorder solve: none_res=%.3e, amd_res=%.3e\n", res_none, res_amd);
+    ASSERT_TRUE(res_none < 1e-10);
+    ASSERT_TRUE(res_amd < 1e-10);
+
+    sparse_qr_free(&qr_none);
+    sparse_qr_free(&qr_amd);
+    sparse_free(A);
+}
+
+/* QR with AMD on nos4: compare R fill-in */
+static void test_qr_reorder_nos4_fillin(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    /* QR without reordering */
+    sparse_qr_t qr_none;
+    {
+        sparse_err_t ferr = sparse_qr_factor(A, &qr_none);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            sparse_free(A);
+            return;
+        }
+    }
+    idx_t nnz_none = sparse_nnz(qr_none.R);
+
+    /* QR with AMD reordering */
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_AMD};
+    sparse_qr_t qr_amd;
+    {
+        sparse_err_t ferr = sparse_qr_factor_opts(A, &opts, &qr_amd);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            sparse_qr_free(&qr_none);
+            sparse_free(A);
+            return;
+        }
+    }
+    idx_t nnz_amd = sparse_nnz(qr_amd.R);
+
+    printf("    nos4 R fill-in: none=%d, AMD=%d (%.1fx)\n", (int)nnz_none, (int)nnz_amd,
+           nnz_none > 0 ? (double)nnz_amd / (double)nnz_none : 0.0);
+
+    /* Both should produce correct solutions */
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (x_exact && b) {
+        for (idx_t i = 0; i < n; i++)
+            x_exact[i] = (double)(i + 1);
+        sparse_matvec(A, x_exact, b);
+
+        double *x = malloc((size_t)n * sizeof(double));
+        ASSERT_NOT_NULL(x);
+        if (x) {
+            sparse_qr_solve(&qr_amd, b, x, NULL);
+            double rr = compute_rel_residual(A, b, x, n);
+            ASSERT_TRUE(rr < 1e-8);
+            free(x);
+        }
+    }
+    free(x_exact);
+    free(b);
+
+    sparse_qr_free(&qr_none);
+    sparse_qr_free(&qr_amd);
+    sparse_free(A);
+}
+
+/* QR reorder=NONE is same as default */
+static void test_qr_reorder_none(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 1, 0, 3.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 1, 2, 5.0);
+    sparse_insert(A, 2, 2, 6.0);
+
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE};
+    sparse_qr_t qr;
+    ASSERT_ERR(sparse_qr_factor_opts(A, &opts, &qr), SPARSE_OK);
+
+    double recon = qr_reconstruction_error(A, &qr);
+    ASSERT_TRUE(recon < 1e-10);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -1844,6 +1982,11 @@ int main(void) {
     RUN_TEST(test_known_nullspace);
     RUN_TEST(test_rank_rect_deficient);
     RUN_TEST(test_rank_explicit_tol);
+
+    /* Column reordering (Day 11) */
+    RUN_TEST(test_qr_reorder_amd_solve);
+    RUN_TEST(test_qr_reorder_nos4_fillin);
+    RUN_TEST(test_qr_reorder_none);
 
     TEST_SUITE_END();
 }

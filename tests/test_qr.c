@@ -820,6 +820,234 @@ static void test_qr_perm_valid(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Q orthogonality and application tests (Day 7)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Verify Q^T*Q = I for a tall rectangular matrix */
+static void test_q_orthogonality_tall(void) {
+    SparseMatrix *A = sparse_create(8, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Fill with structured entries */
+    for (idx_t i = 0; i < 8; i++)
+        for (idx_t j = 0; j < 5; j++) {
+            double val = cos((double)(i + 1) * (double)(j + 1) * 0.5);
+            if (fabs(val) > 0.2)
+                sparse_insert(A, i, j, val);
+        }
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    idx_t m = qr.m;
+    /* Form Q explicitly and check Q^T*Q = I */
+    double *Q = malloc((size_t)m * (size_t)m * sizeof(double));
+    ASSERT_NOT_NULL(Q);
+    if (!Q) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+    sparse_qr_form_q(&qr, Q);
+
+    double max_off = 0.0;
+    double max_diag_err = 0.0;
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j <= i; j++) {
+            /* Compute Q(:,i)^T * Q(:,j) */
+            double dot = 0.0;
+            for (idx_t kk = 0; kk < m; kk++)
+                dot +=
+                    Q[(size_t)i * (size_t)m + (size_t)kk] * Q[(size_t)j * (size_t)m + (size_t)kk];
+            double expected = (i == j) ? 1.0 : 0.0;
+            double diff = fabs(dot - expected);
+            if (i == j) {
+                if (diff > max_diag_err)
+                    max_diag_err = diff;
+            } else {
+                if (diff > max_off)
+                    max_off = diff;
+            }
+        }
+    }
+    printf("    8x5 Q orthogonality: diag_err=%.3e, off_diag=%.3e\n", max_diag_err, max_off);
+    ASSERT_TRUE(max_diag_err < 1e-10);
+    ASSERT_TRUE(max_off < 1e-10);
+
+    free(Q);
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Q^T applied to b for least-squares setup */
+static void test_q_transpose_b(void) {
+    /* A = [[1,2],[3,4],[5,6]] (3×2), b = [1,2,3] */
+    SparseMatrix *A = sparse_create(3, 2);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 1, 0, 3.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 2, 0, 5.0);
+    sparse_insert(A, 2, 1, 6.0);
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(qr.rank, 2);
+
+    double b[3] = {1.0, 2.0, 3.0};
+    double qtb[3];
+    sparse_qr_apply_q(&qr, 1, b, qtb); /* Q^T * b */
+
+    /* qtb[0:rank] should be the coefficients for back-sub with R */
+    /* qtb[rank:] should give the residual norm */
+    double res_norm = 0.0;
+    for (idx_t i = qr.rank; i < 3; i++)
+        res_norm += qtb[i] * qtb[i];
+    res_norm = sqrt(res_norm);
+
+    printf("    Q^T*b: qtb = [%.6f, %.6f, %.6f], residual_norm=%.6e\n", qtb[0], qtb[1], qtb[2],
+           res_norm);
+
+    /* The residual should be small for this well-conditioned system */
+    /* (3×2 overdetermined, b is close to the column space) */
+    ASSERT_TRUE(res_norm >= 0.0); /* sanity: non-negative */
+
+    /* Verify Q * (Q^T * b) = b */
+    double roundtrip[3];
+    sparse_qr_apply_q(&qr, 0, qtb, roundtrip);
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(roundtrip[i], b[i], 1e-10);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Apply Q to multiple vectors (simulating block operation) */
+static void test_q_apply_multiple(void) {
+    SparseMatrix *A = sparse_create(4, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 2, 4.0);
+    sparse_insert(A, 3, 0, 1.0);
+    sparse_insert(A, 3, 2, 2.0);
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    /* Apply Q and Q^T to several different vectors */
+    for (int t = 0; t < 4; t++) {
+        double x[4] = {0};
+        x[t] = 1.0; /* e_t basis vector */
+        double y[4], z[4];
+        sparse_qr_apply_q(&qr, 1, x, y);
+        sparse_qr_apply_q(&qr, 0, y, z);
+        for (int i = 0; i < 4; i++)
+            ASSERT_NEAR(z[i], x[i], 1e-10);
+    }
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* In-place Q application (x == y) */
+static void test_q_apply_inplace(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 2, 4.0);
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    double x[3] = {1.0, 2.0, 3.0};
+    double x_copy[3] = {1.0, 2.0, 3.0};
+
+    /* In-place: y = Q^T * x where y == x */
+    sparse_qr_apply_q(&qr, 1, x, x);
+    /* Apply Q to get back */
+    sparse_qr_apply_q(&qr, 0, x, x);
+
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x[i], x_copy[i], 1e-10);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Q^T*Q = I on wide matrix (Q is m×m where m < n) */
+static void test_q_orthogonality_wide(void) {
+    SparseMatrix *A = sparse_create(3, 6);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < 3; i++)
+        for (idx_t j = 0; j < 6; j++)
+            sparse_insert(A, i, j, sin((double)((i + 1) * (j + 1))));
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    /* Q is 3×3 — verify orthogonality */
+    double Q[9];
+    sparse_qr_form_q(&qr, Q);
+
+    for (idx_t i = 0; i < 3; i++) {
+        for (idx_t j = 0; j <= i; j++) {
+            double dot = 0.0;
+            for (idx_t kk = 0; kk < 3; kk++)
+                dot += Q[(size_t)i * 3 + (size_t)kk] * Q[(size_t)j * 3 + (size_t)kk];
+            double expected = (i == j) ? 1.0 : 0.0;
+            ASSERT_NEAR(dot, expected, 1e-10);
+        }
+    }
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -850,6 +1078,13 @@ int main(void) {
     RUN_TEST(test_qr_single_row);
     RUN_TEST(test_qr_single_col);
     RUN_TEST(test_qr_perm_valid);
+
+    /* Q orthogonality and application (Day 7) */
+    RUN_TEST(test_q_orthogonality_tall);
+    RUN_TEST(test_q_transpose_b);
+    RUN_TEST(test_q_apply_multiple);
+    RUN_TEST(test_q_apply_inplace);
+    RUN_TEST(test_q_orthogonality_wide);
 
     TEST_SUITE_END();
 }

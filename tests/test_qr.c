@@ -1335,6 +1335,260 @@ static void test_qr_solve_null_residual(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * SuiteSparse validation (Day 9)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* QR on bcsstk04 (132×132 SPD stiffness matrix) */
+static void test_qr_bcsstk04(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    sparse_qr_t qr;
+    {
+        sparse_err_t ferr = sparse_qr_factor(A, &qr);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            sparse_free(A);
+            return;
+        }
+    }
+
+    ASSERT_EQ(qr.rank, n);
+
+    /* Reconstruction */
+    double recon = qr_reconstruction_error(A, &qr);
+    printf("    bcsstk04: rank=%d, ||A-QRP^T||=%.3e\n", (int)qr.rank, recon);
+    ASSERT_TRUE(recon < 1e-6); /* relaxed for ill-conditioned matrix */
+
+    /* Solve */
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x);
+    if (!x_exact || !b || !x) {
+        free(x_exact);
+        free(b);
+        free(x);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = (double)(i + 1);
+    sparse_matvec(A, x_exact, b);
+
+    double res;
+    ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
+    double rr = compute_rel_residual(A, b, x, n);
+    printf("    bcsstk04 QR solve: res_norm=%.3e, true_res=%.3e\n", res, rr);
+    ASSERT_TRUE(rr < 1e-4); /* bcsstk04 is ill-conditioned */
+
+    free(x_exact);
+    free(b);
+    free(x);
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* QR on west0067 (67×67 unsymmetric) */
+static void test_qr_west0067(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/west0067.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    sparse_qr_t qr;
+    {
+        sparse_err_t ferr = sparse_qr_factor(A, &qr);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            sparse_free(A);
+            return;
+        }
+    }
+
+    printf("    west0067: rank=%d\n", (int)qr.rank);
+
+    /* Solve */
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x);
+    if (!x_exact || !b || !x) {
+        free(x_exact);
+        free(b);
+        free(x);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = (double)(i + 1);
+    sparse_matvec(A, x_exact, b);
+
+    double res;
+    ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
+    double rr = compute_rel_residual(A, b, x, n);
+    printf("    west0067 QR solve: res_norm=%.3e, true_res=%.3e\n", res, rr);
+    ASSERT_TRUE(rr < 1e-8);
+
+    free(x_exact);
+    free(b);
+    free(x);
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* QR vs LU on nos4: compare solutions */
+static void test_qr_vs_lu(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (!x_exact || !b) {
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = (double)(i + 1);
+    sparse_matvec(A, x_exact, b);
+
+    /* QR solve */
+    sparse_qr_t qr;
+    {
+        sparse_err_t ferr = sparse_qr_factor(A, &qr);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            free(x_exact);
+            free(b);
+            sparse_free(A);
+            return;
+        }
+    }
+    double *x_qr = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_qr);
+    if (x_qr)
+        sparse_qr_solve(&qr, b, x_qr, NULL);
+
+    /* LU solve */
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_NOT_NULL(LU);
+    double *x_lu = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_lu);
+    if (LU && x_lu) {
+        sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12);
+        sparse_lu_solve(LU, b, x_lu);
+    }
+
+    if (x_qr && x_lu) {
+        double rr_qr = compute_rel_residual(A, b, x_qr, n);
+        double rr_lu = compute_rel_residual(A, b, x_lu, n);
+        printf("    nos4 QR vs LU: qr_res=%.3e, lu_res=%.3e\n", rr_qr, rr_lu);
+        ASSERT_TRUE(rr_qr < 1e-8);
+        ASSERT_TRUE(rr_lu < 1e-8);
+
+        /* Solutions should agree closely */
+        double maxdiff = 0.0;
+        for (idx_t i = 0; i < n; i++) {
+            double diff = fabs(x_qr[i] - x_lu[i]);
+            if (diff > maxdiff)
+                maxdiff = diff;
+        }
+        printf("    nos4 QR vs LU: max |diff| = %.3e\n", maxdiff);
+        ASSERT_TRUE(maxdiff < 1e-4);
+    }
+
+    free(x_exact);
+    free(b);
+    free(x_qr);
+    free(x_lu);
+    sparse_free(LU);
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Larger synthetic tall matrix (50×20) */
+static void test_qr_tall_synthetic(void) {
+    idx_t m = 50, nc = 20;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < nc; j++) {
+            double val = sin((double)(i + 1) * (double)(j + 1) * 0.3);
+            if (fabs(val) > 0.25)
+                sparse_insert(A, i, j, val);
+        }
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    printf("    50x20 synthetic: rank=%d\n", (int)qr.rank);
+    ASSERT_TRUE(qr.rank <= nc);
+
+    /* Reconstruction */
+    double recon = qr_reconstruction_error(A, &qr);
+    printf("    50x20 reconstruction: %.3e\n", recon);
+    ASSERT_TRUE(recon < 1e-10);
+
+    /* Least-squares: construct b = A * x_exact + noise */
+    double *x_exact = malloc((size_t)nc * sizeof(double));
+    double *b = malloc((size_t)m * sizeof(double));
+    double *x = malloc((size_t)nc * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x);
+    if (!x_exact || !b || !x) {
+        free(x_exact);
+        free(b);
+        free(x);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < nc; i++)
+        x_exact[i] = (double)(i + 1);
+    sparse_matvec(A, x_exact, b);
+
+    double res;
+    ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
+    double rr = compute_rel_residual(A, b, x, m);
+    printf("    50x20 solve: res_norm=%.3e, true_res=%.3e\n", res, rr);
+    ASSERT_TRUE(rr < 1e-8);
+
+    free(x_exact);
+    free(b);
+    free(x);
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -1380,6 +1634,12 @@ int main(void) {
     RUN_TEST(test_qr_solve_rank_deficient);
     RUN_TEST(test_qr_solve_nos4);
     RUN_TEST(test_qr_solve_null_residual);
+
+    /* SuiteSparse validation (Day 9) */
+    RUN_TEST(test_qr_bcsstk04);
+    RUN_TEST(test_qr_west0067);
+    RUN_TEST(test_qr_vs_lu);
+    RUN_TEST(test_qr_tall_synthetic);
 
     TEST_SUITE_END();
 }

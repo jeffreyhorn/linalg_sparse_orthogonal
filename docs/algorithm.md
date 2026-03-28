@@ -505,6 +505,43 @@ Extract L (unit lower, below diagonal), U (upper, with diagonal)
 
 ILU(0) preconditioning typically reduces CG iteration count by 3-16× and can make GMRES converge where unpreconditioned GMRES stalls (e.g., steam1: 2000 iterations → 2 iterations).
 
+## ILUT Preconditioner
+
+`sparse_ilut_factor()` computes an Incomplete LU factorization with Threshold dropping, allowing controlled fill-in beyond the original sparsity pattern.
+
+### Algorithm
+
+ILUT uses a dense row accumulator and dual drop rules:
+
+```
+For each row i = 0..n-1:
+    w = row i of A (scattered into dense workspace)
+    row_norm = ||w||_2
+    For each k < i where w[k] != 0:
+        mult = w[k] / U(k,k)
+        if |mult| < tol * row_norm: drop (set w[k] = 0)
+        else: w[k] = mult; w[j] -= mult * U(k,j) for j > k
+    Diagonal modification: if |w[i]| < tol * row_norm, set w[i] = sign(w[i]) * tol * row_norm
+    Apply dual dropping:
+        L entries: keep at most max_fill largest |entries| in columns < i
+        U entries: keep at most max_fill largest |entries| in columns > i (always keep diagonal)
+    Insert surviving entries into L and U
+```
+
+### Comparison with ILU(0)
+
+| Property | ILU(0) | ILUT |
+|----------|--------|------|
+| Fill-in | None beyond A's pattern | Controlled via tol and max_fill |
+| Zero diagonal | Fails (SINGULAR) | Diagonal modification |
+| Quality | Depends on A's pattern | Tunable via parameters |
+| Cost | O(nnz) per row | O(nnz + fill) per row |
+
+### Parameters
+
+- `tol`: entries with |value| < tol * ||row|| are dropped (default: 1e-3)
+- `max_fill`: maximum fill entries kept per row in L and U (default: 10)
+
 ## Preconditioning
 
 A preconditioner M ≈ A transforms the system to improve the condition number, accelerating iterative solver convergence.
@@ -512,6 +549,14 @@ A preconditioner M ≈ A transforms the system to improve the condition number, 
 ### Left Preconditioning
 
 Instead of solving Ax = b, solve M^{-1}Ax = M^{-1}b. The preconditioned system has condition number κ(M^{-1}A) which is ideally close to 1.
+
+### Right Preconditioning
+
+Instead of solving Ax = b directly, introduce y = Mx and solve A*M^{-1}*y = b for y via GMRES, then recover x = M^{-1}*y.
+
+The key advantage: the GMRES residual norm equals the true residual ||b - Ax|| (no gap between preconditioned and true residual). With left preconditioning, the preconditioned residual may converge while the true residual lags behind.
+
+Set `opts.precond_side = SPARSE_PRECOND_RIGHT` to enable right preconditioning.
 
 ### Preconditioner Interface
 
@@ -527,6 +572,7 @@ The callback solves Mz = r given input r and outputs z. Available preconditioner
 | Preconditioner | Function | Best for | Quality |
 |----------------|----------|----------|---------|
 | ILU(0) | `sparse_ilu_precond` | General matrices | Good (3-1000× speedup) |
+| ILUT | `sparse_ilut_precond` | Matrices with zero diagonal | Better than ILU(0), tunable |
 | Cholesky | Custom wrapper | SPD matrices | Exact (1 iteration) but expensive setup |
 | Diagonal (Jacobi) | Custom wrapper | Poorly scaled matrices | Modest improvement |
 | Identity | Pass NULL | Baseline | No preconditioning |
@@ -534,9 +580,71 @@ The callback solves Mz = r given input r and outputs z. Available preconditioner
 ### Selection Guide
 
 - For SPD systems: use ILU-CG (best balance of setup cost and iteration reduction)
-- For unsymmetric systems: use ILU-GMRES
-- If ILU fails (zero diagonal): use unpreconditioned GMRES with large restart, or LU direct
-- If exact solution needed: use direct solver (LU or Cholesky)
+- For unsymmetric systems: use ILU-GMRES (right preconditioning recommended)
+- If ILU(0) fails (zero diagonal): use ILUT with diagonal modification
+- If exact solution needed: use direct solver (LU, Cholesky, or QR)
+
+## Sparse QR Factorization
+
+`sparse_qr_factor()` computes the column-pivoted QR factorization A*P = Q*R using Householder reflections.
+
+### Householder Reflections
+
+Given a vector x, compute v and beta such that (I - beta*v*v^T)*x = ||x||*e_1:
+
+```
+v = x
+v[0] += sign(x[0]) * ||x||
+beta = 2 / (v^T * v)
+```
+
+Application to a vector y: y = y - beta * v * (v^T * y), requiring only O(len) work.
+
+### Column-Pivoted QR Algorithm
+
+```
+Initialize: column norms, identity permutation
+For k = 0 to min(m,n)-1:
+    Select pivot: column with largest remaining norm
+    Swap columns k and pivot
+    Compute Householder vector v_k for column k below diagonal
+    Check rank: if |R(k,k)| < tol, stop (rank = k)
+    Apply H_k to remaining columns k+1..n-1
+    Downdate column norms: ||col_j||^2 -= col_j[k]^2
+Store R as sparse upper triangular, Q as Householder vectors (v_k, beta_k)
+```
+
+### Column Pivoting
+
+Column pivoting ensures |R(k,k)| >= |R(k+1,k+1)|, providing:
+- **Rank revelation:** small R diagonals indicate rank deficiency
+- **Numerical stability:** largest norm column eliminated first
+- **Permutation tracking:** col_perm[k] = original column index
+
+### Least-Squares Solving
+
+For overdetermined systems (m > n), `sparse_qr_solve()` computes min ||Ax - b||_2:
+
+```
+c = Q^T * b
+Back-substitute: R[0:rank, 0:rank] * x_p = c[0:rank]
+Unpermute: x[col_perm[i]] = x_p[i]
+Residual: ||c[rank:]||_2
+```
+
+### Rank Estimation and Null Space
+
+- `sparse_qr_rank(qr, tol)`: counts R diagonal entries exceeding tol * |R(0,0)|
+- `sparse_qr_nullspace(qr, tol, basis, ndim)`: for each null column j, solves R*z = -R[:,j] and forms the null-space vector [z; e_j], unpermuted to original column space
+
+### Column Reordering
+
+Optional AMD reordering on A^T*A sparsity pattern can reduce fill-in in R:
+
+```c
+sparse_qr_opts_t opts = { .reorder = SPARSE_REORDER_AMD };
+sparse_qr_factor_opts(A, &opts, &qr);
+```
 
 ## Parallel SpMV (OpenMP)
 

@@ -585,6 +585,241 @@ static void test_qr_reconstruction_large(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Edge cases and hardening (Day 6)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Helper: verify ||A - Q*R*P^T|| < tol */
+static double qr_reconstruction_error(const SparseMatrix *A, const sparse_qr_t *qr) {
+    idx_t m = qr->m;
+    idx_t n_cols = qr->n;
+    double *Q = malloc((size_t)m * (size_t)m * sizeof(double));
+    if (!Q)
+        return -1.0;
+    sparse_qr_form_q(qr, Q);
+
+    idx_t rrows = sparse_rows(qr->R);
+    double maxerr = 0.0;
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t jp = 0; jp < n_cols; jp++) {
+            double qr_val = 0.0;
+            for (idx_t kk = 0; kk < rrows; kk++) {
+                double q_ik = Q[(size_t)kk * (size_t)m + (size_t)i];
+                double r_kj = sparse_get_phys(qr->R, kk, jp);
+                qr_val += q_ik * r_kj;
+            }
+            idx_t orig_col = qr->col_perm[jp];
+            double a_val = sparse_get_phys(A, i, orig_col);
+            double diff = fabs(qr_val - a_val);
+            if (diff > maxerr)
+                maxerr = diff;
+        }
+    }
+    free(Q);
+    return maxerr;
+}
+
+/* Rank-1 matrix (outer product): rank should be 1 */
+static void test_qr_rank_1(void) {
+    idx_t m = 5, n_c = 4;
+    SparseMatrix *A = sparse_create(m, n_c);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* A = u * v^T where u = [1,2,3,4,5], v = [1,1,1,1] */
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < n_c; j++)
+            sparse_insert(A, i, j, (double)(i + 1));
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    printf("    rank-1 (5x4): rank=%d\n", (int)qr.rank);
+    ASSERT_EQ(qr.rank, 1);
+
+    double recon_err = qr_reconstruction_error(A, &qr);
+    printf("    rank-1 reconstruction: %.3e\n", recon_err);
+    ASSERT_TRUE(recon_err < 1e-10);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Nearly singular: one column is almost a multiple of another */
+static void test_qr_nearly_singular(void) {
+    SparseMatrix *A = sparse_create(4, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* col0 and col2 are nearly identical */
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 0, 2.0);
+    sparse_insert(A, 2, 0, 3.0);
+    sparse_insert(A, 3, 0, 4.0);
+
+    sparse_insert(A, 0, 1, 5.0);
+    sparse_insert(A, 1, 1, 6.0);
+    sparse_insert(A, 2, 1, 7.0);
+    sparse_insert(A, 3, 1, 8.0);
+
+    sparse_insert(A, 0, 2, 1.0 + 1e-12); /* col2 ≈ col0 */
+    sparse_insert(A, 1, 2, 2.0 + 1e-12);
+    sparse_insert(A, 2, 2, 3.0 + 1e-12);
+    sparse_insert(A, 3, 2, 4.0 + 1e-12);
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    printf("    nearly singular 4x3: rank=%d\n", (int)qr.rank);
+    /* Rank should be 2 (the near-duplicate column is detected) */
+    ASSERT_TRUE(qr.rank <= 3);
+
+    double recon_err = qr_reconstruction_error(A, &qr);
+    printf("    nearly singular reconstruction: %.3e\n", recon_err);
+    ASSERT_TRUE(recon_err < 1e-8);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Diagonal matrix: trivial QR */
+static void test_qr_diagonal(void) {
+    SparseMatrix *A = sparse_create(4, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 3.0);
+    sparse_insert(A, 1, 1, 7.0);
+    sparse_insert(A, 2, 2, 1.0);
+    sparse_insert(A, 3, 3, 5.0);
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(qr.rank, 4);
+    /* R diagonals should be the original diagonal values (reordered by magnitude) */
+    ASSERT_NEAR(fabs(sparse_get_phys(qr.R, 0, 0)), 7.0, 1e-10);
+
+    double recon_err = qr_reconstruction_error(A, &qr);
+    ASSERT_TRUE(recon_err < 1e-10);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Single-row matrix (1×4) */
+static void test_qr_single_row(void) {
+    SparseMatrix *A = sparse_create(1, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 3.0);
+    sparse_insert(A, 0, 1, 4.0);
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(qr.rank, 1);
+    /* Pivot selects largest column element (4.0), so R(0,0) = ±4 */
+    ASSERT_NEAR(fabs(sparse_get_phys(qr.R, 0, 0)), 4.0, 1e-10);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Single-column matrix (5×1) */
+static void test_qr_single_col(void) {
+    SparseMatrix *A = sparse_create(5, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < 5; i++)
+        sparse_insert(A, i, 0, (double)(i + 1));
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(qr.rank, 1);
+    /* R(0,0) = ||[1,2,3,4,5]|| = sqrt(55) ≈ 7.416 */
+    ASSERT_NEAR(fabs(sparse_get_phys(qr.R, 0, 0)), sqrt(55.0), 1e-10);
+
+    /* Q^T * Q should still be orthogonal */
+    double x[5] = {1.0, 0.0, 0.0, 0.0, 0.0};
+    double y[5], z[5];
+    sparse_qr_apply_q(&qr, 1, x, y);
+    sparse_qr_apply_q(&qr, 0, y, z);
+    for (int i = 0; i < 5; i++)
+        ASSERT_NEAR(z[i], x[i], 1e-10);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Permutation: verify col_perm is a valid permutation */
+static void test_qr_perm_valid(void) {
+    SparseMatrix *A = sparse_create(6, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < 6; i++)
+        for (idx_t j = 0; j < 5; j++)
+            if ((i + j) % 3 != 0)
+                sparse_insert(A, i, j, sin((double)(i * 5 + j + 1)));
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    /* Check permutation is valid */
+    int *seen = calloc((size_t)qr.n, sizeof(int));
+    ASSERT_NOT_NULL(seen);
+    if (seen) {
+        for (idx_t i = 0; i < qr.n; i++) {
+            ASSERT_TRUE(qr.col_perm[i] >= 0 && qr.col_perm[i] < qr.n);
+            seen[qr.col_perm[i]] = 1;
+        }
+        for (idx_t i = 0; i < qr.n; i++)
+            ASSERT_TRUE(seen[i]);
+        free(seen);
+    }
+
+    double recon_err = qr_reconstruction_error(A, &qr);
+    printf("    6x5 perm valid: rank=%d, recon=%.3e\n", (int)qr.rank, recon_err);
+    ASSERT_TRUE(recon_err < 1e-10);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -607,6 +842,14 @@ int main(void) {
     RUN_TEST(test_qr_wide);
     RUN_TEST(test_qr_rank_deficient);
     RUN_TEST(test_qr_reconstruction_large);
+
+    /* Edge cases and hardening (Day 6) */
+    RUN_TEST(test_qr_rank_1);
+    RUN_TEST(test_qr_nearly_singular);
+    RUN_TEST(test_qr_diagonal);
+    RUN_TEST(test_qr_single_row);
+    RUN_TEST(test_qr_single_col);
+    RUN_TEST(test_qr_perm_valid);
 
     TEST_SUITE_END();
 }

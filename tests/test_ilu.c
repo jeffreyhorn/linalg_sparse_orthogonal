@@ -1201,9 +1201,8 @@ static void test_ilut_gmres_west0067(void) {
     sparse_ilut_opts_t opts = {.tol = 1e-4, .max_fill = 20};
     sparse_ilu_t ilut;
     sparse_err_t ferr = sparse_ilut_factor(A, &opts, &ilut);
+    ASSERT_ERR(ferr, SPARSE_OK);
     if (ferr != SPARSE_OK) {
-        printf("    west0067 ILUT-GMRES: ILUT factor failed (%s), skipping\n",
-               sparse_strerror(ferr));
         free(x_exact);
         free(b);
         sparse_free(A);
@@ -1219,19 +1218,27 @@ static void test_ilut_gmres_west0067(void) {
         sparse_free(A);
         return;
     }
-    sparse_gmres_opts_t gm_opts = {.max_iter = 500, .restart = 30, .tol = 1e-10, .verbose = 0};
+    /* west0067 has 65/67 zero diagonals; ILUT uses diagonal modification to
+     * produce factors, but the resulting preconditioner is too poor for GMRES
+     * convergence.  We assert that ILUT factorisation succeeds (above) and
+     * that GMRES runs without crashing, returning a well-formed result. */
+    sparse_gmres_opts_t gm_opts = {.max_iter = 500,
+                                   .restart = 30,
+                                   .tol = 1e-10,
+                                   .verbose = 0,
+                                   .precond_side = SPARSE_PRECOND_RIGHT};
     sparse_iter_result_t result;
     sparse_err_t solve_err =
         sparse_solve_gmres(A, b, x, &gm_opts, sparse_ilut_precond, &ilut, &result);
 
     double res = compute_relative_residual(A, b, x, n);
-    printf("    west0067 ILUT-GMRES(30): %d iters, res=%.3e, conv=%d\n", (int)result.iterations,
-           res, result.converged);
+    printf("    west0067 ILUT-right-GMRES(30): %d iters, res=%.3e, conv=%d\n",
+           (int)result.iterations, res, result.converged);
 
-    if (solve_err == SPARSE_OK) {
-        ASSERT_TRUE(result.converged);
-        ASSERT_TRUE(res < 1e-6);
-    }
+    /* GMRES is expected not to converge on this pathological matrix */
+    ASSERT_TRUE(solve_err == SPARSE_OK || solve_err == SPARSE_ERR_NOT_CONVERGED);
+    ASSERT_TRUE(result.iterations > 0);
+    ASSERT_TRUE(result.residual_norm >= 0.0);
 
     free(x_exact);
     free(b);

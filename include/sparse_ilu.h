@@ -127,8 +127,10 @@ typedef struct {
  * 2. At most max_fill largest entries are kept per row in L and U.
  *
  * Unlike ILU(0), ILUT allows controlled fill-in and can handle matrices
- * with structurally zero diagonals (e.g., west0067) by using row swaps
- * when the current pivot is too small.
+ * with structurally zero diagonals (e.g., west0067) by using diagonal
+ * modification: when a pivot is too small, a nonzero value is inserted
+ * on the diagonal to stabilize the factorization. No row permutation
+ * is performed (the @c perm field of @c sparse_ilu_t is unused/NULL).
  *
  * The original matrix A is not modified.
  *
@@ -145,7 +147,7 @@ typedef struct {
  * @return SPARSE_ERR_SHAPE if A is not square.
  * @return SPARSE_ERR_BADARG if A has non-identity permutations or opts has
  *         invalid values (tol < 0 or max_fill < 0).
- * @return SPARSE_ERR_SINGULAR if a zero pivot is encountered after row swaps.
+ * @return SPARSE_ERR_SINGULAR if a zero pivot is encountered after diagonal modification.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  */
 sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t *opts,

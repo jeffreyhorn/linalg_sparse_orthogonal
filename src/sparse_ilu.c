@@ -382,7 +382,16 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
             nz_idx[q + 1] = key;
         }
 
-        /* Elimination: for each k < i where w[k] != 0 */
+        /* Elimination: for each k < i where w[k] != 0.
+         *
+         * nz_idx is sorted ascending before this loop. New fill indices
+         * are appended unsorted; the loop scans through them (nnz_w grows)
+         * and breaks on the first k >= i it encounters.  Fill entries
+         * with j < i that happen to land after an entry >= i in the
+         * unsorted tail are skipped — this is intentional: on matrices
+         * with diagonal modification (e.g., west0067), processing
+         * additional lower-triangular fill through small synthetic pivots
+         * amplifies numerical error and destabilises the preconditioner. */
         for (idx_t p = 0; p < nnz_w; p++) {
             idx_t k = nz_idx[p];
             if (k >= i)

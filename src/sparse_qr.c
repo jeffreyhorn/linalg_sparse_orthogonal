@@ -177,25 +177,34 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
         return SPARSE_ERR_ALLOC;
     }
 
+    /* Build inverse permutation for O(1) lookup if reordering is present.
+     * col_reorder[new] = old, so inv_col_reorder[old] = new. */
+    idx_t *inv_col_reorder = NULL;
+    if (col_reorder) {
+        inv_col_reorder = malloc((size_t)n * sizeof(idx_t));
+        if (!inv_col_reorder) {
+            free(W);
+            free(col_norms);
+            free(perm);
+            free(betas);
+            free(vecs);
+            free(col_reorder);
+            return SPARSE_ERR_ALLOC;
+        }
+        for (idx_t j = 0; j < n; j++)
+            inv_col_reorder[col_reorder[j]] = j;
+    }
+
     /* Copy A into dense column-major W, applying column reorder if present */
     for (idx_t i = 0; i < m; i++) {
         Node *nd = A->row_headers[i];
         while (nd) {
-            idx_t dest_col = nd->col;
-            if (col_reorder) {
-                /* Find where original column nd->col goes in reordered space */
-                /* col_reorder[new] = old, so we need inverse: inv[old] = new */
-                for (idx_t p = 0; p < n; p++) {
-                    if (col_reorder[p] == nd->col) {
-                        dest_col = p;
-                        break;
-                    }
-                }
-            }
+            idx_t dest_col = inv_col_reorder ? inv_col_reorder[nd->col] : nd->col;
             W[(size_t)dest_col * (size_t)m + (size_t)i] = nd->value;
             nd = nd->right;
         }
     }
+    free(inv_col_reorder);
 
     /* Initialize column permutation: track original column indices.
      * If col_reorder is present, perm[j] starts as col_reorder[j] (original col). */
@@ -362,7 +371,7 @@ sparse_err_t sparse_qr_apply_q(const sparse_qr_t *qr, int transpose, const doubl
         return SPARSE_OK;
 
     if (!transpose) {
-        /* Q*x = H_0 * H_1 * ... * H_{k-1} * x (apply in forward order) */
+        /* Q*x = H_0 * H_1 * ... * H_{k-1} * x (apply reflectors right-to-left) */
         for (idx_t i = k - 1; i >= 0; i--) {
             if (qr->betas[i] == 0.0)
                 continue;

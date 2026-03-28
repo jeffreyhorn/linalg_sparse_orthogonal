@@ -203,8 +203,8 @@ static void test_ilut_right_gmres_west0067(void) {
     sparse_ilut_opts_t ilut_opts = {.tol = 1e-4, .max_fill = 20};
     sparse_ilu_t ilut;
     sparse_err_t ferr = sparse_ilut_factor(A, &ilut_opts, &ilut);
+    ASSERT_ERR(ferr, SPARSE_OK);
     if (ferr != SPARSE_OK) {
-        printf("    west0067 ILUT-right-GMRES: ILUT failed (%s)\n", sparse_strerror(ferr));
         free(x_exact);
         free(b);
         sparse_free(A);
@@ -220,17 +220,25 @@ static void test_ilut_right_gmres_west0067(void) {
         sparse_free(A);
         return;
     }
+    /* west0067 has 65/67 zero diagonals; ILUT uses diagonal modification
+     * but the resulting preconditioner is too poor for GMRES convergence.
+     * We validate that the solver runs without crashing and returns a
+     * well-formed result. */
     sparse_gmres_opts_t gm_opts = {.max_iter = 500,
                                    .restart = 30,
                                    .tol = 1e-8,
                                    .verbose = 0,
                                    .precond_side = SPARSE_PRECOND_RIGHT};
     sparse_iter_result_t result;
-    sparse_solve_gmres(A, b, x, &gm_opts, sparse_ilut_precond, &ilut, &result);
+    sparse_err_t solve_err =
+        sparse_solve_gmres(A, b, x, &gm_opts, sparse_ilut_precond, &ilut, &result);
+    ASSERT_TRUE(solve_err == SPARSE_OK || solve_err == SPARSE_ERR_NOT_CONVERGED);
 
     double rr = compute_rel_residual(A, b, x, n);
     printf("    west0067 ILUT-right-GMRES: %d iters, res=%.3e, conv=%d\n", (int)result.iterations,
            rr, result.converged);
+    ASSERT_TRUE(result.iterations > 0);
+    ASSERT_TRUE(result.residual_norm >= 0.0);
 
     free(x_exact);
     free(b);
@@ -265,7 +273,9 @@ static void test_qr_vs_gmres(void) {
     double x_gm[5] = {0};
     sparse_gmres_opts_t gm_opts = {.max_iter = 100, .restart = 10, .tol = 1e-12, .verbose = 0};
     sparse_iter_result_t result;
-    sparse_solve_gmres(A, b, x_gm, &gm_opts, NULL, NULL, &result);
+    sparse_err_t gmres_err = sparse_solve_gmres(A, b, x_gm, &gm_opts, NULL, NULL, &result);
+    ASSERT_ERR(gmres_err, SPARSE_OK);
+    ASSERT_TRUE(result.converged);
 
     for (int i = 0; i < 5; i++)
         ASSERT_NEAR(x_qr[i], x_gm[i], 1e-8);

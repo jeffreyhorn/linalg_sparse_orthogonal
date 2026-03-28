@@ -1589,6 +1589,203 @@ static void test_qr_tall_synthetic(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Rank estimation and null-space tests (Day 10)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Full-rank matrix → rank = n, empty null space */
+static void test_rank_full(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 2, 4.0);
+
+    sparse_qr_t qr;
+    ASSERT_ERR(sparse_qr_factor(A, &qr), SPARSE_OK);
+
+    idx_t r = sparse_qr_rank(&qr, 0.0);
+    ASSERT_EQ(r, 3);
+
+    idx_t ndim;
+    ASSERT_ERR(sparse_qr_nullspace(&qr, 0.0, NULL, &ndim), SPARSE_OK);
+    ASSERT_EQ(ndim, 0);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Rank-1 outer product → rank = 1, null space dim = n-1 */
+static void test_rank_1_nullspace(void) {
+    idx_t m = 4, nc = 3;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* A = u * v^T where u = [1,2,3,4], v = [1,1,1] → rank 1 */
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < nc; j++)
+            sparse_insert(A, i, j, (double)(i + 1));
+
+    sparse_qr_t qr;
+    ASSERT_ERR(sparse_qr_factor(A, &qr), SPARSE_OK);
+
+    idx_t r = sparse_qr_rank(&qr, 0.0);
+    printf("    rank-1 outer: rank=%d\n", (int)r);
+    ASSERT_EQ(r, 1);
+
+    idx_t ndim;
+    ASSERT_ERR(sparse_qr_nullspace(&qr, 0.0, NULL, &ndim), SPARSE_OK);
+    ASSERT_EQ(ndim, 2); /* n - rank = 3 - 1 = 2 */
+
+    /* Extract null-space basis and verify A * v ≈ 0 */
+    double *basis = malloc((size_t)nc * (size_t)ndim * sizeof(double));
+    ASSERT_NOT_NULL(basis);
+    if (basis) {
+        ASSERT_ERR(sparse_qr_nullspace(&qr, 0.0, basis, &ndim), SPARSE_OK);
+
+        for (idx_t j = 0; j < ndim; j++) {
+            double *nv = &basis[(size_t)j * (size_t)nc];
+            /* Compute A * nv */
+            double *Anv = calloc((size_t)m, sizeof(double));
+            if (Anv) {
+                sparse_matvec(A, nv, Anv);
+                double nrm = vec_norm2(Anv, m);
+                printf("    null vec %d: ||A*v|| = %.3e\n", (int)j, nrm);
+                ASSERT_TRUE(nrm < 1e-10);
+                free(Anv);
+            }
+        }
+        free(basis);
+    }
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Known null space: col2 = col0, so [1, 0, -1] is in null space */
+static void test_known_nullspace(void) {
+    SparseMatrix *A = sparse_create(4, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 0, 2.0);
+    sparse_insert(A, 2, 0, 3.0);
+    sparse_insert(A, 3, 0, 4.0);
+    sparse_insert(A, 0, 1, 5.0);
+    sparse_insert(A, 1, 1, 6.0);
+    sparse_insert(A, 2, 1, 7.0);
+    sparse_insert(A, 3, 1, 8.0);
+    sparse_insert(A, 0, 2, 1.0); /* col2 = col0 */
+    sparse_insert(A, 1, 2, 2.0);
+    sparse_insert(A, 2, 2, 3.0);
+    sparse_insert(A, 3, 2, 4.0);
+
+    sparse_qr_t qr;
+    ASSERT_ERR(sparse_qr_factor(A, &qr), SPARSE_OK);
+
+    idx_t r = sparse_qr_rank(&qr, 0.0);
+    ASSERT_EQ(r, 2);
+
+    idx_t ndim;
+    double basis[3]; /* n * ndim = 3 * 1 */
+    ASSERT_ERR(sparse_qr_nullspace(&qr, 0.0, basis, &ndim), SPARSE_OK);
+    ASSERT_EQ(ndim, 1);
+
+    /* Verify A * basis ≈ 0 */
+    double Av[4];
+    sparse_matvec(A, basis, Av);
+    double nrm = vec_norm2(Av, 4);
+    printf("    known null: ||A*v|| = %.3e, v=[%.3f, %.3f, %.3f]\n", nrm, basis[0], basis[1],
+           basis[2]);
+    ASSERT_TRUE(nrm < 1e-10);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Rank-deficient rectangular: 3×5 with rank 2 */
+static void test_rank_rect_deficient(void) {
+    SparseMatrix *A = sparse_create(3, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Row 2 = Row 0 + Row 1, so rank = 2 */
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 0, 3, 1.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 1, 4, 2.0);
+    /* row2 = row0 + row1 */
+    sparse_insert(A, 2, 0, 1.0);
+    sparse_insert(A, 2, 1, 5.0);
+    sparse_insert(A, 2, 2, 1.0);
+    sparse_insert(A, 2, 3, 1.0);
+    sparse_insert(A, 2, 4, 2.0);
+
+    sparse_qr_t qr;
+    ASSERT_ERR(sparse_qr_factor(A, &qr), SPARSE_OK);
+
+    idx_t r = sparse_qr_rank(&qr, 0.0);
+    printf("    3x5 rank-deficient: rank=%d\n", (int)r);
+    ASSERT_EQ(r, 2);
+
+    idx_t ndim;
+    ASSERT_ERR(sparse_qr_nullspace(&qr, 0.0, NULL, &ndim), SPARSE_OK);
+    ASSERT_EQ(ndim, 3); /* 5 - 2 = 3 */
+
+    /* Extract and verify null-space vectors */
+    double *basis = malloc(5 * 3 * sizeof(double));
+    ASSERT_NOT_NULL(basis);
+    if (basis) {
+        ASSERT_ERR(sparse_qr_nullspace(&qr, 0.0, basis, &ndim), SPARSE_OK);
+        for (idx_t j = 0; j < ndim; j++) {
+            double *nv = &basis[(size_t)j * 5];
+            double Av[3];
+            sparse_matvec(A, nv, Av);
+            double nrm = vec_norm2(Av, 3);
+            ASSERT_TRUE(nrm < 1e-10);
+        }
+        free(basis);
+    }
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* sparse_qr_rank with explicit tolerance */
+static void test_rank_explicit_tol(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 1e-8);
+    sparse_insert(A, 2, 2, 1e-16);
+
+    sparse_qr_t qr;
+    ASSERT_ERR(sparse_qr_factor(A, &qr), SPARSE_OK);
+
+    /* With tight tolerance: rank = 3 (or 2 depending on threshold) */
+    idx_t r_tight = sparse_qr_rank(&qr, 1e-18);
+    /* With loose tolerance: rank should drop */
+    idx_t r_loose = sparse_qr_rank(&qr, 1e-6);
+
+    printf("    explicit tol: tight=%d, loose=%d\n", (int)r_tight, (int)r_loose);
+    ASSERT_TRUE(r_tight >= r_loose);
+    ASSERT_TRUE(r_loose >= 1);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -1640,6 +1837,13 @@ int main(void) {
     RUN_TEST(test_qr_west0067);
     RUN_TEST(test_qr_vs_lu);
     RUN_TEST(test_qr_tall_synthetic);
+
+    /* Rank estimation and null space (Day 10) */
+    RUN_TEST(test_rank_full);
+    RUN_TEST(test_rank_1_nullspace);
+    RUN_TEST(test_known_nullspace);
+    RUN_TEST(test_rank_rect_deficient);
+    RUN_TEST(test_rank_explicit_tol);
 
     TEST_SUITE_END();
 }

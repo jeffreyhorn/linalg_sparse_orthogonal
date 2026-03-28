@@ -418,19 +418,108 @@ sparse_err_t sparse_qr_solve(const sparse_qr_t *qr, const double *b, double *x, 
     return SPARSE_OK;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Rank estimation and null-space extraction
+ * ═══════════════════════════════════════════════════════════════════════ */
+
 idx_t sparse_qr_rank(const sparse_qr_t *qr, double tol) {
-    (void)qr;
-    (void)tol;
-    return 0; /* stub — implemented in Day 10 */
+    if (!qr || !qr->R)
+        return 0;
+
+    idx_t k = (qr->m < qr->n) ? qr->m : qr->n;
+    if (k == 0)
+        return 0;
+
+    double r00 = fabs(sparse_get_phys(qr->R, 0, 0));
+    if (r00 == 0.0)
+        return 0;
+
+    /* Default tolerance: eps * max(m,n) * |R(0,0)| */
+    if (tol <= 0.0) {
+        double eps = 2.2204460492503131e-16; /* DBL_EPSILON */
+        idx_t mn = (qr->m > qr->n) ? qr->m : qr->n;
+        tol = eps * (double)mn * r00;
+    } else {
+        tol = tol * r00;
+    }
+
+    idx_t rank = 0;
+    for (idx_t i = 0; i < k; i++) {
+        if (fabs(sparse_get_phys(qr->R, i, i)) > tol)
+            rank++;
+        else
+            break;
+    }
+    return rank;
 }
 
-// NOLINTNEXTLINE(readability-non-const-parameter)
-sparse_err_t sparse_qr_nullspace(const sparse_qr_t *qr, double tol,
-                                 double *basis,     // NOLINT(readability-non-const-parameter)
-                                 idx_t *null_dim) { // NOLINT(readability-non-const-parameter)
-    (void)qr;
-    (void)tol;
-    (void)basis;
-    (void)null_dim;
-    return SPARSE_ERR_BADARG; /* stub — implemented in Day 10 */
+sparse_err_t sparse_qr_nullspace(const sparse_qr_t *qr, double tol, double *basis,
+                                 idx_t *null_dim) {
+    if (!qr || !null_dim)
+        return SPARSE_ERR_NULL;
+
+    idx_t n = qr->n;
+    idx_t rank = sparse_qr_rank(qr, tol);
+    idx_t ndim = n - rank;
+    *null_dim = ndim;
+
+    if (ndim == 0 || !basis)
+        return SPARSE_OK;
+
+    idx_t m = qr->m;
+
+    /* For each null-space vector j (j = rank..n-1 in permuted space):
+     * Solve R[0:rank, 0:rank] * z[0:rank] = -R[0:rank, j]
+     * Then the null-space vector in permuted space is [z; e_j]
+     * Unpermute to get the vector in original column space.
+     */
+    for (idx_t j_idx = 0; j_idx < ndim; j_idx++) {
+        idx_t j = rank + j_idx;                         /* column index in permuted R */
+        double *nv = &basis[(size_t)j_idx * (size_t)n]; /* j_idx-th null vector, length n */
+
+        /* Extract -R[0:rank, j] */
+        double *rhs = calloc((size_t)n, sizeof(double));
+        if (!rhs)
+            return SPARSE_ERR_ALLOC;
+        for (idx_t i = 0; i < rank; i++)
+            rhs[i] = -sparse_get_phys(qr->R, i, j);
+
+        /* Back-substitute: R[0:rank, 0:rank] * z = rhs */
+        for (idx_t i = rank - 1; i >= 0; i--) {
+            double sum = 0.0;
+            double diag = 0.0;
+            Node *nd = qr->R->row_headers[i];
+            while (nd) {
+                if (nd->col == i)
+                    diag = nd->value;
+                else if (nd->col > i && nd->col < rank)
+                    sum += nd->value * rhs[nd->col];
+                nd = nd->right;
+            }
+            if (fabs(diag) > 1e-30)
+                rhs[i] = (rhs[i] - sum) / diag;
+            else
+                rhs[i] = 0.0;
+        }
+
+        /* Form null vector in permuted space: [z_0..z_{rank-1}, 0, ..., 1_j, ..., 0] */
+        double *perm_vec = calloc((size_t)n, sizeof(double));
+        if (!perm_vec) {
+            free(rhs);
+            return SPARSE_ERR_ALLOC;
+        }
+        for (idx_t i = 0; i < rank; i++)
+            perm_vec[i] = rhs[i];
+        perm_vec[j] = 1.0;
+
+        /* Unpermute: nv[col_perm[i]] = perm_vec[i] */
+        for (idx_t i = 0; i < n; i++)
+            nv[qr->col_perm[i]] = perm_vec[i];
+
+        free(rhs);
+        free(perm_vec);
+    }
+
+    (void)m;
+    return SPARSE_OK;
 }

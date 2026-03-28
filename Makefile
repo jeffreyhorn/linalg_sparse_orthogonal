@@ -73,7 +73,8 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_ilu.c \
             $(TESTDIR)/test_omp.c \
             $(TESTDIR)/test_sprint5_integration.c \
-            $(TESTDIR)/test_qr.c
+            $(TESTDIR)/test_qr.c \
+            $(TESTDIR)/test_sprint6_integration.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
 # Benchmark sources

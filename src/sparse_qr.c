@@ -350,16 +350,72 @@ sparse_err_t sparse_qr_form_q(const sparse_qr_t *qr, double *Q) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
- * Stubs for Day 8+ features
+ * Least-squares solver: min ||Ax - b||_2
  * ═══════════════════════════════════════════════════════════════════════ */
 
-// NOLINTNEXTLINE(readability-non-const-parameter)
 sparse_err_t sparse_qr_solve(const sparse_qr_t *qr, const double *b, double *x, double *residual) {
-    (void)qr;
-    (void)b;
-    (void)x;
-    (void)residual;
-    return SPARSE_ERR_BADARG; /* stub — implemented in Day 8 */
+    if (!qr || !b || !x)
+        return SPARSE_ERR_NULL;
+    if (!qr->R || !qr->col_perm)
+        return SPARSE_ERR_NULL;
+
+    idx_t m = qr->m;
+    idx_t n = qr->n;
+    idx_t rank = qr->rank;
+
+    /* Allocate workspace: c = Q^T * b (length m) */
+    double *c = malloc((size_t)m * sizeof(double));
+    if (!c)
+        return SPARSE_ERR_ALLOC;
+
+    /* c = Q^T * b */
+    sparse_qr_apply_q(qr, 1, b, c);
+
+    /* Compute residual norm: ||c[rank:]||_2 */
+    if (residual) {
+        double rnorm = 0.0;
+        for (idx_t i = rank; i < m; i++)
+            rnorm += c[i] * c[i];
+        *residual = sqrt(rnorm);
+    }
+
+    /* Back-substitute: R[0:rank, 0:rank] * x_p = c[0:rank] */
+    double *x_p = calloc((size_t)n, sizeof(double));
+    if (!x_p) {
+        free(c);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    for (idx_t i = rank - 1; i >= 0; i--) {
+        double sum = 0.0;
+        /* Walk row i of R for entries j > i */
+        Node *nd = qr->R->row_headers[i];
+        double diag = 0.0;
+        while (nd) {
+            if (nd->col == i) {
+                diag = nd->value;
+            } else if (nd->col > i && nd->col < n) {
+                // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+                sum += nd->value * x_p[nd->col];
+            }
+            nd = nd->right;
+        }
+        if (fabs(diag) < 1e-30) {
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+            x_p[i] = 0.0; /* rank-deficient: set to zero */
+        } else {
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+            x_p[i] = (c[i] - sum) / diag;
+        }
+    }
+
+    /* Apply column permutation: x[col_perm[i]] = x_p[i] */
+    for (idx_t i = 0; i < n; i++)
+        x[qr->col_perm[i]] = x_p[i];
+
+    free(c);
+    free(x_p);
+    return SPARSE_OK;
 }
 
 idx_t sparse_qr_rank(const sparse_qr_t *qr, double tol) {

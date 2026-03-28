@@ -1,3 +1,4 @@
+#include "sparse_lu.h"
 #include "sparse_matrix.h"
 #include "sparse_qr.h"
 #include "sparse_types.h"
@@ -1048,6 +1049,292 @@ static void test_q_orthogonality_wide(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Least-squares solver tests (Day 8)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Helper: compute ||b - A*x|| / ||b|| */
+static double compute_rel_residual(const SparseMatrix *A, const double *b, const double *x,
+                                   idx_t m) {
+    double *r = malloc((size_t)m * sizeof(double));
+    if (!r)
+        return INFINITY;
+    sparse_matvec(A, x, r);
+    for (idx_t i = 0; i < m; i++)
+        r[i] = b[i] - r[i];
+    double rnorm = vec_norm2(r, m);
+    double bnorm = vec_norm2(b, m);
+    free(r);
+    return (bnorm > 0.0) ? rnorm / bnorm : 0.0;
+}
+
+/* Square full-rank: QR solve matches LU solve */
+static void test_qr_solve_square(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 0, 2, 1.0);
+    sparse_insert(A, 1, 0, 4.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 2, 3.0);
+    sparse_insert(A, 2, 0, 8.0);
+    sparse_insert(A, 2, 1, 7.0);
+    sparse_insert(A, 2, 2, 9.0);
+
+    double b[3] = {1.0, 2.0, 3.0};
+
+    /* QR solve */
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    double x_qr[3];
+    double res_qr;
+    ASSERT_ERR(sparse_qr_solve(&qr, b, x_qr, &res_qr), SPARSE_OK);
+
+    /* LU solve */
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_NOT_NULL(LU);
+    double x_lu[3];
+    if (LU) {
+        ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+        ASSERT_ERR(sparse_lu_solve(LU, b, x_lu), SPARSE_OK);
+        sparse_free(LU);
+
+        /* QR and LU should agree */
+        for (int i = 0; i < 3; i++)
+            ASSERT_NEAR(x_qr[i], x_lu[i], 1e-8);
+    }
+
+    double rr = compute_rel_residual(A, b, x_qr, 3);
+    printf("    square QR solve: res=%.3e, residual_norm=%.3e\n", rr, res_qr);
+    ASSERT_TRUE(rr < 1e-10);
+    ASSERT_TRUE(res_qr < 1e-10);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Overdetermined (5×3): least-squares */
+static void test_qr_solve_overdetermined(void) {
+    SparseMatrix *A = sparse_create(5, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* A = [[1,0,0],[0,1,0],[0,0,1],[1,1,0],[0,1,1]] */
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 1.0);
+    sparse_insert(A, 2, 2, 1.0);
+    sparse_insert(A, 3, 0, 1.0);
+    sparse_insert(A, 3, 1, 1.0);
+    sparse_insert(A, 4, 1, 1.0);
+    sparse_insert(A, 4, 2, 1.0);
+
+    /* b = [1, 2, 3, 4, 5] — not in column space, so residual > 0 */
+    double b[5] = {1.0, 2.0, 3.0, 4.0, 5.0};
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    double x[3];
+    double res;
+    ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
+
+    double rr = compute_rel_residual(A, b, x, 5);
+    printf("    overdetermined 5x3: x=[%.3f, %.3f, %.3f], res=%.3e, true_res=%.3e\n", x[0], x[1],
+           x[2], res, rr);
+
+    /* Residual should be positive (overdetermined) */
+    ASSERT_TRUE(res > 0.0);
+    /* The reported residual should match the true residual closely */
+    double bnorm = vec_norm2(b, 5);
+    ASSERT_NEAR(res / bnorm, rr, 1e-8);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Known analytical least-squares: A = [[1],[1]], b = [1,3] → x = 2 */
+static void test_qr_solve_analytical(void) {
+    SparseMatrix *A = sparse_create(2, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+
+    double b[2] = {1.0, 3.0};
+    /* Least-squares: min ||[1;1]*x - [1;3]||^2 → x = (A^T*A)^{-1}*A^T*b = 2 */
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    double x[1];
+    double res;
+    ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
+
+    printf("    analytical LS: x=%.6f (expected 2.0), residual=%.3e\n", x[0], res);
+    ASSERT_NEAR(x[0], 2.0, 1e-10);
+    /* Residual = ||[1;3] - [2;2]|| = ||[-1;1]|| = sqrt(2) */
+    ASSERT_NEAR(res, sqrt(2.0), 1e-10);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Rank-deficient system: extra column is duplicate */
+static void test_qr_solve_rank_deficient(void) {
+    SparseMatrix *A = sparse_create(4, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* col0 = [1,2,3,4], col1 = [5,6,7,8], col2 = col0 (duplicate) */
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 0, 2.0);
+    sparse_insert(A, 2, 0, 3.0);
+    sparse_insert(A, 3, 0, 4.0);
+    sparse_insert(A, 0, 1, 5.0);
+    sparse_insert(A, 1, 1, 6.0);
+    sparse_insert(A, 2, 1, 7.0);
+    sparse_insert(A, 3, 1, 8.0);
+    sparse_insert(A, 0, 2, 1.0);
+    sparse_insert(A, 1, 2, 2.0);
+    sparse_insert(A, 2, 2, 3.0);
+    sparse_insert(A, 3, 2, 4.0);
+
+    double b[4] = {1.0, 2.0, 3.0, 4.0};
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(qr.rank, 2);
+
+    double x[3];
+    double res;
+    ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
+
+    /* Verify A*x ≈ b (within residual) */
+    double rr = compute_rel_residual(A, b, x, 4);
+    printf("    rank-deficient solve: rank=%d, res=%.3e, true_res=%.3e\n", (int)qr.rank, res, rr);
+
+    /* Should produce a valid least-squares solution */
+    ASSERT_TRUE(rr < 1.0); /* residual should be reasonable */
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* QR solve on nos4 (100×100 SPD) — compare with LU */
+static void test_qr_solve_nos4(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (!x_exact || !b) {
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = (double)(i + 1);
+    sparse_matvec(A, x_exact, b);
+
+    /* QR solve */
+    sparse_qr_t qr;
+    {
+        sparse_err_t ferr = sparse_qr_factor(A, &qr);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            free(x_exact);
+            free(b);
+            sparse_free(A);
+            return;
+        }
+    }
+
+    double *x_qr = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_qr);
+    if (!x_qr) {
+        free(x_exact);
+        free(b);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+    double res;
+    ASSERT_ERR(sparse_qr_solve(&qr, b, x_qr, &res), SPARSE_OK);
+
+    double rr = compute_rel_residual(A, b, x_qr, n);
+    printf("    nos4 QR solve: rank=%d, res=%.3e, true_res=%.3e\n", (int)qr.rank, res, rr);
+    ASSERT_TRUE(rr < 1e-8);
+
+    free(x_exact);
+    free(b);
+    free(x_qr);
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* QR solve with NULL residual pointer (should not crash) */
+static void test_qr_solve_null_residual(void) {
+    SparseMatrix *A = sparse_create(2, 2);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 3.0);
+
+    double b[2] = {5.0, 5.0};
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    double x[2];
+    ASSERT_ERR(sparse_qr_solve(&qr, b, x, NULL), SPARSE_OK); /* NULL residual */
+
+    double rr = compute_rel_residual(A, b, x, 2);
+    ASSERT_TRUE(rr < 1e-10);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -1085,6 +1372,14 @@ int main(void) {
     RUN_TEST(test_q_apply_multiple);
     RUN_TEST(test_q_apply_inplace);
     RUN_TEST(test_q_orthogonality_wide);
+
+    /* Least-squares solver (Day 8) */
+    RUN_TEST(test_qr_solve_square);
+    RUN_TEST(test_qr_solve_overdetermined);
+    RUN_TEST(test_qr_solve_analytical);
+    RUN_TEST(test_qr_solve_rank_deficient);
+    RUN_TEST(test_qr_solve_nos4);
+    RUN_TEST(test_qr_solve_null_residual);
 
     TEST_SUITE_END();
 }

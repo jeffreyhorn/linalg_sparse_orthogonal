@@ -134,13 +134,17 @@ idx_t sparse_qr_rank(const sparse_qr_t *qr, double tol);
 /**
  * @brief Extract null-space basis vectors.
  *
- * Returns basis vectors for the null space of A (columns of V corresponding
- * to zero/small R diagonals).
+ * Returns basis vectors for the (right) null space of A. The basis is
+ * constructed from the columns associated with zero/small diagonal entries
+ * of the R factor, taking into account the stored column permutation, so
+ * that each output vector x satisfies A*x ≈ 0 in the original column
+ * ordering.
  *
  * @param qr       The QR factorization.
  * @param tol      Tolerance for rank determination (same as sparse_qr_rank).
- * @param basis    Output: null-space basis vectors (n × null_dim, column-major).
- *                 Caller allocates n * (n - rank) doubles.
+ * @param basis    Output: null-space basis vectors (n × null_dim, column-major),
+ *                 expressed in the original column ordering. Caller allocates
+ *                 n * (n - rank) doubles.
  * @param null_dim Output: null-space dimension (n - rank).
  * @return SPARSE_OK on success.
  */

@@ -1637,7 +1637,12 @@ static void test_rank_1_nullspace(void) {
             sparse_insert(A, i, j, (double)(i + 1));
 
     sparse_qr_t qr;
-    ASSERT_ERR(sparse_qr_factor(A, &qr), SPARSE_OK);
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     idx_t r = sparse_qr_rank(&qr, 0.0);
     printf("    rank-1 outer: rank=%d\n", (int)r);
@@ -1692,7 +1697,12 @@ static void test_known_nullspace(void) {
     sparse_insert(A, 3, 2, 4.0);
 
     sparse_qr_t qr;
-    ASSERT_ERR(sparse_qr_factor(A, &qr), SPARSE_OK);
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     idx_t r = sparse_qr_rank(&qr, 0.0);
     ASSERT_EQ(r, 2);
@@ -1735,7 +1745,12 @@ static void test_rank_rect_deficient(void) {
     sparse_insert(A, 2, 4, 2.0);
 
     sparse_qr_t qr;
-    ASSERT_ERR(sparse_qr_factor(A, &qr), SPARSE_OK);
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     idx_t r = sparse_qr_rank(&qr, 0.0);
     printf("    3x5 rank-deficient: rank=%d\n", (int)r);
@@ -1775,7 +1790,12 @@ static void test_rank_explicit_tol(void) {
     sparse_insert(A, 2, 2, 1e-16);
 
     sparse_qr_t qr;
-    ASSERT_ERR(sparse_qr_factor(A, &qr), SPARSE_OK);
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     /* With tight tolerance: rank = 3 (or 2 depending on threshold) */
     idx_t r_tight = sparse_qr_rank(&qr, 1e-18);
@@ -1930,7 +1950,12 @@ static void test_qr_reorder_none(void) {
 
     sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE};
     sparse_qr_t qr;
-    ASSERT_ERR(sparse_qr_factor_opts(A, &opts, &qr), SPARSE_OK);
+    sparse_err_t err = sparse_qr_factor_opts(A, &opts, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     double recon = qr_reconstruction_error(A, &qr);
     ASSERT_TRUE(recon < 1e-10);

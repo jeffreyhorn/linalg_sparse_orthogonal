@@ -299,6 +299,8 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
                                 sparse_ilu_t *ilu) {
     if (!ilu)
         return SPARSE_ERR_NULL;
+    /* Zero the output struct. Callers must call sparse_ilu_free() before
+     * reusing a struct that already holds a factorization. */
     ilu->L = NULL;
     ilu->U = NULL;
     ilu->n = 0;

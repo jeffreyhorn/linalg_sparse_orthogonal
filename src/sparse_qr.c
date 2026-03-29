@@ -75,7 +75,7 @@ static void householder_apply(const double *v, double beta, double *y, idx_t len
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
- * QR factorization — stub implementations (Days 5-6 will complete)
+ * QR factorization — factorization, solve, rank, and nullspace routines
  * ═══════════════════════════════════════════════════════════════════════ */
 
 void sparse_qr_free(sparse_qr_t *qr) {
@@ -107,6 +107,8 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
                                    sparse_qr_t *qr) {
     if (!qr)
         return SPARSE_ERR_NULL;
+    /* Zero the output struct. Callers must call sparse_qr_free() before
+     * reusing a struct that already holds a factorization. */
     memset(qr, 0, sizeof(*qr));
     if (!A)
         return SPARSE_ERR_NULL;

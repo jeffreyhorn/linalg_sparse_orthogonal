@@ -68,9 +68,9 @@ New types: `sparse_ilut_opts_t`, `sparse_qr_t`, `sparse_qr_opts_t`, `sparse_prec
 | steam1 (240×240) | 4 iters (ILU-GMRES) | — | ILU(0) works well |
 | fs_541_1 (541×541) | 2 iters (ILU-GMRES) | — | ILU(0) works well |
 | orsirr_1 (1030×1030) | 69 iters (ILU-GMRES) | — | ILU(0) works well |
-| west0067 (67×67) | **FAIL** (zero diag) | 34 iters (ILUT-GMRES) | ILUT with diagonal modification handles structurally zero diagonals |
+| west0067 (67×67) | **FAIL** (zero diag) | 34 iters (ILUT-GMRES, not converged) | ILUT with diagonal modification produces a stable preconditioner despite lack of GMRES convergence |
 
-**Key result:** ILUT extends coverage to matrices that ILU(0) cannot handle. West0067 has 65/67 zero diagonal entries — ILU(0) fails entirely, but ILUT with diagonal modification produces a usable preconditioner.
+**Key result:** ILUT extends coverage to matrices that ILU(0) cannot handle. West0067 has 65/67 zero diagonal entries — ILU(0) fails entirely, but ILUT with diagonal modification produces a numerically stable factorization even though GMRES does not converge to the requested tolerance.
 
 ---
 

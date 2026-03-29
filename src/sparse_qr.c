@@ -163,8 +163,10 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
     }
 
     /* Overflow check for dense workspace sizing */
-    if (n > 0 && (size_t)m > SIZE_MAX / ((size_t)n * sizeof(double)))
+    if (n > 0 && (size_t)m > SIZE_MAX / ((size_t)n * sizeof(double))) {
+        free(col_reorder);
         return SPARSE_ERR_ALLOC;
+    }
 
     /* Allocate dense m×n working matrix (column-major) */
     double *W = calloc((size_t)m * (size_t)n, sizeof(double));
@@ -412,6 +414,10 @@ sparse_err_t sparse_qr_form_q(const sparse_qr_t *qr, double *Q) {
         return SPARSE_ERR_NULL;
 
     idx_t m = qr->m;
+
+    /* Overflow check for m*m*sizeof(double) */
+    if (m > 0 && (size_t)m > SIZE_MAX / ((size_t)m * sizeof(double)))
+        return SPARSE_ERR_ALLOC;
 
     /* Start with identity */
     memset(Q, 0, (size_t)m * (size_t)m * sizeof(double));

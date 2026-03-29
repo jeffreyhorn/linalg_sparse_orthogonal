@@ -1121,7 +1121,7 @@ static void test_gmres_right_precond_diag(void) {
                                      .tol = 1e-10,
                                      .verbose = 0,
                                      .precond_side = SPARSE_PRECOND_LEFT};
-    sparse_iter_result_t result_left;
+    sparse_iter_result_t result_left = {0};
     if (x_left) {
         sparse_err_t err_left =
             sparse_solve_gmres(A, b, x_left, &opts_left, diag_precond_apply, &pc, &result_left);
@@ -1136,7 +1136,7 @@ static void test_gmres_right_precond_diag(void) {
                                       .tol = 1e-10,
                                       .verbose = 0,
                                       .precond_side = SPARSE_PRECOND_RIGHT};
-    sparse_iter_result_t result_right;
+    sparse_iter_result_t result_right = {0};
     if (x_right) {
         sparse_err_t err_right =
             sparse_solve_gmres(A, b, x_right, &opts_right, diag_precond_apply, &pc, &result_right);
@@ -1302,7 +1302,7 @@ static void test_gmres_right_vs_left_residual(void) {
                                   .tol = 1e-10,
                                   .verbose = 0,
                                   .precond_side = SPARSE_PRECOND_RIGHT};
-    sparse_iter_result_t res_r;
+    sparse_iter_result_t res_r = {0};
     if (x_r) {
         sparse_err_t err_r =
             sparse_solve_gmres(A, b, x_r, &opts_r, sparse_ilu_precond, &ilu, &res_r);
@@ -1317,7 +1317,7 @@ static void test_gmres_right_vs_left_residual(void) {
                                   .tol = 1e-10,
                                   .verbose = 0,
                                   .precond_side = SPARSE_PRECOND_LEFT};
-    sparse_iter_result_t res_l;
+    sparse_iter_result_t res_l = {0};
     if (x_l) {
         sparse_err_t err_l =
             sparse_solve_gmres(A, b, x_l, &opts_l, sparse_ilu_precond, &ilu, &res_l);

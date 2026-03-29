@@ -370,7 +370,8 @@ static void test_qr_pivot_ordering(void) {
     int seen[4] = {0};
     for (idx_t i = 0; i < 4; i++) {
         ASSERT_TRUE(qr.col_perm[i] >= 0 && qr.col_perm[i] < 4);
-        seen[qr.col_perm[i]] = 1;
+        if (qr.col_perm[i] >= 0 && qr.col_perm[i] < 4)
+            seen[qr.col_perm[i]] = 1;
     }
     for (int i = 0; i < 4; i++)
         ASSERT_TRUE(seen[i]);
@@ -809,8 +810,10 @@ static void test_qr_perm_valid(void) {
     ASSERT_NOT_NULL(seen);
     if (seen) {
         for (idx_t i = 0; i < qr.n; i++) {
-            ASSERT_TRUE(qr.col_perm[i] >= 0 && qr.col_perm[i] < qr.n);
-            seen[qr.col_perm[i]] = 1;
+            idx_t p = qr.col_perm[i];
+            ASSERT_TRUE(p >= 0 && p < qr.n);
+            if (p >= 0 && p < qr.n)
+                seen[p] = 1;
         }
         for (idx_t i = 0; i < qr.n; i++)
             ASSERT_TRUE(seen[i]);

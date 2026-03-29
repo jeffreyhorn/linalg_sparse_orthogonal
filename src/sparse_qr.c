@@ -3,8 +3,17 @@
 #include "sparse_reorder.h"
 #include "sparse_vector.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* Portable overflow-safe multiplication: returns 0 on success, 1 on overflow */
+static int size_mul_overflow(size_t a, size_t b, size_t *result) {
+    if (a != 0 && b > SIZE_MAX / a)
+        return 1;
+    *result = a * b;
+    return 0;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Householder reflection helpers
@@ -172,10 +181,14 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
         }
     }
 
-    /* Overflow check for dense workspace sizing */
-    if (n > 0 && (size_t)m > SIZE_MAX / ((size_t)n * sizeof(double))) {
-        free(col_reorder);
-        return SPARSE_ERR_ALLOC;
+    /* Overflow check for dense workspace sizing: m * n * sizeof(double) */
+    {
+        size_t mn = 0, mn_bytes = 0;
+        if (size_mul_overflow((size_t)m, (size_t)n, &mn) ||
+            size_mul_overflow(mn, sizeof(double), &mn_bytes)) {
+            free(col_reorder);
+            return SPARSE_ERR_ALLOC;
+        }
     }
 
     /* Allocate dense m×n working matrix (column-major) */
@@ -426,12 +439,9 @@ sparse_err_t sparse_qr_form_q(const sparse_qr_t *qr, double *Q) {
     idx_t m = qr->m;
 
     /* Overflow-safe computation of m*m*sizeof(double) */
-    size_t m_sz = (size_t)m;
-    size_t mm = 0;
-    size_t bytes = 0;
-    if (__builtin_mul_overflow(m_sz, m_sz, &mm))
-        return SPARSE_ERR_ALLOC;
-    if (__builtin_mul_overflow(mm, sizeof(double), &bytes))
+    size_t mm = 0, bytes = 0;
+    if (size_mul_overflow((size_t)m, (size_t)m, &mm) ||
+        size_mul_overflow(mm, sizeof(double), &bytes))
         return SPARSE_ERR_ALLOC;
 
     /* Start with identity */

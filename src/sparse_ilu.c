@@ -434,7 +434,8 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
          * Uses sign-preserving perturbation: diag = sign(diag) * max(|diag|, eps * ||row||) */
         double diag_w = w_nz[i] ? w[i] : 0.0;
         if (fabs(diag_w) < 1e-30) {
-            double eps_row = (row_norm > 0.0) ? o->tol * row_norm : 1e-10;
+            double tol_row = (row_norm > 0.0) ? o->tol * row_norm : 0.0;
+            double eps_row = (tol_row > 1e-10) ? tol_row : 1e-10;
             diag_w = (diag_w >= 0.0) ? eps_row : -eps_row;
             w[i] = diag_w;
             if (!w_nz[i]) {

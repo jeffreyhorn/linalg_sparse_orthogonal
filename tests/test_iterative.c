@@ -1122,8 +1122,11 @@ static void test_gmres_right_precond_diag(void) {
                                      .verbose = 0,
                                      .precond_side = SPARSE_PRECOND_LEFT};
     sparse_iter_result_t result_left;
-    if (x_left)
-        sparse_solve_gmres(A, b, x_left, &opts_left, diag_precond_apply, &pc, &result_left);
+    if (x_left) {
+        sparse_err_t err_left =
+            sparse_solve_gmres(A, b, x_left, &opts_left, diag_precond_apply, &pc, &result_left);
+        ASSERT_ERR(err_left, SPARSE_OK);
+    }
 
     /* Right-preconditioned GMRES */
     double *x_right = calloc((size_t)n, sizeof(double));
@@ -1134,8 +1137,11 @@ static void test_gmres_right_precond_diag(void) {
                                       .verbose = 0,
                                       .precond_side = SPARSE_PRECOND_RIGHT};
     sparse_iter_result_t result_right;
-    if (x_right)
-        sparse_solve_gmres(A, b, x_right, &opts_right, diag_precond_apply, &pc, &result_right);
+    if (x_right) {
+        sparse_err_t err_right =
+            sparse_solve_gmres(A, b, x_right, &opts_right, diag_precond_apply, &pc, &result_right);
+        ASSERT_ERR(err_right, SPARSE_OK);
+    }
 
     if (x_left && x_right) {
         double res_left = compute_relative_residual(A, b, x_left, n);
@@ -1144,7 +1150,8 @@ static void test_gmres_right_precond_diag(void) {
                (int)result_left.iterations, res_left, (int)result_right.iterations, res_right);
 
         /* Both should converge */
-        ASSERT_TRUE(result_left.converged || result_right.converged);
+        ASSERT_TRUE(result_left.converged);
+        ASSERT_TRUE(result_right.converged);
 
         /* Right precond: reported residual should match true residual closely */
         if (result_right.converged) {
@@ -1220,6 +1227,7 @@ static void test_gmres_right_precond_ilu_nos4(void) {
 
     /* Right precond: reported residual should closely match true residual */
     ASSERT_TRUE(true_res < 1e-8);
+    ASSERT_TRUE(fabs(result.residual_norm - true_res) < 1e-8);
 
     free(x_exact);
     free(b);
@@ -1295,8 +1303,11 @@ static void test_gmres_right_vs_left_residual(void) {
                                   .verbose = 0,
                                   .precond_side = SPARSE_PRECOND_RIGHT};
     sparse_iter_result_t res_r;
-    if (x_r)
-        sparse_solve_gmres(A, b, x_r, &opts_r, sparse_ilu_precond, &ilu, &res_r);
+    if (x_r) {
+        sparse_err_t err_r =
+            sparse_solve_gmres(A, b, x_r, &opts_r, sparse_ilu_precond, &ilu, &res_r);
+        ASSERT_ERR(err_r, SPARSE_OK);
+    }
 
     /* Left-preconditioned */
     double *x_l = calloc((size_t)n, sizeof(double));
@@ -1307,8 +1318,11 @@ static void test_gmres_right_vs_left_residual(void) {
                                   .verbose = 0,
                                   .precond_side = SPARSE_PRECOND_LEFT};
     sparse_iter_result_t res_l;
-    if (x_l)
-        sparse_solve_gmres(A, b, x_l, &opts_l, sparse_ilu_precond, &ilu, &res_l);
+    if (x_l) {
+        sparse_err_t err_l =
+            sparse_solve_gmres(A, b, x_l, &opts_l, sparse_ilu_precond, &ilu, &res_l);
+        ASSERT_TRUE(err_l == SPARSE_OK || err_l == SPARSE_ERR_NOT_CONVERGED);
+    }
 
     if (x_r && x_l) {
         double true_r = compute_relative_residual(A, b, x_r, n);
@@ -1319,9 +1333,11 @@ static void test_gmres_right_vs_left_residual(void) {
                (int)res_r.iterations, res_r.residual_norm, true_r, (int)res_l.iterations,
                res_l.residual_norm, true_l);
 
-        /* Both should produce good solutions */
-        if (res_r.converged)
+        /* Right precond: reported residual should match true residual */
+        if (res_r.converged) {
             ASSERT_TRUE(true_r < 1e-8);
+            ASSERT_TRUE(fabs(res_r.residual_norm - true_r) < 1e-8);
+        }
         if (res_l.converged)
             ASSERT_TRUE(true_l < 1e-4); /* left may have gap */
     }

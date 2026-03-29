@@ -162,6 +162,10 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
         }
     }
 
+    /* Overflow check for dense workspace sizing */
+    if (n > 0 && (size_t)m > SIZE_MAX / ((size_t)n * sizeof(double)))
+        return SPARSE_ERR_ALLOC;
+
     /* Allocate dense m×n working matrix (column-major) */
     double *W = calloc((size_t)m * (size_t)n, sizeof(double));
     double *col_norms = malloc((size_t)n * sizeof(double));

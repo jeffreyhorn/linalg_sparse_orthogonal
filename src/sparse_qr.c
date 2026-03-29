@@ -130,35 +130,45 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
          * columns i and j of A share at least one row. */
         SparseMatrix *AtA = sparse_create(n, n);
         if (AtA) {
-            for (idx_t row = 0; row < m; row++) {
+            sparse_err_t ins_err = SPARSE_OK;
+            for (idx_t row = 0; row < m && ins_err == SPARSE_OK; row++) {
                 /* Collect column indices in this row */
                 Node *nd1 = A->row_headers[row];
-                while (nd1) {
+                while (nd1 && ins_err == SPARSE_OK) {
                     Node *nd2 = nd1->right;
-                    while (nd2) {
-                        sparse_insert(AtA, nd1->col, nd2->col, 1.0);
-                        sparse_insert(AtA, nd2->col, nd1->col, 1.0);
+                    while (nd2 && ins_err == SPARSE_OK) {
+                        ins_err = sparse_insert(AtA, nd1->col, nd2->col, 1.0);
+                        if (ins_err == SPARSE_OK)
+                            ins_err = sparse_insert(AtA, nd2->col, nd1->col, 1.0);
                         nd2 = nd2->right;
                     }
                     /* Diagonal */
-                    sparse_insert(AtA, nd1->col, nd1->col, 1.0);
+                    if (ins_err == SPARSE_OK)
+                        ins_err = sparse_insert(AtA, nd1->col, nd1->col, 1.0);
                     nd1 = nd1->right;
                 }
             }
-
-            col_reorder = malloc((size_t)n * sizeof(idx_t));
-            if (col_reorder) {
-                sparse_err_t rerr = SPARSE_ERR_BADARG;
-                if (opts->reorder == SPARSE_REORDER_AMD)
-                    rerr = sparse_reorder_amd(AtA, col_reorder);
-                else if (opts->reorder == SPARSE_REORDER_RCM)
-                    rerr = sparse_reorder_rcm(AtA, col_reorder);
-                if (rerr != SPARSE_OK) {
-                    free(col_reorder);
-                    col_reorder = NULL;
-                }
+            if (ins_err != SPARSE_OK) {
+                /* Insertion failed; abandon reordering, proceed without it */
+                sparse_free(AtA);
+                AtA = NULL;
             }
-            sparse_free(AtA);
+
+            if (AtA) {
+                col_reorder = malloc((size_t)n * sizeof(idx_t));
+                if (col_reorder) {
+                    sparse_err_t rerr = SPARSE_ERR_BADARG;
+                    if (opts->reorder == SPARSE_REORDER_AMD)
+                        rerr = sparse_reorder_amd(AtA, col_reorder);
+                    else if (opts->reorder == SPARSE_REORDER_RCM)
+                        rerr = sparse_reorder_rcm(AtA, col_reorder);
+                    if (rerr != SPARSE_OK) {
+                        free(col_reorder);
+                        col_reorder = NULL;
+                    }
+                }
+                sparse_free(AtA);
+            }
         }
     }
 

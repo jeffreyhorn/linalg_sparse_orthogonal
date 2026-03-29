@@ -33,6 +33,10 @@
  * L is unit lower triangular, U is upper triangular with diagonal.
  * The perm field is reserved for future use (e.g., ILUT with row
  * pivoting) and is currently always NULL.
+ *
+ * Callers must call sparse_ilu_free() before reusing a sparse_ilu_t for
+ * a new factorization; the factor functions overwrite the struct without
+ * freeing prior contents. sparse_ilu_free() is safe on a zeroed struct.
  */
 typedef struct {
     SparseMatrix *L; /**< Unit lower triangular factor */

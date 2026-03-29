@@ -45,6 +45,10 @@ typedef struct {
  *
  * Stores R (upper triangular), Householder reflectors (v, beta) for Q,
  * column permutation, and rank information.
+ *
+ * Callers must call sparse_qr_free() before reusing a sparse_qr_t for
+ * a new factorization; the factor functions overwrite the struct without
+ * freeing prior contents. sparse_qr_free() is safe on a zeroed struct.
  */
 typedef struct {
     SparseMatrix *R;    /**< Upper triangular factor (min(m,n) × n after permutation) */

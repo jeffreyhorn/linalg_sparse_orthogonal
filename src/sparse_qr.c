@@ -212,6 +212,7 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
     }
 
     /* Allocate dense m×n working matrix (column-major) */
+    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
     double *W = calloc((size_t)m * (size_t)n, sizeof(double));
     double *col_norms = malloc((size_t)n * sizeof(double));
     idx_t *perm = malloc((size_t)n * sizeof(idx_t));

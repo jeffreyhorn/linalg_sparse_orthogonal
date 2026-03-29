@@ -156,7 +156,12 @@ static void test_qr_vs_cholesky(void) {
 
     /* QR solve */
     sparse_qr_t qr;
-    ASSERT_ERR(sparse_qr_factor(A, &qr), SPARSE_OK);
+    sparse_err_t qr_err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(qr_err, SPARSE_OK);
+    if (qr_err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
     double x_qr[4];
     sparse_qr_solve(&qr, b, x_qr, NULL);
 
@@ -297,7 +302,12 @@ static void test_qr_solve_zero_rhs(void) {
     double b[3] = {0.0, 0.0, 0.0};
 
     sparse_qr_t qr;
-    ASSERT_ERR(sparse_qr_factor(A, &qr), SPARSE_OK);
+    sparse_err_t qr_err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(qr_err, SPARSE_OK);
+    if (qr_err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
     double x[3];
     double res;
     ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
@@ -384,7 +394,12 @@ static void test_qr_rank_consistency(void) {
     sparse_insert(A, 4, 3, 10.0);
 
     sparse_qr_t qr;
-    ASSERT_ERR(sparse_qr_factor(A, &qr), SPARSE_OK);
+    sparse_err_t qr_err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(qr_err, SPARSE_OK);
+    if (qr_err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     ASSERT_EQ(qr.rank, 2);
     idx_t est_rank = sparse_qr_rank(&qr, 0.0);

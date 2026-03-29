@@ -1606,7 +1606,12 @@ static void test_rank_full(void) {
     sparse_insert(A, 2, 2, 4.0);
 
     sparse_qr_t qr;
-    ASSERT_ERR(sparse_qr_factor(A, &qr), SPARSE_OK);
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     idx_t r = sparse_qr_rank(&qr, 0.0);
     ASSERT_EQ(r, 3);
@@ -1808,14 +1813,25 @@ static void test_qr_reorder_amd_solve(void) {
 
     /* QR without reordering */
     sparse_qr_t qr_none;
-    ASSERT_ERR(sparse_qr_factor(A, &qr_none), SPARSE_OK);
+    sparse_err_t err_none = sparse_qr_factor(A, &qr_none);
+    ASSERT_ERR(err_none, SPARSE_OK);
+    if (err_none != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
     double x_none[4];
     sparse_qr_solve(&qr_none, b, x_none, NULL);
 
     /* QR with AMD reordering */
     sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_AMD};
     sparse_qr_t qr_amd;
-    ASSERT_ERR(sparse_qr_factor_opts(A, &opts, &qr_amd), SPARSE_OK);
+    sparse_err_t err_amd = sparse_qr_factor_opts(A, &opts, &qr_amd);
+    ASSERT_ERR(err_amd, SPARSE_OK);
+    if (err_amd != SPARSE_OK) {
+        sparse_qr_free(&qr_none);
+        sparse_free(A);
+        return;
+    }
     double x_amd[4];
     sparse_qr_solve(&qr_amd, b, x_amd, NULL);
 

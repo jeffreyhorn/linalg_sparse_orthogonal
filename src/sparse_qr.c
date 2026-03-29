@@ -230,8 +230,9 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
         return SPARSE_ERR_ALLOC;
     }
 
-    idx_t rank = 0;
-    double r00 = 0.0; /* |R(0,0)| for rank tolerance */
+    idx_t rank = 0;       /* numerical rank (columns with |R(k,k)| above tolerance) */
+    idx_t steps_done = 0; /* total reflectors applied (may exceed rank by 1) */
+    double r00 = 0.0;     /* |R(0,0)| for rank tolerance */
 
     for (idx_t step = 0; step < k; step++) {
         /* Column pivoting: find column with largest remaining norm */
@@ -305,10 +306,15 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
             householder_apply(hv, beta, cj, col_len);
         }
 
-        /* Check R diagonal: if tiny after reflection, this column is rank-deficient */
+        /* Check R diagonal: if tiny after reflection, this column is numerically
+         * rank-deficient. Count the step (reflector was applied to all columns)
+         * but do not increment rank. */
+        steps_done++;
         if (fabs(col_ptr[0]) < rank_tol) {
             break;
         }
+
+        rank++;
 
         /* Update column norms (downdate: remove the squared entry at row step) */
         for (idx_t j = step + 1; j < n; j++) {
@@ -317,8 +323,6 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
             if (col_norms[j] < 0.0)
                 col_norms[j] = 0.0;
         }
-
-        rank++;
     }
 
     free(hv);
@@ -336,7 +340,10 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
         return SPARSE_ERR_ALLOC;
     }
 
-    for (idx_t i = 0; i < rank; i++) {
+    /* Extract R rows for all applied reflectors (steps_done), not just
+     * rank — this keeps A*P = Q*R consistent even when the last step
+     * detected rank deficiency (its reflector was applied but R(k,k) ≈ 0). */
+    for (idx_t i = 0; i < steps_done; i++) {
         for (idx_t j = i; j < n; j++) {
             double val = W[(size_t)j * (size_t)m + (size_t)i];
             if (fabs(val) > 1e-15)

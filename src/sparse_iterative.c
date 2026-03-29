@@ -20,6 +20,7 @@ static const sparse_gmres_opts_t gmres_defaults = {
     .restart = 30,
     .tol = 1e-10,
     .verbose = 0,
+    .precond_side = SPARSE_PRECOND_LEFT,
 };
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -199,6 +200,8 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *
 
     const sparse_gmres_opts_t *o = opts ? opts : &gmres_defaults;
     if (o->max_iter < 0 || o->restart <= 0 || o->tol < 0.0)
+        return SPARSE_ERR_BADARG;
+    if (o->precond_side != SPARSE_PRECOND_LEFT && o->precond_side != SPARSE_PRECOND_RIGHT)
         return SPARSE_ERR_BADARG;
     idx_t n = sparse_rows(A);
     idx_t m = o->restart; /* restart parameter */

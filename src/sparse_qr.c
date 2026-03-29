@@ -122,6 +122,26 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
     if (!A)
         return SPARSE_ERR_NULL;
 
+    /* Reject non-identity permutations (QR factors physical storage) */
+    {
+        const idx_t *rp = sparse_row_perm(A);
+        const idx_t *cp = sparse_col_perm(A);
+        idx_t nr = sparse_rows(A);
+        idx_t nc = sparse_cols(A);
+        if (rp) {
+            for (idx_t i = 0; i < nr; i++) {
+                if (rp[i] != i)
+                    return SPARSE_ERR_BADARG;
+            }
+        }
+        if (cp) {
+            for (idx_t i = 0; i < nc; i++) {
+                if (cp[i] != i)
+                    return SPARSE_ERR_BADARG;
+            }
+        }
+    }
+
     idx_t m = sparse_rows(A);
     idx_t n = sparse_cols(A);
     idx_t k = (m < n) ? m : n; /* min(m, n) */

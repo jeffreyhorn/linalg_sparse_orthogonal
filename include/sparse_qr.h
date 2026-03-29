@@ -60,9 +60,11 @@ typedef struct {
  * @brief Compute column-pivoted QR factorization: A*P = Q*R.
  *
  * @param A   The matrix to factor (not modified). May be rectangular (m×n).
+ *             Must have identity permutations (not previously pivoted/reordered).
  * @param qr  Output: QR factors. Must be freed with sparse_qr_free().
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or qr is NULL.
+ * @return SPARSE_ERR_BADARG if A has non-identity permutations.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  */
 sparse_err_t sparse_qr_factor(const SparseMatrix *A, sparse_qr_t *qr);
@@ -70,10 +72,11 @@ sparse_err_t sparse_qr_factor(const SparseMatrix *A, sparse_qr_t *qr);
 /**
  * @brief Compute QR factorization with options (e.g., fill-reducing reordering).
  *
- * @param A    The matrix to factor (not modified).
+ * @param A    The matrix to factor (not modified). Must have identity permutations.
  * @param opts Factorization options (NULL for defaults).
  * @param qr   Output: QR factors.
  * @return SPARSE_OK on success, or an error code.
+ * @return SPARSE_ERR_BADARG if A has non-identity permutations.
  */
 sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t *opts,
                                    sparse_qr_t *qr);

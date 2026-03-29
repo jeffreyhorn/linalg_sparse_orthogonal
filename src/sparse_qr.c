@@ -605,6 +605,10 @@ sparse_err_t sparse_qr_nullspace(const sparse_qr_t *qr, double tol, double *basi
     if (ndim == 0 || !basis)
         return SPARSE_OK;
 
+    /* Validate that factorization data is present before dereferencing */
+    if (!qr->R || !qr->col_perm)
+        return SPARSE_ERR_NULL;
+
     idx_t m = qr->m;
 
     /* For each null-space vector j (j = rank..n-1 in permuted space):

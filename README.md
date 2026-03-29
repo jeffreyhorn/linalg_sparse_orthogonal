@@ -11,13 +11,15 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 ### Direct Solvers
 - **LU factorization** with complete or partial pivoting (P·A·Q = L·U)
 - **Cholesky factorization** for symmetric positive-definite matrices (A = L·L^T, ~50% less storage than LU)
+- **QR factorization** with column pivoting (A·P = Q·R) — Householder reflections, least-squares, rank estimation, null-space extraction
 - **Direct solve** via forward/backward substitution with permutation handling
 - **Iterative refinement** to improve solution accuracy
 
 ### Iterative Solvers
 - **Conjugate Gradient (CG)** for SPD systems with optional preconditioning
-- **Restarted GMRES(k)** for general unsymmetric systems with left preconditioning
+- **Restarted GMRES(k)** for general unsymmetric systems with left and right preconditioning
 - **ILU(0) preconditioner** — incomplete LU with no fill-in, 3-1000× iteration reduction
+- **ILUT preconditioner** — ILU with threshold dropping and controlled fill-in, handles zero-diagonal matrices
 
 ### Matrix Operations
 - **Sparse matrix-vector product** (SpMV) with optional OpenMP parallelization
@@ -162,8 +164,9 @@ int main(void)
 | [`sparse_matrix.h`](include/sparse_matrix.h) | Sparse matrix lifecycle, element access, SpMV, Matrix Market I/O |
 | [`sparse_lu.h`](include/sparse_lu.h) | LU factorization, solve, condition estimation, iterative refinement |
 | [`sparse_cholesky.h`](include/sparse_cholesky.h) | Cholesky factorization and solve for SPD matrices |
-| [`sparse_iterative.h`](include/sparse_iterative.h) | CG and GMRES iterative solvers with preconditioner support |
-| [`sparse_ilu.h`](include/sparse_ilu.h) | ILU(0) incomplete factorization preconditioner |
+| [`sparse_iterative.h`](include/sparse_iterative.h) | CG and GMRES iterative solvers with left/right preconditioning |
+| [`sparse_ilu.h`](include/sparse_ilu.h) | ILU(0) and ILUT incomplete factorization preconditioners |
+| [`sparse_qr.h`](include/sparse_qr.h) | Column-pivoted QR factorization, least-squares, rank, null space |
 | [`sparse_csr.h`](include/sparse_csr.h) | CSR/CSC compressed format conversion |
 | [`sparse_reorder.h`](include/sparse_reorder.h) | Fill-reducing reordering (RCM, AMD), permutation, bandwidth |
 | [`sparse_vector.h`](include/sparse_vector.h) | Dense vector utilities (norms, axpy, dot product) |
@@ -192,15 +195,25 @@ int main(void)
 - `sparse_cholesky_factor_opts(mat, &opts)` — with optional AMD/RCM reordering
 - `sparse_cholesky_solve(mat, b, x)` — solve using Cholesky factors
 
+**QR factorization (rectangular & rank-deficient):**
+- `sparse_qr_factor(A, &qr)` — column-pivoted QR: A*P = Q*R
+- `sparse_qr_factor_opts(A, &opts, &qr)` — with optional AMD column reordering
+- `sparse_qr_solve(&qr, b, x, &residual)` — least-squares: min ||Ax - b||
+- `sparse_qr_apply_q(&qr, transpose, x, y)` — apply Q or Q^T to a vector
+- `sparse_qr_rank(&qr, tol)` — numerical rank estimation
+- `sparse_qr_nullspace(&qr, tol, basis, &ndim)` — null-space basis extraction
+- `sparse_qr_free(&qr)` — free QR factors
+
 **Iterative solvers:**
 - `sparse_solve_cg(A, b, x, &opts, precond, ctx, &result)` — Preconditioned Conjugate Gradient (SPD only)
-- `sparse_solve_gmres(A, b, x, &opts, precond, ctx, &result)` — Restarted GMRES(k) with left preconditioning
+- `sparse_solve_gmres(A, b, x, &opts, precond, ctx, &result)` — Restarted GMRES(k) with left/right preconditioning
 
-**ILU(0) preconditioner:**
+**ILU(0) / ILUT preconditioners:**
 - `sparse_ilu_factor(A, &ilu)` — ILU(0) factorization (no fill-in beyond A's pattern)
+- `sparse_ilut_factor(A, &opts, &ilu)` — ILUT with threshold dropping and controlled fill-in
 - `sparse_ilu_solve(&ilu, r, z)` — apply preconditioner: solve L*U*z = r
-- `sparse_ilu_precond` — callback compatible with `sparse_precond_fn`
-- `sparse_ilu_free(&ilu)` — free ILU factors
+- `sparse_ilu_precond` / `sparse_ilut_precond` — callbacks compatible with `sparse_precond_fn`
+- `sparse_ilu_free(&ilu)` — free ILU/ILUT factors
 
 **Fill-reducing reordering:**
 - `sparse_reorder_rcm(A, perm)` — Reverse Cuthill-McKee ordering
@@ -262,7 +275,7 @@ The library is safe for concurrent use under the following contract:
 
 ## Testing
 
-The test suite contains **406 unit tests** across 19 test suites:
+The test suite contains **467 unit tests** across 22 test suites:
 
 - Sparse matrix data structure, norms, and symmetry check (43 tests)
 - LU factorization, solve, transpose solve, and condition estimation (37 tests)
@@ -283,6 +296,9 @@ The test suite contains **406 unit tests** across 19 test suites:
 - ILU(0) preconditioner — factorization, solve, integration (18 tests)
 - Parallel SpMV — correctness, reproducibility, solver integration (12 tests)
 - Sprint 5 cross-feature integration (9 tests)
+- ILUT preconditioner (8 tests)
+- Sparse QR factorization — Householder, solve, rank, null space (42 tests)
+- Sprint 6 cross-feature integration (7 tests)
 
 ```bash
 make test          # run all tests
@@ -304,28 +320,30 @@ On Linux, `make asan` works with the default compiler.
 
 ```
 linalg_sparse_orthogonal/
-├── include/              Public headers (9 headers)
+├── include/              Public headers (10 headers)
 │   ├── sparse_types.h
 │   ├── sparse_matrix.h
 │   ├── sparse_lu.h
 │   ├── sparse_cholesky.h
 │   ├── sparse_iterative.h
 │   ├── sparse_ilu.h
+│   ├── sparse_qr.h
 │   ├── sparse_csr.h
 │   ├── sparse_reorder.h
 │   └── sparse_vector.h
-├── src/                  Library implementation (9 source + 1 internal header)
+├── src/                  Library implementation (10 source + 1 internal header)
 │   ├── sparse_types.c
 │   ├── sparse_matrix.c
 │   ├── sparse_lu.c
 │   ├── sparse_cholesky.c
 │   ├── sparse_iterative.c
 │   ├── sparse_ilu.c
+│   ├── sparse_qr.c
 │   ├── sparse_csr.c
 │   ├── sparse_reorder.c
 │   ├── sparse_vector.c
 │   └── sparse_matrix_internal.h
-├── tests/                Unit tests (19 suites, 406 tests)
+├── tests/                Unit tests (22 suites, 467 tests)
 │   ├── test_framework.h
 │   ├── test_sparse_matrix.c
 │   ├── test_sparse_lu.c
@@ -346,6 +364,8 @@ linalg_sparse_orthogonal/
 │   ├── test_ilu.c
 │   ├── test_omp.c
 │   ├── test_sprint5_integration.c
+│   ├── test_qr.c
+│   ├── test_sprint6_integration.c
 │   └── data/             Reference .mtx files (8 + 6 SuiteSparse)
 ├── benchmarks/           Performance benchmarks (4 programs)
 ├── docs/                 Algorithm and format documentation

@@ -1,4 +1,5 @@
 #include "sparse_cholesky.h"
+#include "sparse_ilu.h"
 #include "sparse_iterative.h"
 #include "sparse_lu.h"
 #include "sparse_matrix.h"
@@ -14,6 +15,9 @@
 #define DATA_DIR "tests/data"
 #endif
 #define SS_DIR DATA_DIR "/suitesparse"
+
+/* Forward declarations for helpers defined later */
+static SparseMatrix *build_unsym_tridiag(idx_t n, double diag, double upper, double lower);
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Test helpers — SPD matrix builders & residual computation
@@ -1065,6 +1069,287 @@ static void test_cg_null_result(void) {
  * ═══════════════════════════════════════════════════════════════════════ */
 
 /* Verify SPARSE_ERR_NOT_CONVERGED has a string representation */
+/* ═══════════════════════════════════════════════════════════════════════
+ * Right preconditioning tests (Sprint 6 Day 3)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Right-preconditioned GMRES with diagonal preconditioner on tridiag */
+static void test_gmres_right_precond_diag(void) {
+    idx_t n = 20;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    double *diag_inv = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(diag_inv);
+    if (!diag_inv) {
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++) {
+        double d = 2.0 + 3.0 * (double)i;
+        sparse_insert(A, i, i, d);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, 1.5);
+        diag_inv[i] = 1.0 / d;
+    }
+
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (!x_exact || !b) {
+        free(x_exact);
+        free(b);
+        free(diag_inv);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = (double)(i + 1);
+    sparse_matvec(A, x_exact, b);
+
+    diag_precond_t pc = {.diag_inv = diag_inv, .n = n};
+
+    /* Left-preconditioned GMRES */
+    double *x_left = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_left);
+    sparse_gmres_opts_t opts_left = {.max_iter = 200,
+                                     .restart = 20,
+                                     .tol = 1e-10,
+                                     .verbose = 0,
+                                     .precond_side = SPARSE_PRECOND_LEFT};
+    sparse_iter_result_t result_left = {0};
+    if (x_left) {
+        sparse_err_t err_left =
+            sparse_solve_gmres(A, b, x_left, &opts_left, diag_precond_apply, &pc, &result_left);
+        ASSERT_ERR(err_left, SPARSE_OK);
+    }
+
+    /* Right-preconditioned GMRES */
+    double *x_right = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_right);
+    sparse_gmres_opts_t opts_right = {.max_iter = 200,
+                                      .restart = 20,
+                                      .tol = 1e-10,
+                                      .verbose = 0,
+                                      .precond_side = SPARSE_PRECOND_RIGHT};
+    sparse_iter_result_t result_right = {0};
+    if (x_right) {
+        sparse_err_t err_right =
+            sparse_solve_gmres(A, b, x_right, &opts_right, diag_precond_apply, &pc, &result_right);
+        ASSERT_ERR(err_right, SPARSE_OK);
+    }
+
+    if (x_left && x_right) {
+        double res_left = compute_relative_residual(A, b, x_left, n);
+        double res_right = compute_relative_residual(A, b, x_right, n);
+        printf("    right-precond diag: left=%d iters (res=%.3e), right=%d iters (res=%.3e)\n",
+               (int)result_left.iterations, res_left, (int)result_right.iterations, res_right);
+
+        /* Both should converge */
+        ASSERT_TRUE(result_left.converged);
+        ASSERT_TRUE(result_right.converged);
+
+        /* Right precond: reported residual should match true residual closely */
+        if (result_right.converged) {
+            ASSERT_NEAR(result_right.residual_norm, res_right, 1e-6);
+        }
+    }
+
+    free(x_exact);
+    free(b);
+    free(diag_inv);
+    free(x_left);
+    free(x_right);
+    sparse_free(A);
+}
+
+/* Right-preconditioned GMRES with ILU(0) on nos4 */
+static void test_gmres_right_precond_ilu_nos4(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (!x_exact || !b) {
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = (double)(i + 1);
+    sparse_matvec(A, x_exact, b);
+
+    sparse_ilu_t ilu;
+    {
+        sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            free(x_exact);
+            free(b);
+            sparse_free(A);
+            return;
+        }
+    }
+
+    /* Right-preconditioned GMRES */
+    double *x = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x);
+    if (!x) {
+        free(x_exact);
+        free(b);
+        sparse_ilu_free(&ilu);
+        sparse_free(A);
+        return;
+    }
+    sparse_gmres_opts_t opts = {.max_iter = 500,
+                                .restart = 50,
+                                .tol = 1e-10,
+                                .verbose = 0,
+                                .precond_side = SPARSE_PRECOND_RIGHT};
+    sparse_iter_result_t result;
+    ASSERT_ERR(sparse_solve_gmres(A, b, x, &opts, sparse_ilu_precond, &ilu, &result), SPARSE_OK);
+    ASSERT_TRUE(result.converged);
+
+    double true_res = compute_relative_residual(A, b, x, n);
+    printf("    nos4 right-ILU-GMRES: %d iters, reported=%.3e, true=%.3e\n", (int)result.iterations,
+           result.residual_norm, true_res);
+
+    /* Right precond: reported residual should closely match true residual */
+    ASSERT_TRUE(true_res < 1e-8);
+    ASSERT_TRUE(fabs(result.residual_norm - true_res) < 1e-8);
+
+    free(x_exact);
+    free(b);
+    free(x);
+    sparse_ilu_free(&ilu);
+    sparse_free(A);
+}
+
+/* Right precond with default opts (precond_side=0=LEFT) → backward compatible */
+static void test_gmres_right_precond_default(void) {
+    idx_t n = 5;
+    SparseMatrix *A = build_spd_tridiag(n, 4.0, -1.0);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    double x_exact[5] = {1.0, 2.0, 3.0, 4.0, 5.0};
+    double b[5];
+    sparse_matvec(A, x_exact, b);
+
+    /* Default opts (precond_side=0=LEFT) with NULL precond → unpreconditioned */
+    double x[5] = {0};
+    sparse_iter_result_t result;
+    ASSERT_ERR(sparse_solve_gmres(A, b, x, NULL, NULL, NULL, &result), SPARSE_OK);
+    ASSERT_TRUE(result.converged);
+
+    for (int i = 0; i < 5; i++)
+        ASSERT_NEAR(x[i], x_exact[i], 1e-10);
+
+    sparse_free(A);
+}
+
+/* Right vs left: right precond residual matches true residual exactly */
+static void test_gmres_right_vs_left_residual(void) {
+    idx_t n = 30;
+    SparseMatrix *A = build_unsym_tridiag(n, 5.0, 2.0, -1.0);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (!x_exact || !b) {
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = sin((double)(i + 1) * 0.2);
+    sparse_matvec(A, x_exact, b);
+
+    sparse_ilu_t ilu;
+    {
+        sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+        ASSERT_ERR(ferr, SPARSE_OK);
+        if (ferr != SPARSE_OK) {
+            free(x_exact);
+            free(b);
+            sparse_free(A);
+            return;
+        }
+    }
+
+    /* Right-preconditioned */
+    double *x_r = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_r);
+    sparse_gmres_opts_t opts_r = {.max_iter = 200,
+                                  .restart = 30,
+                                  .tol = 1e-10,
+                                  .verbose = 0,
+                                  .precond_side = SPARSE_PRECOND_RIGHT};
+    sparse_iter_result_t res_r = {0};
+    if (x_r) {
+        sparse_err_t err_r =
+            sparse_solve_gmres(A, b, x_r, &opts_r, sparse_ilu_precond, &ilu, &res_r);
+        ASSERT_ERR(err_r, SPARSE_OK);
+    }
+
+    /* Left-preconditioned */
+    double *x_l = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_l);
+    sparse_gmres_opts_t opts_l = {.max_iter = 200,
+                                  .restart = 30,
+                                  .tol = 1e-10,
+                                  .verbose = 0,
+                                  .precond_side = SPARSE_PRECOND_LEFT};
+    sparse_iter_result_t res_l = {0};
+    if (x_l) {
+        sparse_err_t err_l =
+            sparse_solve_gmres(A, b, x_l, &opts_l, sparse_ilu_precond, &ilu, &res_l);
+        ASSERT_TRUE(err_l == SPARSE_OK || err_l == SPARSE_ERR_NOT_CONVERGED);
+    }
+
+    if (x_r && x_l) {
+        double true_r = compute_relative_residual(A, b, x_r, n);
+        double true_l = compute_relative_residual(A, b, x_l, n);
+
+        printf("    right vs left: right=%d iters reported=%.3e true=%.3e, "
+               "left=%d iters reported=%.3e true=%.3e\n",
+               (int)res_r.iterations, res_r.residual_norm, true_r, (int)res_l.iterations,
+               res_l.residual_norm, true_l);
+
+        /* Right precond: reported residual should match true residual */
+        if (res_r.converged) {
+            ASSERT_TRUE(true_r < 1e-8);
+            ASSERT_TRUE(fabs(res_r.residual_norm - true_r) < 1e-8);
+        }
+        if (res_l.converged)
+            ASSERT_TRUE(true_l < 1e-4); /* left may have gap */
+    }
+
+    free(x_exact);
+    free(b);
+    free(x_r);
+    free(x_l);
+    sparse_ilu_free(&ilu);
+    sparse_free(A);
+}
+
 static void test_not_converged_strerror(void) {
     const char *s = sparse_strerror(SPARSE_ERR_NOT_CONVERGED);
     ASSERT_NOT_NULL(s);
@@ -2114,6 +2399,12 @@ int main(void) {
     RUN_TEST(test_gmres_vs_lu_west0067);
     RUN_TEST(test_gmres_vs_lu_steam1);
     RUN_TEST(test_gmres_vs_cg_nos4);
+
+    /* Right preconditioning (Sprint 6 Day 3) */
+    RUN_TEST(test_gmres_right_precond_diag);
+    RUN_TEST(test_gmres_right_precond_ilu_nos4);
+    RUN_TEST(test_gmres_right_precond_default);
+    RUN_TEST(test_gmres_right_vs_left_residual);
 
     /* Error codes */
     RUN_TEST(test_not_converged_strerror);

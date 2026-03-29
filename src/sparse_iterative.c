@@ -20,6 +20,7 @@ static const sparse_gmres_opts_t gmres_defaults = {
     .restart = 30,
     .tol = 1e-10,
     .verbose = 0,
+    .precond_side = SPARSE_PRECOND_LEFT,
 };
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -200,8 +201,11 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *
     const sparse_gmres_opts_t *o = opts ? opts : &gmres_defaults;
     if (o->max_iter < 0 || o->restart <= 0 || o->tol < 0.0)
         return SPARSE_ERR_BADARG;
+    if (o->precond_side != SPARSE_PRECOND_LEFT && o->precond_side != SPARSE_PRECOND_RIGHT)
+        return SPARSE_ERR_BADARG;
     idx_t n = sparse_rows(A);
     idx_t m = o->restart; /* restart parameter */
+    int right_precond = (precond && o->precond_side == SPARSE_PRECOND_RIGHT);
 
     /* Trivial case */
     if (n == 0) {
@@ -329,8 +333,8 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *
         for (idx_t i = 0; i < n; i++)
             V(0)[i] = b[i] - w[i];
 
-        /* Left preconditioning: v_0 = M^{-1} * r */
-        if (precond) {
+        /* Left preconditioning: v_0 = M^{-1} * r (right precond: no change) */
+        if (precond && !right_precond) {
             vec_copy(V(0), w, n);
             sparse_err_t perr = precond(precond_ctx, n, w, V(0));
             if (perr != SPARSE_OK) {
@@ -366,16 +370,26 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *
                 break;
             total_iter++;
 
-            /* w = A * v_j */
-            sparse_matvec(A, V(j), w);
-
-            /* Left preconditioning: w = M^{-1} * A * v_j */
-            if (precond) {
-                vec_copy(w, V(j + 1), n);
-                sparse_err_t perr = precond(precond_ctx, n, V(j + 1), w);
+            if (right_precond) {
+                /* Right preconditioning: w = A * M^{-1} * v_j */
+                sparse_err_t perr = precond(precond_ctx, n, V(j), V(j + 1));
                 if (perr != SPARSE_OK) {
                     free(mem);
                     return perr;
+                }
+                sparse_matvec(A, V(j + 1), w);
+            } else {
+                /* w = A * v_j */
+                sparse_matvec(A, V(j), w);
+
+                /* Left preconditioning: w = M^{-1} * A * v_j */
+                if (precond) {
+                    vec_copy(w, V(j + 1), n);
+                    sparse_err_t perr = precond(precond_ctx, n, V(j + 1), w);
+                    if (perr != SPARSE_OK) {
+                        free(mem);
+                        return perr;
+                    }
                 }
             }
 
@@ -454,9 +468,24 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *
                 y[i] = 0.0; /* singular Hessenberg diagonal — treat as zero */
         }
 
-        /* Update solution: x = x + V * y */
-        for (idx_t k = 0; k < j; k++)
-            vec_axpy(y[k], V(k), x, n);
+        /* Update solution */
+        if (right_precond) {
+            /* Right precond: x = x + M^{-1} * (V * y) */
+            /* First compute V*y into w, then apply M^{-1} */
+            vec_zero(w, n);
+            for (idx_t k = 0; k < j; k++)
+                vec_axpy(y[k], V(k), w, n);
+            sparse_err_t perr = precond(precond_ctx, n, w, V(0)); /* reuse V(0) as temp */
+            if (perr != SPARSE_OK) {
+                free(mem);
+                return perr;
+            }
+            vec_axpy(1.0, V(0), x, n);
+        } else {
+            /* Left precond / unpreconditioned: x = x + V * y */
+            for (idx_t k = 0; k < j; k++)
+                vec_axpy(y[k], V(k), x, n);
+        }
 
         /* Compute true residual to decide convergence */
         sparse_matvec(A, x, w);

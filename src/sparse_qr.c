@@ -374,15 +374,26 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
     /* Extract R rows for all applied reflectors (steps_done), not just
      * rank — this keeps A*P = Q*R consistent even when the last step
      * detected rank deficiency (its reflector was applied but R(k,k) ≈ 0). */
-    for (idx_t i = 0; i < steps_done; i++) {
-        for (idx_t j = i; j < n; j++) {
+    sparse_err_t ins_err = SPARSE_OK;
+    for (idx_t i = 0; i < steps_done && ins_err == SPARSE_OK; i++) {
+        for (idx_t j = i; j < n && ins_err == SPARSE_OK; j++) {
             double val = W[(size_t)j * (size_t)m + (size_t)i];
             if (fabs(val) > 1e-15)
-                sparse_insert(R, i, j, val);
+                ins_err = sparse_insert(R, i, j, val);
         }
     }
 
     free(W);
+
+    if (ins_err != SPARSE_OK) {
+        sparse_free(R);
+        free(perm);
+        free(betas);
+        for (idx_t i = 0; i < k; i++)
+            free(vecs[i]);
+        free(vecs);
+        return ins_err;
+    }
 
     qr->R = R;
     qr->betas = betas;

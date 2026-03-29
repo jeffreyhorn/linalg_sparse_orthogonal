@@ -62,9 +62,14 @@ static void test_all_solvers_nos4(void) {
     double *x_lu = malloc((size_t)n * sizeof(double));
     double rr_lu = INFINITY;
     if (LU && x_lu) {
-        sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12);
-        sparse_lu_solve(LU, b, x_lu);
-        rr_lu = compute_rel_residual(A, b, x_lu, n);
+        sparse_err_t lu_err = sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12);
+        ASSERT_ERR(lu_err, SPARSE_OK);
+        if (lu_err == SPARSE_OK) {
+            lu_err = sparse_lu_solve(LU, b, x_lu);
+            ASSERT_ERR(lu_err, SPARSE_OK);
+            if (lu_err == SPARSE_OK)
+                rr_lu = compute_rel_residual(A, b, x_lu, n);
+        }
     }
 
     /* Cholesky */
@@ -72,9 +77,14 @@ static void test_all_solvers_nos4(void) {
     double *x_ch = malloc((size_t)n * sizeof(double));
     double rr_ch = INFINITY;
     if (Ch && x_ch) {
-        sparse_cholesky_factor(Ch);
-        sparse_cholesky_solve(Ch, b, x_ch);
-        rr_ch = compute_rel_residual(A, b, x_ch, n);
+        sparse_err_t ch_err = sparse_cholesky_factor(Ch);
+        ASSERT_ERR(ch_err, SPARSE_OK);
+        if (ch_err == SPARSE_OK) {
+            ch_err = sparse_cholesky_solve(Ch, b, x_ch);
+            ASSERT_ERR(ch_err, SPARSE_OK);
+            if (ch_err == SPARSE_OK)
+                rr_ch = compute_rel_residual(A, b, x_ch, n);
+        }
     }
 
     /* CG */

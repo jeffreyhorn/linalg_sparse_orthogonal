@@ -598,6 +598,11 @@ sparse_err_t sparse_qr_nullspace(const sparse_qr_t *qr, double tol, double *basi
     if (!qr || !null_dim)
         return SPARSE_ERR_NULL;
 
+    /* Validate factorization data up front — even dimension-only queries
+     * need R to compute rank correctly. */
+    if (!qr->R || !qr->col_perm)
+        return SPARSE_ERR_NULL;
+
     idx_t n = qr->n;
     idx_t rank = sparse_qr_rank(qr, tol);
     idx_t ndim = n - rank;
@@ -605,10 +610,6 @@ sparse_err_t sparse_qr_nullspace(const sparse_qr_t *qr, double tol, double *basi
 
     if (ndim == 0 || !basis)
         return SPARSE_OK;
-
-    /* Validate that factorization data is present before dereferencing */
-    if (!qr->R || !qr->col_perm)
-        return SPARSE_ERR_NULL;
 
     idx_t m = qr->m;
 

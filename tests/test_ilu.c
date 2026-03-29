@@ -1144,6 +1144,11 @@ static void test_ilut_west0067(void) {
     sparse_ilu_t ilu0;
     sparse_err_t ilu0_err = sparse_ilu_factor(A, &ilu0);
     ASSERT_ERR(ilu0_err, SPARSE_ERR_SINGULAR);
+    if (ilu0_err != SPARSE_ERR_SINGULAR) {
+        sparse_ilu_free(&ilu0);
+        sparse_free(A);
+        return;
+    }
     printf("    west0067: ILU(0) returns %s (expected)\n", sparse_strerror(ilu0_err));
 
     /* ILUT should succeed (fill-in provides nonzero diagonal) */

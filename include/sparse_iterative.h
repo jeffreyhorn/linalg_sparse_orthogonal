@@ -145,7 +145,8 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
  * @param b           Right-hand side vector of length n.
  * @param x           On entry, initial guess; on exit, approximate solution.
  * @param opts        Solver options (NULL for defaults).
- * @param precond     Preconditioner callback for left preconditioning (NULL for none).
+ * @param precond     Preconditioner callback (NULL for none). Used for both left
+ *                    and right preconditioning, controlled by opts->precond_side.
  * @param precond_ctx Context pointer passed to precond callback.
  * @param result      Output: iteration count, residual, convergence flag (may be NULL).
  * @return SPARSE_OK if converged within tolerance.

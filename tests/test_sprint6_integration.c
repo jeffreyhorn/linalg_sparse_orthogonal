@@ -270,7 +270,12 @@ static void test_qr_vs_gmres(void) {
 
     /* QR solve */
     sparse_qr_t qr;
-    ASSERT_ERR(sparse_qr_factor(A, &qr), SPARSE_OK);
+    sparse_err_t qr_err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(qr_err, SPARSE_OK);
+    if (qr_err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
     double x_qr[5];
     sparse_qr_solve(&qr, b, x_qr, NULL);
 

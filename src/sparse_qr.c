@@ -415,12 +415,17 @@ sparse_err_t sparse_qr_form_q(const sparse_qr_t *qr, double *Q) {
 
     idx_t m = qr->m;
 
-    /* Overflow check for m*m*sizeof(double) */
-    if (m > 0 && (size_t)m > SIZE_MAX / ((size_t)m * sizeof(double)))
+    /* Overflow-safe computation of m*m*sizeof(double) */
+    size_t m_sz = (size_t)m;
+    size_t mm = 0;
+    size_t bytes = 0;
+    if (__builtin_mul_overflow(m_sz, m_sz, &mm))
+        return SPARSE_ERR_ALLOC;
+    if (__builtin_mul_overflow(mm, sizeof(double), &bytes))
         return SPARSE_ERR_ALLOC;
 
     /* Start with identity */
-    memset(Q, 0, (size_t)m * (size_t)m * sizeof(double));
+    memset(Q, 0, bytes);
     for (idx_t i = 0; i < m; i++)
         Q[(size_t)i * (size_t)m + (size_t)i] = 1.0;
 

@@ -521,7 +521,9 @@ For each row i = 0..n-1:
         mult = w[k] / U(k,k)
         if |mult| < tol * row_norm: drop (set w[k] = 0)
         else: w[k] = mult; w[j] -= mult * U(k,j) for j > k
-    Diagonal modification: if |w[i]| < tol * row_norm, set w[i] = sign(w[i]) * tol * row_norm
+    Diagonal modification: if |w[i]| < 1e-30:
+        eps = (row_norm > 0) ? tol * row_norm : 1e-10
+        w[i] = sign(w[i]) * eps
     Apply dual dropping:
         L entries: keep at most max_fill largest |entries| in columns < i
         U entries: keep at most max_fill largest |entries| in columns > i (always keep diagonal)

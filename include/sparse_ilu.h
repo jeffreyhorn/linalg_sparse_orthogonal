@@ -31,7 +31,8 @@
  *
  * Stores the L and U factors from incomplete LU factorization.
  * L is unit lower triangular, U is upper triangular with diagonal.
- * If row pivoting was used (ILUT), perm holds the row permutation.
+ * The perm field is reserved for future use (e.g., ILUT with row
+ * pivoting) and is currently always NULL.
  */
 typedef struct {
     SparseMatrix *L; /**< Unit lower triangular factor */

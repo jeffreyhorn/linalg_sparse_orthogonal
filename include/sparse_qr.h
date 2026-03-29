@@ -107,8 +107,9 @@ sparse_err_t sparse_qr_form_q(const sparse_qr_t *qr, double *Q);
 /**
  * @brief Solve the least-squares problem min ||Ax - b||_2.
  *
- * For overdetermined systems (m > n), computes the minimum-norm solution.
- * For rank-deficient systems, solves for the rank components and sets
+ * For overdetermined systems (m > n), computes the least-squares solution.
+ * For underdetermined or rank-deficient systems, computes the minimum-norm
+ * solution by solving only for the rank components and setting the
  * remaining to zero.
  *
  * @param qr       The QR factorization of A.

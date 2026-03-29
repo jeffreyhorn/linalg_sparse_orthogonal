@@ -1285,7 +1285,7 @@ static void test_ilut_cg_nos4(void) {
     double *x0 = calloc((size_t)n, sizeof(double));
     ASSERT_NOT_NULL(x0);
     sparse_iter_opts_t cg_opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
-    sparse_iter_result_t res0;
+    sparse_iter_result_t res0 = {0};
     if (x0)
         ASSERT_ERR(sparse_solve_cg(A, b, x0, &cg_opts, sparse_ilu_precond, &ilu0, &res0),
                    SPARSE_OK);

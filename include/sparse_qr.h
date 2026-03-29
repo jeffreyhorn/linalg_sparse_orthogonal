@@ -84,10 +84,10 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
  * Computes y = Q*x or y = Q^T*x using the stored Householder reflectors,
  * without forming Q explicitly.
  *
- * @param qr     The QR factorization.
- * @param side   0 for Q*x, 1 for Q^T*x.
- * @param x      Input vector of length m.
- * @param y      Output vector of length m (may alias x for in-place).
+ * @param qr        The QR factorization.
+ * @param transpose 0 for Q*x, 1 for Q^T*x.
+ * @param x         Input vector of length m.
+ * @param y         Output vector of length m (may alias x for in-place).
  * @return SPARSE_OK on success.
  */
 sparse_err_t sparse_qr_apply_q(const sparse_qr_t *qr, int transpose, const double *x, double *y);

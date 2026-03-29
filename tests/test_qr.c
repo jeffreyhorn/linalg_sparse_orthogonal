@@ -41,6 +41,11 @@ static void test_householder_3vec(void) {
 
     /* R should be 2×2 upper triangular */
     ASSERT_NOT_NULL(qr.R);
+    if (!qr.R) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
     ASSERT_EQ(qr.rank, 2);
 
     /* R(0,0) should be -||col0|| = -5 (or +5 depending on sign convention) */
@@ -595,7 +600,7 @@ static double qr_reconstruction_error(const SparseMatrix *A, const sparse_qr_t *
     idx_t n_cols = qr->n;
     double *Q = malloc((size_t)m * (size_t)m * sizeof(double));
     if (!Q)
-        return -1.0;
+        return INFINITY;
     sparse_qr_form_q(qr, Q);
 
     idx_t rrows = sparse_rows(qr->R);

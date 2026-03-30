@@ -131,6 +131,9 @@ static void test_dense_gemm_shape_error(void) {
     dense_matrix_t *A = dense_create(2, 3);
     dense_matrix_t *B = dense_create(2, 2); /* A.cols=3 != B.rows=2 */
     dense_matrix_t *C = dense_create(2, 2);
+    ASSERT_NOT_NULL(A);
+    ASSERT_NOT_NULL(B);
+    ASSERT_NOT_NULL(C);
     if (!A || !B || !C) {
         dense_free(A);
         dense_free(B);
@@ -149,11 +152,16 @@ static void test_dense_gemm_shape_error(void) {
 static void test_dense_gemm_null(void) {
     dense_matrix_t *A = dense_create(2, 2);
     dense_matrix_t *C = dense_create(2, 2);
-    if (A && C) {
-        ASSERT_ERR(dense_gemm(NULL, A, C), SPARSE_ERR_NULL);
-        ASSERT_ERR(dense_gemm(A, NULL, C), SPARSE_ERR_NULL);
-        ASSERT_ERR(dense_gemm(A, A, NULL), SPARSE_ERR_NULL);
+    ASSERT_NOT_NULL(A);
+    ASSERT_NOT_NULL(C);
+    if (!A || !C) {
+        dense_free(A);
+        dense_free(C);
+        return;
     }
+    ASSERT_ERR(dense_gemm(NULL, A, C), SPARSE_ERR_NULL);
+    ASSERT_ERR(dense_gemm(A, NULL, C), SPARSE_ERR_NULL);
+    ASSERT_ERR(dense_gemm(A, A, NULL), SPARSE_ERR_NULL);
     dense_free(A);
     dense_free(C);
 }
@@ -211,13 +219,14 @@ static void test_dense_gemv_rect(void) {
 /* NULL inputs */
 static void test_dense_gemv_null(void) {
     dense_matrix_t *A = dense_create(2, 2);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
     double x[2] = {1.0, 2.0};
     double y[2];
-    if (A) {
-        ASSERT_ERR(dense_gemv(NULL, x, y), SPARSE_ERR_NULL);
-        ASSERT_ERR(dense_gemv(A, NULL, y), SPARSE_ERR_NULL);
-        ASSERT_ERR(dense_gemv(A, x, NULL), SPARSE_ERR_NULL);
-    }
+    ASSERT_ERR(dense_gemv(NULL, x, y), SPARSE_ERR_NULL);
+    ASSERT_ERR(dense_gemv(A, NULL, y), SPARSE_ERR_NULL);
+    ASSERT_ERR(dense_gemv(A, x, NULL), SPARSE_ERR_NULL);
     dense_free(A);
 }
 

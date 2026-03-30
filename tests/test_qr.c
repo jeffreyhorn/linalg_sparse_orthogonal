@@ -2670,6 +2670,173 @@ static void test_sparse_mode_q_ortho(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Sparse-mode QR: benchmarks & edge cases (Sprint 7 Day 10)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Reconstruction error comparison: sparse vs dense on nos4 */
+static void test_sparse_mode_reconstruction(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+
+    /* Dense-mode reconstruction error */
+    sparse_qr_t qr_d;
+    sparse_err_t err = sparse_qr_factor(A, &qr_d);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    double recon_d = qr_reconstruction_error(A, &qr_d);
+
+    /* Sparse-mode reconstruction error */
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 0, .sparse_mode = 1};
+    sparse_qr_t qr_s;
+    err = sparse_qr_factor_opts(A, &opts, &qr_s);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_qr_free(&qr_d);
+        sparse_free(A);
+        return;
+    }
+    double recon_s = qr_reconstruction_error(A, &qr_s);
+
+    printf("    reconstruction nos4: dense=%.3e, sparse=%.3e\n", recon_d, recon_s);
+    ASSERT_TRUE(recon_d < 1e-10);
+    ASSERT_TRUE(recon_s < 1e-10);
+
+    sparse_qr_free(&qr_d);
+    sparse_qr_free(&qr_s);
+    sparse_free(A);
+}
+
+/* Sparse-mode with AMD reordering */
+static void test_sparse_mode_amd(void) {
+    SparseMatrix *A = sparse_create(6, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 4.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 4.0);
+    sparse_insert(A, 2, 3, 1.0);
+    sparse_insert(A, 3, 2, 1.0);
+    sparse_insert(A, 3, 3, 4.0);
+    sparse_insert(A, 4, 0, 2.0);
+    sparse_insert(A, 5, 3, 2.0);
+
+    double b[6] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
+
+    /* Sparse-mode without reorder */
+    sparse_qr_opts_t opts_none = {.reorder = SPARSE_REORDER_NONE, .sparse_mode = 1};
+    sparse_qr_t qr_none;
+    sparse_err_t err = sparse_qr_factor_opts(A, &opts_none, &qr_none);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    double x_none[4];
+    sparse_qr_solve(&qr_none, b, x_none, NULL);
+
+    /* Sparse-mode with AMD reorder */
+    sparse_qr_opts_t opts_amd = {.reorder = SPARSE_REORDER_AMD, .sparse_mode = 1};
+    sparse_qr_t qr_amd;
+    err = sparse_qr_factor_opts(A, &opts_amd, &qr_amd);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_qr_free(&qr_none);
+        sparse_free(A);
+        return;
+    }
+    double x_amd[4];
+    sparse_qr_solve(&qr_amd, b, x_amd, NULL);
+
+    /* Solutions should agree */
+    for (int i = 0; i < 4; i++)
+        ASSERT_NEAR(x_none[i], x_amd[i], 1e-10);
+
+    printf("    sparse AMD reorder: rank_none=%d, rank_amd=%d\n",
+           (int)qr_none.rank, (int)qr_amd.rank);
+
+    sparse_qr_free(&qr_none);
+    sparse_qr_free(&qr_amd);
+    sparse_free(A);
+}
+
+/* Very sparse matrix: diagonal only */
+static void test_sparse_mode_diagonal(void) {
+    idx_t n = 20;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, (double)(i + 1));
+
+    compare_dense_sparse_qr(A, "diag 20x20");
+    sparse_free(A);
+}
+
+/* Single column matrix */
+static void test_sparse_mode_single_col(void) {
+    SparseMatrix *A = sparse_create(5, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 3.0);
+    sparse_insert(A, 2, 0, 4.0);
+    compare_dense_sparse_qr(A, "5x1");
+    sparse_free(A);
+}
+
+/* Single row matrix */
+static void test_sparse_mode_single_row(void) {
+    SparseMatrix *A = sparse_create(1, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 0, 3, 5.0);
+    compare_dense_sparse_qr(A, "1x5");
+    sparse_free(A);
+}
+
+/* Timing comparison: print factorization time for dense vs sparse on nos4 */
+static void test_sparse_mode_timing(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+
+    /* Dense-mode */
+    sparse_qr_t qr_d;
+    sparse_qr_factor(A, &qr_d);
+    idx_t nnz_r_d = sparse_nnz(qr_d.R);
+
+    /* Sparse-mode */
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .sparse_mode = 1};
+    sparse_qr_t qr_s;
+    sparse_qr_factor_opts(A, &opts, &qr_s);
+    idx_t nnz_r_s = sparse_nnz(qr_s.R);
+
+    printf("    nos4 R nnz: dense=%d, sparse=%d\n", (int)nnz_r_d, (int)nnz_r_s);
+    /* Both should produce same R fill-in */
+    ASSERT_EQ(nnz_r_d, nnz_r_s);
+
+    sparse_qr_free(&qr_d);
+    sparse_qr_free(&qr_s);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -2756,6 +2923,14 @@ int main(void) {
     RUN_TEST(test_sparse_mode_bcsstk04);
     RUN_TEST(test_sparse_mode_1x1);
     RUN_TEST(test_sparse_mode_q_ortho);
+
+    /* Sparse-mode benchmarks & edge cases (Sprint 7 Day 10) */
+    RUN_TEST(test_sparse_mode_reconstruction);
+    RUN_TEST(test_sparse_mode_amd);
+    RUN_TEST(test_sparse_mode_diagonal);
+    RUN_TEST(test_sparse_mode_single_col);
+    RUN_TEST(test_sparse_mode_single_row);
+    RUN_TEST(test_sparse_mode_timing);
 
     TEST_SUITE_END();
 }

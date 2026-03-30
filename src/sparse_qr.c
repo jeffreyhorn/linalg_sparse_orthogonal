@@ -105,8 +105,8 @@ static void sparse_extract_column(const SparseMatrix *A, idx_t col, double *dens
  * starting at index `start`. v has length (m - start), dense has length m.
  * Only dense[start..m-1] is modified.
  */
-static void householder_apply_to_column(const double *v, double beta,
-                                        double *dense, idx_t start, idx_t m) {
+static void householder_apply_to_column(const double *v, double beta, double *dense, idx_t start,
+                                        idx_t m) {
     if (beta == 0.0)
         return;
     idx_t len = m - start;
@@ -145,8 +145,7 @@ void sparse_qr_free(sparse_qr_t *qr) {
  * Operates on a mutable copy of A, applying Householder reflectors
  * column-by-column and extracting R entries as they are produced.
  */
-static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A,
-                                             const sparse_qr_opts_t *opts,
+static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse_qr_opts_t *opts,
                                              sparse_qr_t *qr) {
     idx_t m = sparse_rows(A);
     idx_t n = sparse_cols(A);
@@ -841,8 +840,7 @@ sparse_err_t sparse_qr_form_q(const sparse_qr_t *qr, double *Q) {
     /* Apply Q to each column of the truncated identity.
      * Each column is length m; apply_q works on m-vectors. */
     for (idx_t j = 0; j < ncols; j++) {
-        sparse_qr_apply_q(qr, 0, &Q[(size_t)j * (size_t)m],
-                           &Q[(size_t)j * (size_t)m]);
+        sparse_qr_apply_q(qr, 0, &Q[(size_t)j * (size_t)m], &Q[(size_t)j * (size_t)m]);
     }
 
     return SPARSE_OK;

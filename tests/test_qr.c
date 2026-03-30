@@ -2101,8 +2101,7 @@ static void test_economy_q_orthogonality(void) {
         for (idx_t j = 0; j < nc; j++) {
             double dot = 0.0;
             for (idx_t k = 0; k < m; k++)
-                dot += Q[(size_t)i * (size_t)m + (size_t)k] *
-                       Q[(size_t)j * (size_t)m + (size_t)k];
+                dot += Q[(size_t)i * (size_t)m + (size_t)k] * Q[(size_t)j * (size_t)m + (size_t)k];
             double expected = (i == j) ? 1.0 : 0.0;
             double e = fabs(dot - expected);
             if (e > max_err)
@@ -2464,8 +2463,8 @@ static void test_sparse_mode_nos4(void) {
             if (d > max_diff)
                 max_diff = d;
         }
-        printf("    sparse-mode nos4: max_diff=%.3e, rank_dense=%d, rank_sparse=%d\n",
-               max_diff, (int)qr_dense.rank, (int)qr_sparse.rank);
+        printf("    sparse-mode nos4: max_diff=%.3e, rank_dense=%d, rank_sparse=%d\n", max_diff,
+               (int)qr_dense.rank, (int)qr_sparse.rank);
         ASSERT_TRUE(max_diff < 1e-8);
     }
 
@@ -2539,8 +2538,8 @@ static void compare_dense_sparse_qr(const SparseMatrix *A, const char *name) {
             if (d > max_diff)
                 max_diff = d;
         }
-        printf("    sparse vs dense %s: max_diff=%.3e, rank_d=%d, rank_s=%d\n",
-               name, max_diff, (int)qr_d.rank, (int)qr_s.rank);
+        printf("    sparse vs dense %s: max_diff=%.3e, rank_d=%d, rank_s=%d\n", name, max_diff,
+               (int)qr_d.rank, (int)qr_s.rank);
         ASSERT_TRUE(max_diff < 1e-8);
         ASSERT_EQ(qr_d.rank, qr_s.rank);
     }
@@ -2680,8 +2679,7 @@ static void test_sparse_mode_q_ortho(void) {
         for (idx_t j = 0; j < m; j++) {
             double dot = 0.0;
             for (idx_t p = 0; p < m; p++)
-                dot += Q[(size_t)i * (size_t)m + (size_t)p] *
-                       Q[(size_t)j * (size_t)m + (size_t)p];
+                dot += Q[(size_t)i * (size_t)m + (size_t)p] * Q[(size_t)j * (size_t)m + (size_t)p];
             double expected = (i == j) ? 1.0 : 0.0;
             double e = fabs(dot - expected);
             if (e > max_err)
@@ -2789,8 +2787,8 @@ static void test_sparse_mode_amd(void) {
     for (int i = 0; i < 4; i++)
         ASSERT_NEAR(x_none[i], x_amd[i], 1e-10);
 
-    printf("    sparse AMD reorder: rank_none=%d, rank_amd=%d\n",
-           (int)qr_none.rank, (int)qr_amd.rank);
+    printf("    sparse AMD reorder: rank_none=%d, rank_amd=%d\n", (int)qr_none.rank,
+           (int)qr_amd.rank);
 
     sparse_qr_free(&qr_none);
     sparse_qr_free(&qr_amd);

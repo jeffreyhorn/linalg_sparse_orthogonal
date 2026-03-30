@@ -41,9 +41,7 @@ static void test_dense_create_invalid(void) {
     ASSERT_TRUE(dense_create(5, -1) == NULL);
 }
 
-static void test_dense_free_null(void) {
-    dense_free(NULL); /* should not crash */
-}
+static void test_dense_free_null(void) { dense_free(NULL); /* should not crash */ }
 
 /* ═══════════════════════════════════════════════════════════════════════
  * GEMM tests

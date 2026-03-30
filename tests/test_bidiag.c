@@ -22,8 +22,7 @@
  * Compute ||A - U*B*V^T|| where U/V are applied via Householder sequences
  * and B is bidiagonal. Uses explicit dense reconstruction.
  */
-static double bidiag_reconstruction_error(const SparseMatrix *A,
-                                          const sparse_bidiag_t *bd) {
+static double bidiag_reconstruction_error(const SparseMatrix *A, const sparse_bidiag_t *bd) {
     idx_t m = bd->m;
     idx_t n = bd->n;
     idx_t k = (m < n) ? m : n;

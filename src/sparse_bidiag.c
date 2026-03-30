@@ -26,8 +26,7 @@ static double bidiag_householder_compute(const double *x, double *v, idx_t len) 
     return 2.0 / vtv;
 }
 
-static void bidiag_householder_apply(const double *v, double beta, double *y,
-                                     idx_t len) {
+static void bidiag_householder_apply(const double *v, double beta, double *y, idx_t len) {
     if (beta == 0.0)
         return;
     double vty = 0.0;
@@ -61,8 +60,7 @@ void sparse_bidiag_free(sparse_bidiag_t *bidiag) {
     memset(bidiag, 0, sizeof(*bidiag));
 }
 
-sparse_err_t sparse_bidiag_factor(const SparseMatrix *A,
-                                  sparse_bidiag_t *bidiag) {
+sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag) {
     if (!bidiag)
         return SPARSE_ERR_NULL;
     memset(bidiag, 0, sizeof(*bidiag));

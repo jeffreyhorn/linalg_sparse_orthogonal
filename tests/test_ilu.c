@@ -1723,8 +1723,8 @@ static void test_ilut_pivot_gmres_west0067(void) {
         sparse_solve_gmres(A, b, x, &gm_opts, sparse_ilut_precond, &ilut, &result);
 
     double res = compute_relative_residual(A, b, x, n);
-    printf("    west0067 pivot-ILUT-GMRES: %d iters, res=%.3e, conv=%d\n",
-           (int)result.iterations, res, result.converged);
+    printf("    west0067 pivot-ILUT-GMRES: %d iters, res=%.3e, conv=%d\n", (int)result.iterations,
+           res, result.converged);
 
     /* With pivoting, GMRES may or may not converge on west0067 (pathological).
      * We validate that the solver runs without crashing. */

@@ -149,7 +149,7 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 ### Prerequisites from Sprint 5
 
-- ILU(0) preconditioner (ILUT extends ILU(0) with threshold dropping and pivoting)
+- ILU(0) preconditioner (ILUT extends ILU(0) with threshold dropping and diagonal modification)
 - GMRES solver (right preconditioning extends the existing left preconditioning)
 - Iterative solvers (CG/GMRES can be used as alternatives for large least-squares problems; convergence infrastructure reused)
 
@@ -157,9 +157,9 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 | # | Item | Description | Estimate |
 |---|------|-------------|----------|
-| 1 | ILUT preconditioner | Implement `sparse_ilut_factor()` — ILU with threshold dropping and optional pivoting. Unlike ILU(0) which preserves the original sparsity pattern, ILUT allows controlled fill-in based on a drop tolerance and maximum fill per row. Handles matrices with structurally zero diagonals (e.g., west0067) that ILU(0) cannot. Implement `sparse_ilut_solve()` and `sparse_ilut_precond()` callback. | 20 hrs |
+| 1 | ILUT preconditioner | Implement `sparse_ilut_factor()` — ILU with threshold dropping and diagonal modification for zero pivots. Unlike ILU(0) which preserves the original sparsity pattern, ILUT allows controlled fill-in based on a drop tolerance and maximum fill per row. Handles matrices with structurally zero diagonals (e.g., west0067) via diagonal modification. Implement `sparse_ilut_solve()` and `sparse_ilut_precond()` callback. True partial pivoting deferred to Sprint 7. | 20 hrs |
 | 2 | Right preconditioning for GMRES | Add right preconditioning option to `sparse_solve_gmres()`: introduce y = M*x, solve A*M^{-1}*y = b for y via GMRES, then recover x = M^{-1}*y. The key advantage: the GMRES residual norm equals the true residual ||b - Ax|| (no preconditioned/true residual gap). Add `precond_side` option (left/right) to `sparse_gmres_opts_t`. | 12 hrs |
-| 3 | Householder reflections on sparse columns | Implement sparse Householder vector computation: given a sparse column vector x, compute v and beta such that (I - beta*v*v^T)*x = ||x||*e_1. Handle sparse fill-in efficiently — Householder reflections generally densify columns, so maintain a dense working column with sparse writeback. | 24 hrs |
+| 3 | Householder reflections with dense workspace | Implement Householder vector computation and application using an O(m*n) dense column-major workspace. Given a column vector x, compute v and beta such that (I - beta*v*v^T)*x = ||x||*e_1. The dense workspace simplifies implementation but limits scalability to matrices that fit in memory when unrolled. Truly sparse Householder application deferred to Sprint 7. | 24 hrs |
 | 4 | Column-pivoted QR factorization | Implement `sparse_qr_factor()` with column pivoting for rank-revealing QR: A*P = Q*R. Use column norms for pivot selection (greedy largest-norm pivot). Store R in upper-triangular sparse matrix. Store Q implicitly as a sequence of Householder reflectors (v vectors + beta scalars). Track column permutation. | 36 hrs |
 | 5 | Q application and extraction | Implement `sparse_qr_apply_q()` to apply Q (or Q^T) to a vector or matrix without forming Q explicitly: Q*x = (I - beta_k*v_k*v_k^T)*...*(I - beta_1*v_1*v_1^T)*x. Implement `sparse_qr_form_q()` to explicitly form the Q matrix (for diagnostics/testing, not recommended for large matrices). | 20 hrs |
 | 6 | Least-squares solver | Implement `sparse_qr_solve()` for overdetermined systems (m > n): minimize ||Ax - b||_2. Steps: Q^T*b via Householder application, then back-substitute with R. Handle rank deficiency via column pivoting (truncate R at numerical rank). Return residual norm. | 16 hrs |
@@ -186,46 +186,56 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 ---
 
-## Sprint 7: QR Applications & Eigenvalue Infrastructure
+## Sprint 7: QR Applications, Preconditioner Hardening & Eigenvalue Infrastructure
 
-**Duration:** 14 days (~120 hours)
+**Duration:** 14 days (~152 hours)
 
-**Goal:** Build QR-based applications (iterative refinement, economy QR, updating) and lay the eigenvalue computation groundwork needed for SVD. Implement the QR algorithm for eigenvalues of symmetric tridiagonal matrices, which is the core iteration inside SVD.
+**Goal:** Harden the ILUT preconditioner with true partial pivoting, improve QR scalability by eliminating the dense workspace, build QR-based applications (iterative refinement, economy QR), and lay the eigenvalue computation groundwork needed for SVD. Implement the QR algorithm for eigenvalues of symmetric tridiagonal matrices, which is the core iteration inside SVD.
 
 ### Prerequisites from Sprint 6
 
-- Sparse QR factorization (foundation for all items in this sprint)
+- ILUT preconditioner (partial pivoting adds an alternative to diagonal modification)
+- Sparse QR factorization (foundation for QR items in this sprint)
+- Householder reflections (sparse Householder extends the dense-workspace approach)
 
 ### Items
 
 | # | Item | Description | Estimate |
 |---|------|-------------|----------|
-| 1 | Economy (thin) QR | Implement economy QR for m >> n: only compute the first n columns of Q and the n×n upper portion of R. Significant memory savings for tall-skinny matrices. Update `sparse_qr_factor()` with an `economy` flag. | 16 hrs |
-| 2 | QR iterative refinement | Implement `sparse_qr_refine()` analogous to `sparse_lu_refine()`: compute residual r = b - A*x, solve correction via QR, update x. Useful for improving least-squares solutions on ill-conditioned systems. | 12 hrs |
-| 3 | Symmetric tridiagonal QR algorithm | Implement the implicit QR algorithm with Wilkinson shifts for computing eigenvalues of symmetric tridiagonal matrices. This is a dense algorithm on the tridiagonal (stored as two arrays: diagonal + subdiagonal). Used as the inner loop of SVD. Implement deflation when subdiagonal entries converge to zero. | 28 hrs |
-| 4 | Bidiagonal reduction | Implement Householder bidiagonalization: reduce a general m×n matrix to upper bidiagonal form B = U^T * A * V using alternating left and right Householder reflections. Store U and V implicitly as Householder sequences. This is the first phase of SVD. | 28 hrs |
-| 5 | Dense vector/matrix utilities | Add dense matrix utilities needed by eigenvalue/SVD code: dense matrix create/free/multiply, Givens rotations, and 2×2 symmetric eigenvalue solver. These are small dense operations used inside the tridiagonal QR iteration. | 16 hrs |
-| 6 | Sparse transpose | Implement `sparse_transpose()` to compute A^T as a new matrix. Needed for forming A^T*A in SVD and for QR on A^T. | 12 hrs |
+| 1 | ILUT with partial pivoting | Add true row partial pivoting as an alternative to ILUT's diagonal modification for severely ill-conditioned matrices. Diagonal modification remains as the default; partial pivoting is enabled via an option. Track row permutations in `sparse_ilu_t.perm`. More robust for matrices like west0067 where synthetic pivots amplify numerical error. Update ILUT solve to apply the row permutation when present. | 16 hrs |
+| 2 | Sparse transpose | Implement `sparse_transpose()` to compute A^T as a new matrix. Needed for forming A^T*A in SVD and for QR on A^T. | 12 hrs |
+| 3 | Dense vector/matrix utilities | Add dense matrix utilities needed by eigenvalue/SVD code: dense matrix create/free/multiply, Givens rotations, and 2×2 symmetric eigenvalue solver. These are small dense operations used inside the tridiagonal QR iteration. | 16 hrs |
+| 4 | Economy (thin) QR | Implement economy QR for m >> n: only compute the first n columns of Q and the n×n upper portion of R. Significant memory savings for tall-skinny matrices. Update `sparse_qr_factor()` with an `economy` flag. | 16 hrs |
+| 5 | Sparse QR with truly sparse Householder | Replace the O(m*n) dense workspace in `sparse_qr_factor()` with sparse Householder application that operates directly on the linked-list structure. Eliminates the memory bottleneck for large matrices where m*n doesn't fit in RAM. Requires careful fill-in tracking during column updates. | 24 hrs |
+| 6 | QR iterative refinement | Implement `sparse_qr_refine()` analogous to `sparse_lu_refine()`: compute residual r = b - A*x, solve correction via QR, update x. Useful for improving least-squares solutions on ill-conditioned systems. | 12 hrs |
+| 7 | Symmetric tridiagonal QR algorithm | Implement the implicit QR algorithm with Wilkinson shifts for computing eigenvalues of symmetric tridiagonal matrices. This is a dense algorithm on the tridiagonal (stored as two arrays: diagonal + subdiagonal). Used as the inner loop of SVD. Implement deflation when subdiagonal entries converge to zero. | 28 hrs |
+| 8 | Bidiagonal reduction | Implement Householder bidiagonalization: reduce a general m×n matrix to upper bidiagonal form B = U^T * A * V using alternating left and right Householder reflections. Store U and V implicitly as Householder sequences. This is the first phase of SVD. | 28 hrs |
 
 ### Deliverables
 
+- ILUT with true partial pivoting and row permutation tracking
+- `sparse_transpose()` in public API
+- Dense matrix utilities for small inner computations
 - Economy QR for tall-skinny matrices
+- Sparse QR without dense workspace limitation
 - `sparse_qr_refine()` for iterative least-squares improvement
 - Tridiagonal QR eigenvalue solver (dense, for SVD inner loop)
 - Householder bidiagonalization (for SVD first phase)
-- `sparse_transpose()` in public API
-- Dense matrix utilities for small inner computations
-- All QR and LU tests remain passing
+- All existing tests remain passing
 
-**Total estimate:** ~112 hours
+**Total estimate:** ~152 hours
 
 ---
 
-## Sprint 8: Sparse SVD
+## Sprint 8: Matrix-Free Interface & Sparse SVD
 
-**Duration:** 14 days (~130 hours)
+**Duration:** 14 days (~140 hours)
 
-**Goal:** Implement full-featured sparse SVD (Singular Value Decomposition) on the orthogonal linked-list structure. SVD computes A = U*Σ*V^T and is the most powerful matrix decomposition, enabling rank estimation, pseudoinverse, low-rank approximation, and principal component analysis.
+**Goal:** Add a matrix-free interface so iterative solvers can work with implicit operators, then implement full-featured sparse SVD (Singular Value Decomposition). SVD computes A = U*Σ*V^T and is the most powerful matrix decomposition, enabling rank estimation, pseudoinverse, low-rank approximation, and principal component analysis.
+
+### Prerequisites from Sprint 5
+
+- Iterative solvers CG/GMRES (matrix-free interface extends these)
 
 ### Prerequisites from Sprint 7
 
@@ -238,14 +248,16 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 | # | Item | Description | Estimate |
 |---|------|-------------|----------|
-| 1 | Golub-Kahan bidiagonalization | Adapt the Householder bidiagonalization from Sprint 7 into the Golub-Kahan variant suitable for SVD: produce B, U, V such that A = U*B*V^T where B is upper bidiagonal. Handle rectangular matrices (m > n and m < n). Store U, V implicitly or explicitly based on user request. | 24 hrs |
-| 2 | Implicit QR SVD iteration | Implement the Golub-Kahan SVD step (implicit QR on B^T*B without forming it): chase a bulge down the bidiagonal using Givens rotations, accumulating rotations into U and V. Implement Wilkinson shift selection from the trailing 2×2 of B^T*B. Implement deflation (split bidiagonal when superdiagonal converges to zero). | 32 hrs |
-| 3 | Full SVD driver | Implement `sparse_svd()` as the top-level driver: bidiagonalize → iterate to convergence → extract singular values and optional U, V. Support options: compute singular values only, thin SVD (economy U/V), or full SVD. Handle convergence failure (max iterations). Sort singular values in descending order. | 20 hrs |
-| 4 | Truncated/partial SVD | Implement `sparse_svd_partial()` to compute only the k largest singular values and their corresponding singular vectors, without computing the full decomposition. Use Lanczos bidiagonalization (iterative, builds up the bidiagonal incrementally) for the partial case. Much more efficient than full SVD when k << min(m,n). | 28 hrs |
-| 5 | SVD applications | Implement `sparse_svd_rank()` for numerical rank estimation (count singular values above tolerance). Implement `sparse_pinv()` for pseudoinverse via SVD: A^+ = V*Σ^+*U^T. Implement `sparse_svd_lowrank()` for best rank-k approximation. Test on rank-deficient and ill-conditioned matrices. | 20 hrs |
+| 1 | Matrix-free interface | Add a callback-based `sparse_matvec_fn` type so iterative solvers (CG, GMRES) can work with implicit linear operators (A*x callback) instead of requiring an explicit `SparseMatrix`. Add `sparse_solve_cg_mf()` and `sparse_solve_gmres_mf()` variants that accept a matvec callback and context pointer. Enables solving with operators that are too large to store or are defined procedurally. | 16 hrs |
+| 2 | Golub-Kahan bidiagonalization | Adapt the Householder bidiagonalization from Sprint 7 into the Golub-Kahan variant suitable for SVD: produce B, U, V such that A = U*B*V^T where B is upper bidiagonal. Handle rectangular matrices (m > n and m < n). Store U, V implicitly or explicitly based on user request. | 24 hrs |
+| 3 | Implicit QR SVD iteration | Implement the Golub-Kahan SVD step (implicit QR on B^T*B without forming it): chase a bulge down the bidiagonal using Givens rotations, accumulating rotations into U and V. Implement Wilkinson shift selection from the trailing 2×2 of B^T*B. Implement deflation (split bidiagonal when superdiagonal converges to zero). | 32 hrs |
+| 4 | Full SVD driver | Implement `sparse_svd()` as the top-level driver: bidiagonalize → iterate to convergence → extract singular values and optional U, V. Support options: compute singular values only, thin SVD (economy U/V), or full SVD. Handle convergence failure (max iterations). Sort singular values in descending order. | 20 hrs |
+| 5 | Truncated/partial SVD | Implement `sparse_svd_partial()` to compute only the k largest singular values and their corresponding singular vectors, without computing the full decomposition. Use Lanczos bidiagonalization (iterative, builds up the bidiagonal incrementally) for the partial case. Much more efficient than full SVD when k << min(m,n). | 28 hrs |
+| 6 | SVD applications | Implement `sparse_svd_rank()` for numerical rank estimation (count singular values above tolerance). Implement `sparse_pinv()` for pseudoinverse via SVD: A^+ = V*Σ^+*U^T. Implement `sparse_svd_lowrank()` for best rank-k approximation. Test on rank-deficient and ill-conditioned matrices. | 20 hrs |
 
 ### Deliverables
 
+- Matrix-free iterative solvers (`sparse_solve_cg_mf()`, `sparse_solve_gmres_mf()`)
 - `sparse_svd()` — full SVD: A = U*Σ*V^T
 - Singular values only, thin SVD, and full SVD modes
 - `sparse_svd_partial()` — compute k largest singular values (Lanczos-based)
@@ -257,7 +269,7 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 - Convergence benchmarks on SuiteSparse matrices
 - All existing tests remain passing
 
-**Total estimate:** ~124 hours
+**Total estimate:** ~140 hours
 
 ---
 
@@ -312,9 +324,9 @@ Sprint 4 (Cholesky/Threads/SpMM/CSR) ← needs reordering, condest
     │       │
     │       └── Sprint 6 (Iterative Enhancements & QR) ← needs ILU, GMRES, CSR/CSC, SpMM
     │               │
-    │               └── Sprint 7 (QR Apps/Eigenvalues) ← needs QR
+    │               └── Sprint 7 (QR Apps/ILUT Pivoting/Eigenvalues) ← needs QR, ILUT
     │                       │
-    │                       └── Sprint 8 (SVD) ← needs bidiag, tridiag QR
+    │                       └── Sprint 8 (Matrix-Free/SVD) ← needs bidiag, tridiag QR, iterative solvers
     │
     └── Sprint 9 (Performance/Polish) ← needs all factorizations complete
 ```
@@ -328,8 +340,8 @@ Sprint 4 (Cholesky/Threads/SpMM/CSR) ← needs reordering, condest
 | 4 | Cholesky/Threads/SpMM/CSR | 14 days | ~116 hrs | Cholesky, thread safety, SpMM, CSR/CSC export |
 | 5 | Iterative Solvers | 14 days | ~112 hrs | CG, GMRES, ILU preconditioner, parallel SpMV |
 | 6 | Iterative Enhancements & QR | 14 days | ~156 hrs | ILUT, right preconditioning, column-pivoted QR, least-squares, rank estimation |
-| 7 | QR Apps & Eigenvalues | 14 days | ~112 hrs | Economy QR, bidiagonalization, tridiagonal QR, transpose |
-| 8 | Sparse SVD | 14 days | ~124 hrs | Full/partial SVD, pseudoinverse, low-rank approximation |
+| 7 | QR Apps/ILUT Pivoting/Eigenvalues | 14 days | ~152 hrs | ILUT partial pivoting, sparse Householder QR, economy QR, bidiagonalization, tridiagonal QR, transpose |
+| 8 | Matrix-Free & Sparse SVD | 14 days | ~140 hrs | Matrix-free solvers, full/partial SVD, pseudoinverse, low-rank approximation |
 | 9 | Performance & Polish | 14 days | ~120 hrs | Block LU, block solvers, profiling, examples, packaging |
 
-**Total across Sprints 2–9:** 112 days (~858 hours)
+**Total across Sprints 2–9:** 112 days (~914 hours)

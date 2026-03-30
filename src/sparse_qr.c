@@ -338,16 +338,17 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
                     }
                 }
             }
-            /* Reinsert swapped */
+            /* Reinsert swapped — use exact nonzero check (no dropping)
+             * so the swap is a true permutation of W columns. */
             for (idx_t i = 0; i < m; i++) {
-                if (fabs(dense_col2[i]) > 1e-30) {
+                if (dense_col2[i] != 0.0) {
                     sparse_err_t ierr = sparse_insert(W, i, step, dense_col2[i]);
                     if (ierr != SPARSE_OK) {
                         status = ierr;
                         goto cleanup_colwise;
                     }
                 }
-                if (fabs(dense_col[i]) > 1e-30) {
+                if (dense_col[i] != 0.0) {
                     sparse_err_t ierr = sparse_insert(W, i, best, dense_col[i]);
                     if (ierr != SPARSE_OK) {
                         status = ierr;
@@ -416,8 +417,10 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
                     nd = next;
                 }
             }
+            /* Reinsert — exact nonzero check (no dropping) for
+             * bitwise-identical results with dense-mode. */
             for (idx_t i = step; i < m; i++) {
-                if (fabs(dense_col2[i]) > 1e-30) {
+                if (dense_col2[i] != 0.0) {
                     sparse_err_t ierr = sparse_insert(W, i, j, dense_col2[i]);
                     if (ierr != SPARSE_OK) {
                         status = ierr;
@@ -426,7 +429,7 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
                 }
             }
 
-            /* Update column norm using the value already in dense_col2 */
+            /* Update column norm using the value actually stored */
             double entry_step = dense_col2[step];
             col_norms[j] -= entry_step * entry_step;
             if (col_norms[j] < 0.0)

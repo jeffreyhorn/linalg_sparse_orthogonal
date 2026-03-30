@@ -422,6 +422,33 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
         }
     }
 
+    /* Extract off-diagonal R entries from W: for each completed step,
+     * R(step, j) for j > step lives in W(step, j) after Householder application.
+     * The pivot column R entries were already inserted during the loop. */
+    {
+        idx_t steps = rank; /* number of fully completed steps */
+        /* If we broke due to rank deficiency after applying reflectors,
+         * the last step's R row also needs extraction */
+        if (rank < k) {
+            /* Check if betas/vecs were stored for this step */
+            idx_t last = rank; /* the step that triggered the break */
+            if (last < k && vecs && vecs[last])
+                steps = rank + 1; /* include this step's R row */
+        }
+        for (idx_t s = 0; s < steps; s++) {
+            for (idx_t j = s + 1; j < n; j++) {
+                double val = sparse_get_phys(W, s, j);
+                if (fabs(val) > 1e-15) {
+                    sparse_err_t ierr = sparse_insert(R, s, j, val);
+                    if (ierr != SPARSE_OK) {
+                        status = ierr;
+                        goto cleanup_colwise;
+                    }
+                }
+            }
+        }
+    }
+
     free(col_norms);
     col_norms = NULL;
     free(dense_col);

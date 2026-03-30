@@ -201,6 +201,29 @@ SparseMatrix *sparse_copy(const SparseMatrix *mat) {
     return copy;
 }
 
+SparseMatrix *sparse_transpose(const SparseMatrix *A) {
+    if (!A)
+        return NULL;
+
+    SparseMatrix *T = sparse_create(A->cols, A->rows);
+    if (!T)
+        return NULL;
+
+    /* For each nonzero A(i,j) = v, insert T(j,i) = v */
+    for (idx_t i = 0; i < A->rows; i++) {
+        Node *nd = A->row_headers[i];
+        while (nd) {
+            if (sparse_insert(T, nd->col, nd->row, nd->value) != SPARSE_OK) {
+                sparse_free(T);
+                return NULL;
+            }
+            nd = nd->right;
+        }
+    }
+
+    return T;
+}
+
 /* ─── Element access (physical) ──────────────────────────────────────── */
 
 static sparse_err_t sparse_remove_internal(SparseMatrix *mat, idx_t row, idx_t col);

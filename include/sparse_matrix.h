@@ -80,6 +80,18 @@ void sparse_free(SparseMatrix *mat);
  */
 SparseMatrix *sparse_copy(const SparseMatrix *mat);
 
+/**
+ * @brief Compute the transpose of a sparse matrix.
+ *
+ * Returns a new matrix B = A^T where B(j,i) = A(i,j) for every nonzero
+ * entry. The result has dimensions (cols_A × rows_A). Works on rectangular
+ * matrices.
+ *
+ * @param A  The matrix to transpose (not modified). Must not be NULL.
+ * @return A new SparseMatrix containing A^T, or NULL on failure.
+ */
+SparseMatrix *sparse_transpose(const SparseMatrix *A);
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * Element access (physical indices)
  * ═══════════════════════════════════════════════════════════════════════════ */

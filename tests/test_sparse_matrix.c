@@ -1,6 +1,13 @@
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 #include "test_framework.h"
+#include <math.h>
+#include <stdlib.h>
+
+#ifndef DATA_DIR
+#define DATA_DIR "tests/data"
+#endif
+#define SS_DIR DATA_DIR "/suitesparse"
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Creation tests
@@ -570,6 +577,316 @@ static void test_symmetric_diagonal(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Transpose tests (Sprint 7 Day 3)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Transpose of identity = identity */
+static void test_transpose_identity(void) {
+    idx_t n = 5;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, 1.0);
+
+    SparseMatrix *T = sparse_transpose(A);
+    ASSERT_NOT_NULL(T);
+    if (!T) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(sparse_rows(T), n);
+    ASSERT_EQ(sparse_cols(T), n);
+    ASSERT_EQ(sparse_nnz(T), n);
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_NEAR(sparse_get_phys(T, i, i), 1.0, 1e-15);
+    }
+
+    sparse_free(T);
+    sparse_free(A);
+}
+
+/* Transpose of transpose = original */
+static void test_transpose_double(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 4.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 2, 2, 5.0);
+
+    SparseMatrix *T = sparse_transpose(A);
+    ASSERT_NOT_NULL(T);
+    if (!T) {
+        sparse_free(A);
+        return;
+    }
+
+    SparseMatrix *TT = sparse_transpose(T);
+    ASSERT_NOT_NULL(TT);
+    if (!TT) {
+        sparse_free(T);
+        sparse_free(A);
+        return;
+    }
+
+    /* TT should equal A */
+    ASSERT_EQ(sparse_rows(TT), sparse_rows(A));
+    ASSERT_EQ(sparse_cols(TT), sparse_cols(A));
+    ASSERT_EQ(sparse_nnz(TT), sparse_nnz(A));
+    for (idx_t i = 0; i < 3; i++)
+        for (idx_t j = 0; j < 3; j++)
+            ASSERT_NEAR(sparse_get_phys(TT, i, j), sparse_get_phys(A, i, j), 1e-15);
+
+    sparse_free(TT);
+    sparse_free(T);
+    sparse_free(A);
+}
+
+/* Transpose of rectangular 3×5 → 5×3 */
+static void test_transpose_rectangular(void) {
+    SparseMatrix *A = sparse_create(3, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 3, 2.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 4, 4.0);
+    sparse_insert(A, 2, 2, 5.0);
+
+    SparseMatrix *T = sparse_transpose(A);
+    ASSERT_NOT_NULL(T);
+    if (!T) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(sparse_rows(T), 5);
+    ASSERT_EQ(sparse_cols(T), 3);
+    ASSERT_EQ(sparse_nnz(T), 5);
+
+    /* Check transposed entries */
+    ASSERT_NEAR(sparse_get_phys(T, 0, 0), 1.0, 1e-15);
+    ASSERT_NEAR(sparse_get_phys(T, 3, 0), 2.0, 1e-15);
+    ASSERT_NEAR(sparse_get_phys(T, 1, 1), 3.0, 1e-15);
+    ASSERT_NEAR(sparse_get_phys(T, 4, 1), 4.0, 1e-15);
+    ASSERT_NEAR(sparse_get_phys(T, 2, 2), 5.0, 1e-15);
+
+    sparse_free(T);
+    sparse_free(A);
+}
+
+/* Transpose of symmetric matrix = itself */
+static void test_transpose_symmetric(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 4.0);
+    sparse_insert(A, 0, 1, -1.0);
+    sparse_insert(A, 1, 0, -1.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 1, 2, -1.0);
+    sparse_insert(A, 2, 1, -1.0);
+    sparse_insert(A, 2, 2, 4.0);
+
+    SparseMatrix *T = sparse_transpose(A);
+    ASSERT_NOT_NULL(T);
+    if (!T) {
+        sparse_free(A);
+        return;
+    }
+
+    for (idx_t i = 0; i < 3; i++)
+        for (idx_t j = 0; j < 3; j++)
+            ASSERT_NEAR(sparse_get_phys(T, i, j), sparse_get_phys(A, i, j), 1e-15);
+
+    sparse_free(T);
+    sparse_free(A);
+}
+
+/* Transpose of single row vector (1×n) → column vector (n×1) */
+static void test_transpose_row_vector(void) {
+    SparseMatrix *A = sparse_create(1, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 2, 3.0);
+
+    SparseMatrix *T = sparse_transpose(A);
+    ASSERT_NOT_NULL(T);
+    if (!T) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(sparse_rows(T), 4);
+    ASSERT_EQ(sparse_cols(T), 1);
+    ASSERT_NEAR(sparse_get_phys(T, 0, 0), 1.0, 1e-15);
+    ASSERT_NEAR(sparse_get_phys(T, 2, 0), 3.0, 1e-15);
+    ASSERT_NEAR(sparse_get_phys(T, 1, 0), 0.0, 1e-15);
+
+    sparse_free(T);
+    sparse_free(A);
+}
+
+/* Transpose of column vector (n×1) → row vector (1×n) */
+static void test_transpose_col_vector(void) {
+    SparseMatrix *A = sparse_create(4, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 1, 0, 2.0);
+    sparse_insert(A, 3, 0, 4.0);
+
+    SparseMatrix *T = sparse_transpose(A);
+    ASSERT_NOT_NULL(T);
+    if (!T) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(sparse_rows(T), 1);
+    ASSERT_EQ(sparse_cols(T), 4);
+    ASSERT_NEAR(sparse_get_phys(T, 0, 1), 2.0, 1e-15);
+    ASSERT_NEAR(sparse_get_phys(T, 0, 3), 4.0, 1e-15);
+
+    sparse_free(T);
+    sparse_free(A);
+}
+
+/* Transpose preserves nnz */
+static void test_transpose_nnz(void) {
+    SparseMatrix *A = sparse_create(4, 6);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 5, 2.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 2, 3, 4.0);
+    sparse_insert(A, 3, 2, 5.0);
+    sparse_insert(A, 3, 4, 6.0);
+    sparse_insert(A, 3, 5, 7.0);
+
+    SparseMatrix *T = sparse_transpose(A);
+    ASSERT_NOT_NULL(T);
+    if (!T) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(sparse_nnz(T), sparse_nnz(A));
+
+    sparse_free(T);
+    sparse_free(A);
+}
+
+/* Transpose of NULL returns NULL */
+static void test_transpose_null(void) {
+    SparseMatrix *T = sparse_transpose(NULL);
+    ASSERT_TRUE(T == NULL);
+}
+
+/* nos4 (symmetric): A^T should match A */
+static void test_transpose_nos4(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+
+    SparseMatrix *T = sparse_transpose(A);
+    ASSERT_NOT_NULL(T);
+    if (!T) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(sparse_rows(T), sparse_rows(A));
+    ASSERT_EQ(sparse_cols(T), sparse_cols(A));
+    ASSERT_EQ(sparse_nnz(T), sparse_nnz(A));
+
+    /* nos4 is symmetric: A^T(i,j) = A(i,j) for all i,j.
+     * Spot-check a few entries since we can't iterate nonzeros via public API. */
+    idx_t n = sparse_rows(A);
+    int mismatches = 0;
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t j = 0; j < n; j++) {
+            double a_val = sparse_get_phys(A, i, j);
+            double t_val = sparse_get_phys(T, i, j);
+            if (fabs(a_val - t_val) > 1e-15) {
+                mismatches++;
+                break;
+            }
+        }
+        if (mismatches)
+            break;
+    }
+    ASSERT_EQ(mismatches, 0);
+
+    sparse_free(T);
+    sparse_free(A);
+}
+
+/* west0067 (unsymmetric): (A^T)^T = A */
+static void test_transpose_west0067(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/west0067.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+
+    SparseMatrix *T = sparse_transpose(A);
+    ASSERT_NOT_NULL(T);
+    if (!T) {
+        sparse_free(A);
+        return;
+    }
+
+    SparseMatrix *TT = sparse_transpose(T);
+    ASSERT_NOT_NULL(TT);
+    if (!TT) {
+        sparse_free(T);
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(sparse_rows(TT), sparse_rows(A));
+    ASSERT_EQ(sparse_cols(TT), sparse_cols(A));
+    ASSERT_EQ(sparse_nnz(TT), sparse_nnz(A));
+
+    /* Verify all entries match via matvec: A*x should equal TT*x for random x */
+    idx_t m = sparse_rows(A);
+    idx_t nc = sparse_cols(A);
+    double *x = malloc((size_t)nc * sizeof(double));
+    double *y1 = malloc((size_t)m * sizeof(double));
+    double *y2 = malloc((size_t)m * sizeof(double));
+    if (x && y1 && y2) {
+        for (idx_t i = 0; i < nc; i++)
+            x[i] = (double)(i + 1);
+        sparse_matvec(A, x, y1);
+        sparse_matvec(TT, x, y2);
+        for (idx_t i = 0; i < m; i++)
+            ASSERT_NEAR(y1[i], y2[i], 1e-12);
+    }
+    free(x);
+    free(y1);
+    free(y2);
+
+    sparse_free(TT);
+    sparse_free(T);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -640,6 +957,18 @@ int main(void) {
     RUN_TEST(test_symmetric_rectangular);
     RUN_TEST(test_symmetric_null);
     RUN_TEST(test_symmetric_diagonal);
+
+    /* Transpose (Sprint 7 Day 3) */
+    RUN_TEST(test_transpose_identity);
+    RUN_TEST(test_transpose_double);
+    RUN_TEST(test_transpose_rectangular);
+    RUN_TEST(test_transpose_symmetric);
+    RUN_TEST(test_transpose_row_vector);
+    RUN_TEST(test_transpose_col_vector);
+    RUN_TEST(test_transpose_nnz);
+    RUN_TEST(test_transpose_null);
+    RUN_TEST(test_transpose_nos4);
+    RUN_TEST(test_transpose_west0067);
 
     TEST_SUITE_END();
 }

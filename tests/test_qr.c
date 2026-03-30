@@ -2464,6 +2464,212 @@ static void test_sparse_mode_nos4(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Sparse-mode QR hardening (Sprint 7 Day 9)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Helper: compare dense and sparse QR solve on a given matrix */
+static void compare_dense_sparse_qr(const SparseMatrix *A, const char *name) {
+    idx_t m = sparse_rows(A);
+    idx_t nc = sparse_cols(A);
+
+    double *b = malloc((size_t)m * sizeof(double));
+    if (!b)
+        return;
+    for (idx_t i = 0; i < m; i++)
+        b[i] = (double)(i + 1);
+
+    /* Dense-mode QR */
+    sparse_qr_t qr_d;
+    sparse_err_t err = sparse_qr_factor(A, &qr_d);
+    if (err != SPARSE_OK) {
+        free(b);
+        return;
+    }
+    double *x_d = malloc((size_t)nc * sizeof(double));
+    double res_d = 0.0;
+    if (x_d)
+        sparse_qr_solve(&qr_d, b, x_d, &res_d);
+
+    /* Sparse-mode QR */
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 0, .sparse_mode = 1};
+    sparse_qr_t qr_s;
+    err = sparse_qr_factor_opts(A, &opts, &qr_s);
+    if (err != SPARSE_OK) {
+        free(x_d);
+        free(b);
+        sparse_qr_free(&qr_d);
+        return;
+    }
+    double *x_s = malloc((size_t)nc * sizeof(double));
+    double res_s = 0.0;
+    if (x_s)
+        sparse_qr_solve(&qr_s, b, x_s, &res_s);
+
+    if (x_d && x_s) {
+        double max_diff = 0.0;
+        for (idx_t i = 0; i < nc; i++) {
+            double d = fabs(x_d[i] - x_s[i]);
+            if (d > max_diff)
+                max_diff = d;
+        }
+        printf("    sparse vs dense %s: max_diff=%.3e, rank_d=%d, rank_s=%d\n",
+               name, max_diff, (int)qr_d.rank, (int)qr_s.rank);
+        ASSERT_TRUE(max_diff < 1e-8);
+        ASSERT_EQ(qr_d.rank, qr_s.rank);
+    }
+
+    free(x_d);
+    free(x_s);
+    free(b);
+    sparse_qr_free(&qr_d);
+    sparse_qr_free(&qr_s);
+}
+
+/* Sparse-mode: tall-skinny 50×10 */
+static void test_sparse_mode_tall(void) {
+    idx_t m = 50, nc = 10;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < nc; j++) {
+            if (i == j)
+                sparse_insert(A, i, j, 10.0);
+            else if (i < nc && (j == i + 1 || j == i - 1))
+                sparse_insert(A, i, j, 1.0);
+        }
+    }
+    compare_dense_sparse_qr(A, "50x10");
+    sparse_free(A);
+}
+
+/* Sparse-mode: wide matrix 3×6 */
+static void test_sparse_mode_wide(void) {
+    SparseMatrix *A = sparse_create(3, 6);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 3.0);
+    sparse_insert(A, 0, 2, 1.0);
+    sparse_insert(A, 0, 4, 2.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 1, 3, 1.0);
+    sparse_insert(A, 1, 5, 3.0);
+    sparse_insert(A, 2, 0, 1.0);
+    sparse_insert(A, 2, 2, 5.0);
+    sparse_insert(A, 2, 4, 1.0);
+    compare_dense_sparse_qr(A, "3x6");
+    sparse_free(A);
+}
+
+/* Sparse-mode: rank-deficient 4×3 with duplicate column */
+static void test_sparse_mode_rank_deficient(void) {
+    SparseMatrix *A = sparse_create(4, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* col1 = col0 → rank 2 */
+    for (idx_t i = 0; i < 4; i++) {
+        sparse_insert(A, i, 0, (double)(i + 1));
+        sparse_insert(A, i, 1, (double)(i + 1));
+        sparse_insert(A, i, 2, (double)(i * 2 + 1));
+    }
+    compare_dense_sparse_qr(A, "rank-def 4x3");
+    sparse_free(A);
+}
+
+/* Sparse-mode: west0067 */
+static void test_sparse_mode_west0067(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/west0067.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    compare_dense_sparse_qr(A, "west0067");
+    sparse_free(A);
+}
+
+/* Sparse-mode: bcsstk04 */
+static void test_sparse_mode_bcsstk04(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    compare_dense_sparse_qr(A, "bcsstk04");
+    sparse_free(A);
+}
+
+/* Sparse-mode: 1×1 */
+static void test_sparse_mode_1x1(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 7.0);
+    compare_dense_sparse_qr(A, "1x1");
+    sparse_free(A);
+}
+
+/* Sparse-mode: Q orthogonality */
+static void test_sparse_mode_q_ortho(void) {
+    SparseMatrix *A = sparse_create(5, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 3.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 5.0);
+    sparse_insert(A, 3, 0, 2.0);
+    sparse_insert(A, 3, 2, 1.0);
+    sparse_insert(A, 4, 1, 2.0);
+
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 0, .sparse_mode = 1};
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor_opts(A, &opts, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    /* Form Q and check orthogonality */
+    idx_t m = 5;
+    double *Q = calloc((size_t)m * (size_t)m, sizeof(double));
+    ASSERT_NOT_NULL(Q);
+    if (!Q) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+    sparse_qr_form_q(&qr, Q);
+
+    double max_err = 0.0;
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < m; j++) {
+            double dot = 0.0;
+            for (idx_t p = 0; p < m; p++)
+                dot += Q[(size_t)i * (size_t)m + (size_t)p] *
+                       Q[(size_t)j * (size_t)m + (size_t)p];
+            double expected = (i == j) ? 1.0 : 0.0;
+            double e = fabs(dot - expected);
+            if (e > max_err)
+                max_err = e;
+        }
+    }
+    printf("    sparse-mode Q ortho: max_err=%.3e\n", max_err);
+    ASSERT_TRUE(max_err < 1e-10);
+
+    free(Q);
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -2541,6 +2747,15 @@ int main(void) {
     /* Sparse-mode QR (Sprint 7 Day 8) */
     RUN_TEST(test_sparse_mode_basic);
     RUN_TEST(test_sparse_mode_nos4);
+
+    /* Sparse-mode hardening (Sprint 7 Day 9) */
+    RUN_TEST(test_sparse_mode_tall);
+    RUN_TEST(test_sparse_mode_wide);
+    RUN_TEST(test_sparse_mode_rank_deficient);
+    RUN_TEST(test_sparse_mode_west0067);
+    RUN_TEST(test_sparse_mode_bcsstk04);
+    RUN_TEST(test_sparse_mode_1x1);
+    RUN_TEST(test_sparse_mode_q_ortho);
 
     TEST_SUITE_END();
 }

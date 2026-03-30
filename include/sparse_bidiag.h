@@ -41,16 +41,16 @@ typedef struct {
  * U is m×m orthogonal, V is n×n orthogonal, and B is m×n with nonzeros
  * only on the diagonal and first superdiagonal.
  *
- * The current implementation assumes m >= n. For m < n, behavior is
- * undefined. The input matrix A is required to have identity row and
- * column permutations; behavior is undefined if permutations are
- * non-identity.
+ * Only the tall/square case m >= n is supported. If m < n, the function
+ * returns SPARSE_ERR_SHAPE. Non-identity row/column permutations are
+ * rejected with SPARSE_ERR_BADARG.
  *
- * @param A      The matrix to factor (not modified). Must have identity
- *               row and column permutations.
+ * @param A      The matrix to factor (not modified). Must have identity permutations.
  * @param bidiag Output: bidiagonal factors. Must be freed with sparse_bidiag_free().
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or bidiag is NULL.
+ * @return SPARSE_ERR_SHAPE if m < n.
+ * @return SPARSE_ERR_BADARG if A has non-identity permutations.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  */
 sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag);

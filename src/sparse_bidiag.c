@@ -70,6 +70,22 @@ sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag
     idx_t m = sparse_rows(A);
     idx_t n = sparse_cols(A);
 
+    /* Reject non-identity permutations */
+    {
+        const idx_t *rp = sparse_row_perm(A);
+        const idx_t *cp = sparse_col_perm(A);
+        if (rp) {
+            for (idx_t i = 0; i < m; i++)
+                if (rp[i] != i)
+                    return SPARSE_ERR_BADARG;
+        }
+        if (cp) {
+            for (idx_t i = 0; i < n; i++)
+                if (cp[i] != i)
+                    return SPARSE_ERR_BADARG;
+        }
+    }
+
     /* Enforce documented precondition: m >= n required */
     if (m < n)
         return SPARSE_ERR_SHAPE;

@@ -141,6 +141,28 @@ sparse_err_t sparse_qr_form_q(const sparse_qr_t *qr, double *Q);
 sparse_err_t sparse_qr_solve(const sparse_qr_t *qr, const double *b, double *x, double *residual);
 
 /**
+ * @brief Iterative refinement for QR least-squares solutions.
+ *
+ * Improves an existing QR solution by repeatedly computing the residual
+ * r = b - A*x and solving for a correction via the existing QR factorization.
+ * Useful for reducing the residual on ill-conditioned systems.
+ *
+ * @param qr         The QR factorization of A.
+ * @param A          The original matrix (for computing residuals).
+ * @param b          Right-hand side vector of length m.
+ * @param x          On entry: initial solution (from sparse_qr_solve).
+ *                   On exit: refined solution. Length n.
+ * @param max_refine Maximum number of refinement iterations. 0 = just compute residual.
+ * @param residual   Output: final residual norm ||b - Ax||_2 (may be NULL).
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if any required argument is NULL.
+ * @return SPARSE_ERR_ALLOC if memory allocation fails.
+ */
+sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A,
+                               const double *b, double *x, idx_t max_refine,
+                               double *residual);
+
+/**
  * @brief Estimate numerical rank from QR factorization.
  *
  * Counts the number of R diagonal entries exceeding tol * |R(0,0)|.

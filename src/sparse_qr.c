@@ -101,24 +101,6 @@ static void sparse_extract_column(const SparseMatrix *A, idx_t col, double *dens
 }
 
 /**
- * Write a dense column vector back into a mutable sparse matrix at column `col`,
- * starting from row `start_row`. Entries with |value| < drop_tol are skipped.
- * Existing entries in the column at rows >= start_row are overwritten/added.
- */
-static sparse_err_t sparse_writeback_column(SparseMatrix *M, idx_t col,
-                                            const double *dense, idx_t start_row,
-                                            idx_t m, double drop_tol) {
-    for (idx_t i = start_row; i < m; i++) {
-        if (fabs(dense[i]) > drop_tol) {
-            sparse_err_t err = sparse_insert(M, i, col, dense[i]);
-            if (err != SPARSE_OK)
-                return err;
-        }
-    }
-    return SPARSE_OK;
-}
-
-/**
  * Apply Householder reflection (I - beta*v*v^T) to a dense column vector
  * starting at index `start`. v has length (m - start), dense has length m.
  * Only dense[start..m-1] is modified.
@@ -926,6 +908,69 @@ sparse_err_t sparse_qr_solve(const sparse_qr_t *qr, const double *b, double *x, 
 
     free(c);
     free(x_p);
+    return SPARSE_OK;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Iterative refinement
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A,
+                               const double *b, double *x, idx_t max_refine,
+                               double *residual) {
+    if (!qr || !A || !b || !x)
+        return SPARSE_ERR_NULL;
+
+    idx_t m = qr->m;
+    idx_t n = qr->n;
+
+    double *r = malloc((size_t)m * sizeof(double));
+    double *dx = malloc((size_t)n * sizeof(double));
+    double *Ax = malloc((size_t)m * sizeof(double));
+    if (!r || !dx || !Ax) {
+        free(r);
+        free(dx);
+        free(Ax);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    double prev_rnorm = INFINITY;
+
+    for (idx_t iter = 0; iter <= max_refine; iter++) {
+        /* Compute residual r = b - A*x */
+        sparse_matvec(A, x, Ax);
+        double rnorm = 0.0;
+        for (idx_t i = 0; i < m; i++) {
+            r[i] = b[i] - Ax[i];
+            rnorm += r[i] * r[i];
+        }
+        rnorm = sqrt(rnorm);
+
+        if (residual)
+            *residual = rnorm;
+
+        /* On iter 0 (or max_refine=0), just compute the residual */
+        if (iter >= max_refine)
+            break;
+
+        /* Stop if residual is not decreasing */
+        if (rnorm >= prev_rnorm)
+            break;
+        prev_rnorm = rnorm;
+
+        /* Solve for correction: QR * dx = r */
+        sparse_err_t serr = sparse_qr_solve(qr, r, dx, NULL);
+        if (serr != SPARSE_OK)
+            break;
+
+        /* Update: x = x + dx */
+        for (idx_t i = 0; i < n; i++)
+            x[i] += dx[i];
+    }
+
+    free(r);
+    free(dx);
+    free(Ax);
     return SPARSE_OK;
 }
 

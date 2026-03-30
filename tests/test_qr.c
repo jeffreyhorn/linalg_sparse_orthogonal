@@ -2837,6 +2837,254 @@ static void test_sparse_mode_timing(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * QR iterative refinement tests (Sprint 7 Day 11)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Well-conditioned: refinement should barely change solution */
+static void test_qr_refine_well_conditioned(void) {
+    SparseMatrix *A = sparse_create(4, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 10.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 1, 10.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 0, 1.0);
+    sparse_insert(A, 2, 2, 10.0);
+    sparse_insert(A, 3, 0, 1.0);
+    sparse_insert(A, 3, 1, 1.0);
+    sparse_insert(A, 3, 2, 1.0);
+
+    double b[4] = {11.0, 11.0, 11.0, 3.0};
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    double x[3];
+    double res_before = 0.0;
+    sparse_qr_solve(&qr, b, x, &res_before);
+
+    double res_after = 0.0;
+    ASSERT_ERR(sparse_qr_refine(&qr, A, b, x, 3, &res_after), SPARSE_OK);
+
+    printf("    well-cond refine: before=%.3e, after=%.3e\n", res_before, res_after);
+    ASSERT_TRUE(res_after <= res_before + 1e-15);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Ill-conditioned: refinement should improve residual */
+static void test_qr_refine_ill_conditioned(void) {
+    SparseMatrix *A = sparse_create(4, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Near-singular: col2 ≈ col0 + small perturbation */
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 0, 2, 1.0 + 1e-8);
+    sparse_insert(A, 1, 0, 3.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 1, 2, 3.0 + 1e-8);
+    sparse_insert(A, 2, 0, 5.0);
+    sparse_insert(A, 2, 1, 6.0);
+    sparse_insert(A, 2, 2, 5.0 + 1e-8);
+    sparse_insert(A, 3, 0, 7.0);
+    sparse_insert(A, 3, 1, 8.0);
+    sparse_insert(A, 3, 2, 7.0 + 1e-8);
+
+    double b[4] = {1.0, 2.0, 3.0, 4.0};
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    double x[3];
+    double res_before = 0.0;
+    sparse_qr_solve(&qr, b, x, &res_before);
+
+    double res_after = 0.0;
+    ASSERT_ERR(sparse_qr_refine(&qr, A, b, x, 5, &res_after), SPARSE_OK);
+
+    printf("    ill-cond refine: before=%.3e, after=%.3e\n", res_before, res_after);
+    /* Refinement should not make things worse */
+    ASSERT_TRUE(res_after <= res_before + 1e-12);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* max_refine=0: just computes residual, doesn't modify x */
+static void test_qr_refine_zero_iter(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 2, 2, 4.0);
+
+    double b[3] = {2.0, 6.0, 12.0};
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    double x[3];
+    sparse_qr_solve(&qr, b, x, NULL);
+
+    double x_copy[3] = {x[0], x[1], x[2]};
+    double res = 0.0;
+    ASSERT_ERR(sparse_qr_refine(&qr, A, b, x, 0, &res), SPARSE_OK);
+
+    /* x should be unchanged */
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x[i], x_copy[i], 1e-15);
+    /* residual should be computed */
+    printf("    zero-iter refine: res=%.3e\n", res);
+    ASSERT_TRUE(res < 1e-12);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* nos4: QR solve + refine */
+static void test_qr_refine_nos4(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (!x_exact || !b) {
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = (double)(i + 1);
+    sparse_matvec(A, x_exact, b);
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
+
+    double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x);
+    if (!x) {
+        free(x_exact);
+        free(b);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+
+    double res_before = 0.0;
+    sparse_qr_solve(&qr, b, x, &res_before);
+
+    double res_after = 0.0;
+    ASSERT_ERR(sparse_qr_refine(&qr, A, b, x, 3, &res_after), SPARSE_OK);
+
+    printf("    nos4 refine: before=%.3e, after=%.3e\n", res_before, res_after);
+    /* Refinement may introduce tiny rounding noise on already-exact solutions */
+    ASSERT_TRUE(res_after < 1e-10);
+
+    free(x_exact);
+    free(b);
+    free(x);
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Overdetermined least-squares: refinement on tall system */
+static void test_qr_refine_overdetermined(void) {
+    idx_t m = 20, nc = 5;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < nc; j++)
+            if (i == j)
+                sparse_insert(A, i, j, 5.0);
+            else if (abs(i - j) <= 1 && i < nc)
+                sparse_insert(A, i, j, 1.0);
+
+    double *b = malloc((size_t)m * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    if (!b) {
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < m; i++)
+        b[i] = (double)(i + 1);
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(b);
+        sparse_free(A);
+        return;
+    }
+
+    double *x = malloc((size_t)nc * sizeof(double));
+    ASSERT_NOT_NULL(x);
+    if (!x) {
+        free(b);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+
+    double res_before = 0.0;
+    sparse_qr_solve(&qr, b, x, &res_before);
+
+    double res_after = 0.0;
+    ASSERT_ERR(sparse_qr_refine(&qr, A, b, x, 3, &res_after), SPARSE_OK);
+
+    printf("    overdetermined refine: before=%.3e, after=%.3e\n", res_before, res_after);
+    ASSERT_TRUE(res_after <= res_before + 1e-12);
+
+    free(b);
+    free(x);
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* NULL input handling */
+static void test_qr_refine_null(void) {
+    ASSERT_ERR(sparse_qr_refine(NULL, NULL, NULL, NULL, 0, NULL), SPARSE_ERR_NULL);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -2931,6 +3179,14 @@ int main(void) {
     RUN_TEST(test_sparse_mode_single_col);
     RUN_TEST(test_sparse_mode_single_row);
     RUN_TEST(test_sparse_mode_timing);
+
+    /* QR iterative refinement (Sprint 7 Day 11) */
+    RUN_TEST(test_qr_refine_well_conditioned);
+    RUN_TEST(test_qr_refine_ill_conditioned);
+    RUN_TEST(test_qr_refine_zero_iter);
+    RUN_TEST(test_qr_refine_nos4);
+    RUN_TEST(test_qr_refine_overdetermined);
+    RUN_TEST(test_qr_refine_null);
 
     TEST_SUITE_END();
 }

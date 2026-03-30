@@ -113,8 +113,8 @@ sparse_err_t sparse_qr_apply_q(const sparse_qr_t *qr, int transpose, const doubl
  * For full QR (economy=0): forms Q as a dense m×m orthogonal matrix.
  * Caller allocates m*m doubles.
  *
- * For economy QR (economy=1): forms the thin Q as a dense m×n matrix
- * with orthonormal columns. Caller allocates m*n doubles.
+ * For economy QR (economy=1): forms the thin Q as a dense m×k matrix
+ * with orthonormal columns, where k = min(m, n). Caller allocates m*k doubles.
  *
  * @param qr  The QR factorization.
  * @param Q   Output: dense matrix in column-major order.

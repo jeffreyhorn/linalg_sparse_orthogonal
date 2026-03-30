@@ -41,9 +41,8 @@ typedef struct {
  * U is m×m orthogonal, V is n×n orthogonal, and B is m×n with nonzeros
  * only on the diagonal and first superdiagonal.
  *
- * If m < n, the matrix is transposed internally and the factorization
- * is adjusted so the output is always upper bidiagonal with min(m,n)
- * diagonal entries.
+ * The current implementation assumes m >= n. For m < n, behavior is
+ * undefined.
  *
  * @param A      The matrix to factor (not modified). Must have identity permutations.
  * @param bidiag Output: bidiagonal factors. Must be freed with sparse_bidiag_free().

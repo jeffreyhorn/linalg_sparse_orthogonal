@@ -3,6 +3,7 @@
 #include "test_framework.h"
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Create / free tests

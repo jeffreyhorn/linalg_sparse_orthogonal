@@ -46,8 +46,6 @@ sparse_err_t dense_gemm(const dense_matrix_t *A, const dense_matrix_t *B,
                          dense_matrix_t *C) {
     if (!A || !B || !C)
         return SPARSE_ERR_NULL;
-    if (!A->data || !B->data || !C->data)
-        return SPARSE_ERR_NULL;
     if (A->cols != B->rows)
         return SPARSE_ERR_SHAPE;
     if (C->rows != A->rows || C->cols != B->cols)
@@ -56,6 +54,13 @@ sparse_err_t dense_gemm(const dense_matrix_t *A, const dense_matrix_t *B,
     idx_t m = A->rows;
     idx_t k = A->cols;
     idx_t n = B->cols;
+
+    /* Zero-sized matrices: nothing to compute */
+    if (m == 0 || k == 0 || n == 0)
+        return SPARSE_OK;
+
+    if (!A->data || !B->data || !C->data)
+        return SPARSE_ERR_NULL;
 
     /* Zero C */
     memset(C->data, 0, (size_t)m * (size_t)n * sizeof(double));
@@ -137,8 +142,8 @@ void givens_apply_right(double c, double s, double *x, double *y, idx_t n) {
     for (idx_t k = 0; k < n; k++) {
         double xk = x[k];
         double yk = y[k];
-        x[k] = c * xk + s * yk;
-        y[k] = -s * xk + c * yk;
+        x[k] = c * xk - s * yk;
+        y[k] = s * xk + c * yk;
     }
 }
 

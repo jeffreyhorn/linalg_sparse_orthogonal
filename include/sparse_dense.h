@@ -107,9 +107,8 @@ void givens_apply_left(double c, double s, double *x, double *y, idx_t n);
 /**
  * @brief Apply Givens rotation from the right to two column vectors.
  *
- * Replaces (x[k], y[k]) with (c*x[k] + s*y[k], -s*x[k] + c*y[k])
- * for k = 0..n-1. Same arithmetic as left application but intended for
- * columns (the naming clarifies usage context).
+ * Applies G^T from the right: replaces (x[k], y[k]) with
+ * (c*x[k] - s*y[k], s*x[k] + c*y[k]) for k = 0..n-1.
  *
  * @param c  Cosine of rotation.
  * @param s  Sine of rotation.

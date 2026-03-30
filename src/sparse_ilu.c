@@ -358,6 +358,16 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
     idx_t *row_map = NULL;
     idx_t *inv_row_map = NULL;
     if (o->pivot) {
+        if ((size_t)n > SIZE_MAX / sizeof(idx_t)) {
+            free(w);
+            free(w_nz);
+            free(nz_idx);
+            free(l_buf);
+            free(u_buf);
+            sparse_free(L);
+            sparse_free(U);
+            return SPARSE_ERR_ALLOC;
+        }
         row_map = malloc((size_t)n * sizeof(idx_t));
         inv_row_map = malloc((size_t)n * sizeof(idx_t));
         ilu->perm = malloc((size_t)n * sizeof(idx_t));

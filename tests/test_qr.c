@@ -2311,8 +2311,14 @@ static void test_economy_nos4(void) {
         return;
     }
     double *x_full = malloc((size_t)n * sizeof(double));
-    if (x_full)
-        sparse_qr_solve(&qr_full, b, x_full, NULL);
+    ASSERT_NOT_NULL(x_full);
+    if (!x_full) {
+        free(b);
+        sparse_qr_free(&qr_full);
+        sparse_free(A);
+        return;
+    }
+    sparse_qr_solve(&qr_full, b, x_full, NULL);
 
     /* Economy QR */
     sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
@@ -2327,10 +2333,18 @@ static void test_economy_nos4(void) {
         return;
     }
     double *x_econ = malloc((size_t)n * sizeof(double));
-    if (x_econ)
-        sparse_qr_solve(&qr_econ, b, x_econ, NULL);
+    ASSERT_NOT_NULL(x_econ);
+    if (!x_econ) {
+        free(x_full);
+        free(b);
+        sparse_qr_free(&qr_full);
+        sparse_qr_free(&qr_econ);
+        sparse_free(A);
+        return;
+    }
+    sparse_qr_solve(&qr_econ, b, x_econ, NULL);
 
-    if (x_full && x_econ) {
+    {
         double max_diff = 0.0;
         for (idx_t i = 0; i < n; i++) {
             double d = fabs(x_full[i] - x_econ[i]);
@@ -2437,8 +2451,14 @@ static void test_sparse_mode_nos4(void) {
         return;
     }
     double *x_dense = malloc((size_t)n * sizeof(double));
-    if (x_dense)
-        sparse_qr_solve(&qr_dense, b, x_dense, NULL);
+    ASSERT_NOT_NULL(x_dense);
+    if (!x_dense) {
+        free(b);
+        sparse_qr_free(&qr_dense);
+        sparse_free(A);
+        return;
+    }
+    sparse_qr_solve(&qr_dense, b, x_dense, NULL);
 
     /* Sparse-mode */
     sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 0, .sparse_mode = 1};
@@ -2453,10 +2473,18 @@ static void test_sparse_mode_nos4(void) {
         return;
     }
     double *x_sparse = malloc((size_t)n * sizeof(double));
-    if (x_sparse)
-        sparse_qr_solve(&qr_sparse, b, x_sparse, NULL);
+    ASSERT_NOT_NULL(x_sparse);
+    if (!x_sparse) {
+        free(x_dense);
+        free(b);
+        sparse_qr_free(&qr_dense);
+        sparse_qr_free(&qr_sparse);
+        sparse_free(A);
+        return;
+    }
+    sparse_qr_solve(&qr_sparse, b, x_sparse, NULL);
 
-    if (x_dense && x_sparse) {
+    {
         double max_diff = 0.0;
         for (idx_t i = 0; i < n; i++) {
             double d = fabs(x_dense[i] - x_sparse[i]);

@@ -1794,21 +1794,36 @@ static void test_ilut_pivot_gmres_steam1(void) {
 
     /* Solve with pivot ILUT */
     double *x_piv = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_piv);
+    if (!x_piv) {
+        free(x_exact);
+        free(b);
+        sparse_ilu_free(&ilut_piv);
+        sparse_ilu_free(&ilut_nopiv);
+        sparse_free(A);
+        return;
+    }
     sparse_iter_result_t res_piv = {0};
-    if (x_piv)
-        sparse_solve_gmres(A, b, x_piv, &gm_opts, sparse_ilut_precond, &ilut_piv, &res_piv);
+    sparse_solve_gmres(A, b, x_piv, &gm_opts, sparse_ilut_precond, &ilut_piv, &res_piv);
 
     /* Solve with non-pivot ILUT */
     double *x_nopiv = calloc((size_t)n, sizeof(double));
-    sparse_iter_result_t res_nopiv = {0};
-    if (x_nopiv)
-        sparse_solve_gmres(A, b, x_nopiv, &gm_opts, sparse_ilut_precond, &ilut_nopiv, &res_nopiv);
-
-    if (x_piv && x_nopiv) {
-        printf("    steam1: pivot=%d iters (conv=%d), nopivot=%d iters (conv=%d)\n",
-               (int)res_piv.iterations, res_piv.converged, (int)res_nopiv.iterations,
-               res_nopiv.converged);
+    ASSERT_NOT_NULL(x_nopiv);
+    if (!x_nopiv) {
+        free(x_exact);
+        free(b);
+        free(x_piv);
+        sparse_ilu_free(&ilut_piv);
+        sparse_ilu_free(&ilut_nopiv);
+        sparse_free(A);
+        return;
     }
+    sparse_iter_result_t res_nopiv = {0};
+    sparse_solve_gmres(A, b, x_nopiv, &gm_opts, sparse_ilut_precond, &ilut_nopiv, &res_nopiv);
+
+    printf("    steam1: pivot=%d iters (conv=%d), nopivot=%d iters (conv=%d)\n",
+           (int)res_piv.iterations, res_piv.converged, (int)res_nopiv.iterations,
+           res_nopiv.converged);
 
     free(x_exact);
     free(b);

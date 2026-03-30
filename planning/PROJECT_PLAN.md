@@ -194,7 +194,7 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 ### Prerequisites from Sprint 6
 
-- ILUT preconditioner (ILUT with partial pivoting extends diagonal modification)
+- ILUT preconditioner (partial pivoting adds an alternative to diagonal modification)
 - Sparse QR factorization (foundation for QR items in this sprint)
 - Householder reflections (sparse Householder extends the dense-workspace approach)
 
@@ -202,7 +202,7 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 | # | Item | Description | Estimate |
 |---|------|-------------|----------|
-| 1 | ILUT with partial pivoting | Replace ILUT's diagonal modification with true row partial pivoting for severely ill-conditioned matrices. Track row permutations in `sparse_ilu_t.perm`. More robust than diagonal modification for matrices like west0067 where synthetic pivots amplify numerical error. Update ILUT solve to apply the row permutation. | 16 hrs |
+| 1 | ILUT with partial pivoting | Add true row partial pivoting as an alternative to ILUT's diagonal modification for severely ill-conditioned matrices. Diagonal modification remains as the default; partial pivoting is enabled via an option. Track row permutations in `sparse_ilu_t.perm`. More robust for matrices like west0067 where synthetic pivots amplify numerical error. Update ILUT solve to apply the row permutation when present. | 16 hrs |
 | 2 | Sparse transpose | Implement `sparse_transpose()` to compute A^T as a new matrix. Needed for forming A^T*A in SVD and for QR on A^T. | 12 hrs |
 | 3 | Dense vector/matrix utilities | Add dense matrix utilities needed by eigenvalue/SVD code: dense matrix create/free/multiply, Givens rotations, and 2×2 symmetric eigenvalue solver. These are small dense operations used inside the tridiagonal QR iteration. | 16 hrs |
 | 4 | Economy (thin) QR | Implement economy QR for m >> n: only compute the first n columns of Q and the n×n upper portion of R. Significant memory savings for tall-skinny matrices. Update `sparse_qr_factor()` with an `economy` flag. | 16 hrs |
@@ -233,7 +233,7 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 **Goal:** Add a matrix-free interface so iterative solvers can work with implicit operators, then implement full-featured sparse SVD (Singular Value Decomposition). SVD computes A = U*Σ*V^T and is the most powerful matrix decomposition, enabling rank estimation, pseudoinverse, low-rank approximation, and principal component analysis.
 
-### Prerequisites from Sprint 6
+### Prerequisites from Sprint 5
 
 - Iterative solvers CG/GMRES (matrix-free interface extends these)
 

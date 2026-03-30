@@ -112,9 +112,14 @@ sparse_err_t dense_gemv(const dense_matrix_t *A, const double *x, double *y) {
     if (m == 0)
         return SPARSE_OK;
 
+    /* Overflow check for m * sizeof(double) */
+    if ((size_t)m > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
+    size_t y_bytes = (size_t)m * sizeof(double);
+
     if (n == 0) {
         /* A is m×0: y should be the zero vector */
-        memset(y, 0, (size_t)m * sizeof(double));
+        memset(y, 0, y_bytes);
         return SPARSE_OK;
     }
 
@@ -122,7 +127,7 @@ sparse_err_t dense_gemv(const dense_matrix_t *A, const double *x, double *y) {
         return SPARSE_ERR_NULL;
 
     /* y = 0 */
-    memset(y, 0, (size_t)m * sizeof(double));
+    memset(y, 0, y_bytes);
 
     /* y(i) = sum_j A(i,j) * x(j)
      * Column-major: loop over j (column), then i for cache. */

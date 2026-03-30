@@ -919,9 +919,8 @@ sparse_err_t sparse_qr_solve(const sparse_qr_t *qr, const double *b, double *x, 
  * Iterative refinement
  * ═══════════════════════════════════════════════════════════════════════ */
 
-sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A,
-                               const double *b, double *x, idx_t max_refine,
-                               double *residual) {
+sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A, const double *b,
+                              double *x, idx_t max_refine, double *residual) {
     if (!qr || !A || !b || !x)
         return SPARSE_ERR_NULL;
 

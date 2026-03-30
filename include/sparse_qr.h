@@ -158,9 +158,8 @@ sparse_err_t sparse_qr_solve(const sparse_qr_t *qr, const double *b, double *x, 
  * @return SPARSE_ERR_NULL if any required argument is NULL.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  */
-sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A,
-                              const double *b, double *x, idx_t max_refine,
-                              double *residual);
+sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A, const double *b,
+                              double *x, idx_t max_refine, double *residual);
 
 /**
  * @brief Estimate numerical rank from QR factorization.

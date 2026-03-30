@@ -1973,6 +1973,370 @@ static void test_qr_reorder_none(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Economy QR tests (Sprint 7 Day 7)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Economy QR solve matches full QR solve on tall-skinny matrix */
+static void test_economy_solve_tall(void) {
+    idx_t m = 50, nc = 10;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Diag-dominant tall matrix */
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < nc; j++) {
+            if (i == j)
+                sparse_insert(A, i, j, 10.0);
+            else if (i < nc && (j == i + 1 || j == i - 1))
+                sparse_insert(A, i, j, 1.0);
+        }
+    }
+
+    double *b = malloc((size_t)m * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    if (!b) {
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < m; i++)
+        b[i] = (double)(i + 1);
+
+    /* Full QR */
+    sparse_qr_t qr_full;
+    sparse_err_t err = sparse_qr_factor(A, &qr_full);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(b);
+        sparse_free(A);
+        return;
+    }
+    double *x_full = malloc((size_t)nc * sizeof(double));
+    double res_full = 0.0;
+    if (x_full)
+        sparse_qr_solve(&qr_full, b, x_full, &res_full);
+
+    /* Economy QR */
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr_econ;
+    err = sparse_qr_factor_opts(A, &opts, &qr_econ);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(x_full);
+        free(b);
+        sparse_qr_free(&qr_full);
+        sparse_free(A);
+        return;
+    }
+    double *x_econ = malloc((size_t)nc * sizeof(double));
+    double res_econ = 0.0;
+    if (x_econ)
+        sparse_qr_solve(&qr_econ, b, x_econ, &res_econ);
+
+    ASSERT_TRUE(qr_econ.economy);
+
+    if (x_full && x_econ) {
+        printf("    economy solve 50x10: full_res=%.3e, econ_res=%.3e\n", res_full, res_econ);
+        for (idx_t i = 0; i < nc; i++)
+            ASSERT_NEAR(x_full[i], x_econ[i], 1e-10);
+        ASSERT_NEAR(res_full, res_econ, 1e-10);
+    }
+
+    free(x_full);
+    free(x_econ);
+    free(b);
+    sparse_qr_free(&qr_full);
+    sparse_qr_free(&qr_econ);
+    sparse_free(A);
+}
+
+/* Economy Q orthogonality: thin Q^T * Q = I_n */
+static void test_economy_q_orthogonality(void) {
+    idx_t m = 20, nc = 5;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < nc; j++)
+            if (i == j || (i + j) % 3 == 0)
+                sparse_insert(A, i, j, (double)(i + j + 1));
+
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor_opts(A, &opts, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    /* Form thin Q (m × nc) */
+    double *Q = calloc((size_t)m * (size_t)nc, sizeof(double));
+    ASSERT_NOT_NULL(Q);
+    if (!Q) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+    sparse_qr_form_q(&qr, Q);
+
+    /* Check Q^T * Q ≈ I_nc */
+    double max_err = 0.0;
+    for (idx_t i = 0; i < nc; i++) {
+        for (idx_t j = 0; j < nc; j++) {
+            double dot = 0.0;
+            for (idx_t k = 0; k < m; k++)
+                dot += Q[(size_t)i * (size_t)m + (size_t)k] *
+                       Q[(size_t)j * (size_t)m + (size_t)k];
+            double expected = (i == j) ? 1.0 : 0.0;
+            double e = fabs(dot - expected);
+            if (e > max_err)
+                max_err = e;
+        }
+    }
+    printf("    economy Q^T*Q orthogonality: max_err=%.3e\n", max_err);
+    ASSERT_TRUE(max_err < 1e-10);
+
+    free(Q);
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Square matrix with economy=1: same as economy=0 */
+static void test_economy_square(void) {
+    idx_t n = 5;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 5.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -1.0);
+    }
+
+    double b[5] = {4.0, 3.0, 3.0, 3.0, 4.0};
+
+    /* Full QR */
+    sparse_qr_t qr_full;
+    sparse_err_t err = sparse_qr_factor(A, &qr_full);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    double x_full[5];
+    sparse_qr_solve(&qr_full, b, x_full, NULL);
+
+    /* Economy QR */
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr_econ;
+    err = sparse_qr_factor_opts(A, &opts, &qr_econ);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_qr_free(&qr_full);
+        sparse_free(A);
+        return;
+    }
+    double x_econ[5];
+    sparse_qr_solve(&qr_econ, b, x_econ, NULL);
+
+    for (int i = 0; i < 5; i++)
+        ASSERT_NEAR(x_full[i], x_econ[i], 1e-12);
+
+    sparse_qr_free(&qr_full);
+    sparse_qr_free(&qr_econ);
+    sparse_free(A);
+}
+
+/* Economy R should be n×n upper triangular */
+static void test_economy_r_shape(void) {
+    idx_t m = 30, nc = 5;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < nc; j++)
+            if (i == j)
+                sparse_insert(A, i, j, (double)(i + 1));
+
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor_opts(A, &opts, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    /* R should have min(m,n)=nc rows */
+    ASSERT_NOT_NULL(qr.R);
+    if (qr.R) {
+        ASSERT_EQ(sparse_rows(qr.R), nc);
+        ASSERT_EQ(sparse_cols(qr.R), nc);
+    }
+    ASSERT_EQ(qr.rank, nc);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Rank-deficient tall matrix with economy */
+static void test_economy_rank_deficient(void) {
+    idx_t m = 20, nc = 4;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* col1 = col0, so rank = 3 at most */
+    for (idx_t i = 0; i < m; i++) {
+        sparse_insert(A, i, 0, (double)(i + 1));
+        sparse_insert(A, i, 1, (double)(i + 1)); /* duplicate column */
+        sparse_insert(A, i, 2, (double)(i * 2 + 1));
+        sparse_insert(A, i, 3, (double)(i + 3));
+    }
+
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor_opts(A, &opts, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    printf("    economy rank-deficient 20x4: rank=%d\n", (int)qr.rank);
+    ASSERT_TRUE(qr.rank < nc); /* should detect rank deficiency */
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Wide matrix (m < n) with economy=1: same as full */
+static void test_economy_wide(void) {
+    idx_t m = 3, nc = 6;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < nc; j++)
+            if (i == j || j == i + 3)
+                sparse_insert(A, i, j, (double)(i + j + 1));
+
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor_opts(A, &opts, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    /* For wide (m<n), economy Q is m×m (same as full) */
+    ASSERT_EQ(qr.rank, m);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* 1×1 matrix with economy */
+static void test_economy_1x1(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 7.0);
+
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor_opts(A, &opts, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    double b[1] = {14.0};
+    double x[1];
+    sparse_qr_solve(&qr, b, x, NULL);
+    ASSERT_NEAR(x[0], 2.0, 1e-12);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* nos4 (square): economy identical to full */
+static void test_economy_nos4(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    if (!b) {
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    /* Full QR */
+    sparse_qr_t qr_full;
+    sparse_err_t err = sparse_qr_factor(A, &qr_full);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(b);
+        sparse_free(A);
+        return;
+    }
+    double *x_full = malloc((size_t)n * sizeof(double));
+    if (x_full)
+        sparse_qr_solve(&qr_full, b, x_full, NULL);
+
+    /* Economy QR */
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr_econ;
+    err = sparse_qr_factor_opts(A, &opts, &qr_econ);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(x_full);
+        free(b);
+        sparse_qr_free(&qr_full);
+        sparse_free(A);
+        return;
+    }
+    double *x_econ = malloc((size_t)n * sizeof(double));
+    if (x_econ)
+        sparse_qr_solve(&qr_econ, b, x_econ, NULL);
+
+    if (x_full && x_econ) {
+        double max_diff = 0.0;
+        for (idx_t i = 0; i < n; i++) {
+            double d = fabs(x_full[i] - x_econ[i]);
+            if (d > max_diff)
+                max_diff = d;
+        }
+        printf("    nos4 economy vs full: max_diff=%.3e\n", max_diff);
+        ASSERT_TRUE(max_diff < 1e-10);
+    }
+
+    free(x_full);
+    free(x_econ);
+    free(b);
+    sparse_qr_free(&qr_full);
+    sparse_qr_free(&qr_econ);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -2036,6 +2400,16 @@ int main(void) {
     RUN_TEST(test_qr_reorder_amd_solve);
     RUN_TEST(test_qr_reorder_nos4_fillin);
     RUN_TEST(test_qr_reorder_none);
+
+    /* Economy QR (Sprint 7 Day 7) */
+    RUN_TEST(test_economy_solve_tall);
+    RUN_TEST(test_economy_q_orthogonality);
+    RUN_TEST(test_economy_square);
+    RUN_TEST(test_economy_r_shape);
+    RUN_TEST(test_economy_rank_deficient);
+    RUN_TEST(test_economy_wide);
+    RUN_TEST(test_economy_1x1);
+    RUN_TEST(test_economy_nos4);
 
     TEST_SUITE_END();
 }

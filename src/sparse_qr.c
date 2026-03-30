@@ -205,7 +205,7 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
     idx_t *perm = malloc((size_t)n * sizeof(idx_t));
     double *betas = calloc((size_t)k, sizeof(double));
     double **vecs = calloc((size_t)k, sizeof(double *));
-    double *col_norms = malloc((size_t)n * sizeof(double));
+    double *col_norms = calloc((size_t)n, sizeof(double));
     double *dense_col = malloc((size_t)m * sizeof(double));  /* pivot column */
     double *dense_col2 = malloc((size_t)m * sizeof(double)); /* reusable work column */
     SparseMatrix *R = NULL;

@@ -429,11 +429,10 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
         idx_t steps = rank; /* number of fully completed steps */
         /* If we broke due to rank deficiency after applying reflectors,
          * the last step's R row also needs extraction */
-        if (rank < k) {
-            /* Check if betas/vecs were stored for this step */
-            idx_t last = rank; /* the step that triggered the break */
-            if (last < k && vecs && vecs[last])
-                steps = rank + 1; /* include this step's R row */
+        if (rank < k && vecs && vecs[rank]) {
+            /* Reflectors were applied for step `rank` (the one that
+             * triggered the break), so include its R row too. */
+            steps = rank + 1;
         }
         for (idx_t s = 0; s < steps; s++) {
             for (idx_t j = s + 1; j < n; j++) {

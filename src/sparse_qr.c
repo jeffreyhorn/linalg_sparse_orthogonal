@@ -302,10 +302,9 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
         }
 
         if (best != step) {
-            /* Swap columns in W by swapping col_headers and updating nodes */
-            /* Simpler: swap in perm and col_norms, and swap columns via
-             * extract-and-reinsert. But that's expensive.
-             * Instead, just track column mapping with perm and col_norms swap. */
+            /* Column pivoting: swap metadata (col_norms, perm) then
+             * physically swap columns in W via extract/clear/reinsert
+             * using dense_col and dense_col2 as temporary buffers. */
             double tmp_n = col_norms[step];
             col_norms[step] = col_norms[best];
             col_norms[best] = tmp_n;
@@ -450,15 +449,17 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
             steps = rank + 1;
         }
         for (idx_t s = 0; s < steps; s++) {
-            for (idx_t j = s + 1; j < n; j++) {
-                double val = sparse_get_phys(W, s, j);
-                if (fabs(val) > 1e-15) {
-                    sparse_err_t ierr = sparse_insert(R, s, j, val);
+            /* Traverse row s nonzeros once instead of probing every (s,j) */
+            Node *rnd = W->row_headers[s];
+            while (rnd) {
+                if (rnd->col > s && fabs(rnd->value) > 1e-15) {
+                    sparse_err_t ierr = sparse_insert(R, s, rnd->col, rnd->value);
                     if (ierr != SPARSE_OK) {
                         status = ierr;
                         goto cleanup_colwise;
                     }
                 }
+                rnd = rnd->right;
             }
         }
     }

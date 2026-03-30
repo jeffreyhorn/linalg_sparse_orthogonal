@@ -863,7 +863,7 @@ static void test_transpose_west0067(void) {
     ASSERT_EQ(sparse_cols(TT), sparse_cols(A));
     ASSERT_EQ(sparse_nnz(TT), sparse_nnz(A));
 
-    /* Verify all entries match via matvec: A*x should equal TT*x for random x */
+    /* Verify all entries match via matvec: A*x should equal TT*x for deterministic x */
     idx_t m = sparse_rows(A);
     idx_t nc = sparse_cols(A);
     double *x = malloc((size_t)nc * sizeof(double));

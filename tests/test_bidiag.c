@@ -181,7 +181,18 @@ static void test_bidiag_tall(void) {
 
 /* Wide rectangular 5×10 — skipped, behavior is undefined for m < n per API docs */
 static void test_bidiag_wide(void) {
-    printf("    5x10 bidiag: SKIPPED (m < n, behavior undefined per API docs)\n");
+    SparseMatrix *A = sparse_create(5, 10);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < 5; i++)
+        sparse_insert(A, i, i, (double)(i + 1));
+
+    sparse_bidiag_t bd;
+    ASSERT_ERR(sparse_bidiag_factor(A, &bd), SPARSE_ERR_SHAPE);
+    printf("    5x10 bidiag: correctly rejected with SPARSE_ERR_SHAPE\n");
+
+    sparse_free(A);
 }
 
 /* Diagonal matrix: superdiag should be ~0 */

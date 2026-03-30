@@ -69,7 +69,12 @@ sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag
 
     idx_t m = sparse_rows(A);
     idx_t n = sparse_cols(A);
-    idx_t k = (m < n) ? m : n; /* min(m,n) */
+
+    /* Enforce documented precondition: m >= n required */
+    if (m < n)
+        return SPARSE_ERR_SHAPE;
+
+    idx_t k = (m < n) ? m : n; /* min(m,n) = n since m >= n */
 
     bidiag->m = m;
     bidiag->n = n;

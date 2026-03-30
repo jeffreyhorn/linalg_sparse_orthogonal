@@ -353,14 +353,17 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
         return SPARSE_ERR_ALLOC;
     }
 
-    /* Pivoting support: row_map[k] = original row index at position k.
-     * When pivoting is enabled, we swap entries in row_map and allocate perm. */
+    /* Pivoting support: row_map[pos] = orig_row, inv_row_map[orig_row] = pos.
+     * When pivoting is enabled, we swap entries in both maps and allocate perm. */
     idx_t *row_map = NULL;
+    idx_t *inv_row_map = NULL;
     if (o->pivot) {
         row_map = malloc((size_t)n * sizeof(idx_t));
+        inv_row_map = malloc((size_t)n * sizeof(idx_t));
         ilu->perm = malloc((size_t)n * sizeof(idx_t));
-        if (!row_map || !ilu->perm) {
+        if (!row_map || !inv_row_map || !ilu->perm) {
             free(row_map);
+            free(inv_row_map);
             free(ilu->perm);
             ilu->perm = NULL;
             free(w);
@@ -374,6 +377,7 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
         }
         for (idx_t i = 0; i < n; i++) {
             row_map[i] = i;
+            inv_row_map[i] = i;
             ilu->perm[i] = i;
         }
     }
@@ -385,37 +389,33 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
         idx_t orig_row = row_map ? row_map[i] : i;
 
         /* Pivoting: find the row j >= i with the largest |A(row_map[j], i)|.
-         * Use col_headers to scan column i entries in O(nnz_in_col)
-         * instead of O(n * nnz_in_row) via sparse_get_phys per row. */
+         * Scan col_headers[i] in O(nnz_in_col) and use inv_row_map for
+         * O(1) position lookup instead of linear row_map scan. */
         if (row_map) {
             idx_t best_j = i;
             double best_val = 0.0;
-            /* Build inverse map: inv_map[orig_row] = position */
-            /* Only needed for rows >= i; scan column i entries */
             Node *cnd = A->col_headers[i];
             while (cnd) {
-                idx_t orig_row = cnd->row;
-                /* Find which position this original row is at */
-                /* Linear scan of row_map[i..n-1] for orig_row */
-                for (idx_t j = i; j < n; j++) {
-                    if (row_map[j] == orig_row) {
-                        double val = fabs(cnd->value);
-                        if (val > best_val) {
-                            best_val = val;
-                            best_j = j;
-                        }
-                        break;
+                idx_t pos = inv_row_map[cnd->row];
+                if (pos >= i) {
+                    double val = fabs(cnd->value);
+                    if (val > best_val) {
+                        best_val = val;
+                        best_j = pos;
                     }
                 }
                 cnd = cnd->down;
             }
             if (best_j != i) {
-                /* Swap row_map entries: position i now maps to a different original row */
-                idx_t tmp = row_map[i];
-                row_map[i] = row_map[best_j];
-                row_map[best_j] = tmp;
+                /* Swap row_map and inv_row_map */
+                idx_t orig_i = row_map[i];
+                idx_t orig_best = row_map[best_j];
+                row_map[i] = orig_best;
+                row_map[best_j] = orig_i;
+                inv_row_map[orig_best] = i;
+                inv_row_map[orig_i] = best_j;
                 /* Record the swap in perm */
-                tmp = ilu->perm[i];
+                idx_t tmp = ilu->perm[i];
                 ilu->perm[i] = ilu->perm[best_j];
                 ilu->perm[best_j] = tmp;
             }
@@ -600,6 +600,7 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
     free(l_buf);
     free(u_buf);
     free(row_map);
+    free(inv_row_map);
     return SPARSE_OK;
 
 cleanup:
@@ -609,6 +610,7 @@ cleanup:
     free(l_buf);
     free(u_buf);
     free(row_map);
+    free(inv_row_map);
     sparse_free(L);
     sparse_free(U);
     if (ilu) {

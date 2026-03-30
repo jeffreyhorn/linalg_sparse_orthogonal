@@ -38,8 +38,9 @@
  */
 typedef struct {
     sparse_reorder_t reorder; /**< Column reordering before QR (default: NONE) */
-    int economy;              /**< When nonzero, compute economy (thin) QR: Q is m×n
-                                   instead of m×m, R is n×n. Saves memory for m >> n.
+    int economy;              /**< When nonzero and m > n, compute economy (thin) QR:
+                                   form_q produces m×n instead of m×m. Has no effect
+                                   when m <= n (Q is already m×m = m×k where k=min(m,n)).
                                    (default: 0 = full QR) */
     int sparse_mode;          /**< When nonzero, use column-by-column Householder
                                    application instead of O(m*n) dense workspace.
@@ -156,6 +157,7 @@ sparse_err_t sparse_qr_solve(const sparse_qr_t *qr, const double *b, double *x, 
  * @param residual   Output: final residual norm ||b - Ax||_2 (may be NULL).
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any required argument is NULL.
+ * @return SPARSE_ERR_SHAPE if A dimensions don't match the QR factorization.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  */
 sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A, const double *b,

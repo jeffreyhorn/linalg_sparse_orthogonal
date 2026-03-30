@@ -19,9 +19,13 @@ dense_matrix_t *dense_create(idx_t rows, idx_t cols) {
         return M;
     }
 
-    /* Overflow check */
+    /* Overflow check: rows*cols and rows*cols*sizeof(double) */
     size_t n = (size_t)rows * (size_t)cols;
     if (cols > 0 && n / (size_t)cols != (size_t)rows) {
+        free(M);
+        return NULL;
+    }
+    if (n > SIZE_MAX / sizeof(double)) {
         free(M);
         return NULL;
     }
@@ -62,8 +66,15 @@ sparse_err_t dense_gemm(const dense_matrix_t *A, const dense_matrix_t *B,
     if (!A->data || !B->data || !C->data)
         return SPARSE_ERR_NULL;
 
+    /* Overflow-safe byte count for C */
+    size_t mn = (size_t)m * (size_t)n;
+    if (n > 0 && mn / (size_t)n != (size_t)m)
+        return SPARSE_ERR_ALLOC;
+    if (mn > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
+
     /* Zero C */
-    memset(C->data, 0, (size_t)m * (size_t)n * sizeof(double));
+    memset(C->data, 0, mn * sizeof(double));
 
     /* C(i,j) = sum_p A(i,p) * B(p,j)
      * Column-major: loop over j (output column), then p, then i for cache. */

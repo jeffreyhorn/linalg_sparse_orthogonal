@@ -207,11 +207,12 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A,
     double *betas = calloc((size_t)k, sizeof(double));
     double **vecs = calloc((size_t)k, sizeof(double *));
     double *col_norms = malloc((size_t)n * sizeof(double));
-    double *dense_col = malloc((size_t)m * sizeof(double)); /* working column */
+    double *dense_col = malloc((size_t)m * sizeof(double));  /* pivot column */
+    double *dense_col2 = malloc((size_t)m * sizeof(double)); /* reusable work column */
     SparseMatrix *R = NULL;
     sparse_err_t status = SPARSE_OK;
 
-    if (!perm || !betas || !vecs || !col_norms || !dense_col) {
+    if (!perm || !betas || !vecs || !col_norms || !dense_col || !dense_col2) {
         status = SPARSE_ERR_ALLOC;
         goto cleanup_colwise;
     }
@@ -272,7 +273,6 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A,
     }
 
     idx_t rank = 0;
-    idx_t steps_done = 0;
     double r00 = 0.0;
     R = sparse_create(k, n);
     if (!R) {
@@ -304,13 +304,9 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A,
             perm[best] = tmp_p;
 
             /* Swap columns in W: extract both, clear, reinsert swapped.
-             * Use dense_col for one, allocate another temp. */
-            double *dense_col2 = calloc((size_t)m, sizeof(double));
-            if (!dense_col2) {
-                status = SPARSE_ERR_ALLOC;
-                goto cleanup_colwise;
-            }
+             * Use dense_col for one, dense_col2 for the other. */
             memset(dense_col, 0, (size_t)m * sizeof(double));
+            memset(dense_col2, 0, (size_t)m * sizeof(double));
             sparse_extract_column(W, step, dense_col);
             sparse_extract_column(W, best, dense_col2);
 
@@ -319,7 +315,6 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A,
                 if (fabs(dense_col[i]) > 0) {
                     sparse_err_t ierr = sparse_insert(W, i, step, 0.0);
                     if (ierr != SPARSE_OK) {
-                        free(dense_col2);
                         status = ierr;
                         goto cleanup_colwise;
                     }
@@ -327,7 +322,6 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A,
                 if (fabs(dense_col2[i]) > 0) {
                     sparse_err_t ierr = sparse_insert(W, i, best, 0.0);
                     if (ierr != SPARSE_OK) {
-                        free(dense_col2);
                         status = ierr;
                         goto cleanup_colwise;
                     }
@@ -338,7 +332,6 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A,
                 if (fabs(dense_col2[i]) > 1e-30) {
                     sparse_err_t ierr = sparse_insert(W, i, step, dense_col2[i]);
                     if (ierr != SPARSE_OK) {
-                        free(dense_col2);
                         status = ierr;
                         goto cleanup_colwise;
                     }
@@ -346,13 +339,11 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A,
                 if (fabs(dense_col[i]) > 1e-30) {
                     sparse_err_t ierr = sparse_insert(W, i, best, dense_col[i]);
                     if (ierr != SPARSE_OK) {
-                        free(dense_col2);
                         status = ierr;
                         goto cleanup_colwise;
                     }
                 }
             }
-            free(dense_col2);
         }
 
         /* Rank deficiency check on column norm */
@@ -393,41 +384,32 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A,
 
         /* Apply Householder to remaining columns step+1..n-1 */
         for (idx_t j = step + 1; j < n; j++) {
-            double *dcj = calloc((size_t)m, sizeof(double));
-            if (!dcj) {
-                status = SPARSE_ERR_ALLOC;
-                goto cleanup_colwise;
-            }
-            sparse_extract_column(W, j, dcj);
-            householder_apply_to_column(hv, beta, dcj, step, m);
+            memset(dense_col2, 0, (size_t)m * sizeof(double));
+            sparse_extract_column(W, j, dense_col2);
+            householder_apply_to_column(hv, beta, dense_col2, step, m);
 
             /* Write back modified column to W */
-            /* Clear column j from step onward and reinsert */
             for (idx_t i = step; i < m; i++) {
                 double old_val = sparse_get_phys(W, i, j);
                 if (fabs(old_val) > 0) {
                     sparse_err_t ierr = sparse_insert(W, i, j, 0.0);
                     if (ierr != SPARSE_OK) {
-                        free(dcj);
                         status = ierr;
                         goto cleanup_colwise;
                     }
                 }
             }
             for (idx_t i = step; i < m; i++) {
-                if (fabs(dcj[i]) > 1e-30) {
-                    sparse_err_t ierr = sparse_insert(W, i, j, dcj[i]);
+                if (fabs(dense_col2[i]) > 1e-30) {
+                    sparse_err_t ierr = sparse_insert(W, i, j, dense_col2[i]);
                     if (ierr != SPARSE_OK) {
-                        free(dcj);
                         status = ierr;
                         goto cleanup_colwise;
                     }
                 }
             }
-            free(dcj);
         }
 
-        steps_done++;
         if (fabs(dense_col[step]) < rank_tol)
             break;
         rank++;
@@ -460,6 +442,7 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A,
 cleanup_colwise:
     free(col_norms);
     free(dense_col);
+    free(dense_col2);
     free(col_reorder);
     free(perm);
     free(betas);

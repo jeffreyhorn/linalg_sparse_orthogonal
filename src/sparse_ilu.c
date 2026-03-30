@@ -597,6 +597,11 @@ cleanup:
     free(row_map);
     sparse_free(L);
     sparse_free(U);
+    if (ilu) {
+        free(ilu->perm);
+        ilu->perm = NULL;
+        ilu->n = 0;
+    }
     return status;
 }
 

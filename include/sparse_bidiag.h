@@ -42,9 +42,12 @@ typedef struct {
  * only on the diagonal and first superdiagonal.
  *
  * The current implementation assumes m >= n. For m < n, behavior is
- * undefined.
+ * undefined. The input matrix A is required to have identity row and
+ * column permutations; behavior is undefined if permutations are
+ * non-identity.
  *
- * @param A      The matrix to factor (not modified). Must have identity permutations.
+ * @param A      The matrix to factor (not modified). Must have identity
+ *               row and column permutations.
  * @param bidiag Output: bidiagonal factors. Must be freed with sparse_bidiag_free().
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or bidiag is NULL.

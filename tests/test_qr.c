@@ -2818,13 +2818,24 @@ static void test_sparse_mode_timing(void) {
 
     /* Dense-mode */
     sparse_qr_t qr_d;
-    sparse_qr_factor(A, &qr_d);
+    sparse_err_t err_d = sparse_qr_factor(A, &qr_d);
+    ASSERT_ERR(err_d, SPARSE_OK);
+    if (err_d != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
     idx_t nnz_r_d = sparse_nnz(qr_d.R);
 
     /* Sparse-mode */
     sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .sparse_mode = 1};
     sparse_qr_t qr_s;
-    sparse_qr_factor_opts(A, &opts, &qr_s);
+    sparse_err_t err_s = sparse_qr_factor_opts(A, &opts, &qr_s);
+    ASSERT_ERR(err_s, SPARSE_OK);
+    if (err_s != SPARSE_OK) {
+        sparse_qr_free(&qr_d);
+        sparse_free(A);
+        return;
+    }
     idx_t nnz_r_s = sparse_nnz(qr_s.R);
 
     printf("    nos4 R nnz: dense=%d, sparse=%d\n", (int)nnz_r_d, (int)nnz_r_s);

@@ -424,19 +424,17 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
                     }
                 }
             }
+
+            /* Update column norm using the value already in dense_col2 */
+            double entry_step = dense_col2[step];
+            col_norms[j] -= entry_step * entry_step;
+            if (col_norms[j] < 0.0)
+                col_norms[j] = 0.0;
         }
 
         if (fabs(dense_col[step]) < rank_tol)
             break;
         rank++;
-
-        /* Update column norms */
-        for (idx_t j = step + 1; j < n; j++) {
-            double entry = sparse_get_phys(W, step, j);
-            col_norms[j] -= entry * entry;
-            if (col_norms[j] < 0.0)
-                col_norms[j] = 0.0;
-        }
     }
 
     /* Extract off-diagonal R entries from W: for each completed step,

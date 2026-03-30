@@ -2495,6 +2495,7 @@ static void compare_dense_sparse_qr(const SparseMatrix *A, const char *name) {
     /* Dense-mode QR */
     sparse_qr_t qr_d;
     sparse_err_t err = sparse_qr_factor(A, &qr_d);
+    ASSERT_ERR(err, SPARSE_OK);
     if (err != SPARSE_OK) {
         free(b);
         return;
@@ -2513,6 +2514,7 @@ static void compare_dense_sparse_qr(const SparseMatrix *A, const char *name) {
     sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 0, .sparse_mode = 1};
     sparse_qr_t qr_s;
     err = sparse_qr_factor_opts(A, &opts, &qr_s);
+    ASSERT_ERR(err, SPARSE_OK);
     if (err != SPARSE_OK) {
         free(x_d);
         free(b);

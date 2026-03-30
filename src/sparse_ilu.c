@@ -384,16 +384,30 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
         /* Determine which original row to process at position i */
         idx_t orig_row = row_map ? row_map[i] : i;
 
-        /* Pivoting: find the row j >= i with the largest |A(row_map[j], i)| */
+        /* Pivoting: find the row j >= i with the largest |A(row_map[j], i)|.
+         * Use col_headers to scan column i entries in O(nnz_in_col)
+         * instead of O(n * nnz_in_row) via sparse_get_phys per row. */
         if (row_map) {
             idx_t best_j = i;
             double best_val = 0.0;
-            for (idx_t j = i; j < n; j++) {
-                double val = fabs(sparse_get_phys(A, row_map[j], i));
-                if (val > best_val) {
-                    best_val = val;
-                    best_j = j;
+            /* Build inverse map: inv_map[orig_row] = position */
+            /* Only needed for rows >= i; scan column i entries */
+            Node *cnd = A->col_headers[i];
+            while (cnd) {
+                idx_t orig_row = cnd->row;
+                /* Find which position this original row is at */
+                /* Linear scan of row_map[i..n-1] for orig_row */
+                for (idx_t j = i; j < n; j++) {
+                    if (row_map[j] == orig_row) {
+                        double val = fabs(cnd->value);
+                        if (val > best_val) {
+                            best_val = val;
+                            best_j = j;
+                        }
+                        break;
+                    }
                 }
+                cnd = cnd->down;
             }
             if (best_j != i) {
                 /* Swap row_map entries: position i now maps to a different original row */

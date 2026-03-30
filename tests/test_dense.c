@@ -403,6 +403,121 @@ static void test_eigen2x2_zero_offdiag(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Tridiagonal QR eigenvalue tests (Sprint 7 Day 12)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Diagonal matrix: eigenvalues = diagonal entries */
+static void test_tridiag_diagonal(void) {
+    double diag[] = {5.0, 3.0, 7.0, 1.0};
+    double sub[] = {0.0, 0.0, 0.0};
+    ASSERT_ERR(tridiag_qr_eigenvalues(diag, sub, 4, 0), SPARSE_OK);
+    /* Should be sorted ascending */
+    ASSERT_NEAR(diag[0], 1.0, 1e-14);
+    ASSERT_NEAR(diag[1], 3.0, 1e-14);
+    ASSERT_NEAR(diag[2], 5.0, 1e-14);
+    ASSERT_NEAR(diag[3], 7.0, 1e-14);
+}
+
+/* 2×2 tridiagonal: should match eigen2x2 */
+static void test_tridiag_2x2(void) {
+    double diag[] = {2.0, 5.0};
+    double sub[] = {1.0};
+    ASSERT_ERR(tridiag_qr_eigenvalues(diag, sub, 2, 0), SPARSE_OK);
+
+    double l1, l2;
+    eigen2x2(2.0, 1.0, 5.0, &l1, &l2);
+    ASSERT_NEAR(diag[0], l1, 1e-12);
+    ASSERT_NEAR(diag[1], l2, 1e-12);
+}
+
+/* Known tridiagonal: -1, 2, -1 of size n
+ * Eigenvalues: 2 - 2*cos(k*pi/(n+1)) for k=1..n */
+static void test_tridiag_known(void) {
+    idx_t n = 10;
+    double diag[10], sub[9];
+    for (idx_t i = 0; i < n; i++)
+        diag[i] = 2.0;
+    for (idx_t i = 0; i < n - 1; i++)
+        sub[i] = -1.0;
+
+    ASSERT_ERR(tridiag_qr_eigenvalues(diag, sub, n, 0), SPARSE_OK);
+
+    /* Compare with analytical eigenvalues */
+    double pi = 3.14159265358979323846;
+    for (idx_t k = 0; k < n; k++) {
+        double expected = 2.0 - 2.0 * cos((double)(k + 1) * pi / (double)(n + 1));
+        ASSERT_NEAR(diag[k], expected, 1e-10);
+    }
+}
+
+/* 1×1 matrix */
+static void test_tridiag_1x1(void) {
+    double diag[] = {42.0};
+    ASSERT_ERR(tridiag_qr_eigenvalues(diag, NULL, 1, 0), SPARSE_OK);
+    ASSERT_NEAR(diag[0], 42.0, 1e-15);
+}
+
+/* n=0 */
+static void test_tridiag_empty(void) {
+    ASSERT_ERR(tridiag_qr_eigenvalues(NULL, NULL, 0, 0), SPARSE_OK);
+}
+
+/* Larger: n=50, -1,2,-1 tridiagonal */
+static void test_tridiag_large(void) {
+    idx_t n = 50;
+    double *diag = malloc((size_t)n * sizeof(double));
+    double *sub = malloc((size_t)(n - 1) * sizeof(double));
+    ASSERT_NOT_NULL(diag);
+    ASSERT_NOT_NULL(sub);
+    if (!diag || !sub) {
+        free(diag);
+        free(sub);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        diag[i] = 2.0;
+    for (idx_t i = 0; i < n - 1; i++)
+        sub[i] = -1.0;
+
+    ASSERT_ERR(tridiag_qr_eigenvalues(diag, sub, n, 0), SPARSE_OK);
+
+    /* Verify sorted ascending */
+    for (idx_t i = 1; i < n; i++)
+        ASSERT_TRUE(diag[i] >= diag[i - 1] - 1e-14);
+
+    /* Spot-check smallest and largest */
+    double pi = 3.14159265358979323846;
+    double lam_min = 2.0 - 2.0 * cos(pi / (double)(n + 1));
+    double lam_max = 2.0 - 2.0 * cos((double)n * pi / (double)(n + 1));
+    printf("    tridiag n=50: lam_min=%.6e (expected %.6e), lam_max=%.6e (expected %.6e)\n",
+           diag[0], lam_min, diag[n - 1], lam_max);
+    ASSERT_NEAR(diag[0], lam_min, 1e-10);
+    ASSERT_NEAR(diag[n - 1], lam_max, 1e-10);
+
+    free(diag);
+    free(sub);
+}
+
+/* Graded diagonal: eigenvalues spanning many orders of magnitude */
+static void test_tridiag_graded(void) {
+    double diag[] = {1e-8, 1.0, 1e4, 1e8};
+    double sub[] = {1e-10, 1e-5, 1e-2};
+    ASSERT_ERR(tridiag_qr_eigenvalues(diag, sub, 4, 0), SPARSE_OK);
+
+    /* Should be sorted and roughly match diagonal entries (off-diag is small) */
+    ASSERT_TRUE(diag[0] < diag[1]);
+    ASSERT_TRUE(diag[1] < diag[2]);
+    ASSERT_TRUE(diag[2] < diag[3]);
+    ASSERT_NEAR(diag[0], 1e-8, 1e-6);
+    ASSERT_NEAR(diag[3], 1e8, 1e2);
+}
+
+/* NULL inputs for n>1 */
+static void test_tridiag_null(void) {
+    ASSERT_ERR(tridiag_qr_eigenvalues(NULL, NULL, 5, 0), SPARSE_ERR_NULL);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -446,6 +561,16 @@ int main(void) {
     RUN_TEST(test_eigen2x2_large);
     RUN_TEST(test_eigen2x2_negative);
     RUN_TEST(test_eigen2x2_zero_offdiag);
+
+    /* Tridiagonal QR eigenvalue solver (Sprint 7 Day 12) */
+    RUN_TEST(test_tridiag_diagonal);
+    RUN_TEST(test_tridiag_2x2);
+    RUN_TEST(test_tridiag_known);
+    RUN_TEST(test_tridiag_1x1);
+    RUN_TEST(test_tridiag_empty);
+    RUN_TEST(test_tridiag_large);
+    RUN_TEST(test_tridiag_graded);
+    RUN_TEST(test_tridiag_null);
 
     TEST_SUITE_END();
 }

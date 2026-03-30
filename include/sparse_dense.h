@@ -137,4 +137,28 @@ void givens_apply_right(double c, double s, double *x, double *y, idx_t n);
  */
 void eigen2x2(double a, double b, double d, double *lambda1, double *lambda2);
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Symmetric tridiagonal eigenvalue solver
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief Compute all eigenvalues of a symmetric tridiagonal matrix.
+ *
+ * Uses the implicit QR algorithm with Wilkinson shifts and deflation.
+ * The tridiagonal matrix T has diagonal entries diag[0..n-1] and
+ * subdiagonal entries subdiag[0..n-2] (T is symmetric, so the
+ * superdiagonal equals the subdiagonal).
+ *
+ * @param diag       Diagonal entries (length n). Overwritten with eigenvalues
+ *                   in ascending order on success.
+ * @param subdiag    Subdiagonal entries (length n-1). Destroyed on output.
+ * @param n          Matrix dimension.
+ * @param max_iter   Maximum total QR iterations (0 for default: 30*n).
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if diag or subdiag is NULL (when n > 1).
+ * @return SPARSE_ERR_NOT_CONVERGED if max_iter reached without convergence.
+ */
+sparse_err_t tridiag_qr_eigenvalues(double *diag, double *subdiag, idx_t n,
+                                     idx_t max_iter);
+
 #endif /* SPARSE_DENSE_H */

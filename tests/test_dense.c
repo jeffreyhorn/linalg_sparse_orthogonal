@@ -252,6 +252,157 @@ static void test_dense_at_layout(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Givens rotation tests (Sprint 7 Day 5)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Givens zeroes second component */
+static void test_givens_basic(void) {
+    double c, s;
+    givens_compute(3.0, 4.0, &c, &s);
+
+    /* [c s; -s c]^T * [3; 4] = [5; 0] */
+    double r0 = c * 3.0 + s * 4.0;
+    double r1 = -s * 3.0 + c * 4.0;
+    ASSERT_NEAR(r0, 5.0, 1e-14);
+    ASSERT_NEAR(r1, 0.0, 1e-14);
+}
+
+/* b=0: no rotation needed */
+static void test_givens_b_zero(void) {
+    double c, s;
+    givens_compute(5.0, 0.0, &c, &s);
+    ASSERT_NEAR(c, 1.0, 1e-15);
+    ASSERT_NEAR(s, 0.0, 1e-15);
+}
+
+/* a=0: swap */
+static void test_givens_a_zero(void) {
+    double c, s;
+    givens_compute(0.0, 7.0, &c, &s);
+    ASSERT_NEAR(c, 0.0, 1e-15);
+    ASSERT_NEAR(s, 1.0, 1e-15);
+
+    double r0 = c * 0.0 + s * 7.0;
+    double r1 = -s * 0.0 + c * 7.0;
+    ASSERT_NEAR(r0, 7.0, 1e-14);
+    ASSERT_NEAR(r1, 0.0, 1e-14);
+}
+
+/* Both zero */
+static void test_givens_both_zero(void) {
+    double c, s;
+    givens_compute(0.0, 0.0, &c, &s);
+    ASSERT_NEAR(c, 1.0, 1e-15);
+    ASSERT_NEAR(s, 0.0, 1e-15);
+}
+
+/* Rotation preserves norm */
+static void test_givens_norm_preserving(void) {
+    double c, s;
+    givens_compute(-2.0, 3.0, &c, &s);
+
+    double x[3] = {1.0, 2.0, 3.0};
+    double y[3] = {4.0, 5.0, 6.0};
+
+    /* Compute norms before */
+    double norm_before = 0.0;
+    for (int i = 0; i < 3; i++)
+        norm_before += x[i] * x[i] + y[i] * y[i];
+
+    givens_apply_left(c, s, x, y, 3);
+
+    /* Compute norms after */
+    double norm_after = 0.0;
+    for (int i = 0; i < 3; i++)
+        norm_after += x[i] * x[i] + y[i] * y[i];
+
+    ASSERT_NEAR(norm_before, norm_after, 1e-12);
+}
+
+/* apply_left zeroes target in a 2-element "row" */
+static void test_givens_apply_left(void) {
+    double c, s;
+    givens_compute(3.0, 4.0, &c, &s);
+
+    double x[1] = {3.0};
+    double y[1] = {4.0};
+    givens_apply_left(c, s, x, y, 1);
+    ASSERT_NEAR(x[0], 5.0, 1e-14);
+    ASSERT_NEAR(y[0], 0.0, 1e-14);
+}
+
+/* Negative values */
+static void test_givens_negative(void) {
+    double c, s;
+    givens_compute(-3.0, -4.0, &c, &s);
+
+    double r0 = c * (-3.0) + s * (-4.0);
+    double r1 = -s * (-3.0) + c * (-4.0);
+    ASSERT_NEAR(fabs(r0), 5.0, 1e-14);
+    ASSERT_NEAR(r1, 0.0, 1e-14);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * 2×2 eigenvalue tests (Sprint 7 Day 5)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Diagonal matrix: eigenvalues = diagonal entries */
+static void test_eigen2x2_diagonal(void) {
+    double l1, l2;
+    eigen2x2(3.0, 0.0, 7.0, &l1, &l2);
+    ASSERT_NEAR(l1, 3.0, 1e-14);
+    ASSERT_NEAR(l2, 7.0, 1e-14);
+}
+
+/* Known symmetric: [[2, 1], [1, 2]] → eigenvalues 1, 3 */
+static void test_eigen2x2_known(void) {
+    double l1, l2;
+    eigen2x2(2.0, 1.0, 2.0, &l1, &l2);
+    ASSERT_NEAR(l1, 1.0, 1e-14);
+    ASSERT_NEAR(l2, 3.0, 1e-14);
+}
+
+/* Identity: eigenvalues both 1 */
+static void test_eigen2x2_identity(void) {
+    double l1, l2;
+    eigen2x2(1.0, 0.0, 1.0, &l1, &l2);
+    ASSERT_NEAR(l1, 1.0, 1e-14);
+    ASSERT_NEAR(l2, 1.0, 1e-14);
+}
+
+/* Nearly equal eigenvalues */
+static void test_eigen2x2_nearly_equal(void) {
+    double l1, l2;
+    eigen2x2(1.0, 1e-10, 1.0, &l1, &l2);
+    ASSERT_NEAR(l1, 1.0 - 1e-10, 1e-14);
+    ASSERT_NEAR(l2, 1.0 + 1e-10, 1e-14);
+}
+
+/* Large values */
+static void test_eigen2x2_large(void) {
+    double l1, l2;
+    eigen2x2(1e10, 1.0, 1e10, &l1, &l2);
+    ASSERT_NEAR(l1, 1e10 - 1.0, 1e-4);
+    ASSERT_NEAR(l2, 1e10 + 1.0, 1e-4);
+}
+
+/* Negative eigenvalues: [[-5, 2], [2, -5]] → -7, -3 */
+static void test_eigen2x2_negative(void) {
+    double l1, l2;
+    eigen2x2(-5.0, 2.0, -5.0, &l1, &l2);
+    ASSERT_NEAR(l1, -7.0, 1e-14);
+    ASSERT_NEAR(l2, -3.0, 1e-14);
+}
+
+/* Zero off-diagonal */
+static void test_eigen2x2_zero_offdiag(void) {
+    double l1, l2;
+    eigen2x2(5.0, 0.0, 2.0, &l1, &l2);
+    ASSERT_NEAR(l1, 2.0, 1e-14);
+    ASSERT_NEAR(l2, 5.0, 1e-14);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -277,6 +428,24 @@ int main(void) {
 
     /* Layout */
     RUN_TEST(test_dense_at_layout);
+
+    /* Givens rotations (Sprint 7 Day 5) */
+    RUN_TEST(test_givens_basic);
+    RUN_TEST(test_givens_b_zero);
+    RUN_TEST(test_givens_a_zero);
+    RUN_TEST(test_givens_both_zero);
+    RUN_TEST(test_givens_norm_preserving);
+    RUN_TEST(test_givens_apply_left);
+    RUN_TEST(test_givens_negative);
+
+    /* 2×2 eigenvalue solver (Sprint 7 Day 5) */
+    RUN_TEST(test_eigen2x2_diagonal);
+    RUN_TEST(test_eigen2x2_known);
+    RUN_TEST(test_eigen2x2_identity);
+    RUN_TEST(test_eigen2x2_nearly_equal);
+    RUN_TEST(test_eigen2x2_large);
+    RUN_TEST(test_eigen2x2_negative);
+    RUN_TEST(test_eigen2x2_zero_offdiag);
 
     TEST_SUITE_END();
 }

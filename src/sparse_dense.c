@@ -1,4 +1,5 @@
 #include "sparse_dense.h"
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -103,4 +104,57 @@ sparse_err_t dense_gemv(const dense_matrix_t *A, const double *x, double *y) {
     }
 
     return SPARSE_OK;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Givens rotations
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+void givens_compute(double a, double b, double *c, double *s) {
+    if (b == 0.0) {
+        *c = 1.0;
+        *s = 0.0;
+    } else if (a == 0.0) {
+        *c = 0.0;
+        *s = (b > 0.0) ? 1.0 : -1.0;
+    } else {
+        double r = hypot(a, b);
+        *c = a / r;
+        *s = b / r;
+    }
+}
+
+void givens_apply_left(double c, double s, double *x, double *y, idx_t n) {
+    for (idx_t k = 0; k < n; k++) {
+        double xk = x[k];
+        double yk = y[k];
+        x[k] = c * xk + s * yk;
+        y[k] = -s * xk + c * yk;
+    }
+}
+
+void givens_apply_right(double c, double s, double *x, double *y, idx_t n) {
+    for (idx_t k = 0; k < n; k++) {
+        double xk = x[k];
+        double yk = y[k];
+        x[k] = c * xk + s * yk;
+        y[k] = -s * xk + c * yk;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * 2×2 symmetric eigenvalue solver
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+void eigen2x2(double a, double b, double d, double *lambda1, double *lambda2) {
+    /* Eigenvalues of [[a, b], [b, d]]:
+     * lambda = (a+d)/2 ± sqrt(((a-d)/2)^2 + b^2)
+     * Use the numerically stable form to avoid catastrophic cancellation. */
+    double trace = a + d;
+    double half_diff = (a - d) * 0.5;
+    double disc = sqrt(half_diff * half_diff + b * b);
+
+    /* Return in ascending order */
+    *lambda1 = trace * 0.5 - disc;
+    *lambda2 = trace * 0.5 + disc;
 }

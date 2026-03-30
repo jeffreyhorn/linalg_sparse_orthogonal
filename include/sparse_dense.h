@@ -71,4 +71,70 @@ sparse_err_t dense_gemv(const dense_matrix_t *A, const double *x, double *y);
  */
 #define DENSE_AT(M, i, j) ((M)->data[(size_t)(j) * (size_t)(M)->rows + (size_t)(i)])
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Givens rotations
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief Compute Givens rotation that zeroes the second component.
+ *
+ * Computes c and s such that:
+ *   [c  s] * [a] = [r]
+ *   [-s c]   [b]   [0]
+ * where r = hypot(a, b).
+ *
+ * @param a   First component.
+ * @param b   Second component (to be zeroed).
+ * @param c   Output: cosine of rotation angle.
+ * @param s   Output: sine of rotation angle.
+ */
+void givens_compute(double a, double b, double *c, double *s);
+
+/**
+ * @brief Apply Givens rotation from the left to two row vectors.
+ *
+ * Replaces (x[k], y[k]) with (c*x[k] + s*y[k], -s*x[k] + c*y[k])
+ * for k = 0..n-1.
+ *
+ * @param c  Cosine of rotation.
+ * @param s  Sine of rotation.
+ * @param x  First row vector (length n), modified in-place.
+ * @param y  Second row vector (length n), modified in-place.
+ * @param n  Vector length.
+ */
+void givens_apply_left(double c, double s, double *x, double *y, idx_t n);
+
+/**
+ * @brief Apply Givens rotation from the right to two column vectors.
+ *
+ * Replaces (x[k], y[k]) with (c*x[k] + s*y[k], -s*x[k] + c*y[k])
+ * for k = 0..n-1. Same arithmetic as left application but intended for
+ * columns (the naming clarifies usage context).
+ *
+ * @param c  Cosine of rotation.
+ * @param s  Sine of rotation.
+ * @param x  First column vector (length n), modified in-place.
+ * @param y  Second column vector (length n), modified in-place.
+ * @param n  Vector length.
+ */
+void givens_apply_right(double c, double s, double *x, double *y, idx_t n);
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * 2×2 symmetric eigenvalue solver
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief Compute eigenvalues of a 2×2 symmetric matrix.
+ *
+ * Solves for the eigenvalues of [[a, b], [b, d]].
+ * Returns lambda1 <= lambda2 (ascending order).
+ *
+ * @param a        Element (0,0).
+ * @param b        Element (0,1) = (1,0).
+ * @param d        Element (1,1).
+ * @param lambda1  Output: smaller eigenvalue.
+ * @param lambda2  Output: larger eigenvalue.
+ */
+void eigen2x2(double a, double b, double d, double *lambda1, double *lambda2);
+
 #endif /* SPARSE_DENSE_H */

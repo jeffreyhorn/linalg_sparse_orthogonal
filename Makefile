@@ -49,7 +49,8 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_csr.c \
            $(SRCDIR)/sparse_iterative.c \
            $(SRCDIR)/sparse_ilu.c \
-           $(SRCDIR)/sparse_qr.c
+           $(SRCDIR)/sparse_qr.c \
+           $(SRCDIR)/sparse_dense.c
 LIB_OBJS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(LIB_SRCS))
 LIB      = $(BUILDDIR)/libsparse_lu_ortho.a
 
@@ -74,7 +75,8 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_omp.c \
             $(TESTDIR)/test_sprint5_integration.c \
             $(TESTDIR)/test_qr.c \
-            $(TESTDIR)/test_sprint6_integration.c
+            $(TESTDIR)/test_sprint6_integration.c \
+            $(TESTDIR)/test_dense.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
 # Benchmark sources

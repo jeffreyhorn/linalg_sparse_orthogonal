@@ -43,6 +43,7 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_iterative.c
     src/sparse_ilu.c
     src/sparse_qr.c
+    src/sparse_dense.c
 )
 
 # Optional OpenMP support for parallel SpMV: cmake -DSPARSE_OPENMP=ON ..

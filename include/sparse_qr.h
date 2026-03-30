@@ -38,6 +38,9 @@
  */
 typedef struct {
     sparse_reorder_t reorder; /**< Column reordering before QR (default: NONE) */
+    int economy;              /**< When nonzero, compute economy (thin) QR: Q is m×n
+                                   instead of m×m, R is n×n. Saves memory for m >> n.
+                                   (default: 0 = full QR) */
 } sparse_qr_opts_t;
 
 /**
@@ -58,6 +61,7 @@ typedef struct {
     idx_t m;            /**< Number of rows of original A */
     idx_t n;            /**< Number of columns of original A */
     idx_t rank;         /**< Numerical rank (set during factorization) */
+    int economy;        /**< Nonzero if economy (thin) QR was used */
 } sparse_qr_t;
 
 /**
@@ -102,11 +106,14 @@ sparse_err_t sparse_qr_apply_q(const sparse_qr_t *qr, int transpose, const doubl
 /**
  * @brief Explicitly form the Q matrix (for testing/diagnostics).
  *
- * Forms Q as a dense m×m matrix by applying Q to columns of I.
- * Not recommended for large matrices.
+ * For full QR (economy=0): forms Q as a dense m×m orthogonal matrix.
+ * Caller allocates m*m doubles.
+ *
+ * For economy QR (economy=1): forms the thin Q as a dense m×n matrix
+ * with orthonormal columns. Caller allocates m*n doubles.
  *
  * @param qr  The QR factorization.
- * @param Q   Output: dense m×m matrix in column-major order. Caller allocates m*m doubles.
+ * @param Q   Output: dense matrix in column-major order.
  * @return SPARSE_OK on success.
  */
 sparse_err_t sparse_qr_form_q(const sparse_qr_t *qr, double *Q);

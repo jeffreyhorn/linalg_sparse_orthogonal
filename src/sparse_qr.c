@@ -106,6 +106,7 @@ void sparse_qr_free(sparse_qr_t *qr) {
     qr->m = 0;
     qr->n = 0;
     qr->rank = 0;
+    qr->economy = 0;
 }
 
 sparse_err_t sparse_qr_factor(const SparseMatrix *A, sparse_qr_t *qr) {
@@ -421,6 +422,7 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
     qr->v_vectors = vecs;
     qr->col_perm = perm;
     qr->rank = rank;
+    qr->economy = (opts && opts->economy) ? 1 : 0;
 
     return SPARSE_OK;
 }
@@ -469,21 +471,25 @@ sparse_err_t sparse_qr_form_q(const sparse_qr_t *qr, double *Q) {
         return SPARSE_ERR_NULL;
 
     idx_t m = qr->m;
+    /* Economy QR: form m×n thin Q; full QR: form m×m */
+    idx_t ncols = (qr->economy && qr->n < m) ? qr->n : m;
 
-    /* Overflow-safe computation of m*m*sizeof(double) */
-    size_t mm = 0, bytes = 0;
-    if (size_mul_overflow((size_t)m, (size_t)m, &mm) ||
-        size_mul_overflow(mm, sizeof(double), &bytes))
+    /* Overflow-safe computation of m*ncols*sizeof(double) */
+    size_t total = 0, bytes = 0;
+    if (size_mul_overflow((size_t)m, (size_t)ncols, &total) ||
+        size_mul_overflow(total, sizeof(double), &bytes))
         return SPARSE_ERR_ALLOC;
 
-    /* Start with identity */
+    /* Start with first ncols columns of identity (m × ncols) */
     memset(Q, 0, bytes);
-    for (idx_t i = 0; i < m; i++)
+    for (idx_t i = 0; i < ncols; i++)
         Q[(size_t)i * (size_t)m + (size_t)i] = 1.0;
 
-    /* Apply Q to each column of I */
-    for (idx_t j = 0; j < m; j++) {
-        sparse_qr_apply_q(qr, 0, &Q[(size_t)j * (size_t)m], &Q[(size_t)j * (size_t)m]);
+    /* Apply Q to each column of the truncated identity.
+     * Each column is length m; apply_q works on m-vectors. */
+    for (idx_t j = 0; j < ncols; j++) {
+        sparse_qr_apply_q(qr, 0, &Q[(size_t)j * (size_t)m],
+                           &Q[(size_t)j * (size_t)m]);
     }
 
     return SPARSE_OK;

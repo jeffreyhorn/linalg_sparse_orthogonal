@@ -52,8 +52,7 @@ void dense_free(dense_matrix_t *M);
  * @return SPARSE_ERR_NULL if any argument is NULL.
  * @return SPARSE_ERR_SHAPE if dimensions are incompatible.
  */
-sparse_err_t dense_gemm(const dense_matrix_t *A, const dense_matrix_t *B,
-                         dense_matrix_t *C);
+sparse_err_t dense_gemm(const dense_matrix_t *A, const dense_matrix_t *B, dense_matrix_t *C);
 
 /**
  * @brief Dense matrix-vector multiply: y = A * x.
@@ -157,7 +156,6 @@ void eigen2x2(double a, double b, double d, double *lambda1, double *lambda2);
  * @return SPARSE_ERR_NULL if diag or subdiag is NULL (when n > 1).
  * @return SPARSE_ERR_NOT_CONVERGED if max_iter reached without convergence.
  */
-sparse_err_t tridiag_qr_eigenvalues(double *diag, double *subdiag, idx_t n,
-                                     idx_t max_iter);
+sparse_err_t tridiag_qr_eigenvalues(double *diag, double *subdiag, idx_t n, idx_t max_iter);
 
 #endif /* SPARSE_DENSE_H */

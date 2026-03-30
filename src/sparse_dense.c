@@ -46,8 +46,7 @@ void dense_free(dense_matrix_t *M) {
     free(M);
 }
 
-sparse_err_t dense_gemm(const dense_matrix_t *A, const dense_matrix_t *B,
-                         dense_matrix_t *C) {
+sparse_err_t dense_gemm(const dense_matrix_t *A, const dense_matrix_t *B, dense_matrix_t *C) {
     if (!A || !B || !C)
         return SPARSE_ERR_NULL;
     if (A->cols != B->rows)
@@ -224,8 +223,7 @@ static void tridiag_qr_step(double *diag, double *subdiag, idx_t lo, idx_t hi) {
     }
 }
 
-sparse_err_t tridiag_qr_eigenvalues(double *diag, double *subdiag, idx_t n,
-                                     idx_t max_iter) {
+sparse_err_t tridiag_qr_eigenvalues(double *diag, double *subdiag, idx_t n, idx_t max_iter) {
     if (n <= 0)
         return SPARSE_OK;
     if (n == 1)

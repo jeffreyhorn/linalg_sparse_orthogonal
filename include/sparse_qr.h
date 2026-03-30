@@ -41,6 +41,10 @@ typedef struct {
     int economy;              /**< When nonzero, compute economy (thin) QR: Q is m×n
                                    instead of m×m, R is n×n. Saves memory for m >> n.
                                    (default: 0 = full QR) */
+    int sparse_mode;          /**< When nonzero, use column-by-column Householder
+                                   application instead of O(m*n) dense workspace.
+                                   Uses O(m) working memory per column. Slower but
+                                   scales to larger matrices. (default: 0) */
 } sparse_qr_opts_t;
 
 /**

@@ -84,6 +84,54 @@ static void householder_apply(const double *v, double beta, double *y, idx_t len
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Sparse column utilities for column-by-column QR
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Extract column `col` of sparse matrix A into a dense vector of length m.
+ * The dense vector must be pre-zeroed by the caller.
+ * Uses column headers for efficient traversal.
+ */
+static void sparse_extract_column(const SparseMatrix *A, idx_t col, double *dense) {
+    Node *nd = A->col_headers[col];
+    while (nd) {
+        dense[nd->row] = nd->value;
+        nd = nd->down;
+    }
+}
+
+/**
+ * Write a dense column vector back into a mutable sparse matrix at column `col`,
+ * starting from row `start_row`. Entries with |value| < drop_tol are skipped.
+ * Existing entries in the column at rows >= start_row are overwritten/added.
+ */
+static sparse_err_t sparse_writeback_column(SparseMatrix *M, idx_t col,
+                                            const double *dense, idx_t start_row,
+                                            idx_t m, double drop_tol) {
+    for (idx_t i = start_row; i < m; i++) {
+        if (fabs(dense[i]) > drop_tol) {
+            sparse_err_t err = sparse_insert(M, i, col, dense[i]);
+            if (err != SPARSE_OK)
+                return err;
+        }
+    }
+    return SPARSE_OK;
+}
+
+/**
+ * Apply Householder reflection (I - beta*v*v^T) to a dense column vector
+ * starting at index `start`. v has length (m - start), dense has length m.
+ * Only dense[start..m-1] is modified.
+ */
+static void householder_apply_to_column(const double *v, double beta,
+                                        double *dense, idx_t start, idx_t m) {
+    if (beta == 0.0)
+        return;
+    idx_t len = m - start;
+    householder_apply(v, beta, &dense[start], len);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * QR factorization — factorization, solve, rank, and nullspace routines
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -107,6 +155,319 @@ void sparse_qr_free(sparse_qr_t *qr) {
     qr->n = 0;
     qr->rank = 0;
     qr->economy = 0;
+}
+
+/**
+ * Column-by-column QR factorization (sparse_mode=1).
+ * Uses O(m) working memory per column instead of O(m*n) dense workspace.
+ * Operates on a mutable copy of A, applying Householder reflectors
+ * column-by-column and extracting R entries as they are produced.
+ */
+static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A,
+                                             const sparse_qr_opts_t *opts,
+                                             sparse_qr_t *qr) {
+    idx_t m = sparse_rows(A);
+    idx_t n = sparse_cols(A);
+    idx_t k = (m < n) ? m : n;
+
+    qr->m = m;
+    qr->n = n;
+
+    if (m == 0 || n == 0)
+        return SPARSE_OK;
+
+    /* Work on a mutable copy of A */
+    SparseMatrix *W = sparse_copy(A);
+    if (!W)
+        return SPARSE_ERR_ALLOC;
+
+    /* Optional column reordering (reuse same logic as dense path) */
+    idx_t *col_reorder = NULL;
+    if (opts && opts->reorder != SPARSE_REORDER_NONE && n > 1) {
+        SparseMatrix *AtA = sparse_create(n, n);
+        if (AtA) {
+            sparse_err_t ins_err = SPARSE_OK;
+            for (idx_t row = 0; row < m && ins_err == SPARSE_OK; row++) {
+                Node *nd1 = A->row_headers[row];
+                while (nd1 && ins_err == SPARSE_OK) {
+                    Node *nd2 = nd1->right;
+                    while (nd2 && ins_err == SPARSE_OK) {
+                        ins_err = sparse_insert(AtA, nd1->col, nd2->col, 1.0);
+                        if (ins_err == SPARSE_OK)
+                            ins_err = sparse_insert(AtA, nd2->col, nd1->col, 1.0);
+                        nd2 = nd2->right;
+                    }
+                    if (ins_err == SPARSE_OK)
+                        ins_err = sparse_insert(AtA, nd1->col, nd1->col, 1.0);
+                    nd1 = nd1->right;
+                }
+            }
+            if (ins_err == SPARSE_OK) {
+                col_reorder = malloc((size_t)n * sizeof(idx_t));
+                if (col_reorder) {
+                    sparse_err_t rerr = SPARSE_ERR_BADARG;
+                    if (opts->reorder == SPARSE_REORDER_AMD)
+                        rerr = sparse_reorder_amd(AtA, col_reorder);
+                    else if (opts->reorder == SPARSE_REORDER_RCM)
+                        rerr = sparse_reorder_rcm(AtA, col_reorder);
+                    if (rerr != SPARSE_OK) {
+                        free(col_reorder);
+                        col_reorder = NULL;
+                    }
+                }
+            }
+            sparse_free(AtA);
+        }
+    }
+
+    /* Allocate outputs */
+    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    double *betas = calloc((size_t)k, sizeof(double));
+    double **vecs = calloc((size_t)k, sizeof(double *));
+    double *col_norms = malloc((size_t)n * sizeof(double));
+    double *dense_col = malloc((size_t)m * sizeof(double)); /* working column */
+
+    if (!perm || !betas || !vecs || !col_norms || !dense_col) {
+        free(perm);
+        free(betas);
+        free(vecs);
+        free(col_norms);
+        free(dense_col);
+        free(col_reorder);
+        sparse_free(W);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    /* Apply column reordering to perm and swap columns in W */
+    if (col_reorder) {
+        /* Build inverse permutation */
+        idx_t *inv = malloc((size_t)n * sizeof(idx_t));
+        if (!inv) {
+            free(perm);
+            free(betas);
+            free(vecs);
+            free(col_norms);
+            free(dense_col);
+            free(col_reorder);
+            sparse_free(W);
+            return SPARSE_ERR_ALLOC;
+        }
+        for (idx_t j = 0; j < n; j++)
+            inv[col_reorder[j]] = j;
+
+        /* Rebuild W with reordered columns */
+        SparseMatrix *W2 = sparse_create(m, n);
+        if (!W2) {
+            free(inv);
+            free(perm);
+            free(betas);
+            free(vecs);
+            free(col_norms);
+            free(dense_col);
+            free(col_reorder);
+            sparse_free(W);
+            return SPARSE_ERR_ALLOC;
+        }
+        for (idx_t i = 0; i < m; i++) {
+            Node *nd = W->row_headers[i];
+            while (nd) {
+                sparse_insert(W2, i, inv[nd->col], nd->value);
+                nd = nd->right;
+            }
+        }
+        free(inv);
+        sparse_free(W);
+        W = W2;
+
+        for (idx_t j = 0; j < n; j++)
+            perm[j] = col_reorder[j];
+        free(col_reorder);
+    } else {
+        for (idx_t j = 0; j < n; j++)
+            perm[j] = j;
+    }
+
+    /* Compute initial column norms from W */
+    for (idx_t j = 0; j < n; j++) {
+        double s = 0.0;
+        Node *nd = W->col_headers[j];
+        while (nd) {
+            s += nd->value * nd->value;
+            nd = nd->down;
+        }
+        col_norms[j] = s;
+    }
+
+    idx_t rank = 0;
+    idx_t steps_done = 0;
+    double r00 = 0.0;
+    SparseMatrix *R = sparse_create(k, n);
+    if (!R) {
+        free(perm);
+        free(betas);
+        free(vecs);
+        free(col_norms);
+        free(dense_col);
+        sparse_free(W);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    for (idx_t step = 0; step < k; step++) {
+        /* Column pivoting */
+        idx_t best = step;
+        double best_norm = col_norms[step];
+        for (idx_t j = step + 1; j < n; j++) {
+            if (col_norms[j] > best_norm) {
+                best_norm = col_norms[j];
+                best = j;
+            }
+        }
+
+        if (best != step) {
+            /* Swap columns in W by swapping col_headers and updating nodes */
+            /* Simpler: swap in perm and col_norms, and swap columns via
+             * extract-and-reinsert. But that's expensive.
+             * Instead, just track column mapping with perm and col_norms swap. */
+            double tmp_n = col_norms[step];
+            col_norms[step] = col_norms[best];
+            col_norms[best] = tmp_n;
+            idx_t tmp_p = perm[step];
+            perm[step] = perm[best];
+            perm[best] = tmp_p;
+
+            /* Swap columns in W: extract both, clear, reinsert swapped.
+             * Use dense_col for one, allocate another temp. */
+            double *dense_col2 = calloc((size_t)m, sizeof(double));
+            if (!dense_col2) {
+                free(col_norms);
+                free(dense_col);
+                free(perm);
+                free(betas);
+                for (idx_t i = 0; i < k; i++)
+                    free(vecs[i]);
+                free(vecs);
+                sparse_free(R);
+                sparse_free(W);
+                return SPARSE_ERR_ALLOC;
+            }
+            memset(dense_col, 0, (size_t)m * sizeof(double));
+            sparse_extract_column(W, step, dense_col);
+            sparse_extract_column(W, best, dense_col2);
+
+            /* Remove old column entries */
+            for (idx_t i = 0; i < m; i++) {
+                if (fabs(dense_col[i]) > 0)
+                    sparse_insert(W, i, step, 0.0); /* removes */
+                if (fabs(dense_col2[i]) > 0)
+                    sparse_insert(W, i, best, 0.0);
+            }
+            /* Reinsert swapped */
+            for (idx_t i = 0; i < m; i++) {
+                if (fabs(dense_col2[i]) > 1e-30)
+                    sparse_insert(W, i, step, dense_col2[i]);
+                if (fabs(dense_col[i]) > 1e-30)
+                    sparse_insert(W, i, best, dense_col[i]);
+            }
+            free(dense_col2);
+        }
+
+        /* Rank deficiency check on column norm */
+        if (step == 0)
+            r00 = sqrt(best_norm);
+        double rank_tol = 1e-14 * (r00 > 0.0 ? r00 : 1.0) * (double)(m > n ? m : n);
+        if (sqrt(best_norm) < rank_tol)
+            break;
+
+        /* Extract column step into dense vector */
+        memset(dense_col, 0, (size_t)m * sizeof(double));
+        sparse_extract_column(W, step, dense_col);
+
+        /* Compute Householder from entries step..m-1 */
+        idx_t col_len = m - step;
+        double *hv = malloc((size_t)col_len * sizeof(double));
+        if (!hv) {
+            free(col_norms);
+            free(dense_col);
+            free(perm);
+            free(betas);
+            for (idx_t i = 0; i < k; i++)
+                free(vecs[i]);
+            free(vecs);
+            sparse_free(R);
+            sparse_free(W);
+            return SPARSE_ERR_ALLOC;
+        }
+        double beta = householder_compute(&dense_col[step], hv, col_len);
+        betas[step] = beta;
+        vecs[step] = hv;
+
+        /* Apply Householder to column step */
+        householder_apply_to_column(hv, beta, dense_col, step, m);
+
+        /* Write R entries from this column (row step and above-diagonal entries) */
+        for (idx_t i = 0; i <= step; i++) {
+            if (fabs(dense_col[i]) > 1e-15)
+                sparse_insert(R, i, step, dense_col[i]);
+        }
+
+        /* Apply Householder to remaining columns step+1..n-1 */
+        for (idx_t j = step + 1; j < n; j++) {
+            double *dcj = calloc((size_t)m, sizeof(double));
+            if (!dcj) {
+                free(col_norms);
+                free(dense_col);
+                free(perm);
+                free(betas);
+                for (idx_t i = 0; i < k; i++)
+                    free(vecs[i]);
+                free(vecs);
+                sparse_free(R);
+                sparse_free(W);
+                return SPARSE_ERR_ALLOC;
+            }
+            sparse_extract_column(W, j, dcj);
+            householder_apply_to_column(hv, beta, dcj, step, m);
+
+            /* Write back modified column to W */
+            /* Clear column j from step onward and reinsert */
+            for (idx_t i = step; i < m; i++) {
+                double old_val = sparse_get_phys(W, i, j);
+                if (fabs(old_val) > 0)
+                    sparse_insert(W, i, j, 0.0);
+            }
+            for (idx_t i = step; i < m; i++) {
+                if (fabs(dcj[i]) > 1e-30)
+                    sparse_insert(W, i, j, dcj[i]);
+            }
+            free(dcj);
+        }
+
+        steps_done++;
+        if (fabs(dense_col[step]) < rank_tol)
+            break;
+        rank++;
+
+        /* Update column norms */
+        for (idx_t j = step + 1; j < n; j++) {
+            double entry = sparse_get_phys(W, step, j);
+            col_norms[j] -= entry * entry;
+            if (col_norms[j] < 0.0)
+                col_norms[j] = 0.0;
+        }
+    }
+
+    free(col_norms);
+    free(dense_col);
+    sparse_free(W);
+
+    qr->R = R;
+    qr->betas = betas;
+    qr->v_vectors = vecs;
+    qr->col_perm = perm;
+    qr->rank = rank;
+    qr->economy = (opts && opts->economy) ? 1 : 0;
+
+    return SPARSE_OK;
 }
 
 sparse_err_t sparse_qr_factor(const SparseMatrix *A, sparse_qr_t *qr) {
@@ -142,6 +503,10 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
             }
         }
     }
+
+    /* Dispatch to column-by-column path if sparse_mode is enabled */
+    if (opts && opts->sparse_mode)
+        return sparse_qr_factor_colwise(A, opts, qr);
 
     idx_t m = sparse_rows(A);
     idx_t n = sparse_cols(A);

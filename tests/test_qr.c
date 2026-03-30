@@ -2337,6 +2337,133 @@ static void test_economy_nos4(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Sparse-mode QR tests (Sprint 7 Day 8)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Sparse-mode QR matches dense-mode on small matrix */
+static void test_sparse_mode_basic(void) {
+    SparseMatrix *A = sparse_create(4, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 2, 4.0);
+    sparse_insert(A, 3, 0, 1.0);
+    sparse_insert(A, 3, 2, 2.0);
+
+    double b[4] = {1.0, 2.0, 3.0, 4.0};
+
+    /* Dense-mode QR */
+    sparse_qr_t qr_dense;
+    sparse_err_t err = sparse_qr_factor(A, &qr_dense);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    double x_dense[3];
+    double res_dense = 0.0;
+    sparse_qr_solve(&qr_dense, b, x_dense, &res_dense);
+
+    /* Sparse-mode QR */
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 0, .sparse_mode = 1};
+    sparse_qr_t qr_sparse;
+    err = sparse_qr_factor_opts(A, &opts, &qr_sparse);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_qr_free(&qr_dense);
+        sparse_free(A);
+        return;
+    }
+    double x_sparse[3];
+    double res_sparse = 0.0;
+    sparse_qr_solve(&qr_sparse, b, x_sparse, &res_sparse);
+
+    printf("    sparse-mode 4x3: dense_res=%.3e, sparse_res=%.3e\n", res_dense, res_sparse);
+
+    /* Solutions should match */
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x_dense[i], x_sparse[i], 1e-10);
+    ASSERT_NEAR(res_dense, res_sparse, 1e-10);
+    ASSERT_EQ(qr_dense.rank, qr_sparse.rank);
+
+    sparse_qr_free(&qr_dense);
+    sparse_qr_free(&qr_sparse);
+    sparse_free(A);
+}
+
+/* Sparse-mode QR on nos4 matches dense-mode */
+static void test_sparse_mode_nos4(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    if (!b) {
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    /* Dense-mode */
+    sparse_qr_t qr_dense;
+    sparse_err_t err = sparse_qr_factor(A, &qr_dense);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(b);
+        sparse_free(A);
+        return;
+    }
+    double *x_dense = malloc((size_t)n * sizeof(double));
+    if (x_dense)
+        sparse_qr_solve(&qr_dense, b, x_dense, NULL);
+
+    /* Sparse-mode */
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 0, .sparse_mode = 1};
+    sparse_qr_t qr_sparse;
+    err = sparse_qr_factor_opts(A, &opts, &qr_sparse);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(x_dense);
+        free(b);
+        sparse_qr_free(&qr_dense);
+        sparse_free(A);
+        return;
+    }
+    double *x_sparse = malloc((size_t)n * sizeof(double));
+    if (x_sparse)
+        sparse_qr_solve(&qr_sparse, b, x_sparse, NULL);
+
+    if (x_dense && x_sparse) {
+        double max_diff = 0.0;
+        for (idx_t i = 0; i < n; i++) {
+            double d = fabs(x_dense[i] - x_sparse[i]);
+            if (d > max_diff)
+                max_diff = d;
+        }
+        printf("    sparse-mode nos4: max_diff=%.3e, rank_dense=%d, rank_sparse=%d\n",
+               max_diff, (int)qr_dense.rank, (int)qr_sparse.rank);
+        ASSERT_TRUE(max_diff < 1e-8);
+    }
+
+    free(x_dense);
+    free(x_sparse);
+    free(b);
+    sparse_qr_free(&qr_dense);
+    sparse_qr_free(&qr_sparse);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -2410,6 +2537,10 @@ int main(void) {
     RUN_TEST(test_economy_wide);
     RUN_TEST(test_economy_1x1);
     RUN_TEST(test_economy_nos4);
+
+    /* Sparse-mode QR (Sprint 7 Day 8) */
+    RUN_TEST(test_sparse_mode_basic);
+    RUN_TEST(test_sparse_mode_nos4);
 
     TEST_SUITE_END();
 }

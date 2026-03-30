@@ -80,9 +80,14 @@ sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag
     /* Work on a dense m×n column-major copy (same approach as dense-mode QR).
      * Bidiagonalization is inherently dense due to fill-in from right
      * Householder reflections. */
-    /* Overflow check */
-    if (n > 0 && (size_t)m > SIZE_MAX / ((size_t)n * sizeof(double)))
-        return SPARSE_ERR_ALLOC;
+    /* Overflow-safe check for m * n * sizeof(double) */
+    {
+        size_t mn = (size_t)m * (size_t)n;
+        if (n > 0 && mn / (size_t)n != (size_t)m)
+            return SPARSE_ERR_ALLOC;
+        if (mn > SIZE_MAX / sizeof(double))
+            return SPARSE_ERR_ALLOC;
+    }
 
     double *W = calloc((size_t)m * (size_t)n, sizeof(double));
     if (!W)

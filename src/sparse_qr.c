@@ -398,15 +398,21 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
             sparse_extract_column(W, j, dense_col2);
             householder_apply_to_column(hv, beta, dense_col2, step, m);
 
-            /* Write back modified column to W */
-            for (idx_t i = step; i < m; i++) {
-                double old_val = sparse_get_phys(W, i, j);
-                if (fabs(old_val) > 0) {
-                    sparse_err_t ierr = sparse_insert(W, i, j, 0.0);
-                    if (ierr != SPARSE_OK) {
-                        status = ierr;
-                        goto cleanup_colwise;
+            /* Write back modified column to W.
+             * Clear entries with row >= step by traversing col_headers once
+             * (avoids O(m * nnz_in_row) sparse_get_phys scans). */
+            {
+                Node *nd = W->col_headers[j];
+                while (nd) {
+                    Node *next = nd->down;
+                    if (nd->row >= step) {
+                        sparse_err_t ierr = sparse_insert(W, nd->row, j, 0.0);
+                        if (ierr != SPARSE_OK) {
+                            status = ierr;
+                            goto cleanup_colwise;
+                        }
                     }
+                    nd = next;
                 }
             }
             for (idx_t i = step; i < m; i++) {
@@ -967,6 +973,14 @@ sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A, cons
     /* Validate A matches factorization dimensions */
     if (sparse_rows(A) != m || sparse_cols(A) != n)
         return SPARSE_ERR_SHAPE;
+
+    /* Overflow checks for buffer allocations */
+    {
+        size_t tmp = 0;
+        if (size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
+            size_mul_overflow((size_t)n, sizeof(double), &tmp))
+            return SPARSE_ERR_ALLOC;
+    }
 
     double *r = malloc((size_t)m * sizeof(double));
     double *dx = malloc((size_t)n * sizeof(double));

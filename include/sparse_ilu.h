@@ -31,8 +31,8 @@
  *
  * Stores the L and U factors from incomplete LU factorization.
  * L is unit lower triangular, U is upper triangular with diagonal.
- * The perm field is reserved for future use (e.g., ILUT with row
- * pivoting) and is currently always NULL.
+ * When ILUT is used with pivot=1, perm holds the row permutation;
+ * otherwise (ILU(0) or ILUT with pivot=0) perm is NULL.
  *
  * Callers must call sparse_ilu_free() before reusing a sparse_ilu_t for
  * a new factorization; the factor functions overwrite the struct without
@@ -122,6 +122,10 @@ typedef struct {
     double tol;     /**< Drop tolerance: entries with |value| < tol * ||row|| are dropped
                          (default: 1e-3) */
     idx_t max_fill; /**< Maximum number of fill entries per row in L and U (default: 10) */
+    int pivot;      /**< Pivoting strategy: 0 = diagonal modification (default),
+                         1 = row partial pivoting. When enabled, rows are swapped to place
+                         the largest column entry on the diagonal and the resulting row
+                         permutation is stored in sparse_ilu_t.perm. */
 } sparse_ilut_opts_t;
 
 /**
@@ -132,10 +136,13 @@ typedef struct {
  * 2. At most max_fill largest entries are kept per row in L and U.
  *
  * Unlike ILU(0), ILUT allows controlled fill-in and can handle matrices
- * with structurally zero diagonals (e.g., west0067) by using diagonal
- * modification: when a pivot is too small, a nonzero value is inserted
- * on the diagonal to stabilize the factorization. No row permutation
- * is performed (the @c perm field of @c sparse_ilu_t is unused/NULL).
+ * with structurally zero diagonals (e.g., west0067). Two strategies for
+ * small/zero pivots are available (controlled by opts->pivot):
+ * - **Diagonal modification** (default, pivot=0): inserts a nonzero value
+ *   on the diagonal. The @c perm field is unused/NULL.
+ * - **Row partial pivoting** (pivot=1): swaps rows to place the largest
+ *   column entry on the diagonal. The row permutation is stored in
+ *   @c sparse_ilu_t.perm and applied during solve.
  *
  * The original matrix A is not modified.
  *

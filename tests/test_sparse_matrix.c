@@ -869,7 +869,19 @@ static void test_transpose_west0067(void) {
     double *x = malloc((size_t)nc * sizeof(double));
     double *y1 = malloc((size_t)m * sizeof(double));
     double *y2 = malloc((size_t)m * sizeof(double));
-    if (x && y1 && y2) {
+    ASSERT_NOT_NULL(x);
+    ASSERT_NOT_NULL(y1);
+    ASSERT_NOT_NULL(y2);
+    if (!x || !y1 || !y2) {
+        free(x);
+        free(y1);
+        free(y2);
+        sparse_free(TT);
+        sparse_free(T);
+        sparse_free(A);
+        return;
+    }
+    {
         for (idx_t i = 0; i < nc; i++)
             x[i] = (double)(i + 1);
         sparse_matvec(A, x, y1);

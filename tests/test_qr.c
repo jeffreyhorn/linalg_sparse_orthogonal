@@ -2012,9 +2012,15 @@ static void test_economy_solve_tall(void) {
         return;
     }
     double *x_full = malloc((size_t)nc * sizeof(double));
+    ASSERT_NOT_NULL(x_full);
+    if (!x_full) {
+        free(b);
+        sparse_qr_free(&qr_full);
+        sparse_free(A);
+        return;
+    }
     double res_full = 0.0;
-    if (x_full)
-        sparse_qr_solve(&qr_full, b, x_full, &res_full);
+    sparse_qr_solve(&qr_full, b, x_full, &res_full);
 
     /* Economy QR */
     sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
@@ -2029,13 +2035,21 @@ static void test_economy_solve_tall(void) {
         return;
     }
     double *x_econ = malloc((size_t)nc * sizeof(double));
+    ASSERT_NOT_NULL(x_econ);
+    if (!x_econ) {
+        free(x_full);
+        free(b);
+        sparse_qr_free(&qr_full);
+        sparse_qr_free(&qr_econ);
+        sparse_free(A);
+        return;
+    }
     double res_econ = 0.0;
-    if (x_econ)
-        sparse_qr_solve(&qr_econ, b, x_econ, &res_econ);
+    sparse_qr_solve(&qr_econ, b, x_econ, &res_econ);
 
     ASSERT_TRUE(qr_econ.economy);
 
-    if (x_full && x_econ) {
+    {
         printf("    economy solve 50x10: full_res=%.3e, econ_res=%.3e\n", res_full, res_econ);
         for (idx_t i = 0; i < nc; i++)
             ASSERT_NEAR(x_full[i], x_econ[i], 1e-10);
@@ -2473,6 +2487,7 @@ static void compare_dense_sparse_qr(const SparseMatrix *A, const char *name) {
     idx_t nc = sparse_cols(A);
 
     double *b = malloc((size_t)m * sizeof(double));
+    ASSERT_NOT_NULL(b);
     if (!b)
         return;
     for (idx_t i = 0; i < m; i++)
@@ -2486,9 +2501,14 @@ static void compare_dense_sparse_qr(const SparseMatrix *A, const char *name) {
         return;
     }
     double *x_d = malloc((size_t)nc * sizeof(double));
+    ASSERT_NOT_NULL(x_d);
+    if (!x_d) {
+        free(b);
+        sparse_qr_free(&qr_d);
+        return;
+    }
     double res_d = 0.0;
-    if (x_d)
-        sparse_qr_solve(&qr_d, b, x_d, &res_d);
+    sparse_qr_solve(&qr_d, b, x_d, &res_d);
 
     /* Sparse-mode QR */
     sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 0, .sparse_mode = 1};
@@ -2501,11 +2521,18 @@ static void compare_dense_sparse_qr(const SparseMatrix *A, const char *name) {
         return;
     }
     double *x_s = malloc((size_t)nc * sizeof(double));
+    ASSERT_NOT_NULL(x_s);
+    if (!x_s) {
+        free(x_d);
+        free(b);
+        sparse_qr_free(&qr_d);
+        sparse_qr_free(&qr_s);
+        return;
+    }
     double res_s = 0.0;
-    if (x_s)
-        sparse_qr_solve(&qr_s, b, x_s, &res_s);
+    sparse_qr_solve(&qr_s, b, x_s, &res_s);
 
-    if (x_d && x_s) {
+    {
         double max_diff = 0.0;
         for (idx_t i = 0; i < nc; i++) {
             double d = fabs(x_d[i] - x_s[i]);

@@ -427,6 +427,8 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A,
     col_norms = NULL;
     free(dense_col);
     dense_col = NULL;
+    free(dense_col2);
+    dense_col2 = NULL;
     sparse_free(W);
     W = NULL;
 
@@ -926,6 +928,10 @@ sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A, cons
 
     idx_t m = qr->m;
     idx_t n = qr->n;
+
+    /* Validate A matches factorization dimensions */
+    if (sparse_rows(A) != m || sparse_cols(A) != n)
+        return SPARSE_ERR_SHAPE;
 
     double *r = malloc((size_t)m * sizeof(double));
     double *dx = malloc((size_t)n * sizeof(double));

@@ -149,7 +149,7 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 ### Prerequisites from Sprint 5
 
-- ILU(0) preconditioner (ILUT extends ILU(0) with threshold dropping and pivoting)
+- ILU(0) preconditioner (ILUT extends ILU(0) with threshold dropping and diagonal modification)
 - GMRES solver (right preconditioning extends the existing left preconditioning)
 - Iterative solvers (CG/GMRES can be used as alternatives for large least-squares problems; convergence infrastructure reused)
 
@@ -159,7 +159,7 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 |---|------|-------------|----------|
 | 1 | ILUT preconditioner | Implement `sparse_ilut_factor()` — ILU with threshold dropping and diagonal modification for zero pivots. Unlike ILU(0) which preserves the original sparsity pattern, ILUT allows controlled fill-in based on a drop tolerance and maximum fill per row. Handles matrices with structurally zero diagonals (e.g., west0067) via diagonal modification. Implement `sparse_ilut_solve()` and `sparse_ilut_precond()` callback. True partial pivoting deferred to Sprint 7. | 20 hrs |
 | 2 | Right preconditioning for GMRES | Add right preconditioning option to `sparse_solve_gmres()`: introduce y = M*x, solve A*M^{-1}*y = b for y via GMRES, then recover x = M^{-1}*y. The key advantage: the GMRES residual norm equals the true residual ||b - Ax|| (no preconditioned/true residual gap). Add `precond_side` option (left/right) to `sparse_gmres_opts_t`. | 12 hrs |
-| 3 | Householder reflections on sparse columns | Implement sparse Householder vector computation: given a sparse column vector x, compute v and beta such that (I - beta*v*v^T)*x = ||x||*e_1. Handle sparse fill-in efficiently — Householder reflections generally densify columns, so maintain a dense working column with sparse writeback. | 24 hrs |
+| 3 | Householder reflections with dense workspace | Implement Householder vector computation and application using an O(m*n) dense column-major workspace. Given a column vector x, compute v and beta such that (I - beta*v*v^T)*x = ||x||*e_1. The dense workspace simplifies implementation but limits scalability to matrices that fit in memory when unrolled. Truly sparse Householder application deferred to Sprint 7. | 24 hrs |
 | 4 | Column-pivoted QR factorization | Implement `sparse_qr_factor()` with column pivoting for rank-revealing QR: A*P = Q*R. Use column norms for pivot selection (greedy largest-norm pivot). Store R in upper-triangular sparse matrix. Store Q implicitly as a sequence of Householder reflectors (v vectors + beta scalars). Track column permutation. | 36 hrs |
 | 5 | Q application and extraction | Implement `sparse_qr_apply_q()` to apply Q (or Q^T) to a vector or matrix without forming Q explicitly: Q*x = (I - beta_k*v_k*v_k^T)*...*(I - beta_1*v_1*v_1^T)*x. Implement `sparse_qr_form_q()` to explicitly form the Q matrix (for diagnostics/testing, not recommended for large matrices). | 20 hrs |
 | 6 | Least-squares solver | Implement `sparse_qr_solve()` for overdetermined systems (m > n): minimize ||Ax - b||_2. Steps: Q^T*b via Householder application, then back-substitute with R. Handle rank deficiency via column pivoting (truncate R at numerical rank). Return residual norm. | 16 hrs |

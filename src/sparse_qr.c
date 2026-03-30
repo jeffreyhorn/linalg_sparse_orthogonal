@@ -201,6 +201,17 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
         }
     }
 
+    /* Overflow checks for buffer allocations */
+    {
+        size_t tmp = 0;
+        if (size_mul_overflow((size_t)n, sizeof(idx_t), &tmp) ||
+            size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
+            size_mul_overflow((size_t)n, sizeof(double), &tmp)) {
+            sparse_free(W);
+            return SPARSE_ERR_ALLOC;
+        }
+    }
+
     /* Allocate outputs */
     idx_t *perm = malloc((size_t)n * sizeof(idx_t));
     double *betas = calloc((size_t)k, sizeof(double));

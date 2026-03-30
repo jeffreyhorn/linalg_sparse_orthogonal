@@ -58,9 +58,12 @@ sparse_err_t dense_gemm(const dense_matrix_t *A, const dense_matrix_t *B, dense_
     idx_t k = A->cols;
     idx_t n = B->cols;
 
-    /* Zero-sized matrices: nothing to compute */
-    if (m == 0 || k == 0 || n == 0)
+    /* Zero-sized matrices: C = 0 (any zero dimension means empty product) */
+    if (m == 0 || k == 0 || n == 0) {
+        if (C->data && m > 0 && n > 0)
+            memset(C->data, 0, (size_t)m * (size_t)n * sizeof(double));
         return SPARSE_OK;
+    }
 
     if (!A->data || !B->data || !C->data)
         return SPARSE_ERR_NULL;
@@ -98,8 +101,14 @@ sparse_err_t dense_gemv(const dense_matrix_t *A, const double *x, double *y) {
     idx_t m = A->rows;
     idx_t n = A->cols;
 
-    if (m == 0 || n == 0)
+    if (m == 0)
         return SPARSE_OK;
+
+    if (n == 0) {
+        /* A is m×0: y should be the zero vector */
+        memset(y, 0, (size_t)m * sizeof(double));
+        return SPARSE_OK;
+    }
 
     if (!A->data)
         return SPARSE_ERR_NULL;

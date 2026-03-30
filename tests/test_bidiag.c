@@ -179,7 +179,7 @@ static void test_bidiag_tall(void) {
     sparse_free(A);
 }
 
-/* Wide rectangular 5×10 — skipped, behavior is undefined for m < n per API docs */
+/* Wide rectangular 5×10 — m < n returns SPARSE_ERR_SHAPE per API contract */
 static void test_bidiag_wide(void) {
     SparseMatrix *A = sparse_create(5, 10);
     ASSERT_NOT_NULL(A);

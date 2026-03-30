@@ -60,8 +60,14 @@ sparse_err_t dense_gemm(const dense_matrix_t *A, const dense_matrix_t *B, dense_
 
     /* Zero-sized matrices: C = 0 (any zero dimension means empty product) */
     if (m == 0 || k == 0 || n == 0) {
-        if (C->data && m > 0 && n > 0)
-            memset(C->data, 0, (size_t)m * (size_t)n * sizeof(double));
+        if (C->data && m > 0 && n > 0) {
+            size_t mn = (size_t)m * (size_t)n;
+            if (n > 0 && mn / (size_t)n != (size_t)m)
+                return SPARSE_ERR_ALLOC;
+            if (mn > SIZE_MAX / sizeof(double))
+                return SPARSE_ERR_ALLOC;
+            memset(C->data, 0, mn * sizeof(double));
+        }
         return SPARSE_OK;
     }
 

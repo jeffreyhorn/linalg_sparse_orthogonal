@@ -123,6 +123,16 @@ sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag
         }
     }
 
+    /* Overflow checks for output array allocations */
+    {
+        size_t max_dim = (size_t)(m > n ? m : n);
+        if (max_dim > SIZE_MAX / sizeof(double) || (size_t)k > SIZE_MAX / sizeof(double) ||
+            (size_t)k > SIZE_MAX / sizeof(double *)) {
+            free(W);
+            return SPARSE_ERR_ALLOC;
+        }
+    }
+
     /* Allocate output arrays */
     double *diag = calloc((size_t)k, sizeof(double));
     double *superdiag = (k > 1) ? calloc((size_t)(k - 1), sizeof(double)) : NULL;

@@ -259,7 +259,7 @@ static void test_givens_basic(void) {
     double c, s;
     givens_compute(3.0, 4.0, &c, &s);
 
-    /* [c s; -s c]^T * [3; 4] = [5; 0] */
+    /* [c s; -s c] * [3; 4] = [5; 0] */
     double r0 = c * 3.0 + s * 4.0;
     double r1 = -s * 3.0 + c * 4.0;
     ASSERT_NEAR(r0, 5.0, 1e-14);

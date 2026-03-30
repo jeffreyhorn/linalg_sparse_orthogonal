@@ -90,7 +90,7 @@ sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag
     if (m < n)
         return SPARSE_ERR_SHAPE;
 
-    idx_t k = (m < n) ? m : n; /* min(m,n) = n since m >= n */
+    idx_t k = n; /* m >= n guaranteed by the check above */
 
     bidiag->m = m;
     bidiag->n = n;
@@ -126,8 +126,7 @@ sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag
     /* Overflow checks for output array allocations */
     {
         size_t max_dim = (size_t)(m > n ? m : n);
-        if (max_dim > SIZE_MAX / sizeof(double) || (size_t)k > SIZE_MAX / sizeof(double) ||
-            (size_t)k > SIZE_MAX / sizeof(double *)) {
+        if (max_dim > SIZE_MAX / sizeof(double) || (size_t)k > SIZE_MAX / sizeof(double *)) {
             free(W);
             return SPARSE_ERR_ALLOC;
         }

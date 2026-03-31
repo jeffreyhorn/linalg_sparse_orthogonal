@@ -277,6 +277,7 @@ sparse_err_t sparse_ilu_precond(const void *ctx, idx_t n, const double *r, doubl
 static const sparse_ilut_opts_t ilut_defaults = {
     .tol = 1e-3,
     .max_fill = 10,
+    .pivot = 0,
 };
 
 /* Helper: comparison function for sorting indices by descending |value| */
@@ -352,12 +353,88 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
         return SPARSE_ERR_ALLOC;
     }
 
+    /* Pivoting support: row_map[pos] = orig_row, inv_row_map[orig_row] = pos.
+     * When pivoting is enabled, we swap entries in both maps and allocate perm. */
+    idx_t *row_map = NULL;
+    idx_t *inv_row_map = NULL;
+    if (o->pivot) {
+        if ((size_t)n > SIZE_MAX / sizeof(idx_t)) {
+            free(w);
+            free(w_nz);
+            free(nz_idx);
+            free(l_buf);
+            free(u_buf);
+            sparse_free(L);
+            sparse_free(U);
+            return SPARSE_ERR_ALLOC;
+        }
+        row_map = malloc((size_t)n * sizeof(idx_t));
+        inv_row_map = malloc((size_t)n * sizeof(idx_t));
+        ilu->perm = malloc((size_t)n * sizeof(idx_t));
+        if (!row_map || !inv_row_map || !ilu->perm) {
+            free(row_map);
+            free(inv_row_map);
+            free(ilu->perm);
+            ilu->perm = NULL;
+            free(w);
+            free(w_nz);
+            free(nz_idx);
+            free(l_buf);
+            free(u_buf);
+            sparse_free(L);
+            sparse_free(U);
+            return SPARSE_ERR_ALLOC;
+        }
+        for (idx_t i = 0; i < n; i++) {
+            row_map[i] = i;
+            inv_row_map[i] = i;
+            ilu->perm[i] = i;
+        }
+    }
+
     sparse_err_t status = SPARSE_OK;
 
     for (idx_t i = 0; i < n; i++) {
-        /* Scatter row i of A into dense workspace w */
+        /* Determine which original row to process at position i */
+        idx_t orig_row = row_map ? row_map[i] : i;
+
+        /* Pivoting: find the row j >= i with the largest |A(row_map[j], i)|.
+         * Scan col_headers[i] in O(nnz_in_col) and use inv_row_map for
+         * O(1) position lookup instead of linear row_map scan. */
+        if (row_map) {
+            idx_t best_j = i;
+            double best_val = 0.0;
+            Node *cnd = A->col_headers[i];
+            while (cnd) {
+                idx_t pos = inv_row_map[cnd->row];
+                if (pos >= i) {
+                    double val = fabs(cnd->value);
+                    if (val > best_val) {
+                        best_val = val;
+                        best_j = pos;
+                    }
+                }
+                cnd = cnd->down;
+            }
+            if (best_j != i) {
+                /* Swap row_map and inv_row_map */
+                idx_t orig_i = row_map[i];
+                idx_t orig_best = row_map[best_j];
+                row_map[i] = orig_best;
+                row_map[best_j] = orig_i;
+                inv_row_map[orig_best] = i;
+                inv_row_map[orig_i] = best_j;
+                /* Record the swap in perm */
+                idx_t tmp = ilu->perm[i];
+                ilu->perm[i] = ilu->perm[best_j];
+                ilu->perm[best_j] = tmp;
+            }
+            orig_row = row_map[i];
+        }
+
+        /* Scatter row orig_row of A into dense workspace w */
         idx_t nnz_w = 0;
-        Node *nd = A->row_headers[i];
+        Node *nd = A->row_headers[orig_row];
         while (nd) {
             w[nd->col] = nd->value;
             w_nz[nd->col] = 1;
@@ -428,10 +505,10 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
             }
         }
 
-        /* Diagonal modification: if diagonal is too small after elimination,
-         * perturb it to avoid breakdown. This is more robust than row pivoting
-         * for ILUT since dropping can make pivoted rows also produce zero diags.
-         * Uses sign-preserving perturbation: diag = sign(diag) * max(|diag|, eps * ||row||) */
+        /* Diagonal stabilization: if diagonal is too small after elimination,
+         * apply diagonal modification (sign-preserving perturbation) as a
+         * fallback. With pivoting enabled, this should be rare since pivoting
+         * already placed the largest column entry on the diagonal. */
         double diag_w = w_nz[i] ? w[i] : 0.0;
         if (fabs(diag_w) < 1e-30) {
             double tol_row = (row_norm > 0.0) ? o->tol * row_norm : 0.0;
@@ -532,6 +609,8 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
     free(nz_idx);
     free(l_buf);
     free(u_buf);
+    free(row_map);
+    free(inv_row_map);
     return SPARSE_OK;
 
 cleanup:
@@ -540,8 +619,15 @@ cleanup:
     free(nz_idx);
     free(l_buf);
     free(u_buf);
+    free(row_map);
+    free(inv_row_map);
     sparse_free(L);
     sparse_free(U);
+    if (ilu) {
+        free(ilu->perm);
+        ilu->perm = NULL;
+        ilu->n = 0;
+    }
     return status;
 }
 

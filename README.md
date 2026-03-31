@@ -11,7 +11,9 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 ### Direct Solvers
 - **LU factorization** with complete or partial pivoting (P·A·Q = L·U)
 - **Cholesky factorization** for symmetric positive-definite matrices (A = L·L^T, ~50% less storage than LU)
-- **QR factorization** with column pivoting (A·P = Q·R) — Householder reflections, least-squares, rank estimation, null-space extraction
+- **QR factorization** with column pivoting (A·P = Q·R) — Householder reflections, least-squares, rank estimation, null-space extraction, economy (thin) QR, sparse-mode QR without dense workspace
+- **QR iterative refinement** to improve least-squares solutions
+- **Householder bidiagonalization** — reduces A to upper bidiagonal form B = U^T·A·V (SVD preprocessing)
 - **Direct solve** via forward/backward substitution with permutation handling
 - **Iterative refinement** to improve solution accuracy
 
@@ -19,11 +21,17 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Conjugate Gradient (CG)** for SPD systems with optional preconditioning
 - **Restarted GMRES(k)** for general unsymmetric systems with left and right preconditioning
 - **ILU(0) preconditioner** — incomplete LU with no fill-in, 3-1000× iteration reduction
-- **ILUT preconditioner** — ILU with threshold dropping and controlled fill-in, handles zero-diagonal matrices
+- **ILUT preconditioner** — ILU with threshold dropping and controlled fill-in, handles zero-diagonal matrices, optional row partial pivoting
+
+### Eigenvalue Infrastructure
+- **Symmetric tridiagonal QR algorithm** — implicit QR with Wilkinson shifts and deflation
+- **2×2 symmetric eigensolver** — numerically stable quadratic formula
+- **Dense matrix utilities** — Givens rotations, matrix-matrix/vector multiply
 
 ### Matrix Operations
 - **Sparse matrix-vector product** (SpMV) with optional OpenMP parallelization
 - **Sparse matrix-matrix multiply** — C = A*B via Gustavson's algorithm (`sparse_matmul`)
+- **Sparse transpose** — compute A^T as a new matrix (`sparse_transpose`)
 - **Matrix arithmetic** — scalar scaling (`sparse_scale`) and addition (`sparse_add`)
 - **Infinity norm** with internal caching (`sparse_norminf`)
 
@@ -166,7 +174,9 @@ int main(void)
 | [`sparse_cholesky.h`](include/sparse_cholesky.h) | Cholesky factorization and solve for SPD matrices |
 | [`sparse_iterative.h`](include/sparse_iterative.h) | CG and GMRES iterative solvers with left/right preconditioning |
 | [`sparse_ilu.h`](include/sparse_ilu.h) | ILU(0) and ILUT incomplete factorization preconditioners |
-| [`sparse_qr.h`](include/sparse_qr.h) | Column-pivoted QR factorization, least-squares, rank, null space |
+| [`sparse_qr.h`](include/sparse_qr.h) | Column-pivoted QR factorization, least-squares, rank, null space, refinement |
+| [`sparse_dense.h`](include/sparse_dense.h) | Dense matrix utilities, Givens rotations, 2×2 eigensolver, tridiag QR |
+| [`sparse_bidiag.h`](include/sparse_bidiag.h) | Householder bidiagonalization (SVD preprocessing) |
 | [`sparse_csr.h`](include/sparse_csr.h) | CSR/CSC compressed format conversion |
 | [`sparse_reorder.h`](include/sparse_reorder.h) | Fill-reducing reordering (RCM, AMD), permutation, bandwidth |
 | [`sparse_vector.h`](include/sparse_vector.h) | Dense vector utilities (norms, axpy, dot product) |
@@ -275,9 +285,9 @@ The library is safe for concurrent use under the following contract:
 
 ## Testing
 
-The test suite contains **467 unit tests** across 22 test suites:
+The test suite contains **558 unit tests** across 25 test suites:
 
-- Sparse matrix data structure, norms, and symmetry check (43 tests)
+- Sparse matrix data structure, norms, symmetry check, and transpose (53 tests)
 - LU factorization, solve, transpose solve, and condition estimation (37 tests)
 - Matrix Market I/O with errno validation (22 tests)
 - Known reference matrices (15 tests)
@@ -292,13 +302,14 @@ The test suite contains **467 unit tests** across 22 test suites:
 - Sparse matrix-matrix multiply (14 tests)
 - Thread safety — concurrent solve and insert (7 tests)
 - Sprint 4 cross-feature integration (5 tests)
-- Iterative solvers — CG, GMRES, convergence, SuiteSparse validation (62 tests)
-- ILU(0) preconditioner — factorization, solve, integration (18 tests)
+- Iterative solvers — CG, GMRES, convergence, SuiteSparse validation (70 tests)
+- ILU(0) and ILUT preconditioners — factorization, solve, pivoting (34 tests)
 - Parallel SpMV — correctness, reproducibility, solver integration (12 tests)
 - Sprint 5 cross-feature integration (9 tests)
-- ILUT preconditioner (8 tests)
-- Sparse QR factorization — Householder, solve, rank, null space (42 tests)
+- Sparse QR — Householder, solve, rank, null space, economy, sparse-mode, refinement (71 tests)
 - Sprint 6 cross-feature integration (7 tests)
+- Dense utilities — create, multiply, Givens, eigensolvers, tridiag QR (34 tests)
+- Bidiagonal reduction and tridiag QR hardening (10 tests)
 
 ```bash
 make test          # run all tests
@@ -320,7 +331,7 @@ On Linux, `make asan` works with the default compiler.
 
 ```
 linalg_sparse_orthogonal/
-├── include/              Public headers (10 headers)
+├── include/              Public headers (12 headers)
 │   ├── sparse_types.h
 │   ├── sparse_matrix.h
 │   ├── sparse_lu.h
@@ -328,10 +339,12 @@ linalg_sparse_orthogonal/
 │   ├── sparse_iterative.h
 │   ├── sparse_ilu.h
 │   ├── sparse_qr.h
+│   ├── sparse_dense.h
+│   ├── sparse_bidiag.h
 │   ├── sparse_csr.h
 │   ├── sparse_reorder.h
 │   └── sparse_vector.h
-├── src/                  Library implementation (10 source + 1 internal header)
+├── src/                  Library implementation (12 source + 1 internal header)
 │   ├── sparse_types.c
 │   ├── sparse_matrix.c
 │   ├── sparse_lu.c
@@ -339,11 +352,13 @@ linalg_sparse_orthogonal/
 │   ├── sparse_iterative.c
 │   ├── sparse_ilu.c
 │   ├── sparse_qr.c
+│   ├── sparse_dense.c
+│   ├── sparse_bidiag.c
 │   ├── sparse_csr.c
 │   ├── sparse_reorder.c
 │   ├── sparse_vector.c
 │   └── sparse_matrix_internal.h
-├── tests/                Unit tests (22 suites, 467 tests)
+├── tests/                Unit tests (25 suites, 558 tests)
 │   ├── test_framework.h
 │   ├── test_sparse_matrix.c
 │   ├── test_sparse_lu.c
@@ -366,6 +381,8 @@ linalg_sparse_orthogonal/
 │   ├── test_sprint5_integration.c
 │   ├── test_qr.c
 │   ├── test_sprint6_integration.c
+│   ├── test_dense.c
+│   ├── test_bidiag.c
 │   └── data/             Reference .mtx files (8 + 6 SuiteSparse)
 ├── benchmarks/           Performance benchmarks (4 programs)
 ├── docs/                 Algorithm and format documentation

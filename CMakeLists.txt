@@ -43,6 +43,8 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_iterative.c
     src/sparse_ilu.c
     src/sparse_qr.c
+    src/sparse_dense.c
+    src/sparse_bidiag.c
 )
 
 # Optional OpenMP support for parallel SpMV: cmake -DSPARSE_OPENMP=ON ..
@@ -93,6 +95,10 @@ add_sparse_test(test_iterative)
 add_sparse_test(test_ilu)
 add_sparse_test(test_omp)
 add_sparse_test(test_sprint5_integration)
+add_sparse_test(test_qr)
+add_sparse_test(test_sprint6_integration)
+add_sparse_test(test_dense)
+add_sparse_test(test_bidiag)
 
 # Benchmarks (not part of ctest)
 add_executable(bench_main benchmarks/bench_main.c)

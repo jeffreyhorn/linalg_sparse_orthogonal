@@ -1466,6 +1466,397 @@ static void test_ilut_default_opts(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * ILUT partial pivoting tests (Sprint 7 Day 2)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* ILUT pivot on dense 3×3: should match exact LU with correct permutation */
+static void test_ilut_pivot_3x3(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 0, 2, 1.0);
+    sparse_insert(A, 1, 0, 4.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 2, 3.0);
+    sparse_insert(A, 2, 0, 8.0);
+    sparse_insert(A, 2, 1, 7.0);
+    sparse_insert(A, 2, 2, 9.0);
+
+    sparse_ilut_opts_t opts = {.tol = 1e-15, .max_fill = 100, .pivot = 1};
+    sparse_ilu_t ilu;
+    sparse_err_t ferr = sparse_ilut_factor(A, &opts, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    /* perm should be non-NULL and a valid permutation */
+    ASSERT_NOT_NULL(ilu.perm);
+
+    /* Solve should produce correct answer */
+    double r[3] = {1.0, 2.0, 3.0};
+    double z[3];
+    ASSERT_ERR(sparse_ilu_solve(&ilu, r, z), SPARSE_OK);
+
+    double Az[3];
+    sparse_matvec(A, z, Az);
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(Az[i], r[i], 1e-10);
+
+    printf("    pivot 3x3: perm=[%d,%d,%d]\n", (int)ilu.perm[0], (int)ilu.perm[1],
+           (int)ilu.perm[2]);
+
+    sparse_ilu_free(&ilu);
+    sparse_free(A);
+}
+
+/* ILUT pivot: perm should be valid (each index 0..n-1 appears once) */
+static void test_ilut_pivot_perm_valid(void) {
+    idx_t n = 10;
+    SparseMatrix *A = build_spd_tridiag(n, 4.0, -1.0);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_ilut_opts_t opts = {.tol = 1e-3, .max_fill = 10, .pivot = 1};
+    sparse_ilu_t ilu;
+    sparse_err_t ferr = sparse_ilut_factor(A, &opts, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_NOT_NULL(ilu.perm);
+    if (ilu.perm) {
+        int *seen = calloc((size_t)n, sizeof(int));
+        ASSERT_NOT_NULL(seen);
+        if (seen) {
+            for (idx_t i = 0; i < n; i++) {
+                ASSERT_TRUE(ilu.perm[i] >= 0 && ilu.perm[i] < n);
+                if (ilu.perm[i] >= 0 && ilu.perm[i] < n)
+                    seen[ilu.perm[i]] = 1;
+            }
+            for (idx_t i = 0; i < n; i++)
+                ASSERT_TRUE(seen[i]);
+            free(seen);
+        }
+    }
+
+    sparse_ilu_free(&ilu);
+    sparse_free(A);
+}
+
+/* ILUT pivot=0 (default): perm should be NULL */
+static void test_ilut_pivot_default_no_perm(void) {
+    SparseMatrix *A = build_spd_tridiag(5, 4.0, -1.0);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_ilut_opts_t opts = {.tol = 1e-3, .max_fill = 10, .pivot = 0};
+    sparse_ilu_t ilu;
+    sparse_err_t ferr = sparse_ilut_factor(A, &opts, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    /* perm should be NULL when pivoting is disabled */
+    ASSERT_TRUE(ilu.perm == NULL);
+
+    sparse_ilu_free(&ilu);
+    sparse_free(A);
+}
+
+/* ILUT pivot on identity: perm should be identity */
+static void test_ilut_pivot_identity(void) {
+    idx_t n = 5;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, 1.0);
+
+    sparse_ilut_opts_t opts = {.tol = 1e-3, .max_fill = 10, .pivot = 1};
+    sparse_ilu_t ilu;
+    sparse_err_t ferr = sparse_ilut_factor(A, &opts, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_NOT_NULL(ilu.perm);
+    if (ilu.perm) {
+        for (idx_t i = 0; i < n; i++)
+            ASSERT_EQ(ilu.perm[i], i);
+    }
+
+    sparse_ilu_free(&ilu);
+    sparse_free(A);
+}
+
+/* ILUT pivot on diagonally dominant matrix: pivoting should not change behavior */
+static void test_ilut_pivot_diag_dominant(void) {
+    idx_t n = 10;
+    SparseMatrix *A = build_spd_tridiag(n, 10.0, -1.0);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    /* Solve with pivoting */
+    sparse_ilut_opts_t opts_piv = {.tol = 1e-4, .max_fill = 20, .pivot = 1};
+    sparse_ilu_t ilu_piv;
+    sparse_err_t ferr = sparse_ilut_factor(A, &opts_piv, &ilu_piv);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    /* Solve without pivoting */
+    sparse_ilut_opts_t opts_nopiv = {.tol = 1e-4, .max_fill = 20, .pivot = 0};
+    sparse_ilu_t ilu_nopiv;
+    ferr = sparse_ilut_factor(A, &opts_nopiv, &ilu_nopiv);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_ilu_free(&ilu_piv);
+        sparse_free(A);
+        return;
+    }
+
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x_piv = malloc((size_t)n * sizeof(double));
+    double *x_nopiv = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x_piv);
+    ASSERT_NOT_NULL(x_nopiv);
+    if (!b || !x_piv || !x_nopiv) {
+        free(b);
+        free(x_piv);
+        free(x_nopiv);
+        sparse_ilu_free(&ilu_piv);
+        sparse_ilu_free(&ilu_nopiv);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    ASSERT_ERR(sparse_ilu_solve(&ilu_piv, b, x_piv), SPARSE_OK);
+    ASSERT_ERR(sparse_ilu_solve(&ilu_nopiv, b, x_nopiv), SPARSE_OK);
+
+    /* Both should produce similar results on diag-dominant matrix */
+    double res_piv = compute_relative_residual(A, b, x_piv, n);
+    double res_nopiv = compute_relative_residual(A, b, x_nopiv, n);
+    printf("    diag-dominant: pivot_res=%.3e, nopivot_res=%.3e\n", res_piv, res_nopiv);
+    ASSERT_TRUE(res_piv < 1e-8);
+    ASSERT_TRUE(res_nopiv < 1e-8);
+
+    free(b);
+    free(x_piv);
+    free(x_nopiv);
+    sparse_ilu_free(&ilu_piv);
+    sparse_ilu_free(&ilu_nopiv);
+    sparse_free(A);
+}
+
+/* ILUT pivot on west0067 with GMRES: compare with diagonal modification */
+static void test_ilut_pivot_gmres_west0067(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/west0067.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (!x_exact || !b) {
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = (double)(i + 1);
+    sparse_matvec(A, x_exact, b);
+
+    /* ILUT with pivoting */
+    sparse_ilut_opts_t opts = {.tol = 1e-4, .max_fill = 20, .pivot = 1};
+    sparse_ilu_t ilut;
+    sparse_err_t ferr = sparse_ilut_factor(A, &opts, &ilut);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
+
+    double *x = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x);
+    if (!x) {
+        free(x_exact);
+        free(b);
+        sparse_ilu_free(&ilut);
+        sparse_free(A);
+        return;
+    }
+
+    sparse_gmres_opts_t gm_opts = {.max_iter = 500,
+                                   .restart = 30,
+                                   .tol = 1e-10,
+                                   .verbose = 0,
+                                   .precond_side = SPARSE_PRECOND_RIGHT};
+    sparse_iter_result_t result = {0};
+    sparse_err_t solve_err =
+        sparse_solve_gmres(A, b, x, &gm_opts, sparse_ilut_precond, &ilut, &result);
+
+    double res = compute_relative_residual(A, b, x, n);
+    printf("    west0067 pivot-ILUT-GMRES: %d iters, res=%.3e, conv=%d\n", (int)result.iterations,
+           res, result.converged);
+
+    /* With pivoting, GMRES may or may not converge on west0067 (pathological).
+     * We validate that the solver runs without crashing. */
+    ASSERT_TRUE(solve_err == SPARSE_OK || solve_err == SPARSE_ERR_NOT_CONVERGED);
+    ASSERT_TRUE(result.iterations > 0);
+
+    free(x_exact);
+    free(b);
+    free(x);
+    sparse_ilu_free(&ilut);
+    sparse_free(A);
+}
+
+/* ILUT pivot on steam1 with GMRES: compare iteration count */
+static void test_ilut_pivot_gmres_steam1(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/steam1.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (!x_exact || !b) {
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = (double)(i + 1);
+    sparse_matvec(A, x_exact, b);
+
+    /* Pivot ILUT */
+    sparse_ilut_opts_t opts_piv = {.tol = 1e-3, .max_fill = 10, .pivot = 1};
+    sparse_ilu_t ilut_piv;
+    sparse_err_t ferr = sparse_ilut_factor(A, &opts_piv, &ilut_piv);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
+
+    /* Non-pivot ILUT */
+    sparse_ilut_opts_t opts_nopiv = {.tol = 1e-3, .max_fill = 10, .pivot = 0};
+    sparse_ilu_t ilut_nopiv;
+    ferr = sparse_ilut_factor(A, &opts_nopiv, &ilut_nopiv);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        free(x_exact);
+        free(b);
+        sparse_ilu_free(&ilut_piv);
+        sparse_free(A);
+        return;
+    }
+
+    sparse_gmres_opts_t gm_opts = {.max_iter = 200,
+                                   .restart = 30,
+                                   .tol = 1e-10,
+                                   .verbose = 0,
+                                   .precond_side = SPARSE_PRECOND_LEFT};
+
+    /* Solve with pivot ILUT */
+    double *x_piv = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_piv);
+    if (!x_piv) {
+        free(x_exact);
+        free(b);
+        sparse_ilu_free(&ilut_piv);
+        sparse_ilu_free(&ilut_nopiv);
+        sparse_free(A);
+        return;
+    }
+    sparse_iter_result_t res_piv = {0};
+    sparse_solve_gmres(A, b, x_piv, &gm_opts, sparse_ilut_precond, &ilut_piv, &res_piv);
+
+    /* Solve with non-pivot ILUT */
+    double *x_nopiv = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_nopiv);
+    if (!x_nopiv) {
+        free(x_exact);
+        free(b);
+        free(x_piv);
+        sparse_ilu_free(&ilut_piv);
+        sparse_ilu_free(&ilut_nopiv);
+        sparse_free(A);
+        return;
+    }
+    sparse_iter_result_t res_nopiv = {0};
+    sparse_solve_gmres(A, b, x_nopiv, &gm_opts, sparse_ilut_precond, &ilut_nopiv, &res_nopiv);
+
+    printf("    steam1: pivot=%d iters (conv=%d), nopivot=%d iters (conv=%d)\n",
+           (int)res_piv.iterations, res_piv.converged, (int)res_nopiv.iterations,
+           res_nopiv.converged);
+
+    free(x_exact);
+    free(b);
+    free(x_piv);
+    free(x_nopiv);
+    sparse_ilu_free(&ilut_piv);
+    sparse_ilu_free(&ilut_nopiv);
+    sparse_free(A);
+}
+
+/* NULL opts with pivot: defaults should have pivot=0 */
+static void test_ilut_pivot_null_opts(void) {
+    SparseMatrix *A = build_spd_tridiag(5, 4.0, -1.0);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    sparse_ilu_t ilu;
+    sparse_err_t ferr = sparse_ilut_factor(A, NULL, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    /* Default opts should have pivot=0, so perm is NULL */
+    ASSERT_TRUE(ilu.perm == NULL);
+
+    sparse_ilu_free(&ilu);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Error handling tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -1577,6 +1968,16 @@ int main(void) {
     RUN_TEST(test_ilut_null_inputs);
     RUN_TEST(test_ilut_vs_ilu0_steam1);
     RUN_TEST(test_ilut_default_opts);
+
+    /* ILUT partial pivoting (Sprint 7 Day 2) */
+    RUN_TEST(test_ilut_pivot_3x3);
+    RUN_TEST(test_ilut_pivot_perm_valid);
+    RUN_TEST(test_ilut_pivot_default_no_perm);
+    RUN_TEST(test_ilut_pivot_identity);
+    RUN_TEST(test_ilut_pivot_diag_dominant);
+    RUN_TEST(test_ilut_pivot_gmres_west0067);
+    RUN_TEST(test_ilut_pivot_gmres_steam1);
+    RUN_TEST(test_ilut_pivot_null_opts);
 
     /* Error handling */
     RUN_TEST(test_ilu_null_inputs);

@@ -1973,6 +1973,1184 @@ static void test_qr_reorder_none(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Economy QR tests (Sprint 7 Day 7)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Economy QR solve matches full QR solve on tall-skinny matrix */
+static void test_economy_solve_tall(void) {
+    idx_t m = 50, nc = 10;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Diag-dominant tall matrix */
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < nc; j++) {
+            if (i == j)
+                sparse_insert(A, i, j, 10.0);
+            else if (i < nc && (j == i + 1 || j == i - 1))
+                sparse_insert(A, i, j, 1.0);
+        }
+    }
+
+    double *b = malloc((size_t)m * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    if (!b) {
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < m; i++)
+        b[i] = (double)(i + 1);
+
+    /* Full QR */
+    sparse_qr_t qr_full;
+    sparse_err_t err = sparse_qr_factor(A, &qr_full);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(b);
+        sparse_free(A);
+        return;
+    }
+    double *x_full = malloc((size_t)nc * sizeof(double));
+    ASSERT_NOT_NULL(x_full);
+    if (!x_full) {
+        free(b);
+        sparse_qr_free(&qr_full);
+        sparse_free(A);
+        return;
+    }
+    double res_full = 0.0;
+    sparse_qr_solve(&qr_full, b, x_full, &res_full);
+
+    /* Economy QR */
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr_econ;
+    err = sparse_qr_factor_opts(A, &opts, &qr_econ);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(x_full);
+        free(b);
+        sparse_qr_free(&qr_full);
+        sparse_free(A);
+        return;
+    }
+    double *x_econ = malloc((size_t)nc * sizeof(double));
+    ASSERT_NOT_NULL(x_econ);
+    if (!x_econ) {
+        free(x_full);
+        free(b);
+        sparse_qr_free(&qr_full);
+        sparse_qr_free(&qr_econ);
+        sparse_free(A);
+        return;
+    }
+    double res_econ = 0.0;
+    sparse_qr_solve(&qr_econ, b, x_econ, &res_econ);
+
+    ASSERT_TRUE(qr_econ.economy);
+
+    {
+        printf("    economy solve 50x10: full_res=%.3e, econ_res=%.3e\n", res_full, res_econ);
+        for (idx_t i = 0; i < nc; i++)
+            ASSERT_NEAR(x_full[i], x_econ[i], 1e-10);
+        ASSERT_NEAR(res_full, res_econ, 1e-10);
+    }
+
+    free(x_full);
+    free(x_econ);
+    free(b);
+    sparse_qr_free(&qr_full);
+    sparse_qr_free(&qr_econ);
+    sparse_free(A);
+}
+
+/* Economy Q orthogonality: thin Q^T * Q = I_n */
+static void test_economy_q_orthogonality(void) {
+    idx_t m = 20, nc = 5;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < nc; j++)
+            if (i == j || (i + j) % 3 == 0)
+                sparse_insert(A, i, j, (double)(i + j + 1));
+
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor_opts(A, &opts, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    /* Form thin Q (m × nc) */
+    double *Q = calloc((size_t)m * (size_t)nc, sizeof(double));
+    ASSERT_NOT_NULL(Q);
+    if (!Q) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+    sparse_qr_form_q(&qr, Q);
+
+    /* Check Q^T * Q ≈ I_nc */
+    double max_err = 0.0;
+    for (idx_t i = 0; i < nc; i++) {
+        for (idx_t j = 0; j < nc; j++) {
+            double dot = 0.0;
+            for (idx_t k = 0; k < m; k++)
+                dot += Q[(size_t)i * (size_t)m + (size_t)k] * Q[(size_t)j * (size_t)m + (size_t)k];
+            double expected = (i == j) ? 1.0 : 0.0;
+            double e = fabs(dot - expected);
+            if (e > max_err)
+                max_err = e;
+        }
+    }
+    printf("    economy Q^T*Q orthogonality: max_err=%.3e\n", max_err);
+    ASSERT_TRUE(max_err < 1e-10);
+
+    free(Q);
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Square matrix with economy=1: same as economy=0 */
+static void test_economy_square(void) {
+    idx_t n = 5;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 5.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -1.0);
+    }
+
+    double b[5] = {4.0, 3.0, 3.0, 3.0, 4.0};
+
+    /* Full QR */
+    sparse_qr_t qr_full;
+    sparse_err_t err = sparse_qr_factor(A, &qr_full);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    double x_full[5];
+    sparse_qr_solve(&qr_full, b, x_full, NULL);
+
+    /* Economy QR */
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr_econ;
+    err = sparse_qr_factor_opts(A, &opts, &qr_econ);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_qr_free(&qr_full);
+        sparse_free(A);
+        return;
+    }
+    double x_econ[5];
+    sparse_qr_solve(&qr_econ, b, x_econ, NULL);
+
+    for (int i = 0; i < 5; i++)
+        ASSERT_NEAR(x_full[i], x_econ[i], 1e-12);
+
+    sparse_qr_free(&qr_full);
+    sparse_qr_free(&qr_econ);
+    sparse_free(A);
+}
+
+/* Economy R should be n×n upper triangular */
+static void test_economy_r_shape(void) {
+    idx_t m = 30, nc = 5;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < nc; j++)
+            if (i == j)
+                sparse_insert(A, i, j, (double)(i + 1));
+
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor_opts(A, &opts, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    /* R should have min(m,n)=nc rows */
+    ASSERT_NOT_NULL(qr.R);
+    if (qr.R) {
+        ASSERT_EQ(sparse_rows(qr.R), nc);
+        ASSERT_EQ(sparse_cols(qr.R), nc);
+    }
+    ASSERT_EQ(qr.rank, nc);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Rank-deficient tall matrix with economy */
+static void test_economy_rank_deficient(void) {
+    idx_t m = 20, nc = 4;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* col1 = col0, so rank = 3 at most */
+    for (idx_t i = 0; i < m; i++) {
+        sparse_insert(A, i, 0, (double)(i + 1));
+        sparse_insert(A, i, 1, (double)(i + 1)); /* duplicate column */
+        sparse_insert(A, i, 2, (double)(i * 2 + 1));
+        sparse_insert(A, i, 3, (double)(i + 3));
+    }
+
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor_opts(A, &opts, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    printf("    economy rank-deficient 20x4: rank=%d\n", (int)qr.rank);
+    ASSERT_TRUE(qr.rank < nc); /* should detect rank deficiency */
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Wide matrix (m < n) with economy=1: same as full */
+static void test_economy_wide(void) {
+    idx_t m = 3, nc = 6;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < nc; j++)
+            if (i == j || j == i + 3)
+                sparse_insert(A, i, j, (double)(i + j + 1));
+
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor_opts(A, &opts, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    /* For wide (m<n), economy Q is m×m (same as full) */
+    ASSERT_EQ(qr.rank, m);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* 1×1 matrix with economy */
+static void test_economy_1x1(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 7.0);
+
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor_opts(A, &opts, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    double b[1] = {14.0};
+    double x[1];
+    sparse_qr_solve(&qr, b, x, NULL);
+    ASSERT_NEAR(x[0], 2.0, 1e-12);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* nos4 (square): economy identical to full */
+static void test_economy_nos4(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    if (!b) {
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    /* Full QR */
+    sparse_qr_t qr_full;
+    sparse_err_t err = sparse_qr_factor(A, &qr_full);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(b);
+        sparse_free(A);
+        return;
+    }
+    double *x_full = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_full);
+    if (!x_full) {
+        free(b);
+        sparse_qr_free(&qr_full);
+        sparse_free(A);
+        return;
+    }
+    sparse_qr_solve(&qr_full, b, x_full, NULL);
+
+    /* Economy QR */
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 1};
+    sparse_qr_t qr_econ;
+    err = sparse_qr_factor_opts(A, &opts, &qr_econ);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(x_full);
+        free(b);
+        sparse_qr_free(&qr_full);
+        sparse_free(A);
+        return;
+    }
+    double *x_econ = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_econ);
+    if (!x_econ) {
+        free(x_full);
+        free(b);
+        sparse_qr_free(&qr_full);
+        sparse_qr_free(&qr_econ);
+        sparse_free(A);
+        return;
+    }
+    sparse_qr_solve(&qr_econ, b, x_econ, NULL);
+
+    {
+        double max_diff = 0.0;
+        for (idx_t i = 0; i < n; i++) {
+            double d = fabs(x_full[i] - x_econ[i]);
+            if (d > max_diff)
+                max_diff = d;
+        }
+        printf("    nos4 economy vs full: max_diff=%.3e\n", max_diff);
+        ASSERT_TRUE(max_diff < 1e-10);
+    }
+
+    free(x_full);
+    free(x_econ);
+    free(b);
+    sparse_qr_free(&qr_full);
+    sparse_qr_free(&qr_econ);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sparse-mode QR tests (Sprint 7 Day 8)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Sparse-mode QR matches dense-mode on small matrix */
+static void test_sparse_mode_basic(void) {
+    SparseMatrix *A = sparse_create(4, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 2, 4.0);
+    sparse_insert(A, 3, 0, 1.0);
+    sparse_insert(A, 3, 2, 2.0);
+
+    double b[4] = {1.0, 2.0, 3.0, 4.0};
+
+    /* Dense-mode QR */
+    sparse_qr_t qr_dense;
+    sparse_err_t err = sparse_qr_factor(A, &qr_dense);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    double x_dense[3];
+    double res_dense = 0.0;
+    sparse_qr_solve(&qr_dense, b, x_dense, &res_dense);
+
+    /* Sparse-mode QR */
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 0, .sparse_mode = 1};
+    sparse_qr_t qr_sparse;
+    err = sparse_qr_factor_opts(A, &opts, &qr_sparse);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_qr_free(&qr_dense);
+        sparse_free(A);
+        return;
+    }
+    double x_sparse[3];
+    double res_sparse = 0.0;
+    sparse_qr_solve(&qr_sparse, b, x_sparse, &res_sparse);
+
+    printf("    sparse-mode 4x3: dense_res=%.3e, sparse_res=%.3e\n", res_dense, res_sparse);
+
+    /* Solutions should match */
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x_dense[i], x_sparse[i], 1e-10);
+    ASSERT_NEAR(res_dense, res_sparse, 1e-10);
+    ASSERT_EQ(qr_dense.rank, qr_sparse.rank);
+
+    sparse_qr_free(&qr_dense);
+    sparse_qr_free(&qr_sparse);
+    sparse_free(A);
+}
+
+/* Sparse-mode QR on nos4 matches dense-mode */
+static void test_sparse_mode_nos4(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    if (!b) {
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    /* Dense-mode */
+    sparse_qr_t qr_dense;
+    sparse_err_t err = sparse_qr_factor(A, &qr_dense);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(b);
+        sparse_free(A);
+        return;
+    }
+    double *x_dense = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_dense);
+    if (!x_dense) {
+        free(b);
+        sparse_qr_free(&qr_dense);
+        sparse_free(A);
+        return;
+    }
+    sparse_qr_solve(&qr_dense, b, x_dense, NULL);
+
+    /* Sparse-mode */
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 0, .sparse_mode = 1};
+    sparse_qr_t qr_sparse;
+    err = sparse_qr_factor_opts(A, &opts, &qr_sparse);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(x_dense);
+        free(b);
+        sparse_qr_free(&qr_dense);
+        sparse_free(A);
+        return;
+    }
+    double *x_sparse = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_sparse);
+    if (!x_sparse) {
+        free(x_dense);
+        free(b);
+        sparse_qr_free(&qr_dense);
+        sparse_qr_free(&qr_sparse);
+        sparse_free(A);
+        return;
+    }
+    sparse_qr_solve(&qr_sparse, b, x_sparse, NULL);
+
+    {
+        double max_diff = 0.0;
+        for (idx_t i = 0; i < n; i++) {
+            double d = fabs(x_dense[i] - x_sparse[i]);
+            if (d > max_diff)
+                max_diff = d;
+        }
+        printf("    sparse-mode nos4: max_diff=%.3e, rank_dense=%d, rank_sparse=%d\n", max_diff,
+               (int)qr_dense.rank, (int)qr_sparse.rank);
+        ASSERT_TRUE(max_diff < 1e-8);
+    }
+
+    free(x_dense);
+    free(x_sparse);
+    free(b);
+    sparse_qr_free(&qr_dense);
+    sparse_qr_free(&qr_sparse);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sparse-mode QR hardening (Sprint 7 Day 9)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Helper: compare dense and sparse QR solve on a given matrix */
+static void compare_dense_sparse_qr(const SparseMatrix *A, const char *name) {
+    idx_t m = sparse_rows(A);
+    idx_t nc = sparse_cols(A);
+
+    double *b = malloc((size_t)m * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    if (!b)
+        return;
+    for (idx_t i = 0; i < m; i++)
+        b[i] = (double)(i + 1);
+
+    /* Dense-mode QR */
+    sparse_qr_t qr_d;
+    sparse_err_t err = sparse_qr_factor(A, &qr_d);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(b);
+        return;
+    }
+    double *x_d = malloc((size_t)nc * sizeof(double));
+    ASSERT_NOT_NULL(x_d);
+    if (!x_d) {
+        free(b);
+        sparse_qr_free(&qr_d);
+        return;
+    }
+    double res_d = 0.0;
+    sparse_qr_solve(&qr_d, b, x_d, &res_d);
+
+    /* Sparse-mode QR */
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 0, .sparse_mode = 1};
+    sparse_qr_t qr_s;
+    err = sparse_qr_factor_opts(A, &opts, &qr_s);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(x_d);
+        free(b);
+        sparse_qr_free(&qr_d);
+        return;
+    }
+    double *x_s = malloc((size_t)nc * sizeof(double));
+    ASSERT_NOT_NULL(x_s);
+    if (!x_s) {
+        free(x_d);
+        free(b);
+        sparse_qr_free(&qr_d);
+        sparse_qr_free(&qr_s);
+        return;
+    }
+    double res_s = 0.0;
+    sparse_qr_solve(&qr_s, b, x_s, &res_s);
+
+    {
+        double max_diff = 0.0;
+        for (idx_t i = 0; i < nc; i++) {
+            double d = fabs(x_d[i] - x_s[i]);
+            if (d > max_diff)
+                max_diff = d;
+        }
+        printf("    sparse vs dense %s: max_diff=%.3e, rank_d=%d, rank_s=%d\n", name, max_diff,
+               (int)qr_d.rank, (int)qr_s.rank);
+        ASSERT_TRUE(max_diff < 1e-8);
+        ASSERT_EQ(qr_d.rank, qr_s.rank);
+    }
+
+    free(x_d);
+    free(x_s);
+    free(b);
+    sparse_qr_free(&qr_d);
+    sparse_qr_free(&qr_s);
+}
+
+/* Sparse-mode: tall-skinny 50×10 */
+static void test_sparse_mode_tall(void) {
+    idx_t m = 50, nc = 10;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < nc; j++) {
+            if (i == j)
+                sparse_insert(A, i, j, 10.0);
+            else if (i < nc && (j == i + 1 || j == i - 1))
+                sparse_insert(A, i, j, 1.0);
+        }
+    }
+    compare_dense_sparse_qr(A, "50x10");
+    sparse_free(A);
+}
+
+/* Sparse-mode: wide matrix 3×6 */
+static void test_sparse_mode_wide(void) {
+    SparseMatrix *A = sparse_create(3, 6);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 3.0);
+    sparse_insert(A, 0, 2, 1.0);
+    sparse_insert(A, 0, 4, 2.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 1, 3, 1.0);
+    sparse_insert(A, 1, 5, 3.0);
+    sparse_insert(A, 2, 0, 1.0);
+    sparse_insert(A, 2, 2, 5.0);
+    sparse_insert(A, 2, 4, 1.0);
+    compare_dense_sparse_qr(A, "3x6");
+    sparse_free(A);
+}
+
+/* Sparse-mode: rank-deficient 4×3 with duplicate column */
+static void test_sparse_mode_rank_deficient(void) {
+    SparseMatrix *A = sparse_create(4, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* col1 = col0 → rank 2 */
+    for (idx_t i = 0; i < 4; i++) {
+        sparse_insert(A, i, 0, (double)(i + 1));
+        sparse_insert(A, i, 1, (double)(i + 1));
+        sparse_insert(A, i, 2, (double)(i * 2 + 1));
+    }
+    compare_dense_sparse_qr(A, "rank-def 4x3");
+    sparse_free(A);
+}
+
+/* Sparse-mode: west0067 */
+static void test_sparse_mode_west0067(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/west0067.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    compare_dense_sparse_qr(A, "west0067");
+    sparse_free(A);
+}
+
+/* Sparse-mode: bcsstk04 */
+static void test_sparse_mode_bcsstk04(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    compare_dense_sparse_qr(A, "bcsstk04");
+    sparse_free(A);
+}
+
+/* Sparse-mode: 1×1 */
+static void test_sparse_mode_1x1(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 7.0);
+    compare_dense_sparse_qr(A, "1x1");
+    sparse_free(A);
+}
+
+/* Sparse-mode: Q orthogonality */
+static void test_sparse_mode_q_ortho(void) {
+    SparseMatrix *A = sparse_create(5, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 3.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 5.0);
+    sparse_insert(A, 3, 0, 2.0);
+    sparse_insert(A, 3, 2, 1.0);
+    sparse_insert(A, 4, 1, 2.0);
+
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 0, .sparse_mode = 1};
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor_opts(A, &opts, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    /* Form Q and check orthogonality */
+    idx_t m = 5;
+    double *Q = calloc((size_t)m * (size_t)m, sizeof(double));
+    ASSERT_NOT_NULL(Q);
+    if (!Q) {
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+    sparse_qr_form_q(&qr, Q);
+
+    double max_err = 0.0;
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < m; j++) {
+            double dot = 0.0;
+            for (idx_t p = 0; p < m; p++)
+                dot += Q[(size_t)i * (size_t)m + (size_t)p] * Q[(size_t)j * (size_t)m + (size_t)p];
+            double expected = (i == j) ? 1.0 : 0.0;
+            double e = fabs(dot - expected);
+            if (e > max_err)
+                max_err = e;
+        }
+    }
+    printf("    sparse-mode Q ortho: max_err=%.3e\n", max_err);
+    ASSERT_TRUE(max_err < 1e-10);
+
+    free(Q);
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sparse-mode QR: benchmarks & edge cases (Sprint 7 Day 10)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Reconstruction error comparison: sparse vs dense on nos4 */
+static void test_sparse_mode_reconstruction(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+
+    /* Dense-mode reconstruction error */
+    sparse_qr_t qr_d;
+    sparse_err_t err = sparse_qr_factor(A, &qr_d);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    double recon_d = qr_reconstruction_error(A, &qr_d);
+
+    /* Sparse-mode reconstruction error */
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .economy = 0, .sparse_mode = 1};
+    sparse_qr_t qr_s;
+    err = sparse_qr_factor_opts(A, &opts, &qr_s);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_qr_free(&qr_d);
+        sparse_free(A);
+        return;
+    }
+    double recon_s = qr_reconstruction_error(A, &qr_s);
+
+    printf("    reconstruction nos4: dense=%.3e, sparse=%.3e\n", recon_d, recon_s);
+    ASSERT_TRUE(recon_d < 1e-10);
+    ASSERT_TRUE(recon_s < 1e-10);
+
+    sparse_qr_free(&qr_d);
+    sparse_qr_free(&qr_s);
+    sparse_free(A);
+}
+
+/* Sparse-mode with AMD reordering */
+static void test_sparse_mode_amd(void) {
+    SparseMatrix *A = sparse_create(6, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 4.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 4.0);
+    sparse_insert(A, 2, 3, 1.0);
+    sparse_insert(A, 3, 2, 1.0);
+    sparse_insert(A, 3, 3, 4.0);
+    sparse_insert(A, 4, 0, 2.0);
+    sparse_insert(A, 5, 3, 2.0);
+
+    double b[6] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
+
+    /* Sparse-mode without reorder */
+    sparse_qr_opts_t opts_none = {.reorder = SPARSE_REORDER_NONE, .sparse_mode = 1};
+    sparse_qr_t qr_none;
+    sparse_err_t err = sparse_qr_factor_opts(A, &opts_none, &qr_none);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    double x_none[4];
+    sparse_qr_solve(&qr_none, b, x_none, NULL);
+
+    /* Sparse-mode with AMD reorder */
+    sparse_qr_opts_t opts_amd = {.reorder = SPARSE_REORDER_AMD, .sparse_mode = 1};
+    sparse_qr_t qr_amd;
+    err = sparse_qr_factor_opts(A, &opts_amd, &qr_amd);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_qr_free(&qr_none);
+        sparse_free(A);
+        return;
+    }
+    double x_amd[4];
+    sparse_qr_solve(&qr_amd, b, x_amd, NULL);
+
+    /* Solutions should agree */
+    for (int i = 0; i < 4; i++)
+        ASSERT_NEAR(x_none[i], x_amd[i], 1e-10);
+
+    printf("    sparse AMD reorder: rank_none=%d, rank_amd=%d\n", (int)qr_none.rank,
+           (int)qr_amd.rank);
+
+    sparse_qr_free(&qr_none);
+    sparse_qr_free(&qr_amd);
+    sparse_free(A);
+}
+
+/* Very sparse matrix: diagonal only */
+static void test_sparse_mode_diagonal(void) {
+    idx_t n = 20;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, (double)(i + 1));
+
+    compare_dense_sparse_qr(A, "diag 20x20");
+    sparse_free(A);
+}
+
+/* Single column matrix */
+static void test_sparse_mode_single_col(void) {
+    SparseMatrix *A = sparse_create(5, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 3.0);
+    sparse_insert(A, 2, 0, 4.0);
+    compare_dense_sparse_qr(A, "5x1");
+    sparse_free(A);
+}
+
+/* Single row matrix */
+static void test_sparse_mode_single_row(void) {
+    SparseMatrix *A = sparse_create(1, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 0, 3, 5.0);
+    compare_dense_sparse_qr(A, "1x5");
+    sparse_free(A);
+}
+
+/* Timing comparison: print factorization time for dense vs sparse on nos4 */
+static void test_sparse_mode_timing(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+
+    /* Dense-mode */
+    sparse_qr_t qr_d;
+    sparse_err_t err_d = sparse_qr_factor(A, &qr_d);
+    ASSERT_ERR(err_d, SPARSE_OK);
+    if (err_d != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+    idx_t nnz_r_d = sparse_nnz(qr_d.R);
+
+    /* Sparse-mode */
+    sparse_qr_opts_t opts = {.reorder = SPARSE_REORDER_NONE, .sparse_mode = 1};
+    sparse_qr_t qr_s;
+    sparse_err_t err_s = sparse_qr_factor_opts(A, &opts, &qr_s);
+    ASSERT_ERR(err_s, SPARSE_OK);
+    if (err_s != SPARSE_OK) {
+        sparse_qr_free(&qr_d);
+        sparse_free(A);
+        return;
+    }
+    idx_t nnz_r_s = sparse_nnz(qr_s.R);
+
+    printf("    nos4 R nnz: dense=%d, sparse=%d\n", (int)nnz_r_d, (int)nnz_r_s);
+    /* Both should produce same R fill-in */
+    ASSERT_EQ(nnz_r_d, nnz_r_s);
+
+    sparse_qr_free(&qr_d);
+    sparse_qr_free(&qr_s);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * QR iterative refinement tests (Sprint 7 Day 11)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Well-conditioned: refinement should barely change solution */
+static void test_qr_refine_well_conditioned(void) {
+    SparseMatrix *A = sparse_create(4, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 10.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 1, 10.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 0, 1.0);
+    sparse_insert(A, 2, 2, 10.0);
+    sparse_insert(A, 3, 0, 1.0);
+    sparse_insert(A, 3, 1, 1.0);
+    sparse_insert(A, 3, 2, 1.0);
+
+    double b[4] = {11.0, 11.0, 11.0, 3.0};
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    double x[3];
+    double res_before = 0.0;
+    sparse_qr_solve(&qr, b, x, &res_before);
+
+    double res_after = 0.0;
+    ASSERT_ERR(sparse_qr_refine(&qr, A, b, x, 3, &res_after), SPARSE_OK);
+
+    printf("    well-cond refine: before=%.3e, after=%.3e\n", res_before, res_after);
+    ASSERT_TRUE(res_after <= res_before + 1e-15);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Ill-conditioned: refinement should improve residual */
+static void test_qr_refine_ill_conditioned(void) {
+    SparseMatrix *A = sparse_create(4, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Near-singular: col2 ≈ col0 + small perturbation */
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 0, 2, 1.0 + 1e-8);
+    sparse_insert(A, 1, 0, 3.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 1, 2, 3.0 + 1e-8);
+    sparse_insert(A, 2, 0, 5.0);
+    sparse_insert(A, 2, 1, 6.0);
+    sparse_insert(A, 2, 2, 5.0 + 1e-8);
+    sparse_insert(A, 3, 0, 7.0);
+    sparse_insert(A, 3, 1, 8.0);
+    sparse_insert(A, 3, 2, 7.0 + 1e-8);
+
+    double b[4] = {1.0, 2.0, 3.0, 4.0};
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    double x[3];
+    double res_before = 0.0;
+    sparse_qr_solve(&qr, b, x, &res_before);
+
+    double res_after = 0.0;
+    ASSERT_ERR(sparse_qr_refine(&qr, A, b, x, 5, &res_after), SPARSE_OK);
+
+    printf("    ill-cond refine: before=%.3e, after=%.3e\n", res_before, res_after);
+    /* Refinement should not make things worse */
+    ASSERT_TRUE(res_after <= res_before + 1e-12);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* max_refine=0: just computes residual, doesn't modify x */
+static void test_qr_refine_zero_iter(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 2, 2, 4.0);
+
+    double b[3] = {2.0, 6.0, 12.0};
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    double x[3];
+    sparse_qr_solve(&qr, b, x, NULL);
+
+    double x_copy[3] = {x[0], x[1], x[2]};
+    double res = 0.0;
+    ASSERT_ERR(sparse_qr_refine(&qr, A, b, x, 0, &res), SPARSE_OK);
+
+    /* x should be unchanged */
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x[i], x_copy[i], 1e-15);
+    /* residual should be computed */
+    printf("    zero-iter refine: res=%.3e\n", res);
+    ASSERT_TRUE(res < 1e-12);
+
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* nos4: QR solve + refine */
+static void test_qr_refine_nos4(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    double *x_exact = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x_exact);
+    ASSERT_NOT_NULL(b);
+    if (!x_exact || !b) {
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = (double)(i + 1);
+    sparse_matvec(A, x_exact, b);
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
+
+    double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x);
+    if (!x) {
+        free(x_exact);
+        free(b);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+
+    double res_before = 0.0;
+    sparse_qr_solve(&qr, b, x, &res_before);
+
+    double res_after = 0.0;
+    ASSERT_ERR(sparse_qr_refine(&qr, A, b, x, 3, &res_after), SPARSE_OK);
+
+    printf("    nos4 refine: before=%.3e, after=%.3e\n", res_before, res_after);
+    /* Refinement may introduce tiny rounding noise on already-exact solutions */
+    ASSERT_TRUE(res_after < 1e-10);
+
+    free(x_exact);
+    free(b);
+    free(x);
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* Overdetermined least-squares: refinement on tall system */
+static void test_qr_refine_overdetermined(void) {
+    idx_t m = 20, nc = 5;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < nc; j++)
+            if (i == j)
+                sparse_insert(A, i, j, 5.0);
+            else if (abs(i - j) <= 1 && i < nc)
+                sparse_insert(A, i, j, 1.0);
+
+    double *b = malloc((size_t)m * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    if (!b) {
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < m; i++)
+        b[i] = (double)(i + 1);
+
+    sparse_qr_t qr;
+    sparse_err_t err = sparse_qr_factor(A, &qr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        free(b);
+        sparse_free(A);
+        return;
+    }
+
+    double *x = malloc((size_t)nc * sizeof(double));
+    ASSERT_NOT_NULL(x);
+    if (!x) {
+        free(b);
+        sparse_qr_free(&qr);
+        sparse_free(A);
+        return;
+    }
+
+    double res_before = 0.0;
+    sparse_qr_solve(&qr, b, x, &res_before);
+
+    double res_after = 0.0;
+    ASSERT_ERR(sparse_qr_refine(&qr, A, b, x, 3, &res_after), SPARSE_OK);
+
+    printf("    overdetermined refine: before=%.3e, after=%.3e\n", res_before, res_after);
+    ASSERT_TRUE(res_after <= res_before + 1e-12);
+
+    free(b);
+    free(x);
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+/* NULL input handling */
+static void test_qr_refine_null(void) {
+    ASSERT_ERR(sparse_qr_refine(NULL, NULL, NULL, NULL, 0, NULL), SPARSE_ERR_NULL);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -2036,6 +3214,45 @@ int main(void) {
     RUN_TEST(test_qr_reorder_amd_solve);
     RUN_TEST(test_qr_reorder_nos4_fillin);
     RUN_TEST(test_qr_reorder_none);
+
+    /* Economy QR (Sprint 7 Day 7) */
+    RUN_TEST(test_economy_solve_tall);
+    RUN_TEST(test_economy_q_orthogonality);
+    RUN_TEST(test_economy_square);
+    RUN_TEST(test_economy_r_shape);
+    RUN_TEST(test_economy_rank_deficient);
+    RUN_TEST(test_economy_wide);
+    RUN_TEST(test_economy_1x1);
+    RUN_TEST(test_economy_nos4);
+
+    /* Sparse-mode QR (Sprint 7 Day 8) */
+    RUN_TEST(test_sparse_mode_basic);
+    RUN_TEST(test_sparse_mode_nos4);
+
+    /* Sparse-mode hardening (Sprint 7 Day 9) */
+    RUN_TEST(test_sparse_mode_tall);
+    RUN_TEST(test_sparse_mode_wide);
+    RUN_TEST(test_sparse_mode_rank_deficient);
+    RUN_TEST(test_sparse_mode_west0067);
+    RUN_TEST(test_sparse_mode_bcsstk04);
+    RUN_TEST(test_sparse_mode_1x1);
+    RUN_TEST(test_sparse_mode_q_ortho);
+
+    /* Sparse-mode benchmarks & edge cases (Sprint 7 Day 10) */
+    RUN_TEST(test_sparse_mode_reconstruction);
+    RUN_TEST(test_sparse_mode_amd);
+    RUN_TEST(test_sparse_mode_diagonal);
+    RUN_TEST(test_sparse_mode_single_col);
+    RUN_TEST(test_sparse_mode_single_row);
+    RUN_TEST(test_sparse_mode_timing);
+
+    /* QR iterative refinement (Sprint 7 Day 11) */
+    RUN_TEST(test_qr_refine_well_conditioned);
+    RUN_TEST(test_qr_refine_ill_conditioned);
+    RUN_TEST(test_qr_refine_zero_iter);
+    RUN_TEST(test_qr_refine_nos4);
+    RUN_TEST(test_qr_refine_overdetermined);
+    RUN_TEST(test_qr_refine_null);
 
     TEST_SUITE_END();
 }

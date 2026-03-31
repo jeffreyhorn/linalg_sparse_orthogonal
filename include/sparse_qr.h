@@ -38,6 +38,14 @@
  */
 typedef struct {
     sparse_reorder_t reorder; /**< Column reordering before QR (default: NONE) */
+    int economy;              /**< When nonzero and m > n, compute economy (thin) QR:
+                                   form_q produces m×n instead of m×m. Has no effect
+                                   when m <= n (Q is already m×m = m×k where k=min(m,n)).
+                                   (default: 0 = full QR) */
+    int sparse_mode;          /**< When nonzero, use column-by-column Householder
+                                   application instead of O(m*n) dense workspace.
+                                   Uses O(m) working memory per column. Slower but
+                                   scales to larger matrices. (default: 0) */
 } sparse_qr_opts_t;
 
 /**
@@ -58,6 +66,9 @@ typedef struct {
     idx_t m;            /**< Number of rows of original A */
     idx_t n;            /**< Number of columns of original A */
     idx_t rank;         /**< Numerical rank (set during factorization) */
+    int economy;        /**< Nonzero if economy (thin Q) was requested.
+                             A thin Q is only formed when m > n; when m <= n
+                             this flag has no effect on the shape of Q. */
 } sparse_qr_t;
 
 /**
@@ -102,11 +113,14 @@ sparse_err_t sparse_qr_apply_q(const sparse_qr_t *qr, int transpose, const doubl
 /**
  * @brief Explicitly form the Q matrix (for testing/diagnostics).
  *
- * Forms Q as a dense m×m matrix by applying Q to columns of I.
- * Not recommended for large matrices.
+ * For full QR (economy=0): forms Q as a dense m×m orthogonal matrix.
+ * Caller allocates m*m doubles.
+ *
+ * For economy QR (economy=1): forms the thin Q as a dense m×k matrix
+ * with orthonormal columns, where k = min(m, n). Caller allocates m*k doubles.
  *
  * @param qr  The QR factorization.
- * @param Q   Output: dense m×m matrix in column-major order. Caller allocates m*m doubles.
+ * @param Q   Output: dense matrix in column-major order.
  * @return SPARSE_OK on success.
  */
 sparse_err_t sparse_qr_form_q(const sparse_qr_t *qr, double *Q);
@@ -128,6 +142,28 @@ sparse_err_t sparse_qr_form_q(const sparse_qr_t *qr, double *Q);
  * @return SPARSE_OK on success.
  */
 sparse_err_t sparse_qr_solve(const sparse_qr_t *qr, const double *b, double *x, double *residual);
+
+/**
+ * @brief Iterative refinement for QR least-squares solutions.
+ *
+ * Improves an existing QR solution by repeatedly computing the residual
+ * r = b - A*x and solving for a correction via the existing QR factorization.
+ * Useful for reducing the residual on ill-conditioned systems.
+ *
+ * @param qr         The QR factorization of A.
+ * @param A          The original matrix (for computing residuals).
+ * @param b          Right-hand side vector of length m.
+ * @param x          On entry: initial solution (from sparse_qr_solve).
+ *                   On exit: refined solution. Length n.
+ * @param max_refine Maximum number of refinement iterations. 0 = just compute residual.
+ * @param residual   Output: final residual norm ||b - Ax||_2 (may be NULL).
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if any required argument is NULL.
+ * @return SPARSE_ERR_SHAPE if A dimensions don't match the QR factorization.
+ * @return SPARSE_ERR_ALLOC if memory allocation fails.
+ */
+sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A, const double *b,
+                              double *x, idx_t max_refine, double *residual);
 
 /**
  * @brief Estimate numerical rank from QR factorization.

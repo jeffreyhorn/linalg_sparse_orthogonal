@@ -1028,9 +1028,25 @@ sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A, cons
             break;
         }
 
-        /* Update: x = x + dx */
+        /* Apply correction and validate: roll back if residual increases */
         for (idx_t i = 0; i < n; i++)
             x[i] += dx[i];
+
+        /* Compute post-update residual */
+        sparse_matvec(A, x, Ax);
+        double new_rnorm = 0.0;
+        for (idx_t i = 0; i < m; i++) {
+            double ri = b[i] - Ax[i];
+            new_rnorm += ri * ri;
+        }
+        new_rnorm = sqrt(new_rnorm);
+
+        if (new_rnorm >= rnorm) {
+            /* Update made things worse — roll back */
+            for (idx_t i = 0; i < n; i++)
+                x[i] -= dx[i];
+            break;
+        }
     }
 
     free(r);

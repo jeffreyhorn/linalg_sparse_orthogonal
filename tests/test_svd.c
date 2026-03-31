@@ -456,8 +456,8 @@ static void test_svd_with_uv(void) {
     }
     printf("    SVD 4x3 with UV: recon=%.3e, sigma=[%.3f, %.3f, %.3f]\n", maxerr, svd.sigma[0],
            svd.sigma[1], svd.sigma[2]);
-    /* Note: without QR iteration, reconstruction may not be perfect.
-     * Check that sigma values are reasonable (positive, descending). */
+    /* We print the reconstruction error for information, but this test
+     * only asserts that the singular values are reasonable (positive, descending). */
     ASSERT_TRUE(svd.sigma[0] >= svd.sigma[1]);
     ASSERT_TRUE(svd.sigma[1] >= svd.sigma[2]);
     ASSERT_TRUE(svd.sigma[2] >= 0.0);

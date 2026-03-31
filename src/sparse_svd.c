@@ -7,6 +7,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+/** Return nonzero if a*b overflows size_t; store result in *out. */
+static int size_mul_overflow(size_t a, size_t b, size_t *out) {
+    if (a != 0 && b > SIZE_MAX / a)
+        return 1;
+    *out = a * b;
+    return 0;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Householder application helper (same as in sparse_qr.c / sparse_bidiag.c)
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -482,8 +490,17 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
 
     if (compute_uv) {
         /* Extract economy U (m×k) and V (n×k) from Householder reflectors */
-        U_work = calloc((size_t)m * (size_t)k, sizeof(double));
-        V_work = calloc((size_t)n * (size_t)k, sizeof(double));
+        size_t sz_u, sz_v;
+        if (size_mul_overflow((size_t)m, (size_t)k, &sz_u) ||
+            size_mul_overflow((size_t)n, (size_t)k, &sz_v) || sz_u > SIZE_MAX / sizeof(double) ||
+            sz_v > SIZE_MAX / sizeof(double)) {
+            free(bd_diag);
+            free(bd_super);
+            sparse_bidiag_free(&bd);
+            return SPARSE_ERR_ALLOC;
+        }
+        U_work = calloc(sz_u, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
+        V_work = calloc(sz_v, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
         if (!U_work || !V_work) {
             free(bd_diag);
             free(bd_super);
@@ -621,8 +638,15 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
         return SPARSE_ERR_ALLOC;
 
     /* Allocate Lanczos vectors: P (m x lanczos_k) and Q (n x (lanczos_k+1)) */
-    double *P = calloc((size_t)m * (size_t)lanczos_k, sizeof(double));
-    double *Q = calloc((size_t)n * (size_t)(lanczos_k + 1), sizeof(double));
+    size_t sz_p, sz_q;
+    if (size_mul_overflow((size_t)m, (size_t)lanczos_k, &sz_p) ||
+        size_mul_overflow((size_t)n, (size_t)(lanczos_k + 1), &sz_q) ||
+        sz_p > SIZE_MAX / sizeof(double) || sz_q > SIZE_MAX / sizeof(double)) {
+        sparse_free(At);
+        return SPARSE_ERR_ALLOC;
+    }
+    double *P = calloc(sz_p, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
+    double *Q = calloc(sz_q, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
     double *alpha = calloc((size_t)lanczos_k, sizeof(double));
     double *beta = calloc((size_t)(lanczos_k + 1), sizeof(double));
 
@@ -832,7 +856,12 @@ sparse_err_t sparse_pinv(const SparseMatrix *A, double tol, double **pinv) {
      *   A^+[:,j] = sum_{i: sigma_i > tol} (1/sigma_i) * V[:,i] * U[j,i]
      *            = sum_{i} (1/sigma_i) * Vt^T[:,i] * U[j,i]
      */
-    double *result = calloc((size_t)n * (size_t)m, sizeof(double));
+    size_t nm;
+    if (size_mul_overflow((size_t)n, (size_t)m, &nm) || nm > SIZE_MAX / sizeof(double)) {
+        sparse_svd_free(&svd);
+        return SPARSE_ERR_ALLOC;
+    }
+    double *result = calloc(nm, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
     if (!result) {
         sparse_svd_free(&svd);
         return SPARSE_ERR_ALLOC;
@@ -894,7 +923,12 @@ sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lo
 
     /* A_k = sum_{i=0}^{rank_k-1} sigma_i * U[:,i] * Vt[i,:]
      * Result is m×n column-major. */
-    double *result = calloc((size_t)m * (size_t)n, sizeof(double));
+    size_t mn;
+    if (size_mul_overflow((size_t)m, (size_t)n, &mn) || mn > SIZE_MAX / sizeof(double)) {
+        sparse_svd_free(&svd);
+        return SPARSE_ERR_ALLOC;
+    }
+    double *result = calloc(mn, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
     if (!result) {
         sparse_svd_free(&svd);
         return SPARSE_ERR_ALLOC;

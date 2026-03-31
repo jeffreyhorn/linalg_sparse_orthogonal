@@ -163,4 +163,46 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *
                                 const sparse_gmres_opts_t *opts, sparse_precond_fn precond,
                                 const void *precond_ctx, sparse_iter_result_t *result);
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Matrix-free iterative solvers
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief Matrix-free matrix-vector product callback.
+ *
+ * Computes y = A*x for an implicit linear operator. The operator is
+ * defined by the context pointer (e.g., a struct containing the operator
+ * parameters).
+ *
+ * @param ctx  User-supplied context (e.g., operator parameters).
+ * @param n    Vector length (operator dimension — square operator assumed).
+ * @param x    Input vector of length n.
+ * @param y    Output vector of length n (overwritten with A*x).
+ * @return SPARSE_OK on success, or an error code on failure.
+ */
+typedef sparse_err_t (*sparse_matvec_fn)(const void *ctx, idx_t n, const double *x, double *y);
+
+/**
+ * @brief Solve A*x = b using matrix-free Conjugate Gradient.
+ *
+ * Same algorithm as sparse_solve_cg() but the matrix-vector product A*x
+ * is provided via a callback instead of an explicit SparseMatrix.
+ *
+ * @param matvec     Callback computing y = A*x. Must not be NULL.
+ * @param matvec_ctx Context pointer passed to matvec callback.
+ * @param n          System dimension (A is n×n).
+ * @param b          Right-hand side vector of length n.
+ * @param x          On entry, initial guess; on exit, approximate solution.
+ * @param opts       Solver options (NULL for defaults).
+ * @param precond    Preconditioner callback (NULL for none).
+ * @param precond_ctx Context pointer passed to precond callback.
+ * @param result     Output: iteration count, residual, convergence flag (may be NULL).
+ * @return SPARSE_OK on convergence, SPARSE_ERR_NOT_CONVERGED otherwise.
+ * @return SPARSE_ERR_NULL if matvec, b, or x is NULL.
+ */
+sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx, idx_t n,
+                                const double *b, double *x, const sparse_iter_opts_t *opts,
+                                sparse_precond_fn precond, const void *precond_ctx,
+                                sparse_iter_result_t *result);
+
 #endif /* SPARSE_ITERATIVE_H */

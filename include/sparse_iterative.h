@@ -205,4 +205,27 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
                                 sparse_precond_fn precond, const void *precond_ctx,
                                 sparse_iter_result_t *result);
 
+/**
+ * @brief Solve A*x = b using matrix-free restarted GMRES(k).
+ *
+ * Same algorithm as sparse_solve_gmres() but the matrix-vector product A*x
+ * is provided via a callback instead of an explicit SparseMatrix.
+ *
+ * @param matvec     Callback computing y = A*x. Must not be NULL.
+ * @param matvec_ctx Context pointer passed to matvec callback.
+ * @param n          System dimension (A is n×n).
+ * @param b          Right-hand side vector of length n.
+ * @param x          On entry, initial guess; on exit, approximate solution.
+ * @param opts       Solver options (NULL for defaults).
+ * @param precond    Preconditioner callback (NULL for none).
+ * @param precond_ctx Context pointer passed to precond callback.
+ * @param result     Output: iteration count, residual, convergence flag (may be NULL).
+ * @return SPARSE_OK on convergence, SPARSE_ERR_NOT_CONVERGED otherwise.
+ * @return SPARSE_ERR_NULL if matvec, b, or x is NULL.
+ */
+sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_ctx, idx_t n,
+                                   const double *b, double *x, const sparse_gmres_opts_t *opts,
+                                   sparse_precond_fn precond, const void *precond_ctx,
+                                   sparse_iter_result_t *result);
+
 #endif /* SPARSE_ITERATIVE_H */

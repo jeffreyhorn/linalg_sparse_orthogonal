@@ -309,9 +309,43 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
 #define H(i, j) h[(size_t)(i) + (size_t)(j) * ((size_t)(m) + 1)]
 #define V(col) (&v[(size_t)(col) * (size_t)n])
 
+/* Adapter: wrap SparseMatrix* into sparse_matvec_fn for GMRES */
+static sparse_err_t gmres_sparse_matvec_adapter(const void *ctx, idx_t n, const double *x_in,
+                                                double *y_out) {
+    (void)n;
+    const SparseMatrix *A = (const SparseMatrix *)ctx;
+    sparse_matvec(A, x_in, y_out);
+    return SPARSE_OK;
+}
+
 sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *x,
                                 const sparse_gmres_opts_t *opts, sparse_precond_fn precond,
                                 const void *precond_ctx, sparse_iter_result_t *result) {
+    if (!A || !b || !x) {
+        if (result) {
+            result->iterations = 0;
+            result->residual_norm = 0.0;
+            result->converged = 0;
+        }
+        return SPARSE_ERR_NULL;
+    }
+    if (sparse_rows(A) != sparse_cols(A)) {
+        if (result) {
+            result->iterations = 0;
+            result->residual_norm = 0.0;
+            result->converged = 0;
+        }
+        return SPARSE_ERR_SHAPE;
+    }
+
+    return sparse_solve_gmres_mf(gmres_sparse_matvec_adapter, A, sparse_rows(A), b, x, opts,
+                                 precond, precond_ctx, result);
+}
+
+sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_ctx, idx_t n,
+                                   const double *b, double *x, const sparse_gmres_opts_t *opts,
+                                   sparse_precond_fn precond, const void *precond_ctx,
+                                   sparse_iter_result_t *result) {
     /* Initialize result to safe defaults before any early return */
     if (result) {
         result->iterations = 0;
@@ -319,17 +353,14 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *
         result->converged = 0;
     }
 
-    if (!A || !b || !x)
+    if (!matvec || !b || !x)
         return SPARSE_ERR_NULL;
-    if (sparse_rows(A) != sparse_cols(A))
-        return SPARSE_ERR_SHAPE;
 
     const sparse_gmres_opts_t *o = opts ? opts : &gmres_defaults;
     if (o->max_iter < 0 || o->restart <= 0 || o->tol < 0.0)
         return SPARSE_ERR_BADARG;
     if (o->precond_side != SPARSE_PRECOND_LEFT && o->precond_side != SPARSE_PRECOND_RIGHT)
         return SPARSE_ERR_BADARG;
-    idx_t n = sparse_rows(A);
     idx_t m = o->restart; /* restart parameter */
     int right_precond = (precond && o->precond_side == SPARSE_PRECOND_RIGHT);
 
@@ -350,13 +381,19 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *
         return SPARSE_OK;
     }
 
+    sparse_err_t merr;
+
     /* Fast path for max_iter==0: compute initial residual without
      * allocating the full Arnoldi workspace */
     if (o->max_iter == 0) {
         double *tmp = malloc((size_t)n * sizeof(double));
         if (!tmp)
             return SPARSE_ERR_ALLOC;
-        sparse_matvec(A, x, tmp);
+        merr = matvec(matvec_ctx, n, x, tmp);
+        if (merr != SPARSE_OK) {
+            free(tmp);
+            return merr;
+        }
         for (idx_t i = 0; i < n; i++)
             tmp[i] = b[i] - tmp[i];
         double rr = vec_norm2(tmp, n) / bnorm;
@@ -384,7 +421,11 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *
         double *tmp = malloc((size_t)n * sizeof(double));
         if (!tmp)
             return SPARSE_ERR_ALLOC;
-        sparse_matvec(A, x, tmp);
+        merr = matvec(matvec_ctx, n, x, tmp);
+        if (merr != SPARSE_OK) {
+            free(tmp);
+            return merr;
+        }
         for (idx_t i = 0; i < n; i++)
             tmp[i] = b[i] - tmp[i];
         double rr = vec_norm2(tmp, n) / bnorm;
@@ -455,7 +496,7 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *
 
     for (idx_t restart = 0; restart < max_restarts && !converged; restart++) {
         /* Compute r = b - A*x */
-        sparse_matvec(A, x, w);
+        matvec(matvec_ctx, n, x, w);
         for (idx_t i = 0; i < n; i++)
             V(0)[i] = b[i] - w[i];
 
@@ -503,10 +544,10 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *
                     free(mem);
                     return perr;
                 }
-                sparse_matvec(A, V(j + 1), w);
+                matvec(matvec_ctx, n, V(j + 1), w);
             } else {
                 /* w = A * v_j */
-                sparse_matvec(A, V(j), w);
+                matvec(matvec_ctx, n, V(j), w);
 
                 /* Left preconditioning: w = M^{-1} * A * v_j */
                 if (precond) {
@@ -614,7 +655,7 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *
         }
 
         /* Compute true residual to decide convergence */
-        sparse_matvec(A, x, w);
+        matvec(matvec_ctx, n, x, w);
         for (idx_t i = 0; i < n; i++)
             w[i] = b[i] - w[i];
         rel_res = vec_norm2(w, n) / bnorm;

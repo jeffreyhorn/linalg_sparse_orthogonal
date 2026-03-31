@@ -175,53 +175,51 @@ void bidiag_svd_step(double *diag, double *superdiag, idx_t lo, idx_t hi, double
     double z = diag[lo] * superdiag[lo];
 
     for (idx_t k = lo; k < hi; k++) {
-        /* Right Givens: zero z using y → rotates columns k, k+1 */
         double c, s;
         givens_compute(y, z, &c, &s);
 
-        /* Apply right rotation to B (affects columns k, k+1) */
-        /* Row k: [diag[k], superdiag[k]] → rotated */
-        /* Row k-1 (if k>lo): [0, superdiag[k-1]] already set by previous left rotation */
-        if (k > lo) {
-            double tmp = superdiag[k - 1];
-            superdiag[k - 1] = c * tmp + s * 0.0; /* bulge was zeroed */
-            /* No entry at (k-1, k+1) after rotation since B is bidiag */
-        }
+        /* --- Right rotation G_R on columns k, k+1 of B --- */
+        /* B_new = B * G_R where G_R = [c s; -s c] */
+        if (k > lo)
+            superdiag[k - 1] = c * superdiag[k - 1]; /* zero bulge already cleared */
 
-        double dk = diag[k];
-        double ek = superdiag[k];
+        double dk = diag[k], ek = superdiag[k], dk1 = diag[k + 1];
         diag[k] = c * dk + s * ek;
         superdiag[k] = -s * dk + c * ek;
-
-        /* Bulge appears at (k+1, k): z_new = s * diag[k+1] */
-        double dk1 = diag[k + 1];
         double bulge = s * dk1;
         diag[k + 1] = c * dk1;
 
-        /* Accumulate right rotation into V: V_new = V * G */
+        /* V = V * G_R: update columns k, k+1 of V */
         if (V) {
-            givens_apply_left(c, s, &V[(size_t)k * (size_t)n], &V[(size_t)(k + 1) * (size_t)n], n);
+            for (idx_t i = 0; i < n; i++) {
+                double vk = V[(size_t)k * (size_t)n + (size_t)i];
+                double vk1 = V[(size_t)(k + 1) * (size_t)n + (size_t)i];
+                V[(size_t)k * (size_t)n + (size_t)i] = c * vk + s * vk1;
+                V[(size_t)(k + 1) * (size_t)n + (size_t)i] = -s * vk + c * vk1;
+            }
         }
 
-        /* Left Givens: zero bulge at (k+1, k) */
-        y = diag[k];
-        z = bulge;
-        givens_compute(y, z, &c, &s);
+        /* --- Left rotation G_L on rows k, k+1 of B --- */
+        /* B_new = G_L^T * B where G_L = [c s; -s c], G_L^T = [c -s; s c] */
+        givens_compute(diag[k], bulge, &c, &s);
+        diag[k] = c * diag[k] + s * bulge; /* = hypot */
 
-        diag[k] = c * y + s * z;
-        /* superdiag[k] is updated: mix with the entry at (k, k+1) */
-        double ek_new = superdiag[k];
-        superdiag[k] = c * ek_new + s * diag[k + 1];
-        diag[k + 1] = -s * ek_new + c * diag[k + 1];
+        double ek2 = superdiag[k], dk12 = diag[k + 1];
+        superdiag[k] = c * ek2 + s * dk12;
+        diag[k + 1] = -s * ek2 + c * dk12;
 
-        /* Accumulate left rotation into U: U_new = U * G */
+        /* U = U * G_L: update columns k, k+1 of U */
         if (U) {
-            givens_apply_left(c, s, &U[(size_t)k * (size_t)m], &U[(size_t)(k + 1) * (size_t)m], m);
+            for (idx_t i = 0; i < m; i++) {
+                double uk = U[(size_t)k * (size_t)m + (size_t)i];
+                double uk1 = U[(size_t)(k + 1) * (size_t)m + (size_t)i];
+                U[(size_t)k * (size_t)m + (size_t)i] = c * uk + s * uk1;
+                U[(size_t)(k + 1) * (size_t)m + (size_t)i] = -s * uk + c * uk1;
+            }
         }
 
-        /* Prepare for next iteration */
+        /* Prepare for next right rotation */
         if (k + 1 < hi) {
-            /* New bulge at (k, k+2): comes from superdiag[k+1] */
             y = superdiag[k];
             z = s * superdiag[k + 1];
             superdiag[k + 1] = c * superdiag[k + 1];

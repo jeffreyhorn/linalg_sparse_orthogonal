@@ -1206,6 +1206,198 @@ static void test_partial_svd_nos4(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Partial SVD validation (Sprint 8 Day 12)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* k=1: single largest singular value */
+static void test_partial_svd_k1(void) {
+    idx_t n = 8;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, (double)(n - i));
+
+    sparse_svd_t full;
+    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+
+    sparse_svd_t partial;
+    ASSERT_ERR(sparse_svd_partial(A, 1, NULL, &partial), SPARSE_OK);
+
+    ASSERT_EQ(partial.k, 1);
+    printf("    k=1: partial=%.6f, full=%.6f\n", partial.sigma[0], full.sigma[0]);
+    ASSERT_NEAR(partial.sigma[0], full.sigma[0], 1e-10);
+
+    sparse_svd_free(&full);
+    sparse_svd_free(&partial);
+    sparse_free(A);
+}
+
+/* Rank-deficient matrix: k > rank should still work (extra values near zero) */
+static void test_partial_svd_rank_deficient(void) {
+    /* 6×4 matrix with rank 2: col0=col1, col2=col3 */
+    SparseMatrix *A = sparse_create(6, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < 6; i++) {
+        sparse_insert(A, i, 0, (double)(i + 1));
+        sparse_insert(A, i, 1, (double)(i + 1));
+        sparse_insert(A, i, 2, (double)(i * 2 + 1));
+        sparse_insert(A, i, 3, (double)(i * 2 + 1));
+    }
+
+    sparse_svd_t full;
+    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+
+    /* k=4 = min(m,n), but true rank is 2 */
+    sparse_svd_t partial;
+    ASSERT_ERR(sparse_svd_partial(A, 4, NULL, &partial), SPARSE_OK);
+
+    ASSERT_EQ(partial.k, 4);
+    /* Top 2 should be non-trivial, bottom 2 near zero */
+    printf("    rank-def: sigma=[%.4f, %.4f, %.4f, %.4f]\n", partial.sigma[0], partial.sigma[1],
+           partial.sigma[2], partial.sigma[3]);
+    ASSERT_TRUE(partial.sigma[0] > 0.1);
+    ASSERT_TRUE(partial.sigma[1] > 0.1);
+    ASSERT_NEAR(partial.sigma[2], 0.0, 1e-8);
+    ASSERT_NEAR(partial.sigma[3], 0.0, 1e-8);
+
+    /* Top 2 match full SVD */
+    ASSERT_NEAR(partial.sigma[0], full.sigma[0], 1e-8);
+    ASSERT_NEAR(partial.sigma[1], full.sigma[1], 1e-8);
+
+    sparse_svd_free(&full);
+    sparse_svd_free(&partial);
+    sparse_free(A);
+}
+
+/* Partial SVD on west0067: top singular values match full SVD */
+static void test_partial_svd_west0067(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/west0067.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+
+    sparse_svd_t full;
+    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+
+    idx_t kk = 5;
+    sparse_svd_t partial;
+    ASSERT_ERR(sparse_svd_partial(A, kk, NULL, &partial), SPARSE_OK);
+
+    ASSERT_EQ(partial.k, kk);
+    printf("    west0067 partial SVD (k=%d):\n", (int)kk);
+    for (idx_t i = 0; i < kk; i++) {
+        printf("      sigma[%d]: partial=%.6f, full=%.6f\n", (int)i, partial.sigma[i],
+               full.sigma[i]);
+        ASSERT_NEAR(partial.sigma[i], full.sigma[i], 0.1 * full.sigma[i]);
+    }
+
+    sparse_svd_free(&full);
+    sparse_svd_free(&partial);
+    sparse_free(A);
+}
+
+/* Descending order guaranteed for partial SVD */
+static void test_partial_svd_descending(void) {
+    idx_t n = 15;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Non-trivial matrix: tridiagonal */
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 2.0 * (double)(i + 1));
+        if (i + 1 < n)
+            sparse_insert(A, i, i + 1, 1.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, 1.0);
+    }
+
+    sparse_svd_t partial;
+    ASSERT_ERR(sparse_svd_partial(A, 7, NULL, &partial), SPARSE_OK);
+
+    ASSERT_EQ(partial.k, 7);
+    /* All positive */
+    for (idx_t i = 0; i < 7; i++)
+        ASSERT_TRUE(partial.sigma[i] >= 0.0);
+    /* Descending */
+    for (idx_t i = 1; i < 7; i++)
+        ASSERT_TRUE(partial.sigma[i] <= partial.sigma[i - 1] + 1e-10);
+
+    printf("    descending: sigma[0]=%.4f, sigma[6]=%.4f\n", partial.sigma[0], partial.sigma[6]);
+
+    sparse_svd_free(&partial);
+    sparse_free(A);
+}
+
+/* Timing comparison: partial vs full SVD on nos4 */
+static void test_partial_svd_timing(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+
+    /* Time full SVD */
+    clock_t t0 = clock();
+    sparse_svd_t full;
+    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+    double full_time = (double)(clock() - t0) / CLOCKS_PER_SEC;
+
+    /* Time partial SVD (k=5) */
+    t0 = clock();
+    sparse_svd_t partial;
+    ASSERT_ERR(sparse_svd_partial(A, 5, NULL, &partial), SPARSE_OK);
+    double partial_time = (double)(clock() - t0) / CLOCKS_PER_SEC;
+
+    printf("    nos4 timing: full=%.4f s, partial(k=5)=%.4f s\n", full_time, partial_time);
+
+    /* Just verify partial is reasonable — timing is informational */
+    ASSERT_EQ(partial.k, 5);
+    ASSERT_TRUE(partial.sigma[0] > 0.0);
+
+    sparse_svd_free(&full);
+    sparse_svd_free(&partial);
+    sparse_free(A);
+}
+
+/* Partial SVD on dense non-symmetric matrix */
+static void test_partial_svd_nonsymmetric(void) {
+    idx_t m = 10, nc = 8;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Fill with structured non-symmetric values */
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < nc; j++)
+            if ((i + j) % 3 != 0)
+                sparse_insert(A, i, j, (double)(i + 1) / (double)(j + 1));
+
+    sparse_svd_t full;
+    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+
+    sparse_svd_t partial;
+    ASSERT_ERR(sparse_svd_partial(A, 4, NULL, &partial), SPARSE_OK);
+
+    ASSERT_EQ(partial.k, 4);
+    printf("    non-symmetric 10x8 partial (k=4):\n");
+    for (idx_t i = 0; i < 4; i++) {
+        printf("      sigma[%d]: partial=%.6f, full=%.6f\n", (int)i, partial.sigma[i],
+               full.sigma[i]);
+        ASSERT_NEAR(partial.sigma[i], full.sigma[i], 0.05 * full.sigma[i] + 1e-10);
+    }
+
+    sparse_svd_free(&full);
+    sparse_svd_free(&partial);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -1269,6 +1461,14 @@ int main(void) {
     RUN_TEST(test_partial_svd_tall);
     RUN_TEST(test_partial_svd_wide);
     RUN_TEST(test_partial_svd_nos4);
+
+    /* Partial SVD validation (Day 12) */
+    RUN_TEST(test_partial_svd_k1);
+    RUN_TEST(test_partial_svd_rank_deficient);
+    RUN_TEST(test_partial_svd_west0067);
+    RUN_TEST(test_partial_svd_descending);
+    RUN_TEST(test_partial_svd_timing);
+    RUN_TEST(test_partial_svd_nonsymmetric);
 
     TEST_SUITE_END();
 }

@@ -1004,6 +1004,208 @@ static void test_svd_null_input(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Partial SVD via Lanczos bidiagonalization (Sprint 8 Day 11)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Partial SVD NULL inputs */
+static void test_partial_svd_null(void) {
+    sparse_svd_t svd;
+    ASSERT_ERR(sparse_svd_partial(NULL, 3, NULL, &svd), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_svd_partial(NULL, 3, NULL, NULL), SPARSE_ERR_NULL);
+}
+
+/* Partial SVD bad k */
+static void test_partial_svd_bad_k(void) {
+    SparseMatrix *A = sparse_create(5, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < 5; i++)
+        sparse_insert(A, i, i, (double)(i + 1));
+
+    sparse_svd_t svd;
+    ASSERT_ERR(sparse_svd_partial(A, 0, NULL, &svd), SPARSE_ERR_BADARG);
+    ASSERT_ERR(sparse_svd_partial(A, -1, NULL, &svd), SPARSE_ERR_BADARG);
+    ASSERT_ERR(sparse_svd_partial(A, 6, NULL, &svd), SPARSE_ERR_BADARG);
+
+    sparse_free(A);
+}
+
+/* Partial SVD on diagonal 10×10: top 3 should match full SVD */
+static void test_partial_svd_diag_10x10(void) {
+    idx_t n = 10;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, (double)(n - i));
+
+    /* Full SVD for reference */
+    sparse_svd_t full;
+    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+
+    /* Partial: k=3 */
+    sparse_svd_t partial;
+    ASSERT_ERR(sparse_svd_partial(A, 3, NULL, &partial), SPARSE_OK);
+
+    ASSERT_EQ(partial.k, 3);
+    ASSERT_EQ(partial.m, n);
+    ASSERT_EQ(partial.n, n);
+
+    /* Top 3 singular values should match */
+    for (idx_t i = 0; i < 3; i++) {
+        printf("    partial sigma[%d]=%.6f, full sigma[%d]=%.6f\n", (int)i, partial.sigma[i],
+               (int)i, full.sigma[i]);
+        ASSERT_NEAR(partial.sigma[i], full.sigma[i], 1e-10);
+    }
+
+    /* No U/Vt (partial doesn't compute them) */
+    ASSERT_TRUE(partial.U == NULL);
+    ASSERT_TRUE(partial.Vt == NULL);
+
+    sparse_svd_free(&full);
+    sparse_svd_free(&partial);
+    sparse_free(A);
+}
+
+/* Partial SVD k = min(m,n): should match full SVD */
+static void test_partial_svd_full_k(void) {
+    idx_t n = 5;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, (double)(n - i));
+
+    sparse_svd_t full;
+    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+
+    sparse_svd_t partial;
+    ASSERT_ERR(sparse_svd_partial(A, n, NULL, &partial), SPARSE_OK);
+
+    ASSERT_EQ(partial.k, n);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(partial.sigma[i], full.sigma[i], 1e-10);
+
+    sparse_svd_free(&full);
+    sparse_svd_free(&partial);
+    sparse_free(A);
+}
+
+/* Partial SVD on dense-ish matrix: top k singular values match */
+static void test_partial_svd_dense_8x8(void) {
+    idx_t n = 8;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Symmetric positive definite: A(i,j) = 1/(i+j+1) (Hilbert-like) */
+    for (idx_t i = 0; i < n; i++)
+        for (idx_t j = 0; j < n; j++)
+            sparse_insert(A, i, j, 1.0 / (double)(i + j + 1));
+
+    sparse_svd_t full;
+    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+
+    idx_t kk = 4;
+    sparse_svd_t partial;
+    ASSERT_ERR(sparse_svd_partial(A, kk, NULL, &partial), SPARSE_OK);
+
+    ASSERT_EQ(partial.k, kk);
+    printf("    Hilbert 8x8 partial SVD (k=%d):\n", (int)kk);
+    for (idx_t i = 0; i < kk; i++) {
+        printf("      sigma[%d]: partial=%.8f, full=%.8f\n", (int)i, partial.sigma[i],
+               full.sigma[i]);
+        ASSERT_NEAR(partial.sigma[i], full.sigma[i], 1e-8);
+    }
+
+    sparse_svd_free(&full);
+    sparse_svd_free(&partial);
+    sparse_free(A);
+}
+
+/* Partial SVD on rectangular tall matrix */
+static void test_partial_svd_tall(void) {
+    idx_t m = 10, nc = 5;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < nc; i++)
+        sparse_insert(A, i, i, (double)(nc - i));
+
+    sparse_svd_t full;
+    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+
+    sparse_svd_t partial;
+    ASSERT_ERR(sparse_svd_partial(A, 3, NULL, &partial), SPARSE_OK);
+
+    ASSERT_EQ(partial.k, 3);
+    for (idx_t i = 0; i < 3; i++)
+        ASSERT_NEAR(partial.sigma[i], full.sigma[i], 1e-10);
+
+    sparse_svd_free(&full);
+    sparse_svd_free(&partial);
+    sparse_free(A);
+}
+
+/* Partial SVD on wide matrix */
+static void test_partial_svd_wide(void) {
+    idx_t m = 5, nc = 10;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < m; i++)
+        sparse_insert(A, i, i, (double)(m - i));
+
+    sparse_svd_t full;
+    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+
+    sparse_svd_t partial;
+    ASSERT_ERR(sparse_svd_partial(A, 3, NULL, &partial), SPARSE_OK);
+
+    ASSERT_EQ(partial.k, 3);
+    /* Lanczos on wide matrices converges more slowly; use relative tolerance */
+    for (idx_t i = 0; i < 3; i++)
+        ASSERT_NEAR(partial.sigma[i], full.sigma[i], 0.05 * full.sigma[i]);
+
+    sparse_svd_free(&full);
+    sparse_svd_free(&partial);
+    sparse_free(A);
+}
+
+/* Partial SVD on nos4 (100×100): top 5 match full SVD */
+static void test_partial_svd_nos4(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+
+    sparse_svd_t full;
+    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+
+    idx_t kk = 5;
+    sparse_svd_t partial;
+    ASSERT_ERR(sparse_svd_partial(A, kk, NULL, &partial), SPARSE_OK);
+
+    ASSERT_EQ(partial.k, kk);
+    printf("    nos4 partial SVD (k=%d):\n", (int)kk);
+    for (idx_t i = 0; i < kk; i++) {
+        printf("      sigma[%d]: partial=%.6f, full=%.6f\n", (int)i, partial.sigma[i],
+               full.sigma[i]);
+        ASSERT_NEAR(partial.sigma[i], full.sigma[i], 0.1 * full.sigma[i]);
+    }
+
+    sparse_svd_free(&full);
+    sparse_svd_free(&partial);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -1057,6 +1259,16 @@ int main(void) {
     RUN_TEST(test_svd_west0067);
     RUN_TEST(test_svd_rank_vs_qr);
     RUN_TEST(test_svd_null_input);
+
+    /* Partial SVD / Lanczos (Day 11) */
+    RUN_TEST(test_partial_svd_null);
+    RUN_TEST(test_partial_svd_bad_k);
+    RUN_TEST(test_partial_svd_diag_10x10);
+    RUN_TEST(test_partial_svd_full_k);
+    RUN_TEST(test_partial_svd_dense_8x8);
+    RUN_TEST(test_partial_svd_tall);
+    RUN_TEST(test_partial_svd_wide);
+    RUN_TEST(test_partial_svd_nos4);
 
     TEST_SUITE_END();
 }

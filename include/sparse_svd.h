@@ -89,4 +89,25 @@ void sparse_svd_free(sparse_svd_t *svd);
  */
 sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double *V);
 
+/**
+ * @brief Compute the k largest singular values (and optionally vectors) via
+ *        Lanczos bidiagonalization.
+ *
+ * More efficient than full SVD when k << min(m,n). Uses iterative
+ * Lanczos bidiagonalization to build a small k×k bidiagonal, then
+ * applies the bidiagonal SVD iteration to extract singular values.
+ *
+ * @param A    The matrix (not modified). Must have identity permutations.
+ * @param k    Number of singular values to compute.
+ * @param opts Options (NULL for defaults). Only max_iter and tol are used.
+ * @param svd  Output: partial SVD result (sigma has k entries).
+ *             Must be freed with sparse_svd_free().
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if A or svd is NULL.
+ * @return SPARSE_ERR_BADARG if k <= 0 or k > min(m,n).
+ * @return SPARSE_ERR_ALLOC if memory allocation fails.
+ */
+sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t k, const sparse_svd_opts_t *opts,
+                                sparse_svd_t *svd);
+
 #endif /* SPARSE_SVD_H */

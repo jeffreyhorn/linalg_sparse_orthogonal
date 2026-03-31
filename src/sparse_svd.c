@@ -181,7 +181,7 @@ void bidiag_svd_step(double *diag, double *superdiag, idx_t lo, idx_t hi, double
         /* --- Right rotation G_R on columns k, k+1 of B --- */
         /* B_new = B * G_R where G_R = [c s; -s c] */
         if (k > lo)
-            superdiag[k - 1] = c * superdiag[k - 1]; /* zero bulge already cleared */
+            superdiag[k - 1] = c * superdiag[k - 1] + s * z; /* row k-1: both bidiag and bulge */
 
         double dk = diag[k], ek = superdiag[k], dk1 = diag[k + 1];
         diag[k] = c * dk + s * ek;
@@ -559,5 +559,190 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
         }
     }
 
+    return SPARSE_OK;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Partial SVD via Lanczos bidiagonalization
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_svd_opts_t *opts,
+                                sparse_svd_t *svd) {
+    if (!svd)
+        return SPARSE_ERR_NULL;
+    memset(svd, 0, sizeof(*svd));
+    if (!A)
+        return SPARSE_ERR_NULL;
+
+    idx_t m = sparse_rows(A);
+    idx_t n = sparse_cols(A);
+    idx_t kmax = (m < n) ? m : n;
+
+    if (kk <= 0 || kk > kmax)
+        return SPARSE_ERR_BADARG;
+
+    svd->m = m;
+    svd->n = n;
+    svd->k = kk;
+
+    /* Use more Lanczos steps than k for better convergence */
+    idx_t lanczos_k = 2 * kk + 10;
+    if (lanczos_k > kmax)
+        lanczos_k = kmax;
+
+    /* Transpose for A^T * x operations */
+    SparseMatrix *At = sparse_transpose(A);
+    if (!At)
+        return SPARSE_ERR_ALLOC;
+
+    /* Allocate Lanczos vectors: P (m x lanczos_k) and Q (n x (lanczos_k+1)) */
+    double *P = calloc((size_t)m * (size_t)lanczos_k, sizeof(double));
+    double *Q = calloc((size_t)n * (size_t)(lanczos_k + 1), sizeof(double));
+    double *alpha = calloc((size_t)lanczos_k, sizeof(double));
+    double *beta = calloc((size_t)(lanczos_k + 1), sizeof(double));
+
+    if (!P || !Q || !alpha || !beta) {
+        free(P);
+        free(Q);
+        free(alpha);
+        free(beta);
+        sparse_free(At);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    /* Initialize q_0 = [1/sqrt(n), ...] (unit vector) */
+    {
+        double inv_sqrt_n = 1.0 / sqrt((double)n);
+        for (idx_t i = 0; i < n; i++)
+            Q[i] = inv_sqrt_n;
+    }
+
+    beta[0] = 0.0;
+
+    for (idx_t j = 0; j < lanczos_k; j++) {
+        double *qj = &Q[(size_t)j * (size_t)n];
+        double *pj = &P[(size_t)j * (size_t)m];
+
+        /* p_j = A * q_j */
+        sparse_matvec(A, qj, pj);
+
+        /* p_j = p_j - beta_j * p_{j-1} */
+        if (j > 0) {
+            double *pjm1 = &P[(size_t)(j - 1) * (size_t)m];
+            for (idx_t i = 0; i < m; i++)
+                pj[i] -= beta[j] * pjm1[i];
+        }
+
+        /* Reorthogonalize p_j against p_0..p_{j-1} */
+        for (idx_t r = 0; r < j; r++) {
+            double *pr = &P[(size_t)r * (size_t)m];
+            double dot = 0.0;
+            for (idx_t i = 0; i < m; i++)
+                dot += pr[i] * pj[i];
+            for (idx_t i = 0; i < m; i++)
+                pj[i] -= dot * pr[i];
+        }
+
+        /* alpha_j = ||p_j|| */
+        double anorm = 0.0;
+        for (idx_t i = 0; i < m; i++)
+            anorm += pj[i] * pj[i];
+        anorm = sqrt(anorm);
+        alpha[j] = anorm;
+
+        if (anorm > 1e-30) {
+            double inv = 1.0 / anorm;
+            for (idx_t i = 0; i < m; i++)
+                pj[i] *= inv;
+        }
+
+        /* r = A^T * p_j - alpha_j * q_j */
+        double *qj1 = &Q[(size_t)(j + 1) * (size_t)n];
+        sparse_matvec(At, pj, qj1);
+        for (idx_t i = 0; i < n; i++)
+            qj1[i] -= alpha[j] * qj[i];
+
+        /* Reorthogonalize q_{j+1} against q_0..q_j */
+        for (idx_t r = 0; r <= j; r++) {
+            double *qr = &Q[(size_t)r * (size_t)n];
+            double dot = 0.0;
+            for (idx_t i = 0; i < n; i++)
+                dot += qr[i] * qj1[i];
+            for (idx_t i = 0; i < n; i++)
+                qj1[i] -= dot * qr[i];
+        }
+
+        /* beta_{j+1} = ||q_{j+1}|| */
+        double bnorm = 0.0;
+        for (idx_t i = 0; i < n; i++)
+            bnorm += qj1[i] * qj1[i];
+        bnorm = sqrt(bnorm);
+        beta[j + 1] = bnorm;
+
+        if (j + 1 < lanczos_k && bnorm > 1e-30) {
+            double inv = 1.0 / bnorm;
+            for (idx_t i = 0; i < n; i++)
+                qj1[i] *= inv;
+        }
+    }
+
+    sparse_free(At);
+    free(P);
+    free(Q);
+
+    /* Now we have a lanczos_k x lanczos_k bidiagonal with
+     * diag=alpha, superdiag=beta[1..lanczos_k-1] */
+    double *bd_super = NULL;
+    if (lanczos_k > 1) {
+        bd_super = malloc((size_t)(lanczos_k - 1) * sizeof(double));
+        if (!bd_super) {
+            free(alpha);
+            free(beta);
+            return SPARSE_ERR_ALLOC;
+        }
+        for (idx_t i = 0; i < lanczos_k - 1; i++)
+            bd_super[i] = beta[i + 1];
+    }
+    free(beta);
+
+    /* Run bidiagonal SVD iteration on the small lanczos_k x lanczos_k bidiag */
+    idx_t max_iter_val = opts ? opts->max_iter : 0;
+    double tol_val = opts ? opts->tol : 0.0;
+    sparse_err_t err =
+        bidiag_svd_iterate(alpha, bd_super, lanczos_k, NULL, 0, NULL, 0, max_iter_val, tol_val);
+    free(bd_super);
+
+    if (err != SPARSE_OK) {
+        free(alpha);
+        return err;
+    }
+
+    /* Make non-negative and sort descending */
+    for (idx_t i = 0; i < lanczos_k; i++)
+        if (alpha[i] < 0.0)
+            alpha[i] = -alpha[i];
+
+    for (idx_t i = 0; i < lanczos_k - 1; i++) {
+        idx_t best = i;
+        for (idx_t j = i + 1; j < lanczos_k; j++)
+            if (alpha[j] > alpha[best])
+                best = j;
+        if (best != i) {
+            double tmp = alpha[i];
+            alpha[i] = alpha[best];
+            alpha[best] = tmp;
+        }
+    }
+
+    /* Keep only the top kk singular values */
+    double *sigma = malloc((size_t)kk * sizeof(double));
+    if (!sigma) {
+        free(alpha);
+        return SPARSE_ERR_ALLOC;
+    }
+    memcpy(sigma, alpha, (size_t)kk * sizeof(double));
+    free(alpha);
+
+    svd->sigma = sigma;
     return SPARSE_OK;
 }

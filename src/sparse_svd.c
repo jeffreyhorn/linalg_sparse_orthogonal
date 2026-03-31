@@ -266,11 +266,24 @@ sparse_err_t bidiag_svd_iterate(double *diag, double *superdiag, idx_t k, double
     idx_t total_iter = 0;
     idx_t hi = k - 1;
 
+    /* Compute an absolute tolerance floor based on the matrix norm */
+    double bidiag_norm = 0.0;
+    for (idx_t i = 0; i < k; i++) {
+        double row_sum = fabs(diag[i]);
+        if (i < k - 1)
+            row_sum += fabs(superdiag[i]);
+        if (row_sum > bidiag_norm)
+            bidiag_norm = row_sum;
+    }
+    double abs_tol = tol * bidiag_norm;
+    if (abs_tol < 1e-30)
+        abs_tol = 1e-30;
+
     while (hi > 0 && total_iter < max_iter) {
         /* Check for deflation at bottom */
         double off = fabs(superdiag[hi - 1]);
         double dsum = fabs(diag[hi - 1]) + fabs(diag[hi]);
-        if (off <= tol * dsum || off < 1e-30) {
+        if (off <= tol * dsum || off < abs_tol) {
             superdiag[hi - 1] = 0.0;
             hi--;
             continue;
@@ -281,7 +294,7 @@ sparse_err_t bidiag_svd_iterate(double *diag, double *superdiag, idx_t k, double
         while (lo > 0) {
             double off_lo = fabs(superdiag[lo - 1]);
             double ds_lo = fabs(diag[lo - 1]) + fabs(diag[lo]);
-            if (off_lo <= tol * ds_lo || off_lo < 1e-30) {
+            if (off_lo <= tol * ds_lo || off_lo < abs_tol) {
                 superdiag[lo - 1] = 0.0;
                 break;
             }

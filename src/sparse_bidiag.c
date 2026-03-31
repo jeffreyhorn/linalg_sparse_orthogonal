@@ -101,7 +101,11 @@ sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag
         if (err != SPARSE_OK)
             return err;
 
-        /* Store A^T's factorization with transposed flag */
+        /* Store A^T's factorization with transposed flag.
+         * diag/superdiag are the upper bidiagonal of A^T (not A).
+         * Since A = V_t * B_t^T * U_t^T, the bidiagonal of A would be
+         * lower-bidiagonal; we keep the upper-bidiagonal representation
+         * of A^T and let SVD code handle the swap via the transposed flag. */
         bidiag->m = m;
         bidiag->n = n;
         bidiag->diag = bd_t.diag;

@@ -858,6 +858,80 @@ static void test_svd_wide_5x10(void) {
     sparse_free(A);
 }
 
+/* SVD on wide rectangular 5×10 with UV: reconstruction and orthogonality */
+static void test_svd_wide_5x10_uv(void) {
+    idx_t m = 5, nc = 10;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+
+    /* Non-diagonal wide matrix */
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 3, 1.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 4, -1.0);
+    sparse_insert(A, 2, 2, -2.0);
+    sparse_insert(A, 2, 5, 0.5);
+    sparse_insert(A, 3, 6, 1.5);
+    sparse_insert(A, 3, 8, 2.5);
+    sparse_insert(A, 4, 7, -3.0);
+    sparse_insert(A, 4, 9, 1.0);
+
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1};
+    sparse_svd_t svd;
+    ASSERT_ERR(sparse_svd_compute(A, &opts, &svd), SPARSE_OK);
+
+    idx_t k = svd.k;
+    ASSERT_EQ(k, m);
+    ASSERT_NOT_NULL(svd.U);
+    ASSERT_NOT_NULL(svd.Vt);
+
+    /* U orthonormality: U^T * U ≈ I_k */
+    for (idx_t p = 0; p < k; p++) {
+        for (idx_t q = p; q < k; q++) {
+            double dot = 0.0;
+            for (idx_t i = 0; i < m; i++)
+                dot += svd.U[(size_t)p * (size_t)m + (size_t)i] *
+                       svd.U[(size_t)q * (size_t)m + (size_t)i];
+            double expected = (p == q) ? 1.0 : 0.0;
+            ASSERT_NEAR(dot, expected, 1e-10);
+        }
+    }
+
+    /* Vt orthonormality: Vt * Vt^T ≈ I_k.
+     * Vt is k×nc column-major: Vt[col * k + row] = Vt_matrix[row, col] */
+    for (idx_t p = 0; p < k; p++) {
+        for (idx_t q = p; q < k; q++) {
+            double dot = 0.0;
+            for (idx_t j = 0; j < nc; j++)
+                dot += svd.Vt[(size_t)j * (size_t)k + (size_t)p] *
+                       svd.Vt[(size_t)j * (size_t)k + (size_t)q];
+            double expected = (p == q) ? 1.0 : 0.0;
+            ASSERT_NEAR(dot, expected, 1e-10);
+        }
+    }
+
+    /* Reconstruction: U * diag(sigma) * Vt ≈ A */
+    double max_err = 0.0;
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < nc; j++) {
+            double val = 0.0;
+            for (idx_t r = 0; r < k; r++)
+                val += svd.U[(size_t)r * (size_t)m + (size_t)i] * svd.sigma[r] *
+                       svd.Vt[(size_t)j * (size_t)k + (size_t)r];
+            double err = fabs(val - sparse_get(A, i, j));
+            if (err > max_err)
+                max_err = err;
+        }
+    }
+    printf("    wide 5x10 UV recon: ||U*S*Vt - A||_max = %.3e\n", max_err);
+    ASSERT_TRUE(max_err < 1e-10);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
 /* SVD singular-values-only vs with-UV: same sigma */
 static void test_svd_sigma_only_vs_uv(void) {
     SparseMatrix *A = sparse_create(4, 4);
@@ -1780,6 +1854,7 @@ int main(void) {
     /* Full SVD driver (Day 10) */
     RUN_TEST(test_svd_tall_10x5);
     RUN_TEST(test_svd_wide_5x10);
+    RUN_TEST(test_svd_wide_5x10_uv);
     RUN_TEST(test_svd_sigma_only_vs_uv);
     RUN_TEST(test_svd_nos4);
     RUN_TEST(test_svd_west0067);

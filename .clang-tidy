@@ -12,7 +12,6 @@ Checks: >
   -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
   -clang-analyzer-optin.taint.*,
   -clang-analyzer-unix.Stream,
-  -clang-analyzer-security.ArrayBound,
   portability-*,
   misc-*,
   -misc-include-cleaner,

@@ -46,8 +46,10 @@ typedef struct {
  * only on the diagonal and first superdiagonal.
  *
  * Supports both tall/square (m >= n) and wide (m < n) matrices. For
- * m < n, the matrix is transposed internally and U/V are swapped.
- * Non-identity row/column permutations are rejected with SPARSE_ERR_BADARG.
+ * wide matrices (m < n), A^T is factored internally: A^T = U_t * B_t * V_t^T.
+ * The stored diag/superdiag represent B_t (the upper bidiagonal of A^T, not A).
+ * The `transposed` flag is set so that SVD code can swap U<->V and interpret
+ * the bidiagonal correctly. Non-identity permutations are rejected.
  *
  * @param A      The matrix to factor (not modified). Must have identity permutations.
  * @param bidiag Output: bidiagonal factors. Must be freed with sparse_bidiag_free().

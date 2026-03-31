@@ -856,8 +856,10 @@ sparse_err_t sparse_pinv(const SparseMatrix *A, double tol, double **pinv) {
          * result[col_c * n + row_r] += inv_sigma * Vt[row_r * k + i] * U[i * m + col_c]
          */
         for (idx_t c = 0; c < m; c++) {
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
             double u_ci = svd.U[(size_t)i * (size_t)m + (size_t)c] * inv_sigma;
             for (idx_t r = 0; r < n; r++) {
+                // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
                 result[(size_t)c * (size_t)n + (size_t)r] +=
                     svd.Vt[(size_t)r * (size_t)k + (size_t)i] * u_ci;
             }
@@ -909,10 +911,12 @@ sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lo
          * U[:,i] = U_data[i*m .. i*m+m-1]
          * Vt[i,:] has Vt[row=i, col=j] = Vt_data[j*k + i] for j=0..n-1 */
         for (idx_t j = 0; j < n; j++) {
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
             double vt_ij = Vt_data[(size_t)j * (size_t)k + (size_t)i] * si;
             for (idx_t r = 0; r < m; r++) {
-                result[(size_t)j * (size_t)m + (size_t)r] +=
-                    U_data[(size_t)i * (size_t)m + (size_t)r] * vt_ij;
+                /* NOLINTNEXTLINE(clang-analyzer-security.ArrayBound) */
+                double u_ir = U_data[(size_t)i * (size_t)m + (size_t)r];
+                result[(size_t)j * (size_t)m + (size_t)r] += u_ir * vt_ij;
             }
         }
     }

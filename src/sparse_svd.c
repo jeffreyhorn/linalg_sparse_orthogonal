@@ -154,8 +154,8 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
  * Optionally accumulates left rotations into U (m×k col-major)
  * and right rotations into V (n×k col-major).
  */
-void bidiag_svd_step(double *diag, double *superdiag, idx_t lo, idx_t hi, double *U, idx_t m,
-                     double *V, idx_t n) {
+static void bidiag_svd_step(double *diag, double *superdiag, idx_t lo, idx_t hi, double *U, idx_t m,
+                            double *V, idx_t n) {
     /* Compute shift from trailing 2×2 of B^T*B.
      * T = B^T*B trailing 2×2:
      *   T(0,0) = diag[hi-1]^2 + superdiag[hi-2]^2  (if hi-2 >= lo, else diag[hi-1]^2)
@@ -431,7 +431,7 @@ void sparse_svd_free(sparse_svd_t *svd) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
- * Full SVD computation (stub — Days 6-9 will complete)
+ * Full SVD computation
  * ═══════════════════════════════════════════════════════════════════════ */
 
 sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *opts,

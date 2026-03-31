@@ -496,7 +496,11 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
 
     for (idx_t restart = 0; restart < max_restarts && !converged; restart++) {
         /* Compute r = b - A*x */
-        matvec(matvec_ctx, n, x, w);
+        merr = matvec(matvec_ctx, n, x, w);
+        if (merr != SPARSE_OK) {
+            free(mem);
+            return merr;
+        }
         for (idx_t i = 0; i < n; i++)
             V(0)[i] = b[i] - w[i];
 
@@ -544,10 +548,18 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
                     free(mem);
                     return perr;
                 }
-                matvec(matvec_ctx, n, V(j + 1), w);
+                merr = matvec(matvec_ctx, n, V(j + 1), w);
+                if (merr != SPARSE_OK) {
+                    free(mem);
+                    return merr;
+                }
             } else {
                 /* w = A * v_j */
-                matvec(matvec_ctx, n, V(j), w);
+                merr = matvec(matvec_ctx, n, V(j), w);
+                if (merr != SPARSE_OK) {
+                    free(mem);
+                    return merr;
+                }
 
                 /* Left preconditioning: w = M^{-1} * A * v_j */
                 if (precond) {
@@ -655,7 +667,11 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
         }
 
         /* Compute true residual to decide convergence */
-        matvec(matvec_ctx, n, x, w);
+        merr = matvec(matvec_ctx, n, x, w);
+        if (merr != SPARSE_OK) {
+            free(mem);
+            return merr;
+        }
         for (idx_t i = 0; i < n; i++)
             w[i] = b[i] - w[i];
         rel_res = vec_norm2(w, n) / bnorm;

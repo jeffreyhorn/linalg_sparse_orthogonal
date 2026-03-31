@@ -23,8 +23,8 @@
  * ═══════════════════════════════════════════════════════════════════════ */
 
 /**
- * SVD singular values vs eigenvalues of A^T*A on nos4.
- * sigma_i(A)^2 should equal eigenvalue_i(A^T*A).
+ * SVD trace identity on nos4: sum(sigma_i^2) == ||A||_F^2.
+ * This verifies the bidiagonal QR iteration preserves the Frobenius norm.
  */
 static void test_svd_vs_ata_eigenvalues(void) {
     SparseMatrix *A = NULL;

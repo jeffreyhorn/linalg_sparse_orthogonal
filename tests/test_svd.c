@@ -1,4 +1,5 @@
 #include "sparse_bidiag.h"
+#include "sparse_dense.h"
 #include "sparse_matrix.h"
 #include "sparse_qr.h"
 #include "sparse_svd.h"
@@ -9,6 +10,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #ifndef DATA_DIR
 #define DATA_DIR "tests/data"
@@ -26,25 +28,10 @@
 static double gk_reconstruction_error(const SparseMatrix *A, const double *U, const double *V,
                                       const double *diag, const double *superdiag, idx_t m, idx_t n,
                                       idx_t k) {
-    /* Compute U*B first: (m×k) * (k×k bidiag) = m×k */
+    /* Compute U*B: (m×k) * (k×k upper bidiagonal) = m×k */
     double *UB = calloc((size_t)m * (size_t)k, sizeof(double));
     if (!UB)
         return INFINITY;
-
-    for (idx_t j = 0; j < k; j++) {
-        /* UB[:,j] = U[:,j] * diag[j] */
-        for (idx_t i = 0; i < m; i++)
-            UB[(size_t)j * (size_t)m + (size_t)i] = U[(size_t)j * (size_t)m + (size_t)i] * diag[j];
-        /* UB[:,j] += U[:,j-1] * superdiag[j-1] (if j > 0) — no, B is upper bidiag:
-         * B(i,j) nonzero for i==j (diag) and i==j-1 (superdiag).
-         * So UB[:,j] = U[:,j]*B(j,j) + U[:,j-1]*B(j-1,j) for j>0. Wait...
-         * B is k×k with B(i,i)=diag[i], B(i,i+1)=superdiag[i].
-         * (U*B)[:,j] = sum_i U[:,i]*B(i,j).
-         * B(i,j) is nonzero for i=j (diag[j]) and i=j-1 (superdiag[j-1] if j>0).
-         * Wait no: B(i,i+1)=superdiag[i], so B(j-1,j)=superdiag[j-1]. */
-    }
-    /* Redo: UB = U * B where B is upper bidiagonal */
-    memset(UB, 0, (size_t)m * (size_t)k * sizeof(double));
     for (idx_t j = 0; j < k; j++) {
         /* B(j,j) = diag[j] */
         for (idx_t i = 0; i < m; i++)
@@ -552,7 +539,7 @@ static void test_bidiag_svd_3x3_uv(void) {
     }
     printf("    bidiag SVD 3x3 UV recon: %.3e, sigma=[%.4f, %.4f, %.4f]\n", maxerr, diag[0],
            diag[1], diag[2]);
-    ASSERT_TRUE(maxerr < 0.2); /* UV accumulation converges but not to full precision yet */
+    ASSERT_TRUE(maxerr < 1e-10);
     /* All singular values positive */
     ASSERT_TRUE(diag[0] >= 0.0);
     ASSERT_TRUE(diag[1] >= 0.0);
@@ -633,9 +620,7 @@ static void test_svd_trace_invariant(void) {
         sigma_sq_sum += svd.sigma[i] * svd.sigma[i];
 
     printf("    SVD trace: sum(sigma^2)=%.3f, ||A||_F^2=%.3f\n", sigma_sq_sum, frob_sq);
-    /* QR iteration accuracy is limited for non-diagonal matrices; allow
-     * wider tolerance. TODO: fix bidiag QR step algebra for full accuracy. */
-    ASSERT_NEAR(sigma_sq_sum, frob_sq, 10.0);
+    ASSERT_NEAR(sigma_sq_sum, frob_sq, 1e-8);
 
     /* All positive and descending */
     for (idx_t i = 0; i < svd.k; i++)

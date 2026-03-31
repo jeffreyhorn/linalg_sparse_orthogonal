@@ -458,6 +458,12 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
     double svd_tol = opts ? opts->tol : 0.0;
     svd->economy = economy;
 
+    /* Full (non-economy) SVD with UV is not implemented — only economy mode */
+    if (compute_uv && !economy) {
+        sparse_bidiag_free(&bd);
+        return SPARSE_ERR_BADARG;
+    }
+
     /* Copy bidiag arrays (QR iteration modifies them in-place) */
     double *bd_diag = malloc((size_t)k * sizeof(double));
     double *bd_super = (k > 1) ? malloc((size_t)(k - 1) * sizeof(double)) : NULL;
@@ -580,6 +586,22 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
 
     if (kk <= 0 || kk > kmax)
         return SPARSE_ERR_BADARG;
+
+    /* Reject non-identity permutations (same check as sparse_bidiag_factor) */
+    {
+        const idx_t *rp = sparse_row_perm(A);
+        const idx_t *cp = sparse_col_perm(A);
+        if (rp) {
+            for (idx_t i = 0; i < m; i++)
+                if (rp[i] != i)
+                    return SPARSE_ERR_BADARG;
+        }
+        if (cp) {
+            for (idx_t i = 0; i < n; i++)
+                if (cp[i] != i)
+                    return SPARSE_ERR_BADARG;
+        }
+    }
 
     svd->m = m;
     svd->n = n;

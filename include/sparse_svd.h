@@ -29,9 +29,10 @@
  * @brief SVD computation options.
  */
 typedef struct {
-    int compute_uv; /**< If nonzero, compute U and V^T (default: 0 = singular values only) */
-    int economy;    /**< If nonzero and compute_uv, produce thin U (m×k) and V^T (k×n)
-                         where k = min(m,n). Otherwise full U (m×m), V^T (n×n). (default: 0) */
+    int compute_uv; /**< If nonzero, compute U and V^T (default: 0 = singular values only).
+                         Requires economy=1 when set; full SVD (economy=0) is not implemented. */
+    int economy;    /**< Must be nonzero when compute_uv is set (only economy/thin SVD is
+                         implemented). Produces thin U (m×k) and V^T (k×n) where k = min(m,n). */
     idx_t max_iter; /**< Maximum QR iterations (0 for default: 30*k) */
     double tol;     /**< Convergence tolerance for superdiagonal entries (0 for default: 1e-14) */
 } sparse_svd_opts_t;
@@ -62,7 +63,8 @@ typedef struct {
  * @param svd  Output: SVD result. Must be freed with sparse_svd_free().
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or svd is NULL.
- * @return SPARSE_ERR_BADARG if A has non-identity permutations.
+ * @return SPARSE_ERR_BADARG if A has non-identity permutations, or if
+ *         compute_uv is set without economy (full SVD not implemented).
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  * @return SPARSE_ERR_NOT_CONVERGED if QR iteration fails to converge.
  */

@@ -255,8 +255,10 @@ sparse_err_t tridiag_qr_eigenvalues(double *diag, double *subdiag, idx_t n, idx_
     if (!subdiag)
         return SPARSE_ERR_NULL;
 
-    if (max_iter <= 0)
-        max_iter = 30 * n;
+    if (max_iter <= 0) {
+        int64_t default_iter = (int64_t)30 * (int64_t)n;
+        max_iter = (default_iter > INT32_MAX) ? INT32_MAX : (idx_t)default_iter;
+    }
 
     /* Deflation tolerance */
     double tol = 1e-14;

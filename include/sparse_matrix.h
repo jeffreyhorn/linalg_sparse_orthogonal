@@ -91,8 +91,9 @@ SparseMatrix *sparse_copy(const SparseMatrix *mat);
  *       row/col permutations, the transpose reflects the physical layout,
  *       not the logical view.
  *
- * @param A  The matrix to transpose (not modified). Must not be NULL.
- * @return A new SparseMatrix containing A^T, or NULL on failure.
+ * @param A  The matrix to transpose (not modified). May be NULL, in which case
+ *           NULL is returned.
+ * @return A new SparseMatrix containing A^T, or NULL on failure or if A is NULL.
  */
 SparseMatrix *sparse_transpose(const SparseMatrix *A);
 

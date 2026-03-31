@@ -80,7 +80,9 @@ sparse_err_t dense_gemv(const dense_matrix_t *A, const double *x, double *y);
  * Computes c and s such that:
  *   [c  s] * [a] = [r]
  *   [-s c]   [b]   [0]
- * where r = hypot(a, b).
+ * where r has magnitude hypot(a, b). The sign of r depends on the
+ * sign convention: when b==0, r=a (preserving sign); otherwise
+ * r = c*a + s*b with c=a/hypot, s=b/hypot.
  *
  * @param a   First component.
  * @param b   Second component (to be zeroed).

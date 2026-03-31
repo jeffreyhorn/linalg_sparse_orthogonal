@@ -877,18 +877,20 @@ sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lo
     }
 
     idx_t k = svd.k;
+    double *U_data = svd.U;   /* m×k col-major */
+    double *Vt_data = svd.Vt; /* k×n col-major */
     for (idx_t i = 0; i < rank_k && i < k; i++) {
         double si = svd.sigma[i];
         if (si == 0.0)
             break;
         /* Outer product: sigma_i * U[:,i] * Vt[i,:]
-         * U[:,i] = svd.U[i*m .. i*m+m-1]
-         * Vt[i,:] has Vt[row=i, col=j] = svd.Vt[j*k + i] for j=0..n-1 */
+         * U[:,i] = U_data[i*m .. i*m+m-1]
+         * Vt[i,:] has Vt[row=i, col=j] = Vt_data[j*k + i] for j=0..n-1 */
         for (idx_t j = 0; j < n; j++) {
-            double vt_ij = svd.Vt[(size_t)j * (size_t)k + (size_t)i] * si;
+            double vt_ij = Vt_data[(size_t)j * (size_t)k + (size_t)i] * si;
             for (idx_t r = 0; r < m; r++) {
                 result[(size_t)j * (size_t)m + (size_t)r] +=
-                    svd.U[(size_t)i * (size_t)m + (size_t)r] * vt_ij;
+                    U_data[(size_t)i * (size_t)m + (size_t)r] * vt_ij;
             }
         }
     }

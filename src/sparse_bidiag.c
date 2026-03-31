@@ -60,6 +60,7 @@ void sparse_bidiag_free(sparse_bidiag_t *bidiag) {
     memset(bidiag, 0, sizeof(*bidiag));
 }
 
+// NOLINTNEXTLINE(misc-no-recursion)
 sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag) {
     if (!bidiag)
         return SPARSE_ERR_NULL;
@@ -175,7 +176,8 @@ sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag
         return SPARSE_ERR_ALLOC;
     }
 
-    double *hv = malloc((size_t)((m > n ? m : n)) * sizeof(double));
+    idx_t maxdim = (m > n) ? m : n;
+    double *hv = malloc((size_t)maxdim * sizeof(double));
     if (!hv) {
         free(W);
         free(diag);

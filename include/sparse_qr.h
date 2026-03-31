@@ -66,7 +66,9 @@ typedef struct {
     idx_t m;            /**< Number of rows of original A */
     idx_t n;            /**< Number of columns of original A */
     idx_t rank;         /**< Numerical rank (set during factorization) */
-    int economy;        /**< Nonzero if economy (thin) QR was used */
+    int economy;        /**< Nonzero if economy (thin Q) was requested.
+                             A thin Q is only formed when m > n; when m <= n
+                             this flag has no effect on the shape of Q. */
 } sparse_qr_t;
 
 /**

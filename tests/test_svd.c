@@ -1,5 +1,6 @@
 #include "sparse_bidiag.h"
 #include "sparse_matrix.h"
+#include "sparse_qr.h"
 #include "sparse_svd.h"
 #include "sparse_types.h"
 #include "sparse_vector.h"
@@ -823,6 +824,186 @@ static void test_svd_diag_20x20(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Full SVD driver tests (Sprint 8 Day 10)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* SVD on tall rectangular 10×5 */
+static void test_svd_tall_10x5(void) {
+    idx_t m = 10, nc = 5;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < nc; j++)
+            if (i == j)
+                sparse_insert(A, i, j, (double)(5 - j));
+
+    sparse_svd_t svd;
+    ASSERT_ERR(sparse_svd_compute(A, NULL, &svd), SPARSE_OK);
+
+    ASSERT_EQ(svd.k, nc);
+    /* Diagonal: sigma = [5, 4, 3, 2, 1] */
+    ASSERT_NEAR(svd.sigma[0], 5.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[4], 1.0, 1e-10);
+    ASSERT_TRUE(svd.sigma[0] >= svd.sigma[1]);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* SVD on wide rectangular 5×10 */
+static void test_svd_wide_5x10(void) {
+    idx_t m = 5, nc = 10;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < m; i++)
+        sparse_insert(A, i, i, (double)(m - i));
+
+    sparse_svd_t svd;
+    ASSERT_ERR(sparse_svd_compute(A, NULL, &svd), SPARSE_OK);
+
+    ASSERT_EQ(svd.k, m);
+    ASSERT_NEAR(svd.sigma[0], 5.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[4], 1.0, 1e-10);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* SVD singular-values-only vs with-UV: same sigma */
+static void test_svd_sigma_only_vs_uv(void) {
+    SparseMatrix *A = sparse_create(4, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 4.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 2, 2, 2.0);
+    sparse_insert(A, 3, 3, 1.0);
+
+    /* Sigma only */
+    sparse_svd_t svd1;
+    ASSERT_ERR(sparse_svd_compute(A, NULL, &svd1), SPARSE_OK);
+    ASSERT_TRUE(svd1.U == NULL);
+    ASSERT_TRUE(svd1.Vt == NULL);
+
+    /* With UV */
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1};
+    sparse_svd_t svd2;
+    ASSERT_ERR(sparse_svd_compute(A, &opts, &svd2), SPARSE_OK);
+    ASSERT_NOT_NULL(svd2.U);
+    ASSERT_NOT_NULL(svd2.Vt);
+
+    /* Same singular values */
+    for (idx_t i = 0; i < svd1.k; i++)
+        ASSERT_NEAR(svd1.sigma[i], svd2.sigma[i], 1e-10);
+
+    printf("    sigma-only vs UV: sigma=[%.3f, %.3f, %.3f, %.3f]\n", svd1.sigma[0], svd1.sigma[1],
+           svd1.sigma[2], svd1.sigma[3]);
+
+    sparse_svd_free(&svd1);
+    sparse_svd_free(&svd2);
+    sparse_free(A);
+}
+
+/* SVD on nos4: singular values are positive, descending */
+static void test_svd_nos4(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+
+    sparse_svd_t svd;
+    ASSERT_ERR(sparse_svd_compute(A, NULL, &svd), SPARSE_OK);
+
+    ASSERT_EQ(svd.k, 100);
+    /* All positive */
+    for (idx_t i = 0; i < svd.k; i++)
+        ASSERT_TRUE(svd.sigma[i] >= 0.0);
+    /* Descending */
+    for (idx_t i = 1; i < svd.k; i++)
+        ASSERT_TRUE(svd.sigma[i] <= svd.sigma[i - 1] + 1e-10);
+
+    printf("    SVD nos4: sigma_max=%.3f, sigma_min=%.6f\n", svd.sigma[0], svd.sigma[99]);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* SVD on west0067 */
+static void test_svd_west0067(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/west0067.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+
+    sparse_svd_t svd;
+    ASSERT_ERR(sparse_svd_compute(A, NULL, &svd), SPARSE_OK);
+
+    ASSERT_EQ(svd.k, 67);
+    ASSERT_TRUE(svd.sigma[0] > 0.0);
+    /* Descending */
+    for (idx_t i = 1; i < svd.k; i++)
+        ASSERT_TRUE(svd.sigma[i] <= svd.sigma[i - 1] + 1e-10);
+
+    printf("    SVD west0067: sigma_max=%.3f, sigma_min=%.6e\n", svd.sigma[0], svd.sigma[66]);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* SVD rank matches QR rank on rank-deficient matrix */
+static void test_svd_rank_vs_qr(void) {
+    SparseMatrix *A = sparse_create(5, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* col1 = col0, col3 = col2 → rank 2 */
+    for (idx_t i = 0; i < 5; i++) {
+        sparse_insert(A, i, 0, (double)(i + 1));
+        sparse_insert(A, i, 1, (double)(i + 1));
+        sparse_insert(A, i, 2, (double)(i * 2 + 1));
+        sparse_insert(A, i, 3, (double)(i * 2 + 1));
+    }
+
+    /* SVD rank: count sigma > tol */
+    sparse_svd_t svd;
+    ASSERT_ERR(sparse_svd_compute(A, NULL, &svd), SPARSE_OK);
+
+    idx_t svd_rank = 0;
+    double tol_svd = 1e-8 * svd.sigma[0];
+    for (idx_t i = 0; i < svd.k; i++)
+        if (svd.sigma[i] > tol_svd)
+            svd_rank++;
+
+    /* QR rank */
+    sparse_qr_t qr;
+    sparse_err_t qr_err = sparse_qr_factor(A, &qr);
+    idx_t qr_rank = (qr_err == SPARSE_OK) ? qr.rank : -1;
+
+    printf("    SVD rank=%d, QR rank=%d\n", (int)svd_rank, (int)qr_rank);
+    ASSERT_EQ(svd_rank, qr_rank);
+
+    if (qr_err == SPARSE_OK)
+        sparse_qr_free(&qr);
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* SVD NULL input */
+static void test_svd_null_input(void) {
+    sparse_svd_t svd;
+    ASSERT_ERR(sparse_svd_compute(NULL, NULL, &svd), SPARSE_ERR_NULL);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -867,6 +1048,15 @@ int main(void) {
     RUN_TEST(test_svd_1x1);
     RUN_TEST(test_svd_null);
     RUN_TEST(test_svd_diag_20x20);
+
+    /* Full SVD driver (Day 10) */
+    RUN_TEST(test_svd_tall_10x5);
+    RUN_TEST(test_svd_wide_5x10);
+    RUN_TEST(test_svd_sigma_only_vs_uv);
+    RUN_TEST(test_svd_nos4);
+    RUN_TEST(test_svd_west0067);
+    RUN_TEST(test_svd_rank_vs_qr);
+    RUN_TEST(test_svd_null_input);
 
     TEST_SUITE_END();
 }

@@ -632,8 +632,8 @@ static void test_svd_trace_invariant(void) {
         sigma_sq_sum += svd.sigma[i] * svd.sigma[i];
 
     printf("    SVD trace: sum(sigma^2)=%.3f, ||A||_F^2=%.3f\n", sigma_sq_sum, frob_sq);
-    /* QR iteration accuracy is limited; allow wider tolerance for now.
-     * TODO: fix bidiag QR step to achieve machine-precision convergence. */
+    /* QR iteration accuracy is limited for non-diagonal matrices; allow
+     * wider tolerance. TODO: fix bidiag QR step algebra for full accuracy. */
     ASSERT_NEAR(sigma_sq_sum, frob_sq, 10.0);
 
     /* All positive and descending */

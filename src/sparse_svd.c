@@ -322,6 +322,71 @@ sparse_err_t bidiag_svd_iterate(double *diag, double *superdiag, idx_t k, double
         if (has_zero_diag)
             continue; /* re-check deflation */
 
+        /* For a 2×2 block, solve directly via B^T*B eigenvalues */
+        if (hi - lo == 1) {
+            double d0 = diag[lo], e0 = superdiag[lo], d1 = diag[hi];
+            double a = d0 * d0 + e0 * e0;
+            double b_val = d0 * e0; /* actually this is B^T*B off-diag... */
+            /* B^T*B = [[d0^2, d0*e0], [d0*e0, e0^2+d1^2]] — wait, wrong.
+             * B = [[d0, e0], [0, d1]]. B^T*B = [[d0^2, d0*e0], [d0*e0, e0^2+d1^2]] */
+            double t00 = d0 * d0;
+            double t01 = d0 * e0;
+            double t11 = e0 * e0 + d1 * d1;
+            double l1, l2;
+            eigen2x2(t00, t01, t11, &l1, &l2);
+            diag[lo] = sqrt(fabs(l2)); /* larger singular value */
+            diag[hi] = sqrt(fabs(l1)); /* smaller */
+            superdiag[lo] = 0.0;
+
+            /* Update U and V for the 2×2 SVD if needed */
+            if (U || V) {
+                /* Compute the 2×2 SVD rotation angles.
+                 * For B = [[d0,e0],[0,d1]], the right singular vector angle θ satisfies:
+                 * tan(2θ) = 2*d0*e0 / (d0^2 - e0^2 - d1^2) */
+                double diff = t00 - t11;
+                double cv, sv;
+                if (fabs(t01) < 1e-30) {
+                    cv = 1.0;
+                    sv = 0.0;
+                } else {
+                    double tau = diff / (2.0 * t01);
+                    double t_val =
+                        (tau >= 0) ? 1.0 / (tau + hypot(1.0, tau)) : 1.0 / (tau - hypot(1.0, tau));
+                    cv = 1.0 / hypot(1.0, t_val);
+                    sv = t_val * cv;
+                }
+                if (V) {
+                    for (idx_t i = 0; i < n; i++) {
+                        double v0 = V[(size_t)lo * (size_t)n + (size_t)i];
+                        double v1 = V[(size_t)hi * (size_t)n + (size_t)i];
+                        V[(size_t)lo * (size_t)n + (size_t)i] = cv * v0 + sv * v1;
+                        V[(size_t)hi * (size_t)n + (size_t)i] = -sv * v0 + cv * v1;
+                    }
+                }
+                /* Left rotation: B*V gives upper triangular; U diagonalizes it */
+                double bv00 = d0 * cv + e0 * sv;
+                double bv10 = d1 * sv;
+                double bv01 = -d0 * sv + e0 * cv;
+                double bv11 = d1 * cv;
+                /* Now compute left rotation to zero bv10 */
+                double cu, su;
+                givens_compute(bv00, bv10, &cu, &su);
+                if (U) {
+                    for (idx_t i = 0; i < m; i++) {
+                        double u0 = U[(size_t)lo * (size_t)m + (size_t)i];
+                        double u1 = U[(size_t)hi * (size_t)m + (size_t)i];
+                        U[(size_t)lo * (size_t)m + (size_t)i] = cu * u0 + su * u1;
+                        U[(size_t)hi * (size_t)m + (size_t)i] = -su * u0 + cu * u1;
+                    }
+                }
+                /* Verify: sigma[lo] should be hypot(bv00, bv10) */
+                (void)bv01;
+                (void)bv11;
+            }
+            total_iter++;
+            continue;
+        }
+
         /* One QR step on block [lo..hi] */
         bidiag_svd_step(diag, superdiag, lo, hi, U, m, V, n);
         total_iter++;

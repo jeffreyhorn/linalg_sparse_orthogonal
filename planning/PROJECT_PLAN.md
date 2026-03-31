@@ -229,9 +229,9 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 ## Sprint 8: Matrix-Free Interface & Sparse SVD
 
-**Duration:** 14 days (~140 hours)
+**Duration:** 14 days (~148 hours)
 
-**Goal:** Add a matrix-free interface so iterative solvers can work with implicit operators, then implement full-featured sparse SVD (Singular Value Decomposition). SVD computes A = U*Σ*V^T and is the most powerful matrix decomposition, enabling rank estimation, pseudoinverse, low-rank approximation, and principal component analysis.
+**Goal:** Fix bidiagonal reduction for wide matrices, add a matrix-free interface so iterative solvers can work with implicit operators, then implement full-featured sparse SVD (Singular Value Decomposition). SVD computes A = U*Σ*V^T and is the most powerful matrix decomposition, enabling rank estimation, pseudoinverse, low-rank approximation, and principal component analysis.
 
 ### Prerequisites from Sprint 5
 
@@ -248,15 +248,17 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 | # | Item | Description | Estimate |
 |---|------|-------------|----------|
-| 1 | Matrix-free interface | Add a callback-based `sparse_matvec_fn` type so iterative solvers (CG, GMRES) can work with implicit linear operators (A*x callback) instead of requiring an explicit `SparseMatrix`. Add `sparse_solve_cg_mf()` and `sparse_solve_gmres_mf()` variants that accept a matvec callback and context pointer. Enables solving with operators that are too large to store or are defined procedurally. | 16 hrs |
-| 2 | Golub-Kahan bidiagonalization | Adapt the Householder bidiagonalization from Sprint 7 into the Golub-Kahan variant suitable for SVD: produce B, U, V such that A = U*B*V^T where B is upper bidiagonal. Handle rectangular matrices (m > n and m < n). Store U, V implicitly or explicitly based on user request. | 24 hrs |
-| 3 | Implicit QR SVD iteration | Implement the Golub-Kahan SVD step (implicit QR on B^T*B without forming it): chase a bulge down the bidiagonal using Givens rotations, accumulating rotations into U and V. Implement Wilkinson shift selection from the trailing 2×2 of B^T*B. Implement deflation (split bidiagonal when superdiagonal converges to zero). | 32 hrs |
-| 4 | Full SVD driver | Implement `sparse_svd()` as the top-level driver: bidiagonalize → iterate to convergence → extract singular values and optional U, V. Support options: compute singular values only, thin SVD (economy U/V), or full SVD. Handle convergence failure (max iterations). Sort singular values in descending order. | 20 hrs |
-| 5 | Truncated/partial SVD | Implement `sparse_svd_partial()` to compute only the k largest singular values and their corresponding singular vectors, without computing the full decomposition. Use Lanczos bidiagonalization (iterative, builds up the bidiagonal incrementally) for the partial case. Much more efficient than full SVD when k << min(m,n). | 28 hrs |
-| 6 | SVD applications | Implement `sparse_svd_rank()` for numerical rank estimation (count singular values above tolerance). Implement `sparse_pinv()` for pseudoinverse via SVD: A^+ = V*Σ^+*U^T. Implement `sparse_svd_lowrank()` for best rank-k approximation. Test on rank-deficient and ill-conditioned matrices. | 20 hrs |
+| 1 | Bidiagonal reduction for wide matrices | Extend `sparse_bidiag_factor()` to handle m < n by transposing A internally and swapping U/V in the output. Currently returns SPARSE_ERR_SHAPE for m < n; this makes it work for all rectangular matrices. Update tests to validate wide-matrix reconstruction. | 8 hrs |
+| 2 | Matrix-free interface | Add a callback-based `sparse_matvec_fn` type so iterative solvers (CG, GMRES) can work with implicit linear operators (A*x callback) instead of requiring an explicit `SparseMatrix`. Add `sparse_solve_cg_mf()` and `sparse_solve_gmres_mf()` variants that accept a matvec callback and context pointer. Enables solving with operators that are too large to store or are defined procedurally. | 16 hrs |
+| 3 | Golub-Kahan bidiagonalization | Adapt the Householder bidiagonalization from Sprint 7 into the Golub-Kahan variant suitable for SVD: produce B, U, V such that A = U*B*V^T where B is upper bidiagonal. Handle rectangular matrices (m > n and m < n) via the wide-matrix fix. Store U, V implicitly or explicitly based on user request. | 24 hrs |
+| 4 | Implicit QR SVD iteration | Implement the Golub-Kahan SVD step (implicit QR on B^T*B without forming it): chase a bulge down the bidiagonal using Givens rotations, accumulating rotations into U and V. Implement Wilkinson shift selection from the trailing 2×2 of B^T*B. Implement deflation (split bidiagonal when superdiagonal converges to zero). | 32 hrs |
+| 5 | Full SVD driver | Implement `sparse_svd()` as the top-level driver: bidiagonalize → iterate to convergence → extract singular values and optional U, V. Support options: compute singular values only, thin SVD (economy U/V), or full SVD. Handle convergence failure (max iterations). Sort singular values in descending order. | 20 hrs |
+| 6 | Truncated/partial SVD | Implement `sparse_svd_partial()` to compute only the k largest singular values and their corresponding singular vectors, without computing the full decomposition. Use Lanczos bidiagonalization (iterative, builds up the bidiagonal incrementally) for the partial case. Much more efficient than full SVD when k << min(m,n). | 28 hrs |
+| 7 | SVD applications | Implement `sparse_svd_rank()` for numerical rank estimation (count singular values above tolerance). Implement `sparse_pinv()` for pseudoinverse via SVD: A^+ = V*Σ^+*U^T. Implement `sparse_svd_lowrank()` for best rank-k approximation. Test on rank-deficient and ill-conditioned matrices. | 20 hrs |
 
 ### Deliverables
 
+- Bidiagonal reduction for wide matrices (m < n) via internal transpose
 - Matrix-free iterative solvers (`sparse_solve_cg_mf()`, `sparse_solve_gmres_mf()`)
 - `sparse_svd()` — full SVD: A = U*Σ*V^T
 - Singular values only, thin SVD, and full SVD modes
@@ -269,7 +271,7 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 - Convergence benchmarks on SuiteSparse matrices
 - All existing tests remain passing
 
-**Total estimate:** ~140 hours
+**Total estimate:** ~148 hours
 
 ---
 
@@ -341,7 +343,7 @@ Sprint 4 (Cholesky/Threads/SpMM/CSR) ← needs reordering, condest
 | 5 | Iterative Solvers | 14 days | ~112 hrs | CG, GMRES, ILU preconditioner, parallel SpMV |
 | 6 | Iterative Enhancements & QR | 14 days | ~156 hrs | ILUT, right preconditioning, column-pivoted QR, least-squares, rank estimation |
 | 7 | QR Apps/ILUT Pivoting/Eigenvalues | 14 days | ~152 hrs | ILUT partial pivoting, sparse Householder QR, economy QR, bidiagonalization, tridiagonal QR, transpose |
-| 8 | Matrix-Free & Sparse SVD | 14 days | ~140 hrs | Matrix-free solvers, full/partial SVD, pseudoinverse, low-rank approximation |
+| 8 | Matrix-Free & Sparse SVD | 14 days | ~148 hrs | Wide bidiag fix, matrix-free solvers, full/partial SVD, pseudoinverse, low-rank approximation |
 | 9 | Performance & Polish | 14 days | ~120 hrs | Block LU, block solvers, profiling, examples, packaging |
 
-**Total across Sprints 2–9:** 112 days (~914 hours)
+**Total across Sprints 2–9:** 112 days (~922 hours)

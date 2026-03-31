@@ -322,27 +322,17 @@ sparse_err_t bidiag_svd_iterate(double *diag, double *superdiag, idx_t k, double
         if (has_zero_diag)
             continue; /* re-check deflation */
 
-        /* For a 2×2 block, solve directly via B^T*B eigenvalues */
+        /* For a 2×2 block, solve directly via 2×2 SVD */
         if (hi - lo == 1) {
             double d0 = diag[lo], e0 = superdiag[lo], d1 = diag[hi];
-            double a = d0 * d0 + e0 * e0;
-            double b_val = d0 * e0; /* actually this is B^T*B off-diag... */
-            /* B^T*B = [[d0^2, d0*e0], [d0*e0, e0^2+d1^2]] — wait, wrong.
-             * B = [[d0, e0], [0, d1]]. B^T*B = [[d0^2, d0*e0], [d0*e0, e0^2+d1^2]] */
-            double t00 = d0 * d0;
-            double t01 = d0 * e0;
-            double t11 = e0 * e0 + d1 * d1;
-            double l1, l2;
-            eigen2x2(t00, t01, t11, &l1, &l2);
-            diag[lo] = sqrt(fabs(l2)); /* larger singular value */
-            diag[hi] = sqrt(fabs(l1)); /* smaller */
-            superdiag[lo] = 0.0;
 
-            /* Update U and V for the 2×2 SVD if needed */
             if (U || V) {
-                /* Compute the 2×2 SVD rotation angles.
-                 * For B = [[d0,e0],[0,d1]], the right singular vector angle θ satisfies:
-                 * tan(2θ) = 2*d0*e0 / (d0^2 - e0^2 - d1^2) */
+                /* Full 2×2 SVD: B = U_2 * Sigma * V_2^T.
+                 * Step 1: Right rotation (Jacobi on B^T*B) to diagonalize B^T*B.
+                 * Step 2: Left rotation to zero the (1,0) entry of B*V_2. */
+                double t00 = d0 * d0;
+                double t01 = d0 * e0;
+                double t11 = e0 * e0 + d1 * d1;
                 double diff = t00 - t11;
                 double cv, sv;
                 if (fabs(t01) < 1e-30) {
@@ -363,12 +353,12 @@ sparse_err_t bidiag_svd_iterate(double *diag, double *superdiag, idx_t k, double
                         V[(size_t)hi * (size_t)n + (size_t)i] = -sv * v0 + cv * v1;
                     }
                 }
-                /* Left rotation: B*V gives upper triangular; U diagonalizes it */
+                /* B * V_2 gives a quasi-upper-triangular matrix */
                 double bv00 = d0 * cv + e0 * sv;
                 double bv10 = d1 * sv;
                 double bv01 = -d0 * sv + e0 * cv;
                 double bv11 = d1 * cv;
-                /* Now compute left rotation to zero bv10 */
+                /* Left rotation to zero bv10 */
                 double cu, su;
                 givens_compute(bv00, bv10, &cu, &su);
                 if (U) {
@@ -379,10 +369,20 @@ sparse_err_t bidiag_svd_iterate(double *diag, double *superdiag, idx_t k, double
                         U[(size_t)hi * (size_t)m + (size_t)i] = -su * u0 + cu * u1;
                     }
                 }
-                /* Verify: sigma[lo] should be hypot(bv00, bv10) */
-                (void)bv01;
-                (void)bv11;
+                /* Singular values from the actual rotation results */
+                diag[lo] = cu * bv00 + su * bv10;
+                diag[hi] = -su * bv01 + cu * bv11;
+            } else {
+                /* Singular values only: use eigenvalues of B^T*B */
+                double t00 = d0 * d0;
+                double t01 = d0 * e0;
+                double t11 = e0 * e0 + d1 * d1;
+                double l1, l2;
+                eigen2x2(t00, t01, t11, &l1, &l2);
+                diag[lo] = sqrt(fabs(l2));
+                diag[hi] = sqrt(fabs(l1));
             }
+            superdiag[lo] = 0.0;
             total_iter++;
             continue;
         }
@@ -744,5 +744,153 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     free(alpha);
 
     svd->sigma = sigma;
+    return SPARSE_OK;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * SVD applications: rank, pseudoinverse, low-rank approximation
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+sparse_err_t sparse_svd_rank(const SparseMatrix *A, double tol, idx_t *rank) {
+    if (!A || !rank)
+        return SPARSE_ERR_NULL;
+
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    if (err != SPARSE_OK)
+        return err;
+
+    /* Default tolerance: eps * max(m,n) * sigma_max */
+    if (tol <= 0.0) {
+        idx_t maxdim = (svd.m > svd.n) ? svd.m : svd.n;
+        tol = 2.2204460492503131e-16 * (double)maxdim * svd.sigma[0];
+    }
+
+    idx_t r = 0;
+    for (idx_t i = 0; i < svd.k; i++) {
+        if (svd.sigma[i] > tol)
+            r++;
+    }
+
+    *rank = r;
+    sparse_svd_free(&svd);
+    return SPARSE_OK;
+}
+
+sparse_err_t sparse_pinv(const SparseMatrix *A, double tol, double **pinv) {
+    if (!pinv)
+        return SPARSE_ERR_NULL;
+    *pinv = NULL;
+    if (!A)
+        return SPARSE_ERR_NULL;
+
+    /* Full SVD with U and Vt */
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, &opts, &svd);
+    if (err != SPARSE_OK)
+        return err;
+
+    idx_t m = svd.m, n = svd.n, k = svd.k;
+
+    /* Default tolerance */
+    if (tol <= 0.0) {
+        idx_t maxdim = (m > n) ? m : n;
+        tol = 2.2204460492503131e-16 * (double)maxdim * svd.sigma[0];
+    }
+
+    /* A^+ = V * Sigma^+ * U^T, where A^+ is n×m.
+     * U is m×k (column-major), Vt is k×n (column-major).
+     * V = Vt^T. So A^+ = V * Sigma^+ * U^T.
+     *
+     * Compute column j of A^+:
+     *   A^+[:,j] = sum_{i: sigma_i > tol} (1/sigma_i) * V[:,i] * U[j,i]
+     *            = sum_{i} (1/sigma_i) * Vt^T[:,i] * U[j,i]
+     */
+    double *result = calloc((size_t)n * (size_t)m, sizeof(double));
+    if (!result) {
+        sparse_svd_free(&svd);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    /* result is n×m column-major: result[col * n + row] */
+    for (idx_t i = 0; i < k; i++) {
+        if (svd.sigma[i] <= tol)
+            continue;
+        double inv_sigma = 1.0 / svd.sigma[i];
+        /* Outer product: (1/sigma_i) * V[:,i] * U[:,i]^T
+         * V[:,i] is column i of V = row i of Vt.
+         * In Vt (k×n column-major): Vt[col_j * k + i] = V[i, col_j]... wait.
+         * Vt is stored as k×n column-major: element (row_r, col_c) = Vt[col_c * k + row_r].
+         * So Vt[row=i, col=j] = Vt[j * k + i] = V^T[i,j] = V[j,i].
+         * Thus V[j,i] = Vt[j * k + i]. So column i of V has V[j,i] = Vt[j*k + i] for j=0..n-1.
+         *
+         * U is m×k column-major: U[col_i * m + row_r] = U[r, i].
+         *
+         * A^+[row_r, col_c] += inv_sigma * V[row_r, i] * U[col_c, i]
+         * result[col_c * n + row_r] += inv_sigma * Vt[row_r * k + i] * U[i * m + col_c]
+         */
+        for (idx_t c = 0; c < m; c++) {
+            double u_ci = svd.U[(size_t)i * (size_t)m + (size_t)c] * inv_sigma;
+            for (idx_t r = 0; r < n; r++) {
+                result[(size_t)c * (size_t)n + (size_t)r] +=
+                    svd.Vt[(size_t)r * (size_t)k + (size_t)i] * u_ci;
+            }
+        }
+    }
+
+    *pinv = result;
+    sparse_svd_free(&svd);
+    return SPARSE_OK;
+}
+
+sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lowrank) {
+    if (!lowrank)
+        return SPARSE_ERR_NULL;
+    *lowrank = NULL;
+    if (!A)
+        return SPARSE_ERR_NULL;
+
+    idx_t m = sparse_rows(A);
+    idx_t n = sparse_cols(A);
+    idx_t kmax = (m < n) ? m : n;
+
+    if (rank_k <= 0 || rank_k > kmax)
+        return SPARSE_ERR_BADARG;
+
+    /* Full SVD with U and Vt */
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, &opts, &svd);
+    if (err != SPARSE_OK)
+        return err;
+
+    /* A_k = sum_{i=0}^{rank_k-1} sigma_i * U[:,i] * Vt[i,:]
+     * Result is m×n column-major. */
+    double *result = calloc((size_t)m * (size_t)n, sizeof(double));
+    if (!result) {
+        sparse_svd_free(&svd);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    idx_t k = svd.k;
+    for (idx_t i = 0; i < rank_k && i < k; i++) {
+        double si = svd.sigma[i];
+        if (si == 0.0)
+            break;
+        /* Outer product: sigma_i * U[:,i] * Vt[i,:]
+         * U[:,i] = svd.U[i*m .. i*m+m-1]
+         * Vt[i,:] has Vt[row=i, col=j] = svd.Vt[j*k + i] for j=0..n-1 */
+        for (idx_t j = 0; j < n; j++) {
+            double vt_ij = svd.Vt[(size_t)j * (size_t)k + (size_t)i] * si;
+            for (idx_t r = 0; r < m; r++) {
+                result[(size_t)j * (size_t)m + (size_t)r] +=
+                    svd.U[(size_t)i * (size_t)m + (size_t)r] * vt_ij;
+            }
+        }
+    }
+
+    *lowrank = result;
+    sparse_svd_free(&svd);
     return SPARSE_OK;
 }

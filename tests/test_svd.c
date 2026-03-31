@@ -1398,6 +1398,355 @@ static void test_partial_svd_nonsymmetric(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * SVD applications: rank, pseudoinverse, low-rank (Sprint 8 Day 13)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* SVD rank: full-rank diagonal */
+static void test_svd_rank_full(void) {
+    SparseMatrix *A = sparse_create(5, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < 5; i++)
+        sparse_insert(A, i, i, (double)(i + 1));
+
+    idx_t rank;
+    ASSERT_ERR(sparse_svd_rank(A, 0.0, &rank), SPARSE_OK);
+    printf("    full-rank 5x5: rank=%d\n", (int)rank);
+    ASSERT_EQ(rank, 5);
+
+    sparse_free(A);
+}
+
+/* SVD rank: rank-deficient matrix */
+static void test_svd_rank_deficient(void) {
+    /* 5×4 with col0=col1, col2=col3 → rank 2 */
+    SparseMatrix *A = sparse_create(5, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < 5; i++) {
+        sparse_insert(A, i, 0, (double)(i + 1));
+        sparse_insert(A, i, 1, (double)(i + 1));
+        sparse_insert(A, i, 2, (double)(i * 2 + 1));
+        sparse_insert(A, i, 3, (double)(i * 2 + 1));
+    }
+
+    idx_t rank;
+    ASSERT_ERR(sparse_svd_rank(A, 0.0, &rank), SPARSE_OK);
+    printf("    rank-deficient 5x4: rank=%d\n", (int)rank);
+    ASSERT_EQ(rank, 2);
+
+    sparse_free(A);
+}
+
+/* SVD rank: nearly singular (large condition number) */
+static void test_svd_rank_nearly_singular(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 1.0);
+    sparse_insert(A, 2, 2, 1e-14); /* near zero but above machine eps */
+
+    idx_t rank;
+    ASSERT_ERR(sparse_svd_rank(A, 0.0, &rank), SPARSE_OK);
+    printf("    nearly-singular 3x3: rank=%d\n", (int)rank);
+    /* Default tol = eps * max(m,n) * sigma_max ≈ 2.2e-16 * 3 * 1 ≈ 6.6e-16
+     * sigma_min = 1e-14 > tol, so rank should be 3 */
+    ASSERT_EQ(rank, 3);
+
+    /* With explicit tolerance 1e-12, rank = 2 */
+    ASSERT_ERR(sparse_svd_rank(A, 1e-12, &rank), SPARSE_OK);
+    printf("    nearly-singular 3x3 (tol=1e-12): rank=%d\n", (int)rank);
+    ASSERT_EQ(rank, 2);
+
+    sparse_free(A);
+}
+
+/* SVD rank: NULL inputs */
+static void test_svd_rank_null(void) {
+    idx_t rank;
+    ASSERT_ERR(sparse_svd_rank(NULL, 0.0, &rank), SPARSE_ERR_NULL);
+}
+
+/* Pseudoinverse: diagonal matrix */
+static void test_pinv_diagonal(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 2, 2, 5.0);
+
+    double *pinv_data = NULL;
+    ASSERT_ERR(sparse_pinv(A, 0.0, &pinv_data), SPARSE_OK);
+    ASSERT_NOT_NULL(pinv_data);
+    if (!pinv_data) {
+        sparse_free(A);
+        return;
+    }
+
+    /* pinv of diag(2,4,5) = diag(0.5, 0.25, 0.2) */
+    /* pinv is 3×3 column-major: pinv[col*3 + row] */
+    ASSERT_NEAR(pinv_data[0 * 3 + 0], 0.5, 1e-10);
+    ASSERT_NEAR(pinv_data[1 * 3 + 1], 0.25, 1e-10);
+    ASSERT_NEAR(pinv_data[2 * 3 + 2], 0.2, 1e-10);
+    /* Off-diag should be ~0 */
+    ASSERT_NEAR(pinv_data[0 * 3 + 1], 0.0, 1e-10);
+    ASSERT_NEAR(pinv_data[1 * 3 + 0], 0.0, 1e-10);
+
+    free(pinv_data);
+    sparse_free(A);
+}
+
+/* Pseudoinverse: Moore-Penrose condition A * A^+ * A ≈ A */
+static void test_pinv_moore_penrose(void) {
+    idx_t m = 4, nc = 3;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Non-trivial tall matrix */
+    sparse_insert(A, 0, 0, 3.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 2.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 4.0);
+    sparse_insert(A, 3, 0, 1.0);
+    sparse_insert(A, 3, 2, 2.0);
+
+    double *pinv_data = NULL;
+    ASSERT_ERR(sparse_pinv(A, 0.0, &pinv_data), SPARSE_OK);
+    ASSERT_NOT_NULL(pinv_data);
+    if (!pinv_data) {
+        sparse_free(A);
+        return;
+    }
+
+    /* pinv is nc×m column-major: pinv[col*nc + row] */
+    /* Verify A * A^+ * A ≈ A.
+     * Step 1: compute B = A * pinv (m×nc * nc×m = m×m) using sparse_get + dense mult
+     * Step 2: compute C = B * A (m×m * m×nc = m×nc), compare to A */
+
+    /* Compute A * pinv as dense m×m */
+    double *B = calloc((size_t)m * (size_t)m, sizeof(double));
+    ASSERT_NOT_NULL(B);
+    if (!B) {
+        free(pinv_data);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < m; j++) {
+            double sum = 0.0;
+            for (idx_t p = 0; p < nc; p++)
+                sum += sparse_get(A, i, p) * pinv_data[(size_t)j * (size_t)nc + (size_t)p];
+            B[(size_t)j * (size_t)m + (size_t)i] = sum;
+        }
+    }
+
+    /* Compute (A * pinv) * A and compare to A */
+    double max_err = 0.0;
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < nc; j++) {
+            double sum = 0.0;
+            for (idx_t p = 0; p < m; p++)
+                sum += B[(size_t)p * (size_t)m + (size_t)i] * sparse_get(A, p, j);
+            double err = fabs(sum - sparse_get(A, i, j));
+            if (err > max_err)
+                max_err = err;
+        }
+    }
+    printf("    Moore-Penrose ||A*A^+*A - A||_max = %.3e\n", max_err);
+    ASSERT_TRUE(max_err < 1e-10);
+
+    free(B);
+    free(pinv_data);
+    sparse_free(A);
+}
+
+/* Pseudoinverse: NULL inputs */
+static void test_pinv_null(void) {
+    double *pinv_data = NULL;
+    ASSERT_ERR(sparse_pinv(NULL, 0.0, &pinv_data), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_pinv(NULL, 0.0, NULL), SPARSE_ERR_NULL);
+}
+
+/* Pseudoinverse: rectangular tall matrix — verify A * A^+ * A ≈ A */
+static void test_pinv_rectangular(void) {
+    /* 3×2 full column rank */
+    idx_t m = 3, nc = 2;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 0, 2.0);
+    sparse_insert(A, 1, 1, 1.0);
+    sparse_insert(A, 2, 1, 3.0);
+
+    double *pinv_data = NULL;
+    ASSERT_ERR(sparse_pinv(A, 0.0, &pinv_data), SPARSE_OK);
+    ASSERT_NOT_NULL(pinv_data);
+    if (!pinv_data) {
+        sparse_free(A);
+        return;
+    }
+
+    /* pinv is nc×m = 2×3 column-major.
+     * Verify A * A^+ * A ≈ A (first Moore-Penrose condition).
+     * Compute B = A * pinv (m×nc * nc×m = m×m), then C = B * A (m×m * m×nc = m×nc). */
+    double *B = calloc((size_t)m * (size_t)m, sizeof(double));
+    ASSERT_NOT_NULL(B);
+    if (!B) {
+        free(pinv_data);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < m; j++) {
+            double sum = 0.0;
+            for (idx_t p = 0; p < nc; p++)
+                sum += sparse_get(A, i, p) * pinv_data[(size_t)j * (size_t)nc + (size_t)p];
+            B[(size_t)j * (size_t)m + (size_t)i] = sum;
+        }
+
+    double max_err = 0.0;
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < nc; j++) {
+            double sum = 0.0;
+            for (idx_t p = 0; p < m; p++)
+                sum += B[(size_t)p * (size_t)m + (size_t)i] * sparse_get(A, p, j);
+            double err = fabs(sum - sparse_get(A, i, j));
+            if (err > max_err)
+                max_err = err;
+        }
+    printf("    rectangular pinv ||A*A^+*A - A||_max = %.3e\n", max_err);
+    ASSERT_TRUE(max_err < 1e-10);
+
+    free(B);
+    free(pinv_data);
+    sparse_free(A);
+}
+
+/* Low-rank approximation: rank-k of diagonal */
+static void test_lowrank_diagonal(void) {
+    SparseMatrix *A = sparse_create(4, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 10.0);
+    sparse_insert(A, 1, 1, 5.0);
+    sparse_insert(A, 2, 2, 2.0);
+    sparse_insert(A, 3, 3, 1.0);
+
+    double *lr = NULL;
+    ASSERT_ERR(sparse_svd_lowrank(A, 2, &lr), SPARSE_OK);
+    ASSERT_NOT_NULL(lr);
+    if (!lr) {
+        sparse_free(A);
+        return;
+    }
+
+    /* Rank-2 approx of diag(10,5,2,1) = diag(10,5,0,0) */
+    /* lr is 4×4 col-major */
+    ASSERT_NEAR(lr[0 * 4 + 0], 10.0, 1e-10);
+    ASSERT_NEAR(lr[1 * 4 + 1], 5.0, 1e-10);
+    ASSERT_NEAR(lr[2 * 4 + 2], 0.0, 1e-10);
+    ASSERT_NEAR(lr[3 * 4 + 3], 0.0, 1e-10);
+
+    /* ||A - A_k||_F = sqrt(2^2 + 1^2) = sqrt(5) */
+    double frob_err = 0.0;
+    for (idx_t i = 0; i < 4; i++)
+        for (idx_t j = 0; j < 4; j++) {
+            double diff = sparse_get(A, i, j) - lr[(size_t)j * 4 + (size_t)i];
+            frob_err += diff * diff;
+        }
+    frob_err = sqrt(frob_err);
+    printf("    lowrank(2) diag: ||A - A_k||_F = %.6f (expected %.6f)\n", frob_err, sqrt(5.0));
+    ASSERT_NEAR(frob_err, sqrt(5.0), 1e-10);
+
+    free(lr);
+    sparse_free(A);
+}
+
+/* Low-rank: error matches theoretical bound */
+static void test_lowrank_error_bound(void) {
+    idx_t n = 6;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Tridiagonal */
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 2.0 * (double)(i + 1));
+        if (i + 1 < n)
+            sparse_insert(A, i, i + 1, 1.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, 1.0);
+    }
+
+    /* Get full SVD for reference */
+    sparse_svd_t svd;
+    ASSERT_ERR(sparse_svd_compute(A, NULL, &svd), SPARSE_OK);
+
+    idx_t rank_k = 3;
+    double *lr = NULL;
+    ASSERT_ERR(sparse_svd_lowrank(A, rank_k, &lr), SPARSE_OK);
+    ASSERT_NOT_NULL(lr);
+    if (!lr) {
+        sparse_svd_free(&svd);
+        sparse_free(A);
+        return;
+    }
+
+    /* ||A - A_k||_F should = sqrt(sum_{i=k}^{n-1} sigma_i^2) */
+    double expected_sq = 0.0;
+    for (idx_t i = rank_k; i < svd.k; i++)
+        expected_sq += svd.sigma[i] * svd.sigma[i];
+    double expected = sqrt(expected_sq);
+
+    double actual_sq = 0.0;
+    for (idx_t i = 0; i < n; i++)
+        for (idx_t j = 0; j < n; j++) {
+            double diff = sparse_get(A, i, j) - lr[(size_t)j * (size_t)n + (size_t)i];
+            actual_sq += diff * diff;
+        }
+    double actual = sqrt(actual_sq);
+
+    printf("    lowrank(%d) tridiag: ||A-A_k||_F = %.6f, expected = %.6f\n", (int)rank_k, actual,
+           expected);
+    ASSERT_NEAR(actual, expected, 1e-8);
+
+    free(lr);
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Low-rank: NULL and bad args */
+static void test_lowrank_errors(void) {
+    double *lr = NULL;
+    ASSERT_ERR(sparse_svd_lowrank(NULL, 2, &lr), SPARSE_ERR_NULL);
+
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 1.0);
+
+    ASSERT_ERR(sparse_svd_lowrank(A, 0, &lr), SPARSE_ERR_BADARG);
+    ASSERT_ERR(sparse_svd_lowrank(A, 4, &lr), SPARSE_ERR_BADARG);
+    ASSERT_ERR(sparse_svd_lowrank(A, -1, &lr), SPARSE_ERR_BADARG);
+
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -1469,6 +1818,19 @@ int main(void) {
     RUN_TEST(test_partial_svd_descending);
     RUN_TEST(test_partial_svd_timing);
     RUN_TEST(test_partial_svd_nonsymmetric);
+
+    /* SVD applications (Day 13) */
+    RUN_TEST(test_svd_rank_full);
+    RUN_TEST(test_svd_rank_deficient);
+    RUN_TEST(test_svd_rank_nearly_singular);
+    RUN_TEST(test_svd_rank_null);
+    RUN_TEST(test_pinv_diagonal);
+    RUN_TEST(test_pinv_moore_penrose);
+    RUN_TEST(test_pinv_null);
+    RUN_TEST(test_pinv_rectangular);
+    RUN_TEST(test_lowrank_diagonal);
+    RUN_TEST(test_lowrank_error_bound);
+    RUN_TEST(test_lowrank_errors);
 
     TEST_SUITE_END();
 }

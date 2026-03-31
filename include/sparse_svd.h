@@ -110,4 +110,55 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
 sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t k, const sparse_svd_opts_t *opts,
                                 sparse_svd_t *svd);
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * SVD applications
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief Estimate the numerical rank of a matrix via SVD.
+ *
+ * Counts singular values above a tolerance threshold.
+ * Default tolerance: eps * max(m,n) * sigma_max, where eps = 2.2e-16.
+ *
+ * @param A    The matrix (not modified).
+ * @param tol  Tolerance (0 for default). Singular values <= tol are treated as zero.
+ * @param rank Output: the numerical rank.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if A or rank is NULL.
+ */
+sparse_err_t sparse_svd_rank(const SparseMatrix *A, double tol, idx_t *rank);
+
+/**
+ * @brief Compute the Moore-Penrose pseudoinverse via SVD.
+ *
+ * Returns A^+ = V * Sigma^+ * U^T as a dense column-major matrix.
+ * Sigma^+ inverts singular values above tolerance and zeros the rest.
+ *
+ * @param A     The matrix (not modified).
+ * @param tol   Tolerance for rank determination (0 for default).
+ * @param pinv  Output: dense n×m column-major array (caller must free).
+ *              Set to NULL on failure.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if A or pinv is NULL.
+ * @return SPARSE_ERR_ALLOC if memory allocation fails.
+ */
+sparse_err_t sparse_pinv(const SparseMatrix *A, double tol, double **pinv);
+
+/**
+ * @brief Compute the best rank-k approximation via truncated SVD.
+ *
+ * Returns A_k = U_k * Sigma_k * V_k^T as a dense column-major matrix,
+ * which is the closest rank-k matrix to A in Frobenius norm.
+ *
+ * @param A       The matrix (not modified).
+ * @param rank_k  Desired rank (must be 1..min(m,n)).
+ * @param lowrank Output: dense m×n column-major array (caller must free).
+ *                Set to NULL on failure.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if A or lowrank is NULL.
+ * @return SPARSE_ERR_BADARG if rank_k is out of range.
+ * @return SPARSE_ERR_ALLOC if memory allocation fails.
+ */
+sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lowrank);
+
 #endif /* SPARSE_SVD_H */

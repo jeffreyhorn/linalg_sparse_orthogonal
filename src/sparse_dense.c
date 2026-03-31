@@ -204,6 +204,16 @@ void eigen2x2(double a, double b, double d, double *lambda1, double *lambda2) {
  * One implicit QR step on the unreduced tridiagonal block diag[lo..hi],
  * subdiag[lo..hi-1] using a Wilkinson shift.
  */
+static int cmp_double_asc(const void *a, const void *b) {
+    double da = *(const double *)a;
+    double db = *(const double *)b;
+    if (da < db)
+        return -1;
+    if (da > db)
+        return 1;
+    return 0;
+}
+
 static void tridiag_qr_step(double *diag, double *subdiag, idx_t lo, idx_t hi) {
     /* Wilkinson shift: eigenvalue of trailing 2×2 closer to diag[hi] */
     double l1, l2;
@@ -296,16 +306,8 @@ sparse_err_t tridiag_qr_eigenvalues(double *diag, double *subdiag, idx_t n, idx_
     if (hi > 0)
         return SPARSE_ERR_NOT_CONVERGED;
 
-    /* Sort eigenvalues in ascending order (insertion sort — n is small) */
-    for (idx_t i = 1; i < n; i++) {
-        double key = diag[i];
-        idx_t j = i - 1;
-        while (j >= 0 && diag[j] > key) {
-            diag[j + 1] = diag[j];
-            j--;
-        }
-        diag[j + 1] = key;
-    }
+    /* Sort eigenvalues in ascending order */
+    qsort(diag, (size_t)n, sizeof(double), cmp_double_asc);
 
     return SPARSE_OK;
 }

@@ -101,6 +101,7 @@ add_sparse_test(test_sprint6_integration)
 add_sparse_test(test_dense)
 add_sparse_test(test_bidiag)
 add_sparse_test(test_svd)
+add_sparse_test(test_sprint8_integration)
 
 # Benchmarks (not part of ctest)
 add_executable(bench_main benchmarks/bench_main.c)

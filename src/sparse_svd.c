@@ -585,8 +585,11 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     svd->n = n;
     svd->k = kk;
 
-    /* Use more Lanczos steps than k for better convergence */
-    idx_t lanczos_k = 2 * kk + 10;
+    /* Use more Lanczos steps than k for better convergence.
+     * Clustered spectra (e.g. stiffness matrices) need a larger subspace. */
+    idx_t lanczos_k = 2 * kk + 20;
+    if (lanczos_k < kk + 30)
+        lanczos_k = kk + 30;
     if (lanczos_k > kmax)
         lanczos_k = kmax;
 

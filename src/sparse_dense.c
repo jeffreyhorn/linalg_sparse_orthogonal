@@ -248,9 +248,11 @@ static void tridiag_qr_step(double *diag, double *subdiag, idx_t lo, idx_t hi) {
 sparse_err_t tridiag_qr_eigenvalues(double *diag, double *subdiag, idx_t n, idx_t max_iter) {
     if (n <= 0)
         return SPARSE_OK;
+    if (!diag)
+        return SPARSE_ERR_NULL;
     if (n == 1)
         return SPARSE_OK;
-    if (!diag || !subdiag)
+    if (!subdiag)
         return SPARSE_ERR_NULL;
 
     if (max_iter <= 0)

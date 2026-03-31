@@ -183,7 +183,7 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
                     nd1 = nd1->right;
                 }
             }
-            if (ins_err == SPARSE_OK) {
+            if (ins_err == SPARSE_OK && (size_t)n <= SIZE_MAX / sizeof(idx_t)) {
                 col_reorder = malloc((size_t)n * sizeof(idx_t));
                 if (col_reorder) {
                     sparse_err_t rerr = SPARSE_ERR_BADARG;

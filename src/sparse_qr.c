@@ -1012,7 +1012,8 @@ sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A, cons
         if (residual)
             *residual = rnorm;
 
-        /* On iter 0 (or max_refine=0), just compute the residual */
+        /* When iter reaches max_refine, stop after computing the residual
+         * (so max_refine == 0 means: compute residual once and return). */
         if (iter >= max_refine)
             break;
 

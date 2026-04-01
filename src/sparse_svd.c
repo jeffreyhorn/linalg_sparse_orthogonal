@@ -51,10 +51,19 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
         idx_t mt = n; /* A^T dimensions */
         idx_t nt = m;
 
+        /* Overflow-checked sizes for mt*k and nt*k */
+        size_t mt_k_elems, mt_k_bytes, nt_k_elems, nt_k_bytes;
+        if (size_mul_overflow((size_t)mt, (size_t)k, &mt_k_elems) ||
+            size_mul_overflow(mt_k_elems, sizeof(double), &mt_k_bytes) ||
+            size_mul_overflow((size_t)nt, (size_t)k, &nt_k_elems) ||
+            size_mul_overflow(nt_k_elems, sizeof(double), &nt_k_bytes))
+            return SPARSE_ERR_ALLOC;
+
         /* Form U_t (n×k) from left reflectors of A^T */
         double *Ut = NULL;
         if (V) { /* A's V = A^T's U_t */
-            Ut = calloc((size_t)mt * (size_t)k, sizeof(double));
+            // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
+            Ut = calloc(mt_k_elems, sizeof(double));
             if (!Ut)
                 return SPARSE_ERR_ALLOC;
             /* Start with I_k embedded in n×k */
@@ -71,14 +80,15 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
                 }
             }
             /* Copy Ut (n×k) to V (n×k) — A's V = A^T's U */
-            memcpy(V, Ut, (size_t)n * (size_t)k * sizeof(double));
+            memcpy(V, Ut, mt_k_bytes);
             free(Ut);
         }
 
         /* Form V_t (m×k) from right reflectors of A^T */
         if (U) { /* A's U = A^T's V_t */
             idx_t nv = (k > 1) ? k - 1 : 0;
-            double *Vt = calloc((size_t)nt * (size_t)k, sizeof(double));
+            // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
+            double *Vt = calloc(nt_k_elems, sizeof(double));
             if (!Vt)
                 return SPARSE_ERR_ALLOC;
             /* Start with I_k embedded in m×k */
@@ -95,7 +105,7 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
                 }
             }
             /* Copy Vt (m×k) to U (m×k) */
-            memcpy(U, Vt, (size_t)m * (size_t)k * sizeof(double));
+            memcpy(U, Vt, nt_k_bytes);
             free(Vt);
         }
 

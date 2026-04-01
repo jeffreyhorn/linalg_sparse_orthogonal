@@ -102,7 +102,15 @@ static void test_mf_gmres_ilu_steam1(void) {
     }
     for (idx_t i = 0; i < n; i++)
         ones[i] = 1.0;
-    sparse_matvec(A, ones, b);
+    sparse_err_t mv_err = sparse_matvec(A, ones, b);
+    ASSERT_ERR(mv_err, SPARSE_OK);
+    if (mv_err != SPARSE_OK) {
+        free(b);
+        free(x);
+        free(ones);
+        sparse_free(A);
+        return;
+    }
 
     /* Compute ILU(0) preconditioner */
     sparse_ilu_t ilu;
@@ -341,9 +349,19 @@ static void test_svd_reconstruction_west0067(void) {
 
     sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1};
     sparse_svd_t svd;
-    ASSERT_ERR(sparse_svd_compute(A, &opts, &svd), SPARSE_OK);
+    sparse_err_t svd_err = sparse_svd_compute(A, &opts, &svd);
+    ASSERT_ERR(svd_err, SPARSE_OK);
+    if (svd_err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
     ASSERT_NOT_NULL(svd.U);
     ASSERT_NOT_NULL(svd.Vt);
+    if (!svd.U || !svd.Vt) {
+        sparse_svd_free(&svd);
+        sparse_free(A);
+        return;
+    }
 
     /* Reconstruct A from U*S*Vt and measure error */
     double max_err = 0.0;

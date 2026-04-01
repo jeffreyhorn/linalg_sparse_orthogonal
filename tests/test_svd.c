@@ -3,6 +3,7 @@
 #include "sparse_matrix.h"
 #include "sparse_qr.h"
 #include "sparse_svd.h"
+#include "sparse_svd_internal.h"
 #include "sparse_types.h"
 #include "sparse_vector.h"
 #include "test_framework.h"
@@ -469,10 +470,6 @@ static void test_svd_with_uv(void) {
 /* ═══════════════════════════════════════════════════════════════════════
  * Bidiagonal SVD iteration tests (Sprint 8 Day 6)
  * ═══════════════════════════════════════════════════════════════════════ */
-
-/* Declared in sparse_svd.c — internal function */
-extern sparse_err_t bidiag_svd_iterate(double *diag, double *superdiag, idx_t k, double *U, idx_t m,
-                                       double *V, idx_t n, idx_t max_iter, double tol);
 
 /* Diagonal bidiagonal: already converged, singular values = |diag| */
 static void test_bidiag_svd_diagonal(void) {

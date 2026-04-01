@@ -2,6 +2,7 @@
 #include "sparse_bidiag.h"
 #include "sparse_dense.h"
 #include "sparse_matrix.h"
+#include "sparse_svd_internal.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>

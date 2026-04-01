@@ -78,7 +78,7 @@ enable_testing()
 function(add_sparse_test TEST_NAME)
     add_executable(${TEST_NAME} tests/${TEST_NAME}.c)
     target_link_libraries(${TEST_NAME} PRIVATE sparse_lu_ortho)
-    target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+    target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests ${CMAKE_CURRENT_SOURCE_DIR}/src)
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
 endfunction()
 

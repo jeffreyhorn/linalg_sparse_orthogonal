@@ -2353,13 +2353,17 @@ static void test_cg_mf_basic(void) {
     sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-12, .verbose = 0};
     sparse_iter_result_t res_cg = {0}, res_mf = {0};
 
-    sparse_solve_cg(A, b, x_cg, &opts, NULL, NULL, &res_cg);
-    sparse_solve_cg_mf(sparse_matvec_cb, A, n, b, x_mf, &opts, NULL, NULL, &res_mf);
+    sparse_err_t err_cg = sparse_solve_cg(A, b, x_cg, &opts, NULL, NULL, &res_cg);
+    sparse_err_t err_mf =
+        sparse_solve_cg_mf(sparse_matvec_cb, A, n, b, x_mf, &opts, NULL, NULL, &res_mf);
+    ASSERT_ERR(err_cg, SPARSE_OK);
+    ASSERT_ERR(err_mf, SPARSE_OK);
 
     printf("    CG_mf basic: cg=%d iters, mf=%d iters\n", (int)res_cg.iterations,
            (int)res_mf.iterations);
-    ASSERT_EQ(res_cg.iterations, res_mf.iterations);
+    ASSERT_TRUE(res_cg.converged);
     ASSERT_TRUE(res_mf.converged);
+    ASSERT_EQ(res_cg.iterations, res_mf.iterations);
 
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x_cg[i], x_mf[i], 1e-12);
@@ -2440,11 +2444,16 @@ static void test_cg_mf_nos4(void) {
     sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
     sparse_iter_result_t res_cg = {0}, res_mf = {0};
 
-    sparse_solve_cg(A, b, x_cg, &opts, NULL, NULL, &res_cg);
-    sparse_solve_cg_mf(sparse_matvec_cb, A, n, b, x_mf, &opts, NULL, NULL, &res_mf);
+    sparse_err_t err_cg = sparse_solve_cg(A, b, x_cg, &opts, NULL, NULL, &res_cg);
+    sparse_err_t err_mf =
+        sparse_solve_cg_mf(sparse_matvec_cb, A, n, b, x_mf, &opts, NULL, NULL, &res_mf);
+    ASSERT_ERR(err_cg, SPARSE_OK);
+    ASSERT_ERR(err_mf, SPARSE_OK);
 
     printf("    CG_mf nos4: cg=%d iters, mf=%d iters\n", (int)res_cg.iterations,
            (int)res_mf.iterations);
+    ASSERT_TRUE(res_cg.converged);
+    ASSERT_TRUE(res_mf.converged);
     ASSERT_EQ(res_cg.iterations, res_mf.iterations);
 
     double max_diff = 0.0;
@@ -2499,13 +2508,17 @@ static void test_gmres_mf_basic(void) {
     sparse_gmres_opts_t opts = {.max_iter = 200, .restart = 20, .tol = 1e-12, .verbose = 0};
     sparse_iter_result_t res_gm = {0}, res_mf = {0};
 
-    sparse_solve_gmres(A, b, x_gm, &opts, NULL, NULL, &res_gm);
-    sparse_solve_gmres_mf(sparse_matvec_cb, A, n, b, x_mf, &opts, NULL, NULL, &res_mf);
+    sparse_err_t err_gm = sparse_solve_gmres(A, b, x_gm, &opts, NULL, NULL, &res_gm);
+    sparse_err_t err_mf =
+        sparse_solve_gmres_mf(sparse_matvec_cb, A, n, b, x_mf, &opts, NULL, NULL, &res_mf);
+    ASSERT_ERR(err_gm, SPARSE_OK);
+    ASSERT_ERR(err_mf, SPARSE_OK);
 
     printf("    GMRES_mf basic: gm=%d iters, mf=%d iters\n", (int)res_gm.iterations,
            (int)res_mf.iterations);
-    ASSERT_EQ(res_gm.iterations, res_mf.iterations);
+    ASSERT_TRUE(res_gm.converged);
     ASSERT_TRUE(res_mf.converged);
+    ASSERT_EQ(res_gm.iterations, res_mf.iterations);
 
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x_gm[i], x_mf[i], 1e-12);
@@ -2563,12 +2576,16 @@ static void test_gmres_mf_right_precond(void) {
                                 .precond_side = SPARSE_PRECOND_RIGHT};
     sparse_iter_result_t res_gm = {0}, res_mf = {0};
 
-    sparse_solve_gmres(A, b, x_gm, &opts, sparse_ilu_precond, &ilu, &res_gm);
-    sparse_solve_gmres_mf(sparse_matvec_cb, A, n, b, x_mf, &opts, sparse_ilu_precond, &ilu,
-                          &res_mf);
+    sparse_err_t err_gm = sparse_solve_gmres(A, b, x_gm, &opts, sparse_ilu_precond, &ilu, &res_gm);
+    sparse_err_t err_mf = sparse_solve_gmres_mf(sparse_matvec_cb, A, n, b, x_mf, &opts,
+                                                sparse_ilu_precond, &ilu, &res_mf);
+    ASSERT_ERR(err_gm, SPARSE_OK);
+    ASSERT_ERR(err_mf, SPARSE_OK);
 
     printf("    GMRES_mf steam1 right: gm=%d iters, mf=%d iters\n", (int)res_gm.iterations,
            (int)res_mf.iterations);
+    ASSERT_TRUE(res_gm.converged);
+    ASSERT_TRUE(res_mf.converged);
     ASSERT_EQ(res_gm.iterations, res_mf.iterations);
 
     free(b);

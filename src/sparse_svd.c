@@ -114,9 +114,20 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
 
     /* Non-transposed case (m >= n): form U and V directly from reflectors */
 
+    /* Overflow-checked byte sizes for U (m×k) and V (n×k) */
+    size_t mk_bytes, nk_bytes;
+    {
+        size_t mk_elems, nk_elems;
+        if (size_mul_overflow((size_t)m, (size_t)k, &mk_elems) ||
+            size_mul_overflow(mk_elems, sizeof(double), &mk_bytes) ||
+            size_mul_overflow((size_t)n, (size_t)k, &nk_elems) ||
+            size_mul_overflow(nk_elems, sizeof(double), &nk_bytes))
+            return SPARSE_ERR_ALLOC;
+    }
+
     /* Form U (m×k): apply left Householder reflectors to columns of I_k */
     if (U) {
-        memset(U, 0, (size_t)m * (size_t)k * sizeof(double));
+        memset(U, 0, mk_bytes);
         for (idx_t i = 0; i < k; i++)
             U[(size_t)i * (size_t)m + (size_t)i] = 1.0;
 
@@ -134,7 +145,7 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
     /* Form V (n×k): apply right Householder reflectors to columns of I_k */
     if (V) {
         idx_t nv = (k > 1) ? k - 1 : 0;
-        memset(V, 0, (size_t)n * (size_t)k * sizeof(double));
+        memset(V, 0, nk_bytes);
         for (idx_t i = 0; i < k; i++)
             V[(size_t)i * (size_t)n + (size_t)i] = 1.0;
 

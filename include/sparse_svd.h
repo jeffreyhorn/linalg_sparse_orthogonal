@@ -130,6 +130,9 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t k, const sparse_svd
  * @param rank Output: the numerical rank.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or rank is NULL.
+ * @return SPARSE_ERR_BADARG if A has non-identity permutations.
+ * @return SPARSE_ERR_ALLOC if memory allocation fails.
+ * @return SPARSE_ERR_NOT_CONVERGED if SVD iteration fails to converge.
  */
 sparse_err_t sparse_svd_rank(const SparseMatrix *A, double tol, idx_t *rank);
 
@@ -145,7 +148,9 @@ sparse_err_t sparse_svd_rank(const SparseMatrix *A, double tol, idx_t *rank);
  *              Set to NULL on failure.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or pinv is NULL.
+ * @return SPARSE_ERR_BADARG if A has non-identity permutations.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
+ * @return SPARSE_ERR_NOT_CONVERGED if SVD iteration fails to converge.
  */
 sparse_err_t sparse_pinv(const SparseMatrix *A, double tol, double **pinv);
 
@@ -161,8 +166,9 @@ sparse_err_t sparse_pinv(const SparseMatrix *A, double tol, double **pinv);
  *                Set to NULL on failure.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or lowrank is NULL.
- * @return SPARSE_ERR_BADARG if rank_k is out of range.
+ * @return SPARSE_ERR_BADARG if rank_k is out of range or A has non-identity permutations.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
+ * @return SPARSE_ERR_NOT_CONVERGED if SVD iteration fails to converge.
  */
 sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lowrank);
 

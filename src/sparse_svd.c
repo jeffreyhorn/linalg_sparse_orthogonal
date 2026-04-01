@@ -646,6 +646,10 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     if (kk <= 0 || kk > kmax)
         return SPARSE_ERR_BADARG;
 
+    /* Reject negative max_iter/tol for consistent API semantics */
+    if (opts && (opts->max_iter < 0 || opts->tol < 0.0))
+        return SPARSE_ERR_BADARG;
+
     /* Reject non-identity permutations (same check as sparse_bidiag_factor) */
     {
         const idx_t *rp = sparse_row_perm(A);

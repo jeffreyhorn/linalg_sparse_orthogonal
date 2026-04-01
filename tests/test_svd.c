@@ -441,6 +441,11 @@ static void test_svd_with_uv(void) {
     ASSERT_NOT_NULL(svd.sigma);
     ASSERT_NOT_NULL(svd.U);
     ASSERT_NOT_NULL(svd.Vt);
+    if (!svd.U || !svd.Vt) {
+        sparse_svd_free(&svd);
+        sparse_free(A);
+        return;
+    }
 
     /* Verify U*diag(sigma)*Vt ≈ A */
     double maxerr = 0.0;
@@ -822,7 +827,12 @@ static void test_svd_tall_10x5(void) {
                 sparse_insert(A, i, j, (double)(5 - j));
 
     sparse_svd_t svd;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &svd), SPARSE_OK);
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     ASSERT_EQ(svd.k, nc);
     /* Diagonal: sigma = [5, 4, 3, 2, 1] */
@@ -845,7 +855,12 @@ static void test_svd_wide_5x10(void) {
         sparse_insert(A, i, i, (double)(m - i));
 
     sparse_svd_t svd;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &svd), SPARSE_OK);
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     ASSERT_EQ(svd.k, m);
     ASSERT_NEAR(svd.sigma[0], 5.0, 1e-10);
@@ -877,12 +892,22 @@ static void test_svd_wide_5x10_uv(void) {
 
     sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1};
     sparse_svd_t svd;
-    ASSERT_ERR(sparse_svd_compute(A, &opts, &svd), SPARSE_OK);
+    sparse_err_t err = sparse_svd_compute(A, &opts, &svd);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     idx_t k = svd.k;
     ASSERT_EQ(k, m);
     ASSERT_NOT_NULL(svd.U);
     ASSERT_NOT_NULL(svd.Vt);
+    if (!svd.U || !svd.Vt) {
+        sparse_svd_free(&svd);
+        sparse_free(A);
+        return;
+    }
 
     /* U orthonormality: U^T * U ≈ I_k */
     for (idx_t p = 0; p < k; p++) {
@@ -917,9 +942,9 @@ static void test_svd_wide_5x10_uv(void) {
             for (idx_t r = 0; r < k; r++)
                 val += svd.U[(size_t)r * (size_t)m + (size_t)i] * svd.sigma[r] *
                        svd.Vt[(size_t)j * (size_t)k + (size_t)r];
-            double err = fabs(val - sparse_get(A, i, j));
-            if (err > max_err)
-                max_err = err;
+            double e = fabs(val - sparse_get(A, i, j));
+            if (e > max_err)
+                max_err = e;
         }
     }
     printf("    wide 5x10 UV recon: ||U*S*Vt - A||_max = %.3e\n", max_err);
@@ -944,14 +969,25 @@ static void test_svd_sigma_only_vs_uv(void) {
 
     /* Sigma only */
     sparse_svd_t svd1;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &svd1), SPARSE_OK);
+    sparse_err_t err1 = sparse_svd_compute(A, NULL, &svd1);
+    ASSERT_ERR(err1, SPARSE_OK);
+    if (err1 != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
     ASSERT_TRUE(svd1.U == NULL);
     ASSERT_TRUE(svd1.Vt == NULL);
 
     /* With UV */
     sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1};
     sparse_svd_t svd2;
-    ASSERT_ERR(sparse_svd_compute(A, &opts, &svd2), SPARSE_OK);
+    sparse_err_t err2 = sparse_svd_compute(A, &opts, &svd2);
+    ASSERT_ERR(err2, SPARSE_OK);
+    if (err2 != SPARSE_OK) {
+        sparse_svd_free(&svd1);
+        sparse_free(A);
+        return;
+    }
     ASSERT_NOT_NULL(svd2.U);
     ASSERT_NOT_NULL(svd2.Vt);
 
@@ -976,7 +1012,12 @@ static void test_svd_nos4(void) {
         return;
 
     sparse_svd_t svd;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &svd), SPARSE_OK);
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     ASSERT_EQ(svd.k, 100);
     /* All positive */
@@ -1001,7 +1042,12 @@ static void test_svd_west0067(void) {
         return;
 
     sparse_svd_t svd;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &svd), SPARSE_OK);
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     ASSERT_EQ(svd.k, 67);
     ASSERT_TRUE(svd.sigma[0] > 0.0);
@@ -1031,7 +1077,12 @@ static void test_svd_rank_vs_qr(void) {
 
     /* SVD rank: count sigma > tol */
     sparse_svd_t svd;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &svd), SPARSE_OK);
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     idx_t svd_rank = 0;
     double tol_svd = 1e-8 * svd.sigma[0];
@@ -1099,11 +1150,22 @@ static void test_partial_svd_diag_10x10(void) {
 
     /* Full SVD for reference */
     sparse_svd_t full;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+    sparse_err_t ferr = sparse_svd_compute(A, NULL, &full);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     /* Partial: k=3 */
     sparse_svd_t partial;
-    ASSERT_ERR(sparse_svd_partial(A, 3, NULL, &partial), SPARSE_OK);
+    sparse_err_t perr = sparse_svd_partial(A, 3, NULL, &partial);
+    ASSERT_ERR(perr, SPARSE_OK);
+    if (perr != SPARSE_OK) {
+        sparse_svd_free(&full);
+        sparse_free(A);
+        return;
+    }
 
     ASSERT_EQ(partial.k, 3);
     ASSERT_EQ(partial.m, n);
@@ -1136,10 +1198,21 @@ static void test_partial_svd_full_k(void) {
         sparse_insert(A, i, i, (double)(n - i));
 
     sparse_svd_t full;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+    sparse_err_t ferr = sparse_svd_compute(A, NULL, &full);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     sparse_svd_t partial;
-    ASSERT_ERR(sparse_svd_partial(A, n, NULL, &partial), SPARSE_OK);
+    sparse_err_t perr = sparse_svd_partial(A, n, NULL, &partial);
+    ASSERT_ERR(perr, SPARSE_OK);
+    if (perr != SPARSE_OK) {
+        sparse_svd_free(&full);
+        sparse_free(A);
+        return;
+    }
 
     ASSERT_EQ(partial.k, n);
     for (idx_t i = 0; i < n; i++)
@@ -1163,11 +1236,22 @@ static void test_partial_svd_dense_8x8(void) {
             sparse_insert(A, i, j, 1.0 / (double)(i + j + 1));
 
     sparse_svd_t full;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+    sparse_err_t ferr = sparse_svd_compute(A, NULL, &full);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     idx_t kk = 4;
     sparse_svd_t partial;
-    ASSERT_ERR(sparse_svd_partial(A, kk, NULL, &partial), SPARSE_OK);
+    sparse_err_t perr = sparse_svd_partial(A, kk, NULL, &partial);
+    ASSERT_ERR(perr, SPARSE_OK);
+    if (perr != SPARSE_OK) {
+        sparse_svd_free(&full);
+        sparse_free(A);
+        return;
+    }
 
     ASSERT_EQ(partial.k, kk);
     printf("    Hilbert 8x8 partial SVD (k=%d):\n", (int)kk);
@@ -1193,10 +1277,21 @@ static void test_partial_svd_tall(void) {
         sparse_insert(A, i, i, (double)(nc - i));
 
     sparse_svd_t full;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+    sparse_err_t ferr = sparse_svd_compute(A, NULL, &full);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     sparse_svd_t partial;
-    ASSERT_ERR(sparse_svd_partial(A, 3, NULL, &partial), SPARSE_OK);
+    sparse_err_t perr = sparse_svd_partial(A, 3, NULL, &partial);
+    ASSERT_ERR(perr, SPARSE_OK);
+    if (perr != SPARSE_OK) {
+        sparse_svd_free(&full);
+        sparse_free(A);
+        return;
+    }
 
     ASSERT_EQ(partial.k, 3);
     for (idx_t i = 0; i < 3; i++)
@@ -1218,10 +1313,21 @@ static void test_partial_svd_wide(void) {
         sparse_insert(A, i, i, (double)(m - i));
 
     sparse_svd_t full;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+    sparse_err_t ferr = sparse_svd_compute(A, NULL, &full);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     sparse_svd_t partial;
-    ASSERT_ERR(sparse_svd_partial(A, 3, NULL, &partial), SPARSE_OK);
+    sparse_err_t perr = sparse_svd_partial(A, 3, NULL, &partial);
+    ASSERT_ERR(perr, SPARSE_OK);
+    if (perr != SPARSE_OK) {
+        sparse_svd_free(&full);
+        sparse_free(A);
+        return;
+    }
 
     ASSERT_EQ(partial.k, 3);
     /* Lanczos on wide matrices converges more slowly; use relative tolerance */
@@ -1242,11 +1348,22 @@ static void test_partial_svd_nos4(void) {
         return;
 
     sparse_svd_t full;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+    sparse_err_t ferr = sparse_svd_compute(A, NULL, &full);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     idx_t kk = 5;
     sparse_svd_t partial;
-    ASSERT_ERR(sparse_svd_partial(A, kk, NULL, &partial), SPARSE_OK);
+    sparse_err_t perr = sparse_svd_partial(A, kk, NULL, &partial);
+    ASSERT_ERR(perr, SPARSE_OK);
+    if (perr != SPARSE_OK) {
+        sparse_svd_free(&full);
+        sparse_free(A);
+        return;
+    }
 
     ASSERT_EQ(partial.k, kk);
     printf("    nos4 partial SVD (k=%d):\n", (int)kk);
@@ -1276,10 +1393,21 @@ static void test_partial_svd_k1(void) {
         sparse_insert(A, i, i, (double)(n - i));
 
     sparse_svd_t full;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+    sparse_err_t ferr = sparse_svd_compute(A, NULL, &full);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     sparse_svd_t partial;
-    ASSERT_ERR(sparse_svd_partial(A, 1, NULL, &partial), SPARSE_OK);
+    sparse_err_t perr = sparse_svd_partial(A, 1, NULL, &partial);
+    ASSERT_ERR(perr, SPARSE_OK);
+    if (perr != SPARSE_OK) {
+        sparse_svd_free(&full);
+        sparse_free(A);
+        return;
+    }
 
     ASSERT_EQ(partial.k, 1);
     printf("    k=1: partial=%.6f, full=%.6f\n", partial.sigma[0], full.sigma[0]);
@@ -1305,11 +1433,22 @@ static void test_partial_svd_rank_deficient(void) {
     }
 
     sparse_svd_t full;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+    sparse_err_t ferr = sparse_svd_compute(A, NULL, &full);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     /* k=4 = min(m,n), but true rank is 2 */
     sparse_svd_t partial;
-    ASSERT_ERR(sparse_svd_partial(A, 4, NULL, &partial), SPARSE_OK);
+    sparse_err_t perr = sparse_svd_partial(A, 4, NULL, &partial);
+    ASSERT_ERR(perr, SPARSE_OK);
+    if (perr != SPARSE_OK) {
+        sparse_svd_free(&full);
+        sparse_free(A);
+        return;
+    }
 
     ASSERT_EQ(partial.k, 4);
     /* Top 2 should be non-trivial, bottom 2 near zero */
@@ -1338,11 +1477,22 @@ static void test_partial_svd_west0067(void) {
         return;
 
     sparse_svd_t full;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+    sparse_err_t ferr = sparse_svd_compute(A, NULL, &full);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     idx_t kk = 5;
     sparse_svd_t partial;
-    ASSERT_ERR(sparse_svd_partial(A, kk, NULL, &partial), SPARSE_OK);
+    sparse_err_t perr = sparse_svd_partial(A, kk, NULL, &partial);
+    ASSERT_ERR(perr, SPARSE_OK);
+    if (perr != SPARSE_OK) {
+        sparse_svd_free(&full);
+        sparse_free(A);
+        return;
+    }
 
     ASSERT_EQ(partial.k, kk);
     printf("    west0067 partial SVD (k=%d):\n", (int)kk);
@@ -1374,7 +1524,12 @@ static void test_partial_svd_descending(void) {
     }
 
     sparse_svd_t partial;
-    ASSERT_ERR(sparse_svd_partial(A, 7, NULL, &partial), SPARSE_OK);
+    sparse_err_t perr = sparse_svd_partial(A, 7, NULL, &partial);
+    ASSERT_ERR(perr, SPARSE_OK);
+    if (perr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     ASSERT_EQ(partial.k, 7);
     /* All positive */
@@ -1401,14 +1556,25 @@ static void test_partial_svd_timing(void) {
     /* Time full SVD */
     clock_t t0 = clock();
     sparse_svd_t full;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+    sparse_err_t ferr = sparse_svd_compute(A, NULL, &full);
     double full_time = (double)(clock() - t0) / CLOCKS_PER_SEC;
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     /* Time partial SVD (k=5) */
     t0 = clock();
     sparse_svd_t partial;
-    ASSERT_ERR(sparse_svd_partial(A, 5, NULL, &partial), SPARSE_OK);
+    sparse_err_t perr = sparse_svd_partial(A, 5, NULL, &partial);
     double partial_time = (double)(clock() - t0) / CLOCKS_PER_SEC;
+    ASSERT_ERR(perr, SPARSE_OK);
+    if (perr != SPARSE_OK) {
+        sparse_svd_free(&full);
+        sparse_free(A);
+        return;
+    }
 
     printf("    nos4 timing: full=%.4f s, partial(k=5)=%.4f s\n", full_time, partial_time);
 
@@ -1435,10 +1601,21 @@ static void test_partial_svd_nonsymmetric(void) {
                 sparse_insert(A, i, j, (double)(i + 1) / (double)(j + 1));
 
     sparse_svd_t full;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+    sparse_err_t ferr = sparse_svd_compute(A, NULL, &full);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     sparse_svd_t partial;
-    ASSERT_ERR(sparse_svd_partial(A, 4, NULL, &partial), SPARSE_OK);
+    sparse_err_t perr = sparse_svd_partial(A, 4, NULL, &partial);
+    ASSERT_ERR(perr, SPARSE_OK);
+    if (perr != SPARSE_OK) {
+        sparse_svd_free(&full);
+        sparse_free(A);
+        return;
+    }
 
     ASSERT_EQ(partial.k, 4);
     printf("    non-symmetric 10x8 partial (k=4):\n");
@@ -1467,7 +1644,12 @@ static void test_svd_rank_full(void) {
         sparse_insert(A, i, i, (double)(i + 1));
 
     idx_t rank;
-    ASSERT_ERR(sparse_svd_rank(A, 0.0, &rank), SPARSE_OK);
+    sparse_err_t err = sparse_svd_rank(A, 0.0, &rank);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
     printf("    full-rank 5x5: rank=%d\n", (int)rank);
     ASSERT_EQ(rank, 5);
 
@@ -1489,7 +1671,12 @@ static void test_svd_rank_deficient(void) {
     }
 
     idx_t rank;
-    ASSERT_ERR(sparse_svd_rank(A, 0.0, &rank), SPARSE_OK);
+    sparse_err_t err = sparse_svd_rank(A, 0.0, &rank);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
     printf("    rank-deficient 5x4: rank=%d\n", (int)rank);
     ASSERT_EQ(rank, 2);
 
@@ -1507,14 +1694,24 @@ static void test_svd_rank_nearly_singular(void) {
     sparse_insert(A, 2, 2, 1e-14); /* near zero but above machine eps */
 
     idx_t rank;
-    ASSERT_ERR(sparse_svd_rank(A, 0.0, &rank), SPARSE_OK);
+    sparse_err_t err = sparse_svd_rank(A, 0.0, &rank);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
     printf("    nearly-singular 3x3: rank=%d\n", (int)rank);
     /* Default tol = eps * max(m,n) * sigma_max ≈ 2.2e-16 * 3 * 1 ≈ 6.6e-16
      * sigma_min = 1e-14 > tol, so rank should be 3 */
     ASSERT_EQ(rank, 3);
 
     /* With explicit tolerance 1e-12, rank = 2 */
-    ASSERT_ERR(sparse_svd_rank(A, 1e-12, &rank), SPARSE_OK);
+    sparse_err_t err2 = sparse_svd_rank(A, 1e-12, &rank);
+    ASSERT_ERR(err2, SPARSE_OK);
+    if (err2 != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
     printf("    nearly-singular 3x3 (tol=1e-12): rank=%d\n", (int)rank);
     ASSERT_EQ(rank, 2);
 
@@ -1538,7 +1735,12 @@ static void test_pinv_diagonal(void) {
     sparse_insert(A, 2, 2, 5.0);
 
     double *pinv_data = NULL;
-    ASSERT_ERR(sparse_pinv(A, 0.0, &pinv_data), SPARSE_OK);
+    sparse_err_t err = sparse_pinv(A, 0.0, &pinv_data);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
     ASSERT_NOT_NULL(pinv_data);
     if (!pinv_data) {
         sparse_free(A);
@@ -1577,7 +1779,12 @@ static void test_pinv_moore_penrose(void) {
     sparse_insert(A, 3, 2, 2.0);
 
     double *pinv_data = NULL;
-    ASSERT_ERR(sparse_pinv(A, 0.0, &pinv_data), SPARSE_OK);
+    sparse_err_t err = sparse_pinv(A, 0.0, &pinv_data);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
     ASSERT_NOT_NULL(pinv_data);
     if (!pinv_data) {
         sparse_free(A);
@@ -1613,9 +1820,9 @@ static void test_pinv_moore_penrose(void) {
             double sum = 0.0;
             for (idx_t p = 0; p < m; p++)
                 sum += B[(size_t)p * (size_t)m + (size_t)i] * sparse_get(A, p, j);
-            double err = fabs(sum - sparse_get(A, i, j));
-            if (err > max_err)
-                max_err = err;
+            double e = fabs(sum - sparse_get(A, i, j));
+            if (e > max_err)
+                max_err = e;
         }
     }
     printf("    Moore-Penrose ||A*A^+*A - A||_max = %.3e\n", max_err);
@@ -1647,7 +1854,12 @@ static void test_pinv_rectangular(void) {
     sparse_insert(A, 2, 1, 3.0);
 
     double *pinv_data = NULL;
-    ASSERT_ERR(sparse_pinv(A, 0.0, &pinv_data), SPARSE_OK);
+    sparse_err_t err = sparse_pinv(A, 0.0, &pinv_data);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
     ASSERT_NOT_NULL(pinv_data);
     if (!pinv_data) {
         sparse_free(A);
@@ -1678,9 +1890,9 @@ static void test_pinv_rectangular(void) {
             double sum = 0.0;
             for (idx_t p = 0; p < m; p++)
                 sum += B[(size_t)p * (size_t)m + (size_t)i] * sparse_get(A, p, j);
-            double err = fabs(sum - sparse_get(A, i, j));
-            if (err > max_err)
-                max_err = err;
+            double e = fabs(sum - sparse_get(A, i, j));
+            if (e > max_err)
+                max_err = e;
         }
     printf("    rectangular pinv ||A*A^+*A - A||_max = %.3e\n", max_err);
     ASSERT_TRUE(max_err < 1e-10);
@@ -1702,7 +1914,12 @@ static void test_lowrank_diagonal(void) {
     sparse_insert(A, 3, 3, 1.0);
 
     double *lr = NULL;
-    ASSERT_ERR(sparse_svd_lowrank(A, 2, &lr), SPARSE_OK);
+    sparse_err_t err = sparse_svd_lowrank(A, 2, &lr);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
     ASSERT_NOT_NULL(lr);
     if (!lr) {
         sparse_free(A);
@@ -1749,11 +1966,22 @@ static void test_lowrank_error_bound(void) {
 
     /* Get full SVD for reference */
     sparse_svd_t svd;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &svd), SPARSE_OK);
+    sparse_err_t serr = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_ERR(serr, SPARSE_OK);
+    if (serr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     idx_t rank_k = 3;
     double *lr = NULL;
-    ASSERT_ERR(sparse_svd_lowrank(A, rank_k, &lr), SPARSE_OK);
+    sparse_err_t lrerr = sparse_svd_lowrank(A, rank_k, &lr);
+    ASSERT_ERR(lrerr, SPARSE_OK);
+    if (lrerr != SPARSE_OK) {
+        sparse_svd_free(&svd);
+        sparse_free(A);
+        return;
+    }
     ASSERT_NOT_NULL(lr);
     if (!lr) {
         sparse_svd_free(&svd);

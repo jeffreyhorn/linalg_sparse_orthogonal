@@ -38,7 +38,12 @@ static void test_svd_vs_ata_eigenvalues(void) {
 
     /* Compute SVD */
     sparse_svd_t svd;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &svd), SPARSE_OK);
+    sparse_err_t serr = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_ERR(serr, SPARSE_OK);
+    if (serr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     /* Compute A^T*A as dense, get its Frobenius norm and trace.
      * For SPD nos4: A = A^T, so A^T*A = A^2.
@@ -169,14 +174,25 @@ static void test_partial_vs_full_bcsstk04(void) {
 
     /* Full SVD */
     sparse_svd_t full;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &full), SPARSE_OK);
+    sparse_err_t ferr = sparse_svd_compute(A, NULL, &full);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     /* Partial SVD: top 5 */
     idx_t kk = 5;
     if (kk > full.k)
         kk = full.k;
     sparse_svd_t partial;
-    ASSERT_ERR(sparse_svd_partial(A, kk, NULL, &partial), SPARSE_OK);
+    sparse_err_t perr = sparse_svd_partial(A, kk, NULL, &partial);
+    ASSERT_ERR(perr, SPARSE_OK);
+    if (perr != SPARSE_OK) {
+        sparse_svd_free(&full);
+        sparse_free(A);
+        return;
+    }
 
     ASSERT_EQ(partial.k, kk);
     printf("    bcsstk04 partial vs full (k=%d):\n", (int)kk);
@@ -212,7 +228,12 @@ static void test_svd_rank_matches_qr(void) {
     }
 
     idx_t svd_rank;
-    ASSERT_ERR(sparse_svd_rank(A, 0.0, &svd_rank), SPARSE_OK);
+    sparse_err_t serr = sparse_svd_rank(A, 0.0, &svd_rank);
+    ASSERT_ERR(serr, SPARSE_OK);
+    if (serr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     sparse_qr_t qr;
     sparse_err_t qr_err = sparse_qr_factor(A, &qr);
@@ -241,7 +262,12 @@ static void test_pinv_west0067(void) {
     idx_t nc = sparse_cols(A);
 
     double *pinv_data = NULL;
-    ASSERT_ERR(sparse_pinv(A, 0.0, &pinv_data), SPARSE_OK);
+    sparse_err_t perr = sparse_pinv(A, 0.0, &pinv_data);
+    ASSERT_ERR(perr, SPARSE_OK);
+    if (perr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
     ASSERT_NOT_NULL(pinv_data);
     if (!pinv_data) {
         sparse_free(A);
@@ -297,12 +323,23 @@ static void test_lowrank_nos4(void) {
 
     /* Full SVD for reference */
     sparse_svd_t svd;
-    ASSERT_ERR(sparse_svd_compute(A, NULL, &svd), SPARSE_OK);
+    sparse_err_t serr = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_ERR(serr, SPARSE_OK);
+    if (serr != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     /* Rank-10 approximation */
     idx_t rank_k = 10;
     double *lr = NULL;
-    ASSERT_ERR(sparse_svd_lowrank(A, rank_k, &lr), SPARSE_OK);
+    sparse_err_t lrerr = sparse_svd_lowrank(A, rank_k, &lr);
+    ASSERT_ERR(lrerr, SPARSE_OK);
+    if (lrerr != SPARSE_OK) {
+        sparse_svd_free(&svd);
+        sparse_free(A);
+        return;
+    }
     ASSERT_NOT_NULL(lr);
     if (!lr) {
         sparse_svd_free(&svd);

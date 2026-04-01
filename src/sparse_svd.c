@@ -474,17 +474,23 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
     }
 
     /* Copy bidiag arrays (QR iteration modifies them in-place) */
-    double *bd_diag = malloc((size_t)k * sizeof(double));
-    double *bd_super = (k > 1) ? malloc((size_t)(k - 1) * sizeof(double)) : NULL;
+    size_t bd_diag_bytes, bd_super_bytes = 0;
+    if (size_mul_overflow((size_t)k, sizeof(double), &bd_diag_bytes) ||
+        (k > 1 && size_mul_overflow((size_t)(k - 1), sizeof(double), &bd_super_bytes))) {
+        sparse_bidiag_free(&bd);
+        return SPARSE_ERR_ALLOC;
+    }
+    double *bd_diag = malloc(bd_diag_bytes);
+    double *bd_super = (k > 1) ? malloc(bd_super_bytes) : NULL;
     if (!bd_diag || (k > 1 && !bd_super)) {
         free(bd_diag);
         free(bd_super);
         sparse_bidiag_free(&bd);
         return SPARSE_ERR_ALLOC;
     }
-    memcpy(bd_diag, bd.diag, (size_t)k * sizeof(double));
+    memcpy(bd_diag, bd.diag, bd_diag_bytes);
     if (k > 1)
-        memcpy(bd_super, bd.superdiag, (size_t)(k - 1) * sizeof(double));
+        memcpy(bd_super, bd.superdiag, bd_super_bytes);
 
     double *U_work = NULL;
     double *V_work = NULL;
@@ -632,12 +638,14 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     svd->k = kk;
 
     /* Use more Lanczos steps than k for better convergence.
-     * Clustered spectra (e.g. stiffness matrices) need a larger subspace. */
-    idx_t lanczos_k = 2 * kk + 20;
-    if (lanczos_k < kk + 30)
-        lanczos_k = kk + 30;
-    if (lanczos_k > kmax)
-        lanczos_k = kmax;
+     * Clustered spectra (e.g. stiffness matrices) need a larger subspace.
+     * Compute in int64_t to avoid overflow when kk is large. */
+    int64_t lanczos_k64 = 2LL * (int64_t)kk + 20;
+    if (lanczos_k64 < (int64_t)kk + 30)
+        lanczos_k64 = (int64_t)kk + 30;
+    if (lanczos_k64 > (int64_t)kmax)
+        lanczos_k64 = (int64_t)kmax;
+    idx_t lanczos_k = (idx_t)lanczos_k64;
 
     /* Transpose for A^T * x operations */
     SparseMatrix *At = sparse_transpose(A);
@@ -646,16 +654,19 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
 
     /* Allocate Lanczos vectors: P (m x lanczos_k) and Q (n x (lanczos_k+1)) */
     size_t sz_p, sz_q;
+    size_t sz_alpha = (size_t)lanczos_k;
+    size_t sz_beta = (size_t)(lanczos_k + 1);
     if (size_mul_overflow((size_t)m, (size_t)lanczos_k, &sz_p) ||
         size_mul_overflow((size_t)n, (size_t)(lanczos_k + 1), &sz_q) ||
-        sz_p > SIZE_MAX / sizeof(double) || sz_q > SIZE_MAX / sizeof(double)) {
+        sz_p > SIZE_MAX / sizeof(double) || sz_q > SIZE_MAX / sizeof(double) ||
+        sz_alpha > SIZE_MAX / sizeof(double) || sz_beta > SIZE_MAX / sizeof(double)) {
         sparse_free(At);
         return SPARSE_ERR_ALLOC;
     }
     double *P = calloc(sz_p, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
     double *Q = calloc(sz_q, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
-    double *alpha = calloc((size_t)lanczos_k, sizeof(double));
-    double *beta = calloc((size_t)(lanczos_k + 1), sizeof(double));
+    double *alpha = calloc(sz_alpha, sizeof(double));
+    double *beta = calloc(sz_beta, sizeof(double));
 
     if (!P || !Q || !alpha || !beta) {
         free(P);

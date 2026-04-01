@@ -286,6 +286,12 @@ static void validate_gk(const SparseMatrix *A, const char *name) {
 
     ASSERT_ERR(sparse_svd_extract_uv(&bd, U, V), SPARSE_OK);
 
+    /* Note: gk_reconstruction_error computes ||A - U*B*V^T|| treating B as upper
+     * bidiagonal. For transposed (wide) matrices, bd.diag/superdiag are B_t (A^T's
+     * bidiag), not A's. This reconstruction check is only exact when B_t is diagonal
+     * (zero superdiag). The SVD driver handles the transposed case correctly by
+     * swapping U↔V in the QR iteration; the full SVD reconstruction test
+     * (test_svd_wide_5x10_uv) validates end-to-end correctness for wide matrices. */
     double recon = gk_reconstruction_error(A, U, V, bd.diag, bd.superdiag, m, n, k);
     double u_orth = orthogonality_error(U, m, k);
     double v_orth = orthogonality_error(V, n, k);

@@ -481,6 +481,12 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
     double svd_tol = opts ? opts->tol : 0.0;
     svd->economy = economy;
 
+    /* Reject negative max_iter/tol — only 0 (default) or positive values accepted */
+    if (svd_max_iter < 0 || svd_tol < 0.0) {
+        sparse_bidiag_free(&bd);
+        return SPARSE_ERR_BADARG;
+    }
+
     /* Full (non-economy) SVD with UV is not implemented — only economy mode */
     if (compute_uv && !economy) {
         sparse_bidiag_free(&bd);
@@ -541,10 +547,19 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
         }
     }
 
+    int was_transposed = bd.transposed;
     sparse_bidiag_free(&bd);
 
-    /* Run implicit QR SVD iteration on the bidiagonal */
-    err = bidiag_svd_iterate(bd_diag, bd_super, k, U_work, m, V_work, n, svd_max_iter, svd_tol);
+    /* Run implicit QR SVD iteration on the bidiagonal.
+     * For wide matrices (transposed), bd_diag/bd_super are the upper bidiag of A^T.
+     * The QR iteration decomposes B_t = U_b * Sigma * V_b^T. To get A's SVD
+     * (A = V_t*B_t^T*U_t^T = V_t*V_b*Sigma*U_b^T*U_t^T), we need left rotations
+     * (U_b) accumulated into V_work and right rotations (V_b) into U_work.
+     * So swap U_work↔V_work and m↔n for the iterate call. */
+    if (was_transposed && compute_uv)
+        err = bidiag_svd_iterate(bd_diag, bd_super, k, V_work, n, U_work, m, svd_max_iter, svd_tol);
+    else
+        err = bidiag_svd_iterate(bd_diag, bd_super, k, U_work, m, V_work, n, svd_max_iter, svd_tol);
     free(bd_super);
 
     if (err != SPARSE_OK) {

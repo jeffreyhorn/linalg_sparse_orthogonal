@@ -363,6 +363,8 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
         return SPARSE_ERR_BADARG;
     if (o->precond_side != SPARSE_PRECOND_LEFT && o->precond_side != SPARSE_PRECOND_RIGHT)
         return SPARSE_ERR_BADARG;
+    if (n < 0)
+        return SPARSE_ERR_BADARG;
     idx_t m = o->restart; /* restart parameter */
     int right_precond = (precond && o->precond_side == SPARSE_PRECOND_RIGHT);
 

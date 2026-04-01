@@ -406,7 +406,12 @@ static void test_gk_1x1(void) {
     sparse_insert(A, 0, 0, 7.0);
 
     sparse_bidiag_t bd;
-    ASSERT_ERR(sparse_bidiag_factor(A, &bd), SPARSE_OK);
+    sparse_err_t err = sparse_bidiag_factor(A, &bd);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     double U_val = 0.0, V_val = 0.0;
     ASSERT_ERR(sparse_svd_extract_uv(&bd, &U_val, &V_val), SPARSE_OK);
@@ -1110,10 +1115,19 @@ static void test_svd_rank_vs_qr(void) {
     sparse_free(A);
 }
 
-/* SVD NULL input */
+/* SVD NULL svd pointer with valid matrix */
 static void test_svd_null_input(void) {
-    sparse_svd_t svd;
-    ASSERT_ERR(sparse_svd_compute(NULL, NULL, &svd), SPARSE_ERR_NULL);
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 2.0);
+    sparse_insert(A, 2, 2, 3.0);
+
+    ASSERT_ERR(sparse_svd_compute(A, NULL, NULL), SPARSE_ERR_NULL);
+
+    sparse_free(A);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

@@ -316,8 +316,7 @@ static sparse_err_t gmres_sparse_matvec_adapter(const void *ctx, idx_t n, const 
                                                 double *y_out) {
     (void)n;
     const SparseMatrix *A = (const SparseMatrix *)ctx;
-    sparse_matvec(A, x_in, y_out);
-    return SPARSE_OK;
+    return sparse_matvec(A, x_in, y_out);
 }
 
 sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *x,

@@ -2316,8 +2316,7 @@ static void test_gmres_vs_cg_nos4(void) {
 static sparse_err_t sparse_matvec_cb(const void *ctx, idx_t n, const double *x, double *y) {
     const SparseMatrix *A = (const SparseMatrix *)ctx;
     (void)n;
-    sparse_matvec(A, x, y);
-    return SPARSE_OK;
+    return sparse_matvec(A, x, y);
 }
 
 /* CG_mf matches CG on SPD tridiagonal */

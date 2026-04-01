@@ -540,7 +540,13 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
     if (compute_uv) {
         svd->U = U_work;
         /* Transpose V (n×k) to get Vt (k×n) */
-        svd->Vt = calloc((size_t)k * (size_t)n, sizeof(double));
+        size_t vt_sz;
+        if (size_mul_overflow((size_t)k, (size_t)n, &vt_sz) || vt_sz > SIZE_MAX / sizeof(double)) {
+            free(V_work);
+            sparse_svd_free(svd);
+            return SPARSE_ERR_ALLOC;
+        }
+        svd->Vt = calloc(vt_sz, sizeof(double));
         if (!svd->Vt) {
             free(V_work);
             sparse_svd_free(svd);
@@ -673,7 +679,17 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
         double *pj = &P[(size_t)j * (size_t)m];
 
         /* p_j = A * q_j */
-        sparse_matvec(A, qj, pj);
+        {
+            sparse_err_t mv_err = sparse_matvec(A, qj, pj);
+            if (mv_err != SPARSE_OK) {
+                free(P);
+                free(Q);
+                free(alpha);
+                free(beta);
+                sparse_free(At);
+                return mv_err;
+            }
+        }
 
         /* p_j = p_j - beta_j * p_{j-1} */
         if (j > 0) {
@@ -707,7 +723,17 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
 
         /* r = A^T * p_j - alpha_j * q_j */
         double *qj1 = &Q[(size_t)(j + 1) * (size_t)n];
-        sparse_matvec(At, pj, qj1);
+        {
+            sparse_err_t mv_err = sparse_matvec(At, pj, qj1);
+            if (mv_err != SPARSE_OK) {
+                free(P);
+                free(Q);
+                free(alpha);
+                free(beta);
+                sparse_free(At);
+                return mv_err;
+            }
+        }
         for (idx_t i = 0; i < n; i++)
             qj1[i] -= alpha[j] * qj[i];
 

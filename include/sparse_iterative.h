@@ -199,6 +199,9 @@ typedef sparse_err_t (*sparse_matvec_fn)(const void *ctx, idx_t n, const double 
  * @param result     Output: iteration count, residual, convergence flag (may be NULL).
  * @return SPARSE_OK on convergence, SPARSE_ERR_NOT_CONVERGED otherwise.
  * @return SPARSE_ERR_NULL if matvec, b, or x is NULL.
+ * @return SPARSE_ERR_BADARG if n < 0 or opts has invalid fields.
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails.
+ * @return Any error returned by the matvec or precond callbacks.
  */
 sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx, idx_t n,
                                 const double *b, double *x, const sparse_iter_opts_t *opts,
@@ -222,6 +225,9 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
  * @param result     Output: iteration count, residual, convergence flag (may be NULL).
  * @return SPARSE_OK on convergence, SPARSE_ERR_NOT_CONVERGED otherwise.
  * @return SPARSE_ERR_NULL if matvec, b, or x is NULL.
+ * @return SPARSE_ERR_BADARG if n < 0, restart <= 0, or opts has invalid fields.
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails.
+ * @return Any error returned by the matvec or precond callbacks.
  */
 sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_ctx, idx_t n,
                                    const double *b, double *x, const sparse_gmres_opts_t *opts,

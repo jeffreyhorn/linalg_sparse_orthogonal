@@ -109,8 +109,10 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
  *             Must be freed with sparse_svd_free().
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or svd is NULL.
- * @return SPARSE_ERR_BADARG if k <= 0 or k > min(m,n).
+ * @return SPARSE_ERR_BADARG if k <= 0 or k > min(m,n), if A has non-identity
+ *         permutations, or if opts has negative max_iter/tol.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
+ * @return SPARSE_ERR_NOT_CONVERGED if bidiagonal SVD iteration fails.
  */
 sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t k, const sparse_svd_opts_t *opts,
                                 sparse_svd_t *svd);
@@ -126,11 +128,12 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t k, const sparse_svd
  * Default tolerance: eps * max(m,n) * sigma_max, where eps = 2.2e-16.
  *
  * @param A    The matrix (not modified).
- * @param tol  Tolerance (0 for default). Singular values <= tol are treated as zero.
+ * @param tol  Tolerance (0 for default, negative rejected). Singular values <= tol
+ *             are treated as zero.
  * @param rank Output: the numerical rank.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or rank is NULL.
- * @return SPARSE_ERR_BADARG if A has non-identity permutations.
+ * @return SPARSE_ERR_BADARG if A has non-identity permutations or tol < 0.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  * @return SPARSE_ERR_NOT_CONVERGED if SVD iteration fails to converge.
  */
@@ -143,12 +146,12 @@ sparse_err_t sparse_svd_rank(const SparseMatrix *A, double tol, idx_t *rank);
  * Sigma^+ inverts singular values above tolerance and zeros the rest.
  *
  * @param A     The matrix (not modified).
- * @param tol   Tolerance for rank determination (0 for default).
+ * @param tol   Tolerance for rank determination (0 for default, negative rejected).
  * @param pinv  Output: dense n×m column-major array (caller must free).
  *              Set to NULL on failure.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or pinv is NULL.
- * @return SPARSE_ERR_BADARG if A has non-identity permutations.
+ * @return SPARSE_ERR_BADARG if A has non-identity permutations or tol < 0.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  * @return SPARSE_ERR_NOT_CONVERGED if SVD iteration fails to converge.
  */

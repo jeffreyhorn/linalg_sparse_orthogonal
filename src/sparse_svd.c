@@ -825,7 +825,13 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
      * diag=alpha, superdiag=beta[1..lanczos_k-1] */
     double *bd_super = NULL;
     if (lanczos_k > 1) {
-        bd_super = malloc((size_t)(lanczos_k - 1) * sizeof(double));
+        size_t bd_super_bytes;
+        if (size_mul_overflow((size_t)(lanczos_k - 1), sizeof(double), &bd_super_bytes)) {
+            free(alpha);
+            free(beta);
+            return SPARSE_ERR_ALLOC;
+        }
+        bd_super = malloc(bd_super_bytes);
         if (!bd_super) {
             free(alpha);
             free(beta);
@@ -866,12 +872,17 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     }
 
     /* Keep only the top kk singular values */
-    double *sigma = malloc((size_t)kk * sizeof(double));
+    size_t sigma_bytes;
+    if (size_mul_overflow((size_t)kk, sizeof(double), &sigma_bytes)) {
+        free(alpha);
+        return SPARSE_ERR_ALLOC;
+    }
+    double *sigma = malloc(sigma_bytes);
     if (!sigma) {
         free(alpha);
         return SPARSE_ERR_ALLOC;
     }
-    memcpy(sigma, alpha, (size_t)kk * sizeof(double));
+    memcpy(sigma, alpha, sigma_bytes);
     free(alpha);
 
     svd->sigma = sigma;
@@ -886,13 +897,16 @@ sparse_err_t sparse_svd_rank(const SparseMatrix *A, double tol, idx_t *rank) {
     if (!A || !rank)
         return SPARSE_ERR_NULL;
 
+    if (tol < 0.0)
+        return SPARSE_ERR_BADARG;
+
     sparse_svd_t svd;
     sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
     if (err != SPARSE_OK)
         return err;
 
     /* Default tolerance: eps * max(m,n) * sigma_max */
-    if (tol <= 0.0) {
+    if (tol == 0.0) {
         idx_t maxdim = (svd.m > svd.n) ? svd.m : svd.n;
         tol = 2.2204460492503131e-16 * (double)maxdim * svd.sigma[0];
     }
@@ -915,6 +929,9 @@ sparse_err_t sparse_pinv(const SparseMatrix *A, double tol, double **pinv) {
     if (!A)
         return SPARSE_ERR_NULL;
 
+    if (tol < 0.0)
+        return SPARSE_ERR_BADARG;
+
     /* Full SVD with U and Vt */
     sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1};
     sparse_svd_t svd;
@@ -925,7 +942,7 @@ sparse_err_t sparse_pinv(const SparseMatrix *A, double tol, double **pinv) {
     idx_t m = svd.m, n = svd.n, k = svd.k;
 
     /* Default tolerance */
-    if (tol <= 0.0) {
+    if (tol == 0.0) {
         idx_t maxdim = (m > n) ? m : n;
         tol = 2.2204460492503131e-16 * (double)maxdim * svd.sigma[0];
     }

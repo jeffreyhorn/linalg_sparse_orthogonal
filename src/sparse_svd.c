@@ -253,6 +253,10 @@ static void bidiag_svd_step(double *diag, double *superdiag, idx_t lo, idx_t hi,
  */
 sparse_err_t bidiag_svd_iterate(double *diag, double *superdiag, idx_t k, double *U, idx_t m,
                                 double *V, idx_t n, idx_t max_iter, double tol) {
+    if (k > 0 && !diag)
+        return SPARSE_ERR_NULL;
+    if (k > 1 && !superdiag)
+        return SPARSE_ERR_NULL;
     if (k <= 1) {
         if (k == 1 && diag[0] < 0.0) {
             diag[0] = -diag[0];

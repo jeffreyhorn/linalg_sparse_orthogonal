@@ -187,6 +187,8 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
     const sparse_iter_opts_t *o = opts ? opts : &cg_defaults;
     if (o->max_iter < 0 || o->tol < 0.0)
         return SPARSE_ERR_BADARG;
+    if (n < 0)
+        return SPARSE_ERR_BADARG;
 
     if (n == 0) {
         if (result)

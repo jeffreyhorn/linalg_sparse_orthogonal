@@ -197,9 +197,13 @@ static void test_gk_extract_wide(void) {
 
     ASSERT_ERR(sparse_svd_extract_uv(&bd, U, V), SPARSE_OK);
 
-    double recon = gk_reconstruction_error(A, U, V, bd.diag, bd.superdiag, m, nc, k);
-    printf("    GK 5x10: recon=%.3e\n", recon);
-    ASSERT_TRUE(recon < 1e-10);
+    if (!bd.transposed) {
+        double recon = gk_reconstruction_error(A, U, V, bd.diag, bd.superdiag, m, nc, k);
+        printf("    GK 5x10: recon=%.3e\n", recon);
+        ASSERT_TRUE(recon < 1e-10);
+    } else {
+        printf("    GK 5x10 (wide, transposed bidiag): skipping recon check\n");
+    }
 
     free(U);
     free(V);
@@ -286,18 +290,20 @@ static void validate_gk(const SparseMatrix *A, const char *name) {
 
     ASSERT_ERR(sparse_svd_extract_uv(&bd, U, V), SPARSE_OK);
 
-    /* Note: gk_reconstruction_error computes ||A - U*B*V^T|| treating B as upper
-     * bidiagonal. For transposed (wide) matrices, bd.diag/superdiag are B_t (A^T's
-     * bidiag), not A's. This reconstruction check is only exact when B_t is diagonal
-     * (zero superdiag). The SVD driver handles the transposed case correctly by
-     * swapping U↔V in the QR iteration; the full SVD reconstruction test
-     * (test_svd_wide_5x10_uv) validates end-to-end correctness for wide matrices. */
-    double recon = gk_reconstruction_error(A, U, V, bd.diag, bd.superdiag, m, n, k);
+    /* For transposed (wide) matrices, bd.diag/superdiag are B_t (A^T's bidiag).
+     * gk_reconstruction_error assumes upper-bidiagonal for A, so only enforce
+     * reconstruction for the non-transposed case. U/V orthogonality is checked
+     * either way. End-to-end wide SVD reconstruction is validated by
+     * test_svd_wide_5x10_uv. */
+    double recon = NAN;
+    if (!bd.transposed)
+        recon = gk_reconstruction_error(A, U, V, bd.diag, bd.superdiag, m, n, k);
     double u_orth = orthogonality_error(U, m, k);
     double v_orth = orthogonality_error(V, n, k);
 
     printf("    GK %s: recon=%.3e, U_orth=%.3e, V_orth=%.3e\n", name, recon, u_orth, v_orth);
-    ASSERT_TRUE(recon < 1e-10);
+    if (!bd.transposed)
+        ASSERT_TRUE(recon < 1e-10);
     ASSERT_TRUE(u_orth < 1e-10);
     ASSERT_TRUE(v_orth < 1e-10);
 

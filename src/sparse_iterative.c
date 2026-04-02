@@ -389,6 +389,8 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
     /* Fast path for max_iter==0: compute initial residual without
      * allocating the full Arnoldi workspace */
     if (o->max_iter == 0) {
+        if ((size_t)n > SIZE_MAX / sizeof(double))
+            return SPARSE_ERR_ALLOC;
         double *tmp = malloc((size_t)n * sizeof(double));
         if (!tmp)
             return SPARSE_ERR_ALLOC;
@@ -421,6 +423,8 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
     /* Check initial true residual before allocating the full workspace,
      * so we return cheaply if the initial guess already satisfies tol */
     {
+        if ((size_t)n > SIZE_MAX / sizeof(double))
+            return SPARSE_ERR_ALLOC;
         double *tmp = malloc((size_t)n * sizeof(double));
         if (!tmp)
             return SPARSE_ERR_ALLOC;

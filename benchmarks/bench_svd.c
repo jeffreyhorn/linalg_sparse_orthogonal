@@ -131,13 +131,19 @@ static void profile_matrix(const char *name, const char *path) {
                (int)err);
     }
 
-    /* Summary */
+    /* Summary — only print ratios when full SVD succeeded and has meaningful timing */
     printf("  ---\n");
-    printf("  Bidiag / Full(σ):  %.0f%%\n", t_bidiag / t_full_sigma * 100.0);
-    printf("  QR / Full(σ):      %.0f%%\n", t_qr / t_full_sigma * 100.0);
-    printf("  UV overhead:       %.0f%%\n", (t_full_uv - t_full_sigma) / t_full_sigma * 100.0);
-    if (t_partial > 0)
-        printf("  Partial/Full:      %.1fx speedup\n", t_full_sigma / t_partial);
+    if (t_full_sigma > 1e-9) {
+        printf("  Bidiag / Full(σ):  %.0f%%\n", t_bidiag / t_full_sigma * 100.0);
+        printf("  QR / Full(σ):      %.0f%%\n", t_qr / t_full_sigma * 100.0);
+        if (t_full_uv > 0)
+            printf("  UV overhead:       %.0f%%\n",
+                   (t_full_uv - t_full_sigma) / t_full_sigma * 100.0);
+        if (t_partial > 1e-9)
+            printf("  Partial/Full:      %.1fx speedup\n", t_full_sigma / t_partial);
+    } else {
+        printf("  (ratios not computed — full SVD too fast or failed)\n");
+    }
 
     sparse_free(A);
 }

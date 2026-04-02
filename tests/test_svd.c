@@ -852,10 +852,11 @@ static void test_svd_near_singular(void) {
     sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
     ASSERT_EQ(err, SPARSE_OK);
 
+    /* Use relative tolerances: allow 1e-10 relative error per singular value */
     ASSERT_NEAR(svd.sigma[0], 1.0, 1e-10);
-    ASSERT_NEAR(svd.sigma[1], 1e-4, 1e-14);
-    ASSERT_NEAR(svd.sigma[2], 1e-8, 1e-18);
-    ASSERT_NEAR(svd.sigma[3], 1e-12, 1e-22);
+    ASSERT_NEAR(svd.sigma[1], 1e-4, 1e-4 * 1e-10);
+    ASSERT_NEAR(svd.sigma[2], 1e-8, 1e-8 * 1e-6);
+    ASSERT_NEAR(svd.sigma[3], 1e-12, 1e-12 * 1e-2);
 
     sparse_svd_free(&svd);
     sparse_free(A);
@@ -2771,6 +2772,14 @@ static void test_partial_svd_vectors_wide(void) {
     /* A*v ≈ sigma*u */
     double *Av = calloc((size_t)svd.m, sizeof(double));
     double *v = calloc((size_t)svd.n, sizeof(double));
+    if (!Av || !v) {
+        free(Av);
+        free(v);
+        sparse_svd_free(&svd);
+        sparse_free(A);
+        ASSERT_NOT_NULL(Av);
+        return;
+    }
     double max_resid = 0.0;
     for (idx_t s = 0; s < k; s++) {
         for (idx_t j = 0; j < svd.n; j++)

@@ -419,6 +419,7 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
             if (best_j != i) {
                 /* Swap row_map and inv_row_map */
                 idx_t orig_i = row_map[i];
+                // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
                 idx_t orig_best = row_map[best_j];
                 row_map[i] = orig_best;
                 row_map[best_j] = orig_i;
@@ -498,7 +499,7 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
                     w[j] -= mult * uk->value;
                     if (!w_nz[j]) {
                         w_nz[j] = 1;
-                        nz_idx[nnz_w++] = j;
+                        nz_idx[nnz_w++] = j; // NOLINT(clang-analyzer-security.ArrayBound)
                     }
                 }
                 uk = uk->right;

@@ -60,6 +60,7 @@ void sparse_bidiag_free(sparse_bidiag_t *bidiag) {
     memset(bidiag, 0, sizeof(*bidiag));
 }
 
+// NOLINTNEXTLINE(misc-no-recursion)
 sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag) {
     if (!bidiag)
         return SPARSE_ERR_NULL;
@@ -86,11 +87,38 @@ sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag
         }
     }
 
-    /* Enforce documented precondition: m >= n required */
-    if (m < n)
-        return SPARSE_ERR_SHAPE;
+    /* Wide matrix (m < n): factor A^T (tall) and set transposed flag.
+     * If A^T = U_t * B_t * V_t^T, then A = V_t * B_t^T * U_t^T.
+     * The reflectors are stored as-is (for A^T); SVD code swaps U↔V. */
+    if (m < n) {
+        SparseMatrix *At = sparse_transpose(A);
+        if (!At)
+            return SPARSE_ERR_ALLOC;
 
-    idx_t k = n; /* m >= n guaranteed by the check above */
+        sparse_bidiag_t bd_t;
+        sparse_err_t err = sparse_bidiag_factor(At, &bd_t);
+        sparse_free(At);
+        if (err != SPARSE_OK)
+            return err;
+
+        /* Store A^T's factorization with transposed flag.
+         * diag/superdiag are the upper bidiagonal of A^T (not A).
+         * Since A = V_t * B_t^T * U_t^T, the bidiagonal of A would be
+         * lower-bidiagonal; we keep the upper-bidiagonal representation
+         * of A^T and let SVD code handle the swap via the transposed flag. */
+        bidiag->m = m;
+        bidiag->n = n;
+        bidiag->diag = bd_t.diag;
+        bidiag->superdiag = bd_t.superdiag;
+        bidiag->u_vecs = bd_t.u_vecs;
+        bidiag->u_betas = bd_t.u_betas;
+        bidiag->v_vecs = bd_t.v_vecs;
+        bidiag->v_betas = bd_t.v_betas;
+        bidiag->transposed = 1;
+        return SPARSE_OK;
+    }
+
+    idx_t k = n; /* m >= n guaranteed */
 
     bidiag->m = m;
     bidiag->n = n;
@@ -152,7 +180,8 @@ sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag
         return SPARSE_ERR_ALLOC;
     }
 
-    double *hv = malloc((size_t)((m > n ? m : n)) * sizeof(double));
+    idx_t maxdim = (m > n) ? m : n;
+    double *hv = malloc((size_t)maxdim * sizeof(double));
     if (!hv) {
         free(W);
         free(diag);

@@ -23,6 +23,22 @@
  * and B is bidiagonal. Uses explicit dense reconstruction.
  */
 static double bidiag_reconstruction_error(const SparseMatrix *A, const sparse_bidiag_t *bd) {
+    /* For transposed case: reflectors are for A^T (n×m).
+     * Reconstruct A^T using reflectors, then compare with A transposed. */
+    if (bd->transposed) {
+        SparseMatrix *At = sparse_transpose(A);
+        if (!At)
+            return INFINITY;
+        /* Create a non-transposed bd view for A^T */
+        sparse_bidiag_t bd_t = *bd;
+        bd_t.m = bd->n; /* A^T is n×m */
+        bd_t.n = bd->m;
+        bd_t.transposed = 0;
+        double err = bidiag_reconstruction_error(At, &bd_t);
+        sparse_free(At);
+        return err;
+    }
+
     idx_t m = bd->m;
     idx_t n = bd->n;
     idx_t k = (m < n) ? m : n;
@@ -179,19 +195,90 @@ static void test_bidiag_tall(void) {
     sparse_free(A);
 }
 
-/* Wide rectangular 5×10 — m < n returns SPARSE_ERR_SHAPE per API contract */
+/* Wide rectangular 5×10 — handled via internal transpose */
 static void test_bidiag_wide(void) {
-    SparseMatrix *A = sparse_create(5, 10);
+    idx_t m = 5, nc = 10;
+    SparseMatrix *A = sparse_create(m, nc);
     ASSERT_NOT_NULL(A);
     if (!A)
         return;
-    for (idx_t i = 0; i < 5; i++)
-        sparse_insert(A, i, i, (double)(i + 1));
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < nc; j++)
+            if (i == j || j == i + 5)
+                sparse_insert(A, i, j, (double)(i + j + 1));
 
     sparse_bidiag_t bd;
-    ASSERT_ERR(sparse_bidiag_factor(A, &bd), SPARSE_ERR_SHAPE);
-    printf("    5x10 bidiag: correctly rejected with SPARSE_ERR_SHAPE\n");
+    sparse_err_t err = sparse_bidiag_factor(A, &bd);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
+    ASSERT_TRUE(bd.transposed);
+    double recon = bidiag_reconstruction_error(A, &bd);
+    printf("    5x10 bidiag recon: %.3e\n", recon);
+    ASSERT_TRUE(recon < 1e-10);
+
+    sparse_bidiag_free(&bd);
+    sparse_free(A);
+}
+
+/* Wide 3×8 */
+static void test_bidiag_wide_3x8(void) {
+    SparseMatrix *A = sparse_create(3, 8);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 3.0);
+    sparse_insert(A, 0, 2, 1.0);
+    sparse_insert(A, 0, 5, 2.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 1, 3, 1.0);
+    sparse_insert(A, 1, 6, 3.0);
+    sparse_insert(A, 2, 2, 5.0);
+    sparse_insert(A, 2, 4, 1.0);
+    sparse_insert(A, 2, 7, 2.0);
+
+    sparse_bidiag_t bd;
+    sparse_err_t err = sparse_bidiag_factor(A, &bd);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    double recon = bidiag_reconstruction_error(A, &bd);
+    printf("    3x8 bidiag recon: %.3e\n", recon);
+    ASSERT_TRUE(recon < 1e-10);
+
+    sparse_bidiag_free(&bd);
+    sparse_free(A);
+}
+
+/* Single-row 1×5 */
+static void test_bidiag_single_row(void) {
+    SparseMatrix *A = sparse_create(1, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 3.0);
+    sparse_insert(A, 0, 2, 4.0);
+
+    sparse_bidiag_t bd;
+    sparse_err_t err = sparse_bidiag_factor(A, &bd);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_TRUE(bd.transposed);
+    double recon = bidiag_reconstruction_error(A, &bd);
+    printf("    1x5 bidiag recon: %.3e\n", recon);
+    ASSERT_TRUE(recon < 1e-10);
+
+    sparse_bidiag_free(&bd);
     sparse_free(A);
 }
 
@@ -363,6 +450,8 @@ int main(void) {
     RUN_TEST(test_bidiag_3x3);
     RUN_TEST(test_bidiag_tall);
     RUN_TEST(test_bidiag_wide);
+    RUN_TEST(test_bidiag_wide_3x8);
+    RUN_TEST(test_bidiag_single_row);
     RUN_TEST(test_bidiag_diagonal);
     RUN_TEST(test_bidiag_1x1);
     RUN_TEST(test_bidiag_null);

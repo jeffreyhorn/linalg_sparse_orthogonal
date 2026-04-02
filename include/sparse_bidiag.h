@@ -31,6 +31,10 @@ typedef struct {
     double *v_betas;   /**< Right Householder scalars, length min(m,n)-1 */
     idx_t m;           /**< Number of rows of original A */
     idx_t n;           /**< Number of columns of original A */
+    int transposed;    /**< Nonzero if A was transposed internally (m < n case).
+                            When set, u_vecs/u_betas are for A^T's left reflectors
+                            (length n-i) and v_vecs/v_betas are for A^T's right
+                            reflectors (length m-i-1). SVD code must swap U↔V. */
 } sparse_bidiag_t;
 
 /**
@@ -41,15 +45,18 @@ typedef struct {
  * U is m×m orthogonal, V is n×n orthogonal, and B is m×n with nonzeros
  * only on the diagonal and first superdiagonal.
  *
- * Only the tall/square case m >= n is supported. If m < n, the function
- * returns SPARSE_ERR_SHAPE. Non-identity row/column permutations are
- * rejected with SPARSE_ERR_BADARG.
+ * Supports both tall/square (m >= n) and wide (m < n) matrices. For
+ * wide matrices (m < n), A^T is factored internally: A^T = U_t * B_t * V_t^T,
+ * so A = V_t * B_t^T * U_t^T. The stored diag/superdiag represent B_t (the
+ * upper bidiagonal of A^T); when interpreting B_t^T for A, the superdiagonal
+ * of B_t becomes a subdiagonal. The `transposed` flag signals consumers to
+ * swap U<->V and interpret the bidiagonal accordingly (the SVD code handles
+ * this internally). Non-identity permutations are rejected.
  *
  * @param A      The matrix to factor (not modified). Must have identity permutations.
  * @param bidiag Output: bidiagonal factors. Must be freed with sparse_bidiag_free().
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or bidiag is NULL.
- * @return SPARSE_ERR_SHAPE if m < n.
  * @return SPARSE_ERR_BADARG if A has non-identity permutations.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  */

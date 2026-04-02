@@ -2309,6 +2309,352 @@ static void test_gmres_vs_cg_nos4(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Matrix-free CG tests (Sprint 8 Day 2)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Wrapper: sparse matvec as callback */
+static sparse_err_t sparse_matvec_cb(const void *ctx, idx_t n, const double *x, double *y) {
+    const SparseMatrix *A = (const SparseMatrix *)ctx;
+    (void)n;
+    return sparse_matvec(A, x, y);
+}
+
+/* CG_mf matches CG on SPD tridiagonal */
+static void test_cg_mf_basic(void) {
+    idx_t n = 20;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -1.0);
+    }
+
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x_cg = calloc((size_t)n, sizeof(double));
+    double *x_mf = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x_cg);
+    ASSERT_NOT_NULL(x_mf);
+    if (!b || !x_cg || !x_mf) {
+        free(b);
+        free(x_cg);
+        free(x_mf);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-12, .verbose = 0};
+    sparse_iter_result_t res_cg = {0}, res_mf = {0};
+
+    sparse_err_t err_cg = sparse_solve_cg(A, b, x_cg, &opts, NULL, NULL, &res_cg);
+    sparse_err_t err_mf =
+        sparse_solve_cg_mf(sparse_matvec_cb, A, n, b, x_mf, &opts, NULL, NULL, &res_mf);
+    ASSERT_ERR(err_cg, SPARSE_OK);
+    ASSERT_ERR(err_mf, SPARSE_OK);
+
+    printf("    CG_mf basic: cg=%d iters, mf=%d iters\n", (int)res_cg.iterations,
+           (int)res_mf.iterations);
+    ASSERT_TRUE(res_cg.converged);
+    ASSERT_TRUE(res_mf.converged);
+    ASSERT_EQ(res_cg.iterations, res_mf.iterations);
+
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_cg[i], x_mf[i], 1e-12);
+
+    free(b);
+    free(x_cg);
+    free(x_mf);
+    sparse_free(A);
+}
+
+/* Diagonal operator callback */
+typedef struct {
+    idx_t n;
+    double *diag;
+} diag_op_t;
+
+static sparse_err_t diag_matvec(const void *ctx, idx_t n, const double *x, double *y) {
+    const diag_op_t *op = (const diag_op_t *)ctx;
+    (void)n;
+    for (idx_t i = 0; i < op->n; i++)
+        y[i] = op->diag[i] * x[i];
+    return SPARSE_OK;
+}
+
+static void test_cg_mf_diagonal(void) {
+    idx_t n = 10;
+    double diag_vals[10];
+    for (idx_t i = 0; i < n; i++)
+        diag_vals[i] = (double)(i + 1);
+    diag_op_t op = {.n = n, .diag = diag_vals};
+
+    double b[10], x[10];
+    for (idx_t i = 0; i < n; i++) {
+        b[i] = diag_vals[i] * 2.0; /* solution should be x = 2 */
+        x[i] = 0.0;
+    }
+
+    sparse_iter_opts_t opts = {.max_iter = 100, .tol = 1e-14, .verbose = 0};
+    sparse_iter_result_t res = {0};
+    ASSERT_ERR(sparse_solve_cg_mf(diag_matvec, &op, n, b, x, &opts, NULL, NULL, &res), SPARSE_OK);
+    ASSERT_TRUE(res.converged);
+
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x[i], 2.0, 1e-12);
+}
+
+/* NULL callback */
+static void test_cg_mf_null(void) {
+    double b[1] = {1.0}, x[1] = {0.0};
+    ASSERT_ERR(sparse_solve_cg_mf(NULL, NULL, 1, b, x, NULL, NULL, NULL, NULL), SPARSE_ERR_NULL);
+}
+
+/* CG_mf on nos4 matches CG */
+static void test_cg_mf_nos4(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x_cg = calloc((size_t)n, sizeof(double));
+    double *x_mf = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x_cg);
+    ASSERT_NOT_NULL(x_mf);
+    if (!b || !x_cg || !x_mf) {
+        free(b);
+        free(x_cg);
+        free(x_mf);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    sparse_iter_opts_t opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
+    sparse_iter_result_t res_cg = {0}, res_mf = {0};
+
+    sparse_err_t err_cg = sparse_solve_cg(A, b, x_cg, &opts, NULL, NULL, &res_cg);
+    sparse_err_t err_mf =
+        sparse_solve_cg_mf(sparse_matvec_cb, A, n, b, x_mf, &opts, NULL, NULL, &res_mf);
+    ASSERT_ERR(err_cg, SPARSE_OK);
+    ASSERT_ERR(err_mf, SPARSE_OK);
+
+    printf("    CG_mf nos4: cg=%d iters, mf=%d iters\n", (int)res_cg.iterations,
+           (int)res_mf.iterations);
+    ASSERT_TRUE(res_cg.converged);
+    ASSERT_TRUE(res_mf.converged);
+    ASSERT_EQ(res_cg.iterations, res_mf.iterations);
+
+    double max_diff = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        double d = fabs(x_cg[i] - x_mf[i]);
+        if (d > max_diff)
+            max_diff = d;
+    }
+    ASSERT_TRUE(max_diff < 1e-10);
+
+    free(b);
+    free(x_cg);
+    free(x_mf);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Matrix-free GMRES tests (Sprint 8 Day 3)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* GMRES_mf matches GMRES on unsymmetric tridiagonal */
+static void test_gmres_mf_basic(void) {
+    idx_t n = 20;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 5.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -2.0); /* unsymmetric */
+    }
+
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x_gm = calloc((size_t)n, sizeof(double));
+    double *x_mf = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x_gm);
+    ASSERT_NOT_NULL(x_mf);
+    if (!b || !x_gm || !x_mf) {
+        free(b);
+        free(x_gm);
+        free(x_mf);
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    sparse_gmres_opts_t opts = {.max_iter = 200, .restart = 20, .tol = 1e-12, .verbose = 0};
+    sparse_iter_result_t res_gm = {0}, res_mf = {0};
+
+    sparse_err_t err_gm = sparse_solve_gmres(A, b, x_gm, &opts, NULL, NULL, &res_gm);
+    sparse_err_t err_mf =
+        sparse_solve_gmres_mf(sparse_matvec_cb, A, n, b, x_mf, &opts, NULL, NULL, &res_mf);
+    ASSERT_ERR(err_gm, SPARSE_OK);
+    ASSERT_ERR(err_mf, SPARSE_OK);
+
+    printf("    GMRES_mf basic: gm=%d iters, mf=%d iters\n", (int)res_gm.iterations,
+           (int)res_mf.iterations);
+    ASSERT_TRUE(res_gm.converged);
+    ASSERT_TRUE(res_mf.converged);
+    ASSERT_EQ(res_gm.iterations, res_mf.iterations);
+
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_gm[i], x_mf[i], 1e-12);
+
+    free(b);
+    free(x_gm);
+    free(x_mf);
+    sparse_free(A);
+}
+
+/* GMRES_mf with right preconditioning on steam1 */
+static void test_gmres_mf_right_precond(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/steam1.mtx");
+    ASSERT_ERR(lerr, SPARSE_OK);
+    if (lerr != SPARSE_OK || !A)
+        return;
+    idx_t n = sparse_rows(A);
+
+    double *b = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    if (!b) {
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    sparse_ilu_t ilu;
+    sparse_err_t ferr = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ferr, SPARSE_OK);
+    if (ferr != SPARSE_OK) {
+        free(b);
+        sparse_free(A);
+        return;
+    }
+
+    double *x_gm = calloc((size_t)n, sizeof(double));
+    double *x_mf = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x_gm);
+    ASSERT_NOT_NULL(x_mf);
+    if (!x_gm || !x_mf) {
+        free(b);
+        free(x_gm);
+        free(x_mf);
+        sparse_ilu_free(&ilu);
+        sparse_free(A);
+        return;
+    }
+
+    sparse_gmres_opts_t opts = {.max_iter = 200,
+                                .restart = 30,
+                                .tol = 1e-10,
+                                .verbose = 0,
+                                .precond_side = SPARSE_PRECOND_RIGHT};
+    sparse_iter_result_t res_gm = {0}, res_mf = {0};
+
+    sparse_err_t err_gm = sparse_solve_gmres(A, b, x_gm, &opts, sparse_ilu_precond, &ilu, &res_gm);
+    sparse_err_t err_mf = sparse_solve_gmres_mf(sparse_matvec_cb, A, n, b, x_mf, &opts,
+                                                sparse_ilu_precond, &ilu, &res_mf);
+    ASSERT_ERR(err_gm, SPARSE_OK);
+    ASSERT_ERR(err_mf, SPARSE_OK);
+
+    printf("    GMRES_mf steam1 right: gm=%d iters, mf=%d iters\n", (int)res_gm.iterations,
+           (int)res_mf.iterations);
+    ASSERT_TRUE(res_gm.converged);
+    ASSERT_TRUE(res_mf.converged);
+    ASSERT_EQ(res_gm.iterations, res_mf.iterations);
+
+    free(b);
+    free(x_gm);
+    free(x_mf);
+    sparse_ilu_free(&ilu);
+    sparse_free(A);
+}
+
+/* GMRES_mf with unsymmetric diagonal callback */
+static void test_gmres_mf_unsymmetric(void) {
+    idx_t n = 10;
+    double diag_vals[10];
+    for (idx_t i = 0; i < n; i++)
+        diag_vals[i] = (double)(i + 1);
+    diag_op_t op = {.n = n, .diag = diag_vals};
+
+    double b[10], x[10];
+    for (idx_t i = 0; i < n; i++) {
+        b[i] = diag_vals[i] * 3.0;
+        x[i] = 0.0;
+    }
+
+    sparse_gmres_opts_t opts = {.max_iter = 100, .restart = 10, .tol = 1e-14, .verbose = 0};
+    sparse_iter_result_t res = {0};
+    ASSERT_ERR(sparse_solve_gmres_mf(diag_matvec, &op, n, b, x, &opts, NULL, NULL, &res),
+               SPARSE_OK);
+    ASSERT_TRUE(res.converged);
+
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x[i], 3.0, 1e-12);
+}
+
+/* NULL callback */
+static void test_gmres_mf_null(void) {
+    double b[1] = {1.0}, x[1] = {0.0};
+    ASSERT_ERR(sparse_solve_gmres_mf(NULL, NULL, 1, b, x, NULL, NULL, NULL, NULL), SPARSE_ERR_NULL);
+}
+
+/* Zero-dimensional system */
+static void test_gmres_mf_zero_dim(void) {
+    double b_dummy = 0.0, x_dummy = 0.0;
+    sparse_iter_result_t res = {0};
+    ASSERT_ERR(
+        sparse_solve_gmres_mf(diag_matvec, NULL, 0, &b_dummy, &x_dummy, NULL, NULL, NULL, &res),
+        SPARSE_OK);
+    ASSERT_TRUE(res.converged);
+}
+
+/* Callback error propagation */
+static sparse_err_t failing_matvec(const void *ctx, idx_t n, const double *x, double *y) {
+    (void)ctx;
+    (void)n;
+    (void)x;
+    (void)y;
+    return SPARSE_ERR_SINGULAR; /* arbitrary error */
+}
+
+static void test_gmres_mf_error_propagation(void) {
+    double b[3] = {1.0, 2.0, 3.0};
+    double x[3] = {0.0, 0.0, 0.0};
+    sparse_gmres_opts_t opts = {.max_iter = 10, .restart = 5, .tol = 1e-10, .verbose = 0};
+    sparse_err_t err =
+        sparse_solve_gmres_mf(failing_matvec, NULL, 3, b, x, &opts, NULL, NULL, NULL);
+    /* The matvec error should propagate (exact code depends on when it's called) */
+    ASSERT_TRUE(err != SPARSE_OK);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -2408,6 +2754,20 @@ int main(void) {
 
     /* Error codes */
     RUN_TEST(test_not_converged_strerror);
+
+    /* Matrix-free CG (Sprint 8 Day 2) */
+    RUN_TEST(test_cg_mf_basic);
+    RUN_TEST(test_cg_mf_diagonal);
+    RUN_TEST(test_cg_mf_null);
+    RUN_TEST(test_cg_mf_nos4);
+
+    /* Matrix-free GMRES (Sprint 8 Day 3) */
+    RUN_TEST(test_gmres_mf_basic);
+    RUN_TEST(test_gmres_mf_right_precond);
+    RUN_TEST(test_gmres_mf_unsymmetric);
+    RUN_TEST(test_gmres_mf_null);
+    RUN_TEST(test_gmres_mf_zero_dim);
+    RUN_TEST(test_gmres_mf_error_propagation);
 
     TEST_SUITE_END();
 }

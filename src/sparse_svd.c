@@ -350,7 +350,14 @@ sparse_err_t bidiag_svd_iterate(double *diag, double *superdiag, idx_t k, double
                     /* Interior zero diagonal: chase superdiag[i] DOWNWARD
                      * using left rotations on rows (j, i) for j = i+1..hi.
                      * Each rotation zeroes the bulge at (i, j) but creates
-                     * a new one at (i, j+1).  Only updates U. */
+                     * a new one at (i, j+1).  Only updates U.
+                     *
+                     * Note: rotations are between row i (fixed) and row j
+                     * (varying), NOT between adjacent rows.  This is valid
+                     * because the bidiagonal has no entries at (j, i) for
+                     * j > i+1, so the rotation only affects columns j and
+                     * j+1 in the relevant rows.  The bulge moves rightward
+                     * along row i until it falls off at column hi+1. */
                     double bulge = superdiag[i];
                     superdiag[i] = 0.0;
 
@@ -374,7 +381,12 @@ sparse_err_t bidiag_svd_iterate(double *diag, double *superdiag, idx_t k, double
                      * superdiag[hi-1] UPWARD using right rotations on
                      * columns (j, hi) for j = hi-1..lo.  Each rotation
                      * zeroes the bulge at (j, hi) but creates a new one
-                     * at (j-1, hi).  Only updates V. */
+                     * at (j-1, hi).  Only updates V.
+                     *
+                     * Rotations are between column j (varying) and column
+                     * hi (fixed).  This is the column-space analogue of
+                     * the downward chase: the bulge moves upward along
+                     * column hi until it falls off at row lo-1. */
                     double bulge = superdiag[hi - 1];
                     superdiag[hi - 1] = 0.0;
 
@@ -1292,13 +1304,19 @@ sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, doub
     if (err != SPARSE_OK)
         return err;
 
-    /* Default drop tolerance: eps * sigma_max.
-     * If sigma_max is zero (all-zero matrix), return empty sparse matrix. */
-    if (drop_tol <= 0.0) {
-        drop_tol = 2.2204460492503131e-16 * svd.sigma[0];
-        if (drop_tol == 0.0)
-            drop_tol = 2.2204460492503131e-16; /* floor to eps */
+    /* Short-circuit for all-zero matrix: no outer products to accumulate */
+    if (svd.sigma[0] == 0.0) {
+        sparse_svd_free(&svd);
+        SparseMatrix *out = sparse_create(m, n);
+        if (!out)
+            return SPARSE_ERR_ALLOC;
+        *result = out;
+        return SPARSE_OK;
     }
+
+    /* Default drop tolerance: eps * sigma_max */
+    if (drop_tol <= 0.0)
+        drop_tol = 2.2204460492503131e-16 * svd.sigma[0];
 
     SparseMatrix *out = sparse_create(m, n);
     if (!out) {

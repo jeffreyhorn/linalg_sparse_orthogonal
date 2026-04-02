@@ -2530,6 +2530,269 @@ static void test_partial_svd_vectors_vs_full(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Partial SVD vector validation (Sprint 9 Day 5)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* nos4 (100×100 SPD): partial SVD vectors k=5 */
+static void test_partial_svd_vectors_nos4(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, "matrices/nos4.mtx");
+    if (lerr != SPARSE_OK || !A) {
+        printf("    SKIP: nos4.mtx not found\n");
+        return;
+    }
+
+    idx_t k = 5;
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t part;
+    sparse_err_t err = sparse_svd_partial(A, k, &opts, &part);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* Full SVD for reference */
+    sparse_svd_t full;
+    err = sparse_svd_compute(A, NULL, &full);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* Compare top-k singular values */
+    double max_sigma_err = 0.0;
+    for (idx_t s = 0; s < k; s++) {
+        double e = fabs(part.sigma[s] - full.sigma[s]);
+        if (e > max_sigma_err)
+            max_sigma_err = e;
+    }
+    printf("    nos4 partial vectors: max sigma err=%.2e\n", max_sigma_err);
+
+    /* A*v ≈ sigma*u for each triplet */
+    double *Av = calloc((size_t)part.m, sizeof(double));
+    double *v = calloc((size_t)part.n, sizeof(double));
+    double max_resid = 0.0;
+    for (idx_t s = 0; s < k; s++) {
+        for (idx_t j = 0; j < part.n; j++)
+            v[j] = part.Vt[(size_t)j * (size_t)k + (size_t)s];
+        memset(Av, 0, (size_t)part.m * sizeof(double));
+        sparse_matvec(A, v, Av);
+        double resid = 0.0;
+        for (idx_t i = 0; i < part.m; i++) {
+            double diff = Av[i] - part.sigma[s] * part.U[(size_t)s * (size_t)part.m + (size_t)i];
+            resid += diff * diff;
+        }
+        resid = sqrt(resid);
+        if (resid > max_resid)
+            max_resid = resid;
+    }
+    printf("    nos4 A*v ≈ sigma*u max_resid=%.2e\n", max_resid);
+    ASSERT_TRUE(max_resid < 1e-4);
+
+    free(Av);
+    free(v);
+    sparse_svd_free(&part);
+    sparse_svd_free(&full);
+    sparse_free(A);
+}
+
+/* west0067 (67×67 unsymmetric): partial SVD vectors k=3 */
+static void test_partial_svd_vectors_west0067(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, "matrices/west0067.mtx");
+    if (lerr != SPARSE_OK || !A) {
+        printf("    SKIP: west0067.mtx not found\n");
+        return;
+    }
+
+    idx_t k = 3;
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t part;
+    sparse_err_t err = sparse_svd_partial(A, k, &opts, &part);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* A*v ≈ sigma*u */
+    double *Av = calloc((size_t)part.m, sizeof(double));
+    double *v = calloc((size_t)part.n, sizeof(double));
+    double max_resid = 0.0;
+    for (idx_t s = 0; s < k; s++) {
+        for (idx_t j = 0; j < part.n; j++)
+            v[j] = part.Vt[(size_t)j * (size_t)k + (size_t)s];
+        memset(Av, 0, (size_t)part.m * sizeof(double));
+        sparse_matvec(A, v, Av);
+        double resid = 0.0;
+        for (idx_t i = 0; i < part.m; i++) {
+            double diff = Av[i] - part.sigma[s] * part.U[(size_t)s * (size_t)part.m + (size_t)i];
+            resid += diff * diff;
+        }
+        resid = sqrt(resid);
+        if (resid > max_resid)
+            max_resid = resid;
+    }
+    printf("    west0067 partial vectors: max_resid=%.2e\n", max_resid);
+    ASSERT_TRUE(max_resid < 1e-4);
+
+    free(Av);
+    free(v);
+    sparse_svd_free(&part);
+    sparse_free(A);
+}
+
+/* Reconstruction: ||A - sum sigma_i * u_i * v_i^T|| ≈ sigma_{k+1} */
+static void test_partial_svd_vectors_recon(void) {
+    SparseMatrix *A = sparse_create(10, 10);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Tridiagonal with distinct singular values */
+    for (idx_t i = 0; i < 10; i++) {
+        sparse_insert(A, i, i, 2.0 * (double)(i + 1));
+        if (i + 1 < 10)
+            sparse_insert(A, i, i + 1, 1.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, 1.0);
+    }
+
+    /* Full SVD for sigma_{k+1} reference */
+    sparse_svd_t full;
+    sparse_err_t err = sparse_svd_compute(A, NULL, &full);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    idx_t k = 3;
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t part;
+    err = sparse_svd_partial(A, k, &opts, &part);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* Compute ||A - sum_{s=0}^{k-1} sigma_s * u_s * v_s^T||_F */
+    double frob_sq = 0.0;
+    for (idx_t i = 0; i < 10; i++) {
+        for (idx_t j = 0; j < 10; j++) {
+            double approx = 0.0;
+            for (idx_t s = 0; s < k; s++)
+                approx += part.U[(size_t)s * 10 + (size_t)i] * part.sigma[s] *
+                          part.Vt[(size_t)j * (size_t)k + (size_t)s];
+            double diff = sparse_get(A, i, j) - approx;
+            frob_sq += diff * diff;
+        }
+    }
+    double frob = sqrt(frob_sq);
+
+    /* Expected: sqrt(sum_{i=k}^{n-1} sigma_i^2) from full SVD */
+    double expected_sq = 0.0;
+    for (idx_t i = k; i < full.k; i++)
+        expected_sq += full.sigma[i] * full.sigma[i];
+    double expected = sqrt(expected_sq);
+
+    printf("    reconstruction error: %.4f, expected: %.4f\n", frob, expected);
+    /* Lanczos approximation may not be exact, allow 20% tolerance */
+    ASSERT_TRUE(frob < expected * 1.2 + 0.1);
+
+    sparse_svd_free(&full);
+    sparse_svd_free(&part);
+    sparse_free(A);
+}
+
+/* k=1: single largest singular triplet */
+static void test_partial_svd_vectors_k1(void) {
+    SparseMatrix *A = sparse_create(5, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Diagonal: sigma = [10, 7, 5, 3, 1] */
+    double d[] = {10.0, 7.0, 5.0, 3.0, 1.0};
+    for (idx_t i = 0; i < 5; i++)
+        sparse_insert(A, i, i, d[i]);
+
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_partial(A, 1, &opts, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_NOT_NULL(svd.U);
+    ASSERT_NOT_NULL(svd.Vt);
+
+    ASSERT_TRUE(fabs(svd.sigma[0] - 10.0) < 0.1);
+
+    /* u and v should be ±e_0 */
+    double max_u = 0.0;
+    idx_t max_u_idx = 0;
+    for (idx_t i = 0; i < 5; i++) {
+        if (fabs(svd.U[i]) > max_u) {
+            max_u = fabs(svd.U[i]);
+            max_u_idx = i;
+        }
+    }
+    ASSERT_EQ(max_u_idx, 0);
+    ASSERT_TRUE(max_u > 0.9);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Rectangular wide (m < n) with vectors */
+static void test_partial_svd_vectors_wide(void) {
+    SparseMatrix *A = sparse_create(4, 8);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Diagonal block: A[i][i] = 5-i for i=0..3 */
+    for (idx_t i = 0; i < 4; i++)
+        sparse_insert(A, i, i, (double)(5 - i));
+
+    idx_t k = 2;
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_partial(A, k, &opts, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_NOT_NULL(svd.U);
+    ASSERT_NOT_NULL(svd.Vt);
+
+    ASSERT_TRUE(fabs(svd.sigma[0] - 5.0) < 0.1);
+    ASSERT_TRUE(fabs(svd.sigma[1] - 4.0) < 0.1);
+
+    /* A*v ≈ sigma*u */
+    double *Av = calloc((size_t)svd.m, sizeof(double));
+    double *v = calloc((size_t)svd.n, sizeof(double));
+    double max_resid = 0.0;
+    for (idx_t s = 0; s < k; s++) {
+        for (idx_t j = 0; j < svd.n; j++)
+            v[j] = svd.Vt[(size_t)j * (size_t)k + (size_t)s];
+        memset(Av, 0, (size_t)svd.m * sizeof(double));
+        sparse_matvec(A, v, Av);
+        double resid = 0.0;
+        for (idx_t i = 0; i < svd.m; i++) {
+            double diff = Av[i] - svd.sigma[s] * svd.U[(size_t)s * (size_t)svd.m + (size_t)i];
+            resid += diff * diff;
+        }
+        resid = sqrt(resid);
+        if (resid > max_resid)
+            max_resid = resid;
+    }
+    printf("    wide 4x8 partial vectors: max_resid=%.2e\n", max_resid);
+    ASSERT_TRUE(max_resid < 1e-6);
+
+    free(Av);
+    free(v);
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* compute_uv=0 still works (no vectors allocated) */
+static void test_partial_svd_no_vectors(void) {
+    SparseMatrix *A = sparse_create(5, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < 5; i++)
+        sparse_insert(A, i, i, (double)(i + 1));
+
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_partial(A, 3, NULL, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_TRUE(svd.U == NULL);
+    ASSERT_TRUE(svd.Vt == NULL);
+    ASSERT_NOT_NULL(svd.sigma);
+    ASSERT_TRUE(fabs(svd.sigma[0] - 5.0) < 0.1);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Condition number tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -2768,6 +3031,14 @@ int main(void) {
     RUN_TEST(test_partial_svd_vectors_ortho);
     RUN_TEST(test_partial_svd_vectors_Av);
     RUN_TEST(test_partial_svd_vectors_vs_full);
+
+    /* Partial SVD vector validation (Sprint 9 Day 5) */
+    RUN_TEST(test_partial_svd_vectors_nos4);
+    RUN_TEST(test_partial_svd_vectors_west0067);
+    RUN_TEST(test_partial_svd_vectors_recon);
+    RUN_TEST(test_partial_svd_vectors_k1);
+    RUN_TEST(test_partial_svd_vectors_wide);
+    RUN_TEST(test_partial_svd_no_vectors);
 
     /* Condition number (Sprint 9 Day 3) */
     RUN_TEST(test_cond_identity);

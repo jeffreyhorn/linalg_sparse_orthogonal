@@ -23,10 +23,17 @@
 static char fuzz_tmp_path[256];
 
 static void fuzz_init_tmp(void) {
-    snprintf(fuzz_tmp_path, sizeof(fuzz_tmp_path), "/tmp/fuzz_test_XXXXXX.mtx");
+    const char *tmpdir = getenv("TMPDIR");
+    if (!tmpdir || !tmpdir[0])
+        tmpdir = "/tmp";
+    snprintf(fuzz_tmp_path, sizeof(fuzz_tmp_path), "%s/fuzz_test_XXXXXX.mtx", tmpdir);
     int fd = mkstemps(fuzz_tmp_path, 4); /* 4 = strlen(".mtx") */
-    if (fd >= 0)
+    if (fd < 0) {
+        fprintf(stderr, "fuzz_init_tmp: mkstemps failed\n");
+        fuzz_tmp_path[0] = '\0';
+    } else {
         close(fd);
+    }
 }
 
 static void fuzz_cleanup_tmp(void) {
@@ -35,6 +42,8 @@ static void fuzz_cleanup_tmp(void) {
 }
 
 static sparse_err_t try_load_mm(const char *content) {
+    if (!fuzz_tmp_path[0])
+        return SPARSE_ERR_FOPEN; /* mkstemps failed in init */
     FILE *f = fopen(fuzz_tmp_path, "w");
     if (!f)
         return SPARSE_ERR_FOPEN;

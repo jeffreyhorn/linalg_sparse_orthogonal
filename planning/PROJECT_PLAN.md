@@ -1,4 +1,4 @@
-# Project Plan: linalg_sparse_orthogonal — Sprints 2–9
+# Project Plan: linalg_sparse_orthogonal — Sprints 2–10
 
 Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into sprints with logical dependency ordering.
 
@@ -275,14 +275,17 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 ---
 
-## Sprint 9: Performance, Polish & Packaging
+## Sprint 9: SVD Hardening, Performance & Documentation
 
-**Duration:** 14 days (~120 hours)
+**Duration:** 14 days (~132 hours)
 
-**Goal:** Optimize performance across the library, add block operations and block solvers for cache efficiency and multiple-RHS support, improve documentation and examples, and package the library for external use.
+**Goal:** Complete SVD feature set by fixing rank-deficient convergence (zero-diagonal chase), adding SVD-based condition number estimation, recovering singular vectors from partial SVD, and producing sparse low-rank output. Then optimize performance across the library, write examples and documentation, and harden the test suite.
 
 ### Prerequisites from Sprint 8
 
+- Full SVD (`sparse_svd_compute()`) and partial SVD (`sparse_svd_partial()`)
+- Pseudoinverse (`sparse_pinv()`) and low-rank approximation (`sparse_svd_lowrank()`)
+- Matrix-free iterative solvers (`sparse_solve_cg_mf()`, `sparse_solve_gmres_mf()`)
 - All factorizations complete (LU, Cholesky, QR, SVD)
 - Thread safety and parallel SpMV in place
 
@@ -290,26 +293,59 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 | # | Item | Description | Estimate |
 |---|------|-------------|----------|
+| 1 | Zero-diagonal chase for SVD | Implement the zero-diagonal chase algorithm (Golub & Van Loan §8.6.2) in `bidiag_svd_iterate()` to handle rank-deficient bidiagonals where a diagonal entry is near-zero. Currently these cases may return `SPARSE_ERR_NOT_CONVERGED`. The chase rotates the superdiagonal entry into adjacent rows, enabling deflation. Re-enable the rank-1 SVD test with strict convergence assertion. | 16 hrs |
+| 2 | Condition number estimation via SVD | Implement `sparse_cond()` returning cond(A) = sigma_max / sigma_min via SVD. Use full SVD for small matrices and partial SVD (k=1 largest + separate smallest) for large ones. Return `INFINITY` for singular matrices. Add tests on well-conditioned, ill-conditioned, and singular matrices. | 8 hrs |
+| 3 | SVD singular vectors for partial SVD | Extend `sparse_svd_partial()` to optionally recover approximate left/right singular vectors from Lanczos basis vectors. Accumulate Lanczos P/Q vectors, apply bidiagonal SVD rotations, and return U (m×k) and Vt (k×n). Gated by `opts->compute_uv`. Add reconstruction tests comparing partial UV with full SVD. | 20 hrs |
+| 4 | Sparse low-rank output | Add `sparse_svd_lowrank_sparse()` that returns the rank-k approximation as a `SparseMatrix` instead of a dense array, thresholding entries below a caller-specified tolerance. More memory-efficient for large matrices where the low-rank approximation is itself sparse. Test that thresholded output approximates the dense low-rank result. | 8 hrs |
+| 5 | SVD performance optimization | Profile SVD on large SuiteSparse matrices (orsirr_1, bcsstk04). Optimize the dense bidiagonalization inner loop (cache-blocked Householder application). Consider using the implicit Lanczos approach for full SVD when the matrix is very sparse. Target: ≥2x speedup on bcsstk04 SVD. | 24 hrs |
+| 6 | Performance profiling & optimization | Profile all factorizations on large SuiteSparse matrices. Identify and optimize hot paths (pool allocation, node traversal, pivot search). Consider SIMD for dense inner loops. Target: ≥1.5x speedup on orsirr_1 factorization. | 24 hrs |
+| 7 | Comprehensive examples & tutorials | Write standalone example programs: basic solve, least-squares, SVD low-rank, preconditioned iterative solve. Add a tutorial document walking through common use cases. | 16 hrs |
+| 8 | API documentation generator | Add Doxygen configuration. Generate HTML API reference from header comments. Verify all public functions are documented. | 8 hrs |
+| 9 | Final test hardening | Add fuzz testing for Matrix Market parser. Add property-based tests (random matrices: factor → solve → verify residual). Achieve ≥95% line coverage on library source. | 8 hrs |
+
+### Deliverables
+
+- Zero-diagonal chase fixes SVD convergence on rank-deficient matrices
+- `sparse_cond()` for condition number estimation via SVD
+- `sparse_svd_partial()` with optional singular vector recovery
+- `sparse_svd_lowrank_sparse()` for memory-efficient sparse low-rank output
+- Measurable SVD and factorization performance improvements
+- Standalone example programs and tutorial document
+- Doxygen-generated API reference
+- Fuzz and property-based tests for robustness
+
+**Total estimate:** ~132 hours
+
+---
+
+## Sprint 10: Block Operations & Packaging
+
+**Duration:** 14 days (~64 hours)
+
+**Goal:** Add block operations for cache efficiency and multiple-RHS support, and package the library for external use with installation targets and cross-platform support.
+
+### Prerequisites from Sprint 9
+
+- Performance profiling complete (informs block operation design)
+- API documentation generated (packaging requires stable API docs)
+- All SVD features complete and hardened
+
+### Items
+
+| # | Item | Description | Estimate |
+|---|------|-------------|----------|
 | 1 | Block LU factorization | Exploit dense subblocks within the sparse structure for better cache performance. Detect dense submatrices during factorization and use BLAS-like dense kernels for those blocks. Benchmark improvement on matrices with dense substructure. | 28 hrs |
 | 2 | Block solvers | Implement block variants of direct and iterative solvers to handle multiple right-hand side vectors simultaneously: block LU solve, block CG, block GMRES. Amortize factorization cost across RHS vectors and exploit dense BLAS kernels for the block operations. | 20 hrs |
-| 3 | Performance profiling & optimization | Profile all factorizations on large SuiteSparse matrices. Identify and optimize hot paths (pool allocation, node traversal, pivot search). Consider SIMD for dense inner loops. Target: ≥1.5x speedup on orsirr_1 factorization. | 24 hrs |
-| 4 | Comprehensive examples & tutorials | Write standalone example programs: basic solve, least-squares, SVD low-rank, preconditioned iterative solve. Add a tutorial document walking through common use cases. | 16 hrs |
-| 5 | API documentation generator | Add Doxygen configuration. Generate HTML API reference from header comments. Verify all public functions are documented. | 8 hrs |
-| 6 | Packaging & installation | Add `make install` target with configurable prefix. Add pkg-config `.pc` file. Add CMake `find_package` support. Write installation instructions for Linux, macOS, and Windows (MSVC). | 16 hrs |
-| 7 | Final test hardening | Add fuzz testing for Matrix Market parser. Add property-based tests (random matrices: factor → solve → verify residual). Achieve ≥95% line coverage on library source. | 8 hrs |
+| 3 | Packaging & installation | Add `make install` target with configurable prefix. Add pkg-config `.pc` file. Add CMake `find_package` support. Write installation instructions for Linux, macOS, and Windows (MSVC). | 16 hrs |
 
 ### Deliverables
 
 - Block LU for cache-efficient dense subblock handling
 - Block solvers for multiple RHS vectors (direct and iterative)
-- Measurable performance improvements on benchmark suite
-- Standalone example programs and tutorial document
-- Doxygen-generated API reference
 - `make install`, pkg-config, and CMake integration
-- Fuzz and property-based tests for robustness
-- Production-ready library packaging
+- Production-ready library packaging with cross-platform installation instructions
 
-**Total estimate:** ~120 hours
+**Total estimate:** ~64 hours
 
 ---
 
@@ -329,8 +365,12 @@ Sprint 4 (Cholesky/Threads/SpMM/CSR) ← needs reordering, condest
     │               └── Sprint 7 (QR Apps/ILUT Pivoting/Eigenvalues) ← needs QR, ILUT
     │                       │
     │                       └── Sprint 8 (Matrix-Free/SVD) ← needs bidiag, tridiag QR, iterative solvers
+    │                               │
+    │                               └── Sprint 9 (SVD Hardening/Perf/Docs) ← needs full SVD, all factorizations
+    │                                       │
+    │                                       └── Sprint 10 (Block Ops/Packaging) ← needs profiling, stable API
     │
-    └── Sprint 9 (Performance/Polish) ← needs all factorizations complete
+    (all sprints feed into final packaging)
 ```
 
 ## Summary
@@ -344,6 +384,7 @@ Sprint 4 (Cholesky/Threads/SpMM/CSR) ← needs reordering, condest
 | 6 | Iterative Enhancements & QR | 14 days | ~156 hrs | ILUT, right preconditioning, column-pivoted QR, least-squares, rank estimation |
 | 7 | QR Apps/ILUT Pivoting/Eigenvalues | 14 days | ~152 hrs | ILUT partial pivoting, sparse Householder QR, economy QR, bidiagonalization, tridiagonal QR, transpose |
 | 8 | Matrix-Free & Sparse SVD | 14 days | ~148 hrs | Wide bidiag fix, matrix-free solvers, full/partial SVD, pseudoinverse, low-rank approximation |
-| 9 | Performance & Polish | 14 days | ~120 hrs | Block LU, block solvers, profiling, examples, packaging |
+| 9 | SVD Hardening, Performance & Docs | 14 days | ~132 hrs | Zero-diagonal chase, condition number, partial SVD vectors, sparse low-rank, profiling, examples, docs |
+| 10 | Block Operations & Packaging | 14 days | ~64 hrs | Block LU, block solvers, packaging, installation |
 
-**Total across Sprints 2–9:** 112 days (~922 hours)
+**Total across Sprints 2–10:** 126 days (~998 hours)

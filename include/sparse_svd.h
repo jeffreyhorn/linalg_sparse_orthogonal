@@ -67,6 +67,11 @@ typedef struct {
  *         compute_uv is set without economy (full SVD not implemented).
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  * @return SPARSE_ERR_NOT_CONVERGED if QR iteration fails to converge.
+ *
+ * @note Rank-deficient matrices with near-zero bidiagonal entries may fail
+ *       to converge (returning SPARSE_ERR_NOT_CONVERGED) because the current
+ *       implementation lacks a zero-diagonal chase (Golub & Van Loan §8.6.2).
+ *       Increasing max_iter may help in some cases.
  */
 sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *opts,
                                 sparse_svd_t *svd);

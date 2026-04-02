@@ -353,8 +353,10 @@ sparse_err_t bidiag_svd_iterate(double *diag, double *superdiag, idx_t k, double
                 break;
             }
         }
-        if (has_zero_diag)
+        if (has_zero_diag) {
+            total_iter++;
             continue; /* re-check deflation */
+        }
 
         /* For a 2×2 block, solve directly via 2×2 SVD */
         if (hi - lo == 1) {

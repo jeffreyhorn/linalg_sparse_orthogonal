@@ -867,6 +867,13 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
 
     /* Check if singular vectors are requested */
     int compute_uv = opts ? opts->compute_uv : 0;
+    if (compute_uv && opts && !opts->economy) {
+        free(P);
+        free(Q);
+        free(alpha);
+        free(beta);
+        return SPARSE_ERR_BADARG;
+    }
 
     /* Now we have a lanczos_k x lanczos_k bidiagonal with
      * diag=alpha, superdiag=beta[1..lanczos_k-1] */
@@ -1258,6 +1265,22 @@ sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, doub
     if (rank_k <= 0 || rank_k > kmax)
         return SPARSE_ERR_BADARG;
 
+    /* Reject non-identity permutations */
+    {
+        const idx_t *rp = sparse_row_perm(A);
+        const idx_t *cp = sparse_col_perm(A);
+        if (rp) {
+            for (idx_t i = 0; i < m; i++)
+                if (rp[i] != i)
+                    return SPARSE_ERR_BADARG;
+        }
+        if (cp) {
+            for (idx_t i = 0; i < n; i++)
+                if (cp[i] != i)
+                    return SPARSE_ERR_BADARG;
+        }
+    }
+
     /* Full SVD with U and Vt */
     sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1};
     sparse_svd_t svd;
@@ -1279,23 +1302,43 @@ sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, doub
     double *U_data = svd.U;
     double *Vt_data = svd.Vt;
 
-    /* Compute A_k[i][j] = sum_{s=0}^{rank_k-1} sigma_s * U[s,i] * Vt[s,j]
-     * and insert if |value| >= drop_tol.
-     * U col-major: U[s*m + i], Vt col-major: Vt[j*k + s] */
-    for (idx_t j = 0; j < n; j++) {
+    /* Accumulate A_k via rank-1 outer products into a dense buffer,
+     * then threshold into the sparse result. Avoids repeated sparse_insert
+     * calls during the O(m*n*rank_k) reconstruction. */
+    size_t mn;
+    if (size_mul_overflow((size_t)m, (size_t)n, &mn) || mn > SIZE_MAX / sizeof(double)) {
+        sparse_free(out);
+        sparse_svd_free(&svd);
+        return SPARSE_ERR_ALLOC;
+    }
+    double *accum = calloc(mn, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
+    if (!accum) {
+        sparse_free(out);
+        sparse_svd_free(&svd);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    idx_t s_end = (rank_k < k) ? rank_k : k;
+    for (idx_t s = 0; s < s_end; s++) {
+        double si = svd.sigma[s];
+        if (si == 0.0)
+            break;
         for (idx_t i = 0; i < m; i++) {
-            double val = 0.0;
-            for (idx_t s = 0; s < rank_k && s < k; s++) {
-                double si = svd.sigma[s];
-                if (si == 0.0)
-                    break;
-                val += si * U_data[(size_t)s * (size_t)m + (size_t)i] *
-                       Vt_data[(size_t)j * (size_t)k + (size_t)s];
-            }
+            double u_scaled = si * U_data[(size_t)s * (size_t)m + (size_t)i];
+            for (idx_t j = 0; j < n; j++)
+                accum[(size_t)i * (size_t)n + (size_t)j] +=
+                    u_scaled * Vt_data[(size_t)j * (size_t)k + (size_t)s];
+        }
+    }
+
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < n; j++) {
+            double val = accum[(size_t)i * (size_t)n + (size_t)j];
             if (fabs(val) >= drop_tol)
                 sparse_insert(out, i, j, val);
         }
     }
+    free(accum);
 
     *result = out;
     sparse_svd_free(&svd);

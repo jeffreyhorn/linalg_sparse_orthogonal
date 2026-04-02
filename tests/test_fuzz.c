@@ -22,7 +22,7 @@
 static sparse_err_t try_load_mm(const char *content) {
     FILE *f = fopen("/tmp/fuzz_test.mtx", "w");
     if (!f)
-        return SPARSE_ERR_ALLOC;
+        return SPARSE_ERR_FOPEN;
     if (content)
         fputs(content, f);
     fclose(f);
@@ -149,12 +149,22 @@ static void test_fuzz_extra_whitespace(void) {
 static void test_fuzz_many_comments(void) {
     char buf[4096];
     int pos = 0;
-    pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos,
-                    "%%%%MatrixMarket matrix coordinate real general\n");
-    for (int i = 0; i < 100; i++)
-        pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, "%% comment line %d\n", i);
-    pos += snprintf(buf + pos, sizeof(buf) - (size_t)pos, "2 2 1\n1 1 1.0\n");
-    (void)pos;
+    int written;
+
+    written = snprintf(buf + pos, sizeof(buf) - (size_t)pos,
+                       "%%%%MatrixMarket matrix coordinate real general\n");
+    ASSERT_TRUE(written > 0 && (size_t)written < sizeof(buf) - (size_t)pos);
+    pos += written;
+
+    for (int i = 0; i < 100; i++) {
+        written = snprintf(buf + pos, sizeof(buf) - (size_t)pos, "%% comment line %d\n", i);
+        ASSERT_TRUE(written > 0 && (size_t)written < sizeof(buf) - (size_t)pos);
+        pos += written;
+    }
+
+    written = snprintf(buf + pos, sizeof(buf) - (size_t)pos, "2 2 1\n1 1 1.0\n");
+    ASSERT_TRUE(written > 0 && (size_t)written < sizeof(buf) - (size_t)pos);
+
     sparse_err_t err = try_load_mm(buf);
     ASSERT_EQ(err, SPARSE_OK);
 }

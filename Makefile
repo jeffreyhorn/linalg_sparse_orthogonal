@@ -269,6 +269,14 @@ lint:
 .PHONY: check
 check: format-check lint test
 
+# ─── API documentation ────────────────────────────────────────────────
+
+.PHONY: docs
+docs:
+	@echo "Generating API documentation with Doxygen..."
+	doxygen Doxyfile
+	@echo "Documentation generated in docs/api/html/"
+
 # ─── Code coverage ────────────────────────────────────────────────────
 
 # Build with gcov instrumentation, run tests, generate coverage report.

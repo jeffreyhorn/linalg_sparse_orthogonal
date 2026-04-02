@@ -52,7 +52,7 @@ typedef struct {
  * @return SPARSE_ERR_NOT_SPD if the matrix is not symmetric (checked first)
  *         or a non-positive pivot is encountered during factorization.
  *
- * @threadsafety Mutates mat. Not safe to call concurrently on the same matrix.
+ * @par Thread safety: Mutates mat. Not safe to call concurrently on the same matrix.
  *               Safe to call concurrently on different matrices.
  */
 sparse_err_t sparse_cholesky_factor(SparseMatrix *mat);
@@ -87,7 +87,7 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
  * @return SPARSE_ERR_NULL if any argument is NULL.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
  *
- * @threadsafety Read-only on mat. Safe to call concurrently on the same
+ * @par Thread safety: Read-only on mat. Safe to call concurrently on the same
  *               factored matrix with different b/x vectors.
  */
 sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat, const double *b, double *x);

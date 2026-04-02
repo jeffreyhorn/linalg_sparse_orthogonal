@@ -118,7 +118,10 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double to
         }
 
         /* ── Elimination ── */
-        double pivot_val = sparse_get(mat, k, k);
+        /* Cache physical indices to avoid repeated permutation lookups */
+        idx_t phys_k_col_val = mat->col_perm[k];
+        idx_t phys_row_k = mat->row_perm[k];
+        double pivot_val = sparse_get_phys(mat, phys_row_k, phys_k_col_val);
         if (fabs(pivot_val) < tol) {
             free(elim_rows);
             return SPARSE_ERR_SINGULAR;
@@ -126,7 +129,10 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double to
 
         for (idx_t e = 0; e < elim_count; e++) {
             idx_t log_i = elim_rows[e];
-            double a_ik = sparse_get(mat, log_i, k);
+            idx_t phys_i = mat->row_perm[log_i];
+
+            /* Find a_ik using physical coordinates directly */
+            double a_ik = sparse_get_phys(mat, phys_i, phys_k_col_val);
             double mult = a_ik / pivot_val;
 
             /* Store multiplier in L position */
@@ -136,14 +142,15 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double to
                 return err;
             }
 
-            /* Subtract mult * row_k from row_i for columns j > k */
-            idx_t phys_row_k = mat->row_perm[k];
+            /* Subtract mult * row_k from row_i for columns j > k.
+             * Use sparse_get_phys for reads to skip permutation lookups,
+             * but keep sparse_set for writes (maintains correct structure). */
             Node *uj = mat->row_headers[phys_row_k];
             while (uj) {
                 idx_t log_j = mat->inv_col_perm[uj->col];
                 if (log_j > k) {
                     double u_kj = uj->value;
-                    double a_ij = sparse_get(mat, log_i, log_j);
+                    double a_ij = sparse_get_phys(mat, phys_i, uj->col);
                     double new_val = a_ij - mult * u_kj;
                     if (fabs(new_val) < DROP_TOL * max_val) {
                         err = sparse_set(mat, log_i, log_j, 0.0);

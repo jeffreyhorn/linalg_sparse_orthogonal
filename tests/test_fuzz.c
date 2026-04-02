@@ -14,13 +14,28 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 /* ═══════════════════════════════════════════════════════════════════════
- * Helper: write string to temp file and try to load it
+ * Helper: unique temp file for concurrent-safe fuzz testing
  * ═══════════════════════════════════════════════════════════════════════ */
 
+static char fuzz_tmp_path[256];
+
+static void fuzz_init_tmp(void) {
+    snprintf(fuzz_tmp_path, sizeof(fuzz_tmp_path), "/tmp/fuzz_test_XXXXXX.mtx");
+    int fd = mkstemps(fuzz_tmp_path, 4); /* 4 = strlen(".mtx") */
+    if (fd >= 0)
+        close(fd);
+}
+
+static void fuzz_cleanup_tmp(void) {
+    if (fuzz_tmp_path[0])
+        unlink(fuzz_tmp_path);
+}
+
 static sparse_err_t try_load_mm(const char *content) {
-    FILE *f = fopen("/tmp/fuzz_test.mtx", "w");
+    FILE *f = fopen(fuzz_tmp_path, "w");
     if (!f)
         return SPARSE_ERR_FOPEN;
     if (content)
@@ -28,7 +43,7 @@ static sparse_err_t try_load_mm(const char *content) {
     fclose(f);
 
     SparseMatrix *A = NULL;
-    sparse_err_t err = sparse_load_mm(&A, "/tmp/fuzz_test.mtx");
+    sparse_err_t err = sparse_load_mm(&A, fuzz_tmp_path);
     if (A)
         sparse_free(A);
     return err;
@@ -114,7 +129,7 @@ static void test_fuzz_very_large_dimensions(void) {
 }
 
 static void test_fuzz_binary_garbage(void) {
-    FILE *f = fopen("/tmp/fuzz_test.mtx", "wb");
+    FILE *f = fopen(fuzz_tmp_path, "wb");
     if (!f)
         return;
     unsigned char garbage[] = {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
@@ -123,7 +138,7 @@ static void test_fuzz_binary_garbage(void) {
     fclose(f);
 
     SparseMatrix *A = NULL;
-    sparse_err_t err = sparse_load_mm(&A, "/tmp/fuzz_test.mtx");
+    sparse_err_t err = sparse_load_mm(&A, fuzz_tmp_path);
     ASSERT_TRUE(err != SPARSE_OK);
     if (A)
         sparse_free(A);
@@ -178,7 +193,7 @@ static void test_fuzz_duplicate_entries(void) {
 
 static void test_fuzz_symmetric_flag(void) {
     SparseMatrix *A = NULL;
-    FILE *f = fopen("/tmp/fuzz_test.mtx", "w");
+    FILE *f = fopen(fuzz_tmp_path, "w");
     if (!f)
         return;
     fputs("%%MatrixMarket matrix coordinate real symmetric\n", f);
@@ -187,7 +202,7 @@ static void test_fuzz_symmetric_flag(void) {
     fputs("2 1 1.0\n", f);
     fclose(f);
 
-    sparse_err_t err = sparse_load_mm(&A, "/tmp/fuzz_test.mtx");
+    sparse_err_t err = sparse_load_mm(&A, fuzz_tmp_path);
     if (err == SPARSE_OK && A) {
         /* Symmetric: (2,1) should be mirrored to (1,2) */
         double v12 = sparse_get(A, 0, 1);
@@ -433,6 +448,7 @@ static void test_property_svd(void) {
 
 int main(void) {
     TEST_SUITE_BEGIN("Fuzz & Property Tests");
+    fuzz_init_tmp();
 
     /* Fuzz tests for MM parser */
     RUN_TEST(test_fuzz_empty_file);
@@ -462,5 +478,6 @@ int main(void) {
     RUN_TEST(test_property_qr);
     RUN_TEST(test_property_svd);
 
+    fuzz_cleanup_tmp();
     TEST_SUITE_END();
 }

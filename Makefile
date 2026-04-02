@@ -88,7 +88,8 @@ TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 BENCH_SRCS = $(BENCHDIR)/bench_main.c \
              $(BENCHDIR)/bench_scaling.c \
              $(BENCHDIR)/bench_fillin.c \
-             $(BENCHDIR)/bench_convergence.c
+             $(BENCHDIR)/bench_convergence.c \
+             $(BENCHDIR)/bench_svd.c
 BENCH_BINS = $(patsubst $(BENCHDIR)/%.c,$(BUILDDIR)/%,$(BENCH_SRCS))
 
 # Default target
@@ -122,7 +123,7 @@ $(BUILDDIR)/%: $(TESTDIR)/%.c $(LIB) | $(BUILDDIR)
 
 # Benchmark executables
 $(BUILDDIR)/bench_%: $(BENCHDIR)/bench_%.c $(LIB) | $(BUILDDIR)
-	$(CC) $(CFLAGS) $(INCLUDE) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
+	$(CC) $(CFLAGS) $(INCLUDE) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
 
 # Smoke test
 .PHONY: smoke

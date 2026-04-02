@@ -101,8 +101,9 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
  * Lanczos bidiagonalization to build a small k×k bidiagonal, then
  * applies the bidiagonal SVD iteration to extract singular values.
  *
- * This routine returns singular values only. The U and V^T fields in
- * @p svd are left NULL; opts->compute_uv and opts->economy are ignored.
+ * When opts->compute_uv is set (with opts->economy = 1), approximate
+ * left and right singular vectors are recovered from the Lanczos basis.
+ * The vectors satisfy A*v_i ≈ sigma_i * u_i for the top k triplets.
  *
  * @param A    The matrix (not modified). Must have identity permutations.
  * @param k    Number of singular values to compute.

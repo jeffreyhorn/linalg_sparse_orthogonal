@@ -864,8 +864,9 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     }
 
     sparse_free(At);
-    free(P);
-    free(Q);
+
+    /* Check if singular vectors are requested */
+    int compute_uv = opts ? opts->compute_uv : 0;
 
     /* Now we have a lanczos_k x lanczos_k bidiagonal with
      * diag=alpha, superdiag=beta[1..lanczos_k-1] */
@@ -875,12 +876,16 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
         if (size_mul_overflow((size_t)(lanczos_k - 1), sizeof(double), &bd_super_bytes)) {
             free(alpha);
             free(beta);
+            free(P);
+            free(Q);
             return SPARSE_ERR_ALLOC;
         }
         bd_super = malloc(bd_super_bytes);
         if (!bd_super) {
             free(alpha);
             free(beta);
+            free(P);
+            free(Q);
             return SPARSE_ERR_ALLOC;
         }
         for (idx_t i = 0; i < lanczos_k - 1; i++)
@@ -888,23 +893,72 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     }
     free(beta);
 
+    /* Allocate small U and V matrices for bidiag SVD if computing vectors */
+    double *U_small = NULL;
+    double *V_small = NULL;
+    if (compute_uv) {
+        size_t lk2;
+        if (size_mul_overflow((size_t)lanczos_k, (size_t)lanczos_k, &lk2) ||
+            lk2 > SIZE_MAX / sizeof(double)) {
+            free(alpha);
+            free(bd_super);
+            free(P);
+            free(Q);
+            return SPARSE_ERR_ALLOC;
+        }
+        U_small = calloc(lk2, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
+        V_small = calloc(lk2, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
+        if (!U_small || !V_small) {
+            free(alpha);
+            free(bd_super);
+            free(P);
+            free(Q);
+            free(U_small);
+            free(V_small);
+            return SPARSE_ERR_ALLOC;
+        }
+        /* Initialize to identity */
+        for (idx_t i = 0; i < lanczos_k; i++) {
+            U_small[(size_t)i * (size_t)lanczos_k + (size_t)i] = 1.0;
+            V_small[(size_t)i * (size_t)lanczos_k + (size_t)i] = 1.0;
+        }
+    }
+
     /* Run bidiagonal SVD iteration on the small lanczos_k x lanczos_k bidiag */
     idx_t max_iter_val = opts ? opts->max_iter : 0;
     double tol_val = opts ? opts->tol : 0.0;
-    sparse_err_t err =
-        bidiag_svd_iterate(alpha, bd_super, lanczos_k, NULL, 0, NULL, 0, max_iter_val, tol_val);
+    sparse_err_t err = bidiag_svd_iterate(alpha, bd_super, lanczos_k, U_small, lanczos_k, V_small,
+                                          lanczos_k, max_iter_val, tol_val);
     free(bd_super);
 
     if (err != SPARSE_OK) {
         free(alpha);
+        free(P);
+        free(Q);
+        free(U_small);
+        free(V_small);
         return err;
     }
 
-    /* Make non-negative and sort descending */
+    /* Sort singular values descending, tracking permutation */
+    idx_t *perm = malloc((size_t)lanczos_k * sizeof(idx_t));
+    if (!perm) {
+        free(alpha);
+        free(P);
+        free(Q);
+        free(U_small);
+        free(V_small);
+        return SPARSE_ERR_ALLOC;
+    }
+    for (idx_t i = 0; i < lanczos_k; i++)
+        perm[i] = i;
+
+    /* Make non-negative */
     for (idx_t i = 0; i < lanczos_k; i++)
         if (alpha[i] < 0.0)
             alpha[i] = -alpha[i];
 
+    /* Selection sort descending */
     for (idx_t i = 0; i < lanczos_k - 1; i++) {
         idx_t best = i;
         for (idx_t j = i + 1; j < lanczos_k; j++)
@@ -914,6 +968,9 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
             double tmp = alpha[i];
             alpha[i] = alpha[best];
             alpha[best] = tmp;
+            idx_t ptmp = perm[i];
+            perm[i] = perm[best];
+            perm[best] = ptmp;
         }
     }
 
@@ -921,17 +978,98 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     size_t sigma_bytes;
     if (size_mul_overflow((size_t)kk, sizeof(double), &sigma_bytes)) {
         free(alpha);
+        free(perm);
+        free(P);
+        free(Q);
+        free(U_small);
+        free(V_small);
         return SPARSE_ERR_ALLOC;
     }
     double *sigma = malloc(sigma_bytes);
     if (!sigma) {
         free(alpha);
+        free(perm);
+        free(P);
+        free(Q);
+        free(U_small);
+        free(V_small);
         return SPARSE_ERR_ALLOC;
     }
     memcpy(sigma, alpha, sigma_bytes);
     free(alpha);
 
     svd->sigma = sigma;
+
+    /* Recover approximate singular vectors if requested */
+    if (compute_uv) {
+        /* U_approx (m×kk column-major): U[:,s] = P * U_small[:,perm[s]]
+         * Vt (kk×n column-major): Vt[j*kk+s] = sum_t Q[t*n+j] * V_small[perm[s]*lk+t] */
+        size_t sz_u_out, sz_vt_out;
+        if (size_mul_overflow((size_t)m, (size_t)kk, &sz_u_out) ||
+            size_mul_overflow((size_t)kk, (size_t)n, &sz_vt_out) ||
+            sz_u_out > SIZE_MAX / sizeof(double) || sz_vt_out > SIZE_MAX / sizeof(double)) {
+            free(perm);
+            free(P);
+            free(Q);
+            free(U_small);
+            free(V_small);
+            sparse_svd_free(svd);
+            return SPARSE_ERR_ALLOC;
+        }
+        double *U_out =
+            calloc(sz_u_out, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
+        double *Vt_out =
+            calloc(sz_vt_out, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
+        if (!U_out || !Vt_out) {
+            free(U_out);
+            free(Vt_out);
+            free(perm);
+            free(P);
+            free(Q);
+            free(U_small);
+            free(V_small);
+            sparse_svd_free(svd);
+            return SPARSE_ERR_ALLOC;
+        }
+
+        /* U_out[s*m + i] = sum_t P[t*m + i] * U_small[perm[s]*lanczos_k + t] */
+        for (idx_t s = 0; s < kk; s++) {
+            // NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign)
+            idx_t ps = perm[s];
+            for (idx_t t = 0; t < lanczos_k; t++) {
+                double coeff = U_small[(size_t)ps * (size_t)lanczos_k + (size_t)t];
+                if (coeff == 0.0)
+                    continue;
+                double *p_col = &P[(size_t)t * (size_t)m];
+                double *u_col = &U_out[(size_t)s * (size_t)m];
+                for (idx_t i = 0; i < m; i++)
+                    u_col[i] += coeff * p_col[i];
+            }
+        }
+
+        /* Vt_out[j*kk + s] = sum_t Q[t*n + j] * V_small[perm[s]*lanczos_k + t] */
+        for (idx_t s = 0; s < kk; s++) {
+            idx_t ps = perm[s];
+            for (idx_t t = 0; t < lanczos_k; t++) {
+                double coeff = V_small[(size_t)ps * (size_t)lanczos_k + (size_t)t];
+                if (coeff == 0.0)
+                    continue;
+                double *q_col = &Q[(size_t)t * (size_t)n];
+                for (idx_t j = 0; j < n; j++)
+                    Vt_out[(size_t)j * (size_t)kk + (size_t)s] += coeff * q_col[j];
+            }
+        }
+
+        svd->U = U_out;
+        svd->Vt = Vt_out;
+        svd->economy = 1;
+    }
+
+    free(perm);
+    free(P);
+    free(Q);
+    free(U_small);
+    free(V_small);
     return SPARSE_OK;
 }
 

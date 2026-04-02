@@ -259,14 +259,32 @@ sparse_err_t sparse_bidiag_factor(const SparseMatrix *A, sparse_bidiag_t *bidiag
             for (idx_t j = 0; j < row_len; j++)
                 W[(size_t)(step + 1 + j) * (size_t)m + (size_t)step] = row_entries[j];
 
-            /* Apply right Householder to rows step+1..m-1 (columns step+1..n-1) */
-            for (idx_t i = step + 1; i < m; i++) {
-                /* Extract row i entries from columns step+1..n-1 */
-                for (idx_t j = 0; j < row_len; j++)
-                    hv[j] = W[(size_t)(step + 1 + j) * (size_t)m + (size_t)i];
-                bidiag_householder_apply(rv, beta_v, hv, row_len);
-                for (idx_t j = 0; j < row_len; j++)
-                    W[(size_t)(step + 1 + j) * (size_t)m + (size_t)i] = hv[j];
+            /* Apply right Householder to rows step+1..m-1 (columns step+1..n-1).
+             * Reformulate as column-oriented rank-1 update for cache efficiency:
+             * B_new = B * (I - beta_v * v * v^T) = B - beta_v * (B*v) * v^T
+             * where B = W(step+1:m-1, step+1:n-1). */
+            {
+                idx_t m_sub = m - step - 1;
+                /* Step 1: p = B * v (column-oriented mat-vec) */
+                double *p = hv; /* reuse buffer, m_sub <= maxdim */
+                memset(p, 0, (size_t)m_sub * sizeof(double));
+                for (idx_t j = 0; j < row_len; j++) {
+                    double vj = rv[j];
+                    if (vj == 0.0)
+                        continue;
+                    double *col = &W[(size_t)(step + 1 + j) * (size_t)m + (size_t)(step + 1)];
+                    for (idx_t i = 0; i < m_sub; i++)
+                        p[i] += vj * col[i];
+                }
+                /* Step 2: B -= beta_v * p * v^T (column-oriented rank-1 update) */
+                for (idx_t j = 0; j < row_len; j++) {
+                    double scale = beta_v * rv[j];
+                    if (scale == 0.0)
+                        continue;
+                    double *col = &W[(size_t)(step + 1 + j) * (size_t)m + (size_t)(step + 1)];
+                    for (idx_t i = 0; i < m_sub; i++)
+                        col[i] -= scale * p[i];
+                }
             }
         }
     }

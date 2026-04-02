@@ -335,22 +335,66 @@ sparse_err_t bidiag_svd_iterate(double *diag, double *superdiag, idx_t k, double
             lo--;
         }
 
-        /* Check for zero diagonal entries — need special handling */
+        /* Check for zero diagonal entries — need special handling
+         * per Golub & Van Loan Algorithm 8.6.2.  When a diagonal
+         * entry is near-zero, the standard implicit QR step fails.
+         * We chase the associated superdiagonal entry away using
+         * Givens rotations, enabling deflation. */
         int has_zero_diag = 0;
         for (idx_t i = lo; i <= hi; i++) {
-            if (fabs(diag[i]) < 1e-30) {
+            if (fabs(diag[i]) < abs_tol) {
                 has_zero_diag = 1;
-                /* Zero out the row by rotating superdiag into adjacent entries */
-                if (i < hi && fabs(superdiag[i]) > 1e-30) {
-                    double c, s;
-                    givens_compute(diag[i + 1], superdiag[i], &c, &s);
-                    diag[i + 1] = c * diag[i + 1] + s * superdiag[i];
+                diag[i] = 0.0; /* force exact zero */
+
+                if (i < hi) {
+                    /* Interior zero diagonal: chase superdiag[i] DOWNWARD
+                     * using left rotations on rows (j, i) for j = i+1..hi.
+                     * Each rotation zeroes the bulge at (i, j) but creates
+                     * a new one at (i, j+1).  Only updates U. */
+                    double bulge = superdiag[i];
                     superdiag[i] = 0.0;
-                    if (U)
-                        givens_apply_left(c, s, &U[(size_t)(i + 1) * (size_t)m],
-                                          &U[(size_t)i * (size_t)m], m);
+
+                    for (idx_t j = i + 1; j <= hi; j++) {
+                        double c, s;
+                        givens_compute(diag[j], bulge, &c, &s);
+                        diag[j] = c * diag[j] + s * bulge;
+
+                        if (j < hi) {
+                            double old_e = superdiag[j];
+                            superdiag[j] = c * old_e;
+                            bulge = -s * old_e;
+                        }
+
+                        if (U)
+                            givens_apply_left(c, s, &U[(size_t)j * (size_t)m],
+                                              &U[(size_t)i * (size_t)m], m);
+                    }
+                } else {
+                    /* Zero diagonal at bottom (i == hi): chase
+                     * superdiag[hi-1] UPWARD using right rotations on
+                     * columns (j, hi) for j = hi-1..lo.  Each rotation
+                     * zeroes the bulge at (j, hi) but creates a new one
+                     * at (j-1, hi).  Only updates V. */
+                    double bulge = superdiag[hi - 1];
+                    superdiag[hi - 1] = 0.0;
+
+                    for (idx_t j = hi - 1; j >= lo; j--) {
+                        double c, s;
+                        givens_compute(diag[j], bulge, &c, &s);
+                        diag[j] = c * diag[j] + s * bulge;
+
+                        if (j > lo) {
+                            double old_e = superdiag[j - 1];
+                            superdiag[j - 1] = c * old_e;
+                            bulge = -s * old_e;
+                        }
+
+                        if (V)
+                            givens_apply_left(c, s, &V[(size_t)j * (size_t)n],
+                                              &V[(size_t)hi * (size_t)n], n);
+                    }
                 }
-                break;
+                break; /* handle one zero at a time, re-check deflation */
             }
         }
         if (has_zero_diag) {

@@ -666,24 +666,120 @@ static void test_svd_rank1(void) {
 
     sparse_svd_t svd;
     sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
-    /* Known limitation: QR iteration may not converge on rank-deficient
-     * bidiagonals where near-zero diagonal entries prevent deflation.
-     * Accept either SPARSE_OK or SPARSE_ERR_NOT_CONVERGED until the
-     * zero-diagonal chase (G&VL §8.6.2) is implemented. */
-    ASSERT_TRUE(err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED);
-    if (err == SPARSE_ERR_NOT_CONVERGED) {
-        printf("    SVD rank-1: NOT_CONVERGED (known limitation)\n");
-        sparse_svd_free(&svd);
-        sparse_free(A);
-        return;
-    }
+    ASSERT_EQ(err, SPARSE_OK);
 
     printf("    SVD rank-1: [%.4f, %.4f, %.4f]\n", svd.sigma[0], svd.sigma[1], svd.sigma[2]);
     /* sigma[0] should be ||u||*||v|| = sqrt(30)*sqrt(3) ≈ 9.487 */
-    ASSERT_TRUE(svd.sigma[0] > 1.0);
+    double expected = sqrt(30.0) * sqrt(3.0);
+    ASSERT_TRUE(fabs(svd.sigma[0] - expected) < 1e-6);
     /* sigma[1] and sigma[2] should be ~0 */
     ASSERT_TRUE(svd.sigma[1] < 1e-8);
     ASSERT_TRUE(svd.sigma[2] < 1e-8);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Rank-1 matrix with UV reconstruction */
+static void test_svd_rank1_uv(void) {
+    SparseMatrix *A = sparse_create(4, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* rank-1: u*v^T where u=[1,2,3,4], v=[1,1,1] */
+    for (idx_t i = 0; i < 4; i++)
+        for (idx_t j = 0; j < 3; j++)
+            sparse_insert(A, i, j, (double)(i + 1));
+
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, &opts, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* Verify reconstruction: A ≈ U * diag(sigma) * Vt
+     * Vt is stored column-major: Vt[j * k + r] = (V^T)_{r,j} */
+    double max_err = 0.0;
+    idx_t k = svd.k;
+    for (idx_t i = 0; i < 4; i++) {
+        for (idx_t j = 0; j < 3; j++) {
+            double sum = 0.0;
+            for (idx_t s = 0; s < k; s++)
+                sum += svd.U[(size_t)s * 4 + (size_t)i] * svd.sigma[s] *
+                       svd.Vt[(size_t)j * (size_t)k + (size_t)s];
+            double expected = (double)(i + 1);
+            double e = fabs(sum - expected);
+            if (e > max_err)
+                max_err = e;
+        }
+    }
+    printf("    SVD rank-1 UV reconstruction error: %.2e\n", max_err);
+    ASSERT_TRUE(max_err < 1e-8);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Rank-2 matrix in 5x5: exactly two nonzero singular values */
+static void test_svd_rank2(void) {
+    SparseMatrix *A = sparse_create(5, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* A = u1*v1^T + u2*v2^T where:
+     * u1=[1,0,1,0,1], v1=[1,1,0,0,0]
+     * u2=[0,1,0,1,0], v2=[0,0,1,1,0] */
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 1, 3, 1.0);
+    sparse_insert(A, 2, 0, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 3, 2, 1.0);
+    sparse_insert(A, 3, 3, 1.0);
+    sparse_insert(A, 4, 0, 1.0);
+    sparse_insert(A, 4, 1, 1.0);
+
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    printf("    SVD rank-2: [%.4f, %.4f, %.4f, %.4f, %.4f]\n", svd.sigma[0], svd.sigma[1],
+           svd.sigma[2], svd.sigma[3], svd.sigma[4]);
+    /* Exactly two nonzero singular values */
+    ASSERT_TRUE(svd.sigma[0] > 0.1);
+    ASSERT_TRUE(svd.sigma[1] > 0.1);
+    ASSERT_TRUE(svd.sigma[2] < 1e-10);
+    ASSERT_TRUE(svd.sigma[3] < 1e-10);
+    ASSERT_TRUE(svd.sigma[4] < 1e-10);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* 10x10 rank-5: five nonzero + five near-zero singular values */
+static void test_svd_rank5_in_10x10(void) {
+    SparseMatrix *A = sparse_create(10, 10);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Build rank-5 matrix: A = sum_{r=0}^{4} (r+1)*e_r*e_r^T
+     * where e_r is the r-th standard basis vector.
+     * This is a diagonal matrix with 5 nonzeros. */
+    for (idx_t i = 0; i < 5; i++)
+        sparse_insert(A, i, i, (double)(i + 1));
+
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* sigma = [5, 4, 3, 2, 1, 0, 0, 0, 0, 0] (descending) */
+    ASSERT_NEAR(svd.sigma[0], 5.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[1], 4.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[2], 3.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[3], 2.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[4], 1.0, 1e-10);
+    for (idx_t i = 5; i < 10; i++)
+        ASSERT_TRUE(svd.sigma[i] < 1e-10);
 
     sparse_svd_free(&svd);
     sparse_free(A);
@@ -2098,6 +2194,9 @@ int main(void) {
     RUN_TEST(test_svd_descending);
     RUN_TEST(test_svd_trace_invariant);
     RUN_TEST(test_svd_rank1);
+    RUN_TEST(test_svd_rank1_uv);
+    RUN_TEST(test_svd_rank2);
+    RUN_TEST(test_svd_rank5_in_10x10);
 
     /* SVD edge cases (Day 8) */
     RUN_TEST(test_bidiag_svd_zero_super);

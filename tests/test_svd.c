@@ -942,7 +942,7 @@ static void test_svd_rank2_dense(void) {
 /* SuiteSparse rank-deficient: zero some columns of nos4 */
 static void test_svd_suitesparse_rank_deficient(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t lerr = sparse_load_mm(&A, "matrices/nos4.mtx");
+    sparse_err_t lerr = sparse_load_mm(&A, "tests/data/suitesparse/nos4.mtx");
     if (lerr != SPARSE_OK || !A) {
         printf("    SKIP: nos4.mtx not found\n");
         return;
@@ -2454,6 +2454,13 @@ static void test_partial_svd_vectors_Av(void) {
     double *v = calloc((size_t)svd.n, sizeof(double));
     ASSERT_NOT_NULL(Av);
     ASSERT_NOT_NULL(v);
+    if (!Av || !v) {
+        free(Av);
+        free(v);
+        sparse_svd_free(&svd);
+        sparse_free(A);
+        return;
+    }
 
     double max_resid = 0.0;
     for (idx_t s = 0; s < k; s++) {
@@ -2536,7 +2543,7 @@ static void test_partial_svd_vectors_vs_full(void) {
 /* nos4 (100×100 SPD): partial SVD vectors k=5 */
 static void test_partial_svd_vectors_nos4(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t lerr = sparse_load_mm(&A, "matrices/nos4.mtx");
+    sparse_err_t lerr = sparse_load_mm(&A, "tests/data/suitesparse/nos4.mtx");
     if (lerr != SPARSE_OK || !A) {
         printf("    SKIP: nos4.mtx not found\n");
         return;
@@ -2565,6 +2572,15 @@ static void test_partial_svd_vectors_nos4(void) {
     /* A*v ≈ sigma*u for each triplet */
     double *Av = calloc((size_t)part.m, sizeof(double));
     double *v = calloc((size_t)part.n, sizeof(double));
+    if (!Av || !v) {
+        free(Av);
+        free(v);
+        sparse_svd_free(&part);
+        sparse_svd_free(&full);
+        sparse_free(A);
+        ASSERT_NOT_NULL(Av);
+        return;
+    }
     double max_resid = 0.0;
     for (idx_t s = 0; s < k; s++) {
         for (idx_t j = 0; j < part.n; j++)
@@ -2593,7 +2609,7 @@ static void test_partial_svd_vectors_nos4(void) {
 /* west0067 (67×67 unsymmetric): partial SVD vectors k=3 */
 static void test_partial_svd_vectors_west0067(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t lerr = sparse_load_mm(&A, "matrices/west0067.mtx");
+    sparse_err_t lerr = sparse_load_mm(&A, "tests/data/suitesparse/west0067.mtx");
     if (lerr != SPARSE_OK || !A) {
         printf("    SKIP: west0067.mtx not found\n");
         return;
@@ -2608,6 +2624,14 @@ static void test_partial_svd_vectors_west0067(void) {
     /* A*v ≈ sigma*u */
     double *Av = calloc((size_t)part.m, sizeof(double));
     double *v = calloc((size_t)part.n, sizeof(double));
+    if (!Av || !v) {
+        free(Av);
+        free(v);
+        sparse_svd_free(&part);
+        sparse_free(A);
+        ASSERT_NOT_NULL(Av);
+        return;
+    }
     double max_resid = 0.0;
     for (idx_t s = 0; s < k; s++) {
         for (idx_t j = 0; j < part.n; j++)

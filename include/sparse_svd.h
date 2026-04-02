@@ -183,8 +183,12 @@ sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lo
  * @brief Compute the best rank-k approximation as a sparse matrix.
  *
  * Returns A_k = U_k * Sigma_k * V_k^T as a SparseMatrix, dropping entries
- * whose absolute value is below @p drop_tol. More memory-efficient than
- * sparse_svd_lowrank() when the low-rank approximation is itself sparse.
+ * whose absolute value is below @p drop_tol. The final sparse output uses
+ * less memory than the dense array from sparse_svd_lowrank() when the
+ * low-rank approximation is itself sparse.
+ *
+ * @note Internally allocates a temporary m*n dense accumulator during
+ *       construction. Peak memory is comparable to sparse_svd_lowrank().
  *
  * @param A        The matrix (not modified).
  * @param rank_k   Desired rank (must be 1..min(m,n)).

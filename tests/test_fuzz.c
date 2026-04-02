@@ -282,18 +282,20 @@ static void test_property_lu(void) {
         SparseMatrix *LU = sparse_copy(A);
         sparse_err_t err = sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-14);
         if (err == SPARSE_OK) {
-            sparse_lu_solve(LU, b, x);
-            /* Check residual */
-            double Ax[20] = {0};
-            sparse_matvec(A, x, Ax);
-            double resid = 0.0;
-            for (idx_t i = 0; i < n; i++) {
-                double d = b[i] - Ax[i];
-                resid += d * d;
+            sparse_err_t serr = sparse_lu_solve(LU, b, x);
+            if (serr == SPARSE_OK) {
+                /* Check residual */
+                double Ax[20] = {0};
+                sparse_matvec(A, x, Ax);
+                double resid = 0.0;
+                for (idx_t i = 0; i < n; i++) {
+                    double d = b[i] - Ax[i];
+                    resid += d * d;
+                }
+                resid = sqrt(resid);
+                if (resid < 1e-6)
+                    pass_count++;
             }
-            resid = sqrt(resid);
-            if (resid < 1e-6)
-                pass_count++;
         }
         sparse_free(LU);
         sparse_free(A);
@@ -320,17 +322,19 @@ static void test_property_cholesky(void) {
         SparseMatrix *L = sparse_copy(A);
         sparse_err_t err = sparse_cholesky_factor(L);
         if (err == SPARSE_OK) {
-            sparse_cholesky_solve(L, b, x);
-            double Ax[15] = {0};
-            sparse_matvec(A, x, Ax);
-            double resid = 0.0;
-            for (idx_t i = 0; i < n; i++) {
-                double d = b[i] - Ax[i];
-                resid += d * d;
+            sparse_err_t serr = sparse_cholesky_solve(L, b, x);
+            if (serr == SPARSE_OK) {
+                double Ax[15] = {0};
+                sparse_matvec(A, x, Ax);
+                double resid = 0.0;
+                for (idx_t i = 0; i < n; i++) {
+                    double d = b[i] - Ax[i];
+                    resid += d * d;
+                }
+                resid = sqrt(resid);
+                if (resid < 1e-6)
+                    pass_count++;
             }
-            resid = sqrt(resid);
-            if (resid < 1e-6)
-                pass_count++;
         }
         sparse_free(L);
         sparse_free(A);

@@ -785,6 +785,208 @@ static void test_svd_rank5_in_10x10(void) {
     sparse_free(A);
 }
 
+/* Rank-1 square matrix: zero-diagonal chase on square bidiagonal */
+static void test_svd_rank1_square(void) {
+    SparseMatrix *A = sparse_create(5, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* rank-1: all entries = row index + 1 (u=[1,2,3,4,5], v=[1,1,1,1,1]) */
+    for (idx_t i = 0; i < 5; i++)
+        for (idx_t j = 0; j < 5; j++)
+            sparse_insert(A, i, j, (double)(i + 1));
+
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* sigma[0] = ||u||*||v|| = sqrt(55)*sqrt(5) */
+    double expected = sqrt(55.0) * sqrt(5.0);
+    ASSERT_TRUE(fabs(svd.sigma[0] - expected) < 1e-6);
+    for (idx_t i = 1; i < 5; i++)
+        ASSERT_TRUE(svd.sigma[i] < 1e-8);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Rank-1 wide matrix: m < n with zero-diagonal chase */
+static void test_svd_rank1_wide(void) {
+    SparseMatrix *A = sparse_create(3, 6);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* rank-1: u=[1,2,3], v=[1,1,1,1,1,1] */
+    for (idx_t i = 0; i < 3; i++)
+        for (idx_t j = 0; j < 6; j++)
+            sparse_insert(A, i, j, (double)(i + 1));
+
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* sigma[0] = ||u||*||v|| = sqrt(14)*sqrt(6) */
+    double expected = sqrt(14.0) * sqrt(6.0);
+    printf("    SVD rank-1 wide: sigma[0]=%.4f (expected %.4f)\n", svd.sigma[0], expected);
+    ASSERT_TRUE(fabs(svd.sigma[0] - expected) < 1e-6);
+    for (idx_t i = 1; i < 3; i++)
+        ASSERT_TRUE(svd.sigma[i] < 1e-8);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Near-singular matrix: diagonal entries approaching machine epsilon */
+static void test_svd_near_singular(void) {
+    SparseMatrix *A = sparse_create(4, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Diagonal with decreasing entries: 1, 1e-4, 1e-8, 1e-12 */
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 1e-4);
+    sparse_insert(A, 2, 2, 1e-8);
+    sparse_insert(A, 3, 3, 1e-12);
+
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    ASSERT_NEAR(svd.sigma[0], 1.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[1], 1e-4, 1e-14);
+    ASSERT_NEAR(svd.sigma[2], 1e-8, 1e-18);
+    ASSERT_NEAR(svd.sigma[3], 1e-12, 1e-22);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Multiple zero diagonals: bidiagonal with alternating zero/nonzero */
+static void test_svd_multi_zero_diag(void) {
+    /* Build a matrix whose bidiagonal has multiple near-zero diagonals.
+     * Use a rank-2 matrix in 6×6: two outer products with gaps. */
+    SparseMatrix *A = sparse_create(6, 6);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* A = diag(3, 0, 2, 0, 1, 0) — three zero singular values */
+    sparse_insert(A, 0, 0, 3.0);
+    sparse_insert(A, 2, 2, 2.0);
+    sparse_insert(A, 4, 4, 1.0);
+
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    ASSERT_NEAR(svd.sigma[0], 3.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[1], 2.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[2], 1.0, 1e-10);
+    for (idx_t i = 3; i < 6; i++)
+        ASSERT_TRUE(svd.sigma[i] < 1e-10);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Rank-deficient dense matrix: all rows are multiples of first two */
+static void test_svd_rank2_dense(void) {
+    SparseMatrix *A = sparse_create(5, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Row 0: [1, 2, 3, 4]
+     * Row 1: [5, 6, 7, 8]
+     * Row 2: [2, 4, 6, 8] = 2 * row 0
+     * Row 3: [6, 8, 10, 12] = row 0 + row 1
+     * Row 4: [3, 6, 9, 12] = 3 * row 0
+     * Rank = 2 */
+    double rows[5][4] = {{1, 2, 3, 4}, {5, 6, 7, 8}, {2, 4, 6, 8}, {6, 8, 10, 12}, {3, 6, 9, 12}};
+    for (idx_t i = 0; i < 5; i++)
+        for (idx_t j = 0; j < 4; j++)
+            sparse_insert(A, i, j, rows[i][j]);
+
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, &opts, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    printf("    SVD rank-2 dense: [%.4f, %.4f, %.4f, %.4f]\n", svd.sigma[0], svd.sigma[1],
+           svd.sigma[2], svd.sigma[3]);
+    /* Exactly two nonzero singular values */
+    ASSERT_TRUE(svd.sigma[0] > 1.0);
+    ASSERT_TRUE(svd.sigma[1] > 0.1);
+    ASSERT_TRUE(svd.sigma[2] < 1e-10);
+    ASSERT_TRUE(svd.sigma[3] < 1e-10);
+
+    /* Verify reconstruction: A ≈ U * diag(sigma) * Vt */
+    double max_err = 0.0;
+    idx_t k = svd.k;
+    for (idx_t i = 0; i < 5; i++) {
+        for (idx_t j = 0; j < 4; j++) {
+            double sum = 0.0;
+            for (idx_t s = 0; s < k; s++)
+                sum += svd.U[(size_t)s * 5 + (size_t)i] * svd.sigma[s] *
+                       svd.Vt[(size_t)j * (size_t)k + (size_t)s];
+            double e = fabs(sum - rows[i][j]);
+            if (e > max_err)
+                max_err = e;
+        }
+    }
+    printf("    SVD rank-2 dense UV reconstruction error: %.2e\n", max_err);
+    ASSERT_TRUE(max_err < 1e-8);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* SuiteSparse rank-deficient: zero some columns of nos4 */
+static void test_svd_suitesparse_rank_deficient(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, "matrices/nos4.mtx");
+    if (lerr != SPARSE_OK || !A) {
+        printf("    SKIP: nos4.mtx not found\n");
+        return;
+    }
+    /* Zero columns 50-99 to create a rank-deficient matrix */
+    SparseMatrix *B = sparse_create(sparse_rows(A), sparse_cols(A));
+    ASSERT_NOT_NULL(B);
+    if (!B) {
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < sparse_rows(A); i++) {
+        for (idx_t j = 0; j < 50; j++) {
+            double val = sparse_get(A, i, j);
+            if (val != 0.0)
+                sparse_insert(B, i, j, val);
+        }
+    }
+    sparse_free(A);
+
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(B, NULL, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* Count nonzero singular values */
+    idx_t rank = 0;
+    for (idx_t i = 0; i < svd.k; i++) {
+        if (svd.sigma[i] > 1e-10 * svd.sigma[0])
+            rank++;
+    }
+    printf("    nos4 rank-deficient (cols 0-49 only): rank=%d (of %d)\n", (int)rank, (int)svd.k);
+    ASSERT_TRUE(rank <= 50);
+    ASSERT_TRUE(rank > 0);
+    /* SVD rank estimation should agree */
+    idx_t svd_rank = 0;
+    err = sparse_svd_rank(B, 0.0, &svd_rank);
+    ASSERT_EQ(err, SPARSE_OK);
+    printf("    sparse_svd_rank reports: %d\n", (int)svd_rank);
+    ASSERT_TRUE(svd_rank <= 50);
+
+    sparse_svd_free(&svd);
+    sparse_free(B);
+}
+
 /* SVD descending order */
 static void test_svd_descending(void) {
     SparseMatrix *A = sparse_create(3, 3);
@@ -2197,6 +2399,12 @@ int main(void) {
     RUN_TEST(test_svd_rank1_uv);
     RUN_TEST(test_svd_rank2);
     RUN_TEST(test_svd_rank5_in_10x10);
+    RUN_TEST(test_svd_rank1_square);
+    RUN_TEST(test_svd_rank1_wide);
+    RUN_TEST(test_svd_near_singular);
+    RUN_TEST(test_svd_multi_zero_diag);
+    RUN_TEST(test_svd_rank2_dense);
+    RUN_TEST(test_svd_suitesparse_rank_deficient);
 
     /* SVD edge cases (Day 8) */
     RUN_TEST(test_bidiag_svd_zero_super);

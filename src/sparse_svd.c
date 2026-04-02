@@ -707,6 +707,10 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     if (opts && (opts->max_iter < 0 || opts->tol < 0.0))
         return SPARSE_ERR_BADARG;
 
+    /* Enforce compute_uv requires economy=1 (same as sparse_svd_compute) */
+    if (opts && opts->compute_uv && !opts->economy)
+        return SPARSE_ERR_BADARG;
+
     /* Reject non-identity permutations (same check as sparse_bidiag_factor) */
     {
         const idx_t *rp = sparse_row_perm(A);
@@ -865,14 +869,14 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
 
     sparse_free(At);
 
-    /* Check if singular vectors are requested */
+    /* Check if singular vectors are requested.
+     * Free P/Q early when not needed to reduce peak memory. */
     int compute_uv = opts ? opts->compute_uv : 0;
-    if (compute_uv && opts && !opts->economy) {
+    if (!compute_uv) {
         free(P);
         free(Q);
-        free(alpha);
-        free(beta);
-        return SPARSE_ERR_BADARG;
+        P = NULL;
+        Q = NULL;
     }
 
     /* Now we have a lanczos_k x lanczos_k bidiagonal with
@@ -1288,9 +1292,13 @@ sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, doub
     if (err != SPARSE_OK)
         return err;
 
-    /* Default drop tolerance: eps * sigma_max */
-    if (drop_tol <= 0.0)
+    /* Default drop tolerance: eps * sigma_max.
+     * If sigma_max is zero (all-zero matrix), return empty sparse matrix. */
+    if (drop_tol <= 0.0) {
         drop_tol = 2.2204460492503131e-16 * svd.sigma[0];
+        if (drop_tol == 0.0)
+            drop_tol = 2.2204460492503131e-16; /* floor to eps */
+    }
 
     SparseMatrix *out = sparse_create(m, n);
     if (!out) {
@@ -1334,8 +1342,15 @@ sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, doub
     for (idx_t i = 0; i < m; i++) {
         for (idx_t j = 0; j < n; j++) {
             double val = accum[(size_t)i * (size_t)n + (size_t)j];
-            if (fabs(val) >= drop_tol)
-                sparse_insert(out, i, j, val);
+            if (fabs(val) >= drop_tol) {
+                sparse_err_t ierr = sparse_insert(out, i, j, val);
+                if (ierr != SPARSE_OK) {
+                    free(accum);
+                    sparse_free(out);
+                    sparse_svd_free(&svd);
+                    return ierr;
+                }
+            }
         }
     }
     free(accum);

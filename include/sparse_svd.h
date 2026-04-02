@@ -180,6 +180,28 @@ sparse_err_t sparse_pinv(const SparseMatrix *A, double tol, double **pinv);
 sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lowrank);
 
 /**
+ * @brief Compute the best rank-k approximation as a sparse matrix.
+ *
+ * Returns A_k = U_k * Sigma_k * V_k^T as a SparseMatrix, dropping entries
+ * whose absolute value is below @p drop_tol. More memory-efficient than
+ * sparse_svd_lowrank() when the low-rank approximation is itself sparse.
+ *
+ * @param A        The matrix (not modified).
+ * @param rank_k   Desired rank (must be 1..min(m,n)).
+ * @param drop_tol Entries with |value| < drop_tol are dropped. If <= 0,
+ *                 uses default: eps * sigma_1.
+ * @param result   Output: sparse m×n matrix (caller must free with sparse_free()).
+ *                 Set to NULL on failure.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if A or result is NULL.
+ * @return SPARSE_ERR_BADARG if rank_k is out of range or A has non-identity permutations.
+ * @return SPARSE_ERR_ALLOC if memory allocation fails.
+ * @return SPARSE_ERR_NOT_CONVERGED if SVD iteration fails to converge.
+ */
+sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, double drop_tol,
+                                       SparseMatrix **result);
+
+/**
  * @brief Estimate the 2-norm condition number of a matrix via SVD.
  *
  * Computes cond(A) = sigma_max / sigma_min using the full SVD.

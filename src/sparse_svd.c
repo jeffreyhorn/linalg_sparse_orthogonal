@@ -1243,6 +1243,65 @@ sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lo
     return SPARSE_OK;
 }
 
+sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, double drop_tol,
+                                       SparseMatrix **result) {
+    if (!result)
+        return SPARSE_ERR_NULL;
+    *result = NULL;
+    if (!A)
+        return SPARSE_ERR_NULL;
+
+    idx_t m = sparse_rows(A);
+    idx_t n = sparse_cols(A);
+    idx_t kmax = (m < n) ? m : n;
+
+    if (rank_k <= 0 || rank_k > kmax)
+        return SPARSE_ERR_BADARG;
+
+    /* Full SVD with U and Vt */
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, &opts, &svd);
+    if (err != SPARSE_OK)
+        return err;
+
+    /* Default drop tolerance: eps * sigma_max */
+    if (drop_tol <= 0.0)
+        drop_tol = 2.2204460492503131e-16 * svd.sigma[0];
+
+    SparseMatrix *out = sparse_create(m, n);
+    if (!out) {
+        sparse_svd_free(&svd);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    idx_t k = svd.k;
+    double *U_data = svd.U;
+    double *Vt_data = svd.Vt;
+
+    /* Compute A_k[i][j] = sum_{s=0}^{rank_k-1} sigma_s * U[s,i] * Vt[s,j]
+     * and insert if |value| >= drop_tol.
+     * U col-major: U[s*m + i], Vt col-major: Vt[j*k + s] */
+    for (idx_t j = 0; j < n; j++) {
+        for (idx_t i = 0; i < m; i++) {
+            double val = 0.0;
+            for (idx_t s = 0; s < rank_k && s < k; s++) {
+                double si = svd.sigma[s];
+                if (si == 0.0)
+                    break;
+                val += si * U_data[(size_t)s * (size_t)m + (size_t)i] *
+                       Vt_data[(size_t)j * (size_t)k + (size_t)s];
+            }
+            if (fabs(val) >= drop_tol)
+                sparse_insert(out, i, j, val);
+        }
+    }
+
+    *result = out;
+    sparse_svd_free(&svd);
+    return SPARSE_OK;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Condition number estimation
  * ═══════════════════════════════════════════════════════════════════════ */

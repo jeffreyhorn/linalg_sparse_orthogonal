@@ -2793,6 +2793,189 @@ static void test_partial_svd_no_vectors(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Sparse low-rank output (Sprint 9 Day 6)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Diagonal rank-k: exact entries preserved */
+static void test_lowrank_sparse_diagonal(void) {
+    SparseMatrix *A = sparse_create(4, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 10.0);
+    sparse_insert(A, 1, 1, 5.0);
+    sparse_insert(A, 2, 2, 2.0);
+    sparse_insert(A, 3, 3, 1.0);
+
+    SparseMatrix *out = NULL;
+    sparse_err_t err = sparse_svd_lowrank_sparse(A, 2, 0.0, &out);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_NOT_NULL(out);
+
+    /* Rank-2 of diag(10,5,2,1) = diag(10,5,0,0) */
+    ASSERT_NEAR(sparse_get(out, 0, 0), 10.0, 1e-10);
+    ASSERT_NEAR(sparse_get(out, 1, 1), 5.0, 1e-10);
+    ASSERT_NEAR(sparse_get(out, 2, 2), 0.0, 1e-10);
+    ASSERT_NEAR(sparse_get(out, 3, 3), 0.0, 1e-10);
+
+    sparse_free(out);
+    sparse_free(A);
+}
+
+/* Sparsity reduction with drop_tol */
+static void test_lowrank_sparse_sparsity(void) {
+    SparseMatrix *A = sparse_create(6, 6);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Tridiagonal */
+    for (idx_t i = 0; i < 6; i++) {
+        sparse_insert(A, i, i, 10.0 * (double)(i + 1));
+        if (i + 1 < 6)
+            sparse_insert(A, i, i + 1, 1.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, 1.0);
+    }
+    idx_t orig_nnz = sparse_nnz(A);
+
+    /* Rank-2 with drop_tol=0.5: should drop small entries */
+    SparseMatrix *out = NULL;
+    sparse_err_t err = sparse_svd_lowrank_sparse(A, 2, 0.5, &out);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_NOT_NULL(out);
+
+    idx_t out_nnz = sparse_nnz(out);
+    printf("    sparse lowrank: orig_nnz=%d, out_nnz=%d\n", (int)orig_nnz, (int)out_nnz);
+    ASSERT_TRUE(out_nnz <= orig_nnz);
+    ASSERT_TRUE(out_nnz > 0);
+
+    sparse_free(out);
+    sparse_free(A);
+}
+
+/* Compare with dense lowrank: ||sparse - dense||_F < drop_tol * sqrt(m*n) */
+static void test_lowrank_sparse_vs_dense(void) {
+    SparseMatrix *A = sparse_create(5, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Tridiagonal */
+    for (idx_t i = 0; i < 5; i++) {
+        sparse_insert(A, i, i, 3.0 * (double)(i + 1));
+        if (i + 1 < 5)
+            sparse_insert(A, i, i + 1, 1.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, 1.0);
+    }
+
+    idx_t rank_k = 3;
+    double drop_tol = 0.01;
+
+    /* Dense low-rank */
+    double *dense = NULL;
+    sparse_err_t err = sparse_svd_lowrank(A, rank_k, &dense);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* Sparse low-rank */
+    SparseMatrix *sp = NULL;
+    err = sparse_svd_lowrank_sparse(A, rank_k, drop_tol, &sp);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* ||sparse - dense||_F should be bounded by number of dropped entries * drop_tol */
+    double frob_sq = 0.0;
+    for (idx_t i = 0; i < 5; i++) {
+        for (idx_t j = 0; j < 5; j++) {
+            double d_val = dense[(size_t)j * 5 + (size_t)i]; /* col-major */
+            double s_val = sparse_get(sp, i, j);
+            double diff = d_val - s_val;
+            frob_sq += diff * diff;
+        }
+    }
+    double frob = sqrt(frob_sq);
+    printf("    sparse vs dense lowrank diff: %.2e (tol*sqrt(mn)=%.2e)\n", frob,
+           drop_tol * sqrt(25.0));
+    ASSERT_TRUE(frob < drop_tol * sqrt(25.0));
+
+    free(dense);
+    sparse_free(sp);
+    sparse_free(A);
+}
+
+/* k=1 on rank-1 matrix: result ≈ original */
+static void test_lowrank_sparse_rank1(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* rank-1: all entries = row+1 */
+    for (idx_t i = 0; i < 3; i++)
+        for (idx_t j = 0; j < 3; j++)
+            sparse_insert(A, i, j, (double)(i + 1));
+
+    SparseMatrix *out = NULL;
+    sparse_err_t err = sparse_svd_lowrank_sparse(A, 1, 0.0, &out);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_NOT_NULL(out);
+
+    double max_err = 0.0;
+    for (idx_t i = 0; i < 3; i++) {
+        for (idx_t j = 0; j < 3; j++) {
+            double e = fabs(sparse_get(out, i, j) - (double)(i + 1));
+            if (e > max_err)
+                max_err = e;
+        }
+    }
+    printf("    rank-1 sparse lowrank error: %.2e\n", max_err);
+    ASSERT_TRUE(max_err < 1e-8);
+
+    sparse_free(out);
+    sparse_free(A);
+}
+
+/* Rectangular matrix: correct dimensions */
+static void test_lowrank_sparse_rectangular(void) {
+    SparseMatrix *A = sparse_create(4, 6);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < 4; i++)
+        sparse_insert(A, i, i, (double)(5 - i));
+
+    SparseMatrix *out = NULL;
+    sparse_err_t err = sparse_svd_lowrank_sparse(A, 2, 0.0, &out);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_NOT_NULL(out);
+
+    ASSERT_EQ(sparse_rows(out), 4);
+    ASSERT_EQ(sparse_cols(out), 6);
+    ASSERT_NEAR(sparse_get(out, 0, 0), 5.0, 1e-10);
+    ASSERT_NEAR(sparse_get(out, 1, 1), 4.0, 1e-10);
+    ASSERT_NEAR(sparse_get(out, 2, 2), 0.0, 1e-10);
+
+    sparse_free(out);
+    sparse_free(A);
+}
+
+/* NULL and bad args */
+static void test_lowrank_sparse_errors(void) {
+    SparseMatrix *out = NULL;
+    ASSERT_ERR(sparse_svd_lowrank_sparse(NULL, 2, 0.0, &out), SPARSE_ERR_NULL);
+    ASSERT_TRUE(out == NULL);
+
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 1.0);
+
+    ASSERT_ERR(sparse_svd_lowrank_sparse(A, 0, 0.0, &out), SPARSE_ERR_BADARG);
+    ASSERT_ERR(sparse_svd_lowrank_sparse(A, 4, 0.0, &out), SPARSE_ERR_BADARG);
+    ASSERT_ERR(sparse_svd_lowrank_sparse(A, 2, 0.0, NULL), SPARSE_ERR_NULL);
+
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Condition number tests
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -3039,6 +3222,14 @@ int main(void) {
     RUN_TEST(test_partial_svd_vectors_k1);
     RUN_TEST(test_partial_svd_vectors_wide);
     RUN_TEST(test_partial_svd_no_vectors);
+
+    /* Sparse low-rank output (Sprint 9 Day 6) */
+    RUN_TEST(test_lowrank_sparse_diagonal);
+    RUN_TEST(test_lowrank_sparse_sparsity);
+    RUN_TEST(test_lowrank_sparse_vs_dense);
+    RUN_TEST(test_lowrank_sparse_rank1);
+    RUN_TEST(test_lowrank_sparse_rectangular);
+    RUN_TEST(test_lowrank_sparse_errors);
 
     /* Condition number (Sprint 9 Day 3) */
     RUN_TEST(test_cond_identity);

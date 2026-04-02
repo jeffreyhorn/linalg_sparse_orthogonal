@@ -1104,3 +1104,55 @@ sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lo
     sparse_svd_free(&svd);
     return SPARSE_OK;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Condition number estimation
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+double sparse_cond(const SparseMatrix *A, sparse_err_t *err) {
+    sparse_err_t dummy;
+    if (!err)
+        err = &dummy;
+
+    if (!A) {
+        *err = SPARSE_ERR_NULL;
+        return INFINITY;
+    }
+
+    idx_t m = sparse_rows(A);
+    idx_t n = sparse_cols(A);
+    idx_t k = (m < n) ? m : n;
+
+    if (k == 0) {
+        *err = SPARSE_OK;
+        return INFINITY;
+    }
+
+    /* Compute full SVD (singular values only) */
+    sparse_svd_t svd;
+    sparse_err_t svd_err = sparse_svd_compute(A, NULL, &svd);
+    if (svd_err != SPARSE_OK) {
+        *err = svd_err;
+        return INFINITY;
+    }
+
+    if (!svd.sigma) { /* LCOV_EXCL_START — cannot happen after SPARSE_OK */
+        sparse_svd_free(&svd);
+        *err = SPARSE_ERR_ALLOC;
+        return INFINITY;
+    } /* LCOV_EXCL_STOP */
+    double sigma_max = svd.sigma[0];
+    double sigma_min = svd.sigma[k - 1];
+
+    sparse_svd_free(&svd);
+
+    /* Singular matrix: sigma_min effectively zero */
+    double tol = 2.2204460492503131e-16 * sigma_max * (double)((m > n) ? m : n);
+    if (sigma_min <= tol) {
+        *err = SPARSE_OK;
+        return INFINITY;
+    }
+
+    *err = SPARSE_OK;
+    return sigma_max / sigma_min;
+}

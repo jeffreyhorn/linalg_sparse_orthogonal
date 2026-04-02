@@ -178,4 +178,17 @@ sparse_err_t sparse_pinv(const SparseMatrix *A, double tol, double **pinv);
  */
 sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lowrank);
 
+/**
+ * @brief Estimate the 2-norm condition number of a matrix via SVD.
+ *
+ * Computes cond(A) = sigma_max / sigma_min using the full SVD.
+ * Returns INFINITY for singular matrices (sigma_min below tolerance).
+ *
+ * @param A    The matrix (not modified).
+ * @param err  Output: error code (SPARSE_OK on success). May be NULL.
+ * @return The condition number, or INFINITY if A is singular.
+ *         Returns INFINITY and sets *err on failure.
+ */
+double sparse_cond(const SparseMatrix *A, sparse_err_t *err);
+
 #endif /* SPARSE_SVD_H */

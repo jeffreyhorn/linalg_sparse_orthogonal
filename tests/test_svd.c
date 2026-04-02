@@ -2363,6 +2363,148 @@ static void test_lowrank_errors(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Condition number tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Identity matrix: cond = 1.0 */
+static void test_cond_identity(void) {
+    SparseMatrix *A = sparse_create(4, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < 4; i++)
+        sparse_insert(A, i, i, 1.0);
+
+    sparse_err_t err;
+    double c = sparse_cond(A, &err);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_NEAR(c, 1.0, 1e-10);
+
+    sparse_free(A);
+}
+
+/* Diagonal with known condition number */
+static void test_cond_diagonal(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 100.0);
+    sparse_insert(A, 1, 1, 10.0);
+    sparse_insert(A, 2, 2, 1.0);
+
+    sparse_err_t err;
+    double c = sparse_cond(A, &err);
+    ASSERT_EQ(err, SPARSE_OK);
+    printf("    cond(diag(100,10,1)) = %.2f\n", c);
+    ASSERT_NEAR(c, 100.0, 1e-8);
+
+    sparse_free(A);
+}
+
+/* Singular matrix: cond = INFINITY */
+static void test_cond_singular(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* rank-1: all rows identical */
+    for (idx_t i = 0; i < 3; i++)
+        for (idx_t j = 0; j < 3; j++)
+            sparse_insert(A, i, j, 1.0);
+
+    sparse_err_t err;
+    double c = sparse_cond(A, &err);
+    ASSERT_EQ(err, SPARSE_OK);
+    printf("    cond(rank-1 3x3) = %f\n", c);
+    ASSERT_TRUE(c == INFINITY);
+
+    sparse_free(A);
+}
+
+/* 1×1 nonzero: cond = 1.0 */
+static void test_cond_1x1(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 42.0);
+
+    sparse_err_t err;
+    double c = sparse_cond(A, &err);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_NEAR(c, 1.0, 1e-10);
+
+    sparse_free(A);
+}
+
+/* 1×1 zero: cond = INFINITY */
+static void test_cond_1x1_zero(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* No entries → zero matrix */
+
+    sparse_err_t err;
+    double c = sparse_cond(A, &err);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_TRUE(c == INFINITY);
+
+    sparse_free(A);
+}
+
+/* Rectangular matrix: cond based on min(m,n) singular values */
+static void test_cond_rectangular(void) {
+    SparseMatrix *A = sparse_create(4, 2);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* A = [3 0; 0 1; 0 0; 0 0] → sigma = [3, 1], cond = 3 */
+    sparse_insert(A, 0, 0, 3.0);
+    sparse_insert(A, 1, 1, 1.0);
+
+    sparse_err_t err;
+    double c = sparse_cond(A, &err);
+    ASSERT_EQ(err, SPARSE_OK);
+    printf("    cond(4x2 diag(3,1)) = %.2f\n", c);
+    ASSERT_NEAR(c, 3.0, 1e-8);
+
+    sparse_free(A);
+}
+
+/* Ill-conditioned matrix: large condition number */
+static void test_cond_ill_conditioned(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 1e6);
+    sparse_insert(A, 1, 1, 1.0);
+    sparse_insert(A, 2, 2, 1e-6);
+
+    sparse_err_t err;
+    double c = sparse_cond(A, &err);
+    ASSERT_EQ(err, SPARSE_OK);
+    printf("    cond(diag(1e6,1,1e-6)) = %.2e\n", c);
+    ASSERT_NEAR(c, 1e12, 1e6); /* 1e6 / 1e-6 = 1e12 */
+
+    sparse_free(A);
+}
+
+/* NULL input */
+static void test_cond_null(void) {
+    sparse_err_t err;
+    double c = sparse_cond(NULL, &err);
+    ASSERT_EQ(err, SPARSE_ERR_NULL);
+    ASSERT_TRUE(c == INFINITY);
+
+    /* NULL err pointer should not crash */
+    c = sparse_cond(NULL, NULL);
+    ASSERT_TRUE(c == INFINITY);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -2454,6 +2596,16 @@ int main(void) {
     RUN_TEST(test_lowrank_diagonal);
     RUN_TEST(test_lowrank_error_bound);
     RUN_TEST(test_lowrank_errors);
+
+    /* Condition number (Sprint 9 Day 3) */
+    RUN_TEST(test_cond_identity);
+    RUN_TEST(test_cond_diagonal);
+    RUN_TEST(test_cond_singular);
+    RUN_TEST(test_cond_1x1);
+    RUN_TEST(test_cond_1x1_zero);
+    RUN_TEST(test_cond_rectangular);
+    RUN_TEST(test_cond_ill_conditioned);
+    RUN_TEST(test_cond_null);
 
     TEST_SUITE_END();
 }

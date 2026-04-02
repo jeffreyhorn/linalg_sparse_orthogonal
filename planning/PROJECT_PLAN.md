@@ -387,4 +387,4 @@ Sprint 4 (Cholesky/Threads/SpMM/CSR) ← needs reordering, condest
 | 9 | SVD Hardening, Performance & Docs | 14 days | ~132 hrs | Zero-diagonal chase, condition number, partial SVD vectors, sparse low-rank, profiling, examples, docs |
 | 10 | Block Operations & Packaging | 14 days | ~64 hrs | Block LU, block solvers, packaging, installation |
 
-**Total across Sprints 2–10:** 126 days (~918 hours)
+**Total across Sprints 2–10:** 126 days (~998 hours)

@@ -844,7 +844,18 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
 
             /* Z(:,k) = M^{-1} * R(:,k) */
             if (precond) {
-                precond(precond_ctx, n, &R[n * k], &Z[n * k]);
+                sparse_err_t perr = precond(precond_ctx, n, &R[n * k], &Z[n * k]);
+                if (perr != SPARSE_OK) {
+                    free(R);
+                    free(Z);
+                    free(P);
+                    free(AP);
+                    free(rz);
+                    free(conv);
+                    free(rnorms);
+                    free(bnorms);
+                    return perr;
+                }
             } else {
                 vec_copy(&R[n * k], &Z[n * k], n);
             }

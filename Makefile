@@ -338,6 +338,19 @@ INSTALL_PC   = $(INSTALL_LIB)/pkgconfig
 VERSION      = $(shell sed -n 's/.*SPARSE_VERSION_STRING *"\(.*\)"/\1/p' include/sparse_types.h)
 HEADERS      = $(wildcard include/*.h)
 
+# Extra pkg-config link flags based on build options
+SPARSE_PC_LIBS_EXTRA =
+ifdef SPARSE_MUTEX
+SPARSE_PC_LIBS_EXTRA += -pthread
+endif
+ifdef SPARSE_OPENMP
+ifeq ($(shell uname -s),Darwin)
+SPARSE_PC_LIBS_EXTRA += -L$(LIBOMP_FLAG_PREFIX)/lib -lomp
+else
+SPARSE_PC_LIBS_EXTRA += -fopenmp
+endif
+endif
+
 .PHONY: install
 install: $(LIB)
 	@echo "Installing sparse $(VERSION) to $(DESTDIR)$(PREFIX) ..."
@@ -349,6 +362,7 @@ install: $(LIB)
 		install -m 644 $$h $(INSTALL_INC)/; \
 	done
 	@sed -e 's|@PREFIX@|$(PREFIX)|g' -e 's|@VERSION@|$(VERSION)|g' \
+		-e 's|@SPARSE_PC_LIBS_EXTRA@|$(SPARSE_PC_LIBS_EXTRA)|g' \
 		sparse.pc.in > $(INSTALL_PC)/sparse.pc
 	@echo "Installed:"
 	@echo "  library  → $(INSTALL_LIB)/$(notdir $(LIB))"

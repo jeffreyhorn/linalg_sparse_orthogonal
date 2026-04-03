@@ -466,9 +466,19 @@ static void test_lu_csr_eliminate_3x3(void) {
 
     LuCsr *csr = NULL;
     ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+    if (!csr) {
+        sparse_free(A);
+        return;
+    }
 
     idx_t piv[3];
-    ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
+    sparse_err_t err = lu_csr_eliminate(csr, 1e-12, 1e-14, piv);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        lu_csr_free(csr);
+        sparse_free(A);
+        return;
+    }
 
     verify_lu_factorization(A, csr, piv, 1e-12);
 
@@ -670,7 +680,7 @@ static void test_lu_csr_eliminate_singular(void) {
 static double residual_norminf(const SparseMatrix *A, const double *x, const double *b, idx_t n) {
     double *r = malloc((size_t)n * sizeof(double));
     if (!r)
-        return -1.0;
+        return INFINITY;
     sparse_matvec(A, x, r);
     double mx = 0.0;
     for (idx_t i = 0; i < n; i++) {

@@ -29,6 +29,8 @@ static SparseMatrix *make_spd_tridiag(idx_t n) {
 /* Compute ||A*x - b||_inf */
 static double residual_inf(const SparseMatrix *A, const double *x, const double *b, idx_t n) {
     double *r = malloc((size_t)n * sizeof(double));
+    if (!r)
+        return INFINITY;
     sparse_matvec(A, x, r);
     double mx = 0.0;
     for (idx_t i = 0; i < n; i++) {

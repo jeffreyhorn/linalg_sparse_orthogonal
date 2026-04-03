@@ -145,13 +145,20 @@ static sparse_err_t lu_csr_grow(LuCsr *csr, idx_t needed) {
     idx_t *new_col = realloc(csr->col_idx, (size_t)new_cap * sizeof(idx_t));
     if (!new_col)
         return SPARSE_ERR_ALLOC;
-    csr->col_idx = new_col;
+    /* Don't update csr->col_idx yet — if values realloc fails we need to
+     * keep the struct consistent.  new_col is valid either way (realloc
+     * frees the old block on success), so stash it and commit both below. */
 
     double *new_val = realloc(csr->values, (size_t)new_cap * sizeof(double));
-    if (!new_val)
+    if (!new_val) {
+        /* col_idx was already reallocated (old pointer freed by realloc),
+         * so we must still record new_col to avoid a dangling pointer. */
+        csr->col_idx = new_col;
         return SPARSE_ERR_ALLOC;
-    csr->values = new_val;
+    }
 
+    csr->col_idx = new_col;
+    csr->values = new_val;
     csr->capacity = new_cap;
     return SPARSE_OK;
 }

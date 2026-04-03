@@ -173,6 +173,13 @@ install(FILES
 # pkg-config (set variables that match the @VAR@ placeholders in sparse.pc.in)
 set(PREFIX ${CMAKE_INSTALL_PREFIX})
 set(VERSION ${PROJECT_VERSION})
+set(SPARSE_PC_LIBS_EXTRA "")
+if(SPARSE_MUTEX)
+    string(APPEND SPARSE_PC_LIBS_EXTRA " -pthread")
+endif()
+if(SPARSE_OPENMP)
+    string(APPEND SPARSE_PC_LIBS_EXTRA " ${OpenMP_C_FLAGS}")
+endif()
 configure_file(sparse.pc.in ${CMAKE_CURRENT_BINARY_DIR}/sparse.pc @ONLY)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/sparse.pc
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig

@@ -228,7 +228,7 @@ int main(void)
 **CSR LU (high-performance path):**
 - `lu_csr_from_sparse(A, fill_factor, &csr)` — convert to CSR working format
 - `lu_csr_eliminate(csr, tol, drop_tol, piv)` — scatter-gather LU elimination
-- `lu_csr_eliminate_block(csr, tol, drop_tol, min_block, threshold, piv)` — with dense block optimization
+- `lu_csr_eliminate_block(csr, tol, drop_tol, min_block, piv)` — with dense block optimization
 - `lu_csr_solve(csr, piv, b, x)` — forward/backward substitution in CSR
 - `lu_csr_solve_block(csr, piv, B, nrhs, X)` — block solve for multiple RHS
 - `lu_csr_factor_solve(A, b, x, tol)` — one-shot convert + factor + solve

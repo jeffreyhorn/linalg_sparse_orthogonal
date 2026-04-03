@@ -318,10 +318,11 @@ coverage: clean $(TEST_BINS)
 	@echo ""
 	@echo "Checking coverage threshold ($(COV_THRESHOLD)%)..."
 	@pct=$$(lcov --summary $(COVDIR)/coverage-src.info 2>&1 \
-		| grep 'lines' | sed 's/.*: *\([0-9]*\.[0-9]*\).*/\1/'); \
+		| awk '/lines.*:/ { gsub(/%/, "", $$2); print $$2; exit }'); \
 	echo "Line coverage: $${pct}%"; \
 	if [ -z "$$pct" ]; then \
-		echo "WARNING: Could not parse coverage percentage"; \
+		echo "FAIL: Could not parse coverage percentage"; \
+		exit 1; \
 	elif [ $$(echo "$$pct < $(COV_THRESHOLD)" | bc -l) -eq 1 ]; then \
 		echo "FAIL: Line coverage $${pct}% is below $(COV_THRESHOLD)% threshold"; \
 		exit 1; \

@@ -15,7 +15,7 @@
 - [x] Block LU hardening — edge cases, near-singular blocks, boundary blocks
 - [x] Block LU solve for multiple RHS vectors
 - [x] Block CG solver with per-column convergence
-- [x] Block GMRES solver with per-column deflation
+- [x] Multi-RHS GMRES solver (per-column solves with aggregated reporting)
 - [x] Coverage gap tests and >=95% threshold enforcement in CI
 - [x] `make install` / `make uninstall` with pkg-config
 - [x] CMake `find_package(Sparse)` integration
@@ -151,7 +151,7 @@
 | 6 | Block LU hardening | Edge cases, near-singular fallback, SuiteSparse validation |
 | 7 | Block LU solve | `sparse_lu_solve_block`, `lu_csr_solve_block` |
 | 8 | Block CG | `sparse_cg_solve_block`, `sparse_matvec_block` |
-| 9 | Block GMRES | `sparse_gmres_solve_block` with per-column deflation |
+| 9 | Multi-RHS GMRES | `sparse_gmres_solve_block` — per-column solves with aggregated reporting |
 | 10 | Coverage + CI | Coverage gap tests, 95% threshold in Makefile + GitHub Actions |
 | 11 | Makefile packaging | `make install`/`uninstall`, pkg-config, version macros |
 | 12 | CMake packaging | `find_package(Sparse)`, cmake_example, INSTALL.md |

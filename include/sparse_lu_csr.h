@@ -193,8 +193,8 @@ sparse_err_t lu_detect_dense_blocks(const LuCsr *csr, idx_t min_size, double thr
 /**
  * @brief Extract a dense subblock from a LuCsr into a column-major array.
  *
- * Fills dense[i*cols + j] with the value at CSR row (row_start+i),
- * column (col_start+j). Missing entries are set to 0.0.
+ * Fills dense[i + rows*j] with the value at CSR row (row_start+i),
+ * column (col_start+j).  Column-major layout. Missing entries are set to 0.0.
  *
  * @param csr    Input CSR matrix.
  * @param blk    Block region to extract.

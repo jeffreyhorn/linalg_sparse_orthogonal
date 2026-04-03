@@ -640,8 +640,6 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
             /* Factor densely — on failure, fall back to sparse path */
             err = lu_dense_factor(bsize, bsize, dense, bsize, ipiv, tol);
             if (err != SPARSE_OK) {
-                free(dense);
-                free(ipiv);
                 err = SPARSE_OK; /* Reset error — sparse path will handle it */
                 goto sparse_fallback;
             }

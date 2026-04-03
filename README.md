@@ -32,7 +32,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Conjugate Gradient (CG)** for SPD systems with optional preconditioning
 - **Block CG** — simultaneous CG for multiple RHS with shared SpMV and per-column convergence (`sparse_cg_solve_block`)
 - **Restarted GMRES(k)** for general unsymmetric systems with left and right preconditioning
-- **Block GMRES** — block GMRES(k) for multiple RHS with per-column deflation (`sparse_gmres_solve_block`)
+- **Multi-RHS GMRES** — restarted GMRES(k) applied independently per RHS with aggregated reporting (`sparse_gmres_solve_block`)
 - **Matrix-free variants** — CG and GMRES with user-supplied matvec callback (`sparse_solve_cg_mf`, `sparse_solve_gmres_mf`)
 - **ILU(0) preconditioner** — incomplete LU with no fill-in, 3-1000× iteration reduction
 - **ILUT preconditioner** — ILU with threshold dropping and controlled fill-in, handles zero-diagonal matrices, optional row partial pivoting

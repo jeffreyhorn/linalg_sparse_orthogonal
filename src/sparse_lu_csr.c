@@ -1019,6 +1019,79 @@ sparse_err_t lu_csr_solve(const LuCsr *csr, const idx_t *piv_perm, const double 
     return SPARSE_OK;
 }
 
+/* ─── CSR block solve (multiple RHS) ─────────────────────────────────── */
+
+sparse_err_t lu_csr_solve_block(const LuCsr *csr, const idx_t *piv_perm, const double *B,
+                                idx_t nrhs, double *X) {
+    if (!csr || !piv_perm || !B || !X)
+        return SPARSE_ERR_NULL;
+    if (nrhs <= 0)
+        return SPARSE_OK;
+
+    idx_t n = csr->n;
+    size_t block_sz = (size_t)n * (size_t)nrhs;
+
+    double *Y = malloc(block_sz * sizeof(double));
+    if (!Y)
+        return SPARSE_ERR_ALLOC;
+
+    /* Step 1: Apply pivot permutation — PB[i,k] = B[piv_perm[i], k] */
+    double *PB = malloc(block_sz * sizeof(double));
+    if (!PB) {
+        free(Y);
+        return SPARSE_ERR_ALLOC;
+    }
+    for (idx_t k = 0; k < nrhs; k++)
+        for (idx_t i = 0; i < n; i++)
+            PB[i + n * k] = B[piv_perm[i] + n * k];
+
+    /* Step 2: Forward substitution — L*Y = PB (unit diagonal).
+     * Traverse each row once, update all nrhs vectors. */
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t k = 0; k < nrhs; k++)
+            Y[i + n * k] = PB[i + n * k];
+
+        for (idx_t p = csr->row_ptr[i]; p < csr->row_ptr[i + 1]; p++) {
+            idx_t j = csr->col_idx[p];
+            if (j < i) {
+                double l_ij = csr->values[p];
+                for (idx_t k = 0; k < nrhs; k++)
+                    Y[i + n * k] -= l_ij * Y[j + n * k]; // NOLINT
+            }
+        }
+    }
+
+    /* Step 3: Backward substitution — U*X = Y */
+    for (idx_t i = n - 1; i >= 0; i--) {
+        for (idx_t k = 0; k < nrhs; k++)
+            X[i + n * k] = Y[i + n * k]; // NOLINT(clang-analyzer-core.uninitialized.Assign)
+
+        double u_ii = 0.0;
+        for (idx_t p = csr->row_ptr[i]; p < csr->row_ptr[i + 1]; p++) {
+            idx_t j = csr->col_idx[p];
+            if (j == i) {
+                u_ii = csr->values[p];
+            } else if (j > i) {
+                double u_ij = csr->values[p];
+                for (idx_t k = 0; k < nrhs; k++)
+                    X[i + n * k] -= u_ij * X[j + n * k];
+            }
+        }
+
+        if (fabs(u_ii) < 1e-300) {
+            free(Y);
+            free(PB);
+            return SPARSE_ERR_SINGULAR;
+        }
+        for (idx_t k = 0; k < nrhs; k++)
+            X[i + n * k] /= u_ii;
+    }
+
+    free(Y);
+    free(PB);
+    return SPARSE_OK;
+}
+
 /* ─── One-shot CSR factor + solve ────────────────────────────────────── */
 
 sparse_err_t lu_csr_factor_solve(const SparseMatrix *mat, const double *b, double *x, double tol) {

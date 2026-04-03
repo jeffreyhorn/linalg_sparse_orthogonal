@@ -1516,6 +1516,180 @@ static void test_block_eliminate_no_blocks(void) {
     sparse_free(A);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 7: Block (multi-RHS) solve tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Helper: build a well-conditioned n×n diag-dominant matrix */
+static SparseMatrix *make_diag_dominant(idx_t n) {
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, (double)(n + 1));
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -1.0);
+    }
+    return A;
+}
+
+/* Test: sparse_lu_solve_block with nrhs=1 matches sparse_lu_solve */
+static void test_block_solve_single_rhs(void) {
+    idx_t n = 10;
+    SparseMatrix *A = make_diag_dominant(n);
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    double b[10], x_single[10], x_block[10];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    ASSERT_ERR(sparse_lu_solve(LU, b, x_single), SPARSE_OK);
+    ASSERT_ERR(sparse_lu_solve_block(LU, b, 1, x_block), SPARSE_OK);
+
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_block[i], x_single[i], 1e-14);
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+/* Test: sparse_lu_solve_block with 5 RHS vectors */
+static void test_block_solve_5_rhs(void) {
+    idx_t n = 10;
+    idx_t nrhs = 5;
+    SparseMatrix *A = make_diag_dominant(n);
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    /* B is n×nrhs column-major: B[i + n*k] */
+    double B[50], X_block[50], x_single[10];
+    for (idx_t k = 0; k < nrhs; k++)
+        for (idx_t i = 0; i < n; i++)
+            B[i + n * k] = (double)(i + 1) * (double)(k + 1);
+
+    ASSERT_ERR(sparse_lu_solve_block(LU, B, nrhs, X_block), SPARSE_OK);
+
+    /* Verify each column matches independent single-RHS solve */
+    for (idx_t k = 0; k < nrhs; k++) {
+        ASSERT_ERR(sparse_lu_solve(LU, &B[n * k], x_single), SPARSE_OK);
+        for (idx_t i = 0; i < n; i++)
+            ASSERT_NEAR(X_block[i + n * k], x_single[i], 1e-12);
+    }
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+/* Test: 10×10 with 3 RHS — verify residuals */
+static void test_block_solve_residual(void) {
+    idx_t n = 10;
+    idx_t nrhs = 3;
+    SparseMatrix *A = make_diag_dominant(n);
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    double B[30], X[30];
+    for (idx_t k = 0; k < nrhs; k++)
+        for (idx_t i = 0; i < n; i++)
+            B[i + n * k] = sin((double)(i + k * n));
+
+    ASSERT_ERR(sparse_lu_solve_block(LU, B, nrhs, X), SPARSE_OK);
+
+    /* Check ||A*X(:,k) - B(:,k)|| for each k */
+    for (idx_t k = 0; k < nrhs; k++) {
+        double res = residual_norminf(A, &X[n * k], &B[n * k], n);
+        ASSERT_TRUE(res < 1e-10);
+    }
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+/* Test: nrhs=0 returns immediately */
+static void test_block_solve_nrhs_zero(void) {
+    idx_t n = 3;
+    SparseMatrix *A = make_diag_dominant(n);
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    double dummy = 0.0;
+    ASSERT_ERR(sparse_lu_solve_block(LU, &dummy, 0, &dummy), SPARSE_OK);
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+/* Test: null args */
+static void test_block_solve_null(void) {
+    SparseMatrix *A = make_diag_dominant(3);
+    double b = 0, x = 0;
+    ASSERT_ERR(sparse_lu_solve_block(NULL, &b, 1, &x), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_lu_solve_block(A, NULL, 1, &x), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_lu_solve_block(A, &b, 1, NULL), SPARSE_ERR_NULL);
+    sparse_free(A);
+}
+
+/* Test: lu_csr_solve_block with 3 RHS matches single-RHS */
+static void test_csr_block_solve_3_rhs(void) {
+    idx_t n = 8;
+    idx_t nrhs = 3;
+    SparseMatrix *A = make_diag_dominant(n);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+    idx_t piv[8];
+    ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
+
+    double B[24], X_block[24], x_single[8];
+    for (idx_t k = 0; k < nrhs; k++)
+        for (idx_t i = 0; i < n; i++)
+            B[i + n * k] = (double)((i + 1) * (k + 2));
+
+    ASSERT_ERR(lu_csr_solve_block(csr, piv, B, nrhs, X_block), SPARSE_OK);
+
+    /* Verify each column */
+    for (idx_t k = 0; k < nrhs; k++) {
+        ASSERT_ERR(lu_csr_solve(csr, piv, &B[n * k], x_single), SPARSE_OK);
+        for (idx_t i = 0; i < n; i++)
+            ASSERT_NEAR(X_block[i + n * k], x_single[i], 1e-12);
+    }
+
+    /* Check residuals */
+    for (idx_t k = 0; k < nrhs; k++) {
+        double res = residual_norminf(A, &X_block[n * k], &B[n * k], n);
+        ASSERT_TRUE(res < 1e-10);
+    }
+
+    lu_csr_free(csr);
+    sparse_free(A);
+}
+
+/* Test: nrhs > n — verify works correctly */
+static void test_block_solve_many_rhs(void) {
+    idx_t n = 4;
+    idx_t nrhs = 8; /* more RHS than matrix dimension */
+    SparseMatrix *A = make_diag_dominant(n);
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    double B[32], X[32], x_single[4];
+    for (idx_t k = 0; k < nrhs; k++)
+        for (idx_t i = 0; i < n; i++)
+            B[i + n * k] = (double)(i + k + 1);
+
+    ASSERT_ERR(sparse_lu_solve_block(LU, B, nrhs, X), SPARSE_OK);
+
+    for (idx_t k = 0; k < nrhs; k++) {
+        ASSERT_ERR(sparse_lu_solve(LU, &B[n * k], x_single), SPARSE_OK);
+        for (idx_t i = 0; i < n; i++)
+            ASSERT_NEAR(X[i + n * k], x_single[i], 1e-12);
+    }
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════ */
 
 int main(void) {
@@ -1571,6 +1745,15 @@ int main(void) {
     RUN_TEST(test_block_suitesparse_orsirr1);
     RUN_TEST(test_block_suitesparse_steam1);
     RUN_TEST(test_block_eliminate_no_blocks);
+
+    /* Day 7: Multi-RHS block solve tests */
+    RUN_TEST(test_block_solve_null);
+    RUN_TEST(test_block_solve_single_rhs);
+    RUN_TEST(test_block_solve_5_rhs);
+    RUN_TEST(test_block_solve_residual);
+    RUN_TEST(test_block_solve_nrhs_zero);
+    RUN_TEST(test_csr_block_solve_3_rhs);
+    RUN_TEST(test_block_solve_many_rhs);
 
     TEST_SUITE_END();
 }

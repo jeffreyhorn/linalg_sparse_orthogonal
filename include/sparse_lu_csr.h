@@ -143,6 +143,19 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
 sparse_err_t lu_csr_solve(const LuCsr *csr, const idx_t *piv_perm, const double *b, double *x);
 
 /**
+ * @brief Solve A*X = B for multiple RHS vectors using a factored LuCsr.
+ *
+ * @param csr       Factored LuCsr (from lu_csr_eliminate).
+ * @param piv_perm  Pivot permutation (length n).
+ * @param B         RHS matrix, n × nrhs column-major.
+ * @param nrhs      Number of RHS vectors. If 0, returns immediately.
+ * @param X         Solution matrix, n × nrhs column-major (output).
+ * @return SPARSE_OK on success.
+ */
+sparse_err_t lu_csr_solve_block(const LuCsr *csr, const idx_t *piv_perm, const double *B,
+                                idx_t nrhs, double *X);
+
+/**
  * @brief Description of a dense subblock detected in a sparse matrix.
  *
  * Represents a rectangular region [row_start, row_end) × [col_start, col_end)

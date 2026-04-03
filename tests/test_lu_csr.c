@@ -384,11 +384,290 @@ static void test_lu_csr_tridiagonal(void) {
     lu_csr_free(csr);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Elimination tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/*
+ * Helper: extract L and U from a factored LuCsr and verify P*A = L*U.
+ * L is unit lower triangular (diag=1, below diag from CSR).
+ * U is upper triangular (diag and above from CSR).
+ * piv_perm[k] = original row that ended up in position k.
+ */
+static void verify_lu_factorization(const SparseMatrix *A_orig, const LuCsr *lu, const idx_t *piv,
+                                    double tol_check) {
+    idx_t n = lu->n;
+
+    /* Build dense L, U from factored CSR */
+    double *L = calloc((size_t)n * (size_t)n, sizeof(double));
+    double *U = calloc((size_t)n * (size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(L);
+    ASSERT_NOT_NULL(U);
+
+    /* Unit diagonal for L */
+    for (idx_t i = 0; i < n; i++)
+        L[i * n + i] = 1.0;
+
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t p = lu->row_ptr[i]; p < lu->row_ptr[i + 1]; p++) {
+            idx_t j = lu->col_idx[p];
+            double v = lu->values[p];
+            if (j < i)
+                L[i * n + j] = v; /* L entry (below diagonal) */
+            else
+                U[i * n + j] = v; /* U entry (diagonal and above) */
+        }
+    }
+
+    /* Compute L*U (dense) */
+    double *LU = calloc((size_t)n * (size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(LU);
+    for (idx_t i = 0; i < n; i++)
+        for (idx_t j = 0; j < n; j++)
+            for (idx_t k = 0; k < n; k++)
+                LU[i * n + j] += L[i * n + k] * U[k * n + j];
+
+    /* Compare L*U with P*A (permuted rows of A) */
+    for (idx_t i = 0; i < n; i++) {
+        idx_t orig_row = piv[i];
+        for (idx_t j = 0; j < n; j++) {
+            double a_val = sparse_get(A_orig, orig_row, j);
+            double lu_val = LU[i * n + j];
+            if (fabs(a_val - lu_val) > tol_check) {
+                TF_FAIL_("P*A vs L*U mismatch at (%d,%d): P*A=%.15g, L*U=%.15g, diff=%.3e", (int)i,
+                         (int)j, a_val, lu_val, fabs(a_val - lu_val));
+            }
+            tf_asserts++;
+        }
+    }
+
+    free(L);
+    free(U);
+    free(LU);
+}
+
+/* Test: 3×3 known LU factorization */
+static void test_lu_csr_eliminate_3x3(void) {
+    /*
+     * A = [2 1 1]
+     *     [4 3 3]
+     *     [8 7 9]
+     */
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 0, 2, 1.0);
+    sparse_insert(A, 1, 0, 4.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 2, 3.0);
+    sparse_insert(A, 2, 0, 8.0);
+    sparse_insert(A, 2, 1, 7.0);
+    sparse_insert(A, 2, 2, 9.0);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+
+    idx_t piv[3];
+    ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
+
+    verify_lu_factorization(A, csr, piv, 1e-12);
+
+    sparse_free(A);
+    lu_csr_free(csr);
+}
+
+/* Test: 5×5 dense matrix — compare CSR LU solve with linked-list LU solve */
+static void test_lu_csr_eliminate_5x5_solve(void) {
+    idx_t n = 5;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Well-conditioned 5×5 matrix */
+    double vals[5][5] = {
+        {10, 1, 2, 0, 1}, {1, 8, 1, 3, 0}, {2, 1, 12, 1, 2}, {0, 3, 1, 9, 1}, {1, 0, 2, 1, 7}};
+    for (idx_t i = 0; i < n; i++)
+        for (idx_t j = 0; j < n; j++)
+            if (vals[i][j] != 0.0)
+                sparse_insert(A, i, j, vals[i][j]);
+
+    /* Solve with linked-list LU */
+    double b[5] = {14.0, 13.0, 18.0, 14.0, 11.0};
+    double x_ll[5];
+    {
+        SparseMatrix *Acopy = sparse_copy(A);
+        ASSERT_ERR(sparse_lu_factor(Acopy, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+        ASSERT_ERR(sparse_lu_solve(Acopy, b, x_ll), SPARSE_OK);
+        sparse_free(Acopy);
+    }
+
+    /* Solve with CSR LU: factor, then manually do forward/backward substitution */
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+
+    idx_t piv[5];
+    ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
+
+    /* Verify P*A = L*U */
+    verify_lu_factorization(A, csr, piv, 1e-10);
+
+    /* Manual forward/backward substitution using the CSR L\U factors.
+     * pb = P*b */
+    double pb[5];
+    for (idx_t i = 0; i < n; i++)
+        pb[i] = b[piv[i]];
+
+    /* Forward substitution: L*y = pb (L has unit diagonal) */
+    double y[5];
+    for (idx_t i = 0; i < n; i++) {
+        double sum = 0.0;
+        for (idx_t p = csr->row_ptr[i]; p < csr->row_ptr[i + 1]; p++) {
+            idx_t j = csr->col_idx[p];
+            if (j < i)
+                sum += csr->values[p] * y[j];
+        }
+        y[i] = pb[i] - sum;
+    }
+
+    /* Backward substitution: U*x = y */
+    double x_csr[5];
+    for (idx_t i = n - 1; i >= 0; i--) {
+        double sum = 0.0;
+        double u_ii = 0.0;
+        for (idx_t p = csr->row_ptr[i]; p < csr->row_ptr[i + 1]; p++) {
+            idx_t j = csr->col_idx[p];
+            if (j == i)
+                u_ii = csr->values[p];
+            else if (j > i)
+                sum += csr->values[p] * x_csr[j];
+        }
+        ASSERT_TRUE(fabs(u_ii) > 1e-14);
+        x_csr[i] = (y[i] - sum) / u_ii;
+    }
+
+    /* Verify CSR solution matches linked-list solution */
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_csr[i], x_ll[i], 1e-10);
+
+    /* Verify residual: ||A*x - b|| < tol */
+    double r[5] = {0};
+    sparse_matvec(A, x_csr, r);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(r[i], b[i], 1e-10);
+
+    sparse_free(A);
+    lu_csr_free(csr);
+}
+
+/* Test: Diagonal matrix — trivial factorization */
+static void test_lu_csr_eliminate_diagonal(void) {
+    idx_t n = 6;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, (double)(i + 1) * 3.0);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+
+    idx_t piv[6];
+    ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
+
+    /* L should be identity, U should equal A.
+     * So each row i should have exactly one entry: (i, val) */
+    for (idx_t i = 0; i < n; i++) {
+        idx_t row_nnz = csr->row_ptr[i + 1] - csr->row_ptr[i];
+        ASSERT_EQ(row_nnz, 1);
+        ASSERT_EQ(csr->col_idx[csr->row_ptr[i]], i);
+        ASSERT_NEAR(csr->values[csr->row_ptr[i]], (double)(i + 1) * 3.0, 1e-14);
+    }
+
+    /* No pivoting should have occurred (diagonal is already maximal) */
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_EQ(piv[i], i);
+
+    verify_lu_factorization(A, csr, piv, 1e-14);
+
+    sparse_free(A);
+    lu_csr_free(csr);
+}
+
+/* Test: Tridiagonal matrix — tests fill-in behavior */
+static void test_lu_csr_eliminate_tridiag(void) {
+    idx_t n = 10;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -1.0);
+    }
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+
+    idx_t piv[10];
+    ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
+
+    verify_lu_factorization(A, csr, piv, 1e-10);
+
+    /* Tridiagonal with diag-dominant: no pivoting needed */
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_EQ(piv[i], i);
+
+    sparse_free(A);
+    lu_csr_free(csr);
+}
+
+/* Test: Matrix requiring pivoting */
+static void test_lu_csr_eliminate_needs_pivot(void) {
+    /*
+     * A = [0 1]  — requires row swap
+     *     [1 0]
+     */
+    SparseMatrix *A = sparse_create(2, 2);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+
+    idx_t piv[2];
+    ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
+
+    /* Row 1 should have been swapped to position 0 */
+    ASSERT_EQ(piv[0], 1);
+    ASSERT_EQ(piv[1], 0);
+
+    verify_lu_factorization(A, csr, piv, 1e-14);
+
+    sparse_free(A);
+    lu_csr_free(csr);
+}
+
+/* Test: Singular matrix — should return SPARSE_ERR_SINGULAR */
+static void test_lu_csr_eliminate_singular(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 1, 0, 2.0);
+    sparse_insert(A, 1, 1, 4.0); /* row 1 = 2 * row 0 */
+    sparse_insert(A, 2, 2, 1.0);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+
+    idx_t piv[3];
+    ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_ERR_SINGULAR);
+
+    sparse_free(A);
+    lu_csr_free(csr);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════ */
 
 int main(void) {
     TEST_SUITE_BEGIN("LU CSR Working Format");
 
+    /* Day 1: Conversion tests */
     RUN_TEST(test_lu_csr_null_args);
     RUN_TEST(test_lu_csr_identity);
     RUN_TEST(test_lu_csr_dense_5x5);
@@ -398,6 +677,14 @@ int main(void) {
     RUN_TEST(test_lu_csr_fill_factor_clamping);
     RUN_TEST(test_lu_csr_suitesparse_orsirr1);
     RUN_TEST(test_lu_csr_tridiagonal);
+
+    /* Day 2: Elimination tests */
+    RUN_TEST(test_lu_csr_eliminate_3x3);
+    RUN_TEST(test_lu_csr_eliminate_5x5_solve);
+    RUN_TEST(test_lu_csr_eliminate_diagonal);
+    RUN_TEST(test_lu_csr_eliminate_tridiag);
+    RUN_TEST(test_lu_csr_eliminate_needs_pivot);
+    RUN_TEST(test_lu_csr_eliminate_singular);
 
     TEST_SUITE_END();
 }

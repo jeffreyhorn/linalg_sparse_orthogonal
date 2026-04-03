@@ -70,6 +70,42 @@ sparse_err_t lu_csr_from_sparse(const SparseMatrix *mat, double fill_factor, LuC
 sparse_err_t lu_csr_to_sparse(const LuCsr *csr, SparseMatrix **mat);
 
 /**
+ * @brief Perform in-place LU factorization on a LuCsr matrix.
+ *
+ * Implements Gaussian elimination with partial pivoting using a
+ * scatter-gather pattern on CSR arrays. L entries (multipliers) are stored
+ * below the diagonal; U entries (including the diagonal) are stored on and
+ * above. Row swaps are tracked in the piv_perm output array.
+ *
+ * The scatter-gather pattern works as follows:
+ * 1. Scatter the pivot row into a dense workspace array
+ * 2. For each row below the pivot with a nonzero in the pivot column:
+ *    - Compute the multiplier
+ *    - Scatter the row into a second dense workspace
+ *    - Subtract the scaled pivot row
+ *    - Gather surviving nonzeros back into CSR
+ * 3. Gather the pivot row back from workspace
+ *
+ * Fill-in is handled by dynamically growing the CSR arrays when capacity
+ * is exceeded. Entries smaller than drop_tol * |pivot| are dropped.
+ *
+ * @param csr       The LuCsr to factor in-place. On output, contains L\U.
+ * @param tol       Absolute pivot tolerance. If the best pivot magnitude
+ *                  is below this value, SPARSE_ERR_SINGULAR is returned.
+ * @param drop_tol  Drop tolerance for fill-in. Entries with |value| <
+ *                  drop_tol * |pivot| are dropped. Use 1e-14 as default.
+ * @param[out] piv_perm  Row pivot permutation array (length n). On output,
+ *                       piv_perm[k] = the original row index that was
+ *                       swapped into position k. Caller must allocate.
+ *                       May be NULL if pivot tracking is not needed.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if csr is NULL.
+ * @return SPARSE_ERR_SINGULAR if a zero or near-zero pivot is encountered.
+ * @return SPARSE_ERR_ALLOC if memory reallocation for fill-in fails.
+ */
+sparse_err_t lu_csr_eliminate(LuCsr *csr, double tol, double drop_tol, idx_t *piv_perm);
+
+/**
  * @brief Free a LuCsr structure and its arrays.
  * @param csr  The LuCsr structure to free. Safe to call with NULL.
  */

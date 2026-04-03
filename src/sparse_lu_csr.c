@@ -1,6 +1,7 @@
 #include "sparse_lu_csr.h"
 #include "sparse_matrix_internal.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -129,6 +130,299 @@ sparse_err_t lu_csr_from_sparse(const SparseMatrix *mat, double fill_factor, LuC
 
     *csr_out = csr;
     return SPARSE_OK;
+}
+
+/* ─── Grow CSR arrays ────────────────────────────────────────────────── */
+
+static sparse_err_t lu_csr_grow(LuCsr *csr, idx_t needed) {
+    if (needed <= csr->capacity)
+        return SPARSE_OK;
+    /* Grow by at least 50% or to needed, whichever is larger */
+    idx_t new_cap = csr->capacity + csr->capacity / 2;
+    if (new_cap < needed)
+        new_cap = needed;
+
+    idx_t *new_col = realloc(csr->col_idx, (size_t)new_cap * sizeof(idx_t));
+    if (!new_col)
+        return SPARSE_ERR_ALLOC;
+    csr->col_idx = new_col;
+
+    double *new_val = realloc(csr->values, (size_t)new_cap * sizeof(double));
+    if (!new_val)
+        return SPARSE_ERR_ALLOC;
+    csr->values = new_val;
+
+    csr->capacity = new_cap;
+    return SPARSE_OK;
+}
+
+/* ─── CSR LU elimination with scatter-gather ─────────────────────────── */
+
+sparse_err_t lu_csr_eliminate(LuCsr *csr, double tol, double drop_tol, idx_t *piv_perm) {
+    if (!csr)
+        return SPARSE_ERR_NULL;
+
+    idx_t n = csr->n;
+    if (n == 0)
+        return SPARSE_OK;
+
+    /* Per-row start/end arrays — decoupled from row_ptr so that rewriting
+     * one row doesn't corrupt its neighbors. */
+    idx_t *rstart = malloc((size_t)n * sizeof(idx_t));
+    idx_t *rend = malloc((size_t)n * sizeof(idx_t));
+    /* Dense workspace for pivot row (scatter) */
+    double *work = calloc((size_t)n, sizeof(double));
+    /* Columns present in workspace (for efficient clear) */
+    idx_t *work_cols = malloc((size_t)n * sizeof(idx_t));
+    /* Row indirection: logical row i → storage slot row_map[i].
+     * Swapping rows is O(1) via this indirection. */
+    idx_t *row_map = malloc((size_t)n * sizeof(idx_t));
+
+    if (!rstart || !rend || !work || !work_cols || !row_map) {
+        free(rstart);
+        free(rend);
+        free(work);
+        free(work_cols);
+        free(row_map);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    /* Initialize per-row bounds from row_ptr */
+    for (idx_t i = 0; i < n; i++) {
+        rstart[i] = csr->row_ptr[i];
+        rend[i] = csr->row_ptr[i + 1];
+        row_map[i] = i;
+    }
+
+    if (piv_perm) {
+        for (idx_t i = 0; i < n; i++)
+            piv_perm[i] = i;
+    }
+
+    /* write_pos: append position for newly written rows */
+    idx_t write_pos = csr->row_ptr[n];
+
+    sparse_err_t err = SPARSE_OK;
+
+    for (idx_t k = 0; k < n; k++) {
+        /* ── Partial pivot: find largest |A[i,k]| for i in [k..n-1] ── */
+        double max_val = 0.0;
+        idx_t pivot_row = k;
+
+        for (idx_t i = k; i < n; i++) {
+            idx_t ri = row_map[i];
+            idx_t s = rstart[ri], e = rend[ri];
+            for (idx_t p = s; p < e; p++) {
+                if (csr->col_idx[p] == k) {
+                    double av = fabs(csr->values[p]);
+                    if (av > max_val) {
+                        max_val = av;
+                        pivot_row = i;
+                    }
+                    break;
+                }
+                if (csr->col_idx[p] > k)
+                    break;
+            }
+        }
+
+        if (max_val < tol) {
+            err = SPARSE_ERR_SINGULAR;
+            goto cleanup;
+        }
+
+        /* ── Swap logical rows k ↔ pivot_row ── */
+        if (pivot_row != k) {
+            idx_t tmp = row_map[k];
+            row_map[k] = row_map[pivot_row];
+            row_map[pivot_row] = tmp;
+            if (piv_perm) {
+                idx_t ptmp = piv_perm[k];
+                piv_perm[k] = piv_perm[pivot_row];
+                piv_perm[pivot_row] = ptmp;
+            }
+        }
+
+        /* ── Read pivot value ── */
+        idx_t pk = row_map[k];
+        double pivot_val = 0.0;
+        {
+            idx_t s = rstart[pk], e = rend[pk];
+            for (idx_t p = s; p < e; p++) {
+                if (csr->col_idx[p] == k) {
+                    pivot_val = csr->values[p];
+                    break;
+                }
+                if (csr->col_idx[p] > k)
+                    break;
+            }
+        }
+
+        /* ── Scatter pivot row into dense workspace ── */
+        idx_t pk_s = rstart[pk], pk_e = rend[pk];
+        idx_t wcount = 0;
+        for (idx_t p = pk_s; p < pk_e; p++) {
+            idx_t j = csr->col_idx[p];
+            work[j] = csr->values[p];
+            work_cols[wcount++] = j; // NOLINT(clang-analyzer-security.ArrayBound)
+        }
+
+        /* ── Elimination loop ── */
+        for (idx_t i = k + 1; i < n; i++) {
+            idx_t ri = row_map[i];
+            idx_t ri_s = rstart[ri], ri_e = rend[ri];
+
+            /* Find A[i,k] in row ri */
+            double a_ik = 0.0;
+            int found = 0;
+            for (idx_t p = ri_s; p < ri_e; p++) {
+                if (csr->col_idx[p] == k) {
+                    a_ik = csr->values[p];
+                    found = 1;
+                    break;
+                }
+                if (csr->col_idx[p] > k)
+                    break;
+            }
+            if (!found)
+                continue;
+
+            double mult = a_ik / pivot_val;
+
+            /* Ensure capacity for worst-case fill (row_i_nnz + pivot_nnz) */
+            idx_t ri_nnz = ri_e - ri_s;
+            idx_t piv_nnz = pk_e - pk_s;
+            err = lu_csr_grow(csr, write_pos + ri_nnz + piv_nnz);
+            if (err != SPARSE_OK)
+                goto cleanup;
+
+            /*
+             * Build the new row at write_pos by merging row_i and pivot_row.
+             *
+             * Columns < k  : copy from row_i (L entries from earlier steps)
+             * Column  == k : store multiplier
+             * Columns > k  : merge row_i and pivot_row with subtraction
+             */
+            idx_t new_start = write_pos;
+            idx_t nc = 0; /* new entry count */
+            idx_t pi = ri_s;
+
+            /* Columns < k: copy from row_i as-is */
+            while (pi < ri_e && csr->col_idx[pi] < k) {
+                csr->col_idx[new_start + nc] = csr->col_idx[pi];
+                csr->values[new_start + nc] = csr->values[pi];
+                nc++;
+                pi++;
+            }
+
+            /* Column k: store multiplier */
+            csr->col_idx[new_start + nc] = k;
+            csr->values[new_start + nc] = mult;
+            nc++;
+
+            /* Skip old column-k entry in row_i */
+            if (pi < ri_e && csr->col_idx[pi] == k)
+                pi++;
+
+            /* Columns > k: merge row_i and pivot_row.
+             * row_i entries are in col_idx[pi..ri_e), sorted.
+             * pivot entries with col > k are in work[] (lookup by col). */
+            idx_t pp = 0;
+            while (pp < wcount && work_cols[pp] <= k)
+                pp++;
+
+            while (pi < ri_e || pp < wcount) {
+                idx_t col_i = (pi < ri_e) ? csr->col_idx[pi] : n;
+                idx_t col_p = (pp < wcount) ? work_cols[pp] : n;
+
+                double new_val;
+                idx_t col;
+
+                if (col_i < col_p) {
+                    col = col_i;
+                    new_val = csr->values[pi];
+                    pi++;
+                } else if (col_p < col_i) {
+                    col = col_p;
+                    new_val = -mult * work[col_p]; // NOLINT(clang-analyzer-security.ArrayBound)
+                    pp++;
+                } else {
+                    col = col_i;
+                    new_val = csr->values[pi] -
+                              mult * work[col_i]; // NOLINT(clang-analyzer-security.ArrayBound)
+                    pi++;
+                    pp++;
+                }
+
+                /* Drop small entries */
+                if (fabs(new_val) < drop_tol * max_val)
+                    continue;
+
+                csr->col_idx[new_start + nc] = col;
+                csr->values[new_start + nc] = new_val;
+                nc++;
+            }
+
+            /* Update row bounds to point to newly written data */
+            rstart[ri] = new_start;
+            rend[ri] = new_start + nc;
+            write_pos = new_start + nc;
+        }
+
+        /* ── Clear pivot row from workspace ── */
+        for (idx_t c = 0; c < wcount; c++)
+            work[work_cols[c]] = 0.0;
+    }
+
+    /* ── Compact: rebuild CSR arrays in logical row order ── */
+    {
+        idx_t total = 0;
+        for (idx_t i = 0; i < n; i++) {
+            idx_t ri = row_map[i];
+            total += rend[ri] - rstart[ri];
+        }
+
+        idx_t *new_rp = malloc((size_t)(n + 1) * sizeof(idx_t));
+        idx_t *new_ci = malloc((size_t)(total > 0 ? total : 1) * sizeof(idx_t));
+        double *new_v = malloc((size_t)(total > 0 ? total : 1) * sizeof(double));
+        if (!new_rp || !new_ci || !new_v) {
+            free(new_rp);
+            free(new_ci);
+            free(new_v);
+            err = SPARSE_ERR_ALLOC;
+            goto cleanup;
+        }
+
+        idx_t pos = 0;
+        for (idx_t i = 0; i < n; i++) {
+            new_rp[i] = pos;
+            idx_t ri = row_map[i];
+            idx_t s = rstart[ri], e = rend[ri];
+            for (idx_t p = s; p < e; p++) {
+                new_ci[pos] = csr->col_idx[p];
+                new_v[pos] = csr->values[p];
+                pos++;
+            }
+        }
+        new_rp[n] = pos; // NOLINT(clang-analyzer-security.ArrayBound)
+
+        free(csr->row_ptr);
+        free(csr->col_idx);
+        free(csr->values);
+        csr->row_ptr = new_rp;
+        csr->col_idx = new_ci;
+        csr->values = new_v;
+        csr->nnz = total;
+        csr->capacity = total > 0 ? total : 1;
+    }
+
+cleanup:
+    free(rstart);
+    free(rend);
+    free(work);
+    free(work_cols);
+    free(row_map);
+    return err;
 }
 
 /* ─── Convert LuCsr → SparseMatrix ──────────────────────────────────── */

@@ -703,3 +703,195 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
 
 #undef H
 #undef V
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Block Conjugate Gradient (multiple RHS)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t nrhs, double *X,
+                                   const sparse_iter_opts_t *opts, sparse_precond_fn precond,
+                                   const void *precond_ctx, sparse_iter_result_t *result) {
+    if (result) {
+        result->iterations = 0;
+        result->residual_norm = 0.0;
+        result->converged = 0;
+    }
+
+    if (!A || !B || !X)
+        return SPARSE_ERR_NULL;
+    if (nrhs <= 0) {
+        if (result)
+            result->converged = 1;
+        return SPARSE_OK;
+    }
+    if (sparse_rows(A) != sparse_cols(A))
+        return SPARSE_ERR_SHAPE;
+
+    const sparse_iter_opts_t *o = opts ? opts : &cg_defaults;
+    if (o->max_iter < 0 || o->tol < 0.0)
+        return SPARSE_ERR_BADARG;
+
+    idx_t n = sparse_rows(A);
+    if (n == 0) {
+        if (result)
+            result->converged = 1;
+        return SPARSE_OK;
+    }
+
+    /* Compute ||B(:,k)|| for each column */
+    double *bnorms = malloc((size_t)nrhs * sizeof(double));
+    if (!bnorms)
+        return SPARSE_ERR_ALLOC;
+    for (idx_t k = 0; k < nrhs; k++) {
+        bnorms[k] = vec_norm2(&B[n * k], n);
+        if (bnorms[k] == 0.0) {
+            vec_zero(&X[n * k], n);
+            bnorms[k] = 1.0; /* avoid div-by-zero; already converged */
+        }
+    }
+
+    /* Allocate workspace: R, Z, P, AP — each n × nrhs */
+    size_t blk = (size_t)n * (size_t)nrhs;
+    double *R = malloc(blk * sizeof(double));
+    double *Z = malloc(blk * sizeof(double));
+    double *P = malloc(blk * sizeof(double));
+    double *AP = malloc(blk * sizeof(double));
+    double *rz = malloc((size_t)nrhs * sizeof(double)); /* r^T*z per column */
+    int *conv = calloc((size_t)nrhs, sizeof(int));      /* convergence flags */
+    double *rnorms = malloc((size_t)nrhs * sizeof(double));
+    if (!R || !Z || !P || !AP || !rz || !conv || !rnorms) {
+        free(R);
+        free(Z);
+        free(P);
+        free(AP);
+        free(rz);
+        free(conv);
+        free(rnorms);
+        free(bnorms);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    /* R = B - A*X (initial residual for all columns) */
+    sparse_matvec_block(A, X, nrhs, AP); /* AP = A*X */
+    for (idx_t k = 0; k < nrhs; k++)
+        for (idx_t i = 0; i < n; i++)
+            R[i + n * k] = B[i + n * k] - AP[i + n * k];
+
+    /* Apply preconditioner: Z = M^{-1}*R (or Z = R) */
+    for (idx_t k = 0; k < nrhs; k++) {
+        if (precond) {
+            sparse_err_t perr = precond(precond_ctx, n, &R[n * k], &Z[n * k]); // NOLINT
+            if (perr != SPARSE_OK) {
+                free(R);
+                free(Z);
+                free(P);
+                free(AP);
+                free(rz);
+                free(conv);
+                free(rnorms);
+                free(bnorms);
+                return perr;
+            }
+        } else {
+            vec_copy(&R[n * k], &Z[n * k], n); // NOLINT
+        }
+    }
+
+    /* P = Z, compute rz = R^T*Z per column */
+    for (idx_t k = 0; k < nrhs; k++) {
+        vec_copy(&Z[n * k], &P[n * k], n);
+        rz[k] = vec_dot(&R[n * k], &Z[n * k], n);
+        rnorms[k] = vec_norm2(&R[n * k], n);
+    }
+
+    idx_t max_iter_done = 0;
+    int all_converged = 0;
+
+    for (idx_t iter = 0; iter < o->max_iter; iter++) {
+        /* Check convergence for all columns */
+        all_converged = 1;
+        for (idx_t k = 0; k < nrhs; k++) {
+            if (!conv[k] && rnorms[k] / bnorms[k] <= o->tol)
+                conv[k] = 1;
+            if (!conv[k])
+                all_converged = 0;
+        }
+        if (all_converged)
+            break;
+
+        max_iter_done = iter + 1;
+
+        /* AP = A*P (shared SpMV for all columns) */
+        sparse_matvec_block(A, P, nrhs, AP);
+
+        for (idx_t k = 0; k < nrhs; k++) {
+            if (conv[k])
+                continue;
+
+            /* alpha = rz / (P^T * AP) */
+            double pAp = vec_dot(&P[n * k], &AP[n * k], n);
+            if (pAp == 0.0)
+                continue; /* breakdown for this column */
+            double alpha = rz[k] / pAp;
+
+            /* X(:,k) += alpha * P(:,k) */
+            vec_axpy(alpha, &P[n * k], &X[n * k], n);
+
+            /* R(:,k) -= alpha * AP(:,k) */
+            vec_axpy(-alpha, &AP[n * k], &R[n * k], n);
+
+            rnorms[k] = vec_norm2(&R[n * k], n);
+
+            /* Z(:,k) = M^{-1} * R(:,k) */
+            if (precond) {
+                precond(precond_ctx, n, &R[n * k], &Z[n * k]);
+            } else {
+                vec_copy(&R[n * k], &Z[n * k], n);
+            }
+
+            /* beta = rz_new / rz_old */
+            double rz_new = vec_dot(&R[n * k], &Z[n * k], n);
+            double beta = (rz[k] != 0.0) ? rz_new / rz[k] : 0.0;
+
+            /* P(:,k) = Z(:,k) + beta * P(:,k) */
+            for (idx_t i = 0; i < n; i++)
+                P[i + n * k] = Z[i + n * k] + beta * P[i + n * k];
+
+            rz[k] = rz_new;
+        }
+    }
+
+    /* Final convergence check */
+    if (!all_converged) {
+        all_converged = 1;
+        for (idx_t k = 0; k < nrhs; k++) {
+            if (!conv[k] && rnorms[k] / bnorms[k] <= o->tol)
+                conv[k] = 1;
+            if (!conv[k])
+                all_converged = 0;
+        }
+    }
+
+    if (result) {
+        result->iterations = max_iter_done;
+        /* Report max residual across columns */
+        double max_res = 0.0;
+        for (idx_t k = 0; k < nrhs; k++) {
+            double rel = rnorms[k] / bnorms[k];
+            if (rel > max_res)
+                max_res = rel;
+        }
+        result->residual_norm = max_res;
+        result->converged = all_converged;
+    }
+
+    free(R);
+    free(Z);
+    free(P);
+    free(AP);
+    free(rz);
+    free(conv);
+    free(rnorms);
+    free(bnorms);
+    return all_converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
+}

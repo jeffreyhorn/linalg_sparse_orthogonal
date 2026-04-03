@@ -256,6 +256,20 @@ sparse_err_t sparse_norminf(SparseMatrix *mat, double *norm);
  */
 sparse_err_t sparse_matvec(const SparseMatrix *mat, const double *x, double *y);
 
+/**
+ * @brief Sparse matrix × dense block multiply: Y = A * X.
+ *
+ * Computes Y(:,k) = A * X(:,k) for k = 0..nrhs-1 in a single pass
+ * over the sparse structure, amortizing row traversal across all RHS.
+ *
+ * @param mat   Sparse matrix (m × n, not modified).
+ * @param X     Dense input matrix, n × nrhs column-major.
+ * @param nrhs  Number of columns in X and Y.
+ * @param Y     Dense output matrix, m × nrhs column-major (overwritten).
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL if any argument is NULL.
+ */
+sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const double *X, idx_t nrhs, double *Y);
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * Matrix arithmetic
  * ═══════════════════════════════════════════════════════════════════════════ */

@@ -757,6 +757,37 @@ sparse_err_t sparse_matvec(const SparseMatrix *mat, const double *x, double *y) 
     return SPARSE_OK;
 }
 
+/* ─── Block SpMV: Y = A * X (multiple RHS) ───────────────────────────── */
+
+sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const double *X, idx_t nrhs, double *Y) {
+    if (!mat || !X || !Y)
+        return SPARSE_ERR_NULL;
+    if (nrhs <= 0)
+        return SPARSE_OK;
+
+    idx_t m = mat->rows;
+
+    /* Zero output */
+    for (idx_t k = 0; k < nrhs; k++)
+        for (idx_t i = 0; i < m; i++)
+            Y[i + m * k] = 0.0;
+
+    /* Walk each row once, update all nrhs columns */
+    for (idx_t log_i = 0; log_i < m; log_i++) {
+        idx_t phys_i = mat->row_perm[log_i];
+        Node *node = mat->row_headers[phys_i];
+        while (node) {
+            idx_t log_j = mat->inv_col_perm[node->col];
+            double a_ij = node->value;
+            for (idx_t k = 0; k < nrhs; k++)
+                Y[log_i + m * k] += a_ij * X[log_j + mat->cols * k];
+            node = node->right;
+        }
+    }
+
+    return SPARSE_OK;
+}
+
 /* ─── Matrix Market I/O ──────────────────────────────────────────────── */
 
 sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename) {

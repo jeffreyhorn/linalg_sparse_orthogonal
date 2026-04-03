@@ -163,6 +163,28 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *
                                 const sparse_gmres_opts_t *opts, sparse_precond_fn precond,
                                 const void *precond_ctx, sparse_iter_result_t *result);
 
+/**
+ * @brief Solve A*X = B for multiple RHS using block Conjugate Gradient.
+ *
+ * Runs CG simultaneously for all nrhs vectors. Each column converges
+ * independently and is removed from the active set when its residual
+ * drops below tolerance. The shared SpMV amortizes matrix traversal.
+ *
+ * @param A           SPD coefficient matrix (not modified).
+ * @param B           RHS matrix, n × nrhs column-major.
+ * @param nrhs        Number of RHS vectors.
+ * @param X           Solution matrix, n × nrhs column-major (initial guess on entry).
+ * @param opts        Solver options (NULL for defaults).
+ * @param precond     Preconditioner callback (NULL for none). Applied per-column.
+ * @param precond_ctx Context pointer passed to precond.
+ * @param result      Output: iterations = max across columns, residual = max across columns.
+ * @return SPARSE_OK if all columns converged.
+ * @return SPARSE_ERR_NOT_CONVERGED if any column did not converge.
+ */
+sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t nrhs, double *X,
+                                   const sparse_iter_opts_t *opts, sparse_precond_fn precond,
+                                   const void *precond_ctx, sparse_iter_result_t *result);
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Matrix-free iterative solvers
  * ═══════════════════════════════════════════════════════════════════════ */

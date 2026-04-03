@@ -81,15 +81,22 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_dense.c \
             $(TESTDIR)/test_bidiag.c \
             $(TESTDIR)/test_svd.c \
-            $(TESTDIR)/test_sprint8_integration.c
+            $(TESTDIR)/test_sprint8_integration.c \
+            $(TESTDIR)/test_fuzz.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
 # Benchmark sources
 BENCH_SRCS = $(BENCHDIR)/bench_main.c \
              $(BENCHDIR)/bench_scaling.c \
              $(BENCHDIR)/bench_fillin.c \
-             $(BENCHDIR)/bench_convergence.c
+             $(BENCHDIR)/bench_convergence.c \
+             $(BENCHDIR)/bench_svd.c
 BENCH_BINS = $(patsubst $(BENCHDIR)/%.c,$(BUILDDIR)/%,$(BENCH_SRCS))
+
+# Example sources
+EXDIR = examples
+EX_SRCS = $(wildcard $(EXDIR)/*.c)
+EX_BINS = $(patsubst $(EXDIR)/%.c,$(BUILDDIR)/%,$(EX_SRCS))
 
 # Default target
 .PHONY: all
@@ -122,7 +129,16 @@ $(BUILDDIR)/%: $(TESTDIR)/%.c $(LIB) | $(BUILDDIR)
 
 # Benchmark executables
 $(BUILDDIR)/bench_%: $(BENCHDIR)/bench_%.c $(LIB) | $(BUILDDIR)
+	$(CC) $(CFLAGS) $(INCLUDE) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
+
+# Example executables
+$(BUILDDIR)/example_%: $(EXDIR)/example_%.c $(LIB) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(INCLUDE) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
+
+# Build all examples
+.PHONY: examples
+examples: $(EX_BINS)
+	@echo "All examples built."
 
 # Smoke test
 .PHONY: smoke
@@ -217,19 +233,20 @@ tsan: clean test
 ALL_SRC = $(shell find $(SRCDIR) -type f \( -name '*.c' -o -name '*.h' \))
 ALL_TEST_SRC = $(shell find $(TESTDIR) -type f \( -name '*.c' -o -name '*.h' \))
 ALL_BENCH_SRC = $(shell find $(BENCHDIR) -type f -name '*.c')
+ALL_EX_SRC = $(wildcard $(EXDIR)/*.c)
 ALL_HEADERS = $(shell find include -type f -name '*.h')
 
 # Format all source files in-place
 .PHONY: format
 format:
 	@echo "Formatting with clang-format..."
-	clang-format -i $(ALL_SRC) $(ALL_TEST_SRC) $(ALL_BENCH_SRC) $(ALL_HEADERS)
+	clang-format -i $(ALL_SRC) $(ALL_TEST_SRC) $(ALL_BENCH_SRC) $(ALL_EX_SRC) $(ALL_HEADERS)
 
 # Check formatting without modifying files
 .PHONY: format-check
 format-check:
 	@echo "Checking formatting with clang-format..."
-	clang-format --dry-run --Werror $(ALL_SRC) $(ALL_TEST_SRC) $(ALL_BENCH_SRC) $(ALL_HEADERS)
+	clang-format --dry-run --Werror $(ALL_SRC) $(ALL_TEST_SRC) $(ALL_BENCH_SRC) $(ALL_EX_SRC) $(ALL_HEADERS)
 
 # Run all linters
 .PHONY: lint
@@ -252,6 +269,14 @@ lint:
 # Run all quality checks: format + lint + test
 .PHONY: check
 check: format-check lint test
+
+# ─── API documentation ────────────────────────────────────────────────
+
+.PHONY: docs
+docs:
+	@echo "Generating API documentation with Doxygen..."
+	doxygen Doxyfile
+	@echo "Documentation generated in docs/api/html/"
 
 # ─── Code coverage ────────────────────────────────────────────────────
 

@@ -68,10 +68,8 @@ typedef struct {
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  * @return SPARSE_ERR_NOT_CONVERGED if QR iteration fails to converge.
  *
- * @note Rank-deficient matrices with near-zero bidiagonal entries may fail
- *       to converge (returning SPARSE_ERR_NOT_CONVERGED) because the current
- *       implementation lacks a zero-diagonal chase (Golub & Van Loan §8.6.2).
- *       Increasing max_iter may help in some cases.
+ * @note Uses the zero-diagonal chase (Golub & Van Loan §8.6.2) for
+ *       rank-deficient bidiagonals with near-zero diagonal entries.
  */
 sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *opts,
                                 sparse_svd_t *svd);
@@ -103,8 +101,9 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
  * Lanczos bidiagonalization to build a small k×k bidiagonal, then
  * applies the bidiagonal SVD iteration to extract singular values.
  *
- * This routine returns singular values only. The U and V^T fields in
- * @p svd are left NULL; opts->compute_uv and opts->economy are ignored.
+ * When opts->compute_uv is set (with opts->economy = 1), approximate
+ * left and right singular vectors are recovered from the Lanczos basis.
+ * The vectors satisfy A*v_i ≈ sigma_i * u_i for the top k triplets.
  *
  * @param A    The matrix (not modified). Must have identity permutations.
  * @param k    Number of singular values to compute.
@@ -179,5 +178,46 @@ sparse_err_t sparse_pinv(const SparseMatrix *A, double tol, double **pinv);
  * @return SPARSE_ERR_NOT_CONVERGED if SVD iteration fails to converge.
  */
 sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lowrank);
+
+/**
+ * @brief Compute the best rank-k approximation as a sparse matrix.
+ *
+ * Returns A_k = U_k * Sigma_k * V_k^T as a SparseMatrix, dropping entries
+ * whose absolute value is below @p drop_tol. The final sparse output uses
+ * less memory than the dense array from sparse_svd_lowrank() when the
+ * low-rank approximation is itself sparse.
+ *
+ * @note Internally allocates a temporary m*n dense accumulator during
+ *       construction. Peak memory is comparable to sparse_svd_lowrank().
+ *
+ * @param A        The matrix (not modified).
+ * @param rank_k   Desired rank (must be 1..min(m,n)).
+ * @param drop_tol Entries with |value| < drop_tol are dropped. If <= 0,
+ *                 uses default: eps * sigma_1.
+ * @param result   Output: sparse m×n matrix (caller must free with sparse_free()).
+ *                 Set to NULL on failure.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if A or result is NULL.
+ * @return SPARSE_ERR_BADARG if rank_k is out of range or A has non-identity permutations.
+ * @return SPARSE_ERR_ALLOC if memory allocation fails.
+ * @return SPARSE_ERR_NOT_CONVERGED if SVD iteration fails to converge.
+ */
+sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, double drop_tol,
+                                       SparseMatrix **result);
+
+/**
+ * @brief Estimate the 2-norm condition number of a matrix via SVD.
+ *
+ * Computes cond(A) = sigma_max / sigma_min using the full SVD.
+ * Returns INFINITY for singular matrices (sigma_min below tolerance).
+ *
+ * @param A    The matrix (not modified). Must have identity permutations
+ *             (i.e., must not have been previously factored in-place).
+ * @param err  Output: error code (SPARSE_OK on success). May be NULL.
+ *             Set to SPARSE_ERR_BADARG if A has non-identity permutations.
+ * @return The condition number, or INFINITY if A is singular.
+ *         Returns INFINITY and sets *err on failure.
+ */
+double sparse_cond(const SparseMatrix *A, sparse_err_t *err);
 
 #endif /* SPARSE_SVD_H */

@@ -666,27 +666,326 @@ static void test_svd_rank1(void) {
 
     sparse_svd_t svd;
     sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
-    /* Known limitation: QR iteration may not converge on rank-deficient
-     * bidiagonals where near-zero diagonal entries prevent deflation.
-     * Accept either SPARSE_OK or SPARSE_ERR_NOT_CONVERGED until the
-     * zero-diagonal chase (G&VL §8.6.2) is implemented. */
-    ASSERT_TRUE(err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED);
-    if (err == SPARSE_ERR_NOT_CONVERGED) {
-        printf("    SVD rank-1: NOT_CONVERGED (known limitation)\n");
-        sparse_svd_free(&svd);
-        sparse_free(A);
-        return;
-    }
+    ASSERT_EQ(err, SPARSE_OK);
 
     printf("    SVD rank-1: [%.4f, %.4f, %.4f]\n", svd.sigma[0], svd.sigma[1], svd.sigma[2]);
     /* sigma[0] should be ||u||*||v|| = sqrt(30)*sqrt(3) ≈ 9.487 */
-    ASSERT_TRUE(svd.sigma[0] > 1.0);
+    double expected = sqrt(30.0) * sqrt(3.0);
+    ASSERT_TRUE(fabs(svd.sigma[0] - expected) < 1e-6);
     /* sigma[1] and sigma[2] should be ~0 */
     ASSERT_TRUE(svd.sigma[1] < 1e-8);
     ASSERT_TRUE(svd.sigma[2] < 1e-8);
 
     sparse_svd_free(&svd);
     sparse_free(A);
+}
+
+/* Rank-1 matrix with UV reconstruction */
+static void test_svd_rank1_uv(void) {
+    SparseMatrix *A = sparse_create(4, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* rank-1: u*v^T where u=[1,2,3,4], v=[1,1,1] */
+    for (idx_t i = 0; i < 4; i++)
+        for (idx_t j = 0; j < 3; j++)
+            sparse_insert(A, i, j, (double)(i + 1));
+
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, &opts, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* Verify reconstruction: A ≈ U * diag(sigma) * Vt
+     * Vt is stored column-major: Vt[j * k + r] = (V^T)_{r,j} */
+    double max_err = 0.0;
+    idx_t k = svd.k;
+    for (idx_t i = 0; i < 4; i++) {
+        for (idx_t j = 0; j < 3; j++) {
+            double sum = 0.0;
+            for (idx_t s = 0; s < k; s++)
+                sum += svd.U[(size_t)s * 4 + (size_t)i] * svd.sigma[s] *
+                       svd.Vt[(size_t)j * (size_t)k + (size_t)s];
+            double expected = (double)(i + 1);
+            double e = fabs(sum - expected);
+            if (e > max_err)
+                max_err = e;
+        }
+    }
+    printf("    SVD rank-1 UV reconstruction error: %.2e\n", max_err);
+    ASSERT_TRUE(max_err < 1e-8);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Rank-2 matrix in 5x5: exactly two nonzero singular values */
+static void test_svd_rank2(void) {
+    SparseMatrix *A = sparse_create(5, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* A = u1*v1^T + u2*v2^T where:
+     * u1=[1,0,1,0,1], v1=[1,1,0,0,0]
+     * u2=[0,1,0,1,0], v2=[0,0,1,1,0] */
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 1, 3, 1.0);
+    sparse_insert(A, 2, 0, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 3, 2, 1.0);
+    sparse_insert(A, 3, 3, 1.0);
+    sparse_insert(A, 4, 0, 1.0);
+    sparse_insert(A, 4, 1, 1.0);
+
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    printf("    SVD rank-2: [%.4f, %.4f, %.4f, %.4f, %.4f]\n", svd.sigma[0], svd.sigma[1],
+           svd.sigma[2], svd.sigma[3], svd.sigma[4]);
+    /* Exactly two nonzero singular values */
+    ASSERT_TRUE(svd.sigma[0] > 0.1);
+    ASSERT_TRUE(svd.sigma[1] > 0.1);
+    ASSERT_TRUE(svd.sigma[2] < 1e-10);
+    ASSERT_TRUE(svd.sigma[3] < 1e-10);
+    ASSERT_TRUE(svd.sigma[4] < 1e-10);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* 10x10 rank-5: five nonzero + five near-zero singular values */
+static void test_svd_rank5_in_10x10(void) {
+    SparseMatrix *A = sparse_create(10, 10);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Build rank-5 matrix: A = sum_{r=0}^{4} (r+1)*e_r*e_r^T
+     * where e_r is the r-th standard basis vector.
+     * This is a diagonal matrix with 5 nonzeros. */
+    for (idx_t i = 0; i < 5; i++)
+        sparse_insert(A, i, i, (double)(i + 1));
+
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* sigma = [5, 4, 3, 2, 1, 0, 0, 0, 0, 0] (descending) */
+    ASSERT_NEAR(svd.sigma[0], 5.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[1], 4.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[2], 3.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[3], 2.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[4], 1.0, 1e-10);
+    for (idx_t i = 5; i < 10; i++)
+        ASSERT_TRUE(svd.sigma[i] < 1e-10);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Rank-1 square matrix: zero-diagonal chase on square bidiagonal */
+static void test_svd_rank1_square(void) {
+    SparseMatrix *A = sparse_create(5, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* rank-1: all entries = row index + 1 (u=[1,2,3,4,5], v=[1,1,1,1,1]) */
+    for (idx_t i = 0; i < 5; i++)
+        for (idx_t j = 0; j < 5; j++)
+            sparse_insert(A, i, j, (double)(i + 1));
+
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* sigma[0] = ||u||*||v|| = sqrt(55)*sqrt(5) */
+    double expected = sqrt(55.0) * sqrt(5.0);
+    ASSERT_TRUE(fabs(svd.sigma[0] - expected) < 1e-6);
+    for (idx_t i = 1; i < 5; i++)
+        ASSERT_TRUE(svd.sigma[i] < 1e-8);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Rank-1 wide matrix: m < n with zero-diagonal chase */
+static void test_svd_rank1_wide(void) {
+    SparseMatrix *A = sparse_create(3, 6);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* rank-1: u=[1,2,3], v=[1,1,1,1,1,1] */
+    for (idx_t i = 0; i < 3; i++)
+        for (idx_t j = 0; j < 6; j++)
+            sparse_insert(A, i, j, (double)(i + 1));
+
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* sigma[0] = ||u||*||v|| = sqrt(14)*sqrt(6) */
+    double expected = sqrt(14.0) * sqrt(6.0);
+    printf("    SVD rank-1 wide: sigma[0]=%.4f (expected %.4f)\n", svd.sigma[0], expected);
+    ASSERT_TRUE(fabs(svd.sigma[0] - expected) < 1e-6);
+    for (idx_t i = 1; i < 3; i++)
+        ASSERT_TRUE(svd.sigma[i] < 1e-8);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Near-singular matrix: diagonal entries approaching machine epsilon */
+static void test_svd_near_singular(void) {
+    SparseMatrix *A = sparse_create(4, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Diagonal with decreasing entries: 1, 1e-4, 1e-8, 1e-12 */
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 1e-4);
+    sparse_insert(A, 2, 2, 1e-8);
+    sparse_insert(A, 3, 3, 1e-12);
+
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* Use relative tolerances: allow 1e-10 relative error per singular value */
+    ASSERT_NEAR(svd.sigma[0], 1.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[1], 1e-4, 1e-4 * 1e-10);
+    ASSERT_NEAR(svd.sigma[2], 1e-8, 1e-8 * 1e-6);
+    ASSERT_NEAR(svd.sigma[3], 1e-12, 1e-12 * 1e-2);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Multiple zero diagonals: bidiagonal with alternating zero/nonzero */
+static void test_svd_multi_zero_diag(void) {
+    /* Build a matrix whose bidiagonal has multiple near-zero diagonals.
+     * Use a rank-2 matrix in 6×6: two outer products with gaps. */
+    SparseMatrix *A = sparse_create(6, 6);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* A = diag(3, 0, 2, 0, 1, 0) — three zero singular values */
+    sparse_insert(A, 0, 0, 3.0);
+    sparse_insert(A, 2, 2, 2.0);
+    sparse_insert(A, 4, 4, 1.0);
+
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, NULL, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    ASSERT_NEAR(svd.sigma[0], 3.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[1], 2.0, 1e-10);
+    ASSERT_NEAR(svd.sigma[2], 1.0, 1e-10);
+    for (idx_t i = 3; i < 6; i++)
+        ASSERT_TRUE(svd.sigma[i] < 1e-10);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Rank-deficient dense matrix: all rows are multiples of first two */
+static void test_svd_rank2_dense(void) {
+    SparseMatrix *A = sparse_create(5, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Row 0: [1, 2, 3, 4]
+     * Row 1: [5, 6, 7, 8]
+     * Row 2: [2, 4, 6, 8] = 2 * row 0
+     * Row 3: [6, 8, 10, 12] = row 0 + row 1
+     * Row 4: [3, 6, 9, 12] = 3 * row 0
+     * Rank = 2 */
+    double rows[5][4] = {{1, 2, 3, 4}, {5, 6, 7, 8}, {2, 4, 6, 8}, {6, 8, 10, 12}, {3, 6, 9, 12}};
+    for (idx_t i = 0; i < 5; i++)
+        for (idx_t j = 0; j < 4; j++)
+            sparse_insert(A, i, j, rows[i][j]);
+
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, &opts, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    printf("    SVD rank-2 dense: [%.4f, %.4f, %.4f, %.4f]\n", svd.sigma[0], svd.sigma[1],
+           svd.sigma[2], svd.sigma[3]);
+    /* Exactly two nonzero singular values */
+    ASSERT_TRUE(svd.sigma[0] > 1.0);
+    ASSERT_TRUE(svd.sigma[1] > 0.1);
+    ASSERT_TRUE(svd.sigma[2] < 1e-10);
+    ASSERT_TRUE(svd.sigma[3] < 1e-10);
+
+    /* Verify reconstruction: A ≈ U * diag(sigma) * Vt */
+    double max_err = 0.0;
+    idx_t k = svd.k;
+    for (idx_t i = 0; i < 5; i++) {
+        for (idx_t j = 0; j < 4; j++) {
+            double sum = 0.0;
+            for (idx_t s = 0; s < k; s++)
+                sum += svd.U[(size_t)s * 5 + (size_t)i] * svd.sigma[s] *
+                       svd.Vt[(size_t)j * (size_t)k + (size_t)s];
+            double e = fabs(sum - rows[i][j]);
+            if (e > max_err)
+                max_err = e;
+        }
+    }
+    printf("    SVD rank-2 dense UV reconstruction error: %.2e\n", max_err);
+    ASSERT_TRUE(max_err < 1e-8);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* SuiteSparse rank-deficient: zero some columns of nos4 */
+static void test_svd_suitesparse_rank_deficient(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, "tests/data/suitesparse/nos4.mtx");
+    if (lerr != SPARSE_OK || !A) {
+        printf("    SKIP: nos4.mtx not found\n");
+        return;
+    }
+    /* Zero columns 50-99 to create a rank-deficient matrix */
+    SparseMatrix *B = sparse_create(sparse_rows(A), sparse_cols(A));
+    ASSERT_NOT_NULL(B);
+    if (!B) {
+        sparse_free(A);
+        return;
+    }
+    for (idx_t i = 0; i < sparse_rows(A); i++) {
+        for (idx_t j = 0; j < 50; j++) {
+            double val = sparse_get(A, i, j);
+            if (val != 0.0)
+                sparse_insert(B, i, j, val);
+        }
+    }
+    sparse_free(A);
+
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(B, NULL, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* Count nonzero singular values */
+    idx_t rank = 0;
+    for (idx_t i = 0; i < svd.k; i++) {
+        if (svd.sigma[i] > 1e-10 * svd.sigma[0])
+            rank++;
+    }
+    printf("    nos4 rank-deficient (cols 0-49 only): rank=%d (of %d)\n", (int)rank, (int)svd.k);
+    ASSERT_TRUE(rank <= 50);
+    ASSERT_TRUE(rank > 0);
+    /* SVD rank estimation should agree */
+    idx_t svd_rank = 0;
+    err = sparse_svd_rank(B, 0.0, &svd_rank);
+    ASSERT_EQ(err, SPARSE_OK);
+    printf("    sparse_svd_rank reports: %d\n", (int)svd_rank);
+    ASSERT_TRUE(svd_rank <= 50);
+
+    sparse_svd_free(&svd);
+    sparse_free(B);
 }
 
 /* SVD descending order */
@@ -2065,6 +2364,793 @@ static void test_lowrank_errors(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Partial SVD with singular vectors (Sprint 9 Day 4)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Partial SVD vectors: orthonormality of U and Vt */
+static void test_partial_svd_vectors_ortho(void) {
+    /* 10x10 matrix with known structure */
+    SparseMatrix *A = sparse_create(10, 10);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Tridiagonal: diag=2*(i+1), off-diag=1 */
+    for (idx_t i = 0; i < 10; i++) {
+        sparse_insert(A, i, i, 2.0 * (double)(i + 1));
+        if (i + 1 < 10)
+            sparse_insert(A, i, i + 1, 1.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, 1.0);
+    }
+
+    idx_t k = 3;
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_partial(A, k, &opts, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_NOT_NULL(svd.U);
+    ASSERT_NOT_NULL(svd.Vt);
+
+    /* U^T * U ≈ I_k (column-major: U[col*m + row]) */
+    idx_t m_val = svd.m;
+    for (idx_t p = 0; p < k; p++) {
+        for (idx_t q = p; q < k; q++) {
+            double dot = 0.0;
+            for (idx_t i = 0; i < m_val; i++)
+                dot += svd.U[(size_t)p * (size_t)m_val + (size_t)i] *
+                       svd.U[(size_t)q * (size_t)m_val + (size_t)i];
+            double expected = (p == q) ? 1.0 : 0.0;
+            if (fabs(dot - expected) > 1e-6)
+                printf("    U ortho: (%d,%d) = %.6f (expected %.1f)\n", (int)p, (int)q, dot,
+                       expected);
+            ASSERT_TRUE(fabs(dot - expected) < 1e-6);
+        }
+    }
+
+    /* Vt * Vt^T ≈ I_k (Vt col-major: Vt[col*k + row]) */
+    idx_t n_val = svd.n;
+    for (idx_t p = 0; p < k; p++) {
+        for (idx_t q = p; q < k; q++) {
+            double dot = 0.0;
+            for (idx_t j = 0; j < n_val; j++)
+                dot += svd.Vt[(size_t)j * (size_t)k + (size_t)p] *
+                       svd.Vt[(size_t)j * (size_t)k + (size_t)q];
+            double expected = (p == q) ? 1.0 : 0.0;
+            if (fabs(dot - expected) > 1e-6)
+                printf("    Vt ortho: (%d,%d) = %.6f (expected %.1f)\n", (int)p, (int)q, dot,
+                       expected);
+            ASSERT_TRUE(fabs(dot - expected) < 1e-6);
+        }
+    }
+    printf("    partial SVD vectors ortho: PASS (k=%d, m=%d, n=%d)\n", (int)k, (int)m_val,
+           (int)n_val);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Partial SVD vectors: A*v_i ≈ sigma_i * u_i */
+static void test_partial_svd_vectors_Av(void) {
+    SparseMatrix *A = sparse_create(8, 8);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Tridiagonal */
+    for (idx_t i = 0; i < 8; i++) {
+        sparse_insert(A, i, i, 3.0 * (double)(i + 1));
+        if (i + 1 < 8)
+            sparse_insert(A, i, i + 1, 1.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, 1.0);
+    }
+
+    idx_t k = 3;
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_partial(A, k, &opts, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* For each singular triplet: ||A*v_i - sigma_i*u_i|| should be small */
+    double *Av = calloc((size_t)svd.m, sizeof(double));
+    double *v = calloc((size_t)svd.n, sizeof(double));
+    ASSERT_NOT_NULL(Av);
+    ASSERT_NOT_NULL(v);
+    if (!Av || !v) {
+        free(Av);
+        free(v);
+        sparse_svd_free(&svd);
+        sparse_free(A);
+        return;
+    }
+
+    double max_resid = 0.0;
+    for (idx_t s = 0; s < k; s++) {
+        /* Extract v_s from Vt (Vt[j*k+s] = V^T[s,j]) */
+        for (idx_t j = 0; j < svd.n; j++)
+            v[j] = svd.Vt[(size_t)j * (size_t)k + (size_t)s];
+
+        /* Compute A*v */
+        memset(Av, 0, (size_t)svd.m * sizeof(double));
+        sparse_matvec(A, v, Av);
+
+        /* ||A*v - sigma*u|| */
+        double resid = 0.0;
+        for (idx_t i = 0; i < svd.m; i++) {
+            double diff = Av[i] - svd.sigma[s] * svd.U[(size_t)s * (size_t)svd.m + (size_t)i];
+            resid += diff * diff;
+        }
+        resid = sqrt(resid);
+        if (resid > max_resid)
+            max_resid = resid;
+    }
+    printf("    partial SVD A*v ≈ sigma*u: max_resid=%.2e\n", max_resid);
+    ASSERT_TRUE(max_resid < 1e-6);
+
+    free(Av);
+    free(v);
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Partial SVD vectors: compare with full SVD (up to sign) */
+static void test_partial_svd_vectors_vs_full(void) {
+    SparseMatrix *A = sparse_create(6, 6);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Diagonal with distinct values */
+    double diag_vals[] = {10.0, 7.0, 5.0, 3.0, 2.0, 1.0};
+    for (idx_t i = 0; i < 6; i++)
+        sparse_insert(A, i, i, diag_vals[i]);
+
+    /* Full SVD */
+    sparse_svd_opts_t full_opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t full_svd;
+    sparse_err_t err = sparse_svd_compute(A, &full_opts, &full_svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* Partial SVD with k=3 */
+    idx_t k = 3;
+    sparse_svd_opts_t part_opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t part_svd;
+    err = sparse_svd_partial(A, k, &part_opts, &part_svd);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* Compare singular values */
+    for (idx_t s = 0; s < k; s++) {
+        printf("    sigma[%d]: partial=%.4f, full=%.4f\n", (int)s, part_svd.sigma[s],
+               full_svd.sigma[s]);
+        ASSERT_TRUE(fabs(part_svd.sigma[s] - full_svd.sigma[s]) < 0.1);
+    }
+
+    /* Compare singular vectors (up to sign): |u_partial . u_full| ≈ 1 */
+    for (idx_t s = 0; s < k; s++) {
+        double dot_u = 0.0;
+        for (idx_t i = 0; i < 6; i++)
+            dot_u += part_svd.U[(size_t)s * 6 + (size_t)i] * full_svd.U[(size_t)s * 6 + (size_t)i];
+        printf("    |u_part . u_full|[%d] = %.4f\n", (int)s, fabs(dot_u));
+        ASSERT_TRUE(fabs(fabs(dot_u) - 1.0) < 1e-4);
+    }
+
+    sparse_svd_free(&full_svd);
+    sparse_svd_free(&part_svd);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Partial SVD vector validation (Sprint 9 Day 5)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* nos4 (100×100 SPD): partial SVD vectors k=5 */
+static void test_partial_svd_vectors_nos4(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, "tests/data/suitesparse/nos4.mtx");
+    if (lerr != SPARSE_OK || !A) {
+        printf("    SKIP: nos4.mtx not found\n");
+        return;
+    }
+
+    idx_t k = 5;
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t part;
+    sparse_err_t err = sparse_svd_partial(A, k, &opts, &part);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* Full SVD for reference */
+    sparse_svd_t full;
+    err = sparse_svd_compute(A, NULL, &full);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* Compare top-k singular values */
+    double max_sigma_err = 0.0;
+    for (idx_t s = 0; s < k; s++) {
+        double e = fabs(part.sigma[s] - full.sigma[s]);
+        if (e > max_sigma_err)
+            max_sigma_err = e;
+    }
+    printf("    nos4 partial vectors: max sigma err=%.2e\n", max_sigma_err);
+
+    /* A*v ≈ sigma*u for each triplet */
+    double *Av = calloc((size_t)part.m, sizeof(double));
+    double *v = calloc((size_t)part.n, sizeof(double));
+    if (!Av || !v) {
+        free(Av);
+        free(v);
+        sparse_svd_free(&part);
+        sparse_svd_free(&full);
+        sparse_free(A);
+        ASSERT_NOT_NULL(Av);
+        return;
+    }
+    double max_resid = 0.0;
+    for (idx_t s = 0; s < k; s++) {
+        for (idx_t j = 0; j < part.n; j++)
+            v[j] = part.Vt[(size_t)j * (size_t)k + (size_t)s];
+        memset(Av, 0, (size_t)part.m * sizeof(double));
+        sparse_matvec(A, v, Av);
+        double resid = 0.0;
+        for (idx_t i = 0; i < part.m; i++) {
+            double diff = Av[i] - part.sigma[s] * part.U[(size_t)s * (size_t)part.m + (size_t)i];
+            resid += diff * diff;
+        }
+        resid = sqrt(resid);
+        if (resid > max_resid)
+            max_resid = resid;
+    }
+    printf("    nos4 A*v ≈ sigma*u max_resid=%.2e\n", max_resid);
+    ASSERT_TRUE(max_resid < 1e-4);
+
+    free(Av);
+    free(v);
+    sparse_svd_free(&part);
+    sparse_svd_free(&full);
+    sparse_free(A);
+}
+
+/* west0067 (67×67 unsymmetric): partial SVD vectors k=3 */
+static void test_partial_svd_vectors_west0067(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t lerr = sparse_load_mm(&A, "tests/data/suitesparse/west0067.mtx");
+    if (lerr != SPARSE_OK || !A) {
+        printf("    SKIP: west0067.mtx not found\n");
+        return;
+    }
+
+    idx_t k = 3;
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t part;
+    sparse_err_t err = sparse_svd_partial(A, k, &opts, &part);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* A*v ≈ sigma*u */
+    double *Av = calloc((size_t)part.m, sizeof(double));
+    double *v = calloc((size_t)part.n, sizeof(double));
+    if (!Av || !v) {
+        free(Av);
+        free(v);
+        sparse_svd_free(&part);
+        sparse_free(A);
+        ASSERT_NOT_NULL(Av);
+        return;
+    }
+    double max_resid = 0.0;
+    for (idx_t s = 0; s < k; s++) {
+        for (idx_t j = 0; j < part.n; j++)
+            v[j] = part.Vt[(size_t)j * (size_t)k + (size_t)s];
+        memset(Av, 0, (size_t)part.m * sizeof(double));
+        sparse_matvec(A, v, Av);
+        double resid = 0.0;
+        for (idx_t i = 0; i < part.m; i++) {
+            double diff = Av[i] - part.sigma[s] * part.U[(size_t)s * (size_t)part.m + (size_t)i];
+            resid += diff * diff;
+        }
+        resid = sqrt(resid);
+        if (resid > max_resid)
+            max_resid = resid;
+    }
+    printf("    west0067 partial vectors: max_resid=%.2e\n", max_resid);
+    ASSERT_TRUE(max_resid < 1e-4);
+
+    free(Av);
+    free(v);
+    sparse_svd_free(&part);
+    sparse_free(A);
+}
+
+/* Reconstruction: ||A - sum sigma_i * u_i * v_i^T|| ≈ sigma_{k+1} */
+static void test_partial_svd_vectors_recon(void) {
+    SparseMatrix *A = sparse_create(10, 10);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Tridiagonal with distinct singular values */
+    for (idx_t i = 0; i < 10; i++) {
+        sparse_insert(A, i, i, 2.0 * (double)(i + 1));
+        if (i + 1 < 10)
+            sparse_insert(A, i, i + 1, 1.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, 1.0);
+    }
+
+    /* Full SVD for sigma_{k+1} reference */
+    sparse_svd_t full;
+    sparse_err_t err = sparse_svd_compute(A, NULL, &full);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    idx_t k = 3;
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t part;
+    err = sparse_svd_partial(A, k, &opts, &part);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* Compute ||A - sum_{s=0}^{k-1} sigma_s * u_s * v_s^T||_F */
+    double frob_sq = 0.0;
+    for (idx_t i = 0; i < 10; i++) {
+        for (idx_t j = 0; j < 10; j++) {
+            double approx = 0.0;
+            for (idx_t s = 0; s < k; s++)
+                approx += part.U[(size_t)s * 10 + (size_t)i] * part.sigma[s] *
+                          part.Vt[(size_t)j * (size_t)k + (size_t)s];
+            double diff = sparse_get(A, i, j) - approx;
+            frob_sq += diff * diff;
+        }
+    }
+    double frob = sqrt(frob_sq);
+
+    /* Expected: sqrt(sum_{i=k}^{n-1} sigma_i^2) from full SVD */
+    double expected_sq = 0.0;
+    for (idx_t i = k; i < full.k; i++)
+        expected_sq += full.sigma[i] * full.sigma[i];
+    double expected = sqrt(expected_sq);
+
+    printf("    reconstruction error: %.4f, expected: %.4f\n", frob, expected);
+    /* Lanczos approximation may not be exact, allow 20% tolerance */
+    ASSERT_TRUE(frob < expected * 1.2 + 0.1);
+
+    sparse_svd_free(&full);
+    sparse_svd_free(&part);
+    sparse_free(A);
+}
+
+/* k=1: single largest singular triplet */
+static void test_partial_svd_vectors_k1(void) {
+    SparseMatrix *A = sparse_create(5, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Diagonal: sigma = [10, 7, 5, 3, 1] */
+    double d[] = {10.0, 7.0, 5.0, 3.0, 1.0};
+    for (idx_t i = 0; i < 5; i++)
+        sparse_insert(A, i, i, d[i]);
+
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_partial(A, 1, &opts, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_NOT_NULL(svd.U);
+    ASSERT_NOT_NULL(svd.Vt);
+
+    ASSERT_TRUE(fabs(svd.sigma[0] - 10.0) < 0.1);
+
+    /* u and v should be ±e_0 */
+    double max_u = 0.0;
+    idx_t max_u_idx = 0;
+    for (idx_t i = 0; i < 5; i++) {
+        if (fabs(svd.U[i]) > max_u) {
+            max_u = fabs(svd.U[i]);
+            max_u_idx = i;
+        }
+    }
+    ASSERT_EQ(max_u_idx, 0);
+    ASSERT_TRUE(max_u > 0.9);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Rectangular wide (m < n) with vectors */
+static void test_partial_svd_vectors_wide(void) {
+    SparseMatrix *A = sparse_create(4, 8);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Diagonal block: A[i][i] = 5-i for i=0..3 */
+    for (idx_t i = 0; i < 4; i++)
+        sparse_insert(A, i, i, (double)(5 - i));
+
+    idx_t k = 2;
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1, .max_iter = 0, .tol = 0.0};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_partial(A, k, &opts, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_NOT_NULL(svd.U);
+    ASSERT_NOT_NULL(svd.Vt);
+
+    ASSERT_TRUE(fabs(svd.sigma[0] - 5.0) < 0.1);
+    ASSERT_TRUE(fabs(svd.sigma[1] - 4.0) < 0.1);
+
+    /* A*v ≈ sigma*u */
+    double *Av = calloc((size_t)svd.m, sizeof(double));
+    double *v = calloc((size_t)svd.n, sizeof(double));
+    if (!Av || !v) {
+        free(Av);
+        free(v);
+        sparse_svd_free(&svd);
+        sparse_free(A);
+        ASSERT_NOT_NULL(Av);
+        return;
+    }
+    double max_resid = 0.0;
+    for (idx_t s = 0; s < k; s++) {
+        for (idx_t j = 0; j < svd.n; j++)
+            v[j] = svd.Vt[(size_t)j * (size_t)k + (size_t)s];
+        memset(Av, 0, (size_t)svd.m * sizeof(double));
+        sparse_matvec(A, v, Av);
+        double resid = 0.0;
+        for (idx_t i = 0; i < svd.m; i++) {
+            double diff = Av[i] - svd.sigma[s] * svd.U[(size_t)s * (size_t)svd.m + (size_t)i];
+            resid += diff * diff;
+        }
+        resid = sqrt(resid);
+        if (resid > max_resid)
+            max_resid = resid;
+    }
+    printf("    wide 4x8 partial vectors: max_resid=%.2e\n", max_resid);
+    ASSERT_TRUE(max_resid < 1e-6);
+
+    free(Av);
+    free(v);
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* compute_uv=0 still works (no vectors allocated) */
+static void test_partial_svd_no_vectors(void) {
+    SparseMatrix *A = sparse_create(5, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < 5; i++)
+        sparse_insert(A, i, i, (double)(i + 1));
+
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_partial(A, 3, NULL, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_TRUE(svd.U == NULL);
+    ASSERT_TRUE(svd.Vt == NULL);
+    ASSERT_NOT_NULL(svd.sigma);
+    ASSERT_TRUE(fabs(svd.sigma[0] - 5.0) < 0.1);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sparse low-rank output (Sprint 9 Day 6)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Diagonal rank-k: exact entries preserved */
+static void test_lowrank_sparse_diagonal(void) {
+    SparseMatrix *A = sparse_create(4, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 10.0);
+    sparse_insert(A, 1, 1, 5.0);
+    sparse_insert(A, 2, 2, 2.0);
+    sparse_insert(A, 3, 3, 1.0);
+
+    SparseMatrix *out = NULL;
+    sparse_err_t err = sparse_svd_lowrank_sparse(A, 2, 0.0, &out);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_NOT_NULL(out);
+
+    /* Rank-2 of diag(10,5,2,1) = diag(10,5,0,0) */
+    ASSERT_NEAR(sparse_get(out, 0, 0), 10.0, 1e-10);
+    ASSERT_NEAR(sparse_get(out, 1, 1), 5.0, 1e-10);
+    ASSERT_NEAR(sparse_get(out, 2, 2), 0.0, 1e-10);
+    ASSERT_NEAR(sparse_get(out, 3, 3), 0.0, 1e-10);
+
+    sparse_free(out);
+    sparse_free(A);
+}
+
+/* Sparsity reduction with drop_tol */
+static void test_lowrank_sparse_sparsity(void) {
+    SparseMatrix *A = sparse_create(6, 6);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Tridiagonal */
+    for (idx_t i = 0; i < 6; i++) {
+        sparse_insert(A, i, i, 10.0 * (double)(i + 1));
+        if (i + 1 < 6)
+            sparse_insert(A, i, i + 1, 1.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, 1.0);
+    }
+    idx_t orig_nnz = sparse_nnz(A);
+
+    /* Rank-2 with drop_tol=0.5: should drop small entries */
+    SparseMatrix *out = NULL;
+    sparse_err_t err = sparse_svd_lowrank_sparse(A, 2, 0.5, &out);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_NOT_NULL(out);
+
+    idx_t out_nnz = sparse_nnz(out);
+    printf("    sparse lowrank: orig_nnz=%d, out_nnz=%d\n", (int)orig_nnz, (int)out_nnz);
+    ASSERT_TRUE(out_nnz <= orig_nnz);
+    ASSERT_TRUE(out_nnz > 0);
+
+    sparse_free(out);
+    sparse_free(A);
+}
+
+/* Compare with dense lowrank: ||sparse - dense||_F < drop_tol * sqrt(m*n) */
+static void test_lowrank_sparse_vs_dense(void) {
+    SparseMatrix *A = sparse_create(5, 5);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Tridiagonal */
+    for (idx_t i = 0; i < 5; i++) {
+        sparse_insert(A, i, i, 3.0 * (double)(i + 1));
+        if (i + 1 < 5)
+            sparse_insert(A, i, i + 1, 1.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, 1.0);
+    }
+
+    idx_t rank_k = 3;
+    double drop_tol = 0.01;
+
+    /* Dense low-rank */
+    double *dense = NULL;
+    sparse_err_t err = sparse_svd_lowrank(A, rank_k, &dense);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* Sparse low-rank */
+    SparseMatrix *sp = NULL;
+    err = sparse_svd_lowrank_sparse(A, rank_k, drop_tol, &sp);
+    ASSERT_EQ(err, SPARSE_OK);
+
+    /* ||sparse - dense||_F should be bounded by number of dropped entries * drop_tol */
+    double frob_sq = 0.0;
+    for (idx_t i = 0; i < 5; i++) {
+        for (idx_t j = 0; j < 5; j++) {
+            double d_val = dense[(size_t)j * 5 + (size_t)i]; /* col-major */
+            double s_val = sparse_get(sp, i, j);
+            double diff = d_val - s_val;
+            frob_sq += diff * diff;
+        }
+    }
+    double frob = sqrt(frob_sq);
+    printf("    sparse vs dense lowrank diff: %.2e (tol*sqrt(mn)=%.2e)\n", frob,
+           drop_tol * sqrt(25.0));
+    ASSERT_TRUE(frob < drop_tol * sqrt(25.0));
+
+    free(dense);
+    sparse_free(sp);
+    sparse_free(A);
+}
+
+/* k=1 on rank-1 matrix: result ≈ original */
+static void test_lowrank_sparse_rank1(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* rank-1: all entries = row+1 */
+    for (idx_t i = 0; i < 3; i++)
+        for (idx_t j = 0; j < 3; j++)
+            sparse_insert(A, i, j, (double)(i + 1));
+
+    SparseMatrix *out = NULL;
+    sparse_err_t err = sparse_svd_lowrank_sparse(A, 1, 0.0, &out);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_NOT_NULL(out);
+
+    double max_err = 0.0;
+    for (idx_t i = 0; i < 3; i++) {
+        for (idx_t j = 0; j < 3; j++) {
+            double e = fabs(sparse_get(out, i, j) - (double)(i + 1));
+            if (e > max_err)
+                max_err = e;
+        }
+    }
+    printf("    rank-1 sparse lowrank error: %.2e\n", max_err);
+    ASSERT_TRUE(max_err < 1e-8);
+
+    sparse_free(out);
+    sparse_free(A);
+}
+
+/* Rectangular matrix: correct dimensions */
+static void test_lowrank_sparse_rectangular(void) {
+    SparseMatrix *A = sparse_create(4, 6);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < 4; i++)
+        sparse_insert(A, i, i, (double)(5 - i));
+
+    SparseMatrix *out = NULL;
+    sparse_err_t err = sparse_svd_lowrank_sparse(A, 2, 0.0, &out);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_NOT_NULL(out);
+
+    ASSERT_EQ(sparse_rows(out), 4);
+    ASSERT_EQ(sparse_cols(out), 6);
+    ASSERT_NEAR(sparse_get(out, 0, 0), 5.0, 1e-10);
+    ASSERT_NEAR(sparse_get(out, 1, 1), 4.0, 1e-10);
+    ASSERT_NEAR(sparse_get(out, 2, 2), 0.0, 1e-10);
+
+    sparse_free(out);
+    sparse_free(A);
+}
+
+/* NULL and bad args */
+static void test_lowrank_sparse_errors(void) {
+    SparseMatrix *out = NULL;
+    ASSERT_ERR(sparse_svd_lowrank_sparse(NULL, 2, 0.0, &out), SPARSE_ERR_NULL);
+    ASSERT_TRUE(out == NULL);
+
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 1.0);
+
+    ASSERT_ERR(sparse_svd_lowrank_sparse(A, 0, 0.0, &out), SPARSE_ERR_BADARG);
+    ASSERT_ERR(sparse_svd_lowrank_sparse(A, 4, 0.0, &out), SPARSE_ERR_BADARG);
+    ASSERT_ERR(sparse_svd_lowrank_sparse(A, 2, 0.0, NULL), SPARSE_ERR_NULL);
+
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Condition number tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Identity matrix: cond = 1.0 */
+static void test_cond_identity(void) {
+    SparseMatrix *A = sparse_create(4, 4);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < 4; i++)
+        sparse_insert(A, i, i, 1.0);
+
+    sparse_err_t err;
+    double c = sparse_cond(A, &err);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_NEAR(c, 1.0, 1e-10);
+
+    sparse_free(A);
+}
+
+/* Diagonal with known condition number */
+static void test_cond_diagonal(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 100.0);
+    sparse_insert(A, 1, 1, 10.0);
+    sparse_insert(A, 2, 2, 1.0);
+
+    sparse_err_t err;
+    double c = sparse_cond(A, &err);
+    ASSERT_EQ(err, SPARSE_OK);
+    printf("    cond(diag(100,10,1)) = %.2f\n", c);
+    ASSERT_NEAR(c, 100.0, 1e-8);
+
+    sparse_free(A);
+}
+
+/* Singular matrix: cond = INFINITY */
+static void test_cond_singular(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* rank-1: all rows identical */
+    for (idx_t i = 0; i < 3; i++)
+        for (idx_t j = 0; j < 3; j++)
+            sparse_insert(A, i, j, 1.0);
+
+    sparse_err_t err;
+    double c = sparse_cond(A, &err);
+    ASSERT_EQ(err, SPARSE_OK);
+    printf("    cond(rank-1 3x3) = %f\n", c);
+    ASSERT_TRUE(c == INFINITY);
+
+    sparse_free(A);
+}
+
+/* 1×1 nonzero: cond = 1.0 */
+static void test_cond_1x1(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 42.0);
+
+    sparse_err_t err;
+    double c = sparse_cond(A, &err);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_NEAR(c, 1.0, 1e-10);
+
+    sparse_free(A);
+}
+
+/* 1×1 zero: cond = INFINITY */
+static void test_cond_1x1_zero(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* No entries → zero matrix */
+
+    sparse_err_t err;
+    double c = sparse_cond(A, &err);
+    ASSERT_EQ(err, SPARSE_OK);
+    ASSERT_TRUE(c == INFINITY);
+
+    sparse_free(A);
+}
+
+/* Rectangular matrix: cond based on min(m,n) singular values */
+static void test_cond_rectangular(void) {
+    SparseMatrix *A = sparse_create(4, 2);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* A = [3 0; 0 1; 0 0; 0 0] → sigma = [3, 1], cond = 3 */
+    sparse_insert(A, 0, 0, 3.0);
+    sparse_insert(A, 1, 1, 1.0);
+
+    sparse_err_t err;
+    double c = sparse_cond(A, &err);
+    ASSERT_EQ(err, SPARSE_OK);
+    printf("    cond(4x2 diag(3,1)) = %.2f\n", c);
+    ASSERT_NEAR(c, 3.0, 1e-8);
+
+    sparse_free(A);
+}
+
+/* Ill-conditioned matrix: large condition number */
+static void test_cond_ill_conditioned(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 1e6);
+    sparse_insert(A, 1, 1, 1.0);
+    sparse_insert(A, 2, 2, 1e-6);
+
+    sparse_err_t err;
+    double c = sparse_cond(A, &err);
+    ASSERT_EQ(err, SPARSE_OK);
+    printf("    cond(diag(1e6,1,1e-6)) = %.2e\n", c);
+    ASSERT_NEAR(c, 1e12, 1e6); /* 1e6 / 1e-6 = 1e12 */
+
+    sparse_free(A);
+}
+
+/* NULL input */
+static void test_cond_null(void) {
+    sparse_err_t err;
+    double c = sparse_cond(NULL, &err);
+    ASSERT_EQ(err, SPARSE_ERR_NULL);
+    ASSERT_TRUE(c == INFINITY);
+
+    /* NULL err pointer should not crash */
+    c = sparse_cond(NULL, NULL);
+    ASSERT_TRUE(c == INFINITY);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -2098,6 +3184,15 @@ int main(void) {
     RUN_TEST(test_svd_descending);
     RUN_TEST(test_svd_trace_invariant);
     RUN_TEST(test_svd_rank1);
+    RUN_TEST(test_svd_rank1_uv);
+    RUN_TEST(test_svd_rank2);
+    RUN_TEST(test_svd_rank5_in_10x10);
+    RUN_TEST(test_svd_rank1_square);
+    RUN_TEST(test_svd_rank1_wide);
+    RUN_TEST(test_svd_near_singular);
+    RUN_TEST(test_svd_multi_zero_diag);
+    RUN_TEST(test_svd_rank2_dense);
+    RUN_TEST(test_svd_suitesparse_rank_deficient);
 
     /* SVD edge cases (Day 8) */
     RUN_TEST(test_bidiag_svd_zero_super);
@@ -2147,6 +3242,37 @@ int main(void) {
     RUN_TEST(test_lowrank_diagonal);
     RUN_TEST(test_lowrank_error_bound);
     RUN_TEST(test_lowrank_errors);
+
+    /* Partial SVD with vectors (Sprint 9 Day 4) */
+    RUN_TEST(test_partial_svd_vectors_ortho);
+    RUN_TEST(test_partial_svd_vectors_Av);
+    RUN_TEST(test_partial_svd_vectors_vs_full);
+
+    /* Partial SVD vector validation (Sprint 9 Day 5) */
+    RUN_TEST(test_partial_svd_vectors_nos4);
+    RUN_TEST(test_partial_svd_vectors_west0067);
+    RUN_TEST(test_partial_svd_vectors_recon);
+    RUN_TEST(test_partial_svd_vectors_k1);
+    RUN_TEST(test_partial_svd_vectors_wide);
+    RUN_TEST(test_partial_svd_no_vectors);
+
+    /* Sparse low-rank output (Sprint 9 Day 6) */
+    RUN_TEST(test_lowrank_sparse_diagonal);
+    RUN_TEST(test_lowrank_sparse_sparsity);
+    RUN_TEST(test_lowrank_sparse_vs_dense);
+    RUN_TEST(test_lowrank_sparse_rank1);
+    RUN_TEST(test_lowrank_sparse_rectangular);
+    RUN_TEST(test_lowrank_sparse_errors);
+
+    /* Condition number (Sprint 9 Day 3) */
+    RUN_TEST(test_cond_identity);
+    RUN_TEST(test_cond_diagonal);
+    RUN_TEST(test_cond_singular);
+    RUN_TEST(test_cond_1x1);
+    RUN_TEST(test_cond_1x1_zero);
+    RUN_TEST(test_cond_rectangular);
+    RUN_TEST(test_cond_ill_conditioned);
+    RUN_TEST(test_cond_null);
 
     TEST_SUITE_END();
 }

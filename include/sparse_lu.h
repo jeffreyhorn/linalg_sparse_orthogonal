@@ -89,7 +89,7 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
  * @return SPARSE_ERR_SINGULAR if a zero (or below-tolerance) pivot is encountered.
  * @return SPARSE_ERR_ALLOC if memory allocation fails during fill-in.
  *
- * @threadsafety Mutates mat. Not safe to call concurrently on the same matrix.
+ * @par Thread safety: Mutates mat. Not safe to call concurrently on the same matrix.
  *               Safe to call concurrently on different matrices.
  */
 sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double tol);
@@ -105,7 +105,7 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double to
  * @param x    Solution vector of length n (overwritten). May alias b.
  * @return SPARSE_OK on success, SPARSE_ERR_NULL if any argument is NULL.
  *
- * @threadsafety Read-only on mat. Safe to call concurrently on the same
+ * @par Thread safety: Read-only on mat. Safe to call concurrently on the same
  *               factored matrix with different b/x vectors.
  */
 sparse_err_t sparse_lu_solve(const SparseMatrix *mat, const double *b, double *x);

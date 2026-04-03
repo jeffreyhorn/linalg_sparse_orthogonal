@@ -123,7 +123,7 @@ typedef sparse_err_t (*sparse_precond_fn)(const void *ctx, idx_t n, const double
  * @return SPARSE_ERR_BADARG if opts has negative max_iter or tol.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
  *
- * @threadsafety Read-only on A. Safe to call concurrently on the same matrix
+ * @par Thread safety: Read-only on A. Safe to call concurrently on the same matrix
  *               with different b/x vectors.
  */
 sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
@@ -156,7 +156,7 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
  * @return SPARSE_ERR_BADARG if opts has negative max_iter or tol, or restart <= 0.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails or overflows.
  *
- * @threadsafety Read-only on A. Safe to call concurrently on the same matrix
+ * @par Thread safety: Read-only on A. Safe to call concurrently on the same matrix
  *               with different b/x vectors.
  */
 sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *x,

@@ -94,10 +94,16 @@ sparse_err_t sparse_to_csc(const SparseMatrix *mat, SparseCsc **csc);
  */
 sparse_err_t sparse_from_csc(const SparseCsc *csc, SparseMatrix **mat);
 
-/** @brief Free a CSR structure and its arrays. */
+/**
+ * @brief Free a CSR structure and its arrays.
+ * @param csr  The CSR structure to free. Safe to call on a zeroed struct.
+ */
 void sparse_csr_free(SparseCsr *csr);
 
-/** @brief Free a CSC structure and its arrays. */
+/**
+ * @brief Free a CSC structure and its arrays.
+ * @param csc  The CSC structure to free. Safe to call on a zeroed struct.
+ */
 void sparse_csc_free(SparseCsc *csc);
 
 #endif /* SPARSE_CSR_H */

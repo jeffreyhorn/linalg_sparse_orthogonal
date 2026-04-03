@@ -335,22 +335,78 @@ sparse_err_t bidiag_svd_iterate(double *diag, double *superdiag, idx_t k, double
             lo--;
         }
 
-        /* Check for zero diagonal entries — need special handling */
+        /* Check for zero diagonal entries — need special handling
+         * per Golub & Van Loan Algorithm 8.6.2.  When a diagonal
+         * entry is near-zero, the standard implicit QR step fails.
+         * We chase the associated superdiagonal entry away using
+         * Givens rotations, enabling deflation. */
         int has_zero_diag = 0;
         for (idx_t i = lo; i <= hi; i++) {
-            if (fabs(diag[i]) < 1e-30) {
+            if (fabs(diag[i]) < abs_tol) {
                 has_zero_diag = 1;
-                /* Zero out the row by rotating superdiag into adjacent entries */
-                if (i < hi && fabs(superdiag[i]) > 1e-30) {
-                    double c, s;
-                    givens_compute(diag[i + 1], superdiag[i], &c, &s);
-                    diag[i + 1] = c * diag[i + 1] + s * superdiag[i];
+                diag[i] = 0.0; /* force exact zero */
+
+                if (i < hi) {
+                    /* Interior zero diagonal: chase superdiag[i] DOWNWARD
+                     * using left rotations on rows (j, i) for j = i+1..hi.
+                     * Each rotation zeroes the bulge at (i, j) but creates
+                     * a new one at (i, j+1).  Only updates U.
+                     *
+                     * Note: rotations are between row i (fixed) and row j
+                     * (varying), NOT between adjacent rows.  This is valid
+                     * because the bidiagonal has no entries at (j, i) for
+                     * j > i+1, so the rotation only affects columns j and
+                     * j+1 in the relevant rows.  The bulge moves rightward
+                     * along row i until it falls off at column hi+1. */
+                    double bulge = superdiag[i];
                     superdiag[i] = 0.0;
-                    if (U)
-                        givens_apply_left(c, s, &U[(size_t)(i + 1) * (size_t)m],
-                                          &U[(size_t)i * (size_t)m], m);
+
+                    for (idx_t j = i + 1; j <= hi; j++) {
+                        double c, s;
+                        givens_compute(diag[j], bulge, &c, &s);
+                        diag[j] = c * diag[j] + s * bulge;
+
+                        if (j < hi) {
+                            double old_e = superdiag[j];
+                            superdiag[j] = c * old_e;
+                            bulge = -s * old_e;
+                        }
+
+                        if (U)
+                            givens_apply_left(c, s, &U[(size_t)j * (size_t)m],
+                                              &U[(size_t)i * (size_t)m], m);
+                    }
+                } else {
+                    /* Zero diagonal at bottom (i == hi): chase
+                     * superdiag[hi-1] UPWARD using right rotations on
+                     * columns (j, hi) for j = hi-1..lo.  Each rotation
+                     * zeroes the bulge at (j, hi) but creates a new one
+                     * at (j-1, hi).  Only updates V.
+                     *
+                     * Rotations are between column j (varying) and column
+                     * hi (fixed).  This is the column-space analogue of
+                     * the downward chase: the bulge moves upward along
+                     * column hi until it falls off at row lo-1. */
+                    double bulge = superdiag[hi - 1];
+                    superdiag[hi - 1] = 0.0;
+
+                    for (idx_t j = hi - 1; j >= lo; j--) {
+                        double c, s;
+                        givens_compute(diag[j], bulge, &c, &s);
+                        diag[j] = c * diag[j] + s * bulge;
+
+                        if (j > lo) {
+                            double old_e = superdiag[j - 1];
+                            superdiag[j - 1] = c * old_e;
+                            bulge = -s * old_e;
+                        }
+
+                        if (V)
+                            givens_apply_left(c, s, &V[(size_t)j * (size_t)n],
+                                              &V[(size_t)hi * (size_t)n], n);
+                    }
                 }
-                break;
+                break; /* handle one zero at a time, re-check deflation */
             }
         }
         if (has_zero_diag) {
@@ -663,6 +719,10 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     if (opts && (opts->max_iter < 0 || opts->tol < 0.0))
         return SPARSE_ERR_BADARG;
 
+    /* Enforce compute_uv requires economy=1 (same as sparse_svd_compute) */
+    if (opts && opts->compute_uv && !opts->economy)
+        return SPARSE_ERR_BADARG;
+
     /* Reject non-identity permutations (same check as sparse_bidiag_factor) */
     {
         const idx_t *rp = sparse_row_perm(A);
@@ -820,8 +880,16 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     }
 
     sparse_free(At);
-    free(P);
-    free(Q);
+
+    /* Check if singular vectors are requested.
+     * Free P/Q early when not needed to reduce peak memory. */
+    int compute_uv = opts ? opts->compute_uv : 0;
+    if (!compute_uv) {
+        free(P);
+        free(Q);
+        P = NULL;
+        Q = NULL;
+    }
 
     /* Now we have a lanczos_k x lanczos_k bidiagonal with
      * diag=alpha, superdiag=beta[1..lanczos_k-1] */
@@ -831,12 +899,16 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
         if (size_mul_overflow((size_t)(lanczos_k - 1), sizeof(double), &bd_super_bytes)) {
             free(alpha);
             free(beta);
+            free(P);
+            free(Q);
             return SPARSE_ERR_ALLOC;
         }
         bd_super = malloc(bd_super_bytes);
         if (!bd_super) {
             free(alpha);
             free(beta);
+            free(P);
+            free(Q);
             return SPARSE_ERR_ALLOC;
         }
         for (idx_t i = 0; i < lanczos_k - 1; i++)
@@ -844,23 +916,76 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     }
     free(beta);
 
+    /* Allocate small U and V matrices for bidiag SVD if computing vectors */
+    double *U_small = NULL;
+    double *V_small = NULL;
+    if (compute_uv) {
+        size_t lk2;
+        if (size_mul_overflow((size_t)lanczos_k, (size_t)lanczos_k, &lk2) ||
+            lk2 > SIZE_MAX / sizeof(double)) {
+            free(alpha);
+            free(bd_super);
+            free(P);
+            free(Q);
+            return SPARSE_ERR_ALLOC;
+        }
+        U_small = calloc(lk2, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
+        V_small = calloc(lk2, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
+        if (!U_small || !V_small) {
+            free(alpha);
+            free(bd_super);
+            free(P);
+            free(Q);
+            free(U_small);
+            free(V_small);
+            return SPARSE_ERR_ALLOC;
+        }
+        /* Initialize to identity */
+        for (idx_t i = 0; i < lanczos_k; i++) {
+            U_small[(size_t)i * (size_t)lanczos_k + (size_t)i] = 1.0;
+            V_small[(size_t)i * (size_t)lanczos_k + (size_t)i] = 1.0;
+        }
+    }
+
     /* Run bidiagonal SVD iteration on the small lanczos_k x lanczos_k bidiag */
     idx_t max_iter_val = opts ? opts->max_iter : 0;
     double tol_val = opts ? opts->tol : 0.0;
-    sparse_err_t err =
-        bidiag_svd_iterate(alpha, bd_super, lanczos_k, NULL, 0, NULL, 0, max_iter_val, tol_val);
+    sparse_err_t err = bidiag_svd_iterate(alpha, bd_super, lanczos_k, U_small, lanczos_k, V_small,
+                                          lanczos_k, max_iter_val, tol_val);
     free(bd_super);
 
     if (err != SPARSE_OK) {
         free(alpha);
+        free(P);
+        free(Q);
+        free(U_small);
+        free(V_small);
         return err;
     }
 
-    /* Make non-negative and sort descending */
+    /* Sort singular values descending, tracking permutation only when
+     * compute_uv is set (perm is only needed for vector recovery). */
+    idx_t *perm = NULL;
+    if (compute_uv) {
+        perm = malloc((size_t)lanczos_k * sizeof(idx_t));
+        if (!perm) {
+            free(alpha);
+            free(P);
+            free(Q);
+            free(U_small);
+            free(V_small);
+            return SPARSE_ERR_ALLOC;
+        }
+        for (idx_t i = 0; i < lanczos_k; i++)
+            perm[i] = i;
+    }
+
+    /* Make non-negative */
     for (idx_t i = 0; i < lanczos_k; i++)
         if (alpha[i] < 0.0)
             alpha[i] = -alpha[i];
 
+    /* Selection sort descending */
     for (idx_t i = 0; i < lanczos_k - 1; i++) {
         idx_t best = i;
         for (idx_t j = i + 1; j < lanczos_k; j++)
@@ -870,6 +995,11 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
             double tmp = alpha[i];
             alpha[i] = alpha[best];
             alpha[best] = tmp;
+            if (perm) {
+                idx_t ptmp = perm[i];
+                perm[i] = perm[best];
+                perm[best] = ptmp;
+            }
         }
     }
 
@@ -877,17 +1007,98 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     size_t sigma_bytes;
     if (size_mul_overflow((size_t)kk, sizeof(double), &sigma_bytes)) {
         free(alpha);
+        free(perm);
+        free(P);
+        free(Q);
+        free(U_small);
+        free(V_small);
         return SPARSE_ERR_ALLOC;
     }
     double *sigma = malloc(sigma_bytes);
     if (!sigma) {
         free(alpha);
+        free(perm);
+        free(P);
+        free(Q);
+        free(U_small);
+        free(V_small);
         return SPARSE_ERR_ALLOC;
     }
     memcpy(sigma, alpha, sigma_bytes);
     free(alpha);
 
     svd->sigma = sigma;
+
+    /* Recover approximate singular vectors if requested */
+    if (compute_uv) {
+        /* U_approx (m×kk column-major): U[:,s] = P * U_small[:,perm[s]]
+         * Vt (kk×n column-major): Vt[j*kk+s] = sum_t Q[t*n+j] * V_small[perm[s]*lk+t] */
+        size_t sz_u_out, sz_vt_out;
+        if (size_mul_overflow((size_t)m, (size_t)kk, &sz_u_out) ||
+            size_mul_overflow((size_t)kk, (size_t)n, &sz_vt_out) ||
+            sz_u_out > SIZE_MAX / sizeof(double) || sz_vt_out > SIZE_MAX / sizeof(double)) {
+            free(perm);
+            free(P);
+            free(Q);
+            free(U_small);
+            free(V_small);
+            sparse_svd_free(svd);
+            return SPARSE_ERR_ALLOC;
+        }
+        double *U_out =
+            calloc(sz_u_out, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
+        double *Vt_out =
+            calloc(sz_vt_out, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
+        if (!U_out || !Vt_out) {
+            free(U_out);
+            free(Vt_out);
+            free(perm);
+            free(P);
+            free(Q);
+            free(U_small);
+            free(V_small);
+            sparse_svd_free(svd);
+            return SPARSE_ERR_ALLOC;
+        }
+
+        /* U_out[s*m + i] = sum_t P[t*m + i] * U_small[perm[s]*lanczos_k + t] */
+        for (idx_t s = 0; s < kk; s++) {
+            // NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign)
+            idx_t ps = perm[s];
+            for (idx_t t = 0; t < lanczos_k; t++) {
+                double coeff = U_small[(size_t)ps * (size_t)lanczos_k + (size_t)t];
+                if (coeff == 0.0)
+                    continue;
+                double *p_col = &P[(size_t)t * (size_t)m];
+                double *u_col = &U_out[(size_t)s * (size_t)m];
+                for (idx_t i = 0; i < m; i++)
+                    u_col[i] += coeff * p_col[i];
+            }
+        }
+
+        /* Vt_out[j*kk + s] = sum_t Q[t*n + j] * V_small[perm[s]*lanczos_k + t] */
+        for (idx_t s = 0; s < kk; s++) {
+            idx_t ps = perm[s];
+            for (idx_t t = 0; t < lanczos_k; t++) {
+                double coeff = V_small[(size_t)ps * (size_t)lanczos_k + (size_t)t];
+                if (coeff == 0.0)
+                    continue;
+                double *q_col = &Q[(size_t)t * (size_t)n];
+                for (idx_t j = 0; j < n; j++)
+                    Vt_out[(size_t)j * (size_t)kk + (size_t)s] += coeff * q_col[j];
+            }
+        }
+
+        svd->U = U_out;
+        svd->Vt = Vt_out;
+        svd->economy = 1;
+    }
+
+    free(perm);
+    free(P);
+    free(Q);
+    free(U_small);
+    free(V_small);
     return SPARSE_OK;
 }
 
@@ -1059,4 +1270,168 @@ sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lo
     *lowrank = result;
     sparse_svd_free(&svd);
     return SPARSE_OK;
+}
+
+sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, double drop_tol,
+                                       SparseMatrix **result) {
+    if (!result)
+        return SPARSE_ERR_NULL;
+    *result = NULL;
+    if (!A)
+        return SPARSE_ERR_NULL;
+
+    idx_t m = sparse_rows(A);
+    idx_t n = sparse_cols(A);
+    idx_t kmax = (m < n) ? m : n;
+
+    if (rank_k <= 0 || rank_k > kmax)
+        return SPARSE_ERR_BADARG;
+
+    /* Reject non-identity permutations */
+    {
+        const idx_t *rp = sparse_row_perm(A);
+        const idx_t *cp = sparse_col_perm(A);
+        if (rp) {
+            for (idx_t i = 0; i < m; i++)
+                if (rp[i] != i)
+                    return SPARSE_ERR_BADARG;
+        }
+        if (cp) {
+            for (idx_t i = 0; i < n; i++)
+                if (cp[i] != i)
+                    return SPARSE_ERR_BADARG;
+        }
+    }
+
+    /* Full SVD with U and Vt */
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, &opts, &svd);
+    if (err != SPARSE_OK)
+        return err;
+
+    /* Short-circuit for all-zero matrix: no outer products to accumulate */
+    if (svd.sigma[0] == 0.0) {
+        sparse_svd_free(&svd);
+        SparseMatrix *out = sparse_create(m, n);
+        if (!out)
+            return SPARSE_ERR_ALLOC;
+        *result = out;
+        return SPARSE_OK;
+    }
+
+    /* Default drop tolerance: eps * sigma_max */
+    if (drop_tol <= 0.0)
+        drop_tol = 2.2204460492503131e-16 * svd.sigma[0];
+
+    SparseMatrix *out = sparse_create(m, n);
+    if (!out) {
+        sparse_svd_free(&svd);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    idx_t k = svd.k;
+    double *U_data = svd.U;
+    double *Vt_data = svd.Vt;
+
+    /* Accumulate A_k via rank-1 outer products into a dense buffer,
+     * then threshold into the sparse result. Avoids repeated sparse_insert
+     * calls during the O(m*n*rank_k) reconstruction. */
+    size_t mn;
+    if (size_mul_overflow((size_t)m, (size_t)n, &mn) || mn > SIZE_MAX / sizeof(double)) {
+        sparse_free(out);
+        sparse_svd_free(&svd);
+        return SPARSE_ERR_ALLOC;
+    }
+    double *accum = calloc(mn, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
+    if (!accum) {
+        sparse_free(out);
+        sparse_svd_free(&svd);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    idx_t s_end = (rank_k < k) ? rank_k : k;
+    for (idx_t s = 0; s < s_end; s++) {
+        double si = svd.sigma[s];
+        if (si == 0.0)
+            break;
+        for (idx_t i = 0; i < m; i++) {
+            double u_scaled = si * U_data[(size_t)s * (size_t)m + (size_t)i];
+            for (idx_t j = 0; j < n; j++)
+                accum[(size_t)i * (size_t)n + (size_t)j] +=
+                    u_scaled * Vt_data[(size_t)j * (size_t)k + (size_t)s];
+        }
+    }
+
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < n; j++) {
+            double val = accum[(size_t)i * (size_t)n + (size_t)j];
+            if (fabs(val) >= drop_tol) {
+                sparse_err_t ierr = sparse_insert(out, i, j, val);
+                if (ierr != SPARSE_OK) {
+                    free(accum);
+                    sparse_free(out);
+                    sparse_svd_free(&svd);
+                    return ierr;
+                }
+            }
+        }
+    }
+    free(accum);
+
+    *result = out;
+    sparse_svd_free(&svd);
+    return SPARSE_OK;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Condition number estimation
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+double sparse_cond(const SparseMatrix *A, sparse_err_t *err) {
+    sparse_err_t dummy;
+    if (!err)
+        err = &dummy;
+
+    if (!A) {
+        *err = SPARSE_ERR_NULL;
+        return INFINITY;
+    }
+
+    idx_t m = sparse_rows(A);
+    idx_t n = sparse_cols(A);
+    idx_t k = (m < n) ? m : n;
+
+    if (k == 0) {
+        *err = SPARSE_OK;
+        return INFINITY;
+    }
+
+    /* Compute full SVD (singular values only) */
+    sparse_svd_t svd;
+    sparse_err_t svd_err = sparse_svd_compute(A, NULL, &svd);
+    if (svd_err != SPARSE_OK) {
+        *err = svd_err;
+        return INFINITY;
+    }
+
+    if (!svd.sigma) { /* LCOV_EXCL_START — cannot happen after SPARSE_OK */
+        sparse_svd_free(&svd);
+        *err = SPARSE_ERR_ALLOC;
+        return INFINITY;
+    } /* LCOV_EXCL_STOP */
+    double sigma_max = svd.sigma[0];
+    double sigma_min = svd.sigma[k - 1];
+
+    sparse_svd_free(&svd);
+
+    /* Singular matrix: sigma_min effectively zero */
+    double tol = 2.2204460492503131e-16 * sigma_max * (double)((m > n) ? m : n);
+    if (sigma_min <= tol) {
+        *err = SPARSE_OK;
+        return INFINITY;
+    }
+
+    *err = SPARSE_OK;
+    return sigma_max / sigma_min;
 }

@@ -17,9 +17,19 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Direct solve** via forward/backward substitution with permutation handling
 - **Iterative refinement** to improve solution accuracy
 
+### Singular Value Decomposition (SVD)
+- **Full SVD** via Golub-Kahan bidiagonalization + implicit QR iteration (A = U·Σ·V^T)
+- **Partial/truncated SVD** via Lanczos bidiagonalization — k largest singular values with optional singular vectors
+- **Zero-diagonal chase** (Golub & Van Loan §8.6.2) for rank-deficient matrices
+- **Condition number** estimation via SVD (`sparse_cond`)
+- **Pseudoinverse** via SVD (`sparse_pinv`) — Moore-Penrose A^+
+- **Low-rank approximation** — dense (`sparse_svd_lowrank`) and sparse (`sparse_svd_lowrank_sparse`) output
+- **Numerical rank** estimation (`sparse_svd_rank`)
+
 ### Iterative Solvers
 - **Conjugate Gradient (CG)** for SPD systems with optional preconditioning
 - **Restarted GMRES(k)** for general unsymmetric systems with left and right preconditioning
+- **Matrix-free variants** — CG and GMRES with user-supplied matvec callback (`sparse_solve_cg_mf`, `sparse_solve_gmres_mf`)
 - **ILU(0) preconditioner** — incomplete LU with no fill-in, 3-1000× iteration reduction
 - **ILUT preconditioner** — ILU with threshold dropping and controlled fill-in, handles zero-diagonal matrices, optional row partial pivoting
 
@@ -56,6 +66,8 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 make            # build library, tests, and benchmarks
 make test       # run all unit tests
 make bench      # run benchmarks
+make examples   # build standalone example programs
+make docs       # generate Doxygen API reference (requires doxygen)
 make omp        # build and test with OpenMP-enabled parallel SpMV
 make sanitize   # build with undefined-behavior sanitizer
 make clean      # remove build artifacts
@@ -179,6 +191,7 @@ int main(void)
 | [`sparse_bidiag.h`](include/sparse_bidiag.h) | Householder bidiagonalization (SVD preprocessing) |
 | [`sparse_csr.h`](include/sparse_csr.h) | CSR/CSC compressed format conversion |
 | [`sparse_reorder.h`](include/sparse_reorder.h) | Fill-reducing reordering (RCM, AMD), permutation, bandwidth |
+| [`sparse_svd.h`](include/sparse_svd.h) | SVD, partial SVD, condition number, pseudoinverse, low-rank approximation |
 | [`sparse_vector.h`](include/sparse_vector.h) | Dense vector utilities (norms, axpy, dot product) |
 
 ### Key Functions
@@ -214,9 +227,21 @@ int main(void)
 - `sparse_qr_nullspace(&qr, tol, basis, &ndim)` — null-space basis extraction
 - `sparse_qr_free(&qr)` — free QR factors
 
+**SVD:**
+- `sparse_svd_compute(A, &opts, &svd)` — full SVD: A = U·Σ·V^T (singular values only or with vectors)
+- `sparse_svd_partial(A, k, &opts, &svd)` — k largest singular values via Lanczos bidiagonalization
+- `sparse_cond(A, &err)` — 2-norm condition number via SVD
+- `sparse_svd_rank(A, tol, &rank)` — numerical rank estimation
+- `sparse_pinv(A, tol, &pinv)` — Moore-Penrose pseudoinverse
+- `sparse_svd_lowrank(A, k, &dense)` — best rank-k approximation (dense output)
+- `sparse_svd_lowrank_sparse(A, k, drop_tol, &sparse)` — best rank-k approximation (sparse output)
+- `sparse_svd_free(&svd)` — free SVD result
+
 **Iterative solvers:**
 - `sparse_solve_cg(A, b, x, &opts, precond, ctx, &result)` — Preconditioned Conjugate Gradient (SPD only)
 - `sparse_solve_gmres(A, b, x, &opts, precond, ctx, &result)` — Restarted GMRES(k) with left/right preconditioning
+- `sparse_solve_cg_mf(matvec, ctx, n, b, x, &opts, precond, ctx, &result)` — Matrix-free CG
+- `sparse_solve_gmres_mf(matvec, ctx, n, b, x, &opts, precond, ctx, &result)` — Matrix-free GMRES
 
 **ILU(0) / ILUT preconditioners:**
 - `sparse_ilu_factor(A, &ilu)` — ILU(0) factorization (no fill-in beyond A's pattern)
@@ -285,31 +310,34 @@ The library is safe for concurrent use under the following contract:
 
 ## Testing
 
-The test suite contains **558 unit tests** across 25 test suites:
+The test suite contains **692 unit tests** across 26 test suites covering:
 
-- Sparse matrix data structure, norms, symmetry check, and transpose (53 tests)
-- LU factorization, solve, transpose solve, and condition estimation (37 tests)
+- Sparse matrix data structure, norms, symmetry, transpose (53 tests)
+- LU factorization, solve, condition estimation (37 tests)
 - Matrix Market I/O with errno validation (22 tests)
 - Known reference matrices (15 tests)
-- Vector utilities, SpMV, and iterative refinement (24 tests)
+- Vector utilities, SpMV, iterative refinement (24 tests)
 - Edge cases and relative tolerance hardening (24 tests)
 - Integration tests (7 tests)
 - Matrix arithmetic — scale and add (23 tests)
 - SuiteSparse real-world matrix validation (10 tests)
-- Reordering — permute, bandwidth, RCM, AMD, factor_opts integration (38 tests)
+- Reordering — RCM, AMD, permutation (38 tests)
 - Cholesky factorization and solve (21 tests)
-- CSR/CSC conversion and round-trip (11 tests)
+- CSR/CSC conversion (11 tests)
 - Sparse matrix-matrix multiply (14 tests)
-- Thread safety — concurrent solve and insert (7 tests)
+- Thread safety (7 tests)
 - Sprint 4 cross-feature integration (5 tests)
-- Iterative solvers — CG, GMRES, convergence, SuiteSparse validation (70 tests)
-- ILU(0) and ILUT preconditioners — factorization, solve, pivoting (34 tests)
-- Parallel SpMV — correctness, reproducibility, solver integration (12 tests)
+- Iterative solvers — CG, GMRES, matrix-free, SuiteSparse (76 tests)
+- ILU(0) and ILUT preconditioners (34 tests)
+- Parallel SpMV (12 tests)
 - Sprint 5 cross-feature integration (9 tests)
-- Sparse QR — Householder, solve, rank, null space, economy, sparse-mode, refinement (71 tests)
+- Sparse QR — Householder, least-squares, rank, null space, economy, sparse-mode (71 tests)
 - Sprint 6 cross-feature integration (7 tests)
-- Dense utilities — create, multiply, Givens, eigensolvers, tridiag QR (34 tests)
-- Bidiagonal reduction and tridiag QR hardening (10 tests)
+- Dense utilities — Givens, eigensolvers, tridiag QR (34 tests)
+- Bidiagonal reduction (12 tests)
+- SVD — full, partial, rank-deficient, condition number, pseudoinverse, low-rank (91 tests)
+- Sprint 8 cross-feature integration (7 tests)
+- Fuzz and property-based tests (24 tests)
 
 ```bash
 make test          # run all tests

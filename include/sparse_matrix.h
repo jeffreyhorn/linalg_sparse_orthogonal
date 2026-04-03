@@ -175,13 +175,25 @@ sparse_err_t sparse_set(SparseMatrix *mat, idx_t row, idx_t col, double val);
  * Matrix information
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-/** @brief Return the number of rows. Returns 0 if mat is NULL. */
+/**
+ * @brief Return the number of rows.
+ * @param mat  The matrix (may be NULL).
+ * @return Number of rows, or 0 if mat is NULL.
+ */
 idx_t sparse_rows(const SparseMatrix *mat);
 
-/** @brief Return the number of columns. Returns 0 if mat is NULL. */
+/**
+ * @brief Return the number of columns.
+ * @param mat  The matrix (may be NULL).
+ * @return Number of columns, or 0 if mat is NULL.
+ */
 idx_t sparse_cols(const SparseMatrix *mat);
 
-/** @brief Return the number of stored non-zero entries. Returns 0 if mat is NULL. */
+/**
+ * @brief Return the number of stored non-zero entries.
+ * @param mat  The matrix (may be NULL).
+ * @return Number of stored non-zeros, or 0 if mat is NULL.
+ */
 idx_t sparse_nnz(const SparseMatrix *mat);
 
 /**
@@ -413,13 +425,25 @@ sparse_err_t sparse_print_info(const SparseMatrix *mat, FILE *stream);
  */
 const idx_t *sparse_row_perm(const SparseMatrix *mat);
 
-/** @brief Access the column permutation array (logical → physical). */
+/**
+ * @brief Access the column permutation array (logical -> physical).
+ * @param mat  The matrix (returns NULL if mat is NULL).
+ * @return Pointer to the internal col_perm array (length = cols). Do not free.
+ */
 const idx_t *sparse_col_perm(const SparseMatrix *mat);
 
-/** @brief Access the inverse row permutation array (physical → logical). */
+/**
+ * @brief Access the inverse row permutation array (physical -> logical).
+ * @param mat  The matrix (returns NULL if mat is NULL).
+ * @return Pointer to the internal inv_row_perm array (length = rows). Do not free.
+ */
 const idx_t *sparse_inv_row_perm(const SparseMatrix *mat);
 
-/** @brief Access the inverse column permutation array (physical → logical). */
+/**
+ * @brief Access the inverse column permutation array (physical -> logical).
+ * @param mat  The matrix (returns NULL if mat is NULL).
+ * @return Pointer to the internal inv_col_perm array (length = cols). Do not free.
+ */
 const idx_t *sparse_inv_col_perm(const SparseMatrix *mat);
 
 /**

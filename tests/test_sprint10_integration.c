@@ -55,6 +55,8 @@ static double relative_residual(const SparseMatrix *A, const double *b, const do
 static double block_relative_residual(const SparseMatrix *A, const double *B, const double *X,
                                       idx_t n, idx_t nrhs) {
     double *Y = calloc((size_t)n * (size_t)nrhs, sizeof(double));
+    if (!Y)
+        return INFINITY;
     sparse_matvec_block(A, X, nrhs, Y);
     double worst = 0.0;
     for (idx_t k = 0; k < nrhs; k++) {
@@ -104,6 +106,13 @@ static void csr_solve_matrix(const char *path, const char *name) {
     double *b = calloc((size_t)n, sizeof(double));
     double *x_exact = calloc((size_t)n, sizeof(double));
     double *x = calloc((size_t)n, sizeof(double));
+    if (!b || !x_exact || !x) {
+        free(x);
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
 
     make_rhs(A, b, x_exact, n);
     sparse_err_t err = lu_csr_factor_solve(A, b, x, 1e-12);
@@ -147,6 +156,14 @@ static void test_csr_vs_linkedlist_nos4(void) {
     double *x_exact = calloc((size_t)n, sizeof(double));
     double *x_csr = calloc((size_t)n, sizeof(double));
     double *x_ll = calloc((size_t)n, sizeof(double));
+    if (!b || !x_exact || !x_csr || !x_ll) {
+        free(x_ll);
+        free(x_csr);
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
 
     make_rhs(A, b, x_exact, n);
 
@@ -204,6 +221,13 @@ static void test_csr_speedup_orsirr_1(void) {
     double *b = calloc((size_t)n, sizeof(double));
     double *x_exact = calloc((size_t)n, sizeof(double));
     double *x = calloc((size_t)n, sizeof(double));
+    if (!b || !x_exact || !x) {
+        free(x);
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
     make_rhs(A, b, x_exact, n);
 
     int reps = 5;
@@ -260,6 +284,15 @@ static void test_block_solvers_cross_validate_nos4(void) {
     double *X_lu = calloc(block_sz, sizeof(double));
     double *X_cg = calloc(block_sz, sizeof(double));
     double *X_gmres = calloc(block_sz, sizeof(double));
+    if (!B || !X_exact || !X_lu || !X_cg || !X_gmres) {
+        free(X_gmres);
+        free(X_cg);
+        free(X_lu);
+        free(X_exact);
+        free(B);
+        sparse_free(A);
+        return;
+    }
 
     make_block_rhs(A, B, X_exact, n, nrhs);
 
@@ -339,6 +372,13 @@ static void test_preconditioned_block_gmres_steam1(void) {
     double *B = calloc(block_sz, sizeof(double));
     double *X_exact = calloc(block_sz, sizeof(double));
     double *X = calloc(block_sz, sizeof(double));
+    if (!B || !X_exact || !X) {
+        free(X);
+        free(X_exact);
+        free(B);
+        sparse_free(A);
+        return;
+    }
 
     make_block_rhs(A, B, X_exact, n, nrhs);
 
@@ -382,13 +422,38 @@ static void test_csr_block_vs_single_solve(void) {
     double *X_exact = calloc((size_t)n * (size_t)nrhs, sizeof(double));
     double *X_block = calloc((size_t)n * (size_t)nrhs, sizeof(double));
     double *x_single = calloc((size_t)n, sizeof(double));
+    if (!B || !X_exact || !X_block || !x_single) {
+        free(x_single);
+        free(X_block);
+        free(X_exact);
+        free(B);
+        sparse_free(A);
+        return;
+    }
 
     make_block_rhs(A, B, X_exact, n, nrhs);
 
     /* Factor once */
     LuCsr *csr = NULL;
     ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+    if (!csr) {
+        free(x_single);
+        free(X_block);
+        free(X_exact);
+        free(B);
+        sparse_free(A);
+        return;
+    }
     idx_t *piv = calloc((size_t)n, sizeof(idx_t));
+    if (!piv) {
+        lu_csr_free(csr);
+        free(x_single);
+        free(X_block);
+        free(X_exact);
+        free(B);
+        sparse_free(A);
+        return;
+    }
     ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
 
     /* Block solve */
@@ -445,6 +510,13 @@ static void test_backward_compat_lu_solve(void) {
     double *b = calloc((size_t)n, sizeof(double));
     double *x_exact = calloc((size_t)n, sizeof(double));
     double *x = calloc((size_t)n, sizeof(double));
+    if (!b || !x_exact || !x) {
+        free(x);
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
     make_rhs(A, b, x_exact, n);
 
     /* Old single-RHS API */
@@ -481,6 +553,13 @@ static void test_backward_compat_cg_single(void) {
     double *b = calloc((size_t)n, sizeof(double));
     double *x_exact = calloc((size_t)n, sizeof(double));
     double *x = calloc((size_t)n, sizeof(double));
+    if (!b || !x_exact || !x) {
+        free(x);
+        free(x_exact);
+        free(b);
+        sparse_free(A);
+        return;
+    }
     make_rhs(A, b, x_exact, n);
 
     sparse_iter_opts_t opts = {.max_iter = 2000, .tol = 1e-12};

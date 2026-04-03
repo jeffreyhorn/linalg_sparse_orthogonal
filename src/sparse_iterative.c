@@ -751,7 +751,15 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
     }
 
     /* Allocate workspace: R, Z, P, AP — each n × nrhs */
+    if (n > 0 && (size_t)nrhs > SIZE_MAX / (size_t)n) {
+        free(bnorms);
+        return SPARSE_ERR_ALLOC;
+    }
     size_t blk = (size_t)n * (size_t)nrhs;
+    if (blk > SIZE_MAX / sizeof(double)) {
+        free(bnorms);
+        return SPARSE_ERR_ALLOC;
+    }
     double *R = malloc(blk * sizeof(double));
     double *Z = malloc(blk * sizeof(double));
     double *P = malloc(blk * sizeof(double));

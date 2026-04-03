@@ -653,8 +653,14 @@ sparse_err_t sparse_lu_solve_block(const SparseMatrix *mat, const double *B, idx
     idx_t n = mat->rows;
     const idx_t *rperm = mat->reorder_perm;
 
-    /* Allocate workspace: PB (permuted B), Y (forward sub result) for all RHS */
+    /* Overflow guard for block size computation */
+    if (n > 0 && (size_t)nrhs > SIZE_MAX / (size_t)n)
+        return SPARSE_ERR_ALLOC;
     size_t block_sz = (size_t)n * (size_t)nrhs;
+    if (block_sz > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
+
+    /* Allocate workspace: PB (permuted B), Y (forward sub result) for all RHS */
     double *PB = malloc(block_sz * sizeof(double));
     double *Y = malloc(block_sz * sizeof(double));
     double *Z = malloc(block_sz * sizeof(double));

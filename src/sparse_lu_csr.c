@@ -1034,7 +1034,13 @@ sparse_err_t lu_csr_solve_block(const LuCsr *csr, const idx_t *piv_perm, const d
         return SPARSE_OK;
 
     idx_t n = csr->n;
+
+    /* Overflow guard */
+    if (n > 0 && (size_t)nrhs > SIZE_MAX / (size_t)n)
+        return SPARSE_ERR_ALLOC;
     size_t block_sz = (size_t)n * (size_t)nrhs;
+    if (block_sz > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
 
     double *Y = malloc(block_sz * sizeof(double));
     if (!Y)

@@ -960,8 +960,11 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, id
         if (!col_result.converged)
             all_converged = 0;
 
-        /* Track worst error (but continue processing all columns) */
-        if (err != SPARSE_OK && worst_err == SPARSE_OK)
+        /* Track worst error (but continue processing all columns).
+         * Prefer hard errors over SPARSE_ERR_NOT_CONVERGED so real
+         * failures are not masked by an earlier convergence failure. */
+        if (err != SPARSE_OK && (worst_err == SPARSE_OK || (worst_err == SPARSE_ERR_NOT_CONVERGED &&
+                                                            err != SPARSE_ERR_NOT_CONVERGED)))
             worst_err = err;
     }
 

@@ -36,9 +36,13 @@ sparse_err_t lu_csr_from_sparse(const SparseMatrix *mat, double fill_factor, LuC
         fill_factor = 20.0;
 
     idx_t nnz = mat->nnz;
-    idx_t cap = (idx_t)(nnz * fill_factor);
+    /* Compute capacity in double, clamp to INT32_MAX to avoid UB on cast */
+    double cap_d = (double)nnz * fill_factor;
+    if (cap_d > (double)INT32_MAX)
+        cap_d = (double)INT32_MAX;
+    idx_t cap = (idx_t)cap_d;
     if (cap < nnz)
-        cap = nnz; /* overflow guard */
+        cap = nnz;
     if (cap < 1)
         cap = 1;
 

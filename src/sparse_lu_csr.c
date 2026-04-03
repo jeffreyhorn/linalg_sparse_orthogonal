@@ -548,3 +548,327 @@ sparse_err_t lu_csr_factor_solve(const SparseMatrix *mat, const double *b, doubl
     lu_csr_free(csr);
     return err;
 }
+
+/* ─── Dense subblock detection ───────────────────────────────────────── */
+
+/*
+ * Build a column-to-row-set signature for supernodal detection.
+ *
+ * For each column j, we compute which rows in the CSR have an entry in
+ * column j. We transpose the CSR: build col_rows[j] = sorted list of
+ * rows that contain column j.
+ *
+ * Then, consecutive columns with identical row sets form a supernode.
+ * If the supernode width × height ≥ min_size² and the fill ratio
+ * meets the threshold, we report it as a dense block.
+ */
+
+sparse_err_t lu_detect_dense_blocks(const LuCsr *csr, idx_t min_size, double threshold,
+                                    DenseBlock **blocks_out, idx_t *nblocks_out) {
+    if (!csr || !blocks_out || !nblocks_out)
+        return SPARSE_ERR_NULL;
+
+    *blocks_out = NULL;
+    *nblocks_out = 0;
+
+    idx_t n = csr->n;
+    if (n < min_size)
+        return SPARSE_OK;
+
+    /* Build transpose: for each column j, collect the sorted row indices.
+     * col_ptr[j]..col_ptr[j+1]-1 index into col_rows[]. */
+    idx_t *col_count = calloc((size_t)n, sizeof(idx_t));
+    if (!col_count)
+        return SPARSE_ERR_ALLOC;
+
+    /* Count entries per column */
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t p = csr->row_ptr[i]; p < csr->row_ptr[i + 1]; p++) {
+            idx_t j = csr->col_idx[p];
+            col_count[j]++;
+        }
+    }
+
+    /* Prefix sum → col_ptr */
+    idx_t *col_ptr = malloc((size_t)(n + 1) * sizeof(idx_t));
+    if (!col_ptr) {
+        free(col_count);
+        return SPARSE_ERR_ALLOC;
+    }
+    col_ptr[0] = 0;
+    for (idx_t j = 0; j < n; j++)
+        col_ptr[j + 1] = col_ptr[j] + col_count[j];
+
+    idx_t total_entries = col_ptr[n]; // NOLINT(clang-analyzer-security.ArrayBound)
+    idx_t *col_rows = malloc((size_t)(total_entries > 0 ? total_entries : 1) * sizeof(idx_t));
+    if (!col_rows) {
+        free(col_count);
+        free(col_ptr);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    /* Reset col_count as write cursors */
+    memset(col_count, 0, (size_t)n * sizeof(idx_t));
+
+    /* Fill col_rows (rows appear in order since we iterate i=0..n-1) */
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t p = csr->row_ptr[i]; p < csr->row_ptr[i + 1]; p++) {
+            idx_t j = csr->col_idx[p];
+            col_rows[col_ptr[j] + col_count[j]] = i;
+            col_count[j]++;
+        }
+    }
+    free(col_count);
+
+    /* Scan for supernodes: groups of consecutive columns with identical row sets.
+     * Two columns j and j+1 have identical row sets if:
+     * - Same number of rows
+     * - Same row indices */
+
+    /* Allocate result buffer (grow as needed) */
+    idx_t blk_cap = 16;
+    idx_t blk_count = 0;
+    DenseBlock *blks = malloc((size_t)blk_cap * sizeof(DenseBlock));
+    if (!blks) {
+        free(col_ptr);
+        free(col_rows);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    idx_t col_start = 0;
+    while (col_start < n) {
+        /* Find the end of this supernode: consecutive cols with identical row sets */
+        idx_t col_end = col_start + 1;
+
+        idx_t nrows_start = col_ptr[col_start + 1] - col_ptr[col_start];
+        while (col_end < n) {
+            idx_t nrows_end = col_ptr[col_end + 1] - col_ptr[col_end];
+            if (nrows_end != nrows_start)
+                break;
+
+            /* Compare row indices */
+            int same = 1;
+            idx_t base_s = col_ptr[col_start];
+            idx_t base_e = col_ptr[col_end];
+            for (idx_t r = 0; r < nrows_start; r++) {
+                if (col_rows[base_s + r] != col_rows[base_e + r]) { // NOLINT
+                    same = 0;
+                    break;
+                }
+            }
+            if (!same)
+                break;
+            col_end++;
+        }
+
+        /* This supernode spans columns [col_start, col_end).
+         * The row range is the min/max of the row set. */
+        idx_t width = col_end - col_start;
+        idx_t height = nrows_start;
+
+        if (width >= min_size && height >= min_size) {
+            /* Compute actual fill ratio within this block region.
+             * The row range for these columns is in col_rows[col_ptr[col_start]..].
+             * The block covers rows from min_row to max_row. But for supernodal,
+             * we know exactly which rows are present — it's the row set itself.
+             * The block region is row_min..row_max × col_start..col_end.
+             * Fill ratio = (height * width) / ((row_max - row_min + 1) * width). */
+            idx_t row_min = col_rows[col_ptr[col_start]];                   // NOLINT
+            idx_t row_max = col_rows[col_ptr[col_start] + nrows_start - 1]; // NOLINT
+            idx_t row_span = row_max - row_min + 1;
+
+            /* Count actual entries in the block region.
+             * For each row in the row set, count how many of the columns
+             * [col_start..col_end) are present. */
+            idx_t block_nnz = 0;
+            for (idx_t r = 0; r < nrows_start; r++) {
+                idx_t row = col_rows[col_ptr[col_start] + r];
+                for (idx_t p = csr->row_ptr[row]; p < csr->row_ptr[row + 1]; p++) {
+                    idx_t c = csr->col_idx[p];
+                    if (c >= col_start && c < col_end)
+                        block_nnz++;
+                    if (c >= col_end)
+                        break;
+                }
+            }
+
+            double area = (double)row_span * (double)width;
+            double fill_ratio = (area > 0.0) ? (double)block_nnz / area : 0.0;
+
+            if (fill_ratio >= threshold) {
+                /* Grow result array if needed */
+                if (blk_count >= blk_cap) {
+                    blk_cap *= 2;
+                    DenseBlock *tmp = realloc(blks, (size_t)blk_cap * sizeof(DenseBlock));
+                    if (!tmp) {
+                        free(blks);
+                        free(col_ptr);
+                        free(col_rows);
+                        return SPARSE_ERR_ALLOC;
+                    }
+                    blks = tmp;
+                }
+
+                blks[blk_count].row_start = row_min;
+                blks[blk_count].row_end = row_max + 1;
+                blks[blk_count].col_start = col_start;
+                blks[blk_count].col_end = col_end;
+                blk_count++;
+            }
+        }
+
+        col_start = col_end;
+    }
+
+    free(col_ptr);
+    free(col_rows);
+
+    if (blk_count == 0) {
+        free(blks);
+        *blocks_out = NULL;
+    } else {
+        *blocks_out = blks;
+    }
+    *nblocks_out = blk_count;
+    return SPARSE_OK;
+}
+
+/* ─── Dense block extraction ─────────────────────────────────────────── */
+
+sparse_err_t lu_extract_dense_block(const LuCsr *csr, const DenseBlock *blk, double *dense) {
+    if (!csr || !blk || !dense)
+        return SPARSE_ERR_NULL;
+
+    idx_t rows = blk->row_end - blk->row_start;
+    idx_t cols = blk->col_end - blk->col_start;
+
+    /* Zero-initialize (column-major: dense[i + rows*j]) */
+    memset(dense, 0, (size_t)rows * (size_t)cols * sizeof(double));
+
+    /* Fill from CSR */
+    for (idx_t i = 0; i < rows; i++) {
+        idx_t row = blk->row_start + i;
+        if (row >= csr->n)
+            continue;
+        for (idx_t p = csr->row_ptr[row]; p < csr->row_ptr[row + 1]; p++) {
+            idx_t c = csr->col_idx[p];
+            if (c < blk->col_start)
+                continue;
+            if (c >= blk->col_end)
+                break;
+            idx_t j = c - blk->col_start;
+            dense[i + rows * j] = csr->values[p]; /* column-major */
+        }
+    }
+
+    return SPARSE_OK;
+}
+
+/* ─── Dense block insertion ──────────────────────────────────────────── */
+
+sparse_err_t lu_insert_dense_block(LuCsr *csr, const DenseBlock *blk, const double *dense,
+                                   double drop_tol) {
+    if (!csr || !blk || !dense)
+        return SPARSE_ERR_NULL;
+
+    idx_t n = csr->n;
+    idx_t brows = blk->row_end - blk->row_start;
+    idx_t bcols = blk->col_end - blk->col_start;
+
+    /* Rebuild the entire CSR: for rows outside the block, copy as-is.
+     * For rows inside the block, merge outside-block entries with dense values. */
+
+    /* First pass: compute total new nnz */
+    idx_t total = 0;
+    for (idx_t row = 0; row < n; row++) {
+        if (row < blk->row_start || row >= blk->row_end) {
+            /* Outside block — copy all entries */
+            total += csr->row_ptr[row + 1] - csr->row_ptr[row];
+        } else {
+            /* Inside block: entries outside column range + dense entries */
+            for (idx_t p = csr->row_ptr[row]; p < csr->row_ptr[row + 1]; p++) {
+                idx_t c = csr->col_idx[p];
+                if (c < blk->col_start || c >= blk->col_end)
+                    total++;
+            }
+            idx_t bi = row - blk->row_start;
+            for (idx_t j = 0; j < bcols; j++) {
+                if (fabs(dense[bi + brows * j]) >= drop_tol)
+                    total++;
+            }
+        }
+    }
+
+    /* Allocate new arrays */
+    idx_t *new_rp = malloc((size_t)(n + 1) * sizeof(idx_t));
+    idx_t *new_ci = malloc((size_t)(total > 0 ? total : 1) * sizeof(idx_t));
+    double *new_v = malloc((size_t)(total > 0 ? total : 1) * sizeof(double));
+    if (!new_rp || !new_ci || !new_v) {
+        free(new_rp);
+        free(new_ci);
+        free(new_v);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    /* Second pass: build new CSR */
+    idx_t pos = 0;
+    for (idx_t row = 0; row < n; row++) {
+        new_rp[row] = pos;
+
+        if (row < blk->row_start || row >= blk->row_end) {
+            /* Copy row as-is */
+            for (idx_t p = csr->row_ptr[row]; p < csr->row_ptr[row + 1]; p++) {
+                new_ci[pos] = csr->col_idx[p]; // NOLINT(clang-analyzer-security.ArrayBound)
+                new_v[pos] = csr->values[p];   // NOLINT(clang-analyzer-security.ArrayBound)
+                pos++;
+            }
+        } else {
+            /* Merge: entries before block + dense block + entries after block */
+            idx_t old_p = csr->row_ptr[row];
+            idx_t old_end = csr->row_ptr[row + 1];
+            idx_t bi = row - blk->row_start;
+
+            /* Entries before block column range */
+            while (old_p < old_end && csr->col_idx[old_p] < blk->col_start) {
+                new_ci[pos] = csr->col_idx[old_p]; // NOLINT(clang-analyzer-security.ArrayBound)
+                new_v[pos] = csr->values[old_p];
+                pos++;
+                old_p++;
+            }
+
+            /* Dense block entries */
+            for (idx_t j = 0; j < bcols; j++) {
+                double v = dense[bi + brows * j];
+                if (fabs(v) >= drop_tol) {
+                    new_ci[pos] = blk->col_start + j; // NOLINT(clang-analyzer-security.ArrayBound)
+                    new_v[pos] = v;
+                    pos++;
+                }
+            }
+
+            /* Skip old entries in block column range */
+            while (old_p < old_end && csr->col_idx[old_p] < blk->col_end)
+                old_p++;
+
+            /* Entries after block column range */
+            while (old_p < old_end) {
+                new_ci[pos] = csr->col_idx[old_p]; // NOLINT(clang-analyzer-security.ArrayBound)
+                new_v[pos] = csr->values[old_p];
+                pos++;
+                old_p++;
+            }
+        }
+    }
+    new_rp[n] = pos;
+
+    free(csr->row_ptr);
+    free(csr->col_idx);
+    free(csr->values);
+    csr->row_ptr = new_rp;
+    csr->col_idx = new_ci;
+    csr->values = new_v;
+    csr->nnz = pos;
+    csr->capacity = total > 0 ? total : 1;
+
+    return SPARSE_OK;
+}

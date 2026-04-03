@@ -124,6 +124,72 @@ sparse_err_t lu_csr_eliminate(LuCsr *csr, double tol, double drop_tol, idx_t *pi
 sparse_err_t lu_csr_solve(const LuCsr *csr, const idx_t *piv_perm, const double *b, double *x);
 
 /**
+ * @brief Description of a dense subblock detected in a sparse matrix.
+ *
+ * Represents a rectangular region [row_start, row_end) × [col_start, col_end)
+ * that has a high fill ratio (≥ threshold). Used by lu_detect_dense_blocks().
+ */
+typedef struct {
+    idx_t row_start; /**< First row (inclusive) */
+    idx_t row_end;   /**< Past-the-end row (exclusive) */
+    idx_t col_start; /**< First column (inclusive) */
+    idx_t col_end;   /**< Past-the-end column (exclusive) */
+} DenseBlock;
+
+/**
+ * @brief Detect dense subblocks in a LuCsr sparsity pattern.
+ *
+ * Scans for groups of consecutive columns that share similar nonzero row
+ * patterns (supernodal detection). A block is reported if:
+ * - It is at least min_size × min_size
+ * - Its fill ratio (nnz / area) meets or exceeds the threshold
+ *
+ * @param csr        Input CSR matrix (sparsity pattern is read, not modified).
+ * @param min_size   Minimum block dimension (e.g., 4). Blocks smaller than
+ *                   min_size×min_size are not reported.
+ * @param threshold  Minimum fill ratio to qualify as dense (e.g., 0.8 = 80%).
+ * @param[out] blocks  Pointer to receive a malloc'd array of DenseBlock.
+ *                     Caller must free(). Set to NULL if no blocks found.
+ * @param[out] nblocks Number of blocks found.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if csr, blocks, or nblocks is NULL.
+ * @return SPARSE_ERR_ALLOC if memory allocation fails.
+ */
+sparse_err_t lu_detect_dense_blocks(const LuCsr *csr, idx_t min_size, double threshold,
+                                    DenseBlock **blocks, idx_t *nblocks);
+
+/**
+ * @brief Extract a dense subblock from a LuCsr into a column-major array.
+ *
+ * Fills dense[i*cols + j] with the value at CSR row (row_start+i),
+ * column (col_start+j). Missing entries are set to 0.0.
+ *
+ * @param csr    Input CSR matrix.
+ * @param blk    Block region to extract.
+ * @param dense  Output array of size (row_end-row_start) * (col_end-col_start).
+ *               Column-major layout: dense[i + rows*j] = A[row_start+i, col_start+j].
+ * @return SPARSE_OK on success.
+ */
+sparse_err_t lu_extract_dense_block(const LuCsr *csr, const DenseBlock *blk, double *dense);
+
+/**
+ * @brief Insert a dense subblock back into a LuCsr, rebuilding affected rows.
+ *
+ * Replaces entries in the block region with values from the dense array.
+ * Entries outside the block region in each affected row are preserved.
+ * Near-zero entries (|val| < drop_tol) in the dense block are skipped.
+ *
+ * @param csr      CSR matrix to modify.
+ * @param blk      Block region to insert.
+ * @param dense    Dense array (column-major, same layout as lu_extract_dense_block).
+ * @param drop_tol Drop tolerance for near-zero entries.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_ALLOC if reallocation fails.
+ */
+sparse_err_t lu_insert_dense_block(LuCsr *csr, const DenseBlock *blk, const double *dense,
+                                   double drop_tol);
+
+/**
  * @brief One-shot CSR-based LU factor and solve.
  *
  * Convenience function that converts the matrix to CSR, factors, solves,

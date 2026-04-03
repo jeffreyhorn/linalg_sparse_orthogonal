@@ -889,6 +889,209 @@ static void test_lu_csr_benchmark_orsirr1(void) {
     sparse_free(A);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 4: Dense subblock detection tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Test: detect_dense_blocks null args */
+static void test_detect_blocks_null(void) {
+    DenseBlock *blks = NULL;
+    idx_t nb = 0;
+    ASSERT_ERR(lu_detect_dense_blocks(NULL, 4, 0.8, &blks, &nb), SPARSE_ERR_NULL);
+
+    LuCsr csr = {0};
+    ASSERT_ERR(lu_detect_dense_blocks(&csr, 4, 0.8, NULL, &nb), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_detect_dense_blocks(&csr, 4, 0.8, &blks, NULL), SPARSE_ERR_NULL);
+}
+
+/* Test: Block-diagonal matrix — each diagonal block should be detected */
+static void test_detect_blocks_block_diagonal(void) {
+    /* 12×12 matrix with three 4×4 dense blocks on the diagonal */
+    idx_t n = 12;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t b = 0; b < 3; b++) {
+        idx_t off = b * 4;
+        for (idx_t i = 0; i < 4; i++)
+            for (idx_t j = 0; j < 4; j++)
+                sparse_insert(A, off + i, off + j, (double)(i * 4 + j + 1));
+    }
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 1.0, &csr), SPARSE_OK);
+
+    DenseBlock *blks = NULL;
+    idx_t nb = 0;
+    ASSERT_ERR(lu_detect_dense_blocks(csr, 4, 0.8, &blks, &nb), SPARSE_OK);
+
+    /* Should detect 3 blocks */
+    ASSERT_EQ(nb, 3);
+    ASSERT_NOT_NULL(blks);
+
+    for (idx_t b = 0; b < 3; b++) {
+        ASSERT_EQ(blks[b].row_start, b * 4);
+        ASSERT_EQ(blks[b].row_end, b * 4 + 4);
+        ASSERT_EQ(blks[b].col_start, b * 4);
+        ASSERT_EQ(blks[b].col_end, b * 4 + 4);
+    }
+
+    free(blks);
+    lu_csr_free(csr);
+    sparse_free(A);
+}
+
+/* Test: Fully sparse tridiagonal — no dense blocks */
+static void test_detect_blocks_sparse_tridiag(void) {
+    idx_t n = 20;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -1.0);
+    }
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 1.0, &csr), SPARSE_OK);
+
+    DenseBlock *blks = NULL;
+    idx_t nb = 0;
+    ASSERT_ERR(lu_detect_dense_blocks(csr, 4, 0.8, &blks, &nb), SPARSE_OK);
+
+    /* No dense blocks in a tridiagonal matrix */
+    ASSERT_EQ(nb, 0);
+    ASSERT_NULL(blks);
+
+    lu_csr_free(csr);
+    sparse_free(A);
+}
+
+/* Test: Matrix with one large dense subblock */
+static void test_detect_blocks_one_large(void) {
+    /* 10×10 matrix: rows/cols 2-7 form a 6×6 dense block, rest is sparse */
+    idx_t n = 10;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Diagonal for the whole matrix */
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, 10.0);
+
+    /* Dense 6×6 block at rows 2-7, cols 2-7 */
+    for (idx_t i = 2; i < 8; i++)
+        for (idx_t j = 2; j < 8; j++)
+            if (i != j) /* diagonal already inserted */
+                sparse_insert(A, i, j, 1.0);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 1.0, &csr), SPARSE_OK);
+
+    DenseBlock *blks = NULL;
+    idx_t nb = 0;
+    ASSERT_ERR(lu_detect_dense_blocks(csr, 4, 0.8, &blks, &nb), SPARSE_OK);
+
+    /* Should detect the 6×6 block */
+    ASSERT_TRUE(nb >= 1);
+    ASSERT_NOT_NULL(blks);
+
+    /* The block should cover rows 2-7, cols 2-7 */
+    int found = 0;
+    for (idx_t b = 0; b < nb; b++) {
+        if (blks[b].col_start == 2 && blks[b].col_end == 8 && blks[b].row_start == 2 &&
+            blks[b].row_end == 8) {
+            found = 1;
+        }
+    }
+    ASSERT_TRUE(found);
+
+    free(blks);
+    lu_csr_free(csr);
+    sparse_free(A);
+}
+
+/* Test: Extract and insert a dense block — round-trip */
+static void test_extract_insert_round_trip(void) {
+    /* Build a 6×6 matrix with a known 4×4 dense block at (1,1)-(4,4) */
+    idx_t n = 6;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Sparse entries outside block */
+    sparse_insert(A, 0, 0, 100.0);
+    sparse_insert(A, 0, 5, 200.0);
+    sparse_insert(A, 5, 0, 300.0);
+    sparse_insert(A, 5, 5, 400.0);
+
+    /* Dense 4×4 block: A[i][j] = (i-1)*4 + (j-1) + 1 for i,j in [1..4] */
+    for (idx_t i = 1; i <= 4; i++)
+        for (idx_t j = 1; j <= 4; j++)
+            sparse_insert(A, i, j, (double)((i - 1) * 4 + (j - 1) + 1));
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+
+    DenseBlock blk = {1, 5, 1, 5}; /* rows [1,5), cols [1,5) */
+
+    /* Extract */
+    double dense[16]; /* 4×4, column-major */
+    ASSERT_ERR(lu_extract_dense_block(csr, &blk, dense), SPARSE_OK);
+
+    /* Verify extracted values */
+    for (idx_t i = 0; i < 4; i++)
+        for (idx_t j = 0; j < 4; j++) {
+            double expected = (double)(i * 4 + j + 1);
+            ASSERT_NEAR(dense[i + 4 * j], expected, 1e-15);
+        }
+
+    /* Modify the dense block */
+    for (idx_t i = 0; i < 16; i++)
+        dense[i] *= 2.0;
+
+    /* Insert back */
+    ASSERT_ERR(lu_insert_dense_block(csr, &blk, dense, 1e-14), SPARSE_OK);
+
+    /* Convert back and verify */
+    SparseMatrix *B = NULL;
+    ASSERT_ERR(lu_csr_to_sparse(csr, &B), SPARSE_OK);
+
+    /* Outside-block entries unchanged */
+    ASSERT_NEAR(sparse_get(B, 0, 0), 100.0, 1e-15);
+    ASSERT_NEAR(sparse_get(B, 0, 5), 200.0, 1e-15);
+    ASSERT_NEAR(sparse_get(B, 5, 0), 300.0, 1e-15);
+    ASSERT_NEAR(sparse_get(B, 5, 5), 400.0, 1e-15);
+
+    /* Block entries doubled */
+    for (idx_t i = 1; i <= 4; i++)
+        for (idx_t j = 1; j <= 4; j++) {
+            double expected = 2.0 * ((i - 1) * 4 + (j - 1) + 1);
+            ASSERT_NEAR(sparse_get(B, i, j), expected, 1e-15);
+        }
+
+    sparse_free(A);
+    sparse_free(B);
+    lu_csr_free(csr);
+}
+
+/* Test: Small matrix — below min_size, no blocks detected */
+static void test_detect_blocks_too_small(void) {
+    idx_t n = 3;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++)
+        for (idx_t j = 0; j < n; j++)
+            sparse_insert(A, i, j, (double)(i + j + 1));
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 1.0, &csr), SPARSE_OK);
+
+    DenseBlock *blks = NULL;
+    idx_t nb = 0;
+    /* min_size = 4, but matrix is only 3×3 */
+    ASSERT_ERR(lu_detect_dense_blocks(csr, 4, 0.8, &blks, &nb), SPARSE_OK);
+    ASSERT_EQ(nb, 0);
+    ASSERT_NULL(blks);
+
+    lu_csr_free(csr);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════ */
 
 int main(void) {
@@ -920,6 +1123,14 @@ int main(void) {
     RUN_TEST(test_lu_csr_factor_solve_orsirr1);
     RUN_TEST(test_lu_csr_factor_solve_steam1);
     RUN_TEST(test_lu_csr_benchmark_orsirr1);
+
+    /* Day 4: Dense block detection tests */
+    RUN_TEST(test_detect_blocks_null);
+    RUN_TEST(test_detect_blocks_block_diagonal);
+    RUN_TEST(test_detect_blocks_sparse_tridiag);
+    RUN_TEST(test_detect_blocks_one_large);
+    RUN_TEST(test_extract_insert_round_trip);
+    RUN_TEST(test_detect_blocks_too_small);
 
     TEST_SUITE_END();
 }

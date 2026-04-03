@@ -114,9 +114,15 @@ sparse_err_t lu_csr_eliminate(LuCsr *csr, double tol, double drop_tol, idx_t *pi
  * skipped in the sparse elimination. Remaining steps use the standard
  * scatter-gather CSR elimination.
  *
+ * @note drop_tol semantics differ between the two paths: for sparse
+ *       scatter-gather steps, entries are dropped when |value| < drop_tol *
+ *       |pivot| (relative to the current pivot magnitude); for dense block
+ *       steps, entries are dropped when |value| < drop_tol (absolute).
+ *       The diagonal entry is always kept regardless of magnitude.
+ *
  * @param csr       The LuCsr to factor in-place.
  * @param tol       Pivot tolerance.
- * @param drop_tol  Drop tolerance for fill-in.
+ * @param drop_tol  Drop tolerance for fill-in (see note on semantics).
  * @param min_block Minimum block dimension for dense path (e.g., 4).
  * @param[out] piv_perm  Row pivot permutation (length n). May be NULL.
  * @return SPARSE_OK on success.

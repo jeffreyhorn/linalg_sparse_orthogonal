@@ -125,6 +125,12 @@ static void test_block_cg_residuals(void) {
     double *X = calloc((size_t)n * (size_t)nrhs, sizeof(double));
     ASSERT_NOT_NULL(B);
     ASSERT_NOT_NULL(X);
+    if (!B || !X) {
+        free(B);
+        free(X);
+        sparse_free(A);
+        return;
+    }
 
     for (idx_t k = 0; k < nrhs; k++)
         for (idx_t i = 0; i < n; i++)
@@ -298,6 +304,12 @@ static void test_block_gmres_residuals(void) {
     double *X = calloc((size_t)n * (size_t)nrhs, sizeof(double));
     ASSERT_NOT_NULL(B);
     ASSERT_NOT_NULL(X);
+    if (!B || !X) {
+        free(B);
+        free(X);
+        sparse_free(A);
+        return;
+    }
 
     for (idx_t k = 0; k < nrhs; k++)
         for (idx_t i = 0; i < n; i++)
@@ -383,6 +395,12 @@ static void test_block_gmres_restart(void) {
     double *X = calloc((size_t)n * (size_t)nrhs, sizeof(double));
     ASSERT_NOT_NULL(B);
     ASSERT_NOT_NULL(X);
+    if (!B || !X) {
+        free(B);
+        free(X);
+        sparse_free(A);
+        return;
+    }
 
     for (idx_t k = 0; k < nrhs; k++)
         for (idx_t i = 0; i < n; i++)

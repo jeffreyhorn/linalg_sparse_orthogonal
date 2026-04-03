@@ -186,11 +186,13 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
                                    const void *precond_ctx, sparse_iter_result_t *result);
 
 /**
- * @brief Solve A*X = B for multiple RHS using block GMRES.
+ * @brief Solve A*X = B for multiple RHS using per-column GMRES.
  *
- * Runs restarted GMRES independently for each column with per-column
- * convergence tracking. Converged columns are skipped in subsequent
- * iterations. Supports left preconditioning via callback.
+ * Runs restarted GMRES independently for each column and aggregates
+ * convergence reporting across columns. This routine does not perform
+ * a shared block-iteration scheme that skips converged columns during
+ * later iterations; instead, it solves each RHS separately using the
+ * existing single-RHS GMRES path. Supports preconditioning via callback.
  *
  * @param A           General (possibly unsymmetric) coefficient matrix.
  * @param B           RHS matrix, n × nrhs column-major.

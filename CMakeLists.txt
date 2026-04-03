@@ -69,7 +69,10 @@ target_include_directories(sparse_lu_ortho
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-target_link_libraries(sparse_lu_ortho PUBLIC m)
+# Link -lm on platforms that have a separate math library (not MSVC)
+if(NOT MSVC)
+    target_link_libraries(sparse_lu_ortho PUBLIC m)
+endif()
 
 # Tests
 enable_testing()

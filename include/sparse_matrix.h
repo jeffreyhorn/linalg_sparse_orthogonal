@@ -262,11 +262,17 @@ sparse_err_t sparse_matvec(const SparseMatrix *mat, const double *x, double *y);
  * Computes Y(:,k) = A * X(:,k) for k = 0..nrhs-1 in a single pass
  * over the sparse structure, amortizing row traversal across all RHS.
  *
+ * If @p nrhs is 0, this function is a supported no-op and returns
+ * SPARSE_OK without reading from @p X or writing to @p Y.
+ *
  * @param mat   Sparse matrix (m × n, not modified).
- * @param X     Dense input matrix, n × nrhs column-major.
- * @param nrhs  Number of columns in X and Y.
+ * @param X     Dense input matrix, n × nrhs column-major. Must be non-NULL
+ *              even when @p nrhs is 0.
+ * @param nrhs  Number of columns in X and Y. If 0, the call is a no-op.
  * @param Y     Dense output matrix, m × nrhs column-major (overwritten).
- * @return SPARSE_OK on success, SPARSE_ERR_NULL if any argument is NULL.
+ *              Must be non-NULL even when @p nrhs is 0.
+ * @return SPARSE_OK on success (including the no-op case when @p nrhs is 0),
+ *         SPARSE_ERR_NULL if @p mat, @p X, or @p Y is NULL.
  */
 sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const double *X, idx_t nrhs, double *Y);
 

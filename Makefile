@@ -289,6 +289,7 @@ docs:
 # On macOS:   brew install gcc lcov && make coverage CC=gcc-14
 # Apple Clang's gcov output is incompatible with lcov.
 COVDIR = coverage
+COV_THRESHOLD = 95
 
 .PHONY: coverage
 coverage: CFLAGS += --coverage -fprofile-arcs -ftest-coverage -g -O0
@@ -313,6 +314,19 @@ coverage: clean $(TEST_BINS)
 	@echo ""
 	@echo "Coverage report: $(COVDIR)/html/index.html"
 	lcov --summary $(COVDIR)/coverage-src.info
+	@echo ""
+	@echo "Checking coverage threshold ($(COV_THRESHOLD)%)..."
+	@pct=$$(lcov --summary $(COVDIR)/coverage-src.info 2>&1 \
+		| grep 'lines' | sed 's/.*: *\([0-9]*\.[0-9]*\).*/\1/'); \
+	echo "Line coverage: $${pct}%"; \
+	if [ -z "$$pct" ]; then \
+		echo "WARNING: Could not parse coverage percentage"; \
+	elif [ $$(echo "$$pct < $(COV_THRESHOLD)" | bc -l) -eq 1 ]; then \
+		echo "FAIL: Line coverage $${pct}% is below $(COV_THRESHOLD)% threshold"; \
+		exit 1; \
+	else \
+		echo "PASS: Line coverage $${pct}% meets $(COV_THRESHOLD)% threshold"; \
+	fi
 
 # Clean
 .PHONY: clean

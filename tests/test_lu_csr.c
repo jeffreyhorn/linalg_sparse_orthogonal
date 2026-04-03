@@ -1690,6 +1690,127 @@ static void test_block_solve_many_rhs(void) {
     sparse_free(LU);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 10: Coverage gap tests — exercise error paths and edge cases
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Test: 0×0 matrix — sparse_create rejects 0 dimensions, so verify
+ * that lu_csr_from_sparse correctly rejects the NULL result. */
+static void test_csr_zero_dimension(void) {
+    SparseMatrix *A = sparse_create(0, 0);
+    /* sparse_create(0,0) returns NULL (rows/cols must be > 0) */
+    ASSERT_NULL(A);
+
+    /* lu_csr_from_sparse should reject NULL input */
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_ERR_NULL);
+}
+
+/* Test: lu_csr_solve on 1×1 system */
+static void test_csr_solve_1x1(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    sparse_insert(A, 0, 0, 5.0);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+
+    idx_t piv[1];
+    ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
+
+    double b = 10.0, x = 0.0;
+    ASSERT_ERR(lu_csr_solve(csr, piv, &b, &x), SPARSE_OK);
+    ASSERT_NEAR(x, 2.0, 1e-14);
+
+    lu_csr_free(csr);
+    sparse_free(A);
+}
+
+/* Test: lu_dense_factor on rectangular (more rows than columns) */
+static void test_dense_factor_rectangular(void) {
+    /* 4×3 matrix, column-major */
+    double A[12] = {4, 1, 0, 0, 1, 4, 1, 0, 0, 1, 4, 1};
+    idx_t ipiv[3]; /* min(4,3) = 3 */
+    ASSERT_ERR(lu_dense_factor(4, 3, A, 4, ipiv, 1e-12), SPARSE_OK);
+
+    /* Verify L and U are stored correctly: U is 3×3 upper triangle,
+     * L is 4×3 unit lower (below diagonal). Just check no error. */
+}
+
+/* Test: lu_csr_solve_block null args and nrhs=0 */
+static void test_csr_solve_block_edge(void) {
+    LuCsr csr = {.n = 0, .nnz = 0, .capacity = 0, .row_ptr = NULL, .col_idx = NULL, .values = NULL};
+    idx_t piv = 0;
+    double b = 0, x = 0;
+    ASSERT_ERR(lu_csr_solve_block(NULL, &piv, &b, 1, &x), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_csr_solve_block(&csr, NULL, &b, 1, &x), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_csr_solve_block(&csr, &piv, NULL, 1, &x), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_csr_solve_block(&csr, &piv, &b, 1, NULL), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_csr_solve_block(&csr, &piv, &b, 0, &x), SPARSE_OK); /* nrhs=0 */
+}
+
+/* Test: lu_detect_dense_blocks with strict threshold (1.0 = only 100% dense) */
+static void test_detect_blocks_strict_threshold(void) {
+    /* 8×8: 4×4 block at (0,0) that is 75% full (not 100%) */
+    idx_t n = 8;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Partial 4×4 block (only diagonal + some off-diag, not fully dense) */
+    for (idx_t i = 0; i < 4; i++) {
+        sparse_insert(A, i, i, 10.0);
+        if (i < 3)
+            sparse_insert(A, i, i + 1, 1.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, 1.0);
+    }
+    /* Second 4×4 block fully dense */
+    for (idx_t i = 4; i < 8; i++)
+        for (idx_t j = 4; j < 8; j++)
+            sparse_insert(A, i, j, (i == j) ? 10.0 : 1.0);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 1.0, &csr), SPARSE_OK);
+
+    DenseBlock *blks = NULL;
+    idx_t nb = 0;
+    /* threshold=1.0: only 100% fill blocks */
+    ASSERT_ERR(lu_detect_dense_blocks(csr, 4, 1.0, &blks, &nb), SPARSE_OK);
+
+    /* Only the second block should be detected (100% fill) */
+    ASSERT_EQ(nb, 1);
+    if (nb > 0) {
+        ASSERT_NOT_NULL(blks);
+        ASSERT_EQ(blks[0].col_start, 4);
+        ASSERT_EQ(blks[0].col_end, 8);
+        free(blks);
+    }
+
+    lu_csr_free(csr);
+    sparse_free(A);
+}
+
+/* Test: lu_csr_factor_solve null args */
+static void test_factor_solve_null(void) {
+    double b = 0, x = 0;
+    ASSERT_ERR(lu_csr_factor_solve(NULL, &b, &x, 1e-12), SPARSE_ERR_NULL);
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_ERR(lu_csr_factor_solve(A, NULL, &x, 1e-12), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_csr_factor_solve(A, &b, NULL, 1e-12), SPARSE_ERR_NULL);
+    sparse_free(A);
+}
+
+/* Test: extract_dense_block null args */
+static void test_extract_insert_null(void) {
+    LuCsr csr = {.n = 0, .nnz = 0, .capacity = 0, .row_ptr = NULL, .col_idx = NULL, .values = NULL};
+    DenseBlock blk = {0, 1, 0, 1};
+    double d = 0;
+    ASSERT_ERR(lu_extract_dense_block(NULL, &blk, &d), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_extract_dense_block(&csr, NULL, &d), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_extract_dense_block(&csr, &blk, NULL), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_insert_dense_block(NULL, &blk, &d, 1e-14), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_insert_dense_block(&csr, NULL, &d, 1e-14), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_insert_dense_block(&csr, &blk, NULL, 1e-14), SPARSE_ERR_NULL);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════ */
 
 int main(void) {
@@ -1754,6 +1875,15 @@ int main(void) {
     RUN_TEST(test_block_solve_nrhs_zero);
     RUN_TEST(test_csr_block_solve_3_rhs);
     RUN_TEST(test_block_solve_many_rhs);
+
+    /* Day 10: Coverage gap tests */
+    RUN_TEST(test_csr_zero_dimension);
+    RUN_TEST(test_csr_solve_1x1);
+    RUN_TEST(test_dense_factor_rectangular);
+    RUN_TEST(test_csr_solve_block_edge);
+    RUN_TEST(test_detect_blocks_strict_threshold);
+    RUN_TEST(test_factor_solve_null);
+    RUN_TEST(test_extract_insert_null);
 
     TEST_SUITE_END();
 }

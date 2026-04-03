@@ -322,7 +322,7 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 **Duration:** 14 days (~100 hours)
 
-**Goal:** Convert the LU elimination inner loop to use a CSR working format for dramatic speedup on large matrices, add block operations for cache efficiency and multiple-RHS support, achieve measurable line coverage, and package the library for external use.
+**Goal:** Convert the LU elimination inner loop to use a CSR working format for dramatic speedup on large matrices, add block operations for cache efficiency and multiple-RHS support, formalize CI-based line coverage reporting (verifying ≥95% from Sprint 9), and package the library for external use.
 
 ### Prerequisites from Sprint 9
 
@@ -338,7 +338,7 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 | 1 | CSR working format for LU | Convert the LU elimination inner loop to use a CSR (compressed sparse row) working format instead of linked-list traversal. The linked-list data structure is the fundamental LU bottleneck for large matrices (profiling showed traversal dominates). Convert to CSR before elimination, perform elimination in CSR, then convert back. Expected: ≥2x speedup on orsirr_1. | 28 hrs |
 | 2 | Block LU factorization | Exploit dense subblocks within the sparse structure for better cache performance. Detect dense submatrices during factorization and use BLAS-like dense kernels for those blocks. Benchmark improvement on matrices with dense substructure. Benefits from CSR working format. | 28 hrs |
 | 3 | Block solvers | Implement block variants of direct and iterative solvers to handle multiple right-hand side vectors simultaneously: block LU solve, block CG, block GMRES. Amortize factorization cost across RHS vectors and exploit dense BLAS kernels for the block operations. | 20 hrs |
-| 4 | Line coverage measurement | Set up CI-based coverage reporting using GCC + lcov/genhtml. Add `make coverage` target that works on Linux CI (GitHub Actions). Identify and fill coverage gaps to achieve ≥90% line coverage on `src/*.c`. | 8 hrs |
+| 4 | Line coverage measurement | Set up CI-based coverage reporting using GCC + lcov/genhtml. Add `make coverage` target that works on Linux CI (GitHub Actions). Formalize and verify the ≥95% line coverage target established in Sprint 9 with automated reporting on `src/*.c`. | 8 hrs |
 | 5 | Packaging & installation | Add `make install` target with configurable prefix. Add pkg-config `.pc` file. Add CMake `find_package` support. Write installation instructions for Linux, macOS, and Windows (MSVC). | 16 hrs |
 
 ### Deliverables
@@ -346,7 +346,7 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 - CSR working format for LU elimination (≥2x speedup on large matrices)
 - Block LU for cache-efficient dense subblock handling
 - Block solvers for multiple RHS vectors (direct and iterative)
-- CI-based line coverage reporting with ≥90% target
+- CI-based line coverage reporting verifying ≥95% target from Sprint 9
 - `make install`, pkg-config, and CMake integration
 - Production-ready library packaging with cross-platform installation instructions
 
@@ -373,7 +373,7 @@ Sprint 4 (Cholesky/Threads/SpMM/CSR) ← needs reordering, condest
     │                               │
     │                               └── Sprint 9 (SVD Hardening/Perf/Docs) ← needs full SVD, all factorizations
     │                                       │
-    │                                       └── Sprint 10 (Block Ops/Packaging) ← needs profiling, stable API
+    │                                       └── Sprint 10 (CSR Acceleration/Block Ops/Packaging) ← needs profiling, stable API
     │
     (all sprints feed into final packaging)
 ```

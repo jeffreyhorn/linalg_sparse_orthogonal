@@ -318,34 +318,39 @@ Items deferred from Sprint 1 (see `SPRINT_1/RETROSPECTIVE.md`), organized into s
 
 ---
 
-## Sprint 10: Block Operations & Packaging
+## Sprint 10: CSR Acceleration, Block Operations & Packaging
 
-**Duration:** 14 days (~64 hours)
+**Duration:** 14 days (~100 hours)
 
-**Goal:** Add block operations for cache efficiency and multiple-RHS support, and package the library for external use with installation targets and cross-platform support.
+**Goal:** Convert the LU elimination inner loop to use a CSR working format for dramatic speedup on large matrices, add block operations for cache efficiency and multiple-RHS support, achieve measurable line coverage, and package the library for external use.
 
 ### Prerequisites from Sprint 9
 
-- Performance profiling complete (informs block operation design)
+- Performance profiling complete (identified linked-list traversal as LU bottleneck)
 - API documentation generated (packaging requires stable API docs)
 - All SVD features complete and hardened
+- Fuzz and property-based test infrastructure in place
 
 ### Items
 
 | # | Item | Description | Estimate |
 |---|------|-------------|----------|
-| 1 | Block LU factorization | Exploit dense subblocks within the sparse structure for better cache performance. Detect dense submatrices during factorization and use BLAS-like dense kernels for those blocks. Benchmark improvement on matrices with dense substructure. | 28 hrs |
-| 2 | Block solvers | Implement block variants of direct and iterative solvers to handle multiple right-hand side vectors simultaneously: block LU solve, block CG, block GMRES. Amortize factorization cost across RHS vectors and exploit dense BLAS kernels for the block operations. | 20 hrs |
-| 3 | Packaging & installation | Add `make install` target with configurable prefix. Add pkg-config `.pc` file. Add CMake `find_package` support. Write installation instructions for Linux, macOS, and Windows (MSVC). | 16 hrs |
+| 1 | CSR working format for LU | Convert the LU elimination inner loop to use a CSR (compressed sparse row) working format instead of linked-list traversal. The linked-list data structure is the fundamental LU bottleneck for large matrices (profiling showed traversal dominates). Convert to CSR before elimination, perform elimination in CSR, then convert back. Expected: ≥2x speedup on orsirr_1. | 28 hrs |
+| 2 | Block LU factorization | Exploit dense subblocks within the sparse structure for better cache performance. Detect dense submatrices during factorization and use BLAS-like dense kernels for those blocks. Benchmark improvement on matrices with dense substructure. Benefits from CSR working format. | 28 hrs |
+| 3 | Block solvers | Implement block variants of direct and iterative solvers to handle multiple right-hand side vectors simultaneously: block LU solve, block CG, block GMRES. Amortize factorization cost across RHS vectors and exploit dense BLAS kernels for the block operations. | 20 hrs |
+| 4 | Line coverage measurement | Set up CI-based coverage reporting using GCC + lcov/genhtml. Add `make coverage` target that works on Linux CI (GitHub Actions). Identify and fill coverage gaps to achieve ≥90% line coverage on `src/*.c`. | 8 hrs |
+| 5 | Packaging & installation | Add `make install` target with configurable prefix. Add pkg-config `.pc` file. Add CMake `find_package` support. Write installation instructions for Linux, macOS, and Windows (MSVC). | 16 hrs |
 
 ### Deliverables
 
+- CSR working format for LU elimination (≥2x speedup on large matrices)
 - Block LU for cache-efficient dense subblock handling
 - Block solvers for multiple RHS vectors (direct and iterative)
+- CI-based line coverage reporting with ≥90% target
 - `make install`, pkg-config, and CMake integration
 - Production-ready library packaging with cross-platform installation instructions
 
-**Total estimate:** ~64 hours
+**Total estimate:** ~100 hours
 
 ---
 
@@ -385,6 +390,6 @@ Sprint 4 (Cholesky/Threads/SpMM/CSR) ← needs reordering, condest
 | 7 | QR Apps/ILUT Pivoting/Eigenvalues | 14 days | ~152 hrs | ILUT partial pivoting, sparse Householder QR, economy QR, bidiagonalization, tridiagonal QR, transpose |
 | 8 | Matrix-Free & Sparse SVD | 14 days | ~148 hrs | Wide bidiag fix, matrix-free solvers, full/partial SVD, pseudoinverse, low-rank approximation |
 | 9 | SVD Hardening, Performance & Docs | 14 days | ~132 hrs | Zero-diagonal chase, condition number, partial SVD vectors, sparse low-rank, profiling, examples, docs |
-| 10 | Block Operations & Packaging | 14 days | ~64 hrs | Block LU, block solvers, packaging, installation |
+| 10 | CSR Acceleration, Block Ops & Packaging | 14 days | ~100 hrs | CSR LU format, block LU, block solvers, coverage, packaging |
 
-**Total across Sprints 2–10:** 126 days (~998 hours)
+**Total across Sprints 2–10:** 126 days (~1034 hours)

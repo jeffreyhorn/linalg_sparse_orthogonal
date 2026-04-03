@@ -211,8 +211,10 @@ sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, doub
  * Computes cond(A) = sigma_max / sigma_min using the full SVD.
  * Returns INFINITY for singular matrices (sigma_min below tolerance).
  *
- * @param A    The matrix (not modified).
+ * @param A    The matrix (not modified). Must have identity permutations
+ *             (i.e., must not have been previously factored in-place).
  * @param err  Output: error code (SPARSE_OK on success). May be NULL.
+ *             Set to SPARSE_ERR_BADARG if A has non-identity permutations.
  * @return The condition number, or INFINITY if A is singular.
  *         Returns INFINITY and sets *err on failure.
  */

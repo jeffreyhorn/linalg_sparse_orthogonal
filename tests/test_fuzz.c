@@ -459,25 +459,30 @@ int main(void) {
     TEST_SUITE_BEGIN("Fuzz & Property Tests");
     fuzz_init_tmp();
 
-    /* Fuzz tests for MM parser */
-    RUN_TEST(test_fuzz_empty_file);
-    RUN_TEST(test_fuzz_header_only);
-    RUN_TEST(test_fuzz_bad_header);
-    RUN_TEST(test_fuzz_missing_dimensions);
-    RUN_TEST(test_fuzz_zero_dimensions);
-    RUN_TEST(test_fuzz_negative_dimensions);
-    RUN_TEST(test_fuzz_truncated_entries);
-    RUN_TEST(test_fuzz_out_of_range_indices);
-    RUN_TEST(test_fuzz_zero_index);
-    RUN_TEST(test_fuzz_nan_value);
-    RUN_TEST(test_fuzz_inf_value);
-    RUN_TEST(test_fuzz_very_large_dimensions);
-    RUN_TEST(test_fuzz_binary_garbage);
-    RUN_TEST(test_fuzz_utf8_content);
-    RUN_TEST(test_fuzz_extra_whitespace);
-    RUN_TEST(test_fuzz_many_comments);
-    RUN_TEST(test_fuzz_duplicate_entries);
-    RUN_TEST(test_fuzz_symmetric_flag);
+    /* Fuzz tests for MM parser (require writable temp dir) */
+    if (fuzz_tmp_path[0]) {
+        RUN_TEST(test_fuzz_empty_file);
+        RUN_TEST(test_fuzz_header_only);
+        RUN_TEST(test_fuzz_bad_header);
+        RUN_TEST(test_fuzz_missing_dimensions);
+        RUN_TEST(test_fuzz_zero_dimensions);
+        RUN_TEST(test_fuzz_negative_dimensions);
+        RUN_TEST(test_fuzz_truncated_entries);
+        RUN_TEST(test_fuzz_out_of_range_indices);
+        RUN_TEST(test_fuzz_zero_index);
+        RUN_TEST(test_fuzz_nan_value);
+        RUN_TEST(test_fuzz_inf_value);
+        RUN_TEST(test_fuzz_very_large_dimensions);
+        RUN_TEST(test_fuzz_binary_garbage);
+        RUN_TEST(test_fuzz_utf8_content);
+        RUN_TEST(test_fuzz_extra_whitespace);
+        RUN_TEST(test_fuzz_many_comments);
+        RUN_TEST(test_fuzz_duplicate_entries);
+        RUN_TEST(test_fuzz_symmetric_flag);
+    } else {
+        printf("  SKIP: fuzz tests (temp file creation failed)\n");
+    }
+    /* These don't need a temp file */
     RUN_TEST(test_fuzz_null_args);
     RUN_TEST(test_fuzz_nonexistent_file);
 

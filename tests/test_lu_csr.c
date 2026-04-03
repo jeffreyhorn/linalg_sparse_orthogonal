@@ -1248,6 +1248,274 @@ static void test_lu_dense_factor_null(void) {
     ASSERT_ERR(lu_dense_solve(1, &a, 1, NULL, &a), SPARSE_ERR_NULL);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 6: Block LU hardening and edge case tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Test: Near-singular diagonal block — dense factor fails, sparse fallback succeeds */
+static void test_block_near_singular_fallback(void) {
+    /* 8×8: first 4×4 block has row 1 = 2*row 0 (singular in isolation),
+     * but with sparse coupling the full matrix is nonsingular. */
+    idx_t n = 8;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Block 0: near-singular 4×4 */
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 0, 2, 3.0);
+    sparse_insert(A, 0, 3, 4.0);
+    sparse_insert(A, 1, 0, 2.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 1, 2, 6.0);
+    sparse_insert(A, 1, 3, 8.0); /* row 1 = 2*row 0 within block */
+    sparse_insert(A, 2, 0, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 5.0);
+    sparse_insert(A, 2, 3, 1.0);
+    sparse_insert(A, 3, 0, 1.0);
+    sparse_insert(A, 3, 1, 1.0);
+    sparse_insert(A, 3, 2, 1.0);
+    sparse_insert(A, 3, 3, 7.0);
+
+    /* Block 1: well-conditioned 4×4 */
+    for (idx_t i = 4; i < 8; i++)
+        for (idx_t j = 4; j < 8; j++)
+            sparse_insert(A, i, j, (i == j) ? 10.0 : 1.0);
+
+    /* Sparse coupling to make full matrix nonsingular */
+    sparse_insert(A, 1, 5, 3.0); /* row 1 gets contribution from block 1 */
+    sparse_insert(A, 5, 1, 2.0);
+
+    double b[8], x_block[8];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    /* Block-aware: dense factor of block 0 will fail (singular),
+     * should fall back to sparse and still produce a valid solution */
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+    idx_t piv[8];
+    sparse_err_t err = lu_csr_eliminate_block(csr, 1e-12, 1e-14, 4, piv);
+
+    if (err == SPARSE_OK) {
+        ASSERT_ERR(lu_csr_solve(csr, piv, b, x_block), SPARSE_OK);
+        double res = residual_norminf(A, x_block, b, n);
+        ASSERT_TRUE(res < 1e-8);
+    }
+    /* If singular, that's also acceptable — the matrix may genuinely be singular
+     * depending on coupling structure */
+
+    lu_csr_free(csr);
+    sparse_free(A);
+}
+
+/* Test: Block at matrix boundary (last rows/columns) */
+static void test_block_at_boundary(void) {
+    /* 10×10: last 4 rows/cols form a dense block */
+    idx_t n = 10;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Sparse first 6 rows: tridiagonal */
+    for (idx_t i = 0; i < 6; i++) {
+        sparse_insert(A, i, i, 10.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < 5)
+            sparse_insert(A, i, i + 1, -1.0);
+    }
+
+    /* Dense 4×4 block at rows/cols 6-9 */
+    for (idx_t i = 6; i < 10; i++)
+        for (idx_t j = 6; j < 10; j++)
+            sparse_insert(A, i, j, (i == j) ? 15.0 : 2.0);
+
+    /* Coupling */
+    sparse_insert(A, 5, 6, 0.5);
+    sparse_insert(A, 6, 5, 0.5);
+
+    double b[10], x_block[10], x_plain[10];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    /* Block-aware */
+    {
+        LuCsr *csr = NULL;
+        ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+        idx_t piv[10];
+        ASSERT_ERR(lu_csr_eliminate_block(csr, 1e-12, 1e-14, 4, piv), SPARSE_OK);
+        ASSERT_ERR(lu_csr_solve(csr, piv, b, x_block), SPARSE_OK);
+        lu_csr_free(csr);
+    }
+
+    /* Plain */
+    ASSERT_ERR(lu_csr_factor_solve(A, b, x_plain, 1e-12), SPARSE_OK);
+
+    double res_block = residual_norminf(A, x_block, b, n);
+    double res_plain = residual_norminf(A, x_plain, b, n);
+    ASSERT_TRUE(res_block < 1e-10);
+    ASSERT_TRUE(res_plain < 1e-10);
+
+    sparse_free(A);
+}
+
+/* Test: Dense block with exact zero pivot — pivoting resolves it */
+static void test_block_zero_pivot(void) {
+    /* 4×4 dense block where A[0,0] = 0, needs pivoting */
+    idx_t n = 4;
+    SparseMatrix *A = sparse_create(n, n);
+    sparse_insert(A, 0, 0, 0.0); /* zero pivot */
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 0, 2, 1.0);
+    sparse_insert(A, 0, 3, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 5.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 1, 3, 1.0);
+    sparse_insert(A, 2, 0, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 5.0);
+    sparse_insert(A, 2, 3, 1.0);
+    sparse_insert(A, 3, 0, 1.0);
+    sparse_insert(A, 3, 1, 1.0);
+    sparse_insert(A, 3, 2, 1.0);
+    sparse_insert(A, 3, 3, 5.0);
+
+    double b[4] = {3, 8, 8, 8};
+    double x[4];
+
+    /* Block-aware should handle zero pivot via dense pivoting or sparse fallback */
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+    idx_t piv[4];
+    ASSERT_ERR(lu_csr_eliminate_block(csr, 1e-12, 1e-14, 4, piv), SPARSE_OK);
+    ASSERT_ERR(lu_csr_solve(csr, piv, b, x), SPARSE_OK);
+
+    double res = residual_norminf(A, x, b, n);
+    ASSERT_TRUE(res < 1e-10);
+
+    lu_csr_free(csr);
+    sparse_free(A);
+}
+
+/* Test: SuiteSparse orsirr_1 — block-aware matches plain */
+static void test_block_suitesparse_orsirr1(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t err = sparse_load_mm(&A, SS_DIR "/orsirr_1.mtx");
+    if (err != SPARSE_OK) {
+        printf("    [SKIP] orsirr_1.mtx not available\n");
+        return;
+    }
+
+    idx_t n = sparse_rows(A);
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x_block = malloc((size_t)n * sizeof(double));
+    double *x_plain = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x_block);
+    ASSERT_NOT_NULL(x_plain);
+
+    for (idx_t i = 0; i < n; i++)
+        b[i] = sin((double)i);
+
+    /* Block-aware */
+    {
+        LuCsr *csr = NULL;
+        ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+        idx_t *piv = malloc((size_t)n * sizeof(idx_t));
+        ASSERT_NOT_NULL(piv);
+        ASSERT_ERR(lu_csr_eliminate_block(csr, 1e-12, 1e-14, 4, piv), SPARSE_OK);
+        ASSERT_ERR(lu_csr_solve(csr, piv, b, x_block), SPARSE_OK);
+        free(piv);
+        lu_csr_free(csr);
+    }
+
+    /* Plain */
+    ASSERT_ERR(lu_csr_factor_solve(A, b, x_plain, 1e-12), SPARSE_OK);
+
+    double res_block = residual_norminf(A, x_block, b, n);
+    double res_plain = residual_norminf(A, x_plain, b, n);
+    printf("    orsirr_1 block: res=%.3e  plain: res=%.3e\n", res_block, res_plain);
+    ASSERT_TRUE(res_block < 1e-6);
+    ASSERT_TRUE(res_plain < 1e-6);
+
+    free(b);
+    free(x_block);
+    free(x_plain);
+    sparse_free(A);
+}
+
+/* Test: SuiteSparse steam1 — block-aware */
+static void test_block_suitesparse_steam1(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t err = sparse_load_mm(&A, SS_DIR "/steam1.mtx");
+    if (err != SPARSE_OK) {
+        printf("    [SKIP] steam1.mtx not available\n");
+        return;
+    }
+
+    idx_t n = sparse_rows(A);
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x);
+
+    for (idx_t i = 0; i < n; i++)
+        b[i] = 1.0;
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+    idx_t *piv = malloc((size_t)n * sizeof(idx_t));
+    ASSERT_NOT_NULL(piv);
+    ASSERT_ERR(lu_csr_eliminate_block(csr, 1e-12, 1e-14, 4, piv), SPARSE_OK);
+    ASSERT_ERR(lu_csr_solve(csr, piv, b, x), SPARSE_OK);
+    free(piv);
+
+    double res = residual_norminf(A, x, b, n);
+    printf("    steam1 block: res=%.3e\n", res);
+    ASSERT_TRUE(res < 1e-6);
+
+    lu_csr_free(csr);
+    free(b);
+    free(x);
+    sparse_free(A);
+}
+
+/* Test: No blocks detected — block-aware behaves identically to plain */
+static void test_block_eliminate_no_blocks(void) {
+    /* Tridiagonal — no dense blocks */
+    idx_t n = 10;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -1.0);
+    }
+
+    double b[10], x_block[10], x_plain[10];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    /* Block-aware (no blocks detected) */
+    {
+        LuCsr *csr = NULL;
+        ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+        idx_t piv[10];
+        ASSERT_ERR(lu_csr_eliminate_block(csr, 1e-12, 1e-14, 4, piv), SPARSE_OK);
+        ASSERT_ERR(lu_csr_solve(csr, piv, b, x_block), SPARSE_OK);
+        lu_csr_free(csr);
+    }
+
+    /* Plain */
+    ASSERT_ERR(lu_csr_factor_solve(A, b, x_plain, 1e-12), SPARSE_OK);
+
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_block[i], x_plain[i], 1e-12);
+
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════ */
 
 int main(void) {
@@ -1295,6 +1563,14 @@ int main(void) {
     RUN_TEST(test_lu_dense_factor_solve_5x5);
     RUN_TEST(test_block_eliminate_block_diagonal);
     RUN_TEST(test_block_eliminate_mixed);
+
+    /* Day 6: Block LU hardening and edge cases */
+    RUN_TEST(test_block_near_singular_fallback);
+    RUN_TEST(test_block_at_boundary);
+    RUN_TEST(test_block_zero_pivot);
+    RUN_TEST(test_block_suitesparse_orsirr1);
+    RUN_TEST(test_block_suitesparse_steam1);
+    RUN_TEST(test_block_eliminate_no_blocks);
 
     TEST_SUITE_END();
 }

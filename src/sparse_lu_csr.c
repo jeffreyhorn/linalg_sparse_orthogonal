@@ -550,8 +550,22 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
 
     for (idx_t b = 0; b < nblks; b++) {
         if (blks[b].row_start == blks[b].col_start &&
-            blks[b].row_end - blks[b].row_start == blks[b].col_end - blks[b].col_start) {
-            block_at[blks[b].row_start] = b;
+            blks[b].row_end - blks[b].row_start == blks[b].col_end - blks[b].col_start &&
+            blks[b].row_end <= n) {
+            idx_t start = blks[b].row_start;
+            /* Resolve overlaps: keep the larger block */
+            if (block_at[start] >= 0) {
+                idx_t old_b = block_at[start];
+                idx_t old_size = blks[old_b].row_end - blks[old_b].row_start;
+                idx_t new_size = blks[b].row_end - blks[b].row_start;
+                if (new_size <= old_size)
+                    continue; /* keep existing larger block */
+            }
+            block_at[start] = b;
+            /* Mark interior steps as covered to prevent overlapping blocks */
+            idx_t bsz = blks[b].row_end - blks[b].row_start;
+            for (idx_t s = start + 1; s < start + bsz && s < n; s++)
+                block_at[s] = -2; /* -2 = interior of another block, not a start */
         }
     }
 
@@ -616,14 +630,12 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
                 }
             }
 
-            /* Factor densely */
+            /* Factor densely — on failure, fall back to sparse path */
             err = lu_dense_factor(bsize, bsize, dense, bsize, ipiv, tol);
             if (err != SPARSE_OK) {
                 free(dense);
                 free(ipiv);
-                if (err == SPARSE_ERR_SINGULAR)
-                    goto block_cleanup;
-                /* For non-singular errors, fall through to sparse path */
+                err = SPARSE_OK; /* Reset error — sparse path will handle it */
                 goto sparse_fallback;
             }
 

@@ -43,6 +43,12 @@ static void profile_matrix(const char *name, const char *path) {
     idx_t k = (m < n) ? m : n;
     printf("\n=== %s (%d×%d, nnz=%d) ===\n", name, (int)m, (int)n, (int)nnz);
 
+    if (k == 0) {
+        printf("  (empty matrix — nothing to profile)\n");
+        sparse_free(A);
+        return;
+    }
+
     /* Phase 1: Bidiagonalization only */
     double t0 = wall_time();
     sparse_bidiag_t bd;

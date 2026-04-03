@@ -963,18 +963,22 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
         return err;
     }
 
-    /* Sort singular values descending, tracking permutation */
-    idx_t *perm = malloc((size_t)lanczos_k * sizeof(idx_t));
-    if (!perm) {
-        free(alpha);
-        free(P);
-        free(Q);
-        free(U_small);
-        free(V_small);
-        return SPARSE_ERR_ALLOC;
+    /* Sort singular values descending, tracking permutation only when
+     * compute_uv is set (perm is only needed for vector recovery). */
+    idx_t *perm = NULL;
+    if (compute_uv) {
+        perm = malloc((size_t)lanczos_k * sizeof(idx_t));
+        if (!perm) {
+            free(alpha);
+            free(P);
+            free(Q);
+            free(U_small);
+            free(V_small);
+            return SPARSE_ERR_ALLOC;
+        }
+        for (idx_t i = 0; i < lanczos_k; i++)
+            perm[i] = i;
     }
-    for (idx_t i = 0; i < lanczos_k; i++)
-        perm[i] = i;
 
     /* Make non-negative */
     for (idx_t i = 0; i < lanczos_k; i++)
@@ -991,9 +995,11 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
             double tmp = alpha[i];
             alpha[i] = alpha[best];
             alpha[best] = tmp;
-            idx_t ptmp = perm[i];
-            perm[i] = perm[best];
-            perm[best] = ptmp;
+            if (perm) {
+                idx_t ptmp = perm[i];
+                perm[i] = perm[best];
+                perm[best] = ptmp;
+            }
         }
     }
 

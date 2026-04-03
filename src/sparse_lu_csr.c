@@ -156,6 +156,91 @@ static sparse_err_t lu_csr_grow(LuCsr *csr, idx_t needed) {
     return SPARSE_OK;
 }
 
+/* ─── Dense LU factorization (dgetrf-style) ──────────────────────────── */
+
+sparse_err_t lu_dense_factor(idx_t m, idx_t n, double *A, idx_t lda, idx_t *ipiv, double tol) {
+    if (!A || !ipiv)
+        return SPARSE_ERR_NULL;
+
+    idx_t mn = (m < n) ? m : n;
+
+    for (idx_t k = 0; k < mn; k++) {
+        /* Find pivot: largest |A[i,k]| for i in [k..m-1] */
+        double max_val = 0.0;
+        idx_t pivot_row = k;
+        for (idx_t i = k; i < m; i++) {
+            double av = fabs(A[i + lda * k]); /* column-major: A[i,k] = A[i + lda*k] */
+            if (av > max_val) {
+                max_val = av;
+                pivot_row = i;
+            }
+        }
+
+        if (max_val < tol)
+            return SPARSE_ERR_SINGULAR;
+
+        ipiv[k] = pivot_row;
+
+        /* Swap rows k and pivot_row across all columns */
+        if (pivot_row != k) {
+            for (idx_t j = 0; j < n; j++) {
+                double tmp = A[k + lda * j];
+                A[k + lda * j] = A[pivot_row + lda * j];
+                A[pivot_row + lda * j] = tmp;
+            }
+        }
+
+        /* Eliminate: for each row i > k */
+        double pivot_val = A[k + lda * k];
+        for (idx_t i = k + 1; i < m; i++) {
+            double mult = A[i + lda * k] / pivot_val;
+            A[i + lda * k] = mult; /* Store L entry */
+            for (idx_t j = k + 1; j < n; j++) {
+                A[i + lda * j] -= mult * A[k + lda * j];
+            }
+        }
+    }
+
+    return SPARSE_OK;
+}
+
+/* ─── Dense triangular solve ─────────────────────────────────────────── */
+
+sparse_err_t lu_dense_solve(idx_t n, const double *LU, idx_t lda, const idx_t *ipiv, double *b) {
+    if (!LU || !ipiv || !b)
+        return SPARSE_ERR_NULL;
+
+    /* Apply row permutation */
+    for (idx_t k = 0; k < n; k++) {
+        if (ipiv[k] != k) {
+            double tmp = b[k];
+            b[k] = b[ipiv[k]];
+            b[ipiv[k]] = tmp;
+        }
+    }
+
+    /* Forward substitution: L*y = Pb (unit diagonal) */
+    for (idx_t i = 1; i < n; i++) {
+        double sum = 0.0;
+        for (idx_t j = 0; j < i; j++)
+            sum += LU[i + lda * j] * b[j];
+        b[i] -= sum;
+    }
+
+    /* Backward substitution: U*x = y */
+    for (idx_t i = n - 1; i >= 0; i--) {
+        double sum = 0.0;
+        for (idx_t j = i + 1; j < n; j++)
+            sum += LU[i + lda * j] * b[j];
+        double u_ii = LU[i + lda * i];
+        if (fabs(u_ii) < 1e-300)
+            return SPARSE_ERR_SINGULAR;
+        b[i] = (b[i] - sum) / u_ii;
+    }
+
+    return SPARSE_OK;
+}
+
 /* ─── CSR LU elimination with scatter-gather ─────────────────────────── */
 
 sparse_err_t lu_csr_eliminate(LuCsr *csr, double tol, double drop_tol, idx_t *piv_perm) {
@@ -422,6 +507,415 @@ cleanup:
     free(work);
     free(work_cols);
     free(row_map);
+    return err;
+}
+
+/* ─── Block-aware CSR LU elimination ──────────────────────────────────── */
+
+/*
+ * Single-pass block-aware elimination. Detects dense diagonal blocks
+ * upfront. During elimination, when step k enters a diagonal block, the
+ * block is extracted, factored densely, and the L\U result is written
+ * back. Steps inside the block are then skipped. Steps outside blocks
+ * use the standard sparse scatter-gather path.
+ *
+ * The Schur complement update for rows outside the block is handled by
+ * the sparse elimination when it reaches those rows.
+ */
+sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx_t min_block,
+                                    idx_t *piv_perm) {
+    if (!csr)
+        return SPARSE_ERR_NULL;
+
+    idx_t n = csr->n;
+    if (n == 0)
+        return SPARSE_OK;
+
+    /* Detect dense diagonal blocks */
+    DenseBlock *blks = NULL;
+    idx_t nblks = 0;
+    sparse_err_t err = lu_detect_dense_blocks(csr, min_block, 0.8, &blks, &nblks);
+    if (err != SPARSE_OK)
+        return err;
+
+    /* Build a lookup: for each step k, which block (if any) starts there?
+     * block_at[k] = block index if a diagonal block starts at step k, else -1. */
+    idx_t *block_at = calloc((size_t)n, sizeof(idx_t));
+    if (!block_at) {
+        free(blks);
+        return SPARSE_ERR_ALLOC;
+    }
+    for (idx_t i = 0; i < n; i++)
+        block_at[i] = -1;
+
+    for (idx_t b = 0; b < nblks; b++) {
+        if (blks[b].row_start == blks[b].col_start &&
+            blks[b].row_end - blks[b].row_start == blks[b].col_end - blks[b].col_start) {
+            block_at[blks[b].row_start] = b;
+        }
+    }
+
+    /* Workspace for sparse elimination (same as lu_csr_eliminate) */
+    idx_t *rstart = malloc((size_t)n * sizeof(idx_t));
+    idx_t *rend = malloc((size_t)n * sizeof(idx_t));
+    double *work = calloc((size_t)n, sizeof(double));
+    idx_t *work_cols = malloc((size_t)n * sizeof(idx_t));
+    idx_t *row_map = malloc((size_t)n * sizeof(idx_t));
+
+    if (!rstart || !rend || !work || !work_cols || !row_map) {
+        free(rstart);
+        free(rend);
+        free(work);
+        free(work_cols);
+        free(row_map);
+        free(block_at);
+        free(blks);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    for (idx_t i = 0; i < n; i++) {
+        rstart[i] = csr->row_ptr[i];
+        rend[i] = csr->row_ptr[i + 1];
+        row_map[i] = i;
+    }
+    if (piv_perm) {
+        for (idx_t i = 0; i < n; i++)
+            piv_perm[i] = i;
+    }
+
+    idx_t write_pos = csr->row_ptr[n];
+
+    idx_t k = 0;
+    while (k < n) {
+        if (block_at[k] >= 0) {
+            /* ── Dense block path ── */
+            idx_t b = block_at[k];
+            idx_t bsize = blks[b].row_end - blks[b].row_start;
+
+            /* Extract the block from current CSR state (using row_map) */
+            double *dense = calloc((size_t)bsize * (size_t)bsize, sizeof(double));
+            idx_t *ipiv = malloc((size_t)bsize * sizeof(idx_t));
+            if (!dense || !ipiv) {
+                free(dense);
+                free(ipiv);
+                err = SPARSE_ERR_ALLOC;
+                goto block_cleanup;
+            }
+
+            /* Extract: for each logical row in [k, k+bsize), read entries
+             * in columns [k, k+bsize) from the CSR using row_map */
+            for (idx_t bi = 0; bi < bsize; bi++) {
+                idx_t ri = row_map[k + bi];
+                idx_t s = rstart[ri], e = rend[ri];
+                for (idx_t p = s; p < e; p++) {
+                    idx_t c = csr->col_idx[p];
+                    if (c >= k && c < k + bsize) {
+                        idx_t bj = c - k;
+                        dense[bi + bsize * bj] = csr->values[p]; /* col-major */
+                    }
+                }
+            }
+
+            /* Factor densely */
+            err = lu_dense_factor(bsize, bsize, dense, bsize, ipiv, tol);
+            if (err != SPARSE_OK) {
+                free(dense);
+                free(ipiv);
+                if (err == SPARSE_ERR_SINGULAR)
+                    goto block_cleanup;
+                /* For non-singular errors, fall through to sparse path */
+                goto sparse_fallback;
+            }
+
+            /* Apply pivot permutation to row_map and piv_perm */
+            for (idx_t bi = 0; bi < bsize; bi++) {
+                if (ipiv[bi] != bi) {
+                    idx_t r1 = k + bi;
+                    idx_t r2 = k + ipiv[bi];
+                    idx_t tmp = row_map[r1];
+                    row_map[r1] = row_map[r2];
+                    row_map[r2] = tmp;
+                    if (piv_perm) {
+                        idx_t ptmp = piv_perm[r1];
+                        piv_perm[r1] = piv_perm[r2];
+                        piv_perm[r2] = ptmp;
+                    }
+                }
+            }
+
+            /* Write L\U block entries back into CSR for each block row.
+             * For each logical row k+bi, rebuild it: keep entries outside
+             * the block columns, replace block columns with dense L\U. */
+            for (idx_t bi = 0; bi < bsize; bi++) {
+                idx_t ri = row_map[k + bi];
+                idx_t s = rstart[ri], e = rend[ri];
+                idx_t row_nnz_outside = 0;
+                for (idx_t p = s; p < e; p++) {
+                    idx_t c = csr->col_idx[p];
+                    if (c < k || c >= k + bsize)
+                        row_nnz_outside++;
+                }
+
+                idx_t new_nnz = row_nnz_outside + bsize; /* worst case: all block entries */
+                err = lu_csr_grow(csr, write_pos + new_nnz);
+                if (err != SPARSE_OK) {
+                    free(dense);
+                    free(ipiv);
+                    goto block_cleanup;
+                }
+
+                idx_t nc = 0;
+                idx_t new_start = write_pos;
+                idx_t old_p = s;
+
+                /* Entries before block columns */
+                while (old_p < e && csr->col_idx[old_p] < k) {
+                    csr->col_idx[new_start + nc] = csr->col_idx[old_p];
+                    csr->values[new_start + nc] = csr->values[old_p];
+                    nc++;
+                    old_p++;
+                }
+
+                /* Block column entries from dense L\U */
+                for (idx_t bj = 0; bj < bsize; bj++) {
+                    double v = dense[bi + bsize * bj];
+                    if (fabs(v) >= drop_tol || bj == bi) {
+                        /* Always keep diagonal (even if small) */
+                        csr->col_idx[new_start + nc] = k + bj;
+                        csr->values[new_start + nc] = v;
+                        nc++;
+                    }
+                }
+
+                /* Skip old block column entries */
+                while (old_p < e && csr->col_idx[old_p] < k + bsize)
+                    old_p++;
+
+                /* Entries after block columns */
+                while (old_p < e) {
+                    csr->col_idx[new_start + nc] = csr->col_idx[old_p];
+                    csr->values[new_start + nc] = csr->values[old_p];
+                    nc++;
+                    old_p++;
+                }
+
+                rstart[ri] = new_start;
+                rend[ri] = new_start + nc;
+                write_pos = new_start + nc;
+            }
+
+            free(dense);
+            free(ipiv);
+
+            k += bsize; /* Skip block steps */
+            continue;
+
+        sparse_fallback:
+            free(dense);
+            free(ipiv);
+            /* Fall through to sparse path for this step */
+        }
+
+        /* ── Sparse scatter-gather path (same as lu_csr_eliminate) ── */
+        {
+            double max_val = 0.0;
+            idx_t pivot_row = k;
+
+            for (idx_t i = k; i < n; i++) {
+                idx_t ri = row_map[i];
+                idx_t s = rstart[ri], e = rend[ri];
+                for (idx_t p = s; p < e; p++) {
+                    if (csr->col_idx[p] == k) {
+                        double av = fabs(csr->values[p]);
+                        if (av > max_val) {
+                            max_val = av;
+                            pivot_row = i;
+                        }
+                        break;
+                    }
+                    if (csr->col_idx[p] > k)
+                        break;
+                }
+            }
+
+            if (max_val < tol) {
+                err = SPARSE_ERR_SINGULAR;
+                goto block_cleanup;
+            }
+
+            if (pivot_row != k) {
+                idx_t tmp = row_map[k];
+                row_map[k] = row_map[pivot_row];
+                row_map[pivot_row] = tmp;
+                if (piv_perm) {
+                    idx_t ptmp = piv_perm[k];
+                    piv_perm[k] = piv_perm[pivot_row];
+                    piv_perm[pivot_row] = ptmp;
+                }
+            }
+
+            idx_t pk = row_map[k];
+            double pivot_val = 0.0;
+            {
+                idx_t s = rstart[pk], e = rend[pk];
+                for (idx_t p = s; p < e; p++) {
+                    if (csr->col_idx[p] == k) {
+                        pivot_val = csr->values[p];
+                        break;
+                    }
+                    if (csr->col_idx[p] > k)
+                        break;
+                }
+            }
+
+            idx_t pk_s = rstart[pk], pk_e = rend[pk];
+            idx_t wcount = 0;
+            for (idx_t p = pk_s; p < pk_e; p++) {
+                idx_t j = csr->col_idx[p];
+                work[j] = csr->values[p];
+                work_cols[wcount++] = j; // NOLINT(clang-analyzer-security.ArrayBound)
+            }
+
+            for (idx_t i = k + 1; i < n; i++) {
+                idx_t ri = row_map[i];
+                idx_t ri_s = rstart[ri], ri_e = rend[ri];
+
+                double a_ik = 0.0;
+                int found = 0;
+                for (idx_t p = ri_s; p < ri_e; p++) {
+                    if (csr->col_idx[p] == k) {
+                        a_ik = csr->values[p];
+                        found = 1;
+                        break;
+                    }
+                    if (csr->col_idx[p] > k)
+                        break;
+                }
+                if (!found)
+                    continue;
+
+                double mult = a_ik / pivot_val;
+
+                idx_t ri_nnz = ri_e - ri_s;
+                idx_t piv_nnz = pk_e - pk_s;
+                err = lu_csr_grow(csr, write_pos + ri_nnz + piv_nnz);
+                if (err != SPARSE_OK)
+                    goto block_cleanup;
+
+                idx_t new_start = write_pos;
+                idx_t nc = 0;
+                idx_t pi = ri_s;
+
+                while (pi < ri_e && csr->col_idx[pi] < k) {
+                    csr->col_idx[new_start + nc] = csr->col_idx[pi];
+                    csr->values[new_start + nc] = csr->values[pi];
+                    nc++;
+                    pi++;
+                }
+
+                csr->col_idx[new_start + nc] = k;
+                csr->values[new_start + nc] = mult;
+                nc++;
+
+                if (pi < ri_e && csr->col_idx[pi] == k)
+                    pi++;
+
+                idx_t pp = 0;
+                while (pp < wcount && work_cols[pp] <= k)
+                    pp++;
+
+                while (pi < ri_e || pp < wcount) {
+                    idx_t col_i = (pi < ri_e) ? csr->col_idx[pi] : n;
+                    idx_t col_p = (pp < wcount) ? work_cols[pp] : n;
+                    double new_val;
+                    idx_t col;
+
+                    if (col_i < col_p) {
+                        col = col_i;
+                        new_val = csr->values[pi];
+                        pi++;
+                    } else if (col_p < col_i) {
+                        col = col_p;
+                        new_val = -mult * work[col_p]; // NOLINT(clang-analyzer-security.ArrayBound)
+                        pp++;
+                    } else {
+                        col = col_i;
+                        new_val = csr->values[pi] -
+                                  mult * work[col_i]; // NOLINT(clang-analyzer-security.ArrayBound)
+                        pi++;
+                        pp++;
+                    }
+
+                    if (fabs(new_val) < drop_tol * max_val)
+                        continue;
+
+                    csr->col_idx[new_start + nc] = col;
+                    csr->values[new_start + nc] = new_val;
+                    nc++;
+                }
+
+                rstart[ri] = new_start;
+                rend[ri] = new_start + nc;
+                write_pos = new_start + nc;
+            }
+
+            for (idx_t c = 0; c < wcount; c++)
+                work[work_cols[c]] = 0.0;
+        }
+
+        k++;
+    }
+
+    /* ── Compact into clean CSR ── */
+    {
+        idx_t total = 0;
+        for (idx_t i = 0; i < n; i++) {
+            idx_t ri = row_map[i];
+            total += rend[ri] - rstart[ri];
+        }
+
+        idx_t *new_rp = malloc((size_t)(n + 1) * sizeof(idx_t));
+        idx_t *new_ci = malloc((size_t)(total > 0 ? total : 1) * sizeof(idx_t));
+        double *new_v = malloc((size_t)(total > 0 ? total : 1) * sizeof(double));
+        if (!new_rp || !new_ci || !new_v) {
+            free(new_rp);
+            free(new_ci);
+            free(new_v);
+            err = SPARSE_ERR_ALLOC;
+            goto block_cleanup;
+        }
+
+        idx_t pos = 0;
+        for (idx_t i = 0; i < n; i++) {
+            new_rp[i] = pos;
+            idx_t ri = row_map[i];
+            idx_t s = rstart[ri], e = rend[ri];
+            for (idx_t p = s; p < e; p++) {
+                new_ci[pos] = csr->col_idx[p];
+                new_v[pos] = csr->values[p];
+                pos++;
+            }
+        }
+        new_rp[n] = pos; // NOLINT(clang-analyzer-security.ArrayBound)
+
+        free(csr->row_ptr);
+        free(csr->col_idx);
+        free(csr->values);
+        csr->row_ptr = new_rp;
+        csr->col_idx = new_ci;
+        csr->values = new_v;
+        csr->nnz = total;
+        csr->capacity = total > 0 ? total : 1;
+    }
+
+block_cleanup:
+    free(rstart);
+    free(rend);
+    free(work);
+    free(work_cols);
+    free(row_map);
+    free(block_at);
+    free(blks);
     return err;
 }
 

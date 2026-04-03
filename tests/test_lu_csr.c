@@ -1092,6 +1092,162 @@ static void test_detect_blocks_too_small(void) {
     sparse_free(A);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 5: Dense kernel and block-aware elimination tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Test: lu_dense_factor + lu_dense_solve on known 3×3 */
+static void test_lu_dense_factor_solve_3x3(void) {
+    /* A = [2 1 1; 4 3 3; 8 7 9] (column-major) */
+    double A[9] = {2, 4, 8, 1, 3, 7, 1, 3, 9};
+    idx_t ipiv[3];
+
+    ASSERT_ERR(lu_dense_factor(3, 3, A, 3, ipiv, 1e-12), SPARSE_OK);
+
+    /* Solve A*x = [4; 10; 24] → x = [1; 1; 1] */
+    double b[3] = {4, 10, 24};
+    ASSERT_ERR(lu_dense_solve(3, A, 3, ipiv, b), SPARSE_OK);
+
+    ASSERT_NEAR(b[0], 1.0, 1e-12);
+    ASSERT_NEAR(b[1], 1.0, 1e-12);
+    ASSERT_NEAR(b[2], 1.0, 1e-12);
+}
+
+/* Test: lu_dense_factor on singular matrix */
+static void test_lu_dense_factor_singular(void) {
+    /* Row 1 = 2 * row 0 → singular after first elimination step */
+    double A[9] = {1, 2, 0, 2, 4, 0, 0, 0, 1};
+    idx_t ipiv[3];
+
+    ASSERT_ERR(lu_dense_factor(3, 3, A, 3, ipiv, 1e-12), SPARSE_ERR_SINGULAR);
+}
+
+/* Test: lu_dense_factor + solve on 5×5 diag-dominant */
+static void test_lu_dense_factor_solve_5x5(void) {
+    idx_t n = 5;
+    /* Column-major: A[i + n*j] */
+    double A[25];
+    for (idx_t i = 0; i < n; i++)
+        for (idx_t j = 0; j < n; j++)
+            A[i + n * j] = (i == j) ? 10.0 : 1.0;
+
+    idx_t ipiv[5];
+    ASSERT_ERR(lu_dense_factor(n, n, A, n, ipiv, 1e-12), SPARSE_OK);
+
+    /* b = [14, 14, 14, 14, 14] → x = [1, 1, 1, 1, 1] */
+    double b[5] = {14, 14, 14, 14, 14};
+    ASSERT_ERR(lu_dense_solve(n, A, n, ipiv, b), SPARSE_OK);
+
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(b[i], 1.0, 1e-10);
+}
+
+/* Test: lu_csr_eliminate_block on block-diagonal matrix */
+static void test_block_eliminate_block_diagonal(void) {
+    /* 12×12 with three 4×4 dense diagonal blocks */
+    idx_t n = 12;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t b = 0; b < 3; b++) {
+        idx_t off = b * 4;
+        for (idx_t i = 0; i < 4; i++)
+            for (idx_t j = 0; j < 4; j++) {
+                double v = (i == j) ? 10.0 : 1.0;
+                sparse_insert(A, off + i, off + j, v);
+            }
+    }
+
+    /* Solve with block-aware CSR LU */
+    double b_vec[12], x_block[12], x_plain[12];
+    for (idx_t i = 0; i < n; i++)
+        b_vec[i] = (double)(i + 1);
+
+    /* Block-aware path */
+    {
+        LuCsr *csr = NULL;
+        ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+        idx_t piv[12];
+        ASSERT_ERR(lu_csr_eliminate_block(csr, 1e-12, 1e-14, 4, piv), SPARSE_OK);
+        ASSERT_ERR(lu_csr_solve(csr, piv, b_vec, x_block), SPARSE_OK);
+        lu_csr_free(csr);
+    }
+
+    /* Plain CSR path */
+    {
+        LuCsr *csr = NULL;
+        ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+        idx_t piv[12];
+        ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
+        ASSERT_ERR(lu_csr_solve(csr, piv, b_vec, x_plain), SPARSE_OK);
+        lu_csr_free(csr);
+    }
+
+    /* Solutions should match */
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_block[i], x_plain[i], 1e-10);
+
+    /* Residual should be small */
+    double res = residual_norminf(A, x_block, b_vec, n);
+    ASSERT_TRUE(res < 1e-10);
+
+    sparse_free(A);
+}
+
+/* Test: lu_csr_eliminate_block on mixed matrix (dense block + sparse coupling) */
+static void test_block_eliminate_mixed(void) {
+    /* 8×8 matrix: 4×4 dense block at (0,0), 4×4 dense block at (4,4),
+     * plus sparse coupling between them */
+    idx_t n = 8;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Two 4×4 diag-dominant blocks */
+    for (idx_t b = 0; b < 2; b++) {
+        idx_t off = b * 4;
+        for (idx_t i = 0; i < 4; i++)
+            for (idx_t j = 0; j < 4; j++) {
+                double v = (i == j) ? 20.0 : 1.0;
+                sparse_insert(A, off + i, off + j, v);
+            }
+    }
+    /* Sparse coupling: A[0,4] = A[4,0] = 0.5 */
+    sparse_insert(A, 0, 4, 0.5);
+    sparse_insert(A, 4, 0, 0.5);
+
+    double b_vec[8], x_block[8], x_plain[8];
+    for (idx_t i = 0; i < n; i++)
+        b_vec[i] = (double)(i + 1);
+
+    /* Block-aware */
+    {
+        LuCsr *csr = NULL;
+        ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+        idx_t piv[8];
+        ASSERT_ERR(lu_csr_eliminate_block(csr, 1e-12, 1e-14, 4, piv), SPARSE_OK);
+        ASSERT_ERR(lu_csr_solve(csr, piv, b_vec, x_block), SPARSE_OK);
+        lu_csr_free(csr);
+    }
+
+    /* Plain */
+    ASSERT_ERR(lu_csr_factor_solve(A, b_vec, x_plain, 1e-12), SPARSE_OK);
+
+    /* Both residuals should be small */
+    double res_block = residual_norminf(A, x_block, b_vec, n);
+    double res_plain = residual_norminf(A, x_plain, b_vec, n);
+    ASSERT_TRUE(res_block < 1e-10);
+    ASSERT_TRUE(res_plain < 1e-10);
+
+    sparse_free(A);
+}
+
+/* Test: lu_dense_factor null args */
+static void test_lu_dense_factor_null(void) {
+    idx_t ipiv;
+    double a = 1.0;
+    ASSERT_ERR(lu_dense_factor(1, 1, NULL, 1, &ipiv, 1e-12), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_dense_factor(1, 1, &a, 1, NULL, 1e-12), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_dense_solve(1, NULL, 1, &ipiv, &a), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_dense_solve(1, &a, 1, NULL, &a), SPARSE_ERR_NULL);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════ */
 
 int main(void) {
@@ -1131,6 +1287,14 @@ int main(void) {
     RUN_TEST(test_detect_blocks_one_large);
     RUN_TEST(test_extract_insert_round_trip);
     RUN_TEST(test_detect_blocks_too_small);
+
+    /* Day 5: Dense kernel and block-aware elimination tests */
+    RUN_TEST(test_lu_dense_factor_null);
+    RUN_TEST(test_lu_dense_factor_solve_3x3);
+    RUN_TEST(test_lu_dense_factor_singular);
+    RUN_TEST(test_lu_dense_factor_solve_5x5);
+    RUN_TEST(test_block_eliminate_block_diagonal);
+    RUN_TEST(test_block_eliminate_mixed);
 
     TEST_SUITE_END();
 }

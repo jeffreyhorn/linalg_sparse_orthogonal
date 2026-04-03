@@ -106,6 +106,25 @@ sparse_err_t lu_csr_to_sparse(const LuCsr *csr, SparseMatrix **mat);
 sparse_err_t lu_csr_eliminate(LuCsr *csr, double tol, double drop_tol, idx_t *piv_perm);
 
 /**
+ * @brief Block-aware LU factorization on a LuCsr matrix.
+ *
+ * Detects dense subblocks in the sparsity pattern. For each detected block
+ * that aligns with the current pivot region, the block is extracted, factored
+ * with lu_dense_factor(), and inserted back. Steps covered by the block are
+ * skipped in the sparse elimination. Remaining steps use the standard
+ * scatter-gather CSR elimination.
+ *
+ * @param csr       The LuCsr to factor in-place.
+ * @param tol       Pivot tolerance.
+ * @param drop_tol  Drop tolerance for fill-in.
+ * @param min_block Minimum block dimension for dense path (e.g., 4).
+ * @param[out] piv_perm  Row pivot permutation (length n). May be NULL.
+ * @return SPARSE_OK on success.
+ */
+sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx_t min_block,
+                                    idx_t *piv_perm);
+
+/**
  * @brief Solve a linear system using a factored LuCsr (L\U with pivot perm).
  *
  * Solves P*A*x = b by:
@@ -188,6 +207,42 @@ sparse_err_t lu_extract_dense_block(const LuCsr *csr, const DenseBlock *blk, dou
  */
 sparse_err_t lu_insert_dense_block(LuCsr *csr, const DenseBlock *blk, const double *dense,
                                    double drop_tol);
+
+/**
+ * @brief Dense LU factorization with partial pivoting (dgetrf-style).
+ *
+ * Factors a dense m×n matrix (column-major) in-place into L\U form.
+ * Row swaps are recorded in ipiv[0..min(m,n)-1].
+ *
+ * @param m     Number of rows.
+ * @param n     Number of columns.
+ * @param A     Dense matrix in column-major layout (length m*n). On output,
+ *              L occupies the strictly lower triangle (unit diagonal implied),
+ *              U occupies the upper triangle including diagonal.
+ * @param lda   Leading dimension of A (≥ m).
+ * @param ipiv  Pivot indices (length min(m,n)). ipiv[k] = row swapped with k.
+ * @param tol   Pivot tolerance.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if A or ipiv is NULL.
+ * @return SPARSE_ERR_SINGULAR if a near-zero pivot is encountered.
+ */
+sparse_err_t lu_dense_factor(idx_t m, idx_t n, double *A, idx_t lda, idx_t *ipiv, double tol);
+
+/**
+ * @brief Dense triangular solve using factored L\U from lu_dense_factor.
+ *
+ * Solves L*U*x = P*b where L\U and ipiv are from lu_dense_factor().
+ *
+ * @param n     System dimension.
+ * @param LU    Factored dense matrix (column-major, n×n) from lu_dense_factor.
+ * @param lda   Leading dimension of LU (≥ n).
+ * @param ipiv  Pivot indices from lu_dense_factor (length n).
+ * @param b     Right-hand side vector (length n). Overwritten with solution x.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if any pointer is NULL.
+ * @return SPARSE_ERR_SINGULAR if a zero diagonal in U is encountered.
+ */
+sparse_err_t lu_dense_solve(idx_t n, const double *LU, idx_t lda, const idx_t *ipiv, double *b);
 
 /**
  * @brief One-shot CSR-based LU factor and solve.

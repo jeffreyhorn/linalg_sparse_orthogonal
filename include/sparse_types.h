@@ -12,6 +12,24 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* ── Library version ────────────────────────────────────────────────── */
+
+#define SPARSE_VERSION_MAJOR 1
+#define SPARSE_VERSION_MINOR 0
+#define SPARSE_VERSION_PATCH 0
+
+/** @brief Encode version components into a single comparable integer. */
+#define SPARSE_VERSION_ENCODE(maj, min, pat) \
+    (((maj) * 10000) + ((min) * 100) + (pat))
+
+/** @brief Integer encoding of the current library version. */
+#define SPARSE_VERSION \
+    SPARSE_VERSION_ENCODE(SPARSE_VERSION_MAJOR, SPARSE_VERSION_MINOR, \
+                          SPARSE_VERSION_PATCH)
+
+/** @brief String form of the library version ("major.minor.patch"). */
+#define SPARSE_VERSION_STRING "1.0.0"
+
 /** @brief Signed 32-bit index type for matrix dimensions and indices. */
 typedef int32_t idx_t;
 

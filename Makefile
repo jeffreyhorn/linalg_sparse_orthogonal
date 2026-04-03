@@ -328,6 +328,41 @@ coverage: clean $(TEST_BINS)
 		echo "PASS: Line coverage $${pct}% meets $(COV_THRESHOLD)% threshold"; \
 	fi
 
+# ─── Installation ─────────────────────────────────────────────────────
+
+PREFIX      ?= /usr/local
+INSTALL_LIB  = $(DESTDIR)$(PREFIX)/lib
+INSTALL_INC  = $(DESTDIR)$(PREFIX)/include/sparse
+INSTALL_PC   = $(INSTALL_LIB)/pkgconfig
+VERSION      = $(shell sed -n 's/.*SPARSE_VERSION_STRING *"\(.*\)"/\1/p' include/sparse_types.h)
+HEADERS      = $(wildcard include/*.h)
+
+.PHONY: install
+install: $(LIB)
+	@echo "Installing sparse $(VERSION) to $(DESTDIR)$(PREFIX) ..."
+	install -d $(INSTALL_LIB)
+	install -d $(INSTALL_INC)
+	install -d $(INSTALL_PC)
+	install -m 644 $(LIB) $(INSTALL_LIB)/
+	@for h in $(HEADERS); do \
+		install -m 644 $$h $(INSTALL_INC)/; \
+	done
+	@sed -e 's|@PREFIX@|$(PREFIX)|g' -e 's|@VERSION@|$(VERSION)|g' \
+		sparse.pc.in > $(INSTALL_PC)/sparse.pc
+	@echo "Installed:"
+	@echo "  library  → $(INSTALL_LIB)/$(notdir $(LIB))"
+	@echo "  headers  → $(INSTALL_INC)/"
+	@echo "  pkg-config → $(INSTALL_PC)/sparse.pc"
+
+.PHONY: uninstall
+uninstall:
+	@echo "Uninstalling sparse from $(DESTDIR)$(PREFIX) ..."
+	rm -f  $(INSTALL_LIB)/$(notdir $(LIB))
+	rm -rf $(INSTALL_INC)
+	rm -f  $(INSTALL_PC)/sparse.pc
+	-rmdir $(INSTALL_PC) 2>/dev/null || true
+	@echo "Done."
+
 # Clean
 .PHONY: clean
 clean:

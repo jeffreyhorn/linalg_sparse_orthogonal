@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.14)
-project(linalg_sparse_orthogonal C)
+project(linalg_sparse_orthogonal VERSION 1.0.0 LANGUAGES C)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -46,6 +46,7 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_dense.c
     src/sparse_bidiag.c
     src/sparse_svd.c
+    src/sparse_lu_csr.c
 )
 
 # Optional OpenMP support for parallel SpMV: cmake -DSPARSE_OPENMP=ON ..
@@ -65,7 +66,6 @@ if(SPARSE_MUTEX)
 endif()
 
 target_include_directories(sparse_lu_ortho
-    PUBLIC  ${CMAKE_CURRENT_SOURCE_DIR}/include
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
@@ -102,6 +102,9 @@ add_sparse_test(test_dense)
 add_sparse_test(test_bidiag)
 add_sparse_test(test_svd)
 add_sparse_test(test_sprint8_integration)
+add_sparse_test(test_fuzz)
+add_sparse_test(test_lu_csr)
+add_sparse_test(test_block_solvers)
 
 # Benchmarks (not part of ctest)
 add_executable(bench_main benchmarks/bench_main.c)
@@ -115,3 +118,61 @@ target_link_libraries(bench_fillin PRIVATE sparse_lu_ortho)
 
 add_executable(bench_convergence benchmarks/bench_convergence.c)
 target_link_libraries(bench_convergence PRIVATE sparse_lu_ortho)
+
+# ─── Installation ────────────────────────────────────────────────────
+
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
+# Adjust include path for installed headers (under sparse/ subdirectory)
+target_include_directories(sparse_lu_ortho
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
+
+install(TARGETS sparse_lu_ortho
+    EXPORT SparseTargets
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
+
+install(DIRECTORY include/
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/sparse
+    FILES_MATCHING PATTERN "*.h"
+)
+
+# CMake package config files
+set(SPARSE_CMAKE_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/Sparse)
+
+install(EXPORT SparseTargets
+    FILE SparseTargets.cmake
+    NAMESPACE Sparse::
+    DESTINATION ${SPARSE_CMAKE_DIR}
+)
+
+configure_package_config_file(
+    cmake/SparseConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/SparseConfig.cmake
+    INSTALL_DESTINATION ${SPARSE_CMAKE_DIR}
+)
+
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/SparseConfigVersion.cmake
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY SameMajorVersion
+)
+
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/SparseConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/SparseConfigVersion.cmake
+    DESTINATION ${SPARSE_CMAKE_DIR}
+)
+
+# pkg-config (set variables that match the @VAR@ placeholders in sparse.pc.in)
+set(PREFIX ${CMAKE_INSTALL_PREFIX})
+set(VERSION ${PROJECT_VERSION})
+configure_file(sparse.pc.in ${CMAKE_CURRENT_BINARY_DIR}/sparse.pc @ONLY)
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/sparse.pc
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
+)

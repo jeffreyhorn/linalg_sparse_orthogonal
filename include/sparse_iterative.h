@@ -185,6 +185,28 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
                                    const sparse_iter_opts_t *opts, sparse_precond_fn precond,
                                    const void *precond_ctx, sparse_iter_result_t *result);
 
+/**
+ * @brief Solve A*X = B for multiple RHS using block GMRES.
+ *
+ * Runs restarted GMRES independently for each column with per-column
+ * convergence tracking. Converged columns are skipped in subsequent
+ * iterations. Supports left preconditioning via callback.
+ *
+ * @param A           General (possibly unsymmetric) coefficient matrix.
+ * @param B           RHS matrix, n × nrhs column-major.
+ * @param nrhs        Number of RHS vectors.
+ * @param X           Solution matrix, n × nrhs column-major (initial guess on entry).
+ * @param opts        GMRES options (NULL for defaults).
+ * @param precond     Preconditioner callback (NULL for none). Applied per-column.
+ * @param precond_ctx Context pointer passed to precond.
+ * @param result      Output: iterations = max across columns, residual = max across columns.
+ * @return SPARSE_OK if all columns converged.
+ * @return SPARSE_ERR_NOT_CONVERGED if any column did not converge.
+ */
+sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, idx_t nrhs, double *X,
+                                      const sparse_gmres_opts_t *opts, sparse_precond_fn precond,
+                                      const void *precond_ctx, sparse_iter_result_t *result);
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Matrix-free iterative solvers
  * ═══════════════════════════════════════════════════════════════════════ */

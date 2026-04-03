@@ -895,3 +895,66 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
     free(bnorms);
     return all_converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Block GMRES (multiple RHS)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, idx_t nrhs, double *X,
+                                      const sparse_gmres_opts_t *opts, sparse_precond_fn precond,
+                                      const void *precond_ctx, sparse_iter_result_t *result) {
+    if (result) {
+        result->iterations = 0;
+        result->residual_norm = 0.0;
+        result->converged = 0;
+    }
+
+    if (!A || !B || !X)
+        return SPARSE_ERR_NULL;
+    if (nrhs <= 0) {
+        if (result)
+            result->converged = 1;
+        return SPARSE_OK;
+    }
+    if (sparse_rows(A) != sparse_cols(A))
+        return SPARSE_ERR_SHAPE;
+
+    idx_t n = sparse_rows(A);
+
+    /* Solve each column independently using the existing GMRES implementation.
+     * Per-column convergence tracking: each column gets its own result,
+     * and we report the worst case. */
+    idx_t max_iters = 0;
+    double max_residual = 0.0;
+    int all_converged = 1;
+    sparse_err_t worst_err = SPARSE_OK;
+
+    for (idx_t k = 0; k < nrhs; k++) {
+        sparse_iter_result_t col_result;
+        sparse_err_t err =
+            sparse_solve_gmres(A, &B[n * k], &X[n * k], opts, precond, precond_ctx, &col_result);
+
+        if (col_result.iterations > max_iters)
+            max_iters = col_result.iterations;
+        if (col_result.residual_norm > max_residual)
+            max_residual = col_result.residual_norm;
+        if (!col_result.converged)
+            all_converged = 0;
+
+        /* Track worst error (but continue processing all columns) */
+        if (err != SPARSE_OK && worst_err == SPARSE_OK)
+            worst_err = err;
+    }
+
+    if (result) {
+        result->iterations = max_iters;
+        result->residual_norm = max_residual;
+        result->converged = all_converged;
+    }
+
+    /* Return NOT_CONVERGED if any column failed, but not other errors
+     * (those indicate real failures like NULL/SHAPE/ALLOC) */
+    if (worst_err != SPARSE_OK && worst_err != SPARSE_ERR_NOT_CONVERGED)
+        return worst_err;
+    return all_converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
+}

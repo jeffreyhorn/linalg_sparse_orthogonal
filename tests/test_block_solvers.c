@@ -1,3 +1,4 @@
+#include "sparse_ilu.h"
 #include "sparse_iterative.h"
 #include "sparse_matrix.h"
 #include "sparse_types.h"
@@ -216,10 +217,196 @@ static void test_block_cg_nrhs_zero(void) {
     sparse_free(A);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Block GMRES tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Build n×n unsymmetric diag-dominant matrix */
+static SparseMatrix *make_unsymmetric(idx_t n) {
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, (double)(n + 1));
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -2.0); /* asymmetric: -2 above, -1 below */
+    }
+    return A;
+}
+
+/* Test: Block GMRES with 3 RHS on unsymmetric matrix */
+static void test_block_gmres_3rhs(void) {
+    idx_t n = 10;
+    idx_t nrhs = 3;
+    SparseMatrix *A = make_unsymmetric(n);
+
+    double B[30], X_block[30], x_single[10];
+    for (idx_t k = 0; k < nrhs; k++)
+        for (idx_t i = 0; i < n; i++)
+            B[i + n * k] = (double)(i + 1) * (double)(k + 1);
+    memset(X_block, 0, sizeof(X_block));
+
+    sparse_gmres_opts_t opts = {
+        .max_iter = 500, .restart = 30, .tol = 1e-10, .verbose = 0, .precond_side = 0};
+    sparse_iter_result_t result;
+    ASSERT_ERR(sparse_gmres_solve_block(A, B, nrhs, X_block, &opts, NULL, NULL, &result),
+               SPARSE_OK);
+    ASSERT_TRUE(result.converged);
+
+    /* Verify each column matches single-RHS GMRES */
+    for (idx_t k = 0; k < nrhs; k++) {
+        memset(x_single, 0, sizeof(x_single));
+        sparse_solve_gmres(A, &B[n * k], x_single, &opts, NULL, NULL, NULL);
+        for (idx_t i = 0; i < n; i++)
+            ASSERT_NEAR(X_block[i + n * k], x_single[i], 1e-8);
+    }
+
+    sparse_free(A);
+}
+
+/* Test: Block GMRES with single RHS matches single GMRES */
+static void test_block_gmres_single_rhs(void) {
+    idx_t n = 8;
+    SparseMatrix *A = make_unsymmetric(n);
+
+    double b[8], x_block[8], x_single[8];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+    memset(x_block, 0, sizeof(x_block));
+    memset(x_single, 0, sizeof(x_single));
+
+    sparse_gmres_opts_t opts = {
+        .max_iter = 500, .restart = 30, .tol = 1e-10, .verbose = 0, .precond_side = 0};
+    ASSERT_ERR(sparse_gmres_solve_block(A, b, 1, x_block, &opts, NULL, NULL, NULL), SPARSE_OK);
+    ASSERT_ERR(sparse_solve_gmres(A, b, x_single, &opts, NULL, NULL, NULL), SPARSE_OK);
+
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_block[i], x_single[i], 1e-10);
+
+    sparse_free(A);
+}
+
+/* Test: Block GMRES residual check */
+static void test_block_gmres_residuals(void) {
+    idx_t n = 15;
+    idx_t nrhs = 4;
+    SparseMatrix *A = make_unsymmetric(n);
+
+    double *B = malloc((size_t)n * (size_t)nrhs * sizeof(double));
+    double *X = calloc((size_t)n * (size_t)nrhs, sizeof(double));
+    ASSERT_NOT_NULL(B);
+    ASSERT_NOT_NULL(X);
+
+    for (idx_t k = 0; k < nrhs; k++)
+        for (idx_t i = 0; i < n; i++)
+            B[i + n * k] = sin((double)(i + k * n));
+
+    sparse_gmres_opts_t opts = {
+        .max_iter = 1000, .restart = 30, .tol = 1e-10, .verbose = 0, .precond_side = 0};
+    sparse_iter_result_t result;
+    ASSERT_ERR(sparse_gmres_solve_block(A, B, nrhs, X, &opts, NULL, NULL, &result), SPARSE_OK);
+    ASSERT_TRUE(result.converged);
+
+    for (idx_t k = 0; k < nrhs; k++) {
+        double res = residual_inf(A, &X[n * k], &B[n * k], n);
+        ASSERT_TRUE(res < 1e-8);
+    }
+
+    free(B);
+    free(X);
+    sparse_free(A);
+}
+
+/* Test: Preconditioned block GMRES with ILU(0) */
+static void test_block_gmres_preconditioned(void) {
+    idx_t n = 10;
+    idx_t nrhs = 2;
+    SparseMatrix *A = make_unsymmetric(n);
+
+    /* Factor ILU(0) preconditioner */
+    sparse_ilu_t ilu;
+    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+
+    double B[20], X[20];
+    for (idx_t k = 0; k < nrhs; k++)
+        for (idx_t i = 0; i < n; i++)
+            B[i + n * k] = (double)(i + 1);
+    memset(X, 0, sizeof(X));
+
+    sparse_gmres_opts_t opts = {
+        .max_iter = 500, .restart = 30, .tol = 1e-10, .verbose = 0, .precond_side = 0};
+    sparse_iter_result_t result;
+    ASSERT_ERR(sparse_gmres_solve_block(A, B, nrhs, X, &opts, sparse_ilu_precond, &ilu, &result),
+               SPARSE_OK);
+    ASSERT_TRUE(result.converged);
+
+    for (idx_t k = 0; k < nrhs; k++) {
+        double res = residual_inf(A, &X[n * k], &B[n * k], n);
+        ASSERT_TRUE(res < 1e-8);
+    }
+
+    sparse_ilu_free(&ilu);
+    sparse_free(A);
+}
+
+/* Test: Block GMRES null args */
+static void test_block_gmres_null(void) {
+    SparseMatrix *A = make_unsymmetric(3);
+    double b = 0, x = 0;
+    ASSERT_ERR(sparse_gmres_solve_block(NULL, &b, 1, &x, NULL, NULL, NULL, NULL), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_gmres_solve_block(A, NULL, 1, &x, NULL, NULL, NULL, NULL), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_gmres_solve_block(A, &b, 1, NULL, NULL, NULL, NULL, NULL), SPARSE_ERR_NULL);
+    sparse_free(A);
+}
+
+/* Test: Block GMRES nrhs=0 */
+static void test_block_gmres_nrhs_zero(void) {
+    SparseMatrix *A = make_unsymmetric(3);
+    double dummy = 0;
+    sparse_iter_result_t result;
+    ASSERT_ERR(sparse_gmres_solve_block(A, &dummy, 0, &dummy, NULL, NULL, NULL, &result),
+               SPARSE_OK);
+    ASSERT_TRUE(result.converged);
+    sparse_free(A);
+}
+
+/* Test: Block GMRES with restart — convergence on harder system */
+static void test_block_gmres_restart(void) {
+    /* Larger unsymmetric system that may need restart */
+    idx_t n = 30;
+    idx_t nrhs = 2;
+    SparseMatrix *A = make_unsymmetric(n);
+
+    double *B = malloc((size_t)n * (size_t)nrhs * sizeof(double));
+    double *X = calloc((size_t)n * (size_t)nrhs, sizeof(double));
+    ASSERT_NOT_NULL(B);
+    ASSERT_NOT_NULL(X);
+
+    for (idx_t k = 0; k < nrhs; k++)
+        for (idx_t i = 0; i < n; i++)
+            B[i + n * k] = (double)(i + 1);
+
+    /* Small restart to force restart cycles */
+    sparse_gmres_opts_t opts = {
+        .max_iter = 500, .restart = 10, .tol = 1e-10, .verbose = 0, .precond_side = 0};
+    sparse_iter_result_t result;
+    ASSERT_ERR(sparse_gmres_solve_block(A, B, nrhs, X, &opts, NULL, NULL, &result), SPARSE_OK);
+    ASSERT_TRUE(result.converged);
+
+    for (idx_t k = 0; k < nrhs; k++) {
+        double res = residual_inf(A, &X[n * k], &B[n * k], n);
+        ASSERT_TRUE(res < 1e-8);
+    }
+
+    free(B);
+    free(X);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════ */
 
 int main(void) {
-    TEST_SUITE_BEGIN("Block Solvers (CG)");
+    TEST_SUITE_BEGIN("Block Solvers (CG + GMRES)");
 
     /* Block SpMV */
     RUN_TEST(test_matvec_block_null);
@@ -232,6 +419,15 @@ int main(void) {
     RUN_TEST(test_block_cg_3rhs);
     RUN_TEST(test_block_cg_residuals);
     RUN_TEST(test_block_cg_iteration_count);
+
+    /* Block GMRES */
+    RUN_TEST(test_block_gmres_null);
+    RUN_TEST(test_block_gmres_nrhs_zero);
+    RUN_TEST(test_block_gmres_single_rhs);
+    RUN_TEST(test_block_gmres_3rhs);
+    RUN_TEST(test_block_gmres_residuals);
+    RUN_TEST(test_block_gmres_preconditioned);
+    RUN_TEST(test_block_gmres_restart);
 
     TEST_SUITE_END();
 }

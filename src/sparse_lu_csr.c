@@ -455,3 +455,96 @@ sparse_err_t lu_csr_to_sparse(const LuCsr *csr, SparseMatrix **mat_out) {
     *mat_out = mat;
     return SPARSE_OK;
 }
+
+/* ─── CSR forward/backward substitution ──────────────────────────────── */
+
+sparse_err_t lu_csr_solve(const LuCsr *csr, const idx_t *piv_perm, const double *b, double *x) {
+    if (!csr || !piv_perm || !b || !x)
+        return SPARSE_ERR_NULL;
+
+    idx_t n = csr->n;
+
+    /* Step 1: Apply pivot permutation — pb[i] = b[piv_perm[i]] */
+    double *y = malloc((size_t)n * sizeof(double));
+    if (!y)
+        return SPARSE_ERR_ALLOC;
+
+    double *pb = malloc((size_t)n * sizeof(double));
+    if (!pb) {
+        free(y);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    for (idx_t i = 0; i < n; i++)
+        pb[i] = b[piv_perm[i]];
+
+    /* Step 2: Forward substitution — L*y = pb (L has unit diagonal) */
+    for (idx_t i = 0; i < n; i++) {
+        double sum = 0.0;
+        for (idx_t p = csr->row_ptr[i]; p < csr->row_ptr[i + 1]; p++) {
+            idx_t j = csr->col_idx[p];
+            if (j < i)
+                sum += csr->values[p] * y[j]; // NOLINT(clang-analyzer-security.ArrayBound)
+        }
+        y[i] = pb[i] - sum;
+    }
+
+    /* Step 3: Backward substitution — U*x = y */
+    for (idx_t i = n - 1; i >= 0; i--) {
+        double sum = 0.0;
+        double u_ii = 0.0;
+        for (idx_t p = csr->row_ptr[i]; p < csr->row_ptr[i + 1]; p++) {
+            idx_t j = csr->col_idx[p];
+            if (j == i)
+                u_ii = csr->values[p];
+            else if (j > i)
+                sum += csr->values[p] * x[j];
+        }
+        if (fabs(u_ii) < 1e-300) {
+            free(y);
+            free(pb);
+            return SPARSE_ERR_SINGULAR;
+        }
+        x[i] = (y[i] - sum) / u_ii; // NOLINT(clang-analyzer-core.UndefinedBinaryOperatorResult)
+    }
+
+    free(y);
+    free(pb);
+    return SPARSE_OK;
+}
+
+/* ─── One-shot CSR factor + solve ────────────────────────────────────── */
+
+sparse_err_t lu_csr_factor_solve(const SparseMatrix *mat, const double *b, double *x, double tol) {
+    if (!mat || !b || !x)
+        return SPARSE_ERR_NULL;
+
+    idx_t n = sparse_rows(mat);
+
+    /* Convert to CSR */
+    LuCsr *csr = NULL;
+    sparse_err_t err = lu_csr_from_sparse(mat, 3.0, &csr);
+    if (err != SPARSE_OK)
+        return err;
+
+    /* Factor */
+    idx_t *piv = malloc((size_t)n * sizeof(idx_t));
+    if (!piv) {
+        lu_csr_free(csr);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    err = lu_csr_eliminate(csr, tol, 1e-14, piv);
+    if (err != SPARSE_OK) {
+        free(piv);
+        lu_csr_free(csr);
+        return err;
+    }
+
+    /* Solve */
+    err = lu_csr_solve(csr, piv, b, x);
+
+    free(piv);
+    lu_csr_free(csr);
+    return err;
+}

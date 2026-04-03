@@ -106,6 +106,39 @@ sparse_err_t lu_csr_to_sparse(const LuCsr *csr, SparseMatrix **mat);
 sparse_err_t lu_csr_eliminate(LuCsr *csr, double tol, double drop_tol, idx_t *piv_perm);
 
 /**
+ * @brief Solve a linear system using a factored LuCsr (L\U with pivot perm).
+ *
+ * Solves P*A*x = b by:
+ * 1. Apply pivot permutation: pb[i] = b[piv_perm[i]]
+ * 2. Forward substitution:    L*y = pb  (unit diagonal)
+ * 3. Backward substitution:   U*x = y
+ *
+ * @param csr       Factored LuCsr (output of lu_csr_eliminate).
+ * @param piv_perm  Row pivot permutation (length n, from lu_csr_eliminate).
+ * @param b         Right-hand side vector (length n).
+ * @param x         Solution vector (length n, output).
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if any pointer is NULL.
+ * @return SPARSE_ERR_SINGULAR if a zero diagonal in U is encountered.
+ */
+sparse_err_t lu_csr_solve(const LuCsr *csr, const idx_t *piv_perm, const double *b, double *x);
+
+/**
+ * @brief One-shot CSR-based LU factor and solve.
+ *
+ * Convenience function that converts the matrix to CSR, factors, solves,
+ * and cleans up. Equivalent to the linked-list sparse_lu_factor() +
+ * sparse_lu_solve() pipeline but using CSR arrays internally.
+ *
+ * @param mat  Input matrix (not modified).
+ * @param b    Right-hand side vector (length n).
+ * @param x    Solution vector (length n, output).
+ * @param tol  Pivot tolerance (e.g., 1e-12).
+ * @return SPARSE_OK on success.
+ */
+sparse_err_t lu_csr_factor_solve(const SparseMatrix *mat, const double *b, double *x, double tol);
+
+/**
  * @brief Free a LuCsr structure and its arrays.
  * @param csr  The LuCsr structure to free. Safe to call with NULL.
  */

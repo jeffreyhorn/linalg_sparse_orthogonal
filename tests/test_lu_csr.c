@@ -662,6 +662,233 @@ static void test_lu_csr_eliminate_singular(void) {
     lu_csr_free(csr);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 3: Integration tests — lu_csr_solve / lu_csr_factor_solve
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Helper: compute ||A*x - b||_inf */
+static double residual_norminf(const SparseMatrix *A, const double *x, const double *b, idx_t n) {
+    double *r = malloc((size_t)n * sizeof(double));
+    if (!r)
+        return -1.0;
+    sparse_matvec(A, x, r);
+    double mx = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        double d = fabs(r[i] - b[i]);
+        if (d > mx)
+            mx = d;
+    }
+    free(r);
+    return mx;
+}
+
+/* Test: lu_csr_solve null args */
+static void test_lu_csr_solve_null(void) {
+    LuCsr csr = {0};
+    idx_t piv = 0;
+    double b = 0, x = 0;
+    ASSERT_ERR(lu_csr_solve(NULL, &piv, &b, &x), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_csr_solve(&csr, NULL, &b, &x), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_csr_solve(&csr, &piv, NULL, &x), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_csr_solve(&csr, &piv, &b, NULL), SPARSE_ERR_NULL);
+}
+
+/* Test: lu_csr_factor_solve on 10×10 tridiagonal */
+static void test_lu_csr_factor_solve_tridiag(void) {
+    idx_t n = 10;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -1.0);
+    }
+
+    /* RHS: b[i] = i + 1 */
+    double b[10], x_csr[10], x_ll[10];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    /* CSR path */
+    ASSERT_ERR(lu_csr_factor_solve(A, b, x_csr, 1e-12), SPARSE_OK);
+
+    /* Linked-list path */
+    SparseMatrix *Acopy = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(Acopy, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+    ASSERT_ERR(sparse_lu_solve(Acopy, b, x_ll), SPARSE_OK);
+    sparse_free(Acopy);
+
+    /* Solutions should match */
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_csr[i], x_ll[i], 1e-10);
+
+    /* Residual should be small */
+    double res = residual_norminf(A, x_csr, b, n);
+    ASSERT_TRUE(res < 1e-10);
+
+    sparse_free(A);
+}
+
+/* Test: lu_csr_factor_solve on dense 8×8 */
+static void test_lu_csr_factor_solve_dense(void) {
+    idx_t n = 8;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Diagonally dominant dense matrix */
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t j = 0; j < n; j++) {
+            double v = (i == j) ? (double)(n + 1) : 1.0;
+            sparse_insert(A, i, j, v);
+        }
+    }
+
+    double b[8], x_csr[8], x_ll[8];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i * i + 1);
+
+    ASSERT_ERR(lu_csr_factor_solve(A, b, x_csr, 1e-12), SPARSE_OK);
+
+    SparseMatrix *Acopy = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(Acopy, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+    ASSERT_ERR(sparse_lu_solve(Acopy, b, x_ll), SPARSE_OK);
+    sparse_free(Acopy);
+
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_csr[i], x_ll[i], 1e-10);
+
+    double res = residual_norminf(A, x_csr, b, n);
+    ASSERT_TRUE(res < 1e-10);
+
+    sparse_free(A);
+}
+
+/* Test: SuiteSparse orsirr_1 — solve and compare residuals */
+static void test_lu_csr_factor_solve_orsirr1(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t err = sparse_load_mm(&A, SS_DIR "/orsirr_1.mtx");
+    if (err != SPARSE_OK) {
+        printf("    [SKIP] orsirr_1.mtx not available\n");
+        return;
+    }
+
+    idx_t n = sparse_rows(A);
+    ASSERT_EQ(n, 1030);
+
+    /* RHS: b[i] = sin(i) */
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x_csr = malloc((size_t)n * sizeof(double));
+    double *x_ll = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x_csr);
+    ASSERT_NOT_NULL(x_ll);
+
+    for (idx_t i = 0; i < n; i++)
+        b[i] = sin((double)i);
+
+    /* CSR path */
+    ASSERT_ERR(lu_csr_factor_solve(A, b, x_csr, 1e-12), SPARSE_OK);
+
+    /* Linked-list path */
+    SparseMatrix *Acopy = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(Acopy, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+    ASSERT_ERR(sparse_lu_solve(Acopy, b, x_ll), SPARSE_OK);
+    sparse_free(Acopy);
+
+    /* Both residuals should be small (solutions may differ due to different
+     * pivoting order, but residuals should both be near machine precision) */
+    double res_csr = residual_norminf(A, x_csr, b, n);
+    double res_ll = residual_norminf(A, x_ll, b, n);
+    printf("    orsirr_1 residuals: CSR=%.3e  LL=%.3e\n", res_csr, res_ll);
+    ASSERT_TRUE(res_csr < 1e-6);
+    ASSERT_TRUE(res_ll < 1e-6);
+
+    free(b);
+    free(x_csr);
+    free(x_ll);
+    sparse_free(A);
+}
+
+/* Test: SuiteSparse steam1 — solve and compare */
+static void test_lu_csr_factor_solve_steam1(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t err = sparse_load_mm(&A, SS_DIR "/steam1.mtx");
+    if (err != SPARSE_OK) {
+        printf("    [SKIP] steam1.mtx not available\n");
+        return;
+    }
+
+    idx_t n = sparse_rows(A);
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x);
+
+    for (idx_t i = 0; i < n; i++)
+        b[i] = 1.0;
+
+    ASSERT_ERR(lu_csr_factor_solve(A, b, x, 1e-12), SPARSE_OK);
+
+    double res = residual_norminf(A, x, b, n);
+    printf("    steam1 residual: %.3e\n", res);
+    ASSERT_TRUE(res < 1e-6);
+
+    free(b);
+    free(x);
+    sparse_free(A);
+}
+
+/* Test: Benchmark CSR vs linked-list on orsirr_1 */
+static void test_lu_csr_benchmark_orsirr1(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t err = sparse_load_mm(&A, SS_DIR "/orsirr_1.mtx");
+    if (err != SPARSE_OK) {
+        printf("    [SKIP] orsirr_1.mtx not available\n");
+        return;
+    }
+
+    idx_t n = sparse_rows(A);
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x);
+
+    for (idx_t i = 0; i < n; i++)
+        b[i] = sin((double)i);
+
+    /* Benchmark linked-list LU */
+    clock_t t0 = clock();
+    for (int trial = 0; trial < 3; trial++) {
+        SparseMatrix *Acopy = sparse_copy(A);
+        err = sparse_lu_factor(Acopy, SPARSE_PIVOT_PARTIAL, 1e-12);
+        if (err == SPARSE_OK)
+            sparse_lu_solve(Acopy, b, x);
+        sparse_free(Acopy);
+    }
+    clock_t t1 = clock();
+    double ll_time = (double)(t1 - t0) / CLOCKS_PER_SEC / 3.0;
+
+    /* Benchmark CSR LU */
+    clock_t t2 = clock();
+    for (int trial = 0; trial < 3; trial++) {
+        lu_csr_factor_solve(A, b, x, 1e-12);
+    }
+    clock_t t3 = clock();
+    double csr_time = (double)(t3 - t2) / CLOCKS_PER_SEC / 3.0;
+
+    double speedup = (csr_time > 0.0) ? ll_time / csr_time : 0.0;
+    printf("    orsirr_1 (n=%d): LL=%.4fs  CSR=%.4fs  speedup=%.2fx\n", (int)n, ll_time, csr_time,
+           speedup);
+
+    /* We expect CSR to be faster. Don't hard-assert speedup since
+     * it depends on hardware, but log it for inspection. */
+    ASSERT_TRUE(csr_time >= 0.0); /* sanity check */
+
+    free(b);
+    free(x);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════ */
 
 int main(void) {
@@ -685,6 +912,14 @@ int main(void) {
     RUN_TEST(test_lu_csr_eliminate_tridiag);
     RUN_TEST(test_lu_csr_eliminate_needs_pivot);
     RUN_TEST(test_lu_csr_eliminate_singular);
+
+    /* Day 3: Integration and solve tests */
+    RUN_TEST(test_lu_csr_solve_null);
+    RUN_TEST(test_lu_csr_factor_solve_tridiag);
+    RUN_TEST(test_lu_csr_factor_solve_dense);
+    RUN_TEST(test_lu_csr_factor_solve_orsirr1);
+    RUN_TEST(test_lu_csr_factor_solve_steam1);
+    RUN_TEST(test_lu_csr_benchmark_orsirr1);
 
     TEST_SUITE_END();
 }

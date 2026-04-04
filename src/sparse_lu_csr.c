@@ -1215,10 +1215,14 @@ sparse_err_t lu_detect_dense_blocks(const LuCsr *csr, idx_t min_size, double thr
     if (!col_count)
         return SPARSE_ERR_ALLOC;
 
-    /* Count entries per column */
+    /* Count entries per column (validate col_idx in [0, n)) */
     for (idx_t i = 0; i < n; i++) {
         for (idx_t p = csr->row_ptr[i]; p < csr->row_ptr[i + 1]; p++) {
             idx_t j = csr->col_idx[p];
+            if (j < 0 || j >= n) {
+                free(col_count);
+                return SPARSE_ERR_BADARG;
+            }
             col_count[j]++;
         }
     }
@@ -1375,6 +1379,13 @@ sparse_err_t lu_extract_dense_block(const LuCsr *csr, const DenseBlock *blk, dou
 
     idx_t rows = blk->row_end - blk->row_start;
     idx_t cols = blk->col_end - blk->col_start;
+    if (rows <= 0 || cols <= 0)
+        return SPARSE_OK;
+
+    /* Overflow guard for memset size */
+    if ((size_t)rows > SIZE_MAX / (size_t)cols ||
+        (size_t)rows * (size_t)cols > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
 
     /* Zero-initialize (column-major: dense[i + rows*j]) */
     memset(dense, 0, (size_t)rows * (size_t)cols * sizeof(double));
@@ -1412,12 +1423,12 @@ sparse_err_t lu_insert_dense_block(LuCsr *csr, const DenseBlock *blk, const doub
     /* Rebuild the entire CSR: for rows outside the block, copy as-is.
      * For rows inside the block, merge outside-block entries with dense values. */
 
-    /* First pass: compute total new nnz */
-    idx_t total = 0;
+    /* First pass: compute total new nnz (use size_t to avoid idx_t overflow) */
+    size_t total = 0;
     for (idx_t row = 0; row < n; row++) {
         if (row < blk->row_start || row >= blk->row_end) {
             /* Outside block — copy all entries */
-            total += csr->row_ptr[row + 1] - csr->row_ptr[row];
+            total += (size_t)(csr->row_ptr[row + 1] - csr->row_ptr[row]);
         } else {
             /* Inside block: entries outside column range + dense entries */
             for (idx_t p = csr->row_ptr[row]; p < csr->row_ptr[row + 1]; p++) {
@@ -1433,10 +1444,17 @@ sparse_err_t lu_insert_dense_block(LuCsr *csr, const DenseBlock *blk, const doub
         }
     }
 
+    /* Validate total fits in idx_t and allocation won't overflow */
+    if (total > (size_t)INT32_MAX)
+        return SPARSE_ERR_ALLOC;
+    size_t alloc_n = total > 0 ? total : 1;
+    if (alloc_n > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
+
     /* Allocate new arrays */
     idx_t *new_rp = malloc((size_t)(n + 1) * sizeof(idx_t));
-    idx_t *new_ci = malloc((size_t)(total > 0 ? total : 1) * sizeof(idx_t));
-    double *new_v = malloc((size_t)(total > 0 ? total : 1) * sizeof(double));
+    idx_t *new_ci = malloc(alloc_n * sizeof(idx_t));
+    double *new_v = malloc(alloc_n * sizeof(double));
     if (!new_rp || !new_ci || !new_v) {
         free(new_rp);
         free(new_ci);

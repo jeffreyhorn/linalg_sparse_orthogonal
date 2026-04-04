@@ -783,6 +783,8 @@ sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const double *X, idx_t
     }
 
     /* Precompute per-column base offsets to avoid redundant multiplies */
+    if ((size_t)nrhs > SIZE_MAX / sizeof(size_t))
+        return SPARSE_ERR_ALLOC;
     size_t *y_off = malloc((size_t)nrhs * sizeof(size_t));
     size_t *x_off = malloc((size_t)nrhs * sizeof(size_t));
     if (!y_off || !x_off) {

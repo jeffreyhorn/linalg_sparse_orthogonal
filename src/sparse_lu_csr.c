@@ -1016,6 +1016,10 @@ sparse_err_t lu_csr_solve(const LuCsr *csr, const idx_t *piv_perm, const double 
 
     idx_t n = csr->n;
 
+    /* Overflow guard for n-length allocations */
+    if ((size_t)n > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
+
     /* Step 1: Apply pivot permutation — pb[i] = b[piv_perm[i]] */
     double *y = malloc((size_t)n * sizeof(double));
     if (!y)
@@ -1162,6 +1166,10 @@ sparse_err_t lu_csr_factor_solve(const SparseMatrix *mat, const double *b, doubl
         return err;
 
     /* Factor */
+    if ((size_t)n > SIZE_MAX / sizeof(idx_t)) {
+        lu_csr_free(csr);
+        return SPARSE_ERR_ALLOC;
+    }
     idx_t *piv = malloc((size_t)n * sizeof(idx_t));
     if (!piv) {
         lu_csr_free(csr);

@@ -179,7 +179,12 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *
  * @param precond_ctx Context pointer passed to precond.
  * @param result      Output: iterations = max across columns, residual = max across columns.
  * @return SPARSE_OK if all columns converged.
+ * @return SPARSE_ERR_NULL if A, B, or X is NULL.
+ * @return SPARSE_ERR_SHAPE if A is not square.
+ * @return SPARSE_ERR_BADARG if opts has invalid values (negative max_iter or tol).
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails or n*nrhs overflows.
  * @return SPARSE_ERR_NOT_CONVERGED if any column did not converge.
+ * @return Other error codes may be propagated from the preconditioner callback.
  */
 sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t nrhs, double *X,
                                    const sparse_iter_opts_t *opts, sparse_precond_fn precond,
@@ -203,7 +208,12 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
  * @param precond_ctx Context pointer passed to precond.
  * @param result      Output: iterations = max across columns, residual = max across columns.
  * @return SPARSE_OK if all columns converged.
- * @return SPARSE_ERR_NOT_CONVERGED if any column did not converge.
+ * @return SPARSE_ERR_NULL if A, B, or X is NULL.
+ * @return SPARSE_ERR_SHAPE if A is not square.
+ * @return SPARSE_ERR_ALLOC if n*nrhs overflows size_t.
+ * @return SPARSE_ERR_NOT_CONVERGED if any column did not converge (but no
+ *         hard error occurred). Hard errors from individual column solves
+ *         (e.g., SPARSE_ERR_ALLOC) take priority over NOT_CONVERGED.
  */
 sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, idx_t nrhs, double *X,
                                       const sparse_gmres_opts_t *opts, sparse_precond_fn precond,

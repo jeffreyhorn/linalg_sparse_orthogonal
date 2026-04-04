@@ -271,8 +271,9 @@ sparse_err_t sparse_matvec(const SparseMatrix *mat, const double *x, double *y);
  * @param nrhs  Number of columns in X and Y. If 0, the call is a no-op.
  * @param Y     Dense output matrix, m × nrhs column-major (overwritten).
  *              Must be non-NULL even when @p nrhs is 0.
- * @return SPARSE_OK on success (including the no-op case when @p nrhs is 0),
- *         SPARSE_ERR_NULL if @p mat, @p X, or @p Y is NULL.
+ * @return SPARSE_OK on success (including the no-op case when @p nrhs is 0).
+ * @return SPARSE_ERR_NULL if @p mat, @p X, or @p Y is NULL.
+ * @return SPARSE_ERR_ALLOC if the required m*nrhs or n*nrhs stride overflows size_t.
  */
 sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const double *X, idx_t nrhs, double *Y);
 

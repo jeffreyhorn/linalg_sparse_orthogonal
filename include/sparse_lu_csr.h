@@ -145,6 +145,7 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any pointer is NULL.
  * @return SPARSE_ERR_SINGULAR if a zero diagonal in U is encountered.
+ * @return SPARSE_ERR_ALLOC if temporary solve buffers cannot be allocated.
  */
 sparse_err_t lu_csr_solve(const LuCsr *csr, const idx_t *piv_perm, const double *b, double *x);
 

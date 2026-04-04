@@ -245,8 +245,15 @@ static void test_csr_speedup_orsirr_1(void) {
     double t0 = wall_time();
     for (int r = 0; r < reps; r++) {
         SparseMatrix *LU = sparse_copy(A);
-        sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12);
-        sparse_lu_solve(LU, b, x);
+        if (!LU) {
+            free(x);
+            free(x_exact);
+            free(b);
+            sparse_free(A);
+            return;
+        }
+        ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+        ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_OK);
         sparse_free(LU);
     }
     double t_ll = (wall_time() - t0) / reps;

@@ -117,7 +117,7 @@ static void test_block_cg_3rhs(void) {
     /* Verify each column matches single-RHS CG */
     for (idx_t k = 0; k < nrhs; k++) {
         memset(x_single, 0, sizeof(x_single));
-        sparse_solve_cg(A, &B[n * k], x_single, &opts, NULL, NULL, NULL);
+        ASSERT_ERR(sparse_solve_cg(A, &B[n * k], x_single, &opts, NULL, NULL, NULL), SPARSE_OK);
 
         for (idx_t i = 0; i < n; i++)
             ASSERT_NEAR(X_block[i + n * k], x_single[i], 1e-8);
@@ -190,7 +190,7 @@ static void test_block_cg_iteration_count(void) {
     /* Single-RHS for comparison */
     double x_single[20];
     memset(x_single, 0, sizeof(x_single));
-    sparse_solve_cg(A, B, x_single, &opts, NULL, NULL, &single_result);
+    ASSERT_ERR(sparse_solve_cg(A, B, x_single, &opts, NULL, NULL, &single_result), SPARSE_OK);
 
     /* Block CG should converge in similar number of iterations */
     printf("    block_cg iters=%d  single_cg iters=%d\n", (int)block_result.iterations,

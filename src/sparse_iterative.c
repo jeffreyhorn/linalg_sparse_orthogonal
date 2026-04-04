@@ -738,35 +738,29 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
         return SPARSE_OK;
     }
 
-    /* Compute ||B(:,k)|| for each column */
+    /* Upfront overflow guards — must run before any n*k pointer arithmetic */
     if ((size_t)nrhs > SIZE_MAX / sizeof(double))
         return SPARSE_ERR_ALLOC;
+    if (n > 0 && (size_t)nrhs > SIZE_MAX / (size_t)n)
+        return SPARSE_ERR_ALLOC;
+    size_t blk = (size_t)n * (size_t)nrhs;
+    if (blk > (size_t)INT32_MAX || blk > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
+
+    /* Compute ||B(:,k)|| for each column */
     double *bnorms = malloc((size_t)nrhs * sizeof(double));
     if (!bnorms)
         return SPARSE_ERR_ALLOC;
     for (idx_t k = 0; k < nrhs; k++) {
-        bnorms[k] = vec_norm2(&B[n * k], n);
+        size_t off = (size_t)n * (size_t)k;
+        bnorms[k] = vec_norm2(&B[off], n);
         if (bnorms[k] == 0.0) {
-            vec_zero(&X[n * k], n);
+            vec_zero(&X[off], n);
             bnorms[k] = 1.0; /* avoid div-by-zero; already converged */
         }
     }
 
     /* Allocate workspace: R, Z, P, AP — each n × nrhs */
-    if (n > 0 && (size_t)nrhs > SIZE_MAX / (size_t)n) {
-        free(bnorms);
-        return SPARSE_ERR_ALLOC;
-    }
-    size_t blk = (size_t)n * (size_t)nrhs;
-    if (blk > (size_t)INT32_MAX || blk > SIZE_MAX / sizeof(double)) {
-        free(bnorms);
-        return SPARSE_ERR_ALLOC;
-    }
-    /* Guard per-column array sizes against overflow */
-    if ((size_t)nrhs > SIZE_MAX / sizeof(double)) {
-        free(bnorms);
-        return SPARSE_ERR_ALLOC;
-    }
     double *R = malloc(blk * sizeof(double));
     double *Z = malloc(blk * sizeof(double));
     double *P = malloc(blk * sizeof(double));

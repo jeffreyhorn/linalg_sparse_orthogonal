@@ -768,9 +768,11 @@ sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const double *X, idx_t
     idx_t m = mat->rows;
 
     /* Zero output */
-    for (idx_t k = 0; k < nrhs; k++)
+    for (idx_t k = 0; k < nrhs; k++) {
+        size_t ok = (size_t)m * (size_t)k;
         for (idx_t i = 0; i < m; i++)
-            Y[i + m * k] = 0.0;
+            Y[(size_t)i + ok] = 0.0;
+    }
 
     /* Walk each row once, update all nrhs columns */
     for (idx_t log_i = 0; log_i < m; log_i++) {

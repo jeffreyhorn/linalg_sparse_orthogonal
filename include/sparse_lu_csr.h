@@ -9,7 +9,8 @@
  * Unlike the general SparseCsr (sparse_csr.h), this format:
  * - Works in logical index space (applies row/col permutations on conversion)
  * - Pre-allocates extra capacity for fill-in during elimination
- * - Includes a dense workspace row for the scatter-gather elimination pattern
+ * - Is used by elimination routines that allocate/use a temporary dense
+ *   workspace row for the scatter-gather elimination pattern
  *
  * Conversion pipeline: SparseMatrix → LuCsr → eliminate → LuCsr → SparseMatrix
  */

@@ -739,6 +739,8 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
     }
 
     /* Compute ||B(:,k)|| for each column */
+    if ((size_t)nrhs > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
     double *bnorms = malloc((size_t)nrhs * sizeof(double));
     if (!bnorms)
         return SPARSE_ERR_ALLOC;

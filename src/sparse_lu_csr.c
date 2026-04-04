@@ -1528,7 +1528,7 @@ sparse_err_t lu_insert_dense_block(LuCsr *csr, const DenseBlock *blk, const doub
     csr->col_idx = new_ci;
     csr->values = new_v;
     csr->nnz = pos;
-    csr->capacity = total > 0 ? total : 1;
+    csr->capacity = (idx_t)(total > 0 ? total : 1);
 
     return SPARSE_OK;
 }

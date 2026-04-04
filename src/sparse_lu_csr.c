@@ -652,6 +652,26 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
                 goto block_cleanup;
             }
 
+            /* Validate block isolation: if any block row has entries in
+             * columns >= k+bsize, we cannot skip the Schur complement update.
+             * Fall back to sparse path for correctness. */
+            int isolated = 1;
+            for (idx_t bi = 0; bi < bsize && isolated; bi++) {
+                idx_t ri = row_map[k + bi];
+                idx_t s = rstart[ri], e = rend[ri];
+                for (idx_t p = s; p < e; p++) {
+                    if (csr->col_idx[p] >= k + bsize) {
+                        isolated = 0;
+                        break;
+                    }
+                }
+            }
+            if (!isolated) {
+                free(dense);
+                free(ipiv);
+                goto sparse_fallback;
+            }
+
             /* Extract: for each logical row in [k, k+bsize), read entries
              * in columns [k, k+bsize) from the CSR using row_map */
             for (idx_t bi = 0; bi < bsize; bi++) {

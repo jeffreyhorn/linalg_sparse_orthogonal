@@ -21,8 +21,17 @@ echo ""
 
 # ── 1. make install to temp prefix ──────────────────────────────────
 echo "--- Installing ---"
-make -C "$ROOT_DIR" clean >/dev/null 2>&1
-make -C "$ROOT_DIR" install PREFIX="$PREFIX" >/dev/null 2>&1
+INSTALL_LOG="$TMPDIR/make.log"
+if ! make -C "$ROOT_DIR" clean >"$INSTALL_LOG" 2>&1; then
+    echo "make clean failed; output:"
+    cat "$INSTALL_LOG"
+    exit 1
+fi
+if ! make -C "$ROOT_DIR" install PREFIX="$PREFIX" >>"$INSTALL_LOG" 2>&1; then
+    echo "make install failed; output:"
+    tail -30 "$INSTALL_LOG"
+    exit 1
+fi
 
 # ── 2. Verify installed files ───────────────────────────────────────
 echo "--- Checking installed files ---"
@@ -95,10 +104,15 @@ CC="${CC:-cc}"
 CFLAGS_PC="$(pkg-config --cflags sparse)"
 LIBS_PC="$(pkg-config --libs sparse)"
 
-if $CC -std=c11 -Wall $CFLAGS_PC "$TMPDIR/test_link.c" $LIBS_PC -o "$TMPDIR/test_link" 2>/dev/null; then
+COMPILE_LOG="$TMPDIR/compile.log"
+if $CC -std=c11 -Wall $CFLAGS_PC "$TMPDIR/test_link.c" $LIBS_PC -o "$TMPDIR/test_link" 2>"$COMPILE_LOG"; then
     pass "example compiles and links"
 else
     fail "example failed to compile/link"
+    if [ -s "$COMPILE_LOG" ]; then
+        echo "Compiler/linker output:"
+        cat "$COMPILE_LOG"
+    fi
 fi
 
 if [ -x "$TMPDIR/test_link" ]; then

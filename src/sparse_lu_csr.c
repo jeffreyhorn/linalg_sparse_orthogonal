@@ -262,6 +262,10 @@ sparse_err_t lu_csr_eliminate(LuCsr *csr, double tol, double drop_tol, idx_t *pi
     if (n == 0)
         return SPARSE_OK;
 
+    /* Overflow guard: ensure n * sizeof(largest_type) fits in size_t */
+    if ((size_t)n > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
+
     /* Per-row start/end arrays — decoupled from row_ptr so that rewriting
      * one row doesn't corrupt its neighbors. */
     idx_t *rstart = malloc((size_t)n * sizeof(idx_t));

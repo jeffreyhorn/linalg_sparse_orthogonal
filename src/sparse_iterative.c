@@ -756,7 +756,12 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
         return SPARSE_ERR_ALLOC;
     }
     size_t blk = (size_t)n * (size_t)nrhs;
-    if (blk > SIZE_MAX / sizeof(double)) {
+    if (blk > SIZE_MAX / sizeof(double) || blk > (size_t)INT32_MAX) {
+        free(bnorms);
+        return SPARSE_ERR_ALLOC;
+    }
+    /* Guard per-column array sizes against overflow */
+    if ((size_t)nrhs > SIZE_MAX / sizeof(double)) {
         free(bnorms);
         return SPARSE_ERR_ALLOC;
     }
@@ -949,9 +954,10 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, id
     sparse_err_t worst_err = SPARSE_OK;
 
     for (idx_t k = 0; k < nrhs; k++) {
+        size_t off = (size_t)n * (size_t)k;
         sparse_iter_result_t col_result;
         sparse_err_t err =
-            sparse_solve_gmres(A, &B[n * k], &X[n * k], opts, precond, precond_ctx, &col_result);
+            sparse_solve_gmres(A, &B[off], &X[off], opts, precond, precond_ctx, &col_result);
 
         if (col_result.iterations > max_iters)
             max_iters = col_result.iterations;

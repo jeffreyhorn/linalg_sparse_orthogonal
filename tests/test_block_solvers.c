@@ -16,6 +16,8 @@
 /* Build n×n SPD tridiagonal: diag=4, off-diag=-1 */
 static SparseMatrix *make_spd_tridiag(idx_t n) {
     SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, 4.0);
         if (i > 0)
@@ -232,6 +234,8 @@ static void test_block_cg_nrhs_zero(void) {
 /* Build n×n unsymmetric diag-dominant matrix */
 static SparseMatrix *make_unsymmetric(idx_t n) {
     SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, (double)(n + 1));
         if (i > 0)

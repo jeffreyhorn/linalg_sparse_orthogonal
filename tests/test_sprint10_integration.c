@@ -42,6 +42,8 @@ static double local_norm2(const double *v, idx_t n) {
 /* Compute ||Ax - b||/||b|| for a single RHS */
 static double relative_residual(const SparseMatrix *A, const double *b, const double *x, idx_t n) {
     double *r = calloc((size_t)n, sizeof(double));
+    if (!r)
+        return INFINITY;
     sparse_matvec(A, x, r);
     for (idx_t i = 0; i < n; i++)
         r[i] = b[i] - r[i];

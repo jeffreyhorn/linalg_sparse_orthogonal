@@ -1039,11 +1039,14 @@ sparse_err_t lu_csr_solve_block(const LuCsr *csr, const idx_t *piv_perm, const d
 
     idx_t n = csr->n;
 
-    /* Overflow guard */
+    /* Overflow guard: ensure n*nrhs fits in both size_t and idx_t so that
+     * idx_t-based offset arithmetic (i + n*k) cannot overflow. */
     if (n > 0 && (size_t)nrhs > SIZE_MAX / (size_t)n)
         return SPARSE_ERR_ALLOC;
     size_t block_sz = (size_t)n * (size_t)nrhs;
     if (block_sz > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
+    if (block_sz > (size_t)INT32_MAX)
         return SPARSE_ERR_ALLOC;
 
     double *Y = malloc(block_sz * sizeof(double));

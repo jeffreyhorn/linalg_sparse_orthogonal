@@ -762,7 +762,9 @@ sparse_err_t sparse_matvec(const SparseMatrix *mat, const double *x, double *y) 
 sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const double *X, idx_t nrhs, double *Y) {
     if (!mat || !X || !Y)
         return SPARSE_ERR_NULL;
-    if (nrhs <= 0)
+    if (nrhs < 0)
+        return SPARSE_ERR_BADARG;
+    if (nrhs == 0)
         return SPARSE_OK;
 
     idx_t m = mat->rows;
@@ -780,6 +782,19 @@ sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const double *X, idx_t
             Y[(size_t)i + ok] = 0.0;
     }
 
+    /* Precompute per-column base offsets to avoid redundant multiplies */
+    size_t *y_off = malloc((size_t)nrhs * sizeof(size_t));
+    size_t *x_off = malloc((size_t)nrhs * sizeof(size_t));
+    if (!y_off || !x_off) {
+        free(y_off);
+        free(x_off);
+        return SPARSE_ERR_ALLOC;
+    }
+    for (idx_t k = 0; k < nrhs; k++) {
+        y_off[k] = (size_t)m * (size_t)k;
+        x_off[k] = (size_t)mat->cols * (size_t)k;
+    }
+
     /* Walk each row once, update all nrhs columns */
     for (idx_t log_i = 0; log_i < m; log_i++) {
         idx_t phys_i = mat->row_perm[log_i];
@@ -787,13 +802,13 @@ sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const double *X, idx_t
         while (node) {
             idx_t log_j = mat->inv_col_perm[node->col];
             double a_ij = node->value;
-            for (idx_t k = 0; k < nrhs; k++) {
-                size_t ok = (size_t)m * (size_t)k;
-                Y[(size_t)log_i + ok] += a_ij * X[(size_t)log_j + (size_t)mat->cols * (size_t)k];
-            }
+            for (idx_t k = 0; k < nrhs; k++)
+                Y[(size_t)log_i + y_off[k]] += a_ij * X[(size_t)log_j + x_off[k]];
             node = node->right;
         }
     }
+    free(y_off);
+    free(x_off);
 
     return SPARSE_OK;
 }

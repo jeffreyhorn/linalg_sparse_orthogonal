@@ -647,7 +647,9 @@ sparse_err_t sparse_lu_solve_block(const SparseMatrix *mat, const double *B, idx
                                    double *X) {
     if (!mat || !B || !X)
         return SPARSE_ERR_NULL;
-    if (nrhs <= 0)
+    if (nrhs < 0)
+        return SPARSE_ERR_BADARG;
+    if (nrhs == 0)
         return SPARSE_OK;
 
     idx_t n = mat->rows;

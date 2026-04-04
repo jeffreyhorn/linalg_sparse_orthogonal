@@ -1093,7 +1093,9 @@ sparse_err_t lu_csr_solve_block(const LuCsr *csr, const idx_t *piv_perm, const d
                                 idx_t nrhs, double *X) {
     if (!csr || !piv_perm || !B || !X)
         return SPARSE_ERR_NULL;
-    if (nrhs <= 0)
+    if (nrhs < 0)
+        return SPARSE_ERR_BADARG;
+    if (nrhs == 0)
         return SPARSE_OK;
 
     idx_t n = csr->n;

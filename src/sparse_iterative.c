@@ -719,7 +719,9 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
 
     if (!A || !B || !X)
         return SPARSE_ERR_NULL;
-    if (nrhs <= 0) {
+    if (nrhs < 0)
+        return SPARSE_ERR_BADARG;
+    if (nrhs == 0) {
         if (result)
             result->converged = 1;
         return SPARSE_OK;
@@ -931,7 +933,9 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, id
 
     if (!A || !B || !X)
         return SPARSE_ERR_NULL;
-    if (nrhs <= 0) {
+    if (nrhs < 0)
+        return SPARSE_ERR_BADARG;
+    if (nrhs == 0) {
         if (result)
             result->converged = 1;
         return SPARSE_OK;

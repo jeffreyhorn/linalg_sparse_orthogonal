@@ -763,6 +763,10 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
     }
 
     /* Allocate workspace: R, Z, P, AP — each n × nrhs */
+    if (blk > SIZE_MAX / sizeof(double)) {
+        free(bnorms);
+        return SPARSE_ERR_ALLOC;
+    }
     double *R = malloc(blk * sizeof(double));
     double *Z = malloc(blk * sizeof(double));
     double *P = malloc(blk * sizeof(double));
@@ -783,7 +787,20 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
     }
 
     /* R = B - A*X (initial residual for all columns) */
-    sparse_matvec_block(A, X, nrhs, AP); /* AP = A*X */
+    {
+        sparse_err_t mv_err = sparse_matvec_block(A, X, nrhs, AP);
+        if (mv_err != SPARSE_OK) {
+            free(R);
+            free(Z);
+            free(P);
+            free(AP);
+            free(rz);
+            free(conv);
+            free(rnorms);
+            free(bnorms);
+            return mv_err;
+        }
+    }
     for (idx_t k = 0; k < nrhs; k++)
         for (idx_t i = 0; i < n; i++)
             R[i + n * k] = B[i + n * k] - AP[i + n * k];
@@ -833,7 +850,20 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
         max_iter_done = iter + 1;
 
         /* AP = A*P (shared SpMV for all columns) */
-        sparse_matvec_block(A, P, nrhs, AP);
+        {
+            sparse_err_t mv_err = sparse_matvec_block(A, P, nrhs, AP);
+            if (mv_err != SPARSE_OK) {
+                free(R);
+                free(Z);
+                free(P);
+                free(AP);
+                free(rz);
+                free(conv);
+                free(rnorms);
+                free(bnorms);
+                return mv_err;
+            }
+        }
 
         for (idx_t k = 0; k < nrhs; k++) {
             if (conv[k])

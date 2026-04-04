@@ -188,6 +188,8 @@ static sparse_err_t lu_csr_grow(LuCsr *csr, idx_t needed) {
 sparse_err_t lu_dense_factor(idx_t m, idx_t n, double *A, idx_t lda, idx_t *ipiv, double tol) {
     if (!A || !ipiv)
         return SPARSE_ERR_NULL;
+    if (m < 0 || n < 0 || lda < m)
+        return SPARSE_ERR_BADARG;
 
     idx_t mn = (m < n) ? m : n;
 
@@ -236,6 +238,8 @@ sparse_err_t lu_dense_factor(idx_t m, idx_t n, double *A, idx_t lda, idx_t *ipiv
 sparse_err_t lu_dense_solve(idx_t n, const double *LU, idx_t lda, const idx_t *ipiv, double *b) {
     if (!LU || !ipiv || !b)
         return SPARSE_ERR_NULL;
+    if (n < 0 || lda < n)
+        return SPARSE_ERR_BADARG;
 
     /* Apply row permutation */
     for (idx_t k = 0; k < n; k++) {

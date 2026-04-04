@@ -27,9 +27,16 @@
 /* ── helpers ─────────────────────────────────────────────────────────── */
 
 static double wall_time(void) {
+#ifdef _WIN32
+    /* Windows: use timespec_get (C11) as fallback */
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+#else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+#endif
 }
 
 static double local_norm2(const double *v, idx_t n) {
@@ -387,7 +394,16 @@ static void test_preconditioned_block_gmres_steam1(void) {
     /* ILU(0) preconditioner */
     sparse_ilu_t ilu;
     memset(&ilu, 0, sizeof(ilu));
-    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+    sparse_err_t ilu_err = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ilu_err, SPARSE_OK);
+    if (ilu_err != SPARSE_OK) {
+        sparse_ilu_free(&ilu);
+        free(X);
+        free(X_exact);
+        free(B);
+        sparse_free(A);
+        return;
+    }
 
     sparse_gmres_opts_t opts = {.max_iter = 1000, .restart = 50, .tol = 1e-10};
     sparse_iter_result_t res;
@@ -456,7 +472,18 @@ static void test_csr_block_vs_single_solve(void) {
         sparse_free(A);
         return;
     }
-    ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
+    sparse_err_t elim_err = lu_csr_eliminate(csr, 1e-12, 1e-14, piv);
+    ASSERT_ERR(elim_err, SPARSE_OK);
+    if (elim_err != SPARSE_OK) {
+        free(piv);
+        lu_csr_free(csr);
+        free(x_single);
+        free(X_block);
+        free(X_exact);
+        free(B);
+        sparse_free(A);
+        return;
+    }
 
     /* Block solve */
     ASSERT_ERR(lu_csr_solve_block(csr, piv, B, nrhs, X_block), SPARSE_OK);

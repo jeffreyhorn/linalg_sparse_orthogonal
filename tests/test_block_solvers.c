@@ -52,6 +52,9 @@ static void test_matvec_block_matches_single(void) {
     idx_t n = 6;
     idx_t nrhs = 3;
     SparseMatrix *A = make_spd_tridiag(n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
 
     double X[18]; /* 6×3 */
     for (idx_t k = 0; k < nrhs; k++)
@@ -73,6 +76,9 @@ static void test_matvec_block_matches_single(void) {
 
 static void test_matvec_block_null(void) {
     SparseMatrix *A = make_spd_tridiag(3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
     double x = 0, y = 0;
     ASSERT_ERR(sparse_matvec_block(NULL, &x, 1, &y), SPARSE_ERR_NULL);
     ASSERT_ERR(sparse_matvec_block(A, NULL, 1, &y), SPARSE_ERR_NULL);
@@ -91,6 +97,9 @@ static void test_block_cg_3rhs(void) {
     idx_t n = 10;
     idx_t nrhs = 3;
     SparseMatrix *A = make_spd_tridiag(n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
 
     double B[30], X_block[30], x_single[10];
     for (idx_t k = 0; k < nrhs; k++)
@@ -122,6 +131,9 @@ static void test_block_cg_residuals(void) {
     idx_t n = 15;
     idx_t nrhs = 4;
     SparseMatrix *A = make_spd_tridiag(n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
 
     double *B = malloc((size_t)n * (size_t)nrhs * sizeof(double));
     double *X = calloc((size_t)n * (size_t)nrhs, sizeof(double));
@@ -159,6 +171,9 @@ static void test_block_cg_iteration_count(void) {
     idx_t n = 20;
     idx_t nrhs = 2;
     SparseMatrix *A = make_spd_tridiag(n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
 
     double B[40], X_block[40];
     for (idx_t k = 0; k < nrhs; k++)
@@ -190,6 +205,9 @@ static void test_block_cg_iteration_count(void) {
 static void test_block_cg_single_rhs(void) {
     idx_t n = 8;
     SparseMatrix *A = make_spd_tridiag(n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
 
     double b[8], x_block[8], x_single[8];
     for (idx_t i = 0; i < n; i++)
@@ -210,6 +228,9 @@ static void test_block_cg_single_rhs(void) {
 /* Test: Null args */
 static void test_block_cg_null(void) {
     SparseMatrix *A = make_spd_tridiag(3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
     double b = 0, x = 0;
     ASSERT_ERR(sparse_cg_solve_block(NULL, &b, 1, &x, NULL, NULL, NULL, NULL), SPARSE_ERR_NULL);
     ASSERT_ERR(sparse_cg_solve_block(A, NULL, 1, &x, NULL, NULL, NULL, NULL), SPARSE_ERR_NULL);
@@ -220,6 +241,9 @@ static void test_block_cg_null(void) {
 /* Test: nrhs=0 returns OK */
 static void test_block_cg_nrhs_zero(void) {
     SparseMatrix *A = make_spd_tridiag(3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
     double dummy = 0;
     sparse_iter_result_t result;
     ASSERT_ERR(sparse_cg_solve_block(A, &dummy, 0, &dummy, NULL, NULL, NULL, &result), SPARSE_OK);
@@ -251,6 +275,9 @@ static void test_block_gmres_3rhs(void) {
     idx_t n = 10;
     idx_t nrhs = 3;
     SparseMatrix *A = make_unsymmetric(n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
 
     double B[30], X_block[30], x_single[10];
     for (idx_t k = 0; k < nrhs; k++)
@@ -280,6 +307,9 @@ static void test_block_gmres_3rhs(void) {
 static void test_block_gmres_single_rhs(void) {
     idx_t n = 8;
     SparseMatrix *A = make_unsymmetric(n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
 
     double b[8], x_block[8], x_single[8];
     for (idx_t i = 0; i < n; i++)
@@ -303,6 +333,9 @@ static void test_block_gmres_residuals(void) {
     idx_t n = 15;
     idx_t nrhs = 4;
     SparseMatrix *A = make_unsymmetric(n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
 
     double *B = malloc((size_t)n * (size_t)nrhs * sizeof(double));
     double *X = calloc((size_t)n * (size_t)nrhs, sizeof(double));
@@ -340,6 +373,9 @@ static void test_block_gmres_preconditioned(void) {
     idx_t n = 10;
     idx_t nrhs = 2;
     SparseMatrix *A = make_unsymmetric(n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
 
     /* Factor ILU(0) preconditioner */
     sparse_ilu_t ilu;
@@ -370,6 +406,9 @@ static void test_block_gmres_preconditioned(void) {
 /* Test: Block GMRES null args */
 static void test_block_gmres_null(void) {
     SparseMatrix *A = make_unsymmetric(3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
     double b = 0, x = 0;
     ASSERT_ERR(sparse_gmres_solve_block(NULL, &b, 1, &x, NULL, NULL, NULL, NULL), SPARSE_ERR_NULL);
     ASSERT_ERR(sparse_gmres_solve_block(A, NULL, 1, &x, NULL, NULL, NULL, NULL), SPARSE_ERR_NULL);
@@ -380,6 +419,9 @@ static void test_block_gmres_null(void) {
 /* Test: Block GMRES nrhs=0 */
 static void test_block_gmres_nrhs_zero(void) {
     SparseMatrix *A = make_unsymmetric(3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
     double dummy = 0;
     sparse_iter_result_t result;
     ASSERT_ERR(sparse_gmres_solve_block(A, &dummy, 0, &dummy, NULL, NULL, NULL, &result),
@@ -394,6 +436,9 @@ static void test_block_gmres_restart(void) {
     idx_t n = 30;
     idx_t nrhs = 2;
     SparseMatrix *A = make_unsymmetric(n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
 
     double *B = malloc((size_t)n * (size_t)nrhs * sizeof(double));
     double *X = calloc((size_t)n * (size_t)nrhs, sizeof(double));

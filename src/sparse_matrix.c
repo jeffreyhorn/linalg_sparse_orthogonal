@@ -767,6 +767,12 @@ sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const double *X, idx_t
 
     idx_t m = mat->rows;
 
+    /* Overflow guard: ensure m*nrhs and cols*nrhs fit in size_t */
+    if (m > 0 && (size_t)nrhs > SIZE_MAX / (size_t)m)
+        return SPARSE_ERR_ALLOC;
+    if (mat->cols > 0 && (size_t)nrhs > SIZE_MAX / (size_t)mat->cols)
+        return SPARSE_ERR_ALLOC;
+
     /* Zero output */
     for (idx_t k = 0; k < nrhs; k++) {
         size_t ok = (size_t)m * (size_t)k;

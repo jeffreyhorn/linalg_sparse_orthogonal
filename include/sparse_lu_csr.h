@@ -152,11 +152,17 @@ sparse_err_t lu_csr_solve(const LuCsr *csr, const idx_t *piv_perm, const double 
  * @brief Solve A*X = B for multiple RHS vectors using a factored LuCsr.
  *
  * @param csr       Factored LuCsr (from lu_csr_eliminate).
- * @param piv_perm  Pivot permutation (length n).
- * @param B         RHS matrix, n × nrhs column-major.
- * @param nrhs      Number of RHS vectors. If 0, returns immediately.
- * @param X         Solution matrix, n × nrhs column-major (output).
+ * @param piv_perm  Pivot permutation (length n). Must be non-NULL even if
+ *                  nrhs is 0.
+ * @param B         RHS matrix, n × nrhs column-major. Must be non-NULL even
+ *                  if nrhs is 0.
+ * @param nrhs      Number of RHS vectors. If 0, no solve work is performed
+ *                  and the function returns immediately after validating
+ *                  required non-NULL pointers.
+ * @param X         Solution matrix, n × nrhs column-major (output). Must be
+ *                  non-NULL even if nrhs is 0.
  * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if csr, piv_perm, B, or X is NULL.
  */
 sparse_err_t lu_csr_solve_block(const LuCsr *csr, const idx_t *piv_perm, const double *B,
                                 idx_t nrhs, double *X);

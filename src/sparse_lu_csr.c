@@ -53,6 +53,11 @@ sparse_err_t lu_csr_from_sparse(const SparseMatrix *mat, double fill_factor, LuC
     csr->n = n;
     csr->nnz = nnz;
     csr->capacity = cap;
+    /* Overflow guard for allocation byte counts */
+    if ((size_t)cap > SIZE_MAX / sizeof(double) || (size_t)(n + 1) > SIZE_MAX / sizeof(idx_t)) {
+        free(csr);
+        return SPARSE_ERR_ALLOC;
+    }
     csr->row_ptr = malloc((size_t)(n + 1) * sizeof(idx_t));
     csr->col_idx = malloc((size_t)cap * sizeof(idx_t));
     csr->values = malloc((size_t)cap * sizeof(double));
@@ -141,10 +146,21 @@ sparse_err_t lu_csr_from_sparse(const SparseMatrix *mat, double fill_factor, LuC
 static sparse_err_t lu_csr_grow(LuCsr *csr, idx_t needed) {
     if (needed <= csr->capacity)
         return SPARSE_OK;
-    /* Grow by at least 50% or to needed, whichever is larger */
-    idx_t new_cap = csr->capacity + csr->capacity / 2;
+    /* Reject if needed exceeds idx_t range */
+    if (needed > INT32_MAX)
+        return SPARSE_ERR_ALLOC;
+    /* Grow by at least 50% or to needed, whichever is larger.
+     * Guard against idx_t overflow in the addition. */
+    idx_t new_cap;
+    if (csr->capacity > INT32_MAX - csr->capacity / 2)
+        new_cap = INT32_MAX;
+    else
+        new_cap = csr->capacity + csr->capacity / 2;
     if (new_cap < needed)
         new_cap = needed;
+    /* Guard size_t overflow for realloc byte count */
+    if ((size_t)new_cap > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
 
     idx_t *new_col = realloc(csr->col_idx, (size_t)new_cap * sizeof(idx_t));
     if (!new_col)

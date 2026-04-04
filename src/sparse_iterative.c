@@ -945,6 +945,10 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, id
 
     idx_t n = sparse_rows(A);
 
+    /* Overflow guard for per-column offset computation */
+    if (n > 0 && (size_t)nrhs > SIZE_MAX / (size_t)n)
+        return SPARSE_ERR_ALLOC;
+
     /* Solve each column independently using the existing GMRES implementation.
      * Per-column convergence tracking: each column gets its own result,
      * and we report the worst case. */

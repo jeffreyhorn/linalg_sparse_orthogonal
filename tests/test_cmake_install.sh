@@ -10,6 +10,7 @@ trap 'rm -rf "$TMPDIR"' EXIT
 PREFIX="$TMPDIR/usr"
 BUILD="$TMPDIR/build"
 EXAMPLE_BUILD="$TMPDIR/example_build"
+LOG="$TMPDIR/cmake.log"
 PASS=0
 FAIL=0
 
@@ -27,22 +28,25 @@ mkdir -p "$BUILD"
 if cmake -S "$ROOT_DIR" -B "$BUILD" \
     -DCMAKE_INSTALL_PREFIX="$PREFIX" \
     -DCMAKE_C_STANDARD=11 \
-    >/dev/null 2>&1; then
+    >"$LOG" 2>&1; then
     pass "cmake configure"
 else
-    fail "cmake configure" "see output above"
+    fail "cmake configure" "see $LOG"
+    cat "$LOG"
 fi
 
-if cmake --build "$BUILD" >/dev/null 2>&1; then
+if cmake --build "$BUILD" >>"$LOG" 2>&1; then
     pass "cmake build"
 else
-    fail "cmake build" "compilation errors"
+    fail "cmake build" "see $LOG"
+    tail -30 "$LOG"
 fi
 
-if cmake --install "$BUILD" >/dev/null 2>&1; then
+if cmake --install "$BUILD" >>"$LOG" 2>&1; then
     pass "cmake install"
 else
-    fail "cmake install" "install failed"
+    fail "cmake install" "see $LOG"
+    tail -20 "$LOG"
 fi
 
 # ── 2. Verify installed files ───────────────────────────────────────

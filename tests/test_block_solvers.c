@@ -295,7 +295,7 @@ static void test_block_gmres_3rhs(void) {
     /* Verify each column matches single-RHS GMRES */
     for (idx_t k = 0; k < nrhs; k++) {
         memset(x_single, 0, sizeof(x_single));
-        sparse_solve_gmres(A, &B[n * k], x_single, &opts, NULL, NULL, NULL);
+        ASSERT_ERR(sparse_solve_gmres(A, &B[n * k], x_single, &opts, NULL, NULL, NULL), SPARSE_OK);
         for (idx_t i = 0; i < n; i++)
             ASSERT_NEAR(X_block[i + n * k], x_single[i], 1e-8);
     }

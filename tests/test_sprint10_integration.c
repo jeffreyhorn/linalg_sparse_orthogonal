@@ -261,7 +261,15 @@ static void test_csr_speedup_orsirr_1(void) {
     /* CSR path */
     t0 = wall_time();
     for (int r = 0; r < reps; r++) {
-        lu_csr_factor_solve(A, b, x, 1e-12);
+        sparse_err_t csr_rc = lu_csr_factor_solve(A, b, x, 1e-12);
+        ASSERT_ERR(csr_rc, SPARSE_OK);
+        if (csr_rc != SPARSE_OK) {
+            free(x);
+            free(x_exact);
+            free(b);
+            sparse_free(A);
+            return;
+        }
     }
     double t_csr = (wall_time() - t0) / reps;
 

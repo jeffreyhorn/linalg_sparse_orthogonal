@@ -667,8 +667,6 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
                 }
             }
             if (!isolated) {
-                free(dense);
-                free(ipiv);
                 goto sparse_fallback;
             }
 
@@ -1236,6 +1234,10 @@ sparse_err_t lu_detect_dense_blocks(const LuCsr *csr, idx_t min_size, double thr
     idx_t n = csr->n;
     if (n < min_size)
         return SPARSE_OK;
+
+    /* Overflow guard for n-sized allocations */
+    if ((size_t)n > SIZE_MAX / sizeof(idx_t) || (size_t)(n + 1) > SIZE_MAX / sizeof(idx_t))
+        return SPARSE_ERR_ALLOC;
 
     /* Build transpose: for each column j, collect the sorted row indices.
      * col_ptr[j]..col_ptr[j+1]-1 index into col_rows[]. */

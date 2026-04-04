@@ -408,7 +408,12 @@ sparse_err_t lu_csr_eliminate(LuCsr *csr, double tol, double drop_tol, idx_t *pi
             /* Ensure capacity for worst-case fill (row_i_nnz + pivot_nnz) */
             idx_t ri_nnz = ri_e - ri_s;
             idx_t piv_nnz = pk_e - pk_s;
-            err = lu_csr_grow(csr, write_pos + ri_nnz + piv_nnz);
+            size_t needed = (size_t)write_pos + (size_t)ri_nnz + (size_t)piv_nnz;
+            if (needed > (size_t)INT32_MAX) {
+                err = SPARSE_ERR_ALLOC;
+                goto cleanup;
+            }
+            err = lu_csr_grow(csr, (idx_t)needed);
             if (err != SPARSE_OK)
                 goto cleanup;
 
@@ -698,7 +703,14 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
                 }
 
                 idx_t new_nnz = row_nnz_outside + bsize; /* worst case: all block entries */
-                err = lu_csr_grow(csr, write_pos + new_nnz);
+                size_t needed_b = (size_t)write_pos + (size_t)new_nnz;
+                if (needed_b > (size_t)INT32_MAX) {
+                    err = SPARSE_ERR_ALLOC;
+                    free(dense);
+                    free(ipiv);
+                    goto block_cleanup;
+                }
+                err = lu_csr_grow(csr, (idx_t)needed_b);
                 if (err != SPARSE_OK) {
                     free(dense);
                     free(ipiv);
@@ -839,7 +851,12 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
 
                 idx_t ri_nnz = ri_e - ri_s;
                 idx_t piv_nnz = pk_e - pk_s;
-                err = lu_csr_grow(csr, write_pos + ri_nnz + piv_nnz);
+                size_t needed_s = (size_t)write_pos + (size_t)ri_nnz + (size_t)piv_nnz;
+                if (needed_s > (size_t)INT32_MAX) {
+                    err = SPARSE_ERR_ALLOC;
+                    goto block_cleanup;
+                }
+                err = lu_csr_grow(csr, (idx_t)needed_s);
                 if (err != SPARSE_OK)
                     goto block_cleanup;
 

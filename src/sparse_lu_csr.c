@@ -574,6 +574,13 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
     if (err != SPARSE_OK)
         return err;
 
+    /* Overflow guard for n-sized allocations (shared by block_at, rstart,
+     * rend, work, work_cols, row_map — double is the largest element type) */
+    if ((size_t)n > SIZE_MAX / sizeof(double)) {
+        free(blks);
+        return SPARSE_ERR_ALLOC;
+    }
+
     /* Build a lookup: for each step k, which block (if any) starts there?
      * block_at[k] = block index if a diagonal block starts at step k, else -1. */
     idx_t *block_at = calloc((size_t)n, sizeof(idx_t));
@@ -641,6 +648,14 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
             /* ── Dense block path ── */
             idx_t b = block_at[k];
             idx_t bsize = blks[b].row_end - blks[b].row_start;
+
+            /* Overflow guard for dense block allocations */
+            if (bsize > 0 && ((size_t)bsize > SIZE_MAX / (size_t)bsize ||
+                              (size_t)bsize * (size_t)bsize > SIZE_MAX / sizeof(double) ||
+                              (size_t)bsize > SIZE_MAX / sizeof(idx_t))) {
+                err = SPARSE_ERR_ALLOC;
+                goto block_cleanup;
+            }
 
             /* Extract the block from current CSR state (using row_map) */
             double *dense = calloc((size_t)bsize * (size_t)bsize, sizeof(double));

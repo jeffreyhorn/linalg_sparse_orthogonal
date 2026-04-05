@@ -166,9 +166,10 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *
 /**
  * @brief Solve A*X = B for multiple RHS using block Conjugate Gradient.
  *
- * Runs CG simultaneously for all nrhs vectors. Each column converges
- * independently and is removed from the active set when its residual
- * drops below tolerance. The shared SpMV amortizes matrix traversal.
+ * Runs CG simultaneously for all nrhs vectors with per-column convergence
+ * tracking. Each column converges independently, and once a column's
+ * residual drops below tolerance its per-column updates stop. The shared
+ * SpMV amortizes matrix traversal.
  *
  * @param A           SPD coefficient matrix (not modified).
  * @param B           RHS matrix, n × nrhs column-major.

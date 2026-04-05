@@ -272,6 +272,37 @@ sparse_err_t lu_dense_solve(idx_t n, const double *LU, idx_t lda, const idx_t *i
     return SPARSE_OK;
 }
 
+/* ─── CSR structural validation ──────────────────────────────────────── */
+
+/**
+ * Validate LuCsr structural invariants:
+ * - row_ptr[0] == 0
+ * - row_ptr is monotone non-decreasing
+ * - row_ptr[n] == csr->nnz
+ * - csr->nnz <= csr->capacity
+ * - all col_idx values in [0, n)
+ */
+static sparse_err_t lu_csr_validate(const LuCsr *csr) {
+    idx_t n = csr->n;
+    if (csr->nnz < 0 || csr->capacity < 0 || csr->nnz > csr->capacity)
+        return SPARSE_ERR_BADARG;
+    if (!csr->row_ptr || !csr->col_idx || !csr->values)
+        return SPARSE_ERR_NULL;
+    if (csr->row_ptr[0] != 0)
+        return SPARSE_ERR_BADARG;
+    for (idx_t i = 0; i < n; i++) {
+        if (csr->row_ptr[i] < 0 || csr->row_ptr[i] > csr->row_ptr[i + 1])
+            return SPARSE_ERR_BADARG;
+    }
+    if (csr->row_ptr[n] != csr->nnz)
+        return SPARSE_ERR_BADARG;
+    for (idx_t p = 0; p < csr->nnz; p++) {
+        if (csr->col_idx[p] < 0 || csr->col_idx[p] >= n)
+            return SPARSE_ERR_BADARG;
+    }
+    return SPARSE_OK;
+}
+
 /* ─── CSR LU elimination with scatter-gather ─────────────────────────── */
 
 sparse_err_t lu_csr_eliminate(LuCsr *csr, double tol, double drop_tol, idx_t *piv_perm) {
@@ -286,15 +317,10 @@ sparse_err_t lu_csr_eliminate(LuCsr *csr, double tol, double drop_tol, idx_t *pi
     if ((size_t)n > SIZE_MAX / sizeof(double))
         return SPARSE_ERR_ALLOC;
 
-    /* Validate CSR structure: row_ptr monotone and col_idx in [0, n) */
-    for (idx_t i = 0; i < n; i++) {
-        if (csr->row_ptr[i] < 0 || csr->row_ptr[i] > csr->row_ptr[i + 1])
-            return SPARSE_ERR_BADARG;
-        for (idx_t p = csr->row_ptr[i]; p < csr->row_ptr[i + 1]; p++) {
-            if (csr->col_idx[p] < 0 || csr->col_idx[p] >= n)
-                return SPARSE_ERR_BADARG;
-        }
-    }
+    /* Validate CSR structure */
+    sparse_err_t verr = lu_csr_validate(csr);
+    if (verr != SPARSE_OK)
+        return verr;
 
     /* Per-row start/end arrays — decoupled from row_ptr so that rewriting
      * one row doesn't corrupt its neighbors. */
@@ -580,6 +606,11 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
     idx_t n = csr->n;
     if (n == 0)
         return SPARSE_OK;
+
+    /* Validate CSR structure */
+    sparse_err_t verr = lu_csr_validate(csr);
+    if (verr != SPARSE_OK)
+        return verr;
 
     /* Detect dense diagonal blocks */
     DenseBlock *blks = NULL;
@@ -1265,6 +1296,11 @@ sparse_err_t lu_detect_dense_blocks(const LuCsr *csr, idx_t min_size, double thr
     idx_t n = csr->n;
     if (n < min_size)
         return SPARSE_OK;
+
+    /* Validate CSR structure */
+    sparse_err_t verr = lu_csr_validate(csr);
+    if (verr != SPARSE_OK)
+        return verr;
 
     /* Overflow guard for n-sized allocations */
     if ((size_t)n > SIZE_MAX / sizeof(idx_t) || (size_t)(n + 1) > SIZE_MAX / sizeof(idx_t))

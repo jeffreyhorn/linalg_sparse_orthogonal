@@ -180,8 +180,8 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *
  * @param result      Output: iterations = max across columns, residual = max across columns.
  * @return SPARSE_OK if all columns converged.
  * @return SPARSE_ERR_NULL if A, B, or X is NULL.
+ * @return SPARSE_ERR_BADARG if @p nrhs is negative or opts has invalid values.
  * @return SPARSE_ERR_SHAPE if A is not square.
- * @return SPARSE_ERR_BADARG if opts has invalid values (negative max_iter or tol).
  * @return SPARSE_ERR_ALLOC if workspace allocation fails or n*nrhs overflows.
  * @return SPARSE_ERR_NOT_CONVERGED if any column did not converge.
  * @return Other error codes may be propagated from the preconditioner callback.
@@ -209,6 +209,7 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
  * @param result      Output: iterations = max across columns, residual = max across columns.
  * @return SPARSE_OK if all columns converged.
  * @return SPARSE_ERR_NULL if A, B, or X is NULL.
+ * @return SPARSE_ERR_BADARG if @p nrhs is negative.
  * @return SPARSE_ERR_SHAPE if A is not square.
  * @return SPARSE_ERR_ALLOC if n*nrhs overflows size_t.
  * @return SPARSE_ERR_NOT_CONVERGED if any column did not converge (but no

@@ -128,6 +128,7 @@ sparse_err_t sparse_lu_solve(const SparseMatrix *mat, const double *b, double *x
  *              Must be non-NULL even if @p nrhs is 0.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any pointer is NULL, including when @p nrhs is 0.
+ * @return SPARSE_ERR_BADARG if @p nrhs is negative.
  * @return SPARSE_ERR_SINGULAR if a zero diagonal in U is encountered.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
  */

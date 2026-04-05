@@ -170,6 +170,7 @@ sparse_err_t lu_csr_solve(const LuCsr *csr, const idx_t *piv_perm, const double 
  *                  non-NULL even if nrhs is 0.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if csr, piv_perm, B, or X is NULL.
+ * @return SPARSE_ERR_BADARG if @p nrhs is negative.
  * @return SPARSE_ERR_ALLOC if allocation of temporary solve buffers fails.
  * @return SPARSE_ERR_SINGULAR if a zero diagonal is encountered in U during
  *         back-substitution.

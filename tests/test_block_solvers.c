@@ -379,7 +379,12 @@ static void test_block_gmres_preconditioned(void) {
 
     /* Factor ILU(0) preconditioner */
     sparse_ilu_t ilu;
-    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+    sparse_err_t ilu_err = sparse_ilu_factor(A, &ilu);
+    ASSERT_ERR(ilu_err, SPARSE_OK);
+    if (ilu_err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
 
     double B[20], X[20];
     for (idx_t k = 0; k < nrhs; k++)

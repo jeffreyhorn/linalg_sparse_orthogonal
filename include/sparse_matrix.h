@@ -273,7 +273,9 @@ sparse_err_t sparse_matvec(const SparseMatrix *mat, const double *x, double *y);
  *              Must be non-NULL even when @p nrhs is 0.
  * @return SPARSE_OK on success (including the no-op case when @p nrhs is 0).
  * @return SPARSE_ERR_NULL if @p mat, @p X, or @p Y is NULL.
- * @return SPARSE_ERR_ALLOC if the required m*nrhs or n*nrhs stride overflows size_t.
+ * @return SPARSE_ERR_ALLOC if any internal size calculation overflows @c size_t
+ *         (including output/input strides or temporary workspace sizes) or if
+ *         allocation of internal temporary storage fails.
  */
 sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const double *X, idx_t nrhs, double *Y);
 

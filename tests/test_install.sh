@@ -93,7 +93,7 @@ int main(void) {
     SparseMatrix *A = sparse_create(3, 3);
     if (!A) return 1;
     sparse_insert(A, 0, 0, 1.0);
-    printf("nnz: %d\n", sparse_nnz(A));
+    printf("nnz: %d\n", (int)sparse_nnz(A));
     sparse_free(A);
     printf("OK\n");
     return 0;

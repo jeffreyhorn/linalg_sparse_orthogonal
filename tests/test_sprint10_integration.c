@@ -131,7 +131,7 @@ static void csr_solve_matrix(const char *path, const char *name) {
     ASSERT_ERR(err, SPARSE_OK);
 
     double rr = relative_residual(A, b, x, n);
-    printf("    %s (%d×%d): relres = %.2e\n", name, n, n, rr);
+    printf("    %s (%d×%d): relres = %.2e\n", name, (int)n, (int)n, rr);
     ASSERT_TRUE(rr < 1e-10);
 
     free(x);
@@ -277,8 +277,8 @@ static void test_csr_speedup_orsirr_1(void) {
     double t_csr = (wall_time() - t0) / reps;
 
     double speedup = t_ll / t_csr;
-    printf("    orsirr_1 (%d×%d): LL=%.4fs  CSR=%.4fs  speedup=%.1fx\n", n, n, t_ll, t_csr,
-           speedup);
+    printf("    orsirr_1 (%d×%d): LL=%.4fs  CSR=%.4fs  speedup=%.1fx\n", (int)n, (int)n, t_ll,
+           t_csr, speedup);
 
     /* Log speedup but don't assert — wall-clock timing is flaky across CI */
     if (speedup < 2.0)
@@ -347,7 +347,7 @@ static void test_block_solvers_cross_validate_nos4(void) {
     sparse_iter_result_t cg_res;
     ASSERT_ERR(sparse_cg_solve_block(A, B, nrhs, X_cg, &cg_opts, NULL, NULL, &cg_res), SPARSE_OK);
     double rr_cg = block_relative_residual(A, B, X_cg, n, nrhs);
-    printf("    block CG:    max relres = %.2e  iters = %d\n", rr_cg, cg_res.iterations);
+    printf("    block CG:    max relres = %.2e  iters = %d\n", rr_cg, (int)cg_res.iterations);
     ASSERT_TRUE(rr_cg < 1e-8);
 
     /* Block GMRES solve */
@@ -356,7 +356,7 @@ static void test_block_solvers_cross_validate_nos4(void) {
     ASSERT_ERR(sparse_gmres_solve_block(A, B, nrhs, X_gmres, &gm_opts, NULL, NULL, &gm_res),
                SPARSE_OK);
     double rr_gm = block_relative_residual(A, B, X_gmres, n, nrhs);
-    printf("    block GMRES: max relres = %.2e  iters = %d\n", rr_gm, gm_res.iterations);
+    printf("    block GMRES: max relres = %.2e  iters = %d\n", rr_gm, (int)gm_res.iterations);
     ASSERT_TRUE(rr_gm < 1e-8);
 
     /* All three solutions should agree */
@@ -429,8 +429,8 @@ static void test_preconditioned_block_gmres_steam1(void) {
                SPARSE_OK);
 
     double rr = block_relative_residual(A, B, X, n, nrhs);
-    printf("    steam1 (%d×%d, %d RHS): ILU+GMRES relres=%.2e iters=%d\n", n, n, nrhs, rr,
-           res.iterations);
+    printf("    steam1 (%d×%d, %d RHS): ILU+GMRES relres=%.2e iters=%d\n", (int)n, (int)n,
+           (int)nrhs, rr, (int)res.iterations);
     ASSERT_TRUE(rr < 1e-6);
 
     sparse_ilu_free(&ilu);
@@ -614,7 +614,7 @@ static void test_backward_compat_cg_single(void) {
     ASSERT_ERR(sparse_solve_cg(A, b, x, &opts, NULL, NULL, &res), SPARSE_OK);
 
     double rr = relative_residual(A, b, x, n);
-    printf("    backward compat CG: relres = %.2e  iters = %d\n", rr, res.iterations);
+    printf("    backward compat CG: relres = %.2e  iters = %d\n", rr, (int)res.iterations);
     ASSERT_TRUE(rr < 1e-8);
 
     free(x);

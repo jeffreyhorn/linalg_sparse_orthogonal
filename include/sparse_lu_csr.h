@@ -127,6 +127,11 @@ sparse_err_t lu_csr_eliminate(LuCsr *csr, double tol, double drop_tol, idx_t *pi
  * @param min_block Minimum block dimension for dense path (e.g., 4).
  * @param[out] piv_perm  Row pivot permutation (length n). May be NULL.
  * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if csr is NULL.
+ * @return SPARSE_ERR_ALLOC if temporary allocations fail.
+ * @return SPARSE_ERR_SINGULAR if a zero or numerically singular pivot is encountered.
+ * @return SPARSE_ERR_BADARG if invalid column indices are detected during
+ *         block detection (propagated from lu_detect_dense_blocks).
  */
 sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx_t min_block,
                                     idx_t *piv_perm);
@@ -165,6 +170,9 @@ sparse_err_t lu_csr_solve(const LuCsr *csr, const idx_t *piv_perm, const double 
  *                  non-NULL even if nrhs is 0.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if csr, piv_perm, B, or X is NULL.
+ * @return SPARSE_ERR_ALLOC if allocation of temporary solve buffers fails.
+ * @return SPARSE_ERR_SINGULAR if a zero diagonal is encountered in U during
+ *         back-substitution.
  */
 sparse_err_t lu_csr_solve_block(const LuCsr *csr, const idx_t *piv_perm, const double *B,
                                 idx_t nrhs, double *X);

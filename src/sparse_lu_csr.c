@@ -286,6 +286,16 @@ sparse_err_t lu_csr_eliminate(LuCsr *csr, double tol, double drop_tol, idx_t *pi
     if ((size_t)n > SIZE_MAX / sizeof(double))
         return SPARSE_ERR_ALLOC;
 
+    /* Validate CSR structure: row_ptr monotone and col_idx in [0, n) */
+    for (idx_t i = 0; i < n; i++) {
+        if (csr->row_ptr[i] < 0 || csr->row_ptr[i] > csr->row_ptr[i + 1])
+            return SPARSE_ERR_BADARG;
+        for (idx_t p = csr->row_ptr[i]; p < csr->row_ptr[i + 1]; p++) {
+            if (csr->col_idx[p] < 0 || csr->col_idx[p] >= n)
+                return SPARSE_ERR_BADARG;
+        }
+    }
+
     /* Per-row start/end arrays — decoupled from row_ptr so that rewriting
      * one row doesn't corrupt its neighbors. */
     idx_t *rstart = malloc((size_t)n * sizeof(idx_t));

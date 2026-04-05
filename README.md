@@ -75,7 +75,7 @@ make examples   # build standalone example programs
 make docs       # generate Doxygen API reference (requires doxygen)
 make omp        # build and test with OpenMP-enabled parallel SpMV
 make sanitize   # build with undefined-behavior sanitizer
-make coverage   # generate lcov coverage report (requires gcc + lcov)
+make coverage   # generate lcov coverage report (requires gcc + lcov + bc)
 make install    # install to PREFIX (default /usr/local)
 make uninstall  # remove installed files
 make clean      # remove build artifacts
@@ -380,7 +380,7 @@ make sanitize      # UBSan (undefined behavior)
 make asan          # ASan (address sanitizer) — requires GCC or LLVM clang on macOS
 make sanitize-all  # both ASan + UBSan
 make tsan          # TSan (thread sanitizer) for concurrent tests
-make coverage      # line coverage report (requires gcc + lcov); fails if < 95%
+make coverage      # line coverage report (requires gcc + lcov + bc); fails if < 95%
 ```
 
 **Note:** Apple Clang's ASan hangs on macOS. Use an alternative compiler:

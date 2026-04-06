@@ -285,8 +285,8 @@ docs:
 # ─── Code coverage ────────────────────────────────────────────────────
 
 # Build with gcov instrumentation, run tests, generate coverage report.
-# Requires: gcc (real GCC, not Apple Clang shim), lcov, genhtml.
-# On Ubuntu:  apt install gcc lcov
+# Requires: gcc (real GCC, not Apple Clang shim), lcov, genhtml, bc.
+# On Ubuntu:  apt install gcc lcov bc
 # On macOS:   brew install gcc lcov && make coverage CC=gcc-14
 # Apple Clang's gcov output is incompatible with lcov.
 COVDIR = coverage

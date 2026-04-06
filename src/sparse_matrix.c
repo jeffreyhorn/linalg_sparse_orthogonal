@@ -782,35 +782,28 @@ sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const double *X, idx_t
             Y[(size_t)i + ok] = 0.0;
     }
 
-    /* Precompute per-column base offsets to avoid redundant multiplies */
-    if ((size_t)nrhs > SIZE_MAX / sizeof(size_t))
-        return SPARSE_ERR_ALLOC;
-    size_t *y_off = malloc((size_t)nrhs * sizeof(size_t));
-    size_t *x_off = malloc((size_t)nrhs * sizeof(size_t));
-    if (!y_off || !x_off) {
-        free(y_off);
-        free(x_off);
-        return SPARSE_ERR_ALLOC;
-    }
-    for (idx_t k = 0; k < nrhs; k++) {
-        y_off[k] = (size_t)m * (size_t)k;
-        x_off[k] = (size_t)mat->cols * (size_t)k;
-    }
+    size_t sm = (size_t)m;
+    size_t sc = (size_t)mat->cols;
 
-    /* Walk each row once, update all nrhs columns */
+    /* Walk each row once, update all nrhs columns.
+     * Each row writes to distinct Y positions, so parallelization is safe. */
+#ifdef SPARSE_OPENMP
+#pragma omp parallel for schedule(dynamic, 64)
+#endif
     for (idx_t log_i = 0; log_i < m; log_i++) {
         idx_t phys_i = mat->row_perm[log_i];
         Node *node = mat->row_headers[phys_i];
         while (node) {
             idx_t log_j = mat->inv_col_perm[node->col];
             double a_ij = node->value;
-            for (idx_t k = 0; k < nrhs; k++)
-                Y[(size_t)log_i + y_off[k]] += a_ij * X[(size_t)log_j + x_off[k]];
+            for (idx_t k = 0; k < nrhs; k++) {
+                size_t yk = sm * (size_t)k;
+                size_t xk = sc * (size_t)k;
+                Y[(size_t)log_i + yk] += a_ij * X[(size_t)log_j + xk];
+            }
             node = node->right;
         }
     }
-    free(y_off);
-    free(x_off);
 
     return SPARSE_OK;
 }

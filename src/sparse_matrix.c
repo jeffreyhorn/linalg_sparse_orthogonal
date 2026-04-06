@@ -796,10 +796,12 @@ sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const double *X, idx_t
         while (node) {
             idx_t log_j = mat->inv_col_perm[node->col];
             double a_ij = node->value;
+            double *y_ptr = Y + (size_t)log_i;
+            const double *x_ptr = X + (size_t)log_j;
             for (idx_t k = 0; k < nrhs; k++) {
-                size_t yk = sm * (size_t)k;
-                size_t xk = sc * (size_t)k;
-                Y[(size_t)log_i + yk] += a_ij * X[(size_t)log_j + xk];
+                *y_ptr += a_ij * (*x_ptr);
+                y_ptr += sm;
+                x_ptr += sc;
             }
             node = node->right;
         }

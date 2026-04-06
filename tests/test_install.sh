@@ -101,26 +101,36 @@ int main(void) {
 CEOF
 
 CC="${CC:-cc}"
-CFLAGS_PC="$(pkg-config --cflags sparse)"
-LIBS_PC="$(pkg-config --libs sparse)"
-
 COMPILE_LOG="$TMPDIR/compile.log"
-if $CC -std=c11 -Wall $CFLAGS_PC "$TMPDIR/test_link.c" $LIBS_PC -o "$TMPDIR/test_link" 2>"$COMPILE_LOG"; then
-    pass "example compiles and links"
-else
-    fail "example failed to compile/link"
-    if [ -s "$COMPILE_LOG" ]; then
-        echo "Compiler/linker output:"
-        cat "$COMPILE_LOG"
-    fi
-fi
+PKG_CONFIG_LOG="$TMPDIR/pkg_config.log"
 
-if [ -x "$TMPDIR/test_link" ]; then
-    OUTPUT="$("$TMPDIR/test_link" 2>&1)"
-    if echo "$OUTPUT" | grep -q "OK"; then
-        pass "example runs correctly"
+if ! command -v pkg-config >/dev/null 2>&1; then
+    fail "pkg-config not found; skipping compile/link test"
+elif CFLAGS_PC="$(pkg-config --cflags sparse 2>"$PKG_CONFIG_LOG")" && \
+     LIBS_PC="$(pkg-config --libs sparse 2>>"$PKG_CONFIG_LOG")"; then
+    if $CC -std=c11 -Wall $CFLAGS_PC "$TMPDIR/test_link.c" $LIBS_PC -o "$TMPDIR/test_link" 2>"$COMPILE_LOG"; then
+        pass "example compiles and links"
     else
-        fail "example output unexpected: $OUTPUT"
+        fail "example failed to compile/link"
+        if [ -s "$COMPILE_LOG" ]; then
+            echo "Compiler/linker output:"
+            cat "$COMPILE_LOG"
+        fi
+    fi
+
+    if [ -x "$TMPDIR/test_link" ]; then
+        OUTPUT="$("$TMPDIR/test_link" 2>&1)"
+        if echo "$OUTPUT" | grep -q "OK"; then
+            pass "example runs correctly"
+        else
+            fail "example output unexpected: $OUTPUT"
+        fi
+    fi
+else
+    fail "pkg-config could not resolve sparse compiler/linker flags"
+    if [ -s "$PKG_CONFIG_LOG" ]; then
+        echo "pkg-config output:"
+        cat "$PKG_CONFIG_LOG"
     fi
 fi
 

@@ -27,6 +27,7 @@ echo "--- CMake configure + build + install ---"
 mkdir -p "$BUILD"
 if cmake -S "$ROOT_DIR" -B "$BUILD" \
     -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+    -DCMAKE_INSTALL_LIBDIR=lib \
     -DCMAKE_C_STANDARD=11 \
     >"$LOG" 2>&1; then
     pass "cmake configure"

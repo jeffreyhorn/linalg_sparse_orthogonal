@@ -757,6 +757,59 @@ sparse_err_t sparse_matvec(const SparseMatrix *mat, const double *x, double *y) 
     return SPARSE_OK;
 }
 
+/* ─── Block SpMV: Y = A * X (multiple RHS) ───────────────────────────── */
+
+sparse_err_t sparse_matvec_block(const SparseMatrix *mat, const double *X, idx_t nrhs, double *Y) {
+    if (!mat || !X || !Y)
+        return SPARSE_ERR_NULL;
+    if (nrhs < 0)
+        return SPARSE_ERR_BADARG;
+    if (nrhs == 0)
+        return SPARSE_OK;
+
+    idx_t m = mat->rows;
+
+    /* Overflow guard: ensure m*nrhs and cols*nrhs fit in size_t */
+    if (m > 0 && (size_t)nrhs > SIZE_MAX / (size_t)m)
+        return SPARSE_ERR_ALLOC;
+    if (mat->cols > 0 && (size_t)nrhs > SIZE_MAX / (size_t)mat->cols)
+        return SPARSE_ERR_ALLOC;
+
+    /* Zero output */
+    for (idx_t k = 0; k < nrhs; k++) {
+        size_t ok = (size_t)m * (size_t)k;
+        for (idx_t i = 0; i < m; i++)
+            Y[(size_t)i + ok] = 0.0;
+    }
+
+    size_t sm = (size_t)m;
+    size_t sc = (size_t)mat->cols;
+
+    /* Walk each row once, update all nrhs columns.
+     * Each row writes to distinct Y positions, so parallelization is safe. */
+#ifdef SPARSE_OPENMP
+#pragma omp parallel for schedule(dynamic, 64)
+#endif
+    for (idx_t log_i = 0; log_i < m; log_i++) {
+        idx_t phys_i = mat->row_perm[log_i];
+        Node *node = mat->row_headers[phys_i];
+        while (node) {
+            idx_t log_j = mat->inv_col_perm[node->col];
+            double a_ij = node->value;
+            double *y_ptr = Y + (size_t)log_i;
+            const double *x_ptr = X + (size_t)log_j;
+            for (idx_t k = 0; k < nrhs; k++) {
+                *y_ptr += a_ij * (*x_ptr);
+                y_ptr += sm;
+                x_ptr += sc;
+            }
+            node = node->right;
+        }
+    }
+
+    return SPARSE_OK;
+}
+
 /* ─── Matrix Market I/O ──────────────────────────────────────────────── */
 
 sparse_err_t sparse_save_mm(const SparseMatrix *mat, const char *filename) {

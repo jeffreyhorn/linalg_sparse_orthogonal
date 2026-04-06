@@ -10,6 +10,8 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 
 ### Direct Solvers
 - **LU factorization** with complete or partial pivoting (P·A·Q = L·U)
+- **CSR LU factorization** — scatter-gather elimination on compressed sparse row arrays for >=2x speedup on large matrices, with dense subblock detection and in-place dense kernels
+- **Block LU solve** — solve A·X = B for multiple right-hand sides simultaneously (`sparse_lu_solve_block`)
 - **Cholesky factorization** for symmetric positive-definite matrices (A = L·L^T, ~50% less storage than LU)
 - **QR factorization** with column pivoting (A·P = Q·R) — Householder reflections, least-squares, rank estimation, null-space extraction, economy (thin) QR, sparse-mode QR without dense workspace
 - **QR iterative refinement** to improve least-squares solutions
@@ -28,7 +30,9 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 
 ### Iterative Solvers
 - **Conjugate Gradient (CG)** for SPD systems with optional preconditioning
+- **Block CG** — simultaneous CG for multiple RHS with shared SpMV and per-column convergence (`sparse_cg_solve_block`)
 - **Restarted GMRES(k)** for general unsymmetric systems with left and right preconditioning
+- **Multi-RHS GMRES** — restarted GMRES(k) applied independently per RHS with aggregated reporting (`sparse_gmres_solve_block`)
 - **Matrix-free variants** — CG and GMRES with user-supplied matvec callback (`sparse_solve_cg_mf`, `sparse_solve_gmres_mf`)
 - **ILU(0) preconditioner** — incomplete LU with no fill-in, 3-1000× iteration reduction
 - **ILUT preconditioner** — ILU with threshold dropping and controlled fill-in, handles zero-diagonal matrices, optional row partial pivoting
@@ -40,6 +44,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 
 ### Matrix Operations
 - **Sparse matrix-vector product** (SpMV) with optional OpenMP parallelization
+- **Block SpMV** — sparse matrix times dense block Y = A·X for nrhs vectors (`sparse_matvec_block`)
 - **Sparse matrix-matrix multiply** — C = A*B via Gustavson's algorithm (`sparse_matmul`)
 - **Sparse transpose** — compute A^T as a new matrix (`sparse_transpose`)
 - **Matrix arithmetic** — scalar scaling (`sparse_scale`) and addition (`sparse_add`)
@@ -63,13 +68,16 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 ### With Make (recommended)
 
 ```bash
-make            # build library, tests, and benchmarks
+make            # build library
 make test       # run all unit tests
 make bench      # run benchmarks
 make examples   # build standalone example programs
 make docs       # generate Doxygen API reference (requires doxygen)
 make omp        # build and test with OpenMP-enabled parallel SpMV
 make sanitize   # build with undefined-behavior sanitizer
+make coverage   # generate lcov coverage report (requires gcc + lcov + bc)
+make install    # install to PREFIX (default /usr/local)
+make uninstall  # remove installed files
 make clean      # remove build artifacts
 ```
 
@@ -77,10 +85,13 @@ make clean      # remove build artifacts
 
 ```bash
 mkdir build && cd build
-cmake ..
-make
+cmake .. -DCMAKE_INSTALL_PREFIX=/usr/local
+cmake --build .
 ctest           # run tests
+cmake --install .   # install (supports find_package(Sparse))
 ```
+
+See [INSTALL.md](INSTALL.md) for detailed cross-platform instructions.
 
 ### Compiler Requirements
 
@@ -180,11 +191,12 @@ int main(void)
 
 | Header | Purpose |
 |--------|---------|
-| [`sparse_types.h`](include/sparse_types.h) | `idx_t`, error codes (`sparse_err_t`), pivot/reorder strategies |
-| [`sparse_matrix.h`](include/sparse_matrix.h) | Sparse matrix lifecycle, element access, SpMV, Matrix Market I/O |
-| [`sparse_lu.h`](include/sparse_lu.h) | LU factorization, solve, condition estimation, iterative refinement |
+| [`sparse_types.h`](include/sparse_types.h) | `idx_t`, error codes (`sparse_err_t`), pivot/reorder strategies, version macros |
+| [`sparse_matrix.h`](include/sparse_matrix.h) | Sparse matrix lifecycle, element access, SpMV, block SpMV, Matrix Market I/O |
+| [`sparse_lu.h`](include/sparse_lu.h) | LU factorization, solve, block solve, condition estimation, iterative refinement |
+| [`sparse_lu_csr.h`](include/sparse_lu_csr.h) | CSR LU working format — conversion, scatter-gather elimination, dense block detection, block solve |
 | [`sparse_cholesky.h`](include/sparse_cholesky.h) | Cholesky factorization and solve for SPD matrices |
-| [`sparse_iterative.h`](include/sparse_iterative.h) | CG and GMRES iterative solvers with left/right preconditioning |
+| [`sparse_iterative.h`](include/sparse_iterative.h) | CG, GMRES, block CG, block GMRES with left/right preconditioning |
 | [`sparse_ilu.h`](include/sparse_ilu.h) | ILU(0) and ILUT incomplete factorization preconditioners |
 | [`sparse_qr.h`](include/sparse_qr.h) | Column-pivoted QR factorization, least-squares, rank, null space, refinement |
 | [`sparse_dense.h`](include/sparse_dense.h) | Dense matrix utilities, Givens rotations, 2×2 eigensolver, tridiag QR |
@@ -213,6 +225,15 @@ int main(void)
 - `sparse_lu_condest(A, LU, &cond)` — estimate 1-norm condition number from LU factors
 - `sparse_lu_refine(A, LU, b, x, max_iters, tol)` — iterative refinement
 
+**CSR LU (high-performance path):**
+- `lu_csr_from_sparse(A, fill_factor, &csr)` — convert to CSR working format
+- `lu_csr_eliminate(csr, tol, drop_tol, piv)` — scatter-gather LU elimination
+- `lu_csr_eliminate_block(csr, tol, drop_tol, min_block, piv)` — with dense block optimization
+- `lu_csr_solve(csr, piv, b, x)` — forward/backward substitution in CSR
+- `lu_csr_solve_block(csr, piv, B, nrhs, X)` — block solve for multiple RHS
+- `lu_csr_factor_solve(A, b, x, tol)` — one-shot convert + factor + solve
+- `lu_detect_dense_blocks(csr, min_size, threshold, &blocks, &nblocks)` — supernodal dense block detection
+
 **Cholesky (SPD matrices):**
 - `sparse_cholesky_factor(mat)` — in-place A = L·L^T
 - `sparse_cholesky_factor_opts(mat, &opts)` — with optional AMD/RCM reordering
@@ -240,6 +261,8 @@ int main(void)
 **Iterative solvers:**
 - `sparse_solve_cg(A, b, x, &opts, precond, ctx, &result)` — Preconditioned Conjugate Gradient (SPD only)
 - `sparse_solve_gmres(A, b, x, &opts, precond, ctx, &result)` — Restarted GMRES(k) with left/right preconditioning
+- `sparse_cg_solve_block(A, B, nrhs, X, &opts, precond, ctx, &result)` — Block CG for multiple RHS
+- `sparse_gmres_solve_block(A, B, nrhs, X, &opts, precond, ctx, &result)` — Block GMRES for multiple RHS
 - `sparse_solve_cg_mf(matvec, ctx, n, b, x, &opts, precond, ctx, &result)` — Matrix-free CG
 - `sparse_solve_gmres_mf(matvec, ctx, n, b, x, &opts, precond, ctx, &result)` — Matrix-free GMRES
 
@@ -282,11 +305,20 @@ All functions return `sparse_err_t` error codes (except accessors that return va
 | fs_541_1 (541×541) | Partial | 5.2 ms | 1.7x |
 | orsirr_1 (1030×1030) | Partial | 1,744 ms | 11.4x |
 
+### CSR LU Speedup
+
+The CSR working format eliminates linked-list pointer chasing during elimination, achieving significant speedup on large matrices:
+
+| Matrix | Linked-list | CSR | Speedup |
+|--------|------------|-----|---------|
+| orsirr_1 (1030×1030) | 1.38 s | 0.11 s | **12x** |
+
 **Complexity:**
 - Partial pivoting: O(nnz) per elimination step — strongly preferred for banded/structured matrices
 - Complete pivoting: O(n²) per elimination step due to submatrix search — better numerical stability but much slower
 - Solve: O(nnz_LU) for forward/backward substitution
 - SpMV: O(nnz)
+- Block SpMV: O(nnz × nrhs) with improved cache locality
 
 ## Thread Safety
 
@@ -304,13 +336,12 @@ The library is safe for concurrent use under the following contract:
 
 ## Known Limitations
 
-- **Dense vector RHS only.** The solver takes dense vectors for b and x.
-- **In-place factorization.** `sparse_lu_factor` overwrites the matrix; always work on a copy if you need the original.
+- **In-place factorization.** `sparse_lu_factor` overwrites the matrix; always work on a copy if you need the original. (The CSR path via `lu_csr_factor_solve` does not modify the input.)
 - **No complex or integer matrices.** Only real (double-precision) values are supported.
 
 ## Testing
 
-The test suite contains **692 unit tests** across 26 test suites covering:
+The test suite contains **774 unit tests** across 29 test suites with >=95% line coverage (CI-enforced):
 
 - Sparse matrix data structure, norms, symmetry, transpose (53 tests)
 - LU factorization, solve, condition estimation (37 tests)
@@ -325,12 +356,12 @@ The test suite contains **692 unit tests** across 26 test suites covering:
 - Cholesky factorization and solve (21 tests)
 - CSR/CSC conversion (11 tests)
 - Sparse matrix-matrix multiply (14 tests)
-- Thread safety (7 tests)
+- Thread safety (6 tests)
 - Sprint 4 cross-feature integration (5 tests)
 - Iterative solvers — CG, GMRES, matrix-free, SuiteSparse (76 tests)
 - ILU(0) and ILUT preconditioners (34 tests)
 - Parallel SpMV (12 tests)
-- Sprint 5 cross-feature integration (9 tests)
+- Sprint 5 cross-feature integration (14 tests)
 - Sparse QR — Householder, least-squares, rank, null space, economy, sparse-mode (71 tests)
 - Sprint 6 cross-feature integration (7 tests)
 - Dense utilities — Givens, eigensolvers, tridiag QR (34 tests)
@@ -338,6 +369,9 @@ The test suite contains **692 unit tests** across 26 test suites covering:
 - SVD — full, partial, rank-deficient, condition number, pseudoinverse, low-rank (91 tests)
 - Sprint 8 cross-feature integration (7 tests)
 - Fuzz and property-based tests (24 tests)
+- CSR LU — conversion, elimination, dense blocks, block solve, coverage gaps (53 tests)
+- Block solvers — block SpMV, block CG, block GMRES (15 tests)
+- Sprint 10 cross-feature integration (14 tests)
 
 ```bash
 make test          # run all tests
@@ -346,6 +380,7 @@ make sanitize      # UBSan (undefined behavior)
 make asan          # ASan (address sanitizer) — requires GCC or LLVM clang on macOS
 make sanitize-all  # both ASan + UBSan
 make tsan          # TSan (thread sanitizer) for concurrent tests
+make coverage      # line coverage report (requires gcc + lcov + bc); fails if < 95%
 ```
 
 **Note:** Apple Clang's ASan hangs on macOS. Use an alternative compiler:
@@ -359,69 +394,54 @@ On Linux, `make asan` works with the default compiler.
 
 ```
 linalg_sparse_orthogonal/
-├── include/              Public headers (12 headers)
-│   ├── sparse_types.h
-│   ├── sparse_matrix.h
-│   ├── sparse_lu.h
-│   ├── sparse_cholesky.h
-│   ├── sparse_iterative.h
-│   ├── sparse_ilu.h
-│   ├── sparse_qr.h
-│   ├── sparse_dense.h
-│   ├── sparse_bidiag.h
-│   ├── sparse_csr.h
-│   ├── sparse_reorder.h
-│   └── sparse_vector.h
-├── src/                  Library implementation (12 source + 1 internal header)
-│   ├── sparse_types.c
-│   ├── sparse_matrix.c
-│   ├── sparse_lu.c
-│   ├── sparse_cholesky.c
-│   ├── sparse_iterative.c
-│   ├── sparse_ilu.c
-│   ├── sparse_qr.c
-│   ├── sparse_dense.c
-│   ├── sparse_bidiag.c
-│   ├── sparse_csr.c
-│   ├── sparse_reorder.c
-│   ├── sparse_vector.c
-│   └── sparse_matrix_internal.h
-├── tests/                Unit tests (25 suites, 558 tests)
-│   ├── test_framework.h
-│   ├── test_sparse_matrix.c
-│   ├── test_sparse_lu.c
-│   ├── test_sparse_io.c
-│   ├── test_known_matrices.c
-│   ├── test_sparse_vector.c
-│   ├── test_edge_cases.c
-│   ├── test_integration.c
-│   ├── test_sparse_arith.c
-│   ├── test_suitesparse.c
-│   ├── test_reorder.c
-│   ├── test_cholesky.c
-│   ├── test_csr.c
-│   ├── test_matmul.c
-│   ├── test_threads.c
-│   ├── test_sprint4_integration.c
-│   ├── test_iterative.c
-│   ├── test_ilu.c
-│   ├── test_omp.c
-│   ├── test_sprint5_integration.c
-│   ├── test_qr.c
-│   ├── test_sprint6_integration.c
-│   ├── test_dense.c
-│   ├── test_bidiag.c
-│   └── data/             Reference .mtx files (8 + 6 SuiteSparse)
-├── benchmarks/           Performance benchmarks (4 programs)
+├── include/              Public headers (14 headers)
+│   ├── sparse_types.h        Version macros, error codes, index type
+│   ├── sparse_matrix.h       Core data structure, SpMV, block SpMV, I/O
+│   ├── sparse_lu.h           LU factorization, solve, block solve
+│   ├── sparse_lu_csr.h       CSR LU — scatter-gather elimination, dense blocks
+│   ├── sparse_cholesky.h     Cholesky factorization and solve
+│   ├── sparse_iterative.h    CG, GMRES, block CG, block GMRES
+│   ├── sparse_ilu.h          ILU(0) and ILUT preconditioners
+│   ├── sparse_qr.h           QR factorization, least-squares, rank, null space
+│   ├── sparse_dense.h        Dense utilities, Givens, eigensolvers
+│   ├── sparse_bidiag.h       Householder bidiagonalization
+│   ├── sparse_csr.h          CSR/CSC conversion
+│   ├── sparse_reorder.h      Fill-reducing reordering (RCM, AMD)
+│   ├── sparse_svd.h          SVD, condition number, pseudoinverse, low-rank
+│   └── sparse_vector.h       Dense vector utilities
+├── src/                  Library implementation (14 source files, ~9K lines)
+├── tests/                Unit tests (29 suites, 774 tests, ~26K lines)
+├── cmake/                CMake config templates
+├── examples/             Standalone example programs + CMake integration example
+├── benchmarks/           Performance benchmarks (5 programs)
 ├── docs/                 Algorithm and format documentation
-├── archive/              Original prototype files
-└── planning/             Sprint plans and logs
+├── INSTALL.md            Cross-platform installation guide
+├── sparse.pc.in          pkg-config template
+├── planning/             Sprint plans and retrospectives
+└── archive/              Original prototype files
 ```
+
+## Installation
+
+See [INSTALL.md](INSTALL.md) for detailed instructions covering Linux, macOS, and Windows. Quick summary:
+
+```bash
+# Makefile
+make && make test && make install PREFIX=/usr/local
+
+# CMake
+cmake -B build -DCMAKE_INSTALL_PREFIX=/usr/local && cmake --build build && cmake --install build
+```
+
+After installation, downstream projects can use:
+- **pkg-config:** `pkg-config --cflags --libs sparse`
+- **CMake:** `find_package(Sparse REQUIRED)` + `target_link_libraries(... Sparse::sparse_lu_ortho)`
 
 ## Documentation
 
 - [Algorithm Description](docs/algorithm.md) — data structure, LU algorithm, complexity analysis
 - [Matrix Market Format](docs/matrix_market.md) — supported features and limitations
+- [Installation Guide](INSTALL.md) — cross-platform build and install instructions
 
 ## License
 

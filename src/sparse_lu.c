@@ -641,6 +641,130 @@ cleanup:
     return err;
 }
 
+/* ─── Block LU solve (multiple RHS) ──────────────────────────────────── */
+
+sparse_err_t sparse_lu_solve_block(const SparseMatrix *mat, const double *B, idx_t nrhs,
+                                   double *X) {
+    if (!mat || !B || !X)
+        return SPARSE_ERR_NULL;
+    if (nrhs < 0)
+        return SPARSE_ERR_BADARG;
+    if (nrhs == 0)
+        return SPARSE_OK;
+
+    idx_t n = mat->rows;
+    const idx_t *rperm = mat->reorder_perm;
+
+    /* Overflow guard: ensure n*nrhs fits in both size_t and idx_t so that
+     * idx_t-based offset arithmetic (i + n*k) cannot overflow. */
+    if (n > 0 && (size_t)nrhs > SIZE_MAX / (size_t)n)
+        return SPARSE_ERR_ALLOC;
+    size_t block_sz = (size_t)n * (size_t)nrhs;
+    if (block_sz > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
+    if (block_sz > (size_t)INT32_MAX)
+        return SPARSE_ERR_ALLOC;
+
+    /* Allocate workspace: PB (permuted B), Y (forward sub result) for all RHS */
+    double *PB = malloc(block_sz * sizeof(double));
+    double *Y = malloc(block_sz * sizeof(double));
+    double *Z = malloc(block_sz * sizeof(double));
+    if (!PB || !Y || !Z) {
+        free(PB);
+        free(Y);
+        free(Z);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    /* Step 1: Apply reorder permutation (if any) and row permutation.
+     * PB[i + n*k] = B[row_perm[i] ... ] with reorder applied. */
+    for (idx_t k = 0; k < nrhs; k++) {
+        for (idx_t i = 0; i < n; i++) {
+            idx_t src = mat->row_perm[i];
+            if (rperm)
+                PB[i + n * k] = B[rperm[src] + n * k];
+            else
+                PB[i + n * k] = B[src + n * k];
+        }
+    }
+
+    /* Step 2: Forward substitution — L*Y = PB (L has unit diagonal).
+     * For each row i, traverse the row once and update all nrhs vectors. */
+    for (idx_t i = 0; i < n; i++) {
+        /* Initialize Y[i,k] = PB[i,k] for all k */
+        for (idx_t k = 0; k < nrhs; k++)
+            Y[i + n * k] = PB[i + n * k];
+
+        /* Subtract L[i,j] * Y[j,k] for j < i, all k */
+        idx_t phys_i = mat->row_perm[i];
+        Node *node = mat->row_headers[phys_i];
+        while (node) {
+            idx_t log_j = mat->inv_col_perm[node->col];
+            if (log_j < i) {
+                double l_ij = node->value;
+                for (idx_t k = 0; k < nrhs; k++)
+                    Y[i + n * k] -=
+                        l_ij * Y[log_j + n * k]; // NOLINT(clang-analyzer-security.ArrayBound)
+            }
+            node = node->right;
+        }
+    }
+
+    /* Step 3: Backward substitution — U*Z = Y.
+     * For each row i (reverse), traverse once and update all nrhs vectors. */
+    double sing_tol = (mat->factor_norm > 0.0) ? DROP_TOL * mat->factor_norm : DROP_TOL;
+
+    for (idx_t i = n - 1; i >= 0; i--) {
+        /* Initialize Z[i,k] = Y[i,k] */
+        for (idx_t k = 0; k < nrhs; k++)
+            Z[i + n * k] = Y[i + n * k]; // NOLINT(clang-analyzer-core.uninitialized.Assign)
+
+        double u_ii = 0.0;
+        idx_t phys_i = mat->row_perm[i];
+        Node *node = mat->row_headers[phys_i];
+        while (node) {
+            idx_t log_j = mat->inv_col_perm[node->col];
+            if (log_j == i) {
+                u_ii = node->value;
+            } else if (log_j > i) {
+                double u_ij = node->value;
+                for (idx_t k = 0; k < nrhs; k++)
+                    Z[i + n * k] -= u_ij * Z[log_j + n * k];
+            }
+            node = node->right;
+        }
+
+        if (fabs(u_ii) < sing_tol) {
+            free(PB);
+            free(Y);
+            free(Z);
+            return SPARSE_ERR_SINGULAR;
+        }
+
+        for (idx_t k = 0; k < nrhs; k++)
+            Z[i + n * k] /= u_ii;
+    }
+
+    /* Step 4: Apply inverse column permutation and reorder unpermutation.
+     * X[col, k] = Z[inv_col_perm[col], k], with reorder applied. */
+    for (idx_t k = 0; k < nrhs; k++) {
+        for (idx_t i = 0; i < n; i++) {
+            double val = Z[mat->inv_col_perm[i] + n * k];
+            if (rperm) {
+                /* Store into reorder-unpermuted position */
+                X[rperm[i] + n * k] = val; // NOLINT(clang-analyzer-security.ArrayBound)
+            } else {
+                X[i + n * k] = val;
+            }
+        }
+    }
+
+    free(PB);
+    free(Y);
+    free(Z);
+    return SPARSE_OK;
+}
+
 /* ─── Iterative refinement ───────────────────────────────────────────── */
 
 sparse_err_t sparse_lu_refine(const SparseMatrix *mat_orig, const SparseMatrix *mat_lu,

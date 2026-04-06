@@ -110,6 +110,30 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double to
  */
 sparse_err_t sparse_lu_solve(const SparseMatrix *mat, const double *b, double *x);
 
+/**
+ * @brief Solve A*X = B for multiple right-hand side vectors simultaneously.
+ *
+ * Performs forward and backward substitution for nrhs vectors at once,
+ * amortizing sparse pattern traversal across all RHS vectors for better
+ * cache efficiency.
+ *
+ * @param mat   A matrix that has been factored by sparse_lu_factor().
+ * @param B     Right-hand side matrix of size n × nrhs (column-major:
+ *              B[i + n*k] = B(i,k)). Not modified. Must be non-NULL even
+ *              if @p nrhs is 0.
+ * @param nrhs  Number of right-hand side vectors. If 0, this function is a
+ *              no-op and returns SPARSE_OK, but all pointer arguments must
+ *              still be non-NULL.
+ * @param X     Solution matrix of size n × nrhs (column-major, overwritten).
+ *              Must be non-NULL even if @p nrhs is 0.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if any pointer is NULL, including when @p nrhs is 0.
+ * @return SPARSE_ERR_BADARG if @p nrhs is negative.
+ * @return SPARSE_ERR_SINGULAR if a zero diagonal in U is encountered.
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails.
+ */
+sparse_err_t sparse_lu_solve_block(const SparseMatrix *mat, const double *B, idx_t nrhs, double *X);
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * Condition number estimation
  * ═══════════════════════════════════════════════════════════════════════════ */

@@ -52,7 +52,8 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_qr.c \
            $(SRCDIR)/sparse_dense.c \
            $(SRCDIR)/sparse_bidiag.c \
-           $(SRCDIR)/sparse_svd.c
+           $(SRCDIR)/sparse_svd.c \
+           $(SRCDIR)/sparse_lu_csr.c
 LIB_OBJS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(LIB_SRCS))
 LIB      = $(BUILDDIR)/libsparse_lu_ortho.a
 
@@ -82,7 +83,10 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_bidiag.c \
             $(TESTDIR)/test_svd.c \
             $(TESTDIR)/test_sprint8_integration.c \
-            $(TESTDIR)/test_fuzz.c
+            $(TESTDIR)/test_fuzz.c \
+            $(TESTDIR)/test_lu_csr.c \
+            $(TESTDIR)/test_block_solvers.c \
+            $(TESTDIR)/test_sprint10_integration.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
 # Benchmark sources
@@ -281,11 +285,12 @@ docs:
 # ─── Code coverage ────────────────────────────────────────────────────
 
 # Build with gcov instrumentation, run tests, generate coverage report.
-# Requires: gcc (real GCC, not Apple Clang shim), lcov, genhtml.
-# On Ubuntu:  apt install gcc lcov
+# Requires: gcc (real GCC, not Apple Clang shim), lcov, genhtml, bc.
+# On Ubuntu:  apt install gcc lcov bc
 # On macOS:   brew install gcc lcov && make coverage CC=gcc-14
 # Apple Clang's gcov output is incompatible with lcov.
 COVDIR = coverage
+COV_THRESHOLD = 95
 
 .PHONY: coverage
 coverage: CFLAGS += --coverage -fprofile-arcs -ftest-coverage -g -O0
@@ -310,6 +315,69 @@ coverage: clean $(TEST_BINS)
 	@echo ""
 	@echo "Coverage report: $(COVDIR)/html/index.html"
 	lcov --summary $(COVDIR)/coverage-src.info
+	@echo ""
+	@echo "Checking coverage threshold ($(COV_THRESHOLD)%)..."
+	@pct=$$(lcov --summary $(COVDIR)/coverage-src.info 2>&1 \
+		| awk '/lines.*:/ { gsub(/%/, "", $$2); print $$2; exit }'); \
+	echo "Line coverage: $${pct}%"; \
+	if [ -z "$$pct" ]; then \
+		echo "FAIL: Could not parse coverage percentage"; \
+		exit 1; \
+	elif [ $$(echo "$$pct < $(COV_THRESHOLD)" | bc -l) -eq 1 ]; then \
+		echo "FAIL: Line coverage $${pct}% is below $(COV_THRESHOLD)% threshold"; \
+		exit 1; \
+	else \
+		echo "PASS: Line coverage $${pct}% meets $(COV_THRESHOLD)% threshold"; \
+	fi
+
+# ─── Installation ─────────────────────────────────────────────────────
+
+PREFIX      ?= /usr/local
+INSTALL_LIB  = $(DESTDIR)$(PREFIX)/lib
+INSTALL_INC  = $(DESTDIR)$(PREFIX)/include/sparse
+INSTALL_PC   = $(INSTALL_LIB)/pkgconfig
+VERSION      = $(shell cat VERSION 2>/dev/null || echo "0.0.0")
+HEADERS      = $(wildcard include/*.h)
+
+# Extra pkg-config link flags based on build options
+SPARSE_PC_LIBS_EXTRA =
+ifdef SPARSE_MUTEX
+SPARSE_PC_LIBS_EXTRA += -pthread
+endif
+ifdef SPARSE_OPENMP
+ifeq ($(shell uname -s),Darwin)
+SPARSE_PC_LIBS_EXTRA += -L$(LIBOMP_FLAG_PREFIX)/lib -lomp
+else
+SPARSE_PC_LIBS_EXTRA += -fopenmp
+endif
+endif
+
+.PHONY: install
+install: $(LIB)
+	@echo "Installing sparse $(VERSION) to $(DESTDIR)$(PREFIX) ..."
+	install -d $(INSTALL_LIB)
+	install -d $(INSTALL_INC)
+	install -d $(INSTALL_PC)
+	install -m 644 $(LIB) $(INSTALL_LIB)/
+	@for h in $(HEADERS); do \
+		install -m 644 $$h $(INSTALL_INC)/; \
+	done
+	@sed -e 's|@PREFIX@|$(PREFIX)|g' -e 's|@VERSION@|$(VERSION)|g' \
+		-e 's|@SPARSE_PC_LIBS_EXTRA@|$(SPARSE_PC_LIBS_EXTRA)|g' \
+		sparse.pc.in > $(INSTALL_PC)/sparse.pc
+	@echo "Installed:"
+	@echo "  library  → $(INSTALL_LIB)/$(notdir $(LIB))"
+	@echo "  headers  → $(INSTALL_INC)/"
+	@echo "  pkg-config → $(INSTALL_PC)/sparse.pc"
+
+.PHONY: uninstall
+uninstall:
+	@echo "Uninstalling sparse from $(DESTDIR)$(PREFIX) ..."
+	rm -f  $(INSTALL_LIB)/$(notdir $(LIB))
+	rm -rf $(INSTALL_INC)
+	rm -f  $(INSTALL_PC)/sparse.pc
+	-rmdir $(INSTALL_PC) 2>/dev/null || true
+	@echo "Done."
 
 # Clean
 .PHONY: clean

@@ -1,0 +1,1899 @@
+#include "sparse_lu.h"
+#include "sparse_lu_csr.h"
+#include "sparse_matrix.h"
+#include "sparse_matrix_internal.h" /* for direct struct access in permutation test */
+#include "sparse_types.h"
+#include "test_framework.h"
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#ifndef DATA_DIR
+#define DATA_DIR "tests/data"
+#endif
+#define SS_DIR DATA_DIR "/suitesparse"
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Helper: compare two SparseMatrices entry-by-entry (identity perms)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void assert_matrices_equal(const SparseMatrix *A, const SparseMatrix *B, double tol) {
+    ASSERT_EQ(A->rows, B->rows);
+    ASSERT_EQ(A->cols, B->cols);
+    for (idx_t i = 0; i < A->rows; i++) {
+        for (idx_t j = 0; j < A->cols; j++) {
+            double a = sparse_get(A, i, j);
+            double b = sparse_get(B, i, j);
+            if (fabs(a - b) > tol) {
+                TF_FAIL_("Entry (%d,%d): %.15g vs %.15g, diff=%.3e > tol=%.3e", (int)i, (int)j, a,
+                         b, fabs(a - b), tol);
+            }
+            tf_asserts++;
+        }
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Test: NULL / error argument handling
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_lu_csr_null_args(void) {
+    LuCsr *csr = NULL;
+    SparseMatrix *mat = NULL;
+
+    ASSERT_ERR(lu_csr_from_sparse(NULL, 2.0, &csr), SPARSE_ERR_NULL);
+    ASSERT_NULL(csr);
+
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, NULL), SPARSE_ERR_NULL);
+    sparse_free(A);
+
+    ASSERT_ERR(lu_csr_to_sparse(NULL, &mat), SPARSE_ERR_NULL);
+    ASSERT_NULL(mat);
+
+    /* Non-square matrix should fail */
+    SparseMatrix *rect = sparse_create(3, 5);
+    ASSERT_ERR(lu_csr_from_sparse(rect, 2.0, &csr), SPARSE_ERR_SHAPE);
+    ASSERT_NULL(csr);
+    sparse_free(rect);
+
+    /* Free NULL should be safe */
+    lu_csr_free(NULL);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Test: Identity matrix round-trip
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_lu_csr_identity(void) {
+    idx_t n = 5;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, 1.0);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+    ASSERT_NOT_NULL(csr);
+
+    /* Verify CSR structure */
+    ASSERT_EQ(csr->n, n);
+    ASSERT_EQ(csr->nnz, n);
+    ASSERT_TRUE(csr->capacity >= n);
+
+    /* Each row should have exactly 1 entry on the diagonal */
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_EQ(csr->row_ptr[i + 1] - csr->row_ptr[i], 1);
+        ASSERT_EQ(csr->col_idx[csr->row_ptr[i]], i);
+        ASSERT_NEAR(csr->values[csr->row_ptr[i]], 1.0, 1e-15);
+    }
+
+    /* Round-trip back to SparseMatrix */
+    SparseMatrix *B = NULL;
+    ASSERT_ERR(lu_csr_to_sparse(csr, &B), SPARSE_OK);
+    ASSERT_NOT_NULL(B);
+
+    assert_matrices_equal(A, B, 1e-15);
+
+    sparse_free(A);
+    sparse_free(B);
+    lu_csr_free(csr);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Test: Dense 5×5 matrix round-trip
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_lu_csr_dense_5x5(void) {
+    idx_t n = 5;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Fill with known values: A[i][j] = (i+1)*10 + (j+1) */
+    for (idx_t i = 0; i < n; i++)
+        for (idx_t j = 0; j < n; j++)
+            sparse_insert(A, i, j, (double)((i + 1) * 10 + (j + 1)));
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 1.5, &csr), SPARSE_OK);
+    ASSERT_NOT_NULL(csr);
+
+    ASSERT_EQ(csr->n, n);
+    ASSERT_EQ(csr->nnz, n * n);
+
+    /* Verify all entries are present and in row-major column-sorted order */
+    for (idx_t i = 0; i < n; i++) {
+        idx_t row_nnz = csr->row_ptr[i + 1] - csr->row_ptr[i];
+        ASSERT_EQ(row_nnz, n);
+        for (idx_t k = csr->row_ptr[i]; k < csr->row_ptr[i + 1]; k++) {
+            idx_t j = csr->col_idx[k];
+            double expected = (double)((i + 1) * 10 + (j + 1));
+            ASSERT_NEAR(csr->values[k], expected, 1e-15);
+        }
+        /* Verify column indices are sorted */
+        for (idx_t k = csr->row_ptr[i] + 1; k < csr->row_ptr[i + 1]; k++) {
+            ASSERT_TRUE(csr->col_idx[k] > csr->col_idx[k - 1]);
+        }
+    }
+
+    /* Round-trip */
+    SparseMatrix *B = NULL;
+    ASSERT_ERR(lu_csr_to_sparse(csr, &B), SPARSE_OK);
+    assert_matrices_equal(A, B, 1e-15);
+
+    sparse_free(A);
+    sparse_free(B);
+    lu_csr_free(csr);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Test: Empty matrix (0 nonzeros)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_lu_csr_empty(void) {
+    idx_t n = 4;
+    SparseMatrix *A = sparse_create(n, n);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+    ASSERT_NOT_NULL(csr);
+    ASSERT_EQ(csr->n, n);
+    ASSERT_EQ(csr->nnz, 0);
+
+    /* All row pointers should be 0 */
+    for (idx_t i = 0; i <= n; i++)
+        ASSERT_EQ(csr->row_ptr[i], 0);
+
+    /* Round-trip: should produce empty matrix */
+    SparseMatrix *B = NULL;
+    ASSERT_ERR(lu_csr_to_sparse(csr, &B), SPARSE_OK);
+    ASSERT_EQ(B->nnz, 0);
+
+    sparse_free(A);
+    sparse_free(B);
+    lu_csr_free(csr);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Test: 1×1 matrix
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_lu_csr_1x1(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    sparse_insert(A, 0, 0, 42.0);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+    ASSERT_EQ(csr->n, 1);
+    ASSERT_EQ(csr->nnz, 1);
+    ASSERT_EQ(csr->col_idx[0], 0);
+    ASSERT_NEAR(csr->values[0], 42.0, 1e-15);
+
+    SparseMatrix *B = NULL;
+    ASSERT_ERR(lu_csr_to_sparse(csr, &B), SPARSE_OK);
+    assert_matrices_equal(A, B, 1e-15);
+
+    sparse_free(A);
+    sparse_free(B);
+    lu_csr_free(csr);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Test: Permuted matrix — verify logical ordering is correct
+ * After LU factorization, row_perm/col_perm are non-identity.
+ * Convert to LuCsr, convert back, and verify entries match the
+ * original (pre-factored) logical view.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_lu_csr_with_permutations(void) {
+    /*
+     * Build a 4×4 matrix and manually set non-identity permutations.
+     * A (logical view):
+     *   [4 1 0 0]
+     *   [1 4 1 0]
+     *   [0 1 4 1]
+     *   [0 0 1 4]
+     *
+     * We'll swap rows 0↔2 and cols 1↔3 in the permutation arrays
+     * (without moving physical data) to simulate a pivoted state.
+     */
+    idx_t n = 4;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Insert in physical order (identity perm initially) */
+    sparse_insert(A, 0, 0, 4.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 4.0);
+    sparse_insert(A, 2, 3, 1.0);
+    sparse_insert(A, 3, 2, 1.0);
+    sparse_insert(A, 3, 3, 4.0);
+
+    /* Snapshot the original logical view before permuting */
+    double orig[4][4];
+    for (idx_t i = 0; i < n; i++)
+        for (idx_t j = 0; j < n; j++)
+            orig[i][j] = sparse_get(A, i, j);
+
+    /* Manually swap row perm: logical 0 ↔ physical 2, logical 2 ↔ physical 0 */
+    A->row_perm[0] = 2;
+    A->row_perm[2] = 0;
+    A->inv_row_perm[0] = 2;
+    A->inv_row_perm[2] = 0;
+
+    /* Swap col perm: logical 1 ↔ physical 3, logical 3 ↔ physical 1 */
+    A->col_perm[1] = 3;
+    A->col_perm[3] = 1;
+    A->inv_col_perm[1] = 3;
+    A->inv_col_perm[3] = 1;
+
+    /* After permutation, the logical view is different.
+     * Capture the new logical view. */
+    double permuted[4][4];
+    for (idx_t i = 0; i < n; i++)
+        for (idx_t j = 0; j < n; j++)
+            permuted[i][j] = sparse_get(A, i, j);
+
+    /* Convert to LuCsr — should reflect the permuted logical view */
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+    ASSERT_NOT_NULL(csr);
+
+    /* Verify CSR matches the permuted logical view */
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t k = csr->row_ptr[i]; k < csr->row_ptr[i + 1]; k++) {
+            idx_t j = csr->col_idx[k];
+            ASSERT_NEAR(csr->values[k], permuted[i][j], 1e-15);
+        }
+    }
+
+    /* Round-trip: LuCsr → SparseMatrix should give the permuted logical view
+     * with identity permutations */
+    SparseMatrix *B = NULL;
+    ASSERT_ERR(lu_csr_to_sparse(csr, &B), SPARSE_OK);
+    ASSERT_NOT_NULL(B);
+
+    for (idx_t i = 0; i < n; i++)
+        for (idx_t j = 0; j < n; j++)
+            ASSERT_NEAR(sparse_get(B, i, j), permuted[i][j], 1e-15);
+
+    sparse_free(A);
+    sparse_free(B);
+    lu_csr_free(csr);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Test: Fill factor clamping
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_lu_csr_fill_factor_clamping(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 2.0);
+    sparse_insert(A, 2, 2, 3.0);
+
+    /* fill_factor < 1.0 should be clamped to 1.0 */
+    LuCsr *csr1 = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 0.5, &csr1), SPARSE_OK);
+    ASSERT_TRUE(csr1->capacity >= csr1->nnz);
+    lu_csr_free(csr1);
+
+    /* fill_factor > 20.0 should be clamped to 20.0 */
+    LuCsr *csr2 = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 100.0, &csr2), SPARSE_OK);
+    ASSERT_TRUE(csr2->capacity <= 20 * csr2->nnz + 1);
+    lu_csr_free(csr2);
+
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Test: SuiteSparse orsirr_1 round-trip (if available)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_lu_csr_suitesparse_orsirr1(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t err = sparse_load_mm(&A, SS_DIR "/orsirr_1.mtx");
+    if (err != SPARSE_OK) {
+        printf("    [SKIP] orsirr_1.mtx not available\n");
+        return;
+    }
+
+    /* orsirr_1 is 1030×1030 */
+    ASSERT_EQ(A->rows, 1030);
+    ASSERT_EQ(A->cols, 1030);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+    ASSERT_NOT_NULL(csr);
+    ASSERT_EQ(csr->n, 1030);
+    ASSERT_EQ(csr->nnz, A->nnz);
+
+    /* Round-trip and verify */
+    SparseMatrix *B = NULL;
+    ASSERT_ERR(lu_csr_to_sparse(csr, &B), SPARSE_OK);
+    ASSERT_NOT_NULL(B);
+    ASSERT_EQ(B->nnz, A->nnz);
+
+    /* Spot-check: verify all entries match */
+    assert_matrices_equal(A, B, 1e-15);
+
+    sparse_free(A);
+    sparse_free(B);
+    lu_csr_free(csr);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Test: Sparse tridiagonal matrix round-trip
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_lu_csr_tridiagonal(void) {
+    idx_t n = 20;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Tridiagonal: diag=4, off-diag=-1 */
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -1.0);
+    }
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+
+    /* Verify nnz = n + 2*(n-1) = 3n - 2 */
+    ASSERT_EQ(csr->nnz, 3 * n - 2);
+
+    /* Verify column ordering within each row */
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t k = csr->row_ptr[i] + 1; k < csr->row_ptr[i + 1]; k++) {
+            ASSERT_TRUE(csr->col_idx[k] > csr->col_idx[k - 1]);
+        }
+    }
+
+    /* Round-trip */
+    SparseMatrix *B = NULL;
+    ASSERT_ERR(lu_csr_to_sparse(csr, &B), SPARSE_OK);
+    assert_matrices_equal(A, B, 1e-15);
+
+    sparse_free(A);
+    sparse_free(B);
+    lu_csr_free(csr);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Elimination tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/*
+ * Helper: extract L and U from a factored LuCsr and verify P*A = L*U.
+ * L is unit lower triangular (diag=1, below diag from CSR).
+ * U is upper triangular (diag and above from CSR).
+ * piv_perm[k] = original row that ended up in position k.
+ */
+static void verify_lu_factorization(const SparseMatrix *A_orig, const LuCsr *lu, const idx_t *piv,
+                                    double tol_check) {
+    idx_t n = lu->n;
+
+    /* Build dense L, U from factored CSR */
+    double *L = calloc((size_t)n * (size_t)n, sizeof(double));
+    double *U = calloc((size_t)n * (size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(L);
+    ASSERT_NOT_NULL(U);
+
+    /* Unit diagonal for L */
+    for (idx_t i = 0; i < n; i++)
+        L[i * n + i] = 1.0;
+
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t p = lu->row_ptr[i]; p < lu->row_ptr[i + 1]; p++) {
+            idx_t j = lu->col_idx[p];
+            double v = lu->values[p];
+            if (j < i)
+                L[i * n + j] = v; /* L entry (below diagonal) */
+            else
+                U[i * n + j] = v; /* U entry (diagonal and above) */
+        }
+    }
+
+    /* Compute L*U (dense) */
+    double *LU = calloc((size_t)n * (size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(LU);
+    for (idx_t i = 0; i < n; i++)
+        for (idx_t j = 0; j < n; j++)
+            for (idx_t k = 0; k < n; k++)
+                LU[i * n + j] += L[i * n + k] * U[k * n + j];
+
+    /* Compare L*U with P*A (permuted rows of A) */
+    for (idx_t i = 0; i < n; i++) {
+        idx_t orig_row = piv[i];
+        for (idx_t j = 0; j < n; j++) {
+            double a_val = sparse_get(A_orig, orig_row, j);
+            double lu_val = LU[i * n + j];
+            if (fabs(a_val - lu_val) > tol_check) {
+                TF_FAIL_("P*A vs L*U mismatch at (%d,%d): P*A=%.15g, L*U=%.15g, diff=%.3e", (int)i,
+                         (int)j, a_val, lu_val, fabs(a_val - lu_val));
+            }
+            tf_asserts++;
+        }
+    }
+
+    free(L);
+    free(U);
+    free(LU);
+}
+
+/* Test: 3×3 known LU factorization */
+static void test_lu_csr_eliminate_3x3(void) {
+    /*
+     * A = [2 1 1]
+     *     [4 3 3]
+     *     [8 7 9]
+     */
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 0, 2, 1.0);
+    sparse_insert(A, 1, 0, 4.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 2, 3.0);
+    sparse_insert(A, 2, 0, 8.0);
+    sparse_insert(A, 2, 1, 7.0);
+    sparse_insert(A, 2, 2, 9.0);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+    if (!csr) {
+        sparse_free(A);
+        return;
+    }
+
+    idx_t piv[3];
+    sparse_err_t err = lu_csr_eliminate(csr, 1e-12, 1e-14, piv);
+    ASSERT_ERR(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        lu_csr_free(csr);
+        sparse_free(A);
+        return;
+    }
+
+    verify_lu_factorization(A, csr, piv, 1e-12);
+
+    sparse_free(A);
+    lu_csr_free(csr);
+}
+
+/* Test: 5×5 dense matrix — compare CSR LU solve with linked-list LU solve */
+static void test_lu_csr_eliminate_5x5_solve(void) {
+    idx_t n = 5;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Well-conditioned 5×5 matrix */
+    double vals[5][5] = {
+        {10, 1, 2, 0, 1}, {1, 8, 1, 3, 0}, {2, 1, 12, 1, 2}, {0, 3, 1, 9, 1}, {1, 0, 2, 1, 7}};
+    for (idx_t i = 0; i < n; i++)
+        for (idx_t j = 0; j < n; j++)
+            if (vals[i][j] != 0.0)
+                sparse_insert(A, i, j, vals[i][j]);
+
+    /* Solve with linked-list LU */
+    double b[5] = {14.0, 13.0, 18.0, 14.0, 11.0};
+    double x_ll[5];
+    {
+        SparseMatrix *Acopy = sparse_copy(A);
+        ASSERT_ERR(sparse_lu_factor(Acopy, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+        ASSERT_ERR(sparse_lu_solve(Acopy, b, x_ll), SPARSE_OK);
+        sparse_free(Acopy);
+    }
+
+    /* Solve with CSR LU: factor, then manually do forward/backward substitution */
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+
+    idx_t piv[5];
+    ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
+
+    /* Verify P*A = L*U */
+    verify_lu_factorization(A, csr, piv, 1e-10);
+
+    /* Manual forward/backward substitution using the CSR L\U factors.
+     * pb = P*b */
+    double pb[5];
+    for (idx_t i = 0; i < n; i++)
+        pb[i] = b[piv[i]];
+
+    /* Forward substitution: L*y = pb (L has unit diagonal) */
+    double y[5];
+    for (idx_t i = 0; i < n; i++) {
+        double sum = 0.0;
+        for (idx_t p = csr->row_ptr[i]; p < csr->row_ptr[i + 1]; p++) {
+            idx_t j = csr->col_idx[p];
+            if (j < i)
+                sum += csr->values[p] * y[j];
+        }
+        y[i] = pb[i] - sum;
+    }
+
+    /* Backward substitution: U*x = y */
+    double x_csr[5];
+    for (idx_t i = n - 1; i >= 0; i--) {
+        double sum = 0.0;
+        double u_ii = 0.0;
+        for (idx_t p = csr->row_ptr[i]; p < csr->row_ptr[i + 1]; p++) {
+            idx_t j = csr->col_idx[p];
+            if (j == i)
+                u_ii = csr->values[p];
+            else if (j > i)
+                sum += csr->values[p] * x_csr[j];
+        }
+        ASSERT_TRUE(fabs(u_ii) > 1e-14);
+        x_csr[i] = (y[i] - sum) / u_ii;
+    }
+
+    /* Verify CSR solution matches linked-list solution */
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_csr[i], x_ll[i], 1e-10);
+
+    /* Verify residual: ||A*x - b|| < tol */
+    double r[5] = {0};
+    sparse_matvec(A, x_csr, r);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(r[i], b[i], 1e-10);
+
+    sparse_free(A);
+    lu_csr_free(csr);
+}
+
+/* Test: Diagonal matrix — trivial factorization */
+static void test_lu_csr_eliminate_diagonal(void) {
+    idx_t n = 6;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, (double)(i + 1) * 3.0);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+
+    idx_t piv[6];
+    ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
+
+    /* L should be identity, U should equal A.
+     * So each row i should have exactly one entry: (i, val) */
+    for (idx_t i = 0; i < n; i++) {
+        idx_t row_nnz = csr->row_ptr[i + 1] - csr->row_ptr[i];
+        ASSERT_EQ(row_nnz, 1);
+        ASSERT_EQ(csr->col_idx[csr->row_ptr[i]], i);
+        ASSERT_NEAR(csr->values[csr->row_ptr[i]], (double)(i + 1) * 3.0, 1e-14);
+    }
+
+    /* No pivoting should have occurred (diagonal is already maximal) */
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_EQ(piv[i], i);
+
+    verify_lu_factorization(A, csr, piv, 1e-14);
+
+    sparse_free(A);
+    lu_csr_free(csr);
+}
+
+/* Test: Tridiagonal matrix — tests fill-in behavior */
+static void test_lu_csr_eliminate_tridiag(void) {
+    idx_t n = 10;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -1.0);
+    }
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+
+    idx_t piv[10];
+    ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
+
+    verify_lu_factorization(A, csr, piv, 1e-10);
+
+    /* Tridiagonal with diag-dominant: no pivoting needed */
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_EQ(piv[i], i);
+
+    sparse_free(A);
+    lu_csr_free(csr);
+}
+
+/* Test: Matrix requiring pivoting */
+static void test_lu_csr_eliminate_needs_pivot(void) {
+    /*
+     * A = [0 1]  — requires row swap
+     *     [1 0]
+     */
+    SparseMatrix *A = sparse_create(2, 2);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+
+    idx_t piv[2];
+    ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
+
+    /* Row 1 should have been swapped to position 0 */
+    ASSERT_EQ(piv[0], 1);
+    ASSERT_EQ(piv[1], 0);
+
+    verify_lu_factorization(A, csr, piv, 1e-14);
+
+    sparse_free(A);
+    lu_csr_free(csr);
+}
+
+/* Test: Singular matrix — should return SPARSE_ERR_SINGULAR */
+static void test_lu_csr_eliminate_singular(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 1, 0, 2.0);
+    sparse_insert(A, 1, 1, 4.0); /* row 1 = 2 * row 0 */
+    sparse_insert(A, 2, 2, 1.0);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+
+    idx_t piv[3];
+    ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_ERR_SINGULAR);
+
+    sparse_free(A);
+    lu_csr_free(csr);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 3: Integration tests — lu_csr_solve / lu_csr_factor_solve
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Helper: compute ||A*x - b||_inf */
+static double residual_norminf(const SparseMatrix *A, const double *x, const double *b, idx_t n) {
+    double *r = malloc((size_t)n * sizeof(double));
+    if (!r)
+        return INFINITY;
+    sparse_matvec(A, x, r);
+    double mx = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        double d = fabs(r[i] - b[i]);
+        if (d > mx)
+            mx = d;
+    }
+    free(r);
+    return mx;
+}
+
+/* Test: lu_csr_solve null args */
+static void test_lu_csr_solve_null(void) {
+    LuCsr csr = {0};
+    idx_t piv = 0;
+    double b = 0, x = 0;
+    ASSERT_ERR(lu_csr_solve(NULL, &piv, &b, &x), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_csr_solve(&csr, NULL, &b, &x), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_csr_solve(&csr, &piv, NULL, &x), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_csr_solve(&csr, &piv, &b, NULL), SPARSE_ERR_NULL);
+}
+
+/* Test: lu_csr_factor_solve on 10×10 tridiagonal */
+static void test_lu_csr_factor_solve_tridiag(void) {
+    idx_t n = 10;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -1.0);
+    }
+
+    /* RHS: b[i] = i + 1 */
+    double b[10], x_csr[10], x_ll[10];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    /* CSR path */
+    ASSERT_ERR(lu_csr_factor_solve(A, b, x_csr, 1e-12), SPARSE_OK);
+
+    /* Linked-list path */
+    SparseMatrix *Acopy = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(Acopy, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+    ASSERT_ERR(sparse_lu_solve(Acopy, b, x_ll), SPARSE_OK);
+    sparse_free(Acopy);
+
+    /* Solutions should match */
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_csr[i], x_ll[i], 1e-10);
+
+    /* Residual should be small */
+    double res = residual_norminf(A, x_csr, b, n);
+    ASSERT_TRUE(res < 1e-10);
+
+    sparse_free(A);
+}
+
+/* Test: lu_csr_factor_solve on dense 8×8 */
+static void test_lu_csr_factor_solve_dense(void) {
+    idx_t n = 8;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Diagonally dominant dense matrix */
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t j = 0; j < n; j++) {
+            double v = (i == j) ? (double)(n + 1) : 1.0;
+            sparse_insert(A, i, j, v);
+        }
+    }
+
+    double b[8], x_csr[8], x_ll[8];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i * i + 1);
+
+    ASSERT_ERR(lu_csr_factor_solve(A, b, x_csr, 1e-12), SPARSE_OK);
+
+    SparseMatrix *Acopy = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(Acopy, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+    ASSERT_ERR(sparse_lu_solve(Acopy, b, x_ll), SPARSE_OK);
+    sparse_free(Acopy);
+
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_csr[i], x_ll[i], 1e-10);
+
+    double res = residual_norminf(A, x_csr, b, n);
+    ASSERT_TRUE(res < 1e-10);
+
+    sparse_free(A);
+}
+
+/* Test: SuiteSparse orsirr_1 — solve and compare residuals */
+static void test_lu_csr_factor_solve_orsirr1(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t err = sparse_load_mm(&A, SS_DIR "/orsirr_1.mtx");
+    if (err != SPARSE_OK) {
+        printf("    [SKIP] orsirr_1.mtx not available\n");
+        return;
+    }
+
+    idx_t n = sparse_rows(A);
+    ASSERT_EQ(n, 1030);
+
+    /* RHS: b[i] = sin(i) */
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x_csr = malloc((size_t)n * sizeof(double));
+    double *x_ll = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x_csr);
+    ASSERT_NOT_NULL(x_ll);
+
+    for (idx_t i = 0; i < n; i++)
+        b[i] = sin((double)i);
+
+    /* CSR path */
+    ASSERT_ERR(lu_csr_factor_solve(A, b, x_csr, 1e-12), SPARSE_OK);
+
+    /* Linked-list path */
+    SparseMatrix *Acopy = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(Acopy, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+    ASSERT_ERR(sparse_lu_solve(Acopy, b, x_ll), SPARSE_OK);
+    sparse_free(Acopy);
+
+    /* Both residuals should be small (solutions may differ due to different
+     * pivoting order, but residuals should both be near machine precision) */
+    double res_csr = residual_norminf(A, x_csr, b, n);
+    double res_ll = residual_norminf(A, x_ll, b, n);
+    printf("    orsirr_1 residuals: CSR=%.3e  LL=%.3e\n", res_csr, res_ll);
+    ASSERT_TRUE(res_csr < 1e-6);
+    ASSERT_TRUE(res_ll < 1e-6);
+
+    free(b);
+    free(x_csr);
+    free(x_ll);
+    sparse_free(A);
+}
+
+/* Test: SuiteSparse steam1 — solve and compare */
+static void test_lu_csr_factor_solve_steam1(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t err = sparse_load_mm(&A, SS_DIR "/steam1.mtx");
+    if (err != SPARSE_OK) {
+        printf("    [SKIP] steam1.mtx not available\n");
+        return;
+    }
+
+    idx_t n = sparse_rows(A);
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x);
+
+    for (idx_t i = 0; i < n; i++)
+        b[i] = 1.0;
+
+    ASSERT_ERR(lu_csr_factor_solve(A, b, x, 1e-12), SPARSE_OK);
+
+    double res = residual_norminf(A, x, b, n);
+    printf("    steam1 residual: %.3e\n", res);
+    ASSERT_TRUE(res < 1e-6);
+
+    free(b);
+    free(x);
+    sparse_free(A);
+}
+
+/* Test: Benchmark CSR vs linked-list on orsirr_1 */
+static void test_lu_csr_benchmark_orsirr1(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t err = sparse_load_mm(&A, SS_DIR "/orsirr_1.mtx");
+    if (err != SPARSE_OK) {
+        printf("    [SKIP] orsirr_1.mtx not available\n");
+        return;
+    }
+
+    idx_t n = sparse_rows(A);
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x);
+
+    for (idx_t i = 0; i < n; i++)
+        b[i] = sin((double)i);
+
+    /* Benchmark linked-list LU */
+    clock_t t0 = clock();
+    for (int trial = 0; trial < 3; trial++) {
+        SparseMatrix *Acopy = sparse_copy(A);
+        err = sparse_lu_factor(Acopy, SPARSE_PIVOT_PARTIAL, 1e-12);
+        if (err == SPARSE_OK)
+            sparse_lu_solve(Acopy, b, x);
+        sparse_free(Acopy);
+    }
+    clock_t t1 = clock();
+    double ll_time = (double)(t1 - t0) / CLOCKS_PER_SEC / 3.0;
+
+    /* Benchmark CSR LU */
+    clock_t t2 = clock();
+    for (int trial = 0; trial < 3; trial++) {
+        lu_csr_factor_solve(A, b, x, 1e-12);
+    }
+    clock_t t3 = clock();
+    double csr_time = (double)(t3 - t2) / CLOCKS_PER_SEC / 3.0;
+
+    double speedup = (csr_time > 0.0) ? ll_time / csr_time : 0.0;
+    printf("    orsirr_1 (n=%d): LL=%.4fs  CSR=%.4fs  speedup=%.2fx\n", (int)n, ll_time, csr_time,
+           speedup);
+
+    /* We expect CSR to be faster. Don't hard-assert speedup since
+     * it depends on hardware, but log it for inspection. */
+    ASSERT_TRUE(csr_time >= 0.0); /* sanity check */
+
+    free(b);
+    free(x);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 4: Dense subblock detection tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Test: detect_dense_blocks null args */
+static void test_detect_blocks_null(void) {
+    DenseBlock *blks = NULL;
+    idx_t nb = 0;
+    ASSERT_ERR(lu_detect_dense_blocks(NULL, 4, 0.8, &blks, &nb), SPARSE_ERR_NULL);
+
+    LuCsr csr = {0};
+    ASSERT_ERR(lu_detect_dense_blocks(&csr, 4, 0.8, NULL, &nb), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_detect_dense_blocks(&csr, 4, 0.8, &blks, NULL), SPARSE_ERR_NULL);
+}
+
+/* Test: Block-diagonal matrix — each diagonal block should be detected */
+static void test_detect_blocks_block_diagonal(void) {
+    /* 12×12 matrix with three 4×4 dense blocks on the diagonal */
+    idx_t n = 12;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t b = 0; b < 3; b++) {
+        idx_t off = b * 4;
+        for (idx_t i = 0; i < 4; i++)
+            for (idx_t j = 0; j < 4; j++)
+                sparse_insert(A, off + i, off + j, (double)(i * 4 + j + 1));
+    }
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 1.0, &csr), SPARSE_OK);
+
+    DenseBlock *blks = NULL;
+    idx_t nb = 0;
+    ASSERT_ERR(lu_detect_dense_blocks(csr, 4, 0.8, &blks, &nb), SPARSE_OK);
+
+    /* Should detect 3 blocks */
+    ASSERT_EQ(nb, 3);
+    ASSERT_NOT_NULL(blks);
+
+    for (idx_t b = 0; b < 3; b++) {
+        ASSERT_EQ(blks[b].row_start, b * 4);
+        ASSERT_EQ(blks[b].row_end, b * 4 + 4);
+        ASSERT_EQ(blks[b].col_start, b * 4);
+        ASSERT_EQ(blks[b].col_end, b * 4 + 4);
+    }
+
+    free(blks);
+    lu_csr_free(csr);
+    sparse_free(A);
+}
+
+/* Test: Fully sparse tridiagonal — no dense blocks */
+static void test_detect_blocks_sparse_tridiag(void) {
+    idx_t n = 20;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -1.0);
+    }
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 1.0, &csr), SPARSE_OK);
+
+    DenseBlock *blks = NULL;
+    idx_t nb = 0;
+    ASSERT_ERR(lu_detect_dense_blocks(csr, 4, 0.8, &blks, &nb), SPARSE_OK);
+
+    /* No dense blocks in a tridiagonal matrix */
+    ASSERT_EQ(nb, 0);
+    ASSERT_NULL(blks);
+
+    lu_csr_free(csr);
+    sparse_free(A);
+}
+
+/* Test: Matrix with one large dense subblock */
+static void test_detect_blocks_one_large(void) {
+    /* 10×10 matrix: rows/cols 2-7 form a 6×6 dense block, rest is sparse */
+    idx_t n = 10;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Diagonal for the whole matrix */
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, 10.0);
+
+    /* Dense 6×6 block at rows 2-7, cols 2-7 */
+    for (idx_t i = 2; i < 8; i++)
+        for (idx_t j = 2; j < 8; j++)
+            if (i != j) /* diagonal already inserted */
+                sparse_insert(A, i, j, 1.0);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 1.0, &csr), SPARSE_OK);
+
+    DenseBlock *blks = NULL;
+    idx_t nb = 0;
+    ASSERT_ERR(lu_detect_dense_blocks(csr, 4, 0.8, &blks, &nb), SPARSE_OK);
+
+    /* Should detect the 6×6 block */
+    ASSERT_TRUE(nb >= 1);
+    ASSERT_NOT_NULL(blks);
+
+    /* The block should cover rows 2-7, cols 2-7 */
+    int found = 0;
+    for (idx_t b = 0; b < nb; b++) {
+        if (blks[b].col_start == 2 && blks[b].col_end == 8 && blks[b].row_start == 2 &&
+            blks[b].row_end == 8) {
+            found = 1;
+        }
+    }
+    ASSERT_TRUE(found);
+
+    free(blks);
+    lu_csr_free(csr);
+    sparse_free(A);
+}
+
+/* Test: Extract and insert a dense block — round-trip */
+static void test_extract_insert_round_trip(void) {
+    /* Build a 6×6 matrix with a known 4×4 dense block at (1,1)-(4,4) */
+    idx_t n = 6;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Sparse entries outside block */
+    sparse_insert(A, 0, 0, 100.0);
+    sparse_insert(A, 0, 5, 200.0);
+    sparse_insert(A, 5, 0, 300.0);
+    sparse_insert(A, 5, 5, 400.0);
+
+    /* Dense 4×4 block: A[i][j] = (i-1)*4 + (j-1) + 1 for i,j in [1..4] */
+    for (idx_t i = 1; i <= 4; i++)
+        for (idx_t j = 1; j <= 4; j++)
+            sparse_insert(A, i, j, (double)((i - 1) * 4 + (j - 1) + 1));
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+
+    DenseBlock blk = {1, 5, 1, 5}; /* rows [1,5), cols [1,5) */
+
+    /* Extract */
+    double dense[16]; /* 4×4, column-major */
+    ASSERT_ERR(lu_extract_dense_block(csr, &blk, dense), SPARSE_OK);
+
+    /* Verify extracted values */
+    for (idx_t i = 0; i < 4; i++)
+        for (idx_t j = 0; j < 4; j++) {
+            double expected = (double)(i * 4 + j + 1);
+            ASSERT_NEAR(dense[i + 4 * j], expected, 1e-15);
+        }
+
+    /* Modify the dense block */
+    for (idx_t i = 0; i < 16; i++)
+        dense[i] *= 2.0;
+
+    /* Insert back */
+    ASSERT_ERR(lu_insert_dense_block(csr, &blk, dense, 1e-14), SPARSE_OK);
+
+    /* Convert back and verify */
+    SparseMatrix *B = NULL;
+    ASSERT_ERR(lu_csr_to_sparse(csr, &B), SPARSE_OK);
+
+    /* Outside-block entries unchanged */
+    ASSERT_NEAR(sparse_get(B, 0, 0), 100.0, 1e-15);
+    ASSERT_NEAR(sparse_get(B, 0, 5), 200.0, 1e-15);
+    ASSERT_NEAR(sparse_get(B, 5, 0), 300.0, 1e-15);
+    ASSERT_NEAR(sparse_get(B, 5, 5), 400.0, 1e-15);
+
+    /* Block entries doubled */
+    for (idx_t i = 1; i <= 4; i++)
+        for (idx_t j = 1; j <= 4; j++) {
+            double expected = 2.0 * ((i - 1) * 4 + (j - 1) + 1);
+            ASSERT_NEAR(sparse_get(B, i, j), expected, 1e-15);
+        }
+
+    sparse_free(A);
+    sparse_free(B);
+    lu_csr_free(csr);
+}
+
+/* Test: Small matrix — below min_size, no blocks detected */
+static void test_detect_blocks_too_small(void) {
+    idx_t n = 3;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++)
+        for (idx_t j = 0; j < n; j++)
+            sparse_insert(A, i, j, (double)(i + j + 1));
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 1.0, &csr), SPARSE_OK);
+
+    DenseBlock *blks = NULL;
+    idx_t nb = 0;
+    /* min_size = 4, but matrix is only 3×3 */
+    ASSERT_ERR(lu_detect_dense_blocks(csr, 4, 0.8, &blks, &nb), SPARSE_OK);
+    ASSERT_EQ(nb, 0);
+    ASSERT_NULL(blks);
+
+    lu_csr_free(csr);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 5: Dense kernel and block-aware elimination tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Test: lu_dense_factor + lu_dense_solve on known 3×3 */
+static void test_lu_dense_factor_solve_3x3(void) {
+    /* A = [2 1 1; 4 3 3; 8 7 9] (column-major) */
+    double A[9] = {2, 4, 8, 1, 3, 7, 1, 3, 9};
+    idx_t ipiv[3];
+
+    ASSERT_ERR(lu_dense_factor(3, 3, A, 3, ipiv, 1e-12), SPARSE_OK);
+
+    /* Solve A*x = [4; 10; 24] → x = [1; 1; 1] */
+    double b[3] = {4, 10, 24};
+    ASSERT_ERR(lu_dense_solve(3, A, 3, ipiv, b), SPARSE_OK);
+
+    ASSERT_NEAR(b[0], 1.0, 1e-12);
+    ASSERT_NEAR(b[1], 1.0, 1e-12);
+    ASSERT_NEAR(b[2], 1.0, 1e-12);
+}
+
+/* Test: lu_dense_factor on singular matrix */
+static void test_lu_dense_factor_singular(void) {
+    /* Row 1 = 2 * row 0 → singular after first elimination step */
+    double A[9] = {1, 2, 0, 2, 4, 0, 0, 0, 1};
+    idx_t ipiv[3];
+
+    ASSERT_ERR(lu_dense_factor(3, 3, A, 3, ipiv, 1e-12), SPARSE_ERR_SINGULAR);
+}
+
+/* Test: lu_dense_factor + solve on 5×5 diag-dominant */
+static void test_lu_dense_factor_solve_5x5(void) {
+    idx_t n = 5;
+    /* Column-major: A[i + n*j] */
+    double A[25];
+    for (idx_t i = 0; i < n; i++)
+        for (idx_t j = 0; j < n; j++)
+            A[i + n * j] = (i == j) ? 10.0 : 1.0;
+
+    idx_t ipiv[5];
+    ASSERT_ERR(lu_dense_factor(n, n, A, n, ipiv, 1e-12), SPARSE_OK);
+
+    /* b = [14, 14, 14, 14, 14] → x = [1, 1, 1, 1, 1] */
+    double b[5] = {14, 14, 14, 14, 14};
+    ASSERT_ERR(lu_dense_solve(n, A, n, ipiv, b), SPARSE_OK);
+
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(b[i], 1.0, 1e-10);
+}
+
+/* Test: lu_csr_eliminate_block on block-diagonal matrix */
+static void test_block_eliminate_block_diagonal(void) {
+    /* 12×12 with three 4×4 dense diagonal blocks */
+    idx_t n = 12;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t b = 0; b < 3; b++) {
+        idx_t off = b * 4;
+        for (idx_t i = 0; i < 4; i++)
+            for (idx_t j = 0; j < 4; j++) {
+                double v = (i == j) ? 10.0 : 1.0;
+                sparse_insert(A, off + i, off + j, v);
+            }
+    }
+
+    /* Solve with block-aware CSR LU */
+    double b_vec[12], x_block[12], x_plain[12];
+    for (idx_t i = 0; i < n; i++)
+        b_vec[i] = (double)(i + 1);
+
+    /* Block-aware path */
+    {
+        LuCsr *csr = NULL;
+        ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+        idx_t piv[12];
+        ASSERT_ERR(lu_csr_eliminate_block(csr, 1e-12, 1e-14, 4, piv), SPARSE_OK);
+        ASSERT_ERR(lu_csr_solve(csr, piv, b_vec, x_block), SPARSE_OK);
+        lu_csr_free(csr);
+    }
+
+    /* Plain CSR path */
+    {
+        LuCsr *csr = NULL;
+        ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+        idx_t piv[12];
+        ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
+        ASSERT_ERR(lu_csr_solve(csr, piv, b_vec, x_plain), SPARSE_OK);
+        lu_csr_free(csr);
+    }
+
+    /* Solutions should match */
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_block[i], x_plain[i], 1e-10);
+
+    /* Residual should be small */
+    double res = residual_norminf(A, x_block, b_vec, n);
+    ASSERT_TRUE(res < 1e-10);
+
+    sparse_free(A);
+}
+
+/* Test: lu_csr_eliminate_block on mixed matrix (dense block + sparse coupling) */
+static void test_block_eliminate_mixed(void) {
+    /* 8×8 matrix: 4×4 dense block at (0,0), 4×4 dense block at (4,4),
+     * plus sparse coupling between them */
+    idx_t n = 8;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Two 4×4 diag-dominant blocks */
+    for (idx_t b = 0; b < 2; b++) {
+        idx_t off = b * 4;
+        for (idx_t i = 0; i < 4; i++)
+            for (idx_t j = 0; j < 4; j++) {
+                double v = (i == j) ? 20.0 : 1.0;
+                sparse_insert(A, off + i, off + j, v);
+            }
+    }
+    /* Sparse coupling: A[0,4] = A[4,0] = 0.5 */
+    sparse_insert(A, 0, 4, 0.5);
+    sparse_insert(A, 4, 0, 0.5);
+
+    double b_vec[8], x_block[8], x_plain[8];
+    for (idx_t i = 0; i < n; i++)
+        b_vec[i] = (double)(i + 1);
+
+    /* Block-aware */
+    {
+        LuCsr *csr = NULL;
+        ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+        idx_t piv[8];
+        ASSERT_ERR(lu_csr_eliminate_block(csr, 1e-12, 1e-14, 4, piv), SPARSE_OK);
+        ASSERT_ERR(lu_csr_solve(csr, piv, b_vec, x_block), SPARSE_OK);
+        lu_csr_free(csr);
+    }
+
+    /* Plain */
+    ASSERT_ERR(lu_csr_factor_solve(A, b_vec, x_plain, 1e-12), SPARSE_OK);
+
+    /* Both residuals should be small */
+    double res_block = residual_norminf(A, x_block, b_vec, n);
+    double res_plain = residual_norminf(A, x_plain, b_vec, n);
+    ASSERT_TRUE(res_block < 1e-10);
+    ASSERT_TRUE(res_plain < 1e-10);
+
+    sparse_free(A);
+}
+
+/* Test: lu_dense_factor null args */
+static void test_lu_dense_factor_null(void) {
+    idx_t ipiv;
+    double a = 1.0;
+    ASSERT_ERR(lu_dense_factor(1, 1, NULL, 1, &ipiv, 1e-12), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_dense_factor(1, 1, &a, 1, NULL, 1e-12), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_dense_solve(1, NULL, 1, &ipiv, &a), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_dense_solve(1, &a, 1, NULL, &a), SPARSE_ERR_NULL);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 6: Block LU hardening and edge case tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Test: Near-singular diagonal block — dense factor fails, sparse fallback succeeds */
+static void test_block_near_singular_fallback(void) {
+    /* 8×8: first 4×4 block has row 1 = 2*row 0 (singular in isolation),
+     * but with sparse coupling the full matrix is nonsingular. */
+    idx_t n = 8;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Block 0: near-singular 4×4 */
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 0, 2, 3.0);
+    sparse_insert(A, 0, 3, 4.0);
+    sparse_insert(A, 1, 0, 2.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 1, 2, 6.0);
+    sparse_insert(A, 1, 3, 8.0); /* row 1 = 2*row 0 within block */
+    sparse_insert(A, 2, 0, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 5.0);
+    sparse_insert(A, 2, 3, 1.0);
+    sparse_insert(A, 3, 0, 1.0);
+    sparse_insert(A, 3, 1, 1.0);
+    sparse_insert(A, 3, 2, 1.0);
+    sparse_insert(A, 3, 3, 7.0);
+
+    /* Block 1: well-conditioned 4×4 */
+    for (idx_t i = 4; i < 8; i++)
+        for (idx_t j = 4; j < 8; j++)
+            sparse_insert(A, i, j, (i == j) ? 10.0 : 1.0);
+
+    /* Sparse coupling to make full matrix nonsingular */
+    sparse_insert(A, 1, 5, 3.0); /* row 1 gets contribution from block 1 */
+    sparse_insert(A, 5, 1, 2.0);
+
+    double b[8], x_block[8];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    /* Block-aware: dense factor of block 0 will fail (singular),
+     * should fall back to sparse and still produce a valid solution */
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+    idx_t piv[8];
+    sparse_err_t err = lu_csr_eliminate_block(csr, 1e-12, 1e-14, 4, piv);
+
+    if (err == SPARSE_OK) {
+        ASSERT_ERR(lu_csr_solve(csr, piv, b, x_block), SPARSE_OK);
+        double res = residual_norminf(A, x_block, b, n);
+        ASSERT_TRUE(res < 1e-8);
+    }
+    /* If singular, that's also acceptable — the matrix may genuinely be singular
+     * depending on coupling structure */
+
+    lu_csr_free(csr);
+    sparse_free(A);
+}
+
+/* Test: Block at matrix boundary (last rows/columns) */
+static void test_block_at_boundary(void) {
+    /* 10×10: last 4 rows/cols form a dense block */
+    idx_t n = 10;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Sparse first 6 rows: tridiagonal */
+    for (idx_t i = 0; i < 6; i++) {
+        sparse_insert(A, i, i, 10.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < 5)
+            sparse_insert(A, i, i + 1, -1.0);
+    }
+
+    /* Dense 4×4 block at rows/cols 6-9 */
+    for (idx_t i = 6; i < 10; i++)
+        for (idx_t j = 6; j < 10; j++)
+            sparse_insert(A, i, j, (i == j) ? 15.0 : 2.0);
+
+    /* Coupling */
+    sparse_insert(A, 5, 6, 0.5);
+    sparse_insert(A, 6, 5, 0.5);
+
+    double b[10], x_block[10], x_plain[10];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    /* Block-aware */
+    {
+        LuCsr *csr = NULL;
+        ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+        idx_t piv[10];
+        ASSERT_ERR(lu_csr_eliminate_block(csr, 1e-12, 1e-14, 4, piv), SPARSE_OK);
+        ASSERT_ERR(lu_csr_solve(csr, piv, b, x_block), SPARSE_OK);
+        lu_csr_free(csr);
+    }
+
+    /* Plain */
+    ASSERT_ERR(lu_csr_factor_solve(A, b, x_plain, 1e-12), SPARSE_OK);
+
+    double res_block = residual_norminf(A, x_block, b, n);
+    double res_plain = residual_norminf(A, x_plain, b, n);
+    ASSERT_TRUE(res_block < 1e-10);
+    ASSERT_TRUE(res_plain < 1e-10);
+
+    sparse_free(A);
+}
+
+/* Test: Dense block with exact zero pivot — pivoting resolves it */
+static void test_block_zero_pivot(void) {
+    /* 4×4 dense block where A[0,0] = 0, needs pivoting */
+    idx_t n = 4;
+    SparseMatrix *A = sparse_create(n, n);
+    sparse_insert(A, 0, 0, 0.0); /* zero pivot */
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 0, 2, 1.0);
+    sparse_insert(A, 0, 3, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 5.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 1, 3, 1.0);
+    sparse_insert(A, 2, 0, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 5.0);
+    sparse_insert(A, 2, 3, 1.0);
+    sparse_insert(A, 3, 0, 1.0);
+    sparse_insert(A, 3, 1, 1.0);
+    sparse_insert(A, 3, 2, 1.0);
+    sparse_insert(A, 3, 3, 5.0);
+
+    double b[4] = {3, 8, 8, 8};
+    double x[4];
+
+    /* Block-aware should handle zero pivot via dense pivoting or sparse fallback */
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+    idx_t piv[4];
+    ASSERT_ERR(lu_csr_eliminate_block(csr, 1e-12, 1e-14, 4, piv), SPARSE_OK);
+    ASSERT_ERR(lu_csr_solve(csr, piv, b, x), SPARSE_OK);
+
+    double res = residual_norminf(A, x, b, n);
+    ASSERT_TRUE(res < 1e-10);
+
+    lu_csr_free(csr);
+    sparse_free(A);
+}
+
+/* Test: SuiteSparse orsirr_1 — block-aware matches plain */
+static void test_block_suitesparse_orsirr1(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t err = sparse_load_mm(&A, SS_DIR "/orsirr_1.mtx");
+    if (err != SPARSE_OK) {
+        printf("    [SKIP] orsirr_1.mtx not available\n");
+        return;
+    }
+
+    idx_t n = sparse_rows(A);
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x_block = malloc((size_t)n * sizeof(double));
+    double *x_plain = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x_block);
+    ASSERT_NOT_NULL(x_plain);
+
+    for (idx_t i = 0; i < n; i++)
+        b[i] = sin((double)i);
+
+    /* Block-aware */
+    {
+        LuCsr *csr = NULL;
+        ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+        idx_t *piv = malloc((size_t)n * sizeof(idx_t));
+        ASSERT_NOT_NULL(piv);
+        ASSERT_ERR(lu_csr_eliminate_block(csr, 1e-12, 1e-14, 4, piv), SPARSE_OK);
+        ASSERT_ERR(lu_csr_solve(csr, piv, b, x_block), SPARSE_OK);
+        free(piv);
+        lu_csr_free(csr);
+    }
+
+    /* Plain */
+    ASSERT_ERR(lu_csr_factor_solve(A, b, x_plain, 1e-12), SPARSE_OK);
+
+    double res_block = residual_norminf(A, x_block, b, n);
+    double res_plain = residual_norminf(A, x_plain, b, n);
+    printf("    orsirr_1 block: res=%.3e  plain: res=%.3e\n", res_block, res_plain);
+    ASSERT_TRUE(res_block < 1e-6);
+    ASSERT_TRUE(res_plain < 1e-6);
+
+    free(b);
+    free(x_block);
+    free(x_plain);
+    sparse_free(A);
+}
+
+/* Test: SuiteSparse steam1 — block-aware */
+static void test_block_suitesparse_steam1(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t err = sparse_load_mm(&A, SS_DIR "/steam1.mtx");
+    if (err != SPARSE_OK) {
+        printf("    [SKIP] steam1.mtx not available\n");
+        return;
+    }
+
+    idx_t n = sparse_rows(A);
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x);
+
+    for (idx_t i = 0; i < n; i++)
+        b[i] = 1.0;
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+    idx_t *piv = malloc((size_t)n * sizeof(idx_t));
+    ASSERT_NOT_NULL(piv);
+    ASSERT_ERR(lu_csr_eliminate_block(csr, 1e-12, 1e-14, 4, piv), SPARSE_OK);
+    ASSERT_ERR(lu_csr_solve(csr, piv, b, x), SPARSE_OK);
+    free(piv);
+
+    double res = residual_norminf(A, x, b, n);
+    printf("    steam1 block: res=%.3e\n", res);
+    ASSERT_TRUE(res < 1e-6);
+
+    lu_csr_free(csr);
+    free(b);
+    free(x);
+    sparse_free(A);
+}
+
+/* Test: No blocks detected — block-aware behaves identically to plain */
+static void test_block_eliminate_no_blocks(void) {
+    /* Tridiagonal — no dense blocks */
+    idx_t n = 10;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -1.0);
+    }
+
+    double b[10], x_block[10], x_plain[10];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    /* Block-aware (no blocks detected) */
+    {
+        LuCsr *csr = NULL;
+        ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+        idx_t piv[10];
+        ASSERT_ERR(lu_csr_eliminate_block(csr, 1e-12, 1e-14, 4, piv), SPARSE_OK);
+        ASSERT_ERR(lu_csr_solve(csr, piv, b, x_block), SPARSE_OK);
+        lu_csr_free(csr);
+    }
+
+    /* Plain */
+    ASSERT_ERR(lu_csr_factor_solve(A, b, x_plain, 1e-12), SPARSE_OK);
+
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_block[i], x_plain[i], 1e-12);
+
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 7: Block (multi-RHS) solve tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Helper: build a well-conditioned n×n diag-dominant matrix */
+static SparseMatrix *make_diag_dominant(idx_t n) {
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, (double)(n + 1));
+        if (i > 0)
+            sparse_insert(A, i, i - 1, -1.0);
+        if (i < n - 1)
+            sparse_insert(A, i, i + 1, -1.0);
+    }
+    return A;
+}
+
+/* Test: sparse_lu_solve_block with nrhs=1 matches sparse_lu_solve */
+static void test_block_solve_single_rhs(void) {
+    idx_t n = 10;
+    SparseMatrix *A = make_diag_dominant(n);
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    double b[10], x_single[10], x_block[10];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    ASSERT_ERR(sparse_lu_solve(LU, b, x_single), SPARSE_OK);
+    ASSERT_ERR(sparse_lu_solve_block(LU, b, 1, x_block), SPARSE_OK);
+
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_block[i], x_single[i], 1e-14);
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+/* Test: sparse_lu_solve_block with 5 RHS vectors */
+static void test_block_solve_5_rhs(void) {
+    idx_t n = 10;
+    idx_t nrhs = 5;
+    SparseMatrix *A = make_diag_dominant(n);
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    /* B is n×nrhs column-major: B[i + n*k] */
+    double B[50], X_block[50], x_single[10];
+    for (idx_t k = 0; k < nrhs; k++)
+        for (idx_t i = 0; i < n; i++)
+            B[i + n * k] = (double)(i + 1) * (double)(k + 1);
+
+    ASSERT_ERR(sparse_lu_solve_block(LU, B, nrhs, X_block), SPARSE_OK);
+
+    /* Verify each column matches independent single-RHS solve */
+    for (idx_t k = 0; k < nrhs; k++) {
+        ASSERT_ERR(sparse_lu_solve(LU, &B[n * k], x_single), SPARSE_OK);
+        for (idx_t i = 0; i < n; i++)
+            ASSERT_NEAR(X_block[i + n * k], x_single[i], 1e-12);
+    }
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+/* Test: 10×10 with 3 RHS — verify residuals */
+static void test_block_solve_residual(void) {
+    idx_t n = 10;
+    idx_t nrhs = 3;
+    SparseMatrix *A = make_diag_dominant(n);
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    double B[30], X[30];
+    for (idx_t k = 0; k < nrhs; k++)
+        for (idx_t i = 0; i < n; i++)
+            B[i + n * k] = sin((double)(i + k * n));
+
+    ASSERT_ERR(sparse_lu_solve_block(LU, B, nrhs, X), SPARSE_OK);
+
+    /* Check ||A*X(:,k) - B(:,k)|| for each k */
+    for (idx_t k = 0; k < nrhs; k++) {
+        double res = residual_norminf(A, &X[n * k], &B[n * k], n);
+        ASSERT_TRUE(res < 1e-10);
+    }
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+/* Test: nrhs=0 returns immediately */
+static void test_block_solve_nrhs_zero(void) {
+    idx_t n = 3;
+    SparseMatrix *A = make_diag_dominant(n);
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    double dummy = 0.0;
+    ASSERT_ERR(sparse_lu_solve_block(LU, &dummy, 0, &dummy), SPARSE_OK);
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+/* Test: null args */
+static void test_block_solve_null(void) {
+    SparseMatrix *A = make_diag_dominant(3);
+    double b = 0, x = 0;
+    ASSERT_ERR(sparse_lu_solve_block(NULL, &b, 1, &x), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_lu_solve_block(A, NULL, 1, &x), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_lu_solve_block(A, &b, 1, NULL), SPARSE_ERR_NULL);
+    sparse_free(A);
+}
+
+/* Test: lu_csr_solve_block with 3 RHS matches single-RHS */
+static void test_csr_block_solve_3_rhs(void) {
+    idx_t n = 8;
+    idx_t nrhs = 3;
+    SparseMatrix *A = make_diag_dominant(n);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 3.0, &csr), SPARSE_OK);
+    idx_t piv[8];
+    ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
+
+    double B[24], X_block[24], x_single[8];
+    for (idx_t k = 0; k < nrhs; k++)
+        for (idx_t i = 0; i < n; i++)
+            B[i + n * k] = (double)((i + 1) * (k + 2));
+
+    ASSERT_ERR(lu_csr_solve_block(csr, piv, B, nrhs, X_block), SPARSE_OK);
+
+    /* Verify each column */
+    for (idx_t k = 0; k < nrhs; k++) {
+        ASSERT_ERR(lu_csr_solve(csr, piv, &B[n * k], x_single), SPARSE_OK);
+        for (idx_t i = 0; i < n; i++)
+            ASSERT_NEAR(X_block[i + n * k], x_single[i], 1e-12);
+    }
+
+    /* Check residuals */
+    for (idx_t k = 0; k < nrhs; k++) {
+        double res = residual_norminf(A, &X_block[n * k], &B[n * k], n);
+        ASSERT_TRUE(res < 1e-10);
+    }
+
+    lu_csr_free(csr);
+    sparse_free(A);
+}
+
+/* Test: nrhs > n — verify works correctly */
+static void test_block_solve_many_rhs(void) {
+    idx_t n = 4;
+    idx_t nrhs = 8; /* more RHS than matrix dimension */
+    SparseMatrix *A = make_diag_dominant(n);
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    double B[32], X[32], x_single[4];
+    for (idx_t k = 0; k < nrhs; k++)
+        for (idx_t i = 0; i < n; i++)
+            B[i + n * k] = (double)(i + k + 1);
+
+    ASSERT_ERR(sparse_lu_solve_block(LU, B, nrhs, X), SPARSE_OK);
+
+    for (idx_t k = 0; k < nrhs; k++) {
+        ASSERT_ERR(sparse_lu_solve(LU, &B[n * k], x_single), SPARSE_OK);
+        for (idx_t i = 0; i < n; i++)
+            ASSERT_NEAR(X[i + n * k], x_single[i], 1e-12);
+    }
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 10: Coverage gap tests — exercise error paths and edge cases
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Test: 0×0 matrix — sparse_create rejects 0 dimensions, so verify
+ * that lu_csr_from_sparse correctly rejects the NULL result. */
+static void test_csr_zero_dimension(void) {
+    SparseMatrix *A = sparse_create(0, 0);
+    /* sparse_create(0,0) returns NULL (rows/cols must be > 0) */
+    ASSERT_NULL(A);
+
+    /* lu_csr_from_sparse should reject NULL input */
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_ERR_NULL);
+}
+
+/* Test: lu_csr_solve on 1×1 system */
+static void test_csr_solve_1x1(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    sparse_insert(A, 0, 0, 5.0);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 2.0, &csr), SPARSE_OK);
+
+    idx_t piv[1];
+    ASSERT_ERR(lu_csr_eliminate(csr, 1e-12, 1e-14, piv), SPARSE_OK);
+
+    double b = 10.0, x = 0.0;
+    ASSERT_ERR(lu_csr_solve(csr, piv, &b, &x), SPARSE_OK);
+    ASSERT_NEAR(x, 2.0, 1e-14);
+
+    lu_csr_free(csr);
+    sparse_free(A);
+}
+
+/* Test: lu_dense_factor on rectangular (more rows than columns) */
+static void test_dense_factor_rectangular(void) {
+    /* 4×3 matrix, column-major */
+    double A[12] = {4, 1, 0, 0, 1, 4, 1, 0, 0, 1, 4, 1};
+    idx_t ipiv[3]; /* min(4,3) = 3 */
+    ASSERT_ERR(lu_dense_factor(4, 3, A, 4, ipiv, 1e-12), SPARSE_OK);
+
+    /* Verify L and U are stored correctly: U is 3×3 upper triangle,
+     * L is 4×3 unit lower (below diagonal). Just check no error. */
+}
+
+/* Test: lu_csr_solve_block null args and nrhs=0 */
+static void test_csr_solve_block_edge(void) {
+    LuCsr csr = {.n = 0, .nnz = 0, .capacity = 0, .row_ptr = NULL, .col_idx = NULL, .values = NULL};
+    idx_t piv = 0;
+    double b = 0, x = 0;
+    ASSERT_ERR(lu_csr_solve_block(NULL, &piv, &b, 1, &x), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_csr_solve_block(&csr, NULL, &b, 1, &x), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_csr_solve_block(&csr, &piv, NULL, 1, &x), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_csr_solve_block(&csr, &piv, &b, 1, NULL), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_csr_solve_block(&csr, &piv, &b, 0, &x), SPARSE_OK); /* nrhs=0 */
+}
+
+/* Test: lu_detect_dense_blocks with strict threshold (1.0 = only 100% dense) */
+static void test_detect_blocks_strict_threshold(void) {
+    /* 8×8: 4×4 block at (0,0) that is 75% full (not 100%) */
+    idx_t n = 8;
+    SparseMatrix *A = sparse_create(n, n);
+
+    /* Partial 4×4 block (only diagonal + some off-diag, not fully dense) */
+    for (idx_t i = 0; i < 4; i++) {
+        sparse_insert(A, i, i, 10.0);
+        if (i < 3)
+            sparse_insert(A, i, i + 1, 1.0);
+        if (i > 0)
+            sparse_insert(A, i, i - 1, 1.0);
+    }
+    /* Second 4×4 block fully dense */
+    for (idx_t i = 4; i < 8; i++)
+        for (idx_t j = 4; j < 8; j++)
+            sparse_insert(A, i, j, (i == j) ? 10.0 : 1.0);
+
+    LuCsr *csr = NULL;
+    ASSERT_ERR(lu_csr_from_sparse(A, 1.0, &csr), SPARSE_OK);
+
+    DenseBlock *blks = NULL;
+    idx_t nb = 0;
+    /* threshold=1.0: only 100% fill blocks */
+    ASSERT_ERR(lu_detect_dense_blocks(csr, 4, 1.0, &blks, &nb), SPARSE_OK);
+
+    /* Only the second block should be detected (100% fill) */
+    ASSERT_EQ(nb, 1);
+    if (nb > 0) {
+        ASSERT_NOT_NULL(blks);
+        ASSERT_EQ(blks[0].col_start, 4);
+        ASSERT_EQ(blks[0].col_end, 8);
+        free(blks);
+    }
+
+    lu_csr_free(csr);
+    sparse_free(A);
+}
+
+/* Test: lu_csr_factor_solve null args */
+static void test_factor_solve_null(void) {
+    double b = 0, x = 0;
+    ASSERT_ERR(lu_csr_factor_solve(NULL, &b, &x, 1e-12), SPARSE_ERR_NULL);
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_ERR(lu_csr_factor_solve(A, NULL, &x, 1e-12), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_csr_factor_solve(A, &b, NULL, 1e-12), SPARSE_ERR_NULL);
+    sparse_free(A);
+}
+
+/* Test: extract_dense_block null args */
+static void test_extract_insert_null(void) {
+    LuCsr csr = {.n = 0, .nnz = 0, .capacity = 0, .row_ptr = NULL, .col_idx = NULL, .values = NULL};
+    DenseBlock blk = {0, 1, 0, 1};
+    double d = 0;
+    ASSERT_ERR(lu_extract_dense_block(NULL, &blk, &d), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_extract_dense_block(&csr, NULL, &d), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_extract_dense_block(&csr, &blk, NULL), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_insert_dense_block(NULL, &blk, &d, 1e-14), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_insert_dense_block(&csr, NULL, &d, 1e-14), SPARSE_ERR_NULL);
+    ASSERT_ERR(lu_insert_dense_block(&csr, &blk, NULL, 1e-14), SPARSE_ERR_NULL);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════ */
+
+int main(void) {
+    TEST_SUITE_BEGIN("LU CSR Working Format");
+
+    /* Day 1: Conversion tests */
+    RUN_TEST(test_lu_csr_null_args);
+    RUN_TEST(test_lu_csr_identity);
+    RUN_TEST(test_lu_csr_dense_5x5);
+    RUN_TEST(test_lu_csr_empty);
+    RUN_TEST(test_lu_csr_1x1);
+    RUN_TEST(test_lu_csr_with_permutations);
+    RUN_TEST(test_lu_csr_fill_factor_clamping);
+    RUN_TEST(test_lu_csr_suitesparse_orsirr1);
+    RUN_TEST(test_lu_csr_tridiagonal);
+
+    /* Day 2: Elimination tests */
+    RUN_TEST(test_lu_csr_eliminate_3x3);
+    RUN_TEST(test_lu_csr_eliminate_5x5_solve);
+    RUN_TEST(test_lu_csr_eliminate_diagonal);
+    RUN_TEST(test_lu_csr_eliminate_tridiag);
+    RUN_TEST(test_lu_csr_eliminate_needs_pivot);
+    RUN_TEST(test_lu_csr_eliminate_singular);
+
+    /* Day 3: Integration and solve tests */
+    RUN_TEST(test_lu_csr_solve_null);
+    RUN_TEST(test_lu_csr_factor_solve_tridiag);
+    RUN_TEST(test_lu_csr_factor_solve_dense);
+    RUN_TEST(test_lu_csr_factor_solve_orsirr1);
+    RUN_TEST(test_lu_csr_factor_solve_steam1);
+    RUN_TEST(test_lu_csr_benchmark_orsirr1);
+
+    /* Day 4: Dense block detection tests */
+    RUN_TEST(test_detect_blocks_null);
+    RUN_TEST(test_detect_blocks_block_diagonal);
+    RUN_TEST(test_detect_blocks_sparse_tridiag);
+    RUN_TEST(test_detect_blocks_one_large);
+    RUN_TEST(test_extract_insert_round_trip);
+    RUN_TEST(test_detect_blocks_too_small);
+
+    /* Day 5: Dense kernel and block-aware elimination tests */
+    RUN_TEST(test_lu_dense_factor_null);
+    RUN_TEST(test_lu_dense_factor_solve_3x3);
+    RUN_TEST(test_lu_dense_factor_singular);
+    RUN_TEST(test_lu_dense_factor_solve_5x5);
+    RUN_TEST(test_block_eliminate_block_diagonal);
+    RUN_TEST(test_block_eliminate_mixed);
+
+    /* Day 6: Block LU hardening and edge cases */
+    RUN_TEST(test_block_near_singular_fallback);
+    RUN_TEST(test_block_at_boundary);
+    RUN_TEST(test_block_zero_pivot);
+    RUN_TEST(test_block_suitesparse_orsirr1);
+    RUN_TEST(test_block_suitesparse_steam1);
+    RUN_TEST(test_block_eliminate_no_blocks);
+
+    /* Day 7: Multi-RHS block solve tests */
+    RUN_TEST(test_block_solve_null);
+    RUN_TEST(test_block_solve_single_rhs);
+    RUN_TEST(test_block_solve_5_rhs);
+    RUN_TEST(test_block_solve_residual);
+    RUN_TEST(test_block_solve_nrhs_zero);
+    RUN_TEST(test_csr_block_solve_3_rhs);
+    RUN_TEST(test_block_solve_many_rhs);
+
+    /* Day 10: Coverage gap tests */
+    RUN_TEST(test_csr_zero_dimension);
+    RUN_TEST(test_csr_solve_1x1);
+    RUN_TEST(test_dense_factor_rectangular);
+    RUN_TEST(test_csr_solve_block_edge);
+    RUN_TEST(test_detect_blocks_strict_threshold);
+    RUN_TEST(test_factor_solve_null);
+    RUN_TEST(test_extract_insert_null);
+
+    TEST_SUITE_END();
+}

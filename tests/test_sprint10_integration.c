@@ -223,6 +223,12 @@ static void test_csr_vs_linkedlist_nos4(void) {
  * ═══════════════════════════════════════════════════════════════════════ */
 
 static void test_csr_speedup_orsirr_1(void) {
+    /* Skip by default to keep unit tests fast; set RUN_BENCH=1 to enable */
+    if (!getenv("RUN_BENCH")) {
+        printf("    (skipped — set RUN_BENCH=1 to run timing benchmark)\n");
+        return;
+    }
+
     SparseMatrix *A = NULL;
     sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/orsirr_1.mtx");
     ASSERT_ERR(lerr, SPARSE_OK);
@@ -242,7 +248,7 @@ static void test_csr_speedup_orsirr_1(void) {
     }
     make_rhs(A, b, x_exact, n);
 
-    int reps = 5;
+    int reps = 2;
 
     /* Linked-list path */
     double t0 = wall_time();

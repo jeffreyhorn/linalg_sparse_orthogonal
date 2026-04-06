@@ -12,7 +12,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* ── Library version ────────────────────────────────────────────────── */
+/* ── Library version (keep in sync with VERSION file) ────────────────── */
 
 #define SPARSE_VERSION_MAJOR 1
 #define SPARSE_VERSION_MINOR 0

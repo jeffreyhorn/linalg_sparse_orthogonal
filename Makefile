@@ -336,7 +336,7 @@ PREFIX      ?= /usr/local
 INSTALL_LIB  = $(DESTDIR)$(PREFIX)/lib
 INSTALL_INC  = $(DESTDIR)$(PREFIX)/include/sparse
 INSTALL_PC   = $(INSTALL_LIB)/pkgconfig
-VERSION      = $(shell sed -n 's/.*SPARSE_VERSION_STRING *"\(.*\)"/\1/p' include/sparse_types.h)
+VERSION      = $(shell cat VERSION 2>/dev/null || echo "0.0.0")
 HEADERS      = $(wildcard include/*.h)
 
 # Extra pkg-config link flags based on build options

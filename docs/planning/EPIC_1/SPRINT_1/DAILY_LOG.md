@@ -301,7 +301,7 @@
   - `--sanitize` to run UBSan build
   - `--bench` to run benchmarks (informational)
   - Reports pass/fail status
-- Created `planning/SPRINT_1/RETROSPECTIVE.md`:
+- Created `docs/planning/EPIC_1/SPRINT_1/RETROSPECTIVE.md`:
   - Definition of Done checklist (all 12 items complete)
   - Full review of all initial-review.md items with status (40+ items, all addressed or explicitly deferred)
   - 5 bugs found during sprint documented with fix descriptions

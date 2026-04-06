@@ -496,7 +496,7 @@
 3. Verify backward compatibility:
    - Existing code using LU factor/solve works unchanged
    - No breaking API changes
-4. Write `planning/SPRINT_4/RETROSPECTIVE.md`:
+4. Write `docs/planning/EPIC_1/SPRINT_4/RETROSPECTIVE.md`:
    - Definition of Done checklist
    - What went well / what didn't
    - Bugs found during sprint

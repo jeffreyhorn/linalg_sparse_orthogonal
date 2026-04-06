@@ -35,7 +35,7 @@ reference.
 
 ## Known Issues in These Prototypes
 
-See `planning/reviews/initial-review.md` for the full review. Key issues:
+See `docs/planning/EPIC_1/reviews/initial-review.md` for the full review. Key issues:
 - Unsafe linked-list traversal during modification in computeLU
 - Forward substitution early-break assumption is wrong after pivoting
 - No proper library separation (everything in one file with main())

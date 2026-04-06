@@ -245,7 +245,7 @@
    - Sparse-to-dense conversion overhead
    - Memory allocation in Lanczos (P, Q vector storage)
    - QR iteration: Givens rotation application patterns
-4. Document findings in `planning/SPRINT_9/PROFILE_RESULTS.md`:
+4. Document findings in `docs/planning/EPIC_1/SPRINT_9/PROFILE_RESULTS.md`:
    - Timing breakdown per matrix
    - Top-5 hot functions
    - Optimization opportunities ranked by expected impact
@@ -512,7 +512,7 @@
 4. Update documentation:
    - Update `README.md` with new API functions and test counts
    - Verify tutorial and examples reflect final API
-5. Write `planning/SPRINT_9/RETROSPECTIVE.md`:
+5. Write `docs/planning/EPIC_1/SPRINT_9/RETROSPECTIVE.md`:
    - Definition of Done checklist
    - What went well / what didn't
    - Bugs found during sprint

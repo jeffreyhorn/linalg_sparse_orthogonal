@@ -497,7 +497,7 @@
 3. Verify backward compatibility:
    - Existing code using LU/Cholesky/CG/GMRES/ILU works unchanged
    - No breaking API changes
-4. Write `planning/SPRINT_6/RETROSPECTIVE.md`:
+4. Write `docs/planning/EPIC_1/SPRINT_6/RETROSPECTIVE.md`:
    - Definition of Done checklist
    - What went well / what didn't
    - Bugs found during sprint

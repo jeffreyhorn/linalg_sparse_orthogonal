@@ -530,7 +530,7 @@
    - Total public API function count
    - Line coverage percentage
    - Benchmark speedup summary (CSR LU vs linked-list)
-3. Write `planning/SPRINT_10/RETROSPECTIVE.md`:
+3. Write `docs/planning/EPIC_1/SPRINT_10/RETROSPECTIVE.md`:
    - Definition of Done checklist
    - What went well / what didn't
    - Bugs found during sprint

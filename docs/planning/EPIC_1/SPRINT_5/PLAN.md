@@ -474,7 +474,7 @@
 3. Update `bench_main.c`:
    - Add `--iterative` flag for iterative solver benchmarks
    - Report: solver, matrix, preconditioner, iterations, time, residual
-4. Write `planning/SPRINT_5/benchmark_results.md`:
+4. Write `docs/planning/EPIC_1/SPRINT_5/benchmark_results.md`:
    - Iterative vs direct comparison table
    - Preconditioning effectiveness data
    - Parallel SpMV scaling data
@@ -551,7 +551,7 @@
 3. Verify backward compatibility:
    - Existing code using LU/Cholesky factor/solve works unchanged
    - No breaking API changes
-4. Write `planning/SPRINT_5/RETROSPECTIVE.md`:
+4. Write `docs/planning/EPIC_1/SPRINT_5/RETROSPECTIVE.md`:
    - Definition of Done checklist
    - What went well / what didn't
    - Bugs found during sprint

@@ -383,3 +383,4 @@ uninstall:
 .PHONY: clean
 clean:
 	/bin/rm -rf $(BUILDDIR) $(COVDIR)
+	/bin/rm -f *.gcda *.gcno *.gcov

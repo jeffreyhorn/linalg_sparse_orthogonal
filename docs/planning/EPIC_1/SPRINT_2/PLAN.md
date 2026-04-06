@@ -418,7 +418,7 @@
    - Which matrices cause significant fill-in?
    - How does partial vs complete pivoting compare on real matrices?
    - Any matrices where performance is unexpectedly poor?
-5. Write `planning/SPRINT_2/benchmark_results.md` with findings
+5. Write `docs/planning/EPIC_1/SPRINT_2/benchmark_results.md` with findings
 
 ### Deliverables
 - `bench_main.c` supports directory benchmarking
@@ -456,7 +456,7 @@
    - Add new API functions to the API summary
    - Document `sparse_errno()` usage
    - Note ASan support and platform requirements
-4. Write `planning/SPRINT_2/RETROSPECTIVE.md`:
+4. Write `docs/planning/EPIC_1/SPRINT_2/RETROSPECTIVE.md`:
    - Definition of Done checklist
    - What went well / what didn't
    - Bugs found during sprint

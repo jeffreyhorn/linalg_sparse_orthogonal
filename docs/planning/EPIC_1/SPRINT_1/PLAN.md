@@ -412,7 +412,7 @@
    - Add "Benchmarks" section with sample output
 4. Sprint retrospective:
    - Review all items from initial-review.md — mark each as addressed or deferred
-   - Update `planning/SPRINT_1/RETROSPECTIVE.md` with:
+   - Update `docs/planning/EPIC_1/SPRINT_1/RETROSPECTIVE.md` with:
      - What was completed
      - What was deferred to Sprint 2
      - Lessons learned
@@ -460,4 +460,4 @@ Each day, before starting work:
 2. What is planned for today?
 3. Any blockers?
 
-Track in `planning/SPRINT_1/DAILY_LOG.md` (create on Day 1).
+Track in `docs/planning/EPIC_1/SPRINT_1/DAILY_LOG.md` (create on Day 1).

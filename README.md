@@ -414,10 +414,10 @@ linalg_sparse_orthogonal/
 ├── cmake/                CMake config templates
 ├── examples/             Standalone example programs + CMake integration example
 ├── benchmarks/           Performance benchmarks (5 programs)
-├── docs/                 Algorithm and format documentation
+├── docs/                 Algorithm/format documentation + planning
+│   └── planning/EPIC_1/  Sprint plans, retrospectives, and project plan
 ├── INSTALL.md            Cross-platform installation guide
 ├── sparse.pc.in          pkg-config template
-├── planning/             Sprint plans and retrospectives
 └── archive/              Original prototype files
 ```
 

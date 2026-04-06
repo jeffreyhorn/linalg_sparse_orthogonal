@@ -528,7 +528,7 @@
 5. Update documentation:
    - Update `docs/algorithm.md` with new algorithms (tridiagonal QR, bidiagonalization)
    - Update `README.md` with new API functions and test counts
-6. Write `planning/SPRINT_7/RETROSPECTIVE.md`:
+6. Write `docs/planning/EPIC_1/SPRINT_7/RETROSPECTIVE.md`:
    - Definition of Done checklist
    - What went well / what didn't
    - Bugs found during sprint

@@ -416,7 +416,7 @@
    - How much does reordering reduce fill-in on steam1 and orsirr_1 (the high-fill matrices)?
    - Is AMD's extra ordering cost justified by fill-in savings?
    - Are there matrices where reordering hurts (increases fill-in)?
-4. Write `planning/SPRINT_3/benchmark_results.md` with findings and recommendations
+4. Write `docs/planning/EPIC_1/SPRINT_3/benchmark_results.md` with findings and recommendations
 
 ### Deliverables
 - Updated benchmark tool with reordering support
@@ -487,7 +487,7 @@
 3. Verify backward compatibility:
    - Existing code using `sparse_lu_factor()` works unchanged
    - No new required fields or breaking API changes
-4. Write `planning/SPRINT_3/RETROSPECTIVE.md`:
+4. Write `docs/planning/EPIC_1/SPRINT_3/RETROSPECTIVE.md`:
    - Definition of Done checklist
    - What went well / what didn't
    - Bugs found during sprint

@@ -12,23 +12,25 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* ── Library version (keep in sync with VERSION file) ────────────────── */
+/* ── Library version (generated from VERSION file) ───────────────────── */
+#include "sparse_version.h"
 
-#define SPARSE_VERSION_MAJOR 1
-#define SPARSE_VERSION_MINOR 0
-#define SPARSE_VERSION_PATCH 0
-
-/** @brief Encode version components into a single comparable integer. */
-#define SPARSE_VERSION_ENCODE(maj, min, pat) (((maj) * 10000) + ((min) * 100) + (pat))
-
-/** @brief Integer encoding of the current library version. */
-#define SPARSE_VERSION                                                                             \
-    SPARSE_VERSION_ENCODE(SPARSE_VERSION_MAJOR, SPARSE_VERSION_MINOR, SPARSE_VERSION_PATCH)
-
-/** @brief String form of the library version ("major.minor.patch"). */
-#define SPARSE_VERSION_STRING "1.0.0"
-
-/** @brief Signed 32-bit index type for matrix dimensions and indices. */
+/**
+ * @brief Signed 32-bit index type for matrix dimensions and indices.
+ *
+ * All matrix dimensions, row/column indices, and nonzero counts use this
+ * type.  The 32-bit limit caps matrix dimensions at ~2.1 billion and
+ * nonzero counts at INT32_MAX (~2.1 billion entries).
+ *
+ * **Rationale:** 32-bit indices halve memory for index arrays compared to
+ * 64-bit, improving cache efficiency for typical sparse matrix sizes.
+ * Most sparse matrices in practice have well under 2 billion nonzeros.
+ *
+ * **Migration path:** To support larger matrices, change this typedef to
+ * @c int64_t and recompile.  The library uses @c idx_t consistently, so
+ * no other source changes are needed — but all downstream code that
+ * stores or passes index values must also use @c idx_t (not bare @c int).
+ */
 typedef int32_t idx_t;
 
 /**

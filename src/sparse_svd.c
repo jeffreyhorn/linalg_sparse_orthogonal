@@ -2,6 +2,7 @@
 #include "sparse_bidiag.h"
 #include "sparse_dense.h"
 #include "sparse_matrix.h"
+#include "sparse_matrix_internal.h"
 #include "sparse_svd_internal.h"
 #include <math.h>
 #include <stdint.h>
@@ -309,9 +310,7 @@ sparse_err_t bidiag_svd_iterate(double *diag, double *superdiag, idx_t k, double
         if (row_sum > bidiag_norm)
             bidiag_norm = row_sum;
     }
-    double abs_tol = tol * bidiag_norm;
-    if (abs_tol < 1e-30)
-        abs_tol = 1e-30;
+    double abs_tol = sparse_rel_tol(bidiag_norm, tol);
 
     while (hi > 0 && total_iter < max_iter) {
         /* Check for deflation at bottom */
@@ -427,7 +426,7 @@ sparse_err_t bidiag_svd_iterate(double *diag, double *superdiag, idx_t k, double
                 double t11 = e0 * e0 + d1 * d1;
                 double diff = t00 - t11;
                 double cv, sv;
-                if (fabs(t01) < 1e-30) {
+                if (fabs(t01) < sparse_rel_tol(0, DROP_TOL)) {
                     cv = 1.0;
                     sv = 0.0;
                 } else {
@@ -833,7 +832,7 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
         anorm = sqrt(anorm);
         alpha[j] = anorm;
 
-        if (anorm > 1e-30) {
+        if (anorm > sparse_rel_tol(0, DROP_TOL)) {
             double inv = 1.0 / anorm;
             for (idx_t i = 0; i < m; i++)
                 pj[i] *= inv;
@@ -872,7 +871,7 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
         bnorm = sqrt(bnorm);
         beta[j + 1] = bnorm;
 
-        if (j + 1 < lanczos_k && bnorm > 1e-30) {
+        if (j + 1 < lanczos_k && bnorm > sparse_rel_tol(0, DROP_TOL)) {
             double inv = 1.0 / bnorm;
             for (idx_t i = 0; i < n; i++)
                 qj1[i] *= inv;

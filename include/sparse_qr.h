@@ -74,8 +74,10 @@ typedef struct {
 /**
  * @brief Compute column-pivoted QR factorization: A*P = Q*R.
  *
+ * @pre A must have identity permutations (not previously factored, pivoted,
+ *      or reordered).  A is not modified.
+ *
  * @param A   The matrix to factor (not modified). May be rectangular (m×n).
- *             Must have identity permutations (not previously pivoted/reordered).
  * @param qr  Output: QR factors. Must be freed with sparse_qr_free().
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or qr is NULL.

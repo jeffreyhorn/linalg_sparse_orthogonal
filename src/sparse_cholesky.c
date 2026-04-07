@@ -33,8 +33,12 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat) {
     if (!sparse_is_symmetric(mat, 1e-12))
         return SPARSE_ERR_NOT_SPD;
 
-    /* Reset factor_norm so LU-only APIs (condest) don't accept this matrix */
-    mat->factor_norm = -1.0;
+    /* Compute and cache ||A||_inf before factorization for relative tolerance */
+    double anorm;
+    sparse_err_t nerr = sparse_norminf(mat, &anorm);
+    if (nerr != SPARSE_OK)
+        return nerr;
+    mat->factor_norm = anorm;
 
     /* Dense accumulator for column k (indices k..n-1) */
     double *col_acc = calloc((size_t)n, sizeof(double));
@@ -152,6 +156,7 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat) {
     free(col_acc);
     free(nz_row);
     free(nz_rows);
+    mat->factored = 1;
     return SPARSE_OK;
 }
 
@@ -239,6 +244,8 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
 sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat, const double *b, double *x) {
     if (!mat || !b || !x)
         return SPARSE_ERR_NULL;
+    if (!mat->factored)
+        return SPARSE_ERR_BADARG;
     idx_t n = mat->rows;
     const idx_t *rperm = mat->reorder_perm;
 
@@ -264,6 +271,12 @@ sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat, const double *b, dou
         b_eff = b_perm;
     }
 
+    /* Singularity threshold: relative to ||L||_inf ≈ sqrt(||A||_inf).
+     * L entries scale as sqrt of A entries in Cholesky, so use the
+     * square root of the original matrix norm as reference. */
+    double l_norm = (mat->factor_norm > 0.0) ? sqrt(mat->factor_norm) : 0.0;
+    double sing_tol = sparse_rel_tol(l_norm, DROP_TOL);
+
     /* Forward substitution: solve L*y = b_eff
      * L is lower triangular stored in lower triangle (physical indices).
      * y[i] = (b[i] - sum_{j<i} L(i,j)*y[j]) / L(i,i) */
@@ -278,7 +291,7 @@ sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat, const double *b, dou
                 l_ii = node->value;
             node = node->right;
         }
-        if (fabs(l_ii) < 1e-30) {
+        if (fabs(l_ii) < sing_tol) {
             free(y);
             free(b_perm);
             return SPARSE_ERR_SINGULAR;
@@ -301,7 +314,7 @@ sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat, const double *b, dou
                 l_ii = node->value;
             node = node->down;
         }
-        if (fabs(l_ii) < 1e-30) {
+        if (fabs(l_ii) < sing_tol) {
             free(y);
             free(b_perm);
             return SPARSE_ERR_SINGULAR;

@@ -90,6 +90,7 @@ SparseMatrix *sparse_create(idx_t rows, idx_t cols) {
     mat->nnz = 0;
     mat->cached_norm = -1.0;
     mat->factor_norm = -1.0;
+    mat->factored = 0;
     mat->reorder_perm = NULL;
 
     mat->row_headers = calloc((size_t)rows, sizeof(Node *));
@@ -184,9 +185,10 @@ SparseMatrix *sparse_copy(const SparseMatrix *mat) {
         }
     }
 
-    /* Preserve cached norm and factor norm from source */
+    /* Preserve cached norm, factor norm, and factored flag from source */
     copy->cached_norm = mat->cached_norm;
     copy->factor_norm = mat->factor_norm;
+    copy->factored = mat->factored;
 
     /* Copy reorder permutation if present */
     if (mat->reorder_perm) {
@@ -235,6 +237,7 @@ sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, double val) 
         return SPARSE_ERR_BOUNDS;
 
     SPARSE_LOCK(mat);
+    mat->factored = 0;
 
     if (val == 0.0) {
         sparse_err_t err = sparse_remove_internal(mat, row, col);
@@ -333,6 +336,7 @@ sparse_err_t sparse_remove(SparseMatrix *mat, idx_t row, idx_t col) {
     if (row < 0 || row >= mat->rows || col < 0 || col >= mat->cols)
         return SPARSE_ERR_BOUNDS;
     SPARSE_LOCK(mat);
+    mat->factored = 0;
     sparse_err_t err = sparse_remove_internal(mat, row, col);
     SPARSE_UNLOCK(mat);
     return err;
@@ -442,9 +446,12 @@ sparse_err_t sparse_norminf(SparseMatrix *mat, double *norm) {
     if (!mat || !norm)
         return SPARSE_ERR_NULL;
 
-    /* Return cached value if valid */
-    if (mat->cached_norm >= 0.0) {
-        *norm = mat->cached_norm;
+    /* Return cached value if valid.  Relaxed ordering suffices: the cached
+     * value is idempotent (all threads compute the same result from the
+     * same immutable linked-list structure). */
+    double cached = atomic_load_explicit(&mat->cached_norm, memory_order_relaxed);
+    if (cached >= 0.0) {
+        *norm = cached;
         return SPARSE_OK;
     }
 
@@ -460,8 +467,25 @@ sparse_err_t sparse_norminf(SparseMatrix *mat, double *norm) {
             max_row_sum = row_sum;
     }
 
-    mat->cached_norm = max_row_sum;
+    atomic_store_explicit(&mat->cached_norm, max_row_sum, memory_order_relaxed);
     *norm = max_row_sum;
+    return SPARSE_OK;
+}
+
+/* ─── Mark as factored ──────────────────────────────────────────────── */
+
+sparse_err_t sparse_mark_factored(SparseMatrix *mat) {
+    if (!mat)
+        return SPARSE_ERR_NULL;
+    /* Compute factor_norm if not already set */
+    if (mat->factor_norm < 0.0) {
+        double norm;
+        sparse_err_t err = sparse_norminf(mat, &norm);
+        if (err != SPARSE_OK)
+            return err;
+        mat->factor_norm = norm;
+    }
+    mat->factored = 1;
     return SPARSE_OK;
 }
 

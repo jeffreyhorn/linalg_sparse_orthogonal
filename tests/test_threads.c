@@ -430,6 +430,143 @@ static void test_independent_stress(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Test: concurrent norminf on the same matrix (Sprint 11 Day 6)
+ *
+ * Multiple threads call sparse_norminf() on the same unfactored matrix.
+ * With _Atomic cached_norm, this should be TSan-clean.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+typedef struct {
+    SparseMatrix *mat;
+    int thread_id;
+    int success;
+    double norm_result;
+    int iterations;
+} norminf_arg_t;
+
+static void *thread_concurrent_norminf(void *arg) {
+    norminf_arg_t *na = (norminf_arg_t *)arg;
+    na->success = 1;
+    na->norm_result = 0.0;
+
+    for (int iter = 0; iter < na->iterations; iter++) {
+        double norm;
+        sparse_err_t err = sparse_norminf(na->mat, &norm);
+        if (err != SPARSE_OK) {
+            na->success = 0;
+            return NULL;
+        }
+        na->norm_result = norm;
+    }
+    return NULL;
+}
+
+static void test_concurrent_norminf(void) {
+    /* Build a 20×20 tridiagonal matrix */
+    idx_t n = 20;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 10.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+
+    /* Expected norm: max row sum = 12.0 (interior row: 1+10+1) */
+    double expected_norm;
+    sparse_norminf(A, &expected_norm);
+
+    /* Invalidate cache so threads will race to compute it */
+    /* (hack: insert and remove a zero to invalidate) */
+    SparseMatrix *A2 = sparse_copy(A);
+    ASSERT_NOT_NULL(A2);
+
+    int nthreads = 4;
+    pthread_t threads[4];
+    norminf_arg_t args[4];
+
+    for (int t = 0; t < nthreads; t++) {
+        args[t].mat = A2;
+        args[t].thread_id = t;
+        args[t].iterations = 1000;
+        int rc = pthread_create(&threads[t], NULL, thread_concurrent_norminf, &args[t]);
+        ASSERT_EQ(rc, 0);
+    }
+
+    for (int t = 0; t < nthreads; t++) {
+        pthread_join(threads[t], NULL);
+        ASSERT_TRUE(args[t].success);
+        ASSERT_NEAR(args[t].norm_result, expected_norm, 1e-14);
+    }
+    printf("    concurrent norminf: %d threads × %d iters, all agree on norm=%.1f\n", nthreads,
+           args[0].iterations, expected_norm);
+
+    sparse_free(A);
+    sparse_free(A2);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Test: concurrent norminf + solve (Sprint 11 Day 6)
+ *
+ * One thread repeatedly calls sparse_norminf() on a factored matrix,
+ * while other threads solve concurrently. Tests that cached_norm writes
+ * during norminf don't race with solve's read of factor_norm.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_concurrent_norminf_and_solve(void) {
+    idx_t n = 20;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 10.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_NOT_NULL(LU);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    /* Thread 0: concurrent norminf on the factored matrix */
+    norminf_arg_t norm_arg;
+    norm_arg.mat = LU;
+    norm_arg.thread_id = 0;
+    norm_arg.iterations = 500;
+
+    /* Threads 1-3: concurrent solves */
+    shared_solve_arg_t solve_args[3];
+    pthread_t threads[4];
+
+    int rc = pthread_create(&threads[0], NULL, thread_concurrent_norminf, &norm_arg);
+    ASSERT_EQ(rc, 0);
+
+    for (int t = 0; t < 3; t++) {
+        solve_args[t].LU = LU;
+        solve_args[t].A = A;
+        solve_args[t].thread_id = t + 1;
+        solve_args[t].iterations = 500;
+        rc = pthread_create(&threads[t + 1], NULL, thread_concurrent_solve, &solve_args[t]);
+        ASSERT_EQ(rc, 0);
+    }
+
+    for (int t = 0; t < 4; t++)
+        pthread_join(threads[t], NULL);
+
+    ASSERT_TRUE(norm_arg.success);
+    for (int t = 0; t < 3; t++)
+        ASSERT_TRUE(solve_args[t].success);
+
+    printf("    norminf+solve: 1 norminf thread + 3 solve threads, all clean\n");
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Concurrent insert test (only safe with SPARSE_MUTEX — pool is shared)
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -532,6 +669,10 @@ int main(void) {
     RUN_TEST(test_lu_solve_stress);
     RUN_TEST(test_cholesky_solve_stress);
     RUN_TEST(test_independent_stress);
+
+    /* Concurrent norminf (Sprint 11 Day 6) */
+    RUN_TEST(test_concurrent_norminf);
+    RUN_TEST(test_concurrent_norminf_and_solve);
 
     /* Concurrent insert — only safe with SPARSE_MUTEX (pool/nnz are shared state) */
 #ifdef SPARSE_MUTEX

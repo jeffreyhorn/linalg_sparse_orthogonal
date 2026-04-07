@@ -238,6 +238,23 @@ int sparse_is_symmetric(const SparseMatrix *mat, double tol);
  */
 sparse_err_t sparse_norminf(SparseMatrix *mat, double *norm);
 
+/**
+ * @brief Mark a matrix as factored so that solve functions accept it.
+ *
+ * Solve functions (sparse_lu_solve, sparse_cholesky_solve, etc.) check an
+ * internal flag and return SPARSE_ERR_BADARG on unfactored matrices.  This
+ * function sets that flag for matrices whose L/U factors were constructed
+ * externally (e.g., imported from CSR) rather than via the library's own
+ * factorization routines.
+ *
+ * Also computes and caches ||A||_inf so that solve-path singularity
+ * detection works correctly.
+ *
+ * @param mat  The matrix to mark as factored.
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL if mat is NULL.
+ */
+sparse_err_t sparse_mark_factored(SparseMatrix *mat);
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * Sparse matrix-vector product
  * ═══════════════════════════════════════════════════════════════════════════ */

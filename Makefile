@@ -86,7 +86,8 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_fuzz.c \
             $(TESTDIR)/test_lu_csr.c \
             $(TESTDIR)/test_block_solvers.c \
-            $(TESTDIR)/test_sprint10_integration.c
+            $(TESTDIR)/test_sprint10_integration.c \
+            $(TESTDIR)/test_sprint11_integration.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
 # Benchmark sources
@@ -337,6 +338,9 @@ INSTALL_LIB  = $(DESTDIR)$(PREFIX)/lib
 INSTALL_INC  = $(DESTDIR)$(PREFIX)/include/sparse
 INSTALL_PC   = $(INSTALL_LIB)/pkgconfig
 VERSION      = $(shell cat VERSION 2>/dev/null || echo "0.0.0")
+VERSION_MAJOR = $(word 1,$(subst ., ,$(VERSION)))
+VERSION_MINOR = $(word 2,$(subst ., ,$(VERSION)))
+VERSION_PATCH = $(word 3,$(subst ., ,$(VERSION)))
 HEADERS      = $(wildcard include/*.h)
 
 # Extra pkg-config link flags based on build options
@@ -351,6 +355,23 @@ else
 SPARSE_PC_LIBS_EXTRA += -fopenmp
 endif
 endif
+
+# Generate sparse_version.h from VERSION file and template
+GENERATED_VERSION = include/sparse_version.h
+
+.PHONY: generate-version
+generate-version: $(GENERATED_VERSION)
+
+$(GENERATED_VERSION): VERSION include/sparse_version.h.in
+	@sed -e 's|@SPARSE_VERSION_MAJOR@|$(VERSION_MAJOR)|g' \
+		-e 's|@SPARSE_VERSION_MINOR@|$(VERSION_MINOR)|g' \
+		-e 's|@SPARSE_VERSION_PATCH@|$(VERSION_PATCH)|g' \
+		-e 's|@SPARSE_VERSION_STRING@|$(VERSION)|g' \
+		include/sparse_version.h.in > $(GENERATED_VERSION)
+	@echo "Generated $(GENERATED_VERSION) ($(VERSION))"
+
+# Library depends on generated version header
+$(LIB): $(GENERATED_VERSION)
 
 .PHONY: install
 install: $(LIB)

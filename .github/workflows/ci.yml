@@ -49,6 +49,23 @@ jobs:
           fi
           echo "PASS: test counts match"
 
+  tsan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build library with TSan
+        run: |
+          make clean
+          make CFLAGS="-std=c11 -Wall -Wextra -O1 -g -fsanitize=thread -fno-omit-frame-pointer -Iinclude" \
+               LDFLAGS="-fsanitize=thread -lpthread"
+
+      - name: Run thread safety tests under TSan
+        run: |
+          ./build/test_threads
+        env:
+          TSAN_OPTIONS: "halt_on_error=1"
+
   lint:
     runs-on: ubuntu-latest
     steps:

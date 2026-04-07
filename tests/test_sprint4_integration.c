@@ -53,8 +53,9 @@ static void test_cholesky_csr_roundtrip_solve(void) {
     ASSERT_ERR(sparse_from_csr(csr, &L2), SPARSE_OK);
     ASSERT_EQ(sparse_nnz(L2), sparse_nnz(L));
 
-    /* Solve using the round-tripped L2; factor_norm is unset but Cholesky
-     * solve doesn't use it (only LU backward sub checks factor_norm). */
+    /* Mark L2 as factored — the CSR roundtrip doesn't preserve factored
+     * state.  This also computes factor_norm for the solve path. */
+    ASSERT_ERR(sparse_mark_factored(L2), SPARSE_OK);
     double x[3];
     ASSERT_ERR(sparse_cholesky_solve(L2, b, x), SPARSE_OK);
 

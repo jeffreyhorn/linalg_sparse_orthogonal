@@ -166,8 +166,8 @@ include(CMakePackageConfigHelpers)
 # Adjust include path for installed headers (under sparse/ subdirectory)
 target_include_directories(sparse_lu_ortho
     PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 

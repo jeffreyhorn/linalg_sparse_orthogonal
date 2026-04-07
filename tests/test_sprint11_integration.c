@@ -24,6 +24,8 @@
 
 static SparseMatrix *build_spd_tridiag(idx_t n, double s) {
     SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, 4.0 * s);
         if (i > 0) {
@@ -45,6 +47,7 @@ static void test_all_solvers_tiny_scale(void) {
     double s = 1e-35;
     idx_t n = 10;
     SparseMatrix *A = build_spd_tridiag(n, s);
+    ASSERT_NOT_NULL(A);
 
     /* b = A * ones */
     double *ones = malloc((size_t)n * sizeof(double));
@@ -169,6 +172,7 @@ static void test_all_solvers_huge_scale(void) {
 static void test_factored_state_lifecycle(void) {
     idx_t n = 5;
     SparseMatrix *A = build_spd_tridiag(n, 1.0);
+    ASSERT_NOT_NULL(A);
     double *b = malloc((size_t)n * sizeof(double));
     double *x = malloc((size_t)n * sizeof(double));
     for (idx_t i = 0; i < n; i++)
@@ -225,6 +229,7 @@ static void test_ilu_gmres_extreme_scales(void) {
     for (int s = 0; s < 2; s++) {
         idx_t n = 10;
         SparseMatrix *A = build_spd_tridiag(n, scales[s]);
+        ASSERT_NOT_NULL(A);
 
         double *b = malloc((size_t)n * sizeof(double));
         double *x = calloc((size_t)n, sizeof(double));

@@ -185,4 +185,26 @@ void pool_free_all(NodePool *pool);
  */
 sparse_err_t sparse_build_adj(const SparseMatrix *A, idx_t **adj_ptr, idx_t **adj_list);
 
+/**
+ * sparse_norminf_const — compute ||A||_inf without mutating the matrix.
+ *
+ * Unlike sparse_norminf(), this does not read or write cached_norm,
+ * so it is safe to call on a const SparseMatrix* without casting away
+ * const.  Used by ILU and CSR conversion which take const inputs.
+ */
+static inline double sparse_norminf_const(const SparseMatrix *mat) {
+    double max_row_sum = 0.0;
+    for (idx_t i = 0; i < mat->rows; i++) {
+        double row_sum = 0.0;
+        Node *node = mat->row_headers[i];
+        while (node) {
+            row_sum += fabs(node->value);
+            node = node->right;
+        }
+        if (row_sum > max_row_sum)
+            max_row_sum = row_sum;
+    }
+    return max_row_sum;
+}
+
 #endif /* SPARSE_MATRIX_INTERNAL_H */

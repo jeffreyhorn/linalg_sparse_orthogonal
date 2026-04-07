@@ -42,14 +42,9 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu) {
         }
     }
 
-    /* Compute and cache ||A||_inf for relative tolerance */
-    {
-        double anorm;
-        sparse_err_t nerr = sparse_norminf((SparseMatrix *)A, &anorm);
-        if (nerr != SPARSE_OK)
-            return nerr;
-        ilu->factor_norm = anorm;
-    }
+    /* Compute ||A||_inf for relative tolerance.
+     * Use const-safe helper to avoid mutating the caller's matrix. */
+    ilu->factor_norm = sparse_norminf_const(A);
 
     /* Empty matrix: treat as a valid no-op factorization.
      * Leave L and U as NULL; sparse_ilu_solve handles n==0 early. */
@@ -351,13 +346,9 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
     }
 
     /* Compute and cache ||A||_inf for relative tolerance */
-    {
-        double anorm;
-        sparse_err_t nerr = sparse_norminf((SparseMatrix *)A, &anorm);
-        if (nerr != SPARSE_OK)
-            return nerr;
-        ilu->factor_norm = anorm;
-    }
+    /* Compute ||A||_inf for relative tolerance.
+     * Use const-safe helper to avoid mutating the caller's matrix. */
+    ilu->factor_norm = sparse_norminf_const(A);
 
     if (n == 0)
         return SPARSE_OK;

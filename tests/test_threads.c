@@ -478,10 +478,14 @@ static void test_concurrent_norminf(void) {
     double expected_norm;
     sparse_norminf(A, &expected_norm);
 
-    /* Invalidate cache so threads will race to compute it */
-    /* (hack: insert and remove a zero to invalidate) */
+    /* Invalidate cache so threads will race to compute it.
+     * sparse_copy preserves cached_norm, so we insert a dummy entry
+     * (which invalidates the cache) and then remove it to restore
+     * the original matrix structure. */
     SparseMatrix *A2 = sparse_copy(A);
     ASSERT_NOT_NULL(A2);
+    sparse_insert(A2, 0, (idx_t)(n - 1), 0.001);
+    sparse_remove(A2, 0, (idx_t)(n - 1));
 
     int nthreads = 4;
     pthread_t threads[4];

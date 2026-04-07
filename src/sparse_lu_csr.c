@@ -53,16 +53,9 @@ sparse_err_t lu_csr_from_sparse(const SparseMatrix *mat, double fill_factor, LuC
     csr->n = n;
     csr->nnz = nnz;
     csr->capacity = cap;
-    /* Compute and cache ||A||_inf for relative tolerance in solve paths */
-    {
-        double anorm;
-        sparse_err_t nerr = sparse_norminf((SparseMatrix *)mat, &anorm);
-        if (nerr != SPARSE_OK) {
-            free(csr);
-            return nerr;
-        }
-        csr->factor_norm = anorm;
-    }
+    /* Compute ||A||_inf for relative tolerance in solve paths.
+     * Use const-safe helper to avoid mutating the caller's matrix. */
+    csr->factor_norm = sparse_norminf_const(mat);
     /* Overflow guard for allocation byte counts */
     if ((size_t)cap > SIZE_MAX / sizeof(double) || (size_t)(n + 1) > SIZE_MAX / sizeof(idx_t)) {
         free(csr);

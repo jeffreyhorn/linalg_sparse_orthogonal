@@ -41,7 +41,7 @@ jobs:
       - name: Verify test count matches Makefile
         run: |
           cmake_count=$(ctest --test-dir build -N 2>&1 | grep 'Total Tests' | awk '{print $NF}')
-          make_count=$(grep -c '$(TESTDIR)/test_' Makefile)
+          make_count=$(awk '/^TEST_SRCS/,/^TEST_BINS/' Makefile | grep -c 'test_')
           echo "CMake tests: $cmake_count, Makefile tests: $make_count"
           if [ "$cmake_count" -ne "$make_count" ]; then
             echo "FAIL: CMake ($cmake_count) and Makefile ($make_count) test counts differ"

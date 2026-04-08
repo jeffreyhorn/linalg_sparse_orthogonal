@@ -476,7 +476,8 @@ static void test_concurrent_norminf(void) {
 
     /* Expected norm: max row sum = 12.0 (interior row: 1+10+1) */
     double expected_norm;
-    sparse_norminf(A, &expected_norm);
+    ASSERT_ERR(sparse_norminf(A, &expected_norm), SPARSE_OK);
+    ASSERT_NEAR(expected_norm, 12.0, 1e-14);
 
     /* Invalidate cache so threads will race to compute it.
      * sparse_copy preserves cached_norm, so we insert a dummy entry

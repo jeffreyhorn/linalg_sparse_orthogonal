@@ -477,6 +477,8 @@ sparse_err_t sparse_norminf(SparseMatrix *mat, double *norm) {
 sparse_err_t sparse_mark_factored(SparseMatrix *mat) {
     if (!mat)
         return SPARSE_ERR_NULL;
+    if (mat->rows != mat->cols)
+        return SPARSE_ERR_SHAPE;
     /* Compute factor_norm if not already set */
     if (mat->factor_norm < 0.0) {
         double norm;
@@ -520,6 +522,7 @@ sparse_err_t sparse_scale(SparseMatrix *mat, double alpha) {
     }
 
     mat->cached_norm = -1.0;
+    mat->factored = 0;
     return SPARSE_OK;
 }
 
@@ -604,6 +607,7 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B, double a
 
     /* Invalidate cache early: A will be mutated even on partial failure */
     A->cached_norm = -1.0;
+    A->factored = 0;
 
     /* Scale A by alpha */
     if (alpha != 1.0) {

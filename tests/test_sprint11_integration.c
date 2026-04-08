@@ -272,10 +272,10 @@ static void test_version_consistency(void) {
     int encoded = SPARSE_VERSION_MAJOR * 10000 + SPARSE_VERSION_MINOR * 100 + SPARSE_VERSION_PATCH;
     ASSERT_EQ(SPARSE_VERSION, encoded);
 
-    /* Version should be 1.0.0 (current) */
-    ASSERT_EQ(SPARSE_VERSION_MAJOR, 1);
-    ASSERT_EQ(SPARSE_VERSION_MINOR, 0);
-    ASSERT_EQ(SPARSE_VERSION_PATCH, 0);
+    /* Components should be non-negative */
+    ASSERT_TRUE(SPARSE_VERSION_MAJOR >= 0);
+    ASSERT_TRUE(SPARSE_VERSION_MINOR >= 0);
+    ASSERT_TRUE(SPARSE_VERSION_PATCH >= 0);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

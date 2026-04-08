@@ -43,7 +43,8 @@ else
 fi
 
 HEADER_COUNT=$(find "$PREFIX/include/sparse" -name '*.h' 2>/dev/null | wc -l | tr -d ' ')
-EXPECTED_HEADERS=$(ls "$ROOT_DIR/include/"*.h | wc -l | tr -d ' ')
+# Count source headers plus the generated sparse_version.h
+EXPECTED_HEADERS=$(( $(ls "$ROOT_DIR/include/"*.h 2>/dev/null | wc -l | tr -d ' ') + 1 ))
 if [ "$HEADER_COUNT" -eq "$EXPECTED_HEADERS" ]; then
     pass "all $EXPECTED_HEADERS headers installed"
 else

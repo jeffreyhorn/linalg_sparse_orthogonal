@@ -181,6 +181,7 @@ install(DIRECTORY include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/sparse
     FILES_MATCHING PATTERN "*.h"
     PATTERN "*.h.in" EXCLUDE
+    PATTERN "sparse_version.h" EXCLUDE
 )
 
 # Install generated version header

@@ -250,8 +250,10 @@ sparse_err_t sparse_norminf(SparseMatrix *mat, double *norm);
  * Also computes and caches ||A||_inf so that solve-path singularity
  * detection works correctly.
  *
- * @param mat  The matrix to mark as factored.
- * @return SPARSE_OK on success, SPARSE_ERR_NULL if mat is NULL.
+ * @param mat  The matrix to mark as factored. Must be square.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if mat is NULL.
+ * @return SPARSE_ERR_SHAPE if mat is not square.
  */
 sparse_err_t sparse_mark_factored(SparseMatrix *mat);
 

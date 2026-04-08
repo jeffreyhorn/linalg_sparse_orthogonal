@@ -281,7 +281,7 @@ sparse_err_t tridiag_qr_eigenvalues(double *diag, double *subdiag, idx_t n, idx_
         /* Check for deflation at the bottom */
         double off = fabs(subdiag[hi - 1]);
         double diag_sum = fabs(diag[hi - 1]) + fabs(diag[hi]);
-        if (off <= tol * diag_sum || off < sparse_rel_tol(0, DROP_TOL)) {
+        if (off <= tol * diag_sum || off < sparse_rel_tol(diag_sum, DROP_TOL)) {
             subdiag[hi - 1] = 0.0;
             hi--;
             continue;
@@ -292,7 +292,7 @@ sparse_err_t tridiag_qr_eigenvalues(double *diag, double *subdiag, idx_t n, idx_
         while (lo > 0) {
             double off_lo = fabs(subdiag[lo - 1]);
             double ds_lo = fabs(diag[lo - 1]) + fabs(diag[lo]);
-            if (off_lo <= tol * ds_lo || off_lo < sparse_rel_tol(0, DROP_TOL)) {
+            if (off_lo <= tol * ds_lo || off_lo < sparse_rel_tol(ds_lo, DROP_TOL)) {
                 subdiag[lo - 1] = 0.0;
                 break;
             }

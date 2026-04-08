@@ -40,3 +40,4 @@ docs/api/
 
 # Claude Code
 .claude/
+include/sparse_version.h

@@ -54,10 +54,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build library with TSan
+      - name: Build library and thread tests with TSan
         run: |
           make clean
-          make CFLAGS="-std=c11 -Wall -Wextra -O1 -g -fsanitize=thread -fno-omit-frame-pointer -Iinclude" \
+          make build/test_threads \
+               CFLAGS="-std=c11 -Wall -Wextra -O1 -g -fsanitize=thread -fno-omit-frame-pointer -Iinclude" \
                LDFLAGS="-fsanitize=thread -lpthread"
 
       - name: Run thread safety tests under TSan

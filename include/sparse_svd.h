@@ -58,7 +58,10 @@ typedef struct {
 /**
  * @brief Compute SVD of a sparse matrix: A = U * diag(sigma) * V^T.
  *
- * @param A    The matrix to decompose (not modified). Must have identity permutations.
+ * @pre A must have identity permutations (not previously factored or reordered).
+ *      A is not modified.
+ *
+ * @param A    The matrix to decompose (not modified).
  * @param opts Options (NULL for defaults: singular values only).
  * @param svd  Output: SVD result. Must be freed with sparse_svd_free().
  * @return SPARSE_OK on success.

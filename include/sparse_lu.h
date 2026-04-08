@@ -75,6 +75,9 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
  * Fill-in entries with |value| < SPARSE_DROP_TOL * |pivot| are dropped
  * to control memory growth.
  *
+ * @pre mat must not be needed after factorization — use sparse_copy() first
+ *      to preserve the original.  The matrix is overwritten with L and U.
+ *
  * @param mat    The matrix to factor (modified in-place). Must be square.
  * @param pivot  Pivoting strategy:
  *               - @c SPARSE_PIVOT_COMPLETE — search entire remaining submatrix
@@ -83,6 +86,16 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
  *                 Faster (O(n) per step), Q remains identity.
  * @param tol    Pivot tolerance. If the best pivot candidate has |value| < tol,
  *               the matrix is declared singular.
+ *
+ * @note **Tolerance semantics:** The @p tol parameter is an absolute pivot
+ *       threshold used during elimination.  Separately, the backward
+ *       substitution (solve) phase uses a norm-relative singularity check:
+ *       a diagonal U(i,i) is rejected if |U(i,i)| < SPARSE_DROP_TOL ×
+ *       ||A||_inf, where ||A||_inf was cached at factorization time.  This
+ *       prevents false-singular detection on small-scale matrices and catches
+ *       ill-conditioning on large-scale matrices.  See sparse_rel_tol() in
+ *       sparse_matrix_internal.h for details.
+ *
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if mat is NULL.
  * @return SPARSE_ERR_SHAPE if the matrix is not square.
@@ -103,7 +116,9 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double to
  * @param mat  A matrix that has been factored by sparse_lu_factor().
  * @param b    Right-hand side vector of length n.
  * @param x    Solution vector of length n (overwritten). May alias b.
- * @return SPARSE_OK on success, SPARSE_ERR_NULL if any argument is NULL.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if any argument is NULL.
+ * @return SPARSE_ERR_BADARG if mat has not been factored.
  *
  * @par Thread safety: Read-only on mat. Safe to call concurrently on the same
  *               factored matrix with different b/x vectors.
@@ -129,6 +144,7 @@ sparse_err_t sparse_lu_solve(const SparseMatrix *mat, const double *b, double *x
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any pointer is NULL, including when @p nrhs is 0.
  * @return SPARSE_ERR_BADARG if @p nrhs is negative.
+ * @return SPARSE_ERR_BADARG if mat has not been factored, or if @p nrhs is negative.
  * @return SPARSE_ERR_SINGULAR if a zero diagonal in U is encountered.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
  */
@@ -197,6 +213,7 @@ sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig, const SparseMatrix 
  * @param x    Solution vector of length n (overwritten). May alias b.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
+ * @return SPARSE_ERR_BADARG if mat has not been factored.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
  * @return SPARSE_ERR_SINGULAR if a near-zero pivot is encountered during U^T solve.
  */

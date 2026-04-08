@@ -25,13 +25,14 @@
  * col_idx, and values arrays are in logical index order.
  */
 typedef struct {
-    idx_t n;        /**< Matrix dimension (square n×n) */
-    idx_t nnz;      /**< Current number of stored nonzeros */
-    idx_t capacity; /**< Allocated length of col_idx/values arrays */
-    idx_t *row_ptr; /**< Row pointers (length n+1). row_ptr[i]..row_ptr[i+1]-1
-                         index into col_idx/values for logical row i. */
-    idx_t *col_idx; /**< Column indices in logical space (length capacity) */
-    double *values; /**< Nonzero values (length capacity) */
+    idx_t n;            /**< Matrix dimension (square n×n) */
+    idx_t nnz;          /**< Current number of stored nonzeros */
+    idx_t capacity;     /**< Allocated length of col_idx/values arrays */
+    idx_t *row_ptr;     /**< Row pointers (length n+1). row_ptr[i]..row_ptr[i+1]-1
+                             index into col_idx/values for logical row i. */
+    idx_t *col_idx;     /**< Column indices in logical space (length capacity) */
+    double *values;     /**< Nonzero values (length capacity) */
+    double factor_norm; /**< ||A||_inf at conversion time, for relative tolerance */
 } LuCsr;
 
 /**
@@ -41,6 +42,9 @@ typedef struct {
  * and stores entries sorted by logical column within each logical row.
  * Allocates extra capacity (fill_factor × nnz) for fill-in during
  * elimination.
+ *
+ * @pre mat is not modified.  The conversion reads through mat's permutation
+ *      arrays so it works on both unfactored and factored matrices.
  *
  * @param mat         Input matrix (not modified).
  * @param fill_factor Capacity multiplier for fill-in (e.g., 2.0 allocates
@@ -143,6 +147,12 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
  * 1. Apply pivot permutation: pb[i] = b[piv_perm[i]]
  * 2. Forward substitution:    L*y = pb  (unit diagonal)
  * 3. Backward substitution:   U*x = y
+ *
+ * @note **Tolerance semantics:** Singularity detection during backward
+ *       substitution uses a norm-relative threshold: SPARSE_DROP_TOL ×
+ *       ||A||_inf, where ||A||_inf was cached in csr->factor_norm during
+ *       lu_csr_from_sparse().  This applies to both lu_csr_solve() and
+ *       lu_csr_solve_block().
  *
  * @param csr       Factored LuCsr (output of lu_csr_eliminate).
  * @param piv_perm  Row pivot permutation (length n, from lu_csr_eliminate).

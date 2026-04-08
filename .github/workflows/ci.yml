@@ -24,6 +24,49 @@ jobs:
       - name: Run benchmarks
         run: make clean && make bench
 
+  cmake-build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: CMake configure
+        run: cmake -S . -B build -DCMAKE_C_STANDARD=11
+
+      - name: CMake build
+        run: cmake --build build
+
+      - name: CMake test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Verify test count matches Makefile
+        run: |
+          cmake_count=$(ctest --test-dir build -N 2>&1 | grep 'Total Tests' | awk '{print $NF}')
+          make_count=$(awk '/^TEST_SRCS/,/^TEST_BINS/' Makefile | grep -c 'test_')
+          echo "CMake tests: $cmake_count, Makefile tests: $make_count"
+          if [ "$cmake_count" -ne "$make_count" ]; then
+            echo "FAIL: CMake ($cmake_count) and Makefile ($make_count) test counts differ"
+            exit 1
+          fi
+          echo "PASS: test counts match"
+
+  tsan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build library and thread tests with TSan
+        run: |
+          make clean
+          make build/test_threads \
+               CFLAGS="-std=c11 -Wall -Wextra -O1 -g -fsanitize=thread -fno-omit-frame-pointer -Iinclude" \
+               LDFLAGS="-fsanitize=thread -lpthread"
+
+      - name: Run thread safety tests under TSan
+        run: |
+          ./build/test_threads
+        env:
+          TSAN_OPTIONS: "halt_on_error=1"
+
   lint:
     runs-on: ubuntu-latest
     steps:

@@ -1,5 +1,12 @@
+#include "sparse_cholesky.h"
+#include "sparse_csr.h"
+#include "sparse_ilu.h"
+#include "sparse_iterative.h"
 #include "sparse_lu.h"
+#include "sparse_lu_csr.h"
 #include "sparse_matrix.h"
+#include "sparse_qr.h"
+#include "sparse_svd.h"
 #include "sparse_types.h"
 #include "sparse_vector.h"
 #include "test_framework.h"
@@ -506,6 +513,512 @@ static void test_large_norm_does_not_mask_singularity(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Scaled-matrix tolerance tests (Sprint 11 Day 4)
+ *
+ * Create a well-conditioned 3×3 SPD system, scale all entries by a
+ * factor (1e-40 for tiny, 1e+40 for huge), and verify each solver
+ * still produces the correct answer without false-singular rejections.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Helper: create a 3×3 SPD matrix scaled by `s` and its RHS/expected solution.
+ *   A = s * [4 1 0; 1 3 1; 0 1 4],  b = A * [1;1;1],  x_exact = [1;1;1] */
+static SparseMatrix *create_scaled_spd(double s, double *b) {
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 4.0 * s);
+    sparse_insert(A, 0, 1, 1.0 * s);
+    sparse_insert(A, 1, 0, 1.0 * s);
+    sparse_insert(A, 1, 1, 3.0 * s);
+    sparse_insert(A, 1, 2, 1.0 * s);
+    sparse_insert(A, 2, 1, 1.0 * s);
+    sparse_insert(A, 2, 2, 4.0 * s);
+    b[0] = 5.0 * s;
+    b[1] = 5.0 * s;
+    b[2] = 5.0 * s;
+    return A;
+}
+
+static void test_scaled_lu_tiny(void) {
+    double b[3], x[3];
+    SparseMatrix *A = create_scaled_spd(1e-40, b);
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-60), SPARSE_OK);
+    ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_OK);
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-8);
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+static void test_scaled_lu_huge(void) {
+    double b[3], x[3];
+    SparseMatrix *A = create_scaled_spd(1e+40, b);
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e+20), SPARSE_OK);
+    ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_OK);
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-8);
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+static void test_scaled_cholesky_tiny(void) {
+    double b[3], x[3];
+    SparseMatrix *A = create_scaled_spd(1e-40, b);
+    SparseMatrix *L = sparse_copy(A);
+    ASSERT_ERR(sparse_cholesky_factor(L), SPARSE_OK);
+    ASSERT_ERR(sparse_cholesky_solve(L, b, x), SPARSE_OK);
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-8);
+    sparse_free(A);
+    sparse_free(L);
+}
+
+static void test_scaled_cholesky_huge(void) {
+    double b[3], x[3];
+    SparseMatrix *A = create_scaled_spd(1e+40, b);
+    SparseMatrix *L = sparse_copy(A);
+    ASSERT_ERR(sparse_cholesky_factor(L), SPARSE_OK);
+    ASSERT_ERR(sparse_cholesky_solve(L, b, x), SPARSE_OK);
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-8);
+    sparse_free(A);
+    sparse_free(L);
+}
+
+static void test_scaled_ilu_gmres_tiny(void) {
+    double b[3], x[3] = {0};
+    SparseMatrix *A = create_scaled_spd(1e-40, b);
+    sparse_ilu_t ilu;
+    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+    sparse_gmres_opts_t opts = {.restart = 10, .max_iter = 100, .tol = 1e-10};
+    sparse_iter_result_t result;
+    ASSERT_ERR(sparse_solve_gmres(A, b, x, &opts, sparse_ilu_precond, &ilu, &result), SPARSE_OK);
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-6);
+    sparse_ilu_free(&ilu);
+    sparse_free(A);
+}
+
+static void test_scaled_ilu_gmres_huge(void) {
+    double b[3], x[3] = {0};
+    SparseMatrix *A = create_scaled_spd(1e+40, b);
+    sparse_ilu_t ilu;
+    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+    sparse_gmres_opts_t opts = {.restart = 10, .max_iter = 100, .tol = 1e-10};
+    sparse_iter_result_t result;
+    ASSERT_ERR(sparse_solve_gmres(A, b, x, &opts, sparse_ilu_precond, &ilu, &result), SPARSE_OK);
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-6);
+    sparse_ilu_free(&ilu);
+    sparse_free(A);
+}
+
+static void test_scaled_qr_tiny(void) {
+    double b[3], x[3];
+    SparseMatrix *A = create_scaled_spd(1e-40, b);
+    sparse_qr_t qr;
+    ASSERT_ERR(sparse_qr_factor(A, &qr), SPARSE_OK);
+    ASSERT_ERR(sparse_qr_solve(&qr, b, x, NULL), SPARSE_OK);
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-6);
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+static void test_scaled_qr_huge(void) {
+    double b[3], x[3];
+    SparseMatrix *A = create_scaled_spd(1e+40, b);
+    sparse_qr_t qr;
+    ASSERT_ERR(sparse_qr_factor(A, &qr), SPARSE_OK);
+    ASSERT_ERR(sparse_qr_solve(&qr, b, x, NULL), SPARSE_OK);
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-6);
+    sparse_qr_free(&qr);
+    sparse_free(A);
+}
+
+static void test_scaled_csr_lu_tiny(void) {
+    double b[3], x[3];
+    SparseMatrix *A = create_scaled_spd(1e-40, b);
+    ASSERT_ERR(lu_csr_factor_solve(A, b, x, 1e-60), SPARSE_OK);
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-8);
+    sparse_free(A);
+}
+
+static void test_scaled_csr_lu_huge(void) {
+    double b[3], x[3];
+    SparseMatrix *A = create_scaled_spd(1e+40, b);
+    ASSERT_ERR(lu_csr_factor_solve(A, b, x, 1e+20), SPARSE_OK);
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-8);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Tolerance edge-case tests (Sprint 11 Day 5)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_near_singular_lu_with_refinement(void) {
+    /* Moderately ill-conditioned 3×3 (condition number ~1e8).
+     * The smallest pivot is still well above the relative threshold
+     * (DROP_TOL × ||A||_inf ≈ 1e-14 × 2 ≈ 2e-14), so factorization
+     * succeeds. Iterative refinement recovers accuracy. */
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 1.0 + 1e-8); /* ill-conditioned 2×2 block */
+    sparse_insert(A, 2, 2, 1.0);
+
+    double b[] = {2.0, 2.0 + 1e-8, 1.0}; /* exact solution: [1,1,1] */
+    double x[3];
+
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-20), SPARSE_OK);
+    ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_OK);
+
+    /* Iterative refinement should improve accuracy */
+    ASSERT_ERR(sparse_lu_refine(A, LU, b, x, 10, 1e-14), SPARSE_OK);
+
+    /* After refinement, residual should be small */
+    double r[3];
+    sparse_matvec(A, x, r);
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(r[i], b[i], 1e-10);
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+static void test_exactly_singular_all_solvers(void) {
+    /* 3×3 with zero row → exactly singular.
+     * All direct solvers should detect and report singularity. */
+
+    /* LU */
+    {
+        SparseMatrix *A = sparse_create(3, 3);
+        sparse_insert(A, 0, 0, 1.0);
+        sparse_insert(A, 0, 1, 2.0);
+        /* row 1 is empty */
+        sparse_insert(A, 2, 2, 3.0);
+        ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12), SPARSE_ERR_SINGULAR);
+        sparse_free(A);
+    }
+
+    /* ILU */
+    {
+        SparseMatrix *A = sparse_create(3, 3);
+        sparse_insert(A, 0, 0, 1.0);
+        /* row 1 empty → zero diagonal */
+        sparse_insert(A, 2, 2, 3.0);
+        sparse_ilu_t ilu;
+        ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_ERR_SINGULAR);
+        sparse_ilu_free(&ilu);
+        sparse_free(A);
+    }
+
+    /* CSR LU */
+    {
+        SparseMatrix *A = sparse_create(3, 3);
+        sparse_insert(A, 0, 0, 1.0);
+        sparse_insert(A, 0, 1, 2.0);
+        /* row 1 empty */
+        sparse_insert(A, 2, 2, 3.0);
+        double b[] = {1.0, 0.0, 1.0}, x[3];
+        ASSERT_ERR(lu_csr_factor_solve(A, b, x, 1e-12), SPARSE_ERR_SINGULAR);
+        sparse_free(A);
+    }
+}
+
+static void test_wide_magnitude_range_lu(void) {
+    /* 4×4 diagonal with moderate magnitude range (1e-5 to 1e+5).
+     * ||A||_inf = 1e+5, so threshold = 1e-14 × 1e+5 = 1e-9.
+     * All diagonals are above threshold → solve succeeds. */
+    SparseMatrix *A = sparse_create(4, 4);
+    sparse_insert(A, 0, 0, 1e-5);
+    sparse_insert(A, 1, 1, 1e-2);
+    sparse_insert(A, 2, 2, 1e+2);
+    sparse_insert(A, 3, 3, 1e+5);
+
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    double b[] = {1e-5, 1e-2, 1e+2, 1e+5};
+    double x[4];
+    ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_OK);
+    for (int i = 0; i < 4; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-10);
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+static void test_zero_matrix_all_solvers(void) {
+    /* Zero 2×2 → every solver should return appropriate error. */
+
+    /* LU: zero matrix → singular during elimination */
+    {
+        SparseMatrix *A = sparse_create(2, 2);
+        ASSERT_ERR(sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12), SPARSE_ERR_SINGULAR);
+        sparse_free(A);
+    }
+
+    /* Cholesky: zero matrix → not SPD (zero diagonal) */
+    {
+        SparseMatrix *A = sparse_create(2, 2);
+        /* Not symmetric check passes (0==0), but diagonal ≤ 0 → NOT_SPD */
+        ASSERT_ERR(sparse_cholesky_factor(A), SPARSE_ERR_NOT_SPD);
+        sparse_free(A);
+    }
+
+    /* ILU: zero matrix → singular */
+    {
+        SparseMatrix *A = sparse_create(2, 2);
+        sparse_ilu_t ilu;
+        ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_ERR_SINGULAR);
+        sparse_ilu_free(&ilu);
+        sparse_free(A);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Factored-state flag tests (Sprint 11 Day 9)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Helper: create a 3×3 SPD matrix */
+static SparseMatrix *create_test_spd3(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 4.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 2, 4.0);
+    return A;
+}
+
+/* --- Solve-before-factor tests --- */
+
+static void test_unfactored_lu_solve(void) {
+    SparseMatrix *A = create_test_spd3();
+    double b[] = {1, 1, 1}, x[3];
+    ASSERT_ERR(sparse_lu_solve(A, b, x), SPARSE_ERR_BADARG);
+    sparse_free(A);
+}
+
+static void test_unfactored_lu_solve_block(void) {
+    SparseMatrix *A = create_test_spd3();
+    double B[] = {1, 1, 1}, X[3];
+    ASSERT_ERR(sparse_lu_solve_block(A, B, 1, X), SPARSE_ERR_BADARG);
+    sparse_free(A);
+}
+
+static void test_unfactored_lu_solve_transpose(void) {
+    SparseMatrix *A = create_test_spd3();
+    double b[] = {1, 1, 1}, x[3];
+    ASSERT_ERR(sparse_lu_solve_transpose(A, b, x), SPARSE_ERR_BADARG);
+    sparse_free(A);
+}
+
+static void test_unfactored_lu_condest(void) {
+    SparseMatrix *A = create_test_spd3();
+    SparseMatrix *A2 = sparse_copy(A);
+    double cond;
+    ASSERT_ERR(sparse_lu_condest(A, A2, &cond), SPARSE_ERR_BADARG);
+    sparse_free(A);
+    sparse_free(A2);
+}
+
+static void test_unfactored_lu_refine(void) {
+    SparseMatrix *A = create_test_spd3();
+    SparseMatrix *LU = sparse_copy(A); /* not factored */
+    double b[] = {1, 1, 1}, x[] = {0, 0, 0};
+    ASSERT_ERR(sparse_lu_refine(A, LU, b, x, 3, 1e-12), SPARSE_ERR_BADARG);
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+static void test_unfactored_cholesky_solve(void) {
+    SparseMatrix *A = create_test_spd3();
+    double b[] = {1, 1, 1}, x[3];
+    ASSERT_ERR(sparse_cholesky_solve(A, b, x), SPARSE_ERR_BADARG);
+    sparse_free(A);
+}
+
+/* --- Factor-then-modify-then-solve tests --- */
+
+static void test_factored_insert_then_solve(void) {
+    SparseMatrix *A = create_test_spd3();
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    /* Solve should work after factorization */
+    double b[] = {5, 5, 5}, x[3];
+    ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_OK);
+
+    /* Insert clears the flag */
+    sparse_insert(LU, 0, 0, 99.0);
+    ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_ERR_BADARG);
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+static void test_factored_remove_then_solve(void) {
+    SparseMatrix *A = create_test_spd3();
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    /* Remove clears the flag */
+    sparse_remove(LU, 0, 1);
+    double b[] = {5, 5, 5}, x[3];
+    ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_ERR_BADARG);
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+static void test_cholesky_insert_then_solve(void) {
+    SparseMatrix *A = create_test_spd3();
+    SparseMatrix *L = sparse_copy(A);
+    ASSERT_ERR(sparse_cholesky_factor(L), SPARSE_OK);
+
+    double b[] = {5, 5, 5}, x[3];
+    ASSERT_ERR(sparse_cholesky_solve(L, b, x), SPARSE_OK);
+
+    /* Insert clears the flag */
+    sparse_insert(L, 0, 0, 99.0);
+    ASSERT_ERR(sparse_cholesky_solve(L, b, x), SPARSE_ERR_BADARG);
+
+    sparse_free(A);
+    sparse_free(L);
+}
+
+/* --- Positive tests --- */
+
+static void test_factor_solve_twice(void) {
+    /* Solve twice on the same factored matrix — flag should not be cleared */
+    SparseMatrix *A = create_test_spd3();
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    double b[] = {5, 5, 5}, x[3];
+    ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_OK);
+    ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_OK); /* second solve */
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-10);
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+static void test_copy_factored_solve(void) {
+    /* Copy a factored matrix, solve on the copy */
+    SparseMatrix *A = create_test_spd3();
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    SparseMatrix *LU2 = sparse_copy(LU);
+    double b[] = {5, 5, 5}, x[3];
+    ASSERT_ERR(sparse_lu_solve(LU2, b, x), SPARSE_OK);
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-10);
+
+    sparse_free(A);
+    sparse_free(LU);
+    sparse_free(LU2);
+}
+
+static void test_mark_factored_solve(void) {
+    /* Use sparse_mark_factored() on an externally-constructed factor */
+    SparseMatrix *A = create_test_spd3();
+    SparseMatrix *L = sparse_copy(A);
+    ASSERT_ERR(sparse_cholesky_factor(L), SPARSE_OK);
+
+    /* Export to CSR and reimport */
+    SparseCsr *csr = NULL;
+    ASSERT_ERR(sparse_to_csr(L, &csr), SPARSE_OK);
+    SparseMatrix *L2 = NULL;
+    ASSERT_ERR(sparse_from_csr(csr, &L2), SPARSE_OK);
+
+    /* Solve without marking → BADARG */
+    double b[] = {5, 5, 5}, x[3];
+    ASSERT_ERR(sparse_cholesky_solve(L2, b, x), SPARSE_ERR_BADARG);
+
+    /* Mark as factored → solve OK */
+    ASSERT_ERR(sparse_mark_factored(L2), SPARSE_OK);
+    ASSERT_ERR(sparse_cholesky_solve(L2, b, x), SPARSE_OK);
+
+    sparse_csr_free(csr);
+    sparse_free(A);
+    sparse_free(L);
+    sparse_free(L2);
+}
+
+/* --- CSR path does not use the flag --- */
+
+static void test_csr_factor_solve_no_flag(void) {
+    /* lu_csr_factor_solve is standalone — no factored flag needed */
+    SparseMatrix *A = create_test_spd3();
+    double b[] = {5, 5, 5}, x[3];
+    ASSERT_ERR(lu_csr_factor_solve(A, b, x, 1e-12), SPARSE_OK);
+    for (int i = 0; i < 3; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-10);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * API precondition violation tests (Sprint 11 Day 10)
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_ilu_on_factored_matrix(void) {
+    /* ILU requires identity permutations.  A factored matrix has
+     * non-identity permutations → SPARSE_ERR_BADARG. */
+    SparseMatrix *A = create_test_spd3();
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    sparse_ilu_t ilu;
+    ASSERT_ERR(sparse_ilu_factor(LU, &ilu), SPARSE_ERR_BADARG);
+    sparse_ilu_free(&ilu);
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+static void test_ilut_on_factored_matrix(void) {
+    /* ILUT also requires identity permutations. */
+    SparseMatrix *A = create_test_spd3();
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    sparse_ilu_t ilu;
+    sparse_ilut_opts_t opts = {.tol = 1e-3, .max_fill = 10, .pivot = 0};
+    ASSERT_ERR(sparse_ilut_factor(LU, &opts, &ilu), SPARSE_ERR_BADARG);
+    sparse_ilu_free(&ilu);
+
+    sparse_free(A);
+    sparse_free(LU);
+}
+
+static void test_ilu_on_fresh_matrix(void) {
+    /* Fresh (unfactored) matrix with identity perms → ILU should succeed. */
+    SparseMatrix *A = create_test_spd3();
+
+    sparse_ilu_t ilu;
+    ASSERT_ERR(sparse_ilu_factor(A, &ilu), SPARSE_OK);
+
+    /* Verify the preconditioner works */
+    double r[] = {5, 5, 5}, z[3];
+    ASSERT_ERR(sparse_ilu_solve(&ilu, r, z), SPARSE_OK);
+
+    sparse_ilu_free(&ilu);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -555,6 +1068,44 @@ int main(void) {
     RUN_TEST(test_1x1_tiny_value_solves);
     RUN_TEST(test_mixed_scale_no_false_singular);
     RUN_TEST(test_large_norm_does_not_mask_singularity);
+
+    /* Scaled-matrix tolerance tests (Sprint 11 Day 4) */
+    RUN_TEST(test_scaled_lu_tiny);
+    RUN_TEST(test_scaled_lu_huge);
+    RUN_TEST(test_scaled_cholesky_tiny);
+    RUN_TEST(test_scaled_cholesky_huge);
+    RUN_TEST(test_scaled_ilu_gmres_tiny);
+    RUN_TEST(test_scaled_ilu_gmres_huge);
+    RUN_TEST(test_scaled_qr_tiny);
+    RUN_TEST(test_scaled_qr_huge);
+    RUN_TEST(test_scaled_csr_lu_tiny);
+    RUN_TEST(test_scaled_csr_lu_huge);
+
+    /* Tolerance edge cases (Sprint 11 Day 5) */
+    RUN_TEST(test_near_singular_lu_with_refinement);
+    RUN_TEST(test_exactly_singular_all_solvers);
+    RUN_TEST(test_wide_magnitude_range_lu);
+    RUN_TEST(test_zero_matrix_all_solvers);
+
+    /* Factored-state flag tests (Sprint 11 Day 9) */
+    RUN_TEST(test_unfactored_lu_solve);
+    RUN_TEST(test_unfactored_lu_solve_block);
+    RUN_TEST(test_unfactored_lu_solve_transpose);
+    RUN_TEST(test_unfactored_lu_condest);
+    RUN_TEST(test_unfactored_lu_refine);
+    RUN_TEST(test_unfactored_cholesky_solve);
+    RUN_TEST(test_factored_insert_then_solve);
+    RUN_TEST(test_factored_remove_then_solve);
+    RUN_TEST(test_cholesky_insert_then_solve);
+    RUN_TEST(test_factor_solve_twice);
+    RUN_TEST(test_copy_factored_solve);
+    RUN_TEST(test_mark_factored_solve);
+    RUN_TEST(test_csr_factor_solve_no_flag);
+
+    /* API precondition violation tests (Sprint 11 Day 10) */
+    RUN_TEST(test_ilu_on_factored_matrix);
+    RUN_TEST(test_ilut_on_factored_matrix);
+    RUN_TEST(test_ilu_on_fresh_matrix);
 
     TEST_SUITE_END();
 }

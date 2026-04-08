@@ -39,10 +39,11 @@
  * freeing prior contents. sparse_ilu_free() is safe on a zeroed struct.
  */
 typedef struct {
-    SparseMatrix *L; /**< Unit lower triangular factor */
-    SparseMatrix *U; /**< Upper triangular factor (includes diagonal) */
-    idx_t n;         /**< Matrix dimension */
-    idx_t *perm;     /**< Row permutation (NULL if no pivoting). perm[i] = original row. */
+    SparseMatrix *L;    /**< Unit lower triangular factor */
+    SparseMatrix *U;    /**< Upper triangular factor (includes diagonal) */
+    idx_t n;            /**< Matrix dimension */
+    idx_t *perm;        /**< Row permutation (NULL if no pivoting). perm[i] = original row. */
+    double factor_norm; /**< ||A||_inf at factorization time, for relative tolerance */
 } sparse_ilu_t;
 
 /**
@@ -59,12 +60,21 @@ typedef struct {
  *       whose permutation arrays have been modified by a prior factorization
  *       will be rejected with SPARSE_ERR_BADARG.
  *
+ * @note **Tolerance semantics:** The factorization computes and caches
+ *       ||A||_inf in ilu->factor_norm.  Both factorization and solve use
+ *       norm-relative singularity detection: a pivot is rejected if
+ *       |pivot| < SPARSE_DROP_TOL × ||A||_inf.  This scales correctly
+ *       for matrices at any magnitude.
+ *
+ * @pre A must have identity permutations (not previously factored, pivoted,
+ *      or reordered).  Use a fresh matrix or sparse_copy() of the original.
+ *
  * @param A    The matrix to factor (not modified). Must be square.
  * @param ilu  Output: ILU(0) factors. Must be freed with sparse_ilu_free().
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or ilu is NULL.
  * @return SPARSE_ERR_SHAPE if A is not square.
- * @return SPARSE_ERR_BADARG if A has non-identity permutations (e.g., after LU pivoting).
+ * @return SPARSE_ERR_BADARG if A has non-identity permutations.
  * @return SPARSE_ERR_SINGULAR if a zero pivot is encountered.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  */
@@ -150,6 +160,14 @@ typedef struct {
  *       identity permutations.  Passing a matrix whose permutation arrays
  *       have been modified by a prior factorization will be rejected with
  *       SPARSE_ERR_BADARG.
+ *
+ * @note **Tolerance semantics:** The @p tol parameter in opts controls
+ *       fill-in dropping (entries with |value| < tol × ||row||).
+ *       Separately, singularity detection uses a norm-relative threshold:
+ *       SPARSE_DROP_TOL × ||A||_inf, cached in ilu->factor_norm.
+ *
+ * @pre A must have identity permutations (not previously factored, pivoted,
+ *      or reordered).  Use a fresh matrix or sparse_copy() of the original.
  *
  * @param A    The matrix to factor (not modified). Must be square.
  * @param opts Factorization options (NULL for defaults: tol=1e-3, max_fill=10).

@@ -53,6 +53,9 @@ sparse_err_t lu_csr_from_sparse(const SparseMatrix *mat, double fill_factor, LuC
     csr->n = n;
     csr->nnz = nnz;
     csr->capacity = cap;
+    /* Compute ||A||_inf for relative tolerance in solve paths.
+     * Use const-safe helper to avoid mutating the caller's matrix. */
+    csr->factor_norm = sparse_norminf_const(mat);
     /* Overflow guard for allocation byte counts */
     if ((size_t)cap > SIZE_MAX / sizeof(double) || (size_t)(n + 1) > SIZE_MAX / sizeof(idx_t)) {
         free(csr);
@@ -258,13 +261,24 @@ sparse_err_t lu_dense_solve(idx_t n, const double *LU, idx_t lda, const idx_t *i
         b[i] -= sum;
     }
 
+    /* Compute infinity norm of dense LU for relative tolerance */
+    double lu_norm = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        double row_sum = 0.0;
+        for (idx_t j = 0; j < n; j++)
+            row_sum += fabs(LU[i + lda * j]);
+        if (row_sum > lu_norm)
+            lu_norm = row_sum;
+    }
+    double sing_tol = sparse_rel_tol(lu_norm, DROP_TOL);
+
     /* Backward substitution: U*x = y */
     for (idx_t i = n - 1; i >= 0; i--) {
         double sum = 0.0;
         for (idx_t j = i + 1; j < n; j++)
             sum += LU[i + lda * j] * b[j];
         double u_ii = LU[i + lda * i];
-        if (fabs(u_ii) < 1e-300)
+        if (fabs(u_ii) < sing_tol)
             return SPARSE_ERR_SINGULAR;
         b[i] = (b[i] - sum) / u_ii;
     }
@@ -1134,7 +1148,7 @@ sparse_err_t lu_csr_solve(const LuCsr *csr, const idx_t *piv_perm, const double 
             else if (j > i)
                 sum += csr->values[p] * x[j];
         }
-        if (fabs(u_ii) < 1e-300) {
+        if (fabs(u_ii) < sparse_rel_tol(csr->factor_norm, DROP_TOL)) {
             free(y);
             free(pb);
             return SPARSE_ERR_SINGULAR;
@@ -1217,7 +1231,7 @@ sparse_err_t lu_csr_solve_block(const LuCsr *csr, const idx_t *piv_perm, const d
             }
         }
 
-        if (fabs(u_ii) < 1e-300) {
+        if (fabs(u_ii) < sparse_rel_tol(csr->factor_norm, DROP_TOL)) {
             free(Y);
             free(PB);
             return SPARSE_ERR_SINGULAR;

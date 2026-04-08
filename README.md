@@ -326,29 +326,42 @@ The library is safe for concurrent use under the following contract:
 
 | Operation | Thread-safe? | Notes |
 |-----------|:---:|-------|
-| Concurrent solves on the same factored matrix | Yes | Solve is pure read-only on the matrix |
+| Concurrent solves on the same factored matrix | Yes | Solve reads `factor_norm` and linked-list structure (immutable after factorization) |
+| Concurrent `sparse_norminf()` on the same matrix | Yes | `cached_norm` is `_Atomic double` with relaxed ordering; idempotent computation |
 | Concurrent factorization of different matrices | Yes | Each matrix has its own pool allocator |
 | Concurrent read-only access (nnz, get, matvec) | Yes | No shared mutable state |
 | `sparse_errno()` | Yes | Uses `_Thread_local` storage |
 | Concurrent mutation of the same matrix | **No** | Insert/remove/factor on a shared matrix requires external synchronization |
+| Factorization concurrent with solve on same matrix | **No** | Factorization mutates structure; solve must wait until factorization completes |
+
+**Mutable fields in SparseMatrix:**
+
+| Field | Mutated by | Thread safety |
+|-------|-----------|---------------|
+| `cached_norm` | `sparse_norminf()` | `_Atomic double` — safe for concurrent reads/writes |
+| `factor_norm` | Factorization functions | Written once during factorization, read during solve — no race (factorization completes before solve) |
+| Pool, `row_headers`, `col_headers`, `nnz` | `sparse_insert()`, `sparse_remove()`, factorization | Not atomic — requires external synchronization or `SPARSE_MUTEX` |
+| Permutation arrays | Factorization functions | Single-threaded context only |
 
 **Optional mutex support:** Compile with `-DSPARSE_MUTEX` and `-pthread` to add per-matrix mutex locking on `sparse_insert()` and `sparse_remove()`. This serializes concurrent insert/remove calls on the same matrix. Note: factorization (`sparse_lu_factor`, `sparse_cholesky_factor`) is not mutex-protected and must not be called concurrently on the same matrix. Not recommended — prefer separate matrices per thread.
 
 ## Known Limitations
 
-- **In-place factorization.** `sparse_lu_factor` overwrites the matrix; always work on a copy if you need the original. (The CSR path via `lu_csr_factor_solve` does not modify the input.)
+- **32-bit indices.** `idx_t` is `int32_t`, limiting matrix dimensions and nonzero counts to ~2.1 billion. To support larger matrices, change the typedef in `sparse_types.h` to `int64_t` and recompile.
+- **In-place factorization.** `sparse_lu_factor` and `sparse_cholesky_factor` overwrite the matrix; always work on a copy if you need the original. (The CSR path via `lu_csr_factor_solve` does not modify the input.)
+- **Factored-state validation.** Solve functions check an internal `factored` flag and return `SPARSE_ERR_BADARG` if the matrix has not been factored. Modifying a factored matrix (insert/remove) clears the flag. For externally-constructed factors (e.g., imported from CSR), call `sparse_mark_factored()` before solving.
 - **No complex or integer matrices.** Only real (double-precision) values are supported.
 
 ## Testing
 
-The test suite contains **774 unit tests** across 29 test suites with >=95% line coverage (CI-enforced):
+The test suite contains **812 unit tests** across 30 test suites with >=95% line coverage (CI-enforced):
 
 - Sparse matrix data structure, norms, symmetry, transpose (53 tests)
 - LU factorization, solve, condition estimation (37 tests)
 - Matrix Market I/O with errno validation (22 tests)
 - Known reference matrices (15 tests)
 - Vector utilities, SpMV, iterative refinement (24 tests)
-- Edge cases and relative tolerance hardening (24 tests)
+- Edge cases, tolerance hardening, and factored-state validation (54 tests)
 - Integration tests (7 tests)
 - Matrix arithmetic — scale and add (23 tests)
 - SuiteSparse real-world matrix validation (10 tests)
@@ -356,7 +369,7 @@ The test suite contains **774 unit tests** across 29 test suites with >=95% line
 - Cholesky factorization and solve (21 tests)
 - CSR/CSC conversion (11 tests)
 - Sparse matrix-matrix multiply (14 tests)
-- Thread safety (6 tests)
+- Thread safety (8 tests)
 - Sprint 4 cross-feature integration (5 tests)
 - Iterative solvers — CG, GMRES, matrix-free, SuiteSparse (76 tests)
 - ILU(0) and ILUT preconditioners (34 tests)
@@ -372,6 +385,7 @@ The test suite contains **774 unit tests** across 29 test suites with >=95% line
 - CSR LU — conversion, elimination, dense blocks, block solve, coverage gaps (53 tests)
 - Block solvers — block SpMV, block CG, block GMRES (15 tests)
 - Sprint 10 cross-feature integration (14 tests)
+- Sprint 11 tolerance, factored-state, and version integration (6 tests)
 
 ```bash
 make test          # run all tests
@@ -394,8 +408,9 @@ On Linux, `make asan` works with the default compiler.
 
 ```
 linalg_sparse_orthogonal/
-├── include/              Public headers (14 headers)
-│   ├── sparse_types.h        Version macros, error codes, index type
+├── include/              Public headers (15 headers)
+│   ├── sparse_types.h        Error codes, index type (includes sparse_version.h)
+│   ├── sparse_version.h      Version macros (generated from VERSION file)
 │   ├── sparse_matrix.h       Core data structure, SpMV, block SpMV, I/O
 │   ├── sparse_lu.h           LU factorization, solve, block solve
 │   ├── sparse_lu_csr.h       CSR LU — scatter-gather elimination, dense blocks
@@ -410,7 +425,7 @@ linalg_sparse_orthogonal/
 │   ├── sparse_svd.h          SVD, condition number, pseudoinverse, low-rank
 │   └── sparse_vector.h       Dense vector utilities
 ├── src/                  Library implementation (14 source files, ~9K lines)
-├── tests/                Unit tests (29 suites, 774 tests, ~26K lines)
+├── tests/                Unit tests (30 suites, 812 tests, ~27K lines)
 ├── cmake/                CMake config templates
 ├── examples/             Standalone example programs + CMake integration example
 ├── benchmarks/           Performance benchmarks (5 programs)

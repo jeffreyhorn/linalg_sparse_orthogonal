@@ -2894,8 +2894,9 @@ static void test_sparse_mode_timing(void) {
     idx_t nnz_r_s = sparse_nnz(qr_s.R);
 
     printf("    nos4 R nnz: dense=%d, sparse=%d\n", (int)nnz_r_d, (int)nnz_r_s);
-    /* Both should produce same R fill-in */
-    ASSERT_EQ(nnz_r_d, nnz_r_s);
+    /* Both should produce nearly same R fill-in.  Relative drop tolerance
+     * may cause ±1 borderline entry difference between modes. */
+    ASSERT_TRUE(abs(nnz_r_d - nnz_r_s) <= 1);
 
     sparse_qr_free(&qr_d);
     sparse_qr_free(&qr_s);

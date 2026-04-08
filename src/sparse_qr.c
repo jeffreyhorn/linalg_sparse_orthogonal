@@ -383,9 +383,12 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
         /* Apply Householder to column step */
         householder_apply_to_column(hv, beta, dense_col, step, m);
 
-        /* Write R entries from this column (row step and above-diagonal entries) */
+        /* Write R entries from this column (row step and above-diagonal entries).
+         * Drop off-diagonal entries negligible relative to the diagonal.
+         * sparse_rel_tol provides a nonzero floor when the diagonal is 0. */
+        double r_drop = sparse_rel_tol(fabs(dense_col[step]), DROP_TOL);
         for (idx_t i = 0; i <= step; i++) {
-            if (fabs(dense_col[i]) > 1e-15) {
+            if (fabs(dense_col[i]) > r_drop) {
                 sparse_err_t ierr = sparse_insert(R, i, step, dense_col[i]);
                 if (ierr != SPARSE_OK) {
                     status = ierr;
@@ -454,10 +457,13 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
             steps = rank + 1;
         }
         for (idx_t s = 0; s < steps; s++) {
-            /* Traverse row s nonzeros once instead of probing every (s,j) */
+            /* Traverse row s nonzeros once instead of probing every (s,j).
+             * Drop off-diagonal entries negligible relative to the diagonal.
+             * sparse_rel_tol provides a nonzero floor when R(s,s) is 0. */
+            double r_drop_s = sparse_rel_tol(fabs(sparse_get_phys(R, s, s)), DROP_TOL);
             Node *rnd = W->row_headers[s];
             while (rnd) {
-                if (rnd->col > s && fabs(rnd->value) > 1e-15) {
+                if (rnd->col > s && fabs(rnd->value) > r_drop_s) {
                     sparse_err_t ierr = sparse_insert(R, s, rnd->col, rnd->value);
                     if (ierr != SPARSE_OK) {
                         status = ierr;
@@ -797,9 +803,12 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
      * detected rank deficiency (its reflector was applied but R(k,k) ≈ 0). */
     sparse_err_t ins_err = SPARSE_OK;
     for (idx_t i = 0; i < steps_done && ins_err == SPARSE_OK; i++) {
+        /* Drop off-diagonal entries negligible relative to the diagonal.
+         * sparse_rel_tol provides a nonzero floor when R(i,i) is 0. */
+        double r_ii_drop = sparse_rel_tol(fabs(W[(size_t)i * (size_t)m + (size_t)i]), DROP_TOL);
         for (idx_t j = i; j < n && ins_err == SPARSE_OK; j++) {
             double val = W[(size_t)j * (size_t)m + (size_t)i];
-            if (fabs(val) > 1e-15)
+            if (fabs(val) > r_ii_drop)
                 ins_err = sparse_insert(R, i, j, val);
         }
     }
@@ -930,6 +939,9 @@ sparse_err_t sparse_qr_solve(const sparse_qr_t *qr, const double *b, double *x, 
         return SPARSE_ERR_ALLOC;
     }
 
+    double r00_abs = fabs(sparse_get_phys(qr->R, 0, 0));
+    double solve_tol = sparse_rel_tol(r00_abs, DROP_TOL);
+
     for (idx_t i = rank - 1; i >= 0; i--) {
         double sum = 0.0;
         /* Walk row i of R for entries j > i */
@@ -944,7 +956,7 @@ sparse_err_t sparse_qr_solve(const sparse_qr_t *qr, const double *b, double *x, 
             }
             nd = nd->right;
         }
-        if (fabs(diag) < 1e-30) {
+        if (fabs(diag) < solve_tol) {
             // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
             x_p[i] = 0.0; /* rank-deficient: set to zero */
         } else {
@@ -1110,6 +1122,8 @@ sparse_err_t sparse_qr_nullspace(const sparse_qr_t *qr, double tol, double *basi
         return SPARSE_OK;
 
     idx_t m = qr->m;
+    double ns_r00 = fabs(sparse_get_phys(qr->R, 0, 0));
+    double ns_tol = sparse_rel_tol(ns_r00, DROP_TOL);
 
     /* For each null-space vector j (j = rank..n-1 in permuted space):
      * Solve R[0:rank, 0:rank] * z[0:rank] = -R[0:rank, j]
@@ -1139,7 +1153,7 @@ sparse_err_t sparse_qr_nullspace(const sparse_qr_t *qr, double tol, double *basi
                     sum += nd->value * rhs[nd->col];
                 nd = nd->right;
             }
-            if (fabs(diag) > 1e-30)
+            if (fabs(diag) > ns_tol)
                 rhs[i] = (rhs[i] - sum) / diag;
             else
                 rhs[i] = 0.0;

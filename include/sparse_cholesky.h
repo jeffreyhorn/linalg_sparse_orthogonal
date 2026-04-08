@@ -44,6 +44,19 @@ typedef struct {
  * Fill-in entries with |value| < SPARSE_DROP_TOL * L(k,k) are dropped to
  * control memory growth.
  *
+ * @note **Tolerance semantics:** Factorization computes and caches ||A||_inf.
+ *       The solve phase checks each L(i,i) against a norm-relative threshold:
+ *       |L(i,i)| < SPARSE_DROP_TOL × sqrt(||A||_inf).  The square root is
+ *       used because Cholesky factors scale as sqrt(A).  This prevents
+ *       false-singular detection on uniformly small SPD matrices.
+ *
+ * @pre mat must be symmetric positive-definite.  Symmetry is checked;
+ *      positive-definiteness is verified during factorization (non-positive
+ *      pivot → SPARSE_ERR_NOT_SPD).
+ * @pre mat must not be needed after factorization — use sparse_copy() first
+ *      to preserve the original.  The upper triangle is removed and the
+ *      lower triangle is overwritten with L.
+ *
  * @param mat  The SPD matrix to factor (modified in-place). Must be square
  *             and symmetric. After factorization, contains L in the lower triangle.
  * @return SPARSE_OK on success.
@@ -85,6 +98,7 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
  * @param x    Solution vector of length n (overwritten). May alias b.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
+ * @return SPARSE_ERR_BADARG if mat has not been factored.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
  *
  * @par Thread safety: Read-only on mat. Safe to call concurrently on the same

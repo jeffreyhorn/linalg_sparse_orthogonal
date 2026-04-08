@@ -1,4 +1,5 @@
 #include "sparse_iterative.h"
+#include "sparse_matrix_internal.h"
 #include "sparse_vector.h"
 #include <math.h>
 #include <stdint.h>
@@ -587,7 +588,7 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
             H(j + 1, j) = vec_norm2(w, n);
 
             /* Check for lucky breakdown (before Givens rotation zeroes H(j+1,j)) */
-            int lucky = (H(j + 1, j) < 1e-30);
+            int lucky = (H(j + 1, j) < sparse_rel_tol(0, DROP_TOL));
             if (lucky) {
                 vec_zero(V(j + 1), n);
             } else {
@@ -648,7 +649,7 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
             y[i] = g[i];
             for (idx_t k = i + 1; k < j; k++)
                 y[i] -= H(i, k) * y[k];
-            if (fabs(H(i, i)) > 1e-30)
+            if (fabs(H(i, i)) > sparse_rel_tol(0, DROP_TOL))
                 y[i] /= H(i, i);
             else
                 y[i] = 0.0; /* singular Hessenberg diagonal — treat as zero */

@@ -31,7 +31,7 @@ CFLAGS  += -DSPARSE_OPENMP -fopenmp
 LDFLAGS += -fopenmp
 endif
 endif
-INCLUDE = -Iinclude
+INCLUDE = -I$(BUILDDIR)/include -Iinclude
 
 # Directories
 SRCDIR  = src
@@ -86,7 +86,8 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_fuzz.c \
             $(TESTDIR)/test_lu_csr.c \
             $(TESTDIR)/test_block_solvers.c \
-            $(TESTDIR)/test_sprint10_integration.c
+            $(TESTDIR)/test_sprint10_integration.c \
+            $(TESTDIR)/test_sprint11_integration.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
 # Benchmark sources
@@ -108,7 +109,12 @@ all: $(LIB)
 
 # Build directory
 $(BUILDDIR):
-	/bin/mkdir -p $(BUILDDIR)
+	/bin/mkdir -p $(BUILDDIR) $(BUILDDIR)/include
+	@sed -e 's|@SPARSE_VERSION_MAJOR@|$(VERSION_MAJOR)|g' \
+		-e 's|@SPARSE_VERSION_MINOR@|$(VERSION_MINOR)|g' \
+		-e 's|@SPARSE_VERSION_PATCH@|$(VERSION_PATCH)|g' \
+		-e 's|@SPARSE_VERSION_STRING@|$(VERSION)|g' \
+		include/sparse_version.h.in > $(GENERATED_VERSION)
 
 # Library objects
 $(BUILDDIR)/%.o: $(SRCDIR)/%.c | $(BUILDDIR)
@@ -337,6 +343,9 @@ INSTALL_LIB  = $(DESTDIR)$(PREFIX)/lib
 INSTALL_INC  = $(DESTDIR)$(PREFIX)/include/sparse
 INSTALL_PC   = $(INSTALL_LIB)/pkgconfig
 VERSION      = $(shell cat VERSION 2>/dev/null || echo "0.0.0")
+VERSION_MAJOR = $(word 1,$(subst ., ,$(VERSION)))
+VERSION_MINOR = $(word 2,$(subst ., ,$(VERSION)))
+VERSION_PATCH = $(word 3,$(subst ., ,$(VERSION)))
 HEADERS      = $(wildcard include/*.h)
 
 # Extra pkg-config link flags based on build options
@@ -352,6 +361,24 @@ SPARSE_PC_LIBS_EXTRA += -fopenmp
 endif
 endif
 
+# Generate sparse_version.h from VERSION file and template
+GENERATED_VERSION = $(BUILDDIR)/include/sparse_version.h
+
+.PHONY: generate-version
+generate-version: $(GENERATED_VERSION)
+
+$(GENERATED_VERSION): VERSION include/sparse_version.h.in
+	@mkdir -p $(BUILDDIR)/include
+	@sed -e 's|@SPARSE_VERSION_MAJOR@|$(VERSION_MAJOR)|g' \
+		-e 's|@SPARSE_VERSION_MINOR@|$(VERSION_MINOR)|g' \
+		-e 's|@SPARSE_VERSION_PATCH@|$(VERSION_PATCH)|g' \
+		-e 's|@SPARSE_VERSION_STRING@|$(VERSION)|g' \
+		include/sparse_version.h.in > $(GENERATED_VERSION)
+	@echo "Generated $(GENERATED_VERSION) ($(VERSION))"
+
+# Library depends on generated version header
+$(LIB): $(GENERATED_VERSION)
+
 .PHONY: install
 install: $(LIB)
 	@echo "Installing sparse $(VERSION) to $(DESTDIR)$(PREFIX) ..."
@@ -362,6 +389,7 @@ install: $(LIB)
 	@for h in $(HEADERS); do \
 		install -m 644 $$h $(INSTALL_INC)/; \
 	done
+	install -m 644 $(GENERATED_VERSION) $(INSTALL_INC)/
 	@sed -e 's|@PREFIX@|$(PREFIX)|g' -e 's|@VERSION@|$(VERSION)|g' \
 		-e 's|@SPARSE_PC_LIBS_EXTRA@|$(SPARSE_PC_LIBS_EXTRA)|g' \
 		sparse.pc.in > $(INSTALL_PC)/sparse.pc

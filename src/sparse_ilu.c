@@ -16,6 +16,7 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu) {
     ilu->U = NULL;
     ilu->n = 0;
     ilu->perm = NULL;
+    ilu->factor_norm = 0.0;
     if (!A)
         return SPARSE_ERR_NULL;
     if (A->rows != A->cols)
@@ -23,6 +24,10 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu) {
 
     idx_t n = A->rows;
     ilu->n = n;
+
+    /* Reject factored matrices — ILU(0) needs the original entries, not L/U. */
+    if (A->factored)
+        return SPARSE_ERR_BADARG;
 
     /* Reject matrices with non-identity permutations (e.g., after LU pivoting).
      * ILU(0) operates on physical storage and assumes identity perms. */
@@ -36,6 +41,10 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu) {
             }
         }
     }
+
+    /* Compute ||A||_inf for relative tolerance.
+     * Use const-safe helper to avoid mutating the caller's matrix. */
+    ilu->factor_norm = sparse_norminf_const(A);
 
     /* Empty matrix: treat as a valid no-op factorization.
      * Leave L and U as NULL; sparse_ilu_solve handles n==0 early. */
@@ -90,8 +99,9 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu) {
             if (k >= i)
                 break;
 
-            // NOLINTNEXTLINE(clang-analyzer-core.NullDereference)
-            if (!diag_nodes[k] || fabs(diag_nodes[k]->value) < 1e-30) {
+            if (!diag_nodes[k] ||
+                fabs(diag_nodes[k]->value) // NOLINT(clang-analyzer-core.NullDereference)
+                    < sparse_rel_tol(ilu->factor_norm, DROP_TOL)) {
                 free(diag_nodes);
                 sparse_free(W);
                 return SPARSE_ERR_SINGULAR;
@@ -121,7 +131,7 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu) {
     /* Verify all diagonal entries are nonzero (needed for backward sub) */
     for (idx_t i = 0; i < n; i++) {
         double wii = diag_nodes[i] ? diag_nodes[i]->value : 0.0;
-        if (fabs(wii) < 1e-30) {
+        if (fabs(wii) < sparse_rel_tol(ilu->factor_norm, DROP_TOL)) {
             free(diag_nodes);
             sparse_free(W);
             return SPARSE_ERR_SINGULAR;
@@ -234,7 +244,7 @@ sparse_err_t sparse_ilu_solve(const sparse_ilu_t *ilu, const double *r, double *
             }
             node = node->right;
         }
-        if (fabs(diag) < 1e-30) {
+        if (fabs(diag) < sparse_rel_tol(ilu->factor_norm, DROP_TOL)) {
             free(pr);
             return SPARSE_ERR_SINGULAR;
         }
@@ -306,6 +316,7 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
     ilu->U = NULL;
     ilu->n = 0;
     ilu->perm = NULL;
+    ilu->factor_norm = 0.0;
     if (!A)
         return SPARSE_ERR_NULL;
     if (A->rows != A->cols)
@@ -318,6 +329,10 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
     idx_t n = A->rows;
     ilu->n = n;
 
+    /* Reject factored matrices — ILUT needs the original entries, not L/U. */
+    if (A->factored)
+        return SPARSE_ERR_BADARG;
+
     /* Reject non-identity permutations */
     {
         const idx_t *rp = sparse_row_perm(A);
@@ -329,6 +344,11 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
             }
         }
     }
+
+    /* Compute and cache ||A||_inf for relative tolerance */
+    /* Compute ||A||_inf for relative tolerance.
+     * Use const-safe helper to avoid mutating the caller's matrix. */
+    ilu->factor_norm = sparse_norminf_const(A);
 
     if (n == 0)
         return SPARSE_OK;
@@ -478,7 +498,7 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
                 break;
 
             double ukk = sparse_get_phys(U, k, k);
-            if (fabs(ukk) < 1e-30) {
+            if (fabs(ukk) < sparse_rel_tol(ilu->factor_norm, DROP_TOL)) {
                 status = SPARSE_ERR_SINGULAR;
                 goto cleanup;
             }
@@ -511,7 +531,7 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
          * fallback. With pivoting enabled, this should be rare since pivoting
          * already placed the largest column entry on the diagonal. */
         double diag_w = w_nz[i] ? w[i] : 0.0;
-        if (fabs(diag_w) < 1e-30) {
+        if (fabs(diag_w) < sparse_rel_tol(ilu->factor_norm, DROP_TOL)) {
             double tol_row = (row_norm > 0.0) ? o->tol * row_norm : 0.0;
             double eps_row = (tol_row > 1e-10) ? tol_row : 1e-10;
             diag_w = (diag_w >= 0.0) ? eps_row : -eps_row;
@@ -565,7 +585,7 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
             u_offdiag = o->max_fill;
         }
 
-        if (fabs(diag_final) < 1e-30) {
+        if (fabs(diag_final) < sparse_rel_tol(ilu->factor_norm, DROP_TOL)) {
             status = SPARSE_ERR_SINGULAR;
             goto cleanup;
         }

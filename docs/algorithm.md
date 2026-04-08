@@ -192,31 +192,57 @@ During elimination, new fill-in entries with |value| < DROP_TOL × |pivot| are d
 
 For matrices where fill-in is a concern, a larger drop tolerance (e.g., 1e-8) can significantly reduce memory usage while maintaining acceptable accuracy, especially when followed by iterative refinement.
 
-## Singularity Detection: Relative Tolerance
+## Tolerance Strategy
 
-Backward substitution checks each diagonal element U(i,i) for near-zero values before dividing. This check uses a **relative** threshold:
+All numerical tolerance checks across the library use the `sparse_rel_tol()` helper (defined in `sparse_matrix_internal.h`), which computes:
 
 ```
-threshold = DROP_TOL × ||A||_inf
+threshold = max(user_tol × reference_norm, DBL_MIN × 100)
 ```
 
-where `||A||_inf` is the infinity norm (maximum absolute row sum) of the original matrix, computed and cached during `sparse_lu_factor()`.
+The absolute floor (`DBL_MIN × 100 ≈ 2.2e-306`) prevents underflow when the reference norm is itself tiny, while the relative branch scales correctly for matrices at any magnitude.
 
-### Why Relative?
+### Tolerance categories
 
-An absolute threshold (the previous approach, using bare `DROP_TOL = 1e-14`) fails for two classes of matrices:
+Tolerance sites fall into three categories:
 
-1. **Matrices with uniformly small entries** — e.g., `A = 1e-16 × I`. Every diagonal entry is `1e-16`, which is smaller than `1e-14`, causing a false singular detection even though the matrix is perfectly well-conditioned (condition number = 1).
+**Category A — Singularity detection** (LU, Cholesky, ILU, ILUT, CSR-LU):
+Uses `sparse_rel_tol(factor_norm, DROP_TOL)` where `factor_norm` is `||A||_inf` cached at factorization time. For Cholesky, the reference is `sqrt(||A||_inf)` since L entries scale as the square root of A entries.
 
-2. **Matrices with very large entries** — e.g., diagonal entries of `1e15`. With an absolute threshold, even a near-zero diagonal entry like `1e-10` would pass, even though it represents catastrophic loss of significance relative to the matrix scale.
+**Category B — Convergence / deflation** (bidiag SVD, tridiag QR, QR solve):
+Uses `sparse_rel_tol(local_norm, tol)` where `local_norm` is a locally computed norm (e.g., bidiagonal norm, |R(0,0)|). These checks determine when off-diagonal entries are negligible enough to deflate.
 
-The relative threshold `DROP_TOL × ||A||_inf` scales with the matrix, so:
-- A `1e-16 × I` matrix has threshold `1e-14 × 1e-16 = 1e-30`, correctly allowing `1e-16` pivots.
+**Category C — Lucky breakdown / normalization guards** (GMRES, Lanczos):
+Uses `sparse_rel_tol(0, DROP_TOL)` — the pure absolute floor. These guard against division by zero in iterative contexts where an invariant subspace has been found; the threshold must not depend on matrix scale.
+
+### Why relative?
+
+An absolute threshold fails for two classes of matrices:
+
+1. **Uniformly small entries** — e.g., `A = 1e-40 × I`. Every diagonal is `1e-40`, which any fixed threshold above `1e-40` would falsely reject as singular, even though the matrix is perfectly conditioned (κ = 1).
+
+2. **Very large entries** — e.g., `||A||_inf = 1e15`. A fixed threshold of `1e-14` allows near-zero pivots like `1e-10` to pass, even though they represent catastrophic loss of significance relative to the matrix scale.
+
+The relative threshold `DROP_TOL × ||A||_inf` scales with the matrix:
+- A `1e-40 × I` matrix has threshold `1e-14 × 1e-40 = 1e-54`, correctly allowing `1e-40` pivots.
 - A matrix with `||A||_inf = 1e15` has threshold `1e-14 × 1e15 = 10`, correctly rejecting pivots smaller than 10.
 
-### Fallback
+### Implementation
 
-If `factor_norm` is not set (e.g., backward substitution is called on a matrix that was not factored via `sparse_lu_factor`), the absolute `DROP_TOL` is used as a fallback for backward compatibility.
+Each factorization function computes and caches `||A||_inf` before modifying the matrix:
+
+| Solver      | Where cached          | Reference norm for solve        |
+|-------------|-----------------------|---------------------------------|
+| LU          | `mat->factor_norm`    | `factor_norm`                   |
+| Cholesky    | `mat->factor_norm`    | `sqrt(factor_norm)`             |
+| ILU / ILUT  | `ilu->factor_norm`    | `factor_norm`                   |
+| CSR LU      | `csr->factor_norm`    | `factor_norm`                   |
+| QR          | `|R(0,0)|` (computed) | `|R(0,0)|`                      |
+| SVD         | bidiag norm (local)   | bidiag norm                     |
+
+### QR R-extraction dropping
+
+During QR factorization, R entries are dropped if |R(i,j)| < DROP_TOL × |R(i,i)|. This is relative to the diagonal of the current row, ensuring tiny-scale matrices retain all structurally significant entries.
 
 ## Cholesky Factorization
 

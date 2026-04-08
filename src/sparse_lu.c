@@ -33,6 +33,10 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double to
     if (n != mat->cols)
         return SPARSE_ERR_SHAPE;
 
+    /* Clear factored flag immediately so an aborted factorization
+     * (e.g., singular pivot) cannot leave a stale 'factored' state. */
+    mat->factored = 0;
+
     /*
      * Temporary buffer for collecting rows to eliminate.
      * This fixes the bug where the column list is walked while being
@@ -168,6 +172,7 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double to
     }
 
     free(elim_rows);
+    mat->factored = 1;
     return SPARSE_OK;
 }
 
@@ -261,6 +266,8 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
 sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat, const double *b, double *x) {
     if (!mat || !b || !x)
         return SPARSE_ERR_NULL;
+    if (!mat->factored)
+        return SPARSE_ERR_BADARG;
     idx_t n = mat->rows;
     const idx_t *rperm = mat->reorder_perm;
 
@@ -381,8 +388,8 @@ sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig, const SparseMatrix 
                                double *condest) {
     if (!mat_orig || !mat_lu || !condest)
         return SPARSE_ERR_NULL;
-    /* Check that mat_lu has been factored (factor_norm is set during factorization) */
-    if (mat_lu->factor_norm < 0.0)
+    /* Check that mat_lu has been factored */
+    if (!mat_lu->factored)
         return SPARSE_ERR_BADARG;
     /* Check dimensions match and are square */
     if (mat_orig->rows != mat_orig->cols)
@@ -574,6 +581,8 @@ sparse_err_t sparse_backward_sub(const SparseMatrix *mat, const double *y, doubl
 sparse_err_t sparse_lu_solve(const SparseMatrix *mat, const double *b, double *x) {
     if (!mat || !b || !x)
         return SPARSE_ERR_NULL;
+    if (!mat->factored)
+        return SPARSE_ERR_BADARG;
     idx_t n = mat->rows;
     const idx_t *rperm = mat->reorder_perm;
 
@@ -647,6 +656,8 @@ sparse_err_t sparse_lu_solve_block(const SparseMatrix *mat, const double *B, idx
                                    double *X) {
     if (!mat || !B || !X)
         return SPARSE_ERR_NULL;
+    if (!mat->factored)
+        return SPARSE_ERR_BADARG;
     if (nrhs < 0)
         return SPARSE_ERR_BADARG;
     if (nrhs == 0)
@@ -771,6 +782,8 @@ sparse_err_t sparse_lu_refine(const SparseMatrix *mat_orig, const SparseMatrix *
                               const double *b, double *x, int max_iters, double tol) {
     if (!mat_orig || !mat_lu || !b || !x)
         return SPARSE_ERR_NULL;
+    if (!mat_lu->factored)
+        return SPARSE_ERR_BADARG;
     idx_t n = mat_orig->rows;
 
     double *r = malloc((size_t)n * sizeof(double));

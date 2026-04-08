@@ -7,6 +7,17 @@ string(STRIP "${SPARSE_VERSION_STRING_FILE}" SPARSE_VERSION_STRING_FILE)
 
 project(linalg_sparse_orthogonal VERSION ${SPARSE_VERSION_STRING_FILE} LANGUAGES C)
 
+# Generate sparse_version.h from template and VERSION file
+set(SPARSE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(SPARSE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(SPARSE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+set(SPARSE_VERSION_STRING ${PROJECT_VERSION})
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/sparse_version.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/include/sparse_version.h
+    @ONLY
+)
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
@@ -89,6 +100,7 @@ function(add_sparse_test TEST_NAME)
     target_link_libraries(${TEST_NAME} PRIVATE sparse_lu_ortho)
     target_include_directories(${TEST_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests ${CMAKE_CURRENT_SOURCE_DIR}/src)
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+    set_tests_properties(${TEST_NAME} PROPERTIES WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 endfunction()
 
 # Test executables
@@ -101,9 +113,23 @@ add_sparse_test(test_edge_cases)
 add_sparse_test(test_integration)
 add_sparse_test(test_sparse_arith)
 add_sparse_test(test_suitesparse)
+add_sparse_test(test_reorder)
+add_sparse_test(test_cholesky)
+add_sparse_test(test_csr)
+add_sparse_test(test_matmul)
 add_sparse_test(test_iterative)
 add_sparse_test(test_ilu)
 add_sparse_test(test_omp)
+
+# Thread tests need pthreads
+find_package(Threads)
+if(Threads_FOUND)
+    add_sparse_test(test_threads)
+    target_link_libraries(test_threads PRIVATE Threads::Threads)
+    add_sparse_test(test_sprint4_integration)
+    target_link_libraries(test_sprint4_integration PRIVATE Threads::Threads)
+endif()
+
 add_sparse_test(test_sprint5_integration)
 add_sparse_test(test_qr)
 add_sparse_test(test_sprint6_integration)
@@ -117,6 +143,7 @@ endif()
 add_sparse_test(test_lu_csr)
 add_sparse_test(test_block_solvers)
 add_sparse_test(test_sprint10_integration)
+add_sparse_test(test_sprint11_integration)
 
 # Benchmarks (not part of ctest)
 add_executable(bench_main benchmarks/bench_main.c)
@@ -139,6 +166,7 @@ include(CMakePackageConfigHelpers)
 # Adjust include path for installed headers (under sparse/ subdirectory)
 target_include_directories(sparse_lu_ortho
     PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
@@ -152,6 +180,13 @@ install(TARGETS sparse_lu_ortho
 install(DIRECTORY include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/sparse
     FILES_MATCHING PATTERN "*.h"
+    PATTERN "*.h.in" EXCLUDE
+    PATTERN "sparse_version.h" EXCLUDE
+)
+
+# Install generated version header
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/include/sparse_version.h
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/sparse
 )
 
 # CMake package config files

@@ -33,6 +33,10 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double to
     if (n != mat->cols)
         return SPARSE_ERR_SHAPE;
 
+    /* Clear factored flag immediately so an aborted factorization
+     * (e.g., singular pivot) cannot leave a stale 'factored' state. */
+    mat->factored = 0;
+
     /*
      * Temporary buffer for collecting rows to eliminate.
      * This fixes the bug where the column list is walked while being

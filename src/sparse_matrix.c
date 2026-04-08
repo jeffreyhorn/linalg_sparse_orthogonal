@@ -337,6 +337,7 @@ sparse_err_t sparse_remove(SparseMatrix *mat, idx_t row, idx_t col) {
         return SPARSE_ERR_BOUNDS;
     SPARSE_LOCK(mat);
     mat->factored = 0;
+    mat->factor_norm = -1.0;
     sparse_err_t err = sparse_remove_internal(mat, row, col);
     SPARSE_UNLOCK(mat);
     return err;
@@ -523,6 +524,7 @@ sparse_err_t sparse_scale(SparseMatrix *mat, double alpha) {
 
     mat->cached_norm = -1.0;
     mat->factored = 0;
+    mat->factor_norm = -1.0;
     return SPARSE_OK;
 }
 
@@ -608,6 +610,7 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B, double a
     /* Invalidate cache early: A will be mutated even on partial failure */
     A->cached_norm = -1.0;
     A->factored = 0;
+    A->factor_norm = -1.0;
 
     /* Scale A by alpha */
     if (alpha != 1.0) {

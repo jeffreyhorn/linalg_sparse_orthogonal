@@ -111,6 +111,7 @@ static void test_all_solvers_huge_scale(void) {
     double s = 1e+35;
     idx_t n = 10;
     SparseMatrix *A = build_spd_tridiag(n, s);
+    ASSERT_NOT_NULL(A);
 
     double *ones = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));

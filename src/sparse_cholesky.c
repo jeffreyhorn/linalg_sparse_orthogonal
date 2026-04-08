@@ -29,6 +29,10 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat) {
     if (n == 0)
         return SPARSE_OK;
 
+    /* Clear factored flag immediately so an aborted factorization
+     * cannot leave a stale 'factored' state. */
+    mat->factored = 0;
+
     /* Validate symmetry before allocating or modifying anything */
     if (!sparse_is_symmetric(mat, 1e-12))
         return SPARSE_ERR_NOT_SPD;

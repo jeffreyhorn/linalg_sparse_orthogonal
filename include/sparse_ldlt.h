@@ -73,6 +73,9 @@ typedef struct {
                              but is generally non-NULL after successful factorization. */
     idx_t n;            /**< Matrix dimension */
     double factor_norm; /**< ||A||_inf at factorization time, for relative tolerance */
+    double tol;         /**< Effective pivot/drop tolerance used during factorization.
+                             Solve, refine, and condest use this same tolerance for
+                             consistency with factorization's singularity criteria. */
 } sparse_ldlt_t;
 
 /**
@@ -82,7 +85,9 @@ typedef struct {
     sparse_reorder_t reorder; /**< Fill-reducing reordering (NONE, RCM, or AMD) */
     double tol;               /**< Pivot tolerance for singularity detection and
                                    fill-in drop threshold. 0 or negative for the
-                                   compile-time default (SPARSE_DROP_TOL). */
+                                   compile-time default (SPARSE_DROP_TOL).
+                                   Stored in ldlt->tol and reused by solve, refine,
+                                   and condest for consistency with factorization. */
 } sparse_ldlt_opts_t;
 
 /**

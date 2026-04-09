@@ -25,40 +25,60 @@ void sparse_ldlt_free(sparse_ldlt_t *ldlt) {
     ldlt->perm = NULL;
     ldlt->n = 0;
     ldlt->factor_norm = 0.0;
+    ldlt->tol = 0.0;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Helpers for Bunch-Kaufman pivoting
  * ═══════════════════════════════════════════════════════════════════════ */
 
+static idx_t count_row_nnz(const SparseMatrix *M, idx_t row) {
+    idx_t count = 0;
+    for (Node *nd = M->row_headers[row]; nd; nd = nd->right)
+        count++;
+    return count;
+}
+
 /* Symmetric row/column swap: P*M*P^T where P transposes indices p and q.
- * M must be symmetric.  Uses dense row collection + remove/reinsert. */
+ * M must be symmetric.  Tracks row nonzeros explicitly so work is
+ * proportional to the swapped rows/columns rather than all n columns. */
 static sparse_err_t swap_sym_rc(SparseMatrix *M, idx_t p, idx_t q) {
     if (p == q)
         return SPARSE_OK;
-    idx_t n = M->rows;
 
-    double *rp = calloc((size_t)n, sizeof(double));
-    double *rq = calloc((size_t)n, sizeof(double));
-    if (!rp || !rq) {
-        free(rp);
-        free(rq);
+    idx_t p_nnz = count_row_nnz(M, p);
+    idx_t q_nnz = count_row_nnz(M, q);
+    idx_t *p_cols = p_nnz ? malloc((size_t)p_nnz * sizeof(idx_t)) : NULL;
+    idx_t *q_cols = q_nnz ? malloc((size_t)q_nnz * sizeof(idx_t)) : NULL;
+    double *p_vals = p_nnz ? malloc((size_t)p_nnz * sizeof(double)) : NULL;
+    double *q_vals = q_nnz ? malloc((size_t)q_nnz * sizeof(double)) : NULL;
+
+    if ((p_nnz && (!p_cols || !p_vals)) || (q_nnz && (!q_cols || !q_vals))) {
+        free(p_cols);
+        free(q_cols);
+        free(p_vals);
+        free(q_vals);
         return SPARSE_ERR_ALLOC;
     }
 
-    /* Collect rows p and q */
-    for (Node *nd = M->row_headers[p]; nd; nd = nd->right)
-        rp[nd->col] = nd->value;
-    for (Node *nd = M->row_headers[q]; nd; nd = nd->right)
-        rq[nd->col] = nd->value;
-
-    /* Remove rows p and q */
-    for (idx_t j = 0; j < n; j++) {
-        if (rp[j] != 0.0)
-            sparse_remove(M, p, j);
-        if (rq[j] != 0.0)
-            sparse_remove(M, q, j);
+    idx_t k = 0;
+    for (Node *nd = M->row_headers[p]; nd; nd = nd->right) {
+        p_cols[k] = nd->col; // NOLINT
+        p_vals[k] = nd->value;
+        k++;
     }
+    k = 0;
+    for (Node *nd = M->row_headers[q]; nd; nd = nd->right) {
+        q_cols[k] = nd->col; // NOLINT
+        q_vals[k] = nd->value;
+        k++;
+    }
+
+    /* Remove rows p and q using only their stored nonzeros */
+    for (idx_t i = 0; i < p_nnz; i++)
+        sparse_remove(M, p, p_cols[i]); // NOLINT
+    for (idx_t i = 0; i < q_nnz; i++)
+        sparse_remove(M, q, q_cols[i]); // NOLINT
 
     /* Remove remaining entries in columns p and q (rows != p,q) */
     while (M->col_headers[p])
@@ -66,28 +86,37 @@ static sparse_err_t swap_sym_rc(SparseMatrix *M, idx_t p, idx_t q) {
     while (M->col_headers[q])
         sparse_remove(M, M->col_headers[q]->row, q);
 
-    /* Re-insert with swapped indices */
+    /* Re-insert swapped rows */
     sparse_err_t rc = SPARSE_OK;
-    for (idx_t j = 0; j < n && rc == SPARSE_OK; j++) {
+    for (idx_t i = 0; i < p_nnz && rc == SPARSE_OK; i++) {
+        idx_t j = p_cols[i]; // NOLINT
         idx_t nj = (j == p) ? q : (j == q) ? p : j;
-        if (rp[j] != 0.0)
-            rc = sparse_insert(M, q, nj, rp[j]);
-        if (rq[j] != 0.0 && rc == SPARSE_OK)
-            rc = sparse_insert(M, p, nj, rq[j]);
+        rc = sparse_insert(M, q, nj, p_vals[i]);
+    }
+    for (idx_t i = 0; i < q_nnz && rc == SPARSE_OK; i++) {
+        idx_t j = q_cols[i]; // NOLINT
+        idx_t nj = (j == p) ? q : (j == q) ? p : j;
+        rc = sparse_insert(M, p, nj, q_vals[i]);
     }
 
     /* Symmetric counterparts for rows != p,q */
-    for (idx_t i = 0; i < n && rc == SPARSE_OK; i++) {
-        if (i == p || i == q)
+    for (idx_t i = 0; i < p_nnz && rc == SPARSE_OK; i++) {
+        idx_t row = p_cols[i]; // NOLINT
+        if (row == p || row == q)
             continue;
-        if (rp[i] != 0.0)
-            rc = sparse_insert(M, i, q, rp[i]);
-        if (rq[i] != 0.0 && rc == SPARSE_OK)
-            rc = sparse_insert(M, i, p, rq[i]);
+        rc = sparse_insert(M, row, q, p_vals[i]);
+    }
+    for (idx_t i = 0; i < q_nnz && rc == SPARSE_OK; i++) {
+        idx_t row = q_cols[i]; // NOLINT
+        if (row == p || row == q)
+            continue;
+        rc = sparse_insert(M, row, p, q_vals[i]);
     }
 
-    free(rp);
-    free(rq);
+    free(p_cols);
+    free(q_cols);
+    free(p_vals);
+    free(q_vals);
     return rc;
 }
 
@@ -241,24 +270,32 @@ static idx_t acc_schur_col(const SparseMatrix *W, const SparseMatrix *L, const d
                     lc = lc->right;
                 }
             } else {
+                /* Alloc failed — fall back to sparse_get_phys() probes
+                 * so cross-term corrections remain correct under OOM. */
                 free(lc_cols);
                 free(lc_vals);
-                n_lc = 0;
+                n_lc = -1; /* sentinel: use fallback path */
                 lc_cols = NULL;
                 lc_vals = NULL;
             }
         }
-        /* Helper: look up L(col, j) from the cached row entries */
+        /* Look up L(col, j) from cache or fallback to sparse_get_phys */
         for (idx_t j = 0; j < step_k;) {
             if (pivot_size[j] == 2) {
                 double d_off = D_offdiag[j];
                 if (d_off != 0.0) {
                     double l_cj = 0.0, l_cj1 = 0.0;
-                    for (idx_t t = 0; t < n_lc; t++) {
-                        if (lc_cols[t] == j) // NOLINT
-                            l_cj = lc_vals[t];
-                        else if (lc_cols[t] == j + 1) // NOLINT
-                            l_cj1 = lc_vals[t];
+                    if (n_lc >= 0) {
+                        for (idx_t t = 0; t < n_lc; t++) {
+                            if (lc_cols[t] == j) // NOLINT
+                                l_cj = lc_vals[t];
+                            else if (lc_cols[t] == j + 1) // NOLINT
+                                l_cj1 = lc_vals[t];
+                        }
+                    } else {
+                        /* OOM fallback: probe directly */
+                        l_cj = sparse_get_phys(L, col, j);
+                        l_cj1 = sparse_get_phys(L, col, j + 1);
                     }
                     double ct1 = d_off * l_cj1;
                     double ct2 = d_off * l_cj;
@@ -327,6 +364,7 @@ static sparse_err_t ldlt_factor_internal(const SparseMatrix *A, sparse_ldlt_t *l
     ldlt->perm = NULL;
     ldlt->n = 0;
     ldlt->factor_norm = 0.0;
+    ldlt->tol = 0.0;
     if (!A)
         return SPARSE_ERR_NULL;
     if (A->rows != A->cols)
@@ -359,6 +397,7 @@ static sparse_err_t ldlt_factor_internal(const SparseMatrix *A, sparse_ldlt_t *l
 
     /* Compute ||A||_inf for relative tolerance */
     ldlt->factor_norm = sparse_norminf_const(A);
+    ldlt->tol = tol;
 
     /* Allocate D, D_offdiag, pivot_size arrays */
     ldlt->D = calloc((size_t)n, sizeof(double));
@@ -726,6 +765,7 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
     ldlt->perm = NULL;
     ldlt->n = 0;
     ldlt->factor_norm = 0.0;
+    ldlt->tol = 0.0;
     if (!A)
         return SPARSE_ERR_NULL;
     if (A->rows != A->cols)
@@ -781,8 +821,9 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
         }
 
         /* Compose reorder permutation with pivot permutation.
-         * ldlt->perm currently holds the Bunch-Kaufman pivot perm (identity
-         * for now).  Compose: final_perm[i] = reorder_perm[bk_perm[i]]. */
+         * ldlt->perm currently holds the Bunch-Kaufman pivot permutation
+         * produced during factorization and may be non-identity because of
+         * symmetric swaps.  Compose: final_perm[i] = reorder_perm[bk_perm[i]]. */
         idx_t *composed = malloc((size_t)n * sizeof(idx_t));
         if (!composed) {
             free(perm);
@@ -846,8 +887,10 @@ sparse_err_t sparse_ldlt_solve(const sparse_ldlt_t *ldlt, const double *b, doubl
     }
 
     /* Phase 2: Diagonal solve — D * z = w
-     * Handle 1x1 and 2x2 pivot blocks */
-    double sing_tol = sparse_rel_tol(ldlt->factor_norm, DROP_TOL);
+     * Handle 1x1 and 2x2 pivot blocks.
+     * Use ldlt->tol (effective tolerance from factorization) for consistency. */
+    double solve_tol = (ldlt->tol > 0.0) ? ldlt->tol : DROP_TOL;
+    double sing_tol = sparse_rel_tol(ldlt->factor_norm, solve_tol);
     for (idx_t k = 0; k < n;) {
         if (ldlt->pivot_size[k] == 1) {
             if (fabs(ldlt->D[k]) < sing_tol) {
@@ -865,7 +908,7 @@ sparse_err_t sparse_ldlt_solve(const sparse_ldlt_t *ldlt, const double *b, doubl
             double det = d11 * d22 - d21 * d21;
             /* Block-relative singularity check (matches factorization) */
             double bscale = fabs(d11) + fabs(d22) + fabs(d21);
-            double det_tol = (bscale > 0.0) ? DROP_TOL * bscale * bscale : sing_tol * sing_tol;
+            double det_tol = (bscale > 0.0) ? solve_tol * bscale * bscale : sing_tol * sing_tol;
             if (fabs(det) < det_tol) {
                 free(y);
                 free(z);

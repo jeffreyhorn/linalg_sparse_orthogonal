@@ -703,15 +703,23 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
 
     idx_t k = 0;
     while (k < n) {
+        /* Invalidate degenerate blocks so the sparse path runs instead */
+        if (block_at[k] >= 0) {
+            idx_t b_pre = block_at[k];
+            idx_t bsz_pre = blks[b_pre].row_end - blks[b_pre].row_start;
+            if (bsz_pre <= 0 || k + bsz_pre > n)
+                block_at[k] = -1;
+        }
+
         if (block_at[k] >= 0) {
             /* ── Dense block path ── */
             idx_t b = block_at[k];
             idx_t bsize = blks[b].row_end - blks[b].row_start;
 
             /* Overflow guard for dense block allocations */
-            if (bsize > 0 && ((size_t)bsize > SIZE_MAX / (size_t)bsize ||
-                              (size_t)bsize * (size_t)bsize > SIZE_MAX / sizeof(double) ||
-                              (size_t)bsize > SIZE_MAX / sizeof(idx_t))) {
+            if ((size_t)bsize > SIZE_MAX / (size_t)bsize ||
+                (size_t)bsize * (size_t)bsize > SIZE_MAX / sizeof(double) ||
+                (size_t)bsize > SIZE_MAX / sizeof(idx_t)) {
                 err = SPARSE_ERR_ALLOC;
                 goto block_cleanup;
             }
@@ -767,7 +775,7 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
 
             /* Apply pivot permutation to row_map and piv_perm */
             for (idx_t bi = 0; bi < bsize; bi++) {
-                if (ipiv[bi] != bi) {
+                if (ipiv[bi] != bi && ipiv[bi] >= 0 && ipiv[bi] < bsize) {
                     idx_t r1 = k + bi;
                     idx_t r2 = k + ipiv[bi];
                     idx_t tmp = row_map[r1];
@@ -809,12 +817,21 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
                     goto block_cleanup;
                 }
 
+                idx_t cap = csr->capacity;
                 idx_t nc = 0;
                 idx_t new_start = write_pos;
                 idx_t old_p = s;
 
-                /* Entries before block columns */
+                /* Entries before block columns.
+                 * Capacity overflow is unreachable (lu_csr_grow guarantees
+                 * cap >= needed_b), but guard defensively. */
                 while (old_p < e && csr->col_idx[old_p] < k) {
+                    if (new_start + nc >= cap) { // NOLINT
+                        err = SPARSE_ERR_ALLOC;
+                        free(dense);
+                        free(ipiv);
+                        goto block_cleanup;
+                    }
                     csr->col_idx[new_start + nc] = csr->col_idx[old_p];
                     csr->values[new_start + nc] = csr->values[old_p];
                     nc++;
@@ -825,6 +842,12 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
                 for (idx_t bj = 0; bj < bsize; bj++) {
                     double v = dense[bi + bsize * bj];
                     if (fabs(v) >= drop_tol || bj == bi) {
+                        if (new_start + nc >= cap) { // NOLINT
+                            err = SPARSE_ERR_ALLOC;
+                            free(dense);
+                            free(ipiv);
+                            goto block_cleanup;
+                        }
                         /* Always keep diagonal (even if small) */
                         csr->col_idx[new_start + nc] = k + bj;
                         csr->values[new_start + nc] = v;
@@ -838,6 +861,12 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
 
                 /* Entries after block columns */
                 while (old_p < e) {
+                    if (new_start + nc >= cap) { // NOLINT
+                        err = SPARSE_ERR_ALLOC;
+                        free(dense);
+                        free(ipiv);
+                        goto block_cleanup;
+                    }
                     csr->col_idx[new_start + nc] = csr->col_idx[old_p];
                     csr->values[new_start + nc] = csr->values[old_p];
                     nc++;

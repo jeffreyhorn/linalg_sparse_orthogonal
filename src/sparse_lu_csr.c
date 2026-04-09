@@ -703,16 +703,18 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
 
     idx_t k = 0;
     while (k < n) {
+        /* Invalidate degenerate blocks so the sparse path runs instead */
+        if (block_at[k] >= 0) {
+            idx_t b_pre = block_at[k];
+            idx_t bsz_pre = blks[b_pre].row_end - blks[b_pre].row_start;
+            if (bsz_pre <= 0 || k + bsz_pre > n)
+                block_at[k] = -1;
+        }
+
         if (block_at[k] >= 0) {
             /* ── Dense block path ── */
             idx_t b = block_at[k];
             idx_t bsize = blks[b].row_end - blks[b].row_start;
-
-            /* Degenerate block — fall back to sparse elimination for this k */
-            if (bsize <= 0 || k + bsize > n) {
-                block_at[k] = -1;
-                goto sparse_fallback_no_alloc;
-            }
 
             /* Overflow guard for dense block allocations */
             if ((size_t)bsize > SIZE_MAX / (size_t)bsize ||
@@ -886,8 +888,6 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
             free(dense);
             free(ipiv);
             /* Fall through to sparse path for this step */
-
-        sparse_fallback_no_alloc:;
         }
 
         /* ── Sparse scatter-gather path (same as lu_csr_eliminate) ── */

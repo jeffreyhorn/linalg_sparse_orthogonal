@@ -68,14 +68,14 @@ static void test_ldlt_1x1(void) {
     sparse_insert(A, 0, 0, 7.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
     ASSERT_EQ(ldlt.n, 1);
     ASSERT_NEAR(ldlt.D[0], 7.0, 1e-14);
     ASSERT_EQ(ldlt.pivot_size[0], 1);
 
     /* Solve: 7*x = 14 → x = 2 */
     double b = 14.0, x;
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, &b, &x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, &b, &x));
     ASSERT_NEAR(x, 2.0, 1e-14);
 
     sparse_ldlt_free(&ldlt);
@@ -87,7 +87,7 @@ static void test_ldlt_1x1_negative(void) {
     sparse_insert(A, 0, 0, -5.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
     ASSERT_NEAR(ldlt.D[0], -5.0, 1e-14);
 
     /* Inertia: (0, 1, 0) */
@@ -99,7 +99,7 @@ static void test_ldlt_1x1_negative(void) {
 
     /* Solve: -5*x = 10 → x = -2 */
     double b = 10.0, x;
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, &b, &x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, &b, &x));
     ASSERT_NEAR(x, -2.0, 1e-14);
 
     sparse_ldlt_free(&ldlt);
@@ -120,7 +120,7 @@ static void test_ldlt_diagonal_spd(void) {
     sparse_insert(A, 2, 2, 2.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* Check D */
     ASSERT_NEAR(ldlt.D[0], 4.0, 1e-14);
@@ -140,7 +140,7 @@ static void test_ldlt_diagonal_spd(void) {
     /* Solve: diag(4,3,2) * x = [8,9,6] → x = [2,3,3] */
     double b[] = {8.0, 9.0, 6.0};
     double x[3];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     ASSERT_NEAR(x[0], 2.0, 1e-14);
     ASSERT_NEAR(x[1], 3.0, 1e-14);
     ASSERT_NEAR(x[2], 3.0, 1e-14);
@@ -159,7 +159,7 @@ static void test_ldlt_diagonal_indefinite(void) {
     sparse_insert(A, 3, 3, -4.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* Inertia: (2, 2, 0) */
     idx_t pos, neg, zero;
@@ -171,7 +171,7 @@ static void test_ldlt_diagonal_indefinite(void) {
     /* Solve: diag(3,-2,1,-4) * x = [6,-4,5,-8] → x = [2,2,5,2] */
     double b[] = {6.0, -4.0, 5.0, -8.0};
     double x[4];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     ASSERT_NEAR(x[0], 2.0, 1e-14);
     ASSERT_NEAR(x[1], 2.0, 1e-14);
     ASSERT_NEAR(x[2], 5.0, 1e-14);
@@ -211,12 +211,12 @@ static void test_ldlt_spd_3x3(void) {
     sparse_insert(A, 2, 2, 4.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* Verify via solve: A*x = b where b = A*[1,1,1] = [5,5,5] */
     double b[] = {5.0, 5.0, 5.0};
     double x[3];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     for (int i = 0; i < 3; i++)
         ASSERT_NEAR(x[i], 1.0, 1e-12);
 
@@ -249,13 +249,13 @@ static void test_ldlt_spd_5x5_tridiag(void) {
     }
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* Solve A*x = b where b = A*ones */
     double ones[] = {1, 1, 1, 1, 1};
     double b[5], x[5];
     sparse_matvec(A, ones, b);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x[i], 1.0, 1e-12);
 
@@ -271,7 +271,7 @@ static void test_ldlt_identity(void) {
         sparse_insert(A, i, i, 1.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     for (idx_t i = 0; i < n; i++) {
         ASSERT_NEAR(ldlt.D[i], 1.0, 1e-14);
@@ -281,7 +281,7 @@ static void test_ldlt_identity(void) {
     ASSERT_EQ(sparse_nnz(ldlt.L), n);
 
     double b[] = {3.0, 7.0, 2.0}, x[3];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     ASSERT_NEAR(x[0], 3.0, 1e-14);
     ASSERT_NEAR(x[1], 7.0, 1e-14);
     ASSERT_NEAR(x[2], 2.0, 1e-14);
@@ -305,7 +305,7 @@ static void test_ldlt_reconstruct_ldlt(void) {
     sparse_insert(A, 2, 2, 6.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* Reconstruct: for each (i,j), compute sum_k L(i,k)*D[k]*L(j,k) */
     idx_t n = 3;
@@ -338,17 +338,17 @@ static void test_ldlt_solve_multiple_rhs(void) {
     sparse_insert(A, 2, 2, 4.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* RHS 1: b = [5,5,5] → x = [1,1,1] */
     double b1[] = {5.0, 5.0, 5.0}, x1[3];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b1, x1), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b1, x1));
     for (int i = 0; i < 3; i++)
         ASSERT_NEAR(x1[i], 1.0, 1e-12);
 
     /* RHS 2: b = [4,3,4] */
     double b2[] = {4.0, 3.0, 4.0}, x2[3];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b2, x2), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b2, x2));
     /* Verify via residual */
     double r[3];
     sparse_matvec(A, x2, r);
@@ -381,7 +381,7 @@ static void test_ldlt_2x2_indefinite(void) {
     sparse_insert(A, 1, 0, 1.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* Should be a single 2x2 pivot */
     ASSERT_EQ(ldlt.pivot_size[0], 2);
@@ -398,7 +398,7 @@ static void test_ldlt_2x2_indefinite(void) {
     /* Solve: A*x = [1,0] → x = [0,1] */
     double b[] = {1.0, 0.0};
     double x[2];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     ASSERT_NEAR(x[0], 0.0, 1e-14);
     ASSERT_NEAR(x[1], 1.0, 1e-14);
 
@@ -427,7 +427,7 @@ static void test_ldlt_2x2_with_trailing(void) {
     sparse_insert(A, 2, 2, 5.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* First block should be 2x2 */
     ASSERT_EQ(ldlt.pivot_size[0], 2);
@@ -450,7 +450,7 @@ static void test_ldlt_2x2_with_trailing(void) {
     /* Solve A*x = [1,1,1] and verify residual */
     double b[] = {1.0, 1.0, 1.0};
     double x[3], r[3];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     sparse_matvec(A, x, r);
     for (int i = 0; i < 3; i++)
         ASSERT_NEAR(r[i], b[i], 1e-12);
@@ -474,7 +474,7 @@ static void test_ldlt_2x2_reconstruct(void) {
     sparse_insert(A, 2, 2, 5.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* Build P*A*P^T in dense form */
     idx_t n = 3;
@@ -524,7 +524,7 @@ static void test_ldlt_mixed_pivots_4x4(void) {
     sparse_insert(A, 3, 3, 2.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     ASSERT_EQ(ldlt.pivot_size[0], 1);
     ASSERT_EQ(ldlt.pivot_size[1], 2);
@@ -543,7 +543,7 @@ static void test_ldlt_mixed_pivots_4x4(void) {
     /* Solve and verify residual */
     double b[] = {2.0, 3.0, 4.0, 6.0};
     double x[4], r[4];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     sparse_matvec(A, x, r);
     for (int i = 0; i < 4; i++)
         ASSERT_NEAR(r[i], b[i], 1e-12);
@@ -568,12 +568,12 @@ static void test_ldlt_2x2_bk_swap(void) {
     sparse_insert(A, 2, 2, 5.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* Solve A*x = [3,4,10] and verify residual */
     double b[] = {3.0, 4.0, 10.0};
     double x[3], r[3];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     sparse_matvec(A, x, r);
     for (int i = 0; i < 3; i++)
         ASSERT_NEAR(r[i], b[i], 1e-12);
@@ -609,7 +609,7 @@ static void test_ldlt_2x2_kkt_like(void) {
     sparse_insert(A, 3, 3, 0.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* Inertia should be (2, 2, 0) for a KKT matrix with n=2, m=2 */
     idx_t pos, neg, zero;
@@ -621,7 +621,7 @@ static void test_ldlt_2x2_kkt_like(void) {
     /* Solve K*x = [1,1,1,1] and verify residual */
     double b[] = {1.0, 1.0, 1.0, 1.0};
     double x[4], r[4];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     sparse_matvec(A, x, r);
     for (int i = 0; i < 4; i++)
         ASSERT_NEAR(r[i], b[i], 1e-12);
@@ -678,7 +678,7 @@ static void test_ldlt_multiple_2x2_blocks(void) {
     sparse_insert(A, 5, 4, 1.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* All should be 2x2 pivots */
     for (idx_t i = 0; i < n; i++)
@@ -694,7 +694,7 @@ static void test_ldlt_multiple_2x2_blocks(void) {
     /* Solve and verify residual */
     double b[] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
     double x[6], r[6];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     sparse_matvec(A, x, r);
     for (int i = 0; i < 6; i++)
         ASSERT_NEAR(r[i], b[i], 1e-12);
@@ -720,13 +720,13 @@ static void test_ldlt_large_indefinite(void) {
     }
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* Solve A*x = ones and verify residual */
     double b[10], x[10], r[10];
     for (int i = 0; i < 10; i++)
         b[i] = 1.0;
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     sparse_matvec(A, x, r);
     for (int i = 0; i < 10; i++)
         ASSERT_NEAR(r[i], b[i], 1e-10);
@@ -755,13 +755,13 @@ static void test_ldlt_tridiag_indefinite(void) {
     }
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* Solve and verify residual */
     double b[8], x[8], r[8];
     for (int i = 0; i < 8; i++)
         b[i] = (double)(i + 1);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     sparse_matvec(A, x, r);
     for (int i = 0; i < 8; i++)
         ASSERT_NEAR(r[i], b[i], 1e-10);
@@ -817,7 +817,7 @@ static void test_ldlt_2x2_with_reorder(void) {
     /* Solve and verify residual */
     double b[] = {1.0, 2.0, 3.0, 4.0};
     double x[4], r[4];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     sparse_matvec(A, x, r);
     for (int i = 0; i < 4; i++)
         ASSERT_NEAR(r[i], b[i], 1e-11);
@@ -840,13 +840,13 @@ static void test_ldlt_scaled_matrix(void) {
     sparse_insert(A, 2, 2, 5.0 * s);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* Solve A*x = b where b = A*[1,1,1] */
     double b[3], x[3], r[3];
     double ones[] = {1.0, 1.0, 1.0};
     sparse_matvec(A, ones, b);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     sparse_matvec(A, x, r);
     for (int i = 0; i < 3; i++)
         ASSERT_NEAR(r[i], b[i], 1e-4 * s);
@@ -880,10 +880,10 @@ static void test_ldlt_solve_vs_cholesky(void) {
 
     /* LDL^T solve */
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
     double b[] = {7.0, 3.0, 5.0, 2.0};
     double x_ldlt[4];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x_ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x_ldlt));
 
     /* Cholesky solve (needs a copy since it factors in-place) */
     SparseMatrix *Acopy = sparse_copy(A);
@@ -918,16 +918,16 @@ static void test_ldlt_solve_aliased(void) {
     sparse_insert(A, 2, 2, 4.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* Solve with separate b and x first for reference */
     double b[] = {5.0, 5.0, 5.0};
     double x_ref[3];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x_ref), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x_ref));
 
     /* Now solve with x aliasing b */
     double bx[] = {5.0, 5.0, 5.0};
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, bx, bx), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, bx, bx));
 
     for (int i = 0; i < 3; i++)
         ASSERT_NEAR(bx[i], x_ref[i], 1e-14);
@@ -948,11 +948,11 @@ static void test_ldlt_solve_zero_rhs(void) {
     sparse_insert(A, 2, 2, 4.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     double b[] = {0.0, 0.0, 0.0};
     double x[3] = {999.0, 999.0, 999.0};
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     for (int i = 0; i < 3; i++)
         ASSERT_NEAR(x[i], 0.0, 1e-14);
 
@@ -965,7 +965,7 @@ static void test_ldlt_solve_unfactored(void) {
     sparse_ldlt_t ldlt;
     memset(&ldlt, 0, sizeof(ldlt));
     double b = 1.0, x = 0.0;
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, &b, &x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, &b, &x));
 
     /* But n > 0 with NULL internal pointers must return BADARG. */
     ldlt.n = 1;
@@ -999,11 +999,11 @@ static void test_ldlt_solve_2x2_relative_residual(void) {
     sparse_insert(A, 5, 5, 4.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     double b[] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
     double x[6], r[6];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     sparse_matvec(A, x, r);
 
     /* Compute ||r - b|| / ||b|| */
@@ -1035,11 +1035,11 @@ static void test_ldlt_solve_indefinite_known_solution(void) {
     sparse_insert(A, 2, 2, 4.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     double b[] = {1.0, 7.0, 11.0};
     double x[3];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     ASSERT_NEAR(x[0], 1.0, 1e-12);
     ASSERT_NEAR(x[1], 2.0, 1e-12);
     ASSERT_NEAR(x[2], 3.0, 1e-12);
@@ -1074,7 +1074,7 @@ static void test_ldlt_reorder_none_vs_amd(void) {
 
     /* Factor without reordering */
     sparse_ldlt_t ldlt_none;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt_none), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt_none));
 
     /* Factor with AMD */
     sparse_ldlt_opts_t opts_amd = {SPARSE_REORDER_AMD, 0.0};
@@ -1086,8 +1086,8 @@ static void test_ldlt_reorder_none_vs_amd(void) {
     for (int i = 0; i < 20; i++)
         b[i] = (double)(i + 1);
 
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt_none, b, x_none), SPARSE_OK);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt_amd, b, x_amd), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt_none, b, x_none));
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt_amd, b, x_amd));
 
     for (int i = 0; i < 20; i++)
         ASSERT_NEAR(x_none[i], x_amd[i], 1e-10);
@@ -1109,7 +1109,7 @@ static void test_ldlt_reorder_rcm(void) {
     SparseMatrix *A = make_banded_spd(n, 3);
 
     sparse_ldlt_t ldlt_none;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt_none), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt_none));
 
     sparse_ldlt_opts_t opts_rcm = {SPARSE_REORDER_RCM, 0.0};
     sparse_ldlt_t ldlt_rcm;
@@ -1119,8 +1119,8 @@ static void test_ldlt_reorder_rcm(void) {
     for (int i = 0; i < 20; i++)
         b[i] = 1.0;
 
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt_none, b, x_none), SPARSE_OK);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt_rcm, b, x_rcm), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt_none, b, x_none));
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt_rcm, b, x_rcm));
 
     for (int i = 0; i < 20; i++)
         ASSERT_NEAR(x_none[i], x_rcm[i], 1e-10);
@@ -1147,7 +1147,7 @@ static void test_ldlt_reorder_fillin(void) {
 
     /* Factor without reordering */
     sparse_ldlt_t ldlt_none;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt_none), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt_none));
     idx_t nnz_none = sparse_nnz(ldlt_none.L);
 
     /* Factor with AMD */
@@ -1165,7 +1165,7 @@ static void test_ldlt_reorder_fillin(void) {
     double b[30], x[30], r[30];
     for (int i = 0; i < 30; i++)
         b[i] = 1.0;
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt_amd, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt_amd, b, x));
     sparse_matvec(A, x, r);
     for (int i = 0; i < 30; i++)
         ASSERT_NEAR(r[i], b[i], 1e-10);
@@ -1196,7 +1196,7 @@ static void test_ldlt_reorder_indefinite(void) {
     double b[10], x[10], r[10];
     for (int i = 0; i < 10; i++)
         b[i] = (double)(i + 1);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     sparse_matvec(A, x, r);
     for (int i = 0; i < 10; i++)
         ASSERT_NEAR(r[i], b[i], 1e-10);
@@ -1232,7 +1232,7 @@ static void ldlt_validate_mm(const char *path, double tol, const sparse_ldlt_opt
         ones[i] = 1.0;
     sparse_matvec(A, ones, b);
 
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     sparse_matvec(A, x, r);
 
     /* Relative residual: ||A*x - b|| / ||b|| */
@@ -1283,7 +1283,7 @@ static void test_ldlt_bcsstk04_amd(void) {
 
     /* Without reordering */
     sparse_ldlt_t ldlt_none;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt_none), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt_none));
     idx_t nnz_none = sparse_nnz(ldlt_none.L);
 
     /* With AMD */
@@ -1303,8 +1303,8 @@ static void test_ldlt_bcsstk04_amd(void) {
     for (idx_t i = 0; i < n; i++)
         b[i] = 1.0;
 
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt_none, b, x_none), SPARSE_OK);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt_amd, b, x_amd), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt_none, b, x_none));
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt_amd, b, x_amd));
 
     /* Solutions should agree */
     for (idx_t i = 0; i < n; i++)
@@ -1356,7 +1356,7 @@ static void test_ldlt_kkt_small(void) {
     idx_t n = 6;
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(K, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(K, &ldlt));
 
     /* Inertia: H is 4x4 SPD (4 positive), zero block is 2x2 (2 negative)
      * → inertia should be (4, 2, 0) */
@@ -1370,7 +1370,7 @@ static void test_ldlt_kkt_small(void) {
     double x_exact[] = {1.0, 2.0, 3.0, 4.0, 5.0, 6.0};
     double b[6], x[6], r[6];
     sparse_matvec(K, x_exact, b);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
 
     /* Verify ||x - x_exact|| / ||x_exact|| */
     double err_norm = 0.0, ex_norm = 0.0;
@@ -1395,7 +1395,7 @@ static void test_ldlt_kkt_medium(void) {
     idx_t n = 20;
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(K, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(K, &ldlt));
 
     /* Inertia: nh positive from H, nc negative from constraints */
     idx_t pos, neg, zero;
@@ -1409,7 +1409,7 @@ static void test_ldlt_kkt_medium(void) {
     for (int i = 0; i < 20; i++)
         ones[i] = 1.0;
     sparse_matvec(K, ones, b);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
 
     /* Relative residual */
     sparse_matvec(K, x, r);
@@ -1449,7 +1449,7 @@ static void test_ldlt_kkt_large(void) {
     for (idx_t i = 0; i < n; i++)
         ones[i] = 1.0;
     sparse_matvec(K, ones, b);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     sparse_matvec(K, x, r);
 
     double norm_res = 0.0, norm_b = 0.0;
@@ -1497,7 +1497,7 @@ static void test_ldlt_saddle_point(void) {
             }
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(K, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(K, &ldlt));
 
     /* Inertia: nv positive from V, np negative from zero block */
     idx_t pos, neg, zero;
@@ -1519,7 +1519,7 @@ static void test_ldlt_saddle_point(void) {
     double x_exact[] = {1.0, 2.0, 3.0, 4.0, 0.5, -0.5};
     double b[6], x[6], r[6];
     sparse_matvec(K, x_exact, b);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     sparse_matvec(K, x, r);
     for (int i = 0; i < 6; i++)
         ASSERT_NEAR(r[i], b[i], 1e-10);
@@ -1548,10 +1548,10 @@ static void test_ldlt_vs_lu(void) {
 
     /* LDL^T solve */
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
     double b[] = {1.0, 2.0, 3.0, 4.0};
     double x_ldlt[4];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x_ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x_ldlt));
 
     /* LU solve (needs a copy since it factors in-place) */
     SparseMatrix *Acopy = sparse_copy(A);
@@ -1583,13 +1583,13 @@ static void test_ldlt_kkt_vs_lu(void) {
 
     /* LDL^T */
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(K, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(K, &ldlt));
 
     double b[12], x_ldlt[12], x_lu[12];
     for (int i = 0; i < 12; i++)
         b[i] = (double)(i + 1);
 
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x_ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x_ldlt));
 
     /* LU */
     SparseMatrix *Kcopy = sparse_copy(K);
@@ -1641,13 +1641,13 @@ static void test_ldlt_scale_tiny(void) {
     SparseMatrix *A = make_scaled_indefinite_3x3(s);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* Solve A*x = b where b = A*[1,2,3] */
     double x_exact[] = {1.0, 2.0, 3.0};
     double b[3], x[3];
     sparse_matvec(A, x_exact, b);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
 
     for (int i = 0; i < 3; i++)
         ASSERT_NEAR(x[i], x_exact[i], 1e-8);
@@ -1662,12 +1662,12 @@ static void test_ldlt_scale_huge(void) {
     SparseMatrix *A = make_scaled_indefinite_3x3(s);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     double x_exact[] = {1.0, 2.0, 3.0};
     double b[3], x[3];
     sparse_matvec(A, x_exact, b);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
 
     for (int i = 0; i < 3; i++)
         ASSERT_NEAR(x[i], x_exact[i], 1e-8);
@@ -1684,12 +1684,12 @@ static void test_ldlt_scale_tiny_2x2(void) {
     sparse_insert(A, 1, 0, s);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
     ASSERT_EQ(ldlt.pivot_size[0], 2);
 
     double b[] = {s, 0.0};
     double x[2];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     ASSERT_NEAR(x[0], 0.0, 1e-8);
     ASSERT_NEAR(x[1], 1.0, 1e-8);
 
@@ -1707,7 +1707,7 @@ static void test_ldlt_known_eigenvalues(void) {
         sparse_insert(A, i, i, eigs[i]);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* D should equal the eigenvalues (diagonal → no fill, L = I) */
     for (idx_t i = 0; i < n; i++) {
@@ -1733,7 +1733,7 @@ static void test_ldlt_negative_definite(void) {
         sparse_insert(A, i, i, -5.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     idx_t pos, neg, zero;
     ASSERT_ERR(sparse_ldlt_inertia(&ldlt, &pos, &neg, &zero), SPARSE_OK);
@@ -1744,7 +1744,7 @@ static void test_ldlt_negative_definite(void) {
     /* Solve (-5I)*x = [-10,-15,-20] → x = [2,3,4] */
     double b[] = {-10.0, -15.0, -20.0};
     double x[3];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     ASSERT_NEAR(x[0], 2.0, 1e-14);
     ASSERT_NEAR(x[1], 3.0, 1e-14);
     ASSERT_NEAR(x[2], 4.0, 1e-14);
@@ -1764,7 +1764,7 @@ static void test_ldlt_eigenvalue_spread(void) {
         sparse_insert(A, i, i, eigs[i]);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* Inertia: 4 positive, 4 negative */
     idx_t pos, neg, zero;
@@ -1780,7 +1780,7 @@ static void test_ldlt_eigenvalue_spread(void) {
     double b[8], x[8];
     double x_exact[] = {1, 2, 3, 4, 5, 6, 7, 8};
     sparse_matvec(A, x_exact, b);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     for (int i = 0; i < 8; i++)
         ASSERT_NEAR(x[i], x_exact[i], 1e-8);
 
@@ -1812,7 +1812,7 @@ static void test_ldlt_rotated_indefinite(void) {
     sparse_insert(A, 3, 3, -3.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* Inertia must be (2, 2, 0) — matches the 4 eigenvalues */
     idx_t pos, neg, zero;
@@ -1824,7 +1824,7 @@ static void test_ldlt_rotated_indefinite(void) {
     /* Solve and verify residual */
     double b[] = {1.0, 2.0, 3.0, 4.0};
     double x[4], r[4];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     sparse_matvec(A, x, r);
     for (int i = 0; i < 4; i++)
         ASSERT_NEAR(r[i], b[i], 1e-12);
@@ -1842,7 +1842,7 @@ static void test_ldlt_inertia_2x2_block(void) {
     sparse_insert(A, 1, 0, 5.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
     ASSERT_EQ(ldlt.pivot_size[0], 2);
 
     idx_t pos, neg, zero;
@@ -1875,11 +1875,11 @@ static void test_ldlt_refine_basic(void) {
     sparse_insert(A, 2, 2, 4.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     double b[] = {5.0, 5.0, 5.0};
     double x[3];
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     ASSERT_ERR(sparse_ldlt_refine(A, &ldlt, b, x, 3, 1e-15), SPARSE_OK);
 
     /* Verify solution is still good */
@@ -1911,13 +1911,13 @@ static void test_ldlt_refine_improves(void) {
         }
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     /* Solve with known answer */
     double x_exact[] = {1.0, 2.0, 3.0, 4.0, 5.0};
     double b[5], x[5], r[5];
     sparse_matvec(A, x_exact, b);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
 
     /* Perturb the solution slightly */
     for (int i = 0; i < 5; i++)
@@ -1954,7 +1954,7 @@ static void test_ldlt_refine_zero_rhs(void) {
     sparse_insert(A, 1, 1, 5.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     double b[] = {0.0, 0.0};
     double x[] = {0.0, 0.0};
@@ -1978,7 +1978,7 @@ static void test_ldlt_condest_identity(void) {
         sparse_insert(A, i, i, 1.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     double cond;
     ASSERT_ERR(sparse_ldlt_condest(A, &ldlt, &cond), SPARSE_OK);
@@ -1999,7 +1999,7 @@ static void test_ldlt_condest_wellcond(void) {
     sparse_insert(A, 3, 3, 5.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     double cond;
     ASSERT_ERR(sparse_ldlt_condest(A, &ldlt, &cond), SPARSE_OK);
@@ -2018,7 +2018,7 @@ static void test_ldlt_condest_illcond(void) {
     sparse_insert(A, 1, 1, 1e-8);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     double cond;
     ASSERT_ERR(sparse_ldlt_condest(A, &ldlt, &cond), SPARSE_OK);
@@ -2042,7 +2042,7 @@ static void test_ldlt_condest_indefinite(void) {
     sparse_insert(A, 1, 1, -2.0);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     double cond;
     ASSERT_ERR(sparse_ldlt_condest(A, &ldlt, &cond), SPARSE_OK);
@@ -2076,8 +2076,8 @@ static void test_ldlt_bcsstk04_vs_cholesky(void) {
 
     /* LDL^T solve */
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x_ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x_ldlt));
 
     /* Cholesky solve */
     SparseMatrix *Acopy = sparse_copy(A);
@@ -2123,7 +2123,7 @@ static void test_ldlt_kkt_100(void) {
     for (idx_t i = 0; i < n; i++)
         ones[i] = 1.0;
     sparse_matvec(K, ones, b);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     sparse_matvec(K, x, r);
 
     double norm_res = 0.0, norm_b = 0.0;
@@ -2165,7 +2165,7 @@ static void test_ldlt_kkt_500(void) {
     for (idx_t i = 0; i < n; i++)
         ones[i] = 1.0;
     sparse_matvec(K, ones, b);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     sparse_matvec(K, x, r);
 
     double norm_res = 0.0, norm_b = 0.0;
@@ -2200,7 +2200,7 @@ static void test_ldlt_vs_lu_fillin(void) {
 
     /* LDL^T */
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
     idx_t nnz_ldlt = sparse_nnz(ldlt.L);
 
     /* LU (needs copy — factors in-place) */
@@ -2221,7 +2221,7 @@ static void test_ldlt_vs_lu_fillin(void) {
     for (idx_t i = 0; i < n; i++)
         b[i] = 1.0;
 
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x_ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x_ldlt));
     ASSERT_ERR(sparse_lu_solve(Acopy, b, x_lu), SPARSE_OK);
 
     /* Solutions should agree */
@@ -2254,7 +2254,7 @@ static void test_ldlt_vs_lu_fillin_bcsstk04(void) {
     idx_t n = sparse_rows(A);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
     idx_t nnz_ldlt = sparse_nnz(ldlt.L);
 
     SparseMatrix *Acopy = sparse_copy(A);

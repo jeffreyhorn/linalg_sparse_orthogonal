@@ -136,6 +136,20 @@ static clock_t tf_suite_start;
                      sparse_strerror(exp_));                                                       \
     } while (0)
 
+/* Fatal assertion: asserts SPARSE_OK and returns from the test on failure.
+ * Use when subsequent code would dereference pointers that are only valid
+ * on success (e.g., ldlt.D after sparse_ldlt_factor). */
+#define REQUIRE_OK(expr)                                                                           \
+    do {                                                                                           \
+        tf_asserts++;                                                                              \
+        sparse_err_t got_ = (expr);                                                                \
+        if (got_ != SPARSE_OK) {                                                                   \
+            TF_FAIL_("REQUIRE_OK(%s): got %d (%s), expected 0 (success)", #expr, (int)got_,        \
+                     sparse_strerror(got_));                                                       \
+            return;                                                                                \
+        }                                                                                          \
+    } while (0)
+
 #define ASSERT_NULL(ptr)                                                                           \
     do {                                                                                           \
         tf_asserts++;                                                                              \

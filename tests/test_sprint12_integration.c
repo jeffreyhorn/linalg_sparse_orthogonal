@@ -85,12 +85,12 @@ static void test_s12_scaled_tolerance(void) {
     for (int s = 0; s < nscales; s++) {
         SparseMatrix *A = build_scaled_indef(scales[s]);
         sparse_ldlt_t ldlt;
-        ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+        REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
         double x_exact[] = {1.0, 2.0, 3.0};
         double b[3], x[3];
         sparse_matvec(A, x_exact, b);
-        ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+        REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
 
         for (int i = 0; i < 3; i++)
             ASSERT_NEAR(x[i], x_exact[i], 1e-6);
@@ -127,7 +127,7 @@ static void test_s12_kkt_pipeline(void) {
     for (idx_t i = 0; i < n; i++)
         x_exact[i] = (double)(i + 1);
     sparse_matvec(K, x_exact, b);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
 
     double rr_before = relative_residual(K, x, b, n);
 
@@ -168,20 +168,20 @@ static void test_s12_reorder_equivalence(void) {
 
     /* Factor with NONE */
     sparse_ldlt_t ldlt_none;
-    ASSERT_ERR(sparse_ldlt_factor(K, &ldlt_none), SPARSE_OK);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt_none, b, x_none), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(K, &ldlt_none));
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt_none, b, x_none));
 
     /* Factor with AMD */
     sparse_ldlt_opts_t opts_amd = {SPARSE_REORDER_AMD, 0.0};
     sparse_ldlt_t ldlt_amd;
     ASSERT_ERR(sparse_ldlt_factor_opts(K, &opts_amd, &ldlt_amd), SPARSE_OK);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt_amd, b, x_amd), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt_amd, b, x_amd));
 
     /* Factor with RCM */
     sparse_ldlt_opts_t opts_rcm = {SPARSE_REORDER_RCM, 0.0};
     sparse_ldlt_t ldlt_rcm;
     ASSERT_ERR(sparse_ldlt_factor_opts(K, &opts_rcm, &ldlt_rcm), SPARSE_OK);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt_rcm, b, x_rcm), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt_rcm, b, x_rcm));
 
     for (idx_t i = 0; i < n; i++) {
         ASSERT_NEAR(x_none[i], x_amd[i], 1e-8);
@@ -212,7 +212,7 @@ static void test_s12_inertia_eigenstructure(void) {
         sparse_insert(A, i, i, eigs[i]);
 
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(A, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
 
     idx_t pos, neg, zero;
     ASSERT_ERR(sparse_ldlt_inertia(&ldlt, &pos, &neg, &zero), SPARSE_OK);
@@ -240,7 +240,7 @@ static void test_s12_ldlt_vs_lu(void) {
 
     /* LDL^T */
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor(K, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(K, &ldlt));
 
     double *b = malloc((size_t)n * sizeof(double));
     double *x_ldlt = malloc((size_t)n * sizeof(double));
@@ -248,7 +248,7 @@ static void test_s12_ldlt_vs_lu(void) {
     for (idx_t i = 0; i < n; i++)
         b[i] = (double)(i + 1);
 
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x_ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x_ldlt));
 
     /* LU */
     SparseMatrix *Kcopy = sparse_copy(K);
@@ -289,7 +289,7 @@ static void test_s12_unfactored_solve_fails(void) {
     double b = 1.0, x = 0.0;
 
     /* Zeroed struct (n == 0) is a valid empty factorization */
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, &b, &x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, &b, &x));
     ASSERT_ERR(sparse_ldlt_refine(NULL, &ldlt, &b, &x, 3, 1e-12), SPARSE_ERR_NULL);
     ASSERT_ERR(sparse_ldlt_condest(NULL, &ldlt, &x), SPARSE_ERR_NULL);
 
@@ -339,7 +339,7 @@ static void test_s12_suitesparse_nos4(void) {
     for (idx_t i = 0; i < n; i++)
         ones[i] = 1.0;
     sparse_matvec(A, ones, b);
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     ASSERT_ERR(sparse_ldlt_refine(A, &ldlt, b, x, 3, 1e-15), SPARSE_OK);
 
     double rr = relative_residual(A, x, b, n);
@@ -377,7 +377,7 @@ static void test_s12_large_kkt_pipeline(void) {
         ones[i] = 1.0;
     sparse_matvec(K, ones, b);
 
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, b, x), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     ASSERT_ERR(sparse_ldlt_refine(K, &ldlt, b, x, 5, 1e-15), SPARSE_OK);
 
     double rr = relative_residual(K, x, b, n);

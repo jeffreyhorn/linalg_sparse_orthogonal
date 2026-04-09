@@ -404,6 +404,12 @@ static sparse_err_t ldlt_factor_internal(const SparseMatrix *A, sparse_ldlt_t *l
     ldlt->factor_norm = sparse_norminf_const(A);
     ldlt->tol = tol;
 
+    /* Overflow guard for n-sized allocations (double is the largest element) */
+    if ((size_t)n > SIZE_MAX / sizeof(double)) {
+        sparse_ldlt_free(ldlt);
+        return SPARSE_ERR_ALLOC;
+    }
+
     /* Allocate D, D_offdiag, pivot_size arrays */
     ldlt->D = calloc((size_t)n, sizeof(double));
     ldlt->D_offdiag = calloc((size_t)n, sizeof(double));
@@ -783,6 +789,8 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
 
     /* Apply fill-reducing reordering if requested */
     if (o->reorder != SPARSE_REORDER_NONE && n > 1) {
+        if ((size_t)n > SIZE_MAX / sizeof(idx_t))
+            return SPARSE_ERR_ALLOC;
         idx_t *perm = malloc((size_t)n * sizeof(idx_t));
         if (!perm)
             return SPARSE_ERR_ALLOC;
@@ -862,6 +870,9 @@ sparse_err_t sparse_ldlt_solve(const sparse_ldlt_t *ldlt, const double *b, doubl
 
     if (!ldlt->L || !ldlt->D || !ldlt->pivot_size)
         return SPARSE_ERR_BADARG;
+
+    if ((size_t)n > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
 
     double *y = malloc((size_t)n * sizeof(double));
     double *z = malloc((size_t)n * sizeof(double));
@@ -1038,6 +1049,9 @@ sparse_err_t sparse_ldlt_refine(const SparseMatrix *A, const sparse_ldlt_t *ldlt
     if (!ldlt->L || !ldlt->D || !ldlt->pivot_size)
         return SPARSE_ERR_BADARG;
 
+    if ((size_t)n > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
+
     double *r = malloc((size_t)n * sizeof(double));
     double *d = malloc((size_t)n * sizeof(double));
     if (!r || !d) {
@@ -1135,6 +1149,9 @@ sparse_err_t sparse_ldlt_condest(const SparseMatrix *A, const sparse_ldlt_t *ldl
     /* Hager/Higham algorithm to estimate ||A^{-1}||_1.
      * Since A is symmetric, A^T = A and sparse_ldlt_solve works for both
      * forward and transpose solves. */
+    if ((size_t)n > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
+
     double *x = malloc((size_t)n * sizeof(double));
     double *w = malloc((size_t)n * sizeof(double));
     double *z = malloc((size_t)n * sizeof(double));

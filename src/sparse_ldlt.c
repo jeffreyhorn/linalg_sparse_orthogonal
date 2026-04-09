@@ -390,11 +390,9 @@ static sparse_err_t ldlt_factor_internal(const SparseMatrix *A, sparse_ldlt_t *l
     {
         const idx_t *rp = sparse_row_perm(A);
         const idx_t *cp = sparse_col_perm(A);
-        if (rp && cp) {
-            for (idx_t i = 0; i < n; i++) {
-                if (rp[i] != i || cp[i] != i)
-                    return SPARSE_ERR_BADARG;
-            }
+        for (idx_t i = 0; i < n; i++) {
+            if ((rp && rp[i] != i) || (cp && cp[i] != i))
+                return SPARSE_ERR_BADARG;
         }
     }
 

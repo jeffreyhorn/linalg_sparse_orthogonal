@@ -263,7 +263,7 @@ format-check:
 
 # Run all linters
 .PHONY: lint
-lint:
+lint: build/include/sparse_version.h
 	@echo "Compiling with strict warnings (-Werror)..."
 	$(CC) $(CFLAGS) -Wstrict-prototypes -Wformat=2 -Werror \
 		$(INCLUDE) -fsyntax-only $(shell find $(SRCDIR) -type f -name '*.c')

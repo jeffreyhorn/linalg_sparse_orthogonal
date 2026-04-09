@@ -708,10 +708,16 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
             idx_t b = block_at[k];
             idx_t bsize = blks[b].row_end - blks[b].row_start;
 
+            /* Degenerate block — skip to sparse path */
+            if (bsize <= 0 || k + bsize > n) {
+                k++;
+                continue;
+            }
+
             /* Overflow guard for dense block allocations */
-            if (bsize > 0 && ((size_t)bsize > SIZE_MAX / (size_t)bsize ||
-                              (size_t)bsize * (size_t)bsize > SIZE_MAX / sizeof(double) ||
-                              (size_t)bsize > SIZE_MAX / sizeof(idx_t))) {
+            if ((size_t)bsize > SIZE_MAX / (size_t)bsize ||
+                (size_t)bsize * (size_t)bsize > SIZE_MAX / sizeof(double) ||
+                (size_t)bsize > SIZE_MAX / sizeof(idx_t)) {
                 err = SPARSE_ERR_ALLOC;
                 goto block_cleanup;
             }
@@ -767,7 +773,7 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
 
             /* Apply pivot permutation to row_map and piv_perm */
             for (idx_t bi = 0; bi < bsize; bi++) {
-                if (ipiv[bi] != bi) {
+                if (ipiv[bi] != bi && ipiv[bi] >= 0 && ipiv[bi] < bsize) {
                     idx_t r1 = k + bi;
                     idx_t r2 = k + ipiv[bi];
                     idx_t tmp = row_map[r1];
@@ -809,12 +815,15 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
                     goto block_cleanup;
                 }
 
+                idx_t cap = csr->capacity;
                 idx_t nc = 0;
                 idx_t new_start = write_pos;
                 idx_t old_p = s;
 
                 /* Entries before block columns */
                 while (old_p < e && csr->col_idx[old_p] < k) {
+                    if (new_start + nc >= cap)
+                        break;
                     csr->col_idx[new_start + nc] = csr->col_idx[old_p];
                     csr->values[new_start + nc] = csr->values[old_p];
                     nc++;
@@ -825,6 +834,8 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
                 for (idx_t bj = 0; bj < bsize; bj++) {
                     double v = dense[bi + bsize * bj];
                     if (fabs(v) >= drop_tol || bj == bi) {
+                        if (new_start + nc >= cap)
+                            break;
                         /* Always keep diagonal (even if small) */
                         csr->col_idx[new_start + nc] = k + bj;
                         csr->values[new_start + nc] = v;
@@ -838,6 +849,8 @@ sparse_err_t lu_csr_eliminate_block(LuCsr *csr, double tol, double drop_tol, idx
 
                 /* Entries after block columns */
                 while (old_p < e) {
+                    if (new_start + nc >= cap)
+                        break;
                     csr->col_idx[new_start + nc] = csr->col_idx[old_p];
                     csr->values[new_start + nc] = csr->values[old_p];
                     nc++;

@@ -99,11 +99,13 @@ typedef struct {
  * not modified.
  *
  * @note **Tolerance semantics:** The factorization computes and caches
- *       ||A||_inf in ldlt->factor_norm.  Singularity detection uses
- *       relative thresholds: a 1x1 pivot is rejected if
- *       |D[k]| < SPARSE_DROP_TOL * ||A||_inf; a 2x2 pivot block with
- *       entries d11, d22, and d21 is rejected if its determinant is
- *       near zero relative to the local block scale
+ *       ||A||_inf in ldlt->factor_norm. Singularity detection uses
+ *       relative thresholds based on the effective tolerance `tol`
+ *       (caller-specified `opts->tol` when positive, otherwise
+ *       `SPARSE_DROP_TOL`): a 1x1 pivot is rejected if
+ *       |D[k]| < tol * ||A||_inf; a 2x2 pivot block with entries d11,
+ *       d22, and d21 is rejected if its determinant is near zero
+ *       relative to the local block scale
  *       (|d11| + |d22| + |d21|), rather than relative to ||A||_inf^2.
  *
  * @pre A must be symmetric.  Symmetry is checked at entry.

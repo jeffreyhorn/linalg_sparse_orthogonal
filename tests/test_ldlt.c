@@ -705,7 +705,7 @@ static void test_ldlt_multiple_2x2_blocks(void) {
 
 static void test_ldlt_large_indefinite(void) {
     /* 10x10 arrow-shaped symmetric indefinite matrix:
-     * A(i,i) = (i % 2 == 0) ? 1.0 : -1.0  (alternating signs)
+     * A(i,i) = (i % 2 == 0) ? 4.0 : -4.0  (alternating signs)
      * A(i,0) = A(0,i) = 0.5 for i > 0  (arrow pattern)
      * This is nonsingular and indefinite with many pivots. */
     idx_t n = 10;
@@ -1898,7 +1898,9 @@ static void test_ldlt_refine_improves(void) {
      * has noticeable error. */
     idx_t n = 5;
     SparseMatrix *A = sparse_create(n, n);
-    /* Hilbert-like symmetric indefinite: A(i,j) = (-1)^(i+j) / (i+j+1) + 10*I */
+    /* Hilbert-like alternating-sign symmetric matrix with a +10*I diagonal
+     * shift, used to exercise numerical conditioning/refinement behavior:
+     * A(i,j) = (-1)^(i+j) / (i+j+1) + 10*I */
     for (idx_t i = 0; i < n; i++)
         for (idx_t j = 0; j < n; j++) {
             double sign = ((i + j) % 2 == 0) ? 1.0 : -1.0;

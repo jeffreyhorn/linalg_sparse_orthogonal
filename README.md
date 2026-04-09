@@ -13,6 +13,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **CSR LU factorization** — scatter-gather elimination on compressed sparse row arrays for >=2x speedup on large matrices, with dense subblock detection and in-place dense kernels
 - **Block LU solve** — solve A·X = B for multiple right-hand sides simultaneously (`sparse_lu_solve_block`)
 - **Cholesky factorization** for symmetric positive-definite matrices (A = L·L^T, ~50% less storage than LU)
+- **LDL^T factorization** with Bunch-Kaufman symmetric pivoting for symmetric indefinite matrices (P·A·P^T = L·D·L^T) — 1x1 and 2x2 pivot blocks, inertia computation, iterative refinement, condition estimation
 - **QR factorization** with column pivoting (A·P = Q·R) — Householder reflections, least-squares, rank estimation, null-space extraction, economy (thin) QR, sparse-mode QR without dense workspace
 - **QR iterative refinement** to improve least-squares solutions
 - **Householder bidiagonalization** — reduces A to upper bidiagonal form B = U^T·A·V (SVD preprocessing)
@@ -52,7 +53,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 
 ### Reordering & Preconditioning
 - **Fill-reducing reordering** — Reverse Cuthill-McKee (RCM) and Approximate Minimum Degree (AMD)
-- **Condition number estimation** — Hager/Higham 1-norm estimator from LU factors
+- **Condition number estimation** — Hager/Higham 1-norm estimator from LU or LDL^T factors
 
 ### I/O & Interop
 - **Matrix Market I/O** — load and save `.mtx` files (coordinate real general, symmetric, and pattern formats)
@@ -196,6 +197,7 @@ int main(void)
 | [`sparse_lu.h`](include/sparse_lu.h) | LU factorization, solve, block solve, condition estimation, iterative refinement |
 | [`sparse_lu_csr.h`](include/sparse_lu_csr.h) | CSR LU working format — conversion, scatter-gather elimination, dense block detection, block solve |
 | [`sparse_cholesky.h`](include/sparse_cholesky.h) | Cholesky factorization and solve for SPD matrices |
+| [`sparse_ldlt.h`](include/sparse_ldlt.h) | LDL^T factorization with Bunch-Kaufman pivoting for symmetric indefinite matrices |
 | [`sparse_iterative.h`](include/sparse_iterative.h) | CG, GMRES, block CG, block GMRES with left/right preconditioning |
 | [`sparse_ilu.h`](include/sparse_ilu.h) | ILU(0) and ILUT incomplete factorization preconditioners |
 | [`sparse_qr.h`](include/sparse_qr.h) | Column-pivoted QR factorization, least-squares, rank, null space, refinement |
@@ -238,6 +240,15 @@ int main(void)
 - `sparse_cholesky_factor(mat)` — in-place A = L·L^T
 - `sparse_cholesky_factor_opts(mat, &opts)` — with optional AMD/RCM reordering
 - `sparse_cholesky_solve(mat, b, x)` — solve using Cholesky factors
+
+**LDL^T (symmetric indefinite matrices):**
+- `sparse_ldlt_factor(A, &ldlt)` — P·A·P^T = L·D·L^T with Bunch-Kaufman 1x1/2x2 pivoting
+- `sparse_ldlt_factor_opts(A, &opts, &ldlt)` — with optional AMD/RCM fill-reducing reordering
+- `sparse_ldlt_solve(&ldlt, b, x)` — solve using LDL^T factors (auto-unpermutes)
+- `sparse_ldlt_inertia(&ldlt, &pos, &neg, &zero)` — eigenvalue sign count from D blocks
+- `sparse_ldlt_refine(A, &ldlt, b, x, max_iters, tol)` — iterative refinement
+- `sparse_ldlt_condest(A, &ldlt, &cond)` — 1-norm condition estimate via Hager/Higham
+- `sparse_ldlt_free(&ldlt)` — free factorization data
 
 **QR factorization (rectangular & rank-deficient):**
 - `sparse_qr_factor(A, &qr)` — column-pivoted QR: A*P = Q*R

@@ -961,10 +961,14 @@ static void test_ldlt_solve_zero_rhs(void) {
 }
 
 static void test_ldlt_solve_unfactored(void) {
-    /* Calling solve on a zeroed (unfactored) struct must return BADARG. */
+    /* A zeroed struct (n == 0) is a valid empty factorization. */
     sparse_ldlt_t ldlt;
     memset(&ldlt, 0, sizeof(ldlt));
     double b = 1.0, x = 0.0;
+    ASSERT_ERR(sparse_ldlt_solve(&ldlt, &b, &x), SPARSE_OK);
+
+    /* But n > 0 with NULL internal pointers must return BADARG. */
+    ldlt.n = 1;
     ASSERT_ERR(sparse_ldlt_solve(&ldlt, &b, &x), SPARSE_ERR_BADARG);
 }
 

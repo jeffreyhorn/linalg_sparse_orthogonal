@@ -279,19 +279,26 @@ static idx_t acc_schur_col(const SparseMatrix *W, const SparseMatrix *L, const d
                 lc_vals = NULL;
             }
         }
-        /* Look up L(col, j) from cache or fallback to sparse_get_phys */
+        /* Look up L(col, j) from cache or fallback to sparse_get_phys.
+         * lc_cols is sorted, so we advance a cursor through the cache
+         * instead of rescanning from the start for each 2x2 block. */
+        idx_t lc_cursor = 0;
         for (idx_t j = 0; j < step_k;) {
             if (pivot_size[j] == 2) {
                 double d_off = D_offdiag[j];
                 if (d_off != 0.0) {
                     double l_cj = 0.0, l_cj1 = 0.0;
                     if (n_lc >= 0) {
-                        for (idx_t t = 0; t < n_lc; t++) {
-                            if (lc_cols[t] == j) // NOLINT
-                                l_cj = lc_vals[t];
-                            else if (lc_cols[t] == j + 1) // NOLINT
-                                l_cj1 = lc_vals[t];
-                        }
+                        /* Advance cursor past entries before j */
+                        while (lc_cursor < n_lc && lc_cols[lc_cursor] < j)
+                            lc_cursor++;
+                        if (lc_cursor < n_lc && lc_cols[lc_cursor] == j)
+                            l_cj = lc_vals[lc_cursor];
+                        idx_t t2 = lc_cursor;
+                        while (t2 < n_lc && lc_cols[t2] <= j)
+                            t2++;
+                        if (t2 < n_lc && lc_cols[t2] == j + 1)
+                            l_cj1 = lc_vals[t2];
                     } else {
                         /* OOM fallback: probe directly */
                         l_cj = sparse_get_phys(L, col, j);
@@ -408,7 +415,7 @@ static sparse_err_t ldlt_factor_internal(const SparseMatrix *A, sparse_ldlt_t *l
         return SPARSE_ERR_ALLOC;
     }
 
-    /* Create working copy of A (lower triangle only) */
+    /* Create working copy of A (full symmetric matrix) */
     SparseMatrix *W = sparse_copy(A);
     if (!W) {
         sparse_ldlt_free(ldlt);
@@ -850,12 +857,13 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
 sparse_err_t sparse_ldlt_solve(const sparse_ldlt_t *ldlt, const double *b, double *x) {
     if (!ldlt || !b || !x)
         return SPARSE_ERR_NULL;
-    if (!ldlt->L || !ldlt->D || !ldlt->pivot_size)
-        return SPARSE_ERR_BADARG;
 
     idx_t n = ldlt->n;
     if (n == 0)
         return SPARSE_OK;
+
+    if (!ldlt->L || !ldlt->D || !ldlt->pivot_size)
+        return SPARSE_ERR_BADARG;
 
     double *y = malloc((size_t)n * sizeof(double));
     double *z = malloc((size_t)n * sizeof(double));
@@ -955,11 +963,22 @@ sparse_err_t sparse_ldlt_inertia(const sparse_ldlt_t *ldlt, idx_t *n_pos, idx_t 
                                  idx_t *n_zero) {
     if (!ldlt)
         return SPARSE_ERR_NULL;
+
+    idx_t n = ldlt->n;
+    if (n == 0) {
+        if (n_pos)
+            *n_pos = 0;
+        if (n_neg)
+            *n_neg = 0;
+        if (n_zero)
+            *n_zero = 0;
+        return SPARSE_OK;
+    }
+
     if (!ldlt->D || !ldlt->pivot_size)
         return SPARSE_ERR_BADARG;
 
     idx_t pos = 0, neg = 0, zero = 0;
-    idx_t n = ldlt->n;
 
     for (idx_t k = 0; k < n;) {
         if (ldlt->pivot_size[k] == 1) {
@@ -1010,12 +1029,16 @@ sparse_err_t sparse_ldlt_refine(const SparseMatrix *A, const sparse_ldlt_t *ldlt
                                 double *x, int max_iters, double tol) {
     if (!A || !ldlt || !b || !x)
         return SPARSE_ERR_NULL;
-    if (!ldlt->L || !ldlt->D || !ldlt->pivot_size)
-        return SPARSE_ERR_BADARG;
 
     idx_t n = ldlt->n;
     if (n == 0)
         return SPARSE_OK;
+
+    if (A->rows != n || A->cols != n)
+        return SPARSE_ERR_SHAPE;
+
+    if (!ldlt->L || !ldlt->D || !ldlt->pivot_size)
+        return SPARSE_ERR_BADARG;
 
     double *r = malloc((size_t)n * sizeof(double));
     double *d = malloc((size_t)n * sizeof(double));
@@ -1081,14 +1104,18 @@ sparse_err_t sparse_ldlt_condest(const SparseMatrix *A, const sparse_ldlt_t *ldl
                                  double *condest) {
     if (!A || !ldlt || !condest)
         return SPARSE_ERR_NULL;
-    if (!ldlt->L || !ldlt->D || !ldlt->pivot_size)
-        return SPARSE_ERR_BADARG;
 
     idx_t n = ldlt->n;
     if (n == 0) {
         *condest = 0.0;
         return SPARSE_OK;
     }
+
+    if (A->rows != n || A->cols != n)
+        return SPARSE_ERR_SHAPE;
+
+    if (!ldlt->L || !ldlt->D || !ldlt->pivot_size)
+        return SPARSE_ERR_BADARG;
 
     /* Compute ||A||_1 (max column sum of absolute values) */
     double norm_A = 0.0;

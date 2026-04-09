@@ -288,13 +288,20 @@ static void test_s12_unfactored_solve_fails(void) {
     memset(&ldlt, 0, sizeof(ldlt));
     double b = 1.0, x = 0.0;
 
-    ASSERT_ERR(sparse_ldlt_solve(&ldlt, &b, &x), SPARSE_ERR_BADARG);
+    /* Zeroed struct (n == 0) is a valid empty factorization */
+    ASSERT_ERR(sparse_ldlt_solve(&ldlt, &b, &x), SPARSE_OK);
     ASSERT_ERR(sparse_ldlt_refine(NULL, &ldlt, &b, &x, 3, 1e-12), SPARSE_ERR_NULL);
     ASSERT_ERR(sparse_ldlt_condest(NULL, &ldlt, &x), SPARSE_ERR_NULL);
 
-    /* Also check refine/condest with zeroed ldlt */
+    /* n == 0 early-returns OK regardless of A dimensions */
     SparseMatrix *A = sparse_create(1, 1);
     sparse_insert(A, 0, 0, 1.0);
+    ASSERT_ERR(sparse_ldlt_refine(A, &ldlt, &b, &x, 3, 1e-12), SPARSE_OK);
+    ASSERT_ERR(sparse_ldlt_condest(A, &ldlt, &x), SPARSE_OK);
+
+    /* But n > 0 with NULL internal pointers must return BADARG */
+    ldlt.n = 1;
+    ASSERT_ERR(sparse_ldlt_solve(&ldlt, &b, &x), SPARSE_ERR_BADARG);
     ASSERT_ERR(sparse_ldlt_refine(A, &ldlt, &b, &x, 3, 1e-12), SPARSE_ERR_BADARG);
     ASSERT_ERR(sparse_ldlt_condest(A, &ldlt, &x), SPARSE_ERR_BADARG);
     sparse_free(A);

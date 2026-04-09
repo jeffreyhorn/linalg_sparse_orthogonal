@@ -812,7 +812,7 @@ static void test_ldlt_2x2_with_reorder(void) {
 
     sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor_opts(A, &opts, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
 
     /* Solve and verify residual */
     double b[] = {1.0, 2.0, 3.0, 4.0};
@@ -1079,7 +1079,7 @@ static void test_ldlt_reorder_none_vs_amd(void) {
     /* Factor with AMD */
     sparse_ldlt_opts_t opts_amd = {SPARSE_REORDER_AMD, 0.0};
     sparse_ldlt_t ldlt_amd;
-    ASSERT_ERR(sparse_ldlt_factor_opts(A, &opts_amd, &ldlt_amd), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts_amd, &ldlt_amd));
 
     /* Solve both and compare */
     double b[20], x_none[20], x_amd[20];
@@ -1113,7 +1113,7 @@ static void test_ldlt_reorder_rcm(void) {
 
     sparse_ldlt_opts_t opts_rcm = {SPARSE_REORDER_RCM, 0.0};
     sparse_ldlt_t ldlt_rcm;
-    ASSERT_ERR(sparse_ldlt_factor_opts(A, &opts_rcm, &ldlt_rcm), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts_rcm, &ldlt_rcm));
 
     double b[20], x_none[20], x_rcm[20];
     for (int i = 0; i < 20; i++)
@@ -1153,7 +1153,7 @@ static void test_ldlt_reorder_fillin(void) {
     /* Factor with AMD */
     sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
     sparse_ldlt_t ldlt_amd;
-    ASSERT_ERR(sparse_ldlt_factor_opts(A, &opts, &ldlt_amd), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt_amd));
     idx_t nnz_amd = sparse_nnz(ldlt_amd.L);
 
     printf("    arrow 30x30 fill-in: none=%d, AMD=%d\n", (int)nnz_none, (int)nnz_amd);
@@ -1191,7 +1191,7 @@ static void test_ldlt_reorder_indefinite(void) {
 
     sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor_opts(A, &opts, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
 
     double b[10], x[10], r[10];
     for (int i = 0; i < 10; i++)
@@ -1289,7 +1289,7 @@ static void test_ldlt_bcsstk04_amd(void) {
     /* With AMD */
     sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
     sparse_ldlt_t ldlt_amd;
-    ASSERT_ERR(sparse_ldlt_factor_opts(A, &opts, &ldlt_amd), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt_amd));
     idx_t nnz_amd = sparse_nnz(ldlt_amd.L);
 
     printf("    bcsstk04 fill-in: none=%d, AMD=%d (%.1fx)\n", (int)nnz_none, (int)nnz_amd,
@@ -1432,7 +1432,7 @@ static void test_ldlt_kkt_large(void) {
 
     sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor_opts(K, &opts, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor_opts(K, &opts, &ldlt));
 
     /* Inertia */
     idx_t pos, neg, zero;
@@ -2109,7 +2109,7 @@ static void test_ldlt_kkt_100(void) {
 
     sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor_opts(K, &opts, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor_opts(K, &opts, &ldlt));
 
     idx_t pos, neg, zero;
     ASSERT_ERR(sparse_ldlt_inertia(&ldlt, &pos, &neg, &zero), SPARSE_OK);
@@ -2151,7 +2151,7 @@ static void test_ldlt_kkt_500(void) {
 
     sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor_opts(K, &opts, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor_opts(K, &opts, &ldlt));
 
     idx_t pos, neg, zero;
     ASSERT_ERR(sparse_ldlt_inertia(&ldlt, &pos, &neg, &zero), SPARSE_OK);

@@ -112,7 +112,7 @@ static void test_s12_kkt_pipeline(void) {
     /* Factor with AMD */
     sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor_opts(K, &opts, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor_opts(K, &opts, &ldlt));
 
     /* Inertia */
     idx_t pos, neg, zero;
@@ -174,13 +174,13 @@ static void test_s12_reorder_equivalence(void) {
     /* Factor with AMD */
     sparse_ldlt_opts_t opts_amd = {SPARSE_REORDER_AMD, 0.0};
     sparse_ldlt_t ldlt_amd;
-    ASSERT_ERR(sparse_ldlt_factor_opts(K, &opts_amd, &ldlt_amd), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor_opts(K, &opts_amd, &ldlt_amd));
     REQUIRE_OK(sparse_ldlt_solve(&ldlt_amd, b, x_amd));
 
     /* Factor with RCM */
     sparse_ldlt_opts_t opts_rcm = {SPARSE_REORDER_RCM, 0.0};
     sparse_ldlt_t ldlt_rcm;
-    ASSERT_ERR(sparse_ldlt_factor_opts(K, &opts_rcm, &ldlt_rcm), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor_opts(K, &opts_rcm, &ldlt_rcm));
     REQUIRE_OK(sparse_ldlt_solve(&ldlt_rcm, b, x_rcm));
 
     for (idx_t i = 0; i < n; i++) {
@@ -324,7 +324,7 @@ static void test_s12_suitesparse_nos4(void) {
     /* LDL^T with AMD */
     sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor_opts(A, &opts, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
 
     /* Inertia: SPD → all positive */
     idx_t pos, neg, zero;
@@ -363,7 +363,7 @@ static void test_s12_large_kkt_pipeline(void) {
 
     sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor_opts(K, &opts, &ldlt), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor_opts(K, &opts, &ldlt));
 
     idx_t pos, neg, zero;
     ASSERT_ERR(sparse_ldlt_inertia(&ldlt, &pos, &neg, &zero), SPARSE_OK);

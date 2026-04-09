@@ -67,27 +67,28 @@ static sparse_err_t swap_sym_rc(SparseMatrix *M, idx_t p, idx_t q) {
         sparse_remove(M, M->col_headers[q]->row, q);
 
     /* Re-insert with swapped indices */
-    for (idx_t j = 0; j < n; j++) {
+    sparse_err_t rc = SPARSE_OK;
+    for (idx_t j = 0; j < n && rc == SPARSE_OK; j++) {
         idx_t nj = (j == p) ? q : (j == q) ? p : j;
         if (rp[j] != 0.0)
-            sparse_insert(M, q, nj, rp[j]);
-        if (rq[j] != 0.0)
-            sparse_insert(M, p, nj, rq[j]);
+            rc = sparse_insert(M, q, nj, rp[j]);
+        if (rq[j] != 0.0 && rc == SPARSE_OK)
+            rc = sparse_insert(M, p, nj, rq[j]);
     }
 
     /* Symmetric counterparts for rows != p,q */
-    for (idx_t i = 0; i < n; i++) {
+    for (idx_t i = 0; i < n && rc == SPARSE_OK; i++) {
         if (i == p || i == q)
             continue;
         if (rp[i] != 0.0)
-            sparse_insert(M, i, q, rp[i]);
-        if (rq[i] != 0.0)
-            sparse_insert(M, i, p, rq[i]);
+            rc = sparse_insert(M, i, q, rp[i]);
+        if (rq[i] != 0.0 && rc == SPARSE_OK)
+            rc = sparse_insert(M, i, p, rq[i]);
     }
 
     free(rp);
     free(rq);
-    return SPARSE_OK;
+    return rc;
 }
 
 /* Swap rows p and q of L for all columns j < max_col.
@@ -143,21 +144,22 @@ static sparse_err_t swap_L_rows(SparseMatrix *L, idx_t p, idx_t q, idx_t max_col
             }
     }
 
-    for (idx_t i = 0; i < np; i++)
-        sparse_remove(L, p, cols_p[i]); // NOLINT
-    for (idx_t i = 0; i < nq; i++)
-        sparse_remove(L, q, cols_q[i]); // NOLINT
+    sparse_err_t rc = SPARSE_OK;
+    for (idx_t i = 0; i < np && rc == SPARSE_OK; i++)
+        rc = sparse_remove(L, p, cols_p[i]); // NOLINT
+    for (idx_t i = 0; i < nq && rc == SPARSE_OK; i++)
+        rc = sparse_remove(L, q, cols_q[i]); // NOLINT
 
-    for (idx_t i = 0; i < np; i++)
-        sparse_insert(L, q, cols_p[i], vals_p[i]);
-    for (idx_t i = 0; i < nq; i++)
-        sparse_insert(L, p, cols_q[i], vals_q[i]);
+    for (idx_t i = 0; i < np && rc == SPARSE_OK; i++)
+        rc = sparse_insert(L, q, cols_p[i], vals_p[i]);
+    for (idx_t i = 0; i < nq && rc == SPARSE_OK; i++)
+        rc = sparse_insert(L, p, cols_q[i], vals_q[i]);
 
     free(cols_p);
     free(vals_p);
     free(cols_q);
     free(vals_q);
-    return SPARSE_OK;
+    return rc;
 }
 
 /* Accumulate column `col` of the Schur complement at elimination step `step_k`.
@@ -209,46 +211,91 @@ static idx_t acc_schur_col(const SparseMatrix *W, const SparseMatrix *L, const d
 
     /* Cross-term corrections for 2×2 pivot blocks.
      * For each 2×2 block at (j, j+1):
-     *   acc[i] -= L(i,j)·D_off·L(col,j+1) + L(i,j+1)·D_off·L(col,j) */
-    for (idx_t j = 0; j < step_k;) {
-        if (pivot_size[j] == 2) {
-            double d_off = D_offdiag[j];
-            if (d_off != 0.0) {
-                double l_cj = sparse_get_phys(L, col, j);
-                double l_cj1 = sparse_get_phys(L, col, j + 1);
-                double ct1 = d_off * l_cj1;
-                double ct2 = d_off * l_cj;
-                if (ct1 != 0.0) {
-                    Node *lij = L->col_headers[j];
-                    while (lij) {
-                        if (lij->row >= step_k) {
-                            acc[lij->row] -= lij->value * ct1;
-                            if (!flag[lij->row]) {
-                                flag[lij->row] = 1;
-                                list[nnz++] = lij->row;
-                            }
-                        }
-                        lij = lij->down;
-                    }
-                }
-                if (ct2 != 0.0) {
-                    Node *lij = L->col_headers[j + 1];
-                    while (lij) {
-                        if (lij->row >= step_k) {
-                            acc[lij->row] -= lij->value * ct2;
-                            if (!flag[lij->row]) {
-                                flag[lij->row] = 1;
-                                list[nnz++] = lij->row;
-                            }
-                        }
-                        lij = lij->down;
-                    }
-                }
-            }
-            j += 2;
-        } else {
-            j++;
+     *   acc[i] -= L(i,j)·D_off·L(col,j+1) + L(i,j+1)·D_off·L(col,j)
+     *
+     * Collect L(col, *) entries once via a single row scan to avoid
+     * repeated O(nnz_in_row) sparse_get_phys() probes. */
+    {
+        /* Build a sparse map of L(col, j) for j < step_k by scanning row col */
+        idx_t n_lc = 0;
+        Node *lc = L->row_headers[col];
+        while (lc) {
+            if (lc->col < step_k)
+                n_lc++;
+            lc = lc->right;
         }
+        idx_t *lc_cols = NULL;
+        double *lc_vals = NULL;
+        if (n_lc > 0) {
+            lc_cols = malloc((size_t)n_lc * sizeof(idx_t));
+            lc_vals = malloc((size_t)n_lc * sizeof(double));
+            if (lc_cols && lc_vals) {
+                idx_t ix = 0;
+                lc = L->row_headers[col];
+                while (lc) {
+                    if (lc->col < step_k) {
+                        lc_cols[ix] = lc->col;
+                        lc_vals[ix] = lc->value;
+                        ix++;
+                    }
+                    lc = lc->right;
+                }
+            } else {
+                free(lc_cols);
+                free(lc_vals);
+                n_lc = 0;
+                lc_cols = NULL;
+                lc_vals = NULL;
+            }
+        }
+        /* Helper: look up L(col, j) from the cached row entries */
+        for (idx_t j = 0; j < step_k;) {
+            if (pivot_size[j] == 2) {
+                double d_off = D_offdiag[j];
+                if (d_off != 0.0) {
+                    double l_cj = 0.0, l_cj1 = 0.0;
+                    for (idx_t t = 0; t < n_lc; t++) {
+                        if (lc_cols[t] == j) // NOLINT
+                            l_cj = lc_vals[t];
+                        else if (lc_cols[t] == j + 1) // NOLINT
+                            l_cj1 = lc_vals[t];
+                    }
+                    double ct1 = d_off * l_cj1;
+                    double ct2 = d_off * l_cj;
+                    if (ct1 != 0.0) {
+                        Node *lij = L->col_headers[j];
+                        while (lij) {
+                            if (lij->row >= step_k) {
+                                acc[lij->row] -= lij->value * ct1;
+                                if (!flag[lij->row]) {
+                                    flag[lij->row] = 1;
+                                    list[nnz++] = lij->row;
+                                }
+                            }
+                            lij = lij->down;
+                        }
+                    }
+                    if (ct2 != 0.0) {
+                        Node *lij = L->col_headers[j + 1];
+                        while (lij) {
+                            if (lij->row >= step_k) {
+                                acc[lij->row] -= lij->value * ct2;
+                                if (!flag[lij->row]) {
+                                    flag[lij->row] = 1;
+                                    list[nnz++] = lij->row;
+                                }
+                            }
+                            lij = lij->down;
+                        }
+                    }
+                }
+                j += 2;
+            } else {
+                j++;
+            }
+        }
+        free(lc_cols);
+        free(lc_vals);
     }
     return nnz;
 }
@@ -265,7 +312,11 @@ static void clear_acc(double *acc, int *flag, const idx_t *list, idx_t nnz) {
  * LDL^T factorization
  * ═══════════════════════════════════════════════════════════════════════ */
 
-sparse_err_t sparse_ldlt_factor(const SparseMatrix *A, sparse_ldlt_t *ldlt) {
+/* Internal factorization with caller-specified pivot tolerance.
+ * user_tol <= 0 means use DROP_TOL (the compile-time default). */
+static sparse_err_t ldlt_factor_internal(const SparseMatrix *A, sparse_ldlt_t *ldlt,
+                                         double user_tol) {
+    double tol = (user_tol > 0.0) ? user_tol : DROP_TOL;
     if (!ldlt)
         return SPARSE_ERR_NULL;
     /* Zero-initialize output so sparse_ldlt_free() is safe on any error path */
@@ -363,10 +414,10 @@ sparse_err_t sparse_ldlt_factor(const SparseMatrix *A, sparse_ldlt_t *ldlt) {
      * growth in exact arithmetic, but finite precision + drop tolerance
      * can still produce large L entries on ill-conditioned problems.
      */
-    double sing_tol = sparse_rel_tol(ldlt->factor_norm, DROP_TOL);
+    double sing_tol = sparse_rel_tol(ldlt->factor_norm, tol);
     double alpha_bk = (1.0 + sqrt(17.0)) / 8.0;
-    /* L entry magnitude bound: 1/(100·DROP_TOL) ≈ 1e12 with default tol */
-    double growth_bound = 1.0 / (100.0 * DROP_TOL);
+    /* L entry magnitude bound: 1/(100·tol) ≈ 1e12 with default tol */
+    double growth_bound = 1.0 / (100.0 * tol);
 
     /* Dense column accumulators (two sets: column k and column r) */
     double *col_acc = calloc((size_t)n, sizeof(double));
@@ -534,7 +585,7 @@ sparse_err_t sparse_ldlt_factor(const SparseMatrix *A, sparse_ldlt_t *ldlt) {
                     rc = SPARSE_ERR_SINGULAR;
                     goto err_cleanup;
                 }
-                if (fabs(l_ik) >= DROP_TOL) {
+                if (fabs(l_ik) >= tol) {
                     sparse_err_t ierr = sparse_insert(ldlt->L, i, k, l_ik);
                     if (ierr != SPARSE_OK) {
                         clear_acc(col_acc, nz_flag, nz_list, nnz_acc);
@@ -559,7 +610,7 @@ sparse_err_t sparse_ldlt_factor(const SparseMatrix *A, sparse_ldlt_t *ldlt) {
              * grown or shrunk relative to ||A||_inf. */
             {
                 double bscale = fabs(d11) + fabs(d22) + fabs(d21);
-                double det_tol = (bscale > 0.0) ? DROP_TOL * bscale * bscale : sing_tol * sing_tol;
+                double det_tol = (bscale > 0.0) ? tol * bscale * bscale : sing_tol * sing_tol;
                 if (fabs(det) < det_tol) {
                     clear_acc(col_acc, nz_flag, nz_list, nnz_acc);
                     clear_acc(col_acc_r, nz_flag_r, nz_list_r, nnz_r);
@@ -576,7 +627,7 @@ sparse_err_t sparse_ldlt_factor(const SparseMatrix *A, sparse_ldlt_t *ldlt) {
             ldlt->pivot_size[k + 1] = 2;
 
             double inv_det = 1.0 / det;
-            double drop_2x2 = DROP_TOL * (fabs(d11) + fabs(d22) + fabs(d21));
+            double drop_2x2 = tol * (fabs(d11) + fabs(d22) + fabs(d21));
 
             /* Merge nonzero sets so we visit every row that appears
              * in either accumulated column */
@@ -656,7 +707,13 @@ err_cleanup:
     return rc;
 }
 
-/* ─── Factor with options (reordering) ─────────────────────────────── */
+/* ─── Public factor API (delegates to internal with default tol) ────── */
+
+sparse_err_t sparse_ldlt_factor(const SparseMatrix *A, sparse_ldlt_t *ldlt) {
+    return ldlt_factor_internal(A, ldlt, 0.0);
+}
+
+/* ─── Factor with options (reordering + tolerance) ────────────────── */
 
 sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_opts_t *opts,
                                      sparse_ldlt_t *ldlt) {
@@ -715,7 +772,7 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
         sparse_reset_perms(PA);
 
         /* Factor the permuted matrix */
-        err = sparse_ldlt_factor(PA, ldlt);
+        err = ldlt_factor_internal(PA, ldlt, o->tol);
         sparse_free(PA);
 
         if (err != SPARSE_OK) {
@@ -742,7 +799,7 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
     }
 
     /* No reordering — delegate directly */
-    return sparse_ldlt_factor(A, ldlt);
+    return ldlt_factor_internal(A, ldlt, o->tol);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -806,7 +863,10 @@ sparse_err_t sparse_ldlt_solve(const sparse_ldlt_t *ldlt, const double *b, doubl
             double d22 = ldlt->D[k + 1];
             double d21 = ldlt->D_offdiag[k];
             double det = d11 * d22 - d21 * d21;
-            if (fabs(det) < sing_tol * sing_tol) {
+            /* Block-relative singularity check (matches factorization) */
+            double bscale = fabs(d11) + fabs(d22) + fabs(d21);
+            double det_tol = (bscale > 0.0) ? DROP_TOL * bscale * bscale : sing_tol * sing_tol;
+            if (fabs(det) < det_tol) {
                 free(y);
                 free(z);
                 return SPARSE_ERR_SINGULAR;

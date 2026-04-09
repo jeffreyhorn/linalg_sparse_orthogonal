@@ -65,9 +65,12 @@ typedef struct {
                              D_offdiag[k] = D(k, k+1) = D(k+1, k). */
     int *pivot_size;    /**< Pivot block size at each step (length n).
                              1 for a 1x1 pivot, 2 for a 2x2 pivot. */
-    idx_t *perm;        /**< Symmetric permutation (length n).
-                             perm[i] = original row/column index.
-                             NULL if no reordering was applied. */
+    idx_t *perm;        /**< Overall symmetric permutation used by the factorization
+                             (length n), mapping factorization order to original
+                             row/column indices: perm[i] = original row/column index.
+                             Includes any fill-reducing reordering composed with
+                             Bunch-Kaufman pivoting; may be the identity permutation
+                             but is generally non-NULL after successful factorization. */
     idx_t n;            /**< Matrix dimension */
     double factor_norm; /**< ||A||_inf at factorization time, for relative tolerance */
 } sparse_ldlt_t;
@@ -77,8 +80,9 @@ typedef struct {
  */
 typedef struct {
     sparse_reorder_t reorder; /**< Fill-reducing reordering (NONE, RCM, or AMD) */
-    double tol;               /**< Pivot tolerance for singularity detection.
-                                   0 for default (SPARSE_DROP_TOL). */
+    double tol;               /**< Pivot tolerance for singularity detection and
+                                   fill-in drop threshold. 0 or negative for the
+                                   compile-time default (SPARSE_DROP_TOL). */
 } sparse_ldlt_opts_t;
 
 /**
@@ -91,9 +95,11 @@ typedef struct {
  *
  * @note **Tolerance semantics:** The factorization computes and caches
  *       ||A||_inf in ldlt->factor_norm.  Singularity detection uses
- *       norm-relative thresholds: a 1x1 pivot is rejected if
- *       |D[k]| < SPARSE_DROP_TOL * ||A||_inf; a 2x2 pivot block is
- *       rejected if its determinant is near zero relative to ||A||_inf^2.
+ *       relative thresholds: a 1x1 pivot is rejected if
+ *       |D[k]| < SPARSE_DROP_TOL * ||A||_inf; a 2x2 pivot block with
+ *       entries d11, d22, and d21 is rejected if its determinant is
+ *       near zero relative to the local block scale
+ *       (|d11| + |d22| + |d21|), rather than relative to ||A||_inf^2.
  *
  * @pre A must be symmetric.  Symmetry is checked at entry.
  * @pre A must have identity permutations (not previously factored or

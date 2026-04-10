@@ -261,7 +261,8 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, id
  * @return SPARSE_ERR_NOT_CONVERGED if max_iter exceeded without convergence.
  * @return SPARSE_ERR_NULL if A, b, or x is NULL.
  * @return SPARSE_ERR_SHAPE if A is not square.
- * @return SPARSE_ERR_BADARG if opts has negative max_iter or tol.
+ * @return SPARSE_ERR_BADARG if opts has negative max_iter or tol, or if a
+ *         provided preconditioner is non-SPD (r^T M^{-1} r < 0) or degenerate.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
  *
  * @par Thread safety: Read-only on A. Safe to call concurrently on the same matrix

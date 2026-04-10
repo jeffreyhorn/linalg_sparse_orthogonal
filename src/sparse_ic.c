@@ -58,6 +58,8 @@ sparse_err_t sparse_ic_factor(const SparseMatrix *A, sparse_ilu_t *ic) {
     /* Allocate a dense workspace for one column of L at a time.
      * val[i] holds the accumulated value for row i in the current column.
      * pattern[0..pat_len-1] holds the row indices with nonzero entries. */
+    if ((size_t)n > SIZE_MAX / sizeof(double) || (size_t)n > SIZE_MAX / sizeof(idx_t))
+        return SPARSE_ERR_ALLOC;
     double *val = calloc((size_t)n, sizeof(double));
     idx_t *pattern = malloc((size_t)n * sizeof(idx_t));
     if (!val || !pattern) {
@@ -115,13 +117,14 @@ sparse_err_t sparse_ic_factor(const SparseMatrix *A, sparse_ilu_t *ic) {
             double lkj_val = lkj->value;
 
             /* Walk column j of L for rows >= k that are in our pattern */
-            for (Node *lij = L->col_headers[j]; lij; lij = lij->down) {
-                idx_t i = lij->row;
-                if (i < k)
-                    continue;
+            /* Skip column entries with row < k (column list is sorted by row) */
+            Node *lij = L->col_headers[j];
+            while (lij && lij->row < k)
+                lij = lij->down;
+            for (; lij; lij = lij->down) {
                 /* Only update if (i,k) is in the sparsity pattern of A */
-                if (in_pat[i])
-                    val[i] -= lkj_val * lij->value;
+                if (in_pat[lij->row])
+                    val[lij->row] -= lkj_val * lij->value;
             }
         }
 

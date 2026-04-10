@@ -65,6 +65,8 @@
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or ic is NULL.
  * @return SPARSE_ERR_SHAPE if A is not square.
+ * @return SPARSE_ERR_BADARG if A has been previously factored or has
+ *         non-identity permutations.
  * @return SPARSE_ERR_NOT_SPD if A is not symmetric or a non-positive diagonal
  *         is encountered during factorization (breakdown).
  * @return SPARSE_ERR_ALLOC if memory allocation fails.

@@ -746,6 +746,10 @@ static void test_s13_ic_unfactored_solve(void) {
  * ═══════════════════════════════════════════════════════════════════════ */
 
 static void test_s13_large_kkt_benchmark(void) {
+    if (!getenv("RUN_BENCH")) {
+        printf("    (skipped — set RUN_BENCH=1 to enable)\n");
+        return;
+    }
     idx_t nh = 200, nc = 80;
     SparseMatrix *K = build_kkt(nh, nc);
     idx_t n = nh + nc;
@@ -822,6 +826,10 @@ static void test_s13_large_kkt_benchmark(void) {
  * ═══════════════════════════════════════════════════════════════════════ */
 
 static void test_s13_ic_ilu_benchmark_bcsstk04(void) {
+    if (!getenv("RUN_BENCH")) {
+        printf("    (skipped — set RUN_BENCH=1 to enable)\n");
+        return;
+    }
     SparseMatrix *A = NULL;
     sparse_err_t err = sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx");
     if (err != SPARSE_OK || !A) {

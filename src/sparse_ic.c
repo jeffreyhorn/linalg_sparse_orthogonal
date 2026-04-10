@@ -256,7 +256,8 @@ sparse_err_t sparse_ic_precond(const void *ctx, idx_t n, const double *r, double
     if (!ctx || !r || !z)
         return SPARSE_ERR_NULL;
     const sparse_ilu_t *ic = (const sparse_ilu_t *)ctx;
-    (void)n;
+    if (n != ic->n)
+        return SPARSE_ERR_SHAPE;
     return sparse_ic_solve(ic, r, z);
 }
 

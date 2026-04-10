@@ -1103,6 +1103,10 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
             return SPARSE_ERR_BADARG; /* M is not SPD */
         }
         beta = sqrt(beta);
+        if (beta <= 0.0) {
+            free(work);
+            return SPARSE_ERR_BADARG; /* degenerate preconditioner */
+        }
     } else {
         beta = vec_norm2(v, n);
     }
@@ -1197,8 +1201,10 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
         /* Step 3: Compute G_k to zero out beta_new at row k+1 */
         double gamma = sqrt(gamma_bar * gamma_bar + beta_new * beta_new);
 
-        if (gamma == 0.0)
-            break; /* breakdown */
+        if (gamma == 0.0) {
+            iter--; /* no solution update performed this iteration */
+            break;
+        }
 
         double cs_new = gamma_bar / gamma;
         double sn_new = beta_new / gamma;

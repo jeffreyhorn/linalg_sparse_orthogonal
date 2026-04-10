@@ -470,7 +470,8 @@ static void test_s13_suitesparse_bcsstk04(void) {
     double *x_mr2 = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res_mr2;
     {
-        sparse_err_t serr = sparse_solve_minres(A, b, x_mr2, &opts, sparse_ic_precond, &ic, &res_mr2);
+        sparse_err_t serr =
+            sparse_solve_minres(A, b, x_mr2, &opts, sparse_ic_precond, &ic, &res_mr2);
         ASSERT_TRUE(serr == SPARSE_OK || serr == SPARSE_ERR_NOT_CONVERGED);
     }
 

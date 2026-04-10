@@ -501,6 +501,49 @@ If H(j+1,j) = 0, the Krylov subspace is invariant — the exact solution lies in
 
 (k+1)×n for Arnoldi vectors, (k+1)×k for Hessenberg matrix, plus O(k) for Givens data and O(n) for temporaries.
 
+## MINRES Solver
+
+`sparse_solve_minres()` solves symmetric (possibly indefinite) linear systems Ax = b using the Minimum Residual method (Paige & Saunders, 1975).
+
+### Algorithm
+
+MINRES uses a three-term Lanczos recurrence to build an orthonormal basis for the Krylov subspace K_k(A, r_0), then minimizes ||b - Ax|| over this subspace via an implicit QR factorization of the resulting tridiagonal matrix.
+
+```
+r_0 = b - A*x_0;  beta_1 = ||r_0||;  v_1 = r_0 / beta_1
+For k = 1, 2, ...:
+    1. Lanczos step:
+       w = A*v_k - alpha_k*v_k - beta_k*v_{k-1}
+       where alpha_k = v_k^T * A * v_k
+       beta_{k+1} = ||w||;  v_{k+1} = w / beta_{k+1}
+
+    2. QR update (Givens rotations on tridiagonal column k):
+       Apply G_{k-2}, G_{k-1} to [beta_k; alpha_k; beta_{k+1}]
+       Compute G_k to zero out beta_{k+1} → gives gamma_k
+
+    3. Solution update (short recurrence):
+       d_k = (v_k - eps_k*d_{k-2} - delta_k*d_{k-1}) / gamma_k
+       x_k = x_{k-1} + phi_k * d_k
+
+    4. Residual: ||r_k|| = |phi_bar_{k+1}| (available cheaply)
+       Check convergence: |phi_bar_{k+1}| / ||b|| < tol
+```
+
+### Convergence Properties
+
+- **Monotonic residual decrease:** ||r_k|| decreases at every iteration (unlike CG or restarted GMRES).
+- **Short recurrences:** O(n) storage per iteration — only 3 direction vectors and 2 Lanczos vectors needed.
+- **Symmetric indefinite:** Works on any symmetric matrix, including indefinite (KKT, saddle-point).
+- **Exact in n steps:** For an n×n matrix, MINRES produces the exact solution after at most n iterations (in exact arithmetic).
+
+### Preconditioning
+
+Preconditioned MINRES uses the M-inner product where M is an SPD preconditioner. The preconditioner must be SPD even when A is indefinite. IC(0) is a natural choice for SPD systems; for indefinite systems, use a Jacobi (diagonal) preconditioner with |A(i,i)|.
+
+### Workspace
+
+6 vectors of length n (unpreconditioned) or 9 vectors (preconditioned), plus O(1) scalar state for Givens rotations.
+
 ## ILU(0) Preconditioner
 
 `sparse_ilu_factor()` computes an Incomplete LU factorization that preserves the sparsity pattern of the original matrix.
@@ -570,6 +613,42 @@ For each row i = 0..n-1:
 - `tol`: entries with |value| < tol * ||row|| are dropped (default: 1e-3)
 - `max_fill`: maximum fill entries kept per row in L and U (default: 10)
 
+## IC(0) Preconditioner
+
+`sparse_ic_factor()` computes an Incomplete Cholesky factorization that preserves the sparsity pattern of the lower triangle of A. IC(0) is the symmetric analogue of ILU(0): it produces L such that L*L^T ≈ A.
+
+### Algorithm (left-looking, column-by-column)
+
+```
+For k = 0 to n-1:
+    Gather column k of lower triangle of A into dense workspace
+    For each j < k where L(k,j) != 0:
+        For each i >= k where L(i,j) != 0 and A(i,k) != 0:
+            val[i] -= L(k,j) * L(i,j)
+    L(k,k) = sqrt(val[k])        (diagonal — must be positive)
+    L(i,k) = val[i] / L(k,k)     (off-diagonal, only at positions in A's pattern)
+Build U = L^T
+```
+
+### Key Properties
+
+- **No fill-in:** L has the same sparsity pattern as the lower triangle of A.
+- **Symmetric:** L*L^T preserves symmetry, making IC(0) the natural preconditioner for CG and MINRES on SPD systems.
+- **SPD required:** The input must be SPD. Indefinite or non-symmetric matrices cause `SPARSE_ERR_NOT_SPD`.
+- **Preconditioner application:** Solve L*L^T*z = r via forward substitution (L*y = r) then backward substitution (L^T*z = y).
+
+### Comparison with ILU(0)
+
+| Property | IC(0) | ILU(0) |
+|----------|-------|--------|
+| Input requirement | SPD only | General square |
+| Storage | nnz(L) ≈ nnz(lower(A)) | nnz(L) + nnz(U) ≈ nnz(A) |
+| Symmetry preserved | Yes (L*L^T) | No (L*U) |
+| CG compatibility | Natural (SPD preconditioner) | Works but not symmetric |
+| Iteration count | Comparable to ILU(0) on SPD | Comparable to IC(0) on SPD |
+
+On SuiteSparse bcsstk04 (132×132 SPD): both IC(0)-CG and ILU(0)-CG converge in 39 iterations (vs 653 unpreconditioned).
+
 ## Preconditioning
 
 A preconditioner M ≈ A transforms the system to improve the condition number, accelerating iterative solver convergence.
@@ -601,16 +680,18 @@ The callback solves Mz = r given input r and outputs z. Available preconditioner
 |----------------|----------|----------|---------|
 | ILU(0) | `sparse_ilu_precond` | General matrices | Good (3-1000× speedup) |
 | ILUT | `sparse_ilut_precond` | Matrices with zero diagonal | Better than ILU(0), tunable |
+| IC(0) | `sparse_ic_precond` | SPD matrices | Comparable to ILU(0), preserves symmetry |
 | Cholesky | Custom wrapper | SPD matrices | Exact (1 iteration) but expensive setup |
 | Diagonal (Jacobi) | Custom wrapper | Poorly scaled matrices | Modest improvement |
 | Identity | Pass NULL | Baseline | No preconditioning |
 
 ### Selection Guide
 
-- For SPD systems: use ILU-CG (best balance of setup cost and iteration reduction)
+- For SPD systems: use IC(0)-CG or ILU(0)-CG (best balance of setup cost and iteration reduction)
+- For symmetric indefinite: use MINRES with Jacobi preconditioning, or LDL^T direct solve
 - For unsymmetric systems: use ILU-GMRES (right preconditioning recommended)
 - If ILU(0) fails (zero diagonal): use ILUT with diagonal modification
-- If exact solution needed: use direct solver (LU, Cholesky, or QR)
+- If exact solution needed: use direct solver (LU, Cholesky, LDL^T, or QR)
 
 ## Sparse QR Factorization
 

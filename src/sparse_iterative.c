@@ -1148,6 +1148,7 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
 
     idx_t iter = 0;
     int converged = 0;
+    double true_res_cached = -1.0; /* set by in-loop verification if QR converged */
 
     for (iter = 1; iter <= o->max_iter; iter++) {
         /* ── Lanczos step ──────────────────────────────────────────── */
@@ -1235,15 +1236,19 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
         if (relres <= o->tol) {
             /* QR estimate says converged — verify with true residual before
              * breaking, since the QR estimate can underestimate in finite
-             * precision (especially with preconditioning). */
+             * precision (especially with preconditioning). Cache the result
+             * so the post-loop matvec can be skipped. */
             sparse_matvec(A, x, w);
             double tr = 0.0;
             for (idx_t i = 0; i < n; i++) {
                 double di = w[i] - b[i];
                 tr += di * di;
             }
-            if (sqrt(tr) / bnorm <= o->tol)
+            double verified_res = sqrt(tr) / bnorm;
+            if (verified_res <= o->tol) {
+                true_res_cached = verified_res;
                 break;
+            }
         }
 
         /* ── Prepare for next iteration ──────────────────────────── */
@@ -1280,14 +1285,20 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
         beta_old = beta_new;
     }
 
-    /* Compute true residual ||b - A*x|| / ||b|| */
-    sparse_matvec(A, x, w);
-    double true_res = 0.0;
-    for (idx_t i = 0; i < n; i++) {
-        double di = w[i] - b[i];
-        true_res += di * di;
+    /* Compute true residual ||b - A*x|| / ||b|| (skip if already cached
+     * from in-loop verification) */
+    double true_res;
+    if (true_res_cached >= 0.0) {
+        true_res = true_res_cached;
+    } else {
+        sparse_matvec(A, x, w);
+        true_res = 0.0;
+        for (idx_t i = 0; i < n; i++) {
+            double di = w[i] - b[i];
+            true_res += di * di;
+        }
+        true_res = sqrt(true_res) / bnorm;
     }
-    true_res = sqrt(true_res) / bnorm;
 
     /* Final convergence decision based on true residual, not QR estimate */
     converged = (true_res <= o->tol);

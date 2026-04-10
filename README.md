@@ -200,7 +200,7 @@ int main(void)
 | [`sparse_lu_csr.h`](include/sparse_lu_csr.h) | CSR LU working format — conversion, scatter-gather elimination, dense block detection, block solve |
 | [`sparse_cholesky.h`](include/sparse_cholesky.h) | Cholesky factorization and solve for SPD matrices |
 | [`sparse_ldlt.h`](include/sparse_ldlt.h) | LDL^T factorization with Bunch-Kaufman pivoting for symmetric indefinite matrices |
-| [`sparse_iterative.h`](include/sparse_iterative.h) | CG, GMRES, MINRES, block CG/GMRES/MINRES with left/right preconditioning |
+| [`sparse_iterative.h`](include/sparse_iterative.h) | CG, GMRES, MINRES; block CG/GMRES/MINRES; GMRES supports left/right preconditioning |
 | [`sparse_ilu.h`](include/sparse_ilu.h) | ILU(0) and ILUT incomplete factorization preconditioners |
 | [`sparse_ic.h`](include/sparse_ic.h) | IC(0) incomplete Cholesky preconditioner for SPD systems |
 | [`sparse_qr.h`](include/sparse_qr.h) | Column-pivoted QR factorization, least-squares, rank, null space, refinement |
@@ -442,7 +442,7 @@ linalg_sparse_orthogonal/
 │   ├── sparse_lu.h           LU factorization, solve, block solve
 │   ├── sparse_lu_csr.h       CSR LU — scatter-gather elimination, dense blocks
 │   ├── sparse_cholesky.h     Cholesky factorization and solve
-│   ├── sparse_iterative.h    CG, GMRES, MINRES, block CG/GMRES/MINRES
+│   ├── sparse_iterative.h    CG, GMRES, MINRES; block variants; GMRES left/right precond
 │   ├── sparse_ilu.h          ILU(0) and ILUT preconditioners
 │   ├── sparse_ic.h           IC(0) incomplete Cholesky preconditioner
 │   ├── sparse_qr.h           QR factorization, least-squares, rank, null space

@@ -56,15 +56,17 @@ static SparseMatrix *build_kkt(idx_t nh, idx_t nc) {
     return K;
 }
 
-/* Jacobi preconditioner */
-static double *jac_diag_inv;
-static idx_t jac_n;
+/* Jacobi preconditioner context */
+typedef struct {
+    double *diag_inv;
+    idx_t n;
+} jacobi_ctx_t;
 
 static sparse_err_t jacobi_apply(const void *ctx, idx_t n, const double *r, double *z) {
-    (void)ctx;
+    const jacobi_ctx_t *jac = (const jacobi_ctx_t *)ctx;
     (void)n;
-    for (idx_t i = 0; i < jac_n; i++)
-        z[i] = jac_diag_inv[i] * r[i];
+    for (idx_t i = 0; i < jac->n; i++)
+        z[i] = jac->diag_inv[i] * r[i];
     return SPARSE_OK;
 }
 
@@ -153,16 +155,17 @@ int main(void) {
         }
 
         /* Jacobi-preconditioned MINRES */
-        jac_n = n;
-        jac_diag_inv = malloc((size_t)n * sizeof(double));
+        jacobi_ctx_t jac;
+        jac.n = n;
+        jac.diag_inv = malloc((size_t)n * sizeof(double));
         for (idx_t i = 0; i < n; i++) {
             double d = fabs(sparse_get_phys(K, i, i));
-            jac_diag_inv[i] = (d > 1e-15) ? 1.0 / d : 1.0;
+            jac.diag_inv[i] = (d > 1e-15) ? 1.0 / d : 1.0;
         }
 
         double *x2 = calloc((size_t)n, sizeof(double));
         sparse_iter_result_t res2;
-        err = sparse_solve_minres(K, b, x2, &opts, jacobi_apply, NULL, &res2);
+        err = sparse_solve_minres(K, b, x2, &opts, jacobi_apply, &jac, &res2);
         if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED) {
             fprintf(stderr, "Jacobi-MINRES failed: %s\n", sparse_strerror(err));
         } else {
@@ -175,7 +178,7 @@ int main(void) {
         free(b);
         free(x1);
         free(x2);
-        free(jac_diag_inv);
+        free(jac.diag_inv);
         sparse_free(K);
     }
 

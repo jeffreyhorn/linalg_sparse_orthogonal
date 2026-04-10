@@ -542,7 +542,7 @@ Preconditioned MINRES uses the M-inner product where M is an SPD preconditioner.
 
 ### Workspace
 
-6 vectors of length n (unpreconditioned) or 9 vectors (preconditioned), plus O(1) scalar state for Givens rotations.
+6 vectors of length n (unpreconditioned) or 8 vectors (preconditioned), plus O(1) scalar state for Givens rotations.
 
 ## ILU(0) Preconditioner
 

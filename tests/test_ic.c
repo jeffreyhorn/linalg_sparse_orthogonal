@@ -852,8 +852,10 @@ static void test_ic_vs_ilu_suitesparse(void) {
     REQUIRE_OK(sparse_ilu_factor(A, &ilu));
     double *x_ilu = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res_ilu;
-    ASSERT_ERR(sparse_solve_cg(A, b, x_ilu, &opts, sparse_ilu_precond, &ilu, &res_ilu),
-               SPARSE_OK);
+    {
+        sparse_err_t e = sparse_solve_cg(A, b, x_ilu, &opts, sparse_ilu_precond, &ilu, &res_ilu);
+        ASSERT_ERR(e, SPARSE_OK);
+    }
 
     printf("    bcsstk04 IC(0) vs ILU(0): IC(0)=%d iters, ILU(0)=%d iters\n",
            (int)res_ic.iterations, (int)res_ilu.iterations);

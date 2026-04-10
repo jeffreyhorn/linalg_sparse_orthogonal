@@ -1236,12 +1236,12 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
         if (relres <= o->tol) {
             /* QR estimate says converged — verify with true residual before
              * breaking, since the QR estimate can underestimate in finite
-             * precision (especially with preconditioning). Cache the result
-             * so the post-loop matvec can be skipped. */
-            sparse_matvec(A, x, w);
+             * precision (especially with preconditioning). Use d2 as scratch
+             * (already consumed in Step 5, safe to overwrite before shift). */
+            sparse_matvec(A, x, d2);
             double tr = 0.0;
             for (idx_t i = 0; i < n; i++) {
-                double di = w[i] - b[i];
+                double di = d2[i] - b[i];
                 tr += di * di;
             }
             double verified_res = sqrt(tr) / bnorm;

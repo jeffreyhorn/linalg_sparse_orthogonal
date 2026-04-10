@@ -563,13 +563,15 @@ static void test_minres_precond_jacobi_large_kkt(void) {
     /* Unpreconditioned */
     double *x1 = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res1;
-    sparse_solve_minres(K, b, x1, &opts, NULL, NULL, &res1);
+    sparse_err_t err1 = sparse_solve_minres(K, b, x1, &opts, NULL, NULL, &res1);
+    ASSERT_TRUE(err1 == SPARSE_OK || err1 == SPARSE_ERR_NOT_CONVERGED);
 
     /* Jacobi-preconditioned */
     jacobi_ctx_t jac = make_jacobi(K, n);
     double *x2 = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res2;
-    sparse_solve_minres(K, b, x2, &opts, jacobi_precond, &jac, &res2);
+    sparse_err_t err2 = sparse_solve_minres(K, b, x2, &opts, jacobi_precond, &jac, &res2);
+    ASSERT_TRUE(err2 == SPARSE_OK || err2 == SPARSE_ERR_NOT_CONVERGED);
 
     printf("    Jacobi-MINRES on KKT %dx%d: unprec=%d iters (relres=%.1e), Jacobi=%d iters "
            "(relres=%.1e)\n",

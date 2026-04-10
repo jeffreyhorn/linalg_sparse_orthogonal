@@ -241,11 +241,13 @@ static void test_s13_minres_jacobi_large_kkt(void) {
 
     double *x1 = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res1;
-    sparse_solve_minres(K, b, x1, &opts, NULL, NULL, &res1);
+    sparse_err_t err1 = sparse_solve_minres(K, b, x1, &opts, NULL, NULL, &res1);
+    ASSERT_TRUE(err1 == SPARSE_OK || err1 == SPARSE_ERR_NOT_CONVERGED);
 
     double *x2 = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res2;
-    sparse_solve_minres(K, b, x2, &opts, jacobi_precond, &jac, &res2);
+    sparse_err_t err2 = sparse_solve_minres(K, b, x2, &opts, jacobi_precond, &jac, &res2);
+    ASSERT_TRUE(err2 == SPARSE_OK || err2 == SPARSE_ERR_NOT_CONVERGED);
 
     printf("    KKT %dx%d MINRES: unprec=%d iters (relres=%.1e), Jacobi=%d iters (relres=%.1e)\n",
            (int)n, (int)n, (int)res1.iterations, res1.residual_norm, (int)res2.iterations,
@@ -451,17 +453,26 @@ static void test_s13_suitesparse_bcsstk04(void) {
 
     double *x_cg = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res_cg;
-    sparse_solve_cg(A, b, x_cg, &opts, sparse_ic_precond, &ic, &res_cg);
+    {
+        sparse_err_t serr = sparse_solve_cg(A, b, x_cg, &opts, sparse_ic_precond, &ic, &res_cg);
+        ASSERT_ERR(serr, SPARSE_OK);
+    }
 
     /* MINRES (unpreconditioned — bcsstk04 is SPD) */
     double *x_mr = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res_mr;
-    sparse_solve_minres(A, b, x_mr, &opts, NULL, NULL, &res_mr);
+    {
+        sparse_err_t serr = sparse_solve_minres(A, b, x_mr, &opts, NULL, NULL, &res_mr);
+        ASSERT_TRUE(serr == SPARSE_OK || serr == SPARSE_ERR_NOT_CONVERGED);
+    }
 
     /* IC(0)-preconditioned MINRES */
     double *x_mr2 = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res_mr2;
-    sparse_solve_minres(A, b, x_mr2, &opts, sparse_ic_precond, &ic, &res_mr2);
+    {
+        sparse_err_t serr = sparse_solve_minres(A, b, x_mr2, &opts, sparse_ic_precond, &ic, &res_mr2);
+        ASSERT_TRUE(serr == SPARSE_OK || serr == SPARSE_ERR_NOT_CONVERGED);
+    }
 
     printf("    bcsstk04 (n=%d): IC(0)-CG=%d, MINRES=%d, IC(0)-MINRES=%d iters\n", (int)n,
            (int)res_cg.iterations, (int)res_mr.iterations, (int)res_mr2.iterations);
@@ -838,22 +849,25 @@ static void test_s13_ic_ilu_benchmark_bcsstk04(void) {
     /* Unpreconditioned CG */
     double *x1 = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res1;
-    sparse_solve_cg(A, b, x1, &opts, NULL, NULL, &res1);
+    ASSERT_ERR(sparse_solve_cg(A, b, x1, &opts, NULL, NULL, &res1), SPARSE_OK);
 
     /* IC(0)-CG */
     double *x2 = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res2;
-    sparse_solve_cg(A, b, x2, &opts, sparse_ic_precond, &ic, &res2);
+    ASSERT_ERR(sparse_solve_cg(A, b, x2, &opts, sparse_ic_precond, &ic, &res2), SPARSE_OK);
 
     /* ILU(0)-CG */
     double *x3 = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res3;
-    sparse_solve_cg(A, b, x3, &opts, sparse_ilu_precond, &ilu, &res3);
+    ASSERT_ERR(sparse_solve_cg(A, b, x3, &opts, sparse_ilu_precond, &ilu, &res3), SPARSE_OK);
 
     /* IC(0)-MINRES */
     double *x4 = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res4;
-    sparse_solve_minres(A, b, x4, &opts, sparse_ic_precond, &ic, &res4);
+    {
+        sparse_err_t serr = sparse_solve_minres(A, b, x4, &opts, sparse_ic_precond, &ic, &res4);
+        ASSERT_TRUE(serr == SPARSE_OK || serr == SPARSE_ERR_NOT_CONVERGED);
+    }
 
     printf("    bcsstk04 (n=%d) benchmark:\n", (int)n);
     printf("      CG (unprec):   %d iters, relres=%.3e\n", (int)res1.iterations,

@@ -1064,8 +1064,8 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
     }
 
     /* Workspace: v, v_old, w, d0, d1, d2 = 6 vectors
-     * For preconditioned: +3 vectors (z, z_old, z_tmp) = 9 total */
-    idx_t nvecs = precond ? 9 : 6;
+     * For preconditioned: +2 vectors (z, z_tmp) = 8 total */
+    idx_t nvecs = precond ? 8 : 6;
     if ((size_t)n > SIZE_MAX / ((size_t)nvecs * sizeof(double)))
         return SPARSE_ERR_ALLOC;
     double *work = calloc((size_t)nvecs * (size_t)n, sizeof(double));
@@ -1078,11 +1078,10 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
     double *d0 = work + 3 * (size_t)n; /* direction vector d_{k} */
     double *d1 = work + 4 * (size_t)n; /* direction vector d_{k-1} */
     double *d2 = work + 5 * (size_t)n; /* direction vector d_{k-2} */
-    double *z = NULL, *z_old = NULL, *z_tmp = NULL;
+    double *z = NULL, *z_tmp = NULL;
     if (precond) {
         z = work + 6 * (size_t)n;
-        z_old = work + 7 * (size_t)n;
-        z_tmp = work + 8 * (size_t)n;
+        z_tmp = work + 7 * (size_t)n;
     }
 
     /* r0 = b - A*x0 (store in v temporarily) */
@@ -1253,10 +1252,8 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
                 v[i] = w[i] * inv_beta;
             }
             if (precond) {
-                for (idx_t i = 0; i < n; i++) {
-                    z_old[i] = z[i];
+                for (idx_t i = 0; i < n; i++)
                     z[i] = z_tmp[i] * inv_beta;
-                }
             }
         } else {
             /* Lanczos breakdown: Krylov subspace exhausted — solution is exact */
@@ -1312,8 +1309,8 @@ sparse_err_t sparse_minres_solve_block(const SparseMatrix *A, const double *B, i
 
     idx_t n = A->rows;
 
-    /* Overflow check for n * nrhs */
-    if (n > 0 && (size_t)nrhs > SIZE_MAX / ((size_t)n * sizeof(double)))
+    /* Overflow check for j*n pointer offsets (guard before computing size_t products) */
+    if (n > 0 && (size_t)nrhs > SIZE_MAX / (size_t)n)
         return SPARSE_ERR_ALLOC;
 
     if (n == 0) {

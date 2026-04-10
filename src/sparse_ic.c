@@ -206,7 +206,10 @@ sparse_err_t sparse_ic_solve(const sparse_ilu_t *ic, const double *r, double *z)
         return SPARSE_ERR_NULL;
 
     idx_t n = ic->n;
-    double tol = sparse_rel_tol(ic->factor_norm, DROP_TOL);
+    /* L diagonals scale like sqrt(||A||), so use sqrt(factor_norm) as
+     * the reference for singularity detection (not factor_norm itself). */
+    double ref = ic->factor_norm > 0.0 ? sqrt(ic->factor_norm) : ic->factor_norm;
+    double tol = sparse_rel_tol(ref, DROP_TOL);
 
     /* Forward substitution: L*y = r  (L has non-unit diagonal)
      * y[i] = (r[i] - sum_{j<i} L(i,j)*y[j]) / L(i,i)

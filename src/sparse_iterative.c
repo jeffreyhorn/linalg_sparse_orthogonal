@@ -1108,14 +1108,19 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
         beta = vec_norm2(v, n);
     }
 
-    if (beta / bnorm <= o->tol) {
-        /* Already converged */
-        if (result) {
-            result->converged = 1;
-            result->residual_norm = beta / bnorm;
+    /* Check early convergence using the true Euclidean residual norm.
+     * When preconditioned, beta = sqrt(r^T M^{-1} r) which differs from
+     * ||r||_2, so always use vec_norm2(v, n) (v holds r0 before normalization). */
+    {
+        double r0norm = vec_norm2(v, n);
+        if (r0norm / bnorm <= o->tol) {
+            if (result) {
+                result->converged = 1;
+                result->residual_norm = r0norm / bnorm;
+            }
+            free(work);
+            return SPARSE_OK;
         }
-        free(work);
-        return SPARSE_OK;
     }
 
     /* Normalize: v = r0/beta, z = M^{-1}r0/beta */
@@ -1222,10 +1227,8 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
         if (o->verbose)
             fprintf(stderr, "  MINRES iter %d: relres = %.6e\n", (int)iter, relres);
 
-        if (relres <= o->tol) {
-            converged = 1;
+        if (relres <= o->tol)
             break;
-        }
 
         /* ── Prepare for next iteration ──────────────────────────── */
         /* Shift Givens rotations */
@@ -1257,7 +1260,6 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
             }
         } else {
             /* Lanczos breakdown: Krylov subspace exhausted — solution is exact */
-            converged = 1;
             break;
         }
 
@@ -1272,6 +1274,9 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
         true_res += di * di;
     }
     true_res = sqrt(true_res) / bnorm;
+
+    /* Final convergence decision based on true residual, not QR estimate */
+    converged = (true_res <= o->tol);
 
     if (result) {
         result->iterations = iter > o->max_iter ? o->max_iter : iter;

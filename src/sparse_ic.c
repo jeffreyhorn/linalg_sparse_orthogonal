@@ -77,15 +77,16 @@ sparse_err_t sparse_ic_factor(const SparseMatrix *A, sparse_ilu_t *ic) {
         return SPARSE_ERR_ALLOC;
     }
 
-    /* Cache diagonal values of L for O(1) access during column updates */
-    double *diag = malloc((size_t)n * sizeof(double));
-    if (!diag) {
+    /* Boolean marker: in_pat[i] is nonzero when row i is in the current
+     * column's sparsity pattern.  This is used instead of testing val[i]!=0
+     * because val[i] can become exactly zero after subtractions. */
+    char *in_pat = calloc((size_t)n, sizeof(char));
+    if (!in_pat) {
         free(val);
         free(pattern);
         sparse_free(L);
         return SPARSE_ERR_ALLOC;
     }
-    memset(diag, 0, (size_t)n * sizeof(double));
 
     double tol = sparse_rel_tol(ic->factor_norm, DROP_TOL);
     sparse_err_t err = SPARSE_OK;
@@ -98,6 +99,7 @@ sparse_err_t sparse_ic_factor(const SparseMatrix *A, sparse_ilu_t *ic) {
             idx_t i = nd->row;
             if (i >= k && pat_len < n) {
                 val[i] = nd->value;
+                in_pat[i] = 1;
                 pattern[pat_len++] = i;
             }
         }
@@ -118,13 +120,8 @@ sparse_err_t sparse_ic_factor(const SparseMatrix *A, sparse_ilu_t *ic) {
                 if (i < k)
                     continue;
                 /* Only update if (i,k) is in the sparsity pattern of A */
-                if (val[i] != 0.0 || i == k) {
-                    /* Need to check if i is actually in our pattern.
-                     * Since val[i] was set from A's column k, a nonzero val[i]
-                     * means (i,k) is in the pattern. The diagonal (i==k) is
-                     * always in the pattern. */
+                if (in_pat[i])
                     val[i] -= lkj_val * lij->value;
-                }
             }
         }
 
@@ -132,13 +129,21 @@ sparse_err_t sparse_ic_factor(const SparseMatrix *A, sparse_ilu_t *ic) {
         if (val[k] <= tol) {
             err = SPARSE_ERR_NOT_SPD;
             /* Clean up the dense workspace before breaking */
-            for (idx_t p = 0; p < pat_len; p++)
+            for (idx_t p = 0; p < pat_len; p++) {
                 val[pattern[p]] = 0.0;
+                in_pat[pattern[p]] = 0;
+            }
             break;
         }
         double lkk = sqrt(val[k]);
-        diag[k] = lkk;
-        sparse_insert(L, k, k, lkk);
+        err = sparse_insert(L, k, k, lkk);
+        if (err != SPARSE_OK) {
+            for (idx_t p = 0; p < pat_len; p++) {
+                val[pattern[p]] = 0.0;
+                in_pat[pattern[p]] = 0;
+            }
+            break;
+        }
 
         /* Compute off-diagonal entries: L(i,k) = val[i] / L(k,k) for i > k */
         for (idx_t p = 0; p < pat_len; p++) {
@@ -146,18 +151,29 @@ sparse_err_t sparse_ic_factor(const SparseMatrix *A, sparse_ilu_t *ic) {
             if (i == k)
                 continue;
             double lik = val[i] / lkk;
-            if (fabs(lik) > 0.0)
-                sparse_insert(L, i, k, lik);
+            if (fabs(lik) > 0.0) {
+                err = sparse_insert(L, i, k, lik);
+                if (err != SPARSE_OK) {
+                    for (idx_t q = 0; q < pat_len; q++) {
+                        val[pattern[q]] = 0.0;
+                        in_pat[pattern[q]] = 0;
+                    }
+                    goto cleanup;
+                }
+            }
         }
 
         /* Clear the dense workspace */
-        for (idx_t p = 0; p < pat_len; p++)
+        for (idx_t p = 0; p < pat_len; p++) {
             val[pattern[p]] = 0.0;
+            in_pat[pattern[p]] = 0;
+        }
     }
 
+cleanup:
     free(val);
     free(pattern);
-    free(diag);
+    free(in_pat);
 
     if (err != SPARSE_OK) {
         sparse_free(L);

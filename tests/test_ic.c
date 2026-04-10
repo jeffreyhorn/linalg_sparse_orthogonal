@@ -740,12 +740,12 @@ static void test_ic_suitesparse_bcsstk04(void) {
     /* Unpreconditioned CG */
     double *x1 = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res1;
-    sparse_solve_cg(A, b, x1, &opts, NULL, NULL, &res1);
+    ASSERT_ERR(sparse_solve_cg(A, b, x1, &opts, NULL, NULL, &res1), SPARSE_OK);
 
     /* IC(0)-preconditioned CG */
     double *x2 = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res2;
-    sparse_solve_cg(A, b, x2, &opts, sparse_ic_precond, &ic, &res2);
+    ASSERT_ERR(sparse_solve_cg(A, b, x2, &opts, sparse_ic_precond, &ic, &res2), SPARSE_OK);
 
     printf(
         "    bcsstk04 (n=%d): unprec CG %d iters (relres=%.1e), IC(0)-CG %d iters (relres=%.1e)\n",
@@ -794,12 +794,12 @@ static void test_ic_suitesparse_nos4(void) {
     /* Unpreconditioned CG */
     double *x1 = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res1;
-    sparse_solve_cg(A, b, x1, &opts, NULL, NULL, &res1);
+    ASSERT_ERR(sparse_solve_cg(A, b, x1, &opts, NULL, NULL, &res1), SPARSE_OK);
 
     /* IC(0)-preconditioned CG */
     double *x2 = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res2;
-    sparse_solve_cg(A, b, x2, &opts, sparse_ic_precond, &ic, &res2);
+    ASSERT_ERR(sparse_solve_cg(A, b, x2, &opts, sparse_ic_precond, &ic, &res2), SPARSE_OK);
 
     printf("    nos4 (n=%d): unprec CG %d iters (relres=%.1e), IC(0)-CG %d iters (relres=%.1e)\n",
            (int)n, (int)res1.iterations, res1.residual_norm, (int)res2.iterations,
@@ -845,14 +845,15 @@ static void test_ic_vs_ilu_suitesparse(void) {
     }
     double *x_ic = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res_ic;
-    sparse_solve_cg(A, b, x_ic, &opts, sparse_ic_precond, &ic, &res_ic);
+    ASSERT_ERR(sparse_solve_cg(A, b, x_ic, &opts, sparse_ic_precond, &ic, &res_ic), SPARSE_OK);
 
     /* ILU(0)-preconditioned CG */
     sparse_ilu_t ilu;
     REQUIRE_OK(sparse_ilu_factor(A, &ilu));
     double *x_ilu = calloc((size_t)n, sizeof(double));
     sparse_iter_result_t res_ilu;
-    sparse_solve_cg(A, b, x_ilu, &opts, sparse_ilu_precond, &ilu, &res_ilu);
+    ASSERT_ERR(sparse_solve_cg(A, b, x_ilu, &opts, sparse_ilu_precond, &ilu, &res_ilu),
+               SPARSE_OK);
 
     printf("    bcsstk04 IC(0) vs ILU(0): IC(0)=%d iters, ILU(0)=%d iters\n",
            (int)res_ic.iterations, (int)res_ilu.iterations);

@@ -1226,8 +1226,19 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
         if (o->verbose)
             fprintf(stderr, "  MINRES iter %d: relres = %.6e\n", (int)iter, relres);
 
-        if (relres <= o->tol)
-            break;
+        if (relres <= o->tol) {
+            /* QR estimate says converged — verify with true residual before
+             * breaking, since the QR estimate can underestimate in finite
+             * precision (especially with preconditioning). */
+            sparse_matvec(A, x, w);
+            double tr = 0.0;
+            for (idx_t i = 0; i < n; i++) {
+                double di = w[i] - b[i];
+                tr += di * di;
+            }
+            if (sqrt(tr) / bnorm <= o->tol)
+                break;
+        }
 
         /* ── Prepare for next iteration ──────────────────────────── */
         /* Shift Givens rotations */

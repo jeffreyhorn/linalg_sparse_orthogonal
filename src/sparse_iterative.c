@@ -1021,3 +1021,362 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, id
         return worst_err;
     return all_converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * MINRES — Minimum Residual method for symmetric systems
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double *x,
+                                 const sparse_iter_opts_t *opts, sparse_precond_fn precond,
+                                 const void *precond_ctx, sparse_iter_result_t *result) {
+    /* Initialize result to safe defaults */
+    if (result) {
+        result->iterations = 0;
+        result->residual_norm = 0.0;
+        result->converged = 0;
+    }
+
+    if (!A || !b || !x)
+        return SPARSE_ERR_NULL;
+    if (A->rows != A->cols)
+        return SPARSE_ERR_SHAPE;
+
+    const sparse_iter_opts_t *o = opts ? opts : &cg_defaults;
+    if (o->max_iter < 0 || o->tol < 0.0)
+        return SPARSE_ERR_BADARG;
+
+    idx_t n = A->rows;
+
+    if (n == 0) {
+        if (result)
+            result->converged = 1;
+        return SPARSE_OK;
+    }
+
+    double bnorm = vec_norm2(b, n);
+    if (bnorm == 0.0) {
+        vec_zero(x, n);
+        if (result) {
+            result->converged = 1;
+            result->residual_norm = 0.0;
+        }
+        return SPARSE_OK;
+    }
+
+    /* Workspace: v, v_old, w, d0, d1, d2 = 6 vectors
+     * For preconditioned: +2 vectors (z, z_tmp) = 8 total */
+    idx_t nvecs = precond ? 8 : 6;
+    if ((size_t)n > SIZE_MAX / ((size_t)nvecs * sizeof(double)))
+        return SPARSE_ERR_ALLOC;
+    double *work = calloc((size_t)nvecs * (size_t)n, sizeof(double));
+    if (!work)
+        return SPARSE_ERR_ALLOC;
+
+    double *v = work;                  /* current Lanczos vector */
+    double *v_old = work + (size_t)n;  /* previous Lanczos vector */
+    double *w = work + 2 * (size_t)n;  /* A*v workspace */
+    double *d0 = work + 3 * (size_t)n; /* direction vector d_{k} */
+    double *d1 = work + 4 * (size_t)n; /* direction vector d_{k-1} */
+    double *d2 = work + 5 * (size_t)n; /* direction vector d_{k-2} */
+    double *z = NULL, *z_tmp = NULL;
+    if (precond) {
+        z = work + 6 * (size_t)n;
+        z_tmp = work + 7 * (size_t)n;
+    }
+
+    /* r0 = b - A*x0 (store in v temporarily) */
+    sparse_matvec(A, x, w);
+    for (idx_t i = 0; i < n; i++)
+        v[i] = b[i] - w[i];
+
+    /* Compute beta1 = ||r0|| or sqrt(r0^T * M^{-1} * r0) */
+    double beta;
+    if (precond) {
+        sparse_err_t perr = precond(precond_ctx, n, v, z);
+        if (perr != SPARSE_OK) {
+            free(work);
+            return perr;
+        }
+        beta = vec_dot(v, z, n);
+        if (beta < 0.0) {
+            free(work);
+            return SPARSE_ERR_BADARG; /* M is not SPD */
+        }
+        beta = sqrt(beta);
+        if (beta <= 0.0) {
+            free(work);
+            return SPARSE_ERR_BADARG; /* degenerate preconditioner */
+        }
+    } else {
+        beta = vec_norm2(v, n);
+    }
+
+    /* Check early convergence using the true Euclidean residual norm.
+     * When preconditioned, beta = sqrt(r^T M^{-1} r) which differs from
+     * ||r||_2, so always use vec_norm2(v, n) (v holds r0 before normalization). */
+    {
+        double r0norm = vec_norm2(v, n);
+        if (r0norm / bnorm <= o->tol) {
+            if (result) {
+                result->converged = 1;
+                result->residual_norm = r0norm / bnorm;
+            }
+            free(work);
+            return SPARSE_OK;
+        }
+    }
+
+    /* Normalize: v = r0/beta, z = M^{-1}r0/beta */
+    {
+        double inv_beta = 1.0 / beta;
+        for (idx_t i = 0; i < n; i++)
+            v[i] *= inv_beta;
+        if (precond) {
+            for (idx_t i = 0; i < n; i++)
+                z[i] *= inv_beta;
+        }
+    }
+
+    /* Givens rotation state:
+     * cs, sn   = G_{k-1} (initialized as identity)
+     * cs_old, sn_old = G_{k-2} (initialized as identity) */
+    double cs = 1.0, sn = 0.0;
+    double cs_old = 1.0, sn_old = 0.0;
+
+    double phi_bar = beta; /* residual norm estimate */
+    double beta_old = 0.0;
+
+    idx_t iter = 0;
+    int converged = 0;
+    double true_res_cached = -1.0; /* set by in-loop verification if QR converged */
+
+    for (iter = 1; iter <= o->max_iter; iter++) {
+        /* ── Lanczos step ──────────────────────────────────────────── */
+        /* w = A * v_k (unpreconditioned) or A * z_k (preconditioned) */
+        if (precond)
+            sparse_matvec(A, z, w);
+        else
+            sparse_matvec(A, v, w);
+
+        /* alpha = <v_k, w> (or <z_k, w> for preconditioned) */
+        double alpha;
+        if (precond)
+            alpha = vec_dot(z, w, n);
+        else
+            alpha = vec_dot(v, w, n);
+
+        /* w = w - alpha*v - beta_old*v_old (three-term recurrence) */
+        for (idx_t i = 0; i < n; i++)
+            w[i] = w[i] - alpha * v[i] - beta_old * v_old[i];
+
+        /* Compute beta_new */
+        double beta_new;
+        if (precond) {
+            sparse_err_t perr = precond(precond_ctx, n, w, z_tmp);
+            if (perr != SPARSE_OK) {
+                free(work);
+                return perr;
+            }
+            double inner = vec_dot(w, z_tmp, n);
+            if (inner < 0.0) {
+                free(work);
+                return SPARSE_ERR_BADARG; /* M not SPD */
+            }
+            beta_new = sqrt(inner);
+        } else {
+            beta_new = vec_norm2(w, n);
+        }
+
+        /* ── QR update: process column k of the tridiagonal ──────── */
+        /* The column has: beta_old at row k-1, alpha at row k,
+         * beta_new at row k+1. Apply previous Givens rotations. */
+
+        /* Step 1: Apply G_{k-2} to (row k-2, row k-1) = (0, beta_old) */
+        double eps = sn_old * beta_old;
+        double delta_bar = cs_old * beta_old;
+
+        /* Step 2: Apply G_{k-1} to (row k-1, row k) = (delta_bar, alpha) */
+        double delta = cs * delta_bar + sn * alpha;
+        double gamma_bar = -sn * delta_bar + cs * alpha;
+
+        /* Step 3: Compute G_k to zero out beta_new at row k+1 */
+        double gamma = sqrt(gamma_bar * gamma_bar + beta_new * beta_new);
+
+        if (gamma == 0.0) {
+            iter--; /* no solution update performed this iteration */
+            break;
+        }
+
+        double cs_new = gamma_bar / gamma;
+        double sn_new = beta_new / gamma;
+
+        /* Step 4: Update RHS */
+        double phi = cs_new * phi_bar;
+        phi_bar = -sn_new * phi_bar;
+
+        /* Step 5: Direction vector d_k = (v_k - eps*d_{k-2} - delta*d_{k-1}) / gamma
+         * For preconditioned: use z instead of v */
+        {
+            const double *dv = precond ? z : v;
+            double inv_gamma = 1.0 / gamma;
+            for (idx_t i = 0; i < n; i++)
+                d0[i] = (dv[i] - eps * d2[i] - delta * d1[i]) * inv_gamma;
+        }
+
+        /* Step 6: Update solution x = x + phi * d_k */
+        for (idx_t i = 0; i < n; i++)
+            x[i] += phi * d0[i];
+
+        /* Step 7: Check convergence */
+        double relres = fabs(phi_bar) / bnorm;
+
+        if (o->verbose)
+            fprintf(stderr, "  MINRES iter %d: relres = %.6e\n", (int)iter, relres);
+
+        if (relres <= o->tol) {
+            /* QR estimate says converged — verify with true residual before
+             * breaking, since the QR estimate can underestimate in finite
+             * precision (especially with preconditioning). Use d2 as scratch
+             * (already consumed in Step 5, safe to overwrite before shift). */
+            sparse_matvec(A, x, d2);
+            double tr = 0.0;
+            for (idx_t i = 0; i < n; i++) {
+                double di = d2[i] - b[i];
+                tr += di * di;
+            }
+            double verified_res = sqrt(tr) / bnorm;
+            if (verified_res <= o->tol) {
+                true_res_cached = verified_res;
+                break;
+            }
+        }
+
+        /* ── Prepare for next iteration ──────────────────────────── */
+        /* Shift Givens rotations */
+        cs_old = cs;
+        sn_old = sn;
+        cs = cs_new;
+        sn = sn_new;
+
+        /* Shift direction vectors: d2 ← d1, d1 ← d0 (swap pointers) */
+        {
+            double *tmp = d2;
+            d2 = d1;
+            d1 = d0;
+            d0 = tmp;
+        }
+
+        /* Shift Lanczos vectors and normalize */
+        if (beta_new > 0.0) {
+            double inv_beta = 1.0 / beta_new;
+            for (idx_t i = 0; i < n; i++) {
+                v_old[i] = v[i];
+                v[i] = w[i] * inv_beta;
+            }
+            if (precond) {
+                for (idx_t i = 0; i < n; i++)
+                    z[i] = z_tmp[i] * inv_beta;
+            }
+        } else {
+            /* Lanczos breakdown: Krylov subspace exhausted — solution is exact */
+            break;
+        }
+
+        beta_old = beta_new;
+    }
+
+    /* Compute true residual ||b - A*x|| / ||b|| (skip if already cached
+     * from in-loop verification) */
+    double true_res;
+    if (true_res_cached >= 0.0) {
+        true_res = true_res_cached;
+    } else {
+        sparse_matvec(A, x, w);
+        true_res = 0.0;
+        for (idx_t i = 0; i < n; i++) {
+            double di = w[i] - b[i];
+            true_res += di * di;
+        }
+        true_res = sqrt(true_res) / bnorm;
+    }
+
+    /* Final convergence decision based on true residual, not QR estimate */
+    converged = (true_res <= o->tol);
+
+    if (result) {
+        result->iterations = iter > o->max_iter ? o->max_iter : iter;
+        result->residual_norm = true_res;
+        result->converged = converged;
+    }
+
+    free(work);
+    return converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
+}
+
+sparse_err_t sparse_minres_solve_block(const SparseMatrix *A, const double *B, idx_t nrhs,
+                                       double *X, const sparse_iter_opts_t *opts,
+                                       sparse_precond_fn precond, const void *precond_ctx,
+                                       sparse_iter_result_t *result) {
+    if (result) {
+        result->iterations = 0;
+        result->residual_norm = 0.0;
+        result->converged = 0;
+    }
+
+    if (!A || !B || !X)
+        return SPARSE_ERR_NULL;
+    if (nrhs < 0)
+        return SPARSE_ERR_BADARG;
+    if (nrhs == 0) {
+        if (result)
+            result->converged = 1;
+        return SPARSE_OK;
+    }
+    if (A->rows != A->cols)
+        return SPARSE_ERR_SHAPE;
+
+    idx_t n = A->rows;
+
+    /* Overflow check for j*n pointer offsets (guard before computing size_t products) */
+    if (n > 0 && (size_t)nrhs > SIZE_MAX / (size_t)n)
+        return SPARSE_ERR_ALLOC;
+
+    if (n == 0) {
+        if (result)
+            result->converged = 1;
+        return SPARSE_OK;
+    }
+
+    /* Run MINRES independently for each column */
+    idx_t max_iters = 0;
+    double max_residual = 0.0;
+    int all_converged = 1;
+    sparse_err_t worst_err = SPARSE_OK;
+
+    for (idx_t j = 0; j < nrhs; j++) {
+        const double *bj = B + (size_t)j * (size_t)n;
+        double *xj = X + (size_t)j * (size_t)n;
+        sparse_iter_result_t col_result = {0, 0.0, 0};
+
+        sparse_err_t err = sparse_solve_minres(A, bj, xj, opts, precond, precond_ctx, &col_result);
+
+        if (col_result.iterations > max_iters)
+            max_iters = col_result.iterations;
+        if (col_result.residual_norm > max_residual)
+            max_residual = col_result.residual_norm;
+        if (!col_result.converged)
+            all_converged = 0;
+        if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED)
+            worst_err = err;
+    }
+
+    if (result) {
+        result->iterations = max_iters;
+        result->residual_norm = max_residual;
+        result->converged = all_converged;
+    }
+
+    if (worst_err != SPARSE_OK && worst_err != SPARSE_ERR_NOT_CONVERGED)
+        return worst_err;
+    return all_converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
+}

@@ -35,8 +35,10 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Restarted GMRES(k)** for general unsymmetric systems with left and right preconditioning
 - **Multi-RHS GMRES** — restarted GMRES(k) applied independently per RHS with aggregated reporting (`sparse_gmres_solve_block`)
 - **Matrix-free variants** — CG and GMRES with user-supplied matvec callback (`sparse_solve_cg_mf`, `sparse_solve_gmres_mf`)
+- **MINRES** for symmetric (possibly indefinite) systems — Lanczos-based minimum residual with monotonic residual decrease (`sparse_solve_minres`, `sparse_minres_solve_block`)
 - **ILU(0) preconditioner** — incomplete LU with no fill-in, 3-1000× iteration reduction
 - **ILUT preconditioner** — ILU with threshold dropping and controlled fill-in, handles zero-diagonal matrices, optional row partial pivoting
+- **IC(0) preconditioner** — incomplete Cholesky for SPD systems, symmetric analogue of ILU(0) (`sparse_ic_factor`, `sparse_ic_precond`)
 
 ### Eigenvalue Infrastructure
 - **Symmetric tridiagonal QR algorithm** — implicit QR with Wilkinson shifts and deflation
@@ -198,8 +200,9 @@ int main(void)
 | [`sparse_lu_csr.h`](include/sparse_lu_csr.h) | CSR LU working format — conversion, scatter-gather elimination, dense block detection, block solve |
 | [`sparse_cholesky.h`](include/sparse_cholesky.h) | Cholesky factorization and solve for SPD matrices |
 | [`sparse_ldlt.h`](include/sparse_ldlt.h) | LDL^T factorization with Bunch-Kaufman pivoting for symmetric indefinite matrices |
-| [`sparse_iterative.h`](include/sparse_iterative.h) | CG, GMRES, block CG, block GMRES with left/right preconditioning |
+| [`sparse_iterative.h`](include/sparse_iterative.h) | CG, GMRES, MINRES; block CG/GMRES/MINRES; GMRES supports left/right preconditioning |
 | [`sparse_ilu.h`](include/sparse_ilu.h) | ILU(0) and ILUT incomplete factorization preconditioners |
+| [`sparse_ic.h`](include/sparse_ic.h) | IC(0) incomplete Cholesky preconditioner for SPD systems |
 | [`sparse_qr.h`](include/sparse_qr.h) | Column-pivoted QR factorization, least-squares, rank, null space, refinement |
 | [`sparse_dense.h`](include/sparse_dense.h) | Dense matrix utilities, Givens rotations, 2×2 eigensolver, tridiag QR |
 | [`sparse_bidiag.h`](include/sparse_bidiag.h) | Householder bidiagonalization (SVD preprocessing) |
@@ -276,6 +279,8 @@ int main(void)
 - `sparse_gmres_solve_block(A, B, nrhs, X, &opts, precond, ctx, &result)` — Block GMRES for multiple RHS
 - `sparse_solve_cg_mf(matvec, ctx, n, b, x, &opts, precond, ctx, &result)` — Matrix-free CG
 - `sparse_solve_gmres_mf(matvec, ctx, n, b, x, &opts, precond, ctx, &result)` — Matrix-free GMRES
+- `sparse_solve_minres(A, b, x, &opts, precond, ctx, &result)` — MINRES for symmetric (possibly indefinite) systems
+- `sparse_minres_solve_block(A, B, nrhs, X, &opts, precond, ctx, &result)` — Block MINRES for multiple RHS
 
 **ILU(0) / ILUT preconditioners:**
 - `sparse_ilu_factor(A, &ilu)` — ILU(0) factorization (no fill-in beyond A's pattern)
@@ -283,6 +288,12 @@ int main(void)
 - `sparse_ilu_solve(&ilu, r, z)` — apply preconditioner: solve L*U*z = r
 - `sparse_ilu_precond` / `sparse_ilut_precond` — callbacks compatible with `sparse_precond_fn`
 - `sparse_ilu_free(&ilu)` — free ILU/ILUT factors
+
+**IC(0) preconditioner (incomplete Cholesky):**
+- `sparse_ic_factor(A, &ic)` — IC(0) factorization for SPD matrices (L*L^T ≈ A, no fill-in)
+- `sparse_ic_solve(&ic, r, z)` — apply preconditioner: solve L*L^T*z = r
+- `sparse_ic_precond` — callback compatible with `sparse_precond_fn`
+- `sparse_ic_free(&ic)` — free IC(0) factors
 
 **Fill-reducing reordering:**
 - `sparse_reorder_rcm(A, perm)` — Reverse Cuthill-McKee ordering
@@ -365,7 +376,7 @@ The library is safe for concurrent use under the following contract:
 
 ## Testing
 
-The test suite contains **812 unit tests** across 30 test suites with >=95% line coverage (CI-enforced):
+The test suite contains **976 unit tests** across 35 test suites with >=95% line coverage (CI-enforced):
 
 - Sparse matrix data structure, norms, symmetry, transpose (53 tests)
 - LU factorization, solve, condition estimation (37 tests)
@@ -397,6 +408,11 @@ The test suite contains **812 unit tests** across 30 test suites with >=95% line
 - Block solvers — block SpMV, block CG, block GMRES (15 tests)
 - Sprint 10 cross-feature integration (14 tests)
 - Sprint 11 tolerance, factored-state, and version integration (6 tests)
+- LDL^T factorization — Bunch-Kaufman pivoting, 2x2 blocks, reordering, KKT systems (72 tests)
+- Sprint 12 LDL^T cross-feature integration (8 tests)
+- IC(0) incomplete Cholesky — factor, solve, CG preconditioning, SuiteSparse (27 tests)
+- MINRES solver — SPD, indefinite, preconditioned, block, robustness (43 tests)
+- Sprint 13 IC(0) + MINRES cross-feature integration (14 tests)
 
 ```bash
 make test          # run all tests
@@ -419,15 +435,16 @@ On Linux, `make asan` works with the default compiler.
 
 ```
 linalg_sparse_orthogonal/
-├── include/              Public headers (15 headers)
+├── include/              Public headers (16 headers)
 │   ├── sparse_types.h        Error codes, index type (includes sparse_version.h)
 │   ├── sparse_version.h      Version macros (generated from VERSION file)
 │   ├── sparse_matrix.h       Core data structure, SpMV, block SpMV, I/O
 │   ├── sparse_lu.h           LU factorization, solve, block solve
 │   ├── sparse_lu_csr.h       CSR LU — scatter-gather elimination, dense blocks
 │   ├── sparse_cholesky.h     Cholesky factorization and solve
-│   ├── sparse_iterative.h    CG, GMRES, block CG, block GMRES
+│   ├── sparse_iterative.h    CG, GMRES, MINRES; block variants; GMRES left/right precond
 │   ├── sparse_ilu.h          ILU(0) and ILUT preconditioners
+│   ├── sparse_ic.h           IC(0) incomplete Cholesky preconditioner
 │   ├── sparse_qr.h           QR factorization, least-squares, rank, null space
 │   ├── sparse_dense.h        Dense utilities, Givens, eigensolvers
 │   ├── sparse_bidiag.h       Householder bidiagonalization
@@ -435,8 +452,8 @@ linalg_sparse_orthogonal/
 │   ├── sparse_reorder.h      Fill-reducing reordering (RCM, AMD)
 │   ├── sparse_svd.h          SVD, condition number, pseudoinverse, low-rank
 │   └── sparse_vector.h       Dense vector utilities
-├── src/                  Library implementation (14 source files, ~9K lines)
-├── tests/                Unit tests (30 suites, 812 tests, ~27K lines)
+├── src/                  Library implementation (15 source files, ~10K lines)
+├── tests/                Unit tests (35 suites, 976 tests, ~30K lines)
 ├── cmake/                CMake config templates
 ├── examples/             Standalone example programs + CMake integration example
 ├── benchmarks/           Performance benchmarks (5 programs)

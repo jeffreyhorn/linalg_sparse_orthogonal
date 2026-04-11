@@ -222,6 +222,89 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, id
                                       const void *precond_ctx, sparse_iter_result_t *result);
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * MINRES — Minimum Residual method for symmetric systems
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief Solve A*x = b using the Preconditioned MINRES method.
+ *
+ * MINRES is applicable to symmetric (possibly indefinite) matrices.
+ * It minimizes the 2-norm of the residual ||b - A*x|| over the Krylov
+ * subspace using a Lanczos tridiagonalization with implicit QR via
+ * Givens rotations. Unlike CG, MINRES does not require A to be
+ * positive-definite; unlike GMRES, it exploits symmetry to use only
+ * short recurrences (O(n) storage, no restart needed).
+ *
+ * The residual norm decreases monotonically at every iteration (a
+ * guarantee that CG and GMRES(k) do not provide).
+ *
+ * The input x is used as the initial guess (pass a zero vector for no guess).
+ *
+ * @note **Symmetry requirement:** A must be symmetric. If A is not
+ *       symmetric, the behavior is undefined (the Lanczos recurrence
+ *       assumes symmetry). For non-symmetric systems, use GMRES instead.
+ *
+ * @note **Preconditioner requirement:** If a preconditioner is supplied,
+ *       it must be symmetric positive-definite (SPD). The preconditioned
+ *       MINRES algorithm uses the M-inner product, which requires M to
+ *       define a valid inner product (i.e., M must be SPD).
+ *
+ * @param A           The symmetric coefficient matrix (not modified). Must be square.
+ * @param b           Right-hand side vector of length n.
+ * @param x           On entry, initial guess; on exit, approximate solution.
+ * @param opts        Solver options (NULL for defaults: max_iter=1000, tol=1e-10).
+ * @param precond     Preconditioner callback (NULL for no preconditioning).
+ *                    Must be SPD if provided.
+ * @param precond_ctx Context pointer passed to precond callback.
+ * @param result      Output: iteration count, residual, convergence flag (may be NULL).
+ * @return SPARSE_OK if converged within tolerance.
+ * @return SPARSE_ERR_NOT_CONVERGED if max_iter exceeded without convergence.
+ * @return SPARSE_ERR_NULL if A, b, or x is NULL.
+ * @return SPARSE_ERR_SHAPE if A is not square.
+ * @return SPARSE_ERR_BADARG if opts has negative max_iter or tol, or if a
+ *         provided preconditioner is non-SPD (r^T M^{-1} r < 0) or degenerate.
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails.
+ *
+ * @par Thread safety: Read-only on A. Safe to call concurrently on the same matrix
+ *               with different b/x vectors.
+ */
+sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double *x,
+                                 const sparse_iter_opts_t *opts, sparse_precond_fn precond,
+                                 const void *precond_ctx, sparse_iter_result_t *result);
+
+/**
+ * @brief Solve A*X = B for multiple RHS using per-column MINRES.
+ *
+ * Runs MINRES independently for each column and aggregates convergence
+ * reporting across columns. Each column converges independently.
+ *
+ * @note **Symmetry requirement:** A must be symmetric. For non-symmetric
+ *       systems, use sparse_gmres_solve_block() instead.
+ *
+ * @note **Preconditioner requirement:** If a preconditioner is supplied,
+ *       it must be symmetric positive-definite.
+ *
+ * @param A           Symmetric coefficient matrix (not modified).
+ * @param B           RHS matrix, n × nrhs column-major.
+ * @param nrhs        Number of RHS vectors.
+ * @param X           Solution matrix, n × nrhs column-major (initial guess on entry).
+ * @param opts        Solver options (NULL for defaults).
+ * @param precond     Preconditioner callback (NULL for none). Must be SPD if provided.
+ * @param precond_ctx Context pointer passed to precond.
+ * @param result      Output: iterations = max across columns, residual = max across columns.
+ * @return SPARSE_OK if all columns converged.
+ * @return SPARSE_ERR_NULL if A, B, or X is NULL.
+ * @return SPARSE_ERR_BADARG if @p nrhs is negative or opts has invalid values.
+ * @return SPARSE_ERR_SHAPE if A is not square.
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails or n*nrhs overflows.
+ * @return SPARSE_ERR_NOT_CONVERGED if any column did not converge.
+ */
+sparse_err_t sparse_minres_solve_block(const SparseMatrix *A, const double *B, idx_t nrhs,
+                                       double *X, const sparse_iter_opts_t *opts,
+                                       sparse_precond_fn precond, const void *precond_ctx,
+                                       sparse_iter_result_t *result);
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Matrix-free iterative solvers
  * ═══════════════════════════════════════════════════════════════════════ */
 

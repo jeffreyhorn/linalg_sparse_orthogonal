@@ -24,6 +24,8 @@
 /* Build an n x n SPD tridiagonal matrix: diag=4, off=-1 */
 static SparseMatrix *build_spd(idx_t n) {
     SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, 4.0);
         if (i > 0) {
@@ -38,6 +40,8 @@ static SparseMatrix *build_spd(idx_t n) {
 static SparseMatrix *build_kkt(idx_t nh, idx_t nc) {
     idx_t n = nh + nc;
     SparseMatrix *K = sparse_create(n, n);
+    if (!K)
+        return NULL;
     for (idx_t i = 0; i < nh; i++) {
         sparse_insert(K, i, i, 4.0);
         if (i > 0) {
@@ -80,6 +84,10 @@ int main(void) {
     {
         idx_t n = 50;
         SparseMatrix *A = build_spd(n);
+        if (!A) {
+            fprintf(stderr, "Failed to create SPD matrix\n");
+            return 1;
+        }
 
         double *x_exact = malloc((size_t)n * sizeof(double));
         double *b = malloc((size_t)n * sizeof(double));
@@ -132,6 +140,10 @@ int main(void) {
     {
         idx_t nh = 30, nc = 12;
         SparseMatrix *K = build_kkt(nh, nc);
+        if (!K) {
+            fprintf(stderr, "Failed to create KKT matrix\n");
+            return 1;
+        }
         idx_t n = nh + nc;
 
         double *x_exact = malloc((size_t)n * sizeof(double));
@@ -187,6 +199,10 @@ int main(void) {
     {
         idx_t nh = 20, nc = 8;
         SparseMatrix *K = build_kkt(nh, nc);
+        if (!K) {
+            fprintf(stderr, "Failed to create KKT matrix\n");
+            return 1;
+        }
         idx_t n = nh + nc;
         idx_t nrhs = 3;
 

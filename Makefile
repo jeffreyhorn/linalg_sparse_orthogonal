@@ -55,9 +55,7 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_svd.c \
            $(SRCDIR)/sparse_lu_csr.c \
            $(SRCDIR)/sparse_ldlt.c \
-           $(SRCDIR)/sparse_ic.c \
-           $(SRCDIR)/sparse_etree.c \
-           $(SRCDIR)/sparse_analysis.c
+           $(SRCDIR)/sparse_ic.c
 LIB_OBJS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(LIB_SRCS))
 LIB      = $(BUILDDIR)/libsparse_lu_ortho.a
 
@@ -96,8 +94,7 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_sprint12_integration.c \
             $(TESTDIR)/test_ic.c \
             $(TESTDIR)/test_minres.c \
-            $(TESTDIR)/test_sprint13_integration.c \
-            $(TESTDIR)/test_etree.c
+            $(TESTDIR)/test_sprint13_integration.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
 # Benchmark sources
@@ -105,8 +102,7 @@ BENCH_SRCS = $(BENCHDIR)/bench_main.c \
              $(BENCHDIR)/bench_scaling.c \
              $(BENCHDIR)/bench_fillin.c \
              $(BENCHDIR)/bench_convergence.c \
-             $(BENCHDIR)/bench_svd.c \
-             $(BENCHDIR)/bench_refactor.c
+             $(BENCHDIR)/bench_svd.c
 BENCH_BINS = $(patsubst $(BENCHDIR)/%.c,$(BUILDDIR)/%,$(BENCH_SRCS))
 
 # Example sources

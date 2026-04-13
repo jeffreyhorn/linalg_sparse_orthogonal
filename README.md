@@ -53,12 +53,6 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Matrix arithmetic** — scalar scaling (`sparse_scale`) and addition (`sparse_add`)
 - **Infinity norm** with internal caching (`sparse_norminf`)
 
-### Symbolic Analysis & Refactorization
-- **Elimination tree** computation via Liu's algorithm with path compression
-- **Symbolic Cholesky/LU factorization** — predict exact (Cholesky) or upper-bound (LU) sparsity structure of factors without numeric work
-- **Analyze-once, factor-many workflow** — `sparse_analyze()` → `sparse_factor_numeric()` → `sparse_refactor_numeric()` for repeated solves with the same sparsity pattern but different values
-- **Column counts** — predict nnz per column of L for pre-allocation
-
 ### Reordering & Preconditioning
 - **Fill-reducing reordering** — Reverse Cuthill-McKee (RCM) and Approximate Minimum Degree (AMD)
 - **Condition number estimation** — Hager/Higham 1-norm estimator from LU or LDL^T factors
@@ -206,7 +200,6 @@ int main(void)
 | [`sparse_lu_csr.h`](include/sparse_lu_csr.h) | CSR LU working format — conversion, scatter-gather elimination, dense block detection, block solve |
 | [`sparse_cholesky.h`](include/sparse_cholesky.h) | Cholesky factorization and solve for SPD matrices |
 | [`sparse_ldlt.h`](include/sparse_ldlt.h) | LDL^T factorization with Bunch-Kaufman pivoting for symmetric indefinite matrices |
-| [`sparse_analysis.h`](include/sparse_analysis.h) | Symbolic analysis, numeric factorization, refactorization (analyze-once workflow) |
 | [`sparse_iterative.h`](include/sparse_iterative.h) | CG, GMRES, MINRES; block CG/GMRES/MINRES; GMRES supports left/right preconditioning |
 | [`sparse_ilu.h`](include/sparse_ilu.h) | ILU(0) and ILUT incomplete factorization preconditioners |
 | [`sparse_ic.h`](include/sparse_ic.h) | IC(0) incomplete Cholesky preconditioner for SPD systems |
@@ -259,13 +252,6 @@ int main(void)
 - `sparse_ldlt_refine(A, &ldlt, b, x, max_iters, tol)` — iterative refinement
 - `sparse_ldlt_condest(A, &ldlt, &cond)` — 1-norm condition estimate via Hager/Higham
 - `sparse_ldlt_free(&ldlt)` — free factorization data
-
-**Symbolic analysis & refactorization:**
-- `sparse_analyze(A, &opts, &analysis)` — compute elimination tree, column counts, symbolic structure
-- `sparse_factor_numeric(A, &analysis, &factors)` — numeric-only factorization using precomputed analysis
-- `sparse_refactor_numeric(A_new, &analysis, &factors)` — refactor with new values (same pattern)
-- `sparse_factor_solve(&factors, &analysis, b, x)` — solve using factors with auto-permutation
-- `sparse_analysis_free(&analysis)` / `sparse_factor_free(&factors)` — cleanup
 
 **QR factorization (rectangular & rank-deficient):**
 - `sparse_qr_factor(A, &qr)` — column-pivoted QR: A*P = Q*R

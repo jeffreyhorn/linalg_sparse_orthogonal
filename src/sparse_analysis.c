@@ -75,6 +75,12 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
     switch (ftype) {
     case SPARSE_FACTOR_CHOLESKY:
     case SPARSE_FACTOR_LDLT: {
+        /* Validate symmetry early to avoid producing a meaningless etree */
+        if (!sparse_is_symmetric(A, 1e-12)) {
+            sparse_analysis_free(analysis);
+            return SPARSE_ERR_NOT_SPD;
+        }
+
         /* Symmetric path: etree + postorder + colcount + symbolic Cholesky.
          * If a permutation was computed, build a symmetrically permuted
          * copy using sparse_permute (perm[new] = old convention). */

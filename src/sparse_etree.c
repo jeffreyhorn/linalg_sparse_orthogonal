@@ -1,5 +1,12 @@
 #include "sparse_analysis_internal.h"
+#include <stdint.h>
 #include <string.h>
+
+/* Guard against SIZE_MAX overflow on n-based allocations.
+ * Returns 1 if (size_t)n * elem_size would overflow. */
+static inline int alloc_would_overflow(idx_t n, size_t elem_size) {
+    return n > 0 && (size_t)n > SIZE_MAX / elem_size;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Union-find helpers for etree computation
@@ -31,6 +38,9 @@ sparse_err_t sparse_etree_compute(const SparseMatrix *A, idx_t *parent) {
         return SPARSE_ERR_SHAPE;
 
     idx_t n = A->rows;
+
+    if (alloc_would_overflow(n, sizeof(idx_t)))
+        return SPARSE_ERR_ALLOC;
 
     /* ancestor[i] is the union-find representative for column i */
     idx_t *ancestor = malloc((size_t)n * sizeof(idx_t));
@@ -82,6 +92,8 @@ sparse_err_t sparse_colcount(const SparseMatrix *A, const idx_t *parent, const i
     idx_t n = A->rows;
     if (n == 0)
         return SPARSE_OK;
+    if (alloc_would_overflow(n, sizeof(idx_t)))
+        return SPARSE_ERR_ALLOC;
 
     /* Build child lists from parent pointers */
     idx_t *child_head = malloc((size_t)n * sizeof(idx_t));
@@ -243,6 +255,9 @@ sparse_err_t sparse_symbolic_cholesky(const SparseMatrix *A, const idx_t *parent
             return SPARSE_ERR_ALLOC;
         return SPARSE_OK;
     }
+
+    if (alloc_would_overflow(n + 1, sizeof(idx_t)))
+        return SPARSE_ERR_ALLOC;
 
     /* Compute total nnz and build col_ptr from column counts */
     sym->n = n;
@@ -590,6 +605,8 @@ sparse_err_t sparse_etree_postorder(const idx_t *parent, idx_t n, idx_t *postord
         return SPARSE_ERR_NULL;
     if (n == 0)
         return SPARSE_OK;
+    if (alloc_would_overflow(n, sizeof(idx_t)))
+        return SPARSE_ERR_ALLOC;
 
     /* Build child lists from parent pointers.
      * child_head[i] = first child of i, child_next[c] = next sibling of c.

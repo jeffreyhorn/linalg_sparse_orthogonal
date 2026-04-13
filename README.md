@@ -55,9 +55,9 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 
 ### Symbolic Analysis & Refactorization
 - **Elimination tree** computation via Liu's algorithm with path compression
-- **Symbolic Cholesky/LU factorization** — predict exact (Cholesky) or upper-bound (LU) sparsity structure of factors without numeric work
+- **Symbolic Cholesky/LU factorization** — predict exact symbolic structure for Cholesky (upper bound on stored numeric factor when dropping is enabled) or upper-bound sparsity structure for LU, without numeric work
 - **Analyze-once, factor-many workflow** — `sparse_analyze()` → `sparse_factor_numeric()` → `sparse_refactor_numeric()` for repeated solves with the same sparsity pattern but different values
-- **Column counts** — predict nnz per column of L for pre-allocation
+- **Column counts** — predict symbolic nnz per column of L for pre-allocation (upper bound on stored numeric counts when dropping is enabled)
 
 ### Reordering & Preconditioning
 - **Fill-reducing reordering** — Reverse Cuthill-McKee (RCM) and Approximate Minimum Degree (AMD)

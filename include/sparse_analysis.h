@@ -115,7 +115,9 @@ typedef struct {
     idx_t *postorder;            /**< Etree postorder traversal (length n);
                                      NULL when type == SPARSE_FACTOR_LU. */
     sparse_symbolic_pub_t sym_L; /**< Symbolic structure of L.
-                                     Cholesky: exact structure of L.
+                                     Cholesky: exact symbolic structure
+                                     (upper bound on stored numeric factor
+                                     when drop-tolerance pruning is enabled).
                                      LU: upper bound on L columns.
                                      LDL^T: upper bound (Bunch-Kaufman
                                      pivoting may produce less fill). */

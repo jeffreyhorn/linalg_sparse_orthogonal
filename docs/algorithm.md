@@ -803,7 +803,7 @@ The elimination tree (etree) of a symmetric n×n matrix A encodes the parent-chi
 - Rows from A's lower triangle in column j
 - Rows propagated up from children of j in the etree (excluding j itself)
 
-This runs in O(nnz) time using the etree and a marker array.
+Because the current implementation explicitly unions and propagates row-index sets up the etree, its runtime is not strictly O(nnz(A)). In practice it scales with the size of the propagated symbolic pattern — typically closer to O(nnz(L)) in high-fill cases — while still using the etree and a marker array to avoid duplicate indices within a column.
 
 ### Symbolic Cholesky Factorization
 

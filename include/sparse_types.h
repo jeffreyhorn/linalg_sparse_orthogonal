@@ -71,19 +71,18 @@ typedef enum {
 } sparse_pivot_t;
 
 /**
- * @brief Reordering strategy for fill-reducing permutation before LU factorization.
+ * @brief Reordering strategy for fill-reducing permutation.
  *
- * Reordering computes a permutation P such that P*A*P^T has reduced fill-in
- * during LU factorization. This is applied as a symmetric permutation (same
- * permutation for rows and columns).
+ * RCM and AMD compute symmetric permutations (P*A*P^T) for square matrices,
+ * reducing fill-in during LU/Cholesky/LDL^T factorization. COLAMD computes
+ * a column-only permutation for unsymmetric/rectangular matrices, reducing
+ * fill in QR or column-pivoted LU.
  *
  * - NONE: natural ordering (no reordering)
- * - RCM: Reverse Cuthill-McKee — BFS-based bandwidth reduction. Simple and
- *   effective for banded/structured matrices. O(nnz log d_max) time
- *   (includes neighbor sorting and graph construction).
- * - AMD: Approximate Minimum Degree — greedy elimination ordering that
- *   minimizes fill-in. More expensive but generally produces better orderings
- *   for unstructured matrices. O(n^3/64) time, O(n^2/64) memory (bitset-based).
+ * - RCM: Reverse Cuthill-McKee — BFS-based bandwidth reduction. Square only.
+ * - AMD: Approximate Minimum Degree — symmetric fill reduction. Square only.
+ * - COLAMD: Column Approximate Minimum Degree — column fill reduction for
+ *   unsymmetric/QR problems. Handles rectangular matrices.
  */
 typedef enum {
     SPARSE_REORDER_NONE = 0,   /**< No reordering (natural order) */

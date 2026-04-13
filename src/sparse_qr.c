@@ -1196,7 +1196,8 @@ double sparse_qr_condest(const sparse_qr_t *qr) {
     if (k == 0)
         return -1.0;
 
-    idx_t rank = qr->rank;
+    /* Use sparse_qr_rank() for consistency with rank_info threshold */
+    idx_t rank = sparse_qr_rank(qr, 0);
     if (rank <= 0)
         return -1.0;
 

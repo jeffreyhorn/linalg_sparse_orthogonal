@@ -543,8 +543,9 @@ static void test_order_wide_matrix(void) {
  * ═══════════════════════════════════════════════════════════════════════ */
 
 static void test_order_all_dense_rows(void) {
-    /* Every row is dense (all columns present). Dense row skipping should
-     * skip all rows, leaving zero adjacency. Ordering should still be valid. */
+    /* Every row is fully dense. For n=5, the dense threshold (10*sqrt(5) ≈ 22,
+     * min 16) is larger than n, so rows are NOT skipped — all columns end up
+     * fully connected. COLAMD should still produce a valid permutation. */
     idx_t n = 5;
     SparseMatrix *A = sparse_create(n, n);
     for (idx_t i = 0; i < n; i++)

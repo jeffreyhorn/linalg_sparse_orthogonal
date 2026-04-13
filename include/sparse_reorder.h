@@ -17,17 +17,25 @@
  * RCM and AMD compute symmetric permutations (P*A*P^T). COLAMD computes
  * a column-only permutation suitable for QR or column-pivoted LU.
  *
- * **Usage pattern:**
+ * **Symmetric reordering (RCM/AMD) — square matrices:**
  * @code
  *   idx_t *perm = malloc(n * sizeof(idx_t));
- *   sparse_reorder_amd(A, perm);            // symmetric (square only)
- *   sparse_reorder_colamd(A, perm);         // column ordering (rectangular OK)
+ *   sparse_reorder_amd(A, perm);            // or sparse_reorder_rcm
  *   SparseMatrix *PA;
- *   sparse_permute(A, perm, perm, &PA);     // apply permutation
+ *   sparse_permute(A, perm, perm, &PA);     // symmetric: same perm for rows+cols
+ * @endcode
+ *
+ * **Column ordering (COLAMD) — rectangular OK:**
+ * @code
+ *   idx_t *perm = malloc(ncols * sizeof(idx_t));
+ *   sparse_reorder_colamd(A, perm);         // column-only permutation
+ *   // Apply as column permutation only (e.g., via QR opts)
+ *   sparse_qr_opts_t opts = { .reorder = SPARSE_REORDER_COLAMD };
+ *   sparse_qr_factor_opts(A, &opts, &qr);  // COLAMD applied internally
  * @endcode
  *
  * The permutation array perm[] maps new indices to old indices:
- * perm[new_i] = old_i, so the reordered matrix B has B(i,j) = A(perm[i], perm[j]).
+ * perm[new_i] = old_i.
  */
 
 #include "sparse_matrix.h"

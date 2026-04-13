@@ -239,10 +239,12 @@ void sparse_qr_free(sparse_qr_t *qr);
  * order (after column pivoting). Useful for manual rank determination
  * and condition estimation.
  *
- * @param qr    The QR factorization.
+ * @param qr    The QR factorization. Must contain a valid R factor.
  * @param diag  Output array of length min(m,n). Must be pre-allocated.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if qr or diag is NULL.
+ * @return SPARSE_ERR_BADARG if qr does not contain a valid factorization
+ *         (qr->R is NULL).
  */
 sparse_err_t sparse_qr_diag_r(const sparse_qr_t *qr, double *diag);
 
@@ -279,6 +281,8 @@ typedef struct {
  * @param info  Output rank diagnostics.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if qr or info is NULL.
+ * @return SPARSE_ERR_BADARG if qr does not contain a valid factorization
+ *         (qr->R is NULL).
  */
 sparse_err_t sparse_qr_rank_info(const sparse_qr_t *qr, double tol, sparse_qr_rank_info_t *info);
 

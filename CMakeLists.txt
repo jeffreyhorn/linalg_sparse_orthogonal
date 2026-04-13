@@ -66,6 +66,8 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_lu_csr.c
     src/sparse_ldlt.c
     src/sparse_ic.c
+    src/sparse_etree.c
+    src/sparse_analysis.c
 )
 
 # Optional OpenMP support for parallel SpMV: cmake -DSPARSE_OPENMP=ON ..
@@ -151,6 +153,7 @@ add_sparse_test(test_sprint12_integration)
 add_sparse_test(test_ic)
 add_sparse_test(test_minres)
 add_sparse_test(test_sprint13_integration)
+add_sparse_test(test_etree)
 
 # Benchmarks (not part of ctest)
 add_executable(bench_main benchmarks/bench_main.c)
@@ -165,12 +168,18 @@ target_link_libraries(bench_fillin PRIVATE sparse_lu_ortho)
 add_executable(bench_convergence benchmarks/bench_convergence.c)
 target_link_libraries(bench_convergence PRIVATE sparse_lu_ortho)
 
+add_executable(bench_refactor benchmarks/bench_refactor.c)
+target_link_libraries(bench_refactor PRIVATE sparse_lu_ortho)
+
 # Example programs (not part of ctest)
 add_executable(example_ldlt examples/example_ldlt.c)
 target_link_libraries(example_ldlt PRIVATE sparse_lu_ortho)
 
 add_executable(example_ic_minres examples/example_ic_minres.c)
 target_link_libraries(example_ic_minres PRIVATE sparse_lu_ortho)
+
+add_executable(example_analysis examples/example_analysis.c)
+target_link_libraries(example_analysis PRIVATE sparse_lu_ortho)
 
 # ─── Installation ────────────────────────────────────────────────────
 

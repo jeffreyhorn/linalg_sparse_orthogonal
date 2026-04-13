@@ -106,8 +106,13 @@ typedef struct {
     idx_t *perm;                 /**< Fill-reducing permutation (length n), or NULL */
     idx_t *etree;                /**< Elimination tree parent pointers (length n) */
     idx_t *postorder;            /**< Etree postorder traversal (length n) */
-    sparse_symbolic_pub_t sym_L; /**< Symbolic structure of L */
-    sparse_symbolic_pub_t sym_U; /**< Symbolic structure of U (zeroed for Cholesky/LDL^T) */
+    sparse_symbolic_pub_t sym_L; /**< Symbolic structure of L.
+                                     Cholesky: exact structure of L.
+                                     LU: upper bound on L columns.
+                                     LDL^T: upper bound (Bunch-Kaufman
+                                     pivoting may produce less fill). */
+    sparse_symbolic_pub_t sym_U; /**< Symbolic structure of U (zeroed for Cholesky/LDL^T).
+                                     LU: upper bound on U columns. */
     sparse_factor_type_t type;   /**< Factorization type */
     double analysis_norm;        /**< Cached ||A||_inf at analysis time */
 } sparse_analysis_t;

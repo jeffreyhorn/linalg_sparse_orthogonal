@@ -57,6 +57,10 @@ fail:
 }
 
 static void bench_matrix(const char *name, SparseMatrix *A, int reps) {
+    if (!A) {
+        printf("  %-20s  [SKIP] matrix construction failed\n", name);
+        return;
+    }
     idx_t n = sparse_rows(A);
     printf("  %-20s  n=%-5d nnz=%-6d reps=%-4d", name, (int)n, (int)sparse_nnz(A), reps);
     fflush(stdout);

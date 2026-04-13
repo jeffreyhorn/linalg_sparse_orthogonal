@@ -111,8 +111,9 @@ sparse_err_t sparse_symbolic_cholesky(const SparseMatrix *A, const idx_t *parent
  * Compute upper-bound symbolic structure for LU factorization.
  *
  * For an unsymmetric matrix A, the exact L and U sparsity depends on
- * pivoting, so we compute a superset. The approach: symmetrize the
- * sparsity pattern (A + A^T), compute its elimination tree and symbolic
+ * pivoting, so we compute a superset. The approach: build the column
+ * interaction graph (the sparsity structure of A^T * A) as an explicit
+ * sparse matrix, then compute its elimination tree and symbolic
  * Cholesky. The resulting structure is a valid upper bound for both L
  * and U columns.
  *

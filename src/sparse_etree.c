@@ -438,11 +438,8 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
     if (err)
         goto cleanup;
 
-    /* Copy to sym_L if requested */
-    if (sym_L) {
-        *sym_L = sym_full;
-        /* If both are requested, sym_U gets its own copy below */
-    }
+    /* Delay writing to *sym_L until all work succeeds, to avoid
+     * leaving a partially-populated output on error. */
 
     /* Build sym_U (upper triangle) by transposing the symbolic L.
      * U column j contains all rows i such that L column i contains row j,
@@ -454,8 +451,7 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
         /* Count entries per column of U (= entries per row of L) */
         idx_t *u_cnt = calloc((size_t)n, sizeof(idx_t));
         if (!u_cnt) {
-            if (!sym_L)
-                sparse_symbolic_free(&sym_full);
+            sparse_symbolic_free(&sym_full);
             err = SPARSE_ERR_ALLOC;
             goto cleanup;
         }
@@ -472,8 +468,7 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
         sym_U->col_ptr = malloc((size_t)(n + 1) * sizeof(idx_t));
         if (!sym_U->col_ptr) {
             free(u_cnt);
-            if (!sym_L)
-                sparse_symbolic_free(&sym_full);
+            sparse_symbolic_free(&sym_full);
             err = SPARSE_ERR_ALLOC;
             goto cleanup;
         }
@@ -487,8 +482,7 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
         if (!sym_U->row_idx) {
             free(u_cnt);
             sparse_symbolic_free(sym_U);
-            if (!sym_L)
-                sparse_symbolic_free(&sym_full);
+            sparse_symbolic_free(&sym_full);
             err = SPARSE_ERR_ALLOC;
             goto cleanup;
         }
@@ -515,10 +509,13 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
         }
 
         free(u_cnt);
-
-        if (!sym_L)
-            sparse_symbolic_free(&sym_full);
     }
+
+    /* All work succeeded — now assign sym_L (deferred to avoid leaks on error) */
+    if (sym_L)
+        *sym_L = sym_full;
+    else
+        sparse_symbolic_free(&sym_full);
 
 cleanup:
     free(parent);

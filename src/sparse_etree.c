@@ -399,6 +399,9 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
 
     idx_t n = A->rows;
 
+    if (alloc_would_overflow(n, sizeof(idx_t)))
+        return SPARSE_ERR_ALLOC;
+
     /* Build B = structure of A^T * A (with optional permutation).
      * B(i,j) is nonzero iff columns i and j of A share a nonzero row.
      * This gives the correct column interaction graph for LU fill bounds.
@@ -601,6 +604,8 @@ cleanup:
  * ═══════════════════════════════════════════════════════════════════════ */
 
 sparse_err_t sparse_etree_postorder(const idx_t *parent, idx_t n, idx_t *postorder) {
+    if (n < 0)
+        return SPARSE_ERR_BADARG;
     if (n > 0 && (!parent || !postorder))
         return SPARSE_ERR_NULL;
     if (n == 0)

@@ -2601,13 +2601,6 @@ static void test_compat_ldlt_nos4(void) {
     sparse_free(A);
 }
 
-static void test_compat_all_existing_pass(void) {
-    /* Verify the existing test suite still passes by running the full
-     * regression through the Makefile. This test just verifies we haven't
-     * broken any existing API contracts. */
-    printf("    all existing APIs unchanged — backward compatible ✓\n");
-}
-
 /* ═══════════════════════════════════════════════════════════════════════
  * Main
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -2736,7 +2729,6 @@ int main(void) {
     RUN_TEST(test_compat_lu_west0067);
     RUN_TEST(test_compat_ldlt_kkt);
     RUN_TEST(test_compat_ldlt_nos4);
-    RUN_TEST(test_compat_all_existing_pass);
 
     TEST_SUITE_END();
 }

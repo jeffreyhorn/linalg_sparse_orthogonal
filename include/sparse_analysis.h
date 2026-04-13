@@ -196,9 +196,15 @@ typedef struct {
  *
  * For Cholesky: computes L such that P*A*P^T = L*L^T.
  * For LU: computes L and U such that P*A*Q = L*U (with pivoting).
+ *   Uses partial pivoting with tolerance 1e-12.
  * For LDL^T: computes L and D such that P*A*P^T = L*D*L^T.
  *
+ * @note The LU path currently uses fixed parameters (partial pivoting,
+ *       tol=1e-12). Future versions may expose these via the analysis
+ *       options.
+ *
  * @pre analysis must have been computed by sparse_analyze().
+ * @pre A must have identity row/col permutations and not be factored.
  *
  * @param A         The matrix to factor (not modified).
  * @param analysis  Precomputed symbolic analysis (provides permutation

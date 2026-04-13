@@ -190,16 +190,28 @@ sparse_err_t sparse_colcount(const SparseMatrix *A, const idx_t *parent, const i
  * Symbolic Cholesky factorization
  * ═══════════════════════════════════════════════════════════════════════ */
 
-/* Insertion sort for small arrays of idx_t */
+/* qsort comparator for idx_t */
+static int cmp_idx(const void *pa, const void *pb) {
+    idx_t a = *(const idx_t *)pa;
+    idx_t b = *(const idx_t *)pb;
+    return (a > b) - (a < b);
+}
+
+/* Sort an array of idx_t. Uses insertion sort for small arrays,
+ * qsort for larger ones to avoid quadratic behavior. */
 static void isort(idx_t *a, idx_t len) {
-    for (idx_t i = 1; i < len; i++) {
-        idx_t key = a[i];
-        idx_t j = i - 1;
-        while (j >= 0 && a[j] > key) {
-            a[j + 1] = a[j];
-            j--;
+    if (len <= 32) {
+        for (idx_t i = 1; i < len; i++) {
+            idx_t key = a[i];
+            idx_t j = i - 1;
+            while (j >= 0 && a[j] > key) {
+                a[j + 1] = a[j];
+                j--;
+            }
+            a[j + 1] = key;
         }
-        a[j + 1] = key;
+    } else {
+        qsort(a, (size_t)len, sizeof(idx_t), cmp_idx);
     }
 }
 
@@ -384,13 +396,26 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
      * Reorder routines produce perm[new] = old, so we invert. */
     idx_t *inv_perm = NULL;
     if (perm) {
+        unsigned char *seen = calloc((size_t)n, sizeof(unsigned char));
         inv_perm = malloc((size_t)n * sizeof(idx_t));
-        if (!inv_perm) {
+        if (!seen || !inv_perm) {
+            free(seen);
+            free(inv_perm);
             sparse_free(B);
             return SPARSE_ERR_ALLOC;
         }
-        for (idx_t i = 0; i < n; i++)
-            inv_perm[perm[i]] = i;
+        for (idx_t i = 0; i < n; i++) {
+            idx_t p = perm[i];
+            if (p < 0 || p >= n || seen[p]) {
+                free(seen);
+                free(inv_perm);
+                sparse_free(B);
+                return SPARSE_ERR_BADARG;
+            }
+            seen[p] = 1;
+            inv_perm[p] = i;
+        }
+        free(seen);
     }
 
     /* Workspace: collect permuted column indices per row */

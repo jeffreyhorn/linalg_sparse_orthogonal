@@ -8,6 +8,18 @@
 #include <math.h>
 #include <string.h>
 
+/* Check that the matrix has identity row/col permutations and is not factored.
+ * Analysis and factorization operate on physical index space, so non-identity
+ * perms or factored state would produce incorrect results. */
+static int has_identity_perms(const SparseMatrix *A) {
+    idx_t n = A->rows;
+    for (idx_t i = 0; i < n; i++) {
+        if (A->row_perm[i] != i || A->col_perm[i] != i)
+            return 0;
+    }
+    return 1;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * sparse_analyze — compute symbolic analysis
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -18,6 +30,8 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
         return SPARSE_ERR_NULL;
     if (A->rows != A->cols)
         return SPARSE_ERR_SHAPE;
+    if (A->factored || !has_identity_perms(A))
+        return SPARSE_ERR_BADARG;
 
     /* Default options: Cholesky, no reordering */
     sparse_factor_type_t ftype = SPARSE_FACTOR_CHOLESKY;
@@ -199,15 +213,21 @@ static SparseMatrix *sanitize_working_copy(SparseMatrix *B) {
     return B;
 }
 
-static SparseMatrix *build_permuted_copy(const SparseMatrix *A, const idx_t *perm) {
+static sparse_err_t build_permuted_copy(const SparseMatrix *A, const idx_t *perm,
+                                        SparseMatrix **out) {
     SparseMatrix *B = NULL;
+    sparse_err_t err;
     if (perm) {
-        if (sparse_permute(A, perm, perm, &B) != SPARSE_OK)
-            return NULL;
+        err = sparse_permute(A, perm, perm, &B);
+        if (err != SPARSE_OK)
+            return err;
     } else {
         B = sparse_copy(A);
+        if (!B)
+            return SPARSE_ERR_ALLOC;
     }
-    return sanitize_working_copy(B);
+    *out = sanitize_working_copy(B);
+    return *out ? SPARSE_OK : SPARSE_ERR_ALLOC;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -220,6 +240,8 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
         return SPARSE_ERR_NULL;
     if (A->rows != analysis->n || A->cols != analysis->n)
         return SPARSE_ERR_SHAPE;
+    if (A->factored || !has_identity_perms(A))
+        return SPARSE_ERR_BADARG;
 
     idx_t n = analysis->n;
     memset(factors, 0, sizeof(*factors));
@@ -229,11 +251,12 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
     switch (analysis->type) {
     case SPARSE_FACTOR_CHOLESKY: {
         /* Build (optionally permuted) copy and factor with existing Cholesky */
-        SparseMatrix *L = build_permuted_copy(A, analysis->perm);
-        if (!L)
-            return SPARSE_ERR_ALLOC;
+        SparseMatrix *L = NULL;
+        sparse_err_t err = build_permuted_copy(A, analysis->perm, &L);
+        if (err != SPARSE_OK)
+            return err;
 
-        sparse_err_t err = sparse_cholesky_factor(L);
+        err = sparse_cholesky_factor(L);
         if (err != SPARSE_OK) {
             sparse_free(L);
             return err;
@@ -246,11 +269,12 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
 
     case SPARSE_FACTOR_LU: {
         /* Build (optionally permuted) copy and factor with existing LU */
-        SparseMatrix *LU = build_permuted_copy(A, analysis->perm);
-        if (!LU)
-            return SPARSE_ERR_ALLOC;
+        SparseMatrix *LU = NULL;
+        sparse_err_t err = build_permuted_copy(A, analysis->perm, &LU);
+        if (err != SPARSE_OK)
+            return err;
 
-        sparse_err_t err = sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12);
+        err = sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12);
         if (err != SPARSE_OK) {
             sparse_free(LU);
             return err;
@@ -263,12 +287,13 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
 
     case SPARSE_FACTOR_LDLT: {
         /* Build (optionally permuted) copy and factor with existing LDL^T */
-        SparseMatrix *B = build_permuted_copy(A, analysis->perm);
-        if (!B)
-            return SPARSE_ERR_ALLOC;
+        SparseMatrix *B = NULL;
+        sparse_err_t err = build_permuted_copy(A, analysis->perm, &B);
+        if (err != SPARSE_OK)
+            return err;
 
         sparse_ldlt_t ldlt;
-        sparse_err_t err = sparse_ldlt_factor(B, &ldlt);
+        err = sparse_ldlt_factor(B, &ldlt);
         sparse_free(B);
         if (err != SPARSE_OK)
             return err;

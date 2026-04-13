@@ -124,6 +124,7 @@ int main(void) {
     printf("Refactoring %d times with varying diagonal...\n", num_refactors);
 
     double total_refactor_time = 0;
+    int completed_refactors = 0;
     for (int iter = 0; iter < num_refactors; iter++) {
         /* Build new matrix with same pattern, different diagonal */
         double new_diag = 4.0 + 0.5 * (double)iter;
@@ -149,6 +150,7 @@ int main(void) {
             break;
         }
 
+        completed_refactors++;
         double resid = residual(A_new, b, x, n);
         if (iter == 0 || iter == num_refactors - 1) {
             printf("  iter %2d: diag=%.1f, residual=%.2e\n", iter, new_diag, resid);
@@ -160,9 +162,11 @@ int main(void) {
     printf("\nTiming summary:\n");
     printf("  Analysis (once):           %.6f s\n", analysis_time);
     printf("  Initial factorization:     %.6f s\n", factor_time);
-    printf("  %d refactorizations:       %.6f s (avg %.6f s each)\n", num_refactors,
-           total_refactor_time, total_refactor_time / num_refactors);
-    printf("  Savings: analysis cost amortized over %d solves\n\n", num_refactors + 1);
+    if (completed_refactors > 0) {
+        printf("  %d refactorizations:       %.6f s (avg %.6f s each)\n", completed_refactors,
+               total_refactor_time, total_refactor_time / completed_refactors);
+    }
+    printf("  Savings: analysis cost amortized over %d solves\n\n", completed_refactors + 1);
 
     /* ── Cleanup ──────────────────────────────────────────────────── */
     free(b);

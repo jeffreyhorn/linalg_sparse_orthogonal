@@ -136,8 +136,12 @@ typedef struct {
  *
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or analysis is NULL.
+ * @return SPARSE_ERR_BADARG if A is already factored, has non-identity
+ *         row/col permutations, or an invalid reorder enum is specified.
  * @return SPARSE_ERR_SHAPE if A is not square.
+ * @return SPARSE_ERR_NOT_SPD if A is not symmetric (Cholesky/LDL^T only).
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
+ * @return Error codes from the reorder routines may also be propagated.
  *
  * @note The analysis object does not hold a reference to A. The caller
  *       may modify or free A after analysis, as long as the sparsity
@@ -215,10 +219,14 @@ typedef struct {
  *
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
+ * @return SPARSE_ERR_BADARG if A is already factored or has non-identity
+ *         row/col permutations.
  * @return SPARSE_ERR_SHAPE if dimensions don't match the analysis.
  * @return SPARSE_ERR_NOT_SPD if the matrix is not SPD (Cholesky only).
  * @return SPARSE_ERR_SINGULAR if a zero pivot is encountered.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
+ * @return Error codes from the delegated factorization routine may also
+ *         be propagated.
  */
 sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_t *analysis,
                                    sparse_factors_t *factors);
@@ -236,7 +244,11 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
  *
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
+ * @return SPARSE_ERR_BADARG if factors->F is NULL or analysis->type
+ *         doesn't match factors->type.
+ * @return SPARSE_ERR_SHAPE if analysis->n doesn't match factors->n.
  * @return SPARSE_ERR_SINGULAR if a near-zero diagonal is encountered.
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails.
  */
 sparse_err_t sparse_factor_solve(const sparse_factors_t *factors, const sparse_analysis_t *analysis,
                                  const double *b, double *x);

@@ -84,16 +84,21 @@ static void bench_matrix(const char *name, SparseMatrix *A, int reps) {
         sparse_analysis_free(&analysis);
         return;
     }
+    int completed = 1;
     for (int r = 1; r < reps; r++) {
         if (sparse_refactor_numeric(A, &analysis, &factors) != SPARSE_OK) {
             printf("  [SKIP] refactor failed at iter %d\n", r);
-            break;
+            sparse_factor_free(&factors);
+            sparse_analysis_free(&analysis);
+            return;
         }
+        completed++;
     }
     double t_analyze = wall_time() - t0;
 
     double speedup = t_oneshot / t_analyze;
-    printf("  oneshot=%.4fs  analyze=%.4fs  speedup=%.2fx\n", t_oneshot, t_analyze, speedup);
+    printf("  oneshot=%.4fs  analyze=%.4fs  speedup=%.2fx (%d iters)\n", t_oneshot, t_analyze,
+           speedup, completed);
 
     sparse_factor_free(&factors);
     sparse_analysis_free(&analysis);

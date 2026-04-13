@@ -1309,9 +1309,12 @@ sparse_err_t sparse_qr_solve_minnorm(const SparseMatrix *A, const double *b, dou
     idx_t m = sparse_rows(A);
     idx_t n = sparse_cols(A);
 
-    /* Handle empty matrices */
-    if (m == 0 || n == 0)
+    /* Handle empty matrices: minimum-norm solution is x = 0 */
+    if (m == 0 || n == 0) {
+        for (idx_t i = 0; i < n; i++)
+            x[i] = 0.0;
         return SPARSE_OK;
+    }
 
     /* For m >= n, fall back to regular least-squares via QR */
     if (m >= n) {

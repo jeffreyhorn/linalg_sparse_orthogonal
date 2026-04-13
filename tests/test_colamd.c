@@ -900,7 +900,7 @@ static double solve_residual(const SparseMatrix *A, const double *b, const doubl
     idx_t n = sparse_rows(A);
     double *Ax = calloc((size_t)n, sizeof(double));
     if (!Ax)
-        return -1.0;
+        return INFINITY;
     sparse_matvec(A, x, Ax);
     double rnorm = 0, bnorm = 0;
     for (idx_t i = 0; i < n; i++) {
@@ -1705,6 +1705,13 @@ static void test_minnorm_ss_submatrix(void) {
 
     /* Verify A*x ≈ b */
     double *Ax = calloc((size_t)m, sizeof(double));
+    if (!Ax) {
+        free(ones);
+        free(b);
+        free(x);
+        sparse_free(A);
+        return;
+    }
     sparse_matvec(A, x, Ax);
     double maxerr = 0;
     for (idx_t i = 0; i < m; i++) {

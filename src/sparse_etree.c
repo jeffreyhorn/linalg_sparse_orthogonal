@@ -265,12 +265,30 @@ sparse_err_t sparse_symbolic_cholesky(const SparseMatrix *A, const idx_t *parent
     if (!sym->col_ptr)
         return SPARSE_ERR_ALLOC;
 
+    /* Build col_ptr with overflow-safe accumulation */
     sym->col_ptr[0] = 0;
-    for (idx_t j = 0; j < n; j++)
-        sym->col_ptr[j + 1] =
-            sym->col_ptr[j] + colcount[j]; // NOLINT(clang-analyzer-security.ArrayBound)
-    sym->nnz = sym->col_ptr[n];            // NOLINT(clang-analyzer-security.ArrayBound)
+    size_t total_nnz = 0;
+    for (idx_t j = 0; j < n; j++) {
+        size_t cj = (size_t)colcount[j];
+        if (total_nnz > SIZE_MAX - cj) {
+            sparse_symbolic_free(sym);
+            return SPARSE_ERR_ALLOC;
+        }
+        total_nnz += cj;
+        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+        sym->col_ptr[j + 1] = (idx_t)total_nnz;
+        /* Check idx_t representability and monotonicity */
+        if ((size_t)sym->col_ptr[j + 1] != total_nnz || sym->col_ptr[j + 1] < sym->col_ptr[j]) {
+            sparse_symbolic_free(sym);
+            return SPARSE_ERR_ALLOC;
+        }
+    }
+    sym->nnz = sym->col_ptr[n]; // NOLINT(clang-analyzer-security.ArrayBound)
 
+    if (alloc_would_overflow(sym->nnz, sizeof(idx_t))) {
+        sparse_symbolic_free(sym);
+        return SPARSE_ERR_ALLOC;
+    }
     sym->row_idx = malloc((size_t)sym->nnz * sizeof(idx_t));
     if (!sym->row_idx) {
         sparse_symbolic_free(sym);
@@ -547,8 +565,28 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
             goto cleanup;
         }
         sym_U->col_ptr[0] = 0;
-        for (idx_t j = 0; j < n; j++)
-            sym_U->col_ptr[j + 1] = sym_U->col_ptr[j] + u_cnt[j];
+        {
+            size_t u_total = 0;
+            for (idx_t j = 0; j < n; j++) {
+                size_t cj = (size_t)u_cnt[j];
+                if (u_total > SIZE_MAX - cj) {
+                    free(u_cnt);
+                    sparse_symbolic_free(sym_U);
+                    sparse_symbolic_free(&sym_full);
+                    err = SPARSE_ERR_ALLOC;
+                    goto cleanup;
+                }
+                u_total += cj;
+                sym_U->col_ptr[j + 1] = (idx_t)u_total;
+                if ((size_t)sym_U->col_ptr[j + 1] != u_total) {
+                    free(u_cnt);
+                    sparse_symbolic_free(sym_U);
+                    sparse_symbolic_free(&sym_full);
+                    err = SPARSE_ERR_ALLOC;
+                    goto cleanup;
+                }
+            }
+        }
         sym_U->nnz = sym_U->col_ptr[n]; // NOLINT(clang-analyzer-security.ArrayBound)
 
         sym_U->row_idx =
@@ -629,10 +667,15 @@ sparse_err_t sparse_etree_postorder(const idx_t *parent, idx_t n, idx_t *postord
         child_next[i] = -1;
     }
 
-    /* Build linked lists of children (prepend to head) */
+    /* Validate parent values and build linked lists of children */
     for (idx_t i = 0; i < n; i++) {
         idx_t p = parent[i]; // NOLINT(clang-analyzer-core.uninitialized.Assign)
-        if (p >= 0 && p < n) {
+        if (p != -1 && (p < 0 || p >= n)) {
+            free(child_head);
+            free(child_next);
+            return SPARSE_ERR_BADARG;
+        }
+        if (p >= 0) {
             child_next[i] = child_head[p];
             child_head[p] = i;
         }
@@ -675,6 +718,10 @@ sparse_err_t sparse_etree_postorder(const idx_t *parent, idx_t n, idx_t *postord
     free(child_head);
     free(child_next);
     free(stack);
+
+    /* Every node must appear exactly once in the postorder */
+    if (pos != n)
+        return SPARSE_ERR_BADARG;
 
     return SPARSE_OK;
 }

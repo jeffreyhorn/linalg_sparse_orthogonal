@@ -5,19 +5,25 @@
  * @file sparse_reorder.h
  * @brief Fill-reducing reordering algorithms for sparse matrices.
  *
- * Provides Reverse Cuthill-McKee (RCM) and Approximate Minimum Degree (AMD)
- * orderings to reduce fill-in during LU factorization. Both algorithms
- * compute a symmetric permutation P such that P*A*P^T has a sparser LU
- * factorization than A.
+ * Provides three ordering algorithms:
+ * - **RCM** (Reverse Cuthill-McKee): bandwidth reduction for banded systems.
+ *   Symmetric permutation, square matrices only.
+ * - **AMD** (Approximate Minimum Degree): symmetric fill reduction for
+ *   Cholesky/LDL^T/LU. Symmetric permutation, square matrices only.
+ * - **COLAMD** (Column Approximate Minimum Degree): column fill reduction
+ *   for unsymmetric/QR problems. Column permutation, handles rectangular
+ *   matrices.
+ *
+ * RCM and AMD compute symmetric permutations (P*A*P^T). COLAMD computes
+ * a column-only permutation suitable for QR or column-pivoted LU.
  *
  * **Usage pattern:**
  * @code
  *   idx_t *perm = malloc(n * sizeof(idx_t));
- *   sparse_reorder_rcm(A, perm);            // or sparse_reorder_amd
+ *   sparse_reorder_amd(A, perm);            // symmetric (square only)
+ *   sparse_reorder_colamd(A, perm);         // column ordering (rectangular OK)
  *   SparseMatrix *PA;
- *   sparse_permute(A, perm, perm, &PA);     // symmetric permutation
- *   sparse_lu_factor(PA, pivot, tol);       // factor reordered matrix
- *   // ... solve with PA, then unpermute solution ...
+ *   sparse_permute(A, perm, perm, &PA);     // apply permutation
  * @endcode
  *
  * The permutation array perm[] maps new indices to old indices:

@@ -113,8 +113,21 @@ sparse_err_t colamd_build_graph(const SparseMatrix *A, idx_t dense_threshold,
         return SPARSE_ERR_ALLOC;
     }
     graph->col_adj_ptr[0] = 0;
-    for (idx_t j = 0; j < n; j++)
-        graph->col_adj_ptr[j + 1] = graph->col_adj_ptr[j] + degree[j];
+    {
+        size_t total = 0;
+        for (idx_t j = 0; j < n; j++) {
+            total += (size_t)degree[j];
+            if (total > (size_t)INT32_MAX) {
+                free(graph->col_adj_ptr);
+                graph->col_adj_ptr = NULL;
+                free(marker);
+                free(degree);
+                free(row_len);
+                return SPARSE_ERR_ALLOC;
+            }
+            graph->col_adj_ptr[j + 1] = (idx_t)total;
+        }
+    }
     graph->nnz_adj = graph->col_adj_ptr[n];
 
     if (graph->nnz_adj == 0) {

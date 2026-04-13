@@ -185,16 +185,20 @@ sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A, cons
 /**
  * @brief Estimate numerical rank from QR factorization.
  *
- * Counts the number of R diagonal entries exceeding tol * |R(0,0)|.
- * The R diagonals are in decreasing order (due to column pivoting),
- * so the rank is the number of leading diagonals above the threshold.
+ * Counts the number of R diagonal entries exceeding an absolute
+ * threshold. The R diagonals are in decreasing order (due to column
+ * pivoting), so the rank is the number of leading diagonals above
+ * the threshold.
+ *
+ * When tol > 0, the absolute threshold is tol * |R(0,0)|.
+ * When tol <= 0, a default threshold of eps * max(m,n) * |R(0,0)| is
+ * used (where eps ≈ 2.2e-16 is machine epsilon).
  *
  * Use sparse_qr_diag_r() to inspect the R diagonal directly for
  * manual threshold selection.
  *
  * @param qr  The QR factorization.
- * @param tol Tolerance (0 for default: eps * max(m,n) * |R(0,0)|).
- *            The absolute threshold is tol * |R(0,0)|.
+ * @param tol Relative tolerance (0 for default: eps * max(m,n)).
  * @return The estimated numerical rank.
  *
  * @see sparse_qr_diag_r for R diagonal extraction.

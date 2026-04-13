@@ -589,6 +589,13 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
         }
         sym_U->nnz = sym_U->col_ptr[n]; // NOLINT(clang-analyzer-security.ArrayBound)
 
+        if (alloc_would_overflow(sym_U->nnz > 0 ? sym_U->nnz : 1, sizeof(idx_t))) {
+            free(u_cnt);
+            sparse_symbolic_free(sym_U);
+            sparse_symbolic_free(&sym_full);
+            err = SPARSE_ERR_ALLOC;
+            goto cleanup;
+        }
         sym_U->row_idx =
             malloc((size_t)(sym_U->nnz > 0 ? sym_U->nnz : 1) * sizeof(idx_t)); // NOLINT
         if (!sym_U->row_idx) {

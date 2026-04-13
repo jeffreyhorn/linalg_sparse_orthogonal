@@ -55,22 +55,40 @@ static void bench_matrix(const char *name, SparseMatrix *A, int reps) {
 
     /* ── Approach A: one-shot repeated ─────────────────────────── */
     double t0 = wall_time();
-    for (int r = 0; r < reps; r++) {
+    int ok = 1;
+    for (int r = 0; r < reps && ok; r++) {
         SparseMatrix *L = sparse_copy(A);
-        sparse_cholesky_factor(L);
+        if (!L || sparse_cholesky_factor(L) != SPARSE_OK) {
+            ok = 0;
+            sparse_free(L);
+            break;
+        }
         sparse_free(L);
     }
     double t_oneshot = wall_time() - t0;
+
+    if (!ok) {
+        printf("  [SKIP] one-shot factorization failed\n");
+        return;
+    }
 
     /* ── Approach B: analyze once, refactor N-1 times ──────────── */
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
 
     t0 = wall_time();
-    sparse_analyze(A, NULL, &analysis);
-    sparse_factor_numeric(A, &analysis, &factors);
+    if (sparse_analyze(A, NULL, &analysis) != SPARSE_OK ||
+        sparse_factor_numeric(A, &analysis, &factors) != SPARSE_OK) {
+        printf("  [SKIP] analyze+factor failed\n");
+        sparse_factor_free(&factors);
+        sparse_analysis_free(&analysis);
+        return;
+    }
     for (int r = 1; r < reps; r++) {
-        sparse_refactor_numeric(A, &analysis, &factors);
+        if (sparse_refactor_numeric(A, &analysis, &factors) != SPARSE_OK) {
+            printf("  [SKIP] refactor failed at iter %d\n", r);
+            break;
+        }
     }
     double t_analyze = wall_time() - t0;
 

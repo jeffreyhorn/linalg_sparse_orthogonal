@@ -401,27 +401,43 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
         return SPARSE_ERR_ALLOC;
     }
 
-    for (idx_t k = 0; k < n; k++) {
+    sparse_err_t ins_err = SPARSE_OK;
+    for (idx_t k = 0; k < n && ins_err == SPARSE_OK; k++) {
         /* Collect permuted column indices in row k */
         idx_t cnt = 0;
         for (Node *nd = A->row_headers[k]; nd; nd = nd->right) {
             idx_t pj = inv_perm ? inv_perm[nd->col] : nd->col;
             row_cols[cnt++] = pj; // NOLINT(clang-analyzer-security.ArrayBound)
         }
-        /* All pairs (row_cols[a], row_cols[b]) are entries of A^T * A */
-        for (idx_t a = 0; a < cnt; a++) {
-            for (idx_t b = a; b < cnt; b++) {
-                sparse_insert(B, row_cols[a], row_cols[b], 1.0);
-                sparse_insert(B, row_cols[b], row_cols[a], 1.0);
+        /* All pairs (row_cols[a], row_cols[b]) are entries of A^T * A.
+         * Skip symmetric duplicate when a == b (diagonal). */
+        for (idx_t a = 0; a < cnt && ins_err == SPARSE_OK; a++) {
+            for (idx_t b = a; b < cnt && ins_err == SPARSE_OK; b++) {
+                ins_err = sparse_insert(B, row_cols[a], row_cols[b], 1.0);
+                if (ins_err == SPARSE_OK && a != b) {
+                    ins_err = sparse_insert(B, row_cols[b], row_cols[a], 1.0);
+                }
             }
         }
     }
     free(row_cols);
     free(inv_perm);
 
-    /* Ensure diagonal is present */
-    for (idx_t i = 0; i < n; i++)
-        sparse_insert(B, i, i, (double)(n + 1));
+    if (ins_err != SPARSE_OK) {
+        sparse_free(B);
+        return ins_err;
+    }
+
+    /* Ensure diagonal is present (only insert if missing) */
+    for (idx_t i = 0; i < n; i++) {
+        if (sparse_get(B, i, i) == 0.0) {
+            ins_err = sparse_insert(B, i, i, (double)(n + 1));
+            if (ins_err != SPARSE_OK) {
+                sparse_free(B);
+                return ins_err;
+            }
+        }
+    }
 
     /* Run the full symbolic Cholesky pipeline on B */
     idx_t *parent = malloc((size_t)n * sizeof(idx_t));

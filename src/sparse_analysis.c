@@ -239,7 +239,7 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
             return err;
         }
 
-        factors->LU = L;
+        factors->F = L;
         factors->factor_norm = L->factor_norm;
         break;
     }
@@ -256,7 +256,7 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
             return err;
         }
 
-        factors->LU = LU;
+        factors->F = LU;
         factors->factor_norm = LU->factor_norm;
         break;
     }
@@ -274,13 +274,14 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
             return err;
 
         /* Transfer ownership from ldlt to factors */
-        factors->LU = ldlt.L;
+        factors->F = ldlt.L;
         factors->factor_norm = ldlt.factor_norm;
         factors->D = ldlt.D;
         factors->D_offdiag = ldlt.D_offdiag;
         factors->pivot_size = ldlt.pivot_size;
 
-        /* Compose LDL^T pivot perm with analysis perm if needed */
+        /* Store the LDL^T pivot permutation separately; solve applies the
+         * analysis permutation first and then this LDL^T permutation. */
         factors->ldlt_perm = ldlt.perm;
 
         /* Null out ldlt pointers so sparse_ldlt_free doesn't double-free */
@@ -308,7 +309,7 @@ sparse_err_t sparse_factor_solve(const sparse_factors_t *factors, const sparse_a
                                  const double *b, double *x) {
     if (!factors || !analysis || !b || !x)
         return SPARSE_ERR_NULL;
-    if (!factors->LU)
+    if (!factors->F)
         return SPARSE_ERR_BADARG;
     if (analysis->n != factors->n)
         return SPARSE_ERR_SHAPE;
@@ -340,15 +341,15 @@ sparse_err_t sparse_factor_solve(const sparse_factors_t *factors, const sparse_a
 
     switch (factors->type) {
     case SPARSE_FACTOR_CHOLESKY:
-        err = sparse_cholesky_solve(factors->LU, b_eff, x_tmp);
+        err = sparse_cholesky_solve(factors->F, b_eff, x_tmp);
         break;
     case SPARSE_FACTOR_LU:
-        err = sparse_lu_solve(factors->LU, b_eff, x_tmp);
+        err = sparse_lu_solve(factors->F, b_eff, x_tmp);
         break;
     case SPARSE_FACTOR_LDLT: {
         /* Reconstruct a temporary sparse_ldlt_t for the solve call */
         sparse_ldlt_t ldlt_tmp;
-        ldlt_tmp.L = factors->LU;
+        ldlt_tmp.L = factors->F;
         ldlt_tmp.D = factors->D;
         ldlt_tmp.D_offdiag = factors->D_offdiag;
         ldlt_tmp.pivot_size = factors->pivot_size;
@@ -390,7 +391,7 @@ sparse_err_t sparse_factor_solve(const sparse_factors_t *factors, const sparse_a
 void sparse_factor_free(sparse_factors_t *factors) {
     if (!factors)
         return;
-    sparse_free(factors->LU);
+    sparse_free(factors->F);
     free(factors->D);
     free(factors->D_offdiag);
     free(factors->pivot_size);

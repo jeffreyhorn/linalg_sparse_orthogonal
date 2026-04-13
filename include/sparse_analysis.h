@@ -172,7 +172,7 @@ void sparse_analysis_free(sparse_analysis_t *analysis);
  * Callers must call sparse_factor_free() when done.
  */
 typedef struct {
-    SparseMatrix *LU;          /**< Factored matrix (L for Cholesky, L+U for LU) */
+    SparseMatrix *F;           /**< Factored matrix (L for Cholesky, L+U for LU, L for LDL^T) */
     sparse_factor_type_t type; /**< Factorization type that produced this */
     idx_t n;                   /**< Matrix dimension */
     double factor_norm;        /**< ||A||_inf at factorization time */

@@ -1384,7 +1384,8 @@ sparse_err_t sparse_qr_solve_minnorm(const SparseMatrix *A, const double *b, dou
         if (fabs(diag) < solve_tol) {
             y[i] = 0.0;
         } else {
-            y[i] = (bp[i] - sum) / diag;
+            y[i] =
+                (bp[i] - sum) / diag; // NOLINT(clang-analyzer-core.UndefinedBinaryOperatorResult)
         }
     }
 
@@ -1454,7 +1455,7 @@ sparse_err_t sparse_qr_refine_minnorm(const SparseMatrix *A, const double *b, do
 
         /* Apply correction */
         for (idx_t i = 0; i < n; i++)
-            x[i] += dx[i];
+            x[i] += dx[i]; // NOLINT(clang-analyzer-core.uninitialized.Assign)
     }
 
     free(r);

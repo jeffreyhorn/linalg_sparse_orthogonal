@@ -70,12 +70,20 @@ static int is_valid_perm(const idx_t *perm, idx_t n) {
 /* Check that postorder is a valid postorder of the etree:
  * For every node j with parent p, j must appear before p in postorder. */
 static int is_valid_postorder(const idx_t *parent, const idx_t *postorder, idx_t n) {
-    /* Build position array: pos[v] = index of v in postorder */
+    /* Build position array: pos[v] = index of v in postorder.
+     * Validate range and uniqueness to avoid out-of-bounds on bad input. */
     idx_t *pos = malloc((size_t)n * sizeof(idx_t));
     if (!pos)
         return 0;
     for (idx_t i = 0; i < n; i++)
+        pos[i] = -1;
+    for (idx_t i = 0; i < n; i++) {
+        if (postorder[i] < 0 || postorder[i] >= n || pos[postorder[i]] != -1) {
+            free(pos);
+            return 0;
+        }
         pos[postorder[i]] = i;
+    }
 
     for (idx_t i = 0; i < n; i++) {
         if (parent[i] >= 0 && parent[i] < n) {

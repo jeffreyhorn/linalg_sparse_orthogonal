@@ -15,10 +15,11 @@
  *   // 1. Analyze once
  *   sparse_analysis_opts_t opts = { SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD };
  *   sparse_analysis_t analysis = {0};
- *   sparse_analyze(A, &opts, &analysis);
+ *   sparse_factors_t factors = {0};
+ *   sparse_err_t err = sparse_analyze(A, &opts, &analysis);
  *
  *   // 2. Factor with precomputed analysis
- *   sparse_factor_numeric(A, &analysis, &factors);
+ *   err = sparse_factor_numeric(A, &analysis, &factors);
  *   sparse_factor_solve(&factors, &analysis, b, x);
  *
  *   // 3. Change values, refactor (no re-analysis)

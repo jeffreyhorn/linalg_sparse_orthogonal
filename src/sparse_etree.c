@@ -488,7 +488,7 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
         }
 
         for (idx_t j = 0; j < n; j++) {
-            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.UndefinedBinaryOperatorResult)
             for (idx_t p = sym_full.col_ptr[j]; p < sym_full.col_ptr[j + 1]; p++) {
                 idx_t i = sym_full.row_idx[p];
                 u_cnt[i]++; /* row i of L → column i of U has entry in row j */

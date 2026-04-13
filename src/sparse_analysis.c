@@ -33,23 +33,24 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
     analysis->type = ftype;
 
     /* Cache ||A||_inf */
-    double anorm;
-    sparse_err_t err = sparse_norminf((SparseMatrix *)(uintptr_t)A, &anorm);
-    if (err != SPARSE_OK)
-        return err;
-    analysis->analysis_norm = anorm;
+    analysis->analysis_norm = sparse_norminf_const(A);
 
     /* Compute fill-reducing permutation if requested */
+    sparse_err_t err = SPARSE_OK;
     if (reorder != SPARSE_REORDER_NONE && n > 0) {
         analysis->perm = malloc((size_t)n * sizeof(idx_t));
         if (!analysis->perm) {
             sparse_analysis_free(analysis);
             return SPARSE_ERR_ALLOC;
         }
-        if (reorder == SPARSE_REORDER_RCM)
+        if (reorder == SPARSE_REORDER_RCM) {
             err = sparse_reorder_rcm(A, analysis->perm);
-        else if (reorder == SPARSE_REORDER_AMD)
+        } else if (reorder == SPARSE_REORDER_AMD) {
             err = sparse_reorder_amd(A, analysis->perm);
+        } else {
+            sparse_analysis_free(analysis);
+            return SPARSE_ERR_BADARG;
+        }
         if (err != SPARSE_OK) {
             sparse_analysis_free(analysis);
             return err;
@@ -61,25 +62,16 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
     case SPARSE_FACTOR_CHOLESKY:
     case SPARSE_FACTOR_LDLT: {
         /* Symmetric path: etree + postorder + colcount + symbolic Cholesky.
-         * If a permutation was computed, we need to build a permuted copy
-         * for the etree computation. */
+         * If a permutation was computed, build a symmetrically permuted
+         * copy using sparse_permute (perm[new] = old convention). */
         const SparseMatrix *B = A;
         SparseMatrix *B_perm = NULL;
 
         if (analysis->perm) {
-            /* Build symmetrically permuted copy */
-            B_perm = sparse_create(n, n);
-            if (!B_perm) {
+            err = sparse_permute(A, analysis->perm, analysis->perm, &B_perm);
+            if (err) {
                 sparse_analysis_free(analysis);
-                return SPARSE_ERR_ALLOC;
-            }
-            for (idx_t i = 0; i < n; i++) {
-                for (Node *nd = A->row_headers[i]; nd; nd = nd->right) {
-                    // NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign)
-                    idx_t pi = analysis->perm[i];
-                    idx_t pj = analysis->perm[nd->col];
-                    sparse_insert(B_perm, pi, pj, nd->value);
-                }
+                return err;
             }
             B = B_perm;
         }
@@ -197,27 +189,13 @@ void sparse_analysis_free(sparse_analysis_t *analysis) {
  * ═══════════════════════════════════════════════════════════════════════ */
 
 static SparseMatrix *build_permuted_copy(const SparseMatrix *A, const idx_t *perm) {
-    idx_t n = A->rows;
-    SparseMatrix *B = sparse_create(n, n);
-    if (!B)
-        return NULL;
-
     if (perm) {
-        for (idx_t i = 0; i < n; i++) {
-            for (Node *nd = A->row_headers[i]; nd; nd = nd->right) {
-                // NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign)
-                idx_t pi = perm[i];
-                idx_t pj = perm[nd->col];
-                sparse_insert(B, pi, pj, nd->value);
-            }
-        }
-    } else {
-        for (idx_t i = 0; i < n; i++) {
-            for (Node *nd = A->row_headers[i]; nd; nd = nd->right)
-                sparse_insert(B, nd->row, nd->col, nd->value);
-        }
+        SparseMatrix *B = NULL;
+        if (sparse_permute(A, perm, perm, &B) != SPARSE_OK)
+            return NULL;
+        return B;
     }
-    return B;
+    return sparse_copy(A);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -324,7 +302,8 @@ sparse_err_t sparse_factor_solve(const sparse_factors_t *factors, const sparse_a
     idx_t n = factors->n;
     const idx_t *perm = analysis->perm;
 
-    /* Permute b if a fill-reducing permutation was used */
+    /* Permute b if a fill-reducing permutation was used.
+     * perm[new] = old convention: b_perm[new_i] = b[perm[new_i]] */
     double *b_perm = NULL;
     const double *b_eff = b;
     if (perm) {
@@ -332,7 +311,7 @@ sparse_err_t sparse_factor_solve(const sparse_factors_t *factors, const sparse_a
         if (!b_perm)
             return SPARSE_ERR_ALLOC;
         for (idx_t i = 0; i < n; i++)
-            b_perm[perm[i]] = b[i];
+            b_perm[i] = b[perm[i]];
         b_eff = b_perm;
     }
 
@@ -375,10 +354,10 @@ sparse_err_t sparse_factor_solve(const sparse_factors_t *factors, const sparse_a
         return err;
     }
 
-    /* Unpermute the solution */
+    /* Unpermute the solution: perm[new] = old, so x[old] = x_tmp[new] */
     if (perm) {
         for (idx_t i = 0; i < n; i++)
-            x[i] = x_tmp[perm[i]];
+            x[perm[i]] = x_tmp[i];
     } else {
         memcpy(x, x_tmp, (size_t)n * sizeof(double));
     }
@@ -405,6 +384,10 @@ void sparse_factor_free(sparse_factors_t *factors) {
 
 /* ═══════════════════════════════════════════════════════════════════════
  * sparse_refactor_numeric
+ *
+ * Convenience wrapper around sparse_factor_numeric() using an existing
+ * symbolic analysis. Performs a full numeric refactorization and does
+ * not attempt to validate or reuse the previous numeric structure.
  * ═══════════════════════════════════════════════════════════════════════ */
 
 sparse_err_t sparse_refactor_numeric(const SparseMatrix *A_new, const sparse_analysis_t *analysis,
@@ -412,11 +395,17 @@ sparse_err_t sparse_refactor_numeric(const SparseMatrix *A_new, const sparse_ana
     if (!A_new || !analysis || !factors)
         return SPARSE_ERR_NULL;
 
-    /* Validate dimensions match */
     if (A_new->rows != analysis->n || A_new->cols != analysis->n)
         return SPARSE_ERR_SHAPE;
 
-    /* Free old factors and refactor with the new values */
+    /* Factor into a temporary first so old factors survive on error */
+    sparse_factors_t new_factors;
+    memset(&new_factors, 0, sizeof(new_factors));
+    sparse_err_t err = sparse_factor_numeric(A_new, analysis, &new_factors);
+    if (err != SPARSE_OK)
+        return err;
+
     sparse_factor_free(factors);
-    return sparse_factor_numeric(A_new, analysis, factors);
+    *factors = new_factors;
+    return SPARSE_OK;
 }

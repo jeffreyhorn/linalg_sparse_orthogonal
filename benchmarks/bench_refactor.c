@@ -8,7 +8,7 @@
  * Reports wall-clock times and speedup ratio.
  *
  * Build:
- *   cc -O2 -Iinclude examples/bench_refactor.c -Lbuild -lsparse_lu_ortho -lm
+ *   cc -O2 -Iinclude benchmarks/bench_refactor.c -Lbuild -lsparse_lu_ortho -lm
  */
 #define _POSIX_C_SOURCE 199309L
 #include "sparse_analysis.h"

@@ -815,7 +815,7 @@ For Cholesky on SPD matrices, the symbolic structure is exact — every predicte
 
 For unsymmetric LU with partial pivoting, the exact fill depends on the pivot sequence, which isn't known until numeric factorization. `sparse_symbolic_lu()` computes an upper bound by:
 
-1. Computing the structure of A^T * A (the column interaction graph) without forming it explicitly
+1. Building the sparse structure of A^T * A (the column interaction graph) as an explicit sparse pattern
 2. Computing symbolic Cholesky of this symmetrized pattern
 3. The resulting L structure bounds the actual L; its transpose bounds U
 

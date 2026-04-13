@@ -19,12 +19,12 @@
  *
  *   // 2. Factor with precomputed analysis
  *   sparse_factor_numeric(A, &analysis, &factors);
- *   sparse_factor_solve(&factors, b, x);
+ *   sparse_factor_solve(&factors, &analysis, b, x);
  *
  *   // 3. Change values, refactor (no re-analysis)
  *   // ... modify A values (same sparsity pattern) ...
  *   sparse_refactor_numeric(A_new, &analysis, &factors);
- *   sparse_factor_solve(&factors, b2, x2);
+ *   sparse_factor_solve(&factors, &analysis, b2, x2);
  *
  *   // 4. Clean up
  *   sparse_factor_free(&factors);
@@ -183,22 +183,25 @@ typedef struct {
 } sparse_factors_t;
 
 /**
- * @brief Perform numeric-only factorization using a precomputed analysis.
+ * @brief Perform numeric factorization using a precomputed analysis.
  *
- * Uses the symbolic structure from a prior sparse_analyze() call to
- * perform numeric factorization without repeating ordering or symbolic
- * analysis. The matrix A must have the same sparsity pattern as the
- * matrix that was analyzed.
+ * Applies the fill-reducing permutation from the analysis (if any),
+ * builds a permuted copy, and delegates to the appropriate one-shot
+ * factorization routine (sparse_cholesky_factor, sparse_lu_factor, or
+ * sparse_ldlt_factor). The symbolic structure (etree, column counts,
+ * sym_L/sym_U) computed by sparse_analyze() is available for future
+ * optimizations but is not currently used to bypass internal symbolic
+ * work in the underlying factorization routines.
  *
  * For Cholesky: computes L such that P*A*P^T = L*L^T.
  * For LU: computes L and U such that P*A*Q = L*U (with pivoting).
  * For LDL^T: computes L and D such that P*A*P^T = L*D*L^T.
  *
- * @pre A must have the same sparsity pattern as the analyzed matrix.
  * @pre analysis must have been computed by sparse_analyze().
  *
  * @param A         The matrix to factor (not modified).
- * @param analysis  Precomputed symbolic analysis.
+ * @param analysis  Precomputed symbolic analysis (provides permutation
+ *                  and factorization type).
  * @param factors   Output factorization result. Must be zeroed or
  *                  freshly initialized. Caller frees with sparse_factor_free().
  *
@@ -241,29 +244,30 @@ sparse_err_t sparse_factor_solve(const sparse_factors_t *factors, const sparse_a
 void sparse_factor_free(sparse_factors_t *factors);
 
 /**
- * @brief Refactor using new numeric values with the same sparsity pattern.
+ * @brief Refactor using new numeric values with the analyzed structure.
  *
- * Reuses the symbolic structure from a prior sparse_analyze() call and
- * overwrites the existing factors with a new numeric factorization.
- * The matrix A_new must have the same sparsity pattern (same dimensions
- * and same nnz) as the originally analyzed matrix.
+ * Convenience wrapper: frees the old factors and calls
+ * sparse_factor_numeric() with the new matrix and the same analysis.
+ * The matrix A_new must have dimensions compatible with the analysis.
+ * Structural compatibility (same sparsity pattern) is a caller
+ * precondition but is not validated.
  *
  * This avoids the cost of repeated symbolic analysis when solving
  * multiple systems with the same structure but different values
  * (e.g., nonlinear solvers, time-stepping).
  *
- * @pre A_new must have the same sparsity pattern as the analyzed matrix.
+ * @pre A_new must be structurally compatible with the analyzed matrix.
  * @pre factors must have been produced by a prior sparse_factor_numeric().
  *
- * @param A_new     The new matrix to factor (not modified). Must have the
- *                  same sparsity pattern as the original.
+ * @param A_new     The new matrix to factor (not modified). Must have
+ *                  dimensions compatible with the original analysis.
  * @param analysis  Precomputed symbolic analysis (from sparse_analyze).
  * @param factors   Existing factors to overwrite. The old factorization
  *                  is freed internally before refactoring.
  *
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
- * @return SPARSE_ERR_SHAPE if dimensions or nnz don't match.
+ * @return SPARSE_ERR_SHAPE if matrix dimensions don't match.
  * @return SPARSE_ERR_NOT_SPD if A_new is not SPD (Cholesky only).
  * @return SPARSE_ERR_SINGULAR if a zero pivot is encountered.
  */

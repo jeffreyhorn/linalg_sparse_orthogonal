@@ -31,18 +31,26 @@ static SparseMatrix *make_tridiag(idx_t n, double diag_val) {
     if (!A)
         return NULL;
     for (idx_t i = 0; i < n; i++) {
-        sparse_insert(A, i, i, diag_val);
+        if (sparse_insert(A, i, i, diag_val) != SPARSE_OK)
+            goto fail;
         if (i > 0) {
-            sparse_insert(A, i, i - 1, -1.0);
-            sparse_insert(A, i - 1, i, -1.0);
+            if (sparse_insert(A, i, i - 1, -1.0) != SPARSE_OK)
+                goto fail;
+            if (sparse_insert(A, i - 1, i, -1.0) != SPARSE_OK)
+                goto fail;
         }
     }
     return A;
+fail:
+    sparse_free(A);
+    return NULL;
 }
 
 /* Compute ||b - A*x||_inf / ||b||_inf */
 static double residual(const SparseMatrix *A, const double *b, const double *x, idx_t n) {
     double *Ax = calloc((size_t)n, sizeof(double));
+    if (!Ax)
+        return -1.0; /* signal allocation failure */
     sparse_matvec(A, x, Ax);
     double rnorm = 0, bnorm = 0;
     for (idx_t i = 0; i < n; i++) {

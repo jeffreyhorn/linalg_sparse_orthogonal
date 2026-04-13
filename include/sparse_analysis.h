@@ -293,8 +293,7 @@ void sparse_factor_free(sparse_factors_t *factors);
  * (e.g., nonlinear solvers, time-stepping).
  *
  * @pre A_new must be structurally compatible with the analyzed matrix.
- * @pre factors must contain a valid existing factorization to be
- *      overwritten on success.
+ * @pre factors must be zeroed or contain a valid existing factorization.
  *
  * @param A_new     The new matrix to factor (not modified). Must have
  *                  dimensions compatible with the original analysis.

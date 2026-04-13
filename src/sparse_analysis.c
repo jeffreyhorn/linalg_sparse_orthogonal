@@ -42,7 +42,7 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
     }
 
     idx_t n = A->rows;
-    memset(analysis, 0, sizeof(*analysis));
+    sparse_analysis_free(analysis); /* free any prior contents */
     analysis->n = n;
     analysis->type = ftype;
 
@@ -259,7 +259,7 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
         return SPARSE_ERR_BADARG;
 
     idx_t n = analysis->n;
-    memset(factors, 0, sizeof(*factors));
+    sparse_factor_free(factors); /* free any prior contents */
     factors->type = analysis->type;
     factors->n = n;
 

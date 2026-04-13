@@ -499,7 +499,7 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
     /* Ensure diagonal is present (only insert if missing) */
     for (idx_t i = 0; i < n; i++) {
         if (sparse_get(B, i, i) == 0.0) {
-            ins_err = sparse_insert(B, i, i, (double)(n + 1));
+            ins_err = sparse_insert(B, i, i, (double)n + 1.0);
             if (ins_err != SPARSE_OK) {
                 sparse_free(B);
                 return ins_err;

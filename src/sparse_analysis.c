@@ -52,6 +52,10 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
     /* Compute fill-reducing permutation if requested */
     sparse_err_t err = SPARSE_OK;
     if (reorder != SPARSE_REORDER_NONE && n > 0) {
+        if ((size_t)n > SIZE_MAX / sizeof(idx_t)) {
+            sparse_analysis_free(analysis);
+            return SPARSE_ERR_ALLOC;
+        }
         analysis->perm = malloc((size_t)n * sizeof(idx_t));
         if (!analysis->perm) {
             sparse_analysis_free(analysis);
@@ -96,7 +100,12 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
             B = B_perm;
         }
 
-        /* Allocate etree and postorder */
+        /* Allocate etree and postorder (overflow already checked above for perm) */
+        if ((size_t)n > SIZE_MAX / sizeof(idx_t)) {
+            sparse_free(B_perm);
+            sparse_analysis_free(analysis);
+            return SPARSE_ERR_ALLOC;
+        }
         analysis->etree = malloc((size_t)n * sizeof(idx_t));
         analysis->postorder = malloc((size_t)n * sizeof(idx_t));
         if (!analysis->etree || !analysis->postorder) {
@@ -349,6 +358,9 @@ sparse_err_t sparse_factor_solve(const sparse_factors_t *factors, const sparse_a
 
     idx_t n = factors->n;
     const idx_t *perm = analysis->perm;
+
+    if ((size_t)n > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
 
     /* Permute b if a fill-reducing permutation was used.
      * perm[new] = old convention: b_perm[new_i] = b[perm[new_i]] */

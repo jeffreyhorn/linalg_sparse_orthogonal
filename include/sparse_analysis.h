@@ -33,6 +33,7 @@
  */
 
 #include "sparse_matrix.h"
+#include "sparse_reorder.h"
 
 /* ═══════════════════════════════════════════════════════════════════════════
  * Factorization type

@@ -380,9 +380,23 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
     if (!B)
         return SPARSE_ERR_ALLOC;
 
+    /* Build inverse permutation: inv_perm[old] = new.
+     * Reorder routines produce perm[new] = old, so we invert. */
+    idx_t *inv_perm = NULL;
+    if (perm) {
+        inv_perm = malloc((size_t)n * sizeof(idx_t));
+        if (!inv_perm) {
+            sparse_free(B);
+            return SPARSE_ERR_ALLOC;
+        }
+        for (idx_t i = 0; i < n; i++)
+            inv_perm[perm[i]] = i;
+    }
+
     /* Workspace: collect permuted column indices per row */
     idx_t *row_cols = malloc((size_t)n * sizeof(idx_t));
     if (!row_cols) {
+        free(inv_perm);
         sparse_free(B);
         return SPARSE_ERR_ALLOC;
     }
@@ -391,8 +405,8 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
         /* Collect permuted column indices in row k */
         idx_t cnt = 0;
         for (Node *nd = A->row_headers[k]; nd; nd = nd->right) {
-            idx_t pj = perm ? perm[nd->col] : nd->col;
-            row_cols[cnt++] = pj;
+            idx_t pj = inv_perm ? inv_perm[nd->col] : nd->col;
+            row_cols[cnt++] = pj; // NOLINT(clang-analyzer-security.ArrayBound)
         }
         /* All pairs (row_cols[a], row_cols[b]) are entries of A^T * A */
         for (idx_t a = 0; a < cnt; a++) {
@@ -403,6 +417,7 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
         }
     }
     free(row_cols);
+    free(inv_perm);
 
     /* Ensure diagonal is present */
     for (idx_t i = 0; i < n; i++)

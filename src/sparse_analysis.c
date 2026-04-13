@@ -188,14 +188,26 @@ void sparse_analysis_free(sparse_analysis_t *analysis) {
  * Helper: build symmetrically permuted copy of A
  * ═══════════════════════════════════════════════════════════════════════ */
 
+/* Reset permutation state on a working copy so the underlying solvers
+ * don't apply stale reorder/pivot permutations from the original matrix. */
+static SparseMatrix *sanitize_working_copy(SparseMatrix *B) {
+    if (!B)
+        return NULL;
+    sparse_reset_perms(B);
+    free(B->reorder_perm);
+    B->reorder_perm = NULL;
+    return B;
+}
+
 static SparseMatrix *build_permuted_copy(const SparseMatrix *A, const idx_t *perm) {
+    SparseMatrix *B = NULL;
     if (perm) {
-        SparseMatrix *B = NULL;
         if (sparse_permute(A, perm, perm, &B) != SPARSE_OK)
             return NULL;
-        return B;
+    } else {
+        B = sparse_copy(A);
     }
-    return sparse_copy(A);
+    return sanitize_working_copy(B);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -297,6 +309,10 @@ sparse_err_t sparse_factor_solve(const sparse_factors_t *factors, const sparse_a
     if (!factors || !analysis || !b || !x)
         return SPARSE_ERR_NULL;
     if (!factors->LU)
+        return SPARSE_ERR_BADARG;
+    if (analysis->n != factors->n)
+        return SPARSE_ERR_SHAPE;
+    if (analysis->type != factors->type)
         return SPARSE_ERR_BADARG;
 
     idx_t n = factors->n;

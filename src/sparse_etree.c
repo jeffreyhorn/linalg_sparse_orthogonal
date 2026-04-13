@@ -54,12 +54,13 @@ sparse_err_t sparse_etree_compute(const SparseMatrix *A, idx_t *parent) {
     }
 
     /* Liu's algorithm: process columns j = 0..n-1.
-     * For each column j, walk the entries i < j (upper triangle / row of A).
+     * For each row j, walk the entries with column i < j (lower-triangular
+     * entries A(j,i) in row j, equivalently upper-triangular A(i,j) by symmetry).
      * For each such entry, find the root of column i's etree subtree.
      * If that root r != j, set parent[r] = j and merge r into j. */
     for (idx_t j = 0; j < n; j++) {
-        /* Walk row j: look at columns i < j (equivalent to upper triangle
-         * entries in column j for a symmetric matrix) */
+        /* Walk row j: columns i < j correspond to lower-triangle entries
+         * A(j,i); by symmetry these are the upper-triangle entries A(i,j). */
         for (Node *nd = A->row_headers[j]; nd; nd = nd->right) {
             idx_t i = nd->col;
             if (i >= j)
@@ -247,6 +248,9 @@ sparse_err_t sparse_symbolic_cholesky(const SparseMatrix *A, const idx_t *parent
         return SPARSE_ERR_SHAPE;
 
     idx_t n = A->rows;
+    /* sym must be zeroed or previously freed before calling.
+     * We zero it here; callers reusing a sym should call
+     * sparse_symbolic_free() first. */
     memset(sym, 0, sizeof(*sym));
 
     if (n == 0) {
@@ -644,9 +648,9 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
     }
 
     /* All work succeeded — now assign sym_L (deferred to avoid leaks on error) */
-    if (sym_L)
+    if (sym_L) {
         *sym_L = sym_full;
-    else
+    } else
         sparse_symbolic_free(&sym_full);
 
 cleanup:

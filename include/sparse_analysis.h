@@ -222,7 +222,8 @@ typedef struct {
  * @return SPARSE_ERR_BADARG if A is already factored or has non-identity
  *         row/col permutations.
  * @return SPARSE_ERR_SHAPE if dimensions don't match the analysis.
- * @return SPARSE_ERR_NOT_SPD if the matrix is not SPD (Cholesky only).
+ * @return SPARSE_ERR_NOT_SPD if the matrix is not symmetric
+ *         (Cholesky/LDL^T) or not positive-definite (Cholesky).
  * @return SPARSE_ERR_SINGULAR if a zero pivot is encountered.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  * @return Error codes from the delegated factorization routine may also
@@ -292,7 +293,8 @@ void sparse_factor_free(sparse_factors_t *factors);
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
  * @return SPARSE_ERR_SHAPE if matrix dimensions don't match.
- * @return SPARSE_ERR_NOT_SPD if A_new is not SPD (Cholesky only).
+ * @return SPARSE_ERR_NOT_SPD if A_new is not symmetric (Cholesky/LDL^T)
+ *         or not positive-definite (Cholesky).
  * @return SPARSE_ERR_SINGULAR if a zero pivot is encountered.
  */
 sparse_err_t sparse_refactor_numeric(const SparseMatrix *A_new, const sparse_analysis_t *analysis,

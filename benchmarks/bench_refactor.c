@@ -38,14 +38,22 @@ static double wall_time(void) {
 /* Build n×n SPD tridiagonal with parameterized diagonal */
 static SparseMatrix *make_tridiag(idx_t n, double diag) {
     SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
     for (idx_t i = 0; i < n; i++) {
-        sparse_insert(A, i, i, diag);
+        if (sparse_insert(A, i, i, diag) != SPARSE_OK)
+            goto fail;
         if (i > 0) {
-            sparse_insert(A, i, i - 1, -1.0);
-            sparse_insert(A, i - 1, i, -1.0);
+            if (sparse_insert(A, i, i - 1, -1.0) != SPARSE_OK)
+                goto fail;
+            if (sparse_insert(A, i - 1, i, -1.0) != SPARSE_OK)
+                goto fail;
         }
     }
     return A;
+fail:
+    sparse_free(A);
+    return NULL;
 }
 
 static void bench_matrix(const char *name, SparseMatrix *A, int reps) {

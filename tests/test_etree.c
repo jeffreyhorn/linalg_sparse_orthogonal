@@ -12,6 +12,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Checked malloc: abort on failure to avoid UB in tests.
+ * Test allocations are small and OOM is not a realistic test scenario. */
+static void *xmalloc(size_t sz) {
+    void *p = malloc(sz);
+    if (!p && sz > 0) {
+        fprintf(stderr, "xmalloc: allocation of %zu bytes failed\n", sz);
+        abort();
+    }
+    return p;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Helpers
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -298,8 +309,8 @@ static void test_postorder_known_5x5(void) {
 static void test_etree_postorder_tridiag(void) {
     idx_t n = 10;
     SparseMatrix *A = make_tridiag(n);
-    idx_t *parent = malloc((size_t)n * sizeof(idx_t));
-    idx_t *postorder = malloc((size_t)n * sizeof(idx_t));
+    idx_t *parent = xmalloc((size_t)n * sizeof(idx_t));
+    idx_t *postorder = xmalloc((size_t)n * sizeof(idx_t));
 
     REQUIRE_OK(sparse_etree_compute(A, parent));
     REQUIRE_OK(sparse_etree_postorder(parent, n, postorder));
@@ -315,8 +326,8 @@ static void test_etree_postorder_tridiag(void) {
 static void test_etree_postorder_arrow(void) {
     idx_t n = 8;
     SparseMatrix *A = make_arrow(n);
-    idx_t *parent = malloc((size_t)n * sizeof(idx_t));
-    idx_t *postorder = malloc((size_t)n * sizeof(idx_t));
+    idx_t *parent = xmalloc((size_t)n * sizeof(idx_t));
+    idx_t *postorder = xmalloc((size_t)n * sizeof(idx_t));
 
     REQUIRE_OK(sparse_etree_compute(A, parent));
     REQUIRE_OK(sparse_etree_postorder(parent, n, postorder));
@@ -335,8 +346,8 @@ static void test_etree_postorder_large(void) {
     /* Larger tridiagonal to verify scalability */
     idx_t n = 100;
     SparseMatrix *A = make_tridiag(n);
-    idx_t *parent = malloc((size_t)n * sizeof(idx_t));
-    idx_t *postorder = malloc((size_t)n * sizeof(idx_t));
+    idx_t *parent = xmalloc((size_t)n * sizeof(idx_t));
+    idx_t *postorder = xmalloc((size_t)n * sizeof(idx_t));
 
     REQUIRE_OK(sparse_etree_compute(A, parent));
     REQUIRE_OK(sparse_etree_postorder(parent, n, postorder));
@@ -463,9 +474,9 @@ static void test_colcount_dense(void) {
     /* Dense SPD: L is fully lower triangular, colcount[i] = n - i */
     idx_t n = 4;
     SparseMatrix *A = make_dense_spd(n);
-    idx_t *parent = malloc((size_t)n * sizeof(idx_t));
-    idx_t *postorder = malloc((size_t)n * sizeof(idx_t));
-    idx_t *cc = malloc((size_t)n * sizeof(idx_t));
+    idx_t *parent = xmalloc((size_t)n * sizeof(idx_t));
+    idx_t *postorder = xmalloc((size_t)n * sizeof(idx_t));
+    idx_t *cc = xmalloc((size_t)n * sizeof(idx_t));
 
     REQUIRE_OK(sparse_etree_compute(A, parent));
     REQUIRE_OK(sparse_etree_postorder(parent, n, postorder));
@@ -568,9 +579,9 @@ static void count_col_nnz(const SparseMatrix *L, idx_t *col_nnz) {
 static void test_colcount_vs_cholesky_tridiag(void) {
     idx_t n = 8;
     SparseMatrix *A = make_tridiag(n);
-    idx_t *parent = malloc((size_t)n * sizeof(idx_t));
-    idx_t *postorder = malloc((size_t)n * sizeof(idx_t));
-    idx_t *cc = malloc((size_t)n * sizeof(idx_t));
+    idx_t *parent = xmalloc((size_t)n * sizeof(idx_t));
+    idx_t *postorder = xmalloc((size_t)n * sizeof(idx_t));
+    idx_t *cc = xmalloc((size_t)n * sizeof(idx_t));
 
     REQUIRE_OK(sparse_etree_compute(A, parent));
     REQUIRE_OK(sparse_etree_postorder(parent, n, postorder));
@@ -586,7 +597,7 @@ static void test_colcount_vs_cholesky_tridiag(void) {
     ASSERT_EQ(predicted, L->nnz);
 
     /* Per-column counts */
-    idx_t *actual = malloc((size_t)n * sizeof(idx_t));
+    idx_t *actual = xmalloc((size_t)n * sizeof(idx_t));
     count_col_nnz(L, actual);
     for (idx_t j = 0; j < n; j++)
         ASSERT_EQ(cc[j], actual[j]);
@@ -604,9 +615,9 @@ static void test_colcount_vs_cholesky_tridiag(void) {
 static void test_colcount_vs_cholesky_arrow(void) {
     idx_t n = 6;
     SparseMatrix *A = make_arrow(n);
-    idx_t *parent = malloc((size_t)n * sizeof(idx_t));
-    idx_t *postorder = malloc((size_t)n * sizeof(idx_t));
-    idx_t *cc = malloc((size_t)n * sizeof(idx_t));
+    idx_t *parent = xmalloc((size_t)n * sizeof(idx_t));
+    idx_t *postorder = xmalloc((size_t)n * sizeof(idx_t));
+    idx_t *cc = xmalloc((size_t)n * sizeof(idx_t));
 
     REQUIRE_OK(sparse_etree_compute(A, parent));
     REQUIRE_OK(sparse_etree_postorder(parent, n, postorder));
@@ -620,7 +631,7 @@ static void test_colcount_vs_cholesky_arrow(void) {
         predicted += cc[i];
     ASSERT_EQ(predicted, L->nnz);
 
-    idx_t *actual = malloc((size_t)n * sizeof(idx_t));
+    idx_t *actual = xmalloc((size_t)n * sizeof(idx_t));
     count_col_nnz(L, actual);
     for (idx_t j = 0; j < n; j++)
         ASSERT_EQ(cc[j], actual[j]);
@@ -679,9 +690,9 @@ static void test_colcount_vs_cholesky_known_5x5(void) {
 static void test_colcount_vs_cholesky_dense(void) {
     idx_t n = 4;
     SparseMatrix *A = make_dense_spd(n);
-    idx_t *parent = malloc((size_t)n * sizeof(idx_t));
-    idx_t *postorder = malloc((size_t)n * sizeof(idx_t));
-    idx_t *cc = malloc((size_t)n * sizeof(idx_t));
+    idx_t *parent = xmalloc((size_t)n * sizeof(idx_t));
+    idx_t *postorder = xmalloc((size_t)n * sizeof(idx_t));
+    idx_t *cc = xmalloc((size_t)n * sizeof(idx_t));
 
     REQUIRE_OK(sparse_etree_compute(A, parent));
     REQUIRE_OK(sparse_etree_postorder(parent, n, postorder));
@@ -695,7 +706,7 @@ static void test_colcount_vs_cholesky_dense(void) {
         predicted += cc[i];
     ASSERT_EQ(predicted, L->nnz);
 
-    idx_t *actual = malloc((size_t)n * sizeof(idx_t));
+    idx_t *actual = xmalloc((size_t)n * sizeof(idx_t));
     count_col_nnz(L, actual);
     for (idx_t j = 0; j < n; j++)
         ASSERT_EQ(cc[j], actual[j]);
@@ -900,9 +911,9 @@ static void test_symbolic_arrow(void) {
 static void test_symbolic_dense(void) {
     idx_t n = 4;
     SparseMatrix *A = make_dense_spd(n);
-    idx_t *parent = malloc((size_t)n * sizeof(idx_t));
-    idx_t *postorder = malloc((size_t)n * sizeof(idx_t));
-    idx_t *cc = malloc((size_t)n * sizeof(idx_t));
+    idx_t *parent = xmalloc((size_t)n * sizeof(idx_t));
+    idx_t *postorder = xmalloc((size_t)n * sizeof(idx_t));
+    idx_t *cc = xmalloc((size_t)n * sizeof(idx_t));
     sparse_symbolic_t sym;
 
     REQUIRE_OK(run_symbolic(A, parent, postorder, cc, &sym));
@@ -983,9 +994,9 @@ static void test_symbolic_vs_cholesky_bcsstk04(void) {
     }
 
     idx_t n = A->rows;
-    idx_t *parent = malloc((size_t)n * sizeof(idx_t));
-    idx_t *postorder = malloc((size_t)n * sizeof(idx_t));
-    idx_t *cc = malloc((size_t)n * sizeof(idx_t));
+    idx_t *parent = xmalloc((size_t)n * sizeof(idx_t));
+    idx_t *postorder = xmalloc((size_t)n * sizeof(idx_t));
+    idx_t *cc = xmalloc((size_t)n * sizeof(idx_t));
     sparse_symbolic_t sym;
 
     REQUIRE_OK(run_symbolic(A, parent, postorder, cc, &sym));
@@ -1017,9 +1028,9 @@ static void test_symbolic_vs_cholesky_nos4(void) {
     }
 
     idx_t n = A->rows;
-    idx_t *parent = malloc((size_t)n * sizeof(idx_t));
-    idx_t *postorder = malloc((size_t)n * sizeof(idx_t));
-    idx_t *cc = malloc((size_t)n * sizeof(idx_t));
+    idx_t *parent = xmalloc((size_t)n * sizeof(idx_t));
+    idx_t *postorder = xmalloc((size_t)n * sizeof(idx_t));
+    idx_t *cc = xmalloc((size_t)n * sizeof(idx_t));
     sparse_symbolic_t sym;
 
     REQUIRE_OK(run_symbolic(A, parent, postorder, cc, &sym));
@@ -1224,7 +1235,7 @@ static void test_symbolic_lu_with_amd(void) {
     /* Test with AMD reordering permutation */
     idx_t n = 5;
     SparseMatrix *A = make_arrow(n);
-    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    idx_t *perm = xmalloc((size_t)n * sizeof(idx_t));
     REQUIRE_OK(sparse_reorder_amd(A, perm));
 
     sparse_symbolic_t sym_L, sym_U;
@@ -1820,8 +1831,8 @@ static void test_factor_numeric_cholesky_tridiag(void) {
     REQUIRE_OK(sparse_factor_numeric(A, &analysis, &factors));
 
     /* Solve and check residual */
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x = malloc((size_t)n * sizeof(double));
+    double *b = xmalloc((size_t)n * sizeof(double));
+    double *x = xmalloc((size_t)n * sizeof(double));
     for (idx_t i = 0; i < n; i++)
         b[i] = (double)(i + 1);
 
@@ -1847,8 +1858,8 @@ static void test_factor_numeric_cholesky_arrow(void) {
     REQUIRE_OK(sparse_analyze(A, NULL, &analysis));
     REQUIRE_OK(sparse_factor_numeric(A, &analysis, &factors));
 
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x = malloc((size_t)n * sizeof(double));
+    double *b = xmalloc((size_t)n * sizeof(double));
+    double *x = xmalloc((size_t)n * sizeof(double));
     for (idx_t i = 0; i < n; i++)
         b[i] = 1.0;
 
@@ -1875,8 +1886,8 @@ static void test_factor_numeric_cholesky_with_amd(void) {
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
     REQUIRE_OK(sparse_factor_numeric(A, &analysis, &factors));
 
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x = malloc((size_t)n * sizeof(double));
+    double *b = xmalloc((size_t)n * sizeof(double));
+    double *x = xmalloc((size_t)n * sizeof(double));
     for (idx_t i = 0; i < n; i++)
         b[i] = (double)(i + 1);
 
@@ -1908,8 +1919,8 @@ static void test_factor_numeric_cholesky_bcsstk04(void) {
     REQUIRE_OK(sparse_analyze(A, NULL, &analysis));
     REQUIRE_OK(sparse_factor_numeric(A, &analysis, &factors));
 
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x = malloc((size_t)n * sizeof(double));
+    double *b = xmalloc((size_t)n * sizeof(double));
+    double *x = xmalloc((size_t)n * sizeof(double));
     for (idx_t i = 0; i < n; i++)
         b[i] = 1.0;
 
@@ -1941,8 +1952,8 @@ static void test_factor_numeric_cholesky_nos4(void) {
     REQUIRE_OK(sparse_analyze(A, NULL, &analysis));
     REQUIRE_OK(sparse_factor_numeric(A, &analysis, &factors));
 
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x = malloc((size_t)n * sizeof(double));
+    double *b = xmalloc((size_t)n * sizeof(double));
+    double *x = xmalloc((size_t)n * sizeof(double));
     for (idx_t i = 0; i < n; i++)
         b[i] = (double)(i + 1);
 
@@ -2001,8 +2012,8 @@ static void test_factor_numeric_lu_tridiag(void) {
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
     REQUIRE_OK(sparse_factor_numeric(A, &analysis, &factors));
 
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x = malloc((size_t)n * sizeof(double));
+    double *b = xmalloc((size_t)n * sizeof(double));
+    double *x = xmalloc((size_t)n * sizeof(double));
     for (idx_t i = 0; i < n; i++)
         b[i] = (double)(i + 1);
 
@@ -2035,8 +2046,8 @@ static void test_factor_numeric_lu_west0067(void) {
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
     REQUIRE_OK(sparse_factor_numeric(A, &analysis, &factors));
 
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x = malloc((size_t)n * sizeof(double));
+    double *b = xmalloc((size_t)n * sizeof(double));
+    double *x = xmalloc((size_t)n * sizeof(double));
     for (idx_t i = 0; i < n; i++)
         b[i] = 1.0;
 
@@ -2092,8 +2103,8 @@ static void test_factor_numeric_ldlt_tridiag(void) {
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
     REQUIRE_OK(sparse_factor_numeric(A, &analysis, &factors));
 
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x = malloc((size_t)n * sizeof(double));
+    double *b = xmalloc((size_t)n * sizeof(double));
+    double *x = xmalloc((size_t)n * sizeof(double));
     for (idx_t i = 0; i < n; i++)
         b[i] = (double)(i + 1);
 
@@ -2126,8 +2137,8 @@ static void test_factor_numeric_ldlt_nos4(void) {
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
     REQUIRE_OK(sparse_factor_numeric(A, &analysis, &factors));
 
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x = malloc((size_t)n * sizeof(double));
+    double *b = xmalloc((size_t)n * sizeof(double));
+    double *x = xmalloc((size_t)n * sizeof(double));
     for (idx_t i = 0; i < n; i++)
         b[i] = (double)(i + 1);
 
@@ -2171,8 +2182,8 @@ static void test_refactor_cholesky_new_values(void) {
     REQUIRE_OK(sparse_factor_numeric(A, &analysis, &factors));
 
     /* Solve with original */
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x = malloc((size_t)n * sizeof(double));
+    double *b = xmalloc((size_t)n * sizeof(double));
+    double *x = xmalloc((size_t)n * sizeof(double));
     for (idx_t i = 0; i < n; i++)
         b[i] = 1.0;
     REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b, x));
@@ -2272,8 +2283,8 @@ static void test_refactor_loop(void) {
     REQUIRE_OK(sparse_analyze(A, NULL, &analysis));
     REQUIRE_OK(sparse_factor_numeric(A, &analysis, &factors));
 
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x = malloc((size_t)n * sizeof(double));
+    double *b = xmalloc((size_t)n * sizeof(double));
+    double *x = xmalloc((size_t)n * sizeof(double));
     for (idx_t i = 0; i < n; i++)
         b[i] = 1.0;
 
@@ -2378,9 +2389,9 @@ static void test_refactor_ldlt(void) {
 static void test_compat_cholesky_tridiag(void) {
     idx_t n = 10;
     SparseMatrix *A = make_tridiag(n);
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x_oneshot = malloc((size_t)n * sizeof(double));
-    double *x_analyze = malloc((size_t)n * sizeof(double));
+    double *b = xmalloc((size_t)n * sizeof(double));
+    double *x_oneshot = xmalloc((size_t)n * sizeof(double));
+    double *x_analyze = xmalloc((size_t)n * sizeof(double));
     for (idx_t i = 0; i < n; i++)
         b[i] = (double)(i + 1);
 
@@ -2419,9 +2430,9 @@ static void test_compat_cholesky_bcsstk04(void) {
     }
 
     idx_t n = A->rows;
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x_oneshot = malloc((size_t)n * sizeof(double));
-    double *x_analyze = malloc((size_t)n * sizeof(double));
+    double *b = xmalloc((size_t)n * sizeof(double));
+    double *x_oneshot = xmalloc((size_t)n * sizeof(double));
+    double *x_analyze = xmalloc((size_t)n * sizeof(double));
     for (idx_t i = 0; i < n; i++)
         b[i] = 1.0;
 
@@ -2492,9 +2503,9 @@ static void test_compat_lu_west0067(void) {
     }
 
     idx_t n = A->rows;
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x_oneshot = malloc((size_t)n * sizeof(double));
-    double *x_analyze = malloc((size_t)n * sizeof(double));
+    double *b = xmalloc((size_t)n * sizeof(double));
+    double *x_oneshot = xmalloc((size_t)n * sizeof(double));
+    double *x_analyze = xmalloc((size_t)n * sizeof(double));
     for (idx_t i = 0; i < n; i++)
         b[i] = 1.0;
 
@@ -2565,9 +2576,9 @@ static void test_compat_ldlt_nos4(void) {
     }
 
     idx_t n = A->rows;
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x_oneshot = malloc((size_t)n * sizeof(double));
-    double *x_analyze = malloc((size_t)n * sizeof(double));
+    double *b = xmalloc((size_t)n * sizeof(double));
+    double *x_oneshot = xmalloc((size_t)n * sizeof(double));
+    double *x_analyze = xmalloc((size_t)n * sizeof(double));
     for (idx_t i = 0; i < n; i++)
         b[i] = (double)(i + 1);
 

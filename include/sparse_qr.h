@@ -310,10 +310,10 @@ double sparse_qr_condest(const sparse_qr_t *qr);
  * @param x     Solution vector of length n (overwritten).
  * @param opts  QR options (reordering, etc.), or NULL for defaults.
  *
- * @return SPARSE_OK on success.
+ * @return SPARSE_OK on success. Near-zero R diagonals are handled by
+ *         zeroing the corresponding components (not treated as an error).
  * @return SPARSE_ERR_NULL if A, b, or x is NULL.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
- * @return SPARSE_ERR_SINGULAR if R has a near-zero diagonal.
  *
  * @see sparse_qr_solve for overdetermined least-squares.
  */

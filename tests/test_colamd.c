@@ -473,11 +473,10 @@ static void test_order_arrow(void) {
     REQUIRE_OK(colamd_order(A, perm));
     ASSERT_TRUE(is_valid_perm(perm, n));
 
-    /* Column n-1 has the highest degree in the adjacency graph,
-     * so minimum-degree should place it last. */
-    ASSERT_EQ(perm[n - 1], n - 1);
+    /* All columns share the dense row, so all have equal adjacency degree.
+     * We can only verify the permutation is valid, not specific ordering. */
 
-    printf("    order arrow n=%d: dense column placed last ✓\n", (int)n);
+    printf("    order arrow n=%d: valid perm ✓\n", (int)n);
 
     free(perm);
     sparse_free(A);
@@ -822,6 +821,8 @@ static void test_qr_colamd_solve(void) {
         if (e > maxerr)
             maxerr = e;
     }
+    ASSERT_TRUE(resid < 1e2);  /* least-squares residual is finite and bounded */
+    ASSERT_TRUE(maxerr < 1e2); /* Ax - b error is bounded */
 
     printf("    QR+COLAMD solve 6x4: residual = %.2e ✓\n", resid);
     sparse_qr_free(&qr);
@@ -1187,8 +1188,19 @@ static void test_minnorm_fallback_overdetermined(void) {
     double x[3];
     REQUIRE_OK(sparse_qr_solve_minnorm(A, b, x, NULL));
 
-    /* Should produce a valid least-squares solution */
-    printf("    minnorm fallback 4x3: x=[%.3f,%.3f,%.3f] ✓\n", x[0], x[1], x[2]);
+    /* Verify A*x ≈ b */
+    double Ax[4] = {0};
+    sparse_matvec(A, x, Ax);
+    double maxerr = 0;
+    for (int i = 0; i < 4; i++) {
+        double e = fabs(Ax[i] - b[i]);
+        if (e > maxerr)
+            maxerr = e;
+    }
+    ASSERT_TRUE(maxerr < 1e-10);
+
+    printf("    minnorm fallback 4x3: x=[%.3f,%.3f,%.3f], maxerr=%.2e ✓\n", x[0], x[1], x[2],
+           maxerr);
     sparse_free(A);
 }
 
@@ -1748,8 +1760,10 @@ static void test_backward_compat_qr_no_reorder(void) {
         if (e > maxerr)
             maxerr = e;
     }
+    ASSERT_TRUE(resid < 1e2);
+    ASSERT_TRUE(maxerr < 1e2);
 
-    printf("    backward compat QR (no reorder): resid=%.2e ✓\n", resid);
+    printf("    backward compat QR (no reorder): resid=%.2e, maxerr=%.2e ✓\n", resid, maxerr);
     sparse_qr_free(&qr);
     sparse_free(A);
 }
@@ -1774,7 +1788,18 @@ static void test_backward_compat_qr_amd(void) {
     double resid;
     REQUIRE_OK(sparse_qr_solve(&qr, b, x, &resid));
 
-    printf("    backward compat QR+AMD: resid=%.2e ✓\n", resid);
+    double Ax[4] = {0};
+    sparse_matvec(A, x, Ax);
+    double maxerr = 0;
+    for (int i = 0; i < 4; i++) {
+        double e = fabs(Ax[i] - b[i]);
+        if (e > maxerr)
+            maxerr = e;
+    }
+    ASSERT_TRUE(resid < 1e2);
+    ASSERT_TRUE(maxerr < 1e2);
+
+    printf("    backward compat QR+AMD: resid=%.2e, maxerr=%.2e ✓\n", resid, maxerr);
     sparse_qr_free(&qr);
     sparse_free(A);
 }

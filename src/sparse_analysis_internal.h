@@ -117,6 +117,9 @@ sparse_err_t sparse_symbolic_cholesky(const SparseMatrix *A, const idx_t *parent
  * Cholesky. The resulting structure is a valid upper bound for both L
  * and U columns.
  *
+ * Cost: O(sum_i row_nnz(i)^2) time and memory for building A^T*A,
+ * which can be expensive for matrices with very dense rows.
+ *
  * If perm is non-NULL, it is applied as a symmetric permutation
  * (fill-reducing reordering) before computing the symbolic structure.
  *

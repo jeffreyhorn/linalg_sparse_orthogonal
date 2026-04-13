@@ -2064,6 +2064,29 @@ static void test_factor_numeric_lu_west0067(void) {
     sparse_free(A);
 }
 
+static void test_factor_numeric_lu_with_amd(void) {
+    SparseMatrix *A = make_unsym_3x3();
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LU, SPARSE_REORDER_AMD};
+    sparse_analysis_t analysis = {0};
+    sparse_factors_t factors = {0};
+
+    REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
+    ASSERT_NOT_NULL(analysis.perm);
+    REQUIRE_OK(sparse_factor_numeric(A, &analysis, &factors));
+
+    double b[3] = {1.0, 2.0, 3.0};
+    double x[3];
+    REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b, x));
+    double resid = solve_residual(A, b, x);
+    ASSERT_TRUE(resid < 1e-12);
+
+    printf("    factor_numeric LU+AMD unsym 3x3: residual = %.2e ✓\n", resid);
+
+    sparse_factor_free(&factors);
+    sparse_analysis_free(&analysis);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * sparse_factor_numeric() tests — LDL^T
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -2150,6 +2173,29 @@ static void test_factor_numeric_ldlt_nos4(void) {
 
     free(b);
     free(x);
+    sparse_factor_free(&factors);
+    sparse_analysis_free(&analysis);
+    sparse_free(A);
+}
+
+static void test_factor_numeric_ldlt_with_amd(void) {
+    SparseMatrix *A = make_kkt_4x4();
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_AMD};
+    sparse_analysis_t analysis = {0};
+    sparse_factors_t factors = {0};
+
+    REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
+    ASSERT_NOT_NULL(analysis.perm);
+    REQUIRE_OK(sparse_factor_numeric(A, &analysis, &factors));
+
+    double b[4] = {1.0, 2.0, 3.0, 4.0};
+    double x[4];
+    REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b, x));
+    double resid = solve_residual(A, b, x);
+    ASSERT_TRUE(resid < 1e-12);
+
+    printf("    factor_numeric LDL^T+AMD KKT 4x4: residual = %.2e ✓\n", resid);
+
     sparse_factor_free(&factors);
     sparse_analysis_free(&analysis);
     sparse_free(A);
@@ -2718,11 +2764,13 @@ int main(void) {
     RUN_TEST(test_factor_numeric_lu_unsym);
     RUN_TEST(test_factor_numeric_lu_tridiag);
     RUN_TEST(test_factor_numeric_lu_west0067);
+    RUN_TEST(test_factor_numeric_lu_with_amd);
 
     /* sparse_factor_numeric() — LDL^T */
     RUN_TEST(test_factor_numeric_ldlt_kkt);
     RUN_TEST(test_factor_numeric_ldlt_tridiag);
     RUN_TEST(test_factor_numeric_ldlt_nos4);
+    RUN_TEST(test_factor_numeric_ldlt_with_amd);
 
     /* sparse_refactor_numeric() */
     RUN_TEST(test_refactor_null_args);

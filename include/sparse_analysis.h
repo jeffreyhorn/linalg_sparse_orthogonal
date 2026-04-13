@@ -10,6 +10,12 @@
  * sparsity pattern without redoing ordering and symbolic work — critical
  * for nonlinear solvers, time-stepping codes, and optimization loops.
  *
+ * @note For LU, the one-time symbolic analysis can be substantially more
+ * expensive than the subsequent numeric refactorizations may suggest. In
+ * particular, LU symbolic analysis builds the structural pattern of A^T*A,
+ * which can require O(sum_i row_nnz(i)^2) work and comparable temporary
+ * memory growth in the worst case, especially when A has dense rows.
+ *
  * **Workflow:**
  * @code
  *   // 1. Analyze once

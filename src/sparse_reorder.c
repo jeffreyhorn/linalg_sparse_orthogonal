@@ -1,4 +1,5 @@
 #include "sparse_reorder.h"
+#include "sparse_colamd_internal.h"
 #include "sparse_matrix_internal.h"
 
 #include <math.h>
@@ -516,4 +517,10 @@ sparse_err_t sparse_reorder_amd(const SparseMatrix *A, idx_t *perm) {
     free(eliminated);
     free(degree);
     return SPARSE_OK;
+}
+
+/* ─── COLAMD ─────────────────────────────────────────────────────────── */
+
+sparse_err_t sparse_reorder_colamd(const SparseMatrix *A, idx_t *perm) {
+    return colamd_order(A, perm);
 }

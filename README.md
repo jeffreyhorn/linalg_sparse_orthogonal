@@ -15,7 +15,9 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Cholesky factorization** for symmetric positive-definite matrices (A = L·L^T, ~50% less storage than LU)
 - **LDL^T factorization** with Bunch-Kaufman symmetric pivoting for symmetric indefinite matrices (P·A·P^T = L·D·L^T) — 1x1 and 2x2 pivot blocks, inertia computation, iterative refinement, condition estimation
 - **QR factorization** with column pivoting (A·P = Q·R) — Householder reflections, least-squares, rank estimation, null-space extraction, economy (thin) QR, sparse-mode QR without dense workspace
-- **QR iterative refinement** to improve least-squares solutions
+- **QR minimum-norm solve** for underdetermined systems (m < n) — minimum 2-norm solution via QR of A^T (`sparse_qr_solve_minnorm`)
+- **QR rank diagnostics** — R diagonal extraction (`sparse_qr_diag_r`), rank info with condition estimate (`sparse_qr_rank_info`), quick condition estimator (`sparse_qr_condest`)
+- **QR iterative refinement** to improve least-squares and minimum-norm solutions
 - **Householder bidiagonalization** — reduces A to upper bidiagonal form B = U^T·A·V (SVD preprocessing)
 - **Direct solve** via forward/backward substitution with permutation handling
 - **Iterative refinement** to improve solution accuracy
@@ -60,8 +62,8 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Column counts** — predict symbolic nnz per column of L for pre-allocation (upper bound on stored numeric counts when dropping is enabled)
 
 ### Reordering & Preconditioning
-- **Fill-reducing reordering** — Reverse Cuthill-McKee (RCM) and Approximate Minimum Degree (AMD)
-- **Condition number estimation** — Hager/Higham 1-norm estimator from LU or LDL^T factors
+- **Fill-reducing reordering** — Reverse Cuthill-McKee (RCM), Approximate Minimum Degree (AMD), and Column Approximate Minimum Degree (COLAMD) for unsymmetric/QR problems
+- **Condition number estimation** — Hager/Higham 1-norm estimator from LU or LDL^T factors, quick R-diagonal estimator from QR
 
 ### I/O & Interop
 - **Matrix Market I/O** — load and save `.mtx` files (coordinate real general, symmetric, and pattern formats)
@@ -214,7 +216,7 @@ int main(void)
 | [`sparse_dense.h`](include/sparse_dense.h) | Dense matrix utilities, Givens rotations, 2×2 eigensolver, tridiag QR |
 | [`sparse_bidiag.h`](include/sparse_bidiag.h) | Householder bidiagonalization (SVD preprocessing) |
 | [`sparse_csr.h`](include/sparse_csr.h) | CSR/CSC compressed format conversion |
-| [`sparse_reorder.h`](include/sparse_reorder.h) | Fill-reducing reordering (RCM, AMD), permutation, bandwidth |
+| [`sparse_reorder.h`](include/sparse_reorder.h) | Fill-reducing reordering (RCM, AMD, COLAMD), permutation, bandwidth |
 | [`sparse_svd.h`](include/sparse_svd.h) | SVD, partial SVD, condition number, pseudoinverse, low-rank approximation |
 | [`sparse_vector.h`](include/sparse_vector.h) | Dense vector utilities (norms, axpy, dot product) |
 
@@ -274,7 +276,13 @@ int main(void)
 - `sparse_qr_apply_q(&qr, transpose, x, y)` — apply Q or Q^T to a vector
 - `sparse_qr_rank(&qr, tol)` — numerical rank estimation
 - `sparse_qr_nullspace(&qr, tol, basis, &ndim)` — null-space basis extraction
+- `sparse_qr_solve_minnorm(A, b, x, &opts)` — minimum 2-norm solution for underdetermined systems
+- `sparse_qr_diag_r(&qr, diag)` — extract R diagonal for rank inspection
+- `sparse_qr_rank_info(&qr, tol, &info)` — comprehensive rank diagnostics with condition estimate
+- `sparse_qr_condest(&qr)` — quick condition estimate from R diagonal
+- `sparse_qr_refine_minnorm(A, b, x, iters, &resid, &opts)` — iterative refinement for minimum-norm
 - `sparse_qr_free(&qr)` — free QR factors
+- `sparse_reorder_colamd(A, perm)` — COLAMD column ordering for unsymmetric/QR (handles rectangular)
 
 **SVD:**
 - `sparse_svd_compute(A, &opts, &svd)` — full SVD: A = U·Σ·V^T (singular values only or with vectors)
@@ -463,7 +471,7 @@ linalg_sparse_orthogonal/
 │   ├── sparse_dense.h        Dense utilities, Givens, eigensolvers
 │   ├── sparse_bidiag.h       Householder bidiagonalization
 │   ├── sparse_csr.h          CSR/CSC conversion
-│   ├── sparse_reorder.h      Fill-reducing reordering (RCM, AMD)
+│   ├── sparse_reorder.h      Fill-reducing reordering (RCM, AMD, COLAMD)
 │   ├── sparse_svd.h          SVD, condition number, pseudoinverse, low-rank
 │   └── sparse_vector.h       Dense vector utilities
 ├── src/                  Library implementation (15 source files, ~10K lines)

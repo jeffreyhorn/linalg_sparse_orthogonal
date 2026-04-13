@@ -65,6 +65,8 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
             err = sparse_reorder_rcm(A, analysis->perm);
         } else if (reorder == SPARSE_REORDER_AMD) {
             err = sparse_reorder_amd(A, analysis->perm);
+        } else if (reorder == SPARSE_REORDER_COLAMD) {
+            err = sparse_reorder_colamd(A, analysis->perm);
         } else {
             sparse_analysis_free(analysis);
             return SPARSE_ERR_BADARG;

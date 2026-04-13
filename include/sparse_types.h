@@ -86,9 +86,10 @@ typedef enum {
  *   for unstructured matrices. O(n^3/64) time, O(n^2/64) memory (bitset-based).
  */
 typedef enum {
-    SPARSE_REORDER_NONE = 0, /**< No reordering (natural order) */
-    SPARSE_REORDER_RCM = 1,  /**< Reverse Cuthill-McKee ordering */
-    SPARSE_REORDER_AMD = 2,  /**< Approximate Minimum Degree ordering */
+    SPARSE_REORDER_NONE = 0,   /**< No reordering (natural order) */
+    SPARSE_REORDER_RCM = 1,    /**< Reverse Cuthill-McKee ordering */
+    SPARSE_REORDER_AMD = 2,    /**< Approximate Minimum Degree ordering */
+    SPARSE_REORDER_COLAMD = 3, /**< Column Approximate Minimum Degree ordering */
 } sparse_reorder_t;
 
 /**

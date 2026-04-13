@@ -64,6 +64,28 @@ sparse_err_t sparse_reorder_rcm(const SparseMatrix *A, idx_t *perm);
 sparse_err_t sparse_reorder_amd(const SparseMatrix *A, idx_t *perm);
 
 /**
+ * @brief Compute a Column Approximate Minimum Degree (COLAMD) ordering.
+ *
+ * Computes a column permutation that reduces fill-in during QR or LU
+ * factorization of unsymmetric matrices. Operates on the column
+ * adjacency graph (columns i and j are adjacent if they share a nonzero
+ * row) without forming A^T*A explicitly. Dense rows are skipped to
+ * control cost.
+ *
+ * Unlike AMD and RCM, COLAMD handles rectangular matrices (m != n)
+ * and is designed specifically for unsymmetric column structure.
+ *
+ * @param A       Input matrix (may be rectangular, not modified).
+ * @param[out] perm  Column permutation array of length ncols.
+ *                   On output, perm[new_j] = old_j.
+ *                   Must be pre-allocated by the caller.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if A or perm is NULL.
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails.
+ */
+sparse_err_t sparse_reorder_colamd(const SparseMatrix *A, idx_t *perm);
+
+/**
  * @brief Apply a row and column permutation to create a reordered matrix.
  *
  * Creates a new matrix B where B(i,j) = A(row_perm[i], col_perm[j])

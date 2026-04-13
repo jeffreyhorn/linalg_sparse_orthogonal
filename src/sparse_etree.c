@@ -256,12 +256,15 @@ sparse_err_t sparse_symbolic_cholesky(const SparseMatrix *A, const idx_t *parent
         return SPARSE_OK;
     }
 
-    if (alloc_would_overflow(n + 1, sizeof(idx_t)))
-        return SPARSE_ERR_ALLOC;
+    {
+        size_t col_ptr_len = (size_t)n + 1;
+        if (col_ptr_len > SIZE_MAX / sizeof(idx_t))
+            return SPARSE_ERR_ALLOC;
 
-    /* Compute total nnz and build col_ptr from column counts */
-    sym->n = n;
-    sym->col_ptr = malloc((size_t)(n + 1) * sizeof(idx_t));
+        /* Compute total nnz and build col_ptr from column counts */
+        sym->n = n;
+        sym->col_ptr = malloc(col_ptr_len * sizeof(idx_t));
+    }
     if (!sym->col_ptr)
         return SPARSE_ERR_ALLOC;
 
@@ -558,7 +561,16 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
         }
 
         /* Build col_ptr for U */
-        sym_U->col_ptr = malloc((size_t)(n + 1) * sizeof(idx_t));
+        {
+            size_t u_col_ptr_len = (size_t)n + 1;
+            if (u_col_ptr_len > SIZE_MAX / sizeof(idx_t)) {
+                free(u_cnt);
+                sparse_symbolic_free(&sym_full);
+                err = SPARSE_ERR_ALLOC;
+                goto cleanup;
+            }
+            sym_U->col_ptr = malloc(u_col_ptr_len * sizeof(idx_t));
+        }
         if (!sym_U->col_ptr) {
             free(u_cnt);
             sparse_symbolic_free(&sym_full);

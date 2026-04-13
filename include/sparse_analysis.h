@@ -254,24 +254,28 @@ void sparse_factor_free(sparse_factors_t *factors);
 /**
  * @brief Refactor using new numeric values with the analyzed structure.
  *
- * Convenience wrapper: frees the old factors and calls
- * sparse_factor_numeric() with the new matrix and the same analysis.
- * The matrix A_new must have dimensions compatible with the analysis.
- * Structural compatibility (same sparsity pattern) is a caller
- * precondition but is not validated.
+ * Attempts a new numeric factorization using the new matrix and the same
+ * symbolic analysis. The matrix A_new must have dimensions compatible with
+ * the analysis. Structural compatibility (same sparsity pattern) is a
+ * caller precondition but is not validated.
+ *
+ * On success, the existing factors are replaced with the newly computed
+ * factorization. On failure, the previous factors are left unchanged.
  *
  * This avoids the cost of repeated symbolic analysis when solving
  * multiple systems with the same structure but different values
  * (e.g., nonlinear solvers, time-stepping).
  *
  * @pre A_new must be structurally compatible with the analyzed matrix.
- * @pre factors must have been produced by a prior sparse_factor_numeric().
+ * @pre factors must contain a valid existing factorization to be
+ *      overwritten on success.
  *
  * @param A_new     The new matrix to factor (not modified). Must have
  *                  dimensions compatible with the original analysis.
  * @param analysis  Precomputed symbolic analysis (from sparse_analyze).
- * @param factors   Existing factors to overwrite. The old factorization
- *                  is freed internally before refactoring.
+ * @param factors   Existing factors to overwrite on success. If
+ *                  refactorization fails, the previous factorization is
+ *                  preserved.
  *
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.

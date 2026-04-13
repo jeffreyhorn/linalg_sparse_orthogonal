@@ -110,8 +110,10 @@ typedef struct {
 typedef struct {
     idx_t n;                     /**< Matrix dimension */
     idx_t *perm;                 /**< Fill-reducing permutation (length n), or NULL */
-    idx_t *etree;                /**< Elimination tree parent pointers (length n) */
-    idx_t *postorder;            /**< Etree postorder traversal (length n) */
+    idx_t *etree;                /**< Elimination tree parent pointers (length n);
+                                     NULL when type == SPARSE_FACTOR_LU. */
+    idx_t *postorder;            /**< Etree postorder traversal (length n);
+                                     NULL when type == SPARSE_FACTOR_LU. */
     sparse_symbolic_pub_t sym_L; /**< Symbolic structure of L.
                                      Cholesky: exact structure of L.
                                      LU: upper bound on L columns.

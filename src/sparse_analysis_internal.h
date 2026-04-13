@@ -127,10 +127,14 @@ sparse_err_t sparse_symbolic_cholesky(const SparseMatrix *A, const idx_t *parent
  * sym_U receives the upper-triangle bound (including diagonal).
  * Either may be NULL if not needed.
  *
+ * @pre sym_L and sym_U (when non-NULL) must be zeroed or previously
+ *      freed via sparse_symbolic_free() before calling. Passing a
+ *      struct with live allocations will leak memory.
+ *
  * @param A      Sparse matrix (may be unsymmetric).
  * @param perm   Fill-reducing permutation (length n), or NULL for natural.
- * @param sym_L  Output lower-triangle bound, or NULL.
- * @param sym_U  Output upper-triangle bound, or NULL.
+ * @param sym_L  Output lower-triangle bound, or NULL. Must be zeroed.
+ * @param sym_U  Output upper-triangle bound, or NULL. Must be zeroed.
  * @return SPARSE_OK on success.
  */
 sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse_symbolic_t *sym_L,

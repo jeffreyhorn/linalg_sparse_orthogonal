@@ -553,7 +553,7 @@ sparse_err_t sparse_etree_postorder(const idx_t *parent, idx_t n, idx_t *postord
 
     /* Build linked lists of children (prepend to head) */
     for (idx_t i = 0; i < n; i++) {
-        idx_t p = parent[i];
+        idx_t p = parent[i]; // NOLINT(clang-analyzer-core.uninitialized.Assign)
         if (p >= 0 && p < n) {
             child_next[i] = child_head[p];
             child_head[p] = i;

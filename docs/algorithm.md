@@ -780,3 +780,67 @@ for (log_i = 0; log_i < nrows; log_i++) {
 - The linked-list row traversal is inherently less cache-friendly than CSR-based SpMV
 - Small matrices (n < 200) see no benefit due to thread overhead
 - Speedup is best on larger matrices (n > 1000) with balanced row lengths
+
+## Symbolic Analysis and Numeric Refactorization
+
+### Motivation
+
+Many applications solve sequences of linear systems A(k)*x = b where the sparsity pattern of A stays fixed but the numeric values change at each step. Examples include nonlinear Newton solvers (Jacobian has fixed structure), implicit time-steppers, and optimization with changing constraints. Repeating fill-reducing reordering and symbolic analysis at each step is wasteful.
+
+The `sparse_analyze()` / `sparse_factor_numeric()` / `sparse_refactor_numeric()` API separates the symbolic phase (done once) from the numeric phase (done per system).
+
+### Elimination Tree
+
+The elimination tree (etree) of a symmetric n×n matrix A encodes the parent-child relationships during Cholesky elimination. Column j's parent in the etree is the smallest column index k > j such that L(k,j) ≠ 0 in the Cholesky factor.
+
+**Algorithm (Liu's method):** Process columns j = 0..n-1. For each row entry i < j, find the root r of column i's subtree using union-find with path compression. If r ≠ j, set parent[r] = j and merge. Time: O(nnz · α(n)) where α is the inverse Ackermann function.
+
+**Postorder traversal:** A DFS postorder of the etree visits children before parents, which is the natural bottom-up order for symbolic and numeric factorization.
+
+### Column Counts
+
+`sparse_colcount()` computes the exact number of nonzeros per column in the Cholesky factor L. For each column j (processed in postorder), the off-diagonal row indices are the union of:
+- Rows from A's lower triangle in column j
+- Rows propagated up from children of j in the etree (excluding j itself)
+
+This runs in O(nnz) time using the etree and a marker array.
+
+### Symbolic Cholesky Factorization
+
+`sparse_symbolic_cholesky()` computes the complete row-index structure of L in compressed-column format, using the same bottom-up etree traversal as column counts but storing the actual indices. Row indices are sorted within each column.
+
+For Cholesky on SPD matrices, the symbolic structure is exact — every predicted position will have a nonzero value. For matrices with numeric cancellation (e.g., when the numeric Cholesky drops tiny fill-in entries below DROP_TOL), the symbolic structure is a superset.
+
+### Symbolic LU Factorization
+
+For unsymmetric LU with partial pivoting, the exact fill depends on the pivot sequence, which isn't known until numeric factorization. `sparse_symbolic_lu()` computes an upper bound by:
+
+1. Building the sparse structure of A^T * A (the column interaction graph) as an explicit sparse pattern
+2. Computing symbolic Cholesky of this symmetrized pattern
+3. The resulting L structure bounds the actual L; its transpose bounds U
+
+This is the standard approach from Gilbert and Peierls (1988).
+
+### Analyze → Factor → Refactor Workflow
+
+```c
+// 1. Analyze once
+sparse_analysis_opts_t opts = { SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD };
+sparse_analysis_t analysis = {0};
+sparse_analyze(A, &opts, &analysis);
+
+// 2. Factor
+sparse_factors_t factors = {0};
+sparse_factor_numeric(A, &analysis, &factors);
+sparse_factor_solve(&factors, &analysis, b, x);
+
+// 3. Refactor with new values (same pattern)
+sparse_refactor_numeric(A_new, &analysis, &factors);
+sparse_factor_solve(&factors, &analysis, b2, x2);
+
+// 4. Cleanup
+sparse_factor_free(&factors);
+sparse_analysis_free(&analysis);
+```
+
+The analysis object stores: fill-reducing permutation, elimination tree, postorder, and symbolic column structure. The factors object stores the numeric L (and U for LU, D for LDL^T).

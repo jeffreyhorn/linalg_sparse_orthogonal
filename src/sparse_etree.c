@@ -93,7 +93,7 @@ sparse_err_t sparse_colcount(const SparseMatrix *A, const idx_t *parent, const i
     idx_t n = A->rows;
     if (n == 0)
         return SPARSE_OK;
-    if (alloc_would_overflow(n, sizeof(idx_t)))
+    if (alloc_would_overflow(n, sizeof(idx_t)) || alloc_would_overflow(n, sizeof(idx_t *)))
         return SPARSE_ERR_ALLOC;
 
     /* Build child lists from parent pointers */
@@ -330,6 +330,14 @@ sparse_err_t sparse_symbolic_cholesky(const SparseMatrix *A, const idx_t *parent
     }
 
     /* Per-column row sets propagated up the etree */
+    if (alloc_would_overflow(n, sizeof(idx_t *))) {
+        free(child_head);
+        free(child_next);
+        free(marker);
+        free(tmp);
+        sparse_symbolic_free(sym);
+        return SPARSE_ERR_ALLOC;
+    }
     idx_t **col_rows = calloc((size_t)n, sizeof(idx_t *));
     idx_t *col_nrows = calloc((size_t)n, sizeof(idx_t));
     if (!col_rows || !col_nrows) {

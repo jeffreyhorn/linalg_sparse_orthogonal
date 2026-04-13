@@ -279,8 +279,8 @@ sparse_err_t colamd_order(const SparseMatrix *A, idx_t *perm) {
     for (idx_t j = 0; j < n; j++) {
         bword_t *row = &adj_bits[(size_t)j * (size_t)nwords];
         for (idx_t p = graph.col_adj_ptr[j]; p < graph.col_adj_ptr[j + 1]; p++)
-            bset(row,
-                 graph.col_adj_list[p]); // NOLINT(clang-analyzer-core.CallAndMessage)
+            // NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage)
+            bset(row, graph.col_adj_list[p]);
         deg[j] = graph.col_adj_ptr[j + 1] - graph.col_adj_ptr[j];
     }
 

@@ -273,6 +273,11 @@ typedef struct {
  * The rank tolerance is: tol * |R(0,0)|. If tol <= 0, a default of
  * eps * max(m,n) is used (where eps ≈ 2.2e-16).
  *
+ * @note The rank computed here may differ from qr->rank (set during
+ * factorization with a different internal threshold). Use this function
+ * for post-factorization rank analysis; qr->rank controls which
+ * components sparse_qr_solve() sets to zero.
+ *
  * **Threshold selection guidance:**
  * - For well-conditioned problems: tol = 0 (automatic) works well
  * - For noisy data: use tol ≈ noise_level / |R(0,0)|
@@ -338,6 +343,11 @@ sparse_err_t sparse_qr_solve_minnorm(const SparseMatrix *A, const double *b, dou
  * improves accuracy by repeatedly computing the residual r = b - A*x and
  * solving for a minimum-norm correction dx. Stops when the residual stops
  * decreasing or max_refine iterations are reached.
+ *
+ * @note Each refinement iteration calls sparse_qr_solve_minnorm(), which
+ * rebuilds A^T and computes a full QR factorization. This makes refinement
+ * O(max_refine * cost(QR(A^T))). For large problems, keep max_refine small
+ * (1-3 iterations typically suffice).
  *
  * @param A           The m×n matrix (not modified).
  * @param b           Right-hand side vector of length m.

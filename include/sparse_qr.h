@@ -329,6 +329,7 @@ double sparse_qr_condest(const sparse_qr_t *qr);
  * @return SPARSE_OK on success. Near-zero R diagonals are handled by
  *         zeroing the corresponding components (not treated as an error).
  * @return SPARSE_ERR_NULL if A, b, or x is NULL.
+ * @return SPARSE_ERR_BADARG if A has non-identity row/col permutations.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  *
  * @see sparse_qr_solve for overdetermined least-squares.
@@ -358,6 +359,8 @@ sparse_err_t sparse_qr_solve_minnorm(const SparseMatrix *A, const double *b, dou
  *
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A, b, or x is NULL.
+ * @return SPARSE_ERR_BADARG if A has non-identity row/col permutations
+ *         (propagated from sparse_qr_solve_minnorm).
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  */
 sparse_err_t sparse_qr_refine_minnorm(const SparseMatrix *A, const double *b, double *x,

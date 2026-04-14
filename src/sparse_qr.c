@@ -1307,6 +1307,24 @@ sparse_err_t sparse_qr_solve_minnorm(const SparseMatrix *A, const double *b, dou
     if (!A || !b || !x)
         return SPARSE_ERR_NULL;
 
+    /* Reject non-identity permutations (operates on physical storage) */
+    {
+        const idx_t *rp = sparse_row_perm(A);
+        const idx_t *cp = sparse_col_perm(A);
+        idx_t nr = sparse_rows(A);
+        idx_t nc = sparse_cols(A);
+        if (rp) {
+            for (idx_t i = 0; i < nr; i++)
+                if (rp[i] != i)
+                    return SPARSE_ERR_BADARG;
+        }
+        if (cp) {
+            for (idx_t i = 0; i < nc; i++)
+                if (cp[i] != i)
+                    return SPARSE_ERR_BADARG;
+        }
+    }
+
     idx_t m = sparse_rows(A);
     idx_t n = sparse_cols(A);
 
@@ -1437,10 +1455,12 @@ sparse_err_t sparse_qr_refine_minnorm(const SparseMatrix *A, const double *b, do
     double *r = malloc((size_t)m * sizeof(double));
     double *dx = malloc((size_t)n * sizeof(double));
     double *Ax_buf = malloc((size_t)m * sizeof(double));
-    if (!r || !dx || !Ax_buf) {
+    double *x_save = malloc((size_t)n * sizeof(double));
+    if (!r || !dx || !Ax_buf || !x_save) {
         free(r);
         free(dx);
         free(Ax_buf);
+        free(x_save);
         return SPARSE_ERR_ALLOC;
     }
 
@@ -1475,13 +1495,30 @@ sparse_err_t sparse_qr_refine_minnorm(const SparseMatrix *A, const double *b, do
             break;
         }
 
-        /* Apply correction */
+        /* Save x, apply correction, check if residual improved */
+        memcpy(x_save, x, (size_t)n * sizeof(double));
         for (idx_t i = 0; i < n; i++)
             x[i] += dx[i]; // NOLINT(clang-analyzer-core.uninitialized.Assign)
+
+        /* Compute post-update residual */
+        sparse_matvec(A, x, Ax_buf);
+        double new_rnorm = 0.0;
+        for (idx_t i = 0; i < m; i++) {
+            double ri = b[i] - Ax_buf[i];
+            new_rnorm += ri * ri;
+        }
+        new_rnorm = sqrt(new_rnorm);
+
+        if (new_rnorm >= rnorm) {
+            /* Correction made it worse — roll back */
+            memcpy(x, x_save, (size_t)n * sizeof(double));
+            break;
+        }
     }
 
     free(r);
     free(dx);
     free(Ax_buf);
+    free(x_save);
     return status;
 }

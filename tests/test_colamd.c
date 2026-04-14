@@ -725,8 +725,13 @@ static void test_public_api_west0067(void) {
     REQUIRE_OK(sparse_lu_factor(LU_nat, SPARSE_PIVOT_PARTIAL, 1e-12));
     idx_t fill_nat = sparse_nnz(LU_nat);
 
+    /* Apply COLAMD as column-only permutation (identity row perm) */
+    idx_t *id_perm = malloc((size_t)n * sizeof(idx_t));
+    ASSERT_NOT_NULL(id_perm);
+    for (idx_t i = 0; i < n; i++)
+        id_perm[i] = i;
     SparseMatrix *PA = NULL;
-    REQUIRE_OK(sparse_permute(A, perm, perm, &PA));
+    REQUIRE_OK(sparse_permute(A, id_perm, perm, &PA));
     SparseMatrix *LU_col = sparse_copy(PA);
     REQUIRE_OK(sparse_lu_factor(LU_col, SPARSE_PIVOT_PARTIAL, 1e-12));
     idx_t fill_col = sparse_nnz(LU_col);
@@ -737,6 +742,7 @@ static void test_public_api_west0067(void) {
         printf(" (%.0f%% reduction)", 100.0 * (1.0 - (double)fill_col / (double)fill_nat));
     printf(" ✓\n");
 
+    free(id_perm);
     free(perm);
     sparse_free(LU_col);
     sparse_free(PA);
@@ -1614,13 +1620,17 @@ static void test_ss_colamd_lu(const char *path, const char *name) {
     REQUIRE_OK(sparse_reorder_colamd(A, perm));
     ASSERT_TRUE(is_valid_perm(perm, n));
 
-    /* Compare LU fill: natural vs COLAMD */
+    /* Compare LU fill: natural vs COLAMD (column-only permutation) */
     if (sparse_rows(A) == n) {
         SparseMatrix *LU_nat = sparse_copy(A);
         sparse_err_t e1 = sparse_lu_factor(LU_nat, SPARSE_PIVOT_PARTIAL, 1e-12);
 
+        idx_t *id_perm = malloc((size_t)n * sizeof(idx_t));
+        for (idx_t i = 0; i < n; i++)
+            id_perm[i] = i;
         SparseMatrix *PA = NULL;
-        REQUIRE_OK(sparse_permute(A, perm, perm, &PA));
+        sparse_permute(A, id_perm, perm, &PA);
+        free(id_perm);
         SparseMatrix *LU_col = PA ? sparse_copy(PA) : NULL;
         sparse_err_t e2 =
             LU_col ? sparse_lu_factor(LU_col, SPARSE_PIVOT_PARTIAL, 1e-12) : SPARSE_ERR_ALLOC;

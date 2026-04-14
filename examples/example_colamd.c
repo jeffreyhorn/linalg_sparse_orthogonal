@@ -63,13 +63,21 @@ int main(void) {
         printf("%s%d", i > 0 ? ", " : "", (int)perm[i]);
     printf("]\n\n");
 
-    /* Compare LU fill-in */
+    /* Compare LU fill-in (COLAMD = column-only permutation) */
     SparseMatrix *LU_nat = sparse_copy(A);
     err = sparse_lu_factor(LU_nat, SPARSE_PIVOT_PARTIAL, 1e-12);
     idx_t fill_nat = (err == SPARSE_OK) ? sparse_nnz(LU_nat) : -1;
 
+    /* Apply COLAMD as column-only permutation (identity row perm) */
+    idx_t *id_perm = malloc((size_t)n * sizeof(idx_t));
+    if (id_perm) {
+        for (idx_t i = 0; i < n; i++)
+            id_perm[i] = i;
+    }
     SparseMatrix *PA = NULL;
-    sparse_permute(A, perm, perm, &PA);
+    if (id_perm)
+        sparse_permute(A, id_perm, perm, &PA);
+    free(id_perm);
     SparseMatrix *LU_col = PA ? sparse_copy(PA) : NULL;
     sparse_err_t err2 =
         LU_col ? sparse_lu_factor(LU_col, SPARSE_PIVOT_PARTIAL, 1e-12) : SPARSE_ERR_ALLOC;

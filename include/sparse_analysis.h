@@ -162,6 +162,11 @@ typedef struct {
  *       may modify or free A after analysis, as long as the sparsity
  *       pattern is preserved for subsequent numeric factorization.
  *
+ * @note COLAMD is a column ordering, but sparse_analyze() applies it as
+ *       a symmetric permutation (rows and columns) since the analysis API
+ *       is built around symmetric factorizations. For column-only COLAMD
+ *       application, use sparse_qr_factor_opts() with SPARSE_REORDER_COLAMD.
+ *
  * @par Thread safety: Read-only on A. Safe to call concurrently on the
  *      same matrix with different output analysis objects.
  */

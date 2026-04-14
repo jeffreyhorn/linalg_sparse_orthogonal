@@ -66,6 +66,10 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
         } else if (reorder == SPARSE_REORDER_AMD) {
             err = sparse_reorder_amd(A, analysis->perm);
         } else if (reorder == SPARSE_REORDER_COLAMD) {
+            /* Note: COLAMD is a column ordering, but sparse_analyze applies
+             * it symmetrically (same perm for rows+cols) since the analysis
+             * API is built around symmetric permutations. For column-only
+             * application, use sparse_qr_factor_opts with COLAMD instead. */
             err = sparse_reorder_colamd(A, analysis->perm);
         } else {
             sparse_analysis_free(analysis);

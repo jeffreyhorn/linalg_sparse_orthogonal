@@ -1377,8 +1377,8 @@ static void test_minnorm_zero_row(void) {
      * A = [1 0 1 0]   b = [2]
      *     [0 0 0 0]       [0]
      * Row 1 is zero, so b[1] must be 0 for consistency.
-     * Min-norm of consistent part: x = [1, 0, 1, 0] → but minnorm
-     * should give x = [0.5, 0, 0.5, 0] (spread equally). */
+     * The constraint is x0 + x2 = 2, so the minimum-norm solution is
+     * x = [1, 0, 1, 0] with ||x||_2 = sqrt(2). */
     SparseMatrix *A = sparse_create(2, 4);
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 0, 2, 1.0);

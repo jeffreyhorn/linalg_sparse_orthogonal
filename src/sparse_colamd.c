@@ -212,14 +212,14 @@ static inline int btest(const bword_t *bs, idx_t i) {
     return (bs[BWORD_IDX(i)] & BWORD_BIT(i)) != 0;
 }
 
-static void bunion(bword_t *dst, const bword_t *src, idx_t nwords) {
-    for (idx_t w = 0; w < nwords; w++)
+static void bunion(bword_t *dst, const bword_t *src, size_t nw) {
+    for (size_t w = 0; w < nw; w++)
         dst[w] |= src[w];
 }
 
-static idx_t bpopcount(const bword_t *bs, idx_t nwords) {
+static idx_t bpopcount(const bword_t *bs, size_t nw) {
     idx_t cnt = 0;
-    for (idx_t w = 0; w < nwords; w++) {
+    for (size_t w = 0; w < nw; w++) {
         bword_t v = bs[w];
         while (v) {
             v &= v - 1;
@@ -254,11 +254,12 @@ sparse_err_t colamd_order(const SparseMatrix *A, idx_t *perm) {
     if (err != SPARSE_OK)
         return err;
 
-    /* Convert CSR adjacency to bitset format for O(1) neighbor queries */
-    idx_t nwords = (n + BWORD_BITS - 1) / BWORD_BITS;
+    /* Convert CSR adjacency to bitset format for O(1) neighbor queries.
+     * Compute nwords in size_t to avoid signed overflow for large n. */
+    size_t nwords = ((size_t)n + BWORD_BITS - 1) / BWORD_BITS;
 
     /* Check for overflow: n * nwords * sizeof(bword_t) */
-    if ((size_t)n > SIZE_MAX / ((size_t)nwords * sizeof(bword_t))) {
+    if (nwords > 0 && (size_t)n > SIZE_MAX / (nwords * sizeof(bword_t))) {
         colamd_graph_free(&graph);
         return SPARSE_ERR_ALLOC;
     }

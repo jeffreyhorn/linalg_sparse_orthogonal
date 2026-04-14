@@ -1346,6 +1346,16 @@ sparse_err_t sparse_qr_solve_minnorm(const SparseMatrix *A, const double *b, dou
 
     idx_t rank = qr_t.rank;
 
+    /* Overflow checks for workspace allocations */
+    {
+        size_t tmp = 0;
+        if (size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
+            size_mul_overflow((size_t)n, sizeof(double), &tmp)) {
+            sparse_qr_free(&qr_t);
+            return SPARSE_ERR_ALLOC;
+        }
+    }
+
     /* Step 3: Permute b via the column permutation of A^T's QR.
      * col_perm[k] = original column of A^T = original row of A.
      * bp[k] = b[col_perm[k]] */
@@ -1415,6 +1425,14 @@ sparse_err_t sparse_qr_refine_minnorm(const SparseMatrix *A, const double *b, do
 
     idx_t m = sparse_rows(A);
     idx_t n = sparse_cols(A);
+
+    /* Overflow checks for workspace allocations */
+    {
+        size_t tmp = 0;
+        if (size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
+            size_mul_overflow((size_t)n, sizeof(double), &tmp))
+            return SPARSE_ERR_ALLOC;
+    }
 
     double *r = malloc((size_t)m * sizeof(double));
     double *dx = malloc((size_t)n * sizeof(double));

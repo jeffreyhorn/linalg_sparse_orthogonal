@@ -37,7 +37,10 @@
  * @brief Options for QR factorization.
  */
 typedef struct {
-    sparse_reorder_t reorder; /**< Column reordering before QR (default: NONE) */
+    sparse_reorder_t reorder; /**< Column reordering before QR (default: NONE).
+                                   SPARSE_REORDER_COLAMD is recommended for
+                                   unsymmetric matrices — operates directly on
+                                   A's column structure without forming A^T*A. */
     int economy;              /**< When nonzero and m > n, compute economy (thin) QR:
                                    form_q produces m×n instead of m×m. Has no effect
                                    when m <= n (Q is already m×m = m×k where k=min(m,n)).
@@ -130,18 +133,30 @@ sparse_err_t sparse_qr_form_q(const sparse_qr_t *qr, double *Q);
 /**
  * @brief Solve the least-squares problem min ||Ax - b||_2.
  *
- * For overdetermined systems (m > n), computes a least-squares solution.
- * For underdetermined or rank-deficient systems, computes a basic
- * least-squares solution by solving for the numerically determined
- * (rank) components and setting the remaining free components to zero
- * in the column-permuted coordinate system. The resulting solution is
- * not, in general, the minimum-norm least-squares solution.
+ * **Overdetermined (m > n):** Computes the least-squares solution that
+ * minimizes ||Ax - b||_2 via back-substitution in R.
+ *
+ * **Square (m == n):** Computes the direct solution A*x = b.
+ *
+ * **Underdetermined (m < n):** Computes a basic solution by solving for
+ * the rank leading components and setting remaining free components to
+ * zero in the column-permuted coordinate system. This is NOT the
+ * minimum-norm solution. For the minimum 2-norm solution, use
+ * sparse_qr_solve_minnorm() instead.
+ *
+ * @note For rank-deficient systems, components corresponding to
+ *       near-zero R diagonals are set to zero. Use sparse_qr_rank()
+ *       or sparse_qr_rank_info() to inspect the effective rank, and
+ *       sparse_qr_diag_r() for manual threshold selection.
  *
  * @param qr       The QR factorization of A.
  * @param b        Right-hand side vector of length m.
  * @param x        Output: solution vector of length n.
  * @param residual Output: residual norm ||b - Ax||_2 (may be NULL).
  * @return SPARSE_OK on success.
+ *
+ * @see sparse_qr_solve_minnorm for minimum-norm underdetermined solutions.
+ * @see sparse_qr_rank_info for rank diagnostics.
  */
 sparse_err_t sparse_qr_solve(const sparse_qr_t *qr, const double *b, double *x, double *residual);
 
@@ -170,11 +185,24 @@ sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A, cons
 /**
  * @brief Estimate numerical rank from QR factorization.
  *
- * Counts the number of R diagonal entries exceeding tol * |R(0,0)|.
+ * Counts the number of R diagonal entries exceeding an absolute
+ * threshold. The R diagonals are in decreasing order (due to column
+ * pivoting), so the rank is the number of leading diagonals above
+ * the threshold.
+ *
+ * When tol > 0, the absolute threshold is tol * |R(0,0)|.
+ * When tol <= 0, a default threshold of eps * max(m,n) * |R(0,0)| is
+ * used (where eps ≈ 2.2e-16 is machine epsilon).
+ *
+ * Use sparse_qr_diag_r() to inspect the R diagonal directly for
+ * manual threshold selection.
  *
  * @param qr  The QR factorization.
- * @param tol Tolerance (0 for default: eps * max(m,n) * |R(0,0)|).
+ * @param tol Relative tolerance (0 for default: eps * max(m,n)).
  * @return The estimated numerical rank.
+ *
+ * @see sparse_qr_diag_r for R diagonal extraction.
+ * @see sparse_qr_rank_info for comprehensive rank diagnostics.
  */
 idx_t sparse_qr_rank(const sparse_qr_t *qr, double tol);
 
@@ -203,5 +231,140 @@ sparse_err_t sparse_qr_nullspace(const sparse_qr_t *qr, double tol, double *basi
  * @param qr  The QR factors to free. Safe to call on a zeroed struct.
  */
 void sparse_qr_free(sparse_qr_t *qr);
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Rank-revealing diagnostics
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief Extract the diagonal of the R factor.
+ *
+ * Writes R(i,i) for i = 0..min(m,n)-1 into diag[], in factorization
+ * order (after column pivoting). Useful for manual rank determination
+ * and condition estimation.
+ *
+ * @param qr    The QR factorization. Must contain a valid R factor.
+ * @param diag  Output array of length min(m,n). Must be pre-allocated.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if qr or diag is NULL.
+ * @return SPARSE_ERR_BADARG if qr does not contain a valid factorization
+ *         (qr->R is NULL).
+ */
+sparse_err_t sparse_qr_diag_r(const sparse_qr_t *qr, double *diag);
+
+/**
+ * @brief Rank diagnostics from a QR factorization.
+ */
+typedef struct {
+    idx_t rank;         /**< Numerical rank (R diagonals above threshold) */
+    idx_t k;            /**< min(m, n) — number of R diagonal entries */
+    double r_max;       /**< Largest |R(i,i)| */
+    double r_min;       /**< Smallest |R(i,i)| among the first rank entries */
+    double condest;     /**< Quick condition estimate: r_max / r_min */
+    int near_deficient; /**< 1 if r_min / r_max < 1e-8 (near rank-deficient) */
+} sparse_qr_rank_info_t;
+
+/**
+ * @brief Compute rank diagnostics from a QR factorization.
+ *
+ * Analyzes the R diagonal to determine numerical rank, condition
+ * estimate, and whether the matrix is near rank-deficient.
+ *
+ * The rank tolerance is: tol * |R(0,0)|. If tol <= 0, a default of
+ * eps * max(m,n) is used (where eps ≈ 2.2e-16).
+ *
+ * @note The rank computed here may differ from qr->rank (set during
+ * factorization with a different internal threshold). Use this function
+ * for post-factorization rank analysis; qr->rank controls which
+ * components sparse_qr_solve() sets to zero.
+ *
+ * **Threshold selection guidance:**
+ * - For well-conditioned problems: tol = 0 (automatic) works well
+ * - For noisy data: use tol ≈ noise_level / |R(0,0)|
+ * - For problems with known rank: set tol between the rank-th and
+ *   (rank+1)-th singular value ratios
+ * - Machine epsilon (≈2.2e-16) times max(m,n) is a safe default
+ *
+ * @param qr    The QR factorization.
+ * @param tol   Rank tolerance (0 for default: eps * max(m,n)).
+ * @param info  Output rank diagnostics.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if qr or info is NULL.
+ * @return SPARSE_ERR_BADARG if qr does not contain a valid factorization
+ *         (qr->R is NULL).
+ */
+sparse_err_t sparse_qr_rank_info(const sparse_qr_t *qr, double tol, sparse_qr_rank_info_t *info);
+
+/**
+ * @brief Quick condition number estimate from R diagonal.
+ *
+ * Returns |R(0,0)| / |R(k-1,k-1)| where k = rank. This is a rough
+ * estimate of the condition number (exact for diagonal matrices,
+ * within a factor of sqrt(n) for general matrices).
+ *
+ * @param qr  The QR factorization.
+ * @return Finite condition estimate (>= 1.0) in the normal case.
+ * @return INFINITY if the smallest R diagonal in the rank-determined
+ *         block is zero (numerically singular).
+ * @return -1.0 if qr is NULL, unfactored, or rank is 0.
+ */
+double sparse_qr_condest(const sparse_qr_t *qr);
+
+/**
+ * @brief Compute the minimum 2-norm solution for underdetermined systems.
+ *
+ * For an underdetermined system A*x = b where m < n, computes the
+ * solution x with minimum ||x||_2 among all solutions. Uses QR
+ * factorization of A^T: factor A^T = Q*R*P^T, then solve via
+ * x = Q * R^{-T} * P^T * b.
+ *
+ * For overdetermined systems (m >= n), falls back to standard
+ * least-squares via QR.
+ *
+ * @param A     The m×n matrix (not modified).
+ * @param b     Right-hand side vector of length m.
+ * @param x     Solution vector of length n (overwritten).
+ * @param opts  QR options (reordering, etc.), or NULL for defaults.
+ *
+ * @return SPARSE_OK on success. Near-zero R diagonals are handled by
+ *         zeroing the corresponding components (not treated as an error).
+ * @return SPARSE_ERR_NULL if A, b, or x is NULL.
+ * @return SPARSE_ERR_BADARG if A has non-identity row/col permutations.
+ * @return SPARSE_ERR_ALLOC if memory allocation fails.
+ *
+ * @see sparse_qr_solve for overdetermined least-squares.
+ */
+sparse_err_t sparse_qr_solve_minnorm(const SparseMatrix *A, const double *b, double *x,
+                                     const sparse_qr_opts_t *opts);
+
+/**
+ * @brief Iterative refinement for minimum-norm solutions.
+ *
+ * Given an initial minimum-norm solution x (from sparse_qr_solve_minnorm),
+ * improves accuracy by repeatedly computing the residual r = b - A*x and
+ * solving for a minimum-norm correction dx. Stops when the residual stops
+ * decreasing or max_refine iterations are reached.
+ *
+ * @note Each refinement iteration calls sparse_qr_solve_minnorm(), which
+ * rebuilds A^T and computes a full QR factorization. This makes refinement
+ * O(max_refine * cost(QR(A^T))). For large problems, keep max_refine small
+ * (1-3 iterations typically suffice).
+ *
+ * @param A           The m×n matrix (not modified).
+ * @param b           Right-hand side vector of length m.
+ * @param x           Solution vector of length n (modified in-place).
+ * @param max_refine  Maximum number of refinement iterations.
+ * @param residual    If non-NULL, receives the final ||b - A*x||_2.
+ * @param opts        QR options for the correction solves, or NULL.
+ *
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if A, b, or x is NULL.
+ * @return SPARSE_ERR_BADARG if A has non-identity row/col permutations
+ *         (propagated from sparse_qr_solve_minnorm).
+ * @return SPARSE_ERR_ALLOC if memory allocation fails.
+ */
+sparse_err_t sparse_qr_refine_minnorm(const SparseMatrix *A, const double *b, double *x,
+                                      idx_t max_refine, double *residual,
+                                      const sparse_qr_opts_t *opts);
 
 #endif /* SPARSE_QR_H */

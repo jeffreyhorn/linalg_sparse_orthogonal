@@ -162,9 +162,17 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
     if (!W)
         return SPARSE_ERR_ALLOC;
 
-    /* Optional column reordering (reuse same logic as dense path) */
+    /* Optional column reordering */
     idx_t *col_reorder = NULL;
-    if (opts && opts->reorder != SPARSE_REORDER_NONE && n > 1) {
+    if (opts && opts->reorder == SPARSE_REORDER_COLAMD && n > 1) {
+        col_reorder = malloc((size_t)n * sizeof(idx_t));
+        if (col_reorder) {
+            if (sparse_reorder_colamd(A, col_reorder) != SPARSE_OK) {
+                free(col_reorder);
+                col_reorder = NULL;
+            }
+        }
+    } else if (opts && opts->reorder != SPARSE_REORDER_NONE && n > 1) {
         SparseMatrix *AtA = sparse_create(n, n);
         if (AtA) {
             sparse_err_t ins_err = SPARSE_OK;
@@ -558,11 +566,19 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
     if (m == 0 || n == 0)
         return SPARSE_OK;
 
-    /* Compute optional column reordering (AMD on A^T*A pattern) */
+    /* Compute optional column reordering */
     idx_t *col_reorder = NULL;
-    if (opts && opts->reorder != SPARSE_REORDER_NONE && n > 1) {
-        /* Build A^T*A pattern: an n×n matrix where (i,j) is nonzero if
-         * columns i and j of A share at least one row. */
+    if (opts && opts->reorder == SPARSE_REORDER_COLAMD && n > 1) {
+        /* COLAMD operates directly on A's structure — no need to form A^T*A */
+        col_reorder = malloc((size_t)n * sizeof(idx_t));
+        if (col_reorder) {
+            if (sparse_reorder_colamd(A, col_reorder) != SPARSE_OK) {
+                free(col_reorder);
+                col_reorder = NULL;
+            }
+        }
+    } else if (opts && opts->reorder != SPARSE_REORDER_NONE && n > 1) {
+        /* AMD/RCM: build A^T*A pattern for the symmetric ordering */
         SparseMatrix *AtA = sparse_create(n, n);
         if (AtA) {
             sparse_err_t ins_err = SPARSE_OK;
@@ -1103,6 +1119,96 @@ idx_t sparse_qr_rank(const sparse_qr_t *qr, double tol) {
     return rank;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Rank-revealing diagnostics
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+sparse_err_t sparse_qr_diag_r(const sparse_qr_t *qr, double *diag) {
+    if (!qr || !diag)
+        return SPARSE_ERR_NULL;
+    if (!qr->R)
+        return SPARSE_ERR_BADARG;
+
+    idx_t k = (qr->m < qr->n) ? qr->m : qr->n;
+    for (idx_t i = 0; i < k; i++)
+        diag[i] = sparse_get_phys(qr->R, i, i);
+
+    return SPARSE_OK;
+}
+
+sparse_err_t sparse_qr_rank_info(const sparse_qr_t *qr, double tol, sparse_qr_rank_info_t *info) {
+    if (!qr || !info)
+        return SPARSE_ERR_NULL;
+    if (!qr->R)
+        return SPARSE_ERR_BADARG;
+
+    memset(info, 0, sizeof(*info));
+    idx_t k = (qr->m < qr->n) ? qr->m : qr->n;
+    info->k = k;
+
+    if (k == 0)
+        return SPARSE_OK;
+
+    /* Compute absolute threshold */
+    double r00 = fabs(sparse_get_phys(qr->R, 0, 0));
+    double abs_tol;
+    if (tol <= 0.0) {
+        double eps = 2.2204460492503131e-16;
+        idx_t mn = (qr->m > qr->n) ? qr->m : qr->n;
+        abs_tol = eps * (double)mn * r00;
+    } else {
+        abs_tol = tol * r00;
+    }
+
+    info->r_max = r00;
+    info->r_min = r00;
+    info->rank = 0;
+
+    for (idx_t i = 0; i < k; i++) {
+        double ri = fabs(sparse_get_phys(qr->R, i, i));
+        if (ri > abs_tol) {
+            info->rank++;
+            if (ri < info->r_min)
+                info->r_min = ri;
+            if (ri > info->r_max)
+                info->r_max = ri;
+        } else {
+            break;
+        }
+    }
+
+    if (info->rank > 0 && info->r_min > 0.0) {
+        info->condest = info->r_max / info->r_min;
+        info->near_deficient = (info->r_min / info->r_max < 1e-8) ? 1 : 0;
+    } else {
+        info->condest = INFINITY;
+        info->near_deficient = 1;
+    }
+
+    return SPARSE_OK;
+}
+
+double sparse_qr_condest(const sparse_qr_t *qr) {
+    if (!qr || !qr->R)
+        return -1.0;
+
+    idx_t k = (qr->m < qr->n) ? qr->m : qr->n;
+    if (k == 0)
+        return -1.0;
+
+    /* Use sparse_qr_rank() for consistency with rank_info threshold */
+    idx_t rank = sparse_qr_rank(qr, 0);
+    if (rank <= 0)
+        return -1.0;
+
+    double r00 = fabs(sparse_get_phys(qr->R, 0, 0));
+    double rkk = fabs(sparse_get_phys(qr->R, rank - 1, rank - 1));
+    if (rkk == 0.0)
+        return INFINITY;
+
+    return r00 / rkk;
+}
+
 sparse_err_t sparse_qr_nullspace(const sparse_qr_t *qr, double tol, double *basis,
                                  idx_t *null_dim) {
     if (!qr || !null_dim)
@@ -1179,4 +1285,240 @@ sparse_err_t sparse_qr_nullspace(const sparse_qr_t *qr, double tol, double *basi
 
     (void)m;
     return SPARSE_OK;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Minimum-norm least-squares for underdetermined systems
+ *
+ * For m < n, computes the minimum 2-norm solution to A*x = b.
+ *
+ * Algorithm:
+ *   1. Compute A^T via sparse_transpose
+ *   2. Factor A^T with QR: A^T * P = Q * R  (R is m×m upper triangular)
+ *   3. Permute b: bp = P^T * b
+ *   4. Forward substitute: solve R^T * y = bp
+ *   5. Apply Q: x = Q * y
+ *
+ * The result x has minimum 2-norm among all solutions of A*x = b.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+sparse_err_t sparse_qr_solve_minnorm(const SparseMatrix *A, const double *b, double *x,
+                                     const sparse_qr_opts_t *opts) {
+    if (!A || !b || !x)
+        return SPARSE_ERR_NULL;
+
+    /* Reject non-identity permutations (operates on physical storage) */
+    {
+        const idx_t *rp = sparse_row_perm(A);
+        const idx_t *cp = sparse_col_perm(A);
+        idx_t nr = sparse_rows(A);
+        idx_t nc = sparse_cols(A);
+        if (rp) {
+            for (idx_t i = 0; i < nr; i++)
+                if (rp[i] != i)
+                    return SPARSE_ERR_BADARG;
+        }
+        if (cp) {
+            for (idx_t i = 0; i < nc; i++)
+                if (cp[i] != i)
+                    return SPARSE_ERR_BADARG;
+        }
+    }
+
+    idx_t m = sparse_rows(A);
+    idx_t n = sparse_cols(A);
+
+    /* Handle empty matrices: minimum-norm solution is x = 0 */
+    if (m == 0 || n == 0) {
+        for (idx_t i = 0; i < n; i++)
+            x[i] = 0.0;
+        return SPARSE_OK;
+    }
+
+    /* For m >= n, fall back to regular least-squares via QR */
+    if (m >= n) {
+        sparse_qr_t qr;
+        sparse_err_t err = opts ? sparse_qr_factor_opts(A, opts, &qr) : sparse_qr_factor(A, &qr);
+        if (err != SPARSE_OK)
+            return err;
+        err = sparse_qr_solve(&qr, b, x, NULL);
+        sparse_qr_free(&qr);
+        return err;
+    }
+
+    /* Underdetermined: m < n */
+
+    /* Step 1: Transpose A (n×m matrix) */
+    SparseMatrix *At = sparse_transpose(A);
+    if (!At)
+        return SPARSE_ERR_ALLOC;
+
+    /* Step 2: Factor A^T with QR.
+     * A^T is n×m with n > m, so this is overdetermined QR.
+     * R will be m×m upper triangular. */
+    sparse_qr_t qr_t;
+    sparse_err_t err = opts ? sparse_qr_factor_opts(At, opts, &qr_t) : sparse_qr_factor(At, &qr_t);
+    sparse_free(At);
+    if (err != SPARSE_OK)
+        return err;
+
+    idx_t rank = qr_t.rank;
+
+    /* Overflow checks for workspace allocations */
+    {
+        size_t tmp = 0;
+        if (size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
+            size_mul_overflow((size_t)n, sizeof(double), &tmp)) {
+            sparse_qr_free(&qr_t);
+            return SPARSE_ERR_ALLOC;
+        }
+    }
+
+    /* Step 3: Permute b via the column permutation of A^T's QR.
+     * col_perm[k] = original column of A^T = original row of A.
+     * bp[k] = b[col_perm[k]] */
+    double *bp = malloc((size_t)m * sizeof(double));
+    if (!bp) {
+        sparse_qr_free(&qr_t);
+        return SPARSE_ERR_ALLOC;
+    }
+    for (idx_t k = 0; k < m; k++)
+        bp[k] = b[qr_t.col_perm[k]];
+
+    /* Step 4: Forward substitute: solve R^T * y = bp.
+     * R^T is lower triangular (m×m). */
+    double *y = calloc((size_t)n, sizeof(double));
+    if (!y) {
+        free(bp);
+        sparse_qr_free(&qr_t);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    double r00_abs = (rank > 0) ? fabs(sparse_get_phys(qr_t.R, 0, 0)) : 0.0;
+    double solve_tol = sparse_rel_tol(r00_abs, DROP_TOL);
+
+    for (idx_t i = 0; i < rank; i++) {
+        /* R^T(i,j) = R(j,i) for j <= i.
+         * Sum contributions from R^T(i, 0..i-1) * y[0..i-1] */
+        double sum = 0.0;
+        double diag = 0.0;
+
+        /* Walk column i of R to get R(j,i) for j <= i → R^T(i,j) */
+        for (Node *nd = qr_t.R->col_headers[i]; nd; nd = nd->down) {
+            idx_t j = nd->row;
+            if (j == i) {
+                diag = nd->value;
+            } else if (j < i) {
+                sum += nd->value * y[j]; // NOLINT(clang-analyzer-security.ArrayBound)
+            }
+        }
+
+        if (fabs(diag) < solve_tol) {
+            y[i] = 0.0;
+        } else {
+            y[i] =
+                (bp[i] - sum) / diag; // NOLINT(clang-analyzer-core.UndefinedBinaryOperatorResult)
+        }
+    }
+
+    free(bp);
+
+    /* Step 5: Apply Q: x = Q * y */
+    sparse_qr_apply_q(&qr_t, 0, y, x);
+
+    free(y);
+    sparse_qr_free(&qr_t);
+    return SPARSE_OK;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Iterative refinement for minimum-norm solutions
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+sparse_err_t sparse_qr_refine_minnorm(const SparseMatrix *A, const double *b, double *x,
+                                      idx_t max_refine, double *residual,
+                                      const sparse_qr_opts_t *opts) {
+    if (!A || !b || !x)
+        return SPARSE_ERR_NULL;
+
+    idx_t m = sparse_rows(A);
+    idx_t n = sparse_cols(A);
+
+    /* Overflow checks for workspace allocations */
+    {
+        size_t tmp = 0;
+        if (size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
+            size_mul_overflow((size_t)n, sizeof(double), &tmp))
+            return SPARSE_ERR_ALLOC;
+    }
+
+    double *r = malloc((size_t)m * sizeof(double));
+    double *dx = malloc((size_t)n * sizeof(double));
+    double *Ax_buf = malloc((size_t)m * sizeof(double));
+    double *x_save = malloc((size_t)n * sizeof(double));
+    if (!r || !dx || !Ax_buf || !x_save) {
+        free(r);
+        free(dx);
+        free(Ax_buf);
+        free(x_save);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    double prev_rnorm = INFINITY;
+    sparse_err_t status = SPARSE_OK;
+
+    for (idx_t iter = 0; iter <= max_refine; iter++) {
+        /* Compute residual r = b - A*x */
+        sparse_matvec(A, x, Ax_buf);
+        double rnorm = 0.0;
+        for (idx_t i = 0; i < m; i++) {
+            r[i] = b[i] - Ax_buf[i];
+            rnorm += r[i] * r[i];
+        }
+        rnorm = sqrt(rnorm);
+
+        if (residual)
+            *residual = rnorm;
+
+        if (iter >= max_refine)
+            break;
+
+        /* Stop if residual is not decreasing */
+        if (rnorm >= prev_rnorm)
+            break;
+        prev_rnorm = rnorm;
+
+        /* Solve for minimum-norm correction: dx = minnorm(A, r) */
+        sparse_err_t serr = sparse_qr_solve_minnorm(A, r, dx, opts);
+        if (serr != SPARSE_OK) {
+            status = serr;
+            break;
+        }
+
+        /* Save x, apply correction, check if residual improved */
+        memcpy(x_save, x, (size_t)n * sizeof(double));
+        for (idx_t i = 0; i < n; i++)
+            x[i] += dx[i]; // NOLINT(clang-analyzer-core.uninitialized.Assign)
+
+        /* Compute post-update residual */
+        sparse_matvec(A, x, Ax_buf);
+        double new_rnorm = 0.0;
+        for (idx_t i = 0; i < m; i++) {
+            double ri = b[i] - Ax_buf[i];
+            new_rnorm += ri * ri;
+        }
+        new_rnorm = sqrt(new_rnorm);
+
+        if (new_rnorm >= rnorm) {
+            /* Correction made it worse — roll back */
+            memcpy(x, x_save, (size_t)n * sizeof(double));
+            break;
+        }
+    }
+
+    free(r);
+    free(dx);
+    free(Ax_buf);
+    free(x_save);
+    return status;
 }

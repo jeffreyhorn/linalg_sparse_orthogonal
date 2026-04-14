@@ -57,7 +57,8 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_ldlt.c \
            $(SRCDIR)/sparse_ic.c \
            $(SRCDIR)/sparse_etree.c \
-           $(SRCDIR)/sparse_analysis.c
+           $(SRCDIR)/sparse_analysis.c \
+           $(SRCDIR)/sparse_colamd.c
 LIB_OBJS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(LIB_SRCS))
 LIB      = $(BUILDDIR)/libsparse_lu_ortho.a
 
@@ -97,7 +98,8 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_ic.c \
             $(TESTDIR)/test_minres.c \
             $(TESTDIR)/test_sprint13_integration.c \
-            $(TESTDIR)/test_etree.c
+            $(TESTDIR)/test_etree.c \
+            $(TESTDIR)/test_colamd.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
 # Benchmark sources
@@ -106,7 +108,8 @@ BENCH_SRCS = $(BENCHDIR)/bench_main.c \
              $(BENCHDIR)/bench_fillin.c \
              $(BENCHDIR)/bench_convergence.c \
              $(BENCHDIR)/bench_svd.c \
-             $(BENCHDIR)/bench_refactor.c
+             $(BENCHDIR)/bench_refactor.c \
+             $(BENCHDIR)/bench_colamd.c
 BENCH_BINS = $(patsubst $(BENCHDIR)/%.c,$(BUILDDIR)/%,$(BENCH_SRCS))
 
 # Example sources
@@ -135,14 +138,13 @@ $(BUILDDIR)/%.o: $(SRCDIR)/%.c | $(BUILDDIR)
 $(LIB): $(LIB_OBJS)
 	ar rcs $@ $^
 
-# Thread tests need -pthread.  When SPARSE_MUTEX is enabled (-DSPARSE_MUTEX),
-# ALL compilation units (library and tests) must be compiled with -DSPARSE_MUTEX
-# and linked with -pthread.
+# Thread tests need -pthread.  -lm is explicit here because CI may
+# override LDFLAGS (e.g., TSAN builds) without including -lm.
 $(BUILDDIR)/test_threads: $(TESTDIR)/test_threads.c $(LIB) | $(BUILDDIR)
-	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -pthread -o $@
+	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -lm -pthread -o $@
 
 $(BUILDDIR)/test_sprint4_integration: $(TESTDIR)/test_sprint4_integration.c $(LIB) | $(BUILDDIR)
-	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -pthread -o $@
+	$(CC) $(CFLAGS) $(INCLUDE) -I$(TESTDIR) -I$(SRCDIR) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -lm -pthread -o $@
 
 # Test executables (any .c in tests/)
 $(BUILDDIR)/%: $(TESTDIR)/%.c $(LIB) | $(BUILDDIR)

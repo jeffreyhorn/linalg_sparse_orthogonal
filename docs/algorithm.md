@@ -844,3 +844,48 @@ sparse_analysis_free(&analysis);
 ```
 
 The analysis object stores: fill-reducing permutation, elimination tree, postorder, and symbolic column structure. The factors object stores the numeric L (and U for LU, D for LDL^T).
+
+## COLAMD Column Ordering
+
+### Algorithm
+
+COLAMD (Column Approximate Minimum Degree) computes a fill-reducing column permutation for unsymmetric matrices. Unlike AMD, which operates on the symmetrized graph A+A^T, COLAMD works on the column adjacency graph: columns i and j are adjacent if they share a nonzero row in A.
+
+**Column adjacency graph construction:** For each column j, walk j's column entries to find rows containing j, then walk each row to find other columns. A per-column marker array prevents duplicate counting. Dense rows (nnz > 10·√n) are skipped to control cost.
+
+**Minimum degree elimination:** The column adjacency graph is converted to bitset format for O(1) neighbor queries. At each step, the column with minimum degree is eliminated: its adjacency is merged into all remaining neighbors (modeling fill-in), and degrees are updated via popcount. This produces a column permutation that tends to reduce fill-in during QR or LU factorization.
+
+### When to Use Each Ordering
+
+| Ordering | Best for | Handles rectangular | Cost |
+|----------|----------|-------------------|------|
+| **RCM** | Bandwidth reduction, banded systems | No (square only) | O(nnz) |
+| **AMD** | Symmetric fill reduction (Cholesky, LDL^T) | No (square only) | O(n² + nnz) |
+| **COLAMD** | Unsymmetric column fill reduction (QR, LU) | Yes | O(n² + nnz) |
+
+For QR factorization, COLAMD is recommended because it directly considers column structure without the overhead of forming A^T*A. For symmetric problems (Cholesky, LDL^T), AMD is preferred.
+
+## QR Minimum-Norm Least Squares
+
+### Problem
+
+For an underdetermined system A*x = b where m < n (more unknowns than equations), there are infinitely many solutions. The minimum-norm solution x* has the smallest ||x||_2 among all solutions.
+
+### Algorithm
+
+1. **Transpose:** Build A^T (an n×m matrix with n > m)
+2. **Factor:** Compute QR of A^T: A^T·P = Q·R, where R is m×m upper triangular
+3. **Permute:** bp = P^T · b
+4. **Forward substitute:** Solve R^T · y = bp (R^T is lower triangular)
+5. **Apply Q:** x = Q · y
+
+The result x has minimum 2-norm because the transformation preserves norms and the forward substitution produces the unique solution in the range of A^T.
+
+### Iterative Refinement
+
+`sparse_qr_refine_minnorm()` improves an initial minimum-norm solution by repeatedly:
+1. Computing residual r = b - A·x
+2. Solving for a minimum-norm correction dx via `sparse_qr_solve_minnorm(A, r, dx)`
+3. Updating x += dx
+
+Stops when the residual stops decreasing or max iterations are reached.

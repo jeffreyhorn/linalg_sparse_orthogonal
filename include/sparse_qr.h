@@ -298,7 +298,10 @@ sparse_err_t sparse_qr_rank_info(const sparse_qr_t *qr, double tol, sparse_qr_ra
  * within a factor of sqrt(n) for general matrices).
  *
  * @param qr  The QR factorization.
- * @return Condition estimate, or -1.0 if qr is NULL or rank is 0.
+ * @return Finite condition estimate (>= 1.0) in the normal case.
+ * @return INFINITY if the smallest R diagonal in the rank-determined
+ *         block is zero (numerically singular).
+ * @return -1.0 if qr is NULL, unfactored, or rank is 0.
  */
 double sparse_qr_condest(const sparse_qr_t *qr);
 

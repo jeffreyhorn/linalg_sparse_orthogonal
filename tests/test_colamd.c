@@ -967,6 +967,14 @@ static void test_analyze_cholesky_colamd(void) {
 
     double *b = malloc((size_t)n * sizeof(double));
     double *x = malloc((size_t)n * sizeof(double));
+    if (!b || !x) {
+        free(b);
+        free(x);
+        sparse_factor_free(&factors);
+        sparse_analysis_free(&analysis);
+        sparse_free(A);
+        return;
+    }
     for (idx_t i = 0; i < n; i++)
         b[i] = 1.0;
     REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b, x));
@@ -999,6 +1007,14 @@ static void test_analyze_lu_colamd_west0067(void) {
 
     double *b = malloc((size_t)n * sizeof(double));
     double *x = malloc((size_t)n * sizeof(double));
+    if (!b || !x) {
+        free(b);
+        free(x);
+        sparse_factor_free(&factors);
+        sparse_analysis_free(&analysis);
+        sparse_free(A);
+        return;
+    }
     for (idx_t i = 0; i < n; i++)
         b[i] = 1.0;
     REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b, x));

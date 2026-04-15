@@ -40,10 +40,9 @@ typedef struct {
 } stag_tracker_t;
 
 static sparse_err_t stag_init(stag_tracker_t *st, idx_t window) {
-    if (window <= 0) {
-        *st = (stag_tracker_t){0};
+    *st = (stag_tracker_t){0};
+    if (window <= 0)
         return SPARSE_OK;
-    }
     double *buf = malloc((size_t)window * sizeof(double));
     if (!buf)
         return SPARSE_ERR_ALLOC;
@@ -56,7 +55,7 @@ static sparse_err_t stag_init(stag_tracker_t *st, idx_t window) {
 }
 
 static void stag_free(stag_tracker_t *st) {
-    free(st->buf); // NOLINT(clang-analyzer-core.CallAndMessage)
+    free(st->buf);
     *st = (stag_tracker_t){0};
 }
 
@@ -782,7 +781,7 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
 
             rel_res = fabs(g[j + 1]) / bnorm;
 
-            iter_report(o->callback, o->callback_ctx, o->verbose, "GMRES", total_iter, rel_res);
+            iter_report(o->callback, o->callback_ctx, o->verbose, "GMRES", total_iter - 1, rel_res);
 
             /* Stop inner Arnoldi loop on preconditioned convergence or
              * lucky breakdown.  Final convergence is decided by the true
@@ -1419,7 +1418,7 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
         /* Step 7: Check convergence */
         double relres = fabs(phi_bar) / bnorm;
 
-        iter_report(o->callback, o->callback_ctx, o->verbose, "MINRES", iter, relres);
+        iter_report(o->callback, o->callback_ctx, o->verbose, "MINRES", iter - 1, relres);
 
         /* Stagnation check */
         reshist_record(&rh, relres);
@@ -1670,6 +1669,12 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
     /* Check if already converged */
     if (rnorm / bnorm <= o->tol) {
         converged = 1;
+        goto done;
+    }
+
+    /* Initial rho must be safely nonzero before starting BiCGSTAB recurrences. */
+    if (fabs(rho) < sparse_rel_tol(0, DROP_TOL)) {
+        breakdown = 1;
         goto done;
     }
 
@@ -2005,6 +2010,11 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
 
     if (rnorm / bnorm <= o->tol) {
         converged = 1;
+        goto done_mf;
+    }
+
+    if (fabs(rho) < sparse_rel_tol(0, DROP_TOL)) {
+        breakdown = 1;
         goto done_mf;
     }
 

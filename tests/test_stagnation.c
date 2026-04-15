@@ -832,10 +832,12 @@ static void test_cg_breakdown_semidefinite(void) {
     double x[5] = {0};
     sparse_iter_opts_t opts = {.max_iter = 100, .tol = 1e-10};
     sparse_iter_result_t result;
-    sparse_solve_cg(A, b, x, &opts, NULL, NULL, &result);
+    sparse_err_t err = sparse_solve_cg(A, b, x, &opts, NULL, NULL, &result);
 
-    /* Should not crash; may converge or break down */
-    ASSERT_TRUE(result.converged || result.breakdown || !result.converged);
+    /* Accept either successful convergence or a handled non-convergence/breakdown. */
+    ASSERT_TRUE(err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED);
+    if (!result.converged)
+        ASSERT_TRUE(result.breakdown || err == SPARSE_ERR_NOT_CONVERGED);
 
     sparse_free(A);
 }

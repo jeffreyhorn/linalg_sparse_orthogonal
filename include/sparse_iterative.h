@@ -42,20 +42,17 @@
 /**
  * @par Breakdown behavior summary
  *
- * | Solver   | Condition               | Detection                | Response |
- * |----------|-------------------------|--------------------------|--------------------------------|
- * | CG       | p^T*A*p ≈ 0             | Threshold on |p^T*A*p|   | Stop, set breakdown=1 | | CG |
- * r^T*z ≈ 0               | Threshold on |r^T*z|     | Stop, set breakdown=1          | | GMRES |
- * H(j+1,j) ≈ 0            | Threshold on H(j+1,j)   | Lucky breakdown: extract exact | |          |
- * (lucky breakdown)        |                          | solution, set breakdown=1,     | | | | |
- * converged=1                    | | MINRES   | beta_{k+1} ≈ 0          | Threshold on beta_new |
- * Lanczos breakdown: Krylov      | |          | (Lanczos breakdown)      | | exhausted, set
- * breakdown=1     | | MINRES   | gamma ≈ 0               | Threshold on gamma       | QR breakdown,
- * set breakdown=1  | | BiCGSTAB | rho = r_hat^T*r ≈ 0     | Threshold on |rho|       | Stop, set
- * breakdown=1          | | BiCGSTAB | r_hat^T*v ≈ 0           | Threshold on |r_hat^T*v| | Stop,
- * set breakdown=1          | | BiCGSTAB | t^T*t ≈ 0               | Threshold on t^T*t       |
- * Stop, set breakdown=1          | | BiCGSTAB | omega ≈ 0 (near-zero)   | |omega| < 1e-15*|alpha|
- * | Accept half-step, restart      |
+ * - **CG p^T*A*p ≈ 0**: threshold on |p^T*A*p|. Stop, set breakdown=1.
+ * - **CG r^T*z ≈ 0**: threshold on |r^T*z|. Stop, set breakdown=1.
+ * - **GMRES H(j+1,j) ≈ 0** (lucky breakdown): threshold on H(j+1,j).
+ *   Extract exact solution, set breakdown=1 AND converged=1.
+ * - **MINRES beta_{k+1} ≈ 0** (Lanczos breakdown): threshold on beta_new.
+ *   Krylov subspace exhausted, set breakdown=1.
+ * - **MINRES gamma ≈ 0**: threshold on gamma. QR breakdown, set breakdown=1.
+ * - **BiCGSTAB rho = r_hat^T*r ≈ 0**: threshold on |rho|. Stop, set breakdown=1.
+ * - **BiCGSTAB r_hat^T*v ≈ 0**: threshold on |r_hat^T*v|. Stop, set breakdown=1.
+ * - **BiCGSTAB t^T*t ≈ 0**: threshold on t^T*t. Stop, set breakdown=1.
+ * - **BiCGSTAB omega ≈ 0**: |omega| < 1e-15*|alpha|. Accept half-step, restart.
  *
  * All threshold checks use sparse_rel_tol(0, DROP_TOL) ≈ DBL_MIN*100.
  * For GMRES lucky breakdown, breakdown=1 AND converged=1 indicates success.

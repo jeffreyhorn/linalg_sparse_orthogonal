@@ -128,6 +128,7 @@ sparse_err_t colamd_build_graph(const SparseMatrix *A, idx_t dense_threshold,
             graph->col_adj_ptr[j + 1] = (idx_t)total;
         }
     }
+    // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
     graph->nnz_adj = graph->col_adj_ptr[n];
 
     if (graph->nnz_adj == 0) {
@@ -175,7 +176,7 @@ sparse_err_t colamd_build_graph(const SparseMatrix *A, idx_t dense_threshold,
                 if (marker[k] != j) {
                     marker[k] = j;
                     idx_t pos = graph->col_adj_ptr[j] + degree[j];
-                    graph->col_adj_list[pos] = k;
+                    graph->col_adj_list[pos] = k; // NOLINT(clang-analyzer-security.ArrayBound)
                     degree[j]++;
                 }
             }
@@ -264,7 +265,7 @@ sparse_err_t colamd_order(const SparseMatrix *A, idx_t *perm) {
         return SPARSE_ERR_ALLOC;
     }
 
-    bword_t *adj_bits = calloc((size_t)n * (size_t)nwords, sizeof(bword_t));
+    bword_t *adj_bits = calloc((size_t)n * nwords, sizeof(bword_t));
     int *eliminated = calloc((size_t)n, sizeof(int));
     idx_t *deg = malloc((size_t)n * sizeof(idx_t));
 
@@ -278,7 +279,7 @@ sparse_err_t colamd_order(const SparseMatrix *A, idx_t *perm) {
 
     /* Initialize bitset adjacency from CSR graph */
     for (idx_t j = 0; j < n; j++) {
-        bword_t *row = &adj_bits[(size_t)j * (size_t)nwords];
+        bword_t *row = &adj_bits[(size_t)j * nwords];
         for (idx_t p = graph.col_adj_ptr[j]; p < graph.col_adj_ptr[j + 1]; p++)
             // NOLINTNEXTLINE(clang-analyzer-core.CallAndMessage)
             bset(row, graph.col_adj_list[p]);
@@ -302,7 +303,7 @@ sparse_err_t colamd_order(const SparseMatrix *A, idx_t *perm) {
         perm[step] = best;
         eliminated[best] = 1;
 
-        bword_t *best_row = &adj_bits[(size_t)best * (size_t)nwords];
+        bword_t *best_row = &adj_bits[(size_t)best * nwords];
 
         /* For each uneliminated neighbor u of best:
          *   adj[u] = (adj[u] | adj[best]) \ {best, u}
@@ -311,7 +312,7 @@ sparse_err_t colamd_order(const SparseMatrix *A, idx_t *perm) {
             if (eliminated[u] || !btest(best_row, u))
                 continue;
 
-            bword_t *u_row = &adj_bits[(size_t)u * (size_t)nwords];
+            bword_t *u_row = &adj_bits[(size_t)u * nwords];
             bunion(u_row, best_row, nwords);
             bclr(u_row, best);
             bclr(u_row, u);
@@ -321,7 +322,7 @@ sparse_err_t colamd_order(const SparseMatrix *A, idx_t *perm) {
 
         /* Clear best from all adjacency rows */
         for (idx_t j = 0; j < n; j++)
-            bclr(&adj_bits[(size_t)j * (size_t)nwords], best);
+            bclr(&adj_bits[(size_t)j * nwords], best);
     }
 
     free(adj_bits);

@@ -36,6 +36,8 @@ const char *sparse_strerror(sparse_err_t err) {
         return "matrix is not symmetric positive-definite";
     case SPARSE_ERR_NOT_CONVERGED:
         return "iterative solver did not converge";
+    case SPARSE_ERR_NUMERIC:
+        return "numerical failure (NaN or Inf)";
     }
     return "unknown error";
 }

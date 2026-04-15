@@ -544,6 +544,101 @@ Preconditioned MINRES uses the M-inner product where M is an SPD preconditioner.
 
 6 vectors of length n (unpreconditioned) or 8 vectors (preconditioned), plus O(1) scalar state for Givens rotations.
 
+## BiCGSTAB Solver
+
+`sparse_solve_bicgstab()` solves general nonsymmetric linear systems Ax = b using the Bi-Conjugate Gradient Stabilized method (Van der Vorst, 1992).
+
+### Algorithm
+
+BiCGSTAB combines the BiCG two-sided Lanczos approach with a polynomial stabilization step. Each iteration performs two matrix-vector products and produces smoother convergence than CGS without requiring A^T.
+
+```
+r_0 = b - A*x_0;  r_hat = r_0;  p_0 = r_0
+rho_0 = r_hat^T * r_0
+
+For k = 0, 1, 2, ...:
+    1. First half-step (BiCG direction):
+       v = A * M^{-1} * p_k          (preconditioned)
+       alpha = rho_k / (r_hat^T * v)
+       s = r_k - alpha * v
+
+    2. Early termination check:
+       If ||s|| / ||b|| < tol: accept x += alpha * M^{-1} * p, done
+
+    3. Second half-step (stabilization):
+       t = A * M^{-1} * s
+       omega = (t^T * s) / (t^T * t)
+
+    4. Solution and residual update:
+       x_{k+1} = x_k + alpha * M^{-1} * p_k + omega * M^{-1} * s
+       r_{k+1} = s - omega * t
+
+    5. Convergence check:
+       If ||r_{k+1}|| / ||b|| < tol: converged
+
+    6. Direction update:
+       rho_{k+1} = r_hat^T * r_{k+1}
+       beta = (rho_{k+1} / rho_k) * (alpha / omega)
+       p_{k+1} = r_{k+1} + beta * (p_k - omega * v)
+```
+
+### When to Use BiCGSTAB vs GMRES
+
+- **BiCGSTAB** uses O(n) storage and has no restart parameter. Good when memory is limited or when restarted GMRES stalls due to information loss at restarts.
+- **GMRES(k)** uses O(n*k) storage and is generally more robust. Better when the restart parameter k can be set large enough to cover the convergence horizon.
+- For symmetric positive-definite systems, **CG** is preferred. For symmetric indefinite, **MINRES** is preferred.
+
+### Breakdown Conditions
+
+- **rho = 0:** r_hat^T * r = 0. The BiCG component has broken down. The solver returns the current best solution.
+- **omega = 0:** The stabilization polynomial has failed. The half-step x += alpha * p_hat may still be useful.
+- **r_hat^T * v = 0:** Breakdown in the BiCG direction computation.
+
+### Workspace
+
+6 vectors of length n (unpreconditioned) or 8 vectors (preconditioned): r, r_hat, p, v, s, t, plus optionally p_hat and s_hat for preconditioned variants.
+
+## Stagnation Detection
+
+All iterative solvers (CG, GMRES, MINRES, BiCGSTAB) support optional stagnation detection via the `stagnation_window` parameter in their options structs.
+
+### Mechanism
+
+When `stagnation_window > 0`, the solver maintains a ring buffer of the last N relative residual norms. After the buffer fills, it checks whether the ratio of the maximum to minimum residual in the window is less than 1.01 (i.e., less than 1% variation). If so, the residual has effectively plateaued, and the solver exits early with `stagnated = 1` in the result struct.
+
+### When Stagnation Occurs
+
+- **CG/MINRES:** Stagnation typically occurs when the tolerance is set below the achievable accuracy for the given condition number and floating-point precision. For a system with condition number κ, CG/MINRES can typically reduce the residual to O(κ·ε_mach).
+- **GMRES:** Stagnation often manifests as restarts failing to improve the true residual. Small restart parameters (restart << n) exacerbate this.
+- **BiCGSTAB:** Can exhibit erratic convergence; stagnation detection smooths over the noise via the sliding window.
+
+### Usage
+
+```c
+sparse_iter_opts_t opts = {
+    .max_iter = 5000,
+    .tol = 1e-14,
+    .stagnation_window = 15   /* detect stagnation over 15 iterations */
+};
+sparse_iter_result_t result;
+sparse_solve_cg(A, b, x, &opts, NULL, NULL, &result);
+if (result.stagnated)
+    printf("Solver stagnated at residual %.3e after %d iterations\n",
+           result.residual_norm, (int)result.iterations);
+```
+
+## Convergence Diagnostics
+
+All iterative solvers support optional per-iteration residual history recording and a user-supplied verbose callback.
+
+### Residual History
+
+Set `residual_history` to a caller-allocated array and `residual_history_len` to its capacity. The solver fills `residual_history[i]` with the relative residual norm at iteration `i`. The actual number of entries written is returned in `result.residual_history_count`.
+
+### Verbose Callback
+
+Set `callback` to a user function of type `sparse_iter_callback_fn` to receive per-iteration progress reports. The callback receives a `sparse_iter_progress_t` struct with the current iteration number, residual norm, and solver name. When a callback is provided, the default `fprintf(stderr, ...)` verbose output is suppressed.
+
 ## ILU(0) Preconditioner
 
 `sparse_ilu_factor()` computes an Incomplete LU factorization that preserves the sparsity pattern of the original matrix.

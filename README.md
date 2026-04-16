@@ -36,8 +36,12 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Block CG** — simultaneous CG for multiple RHS with shared SpMV and per-column convergence (`sparse_cg_solve_block`)
 - **Restarted GMRES(k)** for general unsymmetric systems with left and right preconditioning
 - **Multi-RHS GMRES** — restarted GMRES(k) applied independently per RHS with aggregated reporting (`sparse_gmres_solve_block`)
-- **Matrix-free variants** — CG and GMRES with user-supplied matvec callback (`sparse_solve_cg_mf`, `sparse_solve_gmres_mf`)
+- **Matrix-free variants** — CG, GMRES, and BiCGSTAB with user-supplied matvec callback (`sparse_solve_cg_mf`, `sparse_solve_gmres_mf`, `sparse_solve_bicgstab_mf`)
 - **MINRES** for symmetric (possibly indefinite) systems — Lanczos-based minimum residual with monotonic residual decrease (`sparse_solve_minres`, `sparse_minres_solve_block`)
+- **BiCGSTAB** for general nonsymmetric systems — stabilized bi-conjugate gradient with left preconditioning, O(n) storage (`sparse_solve_bicgstab`, `sparse_bicgstab_solve_block`, `sparse_solve_bicgstab_mf`)
+- **Stagnation detection** — optional sliding-window residual monitoring across all iterative solvers; early exit when residual stops decreasing (`stagnation_window` in opts)
+- **Convergence diagnostics** — optional per-iteration residual history recording (`residual_history` in opts) and user-supplied verbose callback (`sparse_iter_callback_fn`)
+- **Breakdown handling** — threshold-based detection and reporting for all solver breakdown conditions (CG p^T*Ap=0, GMRES lucky breakdown, MINRES Lanczos, BiCGSTAB rho=0/omega=0)
 - **ILU(0) preconditioner** — incomplete LU with no fill-in, 3-1000× iteration reduction
 - **ILUT preconditioner** — ILU with threshold dropping and controlled fill-in, handles zero-diagonal matrices, optional row partial pivoting
 - **IC(0) preconditioner** — incomplete Cholesky for SPD systems, symmetric analogue of ILU(0) (`sparse_ic_factor`, `sparse_ic_precond`)
@@ -209,7 +213,7 @@ int main(void)
 | [`sparse_cholesky.h`](include/sparse_cholesky.h) | Cholesky factorization and solve for SPD matrices |
 | [`sparse_ldlt.h`](include/sparse_ldlt.h) | LDL^T factorization with Bunch-Kaufman pivoting for symmetric indefinite matrices |
 | [`sparse_analysis.h`](include/sparse_analysis.h) | Symbolic analysis, numeric factorization, refactorization (analyze-once workflow) |
-| [`sparse_iterative.h`](include/sparse_iterative.h) | CG, GMRES, MINRES; block CG/GMRES/MINRES; GMRES supports left/right preconditioning |
+| [`sparse_iterative.h`](include/sparse_iterative.h) | CG, GMRES, MINRES, BiCGSTAB; block CG/GMRES/MINRES; GMRES left/right preconditioning |
 | [`sparse_ilu.h`](include/sparse_ilu.h) | ILU(0) and ILUT incomplete factorization preconditioners |
 | [`sparse_ic.h`](include/sparse_ic.h) | IC(0) incomplete Cholesky preconditioner for SPD systems |
 | [`sparse_qr.h`](include/sparse_qr.h) | Column-pivoted QR factorization, least-squares, rank, null space, refinement |
@@ -303,6 +307,9 @@ int main(void)
 - `sparse_solve_gmres_mf(matvec, ctx, n, b, x, &opts, precond, ctx, &result)` — Matrix-free GMRES
 - `sparse_solve_minres(A, b, x, &opts, precond, ctx, &result)` — MINRES for symmetric (possibly indefinite) systems
 - `sparse_minres_solve_block(A, B, nrhs, X, &opts, precond, ctx, &result)` — Block MINRES for multiple RHS
+- `sparse_solve_bicgstab(A, b, x, &opts, precond, ctx, &result)` — BiCGSTAB for general nonsymmetric systems
+- `sparse_bicgstab_solve_block(A, B, nrhs, X, &opts, precond, ctx, &result)` — Block BiCGSTAB for multiple RHS
+- `sparse_solve_bicgstab_mf(matvec, ctx, n, b, x, &opts, precond, ctx, &result)` — Matrix-free BiCGSTAB
 
 **ILU(0) / ILUT preconditioners:**
 - `sparse_ilu_factor(A, &ilu)` — ILU(0) factorization (no fill-in beyond A's pattern)
@@ -464,7 +471,7 @@ linalg_sparse_orthogonal/
 │   ├── sparse_lu.h           LU factorization, solve, block solve
 │   ├── sparse_lu_csr.h       CSR LU — scatter-gather elimination, dense blocks
 │   ├── sparse_cholesky.h     Cholesky factorization and solve
-│   ├── sparse_iterative.h    CG, GMRES, MINRES; block variants; GMRES left/right precond
+│   ├── sparse_iterative.h    CG, GMRES, MINRES, BiCGSTAB; block variants; GMRES left/right precond
 │   ├── sparse_ilu.h          ILU(0) and ILUT preconditioners
 │   ├── sparse_ic.h           IC(0) incomplete Cholesky preconditioner
 │   ├── sparse_qr.h           QR factorization, least-squares, rank, null space

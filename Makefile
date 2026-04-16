@@ -99,7 +99,9 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_minres.c \
             $(TESTDIR)/test_sprint13_integration.c \
             $(TESTDIR)/test_etree.c \
-            $(TESTDIR)/test_colamd.c
+            $(TESTDIR)/test_colamd.c \
+            $(TESTDIR)/test_bicgstab.c \
+            $(TESTDIR)/test_stagnation.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
 # Benchmark sources
@@ -109,7 +111,8 @@ BENCH_SRCS = $(BENCHDIR)/bench_main.c \
              $(BENCHDIR)/bench_convergence.c \
              $(BENCHDIR)/bench_svd.c \
              $(BENCHDIR)/bench_refactor.c \
-             $(BENCHDIR)/bench_colamd.c
+             $(BENCHDIR)/bench_colamd.c \
+             $(BENCHDIR)/bench_bicgstab.c
 BENCH_BINS = $(patsubst $(BENCHDIR)/%.c,$(BUILDDIR)/%,$(BENCH_SRCS))
 
 # Example sources

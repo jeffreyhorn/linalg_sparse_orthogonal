@@ -55,6 +55,7 @@ typedef enum {
     SPARSE_ERR_BADARG = 11,  /**< Invalid argument (e.g., unfactored matrix passed to condest) */
     SPARSE_ERR_NOT_SPD = 12, /**< Matrix is not symmetric positive-definite */
     SPARSE_ERR_NOT_CONVERGED = 13, /**< Iterative solver did not converge within max iterations */
+    SPARSE_ERR_NUMERIC = 14, /**< Numerical failure (NaN or Inf produced during computation) */
 } sparse_err_t;
 
 /**

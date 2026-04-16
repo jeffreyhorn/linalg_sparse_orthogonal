@@ -40,6 +40,50 @@
 #include "sparse_matrix.h"
 
 /**
+ * @par Breakdown behavior summary
+ *
+ * - **CG p^T*A*p ≈ 0**: threshold on |p^T*A*p|. Stop, set breakdown=1.
+ * - **CG r^T*z ≈ 0**: threshold on |r^T*z|. Stop, set breakdown=1.
+ * - **GMRES H(j+1,j) ≈ 0** (lucky breakdown): threshold on H(j+1,j).
+ *   Extract exact solution, set breakdown=1 AND converged=1.
+ * - **MINRES beta_{k+1} ≈ 0** (Lanczos breakdown): threshold on beta_new.
+ *   Krylov subspace exhausted, set breakdown=1.
+ * - **MINRES gamma ≈ 0**: threshold on gamma. QR breakdown, set breakdown=1.
+ * - **BiCGSTAB rho = r_hat^T*r ≈ 0**: threshold on |rho|. Stop, set breakdown=1.
+ * - **BiCGSTAB r_hat^T*v ≈ 0**: threshold on |r_hat^T*v|. Stop, set breakdown=1.
+ * - **BiCGSTAB t^T*t ≈ 0**: threshold on t^T*t. Stop, set breakdown=1.
+ * - **BiCGSTAB omega ≈ 0**: |omega| < 1e-15*|alpha|. Accept half-step, restart.
+ *
+ * All threshold checks use sparse_rel_tol(0, DROP_TOL) ≈ DBL_MIN*100.
+ * For GMRES lucky breakdown, breakdown=1 AND converged=1 indicates success.
+ * For all other breakdowns, breakdown=1 AND converged=0 indicates failure.
+ */
+
+/**
+ * @brief Progress information passed to the verbose callback.
+ *
+ * Populated by the solver at each iteration (or restart boundary for GMRES)
+ * and passed to the user callback if one is provided.
+ */
+typedef struct {
+    idx_t iteration;      /**< Current iteration number (0-based) */
+    double residual_norm; /**< Current relative residual norm ||r||/||b|| */
+    const char *solver;   /**< Solver name ("CG", "GMRES", "MINRES", "BiCGSTAB") */
+} sparse_iter_progress_t;
+
+/**
+ * @brief Verbose callback type for custom progress reporting.
+ *
+ * If set in the options struct, the solver calls this function at each
+ * iteration instead of printing to stderr. When NULL and verbose is set,
+ * the default stderr printing is used.
+ *
+ * @param progress  Current iteration progress information.
+ * @param ctx       User-supplied context pointer.
+ */
+typedef void (*sparse_iter_callback_fn)(const sparse_iter_progress_t *progress, void *ctx);
+
+/**
  * @brief Options for the Conjugate Gradient solver.
  *
  * Pass NULL to sparse_solve_cg() to use defaults:
@@ -49,6 +93,19 @@ typedef struct {
     idx_t max_iter; /**< Maximum number of CG iterations (default: 1000) */
     double tol;     /**< Convergence tolerance on relative residual ||r||/||b|| (default: 1e-10) */
     int verbose;    /**< If nonzero, print iteration log to stderr (default: 0) */
+    idx_t stagnation_window;          /**< Stagnation detection window size. If > 0, the solver
+                                           tracks the last N residual norms and declares stagnation
+                                           if max/min in the window differ by less than 1%.
+                                           0 = disabled (default). Typical value: 10-20. */
+    double *residual_history;         /**< Caller-allocated array for per-iteration residual norms.
+                                           If non-NULL, the solver stores ||r_k||/||b|| at index k.
+                                           NULL = no recording (default). */
+    idx_t residual_history_len;       /**< Capacity of the residual_history array. The solver
+                                           writes at most this many entries. */
+    sparse_iter_callback_fn callback; /**< Verbose callback. If non-NULL, called each iteration
+                                           instead of fprintf(stderr). NULL = use default verbose
+                                           behavior (default). */
+    void *callback_ctx;               /**< Context pointer passed to callback. */
 } sparse_iter_opts_t;
 
 /**
@@ -71,6 +128,12 @@ typedef struct {
     double tol;     /**< Convergence tolerance on relative residual (default: 1e-10) */
     int verbose;    /**< If nonzero, print iteration log to stderr (default: 0) */
     sparse_precond_side_t precond_side; /**< Left or right preconditioning (default: LEFT) */
+    idx_t stagnation_window;            /**< Stagnation detection window size (across restarts).
+                                             0 = disabled (default). See sparse_iter_opts_t. */
+    double *residual_history;           /**< See sparse_iter_opts_t::residual_history. */
+    idx_t residual_history_len;         /**< See sparse_iter_opts_t::residual_history_len. */
+    sparse_iter_callback_fn callback;   /**< See sparse_iter_opts_t::callback. */
+    void *callback_ctx;                 /**< See sparse_iter_opts_t::callback_ctx. */
 } sparse_gmres_opts_t;
 
 /**
@@ -80,9 +143,20 @@ typedef struct {
  * Pass NULL if result information is not needed.
  */
 typedef struct {
-    idx_t iterations;     /**< Number of iterations performed */
-    double residual_norm; /**< Final true relative residual norm ||b - A*x|| / ||b|| */
-    int converged;        /**< Nonzero if solver converged within tolerance */
+    idx_t iterations;             /**< Number of iterations performed */
+    double residual_norm;         /**< Final true relative residual norm ||b - A*x|| / ||b|| */
+    int converged;                /**< Nonzero if solver converged within tolerance */
+    int stagnated;                /**< Nonzero if stagnation was detected (residual stopped
+                                       decreasing over the stagnation window). Only set when
+                                       stagnation_window > 0 in opts. */
+    idx_t residual_history_count; /**< Number of entries written to residual_history.
+                                       0 if residual_history was NULL. */
+    int breakdown;                /**< Nonzero if a solver breakdown was detected.
+                                       For CG: p^T*A*p = 0 or r^T*z = 0.
+                                       For GMRES: lucky breakdown (Krylov subspace
+                                       contains exact solution — converged=1 in this case).
+                                       For MINRES: Lanczos breakdown (beta = 0).
+                                       For BiCGSTAB: rho=0, omega=0, or r_hat^T*v=0. */
 } sparse_iter_result_t;
 
 /**
@@ -305,6 +379,80 @@ sparse_err_t sparse_minres_solve_block(const SparseMatrix *A, const double *B, i
                                        sparse_iter_result_t *result);
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * BiCGSTAB — Bi-Conjugate Gradient Stabilized for nonsymmetric systems
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief Solve A*x = b using the BiCGSTAB method (Van der Vorst, 1992).
+ *
+ * BiCGSTAB is applicable to general nonsymmetric square matrices. It
+ * combines the BiCG two-sided Lanczos approach with a polynomial
+ * stabilization step, producing smoother convergence than CGS without
+ * requiring A^T. Each iteration requires two matrix-vector products.
+ *
+ * BiCGSTAB is a good choice when:
+ * - The matrix is nonsymmetric (CG and MINRES require symmetry).
+ * - Restarted GMRES stalls due to information loss at restarts.
+ * - Memory is limited (BiCGSTAB uses O(n) storage vs O(n*k) for GMRES(k)).
+ *
+ * For symmetric positive-definite systems, CG is preferred. For symmetric
+ * indefinite systems, MINRES is preferred. For general nonsymmetric systems
+ * where robustness matters more than storage, GMRES may be better.
+ *
+ * The input x is used as the initial guess (pass a zero vector for no guess).
+ *
+ * @param A           The coefficient matrix (not modified). Must be square.
+ * @param b           Right-hand side vector of length n.
+ * @param x           On entry, initial guess; on exit, approximate solution.
+ * @param opts        Solver options (NULL for defaults: max_iter=1000, tol=1e-10).
+ * @param precond     Preconditioner callback (NULL for no preconditioning).
+ *                    Left preconditioning only: solves M*z = r.
+ * @param precond_ctx Context pointer passed to precond callback.
+ * @param result      Output: iteration count, residual, convergence flag (may be NULL).
+ * @return SPARSE_OK if converged within tolerance.
+ * @return SPARSE_ERR_NOT_CONVERGED if max_iter exceeded without convergence.
+ * @return SPARSE_ERR_NULL if A, b, or x is NULL.
+ * @return SPARSE_ERR_SHAPE if A is not square.
+ * @return SPARSE_ERR_BADARG if opts has negative max_iter or tol.
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails.
+ * @return SPARSE_ERR_NUMERIC if NaN or Inf is produced during iteration.
+ *
+ * @par Thread safety: Read-only on A. Safe to call concurrently on the same matrix
+ *               with different b/x vectors.
+ */
+sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, double *x,
+                                   const sparse_iter_opts_t *opts, sparse_precond_fn precond,
+                                   const void *precond_ctx, sparse_iter_result_t *result);
+
+/**
+ * @brief Solve A*X = B for multiple RHS using per-column BiCGSTAB.
+ *
+ * Runs BiCGSTAB independently for each column and aggregates convergence
+ * reporting across columns. Each column converges independently.
+ *
+ * @param A           General (possibly unsymmetric) coefficient matrix.
+ * @param B           RHS matrix, n × nrhs column-major.
+ * @param nrhs        Number of RHS vectors.
+ * @param X           Solution matrix, n × nrhs column-major (initial guess on entry).
+ * @param opts        Solver options (NULL for defaults).
+ * @param precond     Preconditioner callback (NULL for none). Applied per-column.
+ * @param precond_ctx Context pointer passed to precond.
+ * @param result      Output: iterations = max across columns, residual = max across columns.
+ * @return SPARSE_OK if all columns converged.
+ * @return SPARSE_ERR_NULL if A, B, or X is NULL.
+ * @return SPARSE_ERR_BADARG if @p nrhs is negative or opts has invalid values.
+ * @return SPARSE_ERR_SHAPE if A is not square.
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails or n*nrhs overflows.
+ * @return SPARSE_ERR_NOT_CONVERGED if any column did not converge.
+ * @return SPARSE_ERR_NUMERIC if NaN or Inf is produced during iteration.
+ * @return Other error codes may be propagated from the preconditioner callback.
+ */
+sparse_err_t sparse_bicgstab_solve_block(const SparseMatrix *A, const double *B, idx_t nrhs,
+                                         double *X, const sparse_iter_opts_t *opts,
+                                         sparse_precond_fn precond, const void *precond_ctx,
+                                         sparse_iter_result_t *result);
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Matrix-free iterative solvers
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -374,5 +522,32 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
                                    const double *b, double *x, const sparse_gmres_opts_t *opts,
                                    sparse_precond_fn precond, const void *precond_ctx,
                                    sparse_iter_result_t *result);
+
+/**
+ * @brief Solve A*x = b using matrix-free BiCGSTAB.
+ *
+ * Same algorithm as sparse_solve_bicgstab() but the matrix-vector product A*x
+ * is provided via a callback instead of an explicit SparseMatrix.
+ *
+ * @param matvec     Callback computing y = A*x. Must not be NULL.
+ * @param matvec_ctx Context pointer passed to matvec callback.
+ * @param n          System dimension (A is n×n).
+ * @param b          Right-hand side vector of length n.
+ * @param x          On entry, initial guess; on exit, approximate solution.
+ * @param opts       Solver options (NULL for defaults).
+ * @param precond    Preconditioner callback (NULL for none).
+ * @param precond_ctx Context pointer passed to precond callback.
+ * @param result     Output: iteration count, residual, convergence flag (may be NULL).
+ * @return SPARSE_OK on convergence, SPARSE_ERR_NOT_CONVERGED otherwise.
+ * @return SPARSE_ERR_NULL if matvec, b, or x is NULL.
+ * @return SPARSE_ERR_BADARG if n < 0 or opts has invalid fields.
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails.
+ * @return SPARSE_ERR_NUMERIC if NaN or Inf is produced during iteration.
+ * @return Any error returned by the matvec or precond callbacks.
+ */
+sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matvec_ctx, idx_t n,
+                                      const double *b, double *x, const sparse_iter_opts_t *opts,
+                                      sparse_precond_fn precond, const void *precond_ctx,
+                                      sparse_iter_result_t *result);
 
 #endif /* SPARSE_ITERATIVE_H */

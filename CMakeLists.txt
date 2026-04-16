@@ -156,6 +156,8 @@ add_sparse_test(test_minres)
 add_sparse_test(test_sprint13_integration)
 add_sparse_test(test_etree)
 add_sparse_test(test_colamd)
+add_sparse_test(test_bicgstab)
+add_sparse_test(test_stagnation)
 
 # Benchmarks (not part of ctest)
 add_executable(bench_main benchmarks/bench_main.c)
@@ -175,6 +177,9 @@ target_link_libraries(bench_refactor PRIVATE sparse_lu_ortho)
 
 add_executable(bench_colamd benchmarks/bench_colamd.c)
 target_link_libraries(bench_colamd PRIVATE sparse_lu_ortho)
+
+add_executable(bench_bicgstab benchmarks/bench_bicgstab.c)
+target_link_libraries(bench_bicgstab PRIVATE sparse_lu_ortho)
 
 # Example programs (not part of ctest)
 add_executable(example_ldlt examples/example_ldlt.c)

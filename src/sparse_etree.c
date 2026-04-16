@@ -49,8 +49,8 @@ sparse_err_t sparse_etree_compute(const SparseMatrix *A, idx_t *parent) {
 
     /* Initialize: each column is its own ancestor, no parents yet */
     for (idx_t i = 0; i < n; i++) {
-        parent[i] = -1;
-        ancestor[i] = i;
+        parent[i] = -1;  // NOLINT(clang-analyzer-security.ArrayBound)
+        ancestor[i] = i; // NOLINT(clang-analyzer-security.ArrayBound)
     }
 
     /* Liu's algorithm: process columns j = 0..n-1.
@@ -276,7 +276,7 @@ sparse_err_t sparse_symbolic_cholesky(const SparseMatrix *A, const idx_t *parent
     sym->col_ptr[0] = 0;
     size_t total_nnz = 0;
     for (idx_t j = 0; j < n; j++) {
-        size_t cj = (size_t)colcount[j];
+        size_t cj = (size_t)colcount[j]; // NOLINT(clang-analyzer-security.ArrayBound)
         if (total_nnz > SIZE_MAX - cj) {
             sparse_symbolic_free(sym);
             return SPARSE_ERR_ALLOC;
@@ -359,6 +359,7 @@ sparse_err_t sparse_symbolic_cholesky(const SparseMatrix *A, const idx_t *parent
         /* (a) Original lower-triangle entries */
         for (Node *nd = A->col_headers[j]; nd; nd = nd->down) {
             idx_t i = nd->row;
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
             if (i > j && marker[i] != j) {
                 marker[i] = j;
                 tmp[count++] = i; // NOLINT(clang-analyzer-security.ArrayBound)
@@ -658,8 +659,9 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
     /* All work succeeded — now assign sym_L (deferred to avoid leaks on error) */
     if (sym_L) {
         *sym_L = sym_full;
-    } else
+    } else {
         sparse_symbolic_free(&sym_full);
+    }
 
 cleanup:
     free(parent);

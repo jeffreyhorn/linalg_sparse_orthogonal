@@ -368,26 +368,45 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
     double rz = vec_dot(r, z, n);
     double rnorm = vec_norm2(r, n);
 
+    stag_tracker_t stag = {0};
+    if (stag_init(&stag, o->stagnation_window) != SPARSE_OK) {
+        free(work);
+        return SPARSE_ERR_ALLOC;
+    }
+
     idx_t iter = 0;
     int converged = 0;
+    int stagnated = 0;
+    int breakdown = 0;
     reshist_t rh = reshist_make(o->residual_history, o->residual_history_len);
 
     for (iter = 0; iter < o->max_iter; iter++) {
-        reshist_record(&rh, rnorm / bnorm);
         if (rnorm / bnorm <= o->tol) {
             converged = 1;
             break;
         }
 
+        reshist_record(&rh, rnorm / bnorm);
+        stag_record(&stag, rnorm / bnorm);
+        if (stag_check(&stag)) {
+            stagnated = 1;
+            break;
+        }
+
+        iter_report(o->callback, o->callback_ctx, o->verbose, "CG", iter, rnorm / bnorm);
+
         merr = matvec(matvec_ctx, n, p, Ap);
         if (merr != SPARSE_OK) {
+            stag_free(&stag);
             free(work);
             return merr;
         }
 
         double pAp = vec_dot(p, Ap, n);
-        if (pAp == 0.0)
+        if (fabs(pAp) < sparse_rel_tol(0, DROP_TOL)) {
+            breakdown = 1;
             break;
+        }
         double alpha = rz / pAp;
 
         vec_axpy(alpha, p, x, n);
@@ -397,6 +416,7 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
         if (precond) {
             sparse_err_t perr = precond(precond_ctx, n, r, z);
             if (perr != SPARSE_OK) {
+                stag_free(&stag);
                 free(work);
                 return perr;
             }
@@ -405,7 +425,11 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
         }
 
         double rz_new = vec_dot(r, z, n);
-        double beta = (rz != 0.0) ? rz_new / rz : 0.0;
+        if (fabs(rz) < sparse_rel_tol(0, DROP_TOL)) {
+            breakdown = 1;
+            break;
+        }
+        double beta = rz_new / rz;
 
         for (idx_t i = 0; i < n; i++)
             p[i] = z[i] + beta * p[i];
@@ -420,9 +444,12 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
         result->iterations = iter;
         result->residual_norm = rnorm / bnorm;
         result->converged = converged;
+        result->stagnated = stagnated;
+        result->breakdown = breakdown;
         result->residual_history_count = rh.count < rh.len ? rh.count : rh.len;
     }
 
+    stag_free(&stag);
     free(work);
     return converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
 }
@@ -781,6 +808,7 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
 
             rel_res = fabs(g[j + 1]) / bnorm;
 
+            reshist_record(&rh, rel_res);
             iter_report(o->callback, o->callback_ctx, o->verbose, "GMRES", total_iter - 1, rel_res);
 
             /* Stop inner Arnoldi loop on preconditioned convergence or
@@ -840,7 +868,6 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
         }
 
         /* Stagnation check across restarts */
-        reshist_record(&rh, rel_res);
         stag_record(&stag, rel_res);
         if (stag_check(&stag)) {
             stagnated = 1;
@@ -1153,6 +1180,7 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, id
     double max_residual = 0.0;
     int all_converged = 1;
     int any_stagnated = 0;
+    int any_breakdown = 0;
     sparse_err_t worst_err = SPARSE_OK;
 
     for (idx_t k = 0; k < nrhs; k++) {
@@ -1169,10 +1197,9 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, id
             all_converged = 0;
         if (col_result.stagnated)
             any_stagnated = 1;
+        if (col_result.breakdown)
+            any_breakdown = 1;
 
-        /* Track worst error (but continue processing all columns).
-         * Prefer hard errors over SPARSE_ERR_NOT_CONVERGED so real
-         * failures are not masked by an earlier convergence failure. */
         if (err != SPARSE_OK && (worst_err == SPARSE_OK || (worst_err == SPARSE_ERR_NOT_CONVERGED &&
                                                             err != SPARSE_ERR_NOT_CONVERGED)))
             worst_err = err;
@@ -1183,6 +1210,7 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, id
         result->residual_norm = max_residual;
         result->converged = all_converged;
         result->stagnated = any_stagnated;
+        result->breakdown = any_breakdown;
     }
 
     /* Return NOT_CONVERGED if any column failed, but not other errors
@@ -1331,6 +1359,7 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
 
     idx_t iter = 0;
     int converged = 0;
+    int stagnated = 0;
     int breakdown = 0;
     double true_res_cached = -1.0; /* set by in-loop verification if QR converged */
     reshist_t rh = reshist_make(o->residual_history, o->residual_history_len);
@@ -1423,8 +1452,10 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
         /* Stagnation check */
         reshist_record(&rh, relres);
         stag_record(&stag, relres);
-        if (stag_check(&stag))
+        if (stag_check(&stag)) {
+            stagnated = 1;
             break;
+        }
 
         if (relres <= o->tol) {
             /* QR estimate says converged — verify with true residual before
@@ -1496,8 +1527,6 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
     /* Final convergence decision based on true residual, not QR estimate */
     converged = (true_res <= o->tol);
 
-    int stagnated = stag.buf && stag_check(&stag);
-
     if (result) {
         result->iterations = iter > o->max_iter ? o->max_iter : iter;
         result->residual_norm = true_res;
@@ -1554,6 +1583,7 @@ sparse_err_t sparse_minres_solve_block(const SparseMatrix *A, const double *B, i
     double max_residual = 0.0;
     int all_converged = 1;
     int any_stagnated = 0;
+    int any_breakdown = 0;
     sparse_err_t worst_err = SPARSE_OK;
 
     for (idx_t j = 0; j < nrhs; j++) {
@@ -1571,6 +1601,8 @@ sparse_err_t sparse_minres_solve_block(const SparseMatrix *A, const double *B, i
             all_converged = 0;
         if (col_result.stagnated)
             any_stagnated = 1;
+        if (col_result.breakdown)
+            any_breakdown = 1;
         if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED)
             worst_err = err;
     }
@@ -1580,6 +1612,7 @@ sparse_err_t sparse_minres_solve_block(const SparseMatrix *A, const double *B, i
         result->residual_norm = max_residual;
         result->converged = all_converged;
         result->stagnated = any_stagnated;
+        result->breakdown = any_breakdown;
     }
 
     if (worst_err != SPARSE_OK && worst_err != SPARSE_ERR_NOT_CONVERGED)
@@ -1897,6 +1930,7 @@ sparse_err_t sparse_bicgstab_solve_block(const SparseMatrix *A, const double *B,
     double max_residual = 0.0;
     int all_converged = 1;
     int any_stagnated = 0;
+    int any_breakdown = 0;
     sparse_err_t worst_err = SPARSE_OK;
 
     for (idx_t j = 0; j < nrhs; j++) {
@@ -1915,6 +1949,8 @@ sparse_err_t sparse_bicgstab_solve_block(const SparseMatrix *A, const double *B,
             all_converged = 0;
         if (col_result.stagnated)
             any_stagnated = 1;
+        if (col_result.breakdown)
+            any_breakdown = 1;
         if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED)
             worst_err = err;
     }
@@ -1924,6 +1960,7 @@ sparse_err_t sparse_bicgstab_solve_block(const SparseMatrix *A, const double *B,
         result->residual_norm = max_residual;
         result->converged = all_converged;
         result->stagnated = any_stagnated;
+        result->breakdown = any_breakdown;
     }
 
     if (worst_err != SPARSE_OK && worst_err != SPARSE_ERR_NOT_CONVERGED)

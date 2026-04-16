@@ -648,8 +648,10 @@ static void recording_callback(const sparse_iter_progress_t *progress, void *ctx
     rec->count++;
     rec->last_residual = progress->residual_norm;
     rec->last_iteration = progress->iteration;
-    if (progress->solver)
+    if (progress->solver) {
         strncpy(rec->solver_name, progress->solver, sizeof(rec->solver_name) - 1);
+        rec->solver_name[sizeof(rec->solver_name) - 1] = '\0';
+    }
 }
 
 static void test_cg_callback_invoked(void) {
@@ -1005,10 +1007,11 @@ static void test_minres_breakdown_singular(void) {
     double x[3] = {0};
     sparse_iter_opts_t opts = {.max_iter = 100, .tol = 1e-10};
     sparse_iter_result_t result;
-    sparse_solve_minres(A, b, x, &opts, NULL, NULL, &result);
+    sparse_err_t err = sparse_solve_minres(A, b, x, &opts, NULL, NULL, &result);
 
-    /* Should not crash; may break down or fail to converge */
-    ASSERT_TRUE(result.converged || result.breakdown || !result.converged);
+    ASSERT_TRUE(err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED);
+    if (!result.converged)
+        ASSERT_TRUE(result.breakdown || err == SPARSE_ERR_NOT_CONVERGED);
 
     sparse_free(A);
 }
@@ -1034,7 +1037,8 @@ static void test_bicgstab_breakdown_singular(void) {
 
     ASSERT_TRUE(err == SPARSE_ERR_NOT_CONVERGED || err == SPARSE_ERR_NUMERIC || err == SPARSE_OK);
     if (!result.converged)
-        ASSERT_TRUE(result.breakdown || result.stagnated || !result.converged);
+        ASSERT_TRUE(result.breakdown || err == SPARSE_ERR_NOT_CONVERGED ||
+                    err == SPARSE_ERR_NUMERIC);
 
     sparse_free(A);
 }
@@ -1093,10 +1097,13 @@ static void test_bicgstab_mf_breakdown_flag(void) {
     double x[3] = {0};
     sparse_iter_opts_t opts = {.max_iter = 50, .tol = 1e-10};
     sparse_iter_result_t result;
-    sparse_solve_bicgstab_mf(sparse_matvec_cb, A, 3, b, x, &opts, NULL, NULL, &result);
+    sparse_err_t err =
+        sparse_solve_bicgstab_mf(sparse_matvec_cb, A, 3, b, x, &opts, NULL, NULL, &result);
 
-    /* Should not crash */
-    ASSERT_TRUE(result.converged || result.breakdown || !result.converged);
+    ASSERT_TRUE(err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED || err == SPARSE_ERR_NUMERIC);
+    if (!result.converged)
+        ASSERT_TRUE(result.breakdown || err == SPARSE_ERR_NOT_CONVERGED ||
+                    err == SPARSE_ERR_NUMERIC);
 
     sparse_free(A);
 }

@@ -221,14 +221,6 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
             break;
         }
 
-        /* Record and check stagnation */
-        reshist_record(&rh, rnorm / bnorm);
-        stag_record(&stag, rnorm / bnorm);
-        if (stag_check(&stag)) {
-            stagnated = 1;
-            break;
-        }
-
         iter_report(o->callback, o->callback_ctx, o->verbose, "CG", iter, rnorm / bnorm);
 
         /* Ap = A*p */
@@ -249,6 +241,14 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
         vec_axpy(-alpha, Ap, r, n);
 
         rnorm = vec_norm2(r, n);
+
+        /* Record post-update residual and check stagnation */
+        reshist_record(&rh, rnorm / bnorm);
+        stag_record(&stag, rnorm / bnorm);
+        if (stag_check(&stag)) {
+            stagnated = 1;
+            break;
+        }
 
         /* Apply preconditioner: z_{k+1} = M^{-1}*r_{k+1} */
         if (precond) {
@@ -388,13 +388,6 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
             break;
         }
 
-        reshist_record(&rh, rnorm / bnorm);
-        stag_record(&stag, rnorm / bnorm);
-        if (stag_check(&stag)) {
-            stagnated = 1;
-            break;
-        }
-
         iter_report(o->callback, o->callback_ctx, o->verbose, "CG", iter, rnorm / bnorm);
 
         merr = matvec(matvec_ctx, n, p, Ap);
@@ -414,6 +407,13 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
         vec_axpy(alpha, p, x, n);
         vec_axpy(-alpha, Ap, r, n);
         rnorm = vec_norm2(r, n);
+
+        reshist_record(&rh, rnorm / bnorm);
+        stag_record(&stag, rnorm / bnorm);
+        if (stag_check(&stag)) {
+            stagnated = 1;
+            break;
+        }
 
         if (precond) {
             sparse_err_t perr = precond(precond_ctx, n, r, z);

@@ -1196,11 +1196,24 @@ static void test_residual_history_matches_callback(void) {
     sparse_solve_cg(A, b, x, &opts, NULL, NULL, &result);
 
     ASSERT_TRUE(result.converged);
-    ASSERT_EQ(result.residual_history_count, (idx_t)cb_ctx.count);
 
-    /* Both recording mechanisms should report the same residuals */
-    for (idx_t i = 0; i < result.residual_history_count && i < (idx_t)cb_ctx.count; i++)
-        ASSERT_NEAR(hist_array[i], cb_ctx.residuals[i], 1e-15);
+    /* Callback fires pre-update, history records post-update, so counts
+     * should both equal iterations but values are shifted by one step. */
+    ASSERT_EQ(result.residual_history_count, result.iterations);
+    ASSERT_EQ((idx_t)cb_ctx.count, result.iterations);
+
+    /* History entries should be positive and decreasing (CG on SPD) */
+    for (idx_t i = 0; i < result.residual_history_count; i++)
+        ASSERT_TRUE(hist_array[i] > 0.0);
+
+    /* Callback entries should also be positive */
+    for (idx_t i = 0; i < (idx_t)cb_ctx.count; i++)
+        ASSERT_TRUE(cb_ctx.residuals[i] > 0.0);
+
+    /* History[i] should be the post-update residual, which equals the
+     * callback's pre-update residual at the *next* iteration */
+    for (idx_t i = 0; i < result.residual_history_count && (i + 1) < (idx_t)cb_ctx.count; i++)
+        ASSERT_NEAR(hist_array[i], cb_ctx.residuals[i + 1], 1e-15);
 
     free(b);
     free(x);

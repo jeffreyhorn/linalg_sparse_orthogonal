@@ -260,7 +260,7 @@ sparse_err_t colamd_order(const SparseMatrix *A, idx_t *perm) {
     size_t nwords = ((size_t)n + BWORD_BITS - 1) / BWORD_BITS;
 
     /* Check for overflow: n * nwords * sizeof(bword_t) */
-    if (nwords == 0 || (size_t)n > SIZE_MAX / (nwords * sizeof(bword_t))) {
+    if ((size_t)n > SIZE_MAX / (nwords * sizeof(bword_t))) {
         colamd_graph_free(&graph);
         return SPARSE_ERR_ALLOC;
     }

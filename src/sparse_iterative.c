@@ -1863,7 +1863,7 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
 done:;
     /* Compute true residual ||b - Ax|| / ||b|| for the final report. */
     double true_rel_res = rnorm / bnorm;
-    if (converged || iter > 0) {
+    if (iter > 0) {
         sparse_matvec(A, x, ws.r);
         for (idx_t i = 0; i < n; i++)
             ws.r[i] = b[i] - ws.r[i];
@@ -2197,7 +2197,7 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
 
 done_mf:;
     double true_rel_res = rnorm / bnorm;
-    if (converged || iter > 0) {
+    if (iter > 0) {
         merr = matvec(matvec_ctx, n, x, ws.r);
         if (merr != SPARSE_OK) {
             stag_free(&stag);

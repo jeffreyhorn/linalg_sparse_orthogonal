@@ -43,6 +43,8 @@ static sparse_err_t stag_init(stag_tracker_t *st, idx_t window) {
     *st = (stag_tracker_t){0};
     if (window <= 0)
         return SPARSE_OK;
+    if ((size_t)window > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
     double *buf = malloc((size_t)window * sizeof(double));
     if (!buf)
         return SPARSE_ERR_ALLOC;

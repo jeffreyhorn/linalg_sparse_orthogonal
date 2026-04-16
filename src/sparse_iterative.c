@@ -1450,14 +1450,7 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
         double relres = fabs(phi_bar) / bnorm;
 
         iter_report(o->callback, o->callback_ctx, o->verbose, "MINRES", iter - 1, relres);
-
-        /* Stagnation check */
         reshist_record(&rh, relres);
-        stag_record(&stag, relres);
-        if (stag_check(&stag)) {
-            stagnated = 1;
-            break;
-        }
 
         if (relres <= o->tol) {
             /* QR estimate says converged — verify with true residual before
@@ -1475,6 +1468,14 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
                 true_res_cached = verified_res;
                 break;
             }
+        }
+
+        /* Stagnation check (after convergence check so we don't
+         * misreport a converged solve as stagnated) */
+        stag_record(&stag, relres);
+        if (stag_check(&stag)) {
+            stagnated = 1;
+            break;
         }
 
         /* ── Prepare for next iteration ──────────────────────────── */
@@ -1714,6 +1715,7 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
     }
 
     for (iter = 0; iter < o->max_iter; iter++) {
+        reshist_record(&rh, rnorm / bnorm);
         iter_report(o->callback, o->callback_ctx, o->verbose, "BiCGSTAB", iter, rnorm / bnorm);
 
         /* --- First half-step: BiCG direction --- */
@@ -1831,7 +1833,6 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
         }
 
         /* Stagnation check */
-        reshist_record(&rh, rnorm / bnorm);
         stag_record(&stag, rnorm / bnorm);
         if (stag_check(&stag)) {
             stagnated = 1;
@@ -2058,6 +2059,7 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
     }
 
     for (iter = 0; iter < o->max_iter; iter++) {
+        reshist_record(&rh, rnorm / bnorm);
         iter_report(o->callback, o->callback_ctx, o->verbose, "BiCGSTAB", iter, rnorm / bnorm);
 
         double *p_eff = ws.p;
@@ -2169,7 +2171,6 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
         }
 
         /* Stagnation check */
-        reshist_record(&rh, rnorm / bnorm);
         stag_record(&stag, rnorm / bnorm);
         if (stag_check(&stag)) {
             stagnated = 1;

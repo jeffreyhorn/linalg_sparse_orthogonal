@@ -129,11 +129,17 @@ static bench_result_t bench_csc_path(const SparseMatrix *A, const double *b, dou
 
     for (int rep = 0; rep < repeat; rep++) {
         CholCsc *L = NULL;
+        /* Include CSC conversion time in factor_ms: CSC conversion is a
+         * required part of the CSC factor pipeline, so excluding it
+         * would overstate the speedup.  The linked-list path has its
+         * own conversion cost (AMD reorder + in-place structure setup)
+         * rolled into sparse_cholesky_factor_opts, so including ours
+         * here keeps the comparison fair. */
+        double t0 = wall_time();
         if (chol_csc_from_sparse_with_analysis(A, &an, &L) != SPARSE_OK) {
             r.ok = 0;
             break;
         }
-        double t0 = wall_time();
         if (eliminate(L) != SPARSE_OK) {
             chol_csc_free(L);
             r.ok = 0;

@@ -225,7 +225,7 @@ static void test_to_sparse_null_args(void) {
     ASSERT_NULL(mat);
 
     CholCsc *csc = NULL;
-    chol_csc_alloc(2, 2, &csc);
+    REQUIRE_OK(chol_csc_alloc(2, 2, &csc));
     ASSERT_ERR(chol_csc_to_sparse(csc, NULL, NULL), SPARSE_ERR_NULL);
     chol_csc_free(csc);
 }
@@ -834,7 +834,7 @@ static void test_validate_null(void) { ASSERT_ERR(chol_csc_validate(NULL), SPARS
 static void test_validate_fresh_alloc_is_valid(void) {
     /* A freshly allocated CSC (nnz=0, empty columns) is a valid one. */
     CholCsc *csc = NULL;
-    chol_csc_alloc(5, 1, &csc);
+    REQUIRE_OK(chol_csc_alloc(5, 1, &csc));
     REQUIRE_OK(chol_csc_validate(csc));
     chol_csc_free(csc);
 }
@@ -843,7 +843,7 @@ static void test_validate_catches_missing_diagonal(void) {
     /* Hand-craft a CSC where column 0 has only an off-diagonal entry
      * (the diagonal is missing).  validate() should reject it. */
     CholCsc *csc = NULL;
-    chol_csc_alloc(3, 3, &csc);
+    REQUIRE_OK(chol_csc_alloc(3, 3, &csc));
     csc->col_ptr[0] = 0;
     csc->col_ptr[1] = 1;
     csc->col_ptr[2] = 2;
@@ -862,7 +862,7 @@ static void test_validate_catches_missing_diagonal(void) {
 static void test_validate_catches_upper_triangle(void) {
     /* CSC column 1 contains row 0 (i.e. upper triangle). */
     CholCsc *csc = NULL;
-    chol_csc_alloc(2, 3, &csc);
+    REQUIRE_OK(chol_csc_alloc(2, 3, &csc));
     csc->col_ptr[0] = 0;
     csc->col_ptr[1] = 1;
     csc->col_ptr[2] = 3;
@@ -880,7 +880,7 @@ static void test_validate_catches_upper_triangle(void) {
 static void test_validate_catches_unsorted_column(void) {
     /* Column 0 has rows 0, 2, 1 (out of order). */
     CholCsc *csc = NULL;
-    chol_csc_alloc(3, 3, &csc);
+    REQUIRE_OK(chol_csc_alloc(3, 3, &csc));
     csc->col_ptr[0] = 0;
     csc->col_ptr[1] = 3;
     csc->col_ptr[2] = 3;
@@ -898,7 +898,7 @@ static void test_validate_catches_unsorted_column(void) {
 
 static void test_validate_catches_col_ptr_inconsistency(void) {
     CholCsc *csc = NULL;
-    chol_csc_alloc(3, 3, &csc);
+    REQUIRE_OK(chol_csc_alloc(3, 3, &csc));
     csc->col_ptr[0] = 0;
     csc->col_ptr[1] = 1;
     csc->col_ptr[2] = 2;
@@ -1957,7 +1957,7 @@ static void detect_supernodes_alloc(const CholCsc *L, idx_t min_size, idx_t **st
 
 static void test_detect_supernodes_null_args(void) {
     CholCsc *L = NULL;
-    chol_csc_alloc(3, 3, &L);
+    REQUIRE_OK(chol_csc_alloc(3, 3, &L));
     idx_t starts[3], sizes[3], count;
     ASSERT_ERR(chol_csc_detect_supernodes(NULL, 4, starts, sizes, &count), SPARSE_ERR_NULL);
     ASSERT_ERR(chol_csc_detect_supernodes(L, 4, NULL, sizes, &count), SPARSE_ERR_NULL);
@@ -2417,7 +2417,7 @@ static void test_eliminate_supernodal_bcsstk04_amd(void) {
 static void test_eliminate_supernodal_null(void) {
     ASSERT_ERR(chol_csc_eliminate_supernodal(NULL, 4), SPARSE_ERR_NULL);
     CholCsc *L = NULL;
-    chol_csc_alloc(3, 3, &L);
+    REQUIRE_OK(chol_csc_alloc(3, 3, &L));
     ASSERT_ERR(chol_csc_eliminate_supernodal(L, 0), SPARSE_ERR_BADARG);
     ASSERT_ERR(chol_csc_eliminate_supernodal(L, -1), SPARSE_ERR_BADARG);
     chol_csc_free(L);

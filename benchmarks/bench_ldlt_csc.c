@@ -110,11 +110,15 @@ static bench_result_t bench_csc_path(const SparseMatrix *A, const idx_t *amd_per
 
     for (int rep = 0; rep < repeat; rep++) {
         LdltCsc *F = NULL;
+        /* Include CSC conversion time in factor_ms.  Conversion is part
+         * of the CSC factor pipeline; excluding it would overstate the
+         * CSC-vs-linked-list ratio and mask the real overhead the
+         * wrapper carries today. */
+        double t0 = wall_time();
         if (ldlt_csc_from_sparse(A, amd_perm, 2.0, &F) != SPARSE_OK) {
             r.ok = 0;
             break;
         }
-        double t0 = wall_time();
         if (ldlt_csc_eliminate(F) != SPARSE_OK) {
             ldlt_csc_free(F);
             r.ok = 0;

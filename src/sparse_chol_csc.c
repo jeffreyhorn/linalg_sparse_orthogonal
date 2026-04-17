@@ -304,10 +304,19 @@ static sparse_err_t from_sparse_impl(const SparseMatrix *mat, const idx_t *perm,
         }
     }
 
-    /* Sum: total nonzeros in the lower triangle after permutation. */
-    idx_t nnz_lower = 0;
+    /* Sum: total nonzeros in the lower triangle after permutation.
+     * Accumulate in size_t so the sum can exceed INT32_MAX without
+     * signed overflow; reject matrices whose lower triangle doesn't fit
+     * in idx_t before narrowing. */
+    size_t nnz_lower_wide = 0;
     for (idx_t j = 0; j < n; j++)
-        nnz_lower += col_count[j];
+        nnz_lower_wide += (size_t)col_count[j];
+    if (nnz_lower_wide > (size_t)INT32_MAX) {
+        free(col_count);
+        free(invperm);
+        return SPARSE_ERR_ALLOC;
+    }
+    idx_t nnz_lower = (idx_t)nnz_lower_wide;
 
     /* Compute capacity.  Symbolic path overrides with an explicit
      * capacity (exact predicted nnz(L)); heuristic path uses fill_factor. */

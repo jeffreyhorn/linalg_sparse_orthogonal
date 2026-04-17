@@ -329,11 +329,16 @@ sparse_err_t ldlt_csc_eliminate(LdltCsc *F) {
         return SPARSE_OK;
 
     /* Save the pre-elimination perm (fill-reducing) so we can compose it
-     * with the Bunch-Kaufman perm chosen during factorization. */
-    idx_t *perm_in = malloc((size_t)n * sizeof(idx_t));
+     * with the Bunch-Kaufman perm chosen during factorization.  Guard
+     * `n * sizeof(idx_t)` against size_t overflow on 32-bit platforms
+     * (or absurdly large n) before computing the byte count. */
+    if ((size_t)n > SIZE_MAX / sizeof(idx_t))
+        return SPARSE_ERR_ALLOC;
+    size_t perm_bytes = (size_t)n * sizeof(idx_t);
+    idx_t *perm_in = malloc(perm_bytes);
     if (!perm_in)
         return SPARSE_ERR_ALLOC;
-    memcpy(perm_in, F->perm, (size_t)n * sizeof(idx_t));
+    memcpy(perm_in, F->perm, perm_bytes);
 
     /* Expand F->L's stored lower triangle to a full symmetric matrix so
      * the linked-list factor's symmetry check passes. */

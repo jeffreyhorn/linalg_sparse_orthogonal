@@ -48,14 +48,14 @@
  * have row_idx > j.  This is the shape `chol_csc_eliminate` produces
  * and that every solve path consumes.
  *
- * Intermediate / transient CSCs accepted by conversion and validated
- * by `chol_csc_validate` may still contain empty columns or omit an
- * explicit diagonal entry; those cases are diagnosed later when
- * numeric factorization actually requires a present diagonal
- * (`chol_csc_cdiv` returns `SPARSE_ERR_NOT_SPD` when `dense_col[j]`
- * is not positive).  Treat "diagonal-first" as the normalized
- * factor-ready layout, not as an unconditional property of every
- * transient `CholCsc`.
+ * `chol_csc_validate` enforces exactly the same diagonal-first rule
+ * for every non-empty column (structurally zero / empty columns are
+ * the only permitted exception — all-zero off-diagonals are valid
+ * A-conversion input, and their missing diagonal is diagnosed later
+ * by `chol_csc_cdiv` returning `SPARSE_ERR_NOT_SPD`).  In other
+ * words: "diagonal-first" is an invariant of every validated
+ * non-empty `CholCsc` column, not merely of the final factor-ready
+ * layout.
  */
 
 #include "sparse_analysis.h"

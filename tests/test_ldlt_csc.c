@@ -310,7 +310,7 @@ static void test_validate_null(void) { ASSERT_ERR(ldlt_csc_validate(NULL), SPARS
 
 static void test_validate_fresh_alloc_is_valid(void) {
     LdltCsc *m = NULL;
-    ldlt_csc_alloc(4, 4, &m);
+    REQUIRE_OK(ldlt_csc_alloc(4, 4, &m));
     REQUIRE_OK(ldlt_csc_validate(m));
     ldlt_csc_free(m);
 }
@@ -318,7 +318,7 @@ static void test_validate_fresh_alloc_is_valid(void) {
 /* pivot_size = 3 is invalid (must be 1 or 2). */
 static void test_validate_catches_bad_pivot_size(void) {
     LdltCsc *m = NULL;
-    ldlt_csc_alloc(4, 4, &m);
+    REQUIRE_OK(ldlt_csc_alloc(4, 4, &m));
     m->pivot_size[2] = 3;
     ASSERT_ERR(ldlt_csc_validate(m), SPARSE_ERR_BADARG);
     ldlt_csc_free(m);
@@ -328,7 +328,7 @@ static void test_validate_catches_bad_pivot_size(void) {
  * inconsistent and must be rejected. */
 static void test_validate_catches_half_2x2(void) {
     LdltCsc *m = NULL;
-    ldlt_csc_alloc(4, 4, &m);
+    REQUIRE_OK(ldlt_csc_alloc(4, 4, &m));
     m->pivot_size[1] = 2;
     /* m->pivot_size[2] left at 1 — mismatch. */
     ASSERT_ERR(ldlt_csc_validate(m), SPARSE_ERR_BADARG);
@@ -338,7 +338,7 @@ static void test_validate_catches_half_2x2(void) {
 /* A 2x2 pivot starting at the last index (no i+1) is invalid. */
 static void test_validate_catches_trailing_2x2(void) {
     LdltCsc *m = NULL;
-    ldlt_csc_alloc(3, 3, &m);
+    REQUIRE_OK(ldlt_csc_alloc(3, 3, &m));
     m->pivot_size[2] = 2;
     ASSERT_ERR(ldlt_csc_validate(m), SPARSE_ERR_BADARG);
     ldlt_csc_free(m);
@@ -347,7 +347,7 @@ static void test_validate_catches_trailing_2x2(void) {
 /* perm with a duplicate index is not a permutation. */
 static void test_validate_catches_bad_perm(void) {
     LdltCsc *m = NULL;
-    ldlt_csc_alloc(3, 3, &m);
+    REQUIRE_OK(ldlt_csc_alloc(3, 3, &m));
     m->perm[0] = 1;
     m->perm[1] = 1; /* duplicate */
     m->perm[2] = 2;
@@ -358,7 +358,7 @@ static void test_validate_catches_bad_perm(void) {
 /* Well-formed 2x2 pivot block spanning two consecutive indices — valid. */
 static void test_validate_accepts_valid_2x2(void) {
     LdltCsc *m = NULL;
-    ldlt_csc_alloc(4, 4, &m);
+    REQUIRE_OK(ldlt_csc_alloc(4, 4, &m));
     m->pivot_size[1] = 2;
     m->pivot_size[2] = 2;
     REQUIRE_OK(ldlt_csc_validate(m));

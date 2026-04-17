@@ -150,11 +150,16 @@ static void test_chol_csc_grow_preserves_values(void) {
 /* Compare two lower-triangular SparseMatrices (including diagonal) for
  * structural and value equality.  Only entries with row >= col are
  * compared — callers must pass matrices that store only the lower
- * triangle. */
+ * triangle.  Shape mismatch is fatal (return early) so we don't cascade
+ * thousands of follow-on failures past the root cause. */
 static void assert_lower_triangle_equal(const SparseMatrix *A, const SparseMatrix *B, double tol) {
     idx_t n = sparse_rows(A);
-    ASSERT_EQ(sparse_rows(A), sparse_rows(B));
-    ASSERT_EQ(sparse_cols(A), sparse_cols(B));
+    if (sparse_rows(A) != sparse_rows(B) || sparse_cols(A) != sparse_cols(B)) {
+        TF_FAIL_("Shape mismatch: A is %dx%d, B is %dx%d", (int)sparse_rows(A), (int)sparse_cols(A),
+                 (int)sparse_rows(B), (int)sparse_cols(B));
+        return;
+    }
+    tf_asserts += 2;
     for (idx_t i = 0; i < n; i++) {
         for (idx_t j = 0; j <= i; j++) {
             double a = sparse_get(A, i, j);
@@ -1549,10 +1554,14 @@ static void test_eliminate_drop_tolerance(void) {
  * ═══════════════════════════════════════════════════════════════════════ */
 
 /* Helper: compute ||A*x - b||_inf / ||b||_inf (relative residual).
- * Returns the residual norm.  Callers check against a tolerance. */
+ * Returns the residual norm, or NaN on allocation failure.  Callers
+ * compare against a tolerance with ASSERT_TRUE(rel_res < tol), which
+ * treats NaN as out-of-range. */
 static double compute_rel_residual(const SparseMatrix *A, const double *x, const double *b) {
     idx_t n = sparse_rows(A);
     double *Ax = malloc((size_t)n * sizeof(double));
+    if (!Ax)
+        return (double)NAN;
     sparse_matvec(A, x, Ax);
     double max_r = 0.0;
     double max_b = 0.0;

@@ -43,6 +43,13 @@ static double wall_time(void) {
 static double rel_residual(const SparseMatrix *A, const double *x, const double *b) {
     idx_t n = sparse_rows(A);
     double *Ax = malloc((size_t)n * sizeof(double));
+    if (!Ax) {
+        /* Sentinel value: NaN signals an unmeasurable residual due to
+         * allocation failure.  Callers print the raw value in the CSV
+         * row, so "nan" in the output column is the visible cue. */
+        fprintf(stderr, "bench_ldlt_csc: malloc failed in rel_residual (n=%d)\n", (int)n);
+        return (double)NAN;
+    }
     sparse_matvec(A, x, Ax);
     double rmax = 0.0, bmax = 0.0;
     for (idx_t i = 0; i < n; i++) {

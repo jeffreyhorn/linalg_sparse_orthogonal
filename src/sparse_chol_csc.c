@@ -222,8 +222,11 @@ static void sort_column_entries(idx_t *row_idx, double *values, idx_t start, idx
 
 /* ─── Validate a user-supplied symmetric permutation array ──────────── */
 
-/* Best-effort check: all entries in [0, n) and distinct.  Returns
- * SPARSE_OK or SPARSE_ERR_BADARG.  Allocates an internal seen[] array. */
+/* Best-effort check: all entries in [0, n) and distinct.  Allocates
+ * an internal seen[] array, so the caller must distinguish:
+ *   SPARSE_OK         — perm is a valid permutation of [0, n)
+ *   SPARSE_ERR_BADARG — perm contains an out-of-range or duplicate entry
+ *   SPARSE_ERR_ALLOC  — the internal seen[] allocation failed */
 static sparse_err_t validate_perm(const idx_t *perm, idx_t n) {
     if (n == 0)
         return SPARSE_OK;

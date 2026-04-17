@@ -30,11 +30,17 @@
  * ═══════════════════════════════════════════════════════════════════════ */
 
 /* Compare two lower-triangular SparseMatrices entry-by-entry.  Only
- * (i, j) with i >= j are inspected. */
+ * (i, j) with i >= j are inspected.  Shape mismatch is fatal (return
+ * early) so a mismatched test stops at the root cause instead of
+ * cascading into thousands of follow-on failures. */
 static void assert_lower_triangle_equal(const SparseMatrix *A, const SparseMatrix *B, double tol) {
     idx_t n = sparse_rows(A);
-    ASSERT_EQ(sparse_rows(A), sparse_rows(B));
-    ASSERT_EQ(sparse_cols(A), sparse_cols(B));
+    if (sparse_rows(A) != sparse_rows(B) || sparse_cols(A) != sparse_cols(B)) {
+        TF_FAIL_("Shape mismatch: A is %dx%d, B is %dx%d", (int)sparse_rows(A), (int)sparse_cols(A),
+                 (int)sparse_rows(B), (int)sparse_cols(B));
+        return;
+    }
+    tf_asserts += 2; /* account for the shape checks we'd have done */
     for (idx_t i = 0; i < n; i++) {
         for (idx_t j = 0; j <= i; j++) {
             double a = sparse_get(A, i, j);
@@ -682,10 +688,14 @@ static void test_eliminate_singular_zero(void) {
  * Day 9: Triangular + block-diagonal solve
  * ═══════════════════════════════════════════════════════════════════════ */
 
-/* Compute ||A*x - b||_inf / ||b||_inf. */
+/* Compute ||A*x - b||_inf / ||b||_inf.  Returns NaN on allocation
+ * failure; callers compare the residual against a tolerance with
+ * ASSERT_TRUE(rr < tol), which treats NaN as out-of-range. */
 static double rel_residual(const SparseMatrix *A, const double *x, const double *b) {
     idx_t n = sparse_rows(A);
     double *Ax = malloc((size_t)n * sizeof(double));
+    if (!Ax)
+        return (double)NAN;
     sparse_matvec(A, x, Ax);
     double rmax = 0.0, bmax = 0.0;
     for (idx_t i = 0; i < n; i++) {

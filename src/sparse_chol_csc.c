@@ -174,19 +174,26 @@ sparse_err_t chol_csc_grow(CholCsc *m, idx_t needed) {
     if ((size_t)new_cap > SIZE_MAX / sizeof(idx_t))
         return SPARSE_ERR_ALLOC;
 
-    idx_t *new_row = realloc(m->row_idx, (size_t)new_cap * sizeof(idx_t));
+    /* Transactional growth: allocate and populate both buffers before
+     * mutating any field on `m`.  If either allocation fails, `m` is
+     * left exactly as the caller passed it — honouring the header
+     * contract that "m is unchanged on failure". */
+    idx_t *new_row = calloc((size_t)new_cap, sizeof(idx_t));
     if (!new_row)
         return SPARSE_ERR_ALLOC;
-    /* realloc freed the old block on success; stash until values realloc
-     * also succeeds so we can commit both atomically. */
-
-    double *new_val = realloc(m->values, (size_t)new_cap * sizeof(double));
+    double *new_val = calloc((size_t)new_cap, sizeof(double));
     if (!new_val) {
-        /* row_idx was already reallocated; record it so we don't leak or
-         * leave a dangling pointer. */
-        m->row_idx = new_row;
+        free(new_row);
         return SPARSE_ERR_ALLOC;
     }
+
+    /* Copy live entries into the fresh buffers, then commit. */
+    if (m->capacity > 0) {
+        memcpy(new_row, m->row_idx, (size_t)m->capacity * sizeof(idx_t));
+        memcpy(new_val, m->values, (size_t)m->capacity * sizeof(double));
+    }
+    free(m->row_idx);
+    free(m->values);
 
     m->row_idx = new_row;
     m->values = new_val;
@@ -637,12 +644,20 @@ static sparse_err_t shift_columns_right_of(CholCsc *csc, idx_t after_col, idx_t 
 
     idx_t old_total = csc->nnz;
     if (delta > 0) {
+        /* Explicit overflow guard: `old_total + delta` is evaluated in
+         * idx_t (signed 32-bit), so overflow would be undefined behaviour
+         * and could slip past chol_csc_grow's own INT32_MAX check.  Reject
+         * growth requests that would overflow before calling in. */
+        if (old_total > INT32_MAX - delta)
+            return SPARSE_ERR_BADARG;
         sparse_err_t err = chol_csc_grow(csc, old_total + delta);
         if (err != SPARSE_OK)
             return err;
-    } else if (old_total + delta < 0) {
+    } else if (delta < -old_total) {
         /* Defensive: the caller's bookkeeping is off — refuse rather
-         * than corrupt the CSC. */
+         * than corrupt the CSC.  Equivalent to `old_total + delta < 0`
+         * but written without the addition, to avoid the signed-overflow
+         * trap in the shrink direction too. */
         return SPARSE_ERR_BADARG;
     }
 

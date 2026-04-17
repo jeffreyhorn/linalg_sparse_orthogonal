@@ -150,7 +150,10 @@ sparse_err_t ldlt_csc_to_sparse(const LdltCsc *ldlt, const idx_t *perm_out, Spar
  *   - 2x2 pivots cover two consecutive indices i, i+1 (both set to 2).
  *   - `perm[0..n-1]` is a valid permutation of [0, n).
  *
- * @return SPARSE_OK when invariants hold, SPARSE_ERR_NULL, SPARSE_ERR_BADARG.
+ * @return SPARSE_OK when invariants hold; otherwise SPARSE_ERR_NULL,
+ *         SPARSE_ERR_BADARG, or SPARSE_ERR_ALLOC when the internal
+ *         `seen` workspace used for the permutation-validity check
+ *         cannot be allocated.
  */
 sparse_err_t ldlt_csc_validate(const LdltCsc *ldlt);
 

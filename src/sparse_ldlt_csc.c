@@ -383,9 +383,12 @@ sparse_err_t ldlt_csc_eliminate(LdltCsc *F) {
      * every column already containing its unit diagonal — no extra
      * injection loop is needed here. */
 
-    /* Replace F->L with a CSC built from ll.L. */
+    /* Replace F->L with a CSC built from ll.L.  The linked-list factor
+     * is already complete — no further fill-in will be introduced — so
+     * allocate the CSC at exact capacity (fill_factor = 1.0) to avoid
+     * a spurious 2x over-allocation on large factors. */
     CholCsc *new_L = NULL;
-    err = chol_csc_from_sparse(ll.L, NULL, 2.0, &new_L);
+    err = chol_csc_from_sparse(ll.L, NULL, 1.0, &new_L);
     if (err != SPARSE_OK) {
         sparse_ldlt_free(&ll);
         free(perm_in);

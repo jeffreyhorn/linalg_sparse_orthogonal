@@ -62,7 +62,7 @@ static void test_alloc_negative_n(void) {
 
 static void test_alloc_basic(void) {
     LdltCsc *m = NULL;
-    ASSERT_ERR(ldlt_csc_alloc(5, 10, &m), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_alloc(5, 10, &m));
     ASSERT_NOT_NULL(m);
     ASSERT_EQ(m->n, 5);
     ASSERT_NOT_NULL(m->L);
@@ -84,7 +84,7 @@ static void test_alloc_basic(void) {
 
 static void test_alloc_zero_n(void) {
     LdltCsc *m = NULL;
-    ASSERT_ERR(ldlt_csc_alloc(0, 1, &m), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_alloc(0, 1, &m));
     ASSERT_NOT_NULL(m);
     ASSERT_EQ(m->n, 0);
     ldlt_csc_free(m);
@@ -129,9 +129,9 @@ static void test_roundtrip_identity(void) {
         sparse_insert(A, i, i, 1.0);
 
     LdltCsc *m = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A, NULL, 2.0, &m), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &m));
     ASSERT_NOT_NULL(m);
-    ASSERT_ERR(ldlt_csc_validate(m), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_validate(m));
 
     /* L's CSC has one entry per column = the diagonal value from A. */
     ASSERT_EQ(m->L->nnz, n);
@@ -148,7 +148,7 @@ static void test_roundtrip_identity(void) {
     }
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(ldlt_csc_to_sparse(m, NULL, &B), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_to_sparse(m, NULL, &B));
     assert_lower_triangle_equal(A, B, 0.0);
 
     sparse_free(A);
@@ -166,8 +166,8 @@ static void test_roundtrip_diagonal_indefinite(void) {
         sparse_insert(A, i, i, diag[i]);
 
     LdltCsc *m = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A, NULL, 2.0, &m), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_validate(m), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &m));
+    REQUIRE_OK(ldlt_csc_validate(m));
 
     /* Each column has exactly the one diagonal entry, value preserved. */
     ASSERT_EQ(m->L->nnz, n);
@@ -177,7 +177,7 @@ static void test_roundtrip_diagonal_indefinite(void) {
     }
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(ldlt_csc_to_sparse(m, NULL, &B), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_to_sparse(m, NULL, &B));
     assert_lower_triangle_equal(A, B, 0.0);
 
     sparse_free(A);
@@ -204,14 +204,14 @@ static void test_roundtrip_symmetric_indefinite(void) {
     sparse_insert(A, 2, 3, -1.0);
 
     LdltCsc *m = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A, NULL, 2.0, &m), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_validate(m), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &m));
+    REQUIRE_OK(ldlt_csc_validate(m));
 
     /* Lower-triangle nnz count: 4 diagonals + 3 off-diagonals (below). */
     ASSERT_EQ(m->L->nnz, 7);
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(ldlt_csc_to_sparse(m, NULL, &B), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_to_sparse(m, NULL, &B));
     assert_lower_triangle_equal(A, B, 0.0);
 
     sparse_free(A);
@@ -233,8 +233,8 @@ static void test_from_sparse_stores_perm(void) {
 
     idx_t perm[4] = {3, 2, 1, 0}; /* reverse */
     LdltCsc *m = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A, perm, 2.0, &m), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_validate(m), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A, perm, 2.0, &m));
+    REQUIRE_OK(ldlt_csc_validate(m));
     for (idx_t i = 0; i < n; i++)
         ASSERT_EQ(m->perm[i], perm[i]);
 
@@ -275,8 +275,8 @@ static void test_reverse_perm_symmetric(void) {
 
     idx_t perm[4] = {3, 2, 1, 0};
     LdltCsc *m = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A, perm, 2.0, &m), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_validate(m), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A, perm, 2.0, &m));
+    REQUIRE_OK(ldlt_csc_validate(m));
     ASSERT_EQ(m->L->nnz, n * (n + 1) / 2);
 
     /* Each stored (new_r, new_c) value in L should match A[perm[new_r], perm[new_c]]. */
@@ -305,7 +305,7 @@ static void test_validate_null(void) { ASSERT_ERR(ldlt_csc_validate(NULL), SPARS
 static void test_validate_fresh_alloc_is_valid(void) {
     LdltCsc *m = NULL;
     ldlt_csc_alloc(4, 4, &m);
-    ASSERT_ERR(ldlt_csc_validate(m), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_validate(m));
     ldlt_csc_free(m);
 }
 
@@ -355,7 +355,7 @@ static void test_validate_accepts_valid_2x2(void) {
     ldlt_csc_alloc(4, 4, &m);
     m->pivot_size[1] = 2;
     m->pivot_size[2] = 2;
-    ASSERT_ERR(ldlt_csc_validate(m), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_validate(m));
     ldlt_csc_free(m);
 }
 
@@ -408,9 +408,9 @@ static void test_eliminate_all_1x1_pivots(void) {
         sparse_insert(A, i, i, diag[i]);
 
     LdltCsc *F = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A, NULL, 2.0, &F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_eliminate(F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_validate(F), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &F));
+    REQUIRE_OK(ldlt_csc_eliminate(F));
+    REQUIRE_OK(ldlt_csc_validate(F));
 
     for (idx_t k = 0; k < n; k++) {
         ASSERT_EQ(F->pivot_size[k], 1);
@@ -438,9 +438,9 @@ static void test_eliminate_tridiagonal_all_1x1(void) {
     }
 
     LdltCsc *F = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A, NULL, 2.0, &F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_eliminate(F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_validate(F), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &F));
+    REQUIRE_OK(ldlt_csc_eliminate(F));
+    REQUIRE_OK(ldlt_csc_validate(F));
 
     for (idx_t k = 0; k < n; k++)
         ASSERT_EQ(F->pivot_size[k], 1);
@@ -463,9 +463,9 @@ static void test_eliminate_forced_2x2(void) {
     sparse_insert(A, 1, 1, 0.3);
 
     LdltCsc *F = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A, NULL, 2.0, &F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_eliminate(F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_validate(F), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &F));
+    REQUIRE_OK(ldlt_csc_eliminate(F));
+    REQUIRE_OK(ldlt_csc_validate(F));
 
     ASSERT_EQ(F->pivot_size[0], 2);
     ASSERT_EQ(F->pivot_size[1], 2);
@@ -494,9 +494,9 @@ static void test_eliminate_mixed_pivots(void) {
                 sparse_insert(A, i, j, vals[i][j]);
 
     LdltCsc *F = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A, NULL, 2.0, &F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_eliminate(F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_validate(F), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &F));
+    REQUIRE_OK(ldlt_csc_eliminate(F));
+    REQUIRE_OK(ldlt_csc_validate(F));
 
     ASSERT_EQ(F->pivot_size[0], 2);
     ASSERT_EQ(F->pivot_size[1], 2);
@@ -527,13 +527,13 @@ static void test_eliminate_matches_linked_list_indefinite(void) {
 
     /* CSC path */
     LdltCsc *F = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A1, NULL, 2.0, &F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_eliminate(F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_validate(F), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A1, NULL, 2.0, &F));
+    REQUIRE_OK(ldlt_csc_eliminate(F));
+    REQUIRE_OK(ldlt_csc_validate(F));
 
     /* Linked-list reference */
     sparse_ldlt_t ll = {0};
-    ASSERT_ERR(sparse_ldlt_factor(A2, &ll), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A2, &ll));
 
     /* Compare D / D_offdiag / pivot_size / perm. */
     for (idx_t k = 0; k < n; k++) {
@@ -588,21 +588,21 @@ static void test_eliminate_composes_perm(void) {
     idx_t perm_in[4] = {3, 2, 1, 0};
 
     LdltCsc *F = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A, perm_in, 2.0, &F), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A, perm_in, 2.0, &F));
     /* Before elimination, F->perm == perm_in verbatim. */
     for (idx_t k = 0; k < n; k++)
         ASSERT_EQ(F->perm[k], perm_in[k]);
 
-    ASSERT_ERR(ldlt_csc_eliminate(F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_validate(F), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_eliminate(F));
+    REQUIRE_OK(ldlt_csc_validate(F));
 
     /* Build P·A·P^T and factor with the linked-list kernel directly so
      * ll_ref.perm is the BK pivot perm in the pre-permuted space — the
      * same space the CSC wrapper runs BK in internally. */
     SparseMatrix *A_perm = NULL;
-    ASSERT_ERR(sparse_permute(A, perm_in, perm_in, &A_perm), SPARSE_OK);
+    REQUIRE_OK(sparse_permute(A, perm_in, perm_in, &A_perm));
     sparse_ldlt_t ll_ref = {0};
-    ASSERT_ERR(sparse_ldlt_factor(A_perm, &ll_ref), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A_perm, &ll_ref));
 
     /* Composition rule: F->perm[k] == perm_in[ll_ref.perm[k]]. */
     for (idx_t k = 0; k < n; k++)
@@ -628,14 +628,14 @@ static void test_eliminate_inertia(void) {
     }
 
     LdltCsc *F = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A1, NULL, 2.0, &F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_eliminate(F), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A1, NULL, 2.0, &F));
+    REQUIRE_OK(ldlt_csc_eliminate(F));
 
     sparse_ldlt_t ll = {0};
-    ASSERT_ERR(sparse_ldlt_factor(A2, &ll), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A2, &ll));
 
     idx_t pos_ll, neg_ll, zero_ll;
-    ASSERT_ERR(sparse_ldlt_inertia(&ll, &pos_ll, &neg_ll, &zero_ll), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_inertia(&ll, &pos_ll, &neg_ll, &zero_ll));
 
     /* Count inertia from F's D/pivot_size directly (1x1 blocks only here). */
     idx_t pos = 0, neg = 0, zero = 0;
@@ -670,7 +670,7 @@ static void test_eliminate_singular_zero(void) {
     /* Column/row 1 is entirely zero → singular. */
 
     LdltCsc *F = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A, NULL, 2.0, &F), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &F));
     sparse_err_t err = ldlt_csc_eliminate(F);
     ASSERT_TRUE(err == SPARSE_ERR_SINGULAR || err == SPARSE_ERR_NOT_SPD);
 
@@ -729,12 +729,12 @@ static void test_solve_identity(void) {
     for (idx_t i = 0; i < n; i++)
         sparse_insert(A, i, i, 1.0);
     LdltCsc *F = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A, NULL, 2.0, &F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_eliminate(F), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &F));
+    REQUIRE_OK(ldlt_csc_eliminate(F));
 
     double b[4] = {1.5, -2.0, 3.25, 7.0};
     double x[4] = {0};
-    ASSERT_ERR(ldlt_csc_solve(F, b, x), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_solve(F, b, x));
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x[i], b[i], 1e-12);
 
@@ -750,8 +750,8 @@ static void test_solve_diagonal_indefinite(void) {
     for (idx_t i = 0; i < n; i++)
         sparse_insert(A, i, i, diag[i]);
     LdltCsc *F = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A, NULL, 2.0, &F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_eliminate(F), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &F));
+    REQUIRE_OK(ldlt_csc_eliminate(F));
 
     double x_true[4] = {1.0, -1.0, 2.0, -2.0};
     double b[4];
@@ -759,7 +759,7 @@ static void test_solve_diagonal_indefinite(void) {
         b[i] = diag[i] * x_true[i];
 
     double x[4] = {0};
-    ASSERT_ERR(ldlt_csc_solve(F, b, x), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_solve(F, b, x));
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x[i], x_true[i], 1e-12);
 
@@ -777,15 +777,15 @@ static void test_solve_forced_2x2(void) {
     sparse_insert(A, 1, 0, 1.0);
     sparse_insert(A, 1, 1, 0.3);
     LdltCsc *F = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A, NULL, 2.0, &F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_eliminate(F), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &F));
+    REQUIRE_OK(ldlt_csc_eliminate(F));
     ASSERT_EQ(F->pivot_size[0], 2); /* sanity: we are exercising the 2x2 path */
 
     double x_true[2] = {1.0, 2.0};
     double b[2];
     sparse_matvec(A, x_true, b);
     double x[2] = {0};
-    ASSERT_ERR(ldlt_csc_solve(F, b, x), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_solve(F, b, x));
     ASSERT_NEAR(x[0], x_true[0], 1e-12);
     ASSERT_NEAR(x[1], x_true[1], 1e-12);
 
@@ -815,9 +815,9 @@ static void test_solve_tridiagonal_indefinite(void) {
     sparse_matvec(A, x_true, b);
 
     LdltCsc *F = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A, NULL, 2.0, &F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_eliminate(F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_solve(F, b, x), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &F));
+    REQUIRE_OK(ldlt_csc_eliminate(F));
+    REQUIRE_OK(ldlt_csc_solve(F, b, x));
 
     double rr = rel_residual(A, x, b);
     printf("    tridiag indefinite n=10: rel_res = %.3e\n", rr);
@@ -852,14 +852,14 @@ static void test_solve_matches_linked_list(void) {
 
     /* CSC path. */
     LdltCsc *F = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A1, NULL, 2.0, &F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_eliminate(F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_solve(F, b, x_csc), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A1, NULL, 2.0, &F));
+    REQUIRE_OK(ldlt_csc_eliminate(F));
+    REQUIRE_OK(ldlt_csc_solve(F, b, x_csc));
 
     /* Linked-list path. */
     sparse_ldlt_t ll = {0};
-    ASSERT_ERR(sparse_ldlt_factor(A2, &ll), SPARSE_OK);
-    ASSERT_ERR(sparse_ldlt_solve(&ll, b, x_ll), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A2, &ll));
+    REQUIRE_OK(sparse_ldlt_solve(&ll, b, x_ll));
 
     /* The two solutions should agree to double-precision round-off. */
     for (idx_t i = 0; i < n; i++)
@@ -884,16 +884,16 @@ static void test_solve_in_place(void) {
     for (idx_t i = 0; i < n; i++)
         sparse_insert(A, i, i, diag[i]);
     LdltCsc *F = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A, NULL, 2.0, &F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_eliminate(F), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &F));
+    REQUIRE_OK(ldlt_csc_eliminate(F));
 
     double b_copy[4] = {3.0, -4.0, 10.0, -1.0};
     double xbuf[4];
     memcpy(xbuf, b_copy, sizeof(b_copy));
-    ASSERT_ERR(ldlt_csc_solve(F, xbuf, xbuf), SPARSE_OK); /* b == x */
+    REQUIRE_OK(ldlt_csc_solve(F, xbuf, xbuf)); /* b == x */
 
     double x_ref[4] = {0};
-    ASSERT_ERR(ldlt_csc_solve(F, b_copy, x_ref), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_solve(F, b_copy, x_ref));
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(xbuf[i], x_ref[i], 1e-12);
 
@@ -918,7 +918,7 @@ static void test_solve_with_amd_perm(void) {
     }
 
     idx_t *perm = malloc((size_t)n * sizeof(idx_t));
-    ASSERT_ERR(sparse_reorder_amd(A, perm), SPARSE_OK);
+    REQUIRE_OK(sparse_reorder_amd(A, perm));
 
     double *x_true = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
@@ -928,9 +928,9 @@ static void test_solve_with_amd_perm(void) {
     sparse_matvec(A, x_true, b);
 
     LdltCsc *F = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A, perm, 2.0, &F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_eliminate(F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_solve(F, b, x), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A, perm, 2.0, &F));
+    REQUIRE_OK(ldlt_csc_eliminate(F));
+    REQUIRE_OK(ldlt_csc_solve(F, b, x));
 
     double rr = rel_residual(A, x, b);
     printf("    arrow 6x6 indefinite (AMD): rel_res = %.3e\n", rr);
@@ -956,14 +956,14 @@ static void test_inertia_matches_linked_list(void) {
     SparseMatrix *A2 = build_symmetric(n, lower);
 
     LdltCsc *F = NULL;
-    ASSERT_ERR(ldlt_csc_from_sparse(A1, NULL, 2.0, &F), SPARSE_OK);
-    ASSERT_ERR(ldlt_csc_eliminate(F), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_from_sparse(A1, NULL, 2.0, &F));
+    REQUIRE_OK(ldlt_csc_eliminate(F));
 
     sparse_ldlt_t ll = {0};
-    ASSERT_ERR(sparse_ldlt_factor(A2, &ll), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_factor(A2, &ll));
 
     idx_t pos_ll, neg_ll, zero_ll;
-    ASSERT_ERR(sparse_ldlt_inertia(&ll, &pos_ll, &neg_ll, &zero_ll), SPARSE_OK);
+    REQUIRE_OK(sparse_ldlt_inertia(&ll, &pos_ll, &neg_ll, &zero_ll));
 
     /* Compute inertia from F's D / pivot_size directly (matches the
      * Sylvester law of inertia the linked-list path uses). */
@@ -1016,7 +1016,7 @@ static void test_inertia_matches_linked_list(void) {
  * solve returns SPARSE_ERR_SINGULAR. */
 static void test_solve_detects_tiny_1x1_pivot(void) {
     LdltCsc *F = NULL;
-    ASSERT_ERR(ldlt_csc_alloc(2, 4, &F), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_alloc(2, 4, &F));
     /* L is identity. */
     F->L->col_ptr[0] = 0;
     F->L->col_ptr[1] = 1;
@@ -1044,7 +1044,7 @@ static void test_solve_detects_tiny_1x1_pivot(void) {
  * verify solve returns SPARSE_ERR_SINGULAR. */
 static void test_solve_detects_singular_2x2_block(void) {
     LdltCsc *F = NULL;
-    ASSERT_ERR(ldlt_csc_alloc(2, 4, &F), SPARSE_OK);
+    REQUIRE_OK(ldlt_csc_alloc(2, 4, &F));
     F->L->col_ptr[0] = 0;
     F->L->col_ptr[1] = 1;
     F->L->col_ptr[2] = 2;

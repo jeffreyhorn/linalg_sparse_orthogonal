@@ -42,7 +42,7 @@ static void test_chol_csc_alloc_negative_n(void) {
 
 static void test_chol_csc_alloc_basic(void) {
     CholCsc *m = NULL;
-    ASSERT_ERR(chol_csc_alloc(4, 8, &m), SPARSE_OK);
+    REQUIRE_OK(chol_csc_alloc(4, 8, &m));
     ASSERT_NOT_NULL(m);
     ASSERT_EQ(m->n, 4);
     ASSERT_EQ(m->nnz, 0);
@@ -59,7 +59,7 @@ static void test_chol_csc_alloc_basic(void) {
 static void test_chol_csc_alloc_zero_initial_nnz(void) {
     /* initial_nnz < 1 is clamped to 1 so the arrays are always allocated. */
     CholCsc *m = NULL;
-    ASSERT_ERR(chol_csc_alloc(3, 0, &m), SPARSE_OK);
+    REQUIRE_OK(chol_csc_alloc(3, 0, &m));
     ASSERT_NOT_NULL(m);
     ASSERT_EQ(m->capacity, 1);
     chol_csc_free(m);
@@ -68,7 +68,7 @@ static void test_chol_csc_alloc_zero_initial_nnz(void) {
 static void test_chol_csc_alloc_zero_n(void) {
     /* n == 0 is a valid (empty) matrix. */
     CholCsc *m = NULL;
-    ASSERT_ERR(chol_csc_alloc(0, 1, &m), SPARSE_OK);
+    REQUIRE_OK(chol_csc_alloc(0, 1, &m));
     ASSERT_NOT_NULL(m);
     ASSERT_EQ(m->n, 0);
     ASSERT_NOT_NULL(m->col_ptr);
@@ -89,43 +89,43 @@ static void test_chol_csc_grow_null(void) { ASSERT_ERR(chol_csc_grow(NULL, 10), 
 
 static void test_chol_csc_grow_noop(void) {
     CholCsc *m = NULL;
-    ASSERT_ERR(chol_csc_alloc(3, 16, &m), SPARSE_OK);
+    REQUIRE_OK(chol_csc_alloc(3, 16, &m));
     idx_t original_cap = m->capacity;
-    ASSERT_ERR(chol_csc_grow(m, 8), SPARSE_OK);
+    REQUIRE_OK(chol_csc_grow(m, 8));
     ASSERT_EQ(m->capacity, original_cap);
     chol_csc_free(m);
 }
 
 static void test_chol_csc_grow_exact(void) {
     CholCsc *m = NULL;
-    ASSERT_ERR(chol_csc_alloc(3, 4, &m), SPARSE_OK);
+    REQUIRE_OK(chol_csc_alloc(3, 4, &m));
     /* Growing to exactly capacity is a no-op. */
-    ASSERT_ERR(chol_csc_grow(m, 4), SPARSE_OK);
+    REQUIRE_OK(chol_csc_grow(m, 4));
     ASSERT_EQ(m->capacity, 4);
     chol_csc_free(m);
 }
 
 static void test_chol_csc_grow_geometric(void) {
     CholCsc *m = NULL;
-    ASSERT_ERR(chol_csc_alloc(3, 4, &m), SPARSE_OK);
+    REQUIRE_OK(chol_csc_alloc(3, 4, &m));
     /* needed=5 triggers doubling to 8 (2 × 4). */
-    ASSERT_ERR(chol_csc_grow(m, 5), SPARSE_OK);
+    REQUIRE_OK(chol_csc_grow(m, 5));
     ASSERT_EQ(m->capacity, 8);
     chol_csc_free(m);
 }
 
 static void test_chol_csc_grow_to_needed(void) {
     CholCsc *m = NULL;
-    ASSERT_ERR(chol_csc_alloc(3, 4, &m), SPARSE_OK);
+    REQUIRE_OK(chol_csc_alloc(3, 4, &m));
     /* needed=20 exceeds 2×4=8, so new_cap == needed. */
-    ASSERT_ERR(chol_csc_grow(m, 20), SPARSE_OK);
+    REQUIRE_OK(chol_csc_grow(m, 20));
     ASSERT_EQ(m->capacity, 20);
     chol_csc_free(m);
 }
 
 static void test_chol_csc_grow_preserves_values(void) {
     CholCsc *m = NULL;
-    ASSERT_ERR(chol_csc_alloc(2, 2, &m), SPARSE_OK);
+    REQUIRE_OK(chol_csc_alloc(2, 2, &m));
     /* Seed a couple of entries so we can verify realloc preserved them. */
     m->row_idx[0] = 0;
     m->row_idx[1] = 1;
@@ -133,7 +133,7 @@ static void test_chol_csc_grow_preserves_values(void) {
     m->values[1] = -2.25;
     m->nnz = 2;
 
-    ASSERT_ERR(chol_csc_grow(m, 10), SPARSE_OK);
+    REQUIRE_OK(chol_csc_grow(m, 10));
     ASSERT_TRUE(m->capacity >= 10);
     ASSERT_EQ(m->row_idx[0], 0);
     ASSERT_EQ(m->row_idx[1], 1);
@@ -232,7 +232,7 @@ static void test_roundtrip_identity(void) {
         sparse_insert(A, i, i, 1.0);
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &csc));
     ASSERT_NOT_NULL(csc);
     ASSERT_EQ(csc->n, n);
     ASSERT_EQ(csc->nnz, n);
@@ -245,7 +245,7 @@ static void test_roundtrip_identity(void) {
     }
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(chol_csc_to_sparse(csc, NULL, &B), SPARSE_OK);
+    REQUIRE_OK(chol_csc_to_sparse(csc, NULL, &B));
     ASSERT_NOT_NULL(B);
     assert_lower_triangle_equal(A, B, 0.0);
 
@@ -262,12 +262,12 @@ static void test_roundtrip_diagonal_spd(void) {
         sparse_insert(A, i, i, 1.0 + (double)i * 2.5); /* 1.0, 3.5, 6.0, ... */
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &csc));
     assert_csc_well_formed(csc);
     ASSERT_EQ(csc->nnz, n);
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(chol_csc_to_sparse(csc, NULL, &B), SPARSE_OK);
+    REQUIRE_OK(chol_csc_to_sparse(csc, NULL, &B));
     assert_lower_triangle_equal(A, B, 0.0);
 
     sparse_free(A);
@@ -287,7 +287,7 @@ static void test_roundtrip_tridiagonal_spd(void) {
     }
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &csc));
     assert_csc_well_formed(csc);
     /* Expected nnz: n diagonals + (n-1) subdiagonals. */
     ASSERT_EQ(csc->nnz, 2 * n - 1);
@@ -297,7 +297,7 @@ static void test_roundtrip_tridiagonal_spd(void) {
     ASSERT_EQ(csc->col_ptr[n] - csc->col_ptr[n - 1], 1);
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(chol_csc_to_sparse(csc, NULL, &B), SPARSE_OK);
+    REQUIRE_OK(chol_csc_to_sparse(csc, NULL, &B));
     assert_lower_triangle_equal(A, B, 0.0);
 
     sparse_free(A);
@@ -314,12 +314,12 @@ static void test_roundtrip_dense_lower_5x5(void) {
             sparse_insert(A, i, j, 1.0 + (double)(i * n + j)); /* distinct & nonzero */
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &csc));
     assert_csc_well_formed(csc);
     ASSERT_EQ(csc->nnz, n * (n + 1) / 2);
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(chol_csc_to_sparse(csc, NULL, &B), SPARSE_OK);
+    REQUIRE_OK(chol_csc_to_sparse(csc, NULL, &B));
     assert_lower_triangle_equal(A, B, 0.0);
 
     sparse_free(A);
@@ -332,13 +332,13 @@ static void test_roundtrip_1x1(void) {
     sparse_insert(A, 0, 0, 7.0);
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &csc));
     ASSERT_EQ(csc->nnz, 1);
     ASSERT_EQ(csc->row_idx[0], 0);
     ASSERT_NEAR(csc->values[0], 7.0, 0.0);
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(chol_csc_to_sparse(csc, NULL, &B), SPARSE_OK);
+    REQUIRE_OK(chol_csc_to_sparse(csc, NULL, &B));
     assert_lower_triangle_equal(A, B, 0.0);
 
     sparse_free(A);
@@ -366,7 +366,7 @@ static void test_from_sparse_strips_upper_triangle(void) {
     }
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &csc));
     assert_csc_well_formed(csc);
     /* Only lower triangle entries kept: n + (n-1). */
     ASSERT_EQ(csc->nnz, 2 * n - 1);
@@ -379,14 +379,14 @@ static void test_from_sparse_strips_upper_triangle(void) {
  * and round-trip the lower triangle. */
 static void test_roundtrip_nos4(void) {
     SparseMatrix *A = NULL;
-    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/nos4.mtx"), SPARSE_OK);
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/nos4.mtx"));
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &csc));
     assert_csc_well_formed(csc);
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(chol_csc_to_sparse(csc, NULL, &B), SPARSE_OK);
+    REQUIRE_OK(chol_csc_to_sparse(csc, NULL, &B));
     assert_lower_triangle_equal(A, B, 0.0);
 
     printf("    nos4: n=%d, nnz_lower=%d, capacity=%d\n", (int)csc->n, (int)csc->nnz,
@@ -401,14 +401,14 @@ static void test_roundtrip_nos4(void) {
  * capacity logic on something bigger than the hand-crafted tests. */
 static void test_roundtrip_bcsstk04(void) {
     SparseMatrix *A = NULL;
-    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx"), SPARSE_OK);
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx"));
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &csc));
     assert_csc_well_formed(csc);
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(chol_csc_to_sparse(csc, NULL, &B), SPARSE_OK);
+    REQUIRE_OK(chol_csc_to_sparse(csc, NULL, &B));
     assert_lower_triangle_equal(A, B, 0.0);
 
     printf("    bcsstk04: n=%d, nnz_lower=%d, capacity=%d\n", (int)csc->n, (int)csc->nnz,
@@ -439,8 +439,8 @@ static void test_identity_perm_matches_null(void) {
 
     CholCsc *csc_null = NULL;
     CholCsc *csc_id = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &csc_null), SPARSE_OK);
-    ASSERT_ERR(chol_csc_from_sparse(A, id, 2.0, &csc_id), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &csc_null));
+    REQUIRE_OK(chol_csc_from_sparse(A, id, 2.0, &csc_id));
 
     ASSERT_EQ(csc_null->nnz, csc_id->nnz);
     for (idx_t j = 0; j <= n; j++)
@@ -504,7 +504,7 @@ static void test_reverse_perm_symmetric(void) {
         perm[i] = n - 1 - i; /* reverse order: perm[new] = old */
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, perm, 2.0, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, perm, 2.0, &csc));
     assert_csc_well_formed(csc);
     /* Diagonal + one of each symmetric pair = n*(n+1)/2. */
     ASSERT_EQ(csc->nnz, n * (n + 1) / 2);
@@ -520,15 +520,15 @@ static void test_reverse_perm_symmetric(void) {
  * triangles, so the filter keeps exactly half the off-diagonals. */
 static void test_amd_perm_entries_match(void) {
     SparseMatrix *A = NULL;
-    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/nos4.mtx"), SPARSE_OK);
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/nos4.mtx"));
     idx_t n = sparse_rows(A);
 
     idx_t *perm = malloc((size_t)n * sizeof(idx_t));
     ASSERT_NOT_NULL(perm);
-    ASSERT_ERR(sparse_reorder_amd(A, perm), SPARSE_OK);
+    REQUIRE_OK(sparse_reorder_amd(A, perm));
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, perm, 2.0, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, perm, 2.0, &csc));
     assert_csc_well_formed(csc);
     assert_csc_entries_match_A(csc, A, perm);
 
@@ -595,13 +595,13 @@ static void test_fill_factor_clamp(void) {
 
     /* fill_factor < 1.0 → clamped to 1.0 → capacity == nnz == 4. */
     CholCsc *c_low = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 0.1, &c_low), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 0.1, &c_low));
     ASSERT_EQ(c_low->nnz, n);
     ASSERT_TRUE(c_low->capacity >= n);
 
     /* fill_factor = 3.0 → capacity ≥ 3 * nnz. */
     CholCsc *c_hi = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 3.0, &c_hi), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 3.0, &c_hi));
     ASSERT_TRUE(c_hi->capacity >= 3 * n);
 
     chol_csc_free(c_low);
@@ -621,7 +621,7 @@ static void test_factor_norm_cached(void) {
     /* ||A||_inf = max row sum: row 2 = |3| + |-1| = 4, so answer = 5 (row 1). */
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &csc));
     ASSERT_NEAR(csc->factor_norm, 5.0, 1e-12);
 
     chol_csc_free(csc);
@@ -640,7 +640,7 @@ static void test_with_analysis_null_args(void) {
 
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
     sparse_analysis_t an = {0};
-    ASSERT_ERR(sparse_analyze(A, &opts, &an), SPARSE_OK);
+    REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
     ASSERT_ERR(chol_csc_from_sparse_with_analysis(NULL, &an, &csc), SPARSE_ERR_NULL);
     ASSERT_NULL(csc);
@@ -662,7 +662,7 @@ static void test_with_analysis_wrong_type(void) {
 
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_LU, SPARSE_REORDER_NONE};
     sparse_analysis_t an = {0};
-    ASSERT_ERR(sparse_analyze(A, &opts, &an), SPARSE_OK);
+    REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
     ASSERT_ERR(chol_csc_from_sparse_with_analysis(A, &an, &csc), SPARSE_ERR_BADARG);
     ASSERT_NULL(csc);
@@ -687,12 +687,12 @@ static void test_exact_alloc_matches_dynamic_tridiag(void) {
 
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
     sparse_analysis_t an = {0};
-    ASSERT_ERR(sparse_analyze(A, &opts, &an), SPARSE_OK);
+    REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
     CholCsc *c_exact = NULL;
     CholCsc *c_dyn = NULL;
-    ASSERT_ERR(chol_csc_from_sparse_with_analysis(A, &an, &c_exact), SPARSE_OK);
-    ASSERT_ERR(chol_csc_from_sparse(A, an.perm, 2.0, &c_dyn), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse_with_analysis(A, &an, &c_exact));
+    REQUIRE_OK(chol_csc_from_sparse(A, an.perm, 2.0, &c_dyn));
 
     /* Structural equality: same nnz, col_ptr, row_idx, values. */
     ASSERT_EQ(c_exact->n, c_dyn->n);
@@ -707,8 +707,8 @@ static void test_exact_alloc_matches_dynamic_tridiag(void) {
     /* Capacity differs: exact path uses predicted nnz(L) directly. */
     ASSERT_EQ(c_exact->capacity, an.sym_L.nnz);
 
-    ASSERT_ERR(chol_csc_validate(c_exact), SPARSE_OK);
-    ASSERT_ERR(chol_csc_validate(c_dyn), SPARSE_OK);
+    REQUIRE_OK(chol_csc_validate(c_exact));
+    REQUIRE_OK(chol_csc_validate(c_dyn));
 
     chol_csc_free(c_exact);
     chol_csc_free(c_dyn);
@@ -723,20 +723,20 @@ static void test_exact_alloc_matches_dynamic_tridiag(void) {
  * the invariant is predicted >= actual. */
 static void test_predicted_nnz_matches_actual_nos4(void) {
     SparseMatrix *A = NULL;
-    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/nos4.mtx"), SPARSE_OK);
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/nos4.mtx"));
 
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
     sparse_analysis_t an = {0};
-    ASSERT_ERR(sparse_analyze(A, &opts, &an), SPARSE_OK);
+    REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse_with_analysis(A, &an, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse_with_analysis(A, &an, &csc));
     ASSERT_EQ(csc->capacity, an.sym_L.nnz);
-    ASSERT_ERR(chol_csc_validate(csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_validate(csc));
 
     /* Actual nnz(L) from a real Cholesky factor run on the same A. */
     SparseMatrix *L = sparse_copy(A);
-    ASSERT_ERR(sparse_cholesky_factor(L), SPARSE_OK);
+    REQUIRE_OK(sparse_cholesky_factor(L));
     idx_t actual_nnz_L = sparse_nnz(L);
 
     printf("    nos4: predicted nnz(L)=%d, actual nnz(L)=%d\n", (int)an.sym_L.nnz,
@@ -751,21 +751,21 @@ static void test_predicted_nnz_matches_actual_nos4(void) {
 
 static void test_predicted_nnz_matches_actual_bcsstk04(void) {
     SparseMatrix *A = NULL;
-    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx"), SPARSE_OK);
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx"));
 
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
     sparse_analysis_t an = {0};
-    ASSERT_ERR(sparse_analyze(A, &opts, &an), SPARSE_OK);
+    REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse_with_analysis(A, &an, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse_with_analysis(A, &an, &csc));
     ASSERT_EQ(csc->capacity, an.sym_L.nnz);
-    ASSERT_ERR(chol_csc_validate(csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_validate(csc));
 
     /* Cholesky factor with the same AMD reorder to match symbolic prediction. */
     SparseMatrix *L = sparse_copy(A);
     sparse_cholesky_opts_t chol_opts = {SPARSE_REORDER_AMD};
-    ASSERT_ERR(sparse_cholesky_factor_opts(L, &chol_opts), SPARSE_OK);
+    REQUIRE_OK(sparse_cholesky_factor_opts(L, &chol_opts));
     idx_t actual_nnz_L = sparse_nnz(L);
 
     printf("    bcsstk04 (AMD): predicted nnz(L)=%d, actual nnz(L)=%d\n", (int)an.sym_L.nnz,
@@ -802,14 +802,14 @@ static void test_predicted_nnz_matches_actual_random_spd(void) {
 
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
     sparse_analysis_t an = {0};
-    ASSERT_ERR(sparse_analyze(A, &opts, &an), SPARSE_OK);
+    REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse_with_analysis(A, &an, &csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_validate(csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse_with_analysis(A, &an, &csc));
+    REQUIRE_OK(chol_csc_validate(csc));
 
     SparseMatrix *L = sparse_copy(A);
-    ASSERT_ERR(sparse_cholesky_factor(L), SPARSE_OK);
+    REQUIRE_OK(sparse_cholesky_factor(L));
     idx_t actual_nnz_L = sparse_nnz(L);
 
     ASSERT_TRUE(an.sym_L.nnz >= actual_nnz_L);
@@ -830,7 +830,7 @@ static void test_validate_fresh_alloc_is_valid(void) {
     /* A freshly allocated CSC (nnz=0, empty columns) is a valid one. */
     CholCsc *csc = NULL;
     chol_csc_alloc(5, 1, &csc);
-    ASSERT_ERR(chol_csc_validate(csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_validate(csc));
     chol_csc_free(csc);
 }
 
@@ -924,14 +924,14 @@ static void test_edge_case_diagonal_only(void) {
 
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
     sparse_analysis_t an = {0};
-    ASSERT_ERR(sparse_analyze(A, &opts, &an), SPARSE_OK);
+    REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse_with_analysis(A, &an, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse_with_analysis(A, &an, &csc));
     ASSERT_EQ(csc->nnz, n);
     ASSERT_EQ(csc->capacity, an.sym_L.nnz);
     ASSERT_EQ(an.sym_L.nnz, n); /* no fill */
-    ASSERT_ERR(chol_csc_validate(csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_validate(csc));
 
     chol_csc_free(csc);
     sparse_analysis_free(&an);
@@ -953,19 +953,19 @@ static void test_edge_case_external_capacity_growth(void) {
 
     /* fill_factor = 1.0 → capacity == nnz(A_lower) — no headroom. */
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 1.0, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 1.0, &csc));
     idx_t original_nnz = csc->nnz;
     idx_t original_cap = csc->capacity;
     ASSERT_EQ(original_cap, original_nnz);
 
     /* Grow by a large factor to exercise the reallocation path. */
-    ASSERT_ERR(chol_csc_grow(csc, original_cap * 4), SPARSE_OK);
+    REQUIRE_OK(chol_csc_grow(csc, original_cap * 4));
     ASSERT_TRUE(csc->capacity >= original_cap * 4);
     /* Every entry preserved: structure and values. */
     ASSERT_EQ(csc->nnz, original_nnz);
-    ASSERT_ERR(chol_csc_validate(csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_validate(csc));
     SparseMatrix *B = NULL;
-    ASSERT_ERR(chol_csc_to_sparse(csc, NULL, &B), SPARSE_OK);
+    REQUIRE_OK(chol_csc_to_sparse(csc, NULL, &B));
     assert_lower_triangle_equal(A, B, 0.0);
 
     sparse_free(A);
@@ -994,7 +994,7 @@ static void test_workspace_free_null(void) {
 
 static void test_workspace_alloc_basic(void) {
     CholCscWorkspace *ws = NULL;
-    ASSERT_ERR(chol_csc_workspace_alloc(7, &ws), SPARSE_OK);
+    REQUIRE_OK(chol_csc_workspace_alloc(7, &ws));
     ASSERT_NOT_NULL(ws);
     ASSERT_EQ(ws->n, 7);
     ASSERT_EQ(ws->pattern_count, 0);
@@ -1011,7 +1011,7 @@ static void test_workspace_alloc_basic(void) {
 
 static void test_workspace_alloc_zero_n(void) {
     CholCscWorkspace *ws = NULL;
-    ASSERT_ERR(chol_csc_workspace_alloc(0, &ws), SPARSE_OK);
+    REQUIRE_OK(chol_csc_workspace_alloc(0, &ws));
     ASSERT_NOT_NULL(ws);
     ASSERT_EQ(ws->n, 0);
     chol_csc_workspace_free(ws);
@@ -1025,7 +1025,7 @@ static void test_cdiv_positive_diagonal(void) {
     /* Workspace for n=4, column j=1, diagonal = 9.0, one off-diag row 3 = 6.0.
      * Expected: L[1,1] = 3, L[3,1] = 6 / 3 = 2. */
     CholCscWorkspace *ws = NULL;
-    ASSERT_ERR(chol_csc_workspace_alloc(4, &ws), SPARSE_OK);
+    REQUIRE_OK(chol_csc_workspace_alloc(4, &ws));
     ws->dense_col[1] = 9.0;
     ws->dense_pattern[ws->pattern_count++] = 1;
     ws->dense_marker[1] = 1;
@@ -1033,7 +1033,7 @@ static void test_cdiv_positive_diagonal(void) {
     ws->dense_pattern[ws->pattern_count++] = 3;
     ws->dense_marker[3] = 1;
 
-    ASSERT_ERR(chol_csc_cdiv(ws, 1), SPARSE_OK);
+    REQUIRE_OK(chol_csc_cdiv(ws, 1));
     ASSERT_NEAR(ws->dense_col[1], 3.0, 1e-12);
     ASSERT_NEAR(ws->dense_col[3], 2.0, 1e-12);
 
@@ -1042,7 +1042,7 @@ static void test_cdiv_positive_diagonal(void) {
 
 static void test_cdiv_zero_diagonal_not_spd(void) {
     CholCscWorkspace *ws = NULL;
-    ASSERT_ERR(chol_csc_workspace_alloc(3, &ws), SPARSE_OK);
+    REQUIRE_OK(chol_csc_workspace_alloc(3, &ws));
     ws->dense_col[0] = 0.0; /* zero diagonal */
     ws->dense_pattern[ws->pattern_count++] = 0;
     ws->dense_marker[0] = 1;
@@ -1053,7 +1053,7 @@ static void test_cdiv_zero_diagonal_not_spd(void) {
 
 static void test_cdiv_negative_diagonal_not_spd(void) {
     CholCscWorkspace *ws = NULL;
-    ASSERT_ERR(chol_csc_workspace_alloc(3, &ws), SPARSE_OK);
+    REQUIRE_OK(chol_csc_workspace_alloc(3, &ws));
     ws->dense_col[0] = -4.0;
     ws->dense_pattern[ws->pattern_count++] = 0;
     ws->dense_marker[0] = 1;
@@ -1075,9 +1075,9 @@ static void test_eliminate_diagonal(void) {
         sparse_insert(A, i, i, diag[i]);
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 1.0, &csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_eliminate(csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_validate(csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 1.0, &csc));
+    REQUIRE_OK(chol_csc_eliminate(csc));
+    REQUIRE_OK(chol_csc_validate(csc));
 
     /* Column j has a single entry at (j, j) with value sqrt(diag[j]). */
     for (idx_t j = 0; j < n; j++) {
@@ -1102,9 +1102,9 @@ static void test_eliminate_2x2_spd(void) {
     sparse_insert(A, 1, 1, 5.0);
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 1.0, &csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_eliminate(csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_validate(csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 1.0, &csc));
+    REQUIRE_OK(chol_csc_eliminate(csc));
+    REQUIRE_OK(chol_csc_validate(csc));
 
     /* Column 0: rows 0 (L[0,0]=2) and 1 (L[1,0]=1). */
     ASSERT_EQ(csc->col_ptr[1] - csc->col_ptr[0], 2);
@@ -1136,9 +1136,9 @@ static void test_eliminate_tridiagonal_spd(void) {
     }
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 1.0, &csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_eliminate(csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_validate(csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 1.0, &csc));
+    REQUIRE_OK(chol_csc_eliminate(csc));
+    REQUIRE_OK(chol_csc_validate(csc));
 
     /* Compute A_reconstructed[i,j] = sum_k L[i,k] * L[j,k].  Compare
      * against the lower triangle of A. */
@@ -1179,7 +1179,7 @@ static void test_eliminate_detects_zero_diagonal(void) {
     sparse_insert(A, 2, 2, 1.0);
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 1.0, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 1.0, &csc));
     /* With sparse_insert of 0.0, the entry is removed — so col 0 is
      * structurally empty.  Insert a nonzero and then zero it via
      * a separate path: easier — use -1.0 for a negative diagonal
@@ -1196,7 +1196,7 @@ static void test_eliminate_detects_zero_diagonal(void) {
     sparse_insert(B, 2, 2, 4.0);
 
     CholCsc *csc_b = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(B, NULL, 1.0, &csc_b), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(B, NULL, 1.0, &csc_b));
     ASSERT_ERR(chol_csc_eliminate(csc_b), SPARSE_ERR_NOT_SPD);
     chol_csc_free(csc_b);
     sparse_free(B);
@@ -1213,7 +1213,7 @@ static void test_eliminate_detects_indefinite(void) {
     sparse_insert(A, 1, 1, 1.0);
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 1.0, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 1.0, &csc));
     ASSERT_ERR(chol_csc_eliminate(csc), SPARSE_ERR_NOT_SPD);
     chol_csc_free(csc);
     sparse_free(A);
@@ -1265,9 +1265,9 @@ static void test_eliminate_3x3_spd(void) {
             sparse_insert(A, i, j, vals[i][j]);
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 1.0, &csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_eliminate(csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_validate(csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 1.0, &csc));
+    REQUIRE_OK(chol_csc_eliminate(csc));
+    REQUIRE_OK(chol_csc_validate(csc));
 
     double expected[3][3] = {{2, 0, 0}, {6, 1, 0}, {-8, 5, 3}};
     for (idx_t i = 0; i < 3; i++) {
@@ -1293,9 +1293,9 @@ static void test_eliminate_4x4_spd(void) {
             sparse_insert(A, i, j, (i == j) ? 2.0 : 1.0);
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 1.0, &csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_eliminate(csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_validate(csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 1.0, &csc));
+    REQUIRE_OK(chol_csc_eliminate(csc));
+    REQUIRE_OK(chol_csc_validate(csc));
     assert_llt_reconstructs_A(csc, A, 1e-10);
 
     sparse_free(A);
@@ -1318,9 +1318,9 @@ static void test_eliminate_5x5_spd(void) {
                 sparse_insert(A, i, j, A_vals[i][j]);
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_eliminate(csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_validate(csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &csc));
+    REQUIRE_OK(chol_csc_eliminate(csc));
+    REQUIRE_OK(chol_csc_validate(csc));
     assert_llt_reconstructs_A(csc, A, 1e-10);
 
     sparse_free(A);
@@ -1341,9 +1341,9 @@ static void test_eliminate_tridiagonal_n10(void) {
     }
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_eliminate(csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_validate(csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &csc));
+    REQUIRE_OK(chol_csc_eliminate(csc));
+    REQUIRE_OK(chol_csc_validate(csc));
     assert_llt_reconstructs_A(csc, A, 1e-10);
 
     sparse_free(A);
@@ -1367,9 +1367,9 @@ static void test_eliminate_block_diagonal(void) {
     }
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_eliminate(csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_validate(csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &csc));
+    REQUIRE_OK(chol_csc_eliminate(csc));
+    REQUIRE_OK(chol_csc_validate(csc));
     assert_llt_reconstructs_A(csc, A, 1e-10);
 
     /* Cross-block entries must remain zero: L[i,j] for i >= 3, j < 3. */
@@ -1409,9 +1409,9 @@ static void test_eliminate_random_spd(void) {
             sparse_insert(A, i, j, A_dense[i][j]);
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_eliminate(csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_validate(csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &csc));
+    REQUIRE_OK(chol_csc_eliminate(csc));
+    REQUIRE_OK(chol_csc_validate(csc));
     assert_llt_reconstructs_A(csc, A, 1e-8);
 
     sparse_free(A);
@@ -1441,7 +1441,7 @@ static void test_eliminate_fillin_reverse_arrowhead(void) {
     CholCsc *csc = NULL;
     /* fill_factor=2.0 gives room for fill without special allocation —
      * the grow() path still exercises capacity bookkeeping. */
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &csc));
 
     /* Before elimination: col 1 has one entry (row 1), col 2 one (row 2),
      * col 3 one (row 3).  Fill will add rows 2,3 to col 1, row 3 to col 2. */
@@ -1450,8 +1450,8 @@ static void test_eliminate_fillin_reverse_arrowhead(void) {
     ASSERT_EQ(col1_before, 1);
     ASSERT_EQ(col2_before, 1);
 
-    ASSERT_ERR(chol_csc_eliminate(csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_validate(csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_eliminate(csc));
+    REQUIRE_OK(chol_csc_validate(csc));
 
     /* After elimination: col 1 should hold rows {1, 2, 3}, col 2 {2, 3},
      * col 3 {3} — classic dense-fill in a reverse arrowhead. */
@@ -1487,14 +1487,14 @@ static void test_eliminate_fillin_with_analysis(void) {
 
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
     sparse_analysis_t an = {0};
-    ASSERT_ERR(sparse_analyze(A, &opts, &an), SPARSE_OK);
+    REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse_with_analysis(A, &an, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse_with_analysis(A, &an, &csc));
     idx_t cap_before = csc->capacity;
 
-    ASSERT_ERR(chol_csc_eliminate(csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_validate(csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_eliminate(csc));
+    REQUIRE_OK(chol_csc_validate(csc));
 
     /* Symbolic capacity held up: no grow past the prediction. */
     ASSERT_TRUE(csc->capacity == cap_before);
@@ -1525,12 +1525,12 @@ static void test_eliminate_drop_tolerance(void) {
     sparse_insert(A, 0, 1, 1e-15);
 
     CholCsc *csc = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &csc));
     idx_t nnz_before = csc->nnz;
     ASSERT_EQ(nnz_before, 4); /* 3 diagonals + 1 off-diagonal (lower). */
 
-    ASSERT_ERR(chol_csc_eliminate(csc), SPARSE_OK);
-    ASSERT_ERR(chol_csc_validate(csc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_eliminate(csc));
+    REQUIRE_OK(chol_csc_validate(csc));
 
     /* After drop: only 3 diagonals survive. */
     ASSERT_EQ(csc->nnz, 3);
@@ -1602,11 +1602,11 @@ static void test_solve_identity(void) {
         sparse_insert(A, i, i, 1.0);
 
     CholCsc *L = NULL;
-    ASSERT_ERR(chol_csc_factor(A, NULL, &L), SPARSE_OK);
+    REQUIRE_OK(chol_csc_factor(A, NULL, &L));
 
     double b[5] = {1.0, 2.0, 3.0, 4.0, 5.0};
     double x[5] = {0};
-    ASSERT_ERR(chol_csc_solve(L, b, x), SPARSE_OK);
+    REQUIRE_OK(chol_csc_solve(L, b, x));
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x[i], b[i], 1e-12);
 
@@ -1623,12 +1623,12 @@ static void test_solve_diagonal(void) {
         sparse_insert(A, i, i, d[i]);
 
     CholCsc *L = NULL;
-    ASSERT_ERR(chol_csc_factor(A, NULL, &L), SPARSE_OK);
+    REQUIRE_OK(chol_csc_factor(A, NULL, &L));
 
     double b[4] = {4.0, 18.0, 48.0, 100.0};
     double expected[4] = {1.0, 2.0, 3.0, 4.0};
     double x[4] = {0};
-    ASSERT_ERR(chol_csc_solve(L, b, x), SPARSE_OK);
+    REQUIRE_OK(chol_csc_solve(L, b, x));
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x[i], expected[i], 1e-12);
 
@@ -1648,11 +1648,11 @@ static void test_solve_2x2_spd(void) {
     sparse_insert(A, 1, 1, 5.0);
 
     CholCsc *L = NULL;
-    ASSERT_ERR(chol_csc_factor(A, NULL, &L), SPARSE_OK);
+    REQUIRE_OK(chol_csc_factor(A, NULL, &L));
 
     double b[2] = {8.0, 12.0};
     double x[2] = {0};
-    ASSERT_ERR(chol_csc_solve(L, b, x), SPARSE_OK);
+    REQUIRE_OK(chol_csc_solve(L, b, x));
     ASSERT_NEAR(x[0], 1.0, 1e-12);
     ASSERT_NEAR(x[1], 2.0, 1e-12);
 
@@ -1682,8 +1682,8 @@ static void test_solve_tridiagonal(void) {
     sparse_matvec(A, x_true, b);
 
     CholCsc *L = NULL;
-    ASSERT_ERR(chol_csc_factor(A, NULL, &L), SPARSE_OK);
-    ASSERT_ERR(chol_csc_solve(L, b, x), SPARSE_OK);
+    REQUIRE_OK(chol_csc_factor(A, NULL, &L));
+    REQUIRE_OK(chol_csc_solve(L, b, x));
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x[i], x_true[i], 1e-10);
 
@@ -1709,16 +1709,16 @@ static void test_solve_in_place(void) {
     sparse_insert(A, 2, 3, -1.0);
 
     CholCsc *L = NULL;
-    ASSERT_ERR(chol_csc_factor(A, NULL, &L), SPARSE_OK);
+    REQUIRE_OK(chol_csc_factor(A, NULL, &L));
 
     double x[4] = {1.0, 2.0, 3.0, 4.0};
     double b_copy[4];
     memcpy(b_copy, x, sizeof(b_copy));
     /* In-place: x is both input and output. */
-    ASSERT_ERR(chol_csc_solve(L, x, x), SPARSE_OK);
+    REQUIRE_OK(chol_csc_solve(L, x, x));
     /* Cross-check by solving again with separate buffers. */
     double y[4] = {0};
-    ASSERT_ERR(chol_csc_solve(L, b_copy, y), SPARSE_OK);
+    REQUIRE_OK(chol_csc_solve(L, b_copy, y));
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x[i], y[i], 1e-12);
 
@@ -1737,13 +1737,13 @@ static void test_solve_perm_null_matches_plain(void) {
     sparse_insert(A, 0, 1, -1.0);
 
     CholCsc *L = NULL;
-    ASSERT_ERR(chol_csc_factor(A, NULL, &L), SPARSE_OK);
+    REQUIRE_OK(chol_csc_factor(A, NULL, &L));
 
     double b[4] = {1.0, 2.0, 3.0, 4.0};
     double x_plain[4] = {0};
     double x_perm[4] = {0};
-    ASSERT_ERR(chol_csc_solve(L, b, x_plain), SPARSE_OK);
-    ASSERT_ERR(chol_csc_solve_perm(L, NULL, b, x_perm), SPARSE_OK);
+    REQUIRE_OK(chol_csc_solve(L, b, x_plain));
+    REQUIRE_OK(chol_csc_solve_perm(L, NULL, b, x_perm));
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x_plain[i], x_perm[i], 0.0);
 
@@ -1754,7 +1754,7 @@ static void test_solve_perm_null_matches_plain(void) {
 /* AMD-reordered factor+solve: verify the residual matches in user coords. */
 static void test_solve_perm_amd_nos4(void) {
     SparseMatrix *A = NULL;
-    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/nos4.mtx"), SPARSE_OK);
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/nos4.mtx"));
     idx_t n = sparse_rows(A);
 
     double *x_true = malloc((size_t)n * sizeof(double));
@@ -1766,11 +1766,11 @@ static void test_solve_perm_amd_nos4(void) {
 
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
     sparse_analysis_t an = {0};
-    ASSERT_ERR(sparse_analyze(A, &opts, &an), SPARSE_OK);
+    REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
     CholCsc *L = NULL;
-    ASSERT_ERR(chol_csc_factor(A, &an, &L), SPARSE_OK);
-    ASSERT_ERR(chol_csc_solve_perm(L, an.perm, b, x), SPARSE_OK);
+    REQUIRE_OK(chol_csc_factor(A, &an, &L));
+    REQUIRE_OK(chol_csc_solve_perm(L, an.perm, b, x));
 
     double rel_res = compute_rel_residual(A, x, b);
     printf("    nos4 (AMD): rel_res = %.3e\n", rel_res);
@@ -1788,7 +1788,7 @@ static void test_solve_perm_amd_nos4(void) {
 
 static void test_factor_solve_nos4(void) {
     SparseMatrix *A = NULL;
-    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/nos4.mtx"), SPARSE_OK);
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/nos4.mtx"));
     idx_t n = sparse_rows(A);
 
     double *x_true = malloc((size_t)n * sizeof(double));
@@ -1798,7 +1798,7 @@ static void test_factor_solve_nos4(void) {
         x_true[i] = 1.0;
     sparse_matvec(A, x_true, b);
 
-    ASSERT_ERR(chol_csc_factor_solve(A, NULL, b, x), SPARSE_OK);
+    REQUIRE_OK(chol_csc_factor_solve(A, NULL, b, x));
     double rel_res = compute_rel_residual(A, x, b);
     printf("    nos4: rel_res = %.3e\n", rel_res);
     ASSERT_TRUE(rel_res < 1e-10);
@@ -1813,7 +1813,7 @@ static void test_factor_solve_nos4(void) {
 
 static void test_factor_solve_bcsstk04_amd(void) {
     SparseMatrix *A = NULL;
-    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx"), SPARSE_OK);
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx"));
     idx_t n = sparse_rows(A);
 
     double *x_true = malloc((size_t)n * sizeof(double));
@@ -1825,9 +1825,9 @@ static void test_factor_solve_bcsstk04_amd(void) {
 
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
     sparse_analysis_t an = {0};
-    ASSERT_ERR(sparse_analyze(A, &opts, &an), SPARSE_OK);
+    REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
-    ASSERT_ERR(chol_csc_factor_solve(A, &an, b, x), SPARSE_OK);
+    REQUIRE_OK(chol_csc_factor_solve(A, &an, b, x));
     double rel_res = compute_rel_residual(A, x, b);
     printf("    bcsstk04 (AMD): rel_res = %.3e\n", rel_res);
     /* Target: < 1e-10 per the Day 6 plan.  In practice the CSC path
@@ -1905,7 +1905,7 @@ static void test_factor_detects_negative_diagonal(void) {
 static void test_solve_detects_tiny_diagonal(void) {
     /* Build a well-formed CSC directly, then stick a tiny diagonal in. */
     CholCsc *L = NULL;
-    ASSERT_ERR(chol_csc_alloc(2, 2, &L), SPARSE_OK);
+    REQUIRE_OK(chol_csc_alloc(2, 2, &L));
     L->col_ptr[0] = 0;
     L->col_ptr[1] = 1;
     L->col_ptr[2] = 2;
@@ -1938,7 +1938,7 @@ static void detect_supernodes_alloc(const CholCsc *L, idx_t min_size, idx_t **st
     ASSERT_NOT_NULL(starts);
     ASSERT_NOT_NULL(sizes);
     idx_t count = 0;
-    ASSERT_ERR(chol_csc_detect_supernodes(L, min_size, starts, sizes, &count), SPARSE_OK);
+    REQUIRE_OK(chol_csc_detect_supernodes(L, min_size, starts, sizes, &count));
     *starts_out = starts;
     *sizes_out = sizes;
     *count_out = count;
@@ -1970,7 +1970,7 @@ static void test_detect_supernodes_diagonal(void) {
     for (idx_t i = 0; i < n; i++)
         sparse_insert(A, i, i, 1.0 + (double)i);
     CholCsc *L = NULL;
-    ASSERT_ERR(chol_csc_factor(A, NULL, &L), SPARSE_OK);
+    REQUIRE_OK(chol_csc_factor(A, NULL, &L));
 
     idx_t *starts, *sizes, count;
     /* min_size = 4 → no supernodes of that size. */
@@ -2003,7 +2003,7 @@ static void test_detect_supernodes_dense(void) {
             sparse_insert(A, i, j, (i == j) ? (double)(n + 1) : 1.0);
 
     CholCsc *L = NULL;
-    ASSERT_ERR(chol_csc_factor(A, NULL, &L), SPARSE_OK);
+    REQUIRE_OK(chol_csc_factor(A, NULL, &L));
 
     idx_t *starts, *sizes, count;
     detect_supernodes_alloc(L, 4, &starts, &sizes, &count);
@@ -2030,7 +2030,7 @@ static void test_detect_supernodes_block_diagonal(void) {
     }
 
     CholCsc *L = NULL;
-    ASSERT_ERR(chol_csc_factor(A, NULL, &L), SPARSE_OK);
+    REQUIRE_OK(chol_csc_factor(A, NULL, &L));
 
     idx_t *starts, *sizes, count;
     detect_supernodes_alloc(L, 4, &starts, &sizes, &count);
@@ -2065,7 +2065,7 @@ static void test_detect_supernodes_tridiagonal(void) {
     }
 
     CholCsc *L = NULL;
-    ASSERT_ERR(chol_csc_factor(A, NULL, &L), SPARSE_OK);
+    REQUIRE_OK(chol_csc_factor(A, NULL, &L));
 
     /* min_size = 4 → size-2 trailing supernode doesn't meet threshold. */
     idx_t *starts, *sizes, count;
@@ -2111,7 +2111,7 @@ static void test_detect_supernodes_reverse_arrowhead(void) {
     }
 
     CholCsc *L = NULL;
-    ASSERT_ERR(chol_csc_factor(A, NULL, &L), SPARSE_OK);
+    REQUIRE_OK(chol_csc_factor(A, NULL, &L));
 
     /* After fill, columns 0-4 all have structure {j, j+1, ..., n-1},
      * which is the canonical dense-supernode pattern. */
@@ -2137,14 +2137,14 @@ static void test_detect_supernodes_suitesparse_report(void) {
     const char *mtx_paths[2] = {SS_DIR "/nos4.mtx", SS_DIR "/bcsstk04.mtx"};
     for (int mi = 0; mi < 2; mi++) {
         SparseMatrix *A = NULL;
-        ASSERT_ERR(sparse_load_mm(&A, mtx_paths[mi]), SPARSE_OK);
+        REQUIRE_OK(sparse_load_mm(&A, mtx_paths[mi]));
 
         sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
         sparse_analysis_t an = {0};
-        ASSERT_ERR(sparse_analyze(A, &opts, &an), SPARSE_OK);
+        REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
         CholCsc *L = NULL;
-        ASSERT_ERR(chol_csc_factor(A, &an, &L), SPARSE_OK);
+        REQUIRE_OK(chol_csc_factor(A, &an, &L));
 
         idx_t *starts, *sizes, count;
         detect_supernodes_alloc(L, 4, &starts, &sizes, &count);
@@ -2190,14 +2190,14 @@ static void test_chol_dense_factor_null(void) {
     ASSERT_ERR(chol_dense_factor(A, -1, 2, 0.0), SPARSE_ERR_BADARG);
     ASSERT_ERR(chol_dense_factor(A, 2, 1, 0.0), SPARSE_ERR_BADARG); /* lda<n */
     /* n == 0 is a valid no-op. */
-    ASSERT_ERR(chol_dense_factor(A, 0, 0, 0.0), SPARSE_OK);
+    REQUIRE_OK(chol_dense_factor(A, 0, 0, 0.0));
 }
 
 /* ─── chol_dense_factor: 1x1 and 2x2 hand-verified ────────────── */
 
 static void test_chol_dense_factor_1x1(void) {
     double A[1] = {9.0};
-    ASSERT_ERR(chol_dense_factor(A, 1, 1, 0.0), SPARSE_OK);
+    REQUIRE_OK(chol_dense_factor(A, 1, 1, 0.0));
     ASSERT_NEAR(A[0], 3.0, 1e-12);
 }
 
@@ -2206,7 +2206,7 @@ static void test_chol_dense_factor_2x2(void) {
      *   A[0,0]=4, A[1,0]=2, A[0,1]=2, A[1,1]=5 → indices [0,1,2,3] = [4, 2, 2, 5]
      * L = [[2, 0], [1, 2]] → A[0,0]=2, A[1,0]=1, A[1,1]=2. */
     double A[4] = {4.0, 2.0, 2.0, 5.0};
-    ASSERT_ERR(chol_dense_factor(A, 2, 2, 0.0), SPARSE_OK);
+    REQUIRE_OK(chol_dense_factor(A, 2, 2, 0.0));
     ASSERT_NEAR(A[0], 2.0, 1e-12); /* L[0,0] */
     ASSERT_NEAR(A[1], 1.0, 1e-12); /* L[1,0] */
     ASSERT_NEAR(A[3], 2.0, 1e-12); /* L[1,1] */
@@ -2226,7 +2226,7 @@ static void test_chol_dense_factor_4x4(void) {
     double A_orig[16];
     memcpy(A_orig, A, sizeof(A));
 
-    ASSERT_ERR(chol_dense_factor(A, n, n, 0.0), SPARSE_OK);
+    REQUIRE_OK(chol_dense_factor(A, n, n, 0.0));
 
     /* Verify L*L^T matches A_orig's lower triangle. */
     for (idx_t i = 0; i < n; i++) {
@@ -2261,7 +2261,7 @@ static void test_chol_dense_solve_null(void) {
     ASSERT_ERR(chol_dense_solve_lower(L, -1, 2, b), SPARSE_ERR_BADARG);
     ASSERT_ERR(chol_dense_solve_lower(L, 2, 1, b), SPARSE_ERR_BADARG);
     /* n == 0 is a no-op. */
-    ASSERT_ERR(chol_dense_solve_lower(L, 0, 0, b), SPARSE_OK);
+    REQUIRE_OK(chol_dense_solve_lower(L, 0, 0, b));
 }
 
 /* Forward substitution on a hand-verified 3x3 lower-triangular matrix. */
@@ -2275,7 +2275,7 @@ static void test_chol_dense_solve_lower_3x3(void) {
      * So b = [2, 7, 16]. */
     double L[9] = {2.0, 1.0, 0.0, 0.0, 3.0, 2.0, 0.0, 0.0, 4.0};
     double b[3] = {2.0, 7.0, 16.0};
-    ASSERT_ERR(chol_dense_solve_lower(L, 3, 3, b), SPARSE_OK);
+    REQUIRE_OK(chol_dense_solve_lower(L, 3, 3, b));
     ASSERT_NEAR(b[0], 1.0, 1e-12);
     ASSERT_NEAR(b[1], 2.0, 1e-12);
     ASSERT_NEAR(b[2], 3.0, 1e-12);
@@ -2294,14 +2294,14 @@ static void test_eliminate_supernodal_dense(void) {
 
     /* Scalar path. */
     CholCsc *L_scalar = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &L_scalar), SPARSE_OK);
-    ASSERT_ERR(chol_csc_eliminate(L_scalar), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &L_scalar));
+    REQUIRE_OK(chol_csc_eliminate(L_scalar));
 
     /* Supernodal path. */
     CholCsc *L_super = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &L_super), SPARSE_OK);
-    ASSERT_ERR(chol_csc_eliminate_supernodal(L_super, 4), SPARSE_OK);
-    ASSERT_ERR(chol_csc_validate(L_super), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &L_super));
+    REQUIRE_OK(chol_csc_eliminate_supernodal(L_super, 4));
+    REQUIRE_OK(chol_csc_validate(L_super));
 
     /* Structural and numeric equality. */
     ASSERT_EQ(L_scalar->nnz, L_super->nnz);
@@ -2338,15 +2338,15 @@ static void test_eliminate_supernodal_block_diagonal(void) {
 
     /* Scalar solve. */
     CholCsc *Ls = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &Ls), SPARSE_OK);
-    ASSERT_ERR(chol_csc_eliminate(Ls), SPARSE_OK);
-    ASSERT_ERR(chol_csc_solve(Ls, b, x_sc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &Ls));
+    REQUIRE_OK(chol_csc_eliminate(Ls));
+    REQUIRE_OK(chol_csc_solve(Ls, b, x_sc));
 
     /* Supernodal solve. */
     CholCsc *Ln = NULL;
-    ASSERT_ERR(chol_csc_from_sparse(A, NULL, 2.0, &Ln), SPARSE_OK);
-    ASSERT_ERR(chol_csc_eliminate_supernodal(Ln, 4), SPARSE_OK);
-    ASSERT_ERR(chol_csc_solve(Ln, b, x_sn), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &Ln));
+    REQUIRE_OK(chol_csc_eliminate_supernodal(Ln, 4));
+    REQUIRE_OK(chol_csc_solve(Ln, b, x_sn));
 
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x_sc[i], x_sn[i], 1e-12);
@@ -2364,7 +2364,7 @@ static void test_eliminate_supernodal_block_diagonal(void) {
  * match the scalar path exactly. */
 static void test_eliminate_supernodal_bcsstk04_amd(void) {
     SparseMatrix *A = NULL;
-    ASSERT_ERR(sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx"), SPARSE_OK);
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx"));
     idx_t n = sparse_rows(A);
 
     double *x_true = malloc((size_t)n * sizeof(double));
@@ -2375,21 +2375,21 @@ static void test_eliminate_supernodal_bcsstk04_amd(void) {
 
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
     sparse_analysis_t an = {0};
-    ASSERT_ERR(sparse_analyze(A, &opts, &an), SPARSE_OK);
+    REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
     /* Scalar. */
     CholCsc *Ls = NULL;
-    ASSERT_ERR(chol_csc_from_sparse_with_analysis(A, &an, &Ls), SPARSE_OK);
-    ASSERT_ERR(chol_csc_eliminate(Ls), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse_with_analysis(A, &an, &Ls));
+    REQUIRE_OK(chol_csc_eliminate(Ls));
     double *x_sc = calloc((size_t)n, sizeof(double));
-    ASSERT_ERR(chol_csc_solve_perm(Ls, an.perm, b, x_sc), SPARSE_OK);
+    REQUIRE_OK(chol_csc_solve_perm(Ls, an.perm, b, x_sc));
 
     /* Supernodal. */
     CholCsc *Ln = NULL;
-    ASSERT_ERR(chol_csc_from_sparse_with_analysis(A, &an, &Ln), SPARSE_OK);
-    ASSERT_ERR(chol_csc_eliminate_supernodal(Ln, 4), SPARSE_OK);
+    REQUIRE_OK(chol_csc_from_sparse_with_analysis(A, &an, &Ln));
+    REQUIRE_OK(chol_csc_eliminate_supernodal(Ln, 4));
     double *x_sn = calloc((size_t)n, sizeof(double));
-    ASSERT_ERR(chol_csc_solve_perm(Ln, an.perm, b, x_sn), SPARSE_OK);
+    REQUIRE_OK(chol_csc_solve_perm(Ln, an.perm, b, x_sn));
 
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x_sc[i], x_sn[i], 1e-12);

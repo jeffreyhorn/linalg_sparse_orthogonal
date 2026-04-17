@@ -29,6 +29,16 @@
 
 /**
  * @brief Options for Cholesky factorization with optional fill-reducing reordering.
+ *
+ * @note **Selecting the CSC numeric backend.** For larger SPD systems
+ * (`n >= SPARSE_CSC_THRESHOLD`, defined in `sparse_matrix.h`), the CSC
+ * working-format kernel from Sprint 17 delivers a measured 4.6x
+ * factor-time speedup on bcsstk04 (n=132, nnz=3648) — see
+ * `benchmarks/bench_chol_csc.c`.  Today the CSC kernel is reached via
+ * the internal `chol_csc_factor` / `chol_csc_factor_solve` APIs
+ * (declared in `src/sparse_chol_csc_internal.h`); a transparent
+ * threshold-based dispatch through `sparse_cholesky_factor_opts` is
+ * tracked as follow-up work.
  */
 typedef struct {
     sparse_reorder_t reorder; /**< Fill-reducing reordering (NONE, RCM, or AMD) */

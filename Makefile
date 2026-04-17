@@ -58,7 +58,9 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_ic.c \
            $(SRCDIR)/sparse_etree.c \
            $(SRCDIR)/sparse_analysis.c \
-           $(SRCDIR)/sparse_colamd.c
+           $(SRCDIR)/sparse_colamd.c \
+           $(SRCDIR)/sparse_chol_csc.c \
+           $(SRCDIR)/sparse_ldlt_csc.c
 LIB_OBJS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(LIB_SRCS))
 LIB      = $(BUILDDIR)/libsparse_lu_ortho.a
 
@@ -101,7 +103,9 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_etree.c \
             $(TESTDIR)/test_colamd.c \
             $(TESTDIR)/test_bicgstab.c \
-            $(TESTDIR)/test_stagnation.c
+            $(TESTDIR)/test_stagnation.c \
+            $(TESTDIR)/test_chol_csc.c \
+            $(TESTDIR)/test_ldlt_csc.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))
 
 # Benchmark sources
@@ -112,7 +116,9 @@ BENCH_SRCS = $(BENCHDIR)/bench_main.c \
              $(BENCHDIR)/bench_svd.c \
              $(BENCHDIR)/bench_refactor.c \
              $(BENCHDIR)/bench_colamd.c \
-             $(BENCHDIR)/bench_bicgstab.c
+             $(BENCHDIR)/bench_bicgstab.c \
+             $(BENCHDIR)/bench_chol_csc.c \
+             $(BENCHDIR)/bench_ldlt_csc.c
 BENCH_BINS = $(patsubst $(BENCHDIR)/%.c,$(BUILDDIR)/%,$(BENCH_SRCS))
 
 # Example sources

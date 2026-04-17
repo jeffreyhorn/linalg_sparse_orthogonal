@@ -183,7 +183,7 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ---
 
-## Sprint 17: CSR/CSC Numeric Backend for Cholesky and LDL^T
+## Sprint 17: CSR/CSC Numeric Backend for Cholesky and LDL^T — **Complete**
 
 **Duration:** 14 days (~152 hours)
 
@@ -191,23 +191,30 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ### Items
 
-| # | Item | Description | Estimate |
-|---|------|-------------|----------|
-| 1 | CSC format for Cholesky | Implement CSC (compressed sparse column) working format for Cholesky, exploiting column-oriented access patterns in L*L^T factorization. Convert from linked-list, factor in CSC, convert back. | 36 hrs |
-| 2 | CSC Cholesky elimination | Column-by-column Cholesky factorization on CSC arrays. Scatter-gather pattern for column updates. Pre-allocated storage from symbolic analysis (Sprint 14). | 32 hrs |
-| 3 | CSC LDL^T elimination | Adapt the CSC Cholesky kernel for LDL^T with 1x1/2x2 diagonal blocks. Handle symmetric pivoting in CSC format. | 28 hrs |
-| 4 | Supernodal detection for Cholesky | Extend the dense block detection from CSR LU to CSC Cholesky: identify supernodes (groups of columns with identical nonzero structure) and factor them with dense BLAS-like kernels. | 24 hrs |
-| 5 | Benchmarks and validation | Benchmark CSC Cholesky/LDL^T vs linked-list on SuiteSparse SPD and symmetric indefinite matrices. Validate residuals match. Target >= 2x speedup. | 16 hrs |
-| 6 | Documentation | Update README performance section. Document CSC working format in sparse_lu_csr.h (or new sparse_chol_csc.h). | 16 hrs |
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 1 | CSC format for Cholesky | ✅ Complete | `CholCsc` struct + `chol_csc_from_sparse` / `chol_csc_from_sparse_with_analysis` / `chol_csc_to_sparse`. |
+| 2 | CSC Cholesky elimination | ✅ Complete | Scatter-gather scalar kernel (`chol_csc_eliminate`) with fill-in handling + drop tolerance; solve via `chol_csc_solve` / `chol_csc_solve_perm`. |
+| 3 | CSC LDL^T elimination | ⚠️ Wrapper only | `LdltCsc` storage + CSC solve are native; the Bunch-Kaufman factorization currently delegates to the linked-list kernel (Day 8 design decision — a native CSC BK kernel with symmetric swaps in packed storage is tracked as post-Sprint 17 follow-up). Day 9 solve is fully CSC. |
+| 4 | Supernodal detection for Cholesky | ⚠️ Detection + dense primitives ship; batched integration deferred | `chol_csc_detect_supernodes` + `chol_dense_factor` / `chol_dense_solve_lower` land; `chol_csc_eliminate_supernodal` detects then delegates to scalar. The batched dense-kernel path over each supernode is follow-up work. |
+| 5 | Benchmarks and validation | ✅ Complete | `bench_chol_csc.c` + `bench_ldlt_csc.c`; measured 2.6× (nos4) and 3.5× (bcsstk04) CSC Cholesky speedup. Residuals match linked-list to 1e-15. |
+| 6 | Documentation | ✅ Complete | README + `docs/algorithm.md` + `PERF_NOTES.md`; file-level design comments in both .c files; cross-links from `sparse_lu_csr.h`. |
 
-### Deliverables
+### Deliverables (status)
 
-- CSC Cholesky factorization with >= 2x speedup over linked-list path
-- CSC LDL^T factorization
-- Supernodal detection and dense kernel optimization for Cholesky
-- Benchmark results on SPD and symmetric indefinite matrices
+- ✅ CSC Cholesky factorization, **3.5× speedup** on bcsstk04 (target was ≥ 2×).
+- ⚠️ CSC LDL^T factorization — storage + solve native; factor delegated.
+- ⚠️ Supernodal detection + dense primitives ship; batched dense-kernel integration deferred.
+- ✅ Benchmark results on SPD + symmetric indefinite matrices.
 
-**Total estimate:** ~152 hours
+### Follow-up items feeding the next sprint
+
+- **Native CSC LDL^T Bunch-Kaufman kernel** with in-place symmetric swaps and element-growth tracking.
+- **Batched supernodal Cholesky factor** that uses `chol_dense_factor` + `chol_dense_solve_lower` per supernode's diagonal block + panel.
+- **Transparent size-based dispatch** through `sparse_cholesky_factor_opts` (requires CSC→linked-list writeback).
+- **Larger SuiteSparse corpus** (n ≥ 1000) to exercise the supernodal batched path and measure scaling.
+
+**Total estimate:** ~152 hours; actual scope realised: items 1, 2, 5, 6 fully; items 3, 4 partially (storage/API/tests complete, batched kernels deferred).
 
 ---
 

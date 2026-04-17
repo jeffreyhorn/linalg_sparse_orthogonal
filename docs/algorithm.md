@@ -282,6 +282,130 @@ A dense column accumulator is used for each column k to efficiently handle fill-
 | nos4 (100×100) | 1510 | 805 | 47% |
 | bcsstk04 (132×132) | 8581 | 3664 | 57% |
 
+## CSC Numeric Backend for Cholesky (Sprint 17)
+
+The CSC Cholesky path (`src/sparse_chol_csc.c`) re-implements Cholesky's
+inner loop on contiguous column arrays, mirroring the Sprint 10 CSR LU
+working-format strategy for SPD matrices.
+
+### Data layout
+
+`CholCsc` stores the lower triangle of `L` (including the diagonal) as
+three arrays:
+
+- `col_ptr[0..n]` — column pointers (monotone; `col_ptr[n] == nnz`)
+- `row_idx[0..nnz-1]` — per-column row indices, sorted ascending with
+  the diagonal first
+- `values[0..nnz-1]` — numeric values
+
+Capacity can exceed `nnz` so fill-in produced during elimination absorbs
+into the same packed storage without reallocation, up to the
+symbolic-analysis prediction (`sym_L.nnz` — see *Symbolic Analysis*).
+
+### Algorithm: left-looking column sweep
+
+For each column `j = 0 .. n-1`:
+
+1. **Scatter** `A[*, j]`'s stored values into a dense row accumulator
+   `dense_col[0..n-1]`, tracking touched rows in `dense_pattern`.
+2. **cmod** — apply Schur-complement contributions from every prior
+   column `k < j` with `L[j, k] != 0`:  binary-search for `L[j, k]` in
+   column `k`'s sorted row indices; when present, subtract
+   `L[i, k] · L[j, k]` from `dense_col[i]` for every stored
+   `L[i, k]` with `i >= j`.
+3. **cdiv** — take the square root of `dense_col[j]` (returning
+   `SPARSE_ERR_NOT_SPD` on non-positive diagonals) and scale every
+   remaining pattern entry by the inverse.
+4. **Gather** — sort the pattern, apply a relative drop tolerance
+   (`|v| < SPARSE_DROP_TOL · |L[j,j]|`, diagonal always kept), and
+   write surviving entries into column `j`'s CSC slot.  If the slot
+   needs to grow or shrink, trailing columns are shifted via
+   `memmove` and total capacity grows geometrically.
+
+References: George & Liu 1981 (dense-accumulator left-looking
+Cholesky), Davis 2006 §4.4 (CSC storage for sparse direct methods).
+
+### Why CSC (not CSR)
+
+Both Cholesky sweeps — forward `L · y = b` and backward `L^T · x = y`
+— iterate columns once each.  The backward sweep uses the same
+column slice as the forward sweep because the below-diagonal entries
+of column `j` of `L` are exactly row `j` of `L^T` (no materialised
+transpose needed).  CSR would require a transpose for one of the
+sweeps; CSC fits both without reformatting.
+
+### Performance
+
+Measured on SuiteSparse SPD fixtures (20-repeat average, `make bench`):
+
+| Matrix | n | nnz(A) | factor_ll | factor_csc | speedup |
+|--------|---:|------:|----------:|-----------:|--------:|
+| nos4 | 100 | 594 | 0.31 ms | 0.12 ms | **2.6×** |
+| bcsstk04 | 132 | 3648 | 3.24 ms | 0.92 ms | **3.5×** |
+
+Residuals `||A·x − b||_∞ / ||b||_∞` match the linked-list path to
+double-precision round-off.  `SPARSE_CSC_THRESHOLD` (default `100` in
+`include/sparse_matrix.h`) documents the crossover above which CSC
+reliably wins.  See
+[`docs/planning/EPIC_2/SPRINT_17/PERF_NOTES.md`](planning/EPIC_2/SPRINT_17/PERF_NOTES.md)
+for reproduction instructions.
+
+## Supernodal Detection and Dense Primitives (Sprint 17)
+
+A *fundamental supernode* is a contiguous run of columns
+`j, j+1, …, j+s-1` that share the same below-diagonal nonzero pattern.
+`chol_csc_detect_supernodes` extracts them directly from the CSC L with
+a pairwise check (Liu, Ng, Peyton, SIMAX 1993):
+
+1. Column `j+1`'s first stored sub-diagonal row in column `j` is
+   exactly `j+1` (so `j+1` is the immediate etree parent of `j`).
+2. Column `j+1` has one fewer entry than column `j`.
+3. The remaining row indices of `j+1` match `j`'s rows starting at
+   position `col_ptr[j] + 2`, element-for-element.
+
+Three O(nnz(column)) conditions on the sorted CSC columns; no
+separate etree materialisation required.
+
+`chol_dense_factor(A, n, lda, tol)` and
+`chol_dense_solve_lower(L, n, lda, b)` are companion dense kernels that
+will power a future batched supernodal factor.  They operate on
+column-major `n × n` blocks and return `SPARSE_ERR_NOT_SPD` on
+non-positive pivots.  Today the supernode-aware entry point
+`chol_csc_eliminate_supernodal(L, min_size)` runs the detection step
+and then delegates to the scalar column kernel; a follow-up sprint
+will replace the delegation with a batched dense factor + panel
+triangular solve over each detected supernode.
+
+## CSC LDL^T Scaffolding (Sprint 17)
+
+`LdltCsc` combines the Cholesky CSC layout for the unit lower triangular
+factor `L` with auxiliary arrays encoding Bunch-Kaufman pivot
+information:
+
+- `D[0..n-1]`       — diagonal of `D` (1×1 pivot scalars or 2×2 block
+  diagonals)
+- `D_offdiag[0..n-1]` — 2×2 pivot off-diagonal entries; zero for 1×1
+  pivots
+- `pivot_size[0..n-1]` — `1` for 1×1 pivots, `2` for both indices of a
+  2×2 pair (matching `sparse_ldlt_t`)
+- `perm[0..n-1]` — composed symmetric permutation combining any
+  fill-reducing reorder with the Bunch-Kaufman pivot swaps
+
+The Day 8 elimination path expands the lower triangle to a full
+symmetric `SparseMatrix`, calls the linked-list `sparse_ldlt_factor`
+(which implements the four Bunch-Kaufman criteria with 1×1 / 2×2
+pivoting, symmetric row-and-column swaps, and element-growth guards),
+then unpacks the result back into the CSC layout with unit diagonals
+inserted.  Output is bit-identical to `sparse_ldlt_factor` on the same
+input; a native CSC Bunch-Kaufman kernel is tracked as follow-up.
+
+The solve (`ldlt_csc_solve`) runs fully on CSC: apply `P` to `b`,
+forward-solve the unit lower triangular `L`, block-diagonal solve `D`
+(1×1 division or 2×2 inverse `1/det · [[d22, -d21], [-d21, d11]]`),
+backward-solve `L^T`, apply `P^T` to recover `x` in user coordinates.
+Singularity detection mirrors `sparse_ldlt_solve`'s relative
+tolerance.
+
 ## Condition Number Estimation
 
 `sparse_lu_condest()` estimates the 1-norm condition number `κ₁(A) = ‖A‖₁ · ‖A⁻¹‖₁` using the Hager/Higham algorithm (Hager 1984, Higham 2000).

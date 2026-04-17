@@ -108,8 +108,10 @@ void ldlt_csc_free(LdltCsc *m);
  * @param fill_factor   Capacity multiplier for the embedded L (clamped to [1, 20]).
  * @param[out] ldlt_out Receives the allocated LdltCsc*.  Caller frees with
  *                      `ldlt_csc_free`.  NULL on error.
- * @return SPARSE_OK, SPARSE_ERR_NULL, SPARSE_ERR_SHAPE, SPARSE_ERR_BADARG
- *         (invalid perm), SPARSE_ERR_ALLOC.
+ * @return SPARSE_OK, SPARSE_ERR_NULL, SPARSE_ERR_SHAPE,
+ *         SPARSE_ERR_NOT_SPD (non-symmetric `mat` — LDL^T requires
+ *         symmetry, matching `sparse_ldlt_factor`'s contract),
+ *         SPARSE_ERR_BADARG (invalid perm), SPARSE_ERR_ALLOC.
  */
 sparse_err_t ldlt_csc_from_sparse(const SparseMatrix *mat, const idx_t *perm_in, double fill_factor,
                                   LdltCsc **ldlt_out);

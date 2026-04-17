@@ -11,6 +11,7 @@
 #include "sparse_ldlt.h"
 #include "sparse_ldlt_csc_internal.h"
 #include "sparse_matrix.h"
+#include "sparse_reorder.h"
 #include "sparse_types.h"
 #include "test_framework.h"
 
@@ -565,11 +566,22 @@ static void test_eliminate_matches_linked_list_indefinite(void) {
 
 /* When ldlt_csc_from_sparse applies a non-identity `perm_in`, the
  * subsequent eliminate should store perm[k] = perm_in[ll_perm[k]] —
- * the composition of the input perm with the Bunch-Kaufman perm. */
+ * the composition of the input perm with the Bunch-Kaufman perm.
+ *
+ * We verify the composition explicitly by independently factoring the
+ * pre-permuted matrix P·A·P^T with the linked-list kernel, so
+ * `ll_ref.perm` is the Bunch-Kaufman pivot perm on the same input the
+ * CSC wrapper sees internally.  The composition rule then predicts
+ * each entry of `F->perm` exactly. */
 static void test_eliminate_composes_perm(void) {
     idx_t n = 4;
+    /* Symmetric indefinite values so Bunch-Kaufman has something to
+     * decide (mix of signs + off-diagonals). */
     double lower[16] = {
-        3.0, 0.0, 0.0, 0.0, -1.0, 4.0, 0.0, 0.0, 0.0, -1.0, 3.0, 0.0, 0.0, 0.0, -1.0, 2.0,
+        2.0,  0.0, 0.0,  0.0, /* row 0 */
+        -1.0, 3.0, 0.0,  0.0, /* row 1 */
+        0.5,  0.2, -1.0, 0.0, /* row 2 */
+        0.0,  1.0, 0.5,  4.0, /* row 3 */
     };
     SparseMatrix *A = build_symmetric(n, lower);
     /* Use a non-trivial input perm (reverse order). */
@@ -584,11 +596,20 @@ static void test_eliminate_composes_perm(void) {
     ASSERT_ERR(ldlt_csc_eliminate(F), SPARSE_OK);
     ASSERT_ERR(ldlt_csc_validate(F), SPARSE_OK);
 
-    /* After elimination, F->perm is a valid permutation (already
-     * checked by ldlt_csc_validate).  Its entries are the composition
-     * perm_in[ll.perm[k]] — verified indirectly by having every value
-     * in [0, n) exactly once. */
+    /* Build P·A·P^T and factor with the linked-list kernel directly so
+     * ll_ref.perm is the BK pivot perm in the pre-permuted space — the
+     * same space the CSC wrapper runs BK in internally. */
+    SparseMatrix *A_perm = NULL;
+    ASSERT_ERR(sparse_permute(A, perm_in, perm_in, &A_perm), SPARSE_OK);
+    sparse_ldlt_t ll_ref = {0};
+    ASSERT_ERR(sparse_ldlt_factor(A_perm, &ll_ref), SPARSE_OK);
 
+    /* Composition rule: F->perm[k] == perm_in[ll_ref.perm[k]]. */
+    for (idx_t k = 0; k < n; k++)
+        ASSERT_EQ(F->perm[k], perm_in[ll_ref.perm[k]]);
+
+    sparse_ldlt_free(&ll_ref);
+    sparse_free(A_perm);
     ldlt_csc_free(F);
     sparse_free(A);
 }

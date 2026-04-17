@@ -377,20 +377,11 @@ sparse_err_t ldlt_csc_eliminate(LdltCsc *F) {
      * (||A||_inf), just copied for consistency with `sparse_ldlt_t`. */
     F->factor_norm = ll.factor_norm;
 
-    /* sparse_ldlt_factor does NOT store the unit diagonal of L.  Our
-     * CSC invariant requires the diagonal to be the first stored entry
-     * in every non-empty column, so inject the unit diagonals here
-     * before the conversion. */
-    for (idx_t i = 0; i < n; i++) {
-        if (sparse_get(ll.L, i, i) == 0.0) {
-            sparse_err_t ierr = sparse_insert(ll.L, i, i, 1.0);
-            if (ierr != SPARSE_OK) {
-                sparse_ldlt_free(&ll);
-                free(perm_in);
-                return ierr;
-            }
-        }
-    }
+    /* `sparse_ldlt_factor` initialises ll.L with a full identity
+     * diagonal (`sparse_insert(L, i, i, 1.0)` for every i) before the
+     * Bunch-Kaufman sweep, so the CSC conversion below can rely on
+     * every column already containing its unit diagonal — no extra
+     * injection loop is needed here. */
 
     /* Replace F->L with a CSC built from ll.L. */
     CholCsc *new_L = NULL;

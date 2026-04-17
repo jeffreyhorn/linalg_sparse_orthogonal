@@ -620,10 +620,13 @@ void chol_csc_dump_supernodes(const idx_t *super_starts, const idx_t *super_size
  * @param A    Column-major array, must have at least n + (n-1)*lda entries.
  * @param n    Block dimension (n >= 0).
  * @param lda  Leading dimension (stride between columns), lda >= n.
- * @param tol  Drop tolerance used for singularity detection: a
- *             diagonal accumulator below `tol * ||A||_inf_approx` is
- *             rejected.  Pass 0 to require strictly positive diagonals,
- *             or `SPARSE_DROP_TOL` for the standard relative check.
+ * @param tol  Relative drop tolerance used for singularity detection:
+ *             a diagonal accumulator below
+ *             `sparse_rel_tol(||A||_inf_approx, tol)` is rejected with
+ *             `SPARSE_ERR_NOT_SPD`.  Pass `tol <= 0` to select the
+ *             standard default (`SPARSE_DROP_TOL`); note that this is
+ *             still a norm-relative check with a DBL_MIN floor — it
+ *             does not request a strict positivity-only test.
  * @return SPARSE_OK, SPARSE_ERR_NULL (A=NULL), SPARSE_ERR_BADARG
  *         (n<0 or lda<n), SPARSE_ERR_NOT_SPD (non-positive / tiny
  *         diagonal encountered).

@@ -472,10 +472,18 @@ sparse_err_t ldlt_csc_solve(const LdltCsc *F, const double *b, double *x) {
             k++;
         } else {
             /* 2x2 block: [[d11, d21], [d21, d22]]; inv = 1/det * [[d22, -d21], [-d21, d11]].
-             * pivot_size[k] == 2 implies pivot_size[k+1] == 2 (CSC validate
-             * enforces this invariant), so k+1 < n — safe to access. */
+             * `ldlt_csc_validate` guarantees pivot_size[k] == 2 implies
+             * pivot_size[k+1] == 2, which in turn requires k+1 < n — but
+             * that invariant isn't visible to clang-tidy's path analyser,
+             * so we reject a malformed trailing 2x2 pivot here rather than
+             * indexing past y/z. */
+            if (k + 1 >= n) {
+                free(y);
+                free(z);
+                return SPARSE_ERR_BADARG;
+            }
             double d11 = F->D[k];
-            double d22 = F->D[k + 1]; // NOLINT(clang-analyzer-security.ArrayBound)
+            double d22 = F->D[k + 1];
             double d21 = F->D_offdiag[k];
             double det = d11 * d22 - d21 * d21;
             double bscale = fabs(d11) + fabs(d22) + fabs(d21);
@@ -485,10 +493,9 @@ sparse_err_t ldlt_csc_solve(const LdltCsc *F, const double *b, double *x) {
                 free(z);
                 return SPARSE_ERR_SINGULAR;
             }
-            double y_k1 = y[k + 1]; // NOLINT(clang-analyzer-security.ArrayBound)
+            double y_k1 = y[k + 1];
             z[k] = (d22 * y[k] - d21 * y_k1) / det;
-            z[k + 1] =
-                (d11 * y_k1 - d21 * y[k]) / det; // NOLINT(clang-analyzer-security.ArrayBound)
+            z[k + 1] = (d11 * y_k1 - d21 * y[k]) / det;
             k += 2;
         }
     }

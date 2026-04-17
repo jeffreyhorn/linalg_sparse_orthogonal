@@ -2,8 +2,11 @@
  * bench_ldlt_csc.c — LDL^T backend comparison: linked-list vs CSC
  *
  * Compares wall-clock factor + solve time between:
- *   1. Linked-list LDL^T (sparse_ldlt_factor + sparse_ldlt_solve)
- *   2. CSC LDL^T        (ldlt_csc_from_sparse + ldlt_csc_eliminate + ldlt_csc_solve)
+ *   1. Linked-list LDL^T (sparse_ldlt_factor_opts with AMD reordering
+ *      + sparse_ldlt_solve)
+ *   2. CSC LDL^T        (ldlt_csc_from_sparse + ldlt_csc_eliminate +
+ *      ldlt_csc_solve, using a precomputed AMD permutation so both
+ *      paths see the same fill-reducing ordering)
  *
  * Day 8's CSC LDL^T delegates to the linked-list kernel after
  * expanding the lower triangle to full symmetric — so the CSC path is

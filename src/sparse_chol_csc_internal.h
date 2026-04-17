@@ -37,13 +37,25 @@
  * - For each column j, the entries at positions `col_ptr[j] .. col_ptr[j+1]-1`
  *   are sorted ascending by `row_idx`.
  * - Cholesky stores the lower triangle *including the diagonal*.  For column
- *   j, the first entry (smallest row index) is the diagonal `L[j,j]`; all
- *   subsequent entries have row_idx > j.
- * - Diagonal entries are not optional: `L[j,j]` must be present in every
- *   column.  This matches the storage convention used for the LDL^T unit
- *   lower triangular factor (which the Sprint 17 kernel will reuse).
- * - All row indices in column j satisfy `row_idx >= j` (strict lower
- *   triangular plus diagonal).
+ *   j, the first stored entry (smallest row index) is the diagonal
+ *   `L[j,j]`; all subsequent entries have row_idx > j.
+ * - All stored row indices in column j satisfy `row_idx >= j` (strict
+ *   lower triangular plus diagonal only).
+ *
+ * The factor storage convention for Cholesky / LDL^T uses an explicit
+ * diagonal entry in each non-empty, factor-ready column — the first
+ * entry (smallest row index) is `L[j,j]`, and all subsequent entries
+ * have row_idx > j.  This is the shape `chol_csc_eliminate` produces
+ * and that every solve path consumes.
+ *
+ * Intermediate / transient CSCs accepted by conversion and validated
+ * by `chol_csc_validate` may still contain empty columns or omit an
+ * explicit diagonal entry; those cases are diagnosed later when
+ * numeric factorization actually requires a present diagonal
+ * (`chol_csc_cdiv` returns `SPARSE_ERR_NOT_SPD` when `dense_col[j]`
+ * is not positive).  Treat "diagonal-first" as the normalized
+ * factor-ready layout, not as an unconditional property of every
+ * transient `CholCsc`.
  */
 
 #include "sparse_analysis.h"

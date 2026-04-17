@@ -27,9 +27,9 @@
  *   D_offdiag  ─ length n, off-diagonal of 2x2 pivots.  D_offdiag[k] ==
  *                D(k,k+1) == D(k+1,k) when the block at k,k+1 is 2x2.
  *                Zero for 1x1 pivots.
- *   pivot_size ─ length n, 1 for a 1x1 pivot or 2 for the first index of
- *                a 2x2 pivot.  (Both indices of a 2x2 block have value 2,
- *                matching `sparse_ldlt_t`.)
+ *   pivot_size ─ length n, 1 for a 1x1 pivot.  For a 2x2 pivot block at
+ *                k, k+1 both `pivot_size[k]` and `pivot_size[k+1]` are 2,
+ *                matching `sparse_ldlt_t`.
  *   perm       ─ length n, composed symmetric permutation such that
  *                perm[new] = old.  Covers any fill-reducing permutation
  *                applied at conversion plus the Bunch-Kaufman pivoting

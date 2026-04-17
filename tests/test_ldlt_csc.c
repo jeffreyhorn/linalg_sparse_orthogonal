@@ -703,13 +703,17 @@ static double rel_residual(const SparseMatrix *A, const double *x, const double 
 /* ─── Null-arg + missing-field handling ────────────────────────── */
 
 static void test_solve_null_args(void) {
-    /* Build a trivial factored LdltCsc. */
+    /* Build a trivial factored LdltCsc.  Use REQUIRE_OK on the setup
+     * so a silent regression in ldlt_csc_from_sparse/ldlt_csc_eliminate
+     * can't leave F == NULL and trick the null-arg checks below into
+     * succeeding for the wrong reason. */
     SparseMatrix *A = sparse_create(2, 2);
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 1, 1, -1.0);
     LdltCsc *F = NULL;
-    ldlt_csc_from_sparse(A, NULL, 2.0, &F);
-    ldlt_csc_eliminate(F);
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &F));
+    ASSERT_NOT_NULL(F);
+    REQUIRE_OK(ldlt_csc_eliminate(F));
 
     double b[2] = {1.0, 1.0};
     double x[2] = {0};

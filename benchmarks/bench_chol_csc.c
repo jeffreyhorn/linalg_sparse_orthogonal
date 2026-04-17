@@ -20,7 +20,7 @@
  *
  * Usage:
  *   ./bench_chol_csc                                # default matrix list
- *   ./bench_chol_csc --dir tests/data/suitesparse   # all SPD .mtx in dir
+ *   ./bench_chol_csc path/to/matrix.mtx             # benchmark one matrix
  *   ./bench_chol_csc --repeat 5                     # average 5 runs
  */
 #define _POSIX_C_SOURCE 199309L

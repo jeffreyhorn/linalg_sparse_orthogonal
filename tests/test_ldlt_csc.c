@@ -1088,7 +1088,7 @@ static void test_solve_detects_singular_2x2_block(void) {
  * ═══════════════════════════════════════════════════════════════════════ */
 
 int main(void) {
-    TEST_SUITE_BEGIN("ldlt_csc (Sprint 17 Day 7)");
+    TEST_SUITE_BEGIN("ldlt_csc (Sprint 17 Days 7-9)");
 
     /* alloc / free */
     RUN_TEST(test_alloc_null_out);

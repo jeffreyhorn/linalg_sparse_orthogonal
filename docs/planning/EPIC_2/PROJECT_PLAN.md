@@ -1,4 +1,4 @@
-# Project Plan: linalg_sparse_orthogonal -- Sprints 11-20 (Epic 2)
+# Project Plan: linalg_sparse_orthogonal -- Sprints 11-21 (Epic 2)
 
 Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) and Claude review (`reviews/review-claude-2026-04-06.md`).
 
@@ -218,7 +218,35 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ---
 
-## Sprint 18: Sparse Eigensolvers (Lanczos & LOBPCG)
+## Sprint 18: CSC Kernel Performance Follow-Ups
+
+**Duration:** 14 days (~124 hours)
+
+**Goal:** Complete the Sprint 17 CSC numeric-backend work by replacing the linked-list delegations with native CSC kernels, exposing a transparent size-based dispatch through the public API, and validating scaling behaviour on larger SuiteSparse problems.
+
+### Items
+
+| # | Item | Description | Estimate |
+|---|------|-------------|----------|
+| 1 | Native CSC LDL^T Bunch-Kaufman kernel | Replace the Day 8 wrapper (`ldlt_csc_eliminate` → expand to symmetric `SparseMatrix` → call `sparse_ldlt_factor` → unpack) with a native kernel that implements Bunch-Kaufman directly on packed CSC storage: in-place symmetric row/column swaps, four-criteria 1×1/2×2 pivot selection, and element-growth tracking mirroring the linked-list reference. Must match linked-list output bit-for-bit on the existing `test_ldlt_csc` matrices. | 40 hrs |
+| 2 | Batched supernodal Cholesky factor | Replace the delegation inside `chol_csc_eliminate_supernodal` with a batched kernel that, for each detected supernode, calls `chol_dense_factor` on the diagonal block and `chol_dense_solve_lower` on the panel below, then writes the result back into the CSC arrays. Builds directly on the Day 11 dense primitives. Residuals must match the scalar CSC kernel to round-off. | 32 hrs |
+| 3 | Transparent `sparse_cholesky_factor_opts` dispatch | Wire the CSC backend into `sparse_cholesky_factor_opts` so callers transparently get the faster path when the matrix exceeds `SPARSE_CSC_THRESHOLD`. Requires a CSC→linked-list writeback that preserves `factor_norm`, `reorder_perm`, the row/col permutation arrays, and the `factored` flag; plus a fallback to the linked-list kernel below the threshold. | 20 hrs |
+| 4 | Larger SuiteSparse corpus & scaling benchmarks | Add SuiteSparse matrices with n ≥ 1000 (e.g. bcsstk14, s3rmt3m3, Kuu) to the default fixture set so the scalar CSC kernel's pointer-chasing win and the supernodal batched path's scaling are visible. Re-run `bench_chol_csc` / `bench_ldlt_csc` on the expanded corpus and record results in `PERF_NOTES.md`. | 20 hrs |
+| 5 | Integration tests & documentation | Integration tests that exercise the transparent dispatch path across both sides of the threshold. Update `docs/algorithm.md` and the `sparse_cholesky.h` / `sparse_ldlt_csc_internal.h` file headers to remove the "wrapper / delegation" language now that native kernels ship. | 12 hrs |
+
+### Deliverables
+
+- Native CSC Bunch-Kaufman LDL^T kernel replacing the Sprint 17 Day 8 wrapper (bit-identical output on existing tests)
+- Batched supernodal Cholesky using `chol_dense_factor` / `chol_dense_solve_lower` per supernode
+- Transparent threshold-based dispatch through `sparse_cholesky_factor_opts` with lossless CSC→linked-list writeback
+- Expanded SuiteSparse benchmark corpus (n ≥ 1000) with updated `PERF_NOTES.md` scaling tables
+- Documentation updates removing wrapper/delegation language
+
+**Total estimate:** ~124 hours
+
+---
+
+## Sprint 19: Sparse Eigensolvers (Lanczos & LOBPCG)
 
 **Duration:** 14 days (~144 hours)
 
@@ -246,7 +274,7 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ---
 
-## Sprint 19: Nested Dissection Ordering & Large-Scale Infrastructure
+## Sprint 20: Nested Dissection Ordering & Large-Scale Infrastructure
 
 **Duration:** 14 days (~136 hours)
 
@@ -274,7 +302,7 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ---
 
-## Sprint 20: SVD Improvements, CI Hardening & Epic 2 Wrap-Up
+## Sprint 21: SVD Improvements, CI Hardening & Epic 2 Wrap-Up
 
 **Duration:** 14 days (~128 hours)
 
@@ -289,7 +317,7 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 | 3 | Windows CI with CMake | Add GitHub Actions job for Windows/MSVC using CMake. Fix any remaining portability issues (conditional test_fuzz exclusion is already done). | 16 hrs |
 | 4 | macOS CI job | Add GitHub Actions job for macOS. Test both Apple Clang and Homebrew GCC. Verify coverage and packaging scripts work. | 12 hrs |
 | 5 | API accessor error reporting | Add `sparse_get_err()` variant that returns error codes alongside values, or document the silent-zero-on-error contract explicitly in all accessor headers. | 12 hrs |
-| 6 | Final integration testing | Full regression under all sanitizers, all platforms. Cross-feature tests for new Sprint 11-20 features. Benchmark suite on representative matrix collection. | 20 hrs |
+| 6 | Final integration testing | Full regression under all sanitizers, all platforms. Cross-feature tests for new Sprint 11-21 features. Benchmark suite on representative matrix collection. | 20 hrs |
 | 7 | Epic 2 retrospective and documentation | Update README with all new APIs (LDL^T, IC, MINRES, BiCGSTAB, eigensolvers, COLAMD, ND). Write Epic 2 retrospective. Update INSTALL.md for new platforms. | 24 hrs |
 
 ### Deliverables
@@ -315,8 +343,9 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 | 15 | COLAMD Ordering & QR Min-Norm | COLAMD for QR, minimum-norm least squares for underdetermined systems | 140 hrs |
 | 16 | BiCGSTAB & Iterative Hardening | BiCGSTAB solver, stagnation detection, convergence diagnostics | 128 hrs |
 | 17 | CSR/CSC Numeric Backend | CSC Cholesky and LDL^T with supernodal optimization | 152 hrs |
-| 18 | Sparse Eigensolvers | Lanczos, shift-invert, LOBPCG for symmetric eigenvalue problems | 144 hrs |
-| 19 | Nested Dissection & Scale | Nested dissection ordering, quotient-graph AMD, progress callbacks | 136 hrs |
-| 20 | SVD Fixes, CI & Wrap-Up | Sparse low-rank fix, full SVD, Windows/macOS CI, retrospective | 128 hrs |
+| 18 | CSC Kernel Performance Follow-Ups | Native CSC BK LDL^T, batched supernodal Cholesky, transparent dispatch, larger corpus | 124 hrs |
+| 19 | Sparse Eigensolvers | Lanczos, shift-invert, LOBPCG for symmetric eigenvalue problems | 144 hrs |
+| 20 | Nested Dissection & Scale | Nested dissection ordering, quotient-graph AMD, progress callbacks | 136 hrs |
+| 21 | SVD Fixes, CI & Wrap-Up | Sparse low-rank fix, full SVD, Windows/macOS CI, retrospective | 128 hrs |
 
-**Total Epic 2 estimate:** ~1,358 hours across 10 sprints (140 days)
+**Total Epic 2 estimate:** ~1,482 hours across 11 sprints (154 days)

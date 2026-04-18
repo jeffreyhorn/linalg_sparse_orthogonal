@@ -222,7 +222,7 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 **Duration:** 14 days (~124 hours)
 
-**Goal:** Complete the Sprint 17 CSC numeric-backend work by replacing the linked-list delegations with native CSC kernels, exposing a transparent size-based dispatch through the public API, and validating scaling behaviour on larger SuiteSparse problems.
+**Goal:** Complete the Sprint 17 CSC numeric-backend work by replacing the linked-list delegations with native CSC kernels, exposing a transparent size-based dispatch through the public API, and validating scaling behavior on larger SuiteSparse problems.
 
 ### Items
 

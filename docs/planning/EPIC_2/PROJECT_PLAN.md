@@ -197,12 +197,12 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 | 2 | CSC Cholesky elimination | ✅ Complete | Scatter-gather scalar kernel (`chol_csc_eliminate`) with fill-in handling + drop tolerance; solve via `chol_csc_solve` / `chol_csc_solve_perm`. |
 | 3 | CSC LDL^T elimination | ⚠️ Wrapper only | `LdltCsc` storage + CSC solve are native; the Bunch-Kaufman factorization currently delegates to the linked-list kernel (Day 8 design decision — a native CSC BK kernel with symmetric swaps in packed storage is tracked as post-Sprint 17 follow-up). Day 9 solve is fully CSC. |
 | 4 | Supernodal detection for Cholesky | ⚠️ Detection + dense primitives ship; batched integration deferred | `chol_csc_detect_supernodes` + `chol_dense_factor` / `chol_dense_solve_lower` land; `chol_csc_eliminate_supernodal` detects then delegates to scalar. The batched dense-kernel path over each supernode is follow-up work. |
-| 5 | Benchmarks and validation | ✅ Complete | `bench_chol_csc.c` + `bench_ldlt_csc.c`; measured 2.6× (nos4) and 3.5× (bcsstk04) CSC Cholesky speedup. Residuals match linked-list to 1e-15. |
+| 5 | Benchmarks and validation | ✅ Complete | `bench_chol_csc.c` + `bench_ldlt_csc.c`; measured 1.65× (nos4 scalar) / 2.01× (nos4 supernodal) / 1.13× (bcsstk04 scalar) / 1.22× (bcsstk04 supernodal) one-shot CSC Cholesky speedup with AMD inside the timed region on both paths. Residuals match linked-list to 1e-15. |
 | 6 | Documentation | ✅ Complete | README + `docs/algorithm.md` + `PERF_NOTES.md`; file-level design comments in both .c files; cross-links from `sparse_lu_csr.h`. |
 
 ### Deliverables (status)
 
-- ✅ CSC Cholesky factorization, **3.5× speedup** on bcsstk04 (target was ≥ 2×).
+- ⚠️ CSC Cholesky factorization — one-shot speedup **1.13–2.01×** (target was ≥ 2×: met on nos4 supernodal, below target on bcsstk04 once AMD is included on both paths).  Analyze-once / factor-many workflow (Sprint 14 split) is expected to exceed 2× because AMD cost amortizes away, but that benchmark has not yet been run — follow-up work.
 - ⚠️ CSC LDL^T factorization — storage + solve native; factor delegated.
 - ⚠️ Supernodal detection + dense primitives ship; batched dense-kernel integration deferred.
 - ✅ Benchmark results on SPD + symmetric indefinite matrices.

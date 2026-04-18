@@ -20,11 +20,19 @@
  * scatter-gather workspace absorbs fill-in without per-entry
  * allocation.
  *
- * Measured on SuiteSparse SPD matrices (20-repeat `make bench` runs):
- *   nos4     (n=100, nnz=594)  →  2.6× factor speedup
- *   bcsstk04 (n=132, nnz=3648) →  3.5× factor speedup
+ * Measured on SuiteSparse SPD matrices (5-repeat `make bench` runs,
+ * one-shot factor with AMD reorder inside the timed region on both
+ * paths — apples-to-apples comparison with
+ * sparse_cholesky_factor_opts(..., AMD)):
+ *   nos4     (n=100, nnz=594)  →  1.65× scalar / 2.01× supernodal
+ *   bcsstk04 (n=132, nnz=3648) →  1.13× scalar / 1.22× supernodal
  *
  * Residuals match the linked-list path to double-precision round-off.
+ * The analyze-once / factor-many workflow (sparse_analyze +
+ * sparse_factor_numeric, Sprint 14) amortizes AMD across many
+ * numeric refactorizations of the same pattern, so callers repeatedly
+ * refactoring with the same structure should see a larger speedup
+ * than these one-shot numbers.
  *
  * ─── cdiv / cmod walked end-to-end on a tiny example ─────────────────
  *

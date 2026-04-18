@@ -345,19 +345,52 @@ sparse_err_t ldlt_csc_eliminate(LdltCsc *F) {
     if (n <= 0)
         return SPARSE_OK;
 
-    /* Validate F up front.  The header advertises that an LdltCsc may
-     * be either the output of `ldlt_csc_from_sparse` or built via
-     * `ldlt_csc_alloc` plus manual population — the latter could
-     * legitimately pass a partially-initialised struct here with a
-     * NULL `F->perm`, `F->D`, etc., and we'd segfault on the
-     * `memcpy(perm_in, F->perm, ...)` below.  `ldlt_csc_validate`
-     * already checks every required field (n >= 0, non-NULL D /
-     * D_offdiag / pivot_size / perm, well-formed L, valid
-     * permutation) and returns SPARSE_ERR_NULL / BADARG / ALLOC on
-     * failure; propagate the error instead of crashing. */
-    sparse_err_t verr = ldlt_csc_validate(F);
-    if (verr != SPARSE_OK)
-        return verr;
+    /* Validate only the invariants elimination actually needs.  The
+     * full `ldlt_csc_validate(F)` call is too strict here because it
+     * delegates to `chol_csc_validate(F->L)`, which rejects non-empty
+     * CSC columns that don't start with an explicit diagonal entry —
+     * but the linked-list `sparse_ldlt_factor` legitimately accepts
+     * A's with a structurally-missing diagonal (treats them as zero
+     * and either forms a 2x2 BK pivot or returns SPARSE_ERR_SINGULAR
+     * later).  So we keep the safety checks that prevent crashes on
+     * partially-initialised inputs but drop the diagonal-first
+     * requirement and the sorted/distinct-row-index requirement that
+     * full validate imposes. */
+    if (!F->L || !F->D || !F->D_offdiag || !F->pivot_size || !F->perm)
+        return SPARSE_ERR_NULL;
+    if (F->L->n != n || !F->L->col_ptr)
+        return SPARSE_ERR_BADARG;
+    if (F->L->col_ptr[0] != 0)
+        return SPARSE_ERR_BADARG;
+    for (idx_t j = 0; j < n; j++) {
+        if (F->L->col_ptr[j] > F->L->col_ptr[j + 1])
+            return SPARSE_ERR_BADARG;
+    }
+    idx_t l_nnz = F->L->col_ptr[n];
+    if (l_nnz < 0)
+        return SPARSE_ERR_BADARG;
+    if (l_nnz > 0 && !F->L->row_idx)
+        return SPARSE_ERR_NULL;
+    for (idx_t p = 0; p < l_nnz; p++) {
+        if (F->L->row_idx[p] < 0 || F->L->row_idx[p] >= n)
+            return SPARSE_ERR_BADARG;
+    }
+    /* Confirm perm is a real permutation so we can memcpy into perm_in
+     * without risk of a stray index later in the factor path. */
+    if ((size_t)n > SIZE_MAX / sizeof(unsigned char))
+        return SPARSE_ERR_ALLOC;
+    unsigned char *seen = calloc((size_t)n, sizeof(unsigned char));
+    if (!seen)
+        return SPARSE_ERR_ALLOC;
+    for (idx_t j = 0; j < n; j++) {
+        idx_t pj = F->perm[j];
+        if (pj < 0 || pj >= n || seen[pj]) {
+            free(seen);
+            return SPARSE_ERR_BADARG;
+        }
+        seen[pj] = 1;
+    }
+    free(seen);
 
     /* Save the pre-elimination perm (fill-reducing) so we can compose it
      * with the Bunch-Kaufman perm chosen during factorization.  Guard

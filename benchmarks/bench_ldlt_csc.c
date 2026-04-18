@@ -103,24 +103,39 @@ static bench_result_t bench_linked_list(const SparseMatrix *A, const double *b, 
     return r;
 }
 
-static bench_result_t bench_csc_path(const SparseMatrix *A, const idx_t *amd_perm, const double *b,
-                                     double *x, int repeat) {
+static bench_result_t bench_csc_path(const SparseMatrix *A, const double *b, double *x,
+                                     int repeat) {
     bench_result_t r = {0, 0, 0, 1};
     double factor_total = 0.0, solve_total = 0.0;
+    idx_t n = sparse_rows(A);
 
     for (int rep = 0; rep < repeat; rep++) {
+        /* Fair comparison: the linked-list path's
+         * sparse_ldlt_factor_opts(..., AMD) re-runs AMD every
+         * iteration, so do the same here — include AMD + CSC
+         * conversion + elimination in factor_ms.  Previously AMD was
+         * precomputed once outside the loop, which inflated
+         * speedup_csc on small matrices where AMD dominates. */
+        idx_t *amd_perm = malloc((size_t)n * sizeof(idx_t));
+        if (!amd_perm) {
+            r.ok = 0;
+            break;
+        }
         LdltCsc *F = NULL;
-        /* Include CSC conversion time in factor_ms.  Conversion is part
-         * of the CSC factor pipeline; excluding it would overstate the
-         * CSC-vs-linked-list ratio and mask the real overhead the
-         * wrapper carries today. */
         double t0 = wall_time();
+        if (sparse_reorder_amd(A, amd_perm) != SPARSE_OK) {
+            free(amd_perm);
+            r.ok = 0;
+            break;
+        }
         if (ldlt_csc_from_sparse(A, amd_perm, 2.0, &F) != SPARSE_OK) {
+            free(amd_perm);
             r.ok = 0;
             break;
         }
         if (ldlt_csc_eliminate(F) != SPARSE_OK) {
             ldlt_csc_free(F);
+            free(amd_perm);
             r.ok = 0;
             break;
         }
@@ -129,6 +144,7 @@ static bench_result_t bench_csc_path(const SparseMatrix *A, const idx_t *amd_per
         t0 = wall_time();
         if (ldlt_csc_solve(F, b, x) != SPARSE_OK) {
             ldlt_csc_free(F);
+            free(amd_perm);
             r.ok = 0;
             break;
         }
@@ -137,6 +153,7 @@ static bench_result_t bench_csc_path(const SparseMatrix *A, const idx_t *amd_per
         if (rep == repeat - 1)
             r.residual = rel_residual(A, x, b);
         ldlt_csc_free(F);
+        free(amd_perm);
     }
 
     if (r.ok) {
@@ -158,15 +175,11 @@ static int bench_matrix(const char *path, int repeat) {
     double *ones = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
     double *x = malloc((size_t)n * sizeof(double));
-    /* Precompute AMD perm for the CSC path (the linked-list path uses
-     * its own internal AMD via opts.reorder). */
-    idx_t *amd_perm = malloc((size_t)n * sizeof(idx_t));
-    if (!ones || !b || !x || !amd_perm) {
+    if (!ones || !b || !x) {
         fprintf(stderr, "bench_ldlt_csc: malloc failed in bench_matrix (n=%d)\n", (int)n);
         free(ones);
         free(b);
         free(x);
-        free(amd_perm);
         sparse_free(A);
         return 1;
     }
@@ -174,18 +187,8 @@ static int bench_matrix(const char *path, int repeat) {
         ones[i] = 1.0;
     sparse_matvec(A, ones, b);
 
-    if (sparse_reorder_amd(A, amd_perm) != SPARSE_OK) {
-        fprintf(stderr, "bench_ldlt_csc: AMD failed on %s\n", path);
-        free(ones);
-        free(b);
-        free(x);
-        free(amd_perm);
-        sparse_free(A);
-        return 1;
-    }
-
     bench_result_t rl = bench_linked_list(A, b, x, repeat);
-    bench_result_t rc = bench_csc_path(A, amd_perm, b, x, repeat);
+    bench_result_t rc = bench_csc_path(A, b, x, repeat);
 
     const char *base = strrchr(path, '/');
     base = base ? base + 1 : path;
@@ -195,7 +198,6 @@ static int bench_matrix(const char *path, int repeat) {
         free(ones);
         free(b);
         free(x);
-        free(amd_perm);
         sparse_free(A);
         return 1;
     }
@@ -208,7 +210,6 @@ static int bench_matrix(const char *path, int repeat) {
     free(ones);
     free(b);
     free(x);
-    free(amd_perm);
     sparse_free(A);
     return 0;
 }

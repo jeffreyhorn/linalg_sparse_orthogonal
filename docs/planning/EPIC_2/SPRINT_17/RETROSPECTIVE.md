@@ -21,7 +21,7 @@ Against the six PROJECT_PLAN.md items:
 | 2 | CSC Cholesky elimination | Scatter-gather kernel, fill-in, drop tolerance, triangular solve | Day 4-6 scalar kernel with `scatter` / `cmod` / `cdiv` / `gather` / `end_column` workspace helpers, `chol_csc_solve` / `_perm`, `chol_csc_factor` / `_solve` shims | ✅ Complete |
 | 3 | CSC LDL^T elimination | BK 1×1/2×2 in CSC | `LdltCsc` storage + native CSC solve ✅; BK elimination currently delegates to the linked-list kernel via full-symmetric expansion ⚠️ | ⚠️ Partial (native BK kernel deferred) |
 | 4 | Supernodal detection + dense kernels | Detection + batched dense factor per supernode | Detection (`chol_csc_detect_supernodes`) ✅, dense primitives (`chol_dense_factor`, `chol_dense_solve_lower`) ✅, `chol_csc_eliminate_supernodal` dispatch ✅; batched dense-kernel integration deferred | ⚠️ Partial (detection ships, batched factor deferred) |
-| 5 | Benchmarks and validation | ≥ 2× speedup vs linked-list | **nos4: 2.6×; bcsstk04: 3.5×** Cholesky factor speedup on CSC. Residuals match linked-list to 1e-15 | ✅ Complete — target exceeded |
+| 5 | Benchmarks and validation | ≥ 2× speedup vs linked-list | One-shot, AMD included on both paths: **nos4 scalar 1.65× / supernodal 2.01×; bcsstk04 scalar 1.13× / supernodal 1.22×** Cholesky factor speedup on CSC. Residuals match linked-list to 1e-15 | ⚠️ Partial — target met on `nos4` supernodal, below target on `bcsstk04` for one-shot. Analyze-once / factor-many workflow expected to exceed 2× but not yet benchmarked |
 | 6 | Documentation | README + algorithm.md + file-level design comments | README perf section + feature-list update; `docs/algorithm.md` 3 new sections; `PERF_NOTES.md`; file-level design comments in both .c files; cross-link in `sparse_lu_csr.h` | ✅ Complete |
 
 ## Final metrics
@@ -31,8 +31,8 @@ Against the six PROJECT_PLAN.md items:
 | Test suites | 35 | 41 |
 | Total unit tests | ~1145 | **1384** (+239) |
 | Public + internal API surface | ~150 | +~35 (`chol_csc_*`, `ldlt_csc_*`, `chol_dense_*`) |
-| SuiteSparse SPD factor speedup (bcsstk04) | 1× baseline | **3.5×** |
-| SuiteSparse SPD factor speedup (nos4) | 1× baseline | **2.6×** |
+| SuiteSparse SPD factor speedup (bcsstk04, one-shot scalar / sn) | 1× baseline | **1.13× / 1.22×** |
+| SuiteSparse SPD factor speedup (nos4, one-shot scalar / sn) | 1× baseline | **1.65× / 2.01×** |
 
 New Sprint 17 files (total **6532 LoC** — code + tests + benches + docs):
 
@@ -54,14 +54,15 @@ New Sprint 17 test counts:
 | `test_chol_csc` | 100 | 20 682 |
 | `test_ldlt_csc` | 40 | 314 |
 
-Benchmark numbers (20-repeat `make bench`, on-machine):
+Benchmark numbers (5-repeat `make bench`, on-machine, one-shot factor
+with AMD reorder inside the timed region on both paths):
 
-| Matrix | n | nnz | factor_ll | factor_csc | **speedup** | residual |
-|--------|---:|----:|----------:|-----------:|------------:|---------:|
-| Cholesky `nos4` | 100 | 594 | 0.31 ms | 0.12 ms | **2.6×** | 6e-16 |
-| Cholesky `bcsstk04` | 132 | 3648 | 3.24 ms | 0.92 ms | **3.5×** | 1e-15 |
-| LDL^T `nos4` | 100 | 594 | 0.48 ms | 0.29 ms | 1.6× | 6e-16 |
-| LDL^T `bcsstk04` | 132 | 3648 | 4.53 ms | 3.55 ms | 1.3× | 1e-15 |
+| Matrix | n | nnz | factor_ll | factor_csc | factor_csc_sn | **speedup (scalar / sn)** | residual |
+|--------|---:|----:|----------:|-----------:|--------------:|--------------------------:|---------:|
+| Cholesky `nos4` | 100 | 594 | 2.02 ms | 1.22 ms | 1.00 ms | **1.65× / 2.01×** | 6e-16 |
+| Cholesky `bcsstk04` | 132 | 3648 | 8.03 ms | 7.12 ms | 6.61 ms | **1.13× / 1.22×** | 1e-15 |
+| LDL^T `nos4` | 100 | 594 | 0.64 ms | 2.41 ms | — | 0.27× | 6e-16 |
+| LDL^T `bcsstk04` | 132 | 3648 | 12.76 ms | 9.63 ms | — | 1.33× | 1e-15 |
 
 ## What went well
 
@@ -79,10 +80,16 @@ Benchmark numbers (20-repeat `make bench`, on-machine):
   sweeps (forward `L·y = b` and backward `L^T·x = y`) walk the same
   column slice — no transpose materialisation.  The header design
   comment makes this explicit for future maintainers.
-- **Bench numbers hit above 2× target.**  Day 12 measured 2.6× and
-  3.5× on the two SuiteSparse SPD fixtures; the target was ≥ 2× on
-  larger matrices, so we cleared the bar even on the smaller `nos4`
-  at n = 100.
+- **Fair-comparison methodology surfaced.**  Day 12's initial numbers
+  (2.6× / 3.5×) were measured with AMD reordering outside the CSC
+  timed region, which inflated the ratio by the AMD cost.  Round-10
+  review feedback flagged this; re-measuring with AMD inside both
+  paths' timed regions brought the one-shot numbers to honest
+  1.13–2.01× territory.  The fair numbers are what ship; the original
+  numbers were a measurement bug rather than a capability bug.  The
+  analyze-once / factor-many workflow (Sprint 14 split) is where the
+  CSC advantage is expected to re-emerge, since AMD amortizes away
+  across many numeric refactorizations of the same pattern.
 - **Honest documentation of the wrapper.** The Day 8 LDL^T wrapper is
   explicitly documented as a baseline, with its header spelling out
   why a native kernel is future work.  Tests still cross-check
@@ -180,8 +187,11 @@ and in the PROJECT_PLAN.md status column:
 5. **Benchmark-driven documentation.** The Day 12 benchmark numbers
    drove the README perf section, the algorithm.md performance table,
    and the `SPARSE_CSC_THRESHOLD` default (100 was validated by
-   nos4 hitting 2.6× at exactly that size).  Numbers in prose
-   unbacked by a reproducible benchmark are aspirations, not claims.
+   nos4 crossing 1× at that size).  Numbers in prose unbacked by a
+   reproducible benchmark are aspirations, not claims — and numbers
+   measured with mismatched timing boundaries are worse than no
+   numbers, because they bake a methodology bug into shipping docs
+   (see "Fair-comparison methodology surfaced" above).
 
 ## Final regression status
 
@@ -190,7 +200,7 @@ and in the PROJECT_PLAN.md status column:
 - `make lint` — clang-tidy + cppcheck clean (3 intentional NOLINT markers in the LDL^T solve's 2×2-block branch, each with a justifying comment citing the `ldlt_csc_validate` invariant).
 - `make test` — **1384 / 1384 pass across 41 suites**, 1 094 595 total assertions.
 - `make sanitize` (UBSan) — full suite clean.
-- `make bench` — Cholesky CSC 2.6–3.5× over linked-list; LDL^T CSC 1.3–1.6× (wrapper baseline).
+- `make bench` — one-shot fair-comparison (AMD included on both paths): Cholesky CSC scalar 1.13–1.65×, supernodal 1.22–2.01× over linked-list; LDL^T CSC wrapper 0.27× (nos4) / 1.33× (bcsstk04) baseline.
 
 ## Files changed / added
 

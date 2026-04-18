@@ -336,17 +336,20 @@ sweeps; CSC fits both without reformatting.
 
 ### Performance
 
-Measured on SuiteSparse SPD fixtures (20-repeat average, `make bench`):
+Measured on SuiteSparse SPD fixtures (5-repeat average, one-shot
+factor with AMD reorder inside the timed region on both paths):
 
-| Matrix | n | nnz(A) | factor_ll | factor_csc | speedup |
-|--------|---:|------:|----------:|-----------:|--------:|
-| nos4 | 100 | 594 | 0.31 ms | 0.12 ms | **2.6×** |
-| bcsstk04 | 132 | 3648 | 3.24 ms | 0.92 ms | **3.5×** |
+| Matrix | n | nnz(A) | factor_ll | factor_csc | factor_csc_sn | speedup (scalar / sn) |
+|--------|---:|------:|----------:|-----------:|--------------:|----------------------:|
+| nos4 | 100 | 594 | 2.02 ms | 1.22 ms | 1.00 ms | **1.65× / 2.01×** |
+| bcsstk04 | 132 | 3648 | 8.03 ms | 7.12 ms | 6.61 ms | **1.13× / 1.22×** |
 
 Residuals `||A·x − b||_∞ / ||b||_∞` match the linked-list path to
 double-precision round-off.  `SPARSE_CSC_THRESHOLD` (default `100` in
 `include/sparse_matrix.h`) documents the crossover above which CSC
-reliably wins.  See
+reliably wins.  These are one-shot numbers: in the analyze-once /
+factor-many workflow (`sparse_analyze` + `sparse_factor_numeric`) the
+AMD cost amortizes and the CSC kernel's advantage is larger.  See
 [`docs/planning/EPIC_2/SPRINT_17/PERF_NOTES.md`](planning/EPIC_2/SPRINT_17/PERF_NOTES.md)
 for reproduction instructions.
 

@@ -118,30 +118,32 @@ static bench_result_t bench_csc_path(const SparseMatrix *A, const double *b, dou
                                      csc_eliminate_fn eliminate) {
     bench_result_t r = {0, 0, 0, 1};
     double factor_total = 0.0, solve_total = 0.0;
-
-    /* AMD analysis computed once; same permutation for every rep. */
     sparse_analysis_opts_t aopts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
-    sparse_analysis_t an = {0};
-    if (sparse_analyze(A, &aopts, &an) != SPARSE_OK) {
-        r.ok = 0;
-        return r;
-    }
 
     for (int rep = 0; rep < repeat; rep++) {
+        /* Fair comparison: the linked-list path runs sparse_analyze's
+         * equivalent (AMD reorder + symbolic work) inside
+         * sparse_cholesky_factor_opts on every iteration, so do the
+         * same on the CSC path — include `sparse_analyze` + CSC
+         * conversion + elimination in factor_ms.  Previously the
+         * analysis was cached outside the loop, which inflated
+         * speedup_csc by the cost of AMD (often the dominant factor
+         * for small matrices). */
+        sparse_analysis_t an = {0};
         CholCsc *L = NULL;
-        /* Include CSC conversion time in factor_ms: CSC conversion is a
-         * required part of the CSC factor pipeline, so excluding it
-         * would overstate the speedup.  The linked-list path has its
-         * own conversion cost (AMD reorder + in-place structure setup)
-         * rolled into sparse_cholesky_factor_opts, so including ours
-         * here keeps the comparison fair. */
         double t0 = wall_time();
+        if (sparse_analyze(A, &aopts, &an) != SPARSE_OK) {
+            r.ok = 0;
+            break;
+        }
         if (chol_csc_from_sparse_with_analysis(A, &an, &L) != SPARSE_OK) {
+            sparse_analysis_free(&an);
             r.ok = 0;
             break;
         }
         if (eliminate(L) != SPARSE_OK) {
             chol_csc_free(L);
+            sparse_analysis_free(&an);
             r.ok = 0;
             break;
         }
@@ -150,6 +152,7 @@ static bench_result_t bench_csc_path(const SparseMatrix *A, const double *b, dou
         t0 = wall_time();
         if (chol_csc_solve_perm(L, an.perm, b, x) != SPARSE_OK) {
             chol_csc_free(L);
+            sparse_analysis_free(&an);
             r.ok = 0;
             break;
         }
@@ -158,9 +161,8 @@ static bench_result_t bench_csc_path(const SparseMatrix *A, const double *b, dou
         if (rep == repeat - 1)
             r.residual = rel_residual(A, x, b);
         chol_csc_free(L);
+        sparse_analysis_free(&an);
     }
-
-    sparse_analysis_free(&an);
 
     if (r.ok) {
         r.factor_ms = factor_total * 1000.0 / (double)repeat;

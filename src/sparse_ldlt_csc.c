@@ -166,14 +166,31 @@ sparse_err_t ldlt_csc_from_sparse(const SparseMatrix *mat, const idx_t *perm_in,
         return SPARSE_ERR_NULL;
     if (mat->rows != mat->cols)
         return SPARSE_ERR_SHAPE;
+
+    /* Reject factored / non-identity-perm matrices up front — the same
+     * precondition `sparse_ldlt_factor` enforces.  Without this, the
+     * `sparse_is_symmetric` check below walks physical storage while
+     * `chol_csc_from_sparse` later walks logical storage via
+     * inv_row_perm / inv_col_perm, so the two views could disagree on
+     * a matrix with a non-identity internal permutation. */
+    idx_t n = mat->rows;
+    if (mat->factored)
+        return SPARSE_ERR_BADARG;
+    {
+        const idx_t *rp = sparse_row_perm(mat);
+        const idx_t *cp = sparse_col_perm(mat);
+        for (idx_t i = 0; i < n; i++) {
+            if ((rp && rp[i] != i) || (cp && cp[i] != i))
+                return SPARSE_ERR_BADARG;
+        }
+    }
+
     /* LDL^T requires a symmetric input; reject non-symmetric A the same
      * way the linked-list `sparse_ldlt_factor` does, with the shared
      * SPARSE_ERR_NOT_SPD code (that enum also covers "not symmetric"
      * per sparse_ldlt.h's documented contract). */
     if (!sparse_is_symmetric(mat, 1e-12))
         return SPARSE_ERR_NOT_SPD;
-
-    idx_t n = mat->rows;
 
     /* Build L via the Cholesky CSC converter; this validates perm_in and
      * caches L->factor_norm.  Errors propagate unchanged. */
@@ -327,6 +344,20 @@ sparse_err_t ldlt_csc_eliminate(LdltCsc *F) {
     idx_t n = F->n;
     if (n <= 0)
         return SPARSE_OK;
+
+    /* Validate F up front.  The header advertises that an LdltCsc may
+     * be either the output of `ldlt_csc_from_sparse` or built via
+     * `ldlt_csc_alloc` plus manual population — the latter could
+     * legitimately pass a partially-initialised struct here with a
+     * NULL `F->perm`, `F->D`, etc., and we'd segfault on the
+     * `memcpy(perm_in, F->perm, ...)` below.  `ldlt_csc_validate`
+     * already checks every required field (n >= 0, non-NULL D /
+     * D_offdiag / pivot_size / perm, well-formed L, valid
+     * permutation) and returns SPARSE_ERR_NULL / BADARG / ALLOC on
+     * failure; propagate the error instead of crashing. */
+    sparse_err_t verr = ldlt_csc_validate(F);
+    if (verr != SPARSE_OK)
+        return verr;
 
     /* Save the pre-elimination perm (fill-reducing) so we can compose it
      * with the Bunch-Kaufman perm chosen during factorization.  Guard

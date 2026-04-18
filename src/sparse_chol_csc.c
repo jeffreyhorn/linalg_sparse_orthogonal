@@ -495,6 +495,12 @@ sparse_err_t chol_csc_validate(const CholCsc *csc) {
         return SPARSE_ERR_BADARG;
     if (csc->col_ptr[csc->n] != csc->nnz)
         return SPARSE_ERR_BADARG;
+    /* When there is any storage at all, row_idx/values must be present —
+     * the per-column loop below dereferences row_idx for non-empty
+     * columns, and downstream consumers (e.g. csc_to_full_symmetric_matrix)
+     * dereference values after ldlt_csc_validate() delegates here. */
+    if (csc->nnz > 0 && (!csc->row_idx || !csc->values))
+        return SPARSE_ERR_BADARG;
 
     for (idx_t j = 0; j < csc->n; j++) {
         idx_t start = csc->col_ptr[j];

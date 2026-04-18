@@ -362,14 +362,22 @@ sparse_err_t ldlt_csc_eliminate(LdltCsc *F) {
         return SPARSE_ERR_BADARG;
     if (F->L->col_ptr[0] != 0)
         return SPARSE_ERR_BADARG;
-    for (idx_t j = 0; j < n; j++) {
-        if (F->L->col_ptr[j] > F->L->col_ptr[j + 1])
-            return SPARSE_ERR_BADARG;
-    }
     idx_t l_nnz = F->L->col_ptr[n];
     if (l_nnz < 0)
         return SPARSE_ERR_BADARG;
-    if (l_nnz > 0 && !F->L->row_idx)
+    /* Validate every col_ptr entry against [0, l_nnz] before any reads of
+     * row_idx/values.  Checking monotonicity alone is not enough — a
+     * corrupted col_ptr[j] could be negative or exceed l_nnz while still
+     * satisfying col_ptr[j] <= col_ptr[j+1], which would let later loops
+     * read past the row_idx/values buffers. */
+    for (idx_t j = 0; j < n; j++) {
+        idx_t col_start = F->L->col_ptr[j];
+        idx_t col_end = F->L->col_ptr[j + 1];
+        if (col_start < 0 || col_end < 0 || col_start > col_end || col_start > l_nnz ||
+            col_end > l_nnz)
+            return SPARSE_ERR_BADARG;
+    }
+    if (l_nnz > 0 && (!F->L->row_idx || !F->L->values))
         return SPARSE_ERR_NULL;
     for (idx_t p = 0; p < l_nnz; p++) {
         if (F->L->row_idx[p] < 0 || F->L->row_idx[p] >= n)

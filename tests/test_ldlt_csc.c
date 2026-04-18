@@ -1,10 +1,10 @@
 /*
- * Sprint 17 Day 7 tests for the CSC working format for LDL^T.
+ * Sprint 17 tests for the CSC working format for LDL^T.
  *
- * Day 7 ships the `LdltCsc` struct, alloc/free helpers, and conversion
- * routines.  The Bunch-Kaufman elimination kernel (Days 8-9) and solve
- * (Day 9) land later; these tests only exercise the storage and
- * round-trip conversion paths.
+ * Covers the `LdltCsc` struct, alloc/free helpers, sparse conversion
+ * and round-trip routines, and the Day 8-9 Bunch-Kaufman elimination
+ * and native-CSC solve paths built on top of the CSC working format
+ * (including linked-list cross-checks).
  */
 
 #include "sparse_chol_csc_internal.h"

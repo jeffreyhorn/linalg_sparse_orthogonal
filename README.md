@@ -13,7 +13,9 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **CSR LU factorization** — scatter-gather elimination on compressed sparse row arrays for >=2x speedup on large matrices, with dense subblock detection and in-place dense kernels
 - **Block LU solve** — solve A·X = B for multiple right-hand sides simultaneously (`sparse_lu_solve_block`)
 - **Cholesky factorization** for symmetric positive-definite matrices (A = L·L^T, ~50% less storage than LU)
+- **CSC Cholesky factorization** — column-oriented scatter-gather kernel with fundamental supernode detection and dense Cholesky primitives; measured 1.1–2.0x one-shot speedup over the linked-list path on SuiteSparse SPD matrices, with further gains in the analyze-once / factor-many workflow (Sprint 17)
 - **LDL^T factorization** with Bunch-Kaufman symmetric pivoting for symmetric indefinite matrices (P·A·P^T = L·D·L^T) — 1x1 and 2x2 pivot blocks, inertia computation, iterative refinement, condition estimation
+- **CSC LDL^T factorization** — CSC storage for the L factor + auxiliary D/D_offdiag/pivot_size/perm arrays, scalar triangular + block-diagonal solve path (Sprint 17 scaffolding; native CSC Bunch-Kaufman kernel is follow-up work)
 - **QR factorization** with column pivoting (A·P = Q·R) — Householder reflections, least-squares, rank estimation, null-space extraction, economy (thin) QR, sparse-mode QR without dense workspace
 - **QR minimum-norm solve** for underdetermined systems (m < n) — minimum 2-norm solution via QR of A^T (`sparse_qr_solve_minnorm`)
 - **QR rank diagnostics** — R diagonal extraction (`sparse_qr_diag_r`), rank info with condition estimate (`sparse_qr_rank_info`), quick condition estimator (`sparse_qr_condest`)
@@ -364,6 +366,57 @@ The CSR working format eliminates linked-list pointer chasing during elimination
 |--------|------------|-----|---------|
 | orsirr_1 (1030×1030) | 1.38 s | 0.11 s | **12x** |
 
+### CSC Cholesky Speedup (Sprint 17)
+
+The CSC working-format kernel for Cholesky uses contiguous column
+storage with a dense scatter-gather workspace, eliminating linked-list
+pointer chasing in the column sweep (`cmod` + `cdiv`).  On SuiteSparse
+SPD matrices (one-shot factor, AMD reorder included on both paths):
+
+| Matrix | n | nnz(A) | Linked-list factor | CSC scalar | CSC supernodal | Speedup (scalar / sn) |
+|--------|---:|------:|-------------------:|-----------:|---------------:|----------------------:|
+| nos4.mtx | 100 | 594 | 2.02 ms | 1.22 ms | 1.00 ms | **1.65× / 2.01×** |
+| bcsstk04.mtx | 132 | 3648 | 8.03 ms | 7.12 ms | 6.61 ms | **1.13× / 1.22×** |
+
+Residuals `||A·x − b||_∞ / ||b||_∞` match the linked-list path to
+double-precision round-off (~1e-15).  Numbers are 5-repeat averages
+measured with `./build/bench_chol_csc --repeat 5`; full details in
+[`docs/planning/EPIC_2/SPRINT_17/PERF_NOTES.md`](docs/planning/EPIC_2/SPRINT_17/PERF_NOTES.md).
+
+The table above is the **one-shot** case: AMD reordering runs on
+every factor call on both paths.  In the analyze-once / factor-many
+workflow (`sparse_analyze` + `sparse_factor_numeric`, Sprint 14) the
+AMD cost is amortized across many numeric refactorizations with the
+same pattern, and the CSC scalar kernel's speedup over the
+linked-list kernel is larger because only the numeric factor time
+remains in the comparison.
+
+`SPARSE_CSC_THRESHOLD` (defined in `include/sparse_matrix.h`, default
+`100`) documents the size above which CSC reliably overtakes the
+linked-list kernel.  Smaller matrices may see a slight slowdown due
+to the one-time CSC conversion cost.
+
+Today the CSC kernel is reached through the internal
+`chol_csc_factor` / `chol_csc_factor_solve` helpers declared in
+`src/sparse_chol_csc_internal.h`.  A transparent size-based dispatch
+through `sparse_cholesky_factor_opts` is tracked as follow-up work —
+the current public entry point continues to run the linked-list
+kernel unchanged for Sprint 16 ABI compatibility.
+
+### CSC LDL^T (Sprint 17 scaffolding)
+
+The CSC LDL^T path (`ldlt_csc_factor` + `ldlt_csc_solve`) is presently
+a wrapper: it expands the lower triangle to a full symmetric matrix
+and delegates Bunch-Kaufman pivoting to the linked-list
+`sparse_ldlt_factor`.  Output is bit-identical to the linked-list
+path.  Measured under the same fair-comparison methodology (AMD
+inside the timed region on both sides) the wrapper shows no
+systematic one-shot speedup — on small matrices the CSC↔linked-list
+expansion overhead dominates (nos4, 0.27×); on larger matrices it
+breaks even or modestly wins (bcsstk04, 1.33×).  A native CSC LDL^T
+kernel is follow-up work; the current numbers are the baseline for
+measuring its improvement.
+
 **Complexity:**
 - Partial pivoting: O(nnz) per elimination step — strongly preferred for banded/structured matrices
 - Complete pivoting: O(n²) per elimination step due to submatrix search — better numerical stability but much slower
@@ -405,7 +458,7 @@ The library is safe for concurrent use under the following contract:
 
 ## Testing
 
-The test suite contains **976 unit tests** across 35 test suites with >=95% line coverage (CI-enforced):
+The test suite contains **1384 unit tests** across 41 test suites with >=95% line coverage (CI-enforced):
 
 - Sparse matrix data structure, norms, symmetry, transpose (53 tests)
 - LU factorization, solve, condition estimation (37 tests)
@@ -442,6 +495,8 @@ The test suite contains **976 unit tests** across 35 test suites with >=95% line
 - IC(0) incomplete Cholesky — factor, solve, CG preconditioning, SuiteSparse (27 tests)
 - MINRES solver — SPD, indefinite, preconditioned, block, robustness (43 tests)
 - Sprint 13 IC(0) + MINRES cross-feature integration (14 tests)
+- CSC Cholesky — alloc/convert/eliminate/solve, symbolic path, supernode detection, dense primitives (100 tests — Sprint 17)
+- CSC LDL^T — alloc/convert/eliminate/solve, Bunch-Kaufman 1×1/2×2, linked-list cross-check, inertia (40 tests — Sprint 17)
 
 ```bash
 make test          # run all tests

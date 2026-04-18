@@ -38,6 +38,22 @@
 #define SPARSE_DROP_TOL 1e-14
 #endif
 
+/**
+ * @brief Dimension crossover for the CSC Cholesky backend.
+ *
+ * Matrices with `rows >= SPARSE_CSC_THRESHOLD` benefit from the CSC
+ * numeric kernel (Sprint 17): contiguous column storage cuts the
+ * linked-list pointer-chasing overhead.  Smaller matrices may see a
+ * slight slowdown due to the one-time conversion cost.
+ *
+ * Used today only as documentation + hint; the AUTO backend currently
+ * falls through to the linked-list path for ABI safety.  Override at
+ * compile time with `-DSPARSE_CSC_THRESHOLD=N`.
+ */
+#ifndef SPARSE_CSC_THRESHOLD
+#define SPARSE_CSC_THRESHOLD 100
+#endif
+
 /** @brief Opaque sparse matrix type. */
 typedef struct SparseMatrix SparseMatrix;
 

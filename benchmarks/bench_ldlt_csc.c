@@ -158,13 +158,22 @@ static int bench_matrix(const char *path, int repeat) {
     double *ones = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
     double *x = malloc((size_t)n * sizeof(double));
+    /* Precompute AMD perm for the CSC path (the linked-list path uses
+     * its own internal AMD via opts.reorder). */
+    idx_t *amd_perm = malloc((size_t)n * sizeof(idx_t));
+    if (!ones || !b || !x || !amd_perm) {
+        fprintf(stderr, "bench_ldlt_csc: malloc failed in bench_matrix (n=%d)\n", (int)n);
+        free(ones);
+        free(b);
+        free(x);
+        free(amd_perm);
+        sparse_free(A);
+        return 1;
+    }
     for (idx_t i = 0; i < n; i++)
         ones[i] = 1.0;
     sparse_matvec(A, ones, b);
 
-    /* Precompute AMD perm for the CSC path (the linked-list path uses
-     * its own internal AMD via opts.reorder). */
-    idx_t *amd_perm = malloc((size_t)n * sizeof(idx_t));
     if (sparse_reorder_amd(A, amd_perm) != SPARSE_OK) {
         fprintf(stderr, "bench_ldlt_csc: AMD failed on %s\n", path);
         free(ones);

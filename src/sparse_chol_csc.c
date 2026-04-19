@@ -505,7 +505,10 @@ sparse_err_t chol_csc_from_sparse_with_analysis(const SparseMatrix *mat,
     if (predicted > 0)
         memcpy(csc->row_idx, analysis->sym_L.row_idx, (size_t)predicted * sizeof(idx_t));
     csc->nnz = predicted;
-    csc->factor_norm = sparse_norminf_const(mat);
+    /* Reuse the ||A||_inf that `sparse_analyze` already computed
+     * during symbolic analysis instead of re-walking the matrix.
+     * Saves an O(nnz) pass on the hot CSC dispatch path. */
+    csc->factor_norm = analysis->analysis_norm;
 
     for (idx_t phys_i = 0; phys_i < n; phys_i++) {
         idx_t log_i = mat->inv_row_perm[phys_i];

@@ -211,9 +211,13 @@ static void test_s18_suitesparse_bcsstk14(void) {
     sparse_free(A);
 }
 
-/* Force both paths on a single matrix and assert bit-level agreement
- * between the `SparseMatrix` L values they produce.  Uses a matrix
- * sized right at the threshold so both paths are exercisable.
+/* Force both paths on a single matrix and assert that the solution
+ * vectors they produce agree to round-off.  Uses a matrix sized right
+ * at the threshold so both paths are exercisable.  The two factor
+ * patterns can differ by a handful of entries at machine epsilon
+ * because drop-tolerance is applied at different grain sizes; the
+ * solve is the user-visible contract, so that's what the body
+ * compares (see the inline comment by the x_ll / x_cs loop).
  *
  * Same single-cleanup-path pattern as `factor_solve_assert_path`:
  * every allocation is NULL-checked into `alloc_ok`, factor/solve

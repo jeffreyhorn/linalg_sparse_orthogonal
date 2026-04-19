@@ -33,6 +33,8 @@
 
 static SparseMatrix *build_spd_tridiag(idx_t n) {
     SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, 4.0);
         if (i > 0) {
@@ -47,6 +49,8 @@ static SparseMatrix *build_spd_tridiag(idx_t n) {
  * Returned A is symmetric (both off-diagonals inserted explicitly). */
 static SparseMatrix *build_spd_banded(idx_t n, idx_t bw) {
     SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, (double)(2 * bw + 2));
         for (idx_t d = 1; d <= bw && i + d < n; d++) {
@@ -62,6 +66,8 @@ static SparseMatrix *build_spd_banded(idx_t n, idx_t bw) {
 static SparseMatrix *build_kkt(idx_t nh, idx_t nc) {
     idx_t n = nh + nc;
     SparseMatrix *K = sparse_create(n, n);
+    if (!K)
+        return NULL;
     for (idx_t i = 0; i < nh; i++) {
         sparse_insert(K, i, i, 4.0);
         if (i > 0) {

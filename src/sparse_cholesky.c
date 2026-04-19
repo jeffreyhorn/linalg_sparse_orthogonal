@@ -1,4 +1,6 @@
 #include "sparse_cholesky.h"
+#include "sparse_analysis.h"
+#include "sparse_chol_csc_internal.h"
 #include "sparse_matrix_internal.h"
 #include "sparse_reorder.h"
 
@@ -177,7 +179,10 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
     free(mat->reorder_perm);
     mat->reorder_perm = NULL;
 
-    /* Apply fill-reducing reordering if requested */
+    /* Apply fill-reducing reordering if requested.  This permutes the
+     * SparseMatrix into its final coordinate space and resets the
+     * internal row/col perms to identity — the same end-state both
+     * the linked-list factor and the CSC factor expect to start from. */
     if (opts->reorder != SPARSE_REORDER_NONE && n > 1) {
         idx_t *perm = malloc((size_t)n * sizeof(idx_t));
         if (!perm)
@@ -219,7 +224,7 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
         mat->pool = PA->pool;
         mat->nnz = PA->nnz;
         mat->cached_norm = PA->cached_norm;
-        mat->factor_norm = -1.0; /* reset: not LU-factored */
+        mat->factor_norm = -1.0; /* reset: not Cholesky-factored */
 
         PA->row_headers = NULL;
         PA->col_headers = NULL;
@@ -240,7 +245,64 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
         mat->reorder_perm = perm;
     }
 
-    return sparse_cholesky_factor(mat);
+    /* Backend dispatch: AUTO compares against SPARSE_CSC_THRESHOLD;
+     * LINKED_LIST / CSC force one branch.  Records the chosen path
+     * back through the caller's opts->used_csc_path if provided. */
+    int use_csc;
+    switch (opts->backend) {
+    case SPARSE_CHOL_BACKEND_LINKED_LIST:
+        use_csc = 0;
+        break;
+    case SPARSE_CHOL_BACKEND_CSC:
+        use_csc = 1;
+        break;
+    case SPARSE_CHOL_BACKEND_AUTO:
+    default:
+        use_csc = (n >= SPARSE_CSC_THRESHOLD);
+        break;
+    }
+    if (opts->used_csc_path)
+        *opts->used_csc_path = use_csc ? 1 : 0;
+
+    if (!use_csc)
+        return sparse_cholesky_factor(mat);
+
+    /* CSC path: analyse, convert with the full symbolic L pattern,
+     * factor via the batched supernodal kernel, transplant the result
+     * back into `mat`.  After the reorder + transplant above mat lives
+     * in the final coordinate space, so we run the symbolic analysis
+     * with REORDER_NONE — the ordering has already been folded in.
+     * `chol_csc_from_sparse_with_analysis` pre-populates the full
+     * sym_L pattern (Sprint 18 Day 12), which the supernodal extract
+     * requires to see every fill row of each supernode's panel. */
+    sparse_analysis_opts_t an_opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_t an = {0};
+    sparse_err_t err = sparse_analyze(mat, &an_opts, &an);
+    if (err != SPARSE_OK)
+        return err;
+
+    CholCsc *L_csc = NULL;
+    err = chol_csc_from_sparse_with_analysis(mat, &an, &L_csc);
+    if (err != SPARSE_OK) {
+        sparse_analysis_free(&an);
+        return err;
+    }
+
+    err = chol_csc_eliminate_supernodal(L_csc, 4);
+    if (err != SPARSE_OK) {
+        chol_csc_free(L_csc);
+        sparse_analysis_free(&an);
+        return err;
+    }
+
+    /* Writeback overwrites mat's storage with L and re-publishes the
+     * reorder perm; we pass mat->reorder_perm so writeback's internal
+     * memcpy + free dance produces the same pointer identity the
+     * linked-list path would. */
+    err = chol_csc_writeback_to_sparse(L_csc, mat, mat->reorder_perm);
+    chol_csc_free(L_csc);
+    sparse_analysis_free(&an);
+    return err;
 }
 
 /* ─── Cholesky solve ─────────────────────────────────────────────────── */

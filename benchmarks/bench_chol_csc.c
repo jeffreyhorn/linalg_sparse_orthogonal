@@ -6,10 +6,21 @@
  *   2. CSC scalar     (chol_csc_factor + chol_csc_solve_perm)
  *   3. CSC supernodal (chol_csc_eliminate_supernodal + chol_csc_solve_perm)
  *
- * All three use the same AMD fill-reducing reordering to keep the
- * comparison apples-to-apples.  Residuals from each path are checked
- * against the original A to 1e-8 relative — if any path fails the
- * residual check the benchmark prints a warning and skips timing
+ * Since Sprint 18 Day 8 the supernodal path runs the fully batched
+ * kernel on detected fundamental supernodes:
+ *   Day 6 extract / writeback      — CSC ↔ dense column-major buffer
+ *   Day 7 eliminate_diag           — external cmod + chol_dense_factor
+ *   Day 8 eliminate_panel          — row-by-row chol_dense_solve_lower
+ * For columns not inside any detected supernode the scalar
+ * scatter/cmod/cdiv/gather loop runs instead.  Prior to Day 8 the
+ * `factor_csc_sn` / `speedup_csc_sn` columns reflected detection
+ * overhead on top of the scalar kernel; from Day 9 onwards they
+ * measure the real batched speedup.
+ *
+ * All three paths use the same AMD fill-reducing reordering to keep
+ * the comparison apples-to-apples.  Residuals from each path are
+ * checked against the original A to 1e-8 relative — if any path fails
+ * the residual check the benchmark prints a warning and skips timing
  * reporting for that matrix.
  *
  * Output is CSV on stdout: one header row, one row per matrix with
@@ -83,7 +94,7 @@ static bench_result_t bench_linked_list(const SparseMatrix *A, const double *b, 
     double factor_total = 0.0, solve_total = 0.0;
     for (int rep = 0; rep < repeat; rep++) {
         SparseMatrix *L = sparse_copy(A);
-        sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD};
+        sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_AUTO, NULL};
 
         double t0 = wall_time();
         if (sparse_cholesky_factor_opts(L, &opts) != SPARSE_OK) {
@@ -240,8 +251,9 @@ static int bench_matrix(const char *path, int repeat) {
 /* ─── Main ─────────────────────────────────────────────────────── */
 
 static const char *default_matrices[] = {
-    "tests/data/suitesparse/nos4.mtx",
-    "tests/data/suitesparse/bcsstk04.mtx",
+    "tests/data/suitesparse/nos4.mtx",     "tests/data/suitesparse/bcsstk04.mtx",
+    "tests/data/suitesparse/bcsstk14.mtx", "tests/data/suitesparse/s3rmt3m3.mtx",
+    "tests/data/suitesparse/Kuu.mtx",      "tests/data/suitesparse/Pres_Poisson.mtx",
 };
 static const int default_matrix_count =
     (int)(sizeof(default_matrices) / sizeof(default_matrices[0]));

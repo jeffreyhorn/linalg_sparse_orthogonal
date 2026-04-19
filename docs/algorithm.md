@@ -336,24 +336,52 @@ sweeps; CSC fits both without reformatting.
 
 ### Performance
 
-Measured on SuiteSparse SPD fixtures (5-repeat average, one-shot
-factor with AMD reorder inside the timed region on both paths):
+Measured on SuiteSparse SPD fixtures (3-repeat average, one-shot
+factor with AMD reorder inside the timed region on all paths):
 
-| Matrix | n | nnz(A) | factor_ll | factor_csc | factor_csc_sn | speedup (scalar / sn) |
-|--------|---:|------:|----------:|-----------:|--------------:|----------------------:|
-| nos4 | 100 | 594 | 2.02 ms | 1.22 ms | 1.00 ms | **1.65× / 2.01×** |
-| bcsstk04 | 132 | 3648 | 8.03 ms | 7.12 ms | 6.61 ms | **1.13× / 1.22×** |
+| Matrix        |    n  |    nnz(A) | factor_ll | factor_csc | factor_csc_sn | speedup (scalar / sn) |
+|---------------|------:|----------:|----------:|-----------:|--------------:|----------------------:|
+| nos4          |   100 |       594 |    0.46 ms |    0.42 ms |       0.38 ms | **1.09× / 1.22×** |
+| bcsstk04      |   132 |     3,648 |    3.12 ms |    2.67 ms |       3.09 ms | **1.16× / 1.01×** |
+| bcsstk14      | 1,806 |    63,454 |  364.29 ms |  208.82 ms |     152.83 ms | **1.74× / 2.38×** |
+| s3rmt3m3      | 5,357 |   207,123 | 4018.41 ms | 1914.53 ms |    1179.41 ms | **2.10× / 3.41×** |
+| Kuu           | 7,102 |   340,200 | 3147.78 ms | 4112.76 ms |    1416.64 ms |   0.77× / **2.22×** |
+| Pres_Poisson  |14,822 |   715,804 |46003.69 ms|17597.98 ms |   10580.68 ms | **2.61× / 4.35×** |
 
 Residuals `||A·x − b||_∞ / ||b||_∞` match the linked-list path to
-double-precision round-off.  `SPARSE_CSC_THRESHOLD` (default `100` in
-`include/sparse_matrix.h`) documents the crossover above which CSC
-reliably wins.  These are one-shot numbers: in the analyze-once /
-factor-many workflow (`sparse_analyze` + `sparse_factor_numeric`) the
-AMD cost amortizes and the CSC kernel's advantage is larger.  See
-[`docs/planning/EPIC_2/SPRINT_17/PERF_NOTES.md`](planning/EPIC_2/SPRINT_17/PERF_NOTES.md)
-for reproduction instructions.
+within double-precision round-off on every matrix above.
 
-## Supernodal Detection and Dense Primitives (Sprint 17)
+Three takeaways from the scaling corpus (Sprint 18 Day 12):
+
+- **Scalar-CSC speedup scales with n.**  The ratio climbs from 1.09×
+  at n = 100 to 2.61× at n = 14 822, matching the Sprint 17
+  hypothesis that linked-list pointer-chasing overhead grows faster
+  than CSC column traversal.
+- **Supernodal beats scalar on every non-trivial matrix.**  The
+  batched Days 6-10 kernel pulls ahead by another 1.2–2.9× on top
+  of scalar CSC on the four new fixtures.  The only exception is
+  bcsstk04 (supernodal 1.01× vs scalar 1.16×) where the matrix is
+  small enough that supernode-detection overhead eats the dense-
+  block win.
+- **Kuu scalar regression is real and localised.**  The scalar
+  kernel's repeated `shift_columns_right_of` calls during drop-
+  tolerance pruning cost it the round on Kuu (0.77× vs linked-list);
+  the supernodal path pre-allocates the full sym_L pattern and
+  avoids those shifts, landing 2.22× ahead.
+
+`SPARSE_CSC_THRESHOLD` (default `100` in
+`include/sparse_matrix.h`) determines where
+`sparse_cholesky_factor_opts` switches the linked-list path over to
+the CSC supernodal kernel.  These are one-shot numbers: in the
+analyze-once / factor-many workflow (`sparse_analyze` +
+`sparse_factor_numeric`) the AMD cost amortizes and the CSC kernel's
+advantage is larger.  See
+[`docs/planning/EPIC_2/SPRINT_17/PERF_NOTES.md`](planning/EPIC_2/SPRINT_17/PERF_NOTES.md)
+for the full 12-column CSV and reproduction instructions, and
+[`docs/planning/EPIC_2/SPRINT_18/bench_day12.txt`](planning/EPIC_2/SPRINT_18/bench_day12.txt)
+for the raw Day 12 capture.
+
+## Supernodal Detection and Batched Kernel (Sprint 17 + Sprint 18 Days 6-9)
 
 A *fundamental supernode* is a contiguous run of columns
 `j, j+1, …, j+s-1` that share the same below-diagonal nonzero pattern.
@@ -369,15 +397,40 @@ a pairwise check (Liu, Ng, Peyton, SIMAX 1993):
 Three O(nnz(column)) conditions on the sorted CSC columns; no
 separate etree materialisation required.
 
-`chol_dense_factor(A, n, lda, tol)` and
-`chol_dense_solve_lower(L, n, lda, b)` are companion dense kernels that
-will power a future batched supernodal factor.  They operate on
-column-major `n × n` blocks and return `SPARSE_ERR_NOT_SPD` on
-non-positive pivots.  Today the supernode-aware entry point
-`chol_csc_eliminate_supernodal(L, min_size)` runs the detection step
-and then delegates to the scalar column kernel; a follow-up sprint
-will replace the delegation with a batched dense factor + panel
-triangular solve over each detected supernode.
+The supernode-aware entry point
+`chol_csc_eliminate_supernodal(L, min_size)` runs a fully integrated
+batched path on every detected supernode (Sprint 18 Days 6-8):
+
+- `chol_csc_supernode_extract` scatters the supernode's CSC columns
+  into a dense column-major buffer, building a `row_map` that records
+  each local row's global CSC index.
+- `chol_csc_supernode_eliminate_diag` applies left-looking external
+  cmod from every prior column `k < s_start` and then calls
+  `chol_dense_factor` on the `s_size × s_size` diagonal slab.
+- `chol_csc_supernode_eliminate_panel` applies the panel triangular
+  solve via `chol_dense_solve_lower` one panel row at a time (in
+  column-major storage each row lives at stride `lda_panel`, so the
+  helper gathers into a contiguous scratch vector, forward-
+  substitutes, and scatters the result back).
+- `chol_csc_supernode_writeback` gathers the factored dense buffer
+  back into the CSC at the supernode's original row positions.
+
+Columns not inside any detected supernode fall back to the scalar
+scatter / cmod / cdiv / gather loop in the same `while (j < n)`
+dispatch so mixed-structure matrices factor correctly end-to-end.
+The companion dense kernels `chol_dense_factor(A, n, lda, tol)` and
+`chol_dense_solve_lower(L, n, lda, b)` operate on column-major
+`n × n` blocks and return `SPARSE_ERR_NOT_SPD` on non-positive pivots;
+the error propagates out of the batched kernel unchanged.
+
+Day 9's parametrised cross-check verifies scalar == batched
+byte-for-byte on nos4 and bcsstk04 (both identity and AMD-permuted)
+plus synthetic dense / block-diagonal matrices, across min-size
+thresholds of 1, 4, and 16.  A boundary test additionally exercises
+the dispatch loop on a matrix whose supernodes are a singleton at
+column 0 and a large size-`n-1` block at columns `[1, n)`, covering
+both the degenerate `s_size == 1` and the non-degenerate paths in a
+single run.
 
 ## CSC LDL^T Scaffolding (Sprint 17)
 

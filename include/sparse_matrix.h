@@ -52,10 +52,14 @@
  * The default of 100 is a rough crossover inferred from the
  * `benchmarks/bench_chol_csc.c` timings on nos4 (n=100) and bcsstk04
  * (n=132) — both of those matrices ran faster through CSC than
- * linked-list in the Sprint 17 Day 12 benchmark.  Sprint 18 Day 12
- * refreshes the threshold from the larger-corpus numbers; until then
- * callers that want a different crossover can either override the
- * macro at compile time with `-DSPARSE_CSC_THRESHOLD=N` or set
+ * linked-list in the Sprint 17 Day 12 benchmark.  The Sprint 18
+ * Day 12 / Day 14 larger-corpus captures confirmed every fixture
+ * with `n >= 100` still wins under CSC but added no sub-100 data
+ * point, so the default is intentionally held at 100 pending the
+ * small-matrix study tracked in Sprint 19 (see
+ * `docs/planning/EPIC_2/SPRINT_18/RETROSPECTIVE.md`).  Callers that
+ * want a different crossover can override the macro at compile time
+ * with `-DSPARSE_CSC_THRESHOLD=N` or set
  * `sparse_cholesky_opts_t::backend` explicitly to force one branch.
  */
 #ifndef SPARSE_CSC_THRESHOLD

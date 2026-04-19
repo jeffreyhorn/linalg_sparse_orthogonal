@@ -94,7 +94,12 @@ static bench_result_t bench_linked_list(const SparseMatrix *A, const double *b, 
     double factor_total = 0.0, solve_total = 0.0;
     for (int rep = 0; rep < repeat; rep++) {
         SparseMatrix *L = sparse_copy(A);
-        sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_AUTO, NULL};
+        /* Force the linked-list kernel here so `factor_ll_ms` always
+         * measures the linked-list baseline regardless of n.  Under
+         * SPARSE_CHOL_BACKEND_AUTO the Sprint 18 Day 11 dispatch would
+         * silently route large fixtures to the CSC supernodal kernel
+         * and collapse the `speedup_csc*` columns to ~1. */
+        sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_LINKED_LIST, NULL};
 
         double t0 = wall_time();
         if (sparse_cholesky_factor_opts(L, &opts) != SPARSE_OK) {

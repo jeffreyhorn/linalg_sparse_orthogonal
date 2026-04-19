@@ -248,9 +248,6 @@ LdltCscKernelOverride ldlt_csc_get_kernel_override(void);
  * @return SPARSE_ERR_SINGULAR if a pivot is numerically singular
  *         (near-zero 1x1 diagonal, or 2x2 block with near-zero
  *         determinant, or L-entry magnitude exceeding the growth bound).
- * @return SPARSE_ERR_BADARG if the native kernel is selected while it
- *         is still a Sprint 18 scaffolding stub (Days 1-4; removed in
- *         Day 5 when the native path becomes fully functional).
  */
 sparse_err_t ldlt_csc_eliminate(LdltCsc *F);
 

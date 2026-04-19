@@ -277,16 +277,32 @@ static void test_s18_ldlt_csc_native_matches_wrapper_indefinite(void) {
         ones[i] = 1.0;
     sparse_matvec(K, ones, b);
 
+    /* Capture the current override so a mid-test failure can't leak a
+     * forced kernel into later tests (the override is process-global).
+     * We avoid REQUIRE_OK while the override is active — any failure
+     * from from_sparse / eliminate restores the previous value first,
+     * then raises a normal assertion. */
+    LdltCscKernelOverride prev_override = ldlt_csc_get_kernel_override();
+
     LdltCsc *F_native = NULL;
     ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_NATIVE);
-    REQUIRE_OK(ldlt_csc_from_sparse(K, perm, 2.0, &F_native));
-    REQUIRE_OK(ldlt_csc_eliminate(F_native));
+    sparse_err_t err_nf = ldlt_csc_from_sparse(K, perm, 2.0, &F_native);
+    sparse_err_t err_ne = (err_nf == SPARSE_OK) ? ldlt_csc_eliminate(F_native) : SPARSE_OK;
 
     LdltCsc *F_wrapper = NULL;
-    ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_WRAPPER);
-    REQUIRE_OK(ldlt_csc_from_sparse(K, perm, 2.0, &F_wrapper));
-    REQUIRE_OK(ldlt_csc_eliminate(F_wrapper));
-    ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_DEFAULT);
+    sparse_err_t err_wf = SPARSE_OK, err_we = SPARSE_OK;
+    if (err_nf == SPARSE_OK && err_ne == SPARSE_OK) {
+        ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_WRAPPER);
+        err_wf = ldlt_csc_from_sparse(K, perm, 2.0, &F_wrapper);
+        if (err_wf == SPARSE_OK)
+            err_we = ldlt_csc_eliminate(F_wrapper);
+    }
+    ldlt_csc_set_kernel_override(prev_override);
+
+    REQUIRE_OK(err_nf);
+    REQUIRE_OK(err_ne);
+    REQUIRE_OK(err_wf);
+    REQUIRE_OK(err_we);
 
     double *x_n = calloc((size_t)n, sizeof(double));
     double *x_w = calloc((size_t)n, sizeof(double));

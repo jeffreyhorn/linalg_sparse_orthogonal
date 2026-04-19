@@ -296,9 +296,11 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
     }
 
     /* Writeback overwrites mat's storage with L and re-publishes the
-     * reorder perm; we pass mat->reorder_perm so writeback's internal
-     * memcpy + free dance produces the same pointer identity the
-     * linked-list path would. */
+     * reorder perm.  We pass mat->reorder_perm so writeback preserves
+     * the same permutation values / ordering semantics the linked-list
+     * path publishes; the perm pointer itself is replaced with a fresh
+     * `perm_copy` inside `chol_csc_writeback_to_sparse`, so callers
+     * must not rely on pointer identity across this call. */
     err = chol_csc_writeback_to_sparse(L_csc, mat, mat->reorder_perm);
     chol_csc_free(L_csc);
     sparse_analysis_free(&an);

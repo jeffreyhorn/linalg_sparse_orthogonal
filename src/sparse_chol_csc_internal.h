@@ -678,4 +678,270 @@ sparse_err_t chol_dense_solve_lower(const double *L, idx_t n, idx_t lda, double 
  */
 sparse_err_t chol_csc_eliminate_supernodal(CholCsc *csc, idx_t min_size);
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 18 Day 6: supernode extract / writeback plumbing
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * The batched supernodal path (Days 7-8) replaces per-column cdiv loops
+ * with one `chol_dense_factor` call on the supernode's diagonal block
+ * plus one `chol_dense_solve_lower` pass per panel column.  Both dense
+ * kernels operate on a column-major buffer, which has to be scattered
+ * from packed CSC storage on the way in and gathered back on the way
+ * out.  Day 6 ships only the extract/writeback plumbing — with round-
+ * trip tests — so the Day 7 diagonal factor and Day 8 panel solve can
+ * focus on the numeric logic alone.
+ *
+ * Dense buffer layout (column-major, leading dimension `lda`):
+ *
+ *   panel_height = s_size + |below-supernode rows|
+ *               = col_ptr[s_start + 1] - col_ptr[s_start]
+ *
+ *   rows [0, s_size):             diagonal block (s_size × s_size).
+ *                                  Column j in the block stores entries
+ *                                  at rows [j, s_size) — the lower
+ *                                  triangle of the block.  Upper-
+ *                                  triangle cells [0, j) are left
+ *                                  uninitialised; chol_dense_factor
+ *                                  only reads the lower triangle.
+ *   rows [s_size, panel_height):  shared below-supernode panel,
+ *                                  populated identically in every
+ *                                  column of the supernode.
+ *
+ *   row_map[i] for i in [0, s_size)             = s_start + i  (diag block)
+ *   row_map[i] for i in [s_size, panel_height)  = global CSC row of the
+ *                                                 i-th below-supernode
+ *                                                 entry (sorted ascending
+ *                                                 — taken verbatim from
+ *                                                 col s_start's row_idx).
+ */
+
+/** Panel height of a supernode starting at `s_start`.
+ *
+ * Equal to `s_size + |below-supernode rows|`.  The value is read
+ * directly from `col_ptr[s_start + 1] - col_ptr[s_start]`, which by the
+ * fundamental-supernode invariant is the row count of the first column
+ * in the supernode. */
+static inline idx_t chol_csc_supernode_panel_height(const CholCsc *csc, idx_t s_start) {
+    return csc->col_ptr[s_start + 1] - csc->col_ptr[s_start];
+}
+
+/**
+ * Extract a supernode from CSC storage into a dense column-major buffer.
+ *
+ * @param csc              Input CSC (not modified).  Must satisfy the
+ *                         fundamental-supernode invariant on the
+ *                         column range [s_start, s_start + s_size).
+ * @param s_start          Starting column of the supernode.
+ * @param s_size           Number of columns in the supernode (>= 1,
+ *                         s_start + s_size <= csc->n).
+ * @param dense            Column-major output buffer; must span at
+ *                         least `lda * s_size` doubles.  Values in
+ *                         the upper triangle of the diagonal block
+ *                         and any padding rows above `panel_height`
+ *                         are left untouched.
+ * @param lda              Leading dimension between dense columns;
+ *                         must satisfy `lda >= panel_height`.  Call
+ *                         `chol_csc_supernode_panel_height` first to
+ *                         size the buffer.
+ * @param row_map          Output map from local row index into the
+ *                         dense buffer to the global CSC row index.
+ *                         Must have capacity >= panel_height.
+ * @param[out] panel_height_out  Receives the panel height (also the
+ *                               number of valid entries in row_map).
+ * @return SPARSE_OK on success; SPARSE_ERR_NULL on null args;
+ *         SPARSE_ERR_BADARG on invalid range or insufficient lda;
+ *         SPARSE_ERR_BADARG if a column in the supernode references a
+ *         row outside the first column's row_map (violation of the
+ *         fundamental-supernode invariant).
+ */
+sparse_err_t chol_csc_supernode_extract(const CholCsc *csc, idx_t s_start, idx_t s_size,
+                                        double *dense, idx_t lda, idx_t *row_map,
+                                        idx_t *panel_height_out);
+
+/**
+ * Gather a supernode's dense column-major buffer back into CSC storage.
+ *
+ * The inverse of `chol_csc_supernode_extract`.  For each stored entry
+ * in columns [s_start, s_start + s_size), the writeback looks up the
+ * entry's CSC row in `row_map` to find its local row in the dense
+ * buffer and overwrites `values[p]` with the corresponding cell.
+ *
+ * The CSC's per-column `row_idx` and `col_ptr` arrays are not changed
+ * — the supernode's structural pattern is preserved end-to-end.  This
+ * matches the Cholesky invariant that the factored L within a
+ * fundamental supernode has the same structure as the pre-factor
+ * scatter (no new fill inside a supernode).
+ *
+ * Below-diagonal entries whose magnitude falls below
+ * `drop_tol * |L[j, j]|` are written back as exactly 0.0, mirroring
+ * the scalar kernel's `chol_csc_gather` policy so the supernodal path
+ * produces factors with the same numerical dropping semantics as the
+ * scalar / linked-list paths.  The diagonal is never dropped.  Pass
+ * `drop_tol = 0.0` to retain every value verbatim (useful in tests
+ * that compare against an exact dense factor).
+ *
+ * @return SPARSE_OK on success; SPARSE_ERR_NULL on null args;
+ *         SPARSE_ERR_BADARG on invalid range, insufficient lda, or a
+ *         stored row outside the provided row_map.
+ */
+sparse_err_t chol_csc_supernode_writeback(CholCsc *csc, idx_t s_start, idx_t s_size,
+                                          const double *dense, idx_t lda, const idx_t *row_map,
+                                          idx_t panel_height, double drop_tol);
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 18 Day 7: supernode diagonal block factor
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Given a supernode's extracted dense buffer (from
+ * `chol_csc_supernode_extract`), this helper applies left-looking
+ * external cmod from every prior column k in [0, s_start) and then
+ * runs `chol_dense_factor` on the top s_size × s_size slab.
+ *
+ * The cmod uses the current CSC contents of col k as the L column
+ * (so prior columns must already be factored — either as part of an
+ * earlier supernode pass or via the scalar kernel).  The helper does
+ * not touch the CSC; the caller decides whether to write back the
+ * factored diagonal block (and, after Day 8, the solved panel).
+ *
+ * After a successful return, `dense[0..s_size-1, 0..s_size-1]` holds
+ * the Cholesky factor L of the external-cmod'd diagonal block, and
+ * `dense[s_size..panel_height-1, 0..s_size-1]` holds the external-
+ * cmod'd panel values (still pre-triangular-solve; Day 8 runs
+ * `chol_dense_solve_lower` on this panel).
+ */
+
+/**
+ * Apply external cmod + dense Cholesky to a supernode's extracted buffer.
+ *
+ * @param csc           Input CSC (const).  Columns [0, s_start) must
+ *                      already be factored (i.e., their stored values
+ *                      are L entries, not A entries).
+ * @param s_start       Starting column of the supernode.
+ * @param s_size        Number of columns in the supernode.
+ * @param dense         Column-major buffer, already populated by
+ *                      `chol_csc_supernode_extract` with A's values.
+ *                      The top s_size × s_size slab is factored in
+ *                      place; the panel portion receives external
+ *                      cmod but no triangular solve.
+ * @param lda           Leading dimension, lda >= panel_height.
+ * @param row_map       Row map from the extract call.
+ * @param panel_height  Panel height from the extract call.
+ * @param tol           Relative tolerance for the dense factor
+ *                      (pass 0 or a negative value to select
+ *                      `SPARSE_DROP_TOL`).
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL on null args,
+ *         SPARSE_ERR_BADARG on invalid range or insufficient lda,
+ *         SPARSE_ERR_ALLOC if the scratch buffer for L[supernode, k]
+ *         cannot be allocated, SPARSE_ERR_NOT_SPD if the dense factor
+ *         detects a non-positive-definite diagonal block.
+ */
+sparse_err_t chol_csc_supernode_eliminate_diag(const CholCsc *csc, idx_t s_start, idx_t s_size,
+                                               double *dense, idx_t lda, const idx_t *row_map,
+                                               idx_t panel_height, double tol);
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 18 Day 8: supernode panel triangular solve
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * After Day 7's `chol_csc_supernode_eliminate_diag` returns, the
+ * dense buffer's diagonal block holds the Cholesky factor L_diag and
+ * the panel slab holds the external-cmod'd Schur-complement values
+ * (still needing the within-supernode triangular solve).  The
+ * below-supernode L entries come out of the triangular solve:
+ *
+ *   L_panel = rect * L_diag^{-T}
+ *
+ * Equivalently, for each panel row i, solve
+ *   L_diag * x = rect[i, :]^T
+ * in place (forward substitution) to obtain x = L_panel[i, :]^T.
+ * This is exactly `chol_dense_solve_lower` applied row-by-row.
+ */
+
+/**
+ * Apply the panel triangular solve for one supernode.
+ *
+ * @param L_diag     Factored s_size × s_size diagonal block (lower
+ *                   triangular), column-major with leading dimension
+ *                   `lda_diag`.  Read-only.
+ * @param s_size     Supernode size.
+ * @param lda_diag   Leading dimension of L_diag.
+ * @param panel      Panel slab, `panel_rows × s_size`, column-major
+ *                   with leading dimension `lda_panel`.  On entry
+ *                   holds the external-cmod'd Schur values; on
+ *                   successful return holds the below-supernode L
+ *                   entries.
+ * @param lda_panel  Leading dimension of the panel (>= panel_rows).
+ * @param panel_rows Number of panel rows (= panel_height - s_size
+ *                   for a standard supernode extraction).  May be 0
+ *                   (no panel — the routine returns SPARSE_OK
+ *                   immediately).
+ * @return SPARSE_OK, SPARSE_ERR_NULL, SPARSE_ERR_BADARG,
+ *         SPARSE_ERR_ALLOC (scratch vector for the row-by-row solve),
+ *         SPARSE_ERR_SINGULAR (propagated from `chol_dense_solve_lower`
+ *         if L_diag has a zero diagonal — should not happen after a
+ *         successful `chol_dense_factor`).
+ */
+sparse_err_t chol_csc_supernode_eliminate_panel(const double *L_diag, idx_t s_size, idx_t lda_diag,
+                                                double *panel, idx_t lda_panel, idx_t panel_rows);
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 18 Day 10: CSC → linked-list writeback for transparent dispatch
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * After a matrix has been factored via the CSC working-format path
+ * (`chol_csc_from_sparse` + `chol_csc_eliminate_supernodal`), callers
+ * still want the result to look like what the linked-list Cholesky
+ * would have produced — same `factor_norm`, same `reorder_perm`,
+ * same `factored` flag, same internal storage shape and L values.
+ *
+ * `chol_csc_writeback_to_sparse` transplants L from the CSC back into
+ * a `SparseMatrix`, then sets every field the scalar factor would
+ * have set.  The resulting `SparseMatrix` is indistinguishable from
+ * `sparse_cholesky_factor_opts` output on the same input (values
+ * within round-off; everything else exact).
+ *
+ * End-state field checklist (matches `sparse_cholesky_factor_opts`):
+ *
+ *   mat->row_headers / col_headers    — L entries in the permuted
+ *                                        "new" coordinate space, lower
+ *                                        triangle only (diagonal + below).
+ *   mat->row_perm / col_perm          — identity (scalar path resets
+ *                                        these to identity after the
+ *                                        symmetric permutation).
+ *   mat->inv_row_perm / inv_col_perm  — identity (same reason).
+ *   mat->reorder_perm                 — copy of `perm` (caller's
+ *                                        fill-reducing permutation;
+ *                                        NULL if no reorder was used).
+ *   mat->factor_norm                  — L->factor_norm (= ||A||_inf
+ *                                        cached at conversion time).
+ *   mat->factored                     — 1.
+ *   mat->nnz                          — updated to L's nnz.
+ *   mat->cached_norm                  — invalidated (-1.0), since the
+ *                                        matrix contents changed from
+ *                                        A to L.
+ */
+
+/**
+ * Populate `mat` with the L factor stored in `L`, preserving every
+ * field that the linked-list `sparse_cholesky_factor_opts` would have
+ * set.
+ *
+ * @param L     Factored CholCsc (post-elimination).  Must have been
+ *              produced from the same matrix (and the same `perm`)
+ *              that the caller wants `mat` to end up matching.
+ * @param mat   Target `SparseMatrix` (mutable).  Must be
+ *              **unfactored** (`mat->factored == 0`) with identity
+ *              row_perm / col_perm / inv_row_perm / inv_col_perm.
+ *              Its current entries (A's values) are discarded.
+ * @param perm  Fill-reducing permutation used at conversion time
+ *              (`perm[new] = old`), or NULL when no reorder was used.
+ *              A copy is stored into `mat->reorder_perm` — the caller
+ *              retains ownership of the input buffer.
+ * @return SPARSE_OK, SPARSE_ERR_NULL (L or mat NULL),
+ *         SPARSE_ERR_SHAPE (n mismatch),
+ *         SPARSE_ERR_BADARG (already factored, or non-identity
+ *         row_perm / col_perm), SPARSE_ERR_ALLOC.
+ */
+sparse_err_t chol_csc_writeback_to_sparse(const CholCsc *L, SparseMatrix *mat, const idx_t *perm);
+
 #endif /* SPARSE_CHOL_CSC_INTERNAL_H */

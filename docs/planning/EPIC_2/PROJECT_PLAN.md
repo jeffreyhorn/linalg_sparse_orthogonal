@@ -218,7 +218,7 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ---
 
-## Sprint 18: CSC Kernel Performance Follow-Ups
+## Sprint 18: CSC Kernel Performance Follow-Ups — **Complete**
 
 **Duration:** 14 days (~124 hours)
 
@@ -226,27 +226,73 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ### Items
 
-| # | Item | Description | Estimate |
-|---|------|-------------|----------|
-| 1 | Native CSC LDL^T Bunch-Kaufman kernel | Replace the Day 8 wrapper (`ldlt_csc_eliminate` → expand to symmetric `SparseMatrix` → call `sparse_ldlt_factor` → unpack) with a native kernel that implements Bunch-Kaufman directly on packed CSC storage: in-place symmetric row/column swaps, four-criteria 1×1/2×2 pivot selection, and element-growth tracking mirroring the linked-list reference. Must match linked-list output bit-for-bit on the existing `test_ldlt_csc` matrices. | 40 hrs |
-| 2 | Batched supernodal Cholesky factor | Replace the delegation inside `chol_csc_eliminate_supernodal` with a batched kernel that, for each detected supernode, calls `chol_dense_factor` on the diagonal block and `chol_dense_solve_lower` on the panel below, then writes the result back into the CSC arrays. Builds directly on the Day 11 dense primitives. Residuals must match the scalar CSC kernel to round-off. | 32 hrs |
-| 3 | Transparent `sparse_cholesky_factor_opts` dispatch | Wire the CSC backend into `sparse_cholesky_factor_opts` so callers transparently get the faster path when the matrix exceeds `SPARSE_CSC_THRESHOLD`. Requires a CSC→linked-list writeback that preserves `factor_norm`, `reorder_perm`, the row/col permutation arrays, and the `factored` flag; plus a fallback to the linked-list kernel below the threshold. | 20 hrs |
-| 4 | Larger SuiteSparse corpus & scaling benchmarks | Add SuiteSparse matrices with n ≥ 1000 (e.g. bcsstk14, s3rmt3m3, Kuu) to the default fixture set so the scalar CSC kernel's pointer-chasing win and the supernodal batched path's scaling are visible. Re-run `bench_chol_csc` / `bench_ldlt_csc` on the expanded corpus and record results in `PERF_NOTES.md`. | 20 hrs |
-| 5 | Integration tests & documentation | Integration tests that exercise the transparent dispatch path across both sides of the threshold. Update `docs/algorithm.md` and the `sparse_cholesky.h` / `sparse_ldlt_csc_internal.h` file headers to remove the "wrapper / delegation" language now that native kernels ship. | 12 hrs |
+| # | Item | Status | Notes |
+|---|------|--------|-------|
+| 1 | Native CSC LDL^T Bunch-Kaufman kernel | ✅ Complete | `ldlt_csc_eliminate_native` runs Bunch-Kaufman directly on packed CSC storage: in-place `ldlt_csc_symmetric_swap`, four-criteria 1×1/2×2 pivot selection, element-growth tracking. Matches linked-list output bit-for-bit on the existing `test_ldlt_csc` matrices (20-matrix random cross-check). Factor speedup 2.2–2.5× on bcsstk14 / s3rmt3m3 (`bench_ldlt_csc`). |
+| 2 | Batched supernodal Cholesky factor | ✅ Complete | `chol_csc_supernode_extract` + `_eliminate_diag` + `_eliminate_panel` + `_writeback` pipeline wired into `chol_csc_eliminate_supernodal`. Day 12 uncovered and fixed a latent bug where `chol_csc_from_sparse*` only pre-populated A's lower-triangle pattern; the fix materialises the full `analysis->sym_L` pattern up front. Residuals match scalar CSC to round-off on the enlarged corpus. |
+| 3 | Transparent `sparse_cholesky_factor_opts` dispatch | ✅ Complete | `sparse_cholesky_factor_opts` routes to the CSC supernodal path when `n >= SPARSE_CSC_THRESHOLD` via `sparse_analyze` → `chol_csc_from_sparse_with_analysis` → `chol_csc_eliminate_supernodal` → `chol_csc_writeback_to_sparse`. `sparse_cholesky_opts_t::backend` (AUTO / LINKED_LIST / CSC) forces a path; `used_csc_path` reports the chosen branch. |
+| 4 | Larger SuiteSparse corpus & scaling benchmarks | ✅ Complete | Default corpora now include bcsstk14, s3rmt3m3, Kuu, Pres_Poisson (Cholesky) and bcsstk14, s3rmt3m3 (LDL^T). bloweybq is singular on every backend and tuma1 is too slow for the LDL^T default; both available via single-matrix CLI. Captured in `docs/planning/EPIC_2/SPRINT_18/bench_day12.txt` and extended tables in `PERF_NOTES.md`. |
+| 5 | Integration tests & documentation | ✅ Complete | `tests/test_sprint18_integration.c` (10 tests, 234 assertions) covers cross-threshold dispatch + forced-path agreement + native-vs-wrapper LDL^T. File headers in `src/sparse_chol_csc.c`, `src/sparse_ldlt_csc.c`, and `include/sparse_cholesky.h` describe native kernels + transparent dispatch (no "wrapper / delegation / deferred" language remains). `docs/algorithm.md` and `README.md` refreshed with the Day 12 numbers. |
 
-### Deliverables
+### Deliverables (status)
 
-- Native CSC Bunch-Kaufman LDL^T kernel replacing the Sprint 17 Day 8 wrapper (bit-identical output on existing tests)
-- Batched supernodal Cholesky using `chol_dense_factor` / `chol_dense_solve_lower` per supernode
-- Transparent threshold-based dispatch through `sparse_cholesky_factor_opts` with lossless CSC→linked-list writeback
-- Expanded SuiteSparse benchmark corpus (n ≥ 1000) with updated `PERF_NOTES.md` scaling tables
-- Documentation updates removing wrapper/delegation language
+- ✅ Native CSC Bunch-Kaufman LDL^T kernel replacing the Sprint 17 Day 8 wrapper (bit-identical output on existing tests)
+- ✅ Batched supernodal Cholesky using `chol_dense_factor` / `chol_dense_solve_lower` per supernode
+- ✅ Transparent threshold-based dispatch through `sparse_cholesky_factor_opts` with lossless CSC→linked-list writeback
+- ✅ Expanded SuiteSparse benchmark corpus (n ≥ 1000) with updated `PERF_NOTES.md` scaling tables
+- ✅ Documentation updates removing wrapper/delegation language
 
-**Total estimate:** ~124 hours
+### Deferred to Sprint 19
+
+- **Analyze-once, factor-many benchmark.** The Sprint 17 PERF_NOTES
+  hypothesis that the CSC speedup is larger in the repeated-refactor
+  workflow (AMD amortises to zero) is still unmeasured — Day 12
+  focused on enlarging the one-shot corpus and finding/fixing the
+  sym_L pre-population bug.  Filed for Sprint 19 as a dedicated
+  `bench_refactor_csc` add-on.
+- **Characterising n ∈ [20, 100] for `SPARSE_CSC_THRESHOLD`.** The
+  Day 12 plan forbids moving the threshold without measurement, and
+  the enlarged corpus has no matrix below n = 100.  The default
+  stays at 100 pending a small-matrix study in Sprint 19.
+- **Kuu's scalar-CSC regression (0.77×).** The scalar kernel's
+  `shift_columns_right_of` packing cost during drop-tolerance pruning
+  is a real loss on this matrix family; the supernodal path side-
+  steps it via full `sym_L` pre-allocation.  Whether the scalar
+  kernel should also pre-allocate is a Sprint 19 design call.
+
+**Total estimate:** ~124 hours; actual scope realised: all five items complete, three follow-ups explicitly deferred to Sprint 19.
 
 ---
 
-## Sprint 19: Sparse Eigensolvers (Lanczos & LOBPCG)
+## Sprint 19: CSC Kernel Tuning & Native Supernodal LDL^T
+
+**Duration:** 14 days (~168 hours)
+
+**Goal:** Close out the Sprint 18 CSC follow-ups surfaced in `SPRINT_18/RETROSPECTIVE.md`: quantify the analyze-once / factor-many speedup the Sprint 17 + Sprint 18 PERF_NOTES hypothesise, characterise `SPARSE_CSC_THRESHOLD`'s crossover with sub-100 fixtures, fix the scalar-CSC regression on Kuu-like fill patterns, extend the Sprint 18 batched supernodal path from Cholesky to symmetric indefinite LDL^T, and restore the LDL^T scalar kernel's sparse-row scaling by adding a row-adjacency index.
+
+### Items
+
+| # | Item | Description | Estimate |
+|---|------|-------------|----------|
+| 1 | `bench_refactor_csc` — analyze-once / factor-many workflow | New `benchmarks/bench_refactor_csc.c` that times one `sparse_analyze` followed by N numeric refactorizations of the same pattern with perturbed values, comparing the CSC supernodal backend against the linked-list baseline. Both Sprint 17 and Sprint 18 PERF_NOTES hypothesise the speedup is larger in this workflow because AMD amortises across the N refactors; this item produces the measurement. Capture results in `PERF_NOTES.md` with the one-shot / analyze-once columns side-by-side. | 20 hrs |
+| 2 | Small-matrix corpus + `SPARSE_CSC_THRESHOLD` retrospective | Add n ∈ {20, 40, 60, 80} synthetic fixtures (tridiagonals and random SPD) to the Cholesky bench and re-measure the scalar / supernodal / linked-list triple. Map out the exact crossover n. Adjust `SPARSE_CSC_THRESHOLD`'s default only if the data justifies a change; document the chosen value with the supporting measurement. The Day 12 plan forbade moving the threshold without data — this item produces the data. | 20 hrs |
+| 3 | Scalar-CSC `shift_columns_right_of` regression on Kuu | Profile the scalar kernel's drop-tolerance shrink on Kuu (n = 7102, the one matrix in the Sprint 18 corpus where scalar CSC regresses to 0.77×) to confirm `shift_columns_right_of` is the dominant cost. Either pre-allocate the full sym_L pattern in `chol_csc_from_sparse` (matching the `_with_analysis` variant added in Sprint 18 Day 12) or refactor the scalar gather to avoid per-column memmove; both approaches are architecturally legitimate so the choice is driven by the small-vs-large-matrix memory tradeoff. Restore the scalar kernel's monotonic n-vs-speedup trend on the enlarged corpus. | 32 hrs |
+| 4 | Native supernodal LDL^T batched kernel | Extend the Sprint 18 Cholesky batched supernodal path (Days 6-10) to symmetric indefinite LDL^T. Liu-Ng-Peyton supernode detection needs a new condition for 2×2 pivot boundaries (a 2×2 pivot can legally split a supernode). Requires a new dense LDL^T block factor primitive with Bunch-Kaufman in column-major storage, plus `ldlt_csc_supernode_extract` / `_writeback` / `_eliminate_diag` / `_eliminate_panel` (mirrors of the Cholesky helpers). Factor output must be bit-identical to the scalar kernel on the existing `test_ldlt_csc` corpus; benchmark to confirm a measurable speedup on bcsstk14 / s3rmt3m3. | 76 hrs |
+| 5 | LDL^T scalar-kernel row-adjacency index | Restore the sparse-row scaling that the linked-list reference (`acc_schur_col` in `src/sparse_ldlt.c`) gets for free via its cross-linked row lists.  `ldlt_csc_cmod_unified` Phase A currently iterates `kp = 0..step_k-1` and binary-searches every prior column for `L(col, kp)`, making the scan O(step_k · log nnz) per elimination step even when the row `col` is very sparse.  Add an auxiliary row-adjacency structure to `LdltCsc` that maps each row to the list of prior columns with a stored entry in that row, populate it incrementally as columns factor, and rewrite Phase A (plus the 2×2 Phase B and `ldlt_csc_scatter_symmetric` if they also walk the prefix) to iterate the list instead of the full `[0, step_k)` range.  Factor output must remain bit-identical to the current kernel; benchmark `bench_ldlt_csc` to confirm the scaling win on bcsstk14 / s3rmt3m3.  Surfaced by Copilot during the Sprint 18 PR #26 review. | 20 hrs |
+
+### Deliverables
+
+- `benchmarks/bench_refactor_csc.c` with analyze-once / factor-many numbers captured in `PERF_NOTES.md`
+- Small-matrix (n ∈ [20, 100]) corpus measurements; `SPARSE_CSC_THRESHOLD` either confirmed at 100 with supporting data or re-tuned with documentation
+- Scalar-CSC regression on Kuu resolved; scalar kernel restored to a monotonic n-vs-speedup trend across the full Sprint 18 corpus
+- Native supernodal LDL^T path (detection + dense LDL^T primitive + extract / eliminate_diag / eliminate_panel / writeback) matching the scalar kernel bit-for-bit and delivering a measurable speedup on the non-trivial SPD fixtures
+- `LdltCsc` row-adjacency index with `ldlt_csc_cmod_unified` traversing only the contributing prior columns (sparse-row scaling equivalent to the linked-list reference)
+
+**Total estimate:** ~168 hours
+
+---
+
+## Sprint 20: Sparse Eigensolvers (Lanczos & LOBPCG)
 
 **Duration:** 14 days (~144 hours)
 
@@ -274,7 +320,7 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ---
 
-## Sprint 20: Nested Dissection Ordering & Large-Scale Infrastructure
+## Sprint 21: Nested Dissection Ordering & Large-Scale Infrastructure
 
 **Duration:** 14 days (~136 hours)
 
@@ -302,7 +348,7 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ---
 
-## Sprint 21: SVD Improvements, CI Hardening & Epic 2 Wrap-Up
+## Sprint 22: SVD Improvements, CI Hardening & Epic 2 Wrap-Up
 
 **Duration:** 14 days (~128 hours)
 
@@ -344,8 +390,9 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 | 16 | BiCGSTAB & Iterative Hardening | BiCGSTAB solver, stagnation detection, convergence diagnostics | 128 hrs |
 | 17 | CSR/CSC Numeric Backend | CSC Cholesky and LDL^T with supernodal optimization | 152 hrs |
 | 18 | CSC Kernel Performance Follow-Ups | Native CSC BK LDL^T, batched supernodal Cholesky, transparent dispatch, larger corpus | 124 hrs |
-| 19 | Sparse Eigensolvers | Lanczos, shift-invert, LOBPCG for symmetric eigenvalue problems | 144 hrs |
-| 20 | Nested Dissection & Scale | Nested dissection ordering, quotient-graph AMD, progress callbacks | 136 hrs |
-| 21 | SVD Fixes, CI & Wrap-Up | Sparse low-rank fix, full SVD, Windows/macOS CI, retrospective | 128 hrs |
+| 19 | CSC Kernel Tuning & Native Supernodal LDL^T | Analyze-once bench, small-matrix threshold study, scalar-CSC Kuu regression fix, native supernodal LDL^T, LDL^T row-adjacency index | 168 hrs |
+| 20 | Sparse Eigensolvers | Lanczos, shift-invert, LOBPCG for symmetric eigenvalue problems | 144 hrs |
+| 21 | Nested Dissection & Scale | Nested dissection ordering, quotient-graph AMD, progress callbacks | 136 hrs |
+| 22 | SVD Fixes, CI & Wrap-Up | Sparse low-rank fix, full SVD, Windows/macOS CI, retrospective | 128 hrs |
 
-**Total Epic 2 estimate:** ~1,482 hours across 11 sprints (154 days)
+**Total Epic 2 estimate:** ~1,650 hours across 12 sprints (~172 days)

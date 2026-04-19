@@ -20,12 +20,18 @@
  * scatter-gather workspace absorbs fill-in without per-entry
  * allocation.
  *
- * Measured on SuiteSparse SPD matrices (5-repeat `make bench` runs,
- * one-shot factor with AMD reorder inside the timed region on both
- * paths — apples-to-apples comparison with
- * sparse_cholesky_factor_opts(..., AMD)):
- *   nos4     (n=100, nnz=594)  →  1.65× scalar / 2.01× supernodal
- *   bcsstk04 (n=132, nnz=3648) →  1.13× scalar / 1.22× supernodal
+ * Measured on SuiteSparse SPD matrices (3-repeat `make bench` runs,
+ * one-shot factor with AMD reorder inside the timed region on every
+ * path — apples-to-apples comparison with
+ * sparse_cholesky_factor_opts(..., AMD), which Sprint 18 Day 11
+ * transparently dispatches to the CSC supernodal kernel whenever
+ * n >= SPARSE_CSC_THRESHOLD):
+ *   nos4         (n=100)     →  1.09× scalar / 1.22× supernodal
+ *   bcsstk04     (n=132)     →  1.16× scalar / 1.01× supernodal
+ *   bcsstk14     (n=1806)    →  1.74× scalar / 2.38× supernodal
+ *   s3rmt3m3     (n=5357)    →  2.10× scalar / 3.41× supernodal
+ *   Kuu          (n=7102)    →  0.77× scalar / 2.22× supernodal
+ *   Pres_Poisson (n=14822)   →  2.61× scalar / 4.35× supernodal
  *
  * Residuals match the linked-list path to double-precision round-off.
  * The analyze-once / factor-many workflow (sparse_analyze +
@@ -62,34 +68,56 @@
  * The resulting CSC stores L = [[2, 0], [1, 2]], which satisfies
  * L·L^T = A exactly.
  *
- * ─── Supernodal extension (Days 10-11) ────────────────────────────────
+ * ─── Supernodal extension ────────────────────────────────────────────
  *
  * For well-structured SPD matrices, groups of adjacent columns often
  * share the same below-diagonal pattern.  Those *fundamental
- * supernodes* (Liu, Ng, Peyton) can be factored by a single dense
- * Cholesky on the diagonal block plus a dense triangular solve for
- * the panel below — replacing s scalar cdivs with one dense factor.
+ * supernodes* (Liu, Ng, Peyton) factor as a single dense Cholesky on
+ * the diagonal block plus a dense triangular solve for the panel
+ * below — replacing s scalar cdivs with one dense factor.
  *
  * `chol_csc_detect_supernodes` identifies supernodes directly on the
- * sorted CSC arrays (three O(nnz(column)) conditions per pair), and
- * `chol_csc_eliminate_supernodal` is the dispatch entry point.  The
- * dense primitives `chol_dense_factor` and `chol_dense_solve_lower`
- * are shipped as tested helpers; the batched supernodal factor that
- * uses them to replace the scalar kernel per supernode is follow-up
- * work (the current integration runs detection and then delegates to
- * the scalar kernel, producing bit-identical output).
+ * sorted CSC arrays (three O(nnz(column)) conditions per pair).
+ * `chol_csc_eliminate_supernodal` is the entry point and runs the
+ * batched path in four steps:
+ *
+ *   `chol_csc_supernode_extract` / `_writeback`  — scatter the
+ *     supernode's CSC entries into a dense column-major buffer and
+ *     gather the factored values back.
+ *   `chol_csc_supernode_eliminate_diag`          — apply left-looking
+ *     external cmod from prior columns and run `chol_dense_factor` on
+ *     the s_size × s_size diagonal slab.
+ *   `chol_csc_supernode_eliminate_panel`         — forward-substitute
+ *     each panel row against the factored diagonal (row-by-row
+ *     `chol_dense_solve_lower`), producing the below-supernode L
+ *     entries.
+ *
+ * `chol_csc_eliminate_supernodal` interleaves the batched path for
+ * detected supernodes with the scalar scatter → cmod → cdiv → gather
+ * loop for every other column, so matrices with mixed structure see
+ * the dense speedup on their fundamental supernodes without losing
+ * the scalar kernel's correctness on the remainder.
  *
  * ─── Role of Sprint 14 symbolic analysis ──────────────────────────────
  *
- * `sparse_analyze` (Sprint 14) computes the exact nnz(L) via the
- * elimination tree and column counts.  `chol_csc_from_sparse_with_analysis`
- * uses that count to size the CSC's `values` / `row_idx` arrays to
- * the exact predicted capacity — so elimination's fill-in absorbs in
- * place and `chol_csc_grow` is never called during factorization
- * on well-behaved matrices.  Without analysis, the heuristic path
- * (`chol_csc_from_sparse`) uses a `fill_factor` multiplier and
- * geometric growth; still correct, just slightly less tight on
- * memory.
+ * `sparse_analyze` (Sprint 14) computes the exact symbolic structure
+ * of L via the elimination tree and column counts.
+ * `chol_csc_from_sparse_with_analysis` materialises that full sym_L
+ * pattern up front: every (row, column) position that can be non-
+ * zero in L after elimination gets a pre-allocated slot, with A's
+ * entries placed at matching positions and fill slots initialised to
+ * zero.  This is load-bearing for the supernodal path — the batched
+ * extract reads `col_ptr[j+1] - col_ptr[j]` as the supernode's panel
+ * height and requires every fill row to be present.
+ *
+ * Without analysis, `chol_csc_from_sparse` uses a `fill_factor`-
+ * multiplier over A's lower-triangle nnz and relies on the scalar
+ * kernel's `shift_columns_right_of` to extend columns as fill is
+ * discovered.  That path is still correct for scalar eliminate but
+ * is *not* safe to drive the supernodal extract on matrices with
+ * non-trivial fill — callers that want the batched path must start
+ * from `_with_analysis` (which `sparse_cholesky_factor_opts` does
+ * internally under the Day 11 dispatch).
  */
 
 #include "sparse_chol_csc_internal.h"
@@ -254,6 +282,11 @@ static sparse_err_t validate_perm(const idx_t *perm, idx_t n) {
     return err;
 }
 
+/* Forward declaration — full definition near the CSC scatter helpers.
+ * Needed early by `chol_csc_from_sparse_with_analysis` when it places
+ * A's values at their sym_L positions. */
+static idx_t bsearch_row(const idx_t *row_idx, idx_t start, idx_t end, idx_t target);
+
 /* ─── Convert SparseMatrix → CholCsc (lower triangle, permuted space) ── */
 
 /* Shared core for the two public `from_sparse` variants.  If
@@ -410,6 +443,19 @@ sparse_err_t chol_csc_from_sparse(const SparseMatrix *mat, const idx_t *perm, do
 
 /* ─── Public: symbolic-analysis-aware conversion ────────────────────── */
 
+/* Sprint 18 Day 12 change: pre-populate each column with the FULL
+ * symbolic L pattern (from `analysis->sym_L`) instead of just A's
+ * lower-triangle entries.  The batched supernodal kernel
+ * (`chol_csc_eliminate_supernodal`) reads `col_ptr[j+1] - col_ptr[j]`
+ * as the supernode's panel height and requires every fill row to be
+ * pre-allocated — the Sprint 18 Days 6-10 implementation silently
+ * missed fill rows on matrices like bcsstk14/s3rmt3m3/Kuu where
+ * sym_L(j) is strictly larger than A(j).  Scalar elimination still
+ * works on an A-pattern-only CSC because `chol_csc_gather` extends
+ * columns via `shift_columns_right_of`, but the supernodal path has
+ * no such hook.  Materialising sym_L up front keeps both paths
+ * correct; scalar gather still shrinks the column slot when drop-
+ * tolerance prunes entries below the fill threshold. */
 sparse_err_t chol_csc_from_sparse_with_analysis(const SparseMatrix *mat,
                                                 const sparse_analysis_t *analysis,
                                                 CholCsc **csc_out) {
@@ -425,12 +471,73 @@ sparse_err_t chol_csc_from_sparse_with_analysis(const SparseMatrix *mat,
     if (mat->rows != analysis->n)
         return SPARSE_ERR_SHAPE;
 
-    /* Exact predicted nnz(L) = sum of column counts of the symbolic L. */
+    idx_t n = mat->rows;
     idx_t predicted = analysis->sym_L.nnz;
     if (predicted < 0)
         predicted = 0;
 
-    return from_sparse_impl(mat, analysis->perm, 1.0, predicted, csc_out);
+    /* Build inverse of analysis->perm for logical → new mapping. */
+    idx_t *invperm = NULL;
+    if (analysis->perm) {
+        sparse_err_t verr = validate_perm(analysis->perm, n);
+        if (verr != SPARSE_OK)
+            return verr;
+        invperm = malloc((size_t)n * sizeof(idx_t));
+        if (!invperm)
+            return SPARSE_ERR_ALLOC;
+        for (idx_t new_i = 0; new_i < n; new_i++)
+            invperm[analysis->perm[new_i]] = new_i;
+    }
+
+    CholCsc *csc = NULL;
+    sparse_err_t err = chol_csc_alloc(n, predicted > 0 ? predicted : 1, &csc);
+    if (err != SPARSE_OK) {
+        free(invperm);
+        return err;
+    }
+
+    /* Copy sym_L's col_ptr and row_idx directly — every column now
+     * holds its full predicted pattern (diagonal first, then sorted
+     * sub-diagonal fill rows).  Values start at 0 (from calloc inside
+     * chol_csc_alloc); A's lower-triangle entries are scattered into
+     * their matching positions below. */
+    memcpy(csc->col_ptr, analysis->sym_L.col_ptr, (size_t)(n + 1) * sizeof(idx_t));
+    if (predicted > 0)
+        memcpy(csc->row_idx, analysis->sym_L.row_idx, (size_t)predicted * sizeof(idx_t));
+    csc->nnz = predicted;
+    /* Reuse the ||A||_inf that `sparse_analyze` already computed
+     * during symbolic analysis instead of re-walking the matrix.
+     * Saves an O(nnz) pass on the hot CSC dispatch path. */
+    csc->factor_norm = analysis->analysis_norm;
+
+    for (idx_t phys_i = 0; phys_i < n; phys_i++) {
+        idx_t log_i = mat->inv_row_perm[phys_i];
+        idx_t new_i = invperm ? invperm[log_i] : log_i;
+        Node *node = mat->row_headers[phys_i];
+        while (node) {
+            idx_t log_j = mat->inv_col_perm[node->col];
+            idx_t new_j = invperm ? invperm[log_j] : log_j;
+            if (new_i >= new_j) {
+                idx_t cs = csc->col_ptr[new_j];
+                idx_t ce = csc->col_ptr[new_j + 1];
+                idx_t pos = bsearch_row(csc->row_idx, cs, ce, new_i);
+                if (pos < ce) {
+                    csc->values[pos] = node->value;
+                } else {
+                    /* A's entry doesn't appear in sym_L's pattern — indicates
+                     * analysis and matrix are out of sync.  Reject. */
+                    chol_csc_free(csc);
+                    free(invperm);
+                    return SPARSE_ERR_BADARG;
+                }
+            }
+            node = node->right;
+        }
+    }
+
+    free(invperm);
+    *csc_out = csc;
+    return SPARSE_OK;
 }
 
 /* ─── Convert CholCsc → SparseMatrix (linked-list, lower triangle) ──── */
@@ -1106,37 +1213,561 @@ sparse_err_t chol_dense_solve_lower(const double *L, idx_t n, idx_t lda, double 
  * Day 11: Supernode-aware elimination dispatch
  * ═══════════════════════════════════════════════════════════════════════ */
 
+/* Sprint 18 Day 8: fully integrated batched supernodal elimination.
+ *
+ * Walks the CSC column-by-column, dispatching to:
+ *   - the batched path for columns that start a supernode of size
+ *     >= min_size (per chol_csc_detect_supernodes);
+ *   - the scalar cdiv/cmod/gather path for every other column.
+ *
+ * For each supernode, the batched path runs:
+ *   1. chol_csc_supernode_extract            (A → dense buffer)
+ *   2. chol_csc_supernode_eliminate_diag     (external cmod + dense
+ *                                             Cholesky on the top
+ *                                             s_size × s_size slab)
+ *   3. chol_csc_supernode_eliminate_panel    (chol_dense_solve_lower
+ *                                             row-by-row on the panel)
+ *   4. chol_csc_supernode_writeback          (dense buffer → CSC)
+ *
+ * After writeback, columns [s_start, s_start + s_size) hold the
+ * factored L values (diagonal block + panel).  Subsequent scalar
+ * columns therefore pick up correct L entries when they cmod from
+ * prior supernode columns. */
 sparse_err_t chol_csc_eliminate_supernodal(CholCsc *csc, idx_t min_size) {
     if (!csc)
         return SPARSE_ERR_NULL;
     if (min_size < 1)
         return SPARSE_ERR_BADARG;
 
-    /* Supernode detection on the pre-factor CSC: this observes the
-     * structural shape of A's lower triangle, which matches L's shape
-     * for the test matrices Day 11 targets (dense, block-diagonal).
-     * For matrices whose L has strictly more fill than A, the detected
-     * partition may underestimate — the scalar fallback below remains
-     * correct regardless. */
     idx_t n = csc->n;
-    if (n > 0) {
-        idx_t *starts = malloc((size_t)n * sizeof(idx_t));
-        idx_t *sizes = malloc((size_t)n * sizeof(idx_t));
-        if (!starts || !sizes) {
-            free(starts);
-            free(sizes);
-            return SPARSE_ERR_ALLOC;
-        }
-        idx_t super_count = 0;
-        sparse_err_t err = chol_csc_detect_supernodes(csc, min_size, starts, sizes, &super_count);
+    if (n == 0)
+        return SPARSE_OK;
+
+    idx_t *starts = malloc((size_t)n * sizeof(idx_t));
+    idx_t *sizes = malloc((size_t)n * sizeof(idx_t));
+    if (!starts || !sizes) {
         free(starts);
         free(sizes);
-        if (err != SPARSE_OK)
-            return err;
-        /* Detection's output informs a future batched dense-kernel
-         * path; for now we delegate to the scalar Day 5 kernel, which
-         * is already correct and well-tested. */
+        return SPARSE_ERR_ALLOC;
     }
 
-    return chol_csc_eliminate(csc);
+    idx_t super_count = 0;
+    sparse_err_t err = chol_csc_detect_supernodes(csc, min_size, starts, sizes, &super_count);
+    if (err != SPARSE_OK) {
+        free(starts);
+        free(sizes);
+        return err;
+    }
+
+    CholCscWorkspace *ws = NULL;
+    err = chol_csc_workspace_alloc(n, &ws);
+    if (err != SPARSE_OK) {
+        free(starts);
+        free(sizes);
+        return err;
+    }
+
+    const double drop_tol = SPARSE_DROP_TOL;
+    idx_t super_idx = 0;
+    idx_t j = 0;
+    while (j < n) {
+        /* Skip past singleton detected supernodes: a size-1 "supernode"
+         * has no within-supernode factoring to batch, and the batched
+         * extract uses A's pre-fill column pattern — which misses
+         * fill rows that the scalar gather path handles correctly via
+         * its column-shift machinery.  Delegating singletons to the
+         * scalar branch keeps min_size == 1 correct on matrices with
+         * fill without sacrificing the batched speedup on size >= 2
+         * supernodes (where the fundamental-supernode invariant
+         * guarantees no new fill lands inside the supernode). */
+        if (super_idx < super_count && j == starts[super_idx] && sizes[super_idx] == 1) {
+            super_idx++;
+            /* Fall through to the scalar branch for this column. */
+        }
+        if (super_idx < super_count && j == starts[super_idx]) {
+            /* Batched supernode at column j (size >= 2). */
+            idx_t s_start = j;
+            idx_t s_size = sizes[super_idx];
+            idx_t panel_height = chol_csc_supernode_panel_height(csc, s_start);
+
+            double *dense = NULL;
+            idx_t *row_map = NULL;
+            /* By construction `chol_csc_detect_supernodes` only
+             * reports supernodes with `s_size >= min_size >= 1`, and
+             * `panel_height >= s_size` because the supernode's first
+             * column stores its diagonal block plus the panel.  Guard
+             * explicitly so the overflow checks below (and `calloc`)
+             * can assume both are > 0. */
+            if (panel_height < 1 || s_size < 1) {
+                err = SPARSE_ERR_BADARG;
+                break;
+            }
+            if ((size_t)panel_height > SIZE_MAX / sizeof(idx_t)) {
+                err = SPARSE_ERR_ALLOC;
+                break;
+            }
+            /* Guard the multiplication itself before computing the
+             * product: `(size_t)panel_height * (size_t)s_size` can
+             * overflow on pathological inputs, and a subsequent
+             * `dense_cells > SIZE_MAX / sizeof(double)` check on an
+             * already-wrapped product would miss the overflow and
+             * `calloc` could under-allocate. */
+            if ((size_t)s_size > SIZE_MAX / (size_t)panel_height) {
+                err = SPARSE_ERR_ALLOC;
+                break;
+            }
+            size_t dense_cells = (size_t)panel_height * (size_t)s_size;
+            if (dense_cells > SIZE_MAX / sizeof(double)) {
+                err = SPARSE_ERR_ALLOC;
+                break;
+            }
+            dense = calloc(dense_cells, sizeof(double));
+            row_map = malloc((size_t)panel_height * sizeof(idx_t));
+            if (!dense || !row_map) {
+                free(dense);
+                free(row_map);
+                err = SPARSE_ERR_ALLOC;
+                break;
+            }
+
+            idx_t ph_out = 0;
+            err = chol_csc_supernode_extract(csc, s_start, s_size, dense, panel_height, row_map,
+                                             &ph_out);
+            if (err != SPARSE_OK) {
+                free(dense);
+                free(row_map);
+                break;
+            }
+
+            err = chol_csc_supernode_eliminate_diag(csc, s_start, s_size, dense, panel_height,
+                                                    row_map, panel_height, drop_tol);
+            if (err != SPARSE_OK) {
+                free(dense);
+                free(row_map);
+                break;
+            }
+
+            /* Panel triangular solve: for each below-supernode row,
+             * solve L_diag * x = panel_row to produce L[row, :]. */
+            idx_t panel_rows = panel_height - s_size;
+            if (panel_rows > 0) {
+                err = chol_csc_supernode_eliminate_panel(dense, s_size, panel_height,
+                                                         dense + s_size, panel_height, panel_rows);
+                if (err != SPARSE_OK) {
+                    free(dense);
+                    free(row_map);
+                    break;
+                }
+            }
+
+            err = chol_csc_supernode_writeback(csc, s_start, s_size, dense, panel_height, row_map,
+                                               panel_height, drop_tol);
+            free(dense);
+            free(row_map);
+            if (err != SPARSE_OK)
+                break;
+
+            j += s_size;
+            super_idx++;
+        } else {
+            /* Scalar column: standard scatter → cmod → cdiv → gather. */
+            chol_csc_scatter(csc, j, ws);
+            chol_csc_cmod(csc, j, ws);
+            err = chol_csc_cdiv(ws, j);
+            if (err != SPARSE_OK) {
+                chol_csc_end_column(ws);
+                break;
+            }
+            err = chol_csc_gather(csc, j, ws, drop_tol);
+            if (err != SPARSE_OK) {
+                chol_csc_end_column(ws);
+                break;
+            }
+            chol_csc_end_column(ws);
+            j++;
+        }
+    }
+
+    chol_csc_workspace_free(ws);
+    free(starts);
+    free(sizes);
+    return err;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 18 Day 6: supernode extract / writeback plumbing
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Binary-search a row_map (sorted ascending) for a target global row.
+ * Returns the local index, or `panel_height` when not found. */
+static idx_t chol_csc_bsearch_row_map(const idx_t *row_map, idx_t panel_height, idx_t target) {
+    idx_t lo = 0;
+    idx_t hi = panel_height;
+    while (lo < hi) {
+        idx_t mid = lo + (hi - lo) / 2;
+        if (row_map[mid] < target) {
+            lo = mid + 1;
+        } else {
+            hi = mid;
+        }
+    }
+    if (lo < panel_height && row_map[lo] == target) {
+        return lo;
+    }
+    return panel_height;
+}
+
+sparse_err_t chol_csc_supernode_extract(const CholCsc *csc, idx_t s_start, idx_t s_size,
+                                        double *dense, idx_t lda, idx_t *row_map,
+                                        idx_t *panel_height_out) {
+    if (!csc || !dense || !row_map || !panel_height_out)
+        return SPARSE_ERR_NULL;
+    if (s_start < 0 || s_size < 1 || s_start > csc->n - s_size)
+        return SPARSE_ERR_BADARG;
+
+    /* Panel height is the first column's stored-entry count.  By the
+     * fundamental-supernode invariant this equals s_size + |S| for the
+     * shared below-supernode row set S. */
+    idx_t first_start = csc->col_ptr[s_start];
+    idx_t panel_height = csc->col_ptr[s_start + 1] - first_start;
+    if (lda < panel_height)
+        return SPARSE_ERR_BADARG;
+    if (panel_height < s_size)
+        return SPARSE_ERR_BADARG;
+
+    /* Seed row_map from the first column's sorted row_idx slice.  The
+     * first s_size entries must be [s_start, s_start+1, ..., s_start+s_size-1]
+     * by the supernode invariant (the diagonal block is stored before
+     * the shared panel). */
+    for (idx_t i = 0; i < panel_height; i++) {
+        row_map[i] = csc->row_idx[first_start + i];
+    }
+    for (idx_t i = 0; i < s_size; i++) {
+        if (row_map[i] != s_start + i)
+            return SPARSE_ERR_BADARG;
+    }
+    *panel_height_out = panel_height;
+
+    /* Scatter each column into the dense buffer.  For col s_start + j,
+     * each stored (row, value) goes to dense[local_row + j*lda] where
+     * local_row is looked up in row_map. */
+    for (idx_t j = 0; j < s_size; j++) {
+        idx_t c = s_start + j;
+        idx_t cstart = csc->col_ptr[c];
+        idx_t cend = csc->col_ptr[c + 1];
+        for (idx_t p = cstart; p < cend; p++) {
+            idx_t row = csc->row_idx[p];
+            idx_t local = chol_csc_bsearch_row_map(row_map, panel_height, row);
+            if (local >= panel_height)
+                return SPARSE_ERR_BADARG;
+            dense[local + j * lda] = csc->values[p];
+        }
+    }
+
+    return SPARSE_OK;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 18 Day 7: supernode external-cmod + diagonal-block factor
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Algorithm for a supernode [s_start, s_start + s_size):
+ *
+ *   For each prior column k in [0, s_start):
+ *     Extract L[s_start + j, k] for j in [0, s_size) into scratch
+ *     `L_col_k`.  If all entries are zero, skip k entirely.
+ *     Otherwise, iterate every stored (row, k, value) entry in L's
+ *     col k.  For each entry whose row is in the supernode's row_map,
+ *     subtract `value * L_col_k[j]` from dense[local + j * lda] for
+ *     each j in [0, s_size).
+ *
+ *   After external cmod, run `chol_dense_factor` on the top
+ *   `s_size × s_size` diagonal slab.  The panel portion receives the
+ *   external cmod but is not further updated here — Day 8's
+ *   `chol_dense_solve_lower` will run the panel triangular solve.
+ */
+
+sparse_err_t chol_csc_supernode_eliminate_diag(const CholCsc *csc, idx_t s_start, idx_t s_size,
+                                               double *dense, idx_t lda, const idx_t *row_map,
+                                               idx_t panel_height, double tol) {
+    if (!csc || !dense || !row_map)
+        return SPARSE_ERR_NULL;
+    if (s_start < 0 || s_size < 1 || s_start > csc->n - s_size)
+        return SPARSE_ERR_BADARG;
+    if (panel_height < s_size || lda < panel_height)
+        return SPARSE_ERR_BADARG;
+
+    /* Scratch for L[s_start..s_start+s_size-1, k] values per prior
+     * column.  Stored densely — s_size is typically small relative
+     * to n, and the external-cmod loop runs once per k. */
+    if ((size_t)s_size > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
+    double *L_col_k = malloc((size_t)s_size * sizeof(double));
+    if (!L_col_k)
+        return SPARSE_ERR_ALLOC;
+
+    for (idx_t k = 0; k < s_start; k++) {
+        idx_t cstart = csc->col_ptr[k];
+        idx_t cend = csc->col_ptr[k + 1];
+        if (cstart == cend)
+            continue;
+
+        /* Harvest L[s_start+j, k] into L_col_k[j].  row_idx within a
+         * column is sorted ascending, so stop scanning once we've
+         * passed the last supernode row. */
+        for (idx_t j = 0; j < s_size; j++)
+            L_col_k[j] = 0.0;
+        int saw_supernode_row = 0;
+        for (idx_t p = cstart; p < cend; p++) {
+            idx_t r = csc->row_idx[p];
+            if (r < s_start)
+                continue;
+            if (r >= s_start + s_size)
+                break;
+            L_col_k[r - s_start] = csc->values[p];
+            saw_supernode_row = 1;
+        }
+        if (!saw_supernode_row)
+            continue;
+
+        /* Apply cmod: for each stored (row, k, value) whose row maps
+         * into the supernode's local coordinate, subtract
+         * value * L_col_k[j] from dense[local + j*lda] for j in
+         * [0, s_size).
+         *
+         * This updates both the diagonal block (local < s_size) and
+         * the panel (local >= s_size).  chol_dense_factor only reads
+         * the lower triangle of the diagonal block, so writing the
+         * upper triangle of that block is harmless — we don't branch
+         * on local < j for correctness. */
+        for (idx_t p = cstart; p < cend; p++) {
+            idx_t r = csc->row_idx[p];
+            idx_t local = chol_csc_bsearch_row_map(row_map, panel_height, r);
+            if (local >= panel_height)
+                continue;
+            double v_r_k = csc->values[p];
+            for (idx_t j = 0; j < s_size; j++) {
+                double ljk = L_col_k[j];
+                if (ljk != 0.0)
+                    dense[local + j * lda] -= v_r_k * ljk;
+            }
+        }
+    }
+
+    free(L_col_k);
+
+    /* Dense Cholesky factor on the top s_size × s_size diagonal
+     * block.  Reads the lower triangle only; writes the factor L back
+     * in place over that same region. */
+    return chol_dense_factor(dense, s_size, lda, tol);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 18 Day 8: supernode panel triangular solve
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * The panel update `L_panel = rect * L_diag^{-T}` is equivalent to
+ * solving `L_diag * x = rect_row^T` in place for each panel row.
+ * Since the dense buffer is column-major, a panel row lives at stride
+ * `lda_panel`; we gather it into a contiguous scratch vector, forward-
+ * substitute via `chol_dense_solve_lower`, and scatter back.
+ */
+
+sparse_err_t chol_csc_supernode_eliminate_panel(const double *L_diag, idx_t s_size, idx_t lda_diag,
+                                                double *panel, idx_t lda_panel, idx_t panel_rows) {
+    if (!L_diag)
+        return SPARSE_ERR_NULL;
+    if (s_size < 1 || lda_diag < s_size || panel_rows < 0)
+        return SPARSE_ERR_BADARG;
+    if (panel_rows == 0)
+        return SPARSE_OK;
+    if (!panel)
+        return SPARSE_ERR_NULL;
+    if (lda_panel < panel_rows)
+        return SPARSE_ERR_BADARG;
+
+    if ((size_t)s_size > SIZE_MAX / sizeof(double))
+        return SPARSE_ERR_ALLOC;
+    double *row_buf = malloc((size_t)s_size * sizeof(double));
+    if (!row_buf)
+        return SPARSE_ERR_ALLOC;
+
+    for (idx_t i = 0; i < panel_rows; i++) {
+        for (idx_t j = 0; j < s_size; j++)
+            row_buf[j] = panel[i + j * lda_panel];
+        sparse_err_t err = chol_dense_solve_lower(L_diag, s_size, lda_diag, row_buf);
+        if (err != SPARSE_OK) {
+            free(row_buf);
+            return err;
+        }
+        for (idx_t j = 0; j < s_size; j++)
+            panel[i + j * lda_panel] = row_buf[j];
+    }
+
+    free(row_buf);
+    return SPARSE_OK;
+}
+
+sparse_err_t chol_csc_supernode_writeback(CholCsc *csc, idx_t s_start, idx_t s_size,
+                                          const double *dense, idx_t lda, const idx_t *row_map,
+                                          idx_t panel_height, double drop_tol) {
+    if (!csc || !dense || !row_map)
+        return SPARSE_ERR_NULL;
+    if (s_start < 0 || s_size < 1 || s_start > csc->n - s_size)
+        return SPARSE_ERR_BADARG;
+    if (panel_height < s_size || lda < panel_height)
+        return SPARSE_ERR_BADARG;
+
+    /* Gather: walk each column's stored entries, translate row →
+     * local_row via row_map, overwrite values[p] with the dense cell.
+     * Apply the same per-column drop rule as `chol_csc_gather`:
+     * below-diagonal entries below `drop_tol * |L[j, j]|` get written
+     * as 0.0 so downstream consumers (solve, writeback_to_sparse) see
+     * matching sparsity to the scalar path. */
+    for (idx_t j = 0; j < s_size; j++) {
+        idx_t c = s_start + j;
+        idx_t cstart = csc->col_ptr[c];
+        idx_t cend = csc->col_ptr[c + 1];
+        /* Diagonal value is at dense[j + j*lda] after the diag block
+         * factor ran.  Used to set the per-column threshold. */
+        double abs_l_jj = fabs(dense[j + j * lda]);
+        double threshold = drop_tol * abs_l_jj;
+        for (idx_t p = cstart; p < cend; p++) {
+            idx_t row = csc->row_idx[p];
+            idx_t local = chol_csc_bsearch_row_map(row_map, panel_height, row);
+            if (local >= panel_height)
+                return SPARSE_ERR_BADARG;
+            double v = dense[local + j * lda];
+            /* Never drop the diagonal (local == j for column s_start+j
+             * because row_map's first s_size slots are the supernode
+             * rows in order). */
+            if (local != j && fabs(v) < threshold)
+                v = 0.0;
+            csc->values[p] = v;
+        }
+    }
+
+    return SPARSE_OK;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 18 Day 10: CSC → linked-list writeback for transparent dispatch
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+sparse_err_t chol_csc_writeback_to_sparse(const CholCsc *L, SparseMatrix *mat, const idx_t *perm) {
+    if (!L || !mat)
+        return SPARSE_ERR_NULL;
+    if (mat->rows != L->n || mat->cols != L->n)
+        return SPARSE_ERR_SHAPE;
+    if (mat->factored)
+        return SPARSE_ERR_BADARG;
+
+    idx_t n = L->n;
+
+    /* Precondition: caller-supplied matrix has identity row/col perms.
+     * The scalar path expects to start from an unpermuted input, and
+     * our transplant below keeps the caller's perm arrays intact —
+     * they must already match identity. */
+    for (idx_t i = 0; i < n; i++) {
+        if (mat->row_perm[i] != i || mat->col_perm[i] != i || mat->inv_row_perm[i] != i ||
+            mat->inv_col_perm[i] != i)
+            return SPARSE_ERR_BADARG;
+    }
+
+    /* Copy the caller's perm (if any) up front so a later allocation
+     * failure doesn't leave `mat` half-updated. */
+    idx_t *perm_copy = NULL;
+    if (perm && n > 0) {
+        if ((size_t)n > SIZE_MAX / sizeof(idx_t))
+            return SPARSE_ERR_ALLOC;
+        perm_copy = malloc((size_t)n * sizeof(idx_t));
+        if (!perm_copy)
+            return SPARSE_ERR_ALLOC;
+        for (idx_t i = 0; i < n; i++)
+            perm_copy[i] = perm[i];
+    }
+
+    /* Empty-matrix shortcut: nothing to transplant, just set state. */
+    if (n == 0) {
+        free(mat->reorder_perm);
+        mat->reorder_perm = perm_copy;
+        mat->factor_norm = L->factor_norm;
+        mat->factored = 1;
+        /* cached_norm stays as-is (no matrix contents to invalidate). */
+        return SPARSE_OK;
+    }
+
+    /* Build a fresh SparseMatrix holding L (already in "new"
+     * coordinate space — chol_csc_from_sparse put it there at
+     * conversion time).  Insert CSC column-by-column. */
+    SparseMatrix *tmp = sparse_create(n, n);
+    if (!tmp) {
+        free(perm_copy);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    /* Skip exact zeros (common when the CSC was pre-populated with the
+     * full sym_L pattern but some fill positions never received a non-
+     * zero value) and drop below-diagonal entries below
+     * `SPARSE_DROP_TOL * |L[j, j]|` — mirrors the scalar path's
+     * `chol_csc_gather` policy so the transplanted `SparseMatrix`
+     * sparsity matches what the linked-list kernel would publish.
+     * The diagonal (row_idx[col_ptr[j]] == j by CSC invariant) is
+     * always inserted so the solver's diagonal lookup never misses. */
+    for (idx_t j = 0; j < n; j++) {
+        idx_t cstart = L->col_ptr[j];
+        idx_t cend = L->col_ptr[j + 1];
+        if (cstart == cend)
+            continue;
+        /* Diagonal is the first stored entry per CSC invariant. */
+        double abs_l_jj = (L->row_idx[cstart] == j) ? fabs(L->values[cstart]) : 0.0;
+        double threshold = SPARSE_DROP_TOL * abs_l_jj;
+        for (idx_t p = cstart; p < cend; p++) {
+            idx_t i = L->row_idx[p];
+            double v = L->values[p];
+            if (v == 0.0)
+                continue;
+            if (i != j && fabs(v) < threshold)
+                continue;
+            sparse_err_t ierr = sparse_insert(tmp, i, j, v);
+            if (ierr != SPARSE_OK) {
+                sparse_free(tmp);
+                free(perm_copy);
+                return ierr;
+            }
+        }
+    }
+
+    /* Transplant tmp's internal storage into mat.  Matches the
+     * post-permute swap in sparse_cholesky_factor_opts: free the
+     * caller's current storage, move tmp's pool + headers over, null
+     * tmp's pointers so sparse_free(tmp) doesn't double-free. */
+    pool_free_all(&mat->pool);
+    free(mat->row_headers);
+    free(mat->col_headers);
+
+    mat->row_headers = tmp->row_headers;
+    mat->col_headers = tmp->col_headers;
+    mat->pool = tmp->pool;
+    mat->nnz = tmp->nnz;
+    /* cached_norm is invalidated — the stored matrix just changed
+     * from A to L.  Use the same sentinel (-1.0) the rest of the code
+     * treats as "not cached". */
+    mat->cached_norm = -1.0;
+
+    tmp->row_headers = NULL;
+    tmp->col_headers = NULL;
+    tmp->pool.head = NULL;
+    tmp->pool.current = NULL;
+    tmp->pool.free_list = NULL;
+    sparse_free(tmp);
+
+    /* Row/col perms stay identity (precondition enforced).  Apply the
+     * fill-reducing perm and the factor state. */
+    free(mat->reorder_perm);
+    mat->reorder_perm = perm_copy;
+    mat->factor_norm = L->factor_norm;
+    mat->factored = 1;
+
+    return SPARSE_OK;
 }

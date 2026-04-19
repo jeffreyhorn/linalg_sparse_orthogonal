@@ -158,43 +158,75 @@ sparse_err_t ldlt_csc_to_sparse(const LdltCsc *ldlt, const idx_t *perm_out, Spar
 sparse_err_t ldlt_csc_validate(const LdltCsc *ldlt);
 
 /* ═══════════════════════════════════════════════════════════════════════
- * Day 8: Bunch-Kaufman elimination
+ * Bunch-Kaufman elimination — two kernels share one entry point
  * ═══════════════════════════════════════════════════════════════════════
  *
- * ─── Design: wrap the linked-list kernel, present a CSC interface ─────
+ * `ldlt_csc_eliminate` is the stable public entry point.  Under the
+ * hood it dispatches to one of two implementations:
  *
- * The linked-list LDL^T factorization in src/sparse_ldlt.c implements
- * Bunch-Kaufman 1x1/2x2 pivot selection with symmetric row-and-column
- * swaps, element-growth guarding, and drop-tolerance pruning — ~500
- * lines of delicate numerical code.  A native CSC implementation must
- * reproduce every one of those decisions to stay bit-identical with the
- * linked-list path, and the cost of getting symmetric swaps right in
- * packed CSC storage is substantial (each 2x2 swap touches both the
- * swapped column's slot and every column that references the swapped
- * row, which in CSC means a scan + memmove across potentially every
- * column to the right).
+ *   - **Wrapper** (Sprint 17 Day 8).  Expands the CSC lower triangle
+ *     to a full symmetric `SparseMatrix`, calls `sparse_ldlt_factor`,
+ *     and unpacks the result.  Correct by construction; slow because
+ *     the factor body runs through the linked-list kernel.
  *
- * Rather than port that algorithm wholesale — a week of work for no
- * Sprint 17 perf payoff, since the CSC numeric backend's initial
- * deliverable is correctness — Day 8 delegates: expand the embedded L's
- * lower triangle to a full symmetric `SparseMatrix`, call
- * `sparse_ldlt_factor` on it, and copy the resulting L / D / D_offdiag /
- * pivot_size / perm back into the CSC.  The perm composes with the
- * fill-reducing perm stored by Day 7's `ldlt_csc_from_sparse`.  The
- * result is numerically identical to the linked-list path (it IS the
- * linked-list path) and meets Day 8's completion criterion.
+ *   - **Native** (Sprint 18).  Column-by-column Bunch-Kaufman directly
+ *     on packed CSC storage.  Target: bit-identical output vs wrapper
+ *     on every test matrix, with the pointer-chasing overhead of the
+ *     linked-list kernel removed.
  *
- * A native CSC LDL^T kernel with element growth checking, 2x2 swap
- * handling, and supernodal dense blocks is tracked as follow-up work
- * for a future sprint (likely Sprint 18+); the current wrapper keeps
- * the interface stable so that replacement is drop-in.
+ * Dispatch is compile-time (`-DLDLT_CSC_USE_NATIVE=1` to flip the
+ * default to native) and runtime-overridable via
+ * `ldlt_csc_set_kernel_override` so a single test binary can exercise
+ * either path on demand during Sprint 18's migration.
  */
 
+/** @name Kernel selection for ldlt_csc_eliminate.
+ *
+ * Compile-time default controlled by LDLT_CSC_USE_NATIVE (0 = wrapper,
+ * 1 = native).  Sprint 18 Day 5 flipped this to native-by-default after
+ * the full test corpus (including a 20+ random-matrix cross-check
+ * against `sparse_ldlt_factor`) passes bit-identically on both paths.
+ * The wrapper stays compiled so tests and benchmarks can exercise it
+ * via the runtime override, but no production call site selects it.
+ */
+#ifndef LDLT_CSC_USE_NATIVE
+#define LDLT_CSC_USE_NATIVE 1
+#endif
+
+/** Kernel-selection override codes for `ldlt_csc_set_kernel_override`. */
+typedef enum {
+    LDLT_CSC_KERNEL_DEFAULT = 0, /**< Use the compile-time default (LDLT_CSC_USE_NATIVE). */
+    LDLT_CSC_KERNEL_WRAPPER = 1, /**< Force the Sprint 17 wrapper path. */
+    LDLT_CSC_KERNEL_NATIVE = 2,  /**< Force the Sprint 18 native kernel. */
+} LdltCscKernelOverride;
+
 /**
- * Factor the LdltCsc via Bunch-Kaufman pivoting.
+ * Override the kernel selected by `ldlt_csc_eliminate` for the current
+ * process.  Intended for tests and benchmarks that need to exercise
+ * both paths on the same binary during the Sprint 18 migration.
+ *
+ * Thread-safety: not thread-safe.  Callers are expected to set once
+ * at test setup and clear at teardown.  Production call sites should
+ * never call this — they get whichever kernel the compile-time flag
+ * selects.
+ *
+ * @param mode  One of LDLT_CSC_KERNEL_{DEFAULT, WRAPPER, NATIVE}.
+ */
+void ldlt_csc_set_kernel_override(LdltCscKernelOverride mode);
+
+/**
+ * Read the current kernel override, for diagnostics.  Returns
+ * LDLT_CSC_KERNEL_DEFAULT when no override is active.
+ */
+LdltCscKernelOverride ldlt_csc_get_kernel_override(void);
+
+/**
+ * Factor the LdltCsc via Bunch-Kaufman pivoting.  Dispatches to the
+ * wrapper or native kernel based on the compile-time default and any
+ * runtime override.
  *
  * On entry `F->L` is expected to hold the lower triangle of the (optionally
- * permuted) input A — exactly what Day 7's `ldlt_csc_from_sparse` produces.
+ * permuted) input A — exactly what `ldlt_csc_from_sparse` produces.
  * On successful return:
  *   - `F->L` is the unit lower-triangular factor (diagonal stored as 1.0),
  *   - `F->D` / `F->D_offdiag` hold the D block-diagonal entries,
@@ -218,6 +250,106 @@ sparse_err_t ldlt_csc_validate(const LdltCsc *ldlt);
  *         determinant, or L-entry magnitude exceeding the growth bound).
  */
 sparse_err_t ldlt_csc_eliminate(LdltCsc *F);
+
+/** Sprint 17 wrapper path — exposed for tests/benchmarks via override. */
+sparse_err_t ldlt_csc_eliminate_wrapper(LdltCsc *F);
+
+/** Sprint 18 native path — exposed for tests/benchmarks via override. */
+sparse_err_t ldlt_csc_eliminate_native(LdltCsc *F);
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Native-kernel workspace (Sprint 18)
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Bunch-Kaufman needs two dense column accumulators per step: one for
+ * the current column k, and (conditionally) one for the 2×2 pivot-
+ * candidate partner column r.  Each accumulator carries a scatter-
+ * gather triple (dense buffer + pattern list + per-row marker) so a
+ * single cmod pass over the prior factored columns touches only the
+ * rows that end up non-zero.  This mirrors the `CholCscWorkspace`
+ * layout from Sprint 17 Day 4, duplicated for the partner column.
+ */
+typedef struct {
+    idx_t n;                /**< Matrix dimension (matches the LdltCsc being factored). */
+    double *dense_col;      /**< Length n, accumulator for the current column k. */
+    idx_t *dense_pattern;   /**< Length n, touched-row list for column k. */
+    int8_t *dense_marker;   /**< Length n, 1 iff row is in `dense_pattern`. */
+    idx_t pattern_count;    /**< Valid entries in `dense_pattern`. */
+    double *dense_col_r;    /**< Length n, accumulator for partner column r (2×2 candidate). */
+    idx_t *dense_pattern_r; /**< Length n, touched-row list for column r. */
+    int8_t *dense_marker_r; /**< Length n, 1 iff row is in `dense_pattern_r`. */
+    idx_t pattern_count_r;  /**< Valid entries in `dense_pattern_r`. */
+} LdltCscWorkspace;
+
+/**
+ * Allocate a native-kernel workspace for a matrix of dimension n.
+ *
+ * All six dense arrays are zero-initialised and `pattern_count` /
+ * `pattern_count_r` start at zero.  The caller frees with
+ * `ldlt_csc_workspace_free`.
+ *
+ * @param n        Matrix dimension (n >= 0).
+ * @param[out] out Receives the allocated workspace.  Set to NULL on error.
+ * @return SPARSE_OK, SPARSE_ERR_NULL, SPARSE_ERR_BADARG (n<0), or SPARSE_ERR_ALLOC.
+ */
+sparse_err_t ldlt_csc_workspace_alloc(idx_t n, LdltCscWorkspace **out);
+
+/** Free a native-kernel workspace.  Safe to call with NULL. */
+void ldlt_csc_workspace_free(LdltCscWorkspace *ws);
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * In-place symmetric swap (Sprint 18 Day 2)
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Bunch-Kaufman pivoting forms a symmetric permutation P every time it
+ * picks a pivot off the diagonal.  On the symmetric matrix A this is
+ * just a relabelling — every stored entry's row/column index passes
+ * through σ = (i ↔ j) — but on the packed lower-triangular CSC storage
+ * used by `LdltCsc->L`, the same operation touches:
+ *
+ *   1. Columns 0..i-1: rows i and j may appear in each; their values
+ *      swap, or the single present row gets renamed and re-sorted into
+ *      the column's sorted row_idx slice.
+ *   2. Columns [i..j]: the whole block under rows [i..n) is affected.
+ *      Middle-block entries can even move between columns (e.g., an
+ *      old (r, i) with r in (i, j) becomes stored at (j, r) in the
+ *      new layout because (r, j) after σ falls into the upper triangle
+ *      and is symmetric-reflected back to (j, r)).  Total nnz inside
+ *      the block is preserved (σ is a bijection on (row, col) pairs
+ *      after lower-triangle reflection), so no CSC growth is required.
+ *   3. Columns j+1..n-1: unchanged (rows >= c > j never equal i or j).
+ *
+ * `F->D`, `F->D_offdiag`, `F->pivot_size`, and `F->perm` are also
+ * swapped at positions i and j so the LdltCsc stays internally
+ * consistent with the relabelling.  Callers that mean to update perm
+ * differently (e.g., composing with a fill-reducing perm) can rewrite
+ * `F->perm` after the swap.
+ */
+
+/**
+ * Perform a symmetric row-and-column swap on an LdltCsc in place.
+ *
+ * The function is self-contained: it operates on the full CSC (not just
+ * a BK "active submatrix"), so callers in non-BK contexts (stress
+ * tests, ad-hoc permutations) behave correctly.  When called from the
+ * BK elimination loop, cols j+1..n-1 touching only cols < i is still
+ * the dominant cost, matching the reference `swap_L_rows` in
+ * `src/sparse_ldlt.c`.
+ *
+ * The operation preserves total nnz in `F->L`; no capacity growth is
+ * ever needed.
+ *
+ * @param F  LdltCsc to mutate.  Must be non-NULL with valid storage.
+ * @param i  First index to swap; must satisfy 0 <= i < F->n.
+ * @param j  Second index to swap; must satisfy 0 <= j < F->n.  When
+ *           i == j the call is a no-op and returns SPARSE_OK.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if F or any of its arrays is NULL.
+ * @return SPARSE_ERR_BADARG if i or j is out of range.
+ * @return SPARSE_ERR_ALLOC if the temporary gather buffers (sized to
+ *         the swapped block's nnz) cannot be allocated.
+ */
+sparse_err_t ldlt_csc_symmetric_swap(LdltCsc *F, idx_t i, idx_t j);
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Day 9: Triangular + block diagonal solve on a factored LdltCsc

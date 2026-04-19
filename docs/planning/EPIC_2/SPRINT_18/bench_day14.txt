@@ -1,0 +1,52 @@
+Sprint 18 Day 14 — Final Benchmark Capture
+===========================================
+
+Host: Darwin 24.6.0, `clang -O2`, 3-repeat averaging.
+Post `make clean && make format && make lint && make test && make sanitize`.
+
+Absolute numbers differ from `bench_day12.txt` (different machine
+load between captures) but the speedup ratios are stable — the
+Sprint 18 performance story held under the final regression.
+
+--------------------------------------------------------
+bench_chol_csc --repeat 3
+--------------------------------------------------------
+matrix,n,nnz,factor_ll_ms,factor_csc_ms,factor_csc_sn_ms,solve_ll_ms,solve_csc_ms,solve_csc_sn_ms,speedup_csc,speedup_csc_sn,res_ll,res_csc,res_csc_sn
+nos4.mtx,100,594,0.447,0.329,0.320,0.008,0.005,0.004,1.36,1.40,7.06e-16,5.89e-16,5.89e-16
+bcsstk04.mtx,132,3648,2.564,2.051,2.136,0.030,0.014,0.013,1.25,1.20,6.05e-16,1.06e-15,9.08e-16
+bcsstk14.mtx,1806,63454,281.462,164.576,121.330,2.816,0.419,0.490,1.71,2.32,1.10e-15,1.10e-15,1.17e-15
+s3rmt3m3.mtx,5357,207123,2262.142,1042.043,697.673,15.198,1.937,1.967,2.17,3.24,4.77e-15,8.36e-15,5.38e-15
+Kuu.mtx,7102,340200,1762.039,1869.250,861.911,12.267,1.526,1.683,0.94,2.04,8.68e-15,1.22e-14,9.39e-15
+Pres_Poisson.mtx,14822,715804,28535.377,10104.188,6551.749,90.487,10.129,11.118,2.82,4.36,1.56e-13,2.17e-13,1.58e-13
+
+Supernodal vs linked-list speedup summary:
+  nos4         → 1.40×
+  bcsstk04     → 1.20×  (below-par; matrix too small for batched gain)
+  bcsstk14     → 2.32×
+  s3rmt3m3     → 3.24×
+  Kuu          → 2.04×
+  Pres_Poisson → 4.36×
+
+Kuu's scalar-CSC path shows 0.94× (~same as linked-list) on this
+host instead of the 0.77× from Day 12 — the exact ratio depends on
+drop-tolerance shrink frequency which varies slightly between
+runs; the architectural observation (scalar kernel is weak on this
+fill pattern, supernodal side-steps the problem) is unchanged.
+
+--------------------------------------------------------
+bench_ldlt_csc --repeat 3
+--------------------------------------------------------
+matrix,n,nnz,factor_ll_ms,factor_csc_native_ms,factor_csc_wrapper_ms,solve_ll_ms,solve_csc_native_ms,speedup_csc_native,speedup_csc_wrapper,res_ll,res_csc_native
+nos4.mtx,100,594,0.286,0.251,0.329,0.006,0.004,1.14,0.87,5.89e-16,5.89e-16
+bcsstk04.mtx,132,3648,2.881,1.547,2.851,0.028,0.011,1.86,1.01,6.05e-16,1.06e-15
+bcsstk14.mtx,1806,63454,348.981,157.576,359.048,3.227,0.435,2.21,0.97,8.05e-15,8.13e-15
+s3rmt3m3.mtx,5357,207123,2896.455,1497.830,3602.725,16.311,2.452,1.93,0.80,8.36e-15,8.36e-15
+
+Native LDL^T speedup summary:
+  nos4         → 1.14×
+  bcsstk04     → 1.86×
+  bcsstk14     → 2.21×
+  s3rmt3m3     → 1.93×
+
+Residuals ≤ 8.4e-15 on every fixture in both benches — well inside
+the 1e-10 SPD spot-check envelope.

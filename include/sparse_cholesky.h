@@ -28,25 +28,68 @@
 #include "sparse_matrix.h"
 
 /**
+ * @brief Cholesky numeric backend selector.
+ *
+ * Since Sprint 18 Day 11, `sparse_cholesky_factor_opts` dispatches
+ * between the linked-list kernel and the CSC working-format kernel
+ * based on matrix size — but callers can force either path via
+ * `sparse_cholesky_opts_t::backend`.
+ *
+ * - `SPARSE_CHOL_BACKEND_AUTO` (default, zero-initialised): use the
+ *   CSC backend when `mat->rows >= SPARSE_CSC_THRESHOLD`, otherwise
+ *   the linked-list backend.
+ * - `SPARSE_CHOL_BACKEND_LINKED_LIST`: always use the linked-list
+ *   kernel regardless of dimension.
+ * - `SPARSE_CHOL_BACKEND_CSC`: always use the CSC kernel (including
+ *   `chol_csc_writeback_to_sparse` to transplant the result back
+ *   into `mat`).
+ */
+typedef enum {
+    SPARSE_CHOL_BACKEND_AUTO = 0,
+    SPARSE_CHOL_BACKEND_LINKED_LIST = 1,
+    SPARSE_CHOL_BACKEND_CSC = 2,
+} sparse_chol_backend_t;
+
+/**
  * @brief Options for Cholesky factorization with optional fill-reducing reordering.
  *
- * @note **Selecting the CSC numeric backend.** For larger SPD systems
- * (`n >= SPARSE_CSC_THRESHOLD`, defined in `sparse_matrix.h`), the CSC
- * working-format kernel from Sprint 17 delivers a measured factor-time
- * speedup on structural-mechanics problems such as bcsstk04 (n=132,
- * nnz=3648).  For current reported numbers see
+ * @warning **ABI break in v2.0.0.**  Sprint 18 Day 11 added the
+ * `backend` and `used_csc_path` fields to this struct, changing its
+ * size (and therefore layout) relative to the v1.x version shipped
+ * through Sprint 17.  The library's `VERSION` bumped to `2.0.0` to
+ * signal the break.  Source-level compatibility is preserved:
+ * zero-initialising `sparse_cholesky_opts_t` still yields the
+ * expected defaults (AUTO backend, no telemetry), so pre-Sprint-18
+ * caller code compiles and links against v2.x without edits.
+ * Pre-compiled downstream binaries linked against v1.x must be
+ * recompiled against v2.x — stack-allocating the old (4-byte)
+ * struct would cause the new library to read past its end.
+ *
+ * @note **Transparent CSC dispatch.**  `sparse_cholesky_factor_opts`
+ * routes to the CSC supernodal kernel whenever `mat->rows >=
+ * SPARSE_CSC_THRESHOLD` (defined in `sparse_matrix.h`, default 100)
+ * and `backend == SPARSE_CHOL_BACKEND_AUTO`.  The dispatch runs
+ * `sparse_analyze` → `chol_csc_from_sparse_with_analysis` →
+ * `chol_csc_eliminate_supernodal` → `chol_csc_writeback_to_sparse`
+ * internally, so callers receive the standard `SparseMatrix` result
+ * format regardless of which backend ran.  For smaller matrices the
+ * linked-list kernel runs instead.  Set `backend` explicitly to
+ * force one path on the same binary — benchmarks and tests use
+ * `SPARSE_CHOL_BACKEND_CSC` and `SPARSE_CHOL_BACKEND_LINKED_LIST` to
+ * exercise both sides.  For current speedups see
  * `benchmarks/bench_chol_csc.c` and
  * `docs/planning/EPIC_2/SPRINT_17/PERF_NOTES.md` — measurements vary
- * with machine and run, so the benchmark output is the source of truth
- * rather than a baked-in figure in this header.  Today the CSC kernel
- * is reached via the internal `chol_csc_factor` /
- * `chol_csc_factor_solve` APIs (declared in
- * `src/sparse_chol_csc_internal.h`); a transparent threshold-based
- * dispatch through `sparse_cholesky_factor_opts` is tracked as
- * follow-up work.
+ * with machine and run, so the benchmark output is the source of
+ * truth rather than a baked-in figure.
+ *
+ * The optional `used_csc_path` output pointer is set to 1 when the
+ * CSC backend ran and 0 when the linked-list backend ran.  Pass NULL
+ * if the caller does not need this telemetry.
  */
 typedef struct {
-    sparse_reorder_t reorder; /**< Fill-reducing reordering (NONE, RCM, or AMD) */
+    sparse_reorder_t reorder;      /**< Fill-reducing reordering (NONE, RCM, or AMD) */
+    sparse_chol_backend_t backend; /**< AUTO dispatches by size; LINKED_LIST / CSC force a path */
+    int *used_csc_path;            /**< Optional output: set to 1 if CSC ran, 0 if linked-list */
 } sparse_cholesky_opts_t;
 
 /**

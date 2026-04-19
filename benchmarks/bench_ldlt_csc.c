@@ -1,24 +1,28 @@
 /*
  * bench_ldlt_csc.c — LDL^T backend comparison: linked-list vs CSC
  *
- * Compares wall-clock factor + solve time between:
- *   1. Linked-list LDL^T (sparse_ldlt_factor_opts with AMD reordering
- *      + sparse_ldlt_solve)
- *   2. CSC LDL^T        (ldlt_csc_from_sparse + ldlt_csc_eliminate +
- *      ldlt_csc_solve, using a precomputed AMD permutation so both
- *      paths see the same fill-reducing ordering)
- *
- * Day 8's CSC LDL^T delegates to the linked-list kernel after
- * expanding the lower triangle to full symmetric — so the CSC path is
- * expected to run slightly slower than linked-list on today's
- * implementation.  This benchmark quantifies that overhead so a later
- * sprint (native CSC LDL^T kernel) can measure its speedup against a
- * known baseline.
+ * Reports wall-clock factor + solve time across three paths:
+ *   1. Linked-list LDL^T  (`sparse_ldlt_factor_opts` with AMD
+ *      reordering + `sparse_ldlt_solve`).
+ *   2. CSC LDL^T — native Bunch-Kaufman kernel (default since Sprint
+ *      18 Day 5): `ldlt_csc_from_sparse` + `ldlt_csc_eliminate` +
+ *      `ldlt_csc_solve`, using a precomputed AMD permutation so all
+ *      three paths see the same fill-reducing ordering.
+ *   3. CSC LDL^T — Sprint 17 wrapper (expand to full symmetric
+ *      SparseMatrix → call `sparse_ldlt_factor` → unpack).  Reached
+ *      via the runtime override `ldlt_csc_set_kernel_override` so
+ *      this benchmark can measure the native-vs-wrapper delta without
+ *      recompiling.
  *
  * Output is CSV on stdout:
- *   matrix, n, nnz, factor_ll, factor_csc, solve_ll, solve_csc,
- *   speedup_csc, res_ll, res_csc
- * Times are milliseconds, averaged across --repeat runs.
+ *   matrix, n, nnz,
+ *   factor_ll_ms, factor_csc_native_ms, factor_csc_wrapper_ms,
+ *   solve_ll_ms, solve_csc_native_ms,
+ *   speedup_csc_native, speedup_csc_wrapper,
+ *   res_ll, res_csc_native
+ * Times are milliseconds, averaged across --repeat runs.  The
+ * "speedup_csc_*" columns report `factor_ll / factor_csc_*` — higher
+ * means the CSC path is faster than linked-list.
  */
 #define _POSIX_C_SOURCE 199309L
 
@@ -103,19 +107,24 @@ static bench_result_t bench_linked_list(const SparseMatrix *A, const double *b, 
     return r;
 }
 
-static bench_result_t bench_csc_path(const SparseMatrix *A, const double *b, double *x,
-                                     int repeat) {
+/* Time the CSC path with an explicit kernel override.  Pass
+ * LDLT_CSC_KERNEL_NATIVE or LDLT_CSC_KERNEL_WRAPPER to pin which
+ * elimination body the benchmark exercises — both invocations run
+ * the same scatter/cmod setup around `ldlt_csc_eliminate`, so the
+ * only difference in factor_ms is the kernel body itself. */
+static bench_result_t bench_csc_path(const SparseMatrix *A, const double *b, double *x, int repeat,
+                                     LdltCscKernelOverride kernel) {
     bench_result_t r = {0, 0, 0, 1};
     double factor_total = 0.0, solve_total = 0.0;
     idx_t n = sparse_rows(A);
+
+    ldlt_csc_set_kernel_override(kernel);
 
     for (int rep = 0; rep < repeat; rep++) {
         /* Fair comparison: the linked-list path's
          * sparse_ldlt_factor_opts(..., AMD) re-runs AMD every
          * iteration, so do the same here — include AMD + CSC
-         * conversion + elimination in factor_ms.  Previously AMD was
-         * precomputed once outside the loop, which inflated
-         * speedup_csc on small matrices where AMD dominates. */
+         * conversion + elimination in factor_ms. */
         idx_t *amd_perm = malloc((size_t)n * sizeof(idx_t));
         if (!amd_perm) {
             r.ok = 0;
@@ -156,6 +165,8 @@ static bench_result_t bench_csc_path(const SparseMatrix *A, const double *b, dou
         free(amd_perm);
     }
 
+    ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_DEFAULT);
+
     if (r.ok) {
         r.factor_ms = factor_total * 1000.0 / (double)repeat;
         r.solve_ms = solve_total * 1000.0 / (double)repeat;
@@ -188,12 +199,13 @@ static int bench_matrix(const char *path, int repeat) {
     sparse_matvec(A, ones, b);
 
     bench_result_t rl = bench_linked_list(A, b, x, repeat);
-    bench_result_t rc = bench_csc_path(A, b, x, repeat);
+    bench_result_t rn = bench_csc_path(A, b, x, repeat, LDLT_CSC_KERNEL_NATIVE);
+    bench_result_t rw = bench_csc_path(A, b, x, repeat, LDLT_CSC_KERNEL_WRAPPER);
 
     const char *base = strrchr(path, '/');
     base = base ? base + 1 : path;
 
-    if (!rl.ok || !rc.ok) {
+    if (!rl.ok || !rn.ok || !rw.ok) {
         fprintf(stderr, "bench_ldlt_csc: %s — one or more paths failed\n", base);
         free(ones);
         free(b);
@@ -202,10 +214,15 @@ static int bench_matrix(const char *path, int repeat) {
         return 1;
     }
 
-    double sp = rl.factor_ms / rc.factor_ms;
+    double sp_native = rl.factor_ms / rn.factor_ms;
+    double sp_wrapper = rl.factor_ms / rw.factor_ms;
 
-    printf("%s,%d,%d,%.3f,%.3f,%.3f,%.3f,%.2f,%.2e,%.2e\n", base, (int)n, (int)nnz, rl.factor_ms,
-           rc.factor_ms, rl.solve_ms, rc.solve_ms, sp, rl.residual, rc.residual);
+    /* Columns: matrix, n, nnz, factor_ll, factor_csc_native,
+     * factor_csc_wrapper, solve_ll, solve_csc_native, speedup_native,
+     * speedup_wrapper, res_ll, res_csc_native. */
+    printf("%s,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2f,%.2e,%.2e\n", base, (int)n, (int)nnz,
+           rl.factor_ms, rn.factor_ms, rw.factor_ms, rl.solve_ms, rn.solve_ms, sp_native,
+           sp_wrapper, rl.residual, rn.residual);
 
     free(ones);
     free(b);
@@ -214,9 +231,21 @@ static int bench_matrix(const char *path, int repeat) {
     return 0;
 }
 
+/* Sprint 18 Day 12 corpus selection rationale:
+ *   SPD: nos4, bcsstk04, bcsstk14 kept as default.  s3rmt3m3 (n=5357)
+ *   is added for scaling visibility without blowing the bench runtime.
+ *   Kuu/Pres_Poisson are SPD but large enough that the wrapper path's
+ *   full-symmetric expansion dominates; they are available via the
+ *   single-matrix CLI (argv[1]) for operators who want the numbers.
+ *   GHS_indef/bloweybq is reported SINGULAR by the linked-list
+ *   baseline, so it is not a fair CSC-vs-LL comparison target.
+ *   Hollinger/tuma1 (n=22967) runs longer than 3 minutes per factor
+ *   even on the fastest path and is excluded from the default list. */
 static const char *default_matrices[] = {
     "tests/data/suitesparse/nos4.mtx",
     "tests/data/suitesparse/bcsstk04.mtx",
+    "tests/data/suitesparse/bcsstk14.mtx",
+    "tests/data/suitesparse/s3rmt3m3.mtx",
 };
 static const int default_matrix_count =
     (int)(sizeof(default_matrices) / sizeof(default_matrices[0]));
@@ -235,8 +264,11 @@ int main(int argc, char **argv) {
         }
     }
 
-    printf("matrix,n,nnz,factor_ll_ms,factor_csc_ms,solve_ll_ms,solve_csc_ms,"
-           "speedup_csc,res_ll,res_csc\n");
+    printf("matrix,n,nnz,"
+           "factor_ll_ms,factor_csc_native_ms,factor_csc_wrapper_ms,"
+           "solve_ll_ms,solve_csc_native_ms,"
+           "speedup_csc_native,speedup_csc_wrapper,"
+           "res_ll,res_csc_native\n");
 
     int rc = 0;
     if (single_path) {

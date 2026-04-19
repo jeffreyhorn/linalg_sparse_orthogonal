@@ -41,14 +41,26 @@
 /**
  * @brief Dimension crossover for the CSC Cholesky backend.
  *
- * Matrices with `rows >= SPARSE_CSC_THRESHOLD` benefit from the CSC
- * numeric kernel (Sprint 17): contiguous column storage cuts the
- * linked-list pointer-chasing overhead.  Smaller matrices may see a
- * slight slowdown due to the one-time conversion cost.
+ * Since Sprint 18 Day 11 this is *load-bearing*:
+ * `sparse_cholesky_factor_opts` with `backend == SPARSE_CHOL_BACKEND_AUTO`
+ * dispatches matrices with `rows >= SPARSE_CSC_THRESHOLD` to the
+ * Sprint 17 / Sprint 18 CSC working-format kernel (batched supernodal
+ * factor + writeback), and routes smaller matrices through the
+ * linked-list scalar kernel to avoid the one-time conversion cost on
+ * inputs where it would dominate the numeric work.
  *
- * Used today only as documentation + hint; the AUTO backend currently
- * falls through to the linked-list path for ABI safety.  Override at
- * compile time with `-DSPARSE_CSC_THRESHOLD=N`.
+ * The default of 100 is a rough crossover inferred from the
+ * `benchmarks/bench_chol_csc.c` timings on nos4 (n=100) and bcsstk04
+ * (n=132) — both of those matrices ran faster through CSC than
+ * linked-list in the Sprint 17 Day 12 benchmark.  The Sprint 18
+ * Day 12 / Day 14 larger-corpus captures confirmed every fixture
+ * with `n >= 100` still wins under CSC but added no sub-100 data
+ * point, so the default is intentionally held at 100 pending the
+ * small-matrix study tracked in Sprint 19 (see
+ * `docs/planning/EPIC_2/SPRINT_18/RETROSPECTIVE.md`).  Callers that
+ * want a different crossover can override the macro at compile time
+ * with `-DSPARSE_CSC_THRESHOLD=N` or set
+ * `sparse_cholesky_opts_t::backend` explicitly to force one branch.
  */
 #ifndef SPARSE_CSC_THRESHOLD
 #define SPARSE_CSC_THRESHOLD 100

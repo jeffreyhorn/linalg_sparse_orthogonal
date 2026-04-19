@@ -1,0 +1,481 @@
+/**
+ * Sprint 18 cross-feature integration tests.
+ *
+ * Exercises the transparent CSC dispatch in
+ * `sparse_cholesky_factor_opts` across the `SPARSE_CSC_THRESHOLD`
+ * boundary: matrices with n < threshold must take the linked-list
+ * path, matrices with n >= threshold must take the CSC supernodal
+ * path, and both paths must agree on the solution for a matrix that
+ * can be factored either way.  Also covers the native CSC LDL^T
+ * kernel (Sprint 18 Days 1-5) on indefinite and SPD inputs.
+ */
+#include "sparse_chol_csc_internal.h"
+#include "sparse_cholesky.h"
+#include "sparse_ldlt.h"
+#include "sparse_ldlt_csc_internal.h"
+#include "sparse_matrix.h"
+#include "sparse_reorder.h"
+#include "sparse_types.h"
+#include "sparse_vector.h"
+#include "test_framework.h"
+
+#include <math.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define DATA_DIR "tests/data"
+#define SS_DIR DATA_DIR "/suitesparse"
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Helpers
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static SparseMatrix *build_spd_tridiag(idx_t n) {
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+    return A;
+}
+
+/* Banded SPD with bandwidth bw — diagonal dominant, non-trivial fill.
+ * Returned A is symmetric (both off-diagonals inserted explicitly). */
+static SparseMatrix *build_spd_banded(idx_t n, idx_t bw) {
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, (double)(2 * bw + 2));
+        for (idx_t d = 1; d <= bw && i + d < n; d++) {
+            double off = -1.0 / (double)(d + 1);
+            sparse_insert(A, i, i + d, off);
+            sparse_insert(A, i + d, i, off);
+        }
+    }
+    return A;
+}
+
+/* KKT saddle-point for indefinite test coverage. */
+static SparseMatrix *build_kkt(idx_t nh, idx_t nc) {
+    idx_t n = nh + nc;
+    SparseMatrix *K = sparse_create(n, n);
+    if (!K)
+        return NULL;
+    for (idx_t i = 0; i < nh; i++) {
+        sparse_insert(K, i, i, 4.0);
+        if (i > 0) {
+            sparse_insert(K, i, i - 1, -1.0);
+            sparse_insert(K, i - 1, i, -1.0);
+        }
+    }
+    for (idx_t c = 0; c < nc; c++) {
+        idx_t j0 = (c * 2) % nh;
+        idx_t j1 = (j0 + 1) % nh;
+        sparse_insert(K, nh + c, j0, 1.0);
+        sparse_insert(K, j0, nh + c, 1.0);
+        sparse_insert(K, nh + c, j1, 1.0);
+        sparse_insert(K, j1, nh + c, 1.0);
+    }
+    return K;
+}
+
+static double relative_residual(const SparseMatrix *A, const double *x, const double *b) {
+    idx_t n = sparse_rows(A);
+    double *r = malloc((size_t)n * sizeof(double));
+    if (!r) {
+        /* Sentinel: return +INF so the caller's `rel < tol` check
+         * fails visibly instead of segfaulting in `sparse_matvec` /
+         * the r[i] loop below. */
+        return INFINITY;
+    }
+    sparse_matvec(A, x, r);
+    double nr = 0.0, nb = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        double ri = fabs(r[i] - b[i]);
+        double bi = fabs(b[i]);
+        if (ri > nr)
+            nr = ri;
+        if (bi > nb)
+            nb = bi;
+    }
+    free(r);
+    return nb > 0.0 ? nr / nb : nr;
+}
+
+/* Factor + solve via sparse_cholesky_factor_opts, checking that the
+ * dispatch chose the expected backend.
+ *
+ * All allocations are NULL-checked up front and all owned resources
+ * are freed on a single cleanup path at the end, so a REQUIRE_OK
+ * early-return in the middle of the test can't leak and can't
+ * segfault on a null pointer when the underlying allocation is what
+ * actually failed. */
+static void factor_solve_assert_path(SparseMatrix *A, int expect_csc, double tol_residual) {
+    /* Null-check A before dereferencing through sparse_rows — the
+     * `build_*` helpers above wrap `sparse_create`, which can return
+     * NULL under OOM, so an allocation failure upstream must surface
+     * as a visible `ASSERT_NOT_NULL(A)` rather than a segfault here. */
+    idx_t n = (A != NULL) ? sparse_rows(A) : 0;
+    double *ones = (A != NULL) ? malloc((size_t)n * sizeof(double)) : NULL;
+    double *b = (A != NULL) ? malloc((size_t)n * sizeof(double)) : NULL;
+    double *x = (A != NULL) ? calloc((size_t)n, sizeof(double)) : NULL;
+    SparseMatrix *L = NULL;
+    int alloc_ok = (A != NULL && ones != NULL && b != NULL && x != NULL);
+
+    if (alloc_ok) {
+        for (idx_t i = 0; i < n; i++)
+            ones[i] = 1.0;
+        sparse_matvec(A, ones, b);
+        L = sparse_copy(A);
+    }
+
+    int used = -1;
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_AUTO, &used};
+    sparse_err_t err_factor = SPARSE_OK;
+    sparse_err_t err_solve = SPARSE_OK;
+    double rel = INFINITY;
+
+    if (alloc_ok && L != NULL) {
+        err_factor = sparse_cholesky_factor_opts(L, &opts);
+        if (err_factor == SPARSE_OK) {
+            err_solve = sparse_cholesky_solve(L, b, x);
+            if (err_solve == SPARSE_OK)
+                rel = relative_residual(A, x, b);
+        }
+    }
+
+    /* Capture L's non-null state before `sparse_free` invalidates the
+     * pointer, so the post-cleanup assertion reflects whether the
+     * `sparse_copy` succeeded rather than reading a dangling pointer. */
+    int copy_ok = (L != NULL);
+    free(ones);
+    free(b);
+    free(x);
+    sparse_free(L);
+
+    ASSERT_TRUE(alloc_ok);
+    ASSERT_TRUE(copy_ok);
+    REQUIRE_OK(err_factor);
+    ASSERT_EQ(used, expect_csc);
+    REQUIRE_OK(err_solve);
+    ASSERT_TRUE(rel < tol_residual);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Cross-threshold Cholesky dispatch
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Small SPD (n = 20) must take the linked-list path under AUTO. */
+static void test_s18_below_threshold_uses_linked_list(void) {
+    SparseMatrix *A = build_spd_tridiag(20);
+    factor_solve_assert_path(A, /*expect_csc=*/0, 1e-10);
+    sparse_free(A);
+}
+
+/* Just above SPARSE_CSC_THRESHOLD (default 100): should take CSC. */
+static void test_s18_just_above_threshold_uses_csc(void) {
+    SparseMatrix *A = build_spd_tridiag(SPARSE_CSC_THRESHOLD + 20);
+    factor_solve_assert_path(A, /*expect_csc=*/1, 1e-10);
+    sparse_free(A);
+}
+
+/* Mid-range SPD banded matrix with non-trivial fill (n = 500, bw = 10). */
+static void test_s18_mid_range_spd_banded_uses_csc(void) {
+    SparseMatrix *A = build_spd_banded(500, 10);
+    factor_solve_assert_path(A, /*expect_csc=*/1, 1e-10);
+    sparse_free(A);
+}
+
+/* Large SPD banded (n = 2000, bw = 50): stress the supernodal extract. */
+static void test_s18_large_spd_banded_uses_csc(void) {
+    SparseMatrix *A = build_spd_banded(2000, 50);
+    factor_solve_assert_path(A, /*expect_csc=*/1, 1e-10);
+    sparse_free(A);
+}
+
+/* SuiteSparse fixtures — mix of below-threshold and above-threshold. */
+static void test_s18_suitesparse_nos4(void) {
+    SparseMatrix *A = NULL;
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/nos4.mtx"));
+    /* nos4 is n=100 which is exactly SPARSE_CSC_THRESHOLD; AUTO uses CSC. */
+    factor_solve_assert_path(A, /*expect_csc=*/1, 1e-10);
+    sparse_free(A);
+}
+
+static void test_s18_suitesparse_bcsstk04(void) {
+    SparseMatrix *A = NULL;
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx"));
+    /* bcsstk04 is n=132, > threshold. */
+    factor_solve_assert_path(A, /*expect_csc=*/1, 1e-10);
+    sparse_free(A);
+}
+
+static void test_s18_suitesparse_bcsstk14(void) {
+    SparseMatrix *A = NULL;
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx"));
+    /* n=1806 is well above threshold. */
+    factor_solve_assert_path(A, /*expect_csc=*/1, 1e-10);
+    sparse_free(A);
+}
+
+/* Force both paths on a single matrix and assert that the solution
+ * vectors they produce agree to round-off.  Uses a matrix sized right
+ * at the threshold so both paths are exercisable.  The two factor
+ * patterns can differ by a handful of entries at machine epsilon
+ * because drop-tolerance is applied at different grain sizes; the
+ * solve is the user-visible contract, so that's what the body
+ * compares (see the inline comment by the x_ll / x_cs loop).
+ *
+ * Same single-cleanup-path pattern as `factor_solve_assert_path`:
+ * every allocation is NULL-checked into `alloc_ok`, factor/solve
+ * errors are captured in locals, and resources are freed before the
+ * final assertion block so a REQUIRE_OK early-return can't leak. */
+static void test_s18_force_both_paths_agree(void) {
+    idx_t n = SPARSE_CSC_THRESHOLD + 30;
+    SparseMatrix *A = build_spd_banded(n, 5);
+    SparseMatrix *L_ll = NULL;
+    SparseMatrix *L_cs = NULL;
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x_ll = calloc((size_t)n, sizeof(double));
+    double *x_cs = calloc((size_t)n, sizeof(double));
+    int alloc_ok = (A != NULL && b != NULL && x_ll != NULL && x_cs != NULL);
+
+    if (alloc_ok) {
+        L_ll = sparse_copy(A);
+        L_cs = sparse_copy(A);
+        alloc_ok = (L_ll != NULL && L_cs != NULL);
+    }
+
+    int used_ll = -1;
+    int used_cs = -1;
+    sparse_cholesky_opts_t opts_ll = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_LINKED_LIST,
+                                      &used_ll};
+    sparse_cholesky_opts_t opts_cs = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_CSC, &used_cs};
+    sparse_err_t err_ll_factor = SPARSE_OK;
+    sparse_err_t err_cs_factor = SPARSE_OK;
+    sparse_err_t err_ll_solve = SPARSE_OK;
+    sparse_err_t err_cs_solve = SPARSE_OK;
+    int solutions_agree = 1;
+
+    if (alloc_ok) {
+        err_ll_factor = sparse_cholesky_factor_opts(L_ll, &opts_ll);
+        err_cs_factor = sparse_cholesky_factor_opts(L_cs, &opts_cs);
+        if (err_ll_factor == SPARSE_OK && err_cs_factor == SPARSE_OK) {
+            for (idx_t i = 0; i < n; i++)
+                b[i] = 1.0 + 0.1 * (double)i;
+            err_ll_solve = sparse_cholesky_solve(L_ll, b, x_ll);
+            err_cs_solve = sparse_cholesky_solve(L_cs, b, x_cs);
+            if (err_ll_solve == SPARSE_OK && err_cs_solve == SPARSE_OK) {
+                /* Compare solve outputs rather than raw L values: the
+                 * two paths apply drop-tolerance at different grain
+                 * sizes, so factor patterns can differ by a handful
+                 * of entries at machine epsilon, but the solve is
+                 * the user-visible contract. */
+                for (idx_t i = 0; i < n; i++) {
+                    if (fabs(x_ll[i] - x_cs[i]) > 1e-10) {
+                        solutions_agree = 0;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    free(b);
+    free(x_ll);
+    free(x_cs);
+    sparse_free(A);
+    sparse_free(L_ll);
+    sparse_free(L_cs);
+
+    ASSERT_TRUE(alloc_ok);
+    REQUIRE_OK(err_ll_factor);
+    ASSERT_EQ(used_ll, 0);
+    REQUIRE_OK(err_cs_factor);
+    ASSERT_EQ(used_cs, 1);
+    REQUIRE_OK(err_ll_solve);
+    REQUIRE_OK(err_cs_solve);
+    ASSERT_TRUE(solutions_agree);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Native CSC LDL^T — indefinite matrices
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Factor A via the native CSC LDL^T kernel and solve A·x = b for
+ * b = A · 1, asserting the relative residual below `tol_residual`.
+ * Same single-cleanup-path pattern as `factor_solve_assert_path`:
+ * allocations are NULL-checked, error codes are captured, and every
+ * owned resource is freed before the assertions fire so a failing
+ * REQUIRE_OK can't leak the perm / F / ones / b / x buffers. */
+static void ldlt_csc_factor_solve(const SparseMatrix *A, double tol_residual) {
+    /* Null-check A before dereferencing through sparse_rows — callers
+     * pass matrices from `build_kkt` etc. which wrap `sparse_create`
+     * and can return NULL under OOM.  Fold `A != NULL` into alloc_ok
+     * so the ASSERT_TRUE(alloc_ok) at the bottom surfaces the
+     * upstream allocation failure instead of segfaulting here. */
+    idx_t n = (A != NULL) ? sparse_rows(A) : 0;
+    idx_t *perm = (A != NULL) ? malloc((size_t)n * sizeof(idx_t)) : NULL;
+    double *ones = (A != NULL) ? malloc((size_t)n * sizeof(double)) : NULL;
+    double *b = (A != NULL) ? malloc((size_t)n * sizeof(double)) : NULL;
+    double *x = (A != NULL) ? calloc((size_t)n, sizeof(double)) : NULL;
+    LdltCsc *F = NULL;
+    int alloc_ok = (A != NULL && perm != NULL && ones != NULL && b != NULL && x != NULL);
+
+    sparse_err_t err_amd = SPARSE_OK;
+    sparse_err_t err_from = SPARSE_OK;
+    sparse_err_t err_elim = SPARSE_OK;
+    sparse_err_t err_solve = SPARSE_OK;
+    double rel = INFINITY;
+
+    if (alloc_ok) {
+        err_amd = sparse_reorder_amd(A, perm);
+        if (err_amd == SPARSE_OK) {
+            err_from = ldlt_csc_from_sparse(A, perm, 2.0, &F);
+            if (err_from == SPARSE_OK)
+                err_elim = ldlt_csc_eliminate(F);
+            if (err_from == SPARSE_OK && err_elim == SPARSE_OK) {
+                for (idx_t i = 0; i < n; i++)
+                    ones[i] = 1.0;
+                sparse_matvec(A, ones, b);
+                err_solve = ldlt_csc_solve(F, b, x);
+                if (err_solve == SPARSE_OK)
+                    rel = relative_residual(A, x, b);
+            }
+        }
+    }
+
+    free(ones);
+    free(b);
+    free(x);
+    free(perm);
+    ldlt_csc_free(F);
+
+    ASSERT_TRUE(alloc_ok);
+    REQUIRE_OK(err_amd);
+    REQUIRE_OK(err_from);
+    REQUIRE_OK(err_elim);
+    REQUIRE_OK(err_solve);
+    ASSERT_TRUE(rel < tol_residual);
+}
+
+/* Indefinite KKT, moderately sized, via the native CSC LDL^T kernel. */
+static void test_s18_ldlt_csc_kkt_indefinite(void) {
+    SparseMatrix *K = build_kkt(50, 20);
+    ldlt_csc_factor_solve(K, 1e-9);
+    sparse_free(K);
+}
+
+/* Native kernel vs wrapper: same answer on an indefinite matrix.
+ *
+ * Same single-cleanup-path pattern as `ldlt_csc_factor_solve`.  The
+ * `ldlt_csc_set_kernel_override` is process-global, so the override
+ * is captured up front and restored on every exit path before any
+ * REQUIRE_OK fires; a failing step can't leave the override active
+ * for subsequent tests. */
+static void test_s18_ldlt_csc_native_matches_wrapper_indefinite(void) {
+    SparseMatrix *K = build_kkt(40, 15);
+    idx_t n = (K != NULL) ? sparse_rows(K) : 0;
+    idx_t *perm = (K != NULL) ? malloc((size_t)n * sizeof(idx_t)) : NULL;
+    double *ones = (K != NULL) ? malloc((size_t)n * sizeof(double)) : NULL;
+    double *b = (K != NULL) ? malloc((size_t)n * sizeof(double)) : NULL;
+    double *x_n = (K != NULL) ? calloc((size_t)n, sizeof(double)) : NULL;
+    double *x_w = (K != NULL) ? calloc((size_t)n, sizeof(double)) : NULL;
+    LdltCsc *F_native = NULL;
+    LdltCsc *F_wrapper = NULL;
+    int alloc_ok =
+        (K != NULL && perm != NULL && ones != NULL && b != NULL && x_n != NULL && x_w != NULL);
+
+    LdltCscKernelOverride prev_override = ldlt_csc_get_kernel_override();
+    sparse_err_t err_amd = SPARSE_OK;
+    sparse_err_t err_nf = SPARSE_OK, err_ne = SPARSE_OK;
+    sparse_err_t err_wf = SPARSE_OK, err_we = SPARSE_OK;
+    sparse_err_t err_ns = SPARSE_OK, err_ws = SPARSE_OK;
+    int solutions_agree = 1;
+
+    if (alloc_ok) {
+        err_amd = sparse_reorder_amd(K, perm);
+        if (err_amd == SPARSE_OK) {
+            for (idx_t i = 0; i < n; i++)
+                ones[i] = 1.0;
+            sparse_matvec(K, ones, b);
+
+            ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_NATIVE);
+            err_nf = ldlt_csc_from_sparse(K, perm, 2.0, &F_native);
+            if (err_nf == SPARSE_OK)
+                err_ne = ldlt_csc_eliminate(F_native);
+
+            if (err_nf == SPARSE_OK && err_ne == SPARSE_OK) {
+                ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_WRAPPER);
+                err_wf = ldlt_csc_from_sparse(K, perm, 2.0, &F_wrapper);
+                if (err_wf == SPARSE_OK)
+                    err_we = ldlt_csc_eliminate(F_wrapper);
+            }
+            ldlt_csc_set_kernel_override(prev_override);
+
+            if (err_nf == SPARSE_OK && err_ne == SPARSE_OK && err_wf == SPARSE_OK &&
+                err_we == SPARSE_OK) {
+                err_ns = ldlt_csc_solve(F_native, b, x_n);
+                err_ws = ldlt_csc_solve(F_wrapper, b, x_w);
+                if (err_ns == SPARSE_OK && err_ws == SPARSE_OK) {
+                    for (idx_t i = 0; i < n; i++) {
+                        if (fabs(x_n[i] - x_w[i]) > 1e-10) {
+                            solutions_agree = 0;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    free(ones);
+    free(b);
+    free(x_n);
+    free(x_w);
+    free(perm);
+    ldlt_csc_free(F_native);
+    ldlt_csc_free(F_wrapper);
+    sparse_free(K);
+
+    ASSERT_TRUE(alloc_ok);
+    REQUIRE_OK(err_amd);
+    REQUIRE_OK(err_nf);
+    REQUIRE_OK(err_ne);
+    REQUIRE_OK(err_wf);
+    REQUIRE_OK(err_we);
+    REQUIRE_OK(err_ns);
+    REQUIRE_OK(err_ws);
+    ASSERT_TRUE(solutions_agree);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Main
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+int main(void) {
+    TEST_SUITE_BEGIN("test_sprint18_integration");
+
+    /* Cholesky dispatch — cross-threshold coverage */
+    RUN_TEST(test_s18_below_threshold_uses_linked_list);
+    RUN_TEST(test_s18_just_above_threshold_uses_csc);
+    RUN_TEST(test_s18_mid_range_spd_banded_uses_csc);
+    RUN_TEST(test_s18_large_spd_banded_uses_csc);
+    RUN_TEST(test_s18_suitesparse_nos4);
+    RUN_TEST(test_s18_suitesparse_bcsstk04);
+    RUN_TEST(test_s18_suitesparse_bcsstk14);
+    RUN_TEST(test_s18_force_both_paths_agree);
+
+    /* Native CSC LDL^T — indefinite coverage */
+    RUN_TEST(test_s18_ldlt_csc_kkt_indefinite);
+    RUN_TEST(test_s18_ldlt_csc_native_matches_wrapper_indefinite);
+
+    TEST_SUITE_END();
+}

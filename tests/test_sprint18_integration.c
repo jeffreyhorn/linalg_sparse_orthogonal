@@ -260,31 +260,56 @@ static void test_s18_force_both_paths_agree(void) {
  * Native CSC LDL^T — indefinite matrices
  * ═══════════════════════════════════════════════════════════════════════ */
 
+/* Factor A via the native CSC LDL^T kernel and solve A·x = b for
+ * b = A · 1, asserting the relative residual below `tol_residual`.
+ * Same single-cleanup-path pattern as `factor_solve_assert_path`:
+ * allocations are NULL-checked, error codes are captured, and every
+ * owned resource is freed before the assertions fire so a failing
+ * REQUIRE_OK can't leak the perm / F / ones / b / x buffers. */
 static void ldlt_csc_factor_solve(const SparseMatrix *A, double tol_residual) {
     idx_t n = sparse_rows(A);
     idx_t *perm = malloc((size_t)n * sizeof(idx_t));
-    REQUIRE_OK(sparse_reorder_amd(A, perm));
-
-    LdltCsc *F = NULL;
-    REQUIRE_OK(ldlt_csc_from_sparse(A, perm, 2.0, &F));
-    REQUIRE_OK(ldlt_csc_eliminate(F));
-
     double *ones = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
     double *x = calloc((size_t)n, sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        ones[i] = 1.0;
-    sparse_matvec(A, ones, b);
+    LdltCsc *F = NULL;
+    int alloc_ok = (perm != NULL && ones != NULL && b != NULL && x != NULL);
 
-    REQUIRE_OK(ldlt_csc_solve(F, b, x));
-    double rel = relative_residual(A, x, b);
-    ASSERT_TRUE(rel < tol_residual);
+    sparse_err_t err_amd = SPARSE_OK;
+    sparse_err_t err_from = SPARSE_OK;
+    sparse_err_t err_elim = SPARSE_OK;
+    sparse_err_t err_solve = SPARSE_OK;
+    double rel = INFINITY;
+
+    if (alloc_ok) {
+        err_amd = sparse_reorder_amd(A, perm);
+        if (err_amd == SPARSE_OK) {
+            err_from = ldlt_csc_from_sparse(A, perm, 2.0, &F);
+            if (err_from == SPARSE_OK)
+                err_elim = ldlt_csc_eliminate(F);
+            if (err_from == SPARSE_OK && err_elim == SPARSE_OK) {
+                for (idx_t i = 0; i < n; i++)
+                    ones[i] = 1.0;
+                sparse_matvec(A, ones, b);
+                err_solve = ldlt_csc_solve(F, b, x);
+                if (err_solve == SPARSE_OK)
+                    rel = relative_residual(A, x, b);
+            }
+        }
+    }
 
     free(ones);
     free(b);
     free(x);
     free(perm);
     ldlt_csc_free(F);
+
+    ASSERT_TRUE(alloc_ok);
+    REQUIRE_OK(err_amd);
+    REQUIRE_OK(err_from);
+    REQUIRE_OK(err_elim);
+    REQUIRE_OK(err_solve);
+    ASSERT_TRUE(rel < tol_residual);
 }
 
 /* Indefinite KKT, moderately sized, via the native CSC LDL^T kernel. */

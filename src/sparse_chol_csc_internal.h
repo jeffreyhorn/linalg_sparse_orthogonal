@@ -770,8 +770,15 @@ sparse_err_t chol_csc_supernode_extract(const CholCsc *csc, idx_t s_start, idx_t
  * — the supernode's structural pattern is preserved end-to-end.  This
  * matches the Cholesky invariant that the factored L within a
  * fundamental supernode has the same structure as the pre-factor
- * scatter (no new fill inside a supernode).  No drop tolerance is
- * applied; callers that need dropping should post-process the CSC.
+ * scatter (no new fill inside a supernode).
+ *
+ * Below-diagonal entries whose magnitude falls below
+ * `drop_tol * |L[j, j]|` are written back as exactly 0.0, mirroring
+ * the scalar kernel's `chol_csc_gather` policy so the supernodal path
+ * produces factors with the same numerical dropping semantics as the
+ * scalar / linked-list paths.  The diagonal is never dropped.  Pass
+ * `drop_tol = 0.0` to retain every value verbatim (useful in tests
+ * that compare against an exact dense factor).
  *
  * @return SPARSE_OK on success; SPARSE_ERR_NULL on null args;
  *         SPARSE_ERR_BADARG on invalid range, insufficient lda, or a
@@ -779,7 +786,7 @@ sparse_err_t chol_csc_supernode_extract(const CholCsc *csc, idx_t s_start, idx_t
  */
 sparse_err_t chol_csc_supernode_writeback(CholCsc *csc, idx_t s_start, idx_t s_size,
                                           const double *dense, idx_t lda, const idx_t *row_map,
-                                          idx_t panel_height);
+                                          idx_t panel_height, double drop_tol);
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Sprint 18 Day 7: supernode diagonal block factor

@@ -1289,7 +1289,27 @@ sparse_err_t chol_csc_eliminate_supernodal(CholCsc *csc, idx_t min_size) {
 
             double *dense = NULL;
             idx_t *row_map = NULL;
+            /* By construction `chol_csc_detect_supernodes` only
+             * reports supernodes with `s_size >= min_size >= 1`, and
+             * `panel_height >= s_size` because the supernode's first
+             * column stores its diagonal block plus the panel.  Guard
+             * explicitly so the overflow checks below (and `calloc`)
+             * can assume both are > 0. */
+            if (panel_height < 1 || s_size < 1) {
+                err = SPARSE_ERR_BADARG;
+                break;
+            }
             if ((size_t)panel_height > SIZE_MAX / sizeof(idx_t)) {
+                err = SPARSE_ERR_ALLOC;
+                break;
+            }
+            /* Guard the multiplication itself before computing the
+             * product: `(size_t)panel_height * (size_t)s_size` can
+             * overflow on pathological inputs, and a subsequent
+             * `dense_cells > SIZE_MAX / sizeof(double)` check on an
+             * already-wrapped product would miss the overflow and
+             * `calloc` could under-allocate. */
+            if ((size_t)s_size > SIZE_MAX / (size_t)panel_height) {
                 err = SPARSE_ERR_ALLOC;
                 break;
             }
@@ -1338,7 +1358,7 @@ sparse_err_t chol_csc_eliminate_supernodal(CholCsc *csc, idx_t min_size) {
             }
 
             err = chol_csc_supernode_writeback(csc, s_start, s_size, dense, panel_height, row_map,
-                                               panel_height);
+                                               panel_height, drop_tol);
             free(dense);
             free(row_map);
             if (err != SPARSE_OK)
@@ -1587,7 +1607,7 @@ sparse_err_t chol_csc_supernode_eliminate_panel(const double *L_diag, idx_t s_si
 
 sparse_err_t chol_csc_supernode_writeback(CholCsc *csc, idx_t s_start, idx_t s_size,
                                           const double *dense, idx_t lda, const idx_t *row_map,
-                                          idx_t panel_height) {
+                                          idx_t panel_height, double drop_tol) {
     if (!csc || !dense || !row_map)
         return SPARSE_ERR_NULL;
     if (s_start < 0 || s_size < 1 || s_start > csc->n - s_size)
@@ -1596,17 +1616,31 @@ sparse_err_t chol_csc_supernode_writeback(CholCsc *csc, idx_t s_start, idx_t s_s
         return SPARSE_ERR_BADARG;
 
     /* Gather: walk each column's stored entries, translate row →
-     * local_row via row_map, overwrite values[p] with the dense cell. */
+     * local_row via row_map, overwrite values[p] with the dense cell.
+     * Apply the same per-column drop rule as `chol_csc_gather`:
+     * below-diagonal entries below `drop_tol * |L[j, j]|` get written
+     * as 0.0 so downstream consumers (solve, writeback_to_sparse) see
+     * matching sparsity to the scalar path. */
     for (idx_t j = 0; j < s_size; j++) {
         idx_t c = s_start + j;
         idx_t cstart = csc->col_ptr[c];
         idx_t cend = csc->col_ptr[c + 1];
+        /* Diagonal value is at dense[j + j*lda] after the diag block
+         * factor ran.  Used to set the per-column threshold. */
+        double abs_l_jj = fabs(dense[j + j * lda]);
+        double threshold = drop_tol * abs_l_jj;
         for (idx_t p = cstart; p < cend; p++) {
             idx_t row = csc->row_idx[p];
             idx_t local = chol_csc_bsearch_row_map(row_map, panel_height, row);
             if (local >= panel_height)
                 return SPARSE_ERR_BADARG;
-            csc->values[p] = dense[local + j * lda];
+            double v = dense[local + j * lda];
+            /* Never drop the diagonal (local == j for column s_start+j
+             * because row_map's first s_size slots are the supernode
+             * rows in order). */
+            if (local != j && fabs(v) < threshold)
+                v = 0.0;
+            csc->values[p] = v;
         }
     }
 
@@ -1669,12 +1703,29 @@ sparse_err_t chol_csc_writeback_to_sparse(const CholCsc *L, SparseMatrix *mat, c
         return SPARSE_ERR_ALLOC;
     }
 
+    /* Skip exact zeros (common when the CSC was pre-populated with the
+     * full sym_L pattern but some fill positions never received a non-
+     * zero value) and drop below-diagonal entries below
+     * `SPARSE_DROP_TOL * |L[j, j]|` — mirrors the scalar path's
+     * `chol_csc_gather` policy so the transplanted `SparseMatrix`
+     * sparsity matches what the linked-list kernel would publish.
+     * The diagonal (row_idx[col_ptr[j]] == j by CSC invariant) is
+     * always inserted so the solver's diagonal lookup never misses. */
     for (idx_t j = 0; j < n; j++) {
         idx_t cstart = L->col_ptr[j];
         idx_t cend = L->col_ptr[j + 1];
+        if (cstart == cend)
+            continue;
+        /* Diagonal is the first stored entry per CSC invariant. */
+        double abs_l_jj = (L->row_idx[cstart] == j) ? fabs(L->values[cstart]) : 0.0;
+        double threshold = SPARSE_DROP_TOL * abs_l_jj;
         for (idx_t p = cstart; p < cend; p++) {
             idx_t i = L->row_idx[p];
             double v = L->values[p];
+            if (v == 0.0)
+                continue;
+            if (i != j && fabs(v) < threshold)
+                continue;
             sparse_err_t ierr = sparse_insert(tmp, i, j, v);
             if (ierr != SPARSE_OK) {
                 sparse_free(tmp);

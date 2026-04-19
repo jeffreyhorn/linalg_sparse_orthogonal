@@ -2477,7 +2477,8 @@ static void test_supernode_extract_writeback_dense(void) {
 
     /* Writeback: no dense mutation in between, so CSC should be
      * byte-identical afterwards. */
-    REQUIRE_OK(chol_csc_supernode_writeback(csc, 0, n, dense, panel_height, row_map, panel_height));
+    REQUIRE_OK(
+        chol_csc_supernode_writeback(csc, 0, n, dense, panel_height, row_map, panel_height, 0.0));
     REQUIRE_OK(chol_csc_validate(csc));
     for (idx_t p = 0; p < nnz; p++)
         ASSERT_TRUE(fabs(csc->values[p] - orig_values[p]) < 1e-15);
@@ -2533,8 +2534,8 @@ static void test_supernode_extract_writeback_block_diagonal(void) {
     ASSERT_EQ(row_map1[2], 5);
 
     /* Writeback each supernode.  Each touches only its own columns. */
-    REQUIRE_OK(chol_csc_supernode_writeback(csc, 0, 3, dense0, ph0, row_map0, ph0));
-    REQUIRE_OK(chol_csc_supernode_writeback(csc, 3, 3, dense1, ph1, row_map1, ph1));
+    REQUIRE_OK(chol_csc_supernode_writeback(csc, 0, 3, dense0, ph0, row_map0, ph0, 0.0));
+    REQUIRE_OK(chol_csc_supernode_writeback(csc, 3, 3, dense1, ph1, row_map1, ph1, 0.0));
     REQUIRE_OK(chol_csc_validate(csc));
 
     for (idx_t p = 0; p < nnz; p++)
@@ -2545,7 +2546,7 @@ static void test_supernode_extract_writeback_block_diagonal(void) {
      * match the originals (independence check). */
     for (idx_t p = 0; p < ph0 * 3; p++)
         dense0[p] = 99.0;
-    REQUIRE_OK(chol_csc_supernode_writeback(csc, 0, 3, dense0, ph0, row_map0, ph0));
+    REQUIRE_OK(chol_csc_supernode_writeback(csc, 0, 3, dense0, ph0, row_map0, ph0, 0.0));
     /* Re-extract supernode 1 — should be unchanged. */
     double *dense1_reread = calloc((size_t)(ph1 * 3), sizeof(double));
     idx_t *row_map1b = calloc((size_t)ph1, sizeof(idx_t));
@@ -2628,7 +2629,7 @@ static void test_supernode_extract_writeback_with_below_panel(void) {
     double *orig_values = malloc((size_t)nnz * sizeof(double));
     for (idx_t p = 0; p < nnz; p++)
         orig_values[p] = csc->values[p];
-    REQUIRE_OK(chol_csc_supernode_writeback(csc, s_start, s_size, dense, ph, row_map, ph));
+    REQUIRE_OK(chol_csc_supernode_writeback(csc, s_start, s_size, dense, ph, row_map, ph, 0.0));
     REQUIRE_OK(chol_csc_validate(csc));
     for (idx_t p = 0; p < nnz; p++)
         ASSERT_TRUE(fabs(csc->values[p] - orig_values[p]) < 1e-15);
@@ -2687,7 +2688,7 @@ static void test_supernode_extract_lda_padding(void) {
     double *orig_values = malloc((size_t)nnz * sizeof(double));
     for (idx_t p = 0; p < nnz; p++)
         orig_values[p] = csc->values[p];
-    REQUIRE_OK(chol_csc_supernode_writeback(csc, 0, n, dense, lda, row_map, ph));
+    REQUIRE_OK(chol_csc_supernode_writeback(csc, 0, n, dense, lda, row_map, ph, 0.0));
     for (idx_t p = 0; p < nnz; p++)
         ASSERT_TRUE(fabs(csc->values[p] - orig_values[p]) < 1e-15);
 
@@ -2727,14 +2728,19 @@ static void test_supernode_extract_error_paths(void) {
                SPARSE_ERR_BADARG);
 
     /* Writeback: same error paths for null / range / lda. */
-    ASSERT_ERR(chol_csc_supernode_writeback(NULL, 0, 1, dense, 4, row_map, 1), SPARSE_ERR_NULL);
-    ASSERT_ERR(chol_csc_supernode_writeback(csc, 0, 1, NULL, 4, row_map, 1), SPARSE_ERR_NULL);
-    ASSERT_ERR(chol_csc_supernode_writeback(csc, 0, 1, dense, 4, NULL, 1), SPARSE_ERR_NULL);
-    ASSERT_ERR(chol_csc_supernode_writeback(csc, -1, 1, dense, 4, row_map, 1), SPARSE_ERR_BADARG);
-    ASSERT_ERR(chol_csc_supernode_writeback(csc, 0, 0, dense, 4, row_map, 1), SPARSE_ERR_BADARG);
-    ASSERT_ERR(chol_csc_supernode_writeback(csc, 2, 3, dense, 4, row_map, 1), SPARSE_ERR_BADARG);
+    ASSERT_ERR(chol_csc_supernode_writeback(NULL, 0, 1, dense, 4, row_map, 1, 0.0),
+               SPARSE_ERR_NULL);
+    ASSERT_ERR(chol_csc_supernode_writeback(csc, 0, 1, NULL, 4, row_map, 1, 0.0), SPARSE_ERR_NULL);
+    ASSERT_ERR(chol_csc_supernode_writeback(csc, 0, 1, dense, 4, NULL, 1, 0.0), SPARSE_ERR_NULL);
+    ASSERT_ERR(chol_csc_supernode_writeback(csc, -1, 1, dense, 4, row_map, 1, 0.0),
+               SPARSE_ERR_BADARG);
+    ASSERT_ERR(chol_csc_supernode_writeback(csc, 0, 0, dense, 4, row_map, 1, 0.0),
+               SPARSE_ERR_BADARG);
+    ASSERT_ERR(chol_csc_supernode_writeback(csc, 2, 3, dense, 4, row_map, 1, 0.0),
+               SPARSE_ERR_BADARG);
     /* panel_height < s_size */
-    ASSERT_ERR(chol_csc_supernode_writeback(csc, 0, 2, dense, 4, row_map, 1), SPARSE_ERR_BADARG);
+    ASSERT_ERR(chol_csc_supernode_writeback(csc, 0, 2, dense, 4, row_map, 1, 0.0),
+               SPARSE_ERR_BADARG);
 
     chol_csc_free(csc);
     sparse_free(A);

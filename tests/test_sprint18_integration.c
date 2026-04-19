@@ -83,6 +83,12 @@ static SparseMatrix *build_kkt(idx_t nh, idx_t nc) {
 static double relative_residual(const SparseMatrix *A, const double *x, const double *b) {
     idx_t n = sparse_rows(A);
     double *r = malloc((size_t)n * sizeof(double));
+    if (!r) {
+        /* Sentinel: return +INF so the caller's `rel < tol` check
+         * fails visibly instead of segfaulting in `sparse_matvec` /
+         * the r[i] loop below. */
+        return INFINITY;
+    }
     sparse_matvec(A, x, r);
     double nr = 0.0, nb = 0.0;
     for (idx_t i = 0; i < n; i++) {

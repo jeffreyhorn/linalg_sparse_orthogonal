@@ -195,6 +195,23 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
     if (n != mat->cols)
         return SPARSE_ERR_SHAPE;
 
+    /* Precondition check (matches `sparse_analyze`): reject non-
+     * identity row/col permutations and already-factored inputs.
+     * Without this, the CSC branch — which routes through
+     * `sparse_analyze` — would raise SPARSE_ERR_BADARG on inputs
+     * that the linked-list branch (`sparse_cholesky_factor`) would
+     * silently accept (or silently mis-factor on non-identity
+     * perms).  Enforcing the same contract on both paths means the
+     * error a caller sees no longer depends on how `n` compares to
+     * `SPARSE_CSC_THRESHOLD`. */
+    for (idx_t i = 0; i < n; i++) {
+        if (mat->row_perm[i] != i || mat->col_perm[i] != i || mat->inv_row_perm[i] != i ||
+            mat->inv_col_perm[i] != i)
+            return SPARSE_ERR_BADARG;
+    }
+    if (mat->factored)
+        return SPARSE_ERR_BADARG;
+
     /* Clear any previous reorder permutation */
     free(mat->reorder_perm);
     mat->reorder_perm = NULL;

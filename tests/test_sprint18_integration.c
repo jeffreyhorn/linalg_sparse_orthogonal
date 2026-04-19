@@ -145,13 +145,17 @@ static void factor_solve_assert_path(SparseMatrix *A, int expect_csc, double tol
         }
     }
 
+    /* Capture L's non-null state before `sparse_free` invalidates the
+     * pointer, so the post-cleanup assertion reflects whether the
+     * `sparse_copy` succeeded rather than reading a dangling pointer. */
+    int copy_ok = (L != NULL);
     free(ones);
     free(b);
     free(x);
     sparse_free(L);
 
     ASSERT_TRUE(alloc_ok);
-    ASSERT_NOT_NULL(L);
+    ASSERT_TRUE(copy_ok);
     REQUIRE_OK(err_factor);
     ASSERT_EQ(used, expect_csc);
     REQUIRE_OK(err_solve);

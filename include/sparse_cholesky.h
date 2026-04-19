@@ -53,6 +53,18 @@ typedef enum {
 /**
  * @brief Options for Cholesky factorization with optional fill-reducing reordering.
  *
+ * @warning **ABI break in v2.0.0.**  Sprint 18 Day 11 added the
+ * `backend` and `used_csc_path` fields to this struct, changing its
+ * size (and therefore layout) relative to the v1.x version shipped
+ * through Sprint 17.  The library's `VERSION` bumped to `2.0.0` to
+ * signal the break.  Source-level compatibility is preserved:
+ * zero-initialising `sparse_cholesky_opts_t` still yields the
+ * expected defaults (AUTO backend, no telemetry), so pre-Sprint-18
+ * caller code compiles and links against v2.x without edits.
+ * Pre-compiled downstream binaries linked against v1.x must be
+ * recompiled against v2.x — stack-allocating the old (4-byte)
+ * struct would cause the new library to read past its end.
+ *
  * @note **Transparent CSC dispatch.**  `sparse_cholesky_factor_opts`
  * routes to the CSC supernodal kernel whenever `mat->rows >=
  * SPARSE_CSC_THRESHOLD` (defined in `sparse_matrix.h`, default 100)

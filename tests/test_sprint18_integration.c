@@ -213,40 +213,62 @@ static void test_s18_suitesparse_bcsstk14(void) {
 
 /* Force both paths on a single matrix and assert bit-level agreement
  * between the `SparseMatrix` L values they produce.  Uses a matrix
- * sized right at the threshold so both paths are exercisable. */
+ * sized right at the threshold so both paths are exercisable.
+ *
+ * Same single-cleanup-path pattern as `factor_solve_assert_path`:
+ * every allocation is NULL-checked into `alloc_ok`, factor/solve
+ * errors are captured in locals, and resources are freed before the
+ * final assertion block so a REQUIRE_OK early-return can't leak. */
 static void test_s18_force_both_paths_agree(void) {
     idx_t n = SPARSE_CSC_THRESHOLD + 30;
     SparseMatrix *A = build_spd_banded(n, 5);
-
-    SparseMatrix *L_ll = sparse_copy(A);
-    int used_ll = -1;
-    sparse_cholesky_opts_t opts_ll = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_LINKED_LIST,
-                                      &used_ll};
-    REQUIRE_OK(sparse_cholesky_factor_opts(L_ll, &opts_ll));
-    ASSERT_EQ(used_ll, 0);
-
-    SparseMatrix *L_cs = sparse_copy(A);
-    int used_cs = -1;
-    sparse_cholesky_opts_t opts_cs = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_CSC, &used_cs};
-    REQUIRE_OK(sparse_cholesky_factor_opts(L_cs, &opts_cs));
-    ASSERT_EQ(used_cs, 1);
-
+    SparseMatrix *L_ll = NULL;
+    SparseMatrix *L_cs = NULL;
     double *b = malloc((size_t)n * sizeof(double));
     double *x_ll = calloc((size_t)n, sizeof(double));
     double *x_cs = calloc((size_t)n, sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        b[i] = 1.0 + 0.1 * (double)i;
+    int alloc_ok = (A != NULL && b != NULL && x_ll != NULL && x_cs != NULL);
 
-    REQUIRE_OK(sparse_cholesky_solve(L_ll, b, x_ll));
-    REQUIRE_OK(sparse_cholesky_solve(L_cs, b, x_cs));
+    if (alloc_ok) {
+        L_ll = sparse_copy(A);
+        L_cs = sparse_copy(A);
+        alloc_ok = (L_ll != NULL && L_cs != NULL);
+    }
 
-    /* Solutions must agree to round-off.  We compare solve outputs
-     * rather than raw L values because the two paths apply drop-
-     * tolerance at different grain sizes; the factor patterns can
-     * differ by a handful of entries that round to machine epsilon,
-     * but the solve is the user-visible contract. */
-    for (idx_t i = 0; i < n; i++)
-        ASSERT_NEAR(x_ll[i], x_cs[i], 1e-10);
+    int used_ll = -1;
+    int used_cs = -1;
+    sparse_cholesky_opts_t opts_ll = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_LINKED_LIST,
+                                      &used_ll};
+    sparse_cholesky_opts_t opts_cs = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_CSC, &used_cs};
+    sparse_err_t err_ll_factor = SPARSE_OK;
+    sparse_err_t err_cs_factor = SPARSE_OK;
+    sparse_err_t err_ll_solve = SPARSE_OK;
+    sparse_err_t err_cs_solve = SPARSE_OK;
+    int solutions_agree = 1;
+
+    if (alloc_ok) {
+        err_ll_factor = sparse_cholesky_factor_opts(L_ll, &opts_ll);
+        err_cs_factor = sparse_cholesky_factor_opts(L_cs, &opts_cs);
+        if (err_ll_factor == SPARSE_OK && err_cs_factor == SPARSE_OK) {
+            for (idx_t i = 0; i < n; i++)
+                b[i] = 1.0 + 0.1 * (double)i;
+            err_ll_solve = sparse_cholesky_solve(L_ll, b, x_ll);
+            err_cs_solve = sparse_cholesky_solve(L_cs, b, x_cs);
+            if (err_ll_solve == SPARSE_OK && err_cs_solve == SPARSE_OK) {
+                /* Compare solve outputs rather than raw L values: the
+                 * two paths apply drop-tolerance at different grain
+                 * sizes, so factor patterns can differ by a handful
+                 * of entries at machine epsilon, but the solve is
+                 * the user-visible contract. */
+                for (idx_t i = 0; i < n; i++) {
+                    if (fabs(x_ll[i] - x_cs[i]) > 1e-10) {
+                        solutions_agree = 0;
+                        break;
+                    }
+                }
+            }
+        }
+    }
 
     free(b);
     free(x_ll);
@@ -254,6 +276,15 @@ static void test_s18_force_both_paths_agree(void) {
     sparse_free(A);
     sparse_free(L_ll);
     sparse_free(L_cs);
+
+    ASSERT_TRUE(alloc_ok);
+    REQUIRE_OK(err_ll_factor);
+    ASSERT_EQ(used_ll, 0);
+    REQUIRE_OK(err_cs_factor);
+    ASSERT_EQ(used_cs, 1);
+    REQUIRE_OK(err_ll_solve);
+    REQUIRE_OK(err_cs_solve);
+    ASSERT_TRUE(solutions_agree);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -319,53 +350,68 @@ static void test_s18_ldlt_csc_kkt_indefinite(void) {
     sparse_free(K);
 }
 
-/* Native kernel vs wrapper: same answer on an indefinite matrix. */
+/* Native kernel vs wrapper: same answer on an indefinite matrix.
+ *
+ * Same single-cleanup-path pattern as `ldlt_csc_factor_solve`.  The
+ * `ldlt_csc_set_kernel_override` is process-global, so the override
+ * is captured up front and restored on every exit path before any
+ * REQUIRE_OK fires; a failing step can't leave the override active
+ * for subsequent tests. */
 static void test_s18_ldlt_csc_native_matches_wrapper_indefinite(void) {
     SparseMatrix *K = build_kkt(40, 15);
-    idx_t n = sparse_rows(K);
-    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
-    REQUIRE_OK(sparse_reorder_amd(K, perm));
-
-    double *ones = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        ones[i] = 1.0;
-    sparse_matvec(K, ones, b);
-
-    /* Capture the current override so a mid-test failure can't leak a
-     * forced kernel into later tests (the override is process-global).
-     * We avoid REQUIRE_OK while the override is active — any failure
-     * from from_sparse / eliminate restores the previous value first,
-     * then raises a normal assertion. */
-    LdltCscKernelOverride prev_override = ldlt_csc_get_kernel_override();
-
+    idx_t n = (K != NULL) ? sparse_rows(K) : 0;
+    idx_t *perm = (K != NULL) ? malloc((size_t)n * sizeof(idx_t)) : NULL;
+    double *ones = (K != NULL) ? malloc((size_t)n * sizeof(double)) : NULL;
+    double *b = (K != NULL) ? malloc((size_t)n * sizeof(double)) : NULL;
+    double *x_n = (K != NULL) ? calloc((size_t)n, sizeof(double)) : NULL;
+    double *x_w = (K != NULL) ? calloc((size_t)n, sizeof(double)) : NULL;
     LdltCsc *F_native = NULL;
-    ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_NATIVE);
-    sparse_err_t err_nf = ldlt_csc_from_sparse(K, perm, 2.0, &F_native);
-    sparse_err_t err_ne = (err_nf == SPARSE_OK) ? ldlt_csc_eliminate(F_native) : SPARSE_OK;
-
     LdltCsc *F_wrapper = NULL;
+    int alloc_ok =
+        (K != NULL && perm != NULL && ones != NULL && b != NULL && x_n != NULL && x_w != NULL);
+
+    LdltCscKernelOverride prev_override = ldlt_csc_get_kernel_override();
+    sparse_err_t err_amd = SPARSE_OK;
+    sparse_err_t err_nf = SPARSE_OK, err_ne = SPARSE_OK;
     sparse_err_t err_wf = SPARSE_OK, err_we = SPARSE_OK;
-    if (err_nf == SPARSE_OK && err_ne == SPARSE_OK) {
-        ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_WRAPPER);
-        err_wf = ldlt_csc_from_sparse(K, perm, 2.0, &F_wrapper);
-        if (err_wf == SPARSE_OK)
-            err_we = ldlt_csc_eliminate(F_wrapper);
+    sparse_err_t err_ns = SPARSE_OK, err_ws = SPARSE_OK;
+    int solutions_agree = 1;
+
+    if (alloc_ok) {
+        err_amd = sparse_reorder_amd(K, perm);
+        if (err_amd == SPARSE_OK) {
+            for (idx_t i = 0; i < n; i++)
+                ones[i] = 1.0;
+            sparse_matvec(K, ones, b);
+
+            ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_NATIVE);
+            err_nf = ldlt_csc_from_sparse(K, perm, 2.0, &F_native);
+            if (err_nf == SPARSE_OK)
+                err_ne = ldlt_csc_eliminate(F_native);
+
+            if (err_nf == SPARSE_OK && err_ne == SPARSE_OK) {
+                ldlt_csc_set_kernel_override(LDLT_CSC_KERNEL_WRAPPER);
+                err_wf = ldlt_csc_from_sparse(K, perm, 2.0, &F_wrapper);
+                if (err_wf == SPARSE_OK)
+                    err_we = ldlt_csc_eliminate(F_wrapper);
+            }
+            ldlt_csc_set_kernel_override(prev_override);
+
+            if (err_nf == SPARSE_OK && err_ne == SPARSE_OK && err_wf == SPARSE_OK &&
+                err_we == SPARSE_OK) {
+                err_ns = ldlt_csc_solve(F_native, b, x_n);
+                err_ws = ldlt_csc_solve(F_wrapper, b, x_w);
+                if (err_ns == SPARSE_OK && err_ws == SPARSE_OK) {
+                    for (idx_t i = 0; i < n; i++) {
+                        if (fabs(x_n[i] - x_w[i]) > 1e-10) {
+                            solutions_agree = 0;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
-    ldlt_csc_set_kernel_override(prev_override);
-
-    REQUIRE_OK(err_nf);
-    REQUIRE_OK(err_ne);
-    REQUIRE_OK(err_wf);
-    REQUIRE_OK(err_we);
-
-    double *x_n = calloc((size_t)n, sizeof(double));
-    double *x_w = calloc((size_t)n, sizeof(double));
-    REQUIRE_OK(ldlt_csc_solve(F_native, b, x_n));
-    REQUIRE_OK(ldlt_csc_solve(F_wrapper, b, x_w));
-
-    for (idx_t i = 0; i < n; i++)
-        ASSERT_NEAR(x_n[i], x_w[i], 1e-10);
 
     free(ones);
     free(b);
@@ -375,6 +421,16 @@ static void test_s18_ldlt_csc_native_matches_wrapper_indefinite(void) {
     ldlt_csc_free(F_native);
     ldlt_csc_free(F_wrapper);
     sparse_free(K);
+
+    ASSERT_TRUE(alloc_ok);
+    REQUIRE_OK(err_amd);
+    REQUIRE_OK(err_nf);
+    REQUIRE_OK(err_ne);
+    REQUIRE_OK(err_wf);
+    REQUIRE_OK(err_we);
+    REQUIRE_OK(err_ns);
+    REQUIRE_OK(err_ws);
+    ASSERT_TRUE(solutions_agree);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

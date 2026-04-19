@@ -104,30 +104,54 @@ static double relative_residual(const SparseMatrix *A, const double *x, const do
 }
 
 /* Factor + solve via sparse_cholesky_factor_opts, checking that the
- * dispatch chose the expected backend. */
+ * dispatch chose the expected backend.
+ *
+ * All allocations are NULL-checked up front and all owned resources
+ * are freed on a single cleanup path at the end, so a REQUIRE_OK
+ * early-return in the middle of the test can't leak and can't
+ * segfault on a null pointer when the underlying allocation is what
+ * actually failed. */
 static void factor_solve_assert_path(SparseMatrix *A, int expect_csc, double tol_residual) {
     idx_t n = sparse_rows(A);
     double *ones = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
     double *x = calloc((size_t)n, sizeof(double));
-    for (idx_t i = 0; i < n; i++)
-        ones[i] = 1.0;
-    sparse_matvec(A, ones, b);
+    SparseMatrix *L = NULL;
+    int alloc_ok = (ones != NULL && b != NULL && x != NULL);
 
-    SparseMatrix *L = sparse_copy(A);
+    if (alloc_ok) {
+        for (idx_t i = 0; i < n; i++)
+            ones[i] = 1.0;
+        sparse_matvec(A, ones, b);
+        L = sparse_copy(A);
+    }
+
     int used = -1;
     sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_AUTO, &used};
-    REQUIRE_OK(sparse_cholesky_factor_opts(L, &opts));
-    ASSERT_EQ(used, expect_csc);
+    sparse_err_t err_factor = SPARSE_OK;
+    sparse_err_t err_solve = SPARSE_OK;
+    double rel = INFINITY;
 
-    REQUIRE_OK(sparse_cholesky_solve(L, b, x));
-    double rel = relative_residual(A, x, b);
-    ASSERT_TRUE(rel < tol_residual);
+    if (alloc_ok && L != NULL) {
+        err_factor = sparse_cholesky_factor_opts(L, &opts);
+        if (err_factor == SPARSE_OK) {
+            err_solve = sparse_cholesky_solve(L, b, x);
+            if (err_solve == SPARSE_OK)
+                rel = relative_residual(A, x, b);
+        }
+    }
 
     free(ones);
     free(b);
     free(x);
     sparse_free(L);
+
+    ASSERT_TRUE(alloc_ok);
+    ASSERT_NOT_NULL(L);
+    REQUIRE_OK(err_factor);
+    ASSERT_EQ(used, expect_csc);
+    REQUIRE_OK(err_solve);
+    ASSERT_TRUE(rel < tol_residual);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

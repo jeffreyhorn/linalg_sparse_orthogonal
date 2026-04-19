@@ -591,6 +591,11 @@ sparse_err_t ldlt_csc_symmetric_swap(LdltCsc *F, idx_t i, idx_t j) {
         if ((size_t)block_nnz > SIZE_MAX / sizeof(double))
             return SPARSE_ERR_ALLOC;
         idx_t block_width = j - i + 1;
+        /* Guard `block_width * sizeof(idx_t)` before the calloc below
+         * so a 32-bit `size_t` platform (or a pathologically large n)
+         * can't wrap and under-allocate `new_col_count`. */
+        if ((size_t)block_width > SIZE_MAX / sizeof(idx_t))
+            return SPARSE_ERR_ALLOC;
 
         idx_t *tmp_rows = malloc((size_t)block_nnz * sizeof(idx_t));
         idx_t *tmp_cols = malloc((size_t)block_nnz * sizeof(idx_t));

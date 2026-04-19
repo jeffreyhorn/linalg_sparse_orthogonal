@@ -112,12 +112,16 @@ static double relative_residual(const SparseMatrix *A, const double *x, const do
  * segfault on a null pointer when the underlying allocation is what
  * actually failed. */
 static void factor_solve_assert_path(SparseMatrix *A, int expect_csc, double tol_residual) {
-    idx_t n = sparse_rows(A);
-    double *ones = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x = calloc((size_t)n, sizeof(double));
+    /* Null-check A before dereferencing through sparse_rows — the
+     * `build_*` helpers above wrap `sparse_create`, which can return
+     * NULL under OOM, so an allocation failure upstream must surface
+     * as a visible `ASSERT_NOT_NULL(A)` rather than a segfault here. */
+    idx_t n = (A != NULL) ? sparse_rows(A) : 0;
+    double *ones = (A != NULL) ? malloc((size_t)n * sizeof(double)) : NULL;
+    double *b = (A != NULL) ? malloc((size_t)n * sizeof(double)) : NULL;
+    double *x = (A != NULL) ? calloc((size_t)n, sizeof(double)) : NULL;
     SparseMatrix *L = NULL;
-    int alloc_ok = (ones != NULL && b != NULL && x != NULL);
+    int alloc_ok = (A != NULL && ones != NULL && b != NULL && x != NULL);
 
     if (alloc_ok) {
         for (idx_t i = 0; i < n; i++)
@@ -302,13 +306,18 @@ static void test_s18_force_both_paths_agree(void) {
  * owned resource is freed before the assertions fire so a failing
  * REQUIRE_OK can't leak the perm / F / ones / b / x buffers. */
 static void ldlt_csc_factor_solve(const SparseMatrix *A, double tol_residual) {
-    idx_t n = sparse_rows(A);
-    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
-    double *ones = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x = calloc((size_t)n, sizeof(double));
+    /* Null-check A before dereferencing through sparse_rows — callers
+     * pass matrices from `build_kkt` etc. which wrap `sparse_create`
+     * and can return NULL under OOM.  Fold `A != NULL` into alloc_ok
+     * so the ASSERT_TRUE(alloc_ok) at the bottom surfaces the
+     * upstream allocation failure instead of segfaulting here. */
+    idx_t n = (A != NULL) ? sparse_rows(A) : 0;
+    idx_t *perm = (A != NULL) ? malloc((size_t)n * sizeof(idx_t)) : NULL;
+    double *ones = (A != NULL) ? malloc((size_t)n * sizeof(double)) : NULL;
+    double *b = (A != NULL) ? malloc((size_t)n * sizeof(double)) : NULL;
+    double *x = (A != NULL) ? calloc((size_t)n, sizeof(double)) : NULL;
     LdltCsc *F = NULL;
-    int alloc_ok = (perm != NULL && ones != NULL && b != NULL && x != NULL);
+    int alloc_ok = (A != NULL && perm != NULL && ones != NULL && b != NULL && x != NULL);
 
     sparse_err_t err_amd = SPARSE_OK;
     sparse_err_t err_from = SPARSE_OK;

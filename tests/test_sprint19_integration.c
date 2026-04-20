@@ -145,10 +145,13 @@ static SparseMatrix *s19_apply_symmetric_perm(const SparseMatrix *A, const idx_t
     return Ap;
 }
 
-/* Two-pass scalar→supernodal LDL^T cross-check on `A`.  Returns the
- * supernodal factor's L vs the scalar's L equality (1) or mismatch
- * (0).  Skipped (also returns 1) when the scalar pass produces a
- * singular pivot — random indefinite matrices occasionally do.
+/* Two-pass scalar→supernodal LDL^T cross-check on `A`.  Returns 1
+ * iff the supernodal factor's L matches the scalar's L, 0 on any
+ * mismatch or unexpected error.  All current callers pass
+ * deterministic SPD fixtures, where every intermediate step is
+ * expected to succeed — so allocation failures, singular pivots, and
+ * pivot-stability rejections are all real regressions rather than
+ * legitimate skips.
  *
  * This is the core helper for the Day 14 batched-vs-scalar fixtures. */
 static int s19_supernodal_matches_scalar(const SparseMatrix *A, idx_t min_supernode_size,
@@ -158,12 +161,12 @@ static int s19_supernodal_matches_scalar(const SparseMatrix *A, idx_t min_supern
     if (err != SPARSE_OK) {
         if (F1)
             ldlt_csc_free(F1);
-        return 1; /* allocation rejected; treat as N/A */
+        return 0;
     }
     err = ldlt_csc_eliminate_native(F1);
     if (err != SPARSE_OK) {
         ldlt_csc_free(F1);
-        return 1; /* singular — skip */
+        return 0;
     }
 
     SparseMatrix *Aperm = s19_apply_symmetric_perm(A, F1->perm);
@@ -186,13 +189,6 @@ static int s19_supernodal_matches_scalar(const SparseMatrix *A, idx_t min_supern
         F2->pivot_size[k] = F1->pivot_size[k];
 
     err = ldlt_csc_eliminate_supernodal(F2, min_supernode_size);
-    if (err == SPARSE_ERR_BADARG) {
-        /* Pivot-stability check rejected — treat as N/A. */
-        ldlt_csc_free(F1);
-        ldlt_csc_free(F2);
-        sparse_free(Aperm);
-        return 1;
-    }
     if (err != SPARSE_OK) {
         ldlt_csc_free(F1);
         ldlt_csc_free(F2);

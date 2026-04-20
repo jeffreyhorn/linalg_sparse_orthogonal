@@ -288,6 +288,17 @@ static int bench_matrix(const char *path, int repeat) {
  *               for supernodal detection overhead on small supernodes.
  */
 
+/* Deterministic uniform random in [0, 1) from a 64-bit key — avoids
+ * pulling in srand48/drand48, which are XSI extensions not guaranteed
+ * under `_POSIX_C_SOURCE 199309L`.  SplitMix64-style mixer. */
+static double jitter_u01(uint64_t key) {
+    uint64_t h = key + 0x9e3779b97f4a7c15ULL;
+    h = (h ^ (h >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    h = (h ^ (h >> 27)) * 0x94d049bb133111ebULL;
+    h ^= h >> 31;
+    return (double)(h >> 32) / (double)(1ULL << 32);
+}
+
 /* Tridiagonal SPD: A[i,i] = 4, A[i, i±1] = -1. */
 static SparseMatrix *build_tridiag_spd(idx_t n) {
     SparseMatrix *A = sparse_create(n, n);
@@ -312,12 +323,12 @@ static SparseMatrix *build_banded_spd(idx_t n, idx_t bw, uint64_t seed) {
     SparseMatrix *A = sparse_create(n, n);
     if (!A)
         return NULL;
-    srand48((long)seed);
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, (double)(2 * bw + 2));
         for (idx_t d = 1; d <= bw && i + d < n; d++) {
             double base = -1.0 / (double)(d + 1);
-            double jitter = 0.05 * (drand48() - 0.5);
+            uint64_t key = seed ^ ((uint64_t)i * (uint64_t)n + (uint64_t)d);
+            double jitter = 0.05 * (jitter_u01(key) - 0.5);
             double off = base + jitter;
             sparse_insert(A, i, i + d, off);
             sparse_insert(A, i + d, i, off);
@@ -333,11 +344,11 @@ static SparseMatrix *build_dense_spd(idx_t n, uint64_t seed) {
     SparseMatrix *A = sparse_create(n, n);
     if (!A)
         return NULL;
-    srand48((long)seed);
     for (idx_t i = 0; i < n; i++) {
         sparse_insert(A, i, i, (double)(2 * n));
         for (idx_t j = i + 1; j < n; j++) {
-            double v = 2.0 * (drand48() - 0.5); /* in [-1, 1] */
+            uint64_t key = seed ^ ((uint64_t)i * (uint64_t)n + (uint64_t)j);
+            double v = 2.0 * (jitter_u01(key) - 0.5); /* in [-1, 1] */
             sparse_insert(A, i, j, v);
             sparse_insert(A, j, i, v);
         }

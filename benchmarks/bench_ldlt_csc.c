@@ -117,10 +117,19 @@ static bench_result_t bench_linked_list(const SparseMatrix *A, const double *b, 
  * factor on a pre-permuted view where BK chooses the same pivots
  * without further swaps.
  *
- * The pre-pass is NOT timed — it's amortised in the analyze-once /
- * factor-many workflow this benchmark approximates.  Reported
- * `factor_ms` covers AMD + CSC build + permute + supernodal factor,
- * matching the linked-list path's wall-clock structure. */
+ * The scalar pre-pass and AMD analysis are computed once up front
+ * and are NOT timed.  Each timed repetition reuses the cached
+ * permutation / pivot decisions and measures only the pre-permuted
+ * CSC path (conversion/build + permute + supernodal factor, plus
+ * solve).
+ *
+ * This therefore benchmarks an analyze-once / factor-many workflow.
+ * Its `factor_ms` is not directly comparable to `bench_linked_list()`
+ * or `bench_csc_path()`, both of which re-run AMD inside every timed
+ * iteration — `speedup_csc_sn` will be correspondingly inflated
+ * relative to `speedup_csc`.  Interpret `factor_csc_sn_ms` as the
+ * steady-state cost of a fresh numeric factor on a previously-
+ * analysed matrix, not as the end-to-end one-shot cost. */
 static bench_result_t bench_csc_supernodal(const SparseMatrix *A, const double *b, double *x,
                                            int repeat) {
     bench_result_t r = {0, 0, 0, 1};

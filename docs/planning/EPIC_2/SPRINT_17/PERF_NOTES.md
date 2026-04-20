@@ -57,7 +57,7 @@ All runs use AMD fill-reducing reordering for all paths.  Residual
 | `bcsstk04.mtx`     |   132 |    3648 |    3.12 ms |      2.67 ms |        3.09 ms | 0.042 ms | 0.017 ms |      **1.16×** |        **1.01×** | 6e-16 |
 | `bcsstk14.mtx`     |  1806 |   63454 |  364.29 ms |    208.82 ms |      152.83 ms | 5.569 ms | 0.533 ms |      **1.74×** |        **2.38×** | 1e-15 |
 | `s3rmt3m3.mtx`     |  5357 |  207123 | 4018.41 ms |   1914.53 ms |     1179.41 ms |21.436 ms | 3.443 ms |      **2.10×** |        **3.41×** | 5e-15 |
-| `Kuu.mtx`          |  7102 |  340200 | 3147.78 ms |   4112.76 ms |     1416.64 ms |20.774 ms | 2.599 ms |        0.77× |        **2.22×** | 9e-15 |
+| `Kuu.mtx`          |  7102 |  340200 | 1501.28 ms |    711.46 ms |      522.69 ms |16.693 ms | 1.417 ms |      **2.11×** |        **2.87×** | 9e-15 |
 | `Pres_Poisson.mtx` | 14822 |  715804 |46003.69 ms |  17597.98 ms |    10580.68 ms |135.013 ms|15.345 ms |      **2.61×** |        **4.35×** | 2e-13 |
 
 Times are in milliseconds (ms), 3-repeat average.  `factor_ll` = the
@@ -80,13 +80,18 @@ an apples-to-apples factor comparison.
 against the linked-list path climbs from 1.09× at n = 100 to 2.61×
 at n = 14822, consistent with the Sprint 17 hypothesis that pointer-
 chasing overhead on the linked-list side grows faster than contiguous
-column traversal on the CSC side.  The one outlier is `Kuu` (scalar
-speedup 0.77×), where the Pres_Poisson-dominated symbolic fill
-produces a CSC that the scalar gather's drop-tolerance prune hits
-in many small chunks — extra `shift_columns_right_of` calls.  The
-supernodal path avoids those shifts entirely (values land in pre-
-allocated sym_L positions), so `Kuu`'s supernodal speedup (2.22×)
-slots back into the monotonic n-vs-speedup trend.
+column traversal on the CSC side.  `Kuu` fell off that trend in the
+Sprint 18 Day 14 capture (scalar **0.77×**) — its fill pattern ran
+the scalar gather's drop-tolerance prune into many small
+`shift_columns_right_of` calls that dominated the factor.  The
+Sprint 19 Day 6-7 fix wrote an in-place write-and-zero-pad fast path
+into `chol_csc_gather` gated on
+`chol_csc_from_sparse_with_analysis`'s sym_L pre-allocation flag:
+when the slot is sym_L-sized, survivors land in their pre-existing
+slots and dropped entries get zeroed without touching `col_ptr`, so
+the memmove chain never runs.  Kuu's scalar speedup recovered to
+**2.11×** (table row above reflects the Day 7 re-bench) and the
+n-vs-speedup trend is monotonic again across the corpus.
 
 **Supernodal > scalar on every non-trivial matrix.**  The batched
 path beats the scalar kernel on all four new fixtures
@@ -102,6 +107,31 @@ structure).
 solve_csc and solve_csc_sn < 1% of factor_csc_sn time, so CSC's
 triangular-solve gains (visible at larger n: 0.53 ms on bcsstk14,
 15.3 ms on Pres_Poisson) don't shift the headline number.
+
+**Sprint 19 Day 6-7 Kuu regression fix.**
+`chol_csc_gather`'s pre-Sprint-19 implementation called
+`shift_columns_right_of` on every gather to resize the column slot
+after drop-tolerance.  Sprint 19 Day 5's `sample` profile on Kuu
+attributed 60% of total factor time to `_platform_memmove` driven
+by those shifts; the Day 6-7 fix replaces the shift with an in-place
+write + zero-pad when the pre-allocated slot fits the survivors.
+Gated on a new `CholCsc::sym_L_preallocated` flag that
+`chol_csc_from_sparse_with_analysis` sets, so the merge-walk safety
+check needed for heuristic initialisers is skipped in the common
+dispatch path.  Kuu scalar moved from 0.77× → 2.11× (row above) and
+every matrix with n ≥ 1806 either improved or stayed flat.  The
+fix is memory-neutral (no allocation changes) and exercised by the
+new `test_chol_csc_kuu_scalar_no_regression` regression test plus
+the Day 7 full-corpus bench capture
+([`bench_day7_post_kuu.txt`](../SPRINT_19/bench_day7_post_kuu.txt)).
+Sub-threshold fixtures (n ≤ 132) show slightly lower speedup ratios
+vs Sprint 18 Day 14's baseline — not because CSC got slower (it's
+faster in absolute terms), but because the linked-list baseline
+improved by a comparable or larger factor on the same re-run, which
+the sub-millisecond timing resolution amplifies into the ratio.
+The user-visible dispatch still routes those n's to linked-list via
+`SPARSE_CSC_THRESHOLD = 100`, so the sub-threshold "ratio
+regression" is not user-observable.
 
 ## LDL^T — CSC vs linked-list
 
@@ -153,50 +183,205 @@ but covers the same scaling range as `bench_chol_csc`.
 
 ## Analyze-once, factor-many workflow
 
-The numbers above measure a **one-shot** factor call.  The
-`sparse_analyze` / `sparse_factor_numeric` split (Sprint 14) lets you
-run AMD + symbolic analysis once and reuse the result across many
-numeric refactorizations with the same pattern (e.g. a time-stepping
-simulation where the matrix values change but the nonzero pattern is
-fixed).  In that workflow AMD is amortized to zero, and the CSC
-numeric kernel advantage shows up undiluted.  The `speedup_csc`
-column in this document measures the *one-shot* case deliberately —
-it is the comparison most relevant when only a single solve is
-needed.  Callers running many refactorizations of the same pattern
-should expect a larger CSC advantage because the linked-list path's
-per-call AMD is the more significant cost gap.
+The tables above measure a **one-shot** factor call.  The
+`sparse_analyze` / `sparse_factor_numeric` split (Sprint 14) lets
+callers run AMD + symbolic analysis once and reuse the result across
+many numeric refactorizations with the same pattern (e.g. a time-
+stepping simulation where the matrix values change but the nonzero
+pattern is fixed).  `benchmarks/bench_refactor_csc.c` (Sprint 19
+Day 1) measures that workflow directly: one `sparse_analyze` per
+matrix outside the timed region, then N = 5 refactors with
+deterministic symmetric-key value perturbations inside the timed
+region.
+
+Raw capture: [`docs/planning/EPIC_2/SPRINT_19/bench_day2_refactor.txt`](../SPRINT_19/bench_day2_refactor.txt).
+Same 3-repeat Sprint 18 corpus, `eps = 1e-9` per-entry multiplicative
+noise on A, residuals checked vs the perturbed A after the final
+refactor.
+
+### Analyze-once / factor-many — CSC vs linked-list
+
+| matrix             |   n   |    nnz  | analyze_ms | refactor_ll | refactor_csc | solve_ll | solve_csc | **speedup_refactor** | res_ll | res_csc |
+|--------------------|------:|--------:|-----------:|------------:|-------------:|---------:|----------:|---------------------:|-------:|--------:|
+| `nos4.mtx`         |   100 |     594 |     0.16   |    0.06 ms  |    0.07 ms   | 0.004 ms | 0.002 ms  |                0.83× | 6e-16  | 8e-16  |
+| `bcsstk04.mtx`     |   132 |    3648 |     0.92   |    0.87 ms  |    0.37 ms   | 0.023 ms | 0.007 ms  |            **2.37×** | 2e-15  | 2e-15  |
+| `bcsstk14.mtx`     |  1806 |   63454 |    42.86   |  138.99 ms  |   28.74 ms   | 2.920 ms | 0.263 ms  |            **4.84×** | 2e-15  | 2e-15  |
+| `s3rmt3m3.mtx`     |  5357 |  207123 |   271.69   | 1717.14 ms  |  174.12 ms   |16.010 ms | 1.484 ms  |            **9.86×** | 8e-15  | 6e-15  |
+| `Kuu.mtx`          |  7102 |  340200 |   391.01   | 1034.26 ms  |  112.82 ms   |15.965 ms | 1.332 ms  |            **9.17×** | 1e-14  | 1e-14  |
+| `Pres_Poisson.mtx` | 14822 |  715804 |  2872.73   |31473.61 ms  | 1295.89 ms   |123.646ms | 9.934 ms  |           **24.29×** | 2e-13  | 3e-13  |
+
+`refactor_ll` is `sparse_refactor_numeric` on the analysed matrix —
+internally `sparse_factor_numeric` calls `build_permuted_copy` with
+`analysis->perm` and then `sparse_cholesky_factor` on the permuted
+copy, so AMD is skipped.  `refactor_csc` is
+`chol_csc_from_sparse_with_analysis` + `chol_csc_eliminate_supernodal`
+with `SPARSE_CSC_SUPERNODE_MIN_SIZE = 4`, also skipping AMD.  Neither
+path runs `sparse_analyze` inside the timed region — that cost is
+reported separately as `analyze_ms` so callers can estimate the
+amortisation break-even (one-shot cost = `analyze_ms + refactor_ms`;
+analyze-once cost after N refactors = `analyze_ms / N + refactor_ms`).
+
+### Hypothesis check (Sprint 17 + Sprint 18 prediction)
+
+Both prior PERF_NOTES revisions argued that the CSC speedup **should
+be larger** in the analyze-once workflow than in the one-shot
+workflow because AMD dominates the small-matrix one-shot cost and
+amortises to zero once the analysis is reused.  Side-by-side
+comparison of the two workflows on the same corpus:
+
+| matrix             | one-shot speedup (sn) | analyze-once speedup | delta    |
+|--------------------|----------------------:|---------------------:|---------:|
+| `nos4.mtx`         |                 1.22× |                0.83× | −0.39× |
+| `bcsstk04.mtx`     |                 1.01× |            **2.37×** | +1.36× |
+| `bcsstk14.mtx`     |                 2.38× |            **4.84×** | +2.46× |
+| `s3rmt3m3.mtx`     |                 3.41× |            **9.86×** | +6.45× |
+| `Kuu.mtx`          |                 2.22× |            **9.17×** | +6.95× |
+| `Pres_Poisson.mtx` |                 4.35× |           **24.29×** | +19.94× |
+
+**Hypothesis confirmed on every fixture with `n >= 132`.**  The gap
+widens monotonically with n, consistent with the prior-sprint
+reasoning: as matrices grow, the CSC kernel's contiguous column-major
+traversal pulls ahead of the linked-list kernel's pointer-chasing,
+and with AMD amortised away only that kernel-vs-kernel gap remains.
+Pres_Poisson (n = 14 822) sees a **24.29× refactor speedup** — the
+one-shot 4.35× was bounded from below by AMD's fixed cost on both
+sides; refactor removes that floor entirely.
+
+**Hypothesis disconfirmed on nos4 (n = 100).**  The refactor
+speedup (0.83×) is smaller than the one-shot (1.22×).  At this size
+the absolute factor times are sub-millisecond (60 μs LL, 72 μs CSC),
+and per-iteration overhead — CSC's `chol_csc_from_sparse_with_analysis`
+walks A and materialises the full sym_L pattern, while LL's
+`build_permuted_copy` does a narrower permuted-copy — dominates the
+numeric work.  One-shot includes AMD on both sides, which at n = 100
+is ~0.4 ms for LL and ~0.3 ms for CSC (empirically measured as
+`one-shot - refactor` per path); removing AMD removes a bigger
+proportion of the LL path's cost than the CSC path's cost, which
+collapses the ratio.  This is a small-matrix floor effect, not a
+kernel-architecture problem — it is the crossover region that the
+Sprint 19 Day 3-4 small-matrix study (`SPARSE_CSC_THRESHOLD`
+retrospective) will map out.
+
+### Break-even analysis
+
+`analyze_ms / N + refactor_csc_ms` vs `refactor_ll_ms` gives the N at
+which the CSC analyze-once workflow starts beating the linked-list
+analyze-once workflow on the same matrix:
+
+- For Pres_Poisson (LL refactor = 31 474 ms, CSC refactor = 1 296 ms,
+  analyze = 2 873 ms): CSC wins from N = 1 onwards — even a single
+  refactor after `sparse_analyze` pays back the analyse cost many
+  times over.
+- For Kuu / s3rmt3m3 / bcsstk14: CSC wins from N = 1 onwards by a
+  similar margin.
+- For bcsstk04 (LL refactor = 0.87 ms, CSC refactor = 0.37 ms,
+  analyze = 0.92 ms): CSC wins from N = 2 onwards; at N = 1, both
+  paths pay roughly the same total (analyze + factor) because
+  analyze dominates.
+- For nos4: the analyze-once workflow doesn't tip in favour of CSC
+  at any N — the kernel is slightly slower at this size.  Callers
+  should stay on the linked-list path for n < 132 (or use the
+  AUTO dispatch, which routes via `SPARSE_CSC_THRESHOLD = 100` —
+  see the Sprint 19 Day 3-4 crossover study below).
+
+In short: the analyze-once workflow is the right default whenever
+the same sparsity pattern is re-factored more than once, and the
+CSC backend delivers order-of-magnitude speedups in that regime on
+matrices beyond a few hundred columns.
 
 ## Threshold guidance (`SPARSE_CSC_THRESHOLD`)
 
 `SPARSE_CSC_THRESHOLD` defaults to 100 in `include/sparse_matrix.h`.
 
-### Sprint 18 Day 13 retrospective
+### Sprint 19 Day 3-4 crossover study
 
-The Day 12 corpus does not include a matrix below n = 100 — the
-Cholesky bench's smallest fixture is `nos4` at exactly n = 100, where
-the supernodal path is already 1.22× faster than linked-list.  That
-means the data point supporting a threshold _change_ (either up or
-down) is missing:
+Sprint 18 Day 13 filed the sub-100 fixtures as a follow-up because
+the Day 12 corpus had no matrix below n = 100 (nos4 at n = 100 was
+already 1.22× on supernodal, so the data couldn't distinguish
+"threshold too high" from "threshold exactly right").  Sprint 19
+Day 3 landed the missing data:
+`./build/bench_chol_csc --small-corpus --repeat 50` on 10 in-memory
+SPD fixtures — raw capture in
+[`docs/planning/EPIC_2/SPRINT_19/bench_day3_small_corpus.txt`](../SPRINT_19/bench_day3_small_corpus.txt).
 
-- `n = 100` (nos4): CSC wins at 1.22× supernodal.  If the threshold
-  were below 100, this matrix would still take the CSC path — same
-  behaviour as today.
-- `n < 100`: not measured.  The original Sprint 17 estimate ("~30-50
-  columns may spend more time on CSC conversion than elimination")
-  remains a hypothesis until the Sprint 19 corpus adds n ∈ {20, 40,
-  60} matrices.
+Supernodal speedup (`speedup_csc_sn` = `factor_ll_ms / factor_csc_sn_ms`)
+by fixture family and n:
 
-Given the "do not move the threshold without benchmark data"
-constraint in the Sprint 18 plan, the default stays at 100.  That
-keeps the Day 11 dispatch behaviour unchanged and preserves the
-two-path coverage in the existing test suite (small matrices exercise
-linked-list, large matrices exercise CSC supernodal).  A follow-up
-to characterise n ∈ [20, 100] is filed against the Sprint 19 PLAN.
+| family  |  n=20  |  n=40  |  n=60  |  n=80  |  n=100 (nos4) |  n=132 (bcsstk04) |
+|---------|-------:|-------:|-------:|-------:|--------------:|------------------:|
+| tridiag |  0.51× |  0.65× |  0.56× |  0.54× | (no fixture)  |   (no fixture)    |
+| banded  |  0.85× |  0.70× |  0.75× |  0.71× | (no fixture)  |   (no fixture)    |
+| dense   |**1.12×**|        |**1.07×**|       | (no fixture)  |   (no fixture)    |
+| real    |        |        |        |        |    **1.22×**  |     **1.01×**     |
 
-Override with `-DSPARSE_CSC_THRESHOLD=N` at compile time.  Matrices
-larger than a few hundred columns should see a CSC win on every
-tested fixture; matrices smaller than ~30 columns remain
-theoretically better on the linked-list path (no measurement yet).
+Observations:
+
+- **Dense fixtures cross `>= 1.0×` below n = 20.**  The supernodal
+  kernel identifies a single large supernode covering the whole
+  matrix, amortises its detection overhead across all columns, and
+  wins on the batched dense factor even at n = 20.
+- **Tridiag fixtures stay at 0.51×–0.65× across n ∈ [20, 80].**
+  Tridiagonal matrices have zero fill, so supernode detection finds
+  only singleton supernodes — the batched path degenerates to the
+  scalar CSC kernel plus detection overhead, and never pulls ahead
+  of the linked-list's one-entry-per-column sweep at these sizes.
+- **Banded fixtures cluster at 0.70×–0.85×.**  Moderate fill, some
+  supernode structure, but not enough to overcome the CSC build
+  overhead at sub-100 sizes.
+- **Real-corpus `nos4` at n = 100 is 1.22×.**  Moderate SuiteSparse
+  SPD structure crosses in the 80–100 range; the crossover is
+  faster for more-structured matrices.
+
+### Decision: keep `SPARSE_CSC_THRESHOLD = 100`
+
+The synthetic data shows the crossover is **family-dependent**:
+dense fixtures cross below 20, tridiagonal fixtures haven't crossed
+at 80, banded fixtures are trending toward 1.0× near 100.  Real
+SuiteSparse SPD matrices — the expected input distribution — have
+moderate structure (bandwidth tens to hundreds) and cross just at
+or above n = 100 (`nos4` 1.22×, `bcsstk04` 1.01×).
+
+Per the Day 4 decision matrix:
+
+> "If families disagree (e.g., tridiag crosses at 30 but dense at
+> 90), the current default of 100 is the conservative worst-case —
+> keep it."
+
+Our data matches that case (dense crosses < 20, tridiag crosses
+> 80, banded ≈ 100), so **100 is confirmed as the right default**.
+It favours the common case (moderately-sparse SuiteSparse-style
+SPDs) while preserving the linked-list path for the sub-100
+matrices where CSC loses 15-50%.
+
+The worst-case miscalibration at 100 is ~30% overhead on
+tridiagonal-structure inputs (hypothetically factored at n = 100
+with threshold dispatch routing to CSC).  Callers with known
+structure can override at compile time with
+`-DSPARSE_CSC_THRESHOLD=N` — recommended settings based on the
+measurements above:
+
+| input structure            | recommended threshold |
+|----------------------------|----------------------:|
+| dense / near-dense         |                  ~20 |
+| moderate SuiteSparse SPD   |        **100** (default) |
+| tridiagonal / very sparse  |               150–200 |
+
+A matrix whose CSC supernodal path regresses below 1.0× is always
+faster on linked-list — the threshold is the dial that keeps the
+library honest at the crossover.
+
+### What we still don't have
+
+- Crossover for each family is not pinned to a single n.  The data
+  says tridiagonal hasn't crossed by 80; a future sweep at n ∈
+  {100, 120, 150, 200} would bracket it precisely.  Left to a
+  follow-up if the default 100 turns out to be miscalibrated on a
+  real corpus that's heavily tridiagonal.
+- Hybrid-structure matrices (blocks of sparse + dense) are not in
+  the corpus.  Real SuiteSparse fixtures like bcsstk04 / bcsstk14 /
+  Pres_Poisson cover that space indirectly via their natural
+  structure, and the one-shot / analyze-once tables above show the
+  default 100 is safe for them all.
 
 ## Current opt-in path
 

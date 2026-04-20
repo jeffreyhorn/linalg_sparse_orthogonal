@@ -163,6 +163,7 @@ add_sparse_test(test_stagnation)
 add_sparse_test(test_chol_csc)
 add_sparse_test(test_ldlt_csc)
 add_sparse_test(test_sprint18_integration)
+add_sparse_test(test_sprint19_integration)
 
 # Benchmarks (not part of ctest)
 add_executable(bench_main benchmarks/bench_main.c)
@@ -193,6 +194,10 @@ target_include_directories(bench_chol_csc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/sr
 add_executable(bench_ldlt_csc benchmarks/bench_ldlt_csc.c)
 target_link_libraries(bench_ldlt_csc PRIVATE sparse_lu_ortho)
 target_include_directories(bench_ldlt_csc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+add_executable(bench_refactor_csc benchmarks/bench_refactor_csc.c)
+target_link_libraries(bench_refactor_csc PRIVATE sparse_lu_ortho)
+target_include_directories(bench_refactor_csc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # Example programs (not part of ctest)
 add_executable(example_ldlt examples/example_ldlt.c)

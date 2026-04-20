@@ -120,6 +120,7 @@
  * internally under the Day 11 dispatch).
  */
 
+#include "sparse_analysis_internal.h"
 #include "sparse_chol_csc_internal.h"
 #include "sparse_matrix.h"
 
@@ -168,6 +169,7 @@ sparse_err_t chol_csc_alloc(idx_t n, idx_t initial_nnz, CholCsc **out) {
     m->nnz = 0;
     m->capacity = cap;
     m->factor_norm = 0.0;
+    m->sym_L_preallocated = 0; /* default: heuristic; flipped to 1 by `_with_analysis` */
 
     m->col_ptr = calloc((size_t)(n + 1), sizeof(idx_t));
     /* calloc row_idx / values so fresh storage is deterministic — tools
@@ -436,6 +438,52 @@ static sparse_err_t from_sparse_impl(const SparseMatrix *mat, const idx_t *perm,
 
 /* ─── Public: heuristic (fill_factor) conversion ────────────────────── */
 
+/* Sprint 19 Day 6 plan (implementation, sketched here on Day 5 per
+ * `docs/planning/EPIC_2/SPRINT_19/kuu_fix_decision.md`):
+ *
+ * `chol_csc_from_sparse` will migrate from the `fill_factor` heuristic
+ * to full sym_L pre-allocation, matching `_with_analysis`.  The Day 5
+ * profile on Kuu attributes 60% of scalar CSC factor time to
+ * `_platform_memmove` inside `chol_csc_gather`'s `shift_columns_right_of`
+ * path — pre-allocating sym_L up front eliminates that shift entirely
+ * because the column slots are already at their final size on entry to
+ * elimination.
+ *
+ *   1. Extract a static `compute_sym_L_pattern(mat, perm, &col_ptr,
+ *      &row_idx, &nnz)` helper that runs the `sparse_etree_compute`
+ *      / `sparse_colcount` / `sparse_symbolic_cholesky` pipeline
+ *      without building a full `sparse_analysis_t`.  The helper is
+ *      shared by the heuristic path (this function) and
+ *      `_with_analysis` (which currently consumes `analysis->sym_L`
+ *      directly; it will keep working unchanged, just sharing the
+ *      implementation).
+ *   2. `chol_csc_from_sparse` calls `compute_sym_L_pattern` when the
+ *      matrix is symmetric; the returned `col_ptr` / `row_idx`
+ *      define the CSC's immutable structural layout.  Falls back to
+ *      the current heuristic when the matrix fails the symmetry
+ *      check (non-Cholesky callers; they aren't the Kuu-impacted
+ *      code path).
+ *   3. A's lower-triangle entries are scattered into their matching
+ *      sym_L positions via the same bsearch-into-row-range pattern
+ *      that `_with_analysis` uses today.  Fill positions are zero-
+ *      initialised.
+ *   4. `chol_csc_gather` loses the `shift_columns_right_of` call.
+ *      Drop-tolerance filtering becomes "write 0.0 into below-
+ *      threshold below-diagonal slots" (matching the supernodal
+ *      writeback's in-place zero convention from Sprint 18 Day 10),
+ *      keeping `col_ptr` immutable after elimination.
+ *   5. Downstream consumers already tolerate zero-valued stored
+ *      entries (`chol_csc_solve` reads through them harmlessly;
+ *      `chol_csc_writeback_to_sparse` skips `v == 0.0`).
+ *
+ * Memory cost on the Sprint 18 corpus (measured Day 5, table in the
+ * decision doc): small matrices get a ~10% reduction (sym_L stores
+ * only the lower triangle vs fill_factor × A.nnz covering the full
+ * symmetric pattern); larger matrices pay up to +2.5× over the
+ * current heuristic but exactly equal to what `_with_analysis` (and
+ * therefore the Sprint 18 Day 11 supernodal dispatch) already pays.
+ * Net library memory footprint stays the same; only the scalar path
+ * rebalances. */
 sparse_err_t chol_csc_from_sparse(const SparseMatrix *mat, const idx_t *perm, double fill_factor,
                                   CholCsc **csc_out) {
     return from_sparse_impl(mat, perm, fill_factor, 0, csc_out);
@@ -509,6 +557,11 @@ sparse_err_t chol_csc_from_sparse_with_analysis(const SparseMatrix *mat,
      * during symbolic analysis instead of re-walking the matrix.
      * Saves an O(nnz) pass on the hot CSC dispatch path. */
     csc->factor_norm = analysis->analysis_norm;
+    /* Sprint 19 Day 7: mark the CSC as sym_L-pre-allocated so
+     * `chol_csc_gather`'s fast path can skip the per-call merge-walk
+     * safety check — we've pre-populated every sym_L row so every
+     * cmod survivor is guaranteed to be in the slot. */
+    csc->sym_L_preallocated = 1;
 
     for (idx_t phys_i = 0; phys_i < n; phys_i++) {
         idx_t log_i = mat->inv_row_perm[phys_i];
@@ -819,6 +872,38 @@ static int idx_t_cmp(const void *a, const void *b) {
     return (ia > ib) - (ia < ib);
 }
 
+/* Sprint 19 Day 6 plan (sketched Day 5; see
+ * `docs/planning/EPIC_2/SPRINT_19/kuu_fix_decision.md` and the
+ * companion sketch in `chol_csc_from_sparse`):
+ *
+ * Day 5's `sample` profile on scalar CSC Kuu factor attributes 60%
+ * of total factor time to `_platform_memmove` launched from here
+ * via `shift_columns_right_of`.  The Day 6 fix pre-allocates the
+ * full `sym_L` pattern in `chol_csc_from_sparse` so each column
+ * arrives at `chol_csc_gather` with its final slot size, and this
+ * function rewrites to:
+ *
+ *   - sort the survivor pattern in place (kept);
+ *   - write surviving values into the pre-sized slot starting at
+ *     `csc->col_ptr[j]` (kept — same write loop as today);
+ *   - zero-pad the remaining slot positions up to `csc->col_ptr[j+1]`
+ *     (new — replaces the `shift_columns_right_of` memmove);
+ *   - return SPARSE_OK (kept).
+ *
+ * Downstream consumers already handle zero-valued stored entries:
+ * `chol_csc_solve` multiplies by them harmlessly; the supernodal
+ * writeback's `v == 0.0` skip in `chol_csc_writeback_to_sparse`
+ * (Sprint 18 Day 10) keeps the transplanted `SparseMatrix` sparsity
+ * matching the linked-list kernel.  The CSC itself then retains the
+ * full sym_L row pattern with some slots zeroed — identical to the
+ * supernodal path's post-writeback state.
+ *
+ * The Day 6 implementation will gate the rewrite on
+ * `csc->col_ptr[j+1] - csc->col_ptr[j] >= keep` (defensive — if a
+ * caller somehow built the CSC without pre-allocation, the old
+ * `shift_columns_right_of` path still runs).  Once all callers go
+ * through the new `chol_csc_from_sparse`, the gate can be removed
+ * and `shift_columns_right_of` retired entirely in a follow-up. */
 sparse_err_t chol_csc_gather(CholCsc *csc, idx_t j, CholCscWorkspace *ws, double drop_tol) {
     /* Sort the pattern ascending.  All rows are >= j (scatter and cmod
      * only touch rows in the lower triangle), so after sorting the
@@ -833,7 +918,7 @@ sparse_err_t chol_csc_gather(CholCsc *csc, idx_t j, CholCscWorkspace *ws, double
     double abs_l_jj = fabs(ws->dense_col[j]);
     double threshold = drop_tol * abs_l_jj;
 
-    /* Count survivors so we can resize the column slot in one shot. */
+    /* Count survivors so we know whether the pre-allocated slot fits. */
     idx_t keep = 0;
     for (idx_t idx = 0; idx < ws->pattern_count; idx++) {
         idx_t i = ws->dense_pattern[idx];
@@ -841,16 +926,71 @@ sparse_err_t chol_csc_gather(CholCsc *csc, idx_t j, CholCscWorkspace *ws, double
             keep++;
     }
 
-    /* Resize column j's slot: shift later columns to accommodate `keep`
-     * entries where the slot currently holds (col_ptr[j+1] - col_ptr[j])
-     * entries.  delta > 0 grows, delta < 0 packs. */
     idx_t old_size = csc->col_ptr[j + 1] - csc->col_ptr[j];
+
+    /* Sprint 19 Day 6 fast path: when the pre-allocated slot fits the
+     * survivors AND every survivor row is already present in the
+     * slot's row_idx (guaranteed for the `chol_csc_from_sparse_with_analysis`
+     * initialiser that pre-populates sym_L's full pattern), skip
+     * `shift_columns_right_of` entirely — write values in place into
+     * the existing slot and zero out the unused positions.  `col_ptr`
+     * stays immutable across the elimination, which eliminates the
+     * 60%-of-factor-time `_platform_memmove` the Day 5 Kuu profile
+     * attributed to shrink shifts.
+     *
+     * Sprint 19 Day 7: when `csc->sym_L_preallocated` is set (by
+     * `chol_csc_from_sparse_with_analysis`), the merge-walk safety
+     * check is redundant — sym_L by definition covers every cmod-
+     * producible row.  Skip the O(pattern_count) walk and jump
+     * straight into the fast path.  This restored small-matrix
+     * performance on nos4 / bcsstk04 that the Day 6 merge-walk had
+     * regressed.  Heuristic initialisers (`chol_csc_from_sparse` with
+     * a `fill_factor`) run the merge-walk as before so they fall
+     * back to the slow path when cmod introduces a fill row that
+     * wasn't in A's lower-triangle pattern. */
+    int all_in_slot = (keep <= old_size);
+    if (all_in_slot && !csc->sym_L_preallocated) {
+        idx_t slot_scan = csc->col_ptr[j];
+        idx_t slot_end = csc->col_ptr[j + 1];
+        for (idx_t idx = 0; idx < ws->pattern_count; idx++) {
+            idx_t i = ws->dense_pattern[idx];
+            if (i != j && fabs(ws->dense_col[i]) < threshold)
+                continue; /* dropped — no slot needed */
+            while (slot_scan < slot_end && csc->row_idx[slot_scan] < i)
+                slot_scan++;
+            if (slot_scan == slot_end || csc->row_idx[slot_scan] != i) {
+                all_in_slot = 0;
+                break;
+            }
+            slot_scan++;
+        }
+    }
+
+    if (all_in_slot) {
+        /* Write values in place keyed by the existing row_idx; zero
+         * any pre-populated position whose accumulator is below
+         * threshold (drop-tol) or untouched (fill row that did not
+         * collect a cmod contribution). */
+        for (idx_t p = csc->col_ptr[j]; p < csc->col_ptr[j + 1]; p++) {
+            idx_t i = csc->row_idx[p];
+            double v = ws->dense_col[i];
+            if (i != j && fabs(v) < threshold)
+                v = 0.0;
+            csc->values[p] = v;
+        }
+        return SPARSE_OK;
+    }
+
+    /* Slow path (heuristic initialiser + fill-in, or a survivor row
+     * missing from the pre-allocated slot): resize the column slot
+     * via `shift_columns_right_of` and write survivors from scratch.
+     * `delta > 0` grows, `delta < 0` shrinks; either way the slow
+     * path pays the O(nnz) memmove that the fast path skipped. */
     idx_t delta = keep - old_size;
     sparse_err_t err = shift_columns_right_of(csc, j, delta);
     if (err != SPARSE_OK)
         return err;
 
-    /* Write the surviving entries in sorted order into the fresh slot. */
     idx_t p = csc->col_ptr[j];
     for (idx_t idx = 0; idx < ws->pattern_count; idx++) {
         idx_t i = ws->dense_pattern[idx];
@@ -1206,6 +1346,245 @@ sparse_err_t chol_dense_solve_lower(const double *L, idx_t n, idx_t lda, double 
             return SPARSE_ERR_SINGULAR;
         b[i] = sum / l_ii;
     }
+    return SPARSE_OK;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 19 Day 11: Dense LDL^T primitive (Bunch-Kaufman)
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * `ldlt_dense_factor` runs Bunch-Kaufman LDL^T on a column-major
+ * n×n dense buffer.  Mirrors the sparse reference in
+ * `src/sparse_ldlt.c` column-by-column but on dense storage, so the
+ * Sprint 19 Days 12-14 batched supernodal path can call it per
+ * supernode's diagonal block just like the Cholesky batched path
+ * calls `chol_dense_factor`.
+ *
+ * Input convention: `A` is n×n column-major symmetric with BOTH
+ * triangles populated — `A[i + j*lda] == A[j + i*lda]` at call time.
+ * Supernodal callers should scatter the diagonal block that way
+ * before calling (see Day 12 `ldlt_csc_supernode_extract`).  The
+ * upper triangle gets overwritten as scratch during symmetric swaps
+ * and trailing updates; not preserved post-factor.
+ *
+ * Output convention:
+ *   - `A` holds unit lower triangular L: `A[k + k*lda] = 1.0`,
+ *     below-diagonal positions hold the L multipliers.  For a 2×2
+ *     pivot at (k, k+1) the row-k+1 column-k slot `A[(k+1) + k*lda]`
+ *     is zeroed (the 2×2 coupling lives in `D_offdiag`, not L).
+ *     Positions above the diagonal are scratch.
+ *   - `D[k]`: the 1×1 pivot scalar, or the block-(k, k) diagonal for
+ *     a 2×2 pivot.  `D[k+1]` for a 2×2 holds the block-(k+1, k+1)
+ *     diagonal.
+ *   - `D_offdiag[k]`: the 2×2 block's (k, k+1) off-diagonal for a 2×2
+ *     pivot; 0 otherwise.
+ *   - `pivot_size[k]`: 1 for a 1×1, 2 for both indices of a 2×2
+ *     pair (`pivot_size[k] == pivot_size[k+1] == 2`).
+ *   - `elem_growth_out` (optional): the maximum |L[i, j]| observed
+ *     during the factor, suitable for callers that want to monitor
+ *     element-growth stability.  Pass NULL to skip.
+ *
+ * Errors: `SPARSE_ERR_NULL` (required output pointer NULL),
+ * `SPARSE_ERR_BADARG` (n < 0, lda < n), `SPARSE_ERR_SINGULAR`
+ * (pivot near-zero or |L| blows past the growth bound).
+ */
+
+/* Symmetric row + column swap of a dense column-major n×n matrix.
+ * Maintains symmetry by swapping both rows AND columns in sync. */
+static void ldlt_dense_sym_swap(double *A, idx_t n, idx_t lda, idx_t a, idx_t b) {
+    if (a == b)
+        return;
+    for (idx_t c = 0; c < n; c++) {
+        double tmp = A[a + c * lda];
+        A[a + c * lda] = A[b + c * lda];
+        A[b + c * lda] = tmp;
+    }
+    for (idx_t r = 0; r < n; r++) {
+        double tmp = A[r + a * lda];
+        A[r + a * lda] = A[r + b * lda];
+        A[r + b * lda] = tmp;
+    }
+}
+
+sparse_err_t ldlt_dense_factor(double *A, double *D, double *D_offdiag, idx_t *pivot_size, idx_t n,
+                               idx_t lda, double tol, double *elem_growth_out) {
+    if (!A || !D || !D_offdiag || !pivot_size)
+        return SPARSE_ERR_NULL;
+    if (n < 0 || lda < n)
+        return SPARSE_ERR_BADARG;
+    if (elem_growth_out)
+        *elem_growth_out = 0.0;
+    if (n == 0)
+        return SPARSE_OK;
+
+    /* Relative tolerance tied to the initial diagonal max — matches
+     * `chol_dense_factor`'s self-contained convention. */
+    double ref_norm = 0.0;
+    for (idx_t j = 0; j < n; j++) {
+        double d = fabs(A[j + j * lda]);
+        if (d > ref_norm)
+            ref_norm = d;
+    }
+    double eff_tol = tol > 0.0 ? tol : SPARSE_DROP_TOL;
+    double sing_tol = sparse_rel_tol(ref_norm, eff_tol);
+    double growth_bound = 1.0 / (100.0 * eff_tol);
+    double alpha_bk = (1.0 + sqrt(17.0)) / 8.0; /* ≈ 0.6404 */
+    double max_growth = 0.0;
+
+    idx_t k = 0;
+    while (k < n) {
+        /* ── Pivot selection: four-criteria Bunch-Kaufman ──────────────── */
+        double lambda = 0.0;
+        idx_t r = k;
+        for (idx_t i = k + 1; i < n; i++) {
+            double v = fabs(A[i + k * lda]);
+            if (v > lambda) {
+                lambda = v;
+                r = i;
+            }
+        }
+
+        int use_2x2 = 0;
+        if (lambda == 0.0 || fabs(A[k + k * lda]) >= alpha_bk * lambda) {
+            /* Criterion 1: 1×1 at (k, k). */
+            use_2x2 = 0;
+        } else {
+            /* Need sigma_r = max |A[i, r]| for i in [k, n), i != r. */
+            double sigma_r = 0.0;
+            for (idx_t i = k; i < n; i++) {
+                if (i == r)
+                    continue;
+                double v = fabs(A[i + r * lda]);
+                if (v > sigma_r)
+                    sigma_r = v;
+            }
+            if (fabs(A[k + k * lda]) * sigma_r >= alpha_bk * lambda * lambda) {
+                /* Criterion 2: 1×1 at (k, k). */
+                use_2x2 = 0;
+            } else if (fabs(A[r + r * lda]) >= alpha_bk * sigma_r) {
+                /* Criterion 3: 1×1 at (r, r) — swap k ↔ r to bring
+                 * the chosen pivot into slot k. */
+                ldlt_dense_sym_swap(A, n, lda, k, r);
+                use_2x2 = 0;
+            } else {
+                /* Criterion 4: 2×2 at (k, r) — ensure the partner sits
+                 * at slot k+1 via swap. */
+                if (r != k + 1)
+                    ldlt_dense_sym_swap(A, n, lda, k + 1, r);
+                use_2x2 = 1;
+            }
+        }
+
+        if (!use_2x2) {
+            /* ── 1×1 pivot elimination at column k ─────────────────────── */
+            double dk = A[k + k * lda];
+            if (fabs(dk) < sing_tol)
+                return SPARSE_ERR_SINGULAR;
+
+            D[k] = dk;
+            D_offdiag[k] = 0.0;
+            pivot_size[k] = 1;
+
+            /* Trailing rank-1 update: for i > k, j > k (lower tri, j <= i):
+             *   A[i, j] -= A[i, k] * A[j, k] / dk
+             * Also update the upper triangle to keep the matrix symmetric
+             * for the next iteration's pivot selection (which reads
+             * `A[i + r*lda]` via direct indexing, not symmetry reflection). */
+            double inv_dk = 1.0 / dk;
+            for (idx_t j = k + 1; j < n; j++) {
+                double ajk = A[j + k * lda];
+                double factor = ajk * inv_dk;
+                for (idx_t i = j; i < n; i++) {
+                    double update = A[i + k * lda] * factor;
+                    A[i + j * lda] -= update;
+                    if (i != j)
+                        A[j + i * lda] = A[i + j * lda]; /* mirror to upper tri */
+                }
+            }
+
+            /* Write L[i, k] = A[i, k] / dk, then the unit diagonal. */
+            for (idx_t i = k + 1; i < n; i++) {
+                double l_ik = A[i + k * lda] * inv_dk;
+                if (fabs(l_ik) > growth_bound)
+                    return SPARSE_ERR_SINGULAR;
+                if (fabs(l_ik) > max_growth)
+                    max_growth = fabs(l_ik);
+                A[i + k * lda] = l_ik;
+                A[k + i * lda] = l_ik; /* mirror for subsequent BK scans */
+            }
+            A[k + k * lda] = 1.0;
+
+            k += 1;
+        } else {
+            /* ── 2×2 pivot elimination at (k, k+1) ─────────────────────── */
+            double d11 = A[k + k * lda];
+            double d21 = A[(k + 1) + k * lda];
+            double d22 = A[(k + 1) + (k + 1) * lda];
+            double det = d11 * d22 - d21 * d21;
+            double bscale = fabs(d11) + fabs(d22) + fabs(d21);
+            double det_tol = (bscale > 0.0) ? eff_tol * bscale * bscale : sing_tol * sing_tol;
+            if (fabs(det) < det_tol)
+                return SPARSE_ERR_SINGULAR;
+
+            D[k] = d11;
+            D[k + 1] = d22;
+            D_offdiag[k] = d21;
+            D_offdiag[k + 1] = 0.0;
+            pivot_size[k] = 2;
+            pivot_size[k + 1] = 2;
+
+            double inv_det = 1.0 / det;
+
+            /* Trailing rank-2 update: for j > k+1, i >= j:
+             *   A[i, j] -= L[i, k] * A[j, k] + L[i, k+1] * A[j, k+1]
+             * where L[i, k] and L[i, k+1] are the computed multipliers
+             * from the 2×2 solve.  Do the update BEFORE overwriting
+             * A[:, k] / A[:, k+1] with L so the right-hand side uses
+             * the original Schur values. */
+            for (idx_t j = k + 2; j < n; j++) {
+                double ajk = A[j + k * lda];
+                double ajk1 = A[j + (k + 1) * lda];
+                for (idx_t i = j; i < n; i++) {
+                    double aik = A[i + k * lda];
+                    double aik1 = A[i + (k + 1) * lda];
+                    double l_ik = (aik * d22 - aik1 * d21) * inv_det;
+                    double l_ik1 = (-aik * d21 + aik1 * d11) * inv_det;
+                    double update = l_ik * ajk + l_ik1 * ajk1;
+                    A[i + j * lda] -= update;
+                    if (i != j)
+                        A[j + i * lda] = A[i + j * lda];
+                }
+            }
+
+            /* Overwrite columns k and k+1 with the L multipliers. */
+            for (idx_t i = k + 2; i < n; i++) {
+                double aik = A[i + k * lda];
+                double aik1 = A[i + (k + 1) * lda];
+                double l_ik = (aik * d22 - aik1 * d21) * inv_det;
+                double l_ik1 = (-aik * d21 + aik1 * d11) * inv_det;
+                if (fabs(l_ik) > growth_bound || fabs(l_ik1) > growth_bound)
+                    return SPARSE_ERR_SINGULAR;
+                if (fabs(l_ik) > max_growth)
+                    max_growth = fabs(l_ik);
+                if (fabs(l_ik1) > max_growth)
+                    max_growth = fabs(l_ik1);
+                A[i + k * lda] = l_ik;
+                A[i + (k + 1) * lda] = l_ik1;
+                A[k + i * lda] = l_ik;
+                A[(k + 1) + i * lda] = l_ik1;
+            }
+            /* Unit-L diagonal within the 2×2 block: L[k,k] = L[k+1,k+1] = 1,
+             * L[k+1, k] = 0 (the 2×2 coupling is captured in D_offdiag). */
+            A[k + k * lda] = 1.0;
+            A[(k + 1) + k * lda] = 0.0;
+            A[(k + 1) + (k + 1) * lda] = 1.0;
+
+            k += 2;
+        }
+    }
+
+    if (elem_growth_out)
+        *elem_growth_out = max_growth;
     return SPARSE_OK;
 }
 

@@ -1517,11 +1517,23 @@ static void test_eliminate_fillin_with_analysis(void) {
  *
  * Build an SPD matrix where an off-diagonal entry is so small that
  * the computed L entry falls below the drop threshold.  Verify the
- * column shrinks and the reconstruction still matches A to tolerance. */
+ * factor's VALUE-LEVEL behaviour: the diagonal is sqrt(A[j,j]), the
+ * below-diagonal entry (still physically present in the slot since
+ * Sprint 19 Day 6 made col_ptr immutable across elimination) holds
+ * the zeroed-out dropped value, and reconstruction via L·L^T still
+ * matches A to round-off.
+ *
+ * Pre-Sprint 19 this test asserted that the column SLOT shrunk to 1
+ * (diagonal only) — the old `chol_csc_gather` called
+ * `shift_columns_right_of` on every drop.  Sprint 19 Day 6's Kuu
+ * fix keeps col_ptr immutable and zero-pads dropped slots in place,
+ * so the storage pattern looks different post-drop even though the
+ * user-visible factor is identical.  The assertions below check the
+ * behavioural contract (diagonal value, dropped-value zero-ness)
+ * rather than the specific slot layout. */
 static void test_eliminate_drop_tolerance(void) {
     /* A = [[1, 1e-15, 0], [1e-15, 1, 0], [0, 0, 1]] — entry 1e-15 is
-     * below SPARSE_DROP_TOL * |L[0,0]| = 1e-14, so L[1,0] should drop.
-     * The factor should collapse to diag(1,1,1). */
+     * below SPARSE_DROP_TOL * |L[0,0]| = 1e-14, so L[1,0] should drop. */
     idx_t n = 3;
     SparseMatrix *A = sparse_create(n, n);
     for (idx_t i = 0; i < n; i++)
@@ -1537,12 +1549,22 @@ static void test_eliminate_drop_tolerance(void) {
     REQUIRE_OK(chol_csc_eliminate(csc));
     REQUIRE_OK(chol_csc_validate(csc));
 
-    /* After drop: only 3 diagonals survive. */
-    ASSERT_EQ(csc->nnz, 3);
+    /* Diagonal is always stored — check every column's first slot
+     * carries L[j, j] = sqrt(A[j, j]) = 1.0. */
     for (idx_t j = 0; j < n; j++) {
-        ASSERT_EQ(csc->col_ptr[j + 1] - csc->col_ptr[j], 1);
-        ASSERT_EQ(csc->row_idx[csc->col_ptr[j]], j);
-        ASSERT_NEAR(csc->values[csc->col_ptr[j]], 1.0, 1e-12);
+        idx_t cstart = csc->col_ptr[j];
+        idx_t cend = csc->col_ptr[j + 1];
+        ASSERT_TRUE(cstart < cend); /* diagonal always present */
+        ASSERT_EQ(csc->row_idx[cstart], j);
+        ASSERT_NEAR(csc->values[cstart], 1.0, 1e-12);
+
+        /* Any below-diagonal slot in column j must carry 0.0 — either
+         * never had a value, or was dropped by the drop-tolerance
+         * rule.  (Before Sprint 19 Day 6 this slot did not exist at
+         * all; today it stays allocated but zeroed.) */
+        for (idx_t p = cstart + 1; p < cend; p++) {
+            ASSERT_NEAR(csc->values[p], 0.0, 0.0);
+        }
     }
 
     sparse_free(A);
@@ -2290,6 +2312,176 @@ static void test_chol_dense_solve_lower_3x3(void) {
     ASSERT_NEAR(b[2], 3.0, 1e-12);
 }
 
+/* ─── Sprint 19 Day 11: ldlt_dense_factor (BK on column-major) ─── */
+
+/* Reconstruct A from factored L, D, D_offdiag, pivot_size and check
+ * it matches the original matrix to `tol`.  `A_before` holds the
+ * original symmetric values (both triangles); `A_factored` holds L
+ * below-diag + 1.0 on the diagonal after `ldlt_dense_factor`. */
+static int ldlt_dense_reconstruction_matches(const double *A_before, const double *A_factored,
+                                             const double *D, const double *D_offdiag,
+                                             const idx_t *pivot_size, idx_t n, idx_t lda,
+                                             double tol) {
+    /* Build an explicit L and D*L^T product in fresh buffers so the
+     * check is obvious.  L is unit lower triangular; D is block
+     * diagonal with 1×1 or 2×2 blocks. */
+    double *Lfull = calloc((size_t)(n * n), sizeof(double));
+    double *DLt = calloc((size_t)(n * n), sizeof(double));
+    double *LDLt = calloc((size_t)(n * n), sizeof(double));
+    int ok = 1;
+
+    for (idx_t i = 0; i < n; i++) {
+        Lfull[i + i * n] = 1.0;
+        for (idx_t j = 0; j < i; j++)
+            Lfull[i + j * n] = A_factored[i + j * lda];
+    }
+
+    /* D * L^T: for each column t of L^T (i.e., row t of L):
+     *   (DLt)[k, t] = sum over pivot block at k of D[k..]*Lfull[t, ..]
+     * Handle 1×1 and 2×2 blocks separately. */
+    for (idx_t t = 0; t < n; t++) {
+        idx_t k = 0;
+        while (k < n) {
+            if (pivot_size[k] == 1) {
+                DLt[k + t * n] = D[k] * Lfull[t + k * n];
+                k++;
+            } else {
+                double l_t_k = Lfull[t + k * n];
+                double l_t_k1 = Lfull[t + (k + 1) * n];
+                DLt[k + t * n] = D[k] * l_t_k + D_offdiag[k] * l_t_k1;
+                DLt[(k + 1) + t * n] = D_offdiag[k] * l_t_k + D[k + 1] * l_t_k1;
+                k += 2;
+            }
+        }
+    }
+
+    /* L * (D * L^T). */
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t j = 0; j < n; j++) {
+            double s = 0.0;
+            for (idx_t p = 0; p < n; p++)
+                s += Lfull[i + p * n] * DLt[p + j * n];
+            LDLt[i + j * n] = s;
+        }
+    }
+
+    /* Compare against A_before on the lower triangle. */
+    for (idx_t i = 0; i < n && ok; i++) {
+        for (idx_t j = 0; j <= i && ok; j++) {
+            double want = A_before[i + j * lda];
+            double got = LDLt[i + j * n];
+            if (fabs(want - got) > tol)
+                ok = 0;
+        }
+    }
+
+    free(Lfull);
+    free(DLt);
+    free(LDLt);
+    return ok;
+}
+
+/* Null / shape checks. */
+static void test_ldlt_dense_factor_arg_checks(void) {
+    double A[4] = {1, 0, 0, 1};
+    double D[2] = {0}, Doff[2] = {0};
+    idx_t ps[2] = {0};
+    ASSERT_ERR(ldlt_dense_factor(NULL, D, Doff, ps, 2, 2, 0.0, NULL), SPARSE_ERR_NULL);
+    ASSERT_ERR(ldlt_dense_factor(A, NULL, Doff, ps, 2, 2, 0.0, NULL), SPARSE_ERR_NULL);
+    ASSERT_ERR(ldlt_dense_factor(A, D, NULL, ps, 2, 2, 0.0, NULL), SPARSE_ERR_NULL);
+    ASSERT_ERR(ldlt_dense_factor(A, D, Doff, NULL, 2, 2, 0.0, NULL), SPARSE_ERR_NULL);
+    ASSERT_ERR(ldlt_dense_factor(A, D, Doff, ps, -1, 2, 0.0, NULL), SPARSE_ERR_BADARG);
+    ASSERT_ERR(ldlt_dense_factor(A, D, Doff, ps, 2, 1, 0.0, NULL), SPARSE_ERR_BADARG); /* lda<n */
+}
+
+/* 4×4 indefinite (diagonal-dominant): factor, then reconstruct A and
+ * check round-off.  All 1×1 pivots expected because diag dominance
+ * ensures criterion 1. */
+static void test_ldlt_dense_factor_4x4_indefinite(void) {
+    /* Mix of positive and negative diagonals + modest off-diagonals. */
+    double A_init[16] = {4.0, 0.5, 0.3, 0.1, 0.5, -3.0, 0.2, 0.4,
+                         0.3, 0.2, 5.0, 0.6, 0.1, 0.4,  0.6, -2.0};
+    double A[16];
+    memcpy(A, A_init, sizeof(A));
+
+    double D[4] = {0}, Doff[4] = {0};
+    idx_t ps[4] = {0};
+    double growth = 0.0;
+    REQUIRE_OK(ldlt_dense_factor(A, D, Doff, ps, 4, 4, 1e-12, &growth));
+
+    ASSERT_TRUE(ldlt_dense_reconstruction_matches(A_init, A, D, Doff, ps, 4, 4, 1e-10));
+    ASSERT_TRUE(growth < 10.0); /* Diagonal-dominant — no large L entries. */
+}
+
+/* 2×2 forced: small diagonals + large off-diagonal triggers criterion 4. */
+static void test_ldlt_dense_factor_2x2_forced(void) {
+    /* A = [[0.1, 1.0], [1.0, 0.3]].  |A[0,0]| = 0.1 < α * 1.0 = 0.64,
+     * so criterion 1 fails.  Criterion 2: |A[0,0]| * σ_r = 0.1 * 0 = 0
+     * (n=2, sigma_r has no other rows), comparison is 0 >= α * 1.0²
+     * = 0.64 → false.  Criterion 3: |A[1,1]| = 0.3 >= α * 0 = 0 → true.
+     *
+     * Hmm — n=2 with only one off-diagonal, σ_r is 0, so criterion 3
+     * would fire (swap-and-1×1).  Use n=3 to actually force a 2×2. */
+    double A_init[9] = {0.1, 1.0, 0.2, 1.0, 0.3, 0.1, 0.2, 0.1, 4.0};
+    double A[9];
+    memcpy(A, A_init, sizeof(A));
+
+    double D[3] = {0}, Doff[3] = {0};
+    idx_t ps[3] = {0};
+    double growth = 0.0;
+    REQUIRE_OK(ldlt_dense_factor(A, D, Doff, ps, 3, 3, 1e-12, &growth));
+
+    ASSERT_EQ(ps[0], 2);
+    ASSERT_EQ(ps[1], 2);
+    ASSERT_TRUE(fabs(Doff[0]) > 1e-10);
+    ASSERT_TRUE(ldlt_dense_reconstruction_matches(A_init, A, D, Doff, ps, 3, 3, 1e-10));
+}
+
+/* 6×6 with mixed 1×1 and 2×2 pivots; verify reconstruction and
+ * bounded growth. */
+static void test_ldlt_dense_factor_6x6_mixed_pivots(void) {
+    idx_t n = 6;
+    double A_init[36];
+    /* Start with diag-dominant and then perturb to trigger a 2×2 */
+    for (idx_t i = 0; i < n; i++)
+        for (idx_t j = 0; j < n; j++) {
+            if (i == j)
+                A_init[i + j * n] = (i % 2) ? -3.0 : 5.0;
+            else
+                A_init[i + j * n] = 0.1 * (double)((i + 1) * (j + 2) % 7);
+        }
+    /* Force a 2×2 by making the (2, 2) diagonal tiny vs its (2, 3) coupling. */
+    A_init[2 + 2 * n] = 0.1;
+    A_init[3 + 3 * n] = 0.2;
+    A_init[2 + 3 * n] = 1.0;
+    A_init[3 + 2 * n] = 1.0;
+    /* Ensure symmetry. */
+    for (idx_t i = 0; i < n; i++)
+        for (idx_t j = i + 1; j < n; j++)
+            A_init[i + j * n] = A_init[j + i * n];
+
+    double A[36];
+    memcpy(A, A_init, sizeof(A));
+
+    double D[6] = {0}, Doff[6] = {0};
+    idx_t ps[6] = {0};
+    double growth = 0.0;
+    REQUIRE_OK(ldlt_dense_factor(A, D, Doff, ps, n, n, 1e-12, &growth));
+
+    /* Verify we got a 2×2 pivot SOMEWHERE (i.e., at least one ps[k]==2 pair). */
+    int has_2x2 = 0;
+    for (idx_t k = 0; k + 1 < n; k++) {
+        if (ps[k] == 2 && ps[k + 1] == 2) {
+            has_2x2 = 1;
+            break;
+        }
+    }
+    ASSERT_TRUE(has_2x2);
+
+    ASSERT_TRUE(ldlt_dense_reconstruction_matches(A_init, A, D, Doff, ps, n, n, 1e-9));
+    ASSERT_TRUE(growth < 100.0); /* BK bounds growth — sanity check. */
+}
+
 /* ─── chol_csc_eliminate_supernodal: dispatch & correctness ─── */
 
 /* On a dense SPD matrix the supernodal path must produce the same
@@ -2409,6 +2601,96 @@ static void test_eliminate_supernodal_bcsstk04_amd(void) {
     free(x_sn);
     chol_csc_free(Ls);
     chol_csc_free(Ln);
+    sparse_analysis_free(&an);
+    sparse_free(A);
+}
+
+/* Sprint 19 Day 6: Kuu regression check.
+ *
+ * Sprint 18 Day 12's enlarged corpus found that the scalar CSC
+ * kernel regressed to 0.77× vs linked-list on Kuu (n = 7102),
+ * while every other fixture in the corpus was flat or ahead.  The
+ * Day 5 profile attributed 60% of scalar Kuu factor time to
+ * `_platform_memmove` inside `chol_csc_gather`'s
+ * `shift_columns_right_of` path; the Day 6 fix adds an in-place
+ * write-and-zero-pad fast path to `chol_csc_gather` that skips the
+ * memmove when the pre-allocated slot fits the survivors and every
+ * survivor row is already in the slot's row_idx (guaranteed on the
+ * `chol_csc_from_sparse_with_analysis` initialiser).
+ *
+ * The regression check here factors Kuu through `chol_csc_eliminate`
+ * (scalar CSC) AND `chol_csc_eliminate_supernodal` and asserts both
+ * paths produce solves matching the linked-list reference to the
+ * 1e-10 SPD spot-check tolerance.  Exact pivot-level agreement is
+ * checked indirectly via the x-vector match since the supernodal
+ * path runs the same underlying CholCsc plumbing. */
+static void test_chol_csc_kuu_scalar_no_regression(void) {
+    SparseMatrix *A = NULL;
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/Kuu.mtx"));
+    idx_t n = sparse_rows(A);
+
+    double *ones = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x_sc = calloc((size_t)n, sizeof(double));
+    double *x_sn = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(ones);
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x_sc);
+    ASSERT_NOT_NULL(x_sn);
+
+    for (idx_t i = 0; i < n; i++)
+        ones[i] = 1.0;
+    sparse_matvec(A, ones, b);
+
+    sparse_analysis_opts_t aopts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_t an = {0};
+    REQUIRE_OK(sparse_analyze(A, &aopts, &an));
+
+    /* Scalar path — the Kuu-regression target. */
+    CholCsc *Lsc = NULL;
+    REQUIRE_OK(chol_csc_from_sparse_with_analysis(A, &an, &Lsc));
+    REQUIRE_OK(chol_csc_eliminate(Lsc));
+    REQUIRE_OK(chol_csc_solve_perm(Lsc, an.perm, b, x_sc));
+
+    /* Supernodal path — reference.  Should already be correct from
+     * Sprint 18. */
+    CholCsc *Lsn = NULL;
+    REQUIRE_OK(chol_csc_from_sparse_with_analysis(A, &an, &Lsn));
+    /* Matches the supernodal min_size used in other test_chol_csc
+     * tests (the SPARSE_CSC_SUPERNODE_MIN_SIZE dispatch constant
+     * lives in `src/sparse_cholesky.c` and isn't in the public
+     * header). */
+    REQUIRE_OK(chol_csc_eliminate_supernodal(Lsn, 4));
+    REQUIRE_OK(chol_csc_solve_perm(Lsn, an.perm, b, x_sn));
+
+    /* Residual against the original A. */
+    double *Ax = calloc((size_t)n, sizeof(double));
+    sparse_matvec(A, x_sc, Ax);
+    double rmax = 0.0, bmax = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        double r = fabs(Ax[i] - b[i]);
+        if (r > rmax)
+            rmax = r;
+        double bi = fabs(b[i]);
+        if (bi > bmax)
+            bmax = bi;
+    }
+    double rel_scalar = bmax > 0.0 ? rmax / bmax : rmax;
+    printf("    Kuu scalar rel_residual = %.3e\n", rel_scalar);
+    ASSERT_TRUE(rel_scalar < 1e-10);
+
+    /* Cross-check scalar vs supernodal solutions agree to round-off. */
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_NEAR(x_sc[i], x_sn[i], 1e-9);
+    }
+
+    free(ones);
+    free(b);
+    free(x_sc);
+    free(x_sn);
+    free(Ax);
+    chol_csc_free(Lsc);
+    chol_csc_free(Lsn);
     sparse_analysis_free(&an);
     sparse_free(A);
 }
@@ -3951,9 +4233,16 @@ int main(void) {
     RUN_TEST(test_chol_dense_factor_not_spd);
     RUN_TEST(test_chol_dense_solve_null);
     RUN_TEST(test_chol_dense_solve_lower_3x3);
+
+    /* Sprint 19 Day 11: ldlt_dense_factor (BK on column-major) */
+    RUN_TEST(test_ldlt_dense_factor_arg_checks);
+    RUN_TEST(test_ldlt_dense_factor_4x4_indefinite);
+    RUN_TEST(test_ldlt_dense_factor_2x2_forced);
+    RUN_TEST(test_ldlt_dense_factor_6x6_mixed_pivots);
     RUN_TEST(test_eliminate_supernodal_dense);
     RUN_TEST(test_eliminate_supernodal_block_diagonal);
     RUN_TEST(test_eliminate_supernodal_bcsstk04_amd);
+    RUN_TEST(test_chol_csc_kuu_scalar_no_regression);
     RUN_TEST(test_eliminate_supernodal_null);
 
     /* Sprint 18 Day 6 — supernode extract / writeback plumbing */

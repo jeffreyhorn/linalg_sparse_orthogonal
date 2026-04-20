@@ -1,0 +1,5 @@
+matrix,n,nnz,factor_ll_ms,factor_csc_native_ms,factor_csc_wrapper_ms,solve_ll_ms,solve_csc_native_ms,speedup_csc_native,speedup_csc_wrapper,res_ll,res_csc_native
+nos4.mtx,100,594,0.249,0.192,0.312,0.005,0.003,1.29,0.80,5.89e-16,5.89e-16
+bcsstk04.mtx,132,3648,2.490,1.330,2.530,0.030,0.010,1.87,0.98,6.05e-16,1.06e-15
+bcsstk14.mtx,1806,63454,315.484,89.559,321.742,3.755,0.416,3.52,0.98,8.05e-15,8.13e-15
+s3rmt3m3.mtx,5357,207123,2757.250,727.374,2816.414,15.810,2.255,3.79,0.98,8.36e-15,8.36e-15

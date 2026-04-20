@@ -84,6 +84,15 @@ typedef struct {
     idx_t *row_idx;     /**< Row indices (length capacity), sorted ascending per column. */
     double *values;     /**< Nonzero values (length capacity). */
     double factor_norm; /**< ||A||_inf at conversion time, for relative tolerance. */
+
+    /* Sprint 19 Day 7: set to 1 when `chol_csc_from_sparse_with_analysis`
+     * pre-populated the full sym_L pattern.  `chol_csc_gather`'s fast
+     * path (Day 6) reads this to skip the O(pattern_count) merge-walk
+     * check that confirms every survivor row is in the slot — the
+     * sym_L pre-population is itself the proof.  Set to 0 by
+     * `chol_csc_from_sparse` (heuristic) so its callers fall back to
+     * the merge-walk + slow-path as needed. */
+    int sym_L_preallocated;
 } CholCsc;
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -660,6 +669,42 @@ sparse_err_t chol_dense_factor(double *A, idx_t n, idx_t lda, double tol);
  *         successful `chol_dense_factor` but is checked defensively).
  */
 sparse_err_t chol_dense_solve_lower(const double *L, idx_t n, idx_t lda, double *b);
+
+/**
+ * Sprint 19 Day 11: Dense LDL^T factor with Bunch-Kaufman pivoting.
+ *
+ * Column-major analogue of `sparse_ldlt.c`'s BK kernel, intended for
+ * the Sprint 19 Days 12-14 batched supernodal LDL^T path to call per
+ * supernode's diagonal block (the same way `chol_dense_factor` serves
+ * the Cholesky batched supernodal kernel).
+ *
+ * Input: `A` is n×n column-major symmetric with BOTH triangles
+ * populated so the four-criteria BK scan can read `A[i + r*lda]`
+ * directly without symmetry reflection.
+ *
+ * Output:
+ *   - `A` below-diagonal holds unit-L: diagonal set to 1.0, L[k+1, k] = 0
+ *     for 2×2 pivots (the coupling lives in `D_offdiag`).  Upper
+ *     triangle not preserved.
+ *   - `D[k]`: 1×1 pivot scalar, or the (k, k) diagonal of a 2×2 block;
+ *     `D[k+1]` for 2×2 holds (k+1, k+1).
+ *   - `D_offdiag[k]`: 2×2 block's (k, k+1) off-diagonal; 0 for 1×1.
+ *   - `pivot_size[k]`: 1 for 1×1, 2 for both indices of a 2×2 pair.
+ *   - `elem_growth_out` (optional, may be NULL): receives the max
+ *     |L[i, j]| observed during the factor.
+ *
+ * @param A              n×n column-major symmetric buffer (both triangles).
+ * @param D              Length-n output.
+ * @param D_offdiag      Length-n output.
+ * @param pivot_size     Length-n output.
+ * @param n              Dimension.
+ * @param lda            Leading dimension (`lda >= n`).
+ * @param tol            Drop / singularity tolerance; <=0 uses SPARSE_DROP_TOL.
+ * @param elem_growth_out Optional output for max observed |L|.
+ * @return SPARSE_OK, SPARSE_ERR_NULL, SPARSE_ERR_BADARG, SPARSE_ERR_SINGULAR.
+ */
+sparse_err_t ldlt_dense_factor(double *A, double *D, double *D_offdiag, idx_t *pivot_size, idx_t n,
+                               idx_t lda, double tol, double *elem_growth_out);
 
 /**
  * Supernode-aware elimination entry point.

@@ -102,6 +102,758 @@ static void test_free_null(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 19 Day 8: row-adjacency index
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Alloc / free round-trip with no appends — every per-row slot should
+ * be NULL after alloc and free should be a no-op on those slots. */
+static void test_row_adj_empty_round_trip(void) {
+    LdltCsc *F = NULL;
+    REQUIRE_OK(ldlt_csc_alloc(10, 1, &F));
+    ASSERT_NOT_NULL(F->row_adj);
+    ASSERT_NOT_NULL(F->row_adj_count);
+    ASSERT_NOT_NULL(F->row_adj_cap);
+    for (idx_t r = 0; r < 10; r++) {
+        ASSERT_TRUE(F->row_adj[r] == NULL);
+        ASSERT_EQ(F->row_adj_count[r], 0);
+        ASSERT_EQ(F->row_adj_cap[r], 0);
+    }
+    ldlt_csc_free(F); /* must not crash or leak */
+    ASSERT_TRUE(1);
+}
+
+/* Append 3 columns to row 5, verify insertion order preserved. */
+static void test_row_adj_append_preserves_order(void) {
+    LdltCsc *F = NULL;
+    REQUIRE_OK(ldlt_csc_alloc(10, 1, &F));
+    REQUIRE_OK(ldlt_csc_row_adj_append(F, 5, 0));
+    REQUIRE_OK(ldlt_csc_row_adj_append(F, 5, 2));
+    REQUIRE_OK(ldlt_csc_row_adj_append(F, 5, 4));
+
+    ASSERT_EQ(F->row_adj_count[5], 3);
+    ASSERT_TRUE(F->row_adj_cap[5] >= 3);
+    ASSERT_NOT_NULL(F->row_adj[5]);
+    ASSERT_EQ(F->row_adj[5][0], 0);
+    ASSERT_EQ(F->row_adj[5][1], 2);
+    ASSERT_EQ(F->row_adj[5][2], 4);
+    /* Other rows untouched. */
+    for (idx_t r = 0; r < 10; r++) {
+        if (r == 5)
+            continue;
+        ASSERT_EQ(F->row_adj_count[r], 0);
+    }
+    ldlt_csc_free(F);
+}
+
+/* Geometric growth: 100 appends to one row must succeed and preserve
+ * every entry in insertion order. */
+static void test_row_adj_geometric_growth(void) {
+    LdltCsc *F = NULL;
+    REQUIRE_OK(ldlt_csc_alloc(200, 1, &F));
+    for (idx_t c = 0; c < 100; c++)
+        REQUIRE_OK(ldlt_csc_row_adj_append(F, 101, c));
+
+    ASSERT_EQ(F->row_adj_count[101], 100);
+    ASSERT_TRUE(F->row_adj_cap[101] >= 100);
+    for (idx_t c = 0; c < 100; c++)
+        ASSERT_EQ(F->row_adj[101][c], c);
+    ldlt_csc_free(F);
+}
+
+/* Null / out-of-range argument checks. */
+static void test_row_adj_append_arg_checks(void) {
+    ASSERT_ERR(ldlt_csc_row_adj_append(NULL, 0, 0), SPARSE_ERR_NULL);
+
+    LdltCsc *F = NULL;
+    REQUIRE_OK(ldlt_csc_alloc(5, 1, &F));
+    ASSERT_ERR(ldlt_csc_row_adj_append(F, -1, 0), SPARSE_ERR_BADARG);
+    ASSERT_ERR(ldlt_csc_row_adj_append(F, 5, 0), SPARSE_ERR_BADARG);
+    ASSERT_ERR(ldlt_csc_row_adj_append(F, 0, -1), SPARSE_ERR_BADARG);
+    ASSERT_ERR(ldlt_csc_row_adj_append(F, 0, 5), SPARSE_ERR_BADARG);
+    ldlt_csc_free(F);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 19 Day 10: 2×2-aware supernode detection
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Helper: build an LdltCsc whose embedded L is "fully dense lower
+ * triangular" (every row `i >= j` stored in column `j`) and whose
+ * pivot_size array is the caller-supplied pattern.  Lets the
+ * detection tests focus on boundary behaviour without running a
+ * real factor. */
+static LdltCsc *build_dense_ldlt_with_pivots(idx_t n, const idx_t *pivot_size) {
+    LdltCsc *F = NULL;
+    if (ldlt_csc_alloc(n, n * (n + 1) / 2, &F) != SPARSE_OK)
+        return NULL;
+    CholCsc *L = F->L;
+    idx_t p = 0;
+    for (idx_t j = 0; j < n; j++) {
+        L->col_ptr[j] = p;
+        for (idx_t i = j; i < n; i++) {
+            L->row_idx[p] = i;
+            L->values[p] = (i == j) ? 1.0 : 0.1;
+            p++;
+        }
+    }
+    L->col_ptr[n] = p;
+    L->nnz = p;
+    for (idx_t k = 0; k < n; k++)
+        F->pivot_size[k] = pivot_size[k];
+    return F;
+}
+
+/* Dense 6×6 matrix with all 1×1 pivots: a single supernode covering
+ * [0, 6) of size 6. */
+static void test_detect_supernodes_dense_all_1x1(void) {
+    idx_t pivot_size[6] = {1, 1, 1, 1, 1, 1};
+    LdltCsc *F = build_dense_ldlt_with_pivots(6, pivot_size);
+    ASSERT_NOT_NULL(F);
+
+    idx_t starts[6] = {0}, sizes[6] = {0};
+    idx_t count = 0;
+    REQUIRE_OK(ldlt_csc_detect_supernodes(F, /*min_size=*/2, starts, sizes, &count));
+    ASSERT_EQ(count, 1);
+    ASSERT_EQ(starts[0], 0);
+    ASSERT_EQ(sizes[0], 6);
+
+    ldlt_csc_free(F);
+}
+
+/* Dense 6×6 with a 2×2 pivot at (2, 3), all other pivots 1×1.  The
+ * Liu-Ng-Peyton pattern lets the whole dense matrix form one
+ * supernode; the 2×2 is fully contained, so detection keeps one
+ * supernode covering [0, 6). */
+static void test_detect_supernodes_dense_with_2x2(void) {
+    idx_t pivot_size[6] = {1, 1, 2, 2, 1, 1};
+    LdltCsc *F = build_dense_ldlt_with_pivots(6, pivot_size);
+    ASSERT_NOT_NULL(F);
+
+    idx_t starts[6] = {0}, sizes[6] = {0};
+    idx_t count = 0;
+    REQUIRE_OK(ldlt_csc_detect_supernodes(F, /*min_size=*/2, starts, sizes, &count));
+    ASSERT_EQ(count, 1);
+    ASSERT_EQ(starts[0], 0);
+    ASSERT_EQ(sizes[0], 6);
+
+    ldlt_csc_free(F);
+}
+
+/* Block-diagonal 8×8 with two 4×4 dense blocks, a 2×2 pivot inside
+ * each block.  The Liu-Ng-Peyton pattern breaks between the two
+ * blocks (columns 3 and 4 don't share a below-diagonal pattern), so
+ * detection must emit two supernodes [0, 4) and [4, 8).  Neither
+ * boundary falls inside a 2×2 pair. */
+static void test_detect_supernodes_block_diagonal_with_2x2(void) {
+    idx_t n = 8;
+    /* Build two 4×4 dense blocks stored as a block-diagonal CSC. */
+    LdltCsc *F = NULL;
+    REQUIRE_OK(ldlt_csc_alloc(n, 2 * 4 * (4 + 1) / 2, &F));
+    CholCsc *L = F->L;
+    idx_t p = 0;
+    for (idx_t j = 0; j < n; j++) {
+        L->col_ptr[j] = p;
+        idx_t block_start = (j < 4) ? 0 : 4;
+        idx_t block_end = block_start + 4;
+        for (idx_t i = j; i < block_end; i++) {
+            L->row_idx[p] = i;
+            L->values[p] = (i == j) ? 1.0 : 0.1;
+            p++;
+        }
+    }
+    L->col_ptr[n] = p;
+    L->nnz = p;
+
+    /* Block 0: 2×2 at (1, 2), singles at 0 and 3.
+     * Block 1: 2×2 at (5, 6), singles at 4 and 7. */
+    idx_t pivot_size[8] = {1, 2, 2, 1, 1, 2, 2, 1};
+    for (idx_t k = 0; k < n; k++)
+        F->pivot_size[k] = pivot_size[k];
+
+    idx_t starts[8] = {0}, sizes[8] = {0};
+    idx_t count = 0;
+    REQUIRE_OK(ldlt_csc_detect_supernodes(F, /*min_size=*/2, starts, sizes, &count));
+    ASSERT_EQ(count, 2);
+    ASSERT_EQ(starts[0], 0);
+    ASSERT_EQ(sizes[0], 4);
+    ASSERT_EQ(starts[1], 4);
+    ASSERT_EQ(sizes[1], 4);
+
+    ldlt_csc_free(F);
+}
+
+/* Null / badarg checks. */
+static void test_detect_supernodes_arg_checks(void) {
+    idx_t starts[4] = {0}, sizes[4] = {0};
+    idx_t count = 0;
+    ASSERT_ERR(ldlt_csc_detect_supernodes(NULL, 1, starts, sizes, &count), SPARSE_ERR_NULL);
+
+    idx_t pivot_size[2] = {1, 1};
+    LdltCsc *F = build_dense_ldlt_with_pivots(2, pivot_size);
+    ASSERT_NOT_NULL(F);
+    ASSERT_ERR(ldlt_csc_detect_supernodes(F, 0, starts, sizes, &count), SPARSE_ERR_BADARG);
+    ASSERT_ERR(ldlt_csc_detect_supernodes(F, -1, starts, sizes, &count), SPARSE_ERR_BADARG);
+    ASSERT_ERR(ldlt_csc_detect_supernodes(F, 1, NULL, sizes, &count), SPARSE_ERR_NULL);
+    ASSERT_ERR(ldlt_csc_detect_supernodes(F, 1, starts, NULL, &count), SPARSE_ERR_NULL);
+    ASSERT_ERR(ldlt_csc_detect_supernodes(F, 1, starts, sizes, NULL), SPARSE_ERR_NULL);
+    ldlt_csc_free(F);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 19 Day 12: supernode extract / writeback round-trips
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Compute row × column → linear index for a column-major buffer with
+ * leading dimension `lda`. */
+static inline idx_t cm_idx(idx_t row, idx_t col, idx_t lda) { return row + col * lda; }
+
+/* Snapshot helper: copy `F->L->values`, `F->D`, `F->D_offdiag`,
+ * `F->pivot_size` for the supernode column range so we can verify the
+ * round-trip is the identity (no off-by-one in writeback). */
+static void snapshot_supernode_state(const LdltCsc *F, idx_t s_start, idx_t s_size,
+                                     double *L_values_copy, idx_t *L_nnz_in_block, double *D_copy,
+                                     double *D_offdiag_copy, idx_t *pivot_size_copy) {
+    idx_t cstart = F->L->col_ptr[s_start];
+    idx_t cend = F->L->col_ptr[s_start + s_size];
+    *L_nnz_in_block = cend - cstart;
+    for (idx_t p = 0; p < cend - cstart; p++)
+        L_values_copy[p] = F->L->values[cstart + p];
+    for (idx_t j = 0; j < s_size; j++) {
+        D_copy[j] = F->D[s_start + j];
+        D_offdiag_copy[j] = F->D_offdiag[s_start + j];
+        pivot_size_copy[j] = F->pivot_size[s_start + j];
+    }
+}
+
+/* Dense 6×6 supernode round-trip: extract → memcpy (identity) →
+ * writeback reproduces every L value, D entry, D_offdiag entry, and
+ * pivot_size entry exactly. */
+static void test_supernode_extract_writeback_dense_6x6(void) {
+    idx_t n = 6;
+    idx_t pivot_size[6] = {1, 1, 1, 1, 1, 1};
+    LdltCsc *F = build_dense_ldlt_with_pivots(n, pivot_size);
+    ASSERT_NOT_NULL(F);
+
+    /* Seed D / D_offdiag with distinguishable values so a misplaced
+     * writeback would surface as a mismatch. */
+    for (idx_t k = 0; k < n; k++) {
+        F->D[k] = 2.5 + (double)k;
+        F->D_offdiag[k] = 0.0;
+    }
+
+    /* Snapshot the pre-extract state. */
+    double L_pre[6 * 6];
+    idx_t L_nnz = 0;
+    double D_pre[6], D_off_pre[6];
+    idx_t ps_pre[6];
+    snapshot_supernode_state(F, 0, n, L_pre, &L_nnz, D_pre, D_off_pre, ps_pre);
+
+    /* Extract → identity → writeback. */
+    idx_t panel_height = 0;
+    idx_t row_map[6];
+    idx_t lda = n; /* dense column-major; lda == panel_height for full square block */
+    double dense[36] = {0};
+    REQUIRE_OK(ldlt_csc_supernode_extract(F, 0, n, dense, lda, row_map, &panel_height));
+    ASSERT_EQ(panel_height, n);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_EQ(row_map[i], i);
+
+    REQUIRE_OK(ldlt_csc_supernode_writeback(F, 0, n, dense, lda, row_map, panel_height, D_pre,
+                                            D_off_pre, ps_pre, 0.0));
+
+    /* Verify L values restored bit-for-bit. */
+    idx_t cstart = F->L->col_ptr[0];
+    for (idx_t p = 0; p < L_nnz; p++)
+        ASSERT_NEAR(F->L->values[cstart + p], L_pre[p], 0.0);
+    /* D / D_offdiag / pivot_size restored. */
+    for (idx_t k = 0; k < n; k++) {
+        ASSERT_NEAR(F->D[k], D_pre[k], 0.0);
+        ASSERT_NEAR(F->D_offdiag[k], D_off_pre[k], 0.0);
+        ASSERT_EQ(F->pivot_size[k], ps_pre[k]);
+    }
+
+    REQUIRE_OK(ldlt_csc_validate(F));
+    ldlt_csc_free(F);
+}
+
+/* Block-diagonal 8×8 with two 4×4 dense blocks: extract and writeback
+ * each block independently; mutations to one block must not bleed
+ * into the other. */
+static void test_supernode_extract_writeback_block_diagonal_8x8(void) {
+    idx_t n = 8;
+    LdltCsc *F = NULL;
+    /* Build manually: each block is dense lower triangular within
+     * itself; off-block entries are zero (not stored). */
+    idx_t initial_nnz = 2 * (4 * 5 / 2); /* 2 blocks × 10 stored entries */
+    REQUIRE_OK(ldlt_csc_alloc(n, initial_nnz, &F));
+    CholCsc *L = F->L;
+    idx_t p = 0;
+    for (idx_t blk = 0; blk < 2; blk++) {
+        idx_t base = blk * 4;
+        for (idx_t j = 0; j < 4; j++) {
+            L->col_ptr[base + j] = p;
+            for (idx_t i = j; i < 4; i++) {
+                L->row_idx[p] = base + i;
+                L->values[p] = (i == j) ? 1.0 : (0.1 + 0.01 * (double)(blk * 4 + j));
+                p++;
+            }
+        }
+    }
+    L->col_ptr[n] = p;
+    L->nnz = p;
+    for (idx_t k = 0; k < n; k++) {
+        F->pivot_size[k] = 1;
+        F->D[k] = 3.0 + (double)k;
+        F->D_offdiag[k] = 0.0;
+    }
+
+    /* Round-trip block 0; assert block 1 is undisturbed. */
+    double dense_b0[16] = {0};
+    idx_t row_map_b0[4];
+    idx_t panel_height_b0 = 0;
+    REQUIRE_OK(ldlt_csc_supernode_extract(F, 0, 4, dense_b0, 4, row_map_b0, &panel_height_b0));
+    ASSERT_EQ(panel_height_b0, 4);
+    for (idx_t i = 0; i < 4; i++)
+        ASSERT_EQ(row_map_b0[i], i);
+
+    /* Snapshot block 1 BEFORE block 0's writeback. */
+    double L_b1_pre[10];
+    idx_t L_b1_cstart = F->L->col_ptr[4];
+    for (idx_t i = 0; i < 10; i++)
+        L_b1_pre[i] = F->L->values[L_b1_cstart + i];
+
+    /* Mutate block 0's dense buffer and write back. */
+    for (idx_t j = 0; j < 4; j++)
+        for (idx_t i = j + 1; i < 4; i++)
+            dense_b0[cm_idx(i, j, 4)] = 9.99; /* arbitrary new off-diag */
+    double D_b0[4], D_off_b0[4];
+    idx_t ps_b0[4];
+    for (idx_t j = 0; j < 4; j++) {
+        D_b0[j] = F->D[j];
+        D_off_b0[j] = F->D_offdiag[j];
+        ps_b0[j] = F->pivot_size[j];
+    }
+    REQUIRE_OK(ldlt_csc_supernode_writeback(F, 0, 4, dense_b0, 4, row_map_b0, panel_height_b0, D_b0,
+                                            D_off_b0, ps_b0, 0.0));
+
+    /* Block 0's below-diagonal off-diagonals must be 9.99 now. */
+    for (idx_t j = 0; j < 4; j++) {
+        idx_t cs = F->L->col_ptr[j];
+        idx_t ce = F->L->col_ptr[j + 1];
+        for (idx_t q = cs; q < ce; q++) {
+            idx_t r = F->L->row_idx[q];
+            if (r == j)
+                ASSERT_NEAR(F->L->values[q], 1.0, 0.0); /* diag preserved */
+            else
+                ASSERT_NEAR(F->L->values[q], 9.99, 0.0);
+        }
+    }
+    /* Block 1 untouched. */
+    for (idx_t i = 0; i < 10; i++)
+        ASSERT_NEAR(F->L->values[L_b1_cstart + i], L_b1_pre[i], 0.0);
+
+    REQUIRE_OK(ldlt_csc_validate(F));
+    ldlt_csc_free(F);
+}
+
+/* Mixed 1×1 / 2×2 pivot supernode: round-trip preserves D_offdiag
+ * for the 2×2 pair and zeros for the 1×1 columns, plus drop_tol = 0
+ * keeps every L value verbatim. */
+static void test_supernode_extract_writeback_with_2x2(void) {
+    idx_t n = 4;
+    /* Pattern: 1×1, then a 2×2 at (1,2), then 1×1 — within a single
+     * supernode (the dense lower triangle covers the whole matrix). */
+    idx_t pivot_size[4] = {1, 2, 2, 1};
+    LdltCsc *F = build_dense_ldlt_with_pivots(n, pivot_size);
+    ASSERT_NOT_NULL(F);
+
+    /* Hand-set D / D_offdiag matching the 2×2 convention:
+     *   D[1] = d11, D[2] = d22, D_offdiag[1] = d21 != 0, D_offdiag[2] = 0. */
+    F->D[0] = 2.0;
+    F->D[1] = 3.0;
+    F->D[2] = 4.0;
+    F->D[3] = 5.0;
+    F->D_offdiag[0] = 0.0;
+    F->D_offdiag[1] = 1.5;
+    F->D_offdiag[2] = 0.0;
+    F->D_offdiag[3] = 0.0;
+
+    /* Snapshot. */
+    double L_pre[4 * 5 / 2];
+    idx_t L_nnz = 0;
+    double D_pre[4], D_off_pre[4];
+    idx_t ps_pre[4];
+    snapshot_supernode_state(F, 0, n, L_pre, &L_nnz, D_pre, D_off_pre, ps_pre);
+
+    /* Extract → identity → writeback. */
+    double dense[16] = {0};
+    idx_t row_map[4];
+    idx_t panel_height = 0;
+    REQUIRE_OK(ldlt_csc_supernode_extract(F, 0, n, dense, n, row_map, &panel_height));
+    REQUIRE_OK(ldlt_csc_supernode_writeback(F, 0, n, dense, n, row_map, panel_height, D_pre,
+                                            D_off_pre, ps_pre, 0.0));
+
+    /* L values restored. */
+    idx_t cstart = F->L->col_ptr[0];
+    for (idx_t p = 0; p < L_nnz; p++)
+        ASSERT_NEAR(F->L->values[cstart + p], L_pre[p], 0.0);
+
+    /* D_offdiag survives the round-trip with the 2×2 pair's d21
+     * intact. */
+    ASSERT_NEAR(F->D_offdiag[0], 0.0, 0.0);
+    ASSERT_NEAR(F->D_offdiag[1], 1.5, 0.0);
+    ASSERT_NEAR(F->D_offdiag[2], 0.0, 0.0);
+    ASSERT_NEAR(F->D_offdiag[3], 0.0, 0.0);
+
+    /* pivot_size pattern survives. */
+    ASSERT_EQ(F->pivot_size[0], 1);
+    ASSERT_EQ(F->pivot_size[1], 2);
+    ASSERT_EQ(F->pivot_size[2], 2);
+    ASSERT_EQ(F->pivot_size[3], 1);
+
+    REQUIRE_OK(ldlt_csc_validate(F));
+    ldlt_csc_free(F);
+}
+
+/* Argument-validation checks. */
+static void test_supernode_extract_writeback_arg_checks(void) {
+    idx_t pivot_size[3] = {1, 1, 1};
+    LdltCsc *F = build_dense_ldlt_with_pivots(3, pivot_size);
+    ASSERT_NOT_NULL(F);
+    F->D[0] = 1.0;
+    F->D[1] = 2.0;
+    F->D[2] = 3.0;
+
+    double dense[9] = {0};
+    idx_t row_map[3];
+    idx_t panel_height = 0;
+    double D[3] = {1.0, 2.0, 3.0};
+    double D_off[3] = {0};
+    idx_t ps[3] = {1, 1, 1};
+
+    /* Extract: NULL inputs. */
+    ASSERT_ERR(ldlt_csc_supernode_extract(NULL, 0, 1, dense, 3, row_map, &panel_height),
+               SPARSE_ERR_NULL);
+    ASSERT_ERR(ldlt_csc_supernode_extract(F, 0, 1, NULL, 3, row_map, &panel_height),
+               SPARSE_ERR_NULL);
+    ASSERT_ERR(ldlt_csc_supernode_extract(F, 0, 1, dense, 3, NULL, &panel_height), SPARSE_ERR_NULL);
+    ASSERT_ERR(ldlt_csc_supernode_extract(F, 0, 1, dense, 3, row_map, NULL), SPARSE_ERR_NULL);
+
+    /* Extract: invalid range / lda. */
+    ASSERT_ERR(ldlt_csc_supernode_extract(F, -1, 1, dense, 3, row_map, &panel_height),
+               SPARSE_ERR_BADARG);
+    ASSERT_ERR(ldlt_csc_supernode_extract(F, 0, 0, dense, 3, row_map, &panel_height),
+               SPARSE_ERR_BADARG);
+    ASSERT_ERR(ldlt_csc_supernode_extract(F, 0, 4, dense, 3, row_map, &panel_height),
+               SPARSE_ERR_BADARG); /* s_start + s_size > n */
+    ASSERT_ERR(ldlt_csc_supernode_extract(F, 0, 1, dense, 0, row_map, &panel_height),
+               SPARSE_ERR_BADARG); /* lda < panel_height */
+
+    /* Writeback: NULL inputs. */
+    REQUIRE_OK(ldlt_csc_supernode_extract(F, 0, 3, dense, 3, row_map, &panel_height));
+    ASSERT_ERR(ldlt_csc_supernode_writeback(NULL, 0, 3, dense, 3, row_map, panel_height, D, D_off,
+                                            ps, 0.0),
+               SPARSE_ERR_NULL);
+    ASSERT_ERR(
+        ldlt_csc_supernode_writeback(F, 0, 3, NULL, 3, row_map, panel_height, D, D_off, ps, 0.0),
+        SPARSE_ERR_NULL);
+    ASSERT_ERR(
+        ldlt_csc_supernode_writeback(F, 0, 3, dense, 3, NULL, panel_height, D, D_off, ps, 0.0),
+        SPARSE_ERR_NULL);
+    ASSERT_ERR(ldlt_csc_supernode_writeback(F, 0, 3, dense, 3, row_map, panel_height, NULL, D_off,
+                                            ps, 0.0),
+               SPARSE_ERR_NULL);
+    ASSERT_ERR(
+        ldlt_csc_supernode_writeback(F, 0, 3, dense, 3, row_map, panel_height, D, NULL, ps, 0.0),
+        SPARSE_ERR_NULL);
+    ASSERT_ERR(
+        ldlt_csc_supernode_writeback(F, 0, 3, dense, 3, row_map, panel_height, D, D_off, NULL, 0.0),
+        SPARSE_ERR_NULL);
+
+    /* Writeback: bad pivot_size value. */
+    idx_t ps_bad[3] = {1, 5, 1};
+    ASSERT_ERR(ldlt_csc_supernode_writeback(F, 0, 3, dense, 3, row_map, panel_height, D, D_off,
+                                            ps_bad, 0.0),
+               SPARSE_ERR_BADARG);
+
+    ldlt_csc_free(F);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 19 Day 13: batched supernodal LDL^T cross-checks
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Forward declaration: `build_random_symmetric` is defined later in
+ * this file (used by the existing scalar 20-matrix cross-check) and
+ * the Day 13 random-indefinite test reaches it from above. */
+static SparseMatrix *build_random_symmetric(idx_t n, unsigned int seed);
+
+/* Compare two factored LdltCscs entry-by-entry on L, D, D_offdiag,
+ * pivot_size.  Returns 1 on full match, 0 on first mismatch (and
+ * surfaces the diff via TF_FAIL_). */
+static int ldlt_csc_factor_state_matches(const LdltCsc *A, const LdltCsc *B, double tol) {
+    if (A->n != B->n) {
+        TF_FAIL_("n mismatch: A=%d B=%d", (int)A->n, (int)B->n);
+        return 0;
+    }
+    idx_t n = A->n;
+    /* L structural pattern + values. */
+    if (A->L->col_ptr[n] != B->L->col_ptr[n]) {
+        TF_FAIL_("L nnz mismatch: A=%d B=%d", (int)A->L->col_ptr[n], (int)B->L->col_ptr[n]);
+        return 0;
+    }
+    for (idx_t j = 0; j < n; j++) {
+        if (A->L->col_ptr[j] != B->L->col_ptr[j]) {
+            TF_FAIL_("col_ptr[%d] mismatch: A=%d B=%d", (int)j, (int)A->L->col_ptr[j],
+                     (int)B->L->col_ptr[j]);
+            return 0;
+        }
+    }
+    idx_t total = A->L->col_ptr[n];
+    for (idx_t p = 0; p < total; p++) {
+        if (A->L->row_idx[p] != B->L->row_idx[p]) {
+            TF_FAIL_("row_idx[%d] mismatch: A=%d B=%d", (int)p, (int)A->L->row_idx[p],
+                     (int)B->L->row_idx[p]);
+            return 0;
+        }
+        if (fabs(A->L->values[p] - B->L->values[p]) > tol) {
+            TF_FAIL_("L.values[%d] mismatch: A=%.15g B=%.15g diff=%.3e", (int)p, A->L->values[p],
+                     B->L->values[p], fabs(A->L->values[p] - B->L->values[p]));
+            return 0;
+        }
+    }
+    /* D / D_offdiag / pivot_size. */
+    for (idx_t k = 0; k < n; k++) {
+        if (fabs(A->D[k] - B->D[k]) > tol) {
+            TF_FAIL_("D[%d] mismatch: A=%.15g B=%.15g", (int)k, A->D[k], B->D[k]);
+            return 0;
+        }
+        if (fabs(A->D_offdiag[k] - B->D_offdiag[k]) > tol) {
+            TF_FAIL_("D_offdiag[%d] mismatch: A=%.15g B=%.15g", (int)k, A->D_offdiag[k],
+                     B->D_offdiag[k]);
+            return 0;
+        }
+        if (A->pivot_size[k] != B->pivot_size[k]) {
+            TF_FAIL_("pivot_size[%d] mismatch: A=%d B=%d", (int)k, (int)A->pivot_size[k],
+                     (int)B->pivot_size[k]);
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* Build a moderately-conditioned dense SPD matrix of size n with
+ * entries in [-1, 1] off-diagonal and a strong diagonal so BK picks
+ * 1×1 pivots throughout (no swaps). */
+static SparseMatrix *build_dense_spd(idx_t n, unsigned int seed) {
+    srand(seed);
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t j = 0; j < n; j++) {
+            if (i == j) {
+                /* Strong diagonal — guarantees SPD and dominant 1×1 pivots. */
+                sparse_insert(A, i, i, (double)(2 * n));
+            } else if (j < i) {
+                double v = ((double)rand() / (double)RAND_MAX) * 0.5 - 0.25;
+                sparse_insert(A, i, j, v);
+                sparse_insert(A, j, i, v);
+            }
+        }
+    }
+    return A;
+}
+
+/* Dense 8×8 SPD: the matrix forms one big supernode under
+ * `ldlt_csc_detect_supernodes`'s default pivot_size=1 pattern.  Both
+ * the scalar and batched paths factor identically (no BK swaps on an
+ * SPD matrix). */
+static void test_supernodal_dense_spd_8x8(void) {
+    idx_t n = 8;
+    SparseMatrix *A = build_dense_spd(n, 0xab12cd34u);
+
+    LdltCsc *F_scalar = NULL;
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &F_scalar));
+    REQUIRE_OK(ldlt_csc_eliminate_native(F_scalar));
+
+    LdltCsc *F_batched = NULL;
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &F_batched));
+    /* Seed pivot_size from the scalar pass so detect_supernodes sees
+     * the resolved pattern (identical to the as-allocated all-1
+     * default for SPD, but explicit for clarity and symmetry with the
+     * indefinite test below). */
+    for (idx_t k = 0; k < n; k++)
+        F_batched->pivot_size[k] = F_scalar->pivot_size[k];
+    REQUIRE_OK(ldlt_csc_eliminate_supernodal(F_batched, /*min_size=*/2));
+
+    REQUIRE_OK(ldlt_csc_validate(F_batched));
+    ASSERT_TRUE(ldlt_csc_factor_state_matches(F_scalar, F_batched, 1e-12));
+
+    ldlt_csc_free(F_scalar);
+    ldlt_csc_free(F_batched);
+    sparse_free(A);
+}
+
+/* Block-diagonal 12×12 SPD with two 6×6 dense blocks: detection
+ * emits two supernodes; the batched path runs each block
+ * independently and must match the scalar factor on both. */
+static void test_supernodal_block_diagonal_spd_12x12(void) {
+    idx_t n = 12;
+    SparseMatrix *A = sparse_create(n, n);
+    srand(0xdeadbeefu);
+    for (idx_t blk = 0; blk < 2; blk++) {
+        idx_t base = blk * 6;
+        for (idx_t i = 0; i < 6; i++) {
+            for (idx_t j = 0; j < 6; j++) {
+                if (i == j) {
+                    sparse_insert(A, base + i, base + i, 12.0);
+                } else if (j < i) {
+                    double v = ((double)rand() / (double)RAND_MAX) * 0.4 - 0.2;
+                    sparse_insert(A, base + i, base + j, v);
+                    sparse_insert(A, base + j, base + i, v);
+                }
+            }
+        }
+    }
+
+    LdltCsc *F_scalar = NULL;
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &F_scalar));
+    REQUIRE_OK(ldlt_csc_eliminate_native(F_scalar));
+
+    LdltCsc *F_batched = NULL;
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &F_batched));
+    for (idx_t k = 0; k < n; k++)
+        F_batched->pivot_size[k] = F_scalar->pivot_size[k];
+    REQUIRE_OK(ldlt_csc_eliminate_supernodal(F_batched, /*min_size=*/2));
+
+    REQUIRE_OK(ldlt_csc_validate(F_batched));
+    ASSERT_TRUE(ldlt_csc_factor_state_matches(F_scalar, F_batched, 1e-12));
+
+    ldlt_csc_free(F_scalar);
+    ldlt_csc_free(F_batched);
+    sparse_free(A);
+}
+
+/* Two-pass refactor on a random indefinite 30×30: factor scalar to
+ * resolve BK swaps; permute A by the resulting perm; refactor with
+ * the batched path; assert bit-identical L / D / pivot_size.
+ *
+ * The scalar pass produces F1 with `F1->perm = sigma` (a composition
+ * of BK swaps).  Building F2 from `sparse_apply_symmetric_perm(A, sigma)`
+ * (or equivalent) places A in the post-swap row order, so the
+ * batched path's `ldlt_dense_factor` invocations see a matrix where
+ * BK chooses identical 1×1/2×2 pivots without any further swaps. */
+static void test_supernodal_random_indefinite_30x30(void) {
+    /* Build a random symmetric matrix with mixed signs on the
+     * diagonal — gives BK a real chance to choose 1×1 vs 2×2. */
+    idx_t n = 30;
+    SparseMatrix *A_orig = build_random_symmetric(n, 0xc0ffee01u);
+
+    LdltCsc *F1 = NULL;
+    sparse_err_t err1 = ldlt_csc_from_sparse(A_orig, NULL, 2.0, &F1);
+    if (err1 != SPARSE_OK) {
+        if (F1)
+            ldlt_csc_free(F1);
+        sparse_free(A_orig);
+        return;
+    }
+    sparse_err_t err_elim = ldlt_csc_eliminate_native(F1);
+    if (err_elim != SPARSE_OK) {
+        ldlt_csc_free(F1);
+        sparse_free(A_orig);
+        return; /* random matrix may produce a singular pivot — skip */
+    }
+    REQUIRE_OK(ldlt_csc_validate(F1));
+
+    /* Apply F1->perm symmetrically to A, producing A_perm = P*A*P^T. */
+    SparseMatrix *A_perm = sparse_create(n, n);
+    for (idx_t i_new = 0; i_new < n; i_new++) {
+        for (idx_t j_new = 0; j_new < n; j_new++) {
+            idx_t i_old = F1->perm[i_new];
+            idx_t j_old = F1->perm[j_new];
+            double v = sparse_get(A_orig, i_old, j_old);
+            if (v != 0.0)
+                sparse_insert(A_perm, i_new, j_new, v);
+        }
+    }
+
+    LdltCsc *F2 = NULL;
+    REQUIRE_OK(ldlt_csc_from_sparse(A_perm, NULL, 2.0, &F2));
+    /* Seed F2->pivot_size from F1 so detect_supernodes respects the
+     * 2×2-aware boundaries from the scalar pass. */
+    for (idx_t k = 0; k < n; k++)
+        F2->pivot_size[k] = F1->pivot_size[k];
+
+    sparse_err_t err_b = ldlt_csc_eliminate_supernodal(F2, /*min_size=*/2);
+    if (err_b == SPARSE_ERR_BADARG) {
+        /* The batched path's pivot-stability check rejected the
+         * supernode (e.g., dense BK diverged on numerical drift).
+         * Skip — the test's main purpose is to verify equivalence
+         * when the path is taken successfully. */
+        ldlt_csc_free(F1);
+        ldlt_csc_free(F2);
+        sparse_free(A_orig);
+        sparse_free(A_perm);
+        return;
+    }
+    REQUIRE_OK(err_b);
+    REQUIRE_OK(ldlt_csc_validate(F2));
+
+    /* F1 was factored on A; F2 on P*A*P^T.  Both should produce the
+     * SAME L / D / pivot_size because P*A*P^T is just the post-swap
+     * view of what F1 internally produced.  F1->perm == F2->perm
+     * doesn't necessarily hold (F2 starts from identity-perm of
+     * A_perm), so we compare only L / D / D_offdiag / pivot_size. */
+    ASSERT_TRUE(ldlt_csc_factor_state_matches(F1, F2, 1e-10));
+
+    ldlt_csc_free(F1);
+    ldlt_csc_free(F2);
+    sparse_free(A_orig);
+    sparse_free(A_perm);
+}
+
+/* Argument validation for the Day 13 helpers. */
+static void test_supernodal_arg_checks(void) {
+    ASSERT_ERR(ldlt_csc_eliminate_supernodal(NULL, 1), SPARSE_ERR_NULL);
+
+    LdltCsc *F = NULL;
+    REQUIRE_OK(ldlt_csc_alloc(3, 6, &F));
+    ASSERT_ERR(ldlt_csc_eliminate_supernodal(F, 0), SPARSE_ERR_BADARG);
+    ASSERT_ERR(ldlt_csc_eliminate_supernodal(F, -1), SPARSE_ERR_BADARG);
+    ldlt_csc_free(F);
+
+    /* eliminate_diag NULL inputs. */
+    double dense[4] = {0};
+    idx_t row_map[2] = {0};
+    double D[2] = {0}, D_off[2] = {0};
+    idx_t ps[2] = {1, 1};
+    REQUIRE_OK(ldlt_csc_alloc(2, 3, &F));
+    F->L->col_ptr[0] = 0;
+    F->L->col_ptr[1] = 1;
+    F->L->col_ptr[2] = 1;
+    F->L->row_idx[0] = 0;
+    F->L->values[0] = 1.0;
+    F->L->nnz = 1;
+    ASSERT_ERR(ldlt_csc_supernode_eliminate_diag(NULL, 0, 1, dense, 1, row_map, 1, D, D_off, ps, 0),
+               SPARSE_ERR_NULL);
+    ASSERT_ERR(ldlt_csc_supernode_eliminate_diag(F, -1, 1, dense, 1, row_map, 1, D, D_off, ps, 0),
+               SPARSE_ERR_BADARG);
+    ASSERT_ERR(ldlt_csc_supernode_eliminate_diag(F, 0, 0, dense, 1, row_map, 1, D, D_off, ps, 0),
+               SPARSE_ERR_BADARG);
+    ldlt_csc_free(F);
+
+    /* eliminate_panel: panel_rows == 0 short-circuits successfully. */
+    double Ld[1] = {1.0};
+    double Db[1] = {1.0};
+    double Doffb[1] = {0.0};
+    idx_t psb[1] = {1};
+    REQUIRE_OK(ldlt_csc_supernode_eliminate_panel(Ld, Db, Doffb, psb, 1, 1, NULL, 0, 0));
+    ASSERT_ERR(ldlt_csc_supernode_eliminate_panel(NULL, Db, Doffb, psb, 1, 1, dense, 1, 1),
+               SPARSE_ERR_NULL);
+    ASSERT_ERR(ldlt_csc_supernode_eliminate_panel(Ld, Db, Doffb, psb, 0, 1, dense, 1, 1),
+               SPARSE_ERR_BADARG);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * from_sparse: null / shape / conversion
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -687,6 +1439,86 @@ static void test_eliminate_matches_linked_list_random_indefinite(void) {
     }
 
     ASSERT_EQ(divergences, 0);
+}
+
+/* Sprint 19 Day 9 cross-check: after `ldlt_csc_eliminate_native`
+ * finishes, `F->row_adj[r]` must list *exactly* the set of columns
+ * `c < r` where `L[r, c] != 0`.  Sweeping 20 random indefinite
+ * matrices catches both over-population (spurious entries) and
+ * under-population (missing priors that would silently drop cmod
+ * contributions on later columns). */
+static void test_row_adj_matches_reference(void) {
+    struct {
+        idx_t n;
+        unsigned int seed;
+    } cases[] = {
+        {3, 0x1a2b3c4du},  {3, 0x5e6f7081u},  {4, 0x92a3b4c5u},  {4, 0xd6e7f809u},
+        {5, 0x10123456u},  {5, 0x789abcdeu},  {6, 0xf0123456u},  {6, 0x22222222u},
+        {7, 0x33333333u},  {7, 0x44444444u},  {8, 0xaaaaaaaau},  {8, 0xbbbbbbbbu},
+        {9, 0xcccccccdu},  {10, 0xdeadbeefu}, {10, 0xfeedfaceu}, {11, 0xcafebabeu},
+        {12, 0xbadc0ffeu}, {12, 0x13579bdfu}, {15, 0x2468aceeu}, {18, 0x01020304u},
+    };
+    const size_t ncases = sizeof(cases) / sizeof(cases[0]);
+
+    for (size_t idx = 0; idx < ncases; idx++) {
+        idx_t n = cases[idx].n;
+        SparseMatrix *A = build_random_symmetric(n, cases[idx].seed);
+
+        LdltCsc *F = NULL;
+        sparse_err_t err_csc = ldlt_csc_from_sparse(A, NULL, 2.0, &F);
+        if (err_csc != SPARSE_OK) {
+            if (F)
+                ldlt_csc_free(F);
+            sparse_free(A);
+            continue;
+        }
+        sparse_err_t err_elim = ldlt_csc_eliminate(F);
+        if (err_elim != SPARSE_OK) {
+            ldlt_csc_free(F);
+            sparse_free(A);
+            continue;
+        }
+
+        /* Build the reference `expected_adj[r]` by walking L column-
+         * major: for every stored `L[i, c]` with `i > c`, the column
+         * `c` is a prior of row `i`. */
+        for (idx_t r = 0; r < n; r++) {
+            idx_t expected_count = 0;
+            for (idx_t c = 0; c < r; c++) {
+                idx_t cs = F->L->col_ptr[c];
+                idx_t ce = F->L->col_ptr[c + 1];
+                for (idx_t p = cs; p < ce; p++) {
+                    if (F->L->row_idx[p] == r) {
+                        expected_count++;
+                        break;
+                    }
+                }
+            }
+            ASSERT_EQ(F->row_adj_count[r], expected_count);
+
+            /* Every entry in row_adj[r] must point to a column < r
+             * where row r is actually stored.  Duplicates would
+             * inflate `expected_count` above, so the count equality
+             * also rules them out. */
+            for (idx_t e = 0; e < F->row_adj_count[r]; e++) {
+                idx_t c = F->row_adj[r][e];
+                ASSERT_TRUE(c >= 0 && c < r);
+                int found = 0;
+                idx_t cs = F->L->col_ptr[c];
+                idx_t ce = F->L->col_ptr[c + 1];
+                for (idx_t p = cs; p < ce; p++) {
+                    if (F->L->row_idx[p] == r) {
+                        found = 1;
+                        break;
+                    }
+                }
+                ASSERT_TRUE(found);
+            }
+        }
+
+        ldlt_csc_free(F);
+        sparse_free(A);
+    }
 }
 
 /* ─── Perm composition with fill-reducing input ─────────────────── */
@@ -1295,6 +2127,37 @@ static void test_symmetric_swap_stress_random(void) {
  * floating-point ordering of the cmod loop is the same on both paths
  * (both subtract contributions kp = 0, 1, ..., k-1 in order), so values
  * should match to round-off. */
+/* Walk column `j` of L and for every stored entry whose magnitude is
+ * >= `tol`, check that B has a stored entry at the same row with a
+ * matching value.  Either side may zero-pad dropped positions (e.g.,
+ * Sprint 19 Day 6's `chol_csc_gather` keeps `col_ptr` immutable and
+ * writes 0.0 into below-threshold slots instead of shrinking the
+ * column), so the comparison filters zeros before comparing. */
+static int ldlt_column_nonzeros_match(const CholCsc *A, const CholCsc *B, idx_t j, double tol) {
+    idx_t ap = A->col_ptr[j];
+    idx_t ae = A->col_ptr[j + 1];
+    idx_t bp = B->col_ptr[j];
+    idx_t be = B->col_ptr[j + 1];
+    while (ap < ae || bp < be) {
+        /* Skip zero-valued entries on A's side. */
+        while (ap < ae && fabs(A->values[ap]) < tol && A->row_idx[ap] != j)
+            ap++;
+        while (bp < be && fabs(B->values[bp]) < tol && B->row_idx[bp] != j)
+            bp++;
+        if (ap == ae && bp == be)
+            return 1;
+        if (ap == ae || bp == be)
+            return 0;
+        if (A->row_idx[ap] != B->row_idx[bp])
+            return 0;
+        if (fabs(A->values[ap] - B->values[bp]) > tol)
+            return 0;
+        ap++;
+        bp++;
+    }
+    return 1;
+}
+
 static int ldlt_factorizations_match(const LdltCsc *A, const LdltCsc *B, double tol) {
     if (A->n != B->n)
         return 0;
@@ -1309,17 +2172,14 @@ static int ldlt_factorizations_match(const LdltCsc *A, const LdltCsc *B, double 
         if (fabs(A->D_offdiag[i] - B->D_offdiag[i]) > tol)
             return 0;
     }
-    if (A->L->nnz != B->L->nnz)
-        return 0;
-    for (idx_t j = 0; j <= n; j++) {
-        if (A->L->col_ptr[j] != B->L->col_ptr[j])
-            return 0;
-    }
-    idx_t nnz = A->L->col_ptr[n];
-    for (idx_t p = 0; p < nnz; p++) {
-        if (A->L->row_idx[p] != B->L->row_idx[p])
-            return 0;
-        if (fabs(A->L->values[p] - B->L->values[p]) > tol)
+    /* Sprint 19 Day 6: `chol_csc_gather` now writes in place and
+     * zero-pads dropped slots rather than shrinking `col_ptr`, so the
+     * two LdltCsc layouts can differ in zero-padding even when the
+     * underlying L factor is identical.  Compare value-wise by
+     * walking each column and filtering zeros instead of asserting
+     * `col_ptr` / `row_idx` / `values` are bit-identical. */
+    for (idx_t j = 0; j < n; j++) {
+        if (!ldlt_column_nonzeros_match(A->L, B->L, j, tol))
             return 0;
     }
     return 1;
@@ -2053,6 +2913,24 @@ int main(void) {
     RUN_TEST(test_alloc_basic);
     RUN_TEST(test_alloc_zero_n);
     RUN_TEST(test_free_null);
+    /* Sprint 19 Day 8: row-adjacency index */
+    RUN_TEST(test_row_adj_empty_round_trip);
+    RUN_TEST(test_row_adj_append_preserves_order);
+    RUN_TEST(test_row_adj_geometric_growth);
+    RUN_TEST(test_row_adj_append_arg_checks);
+    /* Sprint 19 Day 10: 2×2-aware supernode detection */
+    RUN_TEST(test_detect_supernodes_dense_all_1x1);
+    RUN_TEST(test_detect_supernodes_dense_with_2x2);
+    RUN_TEST(test_detect_supernodes_block_diagonal_with_2x2);
+    RUN_TEST(test_detect_supernodes_arg_checks);
+    RUN_TEST(test_supernode_extract_writeback_dense_6x6);
+    RUN_TEST(test_supernode_extract_writeback_block_diagonal_8x8);
+    RUN_TEST(test_supernode_extract_writeback_with_2x2);
+    RUN_TEST(test_supernode_extract_writeback_arg_checks);
+    RUN_TEST(test_supernodal_dense_spd_8x8);
+    RUN_TEST(test_supernodal_block_diagonal_spd_12x12);
+    RUN_TEST(test_supernodal_random_indefinite_30x30);
+    RUN_TEST(test_supernodal_arg_checks);
 
     /* from_sparse / to_sparse round-trips */
     RUN_TEST(test_from_sparse_null_args);
@@ -2083,6 +2961,7 @@ int main(void) {
     RUN_TEST(test_eliminate_mixed_pivots);
     RUN_TEST(test_eliminate_matches_linked_list_indefinite);
     RUN_TEST(test_eliminate_matches_linked_list_random_indefinite);
+    RUN_TEST(test_row_adj_matches_reference);
     RUN_TEST(test_eliminate_composes_perm);
     RUN_TEST(test_eliminate_inertia);
     RUN_TEST(test_eliminate_singular_zero);

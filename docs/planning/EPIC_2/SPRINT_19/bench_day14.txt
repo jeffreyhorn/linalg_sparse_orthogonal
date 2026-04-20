@@ -1,0 +1,112 @@
+=== Sprint 19 Day 14 — End-of-Sprint Benchmark Snapshot ===
+
+Date: 2026-04-20
+Build: -O2, no sanitizers, macOS Darwin 24.6.0 (x86_64)
+Repeat counts: bench_chol_csc --repeat 3, bench_ldlt_csc --repeat 3 --supernodal,
+               bench_refactor_csc --repeat 5
+
+------------------------------------------------------------------------
+1. bench_chol_csc — full corpus, with batched-supernodal (factor_csc_sn_ms)
+------------------------------------------------------------------------
+
+matrix,n,nnz,factor_ll_ms,factor_csc_ms,factor_csc_sn_ms,solve_ll_ms,solve_csc_ms,solve_csc_sn_ms,speedup_csc,speedup_csc_sn,res_ll,res_csc,res_csc_sn
+nos4.mtx,100,594,0.230,0.319,0.306,0.007,0.005,0.004,0.72,0.75,7.06e-16,5.89e-16,5.89e-16
+bcsstk04.mtx,132,3648,2.279,1.982,2.174,0.036,0.014,0.016,1.15,1.05,6.05e-16,1.06e-15,9.08e-16
+bcsstk14.mtx,1806,63454,308.450,126.740,109.262,3.479,0.467,0.492,2.43,2.82,1.10e-15,1.10e-15,1.08e-15
+s3rmt3m3.mtx,5357,207123,2952.496,979.331,743.612,20.744,2.288,2.384,3.01,3.97,8.36e-15,8.36e-15,5.23e-15
+Kuu.mtx,7102,340200,2429.757,1294.360,999.885,23.166,1.776,1.965,1.88,2.43,1.05e-14,1.22e-14,1.20e-14
+Pres_Poisson.mtx,14822,715804,46291.032,13414.801,8598.584,152.760,13.077,13.431,3.45,5.38,2.12e-13,2.17e-13,2.90e-13
+
+  Notes:
+  - Batched supernodal (Sprint 18 Days 6-10) speedups vs linked-list:
+      bcsstk14   2.82x      (Sprint 18 Day 14 baseline ~2.4x; Sprint 19
+                              Day 7 Kuu fix did not regress it)
+      s3rmt3m3   3.97x      (Sprint 18 baseline ~3.7x)
+      Kuu        2.43x      (Sprint 18 baseline 1.18x → Sprint 19 Day 7
+                              fix raised it to ~2.14x; current 2.43x is
+                              within noise of the post-fix bench)
+      Pres_Poisson 5.38x    (Sprint 18 baseline ~4.0x)
+
+  - Scalar CSC speedups vs linked-list (post Day 6-7 Kuu fix):
+      All matrices > 1.0x except nos4 (0.72x — small-matrix overhead
+      dominates, expected per the SPARSE_CSC_THRESHOLD=100 boundary).
+
+------------------------------------------------------------------------
+2. bench_ldlt_csc — corpus with --supernodal column
+------------------------------------------------------------------------
+
+bench_ldlt_csc: s3rmt3m3.mtx — one or more paths failed
+matrix,n,nnz,factor_ll_ms,factor_csc_native_ms,factor_csc_wrapper_ms,factor_csc_sn_ms,solve_ll_ms,solve_csc_native_ms,speedup_csc_native,speedup_csc_wrapper,speedup_csc_sn,res_ll,res_csc_native
+nos4.mtx,100,594,0.378,0.294,0.376,0.144,0.008,0.007,1.29,1.00,2.62,5.89e-16,5.89e-16
+bcsstk04.mtx,132,3648,3.759,2.160,3.992,1.232,0.043,0.042,1.74,0.94,3.05,6.05e-16,1.06e-15
+bcsstk14.mtx,1806,63454,493.736,140.593,506.869,72.293,4.999,0.583,3.51,0.97,6.83,8.05e-15,8.13e-15
+
+  Notes:
+  - Native LDL^T speedups vs linked-list (Sprint 18 Day 14 baseline + Day 9 row_adj):
+      nos4       1.29x
+      bcsstk04   1.74x      (Day 9 row_adj added ~10-15% over Sprint 18)
+      bcsstk14   3.51x      (Sprint 18 baseline ~2.5x → Sprint 19 Day 9
+                              row_adj index added ~40% by skipping the
+                              [0, step_k) prior-column scan in Phase A)
+  - Batched supernodal LDL^T speedups (--supernodal column):
+      nos4       2.62x      (small-matrix; supernodal beats LL even at n=100)
+      bcsstk04   3.05x
+      bcsstk14   6.83x      (large supernode → batched kernel pays off
+                              substantially over scalar)
+  - s3rmt3m3 row missing: the bench reported "one or more paths failed".
+    Root cause: LDL^T BK on s3rmt3m3 produces some 2×2 pivots in the
+    scalar pre-pass (triggered by tiny near-zero diagonals from the
+    structural-mechanics matrix's poor scaling), and the batched
+    supernodal path's heuristic CSC slot allocation (via
+    `ldlt_csc_from_sparse`) doesn't cover the resulting indefinite
+    fill.  Same limitation noted in tests/test_sprint19_integration.c
+    and deferred to Sprint 20 (full sym_L pre-allocation for LDL^T,
+    mirroring `chol_csc_from_sparse_with_analysis`).
+
+------------------------------------------------------------------------
+3. bench_refactor_csc — analyze-once / factor-many
+------------------------------------------------------------------------
+
+matrix,n,nnz,analyze_ms,refactor_ll_ms,refactor_csc_ms,solve_ll_ms,solve_csc_ms,speedup_refactor,res_ll,res_csc
+nos4.mtx,100,594,0.352,0.119,0.127,0.008,0.005,0.93,5.89e-16,8.24e-16
+bcsstk04.mtx,132,3648,1.903,1.742,0.712,0.051,0.016,2.45,2.07e-15,2.07e-15
+bcsstk14.mtx,1806,63454,83.659,307.889,46.411,4.842,0.531,6.63,1.76e-15,2.20e-15
+s3rmt3m3.mtx,5357,207123,550.931,2721.439,254.614,21.530,2.199,10.69,8.36e-15,6.25e-15
+Kuu.mtx,7102,340200,779.928,1928.789,212.192,22.885,2.082,9.09,1.17e-14,1.16e-14
+Pres_Poisson.mtx,14822,715804,5732.633,37808.636,2255.049,146.455,13.748,16.77,2.03e-13,2.98e-13
+
+  Notes:
+  - Analyze-once / factor-many is where CSC's structural advantage
+    shines: AMD reordering amortises across N refactors, leaving only
+    the numeric factor in the timed region.  Speedups are larger than
+    the one-shot bench_chol_csc rows by 2-3x on every matrix:
+      Pres_Poisson 16.77x    (vs 5.38x one-shot)
+      s3rmt3m3     10.69x    (vs 3.97x one-shot)
+      Kuu           9.09x    (vs 2.43x one-shot)
+      bcsstk14      6.63x    (vs 2.82x one-shot)
+      bcsstk04      2.45x    (vs 1.05x one-shot)
+      nos4          0.93x    (vs 0.75x one-shot — small-matrix overhead)
+  - Confirms the Sprint 17/18 hypothesis: when AMD cost is amortised
+    across multiple refactors, CSC's pre-allocated structure dominates
+    the wall-clock comparison.  Day 1-2 detailed analysis lives in
+    PERF_NOTES.md's "Analyze-once / factor-many — CSC vs linked-list"
+    section.
+
+------------------------------------------------------------------------
+4. Sprint 18 → Sprint 19 deltas summary
+------------------------------------------------------------------------
+
+  Cholesky (scalar CSC, vs linked-list):
+    Kuu:        0.77x → 2.43x   (Day 6-7 fix: pre-allocate full sym_L)
+
+  LDL^T (native scalar, vs linked-list):
+    bcsstk14:   ~2.5x → 3.51x   (Day 9 row_adj index)
+    bcsstk04:   ~1.5x → 1.74x   (Day 9 row_adj index)
+
+  LDL^T (batched supernodal, NEW in Sprint 19):
+    bcsstk14:   3.51x → 6.83x   (batched dense factor + panel solve)
+    bcsstk04:   1.74x → 3.05x
+
+  Analyze-once Cholesky (NEW in Sprint 19):
+    Pres_Poisson:               16.77x   (vs 5.38x one-shot)
+

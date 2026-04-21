@@ -334,11 +334,12 @@ static int bench_matrix(const char *path, int repeat, int supernodal) {
     double sp_wrapper = rl.factor_ms / rw.factor_ms;
 
     if (supernodal) {
-        /* Extra column: factor_csc_sn_ms, speedup_csc_sn (vs LL). */
+        /* Extra columns: factor_csc_sn_ms, solve_csc_sn_ms, speedup_csc_sn (vs LL). */
         double sp_sn = rl.factor_ms / rs.factor_ms;
-        printf("%s,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2f,%.2f,%.2e,%.2e\n", base, (int)n,
-               (int)nnz, rl.factor_ms, rn.factor_ms, rw.factor_ms, rs.factor_ms, rl.solve_ms,
-               rn.solve_ms, sp_native, sp_wrapper, sp_sn, rl.residual, rn.residual);
+        printf("%s,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2f,%.2f,%.2e,%.2e\n", base,
+               (int)n, (int)nnz, rl.factor_ms, rn.factor_ms, rw.factor_ms, rs.factor_ms,
+               rl.solve_ms, rn.solve_ms, rs.solve_ms, sp_native, sp_wrapper, sp_sn, rl.residual,
+               rn.residual);
     } else {
         printf("%s,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2f,%.2e,%.2e\n", base, (int)n, (int)nnz,
                rl.factor_ms, rn.factor_ms, rw.factor_ms, rl.solve_ms, rn.solve_ms, sp_native,
@@ -391,7 +392,7 @@ int main(int argc, char **argv) {
     if (supernodal) {
         printf("matrix,n,nnz,"
                "factor_ll_ms,factor_csc_native_ms,factor_csc_wrapper_ms,factor_csc_sn_ms,"
-               "solve_ll_ms,solve_csc_native_ms,"
+               "solve_ll_ms,solve_csc_native_ms,solve_csc_sn_ms,"
                "speedup_csc_native,speedup_csc_wrapper,speedup_csc_sn,"
                "res_ll,res_csc_native\n");
     } else {

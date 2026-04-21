@@ -56,7 +56,11 @@
  * `nos4` (n=100) and `bcsstk04` (n=132).  The supernodal speedup
  * (`factor_ll / factor_csc_sn`) is family-dependent:
  *
- *   - dense fixtures cross 1.0× below n = 20 (dense-20: 1.14×);
+ *   - dense fixtures are mixed: dense-20 is above parity at 1.14×
+ *     (one large supernode amortises detection overhead across the
+ *     whole matrix) but dense-60 drops back to 0.89×, so the
+ *     small-corpus data does not support a monotonic dense-family
+ *     crossover claim;
  *   - banded fixtures stay at 0.70×–0.85× through n = 80, trending
  *     toward 1.0× near n = 100;
  *   - tridiagonal fixtures stay at 0.51×–0.65× through n = 80

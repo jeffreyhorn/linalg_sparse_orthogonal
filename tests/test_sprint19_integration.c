@@ -132,19 +132,35 @@ static int s19_ldlt_factor_state_matches(const LdltCsc *A, const LdltCsc *B, dou
     return 1;
 }
 
-/* Build A_perm = P · A · P^T from `perm` (perm[new] = old). */
+/* Build A_perm = P · A · P^T from `perm` (perm[new] = old).  Walks
+ * A's row lists once and inserts each nonzero at its permuted
+ * position via the inverse permutation — O(nnz) instead of the
+ * O(n^2 · avg_row_nnz) sparse_get-per-cell scan. */
 static SparseMatrix *s19_apply_symmetric_perm(const SparseMatrix *A, const idx_t *perm) {
     idx_t n = sparse_rows(A);
     SparseMatrix *Ap = sparse_create(n, n);
     if (!Ap)
         return NULL;
-    for (idx_t i_new = 0; i_new < n; i_new++) {
-        for (idx_t j_new = 0; j_new < n; j_new++) {
-            double v = sparse_get(A, perm[i_new], perm[j_new]);
-            if (v != 0.0)
-                sparse_insert(Ap, i_new, j_new, v);
+
+    idx_t *inv_perm = malloc((size_t)n * sizeof(idx_t));
+    if (!inv_perm) {
+        sparse_free(Ap);
+        return NULL;
+    }
+    for (idx_t i_new = 0; i_new < n; i_new++)
+        inv_perm[perm[i_new]] = i_new;
+
+    for (idx_t i_old = 0; i_old < n; i_old++) {
+        idx_t i_new = inv_perm[i_old];
+        Node *node = A->row_headers[i_old];
+        while (node) {
+            idx_t j_new = inv_perm[node->col];
+            sparse_insert(Ap, i_new, j_new, node->value);
+            node = node->right;
         }
     }
+
+    free(inv_perm);
     return Ap;
 }
 

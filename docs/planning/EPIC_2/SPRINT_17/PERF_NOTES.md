@@ -311,15 +311,22 @@ by fixture family and n:
 |---------|-------:|-------:|-------:|-------:|--------------:|------------------:|
 | tridiag |  0.51× |  0.65× |  0.56× |  0.54× | (no fixture)  |   (no fixture)    |
 | banded  |  0.85× |  0.70× |  0.75× |  0.71× | (no fixture)  |   (no fixture)    |
-| dense   |**1.12×**|        |**1.07×**|       | (no fixture)  |   (no fixture)    |
+| dense   |**1.14×**|        |**0.89×**|       | (no fixture)  |   (no fixture)    |
 | real    |        |        |        |        |    **1.22×**  |     **1.01×**     |
+
+Values are from
+[`docs/planning/EPIC_2/SPRINT_19/bench_day3_small_corpus.txt`](../SPRINT_19/bench_day3_small_corpus.txt)
+(column `speedup_csc_sn`).
 
 Observations:
 
-- **Dense fixtures cross `>= 1.0×` below n = 20.**  The supernodal
-  kernel identifies a single large supernode covering the whole
-  matrix, amortises its detection overhead across all columns, and
-  wins on the batched dense factor even at n = 20.
+- **Dense fixtures are mixed in this small-corpus capture.**  The
+  `dense-20` run is above parity at **1.14×**, consistent with a
+  single large supernode amortising detection overhead across the
+  whole matrix, but `dense-60` drops back to **0.89×**, so this
+  table does not support claiming a monotonic dense-family
+  crossover below n = 20 — only that at n = 20 the batched path
+  can pull ahead on fully-populated patterns.
 - **Tridiag fixtures stay at 0.51×–0.65× across n ∈ [20, 80].**
   Tridiagonal matrices have zero fill, so supernode detection finds
   only singleton supernodes — the batched path degenerates to the
@@ -335,11 +342,12 @@ Observations:
 ### Decision: keep `SPARSE_CSC_THRESHOLD = 100`
 
 The synthetic data shows the crossover is **family-dependent**:
-dense fixtures cross below 20, tridiagonal fixtures haven't crossed
-at 80, banded fixtures are trending toward 1.0× near 100.  Real
-SuiteSparse SPD matrices — the expected input distribution — have
-moderate structure (bandwidth tens to hundreds) and cross just at
-or above n = 100 (`nos4` 1.22×, `bcsstk04` 1.01×).
+dense is above parity only at `dense-20` (1.14×) and dips back to
+0.89× at `dense-60`, tridiagonal fixtures haven't crossed at 80,
+banded fixtures are trending toward 1.0× near 100.  Real SuiteSparse
+SPD matrices — the expected input distribution — have moderate
+structure (bandwidth tens to hundreds) and cross just at or above
+n = 100 (`nos4` 1.22×, `bcsstk04` 1.01×).
 
 Per the Day 4 decision matrix:
 
@@ -347,8 +355,9 @@ Per the Day 4 decision matrix:
 > 90), the current default of 100 is the conservative worst-case —
 > keep it."
 
-Our data matches that case (dense crosses < 20, tridiag crosses
-> 80, banded ≈ 100), so **100 is confirmed as the right default**.
+Our data matches that case (dense non-monotonic in the sub-100
+range, tridiag still below parity at 80, banded ≈ 100), so **100
+is confirmed as the right default**.
 It favours the common case (moderately-sparse SuiteSparse-style
 SPDs) while preserving the linked-list path for the sub-100
 matrices where CSC loses 15-50%.

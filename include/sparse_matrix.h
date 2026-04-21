@@ -56,7 +56,7 @@
  * `nos4` (n=100) and `bcsstk04` (n=132).  The supernodal speedup
  * (`factor_ll / factor_csc_sn`) is family-dependent:
  *
- *   - dense fixtures cross 1.0× below n = 20 (dense-20: 1.12×);
+ *   - dense fixtures cross 1.0× below n = 20 (dense-20: 1.14×);
  *   - banded fixtures stay at 0.70×–0.85× through n = 80, trending
  *     toward 1.0× near n = 100;
  *   - tridiagonal fixtures stay at 0.51×–0.65× through n = 80

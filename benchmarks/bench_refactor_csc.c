@@ -26,7 +26,7 @@
  *
  * Per iteration i = 0..N-1 (timed):
  *   4. `sparse_copy(A)` → `A_perturb` with per-entry multiplicative
- *      noise `v *= 1 + 1e-6 * symmetric_noise(row, col, seed)`.
+ *      noise `v *= 1 + 1e-9 * symmetric_noise(row, col, seed)`.
  *      `symmetric_noise` is a deterministic hash keyed on
  *      `min(i, j) * n + max(i, j) + seed` so A[i,j] and A[j,i] get
  *      the same multiplier — required to keep the matrix symmetric
@@ -133,8 +133,9 @@ static double symmetric_noise(idx_t i, idx_t j, idx_t n, uint64_t seed) {
  * symmetric in (i, j) so A[i,j] and A[j,i] receive the same
  * multiplier and the matrix stays symmetric — mandatory for
  * `sparse_refactor_numeric` which calls `sparse_is_symmetric` inside
- * `sparse_cholesky_factor`.  `eps = 1e-6` keeps the matrices in the
- * default corpus comfortably inside SPD territory. */
+ * `sparse_cholesky_factor`.  The main loop calls this with
+ * `eps = 1e-9`, which keeps the matrices in the default corpus
+ * comfortably inside SPD territory. */
 static void perturb_values_in_place(SparseMatrix *A, double eps, uint64_t seed) {
     idx_t n = sparse_rows(A);
     for (idx_t phys_i = 0; phys_i < n; phys_i++) {
@@ -286,11 +287,15 @@ static int bench_matrix(const char *path, int repeat) {
             break;
         }
 
-        /* Last-iteration residuals vs the ORIGINAL A — the user-visible
-         * contract is that a fresh analyze + refactor on A produces a
-         * solution close to the analytic one.  Using A here (not
-         * A_perturb) keeps the test against the corpus's known-good
-         * reference RHS b = A * ones. */
+        /* Last-iteration residuals vs the PERTURBED A used for this
+         * iteration's refactor/solve path.  Keep `A_perturb` here to
+         * report how accurately each backend solved the matrix it was
+         * actually given on the final iteration — this is the honest
+         * "did the numeric factorization work?" check for the
+         * analyze-once / factor-many workflow.  (Residuals against the
+         * original `A` would be dominated by `b = A * ones` vs
+         * `A_perturb * x`, which is `1e-9`-level noise, not a
+         * factorization quality signal.) */
         if (rep == repeat - 1) {
             res_ll = rel_residual(A_perturb, x_ll, b);
             res_csc = rel_residual(A_perturb, x_csc, b);

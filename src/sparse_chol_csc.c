@@ -438,16 +438,26 @@ static sparse_err_t from_sparse_impl(const SparseMatrix *mat, const idx_t *perm,
 
 /* ─── Public: heuristic (fill_factor) conversion ────────────────────── */
 
-/* Sprint 19 Day 6 plan (implementation, sketched here on Day 5 per
- * `docs/planning/EPIC_2/SPRINT_19/kuu_fix_decision.md`):
+/* Current state in this PR: `chol_csc_from_sparse` still uses the
+ * `fill_factor`-sized `from_sparse_impl(...)` path below (i.e. the
+ * heuristic initialiser, with `sym_L_preallocated == 0`).  The
+ * `chol_csc_gather` "column slots are already at their final size"
+ * fast path belongs to `chol_csc_from_sparse_with_analysis`, which
+ * consumes a preallocated `analysis->sym_L` and sets
+ * `sym_L_preallocated = 1` — that is the initialiser the Sprint 18
+ * Day 11 supernodal dispatch (`sparse_cholesky_factor_opts` with
+ * `backend == SPARSE_CHOL_BACKEND_AUTO` and `n >= SPARSE_CSC_THRESHOLD`)
+ * routes through today.
  *
- * `chol_csc_from_sparse` will migrate from the `fill_factor` heuristic
- * to full sym_L pre-allocation, matching `_with_analysis`.  The Day 5
- * profile on Kuu attributes 60% of scalar CSC factor time to
- * `_platform_memmove` inside `chol_csc_gather`'s `shift_columns_right_of`
- * path — pre-allocating sym_L up front eliminates that shift entirely
- * because the column slots are already at their final size on entry to
- * elimination.
+ * Planned follow-up (per `docs/planning/EPIC_2/SPRINT_19/kuu_fix_decision.md`):
+ * migrate this function from the `fill_factor` heuristic to full
+ * sym_L pre-allocation so it matches `_with_analysis`.  The Day 5
+ * `sample` profile on Kuu attributes 60% of scalar CSC factor time
+ * to `_platform_memmove` inside `chol_csc_gather`'s
+ * `shift_columns_right_of` path; once this function also pre-
+ * allocates sym_L up front, that shift can be removed here too
+ * because the column slots will already be at their final size on
+ * entry to elimination.  Sketched migration steps:
  *
  *   1. Extract a static `compute_sym_L_pattern(mat, perm, &col_ptr,
  *      &row_idx, &nnz)` helper that runs the `sparse_etree_compute`
@@ -872,16 +882,18 @@ static int idx_t_cmp(const void *a, const void *b) {
     return (ia > ib) - (ia < ib);
 }
 
-/* Sprint 19 Day 6 plan (sketched Day 5; see
+/* Sprint 19 Days 6–7 implementation (rationale captured in
  * `docs/planning/EPIC_2/SPRINT_19/kuu_fix_decision.md` and the
- * companion sketch in `chol_csc_from_sparse`):
+ * companion block in `chol_csc_from_sparse`).
  *
  * Day 5's `sample` profile on scalar CSC Kuu factor attributes 60%
  * of total factor time to `_platform_memmove` launched from here
  * via `shift_columns_right_of`.  The Day 6 fix pre-allocates the
- * full `sym_L` pattern in `chol_csc_from_sparse` so each column
- * arrives at `chol_csc_gather` with its final slot size, and this
- * function rewrites to:
+ * full `sym_L` pattern in `chol_csc_from_sparse_with_analysis`
+ * (which sets `csc->sym_L_preallocated = 1`) so columns passing
+ * through that initialiser arrive at `chol_csc_gather` with their
+ * final slot size already populated with sym_L rows.  On those
+ * columns this function takes the fast path below:
  *
  *   - sort the survivor pattern in place (kept);
  *   - write surviving values into the pre-sized slot starting at
@@ -890,20 +902,24 @@ static int idx_t_cmp(const void *a, const void *b) {
  *     (new — replaces the `shift_columns_right_of` memmove);
  *   - return SPARSE_OK (kept).
  *
+ * Columns built through the heuristic `chol_csc_from_sparse`
+ * (`sym_L_preallocated == 0`) still run the safety merge-walk below
+ * to decide per-column whether every survivor row was pre-
+ * populated; if a cmod introduced a fill row the heuristic pattern
+ * did not cover, the old `shift_columns_right_of` path is used for
+ * that column so the factor remains correct.  Once
+ * `chol_csc_from_sparse` itself migrates to full sym_L pre-
+ * allocation (see the plan block above `chol_csc_from_sparse`), the
+ * merge-walk gate can be removed and `shift_columns_right_of`
+ * retired entirely in a follow-up.
+ *
  * Downstream consumers already handle zero-valued stored entries:
  * `chol_csc_solve` multiplies by them harmlessly; the supernodal
  * writeback's `v == 0.0` skip in `chol_csc_writeback_to_sparse`
  * (Sprint 18 Day 10) keeps the transplanted `SparseMatrix` sparsity
  * matching the linked-list kernel.  The CSC itself then retains the
  * full sym_L row pattern with some slots zeroed — identical to the
- * supernodal path's post-writeback state.
- *
- * The Day 6 implementation will gate the rewrite on
- * `csc->col_ptr[j+1] - csc->col_ptr[j] >= keep` (defensive — if a
- * caller somehow built the CSC without pre-allocation, the old
- * `shift_columns_right_of` path still runs).  Once all callers go
- * through the new `chol_csc_from_sparse`, the gate can be removed
- * and `shift_columns_right_of` retired entirely in a follow-up. */
+ * supernodal path's post-writeback state. */
 sparse_err_t chol_csc_gather(CholCsc *csc, idx_t j, CholCscWorkspace *ws, double drop_tol) {
     /* Sort the pattern ascending.  All rows are >= j (scatter and cmod
      * only touch rows in the lower triangle), so after sorting the

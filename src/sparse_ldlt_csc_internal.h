@@ -58,6 +58,34 @@ typedef struct {
     idx_t *pivot_size;  /**< Pivot block size per step (length n).  1 or 2. */
     idx_t *perm;        /**< Composed symmetric perm (length n), perm[new] = old. */
     double factor_norm; /**< ||A||_inf cached at conversion time. */
+
+    /* Sprint 19 Day 8: row-adjacency index for the factored prefix.
+     *
+     * `ldlt_csc_cmod_unified`'s Phase A (src/sparse_ldlt_csc.c) used to
+     * iterate `kp = 0..step_k-1` and binary-search every prior column
+     * for `L(col, kp)`, yielding O(step_k · log nnz) per elimination
+     * step even when row `col` is very sparse.  The linked-list
+     * reference (`acc_schur_col` in src/sparse_ldlt.c) iterates only
+     * over the columns with `L(col, j) != 0` via the cross-linked row
+     * list on the `SparseMatrix`.
+     *
+     * `row_adj[r]` is a dynamically-grown array of the prior column
+     * indices `kp < r` where `L(r, kp)` was stored during elimination.
+     * Populated by `ldlt_csc_row_adj_append` as each column finishes
+     * its writeback; Phase A (Day 9) then iterates this list instead
+     * of `[0, step_k)`.
+     *
+     * Option A (per-row dynamic array) chosen over Option B (global
+     * CSC transpose) because the per-row footprint is bounded by
+     * `n · avg_fill` — roughly 2× the L capacity we already pay for —
+     * while keeping writes O(1) amortised with geometric growth.
+     * Option B would require updating O(n) row pointers on every
+     * column factor. */
+    idx_t **row_adj; /**< Per-row lists of prior columns with stored entries (length n); each slot
+                        NULL until first append. */
+    idx_t
+        *row_adj_count; /**< Number of entries currently populated in each row_adj[r] (length n). */
+    idx_t *row_adj_cap; /**< Allocated capacity of each row_adj[r] (length n). */
 } LdltCsc;
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -85,6 +113,61 @@ sparse_err_t ldlt_csc_alloc(idx_t n, idx_t initial_nnz, LdltCsc **out);
 
 /** Free an LdltCsc and all its arrays.  Safe with NULL. */
 void ldlt_csc_free(LdltCsc *m);
+
+/**
+ * Append `col` to the row-adjacency list `F->row_adj[row]`, growing
+ * the per-row array geometrically (2×) when capacity is hit.
+ *
+ * Called as each column finishes its writeback during `ldlt_csc_eliminate_native`
+ * (Day 9) so `ldlt_csc_cmod_unified`'s Phase A can iterate only the
+ * prior columns that carry a stored entry in a given row rather than
+ * scanning `[0, step_k)` and binary-searching.  Insertion order
+ * preserved; callers append monotonically increasing `col` values
+ * during the left-to-right column sweep, so the list stays sorted
+ * ascending.
+ *
+ * @param F    LdltCsc whose row-adjacency index to update.
+ * @param row  Row index in [0, F->n).
+ * @param col  Prior column index (`col < row` by Cholesky invariant).
+ * @return SPARSE_OK, SPARSE_ERR_NULL (F NULL), SPARSE_ERR_BADARG (row
+ *         or col out of range), SPARSE_ERR_ALLOC.
+ */
+sparse_err_t ldlt_csc_row_adj_append(LdltCsc *F, idx_t row, idx_t col);
+
+/**
+ * Detect fundamental supernodes of `F->L` that also respect the 2×2
+ * pivot boundaries in `F->pivot_size`.
+ *
+ * Sprint 19 Day 10 builds on `chol_csc_detect_supernodes` (Sprint 17
+ * Day 10) with one extra invariant: a 2×2 pivot pair at (k, k+1) —
+ * identified by `pivot_size[k] == pivot_size[k+1] == 2` — is atomic.
+ * Either both columns are in the same supernode or neither is.
+ * Supernodes that would end on the first of a 2×2 pair are either
+ * extended by one column (if pattern permits) or truncated to
+ * exclude it; 2×2 pairs that can't be kept together through their
+ * pattern become scalar-factored columns.
+ *
+ * Callers feed the returned supernodes into the Days 11-14 batched
+ * path (extract / eliminate_diag / eliminate_panel / writeback),
+ * which operates atomically on each supernode without splitting a
+ * 2×2 pivot.  `pivot_size[]` must already be populated from a prior
+ * `ldlt_csc_eliminate_native` run — detection uses it to decide
+ * atomicity, not to perform any numeric work.
+ *
+ * `super_starts[i]` and `super_sizes[i]` describe the i-th detected
+ * supernode (columns `[starts[i], starts[i] + sizes[i])`).  Both
+ * output arrays must have space for at most `F->n` entries; `*count`
+ * receives the number of emitted supernodes (≤ F->n / min_size).
+ *
+ * @param F            Factored LdltCsc (pivot_size populated).
+ * @param min_size     Minimum supernode size to emit (≥ 1).
+ * @param super_starts Output (length ≥ F->n).
+ * @param super_sizes  Output (length ≥ F->n).
+ * @param[out] count   Number of emitted supernodes.
+ * @return SPARSE_OK, SPARSE_ERR_NULL, SPARSE_ERR_BADARG.
+ */
+sparse_err_t ldlt_csc_detect_supernodes(const LdltCsc *F, idx_t min_size, idx_t *super_starts,
+                                        idx_t *super_sizes, idx_t *count);
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Conversion: linked-list SparseMatrix ↔ LdltCsc
@@ -396,22 +479,232 @@ sparse_err_t ldlt_csc_symmetric_swap(LdltCsc *F, idx_t i, idx_t j);
 sparse_err_t ldlt_csc_solve(const LdltCsc *F, const double *b, double *x);
 
 /* ═══════════════════════════════════════════════════════════════════════
- * Day 11: Supernodal kernels for LDL^T — deliberately not implemented
+ * Sprint 19 Day 12: batched supernodal LDL^T — extract / writeback
  * ═══════════════════════════════════════════════════════════════════════
  *
- * The plan calls for a conservative integration: "disable supernodal
- * kernel when 2x2 pivot is selected; use scalar path."  Today's LDL^T
- * CSC kernel already delegates the entire factorization to the
- * linked-list `sparse_ldlt_factor` (see `ldlt_csc_eliminate`'s Day 8
- * design block), so the conservative fallback is the default —
- * there is nothing to gate or switch off.
+ * Plumbing that moves an LDL^T supernode's diagonal block + panel
+ * between packed CSC (`F->L`) and a dense column-major buffer.
+ * Mirrors `chol_csc_supernode_extract` / `chol_csc_supernode_writeback`
+ * (Sprint 18 Days 6 / 10) but with two LDL^T-specific deltas:
  *
- * A future sprint that introduces a native CSC LDL^T kernel will need
- * to (a) detect supernode boundaries, (b) accumulate the supernode's
- * dense panel, (c) run a dense LDL^T factor (handling 1x1/2x2 pivots),
- * and (d) handle 2x2 pivots that cross a supernode boundary by
- * splitting the supernode.  Until then, `ldlt_csc_eliminate` remains
- * the single entry point.
+ *   1. The diagonal of `F->L` carries the unit 1.0 (LDL^T factor is
+ *      unit lower triangular).  Writeback's per-column drop threshold
+ *      therefore can't use `|L[j, j]|` as the scale the way Cholesky
+ *      does (where `L[j, j] = sqrt(pivot)`).  Instead the threshold
+ *      uses `|D[j]|` for 1×1 pivots and the 2×2 block magnitude
+ *      `|d11| + |d22| + |d21|` for 2×2 pivots — matching the scalar
+ *      LDL^T `chol_csc_gather` invocations in
+ *      `ldlt_csc_eliminate_native` (`drop_tol` for 1×1,
+ *      `drop_tol * bscale` for 2×2).
+ *
+ *   2. Writeback also distributes the dense block factor's auxiliary
+ *      outputs into the LdltCsc: `D_block[j] → F->D[s_start + j]`,
+ *      `D_offdiag_block[j] → F->D_offdiag[s_start + j]`,
+ *      `pivot_size_block[j] → F->pivot_size[s_start + j]`.  These
+ *      arrays are produced by `ldlt_dense_factor` in Day 13's
+ *      `eliminate_diag` step; the writeback contract just requires the
+ *      caller to pass them through verbatim.
  */
+
+/**
+ * Extract a supernode from an LdltCsc into a dense column-major buffer.
+ *
+ * Mirrors `chol_csc_supernode_extract` exactly, dispatched on the
+ * embedded `F->L`.  The buffer layout, `row_map` semantics, and panel-
+ * height contract all match the Cholesky helper — see its header for
+ * the per-argument detail.  No D / D_offdiag extraction here; those
+ * live separately on the LdltCsc and only flow back through writeback.
+ *
+ * @param F                    Input LdltCsc (not modified).
+ * @param s_start              Starting column of the supernode.
+ * @param s_size               Number of columns in the supernode.
+ * @param dense                Column-major output buffer (>= lda * s_size).
+ * @param lda                  Leading dimension; must be >= panel_height.
+ * @param row_map              Output (>= panel_height entries).
+ * @param[out] panel_height_out  Receives the panel height.
+ * @return SPARSE_OK, SPARSE_ERR_NULL, SPARSE_ERR_BADARG.
+ */
+sparse_err_t ldlt_csc_supernode_extract(const LdltCsc *F, idx_t s_start, idx_t s_size,
+                                        double *dense, idx_t lda, idx_t *row_map,
+                                        idx_t *panel_height_out);
+
+/**
+ * Gather a supernode's dense column-major buffer back into an LdltCsc.
+ *
+ * Inverse of `ldlt_csc_supernode_extract`, plus the LDL^T-specific
+ * extras: per-column `D_block[j]`, `D_offdiag_block[j]`, and
+ * `pivot_size_block[j]` outputs from the dense block factor get copied
+ * into `F->D[s_start + j]`, `F->D_offdiag[s_start + j]`, and
+ * `F->pivot_size[s_start + j]` respectively.
+ *
+ * The CSC's per-column `row_idx` and `col_ptr` are not changed — the
+ * supernode's structural pattern is preserved end-to-end.  Below-
+ * diagonal entries whose magnitude falls below the per-column drop
+ * threshold are written back as exactly 0.0; the diagonal is never
+ * dropped.  Per-column threshold uses `drop_tol * |D_block[j]|` for
+ * 1×1 pivots and `drop_tol * (|d11| + |d22| + |d21|)` for either
+ * column of a 2×2 pair.  Pass `drop_tol = 0.0` to retain every value
+ * verbatim (used by the round-trip tests).
+ *
+ * 2×2 pair detection uses `D_offdiag_block`: a column j with
+ * `pivot_size_block[j] == 2` is the FIRST of its pair iff
+ * `D_offdiag_block[j] != 0`, and the SECOND otherwise.  This mirrors
+ * the convention `ldlt_csc_eliminate_native` uses when populating
+ * `F->D_offdiag` (set to `d21` on the first, zeroed on the second)
+ * and is robust against adjacent 2×2 pairs (where `pivot_size[]`
+ * alone wouldn't disambiguate).
+ *
+ * @param F                  LdltCsc to mutate.
+ * @param s_start            Starting column of the supernode.
+ * @param s_size             Number of columns in the supernode.
+ * @param dense              Column-major input buffer (>= lda * s_size).
+ * @param lda                Leading dimension; must be >= panel_height.
+ * @param row_map            Local-row → global-row mapping (length panel_height).
+ * @param panel_height       Stored-row count of the supernode's first column.
+ * @param D_block            Per-column D values (length s_size).
+ * @param D_offdiag_block    Per-column D off-diagonals (length s_size).
+ * @param pivot_size_block   Per-column pivot sizes (length s_size).
+ * @param drop_tol           Drop tolerance; 0.0 disables dropping.
+ * @return SPARSE_OK, SPARSE_ERR_NULL, SPARSE_ERR_BADARG.
+ */
+sparse_err_t ldlt_csc_supernode_writeback(LdltCsc *F, idx_t s_start, idx_t s_size,
+                                          const double *dense, idx_t lda, const idx_t *row_map,
+                                          idx_t panel_height, const double *D_block,
+                                          const double *D_offdiag_block,
+                                          const idx_t *pivot_size_block, double drop_tol);
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 19 Day 13: batched supernodal LDL^T — eliminate_diag /
+ *                   eliminate_panel / eliminate_supernodal
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Three helpers complete the batched supernodal flow:
+ *
+ *   `ldlt_csc_supernode_eliminate_diag`   — apply left-looking external
+ *     cmod from prior columns `[0, s_start)` (handling 1×1 and 2×2
+ *     prior pivots), then run `ldlt_dense_factor` on the s_size×s_size
+ *     diagonal slab.  The cmod expansion mirrors the Phase A + Phase B
+ *     terms in `ldlt_csc_cmod_unified` but applied to a dense block
+ *     rather than a single column.
+ *
+ *   `ldlt_csc_supernode_eliminate_panel`  — for each below-supernode
+ *     row, two-phase solve `L_diag · D_block · L_panel_row^T = A_row^T`:
+ *     (1) forward-sub against the unit lower triangular L_diag, then
+ *     (2) divide by the block diagonal D_block (1×1 division for 1×1
+ *     pivots, 2×2 inverse for 2×2 pivots).  The Cholesky equivalent
+ *     is `chol_csc_supernode_eliminate_panel` (a single forward sub —
+ *     no D step because Cholesky's L isn't unit triangular).
+ *
+ *   `ldlt_csc_eliminate_supernodal`       — top-level entry point that
+ *     interleaves the batched path (extract / eliminate_diag /
+ *     eliminate_panel / writeback) with the scalar fallback for
+ *     non-supernodal columns.  Mirror of `chol_csc_eliminate_supernodal`
+ *     (Sprint 18 Day 10).
+ *
+ * **Pivot-stability assumption.**  `ldlt_dense_factor` performs its
+ * own Bunch-Kaufman pivot selection on the extracted diagonal block
+ * and may symmetrically swap rows/columns within the block.  Such a
+ * swap would invalidate the surrounding CSC's row indices (the panel
+ * rows below and the prior columns referencing supernode rows).  The
+ * batched path therefore relies on the two-pass refactor model: the
+ * first factor (scalar `ldlt_csc_eliminate_native`) resolves all
+ * pivot swaps and bakes the post-permutation row order into `F->perm`
+ * and `F->L`'s storage; the second-pass batched factor sees a
+ * pre-permuted matrix where BK chooses the same pivot pattern without
+ * further swaps.  `eliminate_diag` validates this by comparing the
+ * dense factor's output `pivot_size_block` against the cached
+ * `F->pivot_size[s_start..]`; a mismatch returns `SPARSE_ERR_BADARG`,
+ * signalling the caller to fall back to the scalar kernel.
+ */
+
+/**
+ * Apply external cmod + dense LDL^T factor to a supernode's extracted buffer.
+ *
+ * @param F                Factored LdltCsc (cached `pivot_size` and
+ *                         prior-column factor values; unchanged).
+ * @param s_start          Starting column of the supernode.
+ * @param s_size           Number of columns in the supernode.
+ * @param dense            Column-major buffer (>= lda * s_size).  On
+ *                         entry holds the supernode's extracted A
+ *                         values (lower triangle of the diagonal block
+ *                         plus panel).  On successful return the
+ *                         top-s_size diagonal slab holds factored L
+ *                         (unit lower triangular); the panel below
+ *                         carries `A_panel - external_cmod` ready for
+ *                         `eliminate_panel`'s solve.
+ * @param lda              Leading dimension; must be >= panel_height.
+ * @param row_map          Local-row → global-row map (length panel_height).
+ * @param panel_height     Stored-row count of the supernode's first column.
+ * @param[out] D_block            Length s_size.  Per-column D values.
+ * @param[out] D_offdiag_block    Length s_size.
+ * @param[out] pivot_size_block   Length s_size.
+ * @param tol              Drop / singularity tolerance for the dense
+ *                         factor; <=0 uses SPARSE_DROP_TOL.
+ * @return SPARSE_OK on success.  SPARSE_ERR_NULL / SPARSE_ERR_BADARG
+ *         on invalid args.  SPARSE_ERR_BADARG if `pivot_size_block`
+ *         disagrees with `F->pivot_size[s_start..s_start+s_size)`
+ *         (the dense factor made a different BK decision than the
+ *         cached scalar pass — caller should fall back).
+ *         SPARSE_ERR_SINGULAR on element-growth or near-zero pivot.
+ */
+sparse_err_t ldlt_csc_supernode_eliminate_diag(const LdltCsc *F, idx_t s_start, idx_t s_size,
+                                               double *dense, idx_t lda, const idx_t *row_map,
+                                               idx_t panel_height, double *D_block,
+                                               double *D_offdiag_block, idx_t *pivot_size_block,
+                                               double tol);
+
+/**
+ * Solve the panel rows against the factored diagonal block.
+ *
+ * For each below-supernode row `i` in [0, panel_rows):
+ *   (1) forward-sub: y = L_diag^{-1} * panel_row_i^T  (unit lower triangular)
+ *   (2) block diagonal: x = D_block^{-1} * y           (1×1 div / 2×2 solve)
+ *   (3) panel_row_i ← x
+ *
+ * @param L_diag             Factored s_size×s_size diagonal block (unit
+ *                           lower triangular; column-major; lda_diag).
+ * @param D_block            Per-column D values (length s_size).
+ * @param D_offdiag_block    Per-column D off-diagonals (length s_size).
+ * @param pivot_size_block   Per-column pivot sizes (length s_size).
+ * @param s_size             Diagonal block dimension.
+ * @param lda_diag           Leading dimension of L_diag (>= s_size).
+ * @param panel              Panel buffer (column-major, panel_rows × s_size, lda_panel).
+ * @param lda_panel          Leading dimension of panel (>= panel_rows).
+ * @param panel_rows         Number of below-supernode rows.
+ * @return SPARSE_OK, SPARSE_ERR_NULL, SPARSE_ERR_BADARG, SPARSE_ERR_SINGULAR.
+ */
+sparse_err_t ldlt_csc_supernode_eliminate_panel(const double *L_diag, const double *D_block,
+                                                const double *D_offdiag_block,
+                                                const idx_t *pivot_size_block, idx_t s_size,
+                                                idx_t lda_diag, double *panel, idx_t lda_panel,
+                                                idx_t panel_rows);
+
+/**
+ * Top-level batched supernodal LDL^T entry point.
+ *
+ * Mirror of `chol_csc_eliminate_supernodal` (Sprint 18 Day 10) for the
+ * LDL^T side.  Detects 2×2-aware supernodes via
+ * `ldlt_csc_detect_supernodes`, then for each detected supernode of
+ * size >= 2 runs the batched path (extract / eliminate_diag /
+ * eliminate_panel / writeback).  Singleton supernodes and any column
+ * outside detected supernodes fall back to the scalar
+ * scatter/cmod/cdiv/gather path from `ldlt_csc_eliminate_native`.
+ *
+ * Two-pass refactor model: requires `F->pivot_size` to be populated
+ * from a prior `ldlt_csc_eliminate_native` run.  On a fresh
+ * `LdltCsc` from `ldlt_csc_from_sparse` (where pivot_size defaults to
+ * all-1×1) detection emits one big 1×1 supernode and the batched path
+ * exercises that — so the entry point is also valid as a first
+ * factor when callers know the matrix is essentially Cholesky-like.
+ *
+ * @param F         Input/output LdltCsc.  See contract above.
+ * @param min_size  Minimum supernode size to batch (>= 1).  Below
+ *                  `min_size`, columns fall through to the scalar path.
+ * @return SPARSE_OK on success.  Same error codes as
+ *         `ldlt_csc_eliminate_native` plus `SPARSE_ERR_BADARG` if any
+ *         batched supernode's BK decision diverged from cached
+ *         `F->pivot_size`.
+ */
+sparse_err_t ldlt_csc_eliminate_supernodal(LdltCsc *F, idx_t min_size);
 
 #endif /* SPARSE_LDLT_CSC_INTERNAL_H */

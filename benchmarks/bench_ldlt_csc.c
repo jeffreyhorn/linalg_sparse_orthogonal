@@ -107,6 +107,119 @@ static bench_result_t bench_linked_list(const SparseMatrix *A, const double *b, 
     return r;
 }
 
+/* Sprint 19 Day 14: time the batched supernodal LDL^T path.
+ *
+ * Two-pass model — see the design block in
+ * `src/sparse_ldlt_csc_internal.h`: a scalar pre-pass resolves BK
+ * swaps and bakes the resulting permutation into `F->perm`; a
+ * subsequent `ldlt_csc_from_sparse(A_perm, ...)` + `pivot_size`
+ * carry-over + `ldlt_csc_eliminate_supernodal` runs the batched
+ * factor on a pre-permuted view where BK chooses the same pivots
+ * without further swaps.
+ *
+ * The scalar pre-pass and AMD analysis are computed once up front
+ * and are NOT timed.  Each timed repetition reuses the cached
+ * permutation / pivot decisions and measures only the pre-permuted
+ * CSC path (conversion/build + permute + supernodal factor, plus
+ * solve).
+ *
+ * This therefore benchmarks an analyze-once / factor-many workflow.
+ * Its `factor_ms` is not directly comparable to `bench_linked_list()`
+ * or `bench_csc_path()`, both of which re-run AMD inside every timed
+ * iteration — `speedup_csc_sn` will be correspondingly inflated
+ * relative to `speedup_csc`.  Interpret `factor_csc_sn_ms` as the
+ * steady-state cost of a fresh numeric factor on a previously-
+ * analysed matrix, not as the end-to-end one-shot cost. */
+static bench_result_t bench_csc_supernodal(const SparseMatrix *A, const double *b, double *x,
+                                           int repeat) {
+    bench_result_t r = {0, 0, 0, 1};
+    double factor_total = 0.0, solve_total = 0.0;
+    idx_t n = sparse_rows(A);
+
+    /* Pre-pass: factor scalar once to get F1->perm and F1->pivot_size.
+     * Failure here aborts the bench for this matrix. */
+    idx_t *amd_perm = malloc((size_t)n * sizeof(idx_t));
+    if (!amd_perm) {
+        r.ok = 0;
+        return r;
+    }
+    if (sparse_reorder_amd(A, amd_perm) != SPARSE_OK) {
+        free(amd_perm);
+        r.ok = 0;
+        return r;
+    }
+    LdltCsc *F1 = NULL;
+    if (ldlt_csc_from_sparse(A, amd_perm, 2.0, &F1) != SPARSE_OK) {
+        free(amd_perm);
+        r.ok = 0;
+        return r;
+    }
+    if (ldlt_csc_eliminate(F1) != SPARSE_OK) {
+        ldlt_csc_free(F1);
+        free(amd_perm);
+        r.ok = 0;
+        return r;
+    }
+
+    /* Cache F1's composed permutation + pivot pattern.  Subsequent
+     * batched timed iterations reuse these. */
+    idx_t *cached_perm = malloc((size_t)n * sizeof(idx_t));
+    idx_t *cached_pivot_size = malloc((size_t)n * sizeof(idx_t));
+    if (!cached_perm || !cached_pivot_size) {
+        free(cached_perm);
+        free(cached_pivot_size);
+        ldlt_csc_free(F1);
+        free(amd_perm);
+        r.ok = 0;
+        return r;
+    }
+    for (idx_t i = 0; i < n; i++) {
+        cached_perm[i] = F1->perm[i];
+        cached_pivot_size[i] = F1->pivot_size[i];
+    }
+    ldlt_csc_free(F1);
+    free(amd_perm);
+
+    for (int rep = 0; rep < repeat; rep++) {
+        LdltCsc *F2 = NULL;
+        double t0 = wall_time();
+        if (ldlt_csc_from_sparse(A, cached_perm, 2.0, &F2) != SPARSE_OK) {
+            r.ok = 0;
+            break;
+        }
+        for (idx_t k = 0; k < n; k++)
+            F2->pivot_size[k] = cached_pivot_size[k];
+        sparse_err_t e_sn = ldlt_csc_eliminate_supernodal(F2, /*min_size=*/2);
+        if (e_sn != SPARSE_OK) {
+            ldlt_csc_free(F2);
+            r.ok = 0;
+            break;
+        }
+        factor_total += wall_time() - t0;
+
+        t0 = wall_time();
+        if (ldlt_csc_solve(F2, b, x) != SPARSE_OK) {
+            ldlt_csc_free(F2);
+            r.ok = 0;
+            break;
+        }
+        solve_total += wall_time() - t0;
+
+        if (rep == repeat - 1)
+            r.residual = rel_residual(A, x, b);
+        ldlt_csc_free(F2);
+    }
+
+    free(cached_perm);
+    free(cached_pivot_size);
+
+    if (r.ok) {
+        r.factor_ms = factor_total * 1000.0 / (double)repeat;
+        r.solve_ms = solve_total * 1000.0 / (double)repeat;
+    }
+    return r;
+}
+
 /* Time the CSC path with an explicit kernel override.  Pass
  * LDLT_CSC_KERNEL_NATIVE or LDLT_CSC_KERNEL_WRAPPER to pin which
  * elimination body the benchmark exercises — both invocations run
@@ -174,7 +287,7 @@ static bench_result_t bench_csc_path(const SparseMatrix *A, const double *b, dou
     return r;
 }
 
-static int bench_matrix(const char *path, int repeat) {
+static int bench_matrix(const char *path, int repeat, int supernodal) {
     SparseMatrix *A = NULL;
     if (sparse_load_mm(&A, path) != SPARSE_OK) {
         fprintf(stderr, "bench_ldlt_csc: failed to load %s\n", path);
@@ -201,11 +314,14 @@ static int bench_matrix(const char *path, int repeat) {
     bench_result_t rl = bench_linked_list(A, b, x, repeat);
     bench_result_t rn = bench_csc_path(A, b, x, repeat, LDLT_CSC_KERNEL_NATIVE);
     bench_result_t rw = bench_csc_path(A, b, x, repeat, LDLT_CSC_KERNEL_WRAPPER);
+    bench_result_t rs = {0, 0, 0, 1};
+    if (supernodal)
+        rs = bench_csc_supernodal(A, b, x, repeat);
 
     const char *base = strrchr(path, '/');
     base = base ? base + 1 : path;
 
-    if (!rl.ok || !rn.ok || !rw.ok) {
+    if (!rl.ok || !rn.ok || !rw.ok || (supernodal && !rs.ok)) {
         fprintf(stderr, "bench_ldlt_csc: %s — one or more paths failed\n", base);
         free(ones);
         free(b);
@@ -217,12 +333,19 @@ static int bench_matrix(const char *path, int repeat) {
     double sp_native = rl.factor_ms / rn.factor_ms;
     double sp_wrapper = rl.factor_ms / rw.factor_ms;
 
-    /* Columns: matrix, n, nnz, factor_ll, factor_csc_native,
-     * factor_csc_wrapper, solve_ll, solve_csc_native, speedup_native,
-     * speedup_wrapper, res_ll, res_csc_native. */
-    printf("%s,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2f,%.2e,%.2e\n", base, (int)n, (int)nnz,
-           rl.factor_ms, rn.factor_ms, rw.factor_ms, rl.solve_ms, rn.solve_ms, sp_native,
-           sp_wrapper, rl.residual, rn.residual);
+    if (supernodal) {
+        /* Extra columns: factor_csc_sn_ms, solve_csc_sn_ms,
+         * speedup_csc_sn (vs LL), res_csc_sn. */
+        double sp_sn = rl.factor_ms / rs.factor_ms;
+        printf("%s,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2f,%.2f,%.2e,%.2e,%.2e\n", base,
+               (int)n, (int)nnz, rl.factor_ms, rn.factor_ms, rw.factor_ms, rs.factor_ms,
+               rl.solve_ms, rn.solve_ms, rs.solve_ms, sp_native, sp_wrapper, sp_sn, rl.residual,
+               rn.residual, rs.residual);
+    } else {
+        printf("%s,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2f,%.2e,%.2e\n", base, (int)n, (int)nnz,
+               rl.factor_ms, rn.factor_ms, rw.factor_ms, rl.solve_ms, rn.solve_ms, sp_native,
+               sp_wrapper, rl.residual, rn.residual);
+    }
 
     free(ones);
     free(b);
@@ -252,6 +375,7 @@ static const int default_matrix_count =
 
 int main(int argc, char **argv) {
     int repeat = 3;
+    int supernodal = 0;
     const char *single_path = NULL;
 
     for (int i = 1; i < argc; i++) {
@@ -259,23 +383,33 @@ int main(int argc, char **argv) {
             repeat = atoi(argv[++i]);
             if (repeat < 1)
                 repeat = 1;
+        } else if (!strcmp(argv[i], "--supernodal")) {
+            supernodal = 1;
         } else if (argv[i][0] != '-') {
             single_path = argv[i];
         }
     }
 
-    printf("matrix,n,nnz,"
-           "factor_ll_ms,factor_csc_native_ms,factor_csc_wrapper_ms,"
-           "solve_ll_ms,solve_csc_native_ms,"
-           "speedup_csc_native,speedup_csc_wrapper,"
-           "res_ll,res_csc_native\n");
+    if (supernodal) {
+        printf("matrix,n,nnz,"
+               "factor_ll_ms,factor_csc_native_ms,factor_csc_wrapper_ms,factor_csc_sn_ms,"
+               "solve_ll_ms,solve_csc_native_ms,solve_csc_sn_ms,"
+               "speedup_csc_native,speedup_csc_wrapper,speedup_csc_sn,"
+               "res_ll,res_csc_native,res_csc_sn\n");
+    } else {
+        printf("matrix,n,nnz,"
+               "factor_ll_ms,factor_csc_native_ms,factor_csc_wrapper_ms,"
+               "solve_ll_ms,solve_csc_native_ms,"
+               "speedup_csc_native,speedup_csc_wrapper,"
+               "res_ll,res_csc_native\n");
+    }
 
     int rc = 0;
     if (single_path) {
-        rc |= bench_matrix(single_path, repeat);
+        rc |= bench_matrix(single_path, repeat, supernodal);
     } else {
         for (int i = 0; i < default_matrix_count; i++)
-            rc |= bench_matrix(default_matrices[i], repeat);
+            rc |= bench_matrix(default_matrices[i], repeat, supernodal);
     }
     return rc;
 }

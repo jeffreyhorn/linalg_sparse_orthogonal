@@ -49,18 +49,37 @@
  * linked-list scalar kernel to avoid the one-time conversion cost on
  * inputs where it would dominate the numeric work.
  *
- * The default of 100 is a rough crossover inferred from the
- * `benchmarks/bench_chol_csc.c` timings on nos4 (n=100) and bcsstk04
- * (n=132) — both of those matrices ran faster through CSC than
- * linked-list in the Sprint 17 Day 12 benchmark.  The Sprint 18
- * Day 12 / Day 14 larger-corpus captures confirmed every fixture
- * with `n >= 100` still wins under CSC but added no sub-100 data
- * point, so the default is intentionally held at 100 pending the
- * small-matrix study tracked in Sprint 19 (see
- * `docs/planning/EPIC_2/SPRINT_18/RETROSPECTIVE.md`).  Callers that
- * want a different crossover can override the macro at compile time
- * with `-DSPARSE_CSC_THRESHOLD=N` or set
- * `sparse_cholesky_opts_t::backend` explicitly to force one branch.
+ * The default of 100 is measured.  Sprint 19 Day 3-4 ran
+ * `./build/bench_chol_csc --small-corpus --repeat 50` on 10
+ * in-memory SPD fixtures at n ∈ {20, 40, 60, 80} across three
+ * families (tridiagonal, banded, dense) plus the real-corpus
+ * `nos4` (n=100) and `bcsstk04` (n=132).  The supernodal speedup
+ * (`factor_ll / factor_csc_sn`) is family-dependent:
+ *
+ *   - dense fixtures are mixed: dense-20 is above parity at 1.14×
+ *     (one large supernode amortises detection overhead across the
+ *     whole matrix) but dense-60 drops back to 0.89×, so the
+ *     small-corpus data does not support a monotonic dense-family
+ *     crossover claim;
+ *   - banded fixtures stay at 0.70×–0.85× through n = 80, trending
+ *     toward 1.0× near n = 100;
+ *   - tridiagonal fixtures stay at 0.51×–0.65× through n = 80
+ *     (zero fill → supernode detection finds only singletons → the
+ *     batched path collapses to scalar CSC plus detection overhead);
+ *   - moderately-sparse SuiteSparse fixtures cross at or just above
+ *     n = 100 (`nos4` 1.22×, `bcsstk04` 1.01×).
+ *
+ * 100 is the conservative worst-case that favours the common
+ * moderately-sparse SuiteSparse input without penalising the fewer-
+ * than-100-column edge.  See the "Threshold guidance" section in
+ * `docs/planning/EPIC_2/SPRINT_17/PERF_NOTES.md` for the full
+ * crossover table and per-structure recommended overrides (dense:
+ * ~20, tridiagonal: 150–200).
+ *
+ * Callers with a known structure can override with
+ * `-DSPARSE_CSC_THRESHOLD=N` at compile time, or set
+ * `sparse_cholesky_opts_t::backend` explicitly to force one branch
+ * per call.
  */
 #ifndef SPARSE_CSC_THRESHOLD
 #define SPARSE_CSC_THRESHOLD 100

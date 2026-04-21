@@ -33,6 +33,9 @@
  *   ./bench_chol_csc                                # default matrix list
  *   ./bench_chol_csc path/to/matrix.mtx             # benchmark one matrix
  *   ./bench_chol_csc --repeat 5                     # average 5 runs
+ *   ./bench_chol_csc --small-corpus                 # 10 sub-threshold synthetic SPDs
+ *                                                   # (Sprint 19 Day 3; feeds Day 4's
+ *                                                   # SPARSE_CSC_THRESHOLD retrospective)
  */
 #define _POSIX_C_SOURCE 199309L
 
@@ -44,6 +47,7 @@
 #include "sparse_vector.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -193,12 +197,11 @@ static sparse_err_t eliminate_supernodal(CholCsc *L) { return chol_csc_eliminate
 
 /* ─── Matrix runner ─────────────────────────────────────────────── */
 
-static int bench_matrix(const char *path, int repeat) {
-    SparseMatrix *A = NULL;
-    if (sparse_load_mm(&A, path) != SPARSE_OK) {
-        fprintf(stderr, "bench_chol_csc: failed to load %s\n", path);
-        return 1;
-    }
+/* Core runner: takes an already-constructed A and a display label,
+ * runs all three paths, prints one CSV row, and frees A.  Called by
+ * both `bench_matrix` (file-backed) and `bench_synthetic` (in-memory
+ * small-corpus fixtures). */
+static int bench_matrix_impl(const char *label, SparseMatrix *A, int repeat) {
     idx_t n = sparse_rows(A);
     idx_t nnz = sparse_nnz(A);
 
@@ -207,7 +210,7 @@ static int bench_matrix(const char *path, int repeat) {
     double *b = malloc((size_t)n * sizeof(double));
     double *x = malloc((size_t)n * sizeof(double));
     if (!ones || !b || !x) {
-        fprintf(stderr, "bench_chol_csc: malloc failed in bench_matrix (n=%d)\n", (int)n);
+        fprintf(stderr, "bench_chol_csc: malloc failed in bench_matrix_impl (n=%d)\n", (int)n);
         free(ones);
         free(b);
         free(x);
@@ -224,11 +227,8 @@ static int bench_matrix(const char *path, int repeat) {
     bench_result_t rc = bench_csc_path(A, b, x, repeat, eliminate_scalar);
     bench_result_t rs = bench_csc_path(A, b, x, repeat, eliminate_supernodal);
 
-    const char *base = strrchr(path, '/');
-    base = base ? base + 1 : path;
-
     if (!rl.ok || !rc.ok || !rs.ok) {
-        fprintf(stderr, "bench_chol_csc: %s — one or more paths failed\n", base);
+        fprintf(stderr, "bench_chol_csc: %s — one or more paths failed\n", label);
         free(ones);
         free(b);
         free(x);
@@ -240,7 +240,7 @@ static int bench_matrix(const char *path, int repeat) {
     double sp_sn = rl.factor_ms / rs.factor_ms;
 
     /* CSV row */
-    printf("%s,%d,%d,", base, (int)n, (int)nnz);
+    printf("%s,%d,%d,", label, (int)n, (int)nnz);
     printf("%.3f,%.3f,%.3f,", rl.factor_ms, rc.factor_ms, rs.factor_ms);
     printf("%.3f,%.3f,%.3f,", rl.solve_ms, rc.solve_ms, rs.solve_ms);
     printf("%.2f,%.2f,", sp_csc, sp_sn);
@@ -251,6 +251,146 @@ static int bench_matrix(const char *path, int repeat) {
     free(x);
     sparse_free(A);
     return 0;
+}
+
+static int bench_matrix(const char *path, int repeat) {
+    SparseMatrix *A = NULL;
+    if (sparse_load_mm(&A, path) != SPARSE_OK) {
+        fprintf(stderr, "bench_chol_csc: failed to load %s\n", path);
+        return 1;
+    }
+    const char *base = strrchr(path, '/');
+    base = base ? base + 1 : path;
+    return bench_matrix_impl(base, A, repeat);
+}
+
+/* ─── Small-matrix synthetic fixtures (Sprint 19 Day 3) ───────────
+ *
+ * Ten in-memory SPD fixtures sized below the current
+ * `SPARSE_CSC_THRESHOLD = 100` (n ∈ {20, 40, 60, 80}) so Day 4's
+ * threshold retrospective has data to tune the crossover.  All
+ * fixtures are generated deterministically from fixed seeds — the
+ * seed constants are baked into each builder so repeat runs produce
+ * identical numbers.
+ *
+ * Three families cover the scaling-signature space:
+ *
+ *   tridiag-N:  A[i,i] = 4, A[i, i±1] = -1.  Minimal fill, no RNG.
+ *               Stresses pointer-chasing overhead in the linked-list
+ *               kernel vs CSC's contiguous column traversal.
+ *   banded-N:   diagonal = 2*bw + 2, off-diagonals ≈ -1/(d+1) + small
+ *               random jitter with bandwidth bw = 4.  Diagonally
+ *               dominant by construction.  Stresses the scalar
+ *               kernel's `shift_columns_right_of` on non-trivial
+ *               fill.
+ *   dense-N:    random symmetric off-diagonals in [-1, 1] + diagonal
+ *               = 2n for diagonal dominance.  Max-fill stress test
+ *               for supernodal detection overhead on small supernodes.
+ */
+
+/* Deterministic uniform random in [0, 1) from a 64-bit key — avoids
+ * pulling in srand48/drand48, which are XSI extensions not guaranteed
+ * under `_POSIX_C_SOURCE 199309L`.  SplitMix64-style mixer. */
+static double jitter_u01(uint64_t key) {
+    uint64_t h = key + 0x9e3779b97f4a7c15ULL;
+    h = (h ^ (h >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    h = (h ^ (h >> 27)) * 0x94d049bb133111ebULL;
+    h ^= h >> 31;
+    return (double)(h >> 32) / (double)(1ULL << 32);
+}
+
+/* Tridiagonal SPD: A[i,i] = 4, A[i, i±1] = -1. */
+static SparseMatrix *build_tridiag_spd(idx_t n) {
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+    return A;
+}
+
+/* Banded SPD with bandwidth bw.  Off-diagonals are -1/(d+1) plus a
+ * ±0.025 deterministic perturbation; the diagonal is 2*bw + 2,
+ * guaranteeing strict diagonal dominance (row sum of |off-diag|
+ * entries is 2 * sum_{d=1..bw} (1/(d+1) + 0.025) < 2 * bw < 2*bw + 2
+ * for all bw >= 1). */
+static SparseMatrix *build_banded_spd(idx_t n, idx_t bw, uint64_t seed) {
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, (double)(2 * bw + 2));
+        for (idx_t d = 1; d <= bw && i + d < n; d++) {
+            double base = -1.0 / (double)(d + 1);
+            uint64_t key = seed ^ ((uint64_t)i * (uint64_t)n + (uint64_t)d);
+            double jitter = 0.05 * (jitter_u01(key) - 0.5);
+            double off = base + jitter;
+            sparse_insert(A, i, i + d, off);
+            sparse_insert(A, i + d, i, off);
+        }
+    }
+    return A;
+}
+
+/* Dense SPD: random symmetric off-diagonals in [-1, 1] + diagonal
+ * 2*n so every row has |A[i,i]| > sum_j |A[i,j]| (diagonal
+ * dominance → SPD). */
+static SparseMatrix *build_dense_spd(idx_t n, uint64_t seed) {
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, (double)(2 * n));
+        for (idx_t j = i + 1; j < n; j++) {
+            uint64_t key = seed ^ ((uint64_t)i * (uint64_t)n + (uint64_t)j);
+            double v = 2.0 * (jitter_u01(key) - 0.5); /* in [-1, 1] */
+            sparse_insert(A, i, j, v);
+            sparse_insert(A, j, i, v);
+        }
+    }
+    return A;
+}
+
+/* Per-fixture builder wrappers so each row in `small_corpus` has a
+ * zero-argument build fn with its own n and seed baked in. */
+static SparseMatrix *build_tri20(void) { return build_tridiag_spd(20); }
+static SparseMatrix *build_tri40(void) { return build_tridiag_spd(40); }
+static SparseMatrix *build_tri60(void) { return build_tridiag_spd(60); }
+static SparseMatrix *build_tri80(void) { return build_tridiag_spd(80); }
+static SparseMatrix *build_band20(void) { return build_banded_spd(20, 4, 0xc0ffee01UL); }
+static SparseMatrix *build_band40(void) { return build_banded_spd(40, 4, 0xc0ffee02UL); }
+static SparseMatrix *build_band60(void) { return build_banded_spd(60, 4, 0xc0ffee03UL); }
+static SparseMatrix *build_band80(void) { return build_banded_spd(80, 4, 0xc0ffee04UL); }
+static SparseMatrix *build_dense20(void) { return build_dense_spd(20, 0xbadcafe1UL); }
+static SparseMatrix *build_dense60(void) { return build_dense_spd(60, 0xbadcafe2UL); }
+
+typedef SparseMatrix *(*fixture_builder_fn)(void);
+
+typedef struct {
+    const char *label;
+    fixture_builder_fn build;
+} small_fixture_t;
+
+static small_fixture_t small_corpus[] = {
+    {"tridiag-20", build_tri20}, {"tridiag-40", build_tri40}, {"tridiag-60", build_tri60},
+    {"tridiag-80", build_tri80}, {"banded-20", build_band20}, {"banded-40", build_band40},
+    {"banded-60", build_band60}, {"banded-80", build_band80}, {"dense-20", build_dense20},
+    {"dense-60", build_dense60},
+};
+static const int small_corpus_count = (int)(sizeof(small_corpus) / sizeof(small_corpus[0]));
+
+static int bench_synthetic(const char *label, fixture_builder_fn builder, int repeat) {
+    SparseMatrix *A = builder();
+    if (!A) {
+        fprintf(stderr, "bench_chol_csc: synthetic builder failed for %s\n", label);
+        return 1;
+    }
+    return bench_matrix_impl(label, A, repeat);
 }
 
 /* ─── Main ─────────────────────────────────────────────────────── */
@@ -266,12 +406,15 @@ static const int default_matrix_count =
 int main(int argc, char **argv) {
     int repeat = 3;
     const char *single_path = NULL;
+    int small_corpus_mode = 0;
 
     for (int i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--repeat") && i + 1 < argc) {
             repeat = atoi(argv[++i]);
             if (repeat < 1)
                 repeat = 1;
+        } else if (!strcmp(argv[i], "--small-corpus")) {
+            small_corpus_mode = 1;
         } else if (argv[i][0] != '-') {
             single_path = argv[i];
         }
@@ -284,7 +427,10 @@ int main(int argc, char **argv) {
            "res_ll,res_csc,res_csc_sn\n");
 
     int rc = 0;
-    if (single_path) {
+    if (small_corpus_mode) {
+        for (int i = 0; i < small_corpus_count; i++)
+            rc |= bench_synthetic(small_corpus[i].label, small_corpus[i].build, repeat);
+    } else if (single_path) {
         rc |= bench_matrix(single_path, repeat);
     } else {
         for (int i = 0; i < default_matrix_count; i++)

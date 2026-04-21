@@ -373,13 +373,20 @@ Three takeaways from the scaling corpus (Sprint 18 Day 12):
 `include/sparse_matrix.h`) determines where
 `sparse_cholesky_factor_opts` switches the linked-list path over to
 the CSC supernodal kernel.  These are one-shot numbers: in the
-analyze-once / factor-many workflow (`sparse_analyze` +
-`sparse_factor_numeric`) the AMD cost amortizes and the CSC kernel's
-advantage is larger.  See
+analyze-once / factor-many workflow (`sparse_analyze` once →
+`sparse_factor_numeric` to prime the `sparse_factors_t` →
+repeated `sparse_refactor_numeric` for each new value pattern)
+the AMD cost amortizes and the CSC
+kernel's advantage is dramatically larger — measured 2.4× at n = 132
+climbing to 24.3× at n ≈ 15 k on the same corpus (Sprint 19 Day 1-2,
+captured by `benchmarks/bench_refactor_csc.c`).  See
 [`docs/planning/EPIC_2/SPRINT_17/PERF_NOTES.md`](planning/EPIC_2/SPRINT_17/PERF_NOTES.md)
-for the full 12-column CSV and reproduction instructions, and
+for the full 12-column CSV, both workflow tables, the hypothesis-
+check analysis, and reproduction instructions; raw captures in
 [`docs/planning/EPIC_2/SPRINT_18/bench_day12.txt`](planning/EPIC_2/SPRINT_18/bench_day12.txt)
-for the raw Day 12 capture.
+(one-shot) and
+[`docs/planning/EPIC_2/SPRINT_19/bench_day2_refactor.txt`](planning/EPIC_2/SPRINT_19/bench_day2_refactor.txt)
+(analyze-once).
 
 ## Supernodal Detection and Batched Kernel (Sprint 17 + Sprint 18 Days 6-9)
 
@@ -453,7 +460,9 @@ symmetric `SparseMatrix`, calls the linked-list `sparse_ldlt_factor`
 pivoting, symmetric row-and-column swaps, and element-growth guards),
 then unpacks the result back into the CSC layout with unit diagonals
 inserted.  Output is bit-identical to `sparse_ldlt_factor` on the same
-input; a native CSC Bunch-Kaufman kernel is tracked as follow-up.
+input; the Sprint 18 native CSC Bunch-Kaufman kernel
+(`ldlt_csc_eliminate_native`) replaces this wrapper as the
+production path.
 
 The solve (`ldlt_csc_solve`) runs fully on CSC: apply `P` to `b`,
 forward-solve the unit lower triangular `L`, block-diagonal solve `D`
@@ -461,6 +470,78 @@ forward-solve the unit lower triangular `L`, block-diagonal solve `D`
 backward-solve `L^T`, apply `P^T` to recover `x` in user coordinates.
 Singularity detection mirrors `sparse_ldlt_solve`'s relative
 tolerance.
+
+## Supernodal LDL^T (Sprint 19 Days 10-13)
+
+`ldlt_csc_eliminate_supernodal(F, min_size)` mirrors the Sprint 18
+Cholesky batched path but handles the two LDL^T-specific wrinkles:
+
+1. **2×2 pivot atomicity in supernode boundaries.**
+   `ldlt_csc_detect_supernodes` extends the Liu-Ng-Peyton three-condition
+   check with a fourth invariant: a 2×2 pivot pair `(k, k+1)` (where
+   `pivot_size[k] == pivot_size[k+1] == 2`) cannot straddle a supernode
+   boundary.  Boundaries that would land on the first column of a 2×2
+   pair are extended (if the pattern check still holds) or retracted
+   (column factored by the scalar kernel).
+
+2. **Two-pass refactor model.**  The atomicity check needs `pivot_size`,
+   which only exists after a first factor.  The intended workflow is:
+   (a) call `ldlt_csc_eliminate_native` once to populate `pivot_size`;
+   (b) call `ldlt_csc_detect_supernodes` to identify 2×2-safe supernodes;
+   (c) on subsequent refactorisations with the same sparsity pattern,
+   use the batched path.  In the batched pass, the dense
+   `ldlt_dense_factor` (Sprint 19 Day 11) sees a pre-permuted matrix
+   where Bunch-Kaufman chooses the same pivots without further swaps;
+   `eliminate_diag` validates this by comparing the dense factor's
+   output `pivot_size_block` against cached `F->pivot_size` and returns
+   `SPARSE_ERR_BADARG` on divergence so callers can fall back to scalar.
+
+The four batched-path helpers parallel the Cholesky kernel:
+
+- `ldlt_csc_supernode_extract`: scatter the supernode's CSC columns into
+  a dense column-major buffer, building `row_map`.
+- `ldlt_csc_supernode_eliminate_diag`: apply external cmod from priors
+  `[0, s_start)` (handling 1×1 and 2×2 prior cmod with the four-term
+  rank-2 outer product expansion, using `D_offdiag != 0` as the
+  first-of-pair discriminator robust against adjacent 2×2 pairs), then
+  call `ldlt_dense_factor`.
+- `ldlt_csc_supernode_eliminate_panel`: per-row two-phase solve:
+  forward-substitute against unit `L_diag`, then divide by the block
+  diagonal `D` (1×1 division or 2×2 inverse), producing the panel L
+  values.
+- `ldlt_csc_supernode_writeback`: gather the dense buffer back into
+  the CSC, scaling the per-column drop threshold to `|D[k]|` for 1×1
+  pivots and `|d11| + |d22| + |d21|` for 2×2 pivots — matching the
+  scalar `chol_csc_gather` invocations in `ldlt_csc_eliminate_native`.
+
+End-of-sprint speedups (`docs/planning/EPIC_2/SPRINT_19/bench_day14.txt`):
+the batched LDL^T path reaches 6.83× over linked-list on bcsstk14
+(SPD, n = 1806) and 3.05× on bcsstk04 (SPD, n = 132).  Indefinite
+matrices (KKT-style saddle points) currently require the scalar
+`ldlt_csc_eliminate` path because the heuristic CSC fill from
+`ldlt_csc_from_sparse` doesn't always cover the supernodal cmod's
+fill — a `_with_analysis` mirror that pre-allocates full `sym_L`
+(matching the Cholesky side's Sprint 19 Day 6 fix for Kuu) is the
+natural Sprint 20 follow-up.
+
+## Row-Adjacency Index for the Scalar LDL^T Kernel (Sprint 19 Days 8-9)
+
+`LdltCsc` carries a per-row adjacency index — `row_adj[r]` lists the
+prior columns `kp < r` where `L(r, kp)` was stored during the
+factorisation.  Populated incrementally by `ldlt_csc_populate_row_adj`
+after each column writeback, the index restores the linked-list
+reference's sparse-row scaling for `ldlt_csc_cmod_unified`'s Phase A
+(per-column diagonal cmod) and Phase B (2×2 cross-term).  Both phases
+iterate `F->row_adj[col]` instead of `[0, step_k)` with a binary
+search per `kp`, removing an O(step_k · log nnz) scan per elimination
+step.  Bench impact (`bench_day9_row_adj.txt`): bcsstk14 jumped from
+~2.5× to 3.5× over linked-list; s3rmt3m3 from ~2.5× to 3.8×.
+
+`ldlt_csc_symmetric_swap` propagates the same swap into `row_adj` (the
+two slots being swapped trade their entire adjacency lists, since the
+swap permutes rows i and j across every factored column).  Storage
+overhead is bounded by `n · avg_fill` ≈ 2× L's capacity — geometric
+2× growth keeps amortised append O(1).
 
 ## Condition Number Estimation
 

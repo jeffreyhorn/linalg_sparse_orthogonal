@@ -15,7 +15,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Cholesky factorization** for symmetric positive-definite matrices (A = L·L^T, ~50% less storage than LU)
 - **CSC Cholesky factorization** — column-oriented scatter-gather kernel with fundamental supernode detection, batched supernodal dense kernels (Sprint 18), and transparent size-based dispatch from `sparse_cholesky_factor_opts`; measured up to 4.4× one-shot speedup over the linked-list path on SuiteSparse SPD matrices (n ≤ 14 822), with further gains in the analyze-once / factor-many workflow (Sprint 17 + Sprint 18)
 - **LDL^T factorization** with Bunch-Kaufman symmetric pivoting for symmetric indefinite matrices (P·A·P^T = L·D·L^T) — 1x1 and 2x2 pivot blocks, inertia computation, iterative refinement, condition estimation
-- **CSC LDL^T factorization** — CSC storage for the L factor + auxiliary D/D_offdiag/pivot_size/perm arrays, scalar triangular + block-diagonal solve path, native Bunch-Kaufman kernel with 1×1 / 2×2 pivots and symmetric swaps (Sprint 18); 2.2–2.5× factor speedup over the linked-list path on bcsstk14 / s3rmt3m3
+- **CSC LDL^T factorization** — CSC storage for the L factor + auxiliary D/D_offdiag/pivot_size/perm arrays, scalar triangular + block-diagonal solve path, native Bunch-Kaufman kernel with 1×1 / 2×2 pivots and symmetric swaps (Sprint 18); per-row adjacency index for sparse-row cmod scaling (Sprint 19 Days 8-9); batched supernodal LDL^T mirroring the Cholesky batched path (Sprint 19 Days 10-13).  Native kernel reaches 3.5× factor speedup on bcsstk14 vs linked-list; batched supernodal reaches 6.8× on the same matrix.
 - **QR factorization** with column pivoting (A·P = Q·R) — Householder reflections, least-squares, rank estimation, null-space extraction, economy (thin) QR, sparse-mode QR without dense workspace
 - **QR minimum-norm solve** for underdetermined systems (m < n) — minimum 2-norm solution via QR of A^T (`sparse_qr_solve_minnorm`)
 - **QR rank diagnostics** — R diagonal extraction (`sparse_qr_diag_r`), rank info with condition estimate (`sparse_qr_rank_info`), quick condition estimator (`sparse_qr_condest`)
@@ -423,33 +423,51 @@ for tests; `used_csc_path` reports which branch ran.  Smaller
 matrices may see a slight slowdown from CSC conversion cost and are
 left on the linked-list path.
 
-### CSC LDL^T (Sprint 17 scaffolding + Sprint 18 native kernel)
+### CSC LDL^T (Sprint 17 scaffolding + Sprint 18 native + Sprint 19 row-adj + supernodal)
 
 The CSC LDL^T path (`ldlt_csc_factor` + `ldlt_csc_solve`) was a
-wrapper in Sprint 17: it expanded the lower triangle to a full
-symmetric matrix and delegated Bunch-Kaufman pivoting to the
-linked-list `sparse_ldlt_factor`.  Sprint 18 Days 1-5 replaced the
-wrapper with a **native** CSC Bunch-Kaufman kernel (1×1 / 2×2 pivot
-blocks, α = (1 + √17) / 8 partial scan, symmetric swaps in packed
-CSC storage) that is now the default code path through
-`ldlt_csc_eliminate`.  Measured under the same fair-comparison
-methodology (AMD inside the timed region on all sides):
+wrapper in Sprint 17, replaced by a native column-by-column
+Bunch-Kaufman kernel in Sprint 18 (1×1 / 2×2 pivot blocks, α = (1 +
+√17) / 8 partial scan, symmetric swaps in packed CSC storage).
+Sprint 19 added a per-row adjacency index (`row_adj`) so the cmod
+inner loop iterates only contributing priors instead of `[0, step_k)`,
+plus a batched supernodal kernel (`ldlt_csc_eliminate_supernodal`)
+mirroring the Sprint 18 Cholesky batched path.  The **LL factor** and
+**CSC native** columns below run under the one-shot fair-comparison
+methodology (AMD inside the timed region on both sides).  The **CSC
+supernodal** column is measured by `bench_ldlt_csc --supernodal`,
+which uses an analyze-once / pre-permuted pipeline: a scalar pre-pass
+resolves the BK permutation + pivot_size once up front, and each timed
+repetition reuses those cached decisions and measures only the
+pre-permuted conversion + supernodal factor.  The supernodal speedup
+is therefore a steady-state analyze-once / factor-many number — it is
+not directly comparable to the LL / CSC native one-shot columns (and
+is correspondingly higher than a like-for-like one-shot comparison
+would show).
 
-| Matrix        |    n  |   nnz(A)  | Linked-list factor | CSC native | CSC wrapper | Speedup (native / wrapper) |
-|---------------|------:|----------:|-------------------:|-----------:|------------:|---------------------------:|
-| nos4.mtx      |   100 |       594 |    0.37 ms |      0.32 ms |     0.36 ms |           1.15× / 1.02× |
-| bcsstk04.mtx  |   132 |     3,648 |    3.92 ms |      1.99 ms |     3.80 ms |       **1.97×** / 1.03× |
-| bcsstk14.mtx  | 1,806 |    63,454 |  511.84 ms |    209.29 ms |   524.63 ms |       **2.45×** / 0.98× |
-| s3rmt3m3.mtx  | 5,357 |   207,123 | 4285.08 ms |   1927.83 ms |  4644.77 ms |       **2.22×** / 0.92× |
+| Matrix       |    n  |  nnz(A)  | LL factor  | CSC native | CSC supernodal (analyze-once) | Speedup (native one-shot / supernodal analyze-once) |
+|--------------|------:|---------:|-----------:|-----------:|------------------------------:|----------------------------------------------------:|
+| nos4.mtx     |   100 |      594 |    0.38 ms |    0.29 ms |                       0.14 ms |                                1.29× / **2.62×**    |
+| bcsstk04.mtx |   132 |    3,648 |    3.76 ms |    2.16 ms |                       1.23 ms |                            **1.74×** / **3.05×**    |
+| bcsstk14.mtx | 1,806 |   63,454 |  493.74 ms |  140.59 ms |                      72.29 ms |                            **3.51×** / **6.83×**    |
 
-The native kernel lands **2.2–2.5× faster** than the linked-list
-baseline on the non-trivial SPD fixtures (bcsstk04 and larger); the
-wrapper hovers at ~1.0× — exactly what was predicted would happen
-once a native column-oriented kernel replaced the expand-and-
-delegate shim.  Residuals are identical between native and wrapper
-to round-off; only the wall-clock column moves.  The `bench_ldlt_csc`
-default corpus is SPD-only for runtime reasons (see PERF_NOTES.md
-for why indefinite fixtures are excluded from the default list).
+The Sprint 19 Day 9 row-adjacency index improved the native scalar
+LDL^T kernel from Sprint 18's 2.45× on bcsstk14 to 3.51× by removing
+the per-step prior-column scan from the cmod inner loop.  The
+batched supernodal LDL^T (`--supernodal` mode) lifts that further to
+6.83× on bcsstk14 by delegating supernode diagonal blocks to a
+dense LDL^T primitive and solving panel rows en masse.  Residuals
+match across paths to round-off.  The supernodal LDL^T path is
+currently SPD-biased (heuristic CSC fill via `ldlt_csc_from_sparse`
+covers SPD cmod fill but not always indefinite cmod fill — KKT-style
+saddle points should fall back to scalar `ldlt_csc_eliminate`); a
+`_with_analysis` mirror that pre-allocates full `sym_L` is the
+natural Sprint 20 follow-up.
+
+End-of-sprint snapshot in `docs/planning/EPIC_2/SPRINT_19/bench_day14.txt`
+covers all three benchmarks (`bench_chol_csc`, `bench_ldlt_csc`, and
+the new `bench_refactor_csc` analyze-once / factor-many harness)
+with detailed Sprint 18 → Sprint 19 deltas.
 
 **Complexity:**
 - Partial pivoting: O(nnz) per elimination step — strongly preferred for banded/structured matrices

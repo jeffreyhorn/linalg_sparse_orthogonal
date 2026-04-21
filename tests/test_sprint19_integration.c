@@ -510,6 +510,9 @@ static void test_s19_analyze_refactor_smoke(void) {
     double *ones = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
     double *x = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(ones);
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x);
     for (idx_t i = 0; i < n; i++)
         ones[i] = 1.0;
     sparse_matvec(A, ones, b);

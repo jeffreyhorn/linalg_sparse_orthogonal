@@ -373,8 +373,10 @@ Three takeaways from the scaling corpus (Sprint 18 Day 12):
 `include/sparse_matrix.h`) determines where
 `sparse_cholesky_factor_opts` switches the linked-list path over to
 the CSC supernodal kernel.  These are one-shot numbers: in the
-analyze-once / factor-many workflow (`sparse_analyze` +
-`sparse_refactor_numeric`) the AMD cost amortizes and the CSC
+analyze-once / factor-many workflow (`sparse_analyze` once →
+`sparse_factor_numeric` to prime the `sparse_factors_t` →
+repeated `sparse_refactor_numeric` for each new value pattern)
+the AMD cost amortizes and the CSC
 kernel's advantage is dramatically larger — measured 2.4× at n = 132
 climbing to 24.3× at n ≈ 15 k on the same corpus (Sprint 19 Day 1-2,
 captured by `benchmarks/bench_refactor_csc.c`).  See

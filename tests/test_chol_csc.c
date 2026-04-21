@@ -2671,6 +2671,7 @@ static void test_chol_csc_kuu_scalar_no_regression(void) {
 
     /* Residual against the original A. */
     double *Ax = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(Ax);
     sparse_matvec(A, x_sc, Ax);
     double rmax = 0.0, bmax = 0.0;
     for (idx_t i = 0; i < n; i++) {

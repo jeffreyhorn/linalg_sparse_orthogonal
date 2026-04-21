@@ -8,8 +8,11 @@
  *   - Sub-100 small-matrix corpus / `SPARSE_CSC_THRESHOLD` (Days 3-4):
  *     verify the documented threshold value (100) hasn't drifted.
  *   - Scalar CSC Kuu regression fix (Days 5-7): factor Kuu via the
- *     scalar CSC Cholesky kernel and assert it beats the linked-list
- *     factor wall-clock at runtime (>= 1.5x).
+ *     scalar CSC Cholesky kernel and assert the solve remains
+ *     numerically correct with no residual regression.  A wall-clock
+ *     speedup is measured and captured in
+ *     `docs/planning/EPIC_2/SPRINT_19/bench_day7_post_kuu.txt` but
+ *     not asserted at the test level (CI variance under sanitizers).
  *   - Row-adjacency index (Days 8-9): post-factor `F->row_adj[r]`
  *     reflects exactly the priors with stored entries at row r on a
  *     SuiteSparse-style indefinite fixture.
@@ -211,6 +214,7 @@ static int s19_supernodal_matches_scalar(const SparseMatrix *A, idx_t min_supern
  * Scalar and batched factors must agree bit-for-bit. */
 static void test_s19_supernodal_spd_tridiag_64(void) {
     SparseMatrix *A = s19_build_spd_tridiag(64);
+    ASSERT_NOT_NULL(A);
     ASSERT_TRUE(s19_supernodal_matches_scalar(A, /*min_size=*/2, 1e-12));
     sparse_free(A);
 }
@@ -220,6 +224,7 @@ static void test_s19_supernodal_spd_tridiag_64(void) {
  * scalar fallback for non-supernodal columns. */
 static void test_s19_supernodal_spd_banded_128(void) {
     SparseMatrix *A = s19_build_spd_banded(128, 4);
+    ASSERT_NOT_NULL(A);
     ASSERT_TRUE(s19_supernodal_matches_scalar(A, /*min_size=*/2, 1e-10));
     sparse_free(A);
 }
@@ -228,6 +233,7 @@ static void test_s19_supernodal_spd_banded_128(void) {
  * panel-solve + writeback at non-trivial scale. */
 static void test_s19_supernodal_spd_banded_300(void) {
     SparseMatrix *A = s19_build_spd_banded(300, 8);
+    ASSERT_NOT_NULL(A);
     ASSERT_TRUE(s19_supernodal_matches_scalar(A, /*min_size=*/2, 1e-10));
     sparse_free(A);
 }
@@ -392,12 +398,12 @@ static void test_s19_row_adj_matches_reference_bcsstk04(void) {
 /* Day 7's bench measured scalar CSC Cholesky on Kuu (n=7102) at
  * roughly 2× the linked-list speed after the Day 6 fix
  * (`shift_columns_right_of` regression resolved by pre-allocating the
- * full sym_L pattern in `chol_csc_from_sparse`).  This integration
- * test runs both kernels end-to-end on Kuu and asserts the residual
- * stays at ≤ 1e-9, plus a wall-clock check that scalar CSC isn't
- * dramatically slower than the linked-list (>= 0.5×, conservative
- * floor — true measured speedup is ~2.1×, but CI variance under
- * sanitizers can compress that significantly). */
+ * full sym_L pattern in `chol_csc_from_sparse_with_analysis`).  This
+ * integration test runs both kernels end-to-end on Kuu and asserts
+ * the residual stays ≤ 1e-9 on each path.  No wall-clock assertion
+ * is enforced here — CI variance under sanitizers makes a
+ * speedup-floor test unreliable; the actual ratio is captured in
+ * `docs/planning/EPIC_2/SPRINT_19/bench_day7_post_kuu.txt`. */
 static void test_s19_kuu_scalar_csc_no_regression(void) {
     SparseMatrix *A = NULL;
     REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/Kuu.mtx"));
@@ -406,12 +412,16 @@ static void test_s19_kuu_scalar_csc_no_regression(void) {
 
     /* Baseline: linked-list Cholesky factor + solve for residual check. */
     SparseMatrix *L_ll = sparse_copy(A);
+    ASSERT_NOT_NULL(L_ll);
     sparse_cholesky_opts_t opts_ll = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_LINKED_LIST, NULL};
     REQUIRE_OK(sparse_cholesky_factor_opts(L_ll, &opts_ll));
 
     double *ones = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
     double *x = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(ones);
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x);
     for (idx_t i = 0; i < n; i++)
         ones[i] = 1.0;
     sparse_matvec(A, ones, b);
@@ -424,9 +434,11 @@ static void test_s19_kuu_scalar_csc_no_regression(void) {
      * speedup at the test level (CI variance), but the bench output
      * captured to bench_day7_post_kuu.txt records the actual ratio. */
     SparseMatrix *L_cs = sparse_copy(A);
+    ASSERT_NOT_NULL(L_cs);
     sparse_cholesky_opts_t opts_cs = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_CSC, NULL};
     REQUIRE_OK(sparse_cholesky_factor_opts(L_cs, &opts_cs));
     double *x2 = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(x2);
     REQUIRE_OK(sparse_cholesky_solve(L_cs, b, x2));
     double rel_cs = s19_relative_residual(A, x2, b);
     ASSERT_TRUE(rel_cs < 1e-9);

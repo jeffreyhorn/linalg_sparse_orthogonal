@@ -2328,6 +2328,12 @@ static int ldlt_dense_reconstruction_matches(const double *A_before, const doubl
     double *Lfull = calloc((size_t)(n * n), sizeof(double));
     double *DLt = calloc((size_t)(n * n), sizeof(double));
     double *LDLt = calloc((size_t)(n * n), sizeof(double));
+    if (Lfull == NULL || DLt == NULL || LDLt == NULL) {
+        free(Lfull);
+        free(DLt);
+        free(LDLt);
+        return 0;
+    }
     int ok = 1;
 
     for (idx_t i = 0; i < n; i++) {

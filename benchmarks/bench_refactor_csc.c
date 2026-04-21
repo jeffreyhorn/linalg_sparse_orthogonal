@@ -192,6 +192,9 @@ static int bench_matrix(const char *path, int repeat) {
     if (err != SPARSE_OK) {
         fprintf(stderr, "bench_refactor_csc: sparse_analyze failed on %s (err=%d)\n", path,
                 (int)err);
+        /* sparse_analyze may have partially populated `an` before failing;
+         * sparse_analysis_free is safe on a zero-initialised struct. */
+        sparse_analysis_free(&an);
         free(ones);
         free(b);
         free(x_ll);

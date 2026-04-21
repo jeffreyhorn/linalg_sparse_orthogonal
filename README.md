@@ -432,15 +432,24 @@ Bunch-Kaufman kernel in Sprint 18 (1×1 / 2×2 pivot blocks, α = (1 +
 Sprint 19 added a per-row adjacency index (`row_adj`) so the cmod
 inner loop iterates only contributing priors instead of `[0, step_k)`,
 plus a batched supernodal kernel (`ldlt_csc_eliminate_supernodal`)
-mirroring the Sprint 18 Cholesky batched path.  Measured under the
-same fair-comparison methodology (AMD inside the timed region on all
-sides):
+mirroring the Sprint 18 Cholesky batched path.  The **LL factor** and
+**CSC native** columns below run under the one-shot fair-comparison
+methodology (AMD inside the timed region on both sides).  The **CSC
+supernodal** column is measured by `bench_ldlt_csc --supernodal`,
+which uses an analyze-once / pre-permuted pipeline: a scalar pre-pass
+resolves the BK permutation + pivot_size once up front, and each timed
+repetition reuses those cached decisions and measures only the
+pre-permuted conversion + supernodal factor.  The supernodal speedup
+is therefore a steady-state analyze-once / factor-many number — it is
+not directly comparable to the LL / CSC native one-shot columns (and
+is correspondingly higher than a like-for-like one-shot comparison
+would show).
 
-| Matrix       |    n  |  nnz(A)  | LL factor  | CSC native | CSC supernodal | Speedup (native / supernodal) |
-|--------------|------:|---------:|-----------:|-----------:|---------------:|------------------------------:|
-| nos4.mtx     |   100 |      594 |    0.38 ms |    0.29 ms |        0.14 ms |           1.29× / **2.62×**   |
-| bcsstk04.mtx |   132 |    3,648 |    3.76 ms |    2.16 ms |        1.23 ms |       **1.74×** / **3.05×**   |
-| bcsstk14.mtx | 1,806 |   63,454 |  493.74 ms |  140.59 ms |       72.29 ms |       **3.51×** / **6.83×**   |
+| Matrix       |    n  |  nnz(A)  | LL factor  | CSC native | CSC supernodal (analyze-once) | Speedup (native one-shot / supernodal analyze-once) |
+|--------------|------:|---------:|-----------:|-----------:|------------------------------:|----------------------------------------------------:|
+| nos4.mtx     |   100 |      594 |    0.38 ms |    0.29 ms |                       0.14 ms |                                1.29× / **2.62×**    |
+| bcsstk04.mtx |   132 |    3,648 |    3.76 ms |    2.16 ms |                       1.23 ms |                            **1.74×** / **3.05×**    |
+| bcsstk14.mtx | 1,806 |   63,454 |  493.74 ms |  140.59 ms |                      72.29 ms |                            **3.51×** / **6.83×**    |
 
 The Sprint 19 Day 9 row-adjacency index improved the native scalar
 LDL^T kernel from Sprint 18's 2.45× on bcsstk14 to 3.51× by removing

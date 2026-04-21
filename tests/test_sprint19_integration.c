@@ -463,6 +463,7 @@ static void test_s19_csc_threshold_documented_value(void) { ASSERT_EQ(SPARSE_CSC
  * kuu fix, supernodal LDL^T). */
 static void test_s19_analyze_refactor_smoke(void) {
     SparseMatrix *A = s19_build_spd_banded(120, 4);
+    ASSERT_NOT_NULL(A);
     idx_t n = sparse_rows(A);
 
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};

@@ -2683,7 +2683,6 @@ static void test_chol_csc_kuu_scalar_no_regression(void) {
             bmax = bi;
     }
     double rel_scalar = bmax > 0.0 ? rmax / bmax : rmax;
-    printf("    Kuu scalar rel_residual = %.3e\n", rel_scalar);
     ASSERT_TRUE(rel_scalar < 1e-10);
 
     /* Cross-check scalar vs supernodal solutions agree to round-off. */

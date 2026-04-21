@@ -1551,21 +1551,53 @@ sparse_err_t ldlt_dense_factor(double *A, double *D, double *D_offdiag, idx_t *p
 
             double inv_det = 1.0 / det;
 
-            /* Trailing rank-2 update: for j > k+1, i >= j:
-             *   A[i, j] -= L[i, k] * A[j, k] + L[i, k+1] * A[j, k+1]
-             * where L[i, k] and L[i, k+1] are the computed multipliers
-             * from the 2×2 solve.  Do the update BEFORE overwriting
-             * A[:, k] / A[:, k+1] with L so the right-hand side uses
-             * the original Schur values. */
-            for (idx_t j = k + 2; j < n; j++) {
-                double ajk = A[j + k * lda];
-                double ajk1 = A[j + (k + 1) * lda];
-                for (idx_t i = j; i < n; i++) {
+            /* Precompute the L multipliers once per row i.  The
+             * trailing rank-2 update and the column overwrite both
+             * need (l_ik, l_ik1) for every i in [k+2, n) — recomputing
+             * them inside the (i, j) loops costs O(supernode^2) extra
+             * work per 2×2 pivot, which dominates on large supernodes. */
+            idx_t tail_len = n - (k + 2);
+            double *l_col_k = NULL;
+            double *l_col_k1 = NULL;
+            if (tail_len > 0) {
+                l_col_k = malloc((size_t)tail_len * sizeof(double));
+                l_col_k1 = malloc((size_t)tail_len * sizeof(double));
+                if (!l_col_k || !l_col_k1) {
+                    free(l_col_k);
+                    free(l_col_k1);
+                    return SPARSE_ERR_ALLOC;
+                }
+                for (idx_t i = k + 2; i < n; i++) {
                     double aik = A[i + k * lda];
                     double aik1 = A[i + (k + 1) * lda];
                     double l_ik = (aik * d22 - aik1 * d21) * inv_det;
                     double l_ik1 = (-aik * d21 + aik1 * d11) * inv_det;
-                    double update = l_ik * ajk + l_ik1 * ajk1;
+                    if (fabs(l_ik) > growth_bound || fabs(l_ik1) > growth_bound) {
+                        free(l_col_k);
+                        free(l_col_k1);
+                        return SPARSE_ERR_SINGULAR;
+                    }
+                    if (fabs(l_ik) > max_growth)
+                        max_growth = fabs(l_ik);
+                    if (fabs(l_ik1) > max_growth)
+                        max_growth = fabs(l_ik1);
+                    l_col_k[i - (k + 2)] = l_ik;
+                    l_col_k1[i - (k + 2)] = l_ik1;
+                }
+            }
+
+            /* Trailing rank-2 update: for j > k+1, i >= j:
+             *   A[i, j] -= L[i, k] * A[j, k] + L[i, k+1] * A[j, k+1]
+             * where L[i, k] and L[i, k+1] are the precomputed
+             * multipliers from the 2×2 solve.  Do the update BEFORE
+             * overwriting A[:, k] / A[:, k+1] with L so the right-hand
+             * side uses the original Schur values. */
+            for (idx_t j = k + 2; j < n; j++) {
+                double ajk = A[j + k * lda];
+                double ajk1 = A[j + (k + 1) * lda];
+                for (idx_t i = j; i < n; i++) {
+                    idx_t ti = i - (k + 2);
+                    double update = l_col_k[ti] * ajk + l_col_k1[ti] * ajk1;
                     A[i + j * lda] -= update;
                     if (i != j)
                         A[j + i * lda] = A[i + j * lda];
@@ -1574,21 +1606,17 @@ sparse_err_t ldlt_dense_factor(double *A, double *D, double *D_offdiag, idx_t *p
 
             /* Overwrite columns k and k+1 with the L multipliers. */
             for (idx_t i = k + 2; i < n; i++) {
-                double aik = A[i + k * lda];
-                double aik1 = A[i + (k + 1) * lda];
-                double l_ik = (aik * d22 - aik1 * d21) * inv_det;
-                double l_ik1 = (-aik * d21 + aik1 * d11) * inv_det;
-                if (fabs(l_ik) > growth_bound || fabs(l_ik1) > growth_bound)
-                    return SPARSE_ERR_SINGULAR;
-                if (fabs(l_ik) > max_growth)
-                    max_growth = fabs(l_ik);
-                if (fabs(l_ik1) > max_growth)
-                    max_growth = fabs(l_ik1);
+                idx_t ti = i - (k + 2);
+                double l_ik = l_col_k[ti];
+                double l_ik1 = l_col_k1[ti];
                 A[i + k * lda] = l_ik;
                 A[i + (k + 1) * lda] = l_ik1;
                 A[k + i * lda] = l_ik;
                 A[(k + 1) + i * lda] = l_ik1;
             }
+
+            free(l_col_k);
+            free(l_col_k1);
             /* Unit-L diagonal within the 2×2 block: L[k,k] = L[k+1,k+1] = 1,
              * L[k+1, k] = 0 (the 2×2 coupling is captured in D_offdiag). */
             A[k + k * lda] = 1.0;

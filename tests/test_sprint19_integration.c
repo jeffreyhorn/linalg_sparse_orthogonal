@@ -23,7 +23,10 @@
  * Two-pass refactor model for the LDL^T batched path: factor scalar
  * first to resolve BK swaps; symmetrically permute A by the resulting
  * `F->perm`; refactor batched on the permuted matrix; assert the
- * factors match L / D / D_offdiag / pivot_size bit-for-bit.
+ * factors match in L / D / D_offdiag / pivot_size within tolerance
+ * (`s19_ldlt_factor_state_matches` compares each L / D entry under
+ * the per-test `tol` and requires exact equality on `pivot_size` /
+ * column structure).
  */
 #include "sparse_chol_csc_internal.h"
 #include "sparse_cholesky.h"

@@ -71,6 +71,7 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_colamd.c
     src/sparse_chol_csc.c
     src/sparse_ldlt_csc.c
+    src/sparse_eigs.c
 )
 
 # Optional OpenMP support for parallel SpMV: cmake -DSPARSE_OPENMP=ON ..

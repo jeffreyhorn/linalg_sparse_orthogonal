@@ -1245,3 +1245,20 @@ The result x has minimum 2-norm because the transformation preserves norms and t
 3. Updating x += dx
 
 Stops when the residual stops decreasing or max iterations are reached.
+
+## Symmetric Eigensolvers (Sprint 20 Days 7-12) — in progress
+
+`sparse_eigs_sym(A, k, opts, result)` computes `k` extreme or near-sigma eigenpairs of a symmetric sparse matrix A.  Landing incrementally across Sprint 20:
+
+| Day  | Work                                                                                                    |
+|------|---------------------------------------------------------------------------------------------------------|
+|  7   | Public API in `include/sparse_eigs.h` (`sparse_eigs_t`, `sparse_eigs_opts_t`, `sparse_eigs_sym`) + stub |
+|  8   | Basic 3-term Lanczos recurrence (no reorth)                                                             |
+|  9   | Full reorthogonalization against prior Lanczos vectors                                                  |
+| 10   | Thick-restart mechanism (Wu/Simon, Stathopoulos/Saad 2007)                                              |
+| 11   | Ritz extraction, convergence bookkeeping, partial-result semantics                                      |
+| 12   | Shift-invert mode for `SPARSE_EIGS_NEAREST_SIGMA` (via `sparse_ldlt_factor_opts`)                       |
+
+Day 7's stub validates every documented precondition (NULL checks, shape / range / enum / tol rejections) and returns `SPARSE_ERR_BADARG` on the success path as a "stub in progress" signal — the codebase has no `SPARSE_ERR_NOT_IMPL` code.  Days 8-11 replace the stub with the thick-restart Lanczos iteration described in the `src/sparse_eigs.c` module design block.
+
+The API surface mirrors the iterative-solver convention in `sparse_iterative.h`: `sparse_eigs_opts_t` carries all tuning knobs (`which`, `sigma`, `max_iterations`, `tol`, `reorthogonalize`, `compute_vectors`, `backend`), and `sparse_eigs_t` uses caller-owned buffers for `eigenvalues` / `eigenvectors` plus library-written scalar output fields (`n_requested`, `n_converged`, `iterations`, `residual_norm`).  No library-side allocation means no `sparse_eigs_free` helper — callers free their own buffers.

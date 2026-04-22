@@ -18,6 +18,7 @@
  *     every branch.
  */
 
+#include "sparse_eigs.h"
 #include "sparse_ldlt.h"
 #include "sparse_matrix.h"
 #include "sparse_types.h"
@@ -254,6 +255,112 @@ static void test_s20_forced_csc_on_small_matrix(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Day 7: sparse_eigs_sym API surface smoke tests
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Day 7 ships the public header (`include/sparse_eigs.h`) and a
+ * compile-ready stub (`src/sparse_eigs.c`) returning
+ * `SPARSE_ERR_BADARG` on the success path — Days 8-11 replace the
+ * stub with the thick-restart Lanczos iteration.  These tests
+ * verify the API plumbs through the library build correctly and
+ * that the stub enforces the documented preconditions.
+ */
+
+/* Validation layer rejects malformed inputs before the stub error
+ * path.  Matches the `sparse_eigs_sym` doxygen contract. */
+static void test_s20_eigs_rejects_null_args(void) {
+    SparseMatrix *A = s20_build_spd_tridiag(4);
+    ASSERT_NOT_NULL(A);
+    sparse_eigs_t result = {0};
+    double vals[3] = {0};
+    result.eigenvalues = vals;
+
+    ASSERT_ERR(sparse_eigs_sym(NULL, 3, NULL, &result), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_eigs_sym(A, 3, NULL, NULL), SPARSE_ERR_NULL);
+
+    /* eigenvalues buffer NULL → SPARSE_ERR_NULL. */
+    sparse_eigs_t no_vals = {0};
+    ASSERT_ERR(sparse_eigs_sym(A, 3, NULL, &no_vals), SPARSE_ERR_NULL);
+
+    /* compute_vectors set without eigenvectors buffer → SPARSE_ERR_NULL. */
+    sparse_eigs_opts_t opts_vecs = {.compute_vectors = 1};
+    sparse_eigs_t need_vecs = {.eigenvalues = vals};
+    ASSERT_ERR(sparse_eigs_sym(A, 3, &opts_vecs, &need_vecs), SPARSE_ERR_NULL);
+
+    sparse_free(A);
+}
+
+/* Shape / range / enum / tol rejections all surface as
+ * SPARSE_ERR_SHAPE or SPARSE_ERR_BADARG before the Day 7 stub
+ * path fires. */
+static void test_s20_eigs_rejects_bad_args(void) {
+    SparseMatrix *A = s20_build_spd_tridiag(4);
+    double vals[4] = {0};
+    sparse_eigs_t result = {.eigenvalues = vals};
+
+    /* k out of range. */
+    ASSERT_ERR(sparse_eigs_sym(A, 0, NULL, &result), SPARSE_ERR_BADARG);
+    ASSERT_ERR(sparse_eigs_sym(A, 5, NULL, &result), SPARSE_ERR_BADARG);
+
+    /* Invalid which enum. */
+    sparse_eigs_opts_t opts_bad_which = {.which = (sparse_eigs_which_t)99};
+    ASSERT_ERR(sparse_eigs_sym(A, 2, &opts_bad_which, &result), SPARSE_ERR_BADARG);
+
+    /* Invalid backend enum. */
+    sparse_eigs_opts_t opts_bad_backend = {.backend = (sparse_eigs_backend_t)99};
+    ASSERT_ERR(sparse_eigs_sym(A, 2, &opts_bad_backend, &result), SPARSE_ERR_BADARG);
+
+    /* Negative tol. */
+    sparse_eigs_opts_t opts_neg_tol = {.tol = -1.0};
+    ASSERT_ERR(sparse_eigs_sym(A, 2, &opts_neg_tol, &result), SPARSE_ERR_BADARG);
+
+    /* Negative max_iterations. */
+    sparse_eigs_opts_t opts_neg_max = {.max_iterations = -1};
+    ASSERT_ERR(sparse_eigs_sym(A, 2, &opts_neg_max, &result), SPARSE_ERR_BADARG);
+
+    /* Rectangular → SPARSE_ERR_SHAPE. */
+    SparseMatrix *rect = sparse_create(3, 5);
+    ASSERT_ERR(sparse_eigs_sym(rect, 2, NULL, &result), SPARSE_ERR_SHAPE);
+    sparse_free(rect);
+
+    sparse_free(A);
+}
+
+/* Day 7 stub: after validation the function returns
+ * SPARSE_ERR_BADARG ("stub in progress" — Days 8-11 replace with
+ * Lanczos).  `result->n_requested` is set even on the stub path
+ * so callers reading the result struct see a self-describing echo
+ * of `k`. */
+static void test_s20_eigs_day7_stub_returns_badarg(void) {
+    SparseMatrix *A = s20_build_spd_tridiag(6);
+    double vals[3] = {0};
+    sparse_eigs_t result = {.eigenvalues = vals, .n_requested = 99 /* sentinel */};
+    sparse_eigs_opts_t opts = {.which = SPARSE_EIGS_LARGEST, .tol = 1e-10};
+
+    ASSERT_ERR(sparse_eigs_sym(A, 3, &opts, &result), SPARSE_ERR_BADARG);
+    /* Validation path zeros these; sentinel 99 overwritten. */
+    ASSERT_EQ(result.n_requested, 3);
+    ASSERT_EQ(result.n_converged, 0);
+    ASSERT_EQ(result.iterations, 0);
+
+    sparse_free(A);
+}
+
+/* NULL opts is accepted: library-default opts are used.  Still
+ * produces the Day 7 stub error on the success path. */
+static void test_s20_eigs_null_opts_uses_defaults(void) {
+    SparseMatrix *A = s20_build_spd_tridiag(4);
+    double vals[2] = {0};
+    sparse_eigs_t result = {.eigenvalues = vals};
+
+    /* Day 7 stub: passes validation, hits the stub return. */
+    ASSERT_ERR(sparse_eigs_sym(A, 2, NULL, &result), SPARSE_ERR_BADARG);
+    ASSERT_EQ(result.n_requested, 2);
+
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Main
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -268,6 +375,12 @@ int main(void) {
     /* Forced-path overrides */
     RUN_TEST(test_s20_forced_linked_list_on_large_matrix);
     RUN_TEST(test_s20_forced_csc_on_small_matrix);
+
+    /* Day 7 — sparse_eigs_sym API surface */
+    RUN_TEST(test_s20_eigs_rejects_null_args);
+    RUN_TEST(test_s20_eigs_rejects_bad_args);
+    RUN_TEST(test_s20_eigs_day7_stub_returns_badarg);
+    RUN_TEST(test_s20_eigs_null_opts_uses_defaults);
 
     TEST_SUITE_END();
 }

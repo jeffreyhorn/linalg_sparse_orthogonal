@@ -60,7 +60,8 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_analysis.c \
            $(SRCDIR)/sparse_colamd.c \
            $(SRCDIR)/sparse_chol_csc.c \
-           $(SRCDIR)/sparse_ldlt_csc.c
+           $(SRCDIR)/sparse_ldlt_csc.c \
+           $(SRCDIR)/sparse_eigs.c
 LIB_OBJS = $(patsubst $(SRCDIR)/%.c,$(BUILDDIR)/%.o,$(LIB_SRCS))
 LIB      = $(BUILDDIR)/libsparse_lu_ortho.a
 

@@ -268,6 +268,9 @@ int main(void)
 - `sparse_ldlt_condest(A, &ldlt, &cond)` — 1-norm condition estimate via Hager/Higham
 - `sparse_ldlt_free(&ldlt)` — free factorization data
 
+**Symmetric eigensolvers (Sprint 20 — in progress):**
+- `sparse_eigs_sym(A, k, &opts, &result)` — k extreme or near-sigma eigenpairs of symmetric A via thick-restart Lanczos (API landed Sprint 20 Day 7; Lanczos iteration Days 8-11; shift-invert Day 12)
+
 **Symbolic analysis & refactorization:**
 - `sparse_analyze(A, &opts, &analysis)` — compute elimination tree, column counts, symbolic structure
 - `sparse_factor_numeric(A, &analysis, &factors)` — numeric-only factorization using precomputed analysis

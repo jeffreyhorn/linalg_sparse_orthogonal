@@ -522,7 +522,13 @@ sparse_err_t chol_csc_from_sparse_with_analysis(const SparseMatrix *mat,
     *csc_out = NULL;
     if (!mat || !analysis)
         return SPARSE_ERR_NULL;
-    if (analysis->type != SPARSE_FACTOR_CHOLESKY)
+    /* Accept either symmetric factor type: `sparse_analyze` runs the
+     * same etree / colcount / symbolic-Cholesky pipeline for both
+     * (see `src/sparse_analysis.c`: the `SPARSE_FACTOR_CHOLESKY:
+     * case SPARSE_FACTOR_LDLT:` fall-through), so the resulting
+     * `sym_L` is identical and valid for both factorisations.  LU
+     * analyses produce a different pattern and are rejected. */
+    if (analysis->type != SPARSE_FACTOR_CHOLESKY && analysis->type != SPARSE_FACTOR_LDLT)
         return SPARSE_ERR_BADARG;
     if (mat->rows != mat->cols)
         return SPARSE_ERR_SHAPE;

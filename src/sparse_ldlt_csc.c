@@ -529,7 +529,7 @@ sparse_err_t ldlt_csc_from_sparse(const SparseMatrix *mat, const idx_t *perm_in,
 
 /* ─── Public: symbolic-analysis-aware LDL^T conversion ───────────────── */
 
-/* Sprint 20 Day 1 design block (implementation scheduled Day 2-3):
+/* Sprint 20 Days 1-2: design + implementation.
  *
  * `ldlt_csc_from_sparse_with_analysis` mirrors
  * `chol_csc_from_sparse_with_analysis` (Sprint 18 Day 12 / Sprint 19
@@ -583,27 +583,27 @@ sparse_err_t ldlt_csc_from_sparse(const SparseMatrix *mat, const idx_t *perm_in,
  *   while batched-test helpers (e.g. `s19_supernodal_matches_scalar`)
  *   already use the same two-pass structure.
  *
- * Implementation plan (scoped to Day 2):
+ * Implementation (Day 2):
  *   1. Delegate the L layout + A-scatter to
  *      `chol_csc_from_sparse_with_analysis` — this sets
  *      `L->sym_L_preallocated = 1` for free and re-uses the
- *      bsearch-into-row-range scatter loop.
+ *      bsearch-into-row-range scatter loop that the Cholesky path
+ *      already validated on the Sprint 18 corpus.
  *   2. Wrap the returned `CholCsc *L` in an `LdltCsc` with D /
  *      D_offdiag / pivot_size / perm / row_adj allocated in the
- *      same zero-initialised shape as `ldlt_csc_from_sparse`
- *      (see the calloc + identity-perm initialisation at the top of
- *      that function for the exact pattern).
+ *      same zero-initialised shape as `ldlt_csc_from_sparse` (the
+ *      calloc + identity-perm initialisation below mirrors lines
+ *      484-524 of `ldlt_csc_from_sparse`).
  *   3. `pivot_size[i] = 1` default; `perm` copied from
- *      `analysis->perm` when present, else identity.
+ *      `analysis->perm` when present, else identity — matches the
+ *      `ldlt_csc_from_sparse` convention when the caller supplied
+ *      a fill-reducing perm.  Bunch-Kaufman pivoting composes
+ *      further swaps into this array during eliminate.
  *
- * Day 3 wires the shim into `ldlt_csc_eliminate_supernodal`'s
- * writeback fast-path so the indefinite KKT fixture drops from
- * 1e-2..1e-6 residual to round-off.
- *
- * The current body is a Day 1 stub: input validation is complete
- * but the delegation + wrapping above is unimplemented, so the
- * function returns `SPARSE_ERR_BADARG` after the shape checks.
- * Day 2 replaces the stub. */
+ * Day 3 wires the resulting `L->sym_L_preallocated == 1` state into
+ * `ldlt_csc_eliminate_supernodal`'s writeback fast-path so the
+ * indefinite KKT fixture drops from 1e-2..1e-6 residual to
+ * round-off. */
 sparse_err_t ldlt_csc_from_sparse_with_analysis(const SparseMatrix *mat,
                                                 const sparse_analysis_t *analysis,
                                                 LdltCsc **ldlt_out) {
@@ -619,11 +619,57 @@ sparse_err_t ldlt_csc_from_sparse_with_analysis(const SparseMatrix *mat,
     if (mat->rows != analysis->n)
         return SPARSE_ERR_SHAPE;
 
-    /* Day 1 stub: input validation above is complete; Day 2 adds the
-     * `chol_csc_from_sparse_with_analysis` delegation + LdltCsc
-     * wrapping per the plan block above.  Until then the function
-     * returns SPARSE_ERR_BADARG as a "stub in progress" signal. */
-    return SPARSE_ERR_BADARG;
+    /* Delegate L layout + sym_L pre-allocation + A-scatter to the
+     * Cholesky converter.  Sets `L->sym_L_preallocated = 1` and
+     * caches `L->factor_norm` from `analysis->analysis_norm`. */
+    CholCsc *L = NULL;
+    sparse_err_t err = chol_csc_from_sparse_with_analysis(mat, analysis, &L);
+    if (err != SPARSE_OK)
+        return err;
+
+    /* Wrap L in an LdltCsc with D / D_offdiag / pivot_size / perm /
+     * row_adj zero-initialised, matching `ldlt_csc_from_sparse`. */
+    idx_t n = mat->rows;
+    LdltCsc *m = calloc(1, sizeof(LdltCsc));
+    if (!m) {
+        chol_csc_free(L);
+        return SPARSE_ERR_ALLOC;
+    }
+    m->n = n;
+    m->L = L;
+    m->factor_norm = L->factor_norm;
+
+    size_t alloc_n = n > 0 ? (size_t)n : 1;
+    m->D = calloc(alloc_n, sizeof(double));
+    m->D_offdiag = calloc(alloc_n, sizeof(double));
+    m->pivot_size = calloc(alloc_n, sizeof(idx_t));
+    m->perm = calloc(alloc_n, sizeof(idx_t));
+    m->row_adj = calloc(alloc_n, sizeof(idx_t *));
+    m->row_adj_count = calloc(alloc_n, sizeof(idx_t));
+    m->row_adj_cap = calloc(alloc_n, sizeof(idx_t));
+    if (!m->D || !m->D_offdiag || !m->pivot_size || !m->perm || !m->row_adj || !m->row_adj_count ||
+        !m->row_adj_cap) {
+        ldlt_csc_free(m);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    /* Initial pivot_size is 1 everywhere; elimination overwrites. */
+    for (idx_t i = 0; i < n; i++)
+        m->pivot_size[i] = 1;
+
+    /* Initial perm: caller-supplied fill-reducing permutation from
+     * the analysis, else identity.  Bunch-Kaufman pivoting composes
+     * further swaps into this array during eliminate. */
+    if (analysis->perm) {
+        for (idx_t i = 0; i < n; i++)
+            m->perm[i] = analysis->perm[i];
+    } else {
+        for (idx_t i = 0; i < n; i++)
+            m->perm[i] = i;
+    }
+
+    *ldlt_out = m;
+    return SPARSE_OK;
 }
 
 /* ─── Convert LdltCsc → SparseMatrix (L lower triangle only) ─────────── */

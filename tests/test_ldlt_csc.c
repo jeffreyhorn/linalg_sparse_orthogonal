@@ -978,6 +978,247 @@ static void test_roundtrip_symmetric_indefinite(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 20 Day 2: ldlt_csc_from_sparse_with_analysis
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* NULL / invalid-type / shape-mismatch paths all return the expected
+ * error code without allocating. */
+static void test_from_sparse_with_analysis_arg_checks(void) {
+    LdltCsc *m = NULL;
+    SparseMatrix *A = sparse_create(3, 3);
+    sparse_insert(A, 0, 0, 2.0);
+    sparse_insert(A, 1, 1, 2.0);
+    sparse_insert(A, 2, 2, 2.0);
+
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_t an = {0};
+    REQUIRE_OK(sparse_analyze(A, &opts, &an));
+
+    /* ldlt_out NULL → SPARSE_ERR_NULL. */
+    ASSERT_ERR(ldlt_csc_from_sparse_with_analysis(A, &an, NULL), SPARSE_ERR_NULL);
+    /* mat NULL → SPARSE_ERR_NULL. */
+    ASSERT_ERR(ldlt_csc_from_sparse_with_analysis(NULL, &an, &m), SPARSE_ERR_NULL);
+    ASSERT_NULL(m);
+    /* analysis NULL → SPARSE_ERR_NULL. */
+    ASSERT_ERR(ldlt_csc_from_sparse_with_analysis(A, NULL, &m), SPARSE_ERR_NULL);
+    ASSERT_NULL(m);
+
+    /* Wrong analysis type (LU) → SPARSE_ERR_BADARG. */
+    sparse_analysis_t an_lu = {0};
+    an_lu.type = SPARSE_FACTOR_LU;
+    an_lu.n = 3;
+    ASSERT_ERR(ldlt_csc_from_sparse_with_analysis(A, &an_lu, &m), SPARSE_ERR_BADARG);
+    ASSERT_NULL(m);
+
+    /* Rectangular matrix → SPARSE_ERR_SHAPE. */
+    SparseMatrix *rect = sparse_create(3, 5);
+    ASSERT_ERR(ldlt_csc_from_sparse_with_analysis(rect, &an, &m), SPARSE_ERR_SHAPE);
+    ASSERT_NULL(m);
+
+    /* n mismatch (analysis for different size) → SPARSE_ERR_SHAPE. */
+    SparseMatrix *B4 = sparse_create(4, 4);
+    for (idx_t i = 0; i < 4; i++)
+        sparse_insert(B4, i, i, 1.0);
+    ASSERT_ERR(ldlt_csc_from_sparse_with_analysis(B4, &an, &m), SPARSE_ERR_SHAPE);
+    ASSERT_NULL(m);
+
+    sparse_analysis_free(&an);
+    sparse_free(rect);
+    sparse_free(B4);
+    sparse_free(A);
+}
+
+/* The returned LdltCsc's embedded L pattern matches `analysis->sym_L`
+ * exactly: same col_ptr, same row_idx, same nnz.  This is the shim's
+ * core contract — it's why the batched supernodal writeback can
+ * preserve cmod fill rows that `ldlt_csc_from_sparse`'s heuristic
+ * pattern drops. */
+static void test_from_sparse_with_analysis_pattern_matches_sym_L(void) {
+    idx_t n = 5;
+    SparseMatrix *A = sparse_create(n, n);
+    /* Tridiagonal SPD: diag 4, sub-diag -1. */
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_t an = {0};
+    REQUIRE_OK(sparse_analyze(A, &opts, &an));
+
+    LdltCsc *m = NULL;
+    REQUIRE_OK(ldlt_csc_from_sparse_with_analysis(A, &an, &m));
+    ASSERT_NOT_NULL(m);
+    REQUIRE_OK(ldlt_csc_validate(m));
+
+    /* col_ptr identity. */
+    for (idx_t j = 0; j <= n; j++)
+        ASSERT_EQ(m->L->col_ptr[j], an.sym_L.col_ptr[j]);
+    /* row_idx identity (over the whole stored range). */
+    idx_t nnz = an.sym_L.col_ptr[n];
+    ASSERT_EQ(m->L->nnz, nnz);
+    for (idx_t p = 0; p < nnz; p++)
+        ASSERT_EQ(m->L->row_idx[p], an.sym_L.row_idx[p]);
+    /* sym_L pre-allocated flag is the signal downstream kernels check. */
+    ASSERT_EQ(m->L->sym_L_preallocated, 1);
+
+    ldlt_csc_free(m);
+    sparse_analysis_free(&an);
+    sparse_free(A);
+}
+
+/* Scatter correctness: every lower-triangle entry of A lands at its
+ * matching `col_ptr[j]..col_ptr[j+1]` slot with the correct value.
+ * Round-trips through `ldlt_csc_to_sparse` which reconstructs a
+ * lower-triangle SparseMatrix from the CSC slots, so
+ * `assert_lower_triangle_equal` against the original A verifies each
+ * stored value propagated through intact. */
+static void test_from_sparse_with_analysis_scatter_preserves_values(void) {
+    idx_t n = 6;
+    SparseMatrix *A = sparse_create(n, n);
+    /* Banded SPD with distinct entries so any scatter mix-up shows up. */
+    double diag_vals[6] = {5.0, 6.0, 7.0, 8.0, 9.0, 10.0};
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, diag_vals[i]);
+    /* Bandwidth-2 off-diagonals with distinct values. */
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t d = 1; d <= 2 && i + d < n; d++) {
+            double v = -0.25 - 0.05 * (double)(i + d);
+            sparse_insert(A, i, i + d, v);
+            sparse_insert(A, i + d, i, v);
+        }
+    }
+
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_t an = {0};
+    REQUIRE_OK(sparse_analyze(A, &opts, &an));
+
+    LdltCsc *m = NULL;
+    REQUIRE_OK(ldlt_csc_from_sparse_with_analysis(A, &an, &m));
+    REQUIRE_OK(ldlt_csc_validate(m));
+
+    SparseMatrix *B = NULL;
+    REQUIRE_OK(ldlt_csc_to_sparse(m, NULL, &B));
+    /* Every lower-triangle entry of A must be present in B with the
+     * exact stored value; fill positions (rows in sym_L that A did
+     * not populate) are zero-initialised and therefore invisible to
+     * `ldlt_csc_to_sparse` (which skips zero values). */
+    assert_lower_triangle_equal(A, B, 0.0);
+
+    ldlt_csc_free(m);
+    sparse_free(B);
+    sparse_analysis_free(&an);
+    sparse_free(A);
+}
+
+/* Indefinite KKT-style matrix smoke test.  The shim must accept the
+ * input without overflow, produce a valid LdltCsc, and pre-allocate
+ * the full sym_L pattern — this is Day 2's contract; Day 3 uses the
+ * pre-allocated pattern in the supernodal writeback fast path to
+ * actually factor such matrices correctly. */
+static void test_from_sparse_with_analysis_indefinite_kkt_smoke(void) {
+    /* 2×2 block KKT: top block SPD diag(4,4,4); bottom block 0;
+     * off-diagonal B = identity (rows 3-4 couple to rows 0-1).
+     *
+     *   [ 4 0 0 | 1 0 ]
+     *   [ 0 4 0 | 0 1 ]
+     *   [ 0 0 4 | 0 0 ]
+     *   [ 1 0 0 | 0 0 ]
+     *   [ 0 1 0 | 0 0 ]
+     *
+     * Symmetric indefinite — eigenvalues include positives from the
+     * SPD block and non-positive from the trailing zero block. */
+    idx_t n = 5;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < 3; i++)
+        sparse_insert(A, i, i, 4.0);
+    /* B (offdiag coupling) + its transpose. */
+    sparse_insert(A, 0, 3, 1.0);
+    sparse_insert(A, 3, 0, 1.0);
+    sparse_insert(A, 1, 4, 1.0);
+    sparse_insert(A, 4, 1, 1.0);
+
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_t an = {0};
+    REQUIRE_OK(sparse_analyze(A, &opts, &an));
+
+    LdltCsc *m = NULL;
+    REQUIRE_OK(ldlt_csc_from_sparse_with_analysis(A, &an, &m));
+    ASSERT_NOT_NULL(m);
+    REQUIRE_OK(ldlt_csc_validate(m));
+
+    /* sym_L pre-allocation signal + pattern match. */
+    ASSERT_EQ(m->L->sym_L_preallocated, 1);
+    ASSERT_EQ(m->L->nnz, an.sym_L.col_ptr[n]);
+    /* Default state: pivot_size = 1, perm = identity (no reorder). */
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_EQ(m->pivot_size[i], 1);
+        ASSERT_EQ(m->perm[i], i);
+    }
+
+    ldlt_csc_free(m);
+    sparse_analysis_free(&an);
+    sparse_free(A);
+}
+
+/* End-to-end round-trip on five SPD fixtures of different sizes and
+ * fill patterns.  For each fixture, factor via the new shim +
+ * `ldlt_csc_eliminate_supernodal` (batched path) and via the
+ * heuristic `ldlt_csc_from_sparse` + `ldlt_csc_eliminate_native`
+ * (scalar reference), then assert the resulting factors match under
+ * `ldlt_csc_factor_state_matches`.  Day 2's completion criterion:
+ * "Round-trip on 5+ existing SPD fixtures produces the same factored
+ * state (after `ldlt_csc_eliminate_supernodal`) as the heuristic path
+ * does on SPD." */
+static void test_from_sparse_with_analysis_spd_factor_matches_heuristic(void) {
+    const idx_t sizes[] = {8, 12, 16, 24, 32};
+    const int num_fixtures = (int)(sizeof(sizes) / sizeof(sizes[0]));
+
+    for (int f = 0; f < num_fixtures; f++) {
+        idx_t n = sizes[f];
+        /* Diagonally-dominant banded SPD with bandwidth 2. */
+        SparseMatrix *A = sparse_create(n, n);
+        for (idx_t i = 0; i < n; i++) {
+            sparse_insert(A, i, i, 6.0);
+            for (idx_t d = 1; d <= 2 && i + d < n; d++) {
+                sparse_insert(A, i, i + d, -0.5);
+                sparse_insert(A, i + d, i, -0.5);
+            }
+        }
+
+        /* Reference: heuristic CSC + scalar native factor. */
+        LdltCsc *F_heuristic = NULL;
+        REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &F_heuristic));
+        REQUIRE_OK(ldlt_csc_eliminate_native(F_heuristic));
+        REQUIRE_OK(ldlt_csc_validate(F_heuristic));
+
+        /* Shim under test: analysis-driven CSC + batched supernodal. */
+        sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+        sparse_analysis_t an = {0};
+        REQUIRE_OK(sparse_analyze(A, &opts, &an));
+
+        LdltCsc *F_with_an = NULL;
+        REQUIRE_OK(ldlt_csc_from_sparse_with_analysis(A, &an, &F_with_an));
+        /* Seed pivot_size from the scalar reference so the supernodal
+         * detection respects the same pivot boundaries. */
+        for (idx_t k = 0; k < n; k++)
+            F_with_an->pivot_size[k] = F_heuristic->pivot_size[k];
+        REQUIRE_OK(ldlt_csc_eliminate_supernodal(F_with_an, /*min_size=*/2));
+        REQUIRE_OK(ldlt_csc_validate(F_with_an));
+
+        ASSERT_TRUE(ldlt_csc_factor_state_matches(F_heuristic, F_with_an, 1e-12));
+
+        ldlt_csc_free(F_heuristic);
+        ldlt_csc_free(F_with_an);
+        sparse_analysis_free(&an);
+        sparse_free(A);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * from_sparse with permutation
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -2938,6 +3179,13 @@ int main(void) {
     RUN_TEST(test_roundtrip_identity);
     RUN_TEST(test_roundtrip_diagonal_indefinite);
     RUN_TEST(test_roundtrip_symmetric_indefinite);
+
+    /* Sprint 20 Day 2 — ldlt_csc_from_sparse_with_analysis */
+    RUN_TEST(test_from_sparse_with_analysis_arg_checks);
+    RUN_TEST(test_from_sparse_with_analysis_pattern_matches_sym_L);
+    RUN_TEST(test_from_sparse_with_analysis_scatter_preserves_values);
+    RUN_TEST(test_from_sparse_with_analysis_indefinite_kkt_smoke);
+    RUN_TEST(test_from_sparse_with_analysis_spd_factor_matches_heuristic);
 
     /* permutation */
     RUN_TEST(test_from_sparse_stores_perm);

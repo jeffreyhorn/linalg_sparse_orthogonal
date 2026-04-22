@@ -45,13 +45,15 @@
 #include <stdlib.h>
 
 /* ═══════════════════════════════════════════════════════════════════════
- * Lanczos — 3-term recurrence (Sprint 20 Day 8)
+ * Lanczos — 3-term recurrence + optional reorthogonalization
+ *           (Sprint 20 Days 8-9)
  * ═══════════════════════════════════════════════════════════════════════
  *
- * `lanczos_iterate_basic` builds an m-step Lanczos basis V and
+ * `lanczos_iterate` builds an m-step Lanczos basis V and
  * tridiagonal T from a symmetric matrix A and starting vector v0.
- * Day 8 implements the recurrence without reorthogonalization; Day
- * 9 layers full MGS reorth on top.
+ * Day 8 implemented the recurrence without reorthogonalization;
+ * Day 9 added the `reorthogonalize` gate that layers full MGS
+ * reorth on top.
  *
  * The classical 3-term recurrence:
  *
@@ -90,14 +92,39 @@
  * (exact Ritz values, not approximations).  The helper returns
  * SPARSE_OK with *m_actual = k + 1.
  *
- * Day 8 scope.  This is the basic recurrence only: no reorth, no
- * thick-restart, no Ritz extraction.  The full `sparse_eigs_sym`
- * body lands in Day 11; Day 8 exercises the recurrence through
- * unit tests that invoke it directly via sparse_eigs_internal.h
- * (diagonal-spectrum test + tridiagonal identity test). */
+ * Reorthogonalization (Day 9).  When the caller sets
+ * `reorthogonalize != 0`, after the standard 3-term recurrence
+ * produces the tentative w (A·v_k minus the beta_{k-1}·v_{k-1}
+ * and alpha_k·v_k pieces), the helper subtracts the projection
+ * of w onto every stored Lanczos vector V[:, 0..k):
+ *
+ *     for j = 0, 1, ..., k-1:
+ *         dot  = <w, v_j>
+ *         w   -= dot · v_j
+ *
+ * This is modified Gram-Schmidt (MGS) — numerically more stable
+ * than classical Gram-Schmidt at the same asymptotic cost because
+ * each subtraction uses the current partially-orthogonalized w
+ * rather than a cached dot-product of the original w.  Under MGS
+ * the orthogonality drift scales with O(eps · cond(V[:, 0..k))),
+ * which for the Krylov bases we build stays at 1e-12 or better up
+ * to moderate k.  Classical Gram-Schmidt at comparable cost can
+ * lose orthogonality down to 1e-6 or worse on wide-spectrum A.
+ *
+ * A "twice-MGS" refinement (two passes of the inner j-loop)
+ * recovers orthogonality to machine precision on pathological
+ * inputs at 2× the reorth cost.  Not currently wired — if Day 11
+ * convergence tests show lingering orthogonality drift, add a
+ * `opts->reorthogonalize == 2` escalation.
+ *
+ * Day 9 scope.  Basic recurrence + optional full MGS reorth.  No
+ * thick-restart (Day 10), no Ritz extraction (Day 11).  Unit
+ * tests via sparse_eigs_internal.h exercise both paths through
+ * lanczos_iterate directly. */
 
-sparse_err_t lanczos_iterate_basic(const SparseMatrix *A, const double *v0, idx_t m_max, double *V,
-                                   double *alpha, double *beta, idx_t *m_actual) {
+sparse_err_t lanczos_iterate(const SparseMatrix *A, const double *v0, idx_t m_max,
+                             int reorthogonalize, double *V, double *alpha, double *beta,
+                             idx_t *m_actual) {
     if (!A || !v0 || !V || !alpha || !beta || !m_actual)
         return SPARSE_ERR_NULL;
     idx_t n = sparse_rows(A);
@@ -154,6 +181,24 @@ sparse_err_t lanczos_iterate_basic(const SparseMatrix *A, const double *v0, idx_
         /* w -= alpha_k · v_k */
         for (idx_t i = 0; i < n; i++)
             w[i] -= a * v_k[i];
+
+        /* Full MGS reorthogonalization against V[:, 0..k).  The
+         * loop iterates j = 0..k-1 so v_k itself is skipped —
+         * it's already orthogonal to w after the alpha_k
+         * subtraction above.  Each projection uses the current
+         * partially-orthogonalized w; that's what distinguishes
+         * MGS from classical Gram-Schmidt.  Skipped entirely
+         * when `reorthogonalize == 0` (Day 8 baseline). */
+        if (reorthogonalize && k > 0) {
+            for (idx_t j = 0; j < k; j++) {
+                const double *v_j = V + j * n;
+                double dot = 0.0;
+                for (idx_t i = 0; i < n; i++)
+                    dot += w[i] * v_j[i];
+                for (idx_t i = 0; i < n; i++)
+                    w[i] -= dot * v_j[i];
+            }
+        }
 
         /* beta_k = ‖w‖ */
         double b_sq = 0.0;

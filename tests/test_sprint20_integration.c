@@ -369,7 +369,7 @@ static void test_s20_eigs_null_opts_uses_defaults(void) {
  * Day 8: Lanczos 3-term recurrence
  * ═══════════════════════════════════════════════════════════════════════
  *
- * Day 8 lands `lanczos_iterate_basic` — the basic 3-term Lanczos
+ * Day 8 lands `lanczos_iterate` — the basic 3-term Lanczos
  * recurrence without reorthogonalization.  These tests verify the
  * recurrence builds a valid Lanczos basis + tridiagonal T by
  * cross-checking T's spectrum against A's on fixtures where the
@@ -396,7 +396,7 @@ static void test_s20_day8_lanczos_diagonal_spectrum(void) {
     double beta[6];
     idx_t m_actual = 0;
 
-    REQUIRE_OK(lanczos_iterate_basic(A, v0, n, V, alpha, beta, &m_actual));
+    REQUIRE_OK(lanczos_iterate(A, v0, n, /*reorthogonalize=*/0, V, alpha, beta, &m_actual));
     ASSERT_EQ(m_actual, n);
 
     /* Extract T's spectrum via the existing symmetric-tridiagonal
@@ -445,7 +445,7 @@ static void test_s20_day8_lanczos_tridiagonal_identity(void) {
     double beta[5];
     idx_t m_actual = 0;
 
-    REQUIRE_OK(lanczos_iterate_basic(A, v0, n, V, alpha, beta, &m_actual));
+    REQUIRE_OK(lanczos_iterate(A, v0, n, /*reorthogonalize=*/0, V, alpha, beta, &m_actual));
     ASSERT_EQ(m_actual, n);
 
     for (idx_t k = 0; k < n; k++)
@@ -469,20 +469,195 @@ static void test_s20_day8_lanczos_rejects_bad_args(void) {
     double beta[4];
     idx_t m_actual = 99;
 
-    ASSERT_ERR(lanczos_iterate_basic(NULL, v0, 4, V, alpha, beta, &m_actual), SPARSE_ERR_NULL);
-    ASSERT_ERR(lanczos_iterate_basic(A, NULL, 4, V, alpha, beta, &m_actual), SPARSE_ERR_NULL);
-    ASSERT_ERR(lanczos_iterate_basic(A, v0, 4, NULL, alpha, beta, &m_actual), SPARSE_ERR_NULL);
-    ASSERT_ERR(lanczos_iterate_basic(A, v0, 4, V, NULL, beta, &m_actual), SPARSE_ERR_NULL);
-    ASSERT_ERR(lanczos_iterate_basic(A, v0, 4, V, alpha, NULL, &m_actual), SPARSE_ERR_NULL);
-    ASSERT_ERR(lanczos_iterate_basic(A, v0, 4, V, alpha, beta, NULL), SPARSE_ERR_NULL);
+    ASSERT_ERR(lanczos_iterate(NULL, v0, 4, 0, V, alpha, beta, &m_actual), SPARSE_ERR_NULL);
+    ASSERT_ERR(lanczos_iterate(A, NULL, 4, 0, V, alpha, beta, &m_actual), SPARSE_ERR_NULL);
+    ASSERT_ERR(lanczos_iterate(A, v0, 4, 0, NULL, alpha, beta, &m_actual), SPARSE_ERR_NULL);
+    ASSERT_ERR(lanczos_iterate(A, v0, 4, 0, V, NULL, beta, &m_actual), SPARSE_ERR_NULL);
+    ASSERT_ERR(lanczos_iterate(A, v0, 4, 0, V, alpha, NULL, &m_actual), SPARSE_ERR_NULL);
+    ASSERT_ERR(lanczos_iterate(A, v0, 4, 0, V, alpha, beta, NULL), SPARSE_ERR_NULL);
 
     /* m_max out of range. */
-    ASSERT_ERR(lanczos_iterate_basic(A, v0, 0, V, alpha, beta, &m_actual), SPARSE_ERR_BADARG);
-    ASSERT_ERR(lanczos_iterate_basic(A, v0, 5, V, alpha, beta, &m_actual), SPARSE_ERR_BADARG);
+    ASSERT_ERR(lanczos_iterate(A, v0, 0, 0, V, alpha, beta, &m_actual), SPARSE_ERR_BADARG);
+    ASSERT_ERR(lanczos_iterate(A, v0, 5, 0, V, alpha, beta, &m_actual), SPARSE_ERR_BADARG);
 
     /* Zero starting vector. */
     double v_zero[4] = {0, 0, 0, 0};
-    ASSERT_ERR(lanczos_iterate_basic(A, v_zero, 4, V, alpha, beta, &m_actual), SPARSE_ERR_BADARG);
+    ASSERT_ERR(lanczos_iterate(A, v_zero, 4, 0, V, alpha, beta, &m_actual), SPARSE_ERR_BADARG);
+
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 9: Lanczos full reorthogonalization
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Day 9 adds the `reorthogonalize` gate to `lanczos_iterate`.
+ * These tests verify that with reorth enabled the Lanczos basis
+ * V maintains ‖V^T·V − I‖_max ≤ 1e-10 on a wide-spectrum SPD
+ * fixture where the basic recurrence is known to lose
+ * orthogonality (Paige/Parlett "ghost eigenvalues" regime).
+ */
+
+/* Diagonally-dominant dense SPD with exponentially-spaced
+ * diagonal entries.  A = diag(s_0, s_1, ..., s_{n-1}) +
+ * 0.01 * (1/(1 + |i-j|)) on off-diagonals (symmetric); the spread
+ * s_i = 10^(i * spread_decades / (n-1)) delivers condition
+ * numbers in the 1e6+ range that exercise the Lanczos
+ * orthogonality-loss behaviour. */
+static SparseMatrix *s20_day9_build_wide_spectrum(idx_t n, double spread_decades) {
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++) {
+        double s = pow(10.0, spread_decades * (double)i / (double)(n - 1));
+        sparse_insert(A, i, i, s);
+    }
+    /* Small symmetric perturbation so A isn't diagonal (prevents
+     * alignment with e_i Krylov bases that would terminate early). */
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t j = i + 1; j < n; j++) {
+            double v = 0.01 / (double)(j - i + 1);
+            sparse_insert(A, i, j, v);
+            sparse_insert(A, j, i, v);
+        }
+    }
+    return A;
+}
+
+/* Compute max |(V^T V)[i, j] - I[i, j]| over the first m columns
+ * of V (which is stored column-major as an n x m_cap matrix).
+ * This is the Day 9 orthogonality-loss metric. */
+static double s20_day9_ortho_drift(const double *V, idx_t n, idx_t m) {
+    double drift = 0.0;
+    for (idx_t i = 0; i < m; i++) {
+        const double *v_i = V + i * n;
+        for (idx_t j = 0; j <= i; j++) {
+            const double *v_j = V + j * n;
+            double dot = 0.0;
+            for (idx_t k = 0; k < n; k++)
+                dot += v_i[k] * v_j[k];
+            double target = (i == j) ? 1.0 : 0.0;
+            double err = fabs(dot - target);
+            if (err > drift)
+                drift = err;
+        }
+    }
+    return drift;
+}
+
+/* Deterministic non-sparse starting vector of length n; avoids
+ * alignment with any single eigenvector and exercises every
+ * eigendirection. */
+static void s20_day9_fill_v0(double *v0, idx_t n) {
+    for (idx_t i = 0; i < n; i++) {
+        /* Pseudo-random mixing so v0 has components in every
+         * eigendirection of a diagonal fixture.  Deterministic
+         * so reruns produce identical numbers. */
+        double x = (double)(i + 1) * 0.618033988749895;
+        v0[i] = 0.3 + (x - floor(x));
+    }
+}
+
+/* With full reorthogonalization enabled, V^T V stays at ≈ I on a
+ * wide-spectrum n=100 SPD (condition ≈ 10^6) through 40 Lanczos
+ * iterations. */
+static void test_s20_day9_reorth_maintains_orthogonality(void) {
+    idx_t n = 100;
+    idx_t m = 40;
+    SparseMatrix *A = s20_day9_build_wide_spectrum(n, /*spread_decades=*/6.0);
+    ASSERT_NOT_NULL(A);
+
+    double *v0 = malloc((size_t)n * sizeof(double));
+    double *V = malloc((size_t)n * (size_t)m * sizeof(double));
+    double *alpha = malloc((size_t)m * sizeof(double));
+    double *beta = malloc((size_t)m * sizeof(double));
+    ASSERT_NOT_NULL(v0);
+    ASSERT_NOT_NULL(V);
+    ASSERT_NOT_NULL(alpha);
+    ASSERT_NOT_NULL(beta);
+    s20_day9_fill_v0(v0, n);
+
+    idx_t m_actual = 0;
+    REQUIRE_OK(lanczos_iterate(A, v0, m, /*reorthogonalize=*/1, V, alpha, beta, &m_actual));
+    ASSERT_EQ(m_actual, m);
+
+    double drift = s20_day9_ortho_drift(V, n, m_actual);
+    ASSERT_TRUE(drift < 1e-10);
+
+    free(v0);
+    free(V);
+    free(alpha);
+    free(beta);
+    sparse_free(A);
+}
+
+/* Complementary sanitizer exercise: running the same fixture with
+ * reorth disabled must still succeed (return SPARSE_OK).  The
+ * orthogonality drift may be large (ghost Ritz values are
+ * expected — Paige/Parlett known behavior) but the iteration
+ * must not crash, overflow, or leak memory.  This is how Day 9
+ * exercises the reorth-off path under ASan/UBSan. */
+static void test_s20_day9_no_reorth_completes_cleanly(void) {
+    idx_t n = 100;
+    idx_t m = 40;
+    SparseMatrix *A = s20_day9_build_wide_spectrum(n, 6.0);
+    ASSERT_NOT_NULL(A);
+
+    double *v0 = malloc((size_t)n * sizeof(double));
+    double *V = malloc((size_t)n * (size_t)m * sizeof(double));
+    double *alpha = malloc((size_t)m * sizeof(double));
+    double *beta = malloc((size_t)m * sizeof(double));
+    ASSERT_NOT_NULL(v0);
+    ASSERT_NOT_NULL(V);
+    ASSERT_NOT_NULL(alpha);
+    ASSERT_NOT_NULL(beta);
+    s20_day9_fill_v0(v0, n);
+
+    idx_t m_actual = 0;
+    REQUIRE_OK(lanczos_iterate(A, v0, m, /*reorthogonalize=*/0, V, alpha, beta, &m_actual));
+    ASSERT_EQ(m_actual, m);
+    /* Do not assert drift — the point of this test is that the
+     * non-reorth path runs to completion cleanly, not that it
+     * retains orthogonality.  Day 11 will handle ghost Ritz
+     * values via thick-restart + convergence filtering. */
+
+    free(v0);
+    free(V);
+    free(alpha);
+    free(beta);
+    sparse_free(A);
+}
+
+/* On a small well-conditioned fixture, reorth-on and reorth-off
+ * produce *numerically identical* alpha values (up to 1e-12)
+ * because orthogonality is already preserved by the 3-term
+ * recurrence alone.  Validates the reorth path doesn't
+ * accidentally perturb the T spectrum on easy inputs. */
+static void test_s20_day9_reorth_agrees_with_basic_on_small_matrix(void) {
+    idx_t n = 8;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+    double v0[8];
+    s20_day9_fill_v0(v0, n);
+
+    double V_basic[8 * 8], alpha_basic[8], beta_basic[8];
+    double V_reorth[8 * 8], alpha_reorth[8], beta_reorth[8];
+    idx_t m_b = 0, m_r = 0;
+
+    REQUIRE_OK(lanczos_iterate(A, v0, n, 0, V_basic, alpha_basic, beta_basic, &m_b));
+    REQUIRE_OK(lanczos_iterate(A, v0, n, 1, V_reorth, alpha_reorth, beta_reorth, &m_r));
+
+    ASSERT_EQ(m_b, m_r);
+    for (idx_t k = 0; k < m_b; k++) {
+        ASSERT_NEAR(alpha_basic[k], alpha_reorth[k], 1e-12);
+        ASSERT_NEAR(beta_basic[k], beta_reorth[k], 1e-12);
+    }
 
     sparse_free(A);
 }
@@ -513,6 +688,11 @@ int main(void) {
     RUN_TEST(test_s20_day8_lanczos_diagonal_spectrum);
     RUN_TEST(test_s20_day8_lanczos_tridiagonal_identity);
     RUN_TEST(test_s20_day8_lanczos_rejects_bad_args);
+
+    /* Day 9 — Lanczos full reorthogonalization */
+    RUN_TEST(test_s20_day9_reorth_maintains_orthogonality);
+    RUN_TEST(test_s20_day9_no_reorth_completes_cleanly);
+    RUN_TEST(test_s20_day9_reorth_agrees_with_basic_on_small_matrix);
 
     TEST_SUITE_END();
 }

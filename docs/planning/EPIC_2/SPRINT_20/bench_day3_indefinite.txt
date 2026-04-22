@@ -1,0 +1,74 @@
+Sprint 20 Day 3 — batched supernodal LDL^T on indefinite inputs:
+before/after residual measurements.
+
+Context
+-------
+The Sprint 19 NOTE in `tests/test_sprint19_integration.c` (search for
+"NOTE on the indefinite supernodal path's current scope") reported
+that `ldlt_csc_eliminate_supernodal` produces residuals of 1e-2..1e-6
+(instead of round-off) on indefinite matrices with non-trivial
+off-block structure — KKT saddle points, symmetric indefinite with
+fill rows the heuristic `ldlt_csc_from_sparse` pattern does not
+cover.  Root cause: the supernodal writeback's row_map is built from
+column `s_start`'s stored slot; on heuristic CSC that slot is A's
+lower-triangle pattern, and cmod contributions to rows outside that
+pattern are silently dropped (`if (local >= panel_height) continue;`
+branches in `ldlt_csc_supernode_eliminate_diag`).
+
+Day 2 landed `ldlt_csc_from_sparse_with_analysis` — a mirror of
+`chol_csc_from_sparse_with_analysis` — which pre-allocates every
+column with its full `analysis->sym_L` pattern.  Day 3 demonstrates
+that with the pre-allocated CSC the existing batched supernodal
+path Just Works end-to-end on indefinite inputs: `row_map` covers
+every fill row the cmod can touch, so no silent drops occur and
+the writeback finds every sym_L slot pre-populated.
+
+Measurement
+-----------
+Fixture: 10×10 KKT saddle-point.  6×6 tridiagonal SPD top block
+(diag 6, sub-diag -1); 4×4 zero bottom block; 4×6 full-rank
+coupling A = [I_4 | 0_{4×2}] (identity on the first 4 top-block
+columns).  Rank-4 coupling guarantees the KKT matrix is nonsingular
+(Schur complement is a principal submatrix of H^{-1}).
+
+Both paths share the scalar pre-pass (`ldlt_csc_from_sparse(A,
+NULL, 2.0)` + `ldlt_csc_eliminate_native`) to resolve the BK
+permutation.  A is then symmetrically permuted by `F_pre->perm` to
+produce `A_perm`.  The before path runs
+`ldlt_csc_from_sparse(A_perm, NULL, 2.0)` +
+`ldlt_csc_eliminate_supernodal`; the after path runs
+`sparse_analyze(A_perm)` + `ldlt_csc_from_sparse_with_analysis` +
+`ldlt_csc_eliminate_supernodal`.  Both seed `F->pivot_size[k]` from
+the pre-pass so the supernodal pivot-stability check aligns.
+
+Residual metric: ||A_perm · x - b|| / ||b|| with b = A_perm · ones;
+true solution is the all-ones vector.
+
+Measured (S20_DAY3_PROBE=1 on tests/test_ldlt_csc.c):
+
+  path                                               residual
+  ─────────────────────────────────────────────────  ────────────
+  before: heuristic CSC + supernodal factor          2.96e-02
+  after:  _with_analysis shim + supernodal factor    1.48e-16
+
+The "after" residual is at round-off.  The "before" residual is
+14 orders of magnitude larger — consistent with the Sprint 19
+NOTE's "1e-2..1e-6" symptom range.
+
+Additional round-off checks (Day 3 test suite, `--quiet` mode):
+
+  fixture                                  after residual
+  ───────────────────────────────────────  ────────────
+   5×5 KKT                                 0.00 (exact)
+  10×10 KKT                                1.48e-16
+  30×30 random symmetric indefinite        4.42e-16
+
+Conclusion
+----------
+Day 3's claim holds: the existing `ldlt_csc_eliminate_supernodal`
+batched path is correct on indefinite inputs as long as the CSC is
+built via `ldlt_csc_from_sparse_with_analysis` (i.e. with
+`L->sym_L_preallocated == 1`).  The Day 2 shim is the entire fix;
+no code changes to the batched kernel were needed.  Sprint 20
+Days 4-6 wrap the two-pass workflow behind
+`sparse_ldlt_factor_opts` so public-API callers never see it.

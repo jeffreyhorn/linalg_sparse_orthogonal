@@ -681,6 +681,99 @@ sparse_err_t ldlt_csc_to_sparse(const LdltCsc *ldlt, const idx_t *perm_out,
     return chol_csc_to_sparse(ldlt->L, perm_out, mat_out);
 }
 
+/* ─── Writeback CSC factor → public sparse_ldlt_t ─────────────────────── */
+
+/* Sprint 20 Day 5: transplant a factored LdltCsc into the
+ * `sparse_ldlt_t` shape the public API documents.  Mirrors
+ * `chol_csc_writeback_to_sparse` on the Cholesky side except that
+ * the output is a separately-allocated result struct (not an
+ * overwrite of the input matrix) — matching the LDL^T API's
+ * separation between input `A` and output `ldlt->L`. */
+sparse_err_t ldlt_csc_writeback_to_ldlt(const LdltCsc *F, double tol, sparse_ldlt_t *ldlt_out) {
+    if (!F || !ldlt_out)
+        return SPARSE_ERR_NULL;
+    if (!F->L || !F->D || !F->D_offdiag || !F->pivot_size || !F->perm)
+        return SPARSE_ERR_NULL;
+    if (F->n < 0)
+        return SPARSE_ERR_BADARG;
+
+    idx_t n = F->n;
+
+    /* Build the L SparseMatrix column-by-column, mirroring
+     * `chol_csc_writeback_to_sparse`'s filter: skip exact zeros
+     * (common when the CSC was pre-populated via
+     * `ldlt_csc_from_sparse_with_analysis` and some sym_L fill
+     * positions never received a non-zero value) and drop below-
+     * diagonal entries below `SPARSE_DROP_TOL * |L[j, j]|` so the
+     * transplanted `SparseMatrix` sparsity matches what the
+     * linked-list kernel publishes.  The diagonal (row_idx[col_ptr[j]]
+     * == j by CSC invariant) is always inserted so the solver's
+     * diagonal lookup never misses. */
+    SparseMatrix *L_out = NULL;
+    if (n > 0) {
+        L_out = sparse_create(n, n);
+        if (!L_out)
+            return SPARSE_ERR_ALLOC;
+        const CholCsc *L = F->L;
+        for (idx_t j = 0; j < n; j++) {
+            idx_t cstart = L->col_ptr[j];
+            idx_t cend = L->col_ptr[j + 1];
+            if (cstart == cend)
+                continue;
+            double abs_l_jj = (L->row_idx[cstart] == j) ? fabs(L->values[cstart]) : 0.0;
+            double threshold = SPARSE_DROP_TOL * abs_l_jj;
+            for (idx_t p = cstart; p < cend; p++) {
+                idx_t i = L->row_idx[p];
+                double v = L->values[p];
+                if (v == 0.0)
+                    continue;
+                if (i != j && fabs(v) < threshold)
+                    continue;
+                sparse_err_t ierr = sparse_insert(L_out, i, j, v);
+                if (ierr != SPARSE_OK) {
+                    sparse_free(L_out);
+                    return ierr;
+                }
+            }
+        }
+    }
+
+    /* Allocate and copy the auxiliary arrays.  Use alloc_n = max(1, n)
+     * so n == 0 is still a valid writeback producing non-NULL
+     * pointers (matches ldlt_csc_from_sparse's convention). */
+    size_t alloc_n = n > 0 ? (size_t)n : 1;
+    double *D = calloc(alloc_n, sizeof(double));
+    double *D_off = calloc(alloc_n, sizeof(double));
+    int *ps = calloc(alloc_n, sizeof(int));
+    idx_t *perm = calloc(alloc_n, sizeof(idx_t));
+    if (!D || !D_off || !ps || !perm) {
+        free(D);
+        free(D_off);
+        free(ps);
+        free(perm);
+        sparse_free(L_out);
+        return SPARSE_ERR_ALLOC;
+    }
+    for (idx_t i = 0; i < n; i++) {
+        D[i] = F->D[i];
+        D_off[i] = F->D_offdiag[i];
+        /* pivot_size values are always 1 or 2 (validated during
+         * factor), so narrowing idx_t → int is lossless. */
+        ps[i] = (int)F->pivot_size[i];
+        perm[i] = F->perm[i];
+    }
+
+    ldlt_out->L = L_out;
+    ldlt_out->D = D;
+    ldlt_out->D_offdiag = D_off;
+    ldlt_out->pivot_size = ps;
+    ldlt_out->perm = perm;
+    ldlt_out->n = n;
+    ldlt_out->factor_norm = F->factor_norm;
+    ldlt_out->tol = tol;
+    return SPARSE_OK;
+}
+
 /* ─── Invariant checker ─────────────────────────────────────────────── */
 
 sparse_err_t ldlt_csc_validate(const LdltCsc *ldlt) {

@@ -281,6 +281,39 @@ sparse_err_t ldlt_csc_from_sparse_with_analysis(const SparseMatrix *mat,
  */
 sparse_err_t ldlt_csc_to_sparse(const LdltCsc *ldlt, const idx_t *perm_out, SparseMatrix **mat_out);
 
+/**
+ * Write an LdltCsc's factored state into a caller-allocated public
+ * `sparse_ldlt_t`.  Mirrors `chol_csc_writeback_to_sparse` for the
+ * LDL^T side: the Sprint 20 Day 5 transparent dispatch in
+ * `sparse_ldlt_factor_opts` uses this to transplant the CSC-factored
+ * result back into the standard `sparse_ldlt_t` result the
+ * public API documents.
+ *
+ * Populates `ldlt_out->L` as a fresh `SparseMatrix` holding the
+ * lower-triangle L values (exact zeros from sym_L pre-allocation
+ * and below-drop-tolerance fill are filtered out, matching the
+ * Cholesky writeback policy).  Allocates `D`, `D_offdiag`,
+ * `pivot_size`, and `perm` as callee-owned arrays of length `F->n`,
+ * copies values from the corresponding LdltCsc fields.  Sets
+ * `n`, `factor_norm`, and `tol`.  The caller frees via
+ * `sparse_ldlt_free`.
+ *
+ * Note on `pivot_size` width: `sparse_ldlt_t.pivot_size` is `int *`
+ * whereas `LdltCsc.pivot_size` is `idx_t *`.  Values are 1 or 2 so
+ * the narrowing conversion is safe.
+ *
+ * @param F           Factored LdltCsc (not modified).
+ * @param tol         Effective pivot tolerance the factor used;
+ *                    stored in `ldlt_out->tol` for solve / refine /
+ *                    condest consistency.
+ * @param[out] ldlt_out Caller-allocated struct; must be pre-zeroed
+ *                    or the caller must have already claimed
+ *                    ownership of any prior contents.
+ * @return SPARSE_OK, SPARSE_ERR_NULL, SPARSE_ERR_ALLOC,
+ *         SPARSE_ERR_BADARG.
+ */
+sparse_err_t ldlt_csc_writeback_to_ldlt(const LdltCsc *F, double tol, sparse_ldlt_t *ldlt_out);
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Invariant checking
  * ═══════════════════════════════════════════════════════════════════════ */

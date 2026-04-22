@@ -2301,9 +2301,11 @@ static SparseMatrix *day4_build_indefinite_4x4(void) {
     return A;
 }
 
-/* AUTO backend (zero-init default) reproduces the pre-Day-4
- * linked-list path: solve residual at round-off and `used_csc_path`
- * (when supplied) is set to 0. */
+/* AUTO backend (zero-init default) routes to the linked-list
+ * kernel for matrices below SPARSE_CSC_THRESHOLD (n = 4 here is
+ * well below the default 100).  Day 5 wires AUTO to CSC above the
+ * threshold; `test_ldlt_day5_auto_routes_csc_above_threshold`
+ * covers that direction. */
 static void test_ldlt_backend_auto_routes_linked_list(void) {
     SparseMatrix *A = day4_build_indefinite_4x4();
     int used_csc = -1;
@@ -2348,19 +2350,28 @@ static void test_ldlt_backend_linked_list_forced(void) {
     sparse_free(A);
 }
 
-/* Forced CSC backend returns SPARSE_ERR_BADARG until the Day 5
- * pipeline lands; `used_csc_path` is left untouched on the stub
- * error path. */
-static void test_ldlt_backend_csc_stubbed_until_day5(void) {
+/* Forced CSC backend now routes through the Sprint 20 Day 5
+ * pipeline: scalar pre-pass → pre-permute → analyze →
+ * ldlt_csc_from_sparse_with_analysis → supernodal factor →
+ * writeback to sparse_ldlt_t.  Factor must succeed on the 4x4
+ * indefinite fixture and `used_csc_path` reports 1. */
+static void test_ldlt_backend_csc_forced_factors(void) {
     SparseMatrix *A = day4_build_indefinite_4x4();
     int used_csc = -1;
     sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_CSC, &used_csc};
     sparse_ldlt_t ldlt;
-    ASSERT_ERR(sparse_ldlt_factor_opts(A, &opts, &ldlt), SPARSE_ERR_BADARG);
-    /* Day 4 stub: `used_csc_path` not written when the function
-     * fails before reaching the dispatch tail.  Sentinel -1 stays. */
-    ASSERT_EQ(used_csc, -1);
+    REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
+    ASSERT_EQ(used_csc, 1);
 
+    double b[] = {1.0, 2.0, 3.0, 4.0};
+    double x[4];
+    double r[4];
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
+    sparse_matvec(A, x, r);
+    for (int i = 0; i < 4; i++)
+        ASSERT_NEAR(r[i], b[i], 1e-10);
+
+    sparse_ldlt_free(&ldlt);
     sparse_free(A);
 }
 
@@ -2381,6 +2392,184 @@ static void test_ldlt_backend_used_csc_path_null_ok(void) {
     sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, NULL};
     sparse_ldlt_t ldlt;
     REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
+    sparse_ldlt_free(&ldlt);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 20 Day 5: cross-backend agreement on the full CSC pipeline
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Factor the same matrix via LINKED_LIST and CSC backends; the
+ * resulting sparse_ldlt_t factors must produce solutions agreeing
+ * to round-off on an identical RHS.  Numeric equivalence is the
+ * primary user-visible signal — the CSC factor stores sym_L
+ * positions with value 0.0 (no drop shrink), so the `L` SparseMatrix
+ * layout may legitimately differ between paths while the solve
+ * residuals agree. */
+static int day5_cross_backend_solves_agree(SparseMatrix *A, double tol) {
+    idx_t n = sparse_rows(A);
+
+    sparse_ldlt_opts_t opts_ll = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_LINKED_LIST, NULL};
+    sparse_ldlt_opts_t opts_cs = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_CSC, NULL};
+
+    sparse_ldlt_t ldlt_ll;
+    sparse_ldlt_t ldlt_cs;
+    if (sparse_ldlt_factor_opts(A, &opts_ll, &ldlt_ll) != SPARSE_OK)
+        return 0;
+    if (sparse_ldlt_factor_opts(A, &opts_cs, &ldlt_cs) != SPARSE_OK) {
+        sparse_ldlt_free(&ldlt_ll);
+        return 0;
+    }
+
+    double *ones = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x_ll = calloc((size_t)n, sizeof(double));
+    double *x_cs = calloc((size_t)n, sizeof(double));
+    if (!ones || !b || !x_ll || !x_cs) {
+        free(ones);
+        free(b);
+        free(x_ll);
+        free(x_cs);
+        sparse_ldlt_free(&ldlt_ll);
+        sparse_ldlt_free(&ldlt_cs);
+        return 0;
+    }
+    for (idx_t i = 0; i < n; i++)
+        ones[i] = 1.0;
+    sparse_matvec(A, ones, b);
+    if (sparse_ldlt_solve(&ldlt_ll, b, x_ll) != SPARSE_OK ||
+        sparse_ldlt_solve(&ldlt_cs, b, x_cs) != SPARSE_OK) {
+        free(ones);
+        free(b);
+        free(x_ll);
+        free(x_cs);
+        sparse_ldlt_free(&ldlt_ll);
+        sparse_ldlt_free(&ldlt_cs);
+        return 0;
+    }
+    /* Compare x_ll vs x_cs directly: both should recover `ones` to
+     * round-off.  Compare entry-wise under the requested tol. */
+    int agree = 1;
+    for (idx_t i = 0; i < n; i++) {
+        if (fabs(x_ll[i] - x_cs[i]) > tol) {
+            agree = 0;
+            break;
+        }
+        if (fabs(x_ll[i] - 1.0) > tol || fabs(x_cs[i] - 1.0) > tol) {
+            agree = 0;
+            break;
+        }
+    }
+
+    free(ones);
+    free(b);
+    free(x_ll);
+    free(x_cs);
+    sparse_ldlt_free(&ldlt_ll);
+    sparse_ldlt_free(&ldlt_cs);
+    return agree;
+}
+
+/* SPD tridiagonal (n=8): linked-list and CSC paths must agree. */
+static void test_ldlt_day5_cross_backend_spd_tridiag(void) {
+    idx_t n = 8;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+    ASSERT_TRUE(day5_cross_backend_solves_agree(A, 1e-10));
+    sparse_free(A);
+}
+
+/* Banded SPD (n=16, bw=2). */
+static void test_ldlt_day5_cross_backend_spd_banded(void) {
+    idx_t n = 16;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 6.0);
+        for (idx_t d = 1; d <= 2 && i + d < n; d++) {
+            sparse_insert(A, i, i + d, -0.5);
+            sparse_insert(A, i + d, i, -0.5);
+        }
+    }
+    ASSERT_TRUE(day5_cross_backend_solves_agree(A, 1e-10));
+    sparse_free(A);
+}
+
+/* Symmetric diagonal indefinite (mixed signs on diagonal). */
+static void test_ldlt_day5_cross_backend_diagonal_indefinite(void) {
+    idx_t n = 6;
+    double diag[6] = {3.0, -2.0, 4.0, -1.5, 2.5, -3.5};
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, diag[i]);
+    ASSERT_TRUE(day5_cross_backend_solves_agree(A, 1e-10));
+    sparse_free(A);
+}
+
+/* 5x5 KKT saddle point — exercises the Day 3 indefinite shim. */
+static void test_ldlt_day5_cross_backend_kkt_5x5(void) {
+    SparseMatrix *A = sparse_create(5, 5);
+    for (idx_t i = 0; i < 3; i++)
+        sparse_insert(A, i, i, 4.0);
+    sparse_insert(A, 0, 3, 1.0);
+    sparse_insert(A, 3, 0, 1.0);
+    sparse_insert(A, 1, 4, 1.0);
+    sparse_insert(A, 4, 1, 1.0);
+    ASSERT_TRUE(day5_cross_backend_solves_agree(A, 1e-10));
+    sparse_free(A);
+}
+
+/* Dense-ish indefinite with off-diagonals (same as Day 4's plumbing
+ * fixture). */
+static void test_ldlt_day5_cross_backend_small_dense_indefinite(void) {
+    SparseMatrix *A = day4_build_indefinite_4x4();
+    ASSERT_TRUE(day5_cross_backend_solves_agree(A, 1e-10));
+    sparse_free(A);
+}
+
+/* AUTO dispatch on n < threshold routes to linked-list; AUTO on
+ * n >= threshold routes to CSC.  Verifies the heuristic plumbing
+ * introduced in Day 5 (Day 4 hard-coded AUTO to linked-list). */
+static void test_ldlt_day5_auto_routes_csc_above_threshold(void) {
+    /* Build an n = SPARSE_CSC_THRESHOLD tridiagonal SPD to land
+     * exactly at the crossover point — AUTO should route CSC. */
+    idx_t n = SPARSE_CSC_THRESHOLD;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+    int used_csc = -1;
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+    sparse_ldlt_t ldlt;
+    REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
+    ASSERT_EQ(used_csc, 1);
+
+    double *ones = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = calloc((size_t)n, sizeof(double));
+    ASSERT_NOT_NULL(ones);
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(x);
+    for (idx_t i = 0; i < n; i++)
+        ones[i] = 1.0;
+    sparse_matvec(A, ones, b);
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x[i], 1.0, 1e-10);
+
+    free(ones);
+    free(b);
+    free(x);
     sparse_ldlt_free(&ldlt);
     sparse_free(A);
 }
@@ -2487,9 +2676,17 @@ int main(void) {
     /* Sprint 20 Day 4 — backend selector skeleton */
     RUN_TEST(test_ldlt_backend_auto_routes_linked_list);
     RUN_TEST(test_ldlt_backend_linked_list_forced);
-    RUN_TEST(test_ldlt_backend_csc_stubbed_until_day5);
+    RUN_TEST(test_ldlt_backend_csc_forced_factors);
     RUN_TEST(test_ldlt_backend_invalid_rejected);
     RUN_TEST(test_ldlt_backend_used_csc_path_null_ok);
+
+    /* Sprint 20 Day 5 — full CSC pipeline + cross-backend agreement */
+    RUN_TEST(test_ldlt_day5_cross_backend_spd_tridiag);
+    RUN_TEST(test_ldlt_day5_cross_backend_spd_banded);
+    RUN_TEST(test_ldlt_day5_cross_backend_diagonal_indefinite);
+    RUN_TEST(test_ldlt_day5_cross_backend_kkt_5x5);
+    RUN_TEST(test_ldlt_day5_cross_backend_small_dense_indefinite);
+    RUN_TEST(test_ldlt_day5_auto_routes_csc_above_threshold);
 
     /* Free/cleanup */
     RUN_TEST(test_ldlt_free_zeroed);

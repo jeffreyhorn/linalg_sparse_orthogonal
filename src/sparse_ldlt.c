@@ -782,8 +782,28 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
     if (A->rows != A->cols)
         return SPARSE_ERR_SHAPE;
 
-    const sparse_ldlt_opts_t defaults = {SPARSE_REORDER_NONE, 0.0};
+    const sparse_ldlt_opts_t defaults = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, NULL};
     const sparse_ldlt_opts_t *o = opts ? opts : &defaults;
+
+    /* Sprint 20 Day 4 dispatch: validate the backend selector early
+     * and route by it.  AUTO and LINKED_LIST share the existing
+     * linked-list path today; AUTO will route CSC above
+     * SPARSE_CSC_THRESHOLD on Day 5 once the CSC pipeline lands.
+     * CSC explicit returns SPARSE_ERR_BADARG as the "stub in
+     * progress" signal — Day 5 wires up `sparse_analyze` →
+     * `ldlt_csc_from_sparse_with_analysis` →
+     * `ldlt_csc_eliminate_supernodal` → CSC→`sparse_ldlt_t`
+     * writeback. */
+    if (o->backend != SPARSE_LDLT_BACKEND_AUTO && o->backend != SPARSE_LDLT_BACKEND_LINKED_LIST &&
+        o->backend != SPARSE_LDLT_BACKEND_CSC)
+        return SPARSE_ERR_BADARG;
+    if (o->backend == SPARSE_LDLT_BACKEND_CSC) {
+        /* Day 4 stub.  Day 5 replaces with the real CSC dispatch. */
+        return SPARSE_ERR_BADARG;
+    }
+    /* AUTO and LINKED_LIST both fall through to the existing
+     * linked-list path below.  Day 5 splits AUTO into a
+     * threshold-based CSC route. */
 
     idx_t n = A->rows;
 
@@ -849,11 +869,16 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
         ldlt->perm = composed;
         free(perm);
 
+        if (o->used_csc_path)
+            *o->used_csc_path = 0;
         return SPARSE_OK;
     }
 
     /* No reordering — delegate directly */
-    return ldlt_factor_internal(A, ldlt, o->tol);
+    sparse_err_t err_ll = ldlt_factor_internal(A, ldlt, o->tol);
+    if (err_ll == SPARSE_OK && o->used_csc_path)
+        *o->used_csc_path = 0;
+    return err_ll;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

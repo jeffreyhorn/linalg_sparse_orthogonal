@@ -2272,6 +2272,120 @@ static void test_ldlt_vs_lu_fillin_bcsstk04(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 20 Day 4: sparse_ldlt_opts_t backend selector skeleton
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * These tests verify that the new `backend` and `used_csc_path`
+ * fields plumb through `sparse_ldlt_factor_opts` correctly without
+ * regressing the linked-list path.  Day 5 swaps the AUTO routing to
+ * dispatch CSC above SPARSE_CSC_THRESHOLD; Day 6 adds the cross-
+ * threshold integration tests.  Day 4's surface is just the API +
+ * dispatch plumbing.
+ */
+
+/* Build a small symmetric indefinite matrix for opts plumbing
+ * tests — same structure as `test_ldlt_indefinite_mixed` but
+ * factored helper so each backend variant test is self-contained. */
+static SparseMatrix *day4_build_indefinite_4x4(void) {
+    SparseMatrix *A = sparse_create(4, 4);
+    sparse_insert(A, 0, 0, 4.0);
+    sparse_insert(A, 1, 1, -2.0);
+    sparse_insert(A, 2, 2, 3.0);
+    sparse_insert(A, 3, 3, -1.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 2, -0.5);
+    sparse_insert(A, 2, 1, -0.5);
+    sparse_insert(A, 2, 3, 0.7);
+    sparse_insert(A, 3, 2, 0.7);
+    return A;
+}
+
+/* AUTO backend (zero-init default) reproduces the pre-Day-4
+ * linked-list path: solve residual at round-off and `used_csc_path`
+ * (when supplied) is set to 0. */
+static void test_ldlt_backend_auto_routes_linked_list(void) {
+    SparseMatrix *A = day4_build_indefinite_4x4();
+    int used_csc = -1;
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+    sparse_ldlt_t ldlt;
+    REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
+
+    double b[] = {1.0, 2.0, 3.0, 4.0};
+    double x[4];
+    double r[4];
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
+    sparse_matvec(A, x, r);
+    for (int i = 0; i < 4; i++)
+        ASSERT_NEAR(r[i], b[i], 1e-11);
+
+    /* Day 4 contract: AUTO routes linked-list until Day 5 wires CSC. */
+    ASSERT_EQ(used_csc, 0);
+
+    sparse_ldlt_free(&ldlt);
+    sparse_free(A);
+}
+
+/* Forced LINKED_LIST backend exercises the same path explicitly;
+ * `used_csc_path` is set to 0 here too. */
+static void test_ldlt_backend_linked_list_forced(void) {
+    SparseMatrix *A = day4_build_indefinite_4x4();
+    int used_csc = -1;
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0, SPARSE_LDLT_BACKEND_LINKED_LIST, &used_csc};
+    sparse_ldlt_t ldlt;
+    REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
+
+    double b[] = {1.0, 2.0, 3.0, 4.0};
+    double x[4];
+    double r[4];
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
+    sparse_matvec(A, x, r);
+    for (int i = 0; i < 4; i++)
+        ASSERT_NEAR(r[i], b[i], 1e-11);
+    ASSERT_EQ(used_csc, 0);
+
+    sparse_ldlt_free(&ldlt);
+    sparse_free(A);
+}
+
+/* Forced CSC backend returns SPARSE_ERR_BADARG until the Day 5
+ * pipeline lands; `used_csc_path` is left untouched on the stub
+ * error path. */
+static void test_ldlt_backend_csc_stubbed_until_day5(void) {
+    SparseMatrix *A = day4_build_indefinite_4x4();
+    int used_csc = -1;
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_CSC, &used_csc};
+    sparse_ldlt_t ldlt;
+    ASSERT_ERR(sparse_ldlt_factor_opts(A, &opts, &ldlt), SPARSE_ERR_BADARG);
+    /* Day 4 stub: `used_csc_path` not written when the function
+     * fails before reaching the dispatch tail.  Sentinel -1 stays. */
+    ASSERT_EQ(used_csc, -1);
+
+    sparse_free(A);
+}
+
+/* Out-of-range backend value rejected as SPARSE_ERR_BADARG. */
+static void test_ldlt_backend_invalid_rejected(void) {
+    SparseMatrix *A = day4_build_indefinite_4x4();
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, (sparse_ldlt_backend_t)99, NULL};
+    sparse_ldlt_t ldlt;
+    ASSERT_ERR(sparse_ldlt_factor_opts(A, &opts, &ldlt), SPARSE_ERR_BADARG);
+    sparse_free(A);
+}
+
+/* `used_csc_path == NULL` is the no-telemetry path: factor still
+ * succeeds, and the Day 4 dispatch must not crash dereferencing the
+ * NULL pointer. */
+static void test_ldlt_backend_used_csc_path_null_ok(void) {
+    SparseMatrix *A = day4_build_indefinite_4x4();
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, NULL};
+    sparse_ldlt_t ldlt;
+    REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
+    sparse_ldlt_free(&ldlt);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -2369,6 +2483,13 @@ int main(void) {
     RUN_TEST(test_ldlt_kkt_500);
     RUN_TEST(test_ldlt_vs_lu_fillin);
     RUN_TEST(test_ldlt_vs_lu_fillin_bcsstk04);
+
+    /* Sprint 20 Day 4 — backend selector skeleton */
+    RUN_TEST(test_ldlt_backend_auto_routes_linked_list);
+    RUN_TEST(test_ldlt_backend_linked_list_forced);
+    RUN_TEST(test_ldlt_backend_csc_stubbed_until_day5);
+    RUN_TEST(test_ldlt_backend_invalid_rejected);
+    RUN_TEST(test_ldlt_backend_used_csc_path_null_ok);
 
     /* Free/cleanup */
     RUN_TEST(test_ldlt_free_zeroed);

@@ -539,18 +539,20 @@ static void test_csr_block_vs_single_solve(void) {
  * ═══════════════════════════════════════════════════════════════════════ */
 
 static void test_version_macros(void) {
-    /* Sprint 18 bumped the library to 2.0.0 because the
-     * `sparse_cholesky_opts_t` ABI changed (new `backend` /
-     * `used_csc_path` fields).  If you're touching this test and the
-     * VERSION file says something different, update both. */
+    /* Sprint 18 bumped the library to 2.0.0 (sparse_cholesky_opts_t
+     * ABI break — new `backend` / `used_csc_path` fields).
+     * Sprint 20 Day 4 bumped to 2.1.0 for the parallel
+     * sparse_ldlt_opts_t ABI break (same new fields on the LDL^T
+     * side).  If you're touching this test and the VERSION file
+     * says something different, update both. */
     ASSERT_EQ(SPARSE_VERSION_MAJOR, 2);
-    ASSERT_EQ(SPARSE_VERSION_MINOR, 0);
+    ASSERT_EQ(SPARSE_VERSION_MINOR, 1);
     ASSERT_EQ(SPARSE_VERSION_PATCH, 0);
-    ASSERT_EQ(SPARSE_VERSION, 20000);
-    ASSERT_EQ(SPARSE_VERSION_ENCODE(2, 0, 0), SPARSE_VERSION);
+    ASSERT_EQ(SPARSE_VERSION, 20100);
+    ASSERT_EQ(SPARSE_VERSION_ENCODE(2, 1, 0), SPARSE_VERSION);
     ASSERT_TRUE(SPARSE_VERSION_ENCODE(3, 0, 0) > SPARSE_VERSION);
     ASSERT_TRUE(SPARSE_VERSION_ENCODE(1, 0, 0) < SPARSE_VERSION);
-    ASSERT_TRUE(strcmp(SPARSE_VERSION_STRING, "2.0.0") == 0);
+    ASSERT_TRUE(strcmp(SPARSE_VERSION_STRING, "2.1.0") == 0);
     printf("    version: %s (int %d)\n", SPARSE_VERSION_STRING, SPARSE_VERSION);
 }
 

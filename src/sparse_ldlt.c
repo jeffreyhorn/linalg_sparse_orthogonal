@@ -846,7 +846,18 @@ static sparse_err_t ldlt_factor_csc_path(const SparseMatrix *A_work, double tol,
     for (idx_t k = 0; k < n; k++)
         F_batched->pivot_size[k] = F_pre->pivot_size[k];
 
-    /* Step 6: batched supernodal factor with structural fallback. */
+    /* Step 6: batched supernodal factor with structural fallback.
+     * F_pre already holds a valid scalar factor by this point, so
+     * ANY failure on the batched side (pivot-stability BADARG,
+     * numerical tolerance SINGULAR tripped by drift between the
+     * two passes, or other) falls back to F_pre.  Sprint 19's
+     * --supernodal bench on bcsstk14 / s3rmt3m3 shows the batched
+     * path can produce factors that either trip the singularity
+     * threshold or produce garbage residuals on those matrices —
+     * see the post-Sprint-19 NOTE in `bench_ldlt_csc.c`.  The
+     * fallback always gives a correct factor; the telemetry flag
+     * continues to report `used_csc_path = 1` because the CSC
+     * kernel chain handled the factor end-to-end. */
     LdltCsc *source = NULL;
     err = ldlt_csc_eliminate_supernodal(F_batched, /*min_size=*/2);
     if (err == SPARSE_OK) {
@@ -858,19 +869,13 @@ static sparse_err_t ldlt_factor_csc_path(const SparseMatrix *A_work, double tol,
         for (idx_t i = 0; i < n; i++)
             F_batched->perm[i] = F_pre->perm[i];
         source = F_batched;
-    } else if (err == SPARSE_ERR_BADARG) {
-        /* Pivot-stability check rejected the batched result.
-         * Fall back to F_pre's scalar factor (already valid).
-         * Still counts as "CSC path used" — the telemetry flag
-         * tracks path selection, not kernel choice. */
-        source = F_pre;
     } else {
-        /* Hard error during batched factor. */
-        ldlt_csc_free(F_batched);
-        ldlt_csc_free(F_pre);
-        sparse_analysis_free(&an);
-        sparse_free(A_perm);
-        return err;
+        /* Any batched failure → fall back to F_pre's scalar
+         * factor.  The pivot-stability BADARG case is the
+         * intended fast-path trip; SINGULAR and other codes are
+         * numerical drift between the two passes, where F_pre's
+         * factor remains valid. */
+        source = F_pre;
     }
 
     /* Step 7: writeback. */

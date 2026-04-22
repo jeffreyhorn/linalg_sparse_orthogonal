@@ -82,7 +82,7 @@ static bench_result_t bench_linked_list(const SparseMatrix *A, const double *b, 
 
     for (int rep = 0; rep < repeat; rep++) {
         sparse_ldlt_t ldlt = {0};
-        sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+        sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0, SPARSE_LDLT_BACKEND_LINKED_LIST, NULL};
         double t0 = wall_time();
         if (sparse_ldlt_factor_opts(A, &opts, &ldlt) != SPARSE_OK) {
             r.ok = 0;
@@ -373,9 +373,161 @@ static const char *default_matrices[] = {
 static const int default_matrix_count =
     (int)(sizeof(default_matrices) / sizeof(default_matrices[0]));
 
+/* Sprint 20 Day 6: --dispatch mode.  For each matrix, factor twice
+ * — once with `SPARSE_LDLT_BACKEND_AUTO` (the transparent Day 5
+ * dispatch), once with `SPARSE_LDLT_BACKEND_LINKED_LIST` forced —
+ * and report which backend AUTO selected, its factor / solve
+ * timings, and the speedup over the forced linked-list baseline.
+ * Exercises the public `sparse_ldlt_factor_opts` transparent
+ * dispatch end-to-end at the bench level.
+ *
+ * CSV columns:
+ *   matrix, n, nnz, backend, factor_auto_ms, factor_ll_ms,
+ *   solve_auto_ms, solve_ll_ms, speedup_auto_vs_ll, res_auto, res_ll
+ *
+ * The `backend` column is a literal "linked-list" or "csc" string
+ * — the value AUTO selected based on `n >= SPARSE_CSC_THRESHOLD`. */
+typedef struct {
+    double factor_ms;
+    double solve_ms;
+    double residual;
+    int used_csc; /* Populated only by the AUTO run; 0/1. */
+    int ok;
+} dispatch_result_t;
+
+static dispatch_result_t bench_dispatch_path(const SparseMatrix *A, const double *b, double *x,
+                                             int repeat, sparse_ldlt_backend_t backend) {
+    dispatch_result_t r = {0, 0, 0, 0, 1};
+    double factor_total = 0.0, solve_total = 0.0;
+    int used_csc = 0;
+
+    for (int rep = 0; rep < repeat; rep++) {
+        sparse_ldlt_t ldlt = {0};
+        sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0, backend, &used_csc};
+        double t0 = wall_time();
+        if (sparse_ldlt_factor_opts(A, &opts, &ldlt) != SPARSE_OK) {
+            r.ok = 0;
+            return r;
+        }
+        factor_total += wall_time() - t0;
+
+        t0 = wall_time();
+        if (sparse_ldlt_solve(&ldlt, b, x) != SPARSE_OK) {
+            sparse_ldlt_free(&ldlt);
+            r.ok = 0;
+            return r;
+        }
+        solve_total += wall_time() - t0;
+
+        if (rep == repeat - 1)
+            r.residual = rel_residual(A, x, b);
+        sparse_ldlt_free(&ldlt);
+    }
+    r.factor_ms = factor_total * 1000.0 / (double)repeat;
+    r.solve_ms = solve_total * 1000.0 / (double)repeat;
+    r.used_csc = used_csc;
+    return r;
+}
+
+static int bench_dispatch_for_matrix(const char *label, SparseMatrix *A, int repeat) {
+    idx_t n = sparse_rows(A);
+    idx_t nnz = sparse_nnz(A);
+
+    double *ones = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    if (!ones || !b || !x) {
+        fprintf(stderr, "bench_ldlt_csc --dispatch: malloc failed (n=%d)\n", (int)n);
+        free(ones);
+        free(b);
+        free(x);
+        return 1;
+    }
+    for (idx_t i = 0; i < n; i++)
+        ones[i] = 1.0;
+    sparse_matvec(A, ones, b);
+
+    dispatch_result_t r_auto = bench_dispatch_path(A, b, x, repeat, SPARSE_LDLT_BACKEND_AUTO);
+    dispatch_result_t r_ll = bench_dispatch_path(A, b, x, repeat, SPARSE_LDLT_BACKEND_LINKED_LIST);
+
+    if (!r_auto.ok || !r_ll.ok) {
+        fprintf(stderr, "bench_ldlt_csc --dispatch: %s — one or more factor runs failed\n", label);
+        free(ones);
+        free(b);
+        free(x);
+        return 1;
+    }
+
+    const char *backend_str = r_auto.used_csc ? "csc" : "linked-list";
+    double speedup = r_ll.factor_ms / r_auto.factor_ms;
+    printf("%s,%d,%d,%s,%.3f,%.3f,%.3f,%.3f,%.2f,%.2e,%.2e\n", label, (int)n, (int)nnz, backend_str,
+           r_auto.factor_ms, r_ll.factor_ms, r_auto.solve_ms, r_ll.solve_ms, speedup,
+           r_auto.residual, r_ll.residual);
+
+    free(ones);
+    free(b);
+    free(x);
+    return 0;
+}
+
+/* Build an in-memory KKT saddle point for the --dispatch corpus so
+ * the bench can report the indefinite above-threshold AUTO path
+ * without depending on an on-disk .mtx fixture.  Size 150 (top
+ * 140×140 tridiagonal SPD, bottom 10×10 zero, identity-pattern
+ * coupling) — matches `test_sprint20_integration.c`'s KKT fixture. */
+static SparseMatrix *bench_build_kkt_150(void) {
+    idx_t n_top = 140, n_bot = 10;
+    idx_t n = n_top + n_bot;
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n_top; i++) {
+        sparse_insert(A, i, i, 6.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+    for (idx_t j = 0; j < n_bot; j++) {
+        sparse_insert(A, n_top + j, j, 1.0);
+        sparse_insert(A, j, n_top + j, 1.0);
+    }
+    return A;
+}
+
+static int bench_dispatch_mode(int repeat) {
+    printf("matrix,n,nnz,backend,"
+           "factor_auto_ms,factor_ll_ms,solve_auto_ms,solve_ll_ms,"
+           "speedup_auto_vs_ll,res_auto,res_ll\n");
+
+    int rc = 0;
+    for (int i = 0; i < default_matrix_count; i++) {
+        SparseMatrix *A = NULL;
+        if (sparse_load_mm(&A, default_matrices[i]) != SPARSE_OK) {
+            fprintf(stderr, "bench_ldlt_csc --dispatch: failed to load %s\n", default_matrices[i]);
+            rc = 1;
+            continue;
+        }
+        const char *base = strrchr(default_matrices[i], '/');
+        base = base ? base + 1 : default_matrices[i];
+        rc |= bench_dispatch_for_matrix(base, A, repeat);
+        sparse_free(A);
+    }
+
+    /* Synthetic KKT fixture to exercise the indefinite above-
+     * threshold AUTO path alongside the SuiteSparse corpus. */
+    SparseMatrix *K = bench_build_kkt_150();
+    if (K) {
+        rc |= bench_dispatch_for_matrix("kkt-150", K, repeat);
+        sparse_free(K);
+    }
+    return rc;
+}
+
 int main(int argc, char **argv) {
     int repeat = 3;
     int supernodal = 0;
+    int dispatch = 0;
     const char *single_path = NULL;
 
     for (int i = 1; i < argc; i++) {
@@ -385,10 +537,15 @@ int main(int argc, char **argv) {
                 repeat = 1;
         } else if (!strcmp(argv[i], "--supernodal")) {
             supernodal = 1;
+        } else if (!strcmp(argv[i], "--dispatch")) {
+            dispatch = 1;
         } else if (argv[i][0] != '-') {
             single_path = argv[i];
         }
     }
+
+    if (dispatch)
+        return bench_dispatch_mode(repeat);
 
     if (supernodal) {
         printf("matrix,n,nnz,"

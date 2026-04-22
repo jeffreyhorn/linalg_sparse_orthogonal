@@ -164,6 +164,7 @@ add_sparse_test(test_chol_csc)
 add_sparse_test(test_ldlt_csc)
 add_sparse_test(test_sprint18_integration)
 add_sparse_test(test_sprint19_integration)
+add_sparse_test(test_sprint20_integration)
 
 # Benchmarks (not part of ctest)
 add_executable(bench_main benchmarks/bench_main.c)

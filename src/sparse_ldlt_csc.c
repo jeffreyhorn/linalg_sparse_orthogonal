@@ -527,6 +527,105 @@ sparse_err_t ldlt_csc_from_sparse(const SparseMatrix *mat, const idx_t *perm_in,
     return SPARSE_OK;
 }
 
+/* ─── Public: symbolic-analysis-aware LDL^T conversion ───────────────── */
+
+/* Sprint 20 Day 1 design block (implementation scheduled Day 2-3):
+ *
+ * `ldlt_csc_from_sparse_with_analysis` mirrors
+ * `chol_csc_from_sparse_with_analysis` (Sprint 18 Day 12 / Sprint 19
+ * Day 6) for the LDL^T side.  It pre-allocates the embedded `L` with
+ * every column's full sym_L pattern rather than the heuristic
+ * `fill_factor × A.nnz` pattern that `ldlt_csc_from_sparse` produces.
+ * This closes the indefinite-fill hole documented in the Sprint 19
+ * NOTE in `tests/test_sprint19_integration.c` (search for
+ * "NOTE on the indefinite supernodal path's current scope"): the
+ * batched `ldlt_csc_eliminate_supernodal` writeback silently dropped
+ * cmod fill rows on KKT-style saddle points, producing residuals of
+ * 1e-2..1e-6 instead of round-off.
+ *
+ * Symbolic-pattern reuse:
+ *   `sparse_analyze` treats `SPARSE_FACTOR_CHOLESKY` and
+ *   `SPARSE_FACTOR_LDLT` identically for the symbolic pipeline (see
+ *   the shared `case SPARSE_FACTOR_CHOLESKY: case SPARSE_FACTOR_LDLT:`
+ *   dispatch in `src/sparse_analysis.c`): both run
+ *   `sparse_etree_compute` → `sparse_colcount` →
+ *   `sparse_symbolic_cholesky` on the symmetric input and produce
+ *   identical `sym_L` patterns.  This function therefore accepts
+ *   either type without extra per-column buffering.
+ *
+ * 2×2-pivot handling — "Option D" in `SPRINT_20/PLAN.md`:
+ *   Bunch-Kaufman symmetric swaps during elimination CAN introduce
+ *   rows not present in `sym_L(A)` because sym_L is pattern-dependent
+ *   and symmetric swaps permute the pattern.  The alternative
+ *   approaches considered during Day 1 were:
+ *     Option A: reuse `sym_L(A)` as-is, accept that BK 2×2 fill can
+ *               overflow.  Incorrect on indefinite inputs — defeats
+ *               the purpose of the shim.
+ *     Option B: run a dedicated LDL^T symbolic pass that accounts
+ *               for potential 2×2 pivot fill.  Requires bespoke
+ *               infrastructure; high cost for a niche correctness
+ *               case.
+ *     Option C: use sym_L(A) + per-column 2× over-allocation to
+ *               cover BK 2×2 fill.  Bounded but wasteful on SPD
+ *               inputs where no 2×2 pivots occur.
+ *     Option D: handle 2×2 pivot fill at the workflow level, not
+ *               per-column.  SPD inputs (all 1×1 pivots, no swaps)
+ *               use sym_L(A) directly; indefinite inputs run a
+ *               scalar pre-pass to resolve BK swaps, symmetrically
+ *               permute A by the resulting perm, and run
+ *               `sparse_analyze` on the pre-permuted matrix.  After
+ *               pre-permutation BK cannot swap again during the
+ *               batched factor, so sym_L on the pre-permuted matrix
+ *               is complete without over-allocation.
+ *   Option D selected: the transparent dispatch added in Sprint 20
+ *   Days 4-6 wraps the pre-pass workflow behind
+ *   `sparse_ldlt_factor_opts` so public-API callers never see it,
+ *   while batched-test helpers (e.g. `s19_supernodal_matches_scalar`)
+ *   already use the same two-pass structure.
+ *
+ * Implementation plan (scoped to Day 2):
+ *   1. Delegate the L layout + A-scatter to
+ *      `chol_csc_from_sparse_with_analysis` — this sets
+ *      `L->sym_L_preallocated = 1` for free and re-uses the
+ *      bsearch-into-row-range scatter loop.
+ *   2. Wrap the returned `CholCsc *L` in an `LdltCsc` with D /
+ *      D_offdiag / pivot_size / perm / row_adj allocated in the
+ *      same zero-initialised shape as `ldlt_csc_from_sparse`
+ *      (see the calloc + identity-perm initialisation at the top of
+ *      that function for the exact pattern).
+ *   3. `pivot_size[i] = 1` default; `perm` copied from
+ *      `analysis->perm` when present, else identity.
+ *
+ * Day 3 wires the shim into `ldlt_csc_eliminate_supernodal`'s
+ * writeback fast-path so the indefinite KKT fixture drops from
+ * 1e-2..1e-6 residual to round-off.
+ *
+ * The current body is a Day 1 stub: input validation is complete
+ * but the delegation + wrapping above is unimplemented, so the
+ * function returns `SPARSE_ERR_BADARG` after the shape checks.
+ * Day 2 replaces the stub. */
+sparse_err_t ldlt_csc_from_sparse_with_analysis(const SparseMatrix *mat,
+                                                const sparse_analysis_t *analysis,
+                                                LdltCsc **ldlt_out) {
+    if (!ldlt_out)
+        return SPARSE_ERR_NULL;
+    *ldlt_out = NULL;
+    if (!mat || !analysis)
+        return SPARSE_ERR_NULL;
+    if (analysis->type != SPARSE_FACTOR_CHOLESKY && analysis->type != SPARSE_FACTOR_LDLT)
+        return SPARSE_ERR_BADARG;
+    if (mat->rows != mat->cols)
+        return SPARSE_ERR_SHAPE;
+    if (mat->rows != analysis->n)
+        return SPARSE_ERR_SHAPE;
+
+    /* Day 1 stub: input validation above is complete; Day 2 adds the
+     * `chol_csc_from_sparse_with_analysis` delegation + LdltCsc
+     * wrapping per the plan block above.  Until then the function
+     * returns SPARSE_ERR_BADARG as a "stub in progress" signal. */
+    return SPARSE_ERR_BADARG;
+}
+
 /* ─── Convert LdltCsc → SparseMatrix (L lower triangle only) ─────────── */
 
 sparse_err_t ldlt_csc_to_sparse(const LdltCsc *ldlt, const idx_t *perm_out,

@@ -18,12 +18,17 @@
  *     every branch.
  */
 
+#include "sparse_dense.h"
 #include "sparse_eigs.h"
 #include "sparse_ldlt.h"
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 #include "sparse_vector.h"
 #include "test_framework.h"
+
+/* Internal — exercises Lanczos helpers directly ahead of Day 11's
+ * `sparse_eigs_sym` implementation wiring. */
+#include "sparse_eigs_internal.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -361,6 +366,128 @@ static void test_s20_eigs_null_opts_uses_defaults(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Day 8: Lanczos 3-term recurrence
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Day 8 lands `lanczos_iterate_basic` — the basic 3-term Lanczos
+ * recurrence without reorthogonalization.  These tests verify the
+ * recurrence builds a valid Lanczos basis + tridiagonal T by
+ * cross-checking T's spectrum against A's on fixtures where the
+ * answer is known exactly.
+ */
+
+/* Diagonal matrix A = diag(1, 2, ..., n) with a "random-looking"
+ * starting vector.  Lanczos for m = n iterations builds a full
+ * Krylov basis of dimension n; T = V^T·A·V has exactly the same
+ * spectrum as A.  Use `tridiag_qr_eigenvalues` to extract T's
+ * eigenvalues and assert they match {1, 2, ..., n} to 1e-10. */
+static void test_s20_day8_lanczos_diagonal_spectrum(void) {
+    const idx_t n = 6;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, (double)(i + 1));
+
+    /* Deterministic non-sparse starting vector — avoids alignment
+     * with any single eigenvector that would truncate the Krylov
+     * basis early. */
+    double v0[6] = {1.0, 0.5, -0.3, 0.7, 0.2, -0.9};
+    double V[6 * 6];
+    double alpha[6];
+    double beta[6];
+    idx_t m_actual = 0;
+
+    REQUIRE_OK(lanczos_iterate_basic(A, v0, n, V, alpha, beta, &m_actual));
+    ASSERT_EQ(m_actual, n);
+
+    /* Extract T's spectrum via the existing symmetric-tridiagonal
+     * QR solver.  It's destructive — copy alpha/beta into local
+     * scratch first.  tridiag_qr_eigenvalues takes diag (length n)
+     * and subdiag (length n-1); Lanczos's beta[0..n-2] is the
+     * tridiagonal super/subdiagonal, and beta[n-1] is the final
+     * residual norm (not part of T). */
+    double tdiag[6];
+    double tsub[5];
+    for (idx_t i = 0; i < n; i++)
+        tdiag[i] = alpha[i];
+    for (idx_t i = 0; i < n - 1; i++)
+        tsub[i] = beta[i];
+
+    REQUIRE_OK(tridiag_qr_eigenvalues(tdiag, tsub, n, 0));
+
+    /* tridiag_qr_eigenvalues returns ascending eigenvalues in tdiag. */
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(tdiag[i], (double)(i + 1), 1e-10);
+
+    sparse_free(A);
+}
+
+/* Canonical tridiagonal A (diag = 2, sub/super-diag = -1).
+ * With v0 = e_0, Lanczos on A reproduces A's tridiagonal structure
+ * exactly: every alpha_k = A[k, k] = 2, every beta_k = |A[k, k+1]|
+ * = 1 (betas are non-negative by construction: beta = ||w||).
+ * The iteration terminates with beta_{n-1} ≈ 0 because the Krylov
+ * basis span(e_0, A·e_0, ..., A^{n-1}·e_0) has dimension exactly
+ * n on this fixture. */
+static void test_s20_day8_lanczos_tridiagonal_identity(void) {
+    const idx_t n = 5;
+    SparseMatrix *A = sparse_create(n, n);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 2.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+
+    double v0[5] = {1.0, 0.0, 0.0, 0.0, 0.0};
+    double V[5 * 5];
+    double alpha[5];
+    double beta[5];
+    idx_t m_actual = 0;
+
+    REQUIRE_OK(lanczos_iterate_basic(A, v0, n, V, alpha, beta, &m_actual));
+    ASSERT_EQ(m_actual, n);
+
+    for (idx_t k = 0; k < n; k++)
+        ASSERT_NEAR(alpha[k], 2.0, 1e-12);
+    for (idx_t k = 0; k < n - 1; k++)
+        ASSERT_NEAR(beta[k], 1.0, 1e-12);
+    /* The final step computes w -> 0 (invariant subspace reached);
+     * early-exit records the last beta as ≈ 0, then returns. */
+    ASSERT_TRUE(fabs(beta[n - 1]) < 1e-12);
+
+    sparse_free(A);
+}
+
+/* Argument-validation paths.  Covers the SPARSE_ERR_NULL /
+ * SHAPE / BADARG branches before the main recurrence body. */
+static void test_s20_day8_lanczos_rejects_bad_args(void) {
+    SparseMatrix *A = s20_build_spd_tridiag(4);
+    double v0[4] = {1, 0, 0, 0};
+    double V[4 * 4];
+    double alpha[4];
+    double beta[4];
+    idx_t m_actual = 99;
+
+    ASSERT_ERR(lanczos_iterate_basic(NULL, v0, 4, V, alpha, beta, &m_actual), SPARSE_ERR_NULL);
+    ASSERT_ERR(lanczos_iterate_basic(A, NULL, 4, V, alpha, beta, &m_actual), SPARSE_ERR_NULL);
+    ASSERT_ERR(lanczos_iterate_basic(A, v0, 4, NULL, alpha, beta, &m_actual), SPARSE_ERR_NULL);
+    ASSERT_ERR(lanczos_iterate_basic(A, v0, 4, V, NULL, beta, &m_actual), SPARSE_ERR_NULL);
+    ASSERT_ERR(lanczos_iterate_basic(A, v0, 4, V, alpha, NULL, &m_actual), SPARSE_ERR_NULL);
+    ASSERT_ERR(lanczos_iterate_basic(A, v0, 4, V, alpha, beta, NULL), SPARSE_ERR_NULL);
+
+    /* m_max out of range. */
+    ASSERT_ERR(lanczos_iterate_basic(A, v0, 0, V, alpha, beta, &m_actual), SPARSE_ERR_BADARG);
+    ASSERT_ERR(lanczos_iterate_basic(A, v0, 5, V, alpha, beta, &m_actual), SPARSE_ERR_BADARG);
+
+    /* Zero starting vector. */
+    double v_zero[4] = {0, 0, 0, 0};
+    ASSERT_ERR(lanczos_iterate_basic(A, v_zero, 4, V, alpha, beta, &m_actual), SPARSE_ERR_BADARG);
+
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Main
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -381,6 +508,11 @@ int main(void) {
     RUN_TEST(test_s20_eigs_rejects_bad_args);
     RUN_TEST(test_s20_eigs_day7_stub_returns_badarg);
     RUN_TEST(test_s20_eigs_null_opts_uses_defaults);
+
+    /* Day 8 — Lanczos 3-term recurrence */
+    RUN_TEST(test_s20_day8_lanczos_diagonal_spectrum);
+    RUN_TEST(test_s20_day8_lanczos_tridiagonal_identity);
+    RUN_TEST(test_s20_day8_lanczos_rejects_bad_args);
 
     TEST_SUITE_END();
 }

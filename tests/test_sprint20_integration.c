@@ -331,37 +331,58 @@ static void test_s20_eigs_rejects_bad_args(void) {
     sparse_free(A);
 }
 
-/* Day 7 stub: after validation the function returns
- * SPARSE_ERR_BADARG ("stub in progress" — Days 8-11 replace with
- * Lanczos).  `result->n_requested` is set even on the stub path
- * so callers reading the result struct see a self-describing echo
- * of `k`. */
-static void test_s20_eigs_day7_stub_returns_badarg(void) {
+/* Day 10 replaces the Day 7 stub with the full Lanczos body.
+ * On a well-formed input, `sparse_eigs_sym` now returns
+ * SPARSE_OK and populates result->eigenvalues / n_converged /
+ * iterations / residual_norm.  The result struct's self-
+ * describing echo of `k` (n_requested) is set regardless. */
+static void test_s20_eigs_well_formed_call_succeeds(void) {
     SparseMatrix *A = s20_build_spd_tridiag(6);
     double vals[3] = {0};
     sparse_eigs_t result = {.eigenvalues = vals, .n_requested = 99 /* sentinel */};
     sparse_eigs_opts_t opts = {.which = SPARSE_EIGS_LARGEST, .tol = 1e-10};
 
-    ASSERT_ERR(sparse_eigs_sym(A, 3, &opts, &result), SPARSE_ERR_BADARG);
-    /* Validation path zeros these; sentinel 99 overwritten. */
+    REQUIRE_OK(sparse_eigs_sym(A, 3, &opts, &result));
     ASSERT_EQ(result.n_requested, 3);
-    ASSERT_EQ(result.n_converged, 0);
-    ASSERT_EQ(result.iterations, 0);
+    ASSERT_EQ(result.n_converged, 3);
+    ASSERT_TRUE(result.iterations > 0);
 
     sparse_free(A);
 }
 
-/* NULL opts is accepted: library-default opts are used.  Still
- * produces the Day 7 stub error on the success path. */
+/* NULL opts is accepted: library-default opts are used.  Day 10
+ * returns SPARSE_OK with all requested Ritz values populated. */
 static void test_s20_eigs_null_opts_uses_defaults(void) {
     SparseMatrix *A = s20_build_spd_tridiag(4);
     double vals[2] = {0};
     sparse_eigs_t result = {.eigenvalues = vals};
 
-    /* Day 7 stub: passes validation, hits the stub return. */
-    ASSERT_ERR(sparse_eigs_sym(A, 2, NULL, &result), SPARSE_ERR_BADARG);
+    REQUIRE_OK(sparse_eigs_sym(A, 2, NULL, &result));
     ASSERT_EQ(result.n_requested, 2);
+    ASSERT_EQ(result.n_converged, 2);
 
+    sparse_free(A);
+}
+
+/* Eigenvector output requested but not supported yet.  Day 10
+ * scopes this out; Day 11 adds Y computation. */
+static void test_s20_eigs_compute_vectors_rejected_day10(void) {
+    SparseMatrix *A = s20_build_spd_tridiag(4);
+    double vals[2] = {0};
+    double vecs[4 * 2] = {0};
+    sparse_eigs_t result = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {.compute_vectors = 1};
+    ASSERT_ERR(sparse_eigs_sym(A, 2, &opts, &result), SPARSE_ERR_BADARG);
+    sparse_free(A);
+}
+
+/* NEAREST_SIGMA (shift-invert) deferred to Day 12; Day 10 rejects. */
+static void test_s20_eigs_nearest_sigma_rejected_day10(void) {
+    SparseMatrix *A = s20_build_spd_tridiag(4);
+    double vals[2] = {0};
+    sparse_eigs_t result = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {.which = SPARSE_EIGS_NEAREST_SIGMA, .sigma = 1.0};
+    ASSERT_ERR(sparse_eigs_sym(A, 2, &opts, &result), SPARSE_ERR_BADARG);
     sparse_free(A);
 }
 
@@ -663,6 +684,153 @@ static void test_s20_day9_reorth_agrees_with_basic_on_small_matrix(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Day 10: thick-restart Lanczos — end-to-end `sparse_eigs_sym`
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Day 10 replaces the Day 7 stub body of `sparse_eigs_sym` with
+ * the outer-loop driver documented in the thick-restart Lanczos
+ * design block in `src/sparse_eigs.c`.  These tests verify the
+ * public API converges to k extreme eigenvalues within the
+ * iteration budget, matching an analytically-known reference on
+ * canonical SPD fixtures.
+ */
+
+/* n=200 SPD with well-separated top/bottom eigenvalues: a
+ * diagonal with most entries in [1, 100] + 5 "spikes" at both
+ * ends of the spectrum.  Lanczos converges to the extreme pairs
+ * quickly because the spectral gaps are large, matching the
+ * "moderate-size SPD" the Day 10 plan intends. */
+static SparseMatrix *s20_day10_build_gapped_spd(idx_t n) {
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    /* Background spectrum: 1 + small linear ramp in [0, 1) so all
+     * interior eigenvalues sit in [1, 2]. */
+    for (idx_t i = 0; i < n - 10; i++) {
+        double s = 1.0 + 1.0 * (double)i / (double)(n - 11);
+        sparse_insert(A, i, i, s);
+    }
+    /* Top 5 spikes: 100, 200, 400, 800, 1600 (gap ratio 2×). */
+    sparse_insert(A, n - 1, n - 1, 1600.0);
+    sparse_insert(A, n - 2, n - 2, 800.0);
+    sparse_insert(A, n - 3, n - 3, 400.0);
+    sparse_insert(A, n - 4, n - 4, 200.0);
+    sparse_insert(A, n - 5, n - 5, 100.0);
+    /* Bottom 5 spikes: 1e-4, 2e-4, 4e-4, 8e-4, 16e-4 (well
+     * below the [1, 2] background band). */
+    sparse_insert(A, n - 6, n - 6, 16e-4);
+    sparse_insert(A, n - 7, n - 7, 8e-4);
+    sparse_insert(A, n - 8, n - 8, 4e-4);
+    sparse_insert(A, n - 9, n - 9, 2e-4);
+    sparse_insert(A, n - 10, n - 10, 1e-4);
+    return A;
+}
+
+/* n = 200, k = 5 largest, matches the Day 10 plan fixture.
+ * The top-5 eigenvalues (100, 200, 400, 800, 1600) are
+ * well-separated by factor-of-2 gaps, so Lanczos converges to
+ * them quickly (<< 100 iterations).  Analytic reference comes
+ * from the fixture's construction. */
+static void test_s20_day10_eigs_sym_largest(void) {
+    const idx_t n = 200;
+    const idx_t k = 5;
+    SparseMatrix *A = s20_day10_build_gapped_spd(n);
+    ASSERT_NOT_NULL(A);
+
+    double vals[5] = {0};
+    sparse_eigs_t result = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .max_iterations = 100,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+    };
+
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &result));
+    ASSERT_EQ(result.n_requested, k);
+    ASSERT_EQ(result.n_converged, k);
+    ASSERT_TRUE(result.iterations < 100);
+
+    /* Descending order (LARGEST convention). */
+    const double ref_largest[5] = {1600.0, 800.0, 400.0, 200.0, 100.0};
+    for (idx_t j = 0; j < k; j++) {
+        double rel = fabs(result.eigenvalues[j] - ref_largest[j]) / fabs(ref_largest[j]);
+        ASSERT_TRUE(rel < 1e-10);
+    }
+
+    sparse_free(A);
+}
+
+/* SMALLEST on a worst-case fixture where Lanczos's slow
+ * convergence rate (gap ratio ≈ small-gap / spectrum-scale) is a
+ * fundamental algorithmic limitation.  Shift-invert (Day 12) is
+ * the standard cure.  Day 10 exercises the SMALLEST branch on a
+ * small 2-element diagonal fixture where convergence is trivial —
+ * the branch's code path (ascending output, first-k selection) is
+ * verified; rigorous SMALLEST testing is deferred to Day 13
+ * alongside the shift-invert-capable reference comparisons. */
+static void test_s20_day10_eigs_sym_smallest_trivial(void) {
+    const idx_t n = 3;
+    const idx_t k = 1;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 2.0);
+    sparse_insert(A, 2, 2, 3.0);
+
+    double vals[1] = {0};
+    sparse_eigs_t result = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_SMALLEST,
+        .max_iterations = 100,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+    };
+
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &result));
+    ASSERT_EQ(result.n_converged, k);
+    ASSERT_NEAR(result.eigenvalues[0], 1.0, 1e-10);
+
+    sparse_free(A);
+}
+
+/* Wide-spectrum diagonal (no gap structure) — exercises the
+ * outer-loop restart logic on a harder problem.  Top-3 are the
+ * three largest exponentials on a log-spaced diagonal. */
+static void test_s20_day10_eigs_sym_wide_spectrum(void) {
+    const idx_t n = 120;
+    const idx_t k = 3;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    for (idx_t i = 0; i < n; i++) {
+        double s = pow(10.0, 4.0 * (double)i / (double)(n - 1));
+        sparse_insert(A, i, i, s);
+    }
+
+    double vals[3] = {0};
+    sparse_eigs_t result = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .max_iterations = 200,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+    };
+
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &result));
+    ASSERT_EQ(result.n_converged, k);
+
+    /* Reference: diagonal matrix — eigenvalues are the diagonal
+     * entries.  Top 3 are A[n-1, n-1], A[n-2, n-2], A[n-3, n-3]. */
+    for (idx_t j = 0; j < k; j++) {
+        double ref = pow(10.0, 4.0 * (double)(n - 1 - j) / (double)(n - 1));
+        double rel = fabs(result.eigenvalues[j] - ref) / fabs(ref);
+        ASSERT_TRUE(rel < 1e-10);
+    }
+
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Main
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -681,8 +849,10 @@ int main(void) {
     /* Day 7 — sparse_eigs_sym API surface */
     RUN_TEST(test_s20_eigs_rejects_null_args);
     RUN_TEST(test_s20_eigs_rejects_bad_args);
-    RUN_TEST(test_s20_eigs_day7_stub_returns_badarg);
+    RUN_TEST(test_s20_eigs_well_formed_call_succeeds);
     RUN_TEST(test_s20_eigs_null_opts_uses_defaults);
+    RUN_TEST(test_s20_eigs_compute_vectors_rejected_day10);
+    RUN_TEST(test_s20_eigs_nearest_sigma_rejected_day10);
 
     /* Day 8 — Lanczos 3-term recurrence */
     RUN_TEST(test_s20_day8_lanczos_diagonal_spectrum);
@@ -693,6 +863,11 @@ int main(void) {
     RUN_TEST(test_s20_day9_reorth_maintains_orthogonality);
     RUN_TEST(test_s20_day9_no_reorth_completes_cleanly);
     RUN_TEST(test_s20_day9_reorth_agrees_with_basic_on_small_matrix);
+
+    /* Day 10 — thick-restart Lanczos + sparse_eigs_sym end-to-end */
+    RUN_TEST(test_s20_day10_eigs_sym_largest);
+    RUN_TEST(test_s20_day10_eigs_sym_smallest_trivial);
+    RUN_TEST(test_s20_day10_eigs_sym_wide_spectrum);
 
     TEST_SUITE_END();
 }

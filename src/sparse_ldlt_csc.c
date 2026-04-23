@@ -707,8 +707,14 @@ sparse_err_t ldlt_csc_writeback_to_ldlt(const LdltCsc *F, double tol, sparse_ldl
      * diagonal entries below `SPARSE_DROP_TOL * |L[j, j]|` so the
      * transplanted `SparseMatrix` sparsity matches what the
      * linked-list kernel publishes.  The diagonal (row_idx[col_ptr[j]]
-     * == j by CSC invariant) is always inserted so the solver's
-     * diagonal lookup never misses. */
+     * == j by CSC invariant) is inserted whenever its stored value is
+     * non-zero, which covers every factor produced by this backend
+     * because LDL^T stores a unit-diagonal L (`L[j, j] == 1.0`; see
+     * the `unit diagonal` references in `sparse_ldlt_csc.c:86` and
+     * the elimination kernels).  The `v == 0.0` filter below
+     * therefore never drops the diagonal in practice, and the `i != j`
+     * guard on the below-diagonal threshold keeps the unit diagonal
+     * from being accidentally filtered by the drop_tol test. */
     SparseMatrix *L_out = NULL;
     if (n > 0) {
         L_out = sparse_create(n, n);

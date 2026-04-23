@@ -878,8 +878,21 @@ static sparse_err_t ldlt_factor_csc_path(const SparseMatrix *A_work, double tol,
         source = F_pre;
     }
 
-    /* Step 7: writeback. */
-    err = ldlt_csc_writeback_to_ldlt(source, tol, ldlt_out);
+    /* Step 7: writeback.
+     *
+     * The CSC elimination pipeline (ldlt_csc_eliminate_scalar /
+     * ldlt_csc_eliminate_supernodal) hard-codes `drop_tol =
+     * SPARSE_DROP_TOL` rather than threading the caller-provided
+     * `tol` through.  Record that effective tolerance in the public
+     * LDLT object so the solve-time singularity check in
+     * `sparse_ldlt_solve` (which reads `ldlt->tol`) stays consistent
+     * with the factorization that actually ran — otherwise a
+     * user-supplied `tol` smaller than `SPARSE_DROP_TOL` could
+     * spuriously trip SPARSE_ERR_SINGULAR on a factor that was
+     * admitted under the looser threshold. */
+    const double effective_tol = SPARSE_DROP_TOL;
+    err = ldlt_csc_writeback_to_ldlt(source, effective_tol, ldlt_out);
+    (void)tol;
 
     ldlt_csc_free(F_batched);
     ldlt_csc_free(F_pre);

@@ -142,10 +142,15 @@ typedef struct {
      *  reported as `result->iterations`.  0 selects the library
      *  default (currently `max(10 * k + 20, 100)`). */
     idx_t max_iterations;
-    /** Convergence tolerance on the relative Ritz residual
-     *  `||A·v - θ·v|| / (|θ| * ||A||_inf)`.  0 selects the library
-     *  default `1e-10`.  Negative values are rejected with
-     *  SPARSE_ERR_BADARG. */
+    /** Convergence tolerance on the Wu/Simon Ritz-residual bound
+     *  `|beta_m * y_{m-1,j}| / max(|theta_j|, scale)` used by
+     *  `sparse_eigs_sym()` for each selected Ritz pair (`scale` is
+     *  a floor tied to the Lanczos T-norm, so near-zero Ritz values
+     *  still get a meaningful relative threshold).  This is the
+     *  same residual scaling reported in `result->residual_norm`;
+     *  it does not include an explicit `||A||_inf` factor.  0
+     *  selects the library default `1e-10`.  Negative values are
+     *  rejected with SPARSE_ERR_BADARG. */
     double tol;
     /** Full-reorthogonalization flag.  Nonzero reorthogonalizes each
      *  new Lanczos vector against every prior Lanczos vector,

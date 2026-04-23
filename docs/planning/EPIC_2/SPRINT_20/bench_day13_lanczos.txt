@@ -1,0 +1,93 @@
+Sprint 20 Day 13 — Lanczos benchmark capture
+=============================================
+
+Compiled with -O2 on Apple Clang (x86_64 Darwin).  Wall-clock timing
+via clock_gettime(CLOCK_MONOTONIC).  Convergence criterion per
+sparse_eigs_sym: Wu/Simon |beta_m * y_{m-1,j}| / |theta_j| <= tol
+on every top-k Ritz pair (tol = 1e-10 throughout).
+
+Driver: throwaway /tmp/bench_eigs.c (see Day 13 commit message for
+source).  Fixtures live in tests/data/suitesparse/; kkt-150 is built
+programmatically (140 tridiag SPD top-block + 10 coupling rows/cols).
+
+Legend:
+  matrix           : fixture label (SuiteSparse or synthetic)
+  n                : matrix dimension
+  k                : number of eigenpairs requested
+  mode             : LARGEST / SMALLEST / NEAREST_SIGMA
+  reorth           : 1 = full MGS reorth (default), 0 = disabled
+  iters            : final Lanczos basis size m_actual (grow-on-retry)
+  wall_ms          : wall time, milliseconds
+  residual         : result.residual_norm (Wu/Simon relative)
+  status           : OK or NOT_CONVERGED
+  used_csc_path    : inner LDL^T backend for shift-invert (0 for non-shift-invert)
+
+---
+
+Measured runs
+-------------
+
+nos4              n=100   k=5  LARGEST        reorth=1  iters=70    wall_ms=2.93    residual=4.3e-14  OK
+nos4              n=100   k=5  SMALLEST       reorth=1  iters=100   wall_ms=10.97   residual=1.6e-28  OK
+nos4-no-reorth    n=100   k=5  LARGEST        reorth=0  iters=70    wall_ms=2.70    residual=4.3e-14  OK
+bcsstk04          n=132   k=3  LARGEST        reorth=1  iters=62    wall_ms=4.62    residual=1.8e-19  OK
+bcsstk04          n=132   k=3  SMALLEST       reorth=1  iters=132   wall_ms=33.03   residual=9.8e-16  OK
+bcsstk14          n=1806  k=5  LARGEST        reorth=1  iters=70    wall_ms=113.03  residual=2.6e-18  OK
+kkt-150           n=150   k=3  SMALLEST       reorth=1  iters=62    wall_ms=2.89    residual=1.6e-19  OK
+kkt-150-shift0    n=150   k=3  NEAREST_SIGMA  reorth=1  iters=39    wall_ms=1.91    residual=0        OK  used_csc_path=1
+
+
+Observations
+------------
+
+1. Grow-on-retry outer loop (Day 13 redesign).  The Day 10 outer
+   loop "restarted" Lanczos with v0 := v_last on non-convergence,
+   which failed to tighten the Wu/Simon bound across restarts — on
+   nos4 k=5 LARGEST, the previous design saturated around
+   residual = 7e-3 after 2000 iterations.  Day 13 replaces that
+   with a single growing Lanczos run (same v0, extending the
+   Krylov basis by m_grow = k + 20 per retry).  Result: nos4 k=5
+   converges in 70 total steps with residual 4e-14 — 5 orders of
+   magnitude tighter at 2% of the cost.
+
+2. Reorth overhead is small on sparse fixtures.  nos4 with and
+   without MGS reorth land at 2.93 ms vs 2.70 ms at m = 70 — the
+   O(m^2 * n) reorth cost is dwarfed by the m sparse matvecs.  On
+   dense Lanczos bases this ratio flips; full reorth remains the
+   default because ghost Ritz values on wide-spectrum A are the
+   failure mode that matters (see the sprint18 / sprint19
+   indefinite regressions).
+
+3. SMALLEST on structural-mechanics SPD is expensive.  bcsstk04
+   k=3 SMALLEST needs the full m = n = 132 Krylov basis to
+   separate the bottom-cluster eigenvalues — 33 ms vs 4.6 ms for
+   the LARGEST side on the same matrix (7x).  This is the natural
+   use case for shift-invert with a small positive sigma, but the
+   current Day 13 tests don't exercise that path on bcsstk04
+   directly; a follow-up bench would compare SMALLEST direct vs
+   NEAREST_SIGMA with sigma = 1e-3 or similar.
+
+4. Shift-invert is fast on the KKT fixture.  kkt-150 SMALLEST
+   (direct) runs at 2.89 ms and hits m = 62.  kkt-150 with
+   NEAREST_SIGMA at sigma = 0 finishes in 1.91 ms at m = 39 — 34%
+   faster — because the shift-invert operator's Ritz values
+   converge to extremes (1/(lambda - sigma) amplifies the
+   neighbourhood of zero) and Lanczos handles extremes much
+   better than interior points.  The inner LDL^T factor takes the
+   CSC supernodal path (used_csc_path_ldlt = 1 verified by the
+   telemetry), confirming the Day 4-6 dispatch plumbs through the
+   eigs API as designed.
+
+5. bcsstk14 (n = 1806) LARGEST at k = 5 in 113 ms.  70 Lanczos
+   iterations; the matrix is ~63K nnz (~35 nnz/row), so matvec
+   dominates (70 matvecs × 2n × 35 = ~9 Mflops of SpMV vs ~900
+   Kflops of MGS reorth at m = 70).  Room to improve if the
+   matvec kernel gets vectorised, but good enough for Sprint 20
+   scope.
+
+6. Stability on degenerate inputs.  The Day 13 regression tests
+   exercise a condition-1e8 diagonal and the zero matrix; neither
+   crashes nor trips the sanitizer, and the zero matrix
+   cleanly returns the k zeros expected (Lanczos' invariant-
+   subspace exit rule handles the degenerate case without special-
+   casing).

@@ -330,25 +330,12 @@ static double s20_spectrum_scale(const double *theta, idx_t m) {
     return s;
 }
 
-/* Compute ascending Ritz values of T from (alpha, beta).
- * Destructive on local copies of alpha / beta inside the helper;
- * caller's alpha / beta are preserved.  On success,
- * theta_out[0..m-1] is sorted ascending. */
-static sparse_err_t s20_ritz_values(const double *alpha, const double *beta, idx_t m,
-                                    double *theta_out, double *subdiag_scratch) {
-    for (idx_t i = 0; i < m; i++)
-        theta_out[i] = alpha[i];
-    for (idx_t i = 0; i + 1 < m; i++)
-        subdiag_scratch[i] = beta[i];
-    if (m >= 2)
-        return tridiag_qr_eigenvalues(theta_out, subdiag_scratch, m, 0);
-    return SPARSE_OK;
-}
-
-/* Day 11: same as s20_ritz_values but also returns the orthogonal
- * matrix Y (m × m, column-major) of eigenvectors of the tridiagonal
- * T.  Column j of Y is the eigenvector of T for eigenvalue
- * theta_out[j].  Caller allocates Y for m * m doubles. */
+/* Day 11: Ritz pair extraction — returns eigenvalues of the
+ * tridiagonal T in `theta_out` (ascending) and T's orthonormal
+ * eigenvectors as columns of `Y_out` (m × m, column-major) so the
+ * Day 11 lift V · Y[:, j] produces full-problem Ritz vectors.
+ * Preserves the caller's alpha / beta; the subdiag_scratch buffer
+ * is written to then destroyed by `tridiag_qr_eigenpairs`. */
 static sparse_err_t s20_ritz_pairs(const double *alpha, const double *beta, idx_t m,
                                    double *theta_out, double *Y_out, double *subdiag_scratch) {
     for (idx_t i = 0; i < m; i++)
@@ -495,6 +482,7 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     result->n_converged = 0;
     result->iterations = 0;
     result->residual_norm = 0.0;
+    result->used_csc_path_ldlt = 0;
 
     /* Day 12: shift-invert setup for NEAREST_SIGMA.  Factor
      * `A - sigma*I` via `sparse_ldlt_factor_opts` (Days 4-6 AUTO
@@ -522,13 +510,15 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
                 return err;
             }
         }
+        int used_csc_path = 0;
         sparse_ldlt_opts_t ldlt_opts = {
             .reorder = SPARSE_REORDER_NONE,
             .tol = 0.0,
             .backend = SPARSE_LDLT_BACKEND_AUTO,
-            .used_csc_path = NULL,
+            .used_csc_path = &used_csc_path,
         };
         sparse_err_t err = sparse_ldlt_factor_opts(A_shifted, &ldlt_opts, &ldlt_shift);
+        result->used_csc_path_ldlt = used_csc_path;
         if (err != SPARSE_OK) {
             sparse_ldlt_free(&ldlt_shift);
             sparse_free(A_shifted);
@@ -546,51 +536,65 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     if (max_iters < 100)
         max_iters = 100;
 
-    /* Per-batch Lanczos sizes.  m_short is the initial batch; m_long
-     * is the stability-check batch (slightly larger so θ top-k can
-     * stabilise between the two). */
-    idx_t m_short = 2 * k + 20;
-    if (m_short > n)
-        m_short = n;
-    if (m_short < 1)
-        m_short = 1;
-    idx_t m_long = m_short + k + 10;
-    if (m_long > n)
-        m_long = n;
-    idx_t m_max_alloc = m_long;
+    /* Day 13 outer-loop redesign: single Lanczos batch with a
+     * grow-m-on-retry strategy.  The Day 10-11 short/long stability
+     * check converged poorly on SuiteSparse matrices because each
+     * "restart" threw away the partial basis and resumed from a
+     * warm-start v0 — the top-k Ritz values re-approached the same
+     * neighbourhood on every pass without tightening.  Day 13
+     * replaces that with a single growing Lanczos run: pick an
+     * initial m, build the basis, compute Wu/Simon residuals, and
+     * (if not converged) grow m and restart from the same v0 (so
+     * the first m_prev steps are bit-for-bit identical and the
+     * extra m_new − m_prev steps are where the convergence happens).
+     * Because Lanczos with full reorth is deterministic under the
+     * same v0, each growth round strictly contains the previous
+     * one's information. */
 
-    /* Allocate workspace shared across restarts: Lanczos basis V,
-     * tridiagonal factors, scratch for tridiag_qr_eigenpairs, and
-     * (Day 11) the m × m matrix Y of T's eigenvectors for Ritz-
-     * vector lift-back.  Use calloc for scalars the static analyzer
-     * can't prove get filled before use (theta_long / Y_long consumed
-     * by the partial-result fallback; v0 consumed by lanczos_iterate). */
-    double *V = malloc((size_t)n * (size_t)m_max_alloc * sizeof(double));
-    double *alpha = malloc((size_t)m_max_alloc * sizeof(double));
-    double *beta = malloc((size_t)m_max_alloc * sizeof(double));
+    /* Initial and maximum Lanczos basis sizes.
+     *   m_cap: upper bound on any single Lanczos run.  Capped at min(n,
+     *          max_iters) so the basis never exceeds the user's budget
+     *          or the natural Krylov limit.
+     *   m_init: starting size per run.  3k + 30 is enough for most
+     *           well-separated top-k extractions on small n; bigger
+     *           problems grow by m_grow per retry.
+     *   m_grow: additive growth per retry — fixed step avoids a
+     *           runaway m^3 reorth cost when bumping. */
+    idx_t m_cap = max_iters < n ? max_iters : n;
+    if (m_cap < 2 * k + 10)
+        m_cap = 2 * k + 10;
+    if (m_cap > n)
+        m_cap = n;
+    if (m_cap < 2)
+        m_cap = 2;
+    idx_t m_init = 3 * k + 30;
+    if (m_init > m_cap)
+        m_init = m_cap;
+    if (m_init < 2)
+        m_init = 2;
+    idx_t m_grow = k + 20;
+
+    /* Allocate workspace for the upper-bound Lanczos size so the
+     * grow-on-retry path never reallocates.  Y_cap is m_cap × m_cap
+     * (eigenvectors of T) — quadratic in m_cap but fine for the
+     * practical m_cap we land on. */
+    double *V = malloc((size_t)n * (size_t)m_cap * sizeof(double));
+    double *alpha = malloc((size_t)m_cap * sizeof(double));
+    double *beta = malloc((size_t)m_cap * sizeof(double));
     double *v0 = calloc((size_t)n, sizeof(double));
-    double *theta_short = malloc((size_t)m_max_alloc * sizeof(double));
-    double *theta_long = calloc((size_t)m_max_alloc, sizeof(double));
-    double *subdiag = malloc((size_t)m_max_alloc * sizeof(double));
-    double *Y_long = calloc((size_t)m_max_alloc * (size_t)m_max_alloc, sizeof(double));
+    double *theta_long = calloc((size_t)m_cap, sizeof(double));
+    double *subdiag = malloc((size_t)m_cap * sizeof(double));
+    double *Y_long = calloc((size_t)m_cap * (size_t)m_cap, sizeof(double));
     idx_t *sel_idx = malloc((size_t)k * sizeof(idx_t));
-    /* Day 12: a second sel_idx buffer for the short-batch selection
-     * (the stability check now consults the same `which`-aware
-     * selection helper for both batches so NEAREST_SIGMA's
-     * |theta|-descending pairing works correctly). */
-    idx_t *sel_idx_s = malloc((size_t)k * sizeof(idx_t));
-    if (!V || !alpha || !beta || !v0 || !theta_short || !theta_long || !subdiag || !Y_long ||
-        !sel_idx || !sel_idx_s) {
+    if (!V || !alpha || !beta || !v0 || !theta_long || !subdiag || !Y_long || !sel_idx) {
         free(V);
         free(alpha);
         free(beta);
         free(v0);
-        free(theta_short);
         free(theta_long);
         free(subdiag);
         free(Y_long);
         free(sel_idx);
-        free(sel_idx_s);
         sparse_ldlt_free(&ldlt_shift);
         sparse_free(A_shifted);
         return SPARSE_ERR_ALLOC;
@@ -600,109 +604,58 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
 
     idx_t total_iters = 0;
     sparse_err_t rc = SPARSE_ERR_NOT_CONVERGED;
+    idx_t m = m_init;
     idx_t last_m_actual = 0;
-    double last_beta = 0.0;
     double last_partial_res = 0.0;
 
-    for (idx_t restart = 0;; restart++) {
-        /* Short batch. */
-        idx_t budget = max_iters - total_iters;
-        idx_t m_this_short = m_short < budget ? m_short : budget;
-        if (m_this_short < 2)
-            break;
-        idx_t m_actual_s = 0;
+    for (;;) {
+        idx_t m_actual = 0;
         sparse_err_t err =
-            lanczos_iterate_op(op_fn, op_ctx, n, v0, m_this_short, 1, V, alpha, beta, &m_actual_s);
+            lanczos_iterate_op(op_fn, op_ctx, n, v0, m, 1, V, alpha, beta, &m_actual);
         if (err != SPARSE_OK) {
             rc = err;
             goto cleanup;
         }
-        total_iters += m_actual_s;
-        err = s20_ritz_values(alpha, beta, m_actual_s, theta_short, subdiag);
-        if (err != SPARSE_OK) {
-            rc = err;
-            goto cleanup;
-        }
-
-        /* Long batch (same v0, fresh Lanczos run). */
-        budget = max_iters - total_iters;
-        idx_t m_this_long = m_long < budget ? m_long : budget;
-        if (m_this_long < m_this_short + 1)
-            m_this_long = m_this_short + 1;
-        if (m_this_long > n)
-            m_this_long = n;
-        if (m_this_long < 2) {
-            /* Out of budget before we could run the stability
-             * check.  Emit partial results from the short batch. */
-            last_m_actual = m_actual_s;
+        total_iters = m_actual;
+        last_m_actual = m_actual;
+        /* Defensive: lanczos_iterate_op sets m_actual >= 1 on
+         * SPARSE_OK (the invariant-subspace early-exit rule sets
+         * m_actual = k + 1 with k >= 0, and otherwise m_actual =
+         * m_max >= 1).  The guard lets the analyzer see that the
+         * `beta[m_actual - 1]` and `(m_actual - 1)` indexings below
+         * are in bounds. */
+        if (m_actual < 1)
             break;
-        }
 
-        idx_t m_actual_l = 0;
-        err = lanczos_iterate_op(op_fn, op_ctx, n, v0, m_this_long, 1, V, alpha, beta, &m_actual_l);
+        /* Lift Ritz pairs (values + Y matrix).  Preserves the
+         * caller's alpha / beta (s20_ritz_pairs copies beta into
+         * the subdiag scratch before the destructive QR sweep). */
+        err = s20_ritz_pairs(alpha, beta, m_actual, theta_long, Y_long, subdiag);
         if (err != SPARSE_OK) {
             rc = err;
             goto cleanup;
         }
-        total_iters += m_actual_l;
-        /* Day 11: lift Ritz pairs (values + Y matrix) from the long
-         * batch so we can both (a) emit eigenvectors if requested,
-         * and (b) compute Wu/Simon per-pair residuals as a second
-         * convergence signal.  Preserves the caller's alpha / beta
-         * (s20_ritz_pairs copies beta into the subdiag scratch before
-         * the destructive QR sweep). */
-        err = s20_ritz_pairs(alpha, beta, m_actual_l, theta_long, Y_long, subdiag);
-        if (err != SPARSE_OK) {
-            rc = err;
-            goto cleanup;
-        }
-        /* beta[m_actual_l - 1] is the Lanczos β_m residual norm (see
-         * lanczos_iterate docstring).  Save it for the Wu/Simon
-         * residual estimate below; beta is about to be reused by the
-         * next short batch. */
-        last_beta = beta[m_actual_l - 1];
+        /* beta[m_actual - 1] is the Lanczos β_m residual norm (see
+         * lanczos_iterate docstring).  The Wu/Simon residual bound
+         * for a Ritz pair (θⱼ, y_j) is |β_m · y_{m-1, j}|. */
+        double last_beta = beta[m_actual - 1];
 
-        /* Stability check: compare top-k θ from the two batches.
-         * `theta_short` and `theta_long` are sorted ascending; the
-         * `which`-aware selection helper picks the top-k indices by
-         * the correct criterion (LARGEST / SMALLEST / NEAREST_SIGMA
-         * — the last uses |θ| descending, matching the shift-invert
-         * spectrum mapping).  A pair is "converged" when
-         *     |θ_long[sel_l[j]] − θ_short[sel_s[j]]|
-         *       ≤ eff_tol · max(|θ_long[sel_l[j]]|, scale).
-         * All k selected pairs must agree for the call to converge. */
-        idx_t take_s = s20_select_indices(theta_short, m_actual_s, o->which, k, sel_idx_s);
-        idx_t take = s20_select_indices(theta_long, m_actual_l, o->which, k, sel_idx);
-        if (take_s < take)
-            take = take_s;
+        idx_t take = s20_select_indices(theta_long, m_actual, o->which, k, sel_idx);
         if (take < 1)
             break;
 
-        double scale = s20_spectrum_scale(theta_long, m_actual_l);
-        int converged = 1;
-        for (idx_t j = 0; j < take; j++) {
-            idx_t idx_s = sel_idx_s[j];
-            idx_t idx_l = sel_idx[j];
-            double tv_s = theta_short[idx_s];
-            double tv_l = theta_long[idx_l];
-            double diff = fabs(tv_l - tv_s);
-            double anchor = fabs(tv_l);
-            if (anchor < scale * 1e-12)
-                anchor = scale > 0.0 ? scale : 1.0;
-            if (diff > eff_tol * anchor)
-                converged = 0;
-        }
+        double scale = s20_spectrum_scale(theta_long, m_actual);
 
-        /* Compute Wu/Simon per-pair residuals.  For a Ritz pair
-         * (θ_j, y_j) the true residual ‖A·V·y_j − θ_j·V·y_j‖ equals
-         * |β_m · y_{m-1, j}| (Paige 1972; Bai et al. 2000).  This is
-         * a cheap post-hoc estimate once Y is computed — the m_actual
-         * th row of Y coupled to the final Lanczos β_m — and doubles
-         * as a sanity check on the stability gate above. */
+        /* Wu/Simon per-pair residuals — the primary convergence
+         * gate.  For a Ritz pair (θⱼ, y_j) the true residual
+         * ‖(op)·V·y_j − θⱼ·V·y_j‖ equals |β_m · y_{m-1, j}|
+         * (Paige 1972; Bai et al. 2000).  max_res_rel is the
+         * worst-case relative residual across the k returned pairs
+         * — exactly what the result->residual_norm field reports. */
         double max_res_rel = 0.0;
         for (idx_t j = 0; j < take; j++) {
             idx_t idx_l = sel_idx[j];
-            double y_last = Y_long[(size_t)(m_actual_l - 1) + (size_t)idx_l * (size_t)m_actual_l];
+            double y_last = Y_long[(size_t)(m_actual - 1) + (size_t)idx_l * (size_t)m_actual];
             double abs_res = fabs(last_beta * y_last);
             double tv_l = theta_long[idx_l];
             double anchor = fabs(tv_l);
@@ -712,30 +665,28 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
             if (rel_res > max_res_rel)
                 max_res_rel = rel_res;
         }
+        last_partial_res = max_res_rel;
 
+        int converged = (max_res_rel <= eff_tol);
         /* Also converge if Lanczos terminated with an invariant
-         * subspace (m_actual_l < m_this_long means beta_k ≈ 0 for
-         * some k — T is block-reduced and its Ritz values in that
-         * block are exact). */
-        int invariant = (m_actual_l < m_this_long);
+         * subspace (m_actual < m means β_k ≈ 0 for some k — T is
+         * block-reduced and its Ritz values in that block are
+         * exact). */
+        int invariant = (m_actual < m);
 
         if (converged || invariant) {
             for (idx_t j = 0; j < take; j++) {
                 idx_t idx_l = sel_idx[j];
                 double theta = theta_long[idx_l];
-                /* Day 12: for shift-invert, the Ritz values of
+                /* For shift-invert (Day 12), the Ritz values of
                  * (A - σI)^{-1} are 1/(λ − σ), so the original-space
-                 * eigenvalue is λ = σ + 1/θ.  θ cannot be zero here —
-                 * tridiag_qr_eigen produces theta = 0 only if (A - σI)^{-1}
-                 * had a zero eigenvalue, which would require A = σI +
-                 * something-with-a-zero-eigenvalue — impossible because
-                 * (A - σI) was already factored nonsingular. */
+                 * eigenvalue is λ = σ + 1/θ.  θ cannot be zero
+                 * because (A - σI) was factored nonsingular. */
                 result->eigenvalues[j] =
                     (o->which == SPARSE_EIGS_NEAREST_SIGMA) ? (o->sigma + 1.0 / theta) : theta;
             }
             if (o->compute_vectors) {
-                s20_lift_ritz_vectors(V, Y_long, n, m_actual_l, take, sel_idx,
-                                      result->eigenvectors);
+                s20_lift_ritz_vectors(V, Y_long, n, m_actual, take, sel_idx, result->eigenvectors);
             }
             result->n_converged = take;
             result->iterations = total_iters;
@@ -744,35 +695,21 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
             goto cleanup;
         }
 
-        /* Not converged — save current state for the
-         * partial-result fallback and restart. */
-        last_partial_res = max_res_rel;
-        last_m_actual = m_actual_l;
-
-        /* Restart: use the last long-run Lanczos vector as v0.
-         * Guard against m_actual_l == 0 (degenerate case where
-         * Lanczos would have returned an error; defensive here). */
-        if (m_actual_l < 1)
+        /* Grow m for the next pass.  If we've already hit the cap,
+         * emit partial results with NOT_CONVERGED. */
+        if (m >= m_cap)
             break;
-        const double *v_last = V + (size_t)(m_actual_l - 1) * (size_t)n;
-        for (idx_t i = 0; i < n; i++)
-            v0[i] = v_last[i];
-
-        if (total_iters >= max_iters)
+        idx_t m_next = m + m_grow;
+        if (m_next > m_cap)
+            m_next = m_cap;
+        if (m_next == m)
             break;
-
-        /* Defensive: avoid pathological infinite loops.  The
-         * max_iters budget normally dominates, but if m_batch is
-         * tiny this cap prevents unbounded restarts. */
-        if (restart > max_iters / m_short + 10)
-            break;
+        m = m_next;
     }
 
-    /* Reached here only via the budget-exhausted / restart-limit
-     * break.  Emit the best Ritz values (and, if requested, vectors)
-     * from the most recent long batch as a partial NOT_CONVERGED
-     * result.  V, Y_long, theta_long all still reflect the last long
-     * batch thanks to the state-save above. */
+    /* Reached here only via m_cap exhaustion without convergence.
+     * Emit the best Ritz values (and, if requested, vectors) from
+     * the last Lanczos run as a partial NOT_CONVERGED result. */
     if (last_m_actual > 0) {
         idx_t take = s20_select_indices(theta_long, last_m_actual, o->which, k, sel_idx);
         for (idx_t j = 0; j < take; j++) {
@@ -794,12 +731,10 @@ cleanup:
     free(alpha);
     free(beta);
     free(v0);
-    free(theta_short);
     free(theta_long);
     free(subdiag);
     free(Y_long);
     free(sel_idx);
-    free(sel_idx_s);
     sparse_ldlt_free(&ldlt_shift);
     sparse_free(A_shifted);
     return rc;

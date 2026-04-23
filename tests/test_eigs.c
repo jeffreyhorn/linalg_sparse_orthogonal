@@ -1,20 +1,22 @@
 /*
- * Sprint 20 Day 11 smoke tests for the symmetric eigensolver
+ * Sprint 20 Days 11-13 tests for the symmetric eigensolver
  * (`sparse_eigs_sym`).  Covers Ritz-value extraction (LARGEST /
  * SMALLEST), Ritz-vector lift-back through V · Y[:, j], the Day 11
- * precondition checks (symmetry, k range, NULL buffers), and a
+ * precondition checks (symmetry, k range, NULL buffers), a
  * tridiagonal SPD sanity check cross-compared against a dense
- * reference computed with the existing `tridiag_qr_eigenvalues`.
+ * reference computed with the existing `tridiag_qr_eigenvalues`,
+ * Day 12 shift-invert coverage, and Day 13 SuiteSparse / SVD /
+ * indefinite / stability coverage.
  *
- * The tests use small matrices (n ≤ 20) so the full Lanczos basis
- * fits comfortably in one batch — this gives a clean, deterministic
- * convergence path without needing to stress thick-restart.  The
- * SuiteSparse / wide-spectrum coverage comes on Day 13.
+ * Small-matrix tests (n ≤ 20) fit the full Lanczos basis in one
+ * batch — clean deterministic convergence.  SuiteSparse tests
+ * stress the restart mechanism on realistic sparsity patterns.
  */
 
 #include "sparse_dense.h"
 #include "sparse_eigs.h"
 #include "sparse_matrix.h"
+#include "sparse_svd.h"
 #include "sparse_types.h"
 #include "test_framework.h"
 
@@ -22,6 +24,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifndef DATA_DIR
+#define DATA_DIR "tests/data"
+#endif
+#define SS_DIR DATA_DIR "/suitesparse"
 
 /* Build a diagonal SparseMatrix from the given diag array. */
 static SparseMatrix *build_diag(idx_t n, const double *diag) {
@@ -455,8 +462,398 @@ static void test_shift_invert_wide_spectrum_middle(void) {
     sparse_free(A);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 13 helpers
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* For each returned Ritz pair (lambda, v), check the relative
+ * eigen-equation residual `‖A·v − lambda·v‖ / (|lambda| · ‖v‖) ≤ tol`.
+ * Anchoring by `|lambda|` matches sparse_eigs_sym's internal
+ * Wu/Simon bound (which is expressed in the same relative units)
+ * and makes the tolerance comparable across matrices with wildly
+ * different spectral scales — bcsstk04 has eigenvalues near 1e7,
+ * nos4 near 1, the Laplacian near 1e-3, and an absolute-residual
+ * gate would mean different things on each. */
+static void assert_ritz_residuals(const SparseMatrix *A, const sparse_eigs_t *result, idx_t k,
+                                  const double *vecs, double tol) {
+    idx_t n = sparse_rows(A);
+    double *Av = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(Av);
+    for (idx_t j = 0; j < k; j++) {
+        const double *v = vecs + (size_t)j * (size_t)n;
+        sparse_matvec(A, v, Av);
+        double num = 0.0, den = 0.0;
+        for (idx_t i = 0; i < n; i++) {
+            double r = Av[i] - result->eigenvalues[j] * v[i];
+            num += r * r;
+            den += v[i] * v[i];
+        }
+        double lambda_abs = fabs(result->eigenvalues[j]);
+        double anchor = (lambda_abs > 0.0 ? lambda_abs : 1.0) * (sqrt(den) > 0.0 ? sqrt(den) : 1.0);
+        double rel = sqrt(num) / anchor;
+        if (rel > tol) {
+            TF_FAIL_("Ritz pair %td: lambda=%.15g, rel-residual=%.3e > tol=%.3e", (ptrdiff_t)j,
+                     result->eigenvalues[j], rel, tol);
+        }
+        tf_asserts++;
+    }
+    free(Av);
+}
+
+/* Build a KKT-style saddle-point indefinite matrix:
+ *   [ H    B^T ]
+ *   [ B    0   ]
+ * H is `n_top`×`n_top` tridiagonal SPD (diag 6, off-diag -1); B
+ * couples the first `n_bot` rows of the bottom block to the first
+ * `n_bot` columns of the top block.  Mirrors the Sprint 20
+ * integration-test fixture so test_eigs reuses the same indefinite
+ * structure that Day 3 specifically enabled. */
+static SparseMatrix *build_kkt(idx_t n_top, idx_t n_bot) {
+    idx_t n = n_top + n_bot;
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n_top; i++) {
+        sparse_insert(A, i, i, 6.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+    for (idx_t j = 0; j < n_bot; j++) {
+        sparse_insert(A, n_top + j, j, 1.0);
+        sparse_insert(A, j, n_top + j, 1.0);
+    }
+    return A;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 13 — SuiteSparse SPD coverage
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Loads the standard SuiteSparse fixtures shipped in
+ * `tests/data/suitesparse/`.  Uses Ritz-residual correctness as the
+ * validation gate — no external dense reference needed.  Residual
+ * tolerance 1e-8 matches the PLAN's criterion.
+ */
+
+/* nos4 (n=100): k=5 largest and k=5 smallest.  Classic small SPD
+ * fixture used across the library's test suite; residual ≤ 1e-8
+ * required.  Exercises the restart mechanism because m_long
+ * (2k + 20 + k + 10 = 40) < n = 100. */
+static void test_suitesparse_nos4_largest_smallest(void) {
+    SparseMatrix *A = NULL;
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/nos4.mtx"));
+    ASSERT_NOT_NULL(A);
+    idx_t n = sparse_rows(A);
+
+    idx_t k = 5;
+    double *vals = calloc((size_t)k, sizeof(double));
+    double *vecs = calloc((size_t)n * (size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vals);
+    ASSERT_NOT_NULL(vecs);
+
+    /* LARGEST */
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .compute_vectors = 1,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    ASSERT_EQ(res.n_converged, k);
+    assert_ritz_residuals(A, &res, k, vecs, 1e-8);
+    /* Descending order check. */
+    for (idx_t j = 1; j < k; j++)
+        ASSERT_TRUE(vals[j - 1] >= vals[j] - 1e-12);
+
+    /* SMALLEST */
+    memset(vals, 0, (size_t)k * sizeof(double));
+    memset(vecs, 0, (size_t)n * (size_t)k * sizeof(double));
+    res = (sparse_eigs_t){.eigenvalues = vals, .eigenvectors = vecs};
+    opts.which = SPARSE_EIGS_SMALLEST;
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    ASSERT_EQ(res.n_converged, k);
+    assert_ritz_residuals(A, &res, k, vecs, 1e-8);
+    /* Ascending order check. */
+    for (idx_t j = 1; j < k; j++)
+        ASSERT_TRUE(vals[j - 1] <= vals[j] + 1e-12);
+
+    free(vals);
+    free(vecs);
+    sparse_free(A);
+}
+
+/* bcsstk04 (n=132): k=3 largest and k=3 smallest.  Structural-
+ * mechanics SPD, denser than nos4, stresses reorth cost. */
+static void test_suitesparse_bcsstk04_largest_smallest(void) {
+    SparseMatrix *A = NULL;
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx"));
+    ASSERT_NOT_NULL(A);
+    idx_t n = sparse_rows(A);
+
+    idx_t k = 3;
+    double *vals = calloc((size_t)k, sizeof(double));
+    double *vecs = calloc((size_t)n * (size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vals);
+    ASSERT_NOT_NULL(vecs);
+
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .compute_vectors = 1,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    ASSERT_EQ(res.n_converged, k);
+    assert_ritz_residuals(A, &res, k, vecs, 1e-8);
+
+    memset(vals, 0, (size_t)k * sizeof(double));
+    memset(vecs, 0, (size_t)n * (size_t)k * sizeof(double));
+    res = (sparse_eigs_t){.eigenvalues = vals, .eigenvectors = vecs};
+    opts.which = SPARSE_EIGS_SMALLEST;
+    /* bcsstk04 has a small-eigenvalue cluster; bump the iteration
+     * budget so the restart mechanism has room. */
+    opts.max_iterations = 300;
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    ASSERT_EQ(res.n_converged, k);
+    assert_ritz_residuals(A, &res, k, vecs, 1e-8);
+
+    free(vals);
+    free(vecs);
+    sparse_free(A);
+}
+
+/* bcsstk14 (n=1806): k=5 largest only.  Big SPD; PLAN explicitly
+ * skips SMALLEST since the lowest eigenvalues are clustered and
+ * Lanczos needs many restarts to separate them (Day 13 scope).
+ * The LARGEST side converges quickly because bcsstk14's top
+ * eigenvalues are well-separated. */
+static void test_suitesparse_bcsstk14_largest_smoke(void) {
+    SparseMatrix *A = NULL;
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx"));
+    ASSERT_NOT_NULL(A);
+    idx_t n = sparse_rows(A);
+
+    idx_t k = 5;
+    double *vals = calloc((size_t)k, sizeof(double));
+    double *vecs = calloc((size_t)n * (size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vals);
+    ASSERT_NOT_NULL(vecs);
+
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-8,
+        .compute_vectors = 1,
+        .max_iterations = 500,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    ASSERT_EQ(res.n_converged, k);
+    assert_ritz_residuals(A, &res, k, vecs, 1e-6);
+
+    free(vals);
+    free(vecs);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 13 — SVD cross-check
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * For an m × n rectangular A, the singular values are the square
+ * roots of the eigenvalues of A^T·A (equivalently A·A^T).  This
+ * test builds A, computes its SVD via `sparse_svd_compute`, forms
+ * B = A^T·A, runs `sparse_eigs_sym` on B with k = 5 LARGEST, and
+ * checks lambda_j ≈ sigma_j^2 for the top few.  Confirms the
+ * numeric coherence between the two Sprint 20-era decompositions.
+ */
+static void test_svd_cross_check_aTa(void) {
+    /* Build a 15 × 10 rectangular matrix.  Use entries that give a
+     * well-conditioned matrix: A(i,j) = 1 / (i + j + 1) is a Hilbert-
+     * like Cauchy matrix, full rank, nontrivial spectrum. */
+    idx_t m = 15, nc = 10;
+    SparseMatrix *A = sparse_create(m, nc);
+    ASSERT_NOT_NULL(A);
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < nc; j++)
+            sparse_insert(A, i, j, 1.0 / (double)(i + j + 1));
+
+    /* Sparse SVD via Golub-Kahan. */
+    sparse_svd_opts_t svd_opts = {0};
+    sparse_svd_t svd = {0};
+    REQUIRE_OK(sparse_svd_compute(A, &svd_opts, &svd));
+    ASSERT_EQ(svd.k, nc);
+
+    /* Build B = A^T A (nc × nc SPD). */
+    SparseMatrix *At = sparse_transpose(A);
+    ASSERT_NOT_NULL(At);
+    SparseMatrix *B = NULL;
+    REQUIRE_OK(sparse_matmul(At, A, &B));
+    ASSERT_NOT_NULL(B);
+
+    /* k = 5 largest eigenvalues of B. */
+    idx_t k = 5;
+    double *vals = calloc((size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vals);
+    sparse_eigs_t res = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {.which = SPARSE_EIGS_LARGEST, .tol = 1e-12};
+    REQUIRE_OK(sparse_eigs_sym(B, k, &opts, &res));
+    ASSERT_EQ(res.n_converged, k);
+
+    /* Compare lambda_j with sigma_j^2 (both in descending order).
+     * The Hilbert-style Cauchy matrix has rapidly-decaying
+     * singular values — σ[4] is ~2e-4, so σ[4]^2 ~4e-8 (~eps_mach
+     * × ‖A^T A‖ range).  The σ_j^2 recovery inherits 2× the
+     * Lanczos eps_mach per operation (A^T A has condition number ≈
+     * cond(A)^2), so absolute precision on the smallest returned
+     * σ_j^2 bottoms out at ~1e-15 absolute or ~1e-8 relative. */
+    for (idx_t j = 0; j < k; j++) {
+        double sigma_sq = svd.sigma[j] * svd.sigma[j];
+        double rel = fabs(vals[j] - sigma_sq) / (sigma_sq > 0.0 ? sigma_sq : 1.0);
+        if (rel > 1e-8) {
+            TF_FAIL_("sigma[%td]^2 = %.15g, eigs[%td] = %.15g, rel diff = %.3e", (ptrdiff_t)j,
+                     sigma_sq, (ptrdiff_t)j, vals[j], rel);
+        }
+        tf_asserts++;
+    }
+
+    free(vals);
+    sparse_free(B);
+    sparse_free(At);
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 13 — Indefinite shift-invert coverage (Day 3 + Day 12 e2e)
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Shift-invert on a KKT indefinite fixture with n ≥ SPARSE_CSC_THRESHOLD
+ * (default 100) forces the internal `sparse_ldlt_factor_opts` call
+ * to route through the AUTO → CSC supernodal path.  This exercises
+ * the Day 3 `ldlt_csc_from_sparse_with_analysis` + supernodal
+ * writeback end-to-end through the public eigs API, and asserts
+ * `used_csc_path_ldlt == 1` on the result struct (the Day 13
+ * observability field added to `sparse_eigs_t`).
+ */
+static void test_indefinite_shift_invert_uses_csc_above_threshold(void) {
+    /* n = 150 (= 140 top + 10 bottom) > SPARSE_CSC_THRESHOLD = 100. */
+    SparseMatrix *A = build_kkt(140, 10);
+    ASSERT_NOT_NULL(A);
+
+    idx_t k = 3;
+    double *vals = calloc((size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vals);
+    sparse_eigs_t res = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_NEAREST_SIGMA,
+        .sigma = 0.0,
+        .tol = 1e-10,
+        .max_iterations = 300,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    ASSERT_EQ(res.n_converged, k);
+    /* The Day 13 observability gate: the inner LDL^T must have
+     * routed through the CSC supernodal backend. */
+    ASSERT_EQ(res.used_csc_path_ldlt, 1);
+
+    free(vals);
+    sparse_free(A);
+}
+
+/* Below-threshold counterpart: small KKT should land on the linked-
+ * list LDL^T path, so `used_csc_path_ldlt == 0`.  This confirms the
+ * telemetry is actually toggling — not stuck on or off. */
+static void test_indefinite_shift_invert_uses_linked_list_below_threshold(void) {
+    /* n = 40 (30 top + 10 bottom) < SPARSE_CSC_THRESHOLD. */
+    SparseMatrix *A = build_kkt(30, 10);
+    ASSERT_NOT_NULL(A);
+
+    idx_t k = 2;
+    double *vals = calloc((size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vals);
+    sparse_eigs_t res = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_NEAREST_SIGMA,
+        .sigma = 0.0,
+        .tol = 1e-10,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    ASSERT_EQ(res.n_converged, k);
+    ASSERT_EQ(res.used_csc_path_ldlt, 0);
+
+    free(vals);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 13 — Stability / regression tests
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/* Near-singular A (condition number ~1e8 via diag with exponentially
+ * spaced values).  The solver should either return SPARSE_OK with
+ * residuals within tolerance or cleanly report SPARSE_ERR_NOT_CONVERGED
+ * with valid partial results — it must not crash, return NaN, or
+ * trip a sanitizer. */
+static void test_near_singular_stable(void) {
+    idx_t n = 20;
+    double diag[20];
+    /* Eigenvalues spanning [1e-4, 1e4] — condition number 1e8. */
+    for (idx_t i = 0; i < n; i++)
+        diag[i] = pow(10.0, -4.0 + 8.0 * (double)i / (double)(n - 1));
+    SparseMatrix *A = build_diag(n, diag);
+    ASSERT_NOT_NULL(A);
+
+    idx_t k = 3;
+    double vals[3] = {0, 0, 0};
+    sparse_eigs_t res = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {.which = SPARSE_EIGS_LARGEST, .tol = 1e-8};
+    sparse_err_t err = sparse_eigs_sym(A, k, &opts, &res);
+    /* Either converged or cleanly not-converged — must not be a
+     * hard error and must not crash. */
+    ASSERT_TRUE(err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED);
+    /* When successful, the largest eigenvalue should be close to 1e4. */
+    if (err == SPARSE_OK) {
+        ASSERT_EQ(res.n_converged, k);
+        double rel = fabs(vals[0] - 1e4) / 1e4;
+        ASSERT_TRUE(rel < 1e-6);
+    }
+
+    sparse_free(A);
+}
+
+/* Zero matrix: all eigenvalues are zero.  The solver should return
+ * k zeros without crashing.  Lanczos hits an invariant subspace on
+ * the first iteration (β = 0), which the Day 8 early-exit rule
+ * handles.  Convergence status may be SPARSE_OK or
+ * SPARSE_ERR_NOT_CONVERGED depending on how the stability check
+ * interprets the degenerate spectrum; either is acceptable. */
+static void test_zero_matrix(void) {
+    idx_t n = 6;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    /* A is entirely zero — no inserts needed.  But sparse_matvec on
+     * an empty matrix should still produce a zero result. */
+
+    idx_t k = 2;
+    double vals[2] = {99.0, 99.0}; /* sentinel */
+    sparse_eigs_t res = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {.which = SPARSE_EIGS_LARGEST, .tol = 1e-10};
+    sparse_err_t err = sparse_eigs_sym(A, k, &opts, &res);
+    ASSERT_TRUE(err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED);
+    /* Regardless of status, every returned eigenvalue must be zero
+     * (not NaN, not the sentinel — Lanczos on a zero operator has
+     * exactly one invariant subspace, all of which is the zero
+     * eigenspace). */
+    for (idx_t j = 0; j < res.n_converged; j++)
+        ASSERT_NEAR(vals[j], 0.0, 1e-10);
+
+    sparse_free(A);
+}
+
 int main(void) {
-    TEST_SUITE_BEGIN("Sparse eigensolver — Sprint 20 Days 11-12");
+    TEST_SUITE_BEGIN("Sparse eigensolver — Sprint 20 Days 11-13");
 
     RUN_TEST(test_diagonal_k3_largest);
     RUN_TEST(test_diagonal_k3_smallest);
@@ -471,6 +868,16 @@ int main(void) {
     RUN_TEST(test_shift_invert_singular_sigma);
     RUN_TEST(test_shift_invert_eigenvectors);
     RUN_TEST(test_shift_invert_wide_spectrum_middle);
+
+    /* Day 13: SuiteSparse / SVD / indefinite / stability. */
+    RUN_TEST(test_suitesparse_nos4_largest_smallest);
+    RUN_TEST(test_suitesparse_bcsstk04_largest_smallest);
+    RUN_TEST(test_suitesparse_bcsstk14_largest_smoke);
+    RUN_TEST(test_svd_cross_check_aTa);
+    RUN_TEST(test_indefinite_shift_invert_uses_csc_above_threshold);
+    RUN_TEST(test_indefinite_shift_invert_uses_linked_list_below_threshold);
+    RUN_TEST(test_near_singular_stable);
+    RUN_TEST(test_zero_matrix);
 
     TEST_SUITE_END();
 }

@@ -361,9 +361,10 @@ static void test_shift_invert_singular_sigma(void) {
 
     double vals[2] = {0, 0};
     sparse_eigs_t result = {.eigenvalues = vals};
+    /* sigma = 3.0 is exactly an eigenvalue */
     sparse_eigs_opts_t opts = {
         .which = SPARSE_EIGS_NEAREST_SIGMA,
-        .sigma = 3.0, /* exactly an eigenvalue */
+        .sigma = 3.0,
     };
     ASSERT_ERR(sparse_eigs_sym(A, 2, &opts, &result), SPARSE_ERR_SINGULAR);
 

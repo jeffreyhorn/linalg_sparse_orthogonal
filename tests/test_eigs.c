@@ -857,6 +857,32 @@ static void test_zero_matrix(void) {
     sparse_free(A);
 }
 
+/* 1×1 symmetric edge case (k == 1).  Exercises the m_cap / m_init
+ * lower-bound clamps so the trivial eigenpair solve doesn't trip
+ * `lanczos_iterate_op`'s `m_max <= n` precondition. */
+static void test_one_by_one_matrix(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    sparse_insert(A, 0, 0, 7.5);
+
+    double vals[1] = {0.0};
+    double vec[1] = {0.0};
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vec};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-12,
+        .compute_vectors = 1,
+        .reorthogonalize = 1,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, 1, &opts, &res));
+    ASSERT_EQ(res.n_converged, 1);
+    ASSERT_NEAR(vals[0], 7.5, 1e-12);
+    /* Only nontrivial eigenvector of a 1×1 is ±1. */
+    ASSERT_TRUE(fabs(fabs(vec[0]) - 1.0) < 1e-12);
+
+    sparse_free(A);
+}
+
 int main(void) {
     TEST_SUITE_BEGIN("Sparse eigensolver — Sprint 20 Days 11-13");
 
@@ -883,6 +909,7 @@ int main(void) {
     RUN_TEST(test_indefinite_shift_invert_uses_linked_list_below_threshold);
     RUN_TEST(test_near_singular_stable);
     RUN_TEST(test_zero_matrix);
+    RUN_TEST(test_one_by_one_matrix);
 
     TEST_SUITE_END();
 }

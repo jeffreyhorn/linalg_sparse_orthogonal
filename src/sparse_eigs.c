@@ -184,8 +184,14 @@ sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, cons
             V[i + 0 * n] = v0[i] * inv;
     }
 
-    /* Scratch for w = op·v_k - beta_{k-1}·v_{k-1} - alpha_k·v_k. */
-    double *w = malloc((size_t)n * sizeof(double));
+    /* Scratch for w = op·v_k - beta_{k-1}·v_{k-1} - alpha_k·v_k.
+     * Overflow-check `n * sizeof(double)` so a pathological n on a
+     * 32-bit size_t target fails cleanly rather than undersizing w
+     * and corrupting memory in the recurrence loop below. */
+    size_t w_bytes = 0;
+    if (size_mul_overflow((size_t)n, sizeof(double), &w_bytes))
+        return SPARSE_ERR_ALLOC;
+    double *w = malloc(w_bytes);
     if (!w)
         return SPARSE_ERR_ALLOC;
 
@@ -585,6 +591,11 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
      * and then clamped to `min(..., n)` before narrowing back to
      * idx_t, so large k values can't overflow the int32 idx_t.  The
      * final m_cap / m_init / m_grow are all ≤ n, which fits idx_t. */
+    /* n == 1 is a valid symmetric input with k == 1 (trivial
+     * eigenpair).  Clamp the lower bound to `min(2, n)` so the
+     * 1×1 case doesn't force m_cap > n and trip `lanczos_iterate_op`'s
+     * `m_max <= n` precondition. */
+    idx_t m_min = (n >= 2) ? 2 : n;
     idx_t m_cap = max_iters < n ? max_iters : n;
     int64_t m_cap_min = (int64_t)2 * (int64_t)k + 10;
     if ((int64_t)m_cap < m_cap_min) {
@@ -592,13 +603,13 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     }
     if (m_cap > n)
         m_cap = n;
-    if (m_cap < 2)
-        m_cap = 2;
+    if (m_cap < m_min)
+        m_cap = m_min;
     int64_t m_init_wide = (int64_t)3 * (int64_t)k + 30;
     if (m_init_wide > (int64_t)m_cap)
         m_init_wide = (int64_t)m_cap;
-    if (m_init_wide < 2)
-        m_init_wide = 2;
+    if (m_init_wide < (int64_t)m_min)
+        m_init_wide = (int64_t)m_min;
     idx_t m_init = (idx_t)m_init_wide;
     int64_t m_grow_wide = (int64_t)k + 20;
     if (m_grow_wide > (int64_t)m_cap)
@@ -751,7 +762,10 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
          * emit partial results with NOT_CONVERGED.  The sum
          * `m + m_grow` is computed in int64_t so a runaway
          * combination can't overflow idx_t before the clamp to
-         * m_cap caps it back to the valid range. */
+         * m_cap caps it back to the valid range.  `max_iterations`
+         * controls `m_cap = min(max_iters, n)`, which bounds the
+         * Lanczos subspace size per run — not the cumulative work
+         * across retries (see field doc in `sparse_eigs.h`). */
         if (m >= m_cap)
             break;
         int64_t m_next_wide = (int64_t)m + (int64_t)m_grow;

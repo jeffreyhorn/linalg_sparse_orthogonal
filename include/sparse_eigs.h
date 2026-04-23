@@ -135,8 +135,12 @@ typedef struct {
     /** Shift point for `SPARSE_EIGS_NEAREST_SIGMA`; ignored
      *  otherwise.  Default: 0.0. */
     double sigma;
-    /** Maximum outer Lanczos iterations across grow-m retries.
-     *  0 selects the library default (currently `max(10 * k + 20, 100)`). */
+    /** Cap on the Lanczos subspace size (`m`) per Lanczos run.
+     *  Also caps the growth across grow-m retries (`m` never
+     *  exceeds this value on any run), but does not bound the
+     *  cumulative Lanczos iterations across retries — that is
+     *  reported as `result->iterations`.  0 selects the library
+     *  default (currently `max(10 * k + 20, 100)`). */
     idx_t max_iterations;
     /** Convergence tolerance on the relative Ritz residual
      *  `||A·v - θ·v|| / (|θ| * ||A||_inf)`.  0 selects the library

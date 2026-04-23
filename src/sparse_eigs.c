@@ -43,6 +43,7 @@
 #include "sparse_types.h"
 #include "sparse_vector.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -196,6 +197,15 @@ sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, cons
         return SPARSE_ERR_ALLOC;
 
     double beta_prev = 0.0; /* beta_{k-1}; zero on the first step */
+    /* Running estimate of ||T||_inf used to scale the invariant-
+     * subspace / breakdown check.  After each step we update this to
+     * the max row-sum |beta_{k-1}| + |alpha_k| + |beta_k| seen so
+     * far; beta_k is considered an invariant-subspace trip only
+     * when it has dropped well below that accumulated scale.  A
+     * purely absolute threshold would falsely fire on small-norm
+     * operators (e.g., ||A||_inf ~ 1e-16) where beta_k remains
+     * large relative to T but small in absolute terms. */
+    double t_norm = 0.0;
 
     for (idx_t k = 0; k < m_max; k++) {
         const double *v_k = V + k * n;
@@ -251,10 +261,24 @@ sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, cons
         double b = sqrt(b_sq);
         beta[k] = b;
 
+        /* Update the running ||T||_inf estimate with row k's
+         * completed row-sum: T[k, k-1] = beta_prev, T[k, k] =
+         * alpha_k, T[k, k+1] = b (symmetric tridiagonal). */
+        double row_k_bound = beta_prev + fabs(a) + b;
+        if (row_k_bound > t_norm)
+            t_norm = row_k_bound;
+
         /* Invariant-subspace detection: w has become the zero
-         * vector, so span(V[:, 0..k]) is op-invariant and the
-         * Krylov basis has maximal dimension.  Stop cleanly. */
-        if (b < 1e-14) {
+         * vector (or close enough), so span(V[:, 0..k]) is op-
+         * invariant and the Krylov basis has maximal dimension.
+         * The threshold is scale-aware — `t_norm * 1e-14` handles
+         * normal and small-norm operators proportionally, and the
+         * `DBL_MIN * 100` absolute floor still triggers on the
+         * zero-operator case where `t_norm` stays exactly 0. */
+        double breakdown_tol = t_norm * 1e-14;
+        if (breakdown_tol < DBL_MIN * 100.0)
+            breakdown_tol = DBL_MIN * 100.0;
+        if (b < breakdown_tol) {
             *m_actual = k + 1;
             free(w);
             return SPARSE_OK;

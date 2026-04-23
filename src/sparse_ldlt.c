@@ -790,6 +790,23 @@ err_cleanup:
  *      correct BK permutation regardless of which path succeeded. */
 static sparse_err_t ldlt_factor_csc_path(const SparseMatrix *A_work, double tol,
                                          sparse_ldlt_t *ldlt_out) {
+    /* Defensively NULL-initialise every owned pointer in `ldlt_out`
+     * so `sparse_ldlt_free(ldlt_out)` is safe on any error path
+     * before the final `ldlt_csc_writeback_to_ldlt` call — the
+     * shape check, `n == 0` clamp, pre-pass conversion, analyze,
+     * and batched-factor failures all return without touching the
+     * output struct, so an uninitialised caller buffer would leak
+     * whatever pointers it happened to contain.  Mirrors the
+     * initialisation pattern in `ldlt_factor_internal`. */
+    ldlt_out->L = NULL;
+    ldlt_out->D = NULL;
+    ldlt_out->D_offdiag = NULL;
+    ldlt_out->pivot_size = NULL;
+    ldlt_out->perm = NULL;
+    ldlt_out->n = 0;
+    ldlt_out->factor_norm = 0.0;
+    ldlt_out->tol = 0.0;
+
     if (A_work->rows != A_work->cols)
         return SPARSE_ERR_SHAPE;
     idx_t n = A_work->rows;

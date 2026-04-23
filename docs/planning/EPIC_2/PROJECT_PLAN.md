@@ -296,11 +296,11 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ---
 
-## Sprint 20: LDL^T Completion & Symmetric Lanczos Eigensolver
+## Sprint 20: LDL^T Completion & Symmetric Lanczos Eigensolver — **Complete**
 
-**Duration:** 14 days (~136 hours)
+**Duration:** 14 days (~136 hours estimated; ~125 hours actual, ~8% under)
 
-**Goal:** Close out the final Sprint 19 follow-ups for the batched supernodal LDL^T path — the `_with_analysis` shim that enables indefinite matrices and a transparent size-based dispatch through `sparse_ldlt_factor_opts` — then begin the eigensolver work by landing the symmetric Lanczos eigensolver with shift-invert mode.
+**Goal:** Close out the final Sprint 19 follow-ups for the batched supernodal LDL^T path — the `_with_analysis` shim that enables indefinite matrices and a transparent size-based dispatch through `sparse_ldlt_factor_opts` — then land the symmetric Lanczos eigensolver with shift-invert mode.
 
 ### Prerequisites from previous Sprints
 
@@ -311,25 +311,26 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ### Items
 
-| # | Item | Description | Estimate |
-|---|------|-------------|----------|
-| 1 | `ldlt_csc_from_sparse_with_analysis` | Mirror the Cholesky `_with_analysis` shim for LDL^T: pre-allocate the full `sym_L` pattern from `sparse_analysis_t` so the batched supernodal LDL^T writeback can preserve indefinite `cmod` fill rows that the heuristic `ldlt_csc_from_sparse` pattern does not cover. Unblocks the batched supernodal LDL^T path on KKT-style saddle points and other matrices with non-trivial off-block structure (currently forced to the scalar `ldlt_csc_eliminate` fallback). Same lesson as the Cholesky Sprint 19 Day 6 `sym_L` pre-allocation fix. | 24 hrs |
-| 2 | Transparent LDL^T dispatch through `sparse_ldlt_factor_opts` | Extend `sparse_ldlt_factor_opts` with a `backend` selector (AUTO / LINKED_LIST / CSC) and a `used_csc_path` result field, mirroring the Cholesky dispatch added in Sprint 18. AUTO routes to the CSC supernodal path when `n >= SPARSE_CSC_THRESHOLD` via `sparse_analyze` → `ldlt_csc_from_sparse_with_analysis` → `ldlt_csc_eliminate_supernodal` → CSC→linked-list writeback, with a structure-based fallback to `ldlt_csc_eliminate` when the indefinite pattern defeats batching. Depends on item 1. | 20 hrs |
-| 3 | Eigenvalue API design | Define `sparse_eigs_t` result struct (eigenvalues, eigenvectors, convergence info). API: `sparse_eigs_sym(A, k, which, opts, &result)` with `which` = largest/smallest/nearest_sigma. | 12 hrs |
-| 4 | Symmetric Lanczos eigensolver | Implement thick-restart Lanczos for computing k largest/smallest eigenvalues and eigenvectors of symmetric matrices. Reorthogonalization for numerical stability. | 40 hrs |
-| 5 | Shift-invert Lanczos | Add shift-invert mode for interior eigenvalues: solve (A - sigma*I)^{-1} * x using LU or LDL^T factorization inside the Lanczos iteration. Benefits directly from item 2's transparent LDL^T dispatch for symmetric indefinite shifts. | 20 hrs |
-| 6 | Lanczos tests and validation | Test on diagonal matrices (exact eigenvalues known), tridiagonal matrices, SuiteSparse SPD matrices. Validate against existing SVD (eigenvalues of A^T*A = singular values squared). Include indefinite matrix coverage for the new LDL^T `_with_analysis` batched path. | 12 hrs |
-| 7 | Lanczos documentation | Document Lanczos + shift-invert eigenvalue API in README, add example program, update API overview table. LOBPCG documentation follows in Sprint 21 when that item lands. | 8 hrs |
+| # | Item | Description | Estimate | Status |
+|---|------|-------------|----------|--------|
+| 1 | `ldlt_csc_from_sparse_with_analysis` | Mirror the Cholesky `_with_analysis` shim for LDL^T: pre-allocate the full `sym_L` pattern from `sparse_analysis_t` so the batched supernodal LDL^T writeback can preserve indefinite `cmod` fill rows that the heuristic `ldlt_csc_from_sparse` pattern does not cover. Unblocks the batched supernodal LDL^T path on KKT-style saddle points and other matrices with non-trivial off-block structure (currently forced to the scalar `ldlt_csc_eliminate` fallback). Same lesson as the Cholesky Sprint 19 Day 6 `sym_L` pre-allocation fix. | 24 hrs | ✅ Days 1-3 |
+| 2 | Transparent LDL^T dispatch through `sparse_ldlt_factor_opts` | Extend `sparse_ldlt_factor_opts` with a `backend` selector (AUTO / LINKED_LIST / CSC) and a `used_csc_path` result field, mirroring the Cholesky dispatch added in Sprint 18. AUTO routes to the CSC supernodal path when `n >= SPARSE_CSC_THRESHOLD` via `sparse_analyze` → `ldlt_csc_from_sparse_with_analysis` → `ldlt_csc_eliminate_supernodal` → CSC→linked-list writeback, with a structure-based fallback to `ldlt_csc_eliminate` when the indefinite pattern defeats batching. Depends on item 1. | 20 hrs | ✅ Days 4-6 |
+| 3 | Eigenvalue API design | Define `sparse_eigs_t` result struct (eigenvalues, eigenvectors, convergence info). API: `sparse_eigs_sym(A, k, which, opts, &result)` with `which` = largest/smallest/nearest_sigma. | 12 hrs | ✅ Day 7 |
+| 4 | Symmetric Lanczos eigensolver | Implement thick-restart Lanczos for computing k largest/smallest eigenvalues and eigenvectors of symmetric matrices. Reorthogonalization for numerical stability. | 40 hrs | ✅ Days 8-11 |
+| 5 | Shift-invert Lanczos | Add shift-invert mode for interior eigenvalues: solve (A - sigma*I)^{-1} * x using LU or LDL^T factorization inside the Lanczos iteration. Benefits directly from item 2's transparent LDL^T dispatch for symmetric indefinite shifts. | 20 hrs | ✅ Day 12 |
+| 6 | Lanczos tests and validation | Test on diagonal matrices (exact eigenvalues known), tridiagonal matrices, SuiteSparse SPD matrices. Validate against existing SVD (eigenvalues of A^T*A = singular values squared). Include indefinite matrix coverage for the new LDL^T `_with_analysis` batched path. | 12 hrs | ✅ Day 13 |
+| 7 | Lanczos documentation | Document Lanczos + shift-invert eigenvalue API in README, add example program, update API overview table. LOBPCG documentation follows in Sprint 21 when that item lands. | 8 hrs | ✅ Day 14 |
 
 ### Deliverables
 
-- `ldlt_csc_from_sparse_with_analysis` shim with full `sym_L` pre-allocation; batched supernodal LDL^T working end-to-end on indefinite SuiteSparse matrices
-- Transparent size-based dispatch through `sparse_ldlt_factor_opts` with `used_csc_path` reporting and a structure-aware fallback
-- `sparse_eigs_sym()` with Lanczos backend for k largest/smallest eigenvalues
-- Shift-invert mode for interior eigenvalues
-- Lanczos documented in README and headers
+- ✅ `ldlt_csc_from_sparse_with_analysis` shim with full `sym_L` pre-allocation; batched supernodal LDL^T working end-to-end on indefinite SuiteSparse matrices
+- ✅ Transparent size-based dispatch through `sparse_ldlt_factor_opts` with `used_csc_path` reporting and a structure-aware fallback
+- ✅ `sparse_eigs_sym()` with thick-restart Lanczos + full MGS reorth backend for k largest/smallest eigenvalues, Ritz pair extraction, Wu/Simon per-pair residual convergence
+- ✅ Shift-invert mode for interior eigenvalues, composing with the Day 4-6 LDL^T AUTO dispatch; `used_csc_path_ldlt` observability on the result struct
+- ✅ Lanczos documented in README, algorithm.md, public header doxygen; `examples/example_eigs.c` demonstrates both LARGEST and NEAREST_SIGMA modes with eigenvector residual checks
+- ✅ SuiteSparse / SVD cross-check / indefinite / stability test coverage in `tests/test_eigs.c` (19 tests / 154 assertions)
 
-**Total estimate:** ~136 hours
+**Total estimate:** ~136 hours (actual ~125 hours, ~8% under — see Sprint 20 retrospective)
 
 ---
 
@@ -418,7 +419,7 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 | 17 | CSR/CSC Numeric Backend | CSC Cholesky and LDL^T with supernodal optimization | 152 hrs |
 | 18 | CSC Kernel Performance Follow-Ups | Native CSC BK LDL^T, batched supernodal Cholesky, transparent dispatch, larger corpus | 124 hrs |
 | 19 | CSC Kernel Tuning & Native Supernodal LDL^T | Analyze-once bench, small-matrix threshold study, scalar-CSC Kuu regression fix, native supernodal LDL^T, LDL^T row-adjacency index | 168 hrs |
-| 20 | LDL^T Completion & Symmetric Lanczos | `ldlt_csc_from_sparse_with_analysis`, transparent `sparse_ldlt_factor_opts` dispatch, Lanczos + shift-invert eigensolver | 136 hrs |
+| 20 | LDL^T Completion & Symmetric Lanczos — **Complete** | `ldlt_csc_from_sparse_with_analysis`, transparent `sparse_ldlt_factor_opts` dispatch, Lanczos + shift-invert eigensolver | 136 hrs (~125 actual) |
 | 21 | LOBPCG, Nested Dissection & Quotient-Graph AMD | LOBPCG, graph partitioning + nested dissection, quotient-graph AMD | 160 hrs |
 | 22 | SVD, Progress Callbacks, CI & Wrap-Up | Sparse low-rank fix, full SVD, progress/cancel callbacks, Windows/macOS CI, retrospective | 144 hrs |
 

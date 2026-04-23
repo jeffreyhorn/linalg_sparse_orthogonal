@@ -218,6 +218,9 @@ target_link_libraries(example_minnorm PRIVATE sparse_lu_ortho)
 add_executable(example_colamd examples/example_colamd.c)
 target_link_libraries(example_colamd PRIVATE sparse_lu_ortho)
 
+add_executable(example_eigs examples/example_eigs.c)
+target_link_libraries(example_eigs PRIVATE sparse_lu_ortho)
+
 # ─── Installation ────────────────────────────────────────────────────
 
 include(GNUInstallDirs)

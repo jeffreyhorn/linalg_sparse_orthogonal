@@ -46,6 +46,14 @@ Solve a 200x200 sparse system using GMRES with and without ILU(0) preconditionin
 ./build/example_iterative
 ```
 
+### example_eigs
+
+Compute symmetric eigenpairs with `sparse_eigs_sym` (Sprint 20). Part (a) finds the five largest eigenvalues of a small SPD SuiteSparse matrix (nos4, n = 100) and reports per-pair eigen-equation residuals. Part (b) exercises shift-invert mode: three eigenvalues nearest σ = 0 on a KKT indefinite saddle-point matrix, composing with the LDL^T dispatch from Sprint 20 Days 4-6. Run from the project root so the nos4.mtx fixture resolves.
+
+```bash
+./build/example_eigs
+```
+
 ## Writing Your Own
 
 Each example is a single `.c` file that includes only public headers from `include/`. To compile manually:

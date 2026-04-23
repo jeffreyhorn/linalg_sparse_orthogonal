@@ -1246,19 +1246,91 @@ The result x has minimum 2-norm because the transformation preserves norms and t
 
 Stops when the residual stops decreasing or max iterations are reached.
 
-## Symmetric Eigensolvers (Sprint 20 Days 7-12) — in progress
+## Symmetric Eigensolvers (Sprint 20)
 
-`sparse_eigs_sym(A, k, opts, result)` computes `k` extreme or near-sigma eigenpairs of a symmetric sparse matrix A.  Landing incrementally across Sprint 20:
+`sparse_eigs_sym(A, k, opts, result)` computes `k` extreme or near-sigma eigenpairs of a symmetric sparse matrix A via **thick-restart Lanczos with full MGS reorthogonalisation**, with an optional **shift-invert** mode for interior eigenvalues that composes with the LDL^T dispatch in `sparse_ldlt.h`.
 
-| Day  | Work                                                                                                    |
-|------|---------------------------------------------------------------------------------------------------------|
-|  7   | Public API in `include/sparse_eigs.h` (`sparse_eigs_t`, `sparse_eigs_opts_t`, `sparse_eigs_sym`) + stub |
-|  8   | Basic 3-term Lanczos recurrence (no reorth)                                                             |
-|  9   | Full reorthogonalization against prior Lanczos vectors                                                  |
-| 10   | Thick-restart mechanism (Wu/Simon, Stathopoulos/Saad 2007)                                              |
-| 11   | Ritz extraction, convergence bookkeeping, partial-result semantics                                      |
-| 12   | Shift-invert mode for `SPARSE_EIGS_NEAREST_SIGMA` (via `sparse_ldlt_factor_opts`)                       |
+### The 3-term Lanczos recurrence
 
-Day 7's stub validates every documented precondition (NULL checks, shape / range / enum / tol rejections) and returns `SPARSE_ERR_BADARG` on the success path as a "stub in progress" signal — the codebase has no `SPARSE_ERR_NOT_IMPL` code.  Days 8-11 replace the stub with the thick-restart Lanczos iteration described in the `src/sparse_eigs.c` module design block.
+Given a symmetric A and a starting vector `v_0` (unit norm), the Lanczos recurrence builds an orthonormal Krylov basis `V = [v_0, v_1, ..., v_{m-1}]` and a symmetric tridiagonal `T = V^T A V` by:
 
-The API surface mirrors the iterative-solver convention in `sparse_iterative.h`: `sparse_eigs_opts_t` carries all tuning knobs (`which`, `sigma`, `max_iterations`, `tol`, `reorthogonalize`, `compute_vectors`, `backend`), and `sparse_eigs_t` uses caller-owned buffers for `eigenvalues` / `eigenvectors` plus library-written scalar output fields (`n_requested`, `n_converged`, `iterations`, `residual_norm`).  No library-side allocation means no `sparse_eigs_free` helper — callers free their own buffers.
+```
+for k = 0, 1, 2, ..., m-1:
+    w        = A · v_k − beta_{k-1} · v_{k-1}      (beta_{-1} := 0)
+    alpha_k  = <w, v_k>
+    w        = w − alpha_k · v_k
+    beta_k   = ||w||
+    if beta_k ≈ 0: invariant subspace — stop
+    v_{k+1}  = w / beta_k
+```
+
+`alpha[0..m-1]` populates T's main diagonal; `beta[0..m-2]` populates the sub/super-diagonal.  In exact arithmetic `V` is orthonormal and T's eigenvalues — the **Ritz values** — approximate A's eigenvalues, with the approximation sharpest at the extremes of the spectrum (that's why Lanczos converges quickly to `LARGEST` / `SMALLEST` and slowly to interior points — hence shift-invert for interior queries).
+
+### Full reorthogonalisation (why, not just how)
+
+Paige (1972) showed that without reorthogonalisation V^T V drifts from I as k grows, and **ghost Ritz values** — spurious copies of already-converged eigenvalues — emerge in T's spectrum around `k ≈ cond(A)` iterations.  The library's default is full **modified Gram-Schmidt (MGS)** reorthogonalisation: after the standard 3-term step computes a tentative w, the helper subtracts the projection of w onto every prior Lanczos vector:
+
+```
+for j = 0, 1, ..., k-1:
+    dot = <w, v_j>
+    w  -= dot · v_j
+```
+
+MGS has the same O(k·n) asymptotic cost per step as classical Gram-Schmidt but is numerically more stable under cancellation because each subtraction uses the currently-orthogonalised w rather than a cached dot-product of the original.  The resulting orthogonality drift stays at 1e-12 or better up to moderate k on well-conditioned Krylov bases; classical GS would bottom out around 1e-6 on wide-spectrum matrices.
+
+The `opts.reorthogonalize = 0` escape hatch disables reorth for the occasional cheap-smoke-test where ghost values don't matter, but every production call runs with reorth on.
+
+### Ritz extraction
+
+Once Lanczos builds `(V, T)`, the Ritz pairs `(theta_j, V · y_j)` — where `(theta_j, y_j)` are the eigenpairs of T — approximate A's eigenpairs.  The library extracts both eigenvalues and eigenvectors of T via `tridiag_qr_eigenpairs`, an implicit-QR-with-Wilkinson-shift variant that accumulates the Givens rotations into an orthogonal Y matrix so the full-problem Ritz vectors come out as `V · Y[:, j]` via one gemv per requested column.
+
+### Outer loop: growing m on retry
+
+The practical convergence question is *how big m should be*.  The Day 13 implementation runs a single growing-m Lanczos sequence:
+
+```
+m = m_init = 3k + 30
+loop:
+    run lanczos(op, v0, m) → V, alpha, beta
+    compute Ritz pairs (theta, Y) from (alpha, beta) via tridiag QR
+    check Wu/Simon residual |beta_m · y_{m-1, j}| / |theta_j| ≤ tol for every top-k pair
+    if converged: emit and return
+    if m == m_cap: emit partial NOT_CONVERGED
+    m += k + 20
+```
+
+Because `v_0` is deterministic and Lanczos is deterministic under fixed v_0, the first `m_prev` steps of each retry are bit-for-bit identical to the previous retry's basis; the extra `m_new − m_prev` steps are where the convergence tightens.  This **strictly extends** the Krylov basis on every pass — an earlier design that restarted with `v_0 := v_last` on non-convergence saturated at residual ~7e-3 on nos4 after 2000 iterations because the warm-start lost the prior convergence.  The growing-m variant lands at residual 4e-14 in 70 total iterations on the same fixture.
+
+### Wu/Simon convergence criterion
+
+For a Ritz pair `(theta_j, V · y_j)` the true eigen-equation residual satisfies `||A · V · y_j − theta_j · V · y_j|| = |beta_m · y_{m-1, j}|` (Paige 1972; Bai et al. 2000), where `beta_m` is the final Lanczos `beta` value (which `lanczos_iterate` stores in `beta[m-1]` as the residual norm of the last unaccepted w vector).  Since `Y` is orthogonal, `||V · y_j|| = 1`, so this is already the absolute residual; dividing by `|theta_j|` gives the relative residual that the library reports in `result.residual_norm`.  Wu/Simon is cheap (one row of Y per pair — no extra matvecs), directly bounds the eigen-equation error, and matches what callers care about.
+
+### Shift-invert mode (`SPARSE_EIGS_NEAREST_SIGMA`)
+
+Interior eigenvalues converge painfully slowly in direct Lanczos because they're neither end of the spectrum.  Shift-invert transforms the problem:
+
+```
+op = (A − sigma·I)^{-1}
+eigenvalues of op = 1 / (lambda − sigma)
+```
+
+Values of `lambda` near `sigma` become **largest in magnitude** on `op`'s spectrum — exactly where Lanczos converges fastest.  The library:
+
+1. Copies A and subtracts `sigma` from each diagonal entry to form `A − sigma·I`.
+2. Factors via `sparse_ldlt_factor_opts(SPARSE_LDLT_BACKEND_AUTO)` — the Sprint 20 Days 4-6 dispatch routes to the CSC supernodal path on `n ≥ SPARSE_CSC_THRESHOLD`, so big indefinite shifts benefit from the Day 3 batched LDL^T.
+3. Drives Lanczos with `sparse_ldlt_solve` as the operator (one triangular solve per iteration against the pre-computed factor).
+4. Post-processes Ritz values: `lambda_j = sigma + 1 / theta_j`.
+
+Singular-shift case: if `sigma` coincides with an eigenvalue of A, `A − sigma·I` is singular and LDL^T returns `SPARSE_ERR_SINGULAR`; `sparse_eigs_sym` propagates it, and the caller perturbs sigma slightly and retries.  The inner factor's backend choice surfaces in `result.used_csc_path_ldlt` for observability.
+
+### Convergence heuristics in practice
+
+- **Well-separated extremes.** `LARGEST` / `SMALLEST` converge in O(sqrt(cond(A))) × k iterations on well-separated spectra.  nos4 k=5 LARGEST converges in 70 steps (~35 matvecs/requested pair).
+- **Clustered spectra.** Bottom-cluster SPD matrices need close to the full Krylov basis (m ≈ n).  bcsstk04 k=3 SMALLEST hits m_cap = n = 132 and converges cleanly (shift-invert with `sigma ~ 1e-3` would be faster).
+- **Shift-invert break-even.** When the target eigenvalues are ≥ 10% of the spectrum distance from the extremes, shift-invert beats direct even accounting for the one-time LDL^T factor cost.  The KKT n=150 run takes 39 Lanczos steps at sigma=0 vs 62 for direct SMALLEST — 34% faster wall time.
+
+See `docs/planning/EPIC_2/SPRINT_20/bench_day13_lanczos.txt` for the measured numbers across SuiteSparse fixtures.
+
+### API consistency notes
+
+The API surface mirrors the iterative-solver convention in `sparse_iterative.h`: `sparse_eigs_opts_t` carries all tuning knobs (`which`, `sigma`, `max_iterations`, `tol`, `reorthogonalize`, `compute_vectors`, `backend`), and `sparse_eigs_t` uses caller-owned buffers for `eigenvalues` / `eigenvectors` plus library-written scalar output fields (`n_requested`, `n_converged`, `iterations`, `residual_norm`, `used_csc_path_ldlt`).  No library-side allocation means no `sparse_eigs_free` helper — callers free their own buffers.

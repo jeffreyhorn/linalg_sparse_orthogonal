@@ -6,11 +6,17 @@
  * @brief Sparse symmetric eigensolvers (Sprint 20).
  *
  * Provides `sparse_eigs_sym()` for computing k extreme or near-sigma
- * eigenpairs of a symmetric sparse matrix A.  The default backend is
- * a thick-restart Lanczos iteration (Sprint 20 Days 8-11); shift-
- * invert mode for interior eigenvalues (Sprint 20 Day 12) reuses the
- * LDL^T factorization plumbing added in Days 4-6 via
- * `sparse_ldlt_factor_opts`.
+ * eigenpairs of a symmetric sparse matrix A via thick-restart
+ * Lanczos with full MGS reorthogonalisation.  Three spectrum-
+ * selection modes (`SPARSE_EIGS_LARGEST`, `_SMALLEST`,
+ * `_NEAREST_SIGMA`); interior eigenvalues are found via shift-invert
+ * Lanczos, which composes with the LDL^T dispatch in
+ * `sparse_ldlt.h` (see `sparse_ldlt_factor_opts` — the Sprint 20
+ * Day 4-6 AUTO / LINKED_LIST / CSC backend selector routes through
+ * the supernodal path on `n >= SPARSE_CSC_THRESHOLD`).  The SVD in
+ * `sparse_svd.h` is a cousin API: singular values of a rectangular
+ * A are related to eigenvalues of A^T·A (cross-checked in the
+ * Sprint 20 Day 13 tests).
  *
  * **Usage pattern:**
  * @code
@@ -19,7 +25,7 @@
  *   idx_t k = 5;            // want 5 eigenpairs
  *
  *   double *vals = malloc((size_t)k * sizeof(double));
- *   double *vecs = malloc((size_t)(k * n) * sizeof(double));  // column-major
+ *   double *vecs = malloc((size_t)k * (size_t)n * sizeof(double));  // column-major
  *   sparse_eigs_t result = {
  *       .eigenvalues = vals,
  *       .eigenvectors = vecs,
@@ -31,24 +37,39 @@
  *   };
  *   sparse_err_t err = sparse_eigs_sym(A, k, &opts, &result);
  *   if (err == SPARSE_OK) {
- *       printf("%zd of %zd eigenpairs converged in %zd iterations\n",
+ *       printf("%td of %td eigenpairs converged in %td Lanczos iterations\n",
  *              (ptrdiff_t)result.n_converged, (ptrdiff_t)result.n_requested,
  *              (ptrdiff_t)result.iterations);
  *       for (idx_t i = 0; i < result.n_converged; i++)
- *           printf("  lambda[%zd] = %.12e\n", (ptrdiff_t)i, vals[i]);
+ *           printf("  lambda[%td] = %.12e\n", (ptrdiff_t)i, vals[i]);
  *   }
  *   free(vals);
  *   free(vecs);
  * @endcode
+ *
+ * **Convergence.** `sparse_eigs_sym` runs a single growing-m
+ * Lanczos sequence starting from a deterministic pseudo-random v0
+ * (golden-ratio fractional mixing — reproducible across runs and
+ * avoids eigenvector alignment on diagonal fixtures).  The
+ * per-retry grow-m strategy strictly extends the Krylov basis, so
+ * every pass benefits from prior work.  Convergence is gated on
+ * the Wu/Simon residual `|beta_m * y_{m-1, j}| / |theta_j|` of
+ * every selected Ritz pair — this directly bounds the eigen-
+ * equation relative error and is reported in
+ * `result.residual_norm`.
  *
  * **Design notes.** The result struct uses caller-owned buffers for
  * the eigenvalue and eigenvector arrays — consistent with the
  * iterative-solver convention in `sparse_iterative.h`
  * (`residual_history` is caller-allocated).  The library writes
  * scalar output fields (`n_requested`, `n_converged`, `iterations`,
- * `residual_norm`) into `sparse_eigs_t` on return.  No library-side
- * allocation means no `sparse_eigs_free` helper is needed — caller
- * frees its own buffers.
+ * `residual_norm`, `used_csc_path_ldlt`) into `sparse_eigs_t` on
+ * return.  No library-side allocation means no `sparse_eigs_free`
+ * helper is needed — caller frees its own buffers.
+ *
+ * @see sparse_ldlt.h — factorisation backend used by shift-invert.
+ * @see sparse_svd.h — related decomposition for rectangular A.
+ * @see docs/algorithm.md — Lanczos theory and implementation notes.
  */
 
 #include "sparse_matrix.h"

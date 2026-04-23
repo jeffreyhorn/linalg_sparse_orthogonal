@@ -81,4 +81,41 @@ sparse_err_t lanczos_iterate(const SparseMatrix *A, const double *v0, idx_t m_ma
                              int reorthogonalize, double *V, double *alpha, double *beta,
                              idx_t *m_actual);
 
+/**
+ * @brief Operator type for generalised Lanczos drivers.
+ *
+ * Applies `y := op(x)` for some symmetric linear operator `op`.
+ * `ctx` is an opaque pointer threaded through by the caller (e.g.
+ * `(const sparse_ldlt_t *)` for shift-invert mode).  `n` is the
+ * vector length; redundant with ctx but kept explicit so the helper
+ * can validate inputs without peeking at the ctx struct.
+ *
+ * Sprint 20 Day 12 adds this indirection so `lanczos_iterate_op`
+ * can drive the 3-term recurrence against either `sparse_matvec(A)`
+ * (default) or `(A - sigma*I)^{-1}·v` via `sparse_ldlt_solve`
+ * (shift-invert).  The operator is expected to be symmetric — the
+ * caller is responsible for passing only symmetric operators.
+ */
+typedef sparse_err_t (*lanczos_op_fn)(const void *ctx, idx_t n, const double *x, double *y);
+
+/**
+ * @brief m-step Lanczos recurrence on a symmetric operator supplied
+ *        via callback.
+ *
+ * Same semantics as `lanczos_iterate` (3-term recurrence, optional
+ * full MGS reorthogonalization, invariant-subspace early-exit) but
+ * calls `op(ctx, n, v_k, w)` to compute `w = op · v_k` instead of
+ * `sparse_matvec`.  Used by shift-invert Lanczos (Sprint 20 Day 12)
+ * where `op` is `(A - sigma*I)^{-1}` via a pre-computed LDL^T
+ * factorization.
+ *
+ * All output arguments follow the same conventions as
+ * `lanczos_iterate`.  Errors from `op` propagate as-is (e.g. a
+ * singular pivot during LDL^T solve surfaces as
+ * `SPARSE_ERR_SINGULAR`).
+ */
+sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, const double *v0,
+                                idx_t m_max, int reorthogonalize, double *V, double *alpha,
+                                double *beta, idx_t *m_actual);
+
 #endif /* SPARSE_EIGS_INTERNAL_H */

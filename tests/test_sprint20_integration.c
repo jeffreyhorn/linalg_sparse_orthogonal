@@ -387,13 +387,19 @@ static void test_s20_eigs_compute_vectors_day11(void) {
     sparse_free(A);
 }
 
-/* NEAREST_SIGMA (shift-invert) deferred to Day 12; Day 10 rejects. */
-static void test_s20_eigs_nearest_sigma_rejected_day10(void) {
+/* Day 12 implements shift-invert via (A - sigma*I) LDL^T factor +
+ * sparse_ldlt_solve.  On the SPD tridiag fixture with sigma = 1.0,
+ * the smallest eigenvalue is ~2(1-cos(π/5)) ≈ 0.382 and the largest
+ * is ~2(1-cos(4π/5)) ≈ 3.618; the two nearest to 1.0 are the two
+ * smallest (≈ 0.382 and ≈ 1.382).  Sanity-check that the call
+ * succeeds — exact-value coverage lives in tests/test_eigs.c. */
+static void test_s20_eigs_nearest_sigma_day12(void) {
     SparseMatrix *A = s20_build_spd_tridiag(4);
     double vals[2] = {0};
     sparse_eigs_t result = {.eigenvalues = vals};
     sparse_eigs_opts_t opts = {.which = SPARSE_EIGS_NEAREST_SIGMA, .sigma = 1.0};
-    ASSERT_ERR(sparse_eigs_sym(A, 2, &opts, &result), SPARSE_ERR_BADARG);
+    REQUIRE_OK(sparse_eigs_sym(A, 2, &opts, &result));
+    ASSERT_EQ(result.n_converged, 2);
     sparse_free(A);
 }
 
@@ -863,7 +869,7 @@ int main(void) {
     RUN_TEST(test_s20_eigs_well_formed_call_succeeds);
     RUN_TEST(test_s20_eigs_null_opts_uses_defaults);
     RUN_TEST(test_s20_eigs_compute_vectors_day11);
-    RUN_TEST(test_s20_eigs_nearest_sigma_rejected_day10);
+    RUN_TEST(test_s20_eigs_nearest_sigma_day12);
 
     /* Day 8 — Lanczos 3-term recurrence */
     RUN_TEST(test_s20_day8_lanczos_diagonal_spectrum);

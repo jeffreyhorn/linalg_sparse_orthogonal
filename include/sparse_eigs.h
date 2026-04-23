@@ -67,9 +67,10 @@
  *   value of lambda − sigma) to the shift point `opts->sigma`.
  *   Implemented via shift-invert: Lanczos on (A − sigma·I)^{-1},
  *   whose eigenvalues are 1/(lambda − sigma).  Requires the LDL^T
- *   factorization of (A − sigma·I) — trips
- *   `SPARSE_ERR_SHIFT_SINGULAR` / `SPARSE_ERR_SINGULAR` if sigma
- *   coincides with an eigenvalue.
+ *   factorization of (A − sigma·I) — returns `SPARSE_ERR_SINGULAR`
+ *   if sigma coincides with (or is numerically too close to) an
+ *   eigenvalue of A, in which case the caller should perturb sigma
+ *   slightly and retry.
  */
 typedef enum {
     SPARSE_EIGS_LARGEST = 0,
@@ -215,11 +216,9 @@ typedef struct {
  * @return SPARSE_ERR_NOT_SPD if A fails the symmetry check
  *         (reused for "not symmetric" per existing convention; see
  *         `sparse_ldlt_factor`).
- * @return SPARSE_ERR_BADARG if `k` is out of range, `opts` values
+ * @return SPARSE_ERR_BADARG if `k` is out of range or `opts` values
  *         are invalid (negative tol or max_iterations, unknown
- *         `which` / `backend`), or (Sprint 20 pre-Day-12)
- *         `which == SPARSE_EIGS_NEAREST_SIGMA` before shift-invert
- *         lands.
+ *         `which` / `backend`).
  * @return SPARSE_ERR_SINGULAR when shift-invert mode factors
  *         `A - sigma*I` and that matrix is (near-)singular.
  * @return SPARSE_ERR_ALLOC if Lanczos workspace allocation fails.

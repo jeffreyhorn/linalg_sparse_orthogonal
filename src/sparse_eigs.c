@@ -38,12 +38,14 @@
 
 #include "sparse_dense.h"
 #include "sparse_eigs_internal.h"
+#include "sparse_ldlt.h"
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 #include "sparse_vector.h"
 
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Lanczos — 3-term recurrence + optional reorthogonalization
@@ -123,13 +125,32 @@
  * tests via sparse_eigs_internal.h exercise both paths through
  * lanczos_iterate directly. */
 
+/* Default matvec operator: `y = A · x` via `sparse_matvec`.  Used
+ * by `lanczos_iterate` as the thin wrapper over
+ * `lanczos_iterate_op`. */
+static sparse_err_t s20_op_matvec(const void *ctx, idx_t n, const double *x, double *y) {
+    (void)n;
+    return sparse_matvec((const SparseMatrix *)ctx, x, y);
+}
+
 sparse_err_t lanczos_iterate(const SparseMatrix *A, const double *v0, idx_t m_max,
                              int reorthogonalize, double *V, double *alpha, double *beta,
                              idx_t *m_actual) {
-    if (!A || !v0 || !V || !alpha || !beta || !m_actual)
+    if (!A)
         return SPARSE_ERR_NULL;
     idx_t n = sparse_rows(A);
     if (n != sparse_cols(A))
+        return SPARSE_ERR_SHAPE;
+    return lanczos_iterate_op(s20_op_matvec, A, n, v0, m_max, reorthogonalize, V, alpha, beta,
+                              m_actual);
+}
+
+sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, const double *v0,
+                                idx_t m_max, int reorthogonalize, double *V, double *alpha,
+                                double *beta, idx_t *m_actual) {
+    if (!op || !v0 || !V || !alpha || !beta || !m_actual)
+        return SPARSE_ERR_NULL;
+    if (n < 1)
         return SPARSE_ERR_SHAPE;
     if (m_max < 1 || m_max > n)
         return SPARSE_ERR_BADARG;
@@ -153,7 +174,7 @@ sparse_err_t lanczos_iterate(const SparseMatrix *A, const double *v0, idx_t m_ma
             V[i + 0 * n] = v0[i] * inv;
     }
 
-    /* Scratch for w = A·v_k - beta_{k-1}·v_{k-1} - alpha_k·v_k. */
+    /* Scratch for w = op·v_k - beta_{k-1}·v_{k-1} - alpha_k·v_k. */
     double *w = malloc((size_t)n * sizeof(double));
     if (!w)
         return SPARSE_ERR_ALLOC;
@@ -163,8 +184,14 @@ sparse_err_t lanczos_iterate(const SparseMatrix *A, const double *v0, idx_t m_ma
     for (idx_t k = 0; k < m_max; k++) {
         const double *v_k = V + k * n;
 
-        /* w = A · v_k */
-        sparse_matvec(A, v_k, w);
+        /* w = op · v_k — either sparse_matvec(A) for the default
+         * path or (A - sigma*I)^{-1} via LDL^T solve for shift-
+         * invert mode (Day 12). */
+        sparse_err_t op_rc = op(ctx, n, v_k, w);
+        if (op_rc != SPARSE_OK) {
+            free(w);
+            return op_rc;
+        }
 
         /* w -= beta_{k-1} · v_{k-1}  (zero contribution on k == 0) */
         if (k > 0) {
@@ -209,7 +236,7 @@ sparse_err_t lanczos_iterate(const SparseMatrix *A, const double *v0, idx_t m_ma
         beta[k] = b;
 
         /* Invariant-subspace detection: w has become the zero
-         * vector, so span(V[:, 0..k]) is A-invariant and the
+         * vector, so span(V[:, 0..k]) is op-invariant and the
          * Krylov basis has maximal dimension.  Stop cleanly. */
         if (b < 1e-14) {
             *m_actual = k + 1;
@@ -331,6 +358,67 @@ static sparse_err_t s20_ritz_pairs(const double *alpha, const double *beta, idx_
     return tridiag_qr_eigenpairs(theta_out, subdiag_scratch, Y_out, m, 0);
 }
 
+/* Day 12: shift-invert Lanczos operator.  `ctx` is a
+ * `(const sparse_ldlt_t *)` pointing at a pre-computed LDL^T
+ * factorisation of `A - sigma*I`.  Applying the operator to a vector
+ * `x` means solving `(A - sigma*I) y = x`, i.e. `y = (A - sigma*I)^{-1}
+ * x` — exactly the transform that makes Lanczos converge on
+ * interior eigenvalues of A (whichever λ_j is closest to σ becomes
+ * the largest-magnitude eigenvalue of the shift-inverted operator).
+ * Any downstream `sparse_ldlt_solve` error (SPARSE_ERR_SINGULAR,
+ * SPARSE_ERR_BADARG) propagates up through `lanczos_iterate_op`. */
+static sparse_err_t s20_op_shift_invert(const void *ctx, idx_t n, const double *x, double *y) {
+    (void)n;
+    return sparse_ldlt_solve((const sparse_ldlt_t *)ctx, x, y);
+}
+
+/* Select `min(k_want, m)` indices into `theta[0..m)` by `which`:
+ *
+ *   LARGEST       - descending theta (sel_idx[0] = m - 1 etc.)
+ *   SMALLEST      - ascending theta (sel_idx[0] = 0 etc.)
+ *   NEAREST_SIGMA - descending |theta| via a two-pointer sweep over
+ *                   the ascending list (largest-|theta| lives at one
+ *                   of the two ends; under shift-invert this means
+ *                   the Ritz value closest to σ in the original
+ *                   lambda-space).
+ *
+ * Assumes theta is sorted ascending (as `tridiag_qr_eigenpairs`
+ * returns it).  Returns the number of indices written. */
+static idx_t s20_select_indices(const double *theta, idx_t m, sparse_eigs_which_t which,
+                                idx_t k_want, idx_t *sel_idx) {
+    idx_t take = k_want < m ? k_want : m;
+    if (take < 1)
+        return 0;
+    if (which == SPARSE_EIGS_LARGEST) {
+        for (idx_t j = 0; j < take; j++)
+            sel_idx[j] = m - 1 - j;
+    } else if (which == SPARSE_EIGS_SMALLEST) {
+        for (idx_t j = 0; j < take; j++)
+            sel_idx[j] = j;
+    } else {
+        /* NEAREST_SIGMA: largest-|theta| first.  Two-pointer scan;
+         * left runs up from 0, right runs down from m-1.  The loop
+         * body bounds-checks both pointers so a partial overlap at
+         * the centre of the array can't under/overflow. */
+        idx_t left = 0;
+        idx_t right = m - 1;
+        for (idx_t j = 0; j < take; j++) {
+            if (left > right)
+                break;
+            if (fabs(theta[left]) > fabs(theta[right])) {
+                sel_idx[j] = left;
+                left++;
+            } else {
+                sel_idx[j] = right;
+                if (right == 0)
+                    break;
+                right--;
+            }
+        }
+    }
+    return take;
+}
+
 /* Ritz vector lift: for each j in [0, take), write column j of
  * `eigenvectors_out` (n × take, column-major) with
  *   eigenvector_j = V · Y[:, idx_j]
@@ -338,7 +426,9 @@ static sparse_err_t s20_ritz_pairs(const double *alpha, const double *beta, idx_
  * the m-space column index of the j-th selected Ritz pair.  Assumes
  * V's columns are already orthonormal (guaranteed by Day 9's full
  * reorth) so the lifted vectors inherit unit norm up to the MGS
- * drift bound (‖ε‖ ≲ 1e-12 on well-conditioned A). */
+ * drift bound (‖ε‖ ≲ 1e-12 on well-conditioned A).  Ritz vectors of
+ * (A - σI)^{-1} are also eigenvectors of A (same eigenspaces), so
+ * the same lift works for shift-invert mode. */
 static void s20_lift_ritz_vectors(const double *V, const double *Y, idx_t n, idx_t m, idx_t take,
                                   const idx_t *idx, double *eigenvectors_out) {
     for (idx_t j = 0; j < take; j++) {
@@ -406,9 +496,47 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     result->iterations = 0;
     result->residual_norm = 0.0;
 
-    /* Shift-invert is Day 12. */
-    if (o->which == SPARSE_EIGS_NEAREST_SIGMA)
-        return SPARSE_ERR_BADARG;
+    /* Day 12: shift-invert setup for NEAREST_SIGMA.  Factor
+     * `A - sigma*I` via `sparse_ldlt_factor_opts` (Days 4-6 AUTO
+     * dispatch — benefits from CSC supernodal on big symmetric
+     * indefinite shifts) and swap the Lanczos operator from
+     * `sparse_matvec(A)` to `sparse_ldlt_solve(ldlt)`.  The
+     * factorisation is owned by this call; freed in `cleanup:`.
+     * If `A - sigma*I` is singular (σ is exactly an eigenvalue of A),
+     * LDL^T reports `SPARSE_ERR_SINGULAR` and we propagate — the
+     * public doxygen tells callers to perturb σ slightly in that
+     * case. */
+    SparseMatrix *A_shifted = NULL;
+    sparse_ldlt_t ldlt_shift = {0}; /* zeroed so sparse_ldlt_free is safe */
+    lanczos_op_fn op_fn = s20_op_matvec;
+    const void *op_ctx = A;
+    if (o->which == SPARSE_EIGS_NEAREST_SIGMA) {
+        A_shifted = sparse_copy(A);
+        if (!A_shifted)
+            return SPARSE_ERR_ALLOC;
+        for (idx_t i = 0; i < n; i++) {
+            double dii = sparse_get(A_shifted, i, i);
+            sparse_err_t err = sparse_set(A_shifted, i, i, dii - o->sigma);
+            if (err != SPARSE_OK) {
+                sparse_free(A_shifted);
+                return err;
+            }
+        }
+        sparse_ldlt_opts_t ldlt_opts = {
+            .reorder = SPARSE_REORDER_NONE,
+            .tol = 0.0,
+            .backend = SPARSE_LDLT_BACKEND_AUTO,
+            .used_csc_path = NULL,
+        };
+        sparse_err_t err = sparse_ldlt_factor_opts(A_shifted, &ldlt_opts, &ldlt_shift);
+        if (err != SPARSE_OK) {
+            sparse_ldlt_free(&ldlt_shift);
+            sparse_free(A_shifted);
+            return err;
+        }
+        op_fn = s20_op_shift_invert;
+        op_ctx = &ldlt_shift;
+    }
 
     /* Effective tolerance and iteration budget.  The library
      * defaults match sparse_eigs.h: tol = 1e-10, max_iterations =
@@ -446,8 +574,13 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     double *subdiag = malloc((size_t)m_max_alloc * sizeof(double));
     double *Y_long = calloc((size_t)m_max_alloc * (size_t)m_max_alloc, sizeof(double));
     idx_t *sel_idx = malloc((size_t)k * sizeof(idx_t));
+    /* Day 12: a second sel_idx buffer for the short-batch selection
+     * (the stability check now consults the same `which`-aware
+     * selection helper for both batches so NEAREST_SIGMA's
+     * |theta|-descending pairing works correctly). */
+    idx_t *sel_idx_s = malloc((size_t)k * sizeof(idx_t));
     if (!V || !alpha || !beta || !v0 || !theta_short || !theta_long || !subdiag || !Y_long ||
-        !sel_idx) {
+        !sel_idx || !sel_idx_s) {
         free(V);
         free(alpha);
         free(beta);
@@ -457,6 +590,9 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
         free(subdiag);
         free(Y_long);
         free(sel_idx);
+        free(sel_idx_s);
+        sparse_ldlt_free(&ldlt_shift);
+        sparse_free(A_shifted);
         return SPARSE_ERR_ALLOC;
     }
 
@@ -475,7 +611,8 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
         if (m_this_short < 2)
             break;
         idx_t m_actual_s = 0;
-        sparse_err_t err = lanczos_iterate(A, v0, m_this_short, 1, V, alpha, beta, &m_actual_s);
+        sparse_err_t err =
+            lanczos_iterate_op(op_fn, op_ctx, n, v0, m_this_short, 1, V, alpha, beta, &m_actual_s);
         if (err != SPARSE_OK) {
             rc = err;
             goto cleanup;
@@ -502,7 +639,7 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
         }
 
         idx_t m_actual_l = 0;
-        err = lanczos_iterate(A, v0, m_this_long, 1, V, alpha, beta, &m_actual_l);
+        err = lanczos_iterate_op(op_fn, op_ctx, n, v0, m_this_long, 1, V, alpha, beta, &m_actual_l);
         if (err != SPARSE_OK) {
             rc = err;
             goto cleanup;
@@ -526,40 +663,25 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
         last_beta = beta[m_actual_l - 1];
 
         /* Stability check: compare top-k θ from the two batches.
-         * `theta_short` is sorted ascending of length m_actual_s;
-         * `theta_long` similarly of length m_actual_l.  For LARGEST,
-         * compare the last k entries of each; for SMALLEST, the
-         * first k.  A pair is "converged" when
-         *     |θ_long[j] − θ_short[j]| ≤ eff_tol · max(|θ_long[j]|, scale).
-         * All k pairs must agree for the call to converge. */
-        idx_t take_s = k < m_actual_s ? k : m_actual_s;
-        idx_t take_l = k < m_actual_l ? k : m_actual_l;
-        idx_t take = take_s < take_l ? take_s : take_l;
-        /* Defensive clamps (satisfy static analyzers that don't
-         * deduce take <= min(m_actual_s, m_actual_l) from the
-         * construction above).  By construction these are no-ops. */
-        if (take > m_actual_s)
-            take = m_actual_s;
-        if (take > m_actual_l)
-            take = m_actual_l;
+         * `theta_short` and `theta_long` are sorted ascending; the
+         * `which`-aware selection helper picks the top-k indices by
+         * the correct criterion (LARGEST / SMALLEST / NEAREST_SIGMA
+         * — the last uses |θ| descending, matching the shift-invert
+         * spectrum mapping).  A pair is "converged" when
+         *     |θ_long[sel_l[j]] − θ_short[sel_s[j]]|
+         *       ≤ eff_tol · max(|θ_long[sel_l[j]]|, scale).
+         * All k selected pairs must agree for the call to converge. */
+        idx_t take_s = s20_select_indices(theta_short, m_actual_s, o->which, k, sel_idx_s);
+        idx_t take = s20_select_indices(theta_long, m_actual_l, o->which, k, sel_idx);
+        if (take_s < take)
+            take = take_s;
         if (take < 1)
             break;
-
-        /* Populate sel_idx up-front for j in [0, take) so every
-         * downstream loop (stability check, Wu/Simon residuals,
-         * eigenvector lift) reads defined values — no analyzer
-         * ambiguity about whether the stability loop broke early.
-         * By construction take <= min(m_actual_s, m_actual_l), so
-         * the (LARGEST) m_actual_l - 1 - j and (SMALLEST) j forms
-         * both stay in bounds. */
-        for (idx_t j = 0; j < take; j++) {
-            sel_idx[j] = (o->which == SPARSE_EIGS_LARGEST) ? (m_actual_l - 1 - j) : j;
-        }
 
         double scale = s20_spectrum_scale(theta_long, m_actual_l);
         int converged = 1;
         for (idx_t j = 0; j < take; j++) {
-            idx_t idx_s = (o->which == SPARSE_EIGS_LARGEST) ? (m_actual_s - 1 - j) : j;
+            idx_t idx_s = sel_idx_s[j];
             idx_t idx_l = sel_idx[j];
             double tv_s = theta_short[idx_s];
             double tv_l = theta_long[idx_l];
@@ -600,7 +722,16 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
         if (converged || invariant) {
             for (idx_t j = 0; j < take; j++) {
                 idx_t idx_l = sel_idx[j];
-                result->eigenvalues[j] = theta_long[idx_l];
+                double theta = theta_long[idx_l];
+                /* Day 12: for shift-invert, the Ritz values of
+                 * (A - σI)^{-1} are 1/(λ − σ), so the original-space
+                 * eigenvalue is λ = σ + 1/θ.  θ cannot be zero here —
+                 * tridiag_qr_eigen produces theta = 0 only if (A - σI)^{-1}
+                 * had a zero eigenvalue, which would require A = σI +
+                 * something-with-a-zero-eigenvalue — impossible because
+                 * (A - σI) was already factored nonsingular. */
+                result->eigenvalues[j] =
+                    (o->which == SPARSE_EIGS_NEAREST_SIGMA) ? (o->sigma + 1.0 / theta) : theta;
             }
             if (o->compute_vectors) {
                 s20_lift_ritz_vectors(V, Y_long, n, m_actual_l, take, sel_idx,
@@ -640,16 +771,15 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     /* Reached here only via the budget-exhausted / restart-limit
      * break.  Emit the best Ritz values (and, if requested, vectors)
      * from the most recent long batch as a partial NOT_CONVERGED
-     * result.  V, Y_long, sel_idx, theta_long all still reflect the
-     * last long batch thanks to the state-save above. */
+     * result.  V, Y_long, theta_long all still reflect the last long
+     * batch thanks to the state-save above. */
     if (last_m_actual > 0) {
-        idx_t take = k < last_m_actual ? k : last_m_actual;
+        idx_t take = s20_select_indices(theta_long, last_m_actual, o->which, k, sel_idx);
         for (idx_t j = 0; j < take; j++) {
-            idx_t idx_l = (o->which == SPARSE_EIGS_LARGEST) ? (last_m_actual - 1 - j) : j;
-            if (idx_l < 0 || idx_l >= last_m_actual)
-                break;
-            sel_idx[j] = idx_l;
-            result->eigenvalues[j] = theta_long[idx_l];
+            idx_t idx_l = sel_idx[j];
+            double theta = theta_long[idx_l];
+            result->eigenvalues[j] =
+                (o->which == SPARSE_EIGS_NEAREST_SIGMA) ? (o->sigma + 1.0 / theta) : theta;
         }
         if (o->compute_vectors) {
             s20_lift_ritz_vectors(V, Y_long, n, last_m_actual, take, sel_idx, result->eigenvectors);
@@ -669,5 +799,8 @@ cleanup:
     free(subdiag);
     free(Y_long);
     free(sel_idx);
+    free(sel_idx_s);
+    sparse_ldlt_free(&ldlt_shift);
+    sparse_free(A_shifted);
     return rc;
 }

@@ -2560,6 +2560,14 @@ static void test_ldlt_day5_auto_routes_csc_above_threshold(void) {
     ASSERT_NOT_NULL(ones);
     ASSERT_NOT_NULL(b);
     ASSERT_NOT_NULL(x);
+    if (ones == NULL || b == NULL || x == NULL) {
+        free(ones);
+        free(b);
+        free(x);
+        sparse_ldlt_free(&ldlt);
+        sparse_free(A);
+        return;
+    }
     for (idx_t i = 0; i < n; i++)
         ones[i] = 1.0;
     sparse_matvec(A, ones, b);

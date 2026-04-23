@@ -59,9 +59,19 @@
  * per-retry grow-m strategy strictly extends the Krylov basis, so
  * every pass benefits from prior work.  Convergence is gated on
  * the Wu/Simon residual `|beta_m * y_{m-1, j}| / |theta_j|` of
- * every selected Ritz pair — this directly bounds the eigen-
- * equation relative error and is reported in
- * `result.residual_norm`.
+ * every selected Ritz pair and is reported in
+ * `result.residual_norm`.  The residual bounds the eigen-equation
+ * relative error of whatever operator Lanczos is running on:
+ *   - `LARGEST` / `SMALLEST`: Lanczos runs on `A`, so the bound
+ *     applies to `||A v - λ v|| / (|λ| * ||v||)` directly.
+ *   - `NEAREST_SIGMA`: Lanczos runs on `(A - sigma·I)^{-1}`, so
+ *     `theta_j` is an eigenvalue of the inverse operator and the
+ *     reported residual bounds `||(A - sigma·I)^{-1} v - theta v||`
+ *     rather than the original-A residual.  The post-processed
+ *     eigenvalue `lambda = sigma + 1/theta` is still accurate to
+ *     the same per-step tolerance, but callers who want an
+ *     original-A residual must recompute `||A v - lambda v||`
+ *     themselves from `result.eigenvectors`.
  *
  * **Design notes.** The result struct uses caller-owned buffers for
  * the eigenvalue and eigenvector arrays — consistent with the

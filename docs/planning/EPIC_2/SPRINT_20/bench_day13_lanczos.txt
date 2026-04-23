@@ -87,7 +87,12 @@ Observations
 
 6. Stability on degenerate inputs.  The Day 13 regression tests
    exercise a condition-1e8 diagonal and the zero matrix; neither
-   crashes nor trips the sanitizer, and the zero matrix
-   cleanly returns the k zeros expected (Lanczos' invariant-
-   subspace exit rule handles the degenerate case without special-
-   casing).
+   crashes nor trips the sanitizer.  For the zero matrix, Lanczos
+   exits cleanly via the invariant-subspace rule, but the current
+   implementation early-exits with m_actual = 1 when beta ~= 0,
+   so `n_converged` is at most 1 rather than the full k zeros —
+   `test_zero_matrix` accepts either SPARSE_OK or
+   SPARSE_ERR_NOT_CONVERGED and only checks that every returned
+   eigenvalue is zero.  Synthesising the remaining k − 1 nullspace
+   eigenpairs after an invariant-subspace trip is a candidate
+   follow-up for Sprint 21.

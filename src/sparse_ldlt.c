@@ -965,6 +965,15 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
     if (n == 0)
         use_csc = 0;
 
+    /* Publish the chosen backend through `used_csc_path` immediately,
+     * before any early returns from reorder / allocation / factor
+     * failures — mirrors `sparse_cholesky_factor_opts` so callers
+     * that pass an uninitialised `int` observe the attempted backend
+     * even on the error path, and the success path doesn't need to
+     * rewrite it later. */
+    if (o->used_csc_path)
+        *o->used_csc_path = use_csc ? 1 : 0;
+
     /* Apply fill-reducing reordering if requested */
     if (o->reorder != SPARSE_REORDER_NONE && n > 1) {
         if ((size_t)n > SIZE_MAX / sizeof(idx_t))
@@ -1030,18 +1039,11 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
         free(ldlt->perm);
         ldlt->perm = composed;
         free(perm);
-
-        if (o->used_csc_path)
-            *o->used_csc_path = use_csc ? 1 : 0;
         return SPARSE_OK;
     }
 
     /* No reordering — delegate directly to the chosen kernel. */
-    sparse_err_t err_factor =
-        use_csc ? ldlt_factor_csc_path(A, o->tol, ldlt) : ldlt_factor_internal(A, ldlt, o->tol);
-    if (err_factor == SPARSE_OK && o->used_csc_path)
-        *o->used_csc_path = use_csc ? 1 : 0;
-    return err_factor;
+    return use_csc ? ldlt_factor_csc_path(A, o->tol, ldlt) : ldlt_factor_internal(A, ldlt, o->tol);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

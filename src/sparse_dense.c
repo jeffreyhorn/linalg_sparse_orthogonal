@@ -1,8 +1,18 @@
 #include "sparse_dense.h"
 #include "sparse_matrix_internal.h"
 #include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* Portable overflow-safe multiplication: returns 0 on success, 1 on overflow.
+ * Mirrors the helper in sparse_qr.c / sparse_svd.c / sparse_eigs.c. */
+static int size_mul_overflow(size_t a, size_t b, size_t *result) {
+    if (a != 0 && b > SIZE_MAX / a)
+        return 1;
+    *result = a * b;
+    return 0;
+}
 
 dense_matrix_t *dense_create(idx_t rows, idx_t cols) {
     if (rows < 0 || cols < 0)
@@ -407,9 +417,18 @@ sparse_err_t tridiag_qr_eigenpairs(double *diag, double *subdiag, double *Q, idx
     if (n >= 2 && !subdiag)
         return SPARSE_ERR_NULL;
 
+    /* Overflow-check n*n before using it in byte-sized memset /
+     * memcpy / malloc.  For very large n on a 32-bit size_t target
+     * (or any target where n² overflows size_t) this prevents the
+     * silent undersized buffer that would follow. */
+    size_t n2 = 0;
+    size_t n2_bytes = 0;
+    if (size_mul_overflow((size_t)n, (size_t)n, &n2) ||
+        size_mul_overflow(n2, sizeof(double), &n2_bytes))
+        return SPARSE_ERR_ALLOC;
+
     /* Initialise Q = I_n. */
-    size_t n2 = (size_t)n * (size_t)n;
-    memset(Q, 0, n2 * sizeof(double));
+    memset(Q, 0, n2_bytes);
     for (idx_t i = 0; i < n; i++)
         Q[(size_t)i * (size_t)n + (size_t)i] = 1.0;
 
@@ -453,9 +472,10 @@ sparse_err_t tridiag_qr_eigenpairs(double *diag, double *subdiag, double *Q, idx
         return SPARSE_ERR_NOT_CONVERGED;
 
     /* Sort eigenvalues ascending and permute Q's columns to match.
-     * Indirect sort through a (eigval, orig-index) pair array. */
+     * Indirect sort through a (eigval, orig-index) pair array.
+     * `n2_bytes` was overflow-validated above. */
     tridiag_pair_t *pairs = malloc((size_t)n * sizeof(tridiag_pair_t));
-    double *Q_sorted = malloc(n2 * sizeof(double));
+    double *Q_sorted = malloc(n2_bytes);
     double *diag_sorted = malloc((size_t)n * sizeof(double));
     if (!pairs || !Q_sorted || !diag_sorted) {
         free(pairs);
@@ -474,7 +494,7 @@ sparse_err_t tridiag_qr_eigenpairs(double *diag, double *subdiag, double *Q, idx
                (size_t)n * sizeof(double));
     }
     memcpy(diag, diag_sorted, (size_t)n * sizeof(double));
-    memcpy(Q, Q_sorted, n2 * sizeof(double));
+    memcpy(Q, Q_sorted, n2_bytes);
     free(pairs);
     free(Q_sorted);
     free(diag_sorted);

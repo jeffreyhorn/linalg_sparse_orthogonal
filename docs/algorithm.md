@@ -1248,7 +1248,7 @@ Stops when the residual stops decreasing or max iterations are reached.
 
 ## Symmetric Eigensolvers (Sprint 20)
 
-`sparse_eigs_sym(A, k, opts, result)` computes `k` extreme or near-sigma eigenpairs of a symmetric sparse matrix A via **thick-restart Lanczos with full MGS reorthogonalisation**, with an optional **shift-invert** mode for interior eigenvalues that composes with the LDL^T dispatch in `sparse_ldlt.h`.
+`sparse_eigs_sym(A, k, opts, result)` computes `k` extreme or near-sigma eigenpairs of a symmetric sparse matrix A via a **Lanczos-based Krylov method with full MGS reorthogonalisation**.  The outer solve grows the Krylov subspace dimension and retries as needed rather than performing a true thick restart (a Wu/Simon thick-restart backend that preserves a compact Ritz space across restarts is planned for Sprint 21).  An optional **shift-invert** mode for interior eigenvalues composes with the LDL^T dispatch in `sparse_ldlt.h`.
 
 ### The 3-term Lanczos recurrence
 

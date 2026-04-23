@@ -6,9 +6,10 @@
  * @brief Sparse symmetric eigensolvers (Sprint 20).
  *
  * Provides `sparse_eigs_sym()` for computing k extreme or near-sigma
- * eigenpairs of a symmetric sparse matrix A via thick-restart
- * Lanczos with full MGS reorthogonalisation.  Three spectrum-
- * selection modes (`SPARSE_EIGS_LARGEST`, `_SMALLEST`,
+ * eigenpairs of a symmetric sparse matrix A via Lanczos with full
+ * MGS reorthogonalisation and a growing-subspace outer loop (a true
+ * Wu/Simon thick-restart backend is planned for Sprint 21).  Three
+ * spectrum-selection modes (`SPARSE_EIGS_LARGEST`, `_SMALLEST`,
  * `_NEAREST_SIGMA`); interior eigenvalues are found via shift-invert
  * Lanczos, which composes with the LDL^T dispatch in
  * `sparse_ldlt.h` (see `sparse_ldlt_factor_opts` — the Sprint 20
@@ -110,8 +111,9 @@ typedef enum {
  *   library pick.  Currently always routes to Lanczos; reserved for
  *   future LOBPCG dispatch (Sprint 21 Item 1) when the preconditioned
  *   block path is preferable for specific which/k combinations.
- * - `SPARSE_EIGS_BACKEND_LANCZOS`: thick-restart Lanczos with
- *   optional full reorthogonalization.  The Sprint 20 workhorse.
+ * - `SPARSE_EIGS_BACKEND_LANCZOS`: Lanczos with a growing-subspace
+ *   outer loop and optional full reorthogonalization.  The Sprint 20
+ *   workhorse; true Wu/Simon thick-restart is a Sprint 21 extension.
  */
 typedef enum {
     SPARSE_EIGS_BACKEND_AUTO = 0,
@@ -133,8 +135,8 @@ typedef struct {
     /** Shift point for `SPARSE_EIGS_NEAREST_SIGMA`; ignored
      *  otherwise.  Default: 0.0. */
     double sigma;
-    /** Maximum outer iterations across thick-restarts.  0 selects
-     *  the library default (currently `max(10 * k + 20, 100)`). */
+    /** Maximum outer Lanczos iterations across grow-m retries.
+     *  0 selects the library default (currently `max(10 * k + 20, 100)`). */
     idx_t max_iterations;
     /** Convergence tolerance on the relative Ritz residual
      *  `||A·v - θ·v|| / (|θ| * ||A||_inf)`.  0 selects the library
@@ -214,11 +216,12 @@ typedef struct {
 /**
  * @brief Compute k extreme or near-sigma eigenpairs of a symmetric matrix.
  *
- * Uses thick-restart Lanczos (default) with optional full
- * reorthogonalization; shift-invert mode for interior eigenvalues
- * (`opts->which == SPARSE_EIGS_NEAREST_SIGMA`) factors `A - sigma*I`
- * via `sparse_ldlt_factor_opts` and applies its inverse at every
- * Lanczos step.
+ * Uses Lanczos (default) with a growing-subspace outer loop and
+ * optional full reorthogonalization; shift-invert mode for interior
+ * eigenvalues (`opts->which == SPARSE_EIGS_NEAREST_SIGMA`) factors
+ * `A - sigma*I` via `sparse_ldlt_factor_opts` and applies its
+ * inverse at every Lanczos step.  A true Wu/Simon thick-restart
+ * backend is planned for Sprint 21.
  *
  * @pre A must be symmetric — `sparse_is_symmetric(A, 1e-12)` is
  *      checked at entry.  A must be square.

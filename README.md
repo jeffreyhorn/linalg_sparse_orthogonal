@@ -54,7 +54,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Dense matrix utilities** — Givens rotations, matrix-matrix/vector multiply
 
 ### Sparse Symmetric Eigensolver (Sprint 20)
-- **`sparse_eigs_sym`** — k extreme or near-sigma eigenpairs of a symmetric sparse matrix via thick-restart Lanczos with full MGS reorthogonalization.  Three `which` modes:
+- **`sparse_eigs_sym`** — k extreme or near-sigma eigenpairs of a symmetric sparse matrix via Lanczos with full MGS reorthogonalization.  The current implementation uses a growing-subspace outer loop rather than a compact thick-restart basis; a true Wu/Simon thick-restart backend is planned for Sprint 21.  Three `which` modes:
   - `LARGEST` / `SMALLEST` — algebraically largest / smallest k eigenvalues; Lanczos converges fastest to extreme points of the spectrum
   - `NEAREST_SIGMA` — shift-invert mode: factors `A - sigma*I` via the Day 4-6 `sparse_ldlt_factor_opts` AUTO dispatch and drives Lanczos with `sparse_ldlt_solve` as the operator.  Finds k eigenvalues closest to `sigma` by amplifying the neighbourhood of the shift point; composes with the CSC supernodal LDL^T on n ≥ `SPARSE_CSC_THRESHOLD` indefinite inputs
 - **Ritz-pair output** — optional eigenvectors via `compute_vectors = 1` (lifted from the Lanczos basis as `V · Y[:, j]`); Wu/Simon per-pair residuals reported in `result.residual_norm`
@@ -231,7 +231,7 @@ int main(void)
 | [`sparse_csr.h`](include/sparse_csr.h) | CSR/CSC compressed format conversion |
 | [`sparse_reorder.h`](include/sparse_reorder.h) | Fill-reducing reordering (RCM, AMD, COLAMD), permutation, bandwidth |
 | [`sparse_svd.h`](include/sparse_svd.h) | SVD, partial SVD, condition number, pseudoinverse, low-rank approximation |
-| [`sparse_eigs.h`](include/sparse_eigs.h) | Sparse symmetric eigensolver — thick-restart Lanczos, shift-invert mode, Ritz pairs |
+| [`sparse_eigs.h`](include/sparse_eigs.h) | Sparse symmetric eigensolver — Lanczos with growing-m outer loop, shift-invert mode, Ritz pairs |
 | [`sparse_vector.h`](include/sparse_vector.h) | Dense vector utilities (norms, axpy, dot product) |
 
 ### Key Functions
@@ -277,7 +277,7 @@ int main(void)
 - `sparse_ldlt_free(&ldlt)` — free factorization data
 
 **Symmetric eigensolvers (Sprint 20):**
-- `sparse_eigs_sym(A, k, &opts, &result)` — k extreme or near-sigma eigenpairs of symmetric A via thick-restart Lanczos with full MGS reorthogonalization
+- `sparse_eigs_sym(A, k, &opts, &result)` — k extreme or near-sigma eigenpairs of symmetric A via Lanczos (growing-m outer loop) with full MGS reorthogonalization
 - `opts.which` = `SPARSE_EIGS_LARGEST` / `_SMALLEST` / `_NEAREST_SIGMA`; the shift-invert mode composes with `sparse_ldlt_factor_opts` (Sprint 20 Days 4-6 AUTO dispatch)
 - `opts.compute_vectors = 1` populates `result.eigenvectors` (column-major, caller-owned); `result.used_csc_path_ldlt` reports the inner LDL^T backend for shift-invert
 

@@ -94,6 +94,7 @@ int main(void) {
     double *vecs = calloc((size_t)n * (size_t)k, sizeof(double));
     if (!vecs) {
         fprintf(stderr, "Allocation failed\n");
+        sparse_free(A);
         return 1;
     }
     sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};

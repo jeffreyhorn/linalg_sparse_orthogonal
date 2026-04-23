@@ -540,9 +540,19 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
 
     /* Effective tolerance and iteration budget.  The library
      * defaults match sparse_eigs.h: tol = 1e-10, max_iterations =
-     * max(10*k + 20, 100). */
+     * max(10*k + 20, 100).  Compute the default in int64_t so large
+     * k values don't overflow idx_t (int32) before the min-with-n
+     * clamp below catches it. */
     double eff_tol = o->tol > 0.0 ? o->tol : 1e-10;
-    idx_t max_iters = o->max_iterations > 0 ? o->max_iterations : (10 * k + 20);
+    idx_t max_iters;
+    if (o->max_iterations > 0) {
+        max_iters = o->max_iterations;
+    } else {
+        int64_t def_iters = (int64_t)10 * (int64_t)k + 20;
+        if (def_iters > (int64_t)INT32_MAX)
+            def_iters = (int64_t)INT32_MAX;
+        max_iters = (idx_t)def_iters;
+    }
     if (max_iters < 100)
         max_iters = 100;
 
@@ -569,20 +579,31 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
      *           well-separated top-k extractions on small n; bigger
      *           problems grow by m_grow per retry.
      *   m_grow: additive growth per retry — fixed step avoids a
-     *           runaway m^3 reorth cost when bumping. */
+     *           runaway m^3 reorth cost when bumping.
+     *
+     * All of the `_ * k + _` expressions are evaluated in int64_t
+     * and then clamped to `min(..., n)` before narrowing back to
+     * idx_t, so large k values can't overflow the int32 idx_t.  The
+     * final m_cap / m_init / m_grow are all ≤ n, which fits idx_t. */
     idx_t m_cap = max_iters < n ? max_iters : n;
-    if (m_cap < 2 * k + 10)
-        m_cap = 2 * k + 10;
+    int64_t m_cap_min = (int64_t)2 * (int64_t)k + 10;
+    if ((int64_t)m_cap < m_cap_min) {
+        m_cap = (m_cap_min > (int64_t)n) ? n : (idx_t)m_cap_min;
+    }
     if (m_cap > n)
         m_cap = n;
     if (m_cap < 2)
         m_cap = 2;
-    idx_t m_init = 3 * k + 30;
-    if (m_init > m_cap)
-        m_init = m_cap;
-    if (m_init < 2)
-        m_init = 2;
-    idx_t m_grow = k + 20;
+    int64_t m_init_wide = (int64_t)3 * (int64_t)k + 30;
+    if (m_init_wide > (int64_t)m_cap)
+        m_init_wide = (int64_t)m_cap;
+    if (m_init_wide < 2)
+        m_init_wide = 2;
+    idx_t m_init = (idx_t)m_init_wide;
+    int64_t m_grow_wide = (int64_t)k + 20;
+    if (m_grow_wide > (int64_t)m_cap)
+        m_grow_wide = (int64_t)m_cap;
+    idx_t m_grow = (idx_t)m_grow_wide;
 
     /* Allocate workspace for the upper-bound Lanczos size so the
      * grow-on-retry path never reallocates.  Y_cap is m_cap × m_cap
@@ -594,9 +615,11 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
      * handles its own nmemb*size overflow internally. */
     size_t v_elems = 0, v_bytes = 0;
     size_t y_elems = 0;
+    size_t sel_idx_bytes = 0;
     if (size_mul_overflow((size_t)n, (size_t)m_cap, &v_elems) ||
         size_mul_overflow(v_elems, sizeof(double), &v_bytes) ||
-        size_mul_overflow((size_t)m_cap, (size_t)m_cap, &y_elems)) {
+        size_mul_overflow((size_t)m_cap, (size_t)m_cap, &y_elems) ||
+        size_mul_overflow((size_t)k, sizeof(idx_t), &sel_idx_bytes)) {
         sparse_ldlt_free(&ldlt_shift);
         sparse_free(A_shifted);
         return SPARSE_ERR_ALLOC;
@@ -610,7 +633,8 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     double *subdiag = malloc((size_t)m_cap * sizeof(double));
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
     double *Y_long = calloc(y_elems, sizeof(double));
-    idx_t *sel_idx = malloc((size_t)k * sizeof(idx_t));
+    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
+    idx_t *sel_idx = malloc(sel_idx_bytes);
     if (!V || !alpha || !beta || !v0 || !theta_long || !subdiag || !Y_long || !sel_idx) {
         free(V);
         free(alpha);
@@ -724,12 +748,16 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
         }
 
         /* Grow m for the next pass.  If we've already hit the cap,
-         * emit partial results with NOT_CONVERGED. */
+         * emit partial results with NOT_CONVERGED.  The sum
+         * `m + m_grow` is computed in int64_t so a runaway
+         * combination can't overflow idx_t before the clamp to
+         * m_cap caps it back to the valid range. */
         if (m >= m_cap)
             break;
-        idx_t m_next = m + m_grow;
-        if (m_next > m_cap)
-            m_next = m_cap;
+        int64_t m_next_wide = (int64_t)m + (int64_t)m_grow;
+        if (m_next_wide > (int64_t)m_cap)
+            m_next_wide = (int64_t)m_cap;
+        idx_t m_next = (idx_t)m_next_wide;
         if (m_next == m)
             break;
         m = m_next;

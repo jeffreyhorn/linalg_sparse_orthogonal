@@ -129,7 +129,17 @@ typedef struct {
                                         fill-in drop threshold. 0 or negative for the
                                         compile-time default (SPARSE_DROP_TOL).
                                         Stored in ldlt->tol and reused by solve, refine,
-                                        and condest for consistency with factorization. */
+                                        and condest for consistency with factorization.
+                                        Backend caveat: the linked-list backend threads
+                                        `tol` into both the factorization drop / pivot
+                                        checks and the recorded `ldlt->tol`, while the
+                                        CSC backend currently enforces an internal
+                                        `SPARSE_DROP_TOL` floor inside elimination and
+                                        only propagates `max(tol, SPARSE_DROP_TOL)` into
+                                        `ldlt->tol`.  A caller-supplied `tol > SPARSE_DROP_TOL`
+                                        therefore tightens the solve-time singularity
+                                        check under CSC but does not change the drops
+                                        the CSC kernels apply during factorization. */
     sparse_ldlt_backend_t backend; /**< AUTO dispatches by size; LINKED_LIST / CSC force a path */
     int *used_csc_path;            /**< Optional output: set to 1 if CSC ran, 0 if linked-list */
 } sparse_ldlt_opts_t;

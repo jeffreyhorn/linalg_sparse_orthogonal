@@ -619,6 +619,13 @@ sparse_err_t ldlt_csc_from_sparse_with_analysis(const SparseMatrix *mat,
     if (mat->rows != analysis->n)
         return SPARSE_ERR_SHAPE;
 
+    /* LDL^T requires a symmetric input; reject non-symmetric `mat`
+     * with the same SPARSE_ERR_NOT_SPD code the scalar
+     * `ldlt_csc_from_sparse` entry point uses (mirrors the
+     * documented contract in the function docstring above). */
+    if (!sparse_is_symmetric(mat, 1e-12))
+        return SPARSE_ERR_NOT_SPD;
+
     /* Delegate L layout + sym_L pre-allocation + A-scatter to the
      * Cholesky converter.  Sets `L->sym_L_preallocated = 1` and
      * caches `L->factor_norm` from `analysis->analysis_norm`. */

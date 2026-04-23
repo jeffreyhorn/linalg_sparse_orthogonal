@@ -160,4 +160,38 @@ void eigen2x2(double a, double b, double d, double *lambda1, double *lambda2);
  */
 sparse_err_t tridiag_qr_eigenvalues(double *diag, double *subdiag, idx_t n, idx_t max_iter);
 
+/**
+ * @brief Compute all eigenvalues and eigenvectors of a symmetric
+ *        tridiagonal matrix.
+ *
+ * Same implicit-QR-with-Wilkinson-shifts algorithm as
+ * `tridiag_qr_eigenvalues`, plus accumulation of the Givens rotations
+ * into an orthogonal matrix Q so that T = Q · diag(lambda) · Q^T on
+ * return.  Column j of Q is the eigenvector associated with
+ * `diag[j]` (ascending order, matching the eigenvalue sort).
+ *
+ * Used by the Lanczos eigensolver (`sparse_eigs_sym`) to lift Ritz
+ * values from the tridiagonal projection back to the original
+ * problem: Ritz vectors = V · Q[:, j] where V is the Lanczos basis.
+ *
+ * @param diag       Diagonal entries (length n). Overwritten with
+ *                   eigenvalues in ascending order on success.
+ * @param subdiag    Subdiagonal entries (length n-1). Destroyed on
+ *                   output (n >= 2 required; unused when n == 1).
+ * @param Q          Output n × n column-major matrix of eigenvectors.
+ *                   Initialised to the identity by this function;
+ *                   caller need not pre-fill.  Column j corresponds
+ *                   to eigenvalue `diag[j]` after sorting.  Caller
+ *                   allocates at least n * n doubles.
+ * @param n          Matrix dimension.
+ * @param max_iter   Maximum total QR iterations (0 for default: 30*n).
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if diag / Q / (when n >= 2) subdiag is NULL.
+ * @return SPARSE_ERR_NOT_CONVERGED if max_iter reached without convergence.
+ * @return SPARSE_ERR_ALLOC if the internal permutation scratch cannot
+ *         be allocated.
+ */
+sparse_err_t tridiag_qr_eigenpairs(double *diag, double *subdiag, double *Q, idx_t n,
+                                   idx_t max_iter);
+
 #endif /* SPARSE_DENSE_H */

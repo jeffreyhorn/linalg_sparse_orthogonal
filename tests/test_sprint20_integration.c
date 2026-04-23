@@ -364,15 +364,26 @@ static void test_s20_eigs_null_opts_uses_defaults(void) {
     sparse_free(A);
 }
 
-/* Eigenvector output requested but not supported yet.  Day 10
- * scopes this out; Day 11 adds Y computation. */
-static void test_s20_eigs_compute_vectors_rejected_day10(void) {
+/* Day 11 added Y computation — this test now confirms that path
+ * runs cleanly on the same fixture: compute_vectors = 1 with a
+ * valid eigenvector buffer succeeds and fills each column. */
+static void test_s20_eigs_compute_vectors_day11(void) {
     SparseMatrix *A = s20_build_spd_tridiag(4);
     double vals[2] = {0};
     double vecs[4 * 2] = {0};
     sparse_eigs_t result = {.eigenvalues = vals, .eigenvectors = vecs};
     sparse_eigs_opts_t opts = {.compute_vectors = 1};
-    ASSERT_ERR(sparse_eigs_sym(A, 2, &opts, &result), SPARSE_ERR_BADARG);
+    REQUIRE_OK(sparse_eigs_sym(A, 2, &opts, &result));
+    ASSERT_EQ(result.n_converged, 2);
+    /* Each eigenvector column should be non-trivial (the zero-init
+     * would have persisted if the lift didn't run). */
+    double n2_col0 = 0.0, n2_col1 = 0.0;
+    for (idx_t i = 0; i < 4; i++) {
+        n2_col0 += vecs[i] * vecs[i];
+        n2_col1 += vecs[i + 4] * vecs[i + 4];
+    }
+    ASSERT_TRUE(n2_col0 > 0.1);
+    ASSERT_TRUE(n2_col1 > 0.1);
     sparse_free(A);
 }
 
@@ -851,7 +862,7 @@ int main(void) {
     RUN_TEST(test_s20_eigs_rejects_bad_args);
     RUN_TEST(test_s20_eigs_well_formed_call_succeeds);
     RUN_TEST(test_s20_eigs_null_opts_uses_defaults);
-    RUN_TEST(test_s20_eigs_compute_vectors_rejected_day10);
+    RUN_TEST(test_s20_eigs_compute_vectors_day11);
     RUN_TEST(test_s20_eigs_nearest_sigma_rejected_day10);
 
     /* Day 8 — Lanczos 3-term recurrence */

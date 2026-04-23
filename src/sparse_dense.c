@@ -312,3 +312,172 @@ sparse_err_t tridiag_qr_eigenvalues(double *diag, double *subdiag, idx_t n, idx_
 
     return SPARSE_OK;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Symmetric tridiagonal eigenpair solver
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Mirrors the tridiagonal QR above, additionally accumulating each
+ * Givens rotation into an orthogonal matrix Q.  The rotation applied
+ * to T is a similarity transform T_new = G^T · T · G where G (in the
+ * 2×2 block acting on indices k, k+1) is [[c, -s], [s, c]].  After
+ * every QR step converges, the accumulated Q satisfies
+ * Q_total = G_1 · G_2 · … · G_last and T = Q_total · diag(lambda) ·
+ * Q_total^T — column j of Q_total is the eigenvector for
+ * eigenvalue diag[j].
+ *
+ * Accumulation rule: right-multiplying Q by G in columns k, k+1
+ * updates every row (q_i,k, q_i,k+1) to (c·q_i,k + s·q_i,k+1,
+ * -s·q_i,k + c·q_i,k+1).
+ *
+ * Permutation-on-sort: once eigenvalues converge we sort them
+ * ascending and apply the same permutation to Q's columns so
+ * column j remains the eigenvector for the new diag[j].  A scratch
+ * `pair_t` array handles the indirect sort; n is typically the
+ * Lanczos basis size (≤ a few hundred in practice), so this is
+ * cheap.
+ */
+
+static void tridiag_qr_step_with_Q(double *diag, double *subdiag, idx_t lo, idx_t hi, double *Q,
+                                   idx_t Q_rows) {
+    /* Wilkinson shift: eigenvalue of trailing 2×2 closer to diag[hi] */
+    double l1, l2;
+    eigen2x2(diag[hi - 1], subdiag[hi - 1], diag[hi], &l1, &l2);
+    double shift = (fabs(l1 - diag[hi]) < fabs(l2 - diag[hi])) ? l1 : l2;
+
+    /* Initial bulge: Givens to zero subdiag[lo] in (T - shift*I) */
+    double x = diag[lo] - shift;
+    double z = subdiag[lo];
+    double c, s;
+
+    for (idx_t k = lo; k < hi; k++) {
+        givens_compute(x, z, &c, &s);
+
+        if (k > lo) {
+            subdiag[k - 1] = c * subdiag[k - 1] + s * z;
+        }
+
+        double dk = diag[k];
+        double dk1 = diag[k + 1];
+        double ek = subdiag[k];
+
+        diag[k] = c * c * dk + 2.0 * c * s * ek + s * s * dk1;
+        diag[k + 1] = s * s * dk - 2.0 * c * s * ek + c * c * dk1;
+        subdiag[k] = c * s * (dk1 - dk) + (c * c - s * s) * ek;
+
+        /* Q := Q · G in cols (k, k+1) with G = [[c, -s], [s, c]]. */
+        double *col_k = Q + (size_t)k * (size_t)Q_rows;
+        double *col_k1 = Q + (size_t)(k + 1) * (size_t)Q_rows;
+        for (idx_t i = 0; i < Q_rows; i++) {
+            double a = col_k[i];
+            double b = col_k1[i];
+            col_k[i] = c * a + s * b;
+            col_k1[i] = -s * a + c * b;
+        }
+
+        if (k + 1 < hi) {
+            z = s * subdiag[k + 1];
+            subdiag[k + 1] = c * subdiag[k + 1];
+            x = subdiag[k];
+        }
+    }
+}
+
+typedef struct {
+    double eigval;
+    idx_t idx;
+} tridiag_pair_t;
+
+static int cmp_pair_asc(const void *a, const void *b) {
+    double da = ((const tridiag_pair_t *)a)->eigval;
+    double db = ((const tridiag_pair_t *)b)->eigval;
+    if (da < db)
+        return -1;
+    if (da > db)
+        return 1;
+    return 0;
+}
+
+sparse_err_t tridiag_qr_eigenpairs(double *diag, double *subdiag, double *Q, idx_t n,
+                                   idx_t max_iter) {
+    if (n <= 0)
+        return SPARSE_OK;
+    if (!diag || !Q)
+        return SPARSE_ERR_NULL;
+    if (n >= 2 && !subdiag)
+        return SPARSE_ERR_NULL;
+
+    /* Initialise Q = I_n. */
+    size_t n2 = (size_t)n * (size_t)n;
+    memset(Q, 0, n2 * sizeof(double));
+    for (idx_t i = 0; i < n; i++)
+        Q[(size_t)i * (size_t)n + (size_t)i] = 1.0;
+
+    if (n == 1)
+        return SPARSE_OK;
+
+    if (max_iter <= 0) {
+        int64_t default_iter = (int64_t)30 * (int64_t)n;
+        max_iter = (default_iter > INT32_MAX) ? INT32_MAX : (idx_t)default_iter;
+    }
+
+    double tol = 1e-14;
+    idx_t total_iter = 0;
+    idx_t hi = n - 1;
+
+    while (hi > 0 && total_iter < max_iter) {
+        double off = fabs(subdiag[hi - 1]);
+        double diag_sum = fabs(diag[hi - 1]) + fabs(diag[hi]);
+        if (off <= tol * diag_sum || off < sparse_rel_tol(diag_sum, DROP_TOL)) {
+            subdiag[hi - 1] = 0.0;
+            hi--;
+            continue;
+        }
+
+        idx_t lo = hi - 1;
+        while (lo > 0) {
+            double off_lo = fabs(subdiag[lo - 1]);
+            double ds_lo = fabs(diag[lo - 1]) + fabs(diag[lo]);
+            if (off_lo <= tol * ds_lo || off_lo < sparse_rel_tol(ds_lo, DROP_TOL)) {
+                subdiag[lo - 1] = 0.0;
+                break;
+            }
+            lo--;
+        }
+
+        tridiag_qr_step_with_Q(diag, subdiag, lo, hi, Q, n);
+        total_iter++;
+    }
+
+    if (hi > 0)
+        return SPARSE_ERR_NOT_CONVERGED;
+
+    /* Sort eigenvalues ascending and permute Q's columns to match.
+     * Indirect sort through a (eigval, orig-index) pair array. */
+    tridiag_pair_t *pairs = malloc((size_t)n * sizeof(tridiag_pair_t));
+    double *Q_sorted = malloc(n2 * sizeof(double));
+    double *diag_sorted = malloc((size_t)n * sizeof(double));
+    if (!pairs || !Q_sorted || !diag_sorted) {
+        free(pairs);
+        free(Q_sorted);
+        free(diag_sorted);
+        return SPARSE_ERR_ALLOC;
+    }
+    for (idx_t i = 0; i < n; i++) {
+        pairs[i].eigval = diag[i];
+        pairs[i].idx = i;
+    }
+    qsort(pairs, (size_t)n, sizeof(tridiag_pair_t), cmp_pair_asc);
+    for (idx_t i = 0; i < n; i++) {
+        diag_sorted[i] = pairs[i].eigval;
+        memcpy(Q_sorted + (size_t)i * (size_t)n, Q + (size_t)pairs[i].idx * (size_t)n,
+               (size_t)n * sizeof(double));
+    }
+    memcpy(diag, diag_sorted, (size_t)n * sizeof(double));
+    memcpy(Q, Q_sorted, n2 * sizeof(double));
+    free(pairs);
+    free(Q_sorted);
+    free(diag_sorted);
+
+    return SPARSE_OK;
+}

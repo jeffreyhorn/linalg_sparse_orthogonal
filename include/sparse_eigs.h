@@ -217,8 +217,9 @@ typedef struct {
  *         `sparse_ldlt_factor`).
  * @return SPARSE_ERR_BADARG if `k` is out of range, `opts` values
  *         are invalid (negative tol or max_iterations, unknown
- *         `which` / `backend`), or (Day 7 stub) the function body
- *         has not been implemented yet.
+ *         `which` / `backend`), or (Sprint 20 pre-Day-12)
+ *         `which == SPARSE_EIGS_NEAREST_SIGMA` before shift-invert
+ *         lands.
  * @return SPARSE_ERR_SINGULAR when shift-invert mode factors
  *         `A - sigma*I` and that matrix is (near-)singular.
  * @return SPARSE_ERR_ALLOC if Lanczos workspace allocation fails.

@@ -90,16 +90,12 @@ typedef struct {
  *
  * - `SPARSE_LDLT_BACKEND_AUTO` (default, zero-initialised): use the
  *   CSC supernodal backend when `A->rows >= SPARSE_CSC_THRESHOLD`,
- *   otherwise the linked-list backend.  AUTO routing to CSC is
- *   wired up in Sprint 20 Day 5; until then AUTO always routes to
- *   the linked-list path so existing callers keep their pre-Day-4
- *   behaviour.
+ *   otherwise the linked-list backend.
  * - `SPARSE_LDLT_BACKEND_LINKED_LIST`: always use the linked-list
  *   kernel regardless of dimension (the pre-Sprint-20 behaviour).
  * - `SPARSE_LDLT_BACKEND_CSC`: always use the CSC supernodal kernel
  *   (`sparse_analyze` → `ldlt_csc_from_sparse_with_analysis` →
  *   `ldlt_csc_eliminate_supernodal` → CSC→`sparse_ldlt_t` writeback).
- *   Returns `SPARSE_ERR_BADARG` until the Day 5 CSC pipeline lands.
  */
 typedef enum {
     SPARSE_LDLT_BACKEND_AUTO = 0,

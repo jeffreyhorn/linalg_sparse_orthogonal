@@ -44,8 +44,18 @@
 #include "sparse_vector.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* Portable overflow-safe multiplication: returns 0 on success, 1 on overflow.
+ * Mirrors the helper in sparse_qr.c / sparse_svd.c. */
+static int size_mul_overflow(size_t a, size_t b, size_t *result) {
+    if (a != 0 && b > SIZE_MAX / a)
+        return 1;
+    *result = a * b;
+    return 0;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Lanczos — 3-term recurrence + optional reorthogonalization
@@ -577,14 +587,29 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     /* Allocate workspace for the upper-bound Lanczos size so the
      * grow-on-retry path never reallocates.  Y_cap is m_cap × m_cap
      * (eigenvectors of T) — quadratic in m_cap but fine for the
-     * practical m_cap we land on. */
-    double *V = malloc((size_t)n * (size_t)m_cap * sizeof(double));
+     * practical m_cap we land on.  The multi-factor sizes (V, Y_long)
+     * are validated with `size_mul_overflow` so a pathological
+     * (n, m_cap) pair on a 32-bit size_t target fails cleanly with
+     * SPARSE_ERR_ALLOC rather than undersizing a buffer; calloc()
+     * handles its own nmemb*size overflow internally. */
+    size_t v_elems = 0, v_bytes = 0;
+    size_t y_elems = 0;
+    if (size_mul_overflow((size_t)n, (size_t)m_cap, &v_elems) ||
+        size_mul_overflow(v_elems, sizeof(double), &v_bytes) ||
+        size_mul_overflow((size_t)m_cap, (size_t)m_cap, &y_elems)) {
+        sparse_ldlt_free(&ldlt_shift);
+        sparse_free(A_shifted);
+        return SPARSE_ERR_ALLOC;
+    }
+    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
+    double *V = malloc(v_bytes);
     double *alpha = malloc((size_t)m_cap * sizeof(double));
     double *beta = malloc((size_t)m_cap * sizeof(double));
     double *v0 = calloc((size_t)n, sizeof(double));
     double *theta_long = calloc((size_t)m_cap, sizeof(double));
     double *subdiag = malloc((size_t)m_cap * sizeof(double));
-    double *Y_long = calloc((size_t)m_cap * (size_t)m_cap, sizeof(double));
+    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
+    double *Y_long = calloc(y_elems, sizeof(double));
     idx_t *sel_idx = malloc((size_t)k * sizeof(idx_t));
     if (!V || !alpha || !beta || !v0 || !theta_long || !subdiag || !Y_long || !sel_idx) {
         free(V);
@@ -610,13 +635,16 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
 
     for (;;) {
         idx_t m_actual = 0;
-        sparse_err_t err =
-            lanczos_iterate_op(op_fn, op_ctx, n, v0, m, 1, V, alpha, beta, &m_actual);
+        sparse_err_t err = lanczos_iterate_op(op_fn, op_ctx, n, v0, m, o->reorthogonalize, V, alpha,
+                                              beta, &m_actual);
         if (err != SPARSE_OK) {
             rc = err;
             goto cleanup;
         }
-        total_iters = m_actual;
+        /* `iterations` is documented as the total Lanczos work across
+         * all grow-m retries (not just the final run), so accumulate
+         * each run's m_actual into the counter. */
+        total_iters += m_actual;
         last_m_actual = m_actual;
         /* Defensive: lanczos_iterate_op sets m_actual >= 1 on
          * SPARSE_OK (the invariant-subspace early-exit rule sets

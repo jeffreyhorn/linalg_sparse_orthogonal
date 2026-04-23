@@ -101,6 +101,7 @@ int main(void) {
         .which = SPARSE_EIGS_LARGEST,
         .tol = 1e-10,
         .compute_vectors = 1,
+        .reorthogonalize = 1,
     };
     err = sparse_eigs_sym(A, k, &opts, &res);
     if (err != SPARSE_OK) {
@@ -157,6 +158,7 @@ int main(void) {
         .sigma = 0.0,
         .tol = 1e-10,
         .compute_vectors = 1,
+        .reorthogonalize = 1,
     };
     err = sparse_eigs_sym(K, 3, &kopts, &kres);
     if (err != SPARSE_OK) {

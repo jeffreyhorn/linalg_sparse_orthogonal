@@ -34,6 +34,10 @@
  *       .which = SPARSE_EIGS_LARGEST,
  *       .compute_vectors = 1,
  *       .tol = 1e-10,
+ *       .reorthogonalize = 1,  // explicit — designated init zeros
+ *                              // unset fields, so set this to 1 for
+ *                              // reorth (the library default when
+ *                              // opts==NULL).
  *   };
  *   sparse_err_t err = sparse_eigs_sym(A, k, &opts, &result);
  *   if (err == SPARSE_OK) {
@@ -82,8 +86,8 @@
  *   Lanczos converges fastest to extreme eigenvalues, so this (or
  *   SMALLEST) is the default sweet spot for symmetric problems.
  * - `SPARSE_EIGS_SMALLEST`: k algebraically smallest eigenvalues.
- *   Implemented as Lanczos on -A (so Lanczos still converges to
- *   the extreme values).
+ *   Implemented by running Lanczos on `A` and selecting the
+ *   algebraically smallest Ritz values from the computed pairs.
  * - `SPARSE_EIGS_NEAREST_SIGMA`: k eigenvalues closest (in absolute
  *   value of lambda − sigma) to the shift point `opts->sigma`.
  *   Implemented via shift-invert: Lanczos on (A − sigma·I)^{-1},
@@ -137,12 +141,15 @@ typedef struct {
      *  default `1e-10`.  Negative values are rejected with
      *  SPARSE_ERR_BADARG. */
     double tol;
-    /** Full-reorthogonalization flag.  Nonzero (default) reorthogonalizes
-     *  each new Lanczos vector against every prior Lanczos vector,
-     *  maintaining `V^T V ≈ I` under finite precision.  Zero disables
-     *  reorth (faster per iteration but loses orthogonality on
-     *  wide-spectrum matrices — "ghost" eigenvalues may appear;
-     *  mainly useful for cheap smoke tests). */
+    /** Full-reorthogonalization flag.  Nonzero reorthogonalizes each
+     *  new Lanczos vector against every prior Lanczos vector,
+     *  maintaining `V^T V ≈ I` under finite precision.  Zero
+     *  disables reorth (faster per iteration but loses orthogonality
+     *  on wide-spectrum matrices — "ghost" eigenvalues may appear;
+     *  mainly useful for cheap smoke tests).  The library default is
+     *  ON — pass `opts == NULL` to get it, or set this field to 1
+     *  explicitly when using designated initialisers (which zero
+     *  unset fields). */
     int reorthogonalize;
     /** Nonzero to also compute eigenvectors; zero (default) returns
      *  eigenvalues only.  When nonzero, `result->eigenvectors` must
@@ -239,8 +246,9 @@ typedef struct {
  *         with fewer than k pairs converged.  Partial results in
  *         `result->eigenvalues[0..n_converged)` / `eigenvectors`
  *         are still valid.
- * @return SPARSE_ERR_NULL if A, opts->callback, or required result
- *         buffers are NULL.
+ * @return SPARSE_ERR_NULL if A, result, or required result buffers
+ *         (`result->eigenvalues`, and `result->eigenvectors` when
+ *         eigenvectors are requested) are NULL.
  * @return SPARSE_ERR_SHAPE if A is not square.
  * @return SPARSE_ERR_NOT_SPD if A fails the symmetry check
  *         (reused for "not symmetric" per existing convention; see

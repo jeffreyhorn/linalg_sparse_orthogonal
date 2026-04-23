@@ -285,6 +285,7 @@ static void test_shift_invert_diagonal_k3(void) {
         .which = SPARSE_EIGS_NEAREST_SIGMA,
         .sigma = 10.5,
         .tol = 1e-12,
+        .reorthogonalize = 1,
     };
 
     REQUIRE_OK(sparse_eigs_sym(A, 3, &opts, &result));
@@ -393,6 +394,7 @@ static void test_shift_invert_eigenvectors(void) {
         .sigma = 2.0,
         .compute_vectors = 1,
         .tol = 1e-10,
+        .reorthogonalize = 1,
     };
 
     REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &result));
@@ -560,6 +562,7 @@ static void test_suitesparse_nos4_largest_smallest(void) {
         .which = SPARSE_EIGS_LARGEST,
         .tol = 1e-10,
         .compute_vectors = 1,
+        .reorthogonalize = 1,
     };
     REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
     ASSERT_EQ(res.n_converged, k);
@@ -604,6 +607,7 @@ static void test_suitesparse_bcsstk04_largest_smallest(void) {
         .which = SPARSE_EIGS_LARGEST,
         .tol = 1e-10,
         .compute_vectors = 1,
+        .reorthogonalize = 1,
     };
     REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
     ASSERT_EQ(res.n_converged, k);
@@ -698,7 +702,7 @@ static void test_svd_cross_check_aTa(void) {
     double *vals = calloc((size_t)k, sizeof(double));
     ASSERT_NOT_NULL(vals);
     sparse_eigs_t res = {.eigenvalues = vals};
-    sparse_eigs_opts_t opts = {.which = SPARSE_EIGS_LARGEST, .tol = 1e-12};
+    sparse_eigs_opts_t opts = {.which = SPARSE_EIGS_LARGEST, .tol = 1e-12, .reorthogonalize = 1};
     REQUIRE_OK(sparse_eigs_sym(B, k, &opts, &res));
     ASSERT_EQ(res.n_converged, k);
 

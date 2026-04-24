@@ -62,7 +62,24 @@
 #pragma GCC diagnostic pop
 #endif
 
-/* ─── Sprint 21 Day 5: shared MGS reorth kernel (OpenMP-parallel) ── */
+/* ─── Sprint 21 Day 5/6: shared MGS reorth kernel (OpenMP-parallel) ── */
+
+/* Small-n gate for the MGS reorth parallelism.  Below this `n`,
+ * per-call OMP fork/join overhead (measured ~5-20 μs on macOS
+ * Homebrew libomp) dominates the dot-product + daxpy work, and
+ * the parallel reduction is a net loss — the Day 6 scaling sweep
+ * showed every thread count > 1 regressed on nos4 (n = 100),
+ * bcsstk04 (n = 132), and kkt-150 (n = 150), while bcsstk14
+ * (n = 1806) scaled to 2.2× at 4 threads.  500 is a safe
+ * crossover: well above the n = 150 loser set, well below the
+ * n ≈ 1800 clear winner.  Callers who need a different
+ * crossover on their hardware can override by building with
+ * `-DSPARSE_EIGS_OMP_REORTH_MIN_N=<value>`.  See
+ * SPRINT_21/bench_day6_omp_scaling.txt for the raw sweep and
+ * SPRINT_17/PERF_NOTES.md for the threshold rationale. */
+#ifndef SPARSE_EIGS_OMP_REORTH_MIN_N
+#define SPARSE_EIGS_OMP_REORTH_MIN_N 500
+#endif
 
 /* s21_mgs_reorth: orthogonalise `w` against each of V[:, 0..k_stored-1]
  * via classical modified Gram-Schmidt (MGS).  The outer `j` loop
@@ -74,6 +91,15 @@
  * independent across `i` and parallelised under `-DSPARSE_OPENMP`,
  * using the same pragma pattern as `sparse_matvec` from
  * Sprint 17/18 (`#pragma omp parallel for`).
+ *
+ * Day 6 threshold gate: the `if (n >= SPARSE_EIGS_OMP_REORTH_MIN_N)`
+ * clause causes each `parallel for` to run serially (a single
+ * implicit team of one) when `n` is small enough that OMP
+ * overhead would exceed the parallel work.  The clause is a
+ * zero-cost no-op in serial builds (the whole pragma is
+ * `#ifdef SPARSE_OPENMP`-gated out).  Matvec in Sprint 17/18 has
+ * the same overhead structure but does not gate — its tuning
+ * lives in a future sprint; Day 6 only addresses MGS reorth.
  *
  * Serial builds are bit-for-bit identical to the Sprint 20 inline
  * MGS body the helper replaced — the Day 5 refactor collapses
@@ -89,12 +115,12 @@ static void s21_mgs_reorth(double *w, const double *V, idx_t n, idx_t k_stored) 
         const double *v_j = V + (size_t)j * (size_t)n;
         double dot = 0.0;
 #ifdef SPARSE_OPENMP
-#pragma omp parallel for reduction(+ : dot) schedule(static)
+#pragma omp parallel for reduction(+ : dot) schedule(static) if (n >= SPARSE_EIGS_OMP_REORTH_MIN_N)
 #endif
         for (idx_t i = 0; i < n; i++)
             dot += w[i] * v_j[i];
 #ifdef SPARSE_OPENMP
-#pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static) if (n >= SPARSE_EIGS_OMP_REORTH_MIN_N)
 #endif
         for (idx_t i = 0; i < n; i++)
             w[i] -= dot * v_j[i];
@@ -1109,7 +1135,11 @@ sparse_err_t s21_arrowhead_to_tridiag(const double *theta_locked, const double *
     /* Materialise the arrowhead.  Layout column-major: T[i + j*K]. */
 #define T_AT(i, j) T[(size_t)(i) + (size_t)(j) * (size_t)K]
 
+    /* K >= k_locked by construction (K_wide = k_locked + m_ext with
+     * k_locked >= 1 already checked), but the analyzer can't prove
+     * it — suppress the false-positive heap-bound warning. */
     for (idx_t i = 0; i < k_locked; i++)
+        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
         T_AT(i, i) = theta_locked[i];
     for (idx_t i = 0; i < m_ext; i++)
         T_AT(k_locked + i, k_locked + i) = alpha_ext[i];
@@ -1320,6 +1350,7 @@ sparse_err_t lanczos_restart_state_assemble(lanczos_restart_state_t *state, idx_
         if (size_mul_overflow((size_t)n, (size_t)k_locked, &v_elems) ||
             size_mul_overflow(v_elems, sizeof(double), &v_bytes))
             return SPARSE_ERR_ALLOC;
+        // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
         double *new_V = malloc(v_bytes);
         double *new_theta = malloc((size_t)k_locked * sizeof(double));
         double *new_beta = malloc((size_t)k_locked * sizeof(double));
@@ -1619,9 +1650,9 @@ static sparse_err_t s21_dense_sym_jacobi(double *A_scratch, idx_t K, double *the
                 double aqq = A_scratch[(size_t)q + (size_t)q * (size_t)K];
                 double theta = (aqq - app) / (2.0 * apq);
                 double t;
-                if (fabs(theta) > 1e15)
+                if (fabs(theta) > 1e15) {
                     t = 1.0 / (2.0 * theta);
-                else {
+                } else {
                     double sign_t = theta >= 0.0 ? 1.0 : -1.0;
                     t = sign_t / (fabs(theta) + sqrt(theta * theta + 1.0));
                 }
@@ -1819,15 +1850,19 @@ static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *c
         size_mul_overflow(vk_elems, sizeof(double), &vk_bytes))
         return SPARSE_ERR_ALLOC;
 
+    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
     double *V = malloc(v_bytes);
     double *alpha = malloc((size_t)m_restart * sizeof(double));
     double *beta = malloc((size_t)m_restart * sizeof(double));
     double *v0 = calloc((size_t)n, sizeof(double));
     double *residual_vec = malloc((size_t)n * sizeof(double));
+    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
     double *T_arrow = malloc(K2_bytes);
     double *theta_arrow = malloc((size_t)m_restart * sizeof(double));
+    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
     double *Y_arrow = malloc(K2_bytes);
     idx_t *sel_idx = malloc((size_t)k * sizeof(idx_t));
+    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
     double *V_locked_tmp = malloc(vk_bytes);
     double *theta_locked_tmp = malloc((size_t)k * sizeof(double));
     double *beta_coupling_tmp = malloc((size_t)k * sizeof(double));

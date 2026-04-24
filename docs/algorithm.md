@@ -1280,6 +1280,14 @@ MGS has the same O(k·n) asymptotic cost per step as classical Gram-Schmidt but 
 
 The `opts.reorthogonalize = 0` escape hatch disables reorth for the occasional cheap-smoke-test where ghost values don't matter, but every production call runs with reorth on.
 
+### Parallel reorthogonalisation: MGS stays serial in j
+
+Sprint 21 Day 5-6 parallelises MGS under `-DSPARSE_OPENMP`, but only in the inner axis.  The outer `j` loop — sweeping the prior Lanczos vectors — **stays serial**.  Each iteration of the `j` loop reads the `w` that the previous iteration just modified, so the iterations have a read-after-write dependency that parallelism cannot break.  Only the inner dot-product `<w, v_j>` and the inner daxpy `w -= dot · v_j` are data-parallel in the length-`n` axis, and those get `#pragma omp parallel for reduction(+:dot)` and `#pragma omp parallel for` respectively.
+
+Why not classical Gram-Schmidt?  CGS computes every `dot_j = <w_original, v_j>` in one parallel pass, then subtracts them all in a second pass: the `j` loop parallelises trivially.  But each subtraction uses the *original* `w`, not the partially-orthogonalised one, so cancellation errors compound and the orthogonality drift bottoms out around 1e-6 on wide-spectrum matrices — an order of magnitude worse than MGS's 1e-12.  On the eigensolver's convergence criterion (`|beta_m · y_{m-1,j}| / |theta_j|`) that difference determines whether the residual gate fires at 1e-10 or plateaus at 1e-8 because of ghost Ritz pairs.  We pay the serial-j cost to keep the stability; Sprint 21's parallel speedup comes from the `i`-axis work instead.  (There are compromises — iterated CGS, block MGS, TSQR — but the library's size/complexity budget doesn't justify them for the measured 2× at 4 threads we get from the simple pattern.)
+
+A compile-time threshold `SPARSE_EIGS_OMP_REORTH_MIN_N` (default 500) gates both pragmas via an OpenMP `if (n >= threshold)` clause.  Below the threshold the `parallel for` runs on a single-thread team — zero fork/join overhead, serial performance.  The fork/join overhead on macOS Homebrew libomp is 5-20 μs per parallel region, which exceeds the per-reorth work when `n < ~500`; see [`docs/planning/EPIC_2/SPRINT_21/bench_day6_omp_scaling.txt`](planning/EPIC_2/SPRINT_21/bench_day6_omp_scaling.txt) for the scaling sweep that motivates the threshold.
+
 ### Ritz extraction
 
 Once Lanczos builds `(V, T)`, the Ritz pairs `(theta_j, V · y_j)` — where `(theta_j, y_j)` are the eigenpairs of T — approximate A's eigenpairs.  The library extracts both eigenvalues and eigenvectors of T via `tridiag_qr_eigenpairs`, an implicit-QR-with-Wilkinson-shift variant that accumulates the Givens rotations into an orthogonal Y matrix so the full-problem Ritz vectors come out as `V · Y[:, j]` via one gemv per requested column.

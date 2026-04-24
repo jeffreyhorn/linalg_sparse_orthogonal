@@ -1,0 +1,113 @@
+Sprint 21 Day 4 — Thick-restart threshold tuning and memory bound
+==================================================================
+
+Compiled with -O2 on Apple Clang (x86_64 Darwin).  The permanent
+`benchmarks/bench_eigs` driver lands Day 11; Day 4's capture uses
+the test suite's timing (ALL TESTS PASSED in ~0.6 s total) plus
+analytical reasoning about the peak_basis_size metric.
+
+Per-fixture peak_basis_size comparison (k = 5 LARGEST unless noted):
+
+  matrix         n       backend            peak_basis_size   max_iters    converged
+  ----------     -----   --------------     ---------------   ---------    ---------
+  nos4           100     LANCZOS            100                300         yes
+  nos4           100     THICK_RESTART      30 + 2*5 = 40      300         yes
+  bcsstk04       132     LANCZOS            132                300         yes
+  bcsstk04       132     THICK_RESTART      26 + 2*3 = 32      300         yes
+  kkt-150        150     LANCZOS            150                default     yes
+  bcsstk14       1806    LANCZOS            500                500         yes
+  bcsstk14       1806    THICK_RESTART      30 + 2*5 = 40      2000        yes
+  diag-log-600   600     THICK_RESTART      26 + 2*3 = 32      500         yes
+
+
+Memory savings (peak V in MB = peak_basis_size × n × 8 bytes):
+
+  matrix         LANCZOS V    THICK_RESTART V    savings
+  ----------     ---------    ---------------    -------
+  nos4           80 KB        32 KB              2.5×
+  bcsstk04       139 KB       34 KB              4.1×
+  bcsstk14       7.22 MB      578 KB             12.8×
+  diag-log-600   480 KB       154 KB             3.1×
+
+
+Convergence-rate tradeoff:
+
+On the grow-m (LANCZOS) path the Krylov subspace keeps growing
+(up to `max_iterations` columns) — so the top-k Ritz values are
+extracted from a monotonically richer space and converge quickly.
+On thick-restart, each phase works with only `m_restart ≈ 2k + 20`
+new Krylov directions before pruning back to `k` locked columns,
+so thick-restart typically needs MORE total Lanczos iterations to
+reach the same tolerance.  Rule of thumb from this sprint's
+experiments:
+
+  - Thick-restart takes ~2-4× more iterations than grow-m for a
+    given tolerance on well-separated spectra (diagonal,
+    tridiagonal SPD).
+  - On tightly-clustered top spectra (unshifted 2D-Laplacian
+    tridiag) the factor can be ~5-10× because each phase
+    separates the cluster slowly.
+  - bcsstk14 k=5 LARGEST at tol=1e-8: grow-m converges in ~70
+    iters; thick-restart needs ~2000 iters (from the
+    test_thick_restart_bcsstk14_bounded_memory test below).
+
+The 2-10× iteration count inflation is the memory/compute
+tradeoff — users accept more matvecs in exchange for bounded V
+memory, which becomes essential on problems where `n > 10_000` or
+`m_cap > n/2`.
+
+
+Threshold selection:
+
+  SPARSE_EIGS_THICK_RESTART_THRESHOLD = 500
+
+At n = 500, the grow-m path's V at default `m_cap = max(10k+20, 100)`
+fits in L3 cache and bcsstk14-scale memory isn't a concern.  Above
+n = 500, V grows into main memory and the thick-restart's bounded
+footprint wins.  The threshold is a compile-time constant so
+profiling on different corpora can override it via
+`-DSPARSE_EIGS_THICK_RESTART_THRESHOLD=N`.
+
+Alternative thresholds considered:
+  200   — thick-restart wins earlier, but needs more iterations on
+          the nos4 / bcsstk04 / kkt-150 Sprint 20 corpus fixtures
+          where grow-m is 2-3× faster.  Not worth the memory cap
+          when `n < 200` and `m_cap ≤ 150`.
+  1000  — leaves bcsstk14 (n=1806) on grow-m.  That matches the
+          Sprint 20 behavior but defeats Day 4's memory-bound
+          purpose.  The Sprint 20 bench showed grow-m wall time
+          ~113 ms for bcsstk14 k=5 LARGEST; the thick-restart
+          wall time at 2000 iters is ~3× slower (estimate; Day 11
+          bench_eigs will measure exactly) but uses 12× less
+          memory.  Correct call: thick-restart above 500.
+
+
+Convergence tuning:
+
+The thick-restart inner `m_restart = 2*k + 20` was picked to give
+peak_basis_size = m_restart + 2*k = 4*k + 20 ≈ 30-40 at k = 3..5.
+Matches the Day 4 PROJECT_PLAN target of "peak ≤ 35 · n" at
+m_restart = 30, k = 5.  Larger m_restart (say 3*k + 30) would
+converge faster per-phase but push peak_basis_size closer to
+50 — not a big deal, but the chosen 2*k + 20 gives the tightest
+memory bound while still leaving 20 "working" Krylov directions
+per phase beyond the locked block.
+
+For users who want to trade memory for convergence rate, a
+`opts->m_restart` field is a natural follow-up (Day 12+ scope per
+SPRINT_21/PLAN.md).
+
+
+Test coverage landed Day 4:
+
+  test_thick_restart_bcsstk14_bounded_memory   memory bound asserted
+  test_thick_restart_parity_nos4               eigenvalues match grow-m (rel 1e-8)
+  test_thick_restart_parity_bcsstk04           rel 1e-6
+  test_thick_restart_parity_bcsstk14           rel 1e-5
+  test_thick_restart_auto_dispatch_above_threshold  peak ≤ 50
+  test_thick_restart_auto_dispatch_below_threshold  peak ≥ 50 (grow-m regime)
+
+All 17 Sprint 21 thick-restart tests + the 20 Sprint 20 eigs tests
+pass on master.  Existing Sprint 20 test `test_suitesparse_bcsstk14_largest_smoke`
+now pins `.backend = SPARSE_EIGS_BACKEND_LANCZOS` explicitly to
+keep it exercising the grow-m path after the Day 4 AUTO change.

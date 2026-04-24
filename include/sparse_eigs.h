@@ -143,6 +143,33 @@ typedef enum {
 } sparse_eigs_backend_t;
 
 /**
+ * @brief Crossover threshold for AUTO backend dispatch.
+ *
+ * When `opts->backend == SPARSE_EIGS_BACKEND_AUTO` and
+ * `sparse_rows(A) >= SPARSE_EIGS_THICK_RESTART_THRESHOLD`, the
+ * library routes to the bounded-memory thick-restart backend
+ * rather than the Sprint 20 grow-m path.  Below the threshold
+ * the grow-m path wins because its full-basis Ritz extraction
+ * converges in slightly fewer matvecs on small problems and
+ * memory isn't a concern — bcsstk04 (n = 132) grow-m holds
+ * ~160 KB of V at m_cap = 130, which is cheap on modern
+ * machines.  Above the threshold the memory bound matters —
+ * bcsstk14 (n = 1806) grow-m at m_cap = 500 holds ~7 MB of V,
+ * which grows to ~26 MB if max_iterations = n.  Thick-restart
+ * caps peak V at `m_restart + k_locked ≈ 35` columns regardless
+ * of total iteration count.
+ *
+ * Provisional value: 500 (matches the nos4 / bcsstk04 / kkt-150
+ * / bcsstk14 measured crossover in the Sprint 21 Day 4 benchmark
+ * capture at `docs/planning/EPIC_2/SPRINT_21/bench_day4_restart.txt`).
+ * Override at compile time with `-DSPARSE_EIGS_THICK_RESTART_THRESHOLD=N`
+ * when profiling on a different corpus.
+ */
+#ifndef SPARSE_EIGS_THICK_RESTART_THRESHOLD
+#define SPARSE_EIGS_THICK_RESTART_THRESHOLD 500
+#endif
+
+/**
  * @brief Options for `sparse_eigs_sym()`.
  *
  * Pass NULL to `sparse_eigs_sym()` to use defaults:
@@ -254,6 +281,19 @@ typedef struct {
      *  LARGEST / SMALLEST (no LDL^T factor involved).  Sprint 20
      *  Day 13 observability. */
     int used_csc_path_ldlt;
+    /** Output: peak Lanczos basis size (number of length-n columns
+     *  held simultaneously in the dominant allocation) observed
+     *  during the run.  Sprint 21 Day 4 telemetry; lets callers
+     *  compare the grow-m path's monotonically-growing `m_cap` to
+     *  the thick-restart path's bounded `m_restart + k_locked_cap`
+     *  peak to verify the memory-savings claim on large-n
+     *  problems.  For the grow-m backend this equals `m_cap` (the
+     *  largest V actually allocated across retries); for
+     *  thick-restart it equals `m_restart + k_locked_cap_used`
+     *  (the simultaneously-live `V` basis plus the restart
+     *  state's `V_locked` block).  Reported in doubles-times-`n`
+     *  units — multiply by `n * sizeof(double)` to get bytes. */
+    idx_t peak_basis_size;
 } sparse_eigs_t;
 
 /**

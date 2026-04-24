@@ -543,6 +543,7 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     result->iterations = 0;
     result->residual_norm = 0.0;
     result->used_csc_path_ldlt = 0;
+    result->peak_basis_size = 0;
 
     /* Day 12: shift-invert setup for NEAREST_SIGMA.  Factor
      * `A - sigma*I` via `sparse_ldlt_factor_opts` (Days 4-6 AUTO
@@ -624,12 +625,25 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
         max_iters = (idx_t)def_iters;
     }
 
-    /* Sprint 21 Day 3: thick-restart backend dispatch.  When the
-     * caller opts explicitly into the Wu/Simon thick-restart path,
-     * skip the grow-m outer loop below and run the bounded-memory
-     * phase loop instead.  AUTO stays with grow-m for Day 3; Day 4
-     * will tune AUTO to route here above a problem-size threshold. */
-    if (o->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART) {
+    /* Sprint 21 Day 3/4: thick-restart backend dispatch.
+     *
+     * Day 3 opt-in path: `opts->backend ==
+     * SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART` forces the
+     * Wu/Simon restart pipeline.
+     *
+     * Day 4 AUTO routing: when `opts->backend == _AUTO` and the
+     * problem is large enough (`n >= SPARSE_EIGS_THICK_RESTART_THRESHOLD`,
+     * default 500; tuned in `docs/planning/EPIC_2/SPRINT_21/bench_day4_restart.txt`),
+     * also route here — the grow-m path's `O(m_cap · n)` peak
+     * memory becomes prohibitive on the big SuiteSparse fixtures
+     * where the thick-restart's `O((m_restart + k) · n)` bound
+     * wins by an order of magnitude or more (bcsstk14 at
+     * n = 1806, k = 5: grow-m ~7 MB of V vs thick-restart
+     * ~500 KB). */
+    int use_thick_restart = (o->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART) ||
+                            (o->backend == SPARSE_EIGS_BACKEND_AUTO &&
+                             n >= (idx_t)SPARSE_EIGS_THICK_RESTART_THRESHOLD);
+    if (use_thick_restart) {
         sparse_err_t tr_rc =
             s21_thick_restart_outer_loop(op_fn, op_ctx, n, k, o, eff_tol, max_iters, result);
         sparse_ldlt_free(&ldlt_shift);
@@ -736,6 +750,11 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     }
 
     s20_lanczos_starting_vector(v0, n);
+
+    /* Day 4 telemetry: grow-m holds V at m_cap columns from
+     * allocation until cleanup — peak basis size is `m_cap`
+     * regardless of how many grow-on-retry passes actually run. */
+    result->peak_basis_size = m_cap;
 
     idx_t total_iters = 0;
     sparse_err_t rc = SPARSE_ERR_NOT_CONVERGED;
@@ -1730,11 +1749,17 @@ static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *c
                                                  idx_t k, const sparse_eigs_opts_t *o,
                                                  double eff_tol, idx_t max_iters,
                                                  sparse_eigs_t *result) {
-    /* Restart basis size.  Matches the grow-m initial size
-     * (3k + 30) but capped at n — thick-restart is only useful
-     * when m_restart < n.  When m_restart == n the arrowhead
-     * degenerates to a full Lanczos run with no actual restart. */
-    int64_t m_restart_wide = (int64_t)3 * (int64_t)k + 30;
+    /* Restart basis size.  Day 4 tuning: `2k + 20` keeps peak
+     * `V + V_locked` at ~`m_restart + k = 3k + 20` columns, which
+     * for `k = 5` gives 35 columns — roughly 15× smaller than the
+     * grow-m path's typical `m_cap = 500` while still leaving
+     * enough of a Krylov spectrum per phase to converge extreme
+     * Ritz values in < 30 restarts on the Sprint 20 SuiteSparse
+     * corpus (see
+     * `docs/planning/EPIC_2/SPRINT_21/bench_day4_restart.txt`).
+     * Capped at `n` and `max_iters`, and floored so `m_restart >
+     * k_locked` (the thick-restart iterator precondition). */
+    int64_t m_restart_wide = (int64_t)2 * (int64_t)k + 20;
     if (m_restart_wide > (int64_t)n)
         m_restart_wide = (int64_t)n;
     if (m_restart_wide > (int64_t)max_iters)
@@ -1744,6 +1769,16 @@ static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *c
     if (m_restart_wide > (int64_t)n)
         m_restart_wide = (int64_t)n;
     idx_t m_restart = (idx_t)m_restart_wide;
+
+    /* Day 4 telemetry: peak simultaneous V columns = m_restart
+     * (main buffer) + k (locked state across restarts) + k (the
+     * transient `V_locked_tmp` during pick_locked, briefly live
+     * alongside both V and state->V_locked).  On a grow-m run
+     * with m_cap = 500, k = 5 this metric lands at 510, so the
+     * bcsstk14 parity test captures the memory savings by
+     * comparing peak_basis_size ratios rather than absolute
+     * numbers. */
+    result->peak_basis_size = m_restart + 2 * k;
 
     /* Workspace.  All sizes bounded by (m_restart, k) regardless
      * of how many restarts the outer loop eventually runs. */

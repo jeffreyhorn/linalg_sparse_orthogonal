@@ -657,6 +657,14 @@ static void test_suitesparse_bcsstk14_largest_smoke(void) {
         .tol = 1e-8,
         .compute_vectors = 1,
         .max_iterations = 500,
+        /* Sprint 21 Day 4 pin: explicitly opt into grow-m so this
+         * smoke test keeps exercising the Sprint 20 backend.  Post-
+         * Sprint-21 AUTO dispatch (`n >=
+         * SPARSE_EIGS_THICK_RESTART_THRESHOLD`) routes n=1806 to
+         * thick-restart, which needs a larger iteration budget on
+         * this fixture — see `test_thick_restart_bcsstk14_bounded_memory`
+         * for the thick-restart coverage. */
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
     };
     REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
     ASSERT_EQ(res.n_converged, k);

@@ -572,6 +572,267 @@ static void test_thick_restart_backend_eigenvectors(void) {
     sparse_free(A);
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+ * Day 4: memory-bounded convergence + cross-backend parity
+ * ═══════════════════════════════════════════════════════════════════ */
+
+#ifndef DATA_DIR
+#define DATA_DIR "tests/data"
+#endif
+#define SS_DIR DATA_DIR "/suitesparse"
+
+/* bcsstk14 (n=1806) k=5 LARGEST: the memory-bounded regression
+ * claim.  Thick-restart at m_restart = 2k + 20 = 30 must
+ * converge with `peak_basis_size <= 35 + 2*k = 40` columns
+ * regardless of how many restart phases the outer loop runs.
+ * That's `40 * 1806 * 8 ≈ 565 KB` of V — roughly 15× smaller
+ * than the grow-m path's `500 * 1806 * 8 ≈ 7.2 MB` at the
+ * test's `max_iterations = 500` cap.  Assert the bound
+ * numerically rather than by measurement. */
+static void test_thick_restart_bcsstk14_bounded_memory(void) {
+    SparseMatrix *A = NULL;
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx"));
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    idx_t n = sparse_rows(A);
+    ASSERT_TRUE(n >= 1800 && n < 2000);
+
+    const idx_t k = 5;
+    double *vals = calloc((size_t)k, sizeof(double));
+    double *vecs = calloc((size_t)n * (size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vals);
+    ASSERT_NOT_NULL(vecs);
+    if (!vals || !vecs) {
+        free(vals);
+        free(vecs);
+        sparse_free(A);
+        return;
+    }
+
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-8,
+        .compute_vectors = 1,
+        .max_iterations = 2000,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    ASSERT_EQ(res.n_converged, k);
+
+    /* Memory bound: peak_basis_size <= m_restart + 2*k = 30 + 10
+     * = 40 columns.  With safety margin: <= 45.  This is the
+     * Day 4 PROJECT_PLAN target for bounded thick-restart memory. */
+    ASSERT_TRUE(res.peak_basis_size <= 45);
+
+    /* Residuals: use the same `||Av - λv|| / (|λ| * ||v||)` scaled
+     * formula as Sprint 20's `assert_ritz_residuals` helper —
+     * bcsstk14 eigenvalues are ~1e10 so absolute residuals of ~1e3
+     * are still relative ~1e-7, consistent with the 1e-8 tol. */
+    for (idx_t j = 0; j < k; j++) {
+        double *Av = malloc((size_t)n * sizeof(double));
+        ASSERT_NOT_NULL(Av);
+        if (!Av)
+            break;
+        sparse_matvec(A, vecs + j * n, Av);
+        double res_sq = 0.0, v_sq = 0.0;
+        for (idx_t i = 0; i < n; i++) {
+            double r = Av[i] - vals[j] * vecs[i + j * n];
+            res_sq += r * r;
+            v_sq += vecs[i + j * n] * vecs[i + j * n];
+        }
+        double lambda_abs = fabs(vals[j]);
+        double anchor = (lambda_abs > 0.0 ? lambda_abs : 1.0) * (sqrt(v_sq) > 0.0 ? sqrt(v_sq) : 1.0);
+        double rel = sqrt(res_sq) / anchor;
+        ASSERT_TRUE(rel < 1e-6);
+        free(Av);
+    }
+
+    free(vals);
+    free(vecs);
+    sparse_free(A);
+}
+
+/* Cross-backend parity helper: run both backends on the same
+ * matrix + opts, compare eigenvalues within the given tol.  Used
+ * by the four fixture tests below. */
+static void s21_day4_parity(SparseMatrix *A, idx_t k, sparse_eigs_which_t which, double sigma,
+                            double eig_tol, idx_t max_iter) {
+    double *vals_grow = calloc((size_t)k, sizeof(double));
+    double *vals_tr = calloc((size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vals_grow);
+    ASSERT_NOT_NULL(vals_tr);
+    if (!vals_grow || !vals_tr) {
+        free(vals_grow);
+        free(vals_tr);
+        return;
+    }
+
+    sparse_eigs_t res_grow = {.eigenvalues = vals_grow};
+    sparse_eigs_opts_t opts_grow = {
+        .which = which,
+        .sigma = sigma,
+        .tol = 1e-10,
+        .max_iterations = max_iter,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts_grow, &res_grow));
+    ASSERT_EQ(res_grow.n_converged, k);
+
+    sparse_eigs_t res_tr = {.eigenvalues = vals_tr};
+    sparse_eigs_opts_t opts_tr = {
+        .which = which,
+        .sigma = sigma,
+        .tol = 1e-10,
+        .max_iterations = max_iter,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts_tr, &res_tr));
+    ASSERT_EQ(res_tr.n_converged, k);
+
+    /* Relative eigenvalue agreement: `eig_tol` is interpreted as a
+     * relative tolerance scaled by max(|λ_grow|, 1) so that
+     * fixtures with large-magnitude eigenvalues (e.g. bcsstk14
+     * with λ ~ 1e10) don't force a brittle absolute comparison. */
+    for (idx_t j = 0; j < k; j++) {
+        double scale = fabs(vals_grow[j]);
+        if (scale < 1.0)
+            scale = 1.0;
+        double diff = fabs(vals_grow[j] - vals_tr[j]) / scale;
+        if (!(diff < eig_tol)) {
+            TF_FAIL_("Ritz pair %td: grow=%.15g, tr=%.15g, rel-diff=%.3e > tol=%.3e",
+                     (ptrdiff_t)j, vals_grow[j], vals_tr[j], diff, eig_tol);
+        }
+        tf_asserts++;
+    }
+
+    /* Thick-restart peak_basis_size must be strictly smaller than
+     * grow-m's on any non-trivial fixture (when max_iterations
+     * leaves room for both to exercise their allocation strategy). */
+    ASSERT_TRUE(res_tr.peak_basis_size < res_grow.peak_basis_size);
+
+    free(vals_grow);
+    free(vals_tr);
+}
+
+/* nos4 parity: LARGEST k=5. */
+static void test_thick_restart_parity_nos4(void) {
+    SparseMatrix *A = NULL;
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/nos4.mtx"));
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    s21_day4_parity(A, 5, SPARSE_EIGS_LARGEST, 0.0, 1e-8, 300);
+    sparse_free(A);
+}
+
+/* bcsstk04 parity: LARGEST k=3. */
+static void test_thick_restart_parity_bcsstk04(void) {
+    SparseMatrix *A = NULL;
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx"));
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    s21_day4_parity(A, 3, SPARSE_EIGS_LARGEST, 0.0, 1e-6, 300);
+    sparse_free(A);
+}
+
+/* bcsstk14 parity: LARGEST k=5.  Separate from the memory-bound
+ * test above — this one asserts eigenvalue agreement between
+ * backends. */
+static void test_thick_restart_parity_bcsstk14(void) {
+    SparseMatrix *A = NULL;
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx"));
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    s21_day4_parity(A, 5, SPARSE_EIGS_LARGEST, 0.0, 1e-5, 2000);
+    sparse_free(A);
+}
+
+/* AUTO dispatch must route to thick-restart above the threshold.
+ * Fabricate a matrix with n > SPARSE_EIGS_THICK_RESTART_THRESHOLD
+ * (default 500) and check `peak_basis_size` falls in the
+ * thick-restart-bounded regime. */
+static void test_thick_restart_auto_dispatch_above_threshold(void) {
+    const idx_t n = 600; /* > 500 (default threshold) */
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    /* Diagonal fixture with log-spaced eigenvalues: well-separated
+     * so both backends converge in few matvecs.  Avoids the
+     * tightly-clustered spectrum of a 2D-Laplacian tridiagonal
+     * where thick-restart needs many phases to resolve the top
+     * cluster (a convergence-rate property the AUTO dispatch test
+     * shouldn't be gated on — that's Day 13's job). */
+    for (idx_t i = 0; i < n; i++) {
+        double s = pow(10.0, 4.0 * (double)i / (double)(n - 1));
+        sparse_insert(A, i, i, s);
+    }
+
+    const idx_t k = 3;
+    double vals[3] = {0};
+    sparse_eigs_t res = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-8,
+        .max_iterations = 500,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_AUTO,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    ASSERT_EQ(res.n_converged, k);
+
+    /* AUTO routed to thick-restart because n >= threshold: peak
+     * basis size should be in the thick-restart regime
+     * (m_restart + 2k = 2k+20 + 2k = 4k+20 = 32 for k=3) rather
+     * than the grow-m regime (m_cap ≈ max(10k+20, 100) = 100). */
+    ASSERT_TRUE(res.peak_basis_size <= 50);
+
+    sparse_free(A);
+}
+
+/* AUTO dispatch below the threshold must route to grow-m
+ * (peak_basis_size > 50 in the grow-m regime where m_cap
+ * defaults reach 100).  Complement of the above test. */
+static void test_thick_restart_auto_dispatch_below_threshold(void) {
+    const idx_t n = 100; /* < 500 */
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+
+    const idx_t k = 3;
+    double vals[3] = {0};
+    sparse_eigs_t res = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_AUTO,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    ASSERT_EQ(res.n_converged, k);
+
+    /* AUTO routed to grow-m: peak_basis_size ≈ m_cap = max(3k+30, 100)
+     * clamped to n → ≥ 100 on this fixture. */
+    ASSERT_TRUE(res.peak_basis_size >= 50);
+
+    sparse_free(A);
+}
+
 /* Invalid backend rejection — the updated validation at
  * sparse_eigs_sym entry must still accept the new enum value and
  * reject out-of-range ones. */
@@ -611,6 +872,14 @@ int main(void) {
     RUN_TEST(test_thick_restart_matches_grow_m);
     RUN_TEST(test_thick_restart_backend_eigenvectors);
     RUN_TEST(test_thick_restart_backend_bad_enum_rejected);
+
+    /* Day 4: memory-bounded convergence, parity, AUTO dispatch. */
+    RUN_TEST(test_thick_restart_bcsstk14_bounded_memory);
+    RUN_TEST(test_thick_restart_parity_nos4);
+    RUN_TEST(test_thick_restart_parity_bcsstk04);
+    RUN_TEST(test_thick_restart_parity_bcsstk14);
+    RUN_TEST(test_thick_restart_auto_dispatch_above_threshold);
+    RUN_TEST(test_thick_restart_auto_dispatch_below_threshold);
 
     TEST_SUITE_END();
 }

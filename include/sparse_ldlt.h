@@ -120,7 +120,13 @@ typedef enum {
  * pattern as the Sprint 18 Cholesky dispatch.  See
  * `sparse_ldlt_backend_t` above for the per-value semantics.  The
  * optional `used_csc_path` output pointer is set to 1 when the CSC
- * supernodal backend ran and 0 when the linked-list backend ran.
+ * pipeline was selected and 0 when the linked-list backend ran.
+ * Note that "CSC selected" means the CSC kernel chain handled the
+ * factor end-to-end — this includes the Sprint 20 Day 5 structural-
+ * fallback case where the supernodal factor tripped the pivot-
+ * stability check and `ldlt_factor_csc_path` fell back to the
+ * scalar pre-pass factor; both paths still route through the CSC
+ * entry points and write back via `ldlt_csc_writeback_to_ldlt`.
  * Pass NULL if the caller does not need this telemetry.
  */
 typedef struct {
@@ -141,7 +147,9 @@ typedef struct {
                                         check under CSC but does not change the drops
                                         the CSC kernels apply during factorization. */
     sparse_ldlt_backend_t backend; /**< AUTO dispatches by size; LINKED_LIST / CSC force a path */
-    int *used_csc_path;            /**< Optional output: set to 1 if CSC ran, 0 if linked-list */
+    int *used_csc_path;            /**< Optional output: 1 if the CSC pipeline was selected
+                                        (including the structural fallback to the scalar
+                                        pre-pass factor), 0 if the linked-list kernel ran. */
 } sparse_ldlt_opts_t;
 
 /**

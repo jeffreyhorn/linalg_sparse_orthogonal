@@ -135,6 +135,11 @@ static void test_diagonal_eigenvectors_satisfy_equation(void) {
         .which = SPARSE_EIGS_LARGEST,
         .tol = 1e-12,
         .compute_vectors = 1,
+        .reorthogonalize = 1, /* required: designated init zeros the
+                               * field, so set it explicitly — the
+                               * no-reorth path makes V non-
+                               * orthonormal and the lifted
+                               * eigenvectors V·y unreliable. */
     };
 
     REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &result));

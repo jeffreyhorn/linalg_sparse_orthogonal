@@ -170,12 +170,25 @@ typedef struct {
      *  mainly useful for cheap smoke tests).  The library default is
      *  ON — pass `opts == NULL` to get it, or set this field to 1
      *  explicitly when using designated initialisers (which zero
-     *  unset fields). */
+     *  unset fields).
+     *
+     *  **Reliability caveat (important):** both the Wu/Simon
+     *  convergence gate reported in `result->residual_norm` and the
+     *  lifted eigenvectors written to `result->eigenvectors`
+     *  (`V·y`) rely on `V` being orthonormal.  When this flag is 0
+     *  the Krylov basis drifts from orthonormal, so the residual
+     *  bound can be silently optimistic (false convergence on
+     *  ghost Ritz pairs) and lifted eigenvectors are not unit norm
+     *  nor truly A-eigenvectors.  Callers that want reliable
+     *  `result->residual_norm` or `compute_vectors = 1` output
+     *  MUST set this field to 1. */
     int reorthogonalize;
     /** Nonzero to also compute eigenvectors; zero (default) returns
      *  eigenvalues only.  When nonzero, `result->eigenvectors` must
      *  be a caller-allocated buffer of length at least `n * k`
-     *  (column-major). */
+     *  (column-major).  See the `reorthogonalize` field above for
+     *  the reliability requirement — `compute_vectors = 1` is only
+     *  meaningful when `reorthogonalize = 1`. */
     int compute_vectors;
     /** Backend selector — see `sparse_eigs_backend_t`.  Default
      *  AUTO routes to Lanczos. */

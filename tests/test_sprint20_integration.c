@@ -325,6 +325,11 @@ static void test_s20_eigs_rejects_bad_args(void) {
 
     /* Rectangular → SPARSE_ERR_SHAPE. */
     SparseMatrix *rect = sparse_create(3, 5);
+    ASSERT_NOT_NULL(rect);
+    if (rect == NULL) {
+        sparse_free(A);
+        return;
+    }
     ASSERT_ERR(sparse_eigs_sym(rect, 2, NULL, &result), SPARSE_ERR_SHAPE);
     sparse_free(rect);
 
@@ -613,6 +618,14 @@ static void test_s20_day9_reorth_maintains_orthogonality(void) {
     ASSERT_NOT_NULL(V);
     ASSERT_NOT_NULL(alpha);
     ASSERT_NOT_NULL(beta);
+    if (!v0 || !V || !alpha || !beta) {
+        free(v0);
+        free(V);
+        free(alpha);
+        free(beta);
+        sparse_free(A);
+        return;
+    }
     s20_day9_fill_v0(v0, n);
 
     idx_t m_actual = 0;
@@ -649,6 +662,14 @@ static void test_s20_day9_no_reorth_completes_cleanly(void) {
     ASSERT_NOT_NULL(V);
     ASSERT_NOT_NULL(alpha);
     ASSERT_NOT_NULL(beta);
+    if (!v0 || !V || !alpha || !beta) {
+        free(v0);
+        free(V);
+        free(alpha);
+        free(beta);
+        sparse_free(A);
+        return;
+    }
     s20_day9_fill_v0(v0, n);
 
     idx_t m_actual = 0;

@@ -364,16 +364,253 @@ static void test_restart_state_assemble_n_mismatch_rejected(void) {
     lanczos_restart_state_free(&state);
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+ * Day 3: phase execution + thick-restart outer loop
+ * ═══════════════════════════════════════════════════════════════════ */
+
+/* Matvec adapter for the `lanczos_op_fn` callback (the Sprint 20
+ * file-scope `s20_op_matvec` helper in `sparse_eigs.c` isn't
+ * exported for internal tests). */
+static sparse_err_t test_op_matvec(const void *ctx, idx_t n, const double *x, double *y) {
+    (void)n;
+    return sparse_matvec((const SparseMatrix *)ctx, x, y);
+}
+
+/* Empty-state path of `lanczos_thick_restart_iterate`: with a NULL
+ * state pointer the iterator must produce bit-for-bit identical
+ * output to `lanczos_iterate` on the same fixture.  Exercises the
+ * Day 3 fast-path delegation. */
+static void test_thick_restart_iterate_empty_state_matches_lanczos(void) {
+    const idx_t n = 6;
+    const idx_t m = 6;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, (double)(i + 1));
+
+    double v0[6] = {1.0, 0.5, -0.3, 0.7, 0.2, -0.9};
+    double V_ref[36] = {0};
+    double alpha_ref[6] = {0};
+    double beta_ref[6] = {0};
+    idx_t m_ref = 0;
+    REQUIRE_OK(lanczos_iterate(A, v0, m, /*reorthogonalize=*/1, V_ref, alpha_ref, beta_ref,
+                               &m_ref));
+
+    double V_tr[36] = {0};
+    double alpha_tr[6] = {0};
+    double beta_tr[6] = {0};
+    idx_t m_tr = 0;
+    REQUIRE_OK(lanczos_thick_restart_iterate(test_op_matvec, A, n, v0, m, /*reorth=*/1,
+                                             /*state=*/NULL, V_tr, alpha_tr, beta_tr, &m_tr));
+
+    ASSERT_EQ(m_ref, m);
+    ASSERT_EQ(m_tr, m);
+    for (idx_t i = 0; i < n * m; i++)
+        ASSERT_NEAR(V_tr[i], V_ref[i], 1e-14);
+    for (idx_t i = 0; i < m; i++) {
+        ASSERT_NEAR(alpha_tr[i], alpha_ref[i], 1e-14);
+        ASSERT_NEAR(beta_tr[i], beta_ref[i], 1e-14);
+    }
+
+    sparse_free(A);
+}
+
+/* End-to-end convergence on a small SPD diagonal fixture.  The
+ * thick-restart backend must produce the same k largest eigenvalues
+ * as the grow-m path to 1e-10.  Exercises the full outer-loop
+ * pipeline: initial phase + (possibly) one or more restarts +
+ * Ritz extraction via dense Jacobi. */
+static void test_thick_restart_backend_converges_small(void) {
+    const idx_t n = 10;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, (double)(i + 1));
+
+    const idx_t k = 3;
+    double vals[3] = {0};
+    sparse_eigs_t result = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &result));
+    ASSERT_EQ(result.n_converged, k);
+    /* Descending: 10, 9, 8. */
+    ASSERT_NEAR(vals[0], 10.0, 1e-9);
+    ASSERT_NEAR(vals[1], 9.0, 1e-9);
+    ASSERT_NEAR(vals[2], 8.0, 1e-9);
+
+    sparse_free(A);
+}
+
+/* SMALLEST branch: exercises the ascending selection path through
+ * the thick-restart outer loop. */
+static void test_thick_restart_backend_smallest(void) {
+    const idx_t n = 10;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, (double)(i + 1));
+
+    const idx_t k = 3;
+    double vals[3] = {0};
+    sparse_eigs_t result = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_SMALLEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &result));
+    ASSERT_EQ(result.n_converged, k);
+    ASSERT_NEAR(vals[0], 1.0, 1e-9);
+    ASSERT_NEAR(vals[1], 2.0, 1e-9);
+    ASSERT_NEAR(vals[2], 3.0, 1e-9);
+
+    sparse_free(A);
+}
+
+/* Cross-backend parity on a wider spectrum: the thick-restart path
+ * should match the grow-m path to 1e-8 on a 2D Laplacian-style
+ * tridiagonal SPD (where both converge cleanly). */
+static void test_thick_restart_matches_grow_m(void) {
+    const idx_t n = 30;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+
+    const idx_t k = 4;
+    double vals_grow[4] = {0};
+    double vals_tr[4] = {0};
+
+    sparse_eigs_t res_grow = {.eigenvalues = vals_grow};
+    sparse_eigs_opts_t opts_grow = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-12,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts_grow, &res_grow));
+    ASSERT_EQ(res_grow.n_converged, k);
+
+    sparse_eigs_t res_tr = {.eigenvalues = vals_tr};
+    sparse_eigs_opts_t opts_tr = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-12,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts_tr, &res_tr));
+    ASSERT_EQ(res_tr.n_converged, k);
+
+    for (idx_t j = 0; j < k; j++)
+        ASSERT_NEAR(vals_grow[j], vals_tr[j], 1e-8);
+
+    sparse_free(A);
+}
+
+/* compute_vectors = 1 with the thick-restart backend should lift
+ * Ritz vectors through V · Y_arrow just like the grow-m path.
+ * Verify ||A v_j - theta_j v_j|| ≤ 1e-8 per returned pair. */
+static void test_thick_restart_backend_eigenvectors(void) {
+    const idx_t n = 10;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, (double)(i + 1));
+
+    const idx_t k = 3;
+    double vals[3] = {0};
+    double *vecs = calloc((size_t)n * (size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vecs);
+    if (!vecs) {
+        sparse_free(A);
+        return;
+    }
+    sparse_eigs_t result = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-12,
+        .compute_vectors = 1,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &result));
+    ASSERT_EQ(result.n_converged, k);
+
+    double Av[10];
+    for (idx_t j = 0; j < k; j++) {
+        sparse_matvec(A, vecs + (size_t)j * (size_t)n, Av);
+        double res = 0.0;
+        for (idx_t i = 0; i < n; i++) {
+            double delta = Av[i] - vals[j] * vecs[i + j * n];
+            res += delta * delta;
+        }
+        ASSERT_TRUE(sqrt(res) < 1e-8);
+    }
+
+    free(vecs);
+    sparse_free(A);
+}
+
+/* Invalid backend rejection — the updated validation at
+ * sparse_eigs_sym entry must still accept the new enum value and
+ * reject out-of-range ones. */
+static void test_thick_restart_backend_bad_enum_rejected(void) {
+    const idx_t n = 4;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, 2.0);
+    double vals[1] = {0};
+    sparse_eigs_t result = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts_bad = {
+        .backend = (sparse_eigs_backend_t)99,
+    };
+    ASSERT_ERR(sparse_eigs_sym(A, 1, &opts_bad, &result), SPARSE_ERR_BADARG);
+    sparse_free(A);
+}
+
 /* ─── Runner ────────────────────────────────────────────────────── */
 
 int main(void) {
-    TEST_SUITE_BEGIN("Sprint 21 thick-restart Lanczos — Day 2");
+    TEST_SUITE_BEGIN("Sprint 21 thick-restart Lanczos — Days 2-3");
 
+    /* Day 2: arrowhead helpers. */
     RUN_TEST(test_arrowhead_to_tridiag_preserves_spectrum);
     RUN_TEST(test_arrowhead_to_tridiag_k_locked_one);
     RUN_TEST(test_pick_locked_orthonormal);
     RUN_TEST(test_restart_state_assemble_roundtrip);
     RUN_TEST(test_restart_state_assemble_n_mismatch_rejected);
+
+    /* Day 3: phase execution + outer loop + backend dispatch. */
+    RUN_TEST(test_thick_restart_iterate_empty_state_matches_lanczos);
+    RUN_TEST(test_thick_restart_backend_converges_small);
+    RUN_TEST(test_thick_restart_backend_smallest);
+    RUN_TEST(test_thick_restart_matches_grow_m);
+    RUN_TEST(test_thick_restart_backend_eigenvectors);
+    RUN_TEST(test_thick_restart_backend_bad_enum_rejected);
 
     TEST_SUITE_END();
 }

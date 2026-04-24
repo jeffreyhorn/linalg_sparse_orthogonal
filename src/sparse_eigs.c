@@ -484,6 +484,15 @@ static void s20_lift_ritz_vectors(const double *V, const double *Y, idx_t n, idx
     }
 }
 
+/* Forward declaration: the Sprint 21 thick-restart outer loop is
+ * defined below but dispatched to from `sparse_eigs_sym` here.
+ * Keeps the Day 3 dispatch self-contained without moving the
+ * thick-restart block above the Sprint 20 code. */
+static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *ctx, idx_t n,
+                                                 idx_t k, const sparse_eigs_opts_t *o,
+                                                 double eff_tol, idx_t max_iters,
+                                                 sparse_eigs_t *result);
+
 sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_opts_t *opts,
                              sparse_eigs_t *result) {
     /* Input validation (preconditions from the public doxygen). */
@@ -511,7 +520,8 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     if (o->which != SPARSE_EIGS_LARGEST && o->which != SPARSE_EIGS_SMALLEST &&
         o->which != SPARSE_EIGS_NEAREST_SIGMA)
         return SPARSE_ERR_BADARG;
-    if (o->backend != SPARSE_EIGS_BACKEND_AUTO && o->backend != SPARSE_EIGS_BACKEND_LANCZOS)
+    if (o->backend != SPARSE_EIGS_BACKEND_AUTO && o->backend != SPARSE_EIGS_BACKEND_LANCZOS &&
+        o->backend != SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART)
         return SPARSE_ERR_BADARG;
     if (o->tol < 0.0 || o->max_iterations < 0)
         return SPARSE_ERR_BADARG;
@@ -612,6 +622,19 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
         if (def_iters > (int64_t)INT32_MAX)
             def_iters = (int64_t)INT32_MAX;
         max_iters = (idx_t)def_iters;
+    }
+
+    /* Sprint 21 Day 3: thick-restart backend dispatch.  When the
+     * caller opts explicitly into the Wu/Simon thick-restart path,
+     * skip the grow-m outer loop below and run the bounded-memory
+     * phase loop instead.  AUTO stays with grow-m for Day 3; Day 4
+     * will tune AUTO to route here above a problem-size threshold. */
+    if (o->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART) {
+        sparse_err_t tr_rc =
+            s21_thick_restart_outer_loop(op_fn, op_ctx, n, k, o, eff_tol, max_iters, result);
+        sparse_ldlt_free(&ldlt_shift);
+        sparse_free(A_shifted);
+        return tr_rc;
     }
 
     /* Day 13 outer-loop redesign: single Lanczos batch with a
@@ -1277,39 +1300,45 @@ sparse_err_t lanczos_restart_state_assemble(lanczos_restart_state_t *state, idx_
     return SPARSE_OK;
 }
 
-/* Day 1 stub: V / alpha / beta are output buffers that Day 2-3 fill
- * during the phase-execution body.  The stub doesn't write to them
- * yet, so clang-tidy flags them as const-candidates; the NOLINT
- * suppressions document this as intentional until the body lands. */
+/* lanczos_thick_restart_iterate: Day 3 implementation.
+ *
+ * Runs one Lanczos phase of length `m_restart` against the
+ * symmetric operator `op`.  Two modes:
+ *
+ *   Empty state (NULL, or k_locked == 0, or V_locked == NULL): the
+ *     body delegates directly to `lanczos_iterate_op` — the
+ *     phase behaves exactly like a fresh Lanczos run.  This is the
+ *     first-phase path in `s21_thick_restart_outer_loop`.
+ *
+ *   Non-empty state: the body injects the locked Ritz block at the
+ *     head of V / alpha / beta, seeds v_{k_locked} from
+ *     `state->residual / state->residual_norm` (re-orthogonalised
+ *     against V_locked to kill finite-precision drift), and
+ *     continues the 3-term recurrence from step k_locked onward.
+ *     The arrowhead T's spokes `beta_coupling[j]` are NOT written
+ *     into the flat `alpha / beta` arrays for j < k_locked - 1 —
+ *     those rows of the arrowhead are off-tridiagonal and the
+ *     caller reads them back from `state->beta_coupling` when
+ *     building the arrowhead for Ritz extraction.  The last
+ *     spoke `beta_coupling[k_locked-1]` IS written as the standard
+ *     subdiagonal entry `beta[k_locked - 1]` because it sits on
+ *     the natural tridiagonal line between the locked block and
+ *     the first extension row.  Full-MGS reorth handles the
+ *     implicit spoke subtraction at step k_locked so no explicit
+ *     spoke-correction is needed in the recurrence (each new
+ *     Lanczos vector is orthogonalised against ALL previously
+ *     stored V columns, including the locked block).
+ */
 sparse_err_t lanczos_thick_restart_iterate(lanczos_op_fn op, const void *ctx, idx_t n,
                                            const double *v0, idx_t m_restart, int reorthogonalize,
-                                           lanczos_restart_state_t *state,
-                                           double *V,     // NOLINT(readability-non-const-parameter)
-                                           double *alpha, // NOLINT(readability-non-const-parameter)
-                                           double *beta,  // NOLINT(readability-non-const-parameter)
-                                           idx_t *m_actual) {
-    /* Day 1 stub.  Validates the core preconditions so Day 2 /
-     * Day 3 can replace the body without the public signature
-     * drifting.  Returns SPARSE_ERR_BADARG for the success case —
-     * the "stub in progress" signal used throughout this codebase
-     * (no SPARSE_ERR_NOT_IMPL exists).
-     *
-     * Day 2 replaces the body with: (a) copy V_locked into V,
-     * (b) write arrowhead rows 0..k_locked-1 of α / β from
-     * theta_locked / beta_coupling, (c) seed v_{k_locked} from
-     * state->residual (orthogonalised against V_locked), then
-     * (d) run the standard 3-term recurrence from step k_locked
-     * onward.  Day 3 wires this into the outer loop and the
-     * public `sparse_eigs_sym` dispatch. */
+                                           lanczos_restart_state_t *state, double *V, double *alpha,
+                                           double *beta, idx_t *m_actual) {
     if (!op || !V || !alpha || !beta || !m_actual)
         return SPARSE_ERR_NULL;
     if (n < 1)
         return SPARSE_ERR_SHAPE;
     if (m_restart < 1 || m_restart > n)
         return SPARSE_ERR_BADARG;
-    /* An empty state (NULL or k_locked == 0) requires v0.  A
-     * non-empty state carries its own residual seed so v0 may be
-     * NULL. */
     int state_empty = (state == NULL) || (state->k_locked == 0) || (state->V_locked == NULL);
     if (state_empty && !v0)
         return SPARSE_ERR_NULL;
@@ -1322,11 +1351,598 @@ sparse_err_t lanczos_thick_restart_iterate(lanczos_op_fn op, const void *ctx, id
             return SPARSE_ERR_BADARG;
         if (!state->theta_locked || !state->beta_coupling || !state->residual)
             return SPARSE_ERR_NULL;
+        if (state->residual_norm <= 0.0)
+            return SPARSE_ERR_BADARG; /* invariant-subspace trip; caller should stop */
     }
-    /* Silence unused-parameter warnings on the fields Day 2 will
-     * consume; keeps -Wunused-parameter clean under the stub. */
-    (void)ctx;
-    (void)reorthogonalize;
+
     *m_actual = 0;
-    return SPARSE_ERR_BADARG;
+
+    /* Empty-state fast path: delegates to the Sprint 20 helper. */
+    if (state_empty)
+        return lanczos_iterate_op(op, ctx, n, v0, m_restart, reorthogonalize, V, alpha, beta,
+                                  m_actual);
+
+    idx_t k_locked = state->k_locked;
+
+    /* Copy locked block into V[:, 0..k_locked-1]. */
+    memcpy(V, state->V_locked, (size_t)n * (size_t)k_locked * sizeof(double));
+    /* alpha[0..k_locked-1] = theta_locked. */
+    memcpy(alpha, state->theta_locked, (size_t)k_locked * sizeof(double));
+    /* beta[0..k_locked-2] = 0 (locked block is diagonal in T);
+     * beta[k_locked-1] = beta_coupling[k_locked-1] (standard
+     * subdiagonal connecting the locked block to the first
+     * extension row; the preceding k_locked-1 coupling entries
+     * are off-tridiagonal spokes that the outer loop reads from
+     * state->beta_coupling). */
+    for (idx_t i = 0; i + 1 < k_locked; i++)
+        beta[i] = 0.0;
+    if (k_locked >= 1)
+        beta[k_locked - 1] = state->beta_coupling[k_locked - 1];
+
+    /* Seed v_{k_locked} from the state's residual.  MGS-reorthogonalise
+     * against V_locked once (the residual should be orthogonal to
+     * V_locked by the Lanczos property in exact arithmetic; the
+     * reorth pass cleans up finite-precision drift).  Then
+     * normalise. */
+    double *v_seed = V + (size_t)k_locked * (size_t)n;
+    double inv_rn = 1.0 / state->residual_norm;
+    for (idx_t i = 0; i < n; i++)
+        v_seed[i] = state->residual[i] * inv_rn;
+    if (reorthogonalize) {
+        for (idx_t j = 0; j < k_locked; j++) {
+            const double *vj = V + (size_t)j * (size_t)n;
+            double dot = 0.0;
+            for (idx_t i = 0; i < n; i++)
+                dot += v_seed[i] * vj[i];
+            for (idx_t i = 0; i < n; i++)
+                v_seed[i] -= dot * vj[i];
+        }
+        double sq = 0.0;
+        for (idx_t i = 0; i < n; i++)
+            sq += v_seed[i] * v_seed[i];
+        double nrm = sqrt(sq);
+        if (nrm < DBL_MIN * 100.0) {
+            /* Residual collapsed under reorth — invariant subspace
+             * was essentially reached.  Report the locked block only. */
+            *m_actual = k_locked;
+            return SPARSE_OK;
+        }
+        double inv = 1.0 / nrm;
+        for (idx_t i = 0; i < n; i++)
+            v_seed[i] *= inv;
+    }
+
+    /* Continue the 3-term recurrence from step k_locked onward.
+     * Mirrors the Sprint 20 `lanczos_iterate_op` inner body but
+     * with a starting step index of k_locked and an augmented
+     * V whose first k_locked columns are the locked block.  Full-
+     * MGS reorth against V[:, 0..k) at each step handles the
+     * arrowhead-spoke subtraction implicitly. */
+    size_t w_bytes = 0;
+    if (size_mul_overflow((size_t)n, sizeof(double), &w_bytes))
+        return SPARSE_ERR_ALLOC;
+    double *w = malloc(w_bytes);
+    if (!w)
+        return SPARSE_ERR_ALLOC;
+
+    /* beta_prev at step k_locked: from the Lanczos relation after
+     * restart, v_{k_locked} was seeded from the prior-phase residual
+     * and the coupling to V_locked is carried in the arrowhead spokes
+     * (not in beta_prev).  For the 3-term recurrence continuation,
+     * beta_prev of step k_locked is *0* because v_{k_locked-1} is
+     * part of the locked block and the arrowhead subdiagonal
+     * inside the locked block is 0.  The MGS reorth pass picks up
+     * the spoke coupling from the locked vectors. */
+    double beta_prev = 0.0;
+    double t_norm = 0.0;
+
+    for (idx_t k = k_locked; k < m_restart; k++) {
+        double *v_k = V + (size_t)k * (size_t)n;
+
+        sparse_err_t op_rc = op(ctx, n, v_k, w);
+        if (op_rc != SPARSE_OK) {
+            free(w);
+            return op_rc;
+        }
+
+        /* w -= beta_{k-1} · v_{k-1}  (only for the first new step,
+         * this evaluates to zero since beta_prev initialises to 0;
+         * for subsequent steps it's the standard tridiagonal
+         * continuation). */
+        if (k > k_locked) {
+            const double *v_prev = V + (size_t)(k - 1) * (size_t)n;
+            for (idx_t i = 0; i < n; i++)
+                w[i] -= beta_prev * v_prev[i];
+        }
+
+        double a = 0.0;
+        for (idx_t i = 0; i < n; i++)
+            a += w[i] * v_k[i];
+        alpha[k] = a;
+
+        for (idx_t i = 0; i < n; i++)
+            w[i] -= a * v_k[i];
+
+        /* Full MGS reorth against V[:, 0..k).  This is the step
+         * where the arrowhead spoke coupling gets absorbed on the
+         * first new step (k == k_locked): w is orthogonalised
+         * against V_locked columns, which implicitly subtracts
+         * beta_coupling[j] · V_locked[:, j] for j in [0, k_locked). */
+        if (reorthogonalize && k > 0) {
+            for (idx_t j = 0; j < k; j++) {
+                const double *v_j = V + (size_t)j * (size_t)n;
+                double dot = 0.0;
+                for (idx_t i = 0; i < n; i++)
+                    dot += w[i] * v_j[i];
+                for (idx_t i = 0; i < n; i++)
+                    w[i] -= dot * v_j[i];
+            }
+        }
+
+        double b_sq = 0.0;
+        for (idx_t i = 0; i < n; i++)
+            b_sq += w[i] * w[i];
+        double b = sqrt(b_sq);
+        beta[k] = b;
+
+        /* Running ||T||_inf for the scale-aware breakdown check. */
+        double row_k_bound = beta_prev + fabs(a) + b;
+        if (row_k_bound > t_norm)
+            t_norm = row_k_bound;
+
+        double breakdown_tol = t_norm * 1e-14;
+        if (breakdown_tol < DBL_MIN * 100.0)
+            breakdown_tol = DBL_MIN * 100.0;
+        if (b < breakdown_tol) {
+            *m_actual = k + 1;
+            free(w);
+            return SPARSE_OK;
+        }
+
+        /* Normalise w into v_{k+1} when there's room. */
+        if (k + 1 < m_restart) {
+            double inv = 1.0 / b;
+            double *v_next = V + (size_t)(k + 1) * (size_t)n;
+            for (idx_t i = 0; i < n; i++)
+                v_next[i] = w[i] * inv;
+        }
+
+        beta_prev = b;
+    }
+
+    free(w);
+    *m_actual = m_restart;
+    return SPARSE_OK;
+}
+
+/* ─── Sprint 21 Day 3: Dense symmetric eigensolver (Jacobi) ─────── */
+
+/* Classical Jacobi sweeps on a dense symmetric K × K matrix.
+ * Returns ascending eigenvalues in `theta_out[0..K-1]` and the
+ * corresponding orthonormal eigenvectors as columns of `Q_out`
+ * (K × K, column-major).  Used for arrowhead Ritz extraction
+ * (Day 3) because the arrowhead doesn't have the tridiagonal
+ * shape `tridiag_qr_eigenpairs` needs; bypasses the Day 2
+ * reduction-to-tridiag shim so the outer loop doesn't have to
+ * thread a separate Q accumulator through the reduction.
+ *
+ * Cost: O(K^3) per sweep × O(log K) sweeps.  For K ≤ 100 this is
+ * microsecond-scale; acceptable as long as m_restart stays bounded.
+ *
+ * Input `A_scratch` is destroyed (overwritten with the diagonalised
+ * form as a side effect). */
+static sparse_err_t s21_dense_sym_jacobi(double *A_scratch, idx_t K, double *theta_out,
+                                         double *Q_out) {
+    if (!A_scratch || !theta_out || !Q_out)
+        return SPARSE_ERR_NULL;
+    if (K < 1)
+        return SPARSE_ERR_BADARG;
+
+    /* Q := I. */
+    for (idx_t j = 0; j < K; j++) {
+        for (idx_t i = 0; i < K; i++)
+            Q_out[(size_t)i + (size_t)j * (size_t)K] = (i == j) ? 1.0 : 0.0;
+    }
+
+    if (K == 1) {
+        theta_out[0] = A_scratch[0];
+        return SPARSE_OK;
+    }
+
+    const idx_t max_sweeps = 100;
+    const double tol = 1e-14;
+
+    for (idx_t sweep = 0; sweep < max_sweeps; sweep++) {
+        /* off-diagonal Frobenius norm */
+        double off = 0.0;
+        for (idx_t i = 0; i < K; i++) {
+            for (idx_t j = i + 1; j < K; j++) {
+                double aij = A_scratch[(size_t)i + (size_t)j * (size_t)K];
+                off += aij * aij;
+            }
+        }
+        if (sqrt(off) < tol)
+            break;
+
+        for (idx_t p = 0; p < K; p++) {
+            for (idx_t q = p + 1; q < K; q++) {
+                size_t pq = (size_t)p + (size_t)q * (size_t)K;
+                double apq = A_scratch[pq];
+                if (fabs(apq) < tol)
+                    continue;
+                double app = A_scratch[(size_t)p + (size_t)p * (size_t)K];
+                double aqq = A_scratch[(size_t)q + (size_t)q * (size_t)K];
+                double theta = (aqq - app) / (2.0 * apq);
+                double t;
+                if (fabs(theta) > 1e15)
+                    t = 1.0 / (2.0 * theta);
+                else {
+                    double sign_t = theta >= 0.0 ? 1.0 : -1.0;
+                    t = sign_t / (fabs(theta) + sqrt(theta * theta + 1.0));
+                }
+                double c = 1.0 / sqrt(1.0 + t * t);
+                double s = t * c;
+
+                /* Update rows/cols p, q of A (symmetric). */
+                for (idx_t i = 0; i < K; i++) {
+                    if (i == p || i == q)
+                        continue;
+                    double aip = A_scratch[(size_t)i + (size_t)p * (size_t)K];
+                    double aiq = A_scratch[(size_t)i + (size_t)q * (size_t)K];
+                    double new_ip = c * aip - s * aiq;
+                    double new_iq = s * aip + c * aiq;
+                    A_scratch[(size_t)i + (size_t)p * (size_t)K] = new_ip;
+                    A_scratch[(size_t)p + (size_t)i * (size_t)K] = new_ip;
+                    A_scratch[(size_t)i + (size_t)q * (size_t)K] = new_iq;
+                    A_scratch[(size_t)q + (size_t)i * (size_t)K] = new_iq;
+                }
+                A_scratch[(size_t)p + (size_t)p * (size_t)K] =
+                    c * c * app - 2.0 * s * c * apq + s * s * aqq;
+                A_scratch[(size_t)q + (size_t)q * (size_t)K] =
+                    s * s * app + 2.0 * s * c * apq + c * c * aqq;
+                A_scratch[(size_t)p + (size_t)q * (size_t)K] = 0.0;
+                A_scratch[(size_t)q + (size_t)p * (size_t)K] = 0.0;
+
+                /* Update Q's rows p, q (equivalently cols p, q
+                 * since we're building Q s.t. A = Q * diag * Q^T;
+                 * each rotation is applied from the right to Q). */
+                for (idx_t i = 0; i < K; i++) {
+                    size_t ip = (size_t)i + (size_t)p * (size_t)K;
+                    size_t iq = (size_t)i + (size_t)q * (size_t)K;
+                    double qip = Q_out[ip];
+                    double qiq = Q_out[iq];
+                    Q_out[ip] = c * qip - s * qiq;
+                    Q_out[iq] = s * qip + c * qiq;
+                }
+            }
+        }
+    }
+
+    /* Sort eigenvalues ascending; permute Q columns to match. */
+    for (idx_t i = 0; i < K; i++)
+        theta_out[i] = A_scratch[(size_t)i + (size_t)i * (size_t)K];
+    /* Simple selection sort — K is small. */
+    for (idx_t i = 0; i < K; i++) {
+        idx_t min_idx = i;
+        for (idx_t j = i + 1; j < K; j++) {
+            if (theta_out[j] < theta_out[min_idx])
+                min_idx = j;
+        }
+        if (min_idx != i) {
+            double tmp = theta_out[i];
+            theta_out[i] = theta_out[min_idx];
+            theta_out[min_idx] = tmp;
+            for (idx_t r = 0; r < K; r++) {
+                double q_tmp = Q_out[(size_t)r + (size_t)i * (size_t)K];
+                Q_out[(size_t)r + (size_t)i * (size_t)K] =
+                    Q_out[(size_t)r + (size_t)min_idx * (size_t)K];
+                Q_out[(size_t)r + (size_t)min_idx * (size_t)K] = q_tmp;
+            }
+        }
+    }
+
+    return SPARSE_OK;
+}
+
+/* ─── Sprint 21 Day 3: Thick-restart outer loop ─────────────────── */
+
+/* Compose the arrowhead T (dense K × K) from the flat alpha / beta
+ * arrays plus the state's off-tridiagonal spoke entries.  When
+ * `k_locked == 0` (fresh phase), T is pure tridiagonal; when
+ * `k_locked > 0` the top-left k_locked × k_locked block is
+ * diagonal, row/col k_locked carries the spoke `beta_coupling`
+ * (with the last entry already in beta[k_locked-1] as standard
+ * subdiag), and rows k_locked.. are standard tridiagonal. */
+static void s21_build_dense_arrowhead(const double *alpha, const double *beta,
+                                      const double *beta_coupling, idx_t k_locked, idx_t K,
+                                      double *T_out) {
+    memset(T_out, 0, (size_t)K * (size_t)K * sizeof(double));
+    for (idx_t i = 0; i < K; i++)
+        T_out[(size_t)i + (size_t)i * (size_t)K] = alpha[i];
+    if (K >= 2) {
+        for (idx_t i = 0; i + 1 < K; i++) {
+            T_out[(size_t)(i + 1) + (size_t)i * (size_t)K] = beta[i];
+            T_out[(size_t)i + (size_t)(i + 1) * (size_t)K] = beta[i];
+        }
+    }
+    if (k_locked >= 2) {
+        /* Spokes at (k_locked, j) for j in [0, k_locked-1); the
+         * last coupling entry beta_coupling[k_locked-1] is already
+         * at (k_locked, k_locked-1) via the beta subdiagonal fill
+         * above. */
+        for (idx_t j = 0; j + 1 < k_locked; j++) {
+            T_out[(size_t)k_locked + (size_t)j * (size_t)K] = beta_coupling[j];
+            T_out[(size_t)j + (size_t)k_locked * (size_t)K] = beta_coupling[j];
+        }
+    }
+}
+
+/* Recompute the unnormalised Lanczos residual
+ *   residual = A v_{m-1} − alpha[m-1] v_{m-1} − beta[m-2] v_{m-2}
+ * from the completed V / alpha / beta arrays.  This is the
+ * Lanczos "overflow" vector that `lanczos_iterate_op` normally
+ * normalises into `v_m` when k+1 < m_max; by recomputing it here
+ * we avoid threading a residual output through the iterator
+ * signature (one extra matvec per restart).  `||residual||`
+ * should equal `beta[m-1]` in exact arithmetic. */
+static sparse_err_t s21_recompute_residual(lanczos_op_fn op, const void *ctx, idx_t n,
+                                           const double *V, const double *alpha,
+                                           const double *beta, idx_t m, double *residual_out) {
+    if (m < 1)
+        return SPARSE_ERR_BADARG;
+    const double *v_last = V + (size_t)(m - 1) * (size_t)n;
+    sparse_err_t op_rc = op(ctx, n, v_last, residual_out);
+    if (op_rc != SPARSE_OK)
+        return op_rc;
+    for (idx_t i = 0; i < n; i++)
+        residual_out[i] -= alpha[m - 1] * v_last[i];
+    if (m >= 2) {
+        const double *v_prev = V + (size_t)(m - 2) * (size_t)n;
+        for (idx_t i = 0; i < n; i++)
+            residual_out[i] -= beta[m - 2] * v_prev[i];
+    }
+    return SPARSE_OK;
+}
+
+/* s21_thick_restart_outer_loop: Wu/Simon thick-restart dispatch.
+ * Called from `sparse_eigs_sym` when
+ * `opts->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`
+ * (Day 3; Day 4 extends AUTO to route here above a size threshold).
+ *
+ * Manages the phase-by-phase restart loop with bounded memory:
+ * V / alpha / beta are sized to `m_restart` (fixed), not the
+ * monotone-growing `m_cap` of the Sprint 20 grow-m path.  Peak
+ * memory is `O((m_restart + k_locked_cap) · n)`, independent of
+ * total iteration count.
+ *
+ * Convergence gate mirrors the grow-m path: Wu/Simon per-pair
+ * residual `|beta_last · Y_arrow[m_actual - 1, j]|` scaled by
+ * `max(|theta_j|, scale)`.  When `beta_last` is the last Lanczos
+ * beta of the CURRENT phase (not the prior-phase spoke), the
+ * identity `||A V_aug y - θ V_aug y|| = |beta_last · y_last|` holds
+ * across the augmented (locked + new) subspace by the same Paige
+ * derivation the Sprint 20 grow-m path uses.
+ *
+ * Arguments are the pre-processed outer-loop inputs from
+ * `sparse_eigs_sym` (operator + context + shift-invert state).
+ * Result is populated on exit. */
+static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *ctx, idx_t n,
+                                                 idx_t k, const sparse_eigs_opts_t *o,
+                                                 double eff_tol, idx_t max_iters,
+                                                 sparse_eigs_t *result) {
+    /* Restart basis size.  Matches the grow-m initial size
+     * (3k + 30) but capped at n — thick-restart is only useful
+     * when m_restart < n.  When m_restart == n the arrowhead
+     * degenerates to a full Lanczos run with no actual restart. */
+    int64_t m_restart_wide = (int64_t)3 * (int64_t)k + 30;
+    if (m_restart_wide > (int64_t)n)
+        m_restart_wide = (int64_t)n;
+    if (m_restart_wide > (int64_t)max_iters)
+        m_restart_wide = (int64_t)max_iters;
+    if (m_restart_wide < (int64_t)k + 1)
+        m_restart_wide = (int64_t)k + 1;
+    if (m_restart_wide > (int64_t)n)
+        m_restart_wide = (int64_t)n;
+    idx_t m_restart = (idx_t)m_restart_wide;
+
+    /* Workspace.  All sizes bounded by (m_restart, k) regardless
+     * of how many restarts the outer loop eventually runs. */
+    size_t v_elems = 0, v_bytes = 0;
+    size_t K2 = 0, K2_bytes = 0;
+    size_t vk_elems = 0, vk_bytes = 0;
+    if (size_mul_overflow((size_t)n, (size_t)m_restart, &v_elems) ||
+        size_mul_overflow(v_elems, sizeof(double), &v_bytes) ||
+        size_mul_overflow((size_t)m_restart, (size_t)m_restart, &K2) ||
+        size_mul_overflow(K2, sizeof(double), &K2_bytes) ||
+        size_mul_overflow((size_t)n, (size_t)k, &vk_elems) ||
+        size_mul_overflow(vk_elems, sizeof(double), &vk_bytes))
+        return SPARSE_ERR_ALLOC;
+
+    double *V = malloc(v_bytes);
+    double *alpha = malloc((size_t)m_restart * sizeof(double));
+    double *beta = malloc((size_t)m_restart * sizeof(double));
+    double *v0 = calloc((size_t)n, sizeof(double));
+    double *residual_vec = malloc((size_t)n * sizeof(double));
+    double *T_arrow = malloc(K2_bytes);
+    double *theta_arrow = malloc((size_t)m_restart * sizeof(double));
+    double *Y_arrow = malloc(K2_bytes);
+    idx_t *sel_idx = malloc((size_t)k * sizeof(idx_t));
+    double *V_locked_tmp = malloc(vk_bytes);
+    double *theta_locked_tmp = malloc((size_t)k * sizeof(double));
+    double *beta_coupling_tmp = malloc((size_t)k * sizeof(double));
+    lanczos_restart_state_t state = {0};
+
+    sparse_err_t rc = SPARSE_ERR_NOT_CONVERGED;
+
+    if (!V || !alpha || !beta || !v0 || !residual_vec || !T_arrow || !theta_arrow || !Y_arrow ||
+        !sel_idx || !V_locked_tmp || !theta_locked_tmp || !beta_coupling_tmp) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
+
+    s20_lanczos_starting_vector(v0, n);
+
+    /* Outer restart loop.  Total work cap via `max_iters` — each
+     * phase contributes (m_actual - k_locked) new Lanczos steps to
+     * the cumulative count. */
+    idx_t total_iters = 0;
+    idx_t last_m_actual = 0;
+    idx_t last_take = 0;
+    double last_partial_res = 0.0;
+
+    /* Upper bound on phases: each phase does at least 1 new step,
+     * so max_restarts = max_iters is safe.  The scale-aware break
+     * conditions below exit earlier in practice. */
+    for (idx_t phase = 0; phase < max_iters; phase++) {
+        if (total_iters >= max_iters)
+            break;
+
+        idx_t m_actual = 0;
+        sparse_err_t err = lanczos_thick_restart_iterate(op, ctx, n, v0, m_restart,
+                                                         o->reorthogonalize, &state, V, alpha,
+                                                         beta, &m_actual);
+        if (err != SPARSE_OK) {
+            rc = err;
+            goto cleanup;
+        }
+        if (m_actual < 1)
+            break;
+
+        /* Accumulate new-iteration count.  The first k_locked
+         * columns are the locked block (no new Lanczos work),
+         * so only m_actual - k_locked counts toward the budget. */
+        total_iters += (m_actual > state.k_locked) ? (m_actual - state.k_locked) : 0;
+        last_m_actual = m_actual;
+
+        /* Build the arrowhead T and extract Ritz pairs via
+         * dense Jacobi (bypasses the Day 2 reduce-to-tridiag
+         * helper because Jacobi produces Y directly in the
+         * arrowhead basis — no composition of transforms needed). */
+        idx_t K = m_actual;
+        s21_build_dense_arrowhead(alpha, beta, state.beta_coupling, state.k_locked, K, T_arrow);
+        err = s21_dense_sym_jacobi(T_arrow, K, theta_arrow, Y_arrow);
+        if (err != SPARSE_OK) {
+            rc = err;
+            goto cleanup;
+        }
+
+        idx_t take = s20_select_indices(theta_arrow, K, o->which, k, sel_idx);
+        last_take = take;
+        if (take < 1)
+            break;
+
+        /* Wu/Simon residual: |beta_last · y_{K-1, j}| scaled by
+         * max(|theta_j|, scale).  beta_last is the LAST Lanczos
+         * beta of the current phase (beta[m_actual - 1]); on an
+         * invariant-subspace early exit this is the breakdown-
+         * threshold scalar, which makes the residual tiny. */
+        double beta_last = beta[m_actual - 1];
+        double scale = s20_spectrum_scale(theta_arrow, K);
+        double max_res_rel = 0.0;
+        for (idx_t j = 0; j < take; j++) {
+            idx_t idx_l = sel_idx[j];
+            double y_last = Y_arrow[(size_t)(K - 1) + (size_t)idx_l * (size_t)K];
+            double abs_res = fabs(beta_last * y_last);
+            double tv_l = theta_arrow[idx_l];
+            double anchor = fabs(tv_l);
+            if (anchor < scale * 1e-12)
+                anchor = scale > 0.0 ? scale : 1.0;
+            double rel_res = abs_res / anchor;
+            if (rel_res > max_res_rel)
+                max_res_rel = rel_res;
+        }
+        last_partial_res = max_res_rel;
+
+        int converged = (max_res_rel <= eff_tol);
+        int invariant = (m_actual < m_restart);
+
+        if (converged || invariant) {
+            for (idx_t j = 0; j < take; j++) {
+                idx_t idx_l = sel_idx[j];
+                double theta = theta_arrow[idx_l];
+                result->eigenvalues[j] =
+                    (o->which == SPARSE_EIGS_NEAREST_SIGMA) ? (o->sigma + 1.0 / theta) : theta;
+            }
+            if (o->compute_vectors) {
+                s20_lift_ritz_vectors(V, Y_arrow, n, K, take, sel_idx, result->eigenvectors);
+            }
+            result->n_converged = take;
+            result->iterations = total_iters;
+            result->residual_norm = max_res_rel;
+            rc = (take == k) ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
+            goto cleanup;
+        }
+
+        /* Not converged and didn't hit an invariant subspace —
+         * assemble the next restart state and loop. */
+        idx_t k_lock_next = take; /* lock exactly the target set */
+        lanczos_restart_pick_locked(V, n, K, Y_arrow, theta_arrow, sel_idx, k_lock_next, beta_last,
+                                    V_locked_tmp, theta_locked_tmp, beta_coupling_tmp);
+
+        /* Recompute the unnormalised residual = beta_last · v_{m+1}
+         * from the completed V / alpha / beta.  One extra matvec;
+         * keeps `lanczos_thick_restart_iterate`'s signature tight. */
+        err = s21_recompute_residual(op, ctx, n, V, alpha, beta, m_actual, residual_vec);
+        if (err != SPARSE_OK) {
+            rc = err;
+            goto cleanup;
+        }
+
+        /* If the recomputed residual norm has collapsed (numerical
+         * invariant subspace that the breakdown check didn't
+         * catch — can happen when finite-precision reorth leaves
+         * a tiny residual), emit partial results rather than
+         * launching a doomed restart. */
+        double res_norm_check = 0.0;
+        for (idx_t i = 0; i < n; i++)
+            res_norm_check += residual_vec[i] * residual_vec[i];
+        res_norm_check = sqrt(res_norm_check);
+        if (res_norm_check < DBL_MIN * 100.0)
+            break;
+
+        err = lanczos_restart_state_assemble(&state, n, k_lock_next, V_locked_tmp,
+                                             theta_locked_tmp, beta_coupling_tmp, residual_vec,
+                                             res_norm_check);
+        if (err != SPARSE_OK) {
+            rc = err;
+            goto cleanup;
+        }
+    }
+
+    /* Budget or restart cap reached without convergence.  Emit
+     * partial results from the last phase (matches Sprint 20
+     * grow-m path's final-phase fallthrough). */
+    if (last_m_actual > 0 && last_take > 0) {
+        /* Re-run the selection + lift from the last phase's
+         * already-cached theta_arrow / Y_arrow / sel_idx. */
+        for (idx_t j = 0; j < last_take; j++) {
+            idx_t idx_l = sel_idx[j];
+            double theta = theta_arrow[idx_l];
+            result->eigenvalues[j] =
+                (o->which == SPARSE_EIGS_NEAREST_SIGMA) ? (o->sigma + 1.0 / theta) : theta;
+        }
+        if (o->compute_vectors) {
+            s20_lift_ritz_vectors(V, Y_arrow, n, last_m_actual, last_take, sel_idx,
+                                  result->eigenvectors);
+        }
+        result->n_converged = last_take;
+        result->iterations = total_iters;
+        result->residual_norm = last_partial_res;
+    }
+
+cleanup:
+    free(V);
+    free(alpha);
+    free(beta);
+    free(v0);
+    free(residual_vec);
+    free(T_arrow);
+    free(theta_arrow);
+    free(Y_arrow);
+    free(sel_idx);
+    free(V_locked_tmp);
+    free(theta_locked_tmp);
+    free(beta_coupling_tmp);
+    lanczos_restart_state_free(&state);
+    return rc;
 }

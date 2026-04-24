@@ -118,17 +118,28 @@ typedef enum {
  * @brief Eigensolver backend selector.
  *
  * - `SPARSE_EIGS_BACKEND_AUTO` (default, zero-initialised): let the
- *   library pick.  Currently always routes to Lanczos; reserved for
- *   future LOBPCG dispatch (Sprint 21 Item 1) when the preconditioned
- *   block path is preferable for specific which/k combinations.
+ *   library pick.  Currently always routes to
+ *   `SPARSE_EIGS_BACKEND_LANCZOS` (grow-m); Sprint 21 Day 4 tunes
+ *   the AUTO threshold to dispatch `_LANCZOS_THICK_RESTART` above
+ *   a problem-size cutoff.
  * - `SPARSE_EIGS_BACKEND_LANCZOS`: Lanczos with a growing-subspace
  *   outer loop and optional full reorthogonalization.  The Sprint 20
- *   workhorse; true Wu/Simon thick-restart is a Sprint 21 extension.
+ *   workhorse.  Peak memory `O(m_cap · n)` across retries.
+ * - `SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`: True Wu/Simon
+ *   thick-restart Lanczos (Sprint 21 Day 3).  Preserves the
+ *   converged Ritz subspace in a compact arrowhead basis between
+ *   restart phases; peak memory `O((k + m_restart) · n)`
+ *   regardless of total iteration count.  Use this for large-n
+ *   problems where the grow-m path would blow memory holding V.
+ * - (Reserved, Sprint 21 Days 7-10) `SPARSE_EIGS_BACKEND_LOBPCG`:
+ *   Locally Optimal Block Preconditioned Conjugate Gradient; plugs
+ *   into the same `sparse_eigs_t` API via this enum slot.
  */
 typedef enum {
     SPARSE_EIGS_BACKEND_AUTO = 0,
     SPARSE_EIGS_BACKEND_LANCZOS = 1,
-    /* Sprint 21: SPARSE_EIGS_BACKEND_LOBPCG = 2, */
+    SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART = 2,
+    /* Sprint 21 Days 7-10: SPARSE_EIGS_BACKEND_LOBPCG = 3, */
 } sparse_eigs_backend_t;
 
 /**

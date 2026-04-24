@@ -200,6 +200,67 @@ sparse_err_t ldlt_csc_from_sparse(const SparseMatrix *mat, const idx_t *perm_in,
                                   LdltCsc **ldlt_out);
 
 /**
+ * Convert a SparseMatrix into an LdltCsc using `sparse_analyze`'s
+ * pre-computed symbolic L pattern.
+ *
+ * Mirrors `chol_csc_from_sparse_with_analysis` (Sprint 18 Day 12 +
+ * Sprint 19 Day 6) for the LDL^T side.  Pre-allocates every column
+ * of the embedded `L` with its full `sym_L` pattern rather than A's
+ * lower-triangle-only entries, so the batched supernodal writeback
+ * (`ldlt_csc_eliminate_supernodal`) can preserve cmod fill rows on
+ * indefinite inputs (KKT-style saddle points, matrices with non-
+ * trivial off-block structure).  Without this the heuristic
+ * `ldlt_csc_from_sparse` initialiser silently drops those fill rows
+ * and produces an incorrect factor — the residual symptom documented
+ * in the Sprint 19 indefinite-scope NOTE in
+ * `tests/test_sprint19_integration.c`.
+ *
+ * `analysis->type` must be `SPARSE_FACTOR_LDLT` or
+ * `SPARSE_FACTOR_CHOLESKY`: `sparse_analyze`'s symbolic pipeline
+ * runs the same etree / colcount / symbolic-Cholesky passes for
+ * both symmetric factorisations, so either type yields a sym_L
+ * pattern valid for LDL^T.
+ *
+ * Pre-pass requirement for indefinite inputs: the caller must have
+ * run a scalar pre-pass (`ldlt_csc_eliminate` or
+ * `ldlt_csc_eliminate_native`) to resolve the Bunch-Kaufman 2×2
+ * pivot permutation, then symmetrically permuted A by the resulting
+ * perm, and run `sparse_analyze` on the pre-permuted matrix.  On the
+ * pre-permuted input BK will not swap again during the batched
+ * factor, so `sym_L` on the pre-permuted matrix is complete.  SPD
+ * inputs (all 1×1 pivots, no swaps) may call this function directly
+ * without the pre-pass.  The transparent dispatch added in Sprint 20
+ * Days 4-6 wraps this workflow behind `sparse_ldlt_factor_opts` so
+ * public-API callers do not need to orchestrate the pre-pass manually.
+ *
+ * On success, the returned `LdltCsc`:
+ *   - delegates its embedded `L` layout + A-scatter to
+ *     `chol_csc_from_sparse_with_analysis` (so `L->sym_L_preallocated
+ *     == 1` and `L` carries the full sym_L pattern);
+ *   - allocates D / D_offdiag / pivot_size / perm / row_adj in the
+ *     same zero-initialised shape as `ldlt_csc_from_sparse`.
+ *
+ * @param mat           Input matrix (not modified).  Must be square
+ *                      and symmetric under
+ *                      `sparse_is_symmetric(_, 1e-12)`; for
+ *                      indefinite batched paths this is the
+ *                      pre-permuted matrix (see Pre-pass requirement).
+ * @param analysis      Precomputed symbolic analysis with `sym_L`
+ *                      populated for `mat`.  `analysis->type` must
+ *                      be `SPARSE_FACTOR_LDLT` or
+ *                      `SPARSE_FACTOR_CHOLESKY`.
+ * @param[out] ldlt_out Receives the allocated LdltCsc*.  Caller
+ *                      frees via `ldlt_csc_free`.  NULL on error.
+ * @return SPARSE_OK, SPARSE_ERR_NULL, SPARSE_ERR_SHAPE,
+ *         SPARSE_ERR_NOT_SPD (non-symmetric `mat`),
+ *         SPARSE_ERR_BADARG (wrong analysis type, mismatched n), or
+ *         SPARSE_ERR_ALLOC.
+ */
+sparse_err_t ldlt_csc_from_sparse_with_analysis(const SparseMatrix *mat,
+                                                const sparse_analysis_t *analysis,
+                                                LdltCsc **ldlt_out);
+
+/**
  * Convert the L factor of an LdltCsc back to a linked-list SparseMatrix.
  *
  * Mirrors `chol_csc_to_sparse` — writes only the lower-triangle entries
@@ -219,6 +280,39 @@ sparse_err_t ldlt_csc_from_sparse(const SparseMatrix *mat, const idx_t *perm_in,
  * @return SPARSE_OK, SPARSE_ERR_NULL, SPARSE_ERR_ALLOC, SPARSE_ERR_BADARG.
  */
 sparse_err_t ldlt_csc_to_sparse(const LdltCsc *ldlt, const idx_t *perm_out, SparseMatrix **mat_out);
+
+/**
+ * Write an LdltCsc's factored state into a caller-allocated public
+ * `sparse_ldlt_t`.  Mirrors `chol_csc_writeback_to_sparse` for the
+ * LDL^T side: the Sprint 20 Day 5 transparent dispatch in
+ * `sparse_ldlt_factor_opts` uses this to transplant the CSC-factored
+ * result back into the standard `sparse_ldlt_t` result the
+ * public API documents.
+ *
+ * Populates `ldlt_out->L` as a fresh `SparseMatrix` holding the
+ * lower-triangle L values (exact zeros from sym_L pre-allocation
+ * and below-drop-tolerance fill are filtered out, matching the
+ * Cholesky writeback policy).  Allocates `D`, `D_offdiag`,
+ * `pivot_size`, and `perm` as callee-owned arrays of length `F->n`,
+ * copies values from the corresponding LdltCsc fields.  Sets
+ * `n`, `factor_norm`, and `tol`.  The caller frees via
+ * `sparse_ldlt_free`.
+ *
+ * Note on `pivot_size` width: `sparse_ldlt_t.pivot_size` is `int *`
+ * whereas `LdltCsc.pivot_size` is `idx_t *`.  Values are 1 or 2 so
+ * the narrowing conversion is safe.
+ *
+ * @param F           Factored LdltCsc (not modified).
+ * @param tol         Effective pivot tolerance the factor used;
+ *                    stored in `ldlt_out->tol` for solve / refine /
+ *                    condest consistency.
+ * @param[out] ldlt_out Caller-allocated struct; must be pre-zeroed
+ *                    or the caller must have already claimed
+ *                    ownership of any prior contents.
+ * @return SPARSE_OK, SPARSE_ERR_NULL, SPARSE_ERR_ALLOC,
+ *         SPARSE_ERR_BADARG.
+ */
+sparse_err_t ldlt_csc_writeback_to_ldlt(const LdltCsc *F, double tol, sparse_ldlt_t *ldlt_out);
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Invariant checking

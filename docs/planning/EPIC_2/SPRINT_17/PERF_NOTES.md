@@ -392,6 +392,63 @@ library honest at the crossover.
   structure, and the one-shot / analyze-once tables above show the
   default 100 is safe for them all.
 
+## LDL^T transparent dispatch (Sprint 20 Days 4-6)
+
+Sprint 20 extended the Sprint 18 Cholesky transparent dispatch to
+the LDL^T side.  `sparse_ldlt_opts_t` grew a `backend` field
+(AUTO / LINKED_LIST / CSC) and an optional `used_csc_path` output;
+AUTO routes CSC above `SPARSE_CSC_THRESHOLD` (default 100) via
+`sparse_analyze` → `ldlt_csc_from_sparse_with_analysis` →
+`ldlt_csc_eliminate_supernodal` → CSC→`sparse_ldlt_t` writeback,
+with a structural fallback to the scalar CSC factor (produced by
+the dispatch's mandatory pre-pass) on any batched failure.
+
+Raw capture:
+[`docs/planning/EPIC_2/SPRINT_20/bench_day6_dispatch.txt`](../SPRINT_20/bench_day6_dispatch.txt).
+
+`./build/bench_ldlt_csc --dispatch --repeat 5`:
+
+| matrix       |      n | nnz      | AUTO backend | factor_auto | factor_ll | speedup | res_auto | res_ll   |
+|--------------|-------:|---------:|:-------------|------------:|----------:|--------:|---------:|---------:|
+| nos4.mtx     |    100 |      594 | csc          |    0.863 ms |  0.395 ms |   0.46× | 6.47e-16 | 5.89e-16 |
+| bcsstk04.mtx |    132 |    3,648 | csc          |    7.982 ms |  6.244 ms |   0.78× | 7.57e-16 | 6.05e-16 |
+| bcsstk14.mtx |  1,806 |   63,454 | csc          |  824.276 ms | 906.833 ms |  1.10× | 8.05e-15 | 8.05e-15 |
+| s3rmt3m3.mtx |  5,357 |  207,123 | csc          | 5732.799 ms | 6192.541 ms | 1.08× | 8.36e-15 | 8.36e-15 |
+| kkt-150      |    150 |      438 | csc          |    0.486 ms |  0.282 ms |   0.58× | 0.00e+00 | 0.00e+00 |
+
+Observations:
+
+- **AUTO selects `csc` on every row** because all fixtures have
+  n >= 100.  Forced LINKED_LIST runs as the left-side comparison.
+- **Residuals match round-off on both paths** (including kkt-150
+  exact zero — the all-ones RHS solves to machine precision on
+  this synthetic fixture).
+- **Small-matrix overhead on nos4 / bcsstk04 / kkt-150.**  AUTO is
+  0.46-0.78× — slower than forced LINKED_LIST because the CSC
+  dispatch runs a scalar pre-pass to resolve BK swaps and then
+  attempts the batched factor on top.  Doubles the numeric work
+  on matrices where the batched structural advantage is small.
+  Same crossover shape as the Sprint 18 Cholesky dispatch; the
+  threshold targets moderate-to-large problems.
+- **Large-matrix wins on bcsstk14 / s3rmt3m3.**  1.10× and 1.08×
+  even with the batched-path fallback tripping on those
+  matrices — the CSC scalar kernel (Sprint 18 `ldlt_csc_native`)
+  still beats the linked-list kernel at n >= ~1800.
+
+Day 6 also surfaced a pre-existing Sprint 19 issue: the batched
+supernodal LDL^T kernel trips `SPARSE_ERR_SINGULAR` spuriously on
+bcsstk14 / s3rmt3m3 inside `ldlt_dense_factor`'s dense BK pivot
+check.  Sprint 19's `--supernodal` bench on bcsstk14 produces
+`res_csc_sn = 1.93e+04` — a silent correctness bug that was
+invisible until Sprint 19 PR #27 review added the `res_csc_sn`
+column.  The Day 5 structural fallback in `ldlt_factor_csc_path`
+was widened on Day 6 to catch any batched failure, so the
+dispatch always returns a correct factor via the scalar pre-pass
+(`used_csc_path` stays at 1 because the CSC kernel chain handled
+it end-to-end).  Root cause and a long-term fix for the batched-
+kernel tolerance policy are tracked in the Sprint 20 Day 14
+retrospective.
+
 ## Current opt-in path
 
 Sprint 18 Day 11 replaced this with a **transparent** dispatch:

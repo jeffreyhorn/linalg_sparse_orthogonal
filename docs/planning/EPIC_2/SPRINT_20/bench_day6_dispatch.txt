@@ -1,0 +1,110 @@
+Sprint 20 Day 6 — transparent LDL^T dispatch: per-matrix chosen
+path, factor / solve timings via `sparse_ldlt_factor_opts` with
+`SPARSE_LDLT_BACKEND_AUTO`, and comparison against
+`SPARSE_LDLT_BACKEND_LINKED_LIST` forced on the same corpus.
+
+Context
+-------
+Sprint 20 Day 5 wired `sparse_ldlt_factor_opts` to dispatch between
+the linked-list LDL^T kernel and the CSC supernodal pipeline based
+on `opts->backend`.  AUTO routes CSC when
+`n >= SPARSE_CSC_THRESHOLD` (default 100) and linked-list below.
+Day 6 adds a `--dispatch` mode to `bench_ldlt_csc` that factors
+each matrix under AUTO and under forced LINKED_LIST for direct
+comparison.  CSV columns:
+
+  matrix, n, nnz, backend,
+  factor_auto_ms, factor_ll_ms,
+  solve_auto_ms, solve_ll_ms,
+  speedup_auto_vs_ll = factor_ll / factor_auto,
+  res_auto, res_ll
+
+`backend` is a literal "linked-list" or "csc" — the value AUTO
+selected internally.
+
+Corpus
+------
+Sprint 19 SuiteSparse corpus (`nos4`, `bcsstk04`, `bcsstk14`,
+`s3rmt3m3`) plus an in-memory `kkt-150` fixture (140×140 tridiagonal
+SPD top block + 10×10 zero bottom + identity-pattern coupling on
+the first 10 top-block columns; same fixture as
+`test_sprint20_integration.c::test_s20_auto_above_threshold_indefinite_kkt_routes_csc`).
+
+Measured — `./build/bench_ldlt_csc --dispatch --repeat 5`
+-------------------------------------------------------------
+matrix,n,nnz,backend,factor_auto_ms,factor_ll_ms,solve_auto_ms,solve_ll_ms,speedup_auto_vs_ll,res_auto,res_ll
+nos4.mtx,100,594,csc,0.863,0.395,0.010,0.009,0.46,6.47e-16,5.89e-16
+bcsstk04.mtx,132,3648,csc,7.982,6.244,0.043,0.052,0.78,7.57e-16,6.05e-16
+bcsstk14.mtx,1806,63454,csc,824.276,906.833,4.632,12.019,1.10,8.05e-15,8.05e-15
+s3rmt3m3.mtx,5357,207123,csc,5732.799,6192.541,29.617,32.104,1.08,8.36e-15,8.36e-15
+kkt-150,150,438,csc,0.486,0.282,0.006,0.005,0.58,0.00e+00,0.00e+00
+
+Observations
+------------
+1. **AUTO selected `csc` on every corpus row.**  n >= 100 on all
+   five fixtures, so the Day 5 threshold heuristic routes CSC
+   uniformly.  Forced LINKED_LIST runs for the left-side comparison.
+
+2. **Residuals match between paths at round-off.**  Every
+   (res_auto, res_ll) pair is at 1e-15 or below.  kkt-150 produces
+   exact zero residual because the solve reconstructs the all-ones
+   RHS to machine precision.
+
+3. **Small-matrix overhead.**  nos4 (n=100), bcsstk04 (n=132), and
+   kkt-150 show AUTO slower than forced LINKED_LIST (speedup ≈
+   0.46-0.78×).  The CSC dispatch runs a scalar pre-pass to resolve
+   BK swaps (`ldlt_csc_eliminate_native` on a heuristic CSC) and
+   then attempts the batched supernodal factor — double the numeric
+   work on matrices where the batched path's structural advantage
+   is small.  This matches the Sprint 18 Cholesky crossover pattern:
+   the AUTO threshold targets moderate-to-large matrices where the
+   batched kernel's amortisation wins.
+
+4. **Large-matrix win on bcsstk14 (1.10×) and s3rmt3m3 (1.08×).**
+   The batched path's `SPARSE_ERR_SINGULAR` trip on these matrices
+   (see Day 6 fallback NOTE below) causes Day 5's structural
+   fallback to drop through to the scalar CSC factor already
+   computed in the pre-pass.  Even with that fallback, AUTO edges
+   out forced LINKED_LIST because the CSC scalar kernel is faster
+   than the linked-list kernel on these sizes (as Sprint 18/19
+   bench_ldlt_csc shows 2-4× native-scalar-CSC speedup over
+   linked-list on bcsstk14 / s3rmt3m3).  The dispatch's CSC-path
+   overhead (AMD + pre-pass + sparse_permute + sparse_analyze +
+   from_sparse_with_analysis + failed batched attempt + writeback)
+   narrows the margin here relative to the raw CSC scalar bench.
+
+Day 6 fallback NOTE (bcsstk14 / s3rmt3m3)
+-----------------------------------------
+During the Day 6 integration work we discovered that the Sprint 19
+batched supernodal LDL^T kernel trips `SPARSE_ERR_SINGULAR` on
+bcsstk14 (n=1806) and s3rmt3m3 (n=5357) when driven from a
+sym_L-preallocated CSC produced by `ldlt_csc_from_sparse_with_analysis`
+on an AMD-reordered + BK-pre-permuted matrix.  Sprint 19's
+`bench_ldlt_csc --supernodal` on bcsstk14 also exhibits the issue,
+producing `res_csc_sn = 1.93e+04` (effectively garbage) — that was
+invisible until Sprint 19 PR #27 review added the `res_csc_sn`
+column, and the Sprint 20 Day 6 dispatch work surfaced it at the
+public API level.
+
+Root cause: on these specific matrices the dense BK factor inside
+`ldlt_csc_supernode_eliminate_diag` trips the singularity threshold
+(`ldlt_dense_factor` returning SPARSE_ERR_SINGULAR) despite the
+scalar native kernel factoring the same matrix without trouble.
+Numerical drift between the scalar pre-pass's L values and the
+batched kernel's supernode-local diagonal scaling appears to be
+the culprit.
+
+Mitigation in Day 5's CSC dispatch: the structural fallback
+(originally only catching `SPARSE_ERR_BADARG` from the pivot-
+stability check) was widened on Day 6 to catch any batched failure.
+F_pre holds a valid scalar factor by the time the batched attempt
+runs, so ANY non-OK batched result falls back to F_pre's factor.
+`used_csc_path` stays at 1 — the CSC kernel chain handled the
+factor end-to-end.
+
+Follow-up for a later sprint: investigate the exact BK numerical-
+drift condition on bcsstk14 / s3rmt3m3 and either tighten
+`ldlt_dense_factor`'s tolerance policy, scale the dense diagonal
+relative to the full matrix norm, or add a dense-kernel retry with
+the scalar kernel's pivot decisions.  Tracked in the Sprint 20
+retrospective (Day 14).

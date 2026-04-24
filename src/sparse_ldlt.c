@@ -1,4 +1,6 @@
 #include "sparse_ldlt.h"
+#include "sparse_analysis.h"
+#include "sparse_ldlt_csc_internal.h"
 #include "sparse_matrix_internal.h"
 #include "sparse_reorder.h"
 
@@ -757,6 +759,167 @@ err_cleanup:
     return rc;
 }
 
+/* ─── Sprint 20 Day 5: CSC-path factor helper ────────────────────────── */
+
+/* Factor `A_work` (already in its natural coordinate space — the
+ * caller has applied any user-requested fill-reducing reorder
+ * before passing it in) via the CSC supernodal pipeline.  Populates
+ * `ldlt_out` with the factored state; the caller is responsible for
+ * composing any outer reorder permutation onto `ldlt_out->perm` and
+ * reporting `used_csc_path` telemetry.
+ *
+ * Workflow (the "Option D" two-pass pattern validated in Day 3):
+ *
+ *   1. Scalar pre-pass on heuristic CSC → F_pre with the Bunch-
+ *      Kaufman permutation and pivot_size pattern.
+ *   2. Symmetrically permute A_work by F_pre->perm → A_perm.  On
+ *      the pre-permuted input BK will not swap again during the
+ *      batched factor, so sym_L is complete.
+ *   3. sparse_analyze(A_perm, LDLT, REORDER_NONE) → symbolic sym_L.
+ *   4. ldlt_csc_from_sparse_with_analysis(A_perm, &an, &F_batched).
+ *   5. Seed F_batched->pivot_size from F_pre.
+ *   6. ldlt_csc_eliminate_supernodal(F_batched, min_size=2).  On
+ *      SPARSE_ERR_BADARG (pivot-stability check tripped — can
+ *      happen when numerical drift shifts a BK decision between
+ *      the two passes) fall back to F_pre's scalar factor, which
+ *      is already valid.  Either way we emit ldlt->perm =
+ *      F_pre->perm below (the effective BK permutation).
+ *   7. Writeback via ldlt_csc_writeback_to_ldlt.  Before writeback
+ *      we overwrite the source factor's perm field with
+ *      F_pre->perm so the public `sparse_ldlt_t.perm` carries the
+ *      correct BK permutation regardless of which path succeeded. */
+static sparse_err_t ldlt_factor_csc_path(const SparseMatrix *A_work, double tol,
+                                         sparse_ldlt_t *ldlt_out) {
+    /* Defensively NULL-initialise every owned pointer in `ldlt_out`
+     * so `sparse_ldlt_free(ldlt_out)` is safe on any error path
+     * before the final `ldlt_csc_writeback_to_ldlt` call — the
+     * shape check, `n == 0` clamp, pre-pass conversion, analyze,
+     * and batched-factor failures all return without touching the
+     * output struct, so an uninitialised caller buffer would leak
+     * whatever pointers it happened to contain.  Mirrors the
+     * initialisation pattern in `ldlt_factor_internal`. */
+    ldlt_out->L = NULL;
+    ldlt_out->D = NULL;
+    ldlt_out->D_offdiag = NULL;
+    ldlt_out->pivot_size = NULL;
+    ldlt_out->perm = NULL;
+    ldlt_out->n = 0;
+    ldlt_out->factor_norm = 0.0;
+    ldlt_out->tol = 0.0;
+
+    if (A_work->rows != A_work->cols)
+        return SPARSE_ERR_SHAPE;
+    idx_t n = A_work->rows;
+
+    /* Day 5 CSC path supports n >= 1 only.  The n == 0 edge case is
+     * handled by the caller (falls through to the linked-list
+     * path). */
+    if (n == 0)
+        return SPARSE_ERR_BADARG;
+
+    /* Step 1: scalar pre-pass on heuristic CSC. */
+    LdltCsc *F_pre = NULL;
+    sparse_err_t err = ldlt_csc_from_sparse(A_work, NULL, 2.0, &F_pre);
+    if (err != SPARSE_OK)
+        return err;
+    err = ldlt_csc_eliminate_native(F_pre);
+    if (err != SPARSE_OK) {
+        ldlt_csc_free(F_pre);
+        return err;
+    }
+
+    /* Step 2: symmetric permutation A_perm = P · A_work · P^T. */
+    SparseMatrix *A_perm = NULL;
+    err = sparse_permute(A_work, F_pre->perm, F_pre->perm, &A_perm);
+    if (err != SPARSE_OK) {
+        ldlt_csc_free(F_pre);
+        return err;
+    }
+    sparse_reset_perms(A_perm);
+
+    /* Step 3: analyze the pre-permuted matrix. */
+    sparse_analysis_opts_t an_opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_t an = {0};
+    err = sparse_analyze(A_perm, &an_opts, &an);
+    if (err != SPARSE_OK) {
+        sparse_analysis_free(&an);
+        sparse_free(A_perm);
+        ldlt_csc_free(F_pre);
+        return err;
+    }
+
+    /* Step 4: build F_batched with full sym_L pre-allocation. */
+    LdltCsc *F_batched = NULL;
+    err = ldlt_csc_from_sparse_with_analysis(A_perm, &an, &F_batched);
+    if (err != SPARSE_OK) {
+        sparse_analysis_free(&an);
+        sparse_free(A_perm);
+        ldlt_csc_free(F_pre);
+        return err;
+    }
+
+    /* Step 5: seed pivot_size from scalar pass so supernode
+     * detection respects the 2x2-aware boundaries BK produced. */
+    for (idx_t k = 0; k < n; k++)
+        F_batched->pivot_size[k] = F_pre->pivot_size[k];
+
+    /* Step 6: batched supernodal factor with structural fallback.
+     * F_pre already holds a valid scalar factor by this point, so
+     * ANY failure on the batched side (pivot-stability BADARG,
+     * numerical tolerance SINGULAR tripped by drift between the
+     * two passes, or other) falls back to F_pre.  Sprint 19's
+     * --supernodal bench on bcsstk14 / s3rmt3m3 shows the batched
+     * path can produce factors that either trip the singularity
+     * threshold or produce garbage residuals on those matrices —
+     * see the post-Sprint-19 NOTE in `bench_ldlt_csc.c`.  The
+     * fallback always gives a correct factor; the telemetry flag
+     * continues to report `used_csc_path = 1` because the CSC
+     * kernel chain handled the factor end-to-end. */
+    LdltCsc *source = NULL;
+    err = ldlt_csc_eliminate_supernodal(F_batched, /*min_size=*/2);
+    if (err == SPARSE_OK) {
+        /* Batched numeric factor succeeded — F_batched->perm is
+         * identity in A_perm's coordinate space.  Overwrite with
+         * F_pre->perm so the public ldlt->perm carries the
+         * effective BK permutation, matching the behaviour of
+         * the linked-list path. */
+        for (idx_t i = 0; i < n; i++)
+            F_batched->perm[i] = F_pre->perm[i];
+        source = F_batched;
+    } else {
+        /* Any batched failure → fall back to F_pre's scalar
+         * factor.  The pivot-stability BADARG case is the
+         * intended fast-path trip; SINGULAR and other codes are
+         * numerical drift between the two passes, where F_pre's
+         * factor remains valid. */
+        source = F_pre;
+    }
+
+    /* Step 7: writeback.
+     *
+     * The CSC elimination pipeline (ldlt_csc_eliminate_scalar /
+     * ldlt_csc_eliminate_supernodal) currently enforces an internal
+     * tolerance floor of `SPARSE_DROP_TOL`.  Thread the caller-
+     * provided `tol` into the public LDLT object's recorded
+     * tolerance, but never below that CSC floor, so
+     * `sparse_ldlt_solve` sees a tolerance that both reflects an
+     * explicitly stricter caller request and remains compatible
+     * with the factorization that actually ran.  This avoids
+     * silently discarding `tol` when the CSC path is selected while
+     * also preventing a user-supplied tolerance smaller than
+     * `SPARSE_DROP_TOL` from recording a looser check than the CSC
+     * kernels applied.  See the backend caveat documented on
+     * `sparse_ldlt_opts_t::tol` in include/sparse_ldlt.h. */
+    const double effective_tol = (tol > SPARSE_DROP_TOL) ? tol : SPARSE_DROP_TOL;
+    err = ldlt_csc_writeback_to_ldlt(source, effective_tol, ldlt_out);
+
+    ldlt_csc_free(F_batched);
+    ldlt_csc_free(F_pre);
+    sparse_analysis_free(&an);
+    sparse_free(A_perm);
+    return err;
+}
+
 /* ─── Public factor API (delegates to internal with default tol) ────── */
 
 sparse_err_t sparse_ldlt_factor(const SparseMatrix *A, sparse_ldlt_t *ldlt) {
@@ -782,10 +945,51 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
     if (A->rows != A->cols)
         return SPARSE_ERR_SHAPE;
 
-    const sparse_ldlt_opts_t defaults = {SPARSE_REORDER_NONE, 0.0};
+    const sparse_ldlt_opts_t defaults = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, NULL};
     const sparse_ldlt_opts_t *o = opts ? opts : &defaults;
 
+    /* Sprint 20 Days 4-5 dispatch: validate the backend selector and
+     * decide whether to take the CSC supernodal path.
+     *
+     *   LINKED_LIST → existing linked-list kernel (pre-Sprint-20).
+     *   CSC         → Day 5 CSC path unconditionally.
+     *   AUTO        → CSC when n >= SPARSE_CSC_THRESHOLD, else
+     *                 linked-list (matches the Sprint 18 Cholesky
+     *                 dispatch heuristic).
+     *
+     * For n == 0 the CSC pipeline is undefined (scalar pre-pass
+     * can't factor an empty matrix); fall through to linked-list
+     * regardless of the selector. */
+    if (o->backend != SPARSE_LDLT_BACKEND_AUTO && o->backend != SPARSE_LDLT_BACKEND_LINKED_LIST &&
+        o->backend != SPARSE_LDLT_BACKEND_CSC)
+        return SPARSE_ERR_BADARG;
+
     idx_t n = A->rows;
+
+    int use_csc;
+    switch (o->backend) {
+    case SPARSE_LDLT_BACKEND_LINKED_LIST:
+        use_csc = 0;
+        break;
+    case SPARSE_LDLT_BACKEND_CSC:
+        use_csc = 1;
+        break;
+    case SPARSE_LDLT_BACKEND_AUTO:
+    default:
+        use_csc = (n >= SPARSE_CSC_THRESHOLD);
+        break;
+    }
+    if (n == 0)
+        use_csc = 0;
+
+    /* Publish the chosen backend through `used_csc_path` immediately,
+     * before any early returns from reorder / allocation / factor
+     * failures — mirrors `sparse_cholesky_factor_opts` so callers
+     * that pass an uninitialised `int` observe the attempted backend
+     * even on the error path, and the success path doesn't need to
+     * rewrite it later. */
+    if (o->used_csc_path)
+        *o->used_csc_path = use_csc ? 1 : 0;
 
     /* Apply fill-reducing reordering if requested */
     if (o->reorder != SPARSE_REORDER_NONE && n > 1) {
@@ -824,8 +1028,12 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
         /* Reset permutations on PA to identity so factor accepts it */
         sparse_reset_perms(PA);
 
-        /* Factor the permuted matrix */
-        err = ldlt_factor_internal(PA, ldlt, o->tol);
+        /* Factor the permuted matrix — CSC supernodal pipeline or
+         * linked-list kernel depending on the Day 5 dispatch. */
+        if (use_csc)
+            err = ldlt_factor_csc_path(PA, o->tol, ldlt);
+        else
+            err = ldlt_factor_internal(PA, ldlt, o->tol);
         sparse_free(PA);
 
         if (err != SPARSE_OK) {
@@ -848,12 +1056,11 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
         free(ldlt->perm);
         ldlt->perm = composed;
         free(perm);
-
         return SPARSE_OK;
     }
 
-    /* No reordering — delegate directly */
-    return ldlt_factor_internal(A, ldlt, o->tol);
+    /* No reordering — delegate directly to the chosen kernel. */
+    return use_csc ? ldlt_factor_csc_path(A, o->tol, ldlt) : ldlt_factor_internal(A, ldlt, o->tol);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

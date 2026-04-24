@@ -79,15 +79,77 @@ typedef struct {
 } sparse_ldlt_t;
 
 /**
+ * @brief LDL^T numeric backend selector.
+ *
+ * Sprint 20 Days 4-6 add a transparent dispatch through
+ * `sparse_ldlt_factor_opts` mirroring the Sprint 18 Cholesky
+ * dispatch (`sparse_cholesky_opts_t::backend`).  Callers can leave
+ * the field at its zero-initialised default (`SPARSE_LDLT_BACKEND_AUTO`)
+ * to let the library pick the kernel by matrix size, or force a
+ * specific path for benchmarks / regression coverage.
+ *
+ * - `SPARSE_LDLT_BACKEND_AUTO` (default, zero-initialised): use the
+ *   CSC supernodal backend when `A->rows >= SPARSE_CSC_THRESHOLD`,
+ *   otherwise the linked-list backend.
+ * - `SPARSE_LDLT_BACKEND_LINKED_LIST`: always use the linked-list
+ *   kernel regardless of dimension (the pre-Sprint-20 behaviour).
+ * - `SPARSE_LDLT_BACKEND_CSC`: always use the CSC supernodal kernel
+ *   (`sparse_analyze` → `ldlt_csc_from_sparse_with_analysis` →
+ *   `ldlt_csc_eliminate_supernodal` → CSC→`sparse_ldlt_t` writeback).
+ */
+typedef enum {
+    SPARSE_LDLT_BACKEND_AUTO = 0,
+    SPARSE_LDLT_BACKEND_LINKED_LIST = 1,
+    SPARSE_LDLT_BACKEND_CSC = 2,
+} sparse_ldlt_backend_t;
+
+/**
  * @brief Options for LDL^T factorization.
+ *
+ * @warning **ABI break in v2.1.0.**  Sprint 20 Day 4 added the
+ * `backend` and `used_csc_path` fields at the end of this struct,
+ * changing its size relative to the v2.0.x version shipped through
+ * Sprint 19.  Source-level compatibility is preserved: positional
+ * initialisers like `{SPARSE_REORDER_AMD, 0.0}` continue to compile
+ * — the new trailing fields zero-init to `SPARSE_LDLT_BACKEND_AUTO`
+ * and `NULL`.  Pre-compiled downstream binaries linked against
+ * v2.0.x must be recompiled against v2.1.x because stack-allocating
+ * the old struct would cause the new library to read past its end.
+ *
+ * @note **Transparent CSC dispatch (Sprint 20 Days 4-6).** Same
+ * pattern as the Sprint 18 Cholesky dispatch.  See
+ * `sparse_ldlt_backend_t` above for the per-value semantics.  The
+ * optional `used_csc_path` output pointer is set to 1 when the CSC
+ * pipeline was selected and 0 when the linked-list backend ran.
+ * Note that "CSC selected" means the CSC kernel chain handled the
+ * factor end-to-end — this includes the Sprint 20 Day 5 structural-
+ * fallback case where the supernodal factor tripped the pivot-
+ * stability check and `ldlt_factor_csc_path` fell back to the
+ * scalar pre-pass factor; both paths still route through the CSC
+ * entry points and write back via `ldlt_csc_writeback_to_ldlt`.
+ * Pass NULL if the caller does not need this telemetry.
  */
 typedef struct {
-    sparse_reorder_t reorder; /**< Fill-reducing reordering (NONE, RCM, or AMD) */
-    double tol;               /**< Pivot tolerance for singularity detection and
-                                   fill-in drop threshold. 0 or negative for the
-                                   compile-time default (SPARSE_DROP_TOL).
-                                   Stored in ldlt->tol and reused by solve, refine,
-                                   and condest for consistency with factorization. */
+    sparse_reorder_t reorder;      /**< Fill-reducing reordering (NONE, RCM, or AMD) */
+    double tol;                    /**< Pivot tolerance for singularity detection and
+                                        fill-in drop threshold. 0 or negative for the
+                                        compile-time default (SPARSE_DROP_TOL).
+                                        Stored in ldlt->tol and reused by solve, refine,
+                                        and condest for consistency with factorization.
+                                        Backend caveat: the linked-list backend threads
+                                        `tol` into both the factorization drop / pivot
+                                        checks and the recorded `ldlt->tol`, while the
+                                        CSC backend currently enforces an internal
+                                        `SPARSE_DROP_TOL` floor inside elimination and
+                                        only propagates `max(tol, SPARSE_DROP_TOL)` into
+                                        `ldlt->tol`.  A caller-supplied `tol > SPARSE_DROP_TOL`
+                                        therefore tightens the solve-time singularity
+                                        check under CSC but does not change the drops
+                                        the CSC kernels apply during factorization. */
+    sparse_ldlt_backend_t backend; /**< AUTO dispatches by size; LINKED_LIST / CSC force a path */
+    int *used_csc_path;            /**< Optional output: 1 if the CSC pipeline was selected
+                                        (including the structural fallback to the scalar
+                                        pre-pass factor), 0 if the linked-list kernel ran. */
 } sparse_ldlt_opts_t;
 
 /**

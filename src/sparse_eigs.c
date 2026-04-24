@@ -1,37 +1,43 @@
 /**
  * @file sparse_eigs.c
- * @brief Sparse symmetric eigensolvers — Sprint 20 Days 7-12.
+ * @brief Sparse symmetric eigensolvers — Sprint 20 Days 7-12 +
+ *        Sprint 21 thick-restart Lanczos.
  *
- * Day 7 lands the public API in `include/sparse_eigs.h` plus this
- * compile-ready stub of `sparse_eigs_sym()`.  The stub validates
- * inputs and returns `SPARSE_ERR_BADARG` ("stub in progress"
- * signal; this codebase has no SPARSE_ERR_NOT_IMPL) so Days 8-11
- * have a target to replace without header churn.
+ * Sprint 20 shipped the symmetric Lanczos eigensolver end-to-end:
+ * public API (Day 7), 3-term recurrence (Day 8), full MGS
+ * reorthogonalization (Day 9), outer-loop restart mechanism
+ * (Day 10, superseded by the Day 13 Wu/Simon redesign), Ritz
+ * extraction + convergence gate (Day 11), shift-invert mode for
+ * SPARSE_EIGS_NEAREST_SIGMA (Day 12), and the grow-m outer-loop
+ * redesign that actually converges on SuiteSparse (Day 13).
  *
- * The implementation roadmap per SPRINT_20/PLAN.md:
+ * The Sprint 20 grow-m outer loop holds the full Lanczos basis V
+ * across retries — peak memory `O(m_cap · n)`, which on bcsstk14
+ * (n = 1806) reaches ~26 MB at m_cap = n.  Sprint 21 Day 1 begins
+ * the thick-restart replacement that bounds peak memory at
+ * `O((k_locked + m_restart) · n)` by preserving only the
+ * converged Ritz subspace across restarts (Wu/Simon 2000;
+ * Stathopoulos/Saad 2007).
  *
- *   Day 8  — basic 3-term Lanczos recurrence on A: build V (Lanczos
- *            vectors) and T (tridiagonal) without reorthogonalization.
- *            Unit-tested on diagonal / tridiagonal fixtures where T
- *            spectrum matches A.
- *   Day 9  — full reorthogonalization pass gated on
- *            `opts->reorthogonalize`: subtract projection onto every
- *            prior Lanczos vector (MGS) to keep V^T V ≈ I under
- *            finite precision.  Wide-spectrum test confirms
- *            ||V^T V - I||_max <= 1e-10.
- *   Day 10 — thick-restart mechanism (Wu/Simon, Stathopoulos/Saad
- *            2007): after m iterations, pick the top k Ritz pairs,
- *            replace V with V·Y_k, resume iteration from the
- *            trailing-beta residual.
- *   Day 11 — Ritz extraction, convergence bookkeeping, and the
- *            full public-API shape (n_converged, iterations,
- *            residual_norm; partial-result SPARSE_ERR_NOT_CONVERGED
- *            on max_iterations exhaustion).
- *   Day 12 — shift-invert mode for SPARSE_EIGS_NEAREST_SIGMA:
- *            factor (A - sigma*I) via sparse_ldlt_factor_opts
- *            (Sprint 20 Day 5 CSC dispatch), apply its inverse at
- *            every Lanczos step, post-process Ritz values via
- *            lambda = sigma + 1/theta.
+ * The Sprint 21 roadmap per SPRINT_21/PLAN.md:
+ *
+ *   Day 1  — arrowhead restart state (`lanczos_restart_state_t`)
+ *            + `lanczos_thick_restart_iterate` signature + design
+ *            block.  Compile-ready stub returning
+ *            SPARSE_ERR_BADARG.
+ *   Day 2  — arrowhead-to-tridiagonal Givens reduction +
+ *            Ritz-locking helper that forms V_locked = V · Y_k
+ *            and packs the restart state.
+ *   Day 3  — phase execution: chain Lanczos phases through a
+ *            restart state; outer loop composing iterate +
+ *            restart + convergence.  Opt-in backend dispatch via
+ *            `SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`.
+ *   Day 4  — memory-bounded convergence tests + cross-backend
+ *            parity vs grow-m on the Sprint 20 corpus.
+ *   Days 5-6 — OpenMP reorth parallelism (both backends).
+ *   Days 7-10 — LOBPCG solver + AUTO dispatch.
+ *   Day 11 — permanent `benchmarks/bench_eigs.c` driver.
+ *   Days 12-14 — tests, docs, retrospective.
  */
 
 #include "sparse_eigs.h"
@@ -854,4 +860,152 @@ cleanup:
     sparse_ldlt_free(&ldlt_shift);
     sparse_free(A_shifted);
     return rc;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 21: Thick-restart Lanczos (Wu/Simon arrowhead)
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * The Sprint 20 Day 13 grow-m outer loop converges reliably on the
+ * target corpus but holds the full Lanczos basis `V` across all
+ * retries — peak memory `O(m_cap · n)`.  On bcsstk14 (n = 1806) a
+ * single run at `m_cap = n` already reaches ~26 MB of V alone.
+ * Sprint 21 Day 1 introduces a thick-restart mechanism (Wu/Simon
+ * 2000; Stathopoulos/Saad 2007) that preserves only the converged
+ * Ritz subspace across restarts and re-runs Lanczos from a small
+ * locked-plus-residual basis.  Peak memory drops to
+ * `O((k_locked + m_restart) · n)`; at k = 5, m_restart = 30 this
+ * is ~35 columns regardless of total iteration count.
+ *
+ * Restart protocol (Option C in SPRINT_21/PLAN.md Day 1 Task 3).
+ *
+ *   1. Run a Lanczos phase of length `m_restart`, writing α / β / V
+ *      as usual.  `lanczos_thick_restart_iterate` with an empty
+ *      state is equivalent to `lanczos_iterate_op`.
+ *   2. On non-convergence, extract Ritz pairs (θ_j, y_j) from T via
+ *      the Sprint 20 `s20_ritz_pairs` helper and select the top k
+ *      (or matching `which`) via `s20_select_indices` — reused
+ *      wholesale.
+ *   3. Pack the locked state:
+ *        V_locked      = V · Y[:, sel_idx]          (n × k_locked)
+ *        theta_locked  = θ[sel_idx]                 (k_locked)
+ *        beta_coupling = β_m · Y[m-1, sel_idx]      (k_locked)
+ *        residual      = β_m · v_{m+1}              (length n)
+ *   4. Launch the next phase with the locked state.  The new phase
+ *      copies V_locked into V[:, 0..k_locked), seeds v_{k_locked}
+ *      from residual / ||residual||, writes the arrowhead rows
+ *      0..k_locked-1 of α / β from theta_locked / beta_coupling,
+ *      and continues the 3-term recurrence from step k_locked.
+ *   5. Ritz extraction on the arrowhead T → same Ritz pairs the
+ *      previous phase produced for the locked block, plus new
+ *      approximations from the freshly grown Krylov steps.
+ *      Monotone progress is Wu/Simon's core guarantee.
+ *
+ * Arrowhead T shape (k_locked = 3, m_restart = 7):
+ *
+ *       [ θ_0   0    0    β_0   0    0    0   ]
+ *       [  0   θ_1   0    β_1   0    0    0   ]
+ *       [  0    0   θ_2   β_2   0    0    0   ]
+ *       [ β_0  β_1  β_2   α_3  β_3   0    0   ]
+ *       [  0    0    0    β_3  α_4  β_4   0   ]
+ *       [  0    0    0    0    β_4  α_5  β_5  ]
+ *       [  0    0    0    0    0    β_5  α_6  ]
+ *
+ * The top-left k_locked × k_locked block is diagonal (locked Ritz
+ * values); the trailing row/column of the block contains the
+ * coupling entries β_coupling that tie each locked pair to the
+ * active Lanczos frontier; rows k_locked.. are standard tridiagonal.
+ * Day 2 implements the Givens chase that reduces this arrowhead
+ * back to a symmetric tridiagonal so `tridiag_qr_eigenpairs`
+ * (Sprint 20 Day 11) consumes it unchanged.
+ *
+ * Why keep the grow-m path.  Grow-m is simpler and the constants
+ * are good on small-to-moderate n — it converges nos4 (n=100) in
+ * 70 Lanczos steps / ~3 ms, bcsstk04 (n=132) in 62 steps / 4.6 ms
+ * (Sprint 20 Day 13 numbers in `bench_day13_lanczos.txt`).  The
+ * thick-restart path is only a win when the basis would otherwise
+ * blow memory.  Day 4 tunes the crossover threshold
+ * `SPARSE_EIGS_THICK_RESTART_THRESHOLD`; AUTO dispatches based on
+ * n.
+ *
+ * Field ownership.  `lanczos_restart_state_t` owns its allocations
+ * (V_locked / theta_locked / beta_coupling / residual) once
+ * populated; `lanczos_restart_state_free` releases them.  An
+ * empty state (zeroed struct) is legal input and represents a
+ * fresh start.  The Day 2 assembly helpers allocate on first use
+ * sized to `k_locked_cap` and reuse the buffers across subsequent
+ * restarts when `k_locked <= k_locked_cap` holds (avoids reallocing
+ * on every restart — the inner k_locked fluctuates as Ritz pairs
+ * lock and the spectrum's active front advances).
+ */
+
+void lanczos_restart_state_free(lanczos_restart_state_t *state) {
+    if (!state)
+        return;
+    free(state->V_locked);
+    free(state->theta_locked);
+    free(state->beta_coupling);
+    free(state->residual);
+    state->V_locked = NULL;
+    state->theta_locked = NULL;
+    state->beta_coupling = NULL;
+    state->residual = NULL;
+    state->n = 0;
+    state->k_locked = 0;
+    state->k_locked_cap = 0;
+    state->residual_norm = 0.0;
+}
+
+/* Day 1 stub: V / alpha / beta are output buffers that Day 2-3 fill
+ * during the phase-execution body.  The stub doesn't write to them
+ * yet, so clang-tidy flags them as const-candidates; the NOLINT
+ * suppressions document this as intentional until the body lands. */
+sparse_err_t lanczos_thick_restart_iterate(lanczos_op_fn op, const void *ctx, idx_t n,
+                                           const double *v0, idx_t m_restart, int reorthogonalize,
+                                           lanczos_restart_state_t *state,
+                                           double *V,     // NOLINT(readability-non-const-parameter)
+                                           double *alpha, // NOLINT(readability-non-const-parameter)
+                                           double *beta,  // NOLINT(readability-non-const-parameter)
+                                           idx_t *m_actual) {
+    /* Day 1 stub.  Validates the core preconditions so Day 2 /
+     * Day 3 can replace the body without the public signature
+     * drifting.  Returns SPARSE_ERR_BADARG for the success case —
+     * the "stub in progress" signal used throughout this codebase
+     * (no SPARSE_ERR_NOT_IMPL exists).
+     *
+     * Day 2 replaces the body with: (a) copy V_locked into V,
+     * (b) write arrowhead rows 0..k_locked-1 of α / β from
+     * theta_locked / beta_coupling, (c) seed v_{k_locked} from
+     * state->residual (orthogonalised against V_locked), then
+     * (d) run the standard 3-term recurrence from step k_locked
+     * onward.  Day 3 wires this into the outer loop and the
+     * public `sparse_eigs_sym` dispatch. */
+    if (!op || !V || !alpha || !beta || !m_actual)
+        return SPARSE_ERR_NULL;
+    if (n < 1)
+        return SPARSE_ERR_SHAPE;
+    if (m_restart < 1 || m_restart > n)
+        return SPARSE_ERR_BADARG;
+    /* An empty state (NULL or k_locked == 0) requires v0.  A
+     * non-empty state carries its own residual seed so v0 may be
+     * NULL. */
+    int state_empty = (state == NULL) || (state->k_locked == 0) || (state->V_locked == NULL);
+    if (state_empty && !v0)
+        return SPARSE_ERR_NULL;
+    if (!state_empty) {
+        if (state->n != n)
+            return SPARSE_ERR_SHAPE;
+        if (state->k_locked < 0 || state->k_locked >= m_restart)
+            return SPARSE_ERR_BADARG;
+        if (state->k_locked > state->k_locked_cap)
+            return SPARSE_ERR_BADARG;
+        if (!state->theta_locked || !state->beta_coupling || !state->residual)
+            return SPARSE_ERR_NULL;
+    }
+    /* Silence unused-parameter warnings on the fields Day 2 will
+     * consume; keeps -Wunused-parameter clean under the stub. */
+    (void)ctx;
+    (void)reorthogonalize;
+    *m_actual = 0;
+    return SPARSE_ERR_BADARG;
 }

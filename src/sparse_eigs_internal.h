@@ -217,6 +217,147 @@ typedef struct lanczos_restart_state {
 void lanczos_restart_state_free(lanczos_restart_state_t *state);
 
 /**
+ * @brief Reduce a symmetric arrowhead matrix to tridiagonal form.
+ *
+ * Sprint 21 Day 2: the arrowhead T produced by a thick-restart
+ * carries the locked Ritz values on its top-left diagonal plus a
+ * spoke of coupling entries at row/col `k_locked` (see the design
+ * block at the top of `src/sparse_eigs.c`).  Before Ritz extraction
+ * via `tridiag_qr_eigenpairs` can run, the arrowhead has to be
+ * reduced to a symmetric tridiagonal by an orthogonal similarity.
+ * This helper performs that reduction, writing `diag_out` and
+ * `subdiag_out` as the tridiagonal form of the same spectrum.
+ *
+ * Algorithm.  The arrowhead is materialised as a dense K × K symmetric
+ * matrix (K = k_locked + m_ext) in a scratch buffer and then
+ * tridiagonalised via classical Householder reflections on the
+ * symmetric matrix (Golub & Van Loan §8.3.1).  Each Householder
+ * step j zeros the entries below the subdiagonal of column j via a
+ * similarity H_j · T · H_j (which is also H_j · T · H_j^T because
+ * H_j is symmetric).  After K - 2 steps the matrix is tridiagonal.
+ * Total work is O(K^3) but K is small (typically k_locked + m_restart
+ * ≤ 100), so each reduction is microsecond-scale.
+ *
+ * Day 2 scope: spectrum reduction only.  The accumulated similarity
+ * matrix is not returned; Day 3 extends the helper to also produce
+ * an orthogonal Q so the subsequent QR eigenpair extraction's Y
+ * composes into the correct Ritz-vector lift in the original basis.
+ *
+ * @param theta_locked    Length k_locked; locked Ritz values on the
+ *                        top-left diagonal of the arrowhead.
+ * @param beta_coupling   Length k_locked; the spoke entries at
+ *                        position (k_locked, j) for j = 0..k_locked-1.
+ *                        The last entry `beta_coupling[k_locked-1]`
+ *                        lands at the standard subdiagonal position
+ *                        between the locked block and the first
+ *                        extension row.
+ * @param k_locked        Locked subspace size (>= 1).  When
+ *                        `k_locked == 1` the matrix is already
+ *                        tridiagonal and the reduction is a straight
+ *                        copy.
+ * @param alpha_ext       Length m_ext; Lanczos alpha values for the
+ *                        post-restart tridiagonal tail.  May be NULL
+ *                        when m_ext == 0.
+ * @param beta_ext        Length m_ext - 1; Lanczos beta values for
+ *                        the tail.  May be NULL when m_ext <= 1.
+ * @param m_ext           Number of post-restart Lanczos steps
+ *                        (>= 0).  `m_ext == 0` is legal — the
+ *                        arrowhead is a pure locked + α_0_ext "tip"
+ *                        matrix of dimension k_locked + 1... wait no,
+ *                        `m_ext == 0` means K = k_locked with no
+ *                        extension row at all (degenerate — just
+ *                        the locked block as a diagonal).
+ * @param diag_out        Length K = k_locked + m_ext; the diagonal
+ *                        of the reduced tridiagonal on return.
+ * @param subdiag_out     Length K - 1; the subdiagonal of the
+ *                        reduced tridiagonal on return.  (Only
+ *                        required when K >= 2; may be NULL when
+ *                        K == 1.)
+ *
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL / _BADARG for the
+ *         usual preconditions, or SPARSE_ERR_ALLOC for the scratch
+ *         buffer.
+ *
+ * **Day 2 stub caveat: implemented via dense Householder; the Day
+ * 1 plan notes "Givens rotations" but the literature uses both and
+ * Householder is cleaner to code for this size regime.  Day 3 will
+ * extend to also return the accumulated orthogonal similarity.**
+ */
+sparse_err_t s21_arrowhead_to_tridiag(const double *theta_locked, const double *beta_coupling,
+                                      idx_t k_locked, const double *alpha_ext,
+                                      const double *beta_ext, idx_t m_ext, double *diag_out,
+                                      double *subdiag_out);
+
+/**
+ * @brief Pick the locked Ritz block from a completed Lanczos phase.
+ *
+ * Day 2 Task 2.  Given the completed Lanczos basis V (n × m), the
+ * tridiag eigenvectors Y (m × m, column-major), the eigenvalues
+ * theta (length m, ascending from `tridiag_qr_eigenpairs`), and a
+ * selection `sel_idx[0..take-1]` (from Sprint 20's
+ * `s20_select_indices`), form the three Day 1 arrowhead state
+ * pieces:
+ *
+ *   V_locked[:, j] = V · Y[:, sel_idx[j]]              (n × take)
+ *   theta_locked[j] = theta[sel_idx[j]]                (take)
+ *   beta_coupling[j] = beta_m * Y[m-1, sel_idx[j]]     (take)
+ *
+ * where `beta_m` is `beta[m_actual - 1]` from the Lanczos run — the
+ * trailing residual norm that drives the Wu/Simon per-pair
+ * residual gate.  Reuses the Sprint 20 `s20_lift_ritz_vectors`
+ * kernel shape (column-major gemm inlined).
+ *
+ * Output buffers are caller-allocated (`V_locked_out` is
+ * `n * take` doubles; the two scalar arrays are `take` doubles).
+ *
+ * Precondition: V's columns must be orthonormal (i.e. the Lanczos
+ * run that produced V had `reorthogonalize = 1`).  The Sprint 20
+ * Day 14 reliability caveat on `sparse_eigs_opts_t::reorthogonalize`
+ * applies here too — without reorth, `V_locked` won't be
+ * orthonormal and the arrowhead reduction's guarantees break.
+ */
+void lanczos_restart_pick_locked(const double *V, idx_t n, idx_t m, const double *Y,
+                                 const double *theta, const idx_t *sel_idx, idx_t take,
+                                 double beta_m, double *V_locked_out, double *theta_locked_out,
+                                 double *beta_coupling_out);
+
+/**
+ * @brief Pack a freshly-picked locked block + residual into a
+ *        `lanczos_restart_state_t`, allocating or reusing buffers
+ *        as needed.
+ *
+ * Day 2 Task 3.  Resizes the state's `_cap` fields if the incoming
+ * `k_locked` exceeds the current capacity, otherwise reuses the
+ * existing buffers.  Copies the three locked-block arrays and the
+ * residual vector into state-owned memory.  The state's `n` field
+ * is set (or validated unchanged) from the argument.
+ *
+ * On failure, leaves the state in a consistent (possibly empty)
+ * form and returns SPARSE_ERR_ALLOC; callers treat failure as "no
+ * restart possible, emit partial results."
+ *
+ * @param state              Target state (populated on return).
+ * @param n                  Vector length; must match `state->n`
+ *                           when state is already non-empty.
+ * @param k_locked           Locked subspace size.
+ * @param V_locked_src       n × k_locked, column-major.
+ * @param theta_locked_src   Length k_locked.
+ * @param beta_coupling_src  Length k_locked.
+ * @param residual_src       Length n; residual vector
+ *                           `beta_m * v_{m+1}` from the Lanczos
+ *                           run.
+ * @param residual_norm      ||residual_src||.
+ *
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL / _BADARG on bad
+ *         args, SPARSE_ERR_ALLOC on allocation failure.
+ */
+sparse_err_t lanczos_restart_state_assemble(lanczos_restart_state_t *state, idx_t n,
+                                            idx_t k_locked, const double *V_locked_src,
+                                            const double *theta_locked_src,
+                                            const double *beta_coupling_src,
+                                            const double *residual_src, double residual_norm);
+
+/**
  * @brief One phase of thick-restart Lanczos: either a fresh start
  *        (empty `state`) or a continuation from a locked subspace
  *        produced by a previous phase.

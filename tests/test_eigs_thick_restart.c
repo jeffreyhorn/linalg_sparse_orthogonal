@@ -1,0 +1,379 @@
+/*
+ * Sprint 21 thick-restart Lanczos tests.
+ *
+ * Day 2 scope (this file's initial contents):
+ *   - Arrowhead-to-tridiagonal reduction round-trip: the reduced
+ *     tridiagonal has the same spectrum as the original arrowhead
+ *     to 1e-12.  Reference spectrum computed via a simple dense
+ *     Jacobi rotation solver implemented in this file (not
+ *     production-quality; sized for the small test matrices).
+ *   - `lanczos_restart_pick_locked` output correctness: run a
+ *     small Lanczos with full reorth, select k Ritz pairs, pick
+ *     the locked block; verify V_locked^T V_locked ≈ I to 1e-10
+ *     (Sprint 20 Day 14 documented that `reorthogonalize = 1` is
+ *     required for this invariant — exercised here).
+ *   - `lanczos_restart_state_assemble` round-trip: pack into a
+ *     state; verify fields; round-trip through free.
+ *
+ * Days 3, 4, 12 extend this file with phase-execution tests,
+ * memory-bounded convergence, and the full thick-restart
+ * regression corpus per SPRINT_21/PLAN.md.
+ */
+
+#include "sparse_eigs.h"
+#include "sparse_eigs_internal.h"
+#include "sparse_matrix.h"
+#include "sparse_types.h"
+#include "sparse_vector.h"
+#include "test_framework.h"
+
+#include "sparse_dense.h"
+
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* ─── Dense symmetric Jacobi eigenvalue reference (test-only) ─────── */
+
+/* Classical Jacobi rotation sweep for dense symmetric eigenvalues.
+ * Not production quality: O(K^3) per sweep, ~O(log K) sweeps,
+ * totally acceptable for the K ≤ 20 matrices exercised here.  Used
+ * as an independent reference against which the arrowhead reduction
+ * + tridiag_qr_eigenvalues spectrum is checked. */
+static void test_dense_sym_eigvals_jacobi(double *A, idx_t K, double *eigvals) {
+    const idx_t max_sweeps = 100;
+    const double tol = 1e-14;
+    for (idx_t sweep = 0; sweep < max_sweeps; sweep++) {
+        /* off-diagonal Frobenius norm */
+        double off = 0.0;
+        for (idx_t i = 0; i < K; i++)
+            for (idx_t j = i + 1; j < K; j++)
+                off += A[i + j * K] * A[i + j * K];
+        if (sqrt(off) < tol)
+            break;
+        for (idx_t p = 0; p < K; p++) {
+            for (idx_t q = p + 1; q < K; q++) {
+                double apq = A[p + q * K];
+                if (fabs(apq) < tol)
+                    continue;
+                double app = A[p + p * K];
+                double aqq = A[q + q * K];
+                double theta = (aqq - app) / (2.0 * apq);
+                double t;
+                if (fabs(theta) > 1e15)
+                    t = 1.0 / (2.0 * theta);
+                else {
+                    double sign_t = theta >= 0.0 ? 1.0 : -1.0;
+                    t = sign_t / (fabs(theta) + sqrt(theta * theta + 1.0));
+                }
+                double c = 1.0 / sqrt(1.0 + t * t);
+                double s = t * c;
+                /* Apply the 2×2 rotation to rows and cols p, q. */
+                for (idx_t i = 0; i < K; i++) {
+                    if (i == p || i == q)
+                        continue;
+                    double aip = A[i + p * K];
+                    double aiq = A[i + q * K];
+                    A[i + p * K] = c * aip - s * aiq;
+                    A[p + i * K] = A[i + p * K];
+                    A[i + q * K] = s * aip + c * aiq;
+                    A[q + i * K] = A[i + q * K];
+                }
+                A[p + p * K] = c * c * app - 2.0 * s * c * apq + s * s * aqq;
+                A[q + q * K] = s * s * app + 2.0 * s * c * apq + c * c * aqq;
+                A[p + q * K] = 0.0;
+                A[q + p * K] = 0.0;
+            }
+        }
+    }
+    for (idx_t i = 0; i < K; i++)
+        eigvals[i] = A[i + i * K];
+}
+
+static int cmp_doubles_asc(const void *a, const void *b) {
+    double da = *(const double *)a;
+    double db = *(const double *)b;
+    if (da < db)
+        return -1;
+    if (da > db)
+        return 1;
+    return 0;
+}
+
+/* ─── Test 1: arrowhead reduction round-trip (spectrum preserved) ── */
+
+/* Build a k_locked = 3, m_ext = 4 arrowhead with hand-picked entries.
+ * Run s21_arrowhead_to_tridiag; compare the reduced spectrum against
+ * the reference dense-Jacobi spectrum to 1e-12. */
+static void test_arrowhead_to_tridiag_preserves_spectrum(void) {
+    const idx_t k_locked = 3;
+    const idx_t m_ext = 4;
+    const idx_t K = k_locked + m_ext;
+
+    double theta_locked[3] = {1.0, 2.5, 4.0};
+    double beta_coupling[3] = {0.7, -0.5, 0.3};
+    double alpha_ext[4] = {3.0, 2.0, 5.0, 1.5};
+    double beta_ext[3] = {0.4, 0.6, -0.2};
+
+    double diag[7];
+    double subdiag[6];
+    REQUIRE_OK(s21_arrowhead_to_tridiag(theta_locked, beta_coupling, k_locked, alpha_ext, beta_ext,
+                                        m_ext, diag, subdiag));
+
+    /* Reference: materialise the same arrowhead as a dense K×K
+     * symmetric matrix and compute eigenvalues via Jacobi. */
+    double *A_ref = calloc((size_t)K * (size_t)K, sizeof(double));
+    ASSERT_NOT_NULL(A_ref);
+    if (!A_ref)
+        return;
+    for (idx_t i = 0; i < k_locked; i++)
+        A_ref[i + i * K] = theta_locked[i];
+    for (idx_t i = 0; i < m_ext; i++)
+        A_ref[(k_locked + i) + (k_locked + i) * K] = alpha_ext[i];
+    for (idx_t j = 0; j < k_locked; j++) {
+        A_ref[k_locked + j * K] = beta_coupling[j];
+        A_ref[j + k_locked * K] = beta_coupling[j];
+    }
+    for (idx_t i = 0; i + 1 < m_ext; i++) {
+        idx_t r = k_locked + i;
+        A_ref[(r + 1) + r * K] = beta_ext[i];
+        A_ref[r + (r + 1) * K] = beta_ext[i];
+    }
+    double ref_eigs[7];
+    test_dense_sym_eigvals_jacobi(A_ref, K, ref_eigs);
+    qsort(ref_eigs, (size_t)K, sizeof(double), cmp_doubles_asc);
+    free(A_ref);
+
+    /* Reduced tridiagonal eigenvalues via tridiag_qr_eigenvalues.
+     * Caller pays the destructive call's data copy. */
+    double diag_copy[7];
+    double subdiag_copy[6];
+    memcpy(diag_copy, diag, sizeof(diag_copy));
+    memcpy(subdiag_copy, subdiag, sizeof(subdiag_copy));
+    REQUIRE_OK(tridiag_qr_eigenvalues(diag_copy, subdiag_copy, K, 0));
+    /* tridiag_qr_eigenvalues returns ascending eigenvalues in diag. */
+
+    for (idx_t i = 0; i < K; i++)
+        ASSERT_NEAR(diag_copy[i], ref_eigs[i], 1e-12);
+}
+
+/* Edge case: k_locked = 1 reduces to just the subdiagonal at
+ * position 0 being beta_coupling[0], and the rest already
+ * tridiagonal.  Verifies the helper accepts the degenerate case. */
+static void test_arrowhead_to_tridiag_k_locked_one(void) {
+    const idx_t k_locked = 1;
+    const idx_t m_ext = 3;
+    const idx_t K = k_locked + m_ext;
+    double theta_locked[1] = {5.0};
+    double beta_coupling[1] = {0.9};
+    double alpha_ext[3] = {2.0, 3.0, 4.0};
+    double beta_ext[2] = {0.5, 0.7};
+    double diag[4];
+    double subdiag[3];
+    REQUIRE_OK(s21_arrowhead_to_tridiag(theta_locked, beta_coupling, k_locked, alpha_ext, beta_ext,
+                                        m_ext, diag, subdiag));
+    /* k_locked == 1 means the arrowhead is already tridiagonal;
+     * the reduction should be the identity (straight copy). */
+    ASSERT_NEAR(diag[0], 5.0, 1e-14);
+    ASSERT_NEAR(diag[1], 2.0, 1e-14);
+    ASSERT_NEAR(diag[2], 3.0, 1e-14);
+    ASSERT_NEAR(diag[3], 4.0, 1e-14);
+    ASSERT_NEAR(subdiag[0], 0.9, 1e-14);
+    ASSERT_NEAR(subdiag[1], 0.5, 1e-14);
+    ASSERT_NEAR(subdiag[2], 0.7, 1e-14);
+
+    /* Double-check spectrum via QR. */
+    double diag_copy[4];
+    double subdiag_copy[3];
+    memcpy(diag_copy, diag, sizeof(diag_copy));
+    memcpy(subdiag_copy, subdiag, sizeof(subdiag_copy));
+    REQUIRE_OK(tridiag_qr_eigenvalues(diag_copy, subdiag_copy, K, 0));
+    /* All eigenvalues real and bounded — just a sanity smoke. */
+    for (idx_t i = 0; i < K; i++)
+        ASSERT_TRUE(diag_copy[i] > 0.0 && diag_copy[i] < 10.0);
+}
+
+/* ─── Test 2: pick_locked forms orthonormal V_locked ─────────────── */
+
+/* Given a completed Lanczos run on a small diagonal SPD, pick k=3
+ * locked pairs and verify V_locked^T V_locked ≈ I (orthonormality
+ * inherited from the orthonormal V via the orthonormal Y). */
+static void test_pick_locked_orthonormal(void) {
+    /* Build a well-conditioned diagonal SPD A = diag(1..6). */
+    const idx_t n = 6;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, (double)(i + 1));
+
+    /* Run Lanczos with full reorth to completion (m = n = 6). */
+    double v0[6] = {1.0, 0.5, -0.3, 0.7, 0.2, -0.9};
+    double V[36];
+    double alpha[6];
+    double beta[6];
+    idx_t m_actual = 0;
+    REQUIRE_OK(lanczos_iterate(A, v0, n, /*reorthogonalize=*/1, V, alpha, beta, &m_actual));
+    ASSERT_EQ(m_actual, n);
+
+    /* Ritz extraction: theta, Y. */
+    double theta[6];
+    double Y[36];
+    double subdiag_scratch[6];
+    for (idx_t i = 0; i < n; i++)
+        theta[i] = alpha[i];
+    for (idx_t i = 0; i + 1 < n; i++)
+        subdiag_scratch[i] = beta[i];
+    REQUIRE_OK(tridiag_qr_eigenpairs(theta, subdiag_scratch, Y, n, 0));
+
+    /* Select k = 3 largest Ritz pairs (indices n-1, n-2, n-3). */
+    const idx_t k = 3;
+    idx_t sel_idx[3] = {n - 1, n - 2, n - 3};
+    double V_locked[18];       /* n × k */
+    double theta_locked[3];
+    double beta_coupling[3];
+    double beta_m = beta[m_actual - 1];
+
+    lanczos_restart_pick_locked(V, n, m_actual, Y, theta, sel_idx, k, beta_m, V_locked,
+                                theta_locked, beta_coupling);
+
+    /* theta_locked should be A's three largest eigenvalues (6, 5, 4)
+     * up to Lanczos convergence tolerance. */
+    ASSERT_NEAR(theta_locked[0], 6.0, 1e-10);
+    ASSERT_NEAR(theta_locked[1], 5.0, 1e-10);
+    ASSERT_NEAR(theta_locked[2], 4.0, 1e-10);
+
+    /* V_locked columns should be orthonormal: V_locked^T V_locked = I. */
+    for (idx_t i = 0; i < k; i++) {
+        for (idx_t j = 0; j < k; j++) {
+            double dot = 0.0;
+            for (idx_t r = 0; r < n; r++)
+                dot += V_locked[r + i * n] * V_locked[r + j * n];
+            double expect = (i == j) ? 1.0 : 0.0;
+            ASSERT_NEAR(dot, expect, 1e-10);
+        }
+    }
+
+    /* V_locked[:, j] should be an eigenvector of A with eigenvalue
+     * theta_locked[j].  Check ||A v - theta v|| ≤ 1e-10 per pair. */
+    double Av[6];
+    for (idx_t j = 0; j < k; j++) {
+        sparse_matvec(A, V_locked + j * n, Av);
+        double res = 0.0;
+        for (idx_t r = 0; r < n; r++) {
+            double delta = Av[r] - theta_locked[j] * V_locked[r + j * n];
+            res += delta * delta;
+        }
+        ASSERT_TRUE(sqrt(res) < 1e-9);
+    }
+
+    sparse_free(A);
+}
+
+/* ─── Test 3: state_assemble round-trip ─────────────────────────── */
+
+/* Pack a restart state from synthetic inputs; verify fields; free;
+ * assert double-free is safe. */
+static void test_restart_state_assemble_roundtrip(void) {
+    lanczos_restart_state_t state = {0};
+    const idx_t n = 5;
+    const idx_t k = 2;
+    double V_locked_src[10] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0};
+    double theta_locked_src[2] = {7.3, 2.1};
+    double beta_coupling_src[2] = {0.5, -0.3};
+    double residual_src[5] = {0.1, 0.2, 0.3, 0.4, 0.5};
+    double residual_norm = sqrt(0.1 * 0.1 + 0.2 * 0.2 + 0.3 * 0.3 + 0.4 * 0.4 + 0.5 * 0.5);
+
+    REQUIRE_OK(lanczos_restart_state_assemble(&state, n, k, V_locked_src, theta_locked_src,
+                                              beta_coupling_src, residual_src, residual_norm));
+
+    ASSERT_EQ(state.n, n);
+    ASSERT_EQ(state.k_locked, k);
+    ASSERT_TRUE(state.k_locked_cap >= k);
+    ASSERT_NOT_NULL(state.V_locked);
+    ASSERT_NOT_NULL(state.theta_locked);
+    ASSERT_NOT_NULL(state.beta_coupling);
+    ASSERT_NOT_NULL(state.residual);
+    ASSERT_NEAR(state.residual_norm, residual_norm, 1e-14);
+
+    /* Buffer contents copied correctly. */
+    for (idx_t i = 0; i < n * k; i++)
+        ASSERT_NEAR(state.V_locked[i], V_locked_src[i], 1e-14);
+    for (idx_t i = 0; i < k; i++) {
+        ASSERT_NEAR(state.theta_locked[i], theta_locked_src[i], 1e-14);
+        ASSERT_NEAR(state.beta_coupling[i], beta_coupling_src[i], 1e-14);
+    }
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(state.residual[i], residual_src[i], 1e-14);
+
+    /* Re-assemble with same k_locked must succeed and reuse buffers
+     * (no new allocation expected). */
+    idx_t cap_before = state.k_locked_cap;
+    double *V_ptr_before = state.V_locked;
+    REQUIRE_OK(lanczos_restart_state_assemble(&state, n, k, V_locked_src, theta_locked_src,
+                                              beta_coupling_src, residual_src, residual_norm));
+    ASSERT_EQ(state.k_locked_cap, cap_before);
+    ASSERT_TRUE(state.V_locked == V_ptr_before);
+
+    /* Re-assemble with larger k_locked must grow the cap. */
+    const idx_t k2 = 4;
+    double V2[20] = {0};
+    for (idx_t j = 0; j < k2; j++)
+        V2[j + j * n] = 1.0;
+    double theta2[4] = {1.0, 2.0, 3.0, 4.0};
+    double beta2[4] = {0.1, 0.2, 0.3, 0.4};
+    REQUIRE_OK(lanczos_restart_state_assemble(&state, n, k2, V2, theta2, beta2, residual_src,
+                                              residual_norm));
+    ASSERT_TRUE(state.k_locked_cap >= k2);
+    ASSERT_EQ(state.k_locked, k2);
+    for (idx_t i = 0; i < k2; i++)
+        ASSERT_NEAR(state.theta_locked[i], theta2[i], 1e-14);
+
+    lanczos_restart_state_free(&state);
+    ASSERT_EQ(state.k_locked, 0);
+    ASSERT_EQ(state.k_locked_cap, 0);
+    ASSERT_NULL(state.V_locked);
+    ASSERT_NULL(state.theta_locked);
+    ASSERT_NULL(state.beta_coupling);
+    ASSERT_NULL(state.residual);
+
+    /* Double-free must be safe (re-sets the already-zeroed struct). */
+    lanczos_restart_state_free(&state);
+
+    /* NULL pointer is also safe. */
+    lanczos_restart_state_free(NULL);
+}
+
+/* State with n mismatch must be rejected (can't reuse state across
+ * eigenproblems with different dimensions). */
+static void test_restart_state_assemble_n_mismatch_rejected(void) {
+    lanczos_restart_state_t state = {0};
+    const idx_t k = 1;
+    double Vs[5] = {1.0, 0.0, 0.0, 0.0, 0.0};
+    double theta[1] = {1.0};
+    double beta_coupling[1] = {0.5};
+    double residual[5] = {0.1, 0.2, 0.3, 0.4, 0.5};
+    /* First assemble at n=5, then attempt n=7 — should return
+     * SPARSE_ERR_SHAPE. */
+    REQUIRE_OK(
+        lanczos_restart_state_assemble(&state, 5, k, Vs, theta, beta_coupling, residual, 1.0));
+    ASSERT_ERR(lanczos_restart_state_assemble(&state, 7, k, Vs, theta, beta_coupling, residual,
+                                              1.0),
+               SPARSE_ERR_SHAPE);
+    lanczos_restart_state_free(&state);
+}
+
+/* ─── Runner ────────────────────────────────────────────────────── */
+
+int main(void) {
+    TEST_SUITE_BEGIN("Sprint 21 thick-restart Lanczos — Day 2");
+
+    RUN_TEST(test_arrowhead_to_tridiag_preserves_spectrum);
+    RUN_TEST(test_arrowhead_to_tridiag_k_locked_one);
+    RUN_TEST(test_pick_locked_orthonormal);
+    RUN_TEST(test_restart_state_assemble_roundtrip);
+    RUN_TEST(test_restart_state_assemble_n_mismatch_rejected);
+
+    TEST_SUITE_END();
+}

@@ -956,6 +956,327 @@ void lanczos_restart_state_free(lanczos_restart_state_t *state) {
     state->residual_norm = 0.0;
 }
 
+/* ─── Sprint 21 Day 2: Arrowhead reduction + Ritz locking helpers ─── */
+
+/* s21_arrowhead_to_tridiag: reduce a symmetric arrowhead T to
+ * tridiagonal form via dense Householder tridiagonalisation.
+ *
+ * Arrowhead layout (K = k_locked + m_ext):
+ *   T[i, i]                 = theta_locked[i]    for i in [0, k_locked)
+ *   T[i, i]                 = alpha_ext[i-k_locked]
+ *                                                for i in [k_locked, K)
+ *   T[k_locked, j]          = beta_coupling[j]    (spoke)
+ *   T[j, k_locked]          = beta_coupling[j]    (symmetric)
+ *                                                for j in [0, k_locked)
+ *   T[i, i+1] = T[i+1, i]   = beta_ext[i-k_locked]
+ *                                                for i in [k_locked, K-1)
+ *   all other entries are zero.
+ *
+ * The implementation builds a dense K×K scratch matrix and applies
+ * (K-2) Householder similarity transforms, each zeroing the
+ * sub-subdiagonal entries of one column.  Classical algorithm from
+ * Golub & Van Loan §8.3.1.  Choice notes:
+ *   - Householder over Givens here because the arrowhead pattern
+ *     produces fill across the locked block under simple spoke-
+ *     zeroing Givens (the bulge-chase sequence is equivalent work
+ *     to a full Householder on the dense matrix but much harder to
+ *     get correct).  Dense Householder is O(K^3); for K up to a
+ *     few hundred the cost is a microsecond-scale fixed overhead
+ *     per restart.
+ *   - Scratch allocation is owned by this function (caller passes
+ *     no workspace).  Size is K*K doubles; overflow-checked.
+ *   - Spectrum-only reduction (Day 2 scope).  Day 3 extends the
+ *     helper to return an orthogonal Q accumulating the Householder
+ *     products so downstream Ritz extraction composes through the
+ *     reduction.
+ */
+sparse_err_t s21_arrowhead_to_tridiag(const double *theta_locked, const double *beta_coupling,
+                                      idx_t k_locked, const double *alpha_ext,
+                                      const double *beta_ext, idx_t m_ext, double *diag_out,
+                                      double *subdiag_out) {
+    if (!theta_locked || !diag_out)
+        return SPARSE_ERR_NULL;
+    if (k_locked >= 1 && !beta_coupling)
+        return SPARSE_ERR_NULL;
+    if (m_ext >= 1 && !alpha_ext)
+        return SPARSE_ERR_NULL;
+    if (m_ext >= 2 && !beta_ext)
+        return SPARSE_ERR_NULL;
+    if (k_locked < 1)
+        return SPARSE_ERR_BADARG;
+
+    /* K is the dimension of the (k_locked + m_ext) arrowhead.  We
+     * require K >= 1; subdiag_out is needed only when K >= 2. */
+    int64_t K_wide = (int64_t)k_locked + (int64_t)m_ext;
+    if (K_wide < 1 || K_wide > (int64_t)INT32_MAX)
+        return SPARSE_ERR_BADARG;
+    idx_t K = (idx_t)K_wide;
+    if (K >= 2 && !subdiag_out)
+        return SPARSE_ERR_NULL;
+
+    /* Dense K×K scratch.  Overflow-check K*K*sizeof(double). */
+    size_t K2 = 0, K2_bytes = 0;
+    if (size_mul_overflow((size_t)K, (size_t)K, &K2) ||
+        size_mul_overflow(K2, sizeof(double), &K2_bytes))
+        return SPARSE_ERR_ALLOC;
+    double *T = calloc(K2, sizeof(double));
+    if (!T)
+        return SPARSE_ERR_ALLOC;
+
+    /* Materialise the arrowhead.  Layout column-major: T[i + j*K]. */
+#define T_AT(i, j) T[(size_t)(i) + (size_t)(j) * (size_t)K]
+
+    for (idx_t i = 0; i < k_locked; i++)
+        T_AT(i, i) = theta_locked[i];
+    for (idx_t i = 0; i < m_ext; i++)
+        T_AT(k_locked + i, k_locked + i) = alpha_ext[i];
+    if (m_ext >= 2) {
+        for (idx_t i = 0; i + 1 < m_ext; i++) {
+            idx_t r = k_locked + i;
+            T_AT(r + 1, r) = beta_ext[i];
+            T_AT(r, r + 1) = beta_ext[i];
+        }
+    }
+    /* Spoke: row k_locked holds beta_coupling, but only when there
+     * is a spoke row at all (m_ext >= 1; otherwise the arrowhead is
+     * just the locked diagonal and there is no spoke column).  When
+     * m_ext >= 1 we also put beta_coupling[k_locked-1] at
+     * (k_locked, k_locked-1) as the standard subdiagonal entry
+     * connecting the last locked row to the first extension row. */
+    if (m_ext >= 1) {
+        for (idx_t j = 0; j < k_locked; j++) {
+            T_AT(k_locked, j) = beta_coupling[j];
+            T_AT(j, k_locked) = beta_coupling[j];
+        }
+    }
+
+    /* Householder tridiagonalisation of the symmetric K×K matrix.
+     * Per iteration j in [0, K-2):
+     *   - Let x = T[j+1..K-1, j] (column j below the diagonal).
+     *   - If ||x[1:]|| < eps (already reduced), skip.
+     *   - Choose sign(alpha) = sign(x[0]) so v = x + alpha*e_0 has
+     *     a numerically large magnitude (avoid cancellation).
+     *   - Normalise v so that beta_scale = 2 / (v^T v) defines the
+     *     reflector H = I - beta_scale * v * v^T.
+     *   - Apply the symmetric similarity T -> H T H (affects only
+     *     rows and columns j+1..K-1).  Implementation uses the
+     *     two-step form: compute p = T_sub * v, then
+     *     q = beta_scale * p - (beta_scale^2 / 2) * (v^T p) * v,
+     *     and update T_sub -= v * q^T + q * v^T (rank-2 update).
+     *   - Write the reduced subdiagonal entry T[j+1, j] = -alpha
+     *     directly; zero the rest of column j below the subdiagonal.
+     */
+    if (K >= 3) {
+        /* Scratch buffers sized to K-1 (worst case for column 0). */
+        double *v = calloc((size_t)K, sizeof(double));
+        double *p = calloc((size_t)K, sizeof(double));
+        double *q = calloc((size_t)K, sizeof(double));
+        if (!v || !p || !q) {
+            free(v);
+            free(p);
+            free(q);
+            free(T);
+            return SPARSE_ERR_ALLOC;
+        }
+
+        for (idx_t j = 0; j + 2 < K; j++) {
+            idx_t len = K - j - 1; /* length of column vector below diagonal */
+
+            /* Extract x = T[j+1..K-1, j] into v. */
+            for (idx_t i = 0; i < len; i++)
+                v[i] = T_AT(j + 1 + i, j);
+
+            /* sigma = ||x[1:]||^2 = sum_{i>=1} v[i]^2 */
+            double sigma = 0.0;
+            for (idx_t i = 1; i < len; i++)
+                sigma += v[i] * v[i];
+            if (sigma < 1e-300) {
+                /* Already reduced (or len == 1) — subdiag[j] = v[0];
+                 * rest of column j is already zero. */
+                continue;
+            }
+
+            /* alpha = sign(v[0]) * sqrt(sigma + v[0]^2).  The sign
+             * choice matches the "avoid cancellation" rule:
+             * v[0]_new = v[0] + sign(v[0]) * ||x|| has large
+             * magnitude. */
+            double v0 = v[0];
+            double x_norm = sqrt(sigma + v0 * v0);
+            double alpha = (v0 >= 0.0) ? x_norm : -x_norm;
+            v[0] = v0 + alpha;
+
+            /* beta_scale = 2 / (v^T v) = 2 / (sigma + v[0]_new^2)
+             * where v[0]_new = v0 + alpha, so
+             *   v[0]_new^2 = v0^2 + 2*v0*alpha + alpha^2
+             *             = v0^2 + 2*v0*alpha + (sigma + v0^2)
+             *             = 2*v0^2 + 2*v0*alpha + sigma
+             * and v^T v = sigma + v[0]_new^2 = 2*sigma + 2*v0^2 + 2*v0*alpha
+             *           = 2 * (alpha^2 + v0*alpha)
+             *           = 2 * alpha * (alpha + v0)
+             *           = 2 * alpha * v[0]_new
+             * so beta_scale = 1 / (alpha * v[0]_new).
+             *
+             * Defensive: if the denominator is numerically zero the
+             * reflector is ill-conditioned; bail out of this step. */
+            double denom = alpha * v[0];
+            if (fabs(denom) < 1e-300)
+                continue;
+            double beta_scale = 1.0 / denom;
+
+            /* p = T_sub * v (T_sub is the (len × len) submatrix
+             * T[j+1..K-1, j+1..K-1]). */
+            for (idx_t i = 0; i < len; i++) {
+                double pi = 0.0;
+                for (idx_t c = 0; c < len; c++)
+                    pi += T_AT(j + 1 + i, j + 1 + c) * v[c];
+                p[i] = pi;
+            }
+
+            /* vtp = v^T p */
+            double vtp = 0.0;
+            for (idx_t i = 0; i < len; i++)
+                vtp += v[i] * p[i];
+
+            /* q = beta_scale * p - (beta_scale^2 / 2) * vtp * v */
+            double K_coef = 0.5 * beta_scale * beta_scale * vtp;
+            for (idx_t i = 0; i < len; i++)
+                q[i] = beta_scale * p[i] - K_coef * v[i];
+
+            /* T_sub -= v * q^T + q * v^T (symmetric rank-2 update). */
+            for (idx_t i = 0; i < len; i++) {
+                double vi = v[i];
+                double qi = q[i];
+                for (idx_t c = 0; c < len; c++)
+                    T_AT(j + 1 + i, j + 1 + c) -= vi * q[c] + qi * v[c];
+            }
+
+            /* Write the reduced subdiagonal explicitly (avoid drift
+             * from floating-point cancellation in the rank-2 update). */
+            T_AT(j + 1, j) = -alpha;
+            T_AT(j, j + 1) = -alpha;
+            for (idx_t i = 2; i < len; i++) {
+                T_AT(j + 1 + i - 1, j) = 0.0;
+                T_AT(j, j + 1 + i - 1) = 0.0;
+            }
+        }
+
+        free(v);
+        free(p);
+        free(q);
+    }
+
+    /* Extract the tridiagonal form.  The Householder loop stops at
+     * K-3 because column K-2 is already reduced (only one
+     * sub-diagonal entry) and column K-1 has no sub-diagonal.  Both
+     * are already in the correct place in T. */
+    for (idx_t i = 0; i < K; i++)
+        diag_out[i] = T_AT(i, i);
+    if (K >= 2) {
+        for (idx_t i = 0; i + 1 < K; i++)
+            subdiag_out[i] = T_AT(i + 1, i);
+    }
+#undef T_AT
+
+    free(T);
+    return SPARSE_OK;
+}
+
+/* lanczos_restart_pick_locked: Day 2 Task 2 — assemble the three
+ * locked-block arrays from a completed Lanczos phase's Ritz pairs.
+ *
+ *   V_locked[:, j] = V · Y[:, sel_idx[j]]
+ *   theta_locked[j] = theta[sel_idx[j]]
+ *   beta_coupling[j] = beta_m * Y[m-1, sel_idx[j]]
+ *
+ * Reuses the `s20_lift_ritz_vectors` kernel shape directly for the
+ * V · Y[:, idx] column-major gemm. */
+void lanczos_restart_pick_locked(const double *V, idx_t n, idx_t m, const double *Y,
+                                 const double *theta, const idx_t *sel_idx, idx_t take,
+                                 double beta_m, double *V_locked_out, double *theta_locked_out,
+                                 double *beta_coupling_out) {
+    s20_lift_ritz_vectors(V, Y, n, m, take, sel_idx, V_locked_out);
+    for (idx_t j = 0; j < take; j++) {
+        idx_t col = sel_idx[j];
+        theta_locked_out[j] = theta[col];
+        /* Y is column-major m × m: Y[m-1, col] lives at offset
+         * (m - 1) + col * m. */
+        double y_last = Y[(size_t)(m - 1) + (size_t)col * (size_t)m];
+        beta_coupling_out[j] = beta_m * y_last;
+    }
+}
+
+/* lanczos_restart_state_assemble: Day 2 Task 3 — pack the picked
+ * locked block + residual into `state`, allocating buffers if the
+ * current capacity is insufficient.  Reuses existing buffers when
+ * `k_locked <= state->k_locked_cap` and `state->n == n`. */
+sparse_err_t lanczos_restart_state_assemble(lanczos_restart_state_t *state, idx_t n,
+                                            idx_t k_locked, const double *V_locked_src,
+                                            const double *theta_locked_src,
+                                            const double *beta_coupling_src,
+                                            const double *residual_src, double residual_norm) {
+    if (!state)
+        return SPARSE_ERR_NULL;
+    if (n < 1 || k_locked < 0)
+        return SPARSE_ERR_BADARG;
+    if (k_locked > 0 && (!V_locked_src || !theta_locked_src || !beta_coupling_src))
+        return SPARSE_ERR_NULL;
+    if (!residual_src)
+        return SPARSE_ERR_NULL;
+
+    /* If state is non-empty and n mismatches, the caller is trying
+     * to reuse a state across different eigenproblems — reject
+     * rather than silently reallocating. */
+    if (state->n != 0 && state->n != n)
+        return SPARSE_ERR_SHAPE;
+
+    /* Allocate or grow V_locked capacity if needed.  We keep the
+     * residual buffer sized to n regardless of k_locked, so it's
+     * allocated separately below. */
+    if (k_locked > state->k_locked_cap) {
+        size_t v_elems = 0, v_bytes = 0;
+        if (size_mul_overflow((size_t)n, (size_t)k_locked, &v_elems) ||
+            size_mul_overflow(v_elems, sizeof(double), &v_bytes))
+            return SPARSE_ERR_ALLOC;
+        double *new_V = malloc(v_bytes);
+        double *new_theta = malloc((size_t)k_locked * sizeof(double));
+        double *new_beta = malloc((size_t)k_locked * sizeof(double));
+        if (!new_V || !new_theta || !new_beta) {
+            free(new_V);
+            free(new_theta);
+            free(new_beta);
+            return SPARSE_ERR_ALLOC;
+        }
+        free(state->V_locked);
+        free(state->theta_locked);
+        free(state->beta_coupling);
+        state->V_locked = new_V;
+        state->theta_locked = new_theta;
+        state->beta_coupling = new_beta;
+        state->k_locked_cap = k_locked;
+    }
+
+    /* Residual buffer allocated lazily / on first use.  Same n
+     * across restarts, so only allocate once. */
+    if (!state->residual) {
+        state->residual = malloc((size_t)n * sizeof(double));
+        if (!state->residual)
+            return SPARSE_ERR_ALLOC;
+    }
+
+    /* Copy the locked block + residual into state-owned memory. */
+    if (k_locked > 0) {
+        memcpy(state->V_locked, V_locked_src, (size_t)n * (size_t)k_locked * sizeof(double));
+        memcpy(state->theta_locked, theta_locked_src, (size_t)k_locked * sizeof(double));
+        memcpy(state->beta_coupling, beta_coupling_src, (size_t)k_locked * sizeof(double));
+    }
+    memcpy(state->residual, residual_src, (size_t)n * sizeof(double));
+
+    state->n = n;
+    state->k_locked = k_locked;
+    state->residual_norm = residual_norm;
+    return SPARSE_OK;
+}
+
 /* Day 1 stub: V / alpha / beta are output buffers that Day 2-3 fill
  * during the phase-execution body.  The stub doesn't write to them
  * yet, so clang-tidy flags them as const-candidates; the NOLINT

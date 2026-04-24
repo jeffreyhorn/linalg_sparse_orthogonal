@@ -576,19 +576,37 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
      * defaults match sparse_eigs.h: tol = 1e-10, max_iterations =
      * max(10*k + 20, 100).  Compute the default in int64_t so large
      * k values don't overflow idx_t (int32) before the min-with-n
-     * clamp below catches it. */
+     * clamp below catches it.
+     *
+     * When the caller supplies `opts->max_iterations > 0`, honor it
+     * as the user's explicit cap rather than silently bumping it up
+     * to the library default's 100-iteration floor — that silent
+     * promotion contradicted the documented contract ("0 selects the
+     * library default ... positive values are honored").  Reject an
+     * explicit cap that is too small to run Lanczos safely (< the
+     * per-run m_cap_min of 2k+10, clamped to n for small-n inputs)
+     * as SPARSE_ERR_BADARG, consistent with the header's
+     * "opts values are invalid" SPARSE_ERR_BADARG return. */
     double eff_tol = o->tol > 0.0 ? o->tol : 1e-10;
     idx_t max_iters;
     if (o->max_iterations > 0) {
+        int64_t min_required = (int64_t)2 * (int64_t)k + 10;
+        if (min_required > (int64_t)n)
+            min_required = (int64_t)n;
+        if ((int64_t)o->max_iterations < min_required) {
+            sparse_ldlt_free(&ldlt_shift);
+            sparse_free(A_shifted);
+            return SPARSE_ERR_BADARG;
+        }
         max_iters = o->max_iterations;
     } else {
         int64_t def_iters = (int64_t)10 * (int64_t)k + 20;
+        if (def_iters < 100)
+            def_iters = 100;
         if (def_iters > (int64_t)INT32_MAX)
             def_iters = (int64_t)INT32_MAX;
         max_iters = (idx_t)def_iters;
     }
-    if (max_iters < 100)
-        max_iters = 100;
 
     /* Day 13 outer-loop redesign: single Lanczos batch with a
      * grow-m-on-retry strategy.  The Day 10-11 short/long stability

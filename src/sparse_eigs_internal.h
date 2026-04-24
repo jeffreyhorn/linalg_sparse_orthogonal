@@ -40,10 +40,14 @@
  *                  subspace is detected, i.e. beta_k ≈ 0).
  *
  * Early exit: the iteration stops as soon as beta_k falls below
- * a fixed 1e-14 threshold.  That indicates the Krylov subspace
- * span(v0, A·v0, ..., A^k·v0) has become A-invariant — T's
- * spectrum is already a subset of A's spectrum and continuing
- * the recurrence would divide by zero.
+ * the breakdown tolerance used by the recurrence, namely
+ * max(t_norm * 1e-14, DBL_MIN * 100), where t_norm tracks the
+ * current tridiagonal scale (running max of row-k row-sums
+ * |beta_{k-1}| + |alpha_k| + |beta_k|).  That indicates the
+ * Krylov subspace span(v0, A·v0, ..., A^k·v0) has become
+ * A-invariant — T's spectrum is already a subset of A's spectrum
+ * and continuing the recurrence would divide by (numerically)
+ * zero.
  *
  * Reorthogonalization.  When `reorthogonalize != 0`, after each
  * step's 3-term recurrence produces the tentative w, the helper

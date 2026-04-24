@@ -100,11 +100,15 @@ static int size_mul_overflow(size_t a, size_t b, size_t *result) {
  * basic recurrence is sufficient for the unit tests below where m
  * ≤ n on well-conditioned small fixtures.
  *
- * Early-exit rule.  When `beta_k < 1e-14` the recurrence has hit
- * an A-invariant subspace: v_{k+1} would be `w/0` undefined, and
- * T's spectrum up to step k is already a subset of A's spectrum
- * (exact Ritz values, not approximations).  The helper returns
- * SPARSE_OK with *m_actual = k + 1.
+ * Early-exit rule.  When `beta_k` falls below the implementation's
+ * breakdown tolerance — a scale-aware threshold based on the running
+ * `t_norm` (running max of row-k row-sums of T), with a
+ * `DBL_MIN * 100` floor for the exact-zero-operator case — the
+ * recurrence has hit an A-invariant subspace: v_{k+1} would be
+ * `w / beta_k` numerically unstable, and T's spectrum up to step k
+ * is already a subset of A's spectrum (exact Ritz values, not
+ * approximations).  The helper returns SPARSE_OK with
+ * *m_actual = k + 1.
  *
  * Reorthogonalization (Day 9).  When the caller sets
  * `reorthogonalize != 0`, after the standard 3-term recurrence

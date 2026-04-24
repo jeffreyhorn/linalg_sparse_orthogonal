@@ -195,14 +195,14 @@ sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, cons
  * capacity suffices.
  */
 typedef struct lanczos_restart_state {
-    idx_t n;             /**< Eigenproblem vector length. */
-    idx_t k_locked;      /**< Number of locked Ritz pairs carried into the next phase. */
-    idx_t k_locked_cap;  /**< Allocated capacity for V_locked / theta_locked / beta_coupling. */
-    double *V_locked;    /**< n × k_locked_cap, column-major; NULL when state is empty. */
-    double *theta_locked; /**< Length k_locked_cap; locked Ritz values. */
+    idx_t n;               /**< Eigenproblem vector length. */
+    idx_t k_locked;        /**< Number of locked Ritz pairs carried into the next phase. */
+    idx_t k_locked_cap;    /**< Allocated capacity for V_locked / theta_locked / beta_coupling. */
+    double *V_locked;      /**< n × k_locked_cap, column-major; NULL when state is empty. */
+    double *theta_locked;  /**< Length k_locked_cap; locked Ritz values. */
     double *beta_coupling; /**< Length k_locked_cap; trailing β_m · y_{m-1,j} entries. */
-    double *residual;    /**< Length n; seeds next phase as v_{k_locked+1}.  NULL when empty. */
-    double residual_norm; /**< ||residual||.  Zero = invariant subspace reached. */
+    double *residual;      /**< Length n; seeds next phase as v_{k_locked+1}.  NULL when empty. */
+    double residual_norm;  /**< ||residual||.  Zero = invariant subspace reached. */
 } lanczos_restart_state_t;
 
 /**
@@ -351,8 +351,8 @@ void lanczos_restart_pick_locked(const double *V, idx_t n, idx_t m, const double
  * @return SPARSE_OK on success, SPARSE_ERR_NULL / _BADARG on bad
  *         args, SPARSE_ERR_ALLOC on allocation failure.
  */
-sparse_err_t lanczos_restart_state_assemble(lanczos_restart_state_t *state, idx_t n,
-                                            idx_t k_locked, const double *V_locked_src,
+sparse_err_t lanczos_restart_state_assemble(lanczos_restart_state_t *state, idx_t n, idx_t k_locked,
+                                            const double *V_locked_src,
                                             const double *theta_locked_src,
                                             const double *beta_coupling_src,
                                             const double *residual_src, double residual_norm);

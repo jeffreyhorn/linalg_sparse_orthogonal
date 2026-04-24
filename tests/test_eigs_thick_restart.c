@@ -230,7 +230,7 @@ static void test_pick_locked_orthonormal(void) {
     /* Select k = 3 largest Ritz pairs (indices n-1, n-2, n-3). */
     const idx_t k = 3;
     idx_t sel_idx[3] = {n - 1, n - 2, n - 3};
-    double V_locked[18];       /* n × k */
+    double V_locked[18]; /* n × k */
     double theta_locked[3];
     double beta_coupling[3];
     double beta_m = beta[m_actual - 1];
@@ -358,9 +358,9 @@ static void test_restart_state_assemble_n_mismatch_rejected(void) {
      * SPARSE_ERR_SHAPE. */
     REQUIRE_OK(
         lanczos_restart_state_assemble(&state, 5, k, Vs, theta, beta_coupling, residual, 1.0));
-    ASSERT_ERR(lanczos_restart_state_assemble(&state, 7, k, Vs, theta, beta_coupling, residual,
-                                              1.0),
-               SPARSE_ERR_SHAPE);
+    ASSERT_ERR(
+        lanczos_restart_state_assemble(&state, 7, k, Vs, theta, beta_coupling, residual, 1.0),
+        SPARSE_ERR_SHAPE);
     lanczos_restart_state_free(&state);
 }
 
@@ -395,8 +395,8 @@ static void test_thick_restart_iterate_empty_state_matches_lanczos(void) {
     double alpha_ref[6] = {0};
     double beta_ref[6] = {0};
     idx_t m_ref = 0;
-    REQUIRE_OK(lanczos_iterate(A, v0, m, /*reorthogonalize=*/1, V_ref, alpha_ref, beta_ref,
-                               &m_ref));
+    REQUIRE_OK(
+        lanczos_iterate(A, v0, m, /*reorthogonalize=*/1, V_ref, alpha_ref, beta_ref, &m_ref));
 
     double V_tr[36] = {0};
     double alpha_tr[6] = {0};
@@ -644,7 +644,8 @@ static void test_thick_restart_bcsstk14_bounded_memory(void) {
             v_sq += vecs[i + j * n] * vecs[i + j * n];
         }
         double lambda_abs = fabs(vals[j]);
-        double anchor = (lambda_abs > 0.0 ? lambda_abs : 1.0) * (sqrt(v_sq) > 0.0 ? sqrt(v_sq) : 1.0);
+        double anchor =
+            (lambda_abs > 0.0 ? lambda_abs : 1.0) * (sqrt(v_sq) > 0.0 ? sqrt(v_sq) : 1.0);
         double rel = sqrt(res_sq) / anchor;
         ASSERT_TRUE(rel < 1e-6);
         free(Av);
@@ -704,8 +705,8 @@ static void s21_day4_parity(SparseMatrix *A, idx_t k, sparse_eigs_which_t which,
             scale = 1.0;
         double diff = fabs(vals_grow[j] - vals_tr[j]) / scale;
         if (!(diff < eig_tol)) {
-            TF_FAIL_("Ritz pair %td: grow=%.15g, tr=%.15g, rel-diff=%.3e > tol=%.3e",
-                     (ptrdiff_t)j, vals_grow[j], vals_tr[j], diff, eig_tol);
+            TF_FAIL_("Ritz pair %td: grow=%.15g, tr=%.15g, rel-diff=%.3e > tol=%.3e", (ptrdiff_t)j,
+                     vals_grow[j], vals_tr[j], diff, eig_tol);
         }
         tf_asserts++;
     }

@@ -55,6 +55,52 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef SPARSE_OPENMP
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#include <omp.h>
+#pragma GCC diagnostic pop
+#endif
+
+/* ─── Sprint 21 Day 5: shared MGS reorth kernel (OpenMP-parallel) ── */
+
+/* s21_mgs_reorth: orthogonalise `w` against each of V[:, 0..k_stored-1]
+ * via classical modified Gram-Schmidt (MGS).  The outer `j` loop
+ * is serial — MGS stability requires each iteration to see the
+ * partially-orthogonalised `w` from the previous subtraction
+ * (classical Gram-Schmidt parallelises `j` but loses the stability
+ * bound; see the Sprint 20 Day 9 design block for the MGS-vs-CGS
+ * tradeoff).  The inner dot-product and daxpy bodies are
+ * independent across `i` and parallelised under `-DSPARSE_OPENMP`,
+ * using the same pragma pattern as `sparse_matvec` from
+ * Sprint 17/18 (`#pragma omp parallel for`).
+ *
+ * Serial builds are bit-for-bit identical to the Sprint 20 inline
+ * MGS body the helper replaced — the Day 5 refactor collapses
+ * three call sites (`lanczos_iterate_op`, the thick-restart seed
+ * orthogonalisation, the thick-restart phase reorth) into one
+ * kernel so parallelism lands once and benefits all three paths.
+ *
+ * Shared across Sprint 20 (`lanczos_iterate_op`) and Sprint 21
+ * (`lanczos_thick_restart_iterate`).  Does nothing when
+ * `k_stored == 0`. */
+static void s21_mgs_reorth(double *w, const double *V, idx_t n, idx_t k_stored) {
+    for (idx_t j = 0; j < k_stored; j++) {
+        const double *v_j = V + (size_t)j * (size_t)n;
+        double dot = 0.0;
+#ifdef SPARSE_OPENMP
+#pragma omp parallel for reduction(+ : dot) schedule(static)
+#endif
+        for (idx_t i = 0; i < n; i++)
+            dot += w[i] * v_j[i];
+#ifdef SPARSE_OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+        for (idx_t i = 0; i < n; i++)
+            w[i] -= dot * v_j[i];
+    }
+}
+
 /* Portable overflow-safe multiplication: returns 0 on success, 1 on overflow.
  * Mirrors the helper in sparse_qr.c / sparse_svd.c. */
 static int size_mul_overflow(size_t a, size_t b, size_t *result) {
@@ -252,17 +298,12 @@ sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, cons
          * subtraction above.  Each projection uses the current
          * partially-orthogonalized w; that's what distinguishes
          * MGS from classical Gram-Schmidt.  Skipped entirely
-         * when `reorthogonalize == 0` (Day 8 baseline). */
-        if (reorthogonalize && k > 0) {
-            for (idx_t j = 0; j < k; j++) {
-                const double *v_j = V + j * n;
-                double dot = 0.0;
-                for (idx_t i = 0; i < n; i++)
-                    dot += w[i] * v_j[i];
-                for (idx_t i = 0; i < n; i++)
-                    w[i] -= dot * v_j[i];
-            }
-        }
+         * when `reorthogonalize == 0` (Day 8 baseline).  Sprint
+         * 21 Day 5 shares the kernel with `lanczos_thick_restart_iterate`
+         * via the `s21_mgs_reorth` helper, which parallelises the
+         * inner dot-product + daxpy under `-DSPARSE_OPENMP`. */
+        if (reorthogonalize && k > 0)
+            s21_mgs_reorth(w, V, n, k);
 
         /* beta_k = ‖w‖ */
         double b_sq = 0.0;
@@ -640,9 +681,9 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
      * wins by an order of magnitude or more (bcsstk14 at
      * n = 1806, k = 5: grow-m ~7 MB of V vs thick-restart
      * ~500 KB). */
-    int use_thick_restart = (o->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART) ||
-                            (o->backend == SPARSE_EIGS_BACKEND_AUTO &&
-                             n >= (idx_t)SPARSE_EIGS_THICK_RESTART_THRESHOLD);
+    int use_thick_restart =
+        (o->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART) ||
+        (o->backend == SPARSE_EIGS_BACKEND_AUTO && n >= (idx_t)SPARSE_EIGS_THICK_RESTART_THRESHOLD);
     if (use_thick_restart) {
         sparse_err_t tr_rc =
             s21_thick_restart_outer_loop(op_fn, op_ctx, n, k, o, eff_tol, max_iters, result);
@@ -1251,8 +1292,8 @@ void lanczos_restart_pick_locked(const double *V, idx_t n, idx_t m, const double
  * locked block + residual into `state`, allocating buffers if the
  * current capacity is insufficient.  Reuses existing buffers when
  * `k_locked <= state->k_locked_cap` and `state->n == n`. */
-sparse_err_t lanczos_restart_state_assemble(lanczos_restart_state_t *state, idx_t n,
-                                            idx_t k_locked, const double *V_locked_src,
+sparse_err_t lanczos_restart_state_assemble(lanczos_restart_state_t *state, idx_t n, idx_t k_locked,
+                                            const double *V_locked_src,
                                             const double *theta_locked_src,
                                             const double *beta_coupling_src,
                                             const double *residual_src, double residual_norm) {
@@ -1408,14 +1449,7 @@ sparse_err_t lanczos_thick_restart_iterate(lanczos_op_fn op, const void *ctx, id
     for (idx_t i = 0; i < n; i++)
         v_seed[i] = state->residual[i] * inv_rn;
     if (reorthogonalize) {
-        for (idx_t j = 0; j < k_locked; j++) {
-            const double *vj = V + (size_t)j * (size_t)n;
-            double dot = 0.0;
-            for (idx_t i = 0; i < n; i++)
-                dot += v_seed[i] * vj[i];
-            for (idx_t i = 0; i < n; i++)
-                v_seed[i] -= dot * vj[i];
-        }
+        s21_mgs_reorth(v_seed, V, n, k_locked);
         double sq = 0.0;
         for (idx_t i = 0; i < n; i++)
             sq += v_seed[i] * v_seed[i];
@@ -1487,16 +1521,8 @@ sparse_err_t lanczos_thick_restart_iterate(lanczos_op_fn op, const void *ctx, id
          * first new step (k == k_locked): w is orthogonalised
          * against V_locked columns, which implicitly subtracts
          * beta_coupling[j] · V_locked[:, j] for j in [0, k_locked). */
-        if (reorthogonalize && k > 0) {
-            for (idx_t j = 0; j < k; j++) {
-                const double *v_j = V + (size_t)j * (size_t)n;
-                double dot = 0.0;
-                for (idx_t i = 0; i < n; i++)
-                    dot += w[i] * v_j[i];
-                for (idx_t i = 0; i < n; i++)
-                    w[i] -= dot * v_j[i];
-            }
-        }
+        if (reorthogonalize && k > 0)
+            s21_mgs_reorth(w, V, n, k);
 
         double b_sq = 0.0;
         for (idx_t i = 0; i < n; i++)
@@ -1705,8 +1731,8 @@ static void s21_build_dense_arrowhead(const double *alpha, const double *beta,
  * signature (one extra matvec per restart).  `||residual||`
  * should equal `beta[m-1]` in exact arithmetic. */
 static sparse_err_t s21_recompute_residual(lanczos_op_fn op, const void *ctx, idx_t n,
-                                           const double *V, const double *alpha,
-                                           const double *beta, idx_t m, double *residual_out) {
+                                           const double *V, const double *alpha, const double *beta,
+                                           idx_t m, double *residual_out) {
     if (m < 1)
         return SPARSE_ERR_BADARG;
     const double *v_last = V + (size_t)(m - 1) * (size_t)n;
@@ -1833,9 +1859,8 @@ static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *c
             break;
 
         idx_t m_actual = 0;
-        sparse_err_t err = lanczos_thick_restart_iterate(op, ctx, n, v0, m_restart,
-                                                         o->reorthogonalize, &state, V, alpha,
-                                                         beta, &m_actual);
+        sparse_err_t err = lanczos_thick_restart_iterate(
+            op, ctx, n, v0, m_restart, o->reorthogonalize, &state, V, alpha, beta, &m_actual);
         if (err != SPARSE_OK) {
             rc = err;
             goto cleanup;
@@ -1935,9 +1960,8 @@ static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *c
         if (res_norm_check < DBL_MIN * 100.0)
             break;
 
-        err = lanczos_restart_state_assemble(&state, n, k_lock_next, V_locked_tmp,
-                                             theta_locked_tmp, beta_coupling_tmp, residual_vec,
-                                             res_norm_check);
+        err = lanczos_restart_state_assemble(&state, n, k_lock_next, V_locked_tmp, theta_locked_tmp,
+                                             beta_coupling_tmp, residual_vec, res_norm_check);
         if (err != SPARSE_OK) {
             rc = err;
             goto cleanup;

@@ -261,10 +261,64 @@ omp: clean test
 endif
 
 # Thread Sanitizer (for thread safety tests)
+#
+# `make tsan` runs the full test suite under TSan.  Apple Clang's
+# bundled TSan runtime (older Command Line Tools on recent macOS)
+# can deadlock in __guard_setup during dyld init — every TSan-built
+# binary hangs before reaching main.  Workaround: install Homebrew
+# LLVM (`brew install llvm`) and invoke with
+# `make tsan CC=/usr/local/opt/llvm/bin/clang`.
 .PHONY: tsan
 tsan: CFLAGS += -fsanitize=thread -fno-omit-frame-pointer -g -O1
 tsan: LDFLAGS += -fsanitize=thread
 tsan: clean test
+
+# Sprint 21 Day 5: `sanitize-thread` — TSan on the Lanczos paths.
+#
+# Scope narrowed to `test_eigs` + `test_eigs_thick_restart` per the
+# Sprint 21 Day 5 plan.  Auto-detects Homebrew LLVM (override with
+# `TSAN_CC=<path>`); errors out if no suitable compiler is found,
+# since Apple Clang's TSan deadlocks here.
+#
+# Builds the *serial* path by default (no `-DSPARSE_OPENMP`).  The
+# parallel MGS reorth kernel is exercised under TSan in the
+# `tsan` Ubuntu CI job (`.github/workflows/ci.yml`), where
+# libomp's TSan-aware annotations (libarcher) are standard.
+# Homebrew LLVM ships libomp without archer, so OMP+TSan locally
+# produces false-positive races on implicit OMP barriers; running
+# the serial path here still validates the shared kernel's data
+# flow in a single-threaded reduction.
+TSAN_CC ?= $(firstword $(wildcard /usr/local/opt/llvm/bin/clang /opt/homebrew/opt/llvm/bin/clang))
+TSAN_BUILDDIR := $(BUILDDIR)/tsan
+TSAN_CFLAGS_BASE := -std=c11 -Wall -Wextra -O1 -g -fsanitize=thread -fno-omit-frame-pointer
+ifneq ($(SYSROOT),)
+TSAN_CFLAGS_BASE += -isysroot $(SYSROOT)
+endif
+TSAN_INCLUDES := -Iinclude -I$(BUILDDIR)/include -I$(SRCDIR) -I$(TESTDIR)
+TSAN_LDFLAGS := -fsanitize=thread -lm
+TSAN_EIGS_TESTS := test_eigs test_eigs_thick_restart
+
+.PHONY: sanitize-thread
+sanitize-thread: $(GENERATED_VERSION)
+	@if [ -z "$(TSAN_CC)" ]; then \
+	  echo "ERROR: sanitize-thread requires a clang with a working TSan runtime."; \
+	  echo "  Apple Clang's bundled TSan deadlocks in __guard_setup on recent macOS."; \
+	  echo "  Install with 'brew install llvm', or set TSAN_CC=<path-to-clang>."; \
+	  exit 1; \
+	fi
+	@mkdir -p $(TSAN_BUILDDIR)
+	@echo "sanitize-thread: compiler = $(TSAN_CC)"
+	@echo "sanitize-thread: serial build (OMP path validated in Ubuntu CI tsan job)"
+	@for t in $(TSAN_EIGS_TESTS); do \
+	  echo ">>> Building $$t under TSan"; \
+	  $(TSAN_CC) $(TSAN_CFLAGS_BASE) $(TSAN_INCLUDES) \
+	    $(LIB_SRCS) $(TESTDIR)/$$t.c \
+	    $(TSAN_LDFLAGS) \
+	    -o $(TSAN_BUILDDIR)/$$t || exit 1; \
+	  echo ">>> Running $$t under TSan"; \
+	  TSAN_OPTIONS="halt_on_error=1 second_deadlock_stack=0" $(TSAN_BUILDDIR)/$$t || exit 1; \
+	done
+	@echo "sanitize-thread: all eigs tests clean under TSan"
 
 # ─── Code quality targets ─────────────────────────────────────────────
 

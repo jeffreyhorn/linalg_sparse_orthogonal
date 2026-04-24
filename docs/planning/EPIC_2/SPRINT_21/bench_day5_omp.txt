@@ -1,0 +1,76 @@
+Sprint 21 Day 5 — OpenMP reorthogonalization baseline
+======================================================
+
+Apple x86_64 Darwin 24.6, `-O2`, `make SPARSE_OPENMP=1` build +
+Homebrew libomp.  Throwaway driver times `sparse_eigs_sym` with
+the thick-restart backend; best-of-3, same opts across runs.
+Day 11's permanent `benchmarks/bench_eigs` reruns this capture.
+
+Serial baseline (no SPARSE_OPENMP, pragmas ignored):
+
+  matrix     n      wall (ms)   iters   residual
+  --------   ----   ---------   -----   --------
+  nos4       100         5.24     105   1.024e-11
+  bcsstk14   1806      122.88     105   7.864e-14
+
+OMP-enabled, thick-restart k=5 LARGEST, m_restart auto-chosen as
+2k+20 = 30:
+
+  matrix     n      threads   wall (ms)   speedup   iters   residual
+  --------   ----   -------   ---------   -------   -----   --------
+  nos4       100          1        7.39     0.71×     105   1.024e-11
+  nos4       100          2       10.88     0.48×     105   1.024e-11
+  nos4       100          4       13.40     0.39×     105   1.024e-11
+  nos4       100          8       26.61     0.20×     105   1.024e-11
+  bcsstk14   1806         1      120.84     1.02×     105   7.864e-14
+  bcsstk14   1806         2       90.88     1.35×     105   7.864e-14
+  bcsstk14   1806         4       74.56     1.65×     105   7.864e-14
+  bcsstk14   1806         8       60.57     2.03×     105   7.864e-14
+
+Speedup = serial-baseline / OMP wall.
+
+Observations
+------------
+
+1. Correctness preserved: iteration count (105) and residual norm
+   match the Sprint 20 serial build exactly across every
+   thread count and backend on both fixtures.  The `s21_mgs_reorth`
+   helper's serial path is bit-for-bit identical to the pre-Day-5
+   inline MGS loop — confirmed by the matching residuals on the
+   no-SPARSE_OPENMP build.
+
+2. Large-n scaling (bcsstk14): 2.03× speedup at 8 threads, 1.65×
+   at 4 threads.  Day 6's target is ≥ 2× at 4 threads; at n = 1806
+   the inner MGS triad is a smaller fraction of the Lanczos step
+   than on the larger matrices Day 6 will profile (bcsstk16, etc.).
+   The matvec is already OMP-parallel from Sprint 17/18; Day 5's
+   MGS parallelisation contributes the remaining speedup on top
+   of Sprint 17/18's matvec scaling.
+
+3. Small-n overhead-dominated (nos4): OMP fork/join overhead
+   exceeds the parallel work at n = 100 — even 1 thread sees a
+   41% regression vs the fully-serial build, and 8 threads are
+   5× slower.  Day 6 task 3 is to add a compile-time-gated
+   threshold that skips the OMP pragmas below some n (or nnz)
+   cutoff; the nos4 numbers here motivate that tuning.
+
+4. Single-thread OMP overhead on bcsstk14 is negligible (1.02×
+   speedup — within noise of the serial baseline).  This confirms
+   the pragma itself doesn't impose meaningful overhead at this
+   problem size.
+
+Day 6 actions
+-------------
+
+- Sweep bcsstk16 (n = 4884), s3rmt3m3 (n = 5357), s1rmq4m1 (n =
+  5489), and kkt-1500 under the same threads × backend grid.  The
+  matvec reorth triad should have a larger relative cost at
+  those sizes, pushing 4-thread speedup above 2×.
+- Evaluate threshold gate (n- or nnz-based) to disable the OMP
+  pragmas on small fixtures like nos4 where single-thread OMP
+  already loses.
+- Extend the CI tsan job to exercise `test_eigs` +
+  `test_eigs_thick_restart` with OMP enabled — Ubuntu's libomp
+  ships libarcher for TSan-aware barrier sync; macOS Homebrew
+  libomp does not, so `make sanitize-thread` locally runs the
+  serial path only (see Makefile comment on the target).

@@ -67,6 +67,27 @@ jobs:
         env:
           TSAN_OPTIONS: "halt_on_error=1"
 
+      # Sprint 21 Day 5: exercise the OMP-parallel Lanczos MGS
+      # kernel under TSan.  Ubuntu's libomp ships libarcher, so
+      # implicit OMP barriers are visible to TSan and the run is
+      # free of the false-positive races seen on macOS Homebrew
+      # libomp (no archer).  Local `make sanitize-thread` on
+      # macOS runs the same tests against the serial path only.
+      - name: Build eigensolver tests with TSan + OpenMP
+        run: |
+          make clean
+          make build/test_eigs build/test_eigs_thick_restart \
+               CFLAGS="-std=c11 -Wall -Wextra -O1 -g -fsanitize=thread -fno-omit-frame-pointer -DSPARSE_OPENMP -fopenmp -Iinclude" \
+               LDFLAGS="-fsanitize=thread -fopenmp -lm"
+
+      - name: Run eigensolver tests under TSan + OpenMP
+        run: |
+          ./build/test_eigs
+          ./build/test_eigs_thick_restart
+        env:
+          TSAN_OPTIONS: "halt_on_error=1"
+          OMP_NUM_THREADS: "4"
+
   lint:
     runs-on: ubuntu-latest
     steps:

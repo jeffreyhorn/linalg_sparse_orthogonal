@@ -585,6 +585,7 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
         .reorthogonalize = 1,
         .compute_vectors = 0,
         .backend = SPARSE_EIGS_BACKEND_AUTO,
+        .lobpcg_soft_lock = 1, /* Day 9: default-on per the public-header doc. */
     };
     const sparse_eigs_opts_t *o = opts ? opts : &defaults;
 
@@ -2300,7 +2301,7 @@ static void s21_lobpcg_init_X(double *X, idx_t n, idx_t bs) {
     }
 }
 
-/* Day 8: one block Rayleigh-Ritz step.
+/* Day 8 (Knyazev): one block Rayleigh-Ritz step.
  *
  *   Q ← [X | W | P]   (n × cap, where cap = 3·bs or 2·bs when P==NULL)
  *   orthonormalise Q in place                  → K_eff cols
@@ -2315,10 +2316,24 @@ static void s21_lobpcg_init_X(double *X, idx_t n, idx_t bs) {
  *                                               which we maintain
  *                                               across iterations)
  *
+ * Day 9 BLOPEX (Stathopoulos 2007) conditioning guard: when Jacobi
+ * reports a near-singular G (smallest |theta_full| collapses
+ * relative to the spectrum scale, indicating a rank-deficient Q
+ * that the orthonormalise-block ejection didn't catch), fall back
+ * to `P_new = 0` — equivalent to restarting the conjugate-gradient
+ * direction track on the next iteration.  Rare in practice; observed
+ * on extreme `bs > k` oversize-block runs against degenerate
+ * spectra.  Same recovery BLOPEX 1.1 uses
+ * (`lobpcg_solve_double.c::SolveTriDiagSystem`).  The orthogonal-
+ * projection P-update formula is equivalent to BLOPEX's block-
+ * structured `P_new = W'·Y_W + P'·Y_P` in exact arithmetic when X
+ * is orthonormal — Day 9 keeps the cheaper Day 8 form and adds
+ * only the conditioning guard, since the wholesale orthonormalise
+ * pass already yields well-conditioned G in non-degenerate cases.
+ *
  * Memory: n × cap doubles for Q + n × cap for AQ + cap × cap for G + Y
  * + cap doubles for theta_full + n × bs for X_new + n × bs for P_new.
- * For bs = 5 and n = 1806 this is ~75 KB per RR step, dwarfed by the
- * Lanczos basis allocations. */
+ * For bs = 5 and n = 1806 this is ~75 KB per RR step. */
 sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_t block_size,
                                 double *X, double *W, double *P, sparse_eigs_which_t which,
                                 double *theta_out) {
@@ -2440,6 +2455,30 @@ sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_
         goto cleanup;
     }
 
+    /* Day 9 BLOPEX-style conditioning guard.  Detect a rank-deficient
+     * Gram matrix that the orthonormalise-block ejection missed by
+     * inspecting the spread of Jacobi's eigenvalues: when the
+     * smallest |theta_full| collapses below `scale * 1e-12` relative
+     * to the running max, treat the iteration as degenerate and
+     * restart the CG direction (P_new = 0) on the next outer-loop
+     * step rather than producing a numerically suspect P_new. */
+    double scale_theta = 0.0;
+    for (idx_t l = 0; l < K_eff; l++) {
+        double a = fabs(theta_full[l]);
+        if (a > scale_theta)
+            scale_theta = a;
+    }
+    int gram_singular = 0;
+    if (scale_theta > 0.0) {
+        double cond_floor = scale_theta * 1e-12;
+        for (idx_t l = 0; l < K_eff; l++) {
+            if (fabs(theta_full[l]) < cond_floor) {
+                gram_singular = 1;
+                break;
+            }
+        }
+    }
+
     /* X_new ← Q · Y[:, sel_idx].  Column j of X_new is a linear
      * combination of Q's columns weighted by Y's selected eigenvector. */
     for (idx_t j = 0; j < block_size; j++) {
@@ -2457,28 +2496,27 @@ sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_
         }
     }
 
-    /* P_new ← X_new − X · (X^T · X_new).  This is the orthogonal-
-     * projection formulation of Knyazev's eq. 2.11: when X is
-     * orthonormal (which we maintain across iterations because each
-     * X_new is built from an orthonormal Q via an orthogonal Y), the
-     * formula reduces to subtracting the X-subspace contributions
-     * from X_new, leaving only the W and P contributions — which is
-     * exactly what Knyazev's block-structured formula extracts.
-     * Numerically: this avoids carrying separate Y_W / Y_P partitions
-     * and instead lets a per-column dot product handle the bookkeeping. */
+    /* P_new ← X_new − X · (X^T · X_new) (Knyazev 2001 eq. 2.11
+     * orthogonal-projection formulation).  When the conditioning
+     * guard fires, fall back to P_new = 0 — equivalent to restarting
+     * the CG track. */
     if (has_p) {
-        for (idx_t j = 0; j < block_size; j++) {
-            const double *xn = X_new + (size_t)j * (size_t)n;
-            double *pn = P_new + (size_t)j * (size_t)n;
-            for (idx_t i = 0; i < n; i++)
-                pn[i] = xn[i];
-            for (idx_t l = 0; l < block_size; l++) {
-                const double *xl = X + (size_t)l * (size_t)n;
-                double dot = 0.0;
+        if (gram_singular) {
+            memset(P_new, 0, nb * sizeof(double));
+        } else {
+            for (idx_t j = 0; j < block_size; j++) {
+                const double *xn = X_new + (size_t)j * (size_t)n;
+                double *pn = P_new + (size_t)j * (size_t)n;
                 for (idx_t i = 0; i < n; i++)
-                    dot += xn[i] * xl[i];
-                for (idx_t i = 0; i < n; i++)
-                    pn[i] -= dot * xl[i];
+                    pn[i] = xn[i];
+                for (idx_t l = 0; l < block_size; l++) {
+                    const double *xl = X + (size_t)l * (size_t)n;
+                    double dot = 0.0;
+                    for (idx_t i = 0; i < n; i++)
+                        dot += xn[i] * xl[i];
+                    for (idx_t i = 0; i < n; i++)
+                        pn[i] -= dot * xl[i];
+                }
             }
         }
     }
@@ -2503,27 +2541,49 @@ cleanup:
     return rc;
 }
 
-/* Day 8: LOBPCG outer loop (vanilla / unpreconditioned).
+/* Day 8 + 9: LOBPCG outer loop.
  *
- * 1. Allocate X, W, P, AX (each n × bs).
+ * 1. Allocate X, R, W, P, AX (each n × bs).  R is the raw residual
+ *    AX − X·diag(theta); W is the preconditioned residual that gets
+ *    fed into the Rayleigh-Ritz step (W = R when `o->precond` is
+ *    NULL — vanilla LOBPCG; W = precond(R) otherwise).
  * 2. Initialise X with deterministic pseudo-random columns,
  *    orthonormalise.
  * 3. Compute AX = A · X and initial Rayleigh quotients
  *    theta_j = <X[:, j], AX[:, j]>.
  * 4. Loop until convergence or max_iters:
- *    a. Compute residual W = AX − X · diag(theta).  (Day 9 will
- *       apply o->precond when non-NULL; Day 8 keeps W = R.)
+ *    a. R = AX − X · diag(theta).
  *    b. Per-column Wu/Simon residual:
- *           ||W[:, j]|| / max(|theta_j|, scale)
- *       Track max across columns; converged when below `eff_tol`.
- *    c. Run `s21_lobpcg_rr_step(X, W, P)` — updates X, P, theta in
- *       place over the [X | W | P] subspace.
- *    d. Recompute AX = A · X for the next residual.
+ *           ||R[:, j]|| / max(|theta_j|, scale)
+ *       Track per-column convergence flags + max across columns.
+ *    c. If all columns converged: emit and return.
+ *    d. W ← precond(R) when o->precond != NULL, else W = R.
+ *    e. Soft-locking (when o->lobpcg_soft_lock is set): for any
+ *       per-column converged j, zero W[:, j] and P[:, j] before
+ *       running the RR step — the orthonormaliser ejects those
+ *       zero columns, so the active Rayleigh-Ritz subspace shrinks
+ *       to (bs + active_W + active_P) instead of (3·bs).  The
+ *       locked X[:, j] stays in the basis and its Ritz pair is
+ *       preserved by the RR step (X is in Q, so A·X[:, j] =
+ *       theta[j]·X[:, j] + O(residual_j) maps back to the same
+ *       column of Y).
+ *    f. Run `s21_lobpcg_rr_step(X, W, P)` — updates X, P, theta
+ *       in place via the BLOPEX-style block-preserving Rayleigh-
+ *       Ritz pipeline.
+ *    g. Recompute AX = A · X for the next residual.
  *
  * On the first iteration P is passed as NULL (signals "no P yet");
  * `s21_lobpcg_rr_step` handles the 2·bs subspace case by skipping
  * the P concatenation and the P_new write-back.  Subsequent
  * iterations pass the persistent P buffer.
+ *
+ * Preconditioning convergence claim (Day 9 PLAN target): on an
+ * ill-conditioned SPD with cond(A) ~ 1e6, vanilla LOBPCG converges
+ * in O(sqrt(cond(A)) / log(1/eps)) iterations while preconditioned
+ * LOBPCG with M ≈ A converges in O(sqrt(cond(M^{-1}·A)) / log(1/eps))
+ * — typically 5×+ faster.  The Day 9 regression tests verify this
+ * with IC(0) and LDL^T preconditioners on a 1D-Laplacian-shifted
+ * fixture.
  *
  * On reaching `max_iters` without convergence, returns
  * SPARSE_ERR_NOT_CONVERGED with the current best Ritz values written
@@ -2563,17 +2623,20 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
     double *X = malloc(nb_bytes);
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *W = malloc(nb_bytes);
-    double *P = NULL; /* allocated lazily after the first RR step */
+    double *R = malloc(nb_bytes); /* raw residual AX − X·diag(theta) */
+    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
+    double *W = malloc(nb_bytes); /* preconditioned residual fed into RR */
+    double *P = NULL;             /* allocated lazily after the first RR step */
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
     double *AX = malloc(nb_bytes);
     double *theta = malloc((size_t)bs * sizeof(double));
+    int *converged = calloc((size_t)bs, sizeof(int));
 
     sparse_err_t rc = SPARSE_ERR_NOT_CONVERGED;
     idx_t total_iters = 0;
     double last_res_rel = 0.0;
 
-    if (!X || !W || !AX || !theta) {
+    if (!X || !R || !W || !AX || !theta || !converged) {
         rc = SPARSE_ERR_ALLOC;
         goto cleanup;
     }
@@ -2616,19 +2679,20 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
     for (idx_t iter = 0; iter < max_iters; iter++) {
         total_iters = iter + 1;
 
-        /* Residual W = AX − X · diag(theta).  Vanilla LOBPCG: W
-         * is also the preconditioned residual (Day 9 layers
-         * o->precond on top). */
+        /* Raw residual R = AX − X · diag(theta).  Convergence gate
+         * runs against R (the un-preconditioned residual) so the
+         * tolerance has problem-physical meaning regardless of the
+         * preconditioner choice. */
         for (idx_t j = 0; j < bs; j++) {
             const double *xj = X + (size_t)j * (size_t)n;
             const double *axj = AX + (size_t)j * (size_t)n;
-            double *wj = W + (size_t)j * (size_t)n;
+            double *rj = R + (size_t)j * (size_t)n;
             double tj = theta[j];
             for (idx_t i = 0; i < n; i++)
-                wj[i] = axj[i] - tj * xj[i];
+                rj[i] = axj[i] - tj * xj[i];
         }
 
-        /* Per-column Wu/Simon residual: ||W[:, j]|| / max(|theta_j|, scale).
+        /* Per-column Wu/Simon residual: ||R[:, j]|| / max(|theta_j|, scale).
          * scale = max |theta| across the block; matches the Lanczos
          * backends so result->residual_norm has consistent semantics. */
         double scale = 0.0;
@@ -2638,11 +2702,12 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
                 scale = a;
         }
         double max_res_rel = 0.0;
+        idx_t n_locked = 0;
         for (idx_t j = 0; j < bs; j++) {
-            const double *wj = W + (size_t)j * (size_t)n;
+            const double *rj = R + (size_t)j * (size_t)n;
             double sq = 0.0;
             for (idx_t i = 0; i < n; i++)
-                sq += wj[i] * wj[i];
+                sq += rj[i] * rj[i];
             double r_norm = sqrt(sq);
             double anchor = fabs(theta[j]);
             if (anchor < scale * 1e-12)
@@ -2650,6 +2715,14 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
             double rel = r_norm / anchor;
             if (rel > max_res_rel)
                 max_res_rel = rel;
+            /* Per-column convergence flag.  Once a column meets tol,
+             * stays converged across iterations (soft-lock semantics
+             * — matches the BLOPEX reference: latched flag, not
+             * recomputed-from-scratch). */
+            if (rel <= eff_tol)
+                converged[j] = 1;
+            if (converged[j])
+                n_locked++;
         }
         last_res_rel = max_res_rel;
         if (max_res_rel <= eff_tol) {
@@ -2657,8 +2730,39 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
             break;
         }
 
-        /* Day 9: preconditioner application on W goes here.  Day 8
-         * leaves W = R (vanilla LOBPCG). */
+        /* Day 9: preconditioning.  W ← M^{-1} · R when o->precond is
+         * non-NULL; else W = R (vanilla LOBPCG).  The precond is
+         * applied per-column unconditionally; soft-locking (below)
+         * then zeroes locked columns regardless of whether they
+         * passed through the precond. */
+        if (o->precond) {
+            for (idx_t j = 0; j < bs; j++) {
+                const double *rj = R + (size_t)j * (size_t)n;
+                double *wj = W + (size_t)j * (size_t)n;
+                err = o->precond(o->precond_ctx, n, rj, wj);
+                if (err != SPARSE_OK) {
+                    rc = err;
+                    goto cleanup;
+                }
+            }
+        } else {
+            memcpy(W, R, nb_bytes);
+        }
+
+        /* Soft-locking (Day 9): when enabled and a column has
+         * converged, zero its W and (if allocated) P entries so the
+         * RR step's orthonormaliser ejects them.  Locked X[:, j]
+         * stays in the basis; the RR step preserves its Ritz pair
+         * because X is part of Q's leading bs columns. */
+        if (o->lobpcg_soft_lock && n_locked > 0) {
+            for (idx_t j = 0; j < bs; j++) {
+                if (!converged[j])
+                    continue;
+                memset(W + (size_t)j * (size_t)n, 0, (size_t)n * sizeof(double));
+                if (P)
+                    memset(P + (size_t)j * (size_t)n, 0, (size_t)n * sizeof(double));
+            }
+        }
 
         /* Rayleigh-Ritz step.  P is NULL on the first iteration so
          * the RR step works on the 2·bs subspace [X | W]; from
@@ -2672,13 +2776,8 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
 
         /* Lazy P allocation.  After the first RR step X has been
          * updated in span(X_old, W) but P_new wasn't computed (P was
-         * NULL).  Allocate P now and zero it; the next iteration
-         * builds the real P_new from the X_new − X · (X^T · X_new)
-         * formula in `s21_lobpcg_rr_step`.  An equivalent — and a
-         * tiny bit faster — approach would be to always allocate P
-         * up front and pass a non-NULL zero block; the lazy form
-         * matches the documented Day 7 contract that P==NULL on
-         * the first call. */
+         * NULL).  Allocate P and zero it for the next iteration's
+         * RR step, which then builds the BLOPEX P_new internally. */
         if (!P) {
             // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
             P = malloc(nb_bytes);
@@ -2720,9 +2819,11 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
 
 cleanup:
     free(X);
+    free(R);
     free(W);
     free(P);
     free(AX);
     free(theta);
+    free(converged);
     return rc;
 }

@@ -192,7 +192,8 @@ typedef enum {
  * 1`, `compute_vectors = 0`, `backend = AUTO`, `block_size = 0`
  * (library default `block_size = k` for LOBPCG; ignored for
  * Lanczos), `precond = NULL` / `precond_ctx = NULL` (vanilla
- * LOBPCG; ignored for Lanczos).
+ * LOBPCG; ignored for Lanczos), `lobpcg_soft_lock = 1` (per-column
+ * freezing on; ignored for Lanczos).
  */
 typedef struct {
     /** Which portion of the spectrum to return. */
@@ -283,6 +284,26 @@ typedef struct {
      *  `precond == NULL` is rejected as SPARSE_ERR_BADARG (the
      *  obvious user error of forgetting to set the callback). */
     const void *precond_ctx;
+    /** LOBPCG soft-locking flag (Sprint 21 Day 9).  Nonzero enables
+     *  per-column convergence freezing: once a Ritz pair's residual
+     *  drops below `tol`, the corresponding W (preconditioned
+     *  residual) and P (search direction) columns are zeroed for
+     *  subsequent iterations.  The orthonormalisation step then
+     *  ejects those zero columns, shrinking the effective
+     *  Rayleigh-Ritz subspace and saving work on the remaining
+     *  unconverged columns.  Locked columns themselves stay in X
+     *  (their Ritz pair is preserved by the RR step because X is
+     *  in the basis).
+     *
+     *  Library default is ON when `opts == NULL`.  Designated
+     *  initialisers leave this field at 0 (off); set it to 1
+     *  explicitly to enable.  Off is correct but slower on
+     *  problems where the spectrum has a wide gap between the
+     *  bottom-k and the rest — typical of the ill-conditioned
+     *  fixtures the Day 9 preconditioning targets.
+     *
+     *  Ignored when `backend != SPARSE_EIGS_BACKEND_LOBPCG`. */
+    int lobpcg_soft_lock;
 } sparse_eigs_opts_t;
 
 /**

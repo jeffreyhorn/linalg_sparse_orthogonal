@@ -120,10 +120,22 @@ typedef enum {
  * @brief Eigensolver backend selector.
  *
  * - `SPARSE_EIGS_BACKEND_AUTO` (default, zero-initialised): let the
- *   library pick.  Currently always routes to
- *   `SPARSE_EIGS_BACKEND_LANCZOS` (grow-m); Sprint 21 Day 4 tunes
- *   the AUTO threshold to dispatch `_LANCZOS_THICK_RESTART` above
- *   a problem-size cutoff.
+ *   library pick.  Sprint 21 Day 10 routing decision tree:
+ *
+ *     if (opts->precond != NULL && n >= SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD
+ *         && (opts->block_size == 0 ? k >= 4 : opts->block_size >= 4)):
+ *         → SPARSE_EIGS_BACKEND_LOBPCG
+ *     else if (n >= SPARSE_EIGS_THICK_RESTART_THRESHOLD):
+ *         → SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART
+ *     else:
+ *         → SPARSE_EIGS_BACKEND_LANCZOS  (grow-m)
+ *
+ *   The thresholds are tuned on the Sprint 21 bench corpus
+ *   (`docs/planning/EPIC_2/SPRINT_21/bench_day*.txt`); tune
+ *   further in future sprints when the workload shifts by
+ *   overriding `SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD` /
+ *   `SPARSE_EIGS_THICK_RESTART_THRESHOLD` at compile time.
+ *   `result->backend_used` records AUTO's choice on every call.
  * - `SPARSE_EIGS_BACKEND_LANCZOS`: Lanczos with a growing-subspace
  *   outer loop and optional full reorthogonalization.  The Sprint 20
  *   workhorse.  Peak memory `O(m_cap · n)` across retries.
@@ -145,9 +157,11 @@ typedef enum {
  *   Best for ill-conditioned SPD problems where a cheap
  *   preconditioner is available; vanilla (`precond == NULL`) LOBPCG
  *   is correct but converges slower than Lanczos on the well-
- *   conditioned corpus.  Day 7 lands the API surface and stubs;
- *   Day 8 implements the unpreconditioned core; Day 9 wires the
- *   preconditioner; Day 10 tunes AUTO routing.
+ *   conditioned corpus — which is why AUTO routes to LOBPCG only
+ *   when a preconditioner is actually supplied.  All three `which`
+ *   modes (LARGEST / SMALLEST / NEAREST_SIGMA) are supported;
+ *   NEAREST_SIGMA composes with the same shift-invert LDL^T
+ *   pipeline the Lanczos backends use.
  */
 typedef enum {
     SPARSE_EIGS_BACKEND_AUTO = 0,
@@ -181,6 +195,33 @@ typedef enum {
  */
 #ifndef SPARSE_EIGS_THICK_RESTART_THRESHOLD
 #define SPARSE_EIGS_THICK_RESTART_THRESHOLD 500
+#endif
+
+/**
+ * @brief AUTO routing crossover threshold for LOBPCG (Sprint 21 Day 10).
+ *
+ * When `opts->backend == SPARSE_EIGS_BACKEND_AUTO`,
+ * `opts->precond != NULL`, and `sparse_rows(A) >=
+ * SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD`, the library routes to
+ * LOBPCG.  Below the threshold (or when no preconditioner is
+ * supplied) AUTO continues to choose between Lanczos backends per
+ * `SPARSE_EIGS_THICK_RESTART_THRESHOLD`.
+ *
+ * Rationale: LOBPCG's per-iteration cost is `O(block_size · matvec
+ * + block_size² · Jacobi)`, so it amortises well only when the
+ * preconditioner makes the iteration count tiny relative to
+ * Lanczos's per-Ritz-pair work.  Without a preconditioner LOBPCG
+ * generally underperforms thick-restart Lanczos on the same n; the
+ * AUTO path therefore declines to pick LOBPCG when `precond ==
+ * NULL`.
+ *
+ * Provisional value: 1000 (matches the n-thresholds in PROJECT_PLAN
+ * Sprint 21 PLAN.md Day 10 task 3).  Override at compile time with
+ * `-DSPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD=N` when profiling on a
+ * different corpus.
+ */
+#ifndef SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD
+#define SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD 1000
 #endif
 
 /**

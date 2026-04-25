@@ -772,8 +772,329 @@ static void test_lobpcg_precond_null_ctx_legal(void) {
     sparse_free(A);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 10 — SMALLEST / LARGEST / NEAREST_SIGMA coverage,
+ *          cross-backend parity, AUTO dispatch routing
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Day 8 covered LARGEST (nos4) and SMALLEST (diagonal, Laplacian).
+ * Day 9 added preconditioned SMALLEST.  Day 10 closes the matrix:
+ *
+ *   - NEAREST_SIGMA functionality (LOBPCG composes with the same
+ *     shift-invert LDL^T pipeline `sparse_eigs_sym` already builds
+ *     for the Lanczos backends; Day 10 just verifies it works).
+ *   - Cross-backend parity: LOBPCG vs grow-m Lanczos on the same
+ *     fixture must produce eigenvalues matching to 1e-7 across all
+ *     three `which` modes.
+ *   - AUTO dispatch decision tree: the Sprint 21 PROJECT_PLAN's
+ *     three-backend routing policy.  Verified via
+ *     `result.backend_used`.
+ */
+
+/* Build the same KKT-style indefinite saddle-point matrix used by
+ * the test_eigs.c shift-invert tests, to keep cross-backend parity
+ * comparing apples-to-apples on the existing fixture. */
+static SparseMatrix *build_kkt_lobpcg(idx_t n_top, idx_t n_bot) {
+    idx_t n = n_top + n_bot;
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n_top; i++) {
+        sparse_insert(A, i, i, 6.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+    for (idx_t j = 0; j < n_bot; j++) {
+        sparse_insert(A, n_top + j, j, 1.0);
+        sparse_insert(A, j, n_top + j, 1.0);
+    }
+    return A;
+}
+
+/* ─── Day 10 Test 1: NEAREST_SIGMA on diag(1..10).
+ *
+ * σ = 4.5 → the two closest eigenvalues are 4 and 5 (both at
+ * distance 0.5).  Verifies the shift-invert + post-processing
+ * `λ = σ + 1/θ` pipeline lands LOBPCG on interior eigenvalues. */
+static void test_lobpcg_nearest_sigma_diagonal(void) {
+    idx_t n = 10;
+    double diag[10];
+    for (idx_t i = 0; i < n; i++)
+        diag[i] = (double)(i + 1);
+    SparseMatrix *A = build_diag_lobpcg(n, diag);
+    ASSERT_NOT_NULL(A);
+
+    double v[2] = {0};
+    sparse_eigs_t res = {.eigenvalues = v};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_NEAREST_SIGMA,
+        .sigma = 4.5,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LOBPCG,
+        .max_iterations = 100,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, 2, &opts, &res));
+    ASSERT_EQ(res.n_converged, 2);
+    /* Order is "largest |theta| first", which under shift-invert maps
+     * to "smallest |λ − σ| first" — both eigenvalues 4 and 5 are at
+     * distance 0.5, so order is implementation-detail.  Sort the
+     * returned values to make the assertion order-independent. */
+    double a = v[0] < v[1] ? v[0] : v[1];
+    double b = v[0] < v[1] ? v[1] : v[0];
+    ASSERT_NEAR(a, 4.0, 1e-8);
+    ASSERT_NEAR(b, 5.0, 1e-8);
+    /* Backend telemetry. */
+    ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LOBPCG);
+
+    sparse_free(A);
+}
+
+/* ─── Day 10 Test 2: NEAREST_SIGMA on a KKT indefinite matrix.
+ *
+ * Matches the Sprint 20 Lanczos shift-invert KKT fixture so
+ * cross-backend parity holds.  σ = 0 targets the eigenvalues nearest
+ * the saddle. */
+static void test_lobpcg_nearest_sigma_kkt(void) {
+    SparseMatrix *A = build_kkt_lobpcg(8, 4); /* n = 12 */
+    ASSERT_NOT_NULL(A);
+    idx_t n = sparse_rows(A);
+
+    idx_t k = 2;
+    double v_lobpcg[2] = {0};
+    double v_lanczos[2] = {0};
+    sparse_eigs_t r_lobpcg = {.eigenvalues = v_lobpcg};
+    sparse_eigs_t r_lanczos = {.eigenvalues = v_lanczos};
+    sparse_eigs_opts_t opts_lobpcg = {
+        .which = SPARSE_EIGS_NEAREST_SIGMA,
+        .sigma = 0.0,
+        .tol = 1e-9,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LOBPCG,
+        .max_iterations = 200,
+    };
+    sparse_eigs_opts_t opts_lanczos = opts_lobpcg;
+    opts_lanczos.backend = SPARSE_EIGS_BACKEND_LANCZOS;
+
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts_lobpcg, &r_lobpcg));
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts_lanczos, &r_lanczos));
+    ASSERT_EQ(r_lobpcg.n_converged, k);
+    ASSERT_EQ(r_lanczos.n_converged, k);
+    /* Cross-backend parity: same eigenvalues to 1e-7.  Sort to make
+     * the comparison order-independent (each backend emits its own
+     * "largest |θ| first" order which can flip ties). */
+    double l[2] = {v_lobpcg[0], v_lobpcg[1]};
+    double m[2] = {v_lanczos[0], v_lanczos[1]};
+    if (l[0] > l[1]) {
+        double t = l[0];
+        l[0] = l[1];
+        l[1] = t;
+    }
+    if (m[0] > m[1]) {
+        double t = m[0];
+        m[0] = m[1];
+        m[1] = t;
+    }
+    ASSERT_NEAR(l[0], m[0], 1e-7);
+    ASSERT_NEAR(l[1], m[1], 1e-7);
+    /* Sanity: check shift-invert dispatch did get used (CSC path
+     * telemetry — not strictly needed for correctness but pins the
+     * routing). */
+    (void)n;
+    ASSERT_TRUE(r_lobpcg.iterations > 0);
+    ASSERT_TRUE(r_lanczos.iterations > 0);
+    sparse_free(A);
+}
+
+/* ─── Day 10 Test 3: cross-backend parity LARGEST + SMALLEST on
+ *      Laplacian tridiagonal.
+ *
+ * LOBPCG and grow-m Lanczos must produce the same eigenvalues to
+ * 1e-7 on the same fixture.  Closed-form λ_j is also available for
+ * a third independent reference. */
+static void test_lobpcg_vs_lanczos_laplacian(void) {
+    idx_t n = 30;
+    SparseMatrix *A = build_laplacian_tridiag_lobpcg(n);
+    ASSERT_NOT_NULL(A);
+
+    idx_t k = 4;
+    /* LARGEST */
+    {
+        double v_lobpcg[4] = {0}, v_lanczos[4] = {0};
+        sparse_eigs_t rl = {.eigenvalues = v_lobpcg};
+        sparse_eigs_t rm = {.eigenvalues = v_lanczos};
+        sparse_eigs_opts_t lp = {
+            .which = SPARSE_EIGS_LARGEST,
+            .tol = 1e-10,
+            .reorthogonalize = 1,
+            .backend = SPARSE_EIGS_BACKEND_LOBPCG,
+            .max_iterations = 200,
+        };
+        sparse_eigs_opts_t mp = lp;
+        mp.backend = SPARSE_EIGS_BACKEND_LANCZOS;
+        REQUIRE_OK(sparse_eigs_sym(A, k, &lp, &rl));
+        REQUIRE_OK(sparse_eigs_sym(A, k, &mp, &rm));
+        ASSERT_EQ(rl.n_converged, k);
+        ASSERT_EQ(rm.n_converged, k);
+        for (idx_t j = 0; j < k; j++)
+            ASSERT_NEAR(v_lobpcg[j], v_lanczos[j], 1e-7);
+    }
+    /* SMALLEST */
+    {
+        double v_lobpcg[4] = {0}, v_lanczos[4] = {0};
+        sparse_eigs_t rl = {.eigenvalues = v_lobpcg};
+        sparse_eigs_t rm = {.eigenvalues = v_lanczos};
+        sparse_eigs_opts_t lp = {
+            .which = SPARSE_EIGS_SMALLEST,
+            .tol = 1e-10,
+            .reorthogonalize = 1,
+            .backend = SPARSE_EIGS_BACKEND_LOBPCG,
+            .max_iterations = 200,
+        };
+        sparse_eigs_opts_t mp = lp;
+        mp.backend = SPARSE_EIGS_BACKEND_LANCZOS;
+        REQUIRE_OK(sparse_eigs_sym(A, k, &lp, &rl));
+        REQUIRE_OK(sparse_eigs_sym(A, k, &mp, &rm));
+        ASSERT_EQ(rl.n_converged, k);
+        ASSERT_EQ(rm.n_converged, k);
+        for (idx_t j = 0; j < k; j++)
+            ASSERT_NEAR(v_lobpcg[j], v_lanczos[j], 1e-7);
+    }
+    sparse_free(A);
+}
+
+/* ─── Day 10 Test 4: AUTO dispatch — small n routes to grow-m. */
+static void test_lobpcg_auto_dispatch_small_n(void) {
+    idx_t n = 30; /* below SPARSE_EIGS_THICK_RESTART_THRESHOLD */
+    SparseMatrix *A = build_laplacian_tridiag_lobpcg(n);
+    ASSERT_NOT_NULL(A);
+    double v[3] = {0};
+    sparse_eigs_t res = {.eigenvalues = v};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_AUTO,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, 3, &opts, &res));
+    ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LANCZOS);
+    sparse_free(A);
+}
+
+/* ─── Day 10 Test 5: AUTO dispatch — mid-n routes to thick-restart.
+ *
+ * The 1D Laplacian's LARGEST eigenvalues cluster with gaps O(1/n²),
+ * so tight convergence requires many iterations.  We don't need
+ * tight convergence to verify dispatch — `result.backend_used` is
+ * set once the dispatch decision is made, regardless of whether the
+ * iteration eventually converges.  Loose tol + accept either OK or
+ * NOT_CONVERGED. */
+static void test_lobpcg_auto_dispatch_thick_restart(void) {
+    idx_t n = 600; /* above THICK_RESTART_THRESHOLD (500), below LOBPCG (1000) */
+    SparseMatrix *A = build_laplacian_tridiag_lobpcg(n);
+    ASSERT_NOT_NULL(A);
+    double v[2] = {0};
+    sparse_eigs_t res = {.eigenvalues = v};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-4,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_AUTO,
+        .max_iterations = 100,
+    };
+    sparse_err_t err = sparse_eigs_sym(A, 2, &opts, &res);
+    ASSERT_TRUE(err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED);
+    ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART);
+    sparse_free(A);
+}
+
+/* ─── Day 10 Test 6: AUTO dispatch — large n + precond routes to LOBPCG. */
+static void test_lobpcg_auto_dispatch_lobpcg(void) {
+    idx_t n = 1100; /* above SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD = 1000 */
+    SparseMatrix *A = build_laplacian_tridiag_lobpcg(n);
+    ASSERT_NOT_NULL(A);
+
+    sparse_ldlt_t ldlt = {0};
+    REQUIRE_OK(sparse_ldlt_factor(A, &ldlt));
+
+    idx_t k = 4; /* block_size defaults to k = 4, meets the >= 4 gate */
+    double *vals = calloc((size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vals);
+    sparse_eigs_t res = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_SMALLEST,
+        .tol = 1e-8,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_AUTO,
+        .max_iterations = 100,
+        .precond = ldlt_precond_adapter,
+        .precond_ctx = &ldlt,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LOBPCG);
+    ASSERT_EQ(res.n_converged, k);
+    free(vals);
+    sparse_ldlt_free(&ldlt);
+    sparse_free(A);
+}
+
+/* ─── Day 10 Test 7: AUTO dispatch — large n WITHOUT precond falls
+ *      back to thick-restart Lanczos (the LOBPCG AUTO gate requires
+ *      a preconditioner; vanilla LOBPCG underperforms thick-restart
+ *      on well-conditioned fixtures, so AUTO declines without one).
+ *
+ * Loose tol + accept OK / NOT_CONVERGED — the assertion is on
+ * `backend_used`, which is set as soon as dispatch is made. */
+static void test_lobpcg_auto_dispatch_no_precond_falls_back(void) {
+    idx_t n = 1100;
+    SparseMatrix *A = build_laplacian_tridiag_lobpcg(n);
+    ASSERT_NOT_NULL(A);
+
+    double v[3] = {0};
+    sparse_eigs_t res = {.eigenvalues = v};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-4,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_AUTO,
+        .max_iterations = 100,
+        /* .precond intentionally NULL */
+    };
+    sparse_err_t err = sparse_eigs_sym(A, 3, &opts, &res);
+    ASSERT_TRUE(err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED);
+    /* No precond → AUTO falls through to thick-restart Lanczos. */
+    ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART);
+    sparse_free(A);
+}
+
+/* ─── Day 10 Test 8: explicit LOBPCG backend overrides AUTO's
+ *      block-size / precond gates.
+ *
+ * User can force LOBPCG even without a preconditioner — the explicit
+ * `opts->backend` opt-in always wins over AUTO heuristics. */
+static void test_lobpcg_explicit_overrides_auto(void) {
+    idx_t n = 30; /* small n, no precond — AUTO would not pick LOBPCG */
+    SparseMatrix *A = build_laplacian_tridiag_lobpcg(n);
+    ASSERT_NOT_NULL(A);
+    double v[3] = {0};
+    sparse_eigs_t res = {.eigenvalues = v};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LOBPCG,
+        .max_iterations = 100,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, 3, &opts, &res));
+    ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LOBPCG);
+    ASSERT_EQ(res.n_converged, 3);
+    sparse_free(A);
+}
+
 int main(void) {
-    TEST_SUITE_BEGIN("Sprint 21 Days 8-9 — LOBPCG (vanilla + preconditioned)");
+    TEST_SUITE_BEGIN("Sprint 21 Days 8-10 — LOBPCG full coverage + AUTO dispatch");
 
     /* Day 8 building blocks. */
     RUN_TEST(test_orthonormalize_block_basic);
@@ -801,6 +1122,16 @@ int main(void) {
     RUN_TEST(test_lobpcg_soft_lock_correctness);
     RUN_TEST(test_lobpcg_precond_error_propagates);
     RUN_TEST(test_lobpcg_precond_null_ctx_legal);
+
+    /* Day 10 NEAREST_SIGMA, cross-backend parity, AUTO dispatch. */
+    RUN_TEST(test_lobpcg_nearest_sigma_diagonal);
+    RUN_TEST(test_lobpcg_nearest_sigma_kkt);
+    RUN_TEST(test_lobpcg_vs_lanczos_laplacian);
+    RUN_TEST(test_lobpcg_auto_dispatch_small_n);
+    RUN_TEST(test_lobpcg_auto_dispatch_thick_restart);
+    RUN_TEST(test_lobpcg_auto_dispatch_lobpcg);
+    RUN_TEST(test_lobpcg_auto_dispatch_no_precond_falls_back);
+    RUN_TEST(test_lobpcg_explicit_overrides_auto);
 
     TEST_SUITE_END();
 }

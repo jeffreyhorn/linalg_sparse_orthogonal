@@ -729,14 +729,34 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
      * wins by an order of magnitude or more (bcsstk14 at
      * n = 1806, k = 5: grow-m ~7 MB of V vs thick-restart
      * ~500 KB). */
-    /* Sprint 21 Day 7: LOBPCG dispatch.  Day 7 lands the explicit
-     * opt-in path only — `opts->backend == SPARSE_EIGS_BACKEND_LOBPCG`
-     * routes to `s21_lobpcg_solve` (currently a BADARG stub; Days 8-9
-     * fill the body).  Day 10 extends AUTO to also route to LOBPCG
-     * above the n / block_size / precond threshold; until then,
-     * AUTO continues to pick between Lanczos and thick-restart per
-     * the existing size threshold. */
-    if (o->backend == SPARSE_EIGS_BACKEND_LOBPCG) {
+    /* Sprint 21 Day 10: AUTO + explicit-opt-in dispatch decision tree.
+     *
+     * Three concrete backends, two AUTO crossover thresholds.  In
+     * priority order:
+     *
+     *   1. Explicit `opts->backend == SPARSE_EIGS_BACKEND_LOBPCG`:
+     *      route to LOBPCG.  Honored regardless of preconditioner /
+     *      n / block_size — the user asked for LOBPCG.
+     *   2. Explicit `opts->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`:
+     *      route to thick-restart.
+     *   3. AUTO with preconditioner + large n + adequate block:
+     *      route to LOBPCG (Day 10 addition; the precond is the
+     *      signal that the caller is prepared for LOBPCG's per-iter
+     *      block work).
+     *   4. AUTO with `n >= SPARSE_EIGS_THICK_RESTART_THRESHOLD`:
+     *      route to thick-restart Lanczos (Day 4 routing, unchanged).
+     *   5. Otherwise: grow-m Lanczos (Sprint 20 default).
+     *
+     * The AUTO LOBPCG route requires `block_size >= 4` (defaulting
+     * to `k` when `block_size == 0`) — below that the block is too
+     * small to amortise the per-iteration Jacobi cost vs Lanczos's
+     * single-vector iteration.  See `SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD`
+     * in the public header for the n threshold rationale. */
+    int explicit_lobpcg = (o->backend == SPARSE_EIGS_BACKEND_LOBPCG);
+    idx_t bs_for_auto = (o->block_size > 0) ? o->block_size : k;
+    int auto_lobpcg = (o->backend == SPARSE_EIGS_BACKEND_AUTO) && (o->precond != NULL) &&
+                      (n >= (idx_t)SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD) && (bs_for_auto >= 4);
+    if (explicit_lobpcg || auto_lobpcg) {
         result->backend_used = SPARSE_EIGS_BACKEND_LOBPCG;
         sparse_err_t lobpcg_rc =
             s21_lobpcg_solve(op_fn, op_ctx, n, k, o, eff_tol, max_iters, result);

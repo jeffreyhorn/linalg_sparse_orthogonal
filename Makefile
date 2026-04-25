@@ -126,7 +126,8 @@ BENCH_SRCS = $(BENCHDIR)/bench_main.c \
              $(BENCHDIR)/bench_bicgstab.c \
              $(BENCHDIR)/bench_chol_csc.c \
              $(BENCHDIR)/bench_ldlt_csc.c \
-             $(BENCHDIR)/bench_refactor_csc.c
+             $(BENCHDIR)/bench_refactor_csc.c \
+             $(BENCHDIR)/bench_eigs.c
 BENCH_BINS = $(patsubst $(BENCHDIR)/%.c,$(BUILDDIR)/%,$(BENCH_SRCS))
 
 # Example sources
@@ -209,6 +210,14 @@ bench: $(BENCH_BINS)
 bench-suitesparse: $(BUILDDIR)/bench_main
 	@$(BUILDDIR)/bench_main --dir tests/data/suitesparse --pivot partial --repeat 3
 	@$(BUILDDIR)/bench_main --dir tests/data/suitesparse --pivot complete --repeat 3
+
+# Sprint 21 Day 11: eigensolver bench (default sweep across all three
+# backends on the SuiteSparse + KKT corpus).  Smoke invocation —
+# emits a human-readable table to stdout; pass `--csv` to capture
+# CSV instead.
+.PHONY: bench-eigs
+bench-eigs: $(BUILDDIR)/bench_eigs
+	@$(BUILDDIR)/bench_eigs --sweep default --repeats 3
 
 # Build and test with UBSan
 .PHONY: sanitize

@@ -2203,62 +2203,526 @@ cleanup:
  *     481-514.  (BLOPEX-style P-update formulation.)
  */
 
-/* Day 7 stubs: parameters are mutable in the implemented form (Day 8
- * writes through Q / X / W / P / theta_out / block_size_out / result),
- * but the stub bodies don't, which trips clang-tidy's
- * `readability-non-const-parameter`.  Silence with NOLINTBEGIN /
- * NOLINTEND so the stub signatures match the day-8 implementation
- * exactly without a header churn when the body lands. */
-
-/* Day 7 stub: orthonormalise an n × block_size_in column-major block
- * via per-column modified Gram-Schmidt with scale-aware breakdown
- * ejection (Sprint 20 commit 70015a4 pattern).  Day 8 fills the body. */
-// NOLINTBEGIN(readability-non-const-parameter)
+/* Day 8: orthonormalise an n × block_size_in column-major block via
+ * per-column modified Gram-Schmidt with scale-aware breakdown
+ * ejection.  Walks columns left-to-right, applying MGS against the
+ * already-accepted columns 0..accepted-1 and either accepting (post-
+ * MGS norm above threshold → normalise + advance) or ejecting
+ * (post-MGS norm collapsed → linear-dependence on prior columns;
+ * skip and forward-compact subsequent columns into this slot).
+ *
+ * Breakdown threshold mirrors the Sprint 20 commit 70015a4 pattern:
+ * a relative `scale * 1e-14` threshold where `scale` is the running
+ * max input column norm (pre-MGS), with a `DBL_MIN * 100` absolute
+ * floor for the all-zero edge case. */
 sparse_err_t s21_lobpcg_orthonormalize_block(double *Q, idx_t n, idx_t block_size_in,
                                              idx_t *block_size_out) {
-    (void)Q;
-    (void)n;
-    (void)block_size_in;
-    (void)block_size_out;
-    return SPARSE_ERR_BADARG;
-}
-// NOLINTEND(readability-non-const-parameter)
+    if (!Q || !block_size_out)
+        return SPARSE_ERR_NULL;
+    if (n < 1 || block_size_in < 0)
+        return SPARSE_ERR_BADARG;
 
-/* Day 7 stub: one block Rayleigh-Ritz step.  Day 8 implements via
- * Q := [X | W | P]; orthonormalise; G := Q^T·A·Q; Jacobi eigensolve;
- * select block_size pairs by `which`; update X / P from Y. */
-// NOLINTBEGIN(readability-non-const-parameter)
+    if (block_size_in == 0) {
+        *block_size_out = 0;
+        return SPARSE_OK;
+    }
+
+    double scale = 0.0;
+    idx_t accepted = 0;
+
+    for (idx_t j = 0; j < block_size_in; j++) {
+        double *col_in = Q + (size_t)j * (size_t)n;
+        double *col_out = Q + (size_t)accepted * (size_t)n;
+
+        /* Forward-compact when prior ejections have left a gap.
+         * When `accepted == j` (no ejections yet) the copy is a
+         * no-op and we skip it. */
+        if (accepted != j) {
+            for (idx_t i = 0; i < n; i++)
+                col_out[i] = col_in[i];
+        }
+
+        /* Pre-MGS norm tracks the running scale of the input — a
+         * "raw magnitude" reference for the post-MGS breakdown
+         * comparison.  Without this, scale would always equal 1
+         * (post-normalisation) and the threshold would fail to
+         * distinguish a near-collinear column from a genuinely
+         * orthogonal one. */
+        double sq_in = 0.0;
+        for (idx_t i = 0; i < n; i++)
+            sq_in += col_out[i] * col_out[i];
+        double norm_in = sqrt(sq_in);
+        if (norm_in > scale)
+            scale = norm_in;
+
+        /* MGS against the prior accepted columns — reuses the
+         * Sprint 20/21 OMP-parallel kernel so block orthogonalisation
+         * automatically benefits from the matvec-class parallelism. */
+        s21_mgs_reorth(col_out, Q, n, accepted);
+
+        double sq_out = 0.0;
+        for (idx_t i = 0; i < n; i++)
+            sq_out += col_out[i] * col_out[i];
+        double norm_out = sqrt(sq_out);
+
+        double breakdown_tol = scale * 1e-14;
+        if (breakdown_tol < DBL_MIN * 100.0)
+            breakdown_tol = DBL_MIN * 100.0;
+
+        if (norm_out > breakdown_tol) {
+            double inv = 1.0 / norm_out;
+            for (idx_t i = 0; i < n; i++)
+                col_out[i] *= inv;
+            accepted++;
+        }
+        /* Else: ejected.  Next column overwrites this slot via the
+         * forward-compact copy at the top of the next iteration. */
+    }
+
+    *block_size_out = accepted;
+    return SPARSE_OK;
+}
+
+/* Day 8: deterministic pseudo-random initial X for LOBPCG.  Extends
+ * the Sprint 20 `s20_lanczos_starting_vector` per-column with a
+ * column-dependent additive shift in the golden-ratio fractional
+ * argument (using π for an irrational that is incommensurate with
+ * the golden ratio, so different columns produce linearly-independent
+ * starting vectors with high probability for the small n × bs we
+ * care about).  Reproducible across runs. */
+static void s21_lobpcg_init_X(double *X, idx_t n, idx_t bs) {
+    for (idx_t j = 0; j < bs; j++) {
+        double *col = X + (size_t)j * (size_t)n;
+        for (idx_t i = 0; i < n; i++) {
+            double x = (double)(i + 1) * 0.618033988749895 + (double)(j + 1) * 0.31415926535897932;
+            col[i] = 0.3 + (x - floor(x));
+        }
+    }
+}
+
+/* Day 8: one block Rayleigh-Ritz step.
+ *
+ *   Q ← [X | W | P]   (n × cap, where cap = 3·bs or 2·bs when P==NULL)
+ *   orthonormalise Q in place                  → K_eff cols
+ *   G ← Q^T · A · Q                            (K_eff × K_eff)
+ *   diagonalise G via Jacobi                   → theta_full, Y
+ *   select bs Ritz pairs per `which`           → sel_idx
+ *   X_new ← Q · Y[:, sel_idx]                  (n × bs)
+ *   P_new ← X_new − X · (X^T · X_new)          (orthogonal-projection
+ *                                               formulation; equivalent
+ *                                               to Knyazev eq. 2.11
+ *                                               when X is orthonormal,
+ *                                               which we maintain
+ *                                               across iterations)
+ *
+ * Memory: n × cap doubles for Q + n × cap for AQ + cap × cap for G + Y
+ * + cap doubles for theta_full + n × bs for X_new + n × bs for P_new.
+ * For bs = 5 and n = 1806 this is ~75 KB per RR step, dwarfed by the
+ * Lanczos basis allocations. */
 sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_t block_size,
                                 double *X, double *W, double *P, sparse_eigs_which_t which,
                                 double *theta_out) {
-    (void)op;
-    (void)ctx;
-    (void)n;
-    (void)block_size;
-    (void)X;
-    (void)W;
-    (void)P;
-    (void)which;
-    (void)theta_out;
-    return SPARSE_ERR_BADARG;
-}
-// NOLINTEND(readability-non-const-parameter)
+    if (!op || !X || !W || !theta_out)
+        return SPARSE_ERR_NULL;
+    if (n < 1 || block_size < 1)
+        return SPARSE_ERR_BADARG;
 
-/* Day 7 stub: LOBPCG outer loop dispatched from `sparse_eigs_sym`
- * when `opts->backend == SPARSE_EIGS_BACKEND_LOBPCG`.  Day 8 fills
- * the unpreconditioned body; Day 9 wires `o->precond`. */
-// NOLINTBEGIN(readability-non-const-parameter)
+    int has_p = (P != NULL);
+    idx_t cap = has_p ? 3 * block_size : 2 * block_size;
+    if (cap > n)
+        return SPARSE_ERR_BADARG;
+
+    /* Workspace allocation.  All sizes bounded by (n, cap) where
+     * cap ≤ 3·bs.  Single sparse_err_t propagation site below
+     * via goto cleanup. */
+    size_t nc_bytes = 0, cc_bytes = 0, nb_bytes = 0;
+    if (size_mul_overflow((size_t)n, (size_t)cap, &nc_bytes) ||
+        size_mul_overflow(nc_bytes, sizeof(double), &nc_bytes) ||
+        size_mul_overflow((size_t)cap, (size_t)cap, &cc_bytes) ||
+        size_mul_overflow(cc_bytes, sizeof(double), &cc_bytes) ||
+        size_mul_overflow((size_t)n, (size_t)block_size, &nb_bytes) ||
+        size_mul_overflow(nb_bytes, sizeof(double), &nb_bytes))
+        return SPARSE_ERR_ALLOC;
+
+    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
+    double *Q = malloc(nc_bytes);
+    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
+    double *AQ = malloc(nc_bytes);
+    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
+    double *G = malloc(cc_bytes);
+    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
+    double *Y = malloc(cc_bytes);
+    double *theta_full = malloc((size_t)cap * sizeof(double));
+    idx_t *sel_idx = malloc((size_t)block_size * sizeof(idx_t));
+    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
+    double *X_new = malloc(nb_bytes);
+    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
+    double *P_new = has_p ? malloc(nb_bytes) : NULL;
+
+    sparse_err_t rc = SPARSE_OK;
+    if (!Q || !AQ || !G || !Y || !theta_full || !sel_idx || !X_new || (has_p && !P_new)) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
+
+    /* Q ← [X | W | P] (column-major concatenation). */
+    size_t nb = (size_t)n * (size_t)block_size;
+    memcpy(Q, X, nb * sizeof(double));
+    memcpy(Q + nb, W, nb * sizeof(double));
+    if (has_p)
+        memcpy(Q + 2 * nb, P, nb * sizeof(double));
+
+    /* In-place orthonormalisation of Q with scale-aware breakdown
+     * ejection.  K_eff ≤ cap is the effective subspace dimension. */
+    idx_t K_eff = 0;
+    sparse_err_t err = s21_lobpcg_orthonormalize_block(Q, n, cap, &K_eff);
+    if (err != SPARSE_OK) {
+        rc = err;
+        goto cleanup;
+    }
+    if (K_eff < block_size) {
+        /* The X block alone didn't survive orthogonalisation —
+         * caller's X is rank-deficient.  Punt back to the outer
+         * loop's allocation/init path. */
+        rc = SPARSE_ERR_BADARG;
+        goto cleanup;
+    }
+
+    /* AQ ← A · Q, column-by-column.  Sprint 22 may swap in a block
+     * matvec; for now per-column matches the existing op_fn shape
+     * unchanged from the Lanczos backends. */
+    for (idx_t j = 0; j < K_eff; j++) {
+        err = op(ctx, n, Q + (size_t)j * (size_t)n, AQ + (size_t)j * (size_t)n);
+        if (err != SPARSE_OK) {
+            rc = err;
+            goto cleanup;
+        }
+    }
+
+    /* G ← Q^T · AQ.  Symmetric K_eff × K_eff Gram matrix; explicit
+     * symmetrisation suppresses the ~eps·||A|| asymmetry that
+     * floating-point rounding leaves in the off-diagonal entries
+     * (matters for Jacobi's `apq == aqp` invariant). */
+    for (idx_t i = 0; i < K_eff; i++) {
+        const double *qi = Q + (size_t)i * (size_t)n;
+        for (idx_t j = 0; j < K_eff; j++) {
+            const double *aqj = AQ + (size_t)j * (size_t)n;
+            double s = 0.0;
+            for (idx_t r = 0; r < n; r++)
+                s += qi[r] * aqj[r];
+            G[(size_t)i + (size_t)j * (size_t)K_eff] = s;
+        }
+    }
+    for (idx_t i = 0; i < K_eff; i++) {
+        for (idx_t j = i + 1; j < K_eff; j++) {
+            size_t ij = (size_t)i + (size_t)j * (size_t)K_eff;
+            size_t ji = (size_t)j + (size_t)i * (size_t)K_eff;
+            double avg = 0.5 * (G[ij] + G[ji]);
+            G[ij] = avg;
+            G[ji] = avg;
+        }
+    }
+
+    /* Diagonalise G via the Sprint 21 Day 2 dense Jacobi helper.
+     * theta_full is sorted ascending; Y is K_eff × K_eff column-major. */
+    err = s21_dense_sym_jacobi(G, K_eff, theta_full, Y);
+    if (err != SPARSE_OK) {
+        rc = err;
+        goto cleanup;
+    }
+
+    /* Select block_size Ritz pairs per `which`. */
+    idx_t take = s20_select_indices(theta_full, K_eff, which, block_size, sel_idx);
+    if (take < block_size) {
+        /* Subspace too small to extract block_size pairs.  Caller's
+         * outer loop treats this as a non-convergent step. */
+        rc = SPARSE_ERR_NOT_CONVERGED;
+        goto cleanup;
+    }
+
+    /* X_new ← Q · Y[:, sel_idx].  Column j of X_new is a linear
+     * combination of Q's columns weighted by Y's selected eigenvector. */
+    for (idx_t j = 0; j < block_size; j++) {
+        const double *yj = Y + (size_t)sel_idx[j] * (size_t)K_eff;
+        double *xn = X_new + (size_t)j * (size_t)n;
+        for (idx_t i = 0; i < n; i++)
+            xn[i] = 0.0;
+        for (idx_t c = 0; c < K_eff; c++) {
+            double yc = yj[c];
+            if (yc == 0.0)
+                continue;
+            const double *qc = Q + (size_t)c * (size_t)n;
+            for (idx_t i = 0; i < n; i++)
+                xn[i] += yc * qc[i];
+        }
+    }
+
+    /* P_new ← X_new − X · (X^T · X_new).  This is the orthogonal-
+     * projection formulation of Knyazev's eq. 2.11: when X is
+     * orthonormal (which we maintain across iterations because each
+     * X_new is built from an orthonormal Q via an orthogonal Y), the
+     * formula reduces to subtracting the X-subspace contributions
+     * from X_new, leaving only the W and P contributions — which is
+     * exactly what Knyazev's block-structured formula extracts.
+     * Numerically: this avoids carrying separate Y_W / Y_P partitions
+     * and instead lets a per-column dot product handle the bookkeeping. */
+    if (has_p) {
+        for (idx_t j = 0; j < block_size; j++) {
+            const double *xn = X_new + (size_t)j * (size_t)n;
+            double *pn = P_new + (size_t)j * (size_t)n;
+            for (idx_t i = 0; i < n; i++)
+                pn[i] = xn[i];
+            for (idx_t l = 0; l < block_size; l++) {
+                const double *xl = X + (size_t)l * (size_t)n;
+                double dot = 0.0;
+                for (idx_t i = 0; i < n; i++)
+                    dot += xn[i] * xl[i];
+                for (idx_t i = 0; i < n; i++)
+                    pn[i] -= dot * xl[i];
+            }
+        }
+    }
+
+    /* Write back X = X_new, P = P_new (when P provided), and the
+     * selected Ritz values. */
+    memcpy(X, X_new, nb * sizeof(double));
+    if (has_p)
+        memcpy(P, P_new, nb * sizeof(double));
+    for (idx_t j = 0; j < block_size; j++)
+        theta_out[j] = theta_full[sel_idx[j]];
+
+cleanup:
+    free(Q);
+    free(AQ);
+    free(G);
+    free(Y);
+    free(theta_full);
+    free(sel_idx);
+    free(X_new);
+    free(P_new);
+    return rc;
+}
+
+/* Day 8: LOBPCG outer loop (vanilla / unpreconditioned).
+ *
+ * 1. Allocate X, W, P, AX (each n × bs).
+ * 2. Initialise X with deterministic pseudo-random columns,
+ *    orthonormalise.
+ * 3. Compute AX = A · X and initial Rayleigh quotients
+ *    theta_j = <X[:, j], AX[:, j]>.
+ * 4. Loop until convergence or max_iters:
+ *    a. Compute residual W = AX − X · diag(theta).  (Day 9 will
+ *       apply o->precond when non-NULL; Day 8 keeps W = R.)
+ *    b. Per-column Wu/Simon residual:
+ *           ||W[:, j]|| / max(|theta_j|, scale)
+ *       Track max across columns; converged when below `eff_tol`.
+ *    c. Run `s21_lobpcg_rr_step(X, W, P)` — updates X, P, theta in
+ *       place over the [X | W | P] subspace.
+ *    d. Recompute AX = A · X for the next residual.
+ *
+ * On the first iteration P is passed as NULL (signals "no P yet");
+ * `s21_lobpcg_rr_step` handles the 2·bs subspace case by skipping
+ * the P concatenation and the P_new write-back.  Subsequent
+ * iterations pass the persistent P buffer.
+ *
+ * On reaching `max_iters` without convergence, returns
+ * SPARSE_ERR_NOT_CONVERGED with the current best Ritz values written
+ * to result->eigenvalues (matching the Sprint 20 grow-m partial-
+ * results contract). */
 sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t k,
                               const sparse_eigs_opts_t *o, double eff_tol, idx_t max_iters,
                               sparse_eigs_t *result) {
-    (void)op;
-    (void)ctx;
-    (void)n;
-    (void)k;
-    (void)o;
-    (void)eff_tol;
-    (void)max_iters;
-    (void)result;
-    return SPARSE_ERR_BADARG;
+    if (!op || !o || !result || !result->eigenvalues)
+        return SPARSE_ERR_NULL;
+    if (n < 1 || k < 1 || max_iters < 1)
+        return SPARSE_ERR_BADARG;
+
+    /* Resolve effective block size.  o->block_size == 0 selects the
+     * library default `bs = k`; sparse_eigs_sym already validated
+     * that nonzero values satisfy `k ≤ block_size ≤ n`. */
+    idx_t bs = (o->block_size > 0) ? o->block_size : k;
+    if (bs > n)
+        bs = n;
+    if (bs < k)
+        return SPARSE_ERR_BADARG;
+
+    /* peak_basis_size telemetry: outer-loop holds X + W + P + AX = 4·bs
+     * length-n vectors live; the RR step adds another 3·bs (Q) +
+     * 3·bs (AQ) inside its scope.  Peak across the call is therefore
+     * 4·bs (outer) + 6·bs (RR transient) = 10·bs.  Lower bound for
+     * the reservation comparison vs the Lanczos backends. */
+    result->peak_basis_size = 10 * bs;
+
+    /* Workspace allocation.  Single sparse_err_t propagation via
+     * goto cleanup; mirrors the thick-restart outer loop's pattern. */
+    size_t nb_bytes = 0;
+    if (size_mul_overflow((size_t)n, (size_t)bs, &nb_bytes) ||
+        size_mul_overflow(nb_bytes, sizeof(double), &nb_bytes))
+        return SPARSE_ERR_ALLOC;
+
+    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
+    double *X = malloc(nb_bytes);
+    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
+    double *W = malloc(nb_bytes);
+    double *P = NULL; /* allocated lazily after the first RR step */
+    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
+    double *AX = malloc(nb_bytes);
+    double *theta = malloc((size_t)bs * sizeof(double));
+
+    sparse_err_t rc = SPARSE_ERR_NOT_CONVERGED;
+    idx_t total_iters = 0;
+    double last_res_rel = 0.0;
+
+    if (!X || !W || !AX || !theta) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
+
+    /* Step 1: deterministic pseudo-random init + orthonormalise. */
+    s21_lobpcg_init_X(X, n, bs);
+    idx_t bs_eff = 0;
+    sparse_err_t err = s21_lobpcg_orthonormalize_block(X, n, bs, &bs_eff);
+    if (err != SPARSE_OK) {
+        rc = err;
+        goto cleanup;
+    }
+    if (bs_eff < k) {
+        /* Pathological: starting vectors collapsed to a subspace
+         * smaller than k.  Should never happen with the golden-
+         * ratio init for n ≥ k ≥ 1. */
+        rc = SPARSE_ERR_BADARG;
+        goto cleanup;
+    }
+    bs = bs_eff;
+
+    /* Step 2: AX = A · X, then theta_j = <X[:, j], AX[:, j]>. */
+    for (idx_t j = 0; j < bs; j++) {
+        err = op(ctx, n, X + (size_t)j * (size_t)n, AX + (size_t)j * (size_t)n);
+        if (err != SPARSE_OK) {
+            rc = err;
+            goto cleanup;
+        }
+    }
+    for (idx_t j = 0; j < bs; j++) {
+        const double *xj = X + (size_t)j * (size_t)n;
+        const double *axj = AX + (size_t)j * (size_t)n;
+        double s = 0.0;
+        for (idx_t i = 0; i < n; i++)
+            s += xj[i] * axj[i];
+        theta[j] = s;
+    }
+
+    /* Step 3: outer loop until convergence or max_iters. */
+    for (idx_t iter = 0; iter < max_iters; iter++) {
+        total_iters = iter + 1;
+
+        /* Residual W = AX − X · diag(theta).  Vanilla LOBPCG: W
+         * is also the preconditioned residual (Day 9 layers
+         * o->precond on top). */
+        for (idx_t j = 0; j < bs; j++) {
+            const double *xj = X + (size_t)j * (size_t)n;
+            const double *axj = AX + (size_t)j * (size_t)n;
+            double *wj = W + (size_t)j * (size_t)n;
+            double tj = theta[j];
+            for (idx_t i = 0; i < n; i++)
+                wj[i] = axj[i] - tj * xj[i];
+        }
+
+        /* Per-column Wu/Simon residual: ||W[:, j]|| / max(|theta_j|, scale).
+         * scale = max |theta| across the block; matches the Lanczos
+         * backends so result->residual_norm has consistent semantics. */
+        double scale = 0.0;
+        for (idx_t j = 0; j < bs; j++) {
+            double a = fabs(theta[j]);
+            if (a > scale)
+                scale = a;
+        }
+        double max_res_rel = 0.0;
+        for (idx_t j = 0; j < bs; j++) {
+            const double *wj = W + (size_t)j * (size_t)n;
+            double sq = 0.0;
+            for (idx_t i = 0; i < n; i++)
+                sq += wj[i] * wj[i];
+            double r_norm = sqrt(sq);
+            double anchor = fabs(theta[j]);
+            if (anchor < scale * 1e-12)
+                anchor = scale > 0.0 ? scale : 1.0;
+            double rel = r_norm / anchor;
+            if (rel > max_res_rel)
+                max_res_rel = rel;
+        }
+        last_res_rel = max_res_rel;
+        if (max_res_rel <= eff_tol) {
+            rc = SPARSE_OK;
+            break;
+        }
+
+        /* Day 9: preconditioner application on W goes here.  Day 8
+         * leaves W = R (vanilla LOBPCG). */
+
+        /* Rayleigh-Ritz step.  P is NULL on the first iteration so
+         * the RR step works on the 2·bs subspace [X | W]; from
+         * iter 1 onward P is allocated and carries the search
+         * direction across iterations. */
+        err = s21_lobpcg_rr_step(op, ctx, n, bs, X, W, P, o->which, theta);
+        if (err != SPARSE_OK) {
+            rc = err;
+            goto cleanup;
+        }
+
+        /* Lazy P allocation.  After the first RR step X has been
+         * updated in span(X_old, W) but P_new wasn't computed (P was
+         * NULL).  Allocate P now and zero it; the next iteration
+         * builds the real P_new from the X_new − X · (X^T · X_new)
+         * formula in `s21_lobpcg_rr_step`.  An equivalent — and a
+         * tiny bit faster — approach would be to always allocate P
+         * up front and pass a non-NULL zero block; the lazy form
+         * matches the documented Day 7 contract that P==NULL on
+         * the first call. */
+        if (!P) {
+            // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
+            P = malloc(nb_bytes);
+            if (!P) {
+                rc = SPARSE_ERR_ALLOC;
+                goto cleanup;
+            }
+            memset(P, 0, nb_bytes);
+        }
+
+        /* AX = A · X for the next residual. */
+        for (idx_t j = 0; j < bs; j++) {
+            err = op(ctx, n, X + (size_t)j * (size_t)n, AX + (size_t)j * (size_t)n);
+            if (err != SPARSE_OK) {
+                rc = err;
+                goto cleanup;
+            }
+        }
+    }
+
+    /* Emit results.  Pick the first k of the bs converged columns
+     * (the RR step's selection has already ordered them per `which`). */
+    idx_t emit = (k < bs) ? k : bs;
+    for (idx_t j = 0; j < emit; j++) {
+        double t = theta[j];
+        result->eigenvalues[j] = (o->which == SPARSE_EIGS_NEAREST_SIGMA) ? (o->sigma + 1.0 / t) : t;
+    }
+    if (o->compute_vectors) {
+        for (idx_t j = 0; j < emit; j++) {
+            const double *xj = X + (size_t)j * (size_t)n;
+            double *vj = result->eigenvectors + (size_t)j * (size_t)n;
+            for (idx_t i = 0; i < n; i++)
+                vj[i] = xj[i];
+        }
+    }
+    result->n_converged = (rc == SPARSE_OK) ? emit : 0;
+    result->iterations = total_iters;
+    result->residual_norm = last_res_rel;
+
+cleanup:
+    free(X);
+    free(W);
+    free(P);
+    free(AX);
+    free(theta);
+    return rc;
 }
-// NOLINTEND(readability-non-const-parameter)

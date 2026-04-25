@@ -78,15 +78,17 @@
  * iterative-solver convention in `sparse_iterative.h`
  * (`residual_history` is caller-allocated).  The library writes
  * scalar output fields (`n_requested`, `n_converged`, `iterations`,
- * `residual_norm`, `used_csc_path_ldlt`) into `sparse_eigs_t` on
- * return.  No library-side allocation means no `sparse_eigs_free`
- * helper is needed — caller frees its own buffers.
+ * `residual_norm`, `used_csc_path_ldlt`, `peak_basis_size`,
+ * `backend_used`) into `sparse_eigs_t` on return.  No library-side
+ * allocation means no `sparse_eigs_free` helper is needed — caller
+ * frees its own buffers.
  *
  * @see sparse_ldlt.h — factorisation backend used by shift-invert.
  * @see sparse_svd.h — related decomposition for rectangular A.
  * @see docs/algorithm.md — Lanczos theory and implementation notes.
  */
 
+#include "sparse_iterative.h" /* sparse_precond_fn for LOBPCG (Sprint 21 Day 7) */
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 
@@ -131,15 +133,27 @@ typedef enum {
  *   restart phases; peak memory `O((k + m_restart) · n)`
  *   regardless of total iteration count.  Use this for large-n
  *   problems where the grow-m path would blow memory holding V.
- * - (Reserved, Sprint 21 Days 7-10) `SPARSE_EIGS_BACKEND_LOBPCG`:
- *   Locally Optimal Block Preconditioned Conjugate Gradient; plugs
- *   into the same `sparse_eigs_t` API via this enum slot.
+ * - `SPARSE_EIGS_BACKEND_LOBPCG` (Sprint 21 Days 7-10):
+ *   Knyazev's Locally Optimal Block Preconditioned Conjugate
+ *   Gradient (Knyazev 2001).  Iterates a block of `block_size`
+ *   approximate eigenvectors X by block Rayleigh-Ritz on the
+ *   subspace `[X, W, P]` where W is the (preconditioned) residual
+ *   and P is the previous step's search direction.  Plugs the
+ *   Sprint 13 IC(0) / LDL^T preconditioners in via `opts->precond`,
+ *   composing with the rest of the eigensolver pipeline through the
+ *   same `sparse_precond_fn` callback the iterative solvers use.
+ *   Best for ill-conditioned SPD problems where a cheap
+ *   preconditioner is available; vanilla (`precond == NULL`) LOBPCG
+ *   is correct but converges slower than Lanczos on the well-
+ *   conditioned corpus.  Day 7 lands the API surface and stubs;
+ *   Day 8 implements the unpreconditioned core; Day 9 wires the
+ *   preconditioner; Day 10 tunes AUTO routing.
  */
 typedef enum {
     SPARSE_EIGS_BACKEND_AUTO = 0,
     SPARSE_EIGS_BACKEND_LANCZOS = 1,
     SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART = 2,
-    /* Sprint 21 Days 7-10: SPARSE_EIGS_BACKEND_LOBPCG = 3, */
+    SPARSE_EIGS_BACKEND_LOBPCG = 3,
 } sparse_eigs_backend_t;
 
 /**
@@ -175,7 +189,10 @@ typedef enum {
  * Pass NULL to `sparse_eigs_sym()` to use defaults:
  * `which = LARGEST`, `sigma = 0.0`, `max_iterations = 0` (library
  * default), `tol = 0.0` (library default 1e-10), `reorthogonalize =
- * 1`, `compute_vectors = 0`, `backend = AUTO`.
+ * 1`, `compute_vectors = 0`, `backend = AUTO`, `block_size = 0`
+ * (library default `block_size = k` for LOBPCG; ignored for
+ * Lanczos), `precond = NULL` / `precond_ctx = NULL` (vanilla
+ * LOBPCG; ignored for Lanczos).
  */
 typedef struct {
     /** Which portion of the spectrum to return. */
@@ -231,6 +248,41 @@ typedef struct {
     /** Backend selector — see `sparse_eigs_backend_t`.  Default
      *  AUTO routes to Lanczos. */
     sparse_eigs_backend_t backend;
+    /** LOBPCG block size — number of approximate eigenvector columns
+     *  iterated together (Sprint 21 Day 7).  Ignored unless
+     *  `backend == SPARSE_EIGS_BACKEND_LOBPCG` (or AUTO routes
+     *  there).  0 (the designated-init default) selects the library
+     *  default `block_size = k`, which is the minimum that produces
+     *  k Ritz pairs per Rayleigh-Ritz step.  Larger blocks accelerate
+     *  convergence on clustered spectra at the cost of more memory
+     *  (peak `O((3 · block_size) · n)`).  Must satisfy
+     *  `0 <= block_size` and, when nonzero, `k <= block_size <= n`.
+     *  Values of `block_size < k` are rejected with
+     *  SPARSE_ERR_BADARG.
+     *
+     *  Backwards compatibility: this field is trailing in the
+     *  struct, so designated-initialiser callers from before
+     *  Sprint 21 still compile and get the library default. */
+    idx_t block_size;
+    /** LOBPCG preconditioner callback (Sprint 21 Days 7-9).  When
+     *  non-NULL, applied to each column of the residual block W in
+     *  every LOBPCG iteration: `precond(precond_ctx, n, R[:, j],
+     *  W[:, j])`.  NULL selects vanilla (unpreconditioned) LOBPCG —
+     *  correct but typically slower convergence on ill-conditioned
+     *  problems.  See `sparse_iterative.h` for the typedef and
+     *  `sparse_ic.h` / `sparse_ldlt.h` for ready-made preconditioner
+     *  builders.
+     *
+     *  Ignored when `backend != SPARSE_EIGS_BACKEND_LOBPCG`. */
+    sparse_precond_fn precond;
+    /** Opaque context pointer passed through unchanged to the
+     *  `precond` callback.  Typically a pointer to a factored
+     *  preconditioner struct (e.g. `sparse_ilu_t *` for IC(0),
+     *  `sparse_ldlt_t *` for LDL^T).  When `precond == NULL` this
+     *  field is ignored — but `precond_ctx != NULL` while
+     *  `precond == NULL` is rejected as SPARSE_ERR_BADARG (the
+     *  obvious user error of forgetting to set the callback). */
+    const void *precond_ctx;
 } sparse_eigs_opts_t;
 
 /**
@@ -294,6 +346,18 @@ typedef struct {
      *  state's `V_locked` block).  Reported in doubles-times-`n`
      *  units — multiply by `n * sizeof(double)` to get bytes. */
     idx_t peak_basis_size;
+    /** Output: which backend the library actually dispatched to.
+     *  Mirrors `sparse_ldlt_t::used_csc_path` in spirit — when
+     *  `opts->backend == SPARSE_EIGS_BACKEND_AUTO`, AUTO picks one
+     *  of the concrete backends per the size threshold (currently
+     *  LANCZOS below `SPARSE_EIGS_THICK_RESTART_THRESHOLD` and
+     *  LANCZOS_THICK_RESTART above; Sprint 21 Day 10 extends this
+     *  to also route LOBPCG when a preconditioner is supplied).
+     *  Set on every successful return; on early-error returns the
+     *  field retains its pre-call value.  Sprint 21 Day 7
+     *  observability — used by the Day 11 `bench_eigs` driver to
+     *  log AUTO's choice per fixture in the CSV output. */
+    sparse_eigs_backend_t backend_used;
 } sparse_eigs_t;
 
 /**

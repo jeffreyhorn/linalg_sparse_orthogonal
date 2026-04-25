@@ -12,6 +12,7 @@
  * shipped in the library's public headers.
  */
 
+#include "sparse_eigs.h" /* sparse_eigs_opts_t / sparse_eigs_t for LOBPCG entry point. */
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 
@@ -435,5 +436,158 @@ sparse_err_t lanczos_thick_restart_iterate(lanczos_op_fn op, const void *ctx, id
                                            const double *v0, idx_t m_restart, int reorthogonalize,
                                            lanczos_restart_state_t *state, double *V, double *alpha,
                                            double *beta, idx_t *m_actual);
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 21 Day 7: LOBPCG building blocks (Knyazev 2001)
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * The Sprint 21 Days 7-10 LOBPCG backend reuses the Sprint 20
+ * `lanczos_op_fn` callback type for `A · X` multiplies (one
+ * application per column of the n × block_size X / W / P blocks for
+ * now; Sprint 22 may introduce a block matvec) and the
+ * `sparse_precond_fn` callback from `sparse_iterative.h` for the
+ * preconditioner that turns the residual block R into the
+ * preconditioned-residual block W = M^{-1} · R.
+ *
+ * Day 7 lands the API surface and stubs returning SPARSE_ERR_BADARG;
+ * Day 8 implements the unpreconditioned core; Day 9 wires the
+ * preconditioner and the BLOPEX-style P-block update; Day 10 tunes
+ * AUTO routing.  See the LOBPCG design block at the top of
+ * `src/sparse_eigs.c` (between the Lanczos and thick-restart blocks)
+ * for the full Rayleigh-Ritz pipeline. */
+
+/**
+ * @brief Modified Gram-Schmidt orthonormalisation of an n × block_size
+ *        column-major block (Sprint 21 Day 7 stub; Day 8 fills the
+ *        body).
+ *
+ * Walks the columns of `Q` left-to-right.  For each column j:
+ *   - Apply MGS against the previously-orthonormalised columns
+ *     0..j-1 of Q.
+ *   - Compute the resulting column norm.
+ *   - If the norm exceeds the breakdown threshold (`scale * 1e-14`,
+ *     where `scale` is the running max of accepted column norms with
+ *     a `DBL_MIN * 100` floor), normalise the column and accept it.
+ *   - Otherwise eject the column (overwrite with the next accepted
+ *     column from the right and decrement the trailing pointer); the
+ *     effective block size shrinks accordingly.
+ *
+ * Mirrors the Sprint 20 `s21_mgs_reorth` kernel applied per-column
+ * with the breakdown convention from commit 70015a4.  Preserves
+ * numerical stability of the downstream Rayleigh-Ritz step, which
+ * requires the basis `[X, W, P]` to be orthonormal so the Gram
+ * matrix `Q^T · A · Q` is symmetric (off by O(eps · cond) terms
+ * otherwise).
+ *
+ * @param Q              n × block_size_in, column-major.  Modified
+ *                       in place: accepted columns are normalised
+ *                       and orthogonal to all earlier accepted
+ *                       columns; ejected columns are removed by
+ *                       compacting from the right, so on return only
+ *                       the first *block_size_out columns are
+ *                       meaningful.
+ * @param n              Vector length.
+ * @param block_size_in  Input block size (>= 0; 0 is a no-op).
+ * @param block_size_out Output: number of accepted (non-ejected)
+ *                       columns.  0 <= *block_size_out <= block_size_in.
+ *
+ * @return SPARSE_OK on success, SPARSE_ERR_NULL / SPARSE_ERR_BADARG
+ *         on invalid arguments.
+ *
+ * **Day 7 stub.** Returns SPARSE_ERR_BADARG; Day 8 replaces the body. */
+sparse_err_t s21_lobpcg_orthonormalize_block(double *Q, idx_t n, idx_t block_size_in,
+                                             idx_t *block_size_out);
+
+/**
+ * @brief One block Rayleigh-Ritz step over the LOBPCG subspace
+ *        `[X, W, P]` (Sprint 21 Day 7 stub; Day 8 fills the body).
+ *
+ * Concatenates the three n × block_size matrices into an
+ * n × (3·block_size) basis Q, orthonormalises it (via
+ * `s21_lobpcg_orthonormalize_block`), forms the Gram matrix
+ * `G = Q^T · A · Q` of size 3·block_size × 3·block_size (symmetric)
+ * by applying `op` columnwise, runs the dense symmetric Jacobi
+ * eigensolver `s21_dense_sym_jacobi` to extract the Ritz pairs of
+ * `G`, selects the `block_size` lowest eigenvalues (or whichever
+ * matches `which`), and forms the next X / P from the combination
+ * coefficients (Knyazev 2001 eq. 2.11; Day 9 swaps in the
+ * BLOPEX-style robust formulation).
+ *
+ * @param op             Symmetric linear operator (A or shift-invert).
+ * @param ctx            Opaque context for `op`.
+ * @param n              Vector length.
+ * @param block_size     LOBPCG block size.  X/W/P are each n × block_size.
+ * @param X              In/out: current eigenvector estimates,
+ *                       n × block_size, column-major.  Replaced with
+ *                       the next iterate on return.
+ * @param W              In/out: preconditioned residual block,
+ *                       n × block_size, column-major.  Used as input
+ *                       only; caller refills for the next iteration.
+ * @param P              In/out: previous search direction block,
+ *                       n × block_size, column-major.  Replaced with
+ *                       the new direction on return.  May be NULL on
+ *                       the first iteration (signals "no P yet").
+ * @param which          Spectrum-selection mode (LARGEST / SMALLEST /
+ *                       NEAREST_SIGMA via the same op-negation /
+ *                       shift-invert wrappers Lanczos uses).
+ * @param theta_out      Output: block_size Ritz values; ordered to
+ *                       match `which`.
+ *
+ * @return SPARSE_OK on success, or any error from `op` /
+ *         allocation / dense eigensolve.
+ *
+ * **Day 7 stub.** Returns SPARSE_ERR_BADARG; Day 8 replaces the body. */
+sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_t block_size,
+                                double *X, double *W, double *P, sparse_eigs_which_t which,
+                                double *theta_out);
+
+/**
+ * @brief LOBPCG outer loop — full block iteration to convergence
+ *        (Sprint 21 Day 7 stub; Days 8-10 fill the body).
+ *
+ * Initialises X to a deterministic block (Sprint 20 golden-ratio
+ * fractional mixing extended across `block_size` columns) and
+ * P := 0.  Each iteration:
+ *
+ *   1. Compute residual `R = A·X − X·diag(theta)` for the current
+ *      Ritz values theta.
+ *   2. Convergence gate per column j: if
+ *      `||R[:, j]|| / max(|theta_j|, scale) <= tol`, mark column j
+ *      as converged.  When all `k` selected columns are converged,
+ *      emit the result and return SPARSE_OK.
+ *   3. Apply the preconditioner: `W[:, j] = precond(R[:, j])` when
+ *      `precond != NULL`, else `W[:, j] = R[:, j]` (vanilla LOBPCG).
+ *   4. Run `s21_lobpcg_rr_step(X, W, P)` — updates X, P, theta in
+ *      place.
+ *
+ * On reaching `max_iters` without converging all `k` columns,
+ * returns SPARSE_ERR_NOT_CONVERGED with the current best estimates
+ * filled in (matches the Sprint 20 grow-m partial-results contract).
+ *
+ * @param op             Symmetric linear operator.
+ * @param ctx            Opaque context for `op`.
+ * @param n              Vector length.
+ * @param k              Number of converged eigenpairs requested.
+ * @param o              Caller's options struct (provides
+ *                       `block_size`, `precond`, `precond_ctx`,
+ *                       `which`, `tol`, `compute_vectors`, `sigma`).
+ * @param eff_tol        Effective convergence tolerance (already
+ *                       resolved in `sparse_eigs_sym`).
+ * @param max_iters      Effective iteration cap (already resolved).
+ * @param result         Output struct; `eigenvalues` /
+ *                       `eigenvectors` buffers caller-allocated.
+ *
+ * @return SPARSE_OK if all k pairs converged.
+ * @return SPARSE_ERR_NOT_CONVERGED on iteration-cap exhaustion with
+ *         partial results filled in.
+ * @return SPARSE_ERR_NULL / _BADARG / _ALLOC for the usual
+ *         preconditions, or any error from `op` / `precond` /
+ *         allocation.
+ *
+ * **Day 7 stub.** Returns SPARSE_ERR_BADARG; Day 8 (vanilla core)
+ * and Day 9 (preconditioning + BLOPEX update) replace the body. */
+sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t k,
+                              const sparse_eigs_opts_t *o, double eff_tol, idx_t max_iters,
+                              sparse_eigs_t *result);
 
 #endif /* SPARSE_EIGS_INTERNAL_H */

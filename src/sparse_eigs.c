@@ -35,7 +35,11 @@
  *   Day 4  — memory-bounded convergence tests + cross-backend
  *            parity vs grow-m on the Sprint 20 corpus.
  *   Days 5-6 — OpenMP reorth parallelism (both backends).
- *   Days 7-10 — LOBPCG solver + AUTO dispatch.
+ *   Day 7  — LOBPCG API surface + Rayleigh-Ritz infrastructure
+ *            stubs (`s21_lobpcg_solve` returns BADARG); design
+ *            block landed here, between the Lanczos and
+ *            thick-restart blocks.
+ *   Days 8-10 — LOBPCG body, preconditioning, AUTO dispatch.
  *   Day 11 — permanent `benchmarks/bench_eigs.c` driver.
  *   Days 12-14 — tests, docs, retrospective.
  */
@@ -588,7 +592,8 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
         o->which != SPARSE_EIGS_NEAREST_SIGMA)
         return SPARSE_ERR_BADARG;
     if (o->backend != SPARSE_EIGS_BACKEND_AUTO && o->backend != SPARSE_EIGS_BACKEND_LANCZOS &&
-        o->backend != SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART)
+        o->backend != SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART &&
+        o->backend != SPARSE_EIGS_BACKEND_LOBPCG)
         return SPARSE_ERR_BADARG;
     if (o->tol < 0.0 || o->max_iterations < 0)
         return SPARSE_ERR_BADARG;
@@ -596,6 +601,21 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
         return SPARSE_ERR_NULL;
     if (o->compute_vectors && !result->eigenvectors)
         return SPARSE_ERR_NULL;
+    /* Sprint 21 Day 7: LOBPCG-specific opts validation.  Block size
+     * must be at least k (so the Rayleigh-Ritz step produces enough
+     * Ritz pairs); the special value 0 means "library default = k"
+     * and is accepted as the designated-init zero default.  The
+     * `precond_ctx != NULL && precond == NULL` mismatch is rejected
+     * as the obvious user error (forgot to set the callback after
+     * binding the context); the inverse `precond != NULL &&
+     * precond_ctx == NULL` is allowed because some preconditioners
+     * carry state via globals or thread-local storage. */
+    if (o->block_size < 0 || o->block_size > n)
+        return SPARSE_ERR_BADARG;
+    if (o->block_size > 0 && o->block_size < k)
+        return SPARSE_ERR_BADARG;
+    if (o->precond_ctx && !o->precond)
+        return SPARSE_ERR_BADARG;
 
     /* Day 11: enforce symmetry precondition.  Matches the Cholesky /
      * IC convention (both call sparse_is_symmetric(A, 1e-12) and
@@ -611,6 +631,7 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     result->residual_norm = 0.0;
     result->used_csc_path_ldlt = 0;
     result->peak_basis_size = 0;
+    result->backend_used = SPARSE_EIGS_BACKEND_LANCZOS; /* updated per dispatch below */
 
     /* Day 12: shift-invert setup for NEAREST_SIGMA.  Factor
      * `A - sigma*I` via `sparse_ldlt_factor_opts` (Days 4-6 AUTO
@@ -707,16 +728,34 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
      * wins by an order of magnitude or more (bcsstk14 at
      * n = 1806, k = 5: grow-m ~7 MB of V vs thick-restart
      * ~500 KB). */
+    /* Sprint 21 Day 7: LOBPCG dispatch.  Day 7 lands the explicit
+     * opt-in path only — `opts->backend == SPARSE_EIGS_BACKEND_LOBPCG`
+     * routes to `s21_lobpcg_solve` (currently a BADARG stub; Days 8-9
+     * fill the body).  Day 10 extends AUTO to also route to LOBPCG
+     * above the n / block_size / precond threshold; until then,
+     * AUTO continues to pick between Lanczos and thick-restart per
+     * the existing size threshold. */
+    if (o->backend == SPARSE_EIGS_BACKEND_LOBPCG) {
+        result->backend_used = SPARSE_EIGS_BACKEND_LOBPCG;
+        sparse_err_t lobpcg_rc =
+            s21_lobpcg_solve(op_fn, op_ctx, n, k, o, eff_tol, max_iters, result);
+        sparse_ldlt_free(&ldlt_shift);
+        sparse_free(A_shifted);
+        return lobpcg_rc;
+    }
+
     int use_thick_restart =
         (o->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART) ||
         (o->backend == SPARSE_EIGS_BACKEND_AUTO && n >= (idx_t)SPARSE_EIGS_THICK_RESTART_THRESHOLD);
     if (use_thick_restart) {
+        result->backend_used = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART;
         sparse_err_t tr_rc =
             s21_thick_restart_outer_loop(op_fn, op_ctx, n, k, o, eff_tol, max_iters, result);
         sparse_ldlt_free(&ldlt_shift);
         sparse_free(A_shifted);
         return tr_rc;
     }
+    result->backend_used = SPARSE_EIGS_BACKEND_LANCZOS;
 
     /* Day 13 outer-loop redesign: single Lanczos batch with a
      * grow-m-on-retry strategy.  The Day 10-11 short/long stability
@@ -2040,3 +2079,186 @@ cleanup:
     lanczos_restart_state_free(&state);
     return rc;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * LOBPCG — Locally Optimal Block Preconditioned Conjugate Gradient
+ *          (Sprint 21 Days 7-10; Knyazev 2001)
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Day 7 lands the API surface, the design block below, and stubs
+ * (`s21_lobpcg_orthonormalize_block`, `s21_lobpcg_rr_step`,
+ * `s21_lobpcg_solve`) that return SPARSE_ERR_BADARG.  Day 8
+ * implements the unpreconditioned core, Day 9 wires preconditioning
+ * + the BLOPEX P-update, Day 10 tunes AUTO routing.
+ *
+ * Why a third backend.  Lanczos (with full reorth) is the workhorse
+ * for symmetric eigenproblems on well-conditioned A — convergence is
+ * geometric in the spectral gap and full-MGS reorth keeps the
+ * Krylov basis orthonormal to machine precision.  Two regimes
+ * motivate LOBPCG:
+ *
+ *   1. **Ill-conditioned SPD.** When `cond(A)` reaches 1e6+, the
+ *      Lanczos spectral-gap rate slows to 1 − O(1/sqrt(cond)) per
+ *      step.  A cheap preconditioner M ≈ A (IC(0), LDL^T) accelerates
+ *      LOBPCG to an effective rate determined by `cond(M^{-1}·A)` —
+ *      often four or five orders of magnitude faster on the same
+ *      fixture.  Lanczos has no equivalent inner preconditioning
+ *      hook (shift-invert is the closest analogue, but it requires
+ *      a near-eigenvalue σ to work).
+ *
+ *   2. **Block convergence.** When the requested eigenvalues are
+ *      clustered (k = 5 from a tightly-packed bottom of the
+ *      spectrum), Lanczos converges them sequentially while LOBPCG
+ *      converges them in parallel via the block_size > k mechanism.
+ *      Each LOBPCG iteration costs O(block_size) matvecs vs Lanczos's
+ *      one, so the parallel-block win has to be measured per
+ *      problem; Day 10's AUTO threshold encodes the rule of thumb.
+ *
+ * Pipeline.  Each LOBPCG iteration maintains three n × block_size
+ * matrices stored column-major:
+ *
+ *     X : current eigenvector approximations (init: random-deterministic)
+ *     W : preconditioned residual            (M^{-1} · R when precond
+ *                                             != NULL, else R itself)
+ *     P : previous search direction          (init: 0; updated each step)
+ *
+ * The block Rayleigh-Ritz step concatenates these into an
+ * n × (3·block_size) basis Q, orthonormalises it, forms the dense
+ * symmetric Gram matrix
+ *
+ *     G = Q^T · A · Q
+ *
+ * (size 3·block_size × 3·block_size, computed by applying `op` to
+ * each column of Q individually — Day 7 keeps the per-column
+ * application; Sprint 22 may add a block matvec).  The dense
+ * symmetric eigensolve via `s21_dense_sym_jacobi` (already in this
+ * file from Day 2) yields all 3·block_size Ritz pairs (θ_j, y_j);
+ * the block_size Ritz values matching `which` (LARGEST / SMALLEST /
+ * NEAREST_SIGMA) become the new theta estimates, and the
+ * combination coefficients produce the next X / P:
+ *
+ *     X_{new} = Q · Y[:, sel]                  (n × block_size)
+ *     P_{new} = (W block of Q) · Y[W, sel]
+ *             + (P block of Q) · Y[P, sel]     (n × block_size)
+ *
+ * Knyazev's "locally optimal" name comes from this Rayleigh-Ritz
+ * minimisation over the 3-block subspace — at each step it picks the
+ * best X / P combination available without lookahead, and the P
+ * block carries the "momentum" that gives LOBPCG its
+ * conjugate-gradient flavour.
+ *
+ * Numerical guards.
+ *   - **Orthonormality.** Q must be orthonormal for G to be
+ *     symmetric to within O(eps · cond) — `s21_lobpcg_orthonormalize_block`
+ *     applies modified Gram-Schmidt with the Sprint 20 commit 70015a4
+ *     scale-aware breakdown threshold; columns whose norm collapses
+ *     below the threshold are ejected and the effective block size
+ *     shrinks.  Day 8 unit tests that this ejection actually happens
+ *     on near-singular Gram matrices.
+ *   - **P-block stability.** Knyazev's original eq. 2.11 derives the
+ *     new P from the difference of current and previous combination
+ *     coefficients; on near-singular Gram matrices this loses
+ *     significance.  Day 9 swaps in the BLOPEX (Stathopoulos 2007)
+ *     formulation that conditions the P update on the Gram
+ *     eigenvalue spread.  Day 8 ships the simpler Knyazev formula.
+ *   - **Soft-locking.** Once a Ritz pair's residual drops below
+ *     tol, optionally freeze it in X by setting the corresponding
+ *     W and P columns to zero — saves work on the converged columns
+ *     in subsequent iterations.  Day 9 wires this behind an opts
+ *     flag (omitted from Day 7's struct since the field is
+ *     deferrable; left for the Day 9 design step to land).
+ *
+ * Convergence gate.  Per-column residual `||R[:, j]||` scaled by
+ * `max(|theta_j|, scale)` matches the Sprint 20 Wu/Simon convention
+ * so `result->residual_norm` has consistent semantics across all
+ * three backends.  When all `k` selected columns pass, emit and
+ * return SPARSE_OK; on iteration-cap exhaustion, partial results
+ * via SPARSE_ERR_NOT_CONVERGED.
+ *
+ * Spectrum modes.
+ *   - LARGEST: standard LOBPCG converges to SMALLEST natively, so
+ *     LARGEST wraps `op` in a negation `(neg_op)(x) := -A·x` and
+ *     negates the returned eigenvalues.  Sprint 21 Day 10 lands the
+ *     adapter; Day 7 stubs return BADARG for now.
+ *   - SMALLEST: native LOBPCG path.  Day 8 implements this.
+ *   - NEAREST_SIGMA: LOBPCG on `(A - σI)^{-1}` via the Sprint 20
+ *     Day 12 LDL^T-shift-invert callback — the same `op_fn` /
+ *     `op_ctx` setup `sparse_eigs_sym` builds for the Lanczos
+ *     backends.  Post-process λ = σ + 1/θ.  Day 10 lands.
+ *
+ * Memory.  Peak `O((3·block_size + scratch) · n)` where scratch is
+ * the dense Gram matrix and its eigenvector matrix (each
+ * 3·block_size × 3·block_size) plus the per-iteration A·Q product
+ * block (n × 3·block_size).  For block_size ≤ 30 this is ~5 MB on
+ * bcsstk14 (n = 1806) — comparable to thick-restart's ~500 KB but
+ * with much better convergence on ill-conditioned fixtures.
+ *
+ * References.
+ *   - Knyazev, A. (2001).  Toward the Optimal Preconditioned
+ *     Eigensolver: Locally Optimal Block Preconditioned Conjugate
+ *     Gradient Method.  SIAM J. Sci. Comput. 23(2), 517-541.
+ *   - Stathopoulos, A. (2007).  Nearly optimal preconditioned
+ *     methods for Hermitian eigenproblems under limited memory.
+ *     Part I: Seeking one eigenvalue.  SIAM J. Sci. Comput. 29(2),
+ *     481-514.  (BLOPEX-style P-update formulation.)
+ */
+
+/* Day 7 stubs: parameters are mutable in the implemented form (Day 8
+ * writes through Q / X / W / P / theta_out / block_size_out / result),
+ * but the stub bodies don't, which trips clang-tidy's
+ * `readability-non-const-parameter`.  Silence with NOLINTBEGIN /
+ * NOLINTEND so the stub signatures match the day-8 implementation
+ * exactly without a header churn when the body lands. */
+
+/* Day 7 stub: orthonormalise an n × block_size_in column-major block
+ * via per-column modified Gram-Schmidt with scale-aware breakdown
+ * ejection (Sprint 20 commit 70015a4 pattern).  Day 8 fills the body. */
+// NOLINTBEGIN(readability-non-const-parameter)
+sparse_err_t s21_lobpcg_orthonormalize_block(double *Q, idx_t n, idx_t block_size_in,
+                                             idx_t *block_size_out) {
+    (void)Q;
+    (void)n;
+    (void)block_size_in;
+    (void)block_size_out;
+    return SPARSE_ERR_BADARG;
+}
+// NOLINTEND(readability-non-const-parameter)
+
+/* Day 7 stub: one block Rayleigh-Ritz step.  Day 8 implements via
+ * Q := [X | W | P]; orthonormalise; G := Q^T·A·Q; Jacobi eigensolve;
+ * select block_size pairs by `which`; update X / P from Y. */
+// NOLINTBEGIN(readability-non-const-parameter)
+sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_t block_size,
+                                double *X, double *W, double *P, sparse_eigs_which_t which,
+                                double *theta_out) {
+    (void)op;
+    (void)ctx;
+    (void)n;
+    (void)block_size;
+    (void)X;
+    (void)W;
+    (void)P;
+    (void)which;
+    (void)theta_out;
+    return SPARSE_ERR_BADARG;
+}
+// NOLINTEND(readability-non-const-parameter)
+
+/* Day 7 stub: LOBPCG outer loop dispatched from `sparse_eigs_sym`
+ * when `opts->backend == SPARSE_EIGS_BACKEND_LOBPCG`.  Day 8 fills
+ * the unpreconditioned body; Day 9 wires `o->precond`. */
+// NOLINTBEGIN(readability-non-const-parameter)
+sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t k,
+                              const sparse_eigs_opts_t *o, double eff_tol, idx_t max_iters,
+                              sparse_eigs_t *result) {
+    (void)op;
+    (void)ctx;
+    (void)n;
+    (void)k;
+    (void)o;
+    (void)eff_tol;
+    (void)max_iters;
+    (void)result;
+    return SPARSE_ERR_BADARG;
+}
+// NOLINTEND(readability-non-const-parameter)

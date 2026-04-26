@@ -37,6 +37,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* M_PI is a POSIX/glibc extension, not C11. macOS exposes it from
+ * <math.h> unconditionally; glibc hides it under -std=c11 unless
+ * _DEFAULT_SOURCE is set. Define locally for portability. */
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 #ifndef DATA_DIR
 #define DATA_DIR "tests/data"
 #endif

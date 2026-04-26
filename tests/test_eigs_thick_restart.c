@@ -854,10 +854,274 @@ static void test_thick_restart_backend_bad_enum_rejected(void) {
     sparse_free(A);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 12 — fleshed-out coverage: NEAREST_SIGMA parity, Wu/Simon
+ *          monotonicity, single-phase degeneracy.
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Days 2-4 already covered the arrowhead helpers, phase execution,
+ * memory-bounded convergence, and parity tests for the LARGEST mode
+ * across the SuiteSparse corpus.  Day 12 fills three remaining gaps
+ * the PROJECT_PLAN flagged:
+ *
+ *   1. NEAREST_SIGMA parity on the KKT indefinite fixture — exercises
+ *      the shift-invert composition through the thick-restart path.
+ *   2. Wu/Simon "preserves convergence progress" claim — running
+ *      thick-restart with a longer iteration budget must produce a
+ *      residual no worse than a shorter budget on the same fixture.
+ *   3. Single-phase degeneracy — when the fixture is small enough
+ *      that thick-restart converges in one phase (no actual restart
+ *      occurs), the result must match grow-m's output to numerical
+ *      precision (the two paths reduce to the same Lanczos run).
+ */
+
+/* Build the same n=150 KKT saddle-point fixture used by the
+ * Sprint 20 integration tests (and by `bench_eigs --sweep default`).
+ * Indefinite, exercises the shift-invert LDL^T pipeline. */
+static SparseMatrix *build_kkt_150(void) {
+    idx_t n_top = 140, n_bot = 10;
+    idx_t n = n_top + n_bot;
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n_top; i++) {
+        sparse_insert(A, i, i, 6.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+    for (idx_t j = 0; j < n_bot; j++) {
+        sparse_insert(A, n_top + j, j, 1.0);
+        sparse_insert(A, j, n_top + j, 1.0);
+    }
+    return A;
+}
+
+/* ─── Day 12 Test 1: NEAREST_SIGMA parity on KKT-150.
+ *
+ * Both backends share the shift-invert LDL^T factor of (A − σI)
+ * built by `sparse_eigs_sym` before dispatch — the thick-restart
+ * path uses the same operator callback the grow-m path does, so
+ * NEAREST_SIGMA on this fixture validates the shift-invert
+ * composition end-to-end through the restart mechanism.  Both
+ * backends must converge to the same eigenvalues to 1e-10 and
+ * report residuals within 2× of each other (the PLAN's parity
+ * tolerance band).
+ *
+ * KKT-150 has clustered interior eigenvalues near σ=0 from the
+ * saddle structure — meaningful test of restart-with-shift-invert. */
+static void test_thick_restart_kkt_nearest_sigma_parity(void) {
+    SparseMatrix *A = build_kkt_150();
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    idx_t n = sparse_rows(A);
+    ASSERT_EQ(n, 150);
+
+    const idx_t k = 3;
+    double *vals_grow = calloc((size_t)k, sizeof(double));
+    double *vals_tr = calloc((size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vals_grow);
+    ASSERT_NOT_NULL(vals_tr);
+    if (!vals_grow || !vals_tr) {
+        free(vals_grow);
+        free(vals_tr);
+        sparse_free(A);
+        return;
+    }
+
+    sparse_eigs_t res_grow = {.eigenvalues = vals_grow};
+    sparse_eigs_opts_t opts_grow = {
+        .which = SPARSE_EIGS_NEAREST_SIGMA,
+        .sigma = 0.0,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+        .max_iterations = 300,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts_grow, &res_grow));
+    ASSERT_EQ(res_grow.n_converged, k);
+
+    sparse_eigs_t res_tr = {.eigenvalues = vals_tr};
+    sparse_eigs_opts_t opts_tr = opts_grow;
+    opts_tr.backend = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART;
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts_tr, &res_tr));
+    ASSERT_EQ(res_tr.n_converged, k);
+
+    /* The two backends apply largest-|θ| selection on the inverse-
+     * operator's spectrum; with shift-invert the post-processed
+     * `λ = σ + 1/θ` gives the eigenvalues nearest σ in absolute
+     * |λ − σ|.  Order across backends may flip on near-tied
+     * |λ − σ|, so sort before comparing. */
+    double a[3] = {vals_grow[0], vals_grow[1], vals_grow[2]};
+    double b[3] = {vals_tr[0], vals_tr[1], vals_tr[2]};
+    for (int i = 0; i < 3; i++)
+        for (int j = i + 1; j < 3; j++) {
+            if (a[i] > a[j]) {
+                double t = a[i];
+                a[i] = a[j];
+                a[j] = t;
+            }
+            if (b[i] > b[j]) {
+                double t = b[i];
+                b[i] = b[j];
+                b[j] = t;
+            }
+        }
+    for (idx_t j = 0; j < k; j++)
+        ASSERT_NEAR(a[j], b[j], 1e-9);
+
+    /* Residuals within 2× of each other (the PLAN's parity band).
+     * Thick-restart often has slightly tighter residuals at higher
+     * iteration counts, but on this small fixture both should land
+     * within the same order of magnitude. */
+    double r_lo = res_grow.residual_norm < res_tr.residual_norm ? res_grow.residual_norm
+                                                                : res_tr.residual_norm;
+    double r_hi = res_grow.residual_norm > res_tr.residual_norm ? res_grow.residual_norm
+                                                                : res_tr.residual_norm;
+    if (r_lo > 0.0) /* both nonzero */
+        ASSERT_TRUE(r_hi <= 2.0 * r_lo + 1e-12);
+
+    free(vals_grow);
+    free(vals_tr);
+    sparse_free(A);
+}
+
+/* ─── Day 12 Test 2: Wu/Simon "preserves convergence progress" claim.
+ *
+ * Run thick-restart on the same fixture with two iteration budgets,
+ * `M_short` and `M_long = 2 * M_short`.  The longer-budget run must
+ * produce a converged residual no worse than the shorter run (and
+ * typically tighter).  Captures the spirit of the Wu/Simon claim:
+ * each restart phase strictly extends the converged subspace
+ * spanned by the locked Ritz pairs; subsequent phases cannot
+ * regress already-converged pairs.
+ *
+ * Direct per-phase monotonicity is not exposed via the public API;
+ * this two-budget end-to-end check is the practical proxy and is
+ * what the PROJECT_PLAN's "monotonically non-increasing" wording
+ * lands as. */
+static void test_thick_restart_locked_progress_monotone(void) {
+    SparseMatrix *A = NULL;
+    REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx"));
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    idx_t n = sparse_rows(A);
+    ASSERT_EQ(n, 132);
+
+    const idx_t k = 3;
+    double *vals_short = calloc((size_t)k, sizeof(double));
+    double *vals_long = calloc((size_t)k, sizeof(double));
+    ASSERT_NOT_NULL(vals_short);
+    ASSERT_NOT_NULL(vals_long);
+    if (!vals_short || !vals_long) {
+        free(vals_short);
+        free(vals_long);
+        sparse_free(A);
+        return;
+    }
+
+    sparse_eigs_t r_short = {.eigenvalues = vals_short};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-12,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART,
+        .max_iterations = 60, /* short budget — multiple restarts likely */
+    };
+    sparse_err_t err_short = sparse_eigs_sym(A, k, &opts, &r_short);
+    ASSERT_TRUE(err_short == SPARSE_OK || err_short == SPARSE_ERR_NOT_CONVERGED);
+
+    sparse_eigs_t r_long = {.eigenvalues = vals_long};
+    opts.max_iterations = 200; /* long budget — convergence expected */
+    sparse_err_t err_long = sparse_eigs_sym(A, k, &opts, &r_long);
+    ASSERT_TRUE(err_long == SPARSE_OK || err_long == SPARSE_ERR_NOT_CONVERGED);
+
+    /* Wu/Simon monotonicity: longer budget cannot worsen the
+     * converged residual.  Use a small slack (1e-12 absolute, 1.05×
+     * relative) to absorb finite-precision noise on residuals that
+     * are already near machine epsilon. */
+    double tol_slack = 1.05;
+    if (r_long.residual_norm > tol_slack * r_short.residual_norm + 1e-12) {
+        TF_FAIL_("Wu/Simon monotonicity violated: short=%.3e, long=%.3e (long must not exceed "
+                 "short)",
+                 r_short.residual_norm, r_long.residual_norm);
+    }
+    tf_asserts++;
+
+    /* Eigenvalues converge to the same values across budgets (any
+     * locked-progress preservation should not produce divergent
+     * eigvals when both runs converge). */
+    if (err_short == SPARSE_OK && err_long == SPARSE_OK) {
+        for (idx_t j = 0; j < k; j++) {
+            double scale = fabs(vals_long[j]);
+            if (scale < 1.0)
+                scale = 1.0;
+            double diff = fabs(vals_short[j] - vals_long[j]) / scale;
+            ASSERT_TRUE(diff < 1e-7);
+        }
+    }
+
+    free(vals_short);
+    free(vals_long);
+    sparse_free(A);
+}
+
+/* ─── Day 12 Test 3: single-phase degeneracy.
+ *
+ * On a small fixture (n=10 diagonal), `m_restart = 2k + 20 = 26` is
+ * clamped to n=10.  Phase 0 builds a complete n-dimensional Lanczos
+ * basis with reorth — equivalent to a full eigendecomposition and
+ * to the Sprint 20 grow-m path's m_cap=n run.  No restart triggers,
+ * so the thick-restart and grow-m results must match to numerical
+ * precision (both reduce to the same Lanczos run). */
+static void test_thick_restart_single_phase_matches_grow_m(void) {
+    const idx_t n = 10;
+    double diag[10];
+    for (idx_t i = 0; i < n; i++)
+        diag[i] = (double)(i + 1);
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, diag[i]);
+
+    const idx_t k = 3;
+    double vals_grow[3] = {0};
+    double vals_tr[3] = {0};
+    sparse_eigs_t r_grow = {.eigenvalues = vals_grow};
+    sparse_eigs_t r_tr = {.eigenvalues = vals_tr};
+    sparse_eigs_opts_t opts_grow = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-12,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts_grow, &r_grow));
+    ASSERT_EQ(r_grow.n_converged, k);
+
+    sparse_eigs_opts_t opts_tr = opts_grow;
+    opts_tr.backend = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART;
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts_tr, &r_tr));
+    ASSERT_EQ(r_tr.n_converged, k);
+
+    /* Both paths reduce to the same Lanczos run on this fixture
+     * (m_restart = n, single phase, no actual restart).  Eigenvalues
+     * match to numerical precision (1e-12 absolute on diag(1..10)
+     * spectrum). */
+    for (idx_t j = 0; j < k; j++)
+        ASSERT_NEAR(vals_grow[j], vals_tr[j], 1e-12);
+
+    sparse_free(A);
+}
+
 /* ─── Runner ────────────────────────────────────────────────────── */
 
 int main(void) {
-    TEST_SUITE_BEGIN("Sprint 21 thick-restart Lanczos — Days 2-3");
+    TEST_SUITE_BEGIN("Sprint 21 thick-restart Lanczos — Days 2-4 + 12");
 
     /* Day 2: arrowhead helpers. */
     RUN_TEST(test_arrowhead_to_tridiag_preserves_spectrum);
@@ -881,6 +1145,12 @@ int main(void) {
     RUN_TEST(test_thick_restart_parity_bcsstk14);
     RUN_TEST(test_thick_restart_auto_dispatch_above_threshold);
     RUN_TEST(test_thick_restart_auto_dispatch_below_threshold);
+
+    /* Day 12: NEAREST_SIGMA parity, Wu/Simon monotonicity, single-
+     * phase degeneracy. */
+    RUN_TEST(test_thick_restart_kkt_nearest_sigma_parity);
+    RUN_TEST(test_thick_restart_locked_progress_monotone);
+    RUN_TEST(test_thick_restart_single_phase_matches_grow_m);
 
     TEST_SUITE_END();
 }

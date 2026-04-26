@@ -1189,8 +1189,9 @@ sparse_err_t s21_arrowhead_to_tridiag(const double *theta_locked, const double *
         size_mul_overflow(K2, sizeof(double), &K2_bytes))
         return SPARSE_ERR_ALLOC;
     double *T = calloc(K2, sizeof(double));
-    if (!T)
+    if (!T) {
         return SPARSE_ERR_ALLOC;
+    }
 
     /* Materialise the arrowhead.  Layout column-major: T[i + j*K]. */
 #define T_AT(i, j) T[(size_t)(i) + (size_t)(j) * (size_t)K]

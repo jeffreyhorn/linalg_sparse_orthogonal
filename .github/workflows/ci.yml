@@ -68,18 +68,21 @@ jobs:
           TSAN_OPTIONS: "halt_on_error=1"
 
       # Sprint 21 Day 5: exercise the OMP-parallel Lanczos MGS
-      # kernel under TSan.  Ubuntu's libomp ships libarcher, so
-      # implicit OMP barriers are visible to TSan and the run is
-      # free of the false-positive races seen on macOS Homebrew
-      # libomp (no archer).  Local `make sanitize-thread` on
-      # macOS runs the same tests against the serial path only.
+      # kernel under TSan on Ubuntu.  Local `make sanitize-thread`
+      # on macOS still runs the same tests against the serial path
+      # only.
       #
       # CC=clang here is load-bearing: gcc's `-fopenmp` links
-      # libgomp, which has no TSan annotations and triggers
-      # false-positive races on every implicit barrier (e.g.
-      # in `sparse_matvec`'s `#pragma omp parallel for`).  Clang
-      # links libomp/libarcher when libomp-dev is installed.
-      - name: Install libomp for archer-instrumented OMP
+      # libgomp, whose interaction with TSan is even noisier for
+      # our OpenMP tests (no annotations on implicit barriers ->
+      # races reported on every post-barrier read).  Clang links
+      # Ubuntu's libomp when libomp-dev is installed, but that
+      # runtime is *not* built with Archer / LIBOMP_TSAN_SUPPORT,
+      # so we still expect to suppress false-positive reports from
+      # libomp's own barrier / thread-pool internals in the test
+      # run below (see `tests/tsan_suppressions.txt`) rather than
+      # claiming the OMP runtime is fully TSan-aware.
+      - name: Install clang and libomp for TSan OpenMP tests
         run: |
           sudo apt-get update
           sudo apt-get install -y libomp-dev clang
@@ -97,10 +100,11 @@ jobs:
           ./build/test_eigs
           ./build/test_eigs_thick_restart
         env:
-          # Ubuntu's libomp is not built with LIBOMP_TSAN_SUPPORT
-          # (archer), so TSan reports false races inside the OMP
-          # runtime's own thread-pool / mutex internals. Suppress
-          # those without hiding races in our own kernels.
+          # See suppressions file for rationale; Ubuntu's libomp is
+          # not Archer-instrumented, so libomp-internal mutex /
+          # barrier ops trip TSan even though the OMP semantics are
+          # correct.  Suppressions match only frames inside libomp
+          # itself, leaving real races in our kernels visible.
           TSAN_OPTIONS: "halt_on_error=1 suppressions=tests/tsan_suppressions.txt"
           OMP_NUM_THREADS: "4"
 

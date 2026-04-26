@@ -125,6 +125,9 @@ typedef struct {
     idx_t peak_basis;
     double residual;
     sparse_eigs_backend_t backend_used;
+    bench_precond_kind_t precond_used; /* effective precond after the
+                                          NEAREST_SIGMA / non-LOBPCG
+                                          gating in run_one() */
     sparse_err_t last_err;
 } run_result_t;
 
@@ -203,12 +206,34 @@ static run_result_t run_one(const SparseMatrix *A, const run_config_t *cfg) {
     idx_t n = sparse_rows(A);
     idx_t k = cfg->k;
 
+    /* Decide whether the requested preconditioner is actually
+     * applicable to the (backend, which) combination.  Skipping
+     * the factor cost for backends that ignore `opts.precond`
+     * avoids both (a) wasted work and (b) spurious failures on
+     * indefinite matrices when the user asked for e.g.
+     * `--backend THICK_RESTART --precond IC0` (IC(0) requires
+     * SPD; THICK_RESTART ignores precond entirely).
+     *
+     * Gating rules:
+     *   - NEAREST_SIGMA already factors `(A − σI)` internally and
+     *     hands the inverse to the operator callback; an outer
+     *     precond doesn't compose physically (file header explains).
+     *   - LANCZOS / LANCZOS_THICK_RESTART ignore opts.precond.
+     *   - LOBPCG and AUTO (which may dispatch to LOBPCG when a
+     *     precond is supplied and n ≥ threshold) honour it. */
+    bench_precond_kind_t effective_precond = cfg->precond_kind;
+    if (cfg->which == SPARSE_EIGS_NEAREST_SIGMA || cfg->backend == SPARSE_EIGS_BACKEND_LANCZOS ||
+        cfg->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART) {
+        effective_precond = BENCH_PRECOND_NONE;
+    }
+    r.precond_used = effective_precond;
+
     /* Build the precond once. */
     sparse_ilu_t ic = {0};
     sparse_ldlt_t ldlt = {0};
     sparse_precond_fn precond = NULL;
     const void *precond_ctx = NULL;
-    if (cfg->precond_kind == BENCH_PRECOND_IC0) {
+    if (effective_precond == BENCH_PRECOND_IC0) {
         sparse_err_t e = sparse_ic_factor(A, &ic);
         if (e != SPARSE_OK) {
             r.ok = 0;
@@ -217,7 +242,7 @@ static run_result_t run_one(const SparseMatrix *A, const run_config_t *cfg) {
         }
         precond = sparse_ic_precond;
         precond_ctx = &ic;
-    } else if (cfg->precond_kind == BENCH_PRECOND_LDLT) {
+    } else if (effective_precond == BENCH_PRECOND_LDLT) {
         sparse_err_t e = sparse_ldlt_factor(A, &ldlt);
         if (e != SPARSE_OK) {
             r.ok = 0;
@@ -245,6 +270,10 @@ static run_result_t run_one(const SparseMatrix *A, const run_config_t *cfg) {
 
     sparse_eigs_t res = {0};
     sparse_err_t last_err = SPARSE_OK;
+    /* Reps that actually completed (OK or NOT_CONVERGED).  Hard
+     * errors abort the loop; reporting the median of fast-failing
+     * runs would be misleading. */
+    int reps_done = 0;
     for (int rep = 0; rep < repeats; rep++) {
         memset(vals, 0, (size_t)k * sizeof(double));
         if (vecs)
@@ -266,10 +295,19 @@ static run_result_t run_one(const SparseMatrix *A, const run_config_t *cfg) {
         };
         double t0 = wall_time();
         last_err = sparse_eigs_sym(A, k, &opts, &res);
-        times[rep] = (wall_time() - t0) * 1000.0;
+        times[reps_done] = (wall_time() - t0) * 1000.0;
+        if (last_err != SPARSE_OK && last_err != SPARSE_ERR_NOT_CONVERGED) {
+            /* Hard error — record nothing further; the timing of a
+             * fast-fail run isn't comparable to a real solve. */
+            break;
+        }
+        reps_done++;
     }
 
-    r.wall_ms_median = median_double(times, repeats);
+    /* Median over completed reps only.  When every rep hard-failed
+     * (reps_done == 0), report 0.0 ms so the row stays parseable;
+     * the status column carries the diagnostic. */
+    r.wall_ms_median = (reps_done > 0) ? median_double(times, reps_done) : 0.0;
     r.iterations = res.iterations;
     r.peak_basis = res.peak_basis_size;
     r.residual = res.residual_norm;
@@ -307,15 +345,18 @@ static void emit_row(int csv, const char *matrix_label, idx_t n, const run_confi
      * makes the CSV diffable across the dispatch decision tree. */
     sparse_eigs_backend_t reported_backend =
         (cfg->backend == SPARSE_EIGS_BACKEND_AUTO) ? r->backend_used : cfg->backend;
+    /* Report the precond actually applied (after the gating in
+     * run_one), not what the user asked for — keeps the CSV row
+     * consistent with the wall-time / residual columns. */
     if (csv) {
         printf("%s,%d,%d,%s,%.4g,%s,%s,%d,%d,%.3f,%.3e,%s\n", matrix_label, (int)n, (int)cfg->k,
                which_label(cfg->which), cfg->sigma, backend_label(reported_backend),
-               precond_label(cfg->precond_kind), (int)r->iterations, (int)r->peak_basis,
+               precond_label(r->precond_used), (int)r->iterations, (int)r->peak_basis,
                r->wall_ms_median, r->residual, err_label(r->last_err));
     } else {
         printf("%-12s %5d %3d %-8s %6.2f %-13s %5s %7d %8d %9.3f %10.2e %s\n", matrix_label, (int)n,
                (int)cfg->k, which_label(cfg->which), cfg->sigma, backend_label(reported_backend),
-               precond_label(cfg->precond_kind), (int)r->iterations, (int)r->peak_basis,
+               precond_label(r->precond_used), (int)r->iterations, (int)r->peak_basis,
                r->wall_ms_median, r->residual, err_label(r->last_err));
     }
 }

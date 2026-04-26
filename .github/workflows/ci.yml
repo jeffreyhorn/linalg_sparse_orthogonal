@@ -73,10 +73,22 @@ jobs:
       # free of the false-positive races seen on macOS Homebrew
       # libomp (no archer).  Local `make sanitize-thread` on
       # macOS runs the same tests against the serial path only.
+      #
+      # CC=clang here is load-bearing: gcc's `-fopenmp` links
+      # libgomp, which has no TSan annotations and triggers
+      # false-positive races on every implicit barrier (e.g.
+      # in `sparse_matvec`'s `#pragma omp parallel for`).  Clang
+      # links libomp/libarcher when libomp-dev is installed.
+      - name: Install libomp for archer-instrumented OMP
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libomp-dev clang
+
       - name: Build eigensolver tests with TSan + OpenMP
         run: |
           make clean
           make build/test_eigs build/test_eigs_thick_restart \
+               CC=clang \
                CFLAGS="-std=c11 -Wall -Wextra -O1 -g -fsanitize=thread -fno-omit-frame-pointer -DSPARSE_OPENMP -fopenmp -Iinclude" \
                LDFLAGS="-fsanitize=thread -fopenmp -lm"
 

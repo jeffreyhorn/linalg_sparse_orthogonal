@@ -1309,6 +1309,30 @@ loop:
 
 Because `v_0` is deterministic and Lanczos is deterministic under fixed v_0, the first `m_prev` steps of each retry are bit-for-bit identical to the previous retry's basis; the extra `m_new − m_prev` steps are where the convergence tightens.  This **strictly extends** the Krylov basis on every pass — an earlier design that restarted with `v_0 := v_last` on non-convergence saturated at residual ~7e-3 on nos4 after 2000 iterations because the warm-start lost the prior convergence.  The growing-m variant lands at residual 4e-14 in 70 total iterations on the same fixture.
 
+### Thick-restart Lanczos: bounded memory via arrowhead state
+
+The grow-m outer loop's peak memory is `O(m_cap · n)` because the full Lanczos basis `V` lives across retries.  On bcsstk14 (n = 1806) at `m_cap = 500` that's ~7 MB; pushing `m_cap = n` for harder fixtures balloons it to ~26 MB.  Sprint 21's thick-restart backend (`SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`) replaces the grow-m strategy with the Wu/Simon (2000) — Stathopoulos & Saad (2007) restart mechanism that bounds peak memory at `O((k + m_restart) · n)` regardless of total iteration count.
+
+**The arrowhead state.**  After a Lanczos phase of length `m_restart` and Ritz extraction, the locked top-`k_locked` Ritz pairs are kept; the rest of `V` is discarded.  The locked block + the trailing residual seed the next phase, but T's structure is no longer plain tridiagonal — it becomes an *arrowhead* matrix:
+
+```
+       [ θ_0   0    0    β_0   0    0    0   ]
+       [  0   θ_1   0    β_1   0    0    0   ]
+       [  0    0   θ_2   β_2   0    0    0   ]
+T  =   [ β_0  β_1  β_2   α_3  β_3   0    0   ]
+       [  0    0    0    β_3  α_4  β_4   0   ]
+       [  0    0    0    0    β_4  α_5  β_5  ]
+       [  0    0    0    0    0    β_5  α_6  ]
+```
+
+The top-left `k_locked × k_locked` block is diagonal (the locked Ritz values `θ_j`), the spoke `β_j = β_m · y_{m-1, j}` couples each locked pair to the new Lanczos extension at row/column `k_locked`, and the trailing rows are the standard 3-term Lanczos α/β values from the new phase.  This shape is the "arrow" — three diagonals meeting at a point.
+
+**Reduction to tridiagonal.**  The existing Sprint 20 `tridiag_qr_eigenpairs` consumes a symmetric tridiagonal, not an arrowhead.  The library's `s21_arrowhead_to_tridiag` materialises the arrowhead as a dense K × K symmetric matrix (K = `k_locked + m_ext`) and runs classical Householder reflections (Golub & Van Loan §8.3.1) to chase the spoke entries into a tridiagonal form with the same spectrum — total work O(K^3) per restart, but K stays small (typically `k_locked + m_restart ≤ 100`), so each reduction is microsecond-scale.
+
+**Locked-pair preservation.**  Wu/Simon's claim is that each restart **strictly extends** the converged subspace: the locked Ritz pairs sit in the diagonal block of the new T, so the next Ritz extraction picks up exactly those eigenvalues plus refinements from the new Lanczos extension.  Phase `i+1` cannot worsen pair `j`'s residual relative to phase `i` (modulo finite-precision noise) — the bench's `test_thick_restart_locked_progress_monotone` Day 12 test verifies this at the public-API level by running two iteration budgets and asserting `r_long ≤ r_short`.
+
+**Memory bound.**  Peak `V` columns equals `m_restart + k_locked_cap` plus a small transient (`V_locked_tmp` during the pick-locked step), reported in `result.peak_basis_size`.  For bcsstk14 at `k = 5`, `m_restart = 30`, `k_locked_cap = 5`: peak `V ≈ 40 cols × 1806 × 8 B ≈ 565 KB` — ~15× smaller than the grow-m path's 7 MB.  AUTO routes to thick-restart when `n ≥ SPARSE_EIGS_THICK_RESTART_THRESHOLD` (default 500); explicitly opt in via `opts->backend = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART` below the threshold for memory profiling.
+
 ### Wu/Simon convergence criterion
 
 For a Ritz pair `(theta_j, V · y_j)` the true eigen-equation residual satisfies `||A · V · y_j − theta_j · V · y_j|| = |beta_m · y_{m-1, j}|` (Paige 1972; Bai et al. 2000), where `beta_m` is the final Lanczos `beta` value (which `lanczos_iterate` stores in `beta[m-1]` as the residual norm of the last unaccepted w vector).  Since `Y` is orthogonal, `||V · y_j|| = 1`, so this is already the absolute residual; dividing by `|theta_j|` gives the relative residual that the library reports in `result.residual_norm`.  Wu/Simon is cheap (one row of Y per pair — no extra matvecs), directly bounds the eigen-equation error, and matches what callers care about.
@@ -1337,8 +1361,35 @@ Singular-shift case: if `sigma` coincides with an eigenvalue of A, `A − sigma�
 - **Clustered spectra.** Bottom-cluster SPD matrices need close to the full Krylov basis (m ≈ n).  bcsstk04 k=3 SMALLEST hits m_cap = n = 132 and converges cleanly (shift-invert with `sigma ~ 1e-3` would be faster).
 - **Shift-invert break-even.** When the target eigenvalues are ≥ 10% of the spectrum distance from the extremes, shift-invert beats direct even accounting for the one-time LDL^T factor cost.  The KKT n=150 run takes 39 Lanczos steps at sigma=0 vs 62 for direct SMALLEST — 34% faster wall time.
 
-See `docs/planning/EPIC_2/SPRINT_20/bench_day13_lanczos.txt` for the measured numbers across SuiteSparse fixtures.
+See `docs/planning/EPIC_2/SPRINT_20/bench_day13_lanczos.txt` for the measured numbers across SuiteSparse fixtures.  Sprint 21 Day 14's full sweep across all three backends and `which` modes lands at `docs/planning/EPIC_2/SPRINT_21/bench_day14.txt` (and the 3-backend × 3-precond pivot at `bench_day14_compare.txt`).
+
+### LOBPCG: preconditioned block Rayleigh-Ritz
+
+Sprint 21 Days 7-10 add Knyazev's (2001) Locally Optimal Block Preconditioned Conjugate Gradient as `SPARSE_EIGS_BACKEND_LOBPCG`.  Two regimes motivate a third backend:
+
+1. **Ill-conditioned SPD.** When `cond(A)` reaches 1e6+, Lanczos's spectral-gap convergence rate slows to `1 − O(1/sqrt(cond))` per step.  A cheap preconditioner `M ≈ A` (IC(0) from `sparse_ic_factor`, LDL^T from `sparse_ldlt_factor`) accelerates LOBPCG to a rate determined by `cond(M^{-1}·A)` — often four or five orders of magnitude faster on the same fixture.  Lanczos has no inner preconditioning hook (shift-invert is the closest analogue, but it requires a near-eigenvalue `σ` to work).
+2. **Block convergence.** When the requested eigenvalues are clustered, Lanczos converges them sequentially while LOBPCG converges them in parallel via the `block_size > k` mechanism.
+
+**The three-block subspace.**  Each iteration maintains three n × `block_size` matrices stored column-major:
+
+- `X` — current eigenvector approximations (init: deterministic golden-ratio per-column starting vectors).
+- `W` — preconditioned residual (`M^{-1} · (AX − X·diag(theta))` when `opts->precond` is non-NULL; the raw residual `R` itself when NULL).
+- `P` — previous search direction (init: 0; updated each step).
+
+The block Rayleigh-Ritz step concatenates these into an n × (3·`block_size`) basis Q, orthonormalises it (per-column MGS with scale-aware breakdown ejection — the `s21_lobpcg_orthonormalize_block` helper reuses the Lanczos MGS kernel), forms the dense symmetric Gram matrix `G = Q^T · A · Q`, and diagonalises it via the same dense Jacobi rotation eigensolver used for the Day 2 thick-restart arrowhead reduction.  The selection step picks `block_size` Ritz pairs by `which` (LARGEST / SMALLEST / NEAREST_SIGMA via the same shift-invert wiring the Lanczos backends use); the new X / P come from the corresponding eigenvectors of G.
+
+**P-update formulation.**  Knyazev's eq. 2.11 expresses `P_new` as the W and P contributions to the new X (the "search direction" component, excluding the X-block).  In exact arithmetic this matches the orthogonal-projection form `P_new = X_new − X · (X^T · X_new)`, which is what the library uses — when X stays orthonormal across iterations (which it does, because each X_new is built from an orthonormal Q via an orthogonal Y), the two formulas agree.  A **BLOPEX conditioning guard** (Stathopoulos 2007) inspects Jacobi's eigenvalue spread on G; when the smallest |theta_full| collapses below `scale · 1e-12`, treat the iteration as Gram-singular and reset `P_new = 0` (restarts the conjugate-gradient direction track on the next outer iteration).
+
+**Soft-locking.**  Per `opts->lobpcg_soft_lock` (default ON): once a Ritz pair's residual passes `tol`, that column's W and P entries are zeroed before the next Rayleigh-Ritz step.  The orthonormaliser ejects the zero columns, shrinking the active subspace from `(bs + bs + bs)` to `(bs + bs_active_W + bs_active_P)`.  The locked X[:, j] stays in Q, so its Ritz pair is preserved by the RR step (X is in the basis, A·X[:, j] ≈ θ_j·X[:, j], and Y maps that column back to itself).
+
+**Convergence.**  Per-column Wu/Simon residual `||R[:, j]|| / max(|θ_j|, scale)` matches the Lanczos backends' `result.residual_norm` semantics, so the tolerance has problem-physical meaning regardless of preconditioner choice.
+
+**Preconditioning regime.**  LOBPCG's preconditioning naturally targets the SMALLEST end of the spectrum: `M^{-1}` amplifies the small-eigenvalue components of the residual.  For LARGEST modes, the preconditioner doesn't help directly (and can hurt — see the Day 14 `bench_day14_compare.txt` row for nos4 LARGEST + IC0).  The standard LARGEST-with-precond approach is op-negation (apply LOBPCG to `-A`'s SMALLEST), which the library doesn't currently wire — a candidate for a future sprint when the workload demands it.
+
+**Memory.**  Peak `O((4·block_size + scratch) · n)` where the outer loop holds X, R, W, P (each n × `block_size`) plus the RR step's transient n × (3·block_size) Q and AQ scratch.  For `block_size ≤ 30` this is ~5 MB on bcsstk14 — comparable to thick-restart's ~500 KB but with much better convergence on ill-conditioned fixtures.
+
+**AUTO routing.**  AUTO picks LOBPCG when `opts->precond != NULL`, `n ≥ SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD` (default 1000), and the effective block size is at least 4.  Without a preconditioner LOBPCG generally underperforms thick-restart Lanczos on the well-conditioned corpus, so AUTO declines to pick it.  Override with explicit `opts->backend = SPARSE_EIGS_BACKEND_LOBPCG` to force the choice — useful for the precond-comparison rows in `bench_eigs --compare`.
 
 ### API consistency notes
 
-The API surface mirrors the iterative-solver convention in `sparse_iterative.h`: `sparse_eigs_opts_t` carries all tuning knobs (`which`, `sigma`, `max_iterations`, `tol`, `reorthogonalize`, `compute_vectors`, `backend`), and `sparse_eigs_t` uses caller-owned buffers for `eigenvalues` / `eigenvectors` plus library-written scalar output fields (`n_requested`, `n_converged`, `iterations`, `residual_norm`, `used_csc_path_ldlt`).  No library-side allocation means no `sparse_eigs_free` helper — callers free their own buffers.
+The API surface mirrors the iterative-solver convention in `sparse_iterative.h`: `sparse_eigs_opts_t` carries all tuning knobs (`which`, `sigma`, `max_iterations`, `tol`, `reorthogonalize`, `compute_vectors`, `backend`, `block_size`, `precond`, `precond_ctx`, `lobpcg_soft_lock`), and `sparse_eigs_t` uses caller-owned buffers for `eigenvalues` / `eigenvectors` plus library-written scalar output fields (`n_requested`, `n_converged`, `iterations`, `residual_norm`, `used_csc_path_ldlt`, `peak_basis_size`, `backend_used`).  All Sprint 21 additions to either struct are trailing fields, so designated-initialiser callers from Sprint 20 compile unchanged with library-default behaviour for the new knobs.  No library-side allocation means no `sparse_eigs_free` helper — callers free their own buffers.

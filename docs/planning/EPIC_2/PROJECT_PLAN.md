@@ -334,9 +334,9 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ---
 
-## Sprint 21: Eigensolver Completion — Thick-Restart, OpenMP & LOBPCG
+## Sprint 21: Eigensolver Completion — Thick-Restart, OpenMP & LOBPCG — **Complete**
 
-**Duration:** 14 days (~124 hours)
+**Duration:** 14 days (~124 hours estimated; actual ~133 hours per the SPRINT_21/PLAN.md day budgets)
 
 **Goal:** Close out the symmetric eigensolver family started in Sprint 20: land true Wu/Simon thick-restart (replacing the provisional growing-m outer loop so memory is bounded on large-n problems), parallelise the Lanczos reorthogonalization inner loop under OpenMP, add LOBPCG for preconditioned block eigenvalue computation, and ship a permanent `bench_eigs` executable with CSV output.
 
@@ -348,23 +348,28 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ### Items
 
-| # | Item | Description | Estimate |
-|---|------|-------------|----------|
-| 1 | True thick-restart Lanczos (Wu/Simon arrowhead) | Replace the Sprint 20 Day 13 growing-m outer loop with a proper thick-restart scheme that preserves the converged Ritz subspace in a compact arrowhead basis (Wu/Simon 2000; Stathopoulos/Saad 2007). Bounds memory at O((k + m_restart) · n) instead of O(m_cap · n), enabling convergence on large-n matrices where holding V for m = n is prohibitive (bcsstk14 at n = 1806 currently allocates ~26 MB for V). Extends `lanczos_iterate_op` with a restart context and adds an arrowhead-reduction step to carry the locked Ritz pairs into each restart. | 40 hrs |
-| 2 | Lanczos OpenMP parallelism | Parallelise the full MGS reorthogonalization loop inside `lanczos_iterate_op` under `-DSPARSE_OPENMP`, rounding out the iteration so the whole Lanczos inner loop (already OpenMP-driven for matvec) benefits. Validate correctness under `-fsanitize=thread`. Expected speedup on bcsstk14 m=70 Lanczos: 2–3× at 4 threads. Applies equally to the Sprint 20 growing-m and item 1 thick-restart paths. Depends on item 1 so both outer loops receive the same treatment. | 20 hrs |
-| 3 | LOBPCG solver | Implement Locally Optimal Block Preconditioned Conjugate Gradient for symmetric eigenvalue problems. Supports block computation of multiple eigenpairs and preconditioning via `sparse_precond_fn` (IC(0) or LDL^T). Slots into the Sprint 20 `sparse_eigs_t` API via the already-reserved `SPARSE_EIGS_BACKEND_LOBPCG` enum value; shares the Wu/Simon-style per-pair residual gate for consistent accuracy reporting. | 36 hrs |
-| 4 | Permanent `benchmarks/bench_eigs.c` | Replace the Sprint 20 Day 13 throwaway `/tmp/bench_eigs.c` driver with a permanent benchmark executable: CSV output, `--sweep` mode over (matrix, k, which, backend), and a `--compare` mode that benches both Lanczos backends (growing-m vs thick-restart) and LOBPCG on the same corpus. Captures nos4 / bcsstk04 / bcsstk14 / KKT shift-invert numbers. Depends on items 1 and 3 so the new backends are included in the sweep. | 12 hrs |
-| 5 | Eigensolver tests, documentation & benchmark captures | `tests/test_eigs_thick_restart.c` (memory-bounded convergence on bcsstk14 with m_restart ≪ n) and `tests/test_eigs_lobpcg.c` (SPD + preconditioned cases, cross-check against Lanczos). README eigensolver subsection updated with thick-restart memory savings and LOBPCG; `docs/algorithm.md` section covering Wu/Simon arrowhead + LOBPCG Rayleigh-Ritz; `bench_eigs --compare` capture committed as `docs/planning/EPIC_2/SPRINT_21/bench_day14.txt`. | 16 hrs |
+| # | Item | Status | Description |
+|---|------|--------|-------------|
+| 1 | True thick-restart Lanczos (Wu/Simon arrowhead) | ✅ Days 1-4, 12 | `SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART` ships with the arrowhead state (`lanczos_restart_state_t`), Givens-style reduction (`s21_arrowhead_to_tridiag`), and the outer loop (`s21_thick_restart_outer_loop`). Memory bound verified: bcsstk14 (n = 1806, k = 5) drops peak `V` from ~7 MB (grow-m) to ~565 KB (thick-restart). Wu/Simon monotonicity verified at the public-API level via the Day 12 `test_thick_restart_locked_progress_monotone` two-budget end-to-end test. |
+| 2 | Lanczos OpenMP parallelism | ✅ Days 5-6 | The shared `s21_mgs_reorth` kernel parallelises the inner-product / daxpy bodies via `#pragma omp parallel for reduction(+:dot)` and `#pragma omp parallel for`, gated on `n ≥ SPARSE_EIGS_OMP_REORTH_MIN_N` (default 500). TSan clean via `make sanitize-thread`. ~2× speedup at 4 threads on bcsstk14 m=70 — matches the PROJECT_PLAN target. |
+| 3 | LOBPCG solver | ✅ Days 7-10, 13 | `SPARSE_EIGS_BACKEND_LOBPCG` ships with block Rayleigh-Ritz over `[X | W | P]`, BLOPEX-style conditioning guard, per-column soft-locking, and preconditioning via `opts->precond` (IC(0) and LDL^T validated). bcsstk04 SMALLEST k=3 cond ≈ 5e6: vanilla 800-iter NOT_CONVERGED → IC(0) 62 iters → LDL^T 8 iters. AUTO routes here on `n ≥ SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD` (1000) when a preconditioner is supplied. |
+| 4 | Permanent `benchmarks/bench_eigs.c` | ✅ Day 11 | Driver lives at `benchmarks/bench_eigs.c` with `--sweep default`, `--compare`, `--matrix <path>` modes; CSV via `--csv`; CSV schema documented in `benchmarks/README.md`. `make bench-eigs` runs the default sweep at `--repeats 3` in ~20 sec on the developer machine. |
+| 5 | Eigensolver tests, documentation & benchmark captures | ✅ Days 12-14 | `tests/test_eigs_thick_restart.c` 20 tests / 267 assertions; `tests/test_eigs_lobpcg.c` 26 tests / 219 assertions. README + `docs/algorithm.md` updated with thick-restart arrowhead, LOBPCG Rayleigh-Ritz, AUTO decision tree, and OpenMP MGS strategy subsections. Captures committed at `docs/planning/EPIC_2/SPRINT_21/bench_day14.txt` (full sweep, 33 rows × 12 cols) and `bench_day14_compare.txt` (3-backend × 3-precond pivot). |
 
-### Deliverables
+### Deliverables (status)
 
-- True Wu/Simon thick-restart backend driving `sparse_eigs_sym` with bounded O((k + m_restart) · n) memory
-- OpenMP-parallel Lanczos reorthogonalization validated under TSan
-- `sparse_eigs_sym` with `SPARSE_EIGS_BACKEND_LOBPCG` supporting preconditioned block eigenvalue computation
-- Permanent `benchmarks/bench_eigs.c` with CSV + `--sweep` + `--compare` modes
-- Tests for thick-restart and LOBPCG on the SuiteSparse corpus; updated README and `docs/algorithm.md`; committed benchmark captures comparing growing-m, thick-restart, and LOBPCG
+- ✅ True Wu/Simon thick-restart backend driving `sparse_eigs_sym` with bounded O((k + m_restart) · n) memory
+- ✅ OpenMP-parallel Lanczos reorthogonalization validated under TSan
+- ✅ `sparse_eigs_sym` with `SPARSE_EIGS_BACKEND_LOBPCG` supporting preconditioned block eigenvalue computation
+- ✅ Permanent `benchmarks/bench_eigs.c` with CSV + `--sweep` + `--compare` modes
+- ✅ Tests for thick-restart and LOBPCG on the SuiteSparse corpus; updated README and `docs/algorithm.md`; committed benchmark captures comparing growing-m, thick-restart, and LOBPCG
 
-**Total estimate:** ~124 hours
+### Deferred to a future sprint
+
+- LARGEST-via-op-negation adapter for LOBPCG. The PLAN's Day 10 Task 1 mentioned wrapping `op` into `neg_op` to compose preconditioning with LARGEST modes (preconditioning naturally targets SMALLEST). The shipped LOBPCG selects LARGEST directly from the Jacobi eigendecomposition without negation — works but doesn't compose with `M^{-1} ≈ A^{-1}` preconditioning on the LARGEST end. Visible in `bench_day14_compare.txt`'s nos4 LARGEST + IC0/LDLT rows (NOT_CONVERGED). Candidate for a follow-up sprint when a workload demands LARGEST + precond.
+- Block-structured BLOPEX P-update with pre-orthogonalised W/P partitions. Day 9's first attempt at the block-preserving form introduced a numerical drift that broke convergence on small fixtures; reverted to the Day 8 orthogonal-projection formula (mathematically equivalent in exact arithmetic when X is orthonormal). The PLAN's "more robust formulation" is implemented as a conditioning guard (`P_new = 0` on near-singular Gram) rather than the full block-structured form.
+
+**Total estimate:** ~124 hours; actual ~133 hours per the day budgets in `SPRINT_21/PLAN.md` (within the 14×12 = 168-hour ceiling). See `docs/planning/EPIC_2/SPRINT_21/RETROSPECTIVE.md` for metrics, lessons, and DoD verification.
 
 ---
 

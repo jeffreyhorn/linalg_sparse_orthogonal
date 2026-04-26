@@ -167,6 +167,8 @@ add_sparse_test(test_sprint18_integration)
 add_sparse_test(test_sprint19_integration)
 add_sparse_test(test_sprint20_integration)
 add_sparse_test(test_eigs)
+add_sparse_test(test_eigs_thick_restart)
+add_sparse_test(test_eigs_lobpcg)
 
 # Benchmarks (not part of ctest)
 add_executable(bench_main benchmarks/bench_main.c)

@@ -1,0 +1,25 @@
+# TSan suppressions for OpenMP runtime internals.
+#
+# Ubuntu's libomp/libgomp packages are not built with
+# LIBOMP_TSAN_SUPPORT (archer), so TSan can't see the runtime's
+# internal atomic operations and synchronization. As a result it
+# reports false-positive races on the OMP thread-pool setup,
+# barrier ops, and worker-state transitions around every
+# `#pragma omp parallel for` (e.g., in `sparse_matvec`). These
+# are not real concurrency bugs in our code.
+#
+# Real races in our own kernels remain caught because the
+# suppression matches only when the racing frame is inside the
+# OpenMP runtime library itself. Tests that the suppression
+# file is being honored: `print_suppressions=1` in TSAN_OPTIONS
+# will list each suppression as it fires.
+
+# Direct races where one or both stack frames are inside libomp:
+race:libomp.so
+race:libgomp.so
+
+# Races on memory allocated/initialised by libomp/libgomp
+# (e.g., libomp's internal pthread_mutex held in heap state
+# allocated during omp_get_max_threads on first parallel region):
+called_from_lib:libomp.so
+called_from_lib:libgomp.so

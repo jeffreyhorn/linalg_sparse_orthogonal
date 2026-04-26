@@ -97,7 +97,11 @@ jobs:
           ./build/test_eigs
           ./build/test_eigs_thick_restart
         env:
-          TSAN_OPTIONS: "halt_on_error=1"
+          # Ubuntu's libomp is not built with LIBOMP_TSAN_SUPPORT
+          # (archer), so TSan reports false races inside the OMP
+          # runtime's own thread-pool / mutex internals. Suppress
+          # those without hiding races in our own kernels.
+          TSAN_OPTIONS: "halt_on_error=1 suppressions=tests/tsan_suppressions.txt"
           OMP_NUM_THREADS: "4"
 
   lint:

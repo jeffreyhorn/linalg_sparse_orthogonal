@@ -2649,7 +2649,12 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
     double *P = NULL;             /* allocated lazily after the first RR step */
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
     double *AX = malloc(nb_bytes);
-    double *theta = malloc((size_t)bs * sizeof(double));
+    /* `theta` zero-initialised so the emit block's `theta[j]` reads
+     * are clean even on the SPARSE_ERR_NOT_CONVERGED early-return
+     * paths the clang-analyzer cannot prove reach the post-init
+     * `theta[j] = <X[:, j], AX[:, j]>` loop.  Matches the existing
+     * `converged` calloc convention below. */
+    double *theta = calloc((size_t)bs, sizeof(double));
     int *converged = calloc((size_t)bs, sizeof(int));
 
     sparse_err_t rc = SPARSE_ERR_NOT_CONVERGED;

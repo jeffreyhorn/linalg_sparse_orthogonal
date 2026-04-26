@@ -1093,8 +1093,57 @@ static void test_lobpcg_explicit_overrides_auto(void) {
     sparse_free(A);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Day 13 — block_size = 0 default fallback contract.
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * The PLAN's Day 13 list of negative-path tests was largely covered
+ * by the Days 8-10 additions; this is the one remaining contract:
+ *   `opts->block_size == 0` selects the library default `block_size = k`,
+ *   so explicit `bs = k` and implicit `bs = 0` must produce bit-for-bit
+ *   identical results (same iteration count + same eigenvalues).
+ *
+ * Pinning this contract guards against future regressions where the
+ * default-resolution path drifts from the explicit one (e.g. if a
+ * later sprint adds extra logic to the bs == 0 branch). */
+static void test_lobpcg_block_size_zero_defaults(void) {
+    idx_t n = 30;
+    SparseMatrix *A = build_laplacian_tridiag_lobpcg(n);
+    ASSERT_NOT_NULL(A);
+
+    idx_t k = 3;
+    double v_default[3] = {0}, v_explicit[3] = {0};
+    sparse_eigs_t r_default = {.eigenvalues = v_default};
+    sparse_eigs_t r_explicit = {.eigenvalues = v_explicit};
+    sparse_eigs_opts_t opts_default = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LOBPCG,
+        .max_iterations = 100,
+        .block_size = 0, /* library default → k */
+    };
+    sparse_eigs_opts_t opts_explicit = opts_default;
+    opts_explicit.block_size = k; /* explicit, must match default */
+
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts_default, &r_default));
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts_explicit, &r_explicit));
+    ASSERT_EQ(r_default.n_converged, k);
+    ASSERT_EQ(r_explicit.n_converged, k);
+    /* Iteration count, residual, and eigenvalues must all match
+     * bit-for-bit — the bs=0 path is just a pre-resolve of bs=k,
+     * so the deterministic LOBPCG iteration produces identical
+     * floating-point output. */
+    ASSERT_EQ(r_default.iterations, r_explicit.iterations);
+    ASSERT_TRUE(r_default.residual_norm == r_explicit.residual_norm);
+    for (idx_t j = 0; j < k; j++)
+        ASSERT_TRUE(v_default[j] == v_explicit[j]);
+
+    sparse_free(A);
+}
+
 int main(void) {
-    TEST_SUITE_BEGIN("Sprint 21 Days 8-10 — LOBPCG full coverage + AUTO dispatch");
+    TEST_SUITE_BEGIN("Sprint 21 Days 8-10 + 13 — LOBPCG full coverage + AUTO dispatch");
 
     /* Day 8 building blocks. */
     RUN_TEST(test_orthonormalize_block_basic);
@@ -1132,6 +1181,9 @@ int main(void) {
     RUN_TEST(test_lobpcg_auto_dispatch_lobpcg);
     RUN_TEST(test_lobpcg_auto_dispatch_no_precond_falls_back);
     RUN_TEST(test_lobpcg_explicit_overrides_auto);
+
+    /* Day 13 default-fallback contract. */
+    RUN_TEST(test_lobpcg_block_size_zero_defaults);
 
     TEST_SUITE_END();
 }

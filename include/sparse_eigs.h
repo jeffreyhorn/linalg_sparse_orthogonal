@@ -241,11 +241,14 @@ typedef enum {
  * fields at the end of this struct, changing its size relative to
  * the v2.1.x version shipped through Sprint 20.  Source-level
  * compatibility is preserved: positional and designated initialisers
- * from v2.1.x continue to compile — the new trailing fields zero-
- * init to the LOBPCG library defaults.  Pre-compiled downstream
- * binaries linked against v2.1.x must be recompiled against v2.2.x
- * because stack-allocating the old struct would cause the new
- * library to read past its end.
+ * from v2.1.x continue to compile, leaving the new trailing fields
+ * zero-initialised / unset.  That is *not* identical to passing
+ * `opts == NULL` for full library defaults; in particular,
+ * `lobpcg_soft_lock` stays 0 (off) unless explicitly set to 1,
+ * whereas the `opts == NULL` path turns soft-locking on.  Pre-
+ * compiled downstream binaries linked against v2.1.x must be
+ * recompiled against v2.2.x because stack-allocating the old struct
+ * would cause the new library to read past its end.
  */
 typedef struct {
     /** Which portion of the spectrum to return. */

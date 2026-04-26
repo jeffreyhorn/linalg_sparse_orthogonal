@@ -218,16 +218,16 @@ typedef struct lanczos_restart_state {
 void lanczos_restart_state_free(lanczos_restart_state_t *state);
 
 /**
- * @brief Reduce a symmetric arrowhead matrix to tridiagonal form.
+ * @brief Reduce a symmetric arrowhead matrix to tridiagonal form
+ *        (spectrum-only — does not return the similarity Q).
  *
- * Sprint 21 Day 2: the arrowhead T produced by a thick-restart
- * carries the locked Ritz values on its top-left diagonal plus a
- * spoke of coupling entries at row/col `k_locked` (see the design
- * block at the top of `src/sparse_eigs.c`).  Before Ritz extraction
- * via `tridiag_qr_eigenpairs` can run, the arrowhead has to be
- * reduced to a symmetric tridiagonal by an orthogonal similarity.
- * This helper performs that reduction, writing `diag_out` and
- * `subdiag_out` as the tridiagonal form of the same spectrum.
+ * The arrowhead T produced by a thick-restart carries the locked
+ * Ritz values on its top-left diagonal plus a spoke of coupling
+ * entries at row/col `k_locked` (see the design block at the top of
+ * `src/sparse_eigs.c`).  This helper materialises that arrowhead
+ * dense and applies an orthogonal similarity to land in symmetric
+ * tridiagonal form, writing `diag_out` and `subdiag_out` as the
+ * reduced tridiagonal of the same spectrum.
  *
  * Algorithm.  The arrowhead is materialised as a dense K × K symmetric
  * matrix (K = k_locked + m_ext) in a scratch buffer and then
@@ -239,10 +239,18 @@ void lanczos_restart_state_free(lanczos_restart_state_t *state);
  * Total work is O(K^3) but K is small (typically k_locked + m_restart
  * ≤ 100), so each reduction is microsecond-scale.
  *
- * Day 2 scope: spectrum reduction only.  The accumulated similarity
- * matrix is not returned; Day 3 extends the helper to also produce
- * an orthogonal Q so the subsequent QR eigenpair extraction's Y
- * composes into the correct Ritz-vector lift in the original basis.
+ * Limitation / role.  The accumulated similarity Q is *not* returned,
+ * so callers cannot lift eigenvectors of the reduced tridiagonal back
+ * into the arrowhead's basis through this helper alone.  The
+ * production thick-restart path (`s21_thick_restart_outer_loop`) does
+ * not use this helper at all — it runs dense Jacobi
+ * (`s21_dense_sym_jacobi`) directly on the K × K arrowhead, which
+ * yields both eigenvalues *and* the orthonormal Q in a single sweep
+ * (avoids the separate Q accumulator the Day 2 design originally
+ * envisioned).  This helper remains live as a spectrum-preservation
+ * oracle for `test_eigs_thick_restart.c` — useful when validating
+ * that future arrowhead constructions still produce the expected
+ * Lanczos invariants.
  *
  * @param theta_locked    Length k_locked; locked Ritz values on the
  *                        top-left diagonal of the arrowhead.

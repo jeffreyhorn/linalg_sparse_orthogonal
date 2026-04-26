@@ -204,6 +204,9 @@ add_executable(bench_refactor_csc benchmarks/bench_refactor_csc.c)
 target_link_libraries(bench_refactor_csc PRIVATE sparse_lu_ortho)
 target_include_directories(bench_refactor_csc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
+add_executable(bench_eigs benchmarks/bench_eigs.c)
+target_link_libraries(bench_eigs PRIVATE sparse_lu_ortho)
+
 # Example programs (not part of ctest)
 add_executable(example_ldlt examples/example_ldlt.c)
 target_link_libraries(example_ldlt PRIVATE sparse_lu_ortho)

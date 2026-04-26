@@ -235,6 +235,17 @@ typedef enum {
  * Lanczos), `precond = NULL` / `precond_ctx = NULL` (vanilla
  * LOBPCG; ignored for Lanczos), `lobpcg_soft_lock = 1` (per-column
  * freezing on; ignored for Lanczos).
+ *
+ * @warning **ABI break in v2.2.0.**  Sprint 21 Days 7-9 added the
+ * `block_size`, `precond`, `precond_ctx`, and `lobpcg_soft_lock`
+ * fields at the end of this struct, changing its size relative to
+ * the v2.1.x version shipped through Sprint 20.  Source-level
+ * compatibility is preserved: positional and designated initialisers
+ * from v2.1.x continue to compile — the new trailing fields zero-
+ * init to the LOBPCG library defaults.  Pre-compiled downstream
+ * binaries linked against v2.1.x must be recompiled against v2.2.x
+ * because stack-allocating the old struct would cause the new
+ * library to read past its end.
  */
 typedef struct {
     /** Which portion of the spectrum to return. */
@@ -362,6 +373,16 @@ typedef struct {
  * filled in.  Unfilled slots retain their pre-call values.
  * Callers that want partial results in the unconverged case
  * should inspect `n_converged` before consuming `eigenvalues[]`.
+ *
+ * @warning **ABI break in v2.2.0.**  Sprint 21 Days 4 and 7 added
+ * the `peak_basis_size` and `backend_used` fields at the end of
+ * this struct, changing its size relative to the v2.1.x version
+ * shipped through Sprint 20.  Source-level compatibility is
+ * preserved: positional and designated initialisers from v2.1.x
+ * continue to compile.  Pre-compiled downstream binaries linked
+ * against v2.1.x must be recompiled against v2.2.x because stack-
+ * allocating the old struct would cause the new library to write
+ * past its end.
  */
 typedef struct {
     /** Caller-owned buffer of length `>= k`.  The library writes
@@ -415,10 +436,12 @@ typedef struct {
      *  LANCZOS below `SPARSE_EIGS_THICK_RESTART_THRESHOLD` and
      *  LANCZOS_THICK_RESTART above; Sprint 21 Day 10 extends this
      *  to also route LOBPCG when a preconditioner is supplied).
-     *  Set on every successful return; on early-error returns the
-     *  field retains its pre-call value.  Sprint 21 Day 7
-     *  observability — used by the Day 11 `bench_eigs` driver to
-     *  log AUTO's choice per fixture in the CSV output. */
+     *  Set on every successful return.  On error returns, treat
+     *  this field as unspecified / best-effort telemetry: backend
+     *  selection may already have been recorded before a later
+     *  failure is detected.  Sprint 21 Day 7 observability — used
+     *  by the Day 11 `bench_eigs` driver to log AUTO's choice per
+     *  fixture in the CSV output. */
     sparse_eigs_backend_t backend_used;
 } sparse_eigs_t;
 

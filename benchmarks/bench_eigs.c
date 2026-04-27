@@ -542,10 +542,9 @@ static void emit_compare_row(int csv, const char *matrix_label, idx_t n, const r
                              const run_result_t *rlb) {
     /* Report the precond actually used by the LOBPCG arm; grow-m and
      * thick-restart always run with NONE (see run_one's gating).
-     * Falling back to cfg->precond_kind when rlb didn't run keeps the
-     * dimension column populated. */
-    bench_precond_kind_t lobpcg_prec =
-        (rlb->ok || rlb->last_err != SPARSE_OK) ? rlb->precond_used : cfg->precond_kind;
+     * `run_one` writes precond_used unconditionally (early in the
+     * function, before any error path), so it's always populated. */
+    bench_precond_kind_t lobpcg_prec = rlb->precond_used;
     if (csv) {
         printf("%s,%d,%d,%s,%.4g,%s,"
                "%d,%.3f,%.3e,%s,"

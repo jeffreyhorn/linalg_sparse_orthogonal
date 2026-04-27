@@ -474,12 +474,11 @@ sparse_err_t lanczos_thick_restart_iterate(lanczos_op_fn op, const void *ctx, id
  *     column from the right and decrement the trailing pointer); the
  *     effective block size shrinks accordingly.
  *
- * Mirrors the Sprint 20 `s21_mgs_reorth` kernel applied per-column
- * with the breakdown convention from commit 70015a4.  Preserves
- * numerical stability of the downstream Rayleigh-Ritz step, which
- * requires the basis `[X, W, P]` to be orthonormal so the Gram
- * matrix `Q^T · A · Q` is symmetric (off by O(eps · cond) terms
- * otherwise).
+ * Mirrors the `s21_mgs_reorth` kernel applied per-column with the
+ * breakdown convention from commit 70015a4.  Preserves numerical
+ * stability of the downstream Rayleigh-Ritz step, which requires
+ * the basis `[X, W, P]` to be orthonormal so the Gram matrix
+ * `Q^T · A · Q` is symmetric (off by O(eps · cond) terms otherwise).
  *
  * @param Q              n × block_size_in, column-major.  Modified
  *                       in place: accepted columns are normalised

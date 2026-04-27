@@ -222,12 +222,23 @@ static run_result_t run_one(const SparseMatrix *A, const run_config_t *cfg) {
      *     hands the inverse to the operator callback; an outer
      *     precond doesn't compose physically (file header explains).
      *   - LANCZOS / LANCZOS_THICK_RESTART ignore opts.precond.
-     *   - LOBPCG and AUTO (which may dispatch to LOBPCG when a
-     *     precond is supplied and n ≥ threshold) honour it. */
+     *   - LOBPCG always honours it.
+     *   - AUTO honours it only if the AUTO predicate would route
+     *     to LOBPCG; otherwise AUTO routes to a Lanczos backend
+     *     and the precond is ignored.  The AUTO → LOBPCG predicate
+     *     mirrors `sparse_eigs_sym`: precond != NULL AND
+     *     n >= SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD AND
+     *     effective block_size >= 4 (defaults to k when 0). */
     bench_precond_kind_t effective_precond = cfg->precond_kind;
     if (cfg->which == SPARSE_EIGS_NEAREST_SIGMA || cfg->backend == SPARSE_EIGS_BACKEND_LANCZOS ||
         cfg->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART) {
         effective_precond = BENCH_PRECOND_NONE;
+    } else if (cfg->backend == SPARSE_EIGS_BACKEND_AUTO) {
+        idx_t bs_for_auto = (cfg->block_size > 0) ? cfg->block_size : k;
+        int auto_lobpcg = (effective_precond != BENCH_PRECOND_NONE) &&
+                          (n >= (idx_t)SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD) && (bs_for_auto >= 4);
+        if (!auto_lobpcg)
+            effective_precond = BENCH_PRECOND_NONE;
     }
     r.precond_used = effective_precond;
 
@@ -596,34 +607,34 @@ static int run_compare_mode(int repeats, int csv) {
             continue;
         }
         idx_t n = sparse_rows(A);
+        run_config_t base = {
+            .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+            .precond_kind = BENCH_PRECOND_NONE,
+            .which = entries[ei].which,
+            .sigma = 0.0,
+            .k = entries[ei].k,
+            .block_size = 0,
+            .compute_vectors = 0,
+            .tol = 1e-8,
+            .max_iters = (entries[ei].which == SPARSE_EIGS_SMALLEST) ? (idx_t)800 : (idx_t)300,
+            .repeats = repeats,
+        };
+        /* The grow-m and thick-restart Lanczos backends ignore
+         * `opts.precond` (`run_one`'s gating downgrades to NONE),
+         * so their numbers are identical across the IC0 / LDLT
+         * precond rows.  Run them once per (matrix, k, which) and
+         * reuse the results for the three precond rows; only the
+         * LOBPCG arm actually varies per precond. */
+        run_config_t cfg_gm = base;
+        cfg_gm.backend = SPARSE_EIGS_BACKEND_LANCZOS;
+        run_config_t cfg_tr = base;
+        cfg_tr.backend = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART;
+        run_result_t rgm = run_one(A, &cfg_gm);
+        run_result_t rtr = run_one(A, &cfg_tr);
         for (int pi = 0; pi < n_preconds; pi++) {
-            run_config_t base = {
-                .backend = SPARSE_EIGS_BACKEND_LANCZOS,
-                .precond_kind = preconds[pi],
-                .which = entries[ei].which,
-                .sigma = 0.0,
-                .k = entries[ei].k,
-                .block_size = 0,
-                .compute_vectors = 0,
-                .tol = 1e-8,
-                .max_iters = (entries[ei].which == SPARSE_EIGS_SMALLEST) ? (idx_t)800 : (idx_t)300,
-                .repeats = repeats,
-            };
-            run_config_t cfg_gm = base;
-            cfg_gm.backend = SPARSE_EIGS_BACKEND_LANCZOS;
-            run_config_t cfg_tr = base;
-            cfg_tr.backend = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART;
             run_config_t cfg_lb = base;
             cfg_lb.backend = SPARSE_EIGS_BACKEND_LOBPCG;
-            /* Lanczos backends ignore precond_ctx when they don't use
-             * it, so applying IC0/LDLT to the grow-m / thick-restart
-             * runs is a no-op — the precond column then reflects the
-             * LOBPCG arm of the row.  Mark the Lanczos arm with NONE
-             * for clarity by zeroing precond on those configs. */
-            cfg_gm.precond_kind = BENCH_PRECOND_NONE;
-            cfg_tr.precond_kind = BENCH_PRECOND_NONE;
-            run_result_t rgm = run_one(A, &cfg_gm);
-            run_result_t rtr = run_one(A, &cfg_tr);
+            cfg_lb.precond_kind = preconds[pi];
             run_result_t rlb = run_one(A, &cfg_lb);
             emit_compare_row(csv, entries[ei].label, n, &cfg_lb, &rgm, &rtr, &rlb);
         }

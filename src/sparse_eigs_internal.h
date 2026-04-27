@@ -16,8 +16,6 @@
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 
-#include <stddef.h>
-
 /**
  * @brief m-step Lanczos recurrence on symmetric A, optionally
  *        with full reorthogonalization against all prior Lanczos

@@ -166,8 +166,13 @@ typedef enum {
 typedef enum {
     SPARSE_EIGS_BACKEND_AUTO = 0,
     SPARSE_EIGS_BACKEND_LANCZOS = 1,
-    SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART = 2,
-    SPARSE_EIGS_BACKEND_LOBPCG = 3,
+    /* `SPARSE_EIGS_BACKEND_LOBPCG = 2` was reserved by Sprint 20's
+     * `sparse_eigs_opts_t.backend` enum slot for the Sprint 21 LOBPCG
+     * landing.  Honour the originally-advertised mapping so any
+     * downstream config / int persistence written against Sprint 20
+     * docs continues to mean the same backend. */
+    SPARSE_EIGS_BACKEND_LOBPCG = 2,
+    SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART = 3,
 } sparse_eigs_backend_t;
 
 /**

@@ -1361,7 +1361,7 @@ Singular-shift case: if `sigma` coincides with an eigenvalue of A, `A − sigma�
 - **Clustered spectra.** Bottom-cluster SPD matrices need close to the full Krylov basis (m ≈ n).  bcsstk04 k=3 SMALLEST hits m_cap = n = 132 and converges cleanly (shift-invert with `sigma ~ 1e-3` would be faster).
 - **Shift-invert break-even.** When the target eigenvalues are ≥ 10% of the spectrum distance from the extremes, shift-invert beats direct even accounting for the one-time LDL^T factor cost.  The KKT n=150 run takes 39 Lanczos steps at sigma=0 vs 62 for direct SMALLEST — 34% faster wall time.
 
-See `docs/planning/EPIC_2/SPRINT_20/bench_day13_lanczos.txt` for the measured numbers across SuiteSparse fixtures.  Sprint 21 Day 14's full sweep across all three backends and `which` modes lands at `docs/planning/EPIC_2/SPRINT_21/bench_day14.txt` (and the 3-backend × 3-precond pivot at `bench_day14_compare.txt`).
+See `docs/planning/EPIC_2/SPRINT_20/bench_day13_lanczos.txt` for the measured numbers across SuiteSparse fixtures.  Sprint 21 Day 14's full sweep across all three backends and `which` modes lands at `docs/planning/EPIC_2/SPRINT_21/bench_day14.txt` (and the 3-backend × 3-precond pivot at `docs/planning/EPIC_2/SPRINT_21/bench_day14_compare.txt`).
 
 ### LOBPCG: preconditioned block Rayleigh-Ritz
 

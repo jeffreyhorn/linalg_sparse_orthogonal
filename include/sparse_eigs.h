@@ -178,19 +178,23 @@ typedef enum {
 /**
  * @brief Crossover threshold for AUTO backend dispatch.
  *
- * When `opts->backend == SPARSE_EIGS_BACKEND_AUTO` and
- * `sparse_rows(A) >= SPARSE_EIGS_THICK_RESTART_THRESHOLD`, the
- * library routes to the bounded-memory thick-restart backend
- * rather than the Sprint 20 grow-m path.  Below the threshold
- * the grow-m path wins because its full-basis Ritz extraction
- * converges in slightly fewer matvecs on small problems and
- * memory isn't a concern — bcsstk04 (n = 132) grow-m holds
- * ~160 KB of V at m_cap = 130, which is cheap on modern
+ * When `opts->backend == SPARSE_EIGS_BACKEND_AUTO`, this threshold
+ * governs AUTO's choice between the two Lanczos backends only after
+ * the higher-priority LOBPCG AUTO rule does not match (that is, when
+ * AUTO does not already route to LOBPCG because `opts->precond !=
+ * NULL`, `n >= SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD`, and the
+ * effective block size is at least 4).  In that Lanczos-only branch,
+ * `sparse_rows(A) >= SPARSE_EIGS_THICK_RESTART_THRESHOLD` routes to
+ * the bounded-memory thick-restart backend rather than the Sprint 20
+ * grow-m path.  Below the threshold the grow-m path wins because its
+ * full-basis Ritz extraction converges in slightly fewer matvecs on
+ * small problems and memory isn't a concern — bcsstk04 (n = 132)
+ * grow-m holds ~160 KB of V at m_cap = 130, which is cheap on modern
  * machines.  Above the threshold the memory bound matters —
- * bcsstk14 (n = 1806) grow-m at m_cap = 500 holds ~7 MB of V,
- * which grows to ~26 MB if max_iterations = n.  Thick-restart
- * caps peak V at `m_restart + k_locked ≈ 35` columns regardless
- * of total iteration count.
+ * bcsstk14 (n = 1806) grow-m at m_cap = 500 holds ~7 MB of V, which
+ * grows to ~26 MB if max_iterations = n.  Thick-restart caps peak V
+ * at `m_restart + k_locked ≈ 35` columns regardless of total
+ * iteration count.
  *
  * Provisional value: 500 (matches the nos4 / bcsstk04 / kkt-150
  * / bcsstk14 measured crossover in the Sprint 21 Day 4 benchmark

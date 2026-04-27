@@ -13,7 +13,10 @@
  *                         (nos4, bcsstk04, bcsstk14) × (k: 3, 5) ×
  *                         (which: LARGEST, SMALLEST) × (3 backends)
  *                         + kkt-150 × NEAREST_SIGMA × 3 backends.
- *                         Roughly 39 rows.
+ *                         33 rows with the current corpus / loop set
+ *                         (bcsstk14 is LARGEST-only; KKT contributes
+ *                         3 rows).  See `bench_day14.txt` for the
+ *                         committed capture.
  *   --compare             Pivoted three-backend head-to-head on a
  *                         smaller corpus; rows are (matrix, k, which),
  *                         columns are (backend × {iters, wall_ms,
@@ -497,21 +500,28 @@ static int run_default_sweep(int repeats, int csv) {
 
 /* ─── --compare mode: pivoted three-backend head-to-head.
  *
- * Format: one row per (matrix, k, which, precond), columns = three
- * backends × {iters, wall_ms, residual}.  Makes "LOBPCG wins here,
- * thick-restart wins there" obvious at a glance.  Includes the
+ * Format: one row per (matrix, k, which, lobpcg_precond), columns =
+ * three backends × {iters, wall_ms, residual}.  Makes "LOBPCG wins
+ * here, thick-restart wins there" obvious at a glance.  Includes the
  * preconditioner sweep (NONE / IC0 / LDLT) so the precond comparison
- * is visible in the same table. */
+ * is visible in the same table.
+ *
+ * The precond column is named `lobpcg_precond` because Lanczos
+ * grow-m and thick-restart ignore `opts.precond` entirely (per
+ * `run_one()`'s gating, the effective precond on those backends is
+ * always NONE).  Identical grow-m / thick numbers therefore repeat
+ * across the IC0 / LDLT rows; they're presented for at-a-glance
+ * comparison against the LOBPCG arm rather than as separate runs. */
 
 static void emit_compare_header(int csv) {
     if (csv) {
-        printf("matrix,n,k,which,sigma,precond,"
+        printf("matrix,n,k,which,sigma,lobpcg_precond,"
                "growing_m_iters,growing_m_wall_ms,growing_m_residual,growing_m_status,"
                "thick_iters,thick_wall_ms,thick_residual,thick_status,"
                "lobpcg_iters,lobpcg_wall_ms,lobpcg_residual,lobpcg_status\n");
     } else {
-        printf("%-12s %5s %3s %-8s %6s %4s | %23s | %23s | %23s\n", "matrix", "n", "k", "which",
-               "sigma", "prec", "growing_m (iters/ms/res)", "thick (iters/ms/res)",
+        printf("%-12s %5s %3s %-8s %6s %7s | %23s | %23s | %23s\n", "matrix", "n", "k", "which",
+               "sigma", "lb_prec", "growing_m (iters/ms/res)", "thick (iters/ms/res)",
                "lobpcg (iters/ms/res)");
     }
 }
@@ -519,24 +529,30 @@ static void emit_compare_header(int csv) {
 static void emit_compare_row(int csv, const char *matrix_label, idx_t n, const run_config_t *cfg,
                              const run_result_t *rgm, const run_result_t *rtr,
                              const run_result_t *rlb) {
+    /* Report the precond actually used by the LOBPCG arm; grow-m and
+     * thick-restart always run with NONE (see run_one's gating).
+     * Falling back to cfg->precond_kind when rlb didn't run keeps the
+     * dimension column populated. */
+    bench_precond_kind_t lobpcg_prec =
+        (rlb->ok || rlb->last_err != SPARSE_OK) ? rlb->precond_used : cfg->precond_kind;
     if (csv) {
         printf("%s,%d,%d,%s,%.4g,%s,"
                "%d,%.3f,%.3e,%s,"
                "%d,%.3f,%.3e,%s,"
                "%d,%.3f,%.3e,%s\n",
                matrix_label, (int)n, (int)cfg->k, which_label(cfg->which), cfg->sigma,
-               precond_label(cfg->precond_kind), (int)rgm->iterations, rgm->wall_ms_median,
-               rgm->residual, err_label(rgm->last_err), (int)rtr->iterations, rtr->wall_ms_median,
-               rtr->residual, err_label(rtr->last_err), (int)rlb->iterations, rlb->wall_ms_median,
-               rlb->residual, err_label(rlb->last_err));
+               precond_label(lobpcg_prec), (int)rgm->iterations, rgm->wall_ms_median, rgm->residual,
+               err_label(rgm->last_err), (int)rtr->iterations, rtr->wall_ms_median, rtr->residual,
+               err_label(rtr->last_err), (int)rlb->iterations, rlb->wall_ms_median, rlb->residual,
+               err_label(rlb->last_err));
     } else {
-        printf("%-12s %5d %3d %-8s %6.2f %4s | %5d/%6.1f/%.1e %s | %5d/%6.1f/%.1e %s | "
+        printf("%-12s %5d %3d %-8s %6.2f %7s | %5d/%6.1f/%.1e %s | %5d/%6.1f/%.1e %s | "
                "%5d/%6.1f/%.1e %s\n",
                matrix_label, (int)n, (int)cfg->k, which_label(cfg->which), cfg->sigma,
-               precond_label(cfg->precond_kind), (int)rgm->iterations, rgm->wall_ms_median,
-               rgm->residual, err_label(rgm->last_err), (int)rtr->iterations, rtr->wall_ms_median,
-               rtr->residual, err_label(rtr->last_err), (int)rlb->iterations, rlb->wall_ms_median,
-               rlb->residual, err_label(rlb->last_err));
+               precond_label(lobpcg_prec), (int)rgm->iterations, rgm->wall_ms_median, rgm->residual,
+               err_label(rgm->last_err), (int)rtr->iterations, rtr->wall_ms_median, rtr->residual,
+               err_label(rtr->last_err), (int)rlb->iterations, rlb->wall_ms_median, rlb->residual,
+               err_label(rlb->last_err));
     }
 }
 

@@ -789,18 +789,20 @@ static void test_thick_restart_auto_dispatch_above_threshold(void) {
     REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
     ASSERT_EQ(res.n_converged, k);
 
-    /* AUTO routed to thick-restart because n >= threshold: peak
-     * basis size should be in the thick-restart regime
+    /* AUTO must route to thick-restart because n >= threshold.
+     * Assert the selected backend directly via backend_used; keep
+     * peak_basis_size as a secondary sanity check that execution
+     * stayed in the thick-restart bounded-memory regime
      * (m_restart + 2k = 2k+20 + 2k = 4k+20 = 32 for k=3) rather
      * than the grow-m regime (m_cap ≈ max(10k+20, 100) = 100). */
+    ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART);
     ASSERT_TRUE(res.peak_basis_size <= 50);
 
     sparse_free(A);
 }
 
-/* AUTO dispatch below the threshold must route to grow-m
- * (peak_basis_size > 50 in the grow-m regime where m_cap
- * defaults reach 100).  Complement of the above test. */
+/* AUTO dispatch below the threshold must route to grow-m Lanczos.
+ * Complement of the above test. */
 static void test_thick_restart_auto_dispatch_below_threshold(void) {
     const idx_t n = 100; /* < 500 */
     SparseMatrix *A = sparse_create(n, n);
@@ -827,8 +829,11 @@ static void test_thick_restart_auto_dispatch_below_threshold(void) {
     REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
     ASSERT_EQ(res.n_converged, k);
 
-    /* AUTO routed to grow-m: peak_basis_size ≈ m_cap = max(3k+30, 100)
-     * clamped to n → ≥ 100 on this fixture. */
+    /* AUTO routed to grow-m Lanczos below the threshold.  Assert the
+     * selected backend directly; keep peak_basis_size as a secondary
+     * sanity check that execution stayed in the grow-m regime
+     * (peak ≈ m_cap = max(10k+20, 100) clamped to n → ≥ 100 here). */
+    ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LANCZOS);
     ASSERT_TRUE(res.peak_basis_size >= 50);
 
     sparse_free(A);

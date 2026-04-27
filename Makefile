@@ -306,7 +306,7 @@ TSAN_CFLAGS_BASE += -isysroot $(SYSROOT)
 endif
 TSAN_INCLUDES := -Iinclude -I$(BUILDDIR)/include -I$(SRCDIR) -I$(TESTDIR)
 TSAN_LDFLAGS := -fsanitize=thread -lm
-TSAN_EIGS_TESTS := test_eigs test_eigs_thick_restart
+TSAN_EIGS_TESTS := test_eigs test_eigs_thick_restart test_eigs_lobpcg
 
 .PHONY: sanitize-thread
 sanitize-thread: $(GENERATED_VERSION)

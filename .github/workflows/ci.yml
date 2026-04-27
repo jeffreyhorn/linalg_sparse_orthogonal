@@ -90,7 +90,7 @@ jobs:
       - name: Build eigensolver tests with TSan + OpenMP
         run: |
           make clean
-          make build/test_eigs build/test_eigs_thick_restart \
+          make build/test_eigs build/test_eigs_thick_restart build/test_eigs_lobpcg \
                CC=clang \
                CFLAGS="-std=c11 -Wall -Wextra -O1 -g -fsanitize=thread -fno-omit-frame-pointer -DSPARSE_OPENMP -fopenmp -Iinclude" \
                LDFLAGS="-fsanitize=thread -fopenmp -lm"
@@ -99,6 +99,7 @@ jobs:
         run: |
           ./build/test_eigs
           ./build/test_eigs_thick_restart
+          ./build/test_eigs_lobpcg
         env:
           # See suppressions file for rationale; Ubuntu's libomp is
           # not Archer-instrumented, so libomp-internal mutex /

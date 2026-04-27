@@ -270,12 +270,12 @@ void lanczos_restart_state_free(lanczos_restart_state_t *state);
  * @param beta_ext        Length m_ext - 1; Lanczos beta values for
  *                        the tail.  May be NULL when m_ext <= 1.
  * @param m_ext           Number of post-restart Lanczos steps
- *                        (>= 0).  `m_ext == 0` is legal — the
- *                        arrowhead is a pure locked + α_0_ext "tip"
- *                        matrix of dimension k_locked + 1... wait no,
- *                        `m_ext == 0` means K = k_locked with no
- *                        extension row at all (degenerate — just
- *                        the locked block as a diagonal).
+ *                        (>= 0).  Let `K = k_locked + m_ext` be
+ *                        the order of the arrowhead / reduced
+ *                        tridiagonal.  When `m_ext == 0`,
+ *                        `K == k_locked`, so there is no
+ *                        extension row or tail and the arrowhead
+ *                        is just the locked diagonal block.
  * @param diag_out        Length K = k_locked + m_ext; the diagonal
  *                        of the reduced tridiagonal on return.
  * @param subdiag_out     Length K - 1; the subdiagonal of the
@@ -286,11 +286,6 @@ void lanczos_restart_state_free(lanczos_restart_state_t *state);
  * @return SPARSE_OK on success, SPARSE_ERR_NULL / _BADARG for the
  *         usual preconditions, or SPARSE_ERR_ALLOC for the scratch
  *         buffer.
- *
- * **Day 2 stub caveat: implemented via dense Householder; the Day
- * 1 plan notes "Givens rotations" but the literature uses both and
- * Householder is cleaner to code for this size regime.  Day 3 will
- * extend to also return the accumulated orthogonal similarity.**
  */
 sparse_err_t s21_arrowhead_to_tridiag(const double *theta_locked, const double *beta_coupling,
                                       idx_t k_locked, const double *alpha_ext,

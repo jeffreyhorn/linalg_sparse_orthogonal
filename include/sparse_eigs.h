@@ -429,8 +429,10 @@ typedef struct {
      *  largest V actually allocated across retries); for
      *  thick-restart it equals `m_restart + k_locked_cap_used`
      *  (the simultaneously-live `V` basis plus the restart
-     *  state's `V_locked` block).  Reported in doubles-times-`n`
-     *  units — multiply by `n * sizeof(double)` to get bytes. */
+     *  state's `V_locked` block).  Reported in basis-column units
+     *  (a count of length-n vectors) — multiply by
+     *  `n * sizeof(double)` to get bytes, i.e.
+     *  `peak_basis_size * n * sizeof(double)`. */
     idx_t peak_basis_size;
     /** Output: which backend the library actually dispatched to.
      *  Mirrors `sparse_ldlt_t::used_csc_path` in spirit — when

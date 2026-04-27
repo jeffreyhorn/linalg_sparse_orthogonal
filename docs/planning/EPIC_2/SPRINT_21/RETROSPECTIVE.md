@@ -1,8 +1,8 @@
 # Sprint 21 Retrospective — Eigensolver Completion: Thick-Restart, OpenMP & LOBPCG
 
-**Duration:** 14 days
+**Sprint budget:** 14 working days (~168 hours)
 **Branch:** `sprint-21`
-**Date range:** 2026-04-23 → 2026-04-25 (intensive condensed run, building on the Sprint 20 finish)
+**Calendar elapsed:** 2026-04-23 → 2026-04-25 (intensive condensed run building on the Sprint 20 finish; the 14-day budget tracks engineering effort, not wall-clock days)
 
 ## Goal recap
 

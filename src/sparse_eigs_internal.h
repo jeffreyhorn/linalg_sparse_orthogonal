@@ -428,10 +428,13 @@ sparse_err_t lanczos_restart_state_assemble(lanczos_restart_state_t *state, idx_
  *         / _ALLOC for the usual preconditions, or any error the
  *         operator callback propagates.
  *
- * **Day 1 stub.** Returns SPARSE_ERR_BADARG ("stub in progress"
- * signal, consistent with the Sprint 20 Day 7 convention — no
- * SPARSE_ERR_NOT_IMPL exists in this codebase).  Days 2-3 replace
- * the body with the arrowhead reduction + phase execution.
+ * Executes one thick-restart Lanczos phase against `op`, starting
+ * either from a fresh `v0` when `state` is empty or from the
+ * locked / residual information carried in `state` after a prior
+ * restart.  On return, `V` / `alpha` / `beta` describe the current
+ * phase's basis and tridiagonal data, while the preserved locked
+ * subspace, coupling terms, and residual needed for the next
+ * restart remain represented via `state`.
  */
 sparse_err_t lanczos_thick_restart_iterate(lanczos_op_fn op, const void *ctx, idx_t n,
                                            const double *v0, idx_t m_restart, int reorthogonalize,
@@ -439,28 +442,26 @@ sparse_err_t lanczos_thick_restart_iterate(lanczos_op_fn op, const void *ctx, id
                                            double *beta, idx_t *m_actual);
 
 /* ═══════════════════════════════════════════════════════════════════════
- * Sprint 21 Day 7: LOBPCG building blocks (Knyazev 2001)
+ * LOBPCG building blocks (Knyazev 2001)
  * ═══════════════════════════════════════════════════════════════════════
  *
- * The Sprint 21 Days 7-10 LOBPCG backend reuses the Sprint 20
- * `lanczos_op_fn` callback type for `A · X` multiplies (one
- * application per column of the n × block_size X / W / P blocks for
- * now; Sprint 22 may introduce a block matvec) and the
- * `sparse_precond_fn` callback from `sparse_iterative.h` for the
- * preconditioner that turns the residual block R into the
- * preconditioned-residual block W = M^{-1} · R.
+ * The LOBPCG backend reuses the `lanczos_op_fn` callback type for
+ * `A · X` multiplies (one application per column of the
+ * n × block_size X / W / P blocks; a future block-matvec is a
+ * potential follow-up) and the `sparse_precond_fn` callback from
+ * `sparse_iterative.h` for the preconditioner that turns the
+ * residual block R into the preconditioned-residual block
+ * W = M^{-1} · R.
  *
- * Day 7 lands the API surface and stubs returning SPARSE_ERR_BADARG;
- * Day 8 implements the unpreconditioned core; Day 9 wires the
- * preconditioner and the BLOPEX-style P-block update; Day 10 tunes
- * AUTO routing.  See the LOBPCG design block at the top of
- * `src/sparse_eigs.c` (between the Lanczos and thick-restart blocks)
- * for the full Rayleigh-Ritz pipeline. */
+ * The full pipeline — block Rayleigh-Ritz over `[X | W | P]`,
+ * BLOPEX-style conditioning guard, soft-locking, and AUTO
+ * dispatch — is documented in the LOBPCG design block at the top
+ * of `src/sparse_eigs.c` (between the Lanczos and thick-restart
+ * blocks). */
 
 /**
  * @brief Modified Gram-Schmidt orthonormalisation of an n × block_size
- *        column-major block (Sprint 21 Day 7 stub; Day 8 fills the
- *        body).
+ *        column-major block.
  *
  * Walks the columns of `Q` left-to-right.  For each column j:
  *   - Apply MGS against the previously-orthonormalised columns
@@ -494,14 +495,13 @@ sparse_err_t lanczos_thick_restart_iterate(lanczos_op_fn op, const void *ctx, id
  *
  * @return SPARSE_OK on success, SPARSE_ERR_NULL / SPARSE_ERR_BADARG
  *         on invalid arguments.
- *
- * **Day 7 stub.** Returns SPARSE_ERR_BADARG; Day 8 replaces the body. */
+ */
 sparse_err_t s21_lobpcg_orthonormalize_block(double *Q, idx_t n, idx_t block_size_in,
                                              idx_t *block_size_out);
 
 /**
  * @brief One block Rayleigh-Ritz step over the LOBPCG subspace
- *        `[X, W, P]` (Sprint 21 Day 7 stub; Day 8 fills the body).
+ *        `[X, W, P]`.
  *
  * Concatenates the three n × block_size matrices into an
  * n × (3·block_size) basis Q, orthonormalises it (via
@@ -509,10 +509,11 @@ sparse_err_t s21_lobpcg_orthonormalize_block(double *Q, idx_t n, idx_t block_siz
  * `G = Q^T · A · Q` of size 3·block_size × 3·block_size (symmetric)
  * by applying `op` columnwise, runs the dense symmetric Jacobi
  * eigensolver `s21_dense_sym_jacobi` to extract the Ritz pairs of
- * `G`, selects the `block_size` lowest eigenvalues (or whichever
- * matches `which`), and forms the next X / P from the combination
- * coefficients (Knyazev 2001 eq. 2.11; Day 9 swaps in the
- * BLOPEX-style robust formulation).
+ * `G`, selects the `block_size` Ritz pairs that match `which`, and
+ * forms the next X / P from the combination coefficients
+ * (Knyazev 2001 eq. 2.11; the BLOPEX-style robust formulation
+ * lives in `s21_lobpcg_solve` as a conditioning guard, see
+ * Sprint 21 Day 9 retrospective).
  *
  * @param op             Symmetric linear operator (A or shift-invert).
  * @param ctx            Opaque context for `op`.
@@ -536,15 +537,13 @@ sparse_err_t s21_lobpcg_orthonormalize_block(double *Q, idx_t n, idx_t block_siz
  *
  * @return SPARSE_OK on success, or any error from `op` /
  *         allocation / dense eigensolve.
- *
- * **Day 7 stub.** Returns SPARSE_ERR_BADARG; Day 8 replaces the body. */
+ */
 sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_t block_size,
                                 double *X, double *W, double *P, sparse_eigs_which_t which,
                                 double *theta_out);
 
 /**
- * @brief LOBPCG outer loop — full block iteration to convergence
- *        (Sprint 21 Day 7 stub; Days 8-10 fill the body).
+ * @brief LOBPCG outer loop — full block iteration to convergence.
  *
  * Initialises X to a deterministic block (Sprint 20 golden-ratio
  * fractional mixing extended across `block_size` columns) and
@@ -584,9 +583,7 @@ sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_
  * @return SPARSE_ERR_NULL / _BADARG / _ALLOC for the usual
  *         preconditions, or any error from `op` / `precond` /
  *         allocation.
- *
- * **Day 7 stub.** Returns SPARSE_ERR_BADARG; Day 8 (vanilla core)
- * and Day 9 (preconditioning + BLOPEX update) replace the body. */
+ */
 sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t k,
                               const sparse_eigs_opts_t *o, double eff_tol, idx_t max_iters,
                               sparse_eigs_t *result);

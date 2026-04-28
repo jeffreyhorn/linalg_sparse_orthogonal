@@ -428,11 +428,13 @@ sparse_err_t lanczos_restart_state_assemble(lanczos_restart_state_t *state, idx_
  *                  diagonal except for its last row/column); row
  *                  k_locked-1 holds the coupling vector's last
  *                  entry; rows k_locked.. hold standard Lanczos β
- *                  values.  The trailing β entries `β_coupling[0..
- *                  k_locked-1]` are emitted via a separate caller-
- *                  provided buffer (to avoid reshaping `beta` into
- *                  a non-tridiagonal layout) — passed via the Day
- *                  2 arrowhead-reduction helper.
+ *                  values.  The full coupling spoke
+ *                  `β_coupling[0..k_locked-1]` is preserved in
+ *                  `state->beta_coupling` (so the next phase / the
+ *                  arrowhead reduction can reconstruct the
+ *                  non-tridiagonal off-block structure); only
+ *                  `beta[k_locked - 1]` is mirrored into `beta[]`
+ *                  so the active-block layout stays tridiagonal.
  * @param m_actual  Output count of Lanczos columns produced in V
  *                  (includes the k_locked prefix).
  *

@@ -292,12 +292,15 @@ tsan: clean test
 #
 # Builds the *serial* path by default (no `-DSPARSE_OPENMP`).  The
 # parallel MGS reorth kernel is exercised under TSan in the
-# `tsan` Ubuntu CI job (`.github/workflows/ci.yml`), where
-# libomp's TSan-aware annotations (libarcher) are standard.
-# Homebrew LLVM ships libomp without archer, so OMP+TSan locally
-# produces false-positive races on implicit OMP barriers; running
-# the serial path here still validates the shared kernel's data
-# flow in a single-threaded reduction.
+# `tsan` Ubuntu CI job (`.github/workflows/ci.yml`), but that run
+# uses Ubuntu's non-archer libomp and `tests/tsan_suppressions.txt`
+# to filter known runtime false positives (Ubuntu's libomp is *not*
+# built with `LIBOMP_TSAN_SUPPORT`, so TSan has no visibility into
+# the runtime's internal sync — see the suppressions file header
+# for the tradeoff).  Homebrew LLVM also ships libomp without
+# archer, so OMP+TSan locally produces the same false positives;
+# running the serial path here still validates the shared kernel's
+# data flow in a single-threaded reduction.
 TSAN_CC ?= $(firstword $(wildcard /usr/local/opt/llvm/bin/clang /opt/homebrew/opt/llvm/bin/clang))
 TSAN_BUILDDIR := $(BUILDDIR)/tsan
 TSAN_CFLAGS_BASE := -std=c11 -Wall -Wextra -O1 -g -fsanitize=thread -fno-omit-frame-pointer

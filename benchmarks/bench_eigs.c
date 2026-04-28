@@ -65,8 +65,10 @@
 #include "sparse_vector.h"
 
 #include <errno.h>
+#include <float.h>
 #include <limits.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -93,6 +95,17 @@ static int cmp_double(const void *a, const void *b) {
 static double median_double(double *arr, int n) {
     qsort(arr, (size_t)n, sizeof(double), cmp_double);
     return arr[n / 2];
+}
+
+/* ─── Overflow-safe size_t multiplication.
+ * Mirrors the helper inside src/sparse_eigs.c (which is static, so
+ * we can't reuse it from here).  Returns 0 on success, 1 on
+ * overflow. */
+static int bench_size_mul_overflow(size_t a, size_t b, size_t *result) {
+    if (a != 0 && b > SIZE_MAX / a)
+        return 1;
+    *result = a * b;
+    return 0;
 }
 
 /* ─── LDL^T preconditioner adapter. ────────────────────────────────── */
@@ -211,6 +224,18 @@ static run_result_t run_one(const SparseMatrix *A, const run_config_t *cfg) {
     idx_t n = sparse_rows(A);
     idx_t k = cfg->k;
 
+    /* Validate `1 <= k <= n` up front — matches the precondition
+     * `sparse_eigs_sym` will check anyway, but doing it here lets
+     * us bail before paying the precond factor cost on a bad input
+     * (e.g. accidental `--k 99999` from the CLI on a small matrix). */
+    if (k < 1 || k > n) {
+        fprintf(stderr, "bench_eigs: invalid k=%d for n=%d (must satisfy 1 <= k <= n)\n", (int)k,
+                (int)n);
+        r.ok = 0;
+        r.last_err = SPARSE_ERR_BADARG;
+        return r;
+    }
+
     /* Decide whether the requested preconditioner is actually
      * applicable to the (backend, which) combination.  Skipping
      * the factor cost for backends that ignore `opts.precond`
@@ -270,9 +295,31 @@ static run_result_t run_one(const SparseMatrix *A, const run_config_t *cfg) {
     }
 
     int repeats = cfg->repeats > 0 ? cfg->repeats : 1;
-    double *vals = malloc((size_t)k * sizeof(double));
-    double *vecs = cfg->compute_vectors ? malloc((size_t)n * (size_t)k * sizeof(double)) : NULL;
-    double *times = malloc((size_t)repeats * sizeof(double));
+
+    /* Overflow-safe size computation for the three buffers.
+     * `k <= n <= INT32_MAX` was checked above, but the
+     * `n * k * sizeof(double)` for the eigenvector buffer can still
+     * exceed SIZE_MAX on 32-bit targets when n and k are both
+     * close to INT32_MAX.  Bail with SPARSE_ERR_ALLOC rather than
+     * undersizing the allocation and corrupting memory in the
+     * Lanczos / LOBPCG inner loops. */
+    size_t vals_bytes = 0;
+    size_t vec_elems = 0, vecs_bytes = 0;
+    size_t times_bytes = 0;
+    if (bench_size_mul_overflow((size_t)k, sizeof(double), &vals_bytes) ||
+        (cfg->compute_vectors &&
+         (bench_size_mul_overflow((size_t)n, (size_t)k, &vec_elems) ||
+          bench_size_mul_overflow(vec_elems, sizeof(double), &vecs_bytes))) ||
+        bench_size_mul_overflow((size_t)repeats, sizeof(double), &times_bytes)) {
+        sparse_ic_free(&ic);
+        sparse_ldlt_free(&ldlt);
+        r.ok = 0;
+        r.last_err = SPARSE_ERR_ALLOC;
+        return r;
+    }
+    double *vals = malloc(vals_bytes);
+    double *vecs = cfg->compute_vectors ? malloc(vecs_bytes) : NULL;
+    double *times = malloc(times_bytes);
     if (!vals || !times || (cfg->compute_vectors && !vecs)) {
         free(vals);
         free(vecs);
@@ -291,9 +338,9 @@ static run_result_t run_one(const SparseMatrix *A, const run_config_t *cfg) {
      * runs would be misleading. */
     int reps_done = 0;
     for (int rep = 0; rep < repeats; rep++) {
-        memset(vals, 0, (size_t)k * sizeof(double));
+        memset(vals, 0, vals_bytes);
         if (vecs)
-            memset(vecs, 0, (size_t)n * (size_t)k * sizeof(double));
+            memset(vecs, 0, vecs_bytes);
         res = (sparse_eigs_t){.eigenvalues = vals, .eigenvectors = vecs};
 
         sparse_eigs_opts_t opts = {
@@ -710,8 +757,10 @@ static int parse_idx_arg(const char *flag, const char *s, long min, idx_t *out) 
 }
 
 /* Parse a floating-point CLI argument with bounds.
- * Rejects non-numeric input, trailing junk, overflow, NaN.
- * Returns 1 on success, 0 on failure. */
+ * Rejects non-numeric input, trailing junk, overflow / underflow,
+ * NaN, and +/-Inf (downstream code (e.g. `A - sigma*I`) is not
+ * defined on non-finite shifts).  Returns 1 on success, 0 on
+ * failure. */
 static int parse_double_arg(const char *flag, const char *s, double min, double *out) {
     if (!s || !*s) {
         fprintf(stderr, "bench_eigs: %s requires a value\n", flag);
@@ -720,8 +769,8 @@ static int parse_double_arg(const char *flag, const char *s, double min, double 
     errno = 0;
     char *end = NULL;
     double v = strtod(s, &end);
-    if (errno == ERANGE || end == s || *end != '\0' || v != v /* NaN */) {
-        fprintf(stderr, "bench_eigs: %s: not a valid number: '%s'\n", flag, s);
+    if (errno == ERANGE || end == s || *end != '\0' || !isfinite(v)) {
+        fprintf(stderr, "bench_eigs: %s: not a valid finite number: '%s'\n", flag, s);
         return 0;
     }
     if (v < min) {
@@ -833,9 +882,10 @@ int main(int argc, char **argv) {
             }
         } else if (!strcmp(argv[i], "--sigma") && i + 1 < argc) {
             /* sigma may legitimately be any finite double (including
-             * negative shifts). -DBL_MAX as the floor accepts the full
-             * range while still rejecting NaN / parse errors. */
-            if (!parse_double_arg("--sigma", argv[++i], -1.0e308, &cfg.sigma))
+             * negative shifts).  `-DBL_MAX` as the floor accepts the
+             * full finite range; `parse_double_arg` separately
+             * rejects NaN / +/-Inf. */
+            if (!parse_double_arg("--sigma", argv[++i], -DBL_MAX, &cfg.sigma))
                 return 2;
         } else if (!strcmp(argv[i], "--backend") && i + 1 < argc) {
             if (!parse_backend(argv[++i], &cfg.backend)) {

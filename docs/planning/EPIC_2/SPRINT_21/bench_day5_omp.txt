@@ -70,7 +70,10 @@ Day 6 actions
   pragmas on small fixtures like nos4 where single-thread OMP
   already loses.
 - Extend the CI tsan job to exercise `test_eigs` +
-  `test_eigs_thick_restart` with OMP enabled — Ubuntu's libomp
-  ships libarcher for TSan-aware barrier sync; macOS Homebrew
-  libomp does not, so `make sanitize-thread` locally runs the
-  serial path only (see Makefile comment on the target).
+  `test_eigs_thick_restart` with OMP enabled on Ubuntu, using
+  `tests/tsan_suppressions.txt` to filter known libomp / runtime
+  false positives (Ubuntu's libomp-dev is not Archer-instrumented
+  — see the suppressions file header for the tradeoff).  macOS
+  Homebrew libomp also ships without archer, so `make
+  sanitize-thread` locally runs the serial path only (see
+  Makefile comment on the target).

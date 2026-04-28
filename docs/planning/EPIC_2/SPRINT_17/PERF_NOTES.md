@@ -571,12 +571,18 @@ observation 5.
 
 ### TSan validation
 
-The Sprint 21 OMP code is validated under TSan via the Ubuntu CI
-tsan job (`.github/workflows/ci.yml`) — Ubuntu's libomp ships
-libarcher for TSan-aware barrier sync, so implicit OMP barriers
-are visible and the run reports zero races.  The local
-`make sanitize-thread` target on macOS runs the same tests
+The Sprint 21 OMP code is exercised under TSan in the Ubuntu CI
+tsan job (`.github/workflows/ci.yml`), but this should be read as
+a best-effort smoke test for the OpenMP build, not as fully
+barrier-aware TSan validation.  Ubuntu's `libomp-dev` is *not*
+built with `LIBOMP_TSAN_SUPPORT` (archer), so implicit OMP
+barriers are not modeled precisely and the job relies on
+`tests/tsan_suppressions.txt` to filter known libomp /
+runtime-internal false positives — the suppressions file's
+header documents the tradeoff (the broad `called_from_lib:`
+entries can also hide real races in OMP-executed code).  The
+local `make sanitize-thread` target on macOS runs the same tests
 against the *serial* path (no `-DSPARSE_OPENMP`) because
-Homebrew libomp ships without archer; OMP+TSan on macOS
-produces false-positive barrier races.  See the Makefile
-comment on the `sanitize-thread` target.
+Homebrew libomp also ships without archer; OMP+TSan on macOS
+produces the same false-positive barrier races.  See the
+Makefile comment on the `sanitize-thread` target.

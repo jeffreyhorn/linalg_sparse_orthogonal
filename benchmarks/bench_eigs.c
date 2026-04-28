@@ -367,14 +367,27 @@ static run_result_t run_one(const SparseMatrix *A, const run_config_t *cfg) {
         reps_done++;
     }
 
-    /* Median over completed reps only.  When every rep hard-failed
-     * (reps_done == 0), report 0.0 ms so the row stays parseable;
-     * the status column carries the diagnostic. */
-    r.wall_ms_median = (reps_done > 0) ? median_double(times, reps_done) : 0.0;
-    r.iterations = res.iterations;
-    r.peak_basis = res.peak_basis_size;
-    r.residual = res.residual_norm;
-    r.backend_used = res.backend_used;
+    /* Report measurements only when at least one rep completed
+     * (OK or NOT_CONVERGED).  When every rep hard-failed
+     * (reps_done == 0), `res` may have been partially written by
+     * a failing `sparse_eigs_sym` call before bailing — copying
+     * those fields would emit a row that looks like a real
+     * measurement.  Zero everything so error rows are
+     * unambiguously non-data; the status column carries the
+     * diagnostic. */
+    if (reps_done > 0) {
+        r.wall_ms_median = median_double(times, reps_done);
+        r.iterations = res.iterations;
+        r.peak_basis = res.peak_basis_size;
+        r.residual = res.residual_norm;
+        r.backend_used = res.backend_used;
+    } else {
+        r.wall_ms_median = 0.0;
+        r.iterations = 0;
+        r.peak_basis = 0;
+        r.residual = 0.0;
+        r.backend_used = SPARSE_EIGS_BACKEND_AUTO;
+    }
     r.last_err = last_err;
     /* OK or NOT_CONVERGED both count as "ran to completion" — the
      * status column reports the distinction so consumers can filter. */

@@ -337,6 +337,15 @@ static run_result_t run_one(const SparseMatrix *A, const run_config_t *cfg) {
      * errors abort the loop; reporting the median of fast-failing
      * runs would be misleading. */
     int reps_done = 0;
+    /* Scalar snapshot from the most recent *successful* rep (OK or
+     * NOT_CONVERGED).  We can't read these from `res` after the
+     * loop because if a later rep hard-fails, `sparse_eigs_sym`
+     * may have partially overwritten `res` before bailing — the
+     * snapshot pins the values to a known-good state. */
+    idx_t snap_iters = 0;
+    idx_t snap_peak = 0;
+    double snap_residual = 0.0;
+    sparse_eigs_backend_t snap_backend = SPARSE_EIGS_BACKEND_AUTO;
     for (int rep = 0; rep < repeats; rep++) {
         memset(vals, 0, vals_bytes);
         if (vecs)
@@ -362,36 +371,34 @@ static run_result_t run_one(const SparseMatrix *A, const run_config_t *cfg) {
         };
         double t0 = wall_time();
         last_err = sparse_eigs_sym(A, k, &opts, &res);
-        times[reps_done] = (wall_time() - t0) * 1000.0;
+        double rep_ms = (wall_time() - t0) * 1000.0;
         if (last_err != SPARSE_OK && last_err != SPARSE_ERR_NOT_CONVERGED) {
-            /* Hard error — record nothing further; the timing of a
-             * fast-fail run isn't comparable to a real solve. */
+            /* Hard error — record nothing further.  Don't bump
+             * reps_done; don't store this rep's timing; don't
+             * promote the partial `res` into the snapshot. */
             break;
         }
+        times[reps_done] = rep_ms;
+        snap_iters = res.iterations;
+        snap_peak = res.peak_basis_size;
+        snap_residual = res.residual_norm;
+        snap_backend = res.backend_used;
         reps_done++;
     }
 
-    /* Report measurements only when at least one rep completed
-     * (OK or NOT_CONVERGED).  When every rep hard-failed
-     * (reps_done == 0), `res` may have been partially written by
-     * a failing `sparse_eigs_sym` call before bailing — copying
-     * those fields would emit a row that looks like a real
-     * measurement.  Zero everything so error rows are
-     * unambiguously non-data; the status column carries the
+    /* Report from the last-successful snapshot (mismatch protection
+     * — if a later rep hard-failed after earlier successes, the
+     * snapshot still holds those earlier values, while `res` would
+     * carry the partial output from the failing call).  When every
+     * rep hard-failed (reps_done == 0), the snapshot is still in
+     * its zero-initialised state, which gives clean zeros for the
+     * unambiguously-non-data row; the status column carries the
      * diagnostic. */
-    if (reps_done > 0) {
-        r.wall_ms_median = median_double(times, reps_done);
-        r.iterations = res.iterations;
-        r.peak_basis = res.peak_basis_size;
-        r.residual = res.residual_norm;
-        r.backend_used = res.backend_used;
-    } else {
-        r.wall_ms_median = 0.0;
-        r.iterations = 0;
-        r.peak_basis = 0;
-        r.residual = 0.0;
-        r.backend_used = SPARSE_EIGS_BACKEND_AUTO;
-    }
+    r.wall_ms_median = (reps_done > 0) ? median_double(times, reps_done) : 0.0;
+    r.iterations = snap_iters;
+    r.peak_basis = snap_peak;
+    r.residual = snap_residual;
+    r.backend_used = snap_backend;
     r.last_err = last_err;
     /* OK or NOT_CONVERGED both count as "ran to completion" — the
      * status column reports the distinction so consumers can filter. */

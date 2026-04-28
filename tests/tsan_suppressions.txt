@@ -1,0 +1,53 @@
+# TSan suppressions for OpenMP runtime internals.
+#
+# Neither of the OpenMP runtimes shipped on Ubuntu carries the
+# barrier / atomic annotations TSan needs to model implicit
+# synchronisation:
+#   - LLVM's `libomp` ships in Ubuntu's `libomp-dev` *without*
+#     `LIBOMP_TSAN_SUPPORT` (Archer) — Archer is a libomp-specific
+#     build option that adds TSan-aware annotations on barriers
+#     and atomic ops, but Ubuntu's prebuilt package is not
+#     compiled with it.
+#   - GCC's `libgomp` has no equivalent TSan-annotation build
+#     option at all; libgomp is opaque to TSan as a matter of
+#     upstream design.
+# As a result TSan reports false-positive races on the OMP
+# thread-pool setup, barrier ops, and worker-state transitions
+# around every `#pragma omp parallel for` (e.g., in
+# `sparse_matvec`).  These are not real concurrency bugs in our
+# code.
+#
+# Scope of these suppressions:
+#   - The narrow `race:` patterns target the OpenMP runtime's own
+#     known entry-point symbols (`__kmp_*` for libomp,
+#     `GOMP_*` / `gomp_*` for libgomp).  These match only when
+#     the racing frame is itself a runtime symbol.
+#   - The `called_from_lib:` patterns are broader — they also fire
+#     when our own code is on the racing stack but the runtime
+#     appears somewhere below (e.g., a thread-pool worker entry,
+#     or a heap block whose initialisation passed through the
+#     runtime's own `pthread_mutex_init` wrapper).  This is the
+#     unavoidable cost of running TSan against an
+#     un-archer-instrumented runtime: any race whose write or read
+#     happened inside an OMP worker thread *will* have a runtime
+#     frame in its stack and *will* be filtered here.  If you
+#     suspect a real race in OMP-touched code, build libomp with
+#     `LIBOMP_TSAN_SUPPORT=ON` (archer) or temporarily comment out
+#     the `called_from_lib:` lines and triage the resulting noise.
+#
+# Tests that the suppression file is being honored: pass
+# `print_suppressions=1` in TSAN_OPTIONS to list each suppression
+# as it fires.
+
+# Direct races inside the OpenMP runtime's own functions, when
+# TSan can resolve the symbol:
+race:__kmp_*
+race:GOMP_*
+race:gomp_*
+
+# Races that pass through the OpenMP runtime in either stack
+# (catches the unresolved-symbol cases — Ubuntu's stripped libomp
+# shows libomp.so frames as `<null>` so the symbol-name patterns
+# above don't fire on their own):
+called_from_lib:libomp.so
+called_from_lib:libgomp.so

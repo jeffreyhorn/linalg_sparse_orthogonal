@@ -67,6 +67,55 @@ jobs:
         env:
           TSAN_OPTIONS: "halt_on_error=1"
 
+      # Sprint 21 Day 5: exercise the OMP-parallel Lanczos MGS
+      # kernel under TSan on Ubuntu.  Local `make sanitize-thread`
+      # on macOS still runs the same tests against the serial path
+      # only.
+      #
+      # CC=clang here is load-bearing: gcc's `-fopenmp` links
+      # libgomp, whose interaction with TSan is even noisier for
+      # our OpenMP tests (no annotations on implicit barriers ->
+      # races reported on every post-barrier read).  Clang links
+      # Ubuntu's libomp when libomp-dev is installed, but that
+      # runtime is *not* built with Archer / LIBOMP_TSAN_SUPPORT,
+      # so we still expect to suppress false-positive reports from
+      # libomp's own barrier / thread-pool internals in the test
+      # run below (see `tests/tsan_suppressions.txt`) rather than
+      # claiming the OMP runtime is fully TSan-aware.
+      - name: Install clang and libomp for TSan OpenMP tests
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libomp-dev clang
+
+      - name: Build eigensolver tests with TSan + OpenMP
+        run: |
+          make clean
+          make build/test_eigs build/test_eigs_thick_restart build/test_eigs_lobpcg \
+               CC=clang \
+               CFLAGS="-std=c11 -Wall -Wextra -O1 -g -fsanitize=thread -fno-omit-frame-pointer -DSPARSE_OPENMP -fopenmp -Iinclude" \
+               LDFLAGS="-fsanitize=thread -fopenmp -lm"
+
+      - name: Run eigensolver tests under TSan + OpenMP
+        run: |
+          ./build/test_eigs
+          ./build/test_eigs_thick_restart
+          ./build/test_eigs_lobpcg
+        env:
+          # See suppressions file for rationale; Ubuntu's libomp is
+          # not Archer-instrumented, so libomp-internal mutex /
+          # barrier ops trip TSan even though the OMP semantics are
+          # correct.  These suppressions primarily filter OpenMP-
+          # runtime false positives, but the broad `called_from_lib:`
+          # entries also hide real races in OMP-executed code
+          # whenever libomp / libgomp appears anywhere in the stack
+          # (the unavoidable cost of TSan against an
+          # un-archer-instrumented runtime).  To surface those races
+          # reliably, build libomp with `LIBOMP_TSAN_SUPPORT=ON`
+          # (archer) or temporarily comment out the
+          # `called_from_lib:` lines in the suppressions file.
+          TSAN_OPTIONS: "halt_on_error=1 suppressions=tests/tsan_suppressions.txt"
+          OMP_NUM_THREADS: "4"
+
   lint:
     runs-on: ubuntu-latest
     steps:

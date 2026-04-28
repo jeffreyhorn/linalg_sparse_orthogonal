@@ -1,4 +1,4 @@
-# Project Plan: linalg_sparse_orthogonal -- Sprints 11-21 (Epic 2)
+# Project Plan: linalg_sparse_orthogonal -- Sprints 11-23 (Epic 2)
 
 Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) and Claude review (`reviews/review-claude-2026-04-06.md`).
 
@@ -9,6 +9,10 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 **Duration:** 14 days (~120 hours)
 
 **Goal:** Fix the most urgent quality and correctness issues identified in both reviews before adding new features. Synchronize build systems, standardize numerical tolerances, and resolve thread safety issues.
+
+### Prerequisites from previous Sprints
+
+- Epic 1 baseline: existing CMake + Makefile build scripts, Cholesky / ILU factorizations, CSR / linked-list formats, README — items 1-7 audit and harden these in place rather than adding new numeric features.
 
 ### Items
 
@@ -42,6 +46,11 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 **Goal:** Add the highest-priority missing factorization: sparse LDL^T with Bunch-Kaufman symmetric pivoting for symmetric indefinite systems (KKT, saddle-point, constrained optimization).
 
+### Prerequisites from previous Sprints
+
+- Sprint 11 item 4: factored-state flag — `sparse_ldlt_factor` participates in the same precondition-checked solve gate.
+- Sprint 11 item 2: norm-relative tolerance helper — Bunch-Kaufman growth control reuses the standardised tolerance machinery.
+
 ### Items
 
 | # | Item | Description | Estimate |
@@ -71,6 +80,11 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 **Goal:** Add the two highest-value iterative solver extensions: incomplete Cholesky (IC(0)) preconditioning for SPD systems and MINRES for symmetric indefinite systems.
 
+### Prerequisites from previous Sprints
+
+- Sprint 11 item 2: tolerance standardization — IC(0) drop tolerance and MINRES residual checks both consume the relative-tolerance helper.
+- Sprint 12: `sparse_ldlt_factor` — used as a preconditioner option in MINRES integration tests.
+
 ### Items
 
 | # | Item | Description | Estimate |
@@ -99,6 +113,11 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 **Duration:** 14 days (~152 hours)
 
 **Goal:** Separate symbolic analysis from numeric factorization for LU, Cholesky, and LDL^T. This enables repeated numeric refactorization on the same sparsity pattern without redoing ordering and symbolic work.
+
+### Prerequisites from previous Sprints
+
+- Sprint 11 item 4: factored-state flag — analysis objects track their own initialised state with the same convention.
+- Sprint 12: `sparse_ldlt_factor` API surface — items 1-5 split it (and Cholesky / LU) into analyze + numeric phases.
 
 ### Items
 
@@ -130,6 +149,11 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 **Goal:** Upgrade the ordering stack with COLAMD for unsymmetric/QR problems and add minimum-norm least-squares solves for underdetermined systems.
 
+### Prerequisites from previous Sprints
+
+- Sprint 11 item 2: tolerance standardization — rank-revealing thresholds in item 5 reuse the relative-tolerance helper.
+- Sprint 14: `sparse_analyze` / `sparse_analysis_t` — COLAMD permutation feeds the analysis object the same way AMD / RCM already do.
+
 ### Items
 
 | # | Item | Description | Estimate |
@@ -158,6 +182,11 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 **Duration:** 14 days (~128 hours)
 
 **Goal:** Add BiCGSTAB for nonsymmetric systems where restarted GMRES is a poor fit, and harden the iterative solver framework with better convergence diagnostics, stagnation detection, and breakdown handling.
+
+### Prerequisites from previous Sprints
+
+- Sprint 11 item 2: tolerance standardization — convergence checks across CG / GMRES / MINRES / BiCGSTAB share the relative-tolerance helper.
+- Sprint 13 item 3: MINRES Lanczos kernel and `sparse_precond_fn` callback shape — BiCGSTAB inherits the same preconditioning contract.
 
 ### Items
 
@@ -188,6 +217,12 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 **Duration:** 14 days (~152 hours)
 
 **Goal:** Extend the CSR working-format strategy (proven in Sprint 10 for LU) to Cholesky and LDL^T, making compressed formats the primary numeric backend for all direct solvers while keeping the linked list as the mutable front end.
+
+### Prerequisites from previous Sprints
+
+- Sprint 10 (pre-Epic 2): CSR LU working-format strategy — items 1-2 generalise the same idea to Cholesky / LDL^T.
+- Sprint 12: `sparse_ldlt_factor` linked-list kernel — item 3 mirrors it as a CSC variant.
+- Sprint 14: `sparse_analyze` / `sparse_analysis_t` — items 1, 2, and 4 consume the elimination tree and column counts to drive the CSC layout.
 
 ### Items
 
@@ -223,6 +258,11 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 **Duration:** 14 days (~124 hours)
 
 **Goal:** Complete the Sprint 17 CSC numeric-backend work by replacing the linked-list delegations with native CSC kernels, exposing a transparent size-based dispatch through the public API, and validating scaling behavior on larger SuiteSparse problems.
+
+### Prerequisites from previous Sprints
+
+- Sprint 17: CSC Cholesky / LDL^T scaffolding (`CholCsc` / `LdltCsc`, scalar kernels, supernodal detection + dense primitives) — items 1-2 replace the linked-list delegations with native CSC kernels.
+- Sprint 14: `sparse_analyze` / `sparse_analysis_t` — items 2-3 use the symbolic phase to pre-allocate the full `sym_L` pattern.
 
 ### Items
 
@@ -269,6 +309,12 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 **Duration:** 14 days (~168 hours estimated; ~140 hours actual)
 
 **Goal:** Close out the Sprint 18 CSC follow-ups surfaced in `SPRINT_18/RETROSPECTIVE.md`: quantify the analyze-once / factor-many speedup the Sprint 17 + Sprint 18 PERF_NOTES hypothesise, characterise `SPARSE_CSC_THRESHOLD`'s crossover with sub-100 fixtures, fix the scalar-CSC regression on Kuu-like fill patterns, extend the Sprint 18 batched supernodal path from Cholesky to symmetric indefinite LDL^T, and restore the LDL^T scalar kernel's sparse-row scaling by adding a row-adjacency index.
+
+### Prerequisites from previous Sprints
+
+- Sprint 17 / 18: CSC Cholesky and LDL^T (storage, scalar kernels, supernodal Cholesky, transparent dispatch) — item 1 measures the analyze-once / factor-many path through the Sprint 18 dispatch; items 4-5 extend the supernodal path to LDL^T.
+- Sprint 14: `sparse_analyze` — item 1's `bench_refactor_csc` driver reuses the analysis across many numeric refactors.
+- Sprint 18: `SPARSE_CSC_THRESHOLD` (default 100) — item 2 characterises crossover at n < 100 and confirms the threshold.
 
 ### Items
 
@@ -334,9 +380,9 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ---
 
-## Sprint 21: Eigensolver Completion — Thick-Restart, OpenMP & LOBPCG
+## Sprint 21: Eigensolver Completion — Thick-Restart, OpenMP & LOBPCG — **Complete**
 
-**Duration:** 14 days (~124 hours)
+**Duration:** 14 days (~124 hours estimated; actual ~133 hours per the SPRINT_21/PLAN.md day budgets)
 
 **Goal:** Close out the symmetric eigensolver family started in Sprint 20: land true Wu/Simon thick-restart (replacing the provisional growing-m outer loop so memory is bounded on large-n problems), parallelise the Lanczos reorthogonalization inner loop under OpenMP, add LOBPCG for preconditioned block eigenvalue computation, and ship a permanent `bench_eigs` executable with CSV output.
 
@@ -348,23 +394,28 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ### Items
 
-| # | Item | Description | Estimate |
-|---|------|-------------|----------|
-| 1 | True thick-restart Lanczos (Wu/Simon arrowhead) | Replace the Sprint 20 Day 13 growing-m outer loop with a proper thick-restart scheme that preserves the converged Ritz subspace in a compact arrowhead basis (Wu/Simon 2000; Stathopoulos/Saad 2007). Bounds memory at O((k + m_restart) · n) instead of O(m_cap · n), enabling convergence on large-n matrices where holding V for m = n is prohibitive (bcsstk14 at n = 1806 currently allocates ~26 MB for V). Extends `lanczos_iterate_op` with a restart context and adds an arrowhead-reduction step to carry the locked Ritz pairs into each restart. | 40 hrs |
-| 2 | Lanczos OpenMP parallelism | Parallelise the full MGS reorthogonalization loop inside `lanczos_iterate_op` under `-DSPARSE_OPENMP`, rounding out the iteration so the whole Lanczos inner loop (already OpenMP-driven for matvec) benefits. Validate correctness under `-fsanitize=thread`. Expected speedup on bcsstk14 m=70 Lanczos: 2–3× at 4 threads. Applies equally to the Sprint 20 growing-m and item 1 thick-restart paths. Depends on item 1 so both outer loops receive the same treatment. | 20 hrs |
-| 3 | LOBPCG solver | Implement Locally Optimal Block Preconditioned Conjugate Gradient for symmetric eigenvalue problems. Supports block computation of multiple eigenpairs and preconditioning via `sparse_precond_fn` (IC(0) or LDL^T). Slots into the Sprint 20 `sparse_eigs_t` API via the already-reserved `SPARSE_EIGS_BACKEND_LOBPCG` enum value; shares the Wu/Simon-style per-pair residual gate for consistent accuracy reporting. | 36 hrs |
-| 4 | Permanent `benchmarks/bench_eigs.c` | Replace the Sprint 20 Day 13 throwaway `/tmp/bench_eigs.c` driver with a permanent benchmark executable: CSV output, `--sweep` mode over (matrix, k, which, backend), and a `--compare` mode that benches both Lanczos backends (growing-m vs thick-restart) and LOBPCG on the same corpus. Captures nos4 / bcsstk04 / bcsstk14 / KKT shift-invert numbers. Depends on items 1 and 3 so the new backends are included in the sweep. | 12 hrs |
-| 5 | Eigensolver tests, documentation & benchmark captures | `tests/test_eigs_thick_restart.c` (memory-bounded convergence on bcsstk14 with m_restart ≪ n) and `tests/test_eigs_lobpcg.c` (SPD + preconditioned cases, cross-check against Lanczos). README eigensolver subsection updated with thick-restart memory savings and LOBPCG; `docs/algorithm.md` section covering Wu/Simon arrowhead + LOBPCG Rayleigh-Ritz; `bench_eigs --compare` capture committed as `docs/planning/EPIC_2/SPRINT_21/bench_day14.txt`. | 16 hrs |
+| # | Item | Status | Description |
+|---|------|--------|-------------|
+| 1 | True thick-restart Lanczos (Wu/Simon arrowhead) | ✅ Days 1-4, 12 | `SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART` ships with the arrowhead state (`lanczos_restart_state_t`), Givens-style reduction (`s21_arrowhead_to_tridiag`), and the outer loop (`s21_thick_restart_outer_loop`). Memory bound verified: bcsstk14 (n = 1806, k = 5) drops peak `V` from ~7 MB (grow-m) to ~565 KB (thick-restart). Wu/Simon monotonicity verified at the public-API level via the Day 12 `test_thick_restart_locked_progress_monotone` two-budget end-to-end test. |
+| 2 | Lanczos OpenMP parallelism | ✅ Days 5-6 | The shared `s21_mgs_reorth` kernel parallelises the inner-product / daxpy bodies via `#pragma omp parallel for reduction(+:dot)` and `#pragma omp parallel for`, gated on `n ≥ SPARSE_EIGS_OMP_REORTH_MIN_N` (default 500). TSan clean via `make sanitize-thread`. ~2× speedup at 4 threads on bcsstk14 m=70 — matches the PROJECT_PLAN target. |
+| 3 | LOBPCG solver | ✅ Days 7-10, 13 | `SPARSE_EIGS_BACKEND_LOBPCG` ships with block Rayleigh-Ritz over `[X | W | P]`, BLOPEX-style conditioning guard, per-column soft-locking, and preconditioning via `opts->precond` (IC(0) and LDL^T validated). bcsstk04 SMALLEST k=3 cond ≈ 5e6: vanilla 800-iter NOT_CONVERGED → IC(0) 62 iters → LDL^T 8 iters. AUTO routes here on `n ≥ SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD` (1000) when a preconditioner is supplied. |
+| 4 | Permanent `benchmarks/bench_eigs.c` | ✅ Day 11 | Driver lives at `benchmarks/bench_eigs.c` with `--sweep default`, `--compare`, `--matrix <path>` modes; CSV via `--csv`; CSV schema documented in `benchmarks/README.md`. `make bench-eigs` runs the default sweep at `--repeats 3` in ~20 sec on the developer machine. |
+| 5 | Eigensolver tests, documentation & benchmark captures | ✅ Days 12-14 | `tests/test_eigs_thick_restart.c` 20 tests / 267 assertions; `tests/test_eigs_lobpcg.c` 26 tests / 219 assertions. README + `docs/algorithm.md` updated with thick-restart arrowhead, LOBPCG Rayleigh-Ritz, AUTO decision tree, and OpenMP MGS strategy subsections. Captures committed at `docs/planning/EPIC_2/SPRINT_21/bench_day14.txt` (full sweep, 33 rows × 12 cols) and `bench_day14_compare.txt` (3-backend × 3-precond pivot). |
 
-### Deliverables
+### Deliverables (status)
 
-- True Wu/Simon thick-restart backend driving `sparse_eigs_sym` with bounded O((k + m_restart) · n) memory
-- OpenMP-parallel Lanczos reorthogonalization validated under TSan
-- `sparse_eigs_sym` with `SPARSE_EIGS_BACKEND_LOBPCG` supporting preconditioned block eigenvalue computation
-- Permanent `benchmarks/bench_eigs.c` with CSV + `--sweep` + `--compare` modes
-- Tests for thick-restart and LOBPCG on the SuiteSparse corpus; updated README and `docs/algorithm.md`; committed benchmark captures comparing growing-m, thick-restart, and LOBPCG
+- ✅ True Wu/Simon thick-restart backend driving `sparse_eigs_sym` with bounded O((k + m_restart) · n) memory
+- ✅ OpenMP-parallel Lanczos reorthogonalization validated under TSan
+- ✅ `sparse_eigs_sym` with `SPARSE_EIGS_BACKEND_LOBPCG` supporting preconditioned block eigenvalue computation
+- ✅ Permanent `benchmarks/bench_eigs.c` with CSV + `--sweep` + `--compare` modes
+- ✅ Tests for thick-restart and LOBPCG on the SuiteSparse corpus; updated README and `docs/algorithm.md`; committed benchmark captures comparing growing-m, thick-restart, and LOBPCG
 
-**Total estimate:** ~124 hours
+### Deferred to a future sprint
+
+- LARGEST-via-op-negation adapter for LOBPCG. The PLAN's Day 10 Task 1 mentioned wrapping `op` into `neg_op` to compose preconditioning with LARGEST modes (preconditioning naturally targets SMALLEST). The shipped LOBPCG selects LARGEST directly from the Jacobi eigendecomposition without negation — works but doesn't compose with `M^{-1} ≈ A^{-1}` preconditioning on the LARGEST end. Visible in `bench_day14_compare.txt`'s nos4 LARGEST + IC0/LDLT rows (NOT_CONVERGED). Candidate for a follow-up sprint when a workload demands LARGEST + precond.
+- Block-structured BLOPEX P-update with pre-orthogonalised W/P partitions. Day 9's first attempt at the block-preserving form introduced a numerical drift that broke convergence on small fixtures; reverted to the Day 8 orthogonal-projection formula (mathematically equivalent in exact arithmetic when X is orthonormal). The PLAN's "more robust formulation" is implemented as a conditioning guard (`P_new = 0` on near-singular Gram) rather than the full block-structured form.
+
+**Total estimate:** ~124 hours; actual ~133 hours per the day budgets in `SPRINT_21/PLAN.md` (within the 14×12 = 168-hour ceiling). See `docs/planning/EPIC_2/SPRINT_21/RETROSPECTIVE.md` for metrics, lessons, and DoD verification.
 
 ---
 
@@ -400,17 +451,19 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ---
 
-## Sprint 23: SVD Improvements, Progress Callbacks, CI Hardening & Epic 2 Wrap-Up
+## Sprint 23: SVD Improvements, Eigenpair Refinement, Progress Callbacks, CI Hardening & Epic 2 Wrap-Up
 
-**Duration:** 14 days (~144 hours)
+**Duration:** 14 days (~160 hours)
 
-**Goal:** Address remaining review findings: fix the dense-in-disguise SVD paths, add progress/cancel callbacks for long-running routines, add Windows/macOS CI, improve the sparse low-rank approximation, and close out Epic 2 with final documentation and validation.
+**Goal:** Address remaining review findings and the final Sprint 20 deferred follow-up: fix the dense-in-disguise SVD paths, add an opt-in inverse-iteration refinement post-pass for `sparse_eigs_sym` eigenpairs (deferred from Sprint 20), add progress/cancel callbacks for long-running routines, add Windows/macOS CI, improve the sparse low-rank approximation, and close out Epic 2 with final documentation and validation.
 
 ### Prerequisites from previous Sprints
 
 - Sprint 11: CMake/Makefile parity and generated version header — the Windows/macOS CI jobs rely on this.
 - Sprints 11–22: all Epic 2 numeric, eigensolver, and ordering features complete — needed for the final regression pass, cross-feature integration tests, and README/retrospective sweep.
 - Sprint 17 / 18: existing SVD paths and low-rank accumulator whose dense intermediate item 1 replaces.
+- Sprint 20: `sparse_eigs_sym` Lanczos output + shift-invert path through `sparse_ldlt_factor_opts` AUTO dispatch — item 3 layers an inverse-iteration refinement post-pass on the returned eigenpairs and reuses the same factored shift to drive the inner solves.
+- Sprint 21: LOBPCG backend and the shared `sparse_eigs_t` result struct — item 3's refinement post-pass operates on the same `(λ_i, v_i)` array regardless of which backend produced it.
 
 ### Items
 
@@ -418,23 +471,25 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 |---|------|-------------|----------|
 | 1 | Sparse low-rank without dense accumulator | Rewrite `sparse_svd_lowrank_sparse()` to build the rank-k approximation using outer product accumulation directly into sparse output, eliminating the current m*n dense intermediate. | 24 hrs |
 | 2 | Full SVD U/V output beyond economy mode | Extend full SVD to optionally output complete (non-economy) U and V^T when requested. Currently only economy mode is supported for U/V. | 20 hrs |
-| 3 | Progress/cancel callbacks | Add optional progress callback to long-running factorization and iterative solve routines (LU, Cholesky, LDL^T, QR, CG, GMRES, MINRES, BiCGSTAB, Lanczos, LOBPCG, nested dissection). Allow cancellation via callback return value. | 16 hrs |
-| 4 | Windows CI with CMake | Add GitHub Actions job for Windows/MSVC using CMake. Fix any remaining portability issues (conditional test_fuzz exclusion is already done). | 16 hrs |
-| 5 | macOS CI job | Add GitHub Actions job for macOS. Test both Apple Clang and Homebrew GCC. Verify coverage and packaging scripts work. | 12 hrs |
-| 6 | API accessor error reporting | Add `sparse_get_err()` variant that returns error codes alongside values, or document the silent-zero-on-error contract explicitly in all accessor headers. | 12 hrs |
-| 7 | Final integration testing | Full regression under all sanitizers, all platforms. Cross-feature tests for new Sprint 11–22 features (including cancel-callback behavior from item 3). Benchmark suite on representative matrix collection. | 20 hrs |
-| 8 | Epic 2 retrospective and documentation | Update README with all new APIs (LDL^T, IC, MINRES, BiCGSTAB, eigensolvers, COLAMD, ND, progress callbacks). Write Epic 2 retrospective. Update INSTALL.md for new platforms. | 24 hrs |
+| 3 | Iterative refinement for eigenpairs | Add an optional inverse-iteration refinement post-pass for the eigenpairs returned by `sparse_eigs_sym` (both Lanczos and LOBPCG backends). Exposed via a new `opts.refine` flag (default OFF for backward compatibility) and a small `opts.refine_max_iters` budget per pair. When enabled, runs inverse iteration on each `(λ_i, v_i)` reusing the Sprint 20 shift-invert path (`sparse_ldlt_factor_opts` AUTO dispatch) at the converged Ritz value as the shift, refining to either machine epsilon or the pair budget. The Wu/Simon residual gate remains the production accuracy contract; this is opt-in for downstream callers (deflation pipelines, response-function evaluation) who need tighter than `opts.tol` accuracy without bumping the outer iteration budget. Deferred from Sprint 20 retrospective. | 16 hrs |
+| 4 | Progress/cancel callbacks | Add optional progress callback to long-running factorization and iterative solve routines (LU, Cholesky, LDL^T, QR, CG, GMRES, MINRES, BiCGSTAB, Lanczos, LOBPCG, nested dissection). Allow cancellation via callback return value. | 16 hrs |
+| 5 | Windows CI with CMake | Add GitHub Actions job for Windows/MSVC using CMake. Fix any remaining portability issues (conditional test_fuzz exclusion is already done). | 16 hrs |
+| 6 | macOS CI job | Add GitHub Actions job for macOS. Test both Apple Clang and Homebrew GCC. Verify coverage and packaging scripts work. | 12 hrs |
+| 7 | API accessor error reporting | Add `sparse_get_err()` variant that returns error codes alongside values, or document the silent-zero-on-error contract explicitly in all accessor headers. | 12 hrs |
+| 8 | Final integration testing | Full regression under all sanitizers, all platforms. Cross-feature tests for new Sprint 11–22 features (including cancel-callback behavior from item 4 and the eigenpair refinement opt-in from item 3). Benchmark suite on representative matrix collection. | 20 hrs |
+| 9 | Epic 2 retrospective and documentation | Update README with all new APIs (LDL^T, IC, MINRES, BiCGSTAB, eigensolvers, eigenpair refinement, COLAMD, ND, progress callbacks). Write Epic 2 retrospective. Update INSTALL.md for new platforms. | 24 hrs |
 
 ### Deliverables
 
 - Sparse low-rank approximation without dense intermediate
 - Full U/V SVD output option
+- Optional inverse-iteration refinement for `sparse_eigs_sym` eigenpairs (gated by `opts.refine`), composing with the Sprint 20 shift-invert dispatch
 - Progress/cancel callbacks for long-running operations
 - CI on Windows (MSVC) and macOS (Clang + GCC)
 - All new APIs documented in README
 - Epic 2 retrospective with metrics and assessment
 
-**Total estimate:** ~144 hours
+**Total estimate:** ~160 hours
 
 ---
 
@@ -452,8 +507,8 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 | 18 | CSC Kernel Performance Follow-Ups | Native CSC BK LDL^T, batched supernodal Cholesky, transparent dispatch, larger corpus | 124 hrs |
 | 19 | CSC Kernel Tuning & Native Supernodal LDL^T | Analyze-once bench, small-matrix threshold study, scalar-CSC Kuu regression fix, native supernodal LDL^T, LDL^T row-adjacency index | 168 hrs |
 | 20 | LDL^T Completion & Symmetric Lanczos — **Complete** | `ldlt_csc_from_sparse_with_analysis`, transparent `sparse_ldlt_factor_opts` dispatch, Lanczos + shift-invert eigensolver | 136 hrs (~125 actual) |
-| 21 | Eigensolver Completion — Thick-Restart, OpenMP & LOBPCG | Wu/Simon thick-restart, OpenMP reorth, LOBPCG, permanent `bench_eigs` | 124 hrs |
+| 21 | Eigensolver Completion — Thick-Restart, OpenMP & LOBPCG — **Complete** | Wu/Simon thick-restart, OpenMP reorth, LOBPCG, permanent `bench_eigs` | 124 hrs (~133 actual) |
 | 22 | Ordering Upgrades — Nested Dissection & Quotient-Graph AMD | Graph partitioning + nested dissection, quotient-graph AMD | 124 hrs |
-| 23 | SVD, Progress Callbacks, CI & Wrap-Up | Sparse low-rank fix, full SVD, progress/cancel callbacks, Windows/macOS CI, retrospective | 144 hrs |
+| 23 | SVD, Progress Callbacks, Eigenpair Refinement, CI & Wrap-Up | Sparse low-rank fix, full SVD, eigenpair iterative refinement, progress/cancel callbacks, Windows/macOS CI, retrospective | 160 hrs |
 
-**Total Epic 2 estimate:** ~1,770 hours across 13 sprints (~177 days)
+**Total Epic 2 estimate:** ~1,786 hours across 13 sprints (~179 days)

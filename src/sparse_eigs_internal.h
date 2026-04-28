@@ -167,10 +167,22 @@ sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, cons
  *       [  0    0    0    0    β_4  α_5  β_5  ]
  *       [  0    0    0    0    0    β_5  α_6  ]
  *
- * The arrowhead-to-tridiagonal reduction via Givens rotations (Day
- * 2 task) chases the trailing coupling entries `β_0 β_1 β_2` down
- * to a symmetric tridiagonal that the existing Sprint 20
- * `tridiag_qr_eigenpairs` can consume unchanged.
+ * Two consumers handle this arrowhead in the shipped code:
+ *
+ *   - `s21_arrowhead_to_tridiag` materialises the K × K dense
+ *     symmetric form and runs classical Householder
+ *     tridiagonalisation to produce `diag_out` / `subdiag_out`
+ *     that the existing Sprint 20 `tridiag_qr_eigenpairs` consumes
+ *     unchanged.  This path is spectrum-only (no Q returned) and is
+ *     used by `tests/test_eigs_thick_restart.c` as a spectrum-
+ *     preservation oracle.
+ *
+ *   - `s21_thick_restart_outer_loop` (the production path) runs
+ *     dense Jacobi (`s21_dense_sym_jacobi`) directly on the K × K
+ *     arrowhead, getting eigenvalues *and* the orthonormal Q in a
+ *     single sweep — bypassing the reduction-then-extract two-step
+ *     and avoiding a separate Q-accumulator pass through the
+ *     Householder reduction.
  */
 
 /**

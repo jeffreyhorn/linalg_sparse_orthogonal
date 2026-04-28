@@ -283,12 +283,16 @@ tsan: CFLAGS += -fsanitize=thread -fno-omit-frame-pointer -g -O1
 tsan: LDFLAGS += -fsanitize=thread
 tsan: clean test
 
-# Sprint 21 Day 5: `sanitize-thread` — TSan on the Lanczos paths.
+# Sprint 21 Day 5: `sanitize-thread` — TSan on the eigensolver paths.
 #
-# Scope narrowed to `test_eigs` + `test_eigs_thick_restart` per the
-# Sprint 21 Day 5 plan.  Auto-detects Homebrew LLVM (override with
-# `TSAN_CC=<path>`); errors out if no suitable compiler is found,
-# since Apple Clang's TSan deadlocks here.
+# Scope: the three eigensolver test binaries listed in
+# `TSAN_EIGS_TESTS` below — `test_eigs`, `test_eigs_thick_restart`,
+# and `test_eigs_lobpcg`.  (LOBPCG was added in a follow-up to
+# match the Ubuntu CI tsan job, since LOBPCG also exercises the
+# shared MGS / orthonormalisation kernels.)  Auto-detects
+# Homebrew LLVM (override with `TSAN_CC=<path>`); errors out if no
+# suitable compiler is found, since Apple Clang's TSan deadlocks
+# here.
 #
 # Builds the *serial* path by default (no `-DSPARSE_OPENMP`).  The
 # parallel MGS reorth kernel is exercised under TSan in the

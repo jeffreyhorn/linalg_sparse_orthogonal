@@ -657,6 +657,13 @@ static void test_suitesparse_bcsstk14_largest_smoke(void) {
         .tol = 1e-8,
         .compute_vectors = 1,
         .max_iterations = 500,
+        /* Set explicitly: designated initialisers leave unset
+         * fields zero, which differs from the `opts == NULL`
+         * library-defaults path that turns reorth on.  Without
+         * this, `compute_vectors = 1` produces drifted Ritz
+         * vectors and the residual assertion below would be
+         * flaky / understated. */
+        .reorthogonalize = 1,
         /* Sprint 21 Day 4 pin: explicitly opt into grow-m so this
          * smoke test keeps exercising the Sprint 20 backend.  Post-
          * Sprint-21 AUTO dispatch (`n >=

@@ -507,7 +507,7 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 | 18 | CSC Kernel Performance Follow-Ups | Native CSC BK LDL^T, batched supernodal Cholesky, transparent dispatch, larger corpus | 124 hrs |
 | 19 | CSC Kernel Tuning & Native Supernodal LDL^T | Analyze-once bench, small-matrix threshold study, scalar-CSC Kuu regression fix, native supernodal LDL^T, LDL^T row-adjacency index | 168 hrs |
 | 20 | LDL^T Completion & Symmetric Lanczos — **Complete** | `ldlt_csc_from_sparse_with_analysis`, transparent `sparse_ldlt_factor_opts` dispatch, Lanczos + shift-invert eigensolver | 136 hrs (~125 actual) |
-| 21 | Eigensolver Completion — Thick-Restart, OpenMP & LOBPCG | Wu/Simon thick-restart, OpenMP reorth, LOBPCG, permanent `bench_eigs` | 124 hrs |
+| 21 | Eigensolver Completion — Thick-Restart, OpenMP & LOBPCG — **Complete** | Wu/Simon thick-restart, OpenMP reorth, LOBPCG, permanent `bench_eigs` | 124 hrs (~133 actual) |
 | 22 | Ordering Upgrades — Nested Dissection & Quotient-Graph AMD | Graph partitioning + nested dissection, quotient-graph AMD | 124 hrs |
 | 23 | SVD, Progress Callbacks, Eigenpair Refinement, CI & Wrap-Up | Sparse low-rank fix, full SVD, eigenpair iterative refinement, progress/cancel callbacks, Windows/macOS CI, retrospective | 160 hrs |
 

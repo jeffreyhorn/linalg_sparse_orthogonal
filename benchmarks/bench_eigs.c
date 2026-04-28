@@ -64,6 +64,8 @@
 #include "sparse_types.h"
 #include "sparse_vector.h"
 
+#include <errno.h>
+#include <limits.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -682,6 +684,54 @@ static int parse_precond(const char *s, bench_precond_kind_t *out) {
     return 1;
 }
 
+/* Parse a signed-integer CLI argument into an `idx_t` with bounds.
+ * Rejects non-numeric input, trailing junk, overflow, and values
+ * outside [min, INT32_MAX] (idx_t is int32_t).  Logs a diagnostic
+ * to stderr on failure.  Returns 1 on success, 0 on failure. */
+static int parse_idx_arg(const char *flag, const char *s, long min, idx_t *out) {
+    if (!s || !*s) {
+        fprintf(stderr, "bench_eigs: %s requires a value\n", flag);
+        return 0;
+    }
+    errno = 0;
+    char *end = NULL;
+    long v = strtol(s, &end, 10);
+    if (errno == ERANGE || end == s || *end != '\0') {
+        fprintf(stderr, "bench_eigs: %s: not a valid integer: '%s'\n", flag, s);
+        return 0;
+    }
+    if (v < min || v > (long)INT32_MAX) {
+        fprintf(stderr, "bench_eigs: %s: out of range [%ld, %ld]: %ld\n", flag, min,
+                (long)INT32_MAX, v);
+        return 0;
+    }
+    *out = (idx_t)v;
+    return 1;
+}
+
+/* Parse a floating-point CLI argument with bounds.
+ * Rejects non-numeric input, trailing junk, overflow, NaN.
+ * Returns 1 on success, 0 on failure. */
+static int parse_double_arg(const char *flag, const char *s, double min, double *out) {
+    if (!s || !*s) {
+        fprintf(stderr, "bench_eigs: %s requires a value\n", flag);
+        return 0;
+    }
+    errno = 0;
+    char *end = NULL;
+    double v = strtod(s, &end);
+    if (errno == ERANGE || end == s || *end != '\0' || v != v /* NaN */) {
+        fprintf(stderr, "bench_eigs: %s: not a valid number: '%s'\n", flag, s);
+        return 0;
+    }
+    if (v < min) {
+        fprintf(stderr, "bench_eigs: %s: must be >= %g: %g\n", flag, min, v);
+        return 0;
+    }
+    *out = v;
+    return 1;
+}
+
 static int run_single(const char *path, run_config_t cfg, int csv) {
     SparseMatrix *A = NULL;
     if (sparse_load_mm(&A, path) != SPARSE_OK) {
@@ -774,14 +824,19 @@ int main(int argc, char **argv) {
         } else if (!strcmp(argv[i], "--matrix") && i + 1 < argc) {
             single_matrix = argv[++i];
         } else if (!strcmp(argv[i], "--k") && i + 1 < argc) {
-            cfg.k = (idx_t)atoi(argv[++i]);
+            if (!parse_idx_arg("--k", argv[++i], 1, &cfg.k))
+                return 2;
         } else if (!strcmp(argv[i], "--which") && i + 1 < argc) {
             if (!parse_which(argv[++i], &cfg.which)) {
                 fprintf(stderr, "bench_eigs: unknown --which '%s'\n", argv[i]);
                 return 2;
             }
         } else if (!strcmp(argv[i], "--sigma") && i + 1 < argc) {
-            cfg.sigma = atof(argv[++i]);
+            /* sigma may legitimately be any finite double (including
+             * negative shifts). -DBL_MAX as the floor accepts the full
+             * range while still rejecting NaN / parse errors. */
+            if (!parse_double_arg("--sigma", argv[++i], -1.0e308, &cfg.sigma))
+                return 2;
         } else if (!strcmp(argv[i], "--backend") && i + 1 < argc) {
             if (!parse_backend(argv[++i], &cfg.backend)) {
                 fprintf(stderr, "bench_eigs: unknown --backend '%s'\n", argv[i]);
@@ -793,15 +848,19 @@ int main(int argc, char **argv) {
                 return 2;
             }
         } else if (!strcmp(argv[i], "--block-size") && i + 1 < argc) {
-            cfg.block_size = (idx_t)atoi(argv[++i]);
+            if (!parse_idx_arg("--block-size", argv[++i], 0, &cfg.block_size))
+                return 2;
         } else if (!strcmp(argv[i], "--tol") && i + 1 < argc) {
-            cfg.tol = atof(argv[++i]);
+            if (!parse_double_arg("--tol", argv[++i], 0.0, &cfg.tol))
+                return 2;
         } else if (!strcmp(argv[i], "--max-iters") && i + 1 < argc) {
-            cfg.max_iters = (idx_t)atoi(argv[++i]);
+            if (!parse_idx_arg("--max-iters", argv[++i], 1, &cfg.max_iters))
+                return 2;
         } else if (!strcmp(argv[i], "--repeats") && i + 1 < argc) {
-            repeats = atoi(argv[++i]);
-            if (repeats < 1)
-                repeats = 1;
+            idx_t r = 0;
+            if (!parse_idx_arg("--repeats", argv[++i], 1, &r))
+                return 2;
+            repeats = (int)r;
             cfg.repeats = repeats;
         } else if (!strcmp(argv[i], "--help") || !strcmp(argv[i], "-h")) {
             print_help();

@@ -1,12 +1,21 @@
 # TSan suppressions for OpenMP runtime internals.
 #
-# Ubuntu's libomp/libgomp packages are not built with
-# LIBOMP_TSAN_SUPPORT (archer), so TSan can't see the runtime's
-# internal atomic operations and synchronization. As a result it
-# reports false-positive races on the OMP thread-pool setup,
-# barrier ops, and worker-state transitions around every
-# `#pragma omp parallel for` (e.g., in `sparse_matvec`). These
-# are not real concurrency bugs in our code.
+# Neither of the OpenMP runtimes shipped on Ubuntu carries the
+# barrier / atomic annotations TSan needs to model implicit
+# synchronisation:
+#   - LLVM's `libomp` ships in Ubuntu's `libomp-dev` *without*
+#     `LIBOMP_TSAN_SUPPORT` (Archer) — Archer is a libomp-specific
+#     build option that adds TSan-aware annotations on barriers
+#     and atomic ops, but Ubuntu's prebuilt package is not
+#     compiled with it.
+#   - GCC's `libgomp` has no equivalent TSan-annotation build
+#     option at all; libgomp is opaque to TSan as a matter of
+#     upstream design.
+# As a result TSan reports false-positive races on the OMP
+# thread-pool setup, barrier ops, and worker-state transitions
+# around every `#pragma omp parallel for` (e.g., in
+# `sparse_matvec`).  These are not real concurrency bugs in our
+# code.
 #
 # Scope of these suppressions:
 #   - The narrow `race:` patterns target the OpenMP runtime's own

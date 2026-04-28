@@ -493,3 +493,96 @@ already holds a `CholCsc *` and wants to skip the
    should also pre-allocate the full sym_L pattern (like
    `chol_csc_from_sparse_with_analysis` does now) is a Sprint 19
    question.
+
+## Sprint 21 Lanczos OpenMP
+
+Sprint 17/18 parallelised `sparse_matvec` under `-DSPARSE_OPENMP`.
+Sprint 21 Day 5-6 extends the same treatment to the full-MGS
+reorthogonalization inner loop inside `lanczos_iterate_op` and
+`lanczos_thick_restart_iterate`.  Both call sites share a
+single `s21_mgs_reorth(w, V, n, k_stored)` kernel in
+`src/sparse_eigs.c`; the outer `j` loop stays serial (MGS
+stability requires each iteration to see the partially-
+orthogonalised `w` — classical Gram-Schmidt parallelises `j` but
+loses the numerical bound, see `docs/algorithm.md` for the
+MGS-vs-CGS writeup) while the inner dot-product and daxpy bodies
+parallelise in `i` via `#pragma omp parallel for reduction(+:dot)`
+and `#pragma omp parallel for schedule(static)` respectively —
+the same pragma pattern `sparse_matvec` uses.
+
+### Measured scaling (Day 6, `bench_s21d6.c` microbench)
+
+Apple x86_64 Darwin 24.6, `-O2`, Homebrew libomp; k=5 LARGEST,
+best-of-3 wall times in ms.  Full table in
+[`SPRINT_21/bench_day6_omp_scaling.txt`](../SPRINT_21/bench_day6_omp_scaling.txt).
+
+| fixture  | n    | backend | T=1  | T=4  | speedup |
+|----------|-----:|---------|-----:|-----:|--------:|
+| bcsstk14 | 1806 | grow-m  | 140.58 | 70.25 | 2.00× |
+| bcsstk14 | 1806 | thick-restart | 111.89 | 55.68 | 2.01× |
+| kkt-150  |  150 | grow-m  |  94.69 | 101.18 | 0.94× |
+| bcsstk04 |  132 | grow-m  |  10.29 |  10.18 | 1.01× |
+| nos4     |  100 | grow-m  |   5.68 |   6.76 | 0.84× |
+
+bcsstk14 hits the PROJECT_PLAN item-2 ≥ 2× target on both Lanczos
+backends; small-n fixtures stay flat thanks to the threshold gate.
+
+### Threshold tuning — `SPARSE_EIGS_OMP_REORTH_MIN_N`
+
+The Day 5 unconditional pragma was a net regression on every
+`n < 500` fixture: fork/join overhead per `#pragma omp parallel
+for` on Homebrew libomp measures ~5-20 μs, and on nos4 (n=100)
+we issue `m_restart * restarts ≈ 1000+` parallel regions per
+Lanczos run.  Even single-threaded OMP (`OMP_NUM_THREADS=1`)
+regressed by 40% because the OMP entry/exit path still ran on
+every reorth iteration.
+
+Day 6 added an `if (n >= SPARSE_EIGS_OMP_REORTH_MIN_N)` clause to
+both pragmas in `s21_mgs_reorth`.  Below the threshold the
+parallel region executes as a single-thread team — zero fork/join
+overhead.  Compile-time default: `500`, overridable via
+`-DSPARSE_EIGS_OMP_REORTH_MIN_N=<value>`.
+
+Why 500:
+
+- Empirically the crossover is between n=150 (every T ≥ 2
+  regresses by 20-60%) and n=1806 (T=4 wins by 2×).  500 is a
+  safe midpoint — well above the loser set, well below the
+  clear-winner threshold.
+- 500 matches the order-of-magnitude of
+  `SPARSE_EIGS_THICK_RESTART_THRESHOLD` (also 500), chosen in
+  Sprint 21 Day 4 for backend dispatch.  Keeping the two
+  thresholds coherent is a pedagogical plus — "below 500, stay
+  serial" is a consistent story.
+- Linux libgomp's fork/join is 2-3× faster than Homebrew
+  libomp.  On Linux the crossover is closer to n ≈ 200 — users
+  who want to tune should override at compile time.
+
+### Matvec not gated
+
+`sparse_matvec`'s own OMP pragma (from Sprint 17/18) does NOT
+have a threshold gate.  The Day 6 scaling sweep shows this as
+residual overhead on small-n fixtures (nos4/bcsstk04/kkt-150
+still regress 10-15% at T=4 even with the MGS gate active).
+Gating matvec is a follow-up for a future sprint — out of
+Sprint 21 scope but noted in
+[`SPRINT_21/bench_day6_omp_scaling.txt`](../SPRINT_21/bench_day6_omp_scaling.txt)
+observation 5.
+
+### TSan validation
+
+The Sprint 21 OMP code is exercised under TSan in the Ubuntu CI
+tsan job (`.github/workflows/ci.yml`), but this should be read as
+a best-effort smoke test for the OpenMP build, not as fully
+barrier-aware TSan validation.  Ubuntu's `libomp-dev` is *not*
+built with `LIBOMP_TSAN_SUPPORT` (archer), so implicit OMP
+barriers are not modeled precisely and the job relies on
+`tests/tsan_suppressions.txt` to filter known libomp /
+runtime-internal false positives — the suppressions file's
+header documents the tradeoff (the broad `called_from_lib:`
+entries can also hide real races in OMP-executed code).  The
+local `make sanitize-thread` target on macOS runs the same tests
+against the *serial* path (no `-DSPARSE_OPENMP`) because
+Homebrew libomp also ships without archer; OMP+TSan on macOS
+produces the same false-positive barrier races.  See the
+Makefile comment on the `sanitize-thread` target.

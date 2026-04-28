@@ -347,7 +347,11 @@ static run_result_t run_one(const SparseMatrix *A, const run_config_t *cfg) {
             .which = cfg->which,
             .sigma = cfg->sigma,
             .max_iterations = cfg->max_iters,
-            .tol = cfg->tol > 0.0 ? cfg->tol : 1e-8,
+            /* Pass tol through verbatim — the CLI default of 1e-8
+             * is set on `cfg.tol` initialisation in main(), and
+             * `--tol 0` should reach `sparse_eigs_sym` so the
+             * library-default path (1e-10) is honoured. */
+            .tol = cfg->tol,
             .reorthogonalize = 1,
             .compute_vectors = cfg->compute_vectors,
             .backend = cfg->backend,

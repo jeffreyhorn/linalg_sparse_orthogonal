@@ -432,16 +432,22 @@ typedef struct {
      *  held simultaneously in the dominant allocation) observed
      *  during the run.  Sprint 21 Day 4 telemetry; lets callers
      *  compare the grow-m path's monotonically-growing `m_cap` to
-     *  the thick-restart path's bounded `m_restart + k_locked_cap`
-     *  peak to verify the memory-savings claim on large-n
-     *  problems.  For the grow-m backend this equals `m_cap` (the
-     *  largest V actually allocated across retries); for
-     *  thick-restart it equals `m_restart + k_locked_cap_used`
-     *  (the simultaneously-live `V` basis plus the restart
-     *  state's `V_locked` block).  Reported in basis-column units
-     *  (a count of length-n vectors) — multiply by
-     *  `n * sizeof(double)` to get bytes, i.e.
-     *  `peak_basis_size * n * sizeof(double)`. */
+     *  the thick-restart path's bounded peak to verify the
+     *  memory-savings claim on large-n problems.  Per-backend
+     *  formula:
+     *   - **grow-m**: `m_cap` (the largest V actually allocated
+     *     across grow-m retries).
+     *   - **thick-restart**: `m_restart + 2*k`, counting the
+     *     simultaneously-live `V` basis (`m_restart` cols), the
+     *     restart state's `V_locked` block (`k` cols), and the
+     *     transient `V_locked_tmp` block briefly live alongside
+     *     both during `pick_locked` (`k` cols).
+     *   - **LOBPCG**: `10 * bs` for an effective block size
+     *     `bs` (covers `X + W + P + AX + scratch` in the
+     *     Rayleigh-Ritz step).
+     *  Reported in basis-column units (a count of length-n
+     *  vectors) — multiply by `n * sizeof(double)` to get bytes,
+     *  i.e. `peak_basis_size * n * sizeof(double)`. */
     idx_t peak_basis_size;
     /** Output: which backend the library actually dispatched to.
      *  Mirrors `sparse_ldlt_t::used_csc_path` in spirit — when

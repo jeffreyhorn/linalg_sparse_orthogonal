@@ -937,15 +937,27 @@ static void test_bisect_singleton(void) {
     sparse_free(A);
 }
 
-static void test_bisect_rejects_oversized(void) {
-    /* n = 41 trips the n > 40 BADARG guard.  Build a 41-vertex path
-     * (cheapest dense-enough graph for the test). */
+static void test_bisect_n41_uses_gggp(void) {
+    /* n > 20 routes through GGGP — there's no upper-size cap any more
+     * (the Day 5 stress tests need bisect to handle larger inputs
+     * when the multilevel coarsening saturates).  Verify a 41-vertex
+     * path produces a valid balanced 2-way partition with cut = 1
+     * (the natural mid-path cut). */
     SparseMatrix *A = make_path_1d(41);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
     idx_t part[41] = {0};
-    ASSERT_ERR(graph_bisect_coarsest(&G, part), SPARSE_ERR_BADARG);
+    REQUIRE_OK(graph_bisect_coarsest(&G, part));
+    /* Both sides non-empty; cut is small (single-cut path). */
+    idx_t w0 = 0, w1 = 0;
+    compute_side_weights(&G, part, &w0, &w1);
+    ASSERT_TRUE(w0 > 0);
+    ASSERT_TRUE(w1 > 0);
+    ASSERT_EQ(w0 + w1, 41);
+    /* GGGP may not produce the absolute minimum cut, but on a path it
+     * should still be small (< 10% of the edges). */
+    ASSERT_TRUE(compute_cut(&G, part) <= 4);
     sparse_graph_free(&G);
     sparse_free(A);
 }
@@ -964,10 +976,283 @@ static void test_fm_null_args(void) {
     ASSERT_ERR(graph_refine_fm(&G, NULL), SPARSE_ERR_NULL);
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+ * Sprint 22 Day 5 — stress tests, edge cases, determinism, SuiteSparse.
+ * ═══════════════════════════════════════════════════════════════════ */
+
+/* ─── Day 5 fixture builders ──────────────────────────────────────── */
+
+/* n vertices, no edges (only diagonal placeholders so sparse_create
+ * has something to insert). */
+static SparseMatrix *make_empty_graph(idx_t n) {
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++)
+        sparse_insert(A, i, i, 1.0);
+    return A;
+}
+
+/* Complete graph K_n: every off-diagonal pair connected. */
+static SparseMatrix *make_complete_graph(idx_t n) {
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 1.0);
+        for (idx_t j = i + 1; j < n; j++) {
+            sparse_insert(A, i, j, 1.0);
+            sparse_insert(A, j, i, 1.0);
+        }
+    }
+    return A;
+}
+
+/* Complete bipartite K_{m,n}: vertices 0..m-1 in part A, m..m+n-1
+ * in part B; every (a, b) edge present, no within-part edges. */
+static SparseMatrix *make_bipartite_complete(idx_t m, idx_t n) {
+    SparseMatrix *A = sparse_create(m + n, m + n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < m + n; i++)
+        sparse_insert(A, i, i, 1.0);
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = m; j < m + n; j++) {
+            sparse_insert(A, i, j, 1.0);
+            sparse_insert(A, j, i, 1.0);
+        }
+    }
+    return A;
+}
+
+/* ─── Edge case: single vertex (no edges, trivial partition) ──────── */
+
+static void test_partition_n1_singleton(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    idx_t part[1] = {99};
+    idx_t sep = 99;
+    REQUIRE_OK(sparse_graph_partition(&G, part, &sep));
+
+    /* No edges → no separator needed; the single vertex is on side
+     * 0 or side 1.  (Either is acceptable — there's no recursion to
+     * disrupt.) */
+    ASSERT_TRUE(part[0] == 0 || part[0] == 1 || part[0] == 2);
+    ASSERT_EQ(sep, part[0] == 2 ? 1 : 0);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── Edge case: n=2 with one edge ────────────────────────────────── */
+
+static void test_partition_n2_one_edge(void) {
+    /* A single 0-1 edge can't be left as a part-0/part-1 cross edge,
+     * so the smaller-side convention must lift at least one endpoint
+     * into the separator. */
+    SparseMatrix *A = make_path_1d(2);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    idx_t part[2] = {99, 99};
+    idx_t sep = 99;
+    REQUIRE_OK(sparse_graph_partition(&G, part, &sep));
+
+    ASSERT_TRUE(check_partition_invariant(&G, part));
+    ASSERT_TRUE(sep >= 1 && sep <= 2);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── Edge case: empty graph (n vertices, 0 edges) ────────────────── */
+
+static void test_partition_empty_graph_n10(void) {
+    SparseMatrix *A = make_empty_graph(10);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    idx_t part[10] = {0};
+    idx_t sep = 0;
+    REQUIRE_OK(sparse_graph_partition(&G, part, &sep));
+
+    /* No edges → no boundary → no separator. */
+    ASSERT_EQ(sep, 0);
+
+    /* All n vertices accounted for; both sides non-empty. */
+    idx_t n0, n1, nsep;
+    count_partition_sides(&G, part, &n0, &n1, &nsep);
+    ASSERT_EQ(n0 + n1 + nsep, 10);
+    ASSERT_EQ(nsep, 0);
+    ASSERT_TRUE(check_partition_invariant(&G, part));
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── Edge case: complete graph K_20 (dense, large separator) ─────── */
+
+static void test_partition_complete_k20(void) {
+    /* K_20 is the densest 20-vertex graph: any vertex separator must
+     * include every vertex on one side of the cut (every vertex is
+     * connected to every other). */
+    SparseMatrix *A = make_complete_graph(20);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    idx_t part[20] = {0};
+    idx_t sep = 0;
+    REQUIRE_OK(sparse_graph_partition(&G, part, &sep));
+
+    /* Plan contract: dense connectivity forces |sep| ≥ 5.  Practical
+     * upper bound ≤ 15 (smaller-side lift can take all 10 boundary
+     * vertices on the smaller side). */
+    ASSERT_TRUE(sep >= 5);
+    ASSERT_TRUE(sep <= 15);
+    ASSERT_TRUE(check_partition_invariant(&G, part));
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── Edge case: complete bipartite K_{10,10} ─────────────────────── */
+
+static void test_partition_bipartite_k_10_10(void) {
+    /* Complete bipartite K_{10,10}: optimal vertex cover (= optimal
+     * vertex separator) is one of the two bipartition sides — 10
+     * vertices.  Plan allows up to 11 for FM noise. */
+    SparseMatrix *A = make_bipartite_complete(10, 10);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    idx_t part[20] = {0};
+    idx_t sep = 0;
+    REQUIRE_OK(sparse_graph_partition(&G, part, &sep));
+
+    ASSERT_TRUE(sep >= 5);
+    ASSERT_TRUE(sep <= 11);
+    ASSERT_TRUE(check_partition_invariant(&G, part));
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── Determinism contract: same input → bit-identical partition ──── */
+
+static void test_partition_determinism_10x10_grid(void) {
+    /* `sparse_graph_partition` is contracted to be a pure function of
+     * its input: same graph → same partition + sep on every call.
+     * The seed is hardcoded inside the routine (currently 0); two
+     * back-to-back calls must produce a bit-identical partition. */
+    SparseMatrix *A = make_grid_2d(10, 10);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    idx_t part1[100] = {0};
+    idx_t part2[100] = {0};
+    idx_t sep1 = 99;
+    idx_t sep2 = 99;
+    REQUIRE_OK(sparse_graph_partition(&G, part1, &sep1));
+    REQUIRE_OK(sparse_graph_partition(&G, part2, &sep2));
+
+    ASSERT_EQ(sep1, sep2);
+    ASSERT_EQ(memcmp(part1, part2, sizeof(part1)), 0);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+static void test_partition_determinism_two_cliques(void) {
+    /* Same determinism contract on a structured fixture (two K_10
+     * cliques + bridge) so we cover both regular and irregular
+     * graphs. */
+    SparseMatrix *A = make_two_cliques_with_bridge(10);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    idx_t part1[20] = {0};
+    idx_t part2[20] = {0};
+    idx_t sep1 = 99;
+    idx_t sep2 = 99;
+    REQUIRE_OK(sparse_graph_partition(&G, part1, &sep1));
+    REQUIRE_OK(sparse_graph_partition(&G, part2, &sep2));
+
+    ASSERT_EQ(sep1, sep2);
+    ASSERT_EQ(memcmp(part1, part2, sizeof(part1)), 0);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── SuiteSparse smoke: bcsstk14 (n=1806) and Pres_Poisson ───────── */
+
+/* Smoke test: verifies the partitioner handles a realistic
+ * SuiteSparse fixture without crashing or allocation failure.  Hard
+ * timing (< 100ms per the plan) is documented, not asserted — Day 14
+ * profiling will retune if the naive O(n) max-gain scan in FM
+ * dominates large-input runtime. */
+static void run_suitesparse_partition_smoke(const char *path, idx_t expected_n) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, path);
+    if (rc != SPARSE_OK) {
+        printf("    skipped (%s not loadable: %d)\n", path, (int)rc);
+        return;
+    }
+
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    if (expected_n > 0)
+        ASSERT_EQ(G.n, expected_n);
+
+    idx_t *part = malloc((size_t)G.n * sizeof(idx_t));
+    ASSERT_NOT_NULL(part);
+    idx_t sep = 0;
+
+    clock_t t0 = clock();
+    sparse_err_t prc = sparse_graph_partition(&G, part, &sep);
+    clock_t t1 = clock();
+    ASSERT_EQ(prc, SPARSE_OK);
+
+    /* Sanity: separator is finite, smaller than the graph itself. */
+    ASSERT_TRUE(sep > 0);
+    ASSERT_TRUE(sep < G.n);
+    /* Partition invariant: no part-0 / part-1 cross-edges.  The
+     * fundamental correctness check at scale. */
+    ASSERT_TRUE(check_partition_invariant(&G, part));
+
+    double ms = (double)(t1 - t0) * 1000.0 / (double)CLOCKS_PER_SEC;
+    printf("    %s (n=%d): sep=%d, %.1f ms\n", path, (int)G.n, (int)sep, ms);
+
+    free(part);
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+static void test_partition_bcsstk14_smoke(void) {
+    run_suitesparse_partition_smoke(SS_DIR "/bcsstk14.mtx", 1806);
+}
+
+static void test_partition_pres_poisson_smoke(void) {
+    /* Pres_Poisson is a 2D Poisson-on-irregular-grid fixture — the
+     * canonical mesh shape ND was designed for.  Expected to produce
+     * a clean planar separator. */
+    run_suitesparse_partition_smoke(SS_DIR "/Pres_Poisson.mtx", 0);
+}
+
 /* ═══════════════════════════════════════════════════════════════════ */
 
 int main(void) {
-    TEST_SUITE_BEGIN("Sprint 22 Days 1-4: graph + coarsen + bisect/FM + uncoarsen + partition");
+    TEST_SUITE_BEGIN(
+        "Sprint 22 Days 1-5: graph + coarsen + bisect/FM + uncoarsen + partition + stress");
 
     /* Day 1: round-trip + structural invariants */
     RUN_TEST(test_graph_from_sparse_nos4_round_trip);
@@ -996,7 +1281,7 @@ int main(void) {
     RUN_TEST(test_bisect_brute_force_two_triangles);
     RUN_TEST(test_bisect_gggp_5x6_grid);
     RUN_TEST(test_bisect_singleton);
-    RUN_TEST(test_bisect_rejects_oversized);
+    RUN_TEST(test_bisect_n41_uses_gggp);
     RUN_TEST(test_bisect_null_args);
 
     /* Day 3: FM refinement */
@@ -1015,6 +1300,17 @@ int main(void) {
     RUN_TEST(test_partition_null_args);
     RUN_TEST(test_uncoarsen_null_args);
     RUN_TEST(test_edge_to_vertex_separator_null_args);
+
+    /* Day 5: edge cases, determinism contract, SuiteSparse smoke */
+    RUN_TEST(test_partition_n1_singleton);
+    RUN_TEST(test_partition_n2_one_edge);
+    RUN_TEST(test_partition_empty_graph_n10);
+    RUN_TEST(test_partition_complete_k20);
+    RUN_TEST(test_partition_bipartite_k_10_10);
+    RUN_TEST(test_partition_determinism_10x10_grid);
+    RUN_TEST(test_partition_determinism_two_cliques);
+    RUN_TEST(test_partition_bcsstk14_smoke);
+    RUN_TEST(test_partition_pres_poisson_smoke);
 
     TEST_SUITE_END();
 }

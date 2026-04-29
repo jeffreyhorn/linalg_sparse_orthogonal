@@ -578,6 +578,14 @@ sparse_err_t sparse_graph_hierarchy_build(const sparse_graph_t *root, uint32_t s
     const sparse_graph_t *prev = root;
     for (int level = 0; level < level_cap; level++) {
         idx_t n_prev = prev->n;
+        /* Skip coarsening at trivial sizes — n_prev ≤ 2 collapses to a
+         * single coarse vertex via HEM and the projected partition
+         * back to root would then be degenerate (both fine vertices
+         * on the same side, no usable bisection).  Leaving the
+         * hierarchy empty and letting `sparse_graph_partition` bisect
+         * the root directly produces a clean two-way split. */
+        if (n_prev <= 2)
+            break;
         idx_t *cmap = malloc((size_t)n_prev * sizeof(idx_t));
         if (!cmap) {
             sparse_graph_hierarchy_free(h);
@@ -863,10 +871,15 @@ static sparse_err_t bisect_gggp(const sparse_graph_t *G, idx_t *part_out) {
 sparse_err_t graph_bisect_coarsest(const sparse_graph_t *G, idx_t *part_out) {
     if (!G || !part_out)
         return SPARSE_ERR_NULL;
-    if (G->n > 40)
-        return SPARSE_ERR_BADARG;
     if (G->n == 0)
         return SPARSE_OK;
+    /* n ≤ 20: brute-force enumeration is tractable (≤ 524 288 patterns).
+     * n > 20: GGGP runs in O(n + |E|) regardless of size — it's the
+     * fallback bisection when the multilevel hierarchy can't drive
+     * the coarsest level below the brute-force threshold (e.g. when
+     * heavy-edge matching saturates on a structurally regular input
+     * like bcsstk14).  Day 4's per-level FM uncoarsening polishes
+     * whatever GGGP produces. */
     if (G->n <= 20)
         return bisect_brute_force(G, part_out);
     return bisect_gggp(G, part_out);
@@ -1148,13 +1161,12 @@ sparse_err_t sparse_graph_partition(const sparse_graph_t *G, idx_t *part_out, id
      * the root itself (hierarchy.nlevels == 0 means the matching
      * saturated immediately). */
     const sparse_graph_t *coarsest = (h.nlevels > 0) ? &h.coarse[h.nlevels - 1] : G;
-    if (coarsest->n > 40) {
-        /* Saturated matching on a too-large input — Day 3's bisect can't
-         * handle it.  Bubble up the error rather than silently returning
-         * a degenerate partition. */
-        sparse_graph_hierarchy_free(&h);
-        return SPARSE_ERR_BADARG;
-    }
+    /* `graph_bisect_coarsest` handles any `n` (brute force ≤ 20, GGGP
+     * above) so we don't need a coarsest-size cap here.  The hierarchy
+     * may stop above the 20-vertex target on inputs where heavy-edge
+     * matching saturates (e.g. bcsstk14) — GGGP just bisects whatever
+     * the hierarchy delivers, and Day 4's per-level FM polishes the
+     * uncoarsened result. */
 
     idx_t *coarsest_part = malloc((size_t)coarsest->n * sizeof(idx_t));
     if (!coarsest_part) {

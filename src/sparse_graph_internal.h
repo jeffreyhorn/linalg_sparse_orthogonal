@@ -269,7 +269,7 @@ void sparse_graph_hierarchy_free(sparse_graph_hierarchy_t *h);
  */
 
 /**
- * @brief Bisect a small graph into a balanced 2-way partition.
+ * @brief Bisect a graph into a balanced 2-way partition.
  *
  * Routes through one of two strategies based on `G->n`:
  *
@@ -279,24 +279,24 @@ void sparse_graph_hierarchy_free(sparse_graph_hierarchy_t *h);
  *     are scanned; the lowest-cut pattern that satisfies vertex-
  *     weight balance (|w0 - w1| ≤ max_vwgt) wins.
  *
- *   - **20 < n ≤ 40** — Greedy Graph-Growing Partition (METIS §3):
- *     find a peripheral vertex via two BFS passes, BFS-grow side 0
- *     from it until half the vertex weight is consumed, leave the
- *     rest on side 1.  Day 4's per-level FM refines the resulting
- *     (often imbalanced) partition.
+ *   - **n > 20** — Greedy Graph-Growing Partition (METIS §3): find a
+ *     peripheral vertex via two BFS passes, BFS-grow side 0 from it
+ *     until half the vertex weight is consumed, leave the rest on
+ *     side 1.  Day 4's per-level FM refines the resulting (often
+ *     imbalanced) partition during uncoarsening.
  *
- * Larger inputs return `SPARSE_ERR_BADARG` — the multilevel
- * coarsening (`sparse_graph_hierarchy_build`) is contracted to drive
- * `n` down to MAX(20, n_orig / 100) before the partitioner gets here.
+ * The multilevel coarsening (`sparse_graph_hierarchy_build`) drives
+ * `n` toward MAX(20, n_orig / 100) before the partitioner gets here,
+ * but on structurally regular inputs heavy-edge matching can saturate
+ * before that target — GGGP handles whatever the hierarchy delivers.
  *
- * @param G        Input graph.  Must satisfy `G->n ≤ 40`.
+ * @param G        Input graph.
  * @param part_out Caller-allocated array of length `G->n`; written
  *                 on success with `part_out[i] ∈ {0, 1}`.  On failure
  *                 the contents are unspecified.
  *
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if `G` or `part_out` is NULL.
- * @return SPARSE_ERR_BADARG if `G->n > 40`.
  * @return SPARSE_ERR_ALLOC on allocation failure.
  */
 sparse_err_t graph_bisect_coarsest(const sparse_graph_t *G, idx_t *part_out);
@@ -431,9 +431,6 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
  *
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if G or part_out is NULL.
- * @return SPARSE_ERR_BADARG if the multilevel hierarchy fails to
- *         coarsen below the bisection ceiling (G->n at coarsest > 40
- *         — typically a pathological saturated-matching input).
  * @return SPARSE_ERR_ALLOC on allocation failure.
  */
 sparse_err_t sparse_graph_partition(const sparse_graph_t *G, idx_t *part_out, idx_t *sep_out);

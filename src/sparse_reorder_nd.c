@@ -38,17 +38,32 @@
 
 /* Base-case threshold: the recursion stops here and the subgraph's
  * vertices land in the permutation in their natural (subgraph-local)
- * order.  Provisional value 8 — small enough that the recursion's
- * geometric fill reduction dominates the permutation quality on the
- * 10×10 grid sanity test; Day 9's bench sweep retunes against
- * Pres_Poisson / bcsstk14. */
-#define ND_BASE_THRESHOLD 4
+ * order.  Default 32 from the Day 9 sweep: fill on bcsstk14 (n=1806)
+ * and Pres_Poisson (n=14822) is minimised here within 0.1 % of any
+ * threshold in {4, 8, 16, 32}, and 32 is significantly faster than
+ * the smaller values on Pres_Poisson (recursive partitioning cost
+ * dominates beyond the leaves).  See
+ * `docs/planning/EPIC_2/SPRINT_22/bench_day9_nd.txt` for the full
+ * sweep data.
+ *
+ * Exposed as a non-`static` global so the Day 9 sweep
+ * (`benchmarks/bench_reorder.c --nd-threshold N`) can override it
+ * from the command line without recompiling the library.  Day 12's
+ * quotient-graph AMD swap will replace the natural-order base case;
+ * the threshold becomes a real "stop recursing here, run AMD"
+ * cutover at that point and will likely shift higher. */
+idx_t sparse_reorder_nd_base_threshold = 32;
 
 /* Append `n` vertices from a subgraph to the global permutation in
  * the order they appear in `vertex_id_map`.  Used by both the leaf
  * (n ≤ ND_BASE_THRESHOLD) and the degenerate-partition fallbacks. */
 static void nd_emit_natural(const idx_t *vertex_id_map, idx_t n, idx_t *perm, idx_t *next_pos) {
+    /* The caller guarantees `perm` has space for at least `*next_pos + n`
+     * entries (the recursion's invariant — each subgraph's vertices fit
+     * in their slice of the root permutation).  Static analyser doesn't
+     * track this cross-call invariant. */
     for (idx_t i = 0; i < n; i++)
+        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
         perm[*next_pos + i] = vertex_id_map[i];
     *next_pos += n;
 }
@@ -75,7 +90,7 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
     }
 
     /* Small-subgraph base case → natural ordering. */
-    if (n <= ND_BASE_THRESHOLD) {
+    if (n <= sparse_reorder_nd_base_threshold) {
         nd_emit_natural(vertex_id_map, n, perm, next_pos);
         return SPARSE_OK;
     }
@@ -150,7 +165,11 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
             free(vs1);
             return rc;
         }
+        /* `vs0[i] ∈ [0, n)` by construction (we built it from `part`),
+         * and `vertex_id_map` has length `n`.  The analyser doesn't
+         * track the relationship. */
         for (idx_t i = 0; i < n0; i++)
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
             map0[i] = vertex_id_map[vs0[i]];
         rc = nd_recurse(&G0, map0, perm, next_pos);
         sparse_graph_free(&G0);
@@ -182,6 +201,7 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
             return rc;
         }
         for (idx_t i = 0; i < n1; i++)
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
             map1[i] = vertex_id_map[vs1[i]];
         rc = nd_recurse(&G1, map1, perm, next_pos);
         sparse_graph_free(&G1);

@@ -222,7 +222,15 @@ static sparse_err_t qg_init(qg_t *qg, idx_t n, const idx_t *adj_ptr, const idx_t
     uint64_t iw_size_64 = (uint64_t)5 * (uint64_t)nnz + (uint64_t)6 * (uint64_t)n + 1;
     if (iw_size_64 < 1024)
         iw_size_64 = 1024;
-    if (iw_size_64 > (uint64_t)INT32_MAX || iw_size_64 > SIZE_MAX / sizeof(idx_t))
+    /* Single combined cap covers both the storage type (`idx_t`,
+     * int32) and the malloc byte count.  On 64-bit `SIZE_MAX /
+     * sizeof(idx_t)` dominates and `INT32_MAX` is the live bound;
+     * on a hypothetical 32-bit platform the byte-count term can
+     * tighten it. */
+    const uint64_t cap = (uint64_t)INT32_MAX < SIZE_MAX / sizeof(idx_t)
+                             ? (uint64_t)INT32_MAX
+                             : (uint64_t)(SIZE_MAX / sizeof(idx_t));
+    if (iw_size_64 > cap)
         return SPARSE_ERR_ALLOC;
     idx_t iw_size = (idx_t)iw_size_64;
     qg->iw_size = iw_size;

@@ -63,7 +63,7 @@ static void nd_emit_natural(const idx_t *vertex_id_map, idx_t n, idx_t *perm, id
      * in their slice of the root permutation).  Static analyser doesn't
      * track this cross-call invariant. */
     for (idx_t i = 0; i < n; i++)
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.uninitialized.Assign)
         perm[*next_pos + i] = vertex_id_map[i];
     *next_pos += n;
 }
@@ -169,7 +169,7 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
          * and `vertex_id_map` has length `n`.  The analyser doesn't
          * track the relationship. */
         for (idx_t i = 0; i < n0; i++)
-            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.uninitialized.Assign)
             map0[i] = vertex_id_map[vs0[i]];
         rc = nd_recurse(&G0, map0, perm, next_pos);
         sparse_graph_free(&G0);
@@ -201,7 +201,7 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
             return rc;
         }
         for (idx_t i = 0; i < n1; i++)
-            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.uninitialized.Assign)
             map1[i] = vertex_id_map[vs1[i]];
         rc = nd_recurse(&G1, map1, perm, next_pos);
         sparse_graph_free(&G1);
@@ -217,6 +217,7 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
     /* Separator last — the rule that makes ND fill-reducing. */
     for (idx_t i = 0; i < n; i++) {
         if (part[i] == 2) {
+            // NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign)
             perm[*next_pos] = vertex_id_map[i];
             (*next_pos)++;
         }

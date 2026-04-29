@@ -949,9 +949,13 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
             idx_t new_imbal = new_w0 > new_w1 ? new_w0 - new_w1 : new_w1 - new_w0;
             if (new_imbal > max_imbal)
                 continue;
-            if (!have_candidate || gain[v] > best_g || (gain[v] == best_g && v < best_v)) {
+            /* Cache gain[v] in a local so the comparison `v < best_v`
+             * isn't on the same line as `gain[v]`; cppcheck otherwise
+             * raises a spurious arrayIndexThenCheck on the v compare. */
+            idx_t gv = gain[v];
+            if (!have_candidate || gv > best_g || (gv == best_g && v < best_v)) {
                 have_candidate = 1;
-                best_g = gain[v];
+                best_g = gv;
                 best_v = v;
             }
         }
@@ -1004,20 +1008,193 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
- * sparse_graph_partition — Days 2-4 stub.
+ * Uncoarsening + vertex-separator extraction (Sprint 22 Day 4).
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hierarchy_t *h,
+                             const idx_t *coarsest_part, idx_t *root_part_out) {
+    if (!root || !h || !coarsest_part || !root_part_out)
+        return SPARSE_ERR_NULL;
+
+    /* No coarsening occurred — coarsest_part is on root.  Just copy
+     * and run a single FM polish. */
+    if (h->nlevels == 0) {
+        if (root->n > 0)
+            memcpy(root_part_out, coarsest_part, (size_t)root->n * sizeof(idx_t));
+        return graph_refine_fm(root, root_part_out);
+    }
+
+    /* Two ping-pong buffers sized to the largest level (root). */
+    idx_t max_n = root->n;
+    for (int i = 0; i < h->nlevels; i++) {
+        if (h->coarse[i].n > max_n)
+            max_n = h->coarse[i].n;
+    }
+    idx_t *cur = malloc((size_t)max_n * sizeof(idx_t));
+    idx_t *next = malloc((size_t)max_n * sizeof(idx_t));
+    if (!cur || !next) {
+        free(cur);
+        free(next);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    /* Seed `cur` with the coarsest partition. */
+    idx_t coarsest_n = h->coarse[h->nlevels - 1].n;
+    if (coarsest_n > 0)
+        memcpy(cur, coarsest_part, (size_t)coarsest_n * sizeof(idx_t));
+
+    /* Walk levels from coarsest down to root.  At each step, project
+     * `cur` (on coarse[level]) through cmaps[level] onto the next-
+     * finer graph (root if level == 0, else coarse[level - 1]) and
+     * refine the result with FM. */
+    for (int level = h->nlevels - 1; level >= 0; level--) {
+        const sparse_graph_t *dst_graph = (level == 0) ? root : &h->coarse[level - 1];
+        const idx_t *cmap = h->cmaps[level];
+        for (idx_t i = 0; i < dst_graph->n; i++) {
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+            next[i] = cur[cmap[i]];
+        }
+        sparse_err_t rc = graph_refine_fm(dst_graph, next);
+        if (rc != SPARSE_OK) {
+            free(cur);
+            free(next);
+            return rc;
+        }
+        idx_t *tmp = cur;
+        cur = next;
+        next = tmp;
+    }
+
+    if (root->n > 0)
+        memcpy(root_part_out, cur, (size_t)root->n * sizeof(idx_t));
+    free(cur);
+    free(next);
+    return SPARSE_OK;
+}
+
+sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, idx_t *part_io) {
+    if (!G || !part_io)
+        return SPARSE_ERR_NULL;
+    if (G->n == 0)
+        return SPARSE_OK;
+
+    /* Side weights drive the smaller-side decision (METIS convention). */
+    idx_t w0 = 0;
+    idx_t w1 = 0;
+    for (idx_t i = 0; i < G->n; i++) {
+        idx_t w = G->vwgt ? G->vwgt[i] : 1;
+        if (part_io[i] == 0)
+            w0 += w;
+        else
+            w1 += w;
+    }
+    idx_t smaller_side = (w1 < w0) ? 1 : 0;
+    idx_t other_side = 1 - smaller_side;
+
+    /* Two-pass: first mark every boundary vertex on the smaller side,
+     * then move the marks into part_io.  Splitting the marking from
+     * the move keeps the boundary check simple — once we start
+     * moving, "neighbour on other side" gets ambiguous. */
+    int *is_boundary = calloc((size_t)G->n, sizeof(int));
+    if (!is_boundary)
+        return SPARSE_ERR_ALLOC;
+
+    for (idx_t i = 0; i < G->n; i++) {
+        if (part_io[i] != smaller_side)
+            continue;
+        for (idx_t k = G->xadj[i]; k < G->xadj[i + 1]; k++) {
+            idx_t j = G->adjncy[k];
+            if (part_io[j] == other_side) {
+                is_boundary[i] = 1;
+                break;
+            }
+        }
+    }
+    for (idx_t i = 0; i < G->n; i++) {
+        if (is_boundary[i])
+            part_io[i] = 2;
+    }
+
+    free(is_boundary);
+    return SPARSE_OK;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * sparse_graph_partition — full multilevel pipeline (Sprint 22 Day 4).
  * ═══════════════════════════════════════════════════════════════════════
  *
- * Returns SPARSE_ERR_BADARG.  Day 2 coarsens; Day 3 bisects + FM;
- * Day 4 uncoarsens + extracts vertex separator and replaces this
- * stub with the real implementation.
+ * Composes the four phases shipped over Sprint 22 Days 2-4:
+ *   1. Build the multilevel coarsening hierarchy (Day 2).
+ *   2. Bisect the coarsest level (Day 3) and FM-refine.
+ *   3. Uncoarsen back to the root with FM at every level (Day 4).
+ *   4. Convert the final 2-way edge separator to a 3-way vertex
+ *      separator on the smaller side (Day 4).
  */
 sparse_err_t sparse_graph_partition(const sparse_graph_t *G, idx_t *part_out, idx_t *sep_out) {
-    /* Pre-clear the outputs (writes through both pointers so
-     * clang-tidy doesn't flag them as const-able, and gives
-     * callers deterministic empty state on the BADARG return). */
-    if (part_out && G && G->n > 0)
-        memset(part_out, 0, (size_t)G->n * sizeof(idx_t));
+    if (!G || !part_out)
+        return SPARSE_ERR_NULL;
     if (sep_out)
         *sep_out = 0;
-    return SPARSE_ERR_BADARG;
+    if (G->n == 0)
+        return SPARSE_OK;
+
+    sparse_graph_hierarchy_t h = {0};
+    sparse_err_t rc = sparse_graph_hierarchy_build(G, /*seed=*/0U, &h);
+    if (rc != SPARSE_OK)
+        return rc;
+
+    /* Coarsest = last hierarchy level if any coarsening happened, else
+     * the root itself (hierarchy.nlevels == 0 means the matching
+     * saturated immediately). */
+    const sparse_graph_t *coarsest = (h.nlevels > 0) ? &h.coarse[h.nlevels - 1] : G;
+    if (coarsest->n > 40) {
+        /* Saturated matching on a too-large input — Day 3's bisect can't
+         * handle it.  Bubble up the error rather than silently returning
+         * a degenerate partition. */
+        sparse_graph_hierarchy_free(&h);
+        return SPARSE_ERR_BADARG;
+    }
+
+    idx_t *coarsest_part = malloc((size_t)coarsest->n * sizeof(idx_t));
+    if (!coarsest_part) {
+        sparse_graph_hierarchy_free(&h);
+        return SPARSE_ERR_ALLOC;
+    }
+    rc = graph_bisect_coarsest(coarsest, coarsest_part);
+    if (rc == SPARSE_OK)
+        rc = graph_refine_fm(coarsest, coarsest_part);
+    if (rc != SPARSE_OK) {
+        free(coarsest_part);
+        sparse_graph_hierarchy_free(&h);
+        return rc;
+    }
+
+    if (h.nlevels == 0) {
+        /* Already at root size — just copy the coarsest partition over. */
+        memcpy(part_out, coarsest_part, (size_t)G->n * sizeof(idx_t));
+    } else {
+        rc = graph_uncoarsen(G, &h, coarsest_part, part_out);
+        if (rc != SPARSE_OK) {
+            free(coarsest_part);
+            sparse_graph_hierarchy_free(&h);
+            return rc;
+        }
+    }
+    free(coarsest_part);
+    sparse_graph_hierarchy_free(&h);
+
+    rc = graph_edge_separator_to_vertex_separator(G, part_out);
+    if (rc != SPARSE_OK)
+        return rc;
+
+    if (sep_out) {
+        idx_t sep = 0;
+        for (idx_t i = 0; i < G->n; i++) {
+            if (part_out[i] == 2)
+                sep++;
+        }
+        *sep_out = sep;
+    }
+    return SPARSE_OK;
 }

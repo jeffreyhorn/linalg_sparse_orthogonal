@@ -422,14 +422,7 @@ static void test_hierarchy_free_safe_on_zero_init(void) {
     ASSERT_TRUE(h.cmaps == NULL);
 }
 
-/* ─── Day 1 stubs return SPARSE_ERR_BADARG ─────────────────────────── */
-
-static void test_graph_partition_is_stub(void) {
-    sparse_graph_t G = {0};
-    idx_t part[1] = {0};
-    idx_t sep = 0;
-    ASSERT_ERR(sparse_graph_partition(&G, part, &sep), SPARSE_ERR_BADARG);
-}
+/* ─── Day 1 / Day 6 stubs ───────────────────────────────────────────── */
 
 static void test_graph_subgraph_is_stub(void) {
     sparse_graph_t parent = {0};
@@ -437,6 +430,257 @@ static void test_graph_subgraph_is_stub(void) {
     idx_t vs[1] = {0};
     idx_t map[1] = {0};
     ASSERT_ERR(sparse_graph_subgraph(&parent, vs, 1, &child, map), SPARSE_ERR_BADARG);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+ * Sprint 22 Day 4 — uncoarsening + vertex-separator extraction.
+ * ═══════════════════════════════════════════════════════════════════ */
+
+/* Build the symmetric adjacency graph of a `d × d × d` 3D mesh
+ * (6-connected: each vertex has up to 6 axis-aligned neighbours). */
+static SparseMatrix *make_mesh_3d(idx_t d) {
+    SparseMatrix *A = sparse_create(d * d * d, d * d * d);
+    if (!A)
+        return NULL;
+    for (idx_t z = 0; z < d; z++) {
+        for (idx_t y = 0; y < d; y++) {
+            for (idx_t x = 0; x < d; x++) {
+                idx_t v = x + y * d + z * d * d;
+                sparse_insert(A, v, v, 1.0); /* placeholder diagonal */
+                if (x + 1 < d) {
+                    sparse_insert(A, v, v + 1, 1.0);
+                    sparse_insert(A, v + 1, v, 1.0);
+                }
+                if (y + 1 < d) {
+                    sparse_insert(A, v, v + d, 1.0);
+                    sparse_insert(A, v + d, v, 1.0);
+                }
+                if (z + 1 < d) {
+                    sparse_insert(A, v, v + d * d, 1.0);
+                    sparse_insert(A, v + d * d, v, 1.0);
+                }
+            }
+        }
+    }
+    return A;
+}
+
+/* Verify the partition invariant: no edge connects a side-0 vertex
+ * to a side-1 vertex.  Every cut edge must route through a separator
+ * vertex (`part[i] == 2`). */
+static int check_partition_invariant(const sparse_graph_t *G, const idx_t *part) {
+    for (idx_t i = 0; i < G->n; i++) {
+        for (idx_t k = G->xadj[i]; k < G->xadj[i + 1]; k++) {
+            idx_t j = G->adjncy[k];
+            int p_i = (int)part[i];
+            int p_j = (int)part[j];
+            if ((p_i == 0 && p_j == 1) || (p_i == 1 && p_j == 0))
+                return 0;
+        }
+    }
+    return 1;
+}
+
+/* Count vertices per side. */
+static void count_partition_sides(const sparse_graph_t *G, const idx_t *part, idx_t *n0, idx_t *n1,
+                                  idx_t *nsep) {
+    *n0 = 0;
+    *n1 = 0;
+    *nsep = 0;
+    for (idx_t i = 0; i < G->n; i++) {
+        if (part[i] == 0)
+            (*n0)++;
+        else if (part[i] == 1)
+            (*n1)++;
+        else if (part[i] == 2)
+            (*nsep)++;
+    }
+}
+
+/* ─── 10×10 grid: separator ≈ 10 (one row/column) ─────────────────── */
+
+static void test_partition_10x10_grid(void) {
+    SparseMatrix *A = make_grid_2d(10, 10);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    ASSERT_EQ(G.n, 100);
+
+    idx_t part[100] = {0};
+    idx_t sep = 0;
+    REQUIRE_OK(sparse_graph_partition(&G, part, &sep));
+
+    /* Optimal vertex separator on a 10×10 grid is 10 (a full row or
+     * column).  Allow 12 (+20%) for FM stochasticity. */
+    ASSERT_TRUE(sep >= 5);
+    ASSERT_TRUE(sep <= 12);
+
+    /* No part-0 / part-1 cross-edges. */
+    ASSERT_TRUE(check_partition_invariant(&G, part));
+
+    /* Balanced sides ±20% of (n - sep) ≈ 88. */
+    idx_t n0, n1, nsep;
+    count_partition_sides(&G, part, &n0, &n1, &nsep);
+    ASSERT_EQ(n0 + n1 + nsep, 100);
+    ASSERT_EQ(nsep, sep);
+    idx_t imbal = n0 > n1 ? n0 - n1 : n1 - n0;
+    ASSERT_TRUE(imbal <= 20);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── 5×5×5 3D mesh: separator ≈ 25 (one mid-plane) ──────────────── */
+
+static void test_partition_5x5x5_mesh(void) {
+    SparseMatrix *A = make_mesh_3d(5);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    ASSERT_EQ(G.n, 125);
+
+    idx_t *part = calloc((size_t)G.n, sizeof(idx_t));
+    ASSERT_NOT_NULL(part);
+    idx_t sep = 0;
+    REQUIRE_OK(sparse_graph_partition(&G, part, &sep));
+
+    /* Optimal planar separator: 5×5 = 25.  Allow 30 (+20%). */
+    ASSERT_TRUE(sep >= 10);
+    ASSERT_TRUE(sep <= 30);
+
+    ASSERT_TRUE(check_partition_invariant(&G, part));
+
+    /* 3-way split.  Smaller-side vertex-separator extraction can
+     * amplify edge-partition imbalance: a 60-65 edge cut becomes a
+     * 35-65 + 25-sep vertex partition.  Allow up to 60 (about half
+     * the non-separator vertices).  Both sides must be non-empty so
+     * the recursive ND has work to do on each. */
+    idx_t n0, n1, nsep;
+    count_partition_sides(&G, part, &n0, &n1, &nsep);
+    ASSERT_EQ(n0 + n1 + nsep, 125);
+    ASSERT_TRUE(n0 > 0);
+    ASSERT_TRUE(n1 > 0);
+    idx_t imbal = n0 > n1 ? n0 - n1 : n1 - n0;
+    ASSERT_TRUE(imbal <= 60);
+
+    free(part);
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── Two K10 cliques + bridge: separator = 1 (the bridge) ────────── */
+
+static void test_partition_two_k10_with_bridge(void) {
+    SparseMatrix *A = make_two_cliques_with_bridge(10);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    ASSERT_EQ(G.n, 20);
+
+    idx_t part[20] = {0};
+    idx_t sep = 0;
+    REQUIRE_OK(sparse_graph_partition(&G, part, &sep));
+
+    /* Optimal separator is one of the two bridge endpoints (cut the
+     * single edge by lifting one endpoint into the separator).  Allow
+     * 2 (the FM uncoarsening might land on either endpoint). */
+    ASSERT_TRUE(sep >= 1);
+    ASSERT_TRUE(sep <= 2);
+
+    ASSERT_TRUE(check_partition_invariant(&G, part));
+
+    /* Both K10 sides survive intact (modulo the bridge endpoint
+     * lifted into the separator). */
+    idx_t n0, n1, nsep;
+    count_partition_sides(&G, part, &n0, &n1, &nsep);
+    ASSERT_EQ(n0 + n1 + nsep, 20);
+    ASSERT_TRUE(n0 >= 9);
+    ASSERT_TRUE(n1 >= 9);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── Edge → vertex separator helper, isolated ────────────────────── */
+
+static void test_edge_to_vertex_separator_smaller_side(void) {
+    /* Manually build a 2-way edge separator on the 5×6 grid where
+     * column ≤ 2 → side 0 (15 vertices) and column ≥ 3 → side 1
+     * (15 vertices).  Tied weights → smaller_side defaults to 0.
+     * The boundary on side 0 is column 2 (5 vertices); after the
+     * smaller-side lift, those 5 land in the separator. */
+    SparseMatrix *A = make_grid_2d(5, 6);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    idx_t part[30] = {0};
+    for (idx_t r = 0; r < 5; r++) {
+        for (idx_t c = 0; c < 6; c++) {
+            part[r * 6 + c] = c < 3 ? 0 : 1;
+        }
+    }
+
+    REQUIRE_OK(graph_edge_separator_to_vertex_separator(&G, part));
+
+    /* No part-0 / part-1 cross-edges. */
+    ASSERT_TRUE(check_partition_invariant(&G, part));
+
+    /* Boundary on side 0 (column 2) is now the separator (5 vertices). */
+    idx_t n0, n1, nsep;
+    count_partition_sides(&G, part, &n0, &n1, &nsep);
+    ASSERT_EQ(nsep, 5);
+    ASSERT_EQ(n0, 10); /* columns 0, 1 */
+    ASSERT_EQ(n1, 15); /* columns 3, 4, 5 */
+    /* Column-2 vertices are exactly the separator. */
+    for (idx_t r = 0; r < 5; r++)
+        ASSERT_EQ(part[r * 6 + 2], 2);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── NULL-arg + n=0 + small-input contracts ──────────────────────── */
+
+static void test_partition_null_args(void) {
+    sparse_graph_t G = {0};
+    idx_t part[1] = {0};
+    idx_t sep = 0;
+    ASSERT_ERR(sparse_graph_partition(NULL, part, &sep), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_graph_partition(&G, NULL, &sep), SPARSE_ERR_NULL);
+}
+
+static void test_partition_singleton(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    idx_t part[1] = {99};
+    idx_t sep = 99;
+    REQUIRE_OK(sparse_graph_partition(&G, part, &sep));
+    /* Singleton: no edges → no separator needed; the vertex stays on
+     * its bisect side. */
+    ASSERT_TRUE(part[0] == 0 || part[0] == 1 || part[0] == 2);
+    ASSERT_EQ(sep, part[0] == 2 ? 1 : 0);
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+static void test_uncoarsen_null_args(void) {
+    sparse_graph_t G = {0};
+    sparse_graph_hierarchy_t h = {0};
+    idx_t buf[1] = {0};
+    ASSERT_ERR(graph_uncoarsen(NULL, &h, buf, buf), SPARSE_ERR_NULL);
+    ASSERT_ERR(graph_uncoarsen(&G, NULL, buf, buf), SPARSE_ERR_NULL);
+    ASSERT_ERR(graph_uncoarsen(&G, &h, NULL, buf), SPARSE_ERR_NULL);
+    ASSERT_ERR(graph_uncoarsen(&G, &h, buf, NULL), SPARSE_ERR_NULL);
+}
+
+static void test_edge_to_vertex_separator_null_args(void) {
+    sparse_graph_t G = {0};
+    idx_t part[1] = {0};
+    ASSERT_ERR(graph_edge_separator_to_vertex_separator(NULL, part), SPARSE_ERR_NULL);
+    ASSERT_ERR(graph_edge_separator_to_vertex_separator(&G, NULL), SPARSE_ERR_NULL);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -723,7 +967,7 @@ static void test_fm_null_args(void) {
 /* ═══════════════════════════════════════════════════════════════════ */
 
 int main(void) {
-    TEST_SUITE_BEGIN("Sprint 22 Days 1-3: graph + HEM coarsener + bisect/FM");
+    TEST_SUITE_BEGIN("Sprint 22 Days 1-4: graph + coarsen + bisect/FM + uncoarsen + partition");
 
     /* Day 1: round-trip + structural invariants */
     RUN_TEST(test_graph_from_sparse_nos4_round_trip);
@@ -733,9 +977,7 @@ int main(void) {
     RUN_TEST(test_graph_from_sparse_rejects_rectangular);
     RUN_TEST(test_graph_from_sparse_null_args);
 
-    /* Day 1: stubs (subgraph + partition) — partition is a Day 1 stub
-     * still pending Day 4's real implementation */
-    RUN_TEST(test_graph_partition_is_stub);
+    /* Day 6 stub still pending: subgraph */
     RUN_TEST(test_graph_subgraph_is_stub);
 
     /* Day 2: heavy-edge-matching coarsener */
@@ -762,6 +1004,17 @@ int main(void) {
     RUN_TEST(test_fm_optimal_partition_no_regress);
     RUN_TEST(test_bisect_then_fm_5x6_grid);
     RUN_TEST(test_fm_null_args);
+
+    /* Day 4: uncoarsening + vertex-separator extraction + end-to-end
+     * sparse_graph_partition */
+    RUN_TEST(test_partition_10x10_grid);
+    RUN_TEST(test_partition_5x5x5_mesh);
+    RUN_TEST(test_partition_two_k10_with_bridge);
+    RUN_TEST(test_edge_to_vertex_separator_smaller_side);
+    RUN_TEST(test_partition_singleton);
+    RUN_TEST(test_partition_null_args);
+    RUN_TEST(test_uncoarsen_null_args);
+    RUN_TEST(test_edge_to_vertex_separator_null_args);
 
     TEST_SUITE_END();
 }

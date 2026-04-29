@@ -335,6 +335,66 @@ sparse_err_t graph_bisect_coarsest(const sparse_graph_t *G, idx_t *part_out);
 sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io);
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Uncoarsening + vertex-separator extraction (Sprint 22 Day 4).
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+/**
+ * @brief Project the coarsest-level partition back through the
+ *        multilevel hierarchy, refining at each level via FM.
+ *
+ * Walks the hierarchy from coarsest down to the root.  At each step
+ * the current partition is projected through `cmaps[level]` (each
+ * coarse vertex's preimage in the next-finer level inherits the
+ * coarse vertex's side) and `graph_refine_fm` cleans up the boundary
+ * before the next projection.  Total work is O(|E_root|) summed
+ * geometrically over levels.
+ *
+ * If `h->nlevels == 0` (coarsening made no progress), `coarsest_part`
+ * must already be a partition of `root`; the routine memcpys it into
+ * `root_part_out` and runs a single FM pass on the root.
+ *
+ * @param root            The original (uncoarsened) graph.
+ * @param h               Hierarchy from `sparse_graph_hierarchy_build`.
+ * @param coarsest_part   Length-`coarsest->n` partition (with
+ *                        `coarsest_part[i] ∈ {0, 1}`).  When
+ *                        `h->nlevels > 0`, `coarsest` is
+ *                        `&h->coarse[h->nlevels - 1]`; otherwise it's
+ *                        `root`.
+ * @param root_part_out   Caller-allocated array of length `root->n`;
+ *                        written on success.
+ *
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if any required pointer is NULL.
+ * @return SPARSE_ERR_ALLOC on allocation failure.
+ */
+sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hierarchy_t *h,
+                             const idx_t *coarsest_part, idx_t *root_part_out);
+
+/**
+ * @brief Convert a 2-way edge separator into a 3-way vertex separator.
+ *
+ * Given `part_io[i] ∈ {0, 1}`, marks every boundary vertex on the
+ * smaller-vertex-weight side as the separator (`part_io[i] = 2`).
+ * After return:
+ *   - `part_io[i] ∈ {0, 1, 2}`,
+ *   - no edge connects a side-0 vertex to a side-1 vertex (all such
+ *     crossings now route through a `2`-labelled vertex),
+ *   - the separator sits on the smaller side (METIS convention; ties
+ *     break to side 0) — minimises recursive ND tree height inflation
+ *     because the recursion descends the larger subgraph alone next.
+ *
+ * @param G       Input graph.
+ * @param part_io In: 2-way partition (`part_io[i] ∈ {0, 1}`).
+ *                Out: 3-way partition (`part_io[i] ∈ {0, 1, 2}`).
+ *
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if `G` or `part_io` is NULL.
+ * @return SPARSE_ERR_ALLOC on allocation failure.
+ */
+sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, idx_t *part_io);
+
+/* ═══════════════════════════════════════════════════════════════════════
  * sparse_graph_partition — multilevel vertex-separator partitioner.
  * ═══════════════════════════════════════════════════════════════════════
  *
@@ -371,12 +431,10 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io);
  *
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if G or part_out is NULL.
- * @return SPARSE_ERR_BADARG if G->n < 0 or G is structurally
- *         malformed (xadj[n] != |adjncy|).
+ * @return SPARSE_ERR_BADARG if the multilevel hierarchy fails to
+ *         coarsen below the bisection ceiling (G->n at coarsest > 40
+ *         — typically a pathological saturated-matching input).
  * @return SPARSE_ERR_ALLOC on allocation failure.
- *
- * **Day 1 stub.** Returns SPARSE_ERR_BADARG.  Days 2-4 replace the
- * body with the multilevel pipeline.
  */
 sparse_err_t sparse_graph_partition(const sparse_graph_t *G, idx_t *part_out, idx_t *sep_out);
 

@@ -657,6 +657,353 @@ sparse_err_t sparse_graph_hierarchy_build(const sparse_graph_t *root, uint32_t s
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Coarsest-graph bisection + FM refinement (Sprint 22 Day 3).
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+/* Compute the cut weight of a 2-way partition.  Iterates each
+ * undirected edge once via the i < j upper-triangle convention. */
+static idx_t compute_cut_weight(const sparse_graph_t *G, const idx_t *part) {
+    idx_t cut = 0;
+    for (idx_t i = 0; i < G->n; i++) {
+        for (idx_t k = G->xadj[i]; k < G->xadj[i + 1]; k++) {
+            idx_t j = G->adjncy[k];
+            if (j <= i)
+                continue;
+            if (part[i] != part[j])
+                cut += G->ewgt ? G->ewgt[k] : 1;
+        }
+    }
+    return cut;
+}
+
+/* Brute-force minimum-cut bisection for n ≤ 20.  Vertex 0 is fixed
+ * to side 0 (the side-swapped mirror has identical cut, so this
+ * halves the search), then 2^(n-1) ≤ 524288 patterns are scanned.
+ * The lowest-cut pattern that satisfies vertex-weight balance
+ * |w0 - w1| ≤ max_vwgt wins. */
+static sparse_err_t bisect_brute_force(const sparse_graph_t *G, idx_t *part_out) {
+    idx_t n = G->n;
+    if (n == 1) {
+        part_out[0] = 0;
+        return SPARSE_OK;
+    }
+
+    idx_t max_vwgt = 1;
+    for (idx_t i = 0; i < n; i++) {
+        idx_t w = G->vwgt ? G->vwgt[i] : 1;
+        if (w > max_vwgt)
+            max_vwgt = w;
+    }
+    /* Tolerance: max_vwgt allows a single-vertex move to balance. */
+    idx_t tolerance = max_vwgt;
+
+    int have_best = 0;
+    idx_t best_cut = 0;
+    uint32_t best_pat = 0;
+    /* `mid_pat` is a fallback for the (rare) case where no balanced
+     * partition exists within tolerance — pick the most-balanced
+     * pattern at the lowest imbalance seen so the routine never
+     * returns garbage. */
+    int have_mid = 0;
+    idx_t best_imbal = 0;
+    uint32_t mid_pat = 0;
+    idx_t mid_cut = 0;
+
+    uint32_t total_pats = 1U << (uint32_t)(n - 1);
+    for (uint32_t p = 0; p < total_pats; p++) {
+        uint32_t pattern = p << 1; /* bit 0 = vertex 0's side = 0 */
+
+        idx_t w0 = 0;
+        idx_t w1 = 0;
+        for (idx_t i = 0; i < n; i++) {
+            idx_t w = G->vwgt ? G->vwgt[i] : 1;
+            if ((pattern >> (uint32_t)i) & 1U)
+                w1 += w;
+            else
+                w0 += w;
+        }
+        idx_t imbal = w0 > w1 ? w0 - w1 : w1 - w0;
+        idx_t cut = 0;
+        for (idx_t i = 0; i < n; i++) {
+            uint32_t side_i = (pattern >> (uint32_t)i) & 1U;
+            for (idx_t k = G->xadj[i]; k < G->xadj[i + 1]; k++) {
+                idx_t j = G->adjncy[k];
+                if (j <= i)
+                    continue;
+                uint32_t side_j = (pattern >> (uint32_t)j) & 1U;
+                if (side_i != side_j)
+                    cut += G->ewgt ? G->ewgt[k] : 1;
+            }
+        }
+
+        if (imbal <= tolerance) {
+            if (!have_best || cut < best_cut) {
+                have_best = 1;
+                best_cut = cut;
+                best_pat = pattern;
+            }
+        }
+        if (!have_mid || imbal < best_imbal || (imbal == best_imbal && cut < mid_cut)) {
+            have_mid = 1;
+            best_imbal = imbal;
+            mid_pat = pattern;
+            mid_cut = cut;
+        }
+    }
+
+    uint32_t winner = have_best ? best_pat : mid_pat;
+    for (idx_t i = 0; i < n; i++)
+        part_out[i] = (winner >> (uint32_t)i) & 1U;
+    return SPARSE_OK;
+}
+
+/* BFS from `start` filling `dist[v]` (-1 if unreachable).  Caller
+ * provides scratch queue of length ≥ G->n. */
+static void bfs_distances(const sparse_graph_t *G, idx_t start, idx_t *dist, idx_t *queue) {
+    for (idx_t i = 0; i < G->n; i++)
+        dist[i] = -1;
+    dist[start] = 0;
+    idx_t head = 0;
+    idx_t tail = 0;
+    queue[tail++] = start;
+    while (head < tail) {
+        idx_t v = queue[head++];
+        for (idx_t k = G->xadj[v]; k < G->xadj[v + 1]; k++) {
+            idx_t u = G->adjncy[k];
+            if (dist[u] == -1) {
+                dist[u] = dist[v] + 1;
+                queue[tail++] = u;
+            }
+        }
+    }
+}
+
+/* Greedy Graph-Growing Partition (METIS §3) for n in [21, 40]:
+ * find a peripheral vertex via two BFS passes, BFS-grow side 0 from
+ * it until half the vertex weight is consumed, leave the rest on
+ * side 1.  The resulting partition is often coarsely balanced —
+ * Day 4's per-level FM refinement is what actually polishes the
+ * cut. */
+static sparse_err_t bisect_gggp(const sparse_graph_t *G, idx_t *part_out) {
+    idx_t n = G->n;
+    idx_t *dist = malloc((size_t)n * sizeof(idx_t));
+    idx_t *queue = malloc((size_t)n * sizeof(idx_t));
+    int *visited = calloc((size_t)n, sizeof(int));
+    if (!dist || !queue || !visited) {
+        free(dist);
+        free(queue);
+        free(visited);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    /* Two-BFS peripheral-vertex finder. */
+    bfs_distances(G, 0, dist, queue);
+    idx_t v0 = 0;
+    idx_t best_d = 0;
+    for (idx_t i = 0; i < n; i++) {
+        if (dist[i] > best_d) {
+            best_d = dist[i];
+            v0 = i;
+        }
+    }
+    bfs_distances(G, v0, dist, queue);
+    idx_t v_periph = v0;
+    best_d = 0;
+    for (idx_t i = 0; i < n; i++) {
+        if (dist[i] > best_d) {
+            best_d = dist[i];
+            v_periph = i;
+        }
+    }
+
+    idx_t total_vwgt = 0;
+    for (idx_t i = 0; i < n; i++)
+        total_vwgt += G->vwgt ? G->vwgt[i] : 1;
+    idx_t target = total_vwgt / 2;
+
+    for (idx_t i = 0; i < n; i++)
+        part_out[i] = 1;
+
+    /* BFS from peripheral; stop assigning to side 0 once target is
+     * reached (or surpassed by the most recent push).  Disconnected
+     * components beyond the periphery's cluster stay on side 1. */
+    idx_t head = 0;
+    idx_t tail = 0;
+    queue[tail++] = v_periph;
+    visited[v_periph] = 1;
+    idx_t consumed = 0;
+    {
+        idx_t w = G->vwgt ? G->vwgt[v_periph] : 1;
+        part_out[v_periph] = 0;
+        consumed += w;
+    }
+    while (head < tail && consumed < target) {
+        idx_t v = queue[head++];
+        for (idx_t k = G->xadj[v]; k < G->xadj[v + 1]; k++) {
+            idx_t u = G->adjncy[k];
+            if (visited[u])
+                continue;
+            visited[u] = 1;
+            queue[tail++] = u;
+            idx_t w = G->vwgt ? G->vwgt[u] : 1;
+            if (consumed + w > target + 1 && consumed > 0)
+                continue; /* would overshoot; leave on side 1 */
+            part_out[u] = 0;
+            consumed += w;
+        }
+    }
+
+    free(visited);
+    free(queue);
+    free(dist);
+    return SPARSE_OK;
+}
+
+sparse_err_t graph_bisect_coarsest(const sparse_graph_t *G, idx_t *part_out) {
+    if (!G || !part_out)
+        return SPARSE_ERR_NULL;
+    if (G->n > 40)
+        return SPARSE_ERR_BADARG;
+    if (G->n == 0)
+        return SPARSE_OK;
+    if (G->n <= 20)
+        return bisect_brute_force(G, part_out);
+    return bisect_gggp(G, part_out);
+}
+
+sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
+    if (!G || !part_io)
+        return SPARSE_ERR_NULL;
+    if (G->n == 0)
+        return SPARSE_OK;
+
+    idx_t n = G->n;
+
+    /* Per-vertex gain = (sum of edge weights to other-side neighbours)
+     *                 − (sum of edge weights to same-side neighbours).
+     * Moving v flips the cut by -gain[v] (positive gain ⇒ smaller cut). */
+    idx_t *gain = malloc((size_t)n * sizeof(idx_t));
+    int *locked = calloc((size_t)n, sizeof(int));
+    idx_t *best_part = malloc((size_t)n * sizeof(idx_t));
+    if (!gain || !locked || !best_part) {
+        free(gain);
+        free(locked);
+        free(best_part);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    for (idx_t v = 0; v < n; v++) {
+        idx_t internal = 0;
+        idx_t external = 0;
+        for (idx_t k = G->xadj[v]; k < G->xadj[v + 1]; k++) {
+            idx_t u = G->adjncy[k];
+            idx_t w = G->ewgt ? G->ewgt[k] : 1;
+            if (part_io[v] == part_io[u])
+                internal += w;
+            else
+                external += w;
+        }
+        gain[v] = external - internal;
+    }
+
+    idx_t cur_cut = compute_cut_weight(G, part_io);
+    idx_t best_cut = cur_cut;
+    memcpy(best_part, part_io, (size_t)n * sizeof(idx_t));
+
+    /* Side weights for balance tracking. */
+    idx_t w0 = 0;
+    idx_t w1 = 0;
+    idx_t max_vwgt = 1;
+    for (idx_t i = 0; i < n; i++) {
+        idx_t w = G->vwgt ? G->vwgt[i] : 1;
+        if (w > max_vwgt)
+            max_vwgt = w;
+        if (part_io[i] == 0)
+            w0 += w;
+        else
+            w1 += w;
+    }
+    idx_t total_vwgt = w0 + w1;
+    idx_t init_imbal = w0 > w1 ? w0 - w1 : w1 - w0;
+    idx_t max_imbal = total_vwgt / 20; /* 5% of total */
+    if (max_imbal < init_imbal)
+        max_imbal = init_imbal;
+    max_imbal += max_vwgt;
+
+    /* FM main loop.  Pick the highest-gain unlocked vertex (positive
+     * or negative — accepting transient cut increases lets FM escape
+     * shallow local minima), move it, lock it, update neighbour
+     * gains.  After the pass, restore the best (lowest-cut) state
+     * seen during the walk. */
+    for (idx_t step = 0; step < n; step++) {
+        idx_t best_v = -1;
+        idx_t best_g = 0;
+        int have_candidate = 0;
+        for (idx_t v = 0; v < n; v++) {
+            if (locked[v])
+                continue;
+            idx_t v_w = G->vwgt ? G->vwgt[v] : 1;
+            idx_t new_w0 = part_io[v] == 0 ? w0 - v_w : w0 + v_w;
+            idx_t new_w1 = part_io[v] == 0 ? w1 + v_w : w1 - v_w;
+            idx_t new_imbal = new_w0 > new_w1 ? new_w0 - new_w1 : new_w1 - new_w0;
+            if (new_imbal > max_imbal)
+                continue;
+            if (!have_candidate || gain[v] > best_g || (gain[v] == best_g && v < best_v)) {
+                have_candidate = 1;
+                best_g = gain[v];
+                best_v = v;
+            }
+        }
+        if (!have_candidate)
+            break;
+
+        /* Move best_v: cut changes by -gain[best_v]. */
+        cur_cut -= best_g;
+        idx_t v_w = G->vwgt ? G->vwgt[best_v] : 1;
+        idx_t old_side = part_io[best_v];
+        idx_t new_side = 1 - old_side;
+        if (old_side == 0) {
+            w0 -= v_w;
+            w1 += v_w;
+        } else {
+            w0 += v_w;
+            w1 -= v_w;
+        }
+        part_io[best_v] = new_side;
+        locked[best_v] = 1;
+
+        /* Update gains for unlocked neighbours.  Neighbours now on
+         * the new side: edge (best_v, u) flipped from external to
+         * internal for u, so gain[u] -= 2w.  Neighbours on the old
+         * side: edge flipped internal → external, gain[u] += 2w. */
+        for (idx_t k = G->xadj[best_v]; k < G->xadj[best_v + 1]; k++) {
+            idx_t u = G->adjncy[k];
+            if (locked[u])
+                continue;
+            idx_t w = G->ewgt ? G->ewgt[k] : 1;
+            if (part_io[u] == new_side)
+                gain[u] -= 2 * w;
+            else
+                gain[u] += 2 * w;
+        }
+
+        if (cur_cut < best_cut) {
+            best_cut = cur_cut;
+            memcpy(best_part, part_io, (size_t)n * sizeof(idx_t));
+        }
+    }
+
+    /* Roll back to the best state. */
+    memcpy(part_io, best_part, (size_t)n * sizeof(idx_t));
+
+    free(gain);
+    free(locked);
+    free(best_part);
+    return SPARSE_OK;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * sparse_graph_partition — Days 2-4 stub.
  * ═══════════════════════════════════════════════════════════════════════
  *

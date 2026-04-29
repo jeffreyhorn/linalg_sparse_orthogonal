@@ -439,10 +439,291 @@ static void test_graph_subgraph_is_stub(void) {
     ASSERT_ERR(sparse_graph_subgraph(&parent, vs, 1, &child, map), SPARSE_ERR_BADARG);
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+ * Sprint 22 Day 3 — coarsest-graph bisection + FM refinement.
+ * ═══════════════════════════════════════════════════════════════════ */
+
+/* Compute the cut weight of a 2-way partition (mirrors the static
+ * helper in `src/sparse_graph.c`). */
+static idx_t compute_cut(const sparse_graph_t *G, const idx_t *part) {
+    idx_t cut = 0;
+    for (idx_t i = 0; i < G->n; i++) {
+        for (idx_t k = G->xadj[i]; k < G->xadj[i + 1]; k++) {
+            idx_t j = G->adjncy[k];
+            if (j <= i)
+                continue;
+            if (part[i] != part[j])
+                cut += G->ewgt ? G->ewgt[k] : 1;
+        }
+    }
+    return cut;
+}
+
+/* Sum of side-0 vs side-1 vertex weights (NULL vwgt → uniform 1). */
+static void compute_side_weights(const sparse_graph_t *G, const idx_t *part, idx_t *w0, idx_t *w1) {
+    *w0 = 0;
+    *w1 = 0;
+    for (idx_t i = 0; i < G->n; i++) {
+        idx_t w = G->vwgt ? G->vwgt[i] : 1;
+        if (part[i] == 0)
+            *w0 += w;
+        else
+            *w1 += w;
+    }
+}
+
+/* ─── Brute-force bisection on a known 8-vertex path graph ─────────── */
+
+static void test_bisect_brute_force_path_n8(void) {
+    /* Path 0-1-2-3-4-5-6-7 (n=8, 7 edges, all weight 1).  The
+     * minimum-cut balanced bisection cuts edge (3, 4) — cut = 1.
+     * Any non-contiguous balanced split crosses 3+ edges. */
+    SparseMatrix *A = make_path_1d(8);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    idx_t part[8] = {0};
+    REQUIRE_OK(graph_bisect_coarsest(&G, part));
+
+    /* Cut equals the analytical minimum (1). */
+    ASSERT_EQ(compute_cut(&G, part), 1);
+
+    /* Partition is balanced (4-4 split on uniform weights). */
+    idx_t w0 = 0, w1 = 0;
+    compute_side_weights(&G, part, &w0, &w1);
+    ASSERT_EQ(w0, 4);
+    ASSERT_EQ(w1, 4);
+
+    /* Each entry is 0 or 1. */
+    for (idx_t i = 0; i < 8; i++)
+        ASSERT_TRUE(part[i] == 0 || part[i] == 1);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── Brute-force bisection on a small disconnected fixture ────────── */
+
+static void test_bisect_brute_force_two_triangles(void) {
+    /* Two K3 cliques (vertices 0-1-2 and 3-4-5) with no bridge.
+     * Optimal cut = 0 (split between cliques). */
+    SparseMatrix *A = sparse_create(6, 6);
+    ASSERT_NOT_NULL(A);
+    /* Clique 1: 0-1-2 */
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 0, 2, 1.0);
+    sparse_insert(A, 2, 0, 1.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    /* Clique 2: 3-4-5 */
+    sparse_insert(A, 3, 4, 1.0);
+    sparse_insert(A, 4, 3, 1.0);
+    sparse_insert(A, 3, 5, 1.0);
+    sparse_insert(A, 5, 3, 1.0);
+    sparse_insert(A, 4, 5, 1.0);
+    sparse_insert(A, 5, 4, 1.0);
+
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    idx_t part[6] = {0};
+    REQUIRE_OK(graph_bisect_coarsest(&G, part));
+
+    ASSERT_EQ(compute_cut(&G, part), 0); /* perfectly separable */
+
+    /* Each clique ended up on a single side. */
+    ASSERT_EQ(part[0], part[1]);
+    ASSERT_EQ(part[0], part[2]);
+    ASSERT_EQ(part[3], part[4]);
+    ASSERT_EQ(part[3], part[5]);
+    ASSERT_NEQ(part[0], part[3]);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── GGGP bisection on a 30-vertex grid (n > 20 fall-through) ─────── */
+
+static void test_bisect_gggp_5x6_grid(void) {
+    /* 5×6 grid: 30 vertices, 49 edges.  GGGP returns a balanced-ish
+     * 2-way partition; we don't insist on optimality (Day 4's per-
+     * level FM refines what GGGP starts from), only that the result
+     * is a valid partition with both sides populated. */
+    SparseMatrix *A = make_grid_2d(5, 6);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    ASSERT_EQ(G.n, 30);
+
+    idx_t part[30] = {0};
+    REQUIRE_OK(graph_bisect_coarsest(&G, part));
+
+    /* Both sides populated. */
+    idx_t w0 = 0, w1 = 0;
+    compute_side_weights(&G, part, &w0, &w1);
+    ASSERT_TRUE(w0 > 0);
+    ASSERT_TRUE(w1 > 0);
+    ASSERT_EQ(w0 + w1, 30);
+
+    /* Cut is finite and reasonable: a connected 5×6 grid has minimum
+     * cut 5 (cleanest column split); GGGP usually sits in [5, 12]
+     * before refinement.  Allow up to 20 — Day 4 FM will refine. */
+    idx_t cut = compute_cut(&G, part);
+    ASSERT_TRUE(cut <= 20);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── FM reduces a deliberately-bad checkerboard partition ────────── */
+
+static void test_fm_reduces_checkerboard_cut(void) {
+    /* 5×6 grid with a checkerboard initial partition (every edge
+     * endpoint has opposite parity, so every edge is cut — 49/49).
+     * FM should drop this dramatically. */
+    SparseMatrix *A = make_grid_2d(5, 6);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    ASSERT_EQ(G.n, 30);
+
+    idx_t part[30] = {0};
+    for (idx_t r = 0; r < 5; r++) {
+        for (idx_t c = 0; c < 6; c++) {
+            part[r * 6 + c] = (r + c) & 1;
+        }
+    }
+    idx_t init_cut = compute_cut(&G, part);
+    ASSERT_EQ(init_cut, 49); /* every grid edge is cross-cut */
+
+    REQUIRE_OK(graph_refine_fm(&G, part));
+    idx_t final_cut = compute_cut(&G, part);
+
+    /* FM should at least halve the cut on this fixture.  Single-pass
+     * FM doesn't reach the optimum (5) — Day 4's per-level FM
+     * replays will close that gap — but a 50% reduction is well
+     * within the single-pass capability. */
+    ASSERT_TRUE(final_cut < init_cut);
+    ASSERT_TRUE(final_cut <= init_cut / 2);
+
+    /* Partition still 2-way. */
+    for (idx_t i = 0; i < 30; i++)
+        ASSERT_TRUE(part[i] == 0 || part[i] == 1);
+
+    /* Vertex-weight balance preserved (or improved): |w0 - w1| ≤ tol. */
+    idx_t w0 = 0, w1 = 0;
+    compute_side_weights(&G, part, &w0, &w1);
+    idx_t imbal = w0 > w1 ? w0 - w1 : w1 - w0;
+    ASSERT_TRUE(imbal <= 4); /* well under the 5%×30 + max_vwgt=2 = 3.5 budget */
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── FM on already-optimal partition is a no-op ──────────────────── */
+
+static void test_fm_optimal_partition_no_regress(void) {
+    /* 5×6 grid, optimal column-split partition (cut = 5).  Single-
+     * pass FM can take negative-gain moves, so the rollback-on-
+     * regress logic is what guarantees we don't degrade an already-
+     * optimal input. */
+    SparseMatrix *A = make_grid_2d(5, 6);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    idx_t part[30] = {0};
+    for (idx_t r = 0; r < 5; r++) {
+        for (idx_t c = 0; c < 6; c++) {
+            part[r * 6 + c] = c < 3 ? 0 : 1;
+        }
+    }
+    idx_t init_cut = compute_cut(&G, part);
+    ASSERT_EQ(init_cut, 5);
+
+    REQUIRE_OK(graph_refine_fm(&G, part));
+    idx_t final_cut = compute_cut(&G, part);
+
+    /* Cut never increases: rollback restores the best state seen. */
+    ASSERT_TRUE(final_cut <= init_cut);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── Bisect + FM compose to a near-optimal cut ───────────────────── */
+
+static void test_bisect_then_fm_5x6_grid(void) {
+    /* Compose `graph_bisect_coarsest` (GGGP since n=30 > 20) with
+     * `graph_refine_fm`.  Day 4 will replay this composition at every
+     * uncoarsening level; this Day-3 smoke test verifies the two
+     * routines hand off cleanly. */
+    SparseMatrix *A = make_grid_2d(5, 6);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    idx_t part[30] = {0};
+    REQUIRE_OK(graph_bisect_coarsest(&G, part));
+    idx_t after_bisect = compute_cut(&G, part);
+
+    REQUIRE_OK(graph_refine_fm(&G, part));
+    idx_t after_fm = compute_cut(&G, part);
+
+    /* FM never makes the cut worse than the bisection start. */
+    ASSERT_TRUE(after_fm <= after_bisect);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── Edge cases: n=1, oversized graph, NULL args ─────────────────── */
+
+static void test_bisect_singleton(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    ASSERT_NOT_NULL(A);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    idx_t part[1] = {7}; /* sentinel — must be overwritten */
+    REQUIRE_OK(graph_bisect_coarsest(&G, part));
+    ASSERT_EQ(part[0], 0);
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+static void test_bisect_rejects_oversized(void) {
+    /* n = 41 trips the n > 40 BADARG guard.  Build a 41-vertex path
+     * (cheapest dense-enough graph for the test). */
+    SparseMatrix *A = make_path_1d(41);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    idx_t part[41] = {0};
+    ASSERT_ERR(graph_bisect_coarsest(&G, part), SPARSE_ERR_BADARG);
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+static void test_bisect_null_args(void) {
+    sparse_graph_t G = {0};
+    idx_t part[1] = {0};
+    ASSERT_ERR(graph_bisect_coarsest(NULL, part), SPARSE_ERR_NULL);
+    ASSERT_ERR(graph_bisect_coarsest(&G, NULL), SPARSE_ERR_NULL);
+}
+
+static void test_fm_null_args(void) {
+    sparse_graph_t G = {0};
+    idx_t part[1] = {0};
+    ASSERT_ERR(graph_refine_fm(NULL, part), SPARSE_ERR_NULL);
+    ASSERT_ERR(graph_refine_fm(&G, NULL), SPARSE_ERR_NULL);
+}
+
 /* ═══════════════════════════════════════════════════════════════════ */
 
 int main(void) {
-    TEST_SUITE_BEGIN("Sprint 22 Days 1-2: sparse_graph_t + heavy-edge coarsening");
+    TEST_SUITE_BEGIN("Sprint 22 Days 1-3: graph + HEM coarsener + bisect/FM");
 
     /* Day 1: round-trip + structural invariants */
     RUN_TEST(test_graph_from_sparse_nos4_round_trip);
@@ -467,6 +748,20 @@ int main(void) {
     /* Day 2: multilevel hierarchy */
     RUN_TEST(test_hierarchy_build_5x5_grid);
     RUN_TEST(test_hierarchy_free_safe_on_zero_init);
+
+    /* Day 3: coarsest-graph bisection */
+    RUN_TEST(test_bisect_brute_force_path_n8);
+    RUN_TEST(test_bisect_brute_force_two_triangles);
+    RUN_TEST(test_bisect_gggp_5x6_grid);
+    RUN_TEST(test_bisect_singleton);
+    RUN_TEST(test_bisect_rejects_oversized);
+    RUN_TEST(test_bisect_null_args);
+
+    /* Day 3: FM refinement */
+    RUN_TEST(test_fm_reduces_checkerboard_cut);
+    RUN_TEST(test_fm_optimal_partition_no_regress);
+    RUN_TEST(test_bisect_then_fm_5x6_grid);
+    RUN_TEST(test_fm_null_args);
 
     TEST_SUITE_END();
 }

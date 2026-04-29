@@ -251,6 +251,90 @@ sparse_err_t sparse_graph_hierarchy_build(const sparse_graph_t *root, uint32_t s
 void sparse_graph_hierarchy_free(sparse_graph_hierarchy_t *h);
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Coarsest-graph bisection + FM refinement (Sprint 22 Day 3).
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Day 4's uncoarsening pipeline composes these two routines: bisect
+ * the coarsest hierarchy level into an initial 2-way partition, then
+ * project through the hierarchy with FM at every level until the
+ * partition lands at the original (root) graph.  Vertex-separator
+ * extraction (Day 4) consumes the final 2-way partition.
+ *
+ * Both routines operate on edge-separator partitions: `part[i] ∈
+ * {0, 1}` means vertex i is on the "left" or "right" side; the cut
+ * is the sum of edge weights connecting the two sides.  Day 4's
+ * `graph_edge_separator_to_vertex_separator` converts the final
+ * edge separator into the 3-way `{0, 1, 2}` form
+ * `sparse_graph_partition` returns.
+ */
+
+/**
+ * @brief Bisect a small graph into a balanced 2-way partition.
+ *
+ * Routes through one of two strategies based on `G->n`:
+ *
+ *   - **n ≤ 20** — brute-force minimum-cut enumeration.  Vertex 0 is
+ *     fixed to side 0 (the side-swapped mirror has the same cut, so
+ *     this halves the search) and the remaining `2^(n-1)` patterns
+ *     are scanned; the lowest-cut pattern that satisfies vertex-
+ *     weight balance (|w0 - w1| ≤ max_vwgt) wins.
+ *
+ *   - **20 < n ≤ 40** — Greedy Graph-Growing Partition (METIS §3):
+ *     find a peripheral vertex via two BFS passes, BFS-grow side 0
+ *     from it until half the vertex weight is consumed, leave the
+ *     rest on side 1.  Day 4's per-level FM refines the resulting
+ *     (often imbalanced) partition.
+ *
+ * Larger inputs return `SPARSE_ERR_BADARG` — the multilevel
+ * coarsening (`sparse_graph_hierarchy_build`) is contracted to drive
+ * `n` down to MAX(20, n_orig / 100) before the partitioner gets here.
+ *
+ * @param G        Input graph.  Must satisfy `G->n ≤ 40`.
+ * @param part_out Caller-allocated array of length `G->n`; written
+ *                 on success with `part_out[i] ∈ {0, 1}`.  On failure
+ *                 the contents are unspecified.
+ *
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if `G` or `part_out` is NULL.
+ * @return SPARSE_ERR_BADARG if `G->n > 40`.
+ * @return SPARSE_ERR_ALLOC on allocation failure.
+ */
+sparse_err_t graph_bisect_coarsest(const sparse_graph_t *G, idx_t *part_out);
+
+/**
+ * @brief Single-pass Fiduccia-Mattheyses refinement of a 2-way partition.
+ *
+ * Walks unlocked vertices in decreasing-gain order, where
+ * `gain(v) = (sum of edge weights to vertices on the other side)
+ *          − (sum of edge weights to vertices on the same side)`,
+ * and `cut_after_move(v) = cut_before_move - gain(v)`.  Each move
+ * locks the vertex for the rest of the pass and updates the gains
+ * of its unlocked neighbours.  After every unlocked vertex has been
+ * processed (or the balance constraint blocks every remaining
+ * candidate), the partition is rolled back to the lowest-cut state
+ * seen during the walk — this lets FM escape shallow local minima
+ * by accepting transient cut increases that subsequent moves
+ * recover.
+ *
+ * Balance constraint: `|w0 - w1|` may grow up to
+ * `max(initial_imbalance, total_vwgt / 20) + max_vwgt`.  This permits
+ * restoring balance when the input partition is severely skewed
+ * (the `total_vwgt / 20` slack), accommodates a single-vertex move
+ * that crosses the centre (the `max_vwgt` slack), and never makes
+ * balance worse than the input.
+ *
+ * @param G       Input graph.
+ * @param part_io Length-`G->n` array.  In: initial partition with
+ *                `part_io[i] ∈ {0, 1}`.  Out: refined partition
+ *                (or unchanged if the pass found no improvement).
+ *
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if `G` or `part_io` is NULL.
+ * @return SPARSE_ERR_ALLOC on allocation failure.
+ */
+sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io);
+
+/* ═══════════════════════════════════════════════════════════════════════
  * sparse_graph_partition — multilevel vertex-separator partitioner.
  * ═══════════════════════════════════════════════════════════════════════
  *

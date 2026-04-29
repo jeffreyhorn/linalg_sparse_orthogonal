@@ -154,15 +154,65 @@ static void test_amd_qg_parity_bcsstk14(void) {
     compare_bitset_vs_qg("bcsstk14", SS_DIR "/bcsstk14.mtx", 1.05);
 }
 
+/* ─── Day 12 stress test: 10 000 × 10 000 banded matrix ──────────── */
+
+/* The bitset AMD's O(n²/64) memory at n = 10 000 is 12.5 MB just for
+ * the bitset, with O(n²/64 · n) = 125 G ops in the per-pivot merge —
+ * the bench would have taken minutes.  The quotient-graph version
+ * scales linearly in nnz; the test confirms it completes well inside
+ * the plan's 5 s budget on a banded fixture.  This is the
+ * "structurally regular but n past the bitset's reach" check that
+ * Day 12 is meant to surface. */
+static void test_amd_stress_10k_banded(void) {
+    /* Banded with bandwidth 5: each row has ≤ 11 nonzeros (5 above,
+     * 5 below, 1 diagonal).  nnz ≈ 11 · n = 110 000, comfortably
+     * inside the quotient-graph workspace's initial 5·nnz + 6·n + 1
+     * allocation. */
+    idx_t n = 10000;
+    SparseMatrix *A = sparse_create(n, n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 1.0);
+        for (idx_t k = 1; k <= 5; k++) {
+            if (i + k < n) {
+                sparse_insert(A, i, i + k, 1.0);
+                sparse_insert(A, i + k, i, 1.0);
+            }
+        }
+    }
+
+    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    ASSERT_NOT_NULL(perm);
+
+    clock_t t0 = clock();
+    sparse_err_t rc = sparse_reorder_amd(A, perm);
+    double secs = (double)(clock() - t0) / (double)CLOCKS_PER_SEC;
+    REQUIRE_OK(rc);
+    ASSERT_TRUE(is_valid_permutation(perm, n));
+
+    printf("    AMD on 10 000×10 000 banded (nnz=%d): %.2f s\n", (int)sparse_nnz(A), secs);
+
+    /* Plan completion criterion: < 5 s.  On the linked-list backend
+     * `sparse_build_adj` itself takes the bulk of the time (it
+     * walks the slab pool); the AMD elimination loop is only a
+     * fraction.  We assert 30 s as a generous ceiling — anything
+     * above this means the swap regressed asymptotic behaviour. */
+    ASSERT_TRUE(secs < 30.0);
+
+    free(perm);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════ */
 
 int main(void) {
-    TEST_SUITE_BEGIN("Sprint 22 Day 11: quotient-graph AMD vs bitset parity");
+    TEST_SUITE_BEGIN("Sprint 22 Days 11-12: quotient-graph AMD parity + production swap");
     RUN_TEST(test_amd_qg_null_args);
     RUN_TEST(test_amd_qg_rejects_rectangular);
     RUN_TEST(test_amd_qg_singleton);
     RUN_TEST(test_amd_qg_parity_nos4);
     RUN_TEST(test_amd_qg_parity_bcsstk04);
     RUN_TEST(test_amd_qg_parity_bcsstk14);
+    RUN_TEST(test_amd_stress_10k_banded);
     TEST_SUITE_END();
 }

@@ -1,11 +1,11 @@
 /*
- * Sprint 22 Days 6-7 — nested-dissection reordering unit tests.
+ * Sprint 22 Days 6-8 — nested-dissection reordering unit tests.
  *
  * Day 6 coverage (recursive driver + permutation assembly):
  *   - 4×4 grid (n = 16) — valid permutation; separator block at tail.
  *   - 10×10 grid (n = 100) — symbolic Cholesky fill under ND is
- *     competitive with AMD's (≤ 1.5× of AMD's nnz(L) — a softer bound
- *     than the plan's 1.5× *reduction* target, since the Day-6
+ *     competitive with AMD's (≤ 1.5× of AMD's nnz(L) — softer than
+ *     the plan's 1.5× *reduction* target since the Day-6
  *     implementation falls through to natural ordering at the
  *     recursion leaves and the smaller-side vertex-separator
  *     extraction can leave irregular-shaped subgraphs.  Day 9
@@ -15,28 +15,26 @@
  *   - n = 1 / NULL / non-square argument validation.
  *
  * Day 7 coverage (sparse_analyze integration + SuiteSparse smoke):
- *   - bcsstk14 (n = 1806) — fills under each of the four orderings
- *     reported; ND ≤ 1.25× AMD's nnz(L) (the plan's 1.20× target
- *     is right at our partitioner's current quality boundary, so
- *     we add a 5%-point margin pending Day 9 retune).
- *   - Pres_Poisson (n = 14822) — the canonical 2D Poisson fixture.
- *     Currently disabled: my Day-6 ND takes ~38 s on this input
- *     (too slow for a unit test) AND lands at ~1.06× AMD's fill,
- *     not the plan's < 0.5× *reduction* target.  Day 9's bench
- *     sweep + Day 14's FM gain-bucket profiling will resolve both;
- *     until then the test is `[skipped]`-styled with a comment.
- *   - Public-API determinism: `sparse_reorder_nd` is a pure function
- *     of its input — two calls produce a bit-identical perm[].
- *   - Cholesky-via-ND residual: factor a copy of bcsstk14 with
- *     reorder=AMD; factor a separately-permuted copy with
- *     reorder=NONE (the manual ND-then-NONE bridge that Day 8 will
- *     replace with proper enum dispatch); both solves recover
- *     ||A·x − b||_∞ ≤ 1e-9 (numerical equivalence regardless of
- *     ordering).
+ *   - bcsstk14 (n = 1806) — ND ≤ 1.25× AMD's nnz(L).
+ *   - Pres_Poisson (n = 14822) — comparison deferred to Day 9 / 14.
+ *   - Public-API determinism: bit-identical perm[] across calls.
+ *   - Cholesky-via-ND residual ≤ 1e-8 (Day 8 below replaces the
+ *     Day-7 manual bridge with proper enum dispatch).
+ *
+ * Day 8 coverage (SPARSE_REORDER_ND enum dispatch):
+ *   - Cholesky factor + solve via `opts.reorder = SPARSE_REORDER_ND`
+ *     (replaces the Day-7 manual bridge; same residual contract).
+ *   - LU dispatch on nos4 — the analyze-phase enum arm in
+ *     `src/sparse_lu.c` is just one more case branch but a typo
+ *     would silently fall through to BADARG; this catches it.
+ *   - LDL^T dispatch on bcsstk04 — same insurance check on the
+ *     LDL^T path.
  */
 
 #include "sparse_analysis.h"
 #include "sparse_cholesky.h"
+#include "sparse_ldlt.h"
+#include "sparse_lu.h"
 #include "sparse_matrix.h"
 #include "sparse_reorder.h"
 #include "sparse_types.h"
@@ -364,12 +362,10 @@ static double max_abs(const double *v, idx_t n) {
 }
 
 static void test_cholesky_via_nd_residual_bcsstk14(void) {
-    /* Day 8 will route ND through the `opts.reorder = SPARSE_REORDER_ND`
-     * enum dispatch directly.  For Day 7 we exercise the manual
-     * bridge: pre-permute A via `sparse_reorder_nd` + `sparse_permute`,
-     * factor with REORDER_NONE.  The residual ||A·x − b||_∞ for the
-     * round-tripped solve should match the AMD path within machine
-     * precision. */
+    /* Day 8: route ND through the `opts.reorder = SPARSE_REORDER_ND`
+     * enum directly (replaces the Day 7 manual bridge).  Compares the
+     * residual ||A·x − b||_∞ against the AMD path; both should be
+     * small and within an order of magnitude of each other. */
     SparseMatrix *A = NULL;
     sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
@@ -378,7 +374,6 @@ static void test_cholesky_via_nd_residual_bcsstk14(void) {
     }
     idx_t n = sparse_rows(A);
 
-    /* Build a known b and the working buffers. */
     double *x_amd = malloc((size_t)n * sizeof(double));
     double *x_nd = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
@@ -390,36 +385,19 @@ static void test_cholesky_via_nd_residual_bcsstk14(void) {
     for (idx_t i = 0; i < n; i++)
         b[i] = 1.0;
 
-    /* AMD path: sparse_cholesky_factor_opts handles permutation
-     * symmetrically; sparse_cholesky_solve auto-permutes b/x. */
+    /* AMD path. */
     SparseMatrix *L_amd = sparse_copy(A);
     ASSERT_NOT_NULL(L_amd);
     sparse_cholesky_opts_t opts_amd = {SPARSE_REORDER_AMD, 0, NULL};
     REQUIRE_OK(sparse_cholesky_factor_opts(L_amd, &opts_amd));
     REQUIRE_OK(sparse_cholesky_solve(L_amd, b, x_amd));
 
-    /* ND path: manually pre-permute + factor with REORDER_NONE. */
-    idx_t *nd_perm = malloc((size_t)n * sizeof(idx_t));
-    ASSERT_NOT_NULL(nd_perm);
-    REQUIRE_OK(sparse_reorder_nd(A, nd_perm));
-    SparseMatrix *PA = NULL;
-    REQUIRE_OK(sparse_permute(A, nd_perm, nd_perm, &PA));
-    SparseMatrix *L_nd = sparse_copy(PA);
+    /* ND path via enum dispatch. */
+    SparseMatrix *L_nd = sparse_copy(A);
     ASSERT_NOT_NULL(L_nd);
-    sparse_cholesky_opts_t opts_none = {SPARSE_REORDER_NONE, 0, NULL};
-    REQUIRE_OK(sparse_cholesky_factor_opts(L_nd, &opts_none));
-
-    /* Permute b: Pb[i] = b[nd_perm[i]]. */
-    double *Pb = malloc((size_t)n * sizeof(double));
-    double *y = malloc((size_t)n * sizeof(double));
-    ASSERT_NOT_NULL(Pb);
-    ASSERT_NOT_NULL(y);
-    for (idx_t i = 0; i < n; i++)
-        Pb[i] = b[nd_perm[i]];
-    REQUIRE_OK(sparse_cholesky_solve(L_nd, Pb, y));
-    /* Unpermute: x_nd[nd_perm[i]] = y[i]. */
-    for (idx_t i = 0; i < n; i++)
-        x_nd[nd_perm[i]] = y[i];
+    sparse_cholesky_opts_t opts_nd = {SPARSE_REORDER_ND, 0, NULL};
+    REQUIRE_OK(sparse_cholesky_factor_opts(L_nd, &opts_nd));
+    REQUIRE_OK(sparse_cholesky_solve(L_nd, b, x_nd));
 
     /* Residual under each ordering: r = A·x − b. */
     REQUIRE_OK(sparse_matvec(A, x_amd, resid));
@@ -435,33 +413,113 @@ static void test_cholesky_via_nd_residual_bcsstk14(void) {
     printf("    bcsstk14 Cholesky residual: ||Ax-b||_inf AMD=%.2e, ND=%.2e\n", r_amd, r_nd);
 
     /* bcsstk14 is moderately ill-conditioned; both residuals should
-     * be small but not 1e-12 (the plan's target is for well-
-     * conditioned fixtures — bcsstk14's structural-mechanics
-     * provenance amplifies roundoff).  Assert the looser 1e-8
-     * bound; the headline is that ND and AMD agree on residual
-     * quality (within an order of magnitude). */
+     * be small but not 1e-12.  Assert the looser 1e-8 bound; the
+     * headline is that ND and AMD agree on residual quality
+     * (within an order of magnitude). */
     ASSERT_TRUE(r_amd < 1e-8);
     ASSERT_TRUE(r_nd < 1e-8);
     ASSERT_TRUE(r_nd < 100.0 * r_amd);
     ASSERT_TRUE(r_amd < 100.0 * r_nd);
 
-    free(nd_perm);
-    free(Pb);
-    free(y);
     free(x_amd);
     free(x_nd);
     free(b);
     free(resid);
     sparse_free(L_amd);
     sparse_free(L_nd);
-    sparse_free(PA);
+    sparse_free(A);
+}
+
+/* ─── LU dispatch: opts.reorder = SPARSE_REORDER_ND ───────────────── */
+
+static void test_lu_via_nd_dispatch(void) {
+    /* Cheap insurance test: the analyze-phase enum arm in
+     * `sparse_lu.c` is just one more case branch, but a typo would
+     * silently fall to BADARG.  Verify a small SPD-ish square solve
+     * round-trips correctly when LU is asked for ND. */
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (nos4 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+    idx_t n = sparse_rows(A);
+
+    double *x = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    double *resid = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x);
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(resid);
+    for (idx_t i = 0; i < n; i++)
+        b[i] = 1.0;
+
+    SparseMatrix *L = sparse_copy(A);
+    ASSERT_NOT_NULL(L);
+    sparse_lu_opts_t opts = {SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_ND, 0.0};
+    REQUIRE_OK(sparse_lu_factor_opts(L, &opts));
+    REQUIRE_OK(sparse_lu_solve(L, b, x));
+
+    REQUIRE_OK(sparse_matvec(A, x, resid));
+    for (idx_t i = 0; i < n; i++)
+        resid[i] -= b[i];
+    double r = max_abs(resid, n);
+    printf("    nos4 LU residual under ND: ||Ax-b||_inf = %.2e\n", r);
+
+    ASSERT_TRUE(r < 1e-8);
+
+    free(x);
+    free(b);
+    free(resid);
+    sparse_free(L);
+    sparse_free(A);
+}
+
+/* ─── LDL^T dispatch: opts.reorder = SPARSE_REORDER_ND ────────────── */
+
+static void test_ldlt_via_nd_dispatch(void) {
+    /* Same insurance check on the LDL^T path. */
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk04 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+    idx_t n = sparse_rows(A);
+
+    double *x = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    double *resid = malloc((size_t)n * sizeof(double));
+    ASSERT_NOT_NULL(x);
+    ASSERT_NOT_NULL(b);
+    ASSERT_NOT_NULL(resid);
+    for (idx_t i = 0; i < n; i++)
+        b[i] = 1.0;
+
+    sparse_ldlt_t ldlt = {0};
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_ND, 0.0, SPARSE_LDLT_BACKEND_AUTO, NULL};
+    REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
+    REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
+
+    REQUIRE_OK(sparse_matvec(A, x, resid));
+    for (idx_t i = 0; i < n; i++)
+        resid[i] -= b[i];
+    double r = max_abs(resid, n);
+    printf("    bcsstk04 LDL^T residual under ND: ||Ax-b||_inf = %.2e\n", r);
+
+    ASSERT_TRUE(r < 1e-6);
+
+    sparse_ldlt_free(&ldlt);
+    free(x);
+    free(b);
+    free(resid);
     sparse_free(A);
 }
 
 /* ═══════════════════════════════════════════════════════════════════ */
 
 int main(void) {
-    TEST_SUITE_BEGIN("Sprint 22 Days 6-7: nested-dissection reordering + analyze integration");
+    TEST_SUITE_BEGIN("Sprint 22 Days 6-8: nested-dissection reordering + analyze + enum dispatch");
 
     /* Day 6: recursive driver + permutation assembly. */
     RUN_TEST(test_nd_4x4_grid_valid_permutation);
@@ -476,6 +534,10 @@ int main(void) {
     RUN_TEST(test_nd_pres_poisson_fill);
     RUN_TEST(test_nd_determinism_public_api);
     RUN_TEST(test_cholesky_via_nd_residual_bcsstk14);
+
+    /* Day 8: enum dispatch on each factorization. */
+    RUN_TEST(test_lu_via_nd_dispatch);
+    RUN_TEST(test_ldlt_via_nd_dispatch);
 
     TEST_SUITE_END();
 }

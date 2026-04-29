@@ -199,6 +199,8 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
                         rerr = sparse_reorder_amd(AtA, col_reorder);
                     else if (opts->reorder == SPARSE_REORDER_RCM)
                         rerr = sparse_reorder_rcm(AtA, col_reorder);
+                    else if (opts->reorder == SPARSE_REORDER_ND)
+                        rerr = sparse_reorder_nd(AtA, col_reorder);
                     if (rerr != SPARSE_OK) {
                         free(col_reorder);
                         col_reorder = NULL;
@@ -613,6 +615,8 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
                         rerr = sparse_reorder_amd(AtA, col_reorder);
                     else if (opts->reorder == SPARSE_REORDER_RCM)
                         rerr = sparse_reorder_rcm(AtA, col_reorder);
+                    else if (opts->reorder == SPARSE_REORDER_ND)
+                        rerr = sparse_reorder_nd(AtA, col_reorder);
                     if (rerr != SPARSE_OK) {
                         free(col_reorder);
                         col_reorder = NULL;

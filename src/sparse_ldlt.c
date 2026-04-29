@@ -1007,6 +1007,9 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
         case SPARSE_REORDER_AMD:
             err = sparse_reorder_amd(A, perm);
             break;
+        case SPARSE_REORDER_ND:
+            err = sparse_reorder_nd(A, perm);
+            break;
         default:
             free(perm);
             return SPARSE_ERR_BADARG;

@@ -40,7 +40,11 @@ typedef struct {
     sparse_reorder_t reorder; /**< Column reordering before QR (default: NONE).
                                    SPARSE_REORDER_COLAMD is recommended for
                                    unsymmetric matrices — operates directly on
-                                   A's column structure without forming A^T*A. */
+                                   A's column structure without forming A^T*A.
+                                   SPARSE_REORDER_AMD / _RCM / _ND are also
+                                   accepted: they form A^T*A and reorder
+                                   symmetrically; ND is best on 2D / 3D PDE
+                                   meshes. */
     int economy;              /**< When nonzero and m > n, compute economy (thin) QR:
                                    form_q produces m×n instead of m×m. Has no effect
                                    when m <= n (Q is already m×m = m×k where k=min(m,n)).

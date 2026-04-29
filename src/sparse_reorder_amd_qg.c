@@ -121,6 +121,7 @@
 #include "sparse_matrix_internal.h"
 #include "sparse_types.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -214,10 +215,16 @@ static sparse_err_t qg_init(qg_t *qg, idx_t n, const idx_t *adj_ptr, const idx_t
     qg->n = n;
     idx_t nnz = adj_ptr[n];
     /* Davis 2006 §7: 5·nnz + 6·n + 1 is comfortably above the typical
-     * fill peak before the first compaction. */
-    idx_t iw_size = 5 * nnz + 6 * n + 1;
-    if (iw_size < 1024)
-        iw_size = 1024;
+     * fill peak before the first compaction.  Compute in `uint64_t`
+     * and check against the storage type (`idx_t` = int32) plus
+     * `SIZE_MAX / sizeof(idx_t)`; under-allocation here would later
+     * surface as out-of-bounds writes in the merge / memcpy paths. */
+    uint64_t iw_size_64 = (uint64_t)5 * (uint64_t)nnz + (uint64_t)6 * (uint64_t)n + 1;
+    if (iw_size_64 < 1024)
+        iw_size_64 = 1024;
+    if (iw_size_64 > (uint64_t)INT32_MAX || iw_size_64 > SIZE_MAX / sizeof(idx_t))
+        return SPARSE_ERR_ALLOC;
+    idx_t iw_size = (idx_t)iw_size_64;
     qg->iw_size = iw_size;
     qg->iw_used = nnz;
     qg->iw = malloc((size_t)iw_size * sizeof(idx_t));
@@ -294,18 +301,44 @@ static sparse_err_t qg_compact(qg_t *qg) {
 
 /* Make sure `iw_used + need` fits in `iw_size`.  First tries
  * compaction; if that's not enough, doubles the workspace via
- * `realloc`. */
+ * `realloc`.
+ *
+ * Growth math runs in `uint64_t` and checks against both `INT32_MAX`
+ * (the storage type, `idx_t`) and `SIZE_MAX / sizeof(idx_t)` (the
+ * `realloc` byte count) on every doubling step.  Without this an
+ * int32 wrap could turn the loop into an infinite spin or hand
+ * `realloc` a too-small request. */
 static sparse_err_t qg_reserve(qg_t *qg, idx_t need) {
-    if (qg->iw_used + need <= qg->iw_size)
+    /* Compute fits/grow checks in `uint64_t` so a hypothetical
+     * `iw_used + need` overflow in `idx_t` (int32) cannot wrap into
+     * a falsely-OK comparison. */
+    const uint64_t cap = (uint64_t)INT32_MAX < SIZE_MAX / sizeof(idx_t)
+                             ? (uint64_t)INT32_MAX
+                             : (uint64_t)(SIZE_MAX / sizeof(idx_t));
+    uint64_t target = (uint64_t)qg->iw_used + (uint64_t)need;
+    if (target <= (uint64_t)qg->iw_size)
         return SPARSE_OK;
     sparse_err_t rc = qg_compact(qg);
     if (rc != SPARSE_OK)
         return rc;
-    if (qg->iw_used + need <= qg->iw_size)
+    target = (uint64_t)qg->iw_used + (uint64_t)need;
+    if (target <= (uint64_t)qg->iw_size)
         return SPARSE_OK;
-    idx_t new_size = qg->iw_size * 2;
-    while (qg->iw_used + need > new_size)
-        new_size *= 2;
+
+    if (target > cap)
+        return SPARSE_ERR_ALLOC;
+    uint64_t new_size_64 = (uint64_t)qg->iw_size;
+    while (new_size_64 < target) {
+        if (new_size_64 > cap / 2) {
+            /* Doubling would overshoot the storage cap; clamp to
+             * `cap` (we already validated `target <= cap`, so the
+             * loop terminates here). */
+            new_size_64 = cap;
+            break;
+        }
+        new_size_64 *= 2;
+    }
+    idx_t new_size = (idx_t)new_size_64;
     idx_t *new_iw = realloc(qg->iw, (size_t)new_size * sizeof(idx_t));
     if (!new_iw)
         return SPARSE_ERR_ALLOC;

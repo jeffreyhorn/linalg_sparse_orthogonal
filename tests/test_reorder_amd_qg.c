@@ -1,24 +1,29 @@
 /*
- * Sprint 22 Day 11 — quotient-graph AMD parallel-comparison tests.
+ * Sprint 22 Days 11-12 — quotient-graph AMD wrapper-delegation
+ * + production-swap tests.
  *
- * Day 10 shipped the design block + stub; Day 11 ships the full
- * elimination loop in `src/sparse_reorder_amd_qg.c`.  Today's tests
- * run *both* AMD implementations side-by-side on the SuiteSparse
- * corpus and assert fill-quality parity:
+ * Day 11 shipped the full quotient-graph elimination loop in
+ * `src/sparse_reorder_amd_qg.c`; Day 12 deleted the old bitset
+ * implementation and rewrote `sparse_reorder_amd` to forward
+ * directly to `sparse_reorder_amd_qg`.  As a result, the public
+ * wrapper and the internal helper now share a single code path.
  *
- *   nnz_qg ≤ 1.05 × nnz_bitset
+ * The "parity" tests below therefore no longer cross two separate
+ * implementations — they pin the post-Day-12 contract instead:
  *
- * The 5%-point margin is the plan's tolerance — pivot tie-breaking
- * differs across the two implementations (the bitset version picks
- * the first-encountered minimum-degree vertex, the quotient-graph
- * version walks the same ordering but with different early
- * termination on degree updates), so bit-identical permutations
- * aren't expected.  Fill nnz under symbolic Cholesky is the headline
- * quality metric.
+ *   - the public `sparse_reorder_amd` wrapper delegates correctly
+ *     (bit-identical permutations on the SuiteSparse corpus), and
+ *   - the resulting symbolic-Cholesky fill matches between the two
+ *     entry points (a sanity check that the wrapper isn't doing
+ *     anything beyond calling through).
  *
- * Day 12 swaps the production `sparse_reorder_amd` body to call the
- * quotient-graph helper; today both paths still run side-by-side so
- * any regression in the new implementation surfaces immediately.
+ * Cross-implementation parity against the deleted bitset still runs
+ * out-of-tree as a one-shot capture in `benchmarks/bench_amd_qg.c`,
+ * which embeds the bitset as a test-local helper.  That bench was
+ * the Day-13 evidence used to retire the bitset; this in-tree test
+ * suite now guards delegation, NULL/shape contracts, and the
+ * 10 000×10 000 stress fixture that was the Day-12 swap's
+ * acceptance gate.
  */
 
 #include "sparse_analysis.h"
@@ -102,9 +107,13 @@ static idx_t symbolic_cholesky_nnz_with_perm(const SparseMatrix *A, const idx_t 
     return nnz;
 }
 
-/* ─── Parallel comparison: bitset AMD vs quotient-graph AMD ──────── */
+/* ─── Wrapper delegation: public sparse_reorder_amd vs internal qg ── */
 
-static void compare_bitset_vs_qg(const char *fixture, const char *path, double max_ratio) {
+/* Post-Day-12, the public wrapper and the internal helper share one
+ * code path.  This compare therefore expects bit-identical
+ * permutations and identical symbolic-Cholesky fill — anything else
+ * means the wrapper has drifted from straight delegation. */
+static void compare_wrapper_vs_qg(const char *fixture, const char *path) {
     SparseMatrix *A = NULL;
     sparse_err_t rc = sparse_load_mm(&A, path);
     if (rc != SPARSE_OK) {
@@ -113,45 +122,46 @@ static void compare_bitset_vs_qg(const char *fixture, const char *path, double m
     }
     idx_t n = sparse_rows(A);
 
-    idx_t *perm_bitset = malloc((size_t)n * sizeof(idx_t));
+    idx_t *perm_wrapper = malloc((size_t)n * sizeof(idx_t));
     idx_t *perm_qg = malloc((size_t)n * sizeof(idx_t));
-    ASSERT_NOT_NULL(perm_bitset);
+    ASSERT_NOT_NULL(perm_wrapper);
     ASSERT_NOT_NULL(perm_qg);
 
-    REQUIRE_OK(sparse_reorder_amd(A, perm_bitset));
+    REQUIRE_OK(sparse_reorder_amd(A, perm_wrapper));
     REQUIRE_OK(sparse_reorder_amd_qg(A, perm_qg));
 
     /* Both must be valid permutations of [0, n). */
-    ASSERT_TRUE(is_valid_permutation(perm_bitset, n));
+    ASSERT_TRUE(is_valid_permutation(perm_wrapper, n));
     ASSERT_TRUE(is_valid_permutation(perm_qg, n));
 
-    idx_t nnz_bitset = symbolic_cholesky_nnz_with_perm(A, perm_bitset);
+    /* Wrapper must produce the bit-identical permutation as the
+     * helper it delegates to.  If this ever diverges, the wrapper
+     * has grown logic beyond pure forwarding. */
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_EQ(perm_wrapper[i], perm_qg[i]);
+
+    idx_t nnz_wrapper = symbolic_cholesky_nnz_with_perm(A, perm_wrapper);
     idx_t nnz_qg = symbolic_cholesky_nnz_with_perm(A, perm_qg);
-    ASSERT_TRUE(nnz_bitset > 0);
+    ASSERT_TRUE(nnz_wrapper > 0);
     ASSERT_TRUE(nnz_qg > 0);
+    ASSERT_EQ(nnz_wrapper, nnz_qg);
 
-    double ratio = (double)nnz_qg / (double)nnz_bitset;
-    printf("    %s (n=%d): bitset nnz(L) = %d, qg nnz(L) = %d (qg/bitset = %.3f)\n", fixture,
-           (int)n, (int)nnz_bitset, (int)nnz_qg, ratio);
+    printf("    %s (n=%d): wrapper nnz(L) = %d, qg nnz(L) = %d (identical)\n", fixture, (int)n,
+           (int)nnz_wrapper, (int)nnz_qg);
 
-    /* Plan target: fill parity within `max_ratio` (typically 1.05). */
-    ASSERT_TRUE(ratio <= max_ratio);
-
-    free(perm_bitset);
+    free(perm_wrapper);
     free(perm_qg);
     sparse_free(A);
 }
 
-static void test_amd_qg_parity_nos4(void) {
-    compare_bitset_vs_qg("nos4", SS_DIR "/nos4.mtx", 1.05);
+static void test_amd_qg_delegation_nos4(void) { compare_wrapper_vs_qg("nos4", SS_DIR "/nos4.mtx"); }
+
+static void test_amd_qg_delegation_bcsstk04(void) {
+    compare_wrapper_vs_qg("bcsstk04", SS_DIR "/bcsstk04.mtx");
 }
 
-static void test_amd_qg_parity_bcsstk04(void) {
-    compare_bitset_vs_qg("bcsstk04", SS_DIR "/bcsstk04.mtx", 1.05);
-}
-
-static void test_amd_qg_parity_bcsstk14(void) {
-    compare_bitset_vs_qg("bcsstk14", SS_DIR "/bcsstk14.mtx", 1.05);
+static void test_amd_qg_delegation_bcsstk14(void) {
+    compare_wrapper_vs_qg("bcsstk14", SS_DIR "/bcsstk14.mtx");
 }
 
 /* ─── Day 12 stress test: 10 000 × 10 000 banded matrix ──────────── */
@@ -206,13 +216,14 @@ static void test_amd_stress_10k_banded(void) {
 /* ═══════════════════════════════════════════════════════════════════ */
 
 int main(void) {
-    TEST_SUITE_BEGIN("Sprint 22 Days 11-12: quotient-graph AMD parity + production swap");
+    TEST_SUITE_BEGIN(
+        "Sprint 22 Days 11-12: quotient-graph AMD wrapper delegation + production swap");
     RUN_TEST(test_amd_qg_null_args);
     RUN_TEST(test_amd_qg_rejects_rectangular);
     RUN_TEST(test_amd_qg_singleton);
-    RUN_TEST(test_amd_qg_parity_nos4);
-    RUN_TEST(test_amd_qg_parity_bcsstk04);
-    RUN_TEST(test_amd_qg_parity_bcsstk14);
+    RUN_TEST(test_amd_qg_delegation_nos4);
+    RUN_TEST(test_amd_qg_delegation_bcsstk04);
+    RUN_TEST(test_amd_qg_delegation_bcsstk14);
     RUN_TEST(test_amd_stress_10k_banded);
     TEST_SUITE_END();
 }

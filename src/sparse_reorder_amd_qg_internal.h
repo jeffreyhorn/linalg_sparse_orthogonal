@@ -3,22 +3,19 @@
 
 /**
  * @file sparse_reorder_amd_qg_internal.h
- * @brief Sprint 22 Days 10-12 quotient-graph AMD — internal API.
+ * @brief Quotient-graph AMD — internal helper (Amestoy/Davis/Duff 2004).
  *
- * Replaces the bitset AMD in `src/sparse_reorder.c:421`
- * (`sparse_reorder_amd`) with a quotient-graph implementation
- * (Amestoy/Davis/Duff 2004) that runs in O(nnz) memory.  Day 10
- * lands the design + stub; Day 11 fills in the elimination loop;
- * Day 12 swaps the public `sparse_reorder_amd` body to call this
- * helper.  Until Day 12, this file is internal-only and exists so
- * the Day-11 tests can drive the new implementation alongside the
- * (still-production) bitset path.
+ * The implementation that the public `sparse_reorder_amd`
+ * (`include/sparse_reorder.h`) forwards to.  Lives behind an
+ * internal header because the test suite calls it directly to
+ * verify wrapper delegation.  The public AMD path goes through
+ * `sparse_reorder_amd` only.
  *
  * Contract: same signature + same permutation convention as
- * `sparse_reorder_amd` — `perm[i]` is the i-th vertex eliminated.
- * Pivot tie-breaking is allowed to differ from the bitset version,
- * so the validation strategy on Day 11 is **equivalent fill** (nnz
- * of symbolic Cholesky), not bit-identical permutations.
+ * `sparse_reorder_amd`, i.e. `perm[i]` is the i-th vertex
+ * eliminated.  Workspace starts at `≈ 5·nnz + 6·n + 1` integer
+ * entries and grows on demand; see the public header for memory
+ * notes.
  */
 
 #include "sparse_matrix.h"
@@ -28,10 +25,9 @@
  * @brief Quotient-graph Approximate Minimum Degree ordering.
  *
  * Same input/output contract as `sparse_reorder_amd` from
- * `include/sparse_reorder.h`, but uses a single integer workspace
- * (≈ 5·nnz + 6·n + 1 entries) instead of an n×n bitset.  Day 10
- * stub returns SPARSE_ERR_BADARG; Day 11 ships the full
- * implementation.
+ * `include/sparse_reorder.h`, implemented with a single integer
+ * workspace (initial size `≈ 5·nnz + 6·n + 1`, grows on demand)
+ * instead of an n×n bitset.
  *
  * @param A     Input matrix (must be square, not modified).
  * @param perm  Output permutation array, length n; `perm[new_i] =
@@ -40,8 +36,8 @@
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or perm is NULL.
  * @return SPARSE_ERR_SHAPE if A is not square.
- * @return SPARSE_ERR_ALLOC on allocation failure.
- * @return SPARSE_ERR_BADARG (Day 10 stub only).
+ * @return SPARSE_ERR_ALLOC on allocation failure (or when the
+ *         requested workspace size cannot be represented safely).
  */
 sparse_err_t sparse_reorder_amd_qg(const SparseMatrix *A, idx_t *perm);
 

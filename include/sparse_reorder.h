@@ -65,11 +65,15 @@ sparse_err_t sparse_reorder_rcm(const SparseMatrix *A, idx_t *perm);
  * implemented with a quotient-graph adjacency representation
  * (Amestoy/Davis/Duff 2004; SuiteSparse AMD).  At each step, eliminates
  * the node with the smallest degree, merges its neighbours' adjacency
- * sets to model fill-in, and updates degrees.  Workspace is O(nnz)
- * rather than the O(n²/64) of the previous bitset implementation —
- * the practical effect is that AMD now scales to large structurally
- * regular fixtures (n ≥ 50 000) without paying the bitset's
- * quadratic memory penalty.
+ * sets to model fill-in, and updates degrees.  Workspace starts at
+ * `≈ 5·nnz + 6·n + 1` integer entries and grows on demand via
+ * compaction-then-realloc when fill-in pushes adjacency sizes past
+ * that initial bound.  The initial allocation is a soft target — not
+ * a hard cap — so peak workspace can exceed it on dense fill, but
+ * remains far below the previous bitset implementation's O(n²/64)
+ * footprint.  In practice this means AMD now scales to large
+ * structurally regular fixtures (n ≥ 50 000) without paying the
+ * bitset's quadratic memory penalty.
  *
  * Generally produces better fill-in reduction than RCM for
  * unstructured matrices, at higher CPU cost.

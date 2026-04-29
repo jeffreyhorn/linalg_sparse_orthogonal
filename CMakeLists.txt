@@ -73,6 +73,7 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_ldlt_csc.c
     src/sparse_eigs.c
     src/sparse_graph.c
+    src/sparse_reorder_nd.c
 )
 
 # Optional OpenMP support for parallel SpMV: cmake -DSPARSE_OPENMP=ON ..
@@ -171,6 +172,7 @@ add_sparse_test(test_eigs)
 add_sparse_test(test_eigs_thick_restart)
 add_sparse_test(test_eigs_lobpcg)
 add_sparse_test(test_graph)
+add_sparse_test(test_reorder_nd)
 
 # Benchmarks (not part of ctest)
 add_executable(bench_main benchmarks/bench_main.c)

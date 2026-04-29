@@ -188,32 +188,151 @@ void sparse_graph_free(sparse_graph_t *G) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
- * sparse_graph_subgraph — Day 6 stub.
+ * sparse_graph_subgraph (Sprint 22 Day 6).
  * ═══════════════════════════════════════════════════════════════════════
  *
- * Returns SPARSE_ERR_BADARG (the codebase's "stub in progress"
- * signal — no SPARSE_ERR_NOT_IMPL exists in this library).  The real
- * implementation lands alongside the recursive nested-dissection
- * driver on Sprint 22 Day 6, where it's the single caller.
+ * Build a vertex-induced subgraph.  Two passes over the parent's
+ * adjacency: pass 1 tallies per-vertex degrees so we can prefix-sum
+ * `xadj`; pass 2 fills `adjncy` (and `ewgt`, when the parent has
+ * them).  The parent → child index map is held in a scratch array
+ * indexed by parent-vertex id (length `parent->n`).
+ *
+ * `vertex_set` must be sorted ascending and duplicate-free — the
+ * recursive ND driver constructs it by walking partition labels in
+ * vertex order, which trivially produces a sorted set.  The
+ * resulting child adjacency lists inherit the parent's CSR sort
+ * invariant: each list is in ascending neighbour-id order.
  */
 sparse_err_t sparse_graph_subgraph(const sparse_graph_t *parent, const idx_t *vertex_set, idx_t k,
                                    sparse_graph_t *child, idx_t *vertex_id_map_out) {
-    (void)parent;
-    (void)vertex_set;
-    /* Pre-clear the outputs so callers see deterministic empty
-     * state on the BADARG return.  Doubles as a clang-tidy hint
-     * that the output parameters really are written (the stub
-     * otherwise looks like it could take const pointers). */
-    if (child) {
-        child->n = 0;
-        child->xadj = NULL;
-        child->adjncy = NULL;
-        child->vwgt = NULL;
-        child->ewgt = NULL;
+    if (!parent || !child)
+        return SPARSE_ERR_NULL;
+
+    /* Pre-clear child so every error path leaves it empty. */
+    child->n = 0;
+    child->xadj = NULL;
+    child->adjncy = NULL;
+    child->vwgt = NULL;
+    child->ewgt = NULL;
+
+    if (k > 0 && !vertex_set)
+        return SPARSE_ERR_NULL;
+
+    if (k == 0) {
+        child->xadj = malloc(sizeof(idx_t));
+        if (!child->xadj)
+            return SPARSE_ERR_ALLOC;
+        child->xadj[0] = 0;
+        return SPARSE_OK;
     }
-    if (vertex_id_map_out && k > 0)
-        memset(vertex_id_map_out, 0, (size_t)k * sizeof(idx_t));
-    return SPARSE_ERR_BADARG;
+
+    /* Validate vertex_set: sorted ascending, in [0, parent->n), no dupes. */
+    idx_t prev_vid = -1;
+    for (idx_t i = 0; i < k; i++) {
+        idx_t v = vertex_set[i];
+        if (v < 0 || v >= parent->n)
+            return SPARSE_ERR_BADARG;
+        if (v <= prev_vid)
+            return SPARSE_ERR_BADARG;
+        prev_vid = v;
+    }
+
+    /* Parent → child map: -1 for vertices not in the subset. */
+    idx_t *p2c = malloc((size_t)parent->n * sizeof(idx_t));
+    if (!p2c)
+        return SPARSE_ERR_ALLOC;
+    for (idx_t i = 0; i < parent->n; i++)
+        p2c[i] = -1;
+    for (idx_t i = 0; i < k; i++)
+        p2c[vertex_set[i]] = i;
+
+    /* Pass 1: count degrees, prefix-sum into child->xadj. */
+    idx_t *xadj = malloc((size_t)(k + 1) * sizeof(idx_t));
+    if (!xadj) {
+        free(p2c);
+        return SPARSE_ERR_ALLOC;
+    }
+    xadj[0] = 0;
+    for (idx_t i = 0; i < k; i++) {
+        idx_t v = vertex_set[i];
+        idx_t deg = 0;
+        for (idx_t pp = parent->xadj[v]; pp < parent->xadj[v + 1]; pp++) {
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+            if (p2c[parent->adjncy[pp]] >= 0)
+                deg++;
+        }
+        xadj[i + 1] = xadj[i] + deg;
+    }
+    idx_t total_edges = xadj[k]; // NOLINT(clang-analyzer-security.ArrayBound)
+
+    /* Pass 2: fill adjncy + (optional) ewgt. */
+    idx_t *adjncy = NULL;
+    idx_t *ewgt = NULL;
+    if (total_edges > 0) {
+        adjncy = malloc((size_t)total_edges * sizeof(idx_t));
+        if (!adjncy) {
+            free(p2c);
+            free(xadj);
+            return SPARSE_ERR_ALLOC;
+        }
+        if (parent->ewgt) {
+            ewgt = malloc((size_t)total_edges * sizeof(idx_t));
+            if (!ewgt) {
+                free(p2c);
+                free(xadj);
+                free(adjncy);
+                return SPARSE_ERR_ALLOC;
+            }
+        }
+    }
+    idx_t pos = 0;
+    for (idx_t i = 0; i < k; i++) {
+        idx_t v = vertex_set[i];
+        for (idx_t pp = parent->xadj[v]; pp < parent->xadj[v + 1]; pp++) {
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+            idx_t cu = p2c[parent->adjncy[pp]];
+            if (cu < 0)
+                continue;
+            /* `adjncy` is allocated iff `total_edges > 0`; the inner
+             * branch only executes when at least one edge exists.
+             * The static analyser conflates this with the empty-graph
+             * path and reports a NULL deref / out-of-bounds. */
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.NullDereference)
+            adjncy[pos] = cu;
+            if (ewgt)
+                ewgt[pos] = parent->ewgt[pp];
+            pos++;
+        }
+    }
+
+    /* Optional vwgt copy. */
+    idx_t *vwgt = NULL;
+    if (parent->vwgt) {
+        vwgt = malloc((size_t)k * sizeof(idx_t));
+        if (!vwgt) {
+            free(p2c);
+            free(xadj);
+            free(adjncy);
+            free(ewgt);
+            return SPARSE_ERR_ALLOC;
+        }
+        for (idx_t i = 0; i < k; i++)
+            vwgt[i] = parent->vwgt[vertex_set[i]];
+    }
+
+    free(p2c);
+
+    child->n = k;
+    child->xadj = xadj;
+    child->adjncy = adjncy;
+    child->vwgt = vwgt;
+    child->ewgt = ewgt;
+
+    if (vertex_id_map_out) {
+        for (idx_t i = 0; i < k; i++)
+            vertex_id_map_out[i] = vertex_set[i];
+    }
+    return SPARSE_OK;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

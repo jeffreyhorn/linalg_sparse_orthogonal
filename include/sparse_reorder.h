@@ -78,6 +78,31 @@ sparse_err_t sparse_reorder_rcm(const SparseMatrix *A, idx_t *perm);
 sparse_err_t sparse_reorder_amd(const SparseMatrix *A, idx_t *perm);
 
 /**
+ * @brief Compute a Nested Dissection (ND) ordering.
+ *
+ * Recursive multilevel partitioner: bisect the symmetric adjacency
+ * graph into two halves separated by a small vertex separator, order
+ * each half recursively, then append the separator vertices last.
+ * This "separator-last" rule is what gives ND its fill-reducing
+ * power on regular meshes — the separator vertices are the only ones
+ * that connect the two halves, so they don't induce fill between
+ * halves during Cholesky / LDL^T elimination.
+ *
+ * Best on 2D / 3D PDE meshes (Pres_Poisson, structural-mechanics
+ * grids); on irregular sparsity AMD is often comparable or better.
+ * Symmetric permutation, square matrices only.
+ *
+ * @param A       Input matrix (must be square, not modified).
+ * @param[out] perm  Permutation array of length n. On output, perm[new_i] = old_i.
+ *                   Must be pre-allocated by the caller.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if A or perm is NULL.
+ * @return SPARSE_ERR_SHAPE if A is not square.
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails.
+ */
+sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm);
+
+/**
  * @brief Compute a Column Approximate Minimum Degree (COLAMD) ordering.
  *
  * Computes a column permutation that reduces fill-in during QR or LU

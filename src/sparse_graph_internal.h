@@ -46,8 +46,8 @@
  * `sparse_graph_free` releases them all (NULL-safe per array, so
  * partial-failure paths in the constructor don't leak).
  *
- * Invariants enforced by the constructor (`sparse_graph_from_sparse`
- * and the Day 2 `graph_coarsen_*` helpers):
+ * Invariants enforced by the constructors (`sparse_graph_from_sparse`,
+ * the Day 2 `graph_coarsen_*` helpers, and `sparse_graph_subgraph`):
  *   - n ≥ 0; n == 0 is legal (empty graph).
  *   - xadj[0] == 0; xadj[n] == |adjncy|.
  *   - Each xadj[i+1] - xadj[i] is the degree of vertex i.

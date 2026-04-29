@@ -72,3 +72,80 @@ table as leaf subgraphs grow large.
 Day 12's quotient-graph AMD swap will likely move this higher (the
 leaf orderer becomes substantially better than natural ordering, so
 the recursion can afford larger leaf subgraphs).
+
+## AMD bitset → quotient-graph swap (Day 13)
+
+`benchmarks/bench_amd_qg.c` keeps the pre-Day-12 bitset as a static
+bench-local helper alongside the production `sparse_reorder_amd`
+(now a thin wrapper around `sparse_reorder_amd_qg`).  Full capture
+lives at `bench_day13_amd_qg.txt` (human-readable) and
+`bench_day13_amd_qg.csv`.
+
+### Headline: memory reduction on n ≥ 20 000
+
+Plan target: ≥ 4× memory reduction on a synthetic large fixture
+(n ≥ 50 000).  The 20 K row already clears it:
+
+| Fixture       |     n   | bitset bytes (analytic) | qg bytes (analytic) | ratio |
+| ------------- | ------: | ----------------------: | ------------------: | ----: |
+| banded_20000  |  20 000 |             50 MB       |             ~3 MB   |   17× |
+| banded_50000  |  50 000 |            312 MB       |            ~12 MB   |   26× |
+
+The 50 K row is analytic only — the bitset's O(n³/64) elimination
+loop runs in multi-minute territory at that size and produces no
+information beyond the memory ratio.  The 20 K row is measured (via
+`getrusage` ru_maxrss delta around the call) and the bitset added
+24.88 MB above the quotient-graph's already-set peak; the
+quotient-graph version's own delta was 0 MB, consistent with its
+analytic ~3 MB sitting under the bench's startup RSS.
+
+### nnz(L) parity (every fixture)
+
+| Fixture       |     n   | bitset nnz(L) | qg nnz(L)     |
+| ------------- | ------: | ------------: | ------------: |
+| nos4          |     100 |         637   |         637   |
+| bcsstk04      |     132 |       3 143   |       3 143   |
+| bcsstk14      |   1 806 |     116 071   |     116 071   |
+| Kuu           |   7 102 |     406 264   |     406 264   |
+| s3rmt3m3      |   5 357 |     474 609   |     474 609   |
+| Pres_Poisson  |  14 822 |   2 668 793   |   2 668 793   |
+| banded_5000   |   5 000 |      29 985   |      29 985   |
+| banded_10000  |  10 000 |      59 985   |      59 985   |
+| banded_20000  |  20 000 |     119 985   |     119 985   |
+
+Bit-identical fill across the corpus + synthetic banded — both
+implementations are exact minimum-degree on the same graph with the
+same lowest-vertex-id tie-break.
+
+### Wall-time speedup
+
+The quotient-graph implementation's O(deg) per-pivot merge stays
+linear in nnz, while the bitset's O(n²/64) merge is quadratic in n
+regardless of nnz.  This shows up as 4-7× speedup on banded
+fixtures (n ≥ 5 000):
+
+| Fixture       |     n   | bitset_ms | qg_ms    | speedup |
+| ------------- | ------: | --------: | -------: | ------: |
+| banded_5000   |   5 000 |     263.4 |    59.5  |   4.4×  |
+| banded_10000  |  10 000 |   1 211.8 |   233.2  |   5.2×  |
+| banded_20000  |  20 000 |   6 194.6 |   919.5  |   6.7×  |
+| Kuu           |   7 102 |     702.4 |   396.9  |   1.8×  |
+
+On small SPD corpus fixtures (n ≤ 1 800) the bitset wins by ~30 %
+on wall time — its inner loop is bit-twiddling against pre-allocated
+words, while the quotient-graph version pays for sorted-merge
+intermediate buffers.  The crossover sits around n = 5 000, matching
+the analytic memory crossover.
+
+### What's left for Sprint 23 (or later)
+
+The current quotient-graph implementation is a Davis-style "simple
+quotient-graph minimum-degree" — it skips supervariable detection,
+element absorption, and approximate-degree updates that the full
+SuiteSparse AMD reference uses.  The full algorithm would tighten
+the wall-time gap on small SPD fixtures (currently 30 % bitset-
+favoured) and likely close the absolute gap to METIS-AMD on PDE-
+mesh corpora.  Sprint 22 ships the simplified version because it
+already lifts the memory ceiling that was blocking n ≥ 50 000 use
+cases; the wall-time tail is a Sprint-23 optimisation if it shows
+up in profiles.

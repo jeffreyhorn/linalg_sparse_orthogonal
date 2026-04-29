@@ -571,7 +571,7 @@ The transpose solve (`Aᵀ·z = b`) is implemented by reversing the order of ope
 
 ## Fill-Reducing Reordering
 
-Before LU factorization, a symmetric permutation P·A·Pᵀ can dramatically reduce fill-in. Two algorithms are provided:
+Before LU factorization, a symmetric permutation P·A·Pᵀ can dramatically reduce fill-in. The library provides four orderings: RCM, AMD (quotient-graph since Sprint 22), Nested Dissection (Sprint 22), and COLAMD (column ordering for unsymmetric / QR — described in `### Column Reordering` further down).
 
 ### Reverse Cuthill-McKee (RCM)
 
@@ -587,21 +587,38 @@ BFS-based bandwidth reduction on the symmetrized adjacency graph (A + Aᵀ).
 - Best for banded/structured matrices (e.g., FEM meshes, thermal problems)
 - On steam1 (240×240 thermal): bandwidth 146→52, fill-in 23k→15k (33% reduction), 5.5x factorization speedup
 
-### Approximate Minimum Degree (AMD)
+### Approximate Minimum Degree (AMD) — quotient-graph implementation (Sprint 22)
 
-Greedy elimination ordering using bitset adjacency for efficient set operations.
+Greedy minimum-degree elimination ordering on the symmetrized adjacency graph.  Sprint 22 (Days 10-13) replaced the original bitset implementation with a quotient-graph representation following Amestoy/Davis/Duff (2004) "Algorithm 837: AMD" (TOMS) and Davis (2006) §7.
 
 **Algorithm:**
-1. Build bitset adjacency matrix from the symmetrized sparsity pattern
-2. At each step: eliminate the uneliminated node with smallest degree
-3. Merge eliminated node's neighbors' adjacency sets (models fill-in)
-4. Update degrees
+1. Build the initial CSR adjacency from the symmetric pattern of A.
+2. At each step: pick the uneliminated vertex with smallest current degree.
+3. Merge the eliminated vertex's neighbors' adjacency sets to model fill-in (sorted-merge with self / eliminated-vertex filtering inline).
+4. Update degrees.
+
+**Workspace.**  A single `iw[]` integer buffer of size ≈ 5·nnz + 6·n + 1 holds all per-vertex adjacency lists concatenated (`xadj[i]` indexes into it).  Lists grow on fill-in; `qg_compact` packs surviving lists in `xadj`-sort order whenever the buffer fills, and `qg_reserve` doubles via `realloc` when compaction can't free enough room.
 
 **Characteristics:**
-- O(n² · n/64) time with bitset operations
-- Generally better fill-in reduction for unstructured matrices
-- On orsirr_1 (1030×1030 oil reservoir): fill-in 78k→55k (29% reduction)
-- On nos4 (100×100 structural): fill-in 1510→1174 (22% reduction)
+- O(deg · avg_deg) per pivot — linear in nnz instead of the previous bitset's O(n² / 64).  Scales to n ≥ 50 000 without paying quadratic memory.
+- Memory bound moved from O(n²/64) to O(nnz).  Day 13's bench measured ≥ 17× memory reduction at n = 20 000 and analytic ~26× at n = 50 000 (`bench_day13_amd_qg.txt`).
+- Bit-identical fill across the SuiteSparse corpus vs the previous bitset (Day 13 parallel-comparison bench; both implementations are exact minimum-degree on the same graph with the same lowest-vertex-id tie-break).
+- Sprint 22 ships a *simplified* quotient-graph variant — the full Davis algorithm with supervariable detection, element absorption, and approximate-degree updates is left as a Sprint 23 follow-up that would tighten the wall-time gap to METIS-AMD on small SPD fixtures (currently 30 % bitset-favoured at n ≤ 1 800).
+
+### Nested Dissection (ND) — multilevel vertex separator (Sprint 22)
+
+Recursive "separator-last" ordering on top of a multilevel partitioner that lands the entire Sprint 22 first half (Days 1-5).  ND is best on regular 2D / 3D PDE meshes where the geometric advantage of separating the mesh into halves dominates the minimum-degree heuristic AMD is using.
+
+**Pipeline:**
+1. **Coarsen** — heavy-edge matching (Karypis & Kumar 1998) collapses pairs of vertices, building a multilevel hierarchy that bottoms out at MAX(20, n/100) vertices.
+2. **Coarsest bisection** — brute-force enumeration for n ≤ 20 (`2^(n-1)` patterns); GGGP (greedy graph-growing partition, peripheral-vertex BFS) for n > 20.
+3. **Uncoarsen with FM** — project the coarsest partition back through the hierarchy with a single-pass Fiduccia-Mattheyses refinement at every level (rollback-on-regress on the lowest cut seen).
+4. **Vertex-separator extraction** — convert the final 2-way edge separator to a 3-way `{0, 1, 2}` vertex separator on the smaller side (METIS convention).
+5. **Recursive ordering** — on each interior partition: recurse; for subgraphs with `n ≤ ND_BASE_THRESHOLD` (default 32 from the Day 9 sweep), emit in subgraph-local order.  Append the separator vertices last.
+
+**Characteristics:**
+- Fill quality competitive with AMD on regular grids: 10×10 grid 1.22× of AMD (Day 6); Pres_Poisson 1.06× (Day 7).  The Sprint 22 ND falls short of the plan's "≥ 2× reduction over AMD on Pres_Poisson" target — the Day-6 leaf base case uses natural ordering rather than per-leaf AMD, and the partitioner uses the simplified single-pass FM rather than multi-pass.  Closure deferred to Sprint 23.
+- Wall time on Pres_Poisson is currently ~5× of AMD (the FM gain-bucket update is the prime bottleneck — naïve O(n) max-gain scan per move; METIS uses an O(1) bucket structure).
 
 ### Integration with Factorization
 
@@ -622,6 +639,13 @@ sparse_cholesky_opts_t opts = { SPARSE_REORDER_AMD };
 sparse_cholesky_factor_opts(L, &opts);
 sparse_cholesky_solve(L, b, x);  // reorder/unpermute handled automatically
 ```
+
+`SPARSE_REORDER_ND` (Sprint 22) routes through the same dispatch as
+`AMD` / `RCM` — `sparse_analyze`, the per-factorization
+`*_factor_opts`, and the QR `factor_opts`'s A^TA path all dispatch
+ND alongside the others.  COLAMD on QR is recommended for
+unsymmetric inputs; ND is best on 2D / 3D PDE meshes; AMD is the
+default catch-all for SPD fixtures and where it lives today.
 
 ## Sparse Matrix-Matrix Multiply (SpMM)
 

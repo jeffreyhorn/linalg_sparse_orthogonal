@@ -419,9 +419,9 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ---
 
-## Sprint 22: Ordering Upgrades — Nested Dissection & Quotient-Graph AMD
+## Sprint 22: Ordering Upgrades — Nested Dissection & Quotient-Graph AMD — **Complete**
 
-**Duration:** 14 days (~124 hours)
+**Duration:** 14 days (~124 hours estimated; actual ~134 hours per the SPRINT_22/PLAN.md day budgets)
 
 **Goal:** Upgrade the ordering stack with nested dissection for large 2D/3D PDE meshes and replace the bitset-based AMD with a quotient-graph implementation for O(nnz) memory, removing the current scaling bottleneck on large matrices.
 
@@ -433,21 +433,27 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ### Items
 
-| # | Item | Description | Estimate |
-|---|------|-------------|----------|
-| 1 | Graph partitioning | Implement a vertex separator algorithm for sparse graphs (multilevel bisection or spectral partitioning). This is the core building block for nested dissection. | 32 hrs |
-| 2 | Nested dissection ordering | Implement recursive nested dissection: partition the graph, order interior nodes of each partition first, then separator nodes. Produces fill-reducing orderings superior to AMD for 2D/3D PDE meshes. Depends on item 1. | 28 hrs |
-| 3 | Add SPARSE_REORDER_ND to enum | Wire nested dissection into the existing reorder infrastructure (mirroring the Sprint 15 COLAMD enum extension). Benchmark against AMD/RCM on large SuiteSparse matrices. Depends on item 2. | 12 hrs |
-| 4 | Quotient-graph AMD | Replace the current bitset-based AMD (O(n^3/64) time, O(n^2/64) memory) with a quotient-graph implementation that operates in O(nnz) memory. Removes the current scaling bottleneck for AMD on large matrices. | 32 hrs |
-| 5 | Tests and benchmarks | Test nested dissection on 2D/3D mesh matrices (fill-in comparison across orderings). Benchmark AMD (quotient-graph) vs AMD (bitset) on large matrices. Capture numbers in `PERF_NOTES.md` and `docs/planning/EPIC_2/SPRINT_22/bench_day14.txt`. | 20 hrs |
+| # | Item | Status | Description |
+|---|------|--------|-------------|
+| 1 | Graph partitioning | ✅ Days 1-5 | `src/sparse_graph.c` ships `sparse_graph_t`, heavy-edge-matching coarsening hierarchy, brute-force / GGGP coarsest bisection, single-pass FM refinement with rollback-on-regress, uncoarsening + smaller-side vertex-separator extraction.  `sparse_graph_partition` produces a 3-way `{0, 1, 2}` partition; deterministic on seed.  Validated on the SuiteSparse smoke (bcsstk14 28 ms, Pres_Poisson 1.3 s — Day 5 capture). |
+| 2 | Nested dissection ordering | ✅ Days 6-7 | `src/sparse_reorder_nd.c` recursive `nd_recurse` + public `sparse_reorder_nd`.  Day 6 `ND_BASE_THRESHOLD = 4` (provisional); Day 9 retuned to 32 from the bench sweep.  10×10 grid lands at 1.22× AMD's nnz(L); Pres_Poisson 1.06× of AMD — short of the plan's 0.5× target.  See `### Deferred` below. |
+| 3 | Add SPARSE_REORDER_ND to enum | ✅ Day 8 | `SPARSE_REORDER_ND = 4` added to `include/sparse_types.h`.  Dispatch wired through `sparse_analyze` + per-factorization `*_factor_opts` in `cholesky` / `ldlt` / `lu` / `qr`.  Public-header doxygen + README updated.  Cholesky / LU / LDL^T residuals on bcsstk14 / nos4 / bcsstk04 verified ≤ 1e-8 via the enum dispatch (`tests/test_reorder_nd.c`). |
+| 4 | Quotient-graph AMD | ✅ Days 10-12 | `src/sparse_reorder_amd_qg.c` ships the simplified Davis-style quotient-graph minimum-degree (single workspace, sorted-merge, on-demand compaction + realloc).  Day 12 deleted the bitset implementation entirely (Option A).  Bit-identical fill across the corpus.  10 000×10 000 banded stress-test factor in 0.24 s (plan target ≤ 5 s). |
+| 5 | Tests and benchmarks | ✅ Days 9, 13, 14 | `benchmarks/bench_reorder.c` Day 9 cross-ordering + threshold sweep capture; `benchmarks/bench_amd_qg.c` Day 13 AMD bitset-vs-qg bench (≥ 17× memory reduction at n = 20 000, analytic ~26× at n = 50 000); Day 14 final cross-ordering re-run.  All captures in `docs/planning/EPIC_2/SPRINT_22/`. |
 
-### Deliverables
+### Deferred to a future sprint
 
-- `sparse_reorder_nd()` nested dissection ordering exposed through `SPARSE_REORDER_ND`
-- Quotient-graph AMD replacing bitset AMD for O(nnz) memory usage
-- Ordering benchmarks on large matrices (fill-in, memory, time) with fill-in comparison across AMD / RCM / COLAMD / ND
+- ND fill ratio on Pres_Poisson currently 1.06× of AMD; plan target was 0.5× (≥ 2× reduction over AMD).  Two contributing axes both deferred to Sprint 23: (a) ND's recursion leaves emit subgraph-local order rather than calling `sparse_reorder_amd_qg` per leaf — should drop 5-15 % on regular grids; (b) the simplified quotient-graph AMD doesn't have supervariable detection / element absorption / approximate-degree updates from the SuiteSparse reference, which is most of what closes the AMD-vs-METIS-AMD gap on PDE meshes.
+- ND wall time on Pres_Poisson is ~5× AMD's (~38 s before Day 9 retune; ~24 s after), driven by the naïve O(n) max-gain scan in `graph_refine_fm`.  METIS uses an O(1) gain-bucket structure; porting that is a Sprint 23 perf item.
+- The Sprint 22 quotient-graph AMD wins on n ≥ 5 000 banded fixtures (4-7× wall-time speedup over the deleted bitset) but loses ~30 % on n ≤ 1 800 SPD corpus matrices — the bitset's bit-twiddling beats sorted-merge intermediates on small inputs.  Closing this would require porting Davis's full algorithm; see Day 13's "what's left for Sprint 23" note in `PERF_NOTES.md`.
 
-**Total estimate:** ~124 hours
+### Deliverables (status)
+
+- ✅ `sparse_reorder_nd()` nested dissection ordering exposed through `SPARSE_REORDER_ND` (Days 6, 8)
+- ✅ Quotient-graph AMD replacing bitset AMD; production swap with the bitset deleted (Day 12)
+- ✅ Ordering benchmarks on large matrices in `bench_day9_nd.{csv,txt}`, `bench_day13_amd_qg.{csv,txt}`, `bench_day14.{csv,txt}`; fill-in comparison across AMD / RCM / COLAMD / ND in all three captures + `PERF_NOTES.md`
+
+**Total estimate:** ~124 hours; actual ~134 hours per the day budgets in `SPRINT_22/PLAN.md` (within the 14×12 = 168-hour ceiling).  See `docs/planning/EPIC_2/SPRINT_22/RETROSPECTIVE.md` for metrics, lessons, and DoD verification.
 
 ---
 
@@ -508,7 +514,7 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 | 19 | CSC Kernel Tuning & Native Supernodal LDL^T | Analyze-once bench, small-matrix threshold study, scalar-CSC Kuu regression fix, native supernodal LDL^T, LDL^T row-adjacency index | 168 hrs |
 | 20 | LDL^T Completion & Symmetric Lanczos — **Complete** | `ldlt_csc_from_sparse_with_analysis`, transparent `sparse_ldlt_factor_opts` dispatch, Lanczos + shift-invert eigensolver | 136 hrs (~125 actual) |
 | 21 | Eigensolver Completion — Thick-Restart, OpenMP & LOBPCG — **Complete** | Wu/Simon thick-restart, OpenMP reorth, LOBPCG, permanent `bench_eigs` | 124 hrs (~133 actual) |
-| 22 | Ordering Upgrades — Nested Dissection & Quotient-Graph AMD | Graph partitioning + nested dissection, quotient-graph AMD | 124 hrs |
+| 22 | Ordering Upgrades — Nested Dissection & Quotient-Graph AMD — **Complete** | Graph partitioning + nested dissection, quotient-graph AMD | 124 hrs (~134 actual) |
 | 23 | SVD, Progress Callbacks, Eigenpair Refinement, CI & Wrap-Up | Sparse low-rank fix, full SVD, eigenpair iterative refinement, progress/cancel callbacks, Windows/macOS CI, retrospective | 160 hrs |
 
 **Total Epic 2 estimate:** ~1,786 hours across 13 sprints (~179 days)

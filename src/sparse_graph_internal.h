@@ -21,6 +21,8 @@
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 
+#include <stdint.h>
+
 /* ═══════════════════════════════════════════════════════════════════════
  * sparse_graph_t — CSR-style adjacency with optional weights.
  * ═══════════════════════════════════════════════════════════════════════
@@ -123,6 +125,130 @@ void sparse_graph_free(sparse_graph_t *G);
  */
 sparse_err_t sparse_graph_subgraph(const sparse_graph_t *parent, const idx_t *vertex_set, idx_t k,
                                    sparse_graph_t *child, idx_t *vertex_id_map_out);
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Multilevel coarsening (Sprint 22 Day 2).
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Heavy-edge matching (Karypis & Kumar 1998 §4): walk vertices in a
+ * deterministic-pseudorandom order driven by `seed`; for each
+ * unmatched vertex pick the unmatched neighbour connected by the
+ * heaviest edge; collapse the pair into a single coarse vertex with
+ * summed weight.  Vertices with no unmatched neighbour become
+ * coarse singletons.
+ *
+ * Heavy-edge is preferred over random matching because it preserves
+ * spectral structure — the heavier the edge, the more important the
+ * connection it represents in the original problem.  At the
+ * partition stage (Sprint 22 Day 3 / Day 4) the resulting coarsest
+ * graph then captures enough of the original graph's "shape" that a
+ * brute-force minimum-cut bisection on the coarsest level translates
+ * into a near-optimal cut after uncoarsening + FM refinement.
+ *
+ * **Weight aggregation invariants** (asserted by Day 2 tests):
+ *   - sum(vwgt_coarse) == sum(vwgt_fine)
+ *     (treating absent vwgt as uniform = 1).
+ *   - For each coarse edge (c1, c2) with c1 != c2:
+ *     ewgt_coarse[c1, c2] = sum of ewgt_fine[i, j] over fine edges
+ *     (i, j) with cmap[i] == c1 && cmap[j] == c2 (treating absent
+ *     ewgt as uniform = 1).  Parallel fine edges are merged via a
+ *     sort-then-scan pass per coarse vertex.
+ *   - Self-loops produced by collapsing matched pairs are dropped
+ *     (the pair's connecting edge no longer exists in the coarse
+ *     graph).
+ */
+
+/**
+ * @brief One-step heavy-edge-matching coarsening.
+ *
+ * @param fine        Input graph (n vertices, ≥ 0).
+ * @param seed        PRNG seed for the vertex traversal order.  Same
+ *                    `(fine, seed)` pair always produces the same
+ *                    coarse graph — the determinism contract relied
+ *                    on by `sparse_graph_partition` so that nested
+ *                    dissection's recursive calls produce stable
+ *                    permutations across runs.
+ * @param coarse_out  Output graph; pre-cleared on every error path
+ *                    (matches `sparse_graph_from_sparse`'s contract).
+ *                    On success, owns its own xadj / adjncy / vwgt /
+ *                    ewgt arrays — release with `sparse_graph_free`.
+ * @param cmap_out    Caller-allocated array of length `fine->n`; on
+ *                    success `cmap_out[i]` is the coarse-vertex index
+ *                    (in [0, coarse_out->n)) for fine vertex i.  On
+ *                    failure, contents are unspecified.
+ *
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if any required pointer is NULL.
+ * @return SPARSE_ERR_ALLOC on allocation failure.
+ *
+ * @note When `fine->n == 0` the coarse graph is also empty (n == 0,
+ *       xadj allocated to length 1) and `cmap_out` is untouched.
+ */
+sparse_err_t graph_coarsen_heavy_edge_matching(const sparse_graph_t *fine, uint32_t seed,
+                                               sparse_graph_t *coarse_out, idx_t *cmap_out);
+
+/**
+ * @brief Multilevel coarsening hierarchy.
+ *
+ * Owns the chain of coarsened graphs derived from a caller-supplied
+ * root.  The root itself is NOT held by the hierarchy — the caller
+ * keeps it across the lifetime of the hierarchy and uses `cmaps[0]`
+ * to translate root-vertex indices into the first coarse level.
+ *
+ * Layout:
+ *   - `coarse[0]`  = first coarsening of the caller's root.
+ *   - `coarse[i]`  = coarsening of `coarse[i - 1]` for i ≥ 1.
+ *   - `cmaps[0]`   = root → coarse[0]   (length = root->n)
+ *   - `cmaps[i]`   = coarse[i-1] → coarse[i]   (length = coarse[i-1].n)
+ *
+ * `nlevels == 0` is legal — it means coarsening was useless on the
+ * input (e.g. an isolated-vertex graph where the matching produces
+ * only singletons).  In that case both `coarse` and `cmaps` are NULL
+ * and the caller can fall back to single-level partitioning.
+ */
+typedef struct {
+    int nlevels;            /**< Number of coarsened levels held. */
+    sparse_graph_t *coarse; /**< coarse[0..nlevels-1], owned. */
+    idx_t **cmaps;          /**< cmaps[0..nlevels-1], owned. */
+} sparse_graph_hierarchy_t;
+
+/**
+ * @brief Build a multilevel coarsening hierarchy from a root graph.
+ *
+ * Coarsens repeatedly until one of three stop conditions fires:
+ *   1. `n_coarse <= MAX(20, root->n / 100)` — coarsest level is small
+ *      enough for the brute-force / GGGP bisection of Day 3.
+ *   2. `n_coarse > 0.9 * n_fine` — a coarsening pass made too little
+ *      progress; further coarsening would just churn without
+ *      shrinking the problem.
+ *   3. `nlevels >= log2(root->n) + 5` — defensive ceiling.
+ *
+ * The seed is forwarded to each per-level coarsening with a level-
+ * dependent perturbation (level-0 uses `seed`, level-1 uses
+ * `seed + 1`, etc.) so the same `(root, seed)` pair always produces
+ * the same hierarchy.
+ *
+ * @param root  Input graph (caller-owned, kept alive across the
+ *              lifetime of the hierarchy).
+ * @param seed  PRNG seed.
+ * @param h     Output hierarchy; pre-cleared on every error path.
+ *              On success the caller releases it with
+ *              `sparse_graph_hierarchy_free`.
+ *
+ * @return SPARSE_OK on success (including the `nlevels == 0` no-
+ *         progress case).
+ * @return SPARSE_ERR_NULL if `root` or `h` is NULL.
+ * @return SPARSE_ERR_ALLOC on allocation failure.
+ */
+sparse_err_t sparse_graph_hierarchy_build(const sparse_graph_t *root, uint32_t seed,
+                                          sparse_graph_hierarchy_t *h);
+
+/**
+ * @brief Release every level + cmap owned by a hierarchy and zero
+ *        the struct.  Safe on a zero-initialised struct (no-op).
+ *        Does NOT touch the root graph the hierarchy was built from.
+ */
+void sparse_graph_hierarchy_free(sparse_graph_hierarchy_t *h);
 
 /* ═══════════════════════════════════════════════════════════════════════
  * sparse_graph_partition — multilevel vertex-separator partitioner.

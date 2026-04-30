@@ -38,6 +38,10 @@
  * @return SPARSE_ERR_SHAPE if A is not square.
  * @return SPARSE_ERR_ALLOC on allocation failure (or when the
  *         requested workspace size cannot be represented safely).
+ * @return SPARSE_ERR_BADARG if the elimination loop's invariant
+ *         is violated (the quotient-graph state would have to be
+ *         corrupted; asserts in debug builds, surfaces under
+ *         NDEBUG so callers can propagate the failure cleanly).
  */
 sparse_err_t sparse_reorder_amd_qg(const SparseMatrix *A, idx_t *perm);
 

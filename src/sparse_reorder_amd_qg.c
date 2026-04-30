@@ -121,6 +121,7 @@
 #include "sparse_matrix_internal.h"
 #include "sparse_types.h"
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -510,9 +511,15 @@ sparse_err_t sparse_reorder_amd_qg(const SparseMatrix *A, idx_t *perm) {
 
     for (idx_t step = 0; step < n; step++) {
         idx_t p = qg_pick_min_deg(&qg);
+        /* Invariant: at every step there's still at least one
+         * unelim vertex (the loop runs `n` steps and we mark
+         * exactly one elim per step).  A negative return from
+         * `qg_pick_min_deg` means the qg state has been
+         * corrupted; assert in debug builds and surface as
+         * SPARSE_ERR_BADARG (documented in the header) under
+         * NDEBUG so callers can still propagate the failure. */
+        assert(p >= 0 && "qg_pick_min_deg: invariant violated — no unelim vertex");
         if (p < 0) {
-            /* Should never happen: every step has at least one
-             * unelim vertex. */
             qg_free(&qg);
             return SPARSE_ERR_BADARG;
         }

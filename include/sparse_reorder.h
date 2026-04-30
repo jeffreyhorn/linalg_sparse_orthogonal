@@ -5,22 +5,25 @@
  * @file sparse_reorder.h
  * @brief Fill-reducing reordering algorithms for sparse matrices.
  *
- * Provides three ordering algorithms:
+ * Provides four ordering algorithms:
  * - **RCM** (Reverse Cuthill-McKee): bandwidth reduction for banded systems.
  *   Symmetric permutation, square matrices only.
  * - **AMD** (Approximate Minimum Degree): symmetric fill reduction for
  *   Cholesky/LDL^T/LU. Symmetric permutation, square matrices only.
+ * - **ND** (Nested Dissection): symmetric fill reduction via recursive
+ *   multilevel vertex-separator partitioning, best on 2D / 3D PDE
+ *   meshes. Symmetric permutation, square matrices only.
  * - **COLAMD** (Column Approximate Minimum Degree): column fill reduction
  *   for unsymmetric/QR problems. Column permutation, handles rectangular
  *   matrices.
  *
- * RCM and AMD compute symmetric permutations (P*A*P^T). COLAMD computes
- * a column-only permutation suitable for QR or column-pivoted LU.
+ * RCM, AMD, and ND compute symmetric permutations (P*A*P^T). COLAMD
+ * computes a column-only permutation suitable for QR or column-pivoted LU.
  *
- * **Symmetric reordering (RCM/AMD) — square matrices:**
+ * **Symmetric reordering (RCM/AMD/ND) — square matrices:**
  * @code
  *   idx_t *perm = malloc(n * sizeof(idx_t));
- *   sparse_reorder_amd(A, perm);            // or sparse_reorder_rcm
+ *   sparse_reorder_amd(A, perm);            // or sparse_reorder_rcm / sparse_reorder_nd
  *   SparseMatrix *PA;
  *   sparse_permute(A, perm, perm, &PA);     // symmetric: same perm for rows+cols
  * @endcode
@@ -84,7 +87,10 @@ sparse_err_t sparse_reorder_rcm(const SparseMatrix *A, idx_t *perm);
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or perm is NULL.
  * @return SPARSE_ERR_SHAPE if A is not square.
- * @return SPARSE_ERR_ALLOC if workspace allocation fails.
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails (or if the
+ *         requested workspace size cannot be represented safely).
+ * @return SPARSE_ERR_BADARG if the elimination loop's invariant is
+ *         violated; asserts in debug builds, returns under NDEBUG.
  */
 sparse_err_t sparse_reorder_amd(const SparseMatrix *A, idx_t *perm);
 

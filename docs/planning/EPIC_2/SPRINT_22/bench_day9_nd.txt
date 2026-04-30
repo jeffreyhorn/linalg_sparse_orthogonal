@@ -62,20 +62,21 @@ ND-vs-AMD ratios (nnz_L_ND / nnz_L_AMD):
 The Sprint 22 plan (Day 7 completion criterion) targets
 `nnz_nd < 0.5 × nnz_amd` on Pres_Poisson — ND beating AMD by ≥ 2×.
 At Day 9's measurement, the bitset-AMD baseline is consistently ≤
-the Day-6 ND across the corpus.  Two follow-ups expected to flip
-this:
+the Day-6 ND across the corpus.  Two follow-ups remain open at
+end-of-sprint and are deferred to Sprint 23 (PROJECT_PLAN.md):
 
-  - Day 12: swap the natural-order base case at the recursion leaves
-    for the new quotient-graph AMD that Days 10-11 ship.  Currently
-    the leaves emit the subgraph's vertex indices in their local
-    order — adequate for separator-last to dominate fill at the
-    upper recursion levels but well below AMD's minimum-degree
-    quality at the leaves themselves.
-  - Day 14: profile the FM gain-bucket update.  The Day 5 / Day 7
-    smoke tests measured ND at ~38 s on Pres_Poisson — ~5× slower
-    than AMD's reorder pass on the same fixture.  The naïve O(n)
-    max-gain scan in `graph_refine_fm` is the prime suspect; METIS
-    uses an O(1) bucket structure.
+  - Splice the new quotient-graph AMD (Days 10-12) into each
+    recursion leaf.  Currently the leaves emit the subgraph's
+    vertex indices in their local order — adequate for
+    separator-last to dominate fill at the upper recursion levels
+    but well below AMD's minimum-degree quality at the leaves
+    themselves.  This was originally scoped for Day 12; only the
+    qg AMD itself shipped that day, the leaf splice did not.
+  - Profile and rework the FM gain-bucket update.  The Day 5 /
+    Day 7 smoke tests measured ND at ~38 s on Pres_Poisson —
+    ~5× slower than AMD's reorder pass on the same fixture.  The
+    naïve O(n) max-gain scan in `graph_refine_fm` is the prime
+    suspect; METIS uses an O(1) bucket structure.
 
 ND_BASE_THRESHOLD sweep
 -----------------------

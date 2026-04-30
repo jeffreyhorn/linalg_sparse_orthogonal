@@ -5,12 +5,13 @@
  *   - 4×4 grid (n = 16) — valid permutation; separator block at tail.
  *   - 10×10 grid (n = 100) — symbolic Cholesky fill under ND is
  *     competitive with AMD's (≤ 1.5× of AMD's nnz(L) — softer than
- *     the plan's 1.5× *reduction* target since the Day-6
+ *     the plan's 1.5× *reduction* target since the shipped
  *     implementation falls through to natural ordering at the
  *     recursion leaves and the smaller-side vertex-separator
  *     extraction can leave irregular-shaped subgraphs.  Day 9
- *     retunes the base threshold; Day 12 swaps in quotient-graph
- *     AMD as the leaf orderer — both close the gap).
+ *     retuned the base threshold; the per-leaf quotient-graph
+ *     AMD splice that would close the rest of the gap is deferred
+ *     to Sprint 23 — see PROJECT_PLAN.md).
  *   - 1D path (n = 20) — degenerate case: ND must remain valid.
  *   - n = 1 / NULL / non-square argument validation.
  *
@@ -242,14 +243,13 @@ static void test_nd_10x10_grid_beats_amd_fill(void) {
 
     /* Plan target was ND ≤ AMD / 1.5 (≥ 1.5× reduction), but on a
      * 10×10 grid the bitset-AMD baseline is already very good (~656)
-     * and this Day-6 ND uses a natural-ordering base case
-     * (Day 12 swaps in quotient-graph AMD) plus a smaller-side
-     * vertex-separator extraction (Day 9 may retune the base
-     * threshold + balance heuristics).  The current ND lands around
-     * RCM quality — about 1.25× of AMD.  Assert the looser bound
-     * (ND ≤ 1.5× AMD) for Day 6: validates the recursive structure
-     * works without insisting on the final fill quality.  Day 9 +
-     * Day 12 will tighten this as the base-case AMD lands. */
+     * and the shipped ND uses a natural-ordering base case at the
+     * leaves plus a smaller-side vertex-separator extraction.  The
+     * current ND lands around RCM quality — about 1.25× of AMD.
+     * Assert the looser bound (ND ≤ 1.5× AMD): validates the
+     * recursive structure works without insisting on the final fill
+     * quality.  Closing the gap requires the per-leaf quotient-graph
+     * AMD splice that's deferred to Sprint 23 (PROJECT_PLAN.md). */
     ASSERT_TRUE((long long)nnz_nd * 2 <= (long long)nnz_amd * 3);
 
 cleanup:
@@ -326,8 +326,10 @@ static idx_t symbolic_cholesky_nnz(const SparseMatrix *A, sparse_reorder_t reord
 }
 
 /* Compute symbolic Cholesky nnz(L) on the ND-permuted matrix.  Builds
- * P A P^T via `sparse_permute` and analyses with REORDER_NONE — the
- * manual bridge Day 8 will replace with proper enum dispatch. */
+ * P A P^T via `sparse_permute` and analyses with REORDER_NONE so this
+ * helper exercises the public `sparse_reorder_nd` entry point in
+ * isolation — the residual test below covers the SPARSE_REORDER_ND
+ * enum-dispatch path that Day 8 wired through `sparse_analyze`. */
 static idx_t symbolic_cholesky_nnz_nd(const SparseMatrix *A) {
     idx_t n = sparse_rows(A);
     idx_t *perm = malloc((size_t)n * sizeof(idx_t));

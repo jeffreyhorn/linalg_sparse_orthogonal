@@ -29,15 +29,17 @@ from the Sprint 22 plan's < 0.5× target.
 
 ### Why ND under-performs at Day 9
 
-Two contributors that Day 12 and Day 14 are scoped to address:
+Two contributors.  As shipped in Sprint 22 both remain open and are
+deferred to Sprint 23 (see PROJECT_PLAN.md):
 
 1. **Natural-order base case.**  When the recursion reaches a
    subgraph of `n ≤ ND_BASE_THRESHOLD` (default 32 from the Day 9
    sweep below), the leaves emit vertex indices in their
    subgraph-local order — adequate for the separator-last rule to
    dominate fill at the upper recursion levels but well below AMD's
-   minimum-degree quality at the leaves.  Day 12 swaps the leaf
-   orderer for the new quotient-graph AMD that Days 10-11 ship.
+   minimum-degree quality at the leaves.  Splicing the new
+   quotient-graph AMD (Days 10-12) into each leaf is the planned
+   Sprint-23 follow-up that closes most of this gap.
 
 2. **FM refinement throughput.**  Day 5's smoke test measured the
    Day-6 ND at ~38 s on Pres_Poisson — ~5× slower than AMD's

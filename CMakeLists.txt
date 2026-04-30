@@ -215,6 +215,7 @@ target_link_libraries(bench_eigs PRIVATE sparse_lu_ortho)
 
 add_executable(bench_reorder benchmarks/bench_reorder.c)
 target_link_libraries(bench_reorder PRIVATE sparse_lu_ortho)
+target_include_directories(bench_reorder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 add_executable(bench_amd_qg benchmarks/bench_amd_qg.c)
 target_link_libraries(bench_amd_qg PRIVATE sparse_lu_ortho)

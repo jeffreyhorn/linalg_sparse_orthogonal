@@ -141,8 +141,10 @@ static void compare_wrapper_vs_qg(const char *fixture, const char *path) {
     /* Capture rc through both reorder calls and route to a single
      * `cleanup:` label so a failure can't leak perm_wrapper /
      * perm_qg / A into subsequent fixture iterations.  This
-     * helper runs across multiple fixtures, so a leak compounds. */
-    sparse_err_t rc = sparse_reorder_amd(A, perm_wrapper);
+     * helper runs across multiple fixtures, so a leak compounds.
+     * Reuse the outer `rc` (declared at the sparse_load_mm call
+     * above) so we don't shadow it. */
+    rc = sparse_reorder_amd(A, perm_wrapper);
     if (rc != SPARSE_OK)
         goto cleanup;
     rc = sparse_reorder_amd_qg(A, perm_qg);

@@ -82,7 +82,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Column counts** — predict symbolic nnz per column of L for pre-allocation (upper bound on stored numeric counts when dropping is enabled)
 
 ### Reordering & Preconditioning
-- **Fill-reducing reordering** — Reverse Cuthill-McKee (RCM); Approximate Minimum Degree (AMD, O(nnz) memory via the Sprint-22 quotient-graph rewrite — scales to large structurally regular fixtures without the previous bitset's O(n²/64) penalty); Nested Dissection (ND, multilevel vertex separator — best on 2D / 3D PDE meshes); and Column Approximate Minimum Degree (COLAMD) for unsymmetric/QR problems
+- **Fill-reducing reordering** — Reverse Cuthill-McKee (RCM); Approximate Minimum Degree (AMD, ~5·nnz + 6·n + 1 initial integer workspace via the Sprint-22 quotient-graph rewrite, growing on demand when fill-in pushes adjacency past the initial bound — scales to large structurally regular fixtures without the previous bitset's O(n²/64) penalty); Nested Dissection (ND, multilevel vertex separator — best on 2D / 3D PDE meshes); and Column Approximate Minimum Degree (COLAMD) for unsymmetric/QR problems
 - **Condition number estimation** — Hager/Higham 1-norm estimator from LU or LDL^T factors, quick R-diagonal estimator from QR
 
 ### I/O & Interop

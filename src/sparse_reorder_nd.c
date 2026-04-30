@@ -8,18 +8,23 @@
  * file ships the recursive driver: pull a 3-way `{0, 1, 2}` partition
  * from `sparse_graph_partition` (Sprint 22 Days 1-5), recurse on the
  * two interior subgraphs, then append the separator vertices to the
- * permutation.  Day 8 wires the `SPARSE_REORDER_ND` enum through
- * every factorization's analysis dispatch; until then callers invoke
- * `sparse_reorder_nd` directly the same way they call
- * `sparse_reorder_amd` / `sparse_reorder_rcm`.
+ * permutation.  The `SPARSE_REORDER_ND` enum value is wired through
+ * every factorization's analysis dispatch (Sprint 22 Day 8), so
+ * callers can opt into ND either via `sparse_analyze` with
+ * `SPARSE_REORDER_ND` or by calling `sparse_reorder_nd` directly the
+ * same way they call `sparse_reorder_amd` / `sparse_reorder_rcm`.
  *
  * **Base case (`n ≤ ND_BASE_THRESHOLD`).**  At small subgraph sizes
  * the recursion's separator-last benefit doesn't outweigh the
  * partitioner overhead, so the driver falls back to the natural
  * (identity-on-subgraph) ordering — a deliberately simple Day 6
- * starting point.  Sprint 22 Day 9 retunes the threshold against
- * the SuiteSparse corpus, and Day 12 swaps the fallback to the
- * quotient-graph AMD that lands in Days 10-11.
+ * starting point.  Sprint 22 Day 9 retuned the threshold against
+ * the SuiteSparse corpus.  Splicing the new quotient-graph AMD
+ * into the leaves to lift fill quality is deferred to Sprint 23
+ * (see `docs/planning/EPIC_2/PROJECT_PLAN.md` Sprint 23, item:
+ * "ND leaf ordering: call quotient-graph AMD on each leaf-sized
+ * subgraph") — closing this is what the Day 14 plan target
+ * (ND ≥ 2× AMD nnz(L) reduction on Pres_Poisson) needs.
  *
  * **Permutation contract.**  `perm[new_i] = old_i` (matches the
  * existing AMD / RCM / COLAMD contract from `include/sparse_reorder.h`).
@@ -48,10 +53,10 @@
  *
  * Exposed as a non-`static` global so the Day 9 sweep
  * (`benchmarks/bench_reorder.c --nd-threshold N`) can override it
- * from the command line without recompiling the library.  Day 12's
- * quotient-graph AMD swap will replace the natural-order base case;
- * the threshold becomes a real "stop recursing here, run AMD"
- * cutover at that point and will likely shift higher. */
+ * from the command line without recompiling the library.  The
+ * Sprint 23 follow-up that splices quotient-graph AMD into each
+ * leaf will turn this into a real "stop recursing here, run AMD"
+ * cutover, at which point the value will likely shift higher. */
 idx_t sparse_reorder_nd_base_threshold = 32;
 
 /* Append `n` vertices from a subgraph to the global permutation in

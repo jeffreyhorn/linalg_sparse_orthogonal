@@ -24,7 +24,9 @@
  *
  * Optional flags:
  *   --nd-threshold <n>    Override `sparse_reorder_nd_base_threshold`
- *                         (Day 9 sweep: {20, 50, 100, 200, 500}).
+ *                         (Day 9 sweep: {4, 8, 16, 32, 64, 128, 200,
+ *                         500}; default landed at 32 — see
+ *                         `docs/planning/EPIC_2/SPRINT_22/bench_day9_nd.txt`).
  *   --skip-factor         Skip the numeric factor pass — useful for
  *                         the ND threshold sweep where only fill /
  *                         reorder time matter.

@@ -142,8 +142,10 @@
  *   - uses *exact* minimum-degree (each rebuild updates `deg[u]` to
  *     the new adjacency length);
  *   - compacts the workspace by walking unfilled vertices in
- *     `xadj`-sorted order whenever `iw_used > 0.7 · iw_size`, and
- *     doubles `iw[]` if compaction can't free enough room.
+ *     `xadj`-sorted order on demand — `qg_reserve` triggers a
+ *     compaction whenever an append would overflow `iw_size`, and
+ *     doubles `iw[]` (capped against `INT32_MAX` and
+ *     `SIZE_MAX/sizeof(idx_t)`) if compaction can't free enough room.
  *
  * The simplification leaves performance on the table relative to the
  * SuiteSparse AMD reference (the full Davis algorithm shaves the
@@ -173,11 +175,12 @@
  *   len      length n
  *   deg      length n
  *   elim     length n  (one byte per vertex)
- *   pad      length n  (scratch for adjacency dedup)
  *
  * Initial `iw_size` is `5·nnz + 6·n + 1` (Davis 2006 §7), which
  * accommodates ~5× fill before the first compaction.  All adjacency
- * lists are kept sorted ascending so the merge step is a linear scan.
+ * lists are kept sorted ascending so the merge step is a linear
+ * two-pointer scan with the dedup / filter step inline; no separate
+ * scratch buffer is needed.
  */
 typedef struct {
     idx_t *iw;
@@ -399,9 +402,17 @@ static sparse_err_t qg_eliminate(qg_t *qg, idx_t p) {
             continue;
 
         idx_t u_len = qg->len[u];
-        /* Merge upper bound = u_len + p_len.  Reserve before reading
-         * u_adj — `qg_reserve` may realloc and invalidate pointers. */
-        sparse_err_t rc = qg_reserve(qg, u_len + p_len);
+        /* Merge upper bound = u_len + p_len.  Compute in `uint64_t`
+         * so the addition can't wrap before `qg_reserve` validates
+         * it; if the sum exceeds the storage type (idx_t = int32),
+         * fail cleanly here.  Reserve before reading u_adj —
+         * `qg_reserve` may realloc and invalidate pointers. */
+        uint64_t merge_upper_64 = (uint64_t)u_len + (uint64_t)p_len;
+        if (merge_upper_64 > (uint64_t)INT32_MAX) {
+            free(p_adj_copy);
+            return SPARSE_ERR_ALLOC;
+        }
+        sparse_err_t rc = qg_reserve(qg, (idx_t)merge_upper_64);
         if (rc != SPARSE_OK) {
             free(p_adj_copy);
             return rc;

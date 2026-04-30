@@ -1,6 +1,7 @@
 #include "sparse_reorder.h"
 #include "sparse_colamd_internal.h"
 #include "sparse_matrix_internal.h"
+#include "sparse_reorder_amd_qg_internal.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -406,8 +407,6 @@ sparse_err_t sparse_reorder_rcm(const SparseMatrix *A, idx_t *perm) {
  * 312 MB; at n = 100 000 it was 1.25 GB.  The quotient-graph version
  * stays within a few × the matrix's own nnz regardless of n.
  */
-
-#include "sparse_reorder_amd_qg_internal.h"
 
 sparse_err_t sparse_reorder_amd(const SparseMatrix *A, idx_t *perm) {
     return sparse_reorder_amd_qg(A, perm);

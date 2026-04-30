@@ -37,17 +37,13 @@
 #include "sparse_cholesky.h"
 #include "sparse_matrix.h"
 #include "sparse_reorder.h"
+#include "sparse_reorder_nd_internal.h"
 #include "sparse_types.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
-/* The Day-6 ND base-case cutoff.  Exposed by `src/sparse_reorder_nd.c`
- * as a non-`static` global so the Day 9 threshold sweep doesn't need
- * to recompile the library each time. */
-extern idx_t sparse_reorder_nd_base_threshold;
 
 typedef struct {
     const char *name;

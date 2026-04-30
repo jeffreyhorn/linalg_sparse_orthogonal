@@ -36,6 +36,7 @@
 #include "sparse_graph_internal.h"
 #include "sparse_matrix.h"
 #include "sparse_reorder.h"
+#include "sparse_reorder_nd_internal.h"
 #include "sparse_types.h"
 
 #include <stdlib.h>
@@ -51,12 +52,15 @@
  * `docs/planning/EPIC_2/SPRINT_22/bench_day9_nd.txt` for the full
  * sweep data.
  *
- * Exposed as a non-`static` global so the Day 9 sweep
- * (`benchmarks/bench_reorder.c --nd-threshold N`) can override it
- * from the command line without recompiling the library.  The
- * Sprint 23 follow-up that splices quotient-graph AMD into each
- * leaf will turn this into a real "stop recursing here, run AMD"
- * cutover, at which point the value will likely shift higher. */
+ * Declared in `src/sparse_reorder_nd_internal.h` (benchmark-only,
+ * not thread-safe, no ABI guarantee — see that header) so the Day 9
+ * sweep (`benchmarks/bench_reorder.c --nd-threshold N`) can
+ * override it from the command line without recompiling the
+ * library, but library consumers don't see it.  The Sprint 23
+ * follow-up that splices quotient-graph AMD into each leaf will
+ * turn this into a real "stop recursing here, run AMD" cutover, at
+ * which point the right tuning surface is an opts struct on
+ * `sparse_reorder_nd` itself and this global goes away. */
 idx_t sparse_reorder_nd_base_threshold = 32;
 
 /* Append `n` vertices from a subgraph to the global permutation in

@@ -40,6 +40,7 @@
 #include "sparse_reorder_nd_internal.h"
 #include "sparse_types.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -200,7 +201,23 @@ int main(int argc, char **argv) {
     const char *only = NULL;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--nd-threshold") == 0 && i + 1 < argc) {
-            sparse_reorder_nd_base_threshold = (idx_t)atoi(argv[++i]);
+            /* Parse via strtol with error-checking: atoi silently
+             * accepts negative values and non-numeric strings, and
+             * a negative threshold disables ND's base case entirely
+             * (n is unsigned-by-comparison, so n <= -1 is always
+             * false), driving recursion to depth n and hanging /
+             * crashing the bench. */
+            const char *arg = argv[++i];
+            char *endp = NULL;
+            long val = strtol(arg, &endp, 10);
+            if (endp == arg || *endp != '\0' || val < 1) {
+                fprintf(stderr,
+                        "bench_reorder: --nd-threshold needs a positive integer, got '%s'\n", arg);
+                return 2;
+            }
+            if (val > INT32_MAX)
+                val = INT32_MAX;
+            sparse_reorder_nd_base_threshold = (idx_t)val;
         } else if (strcmp(argv[i], "--skip-factor") == 0) {
             do_factor = 0;
         } else if (strcmp(argv[i], "--only") == 0 && i + 1 < argc) {

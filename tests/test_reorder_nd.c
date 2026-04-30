@@ -168,22 +168,35 @@ static void test_nd_4x4_grid_valid_permutation(void) {
      * 22 Day 9 verified this via test_nd_determinism_public_api),
      * so calling it again at test time reproduces the same
      * separator nd_recurse used internally. */
+    /* Capture rc through every alloc/partition step and route to a
+     * single cleanup label so a mid-flight failure can't leak G,
+     * part, or A into subsequent tests. */
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
-    idx_t *part = malloc((size_t)G.n * sizeof(idx_t));
-    REQUIRE_OK(part ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    idx_t *part = NULL;
+    sparse_err_t rc = sparse_graph_from_sparse(A, &G);
+    if (rc != SPARSE_OK)
+        goto cleanup;
+    part = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
     idx_t sep_count = 0;
-    REQUIRE_OK(sparse_graph_partition(&G, part, &sep_count));
+    rc = sparse_graph_partition(&G, part, &sep_count);
+    if (rc != SPARSE_OK)
+        goto cleanup;
     ASSERT_TRUE(sep_count > 0);
     ASSERT_TRUE(sep_count <= 16);
     /* Every vertex in the tail slice perm[16-sep_count .. 16) must
      * be labeled `2` by the partitioner. */
     for (idx_t i = 16 - sep_count; i < 16; i++)
         ASSERT_EQ(part[perm[i]], 2);
+
+cleanup:
     free(part);
     sparse_graph_free(&G);
-
     sparse_free(A);
+    REQUIRE_OK(rc);
 }
 
 /* ─── 10×10 grid: ND fill ≤ AMD fill / 1.5 ─────────────────────────── */
@@ -192,23 +205,34 @@ static void test_nd_10x10_grid_beats_amd_fill(void) {
     SparseMatrix *A = make_grid_2d(10, 10);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
-    /* AMD baseline. */
+    /* AMD baseline.  Capture rc and route every failure path through
+     * the single cleanup label so partial allocations (analysis_amd,
+     * analysis_nd, PA) don't leak into subsequent tests when
+     * sparse_analyze / sparse_permute fails. */
     sparse_analysis_opts_t opts_amd = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
     sparse_analysis_t analysis_amd = {0};
-    REQUIRE_OK(sparse_analyze(A, &opts_amd, &analysis_amd));
+    sparse_analysis_t analysis_nd = {0};
+    SparseMatrix *PA = NULL;
+    sparse_err_t rc = sparse_analyze(A, &opts_amd, &analysis_amd);
+    if (rc != SPARSE_OK)
+        goto cleanup;
     idx_t nnz_amd = analysis_amd.sym_L.nnz;
 
     /* ND: compute permutation, apply via sparse_permute, analyze with NONE. */
     idx_t nd_perm[100] = {0};
-    REQUIRE_OK(sparse_reorder_nd(A, nd_perm));
+    rc = sparse_reorder_nd(A, nd_perm);
+    if (rc != SPARSE_OK)
+        goto cleanup;
     ASSERT_TRUE(is_valid_permutation(nd_perm, 100));
 
-    SparseMatrix *PA = NULL;
-    REQUIRE_OK(sparse_permute(A, nd_perm, nd_perm, &PA));
+    rc = sparse_permute(A, nd_perm, nd_perm, &PA);
+    if (rc != SPARSE_OK)
+        goto cleanup;
 
     sparse_analysis_opts_t opts_none = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
-    sparse_analysis_t analysis_nd = {0};
-    REQUIRE_OK(sparse_analyze(PA, &opts_none, &analysis_nd));
+    rc = sparse_analyze(PA, &opts_none, &analysis_nd);
+    if (rc != SPARSE_OK)
+        goto cleanup;
     idx_t nnz_nd = analysis_nd.sym_L.nnz;
 
     printf("    10x10 grid: AMD nnz(L) = %d, ND nnz(L) = %d (ND/AMD = %.2f)\n", (int)nnz_amd,
@@ -226,10 +250,12 @@ static void test_nd_10x10_grid_beats_amd_fill(void) {
      * Day 12 will tighten this as the base-case AMD lands. */
     ASSERT_TRUE((long long)nnz_nd * 2 <= (long long)nnz_amd * 3);
 
+cleanup:
     sparse_analysis_free(&analysis_amd);
     sparse_analysis_free(&analysis_nd);
     sparse_free(PA);
     sparse_free(A);
+    REQUIRE_OK(rc);
 }
 
 /* ─── 1D path: ND doesn't beat AMD but must produce a valid perm ──── */

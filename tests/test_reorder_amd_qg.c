@@ -125,8 +125,18 @@ static void compare_wrapper_vs_qg(const char *fixture, const char *path) {
 
     idx_t *perm_wrapper = malloc((size_t)n * sizeof(idx_t));
     idx_t *perm_qg = malloc((size_t)n * sizeof(idx_t));
-    ASSERT_NOT_NULL(perm_wrapper);
-    ASSERT_NOT_NULL(perm_qg);
+    /* Fail-fast on alloc — ASSERT_NOT_NULL is non-fatal in this test
+     * framework, so without an early return the subsequent
+     * sparse_reorder_amd / _amd_qg calls would receive a NULL perm
+     * and likely crash.  Free everything we did allocate (including
+     * A) on the unhappy path so the test exits cleanly. */
+    if (!perm_wrapper || !perm_qg) {
+        free(perm_wrapper);
+        free(perm_qg);
+        sparse_free(A);
+        REQUIRE_OK(SPARSE_ERR_ALLOC);
+        return;
+    }
 
     REQUIRE_OK(sparse_reorder_amd(A, perm_wrapper));
     REQUIRE_OK(sparse_reorder_amd_qg(A, perm_qg));

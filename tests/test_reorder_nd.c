@@ -54,6 +54,17 @@
 
 /* ─── Fixture builders (shared shape with tests/test_graph.c) ─────── */
 
+/* Helper: insert into A and free + return non-OK on failure.
+ * Used by make_grid_2d / make_path_1d so a partial allocation
+ * surfaces as a NULL fixture rather than a silently-incomplete one. */
+#define INSERT_OR_FAIL(A_, r_, c_, v_)                                                             \
+    do {                                                                                           \
+        if (sparse_insert((A_), (r_), (c_), (v_)) != SPARSE_OK) {                                  \
+            sparse_free(A_);                                                                       \
+            return NULL;                                                                           \
+        }                                                                                          \
+    } while (0)
+
 static SparseMatrix *make_grid_2d(idx_t r, idx_t c) {
     SparseMatrix *A = sparse_create(r * c, r * c);
     if (!A)
@@ -61,14 +72,14 @@ static SparseMatrix *make_grid_2d(idx_t r, idx_t c) {
     for (idx_t i = 0; i < r; i++) {
         for (idx_t j = 0; j < c; j++) {
             idx_t v = i * c + j;
-            sparse_insert(A, v, v, 1.0);
+            INSERT_OR_FAIL(A, v, v, 1.0);
             if (j + 1 < c) {
-                sparse_insert(A, v, v + 1, 1.0);
-                sparse_insert(A, v + 1, v, 1.0);
+                INSERT_OR_FAIL(A, v, v + 1, 1.0);
+                INSERT_OR_FAIL(A, v + 1, v, 1.0);
             }
             if (i + 1 < r) {
-                sparse_insert(A, v, v + c, 1.0);
-                sparse_insert(A, v + c, v, 1.0);
+                INSERT_OR_FAIL(A, v, v + c, 1.0);
+                INSERT_OR_FAIL(A, v + c, v, 1.0);
             }
         }
     }
@@ -80,10 +91,10 @@ static SparseMatrix *make_path_1d(idx_t n) {
     if (!A)
         return NULL;
     for (idx_t i = 0; i < n; i++) {
-        sparse_insert(A, i, i, 1.0);
+        INSERT_OR_FAIL(A, i, i, 1.0);
         if (i + 1 < n) {
-            sparse_insert(A, i, i + 1, 1.0);
-            sparse_insert(A, i + 1, i, 1.0);
+            INSERT_OR_FAIL(A, i, i + 1, 1.0);
+            INSERT_OR_FAIL(A, i + 1, i, 1.0);
         }
     }
     return A;
@@ -417,10 +428,19 @@ static void test_cholesky_via_nd_residual_bcsstk14(void) {
     double *x_nd = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
     double *resid = malloc((size_t)n * sizeof(double));
-    ASSERT_NOT_NULL(x_amd);
-    ASSERT_NOT_NULL(x_nd);
-    ASSERT_NOT_NULL(b);
-    ASSERT_NOT_NULL(resid);
+    /* Fail-fast on alloc — ASSERT_NOT_NULL is non-fatal in this test
+     * framework, so without an early return the subsequent code
+     * would dereference NULL.  Free everything we did allocate
+     * (including A) on the unhappy path so the test exits cleanly. */
+    if (!x_amd || !x_nd || !b || !resid) {
+        free(x_amd);
+        free(x_nd);
+        free(b);
+        free(resid);
+        sparse_free(A);
+        REQUIRE_OK(SPARSE_ERR_ALLOC);
+        return;
+    }
     for (idx_t i = 0; i < n; i++)
         b[i] = 1.0;
 

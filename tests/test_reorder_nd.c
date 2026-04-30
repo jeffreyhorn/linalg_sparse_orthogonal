@@ -202,7 +202,7 @@ cleanup:
     REQUIRE_OK(rc);
 }
 
-/* ─── 10×10 grid: ND fill ≤ AMD fill / 1.5 ─────────────────────────── */
+/* ─── 10×10 grid: ND fill ≤ 1.5× AMD fill ─────────────────────────── */
 
 static void test_nd_10x10_grid_beats_amd_fill(void) {
     SparseMatrix *A = make_grid_2d(10, 10);

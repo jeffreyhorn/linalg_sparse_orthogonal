@@ -174,13 +174,22 @@ static SparseMatrix *make_banded(idx_t n, idx_t bandwidth) {
     SparseMatrix *A = sparse_create(n, n);
     if (!A)
         return NULL;
+    /* Check sparse_insert returns: a partial fixture would surface
+     * downstream as misleading bench timings or fill counts.  On any
+     * failure free A and propagate NULL so the caller bails out
+     * before timing an incomplete matrix. */
     for (idx_t i = 0; i < n; i++) {
-        sparse_insert(A, i, i, 2.0);
-        for (idx_t k = 1; k <= bandwidth; k++) {
+        sparse_err_t rc = sparse_insert(A, i, i, 2.0);
+        for (idx_t k = 1; rc == SPARSE_OK && k <= bandwidth; k++) {
             if (i + k < n) {
-                sparse_insert(A, i, i + k, -1.0);
-                sparse_insert(A, i + k, i, -1.0);
+                rc = sparse_insert(A, i, i + k, -1.0);
+                if (rc == SPARSE_OK)
+                    rc = sparse_insert(A, i + k, i, -1.0);
             }
+        }
+        if (rc != SPARSE_OK) {
+            sparse_free(A);
+            return NULL;
         }
     }
     return A;

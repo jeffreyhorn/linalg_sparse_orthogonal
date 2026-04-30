@@ -277,6 +277,12 @@ static int qg_compact_compare(const void *a, const void *b) {
  * front of `iw[]`.  After return, `iw_used` is the new high-water. */
 static sparse_err_t qg_compact(qg_t *qg) {
     idx_t n = qg->n;
+    /* Guard the `n * sizeof(qg_compact_pair_t)` byte count against
+     * `size_t` overflow before the malloc.  On 32-bit `size_t` and
+     * sizeof(qg_compact_pair_t) = 8, n above ~2^29 would wrap and
+     * under-allocate, leading to OOB writes when filling `pairs[k]`. */
+    if ((size_t)n > SIZE_MAX / sizeof(qg_compact_pair_t))
+        return SPARSE_ERR_ALLOC;
     qg_compact_pair_t *pairs = malloc((size_t)n * sizeof(qg_compact_pair_t));
     if (!pairs)
         return SPARSE_ERR_ALLOC;
@@ -390,7 +396,12 @@ static sparse_err_t qg_eliminate(qg_t *qg, idx_t p) {
         return SPARSE_OK;
 
     /* Snapshot p's adjacency before we touch `iw[]` — `qg_reserve`
-     * may move the buffer underneath us. */
+     * may move the buffer underneath us.  Guard the `p_len *
+     * sizeof(idx_t)` byte count against `size_t` overflow first;
+     * on 32-bit `size_t` a wrap here would under-allocate and the
+     * subsequent memcpy / per-neighbour merges would write OOB. */
+    if ((size_t)p_len > SIZE_MAX / sizeof(idx_t))
+        return SPARSE_ERR_ALLOC;
     idx_t *p_adj_copy = malloc((size_t)p_len * sizeof(idx_t));
     if (!p_adj_copy)
         return SPARSE_ERR_ALLOC;

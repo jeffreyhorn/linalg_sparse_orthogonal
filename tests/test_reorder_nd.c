@@ -33,10 +33,12 @@
 
 #include "sparse_analysis.h"
 #include "sparse_cholesky.h"
+#include "sparse_graph_internal.h"
 #include "sparse_ldlt.h"
 #include "sparse_lu.h"
 #include "sparse_matrix.h"
 #include "sparse_reorder.h"
+#include "sparse_reorder_nd_internal.h"
 #include "sparse_types.h"
 #include "test_framework.h"
 
@@ -116,22 +118,52 @@ static void test_nd_4x4_grid_valid_permutation(void) {
     SparseMatrix *A = make_grid_2d(4, 4);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
+    /* Force ND to actually partition this fixture: with the default
+     * threshold (32) a 16-vertex grid hits the natural-ordering base
+     * case and never identifies a separator at all.  Drop the
+     * threshold to 4 around this single call so the separator-last
+     * contract is genuinely exercised, then restore. */
+    idx_t saved_threshold = sparse_reorder_nd_base_threshold;
+    sparse_reorder_nd_base_threshold = 4;
+
     idx_t perm[16] = {0};
     REQUIRE_OK(sparse_reorder_nd(A, perm));
+
+    sparse_reorder_nd_base_threshold = saved_threshold;
 
     /* Strict validity: every index in [0, 16) appears exactly once. */
     ASSERT_TRUE(is_valid_permutation(perm, 16));
 
-    /* Separator-last spot check: the very last entry is one of the
-     * vertices that connect the two halves of the grid.  For a 4×4
-     * grid the natural cut is the middle row or column (rows 1/2 or
-     * columns 1/2 — vertices in {1, 2, 5, 6, 9, 10, 13, 14}); after
-     * recursion the global tail vertex must come from a separator
-     * the recursion identified.  We don't predict which exact
-     * vertex (FM stochasticity), only assert that it is NOT the
-     * trivial corner vertex 0 — that would mean separator-last
-     * was bypassed entirely. */
-    ASSERT_NEQ(perm[15], 0);
+    /* Separator-last contract: the *last* `sep_count` entries of
+     * perm[] must each carry the partitioner's `part[i] == 2`
+     * (separator) label.  We derive the separator set the same
+     * way nd_recurse does — `sparse_graph_from_sparse` +
+     * `sparse_graph_partition` on the root graph — and check the
+     * tail of perm[] against it.
+     *
+     * This is stronger than a single-vertex spot check: it pins
+     * that nd_recurse really did emit every root-level separator
+     * vertex after the two interior subgraphs (which is what makes
+     * ND fill-reducing — the earlier `perm[15] != 0` heuristic was
+     * satisfied by trivial natural-ordering paths too).  The
+     * partitioner is deterministic for a given input graph (Sprint
+     * 22 Day 9 verified this via test_nd_determinism_public_api),
+     * so calling it again at test time reproduces the same
+     * separator nd_recurse used internally. */
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    idx_t *part = malloc((size_t)G.n * sizeof(idx_t));
+    REQUIRE_OK(part ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    idx_t sep_count = 0;
+    REQUIRE_OK(sparse_graph_partition(&G, part, &sep_count));
+    ASSERT_TRUE(sep_count > 0);
+    ASSERT_TRUE(sep_count <= 16);
+    /* Every vertex in the tail slice perm[16-sep_count .. 16) must
+     * be labeled `2` by the partitioner. */
+    for (idx_t i = 16 - sep_count; i < 16; i++)
+        ASSERT_EQ(part[perm[i]], 2);
+    free(part);
+    sparse_graph_free(&G);
 
     sparse_free(A);
 }

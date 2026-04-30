@@ -446,14 +446,35 @@ static void test_cholesky_via_nd_residual_bcsstk14(void) {
 
     /* AMD path. */
     SparseMatrix *L_amd = sparse_copy(A);
-    ASSERT_NOT_NULL(L_amd);
+    /* Fail-fast — ASSERT_NOT_NULL is non-fatal, so without the
+     * early-return the subsequent sparse_cholesky_factor_opts call
+     * would receive a NULL matrix and crash.  Free everything we
+     * own before bailing. */
+    if (!L_amd) {
+        free(x_amd);
+        free(x_nd);
+        free(b);
+        free(resid);
+        sparse_free(A);
+        REQUIRE_OK(SPARSE_ERR_ALLOC);
+        return;
+    }
     sparse_cholesky_opts_t opts_amd = {SPARSE_REORDER_AMD, 0, NULL};
     REQUIRE_OK(sparse_cholesky_factor_opts(L_amd, &opts_amd));
     REQUIRE_OK(sparse_cholesky_solve(L_amd, b, x_amd));
 
     /* ND path via enum dispatch. */
     SparseMatrix *L_nd = sparse_copy(A);
-    ASSERT_NOT_NULL(L_nd);
+    if (!L_nd) {
+        free(x_amd);
+        free(x_nd);
+        free(b);
+        free(resid);
+        sparse_free(L_amd);
+        sparse_free(A);
+        REQUIRE_OK(SPARSE_ERR_ALLOC);
+        return;
+    }
     sparse_cholesky_opts_t opts_nd = {SPARSE_REORDER_ND, 0, NULL};
     REQUIRE_OK(sparse_cholesky_factor_opts(L_nd, &opts_nd));
     REQUIRE_OK(sparse_cholesky_solve(L_nd, b, x_nd));
@@ -507,14 +528,28 @@ static void test_lu_via_nd_dispatch(void) {
     double *x = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
     double *resid = malloc((size_t)n * sizeof(double));
-    ASSERT_NOT_NULL(x);
-    ASSERT_NOT_NULL(b);
-    ASSERT_NOT_NULL(resid);
+    /* Fail-fast on alloc — ASSERT_NOT_NULL is non-fatal in this
+     * test framework. */
+    if (!x || !b || !resid) {
+        free(x);
+        free(b);
+        free(resid);
+        sparse_free(A);
+        REQUIRE_OK(SPARSE_ERR_ALLOC);
+        return;
+    }
     for (idx_t i = 0; i < n; i++)
         b[i] = 1.0;
 
     SparseMatrix *L = sparse_copy(A);
-    ASSERT_NOT_NULL(L);
+    if (!L) {
+        free(x);
+        free(b);
+        free(resid);
+        sparse_free(A);
+        REQUIRE_OK(SPARSE_ERR_ALLOC);
+        return;
+    }
     sparse_lu_opts_t opts = {SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_ND, 0.0};
     REQUIRE_OK(sparse_lu_factor_opts(L, &opts));
     REQUIRE_OK(sparse_lu_solve(L, b, x));
@@ -549,9 +584,16 @@ static void test_ldlt_via_nd_dispatch(void) {
     double *x = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
     double *resid = malloc((size_t)n * sizeof(double));
-    ASSERT_NOT_NULL(x);
-    ASSERT_NOT_NULL(b);
-    ASSERT_NOT_NULL(resid);
+    /* Fail-fast on alloc — ASSERT_NOT_NULL is non-fatal in this
+     * test framework. */
+    if (!x || !b || !resid) {
+        free(x);
+        free(b);
+        free(resid);
+        sparse_free(A);
+        REQUIRE_OK(SPARSE_ERR_ALLOC);
+        return;
+    }
     for (idx_t i = 0; i < n; i++)
         b[i] = 1.0;
 

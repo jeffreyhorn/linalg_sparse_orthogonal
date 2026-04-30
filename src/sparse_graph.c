@@ -68,11 +68,14 @@
  * Day 6 implements that recursion.
  *
  * **Small-graph base case.**  Sprint 22 Day 6's recursion stops when
- * a subgraph has n ≤ ND_BASE_THRESHOLD (provisional 100; tuned in
- * Day 9) and falls through to AMD on the subgraph.  The partitioner
- * itself doesn't impose this threshold — it's an ND-driver
- * decision — but the brute-force bisection at the coarsest level
- * gives the partitioner its own micro-fast-path for n ≤ 20.
+ * a subgraph has n ≤ `sparse_reorder_nd_base_threshold` (default 32
+ * from the Day 9 sweep) and emits the subgraph's vertices in
+ * natural (subgraph-local) order.  The partitioner itself doesn't
+ * impose this threshold — it's an ND-driver decision — but the
+ * brute-force bisection at the coarsest level gives the partitioner
+ * its own micro-fast-path for n ≤ 20.  The Sprint 22 plan's
+ * follow-up of splicing quotient-graph AMD into each leaf is
+ * deferred to Sprint 23 (see `docs/planning/EPIC_2/PROJECT_PLAN.md`).
  *
  * **Determinism.**  Heavy-edge matching's vertex traversal order is
  * pseudo-randomised with a deterministic seed (mirrors Sprint 21
@@ -91,13 +94,14 @@
  *     Improving Network Partitions", DAC'82.  The FM refinement
  *     algorithm.
  *
- * **Sprint 22 Day 1 status.**  This file ships the
- * `sparse_graph_t` data structure, the `sparse_graph_from_sparse` /
- * `sparse_graph_free` helpers, and stubs for `sparse_graph_subgraph`
- * and `sparse_graph_partition` (both return SPARSE_ERR_BADARG).
- * Days 2-4 replace the partitioner stub with the multilevel
- * pipeline; the subgraph helper lands on Day 6 alongside the
- * recursive ND driver.
+ * **Shipped Sprint 22 contents.**  `sparse_graph_t` data structure
+ * (Day 1), `sparse_graph_from_sparse` / `sparse_graph_free` (Day 1),
+ * heavy-edge matching coarsener (Day 2), coarsest-graph bisection +
+ * Fiduccia-Mattheyses refinement (Day 3), uncoarsening +
+ * edge-to-vertex separator (Day 4), and the `sparse_graph_subgraph`
+ * helper (Day 5) — collectively assembled into the multilevel
+ * `sparse_graph_partition` entry point that the Day 6 recursive ND
+ * driver in `src/sparse_reorder_nd.c` consumes.
  */
 
 #include "sparse_graph_internal.h"

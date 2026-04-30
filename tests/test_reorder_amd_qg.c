@@ -203,7 +203,15 @@ static void test_amd_stress_10k_banded(void) {
     }
 
     idx_t *perm = malloc((size_t)n * sizeof(idx_t));
-    ASSERT_NOT_NULL(perm);
+    /* Fail-fast on alloc — ASSERT_NOT_NULL is non-fatal in this
+     * test framework, so without an early return sparse_reorder_amd
+     * would receive a NULL perm and is_valid_permutation would
+     * dereference NULL. */
+    if (!perm) {
+        sparse_free(A);
+        REQUIRE_OK(SPARSE_ERR_ALLOC);
+        return;
+    }
 
     clock_t t0 = clock();
     sparse_err_t rc = sparse_reorder_amd(A, perm);

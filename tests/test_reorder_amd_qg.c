@@ -35,6 +35,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #ifndef DATA_DIR
 #define DATA_DIR "tests/data"

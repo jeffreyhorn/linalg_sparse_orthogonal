@@ -143,11 +143,18 @@ static void test_nd_4x4_grid_valid_permutation(void) {
     sparse_reorder_nd_base_threshold = 4;
 
     idx_t perm[16] = {0};
-    sparse_err_t nd_rc = sparse_reorder_nd(A, perm);
+    /* Capture rc through every step (nd, graph_from_sparse,
+     * malloc, partition) and route to a single `cleanup:` label so
+     * a mid-flight failure can't leak A, G, or part into
+     * subsequent tests. */
+    sparse_graph_t G = {0};
+    idx_t *part = NULL;
+    sparse_err_t rc = sparse_reorder_nd(A, perm);
 
     sparse_reorder_nd_base_threshold = saved_threshold;
 
-    REQUIRE_OK(nd_rc);
+    if (rc != SPARSE_OK)
+        goto cleanup;
 
     /* Strict validity: every index in [0, 16) appears exactly once. */
     ASSERT_TRUE(is_valid_permutation(perm, 16));
@@ -168,12 +175,7 @@ static void test_nd_4x4_grid_valid_permutation(void) {
      * 22 Day 9 verified this via test_nd_determinism_public_api),
      * so calling it again at test time reproduces the same
      * separator nd_recurse used internally. */
-    /* Capture rc through every alloc/partition step and route to a
-     * single cleanup label so a mid-flight failure can't leak G,
-     * part, or A into subsequent tests. */
-    sparse_graph_t G = {0};
-    idx_t *part = NULL;
-    sparse_err_t rc = sparse_graph_from_sparse(A, &G);
+    rc = sparse_graph_from_sparse(A, &G);
     if (rc != SPARSE_OK)
         goto cleanup;
     part = malloc((size_t)G.n * sizeof(idx_t));
@@ -265,10 +267,14 @@ static void test_nd_1d_path_n20_valid_permutation(void) {
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     idx_t perm[20] = {0};
-    REQUIRE_OK(sparse_reorder_nd(A, perm));
-    ASSERT_TRUE(is_valid_permutation(perm, 20));
+    /* Capture rc, free A, then REQUIRE_OK so a sparse_reorder_nd
+     * failure can't leak the path fixture into subsequent tests. */
+    sparse_err_t rc = sparse_reorder_nd(A, perm);
+    if (rc == SPARSE_OK)
+        ASSERT_TRUE(is_valid_permutation(perm, 20));
 
     sparse_free(A);
+    REQUIRE_OK(rc);
 }
 
 /* ─── Singleton + NULL-arg + non-square argument validation ───────── */
@@ -418,11 +424,17 @@ static void test_nd_determinism_public_api(void) {
 
     idx_t perm1[64] = {0};
     idx_t perm2[64] = {0};
-    REQUIRE_OK(sparse_reorder_nd(A, perm1));
-    REQUIRE_OK(sparse_reorder_nd(A, perm2));
-    ASSERT_EQ(memcmp(perm1, perm2, sizeof(perm1)), 0);
+    /* Capture rc through both calls and free A before REQUIRE_OK so
+     * a sparse_reorder_nd failure can't leak the fixture into
+     * subsequent tests. */
+    sparse_err_t rc = sparse_reorder_nd(A, perm1);
+    if (rc == SPARSE_OK)
+        rc = sparse_reorder_nd(A, perm2);
+    if (rc == SPARSE_OK)
+        ASSERT_EQ(memcmp(perm1, perm2, sizeof(perm1)), 0);
 
     sparse_free(A);
+    REQUIRE_OK(rc);
 }
 
 /* ─── Cholesky via ND: solve residual matches AMD ─────────────────── */

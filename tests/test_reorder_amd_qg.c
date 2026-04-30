@@ -138,8 +138,16 @@ static void compare_wrapper_vs_qg(const char *fixture, const char *path) {
         return;
     }
 
-    REQUIRE_OK(sparse_reorder_amd(A, perm_wrapper));
-    REQUIRE_OK(sparse_reorder_amd_qg(A, perm_qg));
+    /* Capture rc through both reorder calls and route to a single
+     * `cleanup:` label so a failure can't leak perm_wrapper /
+     * perm_qg / A into subsequent fixture iterations.  This
+     * helper runs across multiple fixtures, so a leak compounds. */
+    sparse_err_t rc = sparse_reorder_amd(A, perm_wrapper);
+    if (rc != SPARSE_OK)
+        goto cleanup;
+    rc = sparse_reorder_amd_qg(A, perm_qg);
+    if (rc != SPARSE_OK)
+        goto cleanup;
 
     /* Both must be valid permutations of [0, n). */
     ASSERT_TRUE(is_valid_permutation(perm_wrapper, n));
@@ -160,9 +168,11 @@ static void compare_wrapper_vs_qg(const char *fixture, const char *path) {
     printf("    %s (n=%d): wrapper nnz(L) = %d, qg nnz(L) = %d (identical)\n", fixture, (int)n,
            (int)nnz_wrapper, (int)nnz_qg);
 
+cleanup:
     free(perm_wrapper);
     free(perm_qg);
     sparse_free(A);
+    REQUIRE_OK(rc);
 }
 
 static void test_amd_qg_delegation_nos4(void) { compare_wrapper_vs_qg("nos4", SS_DIR "/nos4.mtx"); }
@@ -192,13 +202,23 @@ static void test_amd_stress_10k_banded(void) {
     idx_t n = 10000;
     SparseMatrix *A = sparse_create(n, n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    /* Check sparse_insert returns: a partial fixture would surface
+     * downstream as misleading timing or validity assertions.  On
+     * any failure free A and bail out via REQUIRE_OK before the
+     * test continues with an incomplete matrix. */
     for (idx_t i = 0; i < n; i++) {
-        sparse_insert(A, i, i, 1.0);
-        for (idx_t k = 1; k <= 5; k++) {
+        sparse_err_t ins_rc = sparse_insert(A, i, i, 1.0);
+        for (idx_t k = 1; ins_rc == SPARSE_OK && k <= 5; k++) {
             if (i + k < n) {
-                sparse_insert(A, i, i + k, 1.0);
-                sparse_insert(A, i + k, i, 1.0);
+                ins_rc = sparse_insert(A, i, i + k, 1.0);
+                if (ins_rc == SPARSE_OK)
+                    ins_rc = sparse_insert(A, i + k, i, 1.0);
             }
+        }
+        if (ins_rc != SPARSE_OK) {
+            sparse_free(A);
+            REQUIRE_OK(ins_rc);
+            return;
         }
     }
 

@@ -122,14 +122,21 @@ static void test_nd_4x4_grid_valid_permutation(void) {
      * threshold (32) a 16-vertex grid hits the natural-ordering base
      * case and never identifies a separator at all.  Drop the
      * threshold to 4 around this single call so the separator-last
-     * contract is genuinely exercised, then restore. */
+     * contract is genuinely exercised, then restore.
+     *
+     * Capture the rc into a local before REQUIRE_OK so the threshold
+     * global is restored on every path — REQUIRE_OK early-returns
+     * from the test on failure, and a leaked threshold value would
+     * leak into every subsequent test in this binary. */
     idx_t saved_threshold = sparse_reorder_nd_base_threshold;
     sparse_reorder_nd_base_threshold = 4;
 
     idx_t perm[16] = {0};
-    REQUIRE_OK(sparse_reorder_nd(A, perm));
+    sparse_err_t nd_rc = sparse_reorder_nd(A, perm);
 
     sparse_reorder_nd_base_threshold = saved_threshold;
+
+    REQUIRE_OK(nd_rc);
 
     /* Strict validity: every index in [0, 16) appears exactly once. */
     ASSERT_TRUE(is_valid_permutation(perm, 16));

@@ -58,6 +58,39 @@ entries.
 toward the end of elimination.  bcsstk14: smaller (~2–3×) — structural
 mechanics matrices have less geometric regularity.
 
+**Day 3 measurement (post-implementation, basic absorption only).**
+Strict variable absorption per Davis §7.3 (variable-side empty AND
+element-side has exactly one element) fires zero times on the
+SuiteSparse corpus (nos4, bcsstk04, bcsstk14, banded_10000):
+
+```
+qg-probe n=100   iw_peak=4188   iw_size=4259   absorbed=0 (0.0%)   nos4
+qg-probe n=132   iw_peak=25468  iw_size=25669  absorbed=0 (0.0%)   bcsstk04
+qg-probe n=1806  iw_peak=445976 iw_size=445985 absorbed=0 (0.0%)   bcsstk14
+qg-probe n=10000 iw_peak=649710 iw_size=779791 absorbed=0 (0.0%)   banded_10000
+```
+
+Why: under basic absorption alone, `elen[u]` grows monotonically as
+pivots eliminate.  For `elen[u] == 1` to trigger absorption, `u` must
+have touched exactly one prior pivot and have no remaining variable
+neighbours — essentially a degree-1 leaf vertex at elimination time,
+which doesn't occur in dense corpus fixtures.
+
+The mechanism that makes absorption fire is **aggressive element
+absorption** (Davis §7.3.4): when a new element `e` is created and an
+older element `e'` is a subset of `e`'s variable-set, `e'` is absorbed
+into `e` and `e'`'s ID is removed from every variable's element-side
+that referenced it.  This *can* drive `elen[u]` down to 1 across
+elimination.  Aggressive absorption is deferred (per `davis_notes.md`
+"What Sprint 23 deliberately doesn't implement"); it's a Sprint 24+
+candidate.
+
+Fill-quality consequence: bit-identical to Sprint 22 (verified —
+nos4=637, bcsstk04=3143, bcsstk14=116071 all match `bench_day14.txt`).
+The Davis representation is in place; the workspace win arrives when
+Day 5's approximate-degree formula is wired up plus aggressive
+absorption follows.
+
 ---
 
 ## §7.4 — Supervariable detection (Day 4)

@@ -226,19 +226,28 @@
  * rewritten the new list is appended at `iw[iw_used..]` and `xadj[i]`
  * updated; the old slots become garbage that compaction reclaims.
  *
- * Workspace layout (Sprint 22 — Days 2-3 of Sprint 23 add `elen[]` and
- * extend the iw[] split documented above):
+ * Workspace layout (post-Sprint-23-Day-2):
  *   iw       length iw_size (grows on demand)
  *   xadj     length n
  *   len      length n
+ *   elen     length n  (per-vertex element-side adjacency count)
  *   deg      length n
  *   elim     length n  (one byte per vertex)
  *
- * Initial `iw_size` is `5·nnz + 6·n + 1` (Davis 2006 §7 simplified
- * form), which accommodates ~5× fill before the first compaction.
- * All adjacency lists are kept sorted ascending so the merge step is
- * a linear two-pointer scan with the dedup / filter step inline; no
- * separate scratch buffer is needed.
+ * Each variable's slice in `iw[]` is split: variable-side prefix of
+ * length `len[i] - elen[i]`, followed by element-side suffix of
+ * length `elen[i]`.  At init `elen[i] == 0` for every variable, so
+ * the entire slice is variable-side and the representation is
+ * byte-identical to Sprint 22.  Sprint 23 Day 3 will populate the
+ * element-side suffix as element absorption fires.
+ *
+ * Initial `iw_size` is `7·nnz + 8·n + 1` (Davis 2006 §7's reference
+ * form; the extra `2·nnz + 2·n` over Sprint 22's simplified
+ * `5·nnz + 6·n + 1` buffers the elements-side region so the first
+ * compaction is deferred a few pivots).  All adjacency lists are
+ * kept sorted ascending so the merge step is a linear two-pointer
+ * scan with the dedup / filter step inline; no separate scratch
+ * buffer is needed.
  */
 typedef struct {
     idx_t *iw;
@@ -246,6 +255,7 @@ typedef struct {
     idx_t iw_used;
     idx_t *xadj;
     idx_t *len;
+    idx_t *elen; /* Day 2: per-vertex element-side adjacency count. */
     idx_t *deg;
     char *elim;
     idx_t n;
@@ -257,11 +267,13 @@ static void qg_free(qg_t *qg) {
     free(qg->iw);
     free(qg->xadj);
     free(qg->len);
+    free(qg->elen);
     free(qg->deg);
     free(qg->elim);
     qg->iw = NULL;
     qg->xadj = NULL;
     qg->len = NULL;
+    qg->elen = NULL;
     qg->deg = NULL;
     qg->elim = NULL;
     qg->iw_size = 0;
@@ -275,12 +287,15 @@ static void qg_free(qg_t *qg) {
 static sparse_err_t qg_init(qg_t *qg, idx_t n, const idx_t *adj_ptr, const idx_t *adj_list) {
     qg->n = n;
     idx_t nnz = adj_ptr[n];
-    /* Davis 2006 §7: 5·nnz + 6·n + 1 is comfortably above the typical
-     * fill peak before the first compaction.  Compute in `uint64_t`
-     * and check against the storage type (`idx_t` = int32) plus
+    /* Davis 2006 §7 reference form: `7·nnz + 8·n + 1`.  The extra
+     * `2·nnz + 2·n` over Sprint 22's simplified `5·nnz + 6·n + 1`
+     * buffers the elements-side region of `iw[]` (Sprint 23 Day 3
+     * populates it via element absorption) so the first compaction
+     * is deferred a few pivots.  Compute in `uint64_t` and check
+     * against the storage type (`idx_t` = int32) plus
      * `SIZE_MAX / sizeof(idx_t)`; under-allocation here would later
      * surface as out-of-bounds writes in the merge / memcpy paths. */
-    uint64_t iw_size_64 = (uint64_t)5 * (uint64_t)nnz + (uint64_t)6 * (uint64_t)n + 1;
+    uint64_t iw_size_64 = (uint64_t)7 * (uint64_t)nnz + (uint64_t)8 * (uint64_t)n + 1;
     if (iw_size_64 < 1024)
         iw_size_64 = 1024;
     /* Single combined cap covers both the storage type (`idx_t`,
@@ -299,9 +314,13 @@ static sparse_err_t qg_init(qg_t *qg, idx_t n, const idx_t *adj_ptr, const idx_t
     qg->iw = malloc((size_t)iw_size * sizeof(idx_t));
     qg->xadj = malloc((size_t)n * sizeof(idx_t));
     qg->len = malloc((size_t)n * sizeof(idx_t));
+    /* `elen[]` zero-initialised: every variable starts with no
+     * element-side adjacency (matches the Sprint-22 representation).
+     * Day 3 increments `elen[i]` when an element is appended to i. */
+    qg->elen = calloc((size_t)n, sizeof(idx_t));
     qg->deg = malloc((size_t)n * sizeof(idx_t));
     qg->elim = calloc((size_t)n, sizeof(char));
-    if (!qg->iw || !qg->xadj || !qg->len || !qg->deg || !qg->elim) {
+    if (!qg->iw || !qg->xadj || !qg->len || !qg->elen || !qg->deg || !qg->elim) {
         qg_free(qg);
         return SPARSE_ERR_ALLOC;
     }
@@ -332,7 +351,14 @@ static int qg_compact_compare(const void *a, const void *b) {
 
 /* Compact the workspace: walk surviving (non-eliminated, non-empty)
  * vertices in xadj-sort order and pack their adjacency into the
- * front of `iw[]`.  After return, `iw_used` is the new high-water. */
+ * front of `iw[]`.  After return, `iw_used` is the new high-water.
+ *
+ * Sprint 23 Day 2: each slice is now `len[i]` entries split into a
+ * variable-side prefix of `len[i] - elen[i]` and an element-side
+ * suffix of `elen[i]`.  Because the two regions are contiguous, the
+ * relocation is still a single memmove of `len[i]` entries — the
+ * split is preserved automatically.  The debug assertion below
+ * catches any future code that lets `elen[i]` exceed `len[i]`. */
 static sparse_err_t qg_compact(qg_t *qg) {
     idx_t n = qg->n;
     /* Guard the `n * sizeof(qg_compact_pair_t)` byte count against
@@ -359,6 +385,9 @@ static sparse_err_t qg_compact(qg_t *qg) {
         idx_t v = pairs[j].vertex;
         idx_t old_xadj = qg->xadj[v];
         idx_t l = qg->len[v];
+        /* Variable/element split invariant: the element-side suffix
+         * must fit within the slice. */
+        assert(qg->elen[v] <= l);
         if (old_xadj != new_pos) {
             /* memmove handles the (rare) case where list shrinkage
              * yields a small overlap; in xadj-sort order it never

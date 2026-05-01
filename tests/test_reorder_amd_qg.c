@@ -254,11 +254,83 @@ static void test_amd_stress_10k_banded(void) {
     sparse_free(A);
 }
 
+/* ─── Sprint 23 Day 2: workspace extension regression test ──────────── */
+
+/* The Sprint 23 Day 2 change extends `qg_t` with `elen[]` and grows
+ * the initial `iw_size` from `5·nnz + 6·n + 1` to `7·nnz + 8·n + 1`
+ * (Davis 2006 §7's reference size).  Both changes are structural —
+ * no algorithmic behaviour change — so the produced permutation must
+ * stay bit-identical to the Sprint-22 baseline.  This test pins that
+ * contract on a synthetic 100×100 banded fixture (deterministic,
+ * doesn't depend on the SuiteSparse data dir).
+ *
+ * A baseline permutation isn't hard-coded here — the corpus
+ * delegation tests above already cover bit-identical fill on the
+ * SuiteSparse fixtures (nos4 = 637, bcsstk04 = 3143, bcsstk14 =
+ * 116071, all unchanged from Sprint 22's bench_day14.txt); this test
+ * adds a determinism check (two independent runs produce the same
+ * permutation) and a validity check on a non-corpus fixture so
+ * Day 3's element-absorption work has a smaller fixture to bisect
+ * against if a regression turns up. */
+static void test_qg_workspace_extension_no_regression(void) {
+    const idx_t n = 100;
+    const idx_t bandwidth = 5;
+    SparseMatrix *A = sparse_create(n, n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    for (idx_t i = 0; i < n; i++) {
+        sparse_err_t ins_rc = sparse_insert(A, i, i, 1.0);
+        for (idx_t k = 1; ins_rc == SPARSE_OK && k <= bandwidth; k++) {
+            if (i + k < n) {
+                ins_rc = sparse_insert(A, i, i + k, 1.0);
+                if (ins_rc == SPARSE_OK)
+                    ins_rc = sparse_insert(A, i + k, i, 1.0);
+            }
+        }
+        if (ins_rc != SPARSE_OK) {
+            sparse_free(A);
+            REQUIRE_OK(ins_rc);
+            return;
+        }
+    }
+
+    idx_t *perm1 = malloc((size_t)n * sizeof(idx_t));
+    idx_t *perm2 = malloc((size_t)n * sizeof(idx_t));
+    if (!perm1 || !perm2) {
+        free(perm1);
+        free(perm2);
+        sparse_free(A);
+        REQUIRE_OK(SPARSE_ERR_ALLOC);
+        return;
+    }
+
+    REQUIRE_OK(sparse_reorder_amd_qg(A, perm1));
+    REQUIRE_OK(sparse_reorder_amd_qg(A, perm2));
+
+    /* Determinism: two independent runs on the same fixture produce
+     * bit-identical permutations.  Day 3's element-absorption work
+     * must preserve this. */
+    ASSERT_TRUE(is_valid_permutation(perm1, n));
+    ASSERT_TRUE(is_valid_permutation(perm2, n));
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_EQ(perm1[i], perm2[i]);
+
+    /* Symbolic Cholesky nnz on the permuted matrix — provides the
+     * bisection golden for Day 3.  100×100 bw=5: 595 entries in A
+     * (100 diagonal + 2*5*95 - 5*4/2*... actually 100 diag + 2*(5*100
+     * - sum(i for 1..5)) but this is documentation, not assertion). */
+    idx_t nnz_L = symbolic_cholesky_nnz_with_perm(A, perm1);
+    ASSERT_TRUE(nnz_L > 0);
+    printf("    100×100 banded (bw=5): nnz(L) under qg AMD = %d\n", (int)nnz_L);
+
+    free(perm1);
+    free(perm2);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════ */
 
 int main(void) {
-    TEST_SUITE_BEGIN(
-        "Sprint 22 Days 11-12: quotient-graph AMD wrapper delegation + production swap");
+    TEST_SUITE_BEGIN("Sprint 22 Days 11-12 + Sprint 23 Day 2: quotient-graph AMD");
     RUN_TEST(test_amd_qg_null_args);
     RUN_TEST(test_amd_qg_rejects_rectangular);
     RUN_TEST(test_amd_qg_singleton);
@@ -266,5 +338,6 @@ int main(void) {
     RUN_TEST(test_amd_qg_delegation_bcsstk04);
     RUN_TEST(test_amd_qg_delegation_bcsstk14);
     RUN_TEST(test_amd_stress_10k_banded);
+    RUN_TEST(test_qg_workspace_extension_no_regression);
     TEST_SUITE_END();
 }

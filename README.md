@@ -82,7 +82,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Column counts** — predict symbolic nnz per column of L for pre-allocation (upper bound on stored numeric counts when dropping is enabled)
 
 ### Reordering & Preconditioning
-- **Fill-reducing reordering** — Reverse Cuthill-McKee (RCM), Approximate Minimum Degree (AMD), and Column Approximate Minimum Degree (COLAMD) for unsymmetric/QR problems
+- **Fill-reducing reordering** — Reverse Cuthill-McKee (RCM); Approximate Minimum Degree (AMD, ~5·nnz + 6·n + 1 initial integer workspace via the Sprint-22 quotient-graph rewrite, growing on demand when fill-in pushes adjacency past the initial bound — scales to large structurally regular fixtures without the previous bitset's O(n²/64) penalty); Nested Dissection (ND, multilevel vertex separator — best on 2D / 3D PDE meshes); and Column Approximate Minimum Degree (COLAMD) for unsymmetric/QR problems
 - **Condition number estimation** — Hager/Higham 1-norm estimator from LU or LDL^T factors, quick R-diagonal estimator from QR
 
 ### I/O & Interop
@@ -236,7 +236,7 @@ int main(void)
 | [`sparse_dense.h`](include/sparse_dense.h) | Dense matrix utilities, Givens rotations, 2×2 eigensolver, tridiag QR |
 | [`sparse_bidiag.h`](include/sparse_bidiag.h) | Householder bidiagonalization (SVD preprocessing) |
 | [`sparse_csr.h`](include/sparse_csr.h) | CSR/CSC compressed format conversion |
-| [`sparse_reorder.h`](include/sparse_reorder.h) | Fill-reducing reordering (RCM, AMD, COLAMD), permutation, bandwidth |
+| [`sparse_reorder.h`](include/sparse_reorder.h) | Fill-reducing reordering (RCM, AMD, ND, COLAMD), permutation, bandwidth |
 | [`sparse_svd.h`](include/sparse_svd.h) | SVD, partial SVD, condition number, pseudoinverse, low-rank approximation |
 | [`sparse_eigs.h`](include/sparse_eigs.h) | Sparse symmetric eigensolver — Lanczos with growing-m outer loop, shift-invert mode, Ritz pairs |
 | [`sparse_vector.h`](include/sparse_vector.h) | Dense vector utilities (norms, axpy, dot product) |
@@ -255,7 +255,7 @@ int main(void)
 
 **Solving linear systems:**
 - `sparse_lu_factor(mat, pivot, tol)` — in-place LU decomposition
-- `sparse_lu_factor_opts(mat, &opts)` — LU with optional fill-reducing reordering (RCM/AMD)
+- `sparse_lu_factor_opts(mat, &opts)` — LU with optional fill-reducing reordering (RCM/AMD/ND)
 - `sparse_lu_solve(mat, b, x)` — solve using factored matrix (auto-unpermutes if reordered)
 - `sparse_lu_condest(A, LU, &cond)` — estimate 1-norm condition number from LU factors
 - `sparse_lu_refine(A, LU, b, x, max_iters, tol)` — iterative refinement
@@ -271,12 +271,12 @@ int main(void)
 
 **Cholesky (SPD matrices):**
 - `sparse_cholesky_factor(mat)` — in-place A = L·L^T
-- `sparse_cholesky_factor_opts(mat, &opts)` — with optional AMD/RCM reordering
+- `sparse_cholesky_factor_opts(mat, &opts)` — with optional AMD/RCM/ND reordering
 - `sparse_cholesky_solve(mat, b, x)` — solve using Cholesky factors
 
 **LDL^T (symmetric indefinite matrices):**
 - `sparse_ldlt_factor(A, &ldlt)` — P·A·P^T = L·D·L^T with Bunch-Kaufman 1x1/2x2 pivoting
-- `sparse_ldlt_factor_opts(A, &opts, &ldlt)` — with optional AMD/RCM fill-reducing reordering
+- `sparse_ldlt_factor_opts(A, &opts, &ldlt)` — with optional AMD/RCM/ND fill-reducing reordering
 - `sparse_ldlt_solve(&ldlt, b, x)` — solve using LDL^T factors (auto-unpermutes)
 - `sparse_ldlt_inertia(&ldlt, &pos, &neg, &zero)` — eigenvalue sign count from D blocks
 - `sparse_ldlt_refine(A, &ldlt, b, x, max_iters, tol)` — iterative refinement
@@ -349,6 +349,7 @@ int main(void)
 **Fill-reducing reordering:**
 - `sparse_reorder_rcm(A, perm)` — Reverse Cuthill-McKee ordering
 - `sparse_reorder_amd(A, perm)` — Approximate Minimum Degree ordering
+- `sparse_reorder_nd(A, perm)` — Nested Dissection (multilevel vertex-separator); best on 2D / 3D PDE meshes
 - `sparse_permute(A, row_perm, col_perm, &B)` — apply permutation
 - `sparse_bandwidth(A)` — compute matrix bandwidth
 
@@ -605,7 +606,7 @@ linalg_sparse_orthogonal/
 │   ├── sparse_dense.h        Dense utilities, Givens, eigensolvers
 │   ├── sparse_bidiag.h       Householder bidiagonalization
 │   ├── sparse_csr.h          CSR/CSC conversion
-│   ├── sparse_reorder.h      Fill-reducing reordering (RCM, AMD, COLAMD)
+│   ├── sparse_reorder.h      Fill-reducing reordering (RCM, AMD, ND, COLAMD)
 │   ├── sparse_svd.h          SVD, condition number, pseudoinverse, low-rank
 │   └── sparse_vector.h       Dense vector utilities
 ├── src/                  Library implementation (15 source files, ~10K lines)

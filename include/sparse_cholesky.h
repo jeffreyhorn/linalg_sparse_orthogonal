@@ -87,7 +87,9 @@ typedef enum {
  * if the caller does not need this telemetry.
  */
 typedef struct {
-    sparse_reorder_t reorder;      /**< Fill-reducing reordering (NONE, RCM, or AMD) */
+    sparse_reorder_t reorder;      /**< Fill-reducing reordering (NONE, RCM, AMD, or ND —
+                                        ND is best on 2D / 3D PDE meshes, see
+                                        sparse_reorder.h) */
     sparse_chol_backend_t backend; /**< AUTO dispatches by size; LINKED_LIST / CSC force a path */
     int *used_csc_path;            /**< Optional output: set to 1 if CSC ran, 0 if linked-list */
 } sparse_cholesky_opts_t;

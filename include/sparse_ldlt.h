@@ -130,7 +130,9 @@ typedef enum {
  * Pass NULL if the caller does not need this telemetry.
  */
 typedef struct {
-    sparse_reorder_t reorder;      /**< Fill-reducing reordering (NONE, RCM, or AMD) */
+    sparse_reorder_t reorder;      /**< Fill-reducing reordering (NONE, RCM, AMD, or ND —
+                                        ND is best on 2D / 3D PDE meshes, see
+                                        sparse_reorder.h) */
     double tol;                    /**< Pivot tolerance for singularity detection and
                                         fill-in drop threshold. 0 or negative for the
                                         compile-time default (SPARSE_DROP_TOL).

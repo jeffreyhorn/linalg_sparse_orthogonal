@@ -5,22 +5,25 @@
  * @file sparse_reorder.h
  * @brief Fill-reducing reordering algorithms for sparse matrices.
  *
- * Provides three ordering algorithms:
+ * Provides four ordering algorithms:
  * - **RCM** (Reverse Cuthill-McKee): bandwidth reduction for banded systems.
  *   Symmetric permutation, square matrices only.
  * - **AMD** (Approximate Minimum Degree): symmetric fill reduction for
  *   Cholesky/LDL^T/LU. Symmetric permutation, square matrices only.
+ * - **ND** (Nested Dissection): symmetric fill reduction via recursive
+ *   multilevel vertex-separator partitioning, best on 2D / 3D PDE
+ *   meshes. Symmetric permutation, square matrices only.
  * - **COLAMD** (Column Approximate Minimum Degree): column fill reduction
  *   for unsymmetric/QR problems. Column permutation, handles rectangular
  *   matrices.
  *
- * RCM and AMD compute symmetric permutations (P*A*P^T). COLAMD computes
- * a column-only permutation suitable for QR or column-pivoted LU.
+ * RCM, AMD, and ND compute symmetric permutations (P*A*P^T). COLAMD
+ * computes a column-only permutation suitable for QR or column-pivoted LU.
  *
- * **Symmetric reordering (RCM/AMD) — square matrices:**
+ * **Symmetric reordering (RCM/AMD/ND) — square matrices:**
  * @code
  *   idx_t *perm = malloc(n * sizeof(idx_t));
- *   sparse_reorder_amd(A, perm);            // or sparse_reorder_rcm
+ *   sparse_reorder_amd(A, perm);            // or sparse_reorder_rcm / sparse_reorder_nd
  *   SparseMatrix *PA;
  *   sparse_permute(A, perm, perm, &PA);     // symmetric: same perm for rows+cols
  * @endcode
@@ -62,10 +65,49 @@ sparse_err_t sparse_reorder_rcm(const SparseMatrix *A, idx_t *perm);
  * @brief Compute an Approximate Minimum Degree ordering.
  *
  * Minimum-degree ordering on the symmetrized adjacency graph (A + A^T),
- * implemented with bitset adjacency. At each step, eliminates the node with
- * the smallest degree (exact, via popcount), merges its neighbors' adjacency
- * sets to model fill-in, and updates degrees. Generally produces better
- * fill-in reduction than RCM for unstructured matrices, at higher cost.
+ * implemented with a quotient-graph adjacency representation
+ * (Amestoy/Davis/Duff 2004; SuiteSparse AMD).  At each step, eliminates
+ * the node with the smallest degree, merges its neighbours' adjacency
+ * sets to model fill-in, and updates degrees.  Workspace starts at
+ * `≈ 5·nnz + 6·n + 1` integer entries and grows on demand via
+ * compaction-then-realloc when fill-in pushes adjacency sizes past
+ * that initial bound.  The initial allocation is a soft target — not
+ * a hard cap — so peak workspace can exceed it on dense fill, but
+ * remains far below the previous bitset implementation's O(n²/64)
+ * footprint.  In practice this means AMD now scales to large
+ * structurally regular fixtures (n ≥ 50 000) without paying the
+ * bitset's quadratic memory penalty.
+ *
+ * Generally produces better fill-in reduction than RCM for
+ * unstructured matrices, at higher CPU cost.
+ *
+ * @param A       Input matrix (must be square, not modified).
+ * @param[out] perm  Permutation array of length n. On output, perm[new_i] = old_i.
+ *                   Must be pre-allocated by the caller.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if A or perm is NULL.
+ * @return SPARSE_ERR_SHAPE if A is not square.
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails (or if the
+ *         requested workspace size cannot be represented safely).
+ * @return SPARSE_ERR_BADARG if the elimination loop's invariant is
+ *         violated; asserts in debug builds, returns under NDEBUG.
+ */
+sparse_err_t sparse_reorder_amd(const SparseMatrix *A, idx_t *perm);
+
+/**
+ * @brief Compute a Nested Dissection (ND) ordering.
+ *
+ * Recursive multilevel partitioner: bisect the symmetric adjacency
+ * graph into two halves separated by a small vertex separator, order
+ * each half recursively, then append the separator vertices last.
+ * This "separator-last" rule is what gives ND its fill-reducing
+ * power on regular meshes — the separator vertices are the only ones
+ * that connect the two halves, so they don't induce fill between
+ * halves during Cholesky / LDL^T elimination.
+ *
+ * Best on 2D / 3D PDE meshes (Pres_Poisson, structural-mechanics
+ * grids); on irregular sparsity AMD is often comparable or better.
+ * Symmetric permutation, square matrices only.
  *
  * @param A       Input matrix (must be square, not modified).
  * @param[out] perm  Permutation array of length n. On output, perm[new_i] = old_i.
@@ -75,7 +117,7 @@ sparse_err_t sparse_reorder_rcm(const SparseMatrix *A, idx_t *perm);
  * @return SPARSE_ERR_SHAPE if A is not square.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
  */
-sparse_err_t sparse_reorder_amd(const SparseMatrix *A, idx_t *perm);
+sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm);
 
 /**
  * @brief Compute a Column Approximate Minimum Degree (COLAMD) ordering.

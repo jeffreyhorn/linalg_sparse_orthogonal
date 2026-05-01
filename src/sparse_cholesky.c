@@ -233,6 +233,9 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
         case SPARSE_REORDER_AMD:
             err = sparse_reorder_amd(mat, perm);
             break;
+        case SPARSE_REORDER_ND:
+            err = sparse_reorder_nd(mat, perm);
+            break;
         default:
             free(perm);
             return SPARSE_ERR_BADARG;

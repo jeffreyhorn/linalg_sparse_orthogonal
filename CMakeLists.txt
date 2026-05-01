@@ -72,6 +72,9 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_chol_csc.c
     src/sparse_ldlt_csc.c
     src/sparse_eigs.c
+    src/sparse_graph.c
+    src/sparse_reorder_nd.c
+    src/sparse_reorder_amd_qg.c
 )
 
 # Optional OpenMP support for parallel SpMV: cmake -DSPARSE_OPENMP=ON ..
@@ -169,6 +172,9 @@ add_sparse_test(test_sprint20_integration)
 add_sparse_test(test_eigs)
 add_sparse_test(test_eigs_thick_restart)
 add_sparse_test(test_eigs_lobpcg)
+add_sparse_test(test_graph)
+add_sparse_test(test_reorder_nd)
+add_sparse_test(test_reorder_amd_qg)
 
 # Benchmarks (not part of ctest)
 add_executable(bench_main benchmarks/bench_main.c)
@@ -206,6 +212,14 @@ target_include_directories(bench_refactor_csc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR
 
 add_executable(bench_eigs benchmarks/bench_eigs.c)
 target_link_libraries(bench_eigs PRIVATE sparse_lu_ortho)
+
+add_executable(bench_reorder benchmarks/bench_reorder.c)
+target_link_libraries(bench_reorder PRIVATE sparse_lu_ortho)
+target_include_directories(bench_reorder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+add_executable(bench_amd_qg benchmarks/bench_amd_qg.c)
+target_link_libraries(bench_amd_qg PRIVATE sparse_lu_ortho)
+target_include_directories(bench_amd_qg PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
 # Example programs (not part of ctest)
 add_executable(example_ldlt examples/example_ldlt.c)

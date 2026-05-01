@@ -1,0 +1,131 @@
+Sprint 22 Day 14 — final cross-ordering capture
+================================================
+
+Closing-day re-run of `benchmarks/bench_reorder.c` against the
+SuiteSparse corpus the eigensolver work has been stressing
+(`tests/data/suitesparse/*.mtx`).  Identical driver to Day 9 but
+with three sprint-internal changes already merged on the path
+between them:
+
+  - Day 6 / 8: `SPARSE_REORDER_ND` is now a real ordering with
+    enum-dispatch through every factorization's analysis phase;
+    the Day 9 capture already exercised it via the public path.
+  - Day 9: `ND_BASE_THRESHOLD` was retuned 4 → 32 (this run uses
+    the new default).
+  - Day 12: `sparse_reorder_amd` now delegates to the quotient-
+    graph implementation (`sparse_reorder_amd_qg`) instead of the
+    deleted bitset.  Day 13 confirmed bit-identical fill across
+    the corpus, so the AMD `nnz(L)` row matches Day 9 exactly.
+
+Numbers below are from a single run on macOS x86_64 (Apple Clang,
+-O2).  CSV form lives next door at `bench_day14.csv`.
+
+Cross-ordering capture (ND_BASE_THRESHOLD = 32)
+-----------------------------------------------
+
+  matrix         n      reorder  nnz_L      reorder_ms
+  ────────────  ─────  ───────  ─────────  ──────────
+  nos4            100  NONE          805         0.0
+  nos4            100  RCM           888         0.1
+  nos4            100  AMD           637         0.2
+  nos4            100  COLAMD        778         0.3
+  nos4            100  ND          1 091        76.7
+  bcsstk04        132  NONE        3 763         0.0
+  bcsstk04        132  RCM         3 633         0.6
+  bcsstk04        132  AMD         3 143         1.8
+  bcsstk04        132  COLAMD      3 622         2.4
+  bcsstk04        132  ND          3 683       400.1
+  Kuu           7 102  NONE    2 993 061         0.0
+  Kuu           7 102  RCM     1 024 794        51.2
+  Kuu           7 102  AMD       406 264       468.9
+  Kuu           7 102  COLAMD    830 665     3 456.5
+  Kuu           7 102  ND        943 463    19 713.2
+  bcsstk14      1 806  NONE      190 791         0.0
+  bcsstk14      1 806  RCM       178 311        16.6
+  bcsstk14      1 806  AMD       116 071       181.6
+  bcsstk14      1 806  COLAMD    146 037       258.2
+  bcsstk14      1 806  ND        140 024     4 702.6
+  s3rmt3m3      5 357  NONE    2 208 972         0.0
+  s3rmt3m3      5 357  RCM       636 993        50.2
+  s3rmt3m3      5 357  AMD       474 609     1 120.9
+  s3rmt3m3      5 357  COLAMD    607 647     1 726.6
+  s3rmt3m3      5 357  ND        481 904    13 514.1
+  Pres_Poisson 14 822  NONE    5 061 932         0.0
+  Pres_Poisson 14 822  RCM     3 187 081       202.9
+  Pres_Poisson 14 822  AMD     2 668 793    12 209.3
+  Pres_Poisson 14 822  COLAMD  3 415 793    20 040.7
+  Pres_Poisson 14 822  ND      2 837 046    43 754.9
+
+Day 14 vs Day 9 delta
+---------------------
+
+The bitset → quotient-graph swap is the only material change since
+Day 9; everything else's code path is unchanged.  Confirming:
+
+  - **NONE / RCM / COLAMD / ND nnz_L**: bit-identical across both
+    runs.  Reorder times vary within ~1.5× run-to-run noise on
+    this fixture set; nothing structural moved.
+  - **AMD nnz_L**: bit-identical across all six fixtures (Day 13
+    confirmed 1.000× parity from the parallel-comparison bench).
+  - **AMD reorder_ms**: noisier than Day 9 — the quotient-graph
+    implementation does sorted-merge with a malloc'd intermediate
+    buffer per pivot, where the bitset was bit-twiddling against
+    a pre-allocated word array.  Day 13's standalone bench
+    measured the qg implementation at 0.7-1.8× of the bitset on
+    SPD corpus matrices and 4-7× faster on synthetic banded
+    fixtures (n ≥ 5 000).  Day 14's numbers above are within that
+    band.
+
+Memory savings (the headline of the swap) live in
+`bench_day13_amd_qg.txt`.  Recap: banded_20000 shows the bitset
+adding 24.88 MB above the qg implementation's already-set peak
+(analytic ratio ≥ 17×); banded_50000 analytic ratio ~26×.  Plan
+target ≥ 4× cleared by a wide margin.
+
+ND-vs-AMD on Pres_Poisson — deferred
+------------------------------------
+
+The Sprint 22 plan's Day 14 completion criterion asks for
+"ND beats AMD by ≥ 2× nnz(L) on Pres_Poisson".  The Day 14
+numbers above show ND = 2 837 046 and AMD = 2 668 793 — ratio
+1.06, with AMD slightly *better*.  This is the same delta visible
+on Days 7 and 9; the closure is deferred to Sprint 23 along the
+two contributing axes the Day 9 bench already called out:
+
+  1. ND's natural-ordering base case at the recursion leaves —
+     adequate for separator-last to dominate fill at the upper
+     levels but well below AMD's minimum-degree quality at the
+     leaves themselves.  Day 12 swapped the production
+     `sparse_reorder_amd` to the quotient-graph implementation
+     (so re-using AMD inside ND's leaves is now cheap), but the
+     ND driver still emits leaf vertices in subgraph-local order.
+     Closing this requires `nd_recurse` to call the new
+     `sparse_reorder_amd_qg` on each leaf-sized subgraph and
+     splice the per-leaf permutation into the global one.
+
+  2. The simplified quotient-graph AMD itself — the Sprint 22
+     implementation skips supervariable detection / element
+     absorption / approximate-degree updates that the SuiteSparse
+     reference uses.  Pres_Poisson is a 2D-PDE mesh where those
+     three mechanisms are the bulk of the wall-time and fill-
+     quality win on the reference; their absence accounts for
+     most of the gap to METIS-AMD on this fixture.
+
+The Sprint 22 retrospective inherits this from Day 9 unchanged —
+flagging it again here because it is also the Day 14 completion
+criterion that Sprint 22 doesn't hit.
+
+Final headline
+--------------
+
+  - 6 fixtures × 5 orderings = 30 rows captured (the Day 14 plan
+    asked for 6 × 4 = 24 with NONE excluded; we kept NONE for
+    parity with Day 9 and as a baseline).
+  - AMD memory bound moved from O(n²/64) to O(nnz) per Day 12;
+    Day 13 measured ≥ 17× reduction at n = 20 000.
+  - ND now lives behind `SPARSE_REORDER_ND` and routes through
+    every factorization's analysis dispatch; fill quality is
+    competitive with AMD on regular grids (10×10 grid = 1.22×,
+    Pres_Poisson = 1.06×) but doesn't beat it.  Sprint 23
+    follow-up: have ND call quotient-graph AMD at the leaves
+    + ship the full Davis-style AMD with supervariables.

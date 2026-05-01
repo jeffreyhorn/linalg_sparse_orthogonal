@@ -46,7 +46,9 @@
  */
 typedef struct {
     sparse_pivot_t pivot;     /**< Pivoting strategy */
-    sparse_reorder_t reorder; /**< Fill-reducing reordering (NONE, RCM, or AMD) */
+    sparse_reorder_t reorder; /**< Fill-reducing reordering (NONE, RCM, AMD, or ND —
+                                   ND is best on 2D / 3D PDE meshes, see
+                                   sparse_reorder.h) */
     double tol;               /**< Pivot tolerance */
 } sparse_lu_opts_t;
 

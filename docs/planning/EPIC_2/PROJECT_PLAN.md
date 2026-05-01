@@ -1,4 +1,4 @@
-# Project Plan: linalg_sparse_orthogonal -- Sprints 11-23 (Epic 2)
+# Project Plan: linalg_sparse_orthogonal -- Sprints 11-24 (Epic 2)
 
 Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) and Claude review (`reviews/review-claude-2026-04-06.md`).
 
@@ -419,9 +419,9 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ---
 
-## Sprint 22: Ordering Upgrades — Nested Dissection & Quotient-Graph AMD
+## Sprint 22: Ordering Upgrades — Nested Dissection & Quotient-Graph AMD — **Complete**
 
-**Duration:** 14 days (~124 hours)
+**Duration:** 14 days (~124 hours estimated; actual ~134 hours per the SPRINT_22/PLAN.md day budgets)
 
 **Goal:** Upgrade the ordering stack with nested dissection for large 2D/3D PDE meshes and replace the bitset-based AMD with a quotient-graph implementation for O(nnz) memory, removing the current scaling bottleneck on large matrices.
 
@@ -433,25 +433,70 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ### Items
 
-| # | Item | Description | Estimate |
-|---|------|-------------|----------|
-| 1 | Graph partitioning | Implement a vertex separator algorithm for sparse graphs (multilevel bisection or spectral partitioning). This is the core building block for nested dissection. | 32 hrs |
-| 2 | Nested dissection ordering | Implement recursive nested dissection: partition the graph, order interior nodes of each partition first, then separator nodes. Produces fill-reducing orderings superior to AMD for 2D/3D PDE meshes. Depends on item 1. | 28 hrs |
-| 3 | Add SPARSE_REORDER_ND to enum | Wire nested dissection into the existing reorder infrastructure (mirroring the Sprint 15 COLAMD enum extension). Benchmark against AMD/RCM on large SuiteSparse matrices. Depends on item 2. | 12 hrs |
-| 4 | Quotient-graph AMD | Replace the current bitset-based AMD (O(n^3/64) time, O(n^2/64) memory) with a quotient-graph implementation that operates in O(nnz) memory. Removes the current scaling bottleneck for AMD on large matrices. | 32 hrs |
-| 5 | Tests and benchmarks | Test nested dissection on 2D/3D mesh matrices (fill-in comparison across orderings). Benchmark AMD (quotient-graph) vs AMD (bitset) on large matrices. Capture numbers in `PERF_NOTES.md` and `docs/planning/EPIC_2/SPRINT_22/bench_day14.txt`. | 20 hrs |
+| # | Item | Status | Description |
+|---|------|--------|-------------|
+| 1 | Graph partitioning | ✅ Days 1-5 | `src/sparse_graph.c` ships `sparse_graph_t`, heavy-edge-matching coarsening hierarchy, brute-force / GGGP coarsest bisection, single-pass FM refinement with rollback-on-regress, uncoarsening + smaller-side vertex-separator extraction.  `sparse_graph_partition` produces a 3-way `{0, 1, 2}` partition; deterministic on seed.  Validated on the SuiteSparse smoke (bcsstk14 28 ms, Pres_Poisson 1.3 s — Day 5 capture). |
+| 2 | Nested dissection ordering | ✅ Days 6-7 | `src/sparse_reorder_nd.c` recursive `nd_recurse` + public `sparse_reorder_nd`.  Day 6 `ND_BASE_THRESHOLD = 4` (provisional); Day 9 retuned to 32 from the bench sweep.  10×10 grid lands at 1.22× AMD's nnz(L); Pres_Poisson 1.06× of AMD — short of the plan's 0.5× target.  See `### Deferred` below. |
+| 3 | Add SPARSE_REORDER_ND to enum | ✅ Day 8 | `SPARSE_REORDER_ND = 4` added to `include/sparse_types.h`.  Dispatch wired through `sparse_analyze` + per-factorization `*_factor_opts` in `cholesky` / `ldlt` / `lu` / `qr`.  Public-header doxygen + README updated.  Cholesky / LU / LDL^T residuals on bcsstk14 / nos4 / bcsstk04 verified ≤ 1e-8 via the enum dispatch (`tests/test_reorder_nd.c`). |
+| 4 | Quotient-graph AMD | ✅ Days 10-12 | `src/sparse_reorder_amd_qg.c` ships the simplified Davis-style quotient-graph minimum-degree (single workspace, sorted-merge, on-demand compaction + realloc).  Day 12 deleted the bitset implementation entirely (Option A).  Bit-identical fill across the corpus.  10 000×10 000 banded stress-test factor in 0.24 s (plan target ≤ 5 s). |
+| 5 | Tests and benchmarks | ✅ Days 9, 13, 14 | `benchmarks/bench_reorder.c` Day 9 cross-ordering + threshold sweep capture; `benchmarks/bench_amd_qg.c` Day 13 AMD bitset-vs-qg bench (≥ 17× memory reduction at n = 20 000, analytic ~26× at n = 50 000); Day 14 final cross-ordering re-run.  All captures in `docs/planning/EPIC_2/SPRINT_22/`. |
 
-### Deliverables
+### Deferred to a future sprint
 
-- `sparse_reorder_nd()` nested dissection ordering exposed through `SPARSE_REORDER_ND`
-- Quotient-graph AMD replacing bitset AMD for O(nnz) memory usage
-- Ordering benchmarks on large matrices (fill-in, memory, time) with fill-in comparison across AMD / RCM / COLAMD / ND
+- ND fill ratio on Pres_Poisson currently 1.06× of AMD; plan target was 0.5× (≥ 2× reduction over AMD).  Two contributing axes both deferred to Sprint 23: (a) ND's recursion leaves emit subgraph-local order rather than calling `sparse_reorder_amd_qg` per leaf — should drop 5-15 % on regular grids; (b) the simplified quotient-graph AMD doesn't have supervariable detection / element absorption / approximate-degree updates from the SuiteSparse reference, which is most of what closes the AMD-vs-METIS-AMD gap on PDE meshes.
+- ND wall time on Pres_Poisson is ~5× AMD's (~38 s before Day 9 retune; ~24 s after), driven by the naïve O(n) max-gain scan in `graph_refine_fm`.  METIS uses an O(1) gain-bucket structure; porting that is a Sprint 23 perf item.
+- The Sprint 22 quotient-graph AMD wins on n ≥ 5 000 banded fixtures (4-7× wall-time speedup over the deleted bitset) but loses ~30 % on n ≤ 1 800 SPD corpus matrices — the bitset's bit-twiddling beats sorted-merge intermediates on small inputs.  Closing this would require porting Davis's full algorithm; see Day 13's "what's left for Sprint 23" note in `PERF_NOTES.md`.
 
-**Total estimate:** ~124 hours
+### Deliverables (status)
+
+- ✅ `sparse_reorder_nd()` nested dissection ordering exposed through `SPARSE_REORDER_ND` (Days 6, 8)
+- ✅ Quotient-graph AMD replacing bitset AMD; production swap with the bitset deleted (Day 12)
+- ✅ Ordering benchmarks on large matrices in `bench_day9_nd.{csv,txt}`, `bench_day13_amd_qg.{csv,txt}`, `bench_day14.{csv,txt}`; fill-in comparison across AMD / RCM / COLAMD / ND in all three captures + `PERF_NOTES.md`
+
+**Total estimate:** ~124 hours; actual ~134 hours per the day budgets in `SPRINT_22/PLAN.md` (within the 14×12 = 168-hour ceiling).  See `docs/planning/EPIC_2/SPRINT_22/RETROSPECTIVE.md` for metrics, lessons, and DoD verification.
 
 ---
 
-## Sprint 23: SVD Improvements, Eigenpair Refinement, Progress Callbacks, CI Hardening & Epic 2 Wrap-Up
+## Sprint 23: Ordering Quality Follow-Ups (Sprint 22 deferrals)
+
+**Duration:** 14 days (~88 hours estimated)
+
+**Goal:** Close the two quality gaps Sprint 22 deferred — ND's fill ratio on Pres_Poisson (1.06× of AMD's nnz(L); the Sprint 22 plan's "≥ 2× reduction over AMD" target is unmet) and the simplified quotient-graph AMD's wall-time tail on small SPD corpus matrices (currently ~30 % bitset-favoured at n ≤ 1 800).  Two algorithmic fronts — bring `sparse_reorder_amd_qg` up to the full Davis 2006 reference algorithm (supervariable detection + element absorption + approximate-degree updates), and port METIS's O(1) gain-bucket structure into `graph_refine_fm` to lift FM from O(n²) to O(|E|) per pass.  Adds the per-leaf AMD call inside `nd_recurse` that the Sprint 22 ND driver doesn't yet make, and swaps the `Cholesky-via-ND` residual test fixture for one whose conditioning lets the Sprint 22 plan's 1e-12 residual target become assertable.
+
+### Prerequisites from previous Sprints
+
+- Sprint 22 item 4: existing simplified quotient-graph AMD in `src/sparse_reorder_amd_qg.c` — items 2 and 3 below extend this in place rather than rewriting.
+- Sprint 22 item 1: existing single-pass FM in `src/sparse_graph.c` (`graph_refine_fm`) — item 5 swaps the gain-pick data structure.
+- Sprint 22 item 2: existing `nd_recurse` in `src/sparse_reorder_nd.c` — item 4 lands the per-leaf AMD call alongside the existing natural-ordering fallback.
+- Sprint 22 Day 13's `benchmarks/bench_amd_qg.c` — item 6 re-runs the same driver post-items-2-5 to quantify the closure.
+
+### Items
+
+| # | Item | Description | Estimate |
+|---|------|-------------|----------|
+| 1 | Cholesky-via-ND residual test SPD fixture swap | Replace bcsstk14 in `test_cholesky_via_nd_residual_bcsstk14` (in `tests/test_reorder_nd.c`) with a strictly diagonally-dominant synthetic SPD fixture so the Sprint 22 plan's 1e-12 residual target becomes assertable.  The 1e-8 threshold currently in the test was a Sprint-22 fixture-conditioning workaround; bcsstk14's structural-mechanics provenance amplifies roundoff and the residual ratio gets buried in the conditioning rather than telling us about the ND ordering quality. | 4 hrs |
+| 2 | Quotient-graph AMD: element absorption + supervariable detection | Extend `src/sparse_reorder_amd_qg.c` with the two big mechanisms the Sprint 22 simplification skipped.  Element absorption: when a vertex's adjacency reduces to a single element `e`, the vertex is absorbed into `e` and its workspace slot is reclaimed by the next compaction.  Supervariable detection: variables with identical adjacency hash (and full compare on hash collision) are merged into a single supervariable; the minimum-degree pivot then operates on supervariables rather than individual variables, shrinking the active set 5-20× on PDE-like matrices.  Same workspace layout as Sprint 22; the new state lives in two extra slices of `iw[]` (`super[]` / `elen[]` per Davis 2006 §7).  Validate against the existing `tests/test_reorder_amd_qg.c` parity tests on nos4 / bcsstk04 / bcsstk14 — fill should stay within Sprint 22's 1.000× bitset parity. | 24 hrs |
+| 3 | Quotient-graph AMD: approximate-degree update | Replace the current exact-degree recompute with Davis's approximate degree formula `d_approx(i) = |adj(i, V)| + Σ_e |adj(e, V) \ {pivot}|` plus the dense-row skip from Davis 2006 §7 (vertices whose post-pivot degree exceeds `10·√n` skip the update).  Cuts per-pivot cost from O(adjacency) to O(adjacency-of-adjacency).  Depends on item 2 (the formula reads element adjacency lists that element absorption populates).  Adds new tests in `tests/test_reorder_amd_qg.c` that pin the approximate-degree formula's output against an exact-degree reference on a small synthetic. | 12 hrs |
+| 4 | ND recursion leaves call quotient-graph AMD | Replace `nd_emit_natural`'s leaf-base-case behaviour in `nd_recurse`: at `n ≤ ND_BASE_THRESHOLD`, build a temporary `SparseMatrix` from the leaf subgraph, call `sparse_reorder_amd_qg` on it, splice the per-leaf permutation into the global `perm[]` via the existing `vertex_id_map`.  Sprint 22 Day 12 made the per-leaf AMD cheap; this item just has the ND driver use it.  Re-validate on the 10×10-grid fill test in `tests/test_reorder_nd.c`; the 1.5× looseness Sprint 22 settled on should now tighten. | 12 hrs |
+| 5 | FM gain-bucket structure | Replace the O(n) max-gain scan in `graph_refine_fm` with a bucket array indexed by gain value (Davis 2006 §7 / METIS reference).  Each bucket is a doubly-linked list of vertex IDs at that gain; an O(1) find-max scans down from the highest non-empty bucket cursor that only ever moves down.  Gain updates become O(1) bucket-move (remove from old bucket, insert at new).  Lifts FM from O(n²) per pass (Sprint 22's max-gain scan dominates ND wall time on Pres_Poisson) to O(|E|) per pass.  Independent of items 2-4 — the bucket structure is local to `graph_refine_fm`. | 16 hrs |
+| 6 | Cross-corpus re-bench post-items-2-5 | Re-run `benchmarks/bench_reorder.c` (cross-ordering capture) and `benchmarks/bench_amd_qg.c` (the bitset comparison foil from Sprint 22 Day 13 — unchanged here) after the algorithmic upgrades land.  Capture to `docs/planning/EPIC_2/SPRINT_23/bench_day{N}.{csv,txt}`.  Verify (a) ND/AMD on Pres_Poisson now hits ≤ 0.7× (relax from the Sprint 22 plan's 0.5× target — full closure to 0.5× may still need multi-pass FM, which is also on this sprint's list if there's budget); (b) qg-AMD wall time on bcsstk14 / n=1806 is now ≤ the Sprint 22 bitset baseline; (c) the bench_day14.txt nnz(L) row stays bit-identical or improves. | 8 hrs |
+| 7 | Tests + docs + retrospective stub | New tests in `tests/test_reorder_amd_qg.c` for supervariable detection (synthetic fixture with known supervariables → assert merged-set sizes) and approximate-degree updates (parity check vs an exact-degree reference on a small synthetic).  Update `docs/algorithm.md`'s AMD subsection to describe the now-full Davis algorithm.  Append a "Sprint 23 closures" subsection to `docs/planning/EPIC_2/SPRINT_22/PERF_NOTES.md` with the re-bench numbers from item 6.  Stub `docs/planning/EPIC_2/SPRINT_23/RETROSPECTIVE.md` with the same eight-section structure as Sprint 22's retro. | 12 hrs |
+
+### Deliverables
+
+- Quotient-graph AMD upgraded to the full Davis 2006 reference algorithm (element absorption + supervariable detection + approximate-degree updates)
+- ND recursion leaves consume the new AMD per-leaf instead of falling back to natural-order
+- `graph_refine_fm` runs at O(|E|) per pass via the METIS gain-bucket structure
+- Cross-corpus re-bench captures (`SPRINT_23/bench_*.{csv,txt}`) quantifying the closures vs Sprint 22's `bench_day14.txt` baseline
+- `docs/algorithm.md` AMD subsection rewritten to describe the full Davis algorithm
+- `SPRINT_22/PERF_NOTES.md` extended with a Sprint-23-closures subsection
+- `SPRINT_23/RETROSPECTIVE.md` stubbed for the post-sprint write-up
+
+**Total estimate:** ~88 hours.
+
+---
+
+## Sprint 24: SVD Improvements, Eigenpair Refinement, Progress Callbacks, CI Hardening & Epic 2 Wrap-Up
 
 **Duration:** 14 days (~160 hours)
 
@@ -460,7 +505,7 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 ### Prerequisites from previous Sprints
 
 - Sprint 11: CMake/Makefile parity and generated version header — the Windows/macOS CI jobs rely on this.
-- Sprints 11–22: all Epic 2 numeric, eigensolver, and ordering features complete — needed for the final regression pass, cross-feature integration tests, and README/retrospective sweep.
+- Sprints 11–23: all Epic 2 numeric, eigensolver, and ordering features complete (Sprint 22 ordering stack + Sprint 23 ordering-quality follow-ups) — needed for the final regression pass, cross-feature integration tests, and README/retrospective sweep.
 - Sprint 17 / 18: existing SVD paths and low-rank accumulator whose dense intermediate item 1 replaces.
 - Sprint 20: `sparse_eigs_sym` Lanczos output + shift-invert path through `sparse_ldlt_factor_opts` AUTO dispatch — item 3 layers an inverse-iteration refinement post-pass on the returned eigenpairs and reuses the same factored shift to drive the inner solves.
 - Sprint 21: LOBPCG backend and the shared `sparse_eigs_t` result struct — item 3's refinement post-pass operates on the same `(λ_i, v_i)` array regardless of which backend produced it.
@@ -508,7 +553,8 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 | 19 | CSC Kernel Tuning & Native Supernodal LDL^T | Analyze-once bench, small-matrix threshold study, scalar-CSC Kuu regression fix, native supernodal LDL^T, LDL^T row-adjacency index | 168 hrs |
 | 20 | LDL^T Completion & Symmetric Lanczos — **Complete** | `ldlt_csc_from_sparse_with_analysis`, transparent `sparse_ldlt_factor_opts` dispatch, Lanczos + shift-invert eigensolver | 136 hrs (~125 actual) |
 | 21 | Eigensolver Completion — Thick-Restart, OpenMP & LOBPCG — **Complete** | Wu/Simon thick-restart, OpenMP reorth, LOBPCG, permanent `bench_eigs` | 124 hrs (~133 actual) |
-| 22 | Ordering Upgrades — Nested Dissection & Quotient-Graph AMD | Graph partitioning + nested dissection, quotient-graph AMD | 124 hrs |
-| 23 | SVD, Progress Callbacks, Eigenpair Refinement, CI & Wrap-Up | Sparse low-rank fix, full SVD, eigenpair iterative refinement, progress/cancel callbacks, Windows/macOS CI, retrospective | 160 hrs |
+| 22 | Ordering Upgrades — Nested Dissection & Quotient-Graph AMD — **Complete** | Graph partitioning + nested dissection, quotient-graph AMD | 124 hrs (~134 actual) |
+| 23 | Ordering Quality Follow-Ups (Sprint 22 deferrals) | Full Davis-style quotient-graph AMD (supervariables / element absorption / approximate-degree), O(1) FM gain buckets, ND leaves call AMD, Cholesky-via-ND test SPD fixture swap | 88 hrs |
+| 24 | SVD, Progress Callbacks, Eigenpair Refinement, CI & Wrap-Up | Sparse low-rank fix, full SVD, eigenpair iterative refinement, progress/cancel callbacks, Windows/macOS CI, retrospective | 160 hrs |
 
-**Total Epic 2 estimate:** ~1,786 hours across 13 sprints (~179 days)
+**Total Epic 2 estimate:** ~1,874 hours across 14 sprints (~187 days)

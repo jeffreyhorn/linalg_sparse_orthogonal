@@ -74,22 +74,27 @@ typedef enum {
 /**
  * @brief Reordering strategy for fill-reducing permutation.
  *
- * RCM and AMD compute symmetric permutations (P*A*P^T) for square matrices,
- * reducing fill-in during LU/Cholesky/LDL^T factorization. COLAMD computes
- * a column-only permutation for unsymmetric/rectangular matrices, reducing
- * fill in QR or column-pivoted LU.
+ * RCM, AMD, and ND compute symmetric permutations (P*A*P^T) for
+ * square matrices, reducing fill-in during LU/Cholesky/LDL^T
+ * factorization. COLAMD computes a column-only permutation for
+ * unsymmetric/rectangular matrices, reducing fill in QR or
+ * column-pivoted LU.
  *
  * - NONE: natural ordering (no reordering)
  * - RCM: Reverse Cuthill-McKee — BFS-based bandwidth reduction. Square only.
  * - AMD: Approximate Minimum Degree — symmetric fill reduction. Square only.
  * - COLAMD: Column Approximate Minimum Degree — column fill reduction for
  *   unsymmetric/QR problems. Handles rectangular matrices.
+ * - ND: Nested Dissection — multilevel vertex-separator ordering.
+ *   Best on 2D / 3D PDE meshes; on irregular sparsity AMD is often
+ *   comparable.  Square only.
  */
 typedef enum {
     SPARSE_REORDER_NONE = 0,   /**< No reordering (natural order) */
     SPARSE_REORDER_RCM = 1,    /**< Reverse Cuthill-McKee ordering */
     SPARSE_REORDER_AMD = 2,    /**< Approximate Minimum Degree ordering */
     SPARSE_REORDER_COLAMD = 3, /**< Column Approximate Minimum Degree ordering */
+    SPARSE_REORDER_ND = 4,     /**< Nested Dissection (multilevel vertex separator) ordering */
 } sparse_reorder_t;
 
 /**

@@ -71,6 +71,8 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
              * API is built around symmetric permutations. For column-only
              * application, use sparse_qr_factor_opts with COLAMD instead. */
             err = sparse_reorder_colamd(A, analysis->perm);
+        } else if (reorder == SPARSE_REORDER_ND) {
+            err = sparse_reorder_nd(A, analysis->perm);
         } else {
             sparse_analysis_free(analysis);
             return SPARSE_ERR_BADARG;

@@ -451,17 +451,48 @@ static double max_abs(const double *v, idx_t n) {
     return m;
 }
 
-static void test_cholesky_via_nd_residual_bcsstk14(void) {
-    /* Day 8: route ND through the `opts.reorder = SPARSE_REORDER_ND`
-     * enum directly (replaces the Day 7 manual bridge).  Compares the
-     * residual ||A·x − b||_∞ against the AMD path; both should be
-     * small and within an order of magnitude of each other. */
-    SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
-    if (rc != SPARSE_OK) {
-        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
-        return;
+/* Build a strictly diagonally-dominant synthetic SPD fixture for the
+ * Cholesky-via-ND residual test.  Sprint 22 used bcsstk14 here, but
+ * its structural-mechanics provenance amplifies roundoff and the
+ * residual ratio gets buried in the conditioning rather than telling
+ * us about the ND ordering quality — Sprint 22 ended up relaxing the
+ * residual threshold from the plan's 1e-12 to 1e-8 to accommodate it.
+ *
+ * Construction: 256×256 banded matrix, bandwidth 8.  Diagonals set
+ * to 100.0, off-diagonals to 0.5.  Each row has at most 17 nonzeros
+ * (1 diagonal + 8 above + 8 below).  Strict diagonal dominance:
+ * |A[i][i]| = 100 ≫ 16 × 0.5 = 8 = Σ |A[i][j]| over j ≠ i — far
+ * stronger than the 100/8 = 12.5 rough condition-number bound.  The
+ * matrix is symmetric and SPD by Gershgorin.  Sprint 23 Day 1
+ * residual target: 1e-12 (the original Sprint 22 plan figure).
+ *
+ * INSERT_OR_FAIL is the project-local helper that frees A and
+ * returns NULL on insert failure (defined earlier in this file). */
+static SparseMatrix *make_spd_synth(idx_t n, idx_t bandwidth) {
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++) {
+        INSERT_OR_FAIL(A, i, i, 100.0);
+        for (idx_t k = 1; k <= bandwidth; k++) {
+            if (i + k < n) {
+                INSERT_OR_FAIL(A, i, i + k, 0.5);
+                INSERT_OR_FAIL(A, i + k, i, 0.5);
+            }
+        }
     }
+    return A;
+}
+
+static void test_cholesky_via_nd_residual_spd_synth(void) {
+    /* Sprint 23 Day 1: replace the Sprint-22 bcsstk14 fixture with a
+     * strictly diagonally-dominant synthetic SPD so the Sprint 22
+     * plan's 1e-12 residual target becomes assertable.  The headline
+     * is that ND and AMD both produce small residuals on a
+     * well-conditioned matrix; bcsstk14's conditioning was the
+     * obstacle, not the ordering. */
+    SparseMatrix *A = make_spd_synth(256, 8);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     idx_t n = sparse_rows(A);
 
     double *x_amd = malloc((size_t)n * sizeof(double));
@@ -470,8 +501,7 @@ static void test_cholesky_via_nd_residual_bcsstk14(void) {
     double *resid = malloc((size_t)n * sizeof(double));
     /* Fail-fast on alloc — ASSERT_NOT_NULL is non-fatal in this test
      * framework, so without an early return the subsequent code
-     * would dereference NULL.  Free everything we did allocate
-     * (including A) on the unhappy path so the test exits cleanly. */
+     * would dereference NULL. */
     if (!x_amd || !x_nd || !b || !resid) {
         free(x_amd);
         free(x_nd);
@@ -486,10 +516,6 @@ static void test_cholesky_via_nd_residual_bcsstk14(void) {
 
     /* AMD path. */
     SparseMatrix *L_amd = sparse_copy(A);
-    /* Fail-fast — ASSERT_NOT_NULL is non-fatal, so without the
-     * early-return the subsequent sparse_cholesky_factor_opts call
-     * would receive a NULL matrix and crash.  Free everything we
-     * own before bailing. */
     if (!L_amd) {
         free(x_amd);
         free(x_nd);
@@ -530,14 +556,14 @@ static void test_cholesky_via_nd_residual_bcsstk14(void) {
         resid[i] -= b[i];
     double r_nd = max_abs(resid, n);
 
-    printf("    bcsstk14 Cholesky residual: ||Ax-b||_inf AMD=%.2e, ND=%.2e\n", r_amd, r_nd);
+    printf("    SPD synth (n=%d, bw=8) Cholesky residual: ||Ax-b||_inf AMD=%.2e, ND=%.2e\n", (int)n,
+           r_amd, r_nd);
 
-    /* bcsstk14 is moderately ill-conditioned; both residuals should
-     * be small but not 1e-12.  Assert the looser 1e-8 bound; the
-     * headline is that ND and AMD agree on residual quality
-     * (within an order of magnitude). */
-    ASSERT_TRUE(r_amd < 1e-8);
-    ASSERT_TRUE(r_nd < 1e-8);
+    /* SPD synthetic: diagonally dominant by 12.5×, residual should be
+     * deep in float64 unit-roundoff territory.  Sprint 23 Day 1
+     * restores the 1e-12 target the Sprint 22 plan called for. */
+    ASSERT_TRUE(r_amd < 1e-12);
+    ASSERT_TRUE(r_nd < 1e-12);
     ASSERT_TRUE(r_nd < 100.0 * r_amd);
     ASSERT_TRUE(r_amd < 100.0 * r_nd);
 
@@ -674,7 +700,7 @@ int main(void) {
     RUN_TEST(test_nd_bcsstk14_fill_vs_amd);
     RUN_TEST(test_nd_pres_poisson_fill);
     RUN_TEST(test_nd_determinism_public_api);
-    RUN_TEST(test_cholesky_via_nd_residual_bcsstk14);
+    RUN_TEST(test_cholesky_via_nd_residual_spd_synth);
 
     /* Day 8: enum dispatch on each factorization. */
     RUN_TEST(test_lu_via_nd_dispatch);

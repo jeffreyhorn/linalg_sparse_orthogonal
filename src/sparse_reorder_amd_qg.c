@@ -159,6 +159,62 @@
  * compare both against AMD-reference numbers; Sprint 23 may revisit
  * if the reference-AMD gap turns out to dominate factor wall time on
  * larger fixtures.
+ *
+ * ─── Sprint 23 plan (Days 2-6): full Davis 2006 algorithm ──────────────
+ *
+ * Sprint 23 closes the four mechanisms Sprint 22's simplification
+ * skipped.  Reference: `docs/planning/EPIC_2/SPRINT_23/davis_notes.md`
+ * (in-tree design rationale citing book page numbers + algorithm
+ * lines).  Workspace + per-vertex state evolves as follows:
+ *
+ *   Day 2: Extend `qg_t` with `elen[]` (per-vertex element-side
+ *          adjacency count) and grow initial `iw_size` from
+ *          `5·nnz + 6·n + 1` to `7·nnz + 8·n + 1` (Davis §7's
+ *          reference size — buffers the elements-side region).  No
+ *          algorithmic change yet; bit-identical fill.
+ *   Day 3: Element absorption.  When pivot `p` eliminates, form a
+ *          new element `e` (reusing `p`'s slot — Davis's
+ *          index-recycling convention) and append `e` to each
+ *          neighbour's element-side adjacency.  Variables whose
+ *          variable-side adjacency reduces to zero get marked
+ *          absorbed; compaction reclaims their slots.
+ *   Day 4: Supervariable detection.  Hash signature
+ *          `sum_{v in adj(i)} v` per Davis §7.4; bucket by hash,
+ *          full compare on hash collision.  Merged supervariables
+ *          eliminate together at the next pivot.
+ *   Day 5: Approximate-degree formula
+ *          `d_approx(i) = |adj_var(i, V \ p)| + |L_p \ {i}|
+ *                       + Σ_{e in adj_elem(i) \ L_p}
+ *                              |adj(e, V \ p) \ adj(i)|`
+ *          (Davis §7.5).  Replaces the Sprint-22 exact recompute.
+ *          Conservative bound (`d_approx >= d_exact`) is the test-
+ *          side contract Day 6 pins.  Vertices whose post-pivot
+ *          `d_approx > 10·√n` skip the update entirely (dense-row
+ *          escape).
+ *
+ * ─── Sprint 23 iw[] layout (post-Day-2) ────────────────────────────────
+ *
+ * Each variable `i` owns a contiguous slice of `iw[]` of length
+ * `len[i]`.  The slice is split into two regions:
+ *
+ *     iw[xadj[i] ..                   xadj[i] + len[i] - elen[i] - 1]
+ *         variable-side adjacency (active variable IDs)
+ *     iw[xadj[i] + len[i] - elen[i] .. xadj[i] + len[i] - 1]
+ *         element-side adjacency (element IDs from earlier pivots)
+ *
+ * At init `elen[i] = 0` for every variable — the entire slice is
+ * variable-side, matching the Sprint-22 representation byte-for-byte.
+ * As pivots eliminate, the elements-side suffix grows; compaction
+ * preserves the split (each relocated slice keeps its variable-prefix
+ * + element-suffix structure intact via a single memmove of length
+ * `len[i]`, since the two regions are contiguous).
+ *
+ * `super[]` and `super_size[]` (added Day 4) live alongside `xadj[]`
+ * etc as length-`n` per-vertex arrays — *not* inside `iw[]`.  The
+ * supervariable representative for vertex `i` is `super[i]`; the
+ * count of variables in a supervariable is `super_size[rep]` (only
+ * meaningful when `rep == super[rep]`).  The minimum-degree pivot
+ * scan iterates over representatives only.
  */
 
 /* ─── Quotient-graph workspace ─────────────────────────────────────────
@@ -170,18 +226,19 @@
  * rewritten the new list is appended at `iw[iw_used..]` and `xadj[i]`
  * updated; the old slots become garbage that compaction reclaims.
  *
- * Workspace layout:
+ * Workspace layout (Sprint 22 — Days 2-3 of Sprint 23 add `elen[]` and
+ * extend the iw[] split documented above):
  *   iw       length iw_size (grows on demand)
  *   xadj     length n
  *   len      length n
  *   deg      length n
  *   elim     length n  (one byte per vertex)
  *
- * Initial `iw_size` is `5·nnz + 6·n + 1` (Davis 2006 §7), which
- * accommodates ~5× fill before the first compaction.  All adjacency
- * lists are kept sorted ascending so the merge step is a linear
- * two-pointer scan with the dedup / filter step inline; no separate
- * scratch buffer is needed.
+ * Initial `iw_size` is `5·nnz + 6·n + 1` (Davis 2006 §7 simplified
+ * form), which accommodates ~5× fill before the first compaction.
+ * All adjacency lists are kept sorted ascending so the merge step is
+ * a linear two-pointer scan with the dedup / filter step inline; no
+ * separate scratch buffer is needed.
  */
 typedef struct {
     idx_t *iw;

@@ -36,6 +36,7 @@
 #include "sparse_graph_internal.h"
 #include "sparse_matrix.h"
 #include "sparse_reorder.h"
+#include "sparse_reorder_amd_qg_internal.h"
 #include "sparse_reorder_nd_internal.h"
 #include "sparse_types.h"
 
@@ -64,8 +65,9 @@
 idx_t sparse_reorder_nd_base_threshold = 32;
 
 /* Append `n` vertices from a subgraph to the global permutation in
- * the order they appear in `vertex_id_map`.  Used by both the leaf
- * (n ≤ ND_BASE_THRESHOLD) and the degenerate-partition fallbacks. */
+ * the order they appear in `vertex_id_map`.  Used by the
+ * degenerate-partition fallback and by the leaf-AMD path's
+ * fallback when sparse_reorder_amd_qg fails on a leaf. */
 static void nd_emit_natural(const idx_t *vertex_id_map, idx_t n, idx_t *perm, idx_t *next_pos) {
     /* The caller guarantees `perm` has space for at least `*next_pos + n`
      * entries (the recursion's invariant — each subgraph's vertices fit
@@ -75,6 +77,41 @@ static void nd_emit_natural(const idx_t *vertex_id_map, idx_t n, idx_t *perm, id
         // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.uninitialized.Assign)
         perm[*next_pos + i] = vertex_id_map[i];
     *next_pos += n;
+}
+
+/* Sprint 23 Day 7: build a temporary `SparseMatrix` from a leaf
+ * subgraph's CSR adjacency for `sparse_reorder_amd_qg` to consume.
+ *
+ * AMD reads only the *symbolic* structure — the numeric values
+ * never matter — so each adjacency edge becomes a `value=1.0`
+ * entry, with `value=1.0` on the diagonal too (AMD ignores
+ * diagonal but `sparse_reorder_amd_qg` works on the symmetric
+ * pattern of A + A^T; including the diagonal is harmless and
+ * keeps the matrix structurally well-formed for downstream
+ * sanity checks).
+ *
+ * Returns NULL on allocation failure or insert failure (caller
+ * falls back to natural ordering for that leaf). */
+static SparseMatrix *nd_subgraph_to_sparse(const sparse_graph_t *G_leaf) {
+    idx_t n = G_leaf->n;
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++) {
+        if (sparse_insert(A, i, i, 1.0) != SPARSE_OK)
+            goto fail;
+        idx_t row_start = G_leaf->xadj[i];
+        idx_t row_end = G_leaf->xadj[i + 1];
+        for (idx_t k = row_start; k < row_end; k++) {
+            idx_t j = G_leaf->adjncy[k];
+            if (sparse_insert(A, i, j, 1.0) != SPARSE_OK)
+                goto fail;
+        }
+    }
+    return A;
+fail:
+    sparse_free(A);
+    return NULL;
 }
 
 /* The driver is genuinely recursive — each level descends two
@@ -98,9 +135,46 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
         return SPARSE_OK;
     }
 
-    /* Small-subgraph base case → natural ordering. */
+    /* Sprint 23 Day 7: small-subgraph base case → quotient-graph
+     * AMD on the leaf subgraph, splice the per-leaf permutation
+     * into the global perm[] via vertex_id_map.  Replaces Sprint
+     * 22's natural-ordering base case — gives the leaves
+     * minimum-degree quality without burning the partitioner's
+     * coarsening cost on subgraphs too small for separator-last
+     * to amortise.
+     *
+     * On allocation / AMD failure: fall back to natural ordering
+     * for this leaf and continue.  The caller doesn't see a
+     * failure — fill quality may be slightly worse for that one
+     * subgraph but the overall ND ordering still completes. */
     if (n <= sparse_reorder_nd_base_threshold) {
-        nd_emit_natural(vertex_id_map, n, perm, next_pos);
+        SparseMatrix *A_leaf = nd_subgraph_to_sparse(G);
+        if (!A_leaf) {
+            nd_emit_natural(vertex_id_map, n, perm, next_pos);
+            return SPARSE_OK;
+        }
+        idx_t *leaf_perm = malloc((size_t)n * sizeof(idx_t));
+        if (!leaf_perm) {
+            sparse_free(A_leaf);
+            nd_emit_natural(vertex_id_map, n, perm, next_pos);
+            return SPARSE_OK;
+        }
+        sparse_err_t leaf_rc = sparse_reorder_amd_qg(A_leaf, leaf_perm);
+        if (leaf_rc != SPARSE_OK) {
+            free(leaf_perm);
+            sparse_free(A_leaf);
+            nd_emit_natural(vertex_id_map, n, perm, next_pos);
+            return SPARSE_OK;
+        }
+        /* Splice the leaf-local permutation through vertex_id_map
+         * to write global root-graph IDs into perm[]. */
+        for (idx_t i = 0; i < n; i++) {
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.uninitialized.Assign)
+            perm[*next_pos + i] = vertex_id_map[leaf_perm[i]];
+        }
+        *next_pos += n;
+        free(leaf_perm);
+        sparse_free(A_leaf);
         return SPARSE_OK;
     }
 

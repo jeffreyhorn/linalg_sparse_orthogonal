@@ -170,6 +170,52 @@ The default production path uses exact recompute (matching Sprint
 22 fill bit-identically).  The framework + parity test land for
 Sprint 24's external-degree extension to plug into.
 
+### Day-6 measurement: bcsstk14 wall time (probe)
+
+| Mode                                         | Full test suite | Notes                              |
+| -------------------------------------------- | --------------: | ---------------------------------- |
+| Default (exact-degree)                       |       11.84 s   | Sprint 22 baseline behaviour       |
+| `SPARSE_QG_USE_APPROX_DEG=1`                 |       57.51 s   | Davis approx-degree (this commit)  |
+
+The USE_APPROX run is 4.9× slower than exact-default for the full
+test suite, contradicting the Sprint 23 plan's "expected ~2×
+speedup (Days 2-5 cumulative)" claim.  Root cause: both formulas
+have the same per-pivot complexity (walk variable-side + walk
+each element's variable-set), but the approximate formula's
+looseness produces a worse pivot order which cascades into more
+fill which means more iw[] entries to walk on subsequent pivots.
+Net wall-time is *worse*, not better.
+
+The plan's wall-time win presumed the approximate formula would
+match exact's fill quality (within "few percent") so the per-pivot
+saving would translate to total savings.  Without external-degree
+tracking (Davis §7.5.1, deferred), the textbook formula's
+coarser pivot order erases the per-pivot saving.
+
+### Day-6 measurement: cap-fire counts
+
+The `cap_fired` probe (added Day 6) counts firings of the
+`d > qg->n` cap inside `qg_compute_deg_approx`.  Across the
+existing test suite:
+
+```
+nos4 (n=100, exact prod):       cap_fired=0   (cap path inactive)
+bcsstk04 (n=132, exact prod):   cap_fired=0
+bcsstk14 (n=1806, exact prod):  cap_fired=0
+50-vert  (n=50, VERIFY only):   cap_fired=83  (approx side runs alongside exact)
+200-vert (n=200, USE_APPROX):   cap_fired=0   (approx-driven elimination)
+hub      (n=200, USE_APPROX):   cap_fired=0   (approx-driven elimination)
+```
+
+The cap fires on the 50-vertex random graph (sparsified random
+edges) when running as a parity-check alongside exact-driven
+elimination.  Under USE_APPROX (approx drives the elimination),
+the cap doesn't fire on these synthetic fixtures — likely
+because approx-driven elimination follows different pivots that
+don't accumulate the cross-element overlap needed to push d > n.
+The cap remains a defensive guard against the qg_pick_min_deg
+sentinel constraint rather than a frequently-exercised path.
+
 ### Day-5 measurement: fill regression on PDE meshes
 
 Switching `qg_eliminate` from exact-degree recompute to Davis's

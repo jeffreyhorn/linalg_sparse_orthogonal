@@ -269,6 +269,12 @@ typedef struct {
                     * Probes element-absorption's workspace flattening — without
                     * absorption iw_used grows steadily through elimination;
                     * with absorption it plateaus once the active set shrinks. */
+    /* Day 6: count of qg_compute_deg_approx invocations where the
+     * unbounded approximate value exceeded `n` and got clamped to
+     * `qg->n`.  Probe-only (no algorithmic effect beyond the cap
+     * itself); a dense-row fixture should make this fire at least
+     * once, validating the cap path. */
+    idx_t cap_fired_count;
     idx_t *xadj;
     idx_t *len;
     idx_t *elen; /* Day 2: per-vertex element-side adjacency count. */
@@ -372,6 +378,7 @@ static sparse_err_t qg_init(qg_t *qg, idx_t n, const idx_t *adj_ptr, const idx_t
     qg->iw_size = iw_size;
     qg->iw_used = nnz;
     qg->iw_peak = nnz;
+    qg->cap_fired_count = 0;
     qg->iw = malloc((size_t)iw_size * sizeof(idx_t));
     qg->xadj = malloc((size_t)n * sizeof(idx_t));
     qg->len = malloc((size_t)n * sizeof(idx_t));
@@ -698,9 +705,12 @@ static idx_t qg_compute_deg_approx(qg_t *qg, idx_t u) {
      * cross-element overcounting can push d above that.  qg_pick_min_deg's
      * sentinel `best_deg = n+1` requires deg <= n; without the cap, all
      * active vertices can land above the sentinel and qg_pick_min_deg
-     * returns -1 mid-elimination (assertion failure). */
-    if (d > qg->n)
+     * returns -1 mid-elimination (assertion failure).  Track cap firings
+     * via `cap_fired_count` so dense-row tests can verify the path. */
+    if (d > qg->n) {
         d = qg->n;
+        qg->cap_fired_count++;
+    }
     return d;
 }
 
@@ -1059,12 +1069,6 @@ static sparse_err_t qg_eliminate(qg_t *qg, idx_t p) {
             }
         }
         assert(k == e_count);
-    } else {
-        /* Even when e_count == 0, restore deg_mark for any entries
-         * we may have touched (defensive — e_count == 0 here means
-         * the touched-list is also empty). */
-        for (idx_t i = 0; i < e_count; i++)
-            qg->deg_mark[qg->touched[i]] = 0;
     }
 
     /* --- Step 2-3: Reserve workspace for e's adjacency + write it ---
@@ -1286,9 +1290,11 @@ sparse_err_t sparse_reorder_amd_qg(const SparseMatrix *A, idx_t *perm) {
      * active set; off in production.  No allocation cost when the
      * env var is unset (single getenv call). */
     if (getenv("SPARSE_QG_PROBE")) {
-        fprintf(stderr, "qg-probe n=%d iw_peak=%d iw_size=%d absorbed=%d (%.1f%% of n)\n", (int)n,
-                (int)qg.iw_peak, (int)qg.iw_size, (int)qg.absorbed_count,
-                100.0 * (double)qg.absorbed_count / (double)n);
+        fprintf(stderr,
+                "qg-probe n=%d iw_peak=%d iw_size=%d absorbed=%d (%.1f%% of n) "
+                "cap_fired=%d\n",
+                (int)n, (int)qg.iw_peak, (int)qg.iw_size, (int)qg.absorbed_count,
+                100.0 * (double)qg.absorbed_count / (double)n, (int)qg.cap_fired_count);
     }
 
     qg_free(&qg);

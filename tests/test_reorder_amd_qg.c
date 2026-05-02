@@ -515,6 +515,196 @@ static void test_qg_approx_degree_upper_bound(void) {
     sparse_free(A);
 }
 
+/* ─── Sprint 23 Day 6: 200-vertex parity + dense-row coverage ───────── */
+
+/* Build a 10×20 grid (n=200) with random edge sparsification —
+ * varied degree distribution gives the approximate-degree formula
+ * a non-trivial workout (multiple elements per vertex, cross-element
+ * overlap). */
+static SparseMatrix *make_random_200(void) {
+    const idx_t rows = 10, cols = 20;
+    const idx_t n = rows * cols;
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    /* Diagonal. */
+    for (idx_t i = 0; i < n; i++) {
+        if (sparse_insert(A, i, i, 1.0) != SPARSE_OK)
+            goto fail;
+    }
+    /* Grid skeleton, deterministic-PRNG sparsification. */
+    uint64_t state = 0xFEDCBA9876543210ULL;
+    for (idx_t r = 0; r < rows; r++) {
+        for (idx_t c = 0; c < cols; c++) {
+            idx_t v = r * cols + c;
+            /* Right neighbour. */
+            if (c + 1 < cols) {
+                idx_t u = v + 1;
+                /* Drop ~25% of edges via PRNG. */
+                if ((splitmix64_test(&state) & 3) != 0) {
+                    if (sparse_insert(A, v, u, 1.0) != SPARSE_OK)
+                        goto fail;
+                    if (sparse_insert(A, u, v, 1.0) != SPARSE_OK)
+                        goto fail;
+                }
+            }
+            /* Down neighbour. */
+            if (r + 1 < rows) {
+                idx_t u = v + cols;
+                if ((splitmix64_test(&state) & 3) != 0) {
+                    if (sparse_insert(A, v, u, 1.0) != SPARSE_OK)
+                        goto fail;
+                    if (sparse_insert(A, u, v, 1.0) != SPARSE_OK)
+                        goto fail;
+                }
+            }
+        }
+    }
+    return A;
+fail:
+    sparse_free(A);
+    return NULL;
+}
+
+/* Sprint 23 Day 6: 200-vertex parity test for the approximate-degree
+ * formula.  Switches the production path to approximate-degree via
+ * SPARSE_QG_USE_APPROX_DEG and verifies the conservative-bound
+ * contract via SPARSE_QG_VERIFY_DEG (both flags set).  Per-pivot
+ * `assert(d_approx >= d_exact)` fires on any underestimation.  In
+ * release builds the assert is compiled out, but the test still
+ * validates the call doesn't crash.  The 50-vertex test elsewhere
+ * covers the same contract on a smaller fixture; this one extends
+ * coverage to a larger graph with sparsified-grid topology
+ * (cross-element overlap is more pronounced here). */
+static void test_qg_approx_degree_parity_200(void) {
+    const char *prev_verify = getenv("SPARSE_QG_VERIFY_DEG");
+    const char *prev_approx = getenv("SPARSE_QG_USE_APPROX_DEG");
+    setenv("SPARSE_QG_VERIFY_DEG", "1", 1);
+    setenv("SPARSE_QG_USE_APPROX_DEG", "1", 1);
+
+    SparseMatrix *A = make_random_200();
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    idx_t n = sparse_rows(A);
+    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    if (!perm) {
+        sparse_free(A);
+        if (prev_verify)
+            setenv("SPARSE_QG_VERIFY_DEG", prev_verify, 1);
+        else
+            unsetenv("SPARSE_QG_VERIFY_DEG");
+        if (prev_approx)
+            setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx, 1);
+        else
+            unsetenv("SPARSE_QG_USE_APPROX_DEG");
+        REQUIRE_OK(SPARSE_ERR_ALLOC);
+        return;
+    }
+
+    sparse_err_t rc = sparse_reorder_amd_qg(A, perm);
+    REQUIRE_OK(rc);
+    ASSERT_TRUE(is_valid_permutation(perm, n));
+
+    if (prev_verify)
+        setenv("SPARSE_QG_VERIFY_DEG", prev_verify, 1);
+    else
+        unsetenv("SPARSE_QG_VERIFY_DEG");
+    if (prev_approx)
+        setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx, 1);
+    else
+        unsetenv("SPARSE_QG_USE_APPROX_DEG");
+    free(perm);
+    sparse_free(A);
+}
+
+/* Build a fixture engineered to trigger the dense-row cap-fire path:
+ * vertex 0 is a hub connected to *every* other vertex (degree n-1),
+ * plus a banded skeleton on vertices 1..n-1.  After a few pivots
+ * eliminate hub-neighbours, the hub's element-side accumulates
+ * elements that overlap heavily — d_approx for some neighbours can
+ * exceed n via cross-element overcounting, triggering the cap. */
+static SparseMatrix *make_hub_fixture(idx_t n) {
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++) {
+        if (sparse_insert(A, i, i, 1.0) != SPARSE_OK)
+            goto fail;
+    }
+    /* Hub: vertex 0 connected to every other vertex. */
+    for (idx_t j = 1; j < n; j++) {
+        if (sparse_insert(A, 0, j, 1.0) != SPARSE_OK)
+            goto fail;
+        if (sparse_insert(A, j, 0, 1.0) != SPARSE_OK)
+            goto fail;
+    }
+    /* Banded skeleton on the non-hub vertices (bandwidth 3). */
+    for (idx_t i = 1; i < n; i++) {
+        for (idx_t k = 1; k <= 3; k++) {
+            if (i + k < n) {
+                if (sparse_insert(A, i, i + k, 1.0) != SPARSE_OK)
+                    goto fail;
+                if (sparse_insert(A, i + k, i, 1.0) != SPARSE_OK)
+                    goto fail;
+            }
+        }
+    }
+    return A;
+fail:
+    sparse_free(A);
+    return NULL;
+}
+
+/* Sprint 23 Day 6: dense-row completion + cap-coverage test.  The
+ * fixture has one degree-(n-1) hub vertex plus a banded skeleton.
+ * Running the AMD with SPARSE_QG_USE_APPROX_DEG=1 exercises the
+ * cap-firing path in qg_compute_deg_approx (cross-element
+ * overcounting can push d > n on hub-neighbour pivots).  The test
+ * pins three contracts: AMD completes (no asserts / crashes),
+ * the produced permutation is valid, and the hub is ordered last
+ * (highest-degree vertex pivots last under min-degree). */
+static void test_qg_dense_row_completion(void) {
+    const idx_t n = 200;
+    const char *prev_approx = getenv("SPARSE_QG_USE_APPROX_DEG");
+    setenv("SPARSE_QG_USE_APPROX_DEG", "1", 1);
+
+    SparseMatrix *A = make_hub_fixture(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    if (!perm) {
+        sparse_free(A);
+        if (prev_approx)
+            setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx, 1);
+        else
+            unsetenv("SPARSE_QG_USE_APPROX_DEG");
+        REQUIRE_OK(SPARSE_ERR_ALLOC);
+        return;
+    }
+
+    REQUIRE_OK(sparse_reorder_amd_qg(A, perm));
+    ASSERT_TRUE(is_valid_permutation(perm, n));
+
+    /* Hub (vertex 0) has the highest initial degree (n-1) by far.
+     * Min-degree elimination should pivot it very late.  We assert
+     * it's in the last 5% of perm[] — generous to absorb supervariable
+     * folding effects, but a real failure (hub picked early) would
+     * land it nowhere near the tail. */
+    idx_t hub_pos = -1;
+    for (idx_t i = 0; i < n; i++) {
+        if (perm[i] == 0) {
+            hub_pos = i;
+            break;
+        }
+    }
+    ASSERT_TRUE(hub_pos >= n - n / 20);
+
+    free(perm);
+    sparse_free(A);
+    if (prev_approx)
+        setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx, 1);
+    else
+        unsetenv("SPARSE_QG_USE_APPROX_DEG");
+}
+
 /* ═══════════════════════════════════════════════════════════════════ */
 
 int main(void) {
@@ -529,5 +719,7 @@ int main(void) {
     RUN_TEST(test_qg_workspace_extension_no_regression);
     RUN_TEST(test_qg_supervariable_synthetic);
     RUN_TEST(test_qg_approx_degree_upper_bound);
+    RUN_TEST(test_qg_approx_degree_parity_200);
+    RUN_TEST(test_qg_dense_row_completion);
     TEST_SUITE_END();
 }

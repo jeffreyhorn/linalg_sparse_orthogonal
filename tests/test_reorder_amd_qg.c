@@ -327,10 +327,101 @@ static void test_qg_workspace_extension_no_regression(void) {
     sparse_free(A);
 }
 
+/* ─── Sprint 23 Day 4: supervariable detection ──────────────────────── */
+
+/* Build a star fixture: vertex 0 is the centre, vertices 1..k are
+ * leaves connected only to the centre.  After the centre is
+ * eliminated, the k leaves all have identical adjacency (empty
+ * variable-side, single-element element-side = {0}).  They form a
+ * single supervariable and co-eliminate in one pivot step.
+ *
+ * The "absorbed" probe should report k-1 entries (= leaves
+ * co-eliminated alongside the supervariable representative).  The
+ * resulting permutation must contain the centre (0) followed by
+ * the k leaves in ID order in some contiguous block. */
+static SparseMatrix *make_star_n(idx_t k) {
+    /* n = 1 (centre) + k (leaves). */
+    SparseMatrix *A = sparse_create(k + 1, k + 1);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < k + 1; i++) {
+        if (sparse_insert(A, i, i, 1.0) != SPARSE_OK)
+            goto fail;
+    }
+    /* Centre is vertex 0; leaves are 1..k. */
+    for (idx_t i = 1; i <= k; i++) {
+        if (sparse_insert(A, 0, i, 1.0) != SPARSE_OK)
+            goto fail;
+        if (sparse_insert(A, i, 0, 1.0) != SPARSE_OK)
+            goto fail;
+    }
+    return A;
+fail:
+    sparse_free(A);
+    return NULL;
+}
+
+static void test_qg_supervariable_synthetic(void) {
+    const idx_t k = 4; /* 4 leaves */
+    SparseMatrix *A = make_star_n(k);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    idx_t n = sparse_rows(A); /* k + 1 */
+
+    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    if (!perm) {
+        sparse_free(A);
+        REQUIRE_OK(SPARSE_ERR_ALLOC);
+        return;
+    }
+
+    REQUIRE_OK(sparse_reorder_amd_qg(A, perm));
+    ASSERT_TRUE(is_valid_permutation(perm, n));
+
+    /* The centre (vertex 0) has the largest degree (k); each leaf
+     * has degree 1.  Min-degree picks a leaf first.  After ANY one
+     * leaf eliminates, the centre's degree is k-1, and the
+     * remaining leaves now have an empty variable-side + a single-
+     * element element-side, so they should be detected as a
+     * supervariable on the next pivot — co-eliminating en masse.
+     *
+     * What we can pin deterministically: the four leaves (1..4)
+     * appear contiguously in `perm[]` — once the supervariable is
+     * detected, all members co-eliminate with their representative.
+     * The centre (0) appears at the very end. */
+    idx_t centre_pos = -1;
+    for (idx_t i = 0; i < n; i++) {
+        if (perm[i] == 0) {
+            centre_pos = i;
+            break;
+        }
+    }
+    ASSERT_EQ(centre_pos, n - 1);
+
+    /* Find the first and last leaf positions; they must be
+     * contiguous (after the supervariable forms, the leaves
+     * co-eliminate as one unit). */
+    idx_t first_leaf = n, last_leaf = 0;
+    for (idx_t i = 0; i < n; i++) {
+        if (perm[i] >= 1 && perm[i] <= k) {
+            if (i < first_leaf)
+                first_leaf = i;
+            if (i > last_leaf)
+                last_leaf = i;
+        }
+    }
+    ASSERT_EQ(last_leaf - first_leaf + 1, k);
+
+    printf("    star (n=%d, %d leaves): perm centre at %d, leaves contiguous at [%d..%d]\n", (int)n,
+           (int)k, (int)centre_pos, (int)first_leaf, (int)last_leaf);
+
+    free(perm);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════ */
 
 int main(void) {
-    TEST_SUITE_BEGIN("Sprint 22 Days 11-12 + Sprint 23 Day 2: quotient-graph AMD");
+    TEST_SUITE_BEGIN("Sprint 22 Days 11-12 + Sprint 23 Days 2-4: quotient-graph AMD");
     RUN_TEST(test_amd_qg_null_args);
     RUN_TEST(test_amd_qg_rejects_rectangular);
     RUN_TEST(test_amd_qg_singleton);
@@ -339,5 +430,6 @@ int main(void) {
     RUN_TEST(test_amd_qg_delegation_bcsstk14);
     RUN_TEST(test_amd_stress_10k_banded);
     RUN_TEST(test_qg_workspace_extension_no_regression);
+    RUN_TEST(test_qg_supervariable_synthetic);
     TEST_SUITE_END();
 }

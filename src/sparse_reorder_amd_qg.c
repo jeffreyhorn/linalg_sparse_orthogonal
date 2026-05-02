@@ -276,12 +276,30 @@ typedef struct {
     char *absorbed; /* Day 3: 1 if vertex was absorbed into an element. */
     char *deg_mark; /* Day 3: scratch bitmap for deg recompute (cleared via `touched[]`). */
     idx_t *touched; /* Day 3: touched-list (entries written to deg_mark). */
-    /* Day 3: monotonic list of absorbed-vertex IDs in the order they
-     * were absorbed.  The driver reads the slice
-     * `absorbed_list[prev_count, absorbed_count)` after each pivot
-     * and appends those vertices to `perm[]` right after the pivot. */
+    /* Day 3: monotonic list of vertex IDs that go into perm[] right
+     * after a pivot but without their own qg_pick_min_deg step.
+     * Used for both Davis-style absorption (variable-side empty +
+     * one-element element-side) and Day-4 supervariable
+     * co-elimination (members of the pivot's supervariable that
+     * aren't the representative).  The driver reads the slice
+     * `absorbed_list[prev_count, absorbed_count)` after each pivot. */
     idx_t *absorbed_list;
     idx_t absorbed_count;
+    /* Day 4: supervariable structure.  `super[i]` is the
+     * representative ID of i's supervariable; initially `super[i] =
+     * i` (every vertex is its own supervariable).  When variables i
+     * and j are merged, `super[j] = i` (or vice versa); only the
+     * representative satisfies `super[i] == i` and is visible to
+     * `qg_pick_min_deg`.
+     *
+     * Members are linked in a singly-linked list per supervariable:
+     * `super_first[rep]` is the head, `super_next[m]` is the next
+     * member, -1 marks list end.  `super_size[rep]` is the member
+     * count (only meaningful for representatives). */
+    idx_t *super;
+    idx_t *super_first;
+    idx_t *super_next;
+    idx_t *super_size;
     idx_t n;
 } qg_t;
 
@@ -298,6 +316,10 @@ static void qg_free(qg_t *qg) {
     free(qg->deg_mark);
     free(qg->touched);
     free(qg->absorbed_list);
+    free(qg->super);
+    free(qg->super_first);
+    free(qg->super_next);
+    free(qg->super_size);
     qg->iw = NULL;
     qg->xadj = NULL;
     qg->len = NULL;
@@ -309,6 +331,10 @@ static void qg_free(qg_t *qg) {
     qg->touched = NULL;
     qg->absorbed_list = NULL;
     qg->absorbed_count = 0;
+    qg->super = NULL;
+    qg->super_first = NULL;
+    qg->super_next = NULL;
+    qg->super_size = NULL;
     qg->iw_size = 0;
     qg->iw_used = 0;
     qg->n = 0;
@@ -364,8 +390,14 @@ static sparse_err_t qg_init(qg_t *qg, idx_t n, const idx_t *adj_ptr, const idx_t
     qg->touched = malloc((size_t)n * sizeof(idx_t));
     qg->absorbed_list = malloc((size_t)n * sizeof(idx_t));
     qg->absorbed_count = 0;
+    /* Day 4: each vertex starts as its own (singleton) supervariable. */
+    qg->super = malloc((size_t)n * sizeof(idx_t));
+    qg->super_first = malloc((size_t)n * sizeof(idx_t));
+    qg->super_next = malloc((size_t)n * sizeof(idx_t));
+    qg->super_size = malloc((size_t)n * sizeof(idx_t));
     if (!qg->iw || !qg->xadj || !qg->len || !qg->elen || !qg->deg || !qg->elim || !qg->absorbed ||
-        !qg->deg_mark || !qg->touched || !qg->absorbed_list) {
+        !qg->deg_mark || !qg->touched || !qg->absorbed_list || !qg->super || !qg->super_first ||
+        !qg->super_next || !qg->super_size) {
         qg_free(qg);
         return SPARSE_ERR_ALLOC;
     }
@@ -375,6 +407,10 @@ static sparse_err_t qg_init(qg_t *qg, idx_t n, const idx_t *adj_ptr, const idx_t
         qg->xadj[i] = adj_ptr[i];
         qg->len[i] = adj_ptr[i + 1] - adj_ptr[i];
         qg->deg[i] = qg->len[i];
+        qg->super[i] = i;
+        qg->super_first[i] = i;
+        qg->super_next[i] = -1;
+        qg->super_size[i] = 1;
     }
     return SPARSE_OK;
 }
@@ -509,16 +545,20 @@ static sparse_err_t qg_reserve(qg_t *qg, idx_t need) {
     return SPARSE_OK;
 }
 
-/* Find the unelim, non-absorbed vertex with smallest current degree.
- * Returns -1 iff every vertex is eliminated or absorbed (i.e. the
- * loop's terminal step).  O(active_count) per call — Sprint 23 Day 3
- * adds the absorbed-skip; supervariable detection (Day 4) will add
- * a second skip on non-representative vertices. */
+/* Find the unelim, non-absorbed, supervariable-representative vertex
+ * with smallest current degree.  Returns -1 iff every vertex is
+ * eliminated, absorbed, or non-representative (i.e. the loop's
+ * terminal step).  O(active_count) per call.
+ *
+ * Sprint 23 Day 3 added the absorbed-skip; Day 4 adds the
+ * non-representative skip (super[i] != i).  Supervariable members
+ * other than the representative are skipped here and instead
+ * co-eliminate with the representative when it pivots. */
 static idx_t qg_pick_min_deg(const qg_t *qg) {
     idx_t best = -1;
     idx_t best_deg = qg->n + 1;
     for (idx_t i = 0; i < qg->n; i++) {
-        if (qg->elim[i] || qg->absorbed[i])
+        if (qg->elim[i] || qg->absorbed[i] || qg->super[i] != i)
             continue;
         if (qg->deg[i] < best_deg) {
             best_deg = qg->deg[i];
@@ -578,6 +618,190 @@ static void qg_recompute_deg(qg_t *qg, idx_t u) {
         qg->deg_mark[qg->touched[i]] = 0;
 }
 
+/* Sprint 23 Day 4: supervariable detection (Davis 2006 §7.4).
+ *
+ * Two variables are *indistinguishable* when their adjacencies are
+ * identical (after symmetric self-references are accounted for).
+ * Indistinguishable variables can be merged into a single
+ * supervariable: the minimum-degree pivot scan operates on the
+ * representative only, and when the representative pivots all
+ * members co-eliminate together.  On PDE-mesh fixtures the
+ * supervariable factor is 5–20× by mid-elimination — the headline
+ * shrink for the per-pivot active-set scan.
+ *
+ * The hash signature combines the variable-side and element-side
+ * IDs: cheap to compute (O(len)) and a low-collision filter for the
+ * O(k²) full-comparison pass within each hash bucket. */
+static uint64_t qg_supervariable_hash(const qg_t *qg, idx_t i) {
+    idx_t i_xadj = qg->xadj[i];
+    idx_t i_len = qg->len[i];
+    idx_t i_elen = qg->elen[i];
+    idx_t i_vlen = i_len - i_elen;
+    uint64_t h_var = 0;
+    for (idx_t j = 0; j < i_vlen; j++)
+        h_var += (uint64_t)qg->iw[i_xadj + j];
+    uint64_t h_elem = 0;
+    for (idx_t j = i_vlen; j < i_len; j++)
+        h_elem += (uint64_t)qg->iw[i_xadj + j];
+    return h_var ^ h_elem;
+}
+
+/* Full-compare check: are u and v indistinguishable?  Returns 1 iff
+ * the sets `adj(u) ∪ {u}` and `adj(v) ∪ {v}` are equal as multisets
+ * (i.e., u in v's adj must be matched by v in u's adj, and the rest
+ * of the adjacency lists must be identical).
+ *
+ * Both lists are sorted ascending so the comparison is a linear
+ * two-pointer walk with the mutual self-reference handled inline.
+ * Element-sides are compared directly (no self-references — elements
+ * are eliminated vertices, not active variables).
+ *
+ * Caller guarantees u != v and both are non-eliminated, non-absorbed
+ * supervariable representatives. */
+static int qg_indistinguishable(const qg_t *qg, idx_t u, idx_t v) {
+    if (qg->len[u] != qg->len[v])
+        return 0;
+    if (qg->elen[u] != qg->elen[v])
+        return 0;
+
+    idx_t u_vlen = qg->len[u] - qg->elen[u];
+    idx_t u_xadj = qg->xadj[u];
+    idx_t v_xadj = qg->xadj[v];
+
+    /* Variable-side walk: skip the mutual self-ref (v in u's vars,
+     * u in v's vars) and compare the rest. */
+    idx_t i = 0, j = 0;
+    while (i < u_vlen || j < u_vlen) {
+        if (i < u_vlen && qg->iw[u_xadj + i] == v) {
+            i++;
+            continue;
+        }
+        if (j < u_vlen && qg->iw[v_xadj + j] == u) {
+            j++;
+            continue;
+        }
+        if (i >= u_vlen || j >= u_vlen)
+            return 0;
+        if (qg->iw[u_xadj + i] != qg->iw[v_xadj + j])
+            return 0;
+        i++;
+        j++;
+    }
+
+    /* Element-side: direct compare (sorted; no self-refs). */
+    idx_t u_elen = qg->elen[u];
+    for (idx_t k = 0; k < u_elen; k++) {
+        if (qg->iw[u_xadj + u_vlen + k] != qg->iw[v_xadj + u_vlen + k])
+            return 0;
+    }
+    return 1;
+}
+
+/* Merge supervariable b into supervariable a (a stays as the
+ * representative, b's members fold into a's list).  Caller
+ * guarantees a == super[a] (representative), b == super[b]
+ * (representative), a != b. */
+static void qg_merge_supervariables_pair(qg_t *qg, idx_t a, idx_t b) {
+    /* Walk b's member list, updating super[m] = a. */
+    for (idx_t m = qg->super_first[b]; m != -1; m = qg->super_next[m])
+        qg->super[m] = a;
+
+    /* Splice b's list onto the front of a's list.  Order within a
+     * supervariable doesn't matter algorithmically; we sort by ID
+     * at perm[] append time for deterministic output. */
+    /* Find b's tail (the last member with super_next == -1). */
+    idx_t b_tail = qg->super_first[b];
+    while (qg->super_next[b_tail] != -1)
+        b_tail = qg->super_next[b_tail];
+    qg->super_next[b_tail] = qg->super_first[a];
+    qg->super_first[a] = qg->super_first[b];
+    qg->super_size[a] += qg->super_size[b];
+
+    /* b is no longer a representative; null its list head and size
+     * so a stale qg_pick_min_deg can never accidentally select it
+     * (the `super[b] != b` filter is the primary guard). */
+    qg->super_first[b] = -1;
+    qg->super_size[b] = 0;
+}
+
+/* qsort comparator: sort `(hash, vertex)` pairs by hash ascending,
+ * then vertex ascending — ID order within a hash bucket gives the
+ * pairwise compare a deterministic walk. */
+typedef struct {
+    uint64_t hash;
+    idx_t vertex;
+} qg_sv_pair_t;
+
+static int qg_sv_pair_compare(const void *a, const void *b) {
+    const qg_sv_pair_t *pa = (const qg_sv_pair_t *)a;
+    const qg_sv_pair_t *pb = (const qg_sv_pair_t *)b;
+    if (pa->hash < pb->hash)
+        return -1;
+    if (pa->hash > pb->hash)
+        return 1;
+    return (pa->vertex > pb->vertex) - (pa->vertex < pb->vertex);
+}
+
+/* Run supervariable detection over the candidate set
+ * `candidates[0..count)`.  Bucket by hash, full-compare within each
+ * bucket, merge confirmed pairs.  Caller guarantees candidates are
+ * unique vertex IDs. */
+static sparse_err_t qg_merge_supervariables(qg_t *qg, const idx_t *candidates, idx_t count) {
+    if (count < 2)
+        return SPARSE_OK;
+
+    /* Filter to representatives that are still active. */
+    qg_sv_pair_t *pairs = malloc((size_t)count * sizeof(qg_sv_pair_t));
+    if (!pairs)
+        return SPARSE_ERR_ALLOC;
+    idx_t k = 0;
+    for (idx_t i = 0; i < count; i++) {
+        idx_t c = candidates[i];
+        if (qg->elim[c] || qg->absorbed[c])
+            continue;
+        if (qg->super[c] != c)
+            continue;
+        pairs[k].hash = qg_supervariable_hash(qg, c);
+        pairs[k].vertex = c;
+        k++;
+    }
+    if (k < 2) {
+        free(pairs);
+        return SPARSE_OK;
+    }
+
+    qsort(pairs, (size_t)k, sizeof(qg_sv_pair_t), qg_sv_pair_compare);
+
+    /* Walk sorted pairs; each contiguous same-hash run is a bucket. */
+    idx_t bucket_begin = 0;
+    while (bucket_begin < k) {
+        idx_t bucket_end = bucket_begin + 1;
+        while (bucket_end < k && pairs[bucket_end].hash == pairs[bucket_begin].hash)
+            bucket_end++;
+        if (bucket_end - bucket_begin > 1) {
+            /* Pairwise compare within bucket; merge confirmed pairs.
+             * The lowest-ID survivor stays as representative. */
+            for (idx_t i = bucket_begin; i < bucket_end; i++) {
+                idx_t a = pairs[i].vertex;
+                /* Skip if a was absorbed into an earlier match this loop. */
+                if (qg->super[a] != a)
+                    continue;
+                for (idx_t j = i + 1; j < bucket_end; j++) {
+                    idx_t b = pairs[j].vertex;
+                    if (qg->super[b] != b)
+                        continue;
+                    if (qg_indistinguishable(qg, a, b))
+                        qg_merge_supervariables_pair(qg, a, b);
+                }
+            }
+        }
+        bucket_begin = bucket_end;
+    }
+
+    free(pairs);
+    return SPARSE_OK;
+}
+
 /* Eliminate pivot `p` (Sprint 23 Day 3 — Davis element representation).
  *
  * Davis Algorithm 7.4 hot loop:
@@ -600,7 +824,43 @@ static void qg_recompute_deg(qg_t *qg, idx_t u) {
  * absorbed vertices' adjacency is fully captured by the absorbing
  * element — their pivots would contribute zero new fill in Sprint
  * 22's order anyway, so dropping them preserves nnz(L). */
+static int qg_id_compare(const void *a, const void *b) {
+    idx_t va = *(const idx_t *)a;
+    idx_t vb = *(const idx_t *)b;
+    return (va > vb) - (va < vb);
+}
+
 static sparse_err_t qg_eliminate(qg_t *qg, idx_t p) {
+    /* Day 4: collect p's supervariable members (other than p), mark
+     * them eliminated, and append them to `absorbed_list` in ID-sorted
+     * order so the driver puts them into perm[] right after p.  This
+     * is fill-equivalent to Sprint 22's "pivot u then v then ..." for
+     * indistinguishable variables — supervariable elimination just
+     * collapses their step into one. */
+    idx_t super_extra = qg->super_size[p] - 1;
+    if (super_extra > 0) {
+        idx_t *members = malloc((size_t)super_extra * sizeof(idx_t));
+        if (!members)
+            return SPARSE_ERR_ALLOC;
+        idx_t mc = 0;
+        for (idx_t m = qg->super_first[p]; m != -1; m = qg->super_next[m]) {
+            if (m == p)
+                continue;
+            members[mc++] = m;
+        }
+        assert(mc == super_extra);
+        qsort(members, (size_t)mc, sizeof(idx_t), qg_id_compare);
+        for (idx_t i = 0; i < mc; i++) {
+            idx_t m = members[i];
+            qg->elim[m] = 1;
+            qg->len[m] = 0;
+            qg->elen[m] = 0;
+            qg->deg[m] = 0;
+            qg->absorbed_list[qg->absorbed_count++] = m;
+        }
+        free(members);
+    }
+
     qg->elim[p] = 1;
     idx_t p_len = qg->len[p];
     if (p_len == 0) {
@@ -744,6 +1004,13 @@ static sparse_err_t qg_eliminate(qg_t *qg, idx_t p) {
             idx_t v = qg->iw[u_xadj_old + j];
             if (v == p)
                 continue; /* drop the just-eliminated pivot */
+            /* Day 4: also drop stale eliminated/absorbed entries.
+             * Co-eliminated supervariable members were marked
+             * elim[]=1 at the top of this function; they're stale
+             * here because they were in u's adjacency at slice-
+             * build time but are no longer active. */
+            if (qg->elim[v] || qg->absorbed[v])
+                continue;
             qg->iw[qg->iw_used++] = v;
             new_vlen++;
         }
@@ -783,9 +1050,17 @@ static sparse_err_t qg_eliminate(qg_t *qg, idx_t p) {
     if (qg->iw_used > qg->iw_peak)
         qg->iw_peak = qg->iw_used;
 
+    /* Day 4: detect new supervariable merges among e's neighbours.
+     * After p's elimination changed their adjacencies, two
+     * previously-distinct variables may now be indistinguishable.
+     * Merging them shrinks the active set for subsequent
+     * qg_pick_min_deg scans and lets co-elimination happen on the
+     * next pivot step. */
+    sparse_err_t merge_rc = qg_merge_supervariables(qg, e_adj, e_count);
+
     free(e_adj);
     free(p_adj_copy);
-    return SPARSE_OK;
+    return merge_rc;
 }
 
 sparse_err_t sparse_reorder_amd_qg(const SparseMatrix *A, idx_t *perm) {
@@ -819,6 +1094,28 @@ sparse_err_t sparse_reorder_amd_qg(const SparseMatrix *A, idx_t *perm) {
     free(adj_list);
     if (rc != SPARSE_OK)
         return rc;
+
+    /* Day 4: initial supervariable detection.  Vertices with
+     * identical original adjacency (e.g., the leaves of a star)
+     * form supervariables before any pivot fires.  Run the merge
+     * over all n vertices once at startup; subsequent merges only
+     * need to consider the per-pivot e_var_set since untouched
+     * adjacencies don't change their (non-)indistinguishability. */
+    {
+        idx_t *all_candidates = malloc((size_t)n * sizeof(idx_t));
+        if (!all_candidates) {
+            qg_free(&qg);
+            return SPARSE_ERR_ALLOC;
+        }
+        for (idx_t i = 0; i < n; i++)
+            all_candidates[i] = i;
+        rc = qg_merge_supervariables(&qg, all_candidates, n);
+        free(all_candidates);
+        if (rc != SPARSE_OK) {
+            qg_free(&qg);
+            return rc;
+        }
+    }
 
     /* Sprint 23 Day 3: each pivot may absorb additional vertices
      * (variables fully subsumed by the new element).  Absorbed

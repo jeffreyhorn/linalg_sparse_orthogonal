@@ -141,6 +141,63 @@ the per-vertex temporary arrays needed; allocate the bucket array once in
 
 ## §7.5 — Approximate-degree formula (Day 5)
 
+### Day 5 production-default decision: exact-degree (opt-in approx)
+
+The Sprint 23 plan called for switching the production deg-update
+from exact recompute to Davis's approximate formula.  Day 5
+implemented the switch but measured significant fill regression on
+PDE meshes (1.45–2.84× of Sprint 22 baseline; details below).
+Achieving the textbook "few-percent" quality requires the
+*external-degree* refinement from Davis §7.5.1, which Sprint 23
+deliberately defers (see "What Sprint 23 deliberately doesn't
+implement" below).
+
+To preserve the Sprint 22 / `bench_day14.txt` fill baseline while
+landing the Day-5 framework, Day 5 ships the approximate-degree
+formula behind an opt-in env var:
+
+```
+SPARSE_QG_USE_APPROX_DEG=1   ./build/test_reorder_amd_qg
+                             # production path uses approximate
+                             # degree (regresses fill, faster
+                             # per-pivot)
+SPARSE_QG_VERIFY_DEG=1       # always run both, assert
+                             # d_approx >= d_exact (Davis's
+                             # conservative-bound contract)
+```
+
+The default production path uses exact recompute (matching Sprint
+22 fill bit-identically).  The framework + parity test land for
+Sprint 24's external-degree extension to plug into.
+
+### Day-5 measurement: fill regression on PDE meshes
+
+Switching `qg_eliminate` from exact-degree recompute to Davis's
+approximate formula produced these `nnz(L)` shifts:
+
+| Fixture       |     n   | Sprint 22 nnz(L) | Day 5 nnz(L) | ratio |
+| ------------- | ------: | ---------------: | -----------: | ----: |
+| nos4          |     100 |             637  |         819  | 1.29× |
+| bcsstk04      |     132 |           3 143  |       3 761  | 1.20× |
+| bcsstk14      |   1 806 |         116 071  |     168 413  | 1.45× |
+| Pres_Poisson  |  14 822 |       2 668 793  |   7 581 360  | 2.84× |
+| 100×100 bw=5  |     100 |             585  |         585  | 1.00× |
+
+The formula is fill-equivalent for banded matrices (where every
+variable has small adjacency and few elements form) but degrades
+progressively on PDE meshes — the "few-percent" textbook claim
+holds when external-degree tracking (Davis §7.5.1) is layered on
+top, which Sprint 23 deliberately defers.
+
+Wall-time impact on Pres_Poisson: ND-via-AMD fill increases drive
+proportionally longer Cholesky factorizations downstream — the
+test_reorder_nd suite went from ~25 minutes total in Sprint 22 to
+~7 hours in Day 5.  The per-pivot AMD cost itself didn't regress
+(approx and exact have same complexity); the regression is
+entirely from the worse pivot order producing more fill.
+
+### Sprint-24+ candidate: external-degree tracking
+
 **The formula (book p.147, eqn 7.5).**
 
 ```

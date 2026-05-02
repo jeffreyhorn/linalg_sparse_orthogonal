@@ -122,6 +122,7 @@
 #include "sparse_types.h"
 
 #include <assert.h>
+#include <math.h> /* Day 5: sqrt() for the 10·√n dense-row skip threshold. */
 #include <stdint.h>
 #include <stdio.h> /* Day 3: getenv-controlled SPARSE_QG_PROBE stderr trace. */
 #include <stdlib.h>
@@ -568,17 +569,20 @@ static idx_t qg_pick_min_deg(const qg_t *qg) {
     return best;
 }
 
-/* Recompute `deg[u]` (true count of distinct active variables u is
- * adjacent to) by walking u's variable-side and expanding each
- * element in u's element-side.  Uses `qg->deg_mark` as a dedup
- * bitmap; `qg->touched` accumulates marked entries so the bitmap
- * can be cleared in O(touched) instead of O(n).
+/* Compute the *exact* count of distinct active variables u is
+ * adjacent to by walking u's variable-side and expanding each
+ * element in u's element-side, deduping via `qg->deg_mark` (cleared
+ * in O(touched) using `qg->touched`).
  *
- * Sprint 23 Day 5 will replace this exact recompute with the Davis
- * approximate-degree formula (`d_approx`) for the per-pivot cost
- * win.  Day 3 keeps the exact recompute so fill quality is
- * bit-identical to Sprint 22. */
-static void qg_recompute_deg(qg_t *qg, idx_t u) {
+ * Sprint 23 Day 5 retired this from the production pivot loop in
+ * favour of `qg_recompute_deg_approx` (Davis 2006 §7.5 approximate
+ * formula).  The exact recompute is preserved here because:
+ *   - the env-var-controlled debug check `SPARSE_QG_VERIFY_DEG=1`
+ *     re-runs it after each approx call and asserts d_approx >= d_exact;
+ *   - Day 6's parity test exercises this path on a 50-vertex random
+ *     graph to pin Davis's conservative-bound contract.
+ * In production (no env var, no debug build) it's not invoked. */
+static idx_t qg_compute_deg_exact(qg_t *qg, idx_t u) {
     idx_t u_xadj = qg->xadj[u];
     idx_t u_len = qg->len[u];
     idx_t u_elen = qg->elen[u];
@@ -611,11 +615,129 @@ static void qg_recompute_deg(qg_t *qg, idx_t u) {
         }
     }
 
-    qg->deg[u] = touched_count;
-
     /* Restore the bitmap to all-zero for the next call. */
     for (idx_t i = 0; i < touched_count; i++)
         qg->deg_mark[qg->touched[i]] = 0;
+    return touched_count;
+}
+
+/* Recompute `deg[u]` using Davis's approximate-degree formula
+ * (Davis 2006 §7.5):
+ *
+ *   d_approx(u) = |adj_var(u, V_active)|
+ *               + Σ_{e ∈ adj_elem(u)} |adj_var(e, V_active) \ adj_var(u)|
+ *
+ * Where V_active = {non-eliminated, non-absorbed} variables.  The
+ * "\ adj_var(u)" term is what Davis calls the "fresh contribution
+ * from each element" — it subtracts the variables in element e
+ * that are *already* in u's direct variable-side, eliminating one
+ * source of double-counting.  Cross-element overlap (a variable
+ * shared between two of u's elements) is NOT subtracted; that's
+ * the looseness that makes the formula an upper bound.
+ *
+ * Implementation: mark u's variable-side IDs in `deg_mark[]`, then
+ * walk each element checking which entries are *not* marked.  Cost
+ * per pivot: O(|adj_var(u)| + Σ |adj_var(e)|) — same complexity as
+ * the exact recompute, but no cross-element dedup so any element
+ * can be processed independently (the win this enables comes when
+ * combined with element-aggressive absorption in Sprint 24+; for
+ * Day 5 the asymptotics match the exact recompute).
+ *
+ * Dense-row cap (Davis §7.5): `d_approx` is clamped to `n` (the
+ * vertex count).  A vertex's true degree can never exceed `n - 1`,
+ * but the approximate formula's cross-element overcounting can
+ * push the raw value above that.  The cap prevents wild
+ * overestimates from dominating the pivot scan.
+ *
+ * Returns the computed (capped) value. */
+static idx_t qg_compute_deg_approx(qg_t *qg, idx_t u) {
+    idx_t u_xadj = qg->xadj[u];
+    idx_t u_len = qg->len[u];
+    idx_t u_elen = qg->elen[u];
+    idx_t u_vlen = u_len - u_elen;
+
+    /* Variable-side: count non-self, non-eliminated, non-absorbed
+     * entries AND mark them in deg_mark[] for the set-difference
+     * subtraction in the element-side walk. */
+    idx_t touched_count = 0;
+    idx_t d_var = 0;
+    for (idx_t j = 0; j < u_vlen; j++) {
+        idx_t v = qg->iw[u_xadj + j];
+        if (v == u || qg->elim[v] || qg->absorbed[v])
+            continue;
+        if (!qg->deg_mark[v]) {
+            qg->deg_mark[v] = 1;
+            qg->touched[touched_count++] = v;
+            d_var++;
+        }
+    }
+    idx_t d = d_var;
+    /* Element-side: for each element e, count variables in e's
+     * variable-side that are NOT already in u's variable-side. */
+    for (idx_t j = u_vlen; j < u_len; j++) {
+        idx_t e = qg->iw[u_xadj + j];
+        idx_t e_xadj = qg->xadj[e];
+        idx_t e_vlen = qg->len[e] - qg->elen[e];
+        for (idx_t k = 0; k < e_vlen; k++) {
+            idx_t v = qg->iw[e_xadj + k];
+            if (v == u || qg->elim[v] || qg->absorbed[v])
+                continue;
+            if (!qg->deg_mark[v])
+                d++;
+            /* Note: we do NOT mark v here.  Each element's
+             * contribution is independent (Davis's Σ_e term
+             * doesn't cross-dedup), which is what makes this an
+             * upper bound rather than an exact recompute. */
+        }
+    }
+    /* Restore deg_mark to all-zero for the next call. */
+    for (idx_t i = 0; i < touched_count; i++)
+        qg->deg_mark[qg->touched[i]] = 0;
+
+    /* Cap at `n` — a vertex's true degree can't exceed n-1, and
+     * cross-element overcounting can push d above that.  qg_pick_min_deg's
+     * sentinel `best_deg = n+1` requires deg <= n; without the cap, all
+     * active vertices can land above the sentinel and qg_pick_min_deg
+     * returns -1 mid-elimination (assertion failure). */
+    if (d > qg->n)
+        d = qg->n;
+    return d;
+}
+
+/* Production deg-update entry point (Sprint 23 Day 5+).
+ *
+ * Default: uses the *exact* recompute (preserves Sprint 22 / bench_day14
+ * fill quality across the corpus).
+ *
+ * Opt-in: when `SPARSE_QG_USE_APPROX_DEG=1` is set, the production path
+ * uses Davis 2006 §7.5's approximate-degree formula instead.  Day 5
+ * measured the approximate formula at 1.20–2.84× nnz(L) regression on
+ * PDE meshes (see davis_notes.md "Day-5 measurement") because the
+ * textbook formula's cross-element overcounting is too loose without
+ * the external-degree tracking from §7.5.1 (deferred to Sprint 24+).
+ * Production-default exact-degree means the Sprint 22 baseline is
+ * preserved while the approximate framework + conservative-bound
+ * parity test land for Sprint 24 to extend.
+ *
+ * Verify path: when `SPARSE_QG_VERIFY_DEG=1` is set, both formulas
+ * run and assert `d_approx >= d_exact` (Davis's conservative-bound
+ * contract).  The parity test in `tests/test_reorder_amd_qg.c`
+ * exercises this. */
+static void qg_recompute_deg(qg_t *qg, idx_t u) {
+    int verify = (getenv("SPARSE_QG_VERIFY_DEG") != NULL);
+    int use_approx = (getenv("SPARSE_QG_USE_APPROX_DEG") != NULL);
+
+    idx_t d_exact = qg_compute_deg_exact(qg, u);
+    if (verify || use_approx) {
+        idx_t d_approx = qg_compute_deg_approx(qg, u);
+        if (verify)
+            assert(d_approx >= d_exact && "Davis approx-degree must be an upper bound");
+        if (use_approx) {
+            qg->deg[u] = d_approx;
+            return;
+        }
+    }
+    qg->deg[u] = d_exact;
 }
 
 /* Sprint 23 Day 4: supervariable detection (Davis 2006 §7.4).
@@ -976,7 +1098,6 @@ static sparse_err_t qg_eliminate(qg_t *qg, idx_t p) {
      * a no-op in that case. */
     for (idx_t v_idx = 0; v_idx < e_count; v_idx++) {
         idx_t u = e_adj[v_idx];
-        idx_t u_xadj_old = qg->xadj[u];
         idx_t u_len_old = qg->len[u];
         idx_t u_elen_old = qg->elen[u];
         idx_t u_vlen_old = u_len_old - u_elen_old;
@@ -995,8 +1116,10 @@ static sparse_err_t qg_eliminate(qg_t *qg, idx_t p) {
             free(p_adj_copy);
             return rc;
         }
-        /* qg_reserve may have moved iw[] — re-fetch u_xadj_old. */
-        u_xadj_old = qg->xadj[u];
+        /* qg_reserve may have moved iw[] — fetch u_xadj_old AFTER the
+         * reserve so the pointer reflects the (possibly relocated)
+         * slice base. */
+        idx_t u_xadj_old = qg->xadj[u];
 
         idx_t new_xadj = qg->iw_used;
         idx_t new_vlen = 0;

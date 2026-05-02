@@ -418,6 +418,103 @@ static void test_qg_supervariable_synthetic(void) {
     sparse_free(A);
 }
 
+/* ─── Sprint 23 Day 5: approximate-degree conservative-bound test ──── */
+
+/* Build a 50-vertex random-but-deterministic SPD-pattern fixture:
+ * banded with small bandwidth, plus a handful of out-of-band entries
+ * to give the approximate-degree formula a non-trivial workout
+ * (multiple elements per vertex, cross-element overlap).  We use the
+ * splitmix64 seed pattern from sparse_graph.c so the fixture is
+ * reproducible. */
+static uint64_t splitmix64_test(uint64_t *state) {
+    uint64_t z = (*state += 0x9E3779B97F4A7C15ULL);
+    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+    z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+    return z ^ (z >> 31);
+}
+
+static SparseMatrix *make_random_50(void) {
+    const idx_t n = 50;
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++) {
+        if (sparse_insert(A, i, i, 1.0) != SPARSE_OK)
+            goto fail;
+    }
+    /* Banded skeleton (bandwidth 3). */
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t k = 1; k <= 3; k++) {
+            if (i + k < n) {
+                if (sparse_insert(A, i, i + k, 1.0) != SPARSE_OK)
+                    goto fail;
+                if (sparse_insert(A, i + k, i, 1.0) != SPARSE_OK)
+                    goto fail;
+            }
+        }
+    }
+    /* Sprinkle a few long-range symmetric entries with a fixed seed. */
+    uint64_t state = 0x123456789ABCDEFULL;
+    for (int t = 0; t < 30; t++) {
+        idx_t i = (idx_t)(splitmix64_test(&state) % (uint64_t)n);
+        idx_t j = (idx_t)(splitmix64_test(&state) % (uint64_t)n);
+        if (i == j)
+            continue;
+        if (sparse_insert(A, i, j, 1.0) != SPARSE_OK)
+            goto fail;
+        if (sparse_insert(A, j, i, 1.0) != SPARSE_OK)
+            goto fail;
+    }
+    return A;
+fail:
+    sparse_free(A);
+    return NULL;
+}
+
+/* Sprint 23 Day 5: pin Davis's conservative-bound contract for the
+ * approximate-degree formula.  Runs sparse_reorder_amd_qg with
+ * `SPARSE_QG_VERIFY_DEG=1` set in the environment — the production
+ * path then computes both d_approx and d_exact for every neighbour
+ * post-pivot and asserts d_approx >= d_exact.  Fixture is the
+ * 50-vertex random graph from make_random_50() so the formula sees
+ * non-trivial cross-element overlap. */
+static void test_qg_approx_degree_upper_bound(void) {
+    /* Save existing env var, force-enable, restore on every exit
+     * path.  putenv/setenv differ across libc; setenv is the
+     * portable choice. */
+    const char *prev = getenv("SPARSE_QG_VERIFY_DEG");
+    setenv("SPARSE_QG_VERIFY_DEG", "1", 1);
+
+    SparseMatrix *A = make_random_50();
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    idx_t n = sparse_rows(A);
+    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    if (!perm) {
+        sparse_free(A);
+        if (prev)
+            setenv("SPARSE_QG_VERIFY_DEG", prev, 1);
+        else
+            unsetenv("SPARSE_QG_VERIFY_DEG");
+        REQUIRE_OK(SPARSE_ERR_ALLOC);
+        return;
+    }
+
+    /* If d_approx ever underestimates d_exact during this call,
+     * the per-pivot assert in qg_recompute_deg fires (debug build).
+     * In release builds the contract isn't checked, but the test
+     * still validates the call doesn't crash. */
+    sparse_err_t rc = sparse_reorder_amd_qg(A, perm);
+    REQUIRE_OK(rc);
+    ASSERT_TRUE(is_valid_permutation(perm, n));
+
+    if (prev)
+        setenv("SPARSE_QG_VERIFY_DEG", prev, 1);
+    else
+        unsetenv("SPARSE_QG_VERIFY_DEG");
+    free(perm);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════ */
 
 int main(void) {
@@ -431,5 +528,6 @@ int main(void) {
     RUN_TEST(test_amd_stress_10k_banded);
     RUN_TEST(test_qg_workspace_extension_no_regression);
     RUN_TEST(test_qg_supervariable_synthetic);
+    RUN_TEST(test_qg_approx_degree_upper_bound);
     TEST_SUITE_END();
 }

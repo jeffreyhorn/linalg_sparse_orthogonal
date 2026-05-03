@@ -494,6 +494,8 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 **Total estimate:** ~88 hours.
 
+**Status: Complete.**  Actual ~80 hours per the Day 1-13 budgets in `docs/planning/EPIC_2/SPRINT_23/PLAN.md` (within the 14×12 = 168-hour ceiling).  Headline outcome: ND now beats AMD on Pres_Poisson (1.06× → 0.952×) — first time in this codebase.  Headline gate (a) literal ≤ 0.7× target not met; (b) qg-AMD wall on bcsstk14 ≤ Sprint-22 bitset baseline failed by ~108×; (c) bench_day14 nnz_L bit-identical-or-better passes.  See `docs/planning/EPIC_2/SPRINT_23/RETROSPECTIVE.md` for metrics, lessons, and the Sprint-24 routing of (a) and (b).
+
 ---
 
 ## Sprint 24: SVD Improvements, Eigenpair Refinement, Progress Callbacks, CI Hardening & Epic 2 Wrap-Up

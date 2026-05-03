@@ -587,38 +587,43 @@ BFS-based bandwidth reduction on the symmetrized adjacency graph (A + Aᵀ).
 - Best for banded/structured matrices (e.g., FEM meshes, thermal problems)
 - On steam1 (240×240 thermal): bandwidth 146→52, fill-in 23k→15k (33% reduction), 5.5x factorization speedup
 
-### Approximate Minimum Degree (AMD) — quotient-graph implementation (Sprint 22)
+### Approximate Minimum Degree (AMD) — quotient-graph implementation (Davis 2006)
 
-Greedy minimum-degree elimination ordering on the symmetrized adjacency graph.  Sprint 22 (Days 10-13) replaced the original bitset implementation with a quotient-graph representation following Amestoy/Davis/Duff (2004) "Algorithm 837: AMD" (TOMS) and Davis (2006) §7.
+Greedy minimum-degree elimination ordering on the symmetrized adjacency graph.  Sprint 22 (Days 10-13) replaced the original bitset implementation with a quotient-graph representation following Amestoy/Davis/Duff (2004) "Algorithm 837: AMD" (TOMS) and Davis (2006) §7.  Sprint 23 (Days 2-6) added the four mechanisms that complete the Davis algorithm on top of Sprint 22's simplified quotient-graph baseline.
 
-**Algorithm:**
-1. Build the initial CSR adjacency from the symmetric pattern of A.
-2. At each step: pick the uneliminated vertex with smallest current degree.
-3. Merge the eliminated vertex's neighbors' adjacency sets to model fill-in (sorted-merge with self / eliminated-vertex filtering inline).
-4. Update degrees.
+**Four mechanisms (Sprint 23):**
 
-**Workspace.**  A single `iw[]` integer buffer of size ≈ 5·nnz + 6·n + 1 holds all per-vertex adjacency lists concatenated (`xadj[i]` indexes into it).  Lists grow on fill-in; `qg_compact` packs surviving lists in `xadj`-sort order whenever the buffer fills, and `qg_reserve` doubles via `realloc` when compaction can't free enough room.
+1. **Element absorption** (Sprint 23 Day 3 — see `aea071a`).  When a pivot eliminates, its neighbours' merged adjacency forms a new "element" that takes the eliminated vertex's slot.  Variables whose remaining variable-side adjacency converges to a single element get *absorbed* — marked dead in `qg->absorbed[]` and skipped by subsequent pivot scans.  The absorbed slots are reclaimed by the next workspace compaction, so the active set shrinks as elimination proceeds (rather than just the iw_used water-line growing).
+
+2. **Supervariable detection** (Sprint 23 Day 4 — see `6096840`).  A sum-of-IDs hash bucketed per pivot's touched-set; within each hash bucket, an O(k²) full-list compare confirms identical adjacency.  Confirmed pairs merge via `qg->super[]` / `qg->super_size[]`; the smaller representative folds into the larger.  `qg_pick_min_deg` then iterates over supervariable representatives only, so the per-pivot cost scales with supervariable count rather than vertex count.  Supervariables co-eliminate as a unit, with members appearing in `perm[]` in a contiguous block.
+
+3. **Approximate-degree formula** (Sprint 23 Day 5 — see `f0fe391`; opt-in via `SPARSE_QG_USE_APPROX_DEG`).  Davis 2006 §7.5: `d_approx(i) = |adj(i, V)| + Σ_{e ∈ adj(i, E)} |adj(e, V) \ {pivot}|` — reads the per-vertex element-side adjacency lists Day 3 populates.  Conservative upper bound (`d_approx ≥ d_exact` always).  Default production path uses exact-degree recompute (matching Sprint 22's bit-identical fill); the opt-in flag exists for fill-quality probes that want to measure the approximation's effect on pivot order.
+
+4. **Dense-row skip** (Sprint 23 Day 5).  Vertices whose post-pivot approximate degree exceeds `10·√n` skip the degree update entirely — the approximate formula is least-accurate for dense rows, and they'd dominate the pivot scan on the next iteration anyway.  Capped via `qg_compute_deg_approx`'s `d > qg->n` clamp (the pivot-selection sentinel requires `d ≤ n`); see Day 6 `cap_fired_count` probe.
+
+**Workspace (Sprint 23 Day 2).**  Sprint 22's `iw[]` buffer at ≈ 5·nnz + 6·n + 1 grew to 7·nnz + 8·n + 1 to host the elements-side adjacency region (each vertex's slice now has a variable-adjacency prefix of length `len[i] - elen[i]` followed by an element-adjacency suffix of length `elen[i]`).  `qg_compact` walks the new layout transparently — variable-side and element-side regions are contiguous within `len[i]` entries, so the relocation move is unchanged.
 
 **Characteristics:**
-- O(deg · avg_deg) per pivot — linear in nnz instead of the previous bitset's O(n² / 64).  Scales to n ≥ 50 000 without paying quadratic memory.
-- Memory bound moved from O(n²/64) to O(nnz).  Day 13's bench measured ≥ 17× memory reduction at n = 20 000 and analytic ~26× at n = 50 000 (`bench_day13_amd_qg.txt`).
-- Bit-identical fill across the SuiteSparse corpus vs the previous bitset (Day 13 parallel-comparison bench; both implementations are exact minimum-degree on the same graph with the same lowest-vertex-id tie-break).
-- Sprint 22 ships a *simplified* quotient-graph variant — the full Davis algorithm with supervariable detection, element absorption, and approximate-degree updates is left as a Sprint 23 follow-up that would tighten the wall-time gap to METIS-AMD on small SPD fixtures (currently 30 % bitset-favoured at n ≤ 1 800).
+- O(deg · avg_deg) per pivot — linear in nnz instead of the bitset's O(n² / 64).  Scales to n ≥ 50 000 without paying quadratic memory.
+- Memory bound moved from O(n²/64) to O(nnz).  Sprint 22 Day 13's bench measured ≥ 17× memory reduction at n = 20 000 and analytic ~26× at n = 50 000 (`docs/planning/EPIC_2/SPRINT_22/bench_day13_amd_qg.txt`).
+- Fill quality is bit-identical to bitset across the SuiteSparse corpus (verified Sprint 22 Day 13; carries through Sprint 23 — Days 2-5 are fill-neutral by construction).
+- **Wall-time regression** vs Sprint 22 quotient-graph baseline: Sprint 23 Day 12's bench (`docs/planning/EPIC_2/SPRINT_23/bench_day12_amd_qg.txt`) measured 62-199× regression on irregular SuiteSparse SPD fixtures (root cause: Day 4's per-pivot O(k²) supervariable-hash-bucket compare dominates when supervariables don't form on irregular structural-mechanics matrices).  Banded fixtures regressed only ~3×.  Routed to Sprint 24 for root-cause + fix; three candidate fixes (sorted-list compare, regularity-heuristic gating, full revert of Days 2-5) documented in `docs/planning/EPIC_2/SPRINT_23/bench_summary_day12.md`.
 
-### Nested Dissection (ND) — multilevel vertex separator (Sprint 22)
+### Nested Dissection (ND) — multilevel vertex separator (Sprint 22 + Sprint 23 closures)
 
-Recursive "separator-last" ordering on top of a multilevel partitioner that lands the entire Sprint 22 first half (Days 1-5).  ND is best on regular 2D / 3D PDE meshes where the geometric advantage of separating the mesh into halves dominates the minimum-degree heuristic AMD is using.
+Recursive "separator-last" ordering on top of a multilevel partitioner.  ND is best on regular 2D / 3D PDE meshes where the geometric advantage of separating the mesh into halves dominates the minimum-degree heuristic AMD is using.
 
 **Pipeline:**
 1. **Coarsen** — heavy-edge matching (Karypis & Kumar 1998) collapses pairs of vertices, building a multilevel hierarchy that bottoms out at MAX(20, n/100) vertices.
 2. **Coarsest bisection** — brute-force enumeration for n ≤ 20 (`2^(n-1)` patterns); GGGP (greedy graph-growing partition, peripheral-vertex BFS) for n > 20.
-3. **Uncoarsen with FM** — project the coarsest partition back through the hierarchy with a single-pass Fiduccia-Mattheyses refinement at every level (rollback-on-regress on the lowest cut seen).
+3. **Uncoarsen with FM** — project the coarsest partition back through the hierarchy with Fiduccia-Mattheyses refinement at every level (rollback-on-regress on the lowest cut seen).  Sprint 23 Day 10 swapped Sprint 22's O(n) max-gain linear scan for an O(1) gain-bucket structure (`src/sparse_graph_fm_buckets.h`); Sprint 23 Day 11 adopted 3-pass FM at the finest uncoarsening level by default (intermediate levels stay single-pass) — overridable via `SPARSE_FM_FINEST_PASSES` env var.
 4. **Vertex-separator extraction** — convert the final 2-way edge separator to a 3-way `{0, 1, 2}` vertex separator on the smaller side (METIS convention).
-5. **Recursive ordering** — on each interior partition: recurse; for subgraphs with `n ≤ ND_BASE_THRESHOLD` (default 32 from the Day 9 sweep), emit in subgraph-local order.  Append the separator vertices last.
+5. **Recursive ordering** — on each interior partition: recurse; for subgraphs with `n ≤ ND_BASE_THRESHOLD` (default 32), call `sparse_reorder_amd_qg` on the leaf and splice the per-leaf permutation into the global perm[] via `vertex_id_map` (Sprint 23 Day 7).  Append the separator vertices last.
 
 **Characteristics:**
-- Fill quality competitive with AMD on regular grids: 10×10 grid 1.22× of AMD (Day 6); Pres_Poisson 1.06× (Day 7).  The Sprint 22 ND falls short of the plan's "≥ 2× reduction over AMD on Pres_Poisson" target — the Day-6 leaf base case uses natural ordering rather than per-leaf AMD, and the partitioner uses the simplified single-pass FM rather than multi-pass.  Closure deferred to Sprint 23.
-- Wall time on Pres_Poisson is currently ~5× of AMD (the FM gain-bucket update is the prime bottleneck — naïve O(n) max-gain scan per move; METIS uses an O(1) bucket structure).
+- Fill quality on regular meshes: 10×10 grid 1.16× of AMD (Sprint 22 Day 6 was 1.22×; Sprint 23 closures dropped it 1.22 → 1.16).  Pres_Poisson **0.952× of AMD** (Sprint 22 Day 7 was 1.06× — ND now beats AMD on the canonical 2D-PDE benchmark).  bcsstk14 1.13× (was 1.21×).  See `docs/planning/EPIC_2/SPRINT_23/bench_day12.txt` for the full corpus capture.
+- The Pres_Poisson win is the cumulative effect of Sprint 23 Days 7 (leaf-AMD splice), 9-10 (gain-bucket FM lifting per-pass cost from O(n²) to O(|E|)), and 11 (multi-pass FM at the finest level).  PLAN.md's literal ≤ 0.7× target on Pres_Poisson is not met (current 0.952×); routed to Sprint 24 per `docs/planning/EPIC_2/SPRINT_23/bench_summary_day12.md` "(a)".
+- Wall time on Pres_Poisson is ~45 s — comparable to Sprint 22 Day 14's ~44 s.  The bucket-FM wall-time win was offset by the AMD wall-time regression in the leaf-AMD splice (Sprint 24 will close that — see `bench_summary_day12.md` "(b)").
 
 ### Integration with Factorization
 

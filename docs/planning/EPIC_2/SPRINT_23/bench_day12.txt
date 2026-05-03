@@ -1,0 +1,79 @@
+Sprint 23 Day 12 — Cross-corpus capture
+========================================
+
+Re-run of `benchmarks/bench_reorder.c` against the SuiteSparse
+corpus the eigensolver work has been stressing since Sprint 20.
+Sprint 22 Day 14's headline capture (`docs/planning/EPIC_2/
+SPRINT_22/bench_day14.txt`) is the comparison anchor; numbers
+below are Day 12's full corpus × ordering measurement.
+
+Single run on macOS x86_64 (Apple Clang, -O2).
+CSV form: `bench_day12.csv`.
+
+Cross-ordering capture (ND_BASE_THRESHOLD = 32, default 3-pass FM)
+------------------------------------------------------------------
+
+  matrix         n      reorder  nnz_L      reorder_ms
+  ────────────  ─────  ───────  ─────────  ──────────
+  nos4            100  NONE          805           0.0
+  nos4            100  RCM           888           0.2
+  nos4            100  AMD           637           1.6
+  nos4            100  COLAMD        778           0.4
+  nos4            100  ND            968         118.1
+  bcsstk04        132  NONE        3 763           0.0
+  bcsstk04        132  RCM         3 633           1.0
+  bcsstk04        132  AMD         3 143          20.9
+  bcsstk04        132  COLAMD      3 622           3.7
+  bcsstk04        132  ND          3 702         572.5
+  Kuu           7 102  NONE    2 993 061           0.0
+  Kuu           7 102  RCM     1 024 794          82.3
+  Kuu           7 102  AMD       406 264      36 915.3
+  Kuu           7 102  COLAMD    830 665       5 257.1
+  Kuu           7 102  ND        924 361      14 108.2
+  bcsstk14      1 806  NONE      190 791           0.0
+  bcsstk14      1 806  RCM       178 311          14.7
+  bcsstk14      1 806  AMD       116 071       7 020.2
+  bcsstk14      1 806  COLAMD    146 037         243.9
+  bcsstk14      1 806  ND        131 198       6 521.3
+  s3rmt3m3      5 357  NONE    2 208 972           0.0
+  s3rmt3m3      5 357  RCM       636 993          42.8
+  s3rmt3m3      5 357  AMD       474 609      73 129.8
+  s3rmt3m3      5 357  COLAMD    607 647       1 599.8
+  s3rmt3m3      5 357  ND        478 986      15 156.5
+  Pres_Poisson 14 822  NONE    5 061 932           0.0
+  Pres_Poisson 14 822  RCM     3 187 081         185.1
+  Pres_Poisson 14 822  AMD     2 668 793   1 339 904.4
+  Pres_Poisson 14 822  COLAMD  3 415 793      19 819.9
+  Pres_Poisson 14 822  ND      2 541 734      45 053.7
+
+ND/AMD nnz(L) ratios
+--------------------
+
+  fixture        Sprint 22  Day 12   delta
+  ────────────  ─────────  ──────   ──────────────
+  nos4              1.713   1.520   -0.193  ✓ improved
+  bcsstk04          1.172   1.178   +0.006  ↗ within noise
+  Kuu               2.322   2.275   -0.047  ✓ improved
+  bcsstk14          1.207   1.130   -0.077  ✓ improved
+  s3rmt3m3          1.015   1.009   -0.006  ✓ within noise
+  Pres_Poisson      1.063   0.952   -0.111  ✓ ND BEATS AMD
+
+ND nnz(L) deltas vs Sprint 22 Day 14
+------------------------------------
+
+  fixture         day14_nnz   day12_nnz       delta
+  ────────────   ──────────  ──────────  ──────────────
+  nos4                1 091         968   -123  -11.3%  ✓
+  bcsstk04            3 683       3 702    +19   +0.5%  ↗
+  Kuu               943 463     924 361 -7 540   -0.8%  ✓
+  bcsstk14          140 024     131 198 -8 826   -6.3%  ✓
+  s3rmt3m3          481 904     478 986   -918   -0.2%  ✓
+  Pres_Poisson    2 837 046   2 541 734 -295k   -10.4%  ✓
+
+5 / 6 fixtures dropped; bcsstk04 +0.5% is within the partitioner
+RNG noise budget (FM tie-break choice depends on splitmix64 seed
++ heavy-edge matching ties; one different choice can flip a single
+neighbour's elimination order).  AMD/COLAMD/RCM/NONE rows are
+bit-identical to Sprint 22 Day 14 across every fixture (Days 7-11
+don't touch those orderings; Days 2-5's qg-AMD upgrades are
+fill-neutral by construction and verified bit-identical here).

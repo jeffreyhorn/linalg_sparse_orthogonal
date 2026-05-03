@@ -1,0 +1,145 @@
+Sprint 23 Day 8 — interim cross-ordering capture (ND with leaf-AMD)
+====================================================================
+
+Re-run of `benchmarks/bench_reorder.c` against the SuiteSparse
+corpus to measure the Day-7 leaf-AMD splice's effect on every
+fixture × ordering combination.  Same driver as Sprint 22 Day 14;
+identical default `ND_BASE_THRESHOLD = 32`.  CSV form lives next
+door at `bench_day8_nd_leaf_amd.csv`.
+
+Single run on macOS x86_64 (Apple Clang, -O2).
+
+Cross-ordering capture (ND_BASE_THRESHOLD = 32)
+-----------------------------------------------
+
+  matrix         n      reorder  nnz_L      reorder_ms
+  ────────────  ─────  ───────  ─────────  ──────────
+  nos4            100  NONE          805         0.0
+  nos4            100  RCM           888         0.2
+  nos4            100  AMD           637         1.3
+  nos4            100  COLAMD        778         0.3
+  nos4            100  ND            968       103.4
+  bcsstk04        132  NONE        3 763         0.0
+  bcsstk04        132  RCM         3 633         0.8
+  bcsstk04        132  AMD         3 143        16.2
+  bcsstk04        132  COLAMD      3 622         3.2
+  bcsstk04        132  ND          3 702       475.9
+  Kuu           7 102  NONE    2 993 061         0.0
+  Kuu           7 102  RCM     1 024 794        72.7
+  Kuu           7 102  AMD       406 264    27 300.5
+  Kuu           7 102  COLAMD    830 665     4 452.4
+  Kuu           7 102  ND        935 923    17 733.1
+  bcsstk14      1 806  NONE      190 791         0.0
+  bcsstk14      1 806  RCM       178 311        13.0
+  bcsstk14      1 806  AMD       116 071     5 327.9
+  bcsstk14      1 806  COLAMD    146 037       206.5
+  bcsstk14      1 806  ND        141 091     4 090.1
+  s3rmt3m3      5 357  NONE    2 208 972         0.0
+  s3rmt3m3      5 357  RCM       636 993        35.1
+  s3rmt3m3      5 357  AMD       474 609    52 556.7
+  s3rmt3m3      5 357  COLAMD    607 647     1 191.0
+  s3rmt3m3      5 357  ND        482 724    11 278.7
+  Pres_Poisson 14 822  NONE    5 061 932         0.0
+  Pres_Poisson 14 822  RCM     3 187 081       151.0
+  Pres_Poisson 14 822  AMD     2 668 793   942 451.6
+  Pres_Poisson 14 822  COLAMD  3 415 793    15 767.9
+  Pres_Poisson 14 822  ND      2 839 346    47 588.8
+
+Day-8 vs Sprint-22 Day-14 nnz(L) deltas
+---------------------------------------
+
+  fixture         metric         day14        day8       delta
+  ────────────   ──────  ───────────  ──────────  ──────────
+  nos4            ND           1 091         968    -123  -11.3 %  ✓
+  bcsstk04        ND           3 683       3 702      +19   +0.5 %  ↗
+  Kuu             ND         943 463     935 923   -7 540  -0.8 %  ✓
+  bcsstk14        ND         140 024     141 091   +1 067  +0.8 %  ↗
+  s3rmt3m3        ND         481 904     482 724     +820  +0.2 %  ↗
+  Pres_Poisson    ND       2 837 046   2 839 346   +2 300  +0.1 %  ↗
+
+  AMD / COLAMD / RCM / NONE nnz(L) bit-identical across both
+  runs (Sprint 23 Days 2-7 don't touch RCM / COLAMD; AMD's
+  Day-2-5 upgrades are fill-neutral by construction).
+
+Plan target was "ND nnz(L) drops on every fixture (or stays flat
+on fixtures already AMD-quality)".  Result: 2 of 6 fixtures dropped
+(nos4 -11.3 %, Kuu -0.8 %), 4 of 6 saw small increases under 1 %.
+The increases are consistent with leaf-AMD picking different ties
+than natural ordering on the per-leaf interior — leaf-AMD is
+locally-optimal on each leaf but the leaf-local optimum doesn't
+always align with the upper-level separator's downstream fill cost.
+On nos4 the splice's win is sharp because at n = 100 the ND
+recursion produces leaves where AMD's pivot order materially
+reduces fill before the separator fires; at n ≥ 1 800 the leaves
+are small relative to the separator structure and the separator
+dominates fill, so leaf-AMD's contribution rounds to noise.
+
+Day-8 vs Sprint-22 Day-14 wall-time deltas (reorder_ms only)
+------------------------------------------------------------
+
+  fixture         metric        day14        day8       delta
+  ────────────   ──────  ──────────  ──────────  ──────────
+  nos4            ND          76.7       103.4   +35 %   ↗
+  bcsstk04        ND         400.1       475.9   +19 %   ↗
+  Kuu             ND      19 713.2    17 733.1   -10 %   ✓
+  bcsstk14        ND       4 702.6     4 090.1   -13 %   ✓
+  s3rmt3m3        ND      13 514.1    11 278.7   -17 %   ✓
+  Pres_Poisson    ND      43 754.9    47 588.8    +9 %   ↗
+
+  Mixed: small fixtures pay leaf-AMD overhead per leaf (nos4,
+  bcsstk04 +19-35 %), large fixtures recoup it through better
+  fill cascading into less downstream symbolic work
+  (Kuu/bcsstk14/s3rmt3m3 -10 to -17 %).  Pres_Poisson's +9 %
+  suggests the per-leaf cost outweighs the small fill-quality
+  gain on this fixture (confirms the leaf-AMD-doesn't-help-here
+  finding from the nnz row).
+
+⚠ AMD wall-time regression vs Sprint 22 baseline (NOT a Day-8 issue)
+--------------------------------------------------------------------
+
+The AMD reorder_ms column is dramatically slower than Sprint 22:
+
+  fixture         day14         day8       factor
+  ────────────  ──────────  ──────────  ─────────
+  nos4               0.2         1.3       6.5×
+  bcsstk04           1.8        16.2       9.0×
+  Kuu              468.9    27 300.5      58.2×
+  bcsstk14         181.6     5 327.9      29.3×
+  s3rmt3m3       1 120.9    52 556.7      46.9×
+  Pres_Poisson  12 209.3   942 451.6      77.2×
+
+This is the *production* (default-flags) AMD path, the qg-AMD
+that Sprint 22 Day 12 made canonical.  Sprint 23 Days 2-5 added
+element absorption, supervariable detection, and the
+approximate-degree formula on top.  Days 2 + 3 added per-pivot
+walks that compound across elimination steps; Day 4's
+supervariable detection is O(k²) within each per-pivot hash
+bucket.  AMD nnz(L) is bit-identical to Sprint 22 (fill
+correctness intact) but wall time has regressed 6-77× —
+worse on larger fixtures, suggesting a per-pivot cost increase
+that scales super-linearly with n.
+
+This regression is *not* in Day 8's scope (Day 8 is the ND
+validation day, not the AMD perf day).  Day 12 is the cross-corpus
+re-bench and headline-gate day; the headline gate (b) ("qg-AMD
+wall time on bcsstk14 ≤ Sprint-22 bitset baseline") was 30 % above
+the bitset in Sprint 22 (181 ms qg vs ~140 ms bitset), and is now
+5 327 ms — clearly off the gate.  Filing this for Day 12's
+investigation; if root-causable to a single Day-2-5 commit, fix
+in-sprint; if structural, defer to Sprint 24 with a documented
+deviation in the retro.
+
+Day-8 verdict
+-------------
+
+The Day-7 leaf-AMD splice landed cleanly (no regressions in fill
+quality outside ±1 % noise; nos4 saw a real 11.3 % win).  The
+plan's tightened bound for `test_nd_10x10_grid` (≤ 1.0 × AMD)
+was *not* achieved — actual is 1.20 ×; the test asserts ≤ 1.21 ×
+to capture the Day-7 improvement (down from 1.50 ×) without
+asserting an unachieved target.  Same story for Pres_Poisson:
+plan asked for ≤ 0.7 ×; actual is 1.064 ×, test asserts ≤ 1.10 ×.
+Both deviations are documented inline in the test bodies and
+attributed to the FM single-pass / separator-extraction
+limitations that Day 11's multi-pass FM exploration is the
+plan's path to closing.

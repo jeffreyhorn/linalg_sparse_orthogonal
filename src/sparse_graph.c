@@ -1141,29 +1141,85 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
 
     /* Per-vertex gain = (sum of edge weights to other-side neighbours)
      *                 − (sum of edge weights to same-side neighbours).
-     * Moving v flips the cut by -gain[v] (positive gain ⇒ smaller cut). */
+     * Moving v flips the cut by -gain[v] (positive gain ⇒ smaller cut).
+     *
+     * Sprint 23 Day 10: gain values live in the bucket array (one
+     * bucket per gain level; doubly-linked list inside each bucket).
+     * Per-step max-find is O(1) amortised via the cursor in the
+     * bucket array — replaces Sprint 22's O(n) linear scan, lifts FM
+     * total complexity from O(n²) to O(|E|) per pass. */
     idx_t *gain = malloc((size_t)n * sizeof(idx_t));
     int *locked = calloc((size_t)n, sizeof(int));
+    int *in_bucket = calloc((size_t)n, sizeof(int));
     idx_t *best_part = malloc((size_t)n * sizeof(idx_t));
-    if (!gain || !locked || !best_part) {
+    /* `skipped_this_step` is the per-step deferred-pop list: vertices
+     * popped but balance-ineligible *this* step.  Re-inserted into the
+     * bucket at end-of-step so the next step (with shifted w0/w1)
+     * reconsiders them — Sprint 22's per-step full re-scan retried
+     * such vertices implicitly; the bucket-FM has to spell it out. */
+    idx_t *skipped_this_step = malloc((size_t)n * sizeof(idx_t));
+    if (!gain || !locked || !in_bucket || !best_part || !skipped_this_step) {
         free(gain);
         free(locked);
+        free(in_bucket);
         free(best_part);
+        free(skipped_this_step);
         return SPARSE_ERR_ALLOC;
     }
 
+    /* Initial gains + max weighted degree (drives bucket array sizing).
+     * gain[v] always lives in [-weighted_degree(v), +weighted_degree(v)]
+     * — both initially (each edge contributes ±w to either internal or
+     * external) and after any sequence of neighbour moves (each edge's
+     * contribution to gain[v] flips sign when that edge crosses the
+     * partition, but the magnitude is unchanged), so max_weighted_degree
+     * is a tight bound on |gain| at every point in the FM walk. */
+    idx_t max_weighted_degree = 0;
     for (idx_t v = 0; v < n; v++) {
         idx_t internal = 0;
         idx_t external = 0;
+        idx_t v_wd = 0;
         for (idx_t k = G->xadj[v]; k < G->xadj[v + 1]; k++) {
             idx_t u = G->adjncy[k];
             idx_t w = G->ewgt ? G->ewgt[k] : 1;
+            v_wd += w;
             if (part_io[v] == part_io[u])
                 internal += w;
             else
                 external += w;
         }
         gain[v] = external - internal;
+        if (v_wd > max_weighted_degree)
+            max_weighted_degree = v_wd;
+    }
+
+    fm_bucket_array_t buckets = {0};
+    sparse_err_t rc = fm_bucket_array_init(&buckets, n, max_weighted_degree);
+    if (rc != SPARSE_OK) {
+        free(gain);
+        free(locked);
+        free(in_bucket);
+        free(best_part);
+        free(skipped_this_step);
+        return rc;
+    }
+    /* Insert every vertex into the bucket initially.  Vertices with
+     * negative gain (interior to their side) are still inserted —
+     * Sprint 22's FM scanned them too, accepting transient cut
+     * increases, and the rollback-to-best-cut step at the end keeps
+     * us from finalising a worse partition.
+     *
+     * Iterate in reverse so the bucket's head-insert pattern leaves
+     * the lowest-ID vertex at each bucket's head — this matches
+     * Sprint 22's lowest-ID-wins tie-breaking on equal gains, which
+     * `test_ldlt_via_nd_dispatch` (bcsstk04 LDL^T no-pivoting)
+     * happened to depend on.  Strictly an initial-state invariant —
+     * neighbour-update remove+inserts during the FM walk can
+     * scatter IDs within a bucket — but downstream tests show this
+     * is sufficient to avoid the catastrophic residual blow-up. */
+    for (idx_t v = n - 1; v >= 0; v--) {
+        fm_bucket_insert(&buckets, v, gain[v]);
+        in_bucket[v] = 1;
     }
 
     idx_t cur_cut = compute_cut_weight(G, part_io);
@@ -1190,79 +1246,129 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
         max_imbal = init_imbal;
     max_imbal += max_vwgt;
 
-    /* FM main loop.  Pick the highest-gain unlocked vertex (positive
-     * or negative — accepting transient cut increases lets FM escape
-     * shallow local minima), move it, lock it, update neighbour
-     * gains.  After the pass, restore the best (lowest-cut) state
-     * seen during the walk. */
+    /* FM main loop.  pop_max returns the highest-gain still-in-bucket
+     * vertex; balance-ineligible pops get parked on the per-step
+     * skipped list and re-inserted at end-of-step so they're
+     * reconsidered next step (when w0/w1 may have shifted in their
+     * favour).  This preserves Sprint 22's "consider every unlocked
+     * vertex every step" semantics — the partition tests
+     * (tests/test_graph.c) and the bcsstk04 LDL^T no-pivoting
+     * residual test (tests/test_reorder_nd.c) both depend on it. */
     for (idx_t step = 0; step < n; step++) {
         idx_t best_v = -1;
         idx_t best_g = 0;
         int have_candidate = 0;
-        for (idx_t v = 0; v < n; v++) {
-            if (locked[v])
+        idx_t skipped_count = 0;
+        while (buckets.cursor >= 0) {
+            idx_t v = -1;
+            idx_t g = 0;
+            sparse_err_t pop_rc = fm_bucket_pop_max(&buckets, &v, &g);
+            if (pop_rc != SPARSE_OK)
+                break;
+            in_bucket[v] = 0;
+            /* Plan invariant: pop_max never returns a locked vertex
+             * because vertices get popped (and thus removed) before
+             * being marked locked; subsequent neighbour-update
+             * propagation also remove-then-reinserts only unlocked
+             * neighbours. */
+            if (locked[v]) {
+                /* Defensive only — should be unreachable. */
                 continue;
+            }
             idx_t v_w = G->vwgt ? G->vwgt[v] : 1;
             idx_t new_w0 = part_io[v] == 0 ? w0 - v_w : w0 + v_w;
             idx_t new_w1 = part_io[v] == 0 ? w1 + v_w : w1 - v_w;
             idx_t new_imbal = new_w0 > new_w1 ? new_w0 - new_w1 : new_w1 - new_w0;
-            if (new_imbal > max_imbal)
+            if (new_imbal > max_imbal) {
+                /* skipped_count ≤ n by construction: each pop sets
+                 * `in_bucket[v] = 0`, so the inner while can pop a
+                 * given vertex at most once per FM step, capping
+                 * skipped_count at the bucket's pre-step occupancy
+                 * (≤ n).  clang-analyzer's path-sensitive search
+                 * doesn't see this — silence the false positive. */
+                // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+                skipped_this_step[skipped_count++] = v;
                 continue;
-            /* Cache gain[v] in a local so the comparison `v < best_v`
-             * isn't on the same line as `gain[v]`; cppcheck otherwise
-             * raises a spurious arrayIndexThenCheck on the v compare. */
-            idx_t gv = gain[v];
-            if (!have_candidate || gv > best_g || (gv == best_g && v < best_v)) {
-                have_candidate = 1;
-                best_g = gv;
-                best_v = v;
+            }
+            best_v = v;
+            best_g = g;
+            have_candidate = 1;
+            break;
+        }
+
+        /* Move + neighbour gain-update happen first (touches gain[]
+         * for all unlocked neighbours, bucket re-shuffle for
+         * in_bucket ones), so when we re-insert the skipped vertices
+         * below their gain[] reflects the move's effect. */
+        if (have_candidate) {
+            cur_cut -= best_g;
+            idx_t v_w = G->vwgt ? G->vwgt[best_v] : 1;
+            idx_t old_side = part_io[best_v];
+            idx_t new_side = 1 - old_side;
+            if (old_side == 0) {
+                w0 -= v_w;
+                w1 += v_w;
+            } else {
+                w0 += v_w;
+                w1 -= v_w;
+            }
+            part_io[best_v] = new_side;
+            locked[best_v] = 1;
+
+            /* Neighbour gains: edge (best_v, u) flipped from external
+             * to internal (u on new_side) → gain[u] -= 2w; from
+             * internal to external (u on old_side) → gain[u] += 2w.
+             * gain[] is updated for *every* unlocked neighbour; the
+             * bucket re-shuffle only fires for currently-in-bucket
+             * neighbours, so skipped-this-step vertices pick up their
+             * updated gain when we re-insert them below. */
+            for (idx_t k = G->xadj[best_v]; k < G->xadj[best_v + 1]; k++) {
+                idx_t u = G->adjncy[k];
+                if (locked[u])
+                    continue;
+                idx_t w = G->ewgt ? G->ewgt[k] : 1;
+                idx_t old_g = gain[u];
+                if (part_io[u] == new_side)
+                    gain[u] -= 2 * w;
+                else
+                    gain[u] += 2 * w;
+                if (in_bucket[u]) {
+                    fm_bucket_remove(&buckets, u, old_g);
+                    fm_bucket_insert(&buckets, u, gain[u]);
+                }
+            }
+
+            if (cur_cut < best_cut) {
+                best_cut = cur_cut;
+                memcpy(best_part, part_io, (size_t)n * sizeof(idx_t));
             }
         }
+
+        /* Re-insert balance-skipped vertices for next-step
+         * consideration.  Their gain[] has been updated by the
+         * neighbour-update loop above (when applicable), so the
+         * bucket placement reflects their current gain. */
+        for (idx_t i = 0; i < skipped_count; i++) {
+            idx_t w = skipped_this_step[i];
+            if (!locked[w]) {
+                fm_bucket_insert(&buckets, w, gain[w]);
+                in_bucket[w] = 1;
+            }
+        }
+
         if (!have_candidate)
             break;
-
-        /* Move best_v: cut changes by -gain[best_v]. */
-        cur_cut -= best_g;
-        idx_t v_w = G->vwgt ? G->vwgt[best_v] : 1;
-        idx_t old_side = part_io[best_v];
-        idx_t new_side = 1 - old_side;
-        if (old_side == 0) {
-            w0 -= v_w;
-            w1 += v_w;
-        } else {
-            w0 += v_w;
-            w1 -= v_w;
-        }
-        part_io[best_v] = new_side;
-        locked[best_v] = 1;
-
-        /* Update gains for unlocked neighbours.  Neighbours now on
-         * the new side: edge (best_v, u) flipped from external to
-         * internal for u, so gain[u] -= 2w.  Neighbours on the old
-         * side: edge flipped internal → external, gain[u] += 2w. */
-        for (idx_t k = G->xadj[best_v]; k < G->xadj[best_v + 1]; k++) {
-            idx_t u = G->adjncy[k];
-            if (locked[u])
-                continue;
-            idx_t w = G->ewgt ? G->ewgt[k] : 1;
-            if (part_io[u] == new_side)
-                gain[u] -= 2 * w;
-            else
-                gain[u] += 2 * w;
-        }
-
-        if (cur_cut < best_cut) {
-            best_cut = cur_cut;
-            memcpy(best_part, part_io, (size_t)n * sizeof(idx_t));
-        }
     }
 
     /* Roll back to the best state. */
     memcpy(part_io, best_part, (size_t)n * sizeof(idx_t));
 
+    fm_bucket_array_free(&buckets);
     free(gain);
     free(locked);
+    free(in_bucket);
     free(best_part);
+    free(skipped_this_step);
     return SPARSE_OK;
 }
 

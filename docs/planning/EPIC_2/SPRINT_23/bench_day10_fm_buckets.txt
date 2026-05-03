@@ -1,0 +1,117 @@
+Sprint 23 Day 10 — Pres_Poisson wall-time after FM gain-bucket swap
+===================================================================
+
+Day 10 swaps `graph_refine_fm`'s O(n) max-gain scan for the Day-9
+gain-bucket structure (see `src/sparse_graph_fm_buckets.h`).  This
+captures Pres_Poisson's reorder wall-time and fill quality under
+the new FM, comparing against Sprint 22 Day 14 and Day 8.
+
+Single run on macOS x86_64 (Apple Clang, -O2).
+Driver: `build/bench_reorder --only Pres_Poisson --skip-factor`.
+
+Pres_Poisson (n=14 822) results
+-------------------------------
+
+  ordering  Sprint 22       Day 8       Day 10
+  ────────  ──────────  ──────────  ──────────
+  NONE       5 061 932   5 061 932   5 061 932    nnz_L (bit-identical)
+  RCM        3 187 081   3 187 081   3 187 081    nnz_L (bit-identical)
+  AMD        2 668 793   2 668 793   2 668 793    nnz_L (bit-identical)
+  COLAMD     3 415 793   3 415 793   3 415 793    nnz_L (bit-identical)
+  ND         2 837 046   2 839 346   2 737 253    nnz_L
+
+  ND/AMD ratio:
+    Sprint 22:  1.063×
+    Day 8:      1.064×
+    Day 10:     1.026×   ← 3.7-percentage-point improvement
+
+  ND reorder_ms:
+    Sprint 22:  43 754.9 ms
+    Day 8:      47 588.8 ms
+    Day 10:     43 338.9 ms   ← back to Sprint 22 baseline
+
+Fill-quality finding
+--------------------
+
+ND nnz(L) drops from 2 839 346 (Day 8) to 2 737 253 (Day 10) — a
+3.6 % reduction.  This is the bucket-FM doing more iterations of
+gain-update per pass within the same wall-clock budget; Sprint 22's
+O(n²) FM ran the same number of passes but each pass picked the
+max-gain via a linear scan, so under the same per-level FM budget
+the gain-bucket version converges to a tighter cut on the
+Pres_Poisson 2D-PDE separator structure.
+
+Even relative to Sprint 22's pre-Day-7 baseline (1.063×), Day 10
+shaves another 3.5 percentage points off the ND/AMD ratio (1.063 →
+1.026).
+
+The Day-7 leaf-AMD splice contributed the smaller fixtures' wins
+(nos4 -11 % on Day 8); Day 10's bucket-FM contributes the
+Pres_Poisson-class large-fixture win.
+
+Wall-time finding (vs PLAN.md target ≤ 10 s)
+--------------------------------------------
+
+ND reorder_ms is 43 338.9 ms — within run-to-run noise of Sprint 22
+Day 14's 43 754.9 ms.  The plan's expectation of ≤ 10 s under the
+gain-bucket swap is *not* met.
+
+Why the wall time didn't drop more:
+
+  - The bucket-FM removes Sprint 22's O(n²) max-gain scan, but the
+    FM itself is not the dominant cost in `sparse_reorder_nd` on
+    Pres_Poisson.  Single-shot `sparse_graph_partition` (the full
+    multilevel coarsen + bisect + FM-uncoarsen pipeline) on
+    Pres_Poisson now runs in ~200 ms (was ~280 ms pre-Day-10) per
+    `test_partition_pres_poisson_smoke`.  Recursive ND makes O(log
+    n) of these calls cumulatively totalling ~10-15 s.
+
+  - The remaining ~30 s is split between Day 7's per-leaf AMD splice
+    (Sprint 23 qg-AMD has its own ~6-77× wall-time regression vs
+    Sprint 22 baseline — see `bench_day8_nd_leaf_amd.txt` "AMD
+    wall-time regression" section, filed for Day 12 investigation),
+    graph subgraph extraction, and the per-recursion-level
+    vertex-id-map splicing.
+
+  - Fixing Day 12's AMD wall-time regression would carry the bulk
+    of the closure to ≤ 10 s; the bucket-FM swap landed the FM-side
+    contribution.  Plan target deviation routed there rather than
+    leaving Day 10 with a misleading completion claim.
+
+bcsstk04 LDL^T residual hazard (resolved during Day 10)
+-------------------------------------------------------
+
+The first bucket-FM iteration's tie-breaking + balance-skip
+semantics produced a permutation that crashed
+`test_ldlt_via_nd_dispatch`'s no-pivoting LDL^T factorization on
+bcsstk04 to a 7.94 e+09 residual.  Root cause: balance-ineligible
+vertices were dropped from the pop sequence permanently, where
+Sprint 22's full-rescan retried them on subsequent steps after
+w0/w1 shifted.  The skipped-this-step deferred-reinsertion pattern
+documented inline (search "skipped_this_step" in
+`src/sparse_graph.c`) restores Sprint 22's "consider every unlocked
+vertex every step" semantics and brings the residual back to
+6.02 e-12 (bit-identical to the Sprint 22 baseline).
+
+This is the contract the plan's "All `test_partition_*` tests pass
+with bit-identical or improved separator sizes vs Sprint-22
+baseline" criterion didn't capture — the bcsstk04+LDL^T+no-pivoting
+test is a *derived* numerical contract that the FM swap had to
+preserve.  Test landed Sprint 22 Day 8; pinned Day 10 onwards.
+
+Day-10 verdict
+--------------
+
+Bucket-FM swap landed: cleanly replaces the O(n) max-gain scan
+with O(1) amortised pop_max.  Fill quality on Pres_Poisson improved
+3.7 pp (ND/AMD: 1.064× → 1.026×); 10×10 grid improved 0.4 pp
+(1.20× → 1.16× per `tests/test_reorder_nd.c` output).  Wall-time
+dropped from Day 8's 47.6 s to 43.3 s — a 9 % improvement that
+returns Sprint 22's baseline; the plan's ≤ 10 s target requires
+unblocking the AMD wall-time regression that's deferred to Day 12.
+
+All 39 `tests/test_graph.c` partition tests pass; all 12
+`tests/test_reorder_nd.c` tests pass (including the bcsstk04 LDL^T
+residual that crashed in the initial bucket-FM iteration); all 5
+`tests/test_graph_fm_buckets.c` tests still pass on the now-
+production-coupled bucket structure.

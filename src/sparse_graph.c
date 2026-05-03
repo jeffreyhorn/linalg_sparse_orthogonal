@@ -104,6 +104,7 @@
  * driver in `src/sparse_reorder_nd.c` consumes.
  */
 
+#include "sparse_graph_fm_buckets.h"
 #include "sparse_graph_internal.h"
 #include "sparse_matrix_internal.h"
 
@@ -1006,6 +1007,128 @@ sparse_err_t graph_bisect_coarsest(const sparse_graph_t *G, idx_t *part_out) {
     if (G->n <= 20)
         return bisect_brute_force(G, part_out);
     return bisect_gggp(G, part_out);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 23 Day 9: gain-bucket data structure for FM refinement.
+ *
+ * The implementation lives inline in this TU because Day 10 will
+ * tightly couple it with `graph_refine_fm` below, and there are no
+ * other consumers — keeping it in one file keeps the FM data path
+ * inspectable in a single sweep.  The public API is declared in
+ * `src/sparse_graph_fm_buckets.h` so `tests/test_graph_fm_buckets.c`
+ * can pin the contract independently of the FM hot loop.
+ *
+ * Sentinel choice: `-1` for an empty bucket head and for next/prev
+ * list ends.  All vertex IDs the caller ever passes are in
+ * `[0, n_vertices)`, so `-1` never aliases a real ID.  `idx_t` is
+ * signed (`int32_t` / `int64_t` per build config) so sign comparison
+ * works without casting.
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+#define FM_BUCKET_EMPTY ((idx_t) - 1)
+
+sparse_err_t fm_bucket_array_init(fm_bucket_array_t *arr, idx_t n_vertices, idx_t max_gain) {
+    if (!arr)
+        return SPARSE_ERR_NULL;
+    if (n_vertices < 0 || max_gain < 0)
+        return SPARSE_ERR_BADARG;
+
+    idx_t num_buckets = 2 * max_gain + 1;
+    arr->heads = malloc((size_t)num_buckets * sizeof(idx_t));
+    arr->counts = calloc((size_t)num_buckets, sizeof(idx_t));
+    /* `next` / `prev` allocate to length max(n_vertices, 1) so a zero-
+     * vertex graph still gives malloc a non-zero length (avoids the
+     * implementation-defined `malloc(0)` corner case). */
+    size_t link_len = (size_t)(n_vertices > 0 ? n_vertices : 1);
+    arr->next = malloc(link_len * sizeof(idx_t));
+    arr->prev = malloc(link_len * sizeof(idx_t));
+    if (!arr->heads || !arr->counts || !arr->next || !arr->prev) {
+        free(arr->heads);
+        free(arr->counts);
+        free(arr->next);
+        free(arr->prev);
+        arr->heads = NULL;
+        arr->counts = NULL;
+        arr->next = NULL;
+        arr->prev = NULL;
+        return SPARSE_ERR_ALLOC;
+    }
+    for (idx_t i = 0; i < num_buckets; i++)
+        arr->heads[i] = FM_BUCKET_EMPTY;
+    arr->n_vertices = n_vertices;
+    arr->max_gain = max_gain;
+    arr->bucket_offset = max_gain;
+    arr->num_buckets = num_buckets;
+    arr->cursor = FM_BUCKET_EMPTY;
+    return SPARSE_OK;
+}
+
+void fm_bucket_array_free(fm_bucket_array_t *arr) {
+    if (!arr)
+        return;
+    free(arr->heads);
+    free(arr->counts);
+    free(arr->next);
+    free(arr->prev);
+    arr->heads = NULL;
+    arr->counts = NULL;
+    arr->next = NULL;
+    arr->prev = NULL;
+    arr->n_vertices = 0;
+    arr->max_gain = 0;
+    arr->bucket_offset = 0;
+    arr->num_buckets = 0;
+    arr->cursor = FM_BUCKET_EMPTY;
+}
+
+void fm_bucket_insert(fm_bucket_array_t *arr, idx_t vertex, idx_t gain) {
+    idx_t bucket = arr->bucket_offset + gain;
+    /* Doubly-linked-list head insert: vertex becomes the new head,
+     * old head (if any) hangs off vertex's `next`. */
+    arr->prev[vertex] = FM_BUCKET_EMPTY;
+    arr->next[vertex] = arr->heads[bucket];
+    if (arr->heads[bucket] != FM_BUCKET_EMPTY)
+        arr->prev[arr->heads[bucket]] = vertex;
+    arr->heads[bucket] = vertex;
+    arr->counts[bucket]++;
+    if (bucket > arr->cursor)
+        arr->cursor = bucket;
+}
+
+void fm_bucket_remove(fm_bucket_array_t *arr, idx_t vertex, idx_t gain) {
+    idx_t bucket = arr->bucket_offset + gain;
+    idx_t p = arr->prev[vertex];
+    idx_t n = arr->next[vertex];
+    if (p != FM_BUCKET_EMPTY)
+        arr->next[p] = n;
+    else
+        arr->heads[bucket] = n;
+    if (n != FM_BUCKET_EMPTY)
+        arr->prev[n] = p;
+    arr->counts[bucket]--;
+    /* Cursor walk-down: if we just emptied the cursor's bucket, slide
+     * the cursor down past every empty bucket below it.  Worst-case
+     * scan is the full array; amortised cost is O(1) over an FM pass
+     * because each bucket is visited at most twice (once descending,
+     * once if a later insert lifts the cursor back). */
+    if (bucket == arr->cursor) {
+        while (arr->cursor >= 0 && arr->counts[arr->cursor] == 0)
+            arr->cursor--;
+    }
+}
+
+sparse_err_t fm_bucket_pop_max(fm_bucket_array_t *arr, idx_t *vertex_out, idx_t *gain_out) {
+    if (arr->cursor < 0)
+        return SPARSE_ERR_BOUNDS;
+    idx_t bucket = arr->cursor;
+    idx_t v = arr->heads[bucket];
+    idx_t g = bucket - arr->bucket_offset;
+    fm_bucket_remove(arr, v, g);
+    *vertex_out = v;
+    *gain_out = g;
+    return SPARSE_OK;
 }
 
 sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {

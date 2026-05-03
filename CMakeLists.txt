@@ -173,6 +173,7 @@ add_sparse_test(test_eigs)
 add_sparse_test(test_eigs_thick_restart)
 add_sparse_test(test_eigs_lobpcg)
 add_sparse_test(test_graph)
+add_sparse_test(test_graph_fm_buckets)
 add_sparse_test(test_reorder_nd)
 add_sparse_test(test_reorder_amd_qg)
 

@@ -99,19 +99,27 @@ static void assert_cursor_invariant(const fm_bucket_array_t *arr) {
 }
 
 static void test_fm_buckets_random_stress(void) {
-    const idx_t n = 200;
-    const idx_t max_gain = 30;
+    /* Sprint 23 Day 11: bump from 200/1000 to 1000/5000 per PLAN.md
+     * §11.3.  Heap-allocate the per-vertex tracking arrays so the
+     * 1 000-vertex run doesn't push the stack-frame size near the
+     * 8 KiB default test-runner limit (8 000 idx_ts × 4-8 bytes is
+     * 32-64 KiB at idx_t = int32_t / int64_t). */
+    const idx_t n = 1000;
+    const idx_t max_gain = 50;
     fm_bucket_array_t arr = {0};
     REQUIRE_OK(fm_bucket_array_init(&arr, n, max_gain));
 
     /* Track per-vertex membership state externally so the test can
      * legally call insert/remove without violating the bucket-array's
      * "vertex appears in at most one bucket" contract. */
-    idx_t cur_gain[200];
-    int in_bucket[200];
-    for (idx_t v = 0; v < n; v++) {
-        cur_gain[v] = 0;
-        in_bucket[v] = 0;
+    idx_t *cur_gain = malloc((size_t)n * sizeof(idx_t));
+    int *in_bucket = calloc((size_t)n, sizeof(int));
+    if (!cur_gain || !in_bucket) {
+        free(cur_gain);
+        free(in_bucket);
+        fm_bucket_array_free(&arr);
+        REQUIRE_OK(SPARSE_ERR_ALLOC);
+        return;
     }
 
     uint64_t state = 0xDEADBEEFCAFEBABEULL;
@@ -119,7 +127,7 @@ static void test_fm_buckets_random_stress(void) {
     int n_removes = 0;
     int n_pops = 0;
 
-    for (int op = 0; op < 1000; op++) {
+    for (int op = 0; op < 5000; op++) {
         uint64_t r = splitmix64_test(&state);
         int kind = (int)(r % 3); /* 0=insert, 1=remove, 2=pop_max */
         idx_t v = (idx_t)((r >> 8) % (uint64_t)n);
@@ -180,9 +188,11 @@ static void test_fm_buckets_random_stress(void) {
     for (idx_t v = 0; v < n; v++)
         ASSERT_FALSE(in_bucket[v]);
 
-    printf("    fm_buckets stress: %d inserts, %d removes, %d pops over 1000 ops\n", n_inserts,
-           n_removes, n_pops);
+    printf("    fm_buckets stress (n=1000): %d inserts, %d removes, %d pops over 5000 ops\n",
+           n_inserts, n_removes, n_pops);
 
+    free(cur_gain);
+    free(in_bucket);
     fm_bucket_array_free(&arr);
 }
 
@@ -219,6 +229,136 @@ static void test_fm_buckets_empty(void) {
     fm_bucket_array_free(&arr);
 }
 
+/* ─── Sprint 23 Day 11 edge-case suite (PLAN.md §11.1) ────────────── */
+
+/* Single-vertex boundary: insert one vertex, pop, observe empty.
+ * Pins the n=1 walk through every code path (insert + cursor jump +
+ * pop + cursor walk-down) without any neighbour interaction. */
+static void test_fm_buckets_single_vertex_boundary(void) {
+    fm_bucket_array_t arr = {0};
+    REQUIRE_OK(fm_bucket_array_init(&arr, 1, 10));
+
+    fm_bucket_insert(&arr, 0, 5);
+    ASSERT_EQ(arr.cursor, 5 + 10); /* bucket_offset + gain */
+
+    idx_t v = -1;
+    idx_t g = 0;
+    REQUIRE_OK(fm_bucket_pop_max(&arr, &v, &g));
+    ASSERT_EQ(v, 0);
+    ASSERT_EQ(g, 5);
+    ASSERT_EQ(arr.cursor, -1); /* cursor walked down to empty sentinel */
+
+    /* Subsequent pop on empty bucket returns BOUNDS. */
+    ASSERT_ERR(fm_bucket_pop_max(&arr, &v, &g), SPARSE_ERR_BOUNDS);
+    fm_bucket_array_free(&arr);
+}
+
+/* All-zero-gain boundary: every vertex in the same bucket (gain=0).
+ * Cursor stays pinned at bucket_offset throughout the entire pop
+ * sweep until the bucket empties.  Pop ordering is *LIFO* (newest-
+ * inserted first) — head-insert puts each new vertex at the bucket's
+ * front, so pop_max returns insert-order-reversed.
+ *
+ * Note: PLAN.md §11.1 wrote "pop order is FIFO (insertion order)";
+ * the actual implementation is LIFO.  Both are deterministic and
+ * adequate for FM correctness — see Day 10's reverse-order initial-
+ * insert in `graph_refine_fm` (src/sparse_graph.c) which compensates
+ * for LIFO to recover Sprint 22's lowest-ID-wins tie-breaking on
+ * equal gains.  This test pins the LIFO behaviour explicitly. */
+static void test_fm_buckets_all_zero_gain_lifo(void) {
+    const idx_t n = 8;
+    const idx_t max_gain = 5;
+    fm_bucket_array_t arr = {0};
+    REQUIRE_OK(fm_bucket_array_init(&arr, n, max_gain));
+
+    for (idx_t v = 0; v < n; v++)
+        fm_bucket_insert(&arr, v, 0);
+    ASSERT_EQ(arr.cursor, max_gain); /* bucket_offset + 0 = max_gain */
+
+    /* LIFO: vertex (n-1) was inserted last → pops first. */
+    for (idx_t i = 0; i < n; i++) {
+        idx_t v = -1;
+        idx_t g = -1;
+        REQUIRE_OK(fm_bucket_pop_max(&arr, &v, &g));
+        ASSERT_EQ(g, 0);
+        ASSERT_EQ(v, n - 1 - i);
+    }
+    /* Bucket now empty — cursor at -1. */
+    ASSERT_EQ(arr.cursor, -1);
+    fm_bucket_array_free(&arr);
+}
+
+/* All-equal-positive-gain boundary: same as above but gain = +5.
+ * The cursor stays at `bucket_offset + 5` until the bucket empties;
+ * walks straight down to -1 on the last pop (no intermediate
+ * stops).  Pins the cursor-stays-put-on-popping-the-cursor-bucket
+ * branch when prior buckets are empty. */
+static void test_fm_buckets_all_equal_positive_gain(void) {
+    const idx_t n = 6;
+    const idx_t max_gain = 10;
+    const idx_t equal_gain = 5;
+    fm_bucket_array_t arr = {0};
+    REQUIRE_OK(fm_bucket_array_init(&arr, n, max_gain));
+
+    for (idx_t v = 0; v < n; v++)
+        fm_bucket_insert(&arr, v, equal_gain);
+    idx_t expected_cursor = max_gain + equal_gain;
+    ASSERT_EQ(arr.cursor, expected_cursor);
+
+    /* Cursor stays at expected_cursor while the bucket has ≥ 1
+     * entry; jumps to -1 when the last entry pops out (every other
+     * bucket is empty). */
+    for (idx_t i = 0; i < n; i++) {
+        idx_t v = -1;
+        idx_t g = -1;
+        REQUIRE_OK(fm_bucket_pop_max(&arr, &v, &g));
+        ASSERT_EQ(g, equal_gain);
+        if (i < n - 1)
+            ASSERT_EQ(arr.cursor, expected_cursor);
+        else
+            ASSERT_EQ(arr.cursor, -1);
+    }
+    fm_bucket_array_free(&arr);
+}
+
+/* Mixed positive + negative gains: pop order is gain-descending;
+ * within a tied gain bucket, LIFO (newest-first).  Pins the
+ * descending-cursor behaviour across multiple buckets. */
+static void test_fm_buckets_mixed_pos_neg_gains(void) {
+    const idx_t n = 6;
+    const idx_t max_gain = 5;
+    fm_bucket_array_t arr = {0};
+    REQUIRE_OK(fm_bucket_array_init(&arr, n, max_gain));
+
+    /* Insertions:  v=0:+3, v=1:-2, v=2:+5, v=3:0, v=4:+5, v=5:-2 */
+    fm_bucket_insert(&arr, 0, 3);
+    fm_bucket_insert(&arr, 1, -2);
+    fm_bucket_insert(&arr, 2, 5);
+    fm_bucket_insert(&arr, 3, 0);
+    fm_bucket_insert(&arr, 4, 5);
+    fm_bucket_insert(&arr, 5, -2);
+
+    /* Expected pop order (LIFO within a tied gain):
+     *   gain=+5: v=4 (newer), v=2 (older)
+     *   gain=+3: v=0
+     *   gain= 0: v=3
+     *   gain=-2: v=5 (newer), v=1 (older) */
+    idx_t expected_v[6] = {4, 2, 0, 3, 5, 1};
+    idx_t expected_g[6] = {5, 5, 3, 0, -2, -2};
+    idx_t prev_g = max_gain + 1;
+    for (idx_t i = 0; i < n; i++) {
+        idx_t v = -1;
+        idx_t g = 0;
+        REQUIRE_OK(fm_bucket_pop_max(&arr, &v, &g));
+        ASSERT_EQ(v, expected_v[i]);
+        ASSERT_EQ(g, expected_g[i]);
+        ASSERT_TRUE(g <= prev_g);
+        prev_g = g;
+    }
+    ASSERT_EQ(arr.cursor, -1);
+    fm_bucket_array_free(&arr);
+}
+
 /* ═══════════════════════════════════════════════════════════════════ */
 
 int main(void) {
@@ -226,6 +366,10 @@ int main(void) {
     RUN_TEST(test_fm_buckets_init_arg_validation);
     RUN_TEST(test_fm_buckets_free_idempotent);
     RUN_TEST(test_fm_buckets_empty);
+    RUN_TEST(test_fm_buckets_single_vertex_boundary);
+    RUN_TEST(test_fm_buckets_all_zero_gain_lifo);
+    RUN_TEST(test_fm_buckets_all_equal_positive_gain);
+    RUN_TEST(test_fm_buckets_mixed_pos_neg_gains);
     RUN_TEST(test_fm_buckets_pop_all_non_increasing);
     RUN_TEST(test_fm_buckets_random_stress);
     TEST_SUITE_END();

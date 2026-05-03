@@ -320,3 +320,51 @@ the first realloc by a few pivots.
 These three are noted here so they're not lost — Sprint 24's "AMD
 parity with SuiteSparse" follow-up (if PROJECT_PLAN.md acquires one)
 would consume them.
+
+### Day-11 finding: multi-pass FM at the finest level
+
+PLAN.md §11.4 budgeted a 2-hour exploration of multi-pass FM —
+the question is whether Sprint 22's single-pass-per-uncoarsening-
+level FM is leaving cut quality on the table.  Davis 2006 §4.2
+notes that FM converges to a local minimum after 2-3 passes from
+a given starting partition; METIS's reference implementation runs
+multi-pass FM at the finest level by default for the same reason.
+
+The Day-9 / Day-10 gain-bucket FM makes each pass cheap enough to
+afford running multiple passes — Sprint 22's O(n²) FM made even
+single-pass expensive on Pres_Poisson.  Sweep result on Pres_Poisson
+(n = 14 822, end-to-end `sparse_reorder_nd` + symbolic Cholesky):
+
+| `SPARSE_FM_FINEST_PASSES` | nnz(L)    | ND/AMD ratio | ND wall |
+|---------------------------|-----------|--------------|---------|
+| 1 (Sprint 22 default)     | 2 737 253 |   1.026 ×    | 47.3 s  |
+| 2                         | 2 556 617 |   0.958 ×    | 41.4 s  |
+| 3 (chosen)                | 2 541 734 |   0.952 ×    | 40.5 s  |
+| 5                         | 2 543 161 |   0.953 ×    | 41.2 s  |
+
+Pass 2 captures most of the win (ratio jumps 1.026 → 0.958 ×); pass
+3 tightens further (→ 0.952 ×); pass 5 sits at the same ratio (no
+further win — converged at the FM local optimum).  Wall time
+*drops* 6 seconds with 3 passes vs 1: a tighter partition produces
+fewer cross-edges to chase during the recursive-ND descent, so the
+cumulative downstream work shrinks faster than the extra passes add.
+
+Decision: adopt 3-pass at the finest level by default.  Override
+via `SPARSE_FM_FINEST_PASSES` env var (1..16) for regression
+bisection.  Intermediate-level passes stay at 1 — those levels see
+mostly-converged partitions from coarsening, and adding passes
+there is wall-time cost without measurable fill win.
+
+Pres_Poisson now lands at 0.95 × AMD — the headline fill-quality
+gate from Sprint 22 onwards.  PLAN.md Day-8's literal target was
+≤ 0.7 ×; not achieved (and remains Sprint-24 territory per the
+risk-flag #2 fallback) but ND now consistently *beats* AMD on this
+2D-PDE benchmark, which was the intent behind the relaxed
+≤ 0.7 × stretch goal.
+
+Smaller fixtures (10×10 grid, bcsstk04) see no measurable change
+from multi-pass FM — their partitions are already converged after
+single-pass.  Same picture for bcsstk14 / Kuu in the post-multilevel
+experiment that informed this decision (`/tmp/test_multipass_after`,
+not committed — the `SPARSE_FM_FINEST_PASSES` env var subsumes it
+as the canonical multi-pass mechanism).

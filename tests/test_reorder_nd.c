@@ -423,23 +423,25 @@ static void test_nd_pres_poisson_fill_with_leaf_amd(void) {
             (int)sparse_rows(A), (int)nnz_amd, (int)nnz_nd, (double)nnz_nd / (double)nnz_amd,
             nd_seconds);
 
-    /* Sprint 23 Day 8: assert `nnz_nd ≤ 1.10× nnz_amd`.  Measured
-     * value is 1.064× under the Day-7 leaf-AMD splice — same as
-     * Sprint 22's 1.06× (leaf-AMD doesn't help on this fixture).
-     * 4-percentage-point margin protects against the few-permil
-     * noise the partitioner's RNG introduces on FM tie-breaks.
+    /* Sprint 23 Day 11: tightened from `nnz_nd ≤ 1.10× nnz_amd` to
+     * `nnz_nd ≤ 1.0× nnz_amd`.  Day 11's multi-pass FM exploration
+     * (3 passes at the finest uncoarsening level — see
+     * src/sparse_graph.c "Sprint 23 Day 11" comment) drops
+     * Pres_Poisson's ratio from 1.026× to 0.952×.  ND now beats
+     * AMD on this fixture, the headline fill-quality gate from
+     * Sprint 22 onwards.  5-percentage-point margin (≤ 1.0× rather
+     * than the measured 0.952×) absorbs RNG-noise drift on the
+     * partitioner's FM tie-breaks.
      *
-     * The PLAN.md Day-8 target was `nnz_nd ≤ 0.7× nnz_amd` — the
-     * canonical 2D-PDE benchmark where ND's geometric advantage
-     * should be largest.  Not achieved by Day-7 alone; closing
-     * the gap to 0.7× requires the multi-pass FM exploration
-     * scheduled for Day 11 (and possibly the gain-bucket FM
-     * refactor for Days 9-10's O(|E|) pass cost — without
-     * cheaper passes the multi-pass exploration is unaffordable
-     * on this n = 14 822 fixture).  PLAN.md Risk-flag #2
-     * acknowledges Sprint-24 deferral as the fallback if Day 11
-     * doesn't move the needle. */
-    ASSERT_TRUE((long long)nnz_nd * 100 <= (long long)nnz_amd * 110);
+     * The PLAN.md Day-8 target was `nnz_nd ≤ 0.7× nnz_amd` — still
+     * not achieved (current 0.952×) but the recursive-ND-with-multi-
+     * pass-FM-and-leaf-AMD pipeline now consistently finds a
+     * *better-than-AMD* ordering.  Closing the gap from 0.95× to
+     * 0.7× would require either deeper coarsening, more aggressive
+     * FM tuning, or a separator-extraction strategy beyond Sprint
+     * 22's smaller-side lift — Sprint-24 territory per PLAN.md
+     * risk-flag #2. */
+    ASSERT_TRUE((long long)nnz_nd <= (long long)nnz_amd);
 
     sparse_free(A);
 }

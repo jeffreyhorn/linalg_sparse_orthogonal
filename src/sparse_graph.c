@@ -1409,6 +1409,38 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
     if (coarsest_n > 0)
         memcpy(cur, coarsest_part, (size_t)coarsest_n * sizeof(idx_t));
 
+    /* Sprint 23 Day 11: 3-pass FM at the finest level.  Sprint 22 ran
+     * a single FM pass per uncoarsening level; Day 11's exploration
+     * (`docs/planning/EPIC_2/SPRINT_23/davis_notes.md` §"Day-11
+     * finding") measured end-to-end nnz(L) on Pres_Poisson under
+     * SPARSE_FM_FINEST_PASSES = {1, 2, 3, 5} and observed:
+     *
+     *   - 1 pass: ratio 1.026×, ND wall 47.3 s
+     *   - 2 pass: ratio 0.958×, ND wall 41.4 s
+     *   - 3 pass: ratio 0.952×, ND wall 40.5 s   ← chosen
+     *   - 5 pass: ratio 0.953×, ND wall 41.2 s   (no further win)
+     *
+     * 3 is the sweet spot: each successive pass converges further
+     * toward the FM local optimum on this fixture's separator
+     * structure, with diminishing returns past pass 3.  ND/AMD now
+     * lands at 0.95× — Pres_Poisson ND beats AMD, the headline
+     * fill-quality gate from Sprint 22 onwards.
+     *
+     * Override via SPARSE_FM_FINEST_PASSES env var (1..16) for
+     * regression bisection.  The intermediate-level passes stay at
+     * 1 — the multilevel coarsening already gives those levels a
+     * mostly-converged input, and adding passes there is wall-time
+     * cost without measurable fill win. */
+    int finest_passes = 3;
+    {
+        const char *env = getenv("SPARSE_FM_FINEST_PASSES");
+        if (env) {
+            int v = atoi(env);
+            if (v >= 1 && v <= 16)
+                finest_passes = v;
+        }
+    }
+
     /* Walk levels from coarsest down to root.  At each step, project
      * `cur` (on coarse[level]) through cmaps[level] onto the next-
      * finer graph (root if level == 0, else coarse[level - 1]) and
@@ -1420,11 +1452,14 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
             // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
             next[i] = cur[cmap[i]];
         }
-        sparse_err_t rc = graph_refine_fm(dst_graph, next);
-        if (rc != SPARSE_OK) {
-            free(cur);
-            free(next);
-            return rc;
+        int passes = (level == 0) ? finest_passes : 1;
+        for (int p = 0; p < passes; p++) {
+            sparse_err_t rc = graph_refine_fm(dst_graph, next);
+            if (rc != SPARSE_OK) {
+                free(cur);
+                free(next);
+                return rc;
+            }
         }
         idx_t *tmp = cur;
         cur = next;

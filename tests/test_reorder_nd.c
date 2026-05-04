@@ -1,3 +1,6 @@
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 199309L)
+#define _POSIX_C_SOURCE 199309L
+#endif
 /*
  * Sprint 22 Days 6-8 — nested-dissection reordering unit tests.
  *

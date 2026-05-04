@@ -361,36 +361,42 @@ static void test_amd_stress_10k_banded(void) {
 static void test_qg_workspace_extension_no_regression(void) {
     const idx_t n = 100;
     const idx_t bandwidth = 5;
-    SparseMatrix *A = sparse_create(n, n);
-    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_err_t rc = SPARSE_OK;
+    SparseMatrix *A = NULL;
+    idx_t *perm1 = NULL;
+    idx_t *perm2 = NULL;
+
+    A = sparse_create(n, n);
+    if (!A) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
     for (idx_t i = 0; i < n; i++) {
-        sparse_err_t ins_rc = sparse_insert(A, i, i, 1.0);
-        for (idx_t k = 1; ins_rc == SPARSE_OK && k <= bandwidth; k++) {
+        rc = sparse_insert(A, i, i, 1.0);
+        for (idx_t k = 1; rc == SPARSE_OK && k <= bandwidth; k++) {
             if (i + k < n) {
-                ins_rc = sparse_insert(A, i, i + k, 1.0);
-                if (ins_rc == SPARSE_OK)
-                    ins_rc = sparse_insert(A, i + k, i, 1.0);
+                rc = sparse_insert(A, i, i + k, 1.0);
+                if (rc == SPARSE_OK)
+                    rc = sparse_insert(A, i + k, i, 1.0);
             }
         }
-        if (ins_rc != SPARSE_OK) {
-            sparse_free(A);
-            REQUIRE_OK(ins_rc);
-            return;
-        }
+        if (rc != SPARSE_OK)
+            goto cleanup;
     }
 
-    idx_t *perm1 = malloc((size_t)n * sizeof(idx_t));
-    idx_t *perm2 = malloc((size_t)n * sizeof(idx_t));
+    perm1 = malloc((size_t)n * sizeof(idx_t));
+    perm2 = malloc((size_t)n * sizeof(idx_t));
     if (!perm1 || !perm2) {
-        free(perm1);
-        free(perm2);
-        sparse_free(A);
-        REQUIRE_OK(SPARSE_ERR_ALLOC);
-        return;
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
     }
 
-    REQUIRE_OK(sparse_reorder_amd_qg(A, perm1));
-    REQUIRE_OK(sparse_reorder_amd_qg(A, perm2));
+    rc = sparse_reorder_amd_qg(A, perm1);
+    if (rc != SPARSE_OK)
+        goto cleanup;
+    rc = sparse_reorder_amd_qg(A, perm2);
+    if (rc != SPARSE_OK)
+        goto cleanup;
 
     /* Determinism: two independent runs on the same fixture produce
      * bit-identical permutations.  Day 3's element-absorption work
@@ -408,9 +414,11 @@ static void test_qg_workspace_extension_no_regression(void) {
     ASSERT_TRUE(nnz_L > 0);
     printf("    100×100 banded (bw=5): nnz(L) under qg AMD = %d\n", (int)nnz_L);
 
+cleanup:
     free(perm1);
     free(perm2);
     sparse_free(A);
+    REQUIRE_OK(rc);
 }
 
 /* ─── Sprint 23 Day 4: supervariable detection ──────────────────────── */
@@ -449,18 +457,23 @@ fail:
 
 static void test_qg_supervariable_synthetic(void) {
     const idx_t k = 4; /* 4 leaves */
+    sparse_err_t rc = SPARSE_OK;
     SparseMatrix *A = make_star_n(k);
-    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    idx_t *perm = NULL;
+    if (!A) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
     idx_t n = sparse_rows(A); /* k + 1 */
-
-    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    perm = malloc((size_t)n * sizeof(idx_t));
     if (!perm) {
-        sparse_free(A);
-        REQUIRE_OK(SPARSE_ERR_ALLOC);
-        return;
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
     }
 
-    REQUIRE_OK(sparse_reorder_amd_qg(A, perm));
+    rc = sparse_reorder_amd_qg(A, perm);
+    if (rc != SPARSE_OK)
+        goto cleanup;
     ASSERT_TRUE(is_valid_permutation(perm, n));
 
     /* The centre (vertex 0) has the largest degree (k); each leaf
@@ -500,8 +513,10 @@ static void test_qg_supervariable_synthetic(void) {
     printf("    star (n=%d, %d leaves): perm centre at %d, leaves contiguous at [%d..%d]\n", (int)n,
            (int)k, (int)centre_pos, (int)first_leaf, (int)last_leaf);
 
+cleanup:
     free(perm);
     sparse_free(A);
+    REQUIRE_OK(rc);
 }
 
 /* ─── Sprint 23 Day 5: approximate-degree conservative-bound test ──── */

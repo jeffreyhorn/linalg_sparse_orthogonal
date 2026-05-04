@@ -518,10 +518,14 @@ static double max_abs(const double *v, idx_t n) {
  * Construction: 256×256 banded matrix, bandwidth 8.  Diagonals set
  * to 100.0, off-diagonals to 0.5.  Each row has at most 17 nonzeros
  * (1 diagonal + 8 above + 8 below).  Strict diagonal dominance:
- * |A[i][i]| = 100 ≫ 16 × 0.5 = 8 = Σ |A[i][j]| over j ≠ i — far
- * stronger than the 100/8 = 12.5 rough condition-number bound.  The
- * matrix is symmetric and SPD by Gershgorin.  Sprint 23 Day 1
- * residual target: 1e-12 (the original Sprint 22 plan figure).
+ * |A[i][i]| = 100 ≫ 16 × 0.5 = 8 = Σ |A[i][j]| over j ≠ i.  By
+ * Gershgorin every eigenvalue lies in `[100 − 8, 100 + 8] = [92,
+ * 108]`, so the matrix is symmetric SPD with condition number
+ * bounded by `108 / 92 ≈ 1.17` — well-conditioned, not the
+ * 100 / 8 = 12.5 ratio the prior comment claimed (that ratio is
+ * the diagonal-dominance margin, not a condition number).  Sprint
+ * 23 Day 1 residual target: 1e-12 (the original Sprint 22 plan
+ * figure).
  *
  * INSERT_OR_FAIL is the project-local helper that frees A and
  * returns NULL on insert failure (defined earlier in this file). */

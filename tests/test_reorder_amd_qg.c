@@ -1,3 +1,6 @@
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200112L)
+#define _POSIX_C_SOURCE 200112L
+#endif
 /*
  * Sprint 22 Days 11-12 — quotient-graph AMD wrapper-delegation
  * + production-swap tests.

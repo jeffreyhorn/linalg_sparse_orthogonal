@@ -66,8 +66,10 @@ idx_t sparse_reorder_nd_base_threshold = 32;
 
 /* Append `n` vertices from a subgraph to the global permutation in
  * the order they appear in `vertex_id_map`.  Used by the
- * degenerate-partition fallback and by the leaf-AMD path's
- * fallback when sparse_reorder_amd_qg fails on a leaf. */
+ * degenerate-partition fallback in `nd_recurse` (when the
+ * partitioner returns a separator that consumes everything; the
+ * leaf-AMD path now propagates allocation / AMD failures rather
+ * than falling back here). */
 static void nd_emit_natural(const idx_t *vertex_id_map, idx_t n, idx_t *perm, idx_t *next_pos) {
     /* The caller guarantees `perm` has space for at least `*next_pos + n`
      * entries (the recursion's invariant — each subgraph's vertices fit
@@ -143,28 +145,32 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
      * coarsening cost on subgraphs too small for separator-last
      * to amortise.
      *
-     * On allocation / AMD failure: fall back to natural ordering
-     * for this leaf and continue.  The caller doesn't see a
-     * failure — fill quality may be slightly worse for that one
-     * subgraph but the overall ND ordering still completes. */
+     * On any failure path (`nd_subgraph_to_sparse` allocation,
+     * `leaf_perm` allocation, or `sparse_reorder_amd_qg` call):
+     * propagate the error to the caller rather than silently
+     * falling back to natural ordering.  Sprint 23 Day 7's
+     * original design fell back-and-returned-OK to keep ND
+     * "always-completes" against transient allocation pressure,
+     * but per PR #31 review (comment 3184299437) that masked
+     * real `SPARSE_ERR_ALLOC` failures from the caller and made
+     * `sparse_reorder_nd` look successful while silently
+     * degrading.  Propagating gives callers the option to
+     * distinguish a successful reorder from a degraded fallback
+     * (e.g., they can retry or surface the error). */
     if (n <= sparse_reorder_nd_base_threshold) {
         SparseMatrix *A_leaf = nd_subgraph_to_sparse(G);
-        if (!A_leaf) {
-            nd_emit_natural(vertex_id_map, n, perm, next_pos);
-            return SPARSE_OK;
-        }
+        if (!A_leaf)
+            return SPARSE_ERR_ALLOC;
         idx_t *leaf_perm = malloc((size_t)n * sizeof(idx_t));
         if (!leaf_perm) {
             sparse_free(A_leaf);
-            nd_emit_natural(vertex_id_map, n, perm, next_pos);
-            return SPARSE_OK;
+            return SPARSE_ERR_ALLOC;
         }
         sparse_err_t leaf_rc = sparse_reorder_amd_qg(A_leaf, leaf_perm);
         if (leaf_rc != SPARSE_OK) {
             free(leaf_perm);
             sparse_free(A_leaf);
-            nd_emit_natural(vertex_id_map, n, perm, next_pos);
-            return SPARSE_OK;
+            return leaf_rc;
         }
         /* Splice the leaf-local permutation through vertex_id_map
          * to write global root-graph IDs into perm[]. */

@@ -1135,6 +1135,8 @@ void fm_bucket_remove(fm_bucket_array_t *arr, idx_t vertex, idx_t gain) {
 }
 
 sparse_err_t fm_bucket_pop_max(fm_bucket_array_t *arr, idx_t *vertex_out, idx_t *gain_out) {
+    if (!arr || !vertex_out || !gain_out)
+        return SPARSE_ERR_NULL;
     if (arr->cursor < 0)
         return SPARSE_ERR_BOUNDS;
     idx_t bucket = arr->cursor;

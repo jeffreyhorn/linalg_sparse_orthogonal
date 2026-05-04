@@ -125,6 +125,8 @@ void fm_bucket_remove(fm_bucket_array_t *arr, idx_t vertex, idx_t gain);
  * @param gain_out     Output: popped vertex's gain.  Untouched on empty.
  *
  * @return SPARSE_OK if a vertex was popped.
+ * @return SPARSE_ERR_NULL if `arr`, `vertex_out`, or `gain_out` is NULL
+ *         (outputs are not touched in this case).
  * @return SPARSE_ERR_BOUNDS if the bucket array is empty (no vertices
  *         currently inserted).
  */

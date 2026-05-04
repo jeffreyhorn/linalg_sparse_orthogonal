@@ -205,6 +205,33 @@ static void test_fm_buckets_init_arg_validation(void) {
     ASSERT_ERR(fm_bucket_array_init(&arr, 100, -1), SPARSE_ERR_BADARG);
 }
 
+/* `fm_bucket_pop_max` validates `arr`, `vertex_out`, `gain_out` and
+ * returns SPARSE_ERR_NULL on any NULL — outputs are not touched.
+ * Per PR #31 review (comment 3184512196). */
+static void test_fm_buckets_pop_max_null_args(void) {
+    fm_bucket_array_t arr = {0};
+    REQUIRE_OK(fm_bucket_array_init(&arr, 4, 5));
+    fm_bucket_insert(&arr, 0, 3);
+
+    idx_t v_sentinel = -42;
+    idx_t g_sentinel = -42;
+    ASSERT_ERR(fm_bucket_pop_max(NULL, &v_sentinel, &g_sentinel), SPARSE_ERR_NULL);
+    ASSERT_EQ(v_sentinel, -42); /* outputs untouched on NULL */
+    ASSERT_EQ(g_sentinel, -42);
+
+    ASSERT_ERR(fm_bucket_pop_max(&arr, NULL, &g_sentinel), SPARSE_ERR_NULL);
+    ASSERT_EQ(g_sentinel, -42);
+
+    ASSERT_ERR(fm_bucket_pop_max(&arr, &v_sentinel, NULL), SPARSE_ERR_NULL);
+    ASSERT_EQ(v_sentinel, -42);
+
+    /* The vertex inserted above is still in the bucket — the failed
+     * pops shouldn't have removed it. */
+    ASSERT_EQ(arr.cursor, 5 + 3); /* bucket_offset + gain */
+
+    fm_bucket_array_free(&arr);
+}
+
 static void test_fm_buckets_free_idempotent(void) {
     fm_bucket_array_t arr = {0};
     /* Free of a zero-init struct is a no-op (no spurious frees). */
@@ -364,6 +391,7 @@ static void test_fm_buckets_mixed_pos_neg_gains(void) {
 int main(void) {
     TEST_SUITE_BEGIN("Sprint 23 Day 9: gain-bucket data structure for FM refinement");
     RUN_TEST(test_fm_buckets_init_arg_validation);
+    RUN_TEST(test_fm_buckets_pop_max_null_args);
     RUN_TEST(test_fm_buckets_free_idempotent);
     RUN_TEST(test_fm_buckets_empty);
     RUN_TEST(test_fm_buckets_single_vertex_boundary);

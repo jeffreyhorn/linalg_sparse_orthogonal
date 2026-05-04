@@ -92,8 +92,12 @@ static void nd_emit_natural(const idx_t *vertex_id_map, idx_t n, idx_t *perm, id
  * keeps the matrix structurally well-formed for downstream
  * sanity checks).
  *
- * Returns NULL on allocation failure or insert failure (caller
- * falls back to natural ordering for that leaf). */
+ * Returns NULL on allocation failure or insert failure.  Caller
+ * (the leaf base case in `nd_recurse`) propagates a NULL return
+ * as `SPARSE_ERR_ALLOC` to its own caller — Sprint 23 Day 7's
+ * silent natural-ordering fallback was replaced per PR #31
+ * review (comment 3184299437) so allocation pressure surfaces
+ * cleanly instead of silently degrading the ordering. */
 static SparseMatrix *nd_subgraph_to_sparse(const sparse_graph_t *G_leaf) {
     idx_t n = G_leaf->n;
     SparseMatrix *A = sparse_create(n, n);

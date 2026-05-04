@@ -498,7 +498,49 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 ---
 
-## Sprint 24: SVD Improvements, Eigenpair Refinement, Progress Callbacks, CI Hardening & Epic 2 Wrap-Up
+## Sprint 24: Ordering Follow-Ups (Sprint 23 deferrals)
+
+**Duration:** 14 days (~126 hours estimated)
+
+**Goal:** Close the qg-AMD wall-time regression Sprint 23 introduced (62-199× vs Sprint 22 quotient-graph baseline on irregular SuiteSparse SPD; gate (b) hard fail in `docs/planning/EPIC_2/SPRINT_23/bench_summary_day12.md`), tighten the Pres_Poisson ND/AMD ratio toward the literal Sprint 22 plan target (Sprint 23 landed at 0.952×; this sprint targets ≤ 0.85×), close the Sprint 23 Day 13 deferral that left the AMD parity test at bcsstk14 only (Pres_Poisson skipped because USE_APPROX would push the suite past 30 minutes), and add per-day wall-time regression-check infrastructure to prevent similar regressions in future sprints.  Also lands the Davis 2006 §7.5.1 external-degree refinement (deferred from Sprint 23 Day 5) if Sprint 23's approximate-degree path is retained.
+
+### Prerequisites from previous Sprints
+
+- Sprint 22 item 4: existing simplified quotient-graph AMD baseline at `src/sparse_reorder_amd_qg.c` — items 2 and 4 reference this baseline as the wall-time target.
+- Sprint 22 Day 13's `benchmarks/bench_amd_qg.c` — item 1 extends it with a per-fixture regression-threshold check.
+- Sprint 23 Days 2-5: element absorption + supervariable detection + approximate-degree formula + dense-row skip in `src/sparse_reorder_amd_qg.c` — item 2 root-causes and fixes the wall-time regression these introduced; item 4 builds on top of the approximate-degree path if item 2 retains it.
+- Sprint 23 Day 7: leaf-AMD splice in `src/sparse_reorder_nd.c` — item 5's ND fill-quality work runs against the same recursive-ND driver.
+- Sprint 23 Days 9-11: gain-bucket FM + multi-pass FM at the finest level — item 5 tunes these without breaking the determinism contracts they established.
+- Sprint 23 Day 13: `tests/test_reorder_amd_qg.c::test_qg_approx_degree_parity_corpus` (bcsstk14 only) — item 3 extends this to Pres_Poisson once item 2 closes the wall-time regression.
+
+### Items
+
+| # | Item | Description | Estimate |
+|---|------|-------------|----------|
+| 1 | Day-by-day wall-time regression-check instrumentation | Add a `make wall-check` target that runs `build/bench_amd_qg --only bcsstk14` and `build/bench_reorder --only Pres_Poisson --skip-factor`, parses the `reorder_ms` field, and exits non-zero if either AMD wall time exceeds the prior committed baseline by > 2× on the same machine class.  Sprint 23's day-by-day commits would have caught the qg-AMD wall-time regression at Day 3 had this gate existed (regression accumulated across Days 2-5 with no intermediate signal).  Document the contract in `Makefile` + a new `### Performance regression gates` subsection in `docs/algorithm.md`.  Lessons-section item from Sprint 23's retrospective (`SPRINT_23/RETROSPECTIVE.md` "Sprint 24 inputs" #4).  Land first so items 2-5 run with the gate active. | 6 hrs |
+| 2 | qg-AMD wall-time root-cause + fix | Profile `sparse_reorder_amd_qg` on bcsstk14 / Pres_Poisson under the Sprint 23 default path; identify which of Days 2-5's additions dominate the wall-time regression.  Three candidate fixes documented in `SPRINT_23/bench_summary_day12.md "(b)"`: (a) replace Day 4's hash + O(k²) full-list compare with a sorted-list compare (O(k log k) on collision) — keeps the supervariable-detection win on regular fixtures while bounding worst-case cost on irregular ones; (b) gate supervariable detection by a regularity heuristic that predicts payoff before paying the per-pivot cost; (c) revert Days 2-5 entirely (Day 11's multi-pass FM was the actual headline driver, not Days 2-5; reverting restores Sprint 22 baseline without losing the Pres_Poisson 0.95× outcome).  Pick one based on the profile, implement, validate that nnz(L) stays bit-identical across the full corpus + synthetic banded, and confirm wall time on bcsstk14 ≤ 1.5× of Sprint 22's quotient-graph baseline (~140 ms target — Sprint 22's qg ran at ~30 % above bitset, restoring that band is the realistic close).  This item is the priority-1 sprint deliverable. | 32 hrs |
+| 3 | AMD parity test on Pres_Poisson | Extend `tests/test_reorder_amd_qg.c::test_qg_approx_degree_parity_corpus` from bcsstk14 to Pres_Poisson — the conservative-bound contract (`d_approx ≥ d_exact` per pivot under `SPARSE_QG_VERIFY_DEG`) on the canonical 2D-PDE benchmark.  Sprint 23 Day 13 deferred this because Pres_Poisson under USE_APPROX would push the test suite past 30 minutes on the pre-fix wall-time profile; item 2's fix should bring this back into the affordable range (target: full corpus parity test under 5 minutes total).  Skip cleanly if item 2 chooses the "revert Days 2-5 entirely" path (test isn't applicable since the approximate-degree code path is gone). | 8 hrs |
+| 4 | Davis 2006 §7.5.1 external-degree refinement | Conditional on item 2 retaining the Sprint 23 approximate-degree code path (i.e. fix candidates (a) or (b), not (c)).  Davis 2006 §7.5.1 describes an "external degree" refinement that tightens the approximate-degree formula's bound by tracking which neighbours are external to the pivot's element-set vs internal.  Currently the Sprint 23 formula counts all element-side adjacency as external; the refinement walks the element's variable-set once per pivot and corrects for the overlap.  Implement, validate against the existing 50-vertex + 200-vertex parity tests (Sprint 23 Days 5 / 6) — `d_approx ≥ d_exact` must still hold — and measure pivot-order divergence vs the Sprint 23 default path on bcsstk14.  If pivot-order is meaningfully tighter (≤ 5 % nnz(L) difference vs exact-degree), promote external-degree to default for the approximate path; otherwise document the refinement as available behind `SPARSE_QG_USE_EXTERNAL_DEG` and move on.  Mentioned in Sprint 23 `davis_notes.md` "Day-1 reading" but not implemented (`SPRINT_23/RETROSPECTIVE.md` "Items deferred"). | 20 hrs |
+| 5 | ND fill-quality follow-up — Pres_Poisson ≤ 0.85× | Sprint 23 Day 11's multi-pass FM landed Pres_Poisson at 0.952× of AMD; closing 0.95 → 0.7 (let alone Sprint 22's plan-target 0.5×) needs deeper algorithmic work outside Sprint 23's scope.  Two candidate axes for this sprint: (a) deepen coarsening — current bottoms out at MAX(20, n/100), try MAX(20, n/200) or a fixed coarsening floor of 50 to give the brute-force / GGGP bisection more graph to work with; (b) smarter separator extraction beyond Sprint 22's smaller-side lift — try a balanced-cost variant that lifts the side with smaller boundary regardless of side weight.  Stretch target ≤ 0.85× (a 7-pp tightening from 0.95×); the literal Sprint 22 plan-target 0.7× is explicitly out of scope unless one of (a) or (b) overshoots.  Add a Pres_Poisson nnz_nd fixture-pin to `tests/test_reorder_nd.c::test_nd_pres_poisson_fill_with_leaf_amd` once the new ratio holds (replacing the current `≤ nnz_amd` bound with a tighter `≤ 0.85× nnz_amd`).  `SPRINT_23/RETROSPECTIVE.md` "Items deferred" routes this here. | 32 hrs |
+| 6 | Cross-corpus re-bench post-items-2-5 | Re-run `benchmarks/bench_reorder.c` and `benchmarks/bench_amd_qg.c` after items 2-5 land.  Capture to `docs/planning/EPIC_2/SPRINT_24/bench_*.{csv,txt}`.  Verify (a) qg-AMD wall on bcsstk14 ≤ 1.5× Sprint 22 quotient-graph baseline (~210 ms ceiling); (b) qg-AMD nnz(L) bit-identical to Sprint 22 + Sprint 23 captures; (c) Pres_Poisson ND/AMD ≤ 0.85× (item 5 stretch target); (d) all `SPRINT_23/bench_day14.txt` nnz_L rows stay bit-identical or improve.  Build a `bench_summary_day14.md` (Sprint 24 closing-day capture, following the Sprint 23 Day-12 pattern). | 12 hrs |
+| 7 | Tests + docs + retrospective | New tests if items 2 / 4 / 5 added user-visible behavior (item 2's regression test in `bench_amd_qg.c` if (a) / (b); item 4's external-degree behind-flag test; item 5's Pres_Poisson nnz fixture-pin).  Update `docs/algorithm.md` AMD subsection if item 2 chose "revert Days 2-5" (drops the §"Four mechanisms" prose to whichever survived).  Append a "Sprint 24 closures" subsection to `docs/planning/EPIC_2/SPRINT_22/PERF_NOTES.md` (or open a new `SPRINT_24/PERF_NOTES.md` if the Sprint 22 file gets too long).  Stub `docs/planning/EPIC_2/SPRINT_24/RETROSPECTIVE.md` with the same eight-section structure as Sprint 23's retro.  Final sweep: `make format && make lint && make test`. | 16 hrs |
+
+### Deliverables
+
+- `make wall-check` target catching > 2× per-day wall-time regressions
+- qg-AMD wall on bcsstk14 ≤ 1.5× Sprint 22 quotient-graph baseline (closing the Sprint 23 Day-12 gate (b) hard-fail)
+- AMD parity test extended to Pres_Poisson (Sprint 23 Day-13 deferral closed)
+- External-degree refinement in approximate-degree path (conditional on item 2 retaining that code path)
+- Pres_Poisson ND/AMD ≤ 0.85× (Sprint 23 plan-target tightening; literal Sprint 22 0.5× still out of scope)
+- Cross-corpus re-bench captures + summary md (`SPRINT_24/bench_*.{csv,txt}` + `bench_summary_day14.md`)
+- `docs/algorithm.md` AMD subsection + `SPRINT_22/PERF_NOTES.md` Sprint-24-closures subsection
+- `SPRINT_24/RETROSPECTIVE.md` stubbed for the post-sprint write-up
+
+**Total estimate:** ~126 hours.
+
+---
+
+## Sprint 25: SVD Improvements, Eigenpair Refinement, Progress Callbacks, CI Hardening & Epic 2 Wrap-Up
 
 **Duration:** 14 days (~160 hours)
 
@@ -507,7 +549,7 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 ### Prerequisites from previous Sprints
 
 - Sprint 11: CMake/Makefile parity and generated version header — the Windows/macOS CI jobs rely on this.
-- Sprints 11–23: all Epic 2 numeric, eigensolver, and ordering features complete (Sprint 22 ordering stack + Sprint 23 ordering-quality follow-ups) — needed for the final regression pass, cross-feature integration tests, and README/retrospective sweep.
+- Sprints 11–24: all Epic 2 numeric, eigensolver, and ordering features complete (Sprint 22 ordering stack + Sprint 23 ordering-quality follow-ups + Sprint 24 ordering deferrals) — needed for the final regression pass, cross-feature integration tests, and README/retrospective sweep.
 - Sprint 17 / 18: existing SVD paths and low-rank accumulator whose dense intermediate item 1 replaces.
 - Sprint 20: `sparse_eigs_sym` Lanczos output + shift-invert path through `sparse_ldlt_factor_opts` AUTO dispatch — item 3 layers an inverse-iteration refinement post-pass on the returned eigenpairs and reuses the same factored shift to drive the inner solves.
 - Sprint 21: LOBPCG backend and the shared `sparse_eigs_t` result struct — item 3's refinement post-pass operates on the same `(λ_i, v_i)` array regardless of which backend produced it.
@@ -556,7 +598,8 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 | 20 | LDL^T Completion & Symmetric Lanczos — **Complete** | `ldlt_csc_from_sparse_with_analysis`, transparent `sparse_ldlt_factor_opts` dispatch, Lanczos + shift-invert eigensolver | 136 hrs (~125 actual) |
 | 21 | Eigensolver Completion — Thick-Restart, OpenMP & LOBPCG — **Complete** | Wu/Simon thick-restart, OpenMP reorth, LOBPCG, permanent `bench_eigs` | 124 hrs (~133 actual) |
 | 22 | Ordering Upgrades — Nested Dissection & Quotient-Graph AMD — **Complete** | Graph partitioning + nested dissection, quotient-graph AMD | 124 hrs (~134 actual) |
-| 23 | Ordering Quality Follow-Ups (Sprint 22 deferrals) | Full Davis-style quotient-graph AMD (supervariables / element absorption / approximate-degree), O(1) FM gain buckets, ND leaves call AMD, Cholesky-via-ND test SPD fixture swap | 88 hrs |
-| 24 | SVD, Progress Callbacks, Eigenpair Refinement, CI & Wrap-Up | Sparse low-rank fix, full SVD, eigenpair iterative refinement, progress/cancel callbacks, Windows/macOS CI, retrospective | 160 hrs |
+| 23 | Ordering Quality Follow-Ups (Sprint 22 deferrals) — **Complete** | Full Davis-style quotient-graph AMD (supervariables / element absorption / approximate-degree), O(1) FM gain buckets, ND leaves call AMD, Cholesky-via-ND test SPD fixture swap | 88 hrs (~80 actual) |
+| 24 | Ordering Follow-Ups (Sprint 23 deferrals) | Wall-time regression-check infrastructure, qg-AMD wall-time root-cause + fix, Pres_Poisson AMD parity test, Davis §7.5.1 external-degree refinement, ND fill ≤ 0.85× on Pres_Poisson | 126 hrs |
+| 25 | SVD, Progress Callbacks, Eigenpair Refinement, CI & Wrap-Up | Sparse low-rank fix, full SVD, eigenpair iterative refinement, progress/cancel callbacks, Windows/macOS CI, retrospective | 160 hrs |
 
-**Total Epic 2 estimate:** ~1,874 hours across 14 sprints (~187 days)
+**Total Epic 2 estimate:** ~2,000 hours across 15 sprints (~200 days)

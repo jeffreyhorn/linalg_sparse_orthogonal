@@ -102,6 +102,26 @@ static SparseMatrix *make_path_1d(idx_t n) {
     return A;
 }
 
+/* ─── Wall-clock timer ────────────────────────────────────────────── */
+
+/* Returns elapsed wall-clock seconds since an unspecified epoch.
+ * `clock()` returns CPU time, not wall time — under multi-threaded
+ * libraries (OpenMP-parallel ND, future BLAS calls) the two values
+ * diverge.  Routes through `clock_gettime(CLOCK_MONOTONIC, ...)` on
+ * POSIX and `timespec_get(..., TIME_UTC)` on Windows (C11), matching
+ * the helper in `tests/test_sprint10_integration.c`. */
+static double wall_time(void) {
+#ifdef _WIN32
+    struct timespec ts;
+    timespec_get(&ts, TIME_UTC);
+    return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+#else
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+#endif
+}
+
 /* ─── Permutation validity helper ─────────────────────────────────── */
 
 /* Verify perm is a valid permutation of [0, n). */
@@ -415,9 +435,9 @@ static void test_nd_pres_poisson_fill_with_leaf_amd(void) {
      * `bench_amd_qg.c` capture diverge and the next bench day catches
      * it.  Per PR #31 review comment 3183182910. */
     const idx_t nnz_amd = 2668793;
-    clock_t t0 = clock();
+    double t0 = wall_time();
     idx_t nnz_nd = symbolic_cholesky_nnz_nd(A);
-    double nd_seconds = (double)(clock() - t0) / (double)CLOCKS_PER_SEC;
+    double nd_seconds = wall_time() - t0;
     ASSERT_TRUE(nnz_nd > 0);
 
     fprintf(stderr,

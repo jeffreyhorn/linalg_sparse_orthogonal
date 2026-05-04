@@ -93,27 +93,33 @@ typedef struct {
     int had_value;     /* 1 if `getenv(name)` returned non-NULL at save time. */
 } env_snapshot_t;
 
-static void env_snapshot_save(env_snapshot_t *s, const char *name) {
+/* Returns 0 on success, -1 on `test_strdup` failure (var existed but
+ * couldn't be duplicated).  Caller must check the return value before
+ * mutating the environment — on failure, the snapshot is unusable
+ * and a subsequent `_restore` would unset the var instead of
+ * restoring its original value, permanently clobbering caller
+ * state.  Matches Copilot review feedback on PR #31 (comment
+ * 3183752948). */
+static int env_snapshot_save(env_snapshot_t *s, const char *name) {
     s->name = name;
+    s->saved_value = NULL;
+    s->had_value = 0;
     const char *cur = getenv(name);
     if (cur) {
         s->saved_value = test_strdup(cur);
+        if (!s->saved_value)
+            return -1;
         s->had_value = 1;
-    } else {
-        s->saved_value = NULL;
-        s->had_value = 0;
     }
+    return 0;
 }
 
 static void env_snapshot_restore(env_snapshot_t *s) {
     if (s->had_value) {
-        /* `saved_value` could be NULL only if strdup failed in `_save`;
-         * fall through to `unsetenv` in that pathological case so the
-         * env still gets cleaned up. */
-        if (s->saved_value)
-            test_setenv(s->name, s->saved_value);
-        else
-            test_unsetenv(s->name);
+        /* Post-`_save` invariant: `had_value == 1` ⇒ `saved_value`
+         * is a valid dup'd copy.  `_save` only sets `had_value` after
+         * a successful `test_strdup`, so this is unconditional. */
+        test_setenv(s->name, s->saved_value);
     } else {
         test_unsetenv(s->name);
     }
@@ -565,7 +571,8 @@ static void test_qg_approx_degree_upper_bound(void) {
      * the env is always restored before the (`REQUIRE_OK` early-
      * returning) sentinel at the end. */
     env_snapshot_t snap_verify;
-    env_snapshot_save(&snap_verify, "SPARSE_QG_VERIFY_DEG");
+    REQUIRE_OK(env_snapshot_save(&snap_verify, "SPARSE_QG_VERIFY_DEG") == 0 ? SPARSE_OK
+                                                                            : SPARSE_ERR_ALLOC);
     ASSERT_EQ(test_setenv("SPARSE_QG_VERIFY_DEG", "1"), 0);
 
     sparse_err_t rc = SPARSE_OK;
@@ -661,8 +668,10 @@ fail:
  * (cross-element overlap is more pronounced here). */
 static void test_qg_approx_degree_parity_200(void) {
     env_snapshot_t snap_verify, snap_approx;
-    env_snapshot_save(&snap_verify, "SPARSE_QG_VERIFY_DEG");
-    env_snapshot_save(&snap_approx, "SPARSE_QG_USE_APPROX_DEG");
+    REQUIRE_OK(env_snapshot_save(&snap_verify, "SPARSE_QG_VERIFY_DEG") == 0 ? SPARSE_OK
+                                                                            : SPARSE_ERR_ALLOC);
+    REQUIRE_OK(env_snapshot_save(&snap_approx, "SPARSE_QG_USE_APPROX_DEG") == 0 ? SPARSE_OK
+                                                                                : SPARSE_ERR_ALLOC);
     ASSERT_EQ(test_setenv("SPARSE_QG_VERIFY_DEG", "1"), 0);
     ASSERT_EQ(test_setenv("SPARSE_QG_USE_APPROX_DEG", "1"), 0);
 
@@ -742,7 +751,8 @@ fail:
 static void test_qg_dense_row_completion(void) {
     const idx_t n = 200;
     env_snapshot_t snap_approx;
-    env_snapshot_save(&snap_approx, "SPARSE_QG_USE_APPROX_DEG");
+    REQUIRE_OK(env_snapshot_save(&snap_approx, "SPARSE_QG_USE_APPROX_DEG") == 0 ? SPARSE_OK
+                                                                                : SPARSE_ERR_ALLOC);
     ASSERT_EQ(test_setenv("SPARSE_QG_USE_APPROX_DEG", "1"), 0);
 
     sparse_err_t rc = SPARSE_OK;
@@ -917,8 +927,10 @@ static void test_qg_supervariable_synthetic_corpus(void) {
  * pick up. */
 static void test_qg_approx_degree_parity_corpus(void) {
     env_snapshot_t snap_verify, snap_approx;
-    env_snapshot_save(&snap_verify, "SPARSE_QG_VERIFY_DEG");
-    env_snapshot_save(&snap_approx, "SPARSE_QG_USE_APPROX_DEG");
+    REQUIRE_OK(env_snapshot_save(&snap_verify, "SPARSE_QG_VERIFY_DEG") == 0 ? SPARSE_OK
+                                                                            : SPARSE_ERR_ALLOC);
+    REQUIRE_OK(env_snapshot_save(&snap_approx, "SPARSE_QG_USE_APPROX_DEG") == 0 ? SPARSE_OK
+                                                                                : SPARSE_ERR_ALLOC);
     ASSERT_EQ(test_setenv("SPARSE_QG_VERIFY_DEG", "1"), 0);
     ASSERT_EQ(test_setenv("SPARSE_QG_USE_APPROX_DEG", "1"), 0);
 

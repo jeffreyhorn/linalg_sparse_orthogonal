@@ -35,6 +35,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 #ifndef DATA_DIR
@@ -56,6 +57,49 @@ static int test_unsetenv(const char *name) { return _putenv_s(name, ""); }
 static int test_setenv(const char *name, const char *value) { return setenv(name, value, 1); }
 static int test_unsetenv(const char *name) { return unsetenv(name); }
 #endif
+
+/* Env-var snapshot helper.  `getenv()` returns a pointer into libc-
+ * managed storage that subsequent `setenv` / `_putenv_s` calls are
+ * permitted to invalidate (POSIX explicitly allows it; glibc and
+ * MSVC both do this in practice).  Restoring with the raw `getenv`
+ * pointer after a mutating `test_setenv` call is undefined.  The
+ * helper takes a snapshot via `strdup` *before* any mutation, then
+ * restores from that copy.  Matches Copilot review feedback on PR
+ * #31 (comments 3182884667 / 3182884713 / 3182884746 / 3182884784). */
+typedef struct {
+    const char *name;
+    char *saved_value; /* strdup'd; NULL if the var was unset at save time. */
+    int had_value;     /* 1 if `getenv(name)` returned non-NULL at save time. */
+} env_snapshot_t;
+
+static void env_snapshot_save(env_snapshot_t *s, const char *name) {
+    s->name = name;
+    const char *cur = getenv(name);
+    if (cur) {
+        s->saved_value = strdup(cur);
+        s->had_value = 1;
+    } else {
+        s->saved_value = NULL;
+        s->had_value = 0;
+    }
+}
+
+static void env_snapshot_restore(env_snapshot_t *s) {
+    if (s->had_value) {
+        /* `saved_value` could be NULL only if strdup failed in `_save`;
+         * fall through to `unsetenv` in that pathological case so the
+         * env still gets cleaned up. */
+        if (s->saved_value)
+            test_setenv(s->name, s->saved_value);
+        else
+            test_unsetenv(s->name);
+    } else {
+        test_unsetenv(s->name);
+    }
+    free(s->saved_value);
+    s->saved_value = NULL;
+    s->had_value = 0;
+}
 
 /* ─── Day 10 stub-contract retire ─────────────────────────────────── */
 
@@ -494,41 +538,43 @@ fail:
  * 50-vertex random graph from make_random_50() so the formula sees
  * non-trivial cross-element overlap. */
 static void test_qg_approx_degree_upper_bound(void) {
-    /* Save existing env var, force-enable, restore on every exit
-     * path.  Routes through `test_setenv` / `test_unsetenv` (defined
-     * at the top of this file) which adapt to MSVC's `_putenv_s` —
-     * raw POSIX `setenv` / `unsetenv` aren't available on Windows. */
-    const char *prev = getenv("SPARSE_QG_VERIFY_DEG");
-    test_setenv("SPARSE_QG_VERIFY_DEG", "1");
+    /* Snapshot env first, *then* mutate.  `getenv()` may be invalidated
+     * by subsequent `test_setenv` calls (POSIX-allowed; glibc / MSVC
+     * both do it).  All early-exit paths route through `cleanup:` so
+     * the env is always restored before the (`REQUIRE_OK` early-
+     * returning) sentinel at the end. */
+    env_snapshot_t snap_verify;
+    env_snapshot_save(&snap_verify, "SPARSE_QG_VERIFY_DEG");
+    ASSERT_EQ(test_setenv("SPARSE_QG_VERIFY_DEG", "1"), 0);
 
+    sparse_err_t rc = SPARSE_OK;
     SparseMatrix *A = make_random_50();
-    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    idx_t *perm = NULL;
+    if (!A) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
     idx_t n = sparse_rows(A);
-    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    perm = malloc((size_t)n * sizeof(idx_t));
     if (!perm) {
-        sparse_free(A);
-        if (prev)
-            test_setenv("SPARSE_QG_VERIFY_DEG", prev);
-        else
-            test_unsetenv("SPARSE_QG_VERIFY_DEG");
-        REQUIRE_OK(SPARSE_ERR_ALLOC);
-        return;
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
     }
 
     /* If d_approx ever underestimates d_exact during this call,
      * the per-pivot assert in qg_recompute_deg fires (debug build).
      * In release builds the contract isn't checked, but the test
      * still validates the call doesn't crash. */
-    sparse_err_t rc = sparse_reorder_amd_qg(A, perm);
-    REQUIRE_OK(rc);
+    rc = sparse_reorder_amd_qg(A, perm);
+    if (rc != SPARSE_OK)
+        goto cleanup;
     ASSERT_TRUE(is_valid_permutation(perm, n));
 
-    if (prev)
-        test_setenv("SPARSE_QG_VERIFY_DEG", prev);
-    else
-        test_unsetenv("SPARSE_QG_VERIFY_DEG");
+cleanup:
     free(perm);
     sparse_free(A);
+    env_snapshot_restore(&snap_verify);
+    REQUIRE_OK(rc);
 }
 
 /* ─── Sprint 23 Day 6: 200-vertex parity + dense-row coverage ───────── */
@@ -593,43 +639,37 @@ fail:
  * coverage to a larger graph with sparsified-grid topology
  * (cross-element overlap is more pronounced here). */
 static void test_qg_approx_degree_parity_200(void) {
-    const char *prev_verify = getenv("SPARSE_QG_VERIFY_DEG");
-    const char *prev_approx = getenv("SPARSE_QG_USE_APPROX_DEG");
-    test_setenv("SPARSE_QG_VERIFY_DEG", "1");
-    test_setenv("SPARSE_QG_USE_APPROX_DEG", "1");
+    env_snapshot_t snap_verify, snap_approx;
+    env_snapshot_save(&snap_verify, "SPARSE_QG_VERIFY_DEG");
+    env_snapshot_save(&snap_approx, "SPARSE_QG_USE_APPROX_DEG");
+    ASSERT_EQ(test_setenv("SPARSE_QG_VERIFY_DEG", "1"), 0);
+    ASSERT_EQ(test_setenv("SPARSE_QG_USE_APPROX_DEG", "1"), 0);
 
+    sparse_err_t rc = SPARSE_OK;
     SparseMatrix *A = make_random_200();
-    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    idx_t *perm = NULL;
+    if (!A) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
     idx_t n = sparse_rows(A);
-    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    perm = malloc((size_t)n * sizeof(idx_t));
     if (!perm) {
-        sparse_free(A);
-        if (prev_verify)
-            test_setenv("SPARSE_QG_VERIFY_DEG", prev_verify);
-        else
-            test_unsetenv("SPARSE_QG_VERIFY_DEG");
-        if (prev_approx)
-            test_setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx);
-        else
-            test_unsetenv("SPARSE_QG_USE_APPROX_DEG");
-        REQUIRE_OK(SPARSE_ERR_ALLOC);
-        return;
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
     }
 
-    sparse_err_t rc = sparse_reorder_amd_qg(A, perm);
-    REQUIRE_OK(rc);
+    rc = sparse_reorder_amd_qg(A, perm);
+    if (rc != SPARSE_OK)
+        goto cleanup;
     ASSERT_TRUE(is_valid_permutation(perm, n));
 
-    if (prev_verify)
-        test_setenv("SPARSE_QG_VERIFY_DEG", prev_verify);
-    else
-        test_unsetenv("SPARSE_QG_VERIFY_DEG");
-    if (prev_approx)
-        test_setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx);
-    else
-        test_unsetenv("SPARSE_QG_USE_APPROX_DEG");
+cleanup:
     free(perm);
     sparse_free(A);
+    env_snapshot_restore(&snap_verify);
+    env_snapshot_restore(&snap_approx);
+    REQUIRE_OK(rc);
 }
 
 /* Build a fixture engineered to trigger the dense-row cap-fire path:
@@ -680,23 +720,26 @@ fail:
  * (highest-degree vertex pivots last under min-degree). */
 static void test_qg_dense_row_completion(void) {
     const idx_t n = 200;
-    const char *prev_approx = getenv("SPARSE_QG_USE_APPROX_DEG");
-    test_setenv("SPARSE_QG_USE_APPROX_DEG", "1");
+    env_snapshot_t snap_approx;
+    env_snapshot_save(&snap_approx, "SPARSE_QG_USE_APPROX_DEG");
+    ASSERT_EQ(test_setenv("SPARSE_QG_USE_APPROX_DEG", "1"), 0);
 
+    sparse_err_t rc = SPARSE_OK;
     SparseMatrix *A = make_hub_fixture(n);
-    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
-    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    idx_t *perm = NULL;
+    if (!A) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
+    perm = malloc((size_t)n * sizeof(idx_t));
     if (!perm) {
-        sparse_free(A);
-        if (prev_approx)
-            test_setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx);
-        else
-            test_unsetenv("SPARSE_QG_USE_APPROX_DEG");
-        REQUIRE_OK(SPARSE_ERR_ALLOC);
-        return;
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
     }
 
-    REQUIRE_OK(sparse_reorder_amd_qg(A, perm));
+    rc = sparse_reorder_amd_qg(A, perm);
+    if (rc != SPARSE_OK)
+        goto cleanup;
     ASSERT_TRUE(is_valid_permutation(perm, n));
 
     /* Hub (vertex 0) has the highest initial degree (n-1) by far.
@@ -713,12 +756,11 @@ static void test_qg_dense_row_completion(void) {
     }
     ASSERT_TRUE(hub_pos >= n - n / 20);
 
+cleanup:
     free(perm);
     sparse_free(A);
-    if (prev_approx)
-        test_setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx);
-    else
-        test_unsetenv("SPARSE_QG_USE_APPROX_DEG");
+    env_snapshot_restore(&snap_approx);
+    REQUIRE_OK(rc);
 }
 
 /* ─── Sprint 23 Day 13: 4-supervariable corpus + bcsstk14 parity ────── */
@@ -853,59 +895,47 @@ static void test_qg_supervariable_synthetic_corpus(void) {
  * the test's inline comment for the Sprint 24 follow-up to
  * pick up. */
 static void test_qg_approx_degree_parity_corpus(void) {
-    const char *prev_verify = getenv("SPARSE_QG_VERIFY_DEG");
-    const char *prev_approx = getenv("SPARSE_QG_USE_APPROX_DEG");
-    test_setenv("SPARSE_QG_VERIFY_DEG", "1");
-    test_setenv("SPARSE_QG_USE_APPROX_DEG", "1");
+    env_snapshot_t snap_verify, snap_approx;
+    env_snapshot_save(&snap_verify, "SPARSE_QG_VERIFY_DEG");
+    env_snapshot_save(&snap_approx, "SPARSE_QG_USE_APPROX_DEG");
+    ASSERT_EQ(test_setenv("SPARSE_QG_VERIFY_DEG", "1"), 0);
+    ASSERT_EQ(test_setenv("SPARSE_QG_USE_APPROX_DEG", "1"), 0);
 
+    sparse_err_t rc = SPARSE_OK;
     SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    idx_t *perm = NULL;
+    int skipped = 0;
+    rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
         printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
-        if (prev_verify)
-            test_setenv("SPARSE_QG_VERIFY_DEG", prev_verify);
-        else
-            test_unsetenv("SPARSE_QG_VERIFY_DEG");
-        if (prev_approx)
-            test_setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx);
-        else
-            test_unsetenv("SPARSE_QG_USE_APPROX_DEG");
-        return;
+        rc = SPARSE_OK; /* fixture-not-loadable is a clean skip */
+        skipped = 1;
+        goto cleanup;
     }
     idx_t n = sparse_rows(A);
-    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    perm = malloc((size_t)n * sizeof(idx_t));
     if (!perm) {
-        sparse_free(A);
-        if (prev_verify)
-            test_setenv("SPARSE_QG_VERIFY_DEG", prev_verify);
-        else
-            test_unsetenv("SPARSE_QG_VERIFY_DEG");
-        if (prev_approx)
-            test_setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx);
-        else
-            test_unsetenv("SPARSE_QG_USE_APPROX_DEG");
-        REQUIRE_OK(SPARSE_ERR_ALLOC);
-        return;
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
     }
 
     /* Per-pivot d_approx >= d_exact assert fires inside qg_recompute_deg
      * under SPARSE_QG_VERIFY_DEG; debug build catches any underestimate.
      * Release builds still validate that the call doesn't crash. */
-    REQUIRE_OK(sparse_reorder_amd_qg(A, perm));
+    rc = sparse_reorder_amd_qg(A, perm);
+    if (rc != SPARSE_OK)
+        goto cleanup;
     ASSERT_TRUE(is_valid_permutation(perm, n));
 
     printf("    bcsstk14 (n=%d): approx-degree parity holds across full elimination\n", (int)n);
 
-    if (prev_verify)
-        test_setenv("SPARSE_QG_VERIFY_DEG", prev_verify);
-    else
-        test_unsetenv("SPARSE_QG_VERIFY_DEG");
-    if (prev_approx)
-        test_setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx);
-    else
-        test_unsetenv("SPARSE_QG_USE_APPROX_DEG");
+cleanup:
+    (void)skipped;
     free(perm);
     sparse_free(A);
+    env_snapshot_restore(&snap_verify);
+    env_snapshot_restore(&snap_approx);
+    REQUIRE_OK(rc);
 }
 
 /* ═══════════════════════════════════════════════════════════════════ */

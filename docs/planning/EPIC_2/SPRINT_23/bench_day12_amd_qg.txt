@@ -1,0 +1,140 @@
+Sprint 23 Day 12 — qg-AMD vs bitset capture
+===========================================
+
+Re-run of `benchmarks/bench_amd_qg.c` (the bitset comparison foil
+from Sprint 22 Day 13).  Sprint 22's reference is at
+`docs/planning/EPIC_2/SPRINT_22/bench_day13_amd_qg.txt`; numbers
+below are Day 12's measurement after Sprint 23 Days 2-5 added
+element absorption + supervariable detection + the approximate-
+degree formula on top of the Sprint-22 quotient-graph baseline.
+
+The bitset implementation is unchanged from Sprint 22 (lives in
+`bench_amd_qg.c` as a static helper after Day 12 deleted it from
+production).  Single run on macOS x86_64 (Apple Clang, -O2).
+CSV form: `bench_day12_amd_qg.csv`.
+
+Cross-fixture capture
+---------------------
+
+  matrix          n      impl    reorder_ms      peak_rss_mb  nnz_L
+  ────────────  ──────  ──────  ────────────  ─────────────  ─────────
+  nos4              100  qg              1.5         0.04         637
+  nos4              100  bitset          0.3         0.00         637
+  bcsstk04          132  qg             21.9         0.39       3 143
+  bcsstk04          132  bitset          1.4         0.03       3 143
+  bcsstk14        1 806  qg          6 951.1         3.57     116 071
+  bcsstk14        1 806  bitset        111.3         0.02     116 071
+  Kuu             7 102  qg         37 992.6        13.37     406 264
+  Kuu             7 102  bitset      1 334.7         1.04     406 264
+  s3rmt3m3        5 357  qg         70 852.8         1.20     474 609
+  s3rmt3m3        5 357  bitset        910.6         0.02     474 609
+  Pres_Poisson   14 822  qg      1 129 282.5        25.05   2 668 793
+  Pres_Poisson   14 822  bitset      9 894.6        15.35   2 668 793
+  banded_5000     5 000  qg            195.0         0.00      29 985
+  banded_5000     5 000  bitset        355.5         0.00      29 985
+  banded_10000   10 000  qg            690.2         0.00      59 985
+  banded_10000   10 000  bitset      1 528.9         0.00      59 985
+  banded_20000   20 000  qg          2 673.5         0.00     119 985
+  banded_20000   20 000  bitset      7 066.9        28.94     119 985
+
+nnz(L) parity
+-------------
+
+Every row above shows identical `nnz_L` between the two
+implementations — bit-identical fill quality across the entire
+corpus + synthetic banded.  Sprint 23's Days 2-5 upgrades are
+fill-neutral, as they were intended to be.
+
+Wall time (qg vs bitset)
+------------------------
+
+  fixture        bitset_ms     qg_ms     speedup
+  ────────────   ─────────  ─────────   ───────────────
+  nos4                0.3        1.5     0.20×  qg slower
+  bcsstk04            1.4       21.9     0.06×  qg slower
+  bcsstk14          111.3    6 951.1     0.02×  qg 62× slower
+  Kuu             1 334.7   37 992.6     0.04×  qg 28× slower
+  s3rmt3m3          910.6   70 852.8     0.01×  qg 78× slower
+  Pres_Poisson    9 894.6 1 129 282.5    0.01×  qg 114× slower
+  banded_5000       355.5      195.0     1.82×  qg 1.8× faster
+  banded_10000    1 528.9      690.2     2.22×  qg 2.2× faster
+  banded_20000    7 066.9    2 673.5     2.64×  qg 2.6× faster
+
+Sprint 22 Day 13 numbers had qg at 0.6-1.8× the bitset across
+SuiteSparse fixtures (small-side range — qg ~30 % slower on
+bcsstk14, comparable on Kuu / Pres_Poisson) and 4-7× faster on
+banded.  Sprint 23 Day 12 numbers show qg at **0.01-0.06× the
+bitset on SuiteSparse** (62-114× regression vs Sprint 22's
+parity) and 1.8-2.6× on banded (regressed from Sprint 22's 4-7×
+but still wins).
+
+qg vs Sprint-22-qg (intra-implementation)
+-----------------------------------------
+
+  fixture        sp22_qg_ms  day12_qg_ms     ratio
+  ────────────   ──────────  ───────────     ─────────
+  nos4                 0.2          1.5     7.5× slower
+  bcsstk04             1.6         21.9    14×   slower
+  bcsstk14            90.2      6 951.1    77×   slower
+  Kuu                396.9     37 992.6    96×   slower
+  s3rmt3m3           470.0     70 852.8   151×   slower
+  Pres_Poisson     5 683.2  1 129 282.5   199×   slower
+  banded_5000         59.5        195.0     3.3× slower
+  banded_10000       233.2        690.2     3.0× slower
+  banded_20000       919.5      2 673.5     2.9× slower
+
+Sprint 23's Days 2-5 added algorithmic features on top of the
+Sprint 22 quotient-graph implementation:
+
+  - Day 3: element absorption — workspace/algorithmic addition
+    that walks the new element's variable-set on every pivot.
+  - Day 4: supervariable detection — sum-of-IDs hash + O(k²)
+    full-list compare per per-pivot non-eliminated bucket.  The
+    O(k²) compare scales poorly when supervariables don't form
+    (bcsstk* / Pres_Poisson — irregular structural-mechanics
+    matrices with no symmetry to merge).
+  - Day 5: approximate-degree formula (off by default; not
+    triggered in this bench).
+
+The 77-199× regression on SuiteSparse SPD fixtures is consistent
+with Day 4's per-pivot O(k²) compare cost dominating when the
+hash bucket sizes are large and supervariables don't form.  On
+banded fixtures the supervariables DO form (banded matrices have
+strong structural regularity), so the O(k²) cost amortises into
+genuine workspace shrinkage and the regression is bounded to ~3×.
+
+Fill quality is bit-identical to bitset (see "nnz(L) parity"
+above), so the algorithm is correct — the regression is purely
+wall-time.
+
+Peak RSS
+--------
+
+The Sprint 22 plan's "≥ 4× memory reduction on synthetic banded
+n ≥ 50 000" headline target was cleared by a wide margin in
+Sprint 22 (analytic 17×; the banded_20000 bitset delta was 24.88
+MB above qg's 0.0 MB).  Day 12 numbers show:
+
+  banded_20000   bitset = 28.94 MB above qg's 0.0 MB.
+  Same  ≥ 4× memory-headroom contract.
+
+Pres_Poisson qg's 25.05 MB peak RSS is up from Sprint 22's 19.19
+MB — Day 2's iw_size doubling (5·nnz + 6·n + 1 → 7·nnz + 8·n + 1)
+plus Day 4's super[] / super_size[] arrays explain the extra 6 MB.
+Within budget; the memory headline still holds.
+
+Day-12 verdict on the qg-AMD wall-time regression
+-------------------------------------------------
+
+This is a hard regression introduced by the Sprint 23 Days 2-5
+upgrades on top of the Sprint 22 quotient-graph baseline.  Fill
+correctness is intact (bit-identical), and the upgrades enabled
+Day 11's ND/AMD breakthrough on Pres_Poisson (0.952× — ND beats
+AMD).  But the AMD wall time on irregular SPD corpus matrices is
+no longer competitive with the deleted bitset implementation —
+the Sprint 22 plan's "qg-AMD wall time on bcsstk14 ≤ Sprint-22
+bitset baseline" headline gate fails by ~108× (was 30 % bitset-
+favoured; now 99 %+ bitset-favoured).
+
+Routing this to Sprint 24 as documented in `bench_summary_day12.md`
+under "(b) qg-AMD wall time on bcsstk14".

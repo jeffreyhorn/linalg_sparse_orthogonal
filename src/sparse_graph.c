@@ -104,6 +104,7 @@
  * driver in `src/sparse_reorder_nd.c` consumes.
  */
 
+#include "sparse_graph_fm_buckets.h"
 #include "sparse_graph_internal.h"
 #include "sparse_matrix_internal.h"
 
@@ -1008,6 +1009,145 @@ sparse_err_t graph_bisect_coarsest(const sparse_graph_t *G, idx_t *part_out) {
     return bisect_gggp(G, part_out);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 23 Day 9: gain-bucket data structure for FM refinement.
+ *
+ * The implementation lives inline in this TU because Day 10 will
+ * tightly couple it with `graph_refine_fm` below, and there are no
+ * other consumers — keeping it in one file keeps the FM data path
+ * inspectable in a single sweep.  The public API is declared in
+ * `src/sparse_graph_fm_buckets.h` so `tests/test_graph_fm_buckets.c`
+ * can pin the contract independently of the FM hot loop.
+ *
+ * Sentinel choice: `-1` for an empty bucket head and for next/prev
+ * list ends.  All vertex IDs the caller ever passes are in
+ * `[0, n_vertices)`, so `-1` never aliases a real ID.  `idx_t` is
+ * signed (`int32_t` / `int64_t` per build config) so sign comparison
+ * works without casting.
+ * ═══════════════════════════════════════════════════════════════════════
+ */
+
+#define FM_BUCKET_EMPTY ((idx_t) - 1)
+
+sparse_err_t fm_bucket_array_init(fm_bucket_array_t *arr, idx_t n_vertices, idx_t max_gain) {
+    if (!arr)
+        return SPARSE_ERR_NULL;
+    if (n_vertices < 0 || max_gain < 0)
+        return SPARSE_ERR_BADARG;
+
+    /* Guard size computations against overflow.  Same SIZE_MAX pattern
+     * the rest of the codebase uses (e.g. `src/sparse_lu_csr.c` lines
+     * 60, 1349) — under-allocation here would produce OOB writes in
+     * the heads/next/prev fills below.  The first bound uses IDX_MAX
+     * (defined alongside idx_t in include/sparse_types.h) so the
+     * guard tracks idx_t's actual range — the migration-to-int64_t
+     * path the typedef comment documents stays clean. */
+    if (max_gain > (IDX_MAX - 1) / 2)
+        return SPARSE_ERR_ALLOC; /* 2*max_gain + 1 would overflow idx_t */
+    idx_t num_buckets = 2 * max_gain + 1;
+    if ((size_t)num_buckets > SIZE_MAX / sizeof(idx_t))
+        return SPARSE_ERR_ALLOC; /* num_buckets * sizeof(idx_t) overflows size_t */
+
+    /* `next` / `prev` allocate to length max(n_vertices, 1) so a zero-
+     * vertex graph still gives malloc a non-zero length (avoids the
+     * implementation-defined `malloc(0)` corner case). */
+    size_t link_len = (size_t)(n_vertices > 0 ? n_vertices : 1);
+    if (link_len > SIZE_MAX / sizeof(idx_t))
+        return SPARSE_ERR_ALLOC; /* link_len * sizeof(idx_t) overflows size_t */
+
+    arr->heads = malloc((size_t)num_buckets * sizeof(idx_t));
+    arr->counts = calloc((size_t)num_buckets, sizeof(idx_t));
+    arr->next = malloc(link_len * sizeof(idx_t));
+    arr->prev = malloc(link_len * sizeof(idx_t));
+    if (!arr->heads || !arr->counts || !arr->next || !arr->prev) {
+        free(arr->heads);
+        free(arr->counts);
+        free(arr->next);
+        free(arr->prev);
+        arr->heads = NULL;
+        arr->counts = NULL;
+        arr->next = NULL;
+        arr->prev = NULL;
+        return SPARSE_ERR_ALLOC;
+    }
+    for (idx_t i = 0; i < num_buckets; i++)
+        arr->heads[i] = FM_BUCKET_EMPTY;
+    arr->n_vertices = n_vertices;
+    arr->max_gain = max_gain;
+    arr->bucket_offset = max_gain;
+    arr->num_buckets = num_buckets;
+    arr->cursor = FM_BUCKET_EMPTY;
+    return SPARSE_OK;
+}
+
+void fm_bucket_array_free(fm_bucket_array_t *arr) {
+    if (!arr)
+        return;
+    free(arr->heads);
+    free(arr->counts);
+    free(arr->next);
+    free(arr->prev);
+    arr->heads = NULL;
+    arr->counts = NULL;
+    arr->next = NULL;
+    arr->prev = NULL;
+    arr->n_vertices = 0;
+    arr->max_gain = 0;
+    arr->bucket_offset = 0;
+    arr->num_buckets = 0;
+    arr->cursor = FM_BUCKET_EMPTY;
+}
+
+void fm_bucket_insert(fm_bucket_array_t *arr, idx_t vertex, idx_t gain) {
+    idx_t bucket = arr->bucket_offset + gain;
+    /* Doubly-linked-list head insert: vertex becomes the new head,
+     * old head (if any) hangs off vertex's `next`. */
+    arr->prev[vertex] = FM_BUCKET_EMPTY;
+    arr->next[vertex] = arr->heads[bucket];
+    if (arr->heads[bucket] != FM_BUCKET_EMPTY)
+        arr->prev[arr->heads[bucket]] = vertex;
+    arr->heads[bucket] = vertex;
+    arr->counts[bucket]++;
+    if (bucket > arr->cursor)
+        arr->cursor = bucket;
+}
+
+void fm_bucket_remove(fm_bucket_array_t *arr, idx_t vertex, idx_t gain) {
+    idx_t bucket = arr->bucket_offset + gain;
+    idx_t p = arr->prev[vertex];
+    idx_t n = arr->next[vertex];
+    if (p != FM_BUCKET_EMPTY)
+        arr->next[p] = n;
+    else
+        arr->heads[bucket] = n;
+    if (n != FM_BUCKET_EMPTY)
+        arr->prev[n] = p;
+    arr->counts[bucket]--;
+    /* Cursor walk-down: if we just emptied the cursor's bucket, slide
+     * the cursor down past every empty bucket below it.  Worst-case
+     * scan is the full array; amortised cost is O(1) over an FM pass
+     * because each bucket is visited at most twice (once descending,
+     * once if a later insert lifts the cursor back). */
+    if (bucket == arr->cursor) {
+        while (arr->cursor >= 0 && arr->counts[arr->cursor] == 0)
+            arr->cursor--;
+    }
+}
+
+sparse_err_t fm_bucket_pop_max(fm_bucket_array_t *arr, idx_t *vertex_out, idx_t *gain_out) {
+    if (!arr || !vertex_out || !gain_out)
+        return SPARSE_ERR_NULL;
+    if (arr->cursor < 0)
+        return SPARSE_ERR_BOUNDS;
+    idx_t bucket = arr->cursor;
+    idx_t v = arr->heads[bucket];
+    idx_t g = bucket - arr->bucket_offset;
+    fm_bucket_remove(arr, v, g);
+    *vertex_out = v;
+    *gain_out = g;
+    return SPARSE_OK;
+}
+
 sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
     if (!G || !part_io)
         return SPARSE_ERR_NULL;
@@ -1018,29 +1158,85 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
 
     /* Per-vertex gain = (sum of edge weights to other-side neighbours)
      *                 − (sum of edge weights to same-side neighbours).
-     * Moving v flips the cut by -gain[v] (positive gain ⇒ smaller cut). */
+     * Moving v flips the cut by -gain[v] (positive gain ⇒ smaller cut).
+     *
+     * Sprint 23 Day 10: gain values live in the bucket array (one
+     * bucket per gain level; doubly-linked list inside each bucket).
+     * Per-step max-find is O(1) amortised via the cursor in the
+     * bucket array — replaces Sprint 22's O(n) linear scan, lifts FM
+     * total complexity from O(n²) to O(|E|) per pass. */
     idx_t *gain = malloc((size_t)n * sizeof(idx_t));
     int *locked = calloc((size_t)n, sizeof(int));
+    int *in_bucket = calloc((size_t)n, sizeof(int));
     idx_t *best_part = malloc((size_t)n * sizeof(idx_t));
-    if (!gain || !locked || !best_part) {
+    /* `skipped_this_step` is the per-step deferred-pop list: vertices
+     * popped but balance-ineligible *this* step.  Re-inserted into the
+     * bucket at end-of-step so the next step (with shifted w0/w1)
+     * reconsiders them — Sprint 22's per-step full re-scan retried
+     * such vertices implicitly; the bucket-FM has to spell it out. */
+    idx_t *skipped_this_step = malloc((size_t)n * sizeof(idx_t));
+    if (!gain || !locked || !in_bucket || !best_part || !skipped_this_step) {
         free(gain);
         free(locked);
+        free(in_bucket);
         free(best_part);
+        free(skipped_this_step);
         return SPARSE_ERR_ALLOC;
     }
 
+    /* Initial gains + max weighted degree (drives bucket array sizing).
+     * gain[v] always lives in [-weighted_degree(v), +weighted_degree(v)]
+     * — both initially (each edge contributes ±w to either internal or
+     * external) and after any sequence of neighbour moves (each edge's
+     * contribution to gain[v] flips sign when that edge crosses the
+     * partition, but the magnitude is unchanged), so max_weighted_degree
+     * is a tight bound on |gain| at every point in the FM walk. */
+    idx_t max_weighted_degree = 0;
     for (idx_t v = 0; v < n; v++) {
         idx_t internal = 0;
         idx_t external = 0;
+        idx_t v_wd = 0;
         for (idx_t k = G->xadj[v]; k < G->xadj[v + 1]; k++) {
             idx_t u = G->adjncy[k];
             idx_t w = G->ewgt ? G->ewgt[k] : 1;
+            v_wd += w;
             if (part_io[v] == part_io[u])
                 internal += w;
             else
                 external += w;
         }
         gain[v] = external - internal;
+        if (v_wd > max_weighted_degree)
+            max_weighted_degree = v_wd;
+    }
+
+    fm_bucket_array_t buckets = {0};
+    sparse_err_t rc = fm_bucket_array_init(&buckets, n, max_weighted_degree);
+    if (rc != SPARSE_OK) {
+        free(gain);
+        free(locked);
+        free(in_bucket);
+        free(best_part);
+        free(skipped_this_step);
+        return rc;
+    }
+    /* Insert every vertex into the bucket initially.  Vertices with
+     * negative gain (interior to their side) are still inserted —
+     * Sprint 22's FM scanned them too, accepting transient cut
+     * increases, and the rollback-to-best-cut step at the end keeps
+     * us from finalising a worse partition.
+     *
+     * Iterate in reverse so the bucket's head-insert pattern leaves
+     * the lowest-ID vertex at each bucket's head — this matches
+     * Sprint 22's lowest-ID-wins tie-breaking on equal gains, which
+     * `test_ldlt_via_nd_dispatch` (bcsstk04 LDL^T no-pivoting)
+     * happened to depend on.  Strictly an initial-state invariant —
+     * neighbour-update remove+inserts during the FM walk can
+     * scatter IDs within a bucket — but downstream tests show this
+     * is sufficient to avoid the catastrophic residual blow-up. */
+    for (idx_t v = n - 1; v >= 0; v--) {
+        fm_bucket_insert(&buckets, v, gain[v]);
+        in_bucket[v] = 1;
     }
 
     idx_t cur_cut = compute_cut_weight(G, part_io);
@@ -1067,79 +1263,129 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
         max_imbal = init_imbal;
     max_imbal += max_vwgt;
 
-    /* FM main loop.  Pick the highest-gain unlocked vertex (positive
-     * or negative — accepting transient cut increases lets FM escape
-     * shallow local minima), move it, lock it, update neighbour
-     * gains.  After the pass, restore the best (lowest-cut) state
-     * seen during the walk. */
+    /* FM main loop.  pop_max returns the highest-gain still-in-bucket
+     * vertex; balance-ineligible pops get parked on the per-step
+     * skipped list and re-inserted at end-of-step so they're
+     * reconsidered next step (when w0/w1 may have shifted in their
+     * favour).  This preserves Sprint 22's "consider every unlocked
+     * vertex every step" semantics — the partition tests
+     * (tests/test_graph.c) and the bcsstk04 LDL^T no-pivoting
+     * residual test (tests/test_reorder_nd.c) both depend on it. */
     for (idx_t step = 0; step < n; step++) {
         idx_t best_v = -1;
         idx_t best_g = 0;
         int have_candidate = 0;
-        for (idx_t v = 0; v < n; v++) {
-            if (locked[v])
+        idx_t skipped_count = 0;
+        while (buckets.cursor >= 0) {
+            idx_t v = -1;
+            idx_t g = 0;
+            sparse_err_t pop_rc = fm_bucket_pop_max(&buckets, &v, &g);
+            if (pop_rc != SPARSE_OK)
+                break;
+            in_bucket[v] = 0;
+            /* Plan invariant: pop_max never returns a locked vertex
+             * because vertices get popped (and thus removed) before
+             * being marked locked; subsequent neighbour-update
+             * propagation also remove-then-reinserts only unlocked
+             * neighbours. */
+            if (locked[v]) {
+                /* Defensive only — should be unreachable. */
                 continue;
+            }
             idx_t v_w = G->vwgt ? G->vwgt[v] : 1;
             idx_t new_w0 = part_io[v] == 0 ? w0 - v_w : w0 + v_w;
             idx_t new_w1 = part_io[v] == 0 ? w1 + v_w : w1 - v_w;
             idx_t new_imbal = new_w0 > new_w1 ? new_w0 - new_w1 : new_w1 - new_w0;
-            if (new_imbal > max_imbal)
+            if (new_imbal > max_imbal) {
+                /* skipped_count ≤ n by construction: each pop sets
+                 * `in_bucket[v] = 0`, so the inner while can pop a
+                 * given vertex at most once per FM step, capping
+                 * skipped_count at the bucket's pre-step occupancy
+                 * (≤ n).  clang-analyzer's path-sensitive search
+                 * doesn't see this — silence the false positive. */
+                // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+                skipped_this_step[skipped_count++] = v;
                 continue;
-            /* Cache gain[v] in a local so the comparison `v < best_v`
-             * isn't on the same line as `gain[v]`; cppcheck otherwise
-             * raises a spurious arrayIndexThenCheck on the v compare. */
-            idx_t gv = gain[v];
-            if (!have_candidate || gv > best_g || (gv == best_g && v < best_v)) {
-                have_candidate = 1;
-                best_g = gv;
-                best_v = v;
+            }
+            best_v = v;
+            best_g = g;
+            have_candidate = 1;
+            break;
+        }
+
+        /* Move + neighbour gain-update happen first (touches gain[]
+         * for all unlocked neighbours, bucket re-shuffle for
+         * in_bucket ones), so when we re-insert the skipped vertices
+         * below their gain[] reflects the move's effect. */
+        if (have_candidate) {
+            cur_cut -= best_g;
+            idx_t v_w = G->vwgt ? G->vwgt[best_v] : 1;
+            idx_t old_side = part_io[best_v];
+            idx_t new_side = 1 - old_side;
+            if (old_side == 0) {
+                w0 -= v_w;
+                w1 += v_w;
+            } else {
+                w0 += v_w;
+                w1 -= v_w;
+            }
+            part_io[best_v] = new_side;
+            locked[best_v] = 1;
+
+            /* Neighbour gains: edge (best_v, u) flipped from external
+             * to internal (u on new_side) → gain[u] -= 2w; from
+             * internal to external (u on old_side) → gain[u] += 2w.
+             * gain[] is updated for *every* unlocked neighbour; the
+             * bucket re-shuffle only fires for currently-in-bucket
+             * neighbours, so skipped-this-step vertices pick up their
+             * updated gain when we re-insert them below. */
+            for (idx_t k = G->xadj[best_v]; k < G->xadj[best_v + 1]; k++) {
+                idx_t u = G->adjncy[k];
+                if (locked[u])
+                    continue;
+                idx_t w = G->ewgt ? G->ewgt[k] : 1;
+                idx_t old_g = gain[u];
+                if (part_io[u] == new_side)
+                    gain[u] -= 2 * w;
+                else
+                    gain[u] += 2 * w;
+                if (in_bucket[u]) {
+                    fm_bucket_remove(&buckets, u, old_g);
+                    fm_bucket_insert(&buckets, u, gain[u]);
+                }
+            }
+
+            if (cur_cut < best_cut) {
+                best_cut = cur_cut;
+                memcpy(best_part, part_io, (size_t)n * sizeof(idx_t));
             }
         }
+
+        /* Re-insert balance-skipped vertices for next-step
+         * consideration.  Their gain[] has been updated by the
+         * neighbour-update loop above (when applicable), so the
+         * bucket placement reflects their current gain. */
+        for (idx_t i = 0; i < skipped_count; i++) {
+            idx_t w = skipped_this_step[i];
+            if (!locked[w]) {
+                fm_bucket_insert(&buckets, w, gain[w]);
+                in_bucket[w] = 1;
+            }
+        }
+
         if (!have_candidate)
             break;
-
-        /* Move best_v: cut changes by -gain[best_v]. */
-        cur_cut -= best_g;
-        idx_t v_w = G->vwgt ? G->vwgt[best_v] : 1;
-        idx_t old_side = part_io[best_v];
-        idx_t new_side = 1 - old_side;
-        if (old_side == 0) {
-            w0 -= v_w;
-            w1 += v_w;
-        } else {
-            w0 += v_w;
-            w1 -= v_w;
-        }
-        part_io[best_v] = new_side;
-        locked[best_v] = 1;
-
-        /* Update gains for unlocked neighbours.  Neighbours now on
-         * the new side: edge (best_v, u) flipped from external to
-         * internal for u, so gain[u] -= 2w.  Neighbours on the old
-         * side: edge flipped internal → external, gain[u] += 2w. */
-        for (idx_t k = G->xadj[best_v]; k < G->xadj[best_v + 1]; k++) {
-            idx_t u = G->adjncy[k];
-            if (locked[u])
-                continue;
-            idx_t w = G->ewgt ? G->ewgt[k] : 1;
-            if (part_io[u] == new_side)
-                gain[u] -= 2 * w;
-            else
-                gain[u] += 2 * w;
-        }
-
-        if (cur_cut < best_cut) {
-            best_cut = cur_cut;
-            memcpy(best_part, part_io, (size_t)n * sizeof(idx_t));
-        }
     }
 
     /* Roll back to the best state. */
     memcpy(part_io, best_part, (size_t)n * sizeof(idx_t));
 
+    fm_bucket_array_free(&buckets);
     free(gain);
     free(locked);
+    free(in_bucket);
     free(best_part);
+    free(skipped_this_step);
     return SPARSE_OK;
 }
 
@@ -1180,6 +1426,45 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
     if (coarsest_n > 0)
         memcpy(cur, coarsest_part, (size_t)coarsest_n * sizeof(idx_t));
 
+    /* Sprint 23 Day 11: 3-pass FM at the finest level.  Sprint 22 ran
+     * a single FM pass per uncoarsening level; Day 11's exploration
+     * (`docs/planning/EPIC_2/SPRINT_23/davis_notes.md` §"Day-11
+     * finding") measured end-to-end nnz(L) on Pres_Poisson under
+     * SPARSE_FM_FINEST_PASSES = {1, 2, 3, 5} and observed:
+     *
+     *   - 1 pass: ratio 1.026×, ND wall 47.3 s
+     *   - 2 pass: ratio 0.958×, ND wall 41.4 s
+     *   - 3 pass: ratio 0.952×, ND wall 40.5 s   ← chosen
+     *   - 5 pass: ratio 0.953×, ND wall 41.2 s   (no further win)
+     *
+     * 3 is the sweet spot: each successive pass converges further
+     * toward the FM local optimum on this fixture's separator
+     * structure, with diminishing returns past pass 3.  ND/AMD now
+     * lands at 0.95× — Pres_Poisson ND beats AMD, the headline
+     * fill-quality gate from Sprint 22 onwards.
+     *
+     * Override via SPARSE_FM_FINEST_PASSES env var (1..16) for
+     * regression bisection.  The intermediate-level passes stay at
+     * 1 — the multilevel coarsening already gives those levels a
+     * mostly-converged input, and adding passes there is wall-time
+     * cost without measurable fill win. */
+    int finest_passes = 3;
+    {
+        const char *env = getenv("SPARSE_FM_FINEST_PASSES");
+        if (env) {
+            /* `strtol` with end-pointer + range checks instead of
+             * `atoi`: env-var inputs are user-controlled, and atoi
+             * has UB on overflow + silently accepts non-numeric
+             * prefixes ("3foo" → 3).  Reject anything that isn't a
+             * pure integer in [1, 16] and fall back to the default
+             * (3) on any parse / range failure. */
+            char *endp = NULL;
+            long v = strtol(env, &endp, 10);
+            if (env != endp && *endp == '\0' && v >= 1 && v <= 16)
+                finest_passes = (int)v;
+        }
+    }
+
     /* Walk levels from coarsest down to root.  At each step, project
      * `cur` (on coarse[level]) through cmaps[level] onto the next-
      * finer graph (root if level == 0, else coarse[level - 1]) and
@@ -1191,11 +1476,14 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
             // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
             next[i] = cur[cmap[i]];
         }
-        sparse_err_t rc = graph_refine_fm(dst_graph, next);
-        if (rc != SPARSE_OK) {
-            free(cur);
-            free(next);
-            return rc;
+        int passes = (level == 0) ? finest_passes : 1;
+        for (int p = 0; p < passes; p++) {
+            sparse_err_t rc = graph_refine_fm(dst_graph, next);
+            if (rc != SPARSE_OK) {
+                free(cur);
+                free(next);
+                return rc;
+            }
         }
         idx_t *tmp = cur;
         cur = next;

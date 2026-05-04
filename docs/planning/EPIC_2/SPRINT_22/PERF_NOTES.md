@@ -151,3 +151,66 @@ mesh corpora.  Sprint 22 ships the simplified version because it
 already lifts the memory ceiling that was blocking n ≥ 50 000 use
 cases; the wall-time tail is a Sprint-23 optimisation if it shows
 up in profiles.
+
+## Sprint 23 closures
+
+Sprint 23 ran 14 days against the two ordering-quality gaps Sprint
+22 left open: ND's 1.06× ratio on Pres_Poisson (target was ≤ 0.5×)
+and the qg-AMD wall-time tail.  Headline reference is
+`docs/planning/EPIC_2/SPRINT_23/bench_summary_day12.md`; per-day
+captures are at `bench_day8_nd_leaf_amd.txt`,
+`bench_day10_fm_buckets.txt`, `bench_day12.txt`, and
+`bench_day12_amd_qg.txt`.
+
+### What moved
+
+| metric                          | Sprint 22  | Sprint 23  | delta |
+|---------------------------------|------------|------------|-------|
+| Pres_Poisson nnz_nd / nnz_amd   | 1.063×     | 0.952×     | -10 % (ND now beats AMD) |
+| bcsstk14    nnz_nd / nnz_amd    | 1.207×     | 1.130×     | -6 %  |
+| 10×10 grid  nnz_nd / nnz_amd    | 1.380×     | 1.160×     | -16 % |
+| Kuu         nnz_nd / nnz_amd    | 2.322×     | 2.275×     | -2 %  |
+| Pres_Poisson nnz_L (ND)         | 2 837 046  | 2 541 734  | -10 % |
+| Pres_Poisson ND wall (s)        | ~44        | ~45        | unchanged (FM win offset by AMD-leaf cost) |
+
+ND on Pres_Poisson now lands at 0.95× AMD — the headline
+fill-quality outcome.  The cumulative drivers, in order of
+contribution: Day 11's multi-pass FM at the finest level (1.026
+→ 0.952×, the largest single jump), Day 7's leaf-AMD splice
+(2 of 6 fixtures saw nnz wins, 4 within ±1 % noise), and
+Days 9-10's gain-bucket FM (lifted per-pass cost from O(n²) to
+O(|E|), making the multi-pass exploration affordable).
+
+### What didn't move
+
+The literal targets PROJECT_PLAN.md set for Sprint 23 are
+documented under the three headline gates in
+`docs/planning/EPIC_2/SPRINT_23/bench_summary_day12.md`:
+
+- **(a)** Pres_Poisson `nnz_nd / nnz_amd ≤ 0.7` — *not literally
+  met* (achieved 0.952×).  ND beats AMD which was the spirit of
+  the goal; closing 0.95 → 0.7 needs deeper coarsening / smarter
+  separator extraction.  Routed to Sprint 24 per PLAN.md
+  risk-flag #2.
+
+- **(b)** qg-AMD wall on bcsstk14 ≤ Sprint-22 bitset baseline (64
+  ms) — *hard fail*.  Sprint 23 Days 2-5 (element absorption +
+  supervariable detection + approximate-degree formula) introduced
+  a 77× wall-time regression vs Sprint 22 quotient-graph baseline
+  on bcsstk14; analogous regressions on Kuu (96×), s3rmt3m3
+  (151×), Pres_Poisson (199×); banded fixtures regressed only
+  ~3×.  Fill correctness is intact (bit-identical to bitset
+  reference).  Likely root cause: Day 4's per-pivot O(k²)
+  supervariable-hash-bucket compare dominates when supervariables
+  don't form (irregular SPD has no symmetry to merge).  Routed to
+  Sprint 24 with three candidate fixes documented in
+  `bench_summary_day12.md` "(b)".
+
+- **(c)** bench_day14 nnz_L bit-identical-or-better on every
+  fixture — *passes*, with bcsstk04 +0.5 % within partitioner-RNG
+  noise.
+
+The shipping story for the Sprint 23 PR description: "ND now beats
+AMD on the canonical 2D-PDE benchmark, at the cost of a
+production-AMD wall-time regression Sprint 24 must root-cause and
+fix."

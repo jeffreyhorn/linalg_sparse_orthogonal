@@ -122,7 +122,9 @@
 #include "sparse_types.h"
 
 #include <assert.h>
+#include <math.h> /* Day 5: sqrt() for the 10·√n dense-row skip threshold. */
 #include <stdint.h>
+#include <stdio.h> /* Day 3: getenv-controlled SPARSE_QG_PROBE stderr trace. */
 #include <stdlib.h>
 #include <string.h>
 
@@ -159,6 +161,62 @@
  * compare both against AMD-reference numbers; Sprint 23 may revisit
  * if the reference-AMD gap turns out to dominate factor wall time on
  * larger fixtures.
+ *
+ * ─── Sprint 23 plan (Days 2-6): full Davis 2006 algorithm ──────────────
+ *
+ * Sprint 23 closes the four mechanisms Sprint 22's simplification
+ * skipped.  Reference: `docs/planning/EPIC_2/SPRINT_23/davis_notes.md`
+ * (in-tree design rationale citing book page numbers + algorithm
+ * lines).  Workspace + per-vertex state evolves as follows:
+ *
+ *   Day 2: Extend `qg_t` with `elen[]` (per-vertex element-side
+ *          adjacency count) and grow initial `iw_size` from
+ *          `5·nnz + 6·n + 1` to `7·nnz + 8·n + 1` (Davis §7's
+ *          reference size — buffers the elements-side region).  No
+ *          algorithmic change yet; bit-identical fill.
+ *   Day 3: Element absorption.  When pivot `p` eliminates, form a
+ *          new element `e` (reusing `p`'s slot — Davis's
+ *          index-recycling convention) and append `e` to each
+ *          neighbour's element-side adjacency.  Variables whose
+ *          variable-side adjacency reduces to zero get marked
+ *          absorbed; compaction reclaims their slots.
+ *   Day 4: Supervariable detection.  Hash signature
+ *          `sum_{v in adj(i)} v` per Davis §7.4; bucket by hash,
+ *          full compare on hash collision.  Merged supervariables
+ *          eliminate together at the next pivot.
+ *   Day 5: Approximate-degree formula
+ *          `d_approx(i) = |adj_var(i, V \ p)| + |L_p \ {i}|
+ *                       + Σ_{e in adj_elem(i) \ L_p}
+ *                              |adj(e, V \ p) \ adj(i)|`
+ *          (Davis §7.5).  Replaces the Sprint-22 exact recompute.
+ *          Conservative bound (`d_approx >= d_exact`) is the test-
+ *          side contract Day 6 pins.  Vertices whose post-pivot
+ *          `d_approx > 10·√n` skip the update entirely (dense-row
+ *          escape).
+ *
+ * ─── Sprint 23 iw[] layout (post-Day-2) ────────────────────────────────
+ *
+ * Each variable `i` owns a contiguous slice of `iw[]` of length
+ * `len[i]`.  The slice is split into two regions:
+ *
+ *     iw[xadj[i] ..                   xadj[i] + len[i] - elen[i] - 1]
+ *         variable-side adjacency (active variable IDs)
+ *     iw[xadj[i] + len[i] - elen[i] .. xadj[i] + len[i] - 1]
+ *         element-side adjacency (element IDs from earlier pivots)
+ *
+ * At init `elen[i] = 0` for every variable — the entire slice is
+ * variable-side, matching the Sprint-22 representation byte-for-byte.
+ * As pivots eliminate, the elements-side suffix grows; compaction
+ * preserves the split (each relocated slice keeps its variable-prefix
+ * + element-suffix structure intact via a single memmove of length
+ * `len[i]`, since the two regions are contiguous).
+ *
+ * `super[]` and `super_size[]` (added Day 4) live alongside `xadj[]`
+ * etc as length-`n` per-vertex arrays — *not* inside `iw[]`.  The
+ * supervariable representative for vertex `i` is `super[i]`; the
+ * count of variables in a supervariable is `super_size[rep]` (only
+ * meaningful when `rep == super[rep]`).  The minimum-degree pivot
+ * scan iterates over representatives only.
  */
 
 /* ─── Quotient-graph workspace ─────────────────────────────────────────
@@ -170,27 +228,85 @@
  * rewritten the new list is appended at `iw[iw_used..]` and `xadj[i]`
  * updated; the old slots become garbage that compaction reclaims.
  *
- * Workspace layout:
- *   iw       length iw_size (grows on demand)
- *   xadj     length n
- *   len      length n
- *   deg      length n
- *   elim     length n  (one byte per vertex)
+ * Workspace layout (post-Sprint-23-Day-3):
+ *   iw          length iw_size (grows on demand)
+ *   xadj        length n
+ *   len         length n
+ *   elen        length n  (per-vertex element-side adjacency count)
+ *   deg         length n
+ *   elim        length n  (one byte per vertex)
+ *   absorbed    length n  (Day 3: 1 if vertex absorbed by an element)
+ *   deg_mark    length n  (Day 3: scratch bitmap for deg recompute)
+ *   touched     length n  (Day 3: touched-list for deg-mark cleanup)
  *
- * Initial `iw_size` is `5·nnz + 6·n + 1` (Davis 2006 §7), which
- * accommodates ~5× fill before the first compaction.  All adjacency
- * lists are kept sorted ascending so the merge step is a linear
- * two-pointer scan with the dedup / filter step inline; no separate
- * scratch buffer is needed.
+ * Each variable's slice in `iw[]` is split: variable-side prefix of
+ * length `len[i] - elen[i]`, followed by element-side suffix of
+ * length `elen[i]`.  At init `elen[i] == 0` for every variable, so
+ * the entire slice is variable-side and the representation is
+ * byte-identical to Sprint 22.  Day 3 populates the element-side as
+ * element absorption fires.
+ *
+ * Initial `iw_size` is `7·nnz + 8·n + 1` (Davis 2006 §7's reference
+ * form; the extra `2·nnz + 2·n` over Sprint 22's simplified
+ * `5·nnz + 6·n + 1` buffers the elements-side region so the first
+ * compaction is deferred a few pivots).
+ *
+ * Element-side encoding: an element ID is just the vertex slot of an
+ * already-eliminated variable (Davis's index-recycling convention).
+ * To distinguish an element from a variable in `iw[]`'s element-side
+ * suffix, check `elim[id]` — eliminated vertices serve as elements.
+ * The element's variable-set is stored at `iw[xadj[id]..xadj[id]+len[id]]`.
+ *
+ * All variable-side adjacency lists are kept sorted ascending; the
+ * element-side is sorted by the underlying element-ID (i.e. the
+ * eliminated-vertex slot), so both regions remain easy to dedup.
  */
 typedef struct {
     idx_t *iw;
     idx_t iw_size;
     idx_t iw_used;
+    idx_t iw_peak; /* Day 3: monotonic high-water of iw_used across the run.
+                    * Probes element-absorption's workspace flattening — without
+                    * absorption iw_used grows steadily through elimination;
+                    * with absorption it plateaus once the active set shrinks. */
+    /* Day 6: count of qg_compute_deg_approx invocations where the
+     * unbounded approximate value exceeded `n` and got clamped to
+     * `qg->n`.  Probe-only (no algorithmic effect beyond the cap
+     * itself); a dense-row fixture should make this fire at least
+     * once, validating the cap path. */
+    idx_t cap_fired_count;
     idx_t *xadj;
     idx_t *len;
+    idx_t *elen; /* Day 2: per-vertex element-side adjacency count. */
     idx_t *deg;
     char *elim;
+    char *absorbed; /* Day 3: 1 if vertex was absorbed into an element. */
+    char *deg_mark; /* Day 3: scratch bitmap for deg recompute (cleared via `touched[]`). */
+    idx_t *touched; /* Day 3: touched-list (entries written to deg_mark). */
+    /* Day 3: monotonic list of vertex IDs that go into perm[] right
+     * after a pivot but without their own qg_pick_min_deg step.
+     * Used for both Davis-style absorption (variable-side empty +
+     * one-element element-side) and Day-4 supervariable
+     * co-elimination (members of the pivot's supervariable that
+     * aren't the representative).  The driver reads the slice
+     * `absorbed_list[prev_count, absorbed_count)` after each pivot. */
+    idx_t *absorbed_list;
+    idx_t absorbed_count;
+    /* Day 4: supervariable structure.  `super[i]` is the
+     * representative ID of i's supervariable; initially `super[i] =
+     * i` (every vertex is its own supervariable).  When variables i
+     * and j are merged, `super[j] = i` (or vice versa); only the
+     * representative satisfies `super[i] == i` and is visible to
+     * `qg_pick_min_deg`.
+     *
+     * Members are linked in a singly-linked list per supervariable:
+     * `super_first[rep]` is the head, `super_next[m]` is the next
+     * member, -1 marks list end.  `super_size[rep]` is the member
+     * count (only meaningful for representatives). */
+    idx_t *super;
+    idx_t *super_first;
+    idx_t *super_next;
+    idx_t *super_size;
     idx_t n;
 } qg_t;
 
@@ -200,13 +316,32 @@ static void qg_free(qg_t *qg) {
     free(qg->iw);
     free(qg->xadj);
     free(qg->len);
+    free(qg->elen);
     free(qg->deg);
     free(qg->elim);
+    free(qg->absorbed);
+    free(qg->deg_mark);
+    free(qg->touched);
+    free(qg->absorbed_list);
+    free(qg->super);
+    free(qg->super_first);
+    free(qg->super_next);
+    free(qg->super_size);
     qg->iw = NULL;
     qg->xadj = NULL;
     qg->len = NULL;
+    qg->elen = NULL;
     qg->deg = NULL;
     qg->elim = NULL;
+    qg->absorbed = NULL;
+    qg->deg_mark = NULL;
+    qg->touched = NULL;
+    qg->absorbed_list = NULL;
+    qg->absorbed_count = 0;
+    qg->super = NULL;
+    qg->super_first = NULL;
+    qg->super_next = NULL;
+    qg->super_size = NULL;
     qg->iw_size = 0;
     qg->iw_used = 0;
     qg->n = 0;
@@ -218,12 +353,15 @@ static void qg_free(qg_t *qg) {
 static sparse_err_t qg_init(qg_t *qg, idx_t n, const idx_t *adj_ptr, const idx_t *adj_list) {
     qg->n = n;
     idx_t nnz = adj_ptr[n];
-    /* Davis 2006 §7: 5·nnz + 6·n + 1 is comfortably above the typical
-     * fill peak before the first compaction.  Compute in `uint64_t`
-     * and check against the storage type (`idx_t` = int32) plus
+    /* Davis 2006 §7 reference form: `7·nnz + 8·n + 1`.  The extra
+     * `2·nnz + 2·n` over Sprint 22's simplified `5·nnz + 6·n + 1`
+     * buffers the elements-side region of `iw[]` (Sprint 23 Day 3
+     * populates it via element absorption) so the first compaction
+     * is deferred a few pivots.  Compute in `uint64_t` and check
+     * against the storage type (`idx_t` = int32) plus
      * `SIZE_MAX / sizeof(idx_t)`; under-allocation here would later
      * surface as out-of-bounds writes in the merge / memcpy paths. */
-    uint64_t iw_size_64 = (uint64_t)5 * (uint64_t)nnz + (uint64_t)6 * (uint64_t)n + 1;
+    uint64_t iw_size_64 = (uint64_t)7 * (uint64_t)nnz + (uint64_t)8 * (uint64_t)n + 1;
     if (iw_size_64 < 1024)
         iw_size_64 = 1024;
     /* Single combined cap covers both the storage type (`idx_t`,
@@ -239,12 +377,35 @@ static sparse_err_t qg_init(qg_t *qg, idx_t n, const idx_t *adj_ptr, const idx_t
     idx_t iw_size = (idx_t)iw_size_64;
     qg->iw_size = iw_size;
     qg->iw_used = nnz;
+    qg->iw_peak = nnz;
+    qg->cap_fired_count = 0;
     qg->iw = malloc((size_t)iw_size * sizeof(idx_t));
     qg->xadj = malloc((size_t)n * sizeof(idx_t));
     qg->len = malloc((size_t)n * sizeof(idx_t));
+    /* `elen[]` zero-initialised: every variable starts with no
+     * element-side adjacency (matches the Sprint-22 representation).
+     * Day 3 increments `elen[i]` when an element is appended to i. */
+    qg->elen = calloc((size_t)n, sizeof(idx_t));
     qg->deg = malloc((size_t)n * sizeof(idx_t));
     qg->elim = calloc((size_t)n, sizeof(char));
-    if (!qg->iw || !qg->xadj || !qg->len || !qg->deg || !qg->elim) {
+    /* Day 3: absorbed[] is 0-initialised (no vertex starts absorbed).
+     * deg_mark[] / touched[] are scratch state used per pivot by
+     * qg_recompute_deg; they are cleared via the touched-list so a
+     * fresh `calloc` is fine here and per-pivot O(touched) cleanup
+     * keeps the bitmap in a known state. */
+    qg->absorbed = calloc((size_t)n, sizeof(char));
+    qg->deg_mark = calloc((size_t)n, sizeof(char));
+    qg->touched = malloc((size_t)n * sizeof(idx_t));
+    qg->absorbed_list = malloc((size_t)n * sizeof(idx_t));
+    qg->absorbed_count = 0;
+    /* Day 4: each vertex starts as its own (singleton) supervariable. */
+    qg->super = malloc((size_t)n * sizeof(idx_t));
+    qg->super_first = malloc((size_t)n * sizeof(idx_t));
+    qg->super_next = malloc((size_t)n * sizeof(idx_t));
+    qg->super_size = malloc((size_t)n * sizeof(idx_t));
+    if (!qg->iw || !qg->xadj || !qg->len || !qg->elen || !qg->deg || !qg->elim || !qg->absorbed ||
+        !qg->deg_mark || !qg->touched || !qg->absorbed_list || !qg->super || !qg->super_first ||
+        !qg->super_next || !qg->super_size) {
         qg_free(qg);
         return SPARSE_ERR_ALLOC;
     }
@@ -254,6 +415,10 @@ static sparse_err_t qg_init(qg_t *qg, idx_t n, const idx_t *adj_ptr, const idx_t
         qg->xadj[i] = adj_ptr[i];
         qg->len[i] = adj_ptr[i + 1] - adj_ptr[i];
         qg->deg[i] = qg->len[i];
+        qg->super[i] = i;
+        qg->super_first[i] = i;
+        qg->super_next[i] = -1;
+        qg->super_size[i] = 1;
     }
     return SPARSE_OK;
 }
@@ -273,9 +438,22 @@ static int qg_compact_compare(const void *a, const void *b) {
     return (va > vb) - (va < vb);
 }
 
-/* Compact the workspace: walk surviving (non-eliminated, non-empty)
- * vertices in xadj-sort order and pack their adjacency into the
- * front of `iw[]`.  After return, `iw_used` is the new high-water. */
+/* Compact the workspace: walk surviving slices (non-empty) in
+ * xadj-sort order and pack their adjacency into the front of
+ * `iw[]`.  After return, `iw_used` is the new high-water.
+ *
+ * Sprint 23 Day 3: surviving slices include both active variables
+ * (!elim && !absorbed) AND eliminated vertices serving as elements
+ * (elim[i] && len[i] > 0).  Absorbed vertices are dropped — their
+ * variable-side has been fully absorbed into an element, so their
+ * slot can be released.
+ *
+ * Each slice is `len[i]` entries split into a variable-side prefix
+ * of `len[i] - elen[i]` and an element-side suffix of `elen[i]`.
+ * Because the two regions are contiguous, the relocation is still a
+ * single memmove of `len[i]` entries — the split is preserved
+ * automatically.  The debug assertion below catches any future code
+ * that lets `elen[i]` exceed `len[i]`. */
 static sparse_err_t qg_compact(qg_t *qg) {
     idx_t n = qg->n;
     /* Guard the `n * sizeof(qg_compact_pair_t)` byte count against
@@ -289,7 +467,14 @@ static sparse_err_t qg_compact(qg_t *qg) {
         return SPARSE_ERR_ALLOC;
     idx_t k = 0;
     for (idx_t i = 0; i < n; i++) {
-        if (!qg->elim[i] && qg->len[i] > 0) {
+        /* Keep slices that are still referenced.  Absorbed variables
+         * are dropped (their content is fully captured by the
+         * element they were absorbed into).  Eliminated vertices
+         * with non-zero len[] are elements — they're referenced
+         * from active variables' element-side and must stay. */
+        if (qg->absorbed[i])
+            continue;
+        if (qg->len[i] > 0) {
             pairs[k].xadj_val = qg->xadj[i];
             pairs[k].vertex = i;
             k++;
@@ -302,6 +487,9 @@ static sparse_err_t qg_compact(qg_t *qg) {
         idx_t v = pairs[j].vertex;
         idx_t old_xadj = qg->xadj[v];
         idx_t l = qg->len[v];
+        /* Variable/element split invariant: the element-side suffix
+         * must fit within the slice. */
+        assert(qg->elen[v] <= l);
         if (old_xadj != new_pos) {
             /* memmove handles the (rare) case where list shrinkage
              * yields a small overlap; in xadj-sort order it never
@@ -365,15 +553,20 @@ static sparse_err_t qg_reserve(qg_t *qg, idx_t need) {
     return SPARSE_OK;
 }
 
-/* Find the unelim vertex with smallest current degree.  Returns -1
- * iff every vertex is eliminated (i.e. the loop's terminal step).
- * O(n) per call — the same complexity as the bitset AMD's pivot
- * scan. */
+/* Find the unelim, non-absorbed, supervariable-representative vertex
+ * with smallest current degree.  Returns -1 iff every vertex is
+ * eliminated, absorbed, or non-representative (i.e. the loop's
+ * terminal step).  O(active_count) per call.
+ *
+ * Sprint 23 Day 3 added the absorbed-skip; Day 4 adds the
+ * non-representative skip (super[i] != i).  Supervariable members
+ * other than the representative are skipped here and instead
+ * co-eliminate with the representative when it pivots. */
 static idx_t qg_pick_min_deg(const qg_t *qg) {
     idx_t best = -1;
     idx_t best_deg = qg->n + 1;
     for (idx_t i = 0; i < qg->n; i++) {
-        if (qg->elim[i])
+        if (qg->elim[i] || qg->absorbed[i] || qg->super[i] != i)
             continue;
         if (qg->deg[i] < best_deg) {
             best_deg = qg->deg[i];
@@ -383,98 +576,618 @@ static idx_t qg_pick_min_deg(const qg_t *qg) {
     return best;
 }
 
-/* Eliminate pivot `p`.  For each unelim neighbour `u`:
+/* Compute the *exact* count of distinct active variables u is
+ * adjacent to by walking u's variable-side and expanding each
+ * element in u's element-side, deduping via `qg->deg_mark` (cleared
+ * in O(touched) using `qg->touched`).
  *
- *   u_new_adj = (u_old_adj ∪ p_old_adj) \ {p, u, eliminated}
+ * Sprint 23 Day 5 retired this from the production pivot loop in
+ * favour of `qg_recompute_deg_approx` (Davis 2006 §7.5 approximate
+ * formula).  The exact recompute is preserved here because:
+ *   - the env-var-controlled debug check `SPARSE_QG_VERIFY_DEG=1`
+ *     re-runs it after each approx call and asserts d_approx >= d_exact;
+ *   - Day 6's parity test exercises this path on a 50-vertex random
+ *     graph to pin Davis's conservative-bound contract.
+ * In production (no env var, no debug build) it's not invoked. */
+static idx_t qg_compute_deg_exact(qg_t *qg, idx_t u) {
+    idx_t u_xadj = qg->xadj[u];
+    idx_t u_len = qg->len[u];
+    idx_t u_elen = qg->elen[u];
+    idx_t u_vlen = u_len - u_elen;
+    idx_t touched_count = 0;
+
+    /* Variable-side contributes directly. */
+    for (idx_t j = 0; j < u_vlen; j++) {
+        idx_t v = qg->iw[u_xadj + j];
+        if (v == u || qg->elim[v] || qg->absorbed[v])
+            continue;
+        if (!qg->deg_mark[v]) {
+            qg->deg_mark[v] = 1;
+            qg->touched[touched_count++] = v;
+        }
+    }
+    /* Element-side: expand each element to its variable-set. */
+    for (idx_t j = u_vlen; j < u_len; j++) {
+        idx_t e = qg->iw[u_xadj + j];
+        idx_t e_xadj = qg->xadj[e];
+        idx_t e_vlen = qg->len[e] - qg->elen[e]; /* element's elen is 0 */
+        for (idx_t k = 0; k < e_vlen; k++) {
+            idx_t v = qg->iw[e_xadj + k];
+            if (v == u || qg->elim[v] || qg->absorbed[v])
+                continue;
+            if (!qg->deg_mark[v]) {
+                qg->deg_mark[v] = 1;
+                qg->touched[touched_count++] = v;
+            }
+        }
+    }
+
+    /* Restore the bitmap to all-zero for the next call. */
+    for (idx_t i = 0; i < touched_count; i++)
+        qg->deg_mark[qg->touched[i]] = 0;
+    return touched_count;
+}
+
+/* Recompute `deg[u]` using Davis's approximate-degree formula
+ * (Davis 2006 §7.5):
  *
- * Both lists are sorted, so the merge is a linear two-pointer scan
- * with the dedup / filter step inline.  The result is appended at
- * `iw[iw_used..]` and `u`'s `xadj` / `len` / `deg` are updated. */
+ *   d_approx(u) = |adj_var(u, V_active)|
+ *               + Σ_{e ∈ adj_elem(u)} |adj_var(e, V_active) \ adj_var(u)|
+ *
+ * Where V_active = {non-eliminated, non-absorbed} variables.  The
+ * "\ adj_var(u)" term is what Davis calls the "fresh contribution
+ * from each element" — it subtracts the variables in element e
+ * that are *already* in u's direct variable-side, eliminating one
+ * source of double-counting.  Cross-element overlap (a variable
+ * shared between two of u's elements) is NOT subtracted; that's
+ * the looseness that makes the formula an upper bound.
+ *
+ * Implementation: mark u's variable-side IDs in `deg_mark[]`, then
+ * walk each element checking which entries are *not* marked.  Cost
+ * per pivot: O(|adj_var(u)| + Σ |adj_var(e)|) — same complexity as
+ * the exact recompute, but no cross-element dedup so any element
+ * can be processed independently (the win this enables comes when
+ * combined with element-aggressive absorption in Sprint 24+; for
+ * Day 5 the asymptotics match the exact recompute).
+ *
+ * Dense-row cap (Davis §7.5): `d_approx` is clamped to `n` (the
+ * vertex count).  A vertex's true degree can never exceed `n - 1`,
+ * but the approximate formula's cross-element overcounting can
+ * push the raw value above that.  The cap prevents wild
+ * overestimates from dominating the pivot scan.
+ *
+ * Returns the computed (capped) value. */
+static idx_t qg_compute_deg_approx(qg_t *qg, idx_t u) {
+    idx_t u_xadj = qg->xadj[u];
+    idx_t u_len = qg->len[u];
+    idx_t u_elen = qg->elen[u];
+    idx_t u_vlen = u_len - u_elen;
+
+    /* Variable-side: count non-self, non-eliminated, non-absorbed
+     * entries AND mark them in deg_mark[] for the set-difference
+     * subtraction in the element-side walk. */
+    idx_t touched_count = 0;
+    idx_t d_var = 0;
+    for (idx_t j = 0; j < u_vlen; j++) {
+        idx_t v = qg->iw[u_xadj + j];
+        if (v == u || qg->elim[v] || qg->absorbed[v])
+            continue;
+        if (!qg->deg_mark[v]) {
+            qg->deg_mark[v] = 1;
+            qg->touched[touched_count++] = v;
+            d_var++;
+        }
+    }
+    idx_t d = d_var;
+    /* Element-side: for each element e, count variables in e's
+     * variable-side that are NOT already in u's variable-side. */
+    for (idx_t j = u_vlen; j < u_len; j++) {
+        idx_t e = qg->iw[u_xadj + j];
+        idx_t e_xadj = qg->xadj[e];
+        idx_t e_vlen = qg->len[e] - qg->elen[e];
+        for (idx_t k = 0; k < e_vlen; k++) {
+            idx_t v = qg->iw[e_xadj + k];
+            if (v == u || qg->elim[v] || qg->absorbed[v])
+                continue;
+            if (!qg->deg_mark[v])
+                d++;
+            /* Note: we do NOT mark v here.  Each element's
+             * contribution is independent (Davis's Σ_e term
+             * doesn't cross-dedup), which is what makes this an
+             * upper bound rather than an exact recompute. */
+        }
+    }
+    /* Restore deg_mark to all-zero for the next call. */
+    for (idx_t i = 0; i < touched_count; i++)
+        qg->deg_mark[qg->touched[i]] = 0;
+
+    /* Cap at `n` — a vertex's true degree can't exceed n-1, and
+     * cross-element overcounting can push d above that.  qg_pick_min_deg's
+     * sentinel `best_deg = n+1` requires deg <= n; without the cap, all
+     * active vertices can land above the sentinel and qg_pick_min_deg
+     * returns -1 mid-elimination (assertion failure).  Track cap firings
+     * via `cap_fired_count` so dense-row tests can verify the path. */
+    if (d > qg->n) {
+        d = qg->n;
+        qg->cap_fired_count++;
+    }
+    return d;
+}
+
+/* Production deg-update entry point (Sprint 23 Day 5+).
+ *
+ * Default: uses the *exact* recompute (preserves Sprint 22 / bench_day14
+ * fill quality across the corpus).
+ *
+ * Opt-in: when `SPARSE_QG_USE_APPROX_DEG=1` is set, the production path
+ * uses Davis 2006 §7.5's approximate-degree formula instead.  Day 5
+ * measured the approximate formula at 1.20–2.84× nnz(L) regression on
+ * PDE meshes (see davis_notes.md "Day-5 measurement") because the
+ * textbook formula's cross-element overcounting is too loose without
+ * the external-degree tracking from §7.5.1 (deferred to Sprint 24+).
+ * Production-default exact-degree means the Sprint 22 baseline is
+ * preserved while the approximate framework + conservative-bound
+ * parity test land for Sprint 24 to extend.
+ *
+ * Verify path: when `SPARSE_QG_VERIFY_DEG=1` is set, both formulas
+ * run and assert `d_approx >= d_exact` (Davis's conservative-bound
+ * contract).  The parity test in `tests/test_reorder_amd_qg.c`
+ * exercises this. */
+static void qg_recompute_deg(qg_t *qg, idx_t u) {
+    int verify = (getenv("SPARSE_QG_VERIFY_DEG") != NULL);
+    int use_approx = (getenv("SPARSE_QG_USE_APPROX_DEG") != NULL);
+
+    idx_t d_exact = qg_compute_deg_exact(qg, u);
+    if (verify || use_approx) {
+        idx_t d_approx = qg_compute_deg_approx(qg, u);
+        if (verify)
+            assert(d_approx >= d_exact && "Davis approx-degree must be an upper bound");
+        if (use_approx) {
+            qg->deg[u] = d_approx;
+            return;
+        }
+    }
+    qg->deg[u] = d_exact;
+}
+
+/* Sprint 23 Day 4: supervariable detection (Davis 2006 §7.4).
+ *
+ * Two variables are *indistinguishable* when their adjacencies are
+ * identical (after symmetric self-references are accounted for).
+ * Indistinguishable variables can be merged into a single
+ * supervariable: the minimum-degree pivot scan operates on the
+ * representative only, and when the representative pivots all
+ * members co-eliminate together.  On PDE-mesh fixtures the
+ * supervariable factor is 5–20× by mid-elimination — the headline
+ * shrink for the per-pivot active-set scan.
+ *
+ * The hash signature combines the variable-side and element-side
+ * IDs: cheap to compute (O(len)) and a low-collision filter for the
+ * O(k²) full-comparison pass within each hash bucket. */
+static uint64_t qg_supervariable_hash(const qg_t *qg, idx_t i) {
+    idx_t i_xadj = qg->xadj[i];
+    idx_t i_len = qg->len[i];
+    idx_t i_elen = qg->elen[i];
+    idx_t i_vlen = i_len - i_elen;
+    uint64_t h_var = 0;
+    for (idx_t j = 0; j < i_vlen; j++)
+        h_var += (uint64_t)qg->iw[i_xadj + j];
+    uint64_t h_elem = 0;
+    for (idx_t j = i_vlen; j < i_len; j++)
+        h_elem += (uint64_t)qg->iw[i_xadj + j];
+    return h_var ^ h_elem;
+}
+
+/* Full-compare check: are u and v indistinguishable?  Returns 1 iff
+ * the sets `adj(u) ∪ {u}` and `adj(v) ∪ {v}` are equal as multisets
+ * (i.e., u in v's adj must be matched by v in u's adj, and the rest
+ * of the adjacency lists must be identical).
+ *
+ * Both lists are sorted ascending so the comparison is a linear
+ * two-pointer walk with the mutual self-reference handled inline.
+ * Element-sides are compared directly (no self-references — elements
+ * are eliminated vertices, not active variables).
+ *
+ * Caller guarantees u != v and both are non-eliminated, non-absorbed
+ * supervariable representatives. */
+static int qg_indistinguishable(const qg_t *qg, idx_t u, idx_t v) {
+    if (qg->len[u] != qg->len[v])
+        return 0;
+    if (qg->elen[u] != qg->elen[v])
+        return 0;
+
+    idx_t u_vlen = qg->len[u] - qg->elen[u];
+    idx_t u_xadj = qg->xadj[u];
+    idx_t v_xadj = qg->xadj[v];
+
+    /* Variable-side walk: skip the mutual self-ref (v in u's vars,
+     * u in v's vars) and compare the rest. */
+    idx_t i = 0, j = 0;
+    while (i < u_vlen || j < u_vlen) {
+        if (i < u_vlen && qg->iw[u_xadj + i] == v) {
+            i++;
+            continue;
+        }
+        if (j < u_vlen && qg->iw[v_xadj + j] == u) {
+            j++;
+            continue;
+        }
+        if (i >= u_vlen || j >= u_vlen)
+            return 0;
+        if (qg->iw[u_xadj + i] != qg->iw[v_xadj + j])
+            return 0;
+        i++;
+        j++;
+    }
+
+    /* Element-side: direct compare (sorted; no self-refs). */
+    idx_t u_elen = qg->elen[u];
+    for (idx_t k = 0; k < u_elen; k++) {
+        if (qg->iw[u_xadj + u_vlen + k] != qg->iw[v_xadj + u_vlen + k])
+            return 0;
+    }
+    return 1;
+}
+
+/* Merge supervariable b into supervariable a (a stays as the
+ * representative, b's members fold into a's list).  Caller
+ * guarantees a == super[a] (representative), b == super[b]
+ * (representative), a != b. */
+static void qg_merge_supervariables_pair(qg_t *qg, idx_t a, idx_t b) {
+    /* Walk b's member list, updating super[m] = a. */
+    for (idx_t m = qg->super_first[b]; m != -1; m = qg->super_next[m])
+        qg->super[m] = a;
+
+    /* Splice b's list onto the front of a's list.  Order within a
+     * supervariable doesn't matter algorithmically; we sort by ID
+     * at perm[] append time for deterministic output. */
+    /* Find b's tail (the last member with super_next == -1). */
+    idx_t b_tail = qg->super_first[b];
+    while (qg->super_next[b_tail] != -1)
+        b_tail = qg->super_next[b_tail];
+    qg->super_next[b_tail] = qg->super_first[a];
+    qg->super_first[a] = qg->super_first[b];
+    qg->super_size[a] += qg->super_size[b];
+
+    /* b is no longer a representative; null its list head and size
+     * so a stale qg_pick_min_deg can never accidentally select it
+     * (the `super[b] != b` filter is the primary guard). */
+    qg->super_first[b] = -1;
+    qg->super_size[b] = 0;
+}
+
+/* qsort comparator: sort `(hash, vertex)` pairs by hash ascending,
+ * then vertex ascending — ID order within a hash bucket gives the
+ * pairwise compare a deterministic walk. */
+typedef struct {
+    uint64_t hash;
+    idx_t vertex;
+} qg_sv_pair_t;
+
+static int qg_sv_pair_compare(const void *a, const void *b) {
+    const qg_sv_pair_t *pa = (const qg_sv_pair_t *)a;
+    const qg_sv_pair_t *pb = (const qg_sv_pair_t *)b;
+    if (pa->hash < pb->hash)
+        return -1;
+    if (pa->hash > pb->hash)
+        return 1;
+    return (pa->vertex > pb->vertex) - (pa->vertex < pb->vertex);
+}
+
+/* Run supervariable detection over the candidate set
+ * `candidates[0..count)`.  Bucket by hash, full-compare within each
+ * bucket, merge confirmed pairs.  Caller guarantees candidates are
+ * unique vertex IDs. */
+static sparse_err_t qg_merge_supervariables(qg_t *qg, const idx_t *candidates, idx_t count) {
+    if (count < 2)
+        return SPARSE_OK;
+
+    /* Filter to representatives that are still active. */
+    qg_sv_pair_t *pairs = malloc((size_t)count * sizeof(qg_sv_pair_t));
+    if (!pairs)
+        return SPARSE_ERR_ALLOC;
+    idx_t k = 0;
+    for (idx_t i = 0; i < count; i++) {
+        idx_t c = candidates[i];
+        if (qg->elim[c] || qg->absorbed[c])
+            continue;
+        if (qg->super[c] != c)
+            continue;
+        pairs[k].hash = qg_supervariable_hash(qg, c);
+        pairs[k].vertex = c;
+        k++;
+    }
+    if (k < 2) {
+        free(pairs);
+        return SPARSE_OK;
+    }
+
+    qsort(pairs, (size_t)k, sizeof(qg_sv_pair_t), qg_sv_pair_compare);
+
+    /* Walk sorted pairs; each contiguous same-hash run is a bucket. */
+    idx_t bucket_begin = 0;
+    while (bucket_begin < k) {
+        idx_t bucket_end = bucket_begin + 1;
+        while (bucket_end < k && pairs[bucket_end].hash == pairs[bucket_begin].hash)
+            bucket_end++;
+        if (bucket_end - bucket_begin > 1) {
+            /* Pairwise compare within bucket; merge confirmed pairs.
+             * The lowest-ID survivor stays as representative. */
+            for (idx_t i = bucket_begin; i < bucket_end; i++) {
+                idx_t a = pairs[i].vertex;
+                /* Skip if a was absorbed into an earlier match this loop. */
+                if (qg->super[a] != a)
+                    continue;
+                for (idx_t j = i + 1; j < bucket_end; j++) {
+                    idx_t b = pairs[j].vertex;
+                    if (qg->super[b] != b)
+                        continue;
+                    if (qg_indistinguishable(qg, a, b))
+                        qg_merge_supervariables_pair(qg, a, b);
+                }
+            }
+        }
+        bucket_begin = bucket_end;
+    }
+
+    free(pairs);
+    return SPARSE_OK;
+}
+
+/* Eliminate pivot `p` (Sprint 23 Day 3 — Davis element representation).
+ *
+ * Davis Algorithm 7.4 hot loop:
+ *   1. Form a new element `e` (reusing p's slot — index recycling).
+ *      e's variable-set = (p's variable-side ∪ vars-in-p's-element-side)
+ *      \ {p, eliminated, absorbed}.
+ *   2. For each neighbour u of p (i.e., variable in e's variable-set):
+ *      - Drop p from u's variable-side (if p was a direct neighbour).
+ *      - Append e (= p) to u's element-side.
+ *      - Recompute deg[u] (exact, via qg_recompute_deg).
+ *   3. Check absorption: if u's variable-side is empty AND
+ *      u's element-side has converged to a single element, mark
+ *      u absorbed.  Absorbed vertices skip qg_pick_min_deg and
+ *      have their slots reclaimed by the next compaction.
+ *
+ * Bit-identical fill rationale: deg[u] is computed as the true
+ * distinct-variable count in both Sprint 22's merged representation
+ * and Davis's element representation, so qg_pick_min_deg picks the
+ * same vertex at each step.  Absorption skips some pivots, but
+ * absorbed vertices' adjacency is fully captured by the absorbing
+ * element — their pivots would contribute zero new fill in Sprint
+ * 22's order anyway, so dropping them preserves nnz(L). */
+static int qg_id_compare(const void *a, const void *b) {
+    idx_t va = *(const idx_t *)a;
+    idx_t vb = *(const idx_t *)b;
+    return (va > vb) - (va < vb);
+}
+
 static sparse_err_t qg_eliminate(qg_t *qg, idx_t p) {
+    /* Day 4: collect p's supervariable members (other than p), mark
+     * them eliminated, and append them to `absorbed_list` in ID-sorted
+     * order so the driver puts them into perm[] right after p.  This
+     * is fill-equivalent to Sprint 22's "pivot u then v then ..." for
+     * indistinguishable variables — supervariable elimination just
+     * collapses their step into one. */
+    idx_t super_extra = qg->super_size[p] - 1;
+    if (super_extra > 0) {
+        idx_t *members = malloc((size_t)super_extra * sizeof(idx_t));
+        if (!members)
+            return SPARSE_ERR_ALLOC;
+        idx_t mc = 0;
+        for (idx_t m = qg->super_first[p]; m != -1; m = qg->super_next[m]) {
+            if (m == p)
+                continue;
+            members[mc++] = m;
+        }
+        assert(mc == super_extra);
+        qsort(members, (size_t)mc, sizeof(idx_t), qg_id_compare);
+        for (idx_t i = 0; i < mc; i++) {
+            idx_t m = members[i];
+            qg->elim[m] = 1;
+            qg->len[m] = 0;
+            qg->elen[m] = 0;
+            qg->deg[m] = 0;
+            qg->absorbed_list[qg->absorbed_count++] = m;
+        }
+        free(members);
+    }
+
     qg->elim[p] = 1;
     idx_t p_len = qg->len[p];
-    if (p_len == 0)
+    if (p_len == 0) {
+        qg->elen[p] = 0;
         return SPARSE_OK;
+    }
 
     /* Snapshot p's adjacency before we touch `iw[]` — `qg_reserve`
      * may move the buffer underneath us.  Guard the `p_len *
-     * sizeof(idx_t)` byte count against `size_t` overflow first;
-     * on 32-bit `size_t` a wrap here would under-allocate and the
-     * subsequent memcpy / per-neighbour merges would write OOB. */
+     * sizeof(idx_t)` byte count against `size_t` overflow first. */
     if ((size_t)p_len > SIZE_MAX / sizeof(idx_t))
         return SPARSE_ERR_ALLOC;
     idx_t *p_adj_copy = malloc((size_t)p_len * sizeof(idx_t));
     if (!p_adj_copy)
         return SPARSE_ERR_ALLOC;
     memcpy(p_adj_copy, &qg->iw[qg->xadj[p]], (size_t)p_len * sizeof(idx_t));
+    idx_t p_elen = qg->elen[p];
+    idx_t p_vlen = p_len - p_elen;
 
-    for (idx_t k = 0; k < p_len; k++) {
-        idx_t u = p_adj_copy[k];
-        if (qg->elim[u])
+    /* --- Step 1: Compute new element e's variable-set ---
+     * e_var_set = (p's vars ∪ vars-via-p's-elements) \ {p, eliminated, absorbed}.
+     * Use deg_mark as a temporary bitmap; collect set in `touched[]`.
+     * Important: e_var_set replaces the previous "merged adjacency"
+     * Sprint 22 stored on each neighbour — it's the new clique
+     * formed by p's elimination. */
+    idx_t e_count = 0;
+    /* Walk p's variable-side. */
+    for (idx_t k = 0; k < p_vlen; k++) {
+        idx_t v = p_adj_copy[k];
+        if (v == p || qg->elim[v] || qg->absorbed[v])
             continue;
+        if (!qg->deg_mark[v]) {
+            qg->deg_mark[v] = 1;
+            qg->touched[e_count++] = v;
+        }
+    }
+    /* Walk p's element-side and expand each. */
+    for (idx_t k = p_vlen; k < p_len; k++) {
+        idx_t e_old = p_adj_copy[k];
+        idx_t e_old_xadj = qg->xadj[e_old];
+        idx_t e_old_vlen = qg->len[e_old] - qg->elen[e_old];
+        for (idx_t j = 0; j < e_old_vlen; j++) {
+            idx_t v = qg->iw[e_old_xadj + j];
+            if (v == p || qg->elim[v] || qg->absorbed[v])
+                continue;
+            if (!qg->deg_mark[v]) {
+                qg->deg_mark[v] = 1;
+                qg->touched[e_count++] = v;
+            }
+        }
+    }
 
-        idx_t u_len = qg->len[u];
-        /* Merge upper bound = u_len + p_len.  Compute in `uint64_t`
-         * so the addition can't wrap before `qg_reserve` validates
-         * it; if the sum exceeds the storage type (idx_t = int32),
-         * fail cleanly here.  Reserve before reading u_adj —
-         * `qg_reserve` may realloc and invalidate pointers. */
-        uint64_t merge_upper_64 = (uint64_t)u_len + (uint64_t)p_len;
-        if (merge_upper_64 > (uint64_t)INT32_MAX) {
+    /* Snapshot e's variable-set into a fresh buffer.  We need it
+     * sorted (for the binary-search-style "is p in u's variable-side"
+     * check below, and to keep the compaction's relocation
+     * invariants).  `touched[]` is in insertion order, not vertex-ID
+     * order, so sort it. */
+    idx_t *e_adj = NULL;
+    if (e_count > 0) {
+        e_adj = malloc((size_t)e_count * sizeof(idx_t));
+        if (!e_adj) {
+            /* Restore deg_mark before bailing out. */
+            for (idx_t i = 0; i < e_count; i++)
+                qg->deg_mark[qg->touched[i]] = 0;
             free(p_adj_copy);
             return SPARSE_ERR_ALLOC;
         }
-        sparse_err_t rc = qg_reserve(qg, (idx_t)merge_upper_64);
+        /* Build sorted e_adj by walking deg_mark in ID order — O(n). */
+        idx_t k = 0;
+        for (idx_t v = 0; v < qg->n; v++) {
+            if (qg->deg_mark[v]) {
+                e_adj[k++] = v;
+                qg->deg_mark[v] = 0;
+            }
+        }
+        assert(k == e_count);
+    }
+
+    /* --- Step 2-3: Reserve workspace for e's adjacency + write it ---
+     * e takes p's slot.  e's adjacency is e_count entries written at
+     * iw[iw_used..]; xadj[p] points at the new location, len[p] =
+     * e_count, elen[p] = 0.  Old content at p's previous xadj is
+     * garbage to be reclaimed by the next compaction. */
+    sparse_err_t rc = qg_reserve(qg, e_count);
+    if (rc != SPARSE_OK) {
+        free(e_adj);
+        free(p_adj_copy);
+        return rc;
+    }
+    idx_t e_xadj = qg->iw_used;
+    if (e_count > 0) {
+        memcpy(&qg->iw[e_xadj], e_adj, (size_t)e_count * sizeof(idx_t));
+        qg->iw_used += e_count;
+    }
+    qg->xadj[p] = e_xadj;
+    qg->len[p] = e_count;
+    qg->elen[p] = 0;
+
+    /* --- Step 4: For each variable u in e's variable-set, rebuild
+     *     u's slice and recompute deg[u] ---
+     * u's new slice:
+     *   variable-side = u_old_var_side \ {p}  (drop p if direct)
+     *   element-side = u_old_elem_side ⋃ {e=p}
+     * Followed by absorption check.
+     *
+     * Note: e_adj may be NULL when e_count == 0; the loop is
+     * a no-op in that case. */
+    for (idx_t v_idx = 0; v_idx < e_count; v_idx++) {
+        idx_t u = e_adj[v_idx];
+        idx_t u_len_old = qg->len[u];
+        idx_t u_elen_old = qg->elen[u];
+        idx_t u_vlen_old = u_len_old - u_elen_old;
+
+        /* Reserve u_len_old + 1 for the rebuilt slice (may be a few
+         * entries shorter if p was in u's variable-side, but +1 is
+         * a safe upper bound). */
+        if ((uint64_t)u_len_old + 1 > (uint64_t)INT32_MAX) {
+            free(e_adj);
+            free(p_adj_copy);
+            return SPARSE_ERR_ALLOC;
+        }
+        rc = qg_reserve(qg, u_len_old + 1);
         if (rc != SPARSE_OK) {
+            free(e_adj);
             free(p_adj_copy);
             return rc;
         }
+        /* qg_reserve may have moved iw[] — fetch u_xadj_old AFTER the
+         * reserve so the pointer reflects the (possibly relocated)
+         * slice base. */
+        idx_t u_xadj_old = qg->xadj[u];
 
-        idx_t *u_adj = &qg->iw[qg->xadj[u]];
-        idx_t *new_adj = &qg->iw[qg->iw_used];
-        idx_t new_len = 0;
-        idx_t a = 0;
-        idx_t b = 0;
-        while (a < u_len && b < p_len) {
-            idx_t va = u_adj[a];
-            idx_t vb = p_adj_copy[b];
-            idx_t v;
-            if (va == vb) {
-                v = va;
-                a++;
-                b++;
-            } else if (va < vb) {
-                v = va;
-                a++;
-            } else {
-                v = vb;
-                b++;
-            }
-            if (v != p && v != u && !qg->elim[v])
-                new_adj[new_len++] = v;
+        idx_t new_xadj = qg->iw_used;
+        idx_t new_vlen = 0;
+        for (idx_t j = 0; j < u_vlen_old; j++) {
+            idx_t v = qg->iw[u_xadj_old + j];
+            if (v == p)
+                continue; /* drop the just-eliminated pivot */
+            /* Day 4: also drop stale eliminated/absorbed entries.
+             * Co-eliminated supervariable members were marked
+             * elim[]=1 at the top of this function; they're stale
+             * here because they were in u's adjacency at slice-
+             * build time but are no longer active. */
+            if (qg->elim[v] || qg->absorbed[v])
+                continue;
+            qg->iw[qg->iw_used++] = v;
+            new_vlen++;
         }
-        while (a < u_len) {
-            idx_t v = u_adj[a++];
-            if (v != p && v != u && !qg->elim[v])
-                new_adj[new_len++] = v;
+        idx_t new_elen = 0;
+        for (idx_t j = u_vlen_old; j < u_len_old; j++) {
+            idx_t e_id = qg->iw[u_xadj_old + j];
+            qg->iw[qg->iw_used++] = e_id;
+            new_elen++;
         }
-        while (b < p_len) {
-            idx_t v = p_adj_copy[b++];
-            if (v != p && v != u && !qg->elim[v])
-                new_adj[new_len++] = v;
-        }
+        /* Append the new element e (= p's slot) to u's element-side. */
+        qg->iw[qg->iw_used++] = p;
+        new_elen++;
 
-        qg->xadj[u] = qg->iw_used;
-        qg->len[u] = new_len;
-        qg->deg[u] = new_len;
-        qg->iw_used += new_len;
+        qg->xadj[u] = new_xadj;
+        qg->len[u] = new_vlen + new_elen;
+        qg->elen[u] = new_elen;
+
+        qg_recompute_deg(qg, u);
+
+        /* --- Step 5: Absorption check ---
+         * u is absorbed iff u's variable-side is empty AND u's
+         * element-side has converged to a single element (Davis §7.3).
+         * The single-element case is when new_elen == 1 (only e=p in
+         * u's element-side); for new_elen > 1, u still depends on
+         * older elements that may bring in distinct variables. */
+        if (new_vlen == 0 && new_elen == 1) {
+            qg->absorbed[u] = 1;
+            qg->absorbed_list[qg->absorbed_count++] = u;
+            /* Free u's slot for compaction reclaim — len[u] = 0
+             * keeps the slot from being relocated by qg_compact. */
+            qg->len[u] = 0;
+            qg->elen[u] = 0;
+            qg->deg[u] = 0;
+        }
     }
 
-    /* Mark p's old adjacency as garbage; the next compaction
-     * reclaims it. */
-    qg->len[p] = 0;
+    if (qg->iw_used > qg->iw_peak)
+        qg->iw_peak = qg->iw_used;
+
+    /* Day 4: detect new supervariable merges among e's neighbours.
+     * After p's elimination changed their adjacencies, two
+     * previously-distinct variables may now be indistinguishable.
+     * Merging them shrinks the active set for subsequent
+     * qg_pick_min_deg scans and lets co-elimination happen on the
+     * next pivot step. */
+    sparse_err_t merge_rc = qg_merge_supervariables(qg, e_adj, e_count);
+
+    free(e_adj);
     free(p_adj_copy);
-    return SPARSE_OK;
+    return merge_rc;
 }
 
 sparse_err_t sparse_reorder_amd_qg(const SparseMatrix *A, idx_t *perm) {
@@ -509,26 +1222,79 @@ sparse_err_t sparse_reorder_amd_qg(const SparseMatrix *A, idx_t *perm) {
     if (rc != SPARSE_OK)
         return rc;
 
-    for (idx_t step = 0; step < n; step++) {
+    /* Day 4: initial supervariable detection.  Vertices with
+     * identical original adjacency (e.g., the leaves of a star)
+     * form supervariables before any pivot fires.  Run the merge
+     * over all n vertices once at startup; subsequent merges only
+     * need to consider the per-pivot e_var_set since untouched
+     * adjacencies don't change their (non-)indistinguishability. */
+    {
+        idx_t *all_candidates = malloc((size_t)n * sizeof(idx_t));
+        if (!all_candidates) {
+            qg_free(&qg);
+            return SPARSE_ERR_ALLOC;
+        }
+        for (idx_t i = 0; i < n; i++)
+            all_candidates[i] = i;
+        rc = qg_merge_supervariables(&qg, all_candidates, n);
+        free(all_candidates);
+        if (rc != SPARSE_OK) {
+            qg_free(&qg);
+            return rc;
+        }
+    }
+
+    /* Sprint 23 Day 3: each pivot may absorb additional vertices
+     * (variables fully subsumed by the new element).  Absorbed
+     * vertices appear in `perm[]` immediately after the pivot
+     * that absorbed them — their fill contribution is identical
+     * to the absorbing element's so the relative order within an
+     * absorbed group doesn't affect nnz(L).  The step counter
+     * advances by `(1 + absorbed_this_pivot)` per outer iteration. */
+    idx_t step = 0;
+    while (step < n) {
         idx_t p = qg_pick_min_deg(&qg);
         /* Invariant: at every step there's still at least one
-         * unelim vertex (the loop runs `n` steps and we mark
-         * exactly one elim per step).  A negative return from
-         * `qg_pick_min_deg` means the qg state has been
-         * corrupted; assert in debug builds and surface as
-         * SPARSE_ERR_BADARG (documented in the header) under
-         * NDEBUG so callers can still propagate the failure. */
+         * non-eliminated, non-absorbed vertex (the loop has
+         * placed `step` vertices into perm[] and `step < n`).
+         * A negative return from `qg_pick_min_deg` means the qg
+         * state has been corrupted; assert in debug builds and
+         * surface as SPARSE_ERR_BADARG (documented in the header)
+         * under NDEBUG so callers can still propagate the failure. */
         assert(p >= 0 && "qg_pick_min_deg: invariant violated — no unelim vertex");
         if (p < 0) {
             qg_free(&qg);
             return SPARSE_ERR_BADARG;
         }
-        perm[step] = p;
+
+        idx_t absorbed_before = qg.absorbed_count;
+        perm[step++] = p;
         rc = qg_eliminate(&qg, p);
         if (rc != SPARSE_OK) {
             qg_free(&qg);
             return rc;
         }
+
+        /* Append vertices absorbed by THIS pivot to perm[].
+         * absorbed_list grows monotonically; the slice
+         * [absorbed_before, absorbed_count) is fresh. */
+        for (idx_t i = absorbed_before; i < qg.absorbed_count; i++) {
+            assert(step < n);
+            perm[step++] = qg.absorbed_list[i];
+        }
+    }
+
+    /* Day 3 workspace probe: print iw_used high-water and absorbed
+     * count when `SPARSE_QG_PROBE` is set in the environment.  Used
+     * once per sprint to verify element-absorption shrinks the
+     * active set; off in production.  No allocation cost when the
+     * env var is unset (single getenv call). */
+    if (getenv("SPARSE_QG_PROBE")) {
+        fprintf(stderr,
+                "qg-probe n=%d iw_peak=%d iw_size=%d absorbed=%d (%.1f%% of n) "
+                "cap_fired=%d\n",
+                (int)n, (int)qg.iw_peak, (int)qg.iw_size, (int)qg.absorbed_count,
+                100.0 * (double)qg.absorbed_count / (double)n, (int)qg.cap_fired_count);
     }
 
     qg_free(&qg);

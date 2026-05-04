@@ -1,3 +1,6 @@
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200112L)
+#define _POSIX_C_SOURCE 200112L
+#endif
 /*
  * Sprint 22 Days 11-12 — quotient-graph AMD wrapper-delegation
  * + production-swap tests.
@@ -35,12 +38,98 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 #ifndef DATA_DIR
 #define DATA_DIR "tests/data"
 #endif
 #define SS_DIR DATA_DIR "/suitesparse"
+
+/* Cross-platform env-var wrappers.  POSIX `setenv` / `unsetenv` aren't
+ * available under MSVC; route through `_putenv_s` there.  MSVC's
+ * `_putenv_s(name, "")` deletes the variable per MSDN, which matches
+ * POSIX `unsetenv` semantics — the wrapper exposes that behaviour
+ * as `test_unsetenv` so callers don't have to branch.  Sprint 25's
+ * Windows CI item will exercise this. */
+#ifdef _WIN32
+#include <stdlib.h>
+static int test_setenv(const char *name, const char *value) { return _putenv_s(name, value); }
+static int test_unsetenv(const char *name) { return _putenv_s(name, ""); }
+#else
+static int test_setenv(const char *name, const char *value) { return setenv(name, value, 1); }
+static int test_unsetenv(const char *name) { return unsetenv(name); }
+#endif
+
+/* Portable string-dup wrapper.  POSIX strdup is in `<string.h>` since
+ * POSIX.1-2008 but isn't ISO C; MSVC exposes `_strdup` instead.  The
+ * `env_snapshot_save` helper below needs a string copy and our
+ * Sprint 25 Windows-CI item requires this file to compile under
+ * MSVC, so route the call through `test_strdup`. */
+static char *test_strdup(const char *s) {
+#ifdef _WIN32
+    return _strdup(s);
+#else
+    /* Fall back to malloc + memcpy rather than POSIX strdup so this
+     * file compiles cleanly on hosted-strict-C11 toolchains too. */
+    size_t n = strlen(s) + 1;
+    char *out = malloc(n);
+    if (!out)
+        return NULL;
+    memcpy(out, s, n);
+    return out;
+#endif
+}
+
+/* Env-var snapshot helper.  `getenv()` returns a pointer into libc-
+ * managed storage that subsequent `setenv` / `_putenv_s` calls are
+ * permitted to invalidate (POSIX explicitly allows it; glibc and
+ * MSVC both do this in practice).  Restoring with the raw `getenv`
+ * pointer after a mutating `test_setenv` call is undefined.  The
+ * helper takes a snapshot via `test_strdup` *before* any mutation,
+ * then restores from that copy.  Matches Copilot review feedback on
+ * PR #31 (comments 3182884667 / 3182884713 / 3182884746 /
+ * 3182884784 / 3183182974). */
+typedef struct {
+    const char *name;
+    char *saved_value; /* dup'd; NULL if the var was unset at save time. */
+    int had_value;     /* 1 if `getenv(name)` returned non-NULL at save time. */
+} env_snapshot_t;
+
+/* Returns 0 on success, -1 on `test_strdup` failure (var existed but
+ * couldn't be duplicated).  Caller must check the return value before
+ * mutating the environment — on failure, the snapshot is unusable
+ * and a subsequent `_restore` would unset the var instead of
+ * restoring its original value, permanently clobbering caller
+ * state.  Matches Copilot review feedback on PR #31 (comment
+ * 3183752948). */
+static int env_snapshot_save(env_snapshot_t *s, const char *name) {
+    s->name = name;
+    s->saved_value = NULL;
+    s->had_value = 0;
+    const char *cur = getenv(name);
+    if (cur) {
+        s->saved_value = test_strdup(cur);
+        if (!s->saved_value)
+            return -1;
+        s->had_value = 1;
+    }
+    return 0;
+}
+
+static void env_snapshot_restore(env_snapshot_t *s) {
+    if (s->had_value) {
+        /* Post-`_save` invariant: `had_value == 1` ⇒ `saved_value`
+         * is a valid dup'd copy.  `_save` only sets `had_value` after
+         * a successful `test_strdup`, so this is unconditional. */
+        test_setenv(s->name, s->saved_value);
+    } else {
+        test_unsetenv(s->name);
+    }
+    free(s->saved_value);
+    s->saved_value = NULL;
+    s->had_value = 0;
+}
 
 /* ─── Day 10 stub-contract retire ─────────────────────────────────── */
 
@@ -254,11 +343,656 @@ static void test_amd_stress_10k_banded(void) {
     sparse_free(A);
 }
 
+/* ─── Sprint 23 Day 2: workspace extension regression test ──────────── */
+
+/* The Sprint 23 Day 2 change extends `qg_t` with `elen[]` and grows
+ * the initial `iw_size` from `5·nnz + 6·n + 1` to `7·nnz + 8·n + 1`
+ * (Davis 2006 §7's reference size).  Both changes are structural —
+ * no algorithmic behaviour change — so the produced permutation must
+ * stay bit-identical to the Sprint-22 baseline.  This test pins that
+ * contract on a synthetic 100×100 banded fixture (deterministic,
+ * doesn't depend on the SuiteSparse data dir).
+ *
+ * A baseline permutation isn't hard-coded here — the corpus
+ * delegation tests above already cover bit-identical fill on the
+ * SuiteSparse fixtures (nos4 = 637, bcsstk04 = 3143, bcsstk14 =
+ * 116071, all unchanged from Sprint 22's bench_day14.txt); this test
+ * adds a determinism check (two independent runs produce the same
+ * permutation) and a validity check on a non-corpus fixture so
+ * Day 3's element-absorption work has a smaller fixture to bisect
+ * against if a regression turns up. */
+static void test_qg_workspace_extension_no_regression(void) {
+    const idx_t n = 100;
+    const idx_t bandwidth = 5;
+    sparse_err_t rc = SPARSE_OK;
+    SparseMatrix *A = NULL;
+    idx_t *perm1 = NULL;
+    idx_t *perm2 = NULL;
+
+    A = sparse_create(n, n);
+    if (!A) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
+    for (idx_t i = 0; i < n; i++) {
+        rc = sparse_insert(A, i, i, 1.0);
+        for (idx_t k = 1; rc == SPARSE_OK && k <= bandwidth; k++) {
+            if (i + k < n) {
+                rc = sparse_insert(A, i, i + k, 1.0);
+                if (rc == SPARSE_OK)
+                    rc = sparse_insert(A, i + k, i, 1.0);
+            }
+        }
+        if (rc != SPARSE_OK)
+            goto cleanup;
+    }
+
+    perm1 = malloc((size_t)n * sizeof(idx_t));
+    perm2 = malloc((size_t)n * sizeof(idx_t));
+    if (!perm1 || !perm2) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
+
+    rc = sparse_reorder_amd_qg(A, perm1);
+    if (rc != SPARSE_OK)
+        goto cleanup;
+    rc = sparse_reorder_amd_qg(A, perm2);
+    if (rc != SPARSE_OK)
+        goto cleanup;
+
+    /* Determinism: two independent runs on the same fixture produce
+     * bit-identical permutations.  Day 3's element-absorption work
+     * must preserve this. */
+    ASSERT_TRUE(is_valid_permutation(perm1, n));
+    ASSERT_TRUE(is_valid_permutation(perm2, n));
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_EQ(perm1[i], perm2[i]);
+
+    /* Symbolic Cholesky nnz on the permuted matrix — provides the
+     * bisection golden for Day 3.  100×100 bw=5: 595 entries in A
+     * (100 diagonal + 2*5*95 - 5*4/2*... actually 100 diag + 2*(5*100
+     * - sum(i for 1..5)) but this is documentation, not assertion). */
+    idx_t nnz_L = symbolic_cholesky_nnz_with_perm(A, perm1);
+    ASSERT_TRUE(nnz_L > 0);
+    printf("    100×100 banded (bw=5): nnz(L) under qg AMD = %d\n", (int)nnz_L);
+
+cleanup:
+    free(perm1);
+    free(perm2);
+    sparse_free(A);
+    REQUIRE_OK(rc);
+}
+
+/* ─── Sprint 23 Day 4: supervariable detection ──────────────────────── */
+
+/* Build a star fixture: vertex 0 is the centre, vertices 1..k are
+ * leaves connected only to the centre.  After the centre is
+ * eliminated, the k leaves all have identical adjacency (empty
+ * variable-side, single-element element-side = {0}).  They form a
+ * single supervariable and co-eliminate in one pivot step.
+ *
+ * The "absorbed" probe should report k-1 entries (= leaves
+ * co-eliminated alongside the supervariable representative).  The
+ * resulting permutation must contain the centre (0) followed by
+ * the k leaves in ID order in some contiguous block. */
+static SparseMatrix *make_star_n(idx_t k) {
+    /* n = 1 (centre) + k (leaves). */
+    SparseMatrix *A = sparse_create(k + 1, k + 1);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < k + 1; i++) {
+        if (sparse_insert(A, i, i, 1.0) != SPARSE_OK)
+            goto fail;
+    }
+    /* Centre is vertex 0; leaves are 1..k. */
+    for (idx_t i = 1; i <= k; i++) {
+        if (sparse_insert(A, 0, i, 1.0) != SPARSE_OK)
+            goto fail;
+        if (sparse_insert(A, i, 0, 1.0) != SPARSE_OK)
+            goto fail;
+    }
+    return A;
+fail:
+    sparse_free(A);
+    return NULL;
+}
+
+static void test_qg_supervariable_synthetic(void) {
+    const idx_t k = 4; /* 4 leaves */
+    sparse_err_t rc = SPARSE_OK;
+    SparseMatrix *A = make_star_n(k);
+    idx_t *perm = NULL;
+    if (!A) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
+    idx_t n = sparse_rows(A); /* k + 1 */
+    perm = malloc((size_t)n * sizeof(idx_t));
+    if (!perm) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
+
+    rc = sparse_reorder_amd_qg(A, perm);
+    if (rc != SPARSE_OK)
+        goto cleanup;
+    ASSERT_TRUE(is_valid_permutation(perm, n));
+
+    /* The centre (vertex 0) has the largest degree (k); each leaf
+     * has degree 1.  Min-degree picks a leaf first.  After ANY one
+     * leaf eliminates, the centre's degree is k-1, and the
+     * remaining leaves now have an empty variable-side + a single-
+     * element element-side, so they should be detected as a
+     * supervariable on the next pivot — co-eliminating en masse.
+     *
+     * What we can pin deterministically: the four leaves (1..4)
+     * appear contiguously in `perm[]` — once the supervariable is
+     * detected, all members co-eliminate with their representative.
+     * The centre (0) appears at the very end. */
+    idx_t centre_pos = -1;
+    for (idx_t i = 0; i < n; i++) {
+        if (perm[i] == 0) {
+            centre_pos = i;
+            break;
+        }
+    }
+    ASSERT_EQ(centre_pos, n - 1);
+
+    /* Find the first and last leaf positions; they must be
+     * contiguous (after the supervariable forms, the leaves
+     * co-eliminate as one unit). */
+    idx_t first_leaf = n, last_leaf = 0;
+    for (idx_t i = 0; i < n; i++) {
+        if (perm[i] >= 1 && perm[i] <= k) {
+            if (i < first_leaf)
+                first_leaf = i;
+            if (i > last_leaf)
+                last_leaf = i;
+        }
+    }
+    ASSERT_EQ(last_leaf - first_leaf + 1, k);
+
+    printf("    star (n=%d, %d leaves): perm centre at %d, leaves contiguous at [%d..%d]\n", (int)n,
+           (int)k, (int)centre_pos, (int)first_leaf, (int)last_leaf);
+
+cleanup:
+    free(perm);
+    sparse_free(A);
+    REQUIRE_OK(rc);
+}
+
+/* ─── Sprint 23 Day 5: approximate-degree conservative-bound test ──── */
+
+/* Build a 50-vertex random-but-deterministic SPD-pattern fixture:
+ * banded with small bandwidth, plus a handful of out-of-band entries
+ * to give the approximate-degree formula a non-trivial workout
+ * (multiple elements per vertex, cross-element overlap).  We use the
+ * splitmix64 seed pattern from sparse_graph.c so the fixture is
+ * reproducible. */
+static uint64_t splitmix64_test(uint64_t *state) {
+    uint64_t z = (*state += 0x9E3779B97F4A7C15ULL);
+    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+    z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+    return z ^ (z >> 31);
+}
+
+static SparseMatrix *make_random_50(void) {
+    const idx_t n = 50;
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++) {
+        if (sparse_insert(A, i, i, 1.0) != SPARSE_OK)
+            goto fail;
+    }
+    /* Banded skeleton (bandwidth 3). */
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t k = 1; k <= 3; k++) {
+            if (i + k < n) {
+                if (sparse_insert(A, i, i + k, 1.0) != SPARSE_OK)
+                    goto fail;
+                if (sparse_insert(A, i + k, i, 1.0) != SPARSE_OK)
+                    goto fail;
+            }
+        }
+    }
+    /* Sprinkle a few long-range symmetric entries with a fixed seed. */
+    uint64_t state = 0x123456789ABCDEFULL;
+    for (int t = 0; t < 30; t++) {
+        idx_t i = (idx_t)(splitmix64_test(&state) % (uint64_t)n);
+        idx_t j = (idx_t)(splitmix64_test(&state) % (uint64_t)n);
+        if (i == j)
+            continue;
+        if (sparse_insert(A, i, j, 1.0) != SPARSE_OK)
+            goto fail;
+        if (sparse_insert(A, j, i, 1.0) != SPARSE_OK)
+            goto fail;
+    }
+    return A;
+fail:
+    sparse_free(A);
+    return NULL;
+}
+
+/* Sprint 23 Day 5: pin Davis's conservative-bound contract for the
+ * approximate-degree formula.  Runs sparse_reorder_amd_qg with
+ * `SPARSE_QG_VERIFY_DEG=1` set in the environment — the production
+ * path then computes both d_approx and d_exact for every neighbour
+ * post-pivot and asserts d_approx >= d_exact.  Fixture is the
+ * 50-vertex random graph from make_random_50() so the formula sees
+ * non-trivial cross-element overlap. */
+static void test_qg_approx_degree_upper_bound(void) {
+    /* Snapshot env first, *then* mutate.  `getenv()` may be invalidated
+     * by subsequent `test_setenv` calls (POSIX-allowed; glibc / MSVC
+     * both do it).  All early-exit paths route through `cleanup:` so
+     * the env is always restored before the (`REQUIRE_OK` early-
+     * returning) sentinel at the end. */
+    env_snapshot_t snap_verify;
+    REQUIRE_OK(env_snapshot_save(&snap_verify, "SPARSE_QG_VERIFY_DEG") == 0 ? SPARSE_OK
+                                                                            : SPARSE_ERR_ALLOC);
+    ASSERT_EQ(test_setenv("SPARSE_QG_VERIFY_DEG", "1"), 0);
+
+    sparse_err_t rc = SPARSE_OK;
+    SparseMatrix *A = make_random_50();
+    idx_t *perm = NULL;
+    if (!A) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
+    idx_t n = sparse_rows(A);
+    perm = malloc((size_t)n * sizeof(idx_t));
+    if (!perm) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
+
+    /* If d_approx ever underestimates d_exact during this call,
+     * the per-pivot assert in qg_recompute_deg fires (debug build).
+     * In release builds the contract isn't checked, but the test
+     * still validates the call doesn't crash. */
+    rc = sparse_reorder_amd_qg(A, perm);
+    if (rc != SPARSE_OK)
+        goto cleanup;
+    ASSERT_TRUE(is_valid_permutation(perm, n));
+
+cleanup:
+    free(perm);
+    sparse_free(A);
+    env_snapshot_restore(&snap_verify);
+    REQUIRE_OK(rc);
+}
+
+/* ─── Sprint 23 Day 6: 200-vertex parity + dense-row coverage ───────── */
+
+/* Build a 10×20 grid (n=200) with random edge sparsification —
+ * varied degree distribution gives the approximate-degree formula
+ * a non-trivial workout (multiple elements per vertex, cross-element
+ * overlap). */
+static SparseMatrix *make_random_200(void) {
+    const idx_t rows = 10, cols = 20;
+    const idx_t n = rows * cols;
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    /* Diagonal. */
+    for (idx_t i = 0; i < n; i++) {
+        if (sparse_insert(A, i, i, 1.0) != SPARSE_OK)
+            goto fail;
+    }
+    /* Grid skeleton, deterministic-PRNG sparsification. */
+    uint64_t state = 0xFEDCBA9876543210ULL;
+    for (idx_t r = 0; r < rows; r++) {
+        for (idx_t c = 0; c < cols; c++) {
+            idx_t v = r * cols + c;
+            /* Right neighbour. */
+            if (c + 1 < cols) {
+                idx_t u = v + 1;
+                /* Drop ~25% of edges via PRNG. */
+                if ((splitmix64_test(&state) & 3) != 0) {
+                    if (sparse_insert(A, v, u, 1.0) != SPARSE_OK)
+                        goto fail;
+                    if (sparse_insert(A, u, v, 1.0) != SPARSE_OK)
+                        goto fail;
+                }
+            }
+            /* Down neighbour. */
+            if (r + 1 < rows) {
+                idx_t u = v + cols;
+                if ((splitmix64_test(&state) & 3) != 0) {
+                    if (sparse_insert(A, v, u, 1.0) != SPARSE_OK)
+                        goto fail;
+                    if (sparse_insert(A, u, v, 1.0) != SPARSE_OK)
+                        goto fail;
+                }
+            }
+        }
+    }
+    return A;
+fail:
+    sparse_free(A);
+    return NULL;
+}
+
+/* Sprint 23 Day 6: 200-vertex parity test for the approximate-degree
+ * formula.  Switches the production path to approximate-degree via
+ * SPARSE_QG_USE_APPROX_DEG and verifies the conservative-bound
+ * contract via SPARSE_QG_VERIFY_DEG (both flags set).  Per-pivot
+ * `assert(d_approx >= d_exact)` fires on any underestimation.  In
+ * release builds the assert is compiled out, but the test still
+ * validates the call doesn't crash.  The 50-vertex test elsewhere
+ * covers the same contract on a smaller fixture; this one extends
+ * coverage to a larger graph with sparsified-grid topology
+ * (cross-element overlap is more pronounced here). */
+static void test_qg_approx_degree_parity_200(void) {
+    env_snapshot_t snap_verify, snap_approx;
+    REQUIRE_OK(env_snapshot_save(&snap_verify, "SPARSE_QG_VERIFY_DEG") == 0 ? SPARSE_OK
+                                                                            : SPARSE_ERR_ALLOC);
+    REQUIRE_OK(env_snapshot_save(&snap_approx, "SPARSE_QG_USE_APPROX_DEG") == 0 ? SPARSE_OK
+                                                                                : SPARSE_ERR_ALLOC);
+    ASSERT_EQ(test_setenv("SPARSE_QG_VERIFY_DEG", "1"), 0);
+    ASSERT_EQ(test_setenv("SPARSE_QG_USE_APPROX_DEG", "1"), 0);
+
+    sparse_err_t rc = SPARSE_OK;
+    SparseMatrix *A = make_random_200();
+    idx_t *perm = NULL;
+    if (!A) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
+    idx_t n = sparse_rows(A);
+    perm = malloc((size_t)n * sizeof(idx_t));
+    if (!perm) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
+
+    rc = sparse_reorder_amd_qg(A, perm);
+    if (rc != SPARSE_OK)
+        goto cleanup;
+    ASSERT_TRUE(is_valid_permutation(perm, n));
+
+cleanup:
+    free(perm);
+    sparse_free(A);
+    env_snapshot_restore(&snap_verify);
+    env_snapshot_restore(&snap_approx);
+    REQUIRE_OK(rc);
+}
+
+/* Build a fixture engineered to trigger the dense-row cap-fire path:
+ * vertex 0 is a hub connected to *every* other vertex (degree n-1),
+ * plus a banded skeleton on vertices 1..n-1.  After a few pivots
+ * eliminate hub-neighbours, the hub's element-side accumulates
+ * elements that overlap heavily — d_approx for some neighbours can
+ * exceed n via cross-element overcounting, triggering the cap. */
+static SparseMatrix *make_hub_fixture(idx_t n) {
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++) {
+        if (sparse_insert(A, i, i, 1.0) != SPARSE_OK)
+            goto fail;
+    }
+    /* Hub: vertex 0 connected to every other vertex. */
+    for (idx_t j = 1; j < n; j++) {
+        if (sparse_insert(A, 0, j, 1.0) != SPARSE_OK)
+            goto fail;
+        if (sparse_insert(A, j, 0, 1.0) != SPARSE_OK)
+            goto fail;
+    }
+    /* Banded skeleton on the non-hub vertices (bandwidth 3). */
+    for (idx_t i = 1; i < n; i++) {
+        for (idx_t k = 1; k <= 3; k++) {
+            if (i + k < n) {
+                if (sparse_insert(A, i, i + k, 1.0) != SPARSE_OK)
+                    goto fail;
+                if (sparse_insert(A, i + k, i, 1.0) != SPARSE_OK)
+                    goto fail;
+            }
+        }
+    }
+    return A;
+fail:
+    sparse_free(A);
+    return NULL;
+}
+
+/* Sprint 23 Day 6: dense-row completion + cap-coverage test.  The
+ * fixture has one degree-(n-1) hub vertex plus a banded skeleton.
+ * Running the AMD with SPARSE_QG_USE_APPROX_DEG=1 exercises the
+ * cap-firing path in qg_compute_deg_approx (cross-element
+ * overcounting can push d > n on hub-neighbour pivots).  The test
+ * pins three contracts: AMD completes (no asserts / crashes),
+ * the produced permutation is valid, and the hub is ordered last
+ * (highest-degree vertex pivots last under min-degree). */
+static void test_qg_dense_row_completion(void) {
+    const idx_t n = 200;
+    env_snapshot_t snap_approx;
+    REQUIRE_OK(env_snapshot_save(&snap_approx, "SPARSE_QG_USE_APPROX_DEG") == 0 ? SPARSE_OK
+                                                                                : SPARSE_ERR_ALLOC);
+    ASSERT_EQ(test_setenv("SPARSE_QG_USE_APPROX_DEG", "1"), 0);
+
+    sparse_err_t rc = SPARSE_OK;
+    SparseMatrix *A = make_hub_fixture(n);
+    idx_t *perm = NULL;
+    if (!A) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
+    perm = malloc((size_t)n * sizeof(idx_t));
+    if (!perm) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
+
+    rc = sparse_reorder_amd_qg(A, perm);
+    if (rc != SPARSE_OK)
+        goto cleanup;
+    ASSERT_TRUE(is_valid_permutation(perm, n));
+
+    /* Hub (vertex 0) has the highest initial degree (n-1) by far.
+     * Min-degree elimination should pivot it very late.  We assert
+     * it's in the last 5% of perm[] — generous to absorb supervariable
+     * folding effects, but a real failure (hub picked early) would
+     * land it nowhere near the tail. */
+    idx_t hub_pos = -1;
+    for (idx_t i = 0; i < n; i++) {
+        if (perm[i] == 0) {
+            hub_pos = i;
+            break;
+        }
+    }
+    ASSERT_TRUE(hub_pos >= n - n / 20);
+
+cleanup:
+    free(perm);
+    sparse_free(A);
+    env_snapshot_restore(&snap_approx);
+    REQUIRE_OK(rc);
+}
+
+/* ─── Sprint 23 Day 13: 4-supervariable corpus + bcsstk14 parity ────── */
+
+/* Build a fixture engineered to produce exactly 4 supervariables of
+ * 4 leaves each.  Construction:
+ *
+ *   - 16 leaf vertices (IDs 0..15) split into 4 blocks of 4.
+ *   - 4 hub vertices (IDs 16..19); leaf v in block i (i = v / 4)
+ *     connects only to hub 16+i.
+ *   - The 4 hubs form a 4-clique (so the graph is connected).
+ *
+ * Initial adjacency:
+ *
+ *   - Leaf 0..3 each connect to hub 16 only — identical adjacency.
+ *     Day-4 supervariable detection at startup hashes these into
+ *     one bucket and the full-list compare confirms identical
+ *     adjacency, so they merge into a single supervariable.
+ *   - Same for blocks 4-7 / hub 17, 8-11 / hub 18, 12-15 / hub 19.
+ *
+ * The startup-time `qg_merge_supervariables` walk in
+ * `sparse_reorder_amd_qg` (Day 4) collapses each block into one
+ * supervariable representative; the 4 hubs each carry a degree-3
+ * adjacency among themselves plus a (collapsed-to-one)
+ * supervariable neighbour, so they don't merge.  Final perm[]
+ * eliminates the 4 supervariable groups in some order, with the
+ * 4 leaves of each group co-eliminating in a contiguous block. */
+static SparseMatrix *make_4_supervariable_corpus(void) {
+    const idx_t n_leaves = 16;
+    const idx_t n_hubs = 4;
+    const idx_t n = n_leaves + n_hubs; /* 20 */
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++) {
+        if (sparse_insert(A, i, i, 1.0) != SPARSE_OK)
+            goto fail;
+    }
+    /* Leaves 0..15: leaf v connects to hub 16 + (v / 4). */
+    for (idx_t v = 0; v < n_leaves; v++) {
+        idx_t hub = 16 + v / 4;
+        if (sparse_insert(A, v, hub, 1.0) != SPARSE_OK)
+            goto fail;
+        if (sparse_insert(A, hub, v, 1.0) != SPARSE_OK)
+            goto fail;
+    }
+    /* Hubs 16..19 form a 4-clique. */
+    for (idx_t i = 16; i < 20; i++) {
+        for (idx_t j = i + 1; j < 20; j++) {
+            if (sparse_insert(A, i, j, 1.0) != SPARSE_OK)
+                goto fail;
+            if (sparse_insert(A, j, i, 1.0) != SPARSE_OK)
+                goto fail;
+        }
+    }
+    return A;
+fail:
+    sparse_free(A);
+    return NULL;
+}
+
+/* Sprint 23 Day 13: pin that exactly 4 supervariables form on a
+ * fixture with 4 explicitly-known supervariable groups.  Stronger
+ * than Day 4's spot test (test_qg_supervariable_synthetic, which
+ * pins one supervariable on a single-star fixture).  We can't
+ * inspect `qg->super[]` from the test (qg_t is internal to the
+ * implementation), but the resulting perm[]'s contiguity tells
+ * us the same thing: each block of 4 leaves co-eliminates as a
+ * unit (supervariable members appear adjacent in perm).
+ *
+ * Verification:
+ *   - perm is a valid permutation of 0..19.
+ *   - The 4 leaves of each block (v / 4 == i) appear in a
+ *     contiguous run in perm[] — the supervariable defining
+ *     property.  Order of the 4 blocks among themselves and
+ *     order of leaves within a block are implementation-defined
+ *     (depend on the supervariable representative's ID + the
+ *     elimination tie-breaking). */
+static void test_qg_supervariable_synthetic_corpus(void) {
+    SparseMatrix *A = make_4_supervariable_corpus();
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    idx_t n = sparse_rows(A);
+    ASSERT_EQ(n, 20);
+
+    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
+    if (!perm) {
+        sparse_free(A);
+        REQUIRE_OK(SPARSE_ERR_ALLOC);
+        return;
+    }
+    REQUIRE_OK(sparse_reorder_amd_qg(A, perm));
+    ASSERT_TRUE(is_valid_permutation(perm, n));
+
+    /* For each of the 4 blocks, find the min and max position in
+     * perm[] of its 4 leaves; assert max - min == 3 (the four
+     * leaves are contiguous). */
+    for (idx_t block = 0; block < 4; block++) {
+        idx_t min_pos = n;
+        idx_t max_pos = 0;
+        idx_t found = 0;
+        for (idx_t i = 0; i < n; i++) {
+            idx_t v = perm[i];
+            if (v >= block * 4 && v < (block + 1) * 4) {
+                if (i < min_pos)
+                    min_pos = i;
+                if (i > max_pos)
+                    max_pos = i;
+                found++;
+            }
+        }
+        ASSERT_EQ(found, 4);
+        ASSERT_EQ(max_pos - min_pos, 3);
+    }
+
+    printf("    4-supervariable corpus (n=20): all 4 supervariable blocks contiguous\n");
+
+    free(perm);
+    sparse_free(A);
+}
+
+/* Sprint 23 Day 13: extend Day 6's approximate-degree parity test
+ * to a real corpus matrix.  Day 6's test_qg_approx_degree_parity_200
+ * pinned the conservative-bound contract on a synthetic 200-vertex
+ * graph; this one runs the same contract on bcsstk14 (n = 1806,
+ * structural-mechanics SPD).
+ *
+ * Skip Pres_Poisson (PLAN.md §13.1 also asked for it):  the
+ * approximate-degree path is ~5× slower than the exact path on
+ * bcsstk14, and Pres_Poisson under USE_APPROX would push the
+ * test_reorder_amd_qg suite past 30 minutes — too long for a
+ * regular CI run.  Document the partial-coverage decision in
+ * the test's inline comment for the Sprint 24 follow-up to
+ * pick up. */
+static void test_qg_approx_degree_parity_corpus(void) {
+    env_snapshot_t snap_verify, snap_approx;
+    REQUIRE_OK(env_snapshot_save(&snap_verify, "SPARSE_QG_VERIFY_DEG") == 0 ? SPARSE_OK
+                                                                            : SPARSE_ERR_ALLOC);
+    REQUIRE_OK(env_snapshot_save(&snap_approx, "SPARSE_QG_USE_APPROX_DEG") == 0 ? SPARSE_OK
+                                                                                : SPARSE_ERR_ALLOC);
+    ASSERT_EQ(test_setenv("SPARSE_QG_VERIFY_DEG", "1"), 0);
+    ASSERT_EQ(test_setenv("SPARSE_QG_USE_APPROX_DEG", "1"), 0);
+
+    sparse_err_t rc = SPARSE_OK;
+    SparseMatrix *A = NULL;
+    idx_t *perm = NULL;
+    int skipped = 0;
+    rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        rc = SPARSE_OK; /* fixture-not-loadable is a clean skip */
+        skipped = 1;
+        goto cleanup;
+    }
+    idx_t n = sparse_rows(A);
+    perm = malloc((size_t)n * sizeof(idx_t));
+    if (!perm) {
+        rc = SPARSE_ERR_ALLOC;
+        goto cleanup;
+    }
+
+    /* Per-pivot d_approx >= d_exact assert fires inside qg_recompute_deg
+     * under SPARSE_QG_VERIFY_DEG; debug build catches any underestimate.
+     * Release builds still validate that the call doesn't crash. */
+    rc = sparse_reorder_amd_qg(A, perm);
+    if (rc != SPARSE_OK)
+        goto cleanup;
+    ASSERT_TRUE(is_valid_permutation(perm, n));
+
+    printf("    bcsstk14 (n=%d): approx-degree parity holds across full elimination\n", (int)n);
+
+cleanup:
+    (void)skipped;
+    free(perm);
+    sparse_free(A);
+    env_snapshot_restore(&snap_verify);
+    env_snapshot_restore(&snap_approx);
+    REQUIRE_OK(rc);
+}
+
 /* ═══════════════════════════════════════════════════════════════════ */
 
 int main(void) {
-    TEST_SUITE_BEGIN(
-        "Sprint 22 Days 11-12: quotient-graph AMD wrapper delegation + production swap");
+    TEST_SUITE_BEGIN("Sprint 22 Days 11-12 + Sprint 23 Days 2-4: quotient-graph AMD");
     RUN_TEST(test_amd_qg_null_args);
     RUN_TEST(test_amd_qg_rejects_rectangular);
     RUN_TEST(test_amd_qg_singleton);
@@ -266,5 +1000,12 @@ int main(void) {
     RUN_TEST(test_amd_qg_delegation_bcsstk04);
     RUN_TEST(test_amd_qg_delegation_bcsstk14);
     RUN_TEST(test_amd_stress_10k_banded);
+    RUN_TEST(test_qg_workspace_extension_no_regression);
+    RUN_TEST(test_qg_supervariable_synthetic);
+    RUN_TEST(test_qg_approx_degree_upper_bound);
+    RUN_TEST(test_qg_approx_degree_parity_200);
+    RUN_TEST(test_qg_dense_row_completion);
+    RUN_TEST(test_qg_supervariable_synthetic_corpus);
+    RUN_TEST(test_qg_approx_degree_parity_corpus);
     TEST_SUITE_END();
 }

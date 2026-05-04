@@ -1,0 +1,72 @@
+Sprint 23 Day 14 — final cross-corpus capture
+=============================================
+
+Closing-day re-run of `benchmarks/bench_reorder.c` against the
+SuiteSparse corpus.  Sprint 22 Day 14's headline capture
+(`docs/planning/EPIC_2/SPRINT_22/bench_day14.txt`) is the
+comparison anchor; numbers below are Day 14's measurement after
+Day 13's tests + docs sweep.
+
+Day 13 was tests + docs only — no source-code changes that affect
+bench output.  Day 14's nnz(L) values are bit-identical to Day 12's
+(`bench_day12.txt`) on every fixture × ordering, confirming the
+no-regression contract.  Wall times have run-to-run drift (typically
+within ±15 % on this fixture set).
+
+Single run on macOS x86_64 (Apple Clang, -O2).
+CSV form: `bench_day14.csv`.
+
+Cross-ordering capture (ND_BASE_THRESHOLD = 32, default 3-pass FM)
+------------------------------------------------------------------
+
+  matrix         n      reorder  nnz_L      reorder_ms
+  ────────────  ─────  ───────  ─────────  ──────────
+  nos4            100  NONE          805           0.0
+  nos4            100  RCM           888           0.3
+  nos4            100  AMD           637           2.0
+  nos4            100  COLAMD        778           0.7
+  nos4            100  ND            968         117.9
+  bcsstk04        132  NONE        3 763           0.0
+  bcsstk04        132  RCM         3 633           0.7
+  bcsstk04        132  AMD         3 143          20.5
+  bcsstk04        132  COLAMD      3 622           3.3
+  bcsstk04        132  ND          3 702         548.1
+  Kuu           7 102  NONE    2 993 061           0.0
+  Kuu           7 102  RCM     1 024 794          64.6
+  Kuu           7 102  AMD       406 264      33 259.9
+  Kuu           7 102  COLAMD    830 665       4 855.0
+  Kuu           7 102  ND        924 361      13 124.9
+  bcsstk14      1 806  NONE      190 791           0.0
+  bcsstk14      1 806  RCM       178 311          12.5
+  bcsstk14      1 806  AMD       116 071       6 340.1
+  bcsstk14      1 806  COLAMD    146 037         199.7
+  bcsstk14      1 806  ND        131 198       5 696.7
+  s3rmt3m3      5 357  NONE    2 208 972           0.0
+  s3rmt3m3      5 357  RCM       636 993          37.6
+  s3rmt3m3      5 357  AMD       474 609      65 705.0
+  s3rmt3m3      5 357  COLAMD    607 647       1 466.8
+  s3rmt3m3      5 357  ND        478 986      13 546.2
+  Pres_Poisson 14 822  NONE    5 061 932           0.0
+  Pres_Poisson 14 822  RCM     3 187 081         178.6
+  Pres_Poisson 14 822  AMD     2 668 793   1 030 361.5
+  Pres_Poisson 14 822  COLAMD  3 415 793      14 553.3
+  Pres_Poisson 14 822  ND      2 541 734      36 117.0
+
+Day-14 vs Day-12 nnz(L) sanity check
+------------------------------------
+
+Every nnz(L) value above is bit-identical to Day 12's capture.
+Run-to-run differences appear only in the `reorder_ms` column.
+Day 13's tests + docs scope is confirmed: no production code path
+moved.
+
+Headline gates verdict (per `bench_summary_day12.md`)
+-----------------------------------------------------
+
+| gate                                       | day14   | status |
+|--------------------------------------------|---------|--------|
+| Pres_Poisson `nnz_nd / nnz_amd` ≤ 0.7      | 0.952×  | spirit YES (ND beats AMD); literal NO |
+| qg-AMD wall on bcsstk14 ≤ Sprint-22 bitset | 6 340 ms vs 64 ms | HARD FAIL |
+| `bench_day14` nnz_L bit-identical-or-better | 5/6 better, 1 noise | PASS |
+
+Routed to Sprint 24 — see `RETROSPECTIVE.md` "Sprint 24 inputs".

@@ -4,11 +4,12 @@
 **Branch:** `sprint-23`
 **Calendar elapsed:** 2026-05-02 → 2026-05-03 (intensive condensed run; the 14-day budget tracks engineering effort, not wall-clock days)
 
-> **Status:** Day 13 stub.  Day-by-day metrics + headline-gate
-> outcomes are populated; prose sections (Lessons, Sprint 24
-> Inputs, Acknowledgements) are placeholders for the post-sprint
-> write-up — landing the structure now makes that write-up
-> mechanical.
+> **Status:** Day 14 final.  Day-by-day metrics, headline-gate
+> outcomes, and prose sections all populated.  Sprint 23 ships
+> with one of three literal-target headline gates met (c) and the
+> spirit (but not the literal threshold) of (a) achieved — ND now
+> beats AMD on Pres_Poisson.  Gate (b) is a hard regression Sprint
+> 24 must close.
 
 ## Goal recap
 
@@ -116,58 +117,132 @@ Pres_Poisson ND wall to the ≤ 10 s range PLAN.md anticipated.
 
 ## What went well
 
-(post-sprint write-up — placeholder)
+**Day 11's multi-pass FM was the sleeper hit.**  PLAN.md framed
+it as a "budget-permitting last 2 hours" exploration with a clear
+deferral path — "if 3-pass doesn't measurably improve cut quality
+(likely on regular meshes), revert to single-pass and note the
+finding".  Reality was the opposite: 3 passes drops Pres_Poisson
+ND/AMD from 1.026× to 0.952× — the largest single jump of the
+sprint and the single move that turned headline gate (a) from
+"literal miss with no spirit met" to "literal miss but spirit met
+— ND now beats AMD".  Wall time *also* dropped 7 seconds with
+multi-pass because tighter partitions shrink downstream recursive-
+ND work faster than extra passes add cost.  The Day-9/10 bucket-FM
+infrastructure made each pass cheap enough to afford, and the
+exploration that PLAN.md hedged on turned out to be the headline
+move.
 
-Candidate themes from the day-by-day capsule:
+**Sprint 22's modular ND + multilevel partition pipeline made
+Day 7's splice fall out cleanly.**  `nd_recurse`'s base case was
+already a single function call (`nd_emit_natural`); the Day 7
+swap is a 50-line patch — `nd_subgraph_to_sparse` builds a
+temporary `SparseMatrix` from the leaf graph, the recursion calls
+`sparse_reorder_amd_qg` on it, and a fallback path emits natural
+ordering on any failure.  Zero changes to the multilevel partition
+pipeline.
 
-- **Day 11's multi-pass FM was the sleeper hit.**  PLAN.md framed
-  it as a "budget-permitting last 2 hours" exploration with a
-  clear deferral path; reality was a 4-pp jump in Pres_Poisson
-  ratio that turned the spirit of headline gate (a) from "miss"
-  to "ND beats AMD".
+**The bucket-FM swap (Days 9-10) was caught early by an unexpected
+derived test.**  `test_ldlt_via_nd_dispatch` — the bcsstk04 LDL^T
+no-pivoting residual test — blew up to 7.94e+9 in the first
+iteration of the bucket-FM.  This wasn't the partition tests'
+separator-size ranges that PLAN.md flagged as the gate; it was a
+*derived* numerical contract the new partition's pivot order
+happened to break.  Root cause: the initial bucket-FM dropped
+balance-ineligible vertices permanently (instead of retrying them
+on subsequent steps as Sprint 22's full re-scan did), and the
+resulting partition produced a perm[] where LDL^T-without-
+pivoting hit a nearly-zero pivot.  Skipped-vertex re-insertion
+fixed it; the residual returned to 6.02e-12 (bit-identical to
+Sprint 22 baseline).  Without this test, the regression would
+have shipped silently — only solver-correctness tests would have
+caught it after release.
 
-- **Sprint 22's modular ND + multilevel partition pipeline made
-  the Day 7 splice fall out cleanly.**  `nd_recurse`'s base case
-  was already a single function pointer (`nd_emit_natural`); the
-  Day 7 swap is a 50-line patch that mostly handles the per-leaf
-  failure-fallback path.
+**Sprint 22's RNG-determinism contract held cleanly through every
+algorithmic change.**  Days 7 (leaf-AMD splice), 9-10 (bucket-FM),
+and 11 (multi-pass FM) all touched the partition output, but
+`test_partition_determinism_*` continued to pass bit-identically
+across re-runs.  The "same input + same seed → same output"
+property held because every algorithmic change was deterministic
+under the same splitmix64 seed, and the LIFO bucket-pop order
+inherited from Day 9's head-insert pattern remained stable.
 
-- **The bucket-FM swap (Days 9-10) was caught early by an
-  unexpected derived test.**  bcsstk04 LDL^T-no-pivoting residual
-  blew up to 7.94 e+9 in the first iteration of the bucket-FM —
-  not the partition tests' separator-size ranges that PLAN.md
-  flagged as the gate, but the LDL^T residual that the new
-  partition's pivot order happened to break.  Skipped-vertex
-  re-insertion fixed it; without that test, the regression would
-  have shipped silently.
+## What surprised us
+
+**The Day-12 cross-corpus bench surfaced a regression that none
+of the sprint's day-by-day fixtures caught.**  Days 2-5 added
+element absorption + supervariable detection + approximate-degree
+formula on top of the Sprint 22 quotient-graph baseline.  Each
+day's fixture suite (corpus delegation tests, parity tests,
+synthetic edge-case tests) passed cleanly.  Day 12 ran the full
+cross-corpus bench and observed AMD wall-time on irregular SPD
+fixtures had regressed 62-199× vs Sprint 22 baseline (bcsstk14:
+90 ms → 6 951 ms; Pres_Poisson: 5.7 s → 22.3 minutes).  The
+algorithmic correctness was fine — fill bit-identical to bitset
+across every fixture — but the wall-time cost of Day 4's per-pivot
+O(k²) supervariable-hash compare wasn't visible until measured
+end-to-end.
+
+**Supervariable detection is a fixture-shape-dependent win.**  On
+banded fixtures (where supervariables form readily because of
+structural regularity) Day 4's detection saves more wall time
+than the O(k²) compare costs — Day-12 banded fixtures regressed
+only ~3× vs Sprint 22 baseline, vs 62-199× on irregular SPD.  The
+supervariable detection's payoff scales with how many merges
+actually fire; on irregular structural-mechanics matrices the
+hash buckets are large but no merges happen, so the O(k²) compare
+is pure overhead.
+
+**Sprint 22's PLAN target of `nnz_nd / nnz_amd ≤ 0.5×` on
+Pres_Poisson was over-optimistic.**  Sprint 23 closed half the
+gap (1.06 → 0.95) via the cumulative effect of leaf-AMD + bucket-
+FM + multi-pass FM, but the remaining 0.95 → 0.7 (let alone 0.5)
+needs deeper coarsening or a smarter separator-extraction
+heuristic — algorithmic work outside Sprint 23's scope.  The
+Sprint 22 PLAN's risk-flag #2 anticipated this; Sprint 23's
+PLAN.md relaxed the target from 0.5 to 0.7 and even that wasn't
+quite reached.
 
 ## What didn't go well
 
-(post-sprint write-up — placeholder)
+**The qg-AMD wall-time regression is Sprint 23's biggest miss.**
+Headline gate (b) — qg-AMD wall on bcsstk14 ≤ Sprint-22 bitset
+baseline (64 ms) — fails by ~108×.  Pres_Poisson AMD wall went
+from 12.2 s (Sprint 22) to 22.3 minutes (Day 12).  Fill is
+bit-identical to bitset, so the algorithm is correct, but the
+production AMD path is now substantially slower than Sprint 22's
+quotient-graph baseline on every irregular SPD fixture.  Days 2-5
+should have included a wall-time regression check at each step
+— the cumulative cost of element absorption + supervariable
+O(k²) compare + workspace doubling wasn't visible until Day 12
+measured end-to-end.
 
-Candidate themes:
+**PLAN.md's literal target of `nnz_nd / nnz_amd ≤ 0.7×` on
+Pres_Poisson was not achievable in Sprint 23's scope.**  Achieved
+0.952×.  The plan's risk-flag #2 anticipated this might happen
+and pre-flagged Sprint-24 deferral; Day 11's multi-pass FM
+exploration brought us most of the way (0.95 vs targeted 0.7) and
+"ND beats AMD" is the spirit of the goal, but the literal target
+needs algorithmic work outside the 14-day budget.
 
-- **The qg-AMD wall-time regression** is Sprint 23's biggest
-  miss.  Headline gate (b) fails by ~108× on bcsstk14; Pres_Poisson
-  AMD now takes ~22 minutes (was 12 seconds in Sprint 22).  Days
-  2-5 should have included a wall-time regression check at each
-  step — the cumulative cost of element absorption + supervariable
-  hash O(k²) compare + workspace doubling wasn't apparent until
-  the Day 12 cross-corpus bench.
+**Day 6's wall-time finding was a missed signal.**  The
+`davis_notes.md` Day-6 measurement on bcsstk14 noted "default
+exact-degree 11.84 s, USE_APPROX 57.51 s" and framed the 4.9×
+slowdown as the approximate-degree formula's limitation.  Reality
+was deeper: the Sprint 22 baseline for bcsstk14 was 90 ms — the
+"default exact-degree 11.84 s" was already a 130× regression vs
+Sprint 22, and the Day-6 commit treated 11.84 s as the *baseline*.
+Day 12's cross-corpus bench is the first time the regression's
+true magnitude got named.  Lesson logged below.
 
-- **PLAN.md's literal targets were optimistic for Pres_Poisson
-  ND/AMD ≤ 0.7×.**  Achieved 0.952×; the plan's risk-flag #2
-  acknowledged this might happen but the day-budget for Day 11
-  multi-pass FM was 2 hours of exploratory work, not a deeper
-  algorithmic redesign.  Sprint 24 work needed to reach 0.7×.
-
-- **The Day 6 wall-time finding (USE_APPROX 4.9× slower than
-  exact)** was a hint that Days 2-5's algorithmic additions
-  weren't paying their wall-time freight, but the Day-6 commit
-  framed it as "approximate-degree formula's limitation" rather
-  than investigating whether the qg-AMD baseline itself had
-  regressed.  Day 12's bench made the actual scope of the
-  regression visible.
+**The retro stub at Day 13 grew larger than the retro body at
+Day 14.**  Sprint 22's retro pattern was a Day-14 stub plus
+post-sprint prose; Sprint 23's PLAN.md asked for a Day-13 stub
+plus Day-14 body.  In practice, the Day-13 metrics + headline-
+gate outcomes were 90 % of what the retro needed — the Day-14
+body filled in the prose sections but didn't add new structural
+content.  Future sprints can probably skip the stub-vs-body
+distinction; one Day-14 retro that absorbs the Day-13 work would
+match the actual time spent.
 
 ## Items deferred
 
@@ -180,54 +255,113 @@ Candidate themes:
 
 ## Lessons
 
-(post-sprint write-up — placeholder)
+**A wall-time regression check belongs in every algorithmic-
+addition day, not just the closure-day bench.**  Days 2-5 added
+features whose per-pivot cost compounded; each day's fixture
+suite passed but accumulated a 77-199× regression that wasn't
+visible until Day 12.  Future sprints touching `sparse_reorder_amd_qg`
+(or any other production-path algorithm) should run a 10-second
+wall-time probe on bcsstk14 + Pres_Poisson at the end of each
+day's work, with a `>2×` regression threshold treated as a hard
+gate before the day's commit lands.  Cheap to instrument
+(extract a one-liner from `bench_reorder.c`); would have caught
+the regression at Day 3.
 
-Sketch:
+**The "consider every unlocked vertex every step" semantics of
+Sprint 22's FM was load-bearing for derived tests in ways the
+partition test ranges didn't capture.**  bcsstk04 LDL^T-without-
+pivoting happened to depend on a specific FM tie-breaking pattern;
+the bucket-FM's first iteration broke it without breaking
+`test_partition_*`.  Lesson for Sprint 24: when swapping a graph
+algorithm's internals, run *derived numerical tests*
+(factorization residuals, not just structural-property tests)
+before declaring the swap safe.  The `test_ldlt_via_nd_dispatch`
+caught a 7.94e+9 residual in 30 seconds; a slower-converging
+iterative-solver test could miss the same regression.
 
-- **A bench day before a closure day surfaces hard regressions
-  that the sprint-internal fixture suite misses.**  Day 12's
-  bench was budgeted as "headline measurement"; turned out to be
-  the first time we measured AMD wall time on irregular SPD
-  fixtures end-to-end since Sprint 22 Day 13.  The 77-199×
-  regression had been accumulating across Days 2-5 with no
-  intermediate signal.
+**Multi-pass FM's payoff scales with the cost of a single pass.**
+Sprint 22 ran single-pass FM at every uncoarsening level because
+its O(n²) max-gain scan made multi-pass infeasible on Pres_Poisson.
+Sprint 23 Days 9-10's bucket-FM dropped per-pass cost to O(|E|);
+*then* multi-pass became affordable, and Day 11's exploration
+turned a 1.026× ratio into 0.952×.  The infrastructure work and
+the algorithmic exploration are coupled — neither alone closes
+the headline gap.  Future sprint planning should sequence
+infrastructure-before-exploration deliberately rather than
+treating the exploration as a budget-permitting afterthought.
 
-- **The "consider every unlocked vertex every step" semantics of
-  Sprint 22's FM was load-bearing for derived tests** in ways
-  that the partition test ranges didn't capture.  bcsstk04 LDL^T
-  no-pivoting depended on a specific tie-breaking pattern that
-  the bucket-FM's pop-order broke until skipped-vertex re-insertion
-  was added.  Lesson for Sprint 24: when swapping a graph
-  algorithm's internals, run derived numerical tests (factorization
-  residuals) before declaring the swap safe.
+**Plan-target deviation should be documented inline at the
+deviation site, not just in the retro.**  Days 8 and 11 both
+shipped tightened-but-relaxed test bounds (10×10 grid 1.21× vs
+plan's 1.0×; Pres_Poisson 1.10× vs plan's 0.7×) with the rationale
+captured in inline test comments.  This worked well — anyone
+opening `tests/test_reorder_nd.c` sees the plan-vs-reality
+context next to the assertion threshold.  Sprint 24's qg-AMD
+wall-time fix should follow the same pattern: when a plan target
+isn't met, the assertion bound and the deviation reasoning go
+side-by-side in the test file.
 
 ## Sprint 24 inputs
 
-(post-sprint write-up — placeholder; see `bench_summary_day12.md`
-for routing.)
+The shipping story for the Sprint 24 PR-description framing:
+"Sprint 23 closed Sprint 22's ND fill-quality gap on the canonical
+2D-PDE benchmark (Pres_Poisson 1.06× → 0.95× of AMD), at the cost
+of an AMD wall-time regression on irregular SPD that Sprint 24
+must root-cause and fix."
 
-Top three Sprint 24 work items per `PROJECT_PLAN.md` framing:
+Top items routed from Sprint 23 to Sprint 24:
 
 1. **qg-AMD wall-time root-cause + fix.**  Days 2-5's regression
-   on irregular SPD (62-199× vs Sprint 22 baseline).  Three
-   candidate fixes documented in `bench_summary_day12.md "(b)"`:
-   replace Day 4's hash + O(k²) full-list compare with a
-   sorted-list compare, gate supervariable detection by a
-   regularity heuristic, or revert Days 2-5 entirely (Day 11's
-   multi-pass FM was the actual headline driver, not Days 2-5).
+   on irregular SPD (62-199× vs Sprint 22 baseline) is Sprint 24's
+   highest-priority correctness-adjacent item — the production
+   path's wall time is no longer competitive with what Sprint 22
+   shipped.  Three candidate fixes documented in
+   `bench_summary_day12.md "(b)"`:
+   - **Replace Day 4's hash + O(k²) full-list compare with a
+     sorted-list compare** (O(k log k) on collision).  Lowest-risk
+     fix: keeps the supervariable-detection win on regular
+     fixtures while bounding worst-case cost on irregular ones.
+   - **Gate supervariable detection by a regularity heuristic.**
+     Sprint 22's qg-AMD baseline is a known-good wall-time
+     reference; supervariables only fire when the heuristic
+     predicts a payoff.  Higher-risk: heuristic mistuning could
+     leave wins on the table.
+   - **Revert Days 2-5 entirely.**  Day 11's multi-pass FM turned
+     out to be the actual headline driver, not Days 2-5; reverting
+     gives back wall time without losing the headline.  Highest-
+     risk in spirit but lowest-risk in practice — restores Sprint
+     22 baseline.
 
-2. **Pres_Poisson ND/AMD ≤ 0.7×.**  Need deeper coarsening or
-   smarter separator extraction beyond Sprint 22's smaller-side
-   lift; Sprint 23 closed half the gap (1.06× → 0.95×) via
-   multi-pass FM, the rest needs algorithmic work.
+2. **Pres_Poisson ND/AMD ≤ 0.7× literal target.**  Sprint 23
+   landed 0.952× via Day 11 multi-pass FM; the remaining gap
+   needs deeper coarsening (current bottoms out at MAX(20, n/100))
+   or smarter separator-extraction (current uses METIS's
+   smaller-side lift).  Lower-priority than item 1 since "ND
+   beats AMD" is the spirit of the goal and that's met.
 
 3. **AMD parity test on Pres_Poisson** (Day 13 deferral).  Once
-   item 1 is fixed, the corpus parity test the Day 13 stub
-   gestured toward becomes affordable.
+   item 1 is fixed, the corpus parity test
+   (`test_qg_approx_degree_parity_corpus`) can extend from
+   bcsstk14 to Pres_Poisson without pushing the test suite past
+   30 minutes.
+
+4. **Day-by-day wall-time regression check.**  Lessons-section
+   item; not strictly a Sprint-24 deliverable but the
+   instrumentation-side work belongs there.  Add a 10-second
+   probe to the make target the day-by-day commits run before
+   merging.
 
 ## Acknowledgements
 
-(post-sprint write-up — placeholder)
+Davis 2006's "Direct Methods for Sparse Linear Systems" §7 was
+the algorithmic spine of Days 2-5 — element absorption (§7.3),
+supervariable detection (§7.4), approximate-degree formula
+(§7.5).  Karypis-Kumar 1998's METIS paper §4 was the reference
+for Days 9-10's gain-bucket structure.  Sprint 22's modular
+ND + multilevel partition pipeline was load-bearing for Days 7
+(leaf-AMD splice) and 11 (multi-pass FM at the finest level)
+— neither would have been a 50-line patch without that
+infrastructure.
 
 ## Day-by-day capsule (for the prose write-up)
 
@@ -263,4 +397,22 @@ costs nothing and saves the citations from rotting.
 
 ## DoD verification
 
-(post-sprint write-up — Day 14 final-bench section will populate)
+End-of-sprint check.  Final captures (Day 14 reruns of bench_reorder
++ bench_amd_qg) live alongside the Day 12 captures at
+`docs/planning/EPIC_2/SPRINT_23/bench_day14.{csv,txt}` and
+`bench_day14_amd_qg.{csv,txt}` — sanity-confirmed bit-identical to
+the Day 12 numbers since Day 13 was tests + docs only.
+
+| DoD criterion | result | reference |
+|---|---|---|
+| ND fill-quality on canonical 2D-PDE benchmark beats AMD | ✓ | Pres_Poisson 0.952× |
+| qg-AMD fill-quality bit-identical to bitset reference | ✓ | bench_day14_amd_qg.txt |
+| Recursive ND completes on full corpus | ✓ | tests/test_reorder_nd.c, all 12 tests |
+| FM gain-bucket structure correctness | ✓ | tests/test_graph_fm_buckets.c, 9 tests |
+| LDL^T + LU + Cholesky residuals under ND ≤ 1e-6 | ✓ | tests/test_reorder_nd.c (all factorization-residual tests pass) |
+| Determinism: same input + same seed → same output | ✓ | test_partition_determinism_*, test_nd_determinism_public_api |
+| qg-AMD wall ≤ Sprint-22 bitset baseline | ✗ | Sprint-24 routing (`bench_summary_day12.md "(b)"`) |
+| Pres_Poisson ND/AMD ≤ 0.7× | ✗ literal; ✓ spirit | Sprint-24 routing (`bench_summary_day12.md "(a)"`) |
+| `make format && lint && test` clean | ✓ | All 51 binaries pass; 0 failures across the suite |
+| `make sanitize` clean | partial | Pre-existing make-build infrastructure issue blocks `make sanitize`; targeted sanitizer build of test_graph_fm_buckets + test_reorder_amd_qg verifies the new code is clean.  Filed for Sprint 24 infrastructure work. |
+| `make tsan` clean | partial | Sprint 23 changes are single-threaded; Sprint 22 Day 14's tsan baseline still applies to the unchanged OpenMP paths. |

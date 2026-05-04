@@ -34,6 +34,18 @@
 typedef int32_t idx_t;
 
 /**
+ * @brief Maximum representable value of @c idx_t.
+ *
+ * Tracks the @c idx_t typedef above — pinned at @c INT32_MAX while
+ * @c idx_t is @c int32_t.  The migration-to-int64_t path documented
+ * above is "change the typedef and recompile"; this macro must be
+ * updated alongside that change so callers that need a width-aware
+ * upper bound (e.g. integer-overflow guards in size-computing
+ * allocators) keep tracking the real @c idx_t range.
+ */
+#define IDX_MAX INT32_MAX
+
+/**
  * @brief Error codes returned by library functions.
  *
  * All functions that can fail return a @c sparse_err_t value.

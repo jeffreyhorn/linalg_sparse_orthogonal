@@ -58,17 +58,38 @@ static int test_setenv(const char *name, const char *value) { return setenv(name
 static int test_unsetenv(const char *name) { return unsetenv(name); }
 #endif
 
+/* Portable string-dup wrapper.  POSIX strdup is in `<string.h>` since
+ * POSIX.1-2008 but isn't ISO C; MSVC exposes `_strdup` instead.  The
+ * `env_snapshot_save` helper below needs a string copy and our
+ * Sprint 25 Windows-CI item requires this file to compile under
+ * MSVC, so route the call through `test_strdup`. */
+static char *test_strdup(const char *s) {
+#ifdef _WIN32
+    return _strdup(s);
+#else
+    /* Fall back to malloc + memcpy rather than POSIX strdup so this
+     * file compiles cleanly on hosted-strict-C11 toolchains too. */
+    size_t n = strlen(s) + 1;
+    char *out = malloc(n);
+    if (!out)
+        return NULL;
+    memcpy(out, s, n);
+    return out;
+#endif
+}
+
 /* Env-var snapshot helper.  `getenv()` returns a pointer into libc-
  * managed storage that subsequent `setenv` / `_putenv_s` calls are
  * permitted to invalidate (POSIX explicitly allows it; glibc and
  * MSVC both do this in practice).  Restoring with the raw `getenv`
  * pointer after a mutating `test_setenv` call is undefined.  The
- * helper takes a snapshot via `strdup` *before* any mutation, then
- * restores from that copy.  Matches Copilot review feedback on PR
- * #31 (comments 3182884667 / 3182884713 / 3182884746 / 3182884784). */
+ * helper takes a snapshot via `test_strdup` *before* any mutation,
+ * then restores from that copy.  Matches Copilot review feedback on
+ * PR #31 (comments 3182884667 / 3182884713 / 3182884746 /
+ * 3182884784 / 3183182974). */
 typedef struct {
     const char *name;
-    char *saved_value; /* strdup'd; NULL if the var was unset at save time. */
+    char *saved_value; /* dup'd; NULL if the var was unset at save time. */
     int had_value;     /* 1 if `getenv(name)` returned non-NULL at save time. */
 } env_snapshot_t;
 
@@ -76,7 +97,7 @@ static void env_snapshot_save(env_snapshot_t *s, const char *name) {
     s->name = name;
     const char *cur = getenv(name);
     if (cur) {
-        s->saved_value = strdup(cur);
+        s->saved_value = test_strdup(cur);
         s->had_value = 1;
     } else {
         s->saved_value = NULL;

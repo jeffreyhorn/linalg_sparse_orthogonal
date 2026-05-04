@@ -401,17 +401,20 @@ static void test_nd_pres_poisson_fill_with_leaf_amd(void) {
         return;
     }
 
-    idx_t nnz_amd = symbolic_cholesky_nnz(A, SPARSE_REORDER_AMD);
-    ASSERT_TRUE(nnz_amd > 0);
-
-    /* Sprint 23 Day 8: enable the ND comparison the Sprint-22
-     * version of this test deferred.  Day 7's leaf-AMD splice
-     * makes the leaves AMD-quality but doesn't change the
-     * upper-level separator structure — Pres_Poisson's 2D-PDE
-     * pattern lands at ~1.06× AMD nnz(L), unchanged from Sprint
-     * 22's natural-leaf baseline (the leaves contribute too
-     * little fill on this fixture for AMD-quality leaves to
-     * matter — separator vertices dominate). */
+    /* Sprint 23 Day 14 + PR #31 review: skip the runtime AMD reorder
+     * and use the bit-identical constant (`Pres_Poisson AMD nnz(L) =
+     * 2 668 793`) that's been stable across Sprint 22 Day 14
+     * (`bench_day14.txt`), Sprint 23 Day 8 (`bench_day8_nd_leaf_amd.txt`),
+     * Sprint 23 Day 12 (`bench_day12.txt`), and Sprint 23 Day 14
+     * (`bench_day14.txt`).  The Sprint 23 qg-AMD wall-time regression
+     * routes to Sprint 24 — running AMD on Pres_Poisson here would
+     * push this single test past 20 minutes and risk CI timeouts.
+     * If a future commit changes AMD's fill quality on this fixture
+     * (which would be a regression — fill is fill-neutral by
+     * construction across Sprints 22-23), the constant + the parallel
+     * `bench_amd_qg.c` capture diverge and the next bench day catches
+     * it.  Per PR #31 review comment 3183182910. */
+    const idx_t nnz_amd = 2668793;
     clock_t t0 = clock();
     idx_t nnz_nd = symbolic_cholesky_nnz_nd(A);
     double nd_seconds = (double)(clock() - t0) / (double)CLOCKS_PER_SEC;

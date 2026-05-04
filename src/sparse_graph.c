@@ -1038,8 +1038,11 @@ sparse_err_t fm_bucket_array_init(fm_bucket_array_t *arr, idx_t n_vertices, idx_
     /* Guard size computations against overflow.  Same SIZE_MAX pattern
      * the rest of the codebase uses (e.g. `src/sparse_lu_csr.c` lines
      * 60, 1349) — under-allocation here would produce OOB writes in
-     * the heads/next/prev fills below. */
-    if (max_gain > (INT32_MAX - 1) / 2)
+     * the heads/next/prev fills below.  The first bound uses IDX_MAX
+     * (defined alongside idx_t in include/sparse_types.h) so the
+     * guard tracks idx_t's actual range — the migration-to-int64_t
+     * path the typedef comment documents stays clean. */
+    if (max_gain > (IDX_MAX - 1) / 2)
         return SPARSE_ERR_ALLOC; /* 2*max_gain + 1 would overflow idx_t */
     idx_t num_buckets = 2 * max_gain + 1;
     if ((size_t)num_buckets > SIZE_MAX / sizeof(idx_t))
@@ -1447,9 +1450,16 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
     {
         const char *env = getenv("SPARSE_FM_FINEST_PASSES");
         if (env) {
-            int v = atoi(env);
-            if (v >= 1 && v <= 16)
-                finest_passes = v;
+            /* `strtol` with end-pointer + range checks instead of
+             * `atoi`: env-var inputs are user-controlled, and atoi
+             * has UB on overflow + silently accepts non-numeric
+             * prefixes ("3foo" → 3).  Reject anything that isn't a
+             * pure integer in [1, 16] and fall back to the default
+             * (3) on any parse / range failure. */
+            char *endp = NULL;
+            long v = strtol(env, &endp, 10);
+            if (env != endp && *endp == '\0' && v >= 1 && v <= 16)
+                finest_passes = (int)v;
         }
     }
 

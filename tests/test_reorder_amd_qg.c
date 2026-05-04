@@ -42,6 +42,21 @@
 #endif
 #define SS_DIR DATA_DIR "/suitesparse"
 
+/* Cross-platform env-var wrappers.  POSIX `setenv` / `unsetenv` aren't
+ * available under MSVC; route through `_putenv_s` there.  MSVC's
+ * `_putenv_s(name, "")` deletes the variable per MSDN, which matches
+ * POSIX `unsetenv` semantics — the wrapper exposes that behaviour
+ * as `test_unsetenv` so callers don't have to branch.  Sprint 25's
+ * Windows CI item will exercise this. */
+#ifdef _WIN32
+#include <stdlib.h>
+static int test_setenv(const char *name, const char *value) { return _putenv_s(name, value); }
+static int test_unsetenv(const char *name) { return _putenv_s(name, ""); }
+#else
+static int test_setenv(const char *name, const char *value) { return setenv(name, value, 1); }
+static int test_unsetenv(const char *name) { return unsetenv(name); }
+#endif
+
 /* ─── Day 10 stub-contract retire ─────────────────────────────────── */
 
 /* The Day-10 "stub returns BADARG" test is removed now that the
@@ -480,10 +495,11 @@ fail:
  * non-trivial cross-element overlap. */
 static void test_qg_approx_degree_upper_bound(void) {
     /* Save existing env var, force-enable, restore on every exit
-     * path.  putenv/setenv differ across libc; setenv is the
-     * portable choice. */
+     * path.  Routes through `test_setenv` / `test_unsetenv` (defined
+     * at the top of this file) which adapt to MSVC's `_putenv_s` —
+     * raw POSIX `setenv` / `unsetenv` aren't available on Windows. */
     const char *prev = getenv("SPARSE_QG_VERIFY_DEG");
-    setenv("SPARSE_QG_VERIFY_DEG", "1", 1);
+    test_setenv("SPARSE_QG_VERIFY_DEG", "1");
 
     SparseMatrix *A = make_random_50();
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
@@ -492,9 +508,9 @@ static void test_qg_approx_degree_upper_bound(void) {
     if (!perm) {
         sparse_free(A);
         if (prev)
-            setenv("SPARSE_QG_VERIFY_DEG", prev, 1);
+            test_setenv("SPARSE_QG_VERIFY_DEG", prev);
         else
-            unsetenv("SPARSE_QG_VERIFY_DEG");
+            test_unsetenv("SPARSE_QG_VERIFY_DEG");
         REQUIRE_OK(SPARSE_ERR_ALLOC);
         return;
     }
@@ -508,9 +524,9 @@ static void test_qg_approx_degree_upper_bound(void) {
     ASSERT_TRUE(is_valid_permutation(perm, n));
 
     if (prev)
-        setenv("SPARSE_QG_VERIFY_DEG", prev, 1);
+        test_setenv("SPARSE_QG_VERIFY_DEG", prev);
     else
-        unsetenv("SPARSE_QG_VERIFY_DEG");
+        test_unsetenv("SPARSE_QG_VERIFY_DEG");
     free(perm);
     sparse_free(A);
 }
@@ -579,8 +595,8 @@ fail:
 static void test_qg_approx_degree_parity_200(void) {
     const char *prev_verify = getenv("SPARSE_QG_VERIFY_DEG");
     const char *prev_approx = getenv("SPARSE_QG_USE_APPROX_DEG");
-    setenv("SPARSE_QG_VERIFY_DEG", "1", 1);
-    setenv("SPARSE_QG_USE_APPROX_DEG", "1", 1);
+    test_setenv("SPARSE_QG_VERIFY_DEG", "1");
+    test_setenv("SPARSE_QG_USE_APPROX_DEG", "1");
 
     SparseMatrix *A = make_random_200();
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
@@ -589,13 +605,13 @@ static void test_qg_approx_degree_parity_200(void) {
     if (!perm) {
         sparse_free(A);
         if (prev_verify)
-            setenv("SPARSE_QG_VERIFY_DEG", prev_verify, 1);
+            test_setenv("SPARSE_QG_VERIFY_DEG", prev_verify);
         else
-            unsetenv("SPARSE_QG_VERIFY_DEG");
+            test_unsetenv("SPARSE_QG_VERIFY_DEG");
         if (prev_approx)
-            setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx, 1);
+            test_setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx);
         else
-            unsetenv("SPARSE_QG_USE_APPROX_DEG");
+            test_unsetenv("SPARSE_QG_USE_APPROX_DEG");
         REQUIRE_OK(SPARSE_ERR_ALLOC);
         return;
     }
@@ -605,13 +621,13 @@ static void test_qg_approx_degree_parity_200(void) {
     ASSERT_TRUE(is_valid_permutation(perm, n));
 
     if (prev_verify)
-        setenv("SPARSE_QG_VERIFY_DEG", prev_verify, 1);
+        test_setenv("SPARSE_QG_VERIFY_DEG", prev_verify);
     else
-        unsetenv("SPARSE_QG_VERIFY_DEG");
+        test_unsetenv("SPARSE_QG_VERIFY_DEG");
     if (prev_approx)
-        setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx, 1);
+        test_setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx);
     else
-        unsetenv("SPARSE_QG_USE_APPROX_DEG");
+        test_unsetenv("SPARSE_QG_USE_APPROX_DEG");
     free(perm);
     sparse_free(A);
 }
@@ -665,7 +681,7 @@ fail:
 static void test_qg_dense_row_completion(void) {
     const idx_t n = 200;
     const char *prev_approx = getenv("SPARSE_QG_USE_APPROX_DEG");
-    setenv("SPARSE_QG_USE_APPROX_DEG", "1", 1);
+    test_setenv("SPARSE_QG_USE_APPROX_DEG", "1");
 
     SparseMatrix *A = make_hub_fixture(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
@@ -673,9 +689,9 @@ static void test_qg_dense_row_completion(void) {
     if (!perm) {
         sparse_free(A);
         if (prev_approx)
-            setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx, 1);
+            test_setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx);
         else
-            unsetenv("SPARSE_QG_USE_APPROX_DEG");
+            test_unsetenv("SPARSE_QG_USE_APPROX_DEG");
         REQUIRE_OK(SPARSE_ERR_ALLOC);
         return;
     }
@@ -700,9 +716,9 @@ static void test_qg_dense_row_completion(void) {
     free(perm);
     sparse_free(A);
     if (prev_approx)
-        setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx, 1);
+        test_setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx);
     else
-        unsetenv("SPARSE_QG_USE_APPROX_DEG");
+        test_unsetenv("SPARSE_QG_USE_APPROX_DEG");
 }
 
 /* ─── Sprint 23 Day 13: 4-supervariable corpus + bcsstk14 parity ────── */
@@ -839,21 +855,21 @@ static void test_qg_supervariable_synthetic_corpus(void) {
 static void test_qg_approx_degree_parity_corpus(void) {
     const char *prev_verify = getenv("SPARSE_QG_VERIFY_DEG");
     const char *prev_approx = getenv("SPARSE_QG_USE_APPROX_DEG");
-    setenv("SPARSE_QG_VERIFY_DEG", "1", 1);
-    setenv("SPARSE_QG_USE_APPROX_DEG", "1", 1);
+    test_setenv("SPARSE_QG_VERIFY_DEG", "1");
+    test_setenv("SPARSE_QG_USE_APPROX_DEG", "1");
 
     SparseMatrix *A = NULL;
     sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
         printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
         if (prev_verify)
-            setenv("SPARSE_QG_VERIFY_DEG", prev_verify, 1);
+            test_setenv("SPARSE_QG_VERIFY_DEG", prev_verify);
         else
-            unsetenv("SPARSE_QG_VERIFY_DEG");
+            test_unsetenv("SPARSE_QG_VERIFY_DEG");
         if (prev_approx)
-            setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx, 1);
+            test_setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx);
         else
-            unsetenv("SPARSE_QG_USE_APPROX_DEG");
+            test_unsetenv("SPARSE_QG_USE_APPROX_DEG");
         return;
     }
     idx_t n = sparse_rows(A);
@@ -861,13 +877,13 @@ static void test_qg_approx_degree_parity_corpus(void) {
     if (!perm) {
         sparse_free(A);
         if (prev_verify)
-            setenv("SPARSE_QG_VERIFY_DEG", prev_verify, 1);
+            test_setenv("SPARSE_QG_VERIFY_DEG", prev_verify);
         else
-            unsetenv("SPARSE_QG_VERIFY_DEG");
+            test_unsetenv("SPARSE_QG_VERIFY_DEG");
         if (prev_approx)
-            setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx, 1);
+            test_setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx);
         else
-            unsetenv("SPARSE_QG_USE_APPROX_DEG");
+            test_unsetenv("SPARSE_QG_USE_APPROX_DEG");
         REQUIRE_OK(SPARSE_ERR_ALLOC);
         return;
     }
@@ -881,13 +897,13 @@ static void test_qg_approx_degree_parity_corpus(void) {
     printf("    bcsstk14 (n=%d): approx-degree parity holds across full elimination\n", (int)n);
 
     if (prev_verify)
-        setenv("SPARSE_QG_VERIFY_DEG", prev_verify, 1);
+        test_setenv("SPARSE_QG_VERIFY_DEG", prev_verify);
     else
-        unsetenv("SPARSE_QG_VERIFY_DEG");
+        test_unsetenv("SPARSE_QG_VERIFY_DEG");
     if (prev_approx)
-        setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx, 1);
+        test_setenv("SPARSE_QG_USE_APPROX_DEG", prev_approx);
     else
-        unsetenv("SPARSE_QG_USE_APPROX_DEG");
+        test_unsetenv("SPARSE_QG_USE_APPROX_DEG");
     free(perm);
     sparse_free(A);
 }

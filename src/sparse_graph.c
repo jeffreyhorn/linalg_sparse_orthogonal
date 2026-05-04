@@ -1035,13 +1035,25 @@ sparse_err_t fm_bucket_array_init(fm_bucket_array_t *arr, idx_t n_vertices, idx_
     if (n_vertices < 0 || max_gain < 0)
         return SPARSE_ERR_BADARG;
 
+    /* Guard size computations against overflow.  Same SIZE_MAX pattern
+     * the rest of the codebase uses (e.g. `src/sparse_lu_csr.c` lines
+     * 60, 1349) — under-allocation here would produce OOB writes in
+     * the heads/next/prev fills below. */
+    if (max_gain > (INT32_MAX - 1) / 2)
+        return SPARSE_ERR_ALLOC; /* 2*max_gain + 1 would overflow idx_t */
     idx_t num_buckets = 2 * max_gain + 1;
-    arr->heads = malloc((size_t)num_buckets * sizeof(idx_t));
-    arr->counts = calloc((size_t)num_buckets, sizeof(idx_t));
+    if ((size_t)num_buckets > SIZE_MAX / sizeof(idx_t))
+        return SPARSE_ERR_ALLOC; /* num_buckets * sizeof(idx_t) overflows size_t */
+
     /* `next` / `prev` allocate to length max(n_vertices, 1) so a zero-
      * vertex graph still gives malloc a non-zero length (avoids the
      * implementation-defined `malloc(0)` corner case). */
     size_t link_len = (size_t)(n_vertices > 0 ? n_vertices : 1);
+    if (link_len > SIZE_MAX / sizeof(idx_t))
+        return SPARSE_ERR_ALLOC; /* link_len * sizeof(idx_t) overflows size_t */
+
+    arr->heads = malloc((size_t)num_buckets * sizeof(idx_t));
+    arr->counts = calloc((size_t)num_buckets, sizeof(idx_t));
     arr->next = malloc(link_len * sizeof(idx_t));
     arr->prev = malloc(link_len * sizeof(idx_t));
     if (!arr->heads || !arr->counts || !arr->next || !arr->prev) {

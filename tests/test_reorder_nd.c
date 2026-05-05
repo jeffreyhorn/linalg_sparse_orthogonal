@@ -449,25 +449,29 @@ static void test_nd_pres_poisson_fill_with_leaf_amd(void) {
             (int)sparse_rows(A), (int)nnz_amd, (int)nnz_nd, (double)nnz_nd / (double)nnz_amd,
             nd_seconds);
 
-    /* Sprint 23 Day 11: tightened from `nnz_nd ≤ 1.10× nnz_amd` to
-     * `nnz_nd ≤ 1.0× nnz_amd`.  Day 11's multi-pass FM exploration
-     * (3 passes at the finest uncoarsening level — see
-     * src/sparse_graph.c "Sprint 23 Day 11" comment) drops
-     * Pres_Poisson's ratio from 1.026× to 0.952×.  ND now beats
-     * AMD on this fixture, the headline fill-quality gate from
-     * Sprint 22 onwards.  5-percentage-point margin (≤ 1.0× rather
-     * than the measured 0.952×) absorbs RNG-noise drift on the
-     * partitioner's FM tie-breaks.
+    /* Sprint 24 Day 7: tightened from `nnz_nd ≤ 1.00× nnz_amd`
+     * (Sprint 23 Day 11 default-path bound) to `nnz_nd ≤ 0.96×
+     * nnz_amd`.  Days 5-6 of Sprint 24 explored the two
+     * approaches PLAN.md called out for closing Pres_Poisson's
+     * ND/AMD gap further — option (a) deeper coarsening
+     * (`SPARSE_ND_COARSEN_FLOOR_RATIO`) and option (b) smarter
+     * separator extraction (`SPARSE_ND_SEP_LIFT_STRATEGY`); both
+     * land env-var-gated off-by-default per the Day-5 / Day-6
+     * decision docs.  The default-path achievement stays at
+     * Sprint 23's 0.952× (bit-identical, no production-default
+     * change), so the new bound's 0.8-percentage-point safety
+     * margin pins the Sprint-23 ratio without claiming a Sprint-
+     * 24 win on this fixture.  See
+     * docs/planning/EPIC_2/SPRINT_24/nd_tuning_day7.md.
      *
-     * The PLAN.md Day-8 target was `nnz_nd ≤ 0.7× nnz_amd` — still
-     * not achieved (current 0.952×) but the recursive-ND-with-multi-
-     * pass-FM-and-leaf-AMD pipeline now consistently finds a
-     * *better-than-AMD* ordering.  Closing the gap from 0.95× to
-     * 0.7× would require either deeper coarsening, more aggressive
-     * FM tuning, or a separator-extraction strategy beyond Sprint
-     * 22's smaller-side lift — Sprint-24 territory per PLAN.md
-     * risk-flag #2. */
-    ASSERT_TRUE((long long)nnz_nd <= (long long)nnz_amd);
+     * The PLAN.md Day-8 stretch target was `nnz_nd ≤ 0.85×
+     * nnz_amd`; combined Days 5+6 settings reached 0.950× on
+     * this fixture (worse than Day-5-alone's 0.942×, since the
+     * two changes interact destructively here).  Closing the
+     * remaining 0.85× gap is Sprint-25 territory per
+     * `nd_sep_strategy_decision.md` "Why option (b) misses the
+     * 0.85× target on Pres_Poisson". */
+    ASSERT_TRUE((long long)nnz_nd * 100 <= (long long)nnz_amd * 96);
 
     sparse_free(A);
 }

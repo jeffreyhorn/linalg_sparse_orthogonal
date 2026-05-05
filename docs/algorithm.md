@@ -625,6 +625,44 @@ Recursive "separator-last" ordering on top of a multilevel partitioner.  ND is b
 - The Pres_Poisson win is the cumulative effect of Sprint 23 Days 7 (leaf-AMD splice), 9-10 (gain-bucket FM lifting per-pass cost from O(n²) to O(|E|)), and 11 (multi-pass FM at the finest level).  PLAN.md's literal ≤ 0.7× target on Pres_Poisson is not met (current 0.952×); routed to Sprint 24 per `docs/planning/EPIC_2/SPRINT_23/bench_summary_day12.md` "(a)".
 - Wall time on Pres_Poisson is ~45 s — comparable to Sprint 22 Day 14's ~44 s.  The bucket-FM wall-time win was offset by the AMD wall-time regression in the leaf-AMD splice (Sprint 24 will close that — see `bench_summary_day12.md` "(b)").
 
+### Performance regression gates
+
+Sprint 24 Day 1 added a `make wall-check` target driven by
+`scripts/wall_check.sh` and a per-fixture baseline file at
+`docs/planning/EPIC_2/SPRINT_24/wall_check_baseline.txt`.  The gate
+runs two single-fixture benchmarks:
+
+- `bench_amd_qg --only bcsstk14` — captures qg-AMD's `reorder_ms`
+  on the bcsstk14 SuiteSparse fixture (n = 1 806).
+- `bench_reorder --only Pres_Poisson --skip-factor` — captures
+  AMD's `reorder_ms` on Pres_Poisson (n = 14 822).
+
+Each measurement is compared against the corresponding baseline
+in `wall_check_baseline.txt`.  If either exceeds `2 ×` the
+baseline on the same machine class, the target exits non-zero.
+The 2× threshold is calibrated to catch single-day algorithmic
+regressions (Sprint 23 Days 2-5 each introduced ~10-50× drift,
+so 2× is generous-but-not-toothless) without flagging on routine
+host-load noise (typical run-to-run drift is within ±25 %).
+
+The Sprint-24-internal motivation: Sprint 23's qg-AMD wall-time
+regression (62-199× vs Sprint 22 baseline; documented in
+`SPRINT_23/bench_summary_day12.md "(b)"`) accumulated across four
+day-by-day commits with no intermediate signal — the closing-day
+bench was the first time the regression was measured end-to-end.
+The wall-check gate runs in seconds (one fixture each side, no
+factor), so it's cheap to invoke at every day-by-day commit, and
+catches the single-day step-change that the corpus-scale closing-
+bench would otherwise only surface days later.
+
+The baseline file commits its values in a `KEY=VALUE_MS`
+key-value format with `#`-prefixed comment blocks documenting
+which day landed each baseline and what the previous values were.
+Sprint 24 Day 4 bumps the baselines down to the post-fix
+measurements once item 2's wall-time fix lands; future sprints
+that touch the AMD path should expect to update both the
+baselines and the comment block.
+
 ### Integration with Factorization
 
 The `sparse_lu_factor_opts()` function provides a unified interface:

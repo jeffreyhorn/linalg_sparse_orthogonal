@@ -1,3 +1,14 @@
+/* Sprint 24 Day 1: feature-test macro to expose `clock_gettime` /
+ * `CLOCK_MONOTONIC` for the `SPARSE_QG_PROFILE` instrumentation
+ * below.  Same pattern used in `tests/test_sprint10_integration.c`
+ * and `tests/test_reorder_nd.c`; clang-tidy's
+ * `bugprone-reserved-identifier` rule flags `_POSIX_C_SOURCE` as
+ * reserved (correct in user space but POSIX-mandated for libc-
+ * exposure-control), so suppress just for the define line. */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 199309L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 199309L
+#endif
 /*
  * sparse_reorder_amd_qg.c — Quotient-graph AMD (Sprint 22 Days 10-12).
  *
@@ -127,6 +138,7 @@
 #include <stdio.h> /* Day 3: getenv-controlled SPARSE_QG_PROBE stderr trace. */
 #include <stdlib.h>
 #include <string.h>
+#include <time.h> /* Sprint 24 Day 1: SPARSE_QG_PROFILE wall-clock instrumentation. */
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Day 11 implementation notes.
@@ -308,7 +320,55 @@ typedef struct {
     idx_t *super_next;
     idx_t *super_size;
     idx_t n;
+    /* Sprint 24 Day 1: SPARSE_QG_PROFILE accumulators (nanoseconds).
+     * Off by default — `prof_enabled` is set in `sparse_reorder_amd_qg`
+     * if the env var is set.  When off, the timing wrappers short-
+     * circuit (single load + branch) so the production path's
+     * overhead is negligible.  When on, accumulators sum
+     * `clock_gettime(CLOCK_MONOTONIC, ...)` deltas around the four
+     * phases the Sprint 23 wall-time regression most likely lives in:
+     *
+     *   prof_init_ns        — qg_init total
+     *   prof_init_super_ns  — initial all-vertices supervariable scan
+     *                         (Day 4's startup cost; suspect for the
+     *                         regression on irregular SPD where most
+     *                         hash buckets contain singletons that
+     *                         still get full-list-compared)
+     *   prof_pick_ns        — qg_pick_min_deg per-pivot total
+     *   prof_eliminate_ns   — qg_eliminate per-pivot total (sum of
+     *                         element formation, neighbour gain
+     *                         updates, recompute_deg, and per-pivot
+     *                         supervariable merge)
+     *   prof_super_ns       — per-pivot qg_merge_supervariables only
+     *                         (subset of prof_eliminate_ns)
+     *   prof_recompute_ns   — qg_recompute_deg per-neighbour total
+     *                         (subset of prof_eliminate_ns)
+     *
+     * Dumped to stderr at the end of `sparse_reorder_amd_qg` if the
+     * env var is set.  Profile output captured to
+     * `docs/planning/EPIC_2/SPRINT_24/profile_day1_bcsstk14.txt` for
+     * the Day 1 fix-decision rationale. */
+    int prof_enabled;
+    long long prof_init_ns;
+    long long prof_init_super_ns;
+    long long prof_pick_ns;
+    long long prof_eliminate_ns;
+    long long prof_super_ns;
+    long long prof_recompute_ns;
 } qg_t;
+
+/* Sprint 24 Day 1: monotonic-clock timestamp helper.  Returns
+ * nanoseconds since an unspecified epoch.  Branches on `_WIN32` to
+ * use the C11 `timespec_get(..., TIME_UTC)` fallback there. */
+static long long qg_prof_now_ns(void) {
+    struct timespec ts;
+#ifdef _WIN32
+    timespec_get(&ts, TIME_UTC);
+#else
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+#endif
+    return (long long)ts.tv_sec * 1000000000LL + (long long)ts.tv_nsec;
+}
 
 static void qg_free(qg_t *qg) {
     if (!qg)
@@ -379,6 +439,15 @@ static sparse_err_t qg_init(qg_t *qg, idx_t n, const idx_t *adj_ptr, const idx_t
     qg->iw_used = nnz;
     qg->iw_peak = nnz;
     qg->cap_fired_count = 0;
+    /* Sprint 24 Day 1: profile counters; `prof_enabled` set by
+     * `sparse_reorder_amd_qg` per the env var. */
+    qg->prof_enabled = 0;
+    qg->prof_init_ns = 0;
+    qg->prof_init_super_ns = 0;
+    qg->prof_pick_ns = 0;
+    qg->prof_eliminate_ns = 0;
+    qg->prof_super_ns = 0;
+    qg->prof_recompute_ns = 0;
     qg->iw = malloc((size_t)iw_size * sizeof(idx_t));
     qg->xadj = malloc((size_t)n * sizeof(idx_t));
     qg->len = malloc((size_t)n * sizeof(idx_t));
@@ -1155,7 +1224,10 @@ static sparse_err_t qg_eliminate(qg_t *qg, idx_t p) {
         qg->len[u] = new_vlen + new_elen;
         qg->elen[u] = new_elen;
 
+        long long recompute_t0 = qg->prof_enabled ? qg_prof_now_ns() : 0;
         qg_recompute_deg(qg, u);
+        if (qg->prof_enabled)
+            qg->prof_recompute_ns += qg_prof_now_ns() - recompute_t0;
 
         /* --- Step 5: Absorption check ---
          * u is absorbed iff u's variable-side is empty AND u's
@@ -1183,7 +1255,10 @@ static sparse_err_t qg_eliminate(qg_t *qg, idx_t p) {
      * Merging them shrinks the active set for subsequent
      * qg_pick_min_deg scans and lets co-elimination happen on the
      * next pivot step. */
+    long long super_t0 = qg->prof_enabled ? qg_prof_now_ns() : 0;
     sparse_err_t merge_rc = qg_merge_supervariables(qg, e_adj, e_count);
+    if (qg->prof_enabled)
+        qg->prof_super_ns += qg_prof_now_ns() - super_t0;
 
     free(e_adj);
     free(p_adj_copy);
@@ -1215,12 +1290,22 @@ sparse_err_t sparse_reorder_amd_qg(const SparseMatrix *A, idx_t *perm) {
     if (rc != SPARSE_OK)
         return rc;
 
+    /* Sprint 24 Day 1: SPARSE_QG_PROFILE wall-clock breakdown.
+     * Captures qg_init / initial-supervariable / per-pivot phases
+     * separately so the Day 1 fix-decision doc can name the
+     * dominant cost from the Sprint 23 wall-time regression. */
+    int prof_enabled = (getenv("SPARSE_QG_PROFILE") != NULL);
+    long long prof_t0 = prof_enabled ? qg_prof_now_ns() : 0;
+
     qg_t qg = {0};
     rc = qg_init(&qg, n, adj_ptr, adj_list);
     free(adj_ptr);
     free(adj_list);
     if (rc != SPARSE_OK)
         return rc;
+    qg.prof_enabled = prof_enabled;
+    if (prof_enabled)
+        qg.prof_init_ns = qg_prof_now_ns() - prof_t0;
 
     /* Day 4: initial supervariable detection.  Vertices with
      * identical original adjacency (e.g., the leaves of a star)
@@ -1236,7 +1321,10 @@ sparse_err_t sparse_reorder_amd_qg(const SparseMatrix *A, idx_t *perm) {
         }
         for (idx_t i = 0; i < n; i++)
             all_candidates[i] = i;
+        long long super_t0 = prof_enabled ? qg_prof_now_ns() : 0;
         rc = qg_merge_supervariables(&qg, all_candidates, n);
+        if (prof_enabled)
+            qg.prof_init_super_ns = qg_prof_now_ns() - super_t0;
         free(all_candidates);
         if (rc != SPARSE_OK) {
             qg_free(&qg);
@@ -1253,7 +1341,10 @@ sparse_err_t sparse_reorder_amd_qg(const SparseMatrix *A, idx_t *perm) {
      * advances by `(1 + absorbed_this_pivot)` per outer iteration. */
     idx_t step = 0;
     while (step < n) {
+        long long pick_t0 = prof_enabled ? qg_prof_now_ns() : 0;
         idx_t p = qg_pick_min_deg(&qg);
+        if (prof_enabled)
+            qg.prof_pick_ns += qg_prof_now_ns() - pick_t0;
         /* Invariant: at every step there's still at least one
          * non-eliminated, non-absorbed vertex (the loop has
          * placed `step` vertices into perm[] and `step < n`).
@@ -1269,7 +1360,10 @@ sparse_err_t sparse_reorder_amd_qg(const SparseMatrix *A, idx_t *perm) {
 
         idx_t absorbed_before = qg.absorbed_count;
         perm[step++] = p;
+        long long elim_t0 = prof_enabled ? qg_prof_now_ns() : 0;
         rc = qg_eliminate(&qg, p);
+        if (prof_enabled)
+            qg.prof_eliminate_ns += qg_prof_now_ns() - elim_t0;
         if (rc != SPARSE_OK) {
             qg_free(&qg);
             return rc;
@@ -1295,6 +1389,24 @@ sparse_err_t sparse_reorder_amd_qg(const SparseMatrix *A, idx_t *perm) {
                 "cap_fired=%d\n",
                 (int)n, (int)qg.iw_peak, (int)qg.iw_size, (int)qg.absorbed_count,
                 100.0 * (double)qg.absorbed_count / (double)n, (int)qg.cap_fired_count);
+    }
+
+    /* Sprint 24 Day 1: SPARSE_QG_PROFILE wall-clock breakdown.
+     * Phases that may exceed prof_eliminate_ns (e.g. prof_super_ns
+     * + prof_recompute_ns are subsets of prof_eliminate_ns) are
+     * documented inline so the reader doesn't double-count. */
+    if (prof_enabled) {
+        long long total_ns =
+            qg.prof_init_ns + qg.prof_init_super_ns + qg.prof_pick_ns + qg.prof_eliminate_ns;
+        fprintf(stderr,
+                "qg-profile n=%d total=%.3fms\n"
+                "  init=%.3fms  init_super=%.3fms  pick=%.3fms  eliminate=%.3fms\n"
+                "    (eliminate breakdown — subsets of eliminate)\n"
+                "    super=%.3fms  recompute=%.3fms\n",
+                (int)n, (double)total_ns / 1.0e6, (double)qg.prof_init_ns / 1.0e6,
+                (double)qg.prof_init_super_ns / 1.0e6, (double)qg.prof_pick_ns / 1.0e6,
+                (double)qg.prof_eliminate_ns / 1.0e6, (double)qg.prof_super_ns / 1.0e6,
+                (double)qg.prof_recompute_ns / 1.0e6);
     }
 
     qg_free(&qg);

@@ -1,0 +1,87 @@
+Sprint 24 Day 9 — final qg-AMD vs bitset capture
+=================================================
+
+Cross-fixture re-run of `benchmarks/bench_amd_qg.c` post Days 2-8
+(revert + ND env-var work).  Sprint 22 Day 13's reference
+(`docs/planning/EPIC_2/SPRINT_22/bench_day13_amd_qg.txt`) is the
+Sprint 22 anchor; Sprint 23 Day 14
+(`docs/planning/EPIC_2/SPRINT_23/bench_day14_amd_qg.txt`) is the
+in-Sprint-23 anchor.
+
+Single run on macOS arm64 (Apple Clang, -O2; today's tip is
+e95f740 "Sprint 24 Day 8").
+CSV form: `bench_day9_amd_qg.csv`.
+
+Cross-fixture capture
+---------------------
+
+  matrix          n      impl    reorder_ms   peak_rss_mb   nnz_L
+  ────────────  ──────  ──────  ───────────  ────────────  ─────────
+  nos4              100  qg              0.2         0.03         637
+  nos4              100  bitset          0.2         0.00         637
+  bcsstk04          132  qg              1.8         0.10       3 143
+  bcsstk04          132  bitset          0.9         0.00       3 143
+  bcsstk14        1 806  qg            125.8         2.26     116 071
+  bcsstk14        1 806  bitset         69.8         0.02     116 071
+  Kuu             7 102  qg            546.5        10.57     406 264
+  Kuu             7 102  bitset        766.4         0.05     406 264
+  s3rmt3m3        5 357  qg            728.2         1.06     474 609
+  s3rmt3m3        5 357  bitset        568.5         0.00     474 609
+  Pres_Poisson   14 822  qg          8 138.8        19.19   2 668 793
+  Pres_Poisson   14 822  bitset      6 151.4        16.08   2 668 793
+  banded_5000     5 000  qg             36.9         0.00      29 985
+  banded_5000     5 000  bitset        254.4         0.00      29 985
+  banded_10000   10 000  qg            140.9         0.00      59 985
+  banded_10000   10 000  bitset      1 270.9         0.00      59 985
+  banded_20000   20 000  qg            551.6         0.00     119 985
+  banded_20000   20 000  bitset      5 110.2        24.71     119 985
+
+nnz(L) parity
+-------------
+
+Every row above shows identical nnz(L) between qg and bitset —
+fill-quality contract holds bit-identically across the entire
+corpus + synthetic banded.  Day 2's revert restored the Sprint 22
+fill profile bit-identically.
+
+Headline qg-vs-bitset summary
+-----------------------------
+
+| fixture        | bitset_ms | qg_ms    | qg / bitset    |
+|----------------|-----------|----------|----------------|
+| nos4           |       0.2 |      0.2 |  1.0×          |
+| bcsstk04       |       0.9 |      1.8 |  2.0× slower   |
+| bcsstk14       |      69.8 |    125.8 |  1.8× slower   |
+| Kuu            |     766.4 |    546.5 |  0.71× (qg wins) |
+| s3rmt3m3       |     568.5 |    728.2 |  1.28× slower  |
+| Pres_Poisson   |   6 151.4 |  8 138.8 |  1.32× slower  |
+| banded_5000    |     254.4 |     36.9 |  0.15× (qg wins) |
+| banded_10000   |   1 270.9 |    140.9 |  0.11× (qg wins) |
+| banded_20000   |   5 110.2 |    551.6 |  0.11× (qg wins) |
+
+qg wins on banded by 6.5-9× (Sprint 22 Day 13 had qg wins by 1.8-7×;
+Sprint 24 is *better* than Sprint 22 on banded).  qg loses on
+irregular SuiteSparse SPD by 1.0-2.0× (Sprint 22 Day 13 was
+0.6-1.8×; Sprint 23 Day 14 was 6-133×).  Day 2's revert restored
+Sprint 22's wall-time profile cleanly.
+
+Sprint comparison: bcsstk14 qg-AMD wall (the headline gate)
+-----------------------------------------------------------
+
+  - Sprint 22 Day 13: ~140 ms (qg-AMD baseline)
+  - Sprint 23 Day 14: 4 715 ms (33× regression vs Sprint 22)
+  - Sprint 24 Day 9:    126 ms (within Sprint 22's range; gate (a) closed)
+
+Gate (a) verdict: PASS — bcsstk14 qg-AMD = 125.8 ms, well below
+the 1.5× Sprint 22 baseline ceiling (~210 ms).  See
+`bench_summary_day9.md` for the full headline-gate verdicts.
+
+Memory note
+-----------
+
+Pres_Poisson qg peak = 19.19 MB (Sprint 22 Day 13 was 19.19 MB
+exactly; Sprint 23 Day 14 was 25.09 MB after Days 2-5's iw_size
+doubling + super[]/super_size[] arrays).  Day 2's revert returned
+the qg memory profile to the Sprint 22 baseline; banded_20000
+bitset still adds 24.71 MB delta vs qg's 0.0 MB peak — analytic
+bitset:qg ratio for banded ≥ 17× holds.

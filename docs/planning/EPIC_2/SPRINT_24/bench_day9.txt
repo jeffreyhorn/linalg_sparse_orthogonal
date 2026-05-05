@@ -1,0 +1,54 @@
+Sprint 24 Day 9 — cross-corpus re-bench capture
+================================================
+
+Cross-ordering re-run of `benchmarks/bench_reorder.c` against the
+SuiteSparse corpus, post Days 2-8 (revert + ND env-var work).
+`--skip-factor` because the gates compare reorder cost + nnz_L
+only; numeric factor wall is unchanged from Sprints 22 / 23 and
+adds 30 minutes per run unnecessarily.
+
+Single run on macOS arm64 (Apple Clang, -O2; today's tip is
+e95f740 "Sprint 24 Day 8").
+CSV form: `bench_day9.csv`.
+
+Cross-ordering capture (ND_BASE_THRESHOLD = 32, default 3-pass FM,
+default `SPARSE_ND_COARSEN_FLOOR_RATIO` = 100, default
+`SPARSE_ND_SEP_LIFT_STRATEGY` = `smaller_weight`)
+------------------------------------------------------------------
+
+  matrix         n      reorder  nnz_L      reorder_ms
+  ────────────  ─────  ───────  ─────────  ──────────
+  nos4            100  NONE          805         0.0
+  nos4            100  RCM           888         0.1
+  nos4            100  AMD           637         0.3
+  nos4            100  COLAMD        778         0.4
+  nos4            100  ND            968        99.9
+  bcsstk04        132  NONE        3 763         0.0
+  bcsstk04        132  RCM         3 633         0.7
+  bcsstk04        132  AMD         3 143         1.9
+  bcsstk04        132  COLAMD      3 622         2.9
+  bcsstk04        132  ND          3 702       520.6
+  Kuu           7 102  NONE    2 993 061         0.0
+  Kuu           7 102  RCM     1 024 794        64.1
+  Kuu           7 102  AMD       406 264       656.7
+  Kuu           7 102  COLAMD    830 665     4 770.2
+  Kuu           7 102  ND        924 385    14 402.6
+  bcsstk14      1 806  NONE      190 791         0.0
+  bcsstk14      1 806  RCM       178 311        17.8
+  bcsstk14      1 806  AMD       116 071       162.7
+  bcsstk14      1 806  COLAMD    146 037       254.1
+  bcsstk14      1 806  ND        131 017     6 223.2
+  s3rmt3m3      5 357  NONE    2 208 972         0.0
+  s3rmt3m3      5 357  RCM       636 993        34.8
+  s3rmt3m3      5 357  AMD       474 609       822.8
+  s3rmt3m3      5 357  COLAMD    607 647     1 339.3
+  s3rmt3m3      5 357  ND        478 890    13 880.1
+  Pres_Poisson 14 822  NONE    5 061 932         0.0
+  Pres_Poisson 14 822  RCM     3 187 081       142.4
+  Pres_Poisson 14 822  AMD     2 668 793     9 511.2
+  Pres_Poisson 14 822  COLAMD  3 415 793    15 351.7
+  Pres_Poisson 14 822  ND      2 541 734    38 436.4
+
+See `bench_summary_day9.md` for side-by-side deltas vs
+SPRINT_22/bench_day14 + SPRINT_23/bench_day14 and the headline-gate
+verdicts.

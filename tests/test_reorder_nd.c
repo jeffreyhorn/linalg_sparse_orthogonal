@@ -265,22 +265,38 @@ static void test_nd_10x10_grid_matches_or_beats_amd_fill(void) {
     printf("    10x10 grid: AMD nnz(L) = %d, ND nnz(L) = %d (ND/AMD = %.2f)\n", (int)nnz_amd,
            (int)nnz_nd, (double)nnz_nd / (double)nnz_amd);
 
-    /* Sprint 23 Day 8: tightened from Sprint 22's `nnz_nd ≤ 1.5×
-     * nnz_amd` to `nnz_nd ≤ 1.21× nnz_amd`.  Day 7's leaf-AMD
-     * splice dropped this fixture's ratio from 1.38× to 1.20×; the
-     * 1-percentage-point margin above 1.20× absorbs floating-point
-     * tie-breaking noise without inviting a regression to slip past.
+    /* Sprint 24 Day 8: tightened from Sprint 23 Day 8's `nnz_nd ≤
+     * 1.21× nnz_amd` to `nnz_nd ≤ 1.17× nnz_amd`.  The actual
+     * default-path measurement is 1.158× (760 / 656); the
+     * 1.17× bound gives a 1.07pp safety margin (~7 nnz cushion).
      *
-     * The PLAN.md Day-8 target was `nnz_nd ≤ nnz_amd` (1.0×).  Not
-     * achieved: even with leaf-AMD the recursive separator-last
-     * structure adds 130 nnz of fill that flat AMD (operating on
-     * the full 100-vertex graph) avoids.  Closing the rest of the
-     * gap requires either multi-pass FM (Day 11 exploration —
-     * deferred to Sprint 24 if it doesn't move the needle) or a
-     * smarter separator-extraction heuristic; both are outside
-     * Day 8's scope.  The 1.21× bound is the honest record of what
-     * Day-7's contribution actually achieves on this fixture. */
-    ASSERT_TRUE((long long)nnz_nd * 100 <= (long long)nnz_amd * 121);
+     * Sprint 23 Day 11's multi-pass FM at the finest uncoarsening
+     * level (3 passes; see `src/sparse_graph.c` Day 11 comment)
+     * dropped this fixture's ratio from 1.20× to 1.158×; Sprint 23
+     * Day 8 set the bound at 1.21× (1pp margin above the then-
+     * measured 1.20×) and Day 11's improvement was never recorded
+     * in the bound.  Sprint 24 Day 8 catches up.
+     *
+     * Sprint 24 Days 5-6's `SPARSE_ND_COARSEN_FLOOR_RATIO` and
+     * `SPARSE_ND_SEP_LIFT_STRATEGY` env vars are no-ops on this
+     * 100-vertex fixture: the coarsest level pegs at MAX(20,
+     * n/divisor) = 20 vertices regardless of divisor (n/100 = 1
+     * < 20), and the small-cut structure makes balanced_boundary's
+     * lift identical to smaller_weight's.  All four env-var
+     * combinations produce 760 nnz_L → ND/AMD = 1.158×.  See
+     * docs/planning/EPIC_2/SPRINT_24/nd_tuning_day7.md "Partition-
+     * test verification" for the analogous observation on the 39
+     * partition-test contract.
+     *
+     * The PLAN.md Day-8 target was `nnz_nd ≤ nnz_amd` (1.0×); the
+     * recursive separator-last structure adds ~104 nnz of fill that
+     * flat AMD (operating on the full 100-vertex graph) avoids.
+     * Closing the rest of the gap on small grids requires either a
+     * smarter separator-extraction heuristic that doesn't add the
+     * separator vertices to the bottom of the elimination order, or
+     * a hybrid path that falls through to AMD when n ≤ ~100 — both
+     * Sprint-25 territory. */
+    ASSERT_TRUE((long long)nnz_nd * 100 <= (long long)nnz_amd * 117);
 
 cleanup:
     sparse_analysis_free(&analysis_amd);

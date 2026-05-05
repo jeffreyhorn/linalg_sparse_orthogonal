@@ -538,6 +538,8 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 
 **Total estimate:** ~126 hours.
 
+**Status: Complete.**  Actual ~80 hours per the Day 1-10 budgets in `docs/planning/EPIC_2/SPRINT_24/PLAN.md` (well under the 126-hour estimate; saved ~46 hours because Day 1's (c) revert closed item 2 in 1 day instead of 4 and made items 3 + 4 N/A — see `SPRINT_24/fix_decision_day1.md`).  Headline outcome: qg-AMD wall-time regression closed via revert of Sprint 23 Days 2-5 (bcsstk14 4 715 ms → 125.8 ms = 39× speedup; Pres_Poisson 759 s → 8.1 s = 93× speedup); Sprint 22 wall-time + memory profile restored bit-identically.  Headline gates: (a) qg-AMD wall on bcsstk14 ≤ 1.5× Sprint 22 baseline — PASS at 125.8 ms; (b) qg-AMD nnz(L) bit-identical — PASS 9/9 fixtures; (c) Pres_Poisson ND/AMD ≤ 0.85× — MISS at 0.952× default / 0.942× best opt-in, routed to Sprint 25; (d) Sprint 23 nnz_L bit-identical-or-better — PASS with 1 row in tie-break noise.  Two new ND env-var-gated alternatives shipped as documented advisory (`SPARSE_ND_COARSEN_FLOOR_RATIO=200` for Pres_Poisson; `SPARSE_ND_SEP_LIFT_STRATEGY=balanced_boundary` for non-Pres_Poisson workloads with 8-38pp wins on Kuu/bcsstk14/nos4).  `make wall-check` shipped Day 1; caught no regressions through the sprint.  See `docs/planning/EPIC_2/SPRINT_24/RETROSPECTIVE.md` for metrics, lessons, and the Sprint-25 routing of (c).
+
 ---
 
 ## Sprint 25: SVD Improvements, Eigenpair Refinement, Progress Callbacks, CI Hardening & Epic 2 Wrap-Up

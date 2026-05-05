@@ -379,15 +379,26 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
 /**
  * @brief Convert a 2-way edge separator into a 3-way vertex separator.
  *
- * Given `part_io[i] ∈ {0, 1}`, marks every boundary vertex on the
- * smaller-vertex-weight side as the separator (`part_io[i] = 2`).
+ * Given `part_io[i] ∈ {0, 1}`, marks every boundary vertex on one
+ * side as the separator (`part_io[i] = 2`).  Two strategies select
+ * which side to lift, switched by the `SPARSE_ND_SEP_LIFT_STRATEGY`
+ * env var (Sprint 24 Day 6):
+ *
+ *   - `smaller_weight` (default; Sprint 22 Day 4 behaviour) — lift
+ *     the side with smaller vertex weight (METIS convention; ties
+ *     break to side 0).  Minimises recursive ND tree height because
+ *     the recursion descends the larger subgraph alone next.
+ *   - `balanced_boundary` — lift the side with smaller boundary
+ *     count (ties to side 0).  Minimises separator size directly
+ *     instead of via the weight-imbalance proxy.  Falls back to
+ *     `smaller_weight` if the resulting post-lift weight balance
+ *     would exceed a 70/30 split (preserves the recursion-depth
+ *     argument).
+ *
  * After return:
  *   - `part_io[i] ∈ {0, 1, 2}`,
  *   - no edge connects a side-0 vertex to a side-1 vertex (all such
- *     crossings now route through a `2`-labelled vertex),
- *   - the separator sits on the smaller side (METIS convention; ties
- *     break to side 0) — minimises recursive ND tree height inflation
- *     because the recursion descends the larger subgraph alone next.
+ *     crossings now route through a `2`-labelled vertex).
  *
  * @param G       Input graph.
  * @param part_io In: 2-way partition (`part_io[i] ∈ {0, 1}`).

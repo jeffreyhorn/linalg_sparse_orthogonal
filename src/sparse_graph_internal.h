@@ -216,8 +216,11 @@ typedef struct {
  * @brief Build a multilevel coarsening hierarchy from a root graph.
  *
  * Coarsens repeatedly until one of three stop conditions fires:
- *   1. `n_coarse <= MAX(20, root->n / 100)` — coarsest level is small
- *      enough for the brute-force / GGGP bisection of Day 3.
+ *   1. `n_coarse <= MAX(20, root->n / divisor)` — coarsest level is
+ *      small enough for the brute-force / GGGP bisection of Day 3.
+ *      `divisor` is 100 by default (Sprint 22 calibration); the
+ *      `SPARSE_ND_COARSEN_FLOOR_RATIO` env var (Sprint 24 Day 5)
+ *      overrides it in [1, 100000] for tighter cuts on Pres_Poisson.
  *   2. `n_coarse > 0.9 * n_fine` — a coarsening pass made too little
  *      progress; further coarsening would just churn without
  *      shrinking the problem.
@@ -286,8 +289,10 @@ void sparse_graph_hierarchy_free(sparse_graph_hierarchy_t *h);
  *     imbalanced) partition during uncoarsening.
  *
  * The multilevel coarsening (`sparse_graph_hierarchy_build`) drives
- * `n` toward MAX(20, n_orig / 100) before the partitioner gets here,
- * but on structurally regular inputs heavy-edge matching can saturate
+ * `n` toward MAX(20, n_orig / divisor) before the partitioner gets
+ * here (divisor default 100, overridable via the
+ * `SPARSE_ND_COARSEN_FLOOR_RATIO` env var added Sprint 24 Day 5);
+ * on structurally regular inputs heavy-edge matching can saturate
  * before that target — GGGP handles whatever the hierarchy delivers.
  *
  * @param G        Input graph.

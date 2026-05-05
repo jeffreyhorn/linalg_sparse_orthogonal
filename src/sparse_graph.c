@@ -31,7 +31,9 @@
  *      unmatched vertex, pick the unmatched neighbour with the
  *      heaviest connecting edge; collapse the pair into a single
  *      coarse vertex with summed weight.  Repeat until the coarsest
- *      graph has n_coarsest ≤ MAX(20, n_orig / 100).  The hierarchy
+ *      graph has n_coarsest ≤ MAX(20, n_orig / divisor) where
+ *      divisor defaults to 100 (overridable via the Sprint 24 Day 5
+ *      env var `SPARSE_ND_COARSEN_FLOOR_RATIO`).  The hierarchy
  *      is stored as an array of `sparse_graph_t *` plus a per-level
  *      `cmap[]` array mapping fine vertices to their coarse
  *      preimages.  Heavy-edge matching is preferred over random
@@ -671,7 +673,28 @@ sparse_err_t sparse_graph_hierarchy_build(const sparse_graph_t *root, uint32_t s
         return SPARSE_OK; /* nothing to coarsen */
 
     idx_t n_root = root->n;
-    idx_t base_threshold = n_root / 100;
+    /* Coarsen until n_coarse <= MAX(20, n_root / divisor).  Default
+     * divisor is 100 (Sprint 22 calibration: empirically the sweet
+     * spot for the SuiteSparse corpus + Pres_Poisson).  Sprint 24
+     * Day 5 added the SPARSE_ND_COARSEN_FLOOR_RATIO env-var override
+     * for the item-5 ND fill-quality follow-up — closing the
+     * Pres_Poisson ND/AMD ratio toward 0.85 needs deeper coarsening
+     * (smaller floor), which lets the brute-force / GGGP bisection at
+     * the coarsest level produce a tighter cut that propagates back
+     * through FM uncoarsening to the finest level.  Accepted range:
+     * [1, 100000]; out-of-range or non-numeric input falls back to
+     * the default 100. */
+    idx_t divisor = 100;
+    {
+        const char *env = getenv("SPARSE_ND_COARSEN_FLOOR_RATIO");
+        if (env) {
+            char *endp = NULL;
+            long v = strtol(env, &endp, 10);
+            if (env != endp && *endp == '\0' && v >= 1 && v <= 100000)
+                divisor = (idx_t)v;
+        }
+    }
+    idx_t base_threshold = n_root / divisor;
     if (base_threshold < 20)
         base_threshold = 20;
     /* log2(n) + 5 ceiling; cap at a defensive 64 to avoid pathology

@@ -279,11 +279,17 @@ static void test_nd_10x10_grid_matches_or_beats_amd_fill(void) {
      *
      * Sprint 24 Days 5-6's `SPARSE_ND_COARSEN_FLOOR_RATIO` and
      * `SPARSE_ND_SEP_LIFT_STRATEGY` env vars are no-ops on this
-     * 100-vertex fixture: the coarsest level pegs at MAX(20,
-     * n/divisor) = 20 vertices regardless of divisor (n/100 = 1
-     * < 20), and the small-cut structure makes balanced_boundary's
-     * lift identical to smaller_weight's.  All four env-var
-     * combinations produce 760 nnz_L → ND/AMD = 1.158×.  See
+     * 100-vertex fixture for divisors ≥ 5 (the typical tuning
+     * range; default = 100): the coarsest level pegs at MAX(20,
+     * n/divisor) = 20 vertices because n/divisor = 100/divisor ≤
+     * 20.  Divisors 1-4 would coarsen down to 100 / 50 / 33 / 25
+     * vertices respectively, but those settings are outside the
+     * sweep range Day 5 explored ({100 default, 200, 400, 800,
+     * 100000}) so they're not exercised by this test's env-var-
+     * combination matrix.  Within the sweep range, the small-cut
+     * structure also makes balanced_boundary's lift identical to
+     * smaller_weight's, so all four sweep × strategy combinations
+     * produce 760 nnz_L → ND/AMD = 1.158×.  See
      * docs/planning/EPIC_2/SPRINT_24/nd_tuning_day7.md "Partition-
      * test verification" for the analogous observation on the 39
      * partition-test contract.

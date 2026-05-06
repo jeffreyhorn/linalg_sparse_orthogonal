@@ -57,7 +57,12 @@ fi
 # the full output to a temp file before parsing — `awk ... exit` on a
 # pipe closes stdin early and SIGPIPEs the upstream `bench_amd_qg`,
 # producing exit 141 from the pipeline.
+# Initialize both temp file vars before the EXIT trap installs.  Under
+# `set -u`, the trap's `$TMP_REORDER` expansion would be an unbound-
+# variable error if `bench_amd_qg` failed before TMP_REORDER got
+# assigned below — that would mask the real failure exit code.
 TMP_AMD_QG=$(mktemp -t wall_check_amd_qg.XXXXXX)
+TMP_REORDER=$(mktemp -t wall_check_reorder.XXXXXX)
 trap 'rm -f "$TMP_AMD_QG" "$TMP_REORDER" 2>/dev/null' EXIT
 
 if ! "$BENCH_AMD_QG" --only bcsstk14 --skip-bitset > "$TMP_AMD_QG" 2>/dev/null; then
@@ -65,7 +70,11 @@ if ! "$BENCH_AMD_QG" --only bcsstk14 --skip-bitset > "$TMP_AMD_QG" 2>/dev/null; 
     exit 2
 fi
 
-BCSSTK14_QG_ACTUAL=$(awk -F, '/^bcsstk14,.*,qg,/ {print $4; exit}' "$TMP_AMD_QG")
+# Match by full CSV field equality rather than regex prefix:
+# `^bcsstk14,.*,qg,` would also match `^bcsstk14_other,.*,qg,` if a
+# future fixture name shared the prefix.  $1=="bcsstk14" && $3=="qg"
+# is unambiguous regardless of row ordering / future fixture additions.
+BCSSTK14_QG_ACTUAL=$(awk -F, '$1=="bcsstk14" && $3=="qg" {print $4; exit}' "$TMP_AMD_QG")
 
 if [ -z "$BCSSTK14_QG_ACTUAL" ]; then
     echo "wall-check: could not parse bcsstk14 qg-AMD reorder_ms from bench_amd_qg output" >&2
@@ -74,14 +83,18 @@ fi
 
 # Run bench_reorder --only Pres_Poisson --skip-factor, extract AMD row.
 # CSV header: matrix,n,reorder,nnz_L,reorder_ms,factor_ms
-TMP_REORDER=$(mktemp -t wall_check_reorder.XXXXXX)
 
 if ! "$BENCH_REORDER" --only Pres_Poisson --skip-factor > "$TMP_REORDER" 2>/dev/null; then
     echo "wall-check: bench_reorder --only Pres_Poisson failed" >&2
     exit 2
 fi
 
-PRES_POISSON_ACTUAL=$(awk -F, '/^Pres_Poisson,.*,AMD,/ {print $5; exit}' "$TMP_REORDER")
+# Match by full CSV field equality.  `^Pres_Poisson,.*,AMD,` would also
+# match the `COLAMD` row (regex `AMD` is a suffix of `COLAMD`), and the
+# current code only worked because the AMD row appears before COLAMD in
+# bench_reorder's emit order.  $1=="Pres_Poisson" && $3=="AMD" is
+# robust to row ordering and future ordering additions.
+PRES_POISSON_ACTUAL=$(awk -F, '$1=="Pres_Poisson" && $3=="AMD" {print $5; exit}' "$TMP_REORDER")
 
 if [ -z "$PRES_POISSON_ACTUAL" ]; then
     echo "wall-check: could not parse Pres_Poisson AMD reorder_ms from bench_reorder output" >&2

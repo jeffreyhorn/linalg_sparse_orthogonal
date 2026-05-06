@@ -1597,13 +1597,16 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
             idx_t total_w = lift_w + other_w;
             int balanced = 1;
             if (total_w > 0) {
-                /* `10 * max > 7 * total` ⇔ max/total > 0.7 in idx_t
-                 * arithmetic — avoids floating-point and works for
-                 * idx_t values well under INT_MAX/10 (boundary
-                 * weights here are vertex counts on graph levels,
-                 * far below that). */
+                /* `10 * max > 7 * total` ⇔ max/total > 0.7 — avoids
+                 * floating-point.  Compute in int64_t to avoid
+                 * overflow when graphs grow beyond INT32_MAX/10 ≈
+                 * 214M-vertex weights (idx_t = int32_t).  Boundary-
+                 * weight values are vertex counts on a graph level
+                 * and unlikely to approach that ceiling in practice,
+                 * but the wider arithmetic costs nothing here and
+                 * removes the overflow concern entirely. */
                 idx_t max_w = (lift_w > other_w) ? lift_w : other_w;
-                if ((idx_t)10 * max_w > (idx_t)7 * total_w)
+                if ((int64_t)10 * (int64_t)max_w > (int64_t)7 * (int64_t)total_w)
                     balanced = 0;
             }
             if (balanced)

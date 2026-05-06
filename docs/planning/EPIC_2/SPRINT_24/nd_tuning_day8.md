@@ -28,7 +28,7 @@ Ran `build/test_reorder_nd` four times under each env-var combination.  Results 
 
 Why the env vars are no-ops on this fixture:
 
-- **Coarsening floor** — n = 100, ratio = 100 → divisor-quotient = 1 < MAX-clamp = 20, so the coarsest level pegs at 20 vertices for any divisor in [1, 100000].  Same observation as Day 5's nos4 (n=100) and bcsstk14 (n=1806) sweeps.
+- **Coarsening floor** — n = 100, ratio = 100 → divisor-quotient = 1 < MAX-clamp = 20, so the coarsest level pegs at 20 vertices for any divisor ≥ 5 (where 100/divisor ≤ 20).  The Day 5 sweep range is {100 default, 200, 400, 800, 100000}, all of which satisfy divisor ≥ 5; divisors 1-4 would peg at 100, 50, 33, 25 vertices respectively but are outside the sweep.  Same divisor-≥-5 observation as Day 5's nos4 (n=100) sweep; bcsstk14 (n=1806) hits the floor for divisors ≥ 91 (the Day 5 sweep range divisors all satisfy this).
 - **Separator-lift strategy** — at the coarsest level (20 vertices), the brute-force bisection produces tight cuts where `boundary_count[0] == boundary_count[1]` reliably; balanced_boundary's tie-break converges to the same lift as smaller_weight's.
 
 The achieved 1.158× is the cumulative effect of Sprint 23 Days 7 (leaf-AMD splice), 9-10 (gain-bucket FM), and 11 (multi-pass FM at the finest level) — not Sprint 24's env vars.  Sprint 23 Day 8 set the bound at 1.21× (1pp above the then-measured 1.20×); Day 11's 1.158× was never recorded in the bound.  Sprint 24 Day 8 catches up.

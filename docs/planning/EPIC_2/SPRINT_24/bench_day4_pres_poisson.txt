@@ -1,0 +1,7 @@
+# nd_base_threshold=32, factor=no
+matrix,n,reorder,nnz_L,reorder_ms,factor_ms
+Pres_Poisson,14822,NONE,5061932,0.0,skip
+Pres_Poisson,14822,RCM,3187081,143.4,skip
+Pres_Poisson,14822,AMD,2668793,7862.6,skip
+Pres_Poisson,14822,COLAMD,3415793,13189.7,skip
+Pres_Poisson,14822,ND,2541734,41469.0,skip

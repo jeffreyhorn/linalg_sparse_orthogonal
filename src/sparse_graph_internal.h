@@ -216,8 +216,11 @@ typedef struct {
  * @brief Build a multilevel coarsening hierarchy from a root graph.
  *
  * Coarsens repeatedly until one of three stop conditions fires:
- *   1. `n_coarse <= MAX(20, root->n / 100)` — coarsest level is small
- *      enough for the brute-force / GGGP bisection of Day 3.
+ *   1. `n_coarse <= MAX(20, root->n / divisor)` — coarsest level is
+ *      small enough for the brute-force / GGGP bisection of Day 3.
+ *      `divisor` is 100 by default (Sprint 22 calibration); the
+ *      `SPARSE_ND_COARSEN_FLOOR_RATIO` env var (Sprint 24 Day 5)
+ *      overrides it in [1, 100000] for tighter cuts on Pres_Poisson.
  *   2. `n_coarse > 0.9 * n_fine` — a coarsening pass made too little
  *      progress; further coarsening would just churn without
  *      shrinking the problem.
@@ -286,8 +289,10 @@ void sparse_graph_hierarchy_free(sparse_graph_hierarchy_t *h);
  *     imbalanced) partition during uncoarsening.
  *
  * The multilevel coarsening (`sparse_graph_hierarchy_build`) drives
- * `n` toward MAX(20, n_orig / 100) before the partitioner gets here,
- * but on structurally regular inputs heavy-edge matching can saturate
+ * `n` toward MAX(20, n_orig / divisor) before the partitioner gets
+ * here (divisor default 100, overridable via the
+ * `SPARSE_ND_COARSEN_FLOOR_RATIO` env var added Sprint 24 Day 5);
+ * on structurally regular inputs heavy-edge matching can saturate
  * before that target — GGGP handles whatever the hierarchy delivers.
  *
  * @param G        Input graph.
@@ -374,15 +379,26 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
 /**
  * @brief Convert a 2-way edge separator into a 3-way vertex separator.
  *
- * Given `part_io[i] ∈ {0, 1}`, marks every boundary vertex on the
- * smaller-vertex-weight side as the separator (`part_io[i] = 2`).
+ * Given `part_io[i] ∈ {0, 1}`, marks every boundary vertex on one
+ * side as the separator (`part_io[i] = 2`).  Two strategies select
+ * which side to lift, switched by the `SPARSE_ND_SEP_LIFT_STRATEGY`
+ * env var (Sprint 24 Day 6):
+ *
+ *   - `smaller_weight` (default; Sprint 22 Day 4 behaviour) — lift
+ *     the side with smaller vertex weight (METIS convention; ties
+ *     break to side 0).  Minimises recursive ND tree height because
+ *     the recursion descends the larger subgraph alone next.
+ *   - `balanced_boundary` — lift the side with smaller boundary
+ *     count (ties to side 0).  Minimises separator size directly
+ *     instead of via the weight-imbalance proxy.  Falls back to
+ *     `smaller_weight` if the resulting post-lift weight balance
+ *     would exceed a 70/30 split (preserves the recursion-depth
+ *     argument).
+ *
  * After return:
  *   - `part_io[i] ∈ {0, 1, 2}`,
  *   - no edge connects a side-0 vertex to a side-1 vertex (all such
- *     crossings now route through a `2`-labelled vertex),
- *   - the separator sits on the smaller side (METIS convention; ties
- *     break to side 0) — minimises recursive ND tree height inflation
- *     because the recursion descends the larger subgraph alone next.
+ *     crossings now route through a `2`-labelled vertex).
  *
  * @param G       Input graph.
  * @param part_io In: 2-way partition (`part_io[i] ∈ {0, 1}`).

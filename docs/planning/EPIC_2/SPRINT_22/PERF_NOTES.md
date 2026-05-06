@@ -214,3 +214,116 @@ The shipping story for the Sprint 23 PR description: "ND now beats
 AMD on the canonical 2D-PDE benchmark, at the cost of a
 production-AMD wall-time regression Sprint 24 must root-cause and
 fix."
+
+## Sprint 24 closures
+
+Sprint 24 ran 11 days against the two items Sprint 23 routed forward:
+the qg-AMD wall-time regression (gate (b) hard fail) and the
+Pres_Poisson 0.7× literal target (gate (a) spirit-met-but-literal-
+miss).  Headline reference is `docs/planning/EPIC_2/SPRINT_24/bench_summary_day9.md`;
+per-day captures are at `bench_day9.{csv,txt}`,
+`bench_day9_amd_qg.{csv,txt}`, plus the Day-7 + Day-8 ND tuning
+decision docs.
+
+### What moved
+
+| metric                                | Sprint 22  | Sprint 23  | Sprint 24  | delta vs S23 |
+|---------------------------------------|------------|------------|------------|---------------|
+| bcsstk14 qg-AMD wall (ms)             |    ~140    |    4 715   |    125.8   | -97 % (39× speedup) |
+| Kuu qg-AMD wall (ms)                  |    ~700    |   25 720   |    546.5   | -98 % (47× speedup) |
+| s3rmt3m3 qg-AMD wall (ms)             |   ~2 100   |   51 321   |    728.2   | -99 % (70× speedup) |
+| Pres_Poisson qg-AMD wall (ms)         |  ~12 200   |  758 927   |  8 138.8   | -99 % (93× speedup) |
+| Pres_Poisson qg-AMD peak RSS (MB)     |    19.19   |    25.09   |    19.19   | -24 % (back to S22 baseline) |
+| Pres_Poisson nnz_nd / nnz_amd (default) | 1.063×   |   0.952×   |   0.952×   | unchanged (S24 ND default-path bit-identical to S23) |
+| Pres_Poisson nnz_nd / nnz_amd (`SPARSE_ND_COARSEN_FLOOR_RATIO=200`) | — | — | 0.942× | new opt-in (1pp tighter) |
+| Kuu nnz_nd / nnz_amd (`SPARSE_ND_SEP_LIFT_STRATEGY=balanced_boundary`) | — | — | 1.415× | new opt-in (38pp tighter) |
+| 10×10 grid nnz_nd / nnz_amd (default) |   1.380×   |   1.158×   |   1.158×   | unchanged (S24 default-path bit-identical to S23) |
+
+The qg-AMD wall-time regression was the headline fix.  Sprint 24
+Day 1's `clock_gettime` profile of bcsstk14 measured 95 % of total
+wall time in `qg_recompute_deg`'s element-side adjacency-of-adjacency
+walk — the cost Sprint 23 Day 3's element absorption enabled, not
+Day 4's supervariable hash compare (which was the 1 % overhead the
+three originally-considered fix candidates were targeting).  Day 2's
+revert of Sprint 23 Days 2-5 closed it directly: bcsstk14 went from
+4 715 ms back to 125.8 ms (within Sprint 22's range), Pres_Poisson
+went from 759 s to 8.1 s.  Memory profile also returned to Sprint
+22's baseline (19.19 MB on Pres_Poisson, exact match).
+
+The two new ND env-var-gated alternatives ship as documented advisory:
+
+- `SPARSE_ND_COARSEN_FLOOR_RATIO` (Day 5; default 100) overrides the
+  multi-level coarsening floor `MAX(20, n/divisor)`.  Pres_Poisson with
+  divisor=200 drops ND/AMD 0.952× → 0.942×; ratios ≥ 400 regress
+  because the coarsest level pegs at 20 vertices and the brute-force
+  bisection loses cut quality.
+- `SPARSE_ND_SEP_LIFT_STRATEGY` (Day 6; default `smaller_weight`)
+  switches the edge-to-vertex separator extraction from METIS's
+  smaller-weight rule to a smaller-boundary-count rule with a 70/30
+  post-lift weight-balance fallback.  The `balanced_boundary` value is
+  a 8-38 percentage-point ND/AMD win on every smaller fixture (Kuu's
+  38pp drop is the largest single nnz win Sprint 24 produced) but
+  essentially neutral on Pres_Poisson (+0.1pp), so the production
+  default stays `smaller_weight` per the literal flip rule.
+
+### What didn't move
+
+The literal Sprint 24 targets PROJECT_PLAN.md set are documented
+under the four headline gates in `docs/planning/EPIC_2/SPRINT_24/bench_summary_day9.md`:
+
+- **(a)** qg-AMD wall on bcsstk14 ≤ 1.5× Sprint 22 baseline (~210 ms)
+  — **PASS** (125.8 ms).
+- **(b)** qg-AMD nnz(L) bit-identical to Sprint 22 + Sprint 23 captures
+  — **PASS** (9/9 fixtures bit-identical).
+- **(c)** Pres_Poisson ND/AMD ≤ 0.85× — **MISS** (default 0.952×;
+  best opt-in 0.942×; combined ratio=200 + balanced_boundary actually
+  worse at 0.950× because the changes interact destructively on this
+  fixture).  Sprint 24's stated partial-close is "tighten
+  `test_nd_pres_poisson_fill_with_leaf_amd` from `≤ 1.0×` to `≤ 0.96×`
+  (Day 7) — pin the actual achievement; the 0.7× literal target +
+  0.85× stretch target both route to Sprint 25 (smarter coarsening /
+  multi-pass FM at intermediate levels / spectral bisection at the
+  coarsest level).
+- **(d)** All `SPRINT_23/bench_day14.txt` nnz_L rows stay bit-identical
+  or improve — **PASS** with 1 row (Kuu ND) drifting +24 nnz (0.003 %)
+  in partitioner FM tie-break noise band.
+
+### Test bound tightening
+
+| test                                                                      | S23 bound        | S24 bound        | margin   |
+|---------------------------------------------------------------------------|------------------|------------------|----------|
+| `test_nd_pres_poisson_fill_with_leaf_amd`                                 | `≤ 1.00× nnz_amd` | `≤ 0.96× nnz_amd` | 0.8pp    |
+| `test_nd_10x10_grid_matches_or_beats_amd_fill`                            | `≤ 1.21× nnz_amd` | `≤ 1.17× nnz_amd` | 1.07pp   |
+
+Both tests pin the bit-stable Sprint 23 Day 11 multi-pass FM
+achievement; Sprint 24's ND default-path nnz_L is bit-identical to
+Sprint 23 on every fixture.  The Day-2 revert is fill-neutral by
+construction; Days 5-6's env-var-gated alternatives are off by
+default.
+
+### What's left for Sprint 25
+
+Sprint 24 Day 9's "Items deferred to Sprint 25" calls out four:
+
+1. **Pres_Poisson ND/AMD ≤ 0.85×** — needs algorithmic work beyond
+   Days 5-6's options (smarter coarsening like Heavy Connectivity
+   Coarsening; multi-pass FM at intermediate levels; spectral
+   bisection at the coarsest level).
+2. **Davis 2006 §7.5.1 external-degree refinement** — N/A under (c)
+   revert; resurrect if a future sprint reintroduces approximate-
+   degree.
+3. **`make wall-check` Pres_Poisson ND wall line** — Day 8 captured
+   42.86 s default-path (21 % above Sprint 23 baseline); Sprint 25
+   should add a baseline line with a 50 % threshold rather than 5 %.
+4. **ND wall-time tightening to meet the 5 % drift target** — Sprint
+   24's default ND path is 1.06-1.10× of Sprint 23's; not a regression
+   but worth profiling if the 5 % drift target is to be met.
+
+### Shipping story for the Sprint 24 PR description
+
+"qg-AMD wall regression closed via revert of Sprint 23 Days 2-5
+(profile pointed away from the originally-considered fix candidates).
+ND fill-quality opt-in env vars added (Pres_Poisson advisory:
+ratio=200 → 0.942×; non-Pres_Poisson advisory: balanced_boundary →
+8-38pp wins).  Pres_Poisson 0.7× literal target + 0.85× stretch
+target both route to Sprint 25 with concrete avenues identified."

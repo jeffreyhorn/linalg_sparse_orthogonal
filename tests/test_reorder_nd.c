@@ -265,22 +265,44 @@ static void test_nd_10x10_grid_matches_or_beats_amd_fill(void) {
     printf("    10x10 grid: AMD nnz(L) = %d, ND nnz(L) = %d (ND/AMD = %.2f)\n", (int)nnz_amd,
            (int)nnz_nd, (double)nnz_nd / (double)nnz_amd);
 
-    /* Sprint 23 Day 8: tightened from Sprint 22's `nnz_nd ≤ 1.5×
-     * nnz_amd` to `nnz_nd ≤ 1.21× nnz_amd`.  Day 7's leaf-AMD
-     * splice dropped this fixture's ratio from 1.38× to 1.20×; the
-     * 1-percentage-point margin above 1.20× absorbs floating-point
-     * tie-breaking noise without inviting a regression to slip past.
+    /* Sprint 24 Day 8: tightened from Sprint 23 Day 8's `nnz_nd ≤
+     * 1.21× nnz_amd` to `nnz_nd ≤ 1.17× nnz_amd`.  The actual
+     * default-path measurement is 1.158× (760 / 656); the
+     * 1.17× bound gives a 1.07pp safety margin (~7 nnz cushion).
      *
-     * The PLAN.md Day-8 target was `nnz_nd ≤ nnz_amd` (1.0×).  Not
-     * achieved: even with leaf-AMD the recursive separator-last
-     * structure adds 130 nnz of fill that flat AMD (operating on
-     * the full 100-vertex graph) avoids.  Closing the rest of the
-     * gap requires either multi-pass FM (Day 11 exploration —
-     * deferred to Sprint 24 if it doesn't move the needle) or a
-     * smarter separator-extraction heuristic; both are outside
-     * Day 8's scope.  The 1.21× bound is the honest record of what
-     * Day-7's contribution actually achieves on this fixture. */
-    ASSERT_TRUE((long long)nnz_nd * 100 <= (long long)nnz_amd * 121);
+     * Sprint 23 Day 11's multi-pass FM at the finest uncoarsening
+     * level (3 passes; see `src/sparse_graph.c` Day 11 comment)
+     * dropped this fixture's ratio from 1.20× to 1.158×; Sprint 23
+     * Day 8 set the bound at 1.21× (1pp margin above the then-
+     * measured 1.20×) and Day 11's improvement was never recorded
+     * in the bound.  Sprint 24 Day 8 catches up.
+     *
+     * Sprint 24 Days 5-6's `SPARSE_ND_COARSEN_FLOOR_RATIO` and
+     * `SPARSE_ND_SEP_LIFT_STRATEGY` env vars are no-ops on this
+     * 100-vertex fixture for divisors ≥ 5 (the typical tuning
+     * range; default = 100): the coarsest level pegs at MAX(20,
+     * n/divisor) = 20 vertices because n/divisor = 100/divisor ≤
+     * 20.  Divisors 1-4 would coarsen down to 100 / 50 / 33 / 25
+     * vertices respectively, but those settings are outside the
+     * sweep range Day 5 explored ({100 default, 200, 400, 800,
+     * 100000}) so they're not exercised by this test's env-var-
+     * combination matrix.  Within the sweep range, the small-cut
+     * structure also makes balanced_boundary's lift identical to
+     * smaller_weight's, so all four sweep × strategy combinations
+     * produce 760 nnz_L → ND/AMD = 1.158×.  See
+     * docs/planning/EPIC_2/SPRINT_24/nd_tuning_day7.md "Partition-
+     * test verification" for the analogous observation on the 39
+     * partition-test contract.
+     *
+     * The PLAN.md Day-8 target was `nnz_nd ≤ nnz_amd` (1.0×); the
+     * recursive separator-last structure adds ~104 nnz of fill that
+     * flat AMD (operating on the full 100-vertex graph) avoids.
+     * Closing the rest of the gap on small grids requires either a
+     * smarter separator-extraction heuristic that doesn't add the
+     * separator vertices to the bottom of the elimination order, or
+     * a hybrid path that falls through to AMD when n ≤ ~100 — both
+     * Sprint-25 territory. */
+    ASSERT_TRUE((long long)nnz_nd * 100 <= (long long)nnz_amd * 117);
 
 cleanup:
     sparse_analysis_free(&analysis_amd);
@@ -449,25 +471,29 @@ static void test_nd_pres_poisson_fill_with_leaf_amd(void) {
             (int)sparse_rows(A), (int)nnz_amd, (int)nnz_nd, (double)nnz_nd / (double)nnz_amd,
             nd_seconds);
 
-    /* Sprint 23 Day 11: tightened from `nnz_nd ≤ 1.10× nnz_amd` to
-     * `nnz_nd ≤ 1.0× nnz_amd`.  Day 11's multi-pass FM exploration
-     * (3 passes at the finest uncoarsening level — see
-     * src/sparse_graph.c "Sprint 23 Day 11" comment) drops
-     * Pres_Poisson's ratio from 1.026× to 0.952×.  ND now beats
-     * AMD on this fixture, the headline fill-quality gate from
-     * Sprint 22 onwards.  5-percentage-point margin (≤ 1.0× rather
-     * than the measured 0.952×) absorbs RNG-noise drift on the
-     * partitioner's FM tie-breaks.
+    /* Sprint 24 Day 7: tightened from `nnz_nd ≤ 1.00× nnz_amd`
+     * (Sprint 23 Day 11 default-path bound) to `nnz_nd ≤ 0.96×
+     * nnz_amd`.  Days 5-6 of Sprint 24 explored the two
+     * approaches PLAN.md called out for closing Pres_Poisson's
+     * ND/AMD gap further — option (a) deeper coarsening
+     * (`SPARSE_ND_COARSEN_FLOOR_RATIO`) and option (b) smarter
+     * separator extraction (`SPARSE_ND_SEP_LIFT_STRATEGY`); both
+     * land env-var-gated off-by-default per the Day-5 / Day-6
+     * decision docs.  The default-path achievement stays at
+     * Sprint 23's 0.952× (bit-identical, no production-default
+     * change), so the new bound's 0.8-percentage-point safety
+     * margin pins the Sprint-23 ratio without claiming a Sprint-
+     * 24 win on this fixture.  See
+     * docs/planning/EPIC_2/SPRINT_24/nd_tuning_day7.md.
      *
-     * The PLAN.md Day-8 target was `nnz_nd ≤ 0.7× nnz_amd` — still
-     * not achieved (current 0.952×) but the recursive-ND-with-multi-
-     * pass-FM-and-leaf-AMD pipeline now consistently finds a
-     * *better-than-AMD* ordering.  Closing the gap from 0.95× to
-     * 0.7× would require either deeper coarsening, more aggressive
-     * FM tuning, or a separator-extraction strategy beyond Sprint
-     * 22's smaller-side lift — Sprint-24 territory per PLAN.md
-     * risk-flag #2. */
-    ASSERT_TRUE((long long)nnz_nd <= (long long)nnz_amd);
+     * The PLAN.md Day-8 stretch target was `nnz_nd ≤ 0.85×
+     * nnz_amd`; combined Days 5+6 settings reached 0.950× on
+     * this fixture (worse than Day-5-alone's 0.942×, since the
+     * two changes interact destructively here).  Closing the
+     * remaining 0.85× gap is Sprint-25 territory per
+     * `nd_sep_strategy_decision.md` "Why option (b) misses the
+     * 0.85× target on Pres_Poisson". */
+    ASSERT_TRUE((long long)nnz_nd * 100 <= (long long)nnz_amd * 96);
 
     sparse_free(A);
 }

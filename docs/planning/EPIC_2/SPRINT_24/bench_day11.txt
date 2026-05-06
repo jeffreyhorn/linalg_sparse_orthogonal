@@ -1,0 +1,97 @@
+Sprint 24 Day 11 — final cross-corpus capture (sanity re-bench)
+=================================================================
+
+Final cross-ordering re-run of `benchmarks/bench_reorder.c` against
+the SuiteSparse corpus.  Day 10 was tests + docs only (no algorithmic
+change); this capture sanity-confirms nnz_L is bit-identical to Day 9
+across every fixture × ordering, with wall-time drift in the typical
+±25 % run-to-run band.
+
+`--skip-factor` because the gates compare reorder cost + nnz_L only;
+numeric factor wall is unchanged from Sprints 22 / 23 and adds 30
+minutes per run unnecessarily.
+
+Single run on macOS arm64 (Apple Clang, -O2; today's tip is
+5be34c0 "Sprint 24 Day 10").
+CSV form: `bench_day11.csv`.
+
+Cross-ordering capture (ND_BASE_THRESHOLD = 32, default 3-pass FM,
+default `SPARSE_ND_COARSEN_FLOOR_RATIO` = 100, default
+`SPARSE_ND_SEP_LIFT_STRATEGY` = `smaller_weight`)
+------------------------------------------------------------------
+
+  matrix         n      reorder  nnz_L      reorder_ms
+  ────────────  ─────  ───────  ─────────  ──────────
+  nos4            100  NONE          805         0.0
+  nos4            100  RCM           888         0.1
+  nos4            100  AMD           637         0.2
+  nos4            100  COLAMD        778         0.4
+  nos4            100  ND            968        94.6
+  bcsstk04        132  NONE        3 763         0.0
+  bcsstk04        132  RCM         3 633         0.7
+  bcsstk04        132  AMD         3 143         2.0
+  bcsstk04        132  COLAMD      3 622         2.8
+  bcsstk04        132  ND          3 702       512.8
+  Kuu           7 102  NONE    2 993 061         0.0
+  Kuu           7 102  RCM     1 024 794        62.2
+  Kuu           7 102  AMD       406 264       575.3
+  Kuu           7 102  COLAMD    830 665     4 125.4
+  Kuu           7 102  ND        924 385    13 099.9
+  bcsstk14      1 806  NONE      190 791         0.0
+  bcsstk14      1 806  RCM       178 311        12.3
+  bcsstk14      1 806  AMD       116 071       126.2
+  bcsstk14      1 806  COLAMD    146 037       176.0
+  bcsstk14      1 806  ND        131 017     5 501.9
+  s3rmt3m3      5 357  NONE    2 208 972         0.0
+  s3rmt3m3      5 357  RCM       636 993        30.5
+  s3rmt3m3      5 357  AMD       474 609       778.1
+  s3rmt3m3      5 357  COLAMD    607 647     1 179.9
+  s3rmt3m3      5 357  ND        478 890    13 358.6
+  Pres_Poisson 14 822  NONE    5 061 932         0.0
+  Pres_Poisson 14 822  RCM     3 187 081       152.8
+  Pres_Poisson 14 822  AMD     2 668 793     8 756.2
+  Pres_Poisson 14 822  COLAMD  3 415 793    15 239.0
+  Pres_Poisson 14 822  ND      2 541 734    38 695.3
+
+Bit-identical nnz_L vs Day 9
+----------------------------
+
+Every nnz_L value above is bit-identical to `bench_day9.txt`'s
+capture across the full 6-fixture × 5-ordering matrix (30/30
+rows match exactly):
+
+  - NONE / RCM / AMD / COLAMD / ND nnz_L: identical on every fixture.
+  - bcsstk14 ND: 131 017 (matches Day 9).
+  - Pres_Poisson ND: 2 541 734 (matches Day 9; ND/AMD = 0.952×).
+  - Kuu ND: 924 385 (matches Day 9; the Day 9 → Sprint 23 +24 nnz
+    drift is bit-stable across re-runs on the same Sprint 24 tip).
+
+Day 10 ships only docs + retro stub edits (no C source touched), so
+the bit-identity is expected and confirms no test-side regressions
+slipped into the day's commit.
+
+Wall-time deltas vs Day 9
+--------------------------
+
+Reorder ms drift between Day 9 and Day 11 captures is in the typical
+±25 % run-to-run band on Apple Silicon under concurrent host load:
+
+  | fixture       | reorder | day 9 ms | day 11 ms | delta  |
+  |---------------|---------|---------:|----------:|--------|
+  | bcsstk14      | AMD     |    162.7 |     126.2 | -22 %  |
+  | Kuu           | AMD     |    656.7 |     575.3 | -12 %  |
+  | s3rmt3m3      | AMD     |    822.8 |     778.1 |  -5 %  |
+  | Pres_Poisson  | AMD     |  9 511.2 |   8 756.2 |  -8 %  |
+  | bcsstk14      | ND      |  6 223.2 |   5 501.9 | -12 %  |
+  | Pres_Poisson  | ND      | 38 436.4 |  38 695.3 |  +1 %  |
+  | Kuu           | ND      | 14 402.6 |  13 099.9 |  -9 %  |
+
+All deltas are within typical macOS arm64 run-to-run variance; no
+delta breaches the wall-check 2× regression-check ceiling.  The
+Pres_Poisson AMD swing is consistent with the 21 % run-to-run band
+recorded in Sprint 24 Days 5-9 captures.
+
+See `bench_summary_day9.md` for the side-by-side deltas vs
+SPRINT_22/bench_day14 + SPRINT_23/bench_day14 and the headline-gate
+verdicts; Day 11's bit-identical nnz_L confirms those verdicts are
+stable.

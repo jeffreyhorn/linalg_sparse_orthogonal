@@ -1,0 +1,47 @@
+# Sprint 24 wall-check baseline.
+#
+# `make wall-check` (defined in top-level Makefile, executed via
+# scripts/wall_check.sh) reads this file at run-time and compares the
+# observed `reorder_ms` against `2 × <baseline>` for each line.  >2×
+# the baseline → exit non-zero.  Format: `KEY=VALUE_MS`, one per line;
+# `#`-prefixed lines and blanks are ignored.
+#
+# Day 4 update (post-item-2 (c) revert).
+#
+# Sprint 24 Day 2 reverted Sprint 23 Days 2-5 (element absorption,
+# supervariable detection, approximate-degree formula, dense-row
+# skip) and restored the Sprint 22 variable-only quotient-graph
+# baseline.  Day 3 verified bit-identical fill across the full
+# corpus + synthetic banded.  Day 4 measures both gate metrics
+# end-to-end and ratchets the > 2× regression-check gate down to
+# the post-fix ceilings so Days 5-14 work against a tighter gate.
+#
+# Day 4 measurement window (3 captures each, picked the upper-end
+# value for headroom against run-to-run noise):
+#
+#   bcsstk14 qg-AMD wall:
+#     Day 2 wall-check = 114.3 ms
+#     Day 3 wall-check =  90.3 ms
+#     Day 3 bench_amd_qg = 106.9 ms
+#     → Day 4 ceiling: 130 ms (2× gate = 260 ms, stays just above
+#       the Sprint 22 1.5× baseline ceiling of ~210 ms; tight
+#       enough to catch any new element-side-walk-style regression
+#       at first appearance).
+#
+#   Pres_Poisson AMD wall (via bench_reorder --skip-factor):
+#     Day 2 wall-check = 7479.1 ms
+#     Day 3 wall-check = 5989.8 ms
+#     Day 4 bench_reorder = 7862.6 ms (full bench_reorder run)
+#     → Day 4 ceiling: 8000 ms (2× gate = 16 000 ms, sits just
+#       under the Sprint 22 1.5× baseline ceiling of ~18 300 ms).
+#
+# # Previous values (Day 1 worst-case ceilings — kept here so
+# # a future regression that exceeds 2× the Day-4 ceiling but
+# # stays under the old Sprint-23-worst-case is still flagged
+# # for investigation):
+# #
+# #   bcsstk14_qg_amd_ms     = 7 000      (Sprint 23 Day 12)
+# #   pres_poisson_amd_ms    = 1 100 000  (Sprint 23 Day 12)
+
+bcsstk14_qg_amd_ms=130
+pres_poisson_amd_ms=8000

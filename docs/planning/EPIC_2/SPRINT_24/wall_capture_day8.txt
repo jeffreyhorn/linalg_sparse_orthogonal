@@ -1,0 +1,3 @@
+    Pres_Poisson (n=14822): AMD nnz(L) = 2668793, ND nnz(L) = 2541734 (ND/AMD = 0.952, ND wall 42.86 s)
+    10x10 grid: AMD nnz(L) = 656, ND nnz(L) = 760 (ND/AMD = 1.16)
+  [PASS] test_nd_10x10_grid_matches_or_beats_amd_fill

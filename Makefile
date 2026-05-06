@@ -389,6 +389,25 @@ lint: build/include/sparse_version.h
 .PHONY: check
 check: format-check lint test
 
+# ─── Performance regression gate (Sprint 24 Day 1) ────────────────────
+#
+# `make wall-check` runs two single-fixture benchmarks (bcsstk14 qg-AMD
+# and Pres_Poisson AMD via bench_reorder), parses the reorder_ms field
+# from each, and exits non-zero if either exceeds the corresponding
+# baseline in `docs/planning/EPIC_2/SPRINT_24/wall_check_baseline.txt`
+# by more than 2× on the same machine class.  Lessons-section item
+# from Sprint 23's retrospective: Days 2-5's qg-AMD wall-time
+# regression accumulated across four day-by-day commits with no
+# intermediate signal; this target catches a single-day > 2× drift
+# at commit-time.  Documented in `docs/algorithm.md` under
+# "### Performance regression gates".
+.PHONY: wall-check
+wall-check: $(BUILDDIR)/bench_amd_qg $(BUILDDIR)/bench_reorder
+	@scripts/wall_check.sh \
+		$(BUILDDIR)/bench_amd_qg \
+		$(BUILDDIR)/bench_reorder \
+		docs/planning/EPIC_2/SPRINT_24/wall_check_baseline.txt
+
 # ─── API documentation ────────────────────────────────────────────────
 
 .PHONY: docs

@@ -587,43 +587,77 @@ BFS-based bandwidth reduction on the symmetrized adjacency graph (A + Aᵀ).
 - Best for banded/structured matrices (e.g., FEM meshes, thermal problems)
 - On steam1 (240×240 thermal): bandwidth 146→52, fill-in 23k→15k (33% reduction), 5.5x factorization speedup
 
-### Approximate Minimum Degree (AMD) — quotient-graph implementation (Davis 2006)
+### Approximate Minimum Degree (AMD) — quotient-graph implementation (Sprint 22 + Sprint 24 closures)
 
-Greedy minimum-degree elimination ordering on the symmetrized adjacency graph.  Sprint 22 (Days 10-13) replaced the original bitset implementation with a quotient-graph representation following Amestoy/Davis/Duff (2004) "Algorithm 837: AMD" (TOMS) and Davis (2006) §7.  Sprint 23 (Days 2-6) added the four mechanisms that complete the Davis algorithm on top of Sprint 22's simplified quotient-graph baseline.
+Greedy minimum-degree elimination ordering on the symmetrized adjacency graph.  Sprint 22 (Days 10-13) replaced the original bitset implementation with a quotient-graph representation following Amestoy/Davis/Duff (2004) "Algorithm 837: AMD" (TOMS) and Davis (2006) §7.
 
-**Four mechanisms (Sprint 23):**
+**Production implementation: Sprint 22's simplified quotient-graph baseline.**  The current `sparse_reorder_amd_qg` ships the variable-only quotient-graph form: each pivot rebuilds the affected vertices' adjacency lists via a sorted merge, with exact minimum-degree recompute on each rebuilt list.  No element-side adjacency, no supervariable detection, no approximate-degree formula, no dense-row skip.  Workspace `iw[]` is `5·nnz + 6·n + 1` integer entries (Davis 2006 §7); `qg_compact` reclaims slots when fill-in pushes the watermark past the buffer.  See the `src/sparse_reorder_amd_qg.c` "Day 11 implementation notes" block for the rationale.
 
-1. **Element absorption** (Sprint 23 Day 3 — see `aea071a`).  When a pivot eliminates, its neighbours' merged adjacency forms a new "element" that takes the eliminated vertex's slot.  Variables whose remaining variable-side adjacency converges to a single element get *absorbed* — marked dead in `qg->absorbed[]` and skipped by subsequent pivot scans.  The absorbed slots are reclaimed by the next workspace compaction, so the active set shrinks as elimination proceeds (rather than just the iw_used water-line growing).
-
-2. **Supervariable detection** (Sprint 23 Day 4 — see `6096840`).  A sum-of-IDs hash bucketed per pivot's touched-set; within each hash bucket, an O(k²) full-list compare confirms identical adjacency.  Confirmed pairs merge via `qg->super[]` / `qg->super_size[]`; the smaller representative folds into the larger.  `qg_pick_min_deg` then iterates over supervariable representatives only, so the per-pivot cost scales with supervariable count rather than vertex count.  Supervariables co-eliminate as a unit, with members appearing in `perm[]` in a contiguous block.
-
-3. **Approximate-degree formula** (Sprint 23 Day 5 — see `f0fe391`; opt-in via `SPARSE_QG_USE_APPROX_DEG`).  Davis 2006 §7.5: `d_approx(i) = |adj(i, V)| + Σ_{e ∈ adj(i, E)} |adj(e, V) \ {pivot}|` — reads the per-vertex element-side adjacency lists Day 3 populates.  Conservative upper bound (`d_approx ≥ d_exact` always).  Default production path uses exact-degree recompute (matching Sprint 22's bit-identical fill); the opt-in flag exists for fill-quality probes that want to measure the approximation's effect on pivot order.
-
-4. **Dense-row skip** (Sprint 23 Day 5).  Vertices whose post-pivot approximate degree exceeds `10·√n` skip the degree update entirely — the approximate formula is least-accurate for dense rows, and they'd dominate the pivot scan on the next iteration anyway.  Capped via `qg_compute_deg_approx`'s `d > qg->n` clamp (the pivot-selection sentinel requires `d ≤ n`); see Day 6 `cap_fired_count` probe.
-
-**Workspace (Sprint 23 Day 2).**  Sprint 22's `iw[]` buffer at ≈ 5·nnz + 6·n + 1 grew to 7·nnz + 8·n + 1 to host the elements-side adjacency region (each vertex's slice now has a variable-adjacency prefix of length `len[i] - elen[i]` followed by an element-adjacency suffix of length `elen[i]`).  `qg_compact` walks the new layout transparently — variable-side and element-side regions are contiguous within `len[i]` entries, so the relocation move is unchanged.
+**Sprint 23's Davis-mechanism additions (reverted by Sprint 24 Day 2).**  Sprint 23 Days 2-5 layered the four canonical Davis mechanisms on top of Sprint 22's simplified baseline: element absorption (Day 3), supervariable detection (Day 4), the approximate-degree formula (Day 5, opt-in `SPARSE_QG_USE_APPROX_DEG`), and a dense-row skip (Day 5).  Workspace grew to `7·nnz + 8·n + 1` to host an element-side adjacency region.  Sprint 23 Day 12's closing bench surfaced a 62-199× wall-time regression on irregular SuiteSparse SPD fixtures (root cause: Day 3's element absorption enabled an O(adjacency-of-adjacency) walk in `qg_recompute_deg` that Sprint 24 Day 1's profile measured at 95 % of total bcsstk14 wall time; supervariable detection's O(k²) per-pivot compare contributed only 1 %).  Sprint 24 Day 2 reverted the four Days 2-5 commits via `git revert`, restoring Sprint 22's variable-only baseline bit-identically (commit history preserved; the commits exist on master via Sprint 23's PR #31 but their effects are unwound).  See `docs/planning/EPIC_2/SPRINT_24/fix_decision_day1.md` for the full root-cause analysis (the profile evidence pointed away from the three originally-considered fix candidates) and the rationale for choosing (c) revert over (d) `qg_recompute_deg` optimization (risk profile + Sprint 24 budget shape).
 
 **Characteristics:**
 - O(deg · avg_deg) per pivot — linear in nnz instead of the bitset's O(n² / 64).  Scales to n ≥ 50 000 without paying quadratic memory.
-- Memory bound moved from O(n²/64) to O(nnz).  Sprint 22 Day 13's bench measured ≥ 17× memory reduction at n = 20 000 and analytic ~26× at n = 50 000 (`docs/planning/EPIC_2/SPRINT_22/bench_day13_amd_qg.txt`).
-- Fill quality is bit-identical to bitset across the SuiteSparse corpus (verified Sprint 22 Day 13; carries through Sprint 23 — Days 2-5 are fill-neutral by construction).
-- **Wall-time regression** vs Sprint 22 quotient-graph baseline: Sprint 23 Day 12's bench (`docs/planning/EPIC_2/SPRINT_23/bench_day12_amd_qg.txt`) measured 62-199× regression on irregular SuiteSparse SPD fixtures (root cause: Day 4's per-pivot O(k²) supervariable-hash-bucket compare dominates when supervariables don't form on irregular structural-mechanics matrices).  Banded fixtures regressed only ~3×.  Routed to Sprint 24 for root-cause + fix; three candidate fixes (sorted-list compare, regularity-heuristic gating, full revert of Days 2-5) documented in `docs/planning/EPIC_2/SPRINT_23/bench_summary_day12.md`.
+- Memory bound moved from O(n²/64) to O(nnz).  Sprint 22 Day 13's bench measured ≥ 17× memory reduction at n = 20 000 and analytic ~26× at n = 50 000 (`docs/planning/EPIC_2/SPRINT_22/bench_day13_amd_qg.txt`); Sprint 24 Day 9's bench (`docs/planning/EPIC_2/SPRINT_24/bench_day9_amd_qg.txt`) re-measured Pres_Poisson qg peak at 19.19 MB — exact match to Sprint 22's 19.19 MB after the (c) revert returned the memory profile to the Sprint 22 baseline.
+- Fill quality is bit-identical to bitset across the SuiteSparse corpus (verified Sprint 22 Day 13; carries through Sprint 24 — the Days 2-5 revert is fill-neutral by construction).
+- **Wall-time profile (Sprint 24 Day 9):** qg-AMD ms is at-or-below Sprint 22 Day 13 on every fixture except bcsstk04 (where the 0.9 ms difference is sub-millisecond noise).  bcsstk14 = 125.8 ms; Pres_Poisson = 8 138.8 ms.  qg wins on banded fixtures by 6.5-9× vs bitset (improvement on Sprint 22's 1.8-7×); loses on irregular SuiteSparse SPD by 1.0-2.0× (Sprint 22 was 0.6-1.8×; Sprint 23 was 6-133×).  Day 2's revert closed the Sprint 23 regression and either matched or improved on Sprint 22's baseline.  See `docs/planning/EPIC_2/SPRINT_24/bench_summary_day9.md` for the full 3-sprint side-by-side.
 
-### Nested Dissection (ND) — multilevel vertex separator (Sprint 22 + Sprint 23 closures)
+### Nested Dissection (ND) — multilevel vertex separator (Sprint 22 + Sprint 23 + Sprint 24 closures)
 
 Recursive "separator-last" ordering on top of a multilevel partitioner.  ND is best on regular 2D / 3D PDE meshes where the geometric advantage of separating the mesh into halves dominates the minimum-degree heuristic AMD is using.
 
 **Pipeline:**
-1. **Coarsen** — heavy-edge matching (Karypis & Kumar 1998) collapses pairs of vertices, building a multilevel hierarchy that bottoms out at MAX(20, n/100) vertices.
+1. **Coarsen** — heavy-edge matching (Karypis & Kumar 1998) collapses pairs of vertices, building a multilevel hierarchy that bottoms out at MAX(20, n/divisor) vertices.  The divisor is 100 by default; `SPARSE_ND_COARSEN_FLOOR_RATIO` (Sprint 24 Day 5) overrides it in [1, 100000].  Larger divisor → tighter coarsest level → potentially tighter cut at the finest uncoarsening step.  Sprint 24 Day 5's sweep on Pres_Poisson (n = 14 822) found ratio = 200 produces a 1.0pp ND/AMD improvement (0.952× → 0.942×); ratios ≥ 400 regress because the coarsest level pegs at the floor of 20 vertices and the brute-force bisection loses cut quality.  See `docs/planning/EPIC_2/SPRINT_24/nd_coarsen_floor_decision.md`.
 2. **Coarsest bisection** — brute-force enumeration for n ≤ 20 (`2^(n-1)` patterns); GGGP (greedy graph-growing partition, peripheral-vertex BFS) for n > 20.
 3. **Uncoarsen with FM** — project the coarsest partition back through the hierarchy with Fiduccia-Mattheyses refinement at every level (rollback-on-regress on the lowest cut seen).  Sprint 23 Day 10 swapped Sprint 22's O(n) max-gain linear scan for an O(1) gain-bucket structure (`src/sparse_graph_fm_buckets.h`); Sprint 23 Day 11 adopted 3-pass FM at the finest uncoarsening level by default (intermediate levels stay single-pass) — overridable via `SPARSE_FM_FINEST_PASSES` env var.
-4. **Vertex-separator extraction** — convert the final 2-way edge separator to a 3-way `{0, 1, 2}` vertex separator on the smaller side (METIS convention).
+4. **Vertex-separator extraction** — convert the final 2-way edge separator to a 3-way `{0, 1, 2}` vertex separator.  Default lift strategy is `smaller_weight` (METIS convention — lift the smaller-vertex-weight side's boundary); `SPARSE_ND_SEP_LIFT_STRATEGY=balanced_boundary` (Sprint 24 Day 6) lifts whichever side has the smaller boundary count regardless of vertex weight, with a 70/30 post-lift weight-balance check that falls back to `smaller_weight` if the chosen lift would skew the recursion too far.  `balanced_boundary` is documented advisory for non-Pres_Poisson workloads: Sprint 24 Day 6's sweep showed 8-38 percentage-point ND/AMD improvements on nos4 / bcsstk14 / Kuu (Kuu's 38pp drop is the largest single nnz win Sprint 24 produced) but is essentially neutral on Pres_Poisson (+0.1pp), so it stays off-by-default.  See `docs/planning/EPIC_2/SPRINT_24/nd_sep_strategy_decision.md` and `nd_tuning_day7.md` for the production-default rationale.
 5. **Recursive ordering** — on each interior partition: recurse; for subgraphs with `n ≤ ND_BASE_THRESHOLD` (default 32), call `sparse_reorder_amd_qg` on the leaf and splice the per-leaf permutation into the global perm[] via `vertex_id_map` (Sprint 23 Day 7).  Append the separator vertices last.
 
 **Characteristics:**
-- Fill quality on regular meshes: 10×10 grid 1.16× of AMD (Sprint 22 Day 6 was 1.22×; Sprint 23 closures dropped it 1.22 → 1.16).  Pres_Poisson **0.952× of AMD** (Sprint 22 Day 7 was 1.06× — ND now beats AMD on the canonical 2D-PDE benchmark).  bcsstk14 1.13× (was 1.21×).  See `docs/planning/EPIC_2/SPRINT_23/bench_day12.txt` for the full corpus capture.
-- The Pres_Poisson win is the cumulative effect of Sprint 23 Days 7 (leaf-AMD splice), 9-10 (gain-bucket FM lifting per-pass cost from O(n²) to O(|E|)), and 11 (multi-pass FM at the finest level).  PLAN.md's literal ≤ 0.7× target on Pres_Poisson is not met (current 0.952×); routed to Sprint 24 per `docs/planning/EPIC_2/SPRINT_23/bench_summary_day12.md` "(a)".
-- Wall time on Pres_Poisson is ~45 s — comparable to Sprint 22 Day 14's ~44 s.  The bucket-FM wall-time win was offset by the AMD wall-time regression in the leaf-AMD splice (Sprint 24 will close that — see `bench_summary_day12.md` "(b)").
+- Fill quality on regular meshes (default-path, Sprint 24 closures): 10×10 grid 1.16× of AMD (Sprint 22 Day 6 was 1.22×); Pres_Poisson **0.952× of AMD** (Sprint 22 Day 7 was 1.06×; the canonical 2D-PDE benchmark — ND beats AMD); bcsstk14 1.13×; Kuu 2.275× (Kuu is ND-unfriendly under the default; balanced_boundary drops it to 1.415× — a 38pp opt-in win).  Full corpus capture: `docs/planning/EPIC_2/SPRINT_23/bench_day12.txt` (default-path baseline) and `docs/planning/EPIC_2/SPRINT_24/sep_strategy_sweep.txt` (4-setting × 4-fixture matrix).
+- Per-fixture Sprint 24 advisory env-var settings (each documented in the cited decision docs):
+    - **Pres_Poisson** — `SPARSE_ND_COARSEN_FLOOR_RATIO=200` drops ND/AMD 0.952× → 0.942× and reduces ND wall time ~36s → ~26s.
+    - **Kuu / bcsstk14 / nos4** — `SPARSE_ND_SEP_LIFT_STRATEGY=balanced_boundary` drops ND/AMD by 8-38 percentage points; Kuu sees the largest absolute nnz drop (924 385 → 574 861).
+    - **Combined** — the two settings interact destructively on Pres_Poisson (combined lands at 0.950× — worse than ratio=200 alone's 0.942×), so the corpus-wide-best setting is workload-dependent rather than a single recommended pair.
+- The Pres_Poisson win is the cumulative effect of Sprint 23 Days 7 (leaf-AMD splice), 9-10 (gain-bucket FM lifting per-pass cost from O(n²) to O(|E|)), and 11 (multi-pass FM at the finest level).  PLAN.md's literal ≤ 0.7× target on Pres_Poisson and the Sprint 24 stretch ≤ 0.85× target are both unmet (default 0.952×, best opt-in setting 0.942×); the remaining gap routes to Sprint 25 per `nd_sep_strategy_decision.md` "Why option (b) misses the 0.85× target on Pres_Poisson" (smarter coarsening, multi-pass FM at intermediate levels, or spectral bisection at the coarsest level are the candidate avenues).
+- Wall time on Pres_Poisson is ~37 s (Sprint 24 Day 7 default-path measurement of `test_nd_pres_poisson_fill_with_leaf_amd`; comparable to Sprint 22 Day 14's ~44 s).  Sprint 24 Day 2's revert closed the AMD wall-time regression that had been routed to Sprint 24 — see `docs/planning/EPIC_2/SPRINT_24/fix_decision_day1.md` for the (c)-revert rationale.
+
+### Performance regression gates
+
+Sprint 24 Day 1 added a `make wall-check` target driven by
+`scripts/wall_check.sh` and a per-fixture baseline file at
+`docs/planning/EPIC_2/SPRINT_24/wall_check_baseline.txt`.  The gate
+runs two single-fixture benchmarks:
+
+- `bench_amd_qg --only bcsstk14` — captures qg-AMD's `reorder_ms`
+  on the bcsstk14 SuiteSparse fixture (n = 1 806).
+- `bench_reorder --only Pres_Poisson --skip-factor` — captures
+  AMD's `reorder_ms` on Pres_Poisson (n = 14 822).
+
+Each measurement is compared against the corresponding baseline
+in `wall_check_baseline.txt`.  If either exceeds `2 ×` the
+baseline on the same machine class, the target exits non-zero.
+The 2× threshold is calibrated to catch single-day algorithmic
+regressions (Sprint 23 Days 2-5 each introduced ~10-50× drift,
+so 2× is generous-but-not-toothless) without flagging on routine
+host-load noise (typical run-to-run drift is within ±25 %).
+
+The Sprint-24-internal motivation: Sprint 23's qg-AMD wall-time
+regression (62-199× vs Sprint 22 baseline; documented in
+`SPRINT_23/bench_summary_day12.md "(b)"`) accumulated across four
+day-by-day commits with no intermediate signal — the closing-day
+bench was the first time the regression was measured end-to-end.
+The wall-check gate runs in seconds (one fixture each side, no
+factor), so it's cheap to invoke at every day-by-day commit, and
+catches the single-day step-change that the corpus-scale closing-
+bench would otherwise only surface days later.
+
+The baseline file commits its values in a `KEY=VALUE_MS`
+key-value format with `#`-prefixed comment blocks documenting
+which day landed each baseline and what the previous values were.
+Sprint 24 Day 4 bumps the baselines down to the post-fix
+measurements once item 2's wall-time fix lands; future sprints
+that touch the AMD path should expect to update both the
+baselines and the comment block.
 
 ### Integration with Factorization
 

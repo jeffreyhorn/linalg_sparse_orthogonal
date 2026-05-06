@@ -1,0 +1,97 @@
+Sprint 24 Day 1 — qg-AMD profile on bcsstk14
+=============================================
+
+Captured by: `SPARSE_QG_PROFILE=1 build/bench_amd_qg --only bcsstk14 --skip-bitset`
+Source: instrumentation added to `src/sparse_reorder_amd_qg.c` Day 1
+        (clock_gettime(CLOCK_MONOTONIC, ...) deltas accumulated in
+         qg_t profile fields, dumped at end of sparse_reorder_amd_qg)
+Machine: macOS x86_64, Apple Clang -O2 (same as Sprint 23 captures)
+
+Raw output
+----------
+
+```
+# bitset=no
+qg-profile n=1806 total=4324.851ms
+  init=0.505ms  init_super=0.558ms  pick=12.997ms  eliminate=4310.791ms
+    (eliminate breakdown — subsets of eliminate)
+    super=41.937ms  recompute=4114.058ms
+matrix,n,impl,reorder_ms,peak_rss_mb,nnz_L
+bcsstk14,1806,qg,4312.6,3.44,116071
+```
+
+Phase breakdown (cumulative wall-clock, ms)
+-------------------------------------------
+
+| Phase                                          | Time (ms) | % of total |
+|------------------------------------------------|-----------|-----------:|
+| qg_init                                        |     0.505 |       0.0 |
+| Initial all-vertices supervariable scan (Day 4) |     0.558 |       0.0 |
+| Per-pivot qg_pick_min_deg total                |    12.997 |       0.3 |
+| Per-pivot qg_eliminate total                   |  4310.791 |      99.7 |
+|   ↳ qg_merge_supervariables (per-pivot, Day 4) |    41.937 |       1.0 |
+|   ↳ qg_recompute_deg (per-neighbour)           |  4114.058 |      95.1 |
+|   ↳ all other eliminate work                   |   154.796 |       3.6 |
+| **TOTAL**                                      |  **4324.851** | **100.0** |
+
+The "all other eliminate work" line is `prof_eliminate_ns - prof_super_ns
+- prof_recompute_ns` and covers element formation (the per-pivot
+walk that builds e_var_set), neighbour gain updates, supervariable
+list maintenance, and absorption checks.
+
+Headline finding
+----------------
+
+`qg_recompute_deg` accounts for **95.1 %** of total wall time on
+bcsstk14.  Day 4's supervariable detection (the suspect named in
+`SPRINT_23/bench_summary_day12.md "(b)"`) contributes only **1.0 %**
+across the per-pivot calls plus the **0.0 %** initial all-vertices
+scan — total Day-4 cost is ~42.5 ms vs the 4 114 ms degree-recompute
+cost.
+
+This contradicts the Sprint 23 retrospective hypothesis that the
+O(k²) supervariable hash compare was the bottleneck.  The actual
+bottleneck is `qg_compute_deg_exact`'s element-side walk: it expands
+each element in u's element-side to its full variable-set and dedupes
+across elements via `deg_mark[]`.  Sprint 22's pre-Day-3 quotient
+graph had no elements, so this walk didn't exist; Day 3's element
+absorption introduced elements, and Day 4's exact-degree formula
+(retained as default; Day 5's approximate-degree is opt-in) walks
+the new element side.
+
+The cost is fundamentally O(adjacency-of-adjacency) per recompute_deg
+call: for each vertex u touched by a pivot, we walk u's elements
+(elen[u]) and sum their variable-sets.  On bcsstk14 with high
+element-side overlap, this scales poorly — Day 12's bcsstk14 measure
+of 6 951 ms is consistent with the 4 325 ms here (the 60 % gap is
+run-to-run host-load noise).
+
+Fix-candidate evaluation
+------------------------
+
+The original three candidates from `bench_summary_day12.md "(b)"`
+target Day 4's supervariable detection.  The profile shows that's
+not the bottleneck:
+
+- **(a) sorted-list compare in supervariable detection** — would
+  speed up at most 41.937 ms (1 % of total).  Best case bcsstk14
+  drops from 4 325 ms to 4 283 ms — far short of the 1.5× Sprint
+  22 baseline target (~210 ms).  Insufficient.
+- **(b) regularity-heuristic gating** — same ceiling: ~1 % savings.
+  Insufficient.
+- **(c) revert Days 2-5 entirely** — restores Sprint 22's
+  variable-only quotient graph (no elements ⇒ no element-side
+  walk in deg_exact ⇒ no per-pivot O(adj-of-adj) cost).  Sprint
+  22's qg-AMD on bcsstk14 was ~140 ms.  This is the fix the
+  profile points at directly.
+
+A new candidate the profile suggests:
+
+- **(d) optimise `qg_compute_deg_exact`'s element-side walk** —
+  e.g. cache element variable-sets, dedup at element level rather
+  than vertex level, or skip elements whose variable-set is a
+  subset of an already-walked element.  Possible but unproven;
+  Sprint 22's variable-only design avoided this complexity entirely.
+
+Day 1 picks **candidate (c) revert Days 2-5**.  See
+`fix_decision_day1.md` for the full rationale + implementation plan.

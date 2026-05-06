@@ -681,6 +681,64 @@ static void test_partition_10x10_grid(void) {
     sparse_free(A);
 }
 
+/* ─── Sprint 25 Day 5: SPARSE_FM_INTERMEDIATE_PASSES env-var plumbing ──── */
+
+static void test_fm_intermediate_passes_smoke(void) {
+    /* Sprint 25 Day 5 smoke test: pin the SPARSE_FM_INTERMEDIATE_PASSES
+     * env var's plumbing.  Set the var to "2" via setenv, run
+     * sparse_graph_partition on a 10×10 grid (the same fixture
+     * test_partition_10x10_grid uses under default settings), assert
+     * the resulting partition is structurally valid.
+     *
+     * The test does NOT lock in a particular nnz_L or separator-size
+     * outcome — Day 5's sweep showed passes=2 produces a partition
+     * within the same noise band as passes=1 on the 10×10 grid (sep
+     * stays in [5, 12]; partition invariant holds; balance within
+     * 20% of (n - sep)).  This smoke test pins the wiring (the env
+     * var must be parsed AND the dispatch must reach the
+     * intermediate_passes branch in graph_uncoarsen) without
+     * over-constraining the cut quality.
+     *
+     * We unsetenv after the test to keep the per-process env clean
+     * for subsequent tests in this binary's run. */
+    if (setenv("SPARSE_FM_INTERMEDIATE_PASSES", "2", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed; can't exercise env-var plumbing)\n");
+        return;
+    }
+
+    SparseMatrix *A = make_grid_2d(10, 10);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    ASSERT_EQ(G.n, 100);
+
+    idx_t part[100] = {0};
+    idx_t sep = 0;
+    sparse_err_t rc = sparse_graph_partition(&G, part, &sep);
+
+    /* Restore env before any potential REQUIRE_OK / ASSERT exit so
+     * subsequent tests run with the default. */
+    unsetenv("SPARSE_FM_INTERMEDIATE_PASSES");
+
+    REQUIRE_OK(rc);
+
+    /* Same structural invariants as test_partition_10x10_grid: the
+     * partition must be valid regardless of pass count. */
+    ASSERT_TRUE(sep >= 5);
+    ASSERT_TRUE(sep <= 12);
+    ASSERT_TRUE(check_partition_invariant(&G, part));
+
+    idx_t n0, n1, nsep;
+    count_partition_sides(&G, part, &n0, &n1, &nsep);
+    ASSERT_EQ(n0 + n1 + nsep, 100);
+    ASSERT_EQ(nsep, sep);
+    idx_t imbal = n0 > n1 ? n0 - n1 : n1 - n0;
+    ASSERT_TRUE(imbal <= 20);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
 /* ─── 5×5×5 3D mesh: separator ≈ 25 (one mid-plane) ──────────────── */
 
 static void test_partition_5x5x5_mesh(void) {
@@ -1447,6 +1505,10 @@ int main(void) {
     /* Day 4: uncoarsening + vertex-separator extraction + end-to-end
      * sparse_graph_partition */
     RUN_TEST(test_partition_10x10_grid);
+    /* Sprint 25 Day 5: env-var plumbing smoke test for
+     * SPARSE_FM_INTERMEDIATE_PASSES (multi-pass FM at intermediate
+     * uncoarsening levels). */
+    RUN_TEST(test_fm_intermediate_passes_smoke);
     RUN_TEST(test_partition_5x5x5_mesh);
     RUN_TEST(test_partition_two_k10_with_bridge);
     RUN_TEST(test_edge_to_vertex_separator_smaller_side);

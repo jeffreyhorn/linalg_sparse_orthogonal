@@ -1037,6 +1037,15 @@ static void bfs_distances(const sparse_graph_t *G, idx_t start, idx_t *dist, idx
             idx_t u = G->adjncy[k];
             if (dist[u] == -1) {
                 dist[u] = dist[v] + 1;
+                /* `tail < G->n` is invariant: each vertex enters the
+                 * queue at most once (gated by the `dist[u] == -1`
+                 * check above), so over the lifetime of the BFS at
+                 * most G->n entries get appended.  clang-analyzer
+                 * doesn't track the dist[]-vs-queue invariant; this
+                 * suppression matches the existing pattern at
+                 * sparse_graph.c:269/301/622/624/656 + Sprint 22's
+                 * sparse_etree.c. */
+                // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
                 queue[tail++] = u;
             }
         }
@@ -1124,11 +1133,155 @@ static sparse_err_t bisect_gggp(const sparse_graph_t *G, idx_t *part_out) {
     return SPARSE_OK;
 }
 
+/* Sprint 25 Day 6: Laplacian builder for spectral bisection.
+ *
+ * L = D - A where D is the diagonal degree matrix and A is the
+ * adjacency matrix.  Symmetric, positive semi-definite (smallest
+ * eigenvalue λ_0 = 0); for connected graphs the next eigenvalue
+ * λ_1 > 0 and its eigenvector v_1 (the Fiedler vector) is what
+ * Day 7-8's spectral bisection uses for partition selection.
+ *
+ * For unit-weighted graphs (G->ewgt == NULL), edge weight = 1, so
+ * L[i][i] = degree(i) and L[i][j] = -1.  See
+ * docs/planning/EPIC_2/SPRINT_25/spectral_bisection_design.md. */
+sparse_err_t graph_build_laplacian(const sparse_graph_t *G, SparseMatrix **L_out) {
+    if (!G || !L_out)
+        return SPARSE_ERR_NULL;
+    *L_out = NULL;
+
+    SparseMatrix *L = sparse_create(G->n, G->n);
+    if (!L)
+        return SPARSE_ERR_ALLOC;
+
+    if (G->n == 0) {
+        *L_out = L;
+        return SPARSE_OK;
+    }
+
+    /* For each vertex i: emit -weight(i, j) for every j adjacent to
+     * i (off-diagonals); accumulate the row's weight sum for the
+     * diagonal entry.  The graph adjacency is symmetric, so the
+     * resulting matrix is symmetric too. */
+    for (idx_t i = 0; i < G->n; i++) {
+        idx_t row_sum = 0;
+        for (idx_t k = G->xadj[i]; k < G->xadj[i + 1]; k++) {
+            idx_t j = G->adjncy[k];
+            idx_t w = G->ewgt ? G->ewgt[k] : 1;
+            sparse_err_t rc = sparse_insert(L, i, j, -(double)w);
+            if (rc != SPARSE_OK) {
+                sparse_free(L);
+                return rc;
+            }
+            row_sum += w;
+        }
+        /* Diagonal = sum of incident edge weights (= weighted degree).
+         * For an isolated vertex this stays 0, matching the Laplacian
+         * definition for disconnected components. */
+        sparse_err_t rc = sparse_insert(L, i, i, (double)row_sum);
+        if (rc != SPARSE_OK) {
+            sparse_free(L);
+            return rc;
+        }
+    }
+
+    *L_out = L;
+    return SPARSE_OK;
+}
+
+/* Sprint 25 Day 6 stub: spectral bisection at the coarsest level.
+ *
+ * Day 6 lands the dispatch wiring + a stub that exercises the
+ * Laplacian builder (proves end-to-end allocation works) and
+ * falls through to GGGP for the actual partition.  Day 7
+ * implements the Lanczos call → Fiedler-vector → median partition
+ * → balance fallback per the design doc.
+ *
+ * Return contract: this function ALWAYS produces a valid {0, 1}
+ * partition in part_out, never a not-yet-implemented sentinel —
+ * the caller (graph_bisect_coarsest's dispatch) trusts a
+ * SPARSE_OK return means a usable partition is in part_out.  Day
+ * 6's "stub" achieves this by calling bisect_gggp internally; the
+ * spectral algorithm just hasn't lit up yet. */
+static sparse_err_t graph_bisect_coarsest_spectral(const sparse_graph_t *G, idx_t *part_out) {
+    if (!G || !part_out)
+        return SPARSE_ERR_NULL;
+    if (G->n == 0)
+        return SPARSE_OK;
+
+    /* Day 6: validate the Laplacian builder works on the actual
+     * coarsest graph by constructing it (Day 7 will pass it to
+     * sparse_eigs_sym).  Free immediately — the result is unused
+     * on Day 6 but the construction's correctness is part of Day
+     * 6's gate. */
+    SparseMatrix *L = NULL;
+    sparse_err_t rc = graph_build_laplacian(G, &L);
+    if (rc != SPARSE_OK)
+        return rc;
+    sparse_free(L);
+
+    /* Day 6 stub: fall through to GGGP for the partition.  Day 7
+     * replaces this line with the Lanczos call + median partition
+     * + 60/40 balance fallback per
+     * docs/planning/EPIC_2/SPRINT_25/spectral_bisection_design.md. */
+    return bisect_gggp(G, part_out);
+}
+
+/* Sprint 25 Day 6: coarsest-bisection strategy enum + env-var
+ * parser.  Mirrors Sprint 25 Day 1's `coarsening_strategy_t` /
+ * `parse_coarsening_strategy` pattern for SPARSE_ND_COARSENING. */
+typedef enum {
+    COARSEST_BISECT_DEFAULT = 0, /* Sprint 22 routing: brute @ n≤20, GGGP otherwise */
+    COARSEST_BISECT_SPECTRAL = 1,
+    COARSEST_BISECT_GGGP = 2,
+    COARSEST_BISECT_BRUTE = 3,
+} coarsest_bisect_strategy_t;
+
+static coarsest_bisect_strategy_t parse_coarsest_bisect_strategy(void) {
+    const char *env = getenv("SPARSE_ND_COARSEST_BISECTION");
+    if (!env)
+        return COARSEST_BISECT_DEFAULT;
+    if (strcmp(env, "spectral") == 0)
+        return COARSEST_BISECT_SPECTRAL;
+    if (strcmp(env, "gggp") == 0)
+        return COARSEST_BISECT_GGGP;
+    if (strcmp(env, "brute") == 0)
+        return COARSEST_BISECT_BRUTE;
+    /* Silent fallback to default routing on unrecognized input,
+     * matching Sprint 24 Day 5 / Sprint 25 Day 1 patterns. */
+    return COARSEST_BISECT_DEFAULT;
+}
+
 sparse_err_t graph_bisect_coarsest(const sparse_graph_t *G, idx_t *part_out) {
     if (!G || !part_out)
         return SPARSE_ERR_NULL;
     if (G->n == 0)
         return SPARSE_OK;
+
+    /* Sprint 25 Day 6: SPARSE_ND_COARSEST_BISECTION env-var gate.
+     *   - default: Sprint 22 routing — brute @ n≤20, GGGP otherwise.
+     *   - spectral: Day 7-8's Fiedler-vector bisection (Day 6 stub
+     *     falls through to GGGP after exercising the Laplacian
+     *     builder; Day 7 lights up the Lanczos call).
+     *   - gggp: force GGGP regardless of n.
+     *   - brute: force brute @ n≤20; n>20 falls back to GGGP
+     *     (brute on n>20 is intractable: 2^(n-1) patterns).
+     * See docs/planning/EPIC_2/SPRINT_25/spectral_bisection_design.md. */
+    coarsest_bisect_strategy_t strategy = parse_coarsest_bisect_strategy();
+
+    switch (strategy) {
+    case COARSEST_BISECT_SPECTRAL:
+        return graph_bisect_coarsest_spectral(G, part_out);
+    case COARSEST_BISECT_GGGP:
+        return bisect_gggp(G, part_out);
+    case COARSEST_BISECT_BRUTE:
+        if (G->n <= 20)
+            return bisect_brute_force(G, part_out);
+        return bisect_gggp(G, part_out);
+    case COARSEST_BISECT_DEFAULT:
+    default:
+        break;
+    }
+
     /* n ≤ 20: brute-force enumeration is tractable (≤ 524 288 patterns).
      * n > 20: GGGP runs in O(n + |E|) regardless of size — it's the
      * fallback bisection when the multilevel hierarchy can't drive

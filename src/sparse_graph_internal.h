@@ -203,6 +203,38 @@ sparse_err_t graph_coarsen_hcc(const sparse_graph_t *fine, uint32_t seed,
                                sparse_graph_t *coarse_out, idx_t *cmap_out);
 
 /**
+ * @brief Build the graph Laplacian L = D - A as a SparseMatrix.
+ *
+ * Sprint 25 Day 6 helper for spectral bisection (Days 6-8).  The
+ * Laplacian is a symmetric n×n matrix with:
+ *   - L[i][i] = sum of weights of edges incident to vertex i (the
+ *     vertex's weighted degree)
+ *   - L[i][j] = -weight(i, j) for j adjacent to i
+ *   - L[i][j] = 0 otherwise
+ *
+ * For unit-weighted graphs (`G->ewgt == NULL`), edge weight = 1, so
+ * `L[i][i] = degree(i)` and `L[i][j] = -1`.
+ *
+ * The Laplacian is positive semi-definite (smallest eigenvalue
+ * λ_0 = 0 with the constant vector as eigenvector).  For connected
+ * graphs, λ_1 > 0 and its eigenvector v_1 is the **Fiedler vector**
+ * — used by `graph_bisect_coarsest_spectral` (Days 7-8) for
+ * spectral graph bisection per Karypis-Kumar 1998 §3.
+ *
+ * The returned SparseMatrix is caller-owned (free with
+ * `sparse_free`).  See
+ * docs/planning/EPIC_2/SPRINT_25/spectral_bisection_design.md.
+ *
+ * @param G            Input graph (n×n symmetric).
+ * @param L_out        Output: caller receives ownership of the
+ *                     freshly-allocated Laplacian SparseMatrix.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if G or L_out is NULL.
+ * @return SPARSE_ERR_ALLOC on allocation failure.
+ */
+sparse_err_t graph_build_laplacian(const sparse_graph_t *G, SparseMatrix **L_out);
+
+/**
  * @brief Multilevel coarsening hierarchy.
  *
  * Owns the chain of coarsened graphs derived from a caller-supplied

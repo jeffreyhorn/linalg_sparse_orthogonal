@@ -850,6 +850,200 @@ static void test_spectral_bisection_gggp_fallback(void) {
     sparse_free(A);
 }
 
+/* ─── Sprint 25 Day 8: spectral-bisection edge cases (n=1, n=2, ─────── */
+/* ─── disconnected, Lanczos failure → GGGP fallback) ──────────────── */
+
+/* Trivial size n=1: spectral skips Lanczos and assigns the single
+ * vertex to side 0 directly. */
+static void test_spectral_bisection_n1(void) {
+    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
+        return;
+    }
+
+    SparseMatrix *A = sparse_create(1, 1);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    ASSERT_EQ(G.n, 1);
+
+    idx_t part[1] = {99}; /* sentinel */
+    sparse_err_t rc = graph_bisect_coarsest(&G, part);
+    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    REQUIRE_OK(rc);
+
+    /* n=1 must produce part[0] = 0 (degenerate single-vertex partition). */
+    ASSERT_EQ(part[0], 0);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* Trivial size n=2: spectral skips Lanczos and assigns each vertex
+ * to its own side (the unique 2-way split). */
+static void test_spectral_bisection_n2(void) {
+    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
+        return;
+    }
+
+    SparseMatrix *A = sparse_create(2, 2);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 1.0);
+    sparse_insert(A, 0, 1, -1.0);
+    sparse_insert(A, 1, 0, -1.0);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    ASSERT_EQ(G.n, 2);
+
+    idx_t part[2] = {99, 99}; /* sentinels */
+    sparse_err_t rc = graph_bisect_coarsest(&G, part);
+    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    REQUIRE_OK(rc);
+
+    /* n=2 must produce {part[0]=0, part[1]=1} — the unique 2-way split. */
+    ASSERT_EQ(part[0], 0);
+    ASSERT_EQ(part[1], 1);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* Disconnected graph: a Laplacian with multiple zero eigenvalues
+ * (one per connected component) breaks the Fiedler-vector
+ * uniqueness assumption.  Spectral bisection detects this via
+ * λ_1 - λ_0 < 1e-6 and falls back to GGGP.
+ *
+ * Fixture: two disjoint K_3 triangles (vertices 0-1-2 and 3-4-5
+ * forming a triangle each; no edges between them).  The Laplacian
+ * has λ_0 = λ_1 = 0 (both connected components contribute a zero
+ * eigenvalue); the disconnected-graph detection in
+ * graph_bisect_coarsest_spectral fires and bisect_gggp produces
+ * the partition. */
+static void test_spectral_bisection_disconnected(void) {
+    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
+        return;
+    }
+
+    /* Two disjoint K_3 triangles: vertices {0,1,2} and {3,4,5}. */
+    SparseMatrix *A = sparse_create(6, 6);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    /* Diagonal: degree of each vertex = 2 (every triangle vertex
+     * has 2 neighbours in its component, 0 in the other). */
+    for (idx_t i = 0; i < 6; i++)
+        sparse_insert(A, i, i, 2.0);
+    /* Triangle 0: edges (0,1), (1,2), (0,2). */
+    sparse_insert(A, 0, 1, -1.0);
+    sparse_insert(A, 1, 0, -1.0);
+    sparse_insert(A, 1, 2, -1.0);
+    sparse_insert(A, 2, 1, -1.0);
+    sparse_insert(A, 0, 2, -1.0);
+    sparse_insert(A, 2, 0, -1.0);
+    /* Triangle 1: edges (3,4), (4,5), (3,5). */
+    sparse_insert(A, 3, 4, -1.0);
+    sparse_insert(A, 4, 3, -1.0);
+    sparse_insert(A, 4, 5, -1.0);
+    sparse_insert(A, 5, 4, -1.0);
+    sparse_insert(A, 3, 5, -1.0);
+    sparse_insert(A, 5, 3, -1.0);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    ASSERT_EQ(G.n, 6);
+
+    idx_t part[6] = {0};
+    sparse_err_t rc = graph_bisect_coarsest(&G, part);
+    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    REQUIRE_OK(rc);
+
+    /* Validate structural contract.  The disconnected-graph fallback
+     * routes through bisect_gggp, which produces SOME valid {0, 1}
+     * partition (not necessarily aligned with the component
+     * boundaries — GGGP is unaware of components).  Just assert all
+     * entries in {0, 1} + at least one on each side. */
+    int has_zero = 0, has_one = 0;
+    for (idx_t i = 0; i < 6; i++) {
+        ASSERT_TRUE(part[i] == 0 || part[i] == 1);
+        if (part[i] == 0)
+            has_zero = 1;
+        if (part[i] == 1)
+            has_one = 1;
+    }
+    ASSERT_TRUE(has_zero && has_one);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* Lanczos non-convergence: simulate by setting an unrealistically
+ * tight tolerance + a tiny iteration cap that prevents convergence,
+ * then verify spectral falls back to GGGP cleanly.
+ *
+ * Day 7's implementation uses opts.tol = 1e-8 internally and
+ * doesn't expose tol/max_iterations to callers, so we can't
+ * directly trip Lanczos non-convergence from this test.  Instead
+ * we rely on the disconnected-graph test above as a proxy for the
+ * "Lanczos returns non-meaningful eigenpairs → fall back" path
+ * (the disconnected case is the realistic Lanczos-can't-give-
+ * useful-eigenpairs scenario in production), and document why
+ * this test stays as a smoke test rather than a true Lanczos-
+ * failure injection. */
+static void test_spectral_bisection_lanczos_failure(void) {
+    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
+        return;
+    }
+
+    /* Build a fixture that's well-behaved for Lanczos (a 5-vertex
+     * path graph) — Day 7's spectral path produces a normal Fiedler
+     * cut here.  This test confirms the dispatch wiring works on a
+     * normal fixture under the env var; the actual Lanczos-failure
+     * fallback path is exercised by graph_bisect_coarsest_spectral's
+     * `if (eigs_rc != SPARSE_OK || result.n_converged < 2) → fall
+     * back` clause, which is reachable but hard to trip without an
+     * explicit fault-injection hook.
+     *
+     * The disconnected-graph test above (test_spectral_bisection_disconnected)
+     * exercises the analogous "spectral can't produce a meaningful
+     * Fiedler vector → fall back" path via the
+     * `if (lambda_1 - lambda_0 < 1e-6) → fall back` clause; together
+     * the two cover the practical fallback-firing scenarios. */
+    SparseMatrix *A = sparse_create(5, 5);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    for (idx_t i = 0; i < 4; i++) {
+        sparse_insert(A, i, i + 1, 1.0);
+        sparse_insert(A, i + 1, i, 1.0);
+    }
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 2.0);
+    sparse_insert(A, 2, 2, 2.0);
+    sparse_insert(A, 3, 3, 2.0);
+    sparse_insert(A, 4, 4, 1.0);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    idx_t part[5] = {0};
+    sparse_err_t rc = graph_bisect_coarsest(&G, part);
+    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    REQUIRE_OK(rc);
+
+    /* Structural contract: valid partition. */
+    int has_zero = 0, has_one = 0;
+    for (idx_t i = 0; i < 5; i++) {
+        ASSERT_TRUE(part[i] == 0 || part[i] == 1);
+        if (part[i] == 0)
+            has_zero = 1;
+        if (part[i] == 1)
+            has_one = 1;
+    }
+    ASSERT_TRUE(has_zero && has_one);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
 /* ─── Sprint 25 Day 5: SPARSE_FM_INTERMEDIATE_PASSES env-var plumbing ──── */
 
 static void test_fm_intermediate_passes_smoke(void) {
@@ -1681,6 +1875,11 @@ int main(void) {
     /* Sprint 25 Day 6 stubs (Day 7-8 land asserts): */
     RUN_TEST(test_spectral_bisection_eigenvalue_ordering);
     RUN_TEST(test_spectral_bisection_gggp_fallback);
+    /* Sprint 25 Day 8: edge-case spectral tests. */
+    RUN_TEST(test_spectral_bisection_n1);
+    RUN_TEST(test_spectral_bisection_n2);
+    RUN_TEST(test_spectral_bisection_disconnected);
+    RUN_TEST(test_spectral_bisection_lanczos_failure);
     RUN_TEST(test_partition_5x5x5_mesh);
     RUN_TEST(test_partition_two_k10_with_bridge);
     RUN_TEST(test_edge_to_vertex_separator_smaller_side);

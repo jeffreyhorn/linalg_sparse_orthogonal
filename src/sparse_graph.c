@@ -31,7 +31,9 @@
  *      unmatched vertex, pick the unmatched neighbour with the
  *      heaviest connecting edge; collapse the pair into a single
  *      coarse vertex with summed weight.  Repeat until the coarsest
- *      graph has n_coarsest ≤ MAX(20, n_orig / 100).  The hierarchy
+ *      graph has n_coarsest ≤ MAX(20, n_orig / divisor) where
+ *      divisor defaults to 100 (overridable via the Sprint 24 Day 5
+ *      env var `SPARSE_ND_COARSEN_FLOOR_RATIO`).  The hierarchy
  *      is stored as an array of `sparse_graph_t *` plus a per-level
  *      `cmap[]` array mapping fine vertices to their coarse
  *      preimages.  Heavy-edge matching is preferred over random
@@ -58,7 +60,9 @@
  *      cost.  At the final (finest) level, convert the resulting
  *      edge separator to a vertex separator on the smaller side of
  *      the cut (METIS convention — minimises the recursive ND
- *      tree's height inflation).
+ *      tree's height inflation; Sprint 24 Day 6 adds a
+ *      `balanced_boundary` strategy via `SPARSE_ND_SEP_LIFT_STRATEGY`
+ *      that lifts the smaller-boundary side instead).
  *
  * **Vertex-separator output convention.**  `sparse_graph_partition`
  * writes `part[i] ∈ {0, 1, 2}` (0 = left, 1 = right, 2 = separator).
@@ -671,7 +675,28 @@ sparse_err_t sparse_graph_hierarchy_build(const sparse_graph_t *root, uint32_t s
         return SPARSE_OK; /* nothing to coarsen */
 
     idx_t n_root = root->n;
-    idx_t base_threshold = n_root / 100;
+    /* Coarsen until n_coarse <= MAX(20, n_root / divisor).  Default
+     * divisor is 100 (Sprint 22 calibration: empirically the sweet
+     * spot for the SuiteSparse corpus + Pres_Poisson).  Sprint 24
+     * Day 5 added the SPARSE_ND_COARSEN_FLOOR_RATIO env-var override
+     * for the item-5 ND fill-quality follow-up — closing the
+     * Pres_Poisson ND/AMD ratio toward 0.85 needs deeper coarsening
+     * (smaller floor), which lets the brute-force / GGGP bisection at
+     * the coarsest level produce a tighter cut that propagates back
+     * through FM uncoarsening to the finest level.  Accepted range:
+     * [1, 100000]; out-of-range or non-numeric input falls back to
+     * the default 100. */
+    idx_t divisor = 100;
+    {
+        const char *env = getenv("SPARSE_ND_COARSEN_FLOOR_RATIO");
+        if (env) {
+            char *endp = NULL;
+            long v = strtol(env, &endp, 10);
+            if (env != endp && *endp == '\0' && v >= 1 && v <= 100000)
+                divisor = (idx_t)v;
+        }
+    }
+    idx_t base_threshold = n_root / divisor;
     if (base_threshold < 20)
         base_threshold = 20;
     /* log2(n) + 5 ceiling; cap at a defensive 64 to avoid pathology
@@ -1503,40 +1528,94 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
     if (G->n == 0)
         return SPARSE_OK;
 
-    /* Side weights drive the smaller-side decision (METIS convention). */
-    idx_t w0 = 0;
-    idx_t w1 = 0;
+    /* Side weights — Sprint 22 used these to pick the smaller-weight
+     * side as the lift target (METIS convention).  Sprint 24 Day 6
+     * adds a `balanced_boundary` strategy that picks the side with the
+     * smaller boundary count regardless of weight.  Both strategies
+     * compute the per-side boundary count up front so the strategy
+     * choice is a cheap branch on the same intermediate. */
+    idx_t w[2] = {0, 0};
     for (idx_t i = 0; i < G->n; i++) {
-        idx_t w = G->vwgt ? G->vwgt[i] : 1;
+        idx_t wi = G->vwgt ? G->vwgt[i] : 1;
         if (part_io[i] == 0)
-            w0 += w;
+            w[0] += wi;
         else
-            w1 += w;
+            w[1] += wi;
     }
-    idx_t smaller_side = (w1 < w0) ? 1 : 0;
-    idx_t other_side = 1 - smaller_side;
 
-    /* Two-pass: first mark every boundary vertex on the smaller side,
-     * then move the marks into part_io.  Splitting the marking from
-     * the move keeps the boundary check simple — once we start
-     * moving, "neighbour on other side" gets ambiguous. */
+    /* Two-pass: first mark every boundary vertex on each side and
+     * accumulate per-side boundary counts + boundary weight, then
+     * pick the lift side under the configured strategy and move the
+     * boundary marks for that side into part_io.  Splitting the
+     * marking from the move keeps the boundary check simple — once we
+     * start moving, "neighbour on other side" gets ambiguous. */
     int *is_boundary = calloc((size_t)G->n, sizeof(int));
     if (!is_boundary)
         return SPARSE_ERR_ALLOC;
 
+    idx_t boundary_count[2] = {0, 0};
+    idx_t boundary_weight[2] = {0, 0};
     for (idx_t i = 0; i < G->n; i++) {
-        if (part_io[i] != smaller_side)
+        idx_t side = part_io[i];
+        if (side != 0 && side != 1)
             continue;
+        idx_t other = 1 - side;
         for (idx_t k = G->xadj[i]; k < G->xadj[i + 1]; k++) {
             idx_t j = G->adjncy[k];
-            if (part_io[j] == other_side) {
+            if (part_io[j] == other) {
                 is_boundary[i] = 1;
+                boundary_count[side]++;
+                boundary_weight[side] += G->vwgt ? G->vwgt[i] : 1;
                 break;
             }
         }
     }
+
+    /* Strategy selection.  Default `smaller_weight` reproduces the
+     * Sprint 22 Day 4 behaviour: lift the side with smaller vertex
+     * weight.  `balanced_boundary` (Sprint 24 Day 6) lifts the side
+     * with the smaller boundary count — minimises the separator size
+     * directly instead of via the weight-imbalance proxy.  If the
+     * resulting post-lift weight ratio would be worse than 70/30, we
+     * fall back to `smaller_weight` to preserve the recursion-depth
+     * argument the METIS convention rests on. */
+    idx_t smaller_weight_side = (w[1] < w[0]) ? 1 : 0;
+    idx_t lift_side = smaller_weight_side;
+    {
+        const char *env = getenv("SPARSE_ND_SEP_LIFT_STRATEGY");
+        if (env && strcmp(env, "balanced_boundary") == 0) {
+            /* Pick the smaller-boundary side; ties go to side 0 to
+             * match the smaller_weight tie-break convention. */
+            idx_t bb_side = (boundary_count[1] < boundary_count[0]) ? 1 : 0;
+            /* Project the post-lift weight balance: the lift side
+             * loses `boundary_weight[bb_side]` in vertex weight (those
+             * vertices become separator), the other side keeps its
+             * weight.  Reject the choice if either side exceeds 70 %
+             * of the post-lift total. */
+            idx_t lift_w = w[bb_side] - boundary_weight[bb_side];
+            idx_t other_w = w[1 - bb_side];
+            idx_t total_w = lift_w + other_w;
+            int balanced = 1;
+            if (total_w > 0) {
+                /* `10 * max > 7 * total` ⇔ max/total > 0.7 — avoids
+                 * floating-point.  Compute in int64_t to avoid
+                 * overflow when graphs grow beyond INT32_MAX/10 ≈
+                 * 214M-vertex weights (idx_t = int32_t).  Boundary-
+                 * weight values are vertex counts on a graph level
+                 * and unlikely to approach that ceiling in practice,
+                 * but the wider arithmetic costs nothing here and
+                 * removes the overflow concern entirely. */
+                idx_t max_w = (lift_w > other_w) ? lift_w : other_w;
+                if ((int64_t)10 * (int64_t)max_w > (int64_t)7 * (int64_t)total_w)
+                    balanced = 0;
+            }
+            if (balanced)
+                lift_side = bb_side;
+        }
+    }
+
     for (idx_t i = 0; i < G->n; i++) {
-        if (is_boundary[i])
+        if (is_boundary[i] && part_io[i] == lift_side)
             part_io[i] = 2;
     }
 

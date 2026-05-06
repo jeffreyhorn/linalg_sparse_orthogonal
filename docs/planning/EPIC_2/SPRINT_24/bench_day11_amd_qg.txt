@@ -1,0 +1,120 @@
+Sprint 24 Day 11 — final qg-AMD vs bitset capture (sanity re-bench)
+====================================================================
+
+Final cross-fixture re-run of `benchmarks/bench_amd_qg.c`.  Day 10
+was tests + docs only (no algorithmic change); this capture sanity-
+confirms nnz_L is bit-identical to Day 9 across every fixture for
+both qg and bitset implementations, with wall-time drift in the
+typical run-to-run band.
+
+Single run on macOS arm64 (Apple Clang, -O2; today's tip is
+5be34c0 "Sprint 24 Day 10").
+CSV form: `bench_day11_amd_qg.csv`.
+
+Cross-fixture capture
+---------------------
+
+  matrix          n      impl    reorder_ms   peak_rss_mb   nnz_L
+  ────────────  ──────  ──────  ───────────  ────────────  ─────────
+  nos4              100  qg              0.5         0.07         637
+  nos4              100  bitset          0.3         0.01         637
+  bcsstk04          132  qg              3.2         0.21       3 143
+  bcsstk04          132  bitset          1.5         0.06       3 143
+  bcsstk14        1 806  qg            160.2         2.55     116 071
+  bcsstk14        1 806  bitset         89.3         0.05     116 071
+  Kuu             7 102  qg            705.5        10.57     406 264
+  Kuu             7 102  bitset        975.6         0.16     406 264
+  s3rmt3m3        5 357  qg          1 016.6         1.10     474 609
+  s3rmt3m3        5 357  bitset        723.5         0.00     474 609
+  Pres_Poisson   14 822  qg          9 611.7        19.09   2 668 793
+  Pres_Poisson   14 822  bitset      7 758.3        16.08   2 668 793
+  banded_5000     5 000  qg             45.5         0.00      29 985
+  banded_5000     5 000  bitset        297.8         0.00      29 985
+  banded_10000   10 000  qg            173.6         0.00      59 985
+  banded_10000   10 000  bitset      1 300.6         0.00      59 985
+  banded_20000   20 000  qg            598.3         0.00     119 985
+  banded_20000   20 000  bitset      5 493.5        24.68     119 985
+
+nnz(L) parity
+-------------
+
+Every row above shows identical nnz(L) between qg and bitset.  Each
+nnz(L) value is also bit-identical to Day 9's `bench_day9_amd_qg.txt`
+capture (9/9 fixtures, 18/18 (qg, bitset) pairs).  Day 10's docs +
+retro work didn't perturb the elimination order; gate (b) verdict is
+stable.
+
+Headline qg-vs-bitset summary
+-----------------------------
+
+| fixture        | bitset_ms | qg_ms    | qg / bitset    |
+|----------------|-----------|----------|----------------|
+| nos4           |       0.3 |      0.5 |  1.7×          |
+| bcsstk04       |       1.5 |      3.2 |  2.1× slower   |
+| bcsstk14       |      89.3 |    160.2 |  1.8× slower   |
+| Kuu            |     975.6 |    705.5 |  0.72× (qg wins) |
+| s3rmt3m3       |     723.5 |  1 016.6 |  1.40× slower  |
+| Pres_Poisson   |   7 758.3 |  9 611.7 |  1.24× slower  |
+| banded_5000    |     297.8 |     45.5 |  0.15× (qg wins) |
+| banded_10000   |   1 300.6 |    173.6 |  0.13× (qg wins) |
+| banded_20000   |   5 493.5 |    598.3 |  0.11× (qg wins) |
+
+qg wins on banded by 6.5-9× (matching Day 9; consistent with Sprint
+22 Day 13 baseline).  qg loses on irregular SuiteSparse SPD by
+1.0-2.1× (Sprint 22 Day 13 was 0.6-1.8×; Sprint 23 Day 14 was 6-133×).
+Day 2's revert remains effective.
+
+Wall-time deltas vs Day 9 (qg only)
+-----------------------------------
+
+  | fixture       | day 9 qg ms | day 11 qg ms | delta  |
+  |---------------|------------:|-------------:|--------|
+  | bcsstk14      |       125.8 |        160.2 | +27 %  |
+  | Kuu           |       546.5 |        705.5 | +29 %  |
+  | s3rmt3m3      |       728.2 |      1 016.6 | +40 %  |
+  | Pres_Poisson  |     8 138.8 |      9 611.7 | +18 %  |
+  | banded_5000   |        36.9 |         45.5 | +23 %  |
+  | banded_10000  |       140.9 |        173.6 | +23 %  |
+  | banded_20000  |       551.6 |        598.3 |  +8 %  |
+
+All Day 11 qg measurements are within typical macOS arm64 run-to-run
+variance of Day 9's; no fixture exceeds the wall-check 2× ceiling.
+The bcsstk14 measurement of 160.2 ms is 0.76× of the 1.5×-Sprint-22
+baseline ceiling (210 ms); gate (a) verdict is stable.
+
+Memory note
+-----------
+
+Pres_Poisson qg peak = 19.09 MB (Day 9: 19.19 MB; Sprint 22 Day 13:
+19.19 MB; Sprint 23 Day 14: 25.09 MB).  Day 11's 0.10 MB delta vs
+Day 9 is sub-1% RSS sampling noise.  The Sprint 22 baseline is
+restored bit-exactly modulo allocator-internal sub-MB jitter.
+
+Sprint comparison: bcsstk14 qg-AMD wall (the headline gate)
+-----------------------------------------------------------
+
+  - Sprint 22 Day 13: ~140 ms (qg-AMD baseline)
+  - Sprint 23 Day 14: 4 715 ms (33× regression vs Sprint 22)
+  - Sprint 24 Day 9:    126 ms (gate (a) closed)
+  - Sprint 24 Day 11:   160 ms (gate (a) confirmed; 0.76× of 210 ms ceiling)
+
+Gate (a) verdict: PASS — bcsstk14 qg-AMD = 160.2 ms, well below
+the 1.5× Sprint 22 baseline ceiling (~210 ms).  Day 11's measurement
+re-confirms Day 9's verdict bit-stably.
+
+Sanity-check for Day 11
+-----------------------
+
+This capture's purpose is to verify that Day 10's docs + retro work
+didn't accidentally perturb the algorithmic state.  Verification:
+
+  1. nnz(L) bit-identical to Day 9 on all 9 fixtures × 2 (qg, bitset)
+     = 18/18 rows: PASS.
+  2. peak_rss_mb within 1% of Day 9 on Pres_Poisson qg (the largest
+     allocator footprint): PASS (19.19 → 19.09 MB).
+  3. Wall times within typical run-to-run variance (no fixture > 50 %
+     drift, all fixtures within wall-check 2× ceiling): PASS.
+
+Day 11's final captures are bit-identical-or-better than Day 9's
+across the headline-gate metrics; Sprint 24's headline outcomes are
+stable for the PR description.

@@ -421,19 +421,21 @@ Top items routed from Sprint 24 to Sprint 25:
      PRs #28 / #29 / #30 / #31 all FAILED the same check.  Per-file
      coverage clusters in the 75-87 % band — the threshold was set
      aspirationally and the codebase grew without keeping pace.
-     Sprint 25 should either tighten test coverage to lift aggregate
+     Sprint 26 should either tighten test coverage to lift aggregate
      ≥ 95 % or lower `COV_THRESHOLD` to a defensible level (~85 %).
    - `build-and-test` gate hangs on `make bench`'s numeric-factor
      pass on Pres_Poisson; PR #31's same step ran 6h0m0s before
      hitting the GitHub Actions runner ceiling, and PR #32 is on
-     track to repeat.  Sprint 25 should either replace `make bench`
+     track to repeat.  Sprint 26 should either replace `make bench`
      with a `bench-fast` / `bench-ci` target that uses
      `--skip-factor`, or move benchmarks to a separate scheduled
      workflow that doesn't gate PR merges.
 
-   PROJECT_PLAN.md Sprint 25 item 8 was extended (Days 12-13) to
-   cover both calibrations; estimate moved from 20 → 28 hrs and
-   sprint total 160 → 168 hrs.
+   PROJECT_PLAN.md Sprint 26 item 8 (renumbered from Sprint 25
+   item 8 when the new ND-fill-quality Sprint 25 was inserted ahead
+   of the SVD/CI/wrap-up sprint) absorbs both calibrations; the
+   Days 12-13 estimate growth (20 → 28 hrs) carried into the
+   renumbered Sprint 26 item 8.
 
 ## Acknowledgements
 
@@ -546,4 +548,4 @@ ms) but every measurement stays well under the wall-check 2× ceiling.
 | `make format && lint && test` clean | ✓ | All 51 binaries pass; 0 failures across the suite |
 | `make sanitize` clean | ✓ | Day 11 full UBSan run: 51/51 test binaries pass (0 sanitizer runtime errors).  Sprint 23's pre-existing make-build infrastructure issue is *resolved* — the Sprint 22 → Sprint 24 cleanup sequence (Sprint 22's wrapper-vs-API split + Sprint 23's revert + Sprint 24 Day 2's revert) restored the full-suite sanitizer-clean property. |
 | `make tsan` clean | ✓ | Day 11 full TSan run with Homebrew LLVM clang (Apple Clang's bundled TSan deadlocks per Makefile `tsan` target's note): 51/51 test binaries pass, 0 ThreadSanitizer warnings, 0 data races detected. |
-| GitHub Actions CI on PR #32 | partial (pre-existing) | Day 12 PR #32 status: lint PASS, cmake-build-and-test PASS, tsan PASS; coverage FAIL at 80.8 % vs 95 % `COV_THRESHOLD` (pre-existing — PRs #28 / #29 / #30 / #31 all FAILED the coverage check at the same threshold; not introduced by Sprint 24).  build-and-test pending / on track to time out at the GitHub Actions 6-hour runner ceiling (Day 13 confirmed via `gh run view` on PR #31's job 74315325437: build-and-test ran for 6h0m0s before hitting `The job has exceeded the maximum execution time of 6h0m0s`; the `make bench` step is the cumulative culprit since `bench_reorder.c` runs the numeric-factor pass on Pres_Poisson without `--skip-factor`).  Both the coverage gate calibration and the build-and-test bench-step fix route to Sprint 25 as part of its "CI Hardening" scope (PROJECT_PLAN.md Sprint 25 item 8 absorbs both). |
+| GitHub Actions CI on PR #32 | partial (pre-existing) | Day 12 PR #32 status: lint PASS, cmake-build-and-test PASS, tsan PASS; coverage FAIL at 80.8 % vs 95 % `COV_THRESHOLD` (pre-existing — PRs #28 / #29 / #30 / #31 all FAILED the coverage check at the same threshold; not introduced by Sprint 24).  build-and-test pending / on track to time out at the GitHub Actions 6-hour runner ceiling (Day 13 confirmed via `gh run view` on PR #31's job 74315325437: build-and-test ran for 6h0m0s before hitting `The job has exceeded the maximum execution time of 6h0m0s`; the `make bench` step is the cumulative culprit since `bench_reorder.c` runs the numeric-factor pass on Pres_Poisson without `--skip-factor`).  Both the coverage gate calibration and the build-and-test bench-step fix route to Sprint 26 as part of its "CI Hardening" scope — PROJECT_PLAN.md Sprint 26 item 8 absorbs both (renumbered from Sprint 25 item 8 once the new ND-fill-quality Sprint 25 was inserted ahead of the SVD/CI/wrap-up sprint to absorb the four ND items deferred from Sprint 24's "Items deferred"). |

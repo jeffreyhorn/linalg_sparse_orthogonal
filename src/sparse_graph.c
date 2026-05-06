@@ -410,11 +410,21 @@ static coarsening_strategy_t parse_coarsening_strategy(void) {
     const char *env = getenv("SPARSE_ND_COARSENING");
     if (env && strcmp(env, "hcc") == 0)
         return COARSENING_HCC;
-    /* Default + unrecognized + "heavy_edge" all fall through to the
-     * Sprint 22 heavy-edge matching.  Validation pattern mirrors
-     * Sprint 24 Day 5's SPARSE_ND_COARSEN_FLOOR_RATIO parser:
-     * silent fallback to the safe default rather than erroring out
-     * on unrecognized input. */
+    /* Sprint 25 Day 10: production default stays COARSENING_HEAVY_EDGE
+     * per the corpus-safety analysis in
+     * docs/planning/EPIC_2/SPRINT_25/coarsening_decision.md.  HCC
+     * combined with Sprint 24's ratio=200 (Day 9 setting 13) closes
+     * Pres_Poisson ND/AMD by 3pp but Day 10 verification surfaced a
+     * bcsstk14 regression: under HCC the multilevel partition
+     * produces a degenerate empty separator (sep=0) on bcsstk14
+     * regardless of the ratio setting, which test_partition_bcsstk14_smoke
+     * pins as a correctness contract.  HCC ships as advisory
+     * (`SPARSE_ND_COARSENING=hcc`) and the recommended advisory
+     * combination is HCC + ratio=200 for Pres_Poisson-shaped
+     * workloads that don't share bcsstk14's sensitivity.
+     *
+     * Default + unrecognized + "heavy_edge" all fall through to
+     * Sprint 22's heavy-edge matching baseline. */
     return COARSENING_HEAVY_EDGE;
 }
 
@@ -781,7 +791,13 @@ sparse_err_t sparse_graph_hierarchy_build(const sparse_graph_t *root, uint32_t s
      * the coarsest level produce a tighter cut that propagates back
      * through FM uncoarsening to the finest level.  Accepted range:
      * [1, 100000]; out-of-range or non-numeric input falls back to
-     * the default 100. */
+     * the default 100.  Sprint 25 Day 9's combined-effect sweep
+     * documented HCC + ratio=200 (setting 13) as the advisory
+     * combination for Pres_Poisson workloads (3pp tightening); the
+     * Day 10 default-flip rule didn't authorize re-flipping this
+     * Sprint 24 default in isolation, and the HCC flip was blocked
+     * by the bcsstk14 sep=0 regression — both env vars stay
+     * off-by-default. */
     idx_t divisor = 100;
     {
         const char *env = getenv("SPARSE_ND_COARSEN_FLOOR_RATIO");

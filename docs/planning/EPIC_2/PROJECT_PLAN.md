@@ -567,7 +567,7 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 | 5 | Windows CI with CMake | Add GitHub Actions job for Windows/MSVC using CMake. Fix any remaining portability issues (conditional test_fuzz exclusion is already done). | 16 hrs |
 | 6 | macOS CI job | Add GitHub Actions job for macOS. Test both Apple Clang and Homebrew GCC. Verify coverage and packaging scripts work. | 12 hrs |
 | 7 | API accessor error reporting | Add `sparse_get_err()` variant that returns error codes alongside values, or document the silent-zero-on-error contract explicitly in all accessor headers. | 12 hrs |
-| 8 | Final integration testing | Full regression under all sanitizers, all platforms. Cross-feature tests for new Sprint 11–22 features (including cancel-callback behavior from item 4 and the eigenpair refinement opt-in from item 3). Benchmark suite on representative matrix collection. | 20 hrs |
+| 8 | Final integration testing + coverage-gate calibration | Full regression under all sanitizers, all platforms. Cross-feature tests for new Sprint 11–22 features (including cancel-callback behavior from item 4 and the eigenpair refinement opt-in from item 3). Benchmark suite on representative matrix collection.  Also calibrate the `make coverage` gate: the 95 % `COV_THRESHOLD` has been failing on every PR since #28 (Sprint 20) at ~75-87 % per-file / ~80 % aggregate; Sprint 25 should either tighten the test suite to push aggregate ≥ 95 % or lower `COV_THRESHOLD` to a defensible target (~85 %) with documentation of which file groups carry which coverage levels.  Sprint 24 PR #32's coverage check failed at the same level — not a Sprint 24 regression but a long-standing CI gate that needs reset to the operating reality. | 24 hrs |
 | 9 | Epic 2 retrospective and documentation | Update README with all new APIs (LDL^T, IC, MINRES, BiCGSTAB, eigensolvers, eigenpair refinement, COLAMD, ND, progress callbacks). Write Epic 2 retrospective. Update INSTALL.md for new platforms. | 24 hrs |
 
 ### Deliverables
@@ -577,10 +577,11 @@ Based on findings from the Codex review (`reviews/review-codex-2026-04-06.md`) a
 - Optional inverse-iteration refinement for `sparse_eigs_sym` eigenpairs (gated by `opts.refine`), composing with the Sprint 20 shift-invert dispatch
 - Progress/cancel callbacks for long-running operations
 - CI on Windows (MSVC) and macOS (Clang + GCC)
+- Coverage gate calibrated against operating reality (per-file 75-87 %, aggregate ~80 %); either lifted to ≥ 95 % via test additions or `COV_THRESHOLD` lowered to a defensible value with documentation
 - All new APIs documented in README
 - Epic 2 retrospective with metrics and assessment
 
-**Total estimate:** ~160 hours
+**Total estimate:** ~164 hours
 
 ---
 

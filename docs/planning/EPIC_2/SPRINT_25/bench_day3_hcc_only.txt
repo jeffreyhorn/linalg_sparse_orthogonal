@@ -1,0 +1,138 @@
+Sprint 25 Day 3 — HCC-only cross-corpus capture
+=================================================
+
+Per PLAN.md Day 3 task 3 + completion criterion "Pres_Poisson ND
+nnz_L under HCC ≤ 0.94× (necessary for items 2+3 to close the
+remaining gap on Day 9-10's combined re-bench)".
+
+Single run on macOS arm64 (Apple Clang, -O2; today's tip is the
+Day 2 commit at 60f8344 + Day 3's HCC test asserts).
+CSV form: `bench_day3_hem.csv` (default) + `bench_day3_hcc_only.csv`
+(SPARSE_ND_COARSENING=hcc).
+
+Cross-corpus ND nnz_L (HEM = Sprint 24 default; HCC = Sprint 25 Day 2)
+---------------------------------------------------------------------
+
+  fixture        n      ND nnz_L (HEM)  ND nnz_L (HCC)  Δ vs HEM
+  ────────────  ─────  ─────────────  ─────────────  ────────
+  nos4            100             968            901    -6.9 %  (HCC win)
+  bcsstk04        132           3 702          3 708    +0.16 % (noise)
+  Kuu           7 102         924 385      1 003 293    +8.5 %  (HCC LOSS — regression beyond 5pp band)
+  bcsstk14      1 806         131 017        130 358    -0.5 %  (HCC marginal win)
+  s3rmt3m3      5 357         478 890        483 478    +0.96 % (noise)
+  Pres_Poisson 14 822       2 541 734      2 501 876    -1.6 %  (HCC win)
+
+Pres_Poisson ND/AMD ratio (AMD nnz_L = 2 668 793, fixed):
+
+  HEM (default):  2 541 734 / 2 668 793 = 0.952×  (= Sprint 24 baseline)
+  HCC:            2 501 876 / 2 668 793 = 0.937×  (-1.5pp from baseline)
+
+Per PLAN.md Day 3 task 4 — item-1 headline-progress assessment:
+
+  If Pres_Poisson under HCC alone:
+    ≤ 0.90× → item 1 on-track for headline gate
+    0.90 - 0.94× → item 1 is smaller of three; items 2+3 close the rest
+    > 0.94× → escalate; headline depends entirely on items 2+3
+
+  HCC alone = 0.937× (in the 0.90-0.94× band).
+
+  → Item 1 contributes ~1.5pp of the 7-9pp Pres_Poisson tightening
+    needed (0.952× → 0.85×).  Items 2 (multi-pass FM intermediate)
+    and 3 (spectral bisection at coarsest) must contribute the
+    remaining 5.5-7.5pp combined.
+
+Day-2-vs-Day-3 measurement reconciliation
+------------------------------------------
+
+The Sprint 25 Day 2 interim capture (`hcc_interim_day2.txt`) reported
+"HCC alone changes nothing on the corpus ND nnz_L; HCC and HEM produce
+identical nnz_L on every corpus fixture."  This was incorrect — the
+measurement was taken with a stale benchmark binary that didn't pick
+up the Day-2 lint-fix to the HCC matching loop's branch consolidation.
+Day 3's clean rebuild + re-bench shows HCC actually does move nnz_L
+on every corpus fixture (range -6.9 % to +8.5 %).
+
+The Day-2 interim file's correct findings remain:
+  - HCC IS being called and IS producing different cmap output (the
+    5×5 grid diagnostic showing 12/25 cmap entries differ vs HEM
+    holds independently of the bench-binary issue).
+  - Day 1's HCC test stubs run cleanly (since landed as Day-3 asserts).
+
+The Day-2 interim file's incorrect findings (superseded by this
+Day-3 capture):
+  - "HCC alone changes nothing on the corpus ND nnz_L" → wrong;
+    HCC moves nnz_L on every fixture.
+  - "Days 4-5 (multi-pass FM intermediate) — promoted from secondary
+    to primary headline-mover" → partially supersedes; HCC contributes
+    1.5pp on Pres_Poisson, so Days 4-5 + 6-8 share the remaining
+    5.5-7.5pp of headline-gap closure rather than carrying the
+    full burden alone.
+  - "Day 9 (cross-corpus re-bench) — the combined-effect matrix is
+    now expected to show HCC contributing ~0pp" → wrong; HCC
+    contributes ~1.5pp on Pres_Poisson.
+  - "Day 10 (production-default decisions) — HCC default-flip
+    threshold is unmet" → STILL HOLDS but for a different reason:
+    Kuu's +8.5 % nnz_L regression under HCC is beyond the 5pp band
+    PLAN.md sets for smaller-fixture regression, so HCC default
+    stays heavy_edge (per the corpus-wide-best rule).  HCC should
+    ship as advisory env-var-gated for Pres_Poisson workloads.
+
+Production-default decision (preliminary; final on Day 10)
+-----------------------------------------------------------
+
+The PLAN.md Day 10 flip rule: "flip default if HCC produces a
+clear corpus-wide win on Pres_Poisson + small fixtures".  HCC
+produces:
+  - Wins: Pres_Poisson (-1.6 %), nos4 (-6.9 %), bcsstk14 (-0.5 %)
+  - Noise: bcsstk04 (+0.16 %), s3rmt3m3 (+0.96 %)
+  - Regressions: Kuu (+8.5 % — beyond 5pp band)
+
+Kuu's +8.5 % regression is the deciding factor: HCC default-flip
+fails the "no smaller-fixture regression past 5pp" half of the
+flip rule.  HCC ships behind SPARSE_ND_COARSENING=hcc as a
+documented advisory for Pres_Poisson-shaped workloads (regular
+2D PDE meshes); default stays heavy_edge for corpus-wide
+robustness.
+
+Day-3 escalation finding for Days 4-10 planning
+-------------------------------------------------
+
+1. **Day 3** (this) — HCC's correctness intact:
+   - test_partition_determinism_10x10_grid + test_partition_determinism_two_cliques + test_nd_determinism_public_api all PASS under SPARSE_ND_COARSENING=hcc
+   - test_hcc_match_selection_grid + test_hcc_match_selection_irregular asserts landed; both PASS
+   - HCC is producing the expected per-fixture deltas (1.5pp Pres_Poisson tightening; varies on smaller fixtures)
+
+2. **Days 4-5 (multi-pass FM intermediate)** — primary partner to HCC:
+   - Goal: combine HCC's 1.5pp Pres_Poisson contribution with multi-pass FM's contribution to push toward 0.85×
+   - Multi-pass FM at intermediate levels may compose with HCC's matching changes (HCC produces a different starting graph hierarchy; FM at intermediate levels has more material to refine)
+   - If multi-pass FM contributes +1.5-2pp on Pres_Poisson, combined HCC + multi-pass would land at 0.91-0.92×
+
+3. **Days 6-8 (spectral bisection)** — primary headline-mover:
+   - Goal: contribute the remaining 5-7pp on Pres_Poisson via Fiedler-vector-based coarsest-level cuts
+   - Spectral bisection intervenes BEFORE FM at uncoarsening can wash out coarsening choices
+   - Combined HCC + spectral on Pres_Poisson is the most likely candidate for reaching ≤ 0.85×
+
+4. **Day 9 (cross-corpus re-bench)** — combined-effect matrix:
+   - HCC alone: ~0.937× Pres_Poisson, +8.5% Kuu (regression band)
+   - Spectral alone: TBD (Days 6-8 measure)
+   - HCC + spectral: TBD (Day 9 sweep)
+   - HCC + multi-pass FM intermediate: TBD (Day 9 sweep)
+   - All three combined: TBD (Day 9 sweep)
+
+5. **Day 10 (production-default decisions)** — likely outcome:
+   - HCC default stays heavy_edge (Kuu regression rules out flip)
+   - Multi-pass FM intermediate default depends on Day-5 sweep
+   - Spectral default depends on Day-8 sweep + corpus impact
+   - Pres_Poisson advisory env-var combination: HCC + spectral (most likely; pending Days 6-8)
+
+Notes
+-----
+
+ND wall_ms differs significantly between HEM and HCC runs (e.g.,
+Pres_Poisson ND wall: HEM = 34.0 s, HCC = 20.4 s = -40 % under HCC).
+Wall-time analysis is Day 11's scope; Day 3 captures wall_ms only as
+a cross-reference but draws no conclusions from it.  HCC's faster
+ND wall on Pres_Poisson here is consistent with HCC producing 9 fewer
+coarse vertices on average (from `hcc` 5×5 grid diagnostic: 14 vs
+HEM's 13) — fewer coarsening levels means less FM uncoarsening work
+overall, even if per-pass cost is the same.

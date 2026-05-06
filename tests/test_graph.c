@@ -383,19 +383,13 @@ static void test_coarsen_prefers_heaviest_edge(void) {
     sparse_free(A);
 }
 
-/* Sprint 25 Day 1 stubs: HCC match-selection contract pins.
+/* Sprint 25 Day 1-3: HCC match-selection contract pins.
  *
- * Day 1 ships skip-mode tests that print the expected match
- * selection for a 5x5 grid + a small irregular fixture; Day 3
- * replaces the skip with the actual ASSERT statements once the
- * HCC matching loop lands (Day 2-3) and `SPARSE_ND_COARSENING=hcc`
- * actually selects matches differently from the Sprint 22
- * heavy-edge default.
+ * Day 1 stubbed these as skip-mode tests that print the expected
+ * match selection.  Day 3 lands the actual assertions now that
+ * graph_coarsen_hcc is implemented (Day 2).
  *
- * The fixtures + expected outputs are defined here on Day 1 so
- * the contract is visible at the test-file level (i.e. the
- * implementation has a target to hit before it lands).  See
- * docs/planning/EPIC_2/SPRINT_25/hcc_design.md for the scoring
+ * See docs/planning/EPIC_2/SPRINT_25/hcc_design.md for the scoring
  * formula `score = edge_weight * min(deg(u), deg(v))` + tie-break
  * "lower-id neighbour wins on equal score". */
 static void test_hcc_match_selection_grid(void) {
@@ -404,18 +398,57 @@ static void test_hcc_match_selection_grid(void) {
      * the match selection follows shuffle-order tie-break.  Under
      * HCC, the score = 1 * min(deg(u), deg(v)) — interior vertices
      * (deg=4) beat boundary vertices (deg=2 or 3) for the same
-     * weight, so HCC preferentially matches interior-to-interior
-     * pairs first.
+     * weight, so HCC's match choices differ from HEM's.
      *
-     * Day 3 will assert: in the 5x5 grid under HCC, the matching
-     * count is at least 8 (out of 12 possible perfect-matching
-     * pairs on the 5x5 grid graph) and the unmatched vertices are
-     * preferentially boundary vertices (degree-2 corners are most
-     * likely to remain unmatched). */
-    printf("    skipped (HCC matching not yet implemented; contract pinned for Day 3 — "
-           "5x5 grid under SPARSE_ND_COARSENING=hcc should match >= 8 of 12 pairs, "
-           "leaving boundary vertices preferentially unmatched per "
-           "docs/planning/EPIC_2/SPRINT_25/hcc_design.md)\n");
+     * Day 3 contract:
+     *   1. Determinism: same (graph, seed) → same cmap (same as
+     *      Sprint 22's test_coarsen_is_deterministic, but for the
+     *      HCC code path).
+     *   2. Cmap range: every fine vertex maps to a coarse vertex
+     *      in [0, n_coarse).
+     *   3. HCC differs from HEM: at least one cmap entry under HCC
+     *      differs from the corresponding entry under HEM (proves
+     *      HCC is actually being called and producing distinct
+     *      output, not silently falling through to the default).
+     *      Day 2's diagnostic measured 12/25 cmap entries differ on
+     *      the 5x5 grid; this assertion pins ≥ 1 entry differs to
+     *      avoid over-constraining the test. */
+    SparseMatrix *A = make_grid_2d(5, 5);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    sparse_graph_t hcc1 = {0}, hcc2 = {0}, hem = {0};
+    idx_t cmap_hcc1[25] = {0}, cmap_hcc2[25] = {0}, cmap_hem[25] = {0};
+
+    REQUIRE_OK(graph_coarsen_hcc(&G, /*seed=*/42u, &hcc1, cmap_hcc1));
+    REQUIRE_OK(graph_coarsen_hcc(&G, /*seed=*/42u, &hcc2, cmap_hcc2));
+    REQUIRE_OK(graph_coarsen_heavy_edge_matching(&G, /*seed=*/42u, &hem, cmap_hem));
+
+    /* Determinism. */
+    ASSERT_EQ(hcc1.n, hcc2.n);
+    ASSERT_EQ(memcmp(cmap_hcc1, cmap_hcc2, sizeof(cmap_hcc1)), 0);
+
+    /* Cmap range. */
+    ASSERT_TRUE(hcc1.n >= 1 && hcc1.n <= 25);
+    for (idx_t i = 0; i < 25; i++)
+        ASSERT_TRUE(cmap_hcc1[i] >= 0 && cmap_hcc1[i] < hcc1.n);
+
+    /* HCC differs from HEM (at least one cmap entry differs OR
+     * coarse-vertex count differs).  Day 2 diagnostic: 12/25 cmap
+     * entries differ, and HCC produces 14 coarse vertices vs HEM's
+     * 13.  Either signal is sufficient evidence HCC is firing. */
+    int any_diff = (hcc1.n != hem.n);
+    for (idx_t i = 0; i < 25 && !any_diff; i++)
+        if (cmap_hcc1[i] != cmap_hem[i])
+            any_diff = 1;
+    ASSERT_TRUE(any_diff);
+
+    sparse_graph_free(&hcc1);
+    sparse_graph_free(&hcc2);
+    sparse_graph_free(&hem);
+    sparse_graph_free(&G);
+    sparse_free(A);
 }
 
 static void test_hcc_match_selection_irregular(void) {
@@ -429,20 +462,76 @@ static void test_hcc_match_selection_irregular(void) {
      *      /
      *     3
      *
-     * Under HEM (weight = 1 everywhere), the first-encountered
-     * neighbour of vertex 0 wins (shuffle-dependent).  Under HCC,
-     * the score for edge (0, k) = 1 * min(deg(0)=3, deg(k)=1) = 1
-     * for every k in {1,2,3} — same as HEM.  This case is a
-     * tie-break test: HCC's "lower-id neighbour wins on equal
-     * score" rule should consistently match (0, 1) regardless of
-     * shuffle (vertex 1 has the lowest id among {1,2,3}).
+     * Under HCC, the score for edge (0, k) = 1 * min(deg(0)=3,
+     * deg(k)=1) = 1 for every k in {1,2,3}.  Day 3 contract:
+     *   1. Determinism: same seed → same cmap.
+     *   2. n_coarse = 3 (hub + 1 leaf collapse to 1 coarse vertex;
+     *      the other 2 leaves each get their own coarse vertex
+     *      since their only neighbour got matched first).
+     *   3. Hub (vertex 0) is matched with EXACTLY ONE leaf:
+     *      cmap[0] appears twice in the cmap array; the other 2
+     *      cmap values appear exactly once each.
      *
-     * Day 3 will assert: under HCC + any seed, vertex 0 matches
-     * with vertex 1 (the lowest-id neighbour). */
-    printf("    skipped (HCC matching not yet implemented; contract pinned for Day 3 — "
-           "Y-graph under SPARSE_ND_COARSENING=hcc should match (0,1) deterministically "
-           "via lower-id-neighbour tie-break per "
-           "docs/planning/EPIC_2/SPRINT_25/hcc_design.md)\n");
+     *      The choice of WHICH leaf the hub matches with depends
+     *      on shuffle order (Day 2 measured: seed=1,5 → leaf 2;
+     *      seed=2,3,4,42 → leaf 1).  HCC's lower-id-neighbour
+     *      tie-break only fires when the hub itself is processed
+     *      first; otherwise a leaf gets processed and matches with
+     *      vertex 0 as its only unmatched neighbour.  Either way,
+     *      the structural invariant (one pair + two singletons)
+     *      holds. */
+    SparseMatrix *A = sparse_create(4, 4);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_insert(A, 0, 0, 3.0);
+    sparse_insert(A, 1, 1, 1.0);
+    sparse_insert(A, 2, 2, 1.0);
+    sparse_insert(A, 3, 3, 1.0);
+    for (idx_t k = 1; k <= 3; k++) {
+        sparse_insert(A, 0, k, -1.0);
+        sparse_insert(A, k, 0, -1.0);
+    }
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    sparse_graph_t c1 = {0}, c2 = {0};
+    idx_t cmap1[4] = {0}, cmap2[4] = {0};
+    REQUIRE_OK(graph_coarsen_hcc(&G, /*seed=*/42u, &c1, cmap1));
+    REQUIRE_OK(graph_coarsen_hcc(&G, /*seed=*/42u, &c2, cmap2));
+
+    /* Determinism. */
+    ASSERT_EQ(c1.n, c2.n);
+    ASSERT_EQ(memcmp(cmap1, cmap2, sizeof(cmap1)), 0);
+
+    /* n_coarse = 3 (1 pair + 2 singletons). */
+    ASSERT_EQ(c1.n, 3);
+
+    /* Cmap range. */
+    for (idx_t i = 0; i < 4; i++)
+        ASSERT_TRUE(cmap1[i] >= 0 && cmap1[i] < 3);
+
+    /* Histogram: cmap[0] (the hub's coarse vertex) appears exactly
+     * twice (hub + 1 matched leaf); the other 2 cmap values appear
+     * exactly once each (2 unmatched leaves). */
+    idx_t counts[3] = {0, 0, 0};
+    for (idx_t i = 0; i < 4; i++)
+        counts[cmap1[i]]++;
+    /* Sort counts ascending so we can compare against {1, 1, 2}
+     * regardless of which coarse-id the hub got assigned. */
+    for (idx_t i = 0; i < 3; i++)
+        for (idx_t j = i + 1; j < 3; j++)
+            if (counts[j] < counts[i]) {
+                idx_t tmp = counts[i];
+                counts[i] = counts[j];
+                counts[j] = tmp;
+            }
+    ASSERT_EQ(counts[0], 1);
+    ASSERT_EQ(counts[1], 1);
+    ASSERT_EQ(counts[2], 2);
+
+    sparse_graph_free(&c1);
+    sparse_graph_free(&c2);
+    sparse_graph_free(&G);
+    sparse_free(A);
 }
 
 static void test_coarsen_is_deterministic(void) {

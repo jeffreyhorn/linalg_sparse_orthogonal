@@ -1,0 +1,175 @@
+Sprint 25 Day 9 — Combined-effect matrix sweep
+================================================
+
+Per PLAN.md Day 9 task 1.  Bench across 16 env-var combinations
+× 6 SuiteSparse fixtures = 96 measurements.  AMD nnz_L is
+invariant under the ND env vars (captured one-shot from the
+default run); ND nnz_L + reorder_ms vary per setting.
+
+Captured under macOS arm64 (Apple Clang, -O2; today's tip is
+the Day 8 commit at 847f5f5).  CSV form:
+`bench_day9_combinations.csv`.
+
+Combination matrix (16 settings)
+---------------------------------
+
+  id  name                          env vars
+  --  ----------------------------  -------------------------------------------
+  01  S24_default                   (none — Sprint 24 defaults)
+  02  HCC_only                      SPARSE_ND_COARSENING=hcc
+  03  interFM_2                     SPARSE_FM_INTERMEDIATE_PASSES=2
+  04  interFM_3                     SPARSE_FM_INTERMEDIATE_PASSES=3
+  05  spectral_only                 SPARSE_ND_COARSEST_BISECTION=spectral
+  06  HCC_interFM_2                 hcc + INTERMEDIATE=2
+  07  HCC_interFM_3                 hcc + INTERMEDIATE=3
+  08  HCC_spectral                  hcc + spectral
+  09  interFM_2_spectral            INTERMEDIATE=2 + spectral
+  10  interFM_3_spectral            INTERMEDIATE=3 + spectral
+  11  three_new_interFM_2           hcc + INTERMEDIATE=2 + spectral
+  12  three_new_interFM_3           hcc + INTERMEDIATE=3 + spectral
+  13  HCC_ratio200                  hcc + COARSEN_FLOOR_RATIO=200
+  14  spectral_balBdry              spectral + SEP_LIFT_STRATEGY=balanced_boundary
+  15  full_set                      hcc + INTERMEDIATE=3 + spectral + RATIO=200 + balanced_boundary
+  16  interFM_3_spectral_balBdry    INTERMEDIATE=3 + spectral + balanced_boundary
+
+Per-setting ND/AMD ratios (sorted by Pres_Poisson asc — best first)
+--------------------------------------------------------------------
+
+  rank  id  setting                       PresPoisson   nos4   bcsstk04   Kuu     bcsstk14  s3rmt3m3
+  ----  --  ----------------------------  -----------   -----  --------  ------  --------  --------
+   1    13  HCC_ratio200                  0.9218 ★      1.414  1.180     2.099   1.123     1.019
+   2    02  HCC_only                      0.9375        1.414  1.180     2.470   1.123     1.019
+   3    08  HCC_spectral                  0.9386        1.414  1.180     1.770   1.151     1.016
+   4    16  interFM_3_spectral_balBdry    0.9409        1.284  1.178     1.630   1.040     1.003
+   5    06  HCC_interFM_2                 0.9417        1.414  1.180     2.416   1.117     1.017
+   6    11  three_new_interFM_2           0.9469        1.414  1.180     1.920   1.149     1.032
+   7    15  full_set                      0.9470        1.256  1.180     1.309 ★ 1.037     1.004
+   8    12  three_new_interFM_3           0.9505        1.414  1.180     2.059   1.248     1.018
+   9    07  HCC_interFM_3                 0.9506        1.414  1.180     2.320   1.121     1.012
+  10    03  interFM_2                     0.9520        1.520  1.178     2.341   1.107     1.026
+  11    09  interFM_2_spectral            0.9521        1.520  1.178     1.975   1.126     1.006
+  12    01  S24_default                   0.9524        1.520  1.178     2.275   1.129     1.009
+  13    05  spectral_only                 0.9525        1.520  1.178     1.744   1.062     1.024
+  14    14  spectral_balBdry              0.9600        1.284  1.178     1.589   1.015     1.005
+  15    04  interFM_3                     0.9677        1.520  1.178     2.042   1.106     1.026
+  16    10  interFM_3_spectral            0.9679        1.520  1.178     2.313   1.119     1.008
+
+  ★ = best Pres_Poisson + best Kuu
+
+Headline verdict
+----------------
+
+  Best combination on Pres_Poisson:  Setting 13 (HCC + ratio=200)
+                                     0.9218× of AMD nnz_L
+                                     -3.0pp vs Sprint 24 default (0.9524×)
+                                     -1.6pp vs HCC-alone (0.9375×)
+                                     -2.0pp vs Sprint 24 best opt-in (0.942×)
+
+  Per PLAN.md Day 9 task 4:
+    ≤ 0.85×  → headline gate PASS
+    ≤ 0.90×  → partial close (acceptable)
+    > 0.90×  → route remaining gap to Sprint 26
+
+  0.9218× is > 0.90× → ROUTE REMAINING GAP TO SPRINT 26.
+
+  Sprint 25 closes Pres_Poisson 0.9524× → 0.9218× via the HCC +
+  ratio=200 advisory env-var combination, a 3pp tightening but
+  short of both the 0.85× literal target and the 0.90× partial-
+  close threshold.  The remaining gap routes to Sprint 26 per
+  the candidates documented in nd_tuning_day8.md "Sprint 26
+  routing" (multi-pass FM at the FINEST level beyond 3 passes;
+  direct geometric cut detection on regular grids; per-vertex
+  separator scoring).
+
+Constructive composition observations
+--------------------------------------
+
+  HCC + ratio=200 (setting 13) beats both individual axes:
+    HCC alone (setting 02):       0.9375
+    ratio=200 alone (Sprint 24):  0.9420
+    HCC + ratio=200 (setting 13): 0.9218 (constructive, -1-2pp over individual)
+
+  Three new + ratio=200 + balBdry (setting 15) is the best
+  CORPUS-WIDE combination:
+    nos4 = 1.256 (-26pp vs default 1.520; second-best on the corpus)
+    bcsstk04 = 1.180 (essentially default)
+    Kuu = 1.309 ★ (-97pp vs default 2.275 — STRONGEST single-setting
+           Kuu drop in Sprint 25; passes Sprint 24's irregular SPD
+           workload class)
+    bcsstk14 = 1.037 (-9pp vs default 1.129)
+    s3rmt3m3 = 1.004 (-0.5pp vs default 1.009)
+    Pres_Poisson = 0.947 (-0.5pp vs default 0.952; mediocre but
+           within noise band; not the headline winner)
+
+  Setting 15 is the corpus-wide-best combination but not the
+  Pres_Poisson-best (setting 13 is).
+
+Destructive composition observations
+-------------------------------------
+
+  Several combinations REGRESS Pres_Poisson vs default:
+    interFM_3 alone (04):           0.9677 (+1.5pp regression)
+    interFM_3 + spectral (10):      0.9679 (+1.5pp regression)
+    spectral_balBdry (14):          0.9600 (+0.8pp regression)
+
+  These show the same destructive-interaction pattern Sprint 24
+  found between ratio=200 and balanced_boundary on Pres_Poisson:
+  combinations of cut-quality-modifying knobs can interact
+  non-additively (often subtractively).
+
+Smaller-fixture safety verification
+------------------------------------
+
+  PLAN.md Day 9 task 3: "Identify the corpus-wide-best combination
+  (lowest Pres_Poisson ND/AMD without regressing smaller fixtures
+  past 5pp)."
+
+  Setting 13 (HCC_ratio200) per-fixture deltas vs default:
+    nos4:           1.520 → 1.414  (-10.6pp WIN)
+    bcsstk04:       1.178 → 1.180  (+0.2pp noise)
+    Kuu:            2.275 → 2.099  (-17.6pp WIN)
+    bcsstk14:       1.129 → 1.123  (-0.6pp small win)
+    s3rmt3m3:       1.009 → 1.019  (+1.0pp small noise/regression, < 5pp)
+    Pres_Poisson:   0.952 → 0.922  (-3.0pp WIN)
+
+  No fixture regresses past the 5pp band.  Setting 13 is corpus-
+  safe and is the Day 10 production-default-flip candidate.
+
+  Setting 15 (full_set) per-fixture deltas vs default:
+    nos4:           1.520 → 1.256  (-26.4pp WIN)
+    bcsstk04:       1.178 → 1.180  (+0.2pp noise)
+    Kuu:            2.275 → 1.309  (-97pp HUGE WIN)
+    bcsstk14:       1.129 → 1.037  (-9.2pp WIN)
+    s3rmt3m3:       1.009 → 1.004  (-0.5pp small win)
+    Pres_Poisson:   0.952 → 0.947  (-0.5pp small win)
+
+  Setting 15 is corpus-safe + has the best non-Pres_Poisson
+  profile.  Day 10 should also consider setting 15 as a
+  production-default-flip candidate, with Pres_Poisson as the
+  trade-off (0.947 vs 0.922 for setting 13).
+
+ND wall_ms summary (Pres_Poisson highlight)
+--------------------------------------------
+
+  Spectral-containing settings produce dramatic wall-time speedups
+  on Pres_Poisson (independent of the nnz_L finding):
+    01 default:                    37 365 ms
+    13 HCC_ratio200:               36 800 ms (within noise)
+    08 HCC_spectral:                1 700 ms (22× speedup)
+    15 full_set:                    1 600 ms (23× speedup)
+
+  The ND wall finding favors spectral-containing settings.  If
+  Day 10 picks setting 15 as the production default, Pres_Poisson
+  ND wall drops 23× as a "free" wall-time benefit alongside the
+  9pp Kuu nnz_L tightening.
+
+References
+----------
+
+- docs/planning/EPIC_2/SPRINT_25/PLAN.md Day 9
+- docs/planning/EPIC_2/SPRINT_25/nd_tuning_day3.md (HCC findings)
+- docs/planning/EPIC_2/SPRINT_25/intermediate_fm_decision.md (multi-pass intermediate decision)
+- docs/planning/EPIC_2/SPRINT_25/bench_day8_spectral_only.txt (spectral findings)
+- docs/planning/EPIC_2/SPRINT_25/nd_tuning_day8.md (escalation finding before Day 9)
+- docs/planning/EPIC_2/SPRINT_25/headline_summary.md (verdict for Day 10's
+  production-default decisions)

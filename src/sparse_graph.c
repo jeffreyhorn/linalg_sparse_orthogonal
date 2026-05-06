@@ -417,8 +417,17 @@ static coarsening_strategy_t parse_coarsening_strategy(void) {
     return COARSENING_HEAVY_EDGE;
 }
 
-sparse_err_t graph_coarsen_heavy_edge_matching(const sparse_graph_t *fine, uint32_t seed,
-                                               sparse_graph_t *coarse_out, idx_t *cmap_out) {
+/* Sprint 25 Day 2: strategy-parameterized coarsening core.  Both
+ * graph_coarsen_heavy_edge_matching (Sprint 22) and graph_coarsen_hcc
+ * (Sprint 25) call this with their respective strategy.  Only the
+ * matching-loop's score function + tie-break differ; the
+ * graph-construction passes (vwgt aggregation, deg counting, sort+merge
+ * dedup, compaction) are identical and shared.  See
+ * docs/planning/EPIC_2/SPRINT_25/hcc_design.md "Modified-vs-replaced
+ * delta from Sprint 22" for what changes vs what's preserved. */
+static sparse_err_t graph_coarsen_with_strategy(const sparse_graph_t *fine, uint32_t seed,
+                                                coarsening_strategy_t strategy,
+                                                sparse_graph_t *coarse_out, idx_t *cmap_out) {
     if (!fine || !coarse_out)
         return SPARSE_ERR_NULL;
 
@@ -450,8 +459,8 @@ sparse_err_t graph_coarsen_heavy_edge_matching(const sparse_graph_t *fine, uint3
     fisher_yates_shuffle(perm, n_fine, seed);
 
     /* Build cmap by walking vertices in shuffled order, matching each
-     * unmatched vertex to its heaviest unmatched neighbour.  -1 means
-     * "not yet assigned to a coarse vertex". */
+     * unmatched vertex to its best unmatched neighbour per the chosen
+     * strategy.  -1 means "not yet assigned to a coarse vertex". */
     for (idx_t i = 0; i < n_fine; i++)
         cmap_out[i] = -1;
 
@@ -461,15 +470,52 @@ sparse_err_t graph_coarsen_heavy_edge_matching(const sparse_graph_t *fine, uint3
         if (cmap_out[v] != -1)
             continue;
         idx_t best_nbr = -1;
-        idx_t best_wt = 0; /* edge weights are positive, so 0 is a safe floor */
-        for (idx_t k = fine->xadj[v]; k < fine->xadj[v + 1]; k++) {
-            idx_t u = fine->adjncy[k];
-            if (cmap_out[u] != -1)
-                continue;
-            idx_t w = fine->ewgt ? fine->ewgt[k] : 1;
-            if (w > best_wt) {
-                best_wt = w;
-                best_nbr = u;
+        if (strategy == COARSENING_HCC) {
+            /* Heavy Connectivity Coarsening (Karypis-Kumar 1998 §5):
+             * score = edge_weight * min(deg(u), deg(v)).  Tie-break:
+             * lower-id neighbour wins on equal score (deterministic
+             * even when storage order differs across runs).  Score in
+             * int64_t to avoid overflow when edge_weight * degree
+             * exceeds INT32_MAX.  See
+             * docs/planning/EPIC_2/SPRINT_25/hcc_design.md for the
+             * full contract. */
+            int64_t best_score = 0;
+            idx_t deg_v = fine->xadj[v + 1] - fine->xadj[v];
+            for (idx_t k = fine->xadj[v]; k < fine->xadj[v + 1]; k++) {
+                idx_t u = fine->adjncy[k];
+                if (cmap_out[u] != -1)
+                    continue;
+                idx_t w = fine->ewgt ? fine->ewgt[k] : 1;
+                idx_t deg_u = fine->xadj[u + 1] - fine->xadj[u];
+                idx_t mind = (deg_v < deg_u) ? deg_v : deg_u;
+                int64_t score = (int64_t)w * (int64_t)mind;
+                /* Take this neighbour if (a) score strictly improves;
+                 * (b) no neighbour has been chosen yet (first
+                 * eligible wins regardless of score — covers
+                 * pathological all-zero-weight fixtures); or (c)
+                 * score ties an existing best and `u` has the lower
+                 * vertex id (deterministic tie-break per the HCC
+                 * contract). */
+                if ((score > best_score) || (best_nbr < 0) ||
+                    (score == best_score && u < best_nbr)) {
+                    best_score = score;
+                    best_nbr = u;
+                }
+            }
+        } else {
+            /* COARSENING_HEAVY_EDGE — Sprint 22 default.  Score = edge
+             * weight; first-encountered max wins (shuffle-dependent
+             * tie-break).  Bit-identical to Sprint 22. */
+            idx_t best_wt = 0; /* edge weights are positive, so 0 is a safe floor */
+            for (idx_t k = fine->xadj[v]; k < fine->xadj[v + 1]; k++) {
+                idx_t u = fine->adjncy[k];
+                if (cmap_out[u] != -1)
+                    continue;
+                idx_t w = fine->ewgt ? fine->ewgt[k] : 1;
+                if (w > best_wt) {
+                    best_wt = w;
+                    best_nbr = u;
+                }
             }
         }
         cmap_out[v] = n_coarse;
@@ -669,6 +715,25 @@ sparse_err_t graph_coarsen_heavy_edge_matching(const sparse_graph_t *fine, uint3
     return SPARSE_OK;
 }
 
+/* Sprint 22 Day 2: heavy-edge matching public entry point.  Sprint
+ * 25 Day 2 makes this a thin wrapper around the strategy-parameterized
+ * core; behavior under this entry point stays bit-identical to
+ * Sprint 22's original implementation. */
+sparse_err_t graph_coarsen_heavy_edge_matching(const sparse_graph_t *fine, uint32_t seed,
+                                               sparse_graph_t *coarse_out, idx_t *cmap_out) {
+    return graph_coarsen_with_strategy(fine, seed, COARSENING_HEAVY_EDGE, coarse_out, cmap_out);
+}
+
+/* Sprint 25 Day 2: Heavy Connectivity Coarsening (Karypis-Kumar 1998
+ * §5).  Public entry point used by `sparse_graph_hierarchy_build`
+ * when `SPARSE_ND_COARSENING=hcc`.  Score = edge_weight *
+ * min(deg(u), deg(v)) with lower-id-neighbour tie-break for
+ * determinism.  See docs/planning/EPIC_2/SPRINT_25/hcc_design.md. */
+sparse_err_t graph_coarsen_hcc(const sparse_graph_t *fine, uint32_t seed,
+                               sparse_graph_t *coarse_out, idx_t *cmap_out) {
+    return graph_coarsen_with_strategy(fine, seed, COARSENING_HCC, coarse_out, cmap_out);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Multilevel hierarchy (Sprint 22 Day 2).
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -729,13 +794,14 @@ sparse_err_t sparse_graph_hierarchy_build(const sparse_graph_t *root, uint32_t s
     idx_t base_threshold = n_root / divisor;
     if (base_threshold < 20)
         base_threshold = 20;
-    /* Sprint 25 Day 1: read the coarsening strategy once at the top
+    /* Sprint 25 Day 1-2: read the coarsening strategy once at the top
      * of the hierarchy build so all levels use the same matching
-     * variant (Day 2 will dispatch the matching loop on this value).
-     * Day 1 ships the parse only — `strategy` is intentionally unused
-     * here; Day 2 picks it up. */
+     * variant.  Day 1 added the parser; Day 2 wires the per-level
+     * dispatch below at the matching call site.  `COARSENING_HCC`
+     * routes through `graph_coarsen_hcc` (KK1998 §5);
+     * `COARSENING_HEAVY_EDGE` (default) keeps Sprint 22 behavior
+     * bit-identical via `graph_coarsen_heavy_edge_matching`. */
     coarsening_strategy_t strategy = parse_coarsening_strategy();
-    (void)strategy;
     /* log2(n) + 5 ceiling; cap at a defensive 64 to avoid pathology
      * on enormous n. */
     int level_cap = 5;
@@ -781,8 +847,12 @@ sparse_err_t sparse_graph_hierarchy_build(const sparse_graph_t *root, uint32_t s
         /* Per-level seed perturbation so each level shuffles its
          * vertices differently (otherwise the same seed picks the
          * same matching pattern at every level). */
-        sparse_err_t rc =
-            graph_coarsen_heavy_edge_matching(prev, seed + (uint32_t)level, &coarse, cmap);
+        sparse_err_t rc;
+        if (strategy == COARSENING_HCC) {
+            rc = graph_coarsen_hcc(prev, seed + (uint32_t)level, &coarse, cmap);
+        } else {
+            rc = graph_coarsen_heavy_edge_matching(prev, seed + (uint32_t)level, &coarse, cmap);
+        }
         if (rc != SPARSE_OK) {
             free(cmap);
             sparse_graph_hierarchy_free(h);

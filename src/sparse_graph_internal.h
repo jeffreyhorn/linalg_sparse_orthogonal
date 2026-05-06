@@ -188,6 +188,21 @@ sparse_err_t graph_coarsen_heavy_edge_matching(const sparse_graph_t *fine, uint3
                                                sparse_graph_t *coarse_out, idx_t *cmap_out);
 
 /**
+ * @brief Heavy Connectivity Coarsening (Karypis-Kumar 1998 §5).
+ *
+ * Sprint 25 Day 2 alternative to `graph_coarsen_heavy_edge_matching`.
+ * Same signature + collapse rule + shuffle-based visit order, but the
+ * matching score is `edge_weight * min(deg(u), deg(v))` instead of just
+ * `edge_weight`.  Tie-break on equal score: lower-id neighbour wins
+ * (deterministic regardless of adjacency storage order).  Selected by
+ * `sparse_graph_hierarchy_build` when env var
+ * `SPARSE_ND_COARSENING=hcc` is set.  See
+ * docs/planning/EPIC_2/SPRINT_25/hcc_design.md for the full contract.
+ */
+sparse_err_t graph_coarsen_hcc(const sparse_graph_t *fine, uint32_t seed,
+                               sparse_graph_t *coarse_out, idx_t *cmap_out);
+
+/**
  * @brief Multilevel coarsening hierarchy.
  *
  * Owns the chain of coarsened graphs derived from a caller-supplied

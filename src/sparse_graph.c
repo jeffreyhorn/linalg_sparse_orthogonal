@@ -1597,6 +1597,34 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
         }
     }
 
+    /* Sprint 25 Day 4: SPARSE_FM_INTERMEDIATE_PASSES extends the
+     * Sprint 23 Day 11 multi-pass-FM exploration from the finest
+     * uncoarsening level to the second-finest (level == 1) and
+     * third-finest (level == 2) levels.  Default 1 = Sprint 23
+     * behavior bit-identically (intermediate levels stay single-
+     * pass).  Range [1, 10]; out-of-range / non-numeric / missing
+     * → default 1.  Same strtol + end-pointer + range-check
+     * validation pattern as SPARSE_FM_FINEST_PASSES + Sprint 24's
+     * SPARSE_ND_COARSEN_FLOOR_RATIO.  The skipped-vertex re-
+     * insertion contract (Sprint 23 Day 10's bcsstk04 LDL^T
+     * residual hazard fix in graph_refine_fm) holds across the
+     * new pass placements: every FM call uses the same internal
+     * re-insertion logic, so multi-pass at intermediate levels
+     * inherits the contract automatically.  See
+     * docs/planning/EPIC_2/SPRINT_25/PLAN.md Day 4 + Sprint 24
+     * RETROSPECTIVE.md "Performance highlights" lesson "multi-
+     * pass FM's payoff scales with the cost of a single pass". */
+    int intermediate_passes = 1;
+    {
+        const char *env = getenv("SPARSE_FM_INTERMEDIATE_PASSES");
+        if (env) {
+            char *endp = NULL;
+            long v = strtol(env, &endp, 10);
+            if (env != endp && *endp == '\0' && v >= 1 && v <= 10)
+                intermediate_passes = (int)v;
+        }
+    }
+
     /* Walk levels from coarsest down to root.  At each step, project
      * `cur` (on coarse[level]) through cmaps[level] onto the next-
      * finer graph (root if level == 0, else coarse[level - 1]) and
@@ -1608,7 +1636,24 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
             // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
             next[i] = cur[cmap[i]];
         }
-        int passes = (level == 0) ? finest_passes : 1;
+        /* Pass count per level:
+         *   level == 0 (finest)     → finest_passes (Sprint 23 Day 11; default 3)
+         *   level == 1 or 2         → intermediate_passes (Sprint 25 Day 4; default 1)
+         *   level >= 3 (coarser)    → 1 pass (Sprint 22 default)
+         * The intermediate band is the second-finest + third-finest
+         * uncoarsening projections — close enough to the finest level
+         * that FM refinement has graph structure worth exploring, but
+         * distant enough that Sprint 22's single-pass default
+         * captured the cost-effective sweet spot until Sprint 23
+         * Day 11's multi-pass exploration. */
+        int passes;
+        if (level == 0) {
+            passes = finest_passes;
+        } else if (level == 1 || level == 2) {
+            passes = intermediate_passes;
+        } else {
+            passes = 1;
+        }
         for (int p = 0; p < passes; p++) {
             sparse_err_t rc = graph_refine_fm(dst_graph, next);
             if (rc != SPARSE_OK) {

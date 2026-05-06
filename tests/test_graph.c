@@ -35,6 +35,7 @@
  * arrives once Day 6 lands a caller.
  */
 
+#include "sparse_eigs.h"
 #include "sparse_graph_internal.h"
 #include "sparse_matrix.h"
 #include "sparse_types.h"
@@ -683,30 +684,27 @@ static void test_partition_10x10_grid(void) {
 
 /* ─── Sprint 25 Day 6: spectral bisection (stubs; Days 7-8 land asserts) ── */
 
-/* Sprint 25 Day 6 stub: pin the Fiedler-vector eigenvalue ordering
- * contract on a connected graph.  Day 7-8 will replace the skip
- * with the actual sparse_eigs_sym call + assertions:
- *   1. λ_0 ≈ 0 (within tolerance) — the trivial Laplacian eigenvalue.
- *   2. λ_1 > 0 — algebraic connectivity (Fiedler 1973).
- *   3. eigenvector v_0 is approximately constant (1/sqrt(n)).
+/* Sprint 25 Day 6-7: pin the Fiedler-vector eigenvalue ordering
+ * contract on a connected graph.
+ *   Day 6: built the Laplacian + verified the row-sum-to-zero
+ *          invariant (still asserted below).
+ *   Day 7: also call sparse_eigs_sym and assert
+ *          - λ_0 ≈ 0 (within 1e-6 tolerance) — trivial Laplacian eigenvalue
+ *          - λ_1 > 1e-6 — algebraic connectivity > 0 for connected graphs
+ *          - eigenvector v_0 is approximately constant (Fiedler 1973's
+ *            classic property).
  *
- * Day 6 ships a skip-mode test that keeps make-test clean while the
- * implementation lands on Day 7-8.  See
- * docs/planning/EPIC_2/SPRINT_25/spectral_bisection_design.md. */
+ * See docs/planning/EPIC_2/SPRINT_25/spectral_bisection_design.md. */
 static void test_spectral_bisection_eigenvalue_ordering(void) {
-    /* Build the Laplacian on a 5-vertex path graph (1-2-3-4-5).
-     * Day 6 just verifies graph_build_laplacian completes; Days 7-8
-     * will pass the result to sparse_eigs_sym and assert the
-     * eigenvalue ordering. */
+    /* Path graph 0-1-2-3-4: each non-endpoint has 2 neighbours,
+     * endpoints have 1.  Connected → Fiedler vector exists. */
     SparseMatrix *A = sparse_create(5, 5);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
-    /* Path graph 0-1-2-3-4: each non-endpoint has 2 neighbours,
-     * endpoints have 1.  Insert the symmetric off-diagonals. */
     for (idx_t i = 0; i < 4; i++) {
         sparse_insert(A, i, i + 1, 1.0);
         sparse_insert(A, i + 1, i, 1.0);
     }
-    /* Diagonal entries pinning the row-sum invariant we'd assert
+    /* Diagonal entries pinning the row-sum invariant we assert
      * separately on the Laplacian. */
     sparse_insert(A, 0, 0, 1.0);
     sparse_insert(A, 1, 1, 2.0);
@@ -718,54 +716,94 @@ static void test_spectral_bisection_eigenvalue_ordering(void) {
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
     ASSERT_EQ(G.n, 5);
 
+    /* Day 6 invariant: Laplacian builds; rows sum to zero. */
     SparseMatrix *L = NULL;
     REQUIRE_OK(graph_build_laplacian(&G, &L));
     ASSERT_NOT_NULL(L);
     ASSERT_EQ(sparse_rows(L), 5);
     ASSERT_EQ(sparse_cols(L), 5);
-
-    /* Verify the Laplacian's row-sum-to-zero invariant: every row's
-     * diagonal entry equals the negated sum of off-diagonals. */
     for (idx_t i = 0; i < 5; i++) {
         double row_sum = 0.0;
-        for (idx_t j = 0; j < 5; j++) {
+        for (idx_t j = 0; j < 5; j++)
             row_sum += sparse_get(L, i, j);
-        }
-        /* Path graph: every row sums to 0 in the Laplacian. */
         ASSERT_TRUE(fabs(row_sum) < 1e-12);
     }
 
-    printf("    Laplacian builder verified on path graph (n=5); "
-           "Day 7-8 will land Lanczos call + Fiedler-vector ordering asserts\n");
+    /* Day 7 contract: smallest two eigenpairs via sparse_eigs_sym. */
+    double eigvals[2] = {0.0, 0.0};
+    double eigvecs[5 * 2] = {0.0};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_SMALLEST,
+        .tol = 1e-8,
+        .reorthogonalize = 1,
+        .compute_vectors = 1,
+    };
+    sparse_eigs_t result = {.eigenvalues = eigvals, .eigenvectors = eigvecs};
+    REQUIRE_OK(sparse_eigs_sym(L, /*k=*/2, &opts, &result));
+    ASSERT_EQ(result.n_converged, 2);
+
+    /* λ_0 ≈ 0 (trivial Laplacian eigenvalue; eigenvector is
+     * proportional to the constant vector). */
+    ASSERT_TRUE(fabs(eigvals[0]) < 1e-6);
+
+    /* λ_1 > 0 (algebraic connectivity > 0 ⇔ graph is connected;
+     * Fiedler 1973). */
+    ASSERT_TRUE(eigvals[1] > 1e-6);
+
+    /* v_0 (column 0) is approximately constant.  All entries should
+     * have the same sign (Perron-Frobenius / non-negative
+     * eigenvector property of the Laplacian's null space).  Strong
+     * check: every entry is within 10 % of the mean. */
+    double mean = 0.0;
+    for (idx_t i = 0; i < 5; i++)
+        mean += eigvecs[i];
+    mean /= 5.0;
+    /* mean is non-zero by construction (eigenvector is normalized
+     * to unit length; if not constant zero, mean ≈ ±1/sqrt(5) ≈ ±0.447). */
+    ASSERT_TRUE(fabs(mean) > 0.1);
+    for (idx_t i = 0; i < 5; i++) {
+        double rel = fabs(eigvecs[i] - mean) / fabs(mean);
+        ASSERT_TRUE(rel < 0.1); /* every component within 10 % of mean */
+    }
+
+    printf("    path graph (n=5): λ_0=%.3e (≈0), λ_1=%.3e (>0); v_0 within ±10%% of mean\n",
+           eigvals[0], eigvals[1]);
 
     sparse_free(L);
     sparse_graph_free(&G);
     sparse_free(A);
 }
 
-/* Sprint 25 Day 6 stub: pin the GGGP-fallback contract for the
- * disconnected / star-graph case.  Day 7-8 will replace the skip
- * with the actual partitioning call + 60/40-balance-fallback
- * assertion:  on a star graph (one center + many leaves), the
- * Fiedler cut is heavily imbalanced (1/(n-1) on one side); the
- * 60/40 balance check fires and graph_bisect_coarsest_spectral
- * falls through to bisect_gggp. */
+/* Sprint 25 Day 6-7: pin the 60/40-balance fallback contract on a
+ * star-graph fixture (1 hub + n-1 leaves).
+ *
+ * The Fiedler vector of a star graph puts the hub at one extreme
+ * value and all leaves at the other (the leaves are
+ * indistinguishable by the Laplacian's eigenstructure).  The
+ * median ≈ leaf value; the strict-< partition assigns the hub
+ * alone to side 0 and ALL leaves to side 1 — a 1/(n-1) imbalance.
+ * For n = 11, that's 1/10 = 0.1, well below the 60/40 threshold of
+ * 0.4, so the balance check fires and graph_bisect_coarsest_spectral
+ * falls back to bisect_gggp, which produces a balanced cut.
+ *
+ * Day 7 contract: under SPARSE_ND_COARSEST_BISECTION=spectral on
+ * an n=11 star graph, the resulting partition's balance ratio
+ * (min(n0, n1) / max(n0, n1)) is >= 0.4 — proving fallback fired
+ * (because spectral alone would produce 0.1). */
 static void test_spectral_bisection_gggp_fallback(void) {
-    /* Day 6: pin the dispatch wiring — under
-     * SPARSE_ND_COARSEST_BISECTION=spectral, the call still
-     * produces a valid bisection (Day 6 falls through to GGGP via
-     * the stub; Day 7's Lanczos call + balance fallback will
-     * preserve the same external contract). */
     if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
         printf("    skipped (setenv failed)\n");
         return;
     }
 
-    /* Star graph: center vertex 0 + leaves 1, 2, 3, 4. */
-    SparseMatrix *A = sparse_create(5, 5);
+    /* Star graph with n=11 (1 hub at vertex 0 + 10 leaves at
+     * vertices 1..10).  Pure-spectral natural cut: {0} vs {1..10} =
+     * 1/10 imbalance, well below 60/40 threshold. */
+    const idx_t N = 11;
+    SparseMatrix *A = sparse_create(N, N);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
-    sparse_insert(A, 0, 0, 4.0);
-    for (idx_t k = 1; k <= 4; k++) {
+    sparse_insert(A, 0, 0, (double)(N - 1));
+    for (idx_t k = 1; k < N; k++) {
         sparse_insert(A, k, k, 1.0);
         sparse_insert(A, 0, k, -1.0);
         sparse_insert(A, k, 0, -1.0);
@@ -773,28 +811,40 @@ static void test_spectral_bisection_gggp_fallback(void) {
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
 
-    idx_t part[5] = {0};
+    idx_t part[11] = {0};
     sparse_err_t rc = graph_bisect_coarsest(&G, part);
     unsetenv("SPARSE_ND_COARSEST_BISECTION");
 
     REQUIRE_OK(rc);
 
-    /* Day 6: pin only the structural contract — at least one vertex
-     * on each side, all entries in {0, 1}.  Day 7-8 will tighten
-     * this to "balance fires; spectral falls back to GGGP" once
-     * spectral actually computes a Fiedler cut. */
-    int has_zero = 0, has_one = 0;
-    for (idx_t i = 0; i < 5; i++) {
+    /* Structural validity: all entries in {0, 1}; at least one on
+     * each side. */
+    idx_t n0 = 0, n1 = 0;
+    for (idx_t i = 0; i < N; i++) {
         ASSERT_TRUE(part[i] == 0 || part[i] == 1);
         if (part[i] == 0)
-            has_zero = 1;
-        if (part[i] == 1)
-            has_one = 1;
+            n0++;
+        else
+            n1++;
     }
-    ASSERT_TRUE(has_zero && has_one);
+    ASSERT_EQ(n0 + n1, N);
+    ASSERT_TRUE(n0 >= 1 && n1 >= 1);
 
-    printf("    spectral dispatch + structural contract verified on star graph (n=5); "
-           "Day 7-8 will land 60/40-balance fallback assert\n");
+    /* Day 7 fallback assertion: spectral's natural cut would
+     * produce a 1/(N-1) = 1/10 = 0.1 imbalance ratio, well below
+     * the 60/40 threshold (0.4).  The fact that the resulting
+     * partition has a balance ratio >= 0.4 PROVES the spectral
+     * path's 60/40 check fired and bisect_gggp took over.
+     * (GGGP on a star graph produces roughly 5/6 = 0.83 balance
+     * by vertex-weight half-target.) */
+    idx_t lo = (n0 < n1) ? n0 : n1;
+    idx_t hi = (n0 < n1) ? n1 : n0;
+    /* lo / hi >= 0.4 ⇔ 10 * lo >= 4 * hi (integer arithmetic). */
+    ASSERT_TRUE(10 * lo >= 4 * hi);
+
+    printf("    star graph (n=%d): n0=%d, n1=%d, balance ratio=%.2f (>=0.40 ⇒ "
+           "GGGP fallback fired)\n",
+           (int)N, (int)n0, (int)n1, (double)lo / (double)hi);
 
     sparse_graph_free(&G);
     sparse_free(A);

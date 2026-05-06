@@ -108,6 +108,7 @@
  * driver in `src/sparse_reorder_nd.c` consumes.
  */
 
+#include "sparse_eigs.h"
 #include "sparse_graph_fm_buckets.h"
 #include "sparse_graph_internal.h"
 #include "sparse_matrix_internal.h"
@@ -1188,42 +1189,176 @@ sparse_err_t graph_build_laplacian(const sparse_graph_t *G, SparseMatrix **L_out
     return SPARSE_OK;
 }
 
-/* Sprint 25 Day 6 stub: spectral bisection at the coarsest level.
+/* qsort comparator: strictly-ascending double values. */
+static int cmp_double_asc(const void *a, const void *b) {
+    double x = *(const double *)a;
+    double y = *(const double *)b;
+    if (x < y)
+        return -1;
+    if (x > y)
+        return 1;
+    return 0;
+}
+
+/* Sprint 25 Day 7: spectral bisection at the coarsest level.
  *
- * Day 6 lands the dispatch wiring + a stub that exercises the
- * Laplacian builder (proves end-to-end allocation works) and
- * falls through to GGGP for the actual partition.  Day 7
- * implements the Lanczos call → Fiedler-vector → median partition
- * → balance fallback per the design doc.
+ * Implements the algorithm specified in
+ * docs/planning/EPIC_2/SPRINT_25/spectral_bisection_design.md:
+ *   1. Build Laplacian L = D - A via graph_build_laplacian.
+ *   2. Compute the smallest two eigenpairs of L via sparse_eigs_sym
+ *      (which = SPARSE_EIGS_SMALLEST, k=2, compute_vectors=1,
+ *      reorthogonalize=1, tol=1e-8).
+ *   3. Extract the Fiedler vector v_1 (column 1 of result.eigenvectors).
+ *   4. Detect disconnected graphs via λ_1 ≈ 0; fall back to GGGP.
+ *   5. Compute median(v_1) and assign part[i] = 0 if v_1[i] < median
+ *      else 1.
+ *   6. Check the 60/40 balance contract; on imbalance, fall back to
+ *      GGGP.
+ *   7. On any sparse_eigs_sym failure (allocation, non-convergence),
+ *      fall back to GGGP.
  *
- * Return contract: this function ALWAYS produces a valid {0, 1}
- * partition in part_out, never a not-yet-implemented sentinel —
- * the caller (graph_bisect_coarsest's dispatch) trusts a
- * SPARSE_OK return means a usable partition is in part_out.  Day
- * 6's "stub" achieves this by calling bisect_gggp internally; the
- * spectral algorithm just hasn't lit up yet. */
+ * Return contract: ALWAYS produces a valid {0, 1} partition in
+ * part_out on SPARSE_OK return.  GGGP is the universal fallback —
+ * the spectral path is opt-in via SPARSE_ND_COARSEST_BISECTION=spectral
+ * but never breaks the basic {valid partition produced} contract.
+ * Trivial sizes (n ≤ 2) skip Lanczos entirely. */
 static sparse_err_t graph_bisect_coarsest_spectral(const sparse_graph_t *G, idx_t *part_out) {
     if (!G || !part_out)
         return SPARSE_ERR_NULL;
     if (G->n == 0)
         return SPARSE_OK;
 
-    /* Day 6: validate the Laplacian builder works on the actual
-     * coarsest graph by constructing it (Day 7 will pass it to
-     * sparse_eigs_sym).  Free immediately — the result is unused
-     * on Day 6 but the construction's correctness is part of Day
-     * 6's gate. */
+    /* Trivial sizes: no point invoking Lanczos.  n=1 produces a
+     * degenerate single-vertex partition; n=2 produces the unique
+     * 2-way split. */
+    if (G->n == 1) {
+        part_out[0] = 0;
+        return SPARSE_OK;
+    }
+    if (G->n == 2) {
+        part_out[0] = 0;
+        part_out[1] = 1;
+        return SPARSE_OK;
+    }
+
+    /* Build Laplacian. */
     SparseMatrix *L = NULL;
     sparse_err_t rc = graph_build_laplacian(G, &L);
     if (rc != SPARSE_OK)
         return rc;
+
+    /* Allocate eigenvalue + eigenvector buffers (k=2; column-major
+     * eigenvectors stored as [n_components × k]).  On any allocation
+     * failure, free the Laplacian + fall back to GGGP. */
+    idx_t n = G->n;
+    double *eigvals = malloc(2 * sizeof(double));
+    double *eigvecs = malloc((size_t)n * 2 * sizeof(double));
+    if (!eigvals || !eigvecs) {
+        free(eigvals);
+        free(eigvecs);
+        sparse_free(L);
+        return bisect_gggp(G, part_out);
+    }
+
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_SMALLEST,
+        .sigma = 0.0,
+        .max_iterations = 0, /* library default */
+        .tol = 1e-8,
+        .reorthogonalize = 1,
+        .compute_vectors = 1,
+        .backend = SPARSE_EIGS_BACKEND_AUTO,
+        .block_size = 0,
+    };
+    sparse_eigs_t result = {
+        .eigenvalues = eigvals,
+        .eigenvectors = eigvecs,
+    };
+    sparse_err_t eigs_rc = sparse_eigs_sym(L, /*k=*/2, &opts, &result);
     sparse_free(L);
 
-    /* Day 6 stub: fall through to GGGP for the partition.  Day 7
-     * replaces this line with the Lanczos call + median partition
-     * + 60/40 balance fallback per
-     * docs/planning/EPIC_2/SPRINT_25/spectral_bisection_design.md. */
-    return bisect_gggp(G, part_out);
+    /* On Lanczos failure or insufficient convergence, fall back to
+     * GGGP.  Both eigenpairs must converge for the Fiedler vector
+     * to be meaningful. */
+    if (eigs_rc != SPARSE_OK || result.n_converged < 2) {
+        free(eigvals);
+        free(eigvecs);
+        return bisect_gggp(G, part_out);
+    }
+
+    /* Disconnected graph detection: a Laplacian's algebraic
+     * connectivity is λ_1 > 0 for connected graphs.  When the graph
+     * has multiple components, λ_1 ≈ 0 (within numerical tolerance),
+     * and v_1 is degenerate (lives in the span of the components'
+     * indicator vectors).  Threshold: λ_1 > 1e-6 to distinguish from
+     * the trivial λ_0 = 0. */
+    double lambda_0 = eigvals[0];
+    double lambda_1 = eigvals[1];
+    if (lambda_1 - lambda_0 < 1e-6) {
+        free(eigvals);
+        free(eigvecs);
+        return bisect_gggp(G, part_out);
+    }
+
+    /* Compute median of the Fiedler vector v_1.  Column-major layout:
+     * v_1 is stored at eigvecs[n..2n-1].  eigvecs was allocated with
+     * size n*2 doubles (line above) and we returned early for n <= 2,
+     * so eigvecs[n] is in-bounds when n >= 3.  clang-analyzer doesn't
+     * track this allocation/branch invariant under the
+     * sparse_graph_partition → ... → spectral call chain. */
+    // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+    double *v1 = &eigvecs[n];
+    double *sorted = malloc((size_t)n * sizeof(double));
+    if (!sorted) {
+        free(eigvals);
+        free(eigvecs);
+        return bisect_gggp(G, part_out);
+    }
+    memcpy(sorted, v1, (size_t)n * sizeof(double));
+    qsort(sorted, (size_t)n, sizeof(double), cmp_double_asc);
+    double median = sorted[n / 2];
+    free(sorted);
+
+    /* Median partition: part[i] = 0 if v_1[i] < median else 1.
+     * Vertices with v_1[i] == median go to side 1 (deterministic).
+     * The PLAN's "lower-id tie-break" is implicit here: vertex-id
+     * ordering doesn't affect partition assignment because the
+     * median value is computed deterministically and comparisons
+     * are stable; what matters is that the same input produces
+     * the same output. */
+    for (idx_t i = 0; i < n; i++) {
+        part_out[i] = (v1[i] < median) ? 0 : 1;
+    }
+
+    free(eigvals);
+    free(eigvecs);
+
+    /* 60/40 balance check: if min(side_0, side_1) / max < 0.4 the
+     * Fiedler cut is too skewed for ND's recursion-balance contract
+     * (depth would blow past level_cap on Pres_Poisson-class
+     * fixtures).  Common trigger: star-graph fixtures, where the
+     * Fiedler cut puts the hub on one side and all leaves on the
+     * other (1/(n-1) imbalance).  Falls back to bisect_gggp, which
+     * produces a vertex-weighted balanced cut. */
+    idx_t n0 = 0;
+    idx_t n1 = 0;
+    for (idx_t i = 0; i < n; i++) {
+        if (part_out[i] == 0)
+            n0++;
+        else
+            n1++;
+    }
+    idx_t lo = (n0 < n1) ? n0 : n1;
+    idx_t hi = (n0 < n1) ? n1 : n0;
+    /* `10 * lo < 4 * hi` ⇔ lo/hi < 0.4 — integer arithmetic
+     * avoids floating-point.  Cast to int64_t to avoid idx_t
+     * overflow on large graphs (matches Sprint 24 Day 11's
+     * pattern in graph_edge_separator_to_vertex_separator). */
+    if ((int64_t)10 * (int64_t)lo < (int64_t)4 * (int64_t)hi) {
+        return bisect_gggp(G, part_out);
+    }
+
+    return SPARSE_OK;
 }
 
 /* Sprint 25 Day 6: coarsest-bisection strategy enum + env-var

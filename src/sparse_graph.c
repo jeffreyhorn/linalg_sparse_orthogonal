@@ -387,6 +387,36 @@ static int cmp_coarse_edge(const void *a, const void *b) {
     return (na > nb) - (na < nb);
 }
 
+/* Sprint 25 Day 1: coarsening-strategy enum + env-var parser
+ * (skeleton).  Day 1 lands the type + parser; Day 2 implements
+ * `graph_coarsen_hcc` and Day 2's `sparse_graph_hierarchy_build`
+ * dispatches the matching loop on the parsed strategy.
+ *
+ * The Sprint 22 default (`COARSENING_HEAVY_EDGE`) calls
+ * `graph_coarsen_heavy_edge_matching` (below) for bit-identical
+ * behavior.  `COARSENING_HCC` calls a sibling `graph_coarsen_hcc`
+ * (Day 2) implementing Karypis-Kumar 1998 §5's Heavy Connectivity
+ * Coarsening: same shuffle, same collapse rule, but score function
+ * is `edge_weight * min(deg(u), deg(v))` instead of just
+ * `edge_weight`.  See `docs/planning/EPIC_2/SPRINT_25/hcc_design.md`
+ * for the design contract + tie-break + visit-order rationale. */
+typedef enum {
+    COARSENING_HEAVY_EDGE = 0, /* Sprint 22 default — heavy-edge matching */
+    COARSENING_HCC = 1,        /* Sprint 25 Day 2-3 — Heavy Connectivity Coarsening */
+} coarsening_strategy_t;
+
+static coarsening_strategy_t parse_coarsening_strategy(void) {
+    const char *env = getenv("SPARSE_ND_COARSENING");
+    if (env && strcmp(env, "hcc") == 0)
+        return COARSENING_HCC;
+    /* Default + unrecognized + "heavy_edge" all fall through to the
+     * Sprint 22 heavy-edge matching.  Validation pattern mirrors
+     * Sprint 24 Day 5's SPARSE_ND_COARSEN_FLOOR_RATIO parser:
+     * silent fallback to the safe default rather than erroring out
+     * on unrecognized input. */
+    return COARSENING_HEAVY_EDGE;
+}
+
 sparse_err_t graph_coarsen_heavy_edge_matching(const sparse_graph_t *fine, uint32_t seed,
                                                sparse_graph_t *coarse_out, idx_t *cmap_out) {
     if (!fine || !coarse_out)
@@ -699,6 +729,13 @@ sparse_err_t sparse_graph_hierarchy_build(const sparse_graph_t *root, uint32_t s
     idx_t base_threshold = n_root / divisor;
     if (base_threshold < 20)
         base_threshold = 20;
+    /* Sprint 25 Day 1: read the coarsening strategy once at the top
+     * of the hierarchy build so all levels use the same matching
+     * variant (Day 2 will dispatch the matching loop on this value).
+     * Day 1 ships the parse only — `strategy` is intentionally unused
+     * here; Day 2 picks it up. */
+    coarsening_strategy_t strategy = parse_coarsening_strategy();
+    (void)strategy;
     /* log2(n) + 5 ceiling; cap at a defensive 64 to avoid pathology
      * on enormous n. */
     int level_cap = 5;

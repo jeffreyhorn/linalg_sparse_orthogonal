@@ -383,6 +383,68 @@ static void test_coarsen_prefers_heaviest_edge(void) {
     sparse_free(A);
 }
 
+/* Sprint 25 Day 1 stubs: HCC match-selection contract pins.
+ *
+ * Day 1 ships skip-mode tests that print the expected match
+ * selection for a 5x5 grid + a small irregular fixture; Day 3
+ * replaces the skip with the actual ASSERT statements once the
+ * HCC matching loop lands (Day 2-3) and `SPARSE_ND_COARSENING=hcc`
+ * actually selects matches differently from the Sprint 22
+ * heavy-edge default.
+ *
+ * The fixtures + expected outputs are defined here on Day 1 so
+ * the contract is visible at the test-file level (i.e. the
+ * implementation has a target to hit before it lands).  See
+ * docs/planning/EPIC_2/SPRINT_25/hcc_design.md for the scoring
+ * formula `score = edge_weight * min(deg(u), deg(v))` + tie-break
+ * "lower-id neighbour wins on equal score". */
+static void test_hcc_match_selection_grid(void) {
+    /* 5x5 unit-weighted grid (n=25, regular structure).  Under HEM
+     * (Sprint 22 default), all neighbour edges have weight 1, so
+     * the match selection follows shuffle-order tie-break.  Under
+     * HCC, the score = 1 * min(deg(u), deg(v)) — interior vertices
+     * (deg=4) beat boundary vertices (deg=2 or 3) for the same
+     * weight, so HCC preferentially matches interior-to-interior
+     * pairs first.
+     *
+     * Day 3 will assert: in the 5x5 grid under HCC, the matching
+     * count is at least 8 (out of 12 possible perfect-matching
+     * pairs on the 5x5 grid graph) and the unmatched vertices are
+     * preferentially boundary vertices (degree-2 corners are most
+     * likely to remain unmatched). */
+    printf("    skipped (HCC matching not yet implemented; contract pinned for Day 3 — "
+           "5x5 grid under SPARSE_ND_COARSENING=hcc should match >= 8 of 12 pairs, "
+           "leaving boundary vertices preferentially unmatched per "
+           "docs/planning/EPIC_2/SPRINT_25/hcc_design.md)\n");
+}
+
+static void test_hcc_match_selection_irregular(void) {
+    /* Small irregular fixture: a 4-vertex "Y" shape — vertex 0
+     * is a hub connected to vertices 1, 2, 3 (each of which has
+     * only one neighbour, vertex 0).  All edges have weight 1.
+     *
+     *     1
+     *      \
+     *       0 --- 2
+     *      /
+     *     3
+     *
+     * Under HEM (weight = 1 everywhere), the first-encountered
+     * neighbour of vertex 0 wins (shuffle-dependent).  Under HCC,
+     * the score for edge (0, k) = 1 * min(deg(0)=3, deg(k)=1) = 1
+     * for every k in {1,2,3} — same as HEM.  This case is a
+     * tie-break test: HCC's "lower-id neighbour wins on equal
+     * score" rule should consistently match (0, 1) regardless of
+     * shuffle (vertex 1 has the lowest id among {1,2,3}).
+     *
+     * Day 3 will assert: under HCC + any seed, vertex 0 matches
+     * with vertex 1 (the lowest-id neighbour). */
+    printf("    skipped (HCC matching not yet implemented; contract pinned for Day 3 — "
+           "Y-graph under SPARSE_ND_COARSENING=hcc should match (0,1) deterministically "
+           "via lower-id-neighbour tie-break per "
+           "docs/planning/EPIC_2/SPRINT_25/hcc_design.md)\n");
+}
+
 static void test_coarsen_is_deterministic(void) {
     /* Same (graph, seed) pair must produce the same coarse graph
      * and the same cmap on every call.  This is the contract
@@ -1271,6 +1333,9 @@ int main(void) {
     RUN_TEST(test_coarsen_1d_path_halves);
     RUN_TEST(test_coarsen_prefers_heaviest_edge);
     RUN_TEST(test_coarsen_is_deterministic);
+    /* Sprint 25 Day 1 stubs (skip-mode; Day 3 lands assertions): */
+    RUN_TEST(test_hcc_match_selection_grid);
+    RUN_TEST(test_hcc_match_selection_irregular);
 
     /* Day 2: multilevel hierarchy */
     RUN_TEST(test_hierarchy_build_5x5_grid);

@@ -327,3 +327,163 @@ ND fill-quality opt-in env vars added (Pres_Poisson advisory:
 ratio=200 → 0.942×; non-Pres_Poisson advisory: balanced_boundary →
 8-38pp wins).  Pres_Poisson 0.7× literal target + 0.85× stretch
 target both route to Sprint 25 with concrete avenues identified."
+
+## Sprint 25 closures
+
+Sprint 25 ran 14 days against the four items Sprint 24 routed forward:
+the Pres_Poisson ≤ 0.85× literal target (item 1), `make wall-check`
+extension to cover Pres_Poisson ND wall (item 6), the ND wall-time
+profile + tightening question (item 5), plus closing tests / docs.
+The headline reference is `docs/planning/EPIC_2/SPRINT_25/headline_summary.md`;
+the Day-9 cross-corpus sweep at `bench_day9_combinations.{csv,txt}`
+is the canonical 16-setting × 6-fixture matrix this sprint's
+production-default decisions are based on.
+
+### What moved
+
+| metric | Sprint 24 | Sprint 25 default | Sprint 25 best opt-in | delta |
+|---|---|---|---|---|
+| Pres_Poisson nnz_nd / nnz_amd (default) | 0.952× | 0.952× (bit-identical) | — | 0pp |
+| Pres_Poisson nnz_nd / nnz_amd (best opt-in) | 0.942× (`ratio=200`) | — | **0.922×** (HCC + ratio=200; Day 9 setting 13) | -2.0pp |
+| Kuu nnz_nd / nnz_amd (default) | 2.275× | 2.275× | — | 0pp |
+| Kuu nnz_nd / nnz_amd (best opt-in) | 1.415× (balanced_boundary) | — | **1.309×** (full setting 15) | -10.6pp |
+| nos4 nnz_nd / nnz_amd (best opt-in) | ~1.51× | — | **1.256×** (setting 15) | -25pp |
+| bcsstk14 nnz_nd / nnz_amd (best opt-in) | 1.129× | — | 1.037× (setting 15) | -9pp |
+| Pres_Poisson ND wall (default) | ~37 s (Day 7 measure) | ~47 s median (Day 11; 16 % within-run variance) | ~1.6 s (setting 15 spectral) | variance vs S24 measure; ~23× speedup under setting 15 |
+| `wall_check_baseline.txt` lines | 2 (AMD only) | **3** (AMD × 2 + Pres_Poisson ND) | — | item 6 closure |
+
+The Pres_Poisson 0.922× best-opt-in achievement is the Sprint 25
+headline.  Three independent algorithmic axes were trialled per
+PLAN.md items 1-3:
+
+- `SPARSE_ND_COARSENING={heavy_edge,hcc}` (Day 1-3; default
+  `heavy_edge`).  HCC selects Heavy Connectivity Coarsening (Karypis
+  & Kumar 1998 §5) — matching score `edge_weight × min(deg(u),
+  deg(v))` rather than HEM's pure `edge_weight`.  Pres_Poisson alone:
+  -1.5pp.  See `coarsening_decision.md` + `hcc_design.md`.
+- `SPARSE_FM_INTERMEDIATE_PASSES` (Day 4-5; default 1).  Multi-pass
+  FM at intermediate uncoarsening levels (Sprint 23's
+  `SPARSE_FM_FINEST_PASSES` only touched the finest level).
+  Pres_Poisson sweep across passes ∈ {1, 2, 3, 5, 10}: passes=2
+  regresses +0.1pp; passes=3 unchanged at 0.952×; passes ≥ 5
+  saturate.  See `intermediate_fm_decision.md`.
+- `SPARSE_ND_COARSEST_BISECTION={gggp,spectral}` (Day 6-8; default
+  `gggp`).  `spectral` builds the graph Laplacian and uses the
+  Sprint 20-21 Lanczos eigensolver to compute the Fiedler vector,
+  partitioning by median.  Pres_Poisson alone: 0.953× (essentially
+  no nnz_L change), but reduces ND wall ~23× as part of full setting
+  15.  See `spectral_bisection_decision.md` + `spectral_bisection_design.md`.
+
+The new `SPARSE_ND_PROFILE` env-var-gated `clock_gettime` per-phase
+ND instrumentation (Day 11; off by default; one branch overhead when
+off) confirmed `sparse_graph_partition` accounts for **99.5 % of
+Pres_Poisson ND wall in every run** — useful for Sprint 26 if
+finest-level FM tuning targets wall-time wins.
+
+### What didn't move
+
+The literal Sprint 25 targets PROJECT_PLAN.md set are documented
+under the four headline gates in `headline_summary.md` "Verdict":
+
+- **Pres_Poisson ND/AMD ≤ 0.85× (literal target)** — **MISS** (best
+  combination achieves 0.9218×; -7.2pp gap).  This is the third
+  sprint in a row to miss the Pres_Poisson literal target (Sprint
+  22 PLAN's 0.5× → Sprint 23 PLAN's 0.7× → Sprint 24 PLAN's 0.85×
+  → Sprint 25 PLAN's 0.85×, all unmet).
+- **Pres_Poisson ND/AMD ≤ 0.90× (partial close)** — **MISS** (best
+  0.9218×; -2.2pp gap).
+- **Pres_Poisson ND/AMD < Sprint 24 baseline (0.952×)** — **PASS**
+  at -3pp via setting 13 opt-in; default unchanged.
+- **Smaller-fixture corpus safety (no > 5pp regression)** — **PASS**;
+  worst regression under setting 13 is s3rmt3m3 +1.0pp.
+
+The Sprint 25 sweep's strongest evidence is that **all three
+independent algorithmic axes (HCC, multi-pass intermediate FM,
+spectral bisection) wash out individually on Pres_Poisson** when
+applied at coarsening / intermediate / coarsest-bisection levels —
+the **finest-level FM dominates** downstream on regular structured
+fixtures.  Sprint 26 must intervene at the finest level (or
+pre-empt the multilevel pipeline entirely with geometric cut
+detection) to close the residual 7-9pp gap.
+
+### Production defaults
+
+**No defaults flipped.**  All three Sprint 25 algorithmic axes ship
+behind env vars as advisory.  The two blockers:
+
+1. `SPARSE_ND_COARSENING=hcc` flip blocked by **bcsstk14 sep=0**
+   (HCC's matching choice on this fixture produces a degenerate
+   coarse-level partition; the multilevel pipeline's separator
+   extraction yields an empty separator).  Documented Day 10 in
+   `coarsening_decision.md` "Two test failures surfaced under the
+   new defaults".  Sprint 26 inherits the root-cause investigation.
+2. `SPARSE_ND_COARSEST_BISECTION=spectral` and
+   `SPARSE_FM_INTERMEDIATE_PASSES=2`: neither moves Pres_Poisson
+   nnz_L past the 1pp flip-rule threshold individually.
+
+### Test bound tightening
+
+| test | S24 bound | S25 bound | reason |
+|---|---|---|---|
+| `test_nd_pres_poisson_fill_with_leaf_amd` | `≤ 0.96× nnz_amd` | unchanged at `≤ 0.96×` | default unchanged |
+| `test_nd_10x10_grid_matches_or_beats_amd_fill` | `≤ 1.17× nnz_amd` | unchanged at `≤ 1.17×` | default unchanged |
+
+Both bounds stay at Sprint 24's values because the Sprint 25 default
+ND code path is bit-identical to Sprint 24's (the 0.922×
+Pres_Poisson best-opt-in achievement is opt-in-only and would
+unduly pin the test bound to combination-specific behaviour).
+Sprint 25's bound-related work was item 6 (`make wall-check`
+extension), not item 4 (which Sprint 24 had already absorbed via
+Day 7's 0.96× tightening).
+
+### `make wall-check` extension
+
+Sprint 25 Day 12 closed Sprint 24 item 6: `wall_check_baseline.txt`
+gains a `pres_poisson_nd_ms = 47 055` line (Day 11 5-run median;
+range 44 321 - 51 562 ms = 16.3 % within-run variance).  The
+threshold is per-key in `scripts/wall_check.sh`: AMD baselines stay
+at 2× (tight gate; Sprint 23 introduced + Sprint 24 reverted a
+30-200× regression that escaped notice for an entire sprint); the
+new Pres_Poisson ND baseline uses **1.5×** to absorb the 16 %
+within-run variance without going so wide that real algorithmic
+regressions slip through.  Verified Day 12 by 10× synthetic
+regression: gate fires correctly.  See
+`docs/planning/EPIC_2/SPRINT_25/nd_wall_time_decision.md`.
+
+### What's left for Sprint 26
+
+Per `headline_summary.md` "Sprint 26 routing" + `nd_tuning_day8.md`:
+
+1. **Pres_Poisson ND/AMD ≤ 0.85×** — needs intervention at the
+   FINEST FM level (annealing acceptance / different bucket-tie-break
+   / thick-restart-style FM with global rollback) or geometric cut
+   detection on regular grids that pre-empts the multilevel pipeline.
+   The Sprint 25 sweep is the strongest evidence yet that
+   coarsening / intermediate-FM / coarsest-bisection axes all wash
+   out on this fixture.
+2. **bcsstk14 sep=0 under HCC** — root-cause investigation into
+   why HCC's `min(deg(u), deg(v))` weighting produces a degenerate
+   coarse-level partition on bcsstk14.  Either HCC matching pattern
+   tightening or a `sparse_graph_partition` sep=0 fall-back.
+   Blocks the HCC default flip until resolved.
+3. **Pres_Poisson ND wall ~10s sprint-to-sprint drift** — Sprint 23's
+   ~36s reported vs Sprint 25's ~47s median is variance/build-drift
+   per Day 11 classification, but Sprint 26 could re-baseline if
+   the test machine + compiler version stabilise.
+
+### Shipping story for the Sprint 25 PR description
+
+"Three new ND env-var-gated algorithmic axes added: HCC coarsening
+(Karypis-Kumar 1998 §5), multi-pass FM at intermediate uncoarsening
+levels, and spectral bisection at the coarsest level using the
+Sprint 20-21 Lanczos eigensolver.  Pres_Poisson ND/AMD best opt-in
+0.922× (HCC + ratio=200; -3pp vs Sprint 24 baseline); Kuu best
+opt-in 1.309× (-97pp; the largest single corpus win).  No
+production defaults flipped — all three axes ship as advisory; HCC
+default flip blocked by bcsstk14 sep=0 inheritance to Sprint 26.
+0.85× literal target misses by 7.2pp; routes to Sprint 26 with
+strong evidence the residual gap requires finest-level FM
+intervention.  `make wall-check` extended with Pres_Poisson ND
+baseline (1.5× threshold per Day 11 16 % within-run variance
+classification).  `SPARSE_ND_PROFILE` per-phase instrumentation
+added for Sprint 26 wall-time work."

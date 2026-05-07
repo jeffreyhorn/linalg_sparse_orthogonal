@@ -115,25 +115,37 @@ static long long nd_prof_now_ns(void) {
 }
 
 /* Base-case threshold: the recursion stops here and the subgraph's
- * vertices land in the permutation in their natural (subgraph-local)
- * order.  Default 32 from the Day 9 sweep: fill on bcsstk14 (n=1806)
- * and Pres_Poisson (n=14822) is minimised here within 0.1 % of any
- * threshold in {4, 8, 16, 32}, and 32 is significantly faster than
- * the smaller values on Pres_Poisson (recursive partitioning cost
- * dominates beyond the leaves).  See
- * `docs/planning/EPIC_2/SPRINT_22/bench_day9_nd.txt` for the full
- * sweep data.
+ * vertices go through leaf-AMD instead of further multilevel-
+ * partition recursion (Sprint 23 Day 7 introduced the leaf-AMD
+ * splice; Sprint 22 used natural ordering at the base case).
+ *
+ * **Sprint 26 Day 5 flip: 32 → 96.**  Sprint 22 Day 9's original
+ * sweep set the default at 32 against natural-ordering leaves;
+ * Sprint 23 Day 7 swapped natural for leaf-AMD without re-sweeping
+ * the threshold, leaving t=32 dominant for two more sprints.
+ * Sprint 25 Day 11's per-phase profile measured `nd_emit_natural`
+ * (degenerate small-subgraph fall-through) firing 32 times at
+ * ~165 ms each on Pres_Poisson; Sprint 26 Day 4's per-recursion-
+ * depth profile showed cost concentrating at depths 6-9 (88 % of
+ * partition cost on 169 small-subgraph calls, each invoking the
+ * full multilevel pipeline at n ≈ 50-300 with a constant-factor
+ * overhead floor of 60-200 ms).  Sprint 26 Day 5 re-swept t ∈
+ * {32, 48, 64, 96, 128} on the full corpus; t=96 was the maximum
+ * threshold satisfying the PLAN.md flip rule (≥ 5 % Pres_Poisson
+ * wall improvement + no fixture nnz_L regression past 1pp).
+ * Result on Pres_Poisson: ND wall 38.1 s → 12.2 s (-67.9 %)
+ * with nnz_L bit-stable (-0.21pp).  Per-fixture wins in [-1.3,
+ * -16.4] pp range on nnz_L (nos4 / Kuu / bcsstk14 / Pres_Poisson)
+ * and -38 to -80 % on wall across the corpus.  See
+ * `docs/planning/EPIC_2/SPRINT_26/nd_base_threshold_decision.md`
+ * for the full sweep matrix + flip-rule application.
  *
  * Declared in `src/sparse_reorder_nd_internal.h` (benchmark-only,
- * not thread-safe, no ABI guarantee — see that header) so the Day 9
- * sweep (`benchmarks/bench_reorder.c --nd-threshold N`) can
- * override it from the command line without recompiling the
- * library, but library consumers don't see it.  The Sprint 23
- * follow-up that splices quotient-graph AMD into each leaf will
- * turn this into a real "stop recursing here, run AMD" cutover, at
- * which point the right tuning surface is an opts struct on
- * `sparse_reorder_nd` itself and this global goes away. */
-idx_t sparse_reorder_nd_base_threshold = 32;
+ * not thread-safe, no ABI guarantee — see that header) so the
+ * `benchmarks/bench_reorder.c --nd-threshold N` flag can override
+ * it from the command line without recompiling the library, but
+ * library consumers don't see it. */
+idx_t sparse_reorder_nd_base_threshold = 96;
 
 /* Append `n` vertices from a subgraph to the global permutation in
  * the order they appear in `vertex_id_map`.  Used by the

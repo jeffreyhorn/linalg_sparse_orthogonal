@@ -1,0 +1,666 @@
+=== threshold=32 ===
+# nd_base_threshold=32, factor=no
+matrix,n,reorder,nnz_L,reorder_ms,factor_ms
+nos4,100,NONE,805,0.0,skip
+nos4,100,RCM,888,0.2,skip
+nos4,100,AMD,637,0.2,skip
+nos4,100,COLAMD,778,0.3,skip
+nd-profile n=100 total=138.260ms
+  graph_build  = 0.189ms
+  partition    = 137.729ms (3 calls)
+  subgraph     = 0.057ms
+  leaf_amd     = 0.169ms (4 calls)
+  leaf_subgraph= 0.057ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 0.059ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1       86.625      86.625
+        1      2       51.104      25.552
+nos4,100,ND,968,104.5,skip
+bcsstk04,132,NONE,3763,0.0,skip
+bcsstk04,132,RCM,3633,0.7,skip
+bcsstk04,132,AMD,3143,2.1,skip
+bcsstk04,132,COLAMD,3622,3.4,skip
+nd-profile n=132 total=743.343ms
+  graph_build  = 0.550ms
+  partition    = 742.596ms (3 calls)
+  subgraph     = 0.026ms
+  leaf_amd     = 0.083ms (2 calls)
+  leaf_subgraph= 0.027ms
+  emit_natural = 0.001ms (1 calls)
+  other        = 0.060ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      236.711     236.711
+        1      2      505.885     252.942
+bcsstk04,132,ND,3702,556.9,skip
+Kuu,7102,NONE,2993061,0.0,skip
+Kuu,7102,RCM,1024794,60.5,skip
+Kuu,7102,AMD,406264,556.0,skip
+Kuu,7102,COLAMD,830665,4193.0,skip
+nd-profile n=7102 total=24489.551ms
+  graph_build  = 65.556ms
+  partition    = 24386.127ms (139 calls)
+  subgraph     = 9.747ms
+  leaf_amd     = 18.089ms (76 calls)
+  leaf_subgraph= 3.017ms
+  emit_natural = 0.023ms (32 calls)
+  other        = 6.992ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      146.105     146.105
+        1      2      238.282     119.141
+        2      4      823.458     205.864
+        3      8     2045.199     255.650
+        4     16     3689.327     230.583
+        5     31     5457.128     176.036
+        6     46     5120.121     111.307
+        7     29     6011.690     207.300
+        8      2      854.817     427.409
+Kuu,7102,ND,924385,15091.0,skip
+bcsstk14,1806,NONE,190791,0.0,skip
+bcsstk14,1806,RCM,178311,13.1,skip
+bcsstk14,1806,AMD,116071,158.9,skip
+bcsstk14,1806,COLAMD,146037,232.2,skip
+nd-profile n=1806 total=10527.736ms
+  graph_build  = 24.113ms
+  partition    = 10484.034ms (51 calls)
+  subgraph     = 2.373ms
+  leaf_amd     = 3.622ms (32 calls)
+  leaf_subgraph= 1.175ms
+  emit_natural = 0.002ms (6 calls)
+  other        = 12.417ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1       34.992      34.992
+        1      2       67.036      33.518
+        2      4       81.863      20.466
+        3      6      699.881     116.647
+        4     11     2747.802     249.800
+        5      9     3518.938     390.993
+        6      4     1204.504     301.126
+        7      2        6.585       3.292
+        8      1       15.969      15.969
+        9      1      157.514     157.514
+       10      2      144.374      72.187
+       11      4      638.820     159.705
+       12      3      790.473     263.491
+       13      1      375.283     375.283
+bcsstk14,1806,ND,131017,6087.5,skip
+s3rmt3m3,5357,NONE,2208972,0.0,skip
+s3rmt3m3,5357,RCM,636993,43.0,skip
+s3rmt3m3,5357,AMD,474609,1150.6,skip
+s3rmt3m3,5357,COLAMD,607647,1698.9,skip
+nd-profile n=5357 total=25744.950ms
+  graph_build  = 79.297ms
+  partition    = 25635.322ms (132 calls)
+  subgraph     = 7.177ms
+  leaf_amd     = 13.140ms (111 calls)
+  leaf_subgraph= 4.861ms
+  emit_natural = 0.005ms (11 calls)
+  other        = 5.148ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      152.489     152.489
+        1      2      247.459     123.730
+        2      4      127.591      31.898
+        3      8      972.190     121.524
+        4     16     2414.213     150.888
+        5     32     5625.712     175.804
+        6     48    10697.070     222.856
+        7     21     5398.598     257.076
+s3rmt3m3,5357,ND,478890,14387.7,skip
+Pres_Poisson,14822,NONE,5061932,0.0,skip
+Pres_Poisson,14822,RCM,3187081,146.9,skip
+Pres_Poisson,14822,AMD,2668793,9546.2,skip
+Pres_Poisson,14822,COLAMD,3415793,15338.3,skip
+nd-profile n=14822 total=53649.573ms
+  graph_build  = 176.999ms
+  partition    = 53379.340ms (301 calls)
+  subgraph     = 31.799ms
+  leaf_amd     = 22.801ms (237 calls)
+  leaf_subgraph= 9.807ms
+  emit_natural = 0.021ms (32 calls)
+  other        = 28.806ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      339.051     339.051
+        1      2      333.316     166.658
+        2      4      328.035      82.009
+        3      8     1481.691     185.211
+        4     16     1498.570      93.661
+        5     32     2419.471      75.608
+        6     64     9811.369     153.303
+        7    107    20874.899     195.093
+        8     62    13687.534     220.767
+        9      5     2605.404     521.081
+Pres_Poisson,14822,ND,2541734,38130.5,skip
+
+=== threshold=48 ===
+# nd_base_threshold=48, factor=no
+matrix,n,reorder,nnz_L,reorder_ms,factor_ms
+nos4,100,NONE,805,0.0,skip
+nos4,100,RCM,888,0.1,skip
+nos4,100,AMD,637,0.3,skip
+nos4,100,COLAMD,778,0.3,skip
+nd-profile n=100 total=130.212ms
+  graph_build  = 0.056ms
+  partition    = 129.805ms (2 calls)
+  subgraph     = 0.040ms
+  leaf_amd     = 0.212ms (3 calls)
+  leaf_subgraph= 0.044ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 0.055ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1       76.459      76.459
+        1      1       53.346      53.346
+nos4,100,ND,903,97.1,skip
+bcsstk04,132,NONE,3763,0.0,skip
+bcsstk04,132,RCM,3633,0.7,skip
+bcsstk04,132,AMD,3143,1.9,skip
+bcsstk04,132,COLAMD,3622,3.0,skip
+nd-profile n=132 total=521.252ms
+  graph_build  = 0.706ms
+  partition    = 520.255ms (2 calls)
+  subgraph     = 0.021ms
+  leaf_amd     = 0.187ms (1 calls)
+  leaf_subgraph= 0.042ms
+  emit_natural = 0.001ms (1 calls)
+  other        = 0.040ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      241.890     241.890
+        1      1      278.365     278.365
+bcsstk04,132,ND,3650,374.2,skip
+Kuu,7102,NONE,2993061,0.0,skip
+Kuu,7102,RCM,1024794,72.7,skip
+Kuu,7102,AMD,406264,573.8,skip
+Kuu,7102,COLAMD,830665,4857.9,skip
+nd-profile n=7102 total=12393.550ms
+  graph_build  = 91.344ms
+  partition    = 12218.966ms (109 calls)
+  subgraph     = 16.497ms
+  leaf_amd     = 47.088ms (82 calls)
+  leaf_subgraph= 6.004ms
+  emit_natural = 0.010ms (14 calls)
+  other        = 13.641ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      175.637     175.637
+        1      2      197.673      98.837
+        2      4      683.862     170.965
+        3      8     1508.533     188.567
+        4     16     2575.529     160.971
+        5     31     4039.478     130.306
+        6     35     2413.665      68.962
+        7     12      624.589      52.049
+Kuu,7102,ND,917619,8872.8,skip
+bcsstk14,1806,NONE,190791,0.0,skip
+bcsstk14,1806,RCM,178311,13.2,skip
+bcsstk14,1806,AMD,116071,136.0,skip
+bcsstk14,1806,COLAMD,146037,181.4,skip
+nd-profile n=1806 total=5047.204ms
+  graph_build  = 12.851ms
+  partition    = 5021.150ms (39 calls)
+  subgraph     = 2.273ms
+  leaf_amd     = 6.394ms (32 calls)
+  leaf_subgraph= 2.698ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 1.838ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1       30.936      30.936
+        1      2       47.767      23.884
+        2      4       62.259      15.565
+        3      6      509.520      84.920
+        4      9     2095.120     232.791
+        5      4       73.767      18.442
+        6      3     1058.116     352.705
+        7      1        6.417       6.417
+        8      1        5.566       5.566
+        9      1      123.421     123.421
+       10      2      107.630      53.815
+       11      4      416.616     104.154
+       12      1      484.015     484.015
+bcsstk14,1806,ND,131655,3599.0,skip
+s3rmt3m3,5357,NONE,2208972,0.0,skip
+s3rmt3m3,5357,RCM,636993,30.6,skip
+s3rmt3m3,5357,AMD,474609,773.0,skip
+s3rmt3m3,5357,COLAMD,607647,1199.0,skip
+nd-profile n=5357 total=11491.463ms
+  graph_build  = 37.165ms
+  partition    = 11401.454ms (96 calls)
+  subgraph     = 13.676ms
+  leaf_amd     = 26.797ms (97 calls)
+  leaf_subgraph= 8.026ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 4.345ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1       88.045      88.045
+        1      2      159.689      79.844
+        2      4       91.129      22.782
+        3      8      708.046      88.506
+        4     16     1778.570     111.161
+        5     31     3953.017     127.517
+        6     29     4571.540     157.639
+        7      5       51.418      10.284
+s3rmt3m3,5357,ND,480555,8253.3,skip
+Pres_Poisson,14822,NONE,5061932,0.0,skip
+Pres_Poisson,14822,RCM,3187081,139.3,skip
+Pres_Poisson,14822,AMD,2668793,8643.2,skip
+Pres_Poisson,14822,COLAMD,3415793,14973.6,skip
+nd-profile n=14822 total=33732.969ms
+  graph_build  = 164.795ms
+  partition    = 33426.529ms (227 calls)
+  subgraph     = 23.429ms
+  leaf_amd     = 65.388ms (226 calls)
+  leaf_subgraph= 39.152ms
+  emit_natural = 0.001ms (1 calls)
+  other        = 13.675ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      352.261     352.261
+        1      2      377.254     188.627
+        2      4      330.172      82.543
+        3      8     1587.396     198.424
+        4     16     1571.375      98.211
+        5     32     2544.951      79.530
+        6     64    10504.512     164.133
+        7     82    14390.890     175.499
+        8     18     1767.718      98.207
+Pres_Poisson,14822,ND,2541351,22996.5,skip
+
+=== threshold=64 ===
+# nd_base_threshold=64, factor=no
+matrix,n,reorder,nnz_L,reorder_ms,factor_ms
+nos4,100,NONE,805,0.0,skip
+nos4,100,RCM,888,0.1,skip
+nos4,100,AMD,637,0.3,skip
+nos4,100,COLAMD,778,0.3,skip
+nd-profile n=100 total=95.334ms
+  graph_build  = 0.057ms
+  partition    = 94.978ms (1 calls)
+  subgraph     = 0.026ms
+  leaf_amd     = 0.211ms (2 calls)
+  leaf_subgraph= 0.038ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 0.024ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1       94.978      94.978
+nos4,100,ND,809,65.0,skip
+bcsstk04,132,NONE,3763,0.0,skip
+bcsstk04,132,RCM,3633,0.7,skip
+bcsstk04,132,AMD,3143,2.3,skip
+bcsstk04,132,COLAMD,3622,2.7,skip
+nd-profile n=132 total=568.082ms
+  graph_build  = 0.543ms
+  partition    = 567.198ms (2 calls)
+  subgraph     = 0.059ms
+  leaf_amd     = 0.191ms (1 calls)
+  leaf_subgraph= 0.047ms
+  emit_natural = 0.000ms (1 calls)
+  other        = 0.044ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      266.131     266.131
+        1      1      301.067     301.067
+bcsstk04,132,ND,3650,368.3,skip
+Kuu,7102,NONE,2993061,0.0,skip
+Kuu,7102,RCM,1024794,61.1,skip
+Kuu,7102,AMD,406264,558.2,skip
+Kuu,7102,COLAMD,830665,4178.3,skip
+nd-profile n=7102 total=11880.042ms
+  graph_build  = 80.949ms
+  partition    = 11738.430ms (86 calls)
+  subgraph     = 17.869ms
+  leaf_amd     = 28.424ms (79 calls)
+  leaf_subgraph= 9.688ms
+  emit_natural = 0.001ms (4 calls)
+  other        = 4.681ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      167.407     167.407
+        1      2      211.584     105.792
+        2      4      770.446     192.612
+        3      8     1478.517     184.815
+        4     16     2607.455     162.966
+        5     29     3933.838     135.650
+        6     23     2067.471      89.890
+        7      3      501.712     167.237
+Kuu,7102,ND,908834,8171.1,skip
+bcsstk14,1806,NONE,190791,0.0,skip
+bcsstk14,1806,RCM,178311,12.6,skip
+bcsstk14,1806,AMD,116071,127.1,skip
+bcsstk14,1806,COLAMD,146037,172.0,skip
+nd-profile n=1806 total=4145.278ms
+  graph_build  = 19.730ms
+  partition    = 4093.857ms (34 calls)
+  subgraph     = 11.340ms
+  leaf_amd     = 15.764ms (27 calls)
+  leaf_subgraph= 3.093ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 1.494ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1       29.933      29.933
+        1      2       38.178      19.089
+        2      4       53.853      13.463
+        3      6      484.552      80.759
+        4      7     1744.995     249.285
+        5      3       17.483       5.828
+        6      2      956.591     478.296
+        7      1        7.242       7.242
+        8      1       14.335      14.335
+        9      1      133.323     133.323
+       10      2      105.081      52.541
+       11      3       31.572      10.524
+       12      1      476.719     476.719
+bcsstk14,1806,ND,130971,2986.5,skip
+s3rmt3m3,5357,NONE,2208972,0.0,skip
+s3rmt3m3,5357,RCM,636993,34.0,skip
+s3rmt3m3,5357,AMD,474609,782.0,skip
+s3rmt3m3,5357,COLAMD,607647,1223.6,skip
+nd-profile n=5357 total=10936.586ms
+  graph_build  = 36.701ms
+  partition    = 10834.283ms (78 calls)
+  subgraph     = 5.522ms
+  leaf_amd     = 45.694ms (79 calls)
+  leaf_subgraph= 10.129ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 4.257ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1       85.561      85.561
+        1      2      171.129      85.564
+        2      4      102.443      25.611
+        3      8      705.902      88.238
+        4     16     1751.185     109.449
+        5     31     3961.263     127.783
+        6     16     4056.800     253.550
+s3rmt3m3,5357,ND,481382,7907.9,skip
+Pres_Poisson,14822,NONE,5061932,0.0,skip
+Pres_Poisson,14822,RCM,3187081,149.3,skip
+Pres_Poisson,14822,AMD,2668793,8775.6,skip
+Pres_Poisson,14822,COLAMD,3415793,15259.7,skip
+nd-profile n=14822 total=29930.898ms
+  graph_build  = 175.140ms
+  partition    = 29604.474ms (187 calls)
+  subgraph     = 29.642ms
+  leaf_amd     = 74.503ms (188 calls)
+  leaf_subgraph= 27.707ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 19.432ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      337.006     337.006
+        1      2      332.229     166.114
+        2      4      318.082      79.520
+        3      8     1436.057     179.507
+        4     16     1433.213      89.576
+        5     32     2388.342      74.636
+        6     63     9594.161     152.288
+        7     56    12385.149     221.163
+        8      5     1380.235     276.047
+Pres_Poisson,14822,ND,2539903,21502.2,skip
+
+=== threshold=96 ===
+# nd_base_threshold=96, factor=no
+matrix,n,reorder,nnz_L,reorder_ms,factor_ms
+nos4,100,NONE,805,0.0,skip
+nos4,100,RCM,888,0.1,skip
+nos4,100,AMD,637,0.2,skip
+nos4,100,COLAMD,778,0.3,skip
+nd-profile n=100 total=90.414ms
+  graph_build  = 0.056ms
+  partition    = 90.067ms (1 calls)
+  subgraph     = 0.009ms
+  leaf_amd     = 0.202ms (2 calls)
+  leaf_subgraph= 0.037ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 0.043ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1       90.067      90.067
+nos4,100,ND,809,64.5,skip
+bcsstk04,132,NONE,3763,0.0,skip
+bcsstk04,132,RCM,3633,0.7,skip
+bcsstk04,132,AMD,3143,1.9,skip
+bcsstk04,132,COLAMD,3622,2.8,skip
+nd-profile n=132 total=240.573ms
+  graph_build  = 0.577ms
+  partition    = 238.441ms (1 calls)
+  subgraph     = 0.020ms
+  leaf_amd     = 1.128ms (2 calls)
+  leaf_subgraph= 0.325ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 0.082ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      238.441     238.441
+bcsstk04,132,ND,3722,174.4,skip
+Kuu,7102,NONE,2993061,0.0,skip
+Kuu,7102,RCM,1024794,62.8,skip
+Kuu,7102,AMD,406264,592.5,skip
+Kuu,7102,COLAMD,830665,4124.3,skip
+nd-profile n=7102 total=9227.306ms
+  graph_build  = 67.906ms
+  partition    = 9060.787ms (66 calls)
+  subgraph     = 6.919ms
+  leaf_amd     = 54.758ms (65 calls)
+  leaf_subgraph= 32.407ms
+  emit_natural = 0.001ms (1 calls)
+  other        = 4.528ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      151.999     151.999
+        1      2      197.515      98.757
+        2      4      689.675     172.419
+        3      8     1503.261     187.908
+        4     16     2536.233     158.515
+        5     25     3481.901     139.276
+        6     10      500.203      50.020
+Kuu,7102,ND,881177,6629.2,skip
+bcsstk14,1806,NONE,190791,0.0,skip
+bcsstk14,1806,RCM,178311,15.0,skip
+bcsstk14,1806,AMD,116071,132.5,skip
+bcsstk14,1806,COLAMD,146037,184.1,skip
+nd-profile n=1806 total=1654.769ms
+  graph_build  = 13.195ms
+  partition    = 1613.490ms (26 calls)
+  subgraph     = 2.179ms
+  leaf_amd     = 19.481ms (19 calls)
+  leaf_subgraph= 4.780ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 1.644ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1       31.559      31.559
+        1      2       49.081      24.541
+        2      4       63.391      15.848
+        3      6      536.612      89.435
+        4      3      671.017     223.672
+        5      3       15.592       5.197
+        6      1        5.356       5.356
+        7      1        4.912       4.912
+        8      1       13.788      13.788
+        9      1      122.550     122.550
+       10      2       92.861      46.431
+       11      1        6.771       6.771
+bcsstk14,1806,ND,129292,1187.7,skip
+s3rmt3m3,5357,NONE,2208972,0.0,skip
+s3rmt3m3,5357,RCM,636993,31.0,skip
+s3rmt3m3,5357,AMD,474609,793.5,skip
+s3rmt3m3,5357,COLAMD,607647,1217.7,skip
+nd-profile n=5357 total=5158.471ms
+  graph_build  = 38.051ms
+  partition    = 5011.219ms (56 calls)
+  subgraph     = 21.300ms
+  leaf_amd     = 45.065ms (57 calls)
+  leaf_subgraph= 38.498ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 4.338ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1       89.630      89.630
+        1      2      160.718      80.359
+        2      4       82.966      20.741
+        3      8      736.896      92.112
+        4     16     1801.968     112.623
+        5     22     2106.232      95.738
+        6      3       32.809      10.936
+s3rmt3m3,5357,ND,483195,3695.4,skip
+Pres_Poisson,14822,NONE,5061932,0.0,skip
+Pres_Poisson,14822,RCM,3187081,146.0,skip
+Pres_Poisson,14822,AMD,2668793,8647.2,skip
+Pres_Poisson,14822,COLAMD,3415793,15058.4,skip
+nd-profile n=14822 total=17008.433ms
+  graph_build  = 170.801ms
+  partition    = 16622.698ms (135 calls)
+  subgraph     = 20.735ms
+  leaf_amd     = 113.113ms (136 calls)
+  leaf_subgraph= 70.123ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 10.963ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      352.106     352.106
+        1      2      341.178     170.589
+        2      4      321.687      80.422
+        3      8     1441.263     180.158
+        4     16     1466.303      91.644
+        5     32     2332.734      72.898
+        6     57     7978.268     139.970
+        7     15     2389.159     159.277
+Pres_Poisson,14822,ND,2536427,12222.2,skip
+
+=== threshold=128 ===
+# nd_base_threshold=128, factor=no
+matrix,n,reorder,nnz_L,reorder_ms,factor_ms
+nos4,100,NONE,805,0.0,skip
+nos4,100,RCM,888,0.1,skip
+nos4,100,AMD,637,0.3,skip
+nos4,100,COLAMD,778,0.3,skip
+nd-profile n=100 total=0.327ms
+  graph_build  = 0.057ms
+  partition    = 0.000ms (0 calls)
+  subgraph     = 0.000ms
+  leaf_amd     = 0.217ms (1 calls)
+  leaf_subgraph= 0.033ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 0.020ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+nos4,100,ND,637,0.4,skip
+bcsstk04,132,NONE,3763,0.0,skip
+bcsstk04,132,RCM,3633,0.7,skip
+bcsstk04,132,AMD,3143,1.8,skip
+bcsstk04,132,COLAMD,3622,2.7,skip
+nd-profile n=132 total=246.793ms
+  graph_build  = 0.571ms
+  partition    = 244.807ms (1 calls)
+  subgraph     = 0.030ms
+  leaf_amd     = 0.999ms (2 calls)
+  leaf_subgraph= 0.323ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 0.063ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      244.807     244.807
+bcsstk04,132,ND,3722,178.5,skip
+Kuu,7102,NONE,2993061,0.0,skip
+Kuu,7102,RCM,1024794,60.8,skip
+Kuu,7102,AMD,406264,593.0,skip
+Kuu,7102,COLAMD,830665,4065.0,skip
+nd-profile n=7102 total=8179.727ms
+  graph_build  = 81.686ms
+  partition    = 8004.585ms (53 calls)
+  subgraph     = 14.056ms
+  leaf_amd     = 44.978ms (54 calls)
+  leaf_subgraph= 29.686ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 4.736ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      158.449     158.449
+        1      2      195.871      97.936
+        2      4      642.645     160.661
+        3      8     1385.957     173.245
+        4     16     2338.041     146.128
+        5     21     3080.842     146.707
+        6      1      202.780     202.780
+Kuu,7102,ND,875101,6359.9,skip
+bcsstk14,1806,NONE,190791,0.0,skip
+bcsstk14,1806,RCM,178311,11.8,skip
+bcsstk14,1806,AMD,116071,132.4,skip
+bcsstk14,1806,COLAMD,146037,188.8,skip
+nd-profile n=1806 total=1444.709ms
+  graph_build  = 14.174ms
+  partition    = 1407.674ms (22 calls)
+  subgraph     = 1.734ms
+  leaf_amd     = 13.933ms (15 calls)
+  leaf_subgraph= 5.752ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 1.442ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1       31.767      31.767
+        1      2       45.472      22.736
+        2      4       58.218      14.555
+        3      5      454.224      90.845
+        4      2      593.820     296.910
+        5      2        7.075       3.538
+        6      1        4.717       4.717
+        7      1        4.817       4.817
+        8      1        5.246       5.246
+        9      1      112.963     112.963
+       10      2       89.355      44.678
+bcsstk14,1806,ND,129576,1118.6,skip
+s3rmt3m3,5357,NONE,2208972,0.0,skip
+s3rmt3m3,5357,RCM,636993,32.2,skip
+s3rmt3m3,5357,AMD,474609,851.7,skip
+s3rmt3m3,5357,COLAMD,607647,1206.8,skip
+nd-profile n=5357 total=4343.573ms
+  graph_build  = 38.640ms
+  partition    = 4235.990ms (45 calls)
+  subgraph     = 4.794ms
+  leaf_amd     = 37.634ms (46 calls)
+  leaf_subgraph= 22.707ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 3.808ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1       87.979      87.979
+        1      2      163.243      81.621
+        2      4       89.828      22.457
+        3      8      638.311      79.789
+        4     16     1650.658     103.166
+        5     14     1605.971     114.712
+s3rmt3m3,5357,ND,483907,3396.6,skip
+Pres_Poisson,14822,NONE,5061932,0.0,skip
+Pres_Poisson,14822,RCM,3187081,149.1,skip
+Pres_Poisson,14822,AMD,2668793,8819.1,skip
+Pres_Poisson,14822,COLAMD,3415793,14908.7,skip
+nd-profile n=14822 total=16019.904ms
+  graph_build  = 174.512ms
+  partition    = 15576.655ms (111 calls)
+  subgraph     = 28.853ms
+  leaf_amd     = 146.521ms (112 calls)
+  leaf_subgraph= 82.288ms
+  emit_natural = 0.000ms (0 calls)
+  other        = 11.075ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      354.466     354.466
+        1      2      323.624     161.812
+        2      4      314.950      78.737
+        3      8     1441.993     180.249
+        4     16     1390.860      86.929
+        5     32     2337.639      73.051
+        6     44     7294.838     165.792
+        7      4     2118.285     529.571
+Pres_Poisson,14822,ND,2549740,11530.4,skip
+

@@ -45,3 +45,26 @@
 
 bcsstk14_qg_amd_ms=130
 pres_poisson_amd_ms=8000
+
+# Sprint 25 Day 12: Pres_Poisson ND default-path wall-time baseline.
+#
+# Per docs/planning/EPIC_2/SPRINT_25/profile_day11_pres_poisson_nd.txt,
+# 5 consecutive `bench_reorder --only Pres_Poisson --skip-factor`
+# runs under the new SPARSE_ND_PROFILE instrumentation span
+# 44 321 - 51 562 ms (16.3 % range; classified as run-to-run
+# variance per nd_wall_time_decision.md).  Baseline pinned at the
+# Day 11 median (47 055 ms); threshold = 50 % above baseline
+# (= 70 583 ms ceiling) for headroom against macOS arm64 thermal
+# variance + sprint-to-sprint build/compiler drift.
+#
+# The threshold is per-key in scripts/wall_check.sh:
+#   bcsstk14_qg_amd_ms     → 2× gate (260 ms ceiling)   — Sprint 24 Day 1
+#   pres_poisson_amd_ms    → 2× gate (16 000 ms ceiling) — Sprint 24 Day 1
+#   pres_poisson_nd_ms     → 1.5× gate (70 583 ms ceiling) — Sprint 25 Day 12
+#
+# The 1.5× gate matches PLAN.md's Day 11 routing for the variance
+# classification; if Sprint 26 lands a real algorithmic-cost
+# tightening on the ND default path, the gate can drop to 1.25× /
+# 25 % above (per PLAN.md Day 12's "25 % if algorithmic-cost-
+# tightened" branch).
+pres_poisson_nd_ms=47055

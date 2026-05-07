@@ -625,21 +625,42 @@ Recursive "separator-last" ordering on top of a multilevel partitioner.  ND is b
 
 Sprint 24 Day 1 added a `make wall-check` target driven by
 `scripts/wall_check.sh` and a per-fixture baseline file at
-`docs/planning/EPIC_2/SPRINT_24/wall_check_baseline.txt`.  The gate
-runs two single-fixture benchmarks:
+`docs/planning/EPIC_2/SPRINT_24/wall_check_baseline.txt`.  Sprint
+25 Day 12 extended the gate with a third single-fixture
+measurement.  The gate now runs:
 
 - `bench_amd_qg --only bcsstk14` — captures qg-AMD's `reorder_ms`
-  on the bcsstk14 SuiteSparse fixture (n = 1 806).
+  on the bcsstk14 SuiteSparse fixture (n = 1 806); compared against
+  `bcsstk14_qg_amd_ms` baseline.
 - `bench_reorder --only Pres_Poisson --skip-factor` — captures
-  AMD's `reorder_ms` on Pres_Poisson (n = 14 822).
+  both AMD's and ND's `reorder_ms` on Pres_Poisson (n = 14 822)
+  from a single bench invocation; compared against the
+  `pres_poisson_amd_ms` and `pres_poisson_nd_ms` baselines
+  respectively.
 
-Each measurement is compared against the corresponding baseline
-in `wall_check_baseline.txt`.  If either exceeds `2 ×` the
-baseline on the same machine class, the target exits non-zero.
-The 2× threshold is calibrated to catch single-day algorithmic
-regressions (Sprint 23 Days 2-5 each introduced ~10-50× drift,
-so 2× is generous-but-not-toothless) without flagging on routine
-host-load noise (typical run-to-run drift is within ±25 %).
+Each measurement is compared against its baseline in
+`wall_check_baseline.txt` using a per-key threshold:
+
+- **`bcsstk14_qg_amd_ms` → 2× threshold** (Sprint 24 Day 1).
+  Catches single-day algorithmic regressions (Sprint 23 Days 2-5
+  each introduced ~10-50× drift, so 2× is generous-but-not-
+  toothless) without flagging on routine host-load noise (typical
+  run-to-run drift on this fixture is within ±25 %).
+- **`pres_poisson_amd_ms` → 2× threshold** (Sprint 24 Day 1).
+  Same calibration as bcsstk14 — both AMD baselines are tight
+  gates on the qg-AMD path, which Sprint 23 introduced + Sprint
+  24 reverted a 30-200× regression that escaped notice for an
+  entire sprint.
+- **`pres_poisson_nd_ms` → 1.5× threshold** (Sprint 25 Day 12).
+  Wider than the AMD gates because Sprint 25 Day 11 profiling
+  (`docs/planning/EPIC_2/SPRINT_25/profile_day11_pres_poisson_nd.txt`)
+  measured 16 % within-run variance on this fixture (5 consecutive
+  runs spanned 44 321 - 51 562 ms; 99.5 % of wall time is in the
+  partition phase, which is sensitive to macOS arm64 thermal
+  management + sustained-load variance).  1.5× absorbs the
+  variance without going so wide that real algorithmic regressions
+  slip through; if Sprint 26 lands a real cost tightening on the
+  ND default path, the gate can drop to 1.25×.
 
 The Sprint-24-internal motivation: Sprint 23's qg-AMD wall-time
 regression (62-199× vs Sprint 22 baseline; documented in
@@ -654,10 +675,13 @@ bench would otherwise only surface days later.
 The baseline file commits its values in a `KEY=VALUE_MS`
 key-value format with `#`-prefixed comment blocks documenting
 which day landed each baseline and what the previous values were.
-Sprint 24 Day 4 bumps the baselines down to the post-fix
-measurements once item 2's wall-time fix lands; future sprints
-that touch the AMD path should expect to update both the
-baselines and the comment block.
+Sprint 24 Day 4 bumps the AMD baselines down to the post-fix
+measurements once item 2's wall-time fix lands; Sprint 25 Day 12
+adds the `pres_poisson_nd_ms = 47 055 ms` baseline (median of 5
+consecutive Day 11 measurements per
+`docs/planning/EPIC_2/SPRINT_25/nd_wall_time_decision.md`).
+Future sprints that touch the AMD or ND default code paths should
+expect to update both the baselines and the comment block.
 
 ### Integration with Factorization
 

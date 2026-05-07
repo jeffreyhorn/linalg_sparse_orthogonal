@@ -1,3 +1,11 @@
+/* Sprint 25 Day 11: feature-test macro to expose `clock_gettime` /
+ * `CLOCK_MONOTONIC` for the SPARSE_ND_PROFILE instrumentation
+ * below.  Same pattern as Sprint 24 Day 1's SPARSE_QG_PROFILE in
+ * `src/sparse_reorder_amd_qg.c`. */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 199309L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 199309L
+#endif
 /*
  * sparse_reorder_nd.c — Nested Dissection (Sprint 22 Day 6).
  *
@@ -40,8 +48,38 @@
 #include "sparse_reorder_nd_internal.h"
 #include "sparse_types.h"
 
+#include <stdio.h> /* Sprint 25 Day 11: SPARSE_ND_PROFILE stderr trace. */
 #include <stdlib.h>
 #include <string.h>
+#include <time.h> /* Sprint 25 Day 11: SPARSE_ND_PROFILE wall-clock instrumentation. */
+
+/* Sprint 25 Day 11: SPARSE_ND_PROFILE per-phase wall-clock
+ * instrumentation.  File-static accumulators (nanoseconds) — `nd_recurse`
+ * is recursive and not thread-safe, so accumulating across calls in
+ * file-statics is fine and avoids threading a profile struct through
+ * every recursion level.  `nd_prof_enabled` is set by `sparse_reorder_nd`
+ * once (after parsing the env var) and stays set for the duration of
+ * the call; emitted to stderr at the end of the top-level
+ * `sparse_reorder_nd` call.  Production overhead is one branch per
+ * timed call when `nd_prof_enabled == 0`.  See
+ * docs/planning/EPIC_2/SPRINT_25/PLAN.md Day 11 task 1 + the analogous
+ * SPARSE_QG_PROFILE pattern in src/sparse_reorder_amd_qg.c. */
+static int nd_prof_enabled = 0;
+static long long nd_prof_partition_ns = 0;     /* sparse_graph_partition cumulative */
+static long long nd_prof_subgraph_ns = 0;      /* sparse_graph_subgraph cumulative */
+static long long nd_prof_leaf_amd_ns = 0;      /* sparse_reorder_amd_qg leaf splice cumulative */
+static long long nd_prof_leaf_subgraph_ns = 0; /* nd_subgraph_to_sparse cumulative */
+static long long nd_prof_emit_natural_ns = 0;  /* nd_emit_natural cumulative */
+static long long nd_prof_graph_build_ns = 0;   /* sparse_graph_from_sparse one-shot */
+static idx_t nd_prof_partition_calls = 0;
+static idx_t nd_prof_leaf_amd_calls = 0;
+static idx_t nd_prof_emit_natural_calls = 0;
+
+static long long nd_prof_now_ns(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (long long)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+}
 
 /* Base-case threshold: the recursion stops here and the subgraph's
  * vertices land in the permutation in their natural (subgraph-local)
@@ -162,7 +200,10 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
      * distinguish a successful reorder from a degraded fallback
      * (e.g., they can retry or surface the error). */
     if (n <= sparse_reorder_nd_base_threshold) {
+        long long lsub_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
         SparseMatrix *A_leaf = nd_subgraph_to_sparse(G);
+        if (nd_prof_enabled)
+            nd_prof_leaf_subgraph_ns += nd_prof_now_ns() - lsub_t0;
         if (!A_leaf)
             return SPARSE_ERR_ALLOC;
         idx_t *leaf_perm = malloc((size_t)n * sizeof(idx_t));
@@ -170,7 +211,12 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
             sparse_free(A_leaf);
             return SPARSE_ERR_ALLOC;
         }
+        long long lamd_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
         sparse_err_t leaf_rc = sparse_reorder_amd_qg(A_leaf, leaf_perm);
+        if (nd_prof_enabled) {
+            nd_prof_leaf_amd_ns += nd_prof_now_ns() - lamd_t0;
+            nd_prof_leaf_amd_calls++;
+        }
         if (leaf_rc != SPARSE_OK) {
             free(leaf_perm);
             sparse_free(A_leaf);
@@ -193,7 +239,12 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
     if (!part)
         return SPARSE_ERR_ALLOC;
     idx_t sep_count = 0;
+    long long part_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
     sparse_err_t rc = sparse_graph_partition(G, part, &sep_count);
+    if (nd_prof_enabled) {
+        nd_prof_partition_ns += nd_prof_now_ns() - part_t0;
+        nd_prof_partition_calls++;
+    }
     if (rc != SPARSE_OK) {
         free(part);
         return rc;
@@ -214,7 +265,12 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
      * natural ordering on the whole subgraph. */
     if (n0 == 0 || n1 == 0) {
         free(part);
+        long long en_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
         nd_emit_natural(vertex_id_map, n, perm, next_pos);
+        if (nd_prof_enabled) {
+            nd_prof_emit_natural_ns += nd_prof_now_ns() - en_t0;
+            nd_prof_emit_natural_calls++;
+        }
         return SPARSE_OK;
     }
 
@@ -250,7 +306,10 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
             free(vs1);
             return SPARSE_ERR_ALLOC;
         }
+        long long sg0_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
         rc = sparse_graph_subgraph(G, vs0, n0, &G0, NULL);
+        if (nd_prof_enabled)
+            nd_prof_subgraph_ns += nd_prof_now_ns() - sg0_t0;
         if (rc != SPARSE_OK) {
             free(map0);
             free(part);
@@ -285,7 +344,10 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
             free(vs1);
             return SPARSE_ERR_ALLOC;
         }
+        long long sg1_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
         rc = sparse_graph_subgraph(G, vs1, n1, &G1, NULL);
+        if (nd_prof_enabled)
+            nd_prof_subgraph_ns += nd_prof_now_ns() - sg1_t0;
         if (rc != SPARSE_OK) {
             free(map1);
             free(part);
@@ -328,8 +390,30 @@ sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm) {
     if (sparse_rows(A) != sparse_cols(A))
         return SPARSE_ERR_SHAPE;
 
+    /* Sprint 25 Day 11: SPARSE_ND_PROFILE per-phase wall-clock
+     * breakdown.  Reset accumulators on every entry so consecutive
+     * calls produce independent measurements (file-static state is
+     * fine since `sparse_reorder_nd` isn't thread-safe — same caveat
+     * as `sparse_reorder_nd_base_threshold` per the header). */
+    nd_prof_enabled = (getenv("SPARSE_ND_PROFILE") != NULL);
+    long long prof_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
+    if (nd_prof_enabled) {
+        nd_prof_partition_ns = 0;
+        nd_prof_subgraph_ns = 0;
+        nd_prof_leaf_amd_ns = 0;
+        nd_prof_leaf_subgraph_ns = 0;
+        nd_prof_emit_natural_ns = 0;
+        nd_prof_graph_build_ns = 0;
+        nd_prof_partition_calls = 0;
+        nd_prof_leaf_amd_calls = 0;
+        nd_prof_emit_natural_calls = 0;
+    }
+
     sparse_graph_t G = {0};
+    long long gb_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
     sparse_err_t rc = sparse_graph_from_sparse(A, &G);
+    if (nd_prof_enabled)
+        nd_prof_graph_build_ns = nd_prof_now_ns() - gb_t0;
     if (rc != SPARSE_OK)
         return rc;
 
@@ -354,5 +438,28 @@ sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm) {
 
     free(root_map);
     sparse_graph_free(&G);
+
+    if (nd_prof_enabled) {
+        long long total_ns = nd_prof_now_ns() - prof_t0;
+        long long sum_phase_ns = nd_prof_graph_build_ns + nd_prof_partition_ns +
+                                 nd_prof_subgraph_ns + nd_prof_leaf_amd_ns +
+                                 nd_prof_leaf_subgraph_ns + nd_prof_emit_natural_ns;
+        long long other_ns = total_ns > sum_phase_ns ? total_ns - sum_phase_ns : 0;
+        fprintf(stderr,
+                "nd-profile n=%d total=%.3fms\n"
+                "  graph_build  = %.3fms\n"
+                "  partition    = %.3fms (%d calls)\n"
+                "  subgraph     = %.3fms\n"
+                "  leaf_amd     = %.3fms (%d calls)\n"
+                "  leaf_subgraph= %.3fms\n"
+                "  emit_natural = %.3fms (%d calls)\n"
+                "  other        = %.3fms\n",
+                (int)sparse_rows(A), (double)total_ns / 1.0e6,
+                (double)nd_prof_graph_build_ns / 1.0e6, (double)nd_prof_partition_ns / 1.0e6,
+                (int)nd_prof_partition_calls, (double)nd_prof_subgraph_ns / 1.0e6,
+                (double)nd_prof_leaf_amd_ns / 1.0e6, (int)nd_prof_leaf_amd_calls,
+                (double)nd_prof_leaf_subgraph_ns / 1.0e6, (double)nd_prof_emit_natural_ns / 1.0e6,
+                (int)nd_prof_emit_natural_calls, (double)other_ns / 1.0e6);
+    }
     return rc;
 }

@@ -854,6 +854,49 @@ static void test_near_singular_stable(void) {
  * handles.  Convergence status may be SPARSE_OK or
  * SPARSE_ERR_NOT_CONVERGED depending on how the stability check
  * interprets the degenerate spectrum; either is acceptable. */
+/* Sprint 26 Day 1: pinned regression test for the
+ * `src/sparse_eigs.c:948` UBSan division-by-zero fix.  An all-zero
+ * matrix produces a Lanczos T-matrix whose Ritz values are all
+ * exactly 0.0; the residual computation `rel_res = abs_res / anchor`
+ * at sparse_eigs.c:948 divides by `anchor = fabs(tv_l) = 0.0` when
+ * the spectrum-scale guard `anchor < scale * 1e-12` evaluates to
+ * `0.0 < 0.0` = false (because `scale = 0.0` for an all-zero
+ * spectrum).  Sprint 26 Day 1's one-line fix extends the guard to
+ * `anchor < scale * 1e-12 || anchor == 0.0` — the explicit zero
+ * case routes through the `scale > 0.0 ? scale : 1.0` fallback.
+ * This test verifies (a) the call returns without UBSan complaint
+ * (run under `make sanitize` to verify) and (b) `residual_norm` is
+ * finite (not NaN from a 0/0).  Routed from
+ * `SPRINT_25/RETROSPECTIVE.md` "Items deferred" #5. */
+static void test_eigs_zero_spectrum_no_div_by_zero(void) {
+    idx_t n = 6;
+    SparseMatrix *A = sparse_create(n, n);
+    ASSERT_NOT_NULL(A);
+    /* All-zero matrix; spectrum is identically 0. */
+
+    idx_t k = 2;
+    double vals[2] = {99.0, 99.0};
+    sparse_eigs_t res = {.eigenvalues = vals, .residual_norm = -1.0};
+    sparse_eigs_opts_t opts = {.which = SPARSE_EIGS_LARGEST, .tol = 1e-10};
+    sparse_err_t err = sparse_eigs_sym(A, k, &opts, &res);
+    ASSERT_TRUE(err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED);
+
+    /* Pin Sprint 26 Day 1 fix's contract: residual_norm is finite
+     * (not NaN, not the sentinel -1.0).  `isnan(x)` returns 0 for
+     * any finite value including 0.0; the original 0/0 path produced
+     * NaN here. */
+    ASSERT_TRUE(!isnan(res.residual_norm));
+    ASSERT_TRUE(isfinite(res.residual_norm));
+    /* Eigenvalues remain exact zeros (not NaN propagating from the
+     * residual divide). */
+    for (idx_t j = 0; j < res.n_converged; j++) {
+        ASSERT_TRUE(!isnan(vals[j]));
+        ASSERT_NEAR(vals[j], 0.0, 1e-10);
+    }
+
+    sparse_free(A);
+}
+
 static void test_zero_matrix(void) {
     idx_t n = 6;
     SparseMatrix *A = sparse_create(n, n);
@@ -928,6 +971,7 @@ int main(void) {
     RUN_TEST(test_indefinite_shift_invert_uses_csc_above_threshold);
     RUN_TEST(test_indefinite_shift_invert_uses_linked_list_below_threshold);
     RUN_TEST(test_near_singular_stable);
+    RUN_TEST(test_eigs_zero_spectrum_no_div_by_zero);
     RUN_TEST(test_zero_matrix);
     RUN_TEST(test_one_by_one_matrix);
 

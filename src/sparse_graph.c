@@ -114,6 +114,7 @@
 #include "sparse_matrix_internal.h"
 
 #include <stdint.h>
+#include <stdio.h> /* Sprint 26 Day 1: SPARSE_HCC_DEBUG-gated cmap-emit instrumentation */
 #include <stdlib.h>
 #include <string.h>
 
@@ -535,6 +536,43 @@ static sparse_err_t graph_coarsen_with_strategy(const sparse_graph_t *fine, uint
         n_coarse++;
     }
     free(perm);
+
+    /* Sprint 26 Day 1: SPARSE_HCC_DEBUG-gated cmap-emit instrumentation
+     * for Day 2's bcsstk14 sep=0 root-cause investigation.  Off by
+     * default (one branch + one getenv per coarsening call); on
+     * (`SPARSE_HCC_DEBUG=1`) emits per-call stderr lines with the
+     * strategy, fine/coarse vertex counts, matching-coverage ratio,
+     * and the per-vertex cmap.  Comparing HCC vs HEM traces on
+     * bcsstk14 should identify which matching choice triggers the
+     * downstream degenerate partition.  Routed from
+     * `SPRINT_25/RETROSPECTIVE.md` "Items deferred" #2 +
+     * `coarsening_decision.md` "Two test failures surfaced under the
+     * new defaults". */
+    if (getenv("SPARSE_HCC_DEBUG")) {
+        const char *strategy_name = (strategy == COARSENING_HCC) ? "hcc" : "heavy_edge";
+        idx_t matched = 0;
+        for (idx_t i = 0; i < n_fine; i++) {
+            /* A vertex is "matched" if another fine vertex shares its
+             * cmap value (i.e. some coarse cluster has size > 1). */
+            for (idx_t j = i + 1; j < n_fine; j++) {
+                if (cmap_out[i] == cmap_out[j]) {
+                    matched += 2;
+                    break;
+                }
+            }
+        }
+        double match_ratio = (double)matched / (double)n_fine;
+        fprintf(stderr, "hcc-debug strategy=%s n_fine=%d n_coarse=%d match_ratio=%.3f\n",
+                strategy_name, (int)n_fine, (int)n_coarse, match_ratio);
+        /* Emit cmap in groups of 16 per line for readability. */
+        for (idx_t i = 0; i < n_fine; i += 16) {
+            idx_t end = (i + 16 > n_fine) ? n_fine - 1 : i + 15;
+            fprintf(stderr, "hcc-debug cmap[%d..%d] =", (int)i, (int)end);
+            for (idx_t j = i; j < n_fine && j < i + 16; j++)
+                fprintf(stderr, " %d", (int)cmap_out[j]);
+            fprintf(stderr, "\n");
+        }
+    }
 
     /* Every fine vertex is mapped to a coarse vertex by the matching
      * loop above (the first iteration with cmap_out[v] == -1 always

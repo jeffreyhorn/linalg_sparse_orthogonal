@@ -2152,7 +2152,16 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
 typedef enum {
     SEP_LIFT_SMALLER_WEIGHT = 0,    /* Sprint 22 default — METIS convention */
     SEP_LIFT_BALANCED_BOUNDARY = 1, /* Sprint 24 Day 6 advisory */
-    SEP_LIFT_PER_VERTEX = 2,        /* Sprint 26 Day 10 — per-vertex score + top-K */
+    /* Sprint 26 Day 10/12 — per-vertex score + top-K.  Three preset
+     * weight schemes per PLAN.md Day 12 task 1: hybrid (default;
+     * cross_deg-priority + balance tie-break — Day 10's formula),
+     * balance (balance-priority; balance-bonus dominates), degree
+     * (low-total-degree priority + balance tie-break).  All three
+     * use the same greedy 70/30-balance-respecting top-K selection;
+     * only the score formula differs. */
+    SEP_LIFT_PER_VERTEX_HYBRID = 2,  /* SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex */
+    SEP_LIFT_PER_VERTEX_BALANCE = 3, /* SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_balance */
+    SEP_LIFT_PER_VERTEX_DEGREE = 4,  /* SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_degree */
 } sep_lift_strategy_t;
 
 static sep_lift_strategy_t parse_sep_lift_strategy(void) {
@@ -2162,9 +2171,20 @@ static sep_lift_strategy_t parse_sep_lift_strategy(void) {
     if (strcmp(env, "balanced_boundary") == 0)
         return SEP_LIFT_BALANCED_BOUNDARY;
     if (strcmp(env, "per_vertex") == 0)
-        return SEP_LIFT_PER_VERTEX;
+        return SEP_LIFT_PER_VERTEX_HYBRID;
+    if (strcmp(env, "per_vertex_balance") == 0)
+        return SEP_LIFT_PER_VERTEX_BALANCE;
+    if (strcmp(env, "per_vertex_degree") == 0)
+        return SEP_LIFT_PER_VERTEX_DEGREE;
     /* Default + unrecognized + "smaller_weight" all fall through. */
     return SEP_LIFT_SMALLER_WEIGHT;
+}
+
+/* Sprint 26 Day 12: returns 1 if the strategy is any per_vertex
+ * variant.  Used to gate the per-vertex code path entry. */
+static int is_per_vertex_strategy(sep_lift_strategy_t s) {
+    return s == SEP_LIFT_PER_VERTEX_HYBRID || s == SEP_LIFT_PER_VERTEX_BALANCE ||
+           s == SEP_LIFT_PER_VERTEX_DEGREE;
 }
 
 /* Sprint 26 Day 10: qsort comparator for per-vertex separator scoring.
@@ -2269,21 +2289,27 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
         }
         if (balanced)
             lift_side = bb_side;
-    } else if (strategy == SEP_LIFT_PER_VERTEX) {
-        /* Sprint 26 Day 10 — per-vertex separator scoring.
+    } else if (is_per_vertex_strategy(strategy)) {
+        /* Sprint 26 Day 10/12 — per-vertex separator scoring with
+         * three preset weight schemes.
          *
-         * Score formula: `score(v) = 2 * cross_deg(v) + balance_bonus(v)`
-         * where:
-         *   - cross_deg(v) = number of v's neighbours on the OTHER side
-         *     (high = "deep boundary"; lifting v removes many cross
-         *     edges per separator vertex)
-         *   - balance_bonus(v) = 1 if side(v) is the LARGER side, 0
-         *     otherwise (preferentially lifts from the larger side to
-         *     improve balance)
+         * Score formulas (all compute cross_deg + total_deg + side
+         * for each boundary vertex; combine via different weights):
+         *   - HYBRID  (default per_vertex; Day 10): `2 * cross_deg + balance_bonus`
+         *     — cross-degree-dominant; balance is tie-break.
+         *   - BALANCE (per_vertex_balance; Day 12 task 1):
+         *     `1000 * balance_bonus + cross_deg` — balance dominates;
+         *     cross-degree is tie-break.  Expects Kuu-class wins
+         *     (irregular SPDs where balanced_boundary already shines).
+         *   - DEGREE  (per_vertex_degree; Day 12 task 1):
+         *     `1000 * (max_deg - total_deg) + balance_bonus` — low
+         *     total-degree dominates; balance is tie-break.  Expects
+         *     regular-grid wins by avoiding high-degree separator
+         *     vertices.
          *
-         * The 2× multiplier on cross_deg ensures cross-degree dominates
-         * the ranking; balance_bonus is effectively a tie-break in
-         * the integer score.
+         * (max_deg in DEGREE is the maximum degree across all boundary
+         * vertices on this graph level — used to reverse the sort
+         * direction without a negative-int hack.)
          *
          * Selection: sort all boundary vertices by score descending,
          * greedily lift one-by-one while maintaining 70/30 post-lift
@@ -2302,6 +2328,19 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
                 return SPARSE_ERR_ALLOC;
             }
             idx_t larger_side = (w[0] >= w[1]) ? 0 : 1;
+            /* For DEGREE scheme: find max degree among boundary
+             * vertices (one-pass pre-scan; small overhead vs the
+             * boundary-walk below). */
+            idx_t max_deg = 0;
+            if (strategy == SEP_LIFT_PER_VERTEX_DEGREE) {
+                for (idx_t v = 0; v < G->n; v++) {
+                    if (!is_boundary[v])
+                        continue;
+                    idx_t deg = G->xadj[v + 1] - G->xadj[v];
+                    if (deg > max_deg)
+                        max_deg = deg;
+                }
+            }
             idx_t bidx = 0;
             for (idx_t v = 0; v < G->n; v++) {
                 if (!is_boundary[v])
@@ -2314,11 +2353,27 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
                     if (part_io[j] == other)
                         cross_deg++;
                 }
-                /* score = cross_deg * 2 + balance_bonus, packed in
-                 * a single idx_t to keep the comparator simple. */
                 idx_t balance_bonus = (side == larger_side) ? 1 : 0;
+                idx_t score = 0;
+                switch (strategy) {
+                case SEP_LIFT_PER_VERTEX_HYBRID:
+                default:
+                    /* cross_deg dominant; balance tie-break. */
+                    score = 2 * cross_deg + balance_bonus;
+                    break;
+                case SEP_LIFT_PER_VERTEX_BALANCE:
+                    /* balance dominant; cross_deg tie-break. */
+                    score = 1000 * balance_bonus + cross_deg;
+                    break;
+                case SEP_LIFT_PER_VERTEX_DEGREE: {
+                    /* low total-degree dominant; balance tie-break. */
+                    idx_t deg = G->xadj[v + 1] - G->xadj[v];
+                    score = 1000 * (max_deg - deg) + balance_bonus;
+                    break;
+                }
+                }
                 scored[bidx].vertex = v;
-                scored[bidx].score = 2 * cross_deg + balance_bonus;
+                scored[bidx].score = score;
                 bidx++;
             }
             /* Sort descending by score. */

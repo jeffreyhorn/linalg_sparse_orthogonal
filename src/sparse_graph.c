@@ -417,6 +417,17 @@ typedef enum {
  * over option (a) HCC matching tightening. */
 static _Thread_local int force_hem_override = 0;
 
+/* Sprint 26 Day 7: thread-local override for the FINEST FM FIFO
+ * tie-break.  `graph_uncoarsen` sets this to 1 before invoking
+ * `graph_refine_fm` at the finest level when
+ * SPARSE_FM_FINEST_STRATEGY=fifo, restores to 0 after.
+ * `graph_refine_fm` reads this once on entry and dispatches to
+ * `fm_bucket_pop_max_tail` (FIFO) or `fm_bucket_pop_max` (LIFO,
+ * Sprint 23 baseline) accordingly.  `_Thread_local` keeps
+ * concurrent FM calls race-free.  See
+ * `docs/planning/EPIC_2/SPRINT_26/finest_fm_design.md`. */
+static _Thread_local int fm_pop_use_tail = 0;
+
 static coarsening_strategy_t parse_coarsening_strategy(void) {
     /* Sprint 26 Day 3: sep=0 retry path forces HEM. */
     if (force_hem_override)
@@ -1542,22 +1553,27 @@ sparse_err_t fm_bucket_array_init(fm_bucket_array_t *arr, idx_t n_vertices, idx_
         return SPARSE_ERR_ALLOC; /* link_len * sizeof(idx_t) overflows size_t */
 
     arr->heads = malloc((size_t)num_buckets * sizeof(idx_t));
+    arr->tails = malloc((size_t)num_buckets * sizeof(idx_t));
     arr->counts = calloc((size_t)num_buckets, sizeof(idx_t));
     arr->next = malloc(link_len * sizeof(idx_t));
     arr->prev = malloc(link_len * sizeof(idx_t));
-    if (!arr->heads || !arr->counts || !arr->next || !arr->prev) {
+    if (!arr->heads || !arr->tails || !arr->counts || !arr->next || !arr->prev) {
         free(arr->heads);
+        free(arr->tails);
         free(arr->counts);
         free(arr->next);
         free(arr->prev);
         arr->heads = NULL;
+        arr->tails = NULL;
         arr->counts = NULL;
         arr->next = NULL;
         arr->prev = NULL;
         return SPARSE_ERR_ALLOC;
     }
-    for (idx_t i = 0; i < num_buckets; i++)
+    for (idx_t i = 0; i < num_buckets; i++) {
         arr->heads[i] = FM_BUCKET_EMPTY;
+        arr->tails[i] = FM_BUCKET_EMPTY;
+    }
     arr->n_vertices = n_vertices;
     arr->max_gain = max_gain;
     arr->bucket_offset = max_gain;
@@ -1570,10 +1586,12 @@ void fm_bucket_array_free(fm_bucket_array_t *arr) {
     if (!arr)
         return;
     free(arr->heads);
+    free(arr->tails);
     free(arr->counts);
     free(arr->next);
     free(arr->prev);
     arr->heads = NULL;
+    arr->tails = NULL;
     arr->counts = NULL;
     arr->next = NULL;
     arr->prev = NULL;
@@ -1592,6 +1610,12 @@ void fm_bucket_insert(fm_bucket_array_t *arr, idx_t vertex, idx_t gain) {
     arr->next[vertex] = arr->heads[bucket];
     if (arr->heads[bucket] != FM_BUCKET_EMPTY)
         arr->prev[arr->heads[bucket]] = vertex;
+    else
+        /* Sprint 26 Day 7: inserting into a previously-empty bucket
+         * makes this vertex both the head AND the tail.  Otherwise
+         * the existing tail (the first-inserted vertex) stays at
+         * the tail end of the chain. */
+        arr->tails[bucket] = vertex;
     arr->heads[bucket] = vertex;
     arr->counts[bucket]++;
     if (bucket > arr->cursor)
@@ -1608,6 +1632,12 @@ void fm_bucket_remove(fm_bucket_array_t *arr, idx_t vertex, idx_t gain) {
         arr->heads[bucket] = n;
     if (n != FM_BUCKET_EMPTY)
         arr->prev[n] = p;
+    else
+        /* Sprint 26 Day 7: removing the tail vertex (next[v] == EMPTY)
+         * means the previous vertex becomes the new tail.  If there
+         * was no previous (single-element bucket), tail goes to EMPTY
+         * — `p == FM_BUCKET_EMPTY` covers that case too. */
+        arr->tails[bucket] = p;
     arr->counts[bucket]--;
     /* Cursor walk-down: if we just emptied the cursor's bucket, slide
      * the cursor down past every empty bucket below it.  Worst-case
@@ -1634,11 +1664,39 @@ sparse_err_t fm_bucket_pop_max(fm_bucket_array_t *arr, idx_t *vertex_out, idx_t 
     return SPARSE_OK;
 }
 
+/* Sprint 26 Day 7: FIFO pop variant — pops the cursor bucket's tail
+ * (first-inserted vertex among the equal-gain tie group) instead of
+ * the head (most-recently inserted).  Used by FM under
+ * SPARSE_FM_FINEST_STRATEGY=fifo to break the saturation Sprint 25
+ * Day 5 measured.  See SPRINT_26/finest_fm_design.md. */
+sparse_err_t fm_bucket_pop_max_tail(fm_bucket_array_t *arr, idx_t *vertex_out, idx_t *gain_out) {
+    if (!arr || !vertex_out || !gain_out)
+        return SPARSE_ERR_NULL;
+    if (arr->cursor < 0)
+        return SPARSE_ERR_BOUNDS;
+    idx_t bucket = arr->cursor;
+    idx_t v = arr->tails[bucket];
+    idx_t g = bucket - arr->bucket_offset;
+    fm_bucket_remove(arr, v, g);
+    *vertex_out = v;
+    *gain_out = g;
+    return SPARSE_OK;
+}
+
 sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
     if (!G || !part_io)
         return SPARSE_ERR_NULL;
     if (G->n == 0)
         return SPARSE_OK;
+
+    /* Sprint 26 Day 7: pick the pop-strategy based on the thread-
+     * local override.  `graph_uncoarsen` sets `fm_pop_use_tail = 1`
+     * before invoking `graph_refine_fm` at the finest level under
+     * SPARSE_FM_FINEST_STRATEGY=fifo; default 0 = Sprint 23 LIFO
+     * pop (head).  Read once on entry to avoid per-iteration
+     * branching in the FM hot loop. */
+    sparse_err_t (*pop_max)(fm_bucket_array_t *, idx_t *, idx_t *) =
+        fm_pop_use_tail ? fm_bucket_pop_max_tail : fm_bucket_pop_max;
 
     idx_t n = G->n;
 
@@ -1765,7 +1823,7 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
         while (buckets.cursor >= 0) {
             idx_t v = -1;
             idx_t g = 0;
-            sparse_err_t pop_rc = fm_bucket_pop_max(&buckets, &v, &g);
+            sparse_err_t pop_rc = pop_max(&buckets, &v, &g);
             if (pop_rc != SPARSE_OK)
                 break;
             in_bucket[v] = 0;
@@ -1988,11 +2046,14 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
              * FINEST_FM_BASELINE. */
         }
     }
-    /* Day 6 dispatch: all strategies fall through to baseline FM
-     * (Day 7 wires the fifo path through to a tails[]-backed
-     * pop_max_tail variant in fm_bucket_pop_max).  Touch the value
-     * to suppress `-Wunused-variable` until Day 7 consumes it. */
-    (void)finest_strategy;
+    /* Sprint 26 Day 7 dispatch: only `fifo` is wired (sets
+     * `fm_pop_use_tail = 1` for the finest-level call below;
+     * restored to 0 after).  `annealing` + `thick_restart` are
+     * recognized for forward-compatibility but unimplemented per
+     * Day 6 design (rejected: annealing 20-50% wall expansion;
+     * thick-restart 200-300% would breach 1.5x wall-check).
+     * Both fall through to baseline behavior — they're effectively
+     * no-ops today, future-sprint scope. */
 
     /* Sprint 25 Day 4: SPARSE_FM_INTERMEDIATE_PASSES extends the
      * Sprint 23 Day 11 multi-pass-FM exploration from the finest
@@ -2051,14 +2112,25 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
         } else {
             passes = 1;
         }
+        /* Sprint 26 Day 7: at the finest level (level == 0) under
+         * SPARSE_FM_FINEST_STRATEGY=fifo, set the thread-local
+         * pop-strategy override so graph_refine_fm uses
+         * fm_bucket_pop_max_tail (FIFO; first-inserted wins) instead
+         * of the default fm_bucket_pop_max (LIFO; most-recently-
+         * inserted wins).  Restore after this level's passes finish. */
+        int prev_pop_use_tail = fm_pop_use_tail;
+        if (level == 0 && finest_strategy == FINEST_FM_FIFO)
+            fm_pop_use_tail = 1;
         for (int p = 0; p < passes; p++) {
             sparse_err_t rc = graph_refine_fm(dst_graph, next);
             if (rc != SPARSE_OK) {
+                fm_pop_use_tail = prev_pop_use_tail;
                 free(cur);
                 free(next);
                 return rc;
             }
         }
+        fm_pop_use_tail = prev_pop_use_tail;
         idx_t *tmp = cur;
         cur = next;
         next = tmp;

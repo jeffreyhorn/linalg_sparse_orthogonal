@@ -1102,52 +1102,84 @@ static void test_fm_intermediate_passes_smoke(void) {
     sparse_free(A);
 }
 
-/* Sprint 26 Day 6: SPARSE_FM_FINEST_STRATEGY=fifo plumbing stub.
- * Pin the env-var parser's dispatch wiring on the same 10×10 grid
- * fixture as test_fm_intermediate_passes_smoke.  Day 6 ships only
- * the parser (no semantic change yet); Day 7 lights up the FIFO
- * pop_max_tail variant via tails[] in fm_bucket_array_t.
+/* Sprint 26 Day 7: SPARSE_FM_FINEST_STRATEGY=fifo differs-from-
+ * baseline contract pin.  Day 6 stubbed this on the 10×10 grid
+ * (which is too small to exercise FIFO's tie-break sensitivity —
+ * the symmetric optimal cuts converge to the same partition under
+ * FIFO and LIFO).  Day 7 uses a 30×30 grid (n=900) where FIFO
+ * actually produces a different partition than baseline.
  *
- * Day 6 contract (this commit): under SPARSE_FM_FINEST_STRATEGY=fifo,
- * partition produces a structurally-valid 10×10 grid partition
- * (same invariants as test_partition_10x10_grid).  No assertion on
- * cut quality difference yet — Day 6's no-op dispatch produces
- * bit-identical output to baseline.
+ * Test contract: under `SPARSE_FM_FINEST_STRATEGY=fifo` on a 30×30
+ * grid, partition produces (a) a structurally-valid result, (b) a
+ * partition that differs from the baseline strategy's, (c)
+ * deterministic across two runs (same input → same output).
  *
- * Day 7 contract (post-implementation): tighten to a
- * differs-from-baseline assertion + FIFO determinism check.
+ * Pinning (b) is the smoke-level evidence that the FIFO pop variant
+ * is actually being exercised — without (b), the dispatch could be
+ * a no-op and the test would still pass.  Day 8's cross-corpus
+ * sweep is where the differs-from-baseline measurement scales up to
+ * the headline-fixture (Pres_Poisson) and decides flip-or-stay.
  *
  * See SPRINT_26/finest_fm_design.md for the sub-axis selection
  * rationale + Day 6 / Day 7 / Day 8 split. */
 static void test_finest_fm_strategy_fifo_smoke(void) {
-    if (setenv("SPARSE_FM_FINEST_STRATEGY", "fifo", /*overwrite=*/1) != 0) {
-        printf("    skipped (setenv failed; can't exercise env-var plumbing)\n");
-        return;
-    }
-
-    SparseMatrix *A = make_grid_2d(10, 10);
+    /* 30×30 grid: small enough to run quickly (~ms), large enough
+     * for FIFO and baseline to converge to different cuts.  Empirical:
+     * baseline sep=30, FIFO sep=30, but the partitions differ
+     * vertex-for-vertex (verified pre-test with a small ad-hoc
+     * comparison against /tmp/cmp_fifo.c during Day-7 development). */
+    SparseMatrix *A = make_grid_2d(30, 30);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
-    ASSERT_EQ(G.n, 100);
+    ASSERT_EQ(G.n, 900);
 
-    idx_t part[100] = {0};
-    idx_t sep = 0;
-    sparse_err_t rc = sparse_graph_partition(&G, part, &sep);
+    /* Baseline run (env var unset). */
+    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    idx_t *part_baseline = malloc((size_t)G.n * sizeof(idx_t));
+    ASSERT_NOT_NULL(part_baseline);
+    idx_t sep_baseline = 0;
+    REQUIRE_OK(sparse_graph_partition(&G, part_baseline, &sep_baseline));
+    ASSERT_TRUE(check_partition_invariant(&G, part_baseline));
 
+    /* FIFO run #1. */
+    if (setenv("SPARSE_FM_FINEST_STRATEGY", "fifo", /*overwrite=*/1) != 0) {
+        free(part_baseline);
+        sparse_graph_free(&G);
+        sparse_free(A);
+        printf("    skipped (setenv failed; can't exercise env-var plumbing)\n");
+        return;
+    }
+    idx_t *part_fifo1 = malloc((size_t)G.n * sizeof(idx_t));
+    ASSERT_NOT_NULL(part_fifo1);
+    idx_t sep_fifo1 = 0;
+    REQUIRE_OK(sparse_graph_partition(&G, part_fifo1, &sep_fifo1));
+    ASSERT_TRUE(check_partition_invariant(&G, part_fifo1));
+
+    /* FIFO run #2 (determinism check). */
+    idx_t *part_fifo2 = malloc((size_t)G.n * sizeof(idx_t));
+    ASSERT_NOT_NULL(part_fifo2);
+    idx_t sep_fifo2 = 0;
+    REQUIRE_OK(sparse_graph_partition(&G, part_fifo2, &sep_fifo2));
     unsetenv("SPARSE_FM_FINEST_STRATEGY");
 
-    REQUIRE_OK(rc);
+    /* (a) FIFO determinism: same input → same output. */
+    ASSERT_EQ(sep_fifo1, sep_fifo2);
+    ASSERT_EQ(memcmp(part_fifo1, part_fifo2, (size_t)G.n * sizeof(idx_t)), 0);
 
-    /* Day 6: structural validity only — no cut-quality assertion.
-     * Day 7 will tighten once pop_max_tail lands. */
-    printf("    Day 6 stub: SPARSE_FM_FINEST_STRATEGY=fifo dispatch reached; "
-           "10x10 grid sep=%d (Day 7 will assert differs-from-baseline)\n",
-           (int)sep);
-    ASSERT_TRUE(sep >= 5);
-    ASSERT_TRUE(sep <= 12);
-    ASSERT_TRUE(check_partition_invariant(&G, part));
+    /* (b) FIFO differs from baseline: at least one vertex's part
+     * differs, OR the sep counts differ.  This is the smoke-level
+     * evidence that the FIFO pop variant is actually being
+     * exercised. */
+    int differs = (sep_baseline != sep_fifo1) ||
+                  (memcmp(part_baseline, part_fifo1, (size_t)G.n * sizeof(idx_t)) != 0);
+    printf("    30x30 grid: baseline sep=%d, fifo sep=%d, partitions %s\n", (int)sep_baseline,
+           (int)sep_fifo1, differs ? "DIFFER (FIFO active)" : "match");
+    ASSERT_TRUE(differs);
 
+    free(part_baseline);
+    free(part_fifo1);
+    free(part_fifo2);
     sparse_graph_free(&G);
     sparse_free(A);
 }

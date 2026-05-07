@@ -56,10 +56,14 @@
  * before re-init, or just zero-init the slot before a fresh init).
  */
 typedef struct {
-    idx_t *heads;        /**< Per-bucket head vertex; length `num_buckets`. -1 = empty. */
-    idx_t *next;         /**< Per-vertex next-in-bucket; length `n_vertices`. */
-    idx_t *prev;         /**< Per-vertex prev-in-bucket; length `n_vertices`. */
-    idx_t *counts;       /**< Per-bucket vertex count; length `num_buckets`. */
+    idx_t *heads;  /**< Per-bucket head vertex (most-recently inserted); length `num_buckets`. -1 =
+                      empty. */
+    idx_t *tails;  /**< Per-bucket tail vertex (first-inserted); length `num_buckets`.  -1 = empty.
+                      Sprint 26 Day 7: added to support FIFO `fm_bucket_pop_max_tail` for
+                      SPARSE_FM_FINEST_STRATEGY=fifo (see SPRINT_26/finest_fm_design.md). */
+    idx_t *next;   /**< Per-vertex next-in-bucket; length `n_vertices`. */
+    idx_t *prev;   /**< Per-vertex prev-in-bucket; length `n_vertices`. */
+    idx_t *counts; /**< Per-bucket vertex count; length `num_buckets`. */
     idx_t n_vertices;    /**< Total vertices in the parent graph. */
     idx_t max_gain;      /**< Bucket array spans gains in [-max_gain, +max_gain]. */
     idx_t bucket_offset; /**< Equals max_gain (so gain g → heads[offset + g]). */
@@ -131,6 +135,29 @@ void fm_bucket_remove(fm_bucket_array_t *arr, idx_t vertex, idx_t gain);
  *         currently inserted).
  */
 sparse_err_t fm_bucket_pop_max(fm_bucket_array_t *arr, idx_t *vertex_out, idx_t *gain_out);
+
+/**
+ * @brief Pop the highest-gain vertex from the bucket array's tail
+ *        side (Sprint 26 Day 7 — FIFO variant).
+ *
+ * Same O(1) amortised contract as `fm_bucket_pop_max`, but pops from
+ * the *tail* of the cursor bucket's linked list — the vertex
+ * inserted FIRST among the equal-gain tie group (FIFO with respect
+ * to insertion order).  The default `fm_bucket_pop_max` pops from
+ * the head (most-recently inserted; LIFO).  Used by FM under
+ * `SPARSE_FM_FINEST_STRATEGY=fifo` to break the saturation Sprint 25
+ * Day 5 measured ("passes ≥ 5 saturate at 0.952× on Pres_Poisson");
+ * see `docs/planning/EPIC_2/SPRINT_26/finest_fm_design.md`.
+ *
+ * @param arr          Initialised bucket array.
+ * @param vertex_out   Output: popped vertex ID.  Untouched on empty.
+ * @param gain_out     Output: popped vertex's gain.  Untouched on empty.
+ *
+ * @return SPARSE_OK if a vertex was popped.
+ * @return SPARSE_ERR_NULL if `arr`, `vertex_out`, or `gain_out` is NULL.
+ * @return SPARSE_ERR_BOUNDS if the bucket array is empty.
+ */
+sparse_err_t fm_bucket_pop_max_tail(fm_bucket_array_t *arr, idx_t *vertex_out, idx_t *gain_out);
 
 /**
  * @brief Release the bucket array's internal storage and zero its

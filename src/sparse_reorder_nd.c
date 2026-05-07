@@ -54,30 +54,44 @@
 #include <time.h> /* Sprint 25 Day 11: SPARSE_ND_PROFILE wall-clock instrumentation. */
 
 /* Sprint 25 Day 11: SPARSE_ND_PROFILE per-phase wall-clock
- * instrumentation.  File-static accumulators (nanoseconds) — `nd_recurse`
- * is recursive and not thread-safe, so accumulating across calls in
- * file-statics is fine and avoids threading a profile struct through
- * every recursion level.  `nd_prof_enabled` is set by `sparse_reorder_nd`
- * once (after parsing the env var) and stays set for the duration of
- * the call; emitted to stderr at the end of the top-level
- * `sparse_reorder_nd` call.  Production overhead is one branch per
- * timed call when `nd_prof_enabled == 0`.  See
+ * instrumentation.  Per-thread accumulators (nanoseconds) — `nd_recurse`
+ * is recursive within a single `sparse_reorder_nd` call, so file-static
+ * accumulators avoid threading a profile struct through every recursion
+ * level.  `_Thread_local` storage class (PR #33 review fix) keeps
+ * concurrent `sparse_reorder_nd` calls on different matrices race-free:
+ * each thread sees its own `nd_prof_enabled` + accumulators, even when
+ * profiling is disabled (the env-var read + zeroing on entry is a write
+ * to file-static state that without `_Thread_local` would race).  Same
+ * pattern as `last_errno` in `src/sparse_types.c`.  `nd_prof_enabled`
+ * is set by `sparse_reorder_nd` once (after parsing the env var) and
+ * stays set for the duration of the call; emitted to stderr at the end
+ * of the top-level `sparse_reorder_nd` call.  Production overhead is
+ * one branch per timed call when `nd_prof_enabled == 0`.  See
  * docs/planning/EPIC_2/SPRINT_25/PLAN.md Day 11 task 1 + the analogous
  * SPARSE_QG_PROFILE pattern in src/sparse_reorder_amd_qg.c. */
-static int nd_prof_enabled = 0;
-static long long nd_prof_partition_ns = 0;     /* sparse_graph_partition cumulative */
-static long long nd_prof_subgraph_ns = 0;      /* sparse_graph_subgraph cumulative */
-static long long nd_prof_leaf_amd_ns = 0;      /* sparse_reorder_amd_qg leaf splice cumulative */
-static long long nd_prof_leaf_subgraph_ns = 0; /* nd_subgraph_to_sparse cumulative */
-static long long nd_prof_emit_natural_ns = 0;  /* nd_emit_natural cumulative */
-static long long nd_prof_graph_build_ns = 0;   /* sparse_graph_from_sparse one-shot */
-static idx_t nd_prof_partition_calls = 0;
-static idx_t nd_prof_leaf_amd_calls = 0;
-static idx_t nd_prof_emit_natural_calls = 0;
+static _Thread_local int nd_prof_enabled = 0;
+static _Thread_local long long nd_prof_partition_ns = 0;
+static _Thread_local long long nd_prof_subgraph_ns = 0;
+static _Thread_local long long nd_prof_leaf_amd_ns = 0;
+static _Thread_local long long nd_prof_leaf_subgraph_ns = 0;
+static _Thread_local long long nd_prof_emit_natural_ns = 0;
+static _Thread_local long long nd_prof_graph_build_ns = 0;
+static _Thread_local idx_t nd_prof_partition_calls = 0;
+static _Thread_local idx_t nd_prof_leaf_amd_calls = 0;
+static _Thread_local idx_t nd_prof_emit_natural_calls = 0;
 
+/* Monotonic-clock timestamp helper.  Returns nanoseconds since an
+ * unspecified epoch.  POSIX `clock_gettime(CLOCK_MONOTONIC, ...)` on
+ * non-Windows; Windows routes through C11 `timespec_get(..., TIME_UTC)`
+ * (PR #33 review fix — mirrors `qg_prof_now_ns()` in
+ * `src/sparse_reorder_amd_qg.c`). */
 static long long nd_prof_now_ns(void) {
     struct timespec ts;
+#ifdef _WIN32
+    timespec_get(&ts, TIME_UTC);
+#else
     clock_gettime(CLOCK_MONOTONIC, &ts);
+#endif
     return (long long)ts.tv_sec * 1000000000LL + ts.tv_nsec;
 }
 
@@ -392,9 +406,10 @@ sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm) {
 
     /* Sprint 25 Day 11: SPARSE_ND_PROFILE per-phase wall-clock
      * breakdown.  Reset accumulators on every entry so consecutive
-     * calls produce independent measurements (file-static state is
-     * fine since `sparse_reorder_nd` isn't thread-safe — same caveat
-     * as `sparse_reorder_nd_base_threshold` per the header). */
+     * calls produce independent measurements (the accumulators are
+     * `_Thread_local` per the file-top declaration, so concurrent
+     * calls on different matrices race only on the env-var read,
+     * not on the accumulator state). */
     nd_prof_enabled = (getenv("SPARSE_ND_PROFILE") != NULL);
     long long prof_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
     if (nd_prof_enabled) {

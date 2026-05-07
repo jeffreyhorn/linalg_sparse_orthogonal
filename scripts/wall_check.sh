@@ -1,20 +1,32 @@
 #!/usr/bin/env bash
 # wall_check.sh — Sprint 24 Day 1 performance regression gate.
+# Sprint 25 Day 12: extended with Pres_Poisson ND baseline + per-key
+# threshold (1.5× for the ND row to match the variance classification
+# in nd_wall_time_decision.md; 2× for the existing AMD rows).
 #
 # Usage: wall_check.sh <bench_amd_qg> <bench_reorder> <baseline_file>
 #
 # Runs `bench_amd_qg --only bcsstk14` and
 # `bench_reorder --only Pres_Poisson --skip-factor`, extracts the
-# `reorder_ms` column for the qg-AMD / AMD rows, compares each against
-# the threshold in <baseline_file>.  Exits 0 if both stay within 2× the
-# baseline; non-zero otherwise.
+# `reorder_ms` column for the qg-AMD / AMD / ND rows, compares each
+# against its per-key threshold in <baseline_file>.  Exits 0 if all
+# three stay within their thresholds; non-zero otherwise.
 #
-# The baseline file format is two lines of `KEY=VALUE_MS`:
+# The baseline file format is three lines of `KEY=VALUE_MS`:
 #
-#   bcsstk14_qg_amd_ms=...
-#   pres_poisson_amd_ms=...
+#   bcsstk14_qg_amd_ms=...    (2× threshold; Sprint 24 Day 1)
+#   pres_poisson_amd_ms=...   (2× threshold; Sprint 24 Day 1)
+#   pres_poisson_nd_ms=...    (1.5× threshold; Sprint 25 Day 12)
 #
 # Lines starting with `#` are ignored (comments).
+#
+# Per-key threshold rationale: the AMD baselines are tight gates on
+# the qg-AMD path (Sprint 23 introduced + Sprint 24 reverted a 30-
+# 200× regression that escaped notice for an entire sprint).  The
+# Pres_Poisson ND baseline is a wider gate because Sprint 25 Day 11
+# profiling measured 16% within-run variance on this fixture
+# (versus < 5% for the AMD measurements); 1.5× absorbs the variance
+# without going so wide that real regressions slip through.
 
 set -euo pipefail
 
@@ -43,11 +55,20 @@ fi
 # Parse baseline file; skip comments + blank lines.
 BCSSTK14_QG_BASE=$(awk -F= '/^bcsstk14_qg_amd_ms=/ {print $2}' "$BASELINE_FILE")
 PRES_POISSON_BASE=$(awk -F= '/^pres_poisson_amd_ms=/ {print $2}' "$BASELINE_FILE")
+PRES_POISSON_ND_BASE=$(awk -F= '/^pres_poisson_nd_ms=/ {print $2}' "$BASELINE_FILE")
 
-if [ -z "$BCSSTK14_QG_BASE" ] || [ -z "$PRES_POISSON_BASE" ]; then
-    echo "wall-check: baseline file missing required keys (bcsstk14_qg_amd_ms, pres_poisson_amd_ms)" >&2
+if [ -z "$BCSSTK14_QG_BASE" ] || [ -z "$PRES_POISSON_BASE" ] || [ -z "$PRES_POISSON_ND_BASE" ]; then
+    echo "wall-check: baseline file missing required keys (bcsstk14_qg_amd_ms, pres_poisson_amd_ms, pres_poisson_nd_ms)" >&2
     exit 2
 fi
+
+# Per-key thresholds.  AMD baselines use 2× (tight gate on the qg-AMD
+# path that escaped a 30-200× Sprint 23 regression for an entire
+# sprint); the Pres_Poisson ND baseline uses 1.5× to absorb the 16%
+# within-run variance Sprint 25 Day 11 measured on this fixture.
+# See docs/planning/EPIC_2/SPRINT_25/nd_wall_time_decision.md.
+AMD_THRESHOLD_MULT=2
+ND_THRESHOLD_MULT=1.5
 
 # Run bench_amd_qg --only bcsstk14, extract qg row's reorder_ms (col 4).
 # CSV header: matrix,n,impl,reorder_ms,peak_rss_mb,nnz_L
@@ -101,19 +122,35 @@ if [ -z "$PRES_POISSON_ACTUAL" ]; then
     exit 2
 fi
 
-# Compare actual vs 2× baseline.  awk for floating-point comparison.
-echo "wall-check: bcsstk14    qg-AMD = $BCSSTK14_QG_ACTUAL ms (baseline $BCSSTK14_QG_BASE ms)"
-echo "wall-check: Pres_Poisson AMD  = $PRES_POISSON_ACTUAL ms (baseline $PRES_POISSON_BASE ms)"
+# Sprint 25 Day 12: extract the Pres_Poisson ND row from the same
+# bench_reorder capture (no need to re-run the bench — the existing
+# TMP_REORDER already contains all 5 orderings × 1 fixture = 5 rows).
+PRES_POISSON_ND_ACTUAL=$(awk -F, '$1=="Pres_Poisson" && $3=="ND" {print $5; exit}' "$TMP_REORDER")
+
+if [ -z "$PRES_POISSON_ND_ACTUAL" ]; then
+    echo "wall-check: could not parse Pres_Poisson ND reorder_ms from bench_reorder output" >&2
+    exit 2
+fi
+
+# Compare actual vs threshold.  awk for floating-point comparison.
+echo "wall-check: bcsstk14    qg-AMD = $BCSSTK14_QG_ACTUAL ms (baseline $BCSSTK14_QG_BASE ms; ${AMD_THRESHOLD_MULT}× gate)"
+echo "wall-check: Pres_Poisson AMD  = $PRES_POISSON_ACTUAL ms (baseline $PRES_POISSON_BASE ms; ${AMD_THRESHOLD_MULT}× gate)"
+echo "wall-check: Pres_Poisson ND   = $PRES_POISSON_ND_ACTUAL ms (baseline $PRES_POISSON_ND_BASE ms; ${ND_THRESHOLD_MULT}× gate)"
 
 FAIL=0
-if awk -v a="$BCSSTK14_QG_ACTUAL" -v b="$BCSSTK14_QG_BASE" \
-    'BEGIN { exit !(a > 2 * b) }'; then
-    echo "wall-check: FAIL bcsstk14 qg-AMD ($BCSSTK14_QG_ACTUAL ms) > 2× baseline ($BCSSTK14_QG_BASE ms)" >&2
+if awk -v a="$BCSSTK14_QG_ACTUAL" -v b="$BCSSTK14_QG_BASE" -v m="$AMD_THRESHOLD_MULT" \
+    'BEGIN { exit !(a > m * b) }'; then
+    echo "wall-check: FAIL bcsstk14 qg-AMD ($BCSSTK14_QG_ACTUAL ms) > ${AMD_THRESHOLD_MULT}× baseline ($BCSSTK14_QG_BASE ms)" >&2
     FAIL=1
 fi
-if awk -v a="$PRES_POISSON_ACTUAL" -v b="$PRES_POISSON_BASE" \
-    'BEGIN { exit !(a > 2 * b) }'; then
-    echo "wall-check: FAIL Pres_Poisson AMD ($PRES_POISSON_ACTUAL ms) > 2× baseline ($PRES_POISSON_BASE ms)" >&2
+if awk -v a="$PRES_POISSON_ACTUAL" -v b="$PRES_POISSON_BASE" -v m="$AMD_THRESHOLD_MULT" \
+    'BEGIN { exit !(a > m * b) }'; then
+    echo "wall-check: FAIL Pres_Poisson AMD ($PRES_POISSON_ACTUAL ms) > ${AMD_THRESHOLD_MULT}× baseline ($PRES_POISSON_BASE ms)" >&2
+    FAIL=1
+fi
+if awk -v a="$PRES_POISSON_ND_ACTUAL" -v b="$PRES_POISSON_ND_BASE" -v m="$ND_THRESHOLD_MULT" \
+    'BEGIN { exit !(a > m * b) }'; then
+    echo "wall-check: FAIL Pres_Poisson ND ($PRES_POISSON_ND_ACTUAL ms) > ${ND_THRESHOLD_MULT}× baseline ($PRES_POISSON_ND_BASE ms)" >&2
     FAIL=1
 fi
 

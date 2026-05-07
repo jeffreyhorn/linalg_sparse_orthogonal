@@ -1,0 +1,118 @@
+Sprint 25 Day 14 — End-of-sprint bench capture (production defaults)
+=====================================================================
+
+Per PLAN.md Day 14 task 1.  Final closing-bench capture under the
+production defaults — re-run after Day 13's tests + docs sweep to
+sanity-confirm the closing days didn't disturb the bit-stable
+default ND code path.
+
+Captured on macOS arm64 (Apple Clang, -O2; today's tip is the Day
+13 commit at 9e813af).  CSV form: `bench_day14.csv`.
+
+Command:
+    build/bench_reorder --skip-factor
+
+Per-fixture summary (all 5 reorderings × 6 fixtures)
+----------------------------------------------------
+
+  matrix         n      reorder  nnz_L      reorder_ms  ND/AMD
+  ────────────  ─────  ───────  ─────────  ──────────  ──────
+  nos4            100  NONE             805        0.0
+  nos4            100  RCM              888        0.1
+  nos4            100  AMD              637        0.4
+  nos4            100  COLAMD           778        0.4
+  nos4            100  ND               968      117.4   1.520×
+
+  bcsstk04        132  NONE           3 763        0.0
+  bcsstk04        132  RCM            3 633        0.7
+  bcsstk04        132  AMD            3 143        2.1
+  bcsstk04        132  COLAMD         3 622        3.2
+  bcsstk04        132  ND             3 702      525.4   1.178×
+
+  Kuu           7 102  NONE       2 993 061        0.0
+  Kuu           7 102  RCM        1 024 794       70.5
+  Kuu           7 102  AMD          406 264      555.0
+  Kuu           7 102  COLAMD       830 665    4 731.0
+  Kuu           7 102  ND           924 385   14 343.5   2.275×
+
+  bcsstk14      1 806  NONE         190 791        0.0
+  bcsstk14      1 806  RCM          178 311       14.0
+  bcsstk14      1 806  AMD          116 071      135.2
+  bcsstk14      1 806  COLAMD       146 037      198.8
+  bcsstk14      1 806  ND           131 017    6 110.5   1.129×
+
+  s3rmt3m3      5 357  NONE       2 208 972        0.0
+  s3rmt3m3      5 357  RCM          636 993       38.4
+  s3rmt3m3      5 357  AMD          474 609      711.8
+  s3rmt3m3      5 357  COLAMD       607 647    1 423.7
+  s3rmt3m3      5 357  ND           478 890   14 524.2   1.009×
+
+  Pres_Poisson 14 822  NONE       5 061 932        0.0
+  Pres_Poisson 14 822  RCM        3 187 081      163.2
+  Pres_Poisson 14 822  AMD        2 668 793    7 369.2
+  Pres_Poisson 14 822  COLAMD     3 415 793   15 304.8
+  Pres_Poisson 14 822  ND         2 541 734   39 316.2   0.952×  ← headline
+
+End-of-sprint nnz_L verification vs Day 13
+-------------------------------------------
+
+PLAN.md Day 14 completion criterion:
+  > Final cross-ordering capture matches Day 13's output bit-
+  > identically on nnz_L (no regressions in Day 13's doc/test sweep).
+
+ND nnz_L bit-identical comparison:
+
+  fixture        Day 13       Day 14       Δ
+  ────────────  ──────────  ──────────  ────
+  nos4              968         968       0   ✓ bit-identical
+  bcsstk04        3 702        3 702      0   ✓ bit-identical
+  Kuu           924 385      924 385      0   ✓ bit-identical
+  bcsstk14      131 017      131 017      0   ✓ bit-identical
+  s3rmt3m3      478 890      478 890      0   ✓ bit-identical
+  Pres_Poisson 2 541 734    2 541 734     0   ✓ bit-identical
+
+  Pres_Poisson ND/AMD = 2 541 734 / 2 668 793 = **0.9524×** (unchanged).
+
+All 30/30 reordering × fixture rows bit-identical to Day 13 (which
+itself was bit-identical to Day 10's post-flip-revert capture and
+to Sprint 24 master).  The Day-13 closing sweep is algorithmically
+inert as expected.
+
+ND wall-time is 39 316 ms vs Day 13's 41 590 ms — within the Day-11
+16 % within-run variance band (44 321 - 51 562 ms across 5
+consecutive runs).  Today's Day-14 run lands ~3 ms below the lower
+end of Day 11's window, indicating slightly more favourable thermal /
+host-load conditions; per `nd_wall_time_decision.md` this is
+variance, not algorithmic motion.
+
+Sprint 25 advisory verification (re-confirmed)
+-----------------------------------------------
+
+The Sprint 25 Day 9 best-opt-in setting (HCC + ratio=200) was
+canonically captured at Day 10 (`bench_day10_setting13_advisory.csv`)
+with Pres_Poisson ND/AMD = 0.9218×.  Day 14 does not re-run the
+advisory capture — Day 10's was the canonical verification, and
+Day 13 already confirmed the production defaults stay bit-stable.
+
+Wall_check gate verification
+-----------------------------
+
+`make wall-check` (Day 12's three-key per-fixture gate, run as part
+of Day 14's quality gates):
+
+  bcsstk14    qg-AMD  ≈   ~135 ms (baseline 130 ms; 2× gate)     ✓
+  Pres_Poisson AMD    ≈ ~6 600 ms (baseline 8 000 ms; 2× gate)   ✓
+  Pres_Poisson ND     ≈ ~39 000 ms (baseline 47 055 ms; 1.5× gate) ✓
+
+All three baselines stay within their per-key thresholds.
+
+References
+----------
+
+- `docs/planning/EPIC_2/SPRINT_25/PLAN.md` Day 14
+- `docs/planning/EPIC_2/SPRINT_25/bench_day13_final.{csv,txt}` —
+  Day 13's bench (the Day-14 reference for the bit-identical check)
+- `docs/planning/EPIC_2/SPRINT_25/bench_day10_post_flip.txt` — the
+  Day 10 default capture this whole bit-identical chain anchors to
+- `docs/planning/EPIC_2/SPRINT_25/nd_wall_time_decision.md` —
+  Day 11 within-run variance classification

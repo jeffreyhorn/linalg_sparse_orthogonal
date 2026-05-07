@@ -1,0 +1,141 @@
+Sprint 25 Day 5 — SPARSE_FM_INTERMEDIATE_PASSES corpus sweep
+=============================================================
+
+Per PLAN.md Day 5 task 1.  Three settings ({1, 2, 3}) × six
+SuiteSparse fixtures = 18 measurements.  AMD nnz_L is fixed
+across runs (not affected by SPARSE_FM_INTERMEDIATE_PASSES);
+included for the ND/AMD ratio computation.
+
+Single run on macOS arm64 (Apple Clang, -O2; today's tip is the
+Day 4 commit at 72a12c4).
+CSV form would duplicate the bench_day3 captures + the
+SPARSE_FM_INTERMEDIATE_PASSES=2 + =3 runs; not committed
+separately because the per-fixture deltas in this file are the
+canonical record.
+
+bench_reorder.c --skip-factor output, AMD + ND rows only:
+
+passes=1 (default; Sprint 23 Day 11 behavior bit-identically)
+-------------------------------------------------------------
+
+  matrix         n      reorder  nnz_L      reorder_ms
+  ────────────  ─────  ───────  ─────────  ──────────
+  nos4            100  AMD            637         0.3
+  nos4            100  ND             968        92.2
+  bcsstk04        132  AMD          3 143         1.9
+  bcsstk04        132  ND           3 702       480.3
+  Kuu           7 102  AMD        406 264       555.5
+  Kuu           7 102  ND         924 385    12 383.7
+  bcsstk14      1 806  AMD        116 071       126.2
+  bcsstk14      1 806  ND         131 017     5 169.3
+  s3rmt3m3      5 357  AMD        474 609       780.5
+  s3rmt3m3      5 357  ND         478 890    12 497.5
+  Pres_Poisson 14 822  AMD      2 668 793     8 483.3
+  Pres_Poisson 14 822  ND       2 541 734    36 008.2
+
+passes=2
+--------
+
+  matrix         n      reorder  nnz_L      reorder_ms
+  ────────────  ─────  ───────  ─────────  ──────────
+  nos4            100  AMD            637         0.2
+  nos4            100  ND             968        89.6
+  bcsstk04        132  AMD          3 143         2.0
+  bcsstk04        132  ND           3 702       484.0
+  Kuu           7 102  AMD        406 264       553.6
+  Kuu           7 102  ND         951 186    16 779.8
+  bcsstk14      1 806  AMD        116 071       127.6
+  bcsstk14      1 806  ND         128 501     5 410.2
+  s3rmt3m3      5 357  AMD        474 609       768.1
+  s3rmt3m3      5 357  ND         486 861    10 993.2
+  Pres_Poisson 14 822  AMD      2 668 793     8 529.6
+  Pres_Poisson 14 822  ND       2 540 609    30 481.3
+
+passes=3
+--------
+
+  matrix         n      reorder  nnz_L      reorder_ms
+  ────────────  ─────  ───────  ─────────  ──────────
+  nos4            100  AMD            637         0.2
+  nos4            100  ND             968        91.9
+  bcsstk04        132  AMD          3 143         1.8
+  bcsstk04        132  ND           3 702       477.1
+  Kuu           7 102  AMD        406 264       536.2
+  Kuu           7 102  ND         829 774    12 841.2
+  bcsstk14      1 806  AMD        116 071       124.9
+  bcsstk14      1 806  ND         128 375     4 580.9
+  s3rmt3m3      5 357  AMD        474 609       749.6
+  s3rmt3m3      5 357  ND         486 881    11 205.6
+  Pres_Poisson 14 822  AMD      2 668 793     8 413.9
+  Pres_Poisson 14 822  ND       2 582 579    34 392.9
+
+Per-fixture ND/AMD ratio table (passes=1 = Sprint 24 baseline)
+---------------------------------------------------------------
+
+  fixture       | passes=1     | passes=2          | passes=3
+  --------------|--------------|-------------------|-------------------
+  nos4          | 1.520×       | 1.520× (=)        | 1.520× (=)
+  bcsstk04      | 1.178×       | 1.178× (=)        | 1.178× (=)
+  Kuu           | 2.275×       | 2.341× (+6.6pp)   | 2.043× (-23.2pp WIN)
+  bcsstk14      | 1.129×       | 1.107× (-2.2pp)   | 1.106× (-2.3pp)
+  s3rmt3m3      | 1.009×       | 1.026× (+1.7pp)   | 1.026× (+1.7pp)
+  Pres_Poisson  | 0.952×       | 0.952× (-0.04pp)  | 0.967× (+1.5pp regression)
+
+ND wall-time cost per setting vs passes=1 baseline:
+
+  fixture        | passes=1 ms  | passes=2 (Δ%)        | passes=3 (Δ%)
+  ---------------|--------------|----------------------|----------------------
+  nos4           | 92.2         | 89.6   (-2.8%)       | 91.9   (-0.3%)
+  bcsstk04       | 480.3        | 484.0  (+0.8%)       | 477.1  (-0.7%)
+  Kuu            | 12 383.7     | 16 779.8  (+35.5%)   | 12 841.2  (+3.7%)
+  bcsstk14       | 5 169.3      | 5 410.2  (+4.7%)     | 4 580.9  (-11.4%)
+  s3rmt3m3       | 12 497.5     | 10 993.2  (-12.0%)   | 11 205.6  (-10.3%)
+  Pres_Poisson   | 36 008.2     | 30 481.3  (-15.4%)   | 34 392.9  (-4.5%)
+
+Wall-time spans well outside the typical ±25 % run-to-run band
+only on Kuu under passes=2 (+35.5 %).  The other fixtures' ND
+wall variance (-15.4 % to +4.7 %) is within typical noise; the
+Pres_Poisson "improvement" at passes=2 is most likely run-to-run
+variance rather than a real wall-time win, because Pres_Poisson's
+nnz_L doesn't change meaningfully between passes=1 and passes=2.
+
+Production-default flip rule (PLAN.md Day 5 task 2)
+----------------------------------------------------
+
+> Flip default if the chosen value tightens Pres_Poisson by
+> ≥ 1pp AND no smaller fixture regresses past 5pp.
+
+  passes=2: Pres_Poisson tightens 0.04pp.  FAIL (< 1pp threshold).
+  passes=3: Pres_Poisson REGRESSES 1.5pp.   FAIL (regression).
+
+Neither setting meets the flip rule.  Production default stays
+SPARSE_FM_INTERMEDIATE_PASSES=1 (Sprint 23 Day 11 behavior).
+
+Item 2 (multi-pass FM at intermediate uncoarsening levels)
+contributes ~0pp to the Pres_Poisson 0.85× headline gate.  The
+escalation finding from Day 3 (HCC contributes ~1.5pp; items 2+3
+must close ~7pp combined) now narrows further: item 2 contributes
+~0pp; Days 6-8 spectral bisection (item 3) must close the
+remaining ~7pp essentially alone.
+
+Notable corpus signals
+-----------------------
+
+Two findings worth advisory documentation even if neither flips
+the default:
+
+1. **Kuu @ passes=3: -10.2 % nnz_L (-23.2pp ND/AMD)**.  The
+   strongest per-fixture win in the entire Sprint 25 sweep matrix
+   to date.  Kuu is the corpus's worst ND/AMD ratio (2.275×
+   under default); passes=3 drops it to 2.043×.  This is a
+   workload-specific advisory: callers running on Kuu-shaped
+   irregular SPD fixtures should set
+   SPARSE_FM_INTERMEDIATE_PASSES=3 manually for fill-quality.
+
+2. **bcsstk14 @ passes=2 or =3: -2.2pp / -2.3pp ND/AMD**.  Smaller
+   but consistent.  Either setting tightens bcsstk14; passes=2 is
+   marginally better and avoids Kuu's wall-time regression at
+   passes=3.
+
+These advisory findings are documented in
+intermediate_fm_decision.md "Per-fixture advisory" section.

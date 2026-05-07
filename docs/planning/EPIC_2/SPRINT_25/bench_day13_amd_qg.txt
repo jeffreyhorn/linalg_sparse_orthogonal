@@ -1,0 +1,83 @@
+Sprint 25 Day 13 — Final qg-AMD bench (production defaults)
+=============================================================
+
+Per PLAN.md Day 13 task 4.  Final closing-bench capture of the
+quotient-graph AMD wrapper across the SuiteSparse corpus +
+synthetic banded fixtures.  Verifies Sprint 24 Day 2's revert of
+Sprint 23's element absorption / supervariable detection / dense-
+row skip / approximate-degree formula stays bit-identical on every
+fixture and the wall-time profile is stable post-Sprint-25-doc-sweep.
+
+Captured on macOS arm64 (Apple Clang, -O2; today's tip is the Day
+12 commit at 122c896 + Day 13's tests + docs).  CSV form:
+`bench_day13_amd_qg.csv`.
+
+Command:
+    build/bench_amd_qg
+
+Per-fixture summary (qg vs bitset)
+-----------------------------------
+
+  matrix          n      impl    reorder_ms  peak_rss_mb  nnz_L
+  ─────────────  ──────  ──────  ──────────  ───────────  ─────────
+  nos4              100  qg            0.4         0.04         637
+  nos4              100  bitset        0.2         0.00         637
+
+  bcsstk04          132  qg            2.8         0.19       3 143
+  bcsstk04          132  bitset        1.4         0.04       3 143
+
+  bcsstk14        1 806  qg          176.6         2.53     116 071
+  bcsstk14        1 806  bitset       77.9         0.04     116 071
+
+  Kuu             7 102  qg          685.0        10.64     406 264
+  Kuu             7 102  bitset      963.0         0.11     406 264
+
+  s3rmt3m3        5 357  qg          937.7         1.13     474 609
+  s3rmt3m3        5 357  bitset      709.0         0.02     474 609
+
+  Pres_Poisson   14 822  qg       10 162.3        19.11   2 668 793
+  Pres_Poisson   14 822  bitset    7 872.8        16.08   2 668 793
+
+  banded_5000     5 000  qg           47.3         0.00      29 985
+  banded_5000     5 000  bitset      328.3         0.00      29 985
+
+  banded_10000   10 000  qg          180.6         0.00      59 985
+  banded_10000   10 000  bitset    1 288.0         0.00      59 985
+
+  banded_20000   20 000  qg          638.0         0.00     119 985
+  banded_20000   20 000  bitset    5 856.5        24.86     119 985
+
+Sprint 24 verification: nnz_L bit-identical to Sprint 22 + Sprint 23
+---------------------------------------------------------------------
+
+Every (fixture, qg/bitset) pair produces the same nnz_L within a
+fixture.  This is the headline correctness invariant Sprint 22 Day
+13 established and Sprint 23 + Sprint 24 + Sprint 25 preserve: the
+qg implementation is a drop-in replacement for the bitset
+implementation; Sprint 24 Day 2's revert of Sprint 23's Davis-
+mechanism additions kept this invariant.
+
+Sprint 25 verification: wall-time profile stable
+-------------------------------------------------
+
+PLAN.md Day 13 completion criterion implies the qg-AMD path stays
+clean across the Sprint 25 sweep (no regressions in tests + docs).
+Day 13's bcsstk14 qg-AMD = 176.6 ms; Day 12's wall-check measured
+~130 ms — within the 2× gate (260 ms).  Day 13's Pres_Poisson
+qg-AMD = 10 162 ms; Day 12's wall-check measured ~6 600 ms —
+within the 2× gate (16 000 ms).  Both baselines stable.
+
+The Sprint 25 wall-times are at the upper end of the
+within-run-variance band Day 11 measured (16.3 % range) but well
+within the per-key thresholds Day 12 set.  No qg-AMD-path tightening
+is warranted in Sprint 25; Sprint 24 Day 2's revert is the
+last-known-good baseline.
+
+References
+----------
+
+- `docs/planning/EPIC_2/SPRINT_25/PLAN.md` Day 13
+- `docs/planning/EPIC_2/SPRINT_24/bench_day9_amd_qg.txt` — Sprint 24
+  Day 9's qg-AMD bench (the bit-identical reference for nnz_L)
+- `docs/planning/EPIC_2/SPRINT_24/wall_check_baseline.txt` —
+  baseline file used by `make wall-check`

@@ -108,6 +108,7 @@
  * driver in `src/sparse_reorder_nd.c` consumes.
  */
 
+#include "sparse_eigs.h"
 #include "sparse_graph_fm_buckets.h"
 #include "sparse_graph_internal.h"
 #include "sparse_matrix_internal.h"
@@ -387,8 +388,57 @@ static int cmp_coarse_edge(const void *a, const void *b) {
     return (na > nb) - (na < nb);
 }
 
-sparse_err_t graph_coarsen_heavy_edge_matching(const sparse_graph_t *fine, uint32_t seed,
-                                               sparse_graph_t *coarse_out, idx_t *cmap_out) {
+/* Sprint 25 Day 1: coarsening-strategy enum + env-var parser
+ * (skeleton).  Day 1 lands the type + parser; Day 2 implements
+ * `graph_coarsen_hcc` and Day 2's `sparse_graph_hierarchy_build`
+ * dispatches the matching loop on the parsed strategy.
+ *
+ * The Sprint 22 default (`COARSENING_HEAVY_EDGE`) calls
+ * `graph_coarsen_heavy_edge_matching` (below) for bit-identical
+ * behavior.  `COARSENING_HCC` calls a sibling `graph_coarsen_hcc`
+ * (Day 2) implementing Karypis-Kumar 1998 §5's Heavy Connectivity
+ * Coarsening: same shuffle, same collapse rule, but score function
+ * is `edge_weight * min(deg(u), deg(v))` instead of just
+ * `edge_weight`.  See `docs/planning/EPIC_2/SPRINT_25/hcc_design.md`
+ * for the design contract + tie-break + visit-order rationale. */
+typedef enum {
+    COARSENING_HEAVY_EDGE = 0, /* Sprint 22 default — heavy-edge matching */
+    COARSENING_HCC = 1,        /* Sprint 25 Day 2-3 — Heavy Connectivity Coarsening */
+} coarsening_strategy_t;
+
+static coarsening_strategy_t parse_coarsening_strategy(void) {
+    const char *env = getenv("SPARSE_ND_COARSENING");
+    if (env && strcmp(env, "hcc") == 0)
+        return COARSENING_HCC;
+    /* Sprint 25 Day 10: production default stays COARSENING_HEAVY_EDGE
+     * per the corpus-safety analysis in
+     * docs/planning/EPIC_2/SPRINT_25/coarsening_decision.md.  HCC
+     * combined with Sprint 24's ratio=200 (Day 9 setting 13) closes
+     * Pres_Poisson ND/AMD by 3pp but Day 10 verification surfaced a
+     * bcsstk14 regression: under HCC the multilevel partition
+     * produces a degenerate empty separator (sep=0) on bcsstk14
+     * regardless of the ratio setting, which test_partition_bcsstk14_smoke
+     * pins as a correctness contract.  HCC ships as advisory
+     * (`SPARSE_ND_COARSENING=hcc`) and the recommended advisory
+     * combination is HCC + ratio=200 for Pres_Poisson-shaped
+     * workloads that don't share bcsstk14's sensitivity.
+     *
+     * Default + unrecognized + "heavy_edge" all fall through to
+     * Sprint 22's heavy-edge matching baseline. */
+    return COARSENING_HEAVY_EDGE;
+}
+
+/* Sprint 25 Day 2: strategy-parameterized coarsening core.  Both
+ * graph_coarsen_heavy_edge_matching (Sprint 22) and graph_coarsen_hcc
+ * (Sprint 25) call this with their respective strategy.  Only the
+ * matching-loop's score function + tie-break differ; the
+ * graph-construction passes (vwgt aggregation, deg counting, sort+merge
+ * dedup, compaction) are identical and shared.  See
+ * docs/planning/EPIC_2/SPRINT_25/hcc_design.md "Modified-vs-replaced
+ * delta from Sprint 22" for what changes vs what's preserved. */
+static sparse_err_t graph_coarsen_with_strategy(const sparse_graph_t *fine, uint32_t seed,
+                                                coarsening_strategy_t strategy,
+                                                sparse_graph_t *coarse_out, idx_t *cmap_out) {
     if (!fine || !coarse_out)
         return SPARSE_ERR_NULL;
 
@@ -420,8 +470,8 @@ sparse_err_t graph_coarsen_heavy_edge_matching(const sparse_graph_t *fine, uint3
     fisher_yates_shuffle(perm, n_fine, seed);
 
     /* Build cmap by walking vertices in shuffled order, matching each
-     * unmatched vertex to its heaviest unmatched neighbour.  -1 means
-     * "not yet assigned to a coarse vertex". */
+     * unmatched vertex to its best unmatched neighbour per the chosen
+     * strategy.  -1 means "not yet assigned to a coarse vertex". */
     for (idx_t i = 0; i < n_fine; i++)
         cmap_out[i] = -1;
 
@@ -431,15 +481,52 @@ sparse_err_t graph_coarsen_heavy_edge_matching(const sparse_graph_t *fine, uint3
         if (cmap_out[v] != -1)
             continue;
         idx_t best_nbr = -1;
-        idx_t best_wt = 0; /* edge weights are positive, so 0 is a safe floor */
-        for (idx_t k = fine->xadj[v]; k < fine->xadj[v + 1]; k++) {
-            idx_t u = fine->adjncy[k];
-            if (cmap_out[u] != -1)
-                continue;
-            idx_t w = fine->ewgt ? fine->ewgt[k] : 1;
-            if (w > best_wt) {
-                best_wt = w;
-                best_nbr = u;
+        if (strategy == COARSENING_HCC) {
+            /* Heavy Connectivity Coarsening (Karypis-Kumar 1998 §5):
+             * score = edge_weight * min(deg(u), deg(v)).  Tie-break:
+             * lower-id neighbour wins on equal score (deterministic
+             * even when storage order differs across runs).  Score in
+             * int64_t to avoid overflow when edge_weight * degree
+             * exceeds INT32_MAX.  See
+             * docs/planning/EPIC_2/SPRINT_25/hcc_design.md for the
+             * full contract. */
+            int64_t best_score = 0;
+            idx_t deg_v = fine->xadj[v + 1] - fine->xadj[v];
+            for (idx_t k = fine->xadj[v]; k < fine->xadj[v + 1]; k++) {
+                idx_t u = fine->adjncy[k];
+                if (cmap_out[u] != -1)
+                    continue;
+                idx_t w = fine->ewgt ? fine->ewgt[k] : 1;
+                idx_t deg_u = fine->xadj[u + 1] - fine->xadj[u];
+                idx_t mind = (deg_v < deg_u) ? deg_v : deg_u;
+                int64_t score = (int64_t)w * (int64_t)mind;
+                /* Take this neighbour if (a) score strictly improves;
+                 * (b) no neighbour has been chosen yet (first
+                 * eligible wins regardless of score — covers
+                 * pathological all-zero-weight fixtures); or (c)
+                 * score ties an existing best and `u` has the lower
+                 * vertex id (deterministic tie-break per the HCC
+                 * contract). */
+                if ((score > best_score) || (best_nbr < 0) ||
+                    (score == best_score && u < best_nbr)) {
+                    best_score = score;
+                    best_nbr = u;
+                }
+            }
+        } else {
+            /* COARSENING_HEAVY_EDGE — Sprint 22 default.  Score = edge
+             * weight; first-encountered max wins (shuffle-dependent
+             * tie-break).  Bit-identical to Sprint 22. */
+            idx_t best_wt = 0; /* edge weights are positive, so 0 is a safe floor */
+            for (idx_t k = fine->xadj[v]; k < fine->xadj[v + 1]; k++) {
+                idx_t u = fine->adjncy[k];
+                if (cmap_out[u] != -1)
+                    continue;
+                idx_t w = fine->ewgt ? fine->ewgt[k] : 1;
+                if (w > best_wt) {
+                    best_wt = w;
+                    best_nbr = u;
+                }
             }
         }
         cmap_out[v] = n_coarse;
@@ -639,6 +726,25 @@ sparse_err_t graph_coarsen_heavy_edge_matching(const sparse_graph_t *fine, uint3
     return SPARSE_OK;
 }
 
+/* Sprint 22 Day 2: heavy-edge matching public entry point.  Sprint
+ * 25 Day 2 makes this a thin wrapper around the strategy-parameterized
+ * core; behavior under this entry point stays bit-identical to
+ * Sprint 22's original implementation. */
+sparse_err_t graph_coarsen_heavy_edge_matching(const sparse_graph_t *fine, uint32_t seed,
+                                               sparse_graph_t *coarse_out, idx_t *cmap_out) {
+    return graph_coarsen_with_strategy(fine, seed, COARSENING_HEAVY_EDGE, coarse_out, cmap_out);
+}
+
+/* Sprint 25 Day 2: Heavy Connectivity Coarsening (Karypis-Kumar 1998
+ * §5).  Public entry point used by `sparse_graph_hierarchy_build`
+ * when `SPARSE_ND_COARSENING=hcc`.  Score = edge_weight *
+ * min(deg(u), deg(v)) with lower-id-neighbour tie-break for
+ * determinism.  See docs/planning/EPIC_2/SPRINT_25/hcc_design.md. */
+sparse_err_t graph_coarsen_hcc(const sparse_graph_t *fine, uint32_t seed,
+                               sparse_graph_t *coarse_out, idx_t *cmap_out) {
+    return graph_coarsen_with_strategy(fine, seed, COARSENING_HCC, coarse_out, cmap_out);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Multilevel hierarchy (Sprint 22 Day 2).
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -685,7 +791,13 @@ sparse_err_t sparse_graph_hierarchy_build(const sparse_graph_t *root, uint32_t s
      * the coarsest level produce a tighter cut that propagates back
      * through FM uncoarsening to the finest level.  Accepted range:
      * [1, 100000]; out-of-range or non-numeric input falls back to
-     * the default 100. */
+     * the default 100.  Sprint 25 Day 9's combined-effect sweep
+     * documented HCC + ratio=200 (setting 13) as the advisory
+     * combination for Pres_Poisson workloads (3pp tightening); the
+     * Day 10 default-flip rule didn't authorize re-flipping this
+     * Sprint 24 default in isolation, and the HCC flip was blocked
+     * by the bcsstk14 sep=0 regression — both env vars stay
+     * off-by-default. */
     idx_t divisor = 100;
     {
         const char *env = getenv("SPARSE_ND_COARSEN_FLOOR_RATIO");
@@ -699,6 +811,14 @@ sparse_err_t sparse_graph_hierarchy_build(const sparse_graph_t *root, uint32_t s
     idx_t base_threshold = n_root / divisor;
     if (base_threshold < 20)
         base_threshold = 20;
+    /* Sprint 25 Day 1-2: read the coarsening strategy once at the top
+     * of the hierarchy build so all levels use the same matching
+     * variant.  Day 1 added the parser; Day 2 wires the per-level
+     * dispatch below at the matching call site.  `COARSENING_HCC`
+     * routes through `graph_coarsen_hcc` (KK1998 §5);
+     * `COARSENING_HEAVY_EDGE` (default) keeps Sprint 22 behavior
+     * bit-identical via `graph_coarsen_heavy_edge_matching`. */
+    coarsening_strategy_t strategy = parse_coarsening_strategy();
     /* log2(n) + 5 ceiling; cap at a defensive 64 to avoid pathology
      * on enormous n. */
     int level_cap = 5;
@@ -744,8 +864,12 @@ sparse_err_t sparse_graph_hierarchy_build(const sparse_graph_t *root, uint32_t s
         /* Per-level seed perturbation so each level shuffles its
          * vertices differently (otherwise the same seed picks the
          * same matching pattern at every level). */
-        sparse_err_t rc =
-            graph_coarsen_heavy_edge_matching(prev, seed + (uint32_t)level, &coarse, cmap);
+        sparse_err_t rc;
+        if (strategy == COARSENING_HCC) {
+            rc = graph_coarsen_hcc(prev, seed + (uint32_t)level, &coarse, cmap);
+        } else {
+            rc = graph_coarsen_heavy_edge_matching(prev, seed + (uint32_t)level, &coarse, cmap);
+        }
         if (rc != SPARSE_OK) {
             free(cmap);
             sparse_graph_hierarchy_free(h);
@@ -930,6 +1054,15 @@ static void bfs_distances(const sparse_graph_t *G, idx_t start, idx_t *dist, idx
             idx_t u = G->adjncy[k];
             if (dist[u] == -1) {
                 dist[u] = dist[v] + 1;
+                /* `tail < G->n` is invariant: each vertex enters the
+                 * queue at most once (gated by the `dist[u] == -1`
+                 * check above), so over the lifetime of the BFS at
+                 * most G->n entries get appended.  clang-analyzer
+                 * doesn't track the dist[]-vs-queue invariant; this
+                 * suppression matches the existing pattern at
+                 * sparse_graph.c:269/301/622/624/656 + Sprint 22's
+                 * sparse_etree.c. */
+                // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
                 queue[tail++] = u;
             }
         }
@@ -1017,11 +1150,289 @@ static sparse_err_t bisect_gggp(const sparse_graph_t *G, idx_t *part_out) {
     return SPARSE_OK;
 }
 
+/* Sprint 25 Day 6: Laplacian builder for spectral bisection.
+ *
+ * L = D - A where D is the diagonal degree matrix and A is the
+ * adjacency matrix.  Symmetric, positive semi-definite (smallest
+ * eigenvalue λ_0 = 0); for connected graphs the next eigenvalue
+ * λ_1 > 0 and its eigenvector v_1 (the Fiedler vector) is what
+ * Day 7-8's spectral bisection uses for partition selection.
+ *
+ * For unit-weighted graphs (G->ewgt == NULL), edge weight = 1, so
+ * L[i][i] = degree(i) and L[i][j] = -1.  See
+ * docs/planning/EPIC_2/SPRINT_25/spectral_bisection_design.md. */
+sparse_err_t graph_build_laplacian(const sparse_graph_t *G, SparseMatrix **L_out) {
+    if (!G || !L_out)
+        return SPARSE_ERR_NULL;
+    *L_out = NULL;
+
+    SparseMatrix *L = sparse_create(G->n, G->n);
+    if (!L)
+        return SPARSE_ERR_ALLOC;
+
+    if (G->n == 0) {
+        *L_out = L;
+        return SPARSE_OK;
+    }
+
+    /* For each vertex i: emit -weight(i, j) for every j adjacent to
+     * i (off-diagonals); accumulate the row's weight sum for the
+     * diagonal entry.  The graph adjacency is symmetric, so the
+     * resulting matrix is symmetric too. */
+    for (idx_t i = 0; i < G->n; i++) {
+        idx_t row_sum = 0;
+        for (idx_t k = G->xadj[i]; k < G->xadj[i + 1]; k++) {
+            idx_t j = G->adjncy[k];
+            idx_t w = G->ewgt ? G->ewgt[k] : 1;
+            sparse_err_t rc = sparse_insert(L, i, j, -(double)w);
+            if (rc != SPARSE_OK) {
+                sparse_free(L);
+                return rc;
+            }
+            row_sum += w;
+        }
+        /* Diagonal = sum of incident edge weights (= weighted degree).
+         * For an isolated vertex this stays 0, matching the Laplacian
+         * definition for disconnected components. */
+        sparse_err_t rc = sparse_insert(L, i, i, (double)row_sum);
+        if (rc != SPARSE_OK) {
+            sparse_free(L);
+            return rc;
+        }
+    }
+
+    *L_out = L;
+    return SPARSE_OK;
+}
+
+/* qsort comparator: strictly-ascending double values. */
+static int cmp_double_asc(const void *a, const void *b) {
+    double x = *(const double *)a;
+    double y = *(const double *)b;
+    if (x < y)
+        return -1;
+    if (x > y)
+        return 1;
+    return 0;
+}
+
+/* Sprint 25 Day 7: spectral bisection at the coarsest level.
+ *
+ * Implements the algorithm specified in
+ * docs/planning/EPIC_2/SPRINT_25/spectral_bisection_design.md:
+ *   1. Build Laplacian L = D - A via graph_build_laplacian.
+ *   2. Compute the smallest two eigenpairs of L via sparse_eigs_sym
+ *      (which = SPARSE_EIGS_SMALLEST, k=2, compute_vectors=1,
+ *      reorthogonalize=1, tol=1e-8).
+ *   3. Extract the Fiedler vector v_1 (column 1 of result.eigenvectors).
+ *   4. Detect disconnected graphs via λ_1 ≈ 0; fall back to GGGP.
+ *   5. Compute median(v_1) and assign part[i] = 0 if v_1[i] < median
+ *      else 1.
+ *   6. Check the 60/40 balance contract; on imbalance, fall back to
+ *      GGGP.
+ *   7. On any sparse_eigs_sym failure (allocation, non-convergence),
+ *      fall back to GGGP.
+ *
+ * Return contract: ALWAYS produces a valid {0, 1} partition in
+ * part_out on SPARSE_OK return.  GGGP is the universal fallback —
+ * the spectral path is opt-in via SPARSE_ND_COARSEST_BISECTION=spectral
+ * but never breaks the basic {valid partition produced} contract.
+ * Trivial sizes (n ≤ 2) skip Lanczos entirely. */
+static sparse_err_t graph_bisect_coarsest_spectral(const sparse_graph_t *G, idx_t *part_out) {
+    if (!G || !part_out)
+        return SPARSE_ERR_NULL;
+    if (G->n == 0)
+        return SPARSE_OK;
+
+    /* Trivial sizes: no point invoking Lanczos.  n=1 produces a
+     * degenerate single-vertex partition; n=2 produces the unique
+     * 2-way split. */
+    if (G->n == 1) {
+        part_out[0] = 0;
+        return SPARSE_OK;
+    }
+    if (G->n == 2) {
+        part_out[0] = 0;
+        part_out[1] = 1;
+        return SPARSE_OK;
+    }
+
+    /* Build Laplacian. */
+    SparseMatrix *L = NULL;
+    sparse_err_t rc = graph_build_laplacian(G, &L);
+    if (rc != SPARSE_OK)
+        return rc;
+
+    /* Allocate eigenvalue + eigenvector buffers (k=2; column-major
+     * eigenvectors stored as [n_components × k]).  On any allocation
+     * failure, free the Laplacian + fall back to GGGP. */
+    idx_t n = G->n;
+    double *eigvals = malloc(2 * sizeof(double));
+    double *eigvecs = malloc((size_t)n * 2 * sizeof(double));
+    if (!eigvals || !eigvecs) {
+        free(eigvals);
+        free(eigvecs);
+        sparse_free(L);
+        return bisect_gggp(G, part_out);
+    }
+
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_SMALLEST,
+        .sigma = 0.0,
+        .max_iterations = 0, /* library default */
+        .tol = 1e-8,
+        .reorthogonalize = 1,
+        .compute_vectors = 1,
+        .backend = SPARSE_EIGS_BACKEND_AUTO,
+        .block_size = 0,
+    };
+    sparse_eigs_t result = {
+        .eigenvalues = eigvals,
+        .eigenvectors = eigvecs,
+    };
+    sparse_err_t eigs_rc = sparse_eigs_sym(L, /*k=*/2, &opts, &result);
+    sparse_free(L);
+
+    /* On Lanczos failure or insufficient convergence, fall back to
+     * GGGP.  Both eigenpairs must converge for the Fiedler vector
+     * to be meaningful. */
+    if (eigs_rc != SPARSE_OK || result.n_converged < 2) {
+        free(eigvals);
+        free(eigvecs);
+        return bisect_gggp(G, part_out);
+    }
+
+    /* Disconnected graph detection: a Laplacian's algebraic
+     * connectivity is λ_1 > 0 for connected graphs.  When the graph
+     * has multiple components, λ_1 ≈ 0 (within numerical tolerance),
+     * and v_1 is degenerate (lives in the span of the components'
+     * indicator vectors).  Threshold: λ_1 > 1e-6 to distinguish from
+     * the trivial λ_0 = 0. */
+    double lambda_0 = eigvals[0];
+    double lambda_1 = eigvals[1];
+    if (lambda_1 - lambda_0 < 1e-6) {
+        free(eigvals);
+        free(eigvecs);
+        return bisect_gggp(G, part_out);
+    }
+
+    /* Compute median of the Fiedler vector v_1.  Column-major layout:
+     * v_1 is stored at eigvecs[n..2n-1].  eigvecs was allocated with
+     * size n*2 doubles (line above) and we returned early for n <= 2,
+     * so eigvecs[n] is in-bounds when n >= 3.  clang-analyzer doesn't
+     * track this allocation/branch invariant under the
+     * sparse_graph_partition → ... → spectral call chain. */
+    // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+    double *v1 = &eigvecs[n];
+    double *sorted = malloc((size_t)n * sizeof(double));
+    if (!sorted) {
+        free(eigvals);
+        free(eigvecs);
+        return bisect_gggp(G, part_out);
+    }
+    memcpy(sorted, v1, (size_t)n * sizeof(double));
+    qsort(sorted, (size_t)n, sizeof(double), cmp_double_asc);
+    double median = sorted[n / 2];
+    free(sorted);
+
+    /* Median partition: part[i] = 0 if v_1[i] < median else 1.
+     * Vertices with v_1[i] == median go to side 1 (deterministic).
+     * The PLAN's "lower-id tie-break" is implicit here: vertex-id
+     * ordering doesn't affect partition assignment because the
+     * median value is computed deterministically and comparisons
+     * are stable; what matters is that the same input produces
+     * the same output. */
+    for (idx_t i = 0; i < n; i++) {
+        part_out[i] = (v1[i] < median) ? 0 : 1;
+    }
+
+    free(eigvals);
+    free(eigvecs);
+
+    /* 60/40 balance check: if min(side_0, side_1) / max < 0.4 the
+     * Fiedler cut is too skewed for ND's recursion-balance contract
+     * (depth would blow past level_cap on Pres_Poisson-class
+     * fixtures).  Common trigger: star-graph fixtures, where the
+     * Fiedler cut puts the hub on one side and all leaves on the
+     * other (1/(n-1) imbalance).  Falls back to bisect_gggp, which
+     * produces a vertex-weighted balanced cut. */
+    idx_t n0 = 0;
+    idx_t n1 = 0;
+    for (idx_t i = 0; i < n; i++) {
+        if (part_out[i] == 0)
+            n0++;
+        else
+            n1++;
+    }
+    idx_t lo = (n0 < n1) ? n0 : n1;
+    idx_t hi = (n0 < n1) ? n1 : n0;
+    /* `10 * lo < 4 * hi` ⇔ lo/hi < 0.4 — integer arithmetic
+     * avoids floating-point.  Cast to int64_t to avoid idx_t
+     * overflow on large graphs (matches Sprint 24 Day 11's
+     * pattern in graph_edge_separator_to_vertex_separator). */
+    if ((int64_t)10 * (int64_t)lo < (int64_t)4 * (int64_t)hi) {
+        return bisect_gggp(G, part_out);
+    }
+
+    return SPARSE_OK;
+}
+
+/* Sprint 25 Day 6: coarsest-bisection strategy enum + env-var
+ * parser.  Mirrors Sprint 25 Day 1's `coarsening_strategy_t` /
+ * `parse_coarsening_strategy` pattern for SPARSE_ND_COARSENING. */
+typedef enum {
+    COARSEST_BISECT_DEFAULT = 0, /* Sprint 22 routing: brute @ n≤20, GGGP otherwise */
+    COARSEST_BISECT_SPECTRAL = 1,
+    COARSEST_BISECT_GGGP = 2,
+    COARSEST_BISECT_BRUTE = 3,
+} coarsest_bisect_strategy_t;
+
+static coarsest_bisect_strategy_t parse_coarsest_bisect_strategy(void) {
+    const char *env = getenv("SPARSE_ND_COARSEST_BISECTION");
+    if (!env)
+        return COARSEST_BISECT_DEFAULT;
+    if (strcmp(env, "spectral") == 0)
+        return COARSEST_BISECT_SPECTRAL;
+    if (strcmp(env, "gggp") == 0)
+        return COARSEST_BISECT_GGGP;
+    if (strcmp(env, "brute") == 0)
+        return COARSEST_BISECT_BRUTE;
+    /* Silent fallback to default routing on unrecognized input,
+     * matching Sprint 24 Day 5 / Sprint 25 Day 1 patterns. */
+    return COARSEST_BISECT_DEFAULT;
+}
+
 sparse_err_t graph_bisect_coarsest(const sparse_graph_t *G, idx_t *part_out) {
     if (!G || !part_out)
         return SPARSE_ERR_NULL;
     if (G->n == 0)
         return SPARSE_OK;
+
+    /* Sprint 25 Day 6: SPARSE_ND_COARSEST_BISECTION env-var gate.
+     *   - default: Sprint 22 routing — brute @ n≤20, GGGP otherwise.
+     *   - spectral: Day 7-8's Fiedler-vector bisection (Day 6 stub
+     *     falls through to GGGP after exercising the Laplacian
+     *     builder; Day 7 lights up the Lanczos call).
+     *   - gggp: force GGGP regardless of n.
+     *   - brute: force brute @ n≤20; n>20 falls back to GGGP
+     *     (brute on n>20 is intractable: 2^(n-1) patterns).
+     * See docs/planning/EPIC_2/SPRINT_25/spectral_bisection_design.md. */
+    coarsest_bisect_strategy_t strategy = parse_coarsest_bisect_strategy();
+
+    switch (strategy) {
+    case COARSEST_BISECT_SPECTRAL:
+        return graph_bisect_coarsest_spectral(G, part_out);
+    case COARSEST_BISECT_GGGP:
+        return bisect_gggp(G, part_out);
+    case COARSEST_BISECT_BRUTE:
+        if (G->n <= 20)
+            return bisect_brute_force(G, part_out);
+        return bisect_gggp(G, part_out);
+    case COARSEST_BISECT_DEFAULT:
+    default:
+        break;
+    }
+
     /* n ≤ 20: brute-force enumeration is tractable (≤ 524 288 patterns).
      * n > 20: GGGP runs in O(n + |E|) regardless of size — it's the
      * fallback bisection when the multilevel hierarchy can't drive
@@ -1490,6 +1901,34 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
         }
     }
 
+    /* Sprint 25 Day 4: SPARSE_FM_INTERMEDIATE_PASSES extends the
+     * Sprint 23 Day 11 multi-pass-FM exploration from the finest
+     * uncoarsening level to the second-finest (level == 1) and
+     * third-finest (level == 2) levels.  Default 1 = Sprint 23
+     * behavior bit-identically (intermediate levels stay single-
+     * pass).  Range [1, 10]; out-of-range / non-numeric / missing
+     * → default 1.  Same strtol + end-pointer + range-check
+     * validation pattern as SPARSE_FM_FINEST_PASSES + Sprint 24's
+     * SPARSE_ND_COARSEN_FLOOR_RATIO.  The skipped-vertex re-
+     * insertion contract (Sprint 23 Day 10's bcsstk04 LDL^T
+     * residual hazard fix in graph_refine_fm) holds across the
+     * new pass placements: every FM call uses the same internal
+     * re-insertion logic, so multi-pass at intermediate levels
+     * inherits the contract automatically.  See
+     * docs/planning/EPIC_2/SPRINT_25/PLAN.md Day 4 + Sprint 24
+     * RETROSPECTIVE.md "Performance highlights" lesson "multi-
+     * pass FM's payoff scales with the cost of a single pass". */
+    int intermediate_passes = 1;
+    {
+        const char *env = getenv("SPARSE_FM_INTERMEDIATE_PASSES");
+        if (env) {
+            char *endp = NULL;
+            long v = strtol(env, &endp, 10);
+            if (env != endp && *endp == '\0' && v >= 1 && v <= 10)
+                intermediate_passes = (int)v;
+        }
+    }
+
     /* Walk levels from coarsest down to root.  At each step, project
      * `cur` (on coarse[level]) through cmaps[level] onto the next-
      * finer graph (root if level == 0, else coarse[level - 1]) and
@@ -1501,7 +1940,24 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
             // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
             next[i] = cur[cmap[i]];
         }
-        int passes = (level == 0) ? finest_passes : 1;
+        /* Pass count per level:
+         *   level == 0 (finest)     → finest_passes (Sprint 23 Day 11; default 3)
+         *   level == 1 or 2         → intermediate_passes (Sprint 25 Day 4; default 1)
+         *   level >= 3 (coarser)    → 1 pass (Sprint 22 default)
+         * The intermediate band is the second-finest + third-finest
+         * uncoarsening projections — close enough to the finest level
+         * that FM refinement has graph structure worth exploring, but
+         * distant enough that Sprint 22's single-pass default
+         * captured the cost-effective sweet spot until Sprint 23
+         * Day 11's multi-pass exploration. */
+        int passes;
+        if (level == 0) {
+            passes = finest_passes;
+        } else if (level == 1 || level == 2) {
+            passes = intermediate_passes;
+        } else {
+            passes = 1;
+        }
         for (int p = 0; p < passes; p++) {
             sparse_err_t rc = graph_refine_fm(dst_graph, next);
             if (rc != SPARSE_OK) {

@@ -1,0 +1,70 @@
+Sprint 25 Day 14 — End-of-sprint qg-AMD bench
+===============================================
+
+Per PLAN.md Day 14 task 1.  Final closing-bench capture of the
+quotient-graph AMD wrapper across the SuiteSparse corpus +
+synthetic banded fixtures.  Re-run after Day 13's tests + docs
+sweep to sanity-confirm the bit-stable wrapper-vs-bitset parity.
+
+Captured on macOS arm64 (Apple Clang, -O2; today's tip is the Day
+13 commit at 9e813af).  CSV form: `bench_day14_amd_qg.csv`.
+
+Command:
+    build/bench_amd_qg
+
+Per-fixture summary (qg vs bitset)
+-----------------------------------
+
+  matrix          n      impl    reorder_ms  peak_rss_mb  nnz_L
+  ─────────────  ──────  ──────  ──────────  ───────────  ─────────
+  nos4              100  qg            0.5         0.04         637
+  nos4              100  bitset        0.2         0.00         637
+
+  bcsstk04          132  qg            2.7         0.19       3 143
+  bcsstk04          132  bitset        1.4         0.04       3 143
+
+  bcsstk14        1 806  qg          175.3         2.53     116 071
+  bcsstk14        1 806  bitset       77.6         0.04     116 071
+
+  Kuu             7 102  qg          689.4        10.64     406 264
+  Kuu             7 102  bitset      963.8         0.11     406 264
+
+  s3rmt3m3        5 357  qg          941.0         1.13     474 609
+  s3rmt3m3        5 357  bitset      714.1         0.02     474 609
+
+  Pres_Poisson   14 822  qg       10 209.5        19.11   2 668 793
+  Pres_Poisson   14 822  bitset    7 905.4        16.08   2 668 793
+
+  banded_5000     5 000  qg           47.5         0.00      29 985
+  banded_5000     5 000  bitset      329.8         0.00      29 985
+
+  banded_10000   10 000  qg          181.4         0.00      59 985
+  banded_10000   10 000  bitset    1 296.6         0.00      59 985
+
+  banded_20000   20 000  qg          642.1         0.00     119 985
+  banded_20000   20 000  bitset    5 892.5        24.86     119 985
+
+End-of-sprint nnz_L verification vs Day 13
+-------------------------------------------
+
+All 18/18 (qg, bitset) pairs bit-identical to Day 13's capture.
+
+Pres_Poisson qg peak RSS = 19.11 MB vs Day 13's 19.11 MB —
+bit-identical.  The Sprint 22 → Sprint 24 (c)-revert memory profile
+restoration is preserved across Sprint 25.
+
+Wall times drift within the typical macOS arm64 ±25 % run-to-run
+band (Day 13 bcsstk14 qg = 176.6 ms; Day 14 = 175.3 ms; well
+within noise).  All measurements stay well under the wall-check
+2× ceiling.
+
+References
+----------
+
+- `docs/planning/EPIC_2/SPRINT_25/PLAN.md` Day 14
+- `docs/planning/EPIC_2/SPRINT_25/bench_day13_amd_qg.txt` — Day 13's
+  capture (the bit-identical reference)
+- `docs/planning/EPIC_2/SPRINT_24/bench_day9_amd_qg.txt` — Sprint 24
+  Day 9's qg-AMD bench (the bit-identical reference for the full
+  Sprint 23 → Sprint 24 (c)-revert chain that survives through
+  Sprint 25)

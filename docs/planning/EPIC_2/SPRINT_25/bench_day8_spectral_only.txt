@@ -1,0 +1,131 @@
+Sprint 25 Day 8 — Spectral-only cross-corpus capture
+=====================================================
+
+Per PLAN.md Day 8 task 3.  Bench under
+SPARSE_ND_COARSEST_BISECTION=spectral; six SuiteSparse fixtures;
+ND row only.  AMD row is unchanged from default since spectral
+only affects ND coarsest bisection.
+
+Single run on macOS arm64 (Apple Clang, -O2; today's tip is
+the Day 7 commit at 8727361 + Day 8's edge-case test additions).
+CSV form: `bench_day8_spectral_only.csv`.
+
+Per-fixture comparison (HEM = default = Sprint 24 baseline)
+------------------------------------------------------------
+
+  fixture        | default ND | spectral ND | Δ vs default | win/loss
+  ---------------|------------|-------------|--------------|---------
+  nos4           |        968 |         968 |  0           | =
+  bcsstk04       |      3 702 |       3 702 |  0           | =
+  Kuu            |    924 385 |     708 650 | -23.3 %      | WIN (large)
+  bcsstk14       |    131 017 |     123 207 |  -6.0 %      | WIN
+  s3rmt3m3       |    478 890 |     485 822 |  +1.4 %      | noise
+  Pres_Poisson   |  2 541 734 |   2 541 978 |  +0.01 %     | = (essentially unchanged)
+
+Pres_Poisson ND/AMD ratio (AMD nnz_L = 2 668 793, fixed):
+
+  Default (HEM):    2 541 734 / 2 668 793 = 0.952×  (= Sprint 24 baseline)
+  Spectral alone:   2 541 978 / 2 668 793 = 0.953×  (essentially unchanged)
+
+ND wall_ms (Pres_Poisson highlight):
+
+  Default (HEM):    37 369 ms (Day 7 measurement, ~36 s typical for this fixture)
+  Spectral alone:    1 741 ms (Day 8 measurement, 21× speedup)
+
+The wall-time speedup under spectral is dramatic (~21×) on
+Pres_Poisson but the nnz_L is essentially unchanged.  The
+spectral cut produces a near-optimal partition that needs fewer
+FM polish passes through the uncoarsening hierarchy to converge
+to the same final cut.
+
+Headline-progress assessment per PLAN.md Day 8 task 4
+------------------------------------------------------
+
+  Pres_Poisson under spectral alone = 0.953×.
+
+  Per the rule:
+    ≤ 0.90× → item 3 on-track for headline gate
+    0.90 - 0.94× → items 1+2 must contribute the rest
+    > 0.94× → escalate; headline depends entirely on items 1+2+5
+              env-var combinations
+
+  0.953× is > 0.94× → **ESCALATE**.
+
+  Spectral's expected cut-quality win on Pres_Poisson didn't
+  materialize.  Same wash-out pattern as Day 3 (HCC alone: ~1.5pp)
+  and Day 5 (multi-pass FM intermediate: ~0pp): the FM
+  uncoarsening polishes the cut to a near-identical local
+  optimum regardless of the coarsest-level choice.  See
+  nd_tuning_day8.md for the full escalation finding +
+  Day 9-10 implications.
+
+Smaller-fixture safety verification
+------------------------------------
+
+  PLAN.md Day 8 completion criterion: "No fixture regresses past
+  5pp under spectral".
+
+  Per-fixture deltas vs default (negative = win, positive =
+  regression):
+    nos4:           0  (=)
+    bcsstk04:       0  (=)
+    Kuu:        -23.3 % (huge WIN — well within 5pp band on the win side)
+    bcsstk14:    -6.0 % (WIN)
+    s3rmt3m3:    +1.4 % (regression, well under 5pp band — noise)
+    Pres_Poisson: +0.01 % (essentially =)
+
+  No fixture regresses past 5pp.  s3rmt3m3 +1.4 % is the worst
+  regression — within the typical run-to-run noise band on this
+  fixture.
+
+  Spectral is corpus-safe (Day 8 completion criterion 3).
+
+Related comparison: Day 7 vs Day 8 spectral measurements
+----------------------------------------------------------
+
+  Day-to-day variance on the spectral path's nnz_L on regular-
+  structured fixtures is small (≤ 0.5 % typical).  Kuu shows
+  wider variance day-to-day:
+    Day 7 spectral: Kuu = 907 913 (-1.8 % vs default)
+    Day 8 spectral: Kuu = 708 650 (-23.3 % vs default)
+
+  Hypothesis: Kuu's irregular SPD structure produces a
+  Pres_Poisson-class Fiedler vector with several clustered
+  eigenvalues near λ_1.  The Lanczos backend's grow-m strategy
+  may converge to slightly different Ritz pairs across runs
+  (per the Sprint 20 tol/reorthogonalize discussion).  Day 7
+  + Day 8 results both fall within the "spectral is a notable
+  Kuu win" band, but the magnitude is sensitive.  Day 9's
+  sweep should re-measure with multiple runs per setting to
+  bound the Kuu variance.
+
+Item-3 (spectral bisection) production-default flip rule
+---------------------------------------------------------
+
+  PLAN.md Sprint 25 item 3 + Day 10 task 1 spec the flip rule:
+  "flip default if spectral produces a clear corpus-wide win on
+  Pres_Poisson + small fixtures".
+
+  Day 8's measurements:
+    Pres_Poisson: essentially unchanged (+0.01 %).  Not a clear win.
+    Smaller-fixture wins: nos4 = (no diff), bcsstk04 = (no diff),
+      bcsstk14 = -6.0 % (win), Kuu = -23.3 % (huge win).
+    Smaller-fixture regressions: s3rmt3m3 = +1.4 % (within noise).
+
+  Pres_Poisson failing the "clear win" half rules out the default
+  flip.  spectral ships behind SPARSE_ND_COARSEST_BISECTION=spectral
+  as advisory for Kuu/bcsstk14-shaped workloads (irregular SPD
+  fixtures where FM doesn't fully converge in 3 passes — see Day
+  3's HCC analysis for the analogous mechanism).
+
+Notes
+-----
+
+ND wall_ms variance across spectral runs is high on Kuu (Day 7:
+~600 ms; Day 8: ~650 ms; range typical) and Pres_Poisson (Day 7:
+~1 700 ms; Day 8: ~1 700 ms).  Both ranges are well within the
+default-path wall_time on the same fixtures (Pres_Poisson default
+= 37 000 ms).  The 21× wall-time speedup on Pres_Poisson under
+spectral is the strongest perf signal Sprint 25 has produced;
+documented as advisory for callers who care about ND wall (vs
+fill quality, where spectral is neutral on Pres_Poisson).

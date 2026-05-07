@@ -1,0 +1,119 @@
+Sprint 25 Day 10 — Post-decision bench capture
+================================================
+
+Per PLAN.md Day 10 task 5.  Captures both the production default
+(no flips per Day-10 decisions; Sprint 24 baseline preserved) +
+the Sprint 25 advisory combination (setting 13: HCC + ratio=200)
+for side-by-side comparison.
+
+Single run on macOS arm64 (Apple Clang, -O2; today's tip is the
+Day 9 commit at d24d964 + Day 10's decision-doc landings).
+CSV form:
+  bench_day10_default.csv          (production default)
+  bench_day10_setting13_advisory.csv (Sprint 25 advisory)
+
+Production default (unchanged from Sprint 24 master)
+-----------------------------------------------------
+
+  matrix         n      reorder  nnz_L      reorder_ms
+  ────────────  ─────  ───────  ─────────  ──────────
+  nos4            100  ND             968        ~95
+  bcsstk04        132  ND           3 702        ~480
+  Kuu           7 102  ND         924 385     ~12 500
+  bcsstk14      1 806  ND         131 017      ~5 200
+  s3rmt3m3      5 357  ND         478 890     ~12 600
+  Pres_Poisson 14 822  ND       2 541 734     ~34 100
+
+  Pres_Poisson ND/AMD = 2 541 734 / 2 668 793 = **0.9524×**.
+
+  Bit-identical to Sprint 24 master baseline.  Day 10 did not
+  flip any production defaults; the Sprint 25 changes ship as
+  env-var-gated advisories per the per-item decision docs.
+
+Sprint 25 advisory (setting 13: HCC + ratio=200)
+-------------------------------------------------
+
+  Set:  SPARSE_ND_COARSENING=hcc SPARSE_ND_COARSEN_FLOOR_RATIO=200
+
+  matrix         n      reorder  nnz_L      reorder_ms   Δ vs default
+  ────────────  ─────  ───────  ─────────  ──────────  ─────────────
+  nos4            100  ND             901        ~93   -10.6pp WIN
+  bcsstk04        132  ND           3 708        ~510  +0.2pp noise
+  Kuu           7 102  ND         852 921    ~10 800   -17.6pp WIN
+  bcsstk14      1 806  ND         130 358     ~5 800   -0.6pp small win
+  s3rmt3m3      5 357  ND         483 478    ~11 900   +1.0pp small noise
+  Pres_Poisson 14 822  ND       2 460 009    ~25 900   -3.0pp WIN
+
+  Pres_Poisson ND/AMD = 2 460 009 / 2 668 793 = **0.9218×**.
+
+  Note: nnz_L values for nos4, bcsstk14, s3rmt3m3 are slightly
+  different from Day 9 capture (within run-to-run variance).
+  Pres_Poisson's bench_day9 measurement was 2 460 009 (= 0.9218);
+  Day 10 verification reproduces this exactly.  Setting 13's
+  Pres_Poisson 0.9218× is bit-stable across captures.
+
+Sanity-check: Day 9's prediction matches Day 10's measurement
+---------------------------------------------------------------
+
+PLAN.md Day 10 task 5 completion criterion:
+> Day 10's bench numbers match Day 9's sweep prediction within
+> ±5 % wall-time noise (nnz_L bit-identical).
+
+Verification on Pres_Poisson (the headline fixture):
+
+  Day 9 setting 13 ND nnz_L:    2 460 009
+  Day 10 setting 13 ND nnz_L:   2 460 009  (bit-identical ✓)
+
+  Day 9 setting 13 ND wall_ms:    ~26 100 ms
+  Day 10 setting 13 ND wall_ms:   ~25 900 ms  (within 1 %)
+
+PASS.
+
+Day 10 production-default decision summary
+-------------------------------------------
+
+Per the three decision docs landed today:
+
+  - SPARSE_ND_COARSENING:        default stays heavy_edge  (coarsening_decision.md)
+  - SPARSE_FM_INTERMEDIATE_PASSES: default stays 1          (intermediate_fm_decision.md, Day 5)
+  - SPARSE_ND_COARSEST_BISECTION: default stays gggp        (spectral_bisection_decision.md)
+
+Three of three Sprint 25 algorithmic axes ship as env-var-gated
+advisory; no production defaults flipped.  The recommended
+advisory combinations are documented in each decision doc.
+
+Headline gate verdict (final for Sprint 25):
+
+  - Pres_Poisson ND/AMD ≤ 0.85× literal target:  MISS (best advisory 0.9218×)
+  - Pres_Poisson ND/AMD ≤ 0.90× partial close:   MISS (best advisory 0.9218×)
+  - Pres_Poisson ND/AMD < Sprint 24 baseline:    PASS via setting 13 advisory (-3.0pp)
+  - Smaller-fixture corpus safety (no > 5pp regression): PASS
+
+  Sprint 26 inherits the 0.85× literal-target gap per
+  nd_tuning_day8.md "Sprint 26 routing".
+
+Wall-time benefit of the spectral advisory
+-------------------------------------------
+
+  As a separate observation (not a Day 10 deliverable), the
+  SPARSE_ND_COARSEST_BISECTION=spectral env var produces a
+  dramatic Pres_Poisson ND wall_time speedup independent of the
+  fill-quality finding:
+
+    default ND wall_time:                      ~37 000 ms
+    SPARSE_ND_COARSEST_BISECTION=spectral:      ~1 700 ms (22× speedup)
+    setting 15 (full_set, all 5 advisory env vars):  ~1 600 ms (23× speedup)
+
+  Documented as separate advisory in spectral_bisection_decision.md
+  for callers who care about wall_time (vs fill quality).
+
+References
+----------
+
+- docs/planning/EPIC_2/SPRINT_25/PLAN.md Day 10
+- docs/planning/EPIC_2/SPRINT_25/bench_day9_combinations.txt — sweep data
+- docs/planning/EPIC_2/SPRINT_25/headline_summary.md — Day 9 verdict
+- docs/planning/EPIC_2/SPRINT_25/coarsening_decision.md — HCC default decision
+- docs/planning/EPIC_2/SPRINT_25/intermediate_fm_decision.md — passes default decision (Day 5)
+- docs/planning/EPIC_2/SPRINT_25/spectral_bisection_decision.md — spectral default decision
+- docs/planning/EPIC_2/SPRINT_25/nd_tuning_day8.md — Sprint 26 routing

@@ -35,6 +35,7 @@
  * arrives once Day 6 lands a caller.
  */
 
+#include "sparse_eigs.h"
 #include "sparse_graph_internal.h"
 #include "sparse_matrix.h"
 #include "sparse_types.h"
@@ -383,6 +384,157 @@ static void test_coarsen_prefers_heaviest_edge(void) {
     sparse_free(A);
 }
 
+/* Sprint 25 Day 1-3: HCC match-selection contract pins.
+ *
+ * Day 1 stubbed these as skip-mode tests that print the expected
+ * match selection.  Day 3 lands the actual assertions now that
+ * graph_coarsen_hcc is implemented (Day 2).
+ *
+ * See docs/planning/EPIC_2/SPRINT_25/hcc_design.md for the scoring
+ * formula `score = edge_weight * min(deg(u), deg(v))` + tie-break
+ * "lower-id neighbour wins on equal score". */
+static void test_hcc_match_selection_grid(void) {
+    /* 5x5 unit-weighted grid (n=25, regular structure).  Under HEM
+     * (Sprint 22 default), all neighbour edges have weight 1, so
+     * the match selection follows shuffle-order tie-break.  Under
+     * HCC, the score = 1 * min(deg(u), deg(v)) — interior vertices
+     * (deg=4) beat boundary vertices (deg=2 or 3) for the same
+     * weight, so HCC's match choices differ from HEM's.
+     *
+     * Day 3 contract:
+     *   1. Determinism: same (graph, seed) → same cmap (same as
+     *      Sprint 22's test_coarsen_is_deterministic, but for the
+     *      HCC code path).
+     *   2. Cmap range: every fine vertex maps to a coarse vertex
+     *      in [0, n_coarse).
+     *   3. HCC differs from HEM: at least one cmap entry under HCC
+     *      differs from the corresponding entry under HEM (proves
+     *      HCC is actually being called and producing distinct
+     *      output, not silently falling through to the default).
+     *      Day 2's diagnostic measured 12/25 cmap entries differ on
+     *      the 5x5 grid; this assertion pins ≥ 1 entry differs to
+     *      avoid over-constraining the test. */
+    SparseMatrix *A = make_grid_2d(5, 5);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    sparse_graph_t hcc1 = {0}, hcc2 = {0}, hem = {0};
+    idx_t cmap_hcc1[25] = {0}, cmap_hcc2[25] = {0}, cmap_hem[25] = {0};
+
+    REQUIRE_OK(graph_coarsen_hcc(&G, /*seed=*/42u, &hcc1, cmap_hcc1));
+    REQUIRE_OK(graph_coarsen_hcc(&G, /*seed=*/42u, &hcc2, cmap_hcc2));
+    REQUIRE_OK(graph_coarsen_heavy_edge_matching(&G, /*seed=*/42u, &hem, cmap_hem));
+
+    /* Determinism. */
+    ASSERT_EQ(hcc1.n, hcc2.n);
+    ASSERT_EQ(memcmp(cmap_hcc1, cmap_hcc2, sizeof(cmap_hcc1)), 0);
+
+    /* Cmap range. */
+    ASSERT_TRUE(hcc1.n >= 1 && hcc1.n <= 25);
+    for (idx_t i = 0; i < 25; i++)
+        ASSERT_TRUE(cmap_hcc1[i] >= 0 && cmap_hcc1[i] < hcc1.n);
+
+    /* HCC differs from HEM (at least one cmap entry differs OR
+     * coarse-vertex count differs).  Day 2 diagnostic: 12/25 cmap
+     * entries differ, and HCC produces 14 coarse vertices vs HEM's
+     * 13.  Either signal is sufficient evidence HCC is firing. */
+    int any_diff = (hcc1.n != hem.n);
+    for (idx_t i = 0; i < 25 && !any_diff; i++)
+        if (cmap_hcc1[i] != cmap_hem[i])
+            any_diff = 1;
+    ASSERT_TRUE(any_diff);
+
+    sparse_graph_free(&hcc1);
+    sparse_graph_free(&hcc2);
+    sparse_graph_free(&hem);
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+static void test_hcc_match_selection_irregular(void) {
+    /* Small irregular fixture: a 4-vertex "Y" shape — vertex 0
+     * is a hub connected to vertices 1, 2, 3 (each of which has
+     * only one neighbour, vertex 0).  All edges have weight 1.
+     *
+     *     1
+     *      \
+     *       0 --- 2
+     *      /
+     *     3
+     *
+     * Under HCC, the score for edge (0, k) = 1 * min(deg(0)=3,
+     * deg(k)=1) = 1 for every k in {1,2,3}.  Day 3 contract:
+     *   1. Determinism: same seed → same cmap.
+     *   2. n_coarse = 3 (hub + 1 leaf collapse to 1 coarse vertex;
+     *      the other 2 leaves each get their own coarse vertex
+     *      since their only neighbour got matched first).
+     *   3. Hub (vertex 0) is matched with EXACTLY ONE leaf:
+     *      cmap[0] appears twice in the cmap array; the other 2
+     *      cmap values appear exactly once each.
+     *
+     *      The choice of WHICH leaf the hub matches with depends
+     *      on shuffle order (Day 2 measured: seed=1,5 → leaf 2;
+     *      seed=2,3,4,42 → leaf 1).  HCC's lower-id-neighbour
+     *      tie-break only fires when the hub itself is processed
+     *      first; otherwise a leaf gets processed and matches with
+     *      vertex 0 as its only unmatched neighbour.  Either way,
+     *      the structural invariant (one pair + two singletons)
+     *      holds. */
+    SparseMatrix *A = sparse_create(4, 4);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_insert(A, 0, 0, 3.0);
+    sparse_insert(A, 1, 1, 1.0);
+    sparse_insert(A, 2, 2, 1.0);
+    sparse_insert(A, 3, 3, 1.0);
+    for (idx_t k = 1; k <= 3; k++) {
+        sparse_insert(A, 0, k, -1.0);
+        sparse_insert(A, k, 0, -1.0);
+    }
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    sparse_graph_t c1 = {0}, c2 = {0};
+    idx_t cmap1[4] = {0}, cmap2[4] = {0};
+    REQUIRE_OK(graph_coarsen_hcc(&G, /*seed=*/42u, &c1, cmap1));
+    REQUIRE_OK(graph_coarsen_hcc(&G, /*seed=*/42u, &c2, cmap2));
+
+    /* Determinism. */
+    ASSERT_EQ(c1.n, c2.n);
+    ASSERT_EQ(memcmp(cmap1, cmap2, sizeof(cmap1)), 0);
+
+    /* n_coarse = 3 (1 pair + 2 singletons). */
+    ASSERT_EQ(c1.n, 3);
+
+    /* Cmap range. */
+    for (idx_t i = 0; i < 4; i++)
+        ASSERT_TRUE(cmap1[i] >= 0 && cmap1[i] < 3);
+
+    /* Histogram: cmap[0] (the hub's coarse vertex) appears exactly
+     * twice (hub + 1 matched leaf); the other 2 cmap values appear
+     * exactly once each (2 unmatched leaves). */
+    idx_t counts[3] = {0, 0, 0};
+    for (idx_t i = 0; i < 4; i++)
+        counts[cmap1[i]]++;
+    /* Sort counts ascending so we can compare against {1, 1, 2}
+     * regardless of which coarse-id the hub got assigned. */
+    for (idx_t i = 0; i < 3; i++)
+        for (idx_t j = i + 1; j < 3; j++)
+            if (counts[j] < counts[i]) {
+                idx_t tmp = counts[i];
+                counts[i] = counts[j];
+                counts[j] = tmp;
+            }
+    ASSERT_EQ(counts[0], 1);
+    ASSERT_EQ(counts[1], 1);
+    ASSERT_EQ(counts[2], 2);
+
+    sparse_graph_free(&c1);
+    sparse_graph_free(&c2);
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
 static void test_coarsen_is_deterministic(void) {
     /* Same (graph, seed) pair must produce the same coarse graph
      * and the same cmap on every call.  This is the contract
@@ -519,6 +671,426 @@ static void test_partition_10x10_grid(void) {
     ASSERT_TRUE(check_partition_invariant(&G, part));
 
     /* Balanced sides ±20% of (n - sep) ≈ 88. */
+    idx_t n0, n1, nsep;
+    count_partition_sides(&G, part, &n0, &n1, &nsep);
+    ASSERT_EQ(n0 + n1 + nsep, 100);
+    ASSERT_EQ(nsep, sep);
+    idx_t imbal = n0 > n1 ? n0 - n1 : n1 - n0;
+    ASSERT_TRUE(imbal <= 20);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── Sprint 25 Day 6: spectral bisection (stubs; Days 7-8 land asserts) ── */
+
+/* Sprint 25 Day 6-7: pin the Fiedler-vector eigenvalue ordering
+ * contract on a connected graph.
+ *   Day 6: built the Laplacian + verified the row-sum-to-zero
+ *          invariant (still asserted below).
+ *   Day 7: also call sparse_eigs_sym and assert
+ *          - λ_0 ≈ 0 (within 1e-6 tolerance) — trivial Laplacian eigenvalue
+ *          - λ_1 > 1e-6 — algebraic connectivity > 0 for connected graphs
+ *          - eigenvector v_0 is approximately constant (Fiedler 1973's
+ *            classic property).
+ *
+ * See docs/planning/EPIC_2/SPRINT_25/spectral_bisection_design.md. */
+static void test_spectral_bisection_eigenvalue_ordering(void) {
+    /* Path graph 0-1-2-3-4: each non-endpoint has 2 neighbours,
+     * endpoints have 1.  Connected → Fiedler vector exists. */
+    SparseMatrix *A = sparse_create(5, 5);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    for (idx_t i = 0; i < 4; i++) {
+        sparse_insert(A, i, i + 1, 1.0);
+        sparse_insert(A, i + 1, i, 1.0);
+    }
+    /* Diagonal entries pinning the row-sum invariant we assert
+     * separately on the Laplacian. */
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 2.0);
+    sparse_insert(A, 2, 2, 2.0);
+    sparse_insert(A, 3, 3, 2.0);
+    sparse_insert(A, 4, 4, 1.0);
+
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    ASSERT_EQ(G.n, 5);
+
+    /* Day 6 invariant: Laplacian builds; rows sum to zero. */
+    SparseMatrix *L = NULL;
+    REQUIRE_OK(graph_build_laplacian(&G, &L));
+    ASSERT_NOT_NULL(L);
+    ASSERT_EQ(sparse_rows(L), 5);
+    ASSERT_EQ(sparse_cols(L), 5);
+    for (idx_t i = 0; i < 5; i++) {
+        double row_sum = 0.0;
+        for (idx_t j = 0; j < 5; j++)
+            row_sum += sparse_get(L, i, j);
+        ASSERT_TRUE(fabs(row_sum) < 1e-12);
+    }
+
+    /* Day 7 contract: smallest two eigenpairs via sparse_eigs_sym. */
+    double eigvals[2] = {0.0, 0.0};
+    double eigvecs[5 * 2] = {0.0};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_SMALLEST,
+        .tol = 1e-8,
+        .reorthogonalize = 1,
+        .compute_vectors = 1,
+    };
+    sparse_eigs_t result = {.eigenvalues = eigvals, .eigenvectors = eigvecs};
+    REQUIRE_OK(sparse_eigs_sym(L, /*k=*/2, &opts, &result));
+    ASSERT_EQ(result.n_converged, 2);
+
+    /* λ_0 ≈ 0 (trivial Laplacian eigenvalue; eigenvector is
+     * proportional to the constant vector). */
+    ASSERT_TRUE(fabs(eigvals[0]) < 1e-6);
+
+    /* λ_1 > 0 (algebraic connectivity > 0 ⇔ graph is connected;
+     * Fiedler 1973). */
+    ASSERT_TRUE(eigvals[1] > 1e-6);
+
+    /* v_0 (column 0) is approximately constant.  All entries should
+     * have the same sign (Perron-Frobenius / non-negative
+     * eigenvector property of the Laplacian's null space).  Strong
+     * check: every entry is within 10 % of the mean. */
+    double mean = 0.0;
+    for (idx_t i = 0; i < 5; i++)
+        mean += eigvecs[i];
+    mean /= 5.0;
+    /* mean is non-zero by construction (eigenvector is normalized
+     * to unit length; if not constant zero, mean ≈ ±1/sqrt(5) ≈ ±0.447). */
+    ASSERT_TRUE(fabs(mean) > 0.1);
+    for (idx_t i = 0; i < 5; i++) {
+        double rel = fabs(eigvecs[i] - mean) / fabs(mean);
+        ASSERT_TRUE(rel < 0.1); /* every component within 10 % of mean */
+    }
+
+    printf("    path graph (n=5): λ_0=%.3e (≈0), λ_1=%.3e (>0); v_0 within ±10%% of mean\n",
+           eigvals[0], eigvals[1]);
+
+    sparse_free(L);
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* Sprint 25 Day 6-7: pin the 60/40-balance fallback contract on a
+ * star-graph fixture (1 hub + n-1 leaves).
+ *
+ * The Fiedler vector of a star graph puts the hub at one extreme
+ * value and all leaves at the other (the leaves are
+ * indistinguishable by the Laplacian's eigenstructure).  The
+ * median ≈ leaf value; the strict-< partition assigns the hub
+ * alone to side 0 and ALL leaves to side 1 — a 1/(n-1) imbalance.
+ * For n = 11, that's 1/10 = 0.1, well below the 60/40 threshold of
+ * 0.4, so the balance check fires and graph_bisect_coarsest_spectral
+ * falls back to bisect_gggp, which produces a balanced cut.
+ *
+ * Day 7 contract: under SPARSE_ND_COARSEST_BISECTION=spectral on
+ * an n=11 star graph, the resulting partition's balance ratio
+ * (min(n0, n1) / max(n0, n1)) is >= 0.4 — proving fallback fired
+ * (because spectral alone would produce 0.1). */
+static void test_spectral_bisection_gggp_fallback(void) {
+    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
+        return;
+    }
+
+    /* Star graph with n=11 (1 hub at vertex 0 + 10 leaves at
+     * vertices 1..10).  Pure-spectral natural cut: {0} vs {1..10} =
+     * 1/10 imbalance, well below 60/40 threshold. */
+    const idx_t N = 11;
+    SparseMatrix *A = sparse_create(N, N);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_insert(A, 0, 0, (double)(N - 1));
+    for (idx_t k = 1; k < N; k++) {
+        sparse_insert(A, k, k, 1.0);
+        sparse_insert(A, 0, k, -1.0);
+        sparse_insert(A, k, 0, -1.0);
+    }
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    idx_t part[11] = {0};
+    sparse_err_t rc = graph_bisect_coarsest(&G, part);
+    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+
+    REQUIRE_OK(rc);
+
+    /* Structural validity: all entries in {0, 1}; at least one on
+     * each side. */
+    idx_t n0 = 0, n1 = 0;
+    for (idx_t i = 0; i < N; i++) {
+        ASSERT_TRUE(part[i] == 0 || part[i] == 1);
+        if (part[i] == 0)
+            n0++;
+        else
+            n1++;
+    }
+    ASSERT_EQ(n0 + n1, N);
+    ASSERT_TRUE(n0 >= 1 && n1 >= 1);
+
+    /* Day 7 fallback assertion: spectral's natural cut would
+     * produce a 1/(N-1) = 1/10 = 0.1 imbalance ratio, well below
+     * the 60/40 threshold (0.4).  The fact that the resulting
+     * partition has a balance ratio >= 0.4 PROVES the spectral
+     * path's 60/40 check fired and bisect_gggp took over.
+     * (GGGP on a star graph produces roughly 5/6 = 0.83 balance
+     * by vertex-weight half-target.) */
+    idx_t lo = (n0 < n1) ? n0 : n1;
+    idx_t hi = (n0 < n1) ? n1 : n0;
+    /* lo / hi >= 0.4 ⇔ 10 * lo >= 4 * hi (integer arithmetic). */
+    ASSERT_TRUE(10 * lo >= 4 * hi);
+
+    printf("    star graph (n=%d): n0=%d, n1=%d, balance ratio=%.2f (>=0.40 ⇒ "
+           "GGGP fallback fired)\n",
+           (int)N, (int)n0, (int)n1, (double)lo / (double)hi);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── Sprint 25 Day 8: spectral-bisection edge cases (n=1, n=2, ─────── */
+/* ─── disconnected, Lanczos failure → GGGP fallback) ──────────────── */
+
+/* Trivial size n=1: spectral skips Lanczos and assigns the single
+ * vertex to side 0 directly. */
+static void test_spectral_bisection_n1(void) {
+    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
+        return;
+    }
+
+    SparseMatrix *A = sparse_create(1, 1);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    ASSERT_EQ(G.n, 1);
+
+    idx_t part[1] = {99}; /* sentinel */
+    sparse_err_t rc = graph_bisect_coarsest(&G, part);
+    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    REQUIRE_OK(rc);
+
+    /* n=1 must produce part[0] = 0 (degenerate single-vertex partition). */
+    ASSERT_EQ(part[0], 0);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* Trivial size n=2: spectral skips Lanczos and assigns each vertex
+ * to its own side (the unique 2-way split). */
+static void test_spectral_bisection_n2(void) {
+    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
+        return;
+    }
+
+    SparseMatrix *A = sparse_create(2, 2);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 1.0);
+    sparse_insert(A, 0, 1, -1.0);
+    sparse_insert(A, 1, 0, -1.0);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    ASSERT_EQ(G.n, 2);
+
+    idx_t part[2] = {99, 99}; /* sentinels */
+    sparse_err_t rc = graph_bisect_coarsest(&G, part);
+    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    REQUIRE_OK(rc);
+
+    /* n=2 must produce {part[0]=0, part[1]=1} — the unique 2-way split. */
+    ASSERT_EQ(part[0], 0);
+    ASSERT_EQ(part[1], 1);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* Disconnected graph: a Laplacian with multiple zero eigenvalues
+ * (one per connected component) breaks the Fiedler-vector
+ * uniqueness assumption.  Spectral bisection detects this via
+ * λ_1 - λ_0 < 1e-6 and falls back to GGGP.
+ *
+ * Fixture: two disjoint K_3 triangles (vertices 0-1-2 and 3-4-5
+ * forming a triangle each; no edges between them).  The Laplacian
+ * has λ_0 = λ_1 = 0 (both connected components contribute a zero
+ * eigenvalue); the disconnected-graph detection in
+ * graph_bisect_coarsest_spectral fires and bisect_gggp produces
+ * the partition. */
+static void test_spectral_bisection_disconnected(void) {
+    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
+        return;
+    }
+
+    /* Two disjoint K_3 triangles: vertices {0,1,2} and {3,4,5}. */
+    SparseMatrix *A = sparse_create(6, 6);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    /* Diagonal: degree of each vertex = 2 (every triangle vertex
+     * has 2 neighbours in its component, 0 in the other). */
+    for (idx_t i = 0; i < 6; i++)
+        sparse_insert(A, i, i, 2.0);
+    /* Triangle 0: edges (0,1), (1,2), (0,2). */
+    sparse_insert(A, 0, 1, -1.0);
+    sparse_insert(A, 1, 0, -1.0);
+    sparse_insert(A, 1, 2, -1.0);
+    sparse_insert(A, 2, 1, -1.0);
+    sparse_insert(A, 0, 2, -1.0);
+    sparse_insert(A, 2, 0, -1.0);
+    /* Triangle 1: edges (3,4), (4,5), (3,5). */
+    sparse_insert(A, 3, 4, -1.0);
+    sparse_insert(A, 4, 3, -1.0);
+    sparse_insert(A, 4, 5, -1.0);
+    sparse_insert(A, 5, 4, -1.0);
+    sparse_insert(A, 3, 5, -1.0);
+    sparse_insert(A, 5, 3, -1.0);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    ASSERT_EQ(G.n, 6);
+
+    idx_t part[6] = {0};
+    sparse_err_t rc = graph_bisect_coarsest(&G, part);
+    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    REQUIRE_OK(rc);
+
+    /* Validate structural contract.  The disconnected-graph fallback
+     * routes through bisect_gggp, which produces SOME valid {0, 1}
+     * partition (not necessarily aligned with the component
+     * boundaries — GGGP is unaware of components).  Just assert all
+     * entries in {0, 1} + at least one on each side. */
+    int has_zero = 0, has_one = 0;
+    for (idx_t i = 0; i < 6; i++) {
+        ASSERT_TRUE(part[i] == 0 || part[i] == 1);
+        if (part[i] == 0)
+            has_zero = 1;
+        if (part[i] == 1)
+            has_one = 1;
+    }
+    ASSERT_TRUE(has_zero && has_one);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* Lanczos non-convergence: simulate by setting an unrealistically
+ * tight tolerance + a tiny iteration cap that prevents convergence,
+ * then verify spectral falls back to GGGP cleanly.
+ *
+ * Day 7's implementation uses opts.tol = 1e-8 internally and
+ * doesn't expose tol/max_iterations to callers, so we can't
+ * directly trip Lanczos non-convergence from this test.  Instead
+ * we rely on the disconnected-graph test above as a proxy for the
+ * "Lanczos returns non-meaningful eigenpairs → fall back" path
+ * (the disconnected case is the realistic Lanczos-can't-give-
+ * useful-eigenpairs scenario in production), and document why
+ * this test stays as a smoke test rather than a true Lanczos-
+ * failure injection. */
+static void test_spectral_bisection_lanczos_failure(void) {
+    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
+        return;
+    }
+
+    /* Build a fixture that's well-behaved for Lanczos (a 5-vertex
+     * path graph) — Day 7's spectral path produces a normal Fiedler
+     * cut here.  This test confirms the dispatch wiring works on a
+     * normal fixture under the env var; the actual Lanczos-failure
+     * fallback path is exercised by graph_bisect_coarsest_spectral's
+     * `if (eigs_rc != SPARSE_OK || result.n_converged < 2) → fall
+     * back` clause, which is reachable but hard to trip without an
+     * explicit fault-injection hook.
+     *
+     * The disconnected-graph test above (test_spectral_bisection_disconnected)
+     * exercises the analogous "spectral can't produce a meaningful
+     * Fiedler vector → fall back" path via the
+     * `if (lambda_1 - lambda_0 < 1e-6) → fall back` clause; together
+     * the two cover the practical fallback-firing scenarios. */
+    SparseMatrix *A = sparse_create(5, 5);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    for (idx_t i = 0; i < 4; i++) {
+        sparse_insert(A, i, i + 1, 1.0);
+        sparse_insert(A, i + 1, i, 1.0);
+    }
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 2.0);
+    sparse_insert(A, 2, 2, 2.0);
+    sparse_insert(A, 3, 3, 2.0);
+    sparse_insert(A, 4, 4, 1.0);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    idx_t part[5] = {0};
+    sparse_err_t rc = graph_bisect_coarsest(&G, part);
+    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    REQUIRE_OK(rc);
+
+    /* Structural contract: valid partition. */
+    int has_zero = 0, has_one = 0;
+    for (idx_t i = 0; i < 5; i++) {
+        ASSERT_TRUE(part[i] == 0 || part[i] == 1);
+        if (part[i] == 0)
+            has_zero = 1;
+        if (part[i] == 1)
+            has_one = 1;
+    }
+    ASSERT_TRUE(has_zero && has_one);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* ─── Sprint 25 Day 5: SPARSE_FM_INTERMEDIATE_PASSES env-var plumbing ──── */
+
+static void test_fm_intermediate_passes_smoke(void) {
+    /* Sprint 25 Day 5 smoke test: pin the SPARSE_FM_INTERMEDIATE_PASSES
+     * env var's plumbing.  Set the var to "2" via setenv, run
+     * sparse_graph_partition on a 10×10 grid (the same fixture
+     * test_partition_10x10_grid uses under default settings), assert
+     * the resulting partition is structurally valid.
+     *
+     * The test does NOT lock in a particular nnz_L or separator-size
+     * outcome — Day 5's sweep showed passes=2 produces a partition
+     * within the same noise band as passes=1 on the 10×10 grid (sep
+     * stays in [5, 12]; partition invariant holds; balance within
+     * 20% of (n - sep)).  This smoke test pins the wiring (the env
+     * var must be parsed AND the dispatch must reach the
+     * intermediate_passes branch in graph_uncoarsen) without
+     * over-constraining the cut quality.
+     *
+     * We unsetenv after the test to keep the per-process env clean
+     * for subsequent tests in this binary's run. */
+    if (setenv("SPARSE_FM_INTERMEDIATE_PASSES", "2", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed; can't exercise env-var plumbing)\n");
+        return;
+    }
+
+    SparseMatrix *A = make_grid_2d(10, 10);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    ASSERT_EQ(G.n, 100);
+
+    idx_t part[100] = {0};
+    idx_t sep = 0;
+    sparse_err_t rc = sparse_graph_partition(&G, part, &sep);
+
+    /* Restore env before any potential REQUIRE_OK / ASSERT exit so
+     * subsequent tests run with the default. */
+    unsetenv("SPARSE_FM_INTERMEDIATE_PASSES");
+
+    REQUIRE_OK(rc);
+
+    /* Same structural invariants as test_partition_10x10_grid: the
+     * partition must be valid regardless of pass count. */
+    ASSERT_TRUE(sep >= 5);
+    ASSERT_TRUE(sep <= 12);
+    ASSERT_TRUE(check_partition_invariant(&G, part));
+
     idx_t n0, n1, nsep;
     count_partition_sides(&G, part, &n0, &n1, &nsep);
     ASSERT_EQ(n0 + n1 + nsep, 100);
@@ -1271,6 +1843,9 @@ int main(void) {
     RUN_TEST(test_coarsen_1d_path_halves);
     RUN_TEST(test_coarsen_prefers_heaviest_edge);
     RUN_TEST(test_coarsen_is_deterministic);
+    /* Sprint 25 Day 1 stubs (skip-mode; Day 3 lands assertions): */
+    RUN_TEST(test_hcc_match_selection_grid);
+    RUN_TEST(test_hcc_match_selection_irregular);
 
     /* Day 2: multilevel hierarchy */
     RUN_TEST(test_hierarchy_build_5x5_grid);
@@ -1293,6 +1868,18 @@ int main(void) {
     /* Day 4: uncoarsening + vertex-separator extraction + end-to-end
      * sparse_graph_partition */
     RUN_TEST(test_partition_10x10_grid);
+    /* Sprint 25 Day 5: env-var plumbing smoke test for
+     * SPARSE_FM_INTERMEDIATE_PASSES (multi-pass FM at intermediate
+     * uncoarsening levels). */
+    RUN_TEST(test_fm_intermediate_passes_smoke);
+    /* Sprint 25 Day 6 stubs (Day 7-8 land asserts): */
+    RUN_TEST(test_spectral_bisection_eigenvalue_ordering);
+    RUN_TEST(test_spectral_bisection_gggp_fallback);
+    /* Sprint 25 Day 8: edge-case spectral tests. */
+    RUN_TEST(test_spectral_bisection_n1);
+    RUN_TEST(test_spectral_bisection_n2);
+    RUN_TEST(test_spectral_bisection_disconnected);
+    RUN_TEST(test_spectral_bisection_lanczos_failure);
     RUN_TEST(test_partition_5x5x5_mesh);
     RUN_TEST(test_partition_two_k10_with_bridge);
     RUN_TEST(test_edge_to_vertex_separator_smaller_side);

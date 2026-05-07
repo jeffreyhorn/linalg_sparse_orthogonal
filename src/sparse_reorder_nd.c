@@ -80,6 +80,25 @@ static _Thread_local idx_t nd_prof_partition_calls = 0;
 static _Thread_local idx_t nd_prof_leaf_amd_calls = 0;
 static _Thread_local idx_t nd_prof_emit_natural_calls = 0;
 
+/* Sprint 26 Day 4: per-recursion-depth partition profiling.  Sprint 25
+ * Day 11's instrumentation accumulated cumulative partition time across
+ * all 301 recursive calls on Pres_Poisson but didn't attribute cost by
+ * depth.  Sprint 26 item 5 (FINEST FM annealing/thick-restart) needs to
+ * know whether cost concentrates at the root, intermediate levels, or
+ * near the base threshold to pick which sub-axis to implement.
+ *
+ * `MAX_ND_DEPTH = 64` covers any plausible ND recursion depth — a
+ * pathological worst-case ND on a path graph of n vertices recurses
+ * ~log2(n) levels; n ≤ 10^9 caps depth at ~30; 64 leaves headroom.
+ * Bounds-check `depth < MAX_ND_DEPTH` in the partition wrapper; if the
+ * recursion exceeds the bound, the overflow accumulates into the
+ * MAX_ND_DEPTH-1 bucket (a SPARSE_ND_PROFILE warning fires once).
+ * See `docs/planning/EPIC_2/SPRINT_26/PLAN.md` Day 4. */
+#define MAX_ND_DEPTH 64
+static _Thread_local long long nd_prof_partition_ns_per_depth[MAX_ND_DEPTH] = {0};
+static _Thread_local idx_t nd_prof_partition_calls_per_depth[MAX_ND_DEPTH] = {0};
+static _Thread_local int nd_prof_depth_overflow_warned = 0;
+
 /* Monotonic-clock timestamp helper.  Returns nanoseconds since an
  * unspecified epoch.  POSIX `clock_gettime(CLOCK_MONOTONIC, ...)` on
  * non-Windows; Windows routes through C11 `timespec_get(..., TIME_UTC)`
@@ -179,7 +198,7 @@ fail:
  * algorithm without measurable benefit. */
 // NOLINTNEXTLINE(misc-no-recursion)
 static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_map, idx_t *perm,
-                               idx_t *next_pos) {
+                               idx_t *next_pos, int depth) {
     idx_t n = G->n;
     if (n == 0)
         return SPARSE_OK;
@@ -256,8 +275,21 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
     long long part_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
     sparse_err_t rc = sparse_graph_partition(G, part, &sep_count);
     if (nd_prof_enabled) {
-        nd_prof_partition_ns += nd_prof_now_ns() - part_t0;
+        long long elapsed = nd_prof_now_ns() - part_t0;
+        nd_prof_partition_ns += elapsed;
         nd_prof_partition_calls++;
+        /* Sprint 26 Day 4: per-depth attribution.  Bounds-check
+         * overflow into the MAX_ND_DEPTH-1 bucket; warn once. */
+        int bucket = (depth < MAX_ND_DEPTH) ? depth : (MAX_ND_DEPTH - 1);
+        if (depth >= MAX_ND_DEPTH && !nd_prof_depth_overflow_warned) {
+            fprintf(stderr,
+                    "nd-profile WARNING: recursion depth %d exceeds MAX_ND_DEPTH=%d; "
+                    "accumulating into bucket %d\n",
+                    depth, MAX_ND_DEPTH, MAX_ND_DEPTH - 1);
+            nd_prof_depth_overflow_warned = 1;
+        }
+        nd_prof_partition_ns_per_depth[bucket] += elapsed;
+        nd_prof_partition_calls_per_depth[bucket]++;
     }
     if (rc != SPARSE_OK) {
         free(part);
@@ -337,7 +369,7 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
         for (idx_t i = 0; i < n0; i++)
             // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.uninitialized.Assign)
             map0[i] = vertex_id_map[vs0[i]];
-        rc = nd_recurse(&G0, map0, perm, next_pos);
+        rc = nd_recurse(&G0, map0, perm, next_pos, depth + 1);
         sparse_graph_free(&G0);
         free(map0);
         if (rc != SPARSE_OK) {
@@ -372,7 +404,7 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
         for (idx_t i = 0; i < n1; i++)
             // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.uninitialized.Assign)
             map1[i] = vertex_id_map[vs1[i]];
-        rc = nd_recurse(&G1, map1, perm, next_pos);
+        rc = nd_recurse(&G1, map1, perm, next_pos, depth + 1);
         sparse_graph_free(&G1);
         free(map1);
         if (rc != SPARSE_OK) {
@@ -422,6 +454,12 @@ sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm) {
         nd_prof_partition_calls = 0;
         nd_prof_leaf_amd_calls = 0;
         nd_prof_emit_natural_calls = 0;
+        /* Sprint 26 Day 4: per-depth partition accumulators. */
+        for (int d = 0; d < MAX_ND_DEPTH; d++) {
+            nd_prof_partition_ns_per_depth[d] = 0;
+            nd_prof_partition_calls_per_depth[d] = 0;
+        }
+        nd_prof_depth_overflow_warned = 0;
     }
 
     sparse_graph_t G = {0};
@@ -449,7 +487,7 @@ sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm) {
         root_map[i] = i;
 
     idx_t next_pos = 0;
-    rc = nd_recurse(&G, root_map, perm, &next_pos);
+    rc = nd_recurse(&G, root_map, perm, &next_pos, /*depth=*/0);
 
     free(root_map);
     sparse_graph_free(&G);
@@ -475,6 +513,20 @@ sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm) {
                 (double)nd_prof_leaf_amd_ns / 1.0e6, (int)nd_prof_leaf_amd_calls,
                 (double)nd_prof_leaf_subgraph_ns / 1.0e6, (double)nd_prof_emit_natural_ns / 1.0e6,
                 (int)nd_prof_emit_natural_calls, (double)other_ns / 1.0e6);
+        /* Sprint 26 Day 4: per-depth partition breakdown.  Emit one
+         * line per non-empty depth bucket.  Sized columns: depth (3
+         * digits), calls (5 digits), total_ms (10.3 width), avg_ms
+         * (8.3 width). */
+        fprintf(stderr, "  partition_per_depth:\n");
+        fprintf(stderr, "    depth  calls   total_ms      avg_ms\n");
+        for (int d = 0; d < MAX_ND_DEPTH; d++) {
+            if (nd_prof_partition_calls_per_depth[d] == 0)
+                continue;
+            double total_ms = (double)nd_prof_partition_ns_per_depth[d] / 1.0e6;
+            double avg_ms = total_ms / (double)nd_prof_partition_calls_per_depth[d];
+            fprintf(stderr, "    %5d  %5d   %10.3f  %10.3f\n", d,
+                    (int)nd_prof_partition_calls_per_depth[d], total_ms, avg_ms);
+        }
     }
     return rc;
 }

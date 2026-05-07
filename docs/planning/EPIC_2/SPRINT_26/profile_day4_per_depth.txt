@@ -1,0 +1,132 @@
+Sprint 26 Day 4 — Pres_Poisson ND per-depth partition profile (5 consecutive runs)
+==================================================================================
+
+Per PLAN.md Day 4 task 4.  Five consecutive `bench_reorder
+--only Pres_Poisson --skip-factor` runs under `SPARSE_ND_PROFILE=1`
+on the Day 4 commit (`src/sparse_reorder_nd.c` extended with
+per-recursion-level partition accumulators).  Captures the per-depth
+breakdown that informs Item 5's FINEST-FM sub-axis selection.
+
+Single-machine run on macOS arm64 (Apple Clang, -O2; today's tip is
+the Day 3 commit at f4af7a2 + Day 4's per-depth instrumentation).
+No concurrent host load other than typical desktop background
+processes.
+
+Note: the per-depth table follows the literal `nd-profile ...`
+stderr emit format from `src/sparse_reorder_nd.c` Day 4 — no
+formatting polish.  The earlier Sprint 25 Day 11 capture
+(`profile_day11_pres_poisson_nd.txt`) had thousands-separator
+spaces added for readability; this Day 4 capture is raw.
+
+Per-run breakdown
+-----------------
+=== Run 1 ===
+nd-profile n=14822 total=37981.546ms
+  graph_build  = 122.278ms
+  partition    = 37793.425ms (301 calls)
+  subgraph     = 22.176ms
+  leaf_amd     = 21.447ms (237 calls)
+  leaf_subgraph= 9.108ms
+  emit_natural = 0.023ms (32 calls)
+  other        = 13.089ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      241.880     241.880
+        1      2      230.531     115.266
+        2      4      224.175      56.044
+        3      8     1057.780     132.222
+        4     16     1058.242      66.140
+        5     32     1699.945      53.123
+        6     64     6989.687     109.214
+        7    107    14745.126     137.805
+        8     62     9691.168     156.309
+        9      5     1854.891     370.978
+
+=== Run 2 ===
+nd-profile n=14822 total=44985.378ms
+  graph_build  = 149.059ms
+  partition    = 44758.290ms (301 calls)
+  subgraph     = 31.721ms
+  leaf_amd     = 25.932ms (237 calls)
+  leaf_subgraph= 9.339ms
+  emit_natural = 0.019ms (32 calls)
+  other        = 11.018ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      283.815     283.815
+        1      2      278.751     139.375
+        2      4      259.661      64.915
+        3      8     1218.554     152.319
+        4     16     1205.134      75.321
+        5     32     2014.785      62.962
+        6     64     8223.571     128.493
+        7    107    17462.947     163.205
+        8     62    11535.705     186.060
+        9      5     2275.367     455.073
+
+=== Run 3 ===
+nd-profile n=14822 total=40039.115ms
+  graph_build  = 142.487ms
+  partition    = 39828.195ms (301 calls)
+  subgraph     = 25.459ms
+  leaf_amd     = 23.341ms (237 calls)
+  leaf_subgraph= 9.179ms
+  emit_natural = 0.018ms (32 calls)
+  other        = 10.436ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      286.922     286.922
+        1      2      259.960     129.980
+        2      4      244.396      61.099
+        3      8     1111.137     138.892
+        4     16     1083.075      67.692
+        5     32     1834.408      57.325
+        6     64     7382.241     115.348
+        7    107    15526.580     145.108
+        8     62    10154.941     163.789
+        9      5     1944.535     388.907
+
+=== Run 4 ===
+nd-profile n=14822 total=51701.750ms
+  graph_build  = 154.995ms
+  partition    = 51468.260ms (301 calls)
+  subgraph     = 30.568ms
+  leaf_amd     = 22.796ms (237 calls)
+  leaf_subgraph= 13.763ms
+  emit_natural = 0.018ms (32 calls)
+  other        = 11.350ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      298.287     298.287
+        1      2      296.955     148.477
+        2      4      289.610      72.403
+        3      8     1673.755     209.219
+        4     16     1455.616      90.976
+        5     32     2327.506      72.735
+        6     64     9572.123     149.564
+        7    107    19935.740     186.315
+        8     62    12848.319     207.231
+        9      5     2770.349     554.070
+
+=== Run 5 ===
+nd-profile n=14822 total=43164.824ms
+  graph_build  = 152.550ms
+  partition    = 42934.174ms (301 calls)
+  subgraph     = 26.877ms
+  leaf_amd     = 22.298ms (237 calls)
+  leaf_subgraph= 17.421ms
+  emit_natural = 0.020ms (32 calls)
+  other        = 11.484ms
+  partition_per_depth:
+    depth  calls   total_ms      avg_ms
+        0      1      313.354     313.354
+        1      2      301.400     150.700
+        2      4      280.174      70.043
+        3      8     1209.985     151.248
+        4     16     1172.833      73.302
+        5     32     1989.921      62.185
+        6     64     7998.586     124.978
+        7    107    16712.290     156.190
+        8     62    10820.873     174.530
+        9      5     2134.758     426.952
+

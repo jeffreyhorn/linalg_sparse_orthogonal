@@ -1,0 +1,31 @@
+Sprint 26 Day 10 - Pres_Poisson per_vertex quick-look
+=====================================================
+
+=== Pres_Poisson baseline ===
+matrix,n,reorder,nnz_L,reorder_ms,factor_ms
+Pres_Poisson,14822,NONE,5061932,0.0,skip
+Pres_Poisson,14822,RCM,3187081,136.1,skip
+Pres_Poisson,14822,AMD,2668793,8293.1,skip
+Pres_Poisson,14822,COLAMD,3415793,13490.9,skip
+Pres_Poisson,14822,ND,2536427,11842.7,skip
+=== Pres_Poisson per_vertex ===
+matrix,n,reorder,nnz_L,reorder_ms,factor_ms
+Pres_Poisson,14822,NONE,5061932,0.0,skip
+Pres_Poisson,14822,RCM,3187081,139.0,skip
+Pres_Poisson,14822,AMD,2668793,8303.1,skip
+Pres_Poisson,14822,COLAMD,3415793,13630.9,skip
+Pres_Poisson,14822,ND,3312433,7775.8,skip
+=== Pres_Poisson balanced_boundary ===
+matrix,n,reorder,nnz_L,reorder_ms,factor_ms
+Pres_Poisson,14822,NONE,5061932,0.0,skip
+Pres_Poisson,14822,RCM,3187081,148.2,skip
+Pres_Poisson,14822,AMD,2668793,8353.5,skip
+Pres_Poisson,14822,COLAMD,3415793,13834.5,skip
+Pres_Poisson,14822,ND,2542064,10593.3,skip
+=== Pres_Poisson per_vertex + setting 13 ===
+matrix,n,reorder,nnz_L,reorder_ms,factor_ms
+Pres_Poisson,14822,NONE,5061932,0.0,skip
+Pres_Poisson,14822,RCM,3187081,138.2,skip
+Pres_Poisson,14822,AMD,2668793,8552.2,skip
+Pres_Poisson,14822,COLAMD,3415793,14082.0,skip
+Pres_Poisson,14822,ND,3366643,7429.5,skip

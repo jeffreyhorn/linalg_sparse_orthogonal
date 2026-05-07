@@ -1,0 +1,26 @@
+Sprint 26 Day 10 - Kuu per_vertex quick-look
+=============================================
+
+=== baseline (default smaller_weight) ===
+matrix,n,reorder,nnz_L,reorder_ms,factor_ms
+Kuu,7102,NONE,2993061,0.0,skip
+Kuu,7102,RCM,1024794,56.6,skip
+Kuu,7102,AMD,406264,535.3,skip
+Kuu,7102,COLAMD,830665,3726.2,skip
+Kuu,7102,ND,881177,6384.5,skip
+
+=== per_vertex alone ===
+matrix,n,reorder,nnz_L,reorder_ms,factor_ms
+Kuu,7102,NONE,2993061,0.0,skip
+Kuu,7102,RCM,1024794,57.5,skip
+Kuu,7102,AMD,406264,533.5,skip
+Kuu,7102,COLAMD,830665,3725.9,skip
+Kuu,7102,ND,691880,4703.4,skip
+
+=== balanced_boundary alone (Sprint 24 baseline for comparison) ===
+matrix,n,reorder,nnz_L,reorder_ms,factor_ms
+Kuu,7102,NONE,2993061,0.0,skip
+Kuu,7102,RCM,1024794,59.4,skip
+Kuu,7102,AMD,406264,540.3,skip
+Kuu,7102,COLAMD,830665,3847.6,skip
+Kuu,7102,ND,527884,3822.4,skip

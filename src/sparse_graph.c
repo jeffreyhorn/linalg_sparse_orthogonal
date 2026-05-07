@@ -2143,6 +2143,51 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
     return SPARSE_OK;
 }
 
+/* Sprint 26 Day 10: separator-lift strategy enum.  Day 10 extends
+ * Sprint 24 Day 6's two-value scheme with a third `per_vertex` value:
+ * score boundary vertices individually + greedily pick top-K
+ * regardless of side (vs the Sprint 22 / 24 side-then-lift heuristics
+ * which lift one entire side's boundary).  See
+ * `docs/planning/EPIC_2/SPRINT_26/per_vertex_sep_design.md`. */
+typedef enum {
+    SEP_LIFT_SMALLER_WEIGHT = 0,    /* Sprint 22 default — METIS convention */
+    SEP_LIFT_BALANCED_BOUNDARY = 1, /* Sprint 24 Day 6 advisory */
+    SEP_LIFT_PER_VERTEX = 2,        /* Sprint 26 Day 10 — per-vertex score + top-K */
+} sep_lift_strategy_t;
+
+static sep_lift_strategy_t parse_sep_lift_strategy(void) {
+    const char *env = getenv("SPARSE_ND_SEP_LIFT_STRATEGY");
+    if (!env)
+        return SEP_LIFT_SMALLER_WEIGHT;
+    if (strcmp(env, "balanced_boundary") == 0)
+        return SEP_LIFT_BALANCED_BOUNDARY;
+    if (strcmp(env, "per_vertex") == 0)
+        return SEP_LIFT_PER_VERTEX;
+    /* Default + unrecognized + "smaller_weight" all fall through. */
+    return SEP_LIFT_SMALLER_WEIGHT;
+}
+
+/* Sprint 26 Day 10: qsort comparator for per-vertex separator scoring.
+ * Sorts boundary-vertex indices DESCENDING by score (highest score
+ * first).  Score is packed as `score * 2 + balance_bonus` (low bit) —
+ * see graph_edge_separator_to_vertex_separator for the formula. */
+typedef struct {
+    idx_t vertex;
+    idx_t score; /* cross_deg * 2 + balance_bonus (0 or 1) */
+} per_vertex_score_t;
+
+static int per_vertex_score_cmp_desc(const void *a, const void *b) {
+    const per_vertex_score_t *pa = (const per_vertex_score_t *)a;
+    const per_vertex_score_t *pb = (const per_vertex_score_t *)b;
+    /* DESCENDING: higher score first.  Tie-break by lower vertex id
+     * (deterministic when scores tie). */
+    if (pa->score != pb->score)
+        return (pa->score < pb->score) ? 1 : -1;
+    if (pa->vertex != pb->vertex)
+        return (pa->vertex > pb->vertex) ? 1 : -1;
+    return 0;
+}
+
 sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, idx_t *part_io) {
     if (!G || !part_io)
         return SPARSE_ERR_NULL;
@@ -2195,49 +2240,148 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
     /* Strategy selection.  Default `smaller_weight` reproduces the
      * Sprint 22 Day 4 behaviour: lift the side with smaller vertex
      * weight.  `balanced_boundary` (Sprint 24 Day 6) lifts the side
-     * with the smaller boundary count — minimises the separator size
-     * directly instead of via the weight-imbalance proxy.  If the
-     * resulting post-lift weight ratio would be worse than 70/30, we
-     * fall back to `smaller_weight` to preserve the recursion-depth
-     * argument the METIS convention rests on. */
+     * with the smaller boundary count.  `per_vertex` (Sprint 26 Day
+     * 10) scores each boundary vertex individually + greedily picks
+     * top-K regardless of side, maintaining the 70/30 post-lift
+     * balance check.  All non-default strategies fall back to
+     * smaller_weight if the post-lift balance would be worse than
+     * 70/30. */
+    sep_lift_strategy_t strategy = parse_sep_lift_strategy();
     idx_t smaller_weight_side = (w[1] < w[0]) ? 1 : 0;
     idx_t lift_side = smaller_weight_side;
-    {
-        const char *env = getenv("SPARSE_ND_SEP_LIFT_STRATEGY");
-        if (env && strcmp(env, "balanced_boundary") == 0) {
-            /* Pick the smaller-boundary side; ties go to side 0 to
-             * match the smaller_weight tie-break convention. */
-            idx_t bb_side = (boundary_count[1] < boundary_count[0]) ? 1 : 0;
-            /* Project the post-lift weight balance: the lift side
-             * loses `boundary_weight[bb_side]` in vertex weight (those
-             * vertices become separator), the other side keeps its
-             * weight.  Reject the choice if either side exceeds 70 %
-             * of the post-lift total. */
-            idx_t lift_w = w[bb_side] - boundary_weight[bb_side];
-            idx_t other_w = w[1 - bb_side];
-            idx_t total_w = lift_w + other_w;
-            int balanced = 1;
-            if (total_w > 0) {
-                /* `10 * max > 7 * total` ⇔ max/total > 0.7 — avoids
-                 * floating-point.  Compute in int64_t to avoid
-                 * overflow when graphs grow beyond INT32_MAX/10 ≈
-                 * 214M-vertex weights (idx_t = int32_t).  Boundary-
-                 * weight values are vertex counts on a graph level
-                 * and unlikely to approach that ceiling in practice,
-                 * but the wider arithmetic costs nothing here and
-                 * removes the overflow concern entirely. */
-                idx_t max_w = (lift_w > other_w) ? lift_w : other_w;
-                if ((int64_t)10 * (int64_t)max_w > (int64_t)7 * (int64_t)total_w)
-                    balanced = 0;
+    int per_vertex_active = 0; /* Sprint 26 Day 10: 1 → use the
+                                  per_vertex_lifted[] array below
+                                  instead of per-side mass-lift. */
+    int *per_vertex_lifted = NULL;
+
+    if (strategy == SEP_LIFT_BALANCED_BOUNDARY) {
+        /* Pick the smaller-boundary side; ties go to side 0 to
+         * match the smaller_weight tie-break convention. */
+        idx_t bb_side = (boundary_count[1] < boundary_count[0]) ? 1 : 0;
+        idx_t lift_w = w[bb_side] - boundary_weight[bb_side];
+        idx_t other_w = w[1 - bb_side];
+        idx_t total_w = lift_w + other_w;
+        int balanced = 1;
+        if (total_w > 0) {
+            idx_t max_w = (lift_w > other_w) ? lift_w : other_w;
+            if ((int64_t)10 * (int64_t)max_w > (int64_t)7 * (int64_t)total_w)
+                balanced = 0;
+        }
+        if (balanced)
+            lift_side = bb_side;
+    } else if (strategy == SEP_LIFT_PER_VERTEX) {
+        /* Sprint 26 Day 10 — per-vertex separator scoring.
+         *
+         * Score formula: `score(v) = 2 * cross_deg(v) + balance_bonus(v)`
+         * where:
+         *   - cross_deg(v) = number of v's neighbours on the OTHER side
+         *     (high = "deep boundary"; lifting v removes many cross
+         *     edges per separator vertex)
+         *   - balance_bonus(v) = 1 if side(v) is the LARGER side, 0
+         *     otherwise (preferentially lifts from the larger side to
+         *     improve balance)
+         *
+         * The 2× multiplier on cross_deg ensures cross-degree dominates
+         * the ranking; balance_bonus is effectively a tie-break in
+         * the integer score.
+         *
+         * Selection: sort all boundary vertices by score descending,
+         * greedily lift one-by-one while maintaining 70/30 post-lift
+         * weight balance.  Stop on imbalance violation; if K=0 (can't
+         * lift anything safely), fall back to smaller_weight via the
+         * existing lift_side = smaller_weight_side default below.
+         *
+         * See SPRINT_26/per_vertex_sep_design.md for the full rationale
+         * + Day 12 sweep dimensions. */
+        idx_t total_boundary = boundary_count[0] + boundary_count[1];
+        if (total_boundary > 0) {
+            per_vertex_score_t *scored =
+                malloc((size_t)total_boundary * sizeof(per_vertex_score_t));
+            if (!scored) {
+                free(is_boundary);
+                return SPARSE_ERR_ALLOC;
             }
-            if (balanced)
-                lift_side = bb_side;
+            idx_t larger_side = (w[0] >= w[1]) ? 0 : 1;
+            idx_t bidx = 0;
+            for (idx_t v = 0; v < G->n; v++) {
+                if (!is_boundary[v])
+                    continue;
+                idx_t side = part_io[v];
+                idx_t other = 1 - side;
+                idx_t cross_deg = 0;
+                for (idx_t k = G->xadj[v]; k < G->xadj[v + 1]; k++) {
+                    idx_t j = G->adjncy[k];
+                    if (part_io[j] == other)
+                        cross_deg++;
+                }
+                /* score = cross_deg * 2 + balance_bonus, packed in
+                 * a single idx_t to keep the comparator simple. */
+                idx_t balance_bonus = (side == larger_side) ? 1 : 0;
+                scored[bidx].vertex = v;
+                scored[bidx].score = 2 * cross_deg + balance_bonus;
+                bidx++;
+            }
+            /* Sort descending by score. */
+            qsort(scored, (size_t)total_boundary, sizeof(per_vertex_score_t),
+                  per_vertex_score_cmp_desc);
+
+            /* Greedy pick + 70/30 balance projection.  Track running
+             * w0/w1 as if the picked vertices are removed from their
+             * original side (to become separator).  Stop on imbalance. */
+            per_vertex_lifted = calloc((size_t)G->n, sizeof(int));
+            if (!per_vertex_lifted) {
+                free(scored);
+                free(is_boundary);
+                return SPARSE_ERR_ALLOC;
+            }
+            idx_t cur_w0 = w[0], cur_w1 = w[1];
+            idx_t lifted_count = 0;
+            for (idx_t k = 0; k < total_boundary; k++) {
+                idx_t v = scored[k].vertex;
+                idx_t side = part_io[v];
+                idx_t vw = G->vwgt ? G->vwgt[v] : 1;
+                idx_t new_w0 = cur_w0;
+                idx_t new_w1 = cur_w1;
+                if (side == 0)
+                    new_w0 -= vw;
+                else
+                    new_w1 -= vw;
+                idx_t total_w = new_w0 + new_w1;
+                if (total_w > 0) {
+                    idx_t max_w = (new_w0 > new_w1) ? new_w0 : new_w1;
+                    if ((int64_t)10 * (int64_t)max_w > (int64_t)7 * (int64_t)total_w)
+                        break; /* would violate 70/30 — stop here */
+                }
+                per_vertex_lifted[v] = 1;
+                cur_w0 = new_w0;
+                cur_w1 = new_w1;
+                lifted_count++;
+            }
+            free(scored);
+
+            /* If we lifted at least one vertex, use the per-vertex
+             * mask.  Otherwise fall back to smaller_weight (lift_side
+             * already set above). */
+            if (lifted_count > 0) {
+                per_vertex_active = 1;
+            } else {
+                free(per_vertex_lifted);
+                per_vertex_lifted = NULL;
+            }
         }
     }
 
-    for (idx_t i = 0; i < G->n; i++) {
-        if (is_boundary[i] && part_io[i] == lift_side)
-            part_io[i] = 2;
+    if (per_vertex_active) {
+        for (idx_t i = 0; i < G->n; i++) {
+            if (per_vertex_lifted[i])
+                part_io[i] = 2;
+        }
+        free(per_vertex_lifted);
+    } else {
+        for (idx_t i = 0; i < G->n; i++) {
+            if (is_boundary[i] && part_io[i] == lift_side)
+                part_io[i] = 2;
+        }
     }
 
     free(is_boundary);

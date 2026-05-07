@@ -1102,6 +1102,56 @@ static void test_fm_intermediate_passes_smoke(void) {
     sparse_free(A);
 }
 
+/* Sprint 26 Day 6: SPARSE_FM_FINEST_STRATEGY=fifo plumbing stub.
+ * Pin the env-var parser's dispatch wiring on the same 10×10 grid
+ * fixture as test_fm_intermediate_passes_smoke.  Day 6 ships only
+ * the parser (no semantic change yet); Day 7 lights up the FIFO
+ * pop_max_tail variant via tails[] in fm_bucket_array_t.
+ *
+ * Day 6 contract (this commit): under SPARSE_FM_FINEST_STRATEGY=fifo,
+ * partition produces a structurally-valid 10×10 grid partition
+ * (same invariants as test_partition_10x10_grid).  No assertion on
+ * cut quality difference yet — Day 6's no-op dispatch produces
+ * bit-identical output to baseline.
+ *
+ * Day 7 contract (post-implementation): tighten to a
+ * differs-from-baseline assertion + FIFO determinism check.
+ *
+ * See SPRINT_26/finest_fm_design.md for the sub-axis selection
+ * rationale + Day 6 / Day 7 / Day 8 split. */
+static void test_finest_fm_strategy_fifo_smoke(void) {
+    if (setenv("SPARSE_FM_FINEST_STRATEGY", "fifo", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed; can't exercise env-var plumbing)\n");
+        return;
+    }
+
+    SparseMatrix *A = make_grid_2d(10, 10);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    ASSERT_EQ(G.n, 100);
+
+    idx_t part[100] = {0};
+    idx_t sep = 0;
+    sparse_err_t rc = sparse_graph_partition(&G, part, &sep);
+
+    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+
+    REQUIRE_OK(rc);
+
+    /* Day 6: structural validity only — no cut-quality assertion.
+     * Day 7 will tighten once pop_max_tail lands. */
+    printf("    Day 6 stub: SPARSE_FM_FINEST_STRATEGY=fifo dispatch reached; "
+           "10x10 grid sep=%d (Day 7 will assert differs-from-baseline)\n",
+           (int)sep);
+    ASSERT_TRUE(sep >= 5);
+    ASSERT_TRUE(sep <= 12);
+    ASSERT_TRUE(check_partition_invariant(&G, part));
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
 /* ─── 5×5×5 3D mesh: separator ≈ 25 (one mid-plane) ──────────────── */
 
 static void test_partition_5x5x5_mesh(void) {
@@ -1921,6 +1971,9 @@ int main(void) {
      * SPARSE_FM_INTERMEDIATE_PASSES (multi-pass FM at intermediate
      * uncoarsening levels). */
     RUN_TEST(test_fm_intermediate_passes_smoke);
+    /* Sprint 26 Day 6: SPARSE_FM_FINEST_STRATEGY=fifo plumbing
+     * stub; Day 7 tightens to differs-from-baseline assertion. */
+    RUN_TEST(test_finest_fm_strategy_fifo_smoke);
     /* Sprint 25 Day 6 stubs (Day 7-8 land asserts): */
     RUN_TEST(test_spectral_bisection_eigenvalue_ordering);
     RUN_TEST(test_spectral_bisection_gggp_fallback);

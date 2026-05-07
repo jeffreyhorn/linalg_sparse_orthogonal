@@ -1951,6 +1951,49 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
         }
     }
 
+    /* Sprint 26 Day 6: SPARSE_FM_FINEST_STRATEGY env-var parser
+     * stub.  Day 4's per-recursion-level profile identified
+     * sub-axis (b) bucket-tie-break (FIFO via tails[]) as the
+     * highest-leverage, lowest-risk Item 5 candidate;
+     * SPRINT_26/finest_fm_design.md picks `fifo` as the value name
+     * for the new pop-from-tail variant.  Day 6 lands the parser
+     * + a no-op dispatch (all values fall through to baseline);
+     * Day 7 implements `fifo` semantics; Day 8 sweeps + decides
+     * whether to flip default.
+     *
+     * Range: {baseline, fifo, annealing, thick_restart}.  Default
+     * `baseline` (Sprint 23 LIFO-on-insertion-order behavior) is
+     * preserved bit-identically.  Out-of-range / non-numeric /
+     * missing → baseline.  Sub-axes annealing + thick_restart are
+     * recognized as valid values for forward-compatibility but
+     * unimplemented in Sprint 26 (rejected per Day 4 design); they
+     * fall through to baseline.  See SPRINT_26/finest_fm_design.md
+     * "Rejected alternatives" for the reasoning. */
+    enum {
+        FINEST_FM_BASELINE = 0,
+        FINEST_FM_FIFO = 1,
+        FINEST_FM_ANNEALING = 2,
+        FINEST_FM_THICK_RESTART = 3,
+    } finest_strategy = FINEST_FM_BASELINE;
+    {
+        const char *env = getenv("SPARSE_FM_FINEST_STRATEGY");
+        if (env) {
+            if (strcmp(env, "fifo") == 0)
+                finest_strategy = FINEST_FM_FIFO;
+            else if (strcmp(env, "annealing") == 0)
+                finest_strategy = FINEST_FM_ANNEALING;
+            else if (strcmp(env, "thick_restart") == 0)
+                finest_strategy = FINEST_FM_THICK_RESTART;
+            /* Unrecognized + "baseline" both fall through to
+             * FINEST_FM_BASELINE. */
+        }
+    }
+    /* Day 6 dispatch: all strategies fall through to baseline FM
+     * (Day 7 wires the fifo path through to a tails[]-backed
+     * pop_max_tail variant in fm_bucket_pop_max).  Touch the value
+     * to suppress `-Wunused-variable` until Day 7 consumes it. */
+    (void)finest_strategy;
+
     /* Sprint 25 Day 4: SPARSE_FM_INTERMEDIATE_PASSES extends the
      * Sprint 23 Day 11 multi-pass-FM exploration from the finest
      * uncoarsening level to the second-finest (level == 1) and

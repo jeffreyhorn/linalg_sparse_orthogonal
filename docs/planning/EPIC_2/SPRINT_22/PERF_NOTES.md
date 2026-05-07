@@ -361,12 +361,21 @@ PLAN.md items 1-3:
   & Kumar 1998 §5) — matching score `edge_weight × min(deg(u),
   deg(v))` rather than HEM's pure `edge_weight`.  Pres_Poisson alone:
   -1.5pp.  See `coarsening_decision.md` + `hcc_design.md`.
-- `SPARSE_FM_INTERMEDIATE_PASSES` (Day 4-5; default 1).  Multi-pass
-  FM at intermediate uncoarsening levels (Sprint 23's
+- `SPARSE_FM_INTERMEDIATE_PASSES` (Day 4-5; default 1; range [1, 10]).
+  Multi-pass FM at intermediate uncoarsening levels (Sprint 23's
   `SPARSE_FM_FINEST_PASSES` only touched the finest level).
-  Pres_Poisson sweep across passes ∈ {1, 2, 3, 5, 10}: passes=2
-  regresses +0.1pp; passes=3 unchanged at 0.952×; passes ≥ 5
-  saturate.  See `intermediate_fm_decision.md`.
+  Pres_Poisson sweep across passes ∈ {1, 2, 3}: passes=2 essentially
+  unchanged at 0.952× (-0.04pp); passes=3 *regresses* to 0.967×
+  (+1.5pp).  Default stays at 1 because the PLAN.md Day-5 flip rule
+  (≥ 1pp Pres_Poisson tightening + no smaller-fixture regression
+  past 5pp band) fails on the headline fixture for both candidate
+  values, not because of an absence of any per-fixture win.  Per-
+  fixture wins DO exist: Kuu at passes=3 closes -23.2pp (2.275× →
+  2.043×; the strongest single per-fixture win Sprint 25 produced
+  via this axis, at +3.7% wall); bcsstk14 at passes=2 closes -2.2pp
+  (1.129× → 1.107×, +4.7% wall) or passes=3 closes -2.3pp at -11.4%
+  wall.  s3rmt3m3 regresses +1.7pp at passes ≥ 2.  See
+  `intermediate_fm_decision.md`.
 - `SPARSE_ND_COARSEST_BISECTION={gggp,spectral}` (Day 6-8; default
   `gggp`).  `spectral` builds the graph Laplacian and uses the
   Sprint 20-21 Lanczos eigensolver to compute the Fiedler vector,

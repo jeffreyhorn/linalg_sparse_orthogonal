@@ -15,6 +15,15 @@ processes.
 Per-run breakdown
 -----------------
 
+(Note: the captures below are the literal `nd-profile ...` stderr
+emit from `src/sparse_reorder_nd.c`, lightly reformatted for
+readability — thousands-separator spaces added to the larger ms
+values and a leading space inserted before each `ms` unit.  The
+raw stderr emit format is `total=%.3fms` etc. — no separator, no
+leading space; reproduce the raw output by re-running
+`SPARSE_ND_PROFILE=1 build/bench_reorder --only Pres_Poisson
+--skip-factor 2>&1`.)
+
   Run 1:
     nd-profile n=14822 total=50 459.656 ms
       graph_build  =     156.642 ms

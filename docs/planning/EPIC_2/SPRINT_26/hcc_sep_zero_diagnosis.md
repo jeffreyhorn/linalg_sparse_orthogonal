@@ -199,6 +199,103 @@ turns it into code.
    default-flip blocker).
 5. Re-attempt the HCC default flip per Day 3 task 5 in PLAN.md.
 
+## Day 3 post-fix verification + flip outcome
+
+### Fix implementation
+
+Day 3 picked option (b1) — thread-local override.  A
+`_Thread_local static int force_hem_override = 0;` file-static is
+checked first by `parse_coarsening_strategy()`; when set, the function
+returns `COARSENING_HEAVY_EDGE` regardless of the env var.
+
+`sparse_graph_partition` is refactored: the partition body is
+extracted into a static `partition_once()` helper that takes a
+`(G, part_out, sep_out)` triple; the public entry point calls it
+once with the configured strategy, then if `sep == 0` AND the
+configured strategy was HCC (so HEM hasn't already been tried), sets
+`force_hem_override = 1`, retries `partition_once()`, restores
+`force_hem_override = 0`.  Thread-local storage class keeps
+concurrent partition calls race-free (each thread sees its own
+override flag).
+
+Net code delta: ~25 lines (extract helper + add retry logic + add
+thread-local override).  Sprint 22's default code path is bit-
+identical: `force_hem_override` defaults to 0; HEM-default callers
+parse strategy normally + don't re-enter the retry path because
+their first pass produces sep > 0.
+
+### bcsstk14 verification
+
+`test_hcc_bcsstk14_no_degenerate_partition` (Day 2 stub, tightened
+Day 3) passes:
+
+```
+bcsstk14 under SPARSE_ND_COARSENING=hcc: sep=97 (Sprint 26 Day 3
+fall-back recovered)
+```
+
+sep=97 matches HEM's bcsstk14 baseline (Sprint 25 docs show the same
+value when HEM coarsening runs on bcsstk14).  The fall-back fully
+recovers the partition contract.
+
+`test_partition_bcsstk14_smoke` (the Sprint 25 Day 10 default-flip
+blocker) passes under `SPARSE_ND_COARSENING=hcc` ✓.
+
+`test_nd_bcsstk14_fill_vs_amd` under HCC produces nnz_L = 130 358 —
+bit-identical to Sprint 25 setting 13's bcsstk14 baseline (130 358)
+and ~0.5pp better than the Sprint 25 default's 131 017.  The Day 3
+completion-criterion target (≤ Sprint 25 setting 13's 130 358) is
+met exactly.
+
+### HCC default flip outcome: REVERTED — Kuu regresses past 5pp
+
+Full-corpus bench captured under `SPARSE_ND_COARSENING=hcc` (with
+the sep=0 fall-back in place; `bench_d3_hcc_alone.csv`):
+
+| fixture | Sprint 25 default ND | HCC-alone post-fix | Δ vs default |
+|---|---:|---:|---:|
+| nos4 | 968 | 901 | **-6.9pp WIN** |
+| bcsstk04 | 3 702 | 3 708 | +0.2pp noise |
+| **Kuu** | **924 385** | **1 003 293** | **+8.5pp REGRESS** ← flip-blocker |
+| bcsstk14 | 131 017 | 130 358 | -0.5pp small win (Day 3 fix recovered) |
+| s3rmt3m3 | 478 890 | 483 478 | +1.0pp noise |
+| Pres_Poisson | 2 541 734 | 2 501 876 | -1.6pp WIN (matches Sprint 25 Day 3 HCC-alone target 0.937×) |
+
+The HCC default flip is **REVERTED**.  Kuu's +8.5pp regression
+exceeds the PLAN.md flip rule's "no smaller-fixture regression past
+5pp" threshold.  This was Sprint 25 Day 3's original concern with
+HCC-alone (`nd_tuning_day3.md`); Day 3 of Sprint 25 routed around
+it by combining HCC + ratio=200 (setting 13), which closes Kuu
+back to 852 921 (= -8.5pp WIN vs default).
+
+The bcsstk14 sep=0 blocker that Day 3 fixed was the FIRST flip-
+blocker; the Kuu regression was always the SECOND blocker.  Sprint
+26 Day 3's fix removed the FIRST blocker; the SECOND remains.
+
+Default stays at `COARSENING_HEAVY_EDGE`.  HCC continues to ship
+behind the env var as advisory.  The recommended advisory for
+Pres_Poisson workloads is still setting 13 (HCC + ratio=200) per
+Sprint 25 `coarsening_decision.md`.
+
+### What Day 3 did unblock
+
+Even without flipping the default, Day 3 closed two material gaps:
+
+1. **`SPARSE_ND_COARSENING=hcc` works on bcsstk14 cleanly.**  Before
+   Day 3, opting into HCC on bcsstk14 produced sep=0 and silently
+   degraded ND quality via `nd_emit_natural` fall-through; Day 3's
+   fall-back makes the env-var path produce a well-formed partition
+   on every fixture in the Sprint 22-25 corpus.
+2. **`test_partition_bcsstk14_smoke` passes under HCC.**  This was
+   the Sprint 25 Day 10 hard gate; passing it removes the test-
+   contract barrier to a future HCC default flip if the Kuu
+   regression is also addressed (e.g. via a future "HCC + Kuu-
+   safe matching tweak" follow-up).
+
+Sprint 26 Day 4-12 inherits a clean opt-in HCC path.  The Sprint 25
+setting 13 advisory (HCC + ratio=200) for Pres_Poisson workloads
+remains the recommended opt-in pattern.
+
 ## References
 
 - `docs/planning/EPIC_2/SPRINT_25/coarsening_decision.md` — Sprint 25

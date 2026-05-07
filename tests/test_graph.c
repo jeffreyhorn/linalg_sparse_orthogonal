@@ -1813,22 +1813,19 @@ static void test_partition_bcsstk14_smoke(void) {
     run_suitesparse_partition_smoke(SS_DIR "/bcsstk14.mtx", 1806);
 }
 
-/* Sprint 26 Day 2: stub-and-pin for the HCC bcsstk14 sep=0 blocker.
- * Sprint 25 Day 10's attempted HCC default flip surfaced that
- * `SPARSE_ND_COARSENING=hcc` produces a degenerate empty separator
- * (`sep == 0`) on bcsstk14, blocking the production-default flip.
- * Day 2's diagnosis (`SPRINT_26/hcc_sep_zero_diagnosis.md`) picks
- * option (b) `sparse_graph_partition` sep=0 fall-back as the fix.
+/* Sprint 26 Day 3: HCC bcsstk14 sep > 0 contract (after sep=0 fall-back
+ * lands in `sparse_graph_partition`).  Sprint 25 Day 10's attempted
+ * HCC default flip surfaced that `SPARSE_ND_COARSENING=hcc` produces a
+ * degenerate empty separator (`sep == 0`) on bcsstk14, blocking the
+ * production-default flip.  Day 3's `sparse_graph_partition` sep=0
+ * fall-back retries with HEM forced via thread-local override; bcsstk14
+ * recovers sep > 0 (HEM works on bcsstk14 per Sprint 22 baseline).
  *
- * Day 2 contract (this commit): the stub measures sep under HCC and
- * prints either "fix not yet landed; pinned bcsstk14 sep=N" (when the
- * pathology still fires) or "fix in place; sep=N" (when Day 3's
- * fall-back lands).  Either branch passes — the stub doesn't hard-
- * assert today.
- *
- * Day 3 contract (post-fix): tighten the assertion to `sep > 0` after
- * the sep=0 fall-back lands.  Move the print to a debug-only line
- * and let the assertion own the contract. */
+ * Test contract: under `SPARSE_ND_COARSENING=hcc`, partitioning
+ * bcsstk14 produces sep > 0 + check_partition_invariant passes (i.e.
+ * the partition is well-formed).  Pin via the same assertions as the
+ * default-strategy `test_partition_bcsstk14_smoke`; the only
+ * difference is the env-var override. */
 static void test_hcc_bcsstk14_no_degenerate_partition(void) {
     if (setenv("SPARSE_ND_COARSENING", "hcc", /*overwrite=*/1) != 0) {
         printf("    skipped (setenv failed)\n");
@@ -1853,14 +1850,12 @@ static void test_hcc_bcsstk14_no_degenerate_partition(void) {
     unsetenv("SPARSE_ND_COARSENING");
 
     REQUIRE_OK(prc);
-    if (sep == 0) {
-        printf(
-            "    Day 3 fix not yet landed; pinned bcsstk14 HCC sep=0 (sprint 25 day 10 finding)\n");
-    } else {
-        printf("    Day 3 fix in place; bcsstk14 HCC sep=%d\n", (int)sep);
-        ASSERT_TRUE(sep > 0);
-        ASSERT_TRUE(sep < G.n);
-    }
+    printf("    bcsstk14 under SPARSE_ND_COARSENING=hcc: sep=%d (Sprint 26 Day 3 fall-back "
+           "recovered)\n",
+           (int)sep);
+    ASSERT_TRUE(sep > 0);
+    ASSERT_TRUE(sep < G.n);
+    ASSERT_TRUE(check_partition_invariant(&G, part));
 
     free(part);
     sparse_graph_free(&G);

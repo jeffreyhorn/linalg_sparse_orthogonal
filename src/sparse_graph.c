@@ -407,7 +407,20 @@ typedef enum {
     COARSENING_HCC = 1,        /* Sprint 25 Day 2-3 — Heavy Connectivity Coarsening */
 } coarsening_strategy_t;
 
+/* Sprint 26 Day 3: thread-local override for the sep=0 fall-back.
+ * `sparse_graph_partition` sets this to 1 before retrying a degenerate
+ * partition, forcing `parse_coarsening_strategy()` to return
+ * `COARSENING_HEAVY_EDGE` regardless of the env var.  Restored to 0
+ * after the retry.  `_Thread_local` keeps concurrent partition calls
+ * race-free.  See `SPRINT_26/hcc_sep_zero_diagnosis.md` for why
+ * option (b) `sparse_graph_partition` sep=0 fall-back was chosen
+ * over option (a) HCC matching tightening. */
+static _Thread_local int force_hem_override = 0;
+
 static coarsening_strategy_t parse_coarsening_strategy(void) {
+    /* Sprint 26 Day 3: sep=0 retry path forces HEM. */
+    if (force_hem_override)
+        return COARSENING_HEAVY_EDGE;
     const char *env = getenv("SPARSE_ND_COARSENING");
     if (env && strcmp(env, "hcc") == 0)
         return COARSENING_HCC;
@@ -418,11 +431,10 @@ static coarsening_strategy_t parse_coarsening_strategy(void) {
      * Pres_Poisson ND/AMD by 3pp but Day 10 verification surfaced a
      * bcsstk14 regression: under HCC the multilevel partition
      * produces a degenerate empty separator (sep=0) on bcsstk14
-     * regardless of the ratio setting, which test_partition_bcsstk14_smoke
-     * pins as a correctness contract.  HCC ships as advisory
-     * (`SPARSE_ND_COARSENING=hcc`) and the recommended advisory
-     * combination is HCC + ratio=200 for Pres_Poisson-shaped
-     * workloads that don't share bcsstk14's sensitivity.
+     * regardless of the ratio setting.  Sprint 26 Day 3 closed the
+     * blocker via the sep=0 fall-back in `sparse_graph_partition`
+     * (this file): if the multilevel pipeline produces sep=0, retry
+     * with HEM forced via `force_hem_override`.
      *
      * Default + unrecognized + "heavy_edge" all fall through to
      * Sprint 22's heavy-edge matching baseline. */
@@ -2128,14 +2140,11 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
  *   4. Convert the final 2-way edge separator to a 3-way vertex
  *      separator on the smaller side (Day 4).
  */
-sparse_err_t sparse_graph_partition(const sparse_graph_t *G, idx_t *part_out, idx_t *sep_out) {
-    if (!G || !part_out)
-        return SPARSE_ERR_NULL;
-    if (sep_out)
-        *sep_out = 0;
-    if (G->n == 0)
-        return SPARSE_OK;
-
+/* Sprint 26 Day 3: extracted partition body so `sparse_graph_partition`
+ * can call it twice — once with the configured strategy, and (if the
+ * first pass produces a degenerate sep=0) once more with the
+ * `force_hem_override` set.  See `SPRINT_26/hcc_sep_zero_diagnosis.md`. */
+static sparse_err_t partition_once(const sparse_graph_t *G, idx_t *part_out, idx_t *sep_out) {
     sparse_graph_hierarchy_t h = {0};
     sparse_err_t rc = sparse_graph_hierarchy_build(G, /*seed=*/0U, &h);
     if (rc != SPARSE_OK)
@@ -2184,13 +2193,48 @@ sparse_err_t sparse_graph_partition(const sparse_graph_t *G, idx_t *part_out, id
     if (rc != SPARSE_OK)
         return rc;
 
-    if (sep_out) {
-        idx_t sep = 0;
-        for (idx_t i = 0; i < G->n; i++) {
-            if (part_out[i] == 2)
-                sep++;
-        }
-        *sep_out = sep;
+    idx_t sep = 0;
+    for (idx_t i = 0; i < G->n; i++) {
+        if (part_out[i] == 2)
+            sep++;
     }
+    *sep_out = sep;
+    return SPARSE_OK;
+}
+
+sparse_err_t sparse_graph_partition(const sparse_graph_t *G, idx_t *part_out, idx_t *sep_out) {
+    if (!G || !part_out)
+        return SPARSE_ERR_NULL;
+    if (sep_out)
+        *sep_out = 0;
+    if (G->n == 0)
+        return SPARSE_OK;
+
+    idx_t sep = 0;
+    sparse_err_t rc = partition_once(G, part_out, &sep);
+    if (rc != SPARSE_OK)
+        return rc;
+
+    /* Sprint 26 Day 3: sep=0 fall-back.  If the first pass produced a
+     * degenerate empty separator AND the configured strategy was HCC
+     * (so HEM hasn't already been tried), force HEM via the thread-
+     * local `force_hem_override` and re-run the multilevel pipeline.
+     * Sprint 25 Day 10's bcsstk14 finding documented the canonical
+     * pathology; SPRINT_26/hcc_sep_zero_diagnosis.md picks this fall-
+     * back path over per-strategy matching tightening because the
+     * sep=0 detection is at the natural seam (post-projection,
+     * post-edge-to-vertex extraction) and re-bisecting under HEM
+     * is known to recover sep > 0 on every fixture in the
+     * Sprint 22-25 corpus. */
+    if (sep == 0 && parse_coarsening_strategy() != COARSENING_HEAVY_EDGE) {
+        force_hem_override = 1;
+        rc = partition_once(G, part_out, &sep);
+        force_hem_override = 0;
+        if (rc != SPARSE_OK)
+            return rc;
+    }
+
+    if (sep_out)
+        *sep_out = sep;
     return SPARSE_OK;
 }

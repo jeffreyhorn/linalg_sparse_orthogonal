@@ -1813,6 +1813,60 @@ static void test_partition_bcsstk14_smoke(void) {
     run_suitesparse_partition_smoke(SS_DIR "/bcsstk14.mtx", 1806);
 }
 
+/* Sprint 26 Day 2: stub-and-pin for the HCC bcsstk14 sep=0 blocker.
+ * Sprint 25 Day 10's attempted HCC default flip surfaced that
+ * `SPARSE_ND_COARSENING=hcc` produces a degenerate empty separator
+ * (`sep == 0`) on bcsstk14, blocking the production-default flip.
+ * Day 2's diagnosis (`SPRINT_26/hcc_sep_zero_diagnosis.md`) picks
+ * option (b) `sparse_graph_partition` sep=0 fall-back as the fix.
+ *
+ * Day 2 contract (this commit): the stub measures sep under HCC and
+ * prints either "fix not yet landed; pinned bcsstk14 sep=N" (when the
+ * pathology still fires) or "fix in place; sep=N" (when Day 3's
+ * fall-back lands).  Either branch passes — the stub doesn't hard-
+ * assert today.
+ *
+ * Day 3 contract (post-fix): tighten the assertion to `sep > 0` after
+ * the sep=0 fall-back lands.  Move the print to a debug-only line
+ * and let the assertion own the contract. */
+static void test_hcc_bcsstk14_no_degenerate_partition(void) {
+    if (setenv("SPARSE_ND_COARSENING", "hcc", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
+        return;
+    }
+
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 not loadable: %d)\n", (int)rc);
+        unsetenv("SPARSE_ND_COARSENING");
+        return;
+    }
+
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    idx_t *part = malloc((size_t)G.n * sizeof(idx_t));
+    ASSERT_NOT_NULL(part);
+    idx_t sep = 0;
+    sparse_err_t prc = sparse_graph_partition(&G, part, &sep);
+    unsetenv("SPARSE_ND_COARSENING");
+
+    REQUIRE_OK(prc);
+    if (sep == 0) {
+        printf(
+            "    Day 3 fix not yet landed; pinned bcsstk14 HCC sep=0 (sprint 25 day 10 finding)\n");
+    } else {
+        printf("    Day 3 fix in place; bcsstk14 HCC sep=%d\n", (int)sep);
+        ASSERT_TRUE(sep > 0);
+        ASSERT_TRUE(sep < G.n);
+    }
+
+    free(part);
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
 static void test_partition_pres_poisson_smoke(void) {
     /* Pres_Poisson is a 2D Poisson-on-irregular-grid fixture — the
      * canonical mesh shape ND was designed for.  Expected to produce
@@ -1882,6 +1936,9 @@ int main(void) {
     RUN_TEST(test_spectral_bisection_lanczos_failure);
     RUN_TEST(test_partition_5x5x5_mesh);
     RUN_TEST(test_partition_two_k10_with_bridge);
+    /* Sprint 26 Day 2: stub for HCC bcsstk14 sep=0 blocker; Day 3
+     * tightens the assertion after the sep=0 fall-back fix lands. */
+    RUN_TEST(test_hcc_bcsstk14_no_degenerate_partition);
     RUN_TEST(test_edge_to_vertex_separator_smaller_side);
     RUN_TEST(test_partition_singleton);
     RUN_TEST(test_partition_null_args);

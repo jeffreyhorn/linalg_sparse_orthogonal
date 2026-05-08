@@ -21,8 +21,15 @@ jobs:
       - name: Run ASan
         run: make asan
 
-      - name: Run benchmarks
-        run: make clean && make bench
+      # Build (but do not run) all benchmark binaries.  Catches
+      # compile breaks in benchmark sources without paying the
+      # runtime cost of executing the perf loops — full `make bench`
+      # was exceeding the 6 h GHA job cap (4 of 14 benches each take
+      # >3 min locally; on Linux GHA runners the stack pushed the job
+      # past timeout consistently).  Run benches manually for perf
+      # characterisation (`make bench` locally).
+      - name: Build benchmark binaries (compile-only, no execution)
+        run: make clean && make bench-build
 
   cmake-build-and-test:
     runs-on: ubuntu-latest

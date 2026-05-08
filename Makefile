@@ -214,6 +214,16 @@ bench: $(BENCH_BINS)
 		echo; \
 	done
 
+# Compile benchmark binaries without running them.  Used by CI to
+# catch compile breaks in bench sources without paying the runtime
+# cost of `make bench` — full bench runs were exceeding the 6 h GHA
+# job cap (bench_chol_csc / bench_convergence / bench_refactor_csc /
+# bench_reorder each take > 3 min locally; on Linux GHA runners the
+# stack pushed the job past timeout for weeks).
+.PHONY: bench-build
+bench-build: $(BENCH_BINS)
+	@echo "Built $(words $(BENCH_BINS)) bench binaries (no execution)."
+
 # Benchmark SuiteSparse matrices (both pivoting modes)
 .PHONY: bench-suitesparse
 bench-suitesparse: $(BUILDDIR)/bench_main

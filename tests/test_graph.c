@@ -1136,24 +1136,24 @@ static void test_finest_fm_strategy_fifo_smoke(void) {
      * would NULL-deref in subsequent partition calls + memcmp), and
      * (2) `REQUIRE_OK` returns immediately on failure, leaving the
      * env var set + buffers leaked across subsequent tests. */
-    SparseMatrix *A = make_grid_2d(30, 30);
-    if (!A) {
-        ASSERT_NOT_NULL(A);
-        return;
-    }
+    SparseMatrix *A = NULL;
     sparse_graph_t G = {0};
-    sparse_err_t rc = sparse_graph_from_sparse(A, &G);
-    if (rc != SPARSE_OK) {
-        sparse_free(A);
-        REQUIRE_OK(rc);
-        return;
-    }
-    ASSERT_EQ(G.n, 900);
-
     idx_t *part_baseline = NULL;
     idx_t *part_fifo1 = NULL;
     idx_t *part_fifo2 = NULL;
     int env_set = 0;
+
+    A = make_grid_2d(30, 30);
+    if (!A) {
+        TF_FAIL_("make_grid_2d(%d, %d) returned NULL (OOM)", 30, 30);
+        goto cleanup;
+    }
+    sparse_err_t rc = sparse_graph_from_sparse(A, &G);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_from_sparse: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    ASSERT_EQ(G.n, 900);
 
     /* Baseline run (env var unset). */
     unsetenv("SPARSE_FM_FINEST_STRATEGY");
@@ -1964,14 +1964,14 @@ static void test_hcc_bcsstk14_no_degenerate_partition(void) {
      * partition would return immediately on failure, leaving
      * SPARSE_ND_COARSENING set + buffers leaked across subsequent
      * tests in the same process. */
-    if (setenv("SPARSE_ND_COARSENING", "hcc", /*overwrite=*/1) != 0) {
-        printf("    skipped (setenv failed)\n");
-        return;
-    }
-
     SparseMatrix *A = NULL;
     sparse_graph_t G = {0};
     idx_t *part = NULL;
+
+    if (setenv("SPARSE_ND_COARSENING", "hcc", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
+        goto cleanup;
+    }
 
     sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {

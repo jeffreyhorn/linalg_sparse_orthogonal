@@ -859,12 +859,11 @@ int main(void) {
     /* Day 7: sparse_analyze integration + SuiteSparse smoke. */
     RUN_TEST(test_nd_bcsstk14_fill_vs_amd);
     RUN_TEST(test_nd_pres_poisson_fill_with_leaf_amd);
-    /* Sprint 27 Day 1: HCC Kuu default-flip blocker stub (fails until
-     * Day 2's CV-detection-and-HEM-fall-through fix).  Skip enabling
-     * RUN_TEST until Day 2 lands — surfacing a known-failing test in
-     * `make test` would block Day-1 CI, defeating the gate "Day 1
-     * lands diagnosis + design without breaking CI". */
-    /* RUN_TEST(test_hcc_kuu_no_default_flip_blocker); */
+    /* Sprint 27 Day 2: HCC Kuu-safe matching variant lights up
+     * the Day-1 stub.  CV-detection-and-HEM-fall-through (default
+     * threshold 0.30) routes Kuu (CV=0.425) to HEM, restoring the
+     * Sprint 26 default-strategy fill quality. */
+    RUN_TEST(test_hcc_kuu_no_default_flip_blocker);
     RUN_TEST(test_nd_determinism_public_api);
     RUN_TEST(test_cholesky_via_nd_residual_spd_synth);
 

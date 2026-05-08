@@ -151,3 +151,88 @@ The Sprint 27 PLAN.md Day 1 task spec named `tests/test_graph.c::test_hcc_kuu_no
 - `/tmp/hcc_kuu_trace.txt` (5092-line per-level cmap dump under `SPARSE_HCC_DEBUG=1 SPARSE_ND_COARSENING=hcc`)
 - `/tmp/hem_kuu_trace.txt` (5094-line per-level cmap dump under `SPARSE_ND_COARSENING=heavy_edge`)
 - `/tmp/hcc_kuu_stdout.txt`, `/tmp/hem_kuu_stdout.txt` (bench summary CSVs)
+
+---
+
+## Day 2 Verification: Fix Implementation + Default-Flip Decision
+
+### Implementation
+
+Landed in `src/sparse_graph.c::graph_coarsen_with_strategy` (top of function, after `n_fine = fine->n`).  When `strategy == COARSENING_HCC` and `n_fine >= 2`:
+
+1. Read `SPARSE_ND_COARSENING_CV_FALLTHROUGH` env var (default 0.30; out-of-range/non-numeric/negative → default; 0.0 disables fall-through).
+2. If threshold > 0.0, compute degree CV via one-pass mean+variance over `xadj` (O(n)).
+3. If CV > threshold, set `strategy = COARSENING_HEAVY_EDGE` for that call; emit a one-line stderr advisory under `SPARSE_HCC_DEBUG=1`.
+
+The matching loop downstream is unchanged.  Fall-through fires per-level (not just at the root) — the input graph at each coarsening level may have a different CV than the previous level (boundary structure dissolves as the graph shrinks).
+
+### Per-Level Fall-Through on Kuu
+
+```
+SPARSE_HCC_DEBUG=1 SPARSE_ND_COARSENING=hcc build/bench_reorder --only Kuu --skip-factor
+
+hcc-debug strategy=hcc fell through to heavy_edge: n_fine=7102 CV=0.425 > threshold=0.300
+hcc-debug strategy=hcc fell through to heavy_edge: n_fine=3625 CV=0.404 > threshold=0.300
+hcc-debug strategy=hcc fell through to heavy_edge: n_fine=1867 CV=0.331 > threshold=0.300
+(further levels stay HCC: CV drops below 0.30 at level 3+)
+```
+
+CV-detection fires at the top 3 coarsening levels (where Kuu's bimodality dominates) and naturally turns off at finer levels (where the multimodal structure has already dissolved into a more uniform distribution).  This is the optimal shape — preserves HCC's wins on small-coarse-graph levels (where matching choice matters less) while bypassing HCC's structural bias at the levels where it hurts.
+
+### Post-Fix Corpus Sweep
+
+| Fixture       | n     | AMD nnz_L | HEM nnz_L (Sprint 26) | HCC + Kuu-safe (Sprint 27) | Δ vs HEM | HCC+fix/AMD | HEM/AMD |
+|---------------|-------|-----------|-----------------------|----------------------------|----------|-------------|---------|
+| nos4          |   100 |       637 |                  809  |                       809  |  0.0 %   |    1.270×   |  1.270× |
+| bcsstk04      |   132 |     3 143 |                3 722  |                     3 722  |  0.0 %   |    1.184×   |  1.184× |
+| **Kuu**       |  7102 |   406 264 |              881 177  |                   772 871  | **−12.3 %** | **1.902×** | 2.169× |
+| bcsstk14      |  1806 |   116 071 |              129 292  |                   130 163  | +0.7 %   |    1.121×   |  1.114× |
+| s3rmt3m3      |  5357 |   474 609 |              483 195  |                   486 040  | +0.6 %   |    1.024×   |  1.018× |
+| **Pres_Poisson** | 14822 | 2 668 793 |          2 536 427  |                 2 450 405  | **−3.4 %**  | **0.918×** | 0.950× |
+
+Two MAJOR wins:
+
+- **Kuu**: HCC + Kuu-safe is now BETTER than HEM by 12.3 % (1.902× vs 2.169× of AMD).  Surprise outcome: the Kuu-safe fix not only neutralises HCC's bias, it also lets HCC win at the finer levels where CV drops below threshold.  The combination beats HEM (which stays HEM at every level).
+- **Pres_Poisson**: HCC + Kuu-safe is BETTER than HEM by 3.4 % (0.918× vs 0.950× of AMD).  Pres_Poisson's CV is 0.108 (well below the 0.30 threshold), so HCC stays HCC at every level.  This is the headline 0.85× target's progress: 0.918× is an improvement of 3.2pp toward the 0.85× target (Sprint 26 best opt-in was 0.922×; Sprint 27 default is now 0.918× — closer but still 6.8pp away from the literal target).
+
+Two MINOR regresses (within flip-rule budget):
+
+- **bcsstk14**: +0.7 % (130 163 vs 129 292).  CV=0.280 (below threshold, stays HCC); the bcsstk14 sep=0 retry path (Sprint 26 Day 3) still fires and produces a correct partition.  Tiny regress is well under the 5 pp flip-rule budget.
+- **s3rmt3m3**: +0.6 % (486 040 vs 483 195).  CV=0.187 (well below threshold, stays HCC).  Tiny regress is well under the 5 pp flip-rule budget.
+
+Bit-identical on nos4 and bcsstk04 (both have CV below threshold in the worst case, and at small `n` HCC and HEM converge to the same matching).
+
+### Default-Flip Rule Application
+
+PROJECT_PLAN.md / Sprint 27 PLAN.md flip rule:
+- (a) Pres_Poisson improves ≥ 1pp under HCC + Kuu-safe → **YES** (3.2pp improvement).
+- (b) No smaller-fixture regress past 5pp → **YES** (max regress is 0.7pp on bcsstk14).
+
+**Both conditions satisfied.  HCC default flip lands.**
+
+`parse_coarsening_strategy()` default changed from `COARSENING_HEAVY_EDGE` to `COARSENING_HCC` in `src/sparse_graph.c`.  `SPARSE_ND_COARSENING=heavy_edge` becomes the opt-in fallback (recognised explicitly in the parser).
+
+### Test Updates
+
+The default flip surfaced two tests pinned against Sprint-22-era HEM-specific behavior:
+
+1. **`tests/test_graph.c::test_hierarchy_build_5x5_grid`** — pinned `SPARSE_ND_COARSENING=heavy_edge` (the `n ≤ 13` bound is HEM-specific; HCC's `min(deg)` matching on the 5×5 grid leaves more boundary vertices unmatched because HCC matches interior-interior pairs first).  The Sprint 25 Day 2 `test_hcc_match_selection_grid` test already exercises HCC behavior on small grids; this test stays HEM-scoped.
+
+2. **`tests/test_graph.c::test_finest_fm_strategy_fifo_smoke`** — pinned `SPARSE_ND_COARSENING=heavy_edge` (the "FIFO differs from baseline on the 30×30 grid" contract was verified under HEM coarsening per Sprint 26 Day 7 design).  HCC's `min(deg)` scoring on a regular grid produces more deterministic matchings (most edges score identically; tie-break dominates), which can collapse the FIFO-vs-baseline differentiation that the test was designed to surface.
+
+3. **`tests/test_reorder_nd.c::test_hcc_kuu_no_default_flip_blocker`** — uncommented from RUN_TEST list; now passes (Kuu nnz_L = 772 871 < bound 901 503 = AMD × 2.219).
+
+No other tests required updates — the rest of the test suite passed bit-identically under the new default.
+
+### Files Generated Day 2
+
+- `src/sparse_graph.c` — added CV-detection-and-HEM-fall-through in `graph_coarsen_with_strategy`; added explicit `"heavy_edge"` env-var recognition in `parse_coarsening_strategy`; flipped default from `COARSENING_HEAVY_EDGE` to `COARSENING_HCC`; added `<math.h>` include.
+- `tests/test_reorder_nd.c` — uncommented `test_hcc_kuu_no_default_flip_blocker` from RUN_TEST list.
+- `tests/test_graph.c` — pinned `SPARSE_ND_COARSENING=heavy_edge` in `test_hierarchy_build_5x5_grid` + `test_finest_fm_strategy_fifo_smoke`.
+- `docs/planning/EPIC_2/SPRINT_27/hcc_kuu_diagnosis.md` — appended this Day-2 verification section.
+
+### Headline Status After Day 2
+
+- **HCC + Kuu-safe matching variant lands as default coarsening strategy.**  Both Sprint 25 Day 10 default-flip blockers (bcsstk14 sep=0 fixed Sprint 26 Day 3; Kuu +14.6pp regress fixed Sprint 27 Day 2) are now closed.
+- **Pres_Poisson ND/AMD = 0.918×** under the new default (was 0.950× under Sprint 26 default; was 0.922× under Sprint 26 best opt-in setting 13).  This is a 3.2pp improvement; still 6.8pp away from the literal 0.85× target.
+- **Items 4 (annealing FM) and 5 (root-level spectral) carry the remaining headline-target weight.**  Sprint 27 Days 5-9 plan to close the 6.8pp gap; if both miss, item 6 (thick-restart, conditional fallback) fires Days 10-12.

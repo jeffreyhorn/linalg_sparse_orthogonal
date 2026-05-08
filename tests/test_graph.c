@@ -300,13 +300,32 @@ static void test_hierarchy_build_5x5_grid(void) {
     /* Verifies the hierarchy builder lands at least one coarsened
      * level and conserves vwgt across every level it produces.  The
      * 5×5 grid coarsens once (n=25 → ≤13) and then trips the
-     * small-enough threshold (20) so the build stops at nlevels=1. */
+     * small-enough threshold (20) so the build stops at nlevels=1.
+     *
+     * Sprint 27 Day 2: pin SPARSE_ND_COARSENING=heavy_edge — this
+     * test's `n <= 13` bound is HEM-specific (Sprint 22 Day 2 era).
+     * Under the new HCC default (Sprint 27 Day 2 flip), HCC's
+     * `min(deg)` scoring on the 5×5 grid leaves more corner /
+     * boundary vertices unmatched (corners have deg=2; HCC matches
+     * interior-interior pairs first), producing a coarse graph with
+     * n > 13.  HCC behaviour on small regular grids is intentional
+     * and exercised by the Sprint 25 `test_hcc_match_selection_grid`
+     * test; this test stays scoped to HEM. */
     SparseMatrix *A = make_grid_2d(5, 5);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
 
+    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
+        sparse_graph_free(&G);
+        sparse_free(A);
+        return;
+    }
+
     sparse_graph_hierarchy_t h = {0};
-    REQUIRE_OK(sparse_graph_hierarchy_build(&G, /*seed=*/42u, &h));
+    sparse_err_t hrc = sparse_graph_hierarchy_build(&G, /*seed=*/42u, &h);
+    unsetenv("SPARSE_ND_COARSENING");
+    REQUIRE_OK(hrc);
 
     ASSERT_TRUE(h.nlevels >= 1);
     ASSERT_TRUE(h.coarse[0].n <= 13);
@@ -1142,6 +1161,21 @@ static void test_finest_fm_strategy_fifo_smoke(void) {
     idx_t *part_fifo1 = NULL;
     idx_t *part_fifo2 = NULL;
     int env_set = 0;
+    int coarsening_env_set = 0;
+
+    /* Sprint 27 Day 2: pin SPARSE_ND_COARSENING=heavy_edge — the
+     * "FIFO differs from baseline on the 30×30 grid" contract was
+     * verified under HEM coarsening (Sprint 26 Day 7).  HCC's
+     * `min(deg)` scoring on a regular grid produces more deterministic
+     * matchings (most edges score identically; tie-break dominates),
+     * which can collapse the FIFO-vs-baseline differentiation.
+     * Pinning HEM keeps this test scoped to its Sprint 26 design
+     * intent under the new HCC default (Sprint 27 Day 2 flip). */
+    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        return;
+    }
+    coarsening_env_set = 1;
 
     A = make_grid_2d(30, 30);
     if (!A) {
@@ -1225,6 +1259,8 @@ static void test_finest_fm_strategy_fifo_smoke(void) {
 cleanup:
     if (env_set)
         unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    if (coarsening_env_set)
+        unsetenv("SPARSE_ND_COARSENING");
     free(part_baseline);
     free(part_fifo1);
     free(part_fifo2);

@@ -51,9 +51,10 @@
  * @brief Bucket-array gain queue for FM refinement.
  *
  * Lifecycle: caller-owned struct slot, zero-initialised on declaration.
- * `fm_bucket_array_init` populates the four arrays; `fm_bucket_array_free`
- * releases them and zeros the scalar fields.  Re-init is allowed (free
- * before re-init, or just zero-init the slot before a fresh init).
+ * `fm_bucket_array_init` populates the five arrays (`heads`, `tails`,
+ * `next`, `prev`, `counts`); `fm_bucket_array_free` releases them and
+ * zeros the scalar fields.  Re-init is allowed (free before re-init,
+ * or just zero-init the slot before a fresh init).
  */
 typedef struct {
     idx_t *heads;  /**< Per-bucket head vertex (most-recently inserted); length `num_buckets`. -1 =

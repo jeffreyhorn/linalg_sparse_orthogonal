@@ -882,11 +882,15 @@ static void test_eigs_zero_spectrum_no_div_by_zero(void) {
     ASSERT_TRUE(err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED);
 
     /* Pin Sprint 26 Day 1 fix's contract: residual_norm is finite
-     * (not NaN, not the sentinel -1.0).  `isnan(x)` returns 0 for
-     * any finite value including 0.0; the original 0/0 path produced
-     * NaN here. */
+     * AND was actually written by sparse_eigs_sym (not left at the
+     * sentinel -1.0).  `isnan(x)` returns 0 for any finite value
+     * including 0.0; the original 0/0 path produced NaN here.  The
+     * `>= 0.0` check rules out the -1.0 sentinel — residual norms
+     * are non-negative by definition, so a negative value implies
+     * the field was never updated. */
     ASSERT_TRUE(!isnan(res.residual_norm));
     ASSERT_TRUE(isfinite(res.residual_norm));
+    ASSERT_TRUE(res.residual_norm >= 0.0);
     /* Eigenvalues remain exact zeros (not NaN propagating from the
      * residual divide). */
     for (idx_t j = 0; j < res.n_converged; j++) {

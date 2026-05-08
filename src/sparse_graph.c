@@ -584,8 +584,7 @@ static sparse_err_t graph_coarsen_with_strategy(const sparse_graph_t *fine, uint
         /* `n_coarse > 0` whenever `n_fine > 0` (the matching loop's
          * first iteration always emits a coarse vertex), but the
          * analyser doesn't track that across loops. */
-        idx_t *cluster_sizes =
-            (n_coarse > 0) ? calloc((size_t)n_coarse, sizeof(idx_t)) : NULL;
+        idx_t *cluster_sizes = (n_coarse > 0) ? calloc((size_t)n_coarse, sizeof(idx_t)) : NULL;
         idx_t matched = 0;
         if (cluster_sizes) {
             for (idx_t i = 0; i < n_fine; i++)

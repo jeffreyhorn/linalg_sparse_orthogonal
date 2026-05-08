@@ -498,6 +498,79 @@ static void test_nd_pres_poisson_fill_with_leaf_amd(void) {
     sparse_free(A);
 }
 
+/* ─── Sprint 27 Day 1: HCC Kuu default-flip blocker (failing-as-expected) ─
+
+ * Sprint 26 Day 13's combination matrix surfaced Kuu HCC-alone
+ * +14.6pp ND/AMD nnz_L regress as the SECOND HCC default-flip
+ * blocker (after Sprint 26 Day 3's bcsstk14 sep=0 fix unlocked the
+ * FIRST).  Day 1 of Sprint 27 captures HCC's matching choices and
+ * Kuu's degree distribution; the diagnosis (`SPRINT_27/
+ * hcc_kuu_diagnosis.md`) selects fix option (a.1) — adaptive
+ * HCC weighting via degree-CV-detection-and-HEM-fall-through —
+ * which Day 2 will implement.
+ *
+ * This test pins the post-fix Day-2 contract: under
+ * `SPARSE_ND_COARSENING=hcc`, Kuu nnz_L must stay within 5pp of
+ * the Sprint 26 default-strategy (HEM) ratio of 2.169× AMD.  Day 1
+ * captures: HEM = 881 177 (2.169×), HCC = 940 582 (2.315×) =
+ * +14.6pp regress.  Test fails today; Day 2's CV-fall-through fix
+ * lights it up.
+ *
+ * AMD nnz_L is pinned at the Day 1 capture (406 264) — bit-stable
+ * across Sprint 22-26 per the equivalent constant in
+ * `test_nd_pres_poisson_fill_with_leaf_amd` (PR #31 review
+ * pattern: avoid the runtime AMD reorder that pushes the test past
+ * 20 minutes).  Same Sprint 24 Day 7 / Sprint 26 Day 5 envelope:
+ * if a future commit changes AMD's fill quality on Kuu, the
+ * constant + the parallel `bench_amd_qg.c` capture diverge.
+ *
+ * Routes from `SPRINT_27/PLAN.md` Day 1 task 6.  Test placement:
+ * the plan named `tests/test_graph.c` but the fill-quality
+ * assertion needs `symbolic_cholesky_nnz_nd` from this file's
+ * private helper; placing here keeps the include surface clean.
+ * Documented in `SPRINT_27/hcc_kuu_diagnosis.md` "Day 1 Test Stub
+ * Placement".  */
+static void test_hcc_kuu_no_default_flip_blocker(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Kuu.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (Kuu fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    if (setenv("SPARSE_ND_COARSENING", "hcc", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
+        sparse_free(A);
+        return;
+    }
+
+    /* Day 1 capture; bit-stable across Sprint 22-26 per the
+     * test_nd_pres_poisson_fill_with_leaf_amd pattern (avoids
+     * 20-minute runtime AMD reorder). */
+    const idx_t nnz_amd = 406264;
+    idx_t nnz_nd = symbolic_cholesky_nnz_nd(A);
+    if (nnz_nd <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_nd returned %d (n=%d)", (int)nnz_nd, (int)sparse_rows(A));
+        goto cleanup;
+    }
+
+    double ratio = (double)nnz_nd / (double)nnz_amd;
+    fprintf(stderr,
+            "    Kuu (n=%d) under SPARSE_ND_COARSENING=hcc: AMD nnz(L) = %d, "
+            "ND nnz(L) = %d (ND/AMD = %.3f)\n",
+            (int)sparse_rows(A), (int)nnz_amd, (int)nnz_nd, ratio);
+
+    /* Sprint 26 default (HEM) baseline: ND/AMD = 2.169×.  Sprint 27
+     * Day 2 fix-rule: HCC must stay within 5pp = 2.219×.  Pre-fix
+     * Day 1 baseline: HCC = 2.315× (+14.6pp) — fails today; Day 2's
+     * CV-detection-and-HEM-fall-through lights this up. */
+    ASSERT_TRUE((long long)nnz_nd * 1000 <= (long long)nnz_amd * 2219);
+
+cleanup:
+    unsetenv("SPARSE_ND_COARSENING");
+    sparse_free(A);
+}
+
 /* ─── Public-API determinism contract ─────────────────────────────── */
 
 static void test_nd_determinism_public_api(void) {
@@ -786,6 +859,12 @@ int main(void) {
     /* Day 7: sparse_analyze integration + SuiteSparse smoke. */
     RUN_TEST(test_nd_bcsstk14_fill_vs_amd);
     RUN_TEST(test_nd_pres_poisson_fill_with_leaf_amd);
+    /* Sprint 27 Day 1: HCC Kuu default-flip blocker stub (fails until
+     * Day 2's CV-detection-and-HEM-fall-through fix).  Skip enabling
+     * RUN_TEST until Day 2 lands — surfacing a known-failing test in
+     * `make test` would block Day-1 CI, defeating the gate "Day 1
+     * lands diagnosis + design without breaking CI". */
+    /* RUN_TEST(test_hcc_kuu_no_default_flip_blocker); */
     RUN_TEST(test_nd_determinism_public_api);
     RUN_TEST(test_cholesky_via_nd_residual_spd_synth);
 

@@ -1,0 +1,103 @@
+Sprint 26 Day 7 — Pres_Poisson FINEST FM FIFO quick-look
+=========================================================
+
+Per PLAN.md Day 7 task 6: capture Pres_Poisson nnz_L under
+SPARSE_FM_FINEST_STRATEGY=fifo to verify the implementation is
+exercised + measure direction-of-effect on the headline fixture.
+
+Captured on the Day 7 commit (sparse_graph.c with tails[] +
+fm_bucket_pop_max_tail + fm_pop_use_tail thread-local override
+wired through graph_uncoarsen at the finest level).
+
+Pres_Poisson Day 7 measurements (nd_base_threshold=96 from Day 5)
+------------------------------------------------------------------
+
+| setting                         | nnz_L      | ND/AMD  | wall ms |
+|---------------------------------|-----------:|--------:|--------:|
+| baseline (Sprint 25)            | 2 536 427  | 0.9504× |  11 189 |
+| fifo alone (this commit)        | 2 615 031  | 0.9799× |   8 810 | <- +3pp REGRESSION
+| fifo + setting 13 (HCC+rat=200) | 2 583 021  | 0.9679× |  12 288 | <- +1.7pp regression vs setting 13 alone
+| setting 13 alone (HCC+rat=200)  | 2 459 934  | 0.9217× |   9 291 | <- still Sprint 25's best opt-in
+
+**Negative result on the headline fixture.**  FIFO regresses
+Pres_Poisson nnz_L both alone (+3pp) and combined with setting 13
+(+1.7pp vs setting 13 alone).  Day 4's profile-driven hypothesis
+(LIFO's deterministic tie-break trapped FM in local minima) does
+NOT hold on Pres_Poisson — FIFO's first-inserted-wins tie-break
+finds DIFFERENT cuts, but they're not better fill-quality cuts on
+the headline fixture.
+
+**Implementation is correct.**  FIFO produces a structurally
+valid, deterministic, demonstrably-different partition from
+baseline (verified via test_finest_fm_strategy_fifo_smoke on the
+30×30 grid).  The negative result on Pres_Poisson is an empirical
+fact about the fixture's FM landscape, not an implementation bug.
+
+Day 8 escalation
+----------------
+
+Per PLAN.md Day 8 task 1, the cross-corpus sweep will measure
+FIFO vs baseline on all 6 fixtures (nos4, bcsstk04, Kuu, bcsstk14,
+s3rmt3m3, Pres_Poisson) + selected combinations with Sprint 25's
+HCC + ratio=200 + intermediate-FM + spectral.  Expected outcomes:
+
+1. **No flip-rule clearance for Pres_Poisson**: this Day 7 quick-
+   look already shows FIFO regresses the headline fixture by 3pp.
+   Even if some smaller fixture wins, the PLAN.md flip rule
+   (≥1pp Pres_Poisson tightening) is not met.
+2. **Possible per-fixture advisory**: FIFO might win on Kuu or
+   bcsstk14 (irregular SPDs where Sprint 25's HCC + balanced_boundary
+   already showed FM-cascade exploration helps).  Day 8 measures.
+3. **Sub-axis (a) annealing as fallback**: Day 6's design rejected
+   annealing for cost reasons (+20-50% wall expansion), but with
+   Day 5's Pres_Poisson ND wall now at 8.8s under FIFO and 11.2s
+   under baseline (well under the 1.5× wall_check ceiling of
+   70.5s), annealing's wall budget is now affordable.  Day 8 can
+   pivot to annealing if FIFO falls fully short.
+
+Day 7 ships the FIFO infrastructure as a clean opt-in; Day 8 makes
+the production-default decision.
+
+References
+----------
+
+- docs/planning/EPIC_2/SPRINT_26/PLAN.md Day 7 + Day 8
+- docs/planning/EPIC_2/SPRINT_26/finest_fm_design.md — sub-axis
+  selection rationale (the hypothesis Day 7 falsifies on Pres_Poisson)
+- docs/planning/EPIC_2/SPRINT_26/per_recursion_profile_day4.md —
+  the per-depth profile that drove the FIFO selection
+- src/sparse_graph_fm_buckets.h — Day 7's tails[] addition
+- src/sparse_graph.c::fm_bucket_pop_max_tail — Day 7's FIFO pop variant
+
+Raw bench output (baseline / fifo / fifo+s13 / s13)
+----------------------------------------------------
+=== baseline ===
+matrix,n,reorder,nnz_L,reorder_ms,factor_ms
+Pres_Poisson,14822,NONE,5061932,0.0,skip
+Pres_Poisson,14822,RCM,3187081,139.7,skip
+Pres_Poisson,14822,AMD,2668793,8613.9,skip
+Pres_Poisson,14822,COLAMD,3415793,14463.6,skip
+Pres_Poisson,14822,ND,2536427,11189.1,skip
+=== fifo ===
+matrix,n,reorder,nnz_L,reorder_ms,factor_ms
+Pres_Poisson,14822,NONE,5061932,0.0,skip
+Pres_Poisson,14822,RCM,3187081,143.2,skip
+Pres_Poisson,14822,AMD,2668793,8867.5,skip
+Pres_Poisson,14822,COLAMD,3415793,14510.2,skip
+Pres_Poisson,14822,ND,2615031,8810.4,skip
+=== fifo + setting 13 (HCC + ratio=200) ===
+# nd_base_threshold=96, factor=no
+matrix,n,reorder,nnz_L,reorder_ms,factor_ms
+Pres_Poisson,14822,NONE,5061932,0.0,skip
+Pres_Poisson,14822,RCM,3187081,143.7,skip
+Pres_Poisson,14822,AMD,2668793,8836.9,skip
+Pres_Poisson,14822,COLAMD,3415793,14383.1,skip
+Pres_Poisson,14822,ND,2583021,12287.7,skip
+=== setting 13 alone (HCC + ratio=200) ===
+# nd_base_threshold=96, factor=no
+matrix,n,reorder,nnz_L,reorder_ms,factor_ms
+Pres_Poisson,14822,NONE,5061932,0.0,skip
+Pres_Poisson,14822,RCM,3187081,145.5,skip
+Pres_Poisson,14822,AMD,2668793,8921.8,skip
+Pres_Poisson,14822,COLAMD,3415793,14334.3,skip
+Pres_Poisson,14822,ND,2459934,9291.1,skip

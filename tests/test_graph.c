@@ -1102,6 +1102,136 @@ static void test_fm_intermediate_passes_smoke(void) {
     sparse_free(A);
 }
 
+/* Sprint 26 Day 7: SPARSE_FM_FINEST_STRATEGY=fifo differs-from-
+ * baseline contract pin.  Day 6 stubbed this on the 10×10 grid
+ * (which is too small to exercise FIFO's tie-break sensitivity —
+ * the symmetric optimal cuts converge to the same partition under
+ * FIFO and LIFO).  Day 7 uses a 30×30 grid (n=900) where FIFO
+ * actually produces a different partition than baseline.
+ *
+ * Test contract: under `SPARSE_FM_FINEST_STRATEGY=fifo` on a 30×30
+ * grid, partition produces (a) a structurally-valid result, (b) a
+ * partition that differs from the baseline strategy's, (c)
+ * deterministic across two runs (same input → same output).
+ *
+ * Pinning (b) is the smoke-level evidence that the FIFO pop variant
+ * is actually being exercised — without (b), the dispatch could be
+ * a no-op and the test would still pass.  Day 8's cross-corpus
+ * sweep is where the differs-from-baseline measurement scales up to
+ * the headline-fixture (Pres_Poisson) and decides flip-or-stay.
+ *
+ * See SPRINT_26/finest_fm_design.md for the sub-axis selection
+ * rationale + Day 6 / Day 7 / Day 8 split. */
+static void test_finest_fm_strategy_fifo_smoke(void) {
+    /* 30×30 grid: small enough to run quickly (~ms), large enough
+     * for FIFO and baseline to converge to different cuts.  Empirical:
+     * baseline sep=30, FIFO sep=30, but the partitions differ
+     * vertex-for-vertex (verified pre-test with a small ad-hoc
+     * comparison against /tmp/cmp_fifo.c during Day-7 development).
+     *
+     * PR #34 review fix: route every exit path through a single
+     * `cleanup:` block that frees the three buffers, frees G/A, and
+     * unsets SPARSE_FM_FINEST_STRATEGY.  The previous flow had two
+     * issues: (1) `ASSERT_NOT_NULL` is non-fatal (alloc failure
+     * would NULL-deref in subsequent partition calls + memcmp), and
+     * (2) `REQUIRE_OK` returns immediately on failure, leaving the
+     * env var set + buffers leaked across subsequent tests. */
+    SparseMatrix *A = NULL;
+    sparse_graph_t G = {0};
+    idx_t *part_baseline = NULL;
+    idx_t *part_fifo1 = NULL;
+    idx_t *part_fifo2 = NULL;
+    int env_set = 0;
+
+    A = make_grid_2d(30, 30);
+    if (!A) {
+        TF_FAIL_("make_grid_2d(%d, %d) returned NULL (OOM)", 30, 30);
+        goto cleanup;
+    }
+    sparse_err_t rc = sparse_graph_from_sparse(A, &G);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_from_sparse: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    ASSERT_EQ(G.n, 900);
+
+    /* Baseline run (env var unset). */
+    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    part_baseline = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_baseline) {
+        TF_FAIL_("malloc(part_baseline) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep_baseline = 0;
+    rc = sparse_graph_partition(&G, part_baseline, &sep_baseline);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(baseline): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    if (!check_partition_invariant(&G, part_baseline)) {
+        TF_FAIL_("baseline partition invariant failed (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+
+    /* FIFO run #1. */
+    if (setenv("SPARSE_FM_FINEST_STRATEGY", "fifo", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed; can't exercise env-var plumbing)\n");
+        goto cleanup;
+    }
+    env_set = 1;
+    part_fifo1 = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_fifo1) {
+        TF_FAIL_("malloc(part_fifo1) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep_fifo1 = 0;
+    rc = sparse_graph_partition(&G, part_fifo1, &sep_fifo1);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(fifo run #1): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    if (!check_partition_invariant(&G, part_fifo1)) {
+        TF_FAIL_("fifo run #1 partition invariant failed (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+
+    /* FIFO run #2 (determinism check). */
+    part_fifo2 = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_fifo2) {
+        TF_FAIL_("malloc(part_fifo2) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep_fifo2 = 0;
+    rc = sparse_graph_partition(&G, part_fifo2, &sep_fifo2);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(fifo run #2): rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    /* (a) FIFO determinism: same input → same output. */
+    ASSERT_EQ(sep_fifo1, sep_fifo2);
+    ASSERT_EQ(memcmp(part_fifo1, part_fifo2, (size_t)G.n * sizeof(idx_t)), 0);
+
+    /* (b) FIFO differs from baseline: at least one vertex's part
+     * differs, OR the sep counts differ.  This is the smoke-level
+     * evidence that the FIFO pop variant is actually being
+     * exercised. */
+    int differs = (sep_baseline != sep_fifo1) ||
+                  (memcmp(part_baseline, part_fifo1, (size_t)G.n * sizeof(idx_t)) != 0);
+    printf("    30x30 grid: baseline sep=%d, fifo sep=%d, partitions %s\n", (int)sep_baseline,
+           (int)sep_fifo1, differs ? "DIFFER (FIFO active)" : "match");
+    ASSERT_TRUE(differs);
+
+cleanup:
+    if (env_set)
+        unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    free(part_baseline);
+    free(part_fifo1);
+    free(part_fifo2);
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
 /* ─── 5×5×5 3D mesh: separator ≈ 25 (one mid-plane) ──────────────── */
 
 static void test_partition_5x5x5_mesh(void) {
@@ -1813,6 +1943,73 @@ static void test_partition_bcsstk14_smoke(void) {
     run_suitesparse_partition_smoke(SS_DIR "/bcsstk14.mtx", 1806);
 }
 
+/* Sprint 26 Day 3: HCC bcsstk14 sep > 0 contract (after sep=0 fall-back
+ * lands in `sparse_graph_partition`).  Sprint 25 Day 10's attempted
+ * HCC default flip surfaced that `SPARSE_ND_COARSENING=hcc` produces a
+ * degenerate empty separator (`sep == 0`) on bcsstk14, blocking the
+ * production-default flip.  Day 3's `sparse_graph_partition` sep=0
+ * fall-back retries with HEM forced via thread-local override; bcsstk14
+ * recovers sep > 0 (HEM works on bcsstk14 per Sprint 22 baseline).
+ *
+ * Test contract: under `SPARSE_ND_COARSENING=hcc`, partitioning
+ * bcsstk14 produces sep > 0 + check_partition_invariant passes (i.e.
+ * the partition is well-formed).  Pin via the same assertions as the
+ * default-strategy `test_partition_bcsstk14_smoke`; the only
+ * difference is the env-var override. */
+static void test_hcc_bcsstk14_no_degenerate_partition(void) {
+    /* PR #34 review fix: route every exit through a single `cleanup:`
+     * block.  Previous flow had two issues: (1) `ASSERT_NOT_NULL(part)`
+     * was non-fatal — alloc failure would NULL-deref in the
+     * subsequent partition call; (2) `REQUIRE_OK(prc)` after the
+     * partition would return immediately on failure, leaving
+     * SPARSE_ND_COARSENING set + buffers leaked across subsequent
+     * tests in the same process. */
+    SparseMatrix *A = NULL;
+    sparse_graph_t G = {0};
+    idx_t *part = NULL;
+
+    if (setenv("SPARSE_ND_COARSENING", "hcc", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
+        goto cleanup;
+    }
+
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 not loadable: %d)\n", (int)rc);
+        goto cleanup;
+    }
+
+    rc = sparse_graph_from_sparse(A, &G);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_from_sparse: rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    part = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part) {
+        TF_FAIL_("malloc(part) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep = 0;
+    sparse_err_t prc = sparse_graph_partition(&G, part, &sep);
+    if (prc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition: rc=%d", (int)prc);
+        goto cleanup;
+    }
+    printf("    bcsstk14 under SPARSE_ND_COARSENING=hcc: sep=%d (Sprint 26 Day 3 fall-back "
+           "recovered)\n",
+           (int)sep);
+    ASSERT_TRUE(sep > 0);
+    ASSERT_TRUE(sep < G.n);
+    ASSERT_TRUE(check_partition_invariant(&G, part));
+
+cleanup:
+    unsetenv("SPARSE_ND_COARSENING");
+    free(part);
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
 static void test_partition_pres_poisson_smoke(void) {
     /* Pres_Poisson is a 2D Poisson-on-irregular-grid fixture — the
      * canonical mesh shape ND was designed for.  Expected to produce
@@ -1872,6 +2069,9 @@ int main(void) {
      * SPARSE_FM_INTERMEDIATE_PASSES (multi-pass FM at intermediate
      * uncoarsening levels). */
     RUN_TEST(test_fm_intermediate_passes_smoke);
+    /* Sprint 26 Day 6: SPARSE_FM_FINEST_STRATEGY=fifo plumbing
+     * stub; Day 7 tightens to differs-from-baseline assertion. */
+    RUN_TEST(test_finest_fm_strategy_fifo_smoke);
     /* Sprint 25 Day 6 stubs (Day 7-8 land asserts): */
     RUN_TEST(test_spectral_bisection_eigenvalue_ordering);
     RUN_TEST(test_spectral_bisection_gggp_fallback);
@@ -1882,6 +2082,9 @@ int main(void) {
     RUN_TEST(test_spectral_bisection_lanczos_failure);
     RUN_TEST(test_partition_5x5x5_mesh);
     RUN_TEST(test_partition_two_k10_with_bridge);
+    /* Sprint 26 Day 2: stub for HCC bcsstk14 sep=0 blocker; Day 3
+     * tightens the assertion after the sep=0 fall-back fix lands. */
+    RUN_TEST(test_hcc_bcsstk14_no_degenerate_partition);
     RUN_TEST(test_edge_to_vertex_separator_smaller_side);
     RUN_TEST(test_partition_singleton);
     RUN_TEST(test_partition_null_args);

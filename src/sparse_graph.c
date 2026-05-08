@@ -114,6 +114,7 @@
 #include "sparse_matrix_internal.h"
 
 #include <stdint.h>
+#include <stdio.h> /* Sprint 26 Day 1: SPARSE_HCC_DEBUG-gated cmap-emit instrumentation */
 #include <stdlib.h>
 #include <string.h>
 
@@ -406,7 +407,31 @@ typedef enum {
     COARSENING_HCC = 1,        /* Sprint 25 Day 2-3 — Heavy Connectivity Coarsening */
 } coarsening_strategy_t;
 
+/* Sprint 26 Day 3: thread-local override for the sep=0 fall-back.
+ * `sparse_graph_partition` sets this to 1 before retrying a degenerate
+ * partition, forcing `parse_coarsening_strategy()` to return
+ * `COARSENING_HEAVY_EDGE` regardless of the env var.  Restored to 0
+ * after the retry.  `_Thread_local` keeps concurrent partition calls
+ * race-free.  See `SPRINT_26/hcc_sep_zero_diagnosis.md` for why
+ * option (b) `sparse_graph_partition` sep=0 fall-back was chosen
+ * over option (a) HCC matching tightening. */
+static _Thread_local int force_hem_override = 0;
+
+/* Sprint 26 Day 7: thread-local override for the FINEST FM FIFO
+ * tie-break.  `graph_uncoarsen` sets this to 1 before invoking
+ * `graph_refine_fm` at the finest level when
+ * SPARSE_FM_FINEST_STRATEGY=fifo, restores to 0 after.
+ * `graph_refine_fm` reads this once on entry and dispatches to
+ * `fm_bucket_pop_max_tail` (FIFO) or `fm_bucket_pop_max` (LIFO,
+ * Sprint 23 baseline) accordingly.  `_Thread_local` keeps
+ * concurrent FM calls race-free.  See
+ * `docs/planning/EPIC_2/SPRINT_26/finest_fm_design.md`. */
+static _Thread_local int fm_pop_use_tail = 0;
+
 static coarsening_strategy_t parse_coarsening_strategy(void) {
+    /* Sprint 26 Day 3: sep=0 retry path forces HEM. */
+    if (force_hem_override)
+        return COARSENING_HEAVY_EDGE;
     const char *env = getenv("SPARSE_ND_COARSENING");
     if (env && strcmp(env, "hcc") == 0)
         return COARSENING_HCC;
@@ -417,11 +442,10 @@ static coarsening_strategy_t parse_coarsening_strategy(void) {
      * Pres_Poisson ND/AMD by 3pp but Day 10 verification surfaced a
      * bcsstk14 regression: under HCC the multilevel partition
      * produces a degenerate empty separator (sep=0) on bcsstk14
-     * regardless of the ratio setting, which test_partition_bcsstk14_smoke
-     * pins as a correctness contract.  HCC ships as advisory
-     * (`SPARSE_ND_COARSENING=hcc`) and the recommended advisory
-     * combination is HCC + ratio=200 for Pres_Poisson-shaped
-     * workloads that don't share bcsstk14's sensitivity.
+     * regardless of the ratio setting.  Sprint 26 Day 3 closed the
+     * blocker via the sep=0 fall-back in `sparse_graph_partition`
+     * (this file): if the multilevel pipeline produces sep=0, retry
+     * with HEM forced via `force_hem_override`.
      *
      * Default + unrecognized + "heavy_edge" all fall through to
      * Sprint 22's heavy-edge matching baseline. */
@@ -535,6 +559,54 @@ static sparse_err_t graph_coarsen_with_strategy(const sparse_graph_t *fine, uint
         n_coarse++;
     }
     free(perm);
+
+    /* Sprint 26 Day 1: SPARSE_HCC_DEBUG-gated cmap-emit instrumentation
+     * for Day 2's bcsstk14 sep=0 root-cause investigation.  Off by
+     * default (one branch + one getenv per coarsening call); on
+     * (`SPARSE_HCC_DEBUG=1`) emits per-call stderr lines with the
+     * strategy, fine/coarse vertex counts, matching-coverage ratio,
+     * and the per-vertex cmap.  Comparing HCC vs HEM traces on
+     * bcsstk14 should identify which matching choice triggers the
+     * downstream degenerate partition.  Routed from
+     * `SPRINT_25/RETROSPECTIVE.md` "Items deferred" #2 +
+     * `coarsening_decision.md` "Two test failures surfaced under the
+     * new defaults". */
+    if (getenv("SPARSE_HCC_DEBUG")) {
+        const char *strategy_name = (strategy == COARSENING_HCC) ? "hcc" : "heavy_edge";
+        /* PR #34 review fix: compute "fraction of vertices in a
+         * coarse cluster of size > 1" via a two-pass O(n) scan over
+         * cmap_out (was an O(n^2) `matched += 2` walk that double-
+         * incremented across clusters of size > 2 and could push
+         * match_ratio above 1.0).  Gracefully degrades to ratio=0
+         * if the cluster_sizes calloc fails — debug-only path, the
+         * fall-back is a quiet 0 rather than aborting the
+         * coarsening call. */
+        /* `n_coarse > 0` whenever `n_fine > 0` (the matching loop's
+         * first iteration always emits a coarse vertex), but the
+         * analyser doesn't track that across loops. */
+        idx_t *cluster_sizes = (n_coarse > 0) ? calloc((size_t)n_coarse, sizeof(idx_t)) : NULL;
+        idx_t matched = 0;
+        if (cluster_sizes) {
+            for (idx_t i = 0; i < n_fine; i++)
+                cluster_sizes[cmap_out[i]]++;
+            for (idx_t i = 0; i < n_fine; i++) {
+                if (cluster_sizes[cmap_out[i]] > 1)
+                    matched++;
+            }
+            free(cluster_sizes);
+        }
+        double match_ratio = (n_fine > 0) ? (double)matched / (double)n_fine : 0.0;
+        fprintf(stderr, "hcc-debug strategy=%s n_fine=%d n_coarse=%d match_ratio=%.3f\n",
+                strategy_name, (int)n_fine, (int)n_coarse, match_ratio);
+        /* Emit cmap in groups of 16 per line for readability. */
+        for (idx_t i = 0; i < n_fine; i += 16) {
+            idx_t end = (i + 16 > n_fine) ? n_fine - 1 : i + 15;
+            fprintf(stderr, "hcc-debug cmap[%d..%d] =", (int)i, (int)end);
+            for (idx_t j = i; j < n_fine && j < i + 16; j++)
+                fprintf(stderr, " %d", (int)cmap_out[j]);
+            fprintf(stderr, "\n");
+        }
+    }
 
     /* Every fine vertex is mapped to a coarse vertex by the matching
      * loop above (the first iteration with cmap_out[v] == -1 always
@@ -1492,22 +1564,27 @@ sparse_err_t fm_bucket_array_init(fm_bucket_array_t *arr, idx_t n_vertices, idx_
         return SPARSE_ERR_ALLOC; /* link_len * sizeof(idx_t) overflows size_t */
 
     arr->heads = malloc((size_t)num_buckets * sizeof(idx_t));
+    arr->tails = malloc((size_t)num_buckets * sizeof(idx_t));
     arr->counts = calloc((size_t)num_buckets, sizeof(idx_t));
     arr->next = malloc(link_len * sizeof(idx_t));
     arr->prev = malloc(link_len * sizeof(idx_t));
-    if (!arr->heads || !arr->counts || !arr->next || !arr->prev) {
+    if (!arr->heads || !arr->tails || !arr->counts || !arr->next || !arr->prev) {
         free(arr->heads);
+        free(arr->tails);
         free(arr->counts);
         free(arr->next);
         free(arr->prev);
         arr->heads = NULL;
+        arr->tails = NULL;
         arr->counts = NULL;
         arr->next = NULL;
         arr->prev = NULL;
         return SPARSE_ERR_ALLOC;
     }
-    for (idx_t i = 0; i < num_buckets; i++)
+    for (idx_t i = 0; i < num_buckets; i++) {
         arr->heads[i] = FM_BUCKET_EMPTY;
+        arr->tails[i] = FM_BUCKET_EMPTY;
+    }
     arr->n_vertices = n_vertices;
     arr->max_gain = max_gain;
     arr->bucket_offset = max_gain;
@@ -1520,10 +1597,12 @@ void fm_bucket_array_free(fm_bucket_array_t *arr) {
     if (!arr)
         return;
     free(arr->heads);
+    free(arr->tails);
     free(arr->counts);
     free(arr->next);
     free(arr->prev);
     arr->heads = NULL;
+    arr->tails = NULL;
     arr->counts = NULL;
     arr->next = NULL;
     arr->prev = NULL;
@@ -1542,6 +1621,12 @@ void fm_bucket_insert(fm_bucket_array_t *arr, idx_t vertex, idx_t gain) {
     arr->next[vertex] = arr->heads[bucket];
     if (arr->heads[bucket] != FM_BUCKET_EMPTY)
         arr->prev[arr->heads[bucket]] = vertex;
+    else
+        /* Sprint 26 Day 7: inserting into a previously-empty bucket
+         * makes this vertex both the head AND the tail.  Otherwise
+         * the existing tail (the first-inserted vertex) stays at
+         * the tail end of the chain. */
+        arr->tails[bucket] = vertex;
     arr->heads[bucket] = vertex;
     arr->counts[bucket]++;
     if (bucket > arr->cursor)
@@ -1558,6 +1643,12 @@ void fm_bucket_remove(fm_bucket_array_t *arr, idx_t vertex, idx_t gain) {
         arr->heads[bucket] = n;
     if (n != FM_BUCKET_EMPTY)
         arr->prev[n] = p;
+    else
+        /* Sprint 26 Day 7: removing the tail vertex (next[v] == EMPTY)
+         * means the previous vertex becomes the new tail.  If there
+         * was no previous (single-element bucket), tail goes to EMPTY
+         * — `p == FM_BUCKET_EMPTY` covers that case too. */
+        arr->tails[bucket] = p;
     arr->counts[bucket]--;
     /* Cursor walk-down: if we just emptied the cursor's bucket, slide
      * the cursor down past every empty bucket below it.  Worst-case
@@ -1584,11 +1675,39 @@ sparse_err_t fm_bucket_pop_max(fm_bucket_array_t *arr, idx_t *vertex_out, idx_t 
     return SPARSE_OK;
 }
 
+/* Sprint 26 Day 7: FIFO pop variant — pops the cursor bucket's tail
+ * (first-inserted vertex among the equal-gain tie group) instead of
+ * the head (most-recently inserted).  Used by FM under
+ * SPARSE_FM_FINEST_STRATEGY=fifo to break the saturation Sprint 25
+ * Day 5 measured.  See SPRINT_26/finest_fm_design.md. */
+sparse_err_t fm_bucket_pop_max_tail(fm_bucket_array_t *arr, idx_t *vertex_out, idx_t *gain_out) {
+    if (!arr || !vertex_out || !gain_out)
+        return SPARSE_ERR_NULL;
+    if (arr->cursor < 0)
+        return SPARSE_ERR_BOUNDS;
+    idx_t bucket = arr->cursor;
+    idx_t v = arr->tails[bucket];
+    idx_t g = bucket - arr->bucket_offset;
+    fm_bucket_remove(arr, v, g);
+    *vertex_out = v;
+    *gain_out = g;
+    return SPARSE_OK;
+}
+
 sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
     if (!G || !part_io)
         return SPARSE_ERR_NULL;
     if (G->n == 0)
         return SPARSE_OK;
+
+    /* Sprint 26 Day 7: pick the pop-strategy based on the thread-
+     * local override.  `graph_uncoarsen` sets `fm_pop_use_tail = 1`
+     * before invoking `graph_refine_fm` at the finest level under
+     * SPARSE_FM_FINEST_STRATEGY=fifo; default 0 = Sprint 23 LIFO
+     * pop (head).  Read once on entry to avoid per-iteration
+     * branching in the FM hot loop. */
+    sparse_err_t (*pop_max)(fm_bucket_array_t *, idx_t *, idx_t *) =
+        fm_pop_use_tail ? fm_bucket_pop_max_tail : fm_bucket_pop_max;
 
     idx_t n = G->n;
 
@@ -1715,7 +1834,7 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
         while (buckets.cursor >= 0) {
             idx_t v = -1;
             idx_t g = 0;
-            sparse_err_t pop_rc = fm_bucket_pop_max(&buckets, &v, &g);
+            sparse_err_t pop_rc = pop_max(&buckets, &v, &g);
             if (pop_rc != SPARSE_OK)
                 break;
             in_bucket[v] = 0;
@@ -1901,6 +2020,52 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
         }
     }
 
+    /* Sprint 26 Day 6: SPARSE_FM_FINEST_STRATEGY env-var parser
+     * stub.  Day 4's per-recursion-level profile identified
+     * sub-axis (b) bucket-tie-break (FIFO via tails[]) as the
+     * highest-leverage, lowest-risk Item 5 candidate;
+     * SPRINT_26/finest_fm_design.md picks `fifo` as the value name
+     * for the new pop-from-tail variant.  Day 6 lands the parser
+     * + a no-op dispatch (all values fall through to baseline);
+     * Day 7 implements `fifo` semantics; Day 8 sweeps + decides
+     * whether to flip default.
+     *
+     * Range: {baseline, fifo, annealing, thick_restart}.  Default
+     * `baseline` (Sprint 23 LIFO-on-insertion-order behavior) is
+     * preserved bit-identically.  Out-of-range / non-numeric /
+     * missing → baseline.  Sub-axes annealing + thick_restart are
+     * recognized as valid values for forward-compatibility but
+     * unimplemented in Sprint 26 (rejected per Day 4 design); they
+     * fall through to baseline.  See SPRINT_26/finest_fm_design.md
+     * "Rejected alternatives" for the reasoning. */
+    enum {
+        FINEST_FM_BASELINE = 0,
+        FINEST_FM_FIFO = 1,
+        FINEST_FM_ANNEALING = 2,
+        FINEST_FM_THICK_RESTART = 3,
+    } finest_strategy = FINEST_FM_BASELINE;
+    {
+        const char *env = getenv("SPARSE_FM_FINEST_STRATEGY");
+        if (env) {
+            if (strcmp(env, "fifo") == 0)
+                finest_strategy = FINEST_FM_FIFO;
+            else if (strcmp(env, "annealing") == 0)
+                finest_strategy = FINEST_FM_ANNEALING;
+            else if (strcmp(env, "thick_restart") == 0)
+                finest_strategy = FINEST_FM_THICK_RESTART;
+            /* Unrecognized + "baseline" both fall through to
+             * FINEST_FM_BASELINE. */
+        }
+    }
+    /* Sprint 26 Day 7 dispatch: only `fifo` is wired (sets
+     * `fm_pop_use_tail = 1` for the finest-level call below;
+     * restored to 0 after).  `annealing` + `thick_restart` are
+     * recognized for forward-compatibility but unimplemented per
+     * Day 6 design (rejected: annealing 20-50% wall expansion;
+     * thick-restart 200-300% would breach 1.5x wall-check).
+     * Both fall through to baseline behavior — they're effectively
+     * no-ops today, future-sprint scope. */
+
     /* Sprint 25 Day 4: SPARSE_FM_INTERMEDIATE_PASSES extends the
      * Sprint 23 Day 11 multi-pass-FM exploration from the finest
      * uncoarsening level to the second-finest (level == 1) and
@@ -1958,14 +2123,25 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
         } else {
             passes = 1;
         }
+        /* Sprint 26 Day 7: at the finest level (level == 0) under
+         * SPARSE_FM_FINEST_STRATEGY=fifo, set the thread-local
+         * pop-strategy override so graph_refine_fm uses
+         * fm_bucket_pop_max_tail (FIFO; first-inserted wins) instead
+         * of the default fm_bucket_pop_max (LIFO; most-recently-
+         * inserted wins).  Restore after this level's passes finish. */
+        int prev_pop_use_tail = fm_pop_use_tail;
+        if (level == 0 && finest_strategy == FINEST_FM_FIFO)
+            fm_pop_use_tail = 1;
         for (int p = 0; p < passes; p++) {
             sparse_err_t rc = graph_refine_fm(dst_graph, next);
             if (rc != SPARSE_OK) {
+                fm_pop_use_tail = prev_pop_use_tail;
                 free(cur);
                 free(next);
                 return rc;
             }
         }
+        fm_pop_use_tail = prev_pop_use_tail;
         idx_t *tmp = cur;
         cur = next;
         next = tmp;
@@ -1976,6 +2152,78 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
     free(cur);
     free(next);
     return SPARSE_OK;
+}
+
+/* Sprint 26 Day 10: separator-lift strategy enum.  Day 10 extends
+ * Sprint 24 Day 6's two-value scheme with a third `per_vertex` value:
+ * score boundary vertices individually + greedily pick top-K
+ * regardless of side (vs the Sprint 22 / 24 side-then-lift heuristics
+ * which lift one entire side's boundary).  See
+ * `docs/planning/EPIC_2/SPRINT_26/per_vertex_sep_design.md`. */
+typedef enum {
+    SEP_LIFT_SMALLER_WEIGHT = 0,    /* Sprint 22 default — METIS convention */
+    SEP_LIFT_BALANCED_BOUNDARY = 1, /* Sprint 24 Day 6 advisory */
+    /* Sprint 26 Day 10/12 — per-vertex score + top-K.  Three preset
+     * weight schemes per PLAN.md Day 12 task 1: hybrid (default;
+     * cross_deg-priority + balance tie-break — Day 10's formula),
+     * balance (balance-priority; balance-bonus dominates), degree
+     * (low-total-degree priority + balance tie-break).  All three
+     * use the same greedy 70/30-balance-respecting top-K selection;
+     * only the score formula differs. */
+    SEP_LIFT_PER_VERTEX_HYBRID = 2,  /* SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex */
+    SEP_LIFT_PER_VERTEX_BALANCE = 3, /* SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_balance */
+    SEP_LIFT_PER_VERTEX_DEGREE = 4,  /* SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_degree */
+} sep_lift_strategy_t;
+
+static sep_lift_strategy_t parse_sep_lift_strategy(void) {
+    const char *env = getenv("SPARSE_ND_SEP_LIFT_STRATEGY");
+    if (!env)
+        return SEP_LIFT_SMALLER_WEIGHT;
+    if (strcmp(env, "balanced_boundary") == 0)
+        return SEP_LIFT_BALANCED_BOUNDARY;
+    if (strcmp(env, "per_vertex") == 0)
+        return SEP_LIFT_PER_VERTEX_HYBRID;
+    if (strcmp(env, "per_vertex_balance") == 0)
+        return SEP_LIFT_PER_VERTEX_BALANCE;
+    if (strcmp(env, "per_vertex_degree") == 0)
+        return SEP_LIFT_PER_VERTEX_DEGREE;
+    /* Default + unrecognized + "smaller_weight" all fall through. */
+    return SEP_LIFT_SMALLER_WEIGHT;
+}
+
+/* Sprint 26 Day 12: returns 1 if the strategy is any per_vertex
+ * variant.  Used to gate the per-vertex code path entry. */
+static int is_per_vertex_strategy(sep_lift_strategy_t s) {
+    return s == SEP_LIFT_PER_VERTEX_HYBRID || s == SEP_LIFT_PER_VERTEX_BALANCE ||
+           s == SEP_LIFT_PER_VERTEX_DEGREE;
+}
+
+/* Sprint 26 Day 10/12: qsort comparator for per-vertex separator
+ * scoring.  Sorts boundary-vertex indices DESCENDING by score
+ * (highest score first).  Score is computed by one of three formulas
+ * (HYBRID / BALANCE / DEGREE) — see graph_edge_separator_to_vertex_separator.
+ *
+ * `score` is `int64_t` (PR #34 review fix; was `idx_t`/int32_t):
+ * BALANCE and DEGREE schemes use `1000 * (...)` multipliers that can
+ * overflow int32 on graphs with vertex degrees approaching ~2M, which
+ * would corrupt the qsort ordering and make the comparator non-
+ * transitive.  int64_t lifts the worst-case to ~9.2e18 — beyond any
+ * plausible graph size in this codebase. */
+typedef struct {
+    idx_t vertex;
+    int64_t score;
+} per_vertex_score_t;
+
+static int per_vertex_score_cmp_desc(const void *a, const void *b) {
+    const per_vertex_score_t *pa = (const per_vertex_score_t *)a;
+    const per_vertex_score_t *pb = (const per_vertex_score_t *)b;
+    /* DESCENDING: higher score first.  Tie-break by lower vertex id
+     * (deterministic when scores tie). */
+    if (pa->score != pb->score)
+        return (pa->score < pb->score) ? 1 : -1;
+    if (pa->vertex != pb->vertex)
+        return (pa->vertex > pb->vertex) ? 1 : -1;
+    return 0;
 }
 
 sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, idx_t *part_io) {
@@ -2030,49 +2278,188 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
     /* Strategy selection.  Default `smaller_weight` reproduces the
      * Sprint 22 Day 4 behaviour: lift the side with smaller vertex
      * weight.  `balanced_boundary` (Sprint 24 Day 6) lifts the side
-     * with the smaller boundary count — minimises the separator size
-     * directly instead of via the weight-imbalance proxy.  If the
-     * resulting post-lift weight ratio would be worse than 70/30, we
-     * fall back to `smaller_weight` to preserve the recursion-depth
-     * argument the METIS convention rests on. */
+     * with the smaller boundary count.  `per_vertex` (Sprint 26 Day
+     * 10) scores each boundary vertex individually + greedily picks
+     * top-K regardless of side, maintaining the 70/30 post-lift
+     * balance check.  All non-default strategies fall back to
+     * smaller_weight if the post-lift balance would be worse than
+     * 70/30. */
+    sep_lift_strategy_t strategy = parse_sep_lift_strategy();
     idx_t smaller_weight_side = (w[1] < w[0]) ? 1 : 0;
     idx_t lift_side = smaller_weight_side;
-    {
-        const char *env = getenv("SPARSE_ND_SEP_LIFT_STRATEGY");
-        if (env && strcmp(env, "balanced_boundary") == 0) {
-            /* Pick the smaller-boundary side; ties go to side 0 to
-             * match the smaller_weight tie-break convention. */
-            idx_t bb_side = (boundary_count[1] < boundary_count[0]) ? 1 : 0;
-            /* Project the post-lift weight balance: the lift side
-             * loses `boundary_weight[bb_side]` in vertex weight (those
-             * vertices become separator), the other side keeps its
-             * weight.  Reject the choice if either side exceeds 70 %
-             * of the post-lift total. */
-            idx_t lift_w = w[bb_side] - boundary_weight[bb_side];
-            idx_t other_w = w[1 - bb_side];
-            idx_t total_w = lift_w + other_w;
-            int balanced = 1;
-            if (total_w > 0) {
-                /* `10 * max > 7 * total` ⇔ max/total > 0.7 — avoids
-                 * floating-point.  Compute in int64_t to avoid
-                 * overflow when graphs grow beyond INT32_MAX/10 ≈
-                 * 214M-vertex weights (idx_t = int32_t).  Boundary-
-                 * weight values are vertex counts on a graph level
-                 * and unlikely to approach that ceiling in practice,
-                 * but the wider arithmetic costs nothing here and
-                 * removes the overflow concern entirely. */
-                idx_t max_w = (lift_w > other_w) ? lift_w : other_w;
-                if ((int64_t)10 * (int64_t)max_w > (int64_t)7 * (int64_t)total_w)
-                    balanced = 0;
+    int per_vertex_active = 0; /* Sprint 26 Day 10: 1 → use the
+                                  per_vertex_lifted[] array below
+                                  instead of per-side mass-lift. */
+    int *per_vertex_lifted = NULL;
+
+    if (strategy == SEP_LIFT_BALANCED_BOUNDARY) {
+        /* Pick the smaller-boundary side; ties go to side 0 to
+         * match the smaller_weight tie-break convention. */
+        idx_t bb_side = (boundary_count[1] < boundary_count[0]) ? 1 : 0;
+        idx_t lift_w = w[bb_side] - boundary_weight[bb_side];
+        idx_t other_w = w[1 - bb_side];
+        idx_t total_w = lift_w + other_w;
+        int balanced = 1;
+        if (total_w > 0) {
+            idx_t max_w = (lift_w > other_w) ? lift_w : other_w;
+            if ((int64_t)10 * (int64_t)max_w > (int64_t)7 * (int64_t)total_w)
+                balanced = 0;
+        }
+        if (balanced)
+            lift_side = bb_side;
+    } else if (is_per_vertex_strategy(strategy)) {
+        /* Sprint 26 Day 10/12 — per-vertex separator scoring with
+         * three preset weight schemes.
+         *
+         * Score formulas (all compute cross_deg + total_deg + side
+         * for each boundary vertex; combine via different weights):
+         *   - HYBRID  (default per_vertex; Day 10): `2 * cross_deg + balance_bonus`
+         *     — cross-degree-dominant; balance is tie-break.
+         *   - BALANCE (per_vertex_balance; Day 12 task 1):
+         *     `1000 * balance_bonus + cross_deg` — balance dominates;
+         *     cross-degree is tie-break.  Expects Kuu-class wins
+         *     (irregular SPDs where balanced_boundary already shines).
+         *   - DEGREE  (per_vertex_degree; Day 12 task 1):
+         *     `1000 * (max_deg - total_deg) + balance_bonus` — low
+         *     total-degree dominates; balance is tie-break.  Expects
+         *     regular-grid wins by avoiding high-degree separator
+         *     vertices.
+         *
+         * (max_deg in DEGREE is the maximum degree across all boundary
+         * vertices on this graph level — used to reverse the sort
+         * direction without a negative-int hack.)
+         *
+         * Selection: sort all boundary vertices by score descending,
+         * greedily lift one-by-one while maintaining 70/30 post-lift
+         * weight balance.  Stop on imbalance violation; if K=0 (can't
+         * lift anything safely), fall back to smaller_weight via the
+         * existing lift_side = smaller_weight_side default below.
+         *
+         * See SPRINT_26/per_vertex_sep_design.md for the full rationale
+         * + Day 12 sweep dimensions. */
+        idx_t total_boundary = boundary_count[0] + boundary_count[1];
+        if (total_boundary > 0) {
+            per_vertex_score_t *scored =
+                malloc((size_t)total_boundary * sizeof(per_vertex_score_t));
+            if (!scored) {
+                free(is_boundary);
+                return SPARSE_ERR_ALLOC;
             }
-            if (balanced)
-                lift_side = bb_side;
+            idx_t larger_side = (w[0] >= w[1]) ? 0 : 1;
+            /* For DEGREE scheme: find max degree among boundary
+             * vertices (one-pass pre-scan; small overhead vs the
+             * boundary-walk below). */
+            idx_t max_deg = 0;
+            if (strategy == SEP_LIFT_PER_VERTEX_DEGREE) {
+                for (idx_t v = 0; v < G->n; v++) {
+                    if (!is_boundary[v])
+                        continue;
+                    idx_t deg = G->xadj[v + 1] - G->xadj[v];
+                    if (deg > max_deg)
+                        max_deg = deg;
+                }
+            }
+            idx_t bidx = 0;
+            for (idx_t v = 0; v < G->n; v++) {
+                if (!is_boundary[v])
+                    continue;
+                idx_t side = part_io[v];
+                idx_t other = 1 - side;
+                idx_t cross_deg = 0;
+                for (idx_t k = G->xadj[v]; k < G->xadj[v + 1]; k++) {
+                    idx_t j = G->adjncy[k];
+                    if (part_io[j] == other)
+                        cross_deg++;
+                }
+                idx_t balance_bonus = (side == larger_side) ? 1 : 0;
+                /* PR #34 review fix: compute multiplications in int64
+                 * before assigning to `score`.  BALANCE / DEGREE schemes'
+                 * `1000 * (...)` multipliers can overflow int32 on
+                 * graphs with vertex degrees approaching ~2M, which
+                 * would corrupt qsort ordering. */
+                int64_t score = 0;
+                switch (strategy) {
+                case SEP_LIFT_PER_VERTEX_HYBRID:
+                default:
+                    /* cross_deg dominant; balance tie-break. */
+                    score = (int64_t)2 * (int64_t)cross_deg + (int64_t)balance_bonus;
+                    break;
+                case SEP_LIFT_PER_VERTEX_BALANCE:
+                    /* balance dominant; cross_deg tie-break. */
+                    score = (int64_t)1000 * (int64_t)balance_bonus + (int64_t)cross_deg;
+                    break;
+                case SEP_LIFT_PER_VERTEX_DEGREE: {
+                    /* low total-degree dominant; balance tie-break. */
+                    idx_t deg = G->xadj[v + 1] - G->xadj[v];
+                    score = (int64_t)1000 * (int64_t)(max_deg - deg) + (int64_t)balance_bonus;
+                    break;
+                }
+                }
+                scored[bidx].vertex = v;
+                scored[bidx].score = score;
+                bidx++;
+            }
+            /* Sort descending by score. */
+            qsort(scored, (size_t)total_boundary, sizeof(per_vertex_score_t),
+                  per_vertex_score_cmp_desc);
+
+            /* Greedy pick + 70/30 balance projection.  Track running
+             * w0/w1 as if the picked vertices are removed from their
+             * original side (to become separator).  Stop on imbalance. */
+            per_vertex_lifted = calloc((size_t)G->n, sizeof(int));
+            if (!per_vertex_lifted) {
+                free(scored);
+                free(is_boundary);
+                return SPARSE_ERR_ALLOC;
+            }
+            idx_t cur_w0 = w[0], cur_w1 = w[1];
+            idx_t lifted_count = 0;
+            for (idx_t k = 0; k < total_boundary; k++) {
+                idx_t v = scored[k].vertex;
+                idx_t side = part_io[v];
+                idx_t vw = G->vwgt ? G->vwgt[v] : 1;
+                idx_t new_w0 = cur_w0;
+                idx_t new_w1 = cur_w1;
+                if (side == 0)
+                    new_w0 -= vw;
+                else
+                    new_w1 -= vw;
+                idx_t total_w = new_w0 + new_w1;
+                if (total_w > 0) {
+                    idx_t max_w = (new_w0 > new_w1) ? new_w0 : new_w1;
+                    if ((int64_t)10 * (int64_t)max_w > (int64_t)7 * (int64_t)total_w)
+                        break; /* would violate 70/30 — stop here */
+                }
+                per_vertex_lifted[v] = 1;
+                cur_w0 = new_w0;
+                cur_w1 = new_w1;
+                lifted_count++;
+            }
+            free(scored);
+
+            /* If we lifted at least one vertex, use the per-vertex
+             * mask.  Otherwise fall back to smaller_weight (lift_side
+             * already set above). */
+            if (lifted_count > 0) {
+                per_vertex_active = 1;
+            } else {
+                free(per_vertex_lifted);
+                per_vertex_lifted = NULL;
+            }
         }
     }
 
-    for (idx_t i = 0; i < G->n; i++) {
-        if (is_boundary[i] && part_io[i] == lift_side)
-            part_io[i] = 2;
+    if (per_vertex_active) {
+        for (idx_t i = 0; i < G->n; i++) {
+            if (per_vertex_lifted[i])
+                part_io[i] = 2;
+        }
+        free(per_vertex_lifted);
+    } else {
+        for (idx_t i = 0; i < G->n; i++) {
+            if (is_boundary[i] && part_io[i] == lift_side)
+                part_io[i] = 2;
+        }
     }
 
     free(is_boundary);
@@ -2090,14 +2477,11 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
  *   4. Convert the final 2-way edge separator to a 3-way vertex
  *      separator on the smaller side (Day 4).
  */
-sparse_err_t sparse_graph_partition(const sparse_graph_t *G, idx_t *part_out, idx_t *sep_out) {
-    if (!G || !part_out)
-        return SPARSE_ERR_NULL;
-    if (sep_out)
-        *sep_out = 0;
-    if (G->n == 0)
-        return SPARSE_OK;
-
+/* Sprint 26 Day 3: extracted partition body so `sparse_graph_partition`
+ * can call it twice — once with the configured strategy, and (if the
+ * first pass produces a degenerate sep=0) once more with the
+ * `force_hem_override` set.  See `SPRINT_26/hcc_sep_zero_diagnosis.md`. */
+static sparse_err_t partition_once(const sparse_graph_t *G, idx_t *part_out, idx_t *sep_out) {
     sparse_graph_hierarchy_t h = {0};
     sparse_err_t rc = sparse_graph_hierarchy_build(G, /*seed=*/0U, &h);
     if (rc != SPARSE_OK)
@@ -2146,13 +2530,48 @@ sparse_err_t sparse_graph_partition(const sparse_graph_t *G, idx_t *part_out, id
     if (rc != SPARSE_OK)
         return rc;
 
-    if (sep_out) {
-        idx_t sep = 0;
-        for (idx_t i = 0; i < G->n; i++) {
-            if (part_out[i] == 2)
-                sep++;
-        }
-        *sep_out = sep;
+    idx_t sep = 0;
+    for (idx_t i = 0; i < G->n; i++) {
+        if (part_out[i] == 2)
+            sep++;
     }
+    *sep_out = sep;
+    return SPARSE_OK;
+}
+
+sparse_err_t sparse_graph_partition(const sparse_graph_t *G, idx_t *part_out, idx_t *sep_out) {
+    if (!G || !part_out)
+        return SPARSE_ERR_NULL;
+    if (sep_out)
+        *sep_out = 0;
+    if (G->n == 0)
+        return SPARSE_OK;
+
+    idx_t sep = 0;
+    sparse_err_t rc = partition_once(G, part_out, &sep);
+    if (rc != SPARSE_OK)
+        return rc;
+
+    /* Sprint 26 Day 3: sep=0 fall-back.  If the first pass produced a
+     * degenerate empty separator AND the configured strategy was HCC
+     * (so HEM hasn't already been tried), force HEM via the thread-
+     * local `force_hem_override` and re-run the multilevel pipeline.
+     * Sprint 25 Day 10's bcsstk14 finding documented the canonical
+     * pathology; SPRINT_26/hcc_sep_zero_diagnosis.md picks this fall-
+     * back path over per-strategy matching tightening because the
+     * sep=0 detection is at the natural seam (post-projection,
+     * post-edge-to-vertex extraction) and re-bisecting under HEM
+     * is known to recover sep > 0 on every fixture in the
+     * Sprint 22-25 corpus. */
+    if (sep == 0 && parse_coarsening_strategy() != COARSENING_HEAVY_EDGE) {
+        force_hem_override = 1;
+        rc = partition_once(G, part_out, &sep);
+        force_hem_override = 0;
+        if (rc != SPARSE_OK)
+            return rc;
+    }
+
+    if (sep_out)
+        *sep_out = sep;
     return SPARSE_OK;
 }

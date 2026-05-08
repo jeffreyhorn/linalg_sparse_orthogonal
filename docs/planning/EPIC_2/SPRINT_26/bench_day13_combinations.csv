@@ -1,0 +1,73 @@
+setting_id,setting_name,fixture,n,reorder,nnz_L,reorder_ms,factor_ms
+01baseline,baseline (Sprint 26 Day 5 t=96 default) ,nos4,100,ND,809,39.8,skip
+01baseline,baseline (Sprint 26 Day 5 t=96 default) ,bcsstk04,132,ND,3722,115.2,skip
+01baseline,baseline (Sprint 26 Day 5 t=96 default) ,Kuu,7102,ND,881177,4587.8,skip
+01baseline,baseline (Sprint 26 Day 5 t=96 default) ,bcsstk14,1806,ND,129292,790.2,skip
+01baseline,baseline (Sprint 26 Day 5 t=96 default) ,s3rmt3m3,5357,ND,483195,2596.6,skip
+01baseline,baseline (Sprint 26 Day 5 t=96 default) ,Pres_Poisson,14822,ND,2536427,11001.9,skip
+02setting,setting 13 (HCC + ratio=200) — Pres_Poisson best ,nos4,100,ND,887,134.9,skip
+02setting,setting 13 (HCC + ratio=200) — Pres_Poisson best ,bcsstk04,132,ND,3717,306.3,skip
+02setting,setting 13 (HCC + ratio=200) — Pres_Poisson best ,Kuu,7102,ND,796898,5939.9,skip
+02setting,setting 13 (HCC + ratio=200) — Pres_Poisson best ,bcsstk14,1806,ND,125032,979.4,skip
+02setting,setting 13 (HCC + ratio=200) — Pres_Poisson best ,s3rmt3m3,5357,ND,482669,4661.9,skip
+02setting,setting 13 (HCC + ratio=200) — Pres_Poisson best ,Pres_Poisson,14822,ND,2459934,8958.9,skip
+03setting,setting 15-ish (HCC + ratio=200 + spectral + balanced_boundary) ,nos4,100,ND,762,0.8,skip
+03setting,setting 15-ish (HCC + ratio=200 + spectral + balanced_boundary) ,bcsstk04,132,ND,3717,3.6,skip
+03setting,setting 15-ish (HCC + ratio=200 + spectral + balanced_boundary) ,Kuu,7102,ND,623413,630.3,skip
+03setting,setting 15-ish (HCC + ratio=200 + spectral + balanced_boundary) ,bcsstk14,1806,ND,124059,140.7,skip
+03setting,setting 15-ish (HCC + ratio=200 + spectral + balanced_boundary) ,s3rmt3m3,5357,ND,477859,409.5,skip
+03setting,setting 15-ish (HCC + ratio=200 + spectral + balanced_boundary) ,Pres_Poisson,14822,ND,2552546,1662.0,skip
+04balanced_boundary,balanced_boundary alone ,nos4,100,ND,748,55.9,skip
+04balanced_boundary,balanced_boundary alone ,bcsstk04,132,ND,3722,159.9,skip
+04balanced_boundary,balanced_boundary alone ,Kuu,7102,ND,527884,3591.5,skip
+04balanced_boundary,balanced_boundary alone ,bcsstk14,1806,ND,123909,1009.1,skip
+04balanced_boundary,balanced_boundary alone ,s3rmt3m3,5357,ND,477485,5027.2,skip
+04balanced_boundary,balanced_boundary alone ,Pres_Poisson,14822,ND,2542064,9990.8,skip
+05per_vertex,per_vertex alone ,nos4,100,ND,765,56.3,skip
+05per_vertex,per_vertex alone ,bcsstk04,132,ND,3549,157.5,skip
+05per_vertex,per_vertex alone ,Kuu,7102,ND,691880,4450.0,skip
+05per_vertex,per_vertex alone ,bcsstk14,1806,ND,151049,994.7,skip
+05per_vertex,per_vertex alone ,s3rmt3m3,5357,ND,614153,2092.1,skip
+05per_vertex,per_vertex alone ,Pres_Poisson,14822,ND,3312433,7246.6,skip
+06fifo,fifo alone ,nos4,100,ND,777,56.6,skip
+06fifo,fifo alone ,bcsstk04,132,ND,3722,160.5,skip
+06fifo,fifo alone ,Kuu,7102,ND,825396,6306.4,skip
+06fifo,fifo alone ,bcsstk14,1806,ND,133330,1339.2,skip
+06fifo,fifo alone ,s3rmt3m3,5357,ND,483558,3659.5,skip
+06fifo,fifo alone ,Pres_Poisson,14822,ND,2615031,8680.7,skip
+07setting,setting 13 + INTERMEDIATE=3 (Sprint 25 Kuu best alone-axis) ,nos4,100,ND,887,135.0,skip
+07setting,setting 13 + INTERMEDIATE=3 (Sprint 25 Kuu best alone-axis) ,bcsstk04,132,ND,3717,304.5,skip
+07setting,setting 13 + INTERMEDIATE=3 (Sprint 25 Kuu best alone-axis) ,Kuu,7102,ND,797235,7820.0,skip
+07setting,setting 13 + INTERMEDIATE=3 (Sprint 25 Kuu best alone-axis) ,bcsstk14,1806,ND,125397,874.9,skip
+07setting,setting 13 + INTERMEDIATE=3 (Sprint 25 Kuu best alone-axis) ,s3rmt3m3,5357,ND,483013,3964.1,skip
+07setting,setting 13 + INTERMEDIATE=3 (Sprint 25 Kuu best alone-axis) ,Pres_Poisson,14822,ND,2530851,11220.4,skip
+08setting,setting 15-ish + fifo ,nos4,100,ND,748,1.0,skip
+08setting,setting 15-ish + fifo ,bcsstk04,132,ND,3700,4.0,skip
+08setting,setting 15-ish + fifo ,Kuu,7102,ND,610509,627.7,skip
+08setting,setting 15-ish + fifo ,bcsstk14,1806,ND,120650,140.3,skip
+08setting,setting 15-ish + fifo ,s3rmt3m3,5357,ND,481479,369.9,skip
+08setting,setting 15-ish + fifo ,Pres_Poisson,14822,ND,2488715,1625.4,skip
+09setting,setting 13 + fifo ,nos4,100,ND,808,135.9,skip
+09setting,setting 13 + fifo ,bcsstk04,132,ND,3700,303.6,skip
+09setting,setting 13 + fifo ,Kuu,7102,ND,752431,6854.3,skip
+09setting,setting 13 + fifo ,bcsstk14,1806,ND,132699,1201.4,skip
+09setting,setting 13 + fifo ,s3rmt3m3,5357,ND,484257,6138.2,skip
+09setting,setting 13 + fifo ,Pres_Poisson,14822,ND,2583021,11996.0,skip
+10full,full Sprint-26-max (everything on) ,nos4,100,ND,748,1.4,skip
+10full,full Sprint-26-max (everything on) ,bcsstk04,132,ND,3700,3.5,skip
+10full,full Sprint-26-max (everything on) ,Kuu,7102,ND,488935,688.6,skip
+10full,full Sprint-26-max (everything on) ,bcsstk14,1806,ND,121845,128.4,skip
+10full,full Sprint-26-max (everything on) ,s3rmt3m3,5357,ND,476894,383.9,skip
+10full,full Sprint-26-max (everything on) ,Pres_Poisson,14822,ND,2530967,1727.9,skip
+11HCC,HCC alone (Day 3 sep=0 fix verification) ,nos4,100,ND,887,127.0,skip
+11HCC,HCC alone (Day 3 sep=0 fix verification) ,bcsstk04,132,ND,3717,287.1,skip
+11HCC,HCC alone (Day 3 sep=0 fix verification) ,Kuu,7102,ND,940582,5248.7,skip
+11HCC,HCC alone (Day 3 sep=0 fix verification) ,bcsstk14,1806,ND,125032,793.7,skip
+11HCC,HCC alone (Day 3 sep=0 fix verification) ,s3rmt3m3,5357,ND,482669,3587.0,skip
+11HCC,HCC alone (Day 3 sep=0 fix verification) ,Pres_Poisson,14822,ND,2497108,7879.4,skip
+12per_vertex_balance,per_vertex_balance alone ,nos4,100,ND,765,52.1,skip
+12per_vertex_balance,per_vertex_balance alone ,bcsstk04,132,ND,3549,148.7,skip
+12per_vertex_balance,per_vertex_balance alone ,Kuu,7102,ND,705728,4299.0,skip
+12per_vertex_balance,per_vertex_balance alone ,bcsstk14,1806,ND,151049,1003.2,skip
+12per_vertex_balance,per_vertex_balance alone ,s3rmt3m3,5357,ND,614153,2078.5,skip
+12per_vertex_balance,per_vertex_balance alone ,Pres_Poisson,14822,ND,3312433,7224.4,skip

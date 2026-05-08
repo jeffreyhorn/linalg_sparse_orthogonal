@@ -80,6 +80,25 @@ static _Thread_local idx_t nd_prof_partition_calls = 0;
 static _Thread_local idx_t nd_prof_leaf_amd_calls = 0;
 static _Thread_local idx_t nd_prof_emit_natural_calls = 0;
 
+/* Sprint 26 Day 4: per-recursion-depth partition profiling.  Sprint 25
+ * Day 11's instrumentation accumulated cumulative partition time across
+ * all 301 recursive calls on Pres_Poisson but didn't attribute cost by
+ * depth.  Sprint 26 item 5 (FINEST FM annealing/thick-restart) needs to
+ * know whether cost concentrates at the root, intermediate levels, or
+ * near the base threshold to pick which sub-axis to implement.
+ *
+ * `MAX_ND_DEPTH = 64` covers any plausible ND recursion depth — a
+ * pathological worst-case ND on a path graph of n vertices recurses
+ * ~log2(n) levels; n ≤ 10^9 caps depth at ~30; 64 leaves headroom.
+ * Bounds-check `depth < MAX_ND_DEPTH` in the partition wrapper; if the
+ * recursion exceeds the bound, the overflow accumulates into the
+ * MAX_ND_DEPTH-1 bucket (a SPARSE_ND_PROFILE warning fires once).
+ * See `docs/planning/EPIC_2/SPRINT_26/PLAN.md` Day 4. */
+#define MAX_ND_DEPTH 64
+static _Thread_local long long nd_prof_partition_ns_per_depth[MAX_ND_DEPTH] = {0};
+static _Thread_local idx_t nd_prof_partition_calls_per_depth[MAX_ND_DEPTH] = {0};
+static _Thread_local int nd_prof_depth_overflow_warned = 0;
+
 /* Monotonic-clock timestamp helper.  Returns nanoseconds since an
  * unspecified epoch.  POSIX `clock_gettime(CLOCK_MONOTONIC, ...)` on
  * non-Windows; Windows routes through C11 `timespec_get(..., TIME_UTC)`
@@ -96,25 +115,37 @@ static long long nd_prof_now_ns(void) {
 }
 
 /* Base-case threshold: the recursion stops here and the subgraph's
- * vertices land in the permutation in their natural (subgraph-local)
- * order.  Default 32 from the Day 9 sweep: fill on bcsstk14 (n=1806)
- * and Pres_Poisson (n=14822) is minimised here within 0.1 % of any
- * threshold in {4, 8, 16, 32}, and 32 is significantly faster than
- * the smaller values on Pres_Poisson (recursive partitioning cost
- * dominates beyond the leaves).  See
- * `docs/planning/EPIC_2/SPRINT_22/bench_day9_nd.txt` for the full
- * sweep data.
+ * vertices go through leaf-AMD instead of further multilevel-
+ * partition recursion (Sprint 23 Day 7 introduced the leaf-AMD
+ * splice; Sprint 22 used natural ordering at the base case).
+ *
+ * **Sprint 26 Day 5 flip: 32 → 96.**  Sprint 22 Day 9's original
+ * sweep set the default at 32 against natural-ordering leaves;
+ * Sprint 23 Day 7 swapped natural for leaf-AMD without re-sweeping
+ * the threshold, leaving t=32 dominant for two more sprints.
+ * Sprint 25 Day 11's per-phase profile measured `nd_emit_natural`
+ * (degenerate small-subgraph fall-through) firing 32 times at
+ * ~165 ms each on Pres_Poisson; Sprint 26 Day 4's per-recursion-
+ * depth profile showed cost concentrating at depths 6-9 (88 % of
+ * partition cost on 169 small-subgraph calls, each invoking the
+ * full multilevel pipeline at n ≈ 50-300 with a constant-factor
+ * overhead floor of 60-200 ms).  Sprint 26 Day 5 re-swept t ∈
+ * {32, 48, 64, 96, 128} on the full corpus; t=96 was the maximum
+ * threshold satisfying the PLAN.md flip rule (≥ 5 % Pres_Poisson
+ * wall improvement + no fixture nnz_L regression past 1pp).
+ * Result on Pres_Poisson: ND wall 38.1 s → 12.2 s (-67.9 %)
+ * with nnz_L bit-stable (-0.21pp).  Per-fixture wins in [-1.3,
+ * -16.4] pp range on nnz_L (nos4 / Kuu / bcsstk14 / Pres_Poisson)
+ * and -38 to -80 % on wall across the corpus.  See
+ * `docs/planning/EPIC_2/SPRINT_26/nd_base_threshold_decision.md`
+ * for the full sweep matrix + flip-rule application.
  *
  * Declared in `src/sparse_reorder_nd_internal.h` (benchmark-only,
- * not thread-safe, no ABI guarantee — see that header) so the Day 9
- * sweep (`benchmarks/bench_reorder.c --nd-threshold N`) can
- * override it from the command line without recompiling the
- * library, but library consumers don't see it.  The Sprint 23
- * follow-up that splices quotient-graph AMD into each leaf will
- * turn this into a real "stop recursing here, run AMD" cutover, at
- * which point the right tuning surface is an opts struct on
- * `sparse_reorder_nd` itself and this global goes away. */
-idx_t sparse_reorder_nd_base_threshold = 32;
+ * not thread-safe, no ABI guarantee — see that header) so the
+ * `benchmarks/bench_reorder.c --nd-threshold N` flag can override
+ * it from the command line without recompiling the library, but
+ * library consumers don't see it. */
+idx_t sparse_reorder_nd_base_threshold = 96;
 
 /* Append `n` vertices from a subgraph to the global permutation in
  * the order they appear in `vertex_id_map`.  Used by the
@@ -179,7 +210,7 @@ fail:
  * algorithm without measurable benefit. */
 // NOLINTNEXTLINE(misc-no-recursion)
 static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_map, idx_t *perm,
-                               idx_t *next_pos) {
+                               idx_t *next_pos, int depth) {
     idx_t n = G->n;
     if (n == 0)
         return SPARSE_OK;
@@ -256,8 +287,21 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
     long long part_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
     sparse_err_t rc = sparse_graph_partition(G, part, &sep_count);
     if (nd_prof_enabled) {
-        nd_prof_partition_ns += nd_prof_now_ns() - part_t0;
+        long long elapsed = nd_prof_now_ns() - part_t0;
+        nd_prof_partition_ns += elapsed;
         nd_prof_partition_calls++;
+        /* Sprint 26 Day 4: per-depth attribution.  Bounds-check
+         * overflow into the MAX_ND_DEPTH-1 bucket; warn once. */
+        int bucket = (depth < MAX_ND_DEPTH) ? depth : (MAX_ND_DEPTH - 1);
+        if (depth >= MAX_ND_DEPTH && !nd_prof_depth_overflow_warned) {
+            fprintf(stderr,
+                    "nd-profile WARNING: recursion depth %d exceeds MAX_ND_DEPTH=%d; "
+                    "accumulating into bucket %d\n",
+                    depth, MAX_ND_DEPTH, MAX_ND_DEPTH - 1);
+            nd_prof_depth_overflow_warned = 1;
+        }
+        nd_prof_partition_ns_per_depth[bucket] += elapsed;
+        nd_prof_partition_calls_per_depth[bucket]++;
     }
     if (rc != SPARSE_OK) {
         free(part);
@@ -337,7 +381,7 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
         for (idx_t i = 0; i < n0; i++)
             // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.uninitialized.Assign)
             map0[i] = vertex_id_map[vs0[i]];
-        rc = nd_recurse(&G0, map0, perm, next_pos);
+        rc = nd_recurse(&G0, map0, perm, next_pos, depth + 1);
         sparse_graph_free(&G0);
         free(map0);
         if (rc != SPARSE_OK) {
@@ -372,7 +416,7 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
         for (idx_t i = 0; i < n1; i++)
             // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.uninitialized.Assign)
             map1[i] = vertex_id_map[vs1[i]];
-        rc = nd_recurse(&G1, map1, perm, next_pos);
+        rc = nd_recurse(&G1, map1, perm, next_pos, depth + 1);
         sparse_graph_free(&G1);
         free(map1);
         if (rc != SPARSE_OK) {
@@ -422,6 +466,12 @@ sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm) {
         nd_prof_partition_calls = 0;
         nd_prof_leaf_amd_calls = 0;
         nd_prof_emit_natural_calls = 0;
+        /* Sprint 26 Day 4: per-depth partition accumulators. */
+        for (int d = 0; d < MAX_ND_DEPTH; d++) {
+            nd_prof_partition_ns_per_depth[d] = 0;
+            nd_prof_partition_calls_per_depth[d] = 0;
+        }
+        nd_prof_depth_overflow_warned = 0;
     }
 
     sparse_graph_t G = {0};
@@ -449,7 +499,7 @@ sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm) {
         root_map[i] = i;
 
     idx_t next_pos = 0;
-    rc = nd_recurse(&G, root_map, perm, &next_pos);
+    rc = nd_recurse(&G, root_map, perm, &next_pos, /*depth=*/0);
 
     free(root_map);
     sparse_graph_free(&G);
@@ -475,6 +525,20 @@ sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm) {
                 (double)nd_prof_leaf_amd_ns / 1.0e6, (int)nd_prof_leaf_amd_calls,
                 (double)nd_prof_leaf_subgraph_ns / 1.0e6, (double)nd_prof_emit_natural_ns / 1.0e6,
                 (int)nd_prof_emit_natural_calls, (double)other_ns / 1.0e6);
+        /* Sprint 26 Day 4: per-depth partition breakdown.  Emit one
+         * line per non-empty depth bucket.  Sized columns: depth (3
+         * digits), calls (5 digits), total_ms (10.3 width), avg_ms
+         * (8.3 width). */
+        fprintf(stderr, "  partition_per_depth:\n");
+        fprintf(stderr, "    depth  calls   total_ms      avg_ms\n");
+        for (int d = 0; d < MAX_ND_DEPTH; d++) {
+            if (nd_prof_partition_calls_per_depth[d] == 0)
+                continue;
+            double total_ms = (double)nd_prof_partition_ns_per_depth[d] / 1.0e6;
+            double avg_ms = total_ms / (double)nd_prof_partition_calls_per_depth[d];
+            fprintf(stderr, "    %5d  %5d   %10.3f  %10.3f\n", d,
+                    (int)nd_prof_partition_calls_per_depth[d], total_ms, avg_ms);
+        }
     }
     return rc;
 }

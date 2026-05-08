@@ -943,7 +943,16 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
             double abs_res = fabs(last_beta * y_last);
             double tv_l = theta_long[idx_l];
             double anchor = fabs(tv_l);
-            if (anchor < scale * 1e-12)
+            /* Sprint 26 Day 1: extend the zero-spectrum guard to cover
+             * the case `scale == 0.0 && tv_l == 0.0`.  The original
+             * `anchor < scale * 1e-12` check evaluates to `0.0 < 0.0`
+             * = false in that case and `anchor` stays 0.0, producing
+             * a 0/0 division below (UBSan flagged this on Sprint 25
+             * Day 14 sanitize).  Adding `|| anchor == 0.0` catches
+             * the exact-zero case explicitly so anchor falls through
+             * to the `scale > 0.0 ? scale : 1.0` branch.  Routed
+             * from `SPRINT_25/RETROSPECTIVE.md` "Items deferred" #5. */
+            if (anchor < scale * 1e-12 || anchor == 0.0)
                 anchor = scale > 0.0 ? scale : 1.0;
             double rel_res = abs_res / anchor;
             if (rel_res > max_res_rel)

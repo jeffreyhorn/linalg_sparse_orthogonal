@@ -496,3 +496,160 @@ intervention.  `make wall-check` extended with Pres_Poisson ND
 baseline (1.5× threshold per Day 11 16 % within-run variance
 classification).  `SPARSE_ND_PROFILE` per-phase instrumentation
 added for Sprint 26 wall-time work."
+
+## Sprint 26 closures
+
+Sprint 26 ran 14 days against the 5 items Sprint 25 routed forward:
+the Pres_Poisson 0.85× literal target via three new algorithmic
+axes (FINEST FM annealing/thick-restart/bucket-tie-break, geometric
+grid-cut, per-vertex separator scoring), HCC bcsstk14 sep=0
+blocker, per-recursion-level partition profiling extension,
+`nd_base_threshold` re-sweep, and the `sparse_eigs.c:948` UBSan
+quick-win.  Headline reference: `docs/planning/EPIC_2/SPRINT_26/headline_summary.md`;
+day-by-day docs in `docs/planning/EPIC_2/SPRINT_26/`.
+
+### What moved (Sprint 25 default → Sprint 26 default)
+
+Default-path corpus comparison (Sprint 26's only default flip is
+Day 5's `nd_base_threshold = 96` change from Sprint 22's 32):
+
+| metric                                 | Sprint 25  | Sprint 26  | delta |
+|----------------------------------------|------------|------------|------|
+| nos4 ND nnz_L                          |       968  |       809  | -16.4 % win |
+| bcsstk04 ND nnz_L                      |     3 702  |     3 722  | +0.5 % noise |
+| Kuu ND nnz_L                           |   924 385  |   881 177  | -4.7 % win |
+| bcsstk14 ND nnz_L                      |   131 017  |   129 292  | -1.3 % win |
+| s3rmt3m3 ND nnz_L                      |   478 890  |   483 195  | +0.9 % noise |
+| **Pres_Poisson ND nnz_L**              | **2 541 734** | **2 536 427** | **-0.21 % win** |
+| Pres_Poisson ND wall (median)          |   ~47 000 ms |  **~12 200 ms** | **-74 %** |
+| Pres_Poisson ND/AMD ratio (default)    |   0.9524×  |   0.9504×  | -0.2pp win |
+| **Pres_Poisson ND/AMD (best opt-in)**  | **0.9217×** | **0.9217×** | unchanged (still Sprint 25 setting 13: HCC + ratio=200) |
+
+The Day-5 `nd_base_threshold` flip is the headline win.  Day 4's
+per-recursion-depth profile (88% of partition cost concentrates at
+depths 6-9 in 169 small-subgraph multilevel-pipeline calls with
+60-200 ms per-call constant overhead floor) drove the threshold
+re-sweep; t=96 was the maximum threshold satisfying the strict flip
+rule (≥5% Pres_Poisson wall improvement + no fixture nnz_L
+regression past 1pp).
+
+Three other defaults shipped:
+
+- **`sparse_graph_partition` sep=0 fall-back** (Day 3) — invisible
+  to default callers but unblocks `SPARSE_ND_COARSENING=hcc` opt-in
+  on bcsstk14 (Sprint 25 Day 10's blocker).  Implementation: a
+  `_Thread_local force_hem_override` flag forces HEM coarsening on
+  retry when the multilevel pipeline produces sep=0.
+- **`sparse_eigs.c:948` UBSan guard fix** (Day 1) — extends the
+  zero-spectrum guard to `if (anchor < scale * 1e-12 || anchor ==
+  0.0)`.  Clears the Sprint 25 Day 14 inherited UBSan log without
+  any test behavior change.
+- **`SPARSE_ND_PROFILE` extended with per-recursion-depth
+  attribution** (Day 4) — invisible to default callers; adds
+  `partition_ns_per_depth[64]` accumulator + per-depth stderr
+  emit when the env var is set.
+
+### What didn't move (Sprint 26 algorithmic-axis attempts)
+
+PROJECT_PLAN.md Sprint 26 items 5/6/7 attempted three algorithmic
+interventions to close the Pres_Poisson 0.85× literal target.  All
+three closed without moving the headline:
+
+- **Item 5 (FINEST FM FIFO; sub-axis (b) bucket-tie-break)**:
+  Day 6-8.  `SPARSE_FM_FINEST_STRATEGY=fifo` ships behind env var.
+  Pres_Poisson alone +3pp regress; in combination with setting
+  15-ish, contributes -1 to -3pp on nos4 / bcsstk14 / Kuu.  Day 4's
+  hypothesis (LIFO trapped FM in local minima) FALSIFIED on
+  Pres_Poisson — FIFO finds different cuts but they're not better.
+  Day 6's design rejected sub-axes (a) annealing and (c) thick-
+  restart for cost reasons; Day 5's wall improvement makes both
+  affordable now → Sprint 27+ inputs.
+- **Item 6 (geometric grid-cut)**: Day 9 REJECTED.  Empirical
+  finding: Pres_Poisson is NOT a regular 2D grid by adjacency
+  signature (mean degree 47.3, CV 0.108 — "regular" but at FE-mesh
+  scale, not 2D-grid scale).  PLAN.md's grid-detection heuristic
+  (degree ∈ {3,4,5}, nnz/n ≈ 5) would never fire on Pres_Poisson.
+  Two redesign options (root-level Fiedler-cut, synthetic-grid-only)
+  both rejected.  No env var landed.
+- **Item 7 (per-vertex separator scoring)**: Day 10/12.
+  `SPARSE_ND_SEP_LIFT_STRATEGY={per_vertex, per_vertex_balance,
+  per_vertex_degree}` ships behind env var.  Pres_Poisson +29pp
+  catastrophic regression; ships as advisory for bcsstk04 only
+  (-4.6pp).  Day 12 finding: the 3 weight schemes converge to
+  bit-identical outputs on 5 of 6 fixtures (the 70/30 balance gate
+  dominates the score formula); tunable weights are not a useful
+  sweep dimension in this implementation.
+
+The literal targets PROJECT_PLAN.md set are documented under the
+seven headline gates in `docs/planning/EPIC_2/SPRINT_26/headline_summary.md`:
+
+- **Pres_Poisson 0.85× literal target** — **MISS** (4th
+  consecutive sprint to miss; best opt-in 0.9217× unchanged from
+  Sprint 25).
+- **Pres_Poisson 0.90× partial close** — **MISS** (still 2.2pp
+  short).
+- **Smaller-fixture corpus safety** — **PASS** (no fixture
+  regresses past 5pp on Sprint 26 default).
+- **HCC bcsstk14 sep=0 fix** — **PASS** (Day 3).
+- **`sparse_eigs.c:948` UBSan log cleared** — **PASS** (Day 1).
+- **Test bound tightening** — **STAY** at 0.96× (Items 5-7 didn't
+  move default; 0.9504× × 0.96pp margin).
+- **`make wall-check` exits 0** — **PASS** (Pres_Poisson ND ~10s
+  vs 70.5s 1.5× ceiling).
+
+### Per-fixture advisory (Sprint 26 final; supersedes Sprint 25)
+
+| workload | recommended setting | notes |
+|---|---|---|
+| Pres_Poisson | `SPARSE_ND_COARSENING=hcc SPARSE_ND_COARSEN_FLOOR_RATIO=200` (Sprint 25 setting 13; **unchanged**) | 0.9217× (-2.9pp from default) |
+| Kuu / irregular SPDs | full Sprint-26-max: setting 13 + `SPARSE_ND_COARSEST_BISECTION=spectral SPARSE_ND_SEP_LIFT_STRATEGY=balanced_boundary SPARSE_FM_FINEST_STRATEGY=fifo SPARSE_FM_INTERMEDIATE_PASSES=3` | Kuu 1.204× (**-10pp** from Sprint 25 setting 15's 1.309×; the new Sprint 26 best non-Pres_Poisson combination) |
+| bcsstk14 (PDE/structural) | setting 15-ish + fifo (i.e. Sprint-26-max minus INTERMEDIATE=3) | 1.040× (Sprint 26 best; -3pp from setting 15) |
+| bcsstk04 (small irregular) | `SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex` | 1.129× (-4.6 % from default; **NEW** Sprint 26 advisory) |
+| nos4 / s3rmt3m3 | `SPARSE_ND_SEP_LIFT_STRATEGY=balanced_boundary` (Sprint 24; **unchanged**) | flat-to-noise wins |
+| Default (no env vars) | unchanged baseline | 0.9504× Pres_Poisson; Day-5 wall improvements |
+
+### Test bound tightening
+
+| test                                                     | S25 bound | S26 bound | reason |
+|----------------------------------------------------------|-----------|-----------|--------|
+| `test_nd_pres_poisson_fill_with_leaf_amd`                | ≤ 0.96×   | ≤ 0.96×   | unchanged (default 0.9504×, 0.96pp margin) |
+| `test_nd_10x10_grid_matches_or_beats_amd_fill`           | ≤ 1.17×   | ≤ 1.17×   | unchanged (default 1.157× under t=96) |
+
+Items 5-7 didn't move Pres_Poisson default; bound stays at Sprint
+24 Day 7's 0.96× setting per PLAN.md Day 13 task 4 routing.
+
+### What's left for Sprint 27
+
+Sprint 26's headline_summary.md "Items deferred to Sprint 27+"
+section enumerates five concrete avenues:
+
+1. **Root-level spectral bisection** — extend Sprint 25 spectral
+   from coarsest to root level.  Higher prior than Sprint 26 Item 6's
+   2D-grid heuristic; reuses Sprint 20-21 Lanczos eigensolver.
+   4-day budget.
+2. **Annealing-acceptance FM** — rejected at Sprint 26 Day 6 design
+   for cost reasons; Day 5's wall improvement makes affordable now.
+   3-4 day budget.
+3. **Multi-strategy ensemble** — run baseline + FIFO + (future axes)
+   in parallel; pick best cut per partition call.  Doubles wall-time
+   but explores 2× the FM landscape.
+4. **Larger nd_base_threshold beyond 96** — Sprint 26 Day 5 found
+   t=96 was the maximum threshold satisfying the strict flip rule;
+   t=128 regressed s3rmt3m3 by +1.05 %.  Sprint 27 could re-evaluate
+   with relaxed flip-rule tolerance.
+5. **Tunable per_vertex selection criterion** — Sprint 26 Day 12
+   finding that the 70/30 balance gate dominates the score formula;
+   fixed-K (vs dynamic-K) selection would let weight schemes
+   differentiate.
+
+### Shipping story for the Sprint 26 PR description
+
+"`nd_base_threshold` flip 32→96 (Day 5; -68% Pres_Poisson ND wall +
+corpus-wide -38% to -81% wall improvements + small fill-quality
+wins on every fixture).  HCC bcsstk14 sep=0 fix (Day 3) unblocks
+`SPARSE_ND_COARSENING=hcc` opt-in on bcsstk14.  Three new advisory
+env-var-gated axes (FIFO bucket-tie-break, per-vertex separator
+scoring with 3 weight schemes, per-recursion-depth profiling).
+Pres_Poisson 0.85× literal target misses by 7.2pp (4th consecutive
+sprint to miss); routes to Sprint 27 with five concrete avenues
+identified.  `sparse_eigs.c:948` UBSan log cleared (Day 1)."

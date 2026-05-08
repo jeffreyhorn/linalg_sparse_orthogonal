@@ -34,12 +34,25 @@
 #include "sparse_types.h"
 
 /**
- * @brief ND base-case threshold (`n ≤ threshold` → natural ordering).
+ * @brief ND base-case threshold (`n ≤ threshold` → leaf-AMD via
+ *        `sparse_reorder_amd_qg`).
  *
- * Default 32 from the Day 9 sweep (see
- * `docs/planning/EPIC_2/SPRINT_22/bench_day9_nd.txt`).  Defined in
- * `src/sparse_reorder_nd.c`; declared here so in-tree benches and
- * tests can override it without an inline `extern`.
+ * Default 96 from the Sprint 26 Day 5 re-sweep across t ∈
+ * {32, 48, 64, 96, 128} on the full corpus — the maximum
+ * threshold satisfying the PROJECT_PLAN flip rule (≥ 5 %
+ * Pres_Poisson wall improvement, no fixture nnz_L regression
+ * past 1pp).  Result on Pres_Poisson: ND wall 38.1 s → 12.2 s
+ * (-67.9 %) with nnz_L bit-stable (-0.21pp); see
+ * `docs/planning/EPIC_2/SPRINT_26/nd_base_threshold_decision.md`
+ * for the sweep matrix + flip-rule application.
+ *
+ * Sprint 22 Day 9's earlier default of 32 came from a sweep where
+ * the leaf path was natural ordering (no AMD); Sprint 23 spliced
+ * quotient-graph AMD into each leaf, which changed the cost shape
+ * and let larger thresholds win.
+ *
+ * Defined in `src/sparse_reorder_nd.c`; declared here so in-tree
+ * benches and tests can override it without an inline `extern`.
  *
  * @warning Internal bench/test hook only — not thread-safe; not
  *          part of the public API.

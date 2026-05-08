@@ -573,18 +573,30 @@ static sparse_err_t graph_coarsen_with_strategy(const sparse_graph_t *fine, uint
      * new defaults". */
     if (getenv("SPARSE_HCC_DEBUG")) {
         const char *strategy_name = (strategy == COARSENING_HCC) ? "hcc" : "heavy_edge";
+        /* PR #34 review fix: compute "fraction of vertices in a
+         * coarse cluster of size > 1" via a two-pass O(n) scan over
+         * cmap_out (was an O(n^2) `matched += 2` walk that double-
+         * incremented across clusters of size > 2 and could push
+         * match_ratio above 1.0).  Gracefully degrades to ratio=0
+         * if the cluster_sizes calloc fails — debug-only path, the
+         * fall-back is a quiet 0 rather than aborting the
+         * coarsening call. */
+        /* `n_coarse > 0` whenever `n_fine > 0` (the matching loop's
+         * first iteration always emits a coarse vertex), but the
+         * analyser doesn't track that across loops. */
+        idx_t *cluster_sizes =
+            (n_coarse > 0) ? calloc((size_t)n_coarse, sizeof(idx_t)) : NULL;
         idx_t matched = 0;
-        for (idx_t i = 0; i < n_fine; i++) {
-            /* A vertex is "matched" if another fine vertex shares its
-             * cmap value (i.e. some coarse cluster has size > 1). */
-            for (idx_t j = i + 1; j < n_fine; j++) {
-                if (cmap_out[i] == cmap_out[j]) {
-                    matched += 2;
-                    break;
-                }
+        if (cluster_sizes) {
+            for (idx_t i = 0; i < n_fine; i++)
+                cluster_sizes[cmap_out[i]]++;
+            for (idx_t i = 0; i < n_fine; i++) {
+                if (cluster_sizes[cmap_out[i]] > 1)
+                    matched++;
             }
+            free(cluster_sizes);
         }
-        double match_ratio = (double)matched / (double)n_fine;
+        double match_ratio = (n_fine > 0) ? (double)matched / (double)n_fine : 0.0;
         fprintf(stderr, "hcc-debug strategy=%s n_fine=%d n_coarse=%d match_ratio=%.3f\n",
                 strategy_name, (int)n_fine, (int)n_coarse, match_ratio);
         /* Emit cmap in groups of 16 per line for readability. */
@@ -2187,13 +2199,20 @@ static int is_per_vertex_strategy(sep_lift_strategy_t s) {
            s == SEP_LIFT_PER_VERTEX_DEGREE;
 }
 
-/* Sprint 26 Day 10: qsort comparator for per-vertex separator scoring.
- * Sorts boundary-vertex indices DESCENDING by score (highest score
- * first).  Score is packed as `score * 2 + balance_bonus` (low bit) —
- * see graph_edge_separator_to_vertex_separator for the formula. */
+/* Sprint 26 Day 10/12: qsort comparator for per-vertex separator
+ * scoring.  Sorts boundary-vertex indices DESCENDING by score
+ * (highest score first).  Score is computed by one of three formulas
+ * (HYBRID / BALANCE / DEGREE) — see graph_edge_separator_to_vertex_separator.
+ *
+ * `score` is `int64_t` (PR #34 review fix; was `idx_t`/int32_t):
+ * BALANCE and DEGREE schemes use `1000 * (...)` multipliers that can
+ * overflow int32 on graphs with vertex degrees approaching ~2M, which
+ * would corrupt the qsort ordering and make the comparator non-
+ * transitive.  int64_t lifts the worst-case to ~9.2e18 — beyond any
+ * plausible graph size in this codebase. */
 typedef struct {
     idx_t vertex;
-    idx_t score; /* cross_deg * 2 + balance_bonus (0 or 1) */
+    int64_t score;
 } per_vertex_score_t;
 
 static int per_vertex_score_cmp_desc(const void *a, const void *b) {
@@ -2354,21 +2373,26 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
                         cross_deg++;
                 }
                 idx_t balance_bonus = (side == larger_side) ? 1 : 0;
-                idx_t score = 0;
+                /* PR #34 review fix: compute multiplications in int64
+                 * before assigning to `score`.  BALANCE / DEGREE schemes'
+                 * `1000 * (...)` multipliers can overflow int32 on
+                 * graphs with vertex degrees approaching ~2M, which
+                 * would corrupt qsort ordering. */
+                int64_t score = 0;
                 switch (strategy) {
                 case SEP_LIFT_PER_VERTEX_HYBRID:
                 default:
                     /* cross_deg dominant; balance tie-break. */
-                    score = 2 * cross_deg + balance_bonus;
+                    score = (int64_t)2 * (int64_t)cross_deg + (int64_t)balance_bonus;
                     break;
                 case SEP_LIFT_PER_VERTEX_BALANCE:
                     /* balance dominant; cross_deg tie-break. */
-                    score = 1000 * balance_bonus + cross_deg;
+                    score = (int64_t)1000 * (int64_t)balance_bonus + (int64_t)cross_deg;
                     break;
                 case SEP_LIFT_PER_VERTEX_DEGREE: {
                     /* low total-degree dominant; balance tie-break. */
                     idx_t deg = G->xadj[v + 1] - G->xadj[v];
-                    score = 1000 * (max_deg - deg) + balance_bonus;
+                    score = (int64_t)1000 * (int64_t)(max_deg - deg) + (int64_t)balance_bonus;
                     break;
                 }
                 }

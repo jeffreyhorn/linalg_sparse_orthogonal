@@ -1127,41 +1127,86 @@ static void test_finest_fm_strategy_fifo_smoke(void) {
      * for FIFO and baseline to converge to different cuts.  Empirical:
      * baseline sep=30, FIFO sep=30, but the partitions differ
      * vertex-for-vertex (verified pre-test with a small ad-hoc
-     * comparison against /tmp/cmp_fifo.c during Day-7 development). */
+     * comparison against /tmp/cmp_fifo.c during Day-7 development).
+     *
+     * PR #34 review fix: route every exit path through a single
+     * `cleanup:` block that frees the three buffers, frees G/A, and
+     * unsets SPARSE_FM_FINEST_STRATEGY.  The previous flow had two
+     * issues: (1) `ASSERT_NOT_NULL` is non-fatal (alloc failure
+     * would NULL-deref in subsequent partition calls + memcmp), and
+     * (2) `REQUIRE_OK` returns immediately on failure, leaving the
+     * env var set + buffers leaked across subsequent tests. */
     SparseMatrix *A = make_grid_2d(30, 30);
-    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    if (!A) {
+        ASSERT_NOT_NULL(A);
+        return;
+    }
     sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    sparse_err_t rc = sparse_graph_from_sparse(A, &G);
+    if (rc != SPARSE_OK) {
+        sparse_free(A);
+        REQUIRE_OK(rc);
+        return;
+    }
     ASSERT_EQ(G.n, 900);
+
+    idx_t *part_baseline = NULL;
+    idx_t *part_fifo1 = NULL;
+    idx_t *part_fifo2 = NULL;
+    int env_set = 0;
 
     /* Baseline run (env var unset). */
     unsetenv("SPARSE_FM_FINEST_STRATEGY");
-    idx_t *part_baseline = malloc((size_t)G.n * sizeof(idx_t));
-    ASSERT_NOT_NULL(part_baseline);
+    part_baseline = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_baseline) {
+        TF_FAIL_("malloc(part_baseline) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
     idx_t sep_baseline = 0;
-    REQUIRE_OK(sparse_graph_partition(&G, part_baseline, &sep_baseline));
-    ASSERT_TRUE(check_partition_invariant(&G, part_baseline));
+    rc = sparse_graph_partition(&G, part_baseline, &sep_baseline);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(baseline): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    if (!check_partition_invariant(&G, part_baseline)) {
+        TF_FAIL_("baseline partition invariant failed (n=%d)", (int)G.n);
+        goto cleanup;
+    }
 
     /* FIFO run #1. */
     if (setenv("SPARSE_FM_FINEST_STRATEGY", "fifo", /*overwrite=*/1) != 0) {
-        free(part_baseline);
-        sparse_graph_free(&G);
-        sparse_free(A);
         printf("    skipped (setenv failed; can't exercise env-var plumbing)\n");
-        return;
+        goto cleanup;
     }
-    idx_t *part_fifo1 = malloc((size_t)G.n * sizeof(idx_t));
-    ASSERT_NOT_NULL(part_fifo1);
+    env_set = 1;
+    part_fifo1 = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_fifo1) {
+        TF_FAIL_("malloc(part_fifo1) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
     idx_t sep_fifo1 = 0;
-    REQUIRE_OK(sparse_graph_partition(&G, part_fifo1, &sep_fifo1));
-    ASSERT_TRUE(check_partition_invariant(&G, part_fifo1));
+    rc = sparse_graph_partition(&G, part_fifo1, &sep_fifo1);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(fifo run #1): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    if (!check_partition_invariant(&G, part_fifo1)) {
+        TF_FAIL_("fifo run #1 partition invariant failed (n=%d)", (int)G.n);
+        goto cleanup;
+    }
 
     /* FIFO run #2 (determinism check). */
-    idx_t *part_fifo2 = malloc((size_t)G.n * sizeof(idx_t));
-    ASSERT_NOT_NULL(part_fifo2);
+    part_fifo2 = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_fifo2) {
+        TF_FAIL_("malloc(part_fifo2) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
     idx_t sep_fifo2 = 0;
-    REQUIRE_OK(sparse_graph_partition(&G, part_fifo2, &sep_fifo2));
-    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    rc = sparse_graph_partition(&G, part_fifo2, &sep_fifo2);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(fifo run #2): rc=%d", (int)rc);
+        goto cleanup;
+    }
 
     /* (a) FIFO determinism: same input → same output. */
     ASSERT_EQ(sep_fifo1, sep_fifo2);
@@ -1177,6 +1222,9 @@ static void test_finest_fm_strategy_fifo_smoke(void) {
            (int)sep_fifo1, differs ? "DIFFER (FIFO active)" : "match");
     ASSERT_TRUE(differs);
 
+cleanup:
+    if (env_set)
+        unsetenv("SPARSE_FM_FINEST_STRATEGY");
     free(part_baseline);
     free(part_fifo1);
     free(part_fifo2);
@@ -1909,29 +1957,45 @@ static void test_partition_bcsstk14_smoke(void) {
  * default-strategy `test_partition_bcsstk14_smoke`; the only
  * difference is the env-var override. */
 static void test_hcc_bcsstk14_no_degenerate_partition(void) {
+    /* PR #34 review fix: route every exit through a single `cleanup:`
+     * block.  Previous flow had two issues: (1) `ASSERT_NOT_NULL(part)`
+     * was non-fatal — alloc failure would NULL-deref in the
+     * subsequent partition call; (2) `REQUIRE_OK(prc)` after the
+     * partition would return immediately on failure, leaving
+     * SPARSE_ND_COARSENING set + buffers leaked across subsequent
+     * tests in the same process. */
     if (setenv("SPARSE_ND_COARSENING", "hcc", /*overwrite=*/1) != 0) {
         printf("    skipped (setenv failed)\n");
         return;
     }
 
     SparseMatrix *A = NULL;
+    sparse_graph_t G = {0};
+    idx_t *part = NULL;
+
     sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
         printf("    skipped (bcsstk14 not loadable: %d)\n", (int)rc);
-        unsetenv("SPARSE_ND_COARSENING");
-        return;
+        goto cleanup;
     }
 
-    sparse_graph_t G = {0};
-    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    rc = sparse_graph_from_sparse(A, &G);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_from_sparse: rc=%d", (int)rc);
+        goto cleanup;
+    }
 
-    idx_t *part = malloc((size_t)G.n * sizeof(idx_t));
-    ASSERT_NOT_NULL(part);
+    part = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part) {
+        TF_FAIL_("malloc(part) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
     idx_t sep = 0;
     sparse_err_t prc = sparse_graph_partition(&G, part, &sep);
-    unsetenv("SPARSE_ND_COARSENING");
-
-    REQUIRE_OK(prc);
+    if (prc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition: rc=%d", (int)prc);
+        goto cleanup;
+    }
     printf("    bcsstk14 under SPARSE_ND_COARSENING=hcc: sep=%d (Sprint 26 Day 3 fall-back "
            "recovered)\n",
            (int)sep);
@@ -1939,6 +2003,8 @@ static void test_hcc_bcsstk14_no_degenerate_partition(void) {
     ASSERT_TRUE(sep < G.n);
     ASSERT_TRUE(check_partition_invariant(&G, part));
 
+cleanup:
+    unsetenv("SPARSE_ND_COARSENING");
     free(part);
     sparse_graph_free(&G);
     sparse_free(A);

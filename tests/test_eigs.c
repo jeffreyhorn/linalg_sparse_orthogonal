@@ -871,7 +871,10 @@ static void test_near_singular_stable(void) {
 static void test_eigs_zero_spectrum_no_div_by_zero(void) {
     idx_t n = 6;
     SparseMatrix *A = sparse_create(n, n);
-    ASSERT_NOT_NULL(A);
+    if (!A) {
+        TF_FAIL_("sparse_create(%d, %d) returned NULL (OOM)", (int)n, (int)n);
+        return;
+    }
     /* All-zero matrix; spectrum is identically 0. */
 
     idx_t k = 2;

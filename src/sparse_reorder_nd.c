@@ -220,12 +220,13 @@ fail:
     return NULL;
 }
 
-/* Sprint 27 Day 7: SPARSE_ND_ROOT_BISECT env-var parser stub.
+/* Sprint 27 Days 7-9: SPARSE_ND_ROOT_BISECT env-var parser.
  *
- * Day 7 lands the parser + dispatch skeleton; Days 8-9 implement
- * the actual root-level spectral path (reuse Sprint 25 Day 7's
- * `graph_bisect_coarsest_spectral` Laplacian + Lanczos + Fiedler
- * pipeline at the root level instead of the coarsest level).
+ * Day 7 landed the parser + dispatch skeleton; Days 8-9 wired the
+ * actual root-level spectral path through `nd_recurse` at depth 0
+ * (reuses Sprint 25 Day 7's `graph_bisect_coarsest_spectral`
+ * Laplacian + Lanczos + Fiedler pipeline at the root level instead
+ * of the coarsest level — see the dispatch site in `nd_recurse`).
  *
  * Default `multilevel` preserves Sprint 22 → Sprint 27 Day 6
  * behaviour bit-identically.  `spectral` triggers the root-level

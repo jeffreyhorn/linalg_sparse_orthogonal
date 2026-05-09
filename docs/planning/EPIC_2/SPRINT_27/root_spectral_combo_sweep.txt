@@ -1,0 +1,35 @@
+# Sprint 27 Day 9: spectral + annealing combination sweep
+# Tests whether SPARSE_FM_FINEST_STRATEGY=annealing combined with
+# SPARSE_ND_ROOT_BISECT=spectral closes Pres_Poisson to ≤ 0.85× AMD.
+
+AMD baseline (Pres_Poisson): nnz_L = 2 668 793; 0.85× target = 2 268 474
+
+=== Pres_Poisson — multilevel + baseline (Sprint 27 Day 6 default) ===
+Pres_Poisson,14822,AMD,2668793,6252.3,skip
+Pres_Poisson,14822,COLAMD,3415793,13292.9,skip
+Pres_Poisson,14822,ND,2462201,8660.0,skip
+
+=== Pres_Poisson — spectral alone ===
+Pres_Poisson,14822,AMD,2668793,6362.6,skip
+Pres_Poisson,14822,COLAMD,3415793,13789.2,skip
+Pres_Poisson,14822,ND,2518428,9744.4,skip
+
+=== Pres_Poisson — annealing alone (Day 7 reference) ===
+Pres_Poisson,14822,AMD,2668793,6680.9,skip
+Pres_Poisson,14822,COLAMD,3415793,13533.3,skip
+Pres_Poisson,14822,ND,2538898,8559.0,skip
+
+=== Pres_Poisson — spectral + annealing exponential ===
+Pres_Poisson,14822,AMD,2668793,6163.1,skip
+Pres_Poisson,14822,COLAMD,3415793,12631.0,skip
+Pres_Poisson,14822,ND,2526747,8845.7,skip
+
+=== Pres_Poisson — spectral + annealing linear ===
+Pres_Poisson,14822,AMD,2668793,6118.6,skip
+Pres_Poisson,14822,COLAMD,3415793,11851.8,skip
+Pres_Poisson,14822,ND,2526747,8381.8,skip
+
+=== Pres_Poisson — spectral + annealing cosine ===
+Pres_Poisson,14822,AMD,2668793,6037.0,skip
+Pres_Poisson,14822,COLAMD,3415793,12489.5,skip
+Pres_Poisson,14822,ND,2526747,9162.4,skip

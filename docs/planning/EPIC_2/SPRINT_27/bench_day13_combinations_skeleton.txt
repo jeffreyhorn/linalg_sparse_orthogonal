@@ -1,0 +1,112 @@
+# Sprint 27 Day 13 cross-corpus re-bench combination skeleton.
+#
+# Item 7 (Day 13) runs ≤24 representative combinations × 6 corpus
+# fixtures × 2 metrics (nnz_L + ND wall) = ≤288 measurements.
+# Pattern matches Sprint 26 Day 13's combination matrix.
+#
+# Combinations cap at 24 to keep the sweep tractable (~30 min wall
+# total at Pres_Poisson ~7 s × 24 = ~3 min Pres_Poisson + smaller
+# fixtures aggregate ~5 min × 24 ≈ 25 min).  Each combination is
+# run under the post-Sprint-27-Day-3 production default coarsening
+# (HCC + Kuu-safe; nd_base_threshold=128) UNLESS overridden.
+#
+# Captures:
+#   - nnz_L per fixture (driver: build/bench_reorder --skip-factor)
+#   - ND wall per fixture (same driver, --reorder ND)
+#
+# Output destinations (Day 13 will populate):
+#   - docs/planning/EPIC_2/SPRINT_27/bench_day13_combinations.csv
+#   - docs/planning/EPIC_2/SPRINT_27/bench_day13_combinations.txt
+#   - docs/planning/EPIC_2/SPRINT_27/headline_summary.md (per-axis + combination verdict)
+#
+# Sprint 27 default-flipped axes (already in production default):
+#   - SPARSE_ND_COARSENING=hcc (Day 2 flip; Kuu-safe)
+#   - sparse_reorder_nd_base_threshold=128 (Day 3 flip; --nd-threshold N override)
+#
+# Sprint 27 advisory axes (not flipped; opt-in via env var):
+#   - SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k (Day 4)
+#   - SPARSE_ND_SEP_LIFT_WEIGHT={hybrid (default), balance, degree} (Day 4)
+#   - SPARSE_FM_FINEST_STRATEGY=annealing (Days 5-7)
+#   - SPARSE_FM_ANNEALING_SCHEDULE={linear, exponential, cosine} (Days 5-6)
+#   - SPARSE_ND_ROOT_BISECT=spectral (Days 7-9)
+#   - SPARSE_ND_ROOT_BISECT_MAX_N=N (Day 7)
+#   - SPARSE_FM_FINEST_STRATEGY=thick_restart (Days 10-12)
+#   - SPARSE_FM_THICK_RESTART_PERTURB={random_flip, boundary_shuffle, gauss_noise} (Days 10-11)
+
+# ─────────────────────────────────────────────────────────────────────────
+# Combination list (24 settings)
+# ─────────────────────────────────────────────────────────────────────────
+#
+# Setting    Description                                       Env vars
+# 1          Sprint 26 default (HEM)                           SPARSE_ND_COARSENING=heavy_edge --nd-threshold 96
+# 2          Sprint 27 Day 3 default (HCC + t=128)             (no env vars; production default)
+# 3          Sprint 27 default + per_vertex_fixed_k×hybrid     SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k SPARSE_ND_SEP_LIFT_WEIGHT=hybrid
+# 4          Sprint 27 default + per_vertex_fixed_k×balance    SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k SPARSE_ND_SEP_LIFT_WEIGHT=balance
+# 5          Sprint 27 default + per_vertex_fixed_k×degree     SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k SPARSE_ND_SEP_LIFT_WEIGHT=degree
+# 6          Sprint 27 default + annealing-exponential         SPARSE_FM_FINEST_STRATEGY=annealing SPARSE_FM_ANNEALING_SCHEDULE=exponential
+# 7          Sprint 27 default + annealing-linear              SPARSE_FM_FINEST_STRATEGY=annealing SPARSE_FM_ANNEALING_SCHEDULE=linear
+# 8          Sprint 27 default + annealing-cosine              SPARSE_FM_FINEST_STRATEGY=annealing SPARSE_FM_ANNEALING_SCHEDULE=cosine
+# 9          Sprint 27 default + root-spectral                 SPARSE_ND_ROOT_BISECT=spectral
+# 10         Sprint 27 default + thick-restart-random_flip     SPARSE_FM_FINEST_STRATEGY=thick_restart SPARSE_FM_THICK_RESTART_PERTURB=random_flip
+# 11         Sprint 27 default + thick-restart-boundary        SPARSE_FM_FINEST_STRATEGY=thick_restart SPARSE_FM_THICK_RESTART_PERTURB=boundary_shuffle
+# 12         Sprint 27 default + thick-restart-gauss_noise     SPARSE_FM_FINEST_STRATEGY=thick_restart SPARSE_FM_THICK_RESTART_PERTURB=gauss_noise
+# 13         Combo: spectral + annealing-exponential           SPARSE_ND_ROOT_BISECT=spectral SPARSE_FM_FINEST_STRATEGY=annealing
+# 14         Combo: spectral + annealing-linear                SPARSE_ND_ROOT_BISECT=spectral SPARSE_FM_FINEST_STRATEGY=annealing SPARSE_FM_ANNEALING_SCHEDULE=linear
+# 15         Combo: spectral + thick-restart-random_flip       SPARSE_ND_ROOT_BISECT=spectral SPARSE_FM_FINEST_STRATEGY=thick_restart
+# 16         Combo: per_vertex_fixed_k×hybrid + annealing      SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k SPARSE_ND_SEP_LIFT_WEIGHT=hybrid SPARSE_FM_FINEST_STRATEGY=annealing
+# 17         Combo: --nd-threshold 256 (Kuu opt-in advisory)   --nd-threshold 256
+# 18         Combo: --nd-threshold 256 + per_vertex_fixed_k    --nd-threshold 256 SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k
+# 19         HEM coarsening + --nd-threshold 96 + annealing    SPARSE_ND_COARSENING=heavy_edge --nd-threshold 96 SPARSE_FM_FINEST_STRATEGY=annealing
+# 20         HEM coarsening + per_vertex_fixed_k×hybrid        SPARSE_ND_COARSENING=heavy_edge SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k SPARSE_ND_SEP_LIFT_WEIGHT=hybrid
+# 21         Combo: spectral + per_vertex_fixed_k×hybrid       SPARSE_ND_ROOT_BISECT=spectral SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k SPARSE_ND_SEP_LIFT_WEIGHT=hybrid
+# 22         Combo: thick-restart×random_flip + annealing      SPARSE_FM_FINEST_STRATEGY=thick_restart   (note: thick_restart wins over annealing in dispatch)
+# 23         Combo: per_vertex_fixed_k×degree + annealing      SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k SPARSE_ND_SEP_LIFT_WEIGHT=degree SPARSE_FM_FINEST_STRATEGY=annealing
+# 24         All-axes combo (kitchen sink)                     SPARSE_ND_ROOT_BISECT=spectral SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k SPARSE_FM_FINEST_STRATEGY=annealing --nd-threshold 256
+
+# ─────────────────────────────────────────────────────────────────────────
+# Bench-driver invocation pattern
+# ─────────────────────────────────────────────────────────────────────────
+#
+# For each fixture in {nos4, bcsstk04, Kuu, bcsstk14, s3rmt3m3, Pres_Poisson}:
+#   for each setting 1..24:
+#     <env vars> build/bench_reorder --only <fixture> --skip-factor [<--nd-threshold N>]
+#     capture: nnz_L (column 4 of CSV row), reorder_ms (column 5)
+#
+# Output schema (CSV):
+#   setting, fixture, n, AMD_nnz, ND_nnz, ND_wall_ms, ND/AMD_ratio, vs_default_pp
+#
+# Day-13 verdict pattern (matching Sprint 26 Day 13 headline_summary.md):
+#   - Best Pres_Poisson combination
+#   - Best Kuu combination
+#   - Best corpus-wide combination (geometric mean of per-fixture ND/AMD ratios)
+#   - Per-axis flip outcomes (Day-2 HCC, Day-3 t=128, Day-12 advisories)
+#   - Test bound tightening (test_nd_pres_poisson_fill_with_leaf_amd 0.96× → ?)
+
+# ─────────────────────────────────────────────────────────────────────────
+# Predicted outcomes (Day 13 will validate or document deviation)
+# ─────────────────────────────────────────────────────────────────────────
+#
+# Pres_Poisson best: setting 2 (Sprint 27 default) at 0.923×.  All
+# advisory axes (annealing, spectral, thick-restart, per_vertex_fixed_k)
+# regress this fixture; their combinations (settings 13-15, 21-24) also
+# regress.
+#
+# Kuu best: setting 18 (--nd-threshold 256 + per_vertex_fixed_k) — the
+# combined Day-3 Kuu advisory + Day-4 Kuu advisory.  Predicted -35-40 %
+# nnz_L vs Sprint 27 default.
+#
+# bcsstk04 best: setting 9 (root-spectral) — Day-9 verdict's best
+# bcsstk04 advisory.  Predicted -1.3 % + 23× wall speedup.
+#
+# bcsstk14 best: setting 6 (annealing-exponential) — Day-6 verdict's
+# best bcsstk14 advisory.  Predicted -0.7 % nnz_L.
+#
+# s3rmt3m3 best: setting 10 (thick-restart × random_flip) — Day-12
+# verdict.  Predicted -1.0 % nnz_L.
+#
+# nos4: indifferent across all settings (tiny fixture; entirely
+# leaf-AMD-solved at any t > n).
+#
+# Corpus-wide best: setting 18 likely wins by virtue of Kuu's huge
+# delta dominating the geomean (Sprint 26 Day 13 had a similar pattern
+# with setting 15).

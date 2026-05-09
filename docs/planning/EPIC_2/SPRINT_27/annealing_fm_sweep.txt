@@ -1,0 +1,38 @@
+# Sprint 27 Day 7: annealing FM corpus sweep (canonical capture for
+# the flip-or-stay decision in annealing_fm_decision.md).  Reproduced
+# from Day 6's annealing_interim_day6.txt — bit-identical numbers
+# under the seeded xorshift32 RNG.
+# Fixed: Sprint 27 Day 5 dispatch + Day 6 acceptance overlay (graph_refine_fm)
+# Schedules: exponential (default), linear, cosine
+
+=== Reference: Sprint 27 Day 4 default (no FM strategy) ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,3722,125.2,skip
+Kuu,7102,ND,764664,5826.3,skip
+bcsstk14,1806,ND,130422,450.7,skip
+s3rmt3m3,5357,ND,487832,5393.6,skip
+Pres_Poisson,14822,ND,2462201,8819.6,skip
+
+=== SPARSE_FM_FINEST_STRATEGY=annealing × SPARSE_FM_ANNEALING_SCHEDULE=exponential ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,3722,160.1,skip
+Kuu,7102,ND,815158,6523.9,skip
+bcsstk14,1806,ND,129530,586.8,skip
+s3rmt3m3,5357,ND,487832,5854.0,skip
+Pres_Poisson,14822,ND,2538898,8925.7,skip
+
+=== SPARSE_FM_FINEST_STRATEGY=annealing × SPARSE_FM_ANNEALING_SCHEDULE=linear ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,3722,183.7,skip
+Kuu,7102,ND,765132,7338.8,skip
+bcsstk14,1806,ND,130111,599.5,skip
+s3rmt3m3,5357,ND,487832,6018.3,skip
+Pres_Poisson,14822,ND,2515202,12150.1,skip
+
+=== SPARSE_FM_FINEST_STRATEGY=annealing × SPARSE_FM_ANNEALING_SCHEDULE=cosine ===
+nos4,100,ND,637,0.4,skip
+bcsstk04,132,ND,3722,178.6,skip
+Kuu,7102,ND,815158,6504.9,skip
+bcsstk14,1806,ND,129530,604.0,skip
+s3rmt3m3,5357,ND,487832,5972.9,skip
+Pres_Poisson,14822,ND,2535749,9242.6,skip

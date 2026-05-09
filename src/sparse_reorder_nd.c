@@ -220,6 +220,44 @@ fail:
     return NULL;
 }
 
+/* Sprint 27 Day 7: SPARSE_ND_ROOT_BISECT env-var parser stub.
+ *
+ * Day 7 lands the parser + dispatch skeleton; Days 8-9 implement
+ * the actual root-level spectral path (reuse Sprint 25 Day 7's
+ * `graph_bisect_coarsest_spectral` Laplacian + Lanczos + Fiedler
+ * pipeline at the root level instead of the coarsest level).
+ *
+ * Default `multilevel` preserves Sprint 22 → Sprint 27 Day 6
+ * behaviour bit-identically.  `spectral` triggers the root-level
+ * path when `n <= SPARSE_ND_ROOT_BISECT_MAX_N` (default 50000).
+ * Above the threshold, fall through to `multilevel` (Lanczos at
+ * n > 100000 is > 30 s per Sprint 21 Day 5 scaling — not worth
+ * the special path on production-scale fixtures). */
+typedef enum {
+    ND_ROOT_BISECT_MULTILEVEL = 0, /* Sprint 22 default — full pipeline */
+    ND_ROOT_BISECT_SPECTRAL = 1,   /* Sprint 27 Day 7-9 — Fiedler at root */
+} nd_root_bisect_strategy_t;
+
+static nd_root_bisect_strategy_t parse_nd_root_bisect_strategy(void) {
+    const char *env = getenv("SPARSE_ND_ROOT_BISECT");
+    if (env && strcmp(env, "spectral") == 0)
+        return ND_ROOT_BISECT_SPECTRAL;
+    /* Default + unrecognized + "multilevel" all fall through. */
+    return ND_ROOT_BISECT_MULTILEVEL;
+}
+
+static idx_t parse_nd_root_bisect_max_n(void) {
+    idx_t max_n = 50000;
+    const char *env = getenv("SPARSE_ND_ROOT_BISECT_MAX_N");
+    if (env && *env) {
+        char *endp = NULL;
+        long v = strtol(env, &endp, 10);
+        if (env != endp && *endp == '\0' && v >= 1 && v <= 100000000)
+            max_n = (idx_t)v;
+    }
+    return max_n;
+}
+
 /* The driver is genuinely recursive — each level descends two
  * subgraphs.  Recursion depth is O(log n) on regular meshes (and
  * bounded by graph size in the worst case).  Suppress clang-tidy's
@@ -294,6 +332,24 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
         free(leaf_perm);
         sparse_free(A_leaf);
         return SPARSE_OK;
+    }
+
+    /* Sprint 27 Day 7: SPARSE_ND_ROOT_BISECT dispatch stub.  At
+     * depth 0 (root call), check the env var.  If set to `spectral`
+     * AND n <= SPARSE_ND_ROOT_BISECT_MAX_N (default 50000), Days 8-9
+     * will invoke a root-level Lanczos+Fiedler path (reusing Sprint
+     * 25 Day 7's `graph_bisect_coarsest_spectral` machinery).  Day 7
+     * is skeleton — branch is a no-op that falls through to the
+     * existing multilevel partition; default behaviour is bit-
+     * identical to Sprint 27 Day 6. */
+    if (depth == 0) {
+        nd_root_bisect_strategy_t root_strategy = parse_nd_root_bisect_strategy();
+        idx_t root_max_n = parse_nd_root_bisect_max_n();
+        if (root_strategy == ND_ROOT_BISECT_SPECTRAL && n <= root_max_n) {
+            /* TODO Sprint 27 Day 8-9: invoke root-level spectral
+             * bisection here.  Currently falls through to the
+             * multilevel partition below — Day 7 skeleton only. */
+        }
     }
 
     /* Partition: 3-way label part[i] ∈ {0, 1, 2}. */

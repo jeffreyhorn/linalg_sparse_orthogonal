@@ -571,6 +571,70 @@ cleanup:
     sparse_free(A);
 }
 
+/* Sprint 27 Day 7: SPARSE_ND_ROOT_BISECT=spectral produces a
+ * different ND reorder output than `multilevel` on Pres_Poisson
+ * (failing-as-expected Day-7 stub; pin Day 8-9 implementation).
+ *
+ * Sprint 25 Day 6-8 implemented spectral bisection at the COARSEST
+ * level of the multilevel pipeline; Sprint 27 PLAN.md item 5 extends
+ * to the ROOT level — Lanczos + Fiedler on the FULL graph Laplacian,
+ * bisect at the median, lift boundary as separator.  Day 7 wires
+ * the env-var skeleton (parser + dispatch stub); Days 8-9 implement
+ * the root-level path.  RUN_TEST commented out for Day 7 (test
+ * fails today; Day 8-9 lights it up). */
+static void test_nd_root_spectral_pres_poisson_smoke(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Pres_Poisson.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (Pres_Poisson fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    /* Pin SPARSE_ND_COARSENING=heavy_edge to scope the test to the
+     * Sprint 26-default coarsening for stable baseline reproducibility
+     * across the Sprint 27 Day 2 default flip. */
+    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        sparse_free(A);
+        return;
+    }
+
+    /* Multilevel run (default; root-spectral env var unset). */
+    unsetenv("SPARSE_ND_ROOT_BISECT");
+    idx_t nnz_multilevel = symbolic_cholesky_nnz_nd(A);
+    if (nnz_multilevel <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_nd(multilevel) returned %d", (int)nnz_multilevel);
+        goto cleanup;
+    }
+
+    /* Spectral run. */
+    if (setenv("SPARSE_ND_ROOT_BISECT", "spectral", /*overwrite=*/1) != 0) {
+        TF_FAIL_("setenv SPARSE_ND_ROOT_BISECT=%s failed", "spectral");
+        goto cleanup;
+    }
+    idx_t nnz_spectral = symbolic_cholesky_nnz_nd(A);
+    if (nnz_spectral <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_nd(spectral) returned %d", (int)nnz_spectral);
+        goto cleanup;
+    }
+
+    fprintf(stderr,
+            "    Pres_Poisson (n=%d): multilevel nnz(L) = %d, "
+            "spectral nnz(L) = %d (differ: %s)\n",
+            (int)sparse_rows(A), (int)nnz_multilevel, (int)nnz_spectral,
+            (nnz_multilevel != nnz_spectral) ? "yes" : "no");
+
+    /* Day-7 contract pin: spectral root-bisect produces a different
+     * ND output than multilevel.  Today fails (Day-7 skeleton is
+     * no-op); Day 8-9 implementation lights this up. */
+    ASSERT_TRUE(nnz_multilevel != nnz_spectral);
+
+cleanup:
+    unsetenv("SPARSE_ND_ROOT_BISECT");
+    unsetenv("SPARSE_ND_COARSENING");
+    sparse_free(A);
+}
+
 /* Sprint 27 Day 6: SPARSE_FM_FINEST_STRATEGY=annealing produces a
  * different ND reorder output than baseline (smoke-level evidence
  * the annealing-acceptance overlay is firing).  Day 6's design pins
@@ -943,6 +1007,12 @@ int main(void) {
     RUN_TEST(test_hcc_kuu_no_default_flip_blocker);
     /* Sprint 27 Day 6: annealing FM differs from baseline. */
     RUN_TEST(test_finest_fm_annealing_differs_from_baseline);
+    /* Sprint 27 Day 7 stub: SPARSE_ND_ROOT_BISECT=spectral differs
+     * from multilevel.  Day 7's dispatch is a no-op skeleton; Days
+     * 8-9 implement the root-level Lanczos+Fiedler path.  RUN_TEST
+     * commented out for Day 7 (test fails today; Day 8-9 enables
+     * it). */
+    /* RUN_TEST(test_nd_root_spectral_pres_poisson_smoke); */
     RUN_TEST(test_nd_determinism_public_api);
     RUN_TEST(test_cholesky_via_nd_residual_spd_synth);
 

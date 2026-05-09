@@ -653,3 +653,142 @@ scoring with 3 weight schemes, per-recursion-depth profiling).
 Pres_Poisson 0.85× literal target misses by 7.2pp (4th consecutive
 sprint to miss); routes to Sprint 27 with five concrete avenues
 identified.  `sparse_eigs.c:948` UBSan log cleared (Day 1)."
+
+## Sprint 27 closures
+
+Sprint 27 ran 14 days against the 7 items Sprint 26 routed forward:
+HCC Kuu-safe matching variant (Item 1), `nd_base_threshold` relaxed-
+flip-rule re-sweep (Item 2), tunable fixed-K per-vertex selection
+(Item 3), annealing-acceptance FM (Item 4; PRIMARY 0.85× candidate),
+root-level spectral bisection (Item 5; SECONDARY 0.85× candidate),
+thick-restart-style FM (Item 6; conditional fallback), and the
+cross-corpus re-bench + production-default decisions (Item 7).
+Headline reference: `docs/planning/EPIC_2/SPRINT_27/headline_summary.md`;
+day-by-day docs in `docs/planning/EPIC_2/SPRINT_27/`.
+
+### What moved (Sprint 26 default → Sprint 27 default)
+
+Sprint 27 ships **two production default flips** (Days 2 + 3):
+
+| metric                                 | Sprint 26  | Sprint 27  | delta |
+|----------------------------------------|------------|------------|------|
+| nos4 ND nnz_L                          |       809  |       637  | -21.3 % (entirely AMD; n < t=128) |
+| bcsstk04 ND nnz_L                      |     3 722  |     3 722  | bit-stable |
+| Kuu ND nnz_L                           |   881 177  |   764 664  | **-13.2 % win** |
+| bcsstk14 ND nnz_L                      |   129 292  |   130 422  | +0.9 % within budget |
+| s3rmt3m3 ND nnz_L                      |   483 195  |   487 832  | +1.0 % within budget |
+| **Pres_Poisson ND nnz_L**              | **2 536 427** | **2 462 201** | **-2.9 % win** |
+| Pres_Poisson ND wall (median)          | ~12 200 ms | **~10 100 ms** | **-17 %** |
+| Pres_Poisson ND/AMD ratio (default)    |   0.9504×  |   **0.9226×** | **-2.7pp win** |
+| **Pres_Poisson ND/AMD (best opt-in)**  | **0.9217×** | **0.9226× (default itself)** | the production default IS the empirical Pres_Poisson best |
+
+The two flips:
+
+- **Day 2: `SPARSE_ND_COARSENING` heavy_edge → hcc** with Kuu-safe
+  degree-CV-detection-and-HEM-fall-through.  Sprint 25 Day 10's
+  original HCC flip attempt was blocked by two issues; Sprint 26
+  Day 3 fixed bcsstk14 sep=0 (FIRST blocker); Sprint 27 Day 2 fixed
+  Kuu +14.6pp regress (SECOND blocker; both now closed).
+  Implementation: at the top of `graph_coarsen_with_strategy`, when
+  `strategy == COARSENING_HCC` AND the input graph's degree CV >
+  threshold (default 0.30; tunable via
+  `SPARSE_ND_COARSENING_CV_FALLTHROUGH`), fall through to HEM for
+  that call.  Per-level fall-through fires only at coarsening levels
+  where the bimodality is severe (Kuu's top 3 levels: CV=0.425,
+  0.404, 0.331; deeper levels stay HCC).  See
+  `docs/planning/EPIC_2/SPRINT_27/hcc_kuu_diagnosis.md`.
+
+- **Day 3: `nd_base_threshold` 96 → 128** under relaxed 2pp
+  regression cap (was 1pp Sprint 26).  Sprint 26 Day 5's strict cap
+  rejected t=128 by s3rmt3m3 +1.05pp (just barely past); Sprint 27
+  Day 3's relaxed cap absorbs that boundary case.  Pres_Poisson wall
+  -19.8 % at the flip; max nnz_L regress was Pres_Poisson +0.5 %
+  (within 2pp budget).  Kuu got a bonus -1.1 % nnz_L win.
+  See `docs/planning/EPIC_2/SPRINT_27/nd_base_threshold_decision.md`.
+
+### What didn't move: 0.85× literal Pres_Poisson target (5th consecutive sprint)
+
+Sprint 27's three structural-pipeline-level interventions ALL
+regressed Pres_Poisson:
+
+- **Item 4 (annealing FM, Days 5-7)**: regressed Pres_Poisson +2.2 to
+  +3.1pp under all three temperature schedules (linear / exponential
+  / cosine).  Hypothesis "baseline FM converges to a suboptimal local
+  minimum" empirically wrong — annealing's stochastic acceptance
+  disrupts baseline's saved-best-cut trajectory subtractively.
+- **Item 5 (root-level spectral, Days 7-9)**: regressed Pres_Poisson
+  +2.3pp.  Hypothesis "Fiedler at the root captures geometric
+  structure the multilevel pipeline loses" empirically wrong —
+  multilevel's iterative FM refinement reaches near-optimal cuts
+  median-bisect-on-Fiedler doesn't beat.
+- **Item 6 (thick-restart FM, Days 10-12)**: regressed Pres_Poisson
+  +4.7 to +11.5pp under all three perturbations (random_flip /
+  boundary_shuffle / gauss_noise).  Same root cause as items 4-5:
+  the multilevel pipeline + leaf-AMD already reaches near-optimal
+  cuts on Pres_Poisson; perturbing the partition state just breaks
+  them.
+- **Items 4 + 5 combined (Day 9)**: regressed Pres_Poisson +2.4pp.
+  All three combination schedules landed at *identical* nnz_L (under
+  spectral root-bisect, the partition tree diverges enough that
+  annealing's downstream FM jitter gets washed out).
+
+Day 13's 24-setting × 6-fixture cross-corpus matrix CONFIRMED the
+empirical conclusion: **no advisory combination beats Sprint 27's
+production default on Pres_Poisson**.  The closest contenders cluster
+at 0.927-0.944×.  The literal 0.85× target appears to be at or below
+the empirical floor for ND-style algorithms on this fixture; closing
+it requires fundamentally different machinery (METIS-style multi-
+matchings coarsening, geometric-aware domain decomposition,
+supernodal reordering on the elimination tree, or a fundamentally
+different ordering algorithm).  See `headline_summary.md` "Sprint
+27 Headline".
+
+### Three new advisory env-var paths (Sprint 27 ships)
+
+| env var | values | best advisory recipe | win |
+|---|---|---|---|
+| `SPARSE_FM_FINEST_STRATEGY=annealing` | with `SPARSE_FM_ANNEALING_SCHEDULE={linear, exponential (default), cosine}` | bcsstk14-class | -0.7 % nnz_L |
+| `SPARSE_ND_ROOT_BISECT=spectral` | with `SPARSE_ND_ROOT_BISECT_MAX_N=N` (default 50000) | bcsstk04-class (small irregular) | **-1.3 % nnz_L + 23× wall speedup** |
+| `SPARSE_FM_FINEST_STRATEGY=thick_restart` | with `SPARSE_FM_THICK_RESTART_PERTURB={random_flip, boundary_shuffle, gauss_noise}` | s3rmt3m3-class | -1.0 % nnz_L |
+| `SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k` | with `SPARSE_ND_SEP_LIFT_WEIGHT={hybrid (default), balance, degree}` | Kuu-class | **-34.7 % nnz_L** (combine with `--nd-threshold 256` for -35.3 %) |
+
+### Sprint 28+ inputs
+
+The Sprint 27 cross-corpus exploration is conclusive that pipeline-
+level interventions don't move Pres_Poisson.  Sprint 28+ should:
+
+1. **Either revise the 0.85× target to the empirical floor** (~0.92×)
+   and document the calibration, OR
+2. **Pivot to non-pipeline-level interventions**:
+   - METIS interop / METIS-style multi-matchings coarsening
+   - Geometric-aware domain decomposition (Pres_Poisson has 2D mesh
+     metadata we discard)
+   - Supernodal reordering on the elimination tree (post-symbolic)
+   - Different cost model: factor wall-time or FLOPS instead of
+     nnz_L (ND's L often has more nnz but lower fill bandwidth,
+     leading to faster Cholesky despite worse nnz count)
+
+The `SPARSE_ND_COARSENING_CV_FALLTHROUGH` env var (Day 2) is the
+user-tunable knob for the HCC Kuu-safe variant.  Workloads dominated
+by very-low-CV fixtures might benefit from a lower threshold; no
+corpus measurement motivated tuning beyond 0.30 in Sprint 27.
+
+### Shipping story for the Sprint 27 PR description
+
+"Two production default flips: `SPARSE_ND_COARSENING heavy_edge → hcc`
+(Day 2; Kuu-safe degree-CV-fall-through unblocks Kuu +14.6pp regress —
+the second of two HCC default-flip blockers Sprint 26 Day 3 only
+half-fixed) and `nd_base_threshold 96 → 128` (Day 3; relaxed 2pp
+flip rule absorbs the s3rmt3m3 +1.05pp boundary case Sprint 26 Day 5
+rejected).  Cumulative Pres_Poisson default-path achievement: 0.950×
+→ 0.923× (-2.7pp); cumulative ND wall reduction: 12.2 s → 10.1 s
+(-17 % vs Sprint 26; -73.5 % vs Sprint 25 baseline).  Three new
+advisory env-var paths: `SPARSE_FM_FINEST_STRATEGY={annealing,
+thick_restart}` (with sub-axes), `SPARSE_ND_ROOT_BISECT=spectral`,
+`SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k` (with weight
+sub-axis).  Pres_Poisson 0.85× literal target misses by 7.3pp (5th
+consecutive sprint); Day 13's 24-combination matrix confirms no
+advisory combination beats the production default on the headline
+fixture, routing Sprint 28+ to non-pipeline-level interventions.
+Test bound `test_nd_pres_poisson_fill_with_leaf_amd` tightened from
+0.96× to 0.94× pinning the Sprint 27 production default."

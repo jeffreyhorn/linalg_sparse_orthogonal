@@ -1430,7 +1430,7 @@ static int cmp_double_asc(const void *a, const void *b) {
  * the spectral path is opt-in via SPARSE_ND_COARSEST_BISECTION=spectral
  * but never breaks the basic {valid partition produced} contract.
  * Trivial sizes (n ≤ 2) skip Lanczos entirely. */
-static sparse_err_t graph_bisect_coarsest_spectral(const sparse_graph_t *G, idx_t *part_out) {
+sparse_err_t graph_bisect_coarsest_spectral(const sparse_graph_t *G, idx_t *part_out) {
     if (!G || !part_out)
         return SPARSE_ERR_NULL;
     if (G->n == 0)

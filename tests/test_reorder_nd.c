@@ -1007,12 +1007,12 @@ int main(void) {
     RUN_TEST(test_hcc_kuu_no_default_flip_blocker);
     /* Sprint 27 Day 6: annealing FM differs from baseline. */
     RUN_TEST(test_finest_fm_annealing_differs_from_baseline);
-    /* Sprint 27 Day 7 stub: SPARSE_ND_ROOT_BISECT=spectral differs
-     * from multilevel.  Day 7's dispatch is a no-op skeleton; Days
-     * 8-9 implement the root-level Lanczos+Fiedler path.  RUN_TEST
-     * commented out for Day 7 (test fails today; Day 8-9 enables
-     * it). */
-    /* RUN_TEST(test_nd_root_spectral_pres_poisson_smoke); */
+    /* Sprint 27 Day 8: SPARSE_ND_ROOT_BISECT=spectral differs from
+     * multilevel on Pres_Poisson.  Day 8 wires the root-level
+     * Lanczos+Fiedler path; the smoke assertion just verifies the
+     * dispatch fires and produces a different cut.  Day 9's flip-or-
+     * stay decision lands separately. */
+    RUN_TEST(test_nd_root_spectral_pres_poisson_smoke);
     RUN_TEST(test_nd_determinism_public_api);
     RUN_TEST(test_cholesky_via_nd_residual_spd_synth);
 

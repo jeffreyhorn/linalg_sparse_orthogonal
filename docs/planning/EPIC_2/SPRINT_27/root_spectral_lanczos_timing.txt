@@ -1,0 +1,24 @@
+# Sprint 27 Day 8: corpus Lanczos timing — root-spectral vs multilevel
+# Methodology: run bench_reorder on each fixture under multilevel
+# (default) and root-spectral (SPARSE_ND_ROOT_BISECT=spectral); the
+# ND wall-time delta = root-Lanczos cost contribution.  Captures
+# nnz_L delta + ND wall delta per fixture.
+
+Format: fixture, n, multilevel nnz_L, spectral nnz_L, multilevel
+ND wall (ms), spectral ND wall (ms)
+
+=== multilevel reference ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3722,105.4,skip
+Kuu,7102,ND,764664,4596.3,skip
+bcsstk14,1806,ND,130422,358.5,skip
+s3rmt3m3,5357,ND,487832,3783.9,skip
+Pres_Poisson,14822,ND,2462201,5958.3,skip
+
+=== root spectral ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3672,4.5,skip
+Kuu,7102,ND,892672,4667.7,skip
+bcsstk14,1806,ND,138693,1018.9,skip
+s3rmt3m3,5357,ND,506077,3241.5,skip
+Pres_Poisson,14822,ND,2518428,8856.9,skip

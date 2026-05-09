@@ -334,31 +334,49 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
         return SPARSE_OK;
     }
 
-    /* Sprint 27 Day 7: SPARSE_ND_ROOT_BISECT dispatch stub.  At
-     * depth 0 (root call), check the env var.  If set to `spectral`
-     * AND n <= SPARSE_ND_ROOT_BISECT_MAX_N (default 50000), Days 8-9
-     * will invoke a root-level Lanczos+Fiedler path (reusing Sprint
-     * 25 Day 7's `graph_bisect_coarsest_spectral` machinery).  Day 7
-     * is skeleton — branch is a no-op that falls through to the
-     * existing multilevel partition; default behaviour is bit-
-     * identical to Sprint 27 Day 6. */
-    if (depth == 0) {
-        nd_root_bisect_strategy_t root_strategy = parse_nd_root_bisect_strategy();
-        idx_t root_max_n = parse_nd_root_bisect_max_n();
-        if (root_strategy == ND_ROOT_BISECT_SPECTRAL && n <= root_max_n) {
-            /* TODO Sprint 27 Day 8-9: invoke root-level spectral
-             * bisection here.  Currently falls through to the
-             * multilevel partition below — Day 7 skeleton only. */
-        }
-    }
-
     /* Partition: 3-way label part[i] ∈ {0, 1, 2}. */
     idx_t *part = malloc((size_t)n * sizeof(idx_t));
     if (!part)
         return SPARSE_ERR_ALLOC;
     idx_t sep_count = 0;
+    sparse_err_t rc = SPARSE_OK;
     long long part_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
-    sparse_err_t rc = sparse_graph_partition(G, part, &sep_count);
+
+    /* Sprint 27 Day 8: SPARSE_ND_ROOT_BISECT dispatch.  At depth 0
+     * (root call), if the env var is `spectral` AND the graph is
+     * within the size threshold, run Lanczos + Fiedler at the root
+     * via `graph_bisect_coarsest_spectral` (Sprint 25 Day 7 helper,
+     * promoted to internal-API today); convert the 2-way result to a
+     * 3-way separator via `graph_edge_separator_to_vertex_separator`
+     * (Sprint 22 Day 4); skip the multilevel pipeline.
+     *
+     * Determinism: Lanczos with fixed tol + reorthogonalization is
+     * deterministic given the same Laplacian; output cuts reproduce
+     * across runs.
+     *
+     * Lanczos failure / 60-40 imbalance: `graph_bisect_coarsest_spectral`
+     * falls back internally to GGGP (still produces a valid 2-way
+     * partition).  The caller never sees the failure; the existing
+     * 3-way conversion path runs unconditionally on success.
+     *
+     * Default-off (env var unset / `multilevel`) leaves the existing
+     * multilevel `sparse_graph_partition` path unchanged — Sprint 27
+     * Day 6 behaviour preserved bit-identically. */
+    int used_root_spectral = 0;
+    if (depth == 0) {
+        nd_root_bisect_strategy_t root_strategy = parse_nd_root_bisect_strategy();
+        idx_t root_max_n = parse_nd_root_bisect_max_n();
+        if (root_strategy == ND_ROOT_BISECT_SPECTRAL && n <= root_max_n && n >= 3) {
+            rc = graph_bisect_coarsest_spectral(G, part);
+            if (rc == SPARSE_OK)
+                rc = graph_edge_separator_to_vertex_separator(G, part);
+            used_root_spectral = (rc == SPARSE_OK);
+        }
+    }
+    if (!used_root_spectral) {
+        rc = sparse_graph_partition(G, part, &sep_count);
+    }
+
     if (nd_prof_enabled) {
         long long elapsed = nd_prof_now_ns() - part_t0;
         nd_prof_partition_ns += elapsed;

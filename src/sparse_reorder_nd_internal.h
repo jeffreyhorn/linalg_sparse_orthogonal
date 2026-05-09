@@ -37,19 +37,27 @@
  * @brief ND base-case threshold (`n ≤ threshold` → leaf-AMD via
  *        `sparse_reorder_amd_qg`).
  *
- * Default 96 from the Sprint 26 Day 5 re-sweep across t ∈
- * {32, 48, 64, 96, 128} on the full corpus — the maximum
- * threshold satisfying the PROJECT_PLAN flip rule (≥ 5 %
- * Pres_Poisson wall improvement, no fixture nnz_L regression
- * past 1pp).  Result on Pres_Poisson: ND wall 38.1 s → 12.2 s
- * (-67.9 %) with nnz_L bit-stable (-0.21pp); see
- * `docs/planning/EPIC_2/SPRINT_26/nd_base_threshold_decision.md`
- * for the sweep matrix + flip-rule application.
+ * Default 128 from the Sprint 27 Day 3 relaxed-flip-rule re-sweep
+ * across t ∈ {96, 128, 192, 256} under the new Sprint 27 Day 2 HCC
+ * + Kuu-safe default coarsening — the maximum threshold satisfying
+ * the relaxed flip rule (≥ 5 % Pres_Poisson wall improvement, no
+ * fixture nnz_L regression past 2pp).  Result on Pres_Poisson: ND
+ * wall 8 826 ms → 7 079 ms (-19.8 %) with nnz_L +0.5 % (within
+ * 2pp).  Bonus Kuu nnz_L -1.1 % win.  See
+ * `docs/planning/EPIC_2/SPRINT_27/nd_base_threshold_decision.md`
+ * for the sweep matrix + relaxed-flip-rule application.
  *
- * Sprint 22 Day 9's earlier default of 32 came from a sweep where
- * the leaf path was natural ordering (no AMD); Sprint 23 spliced
- * quotient-graph AMD into each leaf, which changed the cost shape
- * and let larger thresholds win.
+ * Prior history: Sprint 26 Day 5 picked t=96 under a strict 1pp
+ * cap (t=128 was rejected by s3rmt3m3 +1.05pp).  Sprint 22 Day 9's
+ * original t=32 came from a sweep where the leaf path was natural
+ * ordering; Sprint 23 spliced quotient-graph AMD into each leaf,
+ * which changed the cost shape and let larger thresholds win.
+ *
+ * Per-fixture-class advisory: bimodal-degree solid-mechanics SPDs
+ * (Kuu's CV=0.425 class) benefit monotonically from larger t —
+ * t=256 produces -6.9 % nnz_L on Kuu vs t=96.  Such workloads can
+ * opt in to a larger threshold via the `bench_reorder
+ * --nd-threshold N` flag or by writing this variable directly.
  *
  * Defined in `src/sparse_reorder_nd.c`; declared here so in-tree
  * benches and tests can override it without an inline `extern`.

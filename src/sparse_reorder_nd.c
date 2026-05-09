@@ -119,25 +119,42 @@ static long long nd_prof_now_ns(void) {
  * partition recursion (Sprint 23 Day 7 introduced the leaf-AMD
  * splice; Sprint 22 used natural ordering at the base case).
  *
- * **Sprint 26 Day 5 flip: 32 → 96.**  Sprint 22 Day 9's original
- * sweep set the default at 32 against natural-ordering leaves;
- * Sprint 23 Day 7 swapped natural for leaf-AMD without re-sweeping
- * the threshold, leaving t=32 dominant for two more sprints.
- * Sprint 25 Day 11's per-phase profile measured `nd_emit_natural`
- * (degenerate small-subgraph fall-through) firing 32 times at
- * ~165 ms each on Pres_Poisson; Sprint 26 Day 4's per-recursion-
- * depth profile showed cost concentrating at depths 6-9 (88 % of
- * partition cost on 169 small-subgraph calls, each invoking the
- * full multilevel pipeline at n ≈ 50-300 with a constant-factor
- * overhead floor of 60-200 ms).  Sprint 26 Day 5 re-swept t ∈
- * {32, 48, 64, 96, 128} on the full corpus; t=96 was the maximum
- * threshold satisfying the PLAN.md flip rule (≥ 5 % Pres_Poisson
- * wall improvement + no fixture nnz_L regression past 1pp).
- * Result on Pres_Poisson: ND wall 38.1 s → 12.2 s (-67.9 %)
- * with nnz_L bit-stable (-0.21pp).  Per-fixture wins in [-1.3,
- * -16.4] pp range on nnz_L (nos4 / Kuu / bcsstk14 / Pres_Poisson)
- * and -38 to -80 % on wall across the corpus.  See
- * `docs/planning/EPIC_2/SPRINT_26/nd_base_threshold_decision.md`
+ * **Sprint 27 Day 3 flip: 96 → 128 (relaxed flip rule).**  Sprint
+ * 26 Day 5 picked t=96 under a strict 1pp regression cap that
+ * rejected t=128 by s3rmt3m3 +1.05pp (just barely past the gate).
+ * Sprint 27 Day 3 re-swept t ∈ {96, 128, 192, 256} under a relaxed
+ * 2pp regression cap + the new Sprint 27 Day 2 HCC + Kuu-safe
+ * default coarsening; t=128 is the maximum threshold satisfying
+ * the relaxed rule.  Result on Pres_Poisson: ND wall 8 826 ms →
+ * 7 079 ms (-19.8 %) with nnz_L +0.5 % (well within 2pp).  Per-
+ * fixture: Kuu nnz_L -1.1 % win; bcsstk14 / s3rmt3m3 within
+ * +/-0.5 %; nos4 / bcsstk04 bit-stable.  t=192 fails the relaxed
+ * rule by Pres_Poisson +2.0 % (right at the 2pp cap); t=256 fails
+ * clearly (Pres_Poisson +3.2 %).
+ *
+ * **Prior history (preserved for traceability).**  Sprint 22 Day 9's
+ * original sweep set the default at 32 against natural-ordering
+ * leaves; Sprint 23 Day 7 swapped natural for leaf-AMD without
+ * re-sweeping; Sprint 25 Day 11's per-phase profile measured
+ * `nd_emit_natural` firing 32 times at ~165 ms each on Pres_Poisson;
+ * Sprint 26 Day 4's per-recursion-depth profile showed cost
+ * concentrating at depths 6-9 (88 % of partition cost on 169
+ * small-subgraph calls).  The 32 → 96 flip on Day 5 of Sprint 26
+ * cut Pres_Poisson ND wall 38.1 s → 12.2 s (-67.9 %); Sprint 27
+ * Day 2 HCC default added another -28 % (8.8 s); Day 3's t=128 flip
+ * adds another -19.8 % (7.1 s).  Cumulative wall improvement vs
+ * the Sprint 25 baseline (t=32 + HEM) is roughly -81 %.
+ *
+ * Per-fixture-class advisory: bimodal-degree solid-mechanics SPDs
+ * (Kuu's CV=0.425 class) benefit monotonically from larger t —
+ * t=256 produces -6.9 % nnz_L on Kuu vs t=96.  Workloads that look
+ * more like Kuu than Pres_Poisson can opt in via
+ * `bench_reorder --nd-threshold 256` or programmatic
+ * `sparse_reorder_nd_base_threshold = 256` per the
+ * `sparse_reorder_nd_internal.h` exposure contract.  Default
+ * stays at t=128 because Pres_Poisson is the headline fixture and
+ * its fill-quality regress at t > 128 fails the corpus flip rule.
+ * See `docs/planning/EPIC_2/SPRINT_27/nd_base_threshold_decision.md`
  * for the full sweep matrix + flip-rule application.
  *
  * Declared in `src/sparse_reorder_nd_internal.h` (benchmark-only,
@@ -145,7 +162,7 @@ static long long nd_prof_now_ns(void) {
  * `benchmarks/bench_reorder.c --nd-threshold N` flag can override
  * it from the command line without recompiling the library, but
  * library consumers don't see it. */
-idx_t sparse_reorder_nd_base_threshold = 96;
+idx_t sparse_reorder_nd_base_threshold = 128;
 
 /* Append `n` vertices from a subgraph to the global permutation in
  * the order they appear in `vertex_id_map`.  Used by the

@@ -453,6 +453,23 @@ typedef enum {
 
 static _Thread_local fm_anneal_schedule_t fm_anneal_schedule = FM_ANNEAL_SCHEDULE_EXPONENTIAL;
 
+/* Sprint 27 Day 6: per-pass index + total passes used by
+ * graph_refine_fm to compute the temperature `T_k` for the chosen
+ * schedule.  graph_uncoarsen sets these before each finest-level
+ * graph_refine_fm call when fm_use_annealing == 1; defaults to
+ * (0, 1) which produces a single-pass T = T_0 (max temperature)
+ * if read by accident from a non-annealing context.
+ *
+ * Rationale for thread-local rather than a function parameter:
+ * graph_refine_fm's signature is part of the internal-but-stable
+ * contract used by `partition_once`, `graph_uncoarsen`, and the
+ * separator-lift code.  Threading a new (optional) parameter
+ * through all callers would touch many sites; the thread-local
+ * pattern is already established for the parallel
+ * `fm_pop_use_tail` (FIFO) and `fm_use_annealing` flags. */
+static _Thread_local int fm_anneal_pass_idx = 0;
+static _Thread_local int fm_anneal_total_passes = 1;
+
 static fm_anneal_schedule_t parse_fm_anneal_schedule(void) {
     const char *env = getenv("SPARSE_FM_ANNEALING_SCHEDULE");
     if (!env)
@@ -1812,6 +1829,20 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
     sparse_err_t (*pop_max)(fm_bucket_array_t *, idx_t *, idx_t *) =
         fm_pop_use_tail ? fm_bucket_pop_max_tail : fm_bucket_pop_max;
 
+    /* Sprint 27 Day 6: annealing-acceptance overlay.  When
+     * fm_use_annealing is set, negative-gain pops are subjected to a
+     * per-vertex acceptance check `random < exp(g / T)`; rejected
+     * vertices are parked on the same per-step skipped list as
+     * balance-skipped vertices (re-considered next step).  Default
+     * fm_use_annealing == 0 → branch is bypassed; baseline FM
+     * behaviour is bit-identical to current master. */
+    const int use_annealing = fm_use_annealing;
+    const int anneal_debug = use_annealing && getenv("SPARSE_FM_ANNEALING_DEBUG") != NULL;
+    double anneal_T = 0.0;
+    uint32_t anneal_rng = 0;
+    idx_t anneal_worsening_accepted = 0;
+    idx_t anneal_worsening_rejected = 0;
+
     idx_t n = G->n;
 
     /* Per-vertex gain = (sum of edge weights to other-side neighbours)
@@ -1877,6 +1908,49 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
         free(best_part);
         free(skipped_this_step);
         return rc;
+    }
+
+    /* Sprint 27 Day 6: compute T_k for the current pass under the
+     * configured schedule.  T_0 = max_weighted_degree (an upper
+     * bound on |gain|; gives moderate initial acceptance for the
+     * worst-case worsening move).  Pass index k = fm_anneal_pass_idx
+     * (set by graph_uncoarsen before each finest-level call); total
+     * passes K = fm_anneal_total_passes (Sprint 23 Day 11 default 3).
+     * Schedule formulae per Day-5 design (annealing_fm_design.md):
+     *   LINEAR:      T_k = T_0 × (1 − k/K)
+     *   EXPONENTIAL: T_k = T_0 × 0.5^k        (Kirkpatrick-1983 §3)
+     *   COSINE:      T_k = T_0/2 × (1 + cos(πk/K))
+     * Cutoff: when T <= 1.0, all worsening-move probabilities collapse
+     * to <~ 0.37, so annealing effectively stops rejecting late in
+     * the schedule. */
+    if (use_annealing) {
+        int K = fm_anneal_total_passes > 0 ? fm_anneal_total_passes : 1;
+        int k = fm_anneal_pass_idx;
+        if (k < 0)
+            k = 0;
+        if (k >= K)
+            k = K - 1;
+        double T0 = (double)max_weighted_degree;
+        switch (fm_anneal_schedule) {
+        case FM_ANNEAL_SCHEDULE_LINEAR:
+            anneal_T = T0 * (1.0 - (double)k / (double)K);
+            break;
+        case FM_ANNEAL_SCHEDULE_COSINE:
+            anneal_T = T0 * 0.5 * (1.0 + cos(3.14159265358979323846 * (double)k / (double)K));
+            break;
+        case FM_ANNEAL_SCHEDULE_EXPONENTIAL:
+        default:
+            anneal_T = T0;
+            for (int i = 0; i < k; i++)
+                anneal_T *= 0.5;
+            break;
+        }
+        /* Per-call deterministic seed: hash of (n, k).  xorshift32
+         * needs a non-zero state; bias by + 1 to guarantee that. */
+        anneal_rng =
+            (uint32_t)(((uint64_t)(uint32_t)n * 31u + (uint32_t)(uint64_t)(unsigned long)k) *
+                           2654435761u +
+                       1u);
     }
     /* Insert every vertex into the bucket initially.  Vertices with
      * negative gain (interior to their side) are still inserted —
@@ -1965,6 +2039,30 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
                 skipped_this_step[skipped_count++] = v;
                 continue;
             }
+            /* Sprint 27 Day 6: annealing-acceptance overlay.  When
+             * fm_use_annealing is set and T > 1, negative-gain pops
+             * are accepted with probability `exp(g / T)` and rejected
+             * (re-bucketed at end-of-step) with probability `1 - P`.
+             * Positive-gain (improving) moves and balance-eligible
+             * zero-gain moves bypass this check entirely — they're
+             * always accepted, matching baseline FM.  Default
+             * `use_annealing == 0` skips the branch. */
+            if (use_annealing && g < 0 && anneal_T > 1.0) {
+                /* xorshift32 advance — produces a uniform 32-bit
+                 * value; convert to [0, 1) by dividing by 2^32. */
+                anneal_rng ^= anneal_rng << 13;
+                anneal_rng ^= anneal_rng >> 17;
+                anneal_rng ^= anneal_rng << 5;
+                double r = (double)anneal_rng / 4294967296.0;
+                double accept_p = exp((double)g / anneal_T);
+                if (r >= accept_p) {
+                    anneal_worsening_rejected++;
+                    // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
+                    skipped_this_step[skipped_count++] = v;
+                    continue;
+                }
+                anneal_worsening_accepted++;
+            }
             best_v = v;
             best_g = g;
             have_candidate = 1;
@@ -2037,6 +2135,17 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
 
     /* Roll back to the best state. */
     memcpy(part_io, best_part, (size_t)n * sizeof(idx_t));
+
+    /* Sprint 27 Day 6: emit annealing per-pass stats under
+     * SPARSE_FM_ANNEALING_DEBUG=1 (default off; one-branch overhead
+     * when off). */
+    if (anneal_debug) {
+        fprintf(stderr,
+                "fm-annealing-debug n=%d pass=%d/%d schedule=%d T=%.3f "
+                "worsening_accepted=%d worsening_rejected=%d\n",
+                (int)n, fm_anneal_pass_idx, fm_anneal_total_passes, (int)fm_anneal_schedule,
+                anneal_T, (int)anneal_worsening_accepted, (int)anneal_worsening_rejected);
+    }
 
     fm_bucket_array_free(&buckets);
     free(gain);
@@ -2244,18 +2353,29 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
         int prev_pop_use_tail = fm_pop_use_tail;
         int prev_use_annealing = fm_use_annealing;
         fm_anneal_schedule_t prev_schedule = fm_anneal_schedule;
+        int prev_anneal_pass_idx = fm_anneal_pass_idx;
+        int prev_anneal_total_passes = fm_anneal_total_passes;
         if (level == 0 && finest_strategy == FINEST_FM_FIFO)
             fm_pop_use_tail = 1;
         if (level == 0 && finest_strategy == FINEST_FM_ANNEALING) {
             fm_use_annealing = 1;
             fm_anneal_schedule = anneal_schedule_choice;
+            fm_anneal_total_passes = passes;
         }
         for (int p = 0; p < passes; p++) {
+            /* Sprint 27 Day 6: per-pass annealing index.  Set
+             * unconditionally so a future caller that enables
+             * annealing mid-uncoarsening sees a sensible default;
+             * graph_refine_fm only consults fm_anneal_pass_idx when
+             * fm_use_annealing == 1. */
+            fm_anneal_pass_idx = p;
             sparse_err_t rc = graph_refine_fm(dst_graph, next);
             if (rc != SPARSE_OK) {
                 fm_pop_use_tail = prev_pop_use_tail;
                 fm_use_annealing = prev_use_annealing;
                 fm_anneal_schedule = prev_schedule;
+                fm_anneal_pass_idx = prev_anneal_pass_idx;
+                fm_anneal_total_passes = prev_anneal_total_passes;
                 free(cur);
                 free(next);
                 return rc;
@@ -2264,6 +2384,8 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
         fm_pop_use_tail = prev_pop_use_tail;
         fm_use_annealing = prev_use_annealing;
         fm_anneal_schedule = prev_schedule;
+        fm_anneal_pass_idx = prev_anneal_pass_idx;
+        fm_anneal_total_passes = prev_anneal_total_passes;
         idx_t *tmp = cur;
         cur = next;
         next = tmp;

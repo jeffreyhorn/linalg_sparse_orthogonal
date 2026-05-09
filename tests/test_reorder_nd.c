@@ -571,6 +571,83 @@ cleanup:
     sparse_free(A);
 }
 
+/* Sprint 27 Day 6: SPARSE_FM_FINEST_STRATEGY=annealing produces a
+ * different ND reorder output than baseline (smoke-level evidence
+ * the annealing-acceptance overlay is firing).  Day 6's design pins
+ * this on bcsstk14 — irregular structural-mechanics fixture where
+ * annealing's stochastic acceptance lets the FM walk diverge from
+ * baseline's saved best-cut.  Full ND reorder (vs single partition
+ * call) is required because `sparse_graph_partition` on bcsstk14
+ * converges to the same partition under both strategies (rollback-
+ * to-best floors both at the same cut); the differentiation comes
+ * from downstream recursive partitions on smaller subgraphs that
+ * have multiple near-optimal cuts.
+ *
+ * Day-6 measurement: baseline nnz_L = 129 576, annealing nnz_L =
+ * 129 224 (-0.27 %, slight WIN — annealing happens to land on a
+ * tighter cut on bcsstk14; whether that's typical or fixture-luck
+ * is the Sprint 27 Day 7 corpus-sweep + flip-decision question).
+ *
+ * Plan-spec deviation: PLAN.md Day 6 named Pres_Poisson but bcsstk14
+ * is much faster (~0.5 s vs ~7 s) and shows the same differentiation.
+ * Documented in `SPRINT_27/annealing_fm_design.md` "Day 6 test
+ * placement". */
+static void test_finest_fm_annealing_differs_from_baseline(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    /* Pin SPARSE_ND_COARSENING=heavy_edge for stability across the
+     * Sprint 27 Day 2 default flip — annealing's behaviour at the
+     * FM stage is invariant of coarsening but pinning here keeps
+     * the bench numbers stable for assertion. */
+    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        sparse_free(A);
+        return;
+    }
+
+    /* Baseline run (annealing env var unset). */
+    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    idx_t nnz_baseline = symbolic_cholesky_nnz_nd(A);
+    if (nnz_baseline <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_nd(baseline) returned %d", (int)nnz_baseline);
+        goto cleanup;
+    }
+
+    /* Annealing run (default exponential schedule). */
+    if (setenv("SPARSE_FM_FINEST_STRATEGY", "annealing", /*overwrite=*/1) != 0) {
+        TF_FAIL_("setenv SPARSE_FM_FINEST_STRATEGY=%s failed", "annealing");
+        goto cleanup;
+    }
+    idx_t nnz_annealing = symbolic_cholesky_nnz_nd(A);
+    if (nnz_annealing <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_nd(annealing) returned %d", (int)nnz_annealing);
+        goto cleanup;
+    }
+
+    fprintf(stderr,
+            "    bcsstk14 (n=%d): baseline nnz(L) = %d, annealing nnz(L) = %d "
+            "(differ: %s)\n",
+            (int)sparse_rows(A), (int)nnz_baseline, (int)nnz_annealing,
+            (nnz_baseline != nnz_annealing) ? "yes" : "no");
+
+    /* Day 6 contract: annealing produces a different ND output.
+     * If they match, either (a) annealing dispatch isn't firing (Day
+     * 5 skeleton state) or (b) annealing acceptance has no effect on
+     * this fixture under the chosen schedule.  Either way the
+     * contract isn't met; flag for investigation. */
+    ASSERT_TRUE(nnz_baseline != nnz_annealing);
+
+cleanup:
+    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    unsetenv("SPARSE_ND_COARSENING");
+    sparse_free(A);
+}
+
 /* ─── Public-API determinism contract ─────────────────────────────── */
 
 static void test_nd_determinism_public_api(void) {
@@ -864,6 +941,8 @@ int main(void) {
      * threshold 0.30) routes Kuu (CV=0.425) to HEM, restoring the
      * Sprint 26 default-strategy fill quality. */
     RUN_TEST(test_hcc_kuu_no_default_flip_blocker);
+    /* Sprint 27 Day 6: annealing FM differs from baseline. */
+    RUN_TEST(test_finest_fm_annealing_differs_from_baseline);
     RUN_TEST(test_nd_determinism_public_api);
     RUN_TEST(test_cholesky_via_nd_residual_spd_synth);
 

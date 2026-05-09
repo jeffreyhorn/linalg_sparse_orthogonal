@@ -571,6 +571,75 @@ cleanup:
     sparse_free(A);
 }
 
+/* Sprint 27 Day 10: SPARSE_FM_FINEST_STRATEGY=thick_restart produces
+ * a different ND output than baseline (failing-as-expected Day-10
+ * stub; pin Day 11 implementation).
+ *
+ * Sprint 26 Day 6 stubbed `thick_restart` as a parser-recognised
+ * value that fell through to baseline (rejected on cost: 2-3× wall
+ * expansion).  Sprint 27 PLAN.md item 6 revisits under the post-
+ * Sprint-27-Days-2-3 wall budget — Pres_Poisson ND wall is now 7.1 s
+ * vs Sprint 25's 38.1 s (-81 %), making thick-restart's expansion
+ * comfortably affordable under the 70.5 s 1.5x wall-check ceiling.
+ *
+ * Day 10 wires the dispatch skeleton (thread-local
+ * fm_use_thick_restart + fm_thick_restart_perturb); Day 11 lands the
+ * global-best-tracking + per-pass perturbation overlay in
+ * graph_refine_fm.  RUN_TEST commented out for Day 10 (test fails
+ * today; Day 11 enables it). */
+static void test_finest_fm_thick_restart_returns_to_anchor(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    /* Pin SPARSE_ND_COARSENING=heavy_edge for stability across the
+     * Sprint 27 Day 2 default flip — same pattern as the annealing
+     * smoke test. */
+    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        sparse_free(A);
+        return;
+    }
+
+    /* Baseline run (thick_restart env var unset). */
+    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    idx_t nnz_baseline = symbolic_cholesky_nnz_nd(A);
+    if (nnz_baseline <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_nd(baseline) returned %d", (int)nnz_baseline);
+        goto cleanup;
+    }
+
+    /* Thick-restart run (default random_flip perturbation). */
+    if (setenv("SPARSE_FM_FINEST_STRATEGY", "thick_restart", /*overwrite=*/1) != 0) {
+        TF_FAIL_("setenv SPARSE_FM_FINEST_STRATEGY=%s failed", "thick_restart");
+        goto cleanup;
+    }
+    idx_t nnz_thick_restart = symbolic_cholesky_nnz_nd(A);
+    if (nnz_thick_restart <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_nd(thick_restart) returned %d", (int)nnz_thick_restart);
+        goto cleanup;
+    }
+
+    fprintf(stderr,
+            "    bcsstk14 (n=%d): baseline nnz(L) = %d, thick_restart nnz(L) = %d "
+            "(differ: %s)\n",
+            (int)sparse_rows(A), (int)nnz_baseline, (int)nnz_thick_restart,
+            (nnz_baseline != nnz_thick_restart) ? "yes" : "no");
+
+    /* Day-10 stub: this assertion fails today (thick_restart dispatch
+     * is skeleton; falls through to baseline-equivalent behaviour).
+     * Day 11 lands the perturbation overlay and lights this up. */
+    ASSERT_TRUE(nnz_baseline != nnz_thick_restart);
+
+cleanup:
+    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    unsetenv("SPARSE_ND_COARSENING");
+    sparse_free(A);
+}
+
 /* Sprint 27 Day 7: SPARSE_ND_ROOT_BISECT=spectral produces a
  * different ND reorder output than `multilevel` on Pres_Poisson
  * (failing-as-expected Day-7 stub; pin Day 8-9 implementation).

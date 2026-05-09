@@ -453,6 +453,43 @@ typedef enum {
 
 static _Thread_local fm_anneal_schedule_t fm_anneal_schedule = FM_ANNEAL_SCHEDULE_EXPONENTIAL;
 
+/* Sprint 27 Day 10: thread-local override for thick-restart FM at
+ * the finest level.  `graph_uncoarsen` sets this to 1 before
+ * invoking `graph_refine_fm` at the finest level when
+ * SPARSE_FM_FINEST_STRATEGY=thick_restart, restored to 0 after.
+ * Day 10 lands the parser + dispatch wiring (skeleton); Day 11
+ * implements the global-best-tracking + per-pass perturbation
+ * overlay in graph_refine_fm.  See
+ * `docs/planning/EPIC_2/SPRINT_27/thick_restart_design.md`. */
+static _Thread_local int fm_use_thick_restart = 0;
+
+/* Sprint 27 Day 10: perturbation strategy for thick-restart.  Day
+ * 10 stubs three values; default random_flip matches the simplest
+ * formulation (flip k = 1 % × n random vertices' partition
+ * assignments before each pass except the first).  Day 11 wires
+ * the per-pass perturbation; until then all three values fall
+ * through to baseline. */
+typedef enum {
+    FM_THICK_RESTART_PERTURB_RANDOM_FLIP = 0, /* default */
+    FM_THICK_RESTART_PERTURB_BOUNDARY_SHUFFLE = 1,
+    FM_THICK_RESTART_PERTURB_GAUSS_NOISE = 2,
+} fm_thick_restart_perturb_t;
+
+static _Thread_local fm_thick_restart_perturb_t fm_thick_restart_perturb =
+    FM_THICK_RESTART_PERTURB_RANDOM_FLIP;
+
+static fm_thick_restart_perturb_t parse_fm_thick_restart_perturb(void) {
+    const char *env = getenv("SPARSE_FM_THICK_RESTART_PERTURB");
+    if (!env)
+        return FM_THICK_RESTART_PERTURB_RANDOM_FLIP;
+    if (strcmp(env, "boundary_shuffle") == 0)
+        return FM_THICK_RESTART_PERTURB_BOUNDARY_SHUFFLE;
+    if (strcmp(env, "gauss_noise") == 0)
+        return FM_THICK_RESTART_PERTURB_GAUSS_NOISE;
+    /* Default + unrecognized + "random_flip" all fall through. */
+    return FM_THICK_RESTART_PERTURB_RANDOM_FLIP;
+}
+
 /* Sprint 27 Day 6: per-pass index + total passes used by
  * graph_refine_fm to compute the temperature `T_k` for the chosen
  * schedule.  graph_uncoarsen sets these before each finest-level
@@ -2279,13 +2316,16 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
      * acceptance-probability overlay + measurement.  `thick_restart`
      * stays unimplemented (Sprint 27 item 6 budget; Days 10-12). */
     fm_anneal_schedule_t anneal_schedule_choice = parse_fm_anneal_schedule();
+    fm_thick_restart_perturb_t thick_restart_perturb_choice = parse_fm_thick_restart_perturb();
     /* Sprint 26 Day 7 dispatch: `fifo` sets `fm_pop_use_tail = 1`
      * for the finest-level call below (restored to 0 after).
      * Sprint 27 Day 5 adds the parallel `annealing` dispatch
      * (sets `fm_use_annealing = 1` + `fm_anneal_schedule` to the
-     * parsed schedule choice; restored after).  `thick_restart` is
-     * recognized but unimplemented — falls through to baseline
-     * (Sprint 27 Item 6, Days 10-12). */
+     * parsed schedule choice; restored after).  Sprint 27 Day 10
+     * adds the `thick_restart` dispatch wiring (sets
+     * `fm_use_thick_restart = 1` + `fm_thick_restart_perturb`;
+     * Day 11 lands the global-best-tracking + perturbation
+     * overlay in graph_refine_fm). */
 
     /* Sprint 25 Day 4: SPARSE_FM_INTERMEDIATE_PASSES extends the
      * Sprint 23 Day 11 multi-pass-FM exploration from the finest
@@ -2355,6 +2395,8 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
         fm_anneal_schedule_t prev_schedule = fm_anneal_schedule;
         int prev_anneal_pass_idx = fm_anneal_pass_idx;
         int prev_anneal_total_passes = fm_anneal_total_passes;
+        int prev_use_thick_restart = fm_use_thick_restart;
+        fm_thick_restart_perturb_t prev_thick_restart_perturb = fm_thick_restart_perturb;
         if (level == 0 && finest_strategy == FINEST_FM_FIFO)
             fm_pop_use_tail = 1;
         if (level == 0 && finest_strategy == FINEST_FM_ANNEALING) {
@@ -2362,12 +2404,19 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
             fm_anneal_schedule = anneal_schedule_choice;
             fm_anneal_total_passes = passes;
         }
+        if (level == 0 && finest_strategy == FINEST_FM_THICK_RESTART) {
+            fm_use_thick_restart = 1;
+            fm_thick_restart_perturb = thick_restart_perturb_choice;
+            fm_anneal_total_passes = passes; /* reuse pass-count thread-local */
+        }
         for (int p = 0; p < passes; p++) {
             /* Sprint 27 Day 6: per-pass annealing index.  Set
              * unconditionally so a future caller that enables
              * annealing mid-uncoarsening sees a sensible default;
              * graph_refine_fm only consults fm_anneal_pass_idx when
-             * fm_use_annealing == 1. */
+             * fm_use_annealing == 1.  Sprint 27 Day 10: thick-restart
+             * also reads fm_anneal_pass_idx (Day 11 perturbation only
+             * fires for p > 0). */
             fm_anneal_pass_idx = p;
             sparse_err_t rc = graph_refine_fm(dst_graph, next);
             if (rc != SPARSE_OK) {
@@ -2376,6 +2425,8 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                 fm_anneal_schedule = prev_schedule;
                 fm_anneal_pass_idx = prev_anneal_pass_idx;
                 fm_anneal_total_passes = prev_anneal_total_passes;
+                fm_use_thick_restart = prev_use_thick_restart;
+                fm_thick_restart_perturb = prev_thick_restart_perturb;
                 free(cur);
                 free(next);
                 return rc;
@@ -2386,6 +2437,8 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
         fm_anneal_schedule = prev_schedule;
         fm_anneal_pass_idx = prev_anneal_pass_idx;
         fm_anneal_total_passes = prev_anneal_total_passes;
+        fm_use_thick_restart = prev_use_thick_restart;
+        fm_thick_restart_perturb = prev_thick_restart_perturb;
         idx_t *tmp = cur;
         cur = next;
         next = tmp;

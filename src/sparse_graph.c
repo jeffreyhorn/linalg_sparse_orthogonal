@@ -2240,7 +2240,28 @@ typedef enum {
     SEP_LIFT_PER_VERTEX_HYBRID = 2,  /* SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex */
     SEP_LIFT_PER_VERTEX_BALANCE = 3, /* SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_balance */
     SEP_LIFT_PER_VERTEX_DEGREE = 4,  /* SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_degree */
+    /* Sprint 27 Day 4 — fixed-K termination instead of the
+     * 70/30-balance gate.  K = min(boundary_count[0],
+     * boundary_count[1]).  Stacks with the orthogonal
+     * SPARSE_ND_SEP_LIFT_WEIGHT={hybrid (default), balance, degree}
+     * axis to differentiate the three weight schemes (which Sprint
+     * 26 Day 12 found bit-identical on 5 of 6 fixtures because the
+     * 70/30 balance gate dominates).  See
+     * `docs/planning/EPIC_2/SPRINT_27/per_vertex_fixed_k_decision.md`. */
+    SEP_LIFT_PER_VERTEX_FIXED_K = 5, /* SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k */
 } sep_lift_strategy_t;
+
+/* Sprint 27 Day 4 — orthogonal weight-scheme axis for the fixed-K
+ * variant.  Set via SPARSE_ND_SEP_LIFT_WEIGHT={hybrid, balance,
+ * degree}; default hybrid.  Only consulted when strategy ==
+ * SEP_LIFT_PER_VERTEX_FIXED_K (the existing per_vertex_* strategies
+ * keep their hardcoded weight schemes for backward compatibility
+ * with Sprint 26 advisory env-var users). */
+typedef enum {
+    SEP_LIFT_WEIGHT_HYBRID = 0,
+    SEP_LIFT_WEIGHT_BALANCE = 1,
+    SEP_LIFT_WEIGHT_DEGREE = 2,
+} sep_lift_weight_t;
 
 static sep_lift_strategy_t parse_sep_lift_strategy(void) {
     const char *env = getenv("SPARSE_ND_SEP_LIFT_STRATEGY");
@@ -2254,15 +2275,30 @@ static sep_lift_strategy_t parse_sep_lift_strategy(void) {
         return SEP_LIFT_PER_VERTEX_BALANCE;
     if (strcmp(env, "per_vertex_degree") == 0)
         return SEP_LIFT_PER_VERTEX_DEGREE;
+    if (strcmp(env, "per_vertex_fixed_k") == 0)
+        return SEP_LIFT_PER_VERTEX_FIXED_K;
     /* Default + unrecognized + "smaller_weight" all fall through. */
     return SEP_LIFT_SMALLER_WEIGHT;
 }
 
-/* Sprint 26 Day 12: returns 1 if the strategy is any per_vertex
- * variant.  Used to gate the per-vertex code path entry. */
+static sep_lift_weight_t parse_sep_lift_weight(void) {
+    const char *env = getenv("SPARSE_ND_SEP_LIFT_WEIGHT");
+    if (!env)
+        return SEP_LIFT_WEIGHT_HYBRID;
+    if (strcmp(env, "balance") == 0)
+        return SEP_LIFT_WEIGHT_BALANCE;
+    if (strcmp(env, "degree") == 0)
+        return SEP_LIFT_WEIGHT_DEGREE;
+    /* Default + unrecognized + "hybrid" all fall through. */
+    return SEP_LIFT_WEIGHT_HYBRID;
+}
+
+/* Sprint 26 Day 12 / Sprint 27 Day 4: returns 1 if the strategy is
+ * any per_vertex variant (hybrid / balance / degree / fixed_k).
+ * Used to gate the per-vertex code path entry. */
 static int is_per_vertex_strategy(sep_lift_strategy_t s) {
     return s == SEP_LIFT_PER_VERTEX_HYBRID || s == SEP_LIFT_PER_VERTEX_BALANCE ||
-           s == SEP_LIFT_PER_VERTEX_DEGREE;
+           s == SEP_LIFT_PER_VERTEX_DEGREE || s == SEP_LIFT_PER_VERTEX_FIXED_K;
 }
 
 /* Sprint 26 Day 10/12: qsort comparator for per-vertex separator
@@ -2413,11 +2449,32 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
                 return SPARSE_ERR_ALLOC;
             }
             idx_t larger_side = (w[0] >= w[1]) ? 0 : 1;
-            /* For DEGREE scheme: find max degree among boundary
+            /* Sprint 27 Day 4: resolve the score-formula weight
+             * scheme.  The four legacy per_vertex_* strategies hardcode
+             * their weight; SEP_LIFT_PER_VERTEX_FIXED_K reads the
+             * orthogonal SPARSE_ND_SEP_LIFT_WEIGHT axis. */
+            sep_lift_weight_t weight;
+            switch (strategy) {
+            case SEP_LIFT_PER_VERTEX_HYBRID:
+            default:
+                weight = SEP_LIFT_WEIGHT_HYBRID;
+                break;
+            case SEP_LIFT_PER_VERTEX_BALANCE:
+                weight = SEP_LIFT_WEIGHT_BALANCE;
+                break;
+            case SEP_LIFT_PER_VERTEX_DEGREE:
+                weight = SEP_LIFT_WEIGHT_DEGREE;
+                break;
+            case SEP_LIFT_PER_VERTEX_FIXED_K:
+                weight = parse_sep_lift_weight();
+                break;
+            }
+
+            /* For DEGREE weight scheme: find max degree among boundary
              * vertices (one-pass pre-scan; small overhead vs the
              * boundary-walk below). */
             idx_t max_deg = 0;
-            if (strategy == SEP_LIFT_PER_VERTEX_DEGREE) {
+            if (weight == SEP_LIFT_WEIGHT_DEGREE) {
                 for (idx_t v = 0; v < G->n; v++) {
                     if (!is_boundary[v])
                         continue;
@@ -2445,17 +2502,17 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
                  * graphs with vertex degrees approaching ~2M, which
                  * would corrupt qsort ordering. */
                 int64_t score = 0;
-                switch (strategy) {
-                case SEP_LIFT_PER_VERTEX_HYBRID:
+                switch (weight) {
+                case SEP_LIFT_WEIGHT_HYBRID:
                 default:
                     /* cross_deg dominant; balance tie-break. */
                     score = (int64_t)2 * (int64_t)cross_deg + (int64_t)balance_bonus;
                     break;
-                case SEP_LIFT_PER_VERTEX_BALANCE:
+                case SEP_LIFT_WEIGHT_BALANCE:
                     /* balance dominant; cross_deg tie-break. */
                     score = (int64_t)1000 * (int64_t)balance_bonus + (int64_t)cross_deg;
                     break;
-                case SEP_LIFT_PER_VERTEX_DEGREE: {
+                case SEP_LIFT_WEIGHT_DEGREE: {
                     /* low total-degree dominant; balance tie-break. */
                     idx_t deg = G->xadj[v + 1] - G->xadj[v];
                     score = (int64_t)1000 * (int64_t)(max_deg - deg) + (int64_t)balance_bonus;
@@ -2470,9 +2527,17 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
             qsort(scored, (size_t)total_boundary, sizeof(per_vertex_score_t),
                   per_vertex_score_cmp_desc);
 
-            /* Greedy pick + 70/30 balance projection.  Track running
-             * w0/w1 as if the picked vertices are removed from their
-             * original side (to become separator).  Stop on imbalance. */
+            /* Sprint 27 Day 4: termination predicate split.  The four
+             * legacy per_vertex_* strategies use the dynamic-K
+             * 70/30-balance gate (Sprint 26 Day 10 contract).
+             * SEP_LIFT_PER_VERTEX_FIXED_K terminates after exactly
+             * K = min(boundary_count[0], boundary_count[1]) iterations
+             * regardless of balance state — Sprint 26 Day 12 found the
+             * 70/30 gate fires early enough that the three weight
+             * schemes converge to bit-identical outputs on 5 of 6
+             * fixtures (the score formula doesn't get to differentiate
+             * before the gate stops the lift).  Fixed-K bypasses the
+             * gate so the score formulas can express their character. */
             per_vertex_lifted = calloc((size_t)G->n, sizeof(int));
             if (!per_vertex_lifted) {
                 free(scored);
@@ -2481,6 +2546,8 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
             }
             idx_t cur_w0 = w[0], cur_w1 = w[1];
             idx_t lifted_count = 0;
+            const idx_t fixed_k_target =
+                (boundary_count[0] < boundary_count[1]) ? boundary_count[0] : boundary_count[1];
             for (idx_t k = 0; k < total_boundary; k++) {
                 idx_t v = scored[k].vertex;
                 idx_t side = part_io[v];
@@ -2491,11 +2558,16 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
                     new_w0 -= vw;
                 else
                     new_w1 -= vw;
-                idx_t total_w = new_w0 + new_w1;
-                if (total_w > 0) {
-                    idx_t max_w = (new_w0 > new_w1) ? new_w0 : new_w1;
-                    if ((int64_t)10 * (int64_t)max_w > (int64_t)7 * (int64_t)total_w)
-                        break; /* would violate 70/30 — stop here */
+                if (strategy == SEP_LIFT_PER_VERTEX_FIXED_K) {
+                    if (lifted_count >= fixed_k_target)
+                        break; /* fixed-K cap hit */
+                } else {
+                    idx_t total_w = new_w0 + new_w1;
+                    if (total_w > 0) {
+                        idx_t max_w = (new_w0 > new_w1) ? new_w0 : new_w1;
+                        if ((int64_t)10 * (int64_t)max_w > (int64_t)7 * (int64_t)total_w)
+                            break; /* would violate 70/30 — stop here */
+                    }
                 }
                 per_vertex_lifted[v] = 1;
                 cur_w0 = new_w0;

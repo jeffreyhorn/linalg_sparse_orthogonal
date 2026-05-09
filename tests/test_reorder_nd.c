@@ -1082,6 +1082,8 @@ int main(void) {
      * dispatch fires and produces a different cut.  Day 9's flip-or-
      * stay decision lands separately. */
     RUN_TEST(test_nd_root_spectral_pres_poisson_smoke);
+    /* Sprint 27 Day 11: thick-restart FM differs from baseline. */
+    RUN_TEST(test_finest_fm_thick_restart_returns_to_anchor);
     RUN_TEST(test_nd_determinism_public_api);
     RUN_TEST(test_cholesky_via_nd_residual_spd_synth);
 

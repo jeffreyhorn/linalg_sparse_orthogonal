@@ -490,6 +490,85 @@ static fm_thick_restart_perturb_t parse_fm_thick_restart_perturb(void) {
     return FM_THICK_RESTART_PERTURB_RANDOM_FLIP;
 }
 
+/* Sprint 27 Day 11: thick-restart perturbation helper.  Modifies
+ * `part[]` in place by flipping some 2-way partition assignments
+ * (0 → 1 or 1 → 0) according to the chosen mode.  Called by
+ * `graph_uncoarsen`'s finest-level pass loop before each pass except
+ * the first when fm_use_thick_restart is set.
+ *
+ * Mode semantics:
+ *   - RANDOM_FLIP (default): flip k = max(1, n/100) random vertices.
+ *     O(k) per call.  Cheapest variant.
+ *   - BOUNDARY_SHUFFLE: identify boundary vertices (vertices with at
+ *     least one cross-edge to the other side), then random-flip ~50 %
+ *     of them.  O(|E|) per call.  Targets the FM-relevant region.
+ *   - GAUSS_NOISE: Day-10 design described this as "Gaussian noise on
+ *     GAIN estimates".  Implementing that requires deeper integration
+ *     with graph_refine_fm's gain-init phase.  Day 11 simplification:
+ *     random-flip with k drawn proportional to a half-Gaussian
+ *     (typical k ≈ n/50, more spread than RANDOM_FLIP).  Documented
+ *     deviation in `SPRINT_27/thick_restart_design.md`; the formal
+ *     gain-noise variant routes to Sprint 28+ if Day 12's flip-rule
+ *     decision motivates it.
+ *
+ * Determinism: the RNG state is owned by the caller (typically a
+ * per-call deterministic seed), passed through and updated
+ * in-place.  Same input → same output. */
+static void thick_restart_perturb(const sparse_graph_t *G, idx_t *part,
+                                  fm_thick_restart_perturb_t mode, uint32_t *rng) {
+    idx_t n = G->n;
+    if (n < 2)
+        return;
+
+    if (mode == FM_THICK_RESTART_PERTURB_BOUNDARY_SHUFFLE) {
+        for (idx_t v = 0; v < n; v++) {
+            if (part[v] != 0 && part[v] != 1)
+                continue;
+            int boundary = 0;
+            for (idx_t k = G->xadj[v]; k < G->xadj[v + 1]; k++) {
+                idx_t u = G->adjncy[k];
+                if (part[u] != 0 && part[u] != 1)
+                    continue;
+                if (part[u] != part[v]) {
+                    boundary = 1;
+                    break;
+                }
+            }
+            if (!boundary)
+                continue;
+            /* xorshift32 advance — flip ~50 % of boundary vertices. */
+            *rng ^= *rng << 13;
+            *rng ^= *rng >> 17;
+            *rng ^= *rng << 5;
+            if ((*rng & 1u) != 0u)
+                part[v] = (idx_t)(1 - part[v]);
+        }
+        return;
+    }
+
+    /* RANDOM_FLIP and GAUSS_NOISE both flip k random vertices; only k
+     * differs.  GAUSS_NOISE doubles k vs RANDOM_FLIP per the Day-11
+     * simplification documented above. */
+    idx_t k = n / 100;
+    if (k < 1)
+        k = 1;
+    if (mode == FM_THICK_RESTART_PERTURB_GAUSS_NOISE) {
+        k = n / 50;
+        if (k < 2)
+            k = 2;
+    }
+    for (idx_t i = 0; i < k; i++) {
+        *rng ^= *rng << 13;
+        *rng ^= *rng >> 17;
+        *rng ^= *rng << 5;
+        idx_t v = (idx_t)((*rng) % (uint32_t)n);
+        if (part[v] == 0)
+            part[v] = 1;
+        else if (part[v] == 1)
+            part[v] = 0;
+    }
+}
+
 /* Sprint 27 Day 6: per-pass index + total passes used by
  * graph_refine_fm to compute the temperature `T_k` for the chosen
  * schedule.  graph_uncoarsen sets these before each finest-level
@@ -2409,17 +2488,56 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
             fm_thick_restart_perturb = thick_restart_perturb_choice;
             fm_anneal_total_passes = passes; /* reuse pass-count thread-local */
         }
+        /* Sprint 27 Day 11: thick-restart anchor allocation.  Tracks
+         * the global-best partition + cut across all passes at the
+         * finest level.  Only allocated when fm_use_thick_restart is
+         * active (level == 0 + strategy == thick_restart) AND
+         * dst_graph->n >= 2 (n=0 / n=1 don't have meaningful
+         * partitions to perturb).  Allocation failure falls through
+         * to the standard pass loop without thick-restart wrapping —
+         * fm_use_thick_restart's behaviour collapses to baseline FM
+         * (which is still a valid degraded mode). */
+        idx_t *tr_anchor_part = NULL;
+        idx_t tr_anchor_cut = 0;
+        uint32_t tr_rng = 0;
+        const int tr_active = (fm_use_thick_restart && dst_graph->n >= 2);
+        if (tr_active) {
+            tr_anchor_part = malloc((size_t)dst_graph->n * sizeof(idx_t));
+            if (tr_anchor_part) {
+                memcpy(tr_anchor_part, next, (size_t)dst_graph->n * sizeof(idx_t));
+                tr_anchor_cut = compute_cut_weight(dst_graph, tr_anchor_part);
+                /* Per-call deterministic seed: same xorshift32-state
+                 * recipe as Day 6 annealing.  Non-zero by construction. */
+                tr_rng = (uint32_t)(((uint64_t)(uint32_t)dst_graph->n * 31u +
+                                     (uint32_t)(uint64_t)(unsigned long)passes) *
+                                        2654435761u +
+                                    1u);
+            }
+        }
         for (int p = 0; p < passes; p++) {
             /* Sprint 27 Day 6: per-pass annealing index.  Set
              * unconditionally so a future caller that enables
              * annealing mid-uncoarsening sees a sensible default;
              * graph_refine_fm only consults fm_anneal_pass_idx when
-             * fm_use_annealing == 1.  Sprint 27 Day 10: thick-restart
-             * also reads fm_anneal_pass_idx (Day 11 perturbation only
-             * fires for p > 0). */
+             * fm_use_annealing == 1.  Sprint 27 Day 10/11: thick-
+             * restart also threads pass index for the perturbation
+             * RNG advance (only fires for p > 0). */
             fm_anneal_pass_idx = p;
+            /* Sprint 27 Day 11: thick-restart restart-from-anchor.
+             * Pass 0 starts from `next` as projected from the coarser
+             * level (baseline behaviour).  Passes p > 0 copy the
+             * global-best anchor back into `next` and apply a
+             * perturbation (random_flip / boundary_shuffle / gauss_noise)
+             * before the FM walk.  This re-explores the cut landscape
+             * from the saved anchor instead of building only on the
+             * previous pass's result. */
+            if (tr_active && tr_anchor_part && p > 0) {
+                memcpy(next, tr_anchor_part, (size_t)dst_graph->n * sizeof(idx_t));
+                thick_restart_perturb(dst_graph, next, fm_thick_restart_perturb, &tr_rng);
+            }
             sparse_err_t rc = graph_refine_fm(dst_graph, next);
             if (rc != SPARSE_OK) {
+                free(tr_anchor_part);
                 fm_pop_use_tail = prev_pop_use_tail;
                 fm_use_annealing = prev_use_annealing;
                 fm_anneal_schedule = prev_schedule;
@@ -2431,7 +2549,33 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                 free(next);
                 return rc;
             }
+            /* Sprint 27 Day 11: end-of-pass best-cut update.  Compare
+             * this pass's cut to the saved global best; if better,
+             * promote `next` to the new anchor.  This is the
+             * "thick-restart globally-best-tracking" contract that
+             * differentiates from Sprint 23 Day 11's per-pass rollback. */
+            if (tr_active && tr_anchor_part) {
+                idx_t cur_cut = compute_cut_weight(dst_graph, next);
+                if (cur_cut < tr_anchor_cut) {
+                    memcpy(tr_anchor_part, next, (size_t)dst_graph->n * sizeof(idx_t));
+                    tr_anchor_cut = cur_cut;
+                }
+            }
         }
+        /* Sprint 27 Day 11: at end-of-passes, restore the global-best
+         * anchor as the final output (in case the last pass landed on
+         * a worse cut than an earlier pass). */
+        if (tr_active && tr_anchor_part) {
+            memcpy(next, tr_anchor_part, (size_t)dst_graph->n * sizeof(idx_t));
+            if (getenv("SPARSE_FM_THICK_RESTART_DEBUG")) {
+                fprintf(stderr,
+                        "fm-thick-restart-debug n=%d passes=%d perturb=%d "
+                        "best_cut=%d\n",
+                        (int)dst_graph->n, passes, (int)fm_thick_restart_perturb,
+                        (int)tr_anchor_cut);
+            }
+        }
+        free(tr_anchor_part);
         fm_pop_use_tail = prev_pop_use_tail;
         fm_use_annealing = prev_use_annealing;
         fm_anneal_schedule = prev_schedule;

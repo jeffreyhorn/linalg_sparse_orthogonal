@@ -1,0 +1,37 @@
+# Sprint 27 Day 11: thick-restart FM interim corpus measurement
+# Sprint 27 Day 11 implements global-best-tracking + per-pass
+# perturbation in graph_uncoarsen's finest-level loop.
+# Perturbations: random_flip (default; k=n/100), boundary_shuffle
+# (~50%-flip among boundary vertices), gauss_noise (k=n/50).
+
+=== Reference: Sprint 27 Day 9 default ===
+nos4,100,ND,637,0.4,skip
+bcsstk04,132,ND,3722,174.2,skip
+Kuu,7102,ND,764664,7037.2,skip
+bcsstk14,1806,ND,130422,548.9,skip
+s3rmt3m3,5357,ND,487832,5761.2,skip
+Pres_Poisson,14822,ND,2462201,10391.7,skip
+
+=== thick_restart × random_flip (default) ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,3677,202.8,skip
+Kuu,7102,ND,903195,4686.8,skip
+bcsstk14,1806,ND,130733,596.1,skip
+s3rmt3m3,5357,ND,482731,4643.3,skip
+Pres_Poisson,14822,ND,2578552,12910.2,skip
+
+=== thick_restart × boundary_shuffle ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,4471,177.5,skip
+Kuu,7102,ND,875152,4561.3,skip
+bcsstk14,1806,ND,138061,808.9,skip
+s3rmt3m3,5357,ND,489901,5130.3,skip
+Pres_Poisson,14822,ND,2745603,12890.3,skip
+
+=== thick_restart × gauss_noise ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,3677,200.2,skip
+Kuu,7102,ND,772566,6915.1,skip
+bcsstk14,1806,ND,132599,395.0,skip
+s3rmt3m3,5357,ND,488049,4855.1,skip
+Pres_Poisson,14822,ND,2639539,11129.1,skip

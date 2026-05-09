@@ -2053,6 +2053,112 @@ static void test_partition_pres_poisson_smoke(void) {
     run_suitesparse_partition_smoke(SS_DIR "/Pres_Poisson.mtx", 0);
 }
 
+/* Sprint 27 Day 5: SPARSE_FM_FINEST_STRATEGY=annealing accepts-
+ * worsening-moves contract pin (failing-as-expected stub).  Sprint
+ * 26 Day 6 stubbed `annealing` as a parser-recognised value that
+ * falls through to baseline.  Sprint 27 Day 5 wires the dispatch
+ * skeleton (thread-local fm_use_annealing + fm_anneal_schedule);
+ * Day 6 implements the acceptance probability `P = exp(-Δgain / T)`
+ * overlay in `graph_refine_fm`'s pop-eval-accept loop.
+ *
+ * This test pins the post-Day-6 contract: under
+ * `SPARSE_FM_FINEST_STRATEGY=annealing` on a fixture where
+ * baseline FM saturates, annealing accepts at least one worsening
+ * move per pass.  Today the dispatch is no-op (Day 5 skeleton);
+ * Day 6's implementation lights it up.  RUN_TEST is commented out
+ * so make test stays green during Day 5; Day 6 enables it. */
+static void test_finest_fm_annealing_accepts_worsening(void) {
+    /* Reproducer fixture: 30×30 grid (n=900) — same fixture used by
+     * test_finest_fm_strategy_fifo_smoke.  Under baseline FM the
+     * saturation Sprint 25 Day 5 measured (passes ≥ 5 saturate at
+     * 0.952× on Pres_Poisson) implies that on this grid baseline FM
+     * also reaches a local minimum past pass 1; annealing's worsening-
+     * acceptance should produce a different cut.
+     *
+     * Day-5 stub assertion: under SPARSE_FM_FINEST_STRATEGY=annealing,
+     * the resulting partition differs from baseline (smoke-level
+     * evidence the annealing acceptance overlay is firing).  Day 6
+     * sharpens this to "the worsening-move counter is > 0" via a
+     * SPARSE_FM_ANNEALING_DEBUG=1 stderr emit.  See
+     * SPRINT_27/annealing_fm_design.md. */
+    SparseMatrix *A = NULL;
+    sparse_graph_t G = {0};
+    idx_t *part_baseline = NULL;
+    idx_t *part_annealing = NULL;
+    int env_set = 0;
+
+    /* Pin SPARSE_ND_COARSENING=heavy_edge to scope the test to its
+     * Sprint 26 Day 7 design intent (regular grid + HEM coarsening,
+     * matching test_finest_fm_strategy_fifo_smoke). */
+    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        return;
+    }
+
+    A = make_grid_2d(30, 30);
+    if (!A) {
+        TF_FAIL_("make_grid_2d(%d, %d) returned NULL (OOM)", 30, 30);
+        goto cleanup;
+    }
+    sparse_err_t rc = sparse_graph_from_sparse(A, &G);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_from_sparse: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    ASSERT_EQ(G.n, 900);
+
+    /* Baseline run (env var unset). */
+    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    part_baseline = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_baseline) {
+        TF_FAIL_("malloc(part_baseline) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep_baseline = 0;
+    rc = sparse_graph_partition(&G, part_baseline, &sep_baseline);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(baseline): rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    /* Annealing run. */
+    if (setenv("SPARSE_FM_FINEST_STRATEGY", "annealing", /*overwrite=*/1) != 0) {
+        TF_FAIL_("setenv SPARSE_FM_FINEST_STRATEGY=%s failed", "annealing");
+        goto cleanup;
+    }
+    env_set = 1;
+    part_annealing = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_annealing) {
+        TF_FAIL_("malloc(part_annealing) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep_annealing = 0;
+    rc = sparse_graph_partition(&G, part_annealing, &sep_annealing);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(annealing): rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    int differs = (sep_baseline != sep_annealing) ||
+                  (memcmp(part_baseline, part_annealing, (size_t)G.n * sizeof(idx_t)) != 0);
+    printf("    30x30 grid: baseline sep=%d, annealing sep=%d, partitions %s\n", (int)sep_baseline,
+           (int)sep_annealing,
+           differs ? "DIFFER (annealing active)" : "match (annealing not yet wired)");
+    /* Day-5 stub: this assertion fails today (annealing dispatch is
+     * skeleton; falls through to baseline-equivalent behaviour).
+     * Day 6 lands the acceptance overlay and lights this up. */
+    ASSERT_TRUE(differs);
+
+cleanup:
+    if (env_set)
+        unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    unsetenv("SPARSE_ND_COARSENING");
+    free(part_baseline);
+    free(part_annealing);
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
 /* Sprint 27 Day 4: SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k
  * differs-from-per_vertex (dynamic-K) contract pin.  Sprint 26 Day
  * 12's empirical finding was that the three per-vertex weight schemes

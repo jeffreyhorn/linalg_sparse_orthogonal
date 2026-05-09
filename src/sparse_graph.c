@@ -429,6 +429,42 @@ static _Thread_local int force_hem_override = 0;
  * `docs/planning/EPIC_2/SPRINT_26/finest_fm_design.md`. */
 static _Thread_local int fm_pop_use_tail = 0;
 
+/* Sprint 27 Day 5: thread-local override for annealing-acceptance
+ * FM at the finest level.  `graph_uncoarsen` sets this to 1 before
+ * invoking `graph_refine_fm` at the finest level when
+ * SPARSE_FM_FINEST_STRATEGY=annealing, restores to 0 after.  Day 5
+ * lands the parser + dispatch wiring (skeleton); Day 6 implements
+ * the acceptance probability `P = exp(-Δgain / T)` overlay in
+ * `graph_refine_fm`'s pop-eval-accept loop.  `_Thread_local` keeps
+ * concurrent FM calls race-free.  See
+ * `docs/planning/EPIC_2/SPRINT_27/annealing_fm_design.md`. */
+static _Thread_local int fm_use_annealing = 0;
+
+/* Sprint 27 Day 5: temperature schedule for annealing FM.  Day 5
+ * stubs three values; default exponential matches the classical
+ * Kirkpatrick-1983 SA formulation (T_k = T_0 × α^k where α ≈ 0.5).
+ * Day 6 wires the per-pass T computation; until then all three
+ * values fall through to baseline. */
+typedef enum {
+    FM_ANNEAL_SCHEDULE_LINEAR = 0,
+    FM_ANNEAL_SCHEDULE_EXPONENTIAL = 1, /* default */
+    FM_ANNEAL_SCHEDULE_COSINE = 2,
+} fm_anneal_schedule_t;
+
+static _Thread_local fm_anneal_schedule_t fm_anneal_schedule = FM_ANNEAL_SCHEDULE_EXPONENTIAL;
+
+static fm_anneal_schedule_t parse_fm_anneal_schedule(void) {
+    const char *env = getenv("SPARSE_FM_ANNEALING_SCHEDULE");
+    if (!env)
+        return FM_ANNEAL_SCHEDULE_EXPONENTIAL;
+    if (strcmp(env, "linear") == 0)
+        return FM_ANNEAL_SCHEDULE_LINEAR;
+    if (strcmp(env, "cosine") == 0)
+        return FM_ANNEAL_SCHEDULE_COSINE;
+    /* Default + unrecognized + "exponential" all fall through. */
+    return FM_ANNEAL_SCHEDULE_EXPONENTIAL;
+}
+
 static coarsening_strategy_t parse_coarsening_strategy(void) {
     /* Sprint 26 Day 3: sep=0 retry path forces HEM. */
     if (force_hem_override)
@@ -2124,14 +2160,23 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
              * FINEST_FM_BASELINE. */
         }
     }
-    /* Sprint 26 Day 7 dispatch: only `fifo` is wired (sets
-     * `fm_pop_use_tail = 1` for the finest-level call below;
-     * restored to 0 after).  `annealing` + `thick_restart` are
-     * recognized for forward-compatibility but unimplemented per
-     * Day 6 design (rejected: annealing 20-50% wall expansion;
-     * thick-restart 200-300% would breach 1.5x wall-check).
-     * Both fall through to baseline behavior — they're effectively
-     * no-ops today, future-sprint scope. */
+    /* Sprint 27 Day 5 dispatch update: Day 5 lands the `annealing`
+     * skeleton.  Sprint 26 Day 6's design rejected annealing on
+     * cost grounds (20-50 % wall expansion); Sprint 26 Day 5's
+     * `nd_base_threshold = 96` flip + Sprint 27 Day 3's = 128 flip
+     * cumulatively cut Pres_Poisson ND wall 38 s → 7 s, making the
+     * wall budget affordable.  Day 5 wires `fm_use_annealing` +
+     * `fm_anneal_schedule` thread-locals; Day 6 lands the
+     * acceptance-probability overlay + measurement.  `thick_restart`
+     * stays unimplemented (Sprint 27 item 6 budget; Days 10-12). */
+    fm_anneal_schedule_t anneal_schedule_choice = parse_fm_anneal_schedule();
+    /* Sprint 26 Day 7 dispatch: `fifo` sets `fm_pop_use_tail = 1`
+     * for the finest-level call below (restored to 0 after).
+     * Sprint 27 Day 5 adds the parallel `annealing` dispatch
+     * (sets `fm_use_annealing = 1` + `fm_anneal_schedule` to the
+     * parsed schedule choice; restored after).  `thick_restart` is
+     * recognized but unimplemented — falls through to baseline
+     * (Sprint 27 Item 6, Days 10-12). */
 
     /* Sprint 25 Day 4: SPARSE_FM_INTERMEDIATE_PASSES extends the
      * Sprint 23 Day 11 multi-pass-FM exploration from the finest
@@ -2197,18 +2242,28 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
          * of the default fm_bucket_pop_max (LIFO; most-recently-
          * inserted wins).  Restore after this level's passes finish. */
         int prev_pop_use_tail = fm_pop_use_tail;
+        int prev_use_annealing = fm_use_annealing;
+        fm_anneal_schedule_t prev_schedule = fm_anneal_schedule;
         if (level == 0 && finest_strategy == FINEST_FM_FIFO)
             fm_pop_use_tail = 1;
+        if (level == 0 && finest_strategy == FINEST_FM_ANNEALING) {
+            fm_use_annealing = 1;
+            fm_anneal_schedule = anneal_schedule_choice;
+        }
         for (int p = 0; p < passes; p++) {
             sparse_err_t rc = graph_refine_fm(dst_graph, next);
             if (rc != SPARSE_OK) {
                 fm_pop_use_tail = prev_pop_use_tail;
+                fm_use_annealing = prev_use_annealing;
+                fm_anneal_schedule = prev_schedule;
                 free(cur);
                 free(next);
                 return rc;
             }
         }
         fm_pop_use_tail = prev_pop_use_tail;
+        fm_use_annealing = prev_use_annealing;
+        fm_anneal_schedule = prev_schedule;
         idx_t *tmp = cur;
         cur = next;
         next = tmp;

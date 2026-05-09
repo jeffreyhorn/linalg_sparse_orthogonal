@@ -471,29 +471,34 @@ static void test_nd_pres_poisson_fill_with_leaf_amd(void) {
             (int)sparse_rows(A), (int)nnz_amd, (int)nnz_nd, (double)nnz_nd / (double)nnz_amd,
             nd_seconds);
 
-    /* Sprint 24 Day 7: tightened from `nnz_nd ≤ 1.00× nnz_amd`
-     * (Sprint 23 Day 11 default-path bound) to `nnz_nd ≤ 0.96×
-     * nnz_amd`.  Days 5-6 of Sprint 24 explored the two
-     * approaches PLAN.md called out for closing Pres_Poisson's
-     * ND/AMD gap further — option (a) deeper coarsening
-     * (`SPARSE_ND_COARSEN_FLOOR_RATIO`) and option (b) smarter
-     * separator extraction (`SPARSE_ND_SEP_LIFT_STRATEGY`); both
-     * land env-var-gated off-by-default per the Day-5 / Day-6
-     * decision docs.  The default-path achievement stays at
-     * Sprint 23's 0.952× (bit-identical, no production-default
-     * change), so the new bound's 0.8-percentage-point safety
-     * margin pins the Sprint-23 ratio without claiming a Sprint-
-     * 24 win on this fixture.  See
-     * docs/planning/EPIC_2/SPRINT_24/nd_tuning_day7.md.
+    /* Sprint 27 Day 13: tightened from Sprint 24 Day 7's `nnz_nd ≤
+     * 0.96× nnz_amd` to `nnz_nd ≤ 0.94× nnz_amd`.  Sprint 27 Day 2
+     * flipped `SPARSE_ND_COARSENING` default `heavy_edge` → `hcc`
+     * (Kuu-safe degree-CV-fall-through); Day 3 flipped
+     * `nd_base_threshold` 96 → 128.  Cumulative Pres_Poisson default-
+     * path achievement: 0.952× (Sprint 23) → 0.923× (Sprint 27 Day 3),
+     * a -2.9pp improvement.  The new bound's 1.7-percentage-point
+     * safety margin (0.923× + 2pp = 0.943× → round to 0.94×) pins the
+     * Sprint 27 ratio without claiming production headroom that
+     * doesn't exist.
      *
-     * The PLAN.md Day-8 stretch target was `nnz_nd ≤ 0.85×
-     * nnz_amd`; combined Days 5+6 settings reached 0.950× on
-     * this fixture (worse than Day-5-alone's 0.942×, since the
-     * two changes interact destructively here).  Closing the
-     * remaining 0.85× gap is Sprint-25 territory per
-     * `nd_sep_strategy_decision.md` "Why option (b) misses the
-     * 0.85× target on Pres_Poisson". */
-    ASSERT_TRUE((long long)nnz_nd * 100 <= (long long)nnz_amd * 96);
+     * The PLAN.md ≤ 0.85× literal target REMAINS UNMET after Sprint
+     * 27 (5th consecutive sprint).  Sprint 27 Items 4-6 (annealing
+     * FM, root-spectral, thick-restart) ALL regressed Pres_Poisson
+     * 2.2-11.5pp; their combinations also regressed.  Empirical
+     * conclusion across Sprints 23-27: Pres_Poisson under multilevel
+     * + leaf-AMD reaches near-optimal cuts that pipeline-level
+     * interventions can't improve.  See
+     * `docs/planning/EPIC_2/SPRINT_27/headline_summary.md` for the
+     * full Day-13 cross-corpus matrix + per-axis verdict; Sprint 28+
+     * pivots to non-pipeline-level interventions per PROJECT_PLAN.md.
+     *
+     * Prior history (preserved for traceability): Sprint 24 Day 7
+     * tightened from 1.00× (Sprint 23 Day 11) to 0.96×; Sprints 25/26
+     * stayed at 0.96× (best opt-in 0.922× / 0.9217× respectively).
+     * See `docs/planning/EPIC_2/SPRINT_24/nd_tuning_day7.md` and
+     * `SPRINT_27/headline_summary.md`. */
+    ASSERT_TRUE((long long)nnz_nd * 100 <= (long long)nnz_amd * 94);
 
     sparse_free(A);
 }

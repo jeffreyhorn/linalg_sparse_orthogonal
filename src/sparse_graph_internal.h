@@ -457,6 +457,43 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
  */
 sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, idx_t *part_io);
 
+/**
+ * @brief Spectral bisection on the input graph.
+ *
+ * Sprint 25 Day 7 implemented this for the COARSEST level of the
+ * multilevel pipeline (`SPARSE_ND_COARSEST_BISECTION=spectral`);
+ * Sprint 27 Day 8 promotes the helper to internal-API so
+ * `sparse_reorder_nd::nd_recurse` can also call it at the ROOT
+ * level under `SPARSE_ND_ROOT_BISECT=spectral` (item 5 of the
+ * Sprint 27 deferrals from Sprint 26).
+ *
+ * Algorithm:
+ *   1. Build Laplacian L = D − A via `graph_build_laplacian`.
+ *   2. Compute the smallest two eigenpairs of L via
+ *      `sparse_eigs_sym` (which = SPARSE_EIGS_SMALLEST, k=2,
+ *      compute_vectors=1, reorthogonalize=1, tol=1e-8).
+ *   3. Extract the Fiedler vector v_1 (column 1 of result.eigenvectors).
+ *   4. Detect disconnected graphs via λ_1 ≈ 0; fall back to GGGP.
+ *   5. Compute median(v_1) and assign part[i] = 0 if v_1[i] < median
+ *      else 1.
+ *   6. Check the 60/40 balance contract; on imbalance, fall back to
+ *      GGGP.
+ *   7. On any sparse_eigs_sym failure (allocation, non-convergence),
+ *      fall back to GGGP.
+ *
+ * Return contract: ALWAYS produces a valid {0, 1} partition in
+ * `part_out` on `SPARSE_OK` return.  GGGP is the universal fallback —
+ * the spectral path never breaks the basic {valid 2-way partition
+ * produced} contract.
+ *
+ * @param G        Input graph.
+ * @param part_out Output: 2-way partition (`part_out[i] ∈ {0, 1}`).
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if `G` or `part_out` is NULL.
+ * @return Other error codes propagated from the Laplacian build path.
+ */
+sparse_err_t graph_bisect_coarsest_spectral(const sparse_graph_t *G, idx_t *part_out);
+
 /* ═══════════════════════════════════════════════════════════════════════
  * sparse_graph_partition — multilevel vertex-separator partitioner.
  * ═══════════════════════════════════════════════════════════════════════

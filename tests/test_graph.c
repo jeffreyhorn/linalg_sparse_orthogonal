@@ -300,13 +300,32 @@ static void test_hierarchy_build_5x5_grid(void) {
     /* Verifies the hierarchy builder lands at least one coarsened
      * level and conserves vwgt across every level it produces.  The
      * 5×5 grid coarsens once (n=25 → ≤13) and then trips the
-     * small-enough threshold (20) so the build stops at nlevels=1. */
+     * small-enough threshold (20) so the build stops at nlevels=1.
+     *
+     * Sprint 27 Day 2: pin SPARSE_ND_COARSENING=heavy_edge — this
+     * test's `n <= 13` bound is HEM-specific (Sprint 22 Day 2 era).
+     * Under the new HCC default (Sprint 27 Day 2 flip), HCC's
+     * `min(deg)` scoring on the 5×5 grid leaves more corner /
+     * boundary vertices unmatched (corners have deg=2; HCC matches
+     * interior-interior pairs first), producing a coarse graph with
+     * n > 13.  HCC behaviour on small regular grids is intentional
+     * and exercised by the Sprint 25 `test_hcc_match_selection_grid`
+     * test; this test stays scoped to HEM. */
     SparseMatrix *A = make_grid_2d(5, 5);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
 
+    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
+        sparse_graph_free(&G);
+        sparse_free(A);
+        return;
+    }
+
     sparse_graph_hierarchy_t h = {0};
-    REQUIRE_OK(sparse_graph_hierarchy_build(&G, /*seed=*/42u, &h));
+    sparse_err_t hrc = sparse_graph_hierarchy_build(&G, /*seed=*/42u, &h);
+    unsetenv("SPARSE_ND_COARSENING");
+    REQUIRE_OK(hrc);
 
     ASSERT_TRUE(h.nlevels >= 1);
     ASSERT_TRUE(h.coarse[0].n <= 13);
@@ -1142,6 +1161,21 @@ static void test_finest_fm_strategy_fifo_smoke(void) {
     idx_t *part_fifo1 = NULL;
     idx_t *part_fifo2 = NULL;
     int env_set = 0;
+    int coarsening_env_set = 0;
+
+    /* Sprint 27 Day 2: pin SPARSE_ND_COARSENING=heavy_edge — the
+     * "FIFO differs from baseline on the 30×30 grid" contract was
+     * verified under HEM coarsening (Sprint 26 Day 7).  HCC's
+     * `min(deg)` scoring on a regular grid produces more deterministic
+     * matchings (most edges score identically; tie-break dominates),
+     * which can collapse the FIFO-vs-baseline differentiation.
+     * Pinning HEM keeps this test scoped to its Sprint 26 design
+     * intent under the new HCC default (Sprint 27 Day 2 flip). */
+    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        return;
+    }
+    coarsening_env_set = 1;
 
     A = make_grid_2d(30, 30);
     if (!A) {
@@ -1225,6 +1259,8 @@ static void test_finest_fm_strategy_fifo_smoke(void) {
 cleanup:
     if (env_set)
         unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    if (coarsening_env_set)
+        unsetenv("SPARSE_ND_COARSENING");
     free(part_baseline);
     free(part_fifo1);
     free(part_fifo2);
@@ -2017,6 +2053,99 @@ static void test_partition_pres_poisson_smoke(void) {
     run_suitesparse_partition_smoke(SS_DIR "/Pres_Poisson.mtx", 0);
 }
 
+/* Sprint 27 Day 4: SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k
+ * differs-from-per_vertex (dynamic-K) contract pin.  Sprint 26 Day
+ * 12's empirical finding was that the three per-vertex weight schemes
+ * (hybrid / balance / degree) converge to bit-identical outputs on
+ * 5 of 6 fixtures because the dynamic-K + 70/30 balance gate
+ * dominates the score formula.  Sprint 27 Day 4 adds a fixed-K
+ * variant that terminates after exactly K =
+ * min(boundary_count[0], boundary_count[1]) lifts regardless of
+ * balance — bypassing the gate so the score formulas can express
+ * their character.  This test verifies the new mode produces a
+ * different partition than the dynamic-K mode at the same weight
+ * scheme (smoke-level evidence the fixed-K plumbing fires).
+ *
+ * Plan-spec deviation: Sprint 27 PLAN.md Day 4 task 5 named
+ * Pres_Poisson as the fixture.  Pres_Poisson at n=14 822 is too
+ * slow for unit-test scope (~7 s ND); use the existing 30×30 grid
+ * (n=900, ~ms) which Sprint 26 Day 7 also used for env-var
+ * differentiation tests.  Documented in
+ * `docs/planning/EPIC_2/SPRINT_27/per_vertex_fixed_k_decision.md`
+ * "Day 4 test placement". */
+static void test_per_vertex_fixed_k_differs_from_dynamic_k(void) {
+    SparseMatrix *A = NULL;
+    sparse_graph_t G = {0};
+    idx_t *part_dynamic = NULL;
+    idx_t *part_fixed = NULL;
+    int env_set = 0;
+
+    A = make_grid_2d(30, 30);
+    if (!A) {
+        TF_FAIL_("make_grid_2d(%d, %d) returned NULL (OOM)", 30, 30);
+        goto cleanup;
+    }
+    sparse_err_t rc = sparse_graph_from_sparse(A, &G);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_from_sparse: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    ASSERT_EQ(G.n, 900);
+
+    /* Dynamic-K (Sprint 26 Day 10 baseline) under the hybrid weight. */
+    if (setenv("SPARSE_ND_SEP_LIFT_STRATEGY", "per_vertex", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
+        goto cleanup;
+    }
+    env_set = 1;
+    part_dynamic = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_dynamic) {
+        TF_FAIL_("malloc(part_dynamic) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep_dynamic = 0;
+    rc = sparse_graph_partition(&G, part_dynamic, &sep_dynamic);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(per_vertex dynamic-K): rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    /* Fixed-K (Sprint 27 Day 4 new) under the same hybrid weight. */
+    if (setenv("SPARSE_ND_SEP_LIFT_STRATEGY", "per_vertex_fixed_k", /*overwrite=*/1) != 0) {
+        TF_FAIL_("setenv SPARSE_ND_SEP_LIFT_STRATEGY=%s failed", "per_vertex_fixed_k");
+        goto cleanup;
+    }
+    /* Default SPARSE_ND_SEP_LIFT_WEIGHT is hybrid, matching the
+     * dynamic-K's `per_vertex` weight — so any differentiation
+     * comes from the termination predicate (fixed-K vs dynamic-K),
+     * not from a different score formula. */
+    part_fixed = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_fixed) {
+        TF_FAIL_("malloc(part_fixed) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep_fixed = 0;
+    rc = sparse_graph_partition(&G, part_fixed, &sep_fixed);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(per_vertex_fixed_k): rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    int differs = (sep_dynamic != sep_fixed) ||
+                  (memcmp(part_dynamic, part_fixed, (size_t)G.n * sizeof(idx_t)) != 0);
+    printf("    30x30 grid: dynamic-K sep=%d, fixed-K sep=%d, partitions %s\n", (int)sep_dynamic,
+           (int)sep_fixed, differs ? "DIFFER (fixed-K active)" : "match");
+    ASSERT_TRUE(differs);
+
+cleanup:
+    if (env_set)
+        unsetenv("SPARSE_ND_SEP_LIFT_STRATEGY");
+    free(part_dynamic);
+    free(part_fixed);
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════ */
 
 int main(void) {
@@ -2101,6 +2230,9 @@ int main(void) {
     RUN_TEST(test_partition_determinism_two_cliques);
     RUN_TEST(test_partition_bcsstk14_smoke);
     RUN_TEST(test_partition_pres_poisson_smoke);
+    /* Sprint 27 Day 4: per_vertex_fixed_k differs-from-dynamic-K
+     * smoke test. */
+    RUN_TEST(test_per_vertex_fixed_k_differs_from_dynamic_k);
 
     TEST_SUITE_END();
 }

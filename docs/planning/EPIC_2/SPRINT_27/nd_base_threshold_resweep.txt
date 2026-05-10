@@ -1,0 +1,84 @@
+# Sprint 27 Day 3: nd_base_threshold relaxed-flip-rule re-sweep
+# Default coarsening: HCC + Kuu-safe (Sprint 27 Day 2 flip)
+# Capture: nnz_L + ND wall (ms) + leaf-AMD counts via SPARSE_ND_PROFILE=1
+
+=== t=96 ===
+nos4,100,AMD,637,0.2,skip
+nos4,100,COLAMD,778,0.3,skip
+nos4,100,ND,809,305.2,skip
+bcsstk04,132,AMD,3143,1.5,skip
+bcsstk04,132,COLAMD,3622,2.5,skip
+bcsstk04,132,ND,3722,160.0,skip
+Kuu,7102,AMD,406264,424.8,skip
+Kuu,7102,COLAMD,830665,3341.0,skip
+Kuu,7102,ND,772871,7346.6,skip
+bcsstk14,1806,AMD,116071,87.8,skip
+bcsstk14,1806,COLAMD,146037,150.6,skip
+bcsstk14,1806,ND,130163,556.0,skip
+s3rmt3m3,5357,AMD,474609,515.4,skip
+s3rmt3m3,5357,COLAMD,607647,986.5,skip
+s3rmt3m3,5357,ND,486040,5396.2,skip
+Pres_Poisson,14822,AMD,2668793,5496.7,skip
+Pres_Poisson,14822,COLAMD,3415793,11138.8,skip
+Pres_Poisson,14822,ND,2450405,8826.5,skip
+
+=== t=128 ===
+nos4,100,AMD,637,0.2,skip
+nos4,100,COLAMD,778,0.3,skip
+nos4,100,ND,637,0.4,skip
+bcsstk04,132,AMD,3143,1.6,skip
+bcsstk04,132,COLAMD,3622,2.4,skip
+bcsstk04,132,ND,3722,148.7,skip
+Kuu,7102,AMD,406264,367.3,skip
+Kuu,7102,COLAMD,830665,3131.5,skip
+Kuu,7102,ND,764664,6384.1,skip
+bcsstk14,1806,AMD,116071,82.7,skip
+bcsstk14,1806,COLAMD,146037,141.2,skip
+bcsstk14,1806,ND,130422,498.1,skip
+s3rmt3m3,5357,AMD,474609,485.4,skip
+s3rmt3m3,5357,COLAMD,607647,925.4,skip
+s3rmt3m3,5357,ND,487832,5106.5,skip
+Pres_Poisson,14822,AMD,2668793,5053.4,skip
+Pres_Poisson,14822,COLAMD,3415793,10200.1,skip
+Pres_Poisson,14822,ND,2462201,7079.0,skip
+
+=== t=192 ===
+nos4,100,AMD,637,0.2,skip
+nos4,100,COLAMD,778,0.2,skip
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,AMD,3143,1.3,skip
+bcsstk04,132,COLAMD,3622,2.2,skip
+bcsstk04,132,ND,3143,2.3,skip
+Kuu,7102,AMD,406264,325.3,skip
+Kuu,7102,COLAMD,830665,2765.1,skip
+Kuu,7102,ND,743756,2782.5,skip
+bcsstk14,1806,AMD,116071,74.1,skip
+bcsstk14,1806,COLAMD,146037,128.1,skip
+bcsstk14,1806,ND,132131,317.7,skip
+s3rmt3m3,5357,AMD,474609,432.5,skip
+s3rmt3m3,5357,COLAMD,607647,823.2,skip
+s3rmt3m3,5357,ND,482185,3166.7,skip
+Pres_Poisson,14822,AMD,2668793,4793.3,skip
+Pres_Poisson,14822,COLAMD,3415793,9845.5,skip
+Pres_Poisson,14822,ND,2499686,4388.1,skip
+
+=== t=256 ===
+nos4,100,AMD,637,0.2,skip
+nos4,100,COLAMD,778,0.2,skip
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,AMD,3143,1.3,skip
+bcsstk04,132,COLAMD,3622,2.1,skip
+bcsstk04,132,ND,3143,2.2,skip
+Kuu,7102,AMD,406264,326.1,skip
+Kuu,7102,COLAMD,830665,2912.5,skip
+Kuu,7102,ND,719754,2518.5,skip
+bcsstk14,1806,AMD,116071,81.0,skip
+bcsstk14,1806,COLAMD,146037,135.0,skip
+bcsstk14,1806,ND,131549,315.4,skip
+s3rmt3m3,5357,AMD,474609,474.0,skip
+s3rmt3m3,5357,COLAMD,607647,931.2,skip
+s3rmt3m3,5357,ND,480865,3451.4,skip
+Pres_Poisson,14822,AMD,2668793,5651.4,skip
+Pres_Poisson,14822,COLAMD,3415793,13381.8,skip
+Pres_Poisson,14822,ND,2528685,5298.1,skip
+

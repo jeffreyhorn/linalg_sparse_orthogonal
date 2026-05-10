@@ -1,0 +1,59 @@
+# Sprint 27 Day 4: per_vertex_fixed_k × {hybrid, balance, degree} weight sweep
+# Default coarsening: HCC + Kuu-safe (Sprint 27 Day 2 flip); nd_base_threshold=128 (Sprint 27 Day 3 flip)
+# Reference: Sprint 27 Day 3 default = no per-vertex strategy (smaller_weight)
+
+=== Reference: smaller_weight (Sprint 26/27 default) ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,3722,153.0,skip
+Kuu,7102,ND,764664,6326.7,skip
+bcsstk14,1806,ND,130422,515.3,skip
+s3rmt3m3,5357,ND,487832,5274.2,skip
+Pres_Poisson,14822,ND,2462201,6983.4,skip
+
+=== per_vertex_fixed_k × hybrid (cross_deg-priority) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3679,131.9,skip
+Kuu,7102,ND,499127,3025.4,skip
+bcsstk14,1806,ND,282996,389.6,skip
+s3rmt3m3,5357,ND,830461,3821.8,skip
+Pres_Poisson,14822,ND,3742309,7755.6,skip
+
+=== per_vertex_fixed_k × balance (balance-priority) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,4469,123.5,skip
+Kuu,7102,ND,1035335,2918.6,skip
+bcsstk14,1806,ND,214778,397.0,skip
+s3rmt3m3,5357,ND,526194,4010.2,skip
+Pres_Poisson,14822,ND,3265627,8538.9,skip
+
+=== per_vertex_fixed_k × degree (low-total-deg-priority) ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,4613,146.3,skip
+Kuu,7102,ND,2920633,4494.5,skip
+bcsstk14,1806,ND,277394,329.9,skip
+s3rmt3m3,5357,ND,1032359,4443.3,skip
+Pres_Poisson,14822,ND,5573256,8163.3,skip
+
+=== per_vertex (Sprint 26 Day 10 dynamic-K hybrid; reference) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3549,123.5,skip
+Kuu,7102,ND,724358,2772.5,skip
+bcsstk14,1806,ND,152900,407.5,skip
+s3rmt3m3,5357,ND,621658,1743.5,skip
+Pres_Poisson,14822,ND,3256763,7651.0,skip
+
+=== per_vertex_balance (Sprint 26 Day 12 dynamic-K balance; reference) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3549,122.7,skip
+Kuu,7102,ND,728166,2797.7,skip
+bcsstk14,1806,ND,152900,406.7,skip
+s3rmt3m3,5357,ND,621658,1735.7,skip
+Pres_Poisson,14822,ND,3256763,7171.4,skip
+
+=== per_vertex_degree (Sprint 26 Day 12 dynamic-K degree; reference) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3549,117.6,skip
+Kuu,7102,ND,726362,2641.2,skip
+bcsstk14,1806,ND,152900,388.2,skip
+s3rmt3m3,5357,ND,621658,1659.1,skip
+Pres_Poisson,14822,ND,3256763,7177.4,skip

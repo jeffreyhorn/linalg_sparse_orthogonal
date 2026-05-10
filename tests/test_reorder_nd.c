@@ -471,30 +471,515 @@ static void test_nd_pres_poisson_fill_with_leaf_amd(void) {
             (int)sparse_rows(A), (int)nnz_amd, (int)nnz_nd, (double)nnz_nd / (double)nnz_amd,
             nd_seconds);
 
-    /* Sprint 24 Day 7: tightened from `nnz_nd ≤ 1.00× nnz_amd`
-     * (Sprint 23 Day 11 default-path bound) to `nnz_nd ≤ 0.96×
-     * nnz_amd`.  Days 5-6 of Sprint 24 explored the two
-     * approaches PLAN.md called out for closing Pres_Poisson's
-     * ND/AMD gap further — option (a) deeper coarsening
-     * (`SPARSE_ND_COARSEN_FLOOR_RATIO`) and option (b) smarter
-     * separator extraction (`SPARSE_ND_SEP_LIFT_STRATEGY`); both
-     * land env-var-gated off-by-default per the Day-5 / Day-6
-     * decision docs.  The default-path achievement stays at
-     * Sprint 23's 0.952× (bit-identical, no production-default
-     * change), so the new bound's 0.8-percentage-point safety
-     * margin pins the Sprint-23 ratio without claiming a Sprint-
-     * 24 win on this fixture.  See
-     * docs/planning/EPIC_2/SPRINT_24/nd_tuning_day7.md.
+    /* Sprint 27 Day 13: tightened from Sprint 24 Day 7's `nnz_nd ≤
+     * 0.96× nnz_amd` to `nnz_nd ≤ 0.94× nnz_amd`.  Sprint 27 Day 2
+     * flipped `SPARSE_ND_COARSENING` default `heavy_edge` → `hcc`
+     * (Kuu-safe degree-CV-fall-through); Day 3 flipped
+     * `nd_base_threshold` 96 → 128.  Cumulative Pres_Poisson default-
+     * path achievement: 0.952× (Sprint 23) → 0.923× (Sprint 27 Day 3),
+     * a -2.9pp improvement.  The new bound's 1.7-percentage-point
+     * safety margin (0.923× + 2pp = 0.943× → round to 0.94×) pins the
+     * Sprint 27 ratio without claiming production headroom that
+     * doesn't exist.
      *
-     * The PLAN.md Day-8 stretch target was `nnz_nd ≤ 0.85×
-     * nnz_amd`; combined Days 5+6 settings reached 0.950× on
-     * this fixture (worse than Day-5-alone's 0.942×, since the
-     * two changes interact destructively here).  Closing the
-     * remaining 0.85× gap is Sprint-25 territory per
-     * `nd_sep_strategy_decision.md` "Why option (b) misses the
-     * 0.85× target on Pres_Poisson". */
-    ASSERT_TRUE((long long)nnz_nd * 100 <= (long long)nnz_amd * 96);
+     * The PLAN.md ≤ 0.85× literal target REMAINS UNMET after Sprint
+     * 27 (5th consecutive sprint).  Sprint 27 Items 4-6 (annealing
+     * FM, root-spectral, thick-restart) ALL regressed Pres_Poisson
+     * 2.2-11.5pp; their combinations also regressed.  Empirical
+     * conclusion across Sprints 23-27: Pres_Poisson under multilevel
+     * + leaf-AMD reaches near-optimal cuts that pipeline-level
+     * interventions can't improve.  See
+     * `docs/planning/EPIC_2/SPRINT_27/headline_summary.md` for the
+     * full Day-13 cross-corpus matrix + per-axis verdict; Sprint 28+
+     * pivots to non-pipeline-level interventions per PROJECT_PLAN.md.
+     *
+     * Prior history (preserved for traceability): Sprint 24 Day 7
+     * tightened from 1.00× (Sprint 23 Day 11) to 0.96×; Sprints 25/26
+     * stayed at 0.96× (best opt-in 0.922× / 0.9217× respectively).
+     * See `docs/planning/EPIC_2/SPRINT_24/nd_tuning_day7.md` and
+     * `SPRINT_27/headline_summary.md`. */
+    ASSERT_TRUE((long long)nnz_nd * 100 <= (long long)nnz_amd * 94);
 
+    sparse_free(A);
+}
+
+/* ─── Sprint 27 Day 1: HCC Kuu default-flip blocker (failing-as-expected) ─
+
+ * Sprint 26 Day 13's combination matrix surfaced Kuu HCC-alone
+ * +14.6pp ND/AMD nnz_L regress as the SECOND HCC default-flip
+ * blocker (after Sprint 26 Day 3's bcsstk14 sep=0 fix unlocked the
+ * FIRST).  Day 1 of Sprint 27 captures HCC's matching choices and
+ * Kuu's degree distribution; the diagnosis (`SPRINT_27/
+ * hcc_kuu_diagnosis.md`) selects fix option (a.1) — adaptive
+ * HCC weighting via degree-CV-detection-and-HEM-fall-through —
+ * which Day 2 will implement.
+ *
+ * This test pins the post-fix Day-2 contract: under
+ * `SPARSE_ND_COARSENING=hcc`, Kuu nnz_L must stay within 5pp of
+ * the Sprint 26 default-strategy (HEM) ratio of 2.169× AMD.  Day 1
+ * captures: HEM = 881 177 (2.169×), HCC = 940 582 (2.315×) =
+ * +14.6pp regress.  Test fails today; Day 2's CV-fall-through fix
+ * lights it up.
+ *
+ * AMD nnz_L is pinned at the Day 1 capture (406 264) — bit-stable
+ * across Sprint 22-26 per the equivalent constant in
+ * `test_nd_pres_poisson_fill_with_leaf_amd` (PR #31 review
+ * pattern: avoid the runtime AMD reorder that pushes the test past
+ * 20 minutes).  Same Sprint 24 Day 7 / Sprint 26 Day 5 envelope:
+ * if a future commit changes AMD's fill quality on Kuu, the
+ * constant + the parallel `bench_amd_qg.c` capture diverge.
+ *
+ * Routes from `SPRINT_27/PLAN.md` Day 1 task 6.  Test placement:
+ * the plan named `tests/test_graph.c` but the fill-quality
+ * assertion needs `symbolic_cholesky_nnz_nd` from this file's
+ * private helper; placing here keeps the include surface clean.
+ * Documented in `SPRINT_27/hcc_kuu_diagnosis.md` "Day 1 Test Stub
+ * Placement".  */
+static void test_hcc_kuu_no_default_flip_blocker(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Kuu.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (Kuu fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    if (setenv("SPARSE_ND_COARSENING", "hcc", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
+        sparse_free(A);
+        return;
+    }
+
+    /* Day 1 capture; bit-stable across Sprint 22-26 per the
+     * test_nd_pres_poisson_fill_with_leaf_amd pattern (avoids
+     * 20-minute runtime AMD reorder). */
+    const idx_t nnz_amd = 406264;
+    idx_t nnz_nd = symbolic_cholesky_nnz_nd(A);
+    if (nnz_nd <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_nd returned %d (n=%d)", (int)nnz_nd, (int)sparse_rows(A));
+        goto cleanup;
+    }
+
+    double ratio = (double)nnz_nd / (double)nnz_amd;
+    fprintf(stderr,
+            "    Kuu (n=%d) under SPARSE_ND_COARSENING=hcc: AMD nnz(L) = %d, "
+            "ND nnz(L) = %d (ND/AMD = %.3f)\n",
+            (int)sparse_rows(A), (int)nnz_amd, (int)nnz_nd, ratio);
+
+    /* Sprint 26 default (HEM) baseline: ND/AMD = 2.169×.  Sprint 27
+     * Day 2 fix-rule: HCC must stay within 5pp = 2.219×.  Pre-fix
+     * Day 1 baseline: HCC = 2.315× (+14.6pp) — fails today; Day 2's
+     * CV-detection-and-HEM-fall-through lights this up. */
+    ASSERT_TRUE((long long)nnz_nd * 1000 <= (long long)nnz_amd * 2219);
+
+cleanup:
+    unsetenv("SPARSE_ND_COARSENING");
+    sparse_free(A);
+}
+
+/* Sprint 27 Day 10: SPARSE_FM_FINEST_STRATEGY=thick_restart produces
+ * a different ND output than baseline (failing-as-expected Day-10
+ * stub; pin Day 11 implementation).
+ *
+ * Sprint 26 Day 6 stubbed `thick_restart` as a parser-recognised
+ * value that fell through to baseline (rejected on cost: 2-3× wall
+ * expansion).  Sprint 27 PLAN.md item 6 revisits under the post-
+ * Sprint-27-Days-2-3 wall budget — Pres_Poisson ND wall is now 7.1 s
+ * vs Sprint 25's 38.1 s (-81 %), making thick-restart's expansion
+ * comfortably affordable under the 70.5 s 1.5x wall-check ceiling.
+ *
+ * Day 10 wires the dispatch skeleton (thread-local
+ * fm_use_thick_restart + fm_thick_restart_perturb); Day 11 lands the
+ * global-best-tracking + per-pass perturbation overlay in
+ * graph_refine_fm.  RUN_TEST commented out for Day 10 (test fails
+ * today; Day 11 enables it). */
+static void test_finest_fm_thick_restart_returns_to_anchor(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    /* Pin SPARSE_ND_COARSENING=heavy_edge for stability across the
+     * Sprint 27 Day 2 default flip — same pattern as the annealing
+     * smoke test. */
+    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        sparse_free(A);
+        return;
+    }
+
+    /* Baseline run (thick_restart env var unset). */
+    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    idx_t nnz_baseline = symbolic_cholesky_nnz_nd(A);
+    if (nnz_baseline <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_nd(baseline) returned %d", (int)nnz_baseline);
+        goto cleanup;
+    }
+
+    /* Thick-restart run (default random_flip perturbation). */
+    if (setenv("SPARSE_FM_FINEST_STRATEGY", "thick_restart", /*overwrite=*/1) != 0) {
+        TF_FAIL_("setenv SPARSE_FM_FINEST_STRATEGY=%s failed", "thick_restart");
+        goto cleanup;
+    }
+    idx_t nnz_thick_restart = symbolic_cholesky_nnz_nd(A);
+    if (nnz_thick_restart <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_nd(thick_restart) returned %d", (int)nnz_thick_restart);
+        goto cleanup;
+    }
+
+    fprintf(stderr,
+            "    bcsstk14 (n=%d): baseline nnz(L) = %d, thick_restart nnz(L) = %d "
+            "(differ: %s)\n",
+            (int)sparse_rows(A), (int)nnz_baseline, (int)nnz_thick_restart,
+            (nnz_baseline != nnz_thick_restart) ? "yes" : "no");
+
+    /* Day-10 stub: this assertion fails today (thick_restart dispatch
+     * is skeleton; falls through to baseline-equivalent behaviour).
+     * Day 11 lands the perturbation overlay and lights this up. */
+    ASSERT_TRUE(nnz_baseline != nnz_thick_restart);
+
+cleanup:
+    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    unsetenv("SPARSE_ND_COARSENING");
+    sparse_free(A);
+}
+
+/* Sprint 27 Day 7: SPARSE_ND_ROOT_BISECT=spectral produces a
+ * different ND reorder output than `multilevel` on Pres_Poisson
+ * (failing-as-expected Day-7 stub; pin Day 8-9 implementation).
+ *
+ * Sprint 25 Day 6-8 implemented spectral bisection at the COARSEST
+ * level of the multilevel pipeline; Sprint 27 PLAN.md item 5 extends
+ * to the ROOT level — Lanczos + Fiedler on the FULL graph Laplacian,
+ * bisect at the median, lift boundary as separator.  Day 7 wires
+ * the env-var skeleton (parser + dispatch stub); Days 8-9 implement
+ * the root-level path.  RUN_TEST commented out for Day 7 (test
+ * fails today; Day 8-9 lights it up). */
+static void test_nd_root_spectral_pres_poisson_smoke(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Pres_Poisson.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (Pres_Poisson fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    /* Pin SPARSE_ND_COARSENING=heavy_edge to scope the test to the
+     * Sprint 26-default coarsening for stable baseline reproducibility
+     * across the Sprint 27 Day 2 default flip. */
+    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        sparse_free(A);
+        return;
+    }
+
+    /* Multilevel run (default; root-spectral env var unset). */
+    unsetenv("SPARSE_ND_ROOT_BISECT");
+    idx_t nnz_multilevel = symbolic_cholesky_nnz_nd(A);
+    if (nnz_multilevel <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_nd(multilevel) returned %d", (int)nnz_multilevel);
+        goto cleanup;
+    }
+
+    /* Spectral run. */
+    if (setenv("SPARSE_ND_ROOT_BISECT", "spectral", /*overwrite=*/1) != 0) {
+        TF_FAIL_("setenv SPARSE_ND_ROOT_BISECT=%s failed", "spectral");
+        goto cleanup;
+    }
+    idx_t nnz_spectral = symbolic_cholesky_nnz_nd(A);
+    if (nnz_spectral <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_nd(spectral) returned %d", (int)nnz_spectral);
+        goto cleanup;
+    }
+
+    fprintf(stderr,
+            "    Pres_Poisson (n=%d): multilevel nnz(L) = %d, "
+            "spectral nnz(L) = %d (differ: %s)\n",
+            (int)sparse_rows(A), (int)nnz_multilevel, (int)nnz_spectral,
+            (nnz_multilevel != nnz_spectral) ? "yes" : "no");
+
+    /* Day-7 contract pin: spectral root-bisect produces a different
+     * ND output than multilevel.  Today fails (Day-7 skeleton is
+     * no-op); Day 8-9 implementation lights this up. */
+    ASSERT_TRUE(nnz_multilevel != nnz_spectral);
+
+cleanup:
+    unsetenv("SPARSE_ND_ROOT_BISECT");
+    unsetenv("SPARSE_ND_COARSENING");
+    sparse_free(A);
+}
+
+/* Sprint 27 Day 6: SPARSE_FM_FINEST_STRATEGY=annealing produces a
+ * different ND reorder output than baseline (smoke-level evidence
+ * the annealing-acceptance overlay is firing).  Day 6's design pins
+ * this on bcsstk14 — irregular structural-mechanics fixture where
+ * annealing's stochastic acceptance lets the FM walk diverge from
+ * baseline's saved best-cut.  Full ND reorder (vs single partition
+ * call) is required because `sparse_graph_partition` on bcsstk14
+ * converges to the same partition under both strategies (rollback-
+ * to-best floors both at the same cut); the differentiation comes
+ * from downstream recursive partitions on smaller subgraphs that
+ * have multiple near-optimal cuts.
+ *
+ * Day-6 measurement: baseline nnz_L = 129 576, annealing nnz_L =
+ * 129 224 (-0.27 %, slight WIN — annealing happens to land on a
+ * tighter cut on bcsstk14; whether that's typical or fixture-luck
+ * is the Sprint 27 Day 7 corpus-sweep + flip-decision question).
+ *
+ * Plan-spec deviation: PLAN.md Day 6 named Pres_Poisson but bcsstk14
+ * is much faster (~0.5 s vs ~7 s) and shows the same differentiation.
+ * Documented in `SPRINT_27/annealing_fm_design.md` "Day 6 test
+ * placement". */
+static void test_finest_fm_annealing_differs_from_baseline(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    /* Pin SPARSE_ND_COARSENING=heavy_edge for stability across the
+     * Sprint 27 Day 2 default flip — annealing's behaviour at the
+     * FM stage is invariant of coarsening but pinning here keeps
+     * the bench numbers stable for assertion. */
+    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        sparse_free(A);
+        return;
+    }
+
+    /* Baseline run (annealing env var unset). */
+    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    idx_t nnz_baseline = symbolic_cholesky_nnz_nd(A);
+    if (nnz_baseline <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_nd(baseline) returned %d", (int)nnz_baseline);
+        goto cleanup;
+    }
+
+    /* Annealing run (default exponential schedule). */
+    if (setenv("SPARSE_FM_FINEST_STRATEGY", "annealing", /*overwrite=*/1) != 0) {
+        TF_FAIL_("setenv SPARSE_FM_FINEST_STRATEGY=%s failed", "annealing");
+        goto cleanup;
+    }
+    idx_t nnz_annealing = symbolic_cholesky_nnz_nd(A);
+    if (nnz_annealing <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_nd(annealing) returned %d", (int)nnz_annealing);
+        goto cleanup;
+    }
+
+    fprintf(stderr,
+            "    bcsstk14 (n=%d): baseline nnz(L) = %d, annealing nnz(L) = %d "
+            "(differ: %s)\n",
+            (int)sparse_rows(A), (int)nnz_baseline, (int)nnz_annealing,
+            (nnz_baseline != nnz_annealing) ? "yes" : "no");
+
+    /* Day 6 contract: annealing produces a different ND output.
+     * If they match, either (a) annealing dispatch isn't firing (Day
+     * 5 skeleton state) or (b) annealing acceptance has no effect on
+     * this fixture under the chosen schedule.  Either way the
+     * contract isn't met; flag for investigation. */
+    ASSERT_TRUE(nnz_baseline != nnz_annealing);
+
+cleanup:
+    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    unsetenv("SPARSE_ND_COARSENING");
+    sparse_free(A);
+}
+
+/* Sprint 27 Day 12 Item-8 scaffolding: 4 tests pinning Sprint 27
+ * outcomes.  Two pass today (HCC corpus parity + per_vertex_fixed_k
+ * 3-scheme differentiation); two are failing-as-expected (Pres_Poisson
+ * close-to-0.85x-target under annealing / root-spectral) — the
+ * latter two have RUN_TEST commented out so make test stays green
+ * pending Day 13's combination-matrix verdict (which is unlikely to
+ * close the gap given Days 7 and 9 verdicts; Sprint 28+ routing
+ * documented in `thick_restart_decision.md` "Sprint 27 Headline").
+ */
+
+/* Sprint 27 Day 12: HCC + Kuu-safe corpus parity contract.  Verifies
+ * that the Sprint 27 Day 2 default flip (HCC + degree-CV-detection)
+ * doesn't regress any corpus fixture past 5pp vs Sprint 26's HEM
+ * default.  Today PASSES — Day 2 measurement showed Pres_Poisson
+ * −3.4 % WIN (HCC < HEM), Kuu −12.3 % WIN, bcsstk14 / s3rmt3m3
+ * within +0.7 % regress (well under the 5pp budget). */
+static void test_hcc_kuu_safe_corpus_parity(void) {
+    SparseMatrix *A = NULL;
+    /* Test on bcsstk14 (n=1806; loads fast; representative mid-size
+     * irregular SPD). */
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    /* HEM (Sprint 26 default; opt-in today). */
+    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        sparse_free(A);
+        return;
+    }
+    idx_t nnz_hem = symbolic_cholesky_nnz_nd(A);
+    if (nnz_hem <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_nd(HEM) returned %d", (int)nnz_hem);
+        unsetenv("SPARSE_ND_COARSENING");
+        sparse_free(A);
+        return;
+    }
+
+    /* HCC + Kuu-safe (Sprint 27 default). */
+    unsetenv("SPARSE_ND_COARSENING");
+    idx_t nnz_hcc = symbolic_cholesky_nnz_nd(A);
+    if (nnz_hcc <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_nd(HCC default) returned %d", (int)nnz_hcc);
+        sparse_free(A);
+        return;
+    }
+
+    fprintf(stderr,
+            "    bcsstk14: HEM nnz(L) = %d, HCC+Kuu-safe nnz(L) = %d "
+            "(delta: %+.2f %%)\n",
+            (int)nnz_hem, (int)nnz_hcc,
+            100.0 * ((double)nnz_hcc - (double)nnz_hem) / (double)nnz_hem);
+
+    /* Sprint 27 Day 12 corpus-parity contract: HCC must stay within
+     * 5pp regress of HEM.  Today bcsstk14 measures +0.7 % HCC vs HEM
+     * (HCC slightly worse but well within budget). */
+    ASSERT_TRUE((long long)nnz_hcc * 100 <= (long long)nnz_hem * 105);
+    sparse_free(A);
+}
+
+/* Sprint 27 Day 12: per_vertex_fixed_k 3-scheme corpus differentiation.
+ * Sharpens Day 4's smoke (which verified differs-from-dynamic-K on
+ * a 30x30 grid) into a corpus assertion: under fixed-K, the three
+ * weight schemes (hybrid / balance / degree) must produce DIFFERENT
+ * outputs on at least one corpus fixture.  Sprint 26 Day 12's
+ * finding was "all 3 schemes converge to bit-identical on 5 of 6
+ * fixtures under DYNAMIC-K".  Sprint 27 Day 4 confirmed under
+ * FIXED-K they differ massively (6× spread on Kuu).  Today PASSES.
+ */
+static void test_per_vertex_fixed_k_three_schemes_differentiate(void) {
+    SparseMatrix *A = NULL;
+    /* bcsstk04 (n=132): tiny but exhibits 3-scheme differentiation
+     * per Sprint 27 Day 4 sweep (hybrid 3679, balance 4469, degree
+     * 4613 under fixed-K).  Fast for unit tests. */
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk04 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        sparse_free(A);
+        return;
+    }
+    if (setenv("SPARSE_ND_SEP_LIFT_STRATEGY", "per_vertex_fixed_k", /*overwrite=*/1) != 0) {
+        TF_FAIL_("setenv SPARSE_ND_SEP_LIFT_STRATEGY=%s failed", "per_vertex_fixed_k");
+        unsetenv("SPARSE_ND_COARSENING");
+        sparse_free(A);
+        return;
+    }
+
+    setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "hybrid", 1);
+    idx_t nnz_hybrid = symbolic_cholesky_nnz_nd(A);
+    setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "balance", 1);
+    idx_t nnz_balance = symbolic_cholesky_nnz_nd(A);
+    setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "degree", 1);
+    idx_t nnz_degree = symbolic_cholesky_nnz_nd(A);
+
+    fprintf(stderr, "    bcsstk04 fixed-K nnz(L): hybrid=%d, balance=%d, degree=%d\n",
+            (int)nnz_hybrid, (int)nnz_balance, (int)nnz_degree);
+
+    /* Two pairwise checks are sufficient: if hybrid==balance and balance==degree
+     * then by transitivity hybrid==degree, so the third comparison is redundant. */
+    int differs = (nnz_hybrid != nnz_balance) || (nnz_balance != nnz_degree);
+    ASSERT_TRUE(differs);
+
+    unsetenv("SPARSE_ND_SEP_LIFT_WEIGHT");
+    unsetenv("SPARSE_ND_SEP_LIFT_STRATEGY");
+    unsetenv("SPARSE_ND_COARSENING");
+    sparse_free(A);
+}
+
+/* Sprint 27 Day 12: Pres_Poisson under annealing-best lands within
+ * 2pp of the literal 0.85× target.  Failing-as-expected today —
+ * Days 6-7's annealing best schedule (linear) lands at 0.943× of
+ * AMD = 9.3pp from target.  RUN_TEST commented out; documents the
+ * partial-close.  Sprint 28+ routing per `annealing_fm_decision.md`
+ * + `thick_restart_decision.md` "Sprint 27 Headline".
+ *
+ * Test fixture cost: Pres_Poisson at n=14 822 takes ~7 s ND.  The
+ * RUN_TEST line is commented out so this doesn't block CI; if Day 13
+ * surfaces a closing combination, future-sprint test maintainers
+ * can uncomment + tighten the bound.
+ */
+static void test_finest_fm_annealing_pres_poisson_close_to_target(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Pres_Poisson.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (Pres_Poisson fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    /* Bit-stable AMD constant (Sprint 22-26 invariant). */
+    const idx_t nnz_amd = 2668793;
+
+    if (setenv("SPARSE_FM_FINEST_STRATEGY", "annealing", /*overwrite=*/1) != 0 ||
+        setenv("SPARSE_FM_ANNEALING_SCHEDULE", "linear", /*overwrite=*/1) != 0) {
+        TF_FAIL_("setenv SPARSE_FM_FINEST_STRATEGY/SPARSE_FM_ANNEALING_SCHEDULE failed (rc=%d)",
+                 (int)0);
+        sparse_free(A);
+        return;
+    }
+    idx_t nnz_annealing = symbolic_cholesky_nnz_nd(A);
+    unsetenv("SPARSE_FM_ANNEALING_SCHEDULE");
+    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+
+    fprintf(stderr,
+            "    Pres_Poisson under annealing-linear: nnz(L) = %d, "
+            "ND/AMD = %.3f (target 0.85, gap %.1fpp)\n",
+            (int)nnz_annealing, (double)nnz_annealing / (double)nnz_amd,
+            100.0 * ((double)nnz_annealing / (double)nnz_amd - 0.85));
+
+    /* Day-12 stub contract: Pres_Poisson nnz_L ≤ 0.87× AMD = 0.85×
+     * + 2pp tolerance.  FAILS today (annealing lands 0.943×;
+     * +9.3pp from target). */
+    ASSERT_TRUE((long long)nnz_annealing * 100 <= (long long)nnz_amd * 87);
+    sparse_free(A);
+}
+
+/* Sprint 27 Day 12: Pres_Poisson under root-spectral lands within
+ * 2pp of the literal 0.85× target.  Failing-as-expected today —
+ * Days 7-9's root-spectral lands at 0.944× of AMD = 9.4pp from
+ * target.  RUN_TEST commented out; documents the partial-close. */
+static void test_nd_root_spectral_pres_poisson_close_to_target(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Pres_Poisson.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (Pres_Poisson fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    const idx_t nnz_amd = 2668793;
+
+    if (setenv("SPARSE_ND_ROOT_BISECT", "spectral", /*overwrite=*/1) != 0) {
+        TF_FAIL_("setenv SPARSE_ND_ROOT_BISECT=%s failed", "spectral");
+        sparse_free(A);
+        return;
+    }
+    idx_t nnz_spectral = symbolic_cholesky_nnz_nd(A);
+    unsetenv("SPARSE_ND_ROOT_BISECT");
+
+    fprintf(stderr,
+            "    Pres_Poisson under root-spectral: nnz(L) = %d, "
+            "ND/AMD = %.3f (target 0.85, gap %.1fpp)\n",
+            (int)nnz_spectral, (double)nnz_spectral / (double)nnz_amd,
+            100.0 * ((double)nnz_spectral / (double)nnz_amd - 0.85));
+
+    /* Day-12 stub contract: Pres_Poisson nnz_L ≤ 0.87× AMD = 0.85×
+     * + 2pp tolerance.  FAILS today (spectral lands 0.944×;
+     * +9.4pp from target). */
+    ASSERT_TRUE((long long)nnz_spectral * 100 <= (long long)nnz_amd * 87);
     sparse_free(A);
 }
 
@@ -786,6 +1271,32 @@ int main(void) {
     /* Day 7: sparse_analyze integration + SuiteSparse smoke. */
     RUN_TEST(test_nd_bcsstk14_fill_vs_amd);
     RUN_TEST(test_nd_pres_poisson_fill_with_leaf_amd);
+    /* Sprint 27 Day 2: HCC Kuu-safe matching variant lights up
+     * the Day-1 stub.  CV-detection-and-HEM-fall-through (default
+     * threshold 0.30) routes Kuu (CV=0.425) to HEM, restoring the
+     * Sprint 26 default-strategy fill quality. */
+    RUN_TEST(test_hcc_kuu_no_default_flip_blocker);
+    /* Sprint 27 Day 6: annealing FM differs from baseline. */
+    RUN_TEST(test_finest_fm_annealing_differs_from_baseline);
+    /* Sprint 27 Day 8: SPARSE_ND_ROOT_BISECT=spectral differs from
+     * multilevel on Pres_Poisson.  Day 8 wires the root-level
+     * Lanczos+Fiedler path; the smoke assertion just verifies the
+     * dispatch fires and produces a different cut.  Day 9's flip-or-
+     * stay decision lands separately. */
+    RUN_TEST(test_nd_root_spectral_pres_poisson_smoke);
+    /* Sprint 27 Day 11: thick-restart FM differs from baseline. */
+    RUN_TEST(test_finest_fm_thick_restart_returns_to_anchor);
+    /* Sprint 27 Day 12 Item-8 scaffolding: 4 tests pinning Sprint 27
+     * outcomes.  Two pass today; two are failing-as-expected
+     * (Pres_Poisson close-to-target under annealing / root-spectral)
+     * — the latter two stay commented out so make test stays green
+     * pending Day 13's combination-matrix verdict (which is unlikely
+     * to close the gap; Sprint 28+ routing per
+     * `thick_restart_decision.md`). */
+    RUN_TEST(test_hcc_kuu_safe_corpus_parity);
+    RUN_TEST(test_per_vertex_fixed_k_three_schemes_differentiate);
+    /* RUN_TEST(test_finest_fm_annealing_pres_poisson_close_to_target); */
+    /* RUN_TEST(test_nd_root_spectral_pres_poisson_close_to_target); */
     RUN_TEST(test_nd_determinism_public_api);
     RUN_TEST(test_cholesky_via_nd_residual_spd_synth);
 

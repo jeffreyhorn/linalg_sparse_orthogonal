@@ -119,25 +119,42 @@ static long long nd_prof_now_ns(void) {
  * partition recursion (Sprint 23 Day 7 introduced the leaf-AMD
  * splice; Sprint 22 used natural ordering at the base case).
  *
- * **Sprint 26 Day 5 flip: 32 → 96.**  Sprint 22 Day 9's original
- * sweep set the default at 32 against natural-ordering leaves;
- * Sprint 23 Day 7 swapped natural for leaf-AMD without re-sweeping
- * the threshold, leaving t=32 dominant for two more sprints.
- * Sprint 25 Day 11's per-phase profile measured `nd_emit_natural`
- * (degenerate small-subgraph fall-through) firing 32 times at
- * ~165 ms each on Pres_Poisson; Sprint 26 Day 4's per-recursion-
- * depth profile showed cost concentrating at depths 6-9 (88 % of
- * partition cost on 169 small-subgraph calls, each invoking the
- * full multilevel pipeline at n ≈ 50-300 with a constant-factor
- * overhead floor of 60-200 ms).  Sprint 26 Day 5 re-swept t ∈
- * {32, 48, 64, 96, 128} on the full corpus; t=96 was the maximum
- * threshold satisfying the PLAN.md flip rule (≥ 5 % Pres_Poisson
- * wall improvement + no fixture nnz_L regression past 1pp).
- * Result on Pres_Poisson: ND wall 38.1 s → 12.2 s (-67.9 %)
- * with nnz_L bit-stable (-0.21pp).  Per-fixture wins in [-1.3,
- * -16.4] pp range on nnz_L (nos4 / Kuu / bcsstk14 / Pres_Poisson)
- * and -38 to -80 % on wall across the corpus.  See
- * `docs/planning/EPIC_2/SPRINT_26/nd_base_threshold_decision.md`
+ * **Sprint 27 Day 3 flip: 96 → 128 (relaxed flip rule).**  Sprint
+ * 26 Day 5 picked t=96 under a strict 1pp regression cap that
+ * rejected t=128 by s3rmt3m3 +1.05pp (just barely past the gate).
+ * Sprint 27 Day 3 re-swept t ∈ {96, 128, 192, 256} under a relaxed
+ * 2pp regression cap + the new Sprint 27 Day 2 HCC + Kuu-safe
+ * default coarsening; t=128 is the maximum threshold satisfying
+ * the relaxed rule.  Result on Pres_Poisson: ND wall 8 826 ms →
+ * 7 079 ms (-19.8 %) with nnz_L +0.5 % (well within 2pp).  Per-
+ * fixture: Kuu nnz_L -1.1 % win; bcsstk14 / s3rmt3m3 within
+ * +/-0.5 %; nos4 / bcsstk04 bit-stable.  t=192 fails the relaxed
+ * rule by Pres_Poisson +2.0 % (right at the 2pp cap); t=256 fails
+ * clearly (Pres_Poisson +3.2 %).
+ *
+ * **Prior history (preserved for traceability).**  Sprint 22 Day 9's
+ * original sweep set the default at 32 against natural-ordering
+ * leaves; Sprint 23 Day 7 swapped natural for leaf-AMD without
+ * re-sweeping; Sprint 25 Day 11's per-phase profile measured
+ * `nd_emit_natural` firing 32 times at ~165 ms each on Pres_Poisson;
+ * Sprint 26 Day 4's per-recursion-depth profile showed cost
+ * concentrating at depths 6-9 (88 % of partition cost on 169
+ * small-subgraph calls).  The 32 → 96 flip on Day 5 of Sprint 26
+ * cut Pres_Poisson ND wall 38.1 s → 12.2 s (-67.9 %); Sprint 27
+ * Day 2 HCC default added another -28 % (8.8 s); Day 3's t=128 flip
+ * adds another -19.8 % (7.1 s).  Cumulative wall improvement vs
+ * the Sprint 25 baseline (t=32 + HEM) is roughly -81 %.
+ *
+ * Per-fixture-class advisory: bimodal-degree solid-mechanics SPDs
+ * (Kuu's CV=0.425 class) benefit monotonically from larger t —
+ * t=256 produces -6.9 % nnz_L on Kuu vs t=96.  Workloads that look
+ * more like Kuu than Pres_Poisson can opt in via
+ * `bench_reorder --nd-threshold 256` or programmatic
+ * `sparse_reorder_nd_base_threshold = 256` per the
+ * `sparse_reorder_nd_internal.h` exposure contract.  Default
+ * stays at t=128 because Pres_Poisson is the headline fixture and
+ * its fill-quality regress at t > 128 fails the corpus flip rule.
+ * See `docs/planning/EPIC_2/SPRINT_27/nd_base_threshold_decision.md`
  * for the full sweep matrix + flip-rule application.
  *
  * Declared in `src/sparse_reorder_nd_internal.h` (benchmark-only,
@@ -145,7 +162,7 @@ static long long nd_prof_now_ns(void) {
  * `benchmarks/bench_reorder.c --nd-threshold N` flag can override
  * it from the command line without recompiling the library, but
  * library consumers don't see it. */
-idx_t sparse_reorder_nd_base_threshold = 96;
+idx_t sparse_reorder_nd_base_threshold = 128;
 
 /* Append `n` vertices from a subgraph to the global permutation in
  * the order they appear in `vertex_id_map`.  Used by the
@@ -201,6 +218,45 @@ static SparseMatrix *nd_subgraph_to_sparse(const sparse_graph_t *G_leaf) {
 fail:
     sparse_free(A);
     return NULL;
+}
+
+/* Sprint 27 Days 7-9: SPARSE_ND_ROOT_BISECT env-var parser.
+ *
+ * Day 7 landed the parser + dispatch skeleton; Days 8-9 wired the
+ * actual root-level spectral path through `nd_recurse` at depth 0
+ * (reuses Sprint 25 Day 7's `graph_bisect_coarsest_spectral`
+ * Laplacian + Lanczos + Fiedler pipeline at the root level instead
+ * of the coarsest level — see the dispatch site in `nd_recurse`).
+ *
+ * Default `multilevel` preserves Sprint 22 → Sprint 27 Day 6
+ * behaviour bit-identically.  `spectral` triggers the root-level
+ * path when `n <= SPARSE_ND_ROOT_BISECT_MAX_N` (default 50000).
+ * Above the threshold, fall through to `multilevel` (Lanczos at
+ * n > 100000 is > 30 s per Sprint 21 Day 5 scaling — not worth
+ * the special path on production-scale fixtures). */
+typedef enum {
+    ND_ROOT_BISECT_MULTILEVEL = 0, /* Sprint 22 default — full pipeline */
+    ND_ROOT_BISECT_SPECTRAL = 1,   /* Sprint 27 Day 7-9 — Fiedler at root */
+} nd_root_bisect_strategy_t;
+
+static nd_root_bisect_strategy_t parse_nd_root_bisect_strategy(void) {
+    const char *env = getenv("SPARSE_ND_ROOT_BISECT");
+    if (env && strcmp(env, "spectral") == 0)
+        return ND_ROOT_BISECT_SPECTRAL;
+    /* Default + unrecognized + "multilevel" all fall through. */
+    return ND_ROOT_BISECT_MULTILEVEL;
+}
+
+static idx_t parse_nd_root_bisect_max_n(void) {
+    idx_t max_n = 50000;
+    const char *env = getenv("SPARSE_ND_ROOT_BISECT_MAX_N");
+    if (env && *env) {
+        char *endp = NULL;
+        long v = strtol(env, &endp, 10);
+        if (env != endp && *endp == '\0' && v >= 1 && v <= 100000000)
+            max_n = (idx_t)v;
+    }
+    return max_n;
 }
 
 /* The driver is genuinely recursive — each level descends two
@@ -284,8 +340,50 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
     if (!part)
         return SPARSE_ERR_ALLOC;
     idx_t sep_count = 0;
+    sparse_err_t rc = SPARSE_OK;
     long long part_t0 = nd_prof_enabled ? nd_prof_now_ns() : 0;
-    sparse_err_t rc = sparse_graph_partition(G, part, &sep_count);
+
+    /* Sprint 27 Day 8: SPARSE_ND_ROOT_BISECT dispatch.  At depth 0
+     * (root call), if the env var is `spectral` AND the graph is
+     * within the size threshold, run Lanczos + Fiedler at the root
+     * via `graph_bisect_coarsest_spectral` (Sprint 25 Day 7 helper,
+     * promoted to internal-API today); convert the 2-way result to a
+     * 3-way separator via `graph_edge_separator_to_vertex_separator`
+     * (Sprint 22 Day 4); skip the multilevel pipeline.
+     *
+     * Determinism: Lanczos with fixed tol + reorthogonalization is
+     * deterministic given the same Laplacian; output cuts reproduce
+     * across runs.
+     *
+     * Lanczos failure / 60-40 imbalance: `graph_bisect_coarsest_spectral`
+     * falls back internally to GGGP (still produces a valid 2-way
+     * partition) and returns SPARSE_OK.  Any non-OK return from
+     * either the spectral helper or the separator-conversion call is
+     * a genuine error (allocation failure, etc.) and is propagated
+     * rather than masked by a fallback to the multilevel pipeline.
+     *
+     * Default-off (env var unset / `multilevel`) leaves the existing
+     * multilevel `sparse_graph_partition` path unchanged — Sprint 27
+     * Day 6 behaviour preserved bit-identically. */
+    int used_root_spectral = 0;
+    if (depth == 0) {
+        nd_root_bisect_strategy_t root_strategy = parse_nd_root_bisect_strategy();
+        idx_t root_max_n = parse_nd_root_bisect_max_n();
+        if (root_strategy == ND_ROOT_BISECT_SPECTRAL && n <= root_max_n && n >= 3) {
+            rc = graph_bisect_coarsest_spectral(G, part);
+            if (rc == SPARSE_OK)
+                rc = graph_edge_separator_to_vertex_separator(G, part);
+            if (rc != SPARSE_OK) {
+                free(part);
+                return rc;
+            }
+            used_root_spectral = 1;
+        }
+    }
+    if (!used_root_spectral) {
+        rc = sparse_graph_partition(G, part, &sep_count);
+    }
+
     if (nd_prof_enabled) {
         long long elapsed = nd_prof_now_ns() - part_t0;
         nd_prof_partition_ns += elapsed;

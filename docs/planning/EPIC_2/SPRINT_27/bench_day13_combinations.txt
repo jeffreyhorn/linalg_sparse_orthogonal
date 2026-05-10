@@ -1,0 +1,197 @@
+# Sprint 27 Day 13 cross-corpus combination matrix
+# 24 settings × 6 fixtures.  Default coarsening: HCC + Kuu-safe;
+# nd_base_threshold = 128 unless overridden.  Settings 1, 19, 20
+# pin SPARSE_ND_COARSENING=heavy_edge.  Settings 17, 18 use
+# --nd-threshold 256 (passed below).
+
+=== Setting 1: Sprint 26 default (HEM, t=96) ===
+nos4,100,ND,637,0.4,skip
+bcsstk04,132,ND,3722,188.0,skip
+Kuu,7102,ND,875101,7337.9,skip
+bcsstk14,1806,ND,129576,1326.8,skip
+s3rmt3m3,5357,ND,483907,4137.2,skip
+Pres_Poisson,14822,ND,2549740,13363.2,skip
+
+=== Setting 2: Sprint 27 default (HCC + t=128) ===
+nos4,100,ND,637,0.5,skip
+bcsstk04,132,ND,3722,197.6,skip
+Kuu,7102,ND,764664,8577.3,skip
+bcsstk14,1806,ND,130422,673.3,skip
+s3rmt3m3,5357,ND,487832,6974.6,skip
+Pres_Poisson,14822,ND,2462201,10409.6,skip
+
+=== Setting 3: fixed_k×hybrid ===
+nos4,100,ND,637,0.5,skip
+bcsstk04,132,ND,3679,204.5,skip
+Kuu,7102,ND,499127,4583.5,skip
+bcsstk14,1806,ND,282996,610.9,skip
+s3rmt3m3,5357,ND,830461,5997.6,skip
+Pres_Poisson,14822,ND,3742309,11842.9,skip
+
+=== Setting 4: fixed_k×balance ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,4469,178.5,skip
+Kuu,7102,ND,1035335,4635.4,skip
+bcsstk14,1806,ND,214778,620.2,skip
+s3rmt3m3,5357,ND,526194,5541.8,skip
+Pres_Poisson,14822,ND,3265627,10939.8,skip
+
+=== Setting 5: fixed_k×degree ===
+nos4,100,ND,637,0.4,skip
+bcsstk04,132,ND,4613,200.2,skip
+Kuu,7102,ND,2920633,6323.1,skip
+bcsstk14,1806,ND,277394,451.9,skip
+s3rmt3m3,5357,ND,1032359,6872.6,skip
+Pres_Poisson,14822,ND,5573256,12443.5,skip
+
+=== Setting 6: annealing-exponential ===
+nos4,100,ND,637,0.4,skip
+bcsstk04,132,ND,3722,189.8,skip
+Kuu,7102,ND,815158,7478.1,skip
+bcsstk14,1806,ND,129530,730.8,skip
+s3rmt3m3,5357,ND,487832,6875.6,skip
+Pres_Poisson,14822,ND,2538898,10357.0,skip
+
+=== Setting 7: annealing-linear ===
+nos4,100,ND,637,0.5,skip
+bcsstk04,132,ND,3722,194.4,skip
+Kuu,7102,ND,765132,8405.4,skip
+bcsstk14,1806,ND,130111,760.5,skip
+s3rmt3m3,5357,ND,487832,6820.4,skip
+Pres_Poisson,14822,ND,2515202,12656.3,skip
+
+=== Setting 8: annealing-cosine ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,3722,179.3,skip
+Kuu,7102,ND,815158,7282.9,skip
+bcsstk14,1806,ND,129530,738.7,skip
+s3rmt3m3,5357,ND,487832,6787.5,skip
+Pres_Poisson,14822,ND,2535749,10209.1,skip
+
+=== Setting 9: root-spectral ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,3672,7.4,skip
+Kuu,7102,ND,892672,7004.0,skip
+bcsstk14,1806,ND,138693,1479.3,skip
+s3rmt3m3,5357,ND,506077,4662.2,skip
+Pres_Poisson,14822,ND,2518428,10658.8,skip
+
+=== Setting 10: thick_restart-random_flip ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,3677,187.2,skip
+Kuu,7102,ND,903195,4839.9,skip
+bcsstk14,1806,ND,130733,608.2,skip
+s3rmt3m3,5357,ND,482731,4775.1,skip
+Pres_Poisson,14822,ND,2578552,11632.1,skip
+
+=== Setting 11: thick_restart-boundary ===
+nos4,100,ND,637,0.4,skip
+bcsstk04,132,ND,4471,180.0,skip
+Kuu,7102,ND,875152,4315.0,skip
+bcsstk14,1806,ND,138061,835.9,skip
+s3rmt3m3,5357,ND,489901,4790.4,skip
+Pres_Poisson,14822,ND,2745603,12053.8,skip
+
+=== Setting 12: thick_restart-gauss_noise ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,3677,184.2,skip
+Kuu,7102,ND,772566,6339.0,skip
+bcsstk14,1806,ND,132599,426.7,skip
+s3rmt3m3,5357,ND,488049,4890.5,skip
+Pres_Poisson,14822,ND,2639539,10756.3,skip
+
+=== Setting 13: spectral+annealing-exp ===
+nos4,100,ND,637,0.4,skip
+bcsstk04,132,ND,3672,7.7,skip
+Kuu,7102,ND,891073,7023.0,skip
+bcsstk14,1806,ND,138693,1457.0,skip
+s3rmt3m3,5357,ND,508109,4165.6,skip
+Pres_Poisson,14822,ND,2526747,10934.5,skip
+
+=== Setting 14: spectral+annealing-linear ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,3672,7.7,skip
+Kuu,7102,ND,891073,6939.4,skip
+bcsstk14,1806,ND,138693,1547.4,skip
+s3rmt3m3,5357,ND,505198,4523.2,skip
+Pres_Poisson,14822,ND,2526747,10729.9,skip
+
+=== Setting 15: spectral+thick_restart ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,3672,7.2,skip
+Kuu,7102,ND,854428,7302.3,skip
+bcsstk14,1806,ND,142662,924.3,skip
+s3rmt3m3,5357,ND,506918,4677.2,skip
+Pres_Poisson,14822,ND,2490685,13331.6,skip
+
+=== Setting 16: fixed_k×hybrid+annealing ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,3679,180.8,skip
+Kuu,7102,ND,504187,3858.1,skip
+bcsstk14,1806,ND,283208,561.6,skip
+s3rmt3m3,5357,ND,850259,6108.8,skip
+Pres_Poisson,14822,ND,3919746,14571.3,skip
+
+=== Setting 17: t=256 Kuu opt-in ===
+nos4,100,ND,637,0.5,skip
+bcsstk04,132,ND,3143,4.9,skip
+Kuu,7102,ND,719754,3529.2,skip
+bcsstk14,1806,ND,131549,450.6,skip
+s3rmt3m3,5357,ND,480865,4683.6,skip
+Pres_Poisson,14822,ND,2528685,6015.9,skip
+
+=== Setting 18: t=256 + fixed_k×hybrid ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,3143,3.0,skip
+Kuu,7102,ND,494409,2094.8,skip
+bcsstk14,1806,ND,272930,324.6,skip
+s3rmt3m3,5357,ND,807983,3567.5,skip
+Pres_Poisson,14822,ND,3628555,4060.1,skip
+
+=== Setting 19: HEM+t=96+annealing ===
+nos4,100,ND,637,0.5,skip
+bcsstk04,132,ND,3722,209.8,skip
+Kuu,7102,ND,877551,6899.1,skip
+bcsstk14,1806,ND,129224,1192.2,skip
+s3rmt3m3,5357,ND,486018,4445.0,skip
+Pres_Poisson,14822,ND,2474111,11613.5,skip
+
+=== Setting 20: HEM+fixed_k×hybrid ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,3679,180.4,skip
+Kuu,7102,ND,503429,4622.6,skip
+bcsstk14,1806,ND,282737,460.6,skip
+s3rmt3m3,5357,ND,832063,5584.7,skip
+Pres_Poisson,14822,ND,3299736,17556.1,skip
+
+=== Setting 21: spectral+fixed_k×hybrid ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,3693,7.7,skip
+Kuu,7102,ND,541281,5289.3,skip
+bcsstk14,1806,ND,267774,759.3,skip
+s3rmt3m3,5357,ND,901611,6368.0,skip
+Pres_Poisson,14822,ND,4398445,13759.6,skip
+
+=== Setting 22: thick_restart+annealing ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,3677,199.8,skip
+Kuu,7102,ND,903195,4781.8,skip
+bcsstk14,1806,ND,130733,654.8,skip
+s3rmt3m3,5357,ND,482731,4647.6,skip
+Pres_Poisson,14822,ND,2578552,11944.6,skip
+
+=== Setting 23: fixed_k×degree+annealing ===
+nos4,100,ND,637,0.3,skip
+bcsstk04,132,ND,4613,220.1,skip
+Kuu,7102,ND,3245155,4582.6,skip
+bcsstk14,1806,ND,277394,480.3,skip
+s3rmt3m3,5357,ND,1046721,6612.2,skip
+Pres_Poisson,14822,ND,5310263,8926.7,skip
+
+=== Setting 24: kitchen sink ===
+nos4,100,ND,637,0.5,skip
+bcsstk04,132,ND,3693,9.0,skip
+Kuu,7102,ND,541281,5456.7,skip
+bcsstk14,1806,ND,267774,728.7,skip
+s3rmt3m3,5357,ND,873060,7469.4,skip
+Pres_Poisson,14822,ND,4211819,13626.5,skip

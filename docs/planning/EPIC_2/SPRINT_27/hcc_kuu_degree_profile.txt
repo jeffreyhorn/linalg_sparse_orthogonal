@@ -1,0 +1,30 @@
+n=7102  degrees: min=22 max=97 mean=46.90 std=19.95 CV=0.425
+Degree histogram:
+  deg in [ 22, 30]:   378 vertices (  5.3%)
+  deg in [ 31, 40]:  2935 vertices ( 41.3%)
+  deg in [ 41, 50]:   351 vertices (  4.9%)
+  deg in [ 51, 60]:  2724 vertices ( 38.4%)
+  deg in [ 61, 70]:     0 vertices (  0.0%)
+  deg in [ 71, 80]:     0 vertices (  0.0%)
+  deg in [ 81, 97]:   714 vertices ( 10.1%)
+Edges: 166549  min(deg(u),deg(v))  min=22 max=97 mean=42.97
+Edge min(deg) histogram:
+  min(deg) in [ 22, 30]:   7379 edges (  4.4%)
+  min(deg) in [ 31, 40]:  79909 edges ( 48.0%)
+  min(deg) in [ 41, 50]:   7055 edges (  4.2%)
+  min(deg) in [ 51, 60]:  66591 edges ( 40.0%)
+  min(deg) in [ 61, 70]:      0 edges (  0.0%)
+  min(deg) in [ 71, 80]:      0 edges (  0.0%)
+  min(deg) in [ 81, 97]:   5615 edges (  3.4%)
+
+Score-band summary (HCC score = w * min(deg); w=1 here):
+  Top 25%   (highest scoring edges):  min(deg) >= ~55
+  Bottom 25% (lowest scoring edges):  min(deg) <= ~31
+  Bottom 5%:                         min(deg) <= ~31
+
+Comparison fixtures (estimated CV for Sprint 26 corpus):
+  nos4             n=  100  deg [1,6]  mean=4.94  CV=0.295
+  bcsstk04         n=  132  deg [14,45]  mean=26.64  CV=0.405
+  bcsstk14         n= 1806  deg [0,47]  mean=34.14  CV=0.280
+  s3rmt3m3         n= 5357  deg [6,47]  mean=37.77  CV=0.187
+  Pres_Poisson     n=14822  deg [17,49]  mean=47.29  CV=0.108

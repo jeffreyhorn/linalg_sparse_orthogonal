@@ -357,8 +357,10 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
      *
      * Lanczos failure / 60-40 imbalance: `graph_bisect_coarsest_spectral`
      * falls back internally to GGGP (still produces a valid 2-way
-     * partition).  The caller never sees the failure; the existing
-     * 3-way conversion path runs unconditionally on success.
+     * partition) and returns SPARSE_OK.  Any non-OK return from
+     * either the spectral helper or the separator-conversion call is
+     * a genuine error (allocation failure, etc.) and is propagated
+     * rather than masked by a fallback to the multilevel pipeline.
      *
      * Default-off (env var unset / `multilevel`) leaves the existing
      * multilevel `sparse_graph_partition` path unchanged — Sprint 27
@@ -371,7 +373,11 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
             rc = graph_bisect_coarsest_spectral(G, part);
             if (rc == SPARSE_OK)
                 rc = graph_edge_separator_to_vertex_separator(G, part);
-            used_root_spectral = (rc == SPARSE_OK);
+            if (rc != SPARSE_OK) {
+                free(part);
+                return rc;
+            }
+            used_root_spectral = 1;
         }
     }
     if (!used_root_spectral) {

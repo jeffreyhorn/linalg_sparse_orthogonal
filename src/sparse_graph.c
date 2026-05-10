@@ -473,6 +473,13 @@ typedef enum {
     FM_THICK_RESTART_PERTURB_RANDOM_FLIP = 0, /* default */
     FM_THICK_RESTART_PERTURB_BOUNDARY_SHUFFLE = 1,
     FM_THICK_RESTART_PERTURB_GAUSS_NOISE = 2,
+    /* Sprint 28 Day 2: formal gain-bucket-noise variant.  Replaces
+     * Sprint 27 Day 11's simplified gauss_noise with the Day-10
+     * design's intent (perturb gain comparator, not partition state).
+     * Inserts each vertex into the bucket at index
+     * `gain[v] + sigma_k * max_weighted_degree * randn()` where
+     * sigma_k decays per pass (linear / exponential). */
+    FM_THICK_RESTART_PERTURB_GAIN_NOISE_FORMAL = 3,
 } fm_thick_restart_perturb_t;
 
 static _Thread_local fm_thick_restart_perturb_t fm_thick_restart_perturb =
@@ -486,8 +493,38 @@ static fm_thick_restart_perturb_t parse_fm_thick_restart_perturb(void) {
         return FM_THICK_RESTART_PERTURB_BOUNDARY_SHUFFLE;
     if (strcmp(env, "gauss_noise") == 0)
         return FM_THICK_RESTART_PERTURB_GAUSS_NOISE;
+    if (strcmp(env, "gain_noise_formal") == 0)
+        return FM_THICK_RESTART_PERTURB_GAIN_NOISE_FORMAL;
     /* Default + unrecognized + "random_flip" all fall through. */
     return FM_THICK_RESTART_PERTURB_RANDOM_FLIP;
+}
+
+/* Sprint 28 Day 2: gain-noise schedule for the formal variant.  Mirrors
+ * the Sprint 27 Day 5-6 annealing-schedule axis but applies to
+ * sigma_k decay rather than temperature decay.  Default linear
+ * (cheaper than exponential to compute, predictable cutoff at last
+ * pass).  Read once on entry to graph_refine_fm via the thread-local
+ * `fm_gain_noise_schedule` set by graph_uncoarsen at the finest
+ * level when fm_thick_restart_perturb == GAIN_NOISE_FORMAL. */
+typedef enum {
+    FM_GAIN_NOISE_SCHEDULE_LINEAR = 0,      /* default; sigma_k = sigma_0 * (1 - k/K) */
+    FM_GAIN_NOISE_SCHEDULE_EXPONENTIAL = 1, /* sigma_k = sigma_0 * 0.5^k */
+    FM_GAIN_NOISE_SCHEDULE_COSINE = 2,      /* sigma_k = sigma_0/2 * (1 + cos(πk/K)) */
+} fm_gain_noise_schedule_t;
+
+static _Thread_local fm_gain_noise_schedule_t fm_gain_noise_schedule =
+    FM_GAIN_NOISE_SCHEDULE_LINEAR;
+
+static fm_gain_noise_schedule_t parse_fm_gain_noise_schedule(void) {
+    const char *env = getenv("SPARSE_FM_GAIN_NOISE_SCHEDULE");
+    if (!env)
+        return FM_GAIN_NOISE_SCHEDULE_LINEAR;
+    if (strcmp(env, "exponential") == 0)
+        return FM_GAIN_NOISE_SCHEDULE_EXPONENTIAL;
+    if (strcmp(env, "cosine") == 0)
+        return FM_GAIN_NOISE_SCHEDULE_COSINE;
+    /* Default + unrecognized + "linear" all fall through. */
+    return FM_GAIN_NOISE_SCHEDULE_LINEAR;
 }
 
 /* Sprint 27 Day 11: thick-restart perturbation helper.  Modifies
@@ -513,11 +550,23 @@ static fm_thick_restart_perturb_t parse_fm_thick_restart_perturb(void) {
  *
  * Determinism: the RNG state is owned by the caller (typically a
  * per-call deterministic seed), passed through and updated
- * in-place.  Same input → same output. */
+ * in-place.  Same input → same output.
+ *
+ * Sprint 28 Day 2: GAIN_NOISE_FORMAL is a no-op here — its
+ * perturbation lives inside graph_refine_fm at gain-bucket-init
+ * time (per-vertex Gaussian noise on bucket placement), not in the
+ * partition state.  The graph_uncoarsen anchor-restoration memcpy
+ * still fires for that mode (preserves global-best tracking across
+ * passes); only the partition-state perturbation is skipped. */
 static void thick_restart_perturb(const sparse_graph_t *G, idx_t *part,
                                   fm_thick_restart_perturb_t mode, uint32_t *rng) {
     idx_t n = G->n;
     if (n < 2)
+        return;
+
+    /* Sprint 28 Day 2: gain-noise formal variant has no partition-state
+     * perturbation step; the noise is applied inside graph_refine_fm. */
+    if (mode == FM_THICK_RESTART_PERTURB_GAIN_NOISE_FORMAL)
         return;
 
     if (mode == FM_THICK_RESTART_PERTURB_BOUNDARY_SHUFFLE) {
@@ -1959,6 +2008,31 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
     idx_t anneal_worsening_accepted = 0;
     idx_t anneal_worsening_rejected = 0;
 
+    /* Sprint 28 Day 2: formal gain-noise overlay (the Day-10 design's
+     * intent that Sprint 27 Day 11 simplified to partition-state random-
+     * flip).  When `fm_use_thick_restart` is set AND
+     * `fm_thick_restart_perturb == GAIN_NOISE_FORMAL`, perturb the
+     * bucket placement via `gain_for_bucket[v] = gain[v] + noise[v]`
+     * where `noise[v] = sigma_k * max_weighted_degree * randn()` is
+     * sampled once per pass per vertex.  The bucket structure is
+     * sized for `2 * max_weighted_degree` to absorb the noise +
+     * neighbour-update accumulation.  Cut accounting + neighbour-
+     * update gain equation use the TRUE `gain[v]`; only the bucket
+     * key carries the noise offset.  Default-off path (gain_for_bucket
+     * == NULL) is bit-identical to current master.
+     *
+     * sigma_k decays per pass under `fm_gain_noise_schedule` (default
+     * linear; matches PLAN.md Day 2 task 2).  Pass index k =
+     * fm_anneal_pass_idx (reused thread-local from Sprint 27 Day 6;
+     * graph_uncoarsen sets it before each finest-level call). */
+    const int use_gain_noise_formal =
+        fm_use_thick_restart &&
+        fm_thick_restart_perturb == FM_THICK_RESTART_PERTURB_GAIN_NOISE_FORMAL;
+    const int gain_noise_debug =
+        use_gain_noise_formal && getenv("SPARSE_FM_GAIN_NOISE_DEBUG") != NULL;
+    double gain_sigma_k = 0.0;
+    uint32_t gain_noise_rng = 0;
+
     idx_t n = G->n;
 
     /* Per-vertex gain = (sum of edge weights to other-side neighbours)
@@ -1980,12 +2054,30 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
      * reconsiders them — Sprint 22's per-step full re-scan retried
      * such vertices implicitly; the bucket-FM has to spell it out. */
     idx_t *skipped_this_step = malloc((size_t)n * sizeof(idx_t));
-    if (!gain || !locked || !in_bucket || !best_part || !skipped_this_step) {
+    /* Sprint 28 Day 2: gain-for-bucket array.  Only allocated under
+     * the gain_noise_formal overlay; carries the per-vertex noise
+     * offset that the bucket structure uses for placement.  NULL on
+     * the default code path → bucket inserts read `gain[v]` directly
+     * (bit-identical to Sprint 27 master).  calloc-zeroed so the
+     * path-sensitive analyzer sees an initialised value at the
+     * bucket-insert read site (the noise-init loop below covers all
+     * v ∈ [0, n), but the analyzer can't prove that across two
+     * separate `if (use_gain_noise_formal)` blocks).  The redundant
+     * `n > 0` guard the malloc previously had is dropped because
+     * line 1985's `if (G->n == 0) return SPARSE_OK;` already filters
+     * the n == 0 case before we reach this allocation. */
+    idx_t *gain_for_bucket = NULL;
+    if (use_gain_noise_formal) {
+        gain_for_bucket = calloc((size_t)n, sizeof(idx_t));
+    }
+    if (!gain || !locked || !in_bucket || !best_part || !skipped_this_step ||
+        (use_gain_noise_formal && !gain_for_bucket)) {
         free(gain);
         free(locked);
         free(in_bucket);
         free(best_part);
         free(skipped_this_step);
+        free(gain_for_bucket);
         return SPARSE_ERR_ALLOC;
     }
 
@@ -2015,14 +2107,32 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
             max_weighted_degree = v_wd;
     }
 
+    /* Sprint 28 Day 2: oversize the bucket array by 2× when the
+     * gain_noise_formal overlay is active.  Per-vertex noise (sampled
+     * below) is bounded by `sigma_0 * max_weighted_degree * |randn()|`;
+     * with sigma_0 = 0.5 and the Box-Muller-style sampling clamped to
+     * ~3σ, |noise| stays within max_weighted_degree.  The post-init
+     * `gain_for_bucket[v] = gain[v] + noise[v]` therefore lives in
+     * `[-2*max_weighted_degree, +2*max_weighted_degree]`; subsequent
+     * neighbour-updates change `gain[v]` by `±2w` per step but keep
+     * the noise offset constant, so the bucket key stays in the
+     * doubled range throughout.  Default-off path uses
+     * max_weighted_degree (bit-identical to Sprint 27 master). */
+    idx_t bucket_max_gain = max_weighted_degree;
+    if (use_gain_noise_formal) {
+        bucket_max_gain = max_weighted_degree * 2;
+        if (bucket_max_gain < max_weighted_degree) /* idx_t overflow guard */
+            bucket_max_gain = max_weighted_degree;
+    }
     fm_bucket_array_t buckets = {0};
-    sparse_err_t rc = fm_bucket_array_init(&buckets, n, max_weighted_degree);
+    sparse_err_t rc = fm_bucket_array_init(&buckets, n, bucket_max_gain);
     if (rc != SPARSE_OK) {
         free(gain);
         free(locked);
         free(in_bucket);
         free(best_part);
         free(skipped_this_step);
+        free(gain_for_bucket);
         return rc;
     }
 
@@ -2068,6 +2178,77 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
                            2654435761U +
                        1U);
     }
+
+    /* Sprint 28 Day 2: compute sigma_k for the gain_noise_formal
+     * overlay.  sigma_0 = 0.5 means the per-vertex noise magnitude
+     * is up to ~50% of max_weighted_degree at pass 0 (with Box-Muller
+     * sampling clamped to ~3σ); decays per pass under
+     * `fm_gain_noise_schedule`.  Same per-call deterministic seed
+     * recipe as Day-6 annealing, but biased by 7U to differentiate
+     * the RNG stream when the two overlays compose (annealing +
+     * gain_noise_formal). */
+    if (use_gain_noise_formal) {
+        int K = fm_anneal_total_passes > 0 ? fm_anneal_total_passes : 1;
+        int k = fm_anneal_pass_idx;
+        if (k < 0)
+            k = 0;
+        if (k >= K)
+            k = K - 1;
+        const double sigma_0 = 0.5;
+        switch (fm_gain_noise_schedule) {
+        case FM_GAIN_NOISE_SCHEDULE_EXPONENTIAL:
+            gain_sigma_k = sigma_0;
+            for (int i = 0; i < k; i++)
+                gain_sigma_k *= 0.5;
+            break;
+        case FM_GAIN_NOISE_SCHEDULE_COSINE:
+            gain_sigma_k =
+                sigma_0 * 0.5 * (1.0 + cos(3.14159265358979323846 * (double)k / (double)K));
+            break;
+        case FM_GAIN_NOISE_SCHEDULE_LINEAR:
+        default:
+            gain_sigma_k = sigma_0 * (1.0 - (double)k / (double)K);
+            break;
+        }
+        gain_noise_rng =
+            (uint32_t)(((uint64_t)(uint32_t)n * 31U + (uint32_t)(uint64_t)(unsigned long)k) *
+                           2654435761U +
+                       7U);
+    }
+
+    /* Sprint 28 Day 2: populate gain_for_bucket[v] = gain[v] + noise[v]
+     * when the gain_noise_formal overlay is active.  noise[v] is
+     * sampled via Box-Muller-style central-limit approximation: sum
+     * 12 uniform draws and subtract 6 to approximate N(0, 1).  Cheap,
+     * deterministic given the seeded RNG, and accurate to ~3σ for
+     * the bucket-placement use case.  The result is clamped to
+     * `±max_weighted_degree` so the post-init gain_for_bucket[v]
+     * stays within `±2*max_weighted_degree` (matches the doubled
+     * bucket sizing above). */
+    if (use_gain_noise_formal && gain_for_bucket) {
+        const double noise_scale = gain_sigma_k * (double)max_weighted_degree;
+        const idx_t noise_clamp = max_weighted_degree;
+        for (idx_t v = 0; v < n; v++) {
+            double u_sum = 0.0;
+            for (int i = 0; i < 12; i++) {
+                gain_noise_rng ^= gain_noise_rng << 13;
+                gain_noise_rng ^= gain_noise_rng >> 17;
+                gain_noise_rng ^= gain_noise_rng << 5;
+                u_sum += (double)gain_noise_rng / 4294967296.0;
+            }
+            double standard_normal = u_sum - 6.0;
+            double noise = noise_scale * standard_normal;
+            idx_t noise_int;
+            if (noise > (double)noise_clamp)
+                noise_int = noise_clamp;
+            else if (noise < -(double)noise_clamp)
+                noise_int = -noise_clamp;
+            else
+                noise_int = (idx_t)noise;
+            gain_for_bucket[v] = gain[v] + noise_int;
+        }
+    }
+
     /* Insert every vertex into the bucket initially.  Vertices with
      * negative gain (interior to their side) are still inserted —
      * Sprint 22's FM scanned them too, accepting transient cut
@@ -2083,7 +2264,17 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
      * scatter IDs within a bucket — but downstream tests show this
      * is sufficient to avoid the catastrophic residual blow-up. */
     for (idx_t v = n - 1; v >= 0; v--) {
-        fm_bucket_insert(&buckets, v, gain[v]);
+        /* Sprint 28 Day 2: clang-analyzer-core.uninitialized.Assign
+         * false positive — both `gain[v]` (init loop above, lines
+         * ~2086-2103) and `gain_for_bucket[v]` (calloc'd + noise-init
+         * loop above when use_gain_noise_formal is true) are written
+         * for every v ∈ [0, n) before this read.  The analyzer can't
+         * track the gain-init loop's write across the intervening
+         * thick-restart / annealing branches. */
+        // NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign)
+        idx_t bucket_key =
+            (use_gain_noise_formal && gain_for_bucket) ? gain_for_bucket[v] : gain[v];
+        fm_bucket_insert(&buckets, v, bucket_key);
         in_bucket[v] = 1;
     }
 
@@ -2190,7 +2381,14 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
          * in_bucket ones), so when we re-insert the skipped vertices
          * below their gain[] reflects the move's effect. */
         if (have_candidate) {
-            cur_cut -= best_g;
+            /* Sprint 28 Day 2: cut accounting uses the TRUE gain
+             * (gain[best_v]) rather than the popped bucket key
+             * (best_g) when the gain_noise_formal overlay is active —
+             * the bucket key carries the per-vertex noise offset and
+             * is not the actual cut delta.  Default-off path uses
+             * best_g (== gain[best_v] at pop) bit-identically. */
+            idx_t cut_delta = (use_gain_noise_formal && gain_for_bucket) ? gain[best_v] : best_g;
+            cur_cut -= cut_delta;
             idx_t v_w = G->vwgt ? G->vwgt[best_v] : 1;
             idx_t old_side = part_io[best_v];
             idx_t new_side = 1 - old_side;
@@ -2210,20 +2408,35 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
              * gain[] is updated for *every* unlocked neighbour; the
              * bucket re-shuffle only fires for currently-in-bucket
              * neighbours, so skipped-this-step vertices pick up their
-             * updated gain when we re-insert them below. */
+             * updated gain when we re-insert them below.
+             *
+             * Sprint 28 Day 2: when gain_noise_formal is active,
+             * gain_for_bucket[u] also shifts by the same ±2w delta
+             * (the per-vertex noise offset is constant within a pass;
+             * neighbour-update is linear).  Bucket remove+insert uses
+             * the noisy key on both sides. */
             for (idx_t k = G->xadj[best_v]; k < G->xadj[best_v + 1]; k++) {
                 idx_t u = G->adjncy[k];
                 if (locked[u])
                     continue;
                 idx_t w = G->ewgt ? G->ewgt[k] : 1;
                 idx_t old_g = gain[u];
-                if (part_io[u] == new_side)
+                idx_t old_bucket_key =
+                    (use_gain_noise_formal && gain_for_bucket) ? gain_for_bucket[u] : old_g;
+                if (part_io[u] == new_side) {
                     gain[u] -= 2 * w;
-                else
+                    if (use_gain_noise_formal && gain_for_bucket)
+                        gain_for_bucket[u] -= 2 * w;
+                } else {
                     gain[u] += 2 * w;
+                    if (use_gain_noise_formal && gain_for_bucket)
+                        gain_for_bucket[u] += 2 * w;
+                }
                 if (in_bucket[u]) {
-                    fm_bucket_remove(&buckets, u, old_g);
-                    fm_bucket_insert(&buckets, u, gain[u]);
+                    fm_bucket_remove(&buckets, u, old_bucket_key);
+                    idx_t new_bucket_key =
+                        (use_gain_noise_formal && gain_for_bucket) ? gain_for_bucket[u] : gain[u];
+                    fm_bucket_insert(&buckets, u, new_bucket_key);
                 }
             }
 
@@ -2236,11 +2449,18 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
         /* Re-insert balance-skipped vertices for next-step
          * consideration.  Their gain[] has been updated by the
          * neighbour-update loop above (when applicable), so the
-         * bucket placement reflects their current gain. */
+         * bucket placement reflects their current gain.
+         *
+         * Sprint 28 Day 2: under the gain_noise_formal overlay, the
+         * bucket key is `gain_for_bucket[w]` (which carries the per-
+         * vertex noise offset and was tracked in lockstep with
+         * `gain[w]` above). */
         for (idx_t i = 0; i < skipped_count; i++) {
             idx_t w = skipped_this_step[i];
             if (!locked[w]) {
-                fm_bucket_insert(&buckets, w, gain[w]);
+                idx_t reinsert_key =
+                    (use_gain_noise_formal && gain_for_bucket) ? gain_for_bucket[w] : gain[w];
+                fm_bucket_insert(&buckets, w, reinsert_key);
                 in_bucket[w] = 1;
             }
         }
@@ -2263,12 +2483,23 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
                 anneal_T, (int)anneal_worsening_accepted, (int)anneal_worsening_rejected);
     }
 
+    /* Sprint 28 Day 2: emit gain-noise per-pass stats under
+     * SPARSE_FM_GAIN_NOISE_DEBUG=1 (default off; one-branch overhead
+     * when off). */
+    if (gain_noise_debug) {
+        fprintf(stderr,
+                "fm-gain-noise-debug n=%d pass=%d/%d schedule=%d sigma_k=%.4f best_cut=%d\n",
+                (int)n, fm_anneal_pass_idx, fm_anneal_total_passes, (int)fm_gain_noise_schedule,
+                gain_sigma_k, (int)best_cut);
+    }
+
     fm_bucket_array_free(&buckets);
     free(gain);
     free(locked);
     free(in_bucket);
     free(best_part);
     free(skipped_this_step);
+    free(gain_for_bucket);
     return SPARSE_OK;
 }
 
@@ -2396,6 +2627,11 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
      * stays unimplemented (Sprint 27 item 6 budget; Days 10-12). */
     fm_anneal_schedule_t anneal_schedule_choice = parse_fm_anneal_schedule();
     fm_thick_restart_perturb_t thick_restart_perturb_choice = parse_fm_thick_restart_perturb();
+    /* Sprint 28 Day 2: gain-noise schedule for the formal thick-restart
+     * variant.  Only consulted by graph_refine_fm when
+     * fm_thick_restart_perturb == GAIN_NOISE_FORMAL; defaults to
+     * linear so the default-off code path stays bit-identical. */
+    fm_gain_noise_schedule_t gain_noise_schedule_choice = parse_fm_gain_noise_schedule();
     /* Sprint 26 Day 7 dispatch: `fifo` sets `fm_pop_use_tail = 1`
      * for the finest-level call below (restored to 0 after).
      * Sprint 27 Day 5 adds the parallel `annealing` dispatch
@@ -2476,6 +2712,7 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
         int prev_anneal_total_passes = fm_anneal_total_passes;
         int prev_use_thick_restart = fm_use_thick_restart;
         fm_thick_restart_perturb_t prev_thick_restart_perturb = fm_thick_restart_perturb;
+        fm_gain_noise_schedule_t prev_gain_noise_schedule = fm_gain_noise_schedule;
         if (level == 0 && finest_strategy == FINEST_FM_FIFO)
             fm_pop_use_tail = 1;
         if (level == 0 && finest_strategy == FINEST_FM_ANNEALING) {
@@ -2487,6 +2724,7 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
             fm_use_thick_restart = 1;
             fm_thick_restart_perturb = thick_restart_perturb_choice;
             fm_anneal_total_passes = passes; /* reuse pass-count thread-local */
+            fm_gain_noise_schedule = gain_noise_schedule_choice;
         }
         /* Sprint 27 Day 11: thick-restart anchor allocation.  Tracks
          * the global-best partition + cut across all passes at the
@@ -2545,6 +2783,7 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                 fm_anneal_total_passes = prev_anneal_total_passes;
                 fm_use_thick_restart = prev_use_thick_restart;
                 fm_thick_restart_perturb = prev_thick_restart_perturb;
+                fm_gain_noise_schedule = prev_gain_noise_schedule;
                 free(cur);
                 free(next);
                 return rc;
@@ -2583,6 +2822,7 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
         fm_anneal_total_passes = prev_anneal_total_passes;
         fm_use_thick_restart = prev_use_thick_restart;
         fm_thick_restart_perturb = prev_thick_restart_perturb;
+        fm_gain_noise_schedule = prev_gain_noise_schedule;
         idx_t *tmp = cur;
         cur = next;
         next = tmp;

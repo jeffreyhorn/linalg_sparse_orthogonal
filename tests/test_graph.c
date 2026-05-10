@@ -1268,6 +1268,143 @@ cleanup:
     sparse_free(A);
 }
 
+/* Sprint 28 Day 2 — Item 1: formal gain-bucket-noise variant of
+ * thick-restart FM lights up under
+ *   SPARSE_FM_FINEST_STRATEGY=thick_restart
+ *   SPARSE_FM_THICK_RESTART_PERTURB=gain_noise_formal
+ *
+ * Smoke-test contract:
+ *   (a) Two runs with the same env state produce bit-identical
+ *       partitions (deterministic via per-call (n, k) seeded RNG).
+ *   (b) The gain_noise_formal partition differs from the baseline
+ *       (env unset) partition, evidence that the new code path is
+ *       being exercised.
+ *
+ * Fixture: 5×5×5 3D mesh (n=125).  The mesh has three perpendicular
+ * mid-planes of equivalent cut quality (sep ≈ 25 each).  Baseline FM
+ * deterministically picks one; the gain_noise_formal noise on the
+ * bucket placement perturbs the FM walk enough to land a different
+ * (still ≤ near-optimal) partition — sufficient for the smoke
+ * contract.  A 30×30 2D grid was tried first but its single optimal
+ * cut (median row, sep=30) is robust to the per-pass gain noise: both
+ * walks converge to bit-identical assignments.  Pinned to
+ * SPARSE_ND_COARSENING=heavy_edge per the same Sprint 27 Day 2
+ * pattern as the FIFO smoke test (HCC's tighter matching on regular
+ * fixtures can collapse small differences).
+ */
+static void test_finest_fm_gain_noise_formal_disrupts_baseline(void) {
+    SparseMatrix *A = NULL;
+    sparse_graph_t G = {0};
+    idx_t *part_baseline = NULL;
+    idx_t *part_gnf1 = NULL;
+    idx_t *part_gnf2 = NULL;
+    int strategy_env_set = 0;
+    int perturb_env_set = 0;
+    int coarsening_env_set = 0;
+
+    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        return;
+    }
+    coarsening_env_set = 1;
+
+    A = make_mesh_3d(5);
+    if (!A) {
+        TF_FAIL_("make_mesh_3d(%d) returned NULL (OOM)", 5);
+        goto cleanup;
+    }
+    sparse_err_t rc = sparse_graph_from_sparse(A, &G);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_from_sparse: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    ASSERT_EQ(G.n, 125);
+
+    /* Baseline run (env vars unset; default FM behaviour). */
+    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    unsetenv("SPARSE_FM_THICK_RESTART_PERTURB");
+    part_baseline = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_baseline) {
+        TF_FAIL_("malloc(part_baseline) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep_baseline = 0;
+    rc = sparse_graph_partition(&G, part_baseline, &sep_baseline);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(baseline): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    if (!check_partition_invariant(&G, part_baseline)) {
+        TF_FAIL_("baseline partition invariant failed (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+
+    /* gain_noise_formal run #1. */
+    if (setenv("SPARSE_FM_FINEST_STRATEGY", "thick_restart", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv SPARSE_FM_FINEST_STRATEGY failed)\n");
+        goto cleanup;
+    }
+    strategy_env_set = 1;
+    if (setenv("SPARSE_FM_THICK_RESTART_PERTURB", "gain_noise_formal", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv SPARSE_FM_THICK_RESTART_PERTURB failed)\n");
+        goto cleanup;
+    }
+    perturb_env_set = 1;
+    part_gnf1 = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_gnf1) {
+        TF_FAIL_("malloc(part_gnf1) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep_gnf1 = 0;
+    rc = sparse_graph_partition(&G, part_gnf1, &sep_gnf1);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(gain_noise_formal #1): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    if (!check_partition_invariant(&G, part_gnf1)) {
+        TF_FAIL_("gain_noise_formal #1 partition invariant failed (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+
+    /* gain_noise_formal run #2 (determinism check). */
+    part_gnf2 = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_gnf2) {
+        TF_FAIL_("malloc(part_gnf2) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep_gnf2 = 0;
+    rc = sparse_graph_partition(&G, part_gnf2, &sep_gnf2);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(gain_noise_formal #2): rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    /* (a) determinism: two runs produce bit-identical partitions. */
+    ASSERT_EQ(sep_gnf1, sep_gnf2);
+    ASSERT_EQ(memcmp(part_gnf1, part_gnf2, (size_t)G.n * sizeof(idx_t)), 0);
+
+    /* (b) differs from baseline: the new code path is exercised. */
+    int differs = (sep_baseline != sep_gnf1) ||
+                  (memcmp(part_baseline, part_gnf1, (size_t)G.n * sizeof(idx_t)) != 0);
+    printf("    5x5x5 mesh: baseline sep=%d, gain_noise_formal sep=%d, partitions %s\n",
+           (int)sep_baseline, (int)sep_gnf1,
+           differs ? "DIFFER (gain_noise_formal active)" : "match");
+    ASSERT_TRUE(differs);
+
+cleanup:
+    if (perturb_env_set)
+        unsetenv("SPARSE_FM_THICK_RESTART_PERTURB");
+    if (strategy_env_set)
+        unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    if (coarsening_env_set)
+        unsetenv("SPARSE_ND_COARSENING");
+    free(part_baseline);
+    free(part_gnf1);
+    free(part_gnf2);
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
 /* ─── 5×5×5 3D mesh: separator ≈ 25 (one mid-plane) ──────────────── */
 
 static void test_partition_5x5x5_mesh(void) {
@@ -2201,6 +2338,10 @@ int main(void) {
     /* Sprint 26 Day 6: SPARSE_FM_FINEST_STRATEGY=fifo plumbing
      * stub; Day 7 tightens to differs-from-baseline assertion. */
     RUN_TEST(test_finest_fm_strategy_fifo_smoke);
+    /* Sprint 28 Day 2: SPARSE_FM_THICK_RESTART_PERTURB=gain_noise_formal —
+     * formal gain-bucket-noise variant of thick-restart FM (replaces
+     * Sprint 27 Day 11 simplified gauss_noise). */
+    RUN_TEST(test_finest_fm_gain_noise_formal_disrupts_baseline);
     /* Sprint 25 Day 6 stubs (Day 7-8 land asserts): */
     RUN_TEST(test_spectral_bisection_eigenvalue_ordering);
     RUN_TEST(test_spectral_bisection_gggp_fallback);

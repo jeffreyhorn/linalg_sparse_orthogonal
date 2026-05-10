@@ -13,12 +13,12 @@ s3rmt3m3,5357,ND,483907,4137.2,skip
 Pres_Poisson,14822,ND,2549740,13363.2,skip
 
 === Setting 2: Sprint 27 default (HCC + t=128) ===
-nos4,?,ND,?,?,skip
-bcsstk04,?,ND,?,?,skip
-Kuu,?,ND,?,?,skip
-bcsstk14,?,ND,?,?,skip
-s3rmt3m3,?,ND,?,?,skip
-Pres_Poisson,?,ND,?,?,skip
+nos4,100,ND,637,0.5,skip
+bcsstk04,132,ND,3722,197.6,skip
+Kuu,7102,ND,764664,8577.3,skip
+bcsstk14,1806,ND,130422,673.3,skip
+s3rmt3m3,5357,ND,487832,6974.6,skip
+Pres_Poisson,14822,ND,2462201,10409.6,skip
 
 === Setting 3: fixed_k×hybrid ===
 nos4,100,ND,637,0.5,skip
@@ -133,12 +133,12 @@ s3rmt3m3,5357,ND,850259,6108.8,skip
 Pres_Poisson,14822,ND,3919746,14571.3,skip
 
 === Setting 17: t=256 Kuu opt-in ===
-nos4,?,ND,?,?,skip
-bcsstk04,?,ND,?,?,skip
-Kuu,?,ND,?,?,skip
-bcsstk14,?,ND,?,?,skip
-s3rmt3m3,?,ND,?,?,skip
-Pres_Poisson,?,ND,?,?,skip
+nos4,100,ND,637,0.5,skip
+bcsstk04,132,ND,3143,4.9,skip
+Kuu,7102,ND,719754,3529.2,skip
+bcsstk14,1806,ND,131549,450.6,skip
+s3rmt3m3,5357,ND,480865,4683.6,skip
+Pres_Poisson,14822,ND,2528685,6015.9,skip
 
 === Setting 18: t=256 + fixed_k×hybrid ===
 nos4,100,ND,637,0.3,skip
@@ -195,20 +195,3 @@ Kuu,7102,ND,541281,5456.7,skip
 bcsstk14,1806,ND,267774,728.7,skip
 s3rmt3m3,5357,ND,873060,7469.4,skip
 Pres_Poisson,14822,ND,4211819,13626.5,skip
-
-
-=== Setting 2: Sprint 27 default (HCC + t=128) ===
-nos4,100,ND,637,0.5,skip
-bcsstk04,132,ND,3722,197.6,skip
-Kuu,7102,ND,764664,8577.3,skip
-bcsstk14,1806,ND,130422,673.3,skip
-s3rmt3m3,5357,ND,487832,6974.6,skip
-Pres_Poisson,14822,ND,2462201,10409.6,skip
-
-=== Setting 17: t=256 Kuu opt-in ===
-nos4,100,ND,637,0.5,skip
-bcsstk04,132,ND,3143,4.9,skip
-Kuu,7102,ND,719754,3529.2,skip
-bcsstk14,1806,ND,131549,450.6,skip
-s3rmt3m3,5357,ND,480865,4683.6,skip
-Pres_Poisson,14822,ND,2528685,6015.9,skip

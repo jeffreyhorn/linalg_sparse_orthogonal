@@ -890,8 +890,9 @@ static void test_per_vertex_fixed_k_three_schemes_differentiate(void) {
     fprintf(stderr, "    bcsstk04 fixed-K nnz(L): hybrid=%d, balance=%d, degree=%d\n",
             (int)nnz_hybrid, (int)nnz_balance, (int)nnz_degree);
 
-    int differs =
-        (nnz_hybrid != nnz_balance) || (nnz_balance != nnz_degree) || (nnz_hybrid != nnz_degree);
+    /* Two pairwise checks are sufficient: if hybrid==balance and balance==degree
+     * then by transitivity hybrid==degree, so the third comparison is redundant. */
+    int differs = (nnz_hybrid != nnz_balance) || (nnz_balance != nnz_degree);
     ASSERT_TRUE(differs);
 
     unsetenv("SPARSE_ND_SEP_LIFT_WEIGHT");

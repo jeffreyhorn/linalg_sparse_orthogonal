@@ -540,7 +540,7 @@ static void thick_restart_perturb(const sparse_graph_t *G, idx_t *part,
             *rng ^= *rng << 13;
             *rng ^= *rng >> 17;
             *rng ^= *rng << 5;
-            if ((*rng & 1u) != 0u)
+            if ((*rng & 1U) != 0U)
                 part[v] = (idx_t)(1 - part[v]);
         }
         return;
@@ -2064,9 +2064,9 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
         /* Per-call deterministic seed: hash of (n, k).  xorshift32
          * needs a non-zero state; bias by + 1 to guarantee that. */
         anneal_rng =
-            (uint32_t)(((uint64_t)(uint32_t)n * 31u + (uint32_t)(uint64_t)(unsigned long)k) *
-                           2654435761u +
-                       1u);
+            (uint32_t)(((uint64_t)(uint32_t)n * 31U + (uint32_t)(uint64_t)(unsigned long)k) *
+                           2654435761U +
+                       1U);
     }
     /* Insert every vertex into the bucket initially.  Vertices with
      * negative gain (interior to their side) are still inserted —
@@ -2508,10 +2508,10 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                 tr_anchor_cut = compute_cut_weight(dst_graph, tr_anchor_part);
                 /* Per-call deterministic seed: same xorshift32-state
                  * recipe as Day 6 annealing.  Non-zero by construction. */
-                tr_rng = (uint32_t)(((uint64_t)(uint32_t)dst_graph->n * 31u +
+                tr_rng = (uint32_t)(((uint64_t)(uint32_t)dst_graph->n * 31U +
                                      (uint32_t)(uint64_t)(unsigned long)passes) *
-                                        2654435761u +
-                                    1u);
+                                        2654435761U +
+                                    1U);
             }
         }
         for (int p = 0; p < passes; p++) {

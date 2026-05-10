@@ -5,12 +5,12 @@ setting,description,fixture,n,reorder_label,nnz_L,reorder_ms,factor
 1,Sprint 26 default (HEM, t=96),bcsstk14,1806,ND,129576,1326.8,skip
 1,Sprint 26 default (HEM, t=96),s3rmt3m3,5357,ND,483907,4137.2,skip
 1,Sprint 26 default (HEM, t=96),Pres_Poisson,14822,ND,2549740,13363.2,skip
-2,Sprint 27 default (HCC + t=128),nos4,?,ND,?,?,skip
-2,Sprint 27 default (HCC + t=128),bcsstk04,?,ND,?,?,skip
-2,Sprint 27 default (HCC + t=128),Kuu,?,ND,?,?,skip
-2,Sprint 27 default (HCC + t=128),bcsstk14,?,ND,?,?,skip
-2,Sprint 27 default (HCC + t=128),s3rmt3m3,?,ND,?,?,skip
-2,Sprint 27 default (HCC + t=128),Pres_Poisson,?,ND,?,?,skip
+2,Sprint 27 default (HCC + t=128),nos4,100,ND,637,0.3,skip
+2,Sprint 27 default (HCC + t=128),bcsstk04,132,ND,3722,183.5,skip
+2,Sprint 27 default (HCC + t=128),Kuu,7102,ND,764664,8341.2,skip
+2,Sprint 27 default (HCC + t=128),bcsstk14,1806,ND,130422,700.1,skip
+2,Sprint 27 default (HCC + t=128),s3rmt3m3,5357,ND,487832,6713.0,skip
+2,Sprint 27 default (HCC + t=128),Pres_Poisson,14822,ND,2462201,10157.0,skip
 3,fixed_k×hybrid,nos4,100,ND,637,0.5,skip
 3,fixed_k×hybrid,bcsstk04,132,ND,3679,204.5,skip
 3,fixed_k×hybrid,Kuu,7102,ND,499127,4583.5,skip
@@ -95,12 +95,12 @@ setting,description,fixture,n,reorder_label,nnz_L,reorder_ms,factor
 16,fixed_k×hybrid+annealing,bcsstk14,1806,ND,283208,561.6,skip
 16,fixed_k×hybrid+annealing,s3rmt3m3,5357,ND,850259,6108.8,skip
 16,fixed_k×hybrid+annealing,Pres_Poisson,14822,ND,3919746,14571.3,skip
-17,t=256 Kuu opt-in,nos4,?,ND,?,?,skip
-17,t=256 Kuu opt-in,bcsstk04,?,ND,?,?,skip
-17,t=256 Kuu opt-in,Kuu,?,ND,?,?,skip
-17,t=256 Kuu opt-in,bcsstk14,?,ND,?,?,skip
-17,t=256 Kuu opt-in,s3rmt3m3,?,ND,?,?,skip
-17,t=256 Kuu opt-in,Pres_Poisson,?,ND,?,?,skip
+17,t=256 Kuu opt-in,nos4,100,ND,637,0.4,skip
+17,t=256 Kuu opt-in,bcsstk04,132,ND,3143,3.1,skip
+17,t=256 Kuu opt-in,Kuu,7102,ND,719754,3593.6,skip
+17,t=256 Kuu opt-in,bcsstk14,1806,ND,131549,421.1,skip
+17,t=256 Kuu opt-in,s3rmt3m3,5357,ND,480865,4561.1,skip
+17,t=256 Kuu opt-in,Pres_Poisson,14822,ND,2528685,6150.4,skip
 18,t=256 + fixed_k×hybrid,nos4,100,ND,637,0.3,skip
 18,t=256 + fixed_k×hybrid,bcsstk04,132,ND,3143,3.0,skip
 18,t=256 + fixed_k×hybrid,Kuu,7102,ND,494409,2094.8,skip
@@ -143,15 +143,3 @@ setting,description,fixture,n,reorder_label,nnz_L,reorder_ms,factor
 24,kitchen sink,bcsstk14,1806,ND,267774,728.7,skip
 24,kitchen sink,s3rmt3m3,5357,ND,873060,7469.4,skip
 24,kitchen sink,Pres_Poisson,14822,ND,4211819,13626.5,skip
-2,Sprint 27 default (HCC + t=128),nos4,100,ND,637,0.3,skip
-2,Sprint 27 default (HCC + t=128),bcsstk04,132,ND,3722,183.5,skip
-2,Sprint 27 default (HCC + t=128),Kuu,7102,ND,764664,8341.2,skip
-2,Sprint 27 default (HCC + t=128),bcsstk14,1806,ND,130422,700.1,skip
-2,Sprint 27 default (HCC + t=128),s3rmt3m3,5357,ND,487832,6713.0,skip
-2,Sprint 27 default (HCC + t=128),Pres_Poisson,14822,ND,2462201,10157.0,skip
-17,t=256 Kuu opt-in,nos4,100,ND,637,0.4,skip
-17,t=256 Kuu opt-in,bcsstk04,132,ND,3143,3.1,skip
-17,t=256 Kuu opt-in,Kuu,7102,ND,719754,3593.6,skip
-17,t=256 Kuu opt-in,bcsstk14,1806,ND,131549,421.1,skip
-17,t=256 Kuu opt-in,s3rmt3m3,5357,ND,480865,4561.1,skip
-17,t=256 Kuu opt-in,Pres_Poisson,14822,ND,2528685,6150.4,skip

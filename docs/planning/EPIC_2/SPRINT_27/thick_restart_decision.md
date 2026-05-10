@@ -58,7 +58,7 @@ Sprint 27 PLAN.md Day 12 task 1:
 
 | Perturbation | Pres_Poisson ratio | (a) gate | (b) gate |
 |---|---|---|---|
-| random_flip | 0.966× ✗ | FAIL | n/a (a) failed) |
+| random_flip | 0.966× ✗ | FAIL | n/a (a failed) |
 | boundary_shuffle | 1.029× ✗ (worse than AMD!) | FAIL | n/a |
 | gauss_noise | 0.989× ✗ | FAIL | n/a |
 

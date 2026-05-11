@@ -1,6 +1,6 @@
-# Sprint 28 Day 12 Cross-Corpus Re-Bench — Headline Summary (started Day 12)
+# Sprint 28 Cross-Corpus Re-Bench — Headline Summary (Day 13 final)
 
-Day 12 ran the 24-setting × 6-fixture cross-corpus matrix; this document captures the top-5 lists + intersection.  Day 13 finishes the full verdict + production-default decisions + test-bound calibration (per PLAN.md Day 12-13 sequence).
+Day 12 ran the 24-setting × 6-fixture cross-corpus matrix; Day 13 finalises the verdict + production-default decisions + test-bound calibration per PLAN.md Day 12-13 sequence.
 
 ## Methodology
 
@@ -83,31 +83,93 @@ Setting 23 (Sprint 28 kitchen-sink) is the new corpus-wide Kuu best at 1.1934× 
 | s3rmt3m3 | 5 357 | 474 609 | 487 832 | 1.028× | 4 538 |
 | **Pres_Poisson** | 14 822 | 2 668 793 | **2 462 201** | **0.923×** | 3 418 |
 
-## Sprint 28 Headline Verdict (Day 12 preview; Day 13 finalises)
+## Sprint 28 Headline Verdict
 
-**Pres_Poisson: 0.923× of AMD — 7.3pp from the literal 0.85× target.**
+**Pres_Poisson: 0.923× of AMD — 7.3pp from the literal 0.85× target — MISS (6th consecutive sprint).**
 
-Sprint 28's three new advisory axes (Item 1 gain_noise_formal; Item 2 ensemble; Item 4 supernodal-postorder) all FAIL to move Pres_Poisson:
+Sprint 28's three new advisory axes all FAIL to move Pres_Poisson:
 - Item 1 (gain_noise_formal): regresses Pres_Poisson by +24pp (1.166× ratio); already documented advisory by `gain_noise_decision.md`.
 - Item 2 (ensemble): regresses Pres_Poisson by +1.5pp (0.937× ratio); already documented advisory by `ensemble_fm_decision.md`.
 - Item 4 (supernodal-postorder): bit-identical to default by symmetric-permutation invariance; already documented advisory by `non_pipeline_decision.md`.
 
-**Day-12 cross-corpus matrix CONFIRMS the empirical conclusion: no Sprint 28 axis or combination lands Pres_Poisson ≤ 0.85×.**  Item-4's bit-equality with the default reinforces the Day-10 retirement of the literal 0.85× target.
+**Day-12 cross-corpus matrix CONFIRMS the empirical conclusion: no Sprint 28 axis or combination lands Pres_Poisson ≤ 0.85×.**  Item-4's bit-equality with the default reinforces the Day-10 retirement of the literal 0.85× target.  See the dedicated retirement section below.
 
-The 5-sprint trajectory:
-- Sprint 22: 1.063× ND/AMD (regress vs AMD baseline)
-- Sprint 23: 0.952× (leaf-AMD splice; first ND-beats-AMD)
-- Sprint 24: 0.942× (qg-AMD + threshold)
-- Sprint 25: 0.922× (spectral coarsest + per-vertex lift)
-- Sprint 26: 0.9217× (HCC matching)
-- Sprint 27: 0.9226× (HCC default flip + t=128 + FINEST FM axes)
-- **Sprint 28: 0.9226× (non-pipeline supernodal-etree pivot)**
+## Production-Default Decisions Per Axis (Day 13 close)
 
-The gap stops closing at Sprint 25's 0.922× and stays there ±0.05pp for three sprints.  Sprint 28's empirical evidence (the only sprint to attempt a non-pipeline-level intervention) confirms the floor is structural — neither the multilevel pipeline nor a post-permutation can move below it.  `non_pipeline_decision.md` formally retired the literal 0.85× target on Day 10.
+Day 13 finalises the production-default outcomes for each Sprint 28 axis, applying the Day-3 / Day-5 / Day-10 decisions against the Day-12 cross-corpus matrix:
 
-## Day-13 Follow-Up Tasks
+| Axis | Env var | Day-X decision | Cross-corpus evidence | Day-13 verdict |
+|---|---|---|---|---|
+| Item 1 (gain_noise_formal) | `SPARSE_FM_THICK_RESTART_PERTURB=gain_noise_formal` | Day 3: advisory only (`gain_noise_decision.md`) | Pres_Poisson 1.1656× (settings 4, 5, 17); regresses +24pp from default | **STAY at default** (`random_flip`) |
+| Item 2 (ensemble) | `SPARSE_FM_FINEST_STRATEGY=ensemble` + `SPARSE_FM_ENSEMBLE_STRATEGIES` | Day 5: advisory only (`ensemble_fm_decision.md`) | Pres_Poisson 0.9374× under all 4 selector variants (settings 6, 7, 8, 9); regresses +1.5pp from default | **STAY at default** (`baseline`) |
+| Item 4 (supernodal-postorder) | `SPARSE_ND_SUPERNODAL_POSTORDER=on` | Day 10: advisory only (`non_pipeline_decision.md`) | Pres_Poisson 0.9226× (setting 3); bit-equals default by symmetric-permutation invariance | **STAY at default** (`off`) |
 
-Day 13 closes Item 5 with:
-- Final production-default decisions per axis (per `non_pipeline_decision.md` Day 10 + `ensemble_fm_decision.md` Day 5 + `gain_noise_decision.md` Day 3, all three: stay default).
-- `test_nd_pres_poisson_fill_with_leaf_amd` bound calibration: stays at 0.94× (Sprint 27 ratio + 2pp; Sprint 28 didn't close the literal 0.85× target).
-- Item 7 prep: `docs/algorithm.md` ND subsection draft updates + `RETROSPECTIVE.md` section skeleton.
+**Zero production default flips for Sprint 28.**  All three new advisory env vars ship as opt-in.
+
+## Sprint 28 Verdict on the Literal 0.85× Pres_Poisson Target — RETIRED
+
+**Pres_Poisson ND/AMD ratio achieved Sprint 28: 0.9226× (default = best, tied with Item-4 SUPERNODAL_POSTORDER=on).**
+
+The literal 0.85× target REMAINS UNMET for the **6th consecutive sprint** (Sprints 22 → 28):
+
+| Sprint | Default ratio | Best achievable ratio | Sprint hypothesis | Outcome |
+|---|---:|---:|---|---|
+| 22 | 1.063× | 1.063× | Multilevel ND beats AMD on FE mesh | Miss (ND regresses vs AMD) |
+| 23 | 0.952× | 0.952× | Leaf-AMD splice closes gap | Miss; first ND-beats-AMD |
+| 24 | 0.952× | 0.942× | qg-AMD + threshold tuning | Miss |
+| 25 | 0.952× | 0.922× | Spectral coarsest + per-vertex lift | Miss; best opt-in 0.922× |
+| 26 | 0.952× | 0.9217× | HCC matching (default-flip blocked) | Miss |
+| 27 | 0.9226× | 0.9226× | HCC default flip + t=128 + FINEST FM axes | Miss; advisory-only ax verdicts |
+| **28** | **0.9226×** | **0.9226×** | **Non-pipeline supernodal-etree pivot** | **Miss; structurally invariant by permutation** |
+
+Sprint 28's non-pipeline-level pivot (Item 4 supernodal-etree reordering) is the strongest empirical evidence yet that the literal target is structurally unreachable on this codebase + corpus:
+
+1. **The ratio stops moving at 0.922×.**  Across 4 sprints (25-28), Pres_Poisson stays at 0.922-0.923× ± 0.05pp.  This is not a local minimum the pipeline keeps just-failing to cross — it IS the floor.
+2. **Symmetric permutation cannot eliminate fill.**  Sprint 28's Item-4 post-pass reorders columns within the symbolic Cholesky fill pattern; it cannot reduce nnz_L.  This is the only intervention that can act AFTER the pipeline computes the partition, and it produces 0pp delta on the metric.  Any future intervention must act WITHIN or BEFORE the pipeline.
+3. **Item-4's bit-equality with the default is the single cleanest piece of evidence.**  Setting 3 (item-4 SUPERNODAL_POSTORDER=on) bit-equals setting 2 (default) on every Pres_Poisson metric across the matrix.  The non-pipeline pivot, while structurally correct + ships useful infrastructure, demonstrates the floor.
+
+**The literal 0.85× Pres_Poisson target is formally retired with Sprint 28's empirical evidence.**  Sprint 29+ revisits the target ONLY with fundamentally different machinery:
+
+- **METIS C library interop** — defer to the production METIS implementation rather than this codebase's in-house multilevel pipeline.  Out of Sprint 29 budget.
+- **Geometric mesh-aware ordering with first-class coordinate API** — requires coordinate input the corpus doesn't ship; rejected Sprint 27 Day 9 (Laplacian-spectral coordinates regress +2.3pp).  Long-term parking lot.
+- **Hybrid AMD-then-ND-on-separators** — AMD already finds near-optimal cuts on Pres_Poisson per Sprint 27 evidence; ND adds marginal value only at the separator levels.  Possible but speculative; no Sprint 29 advocate.
+
+None of these are budgeted for Sprint 29.
+
+## Test-Bound Calibration
+
+`tests/test_reorder_nd.c::test_nd_pres_poisson_fill_with_leaf_amd` Sprint 27 bound: **0.94×**.
+
+Sprint 28 Day-9 + Day-12 measurements: Pres_Poisson ND ratio = 0.9226× under both env settings (default and Item-4 SUPERNODAL_POSTORDER=on).  Sprint 27's 2pp safety margin above 0.923× is preserved.
+
+**Bound stays at 0.94×.**  No tightening this sprint.  The Day-10 staged diff (test_non_pipeline_pres_poisson_close_to_target with RUN_TEST commented out, asserting ≤ 0.87× would close + 2pp) remains as failing-as-expected scaffolding; it does NOT land as an active test today.
+
+## Files Generated
+
+- `docs/planning/EPIC_2/SPRINT_28/bench_day12_combinations.csv` — Day-12 raw 24-setting × 6-fixture matrix.
+- `docs/planning/EPIC_2/SPRINT_28/bench_day12_combinations.txt` — same, grouped by setting.
+- `docs/planning/EPIC_2/SPRINT_28/headline_summary.md` — this document.
+- `docs/planning/EPIC_2/SPRINT_28/gain_noise_decision.md` — Item-1 advisory verdict (Day 3).
+- `docs/planning/EPIC_2/SPRINT_28/ensemble_fm_decision.md` — Item-2 advisory verdict (Day 5).
+- `docs/planning/EPIC_2/SPRINT_28/non_pipeline_decision.md` — Item-4 advisory verdict + 0.85× target retirement (Day 10).
+- `docs/planning/EPIC_2/SPRINT_28/wall_reduction_decision.md` — Item-6 no-op (Day 11).
+- `docs/planning/EPIC_2/SPRINT_28/pivot_decision_day1.md` — Day-1 candidate-(c) supernodal-etree selection.
+- `docs/planning/EPIC_2/SPRINT_28/non_pipeline_interim_day{7,9}.{txt,md}` — interim Day-7 + Day-9 measurements.
+- `docs/planning/EPIC_2/SPRINT_28/non_pipeline_sweep.txt` — Day-9 24-cell {AMD, ND} × {off, on} sweep.
+
+## Files NOT Modified
+
+- `src/sparse_graph.c::parse_finest_fm_strategy()` — default stays `FINEST_FM_BASELINE` (no Item-2 flip).
+- `src/sparse_graph.c::parse_thick_restart_perturb()` — default stays `FM_THICK_RESTART_PERTURB_RANDOM_FLIP` (no Item-1 flip).
+- `src/sparse_analysis.c::parse_nd_supernodal_postorder()` — default stays `ND_SUPERNODAL_POSTORDER_OFF` (no Item-4 flip).
+- `tests/test_reorder_nd.c::test_nd_pres_poisson_fill_with_leaf_amd` — bound stays `≤ 0.94×` (no tightening).
+- `tests/test_reorder_nd.c::test_non_pipeline_pres_poisson_close_to_target` — RUN_TEST stays commented out.
+- `tests/test_reorder_nd.c::test_finest_fm_annealing_pres_poisson_close_to_target` (Sprint 27) — RUN_TEST stays commented out.
+- `tests/test_reorder_nd.c::test_nd_root_spectral_pres_poisson_close_to_target` (Sprint 27) — RUN_TEST stays commented out.
+
+## Day 14 Follow-Up Tasks (Item 7 close)
+
+- `docs/algorithm.md` ND subsection: add the Sprint 28 closures subsection (Item-1 `gain_noise_formal`, Item-2 `ensemble`, Item-4 `supernodal_postorder` env vars) + supersede Sprint 27's "0.85× literal target route to Sprint 28+" caveat with the Sprint 28 retirement verdict.  Day 13 commits the draft.
+- `docs/planning/EPIC_2/SPRINT_22/PERF_NOTES.md` (or new `SPRINT_28/PERF_NOTES.md` if Sprint 22 file is too long): append a "Sprint 28 closures" subsection.  Day 14.
+- `RETROSPECTIVE.md` filled in single-pass.  Day 13 stubs the section skeleton; Day 14 completes.
+- `PROJECT_PLAN.md` Sprint 28 status flip from "in flight" to "Complete".  Day 14.

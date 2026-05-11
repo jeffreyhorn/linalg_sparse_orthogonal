@@ -1405,19 +1405,27 @@ cleanup:
     sparse_free(A);
 }
 
-/* Sprint 28 Day 4 — Item 2: multi-strategy FM ensemble's
- * pick-correctness contract.
+/* Sprint 28 Day 4 — Item 2: multi-strategy FM ensemble's corpus-
+ * safety contract (NOT a strict pick-correctness contract).
  *
  * Under SPARSE_FM_FINEST_STRATEGY=ensemble, graph_uncoarsen runs K
  * FM strategies in parallel per finest-level pass (default
  * SPARSE_FM_ENSEMBLE_STRATEGIES=baseline,fifo,annealing) and picks
- * the strategy with the lowest cut.  This test pins the pick-
- * correctness contract: the ensemble's resulting cut weight must
- * be ≤ the minimum cut weight of the three individual strategies
- * run separately.  (Strict equality would over-constrain — the
- * three strategies' partitions are scored by the cut weight, and
- * the ensemble picks the lowest; the resulting partition's cut
- * equals the winning strategy's cut.)
+ * the strategy with the lowest INTERNAL cut weight (computed inside
+ * graph_refine_fm during each strategy's run; not exposed back to
+ * the caller).  The public sparse_graph_partition output gives us
+ * only the resulting separator size after the Sprint 22 vertex-
+ * separator lift, NOT the internal edge-cut weight that the
+ * ensemble picked on.
+ *
+ * As a result, this test asserts the corpus-safety contract
+ * (ensemble's separator size ≤ max of the three individual
+ * strategies' separator sizes) rather than the strict-pick-
+ * correctness contract (ensemble cut ≤ min individual cut), which
+ * would require exposing the internal cut weight through the
+ * public API.  The corpus-safety variant catches catastrophic
+ * regressions (the ensemble must not produce a separator worse
+ * than the worst of the candidates).
  */
 static void test_finest_fm_ensemble_picks_best_strategy(void) {
     /* Kuu is bimodal-degree (CV=0.425) — Sprint 27 Day 13 evidence
@@ -1447,13 +1455,14 @@ static void test_finest_fm_ensemble_picks_best_strategy(void) {
         goto cleanup;
     }
 
-    /* Helper macro: run sparse_graph_partition with a strategy env
-     * set, capture (part, sep, cut).  cut is computed via
-     * sparse_graph_partition's own internal scoring, which we
-     * mirror by re-counting weight-of-cross-edges on the resulting
-     * 2-way (0/1/sep) labelling.  For test purposes the comparison
-     * across strategies suffices to validate "ensemble cut ≤ min
-     * of individual strategies' cuts". */
+    /* Per-strategy pattern (inlined below for each of the 4
+     * strategies — baseline, fifo, annealing, ensemble): set the
+     * SPARSE_FM_FINEST_STRATEGY env var (where applicable), allocate
+     * a per-strategy part[] buffer, run sparse_graph_partition,
+     * capture the separator size sep_<strategy>.  No helper macro:
+     * the per-strategy buffers (part_baseline, part_fifo, etc.) are
+     * tracked separately so the cleanup label can free each
+     * independently of which malloc / partition call failed. */
 
     /* Strategy 1: baseline. */
     unsetenv("SPARSE_FM_FINEST_STRATEGY");
@@ -1527,18 +1536,21 @@ static void test_finest_fm_ensemble_picks_best_strategy(void) {
         goto cleanup;
     }
 
-    /* Contract: ensemble's separator size ≤ min of individual
-     * strategies' separator sizes.  (Cut weight + separator size
-     * are correlated under the 70/30 lift heuristic; the ensemble's
-     * pick-best on edge cut translates to ≤ on separator size for
-     * the resulting vertex separator.)  Allow equality — if all
-     * three strategies converge to the same cut, the ensemble picks
-     * one (by tie-break) and the separator matches.
+    /* Corpus-safety contract: ensemble's separator size ≤ MAX of
+     * the three individual strategies' separator sizes.  The
+     * ensemble picks on the internal edge-cut weight (not exposed
+     * through the public API); the Sprint 22 vertex-separator lift
+     * step can produce small noise on top of the edge-cut winner,
+     * so the public-API contract we can assert here is the
+     * "ensemble doesn't regress past the worst candidate" variant.
+     * A strict "ensemble ≤ MIN(individual)" pick-correctness
+     * contract would require exposing the internal cut weight (see
+     * the function-level docstring for the rationale).
      *
-     * Skip the assertion if all four sep counts are identical — that
-     * means baseline/FIFO/annealing all hit the same near-optimal cut
-     * and the ensemble has no room to differentiate (which is itself
-     * a valid outcome). */
+     * The printed "min_individual" value below is informational
+     * only — it lets a reader spot when the ensemble happens to
+     * land at the best candidate, but the actual assertion is the
+     * ≤ MAX gate. */
     idx_t min_individual = sep_baseline;
     if (sep_fifo < min_individual)
         min_individual = sep_fifo;
@@ -1549,11 +1561,6 @@ static void test_finest_fm_ensemble_picks_best_strategy(void) {
            (int)sep_baseline, (int)sep_fifo, (int)sep_annealing, (int)sep_ensemble,
            (int)min_individual);
 
-    /* The ensemble must NOT regress past the worst individual
-     * strategy.  Strict "≤ min" is the design contract, but the
-     * Sprint 22 vertex-separator lift step can produce small noise
-     * on top of the edge-cut winner, so we use the looser-but-still-
-     * meaningful contract: ensemble ≤ max(baseline, fifo, annealing). */
     idx_t max_individual = sep_baseline;
     if (sep_fifo > max_individual)
         max_individual = sep_fifo;

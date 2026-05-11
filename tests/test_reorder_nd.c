@@ -1150,7 +1150,8 @@ static void test_cholesky_via_nd_residual_spd_synth(void) {
 
 /* ─── Sprint 28 Day 6: supernodal-etree reordering scaffolding ─────── */
 
-/* Sprint 28 Days 6-7: SPARSE_ND_SUPERNODAL_POSTORDER=on contract.
+/* Sprint 28 Day 7: SPARSE_ND_SUPERNODAL_POSTORDER=on differs-from-default
+ * contract.
  *
  * Day-1 picked supernodal-etree reordering as Item 4's non-pipeline-level
  * pivot (`pivot_decision_day1.md`).  Day 6 landed the env-var parser +
@@ -1161,15 +1162,15 @@ static void test_cholesky_via_nd_residual_spd_synth(void) {
  * maximises fundamental-supernode contiguity per
  * `chol_csc_detect_supernodes`'s definition).
  *
- * Day 7 contract: under `SPARSE_ND_SUPERNODAL_POSTORDER=on`, the
+ * Contract: under `SPARSE_ND_SUPERNODAL_POSTORDER=on`, the
  * analysis's perm must strictly differ from the default-off perm on
- * the banded-SPD fixture below (smoke evidence the post-pass fires
+ * the bcsstk14 fixture below (smoke evidence the post-pass fires
  * AND that AMD's output is NOT already in etree-postorder for this
  * fixture — true here because AMD's degree-minimization heuristic
- * doesn't track the etree).
- *
- * Day 8 will add corpus-safety tests; Days 9-10 will sweep the corpus
- * + decide flip-or-stay on the default. */
+ * doesn't track the etree).  All sparse_analyze calls use explicit
+ * rc handling + a single cleanup label so unsetenv always runs even
+ * if an intermediate call fails (otherwise SPARSE_ND_SUPERNODAL_POSTORDER
+ * would leak to subsequent tests in the suite). */
 static void test_supernodal_postorder_etree_contract(void) {
     /* Use bcsstk14 — a real SuiteSparse SPD with n=1806 and a non-
      * trivial elimination tree.  `make_spd_synth(256, 8)`'s near-
@@ -1189,33 +1190,42 @@ static void test_supernodal_postorder_etree_contract(void) {
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
     sparse_analysis_t analysis_off = {0};
     sparse_analysis_t analysis_on = {0};
+    int env_set = 0;
 
     /* Default-off: capture the baseline perm. */
     unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
-    REQUIRE_OK(sparse_analyze(A, &opts, &analysis_off));
+    rc = sparse_analyze(A, &opts, &analysis_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (env off): rc=%d", (int)rc);
+        goto cleanup;
+    }
 
-    /* On: capture the env-var-on perm.  Day 6 stub: this perm equals
-     * the default — test FAILS the differs-from-default assertion. */
+    /* On: capture the env-var-on perm.  Day 7+ contract: this perm
+     * must differ from the default at at least one position. */
     if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
         printf("    skipped (setenv SPARSE_ND_SUPERNODAL_POSTORDER=on failed)\n");
-        sparse_analysis_free(&analysis_off);
-        sparse_free(A);
-        return;
+        goto cleanup;
     }
-    REQUIRE_OK(sparse_analyze(A, &opts, &analysis_on));
-    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+    env_set = 1;
+    rc = sparse_analyze(A, &opts, &analysis_on);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (env on): rc=%d", (int)rc);
+        goto cleanup;
+    }
 
     /* Both perms exist (SPARSE_REORDER_AMD allocates `analysis->perm`). */
     ASSERT_NOT_NULL(analysis_off.perm);
     ASSERT_NOT_NULL(analysis_on.perm);
 
-    /* Day 6 contract (failing-as-expected): env-var-on perm differs
-     * from default at at least one position.  Days 7-8 light this up
-     * when the real supernode-grouping permutation lands. */
+    /* Differs-from-default smoke test: env-var-on perm differs from
+     * default at at least one position. */
     int perms_differ =
         (memcmp(analysis_off.perm, analysis_on.perm, (size_t)n * sizeof(idx_t)) != 0);
     ASSERT_TRUE(perms_differ);
 
+cleanup:
+    if (env_set)
+        unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
     sparse_analysis_free(&analysis_off);
     sparse_analysis_free(&analysis_on);
     sparse_free(A);
@@ -1250,24 +1260,38 @@ static void test_supernodal_postorder_corpus_nnz_L_invariant(void) {
             continue;
         }
 
-        unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
         sparse_analysis_t an_off = {0};
-        REQUIRE_OK(sparse_analyze(A, &opts, &an_off));
-        idx_t nnz_off = an_off.sym_L.nnz;
+        sparse_analysis_t an_on = {0};
+        int env_set = 0;
+        idx_t nnz_off = 0;
+        idx_t nnz_on = 0;
+
+        unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+        rc = sparse_analyze(A, &opts, &an_off);
+        if (rc != SPARSE_OK) {
+            TF_FAIL_("sparse_analyze (env off) on %s: rc=%d", names[i], (int)rc);
+            goto cell_cleanup;
+        }
+        nnz_off = an_off.sym_L.nnz;
 
         if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
-            sparse_analysis_free(&an_off);
-            sparse_free(A);
-            continue;
+            printf("    skipped %s (setenv failed)\n", names[i]);
+            goto cell_cleanup;
         }
-        sparse_analysis_t an_on = {0};
-        REQUIRE_OK(sparse_analyze(A, &opts, &an_on));
-        idx_t nnz_on = an_on.sym_L.nnz;
-        unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+        env_set = 1;
+        rc = sparse_analyze(A, &opts, &an_on);
+        if (rc != SPARSE_OK) {
+            TF_FAIL_("sparse_analyze (env on) on %s: rc=%d", names[i], (int)rc);
+            goto cell_cleanup;
+        }
+        nnz_on = an_on.sym_L.nnz;
 
         printf("    %s: nnz_L off=%d on=%d\n", names[i], (int)nnz_off, (int)nnz_on);
         ASSERT_EQ(nnz_on, nnz_off);
 
+    cell_cleanup:
+        if (env_set)
+            unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
         sparse_analysis_free(&an_off);
         sparse_analysis_free(&an_on);
         sparse_free(A);
@@ -1286,19 +1310,27 @@ static void test_supernodal_postorder_no_reorder_skips(void) {
     }
 
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_t an_off = {0};
+    sparse_analysis_t an_on = {0};
+    int env_set = 0;
 
     unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
-    sparse_analysis_t an_off = {0};
-    REQUIRE_OK(sparse_analyze(A, &opts, &an_off));
+    rc = sparse_analyze(A, &opts, &an_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (env off): rc=%d", (int)rc);
+        goto cleanup;
+    }
 
     if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
-        sparse_analysis_free(&an_off);
-        sparse_free(A);
-        return;
+        printf("    skipped (setenv failed)\n");
+        goto cleanup;
     }
-    sparse_analysis_t an_on = {0};
-    REQUIRE_OK(sparse_analyze(A, &opts, &an_on));
-    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+    env_set = 1;
+    rc = sparse_analyze(A, &opts, &an_on);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (env on): rc=%d", (int)rc);
+        goto cleanup;
+    }
 
     /* Both perms NULL (no reorder requested) — dispatch gate skips
      * apply_supernodal_postorder. */
@@ -1310,6 +1342,9 @@ static void test_supernodal_postorder_no_reorder_skips(void) {
     ASSERT_EQ(memcmp(an_off.etree, an_on.etree, (size_t)an_off.n * sizeof(idx_t)), 0);
     ASSERT_EQ(memcmp(an_off.postorder, an_on.postorder, (size_t)an_off.n * sizeof(idx_t)), 0);
 
+cleanup:
+    if (env_set)
+        unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
     sparse_analysis_free(&an_off);
     sparse_analysis_free(&an_on);
     sparse_free(A);
@@ -1329,16 +1364,26 @@ static void test_supernodal_postorder_deterministic(void) {
     idx_t n = sparse_rows(A);
 
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_t an_1 = {0};
+    sparse_analysis_t an_2 = {0};
+    int env_set = 0;
 
     if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
         sparse_free(A);
         return;
     }
-    sparse_analysis_t an_1 = {0};
-    sparse_analysis_t an_2 = {0};
-    REQUIRE_OK(sparse_analyze(A, &opts, &an_1));
-    REQUIRE_OK(sparse_analyze(A, &opts, &an_2));
-    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+    env_set = 1;
+    rc = sparse_analyze(A, &opts, &an_1);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (run 1): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    rc = sparse_analyze(A, &opts, &an_2);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (run 2): rc=%d", (int)rc);
+        goto cleanup;
+    }
 
     ASSERT_NOT_NULL(an_1.perm);
     ASSERT_NOT_NULL(an_2.perm);
@@ -1347,6 +1392,9 @@ static void test_supernodal_postorder_deterministic(void) {
     ASSERT_EQ(memcmp(an_1.postorder, an_2.postorder, (size_t)n * sizeof(idx_t)), 0);
     ASSERT_EQ(an_1.sym_L.nnz, an_2.sym_L.nnz);
 
+cleanup:
+    if (env_set)
+        unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
     sparse_analysis_free(&an_1);
     sparse_analysis_free(&an_2);
     sparse_free(A);
@@ -1362,20 +1410,30 @@ static void test_supernodal_postorder_n_one(void) {
     REQUIRE_OK(sparse_insert(A, 0, 0, 1.0));
 
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_t an = {0};
+    int env_set = 0;
+    sparse_err_t rc;
 
     if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv failed)\n");
         sparse_free(A);
         return;
     }
-    sparse_analysis_t an = {0};
-    REQUIRE_OK(sparse_analyze(A, &opts, &an));
-    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+    env_set = 1;
+    rc = sparse_analyze(A, &opts, &an);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (n=1, env on): rc=%d", (int)rc);
+        goto cleanup;
+    }
 
     ASSERT_EQ(an.n, 1);
     ASSERT_EQ(an.sym_L.nnz, 1);
     ASSERT_NOT_NULL(an.perm);
     ASSERT_EQ(an.perm[0], 0);
 
+cleanup:
+    if (env_set)
+        unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
     sparse_analysis_free(&an);
     sparse_free(A);
 }

@@ -2295,35 +2295,56 @@ static void test_supernodal_postorder_residual_unchanged(void) {
     sparse_matvec(A, x_true, b);
 
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
-
-    /* Off path */
-    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
     sparse_analysis_t an_off = {0};
     sparse_factors_t fa_off = {0};
-    REQUIRE_OK(sparse_analyze(A, &opts, &an_off));
-    REQUIRE_OK(sparse_factor_numeric(A, &an_off, &fa_off));
-    REQUIRE_OK(sparse_factor_solve(&fa_off, &an_off, b, x_off));
-    double res_off = compute_rel_residual(A, x_off, b);
+    sparse_analysis_t an_on = {0};
+    sparse_factors_t fa_on = {0};
+    int env_set = 0;
+    double res_off = 0.0;
+    double res_on = 0.0;
+
+    /* Off path — explicit rc handling so the cleanup label always
+     * runs and unsetenv fires once env_set is true. */
+    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+    rc = sparse_analyze(A, &opts, &an_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (env off): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    rc = sparse_factor_numeric(A, &an_off, &fa_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_factor_numeric (env off): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    rc = sparse_factor_solve(&fa_off, &an_off, b, x_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_factor_solve (env off): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    res_off = compute_rel_residual(A, x_off, b);
 
     /* On path */
     if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
         printf("    skipped (setenv SPARSE_ND_SUPERNODAL_POSTORDER failed)\n");
-        sparse_factor_free(&fa_off);
-        sparse_analysis_free(&an_off);
-        free(x_true);
-        free(b);
-        free(x_off);
-        free(x_on);
-        sparse_free(A);
-        return;
+        goto cleanup;
     }
-    sparse_analysis_t an_on = {0};
-    sparse_factors_t fa_on = {0};
-    REQUIRE_OK(sparse_analyze(A, &opts, &an_on));
-    REQUIRE_OK(sparse_factor_numeric(A, &an_on, &fa_on));
-    REQUIRE_OK(sparse_factor_solve(&fa_on, &an_on, b, x_on));
-    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
-    double res_on = compute_rel_residual(A, x_on, b);
+    env_set = 1;
+    rc = sparse_analyze(A, &opts, &an_on);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (env on): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    rc = sparse_factor_numeric(A, &an_on, &fa_on);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_factor_numeric (env on): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    rc = sparse_factor_solve(&fa_on, &an_on, b, x_on);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_factor_solve (env on): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    res_on = compute_rel_residual(A, x_on, b);
 
     printf("    bcsstk04: residual off=%.3e on=%.3e\n", res_off, res_on);
 
@@ -2334,6 +2355,9 @@ static void test_supernodal_postorder_residual_unchanged(void) {
     ASSERT_TRUE(res_off < 1e-8);
     ASSERT_TRUE(res_on < 1e-8);
 
+cleanup:
+    if (env_set)
+        unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
     sparse_factor_free(&fa_off);
     sparse_factor_free(&fa_on);
     sparse_analysis_free(&an_off);
@@ -2369,29 +2393,45 @@ static void test_supernodal_postorder_no_supernode_count_regression(void) {
     }
 
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
-
-    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
     sparse_analysis_t an_off = {0};
     sparse_factors_t fa_off = {0};
-    REQUIRE_OK(sparse_analyze(A, &opts, &an_off));
-    REQUIRE_OK(sparse_factor_numeric(A, &an_off, &fa_off));
+    sparse_analysis_t an_on = {0};
+    sparse_factors_t fa_on = {0};
+    int env_set = 0;
     idx_t count_off = 0;
-    idx_t total_off = day8_count_supernodes(fa_off.F, /*min_size=*/4, &count_off);
+    idx_t count_on = 0;
+    idx_t total_off = -1;
+    idx_t total_on = -1;
+
+    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+    rc = sparse_analyze(A, &opts, &an_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (env off): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    rc = sparse_factor_numeric(A, &an_off, &fa_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_factor_numeric (env off): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    total_off = day8_count_supernodes(fa_off.F, /*min_size=*/4, &count_off);
 
     if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
         printf("    skipped (setenv SPARSE_ND_SUPERNODAL_POSTORDER failed)\n");
-        sparse_factor_free(&fa_off);
-        sparse_analysis_free(&an_off);
-        sparse_free(A);
-        return;
+        goto cleanup;
     }
-    sparse_analysis_t an_on = {0};
-    sparse_factors_t fa_on = {0};
-    REQUIRE_OK(sparse_analyze(A, &opts, &an_on));
-    REQUIRE_OK(sparse_factor_numeric(A, &an_on, &fa_on));
-    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
-    idx_t count_on = 0;
-    idx_t total_on = day8_count_supernodes(fa_on.F, /*min_size=*/4, &count_on);
+    env_set = 1;
+    rc = sparse_analyze(A, &opts, &an_on);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (env on): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    rc = sparse_factor_numeric(A, &an_on, &fa_on);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_factor_numeric (env on): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    total_on = day8_count_supernodes(fa_on.F, /*min_size=*/4, &count_on);
 
     printf("    bcsstk14: supernodes(min=4) off=(count=%d total=%d) on=(count=%d total=%d)\n",
            (int)count_off, (int)total_off, (int)count_on, (int)total_on);
@@ -2408,6 +2448,9 @@ static void test_supernodal_postorder_no_supernode_count_regression(void) {
         ASSERT_TRUE((long long)delta * 4 <= (long long)total_off);
     }
 
+cleanup:
+    if (env_set)
+        unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
     sparse_factor_free(&fa_off);
     sparse_factor_free(&fa_on);
     sparse_analysis_free(&an_off);

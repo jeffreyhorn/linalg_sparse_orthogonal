@@ -1300,7 +1300,16 @@ sparse_err_t sparse_graph_hierarchy_build(const sparse_graph_t *root, uint32_t s
  */
 
 /* Compute the cut weight of a 2-way partition.  Iterates each
- * undirected edge once via the i < j upper-triangle convention. */
+ * undirected edge once via the i < j upper-triangle convention.
+ *
+ * Invariant: `part[]` is allocated with at least G->n entries (the
+ * caller's responsibility — every site that constructs a partition
+ * for a sparse_graph_t allocates G->n idx_t entries).  `G->adjncy[k]`
+ * for k in [G->xadj[i], G->xadj[i+1]) yields a vertex index in
+ * [0, G->n), so `part[j]` is always in bounds.  clang-analyzer can't
+ * track adjncy's bounded-vertex invariant across function-call
+ * boundaries; suppress the path-sensitive ArrayBound false positive. */
+// NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
 static idx_t compute_cut_weight(const sparse_graph_t *G, const idx_t *part) {
     idx_t cut = 0;
     for (idx_t i = 0; i < G->n; i++) {
@@ -1308,6 +1317,7 @@ static idx_t compute_cut_weight(const sparse_graph_t *G, const idx_t *part) {
             idx_t j = G->adjncy[k];
             if (j <= i)
                 continue;
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
             if (part[i] != part[j])
                 cut += G->ewgt ? G->ewgt[k] : 1;
         }
@@ -2602,6 +2612,12 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
         FINEST_FM_FIFO = 1,
         FINEST_FM_ANNEALING = 2,
         FINEST_FM_THICK_RESTART = 3,
+        /* Sprint 28 Day 4 — multi-strategy FM ensemble: run K
+         * sub-strategies in parallel per finest-level call (default
+         * baseline + fifo + annealing per `SPARSE_FM_ENSEMBLE_STRATEGIES`)
+         * and pick the lowest-cut result.  See
+         * docs/planning/EPIC_2/SPRINT_28/ensemble_fm_design.md. */
+        FINEST_FM_ENSEMBLE = 4,
     } finest_strategy = FINEST_FM_BASELINE;
     {
         const char *env = getenv("SPARSE_FM_FINEST_STRATEGY");
@@ -2612,6 +2628,8 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                 finest_strategy = FINEST_FM_ANNEALING;
             else if (strcmp(env, "thick_restart") == 0)
                 finest_strategy = FINEST_FM_THICK_RESTART;
+            else if (strcmp(env, "ensemble") == 0)
+                finest_strategy = FINEST_FM_ENSEMBLE;
             /* Unrecognized + "baseline" both fall through to
              * FINEST_FM_BASELINE. */
         }
@@ -2632,6 +2650,69 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
      * fm_thick_restart_perturb == GAIN_NOISE_FORMAL; defaults to
      * linear so the default-off code path stays bit-identical. */
     fm_gain_noise_schedule_t gain_noise_schedule_choice = parse_fm_gain_noise_schedule();
+
+    /* Sprint 28 Day 4: multi-strategy FM ensemble strategy list.
+     * Parsed from `SPARSE_FM_ENSEMBLE_STRATEGIES` (default
+     * "baseline,fifo,annealing"); recognized values are the same
+     * `SPARSE_FM_FINEST_STRATEGY` enum names except `ensemble`
+     * itself (would recurse) and `thick_restart` (Day-4 scope:
+     * ensemble runs single-pass per-strategy, but thick_restart's
+     * value comes from multi-pass anchor + perturbation — skipped
+     * silently in the ensemble; can be added in a future sprint).
+     * Capped at 4 entries (the four supported sub-strategies);
+     * de-duplicated by first-occurrence-wins; empty list degenerates
+     * to {baseline} so ensemble == baseline matches Sprint 27
+     * default.  See docs/planning/EPIC_2/SPRINT_28/ensemble_fm_design.md. */
+    int ensemble_strategy_list[4] = {0, 0, 0, 0};
+    int ensemble_strategy_count = 0;
+    if (finest_strategy == FINEST_FM_ENSEMBLE) {
+        const char *env = getenv("SPARSE_FM_ENSEMBLE_STRATEGIES");
+        const char *list = (env && *env) ? env : "baseline,fifo,annealing";
+        char buf[256];
+        size_t list_len = strlen(list);
+        if (list_len >= sizeof(buf))
+            list_len = sizeof(buf) - 1;
+        memcpy(buf, list, list_len);
+        buf[list_len] = '\0';
+        char *saveptr = NULL;
+        char *tok = strtok_r(buf, ",", &saveptr);
+        while (tok && ensemble_strategy_count < 4) {
+            while (*tok == ' ' || *tok == '\t')
+                tok++;
+            size_t tok_len = strlen(tok);
+            while (tok_len > 0 && (tok[tok_len - 1] == ' ' || tok[tok_len - 1] == '\t' ||
+                                   tok[tok_len - 1] == '\n')) {
+                tok[--tok_len] = '\0';
+            }
+            int strat = -1;
+            if (strcmp(tok, "baseline") == 0)
+                strat = FINEST_FM_BASELINE;
+            else if (strcmp(tok, "fifo") == 0)
+                strat = FINEST_FM_FIFO;
+            else if (strcmp(tok, "annealing") == 0)
+                strat = FINEST_FM_ANNEALING;
+            /* `thick_restart` + `ensemble` (recursion) + unrecognized
+             * silently skipped; ensemble runs the recognized subset. */
+            if (strat >= 0) {
+                int dup = 0;
+                for (int i = 0; i < ensemble_strategy_count; i++) {
+                    if (ensemble_strategy_list[i] == strat) {
+                        dup = 1;
+                        break;
+                    }
+                }
+                if (!dup)
+                    ensemble_strategy_list[ensemble_strategy_count++] = strat;
+            }
+            tok = strtok_r(NULL, ",", &saveptr);
+        }
+        if (ensemble_strategy_count == 0) {
+            ensemble_strategy_list[0] = FINEST_FM_BASELINE;
+            ensemble_strategy_count = 1;
+        }
+    }
+    const int ensemble_debug =
+        finest_strategy == FINEST_FM_ENSEMBLE && getenv("SPARSE_FM_ENSEMBLE_DEBUG") != NULL;
     /* Sprint 26 Day 7 dispatch: `fifo` sets `fm_pop_use_tail = 1`
      * for the finest-level call below (restored to 0 after).
      * Sprint 27 Day 5 adds the parallel `annealing` dispatch
@@ -2752,6 +2833,36 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                                     1U);
             }
         }
+
+        /* Sprint 28 Day 4: ensemble buffers.  Three n-sized partition
+         * arrays — `ensemble_start` snapshots the per-pass starting
+         * state (carried forward from prior passes), `ensemble_working`
+         * is the per-strategy FM scratch, `ensemble_best` holds the
+         * lowest-cut partition seen across the K strategies for the
+         * current pass.  Allocated only at level==0 under ENSEMBLE
+         * mode + n >= 1; allocation failure degrades to baseline FM
+         * (matching the tr_anchor failure mode above).  See
+         * docs/planning/EPIC_2/SPRINT_28/ensemble_fm_design.md. */
+        idx_t *ensemble_start = NULL;
+        idx_t *ensemble_working = NULL;
+        idx_t *ensemble_best = NULL;
+        const int ens_active =
+            (level == 0 && finest_strategy == FINEST_FM_ENSEMBLE && dst_graph->n >= 1);
+        if (ens_active) {
+            ensemble_start = malloc((size_t)dst_graph->n * sizeof(idx_t));
+            ensemble_working = malloc((size_t)dst_graph->n * sizeof(idx_t));
+            ensemble_best = malloc((size_t)dst_graph->n * sizeof(idx_t));
+            if (!ensemble_start || !ensemble_working || !ensemble_best) {
+                /* Degrade to baseline FM if any buffer fails. */
+                free(ensemble_start);
+                free(ensemble_working);
+                free(ensemble_best);
+                ensemble_start = NULL;
+                ensemble_working = NULL;
+                ensemble_best = NULL;
+            }
+        }
+
         for (int p = 0; p < passes; p++) {
             /* Sprint 27 Day 6: per-pass annealing index.  Set
              * unconditionally so a future caller that enables
@@ -2773,8 +2884,80 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                 memcpy(next, tr_anchor_part, (size_t)dst_graph->n * sizeof(idx_t));
                 thick_restart_perturb(dst_graph, next, fm_thick_restart_perturb, &tr_rng);
             }
+
+            /* Sprint 28 Day 4: multi-strategy FM ensemble dispatch.
+             * For each strategy in the parsed selector list, reset
+             * the FM thread-locals to defaults, set the strategy's
+             * specific overrides, clone the partition start state
+             * into the working buffer, run graph_refine_fm, score
+             * the resulting cut, track the lowest-cut partition.
+             * After all strategies finish, copy the winner back into
+             * `next` for the next pass.  Single-strategy path below
+             * is bypassed via `continue` when this branch fires. */
+            if (ens_active && ensemble_start && ensemble_working && ensemble_best) {
+                memcpy(ensemble_start, next, (size_t)dst_graph->n * sizeof(idx_t));
+                idx_t best_cut = 0;
+                int best_strat_idx = 0;
+                for (int s = 0; s < ensemble_strategy_count; s++) {
+                    int strat = ensemble_strategy_list[s];
+                    /* Reset to defaults (cleared between strategies). */
+                    fm_pop_use_tail = 0;
+                    fm_use_annealing = 0;
+                    fm_use_thick_restart = 0;
+                    /* Set strategy-specific overrides.  `baseline`
+                     * keeps the defaults; `thick_restart` is skipped
+                     * by the parser so doesn't appear here. */
+                    if (strat == FINEST_FM_FIFO) {
+                        fm_pop_use_tail = 1;
+                    } else if (strat == FINEST_FM_ANNEALING) {
+                        fm_use_annealing = 1;
+                        fm_anneal_schedule = anneal_schedule_choice;
+                        fm_anneal_total_passes = passes;
+                    }
+                    /* Clone start state into the working buffer. */
+                    memcpy(ensemble_working, ensemble_start, (size_t)dst_graph->n * sizeof(idx_t));
+                    sparse_err_t rc = graph_refine_fm(dst_graph, ensemble_working);
+                    if (rc != SPARSE_OK) {
+                        free(ensemble_start);
+                        free(ensemble_working);
+                        free(ensemble_best);
+                        free(tr_anchor_part);
+                        fm_pop_use_tail = prev_pop_use_tail;
+                        fm_use_annealing = prev_use_annealing;
+                        fm_anneal_schedule = prev_schedule;
+                        fm_anneal_pass_idx = prev_anneal_pass_idx;
+                        fm_anneal_total_passes = prev_anneal_total_passes;
+                        fm_use_thick_restart = prev_use_thick_restart;
+                        fm_thick_restart_perturb = prev_thick_restart_perturb;
+                        fm_gain_noise_schedule = prev_gain_noise_schedule;
+                        free(cur);
+                        free(next);
+                        return rc;
+                    }
+                    idx_t cur_cut = compute_cut_weight(dst_graph, ensemble_working);
+                    int is_winner = (s == 0) || (cur_cut < best_cut);
+                    if (is_winner) {
+                        best_cut = cur_cut;
+                        best_strat_idx = s;
+                        memcpy(ensemble_best, ensemble_working,
+                               (size_t)dst_graph->n * sizeof(idx_t));
+                    }
+                    if (ensemble_debug) {
+                        fprintf(stderr,
+                                "fm-ensemble-debug n=%d pass=%d s=%d strat=%d cut=%d won=%d\n",
+                                (int)dst_graph->n, p, s, strat, (int)cur_cut,
+                                (s == best_strat_idx) ? 1 : 0);
+                    }
+                }
+                memcpy(next, ensemble_best, (size_t)dst_graph->n * sizeof(idx_t));
+                continue; /* skip the single-strategy graph_refine_fm below */
+            }
+
             sparse_err_t rc = graph_refine_fm(dst_graph, next);
             if (rc != SPARSE_OK) {
+                free(ensemble_start);
+                free(ensemble_working);
+                free(ensemble_best);
                 free(tr_anchor_part);
                 fm_pop_use_tail = prev_pop_use_tail;
                 fm_use_annealing = prev_use_annealing;
@@ -2815,6 +2998,9 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
             }
         }
         free(tr_anchor_part);
+        free(ensemble_start);
+        free(ensemble_working);
+        free(ensemble_best);
         fm_pop_use_tail = prev_pop_use_tail;
         fm_use_annealing = prev_use_annealing;
         fm_anneal_schedule = prev_schedule;

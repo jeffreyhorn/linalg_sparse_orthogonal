@@ -1150,35 +1150,40 @@ static void test_cholesky_via_nd_residual_spd_synth(void) {
 
 /* ─── Sprint 28 Day 6: supernodal-etree reordering scaffolding ─────── */
 
-/* Sprint 28 Day 6: SPARSE_ND_SUPERNODAL_POSTORDER=on scaffolding.
+/* Sprint 28 Days 6-7: SPARSE_ND_SUPERNODAL_POSTORDER=on contract.
  *
  * Day-1 picked supernodal-etree reordering as Item 4's non-pipeline-level
- * pivot (`pivot_decision_day1.md`).  Day 6 lands the env-var parser +
- * default-off skeleton in `src/sparse_analysis.c` (`apply_supernodal_postorder`
- * is currently a no-op stub).  This test pins the eventual contract:
- * under `SPARSE_ND_SUPERNODAL_POSTORDER=on`, the analysis's perm must
- * compose a supernode-grouping permutation that strictly differs from
- * the default-off perm on at least one fixture — smoke evidence the
- * new code path is exercised before the headline contiguity contract
- * (Liu 1990 / Davis 2006 §6.5) lands in Days 7-8.
+ * pivot (`pivot_decision_day1.md`).  Day 6 landed the env-var parser +
+ * default-off skeleton in `src/sparse_analysis.c`; Day 7 lit up the
+ * Liu 1990 / Davis 2006 §6.5 core algorithm: compose the etree postorder
+ * into `analysis->perm` so consecutive columns in the final order
+ * correspond to a postorder traversal of the elimination tree (which
+ * maximises fundamental-supernode contiguity per
+ * `chol_csc_detect_supernodes`'s definition).
  *
- * Day 6 stub: the call into `apply_supernodal_postorder` is wired
- * through `sparse_analyze` but the helper itself is a no-op, so the
- * env-var-on path produces the same perm as the default — this test
- * FAILS the differs-from-default assertion today.  RUN_TEST stays
- * commented out at the bottom of main() until Days 7-8 light up the
- * real supernode-grouping permutation, at which point this test
- * passes and the RUN_TEST line gets uncommented.  Mirrors the Sprint
- * 27 Day 6 pattern for `test_nd_root_spectral_pres_poisson_smoke`
- * (failing-as-expected on the day the stub lands; lit up two days
- * later). */
+ * Day 7 contract: under `SPARSE_ND_SUPERNODAL_POSTORDER=on`, the
+ * analysis's perm must strictly differ from the default-off perm on
+ * the banded-SPD fixture below (smoke evidence the post-pass fires
+ * AND that AMD's output is NOT already in etree-postorder for this
+ * fixture — true here because AMD's degree-minimization heuristic
+ * doesn't track the etree).
+ *
+ * Day 8 will add corpus-safety tests; Days 9-10 will sweep the corpus
+ * + decide flip-or-stay on the default. */
 static void test_supernodal_postorder_etree_contract(void) {
-    /* Reuse the Sprint 23 banded-SPD fixture: bandwidth 8 means every
-     * row has up to 17 nonzeros and fundamental supernodes form
-     * naturally inside the band, which is what the etree postorder
-     * needs to group adjacently. */
-    SparseMatrix *A = make_spd_synth(256, 8);
-    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    /* Use bcsstk14 — a real SuiteSparse SPD with n=1806 and a non-
+     * trivial elimination tree.  `make_spd_synth(256, 8)`'s near-
+     * banded structure produces an AMD-output etree that's close to
+     * a path graph (postorder of a path == identity, so the
+     * composition becomes a no-op even though it fires correctly);
+     * bcsstk14 has enough irregular structure that AMD's output
+     * etree branches and the postorder reordering is non-trivial. */
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
     idx_t n = sparse_rows(A);
 
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
@@ -1368,12 +1373,13 @@ int main(void) {
     RUN_TEST(test_nd_determinism_public_api);
     RUN_TEST(test_cholesky_via_nd_residual_spd_synth);
 
-    /* Sprint 28 Day 6: failing-as-expected scaffolding for the
-     * supernodal-etree reordering pivot (per `pivot_decision_day1.md`).
-     * The Day-6 stub in `src/sparse_analysis.c` is a no-op; Days 7-8
-     * will light up the real supernode-grouping permutation and
-     * uncomment this line.  See the test body for the contract. */
-    /* RUN_TEST(test_supernodal_postorder_etree_contract); */
+    /* Sprint 28 Day 7: Liu 1990 supernodal-etree reordering core
+     * algorithm lit up.  `SPARSE_ND_SUPERNODAL_POSTORDER=on` now
+     * composes the etree postorder into `analysis->perm` so the
+     * differs-from-default contract passes.  Day 8 will add corpus-
+     * safety tests + edge cases; Day 9-10 will sweep + decide
+     * flip-or-stay. */
+    RUN_TEST(test_supernodal_postorder_etree_contract);
 
     /* Day 8: enum dispatch on each factorization. */
     RUN_TEST(test_lu_via_nd_dispatch);

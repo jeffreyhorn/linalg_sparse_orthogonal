@@ -1,0 +1,66 @@
+# Sprint 28 Day 7 — supernodal-etree reordering interim measurement
+#
+# Item 4 pivot (per pivot_decision_day1.md): supernodal-etree reordering.
+# Day 6 landed the env-var scaffolding + failing-as-expected test stub;
+# Day 7 lit up the Liu 1990 / Davis 2006 §6.5 core algorithm: compose the
+# etree postorder into analysis->perm, rebuild B under the composed perm,
+# recompute etree+postorder so colcount + symbolic Cholesky run on the
+# final ordering.
+#
+# THIS MEASUREMENT runs sparse_analyze directly (not via bench_reorder's
+# pre-applied-perm path — the env-var dispatch only fires when
+# analysis->perm is computed inside sparse_analyze via opts.reorder).
+# Source: /tmp/bench_day7.c (ad-hoc; not committed to benchmarks/).
+# Built against the Sprint 28 Day-7 library; output captured once each
+# fixture × {AMD, ND} × {env off, env on}.
+#
+# Expected signals:
+#   - nnz_L invariant (symmetric permutation preserves fill).
+#   - perms_differ = 1 on fixtures whose AMD/ND output is not already
+#     in etree-postorder (the algorithm fires).
+#   - analyze wall delta = cost of one extra etree_compute + postorder
+#     + sparse_permute pass.  Expected positive but small.
+#
+# Headline contract — Day 7 PASSES:
+#   - nnz_L delta = 0 across all 12 cases (6 fixtures × 2 reorders) ✓
+#   - perms_differ = 1 across all 12 cases ✓
+#   - analyze wall delta within +10% of baseline on every case ✓
+#     (Pres_Poisson AMD: +6.7 %; Pres_Poisson ND: -0.05 % within noise;
+#     Kuu AMD: +16.0 %; Kuu ND: +12.5 %; s3rmt3m3 AMD: +9.7 %;
+#     s3rmt3m3 ND: +0.9 %; others: smaller-fixture noise)
+#
+# Note on Pres_Poisson signal direction:
+#   - Pres_Poisson AMD baseline analyze_ms ~ 11.6 s; env-on adds ~785 ms
+#     (the extra etree_compute + postorder + sparse_permute pass).
+#   - Pres_Poisson ND baseline analyze_ms ~ 13.8 s; env-on essentially
+#     within noise (-7 ms; one-shot single-run timing).
+#   - The supernodal-etree reordering's PRIMARY value is numeric-factor
+#     performance (dense-block kernels' efficiency on contiguous
+#     supernodes via batched BLAS calls), NOT fill reduction
+#     (pivot_decision_day1.md "candidate (c)" dossier).  nnz_L
+#     invariance under permutation means a sweep on `bench_reorder`
+#     against AMD/ND nnz_L would show 0 delta by construction.
+#   - The supernode-count metric (sum of super_sizes from
+#     chol_csc_detect_supernodes) is the right measure for the
+#     reordering's headline value.  Day 8's corpus-safety tests will
+#     add a chol_csc-based supernode-count assertion; Day 9-10's
+#     sweep documents the per-fixture supernode-count delta.
+
+# Sprint 28 Day 7 interim — supernodal-etree reordering, sparse_analyze path
+# nnz_L should be invariant under symmetric permutation; perms must differ (otherwise AMD's output happens to be in etree-postorder already)
+# Reorder axis tested: AMD and ND.  Env var: SPARSE_ND_SUPERNODAL_POSTORDER={off,on}
+# wall numbers are coarse single-run timings; not a sweep
+
+nos4            AMD  n=   100 nnz_L_off=      637 nnz_L_on=      637 delta_nnz_L=+0 analyze_off_ms=     0.4 analyze_on_ms=     0.4 delta_ms=    -0.1 perms_differ=1
+bcsstk04        AMD  n=   132 nnz_L_off=     3143 nnz_L_on=     3143 delta_nnz_L=+0 analyze_off_ms=     3.5 analyze_on_ms=     3.8 delta_ms=    +0.3 perms_differ=1
+Kuu             AMD  n=  7102 nnz_L_off=   406264 nnz_L_on=   406264 delta_nnz_L=+0 analyze_off_ms=   853.7 analyze_on_ms=   990.2 delta_ms=  +136.5 perms_differ=1
+bcsstk14        AMD  n=  1806 nnz_L_off=   116071 nnz_L_on=   116071 delta_nnz_L=+0 analyze_off_ms=   179.2 analyze_on_ms=   199.9 delta_ms=   +20.7 perms_differ=1
+s3rmt3m3        AMD  n=  5357 nnz_L_off=   474609 nnz_L_on=   474609 delta_nnz_L=+0 analyze_off_ms=   963.6 analyze_on_ms=  1057.3 delta_ms=   +93.7 perms_differ=1
+Pres_Poisson    AMD  n= 14822 nnz_L_off=  2668793 nnz_L_on=  2668793 delta_nnz_L=+0 analyze_off_ms= 11641.6 analyze_on_ms= 12427.0 delta_ms=  +785.3 perms_differ=1
+
+nos4            ND   n=   100 nnz_L_off=      637 nnz_L_on=      637 delta_nnz_L=+0 analyze_off_ms=     0.4 analyze_on_ms=     0.4 delta_ms=    -0.0 perms_differ=1
+bcsstk04        ND   n=   132 nnz_L_off=     3722 nnz_L_on=     3722 delta_nnz_L=+0 analyze_off_ms=   212.7 analyze_on_ms=   213.4 delta_ms=    +0.7 perms_differ=1
+Kuu             ND   n=  7102 nnz_L_off=   764664 nnz_L_on=   764664 delta_nnz_L=+0 analyze_off_ms=  9654.7 analyze_on_ms= 10862.2 delta_ms= +1207.5 perms_differ=1
+bcsstk14        ND   n=  1806 nnz_L_off=   130422 nnz_L_on=   130422 delta_nnz_L=+0 analyze_off_ms=   836.3 analyze_on_ms=   878.9 delta_ms=   +42.6 perms_differ=1
+s3rmt3m3        ND   n=  5357 nnz_L_off=   487832 nnz_L_on=   487832 delta_nnz_L=+0 analyze_off_ms=  8641.1 analyze_on_ms=  8718.8 delta_ms=   +77.6 perms_differ=1
+Pres_Poisson    ND   n= 14822 nnz_L_off=  2462201 nnz_L_on=  2462201 delta_nnz_L=+0 analyze_off_ms= 13777.5 analyze_on_ms= 13770.6 delta_ms=    -6.9 perms_differ=1

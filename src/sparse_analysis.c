@@ -11,13 +11,36 @@
 
 /* Sprint 28 Days 6-10 — Item 4 (non-pipeline-level pivot): supernodal-etree
  * reordering post-pass.  See `docs/planning/EPIC_2/SPRINT_28/pivot_decision_day1.md`
- * for the chosen-pivot rationale.  Day 6 lands the scaffolding: env-var
- * parser, stub helper, default-off dispatch hook in `sparse_analyze`; the
- * real supernode-grouping postorder computation lands Days 7-8.  Default-off
- * (env var unset) leaves Sprint 27 behaviour bit-identical. */
+ * for the chosen-pivot rationale.
+ *
+ * Day 6 landed the scaffolding (env-var parser + dispatch hook + failing-as-
+ * expected test stub).  Day 7 lands the core algorithm: compose the etree
+ * postorder with the AMD/ND permutation in place, then rebuild B and
+ * recompute etree+postorder so colcount+symbolic Cholesky run on the final
+ * (postorder-composed) ordering.  This is the classical Liu 1990 / Davis
+ * 2006 §6.5 supernodal-etree reordering: a postorder of the elimination
+ * tree maximises the number of consecutive columns that satisfy the
+ * fundamental-supernode invariants of `chol_csc_detect_supernodes`.
+ *
+ * The composition contract: for an input perm `perm_in` (AMD/ND output) and
+ * the etree postorder `po` computed on B = P_in*A*P_in^T, the output perm
+ * `perm_out` satisfies
+ *
+ *     perm_out[k] = perm_in[po[k]]
+ *
+ * i.e. the k-th column of the final reordered matrix is the column that the
+ * etree postorder visits at position k in the AMD-permuted matrix's column
+ * space, then chased back through `perm_in` to the original A-column index.
+ *
+ * Default-off (env var unset) keeps the Sprint 27 behaviour bit-identical;
+ * env-var-on adds one extra etree+postorder pass (the second pass is
+ * trivial on a postordered etree; total overhead is bounded by the cost
+ * of one `sparse_etree_compute` + `sparse_etree_postorder` + one
+ * `sparse_permute` call — see `non_pipeline_interim_day7.txt` for the
+ * measured per-fixture wall delta). */
 typedef enum {
     ND_SUPERNODAL_POSTORDER_OFF = 0, /* Default — Sprint 27 behaviour preserved */
-    ND_SUPERNODAL_POSTORDER_ON = 1,  /* Sprint 28 Days 7-8 supernode-grouping postorder */
+    ND_SUPERNODAL_POSTORDER_ON = 1,  /* Day 7+ — Liu 1990 postorder composition */
 } nd_supernodal_postorder_mode_t;
 
 static nd_supernodal_postorder_mode_t parse_nd_supernodal_postorder(void) {
@@ -28,53 +51,44 @@ static nd_supernodal_postorder_mode_t parse_nd_supernodal_postorder(void) {
     return ND_SUPERNODAL_POSTORDER_OFF;
 }
 
-/* Day 6 stub.  Days 7-8 will:
- *   1. Detect fundamental supernodes from `sym` (CSC sym structure with
- *      sorted per-column row indices, diagonal first) using the same
- *      column-comparison logic as `chol_csc_detect_supernodes` in
- *      `src/sparse_chol_csc.c`.
- *   2. Build a supernode-grouping permutation `q` (length n) that
- *      reorders columns within each supernode contiguously, preserving
- *      the elimination tree's parent pointers (only intra-supernode
- *      shuffling, no cross-supernode moves).
- *   3. Compose `q` with the caller's existing `perm` (the AMD/ND
- *      output) by replacing `perm` in place with `perm_new[i] = perm[q[i]]`.
+/* Compose the etree postorder `po` into the caller's perm in place.
  *
- * Day 6 contract: returns SPARSE_OK without modifying `perm` (and so
- * the env-var-on path produces the same factorization output as the
- * env-var-off path for now — failing-as-expected for the Day-6 contract
- * test in tests/test_reorder_nd.c).  Once Days 7-8 implement the real
- * permutation, the test will light up; today's commented-out RUN_TEST
- * line documents the deferred light-up.
+ * Computes `perm[k] := perm_old[po[k]]` for each k ∈ [0, n) using an
+ * O(n) scratch buffer.  `po` must be a permutation of [0, n) (the
+ * standard postorder contract from `sparse_etree_postorder`); `perm`
+ * must point to a length-n array; `n >= 0`.  Returns SPARSE_ERR_ALLOC
+ * on scratch-buffer allocation failure.
  *
- * Arguments are passed in so the Days 7-8 implementation has every input
- * it needs without re-deriving from the analysis struct: the symbolic L
- * structure (drives supernode detection), the etree (for parent-pointer
- * consistency in the composition step), and the caller's `perm` (modified
- * in place once the real composition lands).  `n` is redundant with
- * `sym->n` but is passed explicitly because the function will be unit-
- * testable in isolation.
- */
-static sparse_err_t apply_supernodal_postorder(
-    const sparse_symbolic_t *sym, const idx_t *etree, idx_t n,
-    idx_t *perm) { // NOLINT(readability-non-const-parameter) — Days 7-8 will write to perm
-    /* Defensive null/shape checks even on the stub — Days 7-8 will need
-     * these and adding them now lets the failing-as-expected test pin
-     * the contract surface. */
-    if (!sym || !etree || !perm)
+ * The composition direction matches `sparse_permute`'s perm[new]=old
+ * convention: if `perm_in[i]` says "the i-th column of the AMD-permuted
+ * matrix is original column perm_in[i]", then after applying the
+ * postorder on top, the k-th column of the postorder-permuted matrix
+ * is the AMD-permuted matrix's po[k]-th column, which corresponds to
+ * original column perm_in[po[k]]. */
+static sparse_err_t apply_supernodal_postorder(const idx_t *postorder, idx_t n, idx_t *perm) {
+    if (n < 0)
+        return SPARSE_ERR_BADARG;
+    if (n == 0)
+        return SPARSE_OK;
+    if (!postorder || !perm)
         return SPARSE_ERR_NULL;
-    if (sym->n != n)
-        return SPARSE_ERR_SHAPE;
-    /* TODO Sprint 28 Day 7: detect fundamental supernodes from `sym` +
-     * compute supernode-grouping permutation `q`.
-     * TODO Sprint 28 Day 7: compose `q` into `perm` in place.
-     * TODO Sprint 28 Day 8: corpus-safety edge cases (empty supernodes,
-     * single-column supernodes, supernode spanning the whole matrix).
-     * Day 6 stub: no-op (default-off path bit-identical; env-var-on
-     * path also bit-identical until Days 7-8 light up the implementation). */
-    (void)sym;
-    (void)etree;
-    (void)perm;
+    if ((size_t)n > SIZE_MAX / sizeof(idx_t))
+        return SPARSE_ERR_ALLOC;
+
+    idx_t *tmp = malloc((size_t)n * sizeof(idx_t));
+    if (!tmp)
+        return SPARSE_ERR_ALLOC;
+
+    for (idx_t k = 0; k < n; k++) {
+        idx_t j = postorder[k];
+        if (j < 0 || j >= n) {
+            free(tmp);
+            return SPARSE_ERR_BADARG;
+        }
+        tmp[k] = perm[j];
+    }
+    memcpy(perm, tmp, (size_t)n * sizeof(idx_t));
+    free(tmp);
     return SPARSE_OK;
 }
 
@@ -206,6 +220,49 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
             return err;
         }
 
+        /* Sprint 28 Day 7: optional supernodal-etree reordering post-pass.
+         * Compose the etree postorder into `analysis->perm` then rebuild
+         * B + recompute etree/postorder on the composed ordering so the
+         * downstream colcount + symbolic Cholesky run on the final layout
+         * (and the cached `analysis->etree` / `analysis->postorder` stay
+         * consistent with the perm exposed to callers).  Skipped when
+         * `analysis->perm` is NULL (no reordering requested — there's
+         * nothing to compose) or the env var is unset (Sprint 27
+         * behaviour preserved bit-identically). */
+        if (analysis->perm && parse_nd_supernodal_postorder() == ND_SUPERNODAL_POSTORDER_ON) {
+            err = apply_supernodal_postorder(analysis->postorder, n, analysis->perm);
+            if (err) {
+                sparse_free(B_perm);
+                sparse_analysis_free(analysis);
+                return err;
+            }
+            /* Rebuild B under the composed perm and recompute etree +
+             * postorder.  The recomputed postorder is the identity for a
+             * postorder-permuted etree (Liu 1990 §3) but
+             * `sparse_etree_postorder` still has to walk the tree, so we
+             * run it for correctness rather than asserting identity. */
+            sparse_free(B_perm);
+            B_perm = NULL;
+            err = sparse_permute(A, analysis->perm, analysis->perm, &B_perm);
+            if (err) {
+                sparse_analysis_free(analysis);
+                return err;
+            }
+            B = B_perm;
+            err = sparse_etree_compute(B, analysis->etree);
+            if (err) {
+                sparse_free(B_perm);
+                sparse_analysis_free(analysis);
+                return err;
+            }
+            err = sparse_etree_postorder(analysis->etree, n, analysis->postorder);
+            if (err) {
+                sparse_free(B_perm);
+                sparse_analysis_free(analysis);
+                return err;
+            }
+        }
+
         idx_t *cc = malloc((size_t)n * sizeof(idx_t));
         if (!cc) {
             sparse_free(B_perm);
@@ -230,19 +287,6 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
         if (err) {
             sparse_analysis_free(analysis);
             return err;
-        }
-
-        /* Sprint 28 Days 6-10: optional supernodal-etree reordering post-pass.
-         * Default-off (env var unset) is a true no-op; env-var-on dispatches
-         * to the stub helper (Day 6) which itself is a no-op until Days 7-8
-         * light up the real supernode-grouping permutation. */
-        if (analysis->perm && parse_nd_supernodal_postorder() == ND_SUPERNODAL_POSTORDER_ON) {
-            err = apply_supernodal_postorder(&sym_internal, analysis->etree, n, analysis->perm);
-            if (err) {
-                sparse_symbolic_free(&sym_internal);
-                sparse_analysis_free(analysis);
-                return err;
-            }
         }
 
         /* Copy internal symbolic to public struct (same layout) */

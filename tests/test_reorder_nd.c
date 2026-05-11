@@ -1221,6 +1221,165 @@ static void test_supernodal_postorder_etree_contract(void) {
     sparse_free(A);
 }
 
+/* ─── Sprint 28 Day 8: supernodal-etree reordering corpus safety ─── */
+
+/* Day-8 corpus-safety: under `SPARSE_ND_SUPERNODAL_POSTORDER=on`, the
+ * resulting analysis->sym_L.nnz must equal the env-off baseline on every
+ * corpus fixture.  Symmetric permutation preserves fill (a standard
+ * linear-algebra invariant), so a non-zero delta would signal a bug in
+ * the Day-7 perm-composition + recompute-etree path.  The plan task
+ * said "≤ 5pp regression"; the actual contract is stricter (delta = 0)
+ * because the underlying math is exact. */
+static void test_supernodal_postorder_corpus_nnz_L_invariant(void) {
+    const char *paths[] = {
+        SS_DIR "/nos4.mtx",
+        SS_DIR "/bcsstk04.mtx",
+        SS_DIR "/bcsstk14.mtx",
+        SS_DIR "/s3rmt3m3.mtx",
+    };
+    const char *names[] = {"nos4", "bcsstk04", "bcsstk14", "s3rmt3m3"};
+    const size_t fixtures = sizeof(paths) / sizeof(paths[0]);
+
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+
+    for (size_t i = 0; i < fixtures; i++) {
+        SparseMatrix *A = NULL;
+        sparse_err_t rc = sparse_load_mm(&A, paths[i]);
+        if (rc != SPARSE_OK) {
+            printf("    skipped %s (load rc=%d)\n", names[i], (int)rc);
+            continue;
+        }
+
+        unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+        sparse_analysis_t an_off = {0};
+        REQUIRE_OK(sparse_analyze(A, &opts, &an_off));
+        idx_t nnz_off = an_off.sym_L.nnz;
+
+        if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
+            sparse_analysis_free(&an_off);
+            sparse_free(A);
+            continue;
+        }
+        sparse_analysis_t an_on = {0};
+        REQUIRE_OK(sparse_analyze(A, &opts, &an_on));
+        idx_t nnz_on = an_on.sym_L.nnz;
+        unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+
+        printf("    %s: nnz_L off=%d on=%d\n", names[i], (int)nnz_off, (int)nnz_on);
+        ASSERT_EQ(nnz_on, nnz_off);
+
+        sparse_analysis_free(&an_off);
+        sparse_analysis_free(&an_on);
+        sparse_free(A);
+    }
+}
+
+/* Day-8 edge case: REORDER_NONE + env=on is a no-op (analysis->perm is
+ * NULL, so the supernodal-postorder dispatch gate doesn't fire).
+ * Asserts the resulting analysis is bit-identical to the env-off baseline. */
+static void test_supernodal_postorder_no_reorder_skips(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+
+    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+    sparse_analysis_t an_off = {0};
+    REQUIRE_OK(sparse_analyze(A, &opts, &an_off));
+
+    if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
+        sparse_analysis_free(&an_off);
+        sparse_free(A);
+        return;
+    }
+    sparse_analysis_t an_on = {0};
+    REQUIRE_OK(sparse_analyze(A, &opts, &an_on));
+    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+
+    /* Both perms NULL (no reorder requested) — dispatch gate skips
+     * apply_supernodal_postorder. */
+    ASSERT_NULL(an_off.perm);
+    ASSERT_NULL(an_on.perm);
+    /* etree, postorder, sym_L all bit-identical. */
+    ASSERT_EQ(an_on.n, an_off.n);
+    ASSERT_EQ(an_on.sym_L.nnz, an_off.sym_L.nnz);
+    ASSERT_EQ(memcmp(an_off.etree, an_on.etree, (size_t)an_off.n * sizeof(idx_t)), 0);
+    ASSERT_EQ(memcmp(an_off.postorder, an_on.postorder, (size_t)an_off.n * sizeof(idx_t)), 0);
+
+    sparse_analysis_free(&an_off);
+    sparse_analysis_free(&an_on);
+    sparse_free(A);
+}
+
+/* Day-8 determinism: repeated sparse_analyze calls under env=on produce
+ * bit-identical analysis->perm / etree / postorder / sym_L.  Pins
+ * Day-7's "Composition + recompute-etree-postorder is a pure function
+ * of A and the env" contract. */
+static void test_supernodal_postorder_deterministic(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+    idx_t n = sparse_rows(A);
+
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+
+    if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
+        sparse_free(A);
+        return;
+    }
+    sparse_analysis_t an_1 = {0};
+    sparse_analysis_t an_2 = {0};
+    REQUIRE_OK(sparse_analyze(A, &opts, &an_1));
+    REQUIRE_OK(sparse_analyze(A, &opts, &an_2));
+    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+
+    ASSERT_NOT_NULL(an_1.perm);
+    ASSERT_NOT_NULL(an_2.perm);
+    ASSERT_EQ(memcmp(an_1.perm, an_2.perm, (size_t)n * sizeof(idx_t)), 0);
+    ASSERT_EQ(memcmp(an_1.etree, an_2.etree, (size_t)n * sizeof(idx_t)), 0);
+    ASSERT_EQ(memcmp(an_1.postorder, an_2.postorder, (size_t)n * sizeof(idx_t)), 0);
+    ASSERT_EQ(an_1.sym_L.nnz, an_2.sym_L.nnz);
+
+    sparse_analysis_free(&an_1);
+    sparse_analysis_free(&an_2);
+    sparse_free(A);
+}
+
+/* Day-8 edge case: n=1 singleton.  sparse_create rejects 0×0, so this
+ * is the recursion floor.  The supernodal-postorder dispatch must
+ * handle the trivial case where the postorder is `[0]` and the
+ * composition is a no-op. */
+static void test_supernodal_postorder_n_one(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    REQUIRE_OK(sparse_insert(A, 0, 0, 1.0));
+
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+
+    if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
+        sparse_free(A);
+        return;
+    }
+    sparse_analysis_t an = {0};
+    REQUIRE_OK(sparse_analyze(A, &opts, &an));
+    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+
+    ASSERT_EQ(an.n, 1);
+    ASSERT_EQ(an.sym_L.nnz, 1);
+    ASSERT_NOT_NULL(an.perm);
+    ASSERT_EQ(an.perm[0], 0);
+
+    sparse_analysis_free(&an);
+    sparse_free(A);
+}
+
 /* ─── LU dispatch: opts.reorder = SPARSE_REORDER_ND ───────────────── */
 
 static void test_lu_via_nd_dispatch(void) {
@@ -1376,10 +1535,14 @@ int main(void) {
     /* Sprint 28 Day 7: Liu 1990 supernodal-etree reordering core
      * algorithm lit up.  `SPARSE_ND_SUPERNODAL_POSTORDER=on` now
      * composes the etree postorder into `analysis->perm` so the
-     * differs-from-default contract passes.  Day 8 will add corpus-
-     * safety tests + edge cases; Day 9-10 will sweep + decide
-     * flip-or-stay. */
+     * differs-from-default contract passes.  Day 9-10 will sweep +
+     * decide flip-or-stay. */
     RUN_TEST(test_supernodal_postorder_etree_contract);
+    /* Sprint 28 Day 8: corpus-safety + edge-case contracts. */
+    RUN_TEST(test_supernodal_postorder_corpus_nnz_L_invariant);
+    RUN_TEST(test_supernodal_postorder_no_reorder_skips);
+    RUN_TEST(test_supernodal_postorder_deterministic);
+    RUN_TEST(test_supernodal_postorder_n_one);
 
     /* Day 8: enum dispatch on each factorization. */
     RUN_TEST(test_lu_via_nd_dispatch);

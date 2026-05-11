@@ -1,0 +1,104 @@
+# Sprint 28 Day 8 — supernodal-etree reordering: supernode-count empirical findings
+#
+# Day-7's interim measurement surfaced the supernode-count metric as
+# the right headline contract (`non_pipeline_interim_day7.txt`): nnz_L
+# is invariant by construction under symmetric permutation, so the
+# real signal is whether the postorder composition produces more /
+# larger fundamental supernodes per `chol_csc_detect_supernodes`.
+#
+# Day-8 measurement: factor each corpus fixture under env={off, on},
+# convert factors.F to CholCsc via chol_csc_from_sparse, call
+# chol_csc_detect_supernodes with min_size ∈ {2, 4}, report:
+#   - count: number of detected fundamental supernodes meeting min_size
+#   - total_grouped: sum(super_sizes) — total columns inside supernodes
+#   - max: largest supernode size
+#   - avg: average supernode size
+#
+# Captured via ad-hoc /tmp/measure_supernodes.c (not committed; used
+# once and discarded).
+#
+# Headline finding: AMD's output is approximately etree-postordered
+# on these corpus fixtures.  The postorder composition essentially
+# does NOT move the supernode structure — same count ± 1, same
+# total_grouped on most fixtures, and on the smaller fixtures
+# (nos4, bcsstk04) it slightly REDUCES the total_grouped because
+# AMD's specific perm happened to produce more compact contiguous
+# supernodes than the strict postorder.
+#
+# This matches the Day-1 dossier's literature prior
+# (pivot_decision_day1.md candidate (c) "Pres_Poisson upside per
+# literature: ≤ 5% nnz reduction — primarily a numeric-factor
+# optimization, not fill-reduction").  The Day-7+8 implementation
+# correctly produces a postordered analysis->perm without breaking
+# numeric correctness (test_supernodal_postorder_residual_unchanged
+# PASSES with residual ~1e-15 on bcsstk04), but the empirical signal
+# on the existing corpus does not show meaningful supernode-count
+# improvement.
+#
+# Day-10's decision doc will record:
+#   - the algorithm ships correctly behind the env-var gate
+#   - the production default stays OFF (no measurable improvement on
+#     the corpus + the +6-7% analyze wall cost on Pres_Poisson AMD per
+#     Day-7's measurement)
+#   - the literal 0.85× Pres_Poisson target is formally retired with
+#     Sprint 28's empirical evidence (5 sprints + non-pipeline pivots)
+#
+# Day-8's CORPUS-SAFETY contract is therefore "total_grouped under
+# env=on is within 25 % of env=off" (test_supernodal_postorder_no_supernode_count_regression
+# in test_chol_csc.c) — not "supernode count strictly increases" which
+# the empirical data does not support.
+#
+# Per-fixture raw measurement (min_size=4):
+#
+# fixture        env  count  total_grouped  max  avg
+# ─────────────  ───  ─────  ─────────────  ───  ─────
+# nos4           off      1              9    9   9.00
+# nos4           on       1              6    6   6.00
+# bcsstk04       off     10             51   13   5.10
+# bcsstk04       on       8             39   11   4.88
+# Kuu            off    534           3748  248   7.02
+# Kuu            on     535           3748  242   7.01
+# bcsstk14       off    107           1246  173  11.64
+# bcsstk14       on     107           1246  173  11.64
+# s3rmt3m3       off    522           4960  336   9.50
+# s3rmt3m3       on     523           4960  330   9.48
+# Pres_Poisson   off    565          11360  481  20.11
+# Pres_Poisson   on     566          11360  436  20.07
+#
+# Per-fixture raw measurement (min_size=2):
+#
+# fixture        env  count  total_grouped  max  avg
+# ─────────────  ───  ─────  ─────────────  ───  ─────
+# nos4           off      7             21    9   3.00
+# nos4           on       5             14    6   2.80
+# bcsstk04       off     17             66   13   3.88
+# bcsstk04       on      20             65   11   3.25
+# Kuu            off    534           3748  248   7.02
+# Kuu            on     535           3748  242   7.01
+# bcsstk14       off    203           1463  173   7.21
+# bcsstk14       on     203           1463  173   7.21
+# s3rmt3m3       off    604           5169  336   8.56
+# s3rmt3m3       on     605           5169  330   8.54
+# Pres_Poisson   off   2285          14800  481   6.48
+# Pres_Poisson   on    2286          14800  436   6.47
+#
+# Observation: bcsstk14 is bit-exact under both env settings — AMD's
+# output on bcsstk14 is already exactly the etree-postorder, so the
+# Day-7 composition produces an identical perm.  Day-7's
+# differs-from-default test (test_supernodal_postorder_etree_contract)
+# still passes on bcsstk14 because the test asserts perm bit-difference
+# from env=off — but the resulting factor's supernode structure is
+# identical, which is the right semantic invariant.
+#
+# Wait — bcsstk14 has perms_differ=1 in Day-7's measurement.  How can
+# the resulting CholCsc have identical supernode structure under
+# different perms?  Two possibilities:
+#   (1) Two different perms can produce identical L sparsity (different
+#       column orderings yield the same fill pattern when the matrix
+#       is sufficiently regular).
+#   (2) The Day-7 `perms_differ` check sees the perm AFTER analyze; the
+#       composition flow rebuilds B + recomputes etree+postorder, then
+#       analyze proceeds.  The two paths take different code branches
+#       but converge to the same end state structurally.
+# Either way the supernode-count invariance is the load-bearing
+# observation for Day-10's decision.

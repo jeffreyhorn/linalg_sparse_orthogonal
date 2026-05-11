@@ -1,0 +1,145 @@
+setting,description,fixture,n,reorder_label,nnz_L,reorder_ms,factor
+1,Sprint 26 default (HEM, t=96),nos4,100,ND,809,27.9,skip
+1,Sprint 26 default (HEM, t=96),bcsstk04,132,ND,3722,69.9,skip
+1,Sprint 26 default (HEM, t=96),Kuu,7102,ND,881177,2650.5,skip
+1,Sprint 26 default (HEM, t=96),bcsstk14,1806,ND,129292,496.4,skip
+1,Sprint 26 default (HEM, t=96),s3rmt3m3,5357,ND,483195,1414.9,skip
+1,Sprint 26 default (HEM, t=96),Pres_Poisson,14822,ND,2536427,4446.5,skip
+2,Sprint 27 default (HCC + t=128),nos4,100,ND,637,0.2,skip
+2,Sprint 27 default (HCC + t=128),bcsstk04,132,ND,3722,62.7,skip
+2,Sprint 27 default (HCC + t=128),Kuu,7102,ND,764664,2716.1,skip
+2,Sprint 27 default (HCC + t=128),bcsstk14,1806,ND,130422,225.9,skip
+2,Sprint 27 default (HCC + t=128),s3rmt3m3,5357,ND,487832,2189.5,skip
+2,Sprint 27 default (HCC + t=128),Pres_Poisson,14822,ND,2462201,3417.5,skip
+3,Sprint 28 item-4 SUPERNODAL_POSTORDER=on (default coarsening),nos4,100,ND,637,0.2,skip
+3,Sprint 28 item-4 SUPERNODAL_POSTORDER=on (default coarsening),bcsstk04,132,ND,3722,63.3,skip
+3,Sprint 28 item-4 SUPERNODAL_POSTORDER=on (default coarsening),Kuu,7102,ND,764664,2823.1,skip
+3,Sprint 28 item-4 SUPERNODAL_POSTORDER=on (default coarsening),bcsstk14,1806,ND,130422,230.6,skip
+3,Sprint 28 item-4 SUPERNODAL_POSTORDER=on (default coarsening),s3rmt3m3,5357,ND,487832,2237.9,skip
+3,Sprint 28 item-4 SUPERNODAL_POSTORDER=on (default coarsening),Pres_Poisson,14822,ND,2462201,3623.7,skip
+4,Sprint 28 item-1 thick_restart × gain_noise_formal × linear,nos4,100,ND,637,0.2,skip
+4,Sprint 28 item-1 thick_restart × gain_noise_formal × linear,bcsstk04,132,ND,3660,63.4,skip
+4,Sprint 28 item-1 thick_restart × gain_noise_formal × linear,Kuu,7102,ND,1279823,1777.6,skip
+4,Sprint 28 item-1 thick_restart × gain_noise_formal × linear,bcsstk14,1806,ND,146045,397.9,skip
+4,Sprint 28 item-1 thick_restart × gain_noise_formal × linear,s3rmt3m3,5357,ND,526211,1403.7,skip
+4,Sprint 28 item-1 thick_restart × gain_noise_formal × linear,Pres_Poisson,14822,ND,3110704,4251.1,skip
+5,Sprint 28 item-1 thick_restart × gain_noise_formal × exponential,nos4,100,ND,637,0.2,skip
+5,Sprint 28 item-1 thick_restart × gain_noise_formal × exponential,bcsstk04,132,ND,3660,61.8,skip
+5,Sprint 28 item-1 thick_restart × gain_noise_formal × exponential,Kuu,7102,ND,1279823,1752.6,skip
+5,Sprint 28 item-1 thick_restart × gain_noise_formal × exponential,bcsstk14,1806,ND,146045,378.6,skip
+5,Sprint 28 item-1 thick_restart × gain_noise_formal × exponential,s3rmt3m3,5357,ND,526211,1420.5,skip
+5,Sprint 28 item-1 thick_restart × gain_noise_formal × exponential,Pres_Poisson,14822,ND,3110704,4234.5,skip
+6,Sprint 28 item-2 ensemble × baseline,fifo,annealing (default selector),nos4,100,ND,637,0.2,skip
+6,Sprint 28 item-2 ensemble × baseline,fifo,annealing (default selector),bcsstk04,132,ND,3722,60.9,skip
+6,Sprint 28 item-2 ensemble × baseline,fifo,annealing (default selector),Kuu,7102,ND,791858,2495.1,skip
+6,Sprint 28 item-2 ensemble × baseline,fifo,annealing (default selector),bcsstk14,1806,ND,130462,550.5,skip
+6,Sprint 28 item-2 ensemble × baseline,fifo,annealing (default selector),s3rmt3m3,5357,ND,483750,1543.0,skip
+6,Sprint 28 item-2 ensemble × baseline,fifo,annealing (default selector),Pres_Poisson,14822,ND,2501627,4466.5,skip
+7,Sprint 28 item-2 ensemble × baseline,annealing (drop FIFO),nos4,100,ND,637,0.2,skip
+7,Sprint 28 item-2 ensemble × baseline,annealing (drop FIFO),bcsstk04,132,ND,3722,64.1,skip
+7,Sprint 28 item-2 ensemble × baseline,annealing (drop FIFO),Kuu,7102,ND,765132,2970.3,skip
+7,Sprint 28 item-2 ensemble × baseline,annealing (drop FIFO),bcsstk14,1806,ND,130422,244.6,skip
+7,Sprint 28 item-2 ensemble × baseline,annealing (drop FIFO),s3rmt3m3,5357,ND,487832,2354.5,skip
+7,Sprint 28 item-2 ensemble × baseline,annealing (drop FIFO),Pres_Poisson,14822,ND,2514282,4579.7,skip
+8,Sprint 28 item-2 ensemble × fifo,annealing (drop baseline),nos4,100,ND,637,0.2,skip
+8,Sprint 28 item-2 ensemble × fifo,annealing (drop baseline),bcsstk04,132,ND,3722,66.5,skip
+8,Sprint 28 item-2 ensemble × fifo,annealing (drop baseline),Kuu,7102,ND,807487,2753.9,skip
+8,Sprint 28 item-2 ensemble × fifo,annealing (drop baseline),bcsstk14,1806,ND,131240,576.1,skip
+8,Sprint 28 item-2 ensemble × fifo,annealing (drop baseline),s3rmt3m3,5357,ND,487949,1640.2,skip
+8,Sprint 28 item-2 ensemble × fifo,annealing (drop baseline),Pres_Poisson,14822,ND,2510458,4184.3,skip
+9,Sprint 28 item-2 ensemble × baseline,fifo,annealing,thick_restart (4-way),nos4,100,ND,637,0.2,skip
+9,Sprint 28 item-2 ensemble × baseline,fifo,annealing,thick_restart (4-way),bcsstk04,132,ND,3722,63.6,skip
+9,Sprint 28 item-2 ensemble × baseline,fifo,annealing,thick_restart (4-way),Kuu,7102,ND,791858,2536.2,skip
+9,Sprint 28 item-2 ensemble × baseline,fifo,annealing,thick_restart (4-way),bcsstk14,1806,ND,130462,566.1,skip
+9,Sprint 28 item-2 ensemble × baseline,fifo,annealing,thick_restart (4-way),s3rmt3m3,5357,ND,483750,1666.3,skip
+9,Sprint 28 item-2 ensemble × baseline,fifo,annealing,thick_restart (4-way),Pres_Poisson,14822,ND,2501627,4745.0,skip
+10,Sprint 27 advisory: per_vertex_fixed_k × hybrid,nos4,100,ND,637,0.2,skip
+10,Sprint 27 advisory: per_vertex_fixed_k × hybrid,bcsstk04,132,ND,3679,68.2,skip
+10,Sprint 27 advisory: per_vertex_fixed_k × hybrid,Kuu,7102,ND,499127,1664.9,skip
+10,Sprint 27 advisory: per_vertex_fixed_k × hybrid,bcsstk14,1806,ND,282996,221.5,skip
+10,Sprint 27 advisory: per_vertex_fixed_k × hybrid,s3rmt3m3,5357,ND,830461,2048.0,skip
+10,Sprint 27 advisory: per_vertex_fixed_k × hybrid,Pres_Poisson,14822,ND,3742309,4550.8,skip
+11,Sprint 27 advisory: annealing × exponential,nos4,100,ND,637,0.2,skip
+11,Sprint 27 advisory: annealing × exponential,bcsstk04,132,ND,3722,68.8,skip
+11,Sprint 27 advisory: annealing × exponential,Kuu,7102,ND,815158,2790.1,skip
+11,Sprint 27 advisory: annealing × exponential,bcsstk14,1806,ND,129530,266.3,skip
+11,Sprint 27 advisory: annealing × exponential,s3rmt3m3,5357,ND,487832,2501.7,skip
+11,Sprint 27 advisory: annealing × exponential,Pres_Poisson,14822,ND,2538898,3839.5,skip
+12,Sprint 27 advisory: annealing × linear,nos4,100,ND,637,0.2,skip
+12,Sprint 27 advisory: annealing × linear,bcsstk04,132,ND,3722,66.3,skip
+12,Sprint 27 advisory: annealing × linear,Kuu,7102,ND,765132,3050.6,skip
+12,Sprint 27 advisory: annealing × linear,bcsstk14,1806,ND,130111,263.0,skip
+12,Sprint 27 advisory: annealing × linear,s3rmt3m3,5357,ND,487832,2497.5,skip
+12,Sprint 27 advisory: annealing × linear,Pres_Poisson,14822,ND,2515202,4820.2,skip
+13,Sprint 27 advisory: root-spectral,nos4,100,ND,637,0.2,skip
+13,Sprint 27 advisory: root-spectral,bcsstk04,132,ND,3672,3.3,skip
+13,Sprint 27 advisory: root-spectral,Kuu,7102,ND,892672,2763.0,skip
+13,Sprint 27 advisory: root-spectral,bcsstk14,1806,ND,138693,544.0,skip
+13,Sprint 27 advisory: root-spectral,s3rmt3m3,5357,ND,506077,1541.0,skip
+13,Sprint 27 advisory: root-spectral,Pres_Poisson,14822,ND,2518428,3646.2,skip
+14,Sprint 27 advisory: thick_restart × gauss_noise (simplified),nos4,100,ND,637,0.2,skip
+14,Sprint 27 advisory: thick_restart × gauss_noise (simplified),bcsstk04,132,ND,3677,59.6,skip
+14,Sprint 27 advisory: thick_restart × gauss_noise (simplified),Kuu,7102,ND,772566,2219.7,skip
+14,Sprint 27 advisory: thick_restart × gauss_noise (simplified),bcsstk14,1806,ND,132599,144.7,skip
+14,Sprint 27 advisory: thick_restart × gauss_noise (simplified),s3rmt3m3,5357,ND,488049,1605.7,skip
+14,Sprint 27 advisory: thick_restart × gauss_noise (simplified),Pres_Poisson,14822,ND,2639539,4052.6,skip
+15,Sprint 27 advisory: t=256 Kuu opt-in,nos4,100,ND,637,0.2,skip
+15,Sprint 27 advisory: t=256 Kuu opt-in,bcsstk04,132,ND,3143,2.2,skip
+15,Sprint 27 advisory: t=256 Kuu opt-in,Kuu,7102,ND,719754,1336.0,skip
+15,Sprint 27 advisory: t=256 Kuu opt-in,bcsstk14,1806,ND,131549,168.4,skip
+15,Sprint 27 advisory: t=256 Kuu opt-in,s3rmt3m3,5357,ND,480865,1593.6,skip
+15,Sprint 27 advisory: t=256 Kuu opt-in,Pres_Poisson,14822,ND,2528685,2301.2,skip
+16,Sprint 27 advisory: t=256 + per_vertex_fixed_k × hybrid (Kuu best),nos4,100,ND,637,0.2,skip
+16,Sprint 27 advisory: t=256 + per_vertex_fixed_k × hybrid (Kuu best),bcsstk04,132,ND,3143,1.6,skip
+16,Sprint 27 advisory: t=256 + per_vertex_fixed_k × hybrid (Kuu best),Kuu,7102,ND,494409,791.9,skip
+16,Sprint 27 advisory: t=256 + per_vertex_fixed_k × hybrid (Kuu best),bcsstk14,1806,ND,272930,121.4,skip
+16,Sprint 27 advisory: t=256 + per_vertex_fixed_k × hybrid (Kuu best),s3rmt3m3,5357,ND,807983,1233.2,skip
+16,Sprint 27 advisory: t=256 + per_vertex_fixed_k × hybrid (Kuu best),Pres_Poisson,14822,ND,3628555,1694.9,skip
+17,Sprint 28 stack: item-4 × item-1 (SUPERNODAL=on + thick_restart × gain_noise_formal × linear),nos4,100,ND,637,0.2,skip
+17,Sprint 28 stack: item-4 × item-1 (SUPERNODAL=on + thick_restart × gain_noise_formal × linear),bcsstk04,132,ND,3660,66.6,skip
+17,Sprint 28 stack: item-4 × item-1 (SUPERNODAL=on + thick_restart × gain_noise_formal × linear),Kuu,7102,ND,1279823,1908.2,skip
+17,Sprint 28 stack: item-4 × item-1 (SUPERNODAL=on + thick_restart × gain_noise_formal × linear),bcsstk14,1806,ND,146045,410.5,skip
+17,Sprint 28 stack: item-4 × item-1 (SUPERNODAL=on + thick_restart × gain_noise_formal × linear),s3rmt3m3,5357,ND,526211,1429.9,skip
+17,Sprint 28 stack: item-4 × item-1 (SUPERNODAL=on + thick_restart × gain_noise_formal × linear),Pres_Poisson,14822,ND,3110704,4331.0,skip
+18,Sprint 28 stack: item-4 × item-2 (SUPERNODAL=on + ensemble default),nos4,100,ND,637,0.2,skip
+18,Sprint 28 stack: item-4 × item-2 (SUPERNODAL=on + ensemble default),bcsstk04,132,ND,3722,63.2,skip
+18,Sprint 28 stack: item-4 × item-2 (SUPERNODAL=on + ensemble default),Kuu,7102,ND,791858,2540.4,skip
+18,Sprint 28 stack: item-4 × item-2 (SUPERNODAL=on + ensemble default),bcsstk14,1806,ND,130462,543.3,skip
+18,Sprint 28 stack: item-4 × item-2 (SUPERNODAL=on + ensemble default),s3rmt3m3,5357,ND,483750,1606.5,skip
+18,Sprint 28 stack: item-4 × item-2 (SUPERNODAL=on + ensemble default),Pres_Poisson,14822,ND,2501627,4546.5,skip
+19,Sprint 28 stack: item-1 × item-2 (thick × gain_noise_formal × linear + ensemble default),nos4,100,ND,637,0.2,skip
+19,Sprint 28 stack: item-1 × item-2 (thick × gain_noise_formal × linear + ensemble default),bcsstk04,132,ND,3722,61.3,skip
+19,Sprint 28 stack: item-1 × item-2 (thick × gain_noise_formal × linear + ensemble default),Kuu,7102,ND,791858,2495.1,skip
+19,Sprint 28 stack: item-1 × item-2 (thick × gain_noise_formal × linear + ensemble default),bcsstk14,1806,ND,130862,534.2,skip
+19,Sprint 28 stack: item-1 × item-2 (thick × gain_noise_formal × linear + ensemble default),s3rmt3m3,5357,ND,490541,2153.6,skip
+19,Sprint 28 stack: item-1 × item-2 (thick × gain_noise_formal × linear + ensemble default),Pres_Poisson,14822,ND,2501627,4466.4,skip
+20,Sprint 28 stack: item-4 × item-1 × item-2 (all three Sprint 28 axes),nos4,100,ND,637,0.2,skip
+20,Sprint 28 stack: item-4 × item-1 × item-2 (all three Sprint 28 axes),bcsstk04,132,ND,3722,62.9,skip
+20,Sprint 28 stack: item-4 × item-1 × item-2 (all three Sprint 28 axes),Kuu,7102,ND,791858,2559.0,skip
+20,Sprint 28 stack: item-4 × item-1 × item-2 (all three Sprint 28 axes),bcsstk14,1806,ND,130862,537.4,skip
+20,Sprint 28 stack: item-4 × item-1 × item-2 (all three Sprint 28 axes),s3rmt3m3,5357,ND,490541,2215.3,skip
+20,Sprint 28 stack: item-4 × item-1 × item-2 (all three Sprint 28 axes),Pres_Poisson,14822,ND,2501627,4502.4,skip
+21,Sprint 28 stack: item-4 × Sprint 27 Kuu opt-in (SUPERNODAL=on + t=256),nos4,100,ND,637,0.2,skip
+21,Sprint 28 stack: item-4 × Sprint 27 Kuu opt-in (SUPERNODAL=on + t=256),bcsstk04,132,ND,3143,1.9,skip
+21,Sprint 28 stack: item-4 × Sprint 27 Kuu opt-in (SUPERNODAL=on + t=256),Kuu,7102,ND,719754,1273.3,skip
+21,Sprint 28 stack: item-4 × Sprint 27 Kuu opt-in (SUPERNODAL=on + t=256),bcsstk14,1806,ND,131549,161.9,skip
+21,Sprint 28 stack: item-4 × Sprint 27 Kuu opt-in (SUPERNODAL=on + t=256),s3rmt3m3,5357,ND,480865,1599.6,skip
+21,Sprint 28 stack: item-4 × Sprint 27 Kuu opt-in (SUPERNODAL=on + t=256),Pres_Poisson,14822,ND,2528685,2337.2,skip
+22,Sprint 28 stack: item-4 × per_vertex_fixed_k × hybrid (SUPERNODAL=on + Sprint 27 advisory),nos4,100,ND,637,0.2,skip
+22,Sprint 28 stack: item-4 × per_vertex_fixed_k × hybrid (SUPERNODAL=on + Sprint 27 advisory),bcsstk04,132,ND,3679,64.5,skip
+22,Sprint 28 stack: item-4 × per_vertex_fixed_k × hybrid (SUPERNODAL=on + Sprint 27 advisory),Kuu,7102,ND,499127,1575.5,skip
+22,Sprint 28 stack: item-4 × per_vertex_fixed_k × hybrid (SUPERNODAL=on + Sprint 27 advisory),bcsstk14,1806,ND,282996,210.4,skip
+22,Sprint 28 stack: item-4 × per_vertex_fixed_k × hybrid (SUPERNODAL=on + Sprint 27 advisory),s3rmt3m3,5357,ND,830461,1962.7,skip
+22,Sprint 28 stack: item-4 × per_vertex_fixed_k × hybrid (SUPERNODAL=on + Sprint 27 advisory),Pres_Poisson,14822,ND,3742309,4258.5,skip
+23,Sprint 28 kitchen-sink: item-4 + item-1 + item-2 + Sprint 27 t=256 + fixed_k hybrid,nos4,100,ND,637,0.2,skip
+23,Sprint 28 kitchen-sink: item-4 + item-1 + item-2 + Sprint 27 t=256 + fixed_k hybrid,bcsstk04,132,ND,3143,2.0,skip
+23,Sprint 28 kitchen-sink: item-4 + item-1 + item-2 + Sprint 27 t=256 + fixed_k hybrid,Kuu,7102,ND,484818,1417.6,skip
+23,Sprint 28 kitchen-sink: item-4 + item-1 + item-2 + Sprint 27 t=256 + fixed_k hybrid,bcsstk14,1806,ND,242264,161.5,skip
+23,Sprint 28 kitchen-sink: item-4 + item-1 + item-2 + Sprint 27 t=256 + fixed_k hybrid,s3rmt3m3,5357,ND,1102221,829.4,skip
+23,Sprint 28 kitchen-sink: item-4 + item-1 + item-2 + Sprint 27 t=256 + fixed_k hybrid,Pres_Poisson,14822,ND,3564434,1669.4,skip
+24,Sprint 28 kitchen-sink lite: item-4 + Sprint 27 t=256 + fixed_k hybrid + root-spectral,nos4,100,ND,637,0.2,skip
+24,Sprint 28 kitchen-sink lite: item-4 + Sprint 27 t=256 + fixed_k hybrid + root-spectral,bcsstk04,132,ND,3143,1.9,skip
+24,Sprint 28 kitchen-sink lite: item-4 + Sprint 27 t=256 + fixed_k hybrid + root-spectral,Kuu,7102,ND,542362,1359.9,skip
+24,Sprint 28 kitchen-sink lite: item-4 + Sprint 27 t=256 + fixed_k hybrid + root-spectral,bcsstk14,1806,ND,252089,117.6,skip
+24,Sprint 28 kitchen-sink lite: item-4 + Sprint 27 t=256 + fixed_k hybrid + root-spectral,s3rmt3m3,5357,ND,895125,504.9,skip
+24,Sprint 28 kitchen-sink lite: item-4 + Sprint 27 t=256 + fixed_k hybrid + root-spectral,Pres_Poisson,14822,ND,4396227,1843.2,skip

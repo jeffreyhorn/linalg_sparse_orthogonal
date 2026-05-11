@@ -1,0 +1,95 @@
+# Sprint 28 Day 5 — canonical ensemble corpus sweep
+# Default coarsening: HCC + Kuu-safe (Sprint 27 Day 2); nd_base_threshold=128 (Sprint 27 Day 3).
+# Settings: baseline | ensemble:b,f,a (default) | ensemble:b,a | ensemble:f,a | ensemble:b,f,a,thick_restart
+# Header per row: fixture,n,reorder_label,nnz_L,reorder_ms,factor
+
+=== Setting 1: Sprint 27 default (no ensemble): nos4 ===
+nos4,100,ND,637,0.2,skip
+
+=== Setting 2: ensemble default (baseline,fifo,annealing): nos4 ===
+nos4,100,ND,637,0.2,skip
+
+=== Setting 3: ensemble (baseline,annealing): nos4 ===
+nos4,100,ND,637,0.2,skip
+
+=== Setting 4: ensemble (fifo,annealing): nos4 ===
+nos4,100,ND,637,0.2,skip
+
+=== Setting 5: ensemble (baseline,fifo,annealing,thick_restart): nos4 ===
+nos4,100,ND,637,0.2,skip
+
+=== Setting 1: Sprint 27 default (no ensemble): bcsstk04 ===
+bcsstk04,132,ND,3722,109.0,skip
+
+=== Setting 2: ensemble default (baseline,fifo,annealing): bcsstk04 ===
+bcsstk04,132,ND,3722,98.7,skip
+
+=== Setting 3: ensemble (baseline,annealing): bcsstk04 ===
+bcsstk04,132,ND,3722,117.0,skip
+
+=== Setting 4: ensemble (fifo,annealing): bcsstk04 ===
+bcsstk04,132,ND,3722,94.6,skip
+
+=== Setting 5: ensemble (baseline,fifo,annealing,thick_restart): bcsstk04 ===
+bcsstk04,132,ND,3722,87.6,skip
+
+=== Setting 1: Sprint 27 default (no ensemble): Kuu ===
+Kuu,7102,ND,764664,4171.5,skip
+
+=== Setting 2: ensemble default (baseline,fifo,annealing): Kuu ===
+Kuu,7102,ND,791858,3207.0,skip
+
+=== Setting 3: ensemble (baseline,annealing): Kuu ===
+Kuu,7102,ND,765132,4302.5,skip
+
+=== Setting 4: ensemble (fifo,annealing): Kuu ===
+Kuu,7102,ND,807487,3382.0,skip
+
+=== Setting 5: ensemble (baseline,fifo,annealing,thick_restart): Kuu ===
+Kuu,7102,ND,791858,3476.3,skip
+
+=== Setting 1: Sprint 27 default (no ensemble): bcsstk14 ===
+bcsstk14,1806,ND,130422,292.9,skip
+
+=== Setting 2: ensemble default (baseline,fifo,annealing): bcsstk14 ===
+bcsstk14,1806,ND,130462,737.3,skip
+
+=== Setting 3: ensemble (baseline,annealing): bcsstk14 ===
+bcsstk14,1806,ND,130422,332.1,skip
+
+=== Setting 4: ensemble (fifo,annealing): bcsstk14 ===
+bcsstk14,1806,ND,131240,718.1,skip
+
+=== Setting 5: ensemble (baseline,fifo,annealing,thick_restart): bcsstk14 ===
+bcsstk14,1806,ND,130462,720.9,skip
+
+=== Setting 1: Sprint 27 default (no ensemble): s3rmt3m3 ===
+s3rmt3m3,5357,ND,487832,3091.9,skip
+
+=== Setting 2: ensemble default (baseline,fifo,annealing): s3rmt3m3 ===
+s3rmt3m3,5357,ND,483750,2295.9,skip
+
+=== Setting 3: ensemble (baseline,annealing): s3rmt3m3 ===
+s3rmt3m3,5357,ND,487832,3393.6,skip
+
+=== Setting 4: ensemble (fifo,annealing): s3rmt3m3 ===
+s3rmt3m3,5357,ND,487949,2296.5,skip
+
+=== Setting 5: ensemble (baseline,fifo,annealing,thick_restart): s3rmt3m3 ===
+s3rmt3m3,5357,ND,483750,2136.8,skip
+
+=== Setting 1: Sprint 27 default (no ensemble): Pres_Poisson ===
+Pres_Poisson,14822,ND,2462201,4646.3,skip
+
+=== Setting 2: ensemble default (baseline,fifo,annealing): Pres_Poisson ===
+Pres_Poisson,14822,ND,2501627,5387.4,skip
+
+=== Setting 3: ensemble (baseline,annealing): Pres_Poisson ===
+Pres_Poisson,14822,ND,2514282,5425.7,skip
+
+=== Setting 4: ensemble (fifo,annealing): Pres_Poisson ===
+Pres_Poisson,14822,ND,2510458,4850.4,skip
+
+=== Setting 5: ensemble (baseline,fifo,annealing,thick_restart): Pres_Poisson ===
+Pres_Poisson,14822,ND,2501627,5275.0,skip
+

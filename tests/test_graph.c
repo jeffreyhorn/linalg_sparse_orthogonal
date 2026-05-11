@@ -1405,6 +1405,51 @@ cleanup:
     sparse_free(A);
 }
 
+/* Sprint 28 Day 3 — Item 2 stub: multi-strategy FM ensemble's
+ * pick-correctness contract.
+ *
+ * Day 4 implementation lights up `SPARSE_FM_FINEST_STRATEGY=ensemble`
+ * to run K FM strategies in parallel per finest-level call and pick
+ * the strategy with the lowest cut.  This test pins the pick-
+ * correctness contract: on a fixture where one strategy provably
+ * dominates (lower cut than the other two), the ensemble runner
+ * must pick that strategy's result.
+ *
+ * Day 3 ships only the stub.  RUN_TEST line is commented out below
+ * because the `ensemble` strategy value is not yet parsed — Day 4
+ * adds the enum value + dispatch.  The stub compiles today but the
+ * setenv call would route to default-fallthrough baseline.
+ *
+ * Day 4 will: (a) enable the RUN_TEST line; (b) replace the
+ * `printf("    stub — Day 4 lights this up\n")` placeholder body
+ * with the real synthetic-fixture + 3-strategy comparison + assert
+ * the ensemble picks the dominant strategy's result.  See
+ * `docs/planning/EPIC_2/SPRINT_28/ensemble_fm_design.md`
+ * "Pick-correctness contract".
+ */
+static void test_finest_fm_ensemble_picks_best_strategy(void) {
+    /* Sprint 28 Day 3 stub — Day 4 implementation pending.
+     *
+     * Planned Day-4 body sketch:
+     *   1. Build a fixture where baseline FM lands a tight cut and
+     *      FIFO + annealing land looser cuts (e.g. an irregular SPD
+     *      where the FIFO tail-pop disrupts a good LIFO walk).
+     *   2. Run with SPARSE_FM_FINEST_STRATEGY=ensemble
+     *      SPARSE_FM_ENSEMBLE_STRATEGIES=baseline,fifo,annealing.
+     *   3. Assert the ensemble's resulting cut equals baseline's
+     *      cut (the dominant strategy's result), not FIFO's or
+     *      annealing's.
+     *   4. (Optional) Re-run with the dominant strategy swapped
+     *      (e.g. force FIFO to dominate by env tweaks) and assert
+     *      the ensemble picks FIFO under that variant.
+     *
+     * For Day 3, this stub just prints a placeholder line so the
+     * test framework reports it cleanly when RUN_TEST is later
+     * enabled.  Sprint 27 Day 11 thick-restart test followed this
+     * same stub-now-light-up-later pattern. */
+    printf("    stub — Day 4 lights this up (ensemble pick-correctness contract)\n");
+}
+
 /* ─── 5×5×5 3D mesh: separator ≈ 25 (one mid-plane) ──────────────── */
 
 static void test_partition_5x5x5_mesh(void) {
@@ -2342,6 +2387,14 @@ int main(void) {
      * formal gain-bucket-noise variant of thick-restart FM (replaces
      * Sprint 27 Day 11 simplified gauss_noise). */
     RUN_TEST(test_finest_fm_gain_noise_formal_disrupts_baseline);
+    /* Sprint 28 Day 3 stub: SPARSE_FM_FINEST_STRATEGY=ensemble —
+     * multi-strategy FM ensemble pick-correctness contract.  Day 4
+     * lights this up (parser + dispatch + assert against synthetic
+     * dominant-strategy fixture).  RUN_TEST commented out for Day 3
+     * because the `ensemble` strategy value is not yet parsed; the
+     * stub function exists so Day 4 can enable in one diff. */
+    /* RUN_TEST(test_finest_fm_ensemble_picks_best_strategy); */
+    (void)test_finest_fm_ensemble_picks_best_strategy; /* silence unused-static-fn */
     /* Sprint 25 Day 6 stubs (Day 7-8 land asserts): */
     RUN_TEST(test_spectral_bisection_eigenvalue_ordering);
     RUN_TEST(test_spectral_bisection_gggp_fallback);

@@ -1,0 +1,78 @@
+# Sprint 28 Day 3 — canonical gain_noise_formal corpus sweep
+# Run via build/bench_reorder --only <fixture> --skip-factor
+# Default coarsening: HCC + Kuu-safe (Sprint 27 Day 2); nd_base_threshold=128 (Sprint 27 Day 3).
+# Settings: 4 modes per fixture (baseline | gnf-linear | gnf-exponential | gauss_noise reference)
+# Header per row: fixture,n,reorder_label,nnz_L,reorder_ms,factor
+
+=== Setting 1: Sprint 27 default (no thick-restart, baseline FM): nos4 ===
+nos4,100,ND,637,0.7,skip
+
+=== Setting 2: gain_noise_formal (linear schedule, default): nos4 ===
+nos4,100,ND,637,0.4,skip
+
+=== Setting 3: gain_noise_formal (exponential schedule): nos4 ===
+nos4,100,ND,637,0.4,skip
+
+=== Setting 4: gauss_noise (Sprint 27 simplified, reference): nos4 ===
+nos4,100,ND,637,0.5,skip
+
+=== Setting 1: Sprint 27 default (no thick-restart, baseline FM): bcsstk04 ===
+bcsstk04,132,ND,3722,180.2,skip
+
+=== Setting 2: gain_noise_formal (linear schedule, default): bcsstk04 ===
+bcsstk04,132,ND,3660,177.5,skip
+
+=== Setting 3: gain_noise_formal (exponential schedule): bcsstk04 ===
+bcsstk04,132,ND,3678,175.6,skip
+
+=== Setting 4: gauss_noise (Sprint 27 simplified, reference): bcsstk04 ===
+bcsstk04,132,ND,3677,172.4,skip
+
+=== Setting 1: Sprint 27 default (no thick-restart, baseline FM): Kuu ===
+Kuu,7102,ND,764664,7969.8,skip
+
+=== Setting 2: gain_noise_formal (linear schedule, default): Kuu ===
+Kuu,7102,ND,1279823,4893.4,skip
+
+=== Setting 3: gain_noise_formal (exponential schedule): Kuu ===
+Kuu,7102,ND,1245143,2385.1,skip
+
+=== Setting 4: gauss_noise (Sprint 27 simplified, reference): Kuu ===
+Kuu,7102,ND,772566,6611.0,skip
+
+=== Setting 1: Sprint 27 default (no thick-restart, baseline FM): bcsstk14 ===
+bcsstk14,1806,ND,130422,718.2,skip
+
+=== Setting 2: gain_noise_formal (linear schedule, default): bcsstk14 ===
+bcsstk14,1806,ND,146045,1260.7,skip
+
+=== Setting 3: gain_noise_formal (exponential schedule): bcsstk14 ===
+bcsstk14,1806,ND,148268,999.2,skip
+
+=== Setting 4: gauss_noise (Sprint 27 simplified, reference): bcsstk14 ===
+bcsstk14,1806,ND,132599,467.6,skip
+
+=== Setting 1: Sprint 27 default (no thick-restart, baseline FM): s3rmt3m3 ===
+s3rmt3m3,5357,ND,487832,6572.4,skip
+
+=== Setting 2: gain_noise_formal (linear schedule, default): s3rmt3m3 ===
+s3rmt3m3,5357,ND,526211,4097.6,skip
+
+=== Setting 3: gain_noise_formal (exponential schedule): s3rmt3m3 ===
+s3rmt3m3,5357,ND,521918,3626.0,skip
+
+=== Setting 4: gauss_noise (Sprint 27 simplified, reference): s3rmt3m3 ===
+s3rmt3m3,5357,ND,488049,4874.2,skip
+
+=== Setting 1: Sprint 27 default (no thick-restart, baseline FM): Pres_Poisson ===
+Pres_Poisson,14822,ND,2462201,9717.9,skip
+
+=== Setting 2: gain_noise_formal (linear schedule, default): Pres_Poisson ===
+Pres_Poisson,14822,ND,3110704,11989.1,skip
+
+=== Setting 3: gain_noise_formal (exponential schedule): Pres_Poisson ===
+Pres_Poisson,14822,ND,3000680,11111.6,skip
+
+=== Setting 4: gauss_noise (Sprint 27 simplified, reference): Pres_Poisson ===
+Pres_Poisson,14822,ND,2639539,10796.6,skip
+

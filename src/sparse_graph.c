@@ -1,3 +1,17 @@
+/* Sprint 28 Day 4: feature-test macro to expose POSIX `strtok_r` from
+ * `<string.h>` for the ensemble-strategy selector-list parser in
+ * `graph_uncoarsen`.  glibc gates strtok_r on `_POSIX_C_SOURCE >= 1`
+ * (any POSIX version is enough; we pick 200809L to match the modern
+ * baseline).  macOS / Apple Clang exposes strtok_r unconditionally, but
+ * Linux/GCC under `-std=c11` with the strict-warning gate (`-Werror`)
+ * needs this macro or the parser fails the lint with an implicit-
+ * declaration error.  Same pattern as `_POSIX_C_SOURCE 199309L` in
+ * `src/sparse_reorder_nd.c` (clock_gettime) and `src/sparse_reorder_amd_qg.c`
+ * (qg profile timestamps). */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 200809L
+#endif
 /*
  * sparse_graph.c — Multilevel graph partitioner for Sprint 22 nested
  *                  dissection.

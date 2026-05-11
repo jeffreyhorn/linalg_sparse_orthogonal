@@ -1148,6 +1148,74 @@ static void test_cholesky_via_nd_residual_spd_synth(void) {
     sparse_free(A);
 }
 
+/* ─── Sprint 28 Day 6: supernodal-etree reordering scaffolding ─────── */
+
+/* Sprint 28 Day 6: SPARSE_ND_SUPERNODAL_POSTORDER=on scaffolding.
+ *
+ * Day-1 picked supernodal-etree reordering as Item 4's non-pipeline-level
+ * pivot (`pivot_decision_day1.md`).  Day 6 lands the env-var parser +
+ * default-off skeleton in `src/sparse_analysis.c` (`apply_supernodal_postorder`
+ * is currently a no-op stub).  This test pins the eventual contract:
+ * under `SPARSE_ND_SUPERNODAL_POSTORDER=on`, the analysis's perm must
+ * compose a supernode-grouping permutation that strictly differs from
+ * the default-off perm on at least one fixture — smoke evidence the
+ * new code path is exercised before the headline contiguity contract
+ * (Liu 1990 / Davis 2006 §6.5) lands in Days 7-8.
+ *
+ * Day 6 stub: the call into `apply_supernodal_postorder` is wired
+ * through `sparse_analyze` but the helper itself is a no-op, so the
+ * env-var-on path produces the same perm as the default — this test
+ * FAILS the differs-from-default assertion today.  RUN_TEST stays
+ * commented out at the bottom of main() until Days 7-8 light up the
+ * real supernode-grouping permutation, at which point this test
+ * passes and the RUN_TEST line gets uncommented.  Mirrors the Sprint
+ * 27 Day 6 pattern for `test_nd_root_spectral_pres_poisson_smoke`
+ * (failing-as-expected on the day the stub lands; lit up two days
+ * later). */
+static void test_supernodal_postorder_etree_contract(void) {
+    /* Reuse the Sprint 23 banded-SPD fixture: bandwidth 8 means every
+     * row has up to 17 nonzeros and fundamental supernodes form
+     * naturally inside the band, which is what the etree postorder
+     * needs to group adjacently. */
+    SparseMatrix *A = make_spd_synth(256, 8);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    idx_t n = sparse_rows(A);
+
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_t analysis_off = {0};
+    sparse_analysis_t analysis_on = {0};
+
+    /* Default-off: capture the baseline perm. */
+    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+    REQUIRE_OK(sparse_analyze(A, &opts, &analysis_off));
+
+    /* On: capture the env-var-on perm.  Day 6 stub: this perm equals
+     * the default — test FAILS the differs-from-default assertion. */
+    if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
+        printf("    skipped (setenv SPARSE_ND_SUPERNODAL_POSTORDER=on failed)\n");
+        sparse_analysis_free(&analysis_off);
+        sparse_free(A);
+        return;
+    }
+    REQUIRE_OK(sparse_analyze(A, &opts, &analysis_on));
+    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+
+    /* Both perms exist (SPARSE_REORDER_AMD allocates `analysis->perm`). */
+    ASSERT_NOT_NULL(analysis_off.perm);
+    ASSERT_NOT_NULL(analysis_on.perm);
+
+    /* Day 6 contract (failing-as-expected): env-var-on perm differs
+     * from default at at least one position.  Days 7-8 light this up
+     * when the real supernode-grouping permutation lands. */
+    int perms_differ =
+        (memcmp(analysis_off.perm, analysis_on.perm, (size_t)n * sizeof(idx_t)) != 0);
+    ASSERT_TRUE(perms_differ);
+
+    sparse_analysis_free(&analysis_off);
+    sparse_analysis_free(&analysis_on);
+    sparse_free(A);
+}
+
 /* ─── LU dispatch: opts.reorder = SPARSE_REORDER_ND ───────────────── */
 
 static void test_lu_via_nd_dispatch(void) {
@@ -1299,6 +1367,13 @@ int main(void) {
     /* RUN_TEST(test_nd_root_spectral_pres_poisson_close_to_target); */
     RUN_TEST(test_nd_determinism_public_api);
     RUN_TEST(test_cholesky_via_nd_residual_spd_synth);
+
+    /* Sprint 28 Day 6: failing-as-expected scaffolding for the
+     * supernodal-etree reordering pivot (per `pivot_decision_day1.md`).
+     * The Day-6 stub in `src/sparse_analysis.c` is a no-op; Days 7-8
+     * will light up the real supernode-grouping permutation and
+     * uncomment this line.  See the test body for the contract. */
+    /* RUN_TEST(test_supernodal_postorder_etree_contract); */
 
     /* Day 8: enum dispatch on each factorization. */
     RUN_TEST(test_lu_via_nd_dispatch);

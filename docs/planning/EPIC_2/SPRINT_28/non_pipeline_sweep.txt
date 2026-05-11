@@ -1,0 +1,34 @@
+# Sprint 28 Day 9 sweep — supernodal-etree reordering on the AMD/ND axis.
+# Captures: nnz_L (fill), analyze_ms (analysis wall), factor_ms (numeric wall),
+#           super_count (fundamental supernodes, min_size=4),
+#           total_grouped (sum of super_sizes — columns in supernodes),
+#           ratio_vs_amd (Pres_Poisson only; nnz_L / 2668793 = Sprint 27 AMD baseline).
+# Single-run wall timings (no median over repetitions).
+
+# --- Reorder = AMD ---
+nos4            AMD env=0 n=   100 nnz_L=      637 analyze_ms=     0.3 factor_ms=     0.1 super_count=    1 total_grouped=     9 ratio_vs_amd=0.0000
+nos4            AMD env=1 n=   100 nnz_L=      637 analyze_ms=     0.3 factor_ms=     0.1 super_count=    1 total_grouped=     6 ratio_vs_amd=0.0000
+bcsstk04        AMD env=0 n=   132 nnz_L=     3143 analyze_ms=     2.0 factor_ms=     1.4 super_count=   10 total_grouped=    51 ratio_vs_amd=0.0000
+bcsstk04        AMD env=1 n=   132 nnz_L=     3143 analyze_ms=     2.2 factor_ms=     1.3 super_count=    8 total_grouped=    39 ratio_vs_amd=0.0000
+Kuu             AMD env=0 n=  7102 nnz_L=   406264 analyze_ms=   401.6 factor_ms=  1459.8 super_count=  534 total_grouped=  3748 ratio_vs_amd=0.0000
+Kuu             AMD env=1 n=  7102 nnz_L=   406264 analyze_ms=   466.5 factor_ms=  1469.2 super_count=  535 total_grouped=  3748 ratio_vs_amd=0.0000
+bcsstk14        AMD env=0 n=  1806 nnz_L=   116071 analyze_ms=    78.0 factor_ms=   240.9 super_count=  107 total_grouped=  1246 ratio_vs_amd=0.0000
+bcsstk14        AMD env=1 n=  1806 nnz_L=   116071 analyze_ms=    89.0 factor_ms=   235.1 super_count=  107 total_grouped=  1246 ratio_vs_amd=0.0000
+s3rmt3m3        AMD env=0 n=  5357 nnz_L=   474609 analyze_ms=   416.7 factor_ms=  2203.3 super_count=  522 total_grouped=  4960 ratio_vs_amd=0.0000
+s3rmt3m3        AMD env=1 n=  5357 nnz_L=   474609 analyze_ms=   448.6 factor_ms=  2168.1 super_count=  523 total_grouped=  4960 ratio_vs_amd=0.0000
+Pres_Poisson    AMD env=0 n= 14822 nnz_L=  2668793 analyze_ms=  4471.6 factor_ms= 33588.2 super_count=  565 total_grouped= 11360 ratio_vs_amd=1.0000
+Pres_Poisson    AMD env=1 n= 14822 nnz_L=  2668793 analyze_ms=  4767.9 factor_ms= 32986.9 super_count=  566 total_grouped= 11360 ratio_vs_amd=1.0000
+
+# --- Reorder = ND ---
+nos4            ND  env=0 n=   100 nnz_L=      637 analyze_ms=     0.3 factor_ms=     0.1 super_count=    1 total_grouped=     9 ratio_vs_amd=0.0000
+nos4            ND  env=1 n=   100 nnz_L=      637 analyze_ms=     0.3 factor_ms=     0.1 super_count=    1 total_grouped=     6 ratio_vs_amd=0.0000
+bcsstk04        ND  env=0 n=   132 nnz_L=     3722 analyze_ms=   122.3 factor_ms=     1.9 super_count=    7 total_grouped=    75 ratio_vs_amd=0.0000
+bcsstk04        ND  env=1 n=   132 nnz_L=     3722 analyze_ms=   125.1 factor_ms=     2.0 super_count=    7 total_grouped=    73 ratio_vs_amd=0.0000
+Kuu             ND  env=0 n=  7102 nnz_L=   764664 analyze_ms=  5404.8 factor_ms=  5801.7 super_count=  477 total_grouped=  5782 ratio_vs_amd=0.0000
+Kuu             ND  env=1 n=  7102 nnz_L=   764664 analyze_ms=  5900.9 factor_ms=  5710.1 super_count=  474 total_grouped=  5786 ratio_vs_amd=0.0000
+bcsstk14        ND  env=0 n=  1806 nnz_L=   130422 analyze_ms=   449.2 factor_ms=   332.6 super_count=   91 total_grouped=   838 ratio_vs_amd=0.0000
+bcsstk14        ND  env=1 n=  1806 nnz_L=   130422 analyze_ms=   464.5 factor_ms=   331.5 super_count=   94 total_grouped=   837 ratio_vs_amd=0.0000
+s3rmt3m3        ND  env=0 n=  5357 nnz_L=   487832 analyze_ms=  4552.0 factor_ms=  2460.3 super_count=  537 total_grouped=  5049 ratio_vs_amd=0.0000
+s3rmt3m3        ND  env=1 n=  5357 nnz_L=   487832 analyze_ms=  4605.4 factor_ms=  2513.1 super_count=  535 total_grouped=  5050 ratio_vs_amd=0.0000
+Pres_Poisson    ND  env=0 n= 14822 nnz_L=  2462201 analyze_ms=  7078.3 factor_ms= 33757.7 super_count=  571 total_grouped= 10753 ratio_vs_amd=0.9226
+Pres_Poisson    ND  env=1 n= 14822 nnz_L=  2462201 analyze_ms=  6725.4 factor_ms= 24823.2 super_count=  573 total_grouped= 10756 ratio_vs_amd=0.9226

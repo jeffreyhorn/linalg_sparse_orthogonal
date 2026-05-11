@@ -1380,6 +1380,66 @@ static void test_supernodal_postorder_n_one(void) {
     sparse_free(A);
 }
 
+/* Sprint 28 Day 10: Pres_Poisson under SPARSE_ND_SUPERNODAL_POSTORDER=on
+ * lands within 2pp of the literal 0.85× target.  Failing-as-expected
+ * today — Sprint 28 Day-9 sweep measured 0.9226× under both env settings
+ * (symmetric permutation preserves fill by construction; the
+ * supernodal-etree post-pass reorders columns within the fill pattern
+ * but cannot eliminate fill).  RUN_TEST commented out; documents the
+ * MISSED verdict + 7.26pp gap to target.
+ *
+ * Sprint 28 `non_pipeline_decision.md` formally retires the literal
+ * 0.85× Pres_Poisson target after 5 consecutive sprints + the
+ * non-pipeline pivot.  Sprint 29+ routing: revisit only with
+ * fundamentally different machinery (METIS C library interop,
+ * geometric mesh-aware ordering with first-class coordinate API, or
+ * hybrid AMD-then-ND-on-separators).  None in the Sprint 29 budget.
+ *
+ * Mirrors the Sprint 27 Day 12 pattern for
+ * test_finest_fm_annealing_pres_poisson_close_to_target +
+ * test_nd_root_spectral_pres_poisson_close_to_target: ship the test
+ * scaffolding with RUN_TEST commented out + bench evidence in-comment;
+ * future sprints can uncomment + tighten the bound if a closing
+ * combination emerges. */
+static void test_non_pipeline_pres_poisson_close_to_target(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Pres_Poisson.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (Pres_Poisson fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    /* Bit-stable AMD constant (Sprint 22-28 invariant). */
+    const idx_t nnz_amd = 2668793;
+
+    if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
+        TF_FAIL_("setenv SPARSE_ND_SUPERNODAL_POSTORDER=on failed (rc=%d)", (int)0);
+        sparse_free(A);
+        return;
+    }
+    /* sparse_analyze with REORDER_ND so analysis->perm is set, which
+     * is the gate that fires the supernodal-postorder dispatch. */
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_ND};
+    sparse_analysis_t analysis = {0};
+    REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
+    idx_t nnz_supernodal = analysis.sym_L.nnz;
+    sparse_analysis_free(&analysis);
+    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+
+    fprintf(stderr,
+            "    Pres_Poisson under SPARSE_ND_SUPERNODAL_POSTORDER=on: nnz(L) = %d, "
+            "ND/AMD = %.3f (target 0.85, gap %.1fpp)\n",
+            (int)nnz_supernodal, (double)nnz_supernodal / (double)nnz_amd,
+            100.0 * ((double)nnz_supernodal / (double)nnz_amd - 0.85));
+
+    /* Day-10 stub contract: Pres_Poisson nnz_L ≤ 0.87× AMD = 0.85×
+     * + 2pp tolerance.  FAILS today (supernodal-postorder lands
+     * 0.923×; +7.26pp from target — the post-pass cannot eliminate
+     * symbolic Cholesky fill, only reorder columns within it). */
+    ASSERT_TRUE((long long)nnz_supernodal * 100 <= (long long)nnz_amd * 87);
+    sparse_free(A);
+}
+
 /* ─── LU dispatch: opts.reorder = SPARSE_REORDER_ND ───────────────── */
 
 static void test_lu_via_nd_dispatch(void) {
@@ -1543,6 +1603,14 @@ int main(void) {
     RUN_TEST(test_supernodal_postorder_no_reorder_skips);
     RUN_TEST(test_supernodal_postorder_deterministic);
     RUN_TEST(test_supernodal_postorder_n_one);
+    /* Sprint 28 Day 10: failing-as-expected close-to-target test.
+     * Sprint 28's non_pipeline_decision.md formally retired the
+     * literal 0.85× Pres_Poisson target after 5 sprints of misses
+     * + the non-pipeline pivot's nnz_L-invariance-by-construction.
+     * RUN_TEST commented out until / unless a future sprint reaches
+     * 0.85× via fundamentally different machinery.  See test body
+     * for the contract + Sprint-28 evidence. */
+    /* RUN_TEST(test_non_pipeline_pres_poisson_close_to_target); */
 
     /* Day 8: enum dispatch on each factorization. */
     RUN_TEST(test_lu_via_nd_dispatch);

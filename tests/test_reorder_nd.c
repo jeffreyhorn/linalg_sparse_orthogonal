@@ -1,5 +1,11 @@
-#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 199309L)
-#define _POSIX_C_SOURCE 199309L
+/* _POSIX_C_SOURCE 200809L: needed for `setenv` / `unsetenv` (POSIX.1-2001;
+ * used by `tf_setenv` / `tf_unsetenv` macros from test_framework.h) AND
+ * `clock_gettime` (POSIX.1-1993 — was 199309L before Sprint 28).  Must
+ * be defined BEFORE any system header is included so glibc's
+ * `<features.h>` sees it on first inclusion. */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 200809L
 #endif
 /*
  * Sprint 22 Days 6-8 — nested-dissection reordering unit tests.

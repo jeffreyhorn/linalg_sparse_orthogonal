@@ -1,3 +1,12 @@
+/* _POSIX_C_SOURCE 200809L: needed for `setenv` / `unsetenv` used by
+ * the `tf_setenv` / `tf_unsetenv` macros from test_framework.h.
+ * Must be defined BEFORE any system header is included so glibc's
+ * `<features.h>` sees it on first inclusion (the Sprint 28
+ * supernodal-postorder tests below mutate env vars). */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 200809L
+#endif
 /*
  * Sprint 17 Days 1-2 tests for CSC working format for Cholesky.
  *

@@ -1,3 +1,12 @@
+/* _POSIX_C_SOURCE 200809L: needed for `setenv` / `unsetenv` used by
+ * the `tf_setenv` / `tf_unsetenv` macros from test_framework.h.
+ * Must be defined BEFORE any system header is included so glibc's
+ * `<features.h>` sees it on first inclusion (Sprint 27 / 28 tests
+ * mutate env vars to drive coarsening / FM / ensemble strategies). */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 200809L
+#endif
 /*
  * Sprint 22 Days 1-2 — graph partitioner unit tests.
  *

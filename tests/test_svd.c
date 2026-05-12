@@ -3179,6 +3179,144 @@ static void test_sparse_svd_lowrank_outer_product_corpus_safety(void) {
     }
 }
 
+/* Sprint 29 Day 3 — Item 2: full-mode SVD U/V output.
+ *
+ * Day 3 lights up `economy=0` (the previously-rejected full SVD path).
+ * Full mode pads U from m×k to m×m and V^T from k×n to n×n via MGS
+ * over canonical unit vectors (see full_uv_design_day3.md).  This test
+ * pins the orthonormality contract: U^T·U = I_m and V·V^T = I_n on a
+ * dense 16×8 fixture (k = 8, so U gets 8 padded columns and V^T is
+ * already 8×8 = square).
+ *
+ * Fixture: 16×8 dense matrix with deterministic distinct entries (no
+ * RNG — the test is reproducible across platforms). */
+static void test_svd_full_u_v_orthonormality(void) {
+    const idx_t m = 16, n_cols = 8;
+    SparseMatrix *A = sparse_create(m, n_cols);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    /* Deterministic dense fill — varied magnitudes / signs to give all
+     * 8 singular values nonzero spread. */
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < n_cols; j++) {
+            double v = (double)(i + 1) * 0.7 - (double)(j + 1) * 1.3 +
+                       (((i + j) % 3) ? 1.0 : -1.0) * (double)((i * 11 + j * 7) % 13);
+            sparse_insert(A, i, j, v);
+        }
+
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 0};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, &opts, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(svd.m, m);
+    ASSERT_EQ(svd.n, n_cols);
+    ASSERT_EQ(svd.k, n_cols); /* k = min(m, n) = 8 */
+    ASSERT_TRUE(svd.U != NULL);
+    ASSERT_TRUE(svd.Vt != NULL);
+
+    /* U is m×m column-major.  Check ||U^T·U - I_m||_F. */
+    double u_orth_err = 0.0;
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < m; j++) {
+            double dot = 0.0;
+            for (idx_t r = 0; r < m; r++)
+                dot += svd.U[(size_t)i * (size_t)m + (size_t)r] *
+                       svd.U[(size_t)j * (size_t)m + (size_t)r];
+            double target = (i == j) ? 1.0 : 0.0;
+            double d = dot - target;
+            u_orth_err += d * d;
+        }
+    }
+    u_orth_err = sqrt(u_orth_err);
+    fprintf(stderr, "    full U (16x16) ||U^T U - I||_F = %.3e\n", u_orth_err);
+    ASSERT_TRUE(u_orth_err < 1e-10);
+
+    /* Vt is n×n column-major.  Check ||Vt·Vt^T - I_n||_F (rows of Vt
+     * are orthonormal). */
+    double v_orth_err = 0.0;
+    for (idx_t i = 0; i < n_cols; i++) {
+        for (idx_t j = 0; j < n_cols; j++) {
+            double dot = 0.0;
+            for (idx_t c = 0; c < n_cols; c++)
+                dot += svd.Vt[(size_t)c * (size_t)n_cols + (size_t)i] *
+                       svd.Vt[(size_t)c * (size_t)n_cols + (size_t)j];
+            double target = (i == j) ? 1.0 : 0.0;
+            double d = dot - target;
+            v_orth_err += d * d;
+        }
+    }
+    v_orth_err = sqrt(v_orth_err);
+    fprintf(stderr, "    full Vt (8x8)  ||Vt Vt^T - I||_F = %.3e\n", v_orth_err);
+    ASSERT_TRUE(v_orth_err < 1e-10);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Sprint 29 Day 3 — Item 2: full-mode reconstruction.
+ *
+ * Pins the reconstruction identity for full-mode output: only the
+ * first k columns of U_full and the first k rows of Vt_full enter the
+ * sum (since sigma has only k entries) so the reconstruction residual
+ * matches economy mode within roundoff.  This test guards against
+ * regressions in the leading-dim handling — Vt's stride changes from
+ * k (economy) to n (full), and a stride bug would surface as a large
+ * reconstruction residual.
+ *
+ * Same 16×8 fixture as `test_svd_full_u_v_orthonormality`. */
+static void test_svd_full_u_v_reconstruction(void) {
+    const idx_t m = 16, n_cols = 8;
+    SparseMatrix *A = sparse_create(m, n_cols);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < n_cols; j++) {
+            double v = (double)(i + 1) * 0.7 - (double)(j + 1) * 1.3 +
+                       (((i + j) % 3) ? 1.0 : -1.0) * (double)((i * 11 + j * 7) % 13);
+            sparse_insert(A, i, j, v);
+        }
+
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 0};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, &opts, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    idx_t k = svd.k;
+    /* Reconstruct A_recon[i, j] = sum_{s=0..k-1} sigma[s] · U[i, s] · Vt[s, j].
+     * Full-mode storage: U leading dim m, Vt leading dim n_cols. */
+    double frob_resid_sq = 0.0;
+    double frob_a_sq = 0.0;
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < n_cols; j++) {
+            double recon = 0.0;
+            for (idx_t s = 0; s < k; s++) {
+                recon += svd.sigma[s] * svd.U[(size_t)s * (size_t)m + (size_t)i] *
+                         svd.Vt[(size_t)j * (size_t)n_cols + (size_t)s];
+            }
+            double a_ij = sparse_get(A, i, j);
+            double d = a_ij - recon;
+            frob_resid_sq += d * d;
+            frob_a_sq += a_ij * a_ij;
+        }
+    }
+    double rel_resid =
+        sqrt(frob_a_sq) > 0.0 ? sqrt(frob_resid_sq) / sqrt(frob_a_sq) : sqrt(frob_resid_sq);
+    fprintf(stderr, "    full-mode recon: ||A - U Sigma Vt||_F / ||A||_F = %.3e\n", rel_resid);
+    ASSERT_TRUE(rel_resid < 1e-10);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
 /* NULL and bad args */
 static void test_lowrank_sparse_errors(void) {
     SparseMatrix *out = NULL;
@@ -3463,6 +3601,10 @@ int main(void) {
      * at rank_k ∈ {10, 50} (corpus_safety). */
     RUN_TEST(test_sparse_svd_lowrank_outer_product_matches_dense);
     RUN_TEST(test_sparse_svd_lowrank_outer_product_corpus_safety);
+
+    /* Sprint 29 Day 3: full-mode SVD (Item 2) — economy=0 lit up. */
+    RUN_TEST(test_svd_full_u_v_orthonormality);
+    RUN_TEST(test_svd_full_u_v_reconstruction);
 
     /* Condition number (Sprint 9 Day 3) */
     RUN_TEST(test_cond_identity);

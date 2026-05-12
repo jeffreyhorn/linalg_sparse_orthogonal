@@ -29,10 +29,14 @@
  * @brief SVD computation options.
  */
 typedef struct {
-    int compute_uv; /**< If nonzero, compute U and V^T (default: 0 = singular values only).
-                         Requires economy=1 when set; full SVD (economy=0) is not implemented. */
-    int economy;    /**< Must be nonzero when compute_uv is set (only economy/thin SVD is
-                         implemented). Produces thin U (m×k) and V^T (k×n) where k = min(m,n). */
+    int compute_uv; /**< If nonzero, compute U and V^T (default: 0 = singular values only). */
+    int economy;    /**< When compute_uv is set: nonzero produces thin U (m×k col-major,
+                         leading dim m) and V^T (k×n col-major, leading dim k) where
+                         k = min(m,n); zero produces full U (m×m col-major, leading dim m)
+                         and V^T (n×n col-major, leading dim n) — the padded columns/rows
+                         past index k are orthonormal completions of the basis (MGS over
+                         canonical unit vectors).  Sprint 29 Day 3 lit up full mode; prior
+                         to that, economy=0 returned SPARSE_ERR_BADARG. */
     idx_t max_iter; /**< Maximum QR iterations (0 for default: 30*k) */
     double tol;     /**< Convergence tolerance for superdiagonal entries (0 for default: 1e-14) */
 } sparse_svd_opts_t;

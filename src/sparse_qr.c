@@ -6,6 +6,14 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+/* Sprint 29 Day 7 (Item 4): progress / cancel wiring. */
+static double s29_qr_now_s(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+}
 
 /* Portable overflow-safe multiplication: returns 0 on success, 1 on overflow */
 static int size_mul_overflow(size_t a, size_t b, size_t *result) {
@@ -712,7 +720,36 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
     idx_t steps_done = 0; /* total reflectors applied (may exceed rank by 1) */
     double r00 = 0.0;     /* |R(0,0)| for rank tolerance */
 
+    sparse_progress_cb_t qr_progress_cb = opts ? opts->progress_cb : NULL;
+    void *qr_progress_user = opts ? opts->progress_user : NULL;
+    double qr_phase_start_s = qr_progress_cb ? s29_qr_now_s() : 0.0;
+
     for (idx_t step = 0; step < k; step++) {
+        /* Sprint 29 Day 7: progress + cancel check at top of each
+         * Householder step.  Cancellation at step=0 leaves the
+         * partially-built `qr` struct empty; the caller must call
+         * sparse_qr_free() to release the few items allocated
+         * (W workspace, betas, vecs arrays etc.). */
+        if (qr_progress_cb) {
+            sparse_progress_t p = {
+                .phase = "qr_factor",
+                .step = step,
+                .total = k,
+                .elapsed_s = s29_qr_now_s() - qr_phase_start_s,
+            };
+            if (qr_progress_cb(&p, qr_progress_user) != 0) {
+                free(hv);
+                free(W);
+                free(col_norms);
+                qr->betas = betas;
+                qr->v_vectors = vecs;
+                qr->col_perm = perm;
+                qr->rank = rank;
+                sparse_qr_free(qr);
+                return SPARSE_ERR_CANCELLED;
+            }
+        }
+
         /* Column pivoting: find column with largest remaining norm */
         idx_t best = step;
         double best_norm = col_norms[step];

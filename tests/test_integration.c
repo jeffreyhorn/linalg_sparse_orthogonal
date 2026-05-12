@@ -1,7 +1,10 @@
 #include "sparse_cholesky.h"
+#include "sparse_eigs.h"
+#include "sparse_iterative.h"
 #include "sparse_ldlt.h"
 #include "sparse_lu.h"
 #include "sparse_matrix.h"
+#include "sparse_qr.h"
 #include "sparse_types.h"
 #include "sparse_vector.h"
 #include "test_framework.h"
@@ -623,6 +626,256 @@ static void test_progress_cb_strerror(void) {
     ASSERT_TRUE(strstr(s, "cancel") != NULL || strstr(s, "Cancel") != NULL);
 }
 
+/* Sprint 29 Day 7 (Item 4 close): progress / cancel coverage for QR,
+ * iterative solvers (CG / GMRES / MINRES / BiCGSTAB), and the
+ * eigsolver Lanczos + LOBPCG backends.  Pin the per-routine contract
+ * for opts.progress_cb / progress_user:
+ *   - emits >= 1 progress event during the iterative / factor phase.
+ *   - cancellation returns SPARSE_ERR_CANCELLED.
+ *   - default-NULL-callback path is bit-identical to Sprint 28.
+ *
+ * Each routine uses the same `progress_count_cb` helper + a fresh
+ * counter context.  Cancel tests set `cancel_after_step = 0` to fire
+ * at the first emission, returning SPARSE_ERR_CANCELLED with the
+ * library having done at most negligible work. */
+
+static void test_progress_cb_qr_emits_cancel(void) {
+    const idx_t m = 80, n = 50;
+    SparseMatrix *A = sparse_create(m, n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < n; j++)
+            if (i == j || (i + j) % 7 == 0)
+                sparse_insert(A, i, j, (double)(i + j + 1));
+
+    progress_counter_t ctx = {.cancel_after_step = -1};
+    sparse_qr_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    sparse_qr_t qr = {0};
+    ASSERT_EQ(sparse_qr_factor_opts(A, &opts, &qr), SPARSE_OK);
+    ASSERT_TRUE(ctx.n_calls > 0);
+    ASSERT_TRUE(ctx.n_calls <= n);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "qr_factor") == 0);
+    sparse_qr_free(&qr);
+
+    /* Cancel at step 0. */
+    progress_counter_t ctx2 = {.cancel_after_step = 0};
+    sparse_qr_opts_t opts2 = {
+        .reorder = SPARSE_REORDER_NONE,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx2,
+    };
+    sparse_qr_t qr2 = {0};
+    ASSERT_EQ(sparse_qr_factor_opts(A, &opts2, &qr2), SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx2.n_calls, 1);
+    sparse_qr_free(&qr2);
+    sparse_free(A);
+}
+
+/* Build n×n SPD diagonally-dominant matrix for CG-class solvers. */
+static SparseMatrix *build_solver_spd(idx_t n) {
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+    return A;
+}
+
+static void test_progress_cb_cg_emits_cancel(void) {
+    const idx_t n = 50;
+    SparseMatrix *A = build_solver_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(b && x ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    for (idx_t i = 0; i < n; i++) {
+        b[i] = 1.0;
+        x[i] = 0.0;
+    }
+
+    progress_counter_t ctx = {.cancel_after_step = -1};
+    sparse_iter_opts_t opts = {
+        .max_iter = 200,
+        .tol = 1e-10,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    sparse_err_t rc = sparse_solve_cg(A, b, x, &opts, NULL, NULL, NULL);
+    ASSERT_EQ(rc, SPARSE_OK);
+    ASSERT_TRUE(ctx.n_calls > 0);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "cg") == 0);
+
+    /* Cancel: reset x, set cancel at step 0. */
+    for (idx_t i = 0; i < n; i++)
+        x[i] = 0.0;
+    progress_counter_t ctx2 = {.cancel_after_step = 0};
+    sparse_iter_opts_t opts2 = {
+        .max_iter = 200,
+        .tol = 1e-10,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx2,
+    };
+    rc = sparse_solve_cg(A, b, x, &opts2, NULL, NULL, NULL);
+    ASSERT_EQ(rc, SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx2.n_calls, 1);
+
+    free(b);
+    free(x);
+    sparse_free(A);
+}
+
+static void test_progress_cb_gmres_emits_cancel(void) {
+    const idx_t n = 50;
+    SparseMatrix *A = build_solver_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(b && x ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    for (idx_t i = 0; i < n; i++) {
+        b[i] = 1.0;
+        x[i] = 0.0;
+    }
+
+    progress_counter_t ctx = {.cancel_after_step = 0};
+    sparse_gmres_opts_t opts = {
+        .max_iter = 200,
+        .restart = 30,
+        .tol = 1e-10,
+        .precond_side = SPARSE_PRECOND_LEFT,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    sparse_err_t rc = sparse_solve_gmres(A, b, x, &opts, NULL, NULL, NULL);
+    ASSERT_EQ(rc, SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx.n_calls, 1);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "gmres") == 0);
+
+    free(b);
+    free(x);
+    sparse_free(A);
+}
+
+static void test_progress_cb_minres_emits_cancel(void) {
+    const idx_t n = 50;
+    SparseMatrix *A = build_solver_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(b && x ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    for (idx_t i = 0; i < n; i++) {
+        b[i] = 1.0;
+        x[i] = 0.0;
+    }
+
+    progress_counter_t ctx = {.cancel_after_step = 0};
+    sparse_iter_opts_t opts = {
+        .max_iter = 200,
+        .tol = 1e-10,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    sparse_err_t rc = sparse_solve_minres(A, b, x, &opts, NULL, NULL, NULL);
+    ASSERT_EQ(rc, SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx.n_calls, 1);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "minres") == 0);
+
+    free(b);
+    free(x);
+    sparse_free(A);
+}
+
+static void test_progress_cb_bicgstab_emits_cancel(void) {
+    const idx_t n = 50;
+    SparseMatrix *A = build_solver_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(b && x ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    for (idx_t i = 0; i < n; i++) {
+        b[i] = 1.0;
+        x[i] = 0.0;
+    }
+
+    progress_counter_t ctx = {.cancel_after_step = 0};
+    sparse_iter_opts_t opts = {
+        .max_iter = 200,
+        .tol = 1e-10,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    sparse_err_t rc = sparse_solve_bicgstab(A, b, x, &opts, NULL, NULL, NULL);
+    ASSERT_EQ(rc, SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx.n_calls, 1);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "bicgstab") == 0);
+
+    free(b);
+    free(x);
+    sparse_free(A);
+}
+
+static void test_progress_cb_lanczos_emits_cancel(void) {
+    const idx_t n = 50;
+    SparseMatrix *A = build_solver_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    double vals[3] = {0, 0, 0};
+    progress_counter_t ctx = {.cancel_after_step = 0};
+    sparse_eigs_t res = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    sparse_err_t rc = sparse_eigs_sym(A, 3, &opts, &res);
+    ASSERT_EQ(rc, SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx.n_calls, 1);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "lanczos") == 0);
+
+    sparse_free(A);
+}
+
+static void test_progress_cb_lobpcg_emits_cancel(void) {
+    const idx_t n = 50;
+    SparseMatrix *A = build_solver_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    idx_t k = 3;
+    double vals[3] = {0, 0, 0};
+    double *vecs = calloc((size_t)n * (size_t)k, sizeof(double));
+    REQUIRE_OK(vecs ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    progress_counter_t ctx = {.cancel_after_step = 0};
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .compute_vectors = 1,
+        .backend = SPARSE_EIGS_BACKEND_LOBPCG,
+        .block_size = k,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    sparse_err_t rc = sparse_eigs_sym(A, k, &opts, &res);
+    ASSERT_EQ(rc, SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx.n_calls, 1);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "lobpcg") == 0);
+
+    free(vecs);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -645,6 +898,16 @@ int main(void) {
     RUN_TEST(test_progress_cb_ldlt_emits_cancel);
     RUN_TEST(test_progress_cb_null_default_unchanged);
     RUN_TEST(test_progress_cb_strerror);
+
+    /* Sprint 29 Day 7: progress / cancel coverage for QR, iterative
+     * solvers, and eigsolver Lanczos + LOBPCG backends. */
+    RUN_TEST(test_progress_cb_qr_emits_cancel);
+    RUN_TEST(test_progress_cb_cg_emits_cancel);
+    RUN_TEST(test_progress_cb_gmres_emits_cancel);
+    RUN_TEST(test_progress_cb_minres_emits_cancel);
+    RUN_TEST(test_progress_cb_bicgstab_emits_cancel);
+    RUN_TEST(test_progress_cb_lanczos_emits_cancel);
+    RUN_TEST(test_progress_cb_lobpcg_emits_cancel);
 
     TEST_SUITE_END();
 }

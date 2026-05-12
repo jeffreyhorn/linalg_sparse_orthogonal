@@ -22,17 +22,30 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
-# Compiler warnings
-add_compile_options(
-    -Wall
-    -Wextra
-    -Wpedantic
-    -Wshadow
-    -Wconversion
-    -Wdouble-promotion
-    -Wformat=2
-    -Wno-unused-parameter
-)
+# Compiler warnings — Sprint 29 Day 7 gates the gcc/clang-style flags
+# on `NOT MSVC` so the Windows CI job (cl.exe) doesn't trip on
+# unrecognised `-W*` switches.  MSVC uses its own `/W4` warning level.
+if(NOT MSVC)
+    add_compile_options(
+        -Wall
+        -Wextra
+        -Wpedantic
+        -Wshadow
+        -Wconversion
+        -Wdouble-promotion
+        -Wformat=2
+        -Wno-unused-parameter
+    )
+else()
+    # MSVC: enable a strong warning level + treat int-precision losses
+    # as informational rather than errors (the Makefile path uses
+    # -Wconversion which warns on the same things, but MSVC's default
+    # mapping is too noisy for an initial pass).
+    add_compile_options(/W3)
+    # _CRT_SECURE_NO_WARNINGS: silence MSVC's "unsafe" warnings on
+    # stdlib functions (fopen, etc.) that the codebase uses portably.
+    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+endif()
 
 # Optional sanitizers
 # Usage: -DSANITIZE=asan | -DSANITIZE=ubsan | -DSANITIZE=all | -DSANITIZE=ON (same as all)

@@ -1,0 +1,42 @@
+name: Windows CI
+
+# Sprint 29 Day 7 (Item 5 start): draft Windows CI matrix.  Builds the
+# library + tests via CMake under MSVC on windows-latest.  The first
+# run may surface portability issues that need source-level fixes;
+# Sprint 29 Day 8 closes any failures.
+#
+# Expected failure modes the Day-8 close targets:
+#   - clock_gettime / CLOCK_MONOTONIC not available on MSVC (used by
+#     the Sprint 29 Day 6/7 progress timing helpers).
+#   - POSIX-only headers (unistd.h, sys/time.h) included unconditionally.
+#   - Path separator handling in tests/data/* MM file loads.
+#   - Tests that exercise tf_setenv / tf_unsetenv (covered by Sprint 28
+#     PR #36's _putenv_s compat layer in test_framework.h).
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The CMake action ships preinstalled on windows-latest images,
+      # so no setup step is needed.  MSVC `cl.exe` is available via
+      # the Visual Studio environment that GitHub's image initialises.
+
+      - name: CMake configure (MSVC, x64)
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+        shell: pwsh
+
+      - name: CMake build (Release)
+        run: cmake --build build --config Release
+        shell: pwsh
+
+      - name: CMake test (ctest)
+        run: ctest --test-dir build -C Release --output-on-failure
+        shell: pwsh

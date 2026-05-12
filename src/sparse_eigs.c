@@ -58,6 +58,14 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+/* Sprint 29 Day 7 (Item 4): progress / cancel wiring helper. */
+static double s29_eigs_now_s(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+}
 
 #ifdef SPARSE_OPENMP
 #pragma GCC diagnostic push
@@ -1108,8 +1116,24 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     idx_t m = m_init;
     idx_t last_m_actual = 0;
     double last_partial_res = 0.0;
+    double lanczos_phase_start_s = o->progress_cb ? s29_eigs_now_s() : 0.0;
 
     for (;;) {
+        /* Sprint 29 Day 7 (Item 4): progress + cancel at each grow-m
+         * outer retry boundary.  Cancellation propagates through the
+         * existing cleanup label, freeing all workspaces. */
+        if (o->progress_cb) {
+            sparse_progress_t pp = {
+                .phase = "lanczos",
+                .step = total_iters,
+                .total = max_iters,
+                .elapsed_s = s29_eigs_now_s() - lanczos_phase_start_s,
+            };
+            if (o->progress_cb(&pp, o->progress_user) != 0) {
+                rc = SPARSE_ERR_CANCELLED;
+                goto cleanup;
+            }
+        }
         idx_t m_actual = 0;
         sparse_err_t err = lanczos_iterate_op(op_fn, op_ctx, n, v0, m, o->reorthogonalize, V, alpha,
                                               beta, &m_actual);
@@ -2932,7 +2956,22 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
     }
 
     /* Step 3: outer loop until convergence or max_iters. */
+    double lobpcg_phase_start_s = o->progress_cb ? s29_eigs_now_s() : 0.0;
     for (idx_t iter = 0; iter < max_iters; iter++) {
+        /* Sprint 29 Day 7: progress + cancel for LOBPCG. */
+        if (o->progress_cb) {
+            sparse_progress_t pp = {
+                .phase = "lobpcg",
+                .step = iter,
+                .total = max_iters,
+                .elapsed_s = s29_eigs_now_s() - lobpcg_phase_start_s,
+            };
+            if (o->progress_cb(&pp, o->progress_user) != 0) {
+                rc = SPARSE_ERR_CANCELLED;
+                goto cleanup;
+            }
+        }
+
         total_iters = iter + 1;
 
         /* Raw residual R = AX − X · diag(theta).  Convergence gate

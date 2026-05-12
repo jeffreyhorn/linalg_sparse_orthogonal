@@ -406,6 +406,18 @@ typedef struct {
      *
      *  Ignored when `refine == 0`. */
     idx_t refine_max_iters;
+    /** Sprint 29 Day 7 (Item 4): optional progress / cancellation
+     *  callback.  Invoked at the top of each outer eigsolver iteration:
+     *  `phase = "lanczos"` (grow-m or thick-restart) or `"lobpcg"`,
+     *  `step = total_iter`, `total = max_iterations`.  Return 0 to
+     *  continue; non-zero cancels — the library frees intermediate
+     *  state and returns `SPARSE_ERR_CANCELLED`.  Default NULL
+     *  preserves Sprint 28 behaviour bit-identical.  Trailing field
+     *  for designated-init back-compat. */
+    sparse_progress_cb_t progress_cb;
+    /** Opaque context pointer passed through unchanged to
+     *  `progress_cb`.  Ignored when `progress_cb == NULL`. */
+    void *progress_user;
 } sparse_eigs_opts_t;
 
 /**

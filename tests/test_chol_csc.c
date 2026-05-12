@@ -2257,11 +2257,14 @@ static idx_t day8_count_supernodes(const SparseMatrix *L_sparse, idx_t min_size,
  * assert numeric factorization residuals stay within Sprint 27's
  * ≤ 1e-8 bound after the supernode-grouping permutation".
  *
- * Builds a banded SPD synth, runs `sparse_analyze` + `sparse_factor_numeric`
- * + `sparse_factor_solve` twice (env off → factors_off → x_off, env on
- * → factors_on → x_on), and asserts BOTH ||A*x - b||_inf / ||b||_inf
- * are below 1e-8 (Sprint 27's residual gate).  The off path is the
- * Sprint-27 baseline; the on path proves Day-7's permutation composition
+ * Loads the SuiteSparse bcsstk04 fixture from disk (small SPD,
+ * n=132; matches the Sprint 27 residual-test pattern in
+ * `test_factor_solve_bcsstk04_amd` at line ~1845), runs
+ * `sparse_analyze` + `sparse_factor_numeric` + `sparse_factor_solve`
+ * twice (env off → factors_off → x_off, env on → factors_on → x_on),
+ * and asserts BOTH ||A*x - b||_inf / ||b||_inf are below 1e-8
+ * (Sprint 27's residual gate).  The off path is the Sprint-27
+ * baseline; the on path proves Day-7's permutation composition
  * doesn't corrupt the numeric factorization. */
 static void test_supernodal_postorder_residual_unchanged(void) {
     /* bcsstk04: small SuiteSparse SPD with irregular structure (matches

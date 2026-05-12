@@ -1,0 +1,44 @@
+# Sprint 28 Day 5 — ensemble strategy-win counts under default selector
+# (strat=0 baseline, strat=1 fifo, strat=2 annealing)
+# Per fixture: total per-pass wins per strategy across all partition calls.
+# Captured via SPARSE_FM_ENSEMBLE_DEBUG=1 + counting `won=1` rows.
+
+=== nos4 ===
+  baseline_wins=0  fifo_wins=0  annealing_wins=0  total_passes=0
+  (ensemble dispatch did not fire — coarsening hierarchy bottoms out
+   before level==0 for n=100; the partition completes at coarsest
+   bisection without reaching the finest FM pass loop)
+
+=== bcsstk04 ===
+  baseline_wins=3  fifo_wins=0  annealing_wins=0  total_passes=3
+
+=== Kuu ===
+  baseline_wins=162  fifo_wins=12  annealing_wins=0  total_passes=174
+  (baseline=93.1%, fifo=6.9%, annealing=0.0%)
+
+=== bcsstk14 ===
+  baseline_wins=72  fifo_wins=5  annealing_wins=0  total_passes=77
+  (baseline=93.5%, fifo=6.5%, annealing=0.0%)
+
+=== s3rmt3m3 ===
+  baseline_wins=135  fifo_wins=6  annealing_wins=0  total_passes=141
+  (baseline=95.7%, fifo=4.3%, annealing=0.0%)
+
+=== Pres_Poisson ===
+  baseline_wins=333  fifo_wins=31  annealing_wins=1  total_passes=365
+  (baseline=91.2%, fifo=8.5%, annealing=0.3%)
+
+# Headline finding:
+# - baseline dominates every fixture (91-96% of pass-wins)
+# - fifo wins a small fraction (4-9%) on irregular SPDs
+# - annealing essentially NEVER wins across the entire corpus (1/365
+#   on Pres_Poisson; 0/0 on every other fixture)
+#
+# Implication: the default `baseline,fifo,annealing` ensemble pays
+# ~3x FM cost per pass but mostly the baseline strategy's result is
+# selected.  Dropping annealing from the selector (variant
+# `baseline,fifo`) should produce equivalent nnz_L outcomes at
+# ~2x cost — but Day-5 sweep settings 3 and 4 don't include this
+# specific variant.  Setting 3 (baseline,annealing) drops FIFO;
+# Setting 4 (fifo,annealing) drops baseline.  Day 5 only sweeps the
+# variants enumerated in the PLAN's task 1.

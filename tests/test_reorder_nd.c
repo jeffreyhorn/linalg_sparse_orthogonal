@@ -1,5 +1,11 @@
-#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 199309L)
-#define _POSIX_C_SOURCE 199309L
+/* _POSIX_C_SOURCE 200809L: needed for `setenv` / `unsetenv` (POSIX.1-2001;
+ * used by `tf_setenv` / `tf_unsetenv` macros from test_framework.h) AND
+ * `clock_gettime` (POSIX.1-1993 — was 199309L before Sprint 28).  Must
+ * be defined BEFORE any system header is included so glibc's
+ * `<features.h>` sees it on first inclusion. */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 200809L
 #endif
 /*
  * Sprint 22 Days 6-8 — nested-dissection reordering unit tests.
@@ -46,6 +52,7 @@
 #include "sparse_types.h"
 #include "test_framework.h"
 
+#include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -543,7 +550,7 @@ static void test_hcc_kuu_no_default_flip_blocker(void) {
         return;
     }
 
-    if (setenv("SPARSE_ND_COARSENING", "hcc", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSENING", "hcc") != 0) {
         printf("    skipped (setenv failed)\n");
         sparse_free(A);
         return;
@@ -572,7 +579,7 @@ static void test_hcc_kuu_no_default_flip_blocker(void) {
     ASSERT_TRUE((long long)nnz_nd * 1000 <= (long long)nnz_amd * 2219);
 
 cleanup:
-    unsetenv("SPARSE_ND_COARSENING");
+    tf_unsetenv("SPARSE_ND_COARSENING");
     sparse_free(A);
 }
 
@@ -603,14 +610,14 @@ static void test_finest_fm_thick_restart_returns_to_anchor(void) {
     /* Pin SPARSE_ND_COARSENING=heavy_edge for stability across the
      * Sprint 27 Day 2 default flip — same pattern as the annealing
      * smoke test. */
-    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
         printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
         sparse_free(A);
         return;
     }
 
     /* Baseline run (thick_restart env var unset). */
-    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
     idx_t nnz_baseline = symbolic_cholesky_nnz_nd(A);
     if (nnz_baseline <= 0) {
         TF_FAIL_("symbolic_cholesky_nnz_nd(baseline) returned %d", (int)nnz_baseline);
@@ -618,7 +625,7 @@ static void test_finest_fm_thick_restart_returns_to_anchor(void) {
     }
 
     /* Thick-restart run (default random_flip perturbation). */
-    if (setenv("SPARSE_FM_FINEST_STRATEGY", "thick_restart", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_FM_FINEST_STRATEGY", "thick_restart") != 0) {
         TF_FAIL_("setenv SPARSE_FM_FINEST_STRATEGY=%s failed", "thick_restart");
         goto cleanup;
     }
@@ -640,8 +647,8 @@ static void test_finest_fm_thick_restart_returns_to_anchor(void) {
     ASSERT_TRUE(nnz_baseline != nnz_thick_restart);
 
 cleanup:
-    unsetenv("SPARSE_FM_FINEST_STRATEGY");
-    unsetenv("SPARSE_ND_COARSENING");
+    tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    tf_unsetenv("SPARSE_ND_COARSENING");
     sparse_free(A);
 }
 
@@ -667,14 +674,14 @@ static void test_nd_root_spectral_pres_poisson_smoke(void) {
     /* Pin SPARSE_ND_COARSENING=heavy_edge to scope the test to the
      * Sprint 26-default coarsening for stable baseline reproducibility
      * across the Sprint 27 Day 2 default flip. */
-    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
         printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
         sparse_free(A);
         return;
     }
 
     /* Multilevel run (default; root-spectral env var unset). */
-    unsetenv("SPARSE_ND_ROOT_BISECT");
+    tf_unsetenv("SPARSE_ND_ROOT_BISECT");
     idx_t nnz_multilevel = symbolic_cholesky_nnz_nd(A);
     if (nnz_multilevel <= 0) {
         TF_FAIL_("symbolic_cholesky_nnz_nd(multilevel) returned %d", (int)nnz_multilevel);
@@ -682,7 +689,7 @@ static void test_nd_root_spectral_pres_poisson_smoke(void) {
     }
 
     /* Spectral run. */
-    if (setenv("SPARSE_ND_ROOT_BISECT", "spectral", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_ROOT_BISECT", "spectral") != 0) {
         TF_FAIL_("setenv SPARSE_ND_ROOT_BISECT=%s failed", "spectral");
         goto cleanup;
     }
@@ -704,8 +711,8 @@ static void test_nd_root_spectral_pres_poisson_smoke(void) {
     ASSERT_TRUE(nnz_multilevel != nnz_spectral);
 
 cleanup:
-    unsetenv("SPARSE_ND_ROOT_BISECT");
-    unsetenv("SPARSE_ND_COARSENING");
+    tf_unsetenv("SPARSE_ND_ROOT_BISECT");
+    tf_unsetenv("SPARSE_ND_COARSENING");
     sparse_free(A);
 }
 
@@ -742,14 +749,14 @@ static void test_finest_fm_annealing_differs_from_baseline(void) {
      * Sprint 27 Day 2 default flip — annealing's behaviour at the
      * FM stage is invariant of coarsening but pinning here keeps
      * the bench numbers stable for assertion. */
-    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
         printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
         sparse_free(A);
         return;
     }
 
     /* Baseline run (annealing env var unset). */
-    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
     idx_t nnz_baseline = symbolic_cholesky_nnz_nd(A);
     if (nnz_baseline <= 0) {
         TF_FAIL_("symbolic_cholesky_nnz_nd(baseline) returned %d", (int)nnz_baseline);
@@ -757,7 +764,7 @@ static void test_finest_fm_annealing_differs_from_baseline(void) {
     }
 
     /* Annealing run (default exponential schedule). */
-    if (setenv("SPARSE_FM_FINEST_STRATEGY", "annealing", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_FM_FINEST_STRATEGY", "annealing") != 0) {
         TF_FAIL_("setenv SPARSE_FM_FINEST_STRATEGY=%s failed", "annealing");
         goto cleanup;
     }
@@ -781,8 +788,8 @@ static void test_finest_fm_annealing_differs_from_baseline(void) {
     ASSERT_TRUE(nnz_baseline != nnz_annealing);
 
 cleanup:
-    unsetenv("SPARSE_FM_FINEST_STRATEGY");
-    unsetenv("SPARSE_ND_COARSENING");
+    tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    tf_unsetenv("SPARSE_ND_COARSENING");
     sparse_free(A);
 }
 
@@ -813,7 +820,7 @@ static void test_hcc_kuu_safe_corpus_parity(void) {
     }
 
     /* HEM (Sprint 26 default; opt-in today). */
-    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
         printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
         sparse_free(A);
         return;
@@ -821,13 +828,13 @@ static void test_hcc_kuu_safe_corpus_parity(void) {
     idx_t nnz_hem = symbolic_cholesky_nnz_nd(A);
     if (nnz_hem <= 0) {
         TF_FAIL_("symbolic_cholesky_nnz_nd(HEM) returned %d", (int)nnz_hem);
-        unsetenv("SPARSE_ND_COARSENING");
+        tf_unsetenv("SPARSE_ND_COARSENING");
         sparse_free(A);
         return;
     }
 
     /* HCC + Kuu-safe (Sprint 27 default). */
-    unsetenv("SPARSE_ND_COARSENING");
+    tf_unsetenv("SPARSE_ND_COARSENING");
     idx_t nnz_hcc = symbolic_cholesky_nnz_nd(A);
     if (nnz_hcc <= 0) {
         TF_FAIL_("symbolic_cholesky_nnz_nd(HCC default) returned %d", (int)nnz_hcc);
@@ -868,23 +875,23 @@ static void test_per_vertex_fixed_k_three_schemes_differentiate(void) {
         return;
     }
 
-    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
         printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
         sparse_free(A);
         return;
     }
-    if (setenv("SPARSE_ND_SEP_LIFT_STRATEGY", "per_vertex_fixed_k", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_SEP_LIFT_STRATEGY", "per_vertex_fixed_k") != 0) {
         TF_FAIL_("setenv SPARSE_ND_SEP_LIFT_STRATEGY=%s failed", "per_vertex_fixed_k");
-        unsetenv("SPARSE_ND_COARSENING");
+        tf_unsetenv("SPARSE_ND_COARSENING");
         sparse_free(A);
         return;
     }
 
-    setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "hybrid", 1);
+    tf_setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "hybrid");
     idx_t nnz_hybrid = symbolic_cholesky_nnz_nd(A);
-    setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "balance", 1);
+    tf_setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "balance");
     idx_t nnz_balance = symbolic_cholesky_nnz_nd(A);
-    setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "degree", 1);
+    tf_setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "degree");
     idx_t nnz_degree = symbolic_cholesky_nnz_nd(A);
 
     fprintf(stderr, "    bcsstk04 fixed-K nnz(L): hybrid=%d, balance=%d, degree=%d\n",
@@ -895,9 +902,9 @@ static void test_per_vertex_fixed_k_three_schemes_differentiate(void) {
     int differs = (nnz_hybrid != nnz_balance) || (nnz_balance != nnz_degree);
     ASSERT_TRUE(differs);
 
-    unsetenv("SPARSE_ND_SEP_LIFT_WEIGHT");
-    unsetenv("SPARSE_ND_SEP_LIFT_STRATEGY");
-    unsetenv("SPARSE_ND_COARSENING");
+    tf_unsetenv("SPARSE_ND_SEP_LIFT_WEIGHT");
+    tf_unsetenv("SPARSE_ND_SEP_LIFT_STRATEGY");
+    tf_unsetenv("SPARSE_ND_COARSENING");
     sparse_free(A);
 }
 
@@ -924,16 +931,16 @@ static void test_finest_fm_annealing_pres_poisson_close_to_target(void) {
     /* Bit-stable AMD constant (Sprint 22-26 invariant). */
     const idx_t nnz_amd = 2668793;
 
-    if (setenv("SPARSE_FM_FINEST_STRATEGY", "annealing", /*overwrite=*/1) != 0 ||
-        setenv("SPARSE_FM_ANNEALING_SCHEDULE", "linear", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_FM_FINEST_STRATEGY", "annealing") != 0 ||
+        tf_setenv("SPARSE_FM_ANNEALING_SCHEDULE", "linear") != 0) {
         TF_FAIL_("setenv SPARSE_FM_FINEST_STRATEGY/SPARSE_FM_ANNEALING_SCHEDULE failed (rc=%d)",
                  (int)0);
         sparse_free(A);
         return;
     }
     idx_t nnz_annealing = symbolic_cholesky_nnz_nd(A);
-    unsetenv("SPARSE_FM_ANNEALING_SCHEDULE");
-    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    tf_unsetenv("SPARSE_FM_ANNEALING_SCHEDULE");
+    tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
 
     fprintf(stderr,
             "    Pres_Poisson under annealing-linear: nnz(L) = %d, "
@@ -962,13 +969,13 @@ static void test_nd_root_spectral_pres_poisson_close_to_target(void) {
 
     const idx_t nnz_amd = 2668793;
 
-    if (setenv("SPARSE_ND_ROOT_BISECT", "spectral", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_ROOT_BISECT", "spectral") != 0) {
         TF_FAIL_("setenv SPARSE_ND_ROOT_BISECT=%s failed", "spectral");
         sparse_free(A);
         return;
     }
     idx_t nnz_spectral = symbolic_cholesky_nnz_nd(A);
-    unsetenv("SPARSE_ND_ROOT_BISECT");
+    tf_unsetenv("SPARSE_ND_ROOT_BISECT");
 
     fprintf(stderr,
             "    Pres_Poisson under root-spectral: nnz(L) = %d, "
@@ -1148,6 +1155,408 @@ static void test_cholesky_via_nd_residual_spd_synth(void) {
     sparse_free(A);
 }
 
+/* ─── Sprint 28 Day 6: supernodal-etree reordering scaffolding ─────── */
+
+/* Sprint 28 Day 7: SPARSE_SUPERNODAL_POSTORDER=on postorder-composition
+ * contract.
+ *
+ * Day-1 picked supernodal-etree reordering as Item 4's non-pipeline-level
+ * pivot (`pivot_decision_day1.md`).  Day 6 landed the env-var parser +
+ * default-off skeleton in `src/sparse_analysis.c`; Day 7 lit up the
+ * Liu 1990 / Davis 2006 §6.5 core algorithm: compose the etree postorder
+ * into `analysis->perm` so consecutive columns in the final order
+ * correspond to a postorder traversal of the elimination tree (which
+ * maximises fundamental-supernode contiguity per
+ * `chol_csc_detect_supernodes`'s definition).
+ *
+ * Contract: under `SPARSE_SUPERNODAL_POSTORDER=on`,
+ *
+ *     analysis_on.perm[k] == analysis_off.perm[analysis_off.postorder[k]]
+ *
+ * — i.e. the env-on perm is the etree postorder (computed against the
+ * off-path's etree) composed into the off-path perm.  This is the
+ * direct mathematical assertion of `apply_supernodal_postorder` from
+ * `src/sparse_analysis.c`.
+ *
+ * The previous Day-7-through-Day-14 version of this test asserted
+ * `analysis_on.perm != analysis_off.perm` (memcmp != 0); that's not
+ * a correctness requirement of the post-pass — if the baseline perm
+ * already happens to be an etree postorder, the composition is the
+ * identity and perm_on == perm_off remains valid.  Replaced per PR
+ * #36 review with the exact composition assertion above.
+ *
+ * All sparse_analyze calls use explicit rc handling + a single
+ * cleanup label so unsetenv always runs even if an intermediate call
+ * fails (otherwise SPARSE_SUPERNODAL_POSTORDER would leak to
+ * subsequent tests in the suite). */
+static void test_supernodal_postorder_etree_contract(void) {
+    /* Use bcsstk14 — a real SuiteSparse SPD with n=1806 and a non-
+     * trivial elimination tree. */
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+    idx_t n = sparse_rows(A);
+
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_t analysis_off = {0};
+    sparse_analysis_t analysis_on = {0};
+    idx_t *expected_perm = NULL;
+    int env_set = 0;
+
+    /* Default-off: capture the baseline perm + postorder. */
+    tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
+    rc = sparse_analyze(A, &opts, &analysis_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (env off): rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    /* On: capture the env-var-on perm. */
+    if (tf_setenv("SPARSE_SUPERNODAL_POSTORDER", "on") != 0) {
+        printf("    skipped (setenv SPARSE_SUPERNODAL_POSTORDER=on failed)\n");
+        goto cleanup;
+    }
+    env_set = 1;
+    rc = sparse_analyze(A, &opts, &analysis_on);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (env on): rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    /* Both perms exist (SPARSE_REORDER_AMD allocates `analysis->perm`)
+     * and the off path's postorder is available too (SPARSE_FACTOR_CHOLESKY). */
+    ASSERT_NOT_NULL(analysis_off.perm);
+    ASSERT_NOT_NULL(analysis_off.postorder);
+    ASSERT_NOT_NULL(analysis_on.perm);
+
+    /* Postorder-composition contract: analysis_on.perm[k] ==
+     * analysis_off.perm[analysis_off.postorder[k]].  If AMD's output
+     * is already in etree postorder for this fixture, analysis_off.postorder
+     * is the identity and the assertion reduces to perm_on == perm_off
+     * (which is the correct mathematical behaviour). */
+    expected_perm = malloc((size_t)n * sizeof(idx_t));
+    if (!expected_perm) {
+        TF_FAIL_("malloc(expected_perm) returned NULL (n=%d)", (int)n);
+        goto cleanup;
+    }
+    for (idx_t k = 0; k < n; k++) {
+        idx_t j = analysis_off.postorder[k];
+        expected_perm[k] = analysis_off.perm[j];
+    }
+    ASSERT_EQ(memcmp(analysis_on.perm, expected_perm, (size_t)n * sizeof(idx_t)), 0);
+
+cleanup:
+    if (env_set)
+        tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
+    free(expected_perm);
+    sparse_analysis_free(&analysis_off);
+    sparse_analysis_free(&analysis_on);
+    sparse_free(A);
+}
+
+/* ─── Sprint 28 Day 8: supernodal-etree reordering corpus safety ─── */
+
+/* Day-8 corpus-safety: under `SPARSE_SUPERNODAL_POSTORDER=on`, the
+ * resulting analysis->sym_L.nnz must equal the env-off baseline on every
+ * corpus fixture.  Symmetric permutation preserves fill (a standard
+ * linear-algebra invariant), so a non-zero delta would signal a bug in
+ * the Day-7 perm-composition + recompute-etree path.  The plan task
+ * said "≤ 5pp regression"; the actual contract is stricter (delta = 0)
+ * because the underlying math is exact. */
+static void test_supernodal_postorder_corpus_nnz_L_invariant(void) {
+    const char *paths[] = {
+        SS_DIR "/nos4.mtx",
+        SS_DIR "/bcsstk04.mtx",
+        SS_DIR "/bcsstk14.mtx",
+        SS_DIR "/s3rmt3m3.mtx",
+    };
+    const char *names[] = {"nos4", "bcsstk04", "bcsstk14", "s3rmt3m3"};
+    const size_t fixtures = sizeof(paths) / sizeof(paths[0]);
+
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+
+    for (size_t i = 0; i < fixtures; i++) {
+        SparseMatrix *A = NULL;
+        sparse_err_t rc = sparse_load_mm(&A, paths[i]);
+        if (rc != SPARSE_OK) {
+            printf("    skipped %s (load rc=%d)\n", names[i], (int)rc);
+            continue;
+        }
+
+        sparse_analysis_t an_off = {0};
+        sparse_analysis_t an_on = {0};
+        int env_set = 0;
+        idx_t nnz_off = 0;
+        idx_t nnz_on = 0;
+
+        tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
+        rc = sparse_analyze(A, &opts, &an_off);
+        if (rc != SPARSE_OK) {
+            TF_FAIL_("sparse_analyze (env off) on %s: rc=%d", names[i], (int)rc);
+            goto cell_cleanup;
+        }
+        nnz_off = an_off.sym_L.nnz;
+
+        if (tf_setenv("SPARSE_SUPERNODAL_POSTORDER", "on") != 0) {
+            printf("    skipped %s (setenv failed)\n", names[i]);
+            goto cell_cleanup;
+        }
+        env_set = 1;
+        rc = sparse_analyze(A, &opts, &an_on);
+        if (rc != SPARSE_OK) {
+            TF_FAIL_("sparse_analyze (env on) on %s: rc=%d", names[i], (int)rc);
+            goto cell_cleanup;
+        }
+        nnz_on = an_on.sym_L.nnz;
+
+        printf("    %s: nnz_L off=%d on=%d\n", names[i], (int)nnz_off, (int)nnz_on);
+        ASSERT_EQ(nnz_on, nnz_off);
+
+    cell_cleanup:
+        if (env_set)
+            tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
+        sparse_analysis_free(&an_off);
+        sparse_analysis_free(&an_on);
+        sparse_free(A);
+    }
+}
+
+/* Day-8 edge case: REORDER_NONE + env=on is a no-op (analysis->perm is
+ * NULL, so the supernodal-postorder dispatch gate doesn't fire).
+ * Asserts the resulting analysis is bit-identical to the env-off baseline. */
+static void test_supernodal_postorder_no_reorder_skips(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_t an_off = {0};
+    sparse_analysis_t an_on = {0};
+    int env_set = 0;
+
+    tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
+    rc = sparse_analyze(A, &opts, &an_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (env off): rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_SUPERNODAL_POSTORDER", "on") != 0) {
+        printf("    skipped (setenv failed)\n");
+        goto cleanup;
+    }
+    env_set = 1;
+    rc = sparse_analyze(A, &opts, &an_on);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (env on): rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    /* Both perms NULL (no reorder requested) — dispatch gate skips
+     * apply_supernodal_postorder. */
+    ASSERT_NULL(an_off.perm);
+    ASSERT_NULL(an_on.perm);
+    /* Bit-identical: n + sym_L.nnz + sym_L.col_ptr + sym_L.row_idx +
+     * etree + postorder.  sym_L's nnz must be equal for the col_ptr /
+     * row_idx comparisons to be meaningful — assert the count first. */
+    ASSERT_EQ(an_on.n, an_off.n);
+    ASSERT_EQ(an_on.sym_L.nnz, an_off.sym_L.nnz);
+    ASSERT_EQ(memcmp(an_off.etree, an_on.etree, (size_t)an_off.n * sizeof(idx_t)), 0);
+    ASSERT_EQ(memcmp(an_off.postorder, an_on.postorder, (size_t)an_off.n * sizeof(idx_t)), 0);
+    ASSERT_EQ(
+        memcmp(an_off.sym_L.col_ptr, an_on.sym_L.col_ptr, (size_t)(an_off.n + 1) * sizeof(idx_t)),
+        0);
+    ASSERT_EQ(
+        memcmp(an_off.sym_L.row_idx, an_on.sym_L.row_idx, (size_t)an_off.sym_L.nnz * sizeof(idx_t)),
+        0);
+
+cleanup:
+    if (env_set)
+        tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
+    sparse_analysis_free(&an_off);
+    sparse_analysis_free(&an_on);
+    sparse_free(A);
+}
+
+/* Day-8 determinism: repeated sparse_analyze calls under env=on produce
+ * bit-identical analysis->perm / etree / postorder / sym_L.  Pins
+ * Day-7's "Composition + recompute-etree-postorder is a pure function
+ * of A and the env" contract. */
+static void test_supernodal_postorder_deterministic(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+    idx_t n = sparse_rows(A);
+
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_t an_1 = {0};
+    sparse_analysis_t an_2 = {0};
+    int env_set = 0;
+
+    if (tf_setenv("SPARSE_SUPERNODAL_POSTORDER", "on") != 0) {
+        printf("    skipped (setenv failed)\n");
+        sparse_free(A);
+        return;
+    }
+    env_set = 1;
+    rc = sparse_analyze(A, &opts, &an_1);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (run 1): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    rc = sparse_analyze(A, &opts, &an_2);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (run 2): rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    ASSERT_NOT_NULL(an_1.perm);
+    ASSERT_NOT_NULL(an_2.perm);
+    ASSERT_EQ(memcmp(an_1.perm, an_2.perm, (size_t)n * sizeof(idx_t)), 0);
+    ASSERT_EQ(memcmp(an_1.etree, an_2.etree, (size_t)n * sizeof(idx_t)), 0);
+    ASSERT_EQ(memcmp(an_1.postorder, an_2.postorder, (size_t)n * sizeof(idx_t)), 0);
+    /* Bit-identical sym_L: assert nnz first so the col_ptr / row_idx
+     * memcmp lengths read from a consistent count.  Without the
+     * col_ptr / row_idx comparisons, a change in symbolic structure
+     * that preserved nnz would pass the test silently. */
+    ASSERT_EQ(an_1.sym_L.nnz, an_2.sym_L.nnz);
+    ASSERT_EQ(memcmp(an_1.sym_L.col_ptr, an_2.sym_L.col_ptr, (size_t)(n + 1) * sizeof(idx_t)), 0);
+    ASSERT_EQ(
+        memcmp(an_1.sym_L.row_idx, an_2.sym_L.row_idx, (size_t)an_1.sym_L.nnz * sizeof(idx_t)), 0);
+
+cleanup:
+    if (env_set)
+        tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
+    sparse_analysis_free(&an_1);
+    sparse_analysis_free(&an_2);
+    sparse_free(A);
+}
+
+/* Day-8 edge case: n=1 singleton.  sparse_create rejects 0×0, so this
+ * is the recursion floor.  The supernodal-postorder dispatch must
+ * handle the trivial case where the postorder is `[0]` and the
+ * composition is a no-op. */
+static void test_supernodal_postorder_n_one(void) {
+    SparseMatrix *A = sparse_create(1, 1);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    REQUIRE_OK(sparse_insert(A, 0, 0, 1.0));
+
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_t an = {0};
+    int env_set = 0;
+    sparse_err_t rc;
+
+    if (tf_setenv("SPARSE_SUPERNODAL_POSTORDER", "on") != 0) {
+        printf("    skipped (setenv failed)\n");
+        sparse_free(A);
+        return;
+    }
+    env_set = 1;
+    rc = sparse_analyze(A, &opts, &an);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (n=1, env on): rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    ASSERT_EQ(an.n, 1);
+    ASSERT_EQ(an.sym_L.nnz, 1);
+    ASSERT_NOT_NULL(an.perm);
+    ASSERT_EQ(an.perm[0], 0);
+
+cleanup:
+    if (env_set)
+        tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
+    sparse_analysis_free(&an);
+    sparse_free(A);
+}
+
+/* Sprint 28 Day 10: Pres_Poisson under SPARSE_SUPERNODAL_POSTORDER=on
+ * lands within 2pp of the literal 0.85× target.  Failing-as-expected
+ * today — Sprint 28 Day-9 sweep measured 0.9226× under both env settings
+ * (symmetric permutation preserves fill by construction; the
+ * supernodal-etree post-pass reorders columns within the fill pattern
+ * but cannot eliminate fill).  RUN_TEST commented out; documents the
+ * MISSED verdict + 7.26pp gap to target.
+ *
+ * Sprint 28 `non_pipeline_decision.md` formally retires the literal
+ * 0.85× Pres_Poisson target after 6 consecutive sprints (Sprints 23-28
+ * inclusive; Sprint 22's 1.063× pre-dated the ND-beats-AMD framing) +
+ * the non-pipeline pivot.  Sprint 29+ routing: revisit only with
+ * fundamentally different machinery (METIS C library interop,
+ * geometric mesh-aware ordering with first-class coordinate API, or
+ * hybrid AMD-then-ND-on-separators).  None in the Sprint 29 budget.
+ *
+ * Mirrors the Sprint 27 Day 12 pattern for
+ * test_finest_fm_annealing_pres_poisson_close_to_target +
+ * test_nd_root_spectral_pres_poisson_close_to_target: ship the test
+ * scaffolding with RUN_TEST commented out + bench evidence in-comment;
+ * future sprints can uncomment + tighten the bound if a closing
+ * combination emerges. */
+static void test_non_pipeline_pres_poisson_close_to_target(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Pres_Poisson.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (Pres_Poisson fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    /* Bit-stable AMD constant (Sprint 22-28 invariant). */
+    const idx_t nnz_amd = 2668793;
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_ND};
+    sparse_analysis_t analysis = {0};
+    idx_t nnz_supernodal = -1;
+    int env_set = 0;
+
+    if (tf_setenv("SPARSE_SUPERNODAL_POSTORDER", "on") != 0) {
+        /* Treat setenv failure as a skip (matches the pattern in the
+         * other supernodal-postorder tests): setenv/unsetenv are POSIX
+         * extensions (NOT in ISO C — POSIX.1-2001 onward), so some
+         * constrained runtimes / non-POSIX platforms may not provide
+         * them or may reject mutations.  We don't want a platform
+         * constraint to fail the test. */
+        printf("    skipped (setenv SPARSE_SUPERNODAL_POSTORDER=on failed: errno=%d %s)\n", errno,
+               strerror(errno));
+        goto cleanup;
+    }
+    env_set = 1;
+
+    /* sparse_analyze with REORDER_ND so analysis->perm is set, which
+     * is the gate that fires the supernodal-postorder dispatch. */
+    rc = sparse_analyze(A, &opts, &analysis);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (env on): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    nnz_supernodal = analysis.sym_L.nnz;
+
+    fprintf(stderr,
+            "    Pres_Poisson under SPARSE_SUPERNODAL_POSTORDER=on: nnz(L) = %d, "
+            "ND/AMD = %.3f (target 0.85, gap %.1fpp)\n",
+            (int)nnz_supernodal, (double)nnz_supernodal / (double)nnz_amd,
+            100.0 * ((double)nnz_supernodal / (double)nnz_amd - 0.85));
+
+    /* Day-10 stub contract: Pres_Poisson nnz_L ≤ 0.87× AMD = 0.85×
+     * + 2pp tolerance.  FAILS today (supernodal-postorder lands
+     * 0.923×; +7.26pp from target — the post-pass cannot eliminate
+     * symbolic Cholesky fill, only reorder columns within it). */
+    ASSERT_TRUE((long long)nnz_supernodal * 100 <= (long long)nnz_amd * 87);
+
+cleanup:
+    if (env_set)
+        tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
+    sparse_analysis_free(&analysis);
+    sparse_free(A);
+}
+
 /* ─── LU dispatch: opts.reorder = SPARSE_REORDER_ND ───────────────── */
 
 static void test_lu_via_nd_dispatch(void) {
@@ -1299,6 +1708,32 @@ int main(void) {
     /* RUN_TEST(test_nd_root_spectral_pres_poisson_close_to_target); */
     RUN_TEST(test_nd_determinism_public_api);
     RUN_TEST(test_cholesky_via_nd_residual_spd_synth);
+
+    /* Sprint 28 Days 7-14: Liu 1990 supernodal-etree reordering
+     * lit up + corpus-safety + flip-or-stay decision shipped.
+     * `SPARSE_SUPERNODAL_POSTORDER=on` composes the etree
+     * postorder into `analysis->perm`; the test asserts the direct
+     * postorder-composition contract
+     * (perm_on[k] == perm_off[postorder_off[k]]) per the PR #36
+     * review (commit 75fd871, comment 3222851170).  Sprint 28
+     * verdict: STAY at default `off` (advisory only;
+     * `non_pipeline_decision.md`); 0.85× Pres_Poisson target
+     * formally RETIRED with 6-sprint empirical evidence. */
+    RUN_TEST(test_supernodal_postorder_etree_contract);
+    /* Sprint 28 Day 8: corpus-safety + edge-case contracts. */
+    RUN_TEST(test_supernodal_postorder_corpus_nnz_L_invariant);
+    RUN_TEST(test_supernodal_postorder_no_reorder_skips);
+    RUN_TEST(test_supernodal_postorder_deterministic);
+    RUN_TEST(test_supernodal_postorder_n_one);
+    /* Sprint 28 Day 10: failing-as-expected close-to-target test.
+     * Sprint 28's non_pipeline_decision.md formally retired the
+     * literal 0.85× Pres_Poisson target after 6 consecutive sprints
+     * (Sprints 23-28 inclusive) of misses + the non-pipeline pivot's
+     * nnz_L-invariance-by-construction.  RUN_TEST commented out
+     * until / unless a future sprint reaches 0.85× via fundamentally
+     * different machinery.  See test body for the contract +
+     * Sprint-28 evidence. */
+    /* RUN_TEST(test_non_pipeline_pres_poisson_close_to_target); */
 
     /* Day 8: enum dispatch on each factorization. */
     RUN_TEST(test_lu_via_nd_dispatch);

@@ -1,0 +1,202 @@
+# Sprint 28 Day 12 cross-corpus combination matrix
+# 24 settings × 6 fixtures.  Default coarsening: HCC + Kuu-safe;
+# nd_base_threshold = 128 unless overridden.  Settings 15, 16, 21, 23,
+# 24 use --nd-threshold 256.  Setting 1 pins SPARSE_ND_COARSENING=heavy_edge.
+# All cells use sparse_analyze(REORDER_ND) so the SUPERNODAL_POSTORDER
+# dispatch fires on item-4 cells.  reorder_ms here = full sparse_analyze
+# wall (reorder + etree + colcount + symbolic) since the dispatch is
+# inside sparse_analyze; not directly comparable to Sprint 27 Day 13's
+# bench_reorder timings which only measured sparse_reorder_nd's wall.
+
+=== Setting 1: Sprint 26 default (HEM, t=96) ===
+nos4,100,ND,809,27.9,skip
+bcsstk04,132,ND,3722,69.9,skip
+Kuu,7102,ND,881177,2650.5,skip
+bcsstk14,1806,ND,129292,496.4,skip
+s3rmt3m3,5357,ND,483195,1414.9,skip
+Pres_Poisson,14822,ND,2536427,4446.5,skip
+
+=== Setting 2: Sprint 27 default (HCC + t=128) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3722,62.7,skip
+Kuu,7102,ND,764664,2716.1,skip
+bcsstk14,1806,ND,130422,225.9,skip
+s3rmt3m3,5357,ND,487832,2189.5,skip
+Pres_Poisson,14822,ND,2462201,3417.5,skip
+
+=== Setting 3: Sprint 28 item-4 SUPERNODAL_POSTORDER=on (default coarsening) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3722,63.3,skip
+Kuu,7102,ND,764664,2823.1,skip
+bcsstk14,1806,ND,130422,230.6,skip
+s3rmt3m3,5357,ND,487832,2237.9,skip
+Pres_Poisson,14822,ND,2462201,3623.7,skip
+
+=== Setting 4: Sprint 28 item-1 thick_restart × gain_noise_formal × linear ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3660,63.4,skip
+Kuu,7102,ND,1279823,1777.6,skip
+bcsstk14,1806,ND,146045,397.9,skip
+s3rmt3m3,5357,ND,526211,1403.7,skip
+Pres_Poisson,14822,ND,3110704,4251.1,skip
+
+=== Setting 5: Sprint 28 item-1 thick_restart × gain_noise_formal × exponential ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3660,61.8,skip
+Kuu,7102,ND,1279823,1752.6,skip
+bcsstk14,1806,ND,146045,378.6,skip
+s3rmt3m3,5357,ND,526211,1420.5,skip
+Pres_Poisson,14822,ND,3110704,4234.5,skip
+
+=== Setting 6: Sprint 28 item-2 ensemble × baseline,fifo,annealing (default selector) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3722,60.9,skip
+Kuu,7102,ND,791858,2495.1,skip
+bcsstk14,1806,ND,130462,550.5,skip
+s3rmt3m3,5357,ND,483750,1543.0,skip
+Pres_Poisson,14822,ND,2501627,4466.5,skip
+
+=== Setting 7: Sprint 28 item-2 ensemble × baseline,annealing (drop FIFO) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3722,64.1,skip
+Kuu,7102,ND,765132,2970.3,skip
+bcsstk14,1806,ND,130422,244.6,skip
+s3rmt3m3,5357,ND,487832,2354.5,skip
+Pres_Poisson,14822,ND,2514282,4579.7,skip
+
+=== Setting 8: Sprint 28 item-2 ensemble × fifo,annealing (drop baseline) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3722,66.5,skip
+Kuu,7102,ND,807487,2753.9,skip
+bcsstk14,1806,ND,131240,576.1,skip
+s3rmt3m3,5357,ND,487949,1640.2,skip
+Pres_Poisson,14822,ND,2510458,4184.3,skip
+
+=== Setting 9: Sprint 28 item-2 ensemble × baseline,fifo,annealing,thick_restart (4-way) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3722,63.6,skip
+Kuu,7102,ND,791858,2536.2,skip
+bcsstk14,1806,ND,130462,566.1,skip
+s3rmt3m3,5357,ND,483750,1666.3,skip
+Pres_Poisson,14822,ND,2501627,4745.0,skip
+
+=== Setting 10: Sprint 27 advisory: per_vertex_fixed_k × hybrid ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3679,68.2,skip
+Kuu,7102,ND,499127,1664.9,skip
+bcsstk14,1806,ND,282996,221.5,skip
+s3rmt3m3,5357,ND,830461,2048.0,skip
+Pres_Poisson,14822,ND,3742309,4550.8,skip
+
+=== Setting 11: Sprint 27 advisory: annealing × exponential ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3722,68.8,skip
+Kuu,7102,ND,815158,2790.1,skip
+bcsstk14,1806,ND,129530,266.3,skip
+s3rmt3m3,5357,ND,487832,2501.7,skip
+Pres_Poisson,14822,ND,2538898,3839.5,skip
+
+=== Setting 12: Sprint 27 advisory: annealing × linear ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3722,66.3,skip
+Kuu,7102,ND,765132,3050.6,skip
+bcsstk14,1806,ND,130111,263.0,skip
+s3rmt3m3,5357,ND,487832,2497.5,skip
+Pres_Poisson,14822,ND,2515202,4820.2,skip
+
+=== Setting 13: Sprint 27 advisory: root-spectral ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3672,3.3,skip
+Kuu,7102,ND,892672,2763.0,skip
+bcsstk14,1806,ND,138693,544.0,skip
+s3rmt3m3,5357,ND,506077,1541.0,skip
+Pres_Poisson,14822,ND,2518428,3646.2,skip
+
+=== Setting 14: Sprint 27 advisory: thick_restart × gauss_noise (simplified) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3677,59.6,skip
+Kuu,7102,ND,772566,2219.7,skip
+bcsstk14,1806,ND,132599,144.7,skip
+s3rmt3m3,5357,ND,488049,1605.7,skip
+Pres_Poisson,14822,ND,2639539,4052.6,skip
+
+=== Setting 15: Sprint 27 advisory: t=256 Kuu opt-in ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3143,2.2,skip
+Kuu,7102,ND,719754,1336.0,skip
+bcsstk14,1806,ND,131549,168.4,skip
+s3rmt3m3,5357,ND,480865,1593.6,skip
+Pres_Poisson,14822,ND,2528685,2301.2,skip
+
+=== Setting 16: Sprint 27 advisory: t=256 + per_vertex_fixed_k × hybrid (Kuu best) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3143,1.6,skip
+Kuu,7102,ND,494409,791.9,skip
+bcsstk14,1806,ND,272930,121.4,skip
+s3rmt3m3,5357,ND,807983,1233.2,skip
+Pres_Poisson,14822,ND,3628555,1694.9,skip
+
+=== Setting 17: Sprint 28 stack: item-4 × item-1 (SUPERNODAL=on + thick_restart × gain_noise_formal × linear) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3660,66.6,skip
+Kuu,7102,ND,1279823,1908.2,skip
+bcsstk14,1806,ND,146045,410.5,skip
+s3rmt3m3,5357,ND,526211,1429.9,skip
+Pres_Poisson,14822,ND,3110704,4331.0,skip
+
+=== Setting 18: Sprint 28 stack: item-4 × item-2 (SUPERNODAL=on + ensemble default) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3722,63.2,skip
+Kuu,7102,ND,791858,2540.4,skip
+bcsstk14,1806,ND,130462,543.3,skip
+s3rmt3m3,5357,ND,483750,1606.5,skip
+Pres_Poisson,14822,ND,2501627,4546.5,skip
+
+=== Setting 19: Sprint 28 stack: item-1 × item-2 (thick × gain_noise_formal × linear + ensemble default) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3722,61.3,skip
+Kuu,7102,ND,791858,2495.1,skip
+bcsstk14,1806,ND,130862,534.2,skip
+s3rmt3m3,5357,ND,490541,2153.6,skip
+Pres_Poisson,14822,ND,2501627,4466.4,skip
+
+=== Setting 20: Sprint 28 stack: item-4 × item-1 × item-2 (all three Sprint 28 axes) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3722,62.9,skip
+Kuu,7102,ND,791858,2559.0,skip
+bcsstk14,1806,ND,130862,537.4,skip
+s3rmt3m3,5357,ND,490541,2215.3,skip
+Pres_Poisson,14822,ND,2501627,4502.4,skip
+
+=== Setting 21: Sprint 28 stack: item-4 × Sprint 27 Kuu opt-in (SUPERNODAL=on + t=256) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3143,1.9,skip
+Kuu,7102,ND,719754,1273.3,skip
+bcsstk14,1806,ND,131549,161.9,skip
+s3rmt3m3,5357,ND,480865,1599.6,skip
+Pres_Poisson,14822,ND,2528685,2337.2,skip
+
+=== Setting 22: Sprint 28 stack: item-4 × per_vertex_fixed_k × hybrid (SUPERNODAL=on + Sprint 27 advisory) ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3679,64.5,skip
+Kuu,7102,ND,499127,1575.5,skip
+bcsstk14,1806,ND,282996,210.4,skip
+s3rmt3m3,5357,ND,830461,1962.7,skip
+Pres_Poisson,14822,ND,3742309,4258.5,skip
+
+=== Setting 23: Sprint 28 kitchen-sink: item-4 + item-1 + item-2 + Sprint 27 t=256 + fixed_k hybrid ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3143,2.0,skip
+Kuu,7102,ND,484818,1417.6,skip
+bcsstk14,1806,ND,242264,161.5,skip
+s3rmt3m3,5357,ND,1102221,829.4,skip
+Pres_Poisson,14822,ND,3564434,1669.4,skip
+
+=== Setting 24: Sprint 28 kitchen-sink lite: item-4 + Sprint 27 t=256 + fixed_k hybrid + root-spectral ===
+nos4,100,ND,637,0.2,skip
+bcsstk04,132,ND,3143,1.9,skip
+Kuu,7102,ND,542362,1359.9,skip
+bcsstk14,1806,ND,252089,117.6,skip
+s3rmt3m3,5357,ND,895125,504.9,skip
+Pres_Poisson,14822,ND,4396227,1843.2,skip
+

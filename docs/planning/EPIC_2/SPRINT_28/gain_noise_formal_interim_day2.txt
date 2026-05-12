@@ -1,0 +1,167 @@
+# Sprint 28 Day 2 — Formal gain-noise thick-restart interim sweep
+# Single-fixture single-run measurements; full sweep waits for Day 12-13.
+# Default coarsening: HCC + Kuu-safe (Sprint 27 Day 2); nd_base_threshold=128 (Sprint 27 Day 3).
+# All runs --skip-factor; nnz_L only.
+
+=== Fixture: nos4 ===
+-- baseline (Sprint 27 default; no thick-restart) --
+nos4,100,AMD,637,0.3,skip
+nos4,100,COLAMD,778,0.4,skip
+nos4,100,ND,637,0.4,skip
+
+-- thick_restart + gain_noise_formal (linear schedule, default) --
+nos4,100,AMD,637,0.5,skip
+nos4,100,COLAMD,778,0.3,skip
+nos4,100,ND,637,0.3,skip
+
+-- thick_restart + gain_noise_formal (exponential schedule) --
+nos4,100,AMD,637,0.2,skip
+nos4,100,COLAMD,778,0.3,skip
+nos4,100,ND,637,0.3,skip
+
+-- thick_restart + gauss_noise (Sprint 27 simplified; back-compat) --
+nos4,100,AMD,637,0.3,skip
+nos4,100,COLAMD,778,0.4,skip
+nos4,100,ND,637,0.6,skip
+
+=== Fixture: bcsstk04 ===
+-- baseline (Sprint 27 default; no thick-restart) --
+bcsstk04,132,AMD,3143,2.0,skip
+bcsstk04,132,COLAMD,3622,3.6,skip
+bcsstk04,132,ND,3722,175.6,skip
+
+-- thick_restart + gain_noise_formal (linear schedule, default) --
+bcsstk04,132,AMD,3143,2.4,skip
+bcsstk04,132,COLAMD,3622,3.3,skip
+bcsstk04,132,ND,3660,178.0,skip
+
+-- thick_restart + gain_noise_formal (exponential schedule) --
+bcsstk04,132,AMD,3143,2.3,skip
+bcsstk04,132,COLAMD,3622,3.6,skip
+bcsstk04,132,ND,3678,175.0,skip
+
+-- thick_restart + gauss_noise (Sprint 27 simplified; back-compat) --
+bcsstk04,132,AMD,3143,1.9,skip
+bcsstk04,132,COLAMD,3622,3.3,skip
+bcsstk04,132,ND,3677,175.1,skip
+
+=== Fixture: Kuu ===
+-- baseline (Sprint 27 default; no thick-restart) --
+Kuu,7102,AMD,406264,745.5,skip
+Kuu,7102,COLAMD,830665,5528.4,skip
+Kuu,7102,ND,764664,8147.4,skip
+
+-- thick_restart + gain_noise_formal (linear schedule, default) --
+Kuu,7102,AMD,406264,624.5,skip
+Kuu,7102,COLAMD,830665,5149.5,skip
+Kuu,7102,ND,1279823,5253.4,skip
+
+-- thick_restart + gain_noise_formal (exponential schedule) --
+Kuu,7102,AMD,406264,703.3,skip
+Kuu,7102,COLAMD,830665,4939.0,skip
+Kuu,7102,ND,1245143,2504.4,skip
+
+-- thick_restart + gauss_noise (Sprint 27 simplified; back-compat) --
+Kuu,7102,AMD,406264,674.2,skip
+Kuu,7102,COLAMD,830665,5075.4,skip
+Kuu,7102,ND,772566,6684.3,skip
+
+=== Fixture: bcsstk14 ===
+-- baseline (Sprint 27 default; no thick-restart) --
+bcsstk14,1806,AMD,116071,165.3,skip
+bcsstk14,1806,COLAMD,146037,211.7,skip
+bcsstk14,1806,ND,130422,685.7,skip
+
+-- thick_restart + gain_noise_formal (linear schedule, default) --
+bcsstk14,1806,AMD,116071,164.2,skip
+bcsstk14,1806,COLAMD,146037,209.0,skip
+bcsstk14,1806,ND,146045,1204.4,skip
+
+-- thick_restart + gain_noise_formal (exponential schedule) --
+bcsstk14,1806,AMD,116071,147.0,skip
+bcsstk14,1806,COLAMD,146037,200.8,skip
+bcsstk14,1806,ND,148268,844.2,skip
+
+-- thick_restart + gauss_noise (Sprint 27 simplified; back-compat) --
+bcsstk14,1806,AMD,116071,160.1,skip
+bcsstk14,1806,COLAMD,146037,209.7,skip
+bcsstk14,1806,ND,132599,435.8,skip
+
+=== Fixture: s3rmt3m3 ===
+-- baseline (Sprint 27 default; no thick-restart) --
+s3rmt3m3,5357,AMD,474609,912.0,skip
+s3rmt3m3,5357,COLAMD,607647,1508.6,skip
+s3rmt3m3,5357,ND,487832,6563.7,skip
+
+-- thick_restart + gain_noise_formal (linear schedule, default) --
+s3rmt3m3,5357,AMD,474609,946.9,skip
+s3rmt3m3,5357,COLAMD,607647,1340.2,skip
+s3rmt3m3,5357,ND,526211,3897.6,skip
+
+-- thick_restart + gain_noise_formal (exponential schedule) --
+s3rmt3m3,5357,AMD,474609,999.3,skip
+s3rmt3m3,5357,COLAMD,607647,1466.8,skip
+s3rmt3m3,5357,ND,521918,3670.6,skip
+
+-- thick_restart + gauss_noise (Sprint 27 simplified; back-compat) --
+s3rmt3m3,5357,AMD,474609,922.7,skip
+s3rmt3m3,5357,COLAMD,607647,1335.9,skip
+s3rmt3m3,5357,ND,488049,4577.7,skip
+
+=== Fixture: Pres_Poisson ===
+-- baseline (Sprint 27 default; no thick-restart) --
+Pres_Poisson,14822,AMD,2668793,9883.7,skip
+Pres_Poisson,14822,COLAMD,3415793,17126.1,skip
+Pres_Poisson,14822,ND,2462201,9441.7,skip
+
+-- thick_restart + gain_noise_formal (linear schedule, default) --
+Pres_Poisson,14822,AMD,2668793,9517.4,skip
+Pres_Poisson,14822,COLAMD,3415793,17269.2,skip
+Pres_Poisson,14822,ND,3110704,11396.7,skip
+
+-- thick_restart + gain_noise_formal (exponential schedule) --
+Pres_Poisson,14822,AMD,2668793,9765.9,skip
+Pres_Poisson,14822,COLAMD,3415793,16901.1,skip
+Pres_Poisson,14822,ND,3000680,10944.2,skip
+
+-- thick_restart + gauss_noise (Sprint 27 simplified; back-compat) --
+Pres_Poisson,14822,AMD,2668793,9845.6,skip
+Pres_Poisson,14822,COLAMD,3415793,16954.5,skip
+Pres_Poisson,14822,ND,2639539,9844.4,skip
+
+
+# ============================================================
+# Day 2 quick-look summary (full sweep + decision in Day 3)
+# ============================================================
+#
+# Per-fixture ND nnz_L deltas vs Sprint 27 default (baseline):
+#
+#   fixture       baseline     gnf-linear    gnf-exp      gauss_noise
+#   ----------    ---------    ----------    ---------    -----------
+#   nos4          637          637  (0.0%)   637 (0.0%)   637 (0.0%)
+#   bcsstk04      3722         3660 (-1.7%)  3678 (-1.2%) 3677 (-1.2%)
+#   Kuu           764664       1279823 (+67.4%)  1245143 (+62.9%)  772566 (+1.0%)
+#   bcsstk14      130422       146045 (+12.0%)   148268 (+13.7%)   132599 (+1.7%)
+#   s3rmt3m3      487832       526211 (+7.9%)    521918 (+7.0%)    488049 (+0.04%)
+#   Pres_Poisson  2462201      3110704 (+26.3%)  3000680 (+21.9%)  2639539 (+7.2%)
+#
+# Headline: gain_noise_formal (linear) REGRESSES Pres_Poisson by 26.3%
+# vs Sprint 27 default — substantially worse than Sprint 27's
+# simplified gauss_noise variant (which regressed +7.2%).  The formal
+# variant's per-vertex Gaussian noise on bucket placement disrupts
+# the FM walk's convergence to Pres_Poisson's near-optimal cut more
+# aggressively than gauss_noise's k = n/50 random-flip simplification.
+#
+# Empirical conclusion (consistent with Sprint 27's "Empirical
+# evidence > algorithmic intuition" retrospective lesson #1): the
+# formal Day-10 design's intent (gain-comparator perturbation) is
+# implemented faithfully but does NOT beat Sprint 27's simplified
+# gauss_noise on Pres_Poisson.  The smaller-fixture wins on bcsstk04
+# (-1.7%) suggest the formal variant has narrow per-fixture-class
+# applicability comparable to Sprint 27's other advisory FM
+# strategies (annealing-bcsstk14, thick_restart-s3rmt3m3, etc).
+#
+# Day 3 task 1 will run the full corpus sweep under both schedules
+# (linear + exponential) and write gain_noise_decision.md with the
+# flip-or-stay verdict.  Most likely outcome per the Sprint 27
+# evidence pattern: advisory only.

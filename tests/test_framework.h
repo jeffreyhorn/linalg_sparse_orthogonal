@@ -164,4 +164,41 @@ static clock_t tf_suite_start;
             TF_FAIL_("ASSERT_NOT_NULL(%s) failed", #ptr);                                          \
     } while (0)
 
+/* ─── Cross-platform env-var helpers ─────────────────────────────────
+ *
+ * setenv() / unsetenv() are POSIX.1-2001 extensions and are NOT
+ * available in MSVC's <stdlib.h>; the documented Windows / CMake /
+ * ctest workflow needs `_putenv_s` instead.  Tests that mutate env
+ * vars should call `tf_setenv` / `tf_unsetenv` rather than the
+ * underlying functions directly so the test binaries compile across
+ * platforms.
+ *
+ * Implemented as macros (not `static inline` functions) so the
+ * underlying setenv/unsetenv references only appear at use sites.
+ * That way only the .c files that actually CALL `tf_setenv` /
+ * `tf_unsetenv` need to define `_POSIX_C_SOURCE >= 200809L` at the
+ * top of the file (before any system header) — files that include
+ * `test_framework.h` but don't touch env vars don't pay the
+ * feature-test cost (and tsan CI builds against test_eigs.c etc.
+ * don't fail with implicit-declaration errors).
+ *
+ * Both macros return 0 on success, non-zero on failure (matching
+ * setenv()'s convention).  `tf_unsetenv` calls `_putenv_s(name, "")`
+ * on Windows — note that empty-string-as-unset is the documented
+ * MSVC convention (per `_putenv_s` MSDN); on POSIX we use unsetenv()
+ * directly.  Caller-visible behaviour: `getenv(name)` returns NULL
+ * after `tf_unsetenv(name)` on POSIX; on Windows `getenv(name)`
+ * returns NULL after `tf_unsetenv(name)` because empty-string
+ * environment entries are removed by `_putenv_s`. */
+#ifdef _WIN32
+#define tf_setenv(name, value) _putenv_s((name), (value))
+#define tf_unsetenv(name) _putenv_s((name), "")
+#else
+/* On POSIX (glibc / Apple libc): caller's .c file must `#define
+ * _POSIX_C_SOURCE 200809L` BEFORE any include so `setenv` /
+ * `unsetenv` get declared by `<stdlib.h>`. */
+#define tf_setenv(name, value) setenv((name), (value), /*overwrite=*/1)
+#define tf_unsetenv(name) unsetenv((name))
+#endif
+
 #endif /* TEST_FRAMEWORK_H */

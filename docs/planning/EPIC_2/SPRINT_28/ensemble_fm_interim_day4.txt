@@ -1,0 +1,83 @@
+# Sprint 28 Day 4 — ensemble interim sweep
+# Single-fixture single-run measurements; full sweep + decision in Day 5.
+# Default coarsening: HCC + Kuu-safe (Sprint 27 Day 2); nd_base_threshold=128 (Sprint 27 Day 3).
+# Strategies: baseline (Sprint 27 default reference) | ensemble (baseline,fifo,annealing).
+
+=== nos4: baseline (Sprint 27 default) ===
+nos4,100,ND,637,0.7,skip
+
+=== nos4: ensemble (baseline,fifo,annealing) ===
+nos4,100,ND,637,0.5,skip
+
+=== bcsstk04: baseline (Sprint 27 default) ===
+bcsstk04,132,ND,3722,222.8,skip
+
+=== bcsstk04: ensemble (baseline,fifo,annealing) ===
+bcsstk04,132,ND,3722,215.5,skip
+
+=== Kuu: baseline (Sprint 27 default) ===
+Kuu,7102,ND,764664,9178.4,skip
+
+=== Kuu: ensemble (baseline,fifo,annealing) ===
+Kuu,7102,ND,791858,8340.0,skip
+
+=== bcsstk14: baseline (Sprint 27 default) ===
+bcsstk14,1806,ND,130422,824.7,skip
+
+=== bcsstk14: ensemble (baseline,fifo,annealing) ===
+bcsstk14,1806,ND,130462,1729.7,skip
+
+=== s3rmt3m3: baseline (Sprint 27 default) ===
+s3rmt3m3,5357,ND,487832,7219.2,skip
+
+=== s3rmt3m3: ensemble (baseline,fifo,annealing) ===
+s3rmt3m3,5357,ND,483750,5560.3,skip
+
+=== Pres_Poisson: baseline (Sprint 27 default) ===
+Pres_Poisson,14822,ND,2462201,12262.2,skip
+
+=== Pres_Poisson: ensemble (baseline,fifo,annealing) ===
+Pres_Poisson,14822,ND,2501627,15550.0,skip
+
+
+# ============================================================
+# Day 4 quick-look summary (full sweep + decision in Day 5)
+# ============================================================
+#
+# Per-fixture ND nnz_L + wall (ms) deltas vs Sprint 27 default:
+#
+#   fixture       baseline       ensemble       Δnnz_L     wall ratio
+#   ----------    -----------    -----------    --------   ----------
+#   nos4          637            637            0.0%       0.7x
+#   bcsstk04      3722           3722           0.0%       0.97x
+#   Kuu           764664         791858         +3.6%      0.91x
+#   bcsstk14      130422         130462         +0.03%     2.10x
+#   s3rmt3m3      487832         483750         -0.8%      0.77x
+#   Pres_Poisson  2462201        2501627        +1.6%      1.27x
+#
+# Headline: ensemble REGRESSES Pres_Poisson +1.6% vs Sprint 27 default
+# (2462201 → 2501627).  Fails Day-5 flip rule gate (a) which requires
+# Pres_Poisson improvement ≥ 1pp.
+#
+# Surprising: ensemble's pick-best-edge-cut contract DOES land lower
+# edge cuts (per `test_finest_fm_ensemble_picks_best_strategy`: Kuu
+# baseline edge cut=260, FIFO=214, annealing=280, ensemble picks 214).
+# But the resulting ND nnz_L on Kuu is HIGHER under ensemble (791858
+# vs 764664 = +3.6%).  Lower edge cut + Sprint 22 smaller-side
+# vertex-separator lift produces a different (smaller) separator that
+# may not preserve the AMD-friendly elimination structure inside each
+# side.  Edge-cut pick-best ≠ nnz_L pick-best — the missing layer.
+#
+# Wall variability: ensemble does ~3x the FM work per pass, but
+# wall measurements vary 0.77x to 2.10x of baseline due to per-
+# strategy FM cost differences + measurement variance.  All fixtures
+# stay well under the 70.5s wall-check ceiling.
+#
+# Empirical conclusion (preliminary; Day 5 will confirm with full
+# selector-variant sweep): ensemble ships as advisory only.  The
+# pick-best-by-edge-cut contract doesn't translate to pick-best-by-
+# nnz_L on the headline fixture.  Consistent with Sprint 27
+# retrospective lesson #1 ("Empirical evidence > algorithmic
+# intuition") — the design's "explore K strategies + pick best"
+# motivation is sound at the edge-cut level but loses at the
+# vertex-separator-then-Cholesky-fill level.

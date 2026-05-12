@@ -1,3 +1,12 @@
+/* _POSIX_C_SOURCE 200809L: needed for `setenv` / `unsetenv` used by
+ * the `tf_setenv` / `tf_unsetenv` macros from test_framework.h.
+ * Must be defined BEFORE any system header is included so glibc's
+ * `<features.h>` sees it on first inclusion (Sprint 27 / 28 tests
+ * mutate env vars to drive coarsening / FM / ensemble strategies). */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 200809L
+#endif
 /*
  * Sprint 22 Days 1-2 — graph partitioner unit tests.
  *
@@ -315,7 +324,7 @@ static void test_hierarchy_build_5x5_grid(void) {
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
 
-    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
         printf("    skipped (setenv failed)\n");
         sparse_graph_free(&G);
         sparse_free(A);
@@ -324,7 +333,7 @@ static void test_hierarchy_build_5x5_grid(void) {
 
     sparse_graph_hierarchy_t h = {0};
     sparse_err_t hrc = sparse_graph_hierarchy_build(&G, /*seed=*/42u, &h);
-    unsetenv("SPARSE_ND_COARSENING");
+    tf_unsetenv("SPARSE_ND_COARSENING");
     REQUIRE_OK(hrc);
 
     ASSERT_TRUE(h.nlevels >= 1);
@@ -810,7 +819,7 @@ static void test_spectral_bisection_eigenvalue_ordering(void) {
  * (min(n0, n1) / max(n0, n1)) is >= 0.4 — proving fallback fired
  * (because spectral alone would produce 0.1). */
 static void test_spectral_bisection_gggp_fallback(void) {
-    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSEST_BISECTION", "spectral") != 0) {
         printf("    skipped (setenv failed)\n");
         return;
     }
@@ -832,7 +841,7 @@ static void test_spectral_bisection_gggp_fallback(void) {
 
     idx_t part[11] = {0};
     sparse_err_t rc = graph_bisect_coarsest(&G, part);
-    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    tf_unsetenv("SPARSE_ND_COARSEST_BISECTION");
 
     REQUIRE_OK(rc);
 
@@ -875,7 +884,7 @@ static void test_spectral_bisection_gggp_fallback(void) {
 /* Trivial size n=1: spectral skips Lanczos and assigns the single
  * vertex to side 0 directly. */
 static void test_spectral_bisection_n1(void) {
-    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSEST_BISECTION", "spectral") != 0) {
         printf("    skipped (setenv failed)\n");
         return;
     }
@@ -889,7 +898,7 @@ static void test_spectral_bisection_n1(void) {
 
     idx_t part[1] = {99}; /* sentinel */
     sparse_err_t rc = graph_bisect_coarsest(&G, part);
-    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    tf_unsetenv("SPARSE_ND_COARSEST_BISECTION");
     REQUIRE_OK(rc);
 
     /* n=1 must produce part[0] = 0 (degenerate single-vertex partition). */
@@ -902,7 +911,7 @@ static void test_spectral_bisection_n1(void) {
 /* Trivial size n=2: spectral skips Lanczos and assigns each vertex
  * to its own side (the unique 2-way split). */
 static void test_spectral_bisection_n2(void) {
-    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSEST_BISECTION", "spectral") != 0) {
         printf("    skipped (setenv failed)\n");
         return;
     }
@@ -919,7 +928,7 @@ static void test_spectral_bisection_n2(void) {
 
     idx_t part[2] = {99, 99}; /* sentinels */
     sparse_err_t rc = graph_bisect_coarsest(&G, part);
-    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    tf_unsetenv("SPARSE_ND_COARSEST_BISECTION");
     REQUIRE_OK(rc);
 
     /* n=2 must produce {part[0]=0, part[1]=1} — the unique 2-way split. */
@@ -942,7 +951,7 @@ static void test_spectral_bisection_n2(void) {
  * graph_bisect_coarsest_spectral fires and bisect_gggp produces
  * the partition. */
 static void test_spectral_bisection_disconnected(void) {
-    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSEST_BISECTION", "spectral") != 0) {
         printf("    skipped (setenv failed)\n");
         return;
     }
@@ -974,7 +983,7 @@ static void test_spectral_bisection_disconnected(void) {
 
     idx_t part[6] = {0};
     sparse_err_t rc = graph_bisect_coarsest(&G, part);
-    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    tf_unsetenv("SPARSE_ND_COARSEST_BISECTION");
     REQUIRE_OK(rc);
 
     /* Validate structural contract.  The disconnected-graph fallback
@@ -1010,7 +1019,7 @@ static void test_spectral_bisection_disconnected(void) {
  * this test stays as a smoke test rather than a true Lanczos-
  * failure injection. */
 static void test_spectral_bisection_lanczos_failure(void) {
-    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSEST_BISECTION", "spectral") != 0) {
         printf("    skipped (setenv failed)\n");
         return;
     }
@@ -1045,7 +1054,7 @@ static void test_spectral_bisection_lanczos_failure(void) {
 
     idx_t part[5] = {0};
     sparse_err_t rc = graph_bisect_coarsest(&G, part);
-    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    tf_unsetenv("SPARSE_ND_COARSEST_BISECTION");
     REQUIRE_OK(rc);
 
     /* Structural contract: valid partition. */
@@ -1083,7 +1092,7 @@ static void test_fm_intermediate_passes_smoke(void) {
      *
      * We unsetenv after the test to keep the per-process env clean
      * for subsequent tests in this binary's run. */
-    if (setenv("SPARSE_FM_INTERMEDIATE_PASSES", "2", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_FM_INTERMEDIATE_PASSES", "2") != 0) {
         printf("    skipped (setenv failed; can't exercise env-var plumbing)\n");
         return;
     }
@@ -1100,7 +1109,7 @@ static void test_fm_intermediate_passes_smoke(void) {
 
     /* Restore env before any potential REQUIRE_OK / ASSERT exit so
      * subsequent tests run with the default. */
-    unsetenv("SPARSE_FM_INTERMEDIATE_PASSES");
+    tf_unsetenv("SPARSE_FM_INTERMEDIATE_PASSES");
 
     REQUIRE_OK(rc);
 
@@ -1171,7 +1180,7 @@ static void test_finest_fm_strategy_fifo_smoke(void) {
      * which can collapse the FIFO-vs-baseline differentiation.
      * Pinning HEM keeps this test scoped to its Sprint 26 design
      * intent under the new HCC default (Sprint 27 Day 2 flip). */
-    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
         printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
         return;
     }
@@ -1190,7 +1199,7 @@ static void test_finest_fm_strategy_fifo_smoke(void) {
     ASSERT_EQ(G.n, 900);
 
     /* Baseline run (env var unset). */
-    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
     part_baseline = malloc((size_t)G.n * sizeof(idx_t));
     if (!part_baseline) {
         TF_FAIL_("malloc(part_baseline) returned NULL (n=%d)", (int)G.n);
@@ -1208,7 +1217,7 @@ static void test_finest_fm_strategy_fifo_smoke(void) {
     }
 
     /* FIFO run #1. */
-    if (setenv("SPARSE_FM_FINEST_STRATEGY", "fifo", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_FM_FINEST_STRATEGY", "fifo") != 0) {
         printf("    skipped (setenv failed; can't exercise env-var plumbing)\n");
         goto cleanup;
     }
@@ -1258,12 +1267,385 @@ static void test_finest_fm_strategy_fifo_smoke(void) {
 
 cleanup:
     if (env_set)
-        unsetenv("SPARSE_FM_FINEST_STRATEGY");
+        tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
     if (coarsening_env_set)
-        unsetenv("SPARSE_ND_COARSENING");
+        tf_unsetenv("SPARSE_ND_COARSENING");
     free(part_baseline);
     free(part_fifo1);
     free(part_fifo2);
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* Sprint 28 Day 2 — Item 1: formal gain-bucket-noise variant of
+ * thick-restart FM lights up under
+ *   SPARSE_FM_FINEST_STRATEGY=thick_restart
+ *   SPARSE_FM_THICK_RESTART_PERTURB=gain_noise_formal
+ *
+ * Smoke-test contract:
+ *   (a) Two runs with the same env state produce bit-identical
+ *       partitions (deterministic via per-call (n, k) seeded RNG).
+ *   (b) The gain_noise_formal partition differs from the baseline
+ *       (env unset) partition, evidence that the new code path is
+ *       being exercised.
+ *
+ * Fixture: 5×5×5 3D mesh (n=125).  The mesh has three perpendicular
+ * mid-planes of equivalent cut quality (sep ≈ 25 each).  Baseline FM
+ * deterministically picks one; the gain_noise_formal noise on the
+ * bucket placement perturbs the FM walk enough to land a different
+ * (still ≤ near-optimal) partition — sufficient for the smoke
+ * contract.  A 30×30 2D grid was tried first but its single optimal
+ * cut (median row, sep=30) is robust to the per-pass gain noise: both
+ * walks converge to bit-identical assignments.  Pinned to
+ * SPARSE_ND_COARSENING=heavy_edge per the same Sprint 27 Day 2
+ * pattern as the FIFO smoke test (HCC's tighter matching on regular
+ * fixtures can collapse small differences).
+ */
+static void test_finest_fm_gain_noise_formal_disrupts_baseline(void) {
+    SparseMatrix *A = NULL;
+    sparse_graph_t G = {0};
+    idx_t *part_baseline = NULL;
+    idx_t *part_gnf1 = NULL;
+    idx_t *part_gnf2 = NULL;
+    int strategy_env_set = 0;
+    int perturb_env_set = 0;
+    int coarsening_env_set = 0;
+
+    if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        return;
+    }
+    coarsening_env_set = 1;
+
+    A = make_mesh_3d(5);
+    if (!A) {
+        TF_FAIL_("make_mesh_3d(%d) returned NULL (OOM)", 5);
+        goto cleanup;
+    }
+    sparse_err_t rc = sparse_graph_from_sparse(A, &G);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_from_sparse: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    ASSERT_EQ(G.n, 125);
+
+    /* Baseline run (env vars unset; default FM behaviour). */
+    tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    tf_unsetenv("SPARSE_FM_THICK_RESTART_PERTURB");
+    part_baseline = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_baseline) {
+        TF_FAIL_("malloc(part_baseline) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep_baseline = 0;
+    rc = sparse_graph_partition(&G, part_baseline, &sep_baseline);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(baseline): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    if (!check_partition_invariant(&G, part_baseline)) {
+        TF_FAIL_("baseline partition invariant failed (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+
+    /* gain_noise_formal run #1. */
+    if (tf_setenv("SPARSE_FM_FINEST_STRATEGY", "thick_restart") != 0) {
+        printf("    skipped (setenv SPARSE_FM_FINEST_STRATEGY failed)\n");
+        goto cleanup;
+    }
+    strategy_env_set = 1;
+    if (tf_setenv("SPARSE_FM_THICK_RESTART_PERTURB", "gain_noise_formal") != 0) {
+        printf("    skipped (setenv SPARSE_FM_THICK_RESTART_PERTURB failed)\n");
+        goto cleanup;
+    }
+    perturb_env_set = 1;
+    part_gnf1 = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_gnf1) {
+        TF_FAIL_("malloc(part_gnf1) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep_gnf1 = 0;
+    rc = sparse_graph_partition(&G, part_gnf1, &sep_gnf1);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(gain_noise_formal #1): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    if (!check_partition_invariant(&G, part_gnf1)) {
+        TF_FAIL_("gain_noise_formal #1 partition invariant failed (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+
+    /* gain_noise_formal run #2 (determinism check). */
+    part_gnf2 = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_gnf2) {
+        TF_FAIL_("malloc(part_gnf2) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep_gnf2 = 0;
+    rc = sparse_graph_partition(&G, part_gnf2, &sep_gnf2);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(gain_noise_formal #2): rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    /* (a) determinism: two runs produce bit-identical partitions. */
+    ASSERT_EQ(sep_gnf1, sep_gnf2);
+    ASSERT_EQ(memcmp(part_gnf1, part_gnf2, (size_t)G.n * sizeof(idx_t)), 0);
+
+    /* (b) differs from baseline: the new code path is exercised. */
+    int differs = (sep_baseline != sep_gnf1) ||
+                  (memcmp(part_baseline, part_gnf1, (size_t)G.n * sizeof(idx_t)) != 0);
+    printf("    5x5x5 mesh: baseline sep=%d, gain_noise_formal sep=%d, partitions %s\n",
+           (int)sep_baseline, (int)sep_gnf1,
+           differs ? "DIFFER (gain_noise_formal active)" : "match");
+    ASSERT_TRUE(differs);
+
+cleanup:
+    if (perturb_env_set)
+        tf_unsetenv("SPARSE_FM_THICK_RESTART_PERTURB");
+    if (strategy_env_set)
+        tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    if (coarsening_env_set)
+        tf_unsetenv("SPARSE_ND_COARSENING");
+    free(part_baseline);
+    free(part_gnf1);
+    free(part_gnf2);
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* Sprint 28 Day 4 — Item 2: multi-strategy FM ensemble's corpus-
+ * safety contract (NOT a strict pick-correctness contract).
+ *
+ * Under SPARSE_FM_FINEST_STRATEGY=ensemble, graph_uncoarsen runs K
+ * FM strategies in parallel per finest-level pass (default
+ * SPARSE_FM_ENSEMBLE_STRATEGIES=baseline,fifo,annealing) and picks
+ * the strategy with the lowest INTERNAL cut weight (computed inside
+ * graph_refine_fm during each strategy's run; not exposed back to
+ * the caller).  The public sparse_graph_partition output gives us
+ * only the resulting separator size after the Sprint 22 vertex-
+ * separator lift, NOT the internal edge-cut weight that the
+ * ensemble picked on.
+ *
+ * As a result, this test asserts the corpus-safety contract
+ * (ensemble's separator size ≤ max of the three individual
+ * strategies' separator sizes) rather than the strict-pick-
+ * correctness contract (ensemble cut ≤ min individual cut), which
+ * would require exposing the internal cut weight through the
+ * public API.  The corpus-safety variant catches catastrophic
+ * regressions (the ensemble must not produce a separator worse
+ * than the worst of the candidates).
+ */
+static void test_finest_fm_ensemble_corpus_safety(void) {
+    /* Kuu is bimodal-degree (CV=0.425) — Sprint 27 Day 13 evidence
+     * shows the three sub-strategies produce different cuts on
+     * Kuu (Day-3 sweep: baseline 764664 vs FIFO/annealing variants).
+     * Smaller fixtures (30×30 grid, 5×5×5 mesh) often have all
+     * strategies converge to the same cut, which still validates
+     * the ensemble doesn't make things worse but is a weaker
+     * pick-correctness signal.  Pinned at Kuu's full SPD load. */
+    SparseMatrix *A = NULL;
+    sparse_err_t rc_load = sparse_load_mm(&A, SS_DIR "/Kuu.mtx");
+    if (rc_load != SPARSE_OK || !A) {
+        printf("    skipped (Kuu fixture not loadable: %d)\n", (int)rc_load);
+        return;
+    }
+    sparse_graph_t G = {0};
+    idx_t *part_baseline = NULL;
+    idx_t *part_fifo = NULL;
+    idx_t *part_annealing = NULL;
+    idx_t *part_ensemble = NULL;
+    int strategy_env_set = 0;
+    int ens_list_env_set = 0;
+
+    sparse_err_t rc = sparse_graph_from_sparse(A, &G);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_from_sparse: rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    /* Per-strategy pattern (inlined below for each of the 4
+     * strategies — baseline, fifo, annealing, ensemble): set the
+     * SPARSE_FM_FINEST_STRATEGY env var (where applicable), allocate
+     * a per-strategy part[] buffer, run sparse_graph_partition,
+     * capture the separator size sep_<strategy>.  No helper macro:
+     * the per-strategy buffers (part_baseline, part_fifo, etc.) are
+     * tracked separately so the cleanup label can free each
+     * independently of which malloc / partition call failed. */
+
+    /* Strategy 1: baseline. */
+    tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    part_baseline = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_baseline) {
+        TF_FAIL_("malloc(part_baseline) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep_baseline = 0;
+    rc = sparse_graph_partition(&G, part_baseline, &sep_baseline);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(baseline): rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    /* Strategy 2: fifo. */
+    if (tf_setenv("SPARSE_FM_FINEST_STRATEGY", "fifo") != 0) {
+        printf("    skipped (setenv fifo failed)\n");
+        goto cleanup;
+    }
+    strategy_env_set = 1;
+    part_fifo = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_fifo) {
+        TF_FAIL_("malloc(part_fifo) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep_fifo = 0;
+    rc = sparse_graph_partition(&G, part_fifo, &sep_fifo);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(fifo): rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    /* Strategy 3: annealing. */
+    if (tf_setenv("SPARSE_FM_FINEST_STRATEGY", "annealing") != 0) {
+        printf("    skipped (setenv annealing failed)\n");
+        goto cleanup;
+    }
+    part_annealing = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_annealing) {
+        TF_FAIL_("malloc(part_annealing) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep_annealing = 0;
+    rc = sparse_graph_partition(&G, part_annealing, &sep_annealing);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(annealing): rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    /* Strategy ensemble (the picks-best variant). */
+    if (tf_setenv("SPARSE_FM_FINEST_STRATEGY", "ensemble") != 0) {
+        printf("    skipped (setenv ensemble failed)\n");
+        goto cleanup;
+    }
+    if (tf_setenv("SPARSE_FM_ENSEMBLE_STRATEGIES", "baseline,fifo,annealing") != 0) {
+        printf("    skipped (setenv ENSEMBLE_STRATEGIES failed)\n");
+        goto cleanup;
+    }
+    ens_list_env_set = 1;
+    part_ensemble = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part_ensemble) {
+        TF_FAIL_("malloc(part_ensemble) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep_ensemble = 0;
+    rc = sparse_graph_partition(&G, part_ensemble, &sep_ensemble);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(ensemble): rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    /* Corpus-safety contract: ensemble's separator size ≤ MAX of
+     * the three individual strategies' separator sizes.  The
+     * ensemble picks on the internal edge-cut weight (not exposed
+     * through the public API); the Sprint 22 vertex-separator lift
+     * step can produce small noise on top of the edge-cut winner,
+     * so the public-API contract we can assert here is the
+     * "ensemble doesn't regress past the worst candidate" variant.
+     * A strict "ensemble ≤ MIN(individual)" pick-correctness
+     * contract would require exposing the internal cut weight (see
+     * the function-level docstring for the rationale).
+     *
+     * The printed "min_individual" value below is informational
+     * only — it lets a reader spot when the ensemble happens to
+     * land at the best candidate, but the actual assertion is the
+     * ≤ MAX gate. */
+    idx_t min_individual = sep_baseline;
+    if (sep_fifo < min_individual)
+        min_individual = sep_fifo;
+    if (sep_annealing < min_individual)
+        min_individual = sep_annealing;
+    printf("    Kuu sep: baseline=%d, fifo=%d, annealing=%d, ensemble=%d, "
+           "min=%d\n",
+           (int)sep_baseline, (int)sep_fifo, (int)sep_annealing, (int)sep_ensemble,
+           (int)min_individual);
+
+    idx_t max_individual = sep_baseline;
+    if (sep_fifo > max_individual)
+        max_individual = sep_fifo;
+    if (sep_annealing > max_individual)
+        max_individual = sep_annealing;
+    ASSERT_TRUE(sep_ensemble <= max_individual);
+
+cleanup:
+    if (ens_list_env_set)
+        tf_unsetenv("SPARSE_FM_ENSEMBLE_STRATEGIES");
+    if (strategy_env_set)
+        tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    free(part_baseline);
+    free(part_fifo);
+    free(part_annealing);
+    free(part_ensemble);
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+/* Sprint 28 Day 4 — Item 2: multi-strategy FM ensemble's
+ * determinism contract.
+ *
+ * Two runs of the ensemble with the same env state must produce
+ * bit-identical partitions.  Pinned via the smaller 5×5×5 3D mesh
+ * (n=125) so the test runs in ms.
+ */
+static void test_finest_fm_ensemble_deterministic(void) {
+    SparseMatrix *A = make_mesh_3d(5);
+    if (!A) {
+        TF_FAIL_("make_mesh_3d(%d) returned NULL (OOM)", 5);
+        return;
+    }
+    sparse_graph_t G = {0};
+    idx_t *part1 = NULL;
+    idx_t *part2 = NULL;
+    int strategy_env_set = 0;
+
+    sparse_err_t rc = sparse_graph_from_sparse(A, &G);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_from_sparse: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    ASSERT_EQ(G.n, 125);
+
+    if (tf_setenv("SPARSE_FM_FINEST_STRATEGY", "ensemble") != 0) {
+        printf("    skipped (setenv failed)\n");
+        goto cleanup;
+    }
+    strategy_env_set = 1;
+
+    part1 = malloc((size_t)G.n * sizeof(idx_t));
+    part2 = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part1 || !part2) {
+        TF_FAIL_("malloc returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+    idx_t sep1 = 0;
+    idx_t sep2 = 0;
+    rc = sparse_graph_partition(&G, part1, &sep1);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition #1: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    rc = sparse_graph_partition(&G, part2, &sep2);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition #2: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    ASSERT_EQ(sep1, sep2);
+    ASSERT_EQ(memcmp(part1, part2, (size_t)G.n * sizeof(idx_t)), 0);
+
+cleanup:
+    if (strategy_env_set)
+        tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    free(part1);
+    free(part2);
     sparse_graph_free(&G);
     sparse_free(A);
 }
@@ -2004,7 +2386,7 @@ static void test_hcc_bcsstk14_no_degenerate_partition(void) {
     sparse_graph_t G = {0};
     idx_t *part = NULL;
 
-    if (setenv("SPARSE_ND_COARSENING", "hcc", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSENING", "hcc") != 0) {
         printf("    skipped (setenv failed)\n");
         goto cleanup;
     }
@@ -2040,7 +2422,7 @@ static void test_hcc_bcsstk14_no_degenerate_partition(void) {
     ASSERT_TRUE(check_partition_invariant(&G, part));
 
 cleanup:
-    unsetenv("SPARSE_ND_COARSENING");
+    tf_unsetenv("SPARSE_ND_COARSENING");
     free(part);
     sparse_graph_free(&G);
     sparse_free(A);
@@ -2093,7 +2475,7 @@ static void test_per_vertex_fixed_k_differs_from_dynamic_k(void) {
     ASSERT_EQ(G.n, 900);
 
     /* Dynamic-K (Sprint 26 Day 10 baseline) under the hybrid weight. */
-    if (setenv("SPARSE_ND_SEP_LIFT_STRATEGY", "per_vertex", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_SEP_LIFT_STRATEGY", "per_vertex") != 0) {
         printf("    skipped (setenv failed)\n");
         goto cleanup;
     }
@@ -2111,7 +2493,7 @@ static void test_per_vertex_fixed_k_differs_from_dynamic_k(void) {
     }
 
     /* Fixed-K (Sprint 27 Day 4 new) under the same hybrid weight. */
-    if (setenv("SPARSE_ND_SEP_LIFT_STRATEGY", "per_vertex_fixed_k", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_SEP_LIFT_STRATEGY", "per_vertex_fixed_k") != 0) {
         TF_FAIL_("setenv SPARSE_ND_SEP_LIFT_STRATEGY=%s failed", "per_vertex_fixed_k");
         goto cleanup;
     }
@@ -2139,7 +2521,7 @@ static void test_per_vertex_fixed_k_differs_from_dynamic_k(void) {
 
 cleanup:
     if (env_set)
-        unsetenv("SPARSE_ND_SEP_LIFT_STRATEGY");
+        tf_unsetenv("SPARSE_ND_SEP_LIFT_STRATEGY");
     free(part_dynamic);
     free(part_fixed);
     sparse_graph_free(&G);
@@ -2201,6 +2583,14 @@ int main(void) {
     /* Sprint 26 Day 6: SPARSE_FM_FINEST_STRATEGY=fifo plumbing
      * stub; Day 7 tightens to differs-from-baseline assertion. */
     RUN_TEST(test_finest_fm_strategy_fifo_smoke);
+    /* Sprint 28 Day 2: SPARSE_FM_THICK_RESTART_PERTURB=gain_noise_formal —
+     * formal gain-bucket-noise variant of thick-restart FM (replaces
+     * Sprint 27 Day 11 simplified gauss_noise). */
+    RUN_TEST(test_finest_fm_gain_noise_formal_disrupts_baseline);
+    /* Sprint 28 Day 4: SPARSE_FM_FINEST_STRATEGY=ensemble — multi-
+     * strategy FM ensemble (run K sub-strategies, pick lowest cut). */
+    RUN_TEST(test_finest_fm_ensemble_corpus_safety);
+    RUN_TEST(test_finest_fm_ensemble_deterministic);
     /* Sprint 25 Day 6 stubs (Day 7-8 land asserts): */
     RUN_TEST(test_spectral_bisection_eigenvalue_ordering);
     RUN_TEST(test_spectral_bisection_gggp_fallback);

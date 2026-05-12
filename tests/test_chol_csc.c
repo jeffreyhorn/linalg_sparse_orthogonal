@@ -1,3 +1,12 @@
+/* _POSIX_C_SOURCE 200809L: needed for `setenv` / `unsetenv` used by
+ * the `tf_setenv` / `tf_unsetenv` macros from test_framework.h.
+ * Must be defined BEFORE any system header is included so glibc's
+ * `<features.h>` sees it on first inclusion (the Sprint 28
+ * supernodal-postorder tests below mutate env vars). */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 200809L
+#endif
 /*
  * Sprint 17 Days 1-2 tests for CSC working format for Cholesky.
  *
@@ -2210,6 +2219,267 @@ static void test_detect_supernodes_suitesparse_report(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 28 Day 8: supernodal-etree reordering — numeric correctness +
+ * corpus-safety contracts
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * Day-1 picked supernodal-etree reordering as Item 4's non-pipeline
+ * pivot (`docs/planning/EPIC_2/SPRINT_28/pivot_decision_day1.md`);
+ * Day 6 landed scaffolding + a failing-as-expected differs-from-default
+ * smoke test; Day 7 lit up the Liu 1990 / Davis 2006 §6.5 core algorithm
+ * (compose etree postorder into `analysis->perm` + rebuild B + recompute
+ * etree/postorder).  Day 8 adds the corpus-safety contracts the plan
+ * specifies + the empirical supernode-count check the Day-7 interim
+ * doc surfaced. */
+
+/* Helper for Day-8 tests: detect fundamental supernodes in `factors->F`
+ * by converting back to a CholCsc and calling chol_csc_detect_supernodes.
+ * Returns total_grouped = sum(super_sizes) for size >= min_size.  Sets
+ * *count_out to the supernode count.  Returns -1 on failure (caller
+ * skips the assertion). */
+static idx_t day8_count_supernodes(const SparseMatrix *L_sparse, idx_t min_size, idx_t *count_out) {
+    CholCsc *L = NULL;
+    if (chol_csc_from_sparse(L_sparse, NULL, 2.0, &L) != SPARSE_OK)
+        return -1;
+    idx_t n = L->n;
+    idx_t *starts = malloc((size_t)(n > 0 ? n : 1) * sizeof(idx_t));
+    idx_t *sizes = malloc((size_t)(n > 0 ? n : 1) * sizeof(idx_t));
+    idx_t count = 0;
+    if (!starts || !sizes ||
+        chol_csc_detect_supernodes(L, min_size, starts, sizes, &count) != SPARSE_OK) {
+        free(starts);
+        free(sizes);
+        chol_csc_free(L);
+        return -1;
+    }
+    idx_t total = 0;
+    for (idx_t i = 0; i < count; i++)
+        total += sizes[i];
+    free(starts);
+    free(sizes);
+    chol_csc_free(L);
+    *count_out = count;
+    return total;
+}
+
+/* Day-8 plan task: "test_supernodal_postorder_residual_unchanged —
+ * assert numeric factorization residuals stay within Sprint 27's
+ * ≤ 1e-8 bound after the supernode-grouping permutation".
+ *
+ * Loads the SuiteSparse bcsstk04 fixture from disk (small SPD,
+ * n=132; matches the Sprint 27 residual-test pattern in
+ * `test_factor_solve_bcsstk04_amd` at line ~1845), runs
+ * `sparse_analyze` + `sparse_factor_numeric` + `sparse_factor_solve`
+ * twice (env off → factors_off → x_off, env on → factors_on → x_on),
+ * and asserts BOTH ||A*x - b||_inf / ||b||_inf are below 1e-8
+ * (Sprint 27's residual gate).  The off path is the Sprint-27
+ * baseline; the on path proves Day-7's permutation composition
+ * doesn't corrupt the numeric factorization. */
+static void test_supernodal_postorder_residual_unchanged(void) {
+    /* bcsstk04: small SuiteSparse SPD with irregular structure (matches
+     * the Day-7 differs-from-default fixture's behaviour on a real
+     * matrix; load time is ~10 ms so cheap for CI).  AMD-permuted
+     * factorization has known well-conditioned residual on this
+     * fixture (per `test_factor_solve_bcsstk04_amd` at < 1e-10). */
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk04 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+    idx_t n = sparse_rows(A);
+
+    double *x_true = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x_off = calloc((size_t)n, sizeof(double));
+    double *x_on = calloc((size_t)n, sizeof(double));
+    if (!x_true || !b || !x_off || !x_on) {
+        free(x_true);
+        free(b);
+        free(x_off);
+        free(x_on);
+        sparse_free(A);
+        REQUIRE_OK(SPARSE_ERR_ALLOC);
+        return;
+    }
+    for (idx_t i = 0; i < n; i++)
+        x_true[i] = 1.0;
+    sparse_matvec(A, x_true, b);
+
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_t an_off = {0};
+    sparse_factors_t fa_off = {0};
+    sparse_analysis_t an_on = {0};
+    sparse_factors_t fa_on = {0};
+    int env_set = 0;
+    double res_off = 0.0;
+    double res_on = 0.0;
+
+    /* Off path — explicit rc handling so the cleanup label always
+     * runs and unsetenv fires once env_set is true. */
+    tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
+    rc = sparse_analyze(A, &opts, &an_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (env off): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    rc = sparse_factor_numeric(A, &an_off, &fa_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_factor_numeric (env off): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    rc = sparse_factor_solve(&fa_off, &an_off, b, x_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_factor_solve (env off): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    res_off = compute_rel_residual(A, x_off, b);
+
+    /* On path */
+    if (tf_setenv("SPARSE_SUPERNODAL_POSTORDER", "on") != 0) {
+        printf("    skipped (setenv SPARSE_SUPERNODAL_POSTORDER failed)\n");
+        goto cleanup;
+    }
+    env_set = 1;
+    rc = sparse_analyze(A, &opts, &an_on);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (env on): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    rc = sparse_factor_numeric(A, &an_on, &fa_on);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_factor_numeric (env on): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    rc = sparse_factor_solve(&fa_on, &an_on, b, x_on);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_factor_solve (env on): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    res_on = compute_rel_residual(A, x_on, b);
+
+    printf("    bcsstk04: residual off=%.3e on=%.3e\n", res_off, res_on);
+
+    /* Both within Sprint 27's ≤ 1e-8 envelope.  In practice both
+     * deliver ~1e-15 on bcsstk04 — Sprint 27's gate is loose enough
+     * to absorb any floating-point reordering effects from the
+     * postorder composition. */
+    ASSERT_TRUE(res_off < 1e-8);
+    ASSERT_TRUE(res_on < 1e-8);
+
+cleanup:
+    if (env_set)
+        tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
+    sparse_factor_free(&fa_off);
+    sparse_factor_free(&fa_on);
+    sparse_analysis_free(&an_off);
+    sparse_analysis_free(&an_on);
+    free(x_true);
+    free(b);
+    free(x_off);
+    free(x_on);
+    sparse_free(A);
+}
+
+/* Day-8 corpus-safety: supernode total_grouped stays within a 25 % band
+ * of the env-off baseline across the corpus.  Sprint 28's `pivot_decision_day1.md`
+ * candidate-(c) dossier flagged "≤ 5 % nnz reduction" as the literature
+ * prior — the empirical Day-7 measurement (see `non_pipeline_interim_day7.txt`)
+ * confirmed AMD's output is already approximately etree-postordered on
+ * most corpus fixtures, so the composition does not move the supernode
+ * structure meaningfully on those inputs.  The corpus-safety bound here
+ * is a generous 25 % to absorb the small-fixture noise (nos4 / bcsstk04
+ * have ~10 supernodes total; a single supernode boundary shift moves
+ * total_grouped by ~10 %).  The headline contract: the post-pass does
+ * not DESTROY supernode contiguity. */
+static void test_supernodal_postorder_no_supernode_count_regression(void) {
+    /* bcsstk14: empirically env=on produces total_grouped = env=off
+     * exactly (Day-7 measurement); use this as the headline corpus-
+     * safety fixture.  Larger n (1806) than bcsstk04 so the supernode
+     * structure is non-trivial. */
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_t an_off = {0};
+    sparse_factors_t fa_off = {0};
+    sparse_analysis_t an_on = {0};
+    sparse_factors_t fa_on = {0};
+    int env_set = 0;
+    idx_t count_off = 0;
+    idx_t count_on = 0;
+    idx_t total_off = -1;
+    idx_t total_on = -1;
+
+    tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
+    rc = sparse_analyze(A, &opts, &an_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (env off): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    rc = sparse_factor_numeric(A, &an_off, &fa_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_factor_numeric (env off): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    total_off = day8_count_supernodes(fa_off.F, /*min_size=*/4, &count_off);
+
+    if (tf_setenv("SPARSE_SUPERNODAL_POSTORDER", "on") != 0) {
+        printf("    skipped (setenv SPARSE_SUPERNODAL_POSTORDER failed)\n");
+        goto cleanup;
+    }
+    env_set = 1;
+    rc = sparse_analyze(A, &opts, &an_on);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (env on): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    rc = sparse_factor_numeric(A, &an_on, &fa_on);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_factor_numeric (env on): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    total_on = day8_count_supernodes(fa_on.F, /*min_size=*/4, &count_on);
+
+    printf("    bcsstk14: supernodes(min=4) off=(count=%d total=%d) on=(count=%d total=%d)\n",
+           (int)count_off, (int)total_off, (int)count_on, (int)total_on);
+
+    /* day8_count_supernodes returns -1 on failure; treat as skip. */
+    if (total_off < 0 || total_on < 0) {
+        printf("    skipped (chol_csc conversion failed)\n");
+    } else if (total_off == 0) {
+        /* No supernodes met min_size on the off-baseline (this won't
+         * happen on bcsstk14 today — total_off=1246 — but the test
+         * would be ill-defined under a future library update that
+         * shifts the supernode threshold, so guard explicitly).
+         * Require total_on == 0 too: env=on cannot legitimately
+         * create supernodes when the baseline has none under the
+         * same min_size gate. */
+        ASSERT_EQ(total_on, 0);
+    } else {
+        /* 25 % band: |total_on - total_off| <= 0.25 * total_off.
+         * On bcsstk14 the Day-7 measurement showed exact equality
+         * (1246 == 1246); the band absorbs measurement variability
+         * if the AMD perm changes across library versions. */
+        idx_t delta = total_on > total_off ? total_on - total_off : total_off - total_on;
+        ASSERT_TRUE((long long)delta * 4 <= (long long)total_off);
+    }
+
+cleanup:
+    if (env_set)
+        tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
+    sparse_factor_free(&fa_off);
+    sparse_factor_free(&fa_on);
+    sparse_analysis_free(&an_off);
+    sparse_analysis_free(&an_on);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Day 11: Dense primitives + supernode-aware elimination
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -4230,6 +4500,10 @@ int main(void) {
     RUN_TEST(test_detect_supernodes_tridiagonal);
     RUN_TEST(test_detect_supernodes_reverse_arrowhead);
     RUN_TEST(test_detect_supernodes_suitesparse_report);
+
+    /* Sprint 28 Day 8 — supernodal-etree reordering corpus safety */
+    RUN_TEST(test_supernodal_postorder_residual_unchanged);
+    RUN_TEST(test_supernodal_postorder_no_supernode_count_regression);
 
     /* Day 11 — dense primitives + supernode-aware elimination */
     RUN_TEST(test_chol_dense_factor_null);

@@ -1475,8 +1475,9 @@ cleanup:
  * MISSED verdict + 7.26pp gap to target.
  *
  * Sprint 28 `non_pipeline_decision.md` formally retires the literal
- * 0.85× Pres_Poisson target after 5 consecutive sprints + the
- * non-pipeline pivot.  Sprint 29+ routing: revisit only with
+ * 0.85× Pres_Poisson target after 6 consecutive sprints (Sprints 23-28
+ * inclusive; Sprint 22's 1.063× pre-dated the ND-beats-AMD framing) +
+ * the non-pipeline pivot.  Sprint 29+ routing: revisit only with
  * fundamentally different machinery (METIS C library interop,
  * geometric mesh-aware ordering with first-class coordinate API, or
  * hybrid AMD-then-ND-on-separators).  None in the Sprint 29 budget.
@@ -1504,9 +1505,11 @@ static void test_non_pipeline_pres_poisson_close_to_target(void) {
 
     if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
         /* Treat setenv failure as a skip (matches the pattern in the
-         * other supernodal-postorder tests): some constrained runtimes
-         * may reject setenv even though setenv() is in the C standard,
-         * and we don't want a platform constraint to fail the test. */
+         * other supernodal-postorder tests): setenv/unsetenv are POSIX
+         * extensions (NOT in ISO C — POSIX.1-2001 onward), so some
+         * constrained runtimes / non-POSIX platforms may not provide
+         * them or may reject mutations.  We don't want a platform
+         * constraint to fail the test. */
         printf("    skipped (setenv SPARSE_ND_SUPERNODAL_POSTORDER=on failed: errno=%d %s)\n",
                errno, strerror(errno));
         goto cleanup;
@@ -1693,11 +1696,16 @@ int main(void) {
     RUN_TEST(test_nd_determinism_public_api);
     RUN_TEST(test_cholesky_via_nd_residual_spd_synth);
 
-    /* Sprint 28 Day 7: Liu 1990 supernodal-etree reordering core
-     * algorithm lit up.  `SPARSE_ND_SUPERNODAL_POSTORDER=on` now
-     * composes the etree postorder into `analysis->perm` so the
-     * differs-from-default contract passes.  Day 9-10 will sweep +
-     * decide flip-or-stay. */
+    /* Sprint 28 Days 7-14: Liu 1990 supernodal-etree reordering
+     * lit up + corpus-safety + flip-or-stay decision shipped.
+     * `SPARSE_ND_SUPERNODAL_POSTORDER=on` composes the etree
+     * postorder into `analysis->perm`; the test asserts the direct
+     * postorder-composition contract
+     * (perm_on[k] == perm_off[postorder_off[k]]) per the PR #36
+     * review (commit 75fd871, comment 3222851170).  Sprint 28
+     * verdict: STAY at default `off` (advisory only;
+     * `non_pipeline_decision.md`); 0.85× Pres_Poisson target
+     * formally RETIRED with 6-sprint empirical evidence. */
     RUN_TEST(test_supernodal_postorder_etree_contract);
     /* Sprint 28 Day 8: corpus-safety + edge-case contracts. */
     RUN_TEST(test_supernodal_postorder_corpus_nnz_L_invariant);
@@ -1706,11 +1714,12 @@ int main(void) {
     RUN_TEST(test_supernodal_postorder_n_one);
     /* Sprint 28 Day 10: failing-as-expected close-to-target test.
      * Sprint 28's non_pipeline_decision.md formally retired the
-     * literal 0.85× Pres_Poisson target after 5 sprints of misses
-     * + the non-pipeline pivot's nnz_L-invariance-by-construction.
-     * RUN_TEST commented out until / unless a future sprint reaches
-     * 0.85× via fundamentally different machinery.  See test body
-     * for the contract + Sprint-28 evidence. */
+     * literal 0.85× Pres_Poisson target after 6 consecutive sprints
+     * (Sprints 23-28 inclusive) of misses + the non-pipeline pivot's
+     * nnz_L-invariance-by-construction.  RUN_TEST commented out
+     * until / unless a future sprint reaches 0.85× via fundamentally
+     * different machinery.  See test body for the contract +
+     * Sprint-28 evidence. */
     /* RUN_TEST(test_non_pipeline_pres_poisson_close_to_target); */
 
     /* Day 8: enum dispatch on each factorization. */

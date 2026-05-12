@@ -46,6 +46,7 @@
 #include "sparse_types.h"
 #include "test_framework.h"
 
+#include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1355,11 +1356,19 @@ static void test_supernodal_postorder_no_reorder_skips(void) {
      * apply_supernodal_postorder. */
     ASSERT_NULL(an_off.perm);
     ASSERT_NULL(an_on.perm);
-    /* etree, postorder, sym_L all bit-identical. */
+    /* Bit-identical: n + sym_L.nnz + sym_L.col_ptr + sym_L.row_idx +
+     * etree + postorder.  sym_L's nnz must be equal for the col_ptr /
+     * row_idx comparisons to be meaningful — assert the count first. */
     ASSERT_EQ(an_on.n, an_off.n);
     ASSERT_EQ(an_on.sym_L.nnz, an_off.sym_L.nnz);
     ASSERT_EQ(memcmp(an_off.etree, an_on.etree, (size_t)an_off.n * sizeof(idx_t)), 0);
     ASSERT_EQ(memcmp(an_off.postorder, an_on.postorder, (size_t)an_off.n * sizeof(idx_t)), 0);
+    ASSERT_EQ(
+        memcmp(an_off.sym_L.col_ptr, an_on.sym_L.col_ptr, (size_t)(an_off.n + 1) * sizeof(idx_t)),
+        0);
+    ASSERT_EQ(
+        memcmp(an_off.sym_L.row_idx, an_on.sym_L.row_idx, (size_t)an_off.sym_L.nnz * sizeof(idx_t)),
+        0);
 
 cleanup:
     if (env_set)
@@ -1494,7 +1503,12 @@ static void test_non_pipeline_pres_poisson_close_to_target(void) {
     int env_set = 0;
 
     if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
-        TF_FAIL_("setenv SPARSE_ND_SUPERNODAL_POSTORDER=on failed (rc=%d)", (int)0);
+        /* Treat setenv failure as a skip (matches the pattern in the
+         * other supernodal-postorder tests): some constrained runtimes
+         * may reject setenv even though setenv() is in the C standard,
+         * and we don't want a platform constraint to fail the test. */
+        printf("    skipped (setenv SPARSE_ND_SUPERNODAL_POSTORDER=on failed: errno=%d %s)\n",
+               errno, strerror(errno));
         goto cleanup;
     }
     env_set = 1;

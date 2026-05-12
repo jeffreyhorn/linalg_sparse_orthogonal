@@ -2667,9 +2667,28 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
     int ensemble_strategy_count = 0;
     if (finest_strategy == FINEST_FM_ENSEMBLE) {
         const char *env = getenv("SPARSE_FM_ENSEMBLE_STRATEGIES");
-        const char *list = (env && *env) ? env : "baseline,fifo,annealing";
         char buf[256];
+        /* Oversize-input handling (PR #36 review): the default
+         * selector list is < 30 chars; any value approaching the
+         * 256-byte buffer signals a malformed env var.  Rather than
+         * silently truncate (which could drop a token mid-string and
+         * surprise the caller), reject oversize inputs by falling
+         * back to the default list — same behaviour the caller would
+         * see if they unset the env var. */
+        const char *list;
+        if (env && *env && strlen(env) >= sizeof(buf)) {
+            fprintf(stderr,
+                    "fm-ensemble WARNING: SPARSE_FM_ENSEMBLE_STRATEGIES is "
+                    "%zu bytes (>= %zu); falling back to default selector\n",
+                    strlen(env), sizeof(buf));
+            list = "baseline,fifo,annealing";
+        } else {
+            list = (env && *env) ? env : "baseline,fifo,annealing";
+        }
         size_t list_len = strlen(list);
+        /* list_len < sizeof(buf) is now guaranteed by the oversize check
+         * above; the safety copy preserves it as an invariant for any
+         * future caller that ignores the warning. */
         if (list_len >= sizeof(buf))
             list_len = sizeof(buf) - 1;
         memcpy(buf, list, list_len);

@@ -82,23 +82,22 @@
 # Pres_Poisson   off   2285          14800  481   6.48
 # Pres_Poisson   on    2286          14800  436   6.47
 #
-# Observation: bcsstk14 is bit-exact under both env settings — AMD's
-# output on bcsstk14 is already exactly the etree-postorder, so the
-# Day-7 composition produces an identical perm.  Day-7's
-# differs-from-default test (test_supernodal_postorder_etree_contract)
-# still passes on bcsstk14 because the test asserts perm bit-difference
-# from env=off — but the resulting factor's supernode structure is
-# identical, which is the right semantic invariant.
+# Observation: bcsstk14 supernode counts are bit-exact under both env
+# settings — AMD's output is already approximately etree-postordered
+# on this fixture, so the Day-7 composition produces a perm whose
+# resulting CholCsc has the same fundamental-supernode structure as
+# the env-off baseline.
 #
-# Wait — bcsstk14 has perms_differ=1 in Day-7's measurement.  How can
-# the resulting CholCsc have identical supernode structure under
-# different perms?  Two possibilities:
-#   (1) Two different perms can produce identical L sparsity (different
-#       column orderings yield the same fill pattern when the matrix
-#       is sufficiently regular).
-#   (2) The Day-7 `perms_differ` check sees the perm AFTER analyze; the
-#       composition flow rebuilds B + recomputes etree+postorder, then
-#       analyze proceeds.  The two paths take different code branches
-#       but converge to the same end state structurally.
-# Either way the supernode-count invariance is the load-bearing
-# observation for Day-10's decision.
+# Note on the Day-7 contract test:
+# `test_supernodal_postorder_etree_contract` originally asserted
+# `perm_on != perm_off` (memcmp != 0) on this fixture, which happened
+# to pass.  The PR #36 review (comment 3222851170) pointed out that
+# differs-from-default isn't the right contract — if AMD's output
+# IS in etree-postorder, the composition is the identity and
+# perm_on == perm_off remains correct behaviour.  The test was
+# updated to assert the direct mathematical contract:
+# perm_on[k] == perm_off[postorder_off[k]] (the exact semantic of
+# apply_supernodal_postorder).  This is the load-bearing assertion;
+# the supernode-count invariance reported here is downstream
+# evidence that the composition doesn't break supernode contiguity
+# even when it does change the column ordering.

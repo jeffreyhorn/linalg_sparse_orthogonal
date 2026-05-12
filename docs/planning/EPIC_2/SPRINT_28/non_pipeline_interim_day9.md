@@ -10,7 +10,7 @@ reorders columns but cannot eliminate fill that the pipeline produces).
 
 The literal 0.85× Pres_Poisson target REMAINS UNMET after Sprint 28:
 
-- **5th consecutive sprint to miss** (Sprint 22 1.063× → Sprint 23 0.952× → Sprint 24 0.942× → Sprint 25 0.922× → Sprint 26 0.9217× → Sprint 27 0.9226× → **Sprint 28 0.9226×**).
+- **6th consecutive sprint to miss** (matches the `headline_summary.md` / `RETROSPECTIVE.md` / `non_pipeline_decision.md` count; Sprint 23 was the first sprint to ship a default-path ratio < 1.0× under the literal 0.85× target framing, so misses count Sprints 23 through 28 inclusive — Sprint 22's 1.063× pre-dated the gates ND beats AMD).  Trajectory: Sprint 22 1.063× → Sprint 23 0.952× → Sprint 24 0.942× → Sprint 25 0.922× → Sprint 26 0.9217× → Sprint 27 0.9226× → **Sprint 28 0.9226×**.
 - **Sprint 28's Item-4 non-pipeline pivot, while structurally correct, cannot move the headline metric on this codebase + corpus.**
 
 ## Sweep summary ({AMD, ND} × {env off, env on} × 6 fixtures)

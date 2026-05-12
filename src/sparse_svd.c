@@ -17,6 +17,76 @@ static int size_mul_overflow(size_t a, size_t b, size_t *out) {
     return 0;
 }
 
+/* Sprint 29 Days 1-2 — Item 1: outer-product accumulator for
+ * `sparse_svd_lowrank_sparse`.  See
+ * `docs/planning/EPIC_2/SPRINT_29/lowrank_design_day1.md` for the
+ * algebra + thresholding rationale.
+ *
+ * Existing path (`sparse_svd_lowrank_sparse` below) allocates an
+ * O(m·n) dense accumulator (`calloc(m*n, sizeof(double))`) to fold
+ * each rank-1 outer product `σ_s · u_s · v_s^T` into.  On the
+ * Pres_Poisson-class corpus (m = n = 14 822), that's ~1.76 GB of
+ * intermediate memory — typically dominating both peak memory and
+ * cache traffic vs the eventual sparse output.
+ *
+ * The outer-product path eliminates the dense accumulator by
+ * computing each (i, j) cell of the final result directly:
+ *
+ *     A_k[i, j] = sum_{s=0}^{rank_k-1} σ_s · U[i, s] · V^T[s, j]
+ *
+ * For each (i, j), evaluate the sum once + threshold-and-insert.
+ * Memory: O(nnz_result) sparse output only.  Wall: O(m·n·rank_k)
+ * same as the dense-intermediate path's accumulator-fill loop.
+ * Day 2 lights up the real implementation; Day 1 ships a no-op stub
+ * (returns empty matrix when env-on) so the failing-as-expected test
+ * trips the Frobenius-residual assertion.
+ *
+ * Env-var gate `SPARSE_SVD_LOWRANK_OUTER={off (default), on}` lets
+ * callers A/B compare the two paths during Day-2 validation. */
+typedef enum {
+    SVD_LOWRANK_OUTER_OFF = 0, /* Default — existing dense-intermediate path */
+    SVD_LOWRANK_OUTER_ON = 1,  /* Day 2+ — outer-product accumulator */
+} svd_lowrank_outer_mode_t;
+
+static svd_lowrank_outer_mode_t parse_svd_lowrank_outer(void) {
+    const char *env = getenv("SPARSE_SVD_LOWRANK_OUTER");
+    if (env && strcmp(env, "on") == 0)
+        return SVD_LOWRANK_OUTER_ON;
+    /* Default + unrecognized + "off" all fall through. */
+    return SVD_LOWRANK_OUTER_OFF;
+}
+
+/* Day 1 stub.  Day 2 will implement the per-cell outer-product
+ * accumulator: for each (i, j), evaluate sum_s σ_s · U[i,s] · V^T[s,j],
+ * threshold by `drop_tol`, sparse_insert if above threshold.  Day 1
+ * body returns an empty sparse matrix so the env-on path is visibly
+ * different from the env-off path (the Day-2 failing-as-expected
+ * test asserts Frobenius residual ≤ 1e-10 across both paths; with
+ * Day-1's empty-matrix stub the residual equals ||A_off||_F, well
+ * above the tolerance).  Day 2 lights up the test by replacing this
+ * empty-matrix stub with the real per-cell accumulator. */
+static sparse_err_t sparse_svd_lowrank_outer_product(const sparse_svd_t *svd, idx_t rank_k,
+                                                     double drop_tol, idx_t m, idx_t n,
+                                                     SparseMatrix **out) {
+    /* TODO Sprint 29 Day 2: replace empty-matrix stub with per-cell
+     * outer-product accumulator.  Pseudocode:
+     *
+     *     for i in [0, m): for j in [0, n):
+     *         val = sum_{s=0}^{rank_k-1} σ_s · U[i, s] · Vt[s, j]
+     *         if |val| ≥ drop_tol: sparse_insert(out, i, j, val)
+     *
+     * Memory footprint: O(nnz_result) (drops the m×n dense accumulator).
+     * Wall: O(m·n·rank_k) same as the existing path's accumulator-fill loop. */
+    (void)svd;
+    (void)rank_k;
+    (void)drop_tol;
+    SparseMatrix *result = sparse_create(m, n);
+    if (!result)
+        return SPARSE_ERR_ALLOC;
+    *out = result;
+    return SPARSE_OK;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Householder application helper (same as in sparse_qr.c / sparse_bidiag.c)
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -1322,6 +1392,26 @@ sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, doub
     /* Default drop tolerance: eps * sigma_max */
     if (drop_tol <= 0.0)
         drop_tol = 2.2204460492503131e-16 * svd.sigma[0];
+
+    /* Sprint 29 Days 1-2: optional outer-product path that drops the
+     * O(m·n) dense accumulator.  Default-off path is bit-identical
+     * to Sprint 28; env-on dispatches to `sparse_svd_lowrank_outer_product`
+     * (Day-1 stub returns empty matrix; Day 2 implements the per-cell
+     * accumulator).  See
+     * `docs/planning/EPIC_2/SPRINT_29/lowrank_design_day1.md`. */
+    if (parse_svd_lowrank_outer() == SVD_LOWRANK_OUTER_ON) {
+        SparseMatrix *outer_result = NULL;
+        sparse_err_t outer_err =
+            sparse_svd_lowrank_outer_product(&svd, rank_k, drop_tol, m, n, &outer_result);
+        sparse_svd_free(&svd);
+        if (outer_err != SPARSE_OK) {
+            if (outer_result)
+                sparse_free(outer_result);
+            return outer_err;
+        }
+        *result = outer_result;
+        return SPARSE_OK;
+    }
 
     SparseMatrix *out = sparse_create(m, n);
     if (!out) {

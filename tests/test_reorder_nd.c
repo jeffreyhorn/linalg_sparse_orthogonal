@@ -1418,7 +1418,15 @@ static void test_supernodal_postorder_deterministic(void) {
     ASSERT_EQ(memcmp(an_1.perm, an_2.perm, (size_t)n * sizeof(idx_t)), 0);
     ASSERT_EQ(memcmp(an_1.etree, an_2.etree, (size_t)n * sizeof(idx_t)), 0);
     ASSERT_EQ(memcmp(an_1.postorder, an_2.postorder, (size_t)n * sizeof(idx_t)), 0);
+    /* Bit-identical sym_L: assert nnz first so the col_ptr / row_idx
+     * memcmp lengths read from a consistent count.  Without the
+     * col_ptr / row_idx comparisons, a change in symbolic structure
+     * that preserved nnz would pass the test silently. */
     ASSERT_EQ(an_1.sym_L.nnz, an_2.sym_L.nnz);
+    ASSERT_EQ(memcmp(an_1.sym_L.col_ptr, an_2.sym_L.col_ptr, (size_t)(n + 1) * sizeof(idx_t)), 0);
+    ASSERT_EQ(memcmp(an_1.sym_L.row_idx, an_2.sym_L.row_idx,
+                     (size_t)an_1.sym_L.nnz * sizeof(idx_t)),
+              0);
 
 cleanup:
     if (env_set)

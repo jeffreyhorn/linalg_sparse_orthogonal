@@ -315,7 +315,7 @@ static void test_hierarchy_build_5x5_grid(void) {
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
 
-    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
         printf("    skipped (setenv failed)\n");
         sparse_graph_free(&G);
         sparse_free(A);
@@ -324,7 +324,7 @@ static void test_hierarchy_build_5x5_grid(void) {
 
     sparse_graph_hierarchy_t h = {0};
     sparse_err_t hrc = sparse_graph_hierarchy_build(&G, /*seed=*/42u, &h);
-    unsetenv("SPARSE_ND_COARSENING");
+    tf_unsetenv("SPARSE_ND_COARSENING");
     REQUIRE_OK(hrc);
 
     ASSERT_TRUE(h.nlevels >= 1);
@@ -810,7 +810,7 @@ static void test_spectral_bisection_eigenvalue_ordering(void) {
  * (min(n0, n1) / max(n0, n1)) is >= 0.4 — proving fallback fired
  * (because spectral alone would produce 0.1). */
 static void test_spectral_bisection_gggp_fallback(void) {
-    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSEST_BISECTION", "spectral") != 0) {
         printf("    skipped (setenv failed)\n");
         return;
     }
@@ -832,7 +832,7 @@ static void test_spectral_bisection_gggp_fallback(void) {
 
     idx_t part[11] = {0};
     sparse_err_t rc = graph_bisect_coarsest(&G, part);
-    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    tf_unsetenv("SPARSE_ND_COARSEST_BISECTION");
 
     REQUIRE_OK(rc);
 
@@ -875,7 +875,7 @@ static void test_spectral_bisection_gggp_fallback(void) {
 /* Trivial size n=1: spectral skips Lanczos and assigns the single
  * vertex to side 0 directly. */
 static void test_spectral_bisection_n1(void) {
-    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSEST_BISECTION", "spectral") != 0) {
         printf("    skipped (setenv failed)\n");
         return;
     }
@@ -889,7 +889,7 @@ static void test_spectral_bisection_n1(void) {
 
     idx_t part[1] = {99}; /* sentinel */
     sparse_err_t rc = graph_bisect_coarsest(&G, part);
-    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    tf_unsetenv("SPARSE_ND_COARSEST_BISECTION");
     REQUIRE_OK(rc);
 
     /* n=1 must produce part[0] = 0 (degenerate single-vertex partition). */
@@ -902,7 +902,7 @@ static void test_spectral_bisection_n1(void) {
 /* Trivial size n=2: spectral skips Lanczos and assigns each vertex
  * to its own side (the unique 2-way split). */
 static void test_spectral_bisection_n2(void) {
-    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSEST_BISECTION", "spectral") != 0) {
         printf("    skipped (setenv failed)\n");
         return;
     }
@@ -919,7 +919,7 @@ static void test_spectral_bisection_n2(void) {
 
     idx_t part[2] = {99, 99}; /* sentinels */
     sparse_err_t rc = graph_bisect_coarsest(&G, part);
-    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    tf_unsetenv("SPARSE_ND_COARSEST_BISECTION");
     REQUIRE_OK(rc);
 
     /* n=2 must produce {part[0]=0, part[1]=1} — the unique 2-way split. */
@@ -942,7 +942,7 @@ static void test_spectral_bisection_n2(void) {
  * graph_bisect_coarsest_spectral fires and bisect_gggp produces
  * the partition. */
 static void test_spectral_bisection_disconnected(void) {
-    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSEST_BISECTION", "spectral") != 0) {
         printf("    skipped (setenv failed)\n");
         return;
     }
@@ -974,7 +974,7 @@ static void test_spectral_bisection_disconnected(void) {
 
     idx_t part[6] = {0};
     sparse_err_t rc = graph_bisect_coarsest(&G, part);
-    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    tf_unsetenv("SPARSE_ND_COARSEST_BISECTION");
     REQUIRE_OK(rc);
 
     /* Validate structural contract.  The disconnected-graph fallback
@@ -1010,7 +1010,7 @@ static void test_spectral_bisection_disconnected(void) {
  * this test stays as a smoke test rather than a true Lanczos-
  * failure injection. */
 static void test_spectral_bisection_lanczos_failure(void) {
-    if (setenv("SPARSE_ND_COARSEST_BISECTION", "spectral", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSEST_BISECTION", "spectral") != 0) {
         printf("    skipped (setenv failed)\n");
         return;
     }
@@ -1045,7 +1045,7 @@ static void test_spectral_bisection_lanczos_failure(void) {
 
     idx_t part[5] = {0};
     sparse_err_t rc = graph_bisect_coarsest(&G, part);
-    unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    tf_unsetenv("SPARSE_ND_COARSEST_BISECTION");
     REQUIRE_OK(rc);
 
     /* Structural contract: valid partition. */
@@ -1083,7 +1083,7 @@ static void test_fm_intermediate_passes_smoke(void) {
      *
      * We unsetenv after the test to keep the per-process env clean
      * for subsequent tests in this binary's run. */
-    if (setenv("SPARSE_FM_INTERMEDIATE_PASSES", "2", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_FM_INTERMEDIATE_PASSES", "2") != 0) {
         printf("    skipped (setenv failed; can't exercise env-var plumbing)\n");
         return;
     }
@@ -1100,7 +1100,7 @@ static void test_fm_intermediate_passes_smoke(void) {
 
     /* Restore env before any potential REQUIRE_OK / ASSERT exit so
      * subsequent tests run with the default. */
-    unsetenv("SPARSE_FM_INTERMEDIATE_PASSES");
+    tf_unsetenv("SPARSE_FM_INTERMEDIATE_PASSES");
 
     REQUIRE_OK(rc);
 
@@ -1171,7 +1171,7 @@ static void test_finest_fm_strategy_fifo_smoke(void) {
      * which can collapse the FIFO-vs-baseline differentiation.
      * Pinning HEM keeps this test scoped to its Sprint 26 design
      * intent under the new HCC default (Sprint 27 Day 2 flip). */
-    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
         printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
         return;
     }
@@ -1190,7 +1190,7 @@ static void test_finest_fm_strategy_fifo_smoke(void) {
     ASSERT_EQ(G.n, 900);
 
     /* Baseline run (env var unset). */
-    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
     part_baseline = malloc((size_t)G.n * sizeof(idx_t));
     if (!part_baseline) {
         TF_FAIL_("malloc(part_baseline) returned NULL (n=%d)", (int)G.n);
@@ -1208,7 +1208,7 @@ static void test_finest_fm_strategy_fifo_smoke(void) {
     }
 
     /* FIFO run #1. */
-    if (setenv("SPARSE_FM_FINEST_STRATEGY", "fifo", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_FM_FINEST_STRATEGY", "fifo") != 0) {
         printf("    skipped (setenv failed; can't exercise env-var plumbing)\n");
         goto cleanup;
     }
@@ -1258,9 +1258,9 @@ static void test_finest_fm_strategy_fifo_smoke(void) {
 
 cleanup:
     if (env_set)
-        unsetenv("SPARSE_FM_FINEST_STRATEGY");
+        tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
     if (coarsening_env_set)
-        unsetenv("SPARSE_ND_COARSENING");
+        tf_unsetenv("SPARSE_ND_COARSENING");
     free(part_baseline);
     free(part_fifo1);
     free(part_fifo2);
@@ -1302,7 +1302,7 @@ static void test_finest_fm_gain_noise_formal_disrupts_baseline(void) {
     int perturb_env_set = 0;
     int coarsening_env_set = 0;
 
-    if (setenv("SPARSE_ND_COARSENING", "heavy_edge", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
         printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
         return;
     }
@@ -1321,8 +1321,8 @@ static void test_finest_fm_gain_noise_formal_disrupts_baseline(void) {
     ASSERT_EQ(G.n, 125);
 
     /* Baseline run (env vars unset; default FM behaviour). */
-    unsetenv("SPARSE_FM_FINEST_STRATEGY");
-    unsetenv("SPARSE_FM_THICK_RESTART_PERTURB");
+    tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    tf_unsetenv("SPARSE_FM_THICK_RESTART_PERTURB");
     part_baseline = malloc((size_t)G.n * sizeof(idx_t));
     if (!part_baseline) {
         TF_FAIL_("malloc(part_baseline) returned NULL (n=%d)", (int)G.n);
@@ -1340,12 +1340,12 @@ static void test_finest_fm_gain_noise_formal_disrupts_baseline(void) {
     }
 
     /* gain_noise_formal run #1. */
-    if (setenv("SPARSE_FM_FINEST_STRATEGY", "thick_restart", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_FM_FINEST_STRATEGY", "thick_restart") != 0) {
         printf("    skipped (setenv SPARSE_FM_FINEST_STRATEGY failed)\n");
         goto cleanup;
     }
     strategy_env_set = 1;
-    if (setenv("SPARSE_FM_THICK_RESTART_PERTURB", "gain_noise_formal", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_FM_THICK_RESTART_PERTURB", "gain_noise_formal") != 0) {
         printf("    skipped (setenv SPARSE_FM_THICK_RESTART_PERTURB failed)\n");
         goto cleanup;
     }
@@ -1393,11 +1393,11 @@ static void test_finest_fm_gain_noise_formal_disrupts_baseline(void) {
 
 cleanup:
     if (perturb_env_set)
-        unsetenv("SPARSE_FM_THICK_RESTART_PERTURB");
+        tf_unsetenv("SPARSE_FM_THICK_RESTART_PERTURB");
     if (strategy_env_set)
-        unsetenv("SPARSE_FM_FINEST_STRATEGY");
+        tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
     if (coarsening_env_set)
-        unsetenv("SPARSE_ND_COARSENING");
+        tf_unsetenv("SPARSE_ND_COARSENING");
     free(part_baseline);
     free(part_gnf1);
     free(part_gnf2);
@@ -1465,7 +1465,7 @@ static void test_finest_fm_ensemble_corpus_safety(void) {
      * independently of which malloc / partition call failed. */
 
     /* Strategy 1: baseline. */
-    unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
     part_baseline = malloc((size_t)G.n * sizeof(idx_t));
     if (!part_baseline) {
         TF_FAIL_("malloc(part_baseline) returned NULL (n=%d)", (int)G.n);
@@ -1479,7 +1479,7 @@ static void test_finest_fm_ensemble_corpus_safety(void) {
     }
 
     /* Strategy 2: fifo. */
-    if (setenv("SPARSE_FM_FINEST_STRATEGY", "fifo", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_FM_FINEST_STRATEGY", "fifo") != 0) {
         printf("    skipped (setenv fifo failed)\n");
         goto cleanup;
     }
@@ -1497,7 +1497,7 @@ static void test_finest_fm_ensemble_corpus_safety(void) {
     }
 
     /* Strategy 3: annealing. */
-    if (setenv("SPARSE_FM_FINEST_STRATEGY", "annealing", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_FM_FINEST_STRATEGY", "annealing") != 0) {
         printf("    skipped (setenv annealing failed)\n");
         goto cleanup;
     }
@@ -1514,12 +1514,11 @@ static void test_finest_fm_ensemble_corpus_safety(void) {
     }
 
     /* Strategy ensemble (the picks-best variant). */
-    if (setenv("SPARSE_FM_FINEST_STRATEGY", "ensemble", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_FM_FINEST_STRATEGY", "ensemble") != 0) {
         printf("    skipped (setenv ensemble failed)\n");
         goto cleanup;
     }
-    if (setenv("SPARSE_FM_ENSEMBLE_STRATEGIES", "baseline,fifo,annealing",
-               /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_FM_ENSEMBLE_STRATEGIES", "baseline,fifo,annealing") != 0) {
         printf("    skipped (setenv ENSEMBLE_STRATEGIES failed)\n");
         goto cleanup;
     }
@@ -1570,9 +1569,9 @@ static void test_finest_fm_ensemble_corpus_safety(void) {
 
 cleanup:
     if (ens_list_env_set)
-        unsetenv("SPARSE_FM_ENSEMBLE_STRATEGIES");
+        tf_unsetenv("SPARSE_FM_ENSEMBLE_STRATEGIES");
     if (strategy_env_set)
-        unsetenv("SPARSE_FM_FINEST_STRATEGY");
+        tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
     free(part_baseline);
     free(part_fifo);
     free(part_annealing);
@@ -1606,7 +1605,7 @@ static void test_finest_fm_ensemble_deterministic(void) {
     }
     ASSERT_EQ(G.n, 125);
 
-    if (setenv("SPARSE_FM_FINEST_STRATEGY", "ensemble", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_FM_FINEST_STRATEGY", "ensemble") != 0) {
         printf("    skipped (setenv failed)\n");
         goto cleanup;
     }
@@ -1635,7 +1634,7 @@ static void test_finest_fm_ensemble_deterministic(void) {
 
 cleanup:
     if (strategy_env_set)
-        unsetenv("SPARSE_FM_FINEST_STRATEGY");
+        tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
     free(part1);
     free(part2);
     sparse_graph_free(&G);
@@ -2378,7 +2377,7 @@ static void test_hcc_bcsstk14_no_degenerate_partition(void) {
     sparse_graph_t G = {0};
     idx_t *part = NULL;
 
-    if (setenv("SPARSE_ND_COARSENING", "hcc", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_COARSENING", "hcc") != 0) {
         printf("    skipped (setenv failed)\n");
         goto cleanup;
     }
@@ -2414,7 +2413,7 @@ static void test_hcc_bcsstk14_no_degenerate_partition(void) {
     ASSERT_TRUE(check_partition_invariant(&G, part));
 
 cleanup:
-    unsetenv("SPARSE_ND_COARSENING");
+    tf_unsetenv("SPARSE_ND_COARSENING");
     free(part);
     sparse_graph_free(&G);
     sparse_free(A);
@@ -2467,7 +2466,7 @@ static void test_per_vertex_fixed_k_differs_from_dynamic_k(void) {
     ASSERT_EQ(G.n, 900);
 
     /* Dynamic-K (Sprint 26 Day 10 baseline) under the hybrid weight. */
-    if (setenv("SPARSE_ND_SEP_LIFT_STRATEGY", "per_vertex", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_SEP_LIFT_STRATEGY", "per_vertex") != 0) {
         printf("    skipped (setenv failed)\n");
         goto cleanup;
     }
@@ -2485,7 +2484,7 @@ static void test_per_vertex_fixed_k_differs_from_dynamic_k(void) {
     }
 
     /* Fixed-K (Sprint 27 Day 4 new) under the same hybrid weight. */
-    if (setenv("SPARSE_ND_SEP_LIFT_STRATEGY", "per_vertex_fixed_k", /*overwrite=*/1) != 0) {
+    if (tf_setenv("SPARSE_ND_SEP_LIFT_STRATEGY", "per_vertex_fixed_k") != 0) {
         TF_FAIL_("setenv SPARSE_ND_SEP_LIFT_STRATEGY=%s failed", "per_vertex_fixed_k");
         goto cleanup;
     }
@@ -2513,7 +2512,7 @@ static void test_per_vertex_fixed_k_differs_from_dynamic_k(void) {
 
 cleanup:
     if (env_set)
-        unsetenv("SPARSE_ND_SEP_LIFT_STRATEGY");
+        tf_unsetenv("SPARSE_ND_SEP_LIFT_STRATEGY");
     free(part_dynamic);
     free(part_fixed);
     sparse_graph_free(&G);

@@ -164,4 +164,40 @@ static clock_t tf_suite_start;
             TF_FAIL_("ASSERT_NOT_NULL(%s) failed", #ptr);                                          \
     } while (0)
 
+/* ─── Cross-platform env-var helpers ─────────────────────────────────
+ *
+ * setenv() / unsetenv() are POSIX.1-2001 extensions and are NOT
+ * available in MSVC's <stdlib.h>; the documented Windows / CMake /
+ * ctest workflow needs `_putenv_s` instead.  Tests that mutate env
+ * vars should call `tf_setenv` / `tf_unsetenv` rather than the
+ * underlying functions directly so the test binaries compile across
+ * platforms.
+ *
+ * Both helpers return 0 on success, non-zero on failure (matching
+ * setenv()'s convention).  `tf_unsetenv` calls `_putenv_s(name, "")`
+ * on Windows — note that empty-string-as-unset is the documented
+ * MSVC convention (per `_putenv_s` MSDN); on POSIX we use unsetenv()
+ * directly.  Caller-visible behaviour: `getenv(name)` returns NULL
+ * after `tf_unsetenv(name)` on POSIX; on Windows `getenv(name)`
+ * returns NULL after `tf_unsetenv(name)` because empty-string
+ * environment entries are removed by `_putenv_s`. */
+#include <stdlib.h>
+#include <string.h>
+
+static inline int tf_setenv(const char *name, const char *value) {
+#ifdef _WIN32
+    return _putenv_s(name, value);
+#else
+    return setenv(name, value, /*overwrite=*/1);
+#endif
+}
+
+static inline int tf_unsetenv(const char *name) {
+#ifdef _WIN32
+    return _putenv_s(name, "");
+#else
+    return unsetenv(name);
+#endif
+}
+
 #endif /* TEST_FRAMEWORK_H */

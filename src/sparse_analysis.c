@@ -22,6 +22,17 @@
  * tree maximises the number of consecutive columns that satisfy the
  * fundamental-supernode invariants of `chol_csc_detect_supernodes`.
  *
+ * Reorder-agnostic: the post-pass operates on whatever permutation
+ * `sparse_analyze` produced (AMD / RCM / COLAMD / ND), composing the
+ * etree postorder of P*A*P^T into that perm.  The PR #36 review
+ * (comment 3223500618) flagged the original `SPARSE_ND_SUPERNODAL_POSTORDER`
+ * name as misleading — the algorithm has nothing ND-specific in it; the
+ * `ND_` prefix was an artefact of the Day-1 framing as a Sprint 28 ND
+ * fill-quality pivot.  The canonical env var is now `SPARSE_SUPERNODAL_POSTORDER`;
+ * the legacy `SPARSE_ND_SUPERNODAL_POSTORDER` is still accepted for
+ * back-compat (Sprint 28 captures + advisory recipes that already
+ * shipped under the old name remain valid).
+ *
  * The composition contract: for an input perm `perm_in` (AMD/ND output) and
  * the etree postorder `po` computed on B = P_in*A*P_in^T, the output perm
  * `perm_out` satisfies
@@ -39,16 +50,23 @@
  * `sparse_permute` call — see `non_pipeline_interim_day7.txt` for the
  * measured per-fixture wall delta). */
 typedef enum {
-    ND_SUPERNODAL_POSTORDER_OFF = 0, /* Default — Sprint 27 behaviour preserved */
-    ND_SUPERNODAL_POSTORDER_ON = 1,  /* Day 7+ — Liu 1990 postorder composition */
-} nd_supernodal_postorder_mode_t;
+    SUPERNODAL_POSTORDER_OFF = 0, /* Default — Sprint 27 behaviour preserved */
+    SUPERNODAL_POSTORDER_ON = 1,  /* Day 7+ — Liu 1990 postorder composition */
+} supernodal_postorder_mode_t;
 
-static nd_supernodal_postorder_mode_t parse_nd_supernodal_postorder(void) {
-    const char *env = getenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+static supernodal_postorder_mode_t parse_supernodal_postorder(void) {
+    /* Canonical name: `SPARSE_SUPERNODAL_POSTORDER` (PR #36 review).
+     * Legacy name `SPARSE_ND_SUPERNODAL_POSTORDER` is still accepted
+     * for back-compat with Sprint 28 captures + advisory recipes that
+     * shipped under the old name; the canonical name takes precedence
+     * if both are set. */
+    const char *env = getenv("SPARSE_SUPERNODAL_POSTORDER");
+    if (!env || !*env)
+        env = getenv("SPARSE_ND_SUPERNODAL_POSTORDER");
     if (env && strcmp(env, "on") == 0)
-        return ND_SUPERNODAL_POSTORDER_ON;
+        return SUPERNODAL_POSTORDER_ON;
     /* Default + unrecognized + "off" all fall through. */
-    return ND_SUPERNODAL_POSTORDER_OFF;
+    return SUPERNODAL_POSTORDER_OFF;
 }
 
 /* Compose the etree postorder `po` into the caller's perm in place.
@@ -229,7 +247,7 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
          * `analysis->perm` is NULL (no reordering requested — there's
          * nothing to compose) or the env var is unset (Sprint 27
          * behaviour preserved bit-identically). */
-        if (analysis->perm && parse_nd_supernodal_postorder() == ND_SUPERNODAL_POSTORDER_ON) {
+        if (analysis->perm && parse_supernodal_postorder() == SUPERNODAL_POSTORDER_ON) {
             err = apply_supernodal_postorder(analysis->postorder, n, analysis->perm);
             if (err) {
                 sparse_free(B_perm);

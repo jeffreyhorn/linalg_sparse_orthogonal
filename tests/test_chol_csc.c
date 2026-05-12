@@ -2305,7 +2305,7 @@ static void test_supernodal_postorder_residual_unchanged(void) {
 
     /* Off path — explicit rc handling so the cleanup label always
      * runs and unsetenv fires once env_set is true. */
-    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+    tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
     rc = sparse_analyze(A, &opts, &an_off);
     if (rc != SPARSE_OK) {
         TF_FAIL_("sparse_analyze (env off): rc=%d", (int)rc);
@@ -2324,8 +2324,8 @@ static void test_supernodal_postorder_residual_unchanged(void) {
     res_off = compute_rel_residual(A, x_off, b);
 
     /* On path */
-    if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
-        printf("    skipped (setenv SPARSE_ND_SUPERNODAL_POSTORDER failed)\n");
+    if (tf_setenv("SPARSE_SUPERNODAL_POSTORDER", "on") != 0) {
+        printf("    skipped (setenv SPARSE_SUPERNODAL_POSTORDER failed)\n");
         goto cleanup;
     }
     env_set = 1;
@@ -2357,7 +2357,7 @@ static void test_supernodal_postorder_residual_unchanged(void) {
 
 cleanup:
     if (env_set)
-        unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+        tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
     sparse_factor_free(&fa_off);
     sparse_factor_free(&fa_on);
     sparse_analysis_free(&an_off);
@@ -2403,7 +2403,7 @@ static void test_supernodal_postorder_no_supernode_count_regression(void) {
     idx_t total_off = -1;
     idx_t total_on = -1;
 
-    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+    tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
     rc = sparse_analyze(A, &opts, &an_off);
     if (rc != SPARSE_OK) {
         TF_FAIL_("sparse_analyze (env off): rc=%d", (int)rc);
@@ -2416,8 +2416,8 @@ static void test_supernodal_postorder_no_supernode_count_regression(void) {
     }
     total_off = day8_count_supernodes(fa_off.F, /*min_size=*/4, &count_off);
 
-    if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
-        printf("    skipped (setenv SPARSE_ND_SUPERNODAL_POSTORDER failed)\n");
+    if (tf_setenv("SPARSE_SUPERNODAL_POSTORDER", "on") != 0) {
+        printf("    skipped (setenv SPARSE_SUPERNODAL_POSTORDER failed)\n");
         goto cleanup;
     }
     env_set = 1;
@@ -2459,7 +2459,7 @@ static void test_supernodal_postorder_no_supernode_count_regression(void) {
 
 cleanup:
     if (env_set)
-        unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+        tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
     sparse_factor_free(&fa_off);
     sparse_factor_free(&fa_on);
     sparse_analysis_free(&an_off);

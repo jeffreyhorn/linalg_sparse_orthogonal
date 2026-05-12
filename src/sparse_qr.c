@@ -1,3 +1,9 @@
+/* Sprint 29 Day 8 (Item 5): feature-test macro for clock_gettime. */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 199309L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 199309L
+#endif
+
 #include "sparse_qr.h"
 #include "sparse_matrix_internal.h"
 #include "sparse_reorder.h"
@@ -11,7 +17,11 @@
 /* Sprint 29 Day 7 (Item 4): progress / cancel wiring. */
 static double s29_qr_now_s(void) {
     struct timespec ts;
+#ifdef _WIN32
+    timespec_get(&ts, TIME_UTC);
+#else
     clock_gettime(CLOCK_MONOTONIC, &ts);
+#endif
     return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
 }
 

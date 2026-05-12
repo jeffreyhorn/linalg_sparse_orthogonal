@@ -1,3 +1,13 @@
+/* Sprint 29 Day 8 (Item 5): feature-test macro to expose
+ * `clock_gettime` / `CLOCK_MONOTONIC` for the Day 6 progress timing
+ * helper.  Mirrors `src/sparse_reorder_amd_qg.c` Sprint 24 Day 1
+ * pattern.  Windows routes through C11 `timespec_get(..., TIME_UTC)`
+ * inside `s29_now_s` below. */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 199309L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 199309L
+#endif
+
 #include "sparse_lu.h"
 #include "sparse_matrix_internal.h"
 #include "sparse_reorder.h"
@@ -17,9 +27,14 @@
 static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t pivot, double tol,
                                            sparse_progress_cb_t progress_cb, void *progress_user);
 
+/* Sprint 29 Day 8 (Item 5): Windows-portable monotonic clock helper. */
 static double s29_now_s(void) {
     struct timespec ts;
+#ifdef _WIN32
+    timespec_get(&ts, TIME_UTC);
+#else
     clock_gettime(CLOCK_MONOTONIC, &ts);
+#endif
     return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
 }
 

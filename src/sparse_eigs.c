@@ -1,3 +1,9 @@
+/* Sprint 29 Day 8 (Item 5): feature-test macro for clock_gettime. */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 199309L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 199309L
+#endif
+
 /**
  * @file sparse_eigs.c
  * @brief Sparse symmetric eigensolvers — Sprint 20 Days 7-12 +
@@ -60,10 +66,15 @@
 #include <string.h>
 #include <time.h>
 
-/* Sprint 29 Day 7 (Item 4): progress / cancel wiring helper. */
+/* Sprint 29 Day 7 (Item 4): progress / cancel wiring helper.
+ * Day 8 added the _WIN32 fallback to `timespec_get(..., TIME_UTC)`. */
 static double s29_eigs_now_s(void) {
     struct timespec ts;
+#ifdef _WIN32
+    timespec_get(&ts, TIME_UTC);
+#else
     clock_gettime(CLOCK_MONOTONIC, &ts);
+#endif
     return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
 }
 

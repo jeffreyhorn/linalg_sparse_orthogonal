@@ -564,6 +564,212 @@ static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *c
                                                  double eff_tol, idx_t max_iters,
                                                  sparse_eigs_t *result);
 
+/* Sprint 29 Day 5 (Item 3): eigenpair refinement via Rayleigh-quotient
+ * iteration.  Per the Day-4 design doc
+ * (`docs/planning/EPIC_2/SPRINT_29/refinement_design_day4.md`), each
+ * converged pair `(lambda_j, v_j)` is refined by:
+ *
+ *   for iter in [0, max_iters):
+ *     r = A * v_j - lambda_j * v_j
+ *     if ||r||_2 / max(|lambda_j|, 1) < TIGHT_TOL: break
+ *     factor: (A - lambda_j * I) = L*D*L^T          via sparse_ldlt_factor_opts
+ *     solve:  (A - lambda_j * I) * y = v_j           via sparse_ldlt_solve
+ *     v_j   := y / ||y||_2
+ *     lambda_j := v_j^T A v_j                        (Rayleigh quotient)
+ *
+ * Edge cases:
+ *   - Singular `(A - lambda_j * I)` (lambda_j matches an eigenvalue to
+ *     full precision): perturb shift by `100 * eps * max(|lambda_j|, 1)`
+ *     and retry once.  Two failures → stop refining this pair (likely
+ *     already at the eigenvalue).
+ *   - Rayleigh-quotient stall (|lambda_j_new - lambda_j_prev| below
+ *     TIGHT_TOL): break early.
+ *   - Degenerate solve output (||y|| ~= 0): stop refining this pair.
+ *
+ * Updates `result->eigenvalues[j]` + `result->eigenvectors[:, j]` in
+ * place + recomputes `result->residual_norm` as the max post-
+ * refinement relative residual across converged pairs. */
+#define SPARSE_EIGS_REFINE_TIGHT_TOL 1e-14
+#define SPARSE_EIGS_REFINE_DEFAULT_MAX_ITERS 5
+
+static double s29_refine_anchor(double lambda) {
+    double abs_lambda = fabs(lambda);
+    return (abs_lambda > 1e-15) ? abs_lambda : 1.0;
+}
+
+static sparse_err_t s29_refine_pair(const SparseMatrix *A, idx_t n, double *v_j,
+                                    double *lambda_j_io, idx_t max_iters, double *Av_scratch,
+                                    double *y_scratch) {
+    double lambda_j = *lambda_j_io;
+    double prev_lambda = lambda_j;
+
+    for (idx_t iter = 0; iter < max_iters; iter++) {
+        /* Residual check: ||A v - lambda v|| / max(|lambda|, 1). */
+        sparse_err_t mv_err = sparse_matvec(A, v_j, Av_scratch);
+        if (mv_err != SPARSE_OK)
+            return mv_err;
+        double res_sq = 0.0;
+        for (idx_t i = 0; i < n; i++) {
+            double r = Av_scratch[i] - lambda_j * v_j[i];
+            res_sq += r * r;
+        }
+        double r_norm = sqrt(res_sq);
+        double rel_res = r_norm / s29_refine_anchor(lambda_j);
+        if (rel_res < SPARSE_EIGS_REFINE_TIGHT_TOL)
+            break;
+
+        /* Build A - shift * I.  Try the unperturbed shift first; on
+         * SPARSE_ERR_SINGULAR retry with a small perturbation. */
+        int factored = 0;
+        sparse_ldlt_t ldlt = {0};
+        double shift = lambda_j;
+        for (int retry = 0; retry < 2 && !factored; retry++) {
+            SparseMatrix *A_shifted = sparse_copy(A);
+            if (!A_shifted)
+                return SPARSE_ERR_ALLOC;
+            if (retry > 0) {
+                double eps = 2.2204460492503131e-16;
+                double delta = 100.0 * eps * s29_refine_anchor(lambda_j);
+                shift = lambda_j + delta;
+            }
+            for (idx_t i = 0; i < n; i++) {
+                double dii = sparse_get(A_shifted, i, i);
+                sparse_err_t serr = sparse_set(A_shifted, i, i, dii - shift);
+                if (serr != SPARSE_OK) {
+                    sparse_free(A_shifted);
+                    return serr;
+                }
+            }
+            sparse_ldlt_opts_t ldlt_opts = {
+                .reorder = SPARSE_REORDER_NONE,
+                .tol = 0.0,
+                .backend = SPARSE_LDLT_BACKEND_AUTO,
+            };
+            sparse_err_t f_err = sparse_ldlt_factor_opts(A_shifted, &ldlt_opts, &ldlt);
+            sparse_free(A_shifted);
+            if (f_err == SPARSE_OK) {
+                factored = 1;
+            } else if (f_err == SPARSE_ERR_SINGULAR) {
+                sparse_ldlt_free(&ldlt);
+                /* retry with perturbed shift */
+            } else {
+                sparse_ldlt_free(&ldlt);
+                return f_err;
+            }
+        }
+        if (!factored)
+            break; /* both shifts singular — stop refining this pair */
+
+        /* Solve (A - shift * I) y = v_j. */
+        sparse_err_t s_err = sparse_ldlt_solve(&ldlt, v_j, y_scratch);
+        sparse_ldlt_free(&ldlt);
+        if (s_err != SPARSE_OK)
+            return s_err;
+
+        /* v_j := y / ||y||. */
+        double y_norm_sq = 0.0;
+        for (idx_t i = 0; i < n; i++)
+            y_norm_sq += y_scratch[i] * y_scratch[i];
+        double y_norm = sqrt(y_norm_sq);
+        if (y_norm < 1e-300)
+            break; /* degenerate */
+        double inv = 1.0 / y_norm;
+        for (idx_t i = 0; i < n; i++)
+            v_j[i] = y_scratch[i] * inv;
+
+        /* Rayleigh quotient: lambda_j := v_j^T A v_j. */
+        mv_err = sparse_matvec(A, v_j, Av_scratch);
+        if (mv_err != SPARSE_OK)
+            return mv_err;
+        double rq = 0.0;
+        for (idx_t i = 0; i < n; i++)
+            rq += v_j[i] * Av_scratch[i];
+        lambda_j = rq;
+
+        /* Stall check. */
+        double dl = fabs(lambda_j - prev_lambda);
+        if (dl < SPARSE_EIGS_REFINE_TIGHT_TOL * s29_refine_anchor(lambda_j))
+            break;
+        prev_lambda = lambda_j;
+    }
+
+    *lambda_j_io = lambda_j;
+    return SPARSE_OK;
+}
+
+static sparse_err_t s29_refine_eigenpairs(const SparseMatrix *A, const sparse_eigs_opts_t *opts,
+                                          sparse_eigs_t *result) {
+    if (!opts->refine || !opts->compute_vectors || result->n_converged <= 0)
+        return SPARSE_OK;
+
+    idx_t n = sparse_rows(A);
+    idx_t max_iters =
+        opts->refine_max_iters > 0 ? opts->refine_max_iters : SPARSE_EIGS_REFINE_DEFAULT_MAX_ITERS;
+
+    double *Av = malloc((size_t)n * sizeof(double));
+    double *y = malloc((size_t)n * sizeof(double));
+    if (!Av || !y) {
+        free(Av);
+        free(y);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    double max_rel_res = 0.0;
+    sparse_err_t rc = SPARSE_OK;
+    for (idx_t j = 0; j < result->n_converged; j++) {
+        double *v_j = result->eigenvectors + (size_t)j * (size_t)n;
+        double lambda_j = result->eigenvalues[j];
+
+        sparse_err_t pe = s29_refine_pair(A, n, v_j, &lambda_j, max_iters, Av, y);
+        if (pe != SPARSE_OK) {
+            rc = pe;
+            break;
+        }
+        result->eigenvalues[j] = lambda_j;
+
+        /* Recompute final residual for the residual_norm update. */
+        sparse_err_t mv_err = sparse_matvec(A, v_j, Av);
+        if (mv_err != SPARSE_OK) {
+            rc = mv_err;
+            break;
+        }
+        double res_sq = 0.0;
+        for (idx_t i = 0; i < n; i++) {
+            double r = Av[i] - lambda_j * v_j[i];
+            res_sq += r * r;
+        }
+        double r_norm = sqrt(res_sq);
+        double rel = r_norm / s29_refine_anchor(lambda_j);
+        if (rel > max_rel_res)
+            max_rel_res = rel;
+    }
+
+    if (rc == SPARSE_OK)
+        result->residual_norm = max_rel_res;
+
+    free(Av);
+    free(y);
+    return rc;
+}
+
+/* Helper: when `opts->refine` is requested, call the Day-5 refinement
+ * post-pass and fold its return code into the outgoing rc.  We refine
+ * on SPARSE_OK and SPARSE_ERR_NOT_CONVERGED — partial convergence
+ * still has `result->n_converged` triplets in the output buffers that
+ * the caller can tighten.  Refinement-step failures (allocation, solve)
+ * override the backend's rc; success preserves the backend's rc. */
+static sparse_err_t s29_maybe_refine(const SparseMatrix *A, const sparse_eigs_opts_t *opts,
+                                     sparse_eigs_t *result, sparse_err_t backend_rc) {
+    if (!opts->refine)
+        return backend_rc;
+    if (backend_rc != SPARSE_OK && backend_rc != SPARSE_ERR_NOT_CONVERGED)
+        return backend_rc;
+    sparse_err_t ref_rc = s29_refine_eigenpairs(A, opts, result);
+    if (ref_rc != SPARSE_OK)
+        return ref_rc;
+    return backend_rc;
+}
+
 sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_opts_t *opts,
                              sparse_eigs_t *result) {
     /* Input validation (preconditions from the public doxygen). */
@@ -772,6 +978,7 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
         result->backend_used = SPARSE_EIGS_BACKEND_LOBPCG;
         sparse_err_t lobpcg_rc =
             s21_lobpcg_solve(op_fn, op_ctx, n, k, o, eff_tol, max_iters, result);
+        lobpcg_rc = s29_maybe_refine(A, o, result, lobpcg_rc);
         sparse_ldlt_free(&ldlt_shift);
         sparse_free(A_shifted);
         return lobpcg_rc;
@@ -784,6 +991,7 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
         result->backend_used = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART;
         sparse_err_t tr_rc =
             s21_thick_restart_outer_loop(op_fn, op_ctx, n, k, o, eff_tol, max_iters, result);
+        tr_rc = s29_maybe_refine(A, o, result, tr_rc);
         sparse_ldlt_free(&ldlt_shift);
         sparse_free(A_shifted);
         return tr_rc;
@@ -1049,6 +1257,7 @@ cleanup:
     free(sel_idx);
     sparse_ldlt_free(&ldlt_shift);
     sparse_free(A_shifted);
+    rc = s29_maybe_refine(A, o, result, rc);
     return rc;
 }
 

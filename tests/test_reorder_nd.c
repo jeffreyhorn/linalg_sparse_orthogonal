@@ -1424,9 +1424,8 @@ static void test_supernodal_postorder_deterministic(void) {
      * that preserved nnz would pass the test silently. */
     ASSERT_EQ(an_1.sym_L.nnz, an_2.sym_L.nnz);
     ASSERT_EQ(memcmp(an_1.sym_L.col_ptr, an_2.sym_L.col_ptr, (size_t)(n + 1) * sizeof(idx_t)), 0);
-    ASSERT_EQ(memcmp(an_1.sym_L.row_idx, an_2.sym_L.row_idx,
-                     (size_t)an_1.sym_L.nnz * sizeof(idx_t)),
-              0);
+    ASSERT_EQ(
+        memcmp(an_1.sym_L.row_idx, an_2.sym_L.row_idx, (size_t)an_1.sym_L.nnz * sizeof(idx_t)), 0);
 
 cleanup:
     if (env_set)

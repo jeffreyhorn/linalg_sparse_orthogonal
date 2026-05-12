@@ -112,7 +112,7 @@ Today's value of `SPARSE_ND_SUPERNODAL_POSTORDER=on`: zero on this codebase.  To
 
 ## Literal 0.85× Target — Formal Retirement
 
-After 5 consecutive sprints + ~200 pipeline-level measurements + Sprint 27 Day-13's 24-setting matrix + Sprint 28 Day-9's 24-cell non-pipeline sweep:
+After 6 consecutive sprints (Sprints 23-28 inclusive; Sprint 22's 1.063× pre-dated the ND-beats-AMD framing of the target) + ~200 pipeline-level measurements + Sprint 27 Day-13's 24-setting matrix + Sprint 28 Day-9's 24-cell non-pipeline sweep:
 
 | Sprint | Pres_Poisson ND/AMD ratio (default) | Sprint hypothesis | Outcome |
 |---|---:|---|---|
@@ -150,7 +150,7 @@ None of these are in the Sprint 29 budget; routed to long-term parking-lot.
 
 `tests/test_reorder_nd.c::test_non_pipeline_pres_poisson_close_to_target` lands as a failing-as-expected stub with `RUN_TEST` commented out — mirrors the Sprint 27 Day-12 pattern for `test_finest_fm_annealing_pres_poisson_close_to_target` + `test_nd_root_spectral_pres_poisson_close_to_target` (both still failing-as-expected after Sprint 27 closed).
 
-Contract: under `SPARSE_ND_SUPERNODAL_POSTORDER=on`, Pres_Poisson ND nnz_L ≤ 0.87× of AMD (= 0.85× target + 2pp tolerance).  Sprint 28 measurement: 0.9226× → ratio gap +7.26pp, fails-as-expected.  Comment block cites the Sprint 28 5-sprint retirement; documents that uncommenting the RUN_TEST requires a fundamentally different machinery per Sprint 29+ routing.
+Contract: under `SPARSE_SUPERNODAL_POSTORDER=on` (canonical name post-PR-#36 review; legacy alias `SPARSE_ND_SUPERNODAL_POSTORDER` still accepted), Pres_Poisson ND nnz_L ≤ 0.87× of AMD (= 0.85× target + 2pp tolerance).  Sprint 28 measurement: 0.9226× → ratio gap +7.26pp, fails-as-expected.  Comment block cites the Sprint 28 retirement of the literal target after **6 consecutive sprints** of misses (Sprints 23-28 inclusive); documents that uncommenting the RUN_TEST requires a fundamentally different machinery per Sprint 29+ routing.
 
 ## Files Generated
 
@@ -163,12 +163,12 @@ Contract: under `SPARSE_ND_SUPERNODAL_POSTORDER=on`, Pres_Poisson ND nnz_L ≤ 0
 
 ## Files NOT Modified
 
-- `src/sparse_analysis.c::parse_nd_supernodal_postorder()` — default stays `ND_SUPERNODAL_POSTORDER_OFF` (no flip)
+- `src/sparse_analysis.c::parse_supernodal_postorder()` — default stays `SUPERNODAL_POSTORDER_OFF` (no flip).  Sprint-28 Day-10 originally named these `parse_nd_supernodal_postorder()` / `ND_SUPERNODAL_POSTORDER_OFF`; renamed per PR #36 review (the post-pass is reorder-agnostic so the `ND_` prefix was misleading).
 - `tests/test_reorder_nd.c::test_nd_pres_poisson_fill_with_leaf_amd` — bound stays `≤ 0.94×` (Sprint 27 ratio + 2pp; no tightening — Sprint 28 didn't close the literal 0.85× target)
 
 ## Headline Status After Day 10 Item-4 Close
 
 - **Pres_Poisson default unchanged: 0.9226× of AMD** (env-on path bit-identical to default by symmetric-permutation invariance).
-- **No production default flip.**  `SPARSE_ND_SUPERNODAL_POSTORDER` ships as opt-in advisory infrastructure.
-- **Literal 0.85× target formally retired** with 5-sprint + non-pipeline empirical evidence.
+- **No production default flip.**  `SPARSE_SUPERNODAL_POSTORDER` ships as opt-in advisory infrastructure (canonical name post-PR-#36 review; legacy alias `SPARSE_ND_SUPERNODAL_POSTORDER` still accepted for back-compat with Sprint 28 captures + advisory recipes that shipped under the original name).
+- **Literal 0.85× target formally retired** with 6-consecutive-sprint (Sprints 23-28 inclusive) + non-pipeline-pivot empirical evidence.
 - Sprint 29+ routing for supernodal numeric-factor kernels (the natural follow-up that gives the Sprint-28 infrastructure measurable production value).

@@ -5,6 +5,23 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+/* Sprint 29 Day 6 (Item 4): progress / cancel callback wiring.
+ * Forward-declares the internal factor entry point that takes the
+ * optional progress hook + user pointer; public `sparse_lu_factor`
+ * delegates with NULL callback, `sparse_lu_factor_opts` forwards
+ * `opts->progress_cb` / `opts->progress_user`.  Phase start time
+ * is captured here so `progress.elapsed_s` is monotonic across
+ * the per-column emission stream. */
+static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t pivot, double tol,
+                                           sparse_progress_cb_t progress_cb, void *progress_user);
+
+static double s29_now_s(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+}
 
 /* ─── Permutation swap helpers ───────────────────────────────────────── */
 
@@ -27,6 +44,11 @@ static void swap_col_perm(SparseMatrix *mat, idx_t log_a, idx_t log_b) {
 /* ─── LU factorization ───────────────────────────────────────────────── */
 
 sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double tol) {
+    return sparse_lu_factor_inner(mat, pivot, tol, NULL, NULL);
+}
+
+static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t pivot, double tol,
+                                           sparse_progress_cb_t progress_cb, void *progress_user) {
     if (!mat)
         return SPARSE_ERR_NULL;
     idx_t n = mat->rows;
@@ -55,7 +77,26 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double to
     }
     mat->factor_norm = anorm;
 
+    double phase_start_s = progress_cb ? s29_now_s() : 0.0;
+
     for (idx_t k = 0; k < n; k++) {
+        /* Sprint 29 Day 6: progress emission + cancellation check at
+         * top of each column iteration (BEFORE any mutation for this
+         * column).  Cancellation at step=0 leaves the matrix bit-
+         * identical to entry (factored flag already cleared above). */
+        if (progress_cb) {
+            sparse_progress_t p = {
+                .phase = "lu_factor",
+                .step = k,
+                .total = n,
+                .elapsed_s = s29_now_s() - phase_start_s,
+            };
+            if (progress_cb(&p, progress_user) != 0) {
+                free(elim_rows);
+                return SPARSE_ERR_CANCELLED;
+            }
+        }
+
         /* ── Pivot search ── */
         double max_val = 0.0;
         idx_t pivot_log_row = k;
@@ -261,7 +302,8 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
     }
 
     /* Factor with given pivoting and tolerance */
-    return sparse_lu_factor(mat, opts->pivot, opts->tol);
+    return sparse_lu_factor_inner(mat, opts->pivot, opts->tol, opts->progress_cb,
+                                  opts->progress_user);
 }
 
 /* ─── Transpose solve ────────────────────────────────────────────────── */

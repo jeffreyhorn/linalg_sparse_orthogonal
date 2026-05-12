@@ -7,6 +7,15 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+/* Sprint 29 Day 6 (Item 4): progress / cancel wiring (linked-list
+ * Bunch-Kaufman path only; CSC supernodal emissions deferred). */
+static double s29_now_s(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Free
@@ -361,7 +370,8 @@ static void clear_acc(double *acc, int *flag, const idx_t *list, idx_t nnz) {
 /* Internal factorization with caller-specified pivot tolerance.
  * user_tol <= 0 means use DROP_TOL (the compile-time default). */
 static sparse_err_t ldlt_factor_internal(const SparseMatrix *A, sparse_ldlt_t *ldlt,
-                                         double user_tol) {
+                                         double user_tol, sparse_progress_cb_t progress_cb,
+                                         void *progress_user) {
     double tol = (user_tol > 0.0) ? user_tol : DROP_TOL;
     if (!ldlt)
         return SPARSE_ERR_NULL;
@@ -492,7 +502,34 @@ static sparse_err_t ldlt_factor_internal(const SparseMatrix *A, sparse_ldlt_t *l
 
     sparse_err_t rc = SPARSE_OK;
     idx_t k = 0;
+    double phase_start_s = progress_cb ? s29_now_s() : 0.0;
     while (k < n) {
+        /* Sprint 29 Day 6: progress + cancel check at top of each
+         * Bunch-Kaufman pivot iteration.  k advances by 1 (1x1 pivot)
+         * or 2 (2x2 pivot), so emissions are not strictly contiguous
+         * but always monotonically increase.  Cancellation tears down
+         * the partial ldlt struct; input A is bit-identical (LDL^T
+         * writes to a separate `ldlt_t`). */
+        if (progress_cb) {
+            sparse_progress_t p = {
+                .phase = "ldlt_factor",
+                .step = k,
+                .total = n,
+                .elapsed_s = s29_now_s() - phase_start_s,
+            };
+            if (progress_cb(&p, progress_user) != 0) {
+                free(col_acc);
+                free(nz_flag);
+                free(nz_list);
+                free(col_acc_r);
+                free(nz_flag_r);
+                free(nz_list_r);
+                sparse_free(W);
+                sparse_ldlt_free(ldlt);
+                return SPARSE_ERR_CANCELLED;
+            }
+        }
+
         /* Step 1: Accumulate column k of the Schur complement */
         idx_t nnz_acc = acc_schur_col(W, ldlt->L, ldlt->D, ldlt->D_offdiag, ldlt->pivot_size, k, k,
                                       col_acc, nz_flag, nz_list);
@@ -501,6 +538,7 @@ static sparse_err_t ldlt_factor_internal(const SparseMatrix *A, sparse_ldlt_t *l
         double max_offdiag = 0.0;
         idx_t r = k; /* sentinel: no off-diagonal found */
         for (idx_t t = 0; t < nnz_acc; t++) {
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
             idx_t i = nz_list[t];
             if (i > k && fabs(col_acc[i]) > max_offdiag) { // NOLINT
                 max_offdiag = fabs(col_acc[i]);
@@ -923,7 +961,7 @@ static sparse_err_t ldlt_factor_csc_path(const SparseMatrix *A_work, double tol,
 /* ─── Public factor API (delegates to internal with default tol) ────── */
 
 sparse_err_t sparse_ldlt_factor(const SparseMatrix *A, sparse_ldlt_t *ldlt) {
-    return ldlt_factor_internal(A, ldlt, 0.0);
+    return ldlt_factor_internal(A, ldlt, 0.0, NULL, NULL);
 }
 
 /* ─── Factor with options (reordering + tolerance) ────────────────── */
@@ -945,7 +983,9 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
     if (A->rows != A->cols)
         return SPARSE_ERR_SHAPE;
 
-    const sparse_ldlt_opts_t defaults = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, NULL};
+    const sparse_ldlt_opts_t defaults = {
+        SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, NULL, NULL, NULL,
+    };
     const sparse_ldlt_opts_t *o = opts ? opts : &defaults;
 
     /* Sprint 20 Days 4-5 dispatch: validate the backend selector and
@@ -1036,7 +1076,7 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
         if (use_csc)
             err = ldlt_factor_csc_path(PA, o->tol, ldlt);
         else
-            err = ldlt_factor_internal(PA, ldlt, o->tol);
+            err = ldlt_factor_internal(PA, ldlt, o->tol, o->progress_cb, o->progress_user);
         sparse_free(PA);
 
         if (err != SPARSE_OK) {
@@ -1063,7 +1103,8 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
     }
 
     /* No reordering — delegate directly to the chosen kernel. */
-    return use_csc ? ldlt_factor_csc_path(A, o->tol, ldlt) : ldlt_factor_internal(A, ldlt, o->tol);
+    return use_csc ? ldlt_factor_csc_path(A, o->tol, ldlt)
+                   : ldlt_factor_internal(A, ldlt, o->tol, o->progress_cb, o->progress_user);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

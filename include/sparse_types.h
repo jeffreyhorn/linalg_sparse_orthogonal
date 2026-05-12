@@ -67,8 +67,67 @@ typedef enum {
     SPARSE_ERR_BADARG = 11,  /**< Invalid argument (e.g., unfactored matrix passed to condest) */
     SPARSE_ERR_NOT_SPD = 12, /**< Matrix is not symmetric positive-definite */
     SPARSE_ERR_NOT_CONVERGED = 13, /**< Iterative solver did not converge within max iterations */
-    SPARSE_ERR_NUMERIC = 14, /**< Numerical failure (NaN or Inf produced during computation) */
+    SPARSE_ERR_NUMERIC = 14,   /**< Numerical failure (NaN or Inf produced during computation) */
+    SPARSE_ERR_CANCELLED = 15, /**< Operation cancelled via opts.progress_cb (Sprint 29 Day 6).
+                                    Callback returned non-zero; library freed intermediate state
+                                    and aborted.  For in-place factorisations, the caller-visible
+                                    matrix may be in a partially-eliminated state if cancellation
+                                    happened mid-iteration; on cancellation at step=0 (before any
+                                    mutation) the input matrix is bit-identical to entry.  See
+                                    `sparse_progress_cb_t` below. */
 } sparse_err_t;
+
+/* ─── Progress / cancel callback (Sprint 29 Day 6, Item 4) ──────────── */
+
+/**
+ * @brief Progress event payload passed to `sparse_progress_cb_t`.
+ *
+ * Emitted at meaningful iteration boundaries inside long-running
+ * routines (per column for scalar elimination, per supernode for
+ * supernodal paths).  Fields are library-owned; the callback must
+ * treat the struct as read-only and must not retain pointers past
+ * the callback return.
+ */
+typedef struct {
+    const char *phase; /**< Short phase identifier, e.g. "lu_factor",
+                        *  "cholesky_factor", "ldlt_factor".  Static
+                        *  string with the library's lifetime. */
+    idx_t step;        /**< Monotonic 0-indexed counter within `phase`.
+                        *  Increments by 1 per emission. */
+    idx_t total;       /**< Expected total steps if known (e.g. matrix
+                        *  dimension `n` for column-major elimination);
+                        *  0 if the total isn't predictable. */
+    double elapsed_s;  /**< Wall time in seconds since the routine
+                        *  entered `phase` (CLOCK_MONOTONIC). */
+} sparse_progress_t;
+
+/**
+ * @brief Progress / cancellation callback type.
+ *
+ * Long-running routines call this at iteration boundaries (per
+ * column for scalar elimination, per supernode for supernodal
+ * paths).  Return 0 to continue; return any non-zero value to
+ * cancel the operation — the library will free any intermediate
+ * state and return `SPARSE_ERR_CANCELLED` from the outer call.
+ *
+ * **In-place factorisations:** when the routine writes results
+ * back to the input matrix (LU, Cholesky), cancellation mid-
+ * iteration leaves the matrix in a partially-eliminated state.
+ * Callers that need bit-identical input on cancellation should
+ * return non-zero on the first callback invocation (`step == 0`),
+ * which fires before any mutation has happened.
+ *
+ * The callback runs synchronously inside the call thread; it
+ * should be fast (no I/O, no long computation).  Library guarantees
+ * single-threaded invocation per outer routine call — the callback
+ * does not need to be reentrant.
+ *
+ * @param p     Progress event payload (read-only, library-owned).
+ * @param user  Opaque context pointer from `opts->progress_user`
+ *              (or whichever options field carries it).
+ * @return 0 to continue; non-zero to cancel.
+ */
+typedef int (*sparse_progress_cb_t)(const sparse_progress_t *p, void *user);
 
 /**
  * @brief Pivoting strategy for LU factorization.

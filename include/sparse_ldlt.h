@@ -152,6 +152,24 @@ typedef struct {
     int *used_csc_path;            /**< Optional output: 1 if the CSC pipeline was selected
                                         (including the structural fallback to the scalar
                                         pre-pass factor), 0 if the linked-list kernel ran. */
+    /** Sprint 29 Day 6 (Item 4): optional progress / cancellation
+     *  callback.  Invoked at the top of each Bunch-Kaufman pivot
+     *  iteration of the linked-list backend with `phase =
+     *  "ldlt_factor"`, `step = k`, `total = n` (k advances by 1 for
+     *  a 1x1 pivot or 2 for a 2x2 pivot).  Return 0 to continue;
+     *  non-zero cancels the factorisation — the library frees the
+     *  partially-built `ldlt` struct and returns
+     *  `SPARSE_ERR_CANCELLED`.  The input matrix `A` is never
+     *  modified by LDL^T (factorisation writes to a separate
+     *  `ldlt_t` struct), so cancellation always leaves `A` bit-
+     *  identical.  NULL (default) disables the callback.  Currently
+     *  only the linked-list backend emits progress; the CSC
+     *  supernodal backend's emissions land in a future sprint.
+     *  Trailing field for designated-init back-compat. */
+    sparse_progress_cb_t progress_cb;
+    /** Opaque context pointer passed through unchanged to
+     *  `progress_cb`.  Ignored when `progress_cb == NULL`. */
+    void *progress_user;
 } sparse_ldlt_opts_t;
 
 /**

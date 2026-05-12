@@ -92,6 +92,20 @@ typedef struct {
                                         sparse_reorder.h) */
     sparse_chol_backend_t backend; /**< AUTO dispatches by size; LINKED_LIST / CSC force a path */
     int *used_csc_path;            /**< Optional output: set to 1 if CSC ran, 0 if linked-list */
+    /** Sprint 29 Day 6 (Item 4): optional progress / cancellation
+     *  callback.  Invoked at the top of each column-elimination
+     *  iteration of the linked-list backend with `phase =
+     *  "cholesky_factor"`, `step = k`, `total = n`.  Return 0 to
+     *  continue; non-zero cancels the factorisation —
+     *  `SPARSE_ERR_CANCELLED` propagates up.  NULL (default)
+     *  disables the callback.  Currently only the linked-list
+     *  backend emits progress; the CSC supernodal backend's
+     *  emissions land in a future sprint.  Trailing field for
+     *  designated-init back-compat. */
+    sparse_progress_cb_t progress_cb;
+    /** Opaque context pointer passed through unchanged to
+     *  `progress_cb`.  Ignored when `progress_cb == NULL`. */
+    void *progress_user;
 } sparse_cholesky_opts_t;
 
 /**

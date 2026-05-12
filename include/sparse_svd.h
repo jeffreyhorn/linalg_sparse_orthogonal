@@ -193,6 +193,18 @@ sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lo
  * @note Internally allocates a temporary m*n dense accumulator during
  *       construction. Peak memory is comparable to sparse_svd_lowrank().
  *
+ * @note Set environment variable SPARSE_SVD_LOWRANK_OUTER=on to route through
+ *       an alternative per-cell outer-product accumulator that avoids the
+ *       m*n dense intermediate. Output is bit-identical (same per-cell sum
+ *       order, same drop_tol cutoff). The env-on path trades the dense
+ *       intermediate for O(nnz_result) sparse-insert overhead -- it wins
+ *       large memory reductions on min(m,n) >> rank_k fixtures (e.g.
+ *       ~76-88 % rss reduction on bcsstk14) with neutral wall (SVD compute
+ *       dominates either way). Default off preserves Sprint 28 behaviour;
+ *       opt in for memory-constrained workloads. See
+ *       docs/planning/EPIC_2/SPRINT_29/lowrank_sweep_day2.txt for the
+ *       per-fixture wall + rss measurements.
+ *
  * @param A        The matrix (not modified).
  * @param rank_k   Desired rank (must be 1..min(m,n)).
  * @param drop_tol Entries with |value| < drop_tol are dropped. If <= 0,

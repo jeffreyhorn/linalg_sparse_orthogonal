@@ -1,0 +1,93 @@
+# Sprint 29 Day 2 — Item 1 corpus bench sweep (low-rank outer-product)
+# Fixtures: nos4 (n=100), bcsstk04 (n=132), bcsstk14 (n=1806)
+# Ranks: k ∈ {10, 50}
+# env=0: existing dense-intermediate path; env=1: Day-2 outer-product
+# wall is full sparse_svd_lowrank_sparse incl. SVD compute; rss_after is
+# cumulative peak rss (only the env=1 - env=0 delta is meaningful since
+# rusage peaks monotonically increase across the process).
+# Output captured to docs/planning/EPIC_2/SPRINT_29/lowrank_sweep_day2.txt
+
+nos4         k=10 env=0  m=  100 n=  100  wall=     6.2 ms  peak_rss_after=   1516 KB  rss_delta=   +776 KB  nnz_out=9800
+nos4         k=10 env=1  m=  100 n=  100  wall=     6.7 ms  peak_rss_after=   2460 KB  rss_delta=   +872 KB  nnz_out=9800
+nos4         k=50 env=0  m=  100 n=  100  wall=     6.4 ms  peak_rss_after=   3264 KB  rss_delta=   +748 KB  nnz_out=9800
+nos4         k=50 env=1  m=  100 n=  100  wall=     7.0 ms  peak_rss_after=   4092 KB  rss_delta=   +756 KB  nnz_out=9800
+bcsstk04     k=10 env=0  m=  132 n=  132  wall=    17.6 ms  peak_rss_after=   5332 KB  rss_delta=  +1144 KB  nnz_out=16792
+bcsstk04     k=10 env=1  m=  132 n=  132  wall=    17.7 ms  peak_rss_after=   5664 KB  rss_delta=   +332 KB  nnz_out=16792
+bcsstk04     k=50 env=0  m=  132 n=  132  wall=    17.5 ms  peak_rss_after=   5788 KB  rss_delta=   +124 KB  nnz_out=16792
+bcsstk04     k=50 env=1  m=  132 n=  132  wall=    19.0 ms  peak_rss_after=   6340 KB  rss_delta=   +552 KB  nnz_out=16792
+bcsstk14     k=10 env=0  m= 1806 n= 1806  wall= 75214.4 ms  peak_rss_after= 183068 KB  rss_delta=+175524 KB  nnz_out=2329372
+bcsstk14     k=10 env=1  m= 1806 n= 1806  wall= 73086.9 ms  peak_rss_after= 203476 KB  rss_delta= +20364 KB  nnz_out=2329372
+bcsstk14     k=50 env=0  m= 1806 n= 1806  wall=101381.3 ms  peak_rss_after= 226236 KB  rss_delta= +22724 KB  nnz_out=3003513
+bcsstk14     k=50 env=1  m= 1806 n= 1806  wall=101404.1 ms  peak_rss_after= 231700 KB  rss_delta=  +5464 KB  nnz_out=3003513
+
+# ===========================================================================
+# Decision analysis (Sprint 29 Day 2)
+# ===========================================================================
+#
+# Flip rule (per docs/planning/EPIC_2/SPRINT_29/PLAN.md Day 2 §5):
+#   "if the sweep clears >= 50 % memory + >= 30 % wall reduction without
+#    corpus regression past 5 %, flip SPARSE_SVD_LOWRANK_OUTER default to on
+#    in parse_svd_lowrank_outer() + update docs/algorithm.md SVD subsection.
+#    Otherwise ship as advisory."
+#
+# Three-gate AND check:
+#
+#  (1) MEMORY GATE (>= 50 % reduction): PASSES.
+#      bcsstk14 is the only fixture whose accumulator is large enough to
+#      dominate the rss footprint (nos4 + bcsstk04 at n <= 132 sit below
+#      the slab-allocator's chunk size, so rss deltas there are noise +
+#      slab-alignment artefacts rather than the dense intermediate).
+#        bcsstk14 k=10: env=0  +175 524 KB  ->  env=1  +20 364 KB  -88.4 %
+#        bcsstk14 k=50: env=0   +22 724 KB  ->  env=1   +5 464 KB  -76.0 %
+#      Both well over the 50 % threshold.  Consistent with the Day-1 design
+#      table (eliminate the m * n * 8 B dense intermediate; bcsstk14 is
+#      1806 * 1806 * 8 = ~26 MB, matching the env=0 measurement modulo
+#      output-matrix overhead).
+#
+#  (2) WALL GATE (>= 30 % reduction): FAILS.
+#      Wall is essentially unchanged across env settings:
+#        nos4     k=10:   6.2 ->   6.7 ms  (+8 %, within noise on ~6 ms)
+#        nos4     k=50:   6.4 ->   7.0 ms  (+9 %, within noise)
+#        bcsstk04 k=10:  17.6 ->  17.7 ms  (+1 %)
+#        bcsstk04 k=50:  17.5 ->  19.0 ms  (+9 %)
+#        bcsstk14 k=10:  75214 -> 73087 ms (-2.8 %)
+#        bcsstk14 k=50: 101381 -> 101404 ms (~0 %)
+#      The algorithmic prediction held: both paths are O(m * n * k) on
+#      the accumulator loop and the SVD compute (which is O(m * n * k +
+#      m * k^2)) dominates wall on every fixture, so swapping the
+#      accumulator's loop order produces ~0 % wall delta.  No path to
+#      30 % reduction from this refactor.
+#
+#  (3) CORPUS REGRESSION (<= 5 %): PASSES.
+#      nnz_out is bit-equal across env settings for every (fixture, k)
+#      combination measured above (9800 / 9800 / 16792 / 16792 / 9800 /
+#      9800 / 16792 / 16792 / 2329372 / 2329372 / 3003513 / 3003513).
+#      Confirms the Day-1 numerical-comparability analysis: both paths
+#      compute val[i, j] = sum_s sigma_s * U[i,s] * Vt[s,j] in the same
+#      per-cell order, so the per-cell results are bit-identical and the
+#      drop_tol cutoff fires on the same cells.  Day 2's matches_dense
+#      test also asserted residual <= 1e-10 on the 32x32 synthetic.
+#
+# Verdict: AND gate -> FAILS on (2).  Memory gate carries; wall gate
+# cannot pass because the existing path is already wall-optimal (the
+# dense accumulator + threshold-and-insert is the same work as the
+# new outer-product path, just with an O(m * n) buffer for the
+# intermediate state).
+#
+# Decision: SHIP AS ADVISORY.
+#   - parse_svd_lowrank_outer() default stays SPARSE_SVD_LOWRANK_OUTER=off
+#     -> existing dense-intermediate path is bit-identical to Sprint 28.
+#   - SPARSE_SVD_LOWRANK_OUTER=on remains documented for memory-constrained
+#     callers (single-machine workloads where bcsstk14-class fixtures'
+#     ~175 MB peak intermediate exceeds the operating envelope).
+#   - For Pres_Poisson-class workloads (m = n = 14 822), the env-on path's
+#     projected peak is ~12 MB (SVD U + Vt + sigma only) vs ~1.76 GB for
+#     the env-off path -- the env var is the difference between running
+#     and OOM-ing on a 2 GB container.  The advisory env var lets callers
+#     opt in when memory is the constraint.
+#
+# Documentation: include/sparse_svd.h gets the SPARSE_SVD_LOWRANK_OUTER
+# env-var description.  docs/algorithm.md has no dedicated SVD subsection
+# (only sparse references in tolerance + reordering sections); no edit
+# there.  Day-2 design doc + this sweep file carry the algorithmic
+# rationale.

@@ -56,33 +56,60 @@ static svd_lowrank_outer_mode_t parse_svd_lowrank_outer(void) {
     return SVD_LOWRANK_OUTER_OFF;
 }
 
-/* Day 1 stub.  Day 2 will implement the per-cell outer-product
- * accumulator: for each (i, j), evaluate sum_s σ_s · U[i,s] · V^T[s,j],
- * threshold by `drop_tol`, sparse_insert if above threshold.  Day 1
- * body returns an empty sparse matrix so the env-on path is visibly
- * different from the env-off path (the Day-2 failing-as-expected
- * test asserts Frobenius residual ≤ 1e-10 across both paths; with
- * Day-1's empty-matrix stub the residual equals ||A_off||_F, well
- * above the tolerance).  Day 2 lights up the test by replacing this
- * empty-matrix stub with the real per-cell accumulator. */
+/* Per-cell outer-product accumulator.  For each (i, j) ∈ [0, m) × [0, n),
+ * computes A_k[i, j] = sum_{s=0}^{rank_k-1} σ_s · U[i, s] · V^T[s, j]
+ * in a single pass + sparse_inserts cells above `drop_tol`.  Memory
+ * footprint: O(nnz_result) (drops the existing path's m×n dense
+ * accumulator).  Wall: O(m·n·rank_k) same as the existing path's
+ * accumulator-fill triple loop (just re-ordered as `for i for j for s`
+ * instead of `for s for i for j`).
+ *
+ * Numeric comparability: each cell sums σ_s · U[i,s] · Vt[j*k + s] in
+ * `s` ascending order, matching the existing path's per-cell summation
+ * order.  Day-2 corpus test asserts ||A_off - A_on||_F / ||A_off||_F
+ * ≤ 1e-10 across the SuiteSparse fixtures (see
+ * `tests/test_svd.c::test_sparse_svd_lowrank_outer_product_corpus_safety`). */
 static sparse_err_t sparse_svd_lowrank_outer_product(const sparse_svd_t *svd, idx_t rank_k,
                                                      double drop_tol, idx_t m, idx_t n,
                                                      SparseMatrix **out) {
-    /* TODO Sprint 29 Day 2: replace empty-matrix stub with per-cell
-     * outer-product accumulator.  Pseudocode:
-     *
-     *     for i in [0, m): for j in [0, n):
-     *         val = sum_{s=0}^{rank_k-1} σ_s · U[i, s] · Vt[s, j]
-     *         if |val| ≥ drop_tol: sparse_insert(out, i, j, val)
-     *
-     * Memory footprint: O(nnz_result) (drops the m×n dense accumulator).
-     * Wall: O(m·n·rank_k) same as the existing path's accumulator-fill loop. */
-    (void)svd;
-    (void)rank_k;
-    (void)drop_tol;
     SparseMatrix *result = sparse_create(m, n);
     if (!result)
         return SPARSE_ERR_ALLOC;
+
+    idx_t k = svd->k;
+    idx_t s_end = (rank_k < k) ? rank_k : k;
+
+    /* Early-exit on zero-σ matrices (mirrors the existing path's
+     * short-circuit at line ~1313). */
+    if (s_end == 0 || svd->sigma[0] == 0.0) {
+        *out = result;
+        return SPARSE_OK;
+    }
+
+    const double *U_data = svd->U;   /* m×k column-major */
+    const double *Vt_data = svd->Vt; /* k×n column-major */
+    const double *sigma = svd->sigma;
+
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < n; j++) {
+            double val = 0.0;
+            for (idx_t s = 0; s < s_end; s++) {
+                /* σ_s · U[i, s] · V^T[s, j] — U is m×k col-major so
+                 * U[i, s] = U_data[s*m + i]; Vt is k×n col-major so
+                 * Vt[s, j] = Vt_data[j*k + s]. */
+                val += sigma[s] * U_data[(size_t)s * (size_t)m + (size_t)i] *
+                       Vt_data[(size_t)j * (size_t)k + (size_t)s];
+            }
+            if (fabs(val) >= drop_tol) {
+                sparse_err_t ierr = sparse_insert(result, i, j, val);
+                if (ierr != SPARSE_OK) {
+                    sparse_free(result);
+                    return ierr;
+                }
+            }
+        }
+    }
+
     *out = result;
     return SPARSE_OK;
 }

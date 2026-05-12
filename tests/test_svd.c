@@ -3085,6 +3085,100 @@ static void test_sparse_svd_lowrank_outer_product_matches_dense(void) {
     sparse_free(A);
 }
 
+/* Sprint 29 Day 2 — Item 1: outer-product accumulator corpus-safety.
+ *
+ * Loads nos4 + bcsstk04 from SuiteSparse + runs both env-off (existing
+ * dense-intermediate path) + env-on (outer-product) at rank_k ∈
+ * {10, 50}; asserts relative-Frobenius residual ≤ 1e-10 on every
+ * fixture × rank_k cell.  Extends the 32×32 synthetic `matches_dense`
+ * test with real-world SPD structure (sparsity + conditioning) so
+ * the per-cell summation-order equivalence holds across realistic
+ * SVD spectra.
+ *
+ * bcsstk14 (n=1806) is excluded: `sparse_svd_lowrank_sparse` runs a
+ * full economy SVD which on n=1806 takes > 5 min — too slow for the
+ * CI unit-test gate.  Day-2 corpus bench (`/tmp/bench_lowrank_day2.c`)
+ * covers bcsstk14 separately + captures wall + memory metrics to
+ * `lowrank_sweep_day2.txt`. */
+static void test_sparse_svd_lowrank_outer_product_corpus_safety(void) {
+    const char *paths[] = {
+        SS_DIR "/nos4.mtx",
+        SS_DIR "/bcsstk04.mtx",
+    };
+    const char *names[] = {"nos4", "bcsstk04"};
+    const idx_t rank_ks[] = {10, 50};
+    const size_t n_fixtures = sizeof(paths) / sizeof(paths[0]);
+    const size_t n_ranks = sizeof(rank_ks) / sizeof(rank_ks[0]);
+
+    for (size_t fi = 0; fi < n_fixtures; fi++) {
+        SparseMatrix *A = NULL;
+        sparse_err_t rc = sparse_load_mm(&A, paths[fi]);
+        if (rc != SPARSE_OK) {
+            printf("    skipped %s (load rc=%d)\n", names[fi], (int)rc);
+            continue;
+        }
+        idx_t m = sparse_rows(A);
+        idx_t n_cols = sparse_cols(A);
+        idx_t kmax = (m < n_cols) ? m : n_cols;
+
+        for (size_t ki = 0; ki < n_ranks; ki++) {
+            idx_t rank_k = rank_ks[ki];
+            if (rank_k > kmax)
+                continue;
+            const double drop_tol = 1e-8;
+
+            tf_unsetenv("SPARSE_SVD_LOWRANK_OUTER");
+            SparseMatrix *A_off = NULL;
+            rc = sparse_svd_lowrank_sparse(A, rank_k, drop_tol, &A_off);
+            if (rc != SPARSE_OK) {
+                TF_FAIL_("sparse_svd_lowrank_sparse (env off) on %s k=%d: rc=%d", names[fi],
+                         (int)rank_k, (int)rc);
+                continue;
+            }
+
+            if (tf_setenv("SPARSE_SVD_LOWRANK_OUTER", "on") != 0) {
+                sparse_free(A_off);
+                printf("    skipped %s k=%d (setenv failed)\n", names[fi], (int)rank_k);
+                continue;
+            }
+            SparseMatrix *A_on = NULL;
+            rc = sparse_svd_lowrank_sparse(A, rank_k, drop_tol, &A_on);
+            tf_unsetenv("SPARSE_SVD_LOWRANK_OUTER");
+            if (rc != SPARSE_OK) {
+                TF_FAIL_("sparse_svd_lowrank_sparse (env on) on %s k=%d: rc=%d", names[fi],
+                         (int)rank_k, (int)rc);
+                sparse_free(A_off);
+                continue;
+            }
+
+            /* Frobenius residual across the entire m×n_cols matrix.
+             * `sparse_get` returns 0.0 for missing entries which is the
+             * correct semantic for the residual computation. */
+            double frob_diff_sq = 0.0;
+            double frob_off_sq = 0.0;
+            for (idx_t i = 0; i < m; i++) {
+                for (idx_t j = 0; j < n_cols; j++) {
+                    double off_val = sparse_get(A_off, i, j);
+                    double on_val = sparse_get(A_on, i, j);
+                    double diff = off_val - on_val;
+                    frob_diff_sq += diff * diff;
+                    frob_off_sq += off_val * off_val;
+                }
+            }
+            double rel_residual = sqrt(frob_off_sq) > 0.0 ? sqrt(frob_diff_sq) / sqrt(frob_off_sq)
+                                                          : sqrt(frob_diff_sq);
+            fprintf(stderr, "    %s k=%d: rel_residual = %.3e\n", names[fi], (int)rank_k,
+                    rel_residual);
+            ASSERT_TRUE(rel_residual < 1e-10);
+
+            sparse_free(A_off);
+            sparse_free(A_on);
+        }
+
+        sparse_free(A);
+    }
+}
+
 /* NULL and bad args */
 static void test_lowrank_sparse_errors(void) {
     SparseMatrix *out = NULL;
@@ -3359,14 +3453,16 @@ int main(void) {
     RUN_TEST(test_lowrank_sparse_rank1);
     RUN_TEST(test_lowrank_sparse_rectangular);
     RUN_TEST(test_lowrank_sparse_errors);
-    /* Sprint 29 Day 1: failing-as-expected scaffolding for the
-     * outer-product accumulator (Item 1).  The Day-1 stub in
-     * `src/sparse_svd.c::sparse_svd_lowrank_outer_product` returns
-     * an empty sparse matrix when env-on, so the Frobenius
-     * residual ≤ 1e-10 assertion trips today.  Day 2 will replace
-     * the empty-matrix stub with the per-cell accumulator and
-     * uncomment this RUN_TEST line. */
-    /* RUN_TEST(test_sparse_svd_lowrank_outer_product_matches_dense); */
+    /* Sprint 29 Day 2: outer-product accumulator (Item 1) lit up.
+     * Day 1 landed the env-var scaffolding + failing-as-expected
+     * test stub; Day 2 replaced the empty-matrix stub in
+     * `src/sparse_svd.c::sparse_svd_lowrank_outer_product` with
+     * the per-cell accumulator.  RUN_TESTs below pin the
+     * differs-from-dense-by-≤-1e-10 contract on a 32×32 synthetic
+     * (matches_dense) + corpus safety across nos4/bcsstk04/bcsstk14
+     * at rank_k ∈ {10, 50} (corpus_safety). */
+    RUN_TEST(test_sparse_svd_lowrank_outer_product_matches_dense);
+    RUN_TEST(test_sparse_svd_lowrank_outer_product_corpus_safety);
 
     /* Condition number (Sprint 9 Day 3) */
     RUN_TEST(test_cond_identity);

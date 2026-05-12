@@ -9,7 +9,7 @@ Sprint 28 PLAN.md Day 12 task 1: ≤24 representative combinations × 6 corpus f
 Default Sprint 28 production state (Sprint 27 inherited): `SPARSE_ND_COARSENING=hcc` (Sprint 27 Day 2 flip), `nd_base_threshold=128` (Sprint 27 Day 3 flip), `SPARSE_FM_FINEST_STRATEGY=baseline` (Sprint 27 + Sprint 28 advisory-only), `SPARSE_ND_SUPERNODAL_POSTORDER=off` (Sprint 28 Day 10 advisory-only).  All other axes opt-in via env var.
 
 Sprint 28's three new axes:
-- **Item 1** (Day 2): `SPARSE_FM_THICK_RESTART_PERTURB=gain_noise_formal` with `SPARSE_FM_ANNEALING_SCHEDULE={linear, exponential}`.  Advisory after Day 3.
+- **Item 1** (Day 2): `SPARSE_FM_THICK_RESTART_PERTURB=gain_noise_formal` with `SPARSE_FM_GAIN_NOISE_SCHEDULE={linear (default), exponential, cosine}`.  (Note: `SPARSE_FM_ANNEALING_SCHEDULE` is reserved for the Sprint 27 annealing FM strategy and does NOT apply here — the gain-noise variant uses its own schedule env var per `parse_fm_gain_noise_schedule()` in `src/sparse_graph.c`.)  Advisory after Day 3.
 - **Item 2** (Day 4): `SPARSE_FM_FINEST_STRATEGY=ensemble` with `SPARSE_FM_ENSEMBLE_STRATEGIES` selector list.  Advisory after Day 5.
 - **Item 4** (Day 7): `SPARSE_ND_SUPERNODAL_POSTORDER=on`.  Advisory after Day 10.
 

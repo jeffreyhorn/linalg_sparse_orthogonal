@@ -618,6 +618,18 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     if (o->precond_ctx && !o->precond)
         return SPARSE_ERR_BADARG;
 
+    /* Sprint 29 Day 4 (Item 3): refine API validation.  The refine
+     * loop reads result->eigenvectors as the inverse-iteration input
+     * → reject `refine && !compute_vectors`.  Negative iter budgets
+     * are user errors.  Day-4 lands API + validation only; Day-5
+     * lights up the actual Rayleigh-quotient iteration in
+     * src/sparse_eigs.c.  See
+     * docs/planning/EPIC_2/SPRINT_29/refinement_design_day4.md. */
+    if (o->refine && !o->compute_vectors)
+        return SPARSE_ERR_BADARG;
+    if (o->refine_max_iters < 0)
+        return SPARSE_ERR_BADARG;
+
     /* Day 11: enforce symmetry precondition.  Matches the Cholesky /
      * IC convention (both call sparse_is_symmetric(A, 1e-12) and
      * return SPARSE_ERR_NOT_SPD on false).  Lanczos silently produces

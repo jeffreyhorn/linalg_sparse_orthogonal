@@ -953,6 +953,121 @@ static void test_one_by_one_matrix(void) {
     sparse_free(A);
 }
 
+/* Sprint 29 Day 4 (Item 3): failing-as-expected stubs for the Day-5
+ * Rayleigh-quotient eigenpair refinement post-pass.  Day 4 lands the
+ * API surface (`opts.refine` + `opts.refine_max_iters`) + validation
+ * but does NOT yet light up the refinement loop in `src/sparse_eigs.c`
+ * — `refine=1` currently silently no-ops because the refine path is
+ * not yet wired.  Day 5 replaces the no-op with the real loop; these
+ * tests pin the contract that Day-5 must deliver.
+ *
+ * RUN_TEST entries stay commented out at the bottom of main() until
+ * Day 5; the tests trip their assertions if uncommented under the
+ * Day-4 no-op stub (verified dry-run during Day 4 review). */
+
+/* Default `refine=0` MUST be bit-identical to Sprint 28 — same
+ * eigenvalues, same eigenvectors, same residual_norm.  This test
+ * pins the back-compat contract: the API extension doesn't perturb
+ * existing callers. */
+static void test_eigs_refine_default_off_unchanged(void) {
+    idx_t n = 10;
+    double diag[10];
+    for (idx_t i = 0; i < n; i++)
+        diag[i] = (double)(i + 1);
+    SparseMatrix *A = build_diag(n, diag);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    double vals_ref[3] = {0, 0, 0};
+    double vecs_ref[30] = {0};
+    sparse_eigs_t r_ref = {.eigenvalues = vals_ref, .eigenvectors = vecs_ref};
+    sparse_eigs_opts_t opts_ref = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .compute_vectors = 1,
+        /* refine = 0 (default) */
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, 3, &opts_ref, &r_ref));
+
+    double vals_zero[3] = {0, 0, 0};
+    double vecs_zero[30] = {0};
+    sparse_eigs_t r_zero = {.eigenvalues = vals_zero, .eigenvectors = vecs_zero};
+    sparse_eigs_opts_t opts_zero = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .compute_vectors = 1,
+        .refine = 0,
+        .refine_max_iters = 5, /* should be ignored when refine = 0 */
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, 3, &opts_zero, &r_zero));
+
+    ASSERT_EQ(r_ref.n_converged, r_zero.n_converged);
+    for (idx_t i = 0; i < r_ref.n_converged; i++) {
+        ASSERT_TRUE(vals_ref[i] == vals_zero[i]);
+        for (idx_t r = 0; r < n; r++) {
+            ASSERT_TRUE(vecs_ref[(size_t)i * (size_t)n + (size_t)r] ==
+                        vecs_zero[(size_t)i * (size_t)n + (size_t)r]);
+        }
+    }
+    ASSERT_TRUE(r_ref.residual_norm == r_zero.residual_norm);
+
+    sparse_free(A);
+}
+
+/* `refine=1` MUST tighten the residual below the Wu/Simon Lanczos
+ * convergence gate.  This test pins the tightness contract: refine=1
+ * gives ||A*v - lambda*v||/|lambda| ≤ 1e-13 on a clustered-spectrum
+ * synthetic where Lanczos alone gives ~1e-10 (tol).  Day-4 no-op
+ * stub returns the same Lanczos residual (~1e-10), failing the
+ * 1e-13 assertion. */
+static void test_eigs_refine_tightens_residual(void) {
+    /* Clustered SPD: eigenvalues 1.0, 1.0 + 1e-6, 1.0 + 2e-6, plus
+     * spread to 10.  Wu/Simon converges these to ~tol = 1e-10 in
+     * absolute residual; refinement should drive to ~1e-13. */
+    idx_t n = 16;
+    double diag[16] = {
+        1.0, 1.0 + 1e-6, 1.0 + 2e-6, 1.0 + 3e-6, 1.0 + 4e-6, 1.0 + 5e-6, 2.0,  3.0,
+        4.0, 5.0,        6.0,        7.0,        8.0,        9.0,        10.0, 11.0,
+    };
+    SparseMatrix *A = build_diag(n, diag);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    double vals[3] = {0, 0, 0};
+    double vecs[48] = {0};
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_SMALLEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .compute_vectors = 1,
+        .refine = 1,
+        .refine_max_iters = 5,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, 3, &opts, &res));
+    ASSERT_EQ(res.n_converged, 3);
+
+    /* Per-pair residual check: ||A*v - lambda*v|| / |lambda|. */
+    double max_rel_res = 0.0;
+    for (idx_t i = 0; i < res.n_converged; i++) {
+        double *v = &vecs[(size_t)i * (size_t)n];
+        double lambda = vals[i];
+        double res_sq = 0.0;
+        for (idx_t r = 0; r < n; r++) {
+            double Av_r = diag[r] * v[r];
+            double d = Av_r - lambda * v[r];
+            res_sq += d * d;
+        }
+        double rel = sqrt(res_sq) / (fabs(lambda) > 1e-15 ? fabs(lambda) : 1.0);
+        if (rel > max_rel_res)
+            max_rel_res = rel;
+    }
+    fprintf(stderr, "    refined max ||A v - lambda v|| / |lambda| = %.3e\n", max_rel_res);
+    ASSERT_TRUE(max_rel_res < 1e-13);
+
+    sparse_free(A);
+}
+
 int main(void) {
     TEST_SUITE_BEGIN("Sparse eigensolver — Sprint 20 Days 11-13");
 
@@ -981,6 +1096,16 @@ int main(void) {
     RUN_TEST(test_eigs_zero_spectrum_no_div_by_zero);
     RUN_TEST(test_zero_matrix);
     RUN_TEST(test_one_by_one_matrix);
+
+    /* Sprint 29 Day 4 (Item 3): failing-as-expected stubs for the
+     * Day-5 Rayleigh-quotient eigenpair refinement post-pass.
+     * RUN_TEST stays commented out until Day 5 lights up the
+     * refinement loop in src/sparse_eigs.c.  See
+     * docs/planning/EPIC_2/SPRINT_29/refinement_design_day4.md. */
+    /* RUN_TEST(test_eigs_refine_default_off_unchanged); */
+    /* RUN_TEST(test_eigs_refine_tightens_residual); */
+    (void)test_eigs_refine_default_off_unchanged;
+    (void)test_eigs_refine_tightens_residual;
 
     TEST_SUITE_END();
 }

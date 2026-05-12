@@ -3258,6 +3258,96 @@ static void test_svd_full_u_v_orthonormality(void) {
     sparse_free(A);
 }
 
+/* Sprint 29 Day 4 — Item 2 close: economy-mode bit-identical to Sprint 28.
+ *
+ * After Sprint 29 Day 3 lit up the `economy=0` full-mode path, the
+ * existing `economy=1` (thin SVD) path must produce identical sigma /
+ * U cols / V^T rows for the singular triplets it shares with full
+ * mode.  This test pins that contract: run both modes on the same
+ * 16×8 fixture, assert:
+ *   - sigma[0..k-1] bit-equal (same values, same order)
+ *   - U columns 0..k-1 bit-equal (same m·k entries in same offsets)
+ *   - V^T rows 0..k-1 bit-equal at their respective leading dims
+ *     (economy leading dim = k; full leading dim = n)
+ *
+ * Day-3's sort restructure moved the column-permutation step ahead of
+ * the V → V^T transpose; this test guards against the restructure
+ * accidentally producing a different singular-triplet ordering than
+ * the Sprint 28 post-transpose path.  Singular values are identical
+ * because the QR iteration is deterministic, and a stable sort on the
+ * same input produces the same permutation either way. */
+static void test_svd_full_u_v_economy_mode_unchanged(void) {
+    const idx_t m = 16, n_cols = 8;
+    SparseMatrix *A = sparse_create(m, n_cols);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    /* Same deterministic dense fill as the full-mode tests. */
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < n_cols; j++) {
+            double v = (double)(i + 1) * 0.7 - (double)(j + 1) * 1.3 +
+                       (((i + j) % 3) ? 1.0 : -1.0) * (double)((i * 11 + j * 7) % 13);
+            sparse_insert(A, i, j, v);
+        }
+
+    sparse_svd_opts_t econ_opts = {.compute_uv = 1, .economy = 1};
+    sparse_svd_t econ;
+    sparse_err_t err = sparse_svd_compute(A, &econ_opts, &econ);
+    ASSERT_EQ(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    sparse_svd_opts_t full_opts = {.compute_uv = 1, .economy = 0};
+    sparse_svd_t full;
+    err = sparse_svd_compute(A, &full_opts, &full);
+    ASSERT_EQ(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_svd_free(&econ);
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(econ.k, n_cols);
+    ASSERT_EQ(full.k, n_cols);
+    ASSERT_EQ(econ.economy, 1);
+    ASSERT_EQ(full.economy, 0);
+
+    /* sigma[0..k-1] bit-equal. */
+    for (idx_t i = 0; i < econ.k; i++) {
+        ASSERT_TRUE(econ.sigma[i] == full.sigma[i]);
+    }
+
+    /* U columns 0..k-1 bit-equal — both have leading dim m, so the first
+     * m·k entries are at the same offsets in both buffers. */
+    for (idx_t s = 0; s < econ.k; s++) {
+        for (idx_t r = 0; r < m; r++) {
+            double e_val = econ.U[(size_t)s * (size_t)m + (size_t)r];
+            double f_val = full.U[(size_t)s * (size_t)m + (size_t)r];
+            ASSERT_TRUE(e_val == f_val);
+        }
+    }
+
+    /* V^T rows 0..k-1 bit-equal at their respective leading dims.
+     * Economy Vt[i, j] = econ.Vt[j*k + i]; full Vt[i, j] = full.Vt[j*n + i]. */
+    for (idx_t i = 0; i < econ.k; i++) {
+        for (idx_t j = 0; j < n_cols; j++) {
+            double e_val = econ.Vt[(size_t)j * (size_t)econ.k + (size_t)i];
+            double f_val = full.Vt[(size_t)j * (size_t)n_cols + (size_t)i];
+            ASSERT_TRUE(e_val == f_val);
+        }
+    }
+
+    fprintf(stderr,
+            "    economy/full bit-identical on 16x8 fixture: sigma + U[:, 0..%d] + "
+            "Vt[0..%d, :]\n",
+            (int)econ.k - 1, (int)econ.k - 1);
+
+    sparse_svd_free(&econ);
+    sparse_svd_free(&full);
+    sparse_free(A);
+}
+
 /* Sprint 29 Day 3 — Item 2: full-mode reconstruction.
  *
  * Pins the reconstruction identity for full-mode output: only the
@@ -3605,6 +3695,8 @@ int main(void) {
     /* Sprint 29 Day 3: full-mode SVD (Item 2) — economy=0 lit up. */
     RUN_TEST(test_svd_full_u_v_orthonormality);
     RUN_TEST(test_svd_full_u_v_reconstruction);
+    /* Sprint 29 Day 4 Item 2 close — economy mode bit-identical to Sprint 28. */
+    RUN_TEST(test_svd_full_u_v_economy_mode_unchanged);
 
     /* Condition number (Sprint 9 Day 3) */
     RUN_TEST(test_cond_identity);

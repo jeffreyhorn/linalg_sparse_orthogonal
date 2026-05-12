@@ -1150,7 +1150,7 @@ static void test_cholesky_via_nd_residual_spd_synth(void) {
 
 /* ─── Sprint 28 Day 6: supernodal-etree reordering scaffolding ─────── */
 
-/* Sprint 28 Day 7: SPARSE_ND_SUPERNODAL_POSTORDER=on differs-from-default
+/* Sprint 28 Day 7: SPARSE_ND_SUPERNODAL_POSTORDER=on postorder-composition
  * contract.
  *
  * Day-1 picked supernodal-etree reordering as Item 4's non-pipeline-level
@@ -1162,23 +1162,29 @@ static void test_cholesky_via_nd_residual_spd_synth(void) {
  * maximises fundamental-supernode contiguity per
  * `chol_csc_detect_supernodes`'s definition).
  *
- * Contract: under `SPARSE_ND_SUPERNODAL_POSTORDER=on`, the
- * analysis's perm must strictly differ from the default-off perm on
- * the bcsstk14 fixture below (smoke evidence the post-pass fires
- * AND that AMD's output is NOT already in etree-postorder for this
- * fixture — true here because AMD's degree-minimization heuristic
- * doesn't track the etree).  All sparse_analyze calls use explicit
- * rc handling + a single cleanup label so unsetenv always runs even
- * if an intermediate call fails (otherwise SPARSE_ND_SUPERNODAL_POSTORDER
- * would leak to subsequent tests in the suite). */
+ * Contract: under `SPARSE_ND_SUPERNODAL_POSTORDER=on`,
+ *
+ *     analysis_on.perm[k] == analysis_off.perm[analysis_off.postorder[k]]
+ *
+ * — i.e. the env-on perm is the etree postorder (computed against the
+ * off-path's etree) composed into the off-path perm.  This is the
+ * direct mathematical assertion of `apply_supernodal_postorder` from
+ * `src/sparse_analysis.c`.
+ *
+ * The previous Day-7-through-Day-14 version of this test asserted
+ * `analysis_on.perm != analysis_off.perm` (memcmp != 0); that's not
+ * a correctness requirement of the post-pass — if the baseline perm
+ * already happens to be an etree postorder, the composition is the
+ * identity and perm_on == perm_off remains valid.  Replaced per PR
+ * #36 review with the exact composition assertion above.
+ *
+ * All sparse_analyze calls use explicit rc handling + a single
+ * cleanup label so unsetenv always runs even if an intermediate call
+ * fails (otherwise SPARSE_ND_SUPERNODAL_POSTORDER would leak to
+ * subsequent tests in the suite). */
 static void test_supernodal_postorder_etree_contract(void) {
     /* Use bcsstk14 — a real SuiteSparse SPD with n=1806 and a non-
-     * trivial elimination tree.  `make_spd_synth(256, 8)`'s near-
-     * banded structure produces an AMD-output etree that's close to
-     * a path graph (postorder of a path == identity, so the
-     * composition becomes a no-op even though it fires correctly);
-     * bcsstk14 has enough irregular structure that AMD's output
-     * etree branches and the postorder reordering is non-trivial. */
+     * trivial elimination tree. */
     SparseMatrix *A = NULL;
     sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
     if (rc != SPARSE_OK) {
@@ -1190,9 +1196,10 @@ static void test_supernodal_postorder_etree_contract(void) {
     sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
     sparse_analysis_t analysis_off = {0};
     sparse_analysis_t analysis_on = {0};
+    idx_t *expected_perm = NULL;
     int env_set = 0;
 
-    /* Default-off: capture the baseline perm. */
+    /* Default-off: capture the baseline perm + postorder. */
     unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
     rc = sparse_analyze(A, &opts, &analysis_off);
     if (rc != SPARSE_OK) {
@@ -1200,8 +1207,7 @@ static void test_supernodal_postorder_etree_contract(void) {
         goto cleanup;
     }
 
-    /* On: capture the env-var-on perm.  Day 7+ contract: this perm
-     * must differ from the default at at least one position. */
+    /* On: capture the env-var-on perm. */
     if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
         printf("    skipped (setenv SPARSE_ND_SUPERNODAL_POSTORDER=on failed)\n");
         goto cleanup;
@@ -1213,19 +1219,32 @@ static void test_supernodal_postorder_etree_contract(void) {
         goto cleanup;
     }
 
-    /* Both perms exist (SPARSE_REORDER_AMD allocates `analysis->perm`). */
+    /* Both perms exist (SPARSE_REORDER_AMD allocates `analysis->perm`)
+     * and the off path's postorder is available too (SPARSE_FACTOR_CHOLESKY). */
     ASSERT_NOT_NULL(analysis_off.perm);
+    ASSERT_NOT_NULL(analysis_off.postorder);
     ASSERT_NOT_NULL(analysis_on.perm);
 
-    /* Differs-from-default smoke test: env-var-on perm differs from
-     * default at at least one position. */
-    int perms_differ =
-        (memcmp(analysis_off.perm, analysis_on.perm, (size_t)n * sizeof(idx_t)) != 0);
-    ASSERT_TRUE(perms_differ);
+    /* Postorder-composition contract: analysis_on.perm[k] ==
+     * analysis_off.perm[analysis_off.postorder[k]].  If AMD's output
+     * is already in etree postorder for this fixture, analysis_off.postorder
+     * is the identity and the assertion reduces to perm_on == perm_off
+     * (which is the correct mathematical behaviour). */
+    expected_perm = malloc((size_t)n * sizeof(idx_t));
+    if (!expected_perm) {
+        TF_FAIL_("malloc(expected_perm) returned NULL (n=%d)", (int)n);
+        goto cleanup;
+    }
+    for (idx_t k = 0; k < n; k++) {
+        idx_t j = analysis_off.postorder[k];
+        expected_perm[k] = analysis_off.perm[j];
+    }
+    ASSERT_EQ(memcmp(analysis_on.perm, expected_perm, (size_t)n * sizeof(idx_t)), 0);
 
 cleanup:
     if (env_set)
         unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+    free(expected_perm);
     sparse_analysis_free(&analysis_off);
     sparse_analysis_free(&analysis_on);
     sparse_free(A);
@@ -1469,20 +1488,25 @@ static void test_non_pipeline_pres_poisson_close_to_target(void) {
 
     /* Bit-stable AMD constant (Sprint 22-28 invariant). */
     const idx_t nnz_amd = 2668793;
+    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_ND};
+    sparse_analysis_t analysis = {0};
+    idx_t nnz_supernodal = -1;
+    int env_set = 0;
 
     if (setenv("SPARSE_ND_SUPERNODAL_POSTORDER", "on", /*overwrite=*/1) != 0) {
         TF_FAIL_("setenv SPARSE_ND_SUPERNODAL_POSTORDER=on failed (rc=%d)", (int)0);
-        sparse_free(A);
-        return;
+        goto cleanup;
     }
+    env_set = 1;
+
     /* sparse_analyze with REORDER_ND so analysis->perm is set, which
      * is the gate that fires the supernodal-postorder dispatch. */
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_ND};
-    sparse_analysis_t analysis = {0};
-    REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
-    idx_t nnz_supernodal = analysis.sym_L.nnz;
-    sparse_analysis_free(&analysis);
-    unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+    rc = sparse_analyze(A, &opts, &analysis);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze (env on): rc=%d", (int)rc);
+        goto cleanup;
+    }
+    nnz_supernodal = analysis.sym_L.nnz;
 
     fprintf(stderr,
             "    Pres_Poisson under SPARSE_ND_SUPERNODAL_POSTORDER=on: nnz(L) = %d, "
@@ -1495,6 +1519,11 @@ static void test_non_pipeline_pres_poisson_close_to_target(void) {
      * 0.923×; +7.26pp from target — the post-pass cannot eliminate
      * symbolic Cholesky fill, only reorder columns within it). */
     ASSERT_TRUE((long long)nnz_supernodal * 100 <= (long long)nnz_amd * 87);
+
+cleanup:
+    if (env_set)
+        unsetenv("SPARSE_ND_SUPERNODAL_POSTORDER");
+    sparse_analysis_free(&analysis);
     sparse_free(A);
 }
 

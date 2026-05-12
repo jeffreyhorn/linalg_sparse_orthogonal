@@ -1,17 +1,3 @@
-/* Sprint 28 Day 4: feature-test macro to expose POSIX `strtok_r` from
- * `<string.h>` for the ensemble-strategy selector-list parser in
- * `graph_uncoarsen`.  glibc gates strtok_r on `_POSIX_C_SOURCE >= 1`
- * (any POSIX version is enough; we pick 200809L to match the modern
- * baseline).  macOS / Apple Clang exposes strtok_r unconditionally, but
- * Linux/GCC under `-std=c11` with the strict-warning gate (`-Werror`)
- * needs this macro or the parser fails the lint with an implicit-
- * declaration error.  Same pattern as `_POSIX_C_SOURCE 199309L` in
- * `src/sparse_reorder_nd.c` (clock_gettime) and `src/sparse_reorder_amd_qg.c`
- * (qg profile timestamps). */
-#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809L)
-// NOLINTNEXTLINE(bugprone-reserved-identifier)
-#define _POSIX_C_SOURCE 200809L
-#endif
 /*
  * sparse_graph.c — Multilevel graph partitioner for Sprint 22 nested
  *                  dissection.
@@ -2688,9 +2674,18 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
             list_len = sizeof(buf) - 1;
         memcpy(buf, list, list_len);
         buf[list_len] = '\0';
-        char *saveptr = NULL;
-        char *tok = strtok_r(buf, ",", &saveptr);
-        while (tok && ensemble_strategy_count < 4) {
+        /* Portable manual comma-tokenizer (replaces POSIX strtok_r which is
+         * not in MSVC's <string.h>; Sprint 28 Day-4 first cut used strtok_r
+         * + a `_POSIX_C_SOURCE` feature-test macro which closed the Ubuntu
+         * lint but blocked Windows builds — PR #36 review feedback). */
+        char *tok = buf;
+        while (tok && *tok && ensemble_strategy_count < 4) {
+            char *comma = tok;
+            while (*comma && *comma != ',')
+                comma++;
+            int has_more = (*comma == ',');
+            if (has_more)
+                *comma = '\0';
             while (*tok == ' ' || *tok == '\t')
                 tok++;
             size_t tok_len = strlen(tok);
@@ -2718,7 +2713,7 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                 if (!dup)
                     ensemble_strategy_list[ensemble_strategy_count++] = strat;
             }
-            tok = strtok_r(NULL, ",", &saveptr);
+            tok = has_more ? (comma + 1) : NULL;
         }
         if (ensemble_strategy_count == 0) {
             ensemble_strategy_list[0] = FINEST_FM_BASELINE;
@@ -2957,8 +2952,19 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                                (size_t)dst_graph->n * sizeof(idx_t));
                     }
                     if (ensemble_debug) {
+                        /* `best_so_far` reflects the state at the moment
+                         * this strategy ran — multiple per-pass rows can
+                         * report best_so_far=1 if a later strategy beats
+                         * an earlier one.  To identify the FINAL winner
+                         * for a pass, find the highest-index row with
+                         * best_so_far=1 (or filter on `pass` and pick
+                         * the max-`s` best_so_far=1).  Naming reflects
+                         * the running semantic; the older `won` label
+                         * implied final ownership which was misleading
+                         * (PR #36 review). */
                         fprintf(stderr,
-                                "fm-ensemble-debug n=%d pass=%d s=%d strat=%d cut=%d won=%d\n",
+                                "fm-ensemble-debug n=%d pass=%d s=%d strat=%d cut=%d "
+                                "best_so_far=%d\n",
                                 (int)dst_graph->n, p, s, strat, (int)cur_cut,
                                 (s == best_strat_idx) ? 1 : 0);
                     }

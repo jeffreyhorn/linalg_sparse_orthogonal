@@ -1427,7 +1427,7 @@ cleanup:
  * regressions (the ensemble must not produce a separator worse
  * than the worst of the candidates).
  */
-static void test_finest_fm_ensemble_picks_best_strategy(void) {
+static void test_finest_fm_ensemble_corpus_safety(void) {
     /* Kuu is bimodal-degree (CV=0.425) — Sprint 27 Day 13 evidence
      * shows the three sub-strategies produce different cuts on
      * Kuu (Day-3 sweep: baseline 764664 vs FIFO/annealing variants).
@@ -2581,7 +2581,7 @@ int main(void) {
     RUN_TEST(test_finest_fm_gain_noise_formal_disrupts_baseline);
     /* Sprint 28 Day 4: SPARSE_FM_FINEST_STRATEGY=ensemble — multi-
      * strategy FM ensemble (run K sub-strategies, pick lowest cut). */
-    RUN_TEST(test_finest_fm_ensemble_picks_best_strategy);
+    RUN_TEST(test_finest_fm_ensemble_corpus_safety);
     RUN_TEST(test_finest_fm_ensemble_deterministic);
     /* Sprint 25 Day 6 stubs (Day 7-8 land asserts): */
     RUN_TEST(test_spectral_bisection_eigenvalue_ordering);

@@ -2439,6 +2439,15 @@ static void test_supernodal_postorder_no_supernode_count_regression(void) {
     /* day8_count_supernodes returns -1 on failure; treat as skip. */
     if (total_off < 0 || total_on < 0) {
         printf("    skipped (chol_csc conversion failed)\n");
+    } else if (total_off == 0) {
+        /* No supernodes met min_size on the off-baseline (this won't
+         * happen on bcsstk14 today — total_off=1246 — but the test
+         * would be ill-defined under a future library update that
+         * shifts the supernode threshold, so guard explicitly).
+         * Require total_on == 0 too: env=on cannot legitimately
+         * create supernodes when the baseline has none under the
+         * same min_size gate. */
+        ASSERT_EQ(total_on, 0);
     } else {
         /* 25 % band: |total_on - total_off| <= 0.25 * total_off.
          * On bcsstk14 the Day-7 measurement showed exact equality

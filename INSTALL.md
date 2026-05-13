@@ -9,6 +9,22 @@
 Optional:
 - `pkg-config` (for Makefile-based downstream projects)
 - `lcov` + `bc` (for `make coverage`)
+- `libomp` / GCC libgomp (for `make omp` — OpenMP-parallel SpMV + Lanczos MGS)
+
+## Supported platforms
+
+| platform | toolchain | CI job | notes |
+|---|---|---|---|
+| Linux (Ubuntu) | gcc | `.github/workflows/ci.yml` | primary; tsan job runs here (Sprint 29 Day 8 routes from macOS) |
+| Linux (Ubuntu) | clang | `.github/workflows/ci.yml::tsan` | TSan + OpenMP build |
+| macOS | Apple Clang | `.github/workflows/macos-ci.yml::apple-clang` | Sprint 29 Day 9; runs `make sanitize` |
+| macOS | Homebrew GCC (`gcc-15`) | `.github/workflows/macos-ci.yml::homebrew-gcc` | Sprint 29 Day 9 |
+| Windows | MSVC 2022 via CMake | `.github/workflows/windows-ci.yml` | Sprint 29 Days 7-8 |
+
+`make tsan` on macOS 15+ is blocked by an upstream dyld initialization
+hang (Sprint 28 inheritance; macOS 15.7 platform issue not specific to
+this codebase).  Sprint 29 Day 8 routes the TSan job to Linux CI per
+`docs/planning/EPIC_2/SPRINT_29/windows_ci_decision.md`.
 
 ## Quick Start (Makefile)
 
@@ -110,12 +126,32 @@ make && make test
 make install PREFIX=/usr/local
 ```
 
-For coverage, Apple Clang's gcov is incompatible with lcov. Use GCC:
+For coverage, Apple Clang's gcov is incompatible with lcov.  Use GCC:
 
 ```sh
 brew install gcc lcov
-make coverage CC=gcc-14
+make coverage CC=gcc-15        # or whatever version Homebrew currently ships
 ```
+
+If the GCC sysroot is incompatible with the installed CommandLineTools
+SDK (a known macOS 15 issue surfaced Sprint 29 Day 12 — Apple's CLT
+clang assembler chokes on `-mmacosx-version-min=15.0` while Homebrew
+GCC 15 was configured against MacOSX15.sdk), use `gcovr` as a local
+diagnostic instead:
+
+```sh
+brew install gcovr
+make CFLAGS="-std=c11 -Wall -Wextra -O0 -g --coverage" \
+     LDFLAGS="-lm --coverage" test
+gcovr --gcov-executable=/usr/bin/gcov --root . \
+      --filter 'src/' --exclude 'tests/' --exclude 'benchmarks/' \
+      --gcov-ignore-parse-errors=suspicious_hits.warn_once_per_file \
+      --print-summary
+```
+
+The Linux CI job uses gcc-native `--coverage` + lcov directly + the
+calibrated 80 % threshold (Sprint 29 Day 12; see
+`docs/planning/EPIC_2/SPRINT_29/coverage_threshold_decision.md`).
 
 For OpenMP support:
 

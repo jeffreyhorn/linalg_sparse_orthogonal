@@ -32,6 +32,17 @@
  *                         reorder time matter.
  *   --only <fixture>      Run only the named fixture (substring
  *                         match against the fixture name).
+ *   --reorder-via-analyze Route the reordering through
+ *                         `sparse_analyze(A, {factor, reorder}, …)`
+ *                         instead of the manual `sparse_reorder_*` +
+ *                         `sparse_permute` + `sparse_analyze(REORDER_NONE)`
+ *                         pre-apply pipeline.  Required to exercise the
+ *                         Sprint-28 supernodal-postorder kernel
+ *                         (`SPARSE_SUPERNODAL_POSTORDER=on`) and any
+ *                         future analyze-time post-pass — those only
+ *                         fire when `analysis->perm` is set inside
+ *                         `sparse_analyze`, which the pre-apply path
+ *                         leaves NULL.  Sprint 29 Day 13 Item 10a.
  */
 #include "sparse_analysis.h"
 #include "sparse_cholesky.h"
@@ -155,6 +166,65 @@ static double time_factor(const SparseMatrix *A, const idx_t *perm) {
     return (rc == SPARSE_OK) ? t : -1.0;
 }
 
+/* Sprint 29 Day 13 Item 10a: route reorder + symbolic + factor through
+ * `sparse_analyze` so analyze-time post-passes (e.g. the Sprint 28
+ * supernodal-etree postorder gated on `SPARSE_SUPERNODAL_POSTORDER=on`)
+ * actually fire.  The standard path pre-applies the perm and then calls
+ * analyze with REORDER_NONE, which leaves `analysis->perm == NULL` and
+ * short-circuits every analyze-time post-pass. */
+static void run_one_via_analyze(const fixture_t *fx, int do_factor) {
+    SparseMatrix *A = NULL;
+    if (sparse_load_mm(&A, fx->path) != SPARSE_OK) {
+        fprintf(stderr, "skipped %s: load failed\n", fx->name);
+        return;
+    }
+    idx_t n = sparse_rows(A);
+
+    for (size_t i = 0; i < kReorderingsCount; i++) {
+        const reorder_entry_t *r = &kReorderings[i];
+
+        sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, r->value};
+        sparse_analysis_t analysis = {0};
+        double t0 = now_ms();
+        sparse_err_t rc = sparse_analyze(A, &opts, &analysis);
+        double a_ms = now_ms() - t0;
+
+        if (rc != SPARSE_OK) {
+            printf("%s,%d,%s,error,%.1f,n/a\n", fx->name, (int)n, r->name, a_ms);
+            sparse_analysis_free(&analysis);
+            continue;
+        }
+
+        idx_t nnz = analysis.sym_L.nnz;
+
+        double f_ms = -1.0;
+        if (do_factor) {
+            SparseMatrix *PA = NULL;
+            if (analysis.perm) {
+                if (sparse_permute(A, analysis.perm, analysis.perm, &PA) != SPARSE_OK)
+                    PA = NULL;
+            } else {
+                PA = sparse_copy(A);
+            }
+            if (PA) {
+                double t1 = now_ms();
+                sparse_err_t fc = sparse_cholesky_factor(PA);
+                f_ms = (fc == SPARSE_OK) ? (now_ms() - t1) : -1.0;
+                sparse_free(PA);
+            }
+        }
+
+        if (f_ms < 0)
+            printf("%s,%d,%s,%d,%.1f,skip\n", fx->name, (int)n, r->name, (int)nnz, a_ms);
+        else
+            printf("%s,%d,%s,%d,%.1f,%.1f\n", fx->name, (int)n, r->name, (int)nnz, a_ms, f_ms);
+        fflush(stdout);
+
+        sparse_analysis_free(&analysis);
+    }
+    sparse_free(A);
+}
+
 static void run_one(const fixture_t *fx, int do_factor) {
     SparseMatrix *A = NULL;
     if (sparse_load_mm(&A, fx->path) != SPARSE_OK) {
@@ -198,6 +268,7 @@ static void run_one(const fixture_t *fx, int do_factor) {
 
 int main(int argc, char **argv) {
     int do_factor = 1;
+    int via_analyze = 0;
     const char *only = NULL;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--nd-threshold") == 0 && i + 1 < argc) {
@@ -220,19 +291,25 @@ int main(int argc, char **argv) {
             sparse_reorder_nd_base_threshold = (idx_t)val;
         } else if (strcmp(argv[i], "--skip-factor") == 0) {
             do_factor = 0;
+        } else if (strcmp(argv[i], "--reorder-via-analyze") == 0) {
+            via_analyze = 1;
         } else if (strcmp(argv[i], "--only") == 0 && i + 1 < argc) {
             only = argv[++i];
         }
     }
 
-    fprintf(stderr, "# nd_base_threshold=%d, factor=%s\n", (int)sparse_reorder_nd_base_threshold,
-            do_factor ? "yes" : "no");
+    fprintf(stderr, "# nd_base_threshold=%d, factor=%s, via_analyze=%s\n",
+            (int)sparse_reorder_nd_base_threshold, do_factor ? "yes" : "no",
+            via_analyze ? "yes" : "no");
     printf("matrix,n,reorder,nnz_L,reorder_ms,factor_ms\n");
 
     for (size_t i = 0; i < kFixtureCount; i++) {
         if (only && !strstr(kFixtures[i].name, only))
             continue;
-        run_one(&kFixtures[i], do_factor);
+        if (via_analyze)
+            run_one_via_analyze(&kFixtures[i], do_factor);
+        else
+            run_one(&kFixtures[i], do_factor);
     }
     return 0;
 }

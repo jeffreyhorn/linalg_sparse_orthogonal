@@ -225,6 +225,29 @@ bench: $(BENCH_BINS)
 bench-build: $(BENCH_BINS)
 	@echo "Built $(words $(BENCH_BINS)) bench binaries (no execution)."
 
+# Sprint 29 Day 13 (Item 8 close): fast subset of `make bench` for CI's
+# `build-and-test` step — keeps the regression signal on PRs without the
+# 6 h timeout that full `bench_chol_csc` / `bench_convergence` /
+# `bench_refactor_csc` / `bench_reorder` runs caused on the GHA runners.
+# Runs only the genuinely fast benches + `bench_reorder --skip-factor`
+# (skips the multi-minute Pres_Poisson numeric factor pass while keeping
+# the symbolic / reorder timings).  Full `make bench` ships as a
+# developer-side opt-in for deep wall-time investigations.
+BENCH_FAST_BINS = $(BUILDDIR)/bench_scaling \
+                  $(BUILDDIR)/bench_fillin \
+                  $(BUILDDIR)/bench_colamd \
+                  $(BUILDDIR)/bench_amd_qg
+.PHONY: bench-fast
+bench-fast: $(BENCH_FAST_BINS) $(BUILDDIR)/bench_reorder
+	@for b in $(BENCH_FAST_BINS); do \
+		echo "=== Running $$(basename $$b) ==="; \
+		$$b; \
+		echo; \
+	done
+	@echo "=== Running bench_reorder --skip-factor ==="
+	@$(BUILDDIR)/bench_reorder --skip-factor
+	@echo "bench-fast: complete"
+
 # Benchmark SuiteSparse matrices (both pivoting modes)
 .PHONY: bench-suitesparse
 bench-suitesparse: $(BUILDDIR)/bench_main

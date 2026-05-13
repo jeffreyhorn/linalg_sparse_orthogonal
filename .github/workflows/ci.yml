@@ -21,15 +21,18 @@ jobs:
       - name: Run ASan
         run: make asan
 
-      # Build (but do not run) all benchmark binaries.  Catches
-      # compile breaks in benchmark sources without paying the
-      # runtime cost of executing the perf loops — full `make bench`
-      # was exceeding the 6 h GHA job cap (4 of 14 benches each take
-      # >3 min locally; on Linux GHA runners the stack pushed the job
-      # past timeout consistently).  Run benches manually for perf
-      # characterisation (`make bench` locally).
+      # Sprint 29 Day 13 (Item 8 close): build all benchmark binaries
+      # (compile-coverage for slow benches) + run the `bench-fast`
+      # subset (genuinely fast benches + `bench_reorder --skip-factor`)
+      # to keep a runtime regression signal on PRs without the 6 h
+      # timeout that full `make bench` triggered on PRs #28-32.  Full
+      # `make bench` ships as a developer-side opt-in for deep
+      # wall-time investigations.
       - name: Build benchmark binaries (compile-only, no execution)
         run: make clean && make bench-build
+
+      - name: Run fast benchmark subset (bench-fast)
+        run: make bench-fast
 
   cmake-build-and-test:
     runs-on: ubuntu-latest

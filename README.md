@@ -30,7 +30,8 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Zero-diagonal chase** (Golub & Van Loan §8.6.2) for rank-deficient matrices
 - **Condition number** estimation via SVD (`sparse_cond`)
 - **Pseudoinverse** via SVD (`sparse_pinv`) — Moore-Penrose A^+
-- **Low-rank approximation** — dense (`sparse_svd_lowrank`) and sparse (`sparse_svd_lowrank_sparse`) output
+- **Low-rank approximation** — dense (`sparse_svd_lowrank`) and sparse (`sparse_svd_lowrank_sparse`) output.  The sparse variant uses an outer-product accumulator (Sprint 29 Day 2) — each rank-1 pair `σ_i·u_i·v_i^T` folds directly into the sparse output, avoiding the m×n dense intermediate of earlier sprints.  Toggle via `SPARSE_SVD_LOWRANK_OUTER={off, on}` (Sprint 29 Day 2 default; see `docs/planning/EPIC_2/SPRINT_29/lowrank_sweep_day2.txt`).
+- **Full (non-economy) SVD U / V output** — `sparse_svd_full_opts.full_u_v` flag (Sprint 29 Day 3).  When on, U is `m × m` orthonormal + V^T is `n × n` orthonormal (padded with Gram-Schmidt-completed basis columns / rows beyond the economy `min(m, n)` rank); needed for null-space analysis and full-spectrum reconstruction.  Default off — economy mode is bit-identical to pre-Sprint-29.
 - **Numerical rank** estimation (`sparse_svd_rank`)
 
 ### Iterative Solvers
@@ -62,6 +63,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Parallel MGS reorthogonalization** (Sprint 21 Days 5-6) — both Lanczos backends parallelise the inner-product / daxpy bodies under `-DSPARSE_OPENMP`, gated on `n ≥ SPARSE_EIGS_OMP_REORTH_MIN_N` (500) so small problems don't pay OMP fork/join overhead.  ~2× speedup at 4 threads on bcsstk14.  The outer `j` loop stays serial — modified Gram-Schmidt's stability bound requires each iteration to see the partially-orthogonalised vector from the previous subtraction (classical Gram-Schmidt parallelises `j` but loses the stability).
 - **Ritz-pair output** — optional eigenvectors via `compute_vectors = 1`; Wu/Simon per-pair residuals reported in `result.residual_norm`.
 - **Observability** — `result.used_csc_path_ldlt` reports the LDL^T backend chosen on the shift-invert path; `result.peak_basis_size` reports the simultaneously-live `V` columns for memory budgeting; `result.backend_used` reports which backend AUTO actually picked.
+- **Optional inverse-iteration refinement post-pass** (Sprint 29 Day 5) — `opts->refine = 1` runs inverse iteration at each converged Ritz value using the Sprint-20 shift-invert factored matrix, tightening per-pair residuals to ~1e-13 on clustered spectra.  Default off — production accuracy contract remains Wu/Simon's `opts->tol`.  Budget-bound via `opts->refine_max_iters` (default 5).  Composes with all three backends.
 - **Preconditioning speedup** — on bcsstk04 (n = 132, cond ≈ 5e6) k = 3 SMALLEST: vanilla LOBPCG saturates the 800-iteration cap with residual ~1e+01, IC(0) preconditioning converges in **62 iterations** at residual 8e-9, LDL^T preconditioning converges in **8 iterations** at residual 3e-9.
 - **`bench_eigs`** — permanent benchmark driver (Sprint 21 Day 11) at `benchmarks/bench_eigs.c`; CLI with `--sweep default`, `--compare`, and `--matrix <path>` modes, CSV output, configurable `--repeats`.  Run via `make bench-eigs` for the smoke target.  See `docs/planning/EPIC_2/SPRINT_21/bench_day14.txt` (full sweep) and `docs/planning/EPIC_2/SPRINT_21/bench_day14_compare.txt` (3-backend × 3-precond pivot) for the measured numbers; `benchmarks/README.md` documents the CSV schema.
 
@@ -82,7 +84,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Column counts** — predict symbolic nnz per column of L for pre-allocation (upper bound on stored numeric counts when dropping is enabled)
 
 ### Reordering & Preconditioning
-- **Fill-reducing reordering** — Reverse Cuthill-McKee (RCM); Approximate Minimum Degree (AMD, ~5·nnz + 6·n + 1 initial integer workspace via the Sprint-22 quotient-graph rewrite, growing on demand when fill-in pushes adjacency past the initial bound — scales to large structurally regular fixtures without the previous bitset's O(n²/64) penalty); Nested Dissection (ND, multilevel vertex separator — best on 2D / 3D PDE meshes); and Column Approximate Minimum Degree (COLAMD) for unsymmetric/QR problems
+- **Fill-reducing reordering** — Reverse Cuthill-McKee (RCM); Approximate Minimum Degree (AMD, ~5·nnz + 6·n + 1 initial integer workspace via the Sprint-22 quotient-graph rewrite, growing on demand when fill-in pushes adjacency past the initial bound — scales to large structurally regular fixtures without the previous bitset's O(n²/64) penalty); Nested Dissection (ND, multilevel vertex separator — best on 2D / 3D PDE meshes); and Column Approximate Minimum Degree (COLAMD) for unsymmetric/QR problems.  Optional supernodal-etree post-pass (Sprint 28; `SPARSE_SUPERNODAL_POSTORDER={off, on}` — composes the elimination-tree postorder into `analysis->perm` per Liu 1990 / Davis 2006 §6.5; ships infrastructure for future supernodal numeric-factor kernels, advisory only).  Sprint 29 Day 13 added `bench_reorder --reorder-via-analyze` to exercise the analyze-time post-pass dispatch from the bench harness.
 - **Condition number estimation** — Hager/Higham 1-norm estimator from LU or LDL^T factors, quick R-diagonal estimator from QR
 
 ### I/O & Interop
@@ -93,6 +95,8 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Thread-safe** — concurrent solves on shared factored matrices, per-matrix pool allocators
 - **Parallel SpMV** — OpenMP row-wise parallelization (compile with `-DSPARSE_OPENMP`)
 - **errno capture** for I/O errors (`sparse_errno`)
+- **Progress / cancel callbacks** (Sprint 29 Days 6-7) — `sparse_progress_cb_t` + `opts->progress_cb` / `opts->progress_user` across LU, Cholesky, LDL^T (linked-list + CSC), QR, CG, GMRES, MINRES, BiCGSTAB, Lanczos, and LOBPCG.  Callback signature emits `phase` / `step` / `total` / `elapsed_s`; a non-zero return cancels with `SPARSE_ERR_CANCELLED`, the input matrix is left unmodified.  Default `NULL` callback runs at zero overhead (no `make wall-check` regression vs Sprint 28).
+- **Continuous integration** — Linux (Ubuntu) + Windows (MSVC via CMake) + macOS (Apple Clang + Homebrew GCC) build matrix on every PR (Sprint 29 Days 7-9); ThreadSanitizer job on Linux (macOS-15+ TSan blocked by an upstream dyld issue — Sprint 28 inheritance, Sprint 29 Day 8 routes TSan to Linux).  Bench-step regression check via `make bench-fast` (Sprint 29 Day 13) — runs the fast bench subset in < 5 min on PR.
 
 ## Building
 

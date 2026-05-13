@@ -126,28 +126,29 @@ make && make test
 make install PREFIX=/usr/local
 ```
 
-For coverage, Apple Clang's gcov is incompatible with lcov.  Use GCC:
+For coverage on macOS, Apple Clang's LLVM gcov v4.2 emulation is
+incompatible with Homebrew lcov 2.x.  The Makefile auto-detects the
+compiler and routes Apple Clang through `gcovr` (which parses the
+format directly):
+
+```sh
+brew install gcovr   # one-time
+make coverage        # auto-routes to coverage-gcovr on Apple Clang
+```
+
+To force the lcov backend (e.g. when using Homebrew GCC):
 
 ```sh
 brew install gcc lcov
-make coverage CC=gcc-15        # or whatever version Homebrew currently ships
+make coverage-lcov CC=gcc-15
 ```
 
-If the GCC sysroot is incompatible with the installed CommandLineTools
-SDK (a known macOS 15 issue surfaced Sprint 29 Day 12 — Apple's CLT
-clang assembler chokes on `-mmacosx-version-min=15.0` while Homebrew
-GCC 15 was configured against MacOSX15.sdk), use `gcovr` as a local
-diagnostic instead:
-
-```sh
-brew install gcovr
-make CFLAGS="-std=c11 -Wall -Wextra -O0 -g --coverage" \
-     LDFLAGS="-lm --coverage" test
-gcovr --gcov-executable=/usr/bin/gcov --root . \
-      --filter 'src/' --exclude 'tests/' --exclude 'benchmarks/' \
-      --gcov-ignore-parse-errors=suspicious_hits.warn_once_per_file \
-      --print-summary
-```
+Note: Homebrew GCC's built-in sysroot may not match the installed
+CommandLineTools SDK on macOS 15+ (Sprint 29 Day 12 surfaced this —
+Apple's CLT clang assembler chokes on `-mmacosx-version-min=15.0`
+while Homebrew GCC 15 was configured against MacOSX15.sdk).  If
+`make coverage-lcov CC=gcc-15` fails to build, fall back to
+`make coverage` (gcovr path).
 
 The Linux CI job uses gcc-native `--coverage` + lcov directly + the
 calibrated 80 % threshold (Sprint 29 Day 12; see

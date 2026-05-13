@@ -899,6 +899,69 @@ static void test_transpose_west0067(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 29 Day 10 (Item 7): pin the documented silent-zero contract
+ * for the accessor API surface.  See
+ * `docs/planning/EPIC_2/SPRINT_29/accessor_error_decision.md` for the
+ * design rationale + rejection of the `sparse_get_err()` and
+ * `sparse_get_last_error()` alternatives.
+ *
+ * The contract is: `sparse_get`, `sparse_get_phys`, `sparse_rows`,
+ * `sparse_cols`, `sparse_nnz` return `0` on NULL `mat` / out-of-range
+ * indices / absent entries — these three cases are NOT distinguishable
+ * from a true 0 return.  Callers needing to distinguish them
+ * pre-validate via `sparse_rows` / `sparse_cols` before calling.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+static void test_sparse_get_silent_zero_on_null(void) {
+    /* NULL matrix → 0.0 from sparse_get / sparse_get_phys. */
+    ASSERT_TRUE(sparse_get(NULL, 0, 0) == 0.0);
+    ASSERT_TRUE(sparse_get_phys(NULL, 0, 0) == 0.0);
+    /* NULL → 0 from row/col/nnz accessors. */
+    ASSERT_EQ(sparse_rows(NULL), 0);
+    ASSERT_EQ(sparse_cols(NULL), 0);
+    ASSERT_EQ(sparse_nnz(NULL), 0);
+}
+
+static void test_sparse_get_silent_zero_on_oob(void) {
+    /* Out-of-range indices on a populated 4x4 → silent 0.0. */
+    SparseMatrix *A = sparse_create(4, 4);
+    ASSERT_NOT_NULL(A);
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 3, 3, 4.0);
+
+    ASSERT_TRUE(sparse_get(A, 0, 0) == 1.0);     /* in-bounds, present */
+    ASSERT_TRUE(sparse_get(A, 1, 2) == 0.0);     /* in-bounds, absent */
+    ASSERT_TRUE(sparse_get(A, 100, 100) == 0.0); /* out-of-bounds → silent 0 */
+    ASSERT_TRUE(sparse_get(A, 0, 100) == 0.0);   /* out-of-bounds col */
+    ASSERT_TRUE(sparse_get(A, 100, 0) == 0.0);   /* out-of-bounds row */
+    /* Physical variant has the same contract. */
+    ASSERT_TRUE(sparse_get_phys(A, 100, 100) == 0.0);
+
+    sparse_free(A);
+}
+
+static void test_sparse_get_zero_indistinguishable_from_absent(void) {
+    /* Pin the contract: a never-inserted entry and an
+     * explicitly-inserted 0.0 BOTH read as 0.0.  This is the
+     * structural ambiguity the accessor_error_decision.md doc calls
+     * out as intentional. */
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+
+    sparse_insert(A, 0, 0, 5.0);
+    sparse_insert(A, 1, 1, 0.0); /* explicit zero (library may drop) */
+    /* (2, 2) never inserted — absent */
+
+    ASSERT_TRUE(sparse_get(A, 0, 0) == 5.0); /* in-bounds, present, nonzero */
+    ASSERT_TRUE(sparse_get(A, 1, 1) == 0.0); /* explicit zero ≡ absent */
+    ASSERT_TRUE(sparse_get(A, 2, 2) == 0.0); /* never inserted ≡ absent */
+    /* All three return 0.0; only the explicit-non-zero (0,0) is
+     * distinguishable.  This is by design. */
+
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -936,6 +999,11 @@ int main(void) {
     RUN_TEST(test_set_out_of_bounds);
     RUN_TEST(test_get_out_of_bounds);
     RUN_TEST(test_null_pointer_args);
+
+    /* Sprint 29 Day 10 (Item 7): silent-zero accessor contract. */
+    RUN_TEST(test_sparse_get_silent_zero_on_null);
+    RUN_TEST(test_sparse_get_silent_zero_on_oob);
+    RUN_TEST(test_sparse_get_zero_indistinguishable_from_absent);
 
     /* Copy */
     RUN_TEST(test_copy_basic);

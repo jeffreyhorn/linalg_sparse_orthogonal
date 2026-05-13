@@ -184,6 +184,26 @@ sparse_err_t sparse_remove(SparseMatrix *mat, idx_t row, idx_t col);
  * @param row  Physical row index (0-based).
  * @param col  Physical column index (0-based).
  * @return The stored value, or 0.0 if the entry is absent or indices are invalid.
+ *
+ * @note **Silent-zero contract (Sprint 29 Item 7):** this function
+ *       returns `0.0` in three distinct cases, which are NOT
+ *       distinguished by the return value:
+ *         1. `mat == NULL`.
+ *         2. `row` or `col` is out of `[0, mat->rows)` / `[0,
+ *            mat->cols)`.
+ *         3. The (row, col) entry is absent (sparse — never
+ *            inserted, or removed via `sparse_remove`).
+ *
+ *       This is intentional API design: the dominant caller pattern
+ *       is in-bounds reads against a populated matrix, where "entry
+ *       not stored" naturally means zero (the sparse-matrix
+ *       convention).  Callers needing to distinguish absent-vs-OOB
+ *       should pre-validate indices via `sparse_rows` /
+ *       `sparse_cols`.  See
+ *       `docs/planning/EPIC_2/SPRINT_29/accessor_error_decision.md`
+ *       for the design rationale + rejection of the
+ *       `sparse_get_err(...)` and `sparse_get_last_error()`
+ *       alternatives.
  */
 double sparse_get_phys(const SparseMatrix *mat, idx_t row, idx_t col);
 
@@ -201,6 +221,13 @@ double sparse_get_phys(const SparseMatrix *mat, idx_t row, idx_t col);
  * @param row  Logical row index (0-based).
  * @param col  Logical column index (0-based).
  * @return The stored value, or 0.0 if absent or invalid.
+ *
+ * @note **Silent-zero contract (Sprint 29 Item 7):** mirrors
+ *       `sparse_get_phys` — returns `0.0` for NULL `mat`, out-of-
+ *       range indices, and absent entries.  These three cases are
+ *       NOT distinguishable from the return value.  See
+ *       `docs/planning/EPIC_2/SPRINT_29/accessor_error_decision.md`
+ *       for the rationale + alternatives considered.
  */
 double sparse_get(const SparseMatrix *mat, idx_t row, idx_t col);
 
@@ -226,6 +253,11 @@ sparse_err_t sparse_set(SparseMatrix *mat, idx_t row, idx_t col, double val);
  * @brief Return the number of rows.
  * @param mat  The matrix (may be NULL).
  * @return Number of rows, or 0 if mat is NULL.
+ *
+ * @note **Silent-zero contract (Sprint 29 Item 7):** returns 0 on
+ *       NULL.  This is indistinguishable from a 0-row matrix
+ *       (legitimate corner case).  See
+ *       `docs/planning/EPIC_2/SPRINT_29/accessor_error_decision.md`.
  */
 idx_t sparse_rows(const SparseMatrix *mat);
 
@@ -233,6 +265,8 @@ idx_t sparse_rows(const SparseMatrix *mat);
  * @brief Return the number of columns.
  * @param mat  The matrix (may be NULL).
  * @return Number of columns, or 0 if mat is NULL.
+ *
+ * @note **Silent-zero contract:** see `sparse_rows()` above.
  */
 idx_t sparse_cols(const SparseMatrix *mat);
 
@@ -240,6 +274,8 @@ idx_t sparse_cols(const SparseMatrix *mat);
  * @brief Return the number of stored non-zero entries.
  * @param mat  The matrix (may be NULL).
  * @return Number of stored non-zeros, or 0 if mat is NULL.
+ *
+ * @note **Silent-zero contract:** see `sparse_rows()` above.
  */
 idx_t sparse_nnz(const SparseMatrix *mat);
 

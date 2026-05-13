@@ -113,6 +113,7 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_sprint18_integration.c \
             $(TESTDIR)/test_sprint19_integration.c \
             $(TESTDIR)/test_sprint20_integration.c \
+            $(TESTDIR)/test_sprint29_integration.c \
             $(TESTDIR)/test_eigs.c \
             $(TESTDIR)/test_eigs_thick_restart.c \
             $(TESTDIR)/test_eigs_lobpcg.c \

@@ -596,7 +596,6 @@ static void test_progress_cb_null_default_unchanged(void) {
         .pivot = SPARSE_PIVOT_PARTIAL,
         .reorder = SPARSE_REORDER_NONE,
         .tol = 1e-12,
-        /* progress_cb = NULL (designated-init default) */
     };
     ASSERT_EQ(sparse_lu_factor_opts(A2, &opts), SPARSE_OK);
 

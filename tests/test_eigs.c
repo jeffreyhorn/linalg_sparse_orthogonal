@@ -985,7 +985,6 @@ static void test_eigs_refine_default_off_unchanged(void) {
         .tol = 1e-10,
         .reorthogonalize = 1,
         .compute_vectors = 1,
-        /* refine = 0 (default) */
     };
     REQUIRE_OK(sparse_eigs_sym(A, 3, &opts_ref, &r_ref));
 

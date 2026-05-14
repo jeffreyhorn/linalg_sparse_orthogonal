@@ -954,8 +954,14 @@ static void test_cg_verbose_mode(void) {
     int stderr_fd = fileno(stderr);
     int saved_stderr_fd = (stderr_fd >= 0) ? dup(stderr_fd) : -1;
     int null_fd = open("/dev/null", O_WRONLY);
-    if (null_fd >= 0 && stderr_fd >= 0) {
-        dup2(null_fd, stderr_fd);
+    if (null_fd >= 0) {
+        /* Only redirect if we have a valid stderr fd to dup2 onto;
+         * otherwise (stderr already closed) we still close null_fd
+         * to avoid leaking the descriptor.  dup2 failure also has to
+         * close null_fd. */
+        if (stderr_fd >= 0 && dup2(null_fd, stderr_fd) < 0) {
+            /* dup2 failed — leave stderr untouched, fall through to close. */
+        }
         close(null_fd);
     }
 #endif
@@ -1936,8 +1942,14 @@ static void test_gmres_verbose_mode(void) {
     int stderr_fd = fileno(stderr);
     int saved_stderr_fd = (stderr_fd >= 0) ? dup(stderr_fd) : -1;
     int null_fd = open("/dev/null", O_WRONLY);
-    if (null_fd >= 0 && stderr_fd >= 0) {
-        dup2(null_fd, stderr_fd);
+    if (null_fd >= 0) {
+        /* Only redirect if we have a valid stderr fd to dup2 onto;
+         * otherwise (stderr already closed) we still close null_fd
+         * to avoid leaking the descriptor.  dup2 failure also has to
+         * close null_fd. */
+        if (stderr_fd >= 0 && dup2(null_fd, stderr_fd) < 0) {
+            /* dup2 failed — leave stderr untouched, fall through to close. */
+        }
         close(null_fd);
     }
 #endif

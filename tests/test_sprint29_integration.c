@@ -88,8 +88,12 @@ static void test_cross_eigs_refine_progress_cb(void) {
         .progress_cb = cross_progress_cb,
         .progress_user = &ctx,
     };
-    sparse_err_t rc = sparse_eigs_sym(A, 3, &opts, &res);
-    ASSERT_EQ(rc, SPARSE_OK);
+    /* Fatal gate on the solver call — subsequent loops index
+     * `vals[0..res.n_converged)` / `vecs[0..n*res.n_converged)`, so
+     * a non-OK rc leaving partial / garbage state would lead to
+     * out-of-bounds reads or misleading downstream failures.
+     * REQUIRE_OK aborts the test immediately if rc != SPARSE_OK. */
+    REQUIRE_OK(sparse_eigs_sym(A, 3, &opts, &res));
     ASSERT_EQ(res.n_converged, 3);
 
     /* Progress callback fired during Lanczos.  Guard the strcmp on

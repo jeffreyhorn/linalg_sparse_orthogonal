@@ -931,23 +931,29 @@ static void test_cg_verbose_mode(void) {
     compute_rhs(A, x_exact, b);
 
     /* Redirect stderr to /dev/null to suppress verbose output in test,
-     * but verify it doesn't crash */
+     * but verify it doesn't crash.  MSVC defines `stderr` as a macro
+     * returning an rvalue (the assignment `stderr = devnull` is invalid
+     * on Windows), so the suppression is POSIX-only; on Windows the
+     * verbose output is accepted as harmless test-log noise. */
     sparse_iter_opts_t opts = {.max_iter = 100, .tol = 1e-10, .verbose = 1};
     sparse_iter_result_t result;
 
-    /* Capture stderr to verify output exists */
+#ifndef _WIN32
     FILE *saved_stderr = stderr;
     FILE *devnull = fopen("/dev/null", "w");
     if (devnull)
         stderr = devnull;
+#endif
 
     ASSERT_ERR(sparse_solve_cg(A, b, x, &opts, NULL, NULL, &result), SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
+#ifndef _WIN32
     if (devnull) {
         stderr = saved_stderr;
         fclose(devnull);
     }
+#endif
 
     /* Verify solution is still correct despite verbose output */
     for (int i = 0; i < (int)n; i++)
@@ -1906,10 +1912,15 @@ static void test_gmres_verbose_mode(void) {
     double b[3], x[3] = {0.0, 0.0, 0.0};
     compute_rhs(A, x_exact, b);
 
+    /* MSVC: stderr is a macro returning an rvalue; assignment is
+     * POSIX-only.  Skip the redirection on Windows (accept the verbose
+     * output as test-log noise). */
+#ifndef _WIN32
     FILE *saved_stderr = stderr;
     FILE *devnull = fopen("/dev/null", "w");
     if (devnull)
         stderr = devnull;
+#endif
 
     sparse_gmres_opts_t opts = {.max_iter = 100, .restart = 10, .tol = 1e-10, .verbose = 1};
     sparse_iter_result_t result;
@@ -1917,10 +1928,12 @@ static void test_gmres_verbose_mode(void) {
     ASSERT_ERR(sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &result), SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
+#ifndef _WIN32
     if (devnull) {
         stderr = saved_stderr;
         fclose(devnull);
     }
+#endif
 
     for (int i = 0; i < 3; i++)
         ASSERT_NEAR(x[i], x_exact[i], 1e-10);

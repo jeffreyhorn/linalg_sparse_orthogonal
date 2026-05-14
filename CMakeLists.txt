@@ -156,9 +156,12 @@ add_sparse_test(test_iterative)
 add_sparse_test(test_ilu)
 add_sparse_test(test_omp)
 
-# Thread tests need pthreads
+# Thread tests need pthreads.  The test sources include <pthread.h>
+# directly, so they're POSIX-only; gate them on `NOT WIN32` alongside
+# the existing `Threads_FOUND` check (CMake's `find_package(Threads)`
+# does find Win32 threads, but our test source uses the pthread API).
 find_package(Threads)
-if(Threads_FOUND)
+if(Threads_FOUND AND NOT WIN32)
     add_sparse_test(test_threads)
     target_link_libraries(test_threads PRIVATE Threads::Threads)
     add_sparse_test(test_sprint4_integration)
@@ -202,50 +205,58 @@ add_sparse_test(test_graph_fm_buckets)
 add_sparse_test(test_reorder_nd)
 add_sparse_test(test_reorder_amd_qg)
 
-# Benchmarks (not part of ctest)
-add_executable(bench_main benchmarks/bench_main.c)
-target_link_libraries(bench_main PRIVATE sparse_lu_ortho)
-
-add_executable(bench_scaling benchmarks/bench_scaling.c)
-target_link_libraries(bench_scaling PRIVATE sparse_lu_ortho)
-
+# Benchmarks (not part of ctest).  Several benches use POSIX-only APIs
+# (`clock_gettime(CLOCK_MONOTONIC, ...)`, `<sys/resource.h>` getrusage,
+# `<dirent.h>` directory iteration) that don't have direct MSVC
+# equivalents.  Gate those on `NOT WIN32` so the Windows CMake build
+# only compiles the portable benches.  Full bench runs ship on the
+# POSIX side via `make bench` / `make bench-fast` (Makefile path);
+# Sprint 29 Day 13 added `bench-fast` for CI bench-step coverage.
 add_executable(bench_fillin benchmarks/bench_fillin.c)
 target_link_libraries(bench_fillin PRIVATE sparse_lu_ortho)
 
-add_executable(bench_convergence benchmarks/bench_convergence.c)
-target_link_libraries(bench_convergence PRIVATE sparse_lu_ortho)
-
-add_executable(bench_refactor benchmarks/bench_refactor.c)
-target_link_libraries(bench_refactor PRIVATE sparse_lu_ortho)
-
 add_executable(bench_colamd benchmarks/bench_colamd.c)
 target_link_libraries(bench_colamd PRIVATE sparse_lu_ortho)
-
-add_executable(bench_bicgstab benchmarks/bench_bicgstab.c)
-target_link_libraries(bench_bicgstab PRIVATE sparse_lu_ortho)
-
-add_executable(bench_chol_csc benchmarks/bench_chol_csc.c)
-target_link_libraries(bench_chol_csc PRIVATE sparse_lu_ortho)
-target_include_directories(bench_chol_csc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-
-add_executable(bench_ldlt_csc benchmarks/bench_ldlt_csc.c)
-target_link_libraries(bench_ldlt_csc PRIVATE sparse_lu_ortho)
-target_include_directories(bench_ldlt_csc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-
-add_executable(bench_refactor_csc benchmarks/bench_refactor_csc.c)
-target_link_libraries(bench_refactor_csc PRIVATE sparse_lu_ortho)
-target_include_directories(bench_refactor_csc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-
-add_executable(bench_eigs benchmarks/bench_eigs.c)
-target_link_libraries(bench_eigs PRIVATE sparse_lu_ortho)
 
 add_executable(bench_reorder benchmarks/bench_reorder.c)
 target_link_libraries(bench_reorder PRIVATE sparse_lu_ortho)
 target_include_directories(bench_reorder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-add_executable(bench_amd_qg benchmarks/bench_amd_qg.c)
-target_link_libraries(bench_amd_qg PRIVATE sparse_lu_ortho)
-target_include_directories(bench_amd_qg PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+if(NOT WIN32)
+    add_executable(bench_main benchmarks/bench_main.c)
+    target_link_libraries(bench_main PRIVATE sparse_lu_ortho)
+
+    add_executable(bench_scaling benchmarks/bench_scaling.c)
+    target_link_libraries(bench_scaling PRIVATE sparse_lu_ortho)
+
+    add_executable(bench_convergence benchmarks/bench_convergence.c)
+    target_link_libraries(bench_convergence PRIVATE sparse_lu_ortho)
+
+    add_executable(bench_refactor benchmarks/bench_refactor.c)
+    target_link_libraries(bench_refactor PRIVATE sparse_lu_ortho)
+
+    add_executable(bench_bicgstab benchmarks/bench_bicgstab.c)
+    target_link_libraries(bench_bicgstab PRIVATE sparse_lu_ortho)
+
+    add_executable(bench_chol_csc benchmarks/bench_chol_csc.c)
+    target_link_libraries(bench_chol_csc PRIVATE sparse_lu_ortho)
+    target_include_directories(bench_chol_csc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+    add_executable(bench_ldlt_csc benchmarks/bench_ldlt_csc.c)
+    target_link_libraries(bench_ldlt_csc PRIVATE sparse_lu_ortho)
+    target_include_directories(bench_ldlt_csc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+    add_executable(bench_refactor_csc benchmarks/bench_refactor_csc.c)
+    target_link_libraries(bench_refactor_csc PRIVATE sparse_lu_ortho)
+    target_include_directories(bench_refactor_csc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+    add_executable(bench_eigs benchmarks/bench_eigs.c)
+    target_link_libraries(bench_eigs PRIVATE sparse_lu_ortho)
+
+    add_executable(bench_amd_qg benchmarks/bench_amd_qg.c)
+    target_link_libraries(bench_amd_qg PRIVATE sparse_lu_ortho)
+    target_include_directories(bench_amd_qg PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+endif()
 
 # Example programs (not part of ctest)
 add_executable(example_ldlt examples/example_ldlt.c)

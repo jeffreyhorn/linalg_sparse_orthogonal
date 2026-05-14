@@ -57,9 +57,9 @@ static void test_load_factor_solve_save(void) {
         ASSERT_NEAR(x[i], 1.0, 1e-12);
 
     /* Save the solved result to a temp file and reload */
-    ASSERT_ERR(sparse_save_mm(A, "/tmp/integ_tridiag.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_save_mm(A, tf_tmp("integ_tridiag.mtx")), SPARSE_OK);
     SparseMatrix *A2 = NULL;
-    ASSERT_ERR(sparse_load_mm(&A2, "/tmp/integ_tridiag.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_load_mm(&A2, tf_tmp("integ_tridiag.mtx")), SPARSE_OK);
     ASSERT_EQ(sparse_nnz(A), sparse_nnz(A2));
     ASSERT_EQ(sparse_rows(A2), n);
 
@@ -208,11 +208,11 @@ static void test_full_roundtrip(void) {
     idx_t nnz_orig = sparse_nnz(A);
 
     /* Save */
-    ASSERT_ERR(sparse_save_mm(A, "/tmp/integ_roundtrip.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_save_mm(A, tf_tmp("integ_roundtrip.mtx")), SPARSE_OK);
 
     /* Load */
     SparseMatrix *B = NULL;
-    ASSERT_ERR(sparse_load_mm(&B, "/tmp/integ_roundtrip.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_load_mm(&B, tf_tmp("integ_roundtrip.mtx")), SPARSE_OK);
     ASSERT_NOT_NULL(B);
 
     /* Compare */

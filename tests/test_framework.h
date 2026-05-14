@@ -201,4 +201,43 @@ static clock_t tf_suite_start;
 #define tf_unsetenv(name) unsetenv((name))
 #endif
 
+/* ─── Cross-platform temp-file path helper ──────────────────────────
+ *
+ * Tests that round-trip Matrix Market files write to a temp directory.
+ * POSIX has /tmp; Windows has $TEMP / $TMP and no /tmp at all
+ * (`sparse_save_mm("/tmp/foo.mtx")` returns SPARSE_ERR_IO on Windows).
+ * `tf_tmp(name)` returns a portable temp path:
+ *
+ *   POSIX  : $TMPDIR/<name>, falling back to "/tmp/<name>"
+ *   Windows: $TEMP/<name>, falling back to $TMP/<name>, falling back to
+ *            ".\<name>"
+ *
+ * Sprint 29 Day 14 added this when the Windows CMake CI matrix lit up
+ * for the first time (Sprint 29 Days 7-8) and surfaced the hardcoded
+ * "/tmp/..." literals in test_sparse_io.c + test_integration.c.
+ *
+ * Caveat: uses a function-static buffer for inline-call ergonomics
+ * (`sparse_save_mm(A, tf_tmp("foo.mtx"))`).  Two consecutive calls
+ * overwrite each other — callers that need to hold two paths
+ * simultaneously must copy the returned string into a local buffer. */
+#include <stdlib.h>
+#include <string.h>
+static inline const char *tf_tmp(const char *name) {
+    static char buf[260];
+#ifdef _WIN32
+    const char *dir = getenv("TEMP");
+    if (!dir)
+        dir = getenv("TMP");
+    if (!dir)
+        dir = ".";
+    snprintf(buf, sizeof buf, "%s\\%s", dir, name);
+#else
+    const char *dir = getenv("TMPDIR");
+    if (!dir)
+        dir = "/tmp";
+    snprintf(buf, sizeof buf, "%s/%s", dir, name);
+#endif
+    return buf;
+}
+
 #endif /* TEST_FRAMEWORK_H */

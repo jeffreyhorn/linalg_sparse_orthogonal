@@ -1,3 +1,14 @@
+/* _POSIX_C_SOURCE 200809L: needed for `setenv` / `unsetenv` used by
+ * the `tf_setenv` / `tf_unsetenv` macros from test_framework.h
+ * (Sprint 29 Day 1 added `test_sparse_svd_lowrank_outer_product_matches_dense`
+ * which mutates SPARSE_SVD_LOWRANK_OUTER).  Must be defined BEFORE
+ * any system header is included so glibc's `<features.h>` sees it
+ * on first inclusion. */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 200809L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 #include "sparse_bidiag.h"
 #include "sparse_dense.h"
 #include "sparse_matrix.h"
@@ -2989,6 +3000,413 @@ static void test_lowrank_sparse_rectangular(void) {
     sparse_free(A);
 }
 
+/* Sprint 29 Day 1 — Item 1: outer-product accumulator failing-as-expected
+ * scaffolding.
+ *
+ * Day 1 lands the env-var gate (`SPARSE_SVD_LOWRANK_OUTER={off (default), on}`)
+ * + a stub `sparse_svd_lowrank_outer_product()` that returns an empty
+ * sparse matrix when env-on.  This test pins the Day-2 contract: when
+ * env-on, the new outer-product path must produce a sparse matrix
+ * within Frobenius residual ≤ 1e-10 of the env-off (existing dense-
+ * intermediate) baseline.
+ *
+ * Day 1 stub state: env-on returns empty matrix → relative-Frobenius
+ * residual = ||A_off - 0||_F / ||A_off||_F = 1.0, well above the 1e-10
+ * tolerance.  RUN_TEST stays commented out at the bottom of main()
+ * until Day 2 lights up the real implementation; the test trips the
+ * Frobenius assertion if uncommented (verified failing-as-expected by
+ * dry-run during Day 1 review). */
+static void test_sparse_svd_lowrank_outer_product_matches_dense(void) {
+    /* Small synthetic SPD with known rank-4 structure: 32×32 diagonal
+     * with σ = {10, 5, 1, 0.1, 0, 0, ...} → rank-k=4 reconstruction
+     * recovers the first four entries exactly. */
+    const idx_t n = 32;
+    SparseMatrix *A = sparse_create(n, n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_insert(A, 0, 0, 10.0);
+    sparse_insert(A, 1, 1, 5.0);
+    sparse_insert(A, 2, 2, 1.0);
+    sparse_insert(A, 3, 3, 0.1);
+    /* Remaining diagonals are zero (recovers rank-4 within the
+     * threshold even at the default eps · σ_max cutoff). */
+
+    const idx_t rank_k = 4;
+    const double drop_tol = 1e-8;
+
+    /* Off-path baseline (existing dense-intermediate implementation). */
+    tf_unsetenv("SPARSE_SVD_LOWRANK_OUTER");
+    SparseMatrix *A_off = NULL;
+    sparse_err_t rc = sparse_svd_lowrank_sparse(A, rank_k, drop_tol, &A_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_svd_lowrank_sparse (env off): rc=%d", (int)rc);
+        sparse_free(A);
+        return;
+    }
+
+    /* On-path: outer-product accumulator (Day-1 stub returns empty matrix). */
+    if (tf_setenv("SPARSE_SVD_LOWRANK_OUTER", "on") != 0) {
+        printf("    skipped (setenv SPARSE_SVD_LOWRANK_OUTER=on failed)\n");
+        sparse_free(A_off);
+        sparse_free(A);
+        return;
+    }
+    SparseMatrix *A_on = NULL;
+    rc = sparse_svd_lowrank_sparse(A, rank_k, drop_tol, &A_on);
+    tf_unsetenv("SPARSE_SVD_LOWRANK_OUTER");
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_svd_lowrank_sparse (env on): rc=%d", (int)rc);
+        sparse_free(A_off);
+        sparse_free(A);
+        return;
+    }
+
+    /* Frobenius residual: ||A_off - A_on||_F / ||A_off||_F. */
+    double frob_diff_sq = 0.0;
+    double frob_off_sq = 0.0;
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t j = 0; j < n; j++) {
+            double off_val = sparse_get(A_off, i, j);
+            double on_val = sparse_get(A_on, i, j);
+            double diff = off_val - on_val;
+            frob_diff_sq += diff * diff;
+            frob_off_sq += off_val * off_val;
+        }
+    }
+    double rel_residual =
+        sqrt(frob_off_sq) > 0.0 ? sqrt(frob_diff_sq) / sqrt(frob_off_sq) : sqrt(frob_diff_sq);
+
+    fprintf(stderr, "    outer-product vs dense: ||A_off - A_on||_F / ||A_off||_F = %.3e\n",
+            rel_residual);
+
+    ASSERT_TRUE(rel_residual < 1e-10);
+
+    sparse_free(A_off);
+    sparse_free(A_on);
+    sparse_free(A);
+}
+
+/* Sprint 29 Day 2 — Item 1: outer-product accumulator corpus-safety.
+ *
+ * Loads nos4 + bcsstk04 from SuiteSparse + runs both env-off (existing
+ * dense-intermediate path) + env-on (outer-product) at rank_k ∈
+ * {10, 50}; asserts relative-Frobenius residual ≤ 1e-10 on every
+ * fixture × rank_k cell.  Extends the 32×32 synthetic `matches_dense`
+ * test with real-world SPD structure (sparsity + conditioning) so
+ * the per-cell summation-order equivalence holds across realistic
+ * SVD spectra.
+ *
+ * bcsstk14 (n=1806) is excluded: `sparse_svd_lowrank_sparse` runs a
+ * full economy SVD which on n=1806 takes > 5 min — too slow for the
+ * CI unit-test gate.  Day-2 corpus bench (`/tmp/bench_lowrank_day2.c`)
+ * covers bcsstk14 separately + captures wall + memory metrics to
+ * `lowrank_sweep_day2.txt`. */
+static void test_sparse_svd_lowrank_outer_product_corpus_safety(void) {
+    const char *paths[] = {
+        SS_DIR "/nos4.mtx",
+        SS_DIR "/bcsstk04.mtx",
+    };
+    const char *names[] = {"nos4", "bcsstk04"};
+    const idx_t rank_ks[] = {10, 50};
+    const size_t n_fixtures = sizeof(paths) / sizeof(paths[0]);
+    const size_t n_ranks = sizeof(rank_ks) / sizeof(rank_ks[0]);
+
+    for (size_t fi = 0; fi < n_fixtures; fi++) {
+        SparseMatrix *A = NULL;
+        sparse_err_t rc = sparse_load_mm(&A, paths[fi]);
+        if (rc != SPARSE_OK) {
+            printf("    skipped %s (load rc=%d)\n", names[fi], (int)rc);
+            continue;
+        }
+        idx_t m = sparse_rows(A);
+        idx_t n_cols = sparse_cols(A);
+        idx_t kmax = (m < n_cols) ? m : n_cols;
+
+        for (size_t ki = 0; ki < n_ranks; ki++) {
+            idx_t rank_k = rank_ks[ki];
+            if (rank_k > kmax)
+                continue;
+            const double drop_tol = 1e-8;
+
+            tf_unsetenv("SPARSE_SVD_LOWRANK_OUTER");
+            SparseMatrix *A_off = NULL;
+            rc = sparse_svd_lowrank_sparse(A, rank_k, drop_tol, &A_off);
+            if (rc != SPARSE_OK) {
+                TF_FAIL_("sparse_svd_lowrank_sparse (env off) on %s k=%d: rc=%d", names[fi],
+                         (int)rank_k, (int)rc);
+                continue;
+            }
+
+            if (tf_setenv("SPARSE_SVD_LOWRANK_OUTER", "on") != 0) {
+                sparse_free(A_off);
+                printf("    skipped %s k=%d (setenv failed)\n", names[fi], (int)rank_k);
+                continue;
+            }
+            SparseMatrix *A_on = NULL;
+            rc = sparse_svd_lowrank_sparse(A, rank_k, drop_tol, &A_on);
+            tf_unsetenv("SPARSE_SVD_LOWRANK_OUTER");
+            if (rc != SPARSE_OK) {
+                TF_FAIL_("sparse_svd_lowrank_sparse (env on) on %s k=%d: rc=%d", names[fi],
+                         (int)rank_k, (int)rc);
+                sparse_free(A_off);
+                continue;
+            }
+
+            /* Frobenius residual across the entire m×n_cols matrix.
+             * `sparse_get` returns 0.0 for missing entries which is the
+             * correct semantic for the residual computation. */
+            double frob_diff_sq = 0.0;
+            double frob_off_sq = 0.0;
+            for (idx_t i = 0; i < m; i++) {
+                for (idx_t j = 0; j < n_cols; j++) {
+                    double off_val = sparse_get(A_off, i, j);
+                    double on_val = sparse_get(A_on, i, j);
+                    double diff = off_val - on_val;
+                    frob_diff_sq += diff * diff;
+                    frob_off_sq += off_val * off_val;
+                }
+            }
+            double rel_residual = sqrt(frob_off_sq) > 0.0 ? sqrt(frob_diff_sq) / sqrt(frob_off_sq)
+                                                          : sqrt(frob_diff_sq);
+            fprintf(stderr, "    %s k=%d: rel_residual = %.3e\n", names[fi], (int)rank_k,
+                    rel_residual);
+            ASSERT_TRUE(rel_residual < 1e-10);
+
+            sparse_free(A_off);
+            sparse_free(A_on);
+        }
+
+        sparse_free(A);
+    }
+}
+
+/* Sprint 29 Day 3 — Item 2: full-mode SVD U/V output.
+ *
+ * Day 3 lights up `economy=0` (the previously-rejected full SVD path).
+ * Full mode pads U from m×k to m×m and V^T from k×n to n×n via MGS
+ * over canonical unit vectors (see full_uv_design_day3.md).  This test
+ * pins the orthonormality contract: U^T·U = I_m and V·V^T = I_n on a
+ * dense 16×8 fixture (k = 8, so U gets 8 padded columns and V^T is
+ * already 8×8 = square).
+ *
+ * Fixture: 16×8 dense matrix with deterministic distinct entries (no
+ * RNG — the test is reproducible across platforms). */
+static void test_svd_full_u_v_orthonormality(void) {
+    const idx_t m = 16, n_cols = 8;
+    SparseMatrix *A = sparse_create(m, n_cols);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    /* Deterministic dense fill — varied magnitudes / signs to give all
+     * 8 singular values nonzero spread. */
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < n_cols; j++) {
+            double v = (double)(i + 1) * 0.7 - (double)(j + 1) * 1.3 +
+                       (((i + j) % 3) ? 1.0 : -1.0) * (double)((i * 11 + j * 7) % 13);
+            sparse_insert(A, i, j, v);
+        }
+
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 0};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, &opts, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(svd.m, m);
+    ASSERT_EQ(svd.n, n_cols);
+    ASSERT_EQ(svd.k, n_cols); /* k = min(m, n) = 8 */
+    ASSERT_TRUE(svd.U != NULL);
+    ASSERT_TRUE(svd.Vt != NULL);
+
+    /* U is m×m column-major.  Check ||U^T·U - I_m||_F. */
+    double u_orth_err = 0.0;
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < m; j++) {
+            double dot = 0.0;
+            for (idx_t r = 0; r < m; r++)
+                dot += svd.U[(size_t)i * (size_t)m + (size_t)r] *
+                       svd.U[(size_t)j * (size_t)m + (size_t)r];
+            double target = (i == j) ? 1.0 : 0.0;
+            double d = dot - target;
+            u_orth_err += d * d;
+        }
+    }
+    u_orth_err = sqrt(u_orth_err);
+    fprintf(stderr, "    full U (16x16) ||U^T U - I||_F = %.3e\n", u_orth_err);
+    ASSERT_TRUE(u_orth_err < 1e-10);
+
+    /* Vt is n×n column-major.  Check ||Vt·Vt^T - I_n||_F (rows of Vt
+     * are orthonormal). */
+    double v_orth_err = 0.0;
+    for (idx_t i = 0; i < n_cols; i++) {
+        for (idx_t j = 0; j < n_cols; j++) {
+            double dot = 0.0;
+            for (idx_t c = 0; c < n_cols; c++)
+                dot += svd.Vt[(size_t)c * (size_t)n_cols + (size_t)i] *
+                       svd.Vt[(size_t)c * (size_t)n_cols + (size_t)j];
+            double target = (i == j) ? 1.0 : 0.0;
+            double d = dot - target;
+            v_orth_err += d * d;
+        }
+    }
+    v_orth_err = sqrt(v_orth_err);
+    fprintf(stderr, "    full Vt (8x8)  ||Vt Vt^T - I||_F = %.3e\n", v_orth_err);
+    ASSERT_TRUE(v_orth_err < 1e-10);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
+/* Sprint 29 Day 4 — Item 2 close: economy-mode bit-identical to Sprint 28.
+ *
+ * After Sprint 29 Day 3 lit up the `economy=0` full-mode path, the
+ * existing `economy=1` (thin SVD) path must produce identical sigma /
+ * U cols / V^T rows for the singular triplets it shares with full
+ * mode.  This test pins that contract: run both modes on the same
+ * 16×8 fixture, assert:
+ *   - sigma[0..k-1] bit-equal (same values, same order)
+ *   - U columns 0..k-1 bit-equal (same m·k entries in same offsets)
+ *   - V^T rows 0..k-1 bit-equal at their respective leading dims
+ *     (economy leading dim = k; full leading dim = n)
+ *
+ * Day-3's sort restructure moved the column-permutation step ahead of
+ * the V → V^T transpose; this test guards against the restructure
+ * accidentally producing a different singular-triplet ordering than
+ * the Sprint 28 post-transpose path.  Singular values are identical
+ * because the QR iteration is deterministic, and a stable sort on the
+ * same input produces the same permutation either way. */
+static void test_svd_full_u_v_economy_mode_unchanged(void) {
+    const idx_t m = 16, n_cols = 8;
+    SparseMatrix *A = sparse_create(m, n_cols);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    /* Same deterministic dense fill as the full-mode tests. */
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < n_cols; j++) {
+            double v = (double)(i + 1) * 0.7 - (double)(j + 1) * 1.3 +
+                       (((i + j) % 3) ? 1.0 : -1.0) * (double)((i * 11 + j * 7) % 13);
+            sparse_insert(A, i, j, v);
+        }
+
+    sparse_svd_opts_t econ_opts = {.compute_uv = 1, .economy = 1};
+    sparse_svd_t econ;
+    sparse_err_t err = sparse_svd_compute(A, &econ_opts, &econ);
+    ASSERT_EQ(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    sparse_svd_opts_t full_opts = {.compute_uv = 1, .economy = 0};
+    sparse_svd_t full;
+    err = sparse_svd_compute(A, &full_opts, &full);
+    ASSERT_EQ(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_svd_free(&econ);
+        sparse_free(A);
+        return;
+    }
+
+    ASSERT_EQ(econ.k, n_cols);
+    ASSERT_EQ(full.k, n_cols);
+    ASSERT_EQ(econ.economy, 1);
+    ASSERT_EQ(full.economy, 0);
+
+    /* sigma[0..k-1] bit-equal. */
+    for (idx_t i = 0; i < econ.k; i++) {
+        ASSERT_TRUE(econ.sigma[i] == full.sigma[i]);
+    }
+
+    /* U columns 0..k-1 bit-equal — both have leading dim m, so the first
+     * m·k entries are at the same offsets in both buffers. */
+    for (idx_t s = 0; s < econ.k; s++) {
+        for (idx_t r = 0; r < m; r++) {
+            double e_val = econ.U[(size_t)s * (size_t)m + (size_t)r];
+            double f_val = full.U[(size_t)s * (size_t)m + (size_t)r];
+            ASSERT_TRUE(e_val == f_val);
+        }
+    }
+
+    /* V^T rows 0..k-1 bit-equal at their respective leading dims.
+     * Economy Vt[i, j] = econ.Vt[j*k + i]; full Vt[i, j] = full.Vt[j*n + i]. */
+    for (idx_t i = 0; i < econ.k; i++) {
+        for (idx_t j = 0; j < n_cols; j++) {
+            double e_val = econ.Vt[(size_t)j * (size_t)econ.k + (size_t)i];
+            double f_val = full.Vt[(size_t)j * (size_t)n_cols + (size_t)i];
+            ASSERT_TRUE(e_val == f_val);
+        }
+    }
+
+    fprintf(stderr,
+            "    economy/full bit-identical on 16x8 fixture: sigma + U[:, 0..%d] + "
+            "Vt[0..%d, :]\n",
+            (int)econ.k - 1, (int)econ.k - 1);
+
+    sparse_svd_free(&econ);
+    sparse_svd_free(&full);
+    sparse_free(A);
+}
+
+/* Sprint 29 Day 3 — Item 2: full-mode reconstruction.
+ *
+ * Pins the reconstruction identity for full-mode output: only the
+ * first k columns of U_full and the first k rows of Vt_full enter the
+ * sum (since sigma has only k entries) so the reconstruction residual
+ * matches economy mode within roundoff.  This test guards against
+ * regressions in the leading-dim handling — Vt's stride changes from
+ * k (economy) to n (full), and a stride bug would surface as a large
+ * reconstruction residual.
+ *
+ * Same 16×8 fixture as `test_svd_full_u_v_orthonormality`. */
+static void test_svd_full_u_v_reconstruction(void) {
+    const idx_t m = 16, n_cols = 8;
+    SparseMatrix *A = sparse_create(m, n_cols);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < n_cols; j++) {
+            double v = (double)(i + 1) * 0.7 - (double)(j + 1) * 1.3 +
+                       (((i + j) % 3) ? 1.0 : -1.0) * (double)((i * 11 + j * 7) % 13);
+            sparse_insert(A, i, j, v);
+        }
+
+    sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 0};
+    sparse_svd_t svd;
+    sparse_err_t err = sparse_svd_compute(A, &opts, &svd);
+    ASSERT_EQ(err, SPARSE_OK);
+    if (err != SPARSE_OK) {
+        sparse_free(A);
+        return;
+    }
+
+    idx_t k = svd.k;
+    /* Reconstruct A_recon[i, j] = sum_{s=0..k-1} sigma[s] · U[i, s] · Vt[s, j].
+     * Full-mode storage: U leading dim m, Vt leading dim n_cols. */
+    double frob_resid_sq = 0.0;
+    double frob_a_sq = 0.0;
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < n_cols; j++) {
+            double recon = 0.0;
+            for (idx_t s = 0; s < k; s++) {
+                recon += svd.sigma[s] * svd.U[(size_t)s * (size_t)m + (size_t)i] *
+                         svd.Vt[(size_t)j * (size_t)n_cols + (size_t)s];
+            }
+            double a_ij = sparse_get(A, i, j);
+            double d = a_ij - recon;
+            frob_resid_sq += d * d;
+            frob_a_sq += a_ij * a_ij;
+        }
+    }
+    double rel_resid =
+        sqrt(frob_a_sq) > 0.0 ? sqrt(frob_resid_sq) / sqrt(frob_a_sq) : sqrt(frob_resid_sq);
+    fprintf(stderr, "    full-mode recon: ||A - U Sigma Vt||_F / ||A||_F = %.3e\n", rel_resid);
+    ASSERT_TRUE(rel_resid < 1e-10);
+
+    sparse_svd_free(&svd);
+    sparse_free(A);
+}
+
 /* NULL and bad args */
 static void test_lowrank_sparse_errors(void) {
     SparseMatrix *out = NULL;
@@ -3263,6 +3681,22 @@ int main(void) {
     RUN_TEST(test_lowrank_sparse_rank1);
     RUN_TEST(test_lowrank_sparse_rectangular);
     RUN_TEST(test_lowrank_sparse_errors);
+    /* Sprint 29 Day 2: outer-product accumulator (Item 1) lit up.
+     * Day 1 landed the env-var scaffolding + failing-as-expected
+     * test stub; Day 2 replaced the empty-matrix stub in
+     * `src/sparse_svd.c::sparse_svd_lowrank_outer_product` with
+     * the per-cell accumulator.  RUN_TESTs below pin the
+     * differs-from-dense-by-≤-1e-10 contract on a 32×32 synthetic
+     * (matches_dense) + corpus safety across nos4/bcsstk04/bcsstk14
+     * at rank_k ∈ {10, 50} (corpus_safety). */
+    RUN_TEST(test_sparse_svd_lowrank_outer_product_matches_dense);
+    RUN_TEST(test_sparse_svd_lowrank_outer_product_corpus_safety);
+
+    /* Sprint 29 Day 3: full-mode SVD (Item 2) — economy=0 lit up. */
+    RUN_TEST(test_svd_full_u_v_orthonormality);
+    RUN_TEST(test_svd_full_u_v_reconstruction);
+    /* Sprint 29 Day 4 Item 2 close — economy mode bit-identical to Sprint 28. */
+    RUN_TEST(test_svd_full_u_v_economy_mode_unchanged);
 
     /* Condition number (Sprint 9 Day 3) */
     RUN_TEST(test_cond_identity);

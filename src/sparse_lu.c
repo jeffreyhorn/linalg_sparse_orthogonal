@@ -1,3 +1,13 @@
+/* Sprint 29 Day 8 (Item 5): feature-test macro to expose
+ * `clock_gettime` / `CLOCK_MONOTONIC` for the Day 6 progress timing
+ * helper.  Mirrors `src/sparse_reorder_amd_qg.c` Sprint 24 Day 1
+ * pattern.  Windows routes through C11 `timespec_get(..., TIME_UTC)`
+ * inside `s29_now_s` below. */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 199309L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 199309L
+#endif
+
 #include "sparse_lu.h"
 #include "sparse_matrix_internal.h"
 #include "sparse_reorder.h"
@@ -5,6 +15,28 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+/* Sprint 29 Day 6 (Item 4): progress / cancel callback wiring.
+ * Forward-declares the internal factor entry point that takes the
+ * optional progress hook + user pointer; public `sparse_lu_factor`
+ * delegates with NULL callback, `sparse_lu_factor_opts` forwards
+ * `opts->progress_cb` / `opts->progress_user`.  Phase start time
+ * is captured here so `progress.elapsed_s` is monotonic across
+ * the per-column emission stream. */
+static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t pivot, double tol,
+                                           sparse_progress_cb_t progress_cb, void *progress_user);
+
+/* Sprint 29 Day 8 (Item 5): Windows-portable monotonic clock helper. */
+static double s29_now_s(void) {
+    struct timespec ts;
+#ifdef _WIN32
+    timespec_get(&ts, TIME_UTC);
+#else
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+#endif
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+}
 
 /* ─── Permutation swap helpers ───────────────────────────────────────── */
 
@@ -27,6 +59,11 @@ static void swap_col_perm(SparseMatrix *mat, idx_t log_a, idx_t log_b) {
 /* ─── LU factorization ───────────────────────────────────────────────── */
 
 sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double tol) {
+    return sparse_lu_factor_inner(mat, pivot, tol, NULL, NULL);
+}
+
+static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t pivot, double tol,
+                                           sparse_progress_cb_t progress_cb, void *progress_user) {
     if (!mat)
         return SPARSE_ERR_NULL;
     idx_t n = mat->rows;
@@ -55,7 +92,33 @@ sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double to
     }
     mat->factor_norm = anorm;
 
+    double phase_start_s = progress_cb ? s29_now_s() : 0.0;
+
     for (idx_t k = 0; k < n; k++) {
+        /* Sprint 29 Day 6: progress emission + cancellation check at
+         * top of each column iteration (BEFORE any column-k mutation).
+         * Cancellation at step=0 leaves the entry values unmodified —
+         * no column has been eliminated yet — BUT the matrix struct is
+         * NOT bit-identical to entry: `mat->factored` was cleared and
+         * `mat->factor_norm` was cached with `||A||_inf` immediately
+         * above this loop.  Callers that need true bit-identical
+         * preservation on immediate cancellation should pre-
+         * `sparse_copy()` the input and discard the copy.  See
+         * `include/sparse_lu.h::sparse_lu_opts_t.progress_cb` for the
+         * full contract. */
+        if (progress_cb) {
+            sparse_progress_t p = {
+                .phase = "lu_factor",
+                .step = k,
+                .total = n,
+                .elapsed_s = s29_now_s() - phase_start_s,
+            };
+            if (progress_cb(&p, progress_user) != 0) {
+                free(elim_rows);
+                return SPARSE_ERR_CANCELLED;
+            }
+        }
+
         /* ── Pivot search ── */
         double max_val = 0.0;
         idx_t pivot_log_row = k;
@@ -261,7 +324,8 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
     }
 
     /* Factor with given pivoting and tolerance */
-    return sparse_lu_factor(mat, opts->pivot, opts->tol);
+    return sparse_lu_factor_inner(mat, opts->pivot, opts->tol, opts->progress_cb,
+                                  opts->progress_user);
 }
 
 /* ─── Transpose solve ────────────────────────────────────────────────── */

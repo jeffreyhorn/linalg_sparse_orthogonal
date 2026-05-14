@@ -17,6 +17,105 @@ static int size_mul_overflow(size_t a, size_t b, size_t *out) {
     return 0;
 }
 
+/* Sprint 29 Days 1-2 — Item 1: outer-product accumulator for
+ * `sparse_svd_lowrank_sparse`.  See
+ * `docs/planning/EPIC_2/SPRINT_29/lowrank_design_day1.md` for the
+ * algebra + thresholding rationale.
+ *
+ * Existing path (`sparse_svd_lowrank_sparse` below) allocates an
+ * O(m·n) dense accumulator (`calloc(m*n, sizeof(double))`) to fold
+ * each rank-1 outer product `σ_s · u_s · v_s^T` into.  On the
+ * Pres_Poisson-class corpus (m = n = 14 822), that's ~1.76 GB of
+ * intermediate memory — typically dominating both peak memory and
+ * cache traffic vs the eventual sparse output.
+ *
+ * The outer-product path eliminates the dense accumulator by
+ * computing each (i, j) cell of the final result directly:
+ *
+ *     A_k[i, j] = sum_{s=0}^{rank_k-1} σ_s · U[i, s] · V^T[s, j]
+ *
+ * For each (i, j), evaluate the sum once + threshold-and-insert.
+ * Memory: O(nnz_result) sparse output only.  Wall: O(m·n·rank_k)
+ * same as the dense-intermediate path's accumulator-fill loop.
+ * Sprint 29 Day 2 fully implements the per-cell accumulator below in
+ * `sparse_svd_lowrank_outer_product`.
+ *
+ * Env-var gate `SPARSE_SVD_LOWRANK_OUTER={off (default), on}` lets
+ * callers A/B compare the two paths; Day-2 sweep verdict
+ * (`lowrank_sweep_day2.txt`) ships this as advisory only — memory
+ * gate -76-88 % rss reduction PASS, wall gate ~0 % delta FAIL
+ * (algorithmic-equivalence-bound), so production default stays off. */
+typedef enum {
+    SVD_LOWRANK_OUTER_OFF = 0, /* Default — existing dense-intermediate path */
+    SVD_LOWRANK_OUTER_ON = 1,  /* Day 2+ — outer-product accumulator */
+} svd_lowrank_outer_mode_t;
+
+static svd_lowrank_outer_mode_t parse_svd_lowrank_outer(void) {
+    const char *env = getenv("SPARSE_SVD_LOWRANK_OUTER");
+    if (env && strcmp(env, "on") == 0)
+        return SVD_LOWRANK_OUTER_ON;
+    /* Default + unrecognized + "off" all fall through. */
+    return SVD_LOWRANK_OUTER_OFF;
+}
+
+/* Per-cell outer-product accumulator.  For each (i, j) ∈ [0, m) × [0, n),
+ * computes A_k[i, j] = sum_{s=0}^{rank_k-1} σ_s · U[i, s] · V^T[s, j]
+ * in a single pass + sparse_inserts cells above `drop_tol`.  Memory
+ * footprint: O(nnz_result) (drops the existing path's m×n dense
+ * accumulator).  Wall: O(m·n·rank_k) same as the existing path's
+ * accumulator-fill triple loop (just re-ordered as `for i for j for s`
+ * instead of `for s for i for j`).
+ *
+ * Numeric comparability: each cell sums σ_s · U[i,s] · Vt[j*k + s] in
+ * `s` ascending order, matching the existing path's per-cell summation
+ * order.  Day-2 corpus test asserts ||A_off - A_on||_F / ||A_off||_F
+ * ≤ 1e-10 across the SuiteSparse fixtures (see
+ * `tests/test_svd.c::test_sparse_svd_lowrank_outer_product_corpus_safety`). */
+static sparse_err_t sparse_svd_lowrank_outer_product(const sparse_svd_t *svd, idx_t rank_k,
+                                                     double drop_tol, idx_t m, idx_t n,
+                                                     SparseMatrix **out) {
+    SparseMatrix *result = sparse_create(m, n);
+    if (!result)
+        return SPARSE_ERR_ALLOC;
+
+    idx_t k = svd->k;
+    idx_t s_end = (rank_k < k) ? rank_k : k;
+
+    /* Early-exit on zero-σ matrices (mirrors the existing path's
+     * short-circuit at line ~1313). */
+    if (s_end == 0 || svd->sigma[0] == 0.0) {
+        *out = result;
+        return SPARSE_OK;
+    }
+
+    const double *U_data = svd->U;   /* m×k column-major */
+    const double *Vt_data = svd->Vt; /* k×n column-major */
+    const double *sigma = svd->sigma;
+
+    for (idx_t i = 0; i < m; i++) {
+        for (idx_t j = 0; j < n; j++) {
+            double val = 0.0;
+            for (idx_t s = 0; s < s_end; s++) {
+                /* σ_s · U[i, s] · V^T[s, j] — U is m×k col-major so
+                 * U[i, s] = U_data[s*m + i]; Vt is k×n col-major so
+                 * Vt[s, j] = Vt_data[j*k + s]. */
+                val += sigma[s] * U_data[(size_t)s * (size_t)m + (size_t)i] *
+                       Vt_data[(size_t)j * (size_t)k + (size_t)s];
+            }
+            if (fabs(val) >= drop_tol) {
+                sparse_err_t ierr = sparse_insert(result, i, j, val);
+                if (ierr != SPARSE_OK) {
+                    sparse_free(result);
+                    return ierr;
+                }
+            }
+        }
+    }
+
+    *out = result;
+    return SPARSE_OK;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Householder application helper (same as in sparse_qr.c / sparse_bidiag.c)
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -513,6 +612,97 @@ void sparse_svd_free(sparse_svd_t *svd) {
     memset(svd, 0, sizeof(*svd));
 }
 
+/* Sprint 29 Day 3 — Item 2: full-mode basis completion.
+ *
+ * Given an `dim × k_filled` column-major orthonormal basis stored in a
+ * `dim × k_target` buffer (so columns 0..k_filled-1 are populated and the
+ * buffer has room for additional columns k_filled..k_target-1), extend
+ * the basis to `k_target` orthonormal columns by MGS over canonical unit
+ * vectors.  For each new column j, try canonical e_0, e_1, ..., e_{dim-1}
+ * in turn; for each candidate, run TWO passes of modified Gram-Schmidt
+ * against cols 0..j-1 (the second pass restores orthogonality lost to
+ * floating-point error when the candidate is nearly in the existing
+ * span — Daniel-Gragg-Kaufman-Stewart 1976), then reject the candidate
+ * if its residual norm is below a fixed cutoff (1e-10) — that
+ * means the canonical lies entirely in the existing span up to numerical
+ * noise, and a future canonical will give a clean orthogonal complement.
+ *
+ * Termination guarantee: when k_target ≤ dim, the span of cols 0..j-1
+ * has codimension ≥ dim - j ≥ dim - (k_target - 1) ≥ 1 in R^dim for every
+ * j ∈ [k_filled, k_target), so at least one canonical e_cand must lie
+ * outside the span and the inner cand-loop succeeds.
+ *
+ * Return codes:
+ *   SPARSE_OK              — basis padded successfully.
+ *   SPARSE_ERR_BADARG      — `k_target > dim` (early-exit guard before
+ *                            the loop; can never produce dim+1
+ *                            orthonormal vectors in dim-dim space).
+ *   SPARSE_ERR_NOT_CONVERGED — defensive fallback inside the cand loop
+ *                            when every canonical candidate collapses
+ *                            below the rejection threshold; mathematically
+ *                            unreachable given the BADARG guard above,
+ *                            kept as belt-and-braces.
+ *
+ * Cost: O(dim^2 · (k_target - k_filled)) for the typical case where the
+ * first canonical succeeds (single iter of the cand loop with two MGS
+ * passes); O(dim^3) worst case.  Both are dominated by the SVD's
+ * O(m · n · k) compute. */
+static sparse_err_t pad_orthonormal_basis(double *M, idx_t dim, idx_t k_filled, idx_t k_target) {
+    if (k_target <= k_filled)
+        return SPARSE_OK;
+    if (k_target > dim)
+        return SPARSE_ERR_BADARG;
+
+    /* Rejection threshold: any candidate whose residual norm after MGS
+     * drops below this is treated as linearly dependent (lies in the
+     * existing span up to numerical noise).  1e-10 matches the
+     * orthonormality target the tests assert (||U^T U - I||_F ≤ 1e-10). */
+    const double rejection_tol = 1e-10;
+
+    for (idx_t j = k_filled; j < k_target; j++) {
+        size_t col_j_base = (size_t)j * (size_t)dim;
+
+        int found = 0;
+        for (idx_t cand = 0; cand < dim && !found; cand++) {
+            for (idx_t i = 0; i < dim; i++)
+                M[col_j_base + (size_t)i] = (i == cand) ? 1.0 : 0.0;
+
+            /* Two passes of MGS — second pass restores orthogonality lost
+             * to floating-point error when col_j has a small component
+             * outside the span of cols 0..j-1. */
+            for (int pass = 0; pass < 2; pass++) {
+                for (idx_t s = 0; s < j; s++) {
+                    size_t col_s_base = (size_t)s * (size_t)dim;
+                    double dot = 0.0;
+                    for (idx_t i = 0; i < dim; i++)
+                        dot += M[col_j_base + (size_t)i] * M[col_s_base + (size_t)i];
+                    for (idx_t i = 0; i < dim; i++)
+                        M[col_j_base + (size_t)i] -= dot * M[col_s_base + (size_t)i];
+                }
+            }
+
+            double nrm = 0.0;
+            for (idx_t i = 0; i < dim; i++) {
+                double v = M[col_j_base + (size_t)i];
+                nrm += v * v;
+            }
+            nrm = sqrt(nrm);
+
+            if (nrm > rejection_tol) {
+                double inv = 1.0 / nrm;
+                for (idx_t i = 0; i < dim; i++)
+                    M[col_j_base + (size_t)i] *= inv;
+                found = 1;
+            }
+        }
+
+        if (!found)
+            return SPARSE_ERR_NOT_CONVERGED;
+    }
+
+    return SPARSE_OK;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Full SVD computation
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -555,11 +745,12 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
         return SPARSE_ERR_BADARG;
     }
 
-    /* Full (non-economy) SVD with UV is not implemented — only economy mode */
-    if (compute_uv && !economy) {
-        sparse_bidiag_free(&bd);
-        return SPARSE_ERR_BADARG;
-    }
+    /* Sprint 29 Day 3 — Item 2: full-mode (`compute_uv && !economy`) is now
+     * supported.  Economy-mode (`economy=1`) path is bit-identical to Sprint
+     * 28 below; full-mode lights up a post-iteration MGS pad step that
+     * extends U from m×k to m×m and Vt from k×n to n×n.  Storage contract:
+     * column-major with leading dim = number of rows.  See
+     * `docs/planning/EPIC_2/SPRINT_29/full_uv_design_day3.md`. */
 
     /* Copy bidiag arrays (QR iteration modifies them in-place) */
     size_t bd_diag_bytes, bd_super_bytes = 0;
@@ -640,12 +831,117 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
     /* Store singular values */
     svd->sigma = bd_diag;
 
-    /* Store U and Vt */
+    /* Sort singular values descending + permute U_work / V_work columns
+     * (operates on the economy k columns of U_work + V_work; equivalent to
+     * the Sprint 28 post-transpose sort because the column-permutation on
+     * V_work and the row-permutation on Vt = transpose(V_work) describe the
+     * same singular-triplet permutation).  Done before full-mode padding so
+     * the padded columns (cols k..m-1 of U, cols k..n-1 of V) are added in
+     * an unambiguous orientation. */
+    for (idx_t i = 0; i + 1 < k; i++) {
+        idx_t best = i;
+        for (idx_t j = i + 1; j < k; j++)
+            if (svd->sigma[j] > svd->sigma[best])
+                best = j;
+        if (best != i) {
+            double tmp = svd->sigma[i];
+            svd->sigma[i] = svd->sigma[best];
+            svd->sigma[best] = tmp;
+            if (U_work) {
+                for (idx_t r = 0; r < m; r++) {
+                    double t = U_work[(size_t)i * (size_t)m + (size_t)r];
+                    U_work[(size_t)i * (size_t)m + (size_t)r] =
+                        U_work[(size_t)best * (size_t)m + (size_t)r];
+                    U_work[(size_t)best * (size_t)m + (size_t)r] = t;
+                }
+            }
+            if (V_work) {
+                for (idx_t r = 0; r < n; r++) {
+                    double t = V_work[(size_t)i * (size_t)n + (size_t)r];
+                    V_work[(size_t)i * (size_t)n + (size_t)r] =
+                        V_work[(size_t)best * (size_t)n + (size_t)r];
+                    V_work[(size_t)best * (size_t)n + (size_t)r] = t;
+                }
+            }
+        }
+    }
+
+    /* Full-mode (`compute_uv && !economy`) pad step: extend U_work from
+     * m×k to m×m and V_work from n×k to n×n by completing the orthonormal
+     * basis via MGS over canonical unit vectors.  Skip when economy mode
+     * is requested OR when the dimension is already at its target (m==k
+     * for U, n==k for V).  See full_uv_design_day3.md for the algorithm.
+     * The leading dim of Vt is `k_v_cols` (= k in economy, = n in full)
+     * — U's leading dim is always m. */
+    idx_t k_v_cols = (compute_uv && !economy) ? n : k;
+
+    if (compute_uv && !economy && m > k) {
+        size_t sz_u_full;
+        if (size_mul_overflow((size_t)m, (size_t)m, &sz_u_full) ||
+            sz_u_full > SIZE_MAX / sizeof(double)) {
+            free(U_work);
+            free(V_work);
+            sparse_svd_free(svd);
+            return SPARSE_ERR_ALLOC;
+        }
+        double *U_full = calloc(sz_u_full, sizeof(double)); // NOLINT
+        if (!U_full) {
+            free(U_work);
+            free(V_work);
+            sparse_svd_free(svd);
+            return SPARSE_ERR_ALLOC;
+        }
+        /* Copy economy cols 0..k-1 into U_full cols 0..k-1. */
+        memcpy(U_full, U_work, (size_t)m * (size_t)k * sizeof(double));
+        free(U_work);
+        U_work = U_full;
+
+        sparse_err_t pad_err = pad_orthonormal_basis(U_work, m, k, m);
+        if (pad_err != SPARSE_OK) {
+            free(U_work);
+            free(V_work);
+            sparse_svd_free(svd);
+            return pad_err;
+        }
+    }
+
+    if (compute_uv && !economy && n > k) {
+        size_t sz_v_full;
+        if (size_mul_overflow((size_t)n, (size_t)n, &sz_v_full) ||
+            sz_v_full > SIZE_MAX / sizeof(double)) {
+            free(U_work);
+            free(V_work);
+            sparse_svd_free(svd);
+            return SPARSE_ERR_ALLOC;
+        }
+        double *V_full = calloc(sz_v_full, sizeof(double)); // NOLINT
+        if (!V_full) {
+            free(U_work);
+            free(V_work);
+            sparse_svd_free(svd);
+            return SPARSE_ERR_ALLOC;
+        }
+        memcpy(V_full, V_work, (size_t)n * (size_t)k * sizeof(double));
+        free(V_work);
+        V_work = V_full;
+
+        sparse_err_t pad_err = pad_orthonormal_basis(V_work, n, k, n);
+        if (pad_err != SPARSE_OK) {
+            free(U_work);
+            free(V_work);
+            sparse_svd_free(svd);
+            return pad_err;
+        }
+    }
+
+    /* Store U and transpose V into Vt with the appropriate leading dim. */
     if (compute_uv) {
         svd->U = U_work;
-        /* Transpose V (n×k) to get Vt (k×n) */
+        U_work = NULL;
+
         size_t vt_sz;
-        if (size_mul_overflow((size_t)k, (size_t)n, &vt_sz) || vt_sz > SIZE_MAX / sizeof(double)) {
+        if (size_mul_overflow((size_t)k_v_cols, (size_t)n, &vt_sz) ||
+            vt_sz > SIZE_MAX / sizeof(double)) {
             free(V_work);
             sparse_svd_free(svd);
             return SPARSE_ERR_ALLOC;
@@ -656,40 +952,13 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
             sparse_svd_free(svd);
             return SPARSE_ERR_ALLOC;
         }
-        for (idx_t i = 0; i < k; i++)
+        /* Vt[j, i] = V_work[i, j] — Vt has leading dim k_v_cols, V_work has
+         * leading dim n.  Economy: k_v_cols = k; Full: k_v_cols = n. */
+        for (idx_t i = 0; i < k_v_cols; i++)
             for (idx_t j = 0; j < n; j++)
-                svd->Vt[(size_t)j * (size_t)k + (size_t)i] =
+                svd->Vt[(size_t)j * (size_t)k_v_cols + (size_t)i] =
                     V_work[(size_t)i * (size_t)n + (size_t)j];
         free(V_work);
-    }
-
-    /* Sort singular values descending (and permute U/Vt columns) */
-    for (idx_t i = 0; i < k - 1; i++) {
-        idx_t best = i;
-        for (idx_t j = i + 1; j < k; j++)
-            if (svd->sigma[j] > svd->sigma[best])
-                best = j;
-        if (best != i) {
-            double tmp = svd->sigma[i];
-            svd->sigma[i] = svd->sigma[best];
-            svd->sigma[best] = tmp;
-            if (svd->U) {
-                for (idx_t r = 0; r < m; r++) {
-                    double t = svd->U[(size_t)i * (size_t)m + (size_t)r];
-                    svd->U[(size_t)i * (size_t)m + (size_t)r] =
-                        svd->U[(size_t)best * (size_t)m + (size_t)r];
-                    svd->U[(size_t)best * (size_t)m + (size_t)r] = t;
-                }
-            }
-            if (svd->Vt) {
-                for (idx_t c = 0; c < n; c++) {
-                    double t = svd->Vt[(size_t)c * (size_t)k + (size_t)i];
-                    svd->Vt[(size_t)c * (size_t)k + (size_t)i] =
-                        svd->Vt[(size_t)c * (size_t)k + (size_t)best];
-                    svd->Vt[(size_t)c * (size_t)k + (size_t)best] = t;
-                }
-            }
-        }
     }
 
     return SPARSE_OK;
@@ -1322,6 +1591,27 @@ sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, doub
     /* Default drop tolerance: eps * sigma_max */
     if (drop_tol <= 0.0)
         drop_tol = 2.2204460492503131e-16 * svd.sigma[0];
+
+    /* Sprint 29 Days 1-2: optional outer-product path that drops the
+     * O(m·n) dense accumulator.  Default-off path is bit-identical
+     * to Sprint 28; env-on dispatches to `sparse_svd_lowrank_outer_product`
+     * (Day 2 per-cell accumulator implementation — matches the dense
+     * path's nnz output bit-for-bit on the corpus, with -76-88 % peak
+     * rss on bcsstk14-class fixtures per `lowrank_sweep_day2.txt`).
+     * See `docs/planning/EPIC_2/SPRINT_29/lowrank_design_day1.md`. */
+    if (parse_svd_lowrank_outer() == SVD_LOWRANK_OUTER_ON) {
+        SparseMatrix *outer_result = NULL;
+        sparse_err_t outer_err =
+            sparse_svd_lowrank_outer_product(&svd, rank_k, drop_tol, m, n, &outer_result);
+        sparse_svd_free(&svd);
+        if (outer_err != SPARSE_OK) {
+            if (outer_result)
+                sparse_free(outer_result);
+            return outer_err;
+        }
+        *result = outer_result;
+        return SPARSE_OK;
+    }
 
     SparseMatrix *out = sparse_create(m, n);
     if (!out) {

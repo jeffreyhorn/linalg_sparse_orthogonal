@@ -53,6 +53,17 @@ typedef struct {
                                    application instead of O(m*n) dense workspace.
                                    Uses O(m) working memory per column. Slower but
                                    scales to larger matrices. (default: 0) */
+    /** Sprint 29 Day 7 (Item 4): optional progress / cancellation
+     *  callback.  Invoked at the top of each Householder column-
+     *  elimination iteration with `phase = "qr_factor"`, `step = k`,
+     *  `total = min(m, n)`.  Return 0 to continue; non-zero cancels
+     *  with `SPARSE_ERR_CANCELLED` after freeing intermediate state.
+     *  NULL (default) preserves Sprint 28 behaviour bit-identical.
+     *  Trailing field for designated-init back-compat. */
+    sparse_progress_cb_t progress_cb;
+    /** Opaque context pointer passed through unchanged to
+     *  `progress_cb`.  Ignored when `progress_cb == NULL`. */
+    void *progress_user;
 } sparse_qr_opts_t;
 
 /**

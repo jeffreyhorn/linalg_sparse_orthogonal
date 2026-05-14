@@ -28,10 +28,10 @@ static void test_roundtrip_basic(void) {
     sparse_insert(A, 2, 0, 7.0);
     sparse_insert(A, 2, 2, 9.0);
 
-    ASSERT_ERR(sparse_save_mm(A, "/tmp/test_rt_basic.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_save_mm(A, tf_tmp("test_rt_basic.mtx")), SPARSE_OK);
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(sparse_load_mm(&B, "/tmp/test_rt_basic.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_load_mm(&B, tf_tmp("test_rt_basic.mtx")), SPARSE_OK);
     ASSERT_NOT_NULL(B);
     ASSERT_EQ(sparse_rows(B), 3);
     ASSERT_EQ(sparse_cols(B), 3);
@@ -51,10 +51,10 @@ static void test_roundtrip_single_element(void) {
     sparse_insert(A, 2, 3, 42.0);
     ASSERT_EQ(sparse_nnz(A), 1);
 
-    ASSERT_ERR(sparse_save_mm(A, "/tmp/test_rt_single.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_save_mm(A, tf_tmp("test_rt_single.mtx")), SPARSE_OK);
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(sparse_load_mm(&B, "/tmp/test_rt_single.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_load_mm(&B, tf_tmp("test_rt_single.mtx")), SPARSE_OK);
     ASSERT_EQ(sparse_nnz(B), 1);
     ASSERT_NEAR(sparse_get_phys(B, 2, 3), 42.0, 0.0);
 
@@ -68,10 +68,10 @@ static void test_roundtrip_rectangular(void) {
     sparse_insert(A, 1, 2, 2.0);
     sparse_insert(A, 2, 4, 3.0);
 
-    ASSERT_ERR(sparse_save_mm(A, "/tmp/test_rt_rect.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_save_mm(A, tf_tmp("test_rt_rect.mtx")), SPARSE_OK);
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(sparse_load_mm(&B, "/tmp/test_rt_rect.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_load_mm(&B, tf_tmp("test_rt_rect.mtx")), SPARSE_OK);
     ASSERT_EQ(sparse_rows(B), 3);
     ASSERT_EQ(sparse_cols(B), 5);
     ASSERT_EQ(sparse_nnz(B), 3);
@@ -90,10 +90,10 @@ static void test_roundtrip_precision(void) {
     sparse_insert(A, 1, 1, 1e-300);
     sparse_insert(A, 2, 2, -3.141592653589793);
 
-    ASSERT_ERR(sparse_save_mm(A, "/tmp/test_rt_prec.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_save_mm(A, tf_tmp("test_rt_prec.mtx")), SPARSE_OK);
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(sparse_load_mm(&B, "/tmp/test_rt_prec.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_load_mm(&B, tf_tmp("test_rt_prec.mtx")), SPARSE_OK);
 
     ASSERT_NEAR(sparse_get_phys(B, 0, 0), 1e300, 1e285);
     ASSERT_NEAR(sparse_get_phys(B, 1, 1), 1e-300, 1e-314);
@@ -113,10 +113,10 @@ static void test_roundtrip_nnz_preserved(void) {
     idx_t nnz_orig = sparse_nnz(A);
     ASSERT_EQ(nnz_orig, 16);
 
-    ASSERT_ERR(sparse_save_mm(A, "/tmp/test_rt_nnz.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_save_mm(A, tf_tmp("test_rt_nnz.mtx")), SPARSE_OK);
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(sparse_load_mm(&B, "/tmp/test_rt_nnz.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_load_mm(&B, tf_tmp("test_rt_nnz.mtx")), SPARSE_OK);
     ASSERT_EQ(sparse_nnz(B), nnz_orig);
 
     sparse_free(A);
@@ -205,7 +205,13 @@ static void test_load_pattern(void) {
 
 static void test_load_nonexistent_file(void) {
     SparseMatrix *A = NULL;
-    ASSERT_ERR(sparse_load_mm(&A, "/tmp/no_such_file_xyz.mtx"), SPARSE_ERR_IO);
+    /* Pre-delete to prevent flakiness if a stale file exists in
+     * $TMPDIR / $TEMP from a previous run.  `remove()` returns
+     * non-zero (and sets errno) if the file doesn't exist —
+     * ignore that; the load below produces the SPARSE_ERR_IO we
+     * actually assert against. */
+    remove(tf_tmp("no_such_file_xyz.mtx"));
+    ASSERT_ERR(sparse_load_mm(&A, tf_tmp("no_such_file_xyz.mtx")), SPARSE_ERR_IO);
     ASSERT_NULL(A);
 }
 
@@ -217,7 +223,7 @@ static void test_load_bad_header(void) {
 
 static void test_save_null_args(void) {
     SparseMatrix *A = sparse_create(2, 2);
-    ASSERT_ERR(sparse_save_mm(NULL, "/tmp/test.mtx"), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_save_mm(NULL, tf_tmp("test.mtx")), SPARSE_ERR_NULL);
     ASSERT_ERR(sparse_save_mm(A, NULL), SPARSE_ERR_NULL);
     sparse_free(A);
 }
@@ -241,7 +247,12 @@ static void test_save_invalid_path(void) {
 
 static void test_load_errno_enoent(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t err = sparse_load_mm(&A, "/tmp/no_such_file_errno_test.mtx");
+    /* Pre-delete to keep the ENOENT assertion deterministic — a
+     * stale file in $TMPDIR / $TEMP would make `sparse_errno()`
+     * return 0 (load success) instead of ENOENT.  `remove()`
+     * failure is fine if the file doesn't already exist. */
+    remove(tf_tmp("no_such_file_errno_test.mtx"));
+    sparse_err_t err = sparse_load_mm(&A, tf_tmp("no_such_file_errno_test.mtx"));
     ASSERT_ERR(err, SPARSE_ERR_IO);
     ASSERT_NULL(A);
     ASSERT_EQ(sparse_errno(), ENOENT);
@@ -257,21 +268,29 @@ static void test_save_errno_bad_path(void) {
 }
 
 static void test_errno_cleared_on_success(void) {
+    /* Pre-delete the two paths that must NOT exist for the
+     * error-triggering loads to actually fail.  Stale files in
+     * $TMPDIR / $TEMP would otherwise make the loads succeed and
+     * leave `sparse_errno()` at 0, masking the contract.
+     * `remove()` failure is fine if the file doesn't already exist. */
+    remove(tf_tmp("no_such_file_clear_test.mtx"));
+    remove(tf_tmp("no_such_file_clear_test2.mtx"));
+
     /* First, trigger an I/O error to set sparse_errno */
     SparseMatrix *A = NULL;
-    sparse_load_mm(&A, "/tmp/no_such_file_clear_test.mtx");
+    sparse_load_mm(&A, tf_tmp("no_such_file_clear_test.mtx"));
     ASSERT_TRUE(sparse_errno() != 0);
 
     /* Now do a successful I/O operation */
     SparseMatrix *B = sparse_create(2, 2);
     sparse_insert(B, 0, 0, 1.0);
-    ASSERT_ERR(sparse_save_mm(B, "/tmp/test_errno_clear.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_save_mm(B, tf_tmp("test_errno_clear.mtx")), SPARSE_OK);
     ASSERT_EQ(sparse_errno(), 0);
 
     /* Also verify load clears it */
-    sparse_load_mm(&A, "/tmp/no_such_file_clear_test2.mtx");
+    sparse_load_mm(&A, tf_tmp("no_such_file_clear_test2.mtx"));
     ASSERT_TRUE(sparse_errno() != 0);
-    ASSERT_ERR(sparse_load_mm(&A, "/tmp/test_errno_clear.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_load_mm(&A, tf_tmp("test_errno_clear.mtx")), SPARSE_OK);
     ASSERT_EQ(sparse_errno(), 0);
 
     sparse_free(A);
@@ -292,10 +311,10 @@ static void test_roundtrip_1x1(void) {
     SparseMatrix *A = sparse_create(1, 1);
     sparse_insert(A, 0, 0, 99.5);
 
-    ASSERT_ERR(sparse_save_mm(A, "/tmp/test_rt_1x1.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_save_mm(A, tf_tmp("test_rt_1x1.mtx")), SPARSE_OK);
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(sparse_load_mm(&B, "/tmp/test_rt_1x1.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_load_mm(&B, tf_tmp("test_rt_1x1.mtx")), SPARSE_OK);
     ASSERT_EQ(sparse_rows(B), 1);
     ASSERT_EQ(sparse_cols(B), 1);
     ASSERT_EQ(sparse_nnz(B), 1);
@@ -308,10 +327,10 @@ static void test_roundtrip_1x1(void) {
 static void test_roundtrip_empty(void) {
     SparseMatrix *A = sparse_create(5, 5);
     /* nnz == 0 */
-    ASSERT_ERR(sparse_save_mm(A, "/tmp/test_rt_empty.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_save_mm(A, tf_tmp("test_rt_empty.mtx")), SPARSE_OK);
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(sparse_load_mm(&B, "/tmp/test_rt_empty.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_load_mm(&B, tf_tmp("test_rt_empty.mtx")), SPARSE_OK);
     ASSERT_EQ(sparse_rows(B), 5);
     ASSERT_EQ(sparse_cols(B), 5);
     ASSERT_EQ(sparse_nnz(B), 0);
@@ -327,10 +346,10 @@ static void test_roundtrip_negative_values(void) {
     sparse_insert(A, 1, 0, -3.0);
     sparse_insert(A, 1, 1, -4.0);
 
-    ASSERT_ERR(sparse_save_mm(A, "/tmp/test_rt_neg.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_save_mm(A, tf_tmp("test_rt_neg.mtx")), SPARSE_OK);
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(sparse_load_mm(&B, "/tmp/test_rt_neg.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_load_mm(&B, tf_tmp("test_rt_neg.mtx")), SPARSE_OK);
     ASSERT_NEAR(sparse_get_phys(B, 0, 0), -1.0, 0.0);
     ASSERT_NEAR(sparse_get_phys(B, 0, 1), -2.5, 0.0);
     ASSERT_NEAR(sparse_get_phys(B, 1, 0), -3.0, 0.0);
@@ -363,10 +382,10 @@ static void test_roundtrip_after_permutation(void) {
     sparse_lu_factor(A, SPARSE_PIVOT_COMPLETE, 1e-12);
     /* Note: A now contains L+U in permuted form */
 
-    ASSERT_ERR(sparse_save_mm(A, "/tmp/test_rt_perm.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_save_mm(A, tf_tmp("test_rt_perm.mtx")), SPARSE_OK);
 
     SparseMatrix *B = NULL;
-    ASSERT_ERR(sparse_load_mm(&B, "/tmp/test_rt_perm.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_load_mm(&B, tf_tmp("test_rt_perm.mtx")), SPARSE_OK);
 
     /* B should have identity perms but same logical layout as A */
     for (idx_t i = 0; i < 3; i++)

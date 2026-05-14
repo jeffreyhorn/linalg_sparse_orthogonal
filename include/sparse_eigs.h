@@ -368,6 +368,71 @@ typedef struct {
      *
      *  Ignored when `backend != SPARSE_EIGS_BACKEND_LOBPCG`. */
     int lobpcg_soft_lock;
+    /** Sprint 29 Day 5 (Item 3): opt-in eigenpair refinement post-pass.
+     *  Nonzero enables Rayleigh-quotient iteration on each converged
+     *  Ritz pair after the Lanczos / LOBPCG loop returns.  Each
+     *  iteration solves `(A - lambda_j * I) * y = v_j` via a fresh
+     *  LDL^T factor at the current Ritz value, normalises y, then
+     *  updates lambda_j via the Rayleigh quotient `v_j^T A v_j`.
+     *  Terminates when the per-pair residual
+     *  `||A * v_j - lambda_j * v_j||_2 / max(|lambda_j|, 1.0)` drops
+     *  below the tight tolerance (approximately `100 * machine_eps`)
+     *  or `refine_max_iters` is hit, whichever comes first.  The
+     *  `1.0` lower bound on the anchor keeps the gate from becoming
+     *  unrealistically strict for small-but-nonzero eigenvalues — see
+     *  `src/sparse_eigs.c::s29_refine_anchor` for the implementation.
+     *
+     *  Default 0 (refinement off; Sprint 28 behaviour bit-identical).
+     *  Requires `compute_vectors = 1` — vectors are the input to
+     *  inverse iteration; `refine = 1 && compute_vectors = 0` is
+     *  rejected with SPARSE_ERR_BADARG.
+     *
+     *  Wu/Simon's residual is the production accuracy gate; this is
+     *  opt-in for downstream callers (deflation pipelines, response
+     *  evaluation, sensitivity analysis) needing residuals near
+     *  `machine_eps * ||A||` rather than the default `1e-10`.
+     *
+     *  Backwards compatibility: this field is trailing in the
+     *  struct, so designated-initialiser callers from before
+     *  Sprint 29 still compile and get the library default (off).
+     *
+     *  See `docs/planning/EPIC_2/SPRINT_29/refinement_design_day4.md`. */
+    int refine;
+    /** Sprint 29 Day 5 (Item 3): cap on refinement iterations per
+     *  converged Ritz pair.  Default 0 selects the library default
+     *  (5).  Negative values rejected with SPARSE_ERR_BADARG.  Each
+     *  iteration runs one LDL^T factor + solve + Rayleigh update.
+     *  Rayleigh-quotient iteration converges cubically near simple
+     *  eigenvalues so 2-3 iters typically suffice; the default 5
+     *  budgets headroom for clustered eigenvalues where Rayleigh's
+     *  basin of attraction is smaller.
+     *
+     *  Ignored when `refine == 0`. */
+    idx_t refine_max_iters;
+    /** Sprint 29 Day 7 (Item 4): optional progress / cancellation
+     *  callback.  Invoked at the top of each outer eigsolver iteration
+     *  on the **grow-m Lanczos** path (`phase = "lanczos"`) and the
+     *  **LOBPCG** path (`phase = "lobpcg"`); `step = total_iter`,
+     *  `total = max_iterations`.
+     *
+     *  **Thick-restart Lanczos** (`SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`,
+     *  AUTO-selected for `n >= SPARSE_EIGS_THICK_RESTART_THRESHOLD` without
+     *  a preconditioner) does NOT currently emit progress events from
+     *  `s21_thick_restart_outer_loop` — progress/cancel is wired through
+     *  the grow-m fast path only.  Callers that need progress/cancel on
+     *  large `n` without a preconditioner can force the grow-m backend
+     *  via `opts->backend = SPARSE_EIGS_BACKEND_LANCZOS` at the cost of
+     *  the higher peak-basis memory.  Thick-restart progress wiring is
+     *  routed to a Sprint 30+ follow-up.
+     *
+     *  Return 0 to continue; non-zero cancels — the library frees
+     *  intermediate state and returns `SPARSE_ERR_CANCELLED`.  Default
+     *  NULL preserves Sprint 28 behaviour bit-identical.  Trailing
+     *  field for designated-init back-compat. */
+    sparse_progress_cb_t progress_cb;
+    /** Opaque context pointer passed through unchanged to
+     *  `progress_cb`.  Ignored when `progress_cb == NULL`. */
+    void *progress_user;
 } sparse_eigs_opts_t;
 
 /**

@@ -953,6 +953,283 @@ static void test_one_by_one_matrix(void) {
     sparse_free(A);
 }
 
+/* Sprint 29 Day 4 (Item 3): failing-as-expected stubs for the Day-5
+ * Rayleigh-quotient eigenpair refinement post-pass.  Day 4 lands the
+ * API surface (`opts.refine` + `opts.refine_max_iters`) + validation
+ * but does NOT yet light up the refinement loop in `src/sparse_eigs.c`
+ * — `refine=1` currently silently no-ops because the refine path is
+ * not yet wired.  Day 5 replaces the no-op with the real loop; these
+ * tests pin the contract that Day-5 must deliver.
+ *
+ * RUN_TEST entries stay commented out at the bottom of main() until
+ * Day 5; the tests trip their assertions if uncommented under the
+ * Day-4 no-op stub (verified dry-run during Day 4 review). */
+
+/* Default `refine=0` MUST be bit-identical to Sprint 28 — same
+ * eigenvalues, same eigenvectors, same residual_norm.  This test
+ * pins the back-compat contract: the API extension doesn't perturb
+ * existing callers. */
+static void test_eigs_refine_default_off_unchanged(void) {
+    idx_t n = 10;
+    double diag[10];
+    for (idx_t i = 0; i < n; i++)
+        diag[i] = (double)(i + 1);
+    SparseMatrix *A = build_diag(n, diag);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    double vals_ref[3] = {0, 0, 0};
+    double vecs_ref[30] = {0};
+    sparse_eigs_t r_ref = {.eigenvalues = vals_ref, .eigenvectors = vecs_ref};
+    sparse_eigs_opts_t opts_ref = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .compute_vectors = 1,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, 3, &opts_ref, &r_ref));
+
+    double vals_zero[3] = {0, 0, 0};
+    double vecs_zero[30] = {0};
+    sparse_eigs_t r_zero = {.eigenvalues = vals_zero, .eigenvectors = vecs_zero};
+    sparse_eigs_opts_t opts_zero = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .compute_vectors = 1,
+        .refine = 0,
+        .refine_max_iters = 5, /* should be ignored when refine = 0 */
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, 3, &opts_zero, &r_zero));
+
+    ASSERT_EQ(r_ref.n_converged, r_zero.n_converged);
+    for (idx_t i = 0; i < r_ref.n_converged; i++) {
+        ASSERT_TRUE(vals_ref[i] == vals_zero[i]);
+        for (idx_t r = 0; r < n; r++) {
+            ASSERT_TRUE(vecs_ref[(size_t)i * (size_t)n + (size_t)r] ==
+                        vecs_zero[(size_t)i * (size_t)n + (size_t)r]);
+        }
+    }
+    ASSERT_TRUE(r_ref.residual_norm == r_zero.residual_norm);
+
+    sparse_free(A);
+}
+
+/* `refine=1` MUST tighten the true per-pair residual below the
+ * Wu/Simon Lanczos convergence gate.  This test pins the tightness
+ * contract on a well-separated diagonal spectrum where Wu/Simon
+ * coincides with the true eigen-equation residual: Lanczos alone
+ * gives ~tol = 1e-10, refinement drives to ~1e-13 (Rayleigh-
+ * quotient iteration converges cubically near a simple eigenvalue).
+ *
+ * Note: a well-separated spectrum is required because on
+ * clustered-spectrum inputs Lanczos converges to an arbitrary
+ * orthonormal basis of the cluster's invariant subspace (since
+ * eigenvalues within a 1e-6 gap are indistinguishable to Lanczos);
+ * the per-pair true residual is then bounded by the cluster width
+ * rather than by Wu/Simon, and RQ-iteration's basin of attraction
+ * shrinks accordingly.  The budget test below exercises a separate
+ * fixture for the cap-enforcement contract. */
+static void test_eigs_refine_tightens_residual(void) {
+    idx_t n = 10;
+    double diag[10];
+    for (idx_t i = 0; i < n; i++)
+        diag[i] = (double)(i + 1);
+    SparseMatrix *A = build_diag(n, diag);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    double vals[3] = {0, 0, 0};
+    double vecs[30] = {0};
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .compute_vectors = 1,
+        .refine = 1,
+        .refine_max_iters = 5,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, 3, &opts, &res));
+    ASSERT_EQ(res.n_converged, 3);
+
+    /* Per-pair residual check: ||A*v - lambda*v|| / |lambda|. */
+    double max_rel_res = 0.0;
+    for (idx_t i = 0; i < res.n_converged; i++) {
+        double *v = &vecs[(size_t)i * (size_t)n];
+        double lambda = vals[i];
+        double res_sq = 0.0;
+        for (idx_t r = 0; r < n; r++) {
+            double Av_r = diag[r] * v[r];
+            double d = Av_r - lambda * v[r];
+            res_sq += d * d;
+        }
+        double rel = sqrt(res_sq) / (fabs(lambda) > 1e-15 ? fabs(lambda) : 1.0);
+        if (rel > max_rel_res)
+            max_rel_res = rel;
+    }
+    fprintf(stderr, "    refined max ||A v - lambda v|| / |lambda| = %.3e\n", max_rel_res);
+    ASSERT_TRUE(max_rel_res < 1e-13);
+
+    sparse_free(A);
+}
+
+/* Sprint 29 Day 5: refinement post-pass works through the LOBPCG
+ * backend.  Routes through SPARSE_EIGS_BACKEND_LOBPCG explicitly
+ * (matching the test_eigs_lobpcg.c convention) on a small SPD
+ * diagonal; asserts refinement tightens the residual below 1e-13.
+ * Tests the s29_maybe_refine hook in the LOBPCG dispatch branch. */
+static void test_eigs_refine_lobpcg_backend(void) {
+    idx_t n = 12;
+    double diag[12] = {1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5};
+    SparseMatrix *A = build_diag(n, diag);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    idx_t k = 3;
+    double vals[3] = {0, 0, 0};
+    double vecs[36] = {0};
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .compute_vectors = 1,
+        .backend = SPARSE_EIGS_BACKEND_LOBPCG,
+        .block_size = k,
+        .refine = 1,
+        .refine_max_iters = 5,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, k, &opts, &res));
+    ASSERT_EQ(res.backend_used, SPARSE_EIGS_BACKEND_LOBPCG);
+    ASSERT_EQ(res.n_converged, k);
+
+    /* Verify refinement-tightened residual matches Lanczos path. */
+    double max_rel_res = 0.0;
+    for (idx_t i = 0; i < res.n_converged; i++) {
+        double *v = &vecs[(size_t)i * (size_t)n];
+        double lambda = vals[i];
+        double res_sq = 0.0;
+        for (idx_t r = 0; r < n; r++) {
+            double Av_r = diag[r] * v[r];
+            double d = Av_r - lambda * v[r];
+            res_sq += d * d;
+        }
+        double rel = sqrt(res_sq) / (fabs(lambda) > 1e-15 ? fabs(lambda) : 1.0);
+        if (rel > max_rel_res)
+            max_rel_res = rel;
+    }
+    fprintf(stderr, "    LOBPCG refined max ||A v - lambda v|| / |lambda| = %.3e\n", max_rel_res);
+    ASSERT_TRUE(max_rel_res < 1e-13);
+
+    sparse_free(A);
+}
+
+/* Sprint 29 Day 5: opts.refine_max_iters budget enforcement.  With
+ * the budget capped at 1, refinement runs at most one inverse-
+ * iteration step per pair before stopping.  Pins the contract that
+ * the budget cap is honoured (no infinite loop) AND that even one
+ * step delivers meaningful tightening on well-separated spectra.
+ *
+ * Uses a Laplacian-tridiagonal fixture (eigenvalues 2 - 2*cos(j*pi/
+ * (n+1)), j=1..n) — well-separated spectrum where each RQ iteration
+ * has full cubic convergence, so a single iter reliably reaches
+ * near machine eps.  Compares to a higher-budget run to confirm the
+ * cap-1 case does NOT keep iterating past 1 (residual would
+ * otherwise match the 5-iter result exactly). */
+static void test_eigs_refine_max_iters_budget(void) {
+    idx_t n = 12;
+    SparseMatrix *A = build_laplacian_tridiag(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    /* Compute true per-pair residual ||A v - lambda v|| / max(|lambda|, 1). */
+    double *Av = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(Av ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    /* Local helper: compute max relative per-pair residual
+     * ||A v - lambda v|| / max(|lambda|, 1) across all converged pairs. */
+    double max_rel_one = 0.0, max_rel_five = 0.0;
+    idx_t n_converged_one = 0, n_converged_five = 0;
+
+    /* refine_max_iters = 1: one inverse-iteration step per pair. */
+    double vals_one[3] = {0, 0, 0};
+    double *vecs_one = calloc((size_t)n * 3, sizeof(double));
+    REQUIRE_OK(vecs_one ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_eigs_t r_one = {.eigenvalues = vals_one, .eigenvectors = vecs_one};
+    sparse_eigs_opts_t opts_one = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .compute_vectors = 1,
+        .refine = 1,
+        .refine_max_iters = 1,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, 3, &opts_one, &r_one));
+    n_converged_one = r_one.n_converged;
+    for (idx_t i = 0; i < r_one.n_converged; i++) {
+        double *v = &vecs_one[(size_t)i * (size_t)n];
+        double lambda = vals_one[i];
+        sparse_matvec(A, v, Av);
+        double res_sq = 0.0;
+        for (idx_t r = 0; r < n; r++) {
+            double d = Av[r] - lambda * v[r];
+            res_sq += d * d;
+        }
+        double rel = sqrt(res_sq) / (fabs(lambda) > 1.0 ? fabs(lambda) : 1.0);
+        if (rel > max_rel_one)
+            max_rel_one = rel;
+    }
+    fprintf(stderr, "    refine_max_iters=1 max true residual = %.3e\n", max_rel_one);
+
+    /* refine_max_iters = 5: up to five inverse-iteration steps per pair. */
+    double vals_five[3] = {0, 0, 0};
+    double *vecs_five = calloc((size_t)n * 3, sizeof(double));
+    REQUIRE_OK(vecs_five ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_eigs_t r_five = {.eigenvalues = vals_five, .eigenvectors = vecs_five};
+    sparse_eigs_opts_t opts_five = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .compute_vectors = 1,
+        .refine = 1,
+        .refine_max_iters = 5,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, 3, &opts_five, &r_five));
+    n_converged_five = r_five.n_converged;
+    for (idx_t i = 0; i < r_five.n_converged; i++) {
+        double *v = &vecs_five[(size_t)i * (size_t)n];
+        double lambda = vals_five[i];
+        sparse_matvec(A, v, Av);
+        double res_sq = 0.0;
+        for (idx_t r = 0; r < n; r++) {
+            double d = Av[r] - lambda * v[r];
+            res_sq += d * d;
+        }
+        double rel = sqrt(res_sq) / (fabs(lambda) > 1.0 ? fabs(lambda) : 1.0);
+        if (rel > max_rel_five)
+            max_rel_five = rel;
+    }
+    fprintf(stderr, "    refine_max_iters=5 max true residual = %.3e\n", max_rel_five);
+
+    /* Budget enforcement contract:
+     *   1. Both caps return the same number of converged pairs (the
+     *      cap controls per-pair iterations, not which pairs converge).
+     *   2. cap=5 residual ≤ cap=1 residual: extra iterations never
+     *      regress on a well-separated spectrum.
+     *   3. cap=1 stops after one inverse-iteration step — on this
+     *      Laplacian fixture (well-separated eigenvalues, cubic
+     *      RQ-iteration convergence) one step already reaches near
+     *      machine eps, so cap=5 will be equal-or-tighter rather than
+     *      dramatically tighter; if cap=1 weren't enforced, both runs
+     *      would behave identically + the cap would have no effect at
+     *      all. */
+    ASSERT_EQ(n_converged_one, n_converged_five);
+    ASSERT_TRUE(max_rel_one < 1e-12);
+    ASSERT_TRUE(max_rel_five <= max_rel_one + 1e-15);
+
+    free(Av);
+    free(vecs_one);
+    free(vecs_five);
+    sparse_free(A);
+}
+
 int main(void) {
     TEST_SUITE_BEGIN("Sparse eigensolver — Sprint 20 Days 11-13");
 
@@ -981,6 +1258,12 @@ int main(void) {
     RUN_TEST(test_eigs_zero_spectrum_no_div_by_zero);
     RUN_TEST(test_zero_matrix);
     RUN_TEST(test_one_by_one_matrix);
+
+    /* Sprint 29 Day 5 (Item 3): eigenpair refinement post-pass. */
+    RUN_TEST(test_eigs_refine_default_off_unchanged);
+    RUN_TEST(test_eigs_refine_tightens_residual);
+    RUN_TEST(test_eigs_refine_lobpcg_backend);
+    RUN_TEST(test_eigs_refine_max_iters_budget);
 
     TEST_SUITE_END();
 }

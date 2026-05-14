@@ -201,4 +201,72 @@ static clock_t tf_suite_start;
 #define tf_unsetenv(name) unsetenv((name))
 #endif
 
+/* ─── Cross-platform temp-file path helper ──────────────────────────
+ *
+ * Tests that round-trip Matrix Market files write to a temp directory.
+ * POSIX has /tmp; Windows has $TEMP / $TMP and no /tmp at all
+ * (`sparse_save_mm("/tmp/foo.mtx")` returns SPARSE_ERR_IO on Windows).
+ * `tf_tmp(name)` returns a portable temp path:
+ *
+ *   POSIX  : $TMPDIR/<name>, falling back to "/tmp/<name>"
+ *   Windows: $TEMP/<name>, falling back to $TMP/<name>, falling back to
+ *            ".\<name>"
+ *
+ * Sprint 29 Day 14 added this when the Windows CMake CI matrix lit up
+ * for the first time (Sprint 29 Days 7-8) and surfaced the hardcoded
+ * "/tmp/..." literals in test_sparse_io.c + test_integration.c.
+ *
+ * Caveat: uses a function-static buffer for inline-call ergonomics
+ * (`sparse_save_mm(A, tf_tmp("foo.mtx"))`).  Two consecutive calls
+ * overwrite each other — callers that need to hold two paths
+ * simultaneously must copy the returned string into a local buffer. */
+#include <stdlib.h>
+#include <string.h>
+/* Manual concatenation (memcpy + strlen, no snprintf) so the helper
+ * compiles in TUs that set `_POSIX_C_SOURCE 199309L` BEFORE any include
+ * — at that POSIX level Apple's `<stdio.h>` hides snprintf behind
+ * `__DARWIN_C_LEVEL >= __DARWIN_C_FULL` and Xcode 16's clang escalates
+ * the implicit declaration to a hard error.  memcpy/strlen are not
+ * feature-gated. */
+static inline const char *tf_tmp(const char *name) {
+    static char buf[260];
+    const char *dir;
+    char sep;
+#ifdef _WIN32
+    dir = getenv("TEMP");
+    if (!dir)
+        dir = getenv("TMP");
+    if (!dir)
+        dir = ".";
+    sep = '\\';
+#else
+    dir = getenv("TMPDIR");
+    if (!dir)
+        dir = "/tmp";
+    sep = '/';
+#endif
+    size_t len_d = strlen(dir);
+    size_t len_n = strlen(name);
+    /* Truncate cleanly if the composed path would overflow the fixed
+     * buffer.  260 bytes matches the classic Windows MAX_PATH; POSIX
+     * `PATH_MAX` is system-defined and typically larger (1024 on
+     * Darwin, 4096 on Linux).  Test fixture names in this codebase
+     * are short (< 30 chars) and `$TMPDIR` / `/tmp` resolve to
+     * paths well under MAX_PATH on every supported platform — the
+     * 260-byte buffer is sufficient in practice for the test
+     * harness's use case.  If a future test composes longer
+     * fixtures or runs under a deeply-nested $TMPDIR, the
+     * truncation will produce a wrong filename and surface
+     * immediately as an I/O test failure. */
+    if (len_d >= sizeof buf - 2)
+        len_d = sizeof buf - 2;
+    if (len_n >= sizeof buf - len_d - 1)
+        len_n = sizeof buf - len_d - 2;
+    memcpy(buf, dir, len_d);
+    buf[len_d] = sep;
+    memcpy(buf + len_d + 1, name, len_n);
+    buf[len_d + 1 + len_n] = '\0';
+    return buf;
+}
+
 #endif /* TEST_FRAMEWORK_H */

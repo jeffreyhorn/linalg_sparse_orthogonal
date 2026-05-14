@@ -29,10 +29,14 @@
  * @brief SVD computation options.
  */
 typedef struct {
-    int compute_uv; /**< If nonzero, compute U and V^T (default: 0 = singular values only).
-                         Requires economy=1 when set; full SVD (economy=0) is not implemented. */
-    int economy;    /**< Must be nonzero when compute_uv is set (only economy/thin SVD is
-                         implemented). Produces thin U (m×k) and V^T (k×n) where k = min(m,n). */
+    int compute_uv; /**< If nonzero, compute U and V^T (default: 0 = singular values only). */
+    int economy;    /**< When compute_uv is set: nonzero produces thin U (m×k col-major,
+                         leading dim m) and V^T (k×n col-major, leading dim k) where
+                         k = min(m,n); zero produces full U (m×m col-major, leading dim m)
+                         and V^T (n×n col-major, leading dim n) — the padded columns/rows
+                         past index k are orthonormal completions of the basis (MGS over
+                         canonical unit vectors).  Sprint 29 Day 3 lit up full mode; prior
+                         to that, economy=0 returned SPARSE_ERR_BADARG. */
     idx_t max_iter; /**< Maximum QR iterations (0 for default: 30*k) */
     double tol;     /**< Convergence tolerance for superdiagonal entries (0 for default: 1e-14) */
 } sparse_svd_opts_t;
@@ -192,6 +196,18 @@ sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lo
  *
  * @note Internally allocates a temporary m*n dense accumulator during
  *       construction. Peak memory is comparable to sparse_svd_lowrank().
+ *
+ * @note Set environment variable SPARSE_SVD_LOWRANK_OUTER=on to route through
+ *       an alternative per-cell outer-product accumulator that avoids the
+ *       m*n dense intermediate. Output is bit-identical (same per-cell sum
+ *       order, same drop_tol cutoff). The env-on path trades the dense
+ *       intermediate for O(nnz_result) sparse-insert overhead -- it wins
+ *       large memory reductions on min(m,n) >> rank_k fixtures (e.g.
+ *       ~76-88 % rss reduction on bcsstk14) with neutral wall (SVD compute
+ *       dominates either way). Default off preserves Sprint 28 behaviour;
+ *       opt in for memory-constrained workloads. See
+ *       docs/planning/EPIC_2/SPRINT_29/lowrank_sweep_day2.txt for the
+ *       per-fixture wall + rss measurements.
  *
  * @param A        The matrix (not modified).
  * @param rank_k   Desired rank (must be 1..min(m,n)).

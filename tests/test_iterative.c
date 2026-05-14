@@ -11,6 +11,15 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* POSIX-only headers used by the verbose-mode tests to suppress stderr
+ * via dup/dup2 (portable across libcs that may not expose `stderr` as
+ * a modifiable lvalue).  Skipped on Windows — verbose output is just
+ * accepted as test-log noise there. */
+#ifndef _WIN32
+#include <fcntl.h>  /* O_WRONLY */
+#include <unistd.h> /* dup, dup2, close, fileno */
+#endif
+
 #ifndef DATA_DIR
 #define DATA_DIR "tests/data"
 #endif
@@ -931,23 +940,42 @@ static void test_cg_verbose_mode(void) {
     compute_rhs(A, x_exact, b);
 
     /* Redirect stderr to /dev/null to suppress verbose output in test,
-     * but verify it doesn't crash */
+     * but verify it doesn't crash.  Uses POSIX dup/dup2 on the
+     * underlying file descriptor — the C standard doesn't guarantee
+     * `stderr` is a modifiable lvalue (MSVC defines it as a macro
+     * returning an rvalue; some libcs make it an opaque function-call
+     * expression even on POSIX).  Suppression skipped on Windows;
+     * verbose output is accepted as harmless test-log noise there. */
     sparse_iter_opts_t opts = {.max_iter = 100, .tol = 1e-10, .verbose = 1};
     sparse_iter_result_t result;
 
-    /* Capture stderr to verify output exists */
-    FILE *saved_stderr = stderr;
-    FILE *devnull = fopen("/dev/null", "w");
-    if (devnull)
-        stderr = devnull;
+#ifndef _WIN32
+    fflush(stderr);
+    int stderr_fd = fileno(stderr);
+    int saved_stderr_fd = (stderr_fd >= 0) ? dup(stderr_fd) : -1;
+    int null_fd = open("/dev/null", O_WRONLY);
+    if (null_fd >= 0) {
+        /* Only redirect if we have a valid stderr fd to dup2 onto;
+         * otherwise (stderr already closed) we still close null_fd
+         * to avoid leaking the descriptor.  dup2 failure also has to
+         * close null_fd. */
+        if (stderr_fd >= 0 && dup2(null_fd, stderr_fd) < 0) {
+            /* dup2 failed — leave stderr untouched, fall through to close. */
+        }
+        close(null_fd);
+    }
+#endif
 
     ASSERT_ERR(sparse_solve_cg(A, b, x, &opts, NULL, NULL, &result), SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    if (devnull) {
-        stderr = saved_stderr;
-        fclose(devnull);
+#ifndef _WIN32
+    fflush(stderr);
+    if (saved_stderr_fd >= 0 && stderr_fd >= 0) {
+        dup2(saved_stderr_fd, stderr_fd);
+        close(saved_stderr_fd);
     }
+#endif
 
     /* Verify solution is still correct despite verbose output */
     for (int i = 0; i < (int)n; i++)
@@ -1906,10 +1934,25 @@ static void test_gmres_verbose_mode(void) {
     double b[3], x[3] = {0.0, 0.0, 0.0};
     compute_rhs(A, x_exact, b);
 
-    FILE *saved_stderr = stderr;
-    FILE *devnull = fopen("/dev/null", "w");
-    if (devnull)
-        stderr = devnull;
+    /* Suppress verbose stderr via POSIX dup/dup2 (portable across libcs
+     * that may not expose `stderr` as a modifiable lvalue).  Windows
+     * skips suppression — verbose output is harmless test-log noise. */
+#ifndef _WIN32
+    fflush(stderr);
+    int stderr_fd = fileno(stderr);
+    int saved_stderr_fd = (stderr_fd >= 0) ? dup(stderr_fd) : -1;
+    int null_fd = open("/dev/null", O_WRONLY);
+    if (null_fd >= 0) {
+        /* Only redirect if we have a valid stderr fd to dup2 onto;
+         * otherwise (stderr already closed) we still close null_fd
+         * to avoid leaking the descriptor.  dup2 failure also has to
+         * close null_fd. */
+        if (stderr_fd >= 0 && dup2(null_fd, stderr_fd) < 0) {
+            /* dup2 failed — leave stderr untouched, fall through to close. */
+        }
+        close(null_fd);
+    }
+#endif
 
     sparse_gmres_opts_t opts = {.max_iter = 100, .restart = 10, .tol = 1e-10, .verbose = 1};
     sparse_iter_result_t result;
@@ -1917,10 +1960,13 @@ static void test_gmres_verbose_mode(void) {
     ASSERT_ERR(sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &result), SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    if (devnull) {
-        stderr = saved_stderr;
-        fclose(devnull);
+#ifndef _WIN32
+    fflush(stderr);
+    if (saved_stderr_fd >= 0 && stderr_fd >= 0) {
+        dup2(saved_stderr_fd, stderr_fd);
+        close(saved_stderr_fd);
     }
+#endif
 
     for (int i = 0; i < 3; i++)
         ASSERT_NEAR(x[i], x_exact[i], 1e-10);

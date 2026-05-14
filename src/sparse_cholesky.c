@@ -1,3 +1,9 @@
+/* Sprint 29 Day 8 (Item 5): feature-test macro for clock_gettime. */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 199309L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 199309L
+#endif
+
 #include "sparse_cholesky.h"
 #include "sparse_analysis.h"
 #include "sparse_chol_csc_internal.h"
@@ -7,6 +13,26 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+/* Sprint 29 Day 6 (Item 4): progress / cancel wiring (linked-list
+ * backend only; CSC supernodal emissions deferred to a future sprint).
+ * Internal entry point that takes the callback + user pointer; public
+ * `sparse_cholesky_factor` delegates with NULL callback,
+ * `sparse_cholesky_factor_opts` forwards opts. */
+static sparse_err_t sparse_cholesky_factor_inner(SparseMatrix *mat,
+                                                 sparse_progress_cb_t progress_cb,
+                                                 void *progress_user);
+
+static double s29_now_s(void) {
+    struct timespec ts;
+#ifdef _WIN32
+    timespec_get(&ts, TIME_UTC);
+#else
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+#endif
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+}
 
 /*
  * Minimum supernode width for the CSC dispatch's batched path.
@@ -43,6 +69,12 @@
  * efficiently, then write back nonzeros into the sparse structure.
  */
 sparse_err_t sparse_cholesky_factor(SparseMatrix *mat) {
+    return sparse_cholesky_factor_inner(mat, NULL, NULL);
+}
+
+static sparse_err_t sparse_cholesky_factor_inner(SparseMatrix *mat,
+                                                 sparse_progress_cb_t progress_cb,
+                                                 void *progress_user) {
     if (!mat)
         return SPARSE_ERR_NULL;
     idx_t n = mat->rows;
@@ -89,7 +121,31 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat) {
         }
     }
 
+    double phase_start_s = progress_cb ? s29_now_s() : 0.0;
+
     for (idx_t k = 0; k < n; k++) {
+        /* Sprint 29 Day 6: progress + cancel check at top of each
+         * column iteration.  Cancellation at step=0 leaves the
+         * matrix's lower-triangle as the upper-triangle-stripped
+         * input — NOT bit-identical to the pre-call state because
+         * the upper-triangle strip ran above.  Callers that need
+         * the bit-identical contract should sparse_copy() before
+         * factor + cancel on the copy. */
+        if (progress_cb) {
+            sparse_progress_t p = {
+                .phase = "cholesky_factor",
+                .step = k,
+                .total = n,
+                .elapsed_s = s29_now_s() - phase_start_s,
+            };
+            if (progress_cb(&p, progress_user) != 0) {
+                free(col_acc);
+                free(nz_row);
+                free(nz_rows);
+                return SPARSE_ERR_CANCELLED;
+            }
+        }
+
         /* Initialize accumulator with column k of current matrix (rows >= k).
          * Track nonzero rows in nz_rows[] / nz_row[] for O(nnz) flush. */
         idx_t nnz_rows = 0;
@@ -305,7 +361,7 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
         *opts->used_csc_path = use_csc ? 1 : 0;
 
     if (!use_csc)
-        return sparse_cholesky_factor(mat);
+        return sparse_cholesky_factor_inner(mat, opts->progress_cb, opts->progress_user);
 
     /* CSC path: analyse, convert with the full symbolic L pattern,
      * factor via the batched supernodal kernel, transplant the result

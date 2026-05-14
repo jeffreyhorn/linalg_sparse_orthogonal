@@ -1,3 +1,9 @@
+/* Sprint 29 Day 8 (Item 5): feature-test macro for clock_gettime. */
+#if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 199309L)
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
+#define _POSIX_C_SOURCE 199309L
+#endif
+
 #include "sparse_iterative.h"
 #include "sparse_bicgstab_internal.h"
 #include "sparse_matrix_internal.h"
@@ -6,6 +12,18 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+
+/* Sprint 29 Day 7 (Item 4): progress / cancel wiring helper. */
+static double s29_iter_now_s(void) {
+    struct timespec ts;
+#ifdef _WIN32
+    timespec_get(&ts, TIME_UTC);
+#else
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+#endif
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Default option values
@@ -214,11 +232,34 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
     int breakdown = 0;
     reshist_t rh = reshist_make(o->residual_history, o->residual_history_len);
 
+    double cg_phase_start_s = o->progress_cb ? s29_iter_now_s() : 0.0;
+
     for (iter = 0; iter < o->max_iter; iter++) {
         /* Check convergence */
         if (rnorm / bnorm <= o->tol) {
             converged = 1;
             break;
+        }
+
+        /* Sprint 29 Day 7: progress + cancel check at top of each
+         * CG iteration.  Cancellation frees workspace + returns
+         * SPARSE_ERR_CANCELLED; output x has the latest iterate. */
+        if (o->progress_cb) {
+            sparse_progress_t pp = {
+                .phase = "cg",
+                .step = iter,
+                .total = o->max_iter,
+                .elapsed_s = s29_iter_now_s() - cg_phase_start_s,
+            };
+            if (o->progress_cb(&pp, o->progress_user) != 0) {
+                if (result) {
+                    result->iterations = iter;
+                    result->residual_norm = rnorm / bnorm;
+                }
+                stag_free(&stag);
+                free(work);
+                return SPARSE_ERR_CANCELLED;
+            }
         }
 
         iter_report(o->callback, o->callback_ctx, o->verbose, "CG", iter, rnorm / bnorm);
@@ -382,10 +423,30 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
     int breakdown = 0;
     reshist_t rh = reshist_make(o->residual_history, o->residual_history_len);
 
+    double cg_mf_phase_start_s = o->progress_cb ? s29_iter_now_s() : 0.0;
+
     for (iter = 0; iter < o->max_iter; iter++) {
         if (rnorm / bnorm <= o->tol) {
             converged = 1;
             break;
+        }
+
+        if (o->progress_cb) {
+            sparse_progress_t pp = {
+                .phase = "cg",
+                .step = iter,
+                .total = o->max_iter,
+                .elapsed_s = s29_iter_now_s() - cg_mf_phase_start_s,
+            };
+            if (o->progress_cb(&pp, o->progress_user) != 0) {
+                if (result) {
+                    result->iterations = iter;
+                    result->residual_norm = rnorm / bnorm;
+                }
+                stag_free(&stag);
+                free(work);
+                return SPARSE_ERR_CANCELLED;
+            }
         }
 
         iter_report(o->callback, o->callback_ctx, o->verbose, "CG", iter, rnorm / bnorm);
@@ -670,6 +731,7 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
     int breakdown = 0;
     double rel_res = 1.0;
     reshist_t rh = reshist_make(o->residual_history, o->residual_history_len);
+    double gmres_phase_start_s = o->progress_cb ? s29_iter_now_s() : 0.0;
 
     /* Outer restart loop — compute ceil(max_iter/m) in wider type to avoid
      * signed overflow when max_iter is near INT32_MAX */
@@ -722,6 +784,25 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
         for (j = 0; j < m; j++) {
             if (total_iter >= o->max_iter)
                 break;
+
+            /* Sprint 29 Day 7: progress + cancel for GMRES inner. */
+            if (o->progress_cb) {
+                sparse_progress_t pp = {
+                    .phase = "gmres",
+                    .step = total_iter,
+                    .total = o->max_iter,
+                    .elapsed_s = s29_iter_now_s() - gmres_phase_start_s,
+                };
+                if (o->progress_cb(&pp, o->progress_user) != 0) {
+                    if (result) {
+                        result->iterations = total_iter;
+                    }
+                    stag_free(&stag);
+                    free(mem);
+                    return SPARSE_ERR_CANCELLED;
+                }
+            }
+
             total_iter++;
 
             if (right_precond) {
@@ -1365,8 +1446,27 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
     int breakdown = 0;
     double true_res_cached = -1.0; /* set by in-loop verification if QR converged */
     reshist_t rh = reshist_make(o->residual_history, o->residual_history_len);
+    double minres_phase_start_s = o->progress_cb ? s29_iter_now_s() : 0.0;
 
     for (iter = 1; iter <= o->max_iter; iter++) {
+        /* Sprint 29 Day 7: progress + cancel for MINRES. */
+        if (o->progress_cb) {
+            sparse_progress_t pp = {
+                .phase = "minres",
+                .step = iter - 1,
+                .total = o->max_iter,
+                .elapsed_s = s29_iter_now_s() - minres_phase_start_s,
+            };
+            if (o->progress_cb(&pp, o->progress_user) != 0) {
+                if (result) {
+                    result->iterations = iter - 1;
+                }
+                stag_free(&stag);
+                free(work);
+                return SPARSE_ERR_CANCELLED;
+            }
+        }
+
         /* ── Lanczos step ──────────────────────────────────────────── */
         /* w = A * v_k (unpreconditioned) or A * z_k (preconditioned) */
         if (precond)
@@ -1714,7 +1814,28 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
         goto done;
     }
 
+    double bicgstab_phase_start_s = o->progress_cb ? s29_iter_now_s() : 0.0;
+
     for (iter = 0; iter < o->max_iter; iter++) {
+        /* Sprint 29 Day 7: progress + cancel for BiCGSTAB. */
+        if (o->progress_cb) {
+            sparse_progress_t pp = {
+                .phase = "bicgstab",
+                .step = iter,
+                .total = o->max_iter,
+                .elapsed_s = s29_iter_now_s() - bicgstab_phase_start_s,
+            };
+            if (o->progress_cb(&pp, o->progress_user) != 0) {
+                if (result) {
+                    result->iterations = iter;
+                    result->residual_norm = rnorm / bnorm;
+                }
+                stag_free(&stag);
+                bicgstab_workspace_free(&ws);
+                return SPARSE_ERR_CANCELLED;
+            }
+        }
+
         reshist_record(&rh, rnorm / bnorm);
         iter_report(o->callback, o->callback_ctx, o->verbose, "BiCGSTAB", iter, rnorm / bnorm);
 

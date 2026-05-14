@@ -38,6 +38,8 @@ const char *sparse_strerror(sparse_err_t err) {
         return "iterative solver did not converge";
     case SPARSE_ERR_NUMERIC:
         return "numerical failure (NaN or Inf)";
+    case SPARSE_ERR_CANCELLED:
+        return "operation cancelled via progress callback";
     }
     return "unknown error";
 }

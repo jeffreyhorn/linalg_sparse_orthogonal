@@ -1,0 +1,100 @@
+name: macOS CI
+
+# Sprint 29 Day 9 (Item 6): macOS build + test matrix.  Runs the
+# library + tests under both Apple Clang (default `cc` on macos-latest)
+# and Homebrew GCC.  The Apple Clang job also runs `make sanitize`.
+#
+# OpenMP linkage: Apple Clang needs `-Xpreprocessor -fopenmp` + the
+# Homebrew libomp prefix; Homebrew GCC links libgomp via `-fopenmp`
+# directly.  The Makefile already handles both paths (see lines
+# 16-35 of `Makefile` — Sprint 21 inheritance).  `make omp` builds
+# with OpenMP enabled; this workflow exercises the serial path by
+# default to keep the matrix simple — OpenMP-on-macOS coverage lives
+# in `make sanitize-thread` / local development for now.
+#
+# Expected portability surface (Day-9 already de-risks most of these
+# via the Sprint 28 PR #36 + Sprint 29 Day 8 fixes):
+#  - `clock_gettime` / `_POSIX_C_SOURCE` — Day 8 added the shim to
+#    the Day 6/7 progress-timer helpers.
+#  - `tf_setenv` / `tf_unsetenv` — already routed through
+#    `_putenv_s` on `_WIN32` and `setenv`/`unsetenv` on POSIX
+#    (test_framework.h, Sprint 28 PR #36).
+#  - macOS-15+ TSan dyld hang — Sprint 28 inheritance; tsan stays on
+#    Linux CI per Item 10b.  This macOS workflow does NOT run tsan.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Apple Clang: default `cc` on macos-latest images.  Add
+          # ASan/UBSan via `make sanitize`.
+          - compiler: apple-clang
+            cc: cc
+            run_sanitize: "true"
+          # Homebrew GCC: requires `brew install gcc`.  The exact
+          # binary name floats with Homebrew's gcc formula version;
+          # use the unversioned symlink `gcc-15` (current Homebrew
+          # default as of 2026-04).  Sanitize disabled because the
+          # Homebrew gcc + libasan combo is less reliable than Apple
+          # Clang's; the Linux CI tsan + Apple Clang sanitize cover
+          # the equivalent ground.
+          - compiler: homebrew-gcc
+            cc: gcc-15
+            run_sanitize: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      # Apple Clang ships with the macos-latest image; no install
+      # step needed.  Homebrew GCC needs an explicit `brew install`.
+      - name: Install Homebrew GCC (matrix=homebrew-gcc)
+        if: matrix.compiler == 'homebrew-gcc'
+        run: brew install gcc
+
+      - name: Build (matrix=${{ matrix.compiler }})
+        run: make CC=${{ matrix.cc }}
+
+      - name: Run tests
+        run: make CC=${{ matrix.cc }} test
+
+      - name: Wall-time regression check
+        run: make CC=${{ matrix.cc }} wall-check
+
+      - name: Sanitizer build + test (Apple Clang only)
+        if: matrix.run_sanitize == 'true'
+        run: |
+          make clean
+          make CC=${{ matrix.cc }} sanitize
+
+  # Verify pkg-config + install flow works on macOS.  Lives in a
+  # separate job from the matrix because it installs to a temp
+  # prefix + runs verification commands — keeps the matrix output
+  # focused on compile + test signals.
+  install-and-pkgconfig:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build library
+        run: make
+
+      - name: Install to /tmp prefix
+        run: make install PREFIX=/tmp/sparse-prefix
+
+      - name: Verify pkg-config metadata
+        run: |
+          export PKG_CONFIG_PATH=/tmp/sparse-prefix/lib/pkgconfig
+          pkg-config --modversion sparse
+          pkg-config --cflags sparse
+          pkg-config --libs sparse
+
+      - name: Verify uninstall is reversible
+        run: make uninstall PREFIX=/tmp/sparse-prefix

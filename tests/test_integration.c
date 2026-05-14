@@ -1,10 +1,16 @@
+#include "sparse_cholesky.h"
+#include "sparse_eigs.h"
+#include "sparse_iterative.h"
+#include "sparse_ldlt.h"
 #include "sparse_lu.h"
 #include "sparse_matrix.h"
+#include "sparse_qr.h"
 #include "sparse_types.h"
 #include "sparse_vector.h"
 #include "test_framework.h"
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 #ifndef DATA_DIR
 #define DATA_DIR "tests/data"
@@ -51,9 +57,9 @@ static void test_load_factor_solve_save(void) {
         ASSERT_NEAR(x[i], 1.0, 1e-12);
 
     /* Save the solved result to a temp file and reload */
-    ASSERT_ERR(sparse_save_mm(A, "/tmp/integ_tridiag.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_save_mm(A, tf_tmp("integ_tridiag.mtx")), SPARSE_OK);
     SparseMatrix *A2 = NULL;
-    ASSERT_ERR(sparse_load_mm(&A2, "/tmp/integ_tridiag.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_load_mm(&A2, tf_tmp("integ_tridiag.mtx")), SPARSE_OK);
     ASSERT_EQ(sparse_nnz(A), sparse_nnz(A2));
     ASSERT_EQ(sparse_rows(A2), n);
 
@@ -202,11 +208,11 @@ static void test_full_roundtrip(void) {
     idx_t nnz_orig = sparse_nnz(A);
 
     /* Save */
-    ASSERT_ERR(sparse_save_mm(A, "/tmp/integ_roundtrip.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_save_mm(A, tf_tmp("integ_roundtrip.mtx")), SPARSE_OK);
 
     /* Load */
     SparseMatrix *B = NULL;
-    ASSERT_ERR(sparse_load_mm(&B, "/tmp/integ_roundtrip.mtx"), SPARSE_OK);
+    ASSERT_ERR(sparse_load_mm(&B, tf_tmp("integ_roundtrip.mtx")), SPARSE_OK);
     ASSERT_NOT_NULL(B);
 
     /* Compare */
@@ -375,6 +381,501 @@ static void test_error_recovery(void) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
+ * Sprint 29 Day 6 (Item 4): progress / cancel callback coverage
+ *
+ * Pins the per-routine contract for `opts.progress_cb` /
+ * `opts.progress_user` across LU + Cholesky + LDL^T factor paths:
+ *   - emits at least `n` progress events covering [0, n) across the
+ *     elimination phase (some emit n+1 if total includes a final
+ *     k == n boundary; LDL^T may emit fewer than n for 2x2 pivots
+ *     because k advances by 2).
+ *   - cancellation at step=0 returns SPARSE_ERR_CANCELLED with the
+ *     input matrix bit-identical to entry.
+ *   - default-NULL-callback path is bit-identical to Sprint 28.
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+typedef struct {
+    idx_t n_calls;
+    idx_t cancel_after_step; /* return non-zero when step == cancel_after_step; -1 = never */
+    idx_t last_step;
+    const char *last_phase;
+    double last_elapsed_s;
+} progress_counter_t;
+
+static int progress_count_cb(const sparse_progress_t *p, void *user) {
+    progress_counter_t *ctx = (progress_counter_t *)user;
+    ctx->n_calls++;
+    ctx->last_step = p->step;
+    ctx->last_phase = p->phase;
+    ctx->last_elapsed_s = p->elapsed_s;
+    if (ctx->cancel_after_step >= 0 && p->step >= ctx->cancel_after_step)
+        return 1;
+    return 0;
+}
+
+/* Build a 100x100 SPD tridiagonal: diag = 4, sub/super = -1.
+ * Diagonally dominant + symmetric → factorable by LU, Cholesky, LDL^T. */
+static SparseMatrix *build_tridiag_spd(idx_t n) {
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+    return A;
+}
+
+static void test_progress_cb_lu_emits(void) {
+    const idx_t n = 100;
+    SparseMatrix *A = build_tridiag_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    progress_counter_t ctx = {.cancel_after_step = -1};
+    sparse_lu_opts_t opts = {
+        .pivot = SPARSE_PIVOT_PARTIAL,
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 1e-12,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    ASSERT_EQ(sparse_lu_factor_opts(A, &opts), SPARSE_OK);
+    ASSERT_EQ(ctx.n_calls, n); /* one emission per column k = 0..n-1 */
+    ASSERT_EQ(ctx.last_step, n - 1);
+    ASSERT_TRUE(ctx.last_phase != NULL);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "lu_factor") == 0);
+    ASSERT_TRUE(ctx.last_elapsed_s >= 0.0);
+    sparse_free(A);
+}
+
+static void test_progress_cb_lu_cancel(void) {
+    const idx_t n = 100;
+    SparseMatrix *A = build_tridiag_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    /* Snapshot the original matrix entries to verify bit-identity
+     * after cancel-at-step-0. */
+    SparseMatrix *A_orig = sparse_copy(A);
+    REQUIRE_OK(A_orig ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    progress_counter_t ctx = {.cancel_after_step = 0};
+    sparse_lu_opts_t opts = {
+        .pivot = SPARSE_PIVOT_PARTIAL,
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 1e-12,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    ASSERT_EQ(sparse_lu_factor_opts(A, &opts), SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx.n_calls, 1); /* cancelled at the very first emission */
+
+    /* Matrix must be unmodified: factored flag clear + same entries. */
+    ASSERT_EQ(sparse_get(A, 0, 0), sparse_get(A_orig, 0, 0));
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_TRUE(sparse_get(A, i, i) == sparse_get(A_orig, i, i));
+        if (i > 0) {
+            ASSERT_TRUE(sparse_get(A, i, i - 1) == sparse_get(A_orig, i, i - 1));
+            ASSERT_TRUE(sparse_get(A, i - 1, i) == sparse_get(A_orig, i - 1, i));
+        }
+    }
+
+    sparse_free(A);
+    sparse_free(A_orig);
+}
+
+static void test_progress_cb_cholesky_emits_cancel(void) {
+    const idx_t n = 100;
+    SparseMatrix *A = build_tridiag_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    /* Emit: count all callbacks, force linked-list backend so the
+     * Day-6 emission path runs (CSC supernodal backend's emissions
+     * are deferred). */
+    progress_counter_t ctx = {.cancel_after_step = -1};
+    sparse_cholesky_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .backend = SPARSE_CHOL_BACKEND_LINKED_LIST,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    ASSERT_EQ(sparse_cholesky_factor_opts(A, &opts), SPARSE_OK);
+    ASSERT_EQ(ctx.n_calls, n);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "cholesky_factor") == 0);
+    sparse_free(A);
+
+    /* Cancel: rebuild matrix (factor consumed the previous one) and
+     * cancel at step=0.  The Cholesky factor strips the upper triangle
+     * BEFORE the for-k loop, so cancel-at-step-0 does NOT leave the
+     * matrix bit-identical to entry — only the lower triangle is
+     * preserved.  The contract is "factor returns SPARSE_ERR_CANCELLED
+     * + factored=0" rather than full unmodified-input. */
+    A = build_tridiag_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    progress_counter_t ctx2 = {.cancel_after_step = 0};
+    sparse_cholesky_opts_t opts2 = {
+        .reorder = SPARSE_REORDER_NONE,
+        .backend = SPARSE_CHOL_BACKEND_LINKED_LIST,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx2,
+    };
+    ASSERT_EQ(sparse_cholesky_factor_opts(A, &opts2), SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx2.n_calls, 1);
+    /* Diagonal preserved: cancellation at step=0 fires before any
+     * column-k=0 update writes to L(0, 0). */
+    ASSERT_TRUE(sparse_get(A, 0, 0) == 4.0);
+    sparse_free(A);
+}
+
+static void test_progress_cb_ldlt_emits_cancel(void) {
+    const idx_t n = 100;
+    SparseMatrix *A = build_tridiag_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    /* Emit: count, force linked-list backend.  LDL^T may use 2x2
+     * pivots, so the number of emissions is <= n (each pivot
+     * advances k by 1 or 2).  For our diagonally-dominant
+     * tridiagonal SPD all pivots are 1x1 and we get exactly n
+     * emissions, but the contract is "emissions ≤ n" generically. */
+    progress_counter_t ctx = {.cancel_after_step = -1};
+    sparse_ldlt_t ldlt = {0};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_LINKED_LIST,
+        .used_csc_path = NULL,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    ASSERT_EQ(sparse_ldlt_factor_opts(A, &opts, &ldlt), SPARSE_OK);
+    ASSERT_TRUE(ctx.n_calls > 0);
+    ASSERT_TRUE(ctx.n_calls <= n);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "ldlt_factor") == 0);
+    sparse_ldlt_free(&ldlt);
+
+    /* Cancel: A is untouched by LDL^T (factor writes to a separate
+     * ldlt_t struct), so cancel-at-step-0 leaves A bit-identical. */
+    SparseMatrix *A_orig = sparse_copy(A);
+    REQUIRE_OK(A_orig ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    progress_counter_t ctx2 = {.cancel_after_step = 0};
+    sparse_ldlt_t ldlt2 = {0};
+    sparse_ldlt_opts_t opts2 = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_LINKED_LIST,
+        .used_csc_path = NULL,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx2,
+    };
+    ASSERT_EQ(sparse_ldlt_factor_opts(A, &opts2, &ldlt2), SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx2.n_calls, 1);
+    /* ldlt2 struct freed by the factor; sparse_ldlt_free safe on zeroed remnant. */
+    sparse_ldlt_free(&ldlt2);
+    /* A unmodified. */
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_TRUE(sparse_get(A, i, i) == sparse_get(A_orig, i, i));
+    }
+    sparse_free(A);
+    sparse_free(A_orig);
+}
+
+/* Default-NULL-callback bit-identical-to-Sprint-28 contract: verify
+ * `opts.progress_cb == NULL` produces the same factorisation result
+ * as the no-opts (sparse_lu_factor) entry point. */
+static void test_progress_cb_null_default_unchanged(void) {
+    const idx_t n = 50;
+    SparseMatrix *A1 = build_tridiag_spd(n);
+    SparseMatrix *A2 = build_tridiag_spd(n);
+    REQUIRE_OK(A1 && A2 ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    ASSERT_EQ(sparse_lu_factor(A1, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
+
+    sparse_lu_opts_t opts = {
+        .pivot = SPARSE_PIVOT_PARTIAL,
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 1e-12,
+    };
+    ASSERT_EQ(sparse_lu_factor_opts(A2, &opts), SPARSE_OK);
+
+    /* Solve A1 x = b and A2 x = b on a known b; results must match. */
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x1 = malloc((size_t)n * sizeof(double));
+    double *x2 = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(b && x1 && x2 ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+    sparse_lu_solve(A1, b, x1);
+    sparse_lu_solve(A2, b, x2);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_TRUE(x1[i] == x2[i]); /* bit-identical solution */
+
+    free(b);
+    free(x1);
+    free(x2);
+    sparse_free(A1);
+    sparse_free(A2);
+}
+
+/* SPARSE_ERR_CANCELLED string round-trips through sparse_strerror. */
+static void test_progress_cb_strerror(void) {
+    const char *s = sparse_strerror(SPARSE_ERR_CANCELLED);
+    ASSERT_TRUE(s != NULL);
+    ASSERT_TRUE(strstr(s, "cancel") != NULL || strstr(s, "Cancel") != NULL);
+}
+
+/* Sprint 29 Day 7 (Item 4 close): progress / cancel coverage for QR,
+ * iterative solvers (CG / GMRES / MINRES / BiCGSTAB), and the
+ * eigsolver Lanczos + LOBPCG backends.  Pin the per-routine contract
+ * for opts.progress_cb / progress_user:
+ *   - emits >= 1 progress event during the iterative / factor phase.
+ *   - cancellation returns SPARSE_ERR_CANCELLED.
+ *   - default-NULL-callback path is bit-identical to Sprint 28.
+ *
+ * Each routine uses the same `progress_count_cb` helper + a fresh
+ * counter context.  Cancel tests set `cancel_after_step = 0` to fire
+ * at the first emission, returning SPARSE_ERR_CANCELLED with the
+ * library having done at most negligible work. */
+
+static void test_progress_cb_qr_emits_cancel(void) {
+    const idx_t m = 80, n = 50;
+    SparseMatrix *A = sparse_create(m, n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    for (idx_t i = 0; i < m; i++)
+        for (idx_t j = 0; j < n; j++)
+            if (i == j || (i + j) % 7 == 0)
+                sparse_insert(A, i, j, (double)(i + j + 1));
+
+    progress_counter_t ctx = {.cancel_after_step = -1};
+    sparse_qr_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    sparse_qr_t qr = {0};
+    ASSERT_EQ(sparse_qr_factor_opts(A, &opts, &qr), SPARSE_OK);
+    ASSERT_TRUE(ctx.n_calls > 0);
+    ASSERT_TRUE(ctx.n_calls <= n);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "qr_factor") == 0);
+    sparse_qr_free(&qr);
+
+    /* Cancel at step 0. */
+    progress_counter_t ctx2 = {.cancel_after_step = 0};
+    sparse_qr_opts_t opts2 = {
+        .reorder = SPARSE_REORDER_NONE,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx2,
+    };
+    sparse_qr_t qr2 = {0};
+    ASSERT_EQ(sparse_qr_factor_opts(A, &opts2, &qr2), SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx2.n_calls, 1);
+    sparse_qr_free(&qr2);
+    sparse_free(A);
+}
+
+/* Build n×n SPD diagonally-dominant matrix for CG-class solvers. */
+static SparseMatrix *build_solver_spd(idx_t n) {
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n; i++) {
+        sparse_insert(A, i, i, 4.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+    return A;
+}
+
+static void test_progress_cb_cg_emits_cancel(void) {
+    const idx_t n = 50;
+    SparseMatrix *A = build_solver_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(b && x ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    for (idx_t i = 0; i < n; i++) {
+        b[i] = 1.0;
+        x[i] = 0.0;
+    }
+
+    progress_counter_t ctx = {.cancel_after_step = -1};
+    sparse_iter_opts_t opts = {
+        .max_iter = 200,
+        .tol = 1e-10,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    sparse_err_t rc = sparse_solve_cg(A, b, x, &opts, NULL, NULL, NULL);
+    ASSERT_EQ(rc, SPARSE_OK);
+    ASSERT_TRUE(ctx.n_calls > 0);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "cg") == 0);
+
+    /* Cancel: reset x, set cancel at step 0. */
+    for (idx_t i = 0; i < n; i++)
+        x[i] = 0.0;
+    progress_counter_t ctx2 = {.cancel_after_step = 0};
+    sparse_iter_opts_t opts2 = {
+        .max_iter = 200,
+        .tol = 1e-10,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx2,
+    };
+    rc = sparse_solve_cg(A, b, x, &opts2, NULL, NULL, NULL);
+    ASSERT_EQ(rc, SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx2.n_calls, 1);
+
+    free(b);
+    free(x);
+    sparse_free(A);
+}
+
+static void test_progress_cb_gmres_emits_cancel(void) {
+    const idx_t n = 50;
+    SparseMatrix *A = build_solver_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(b && x ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    for (idx_t i = 0; i < n; i++) {
+        b[i] = 1.0;
+        x[i] = 0.0;
+    }
+
+    progress_counter_t ctx = {.cancel_after_step = 0};
+    sparse_gmres_opts_t opts = {
+        .max_iter = 200,
+        .restart = 30,
+        .tol = 1e-10,
+        .precond_side = SPARSE_PRECOND_LEFT,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    sparse_err_t rc = sparse_solve_gmres(A, b, x, &opts, NULL, NULL, NULL);
+    ASSERT_EQ(rc, SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx.n_calls, 1);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "gmres") == 0);
+
+    free(b);
+    free(x);
+    sparse_free(A);
+}
+
+static void test_progress_cb_minres_emits_cancel(void) {
+    const idx_t n = 50;
+    SparseMatrix *A = build_solver_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(b && x ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    for (idx_t i = 0; i < n; i++) {
+        b[i] = 1.0;
+        x[i] = 0.0;
+    }
+
+    progress_counter_t ctx = {.cancel_after_step = 0};
+    sparse_iter_opts_t opts = {
+        .max_iter = 200,
+        .tol = 1e-10,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    sparse_err_t rc = sparse_solve_minres(A, b, x, &opts, NULL, NULL, NULL);
+    ASSERT_EQ(rc, SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx.n_calls, 1);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "minres") == 0);
+
+    free(b);
+    free(x);
+    sparse_free(A);
+}
+
+static void test_progress_cb_bicgstab_emits_cancel(void) {
+    const idx_t n = 50;
+    SparseMatrix *A = build_solver_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(b && x ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    for (idx_t i = 0; i < n; i++) {
+        b[i] = 1.0;
+        x[i] = 0.0;
+    }
+
+    progress_counter_t ctx = {.cancel_after_step = 0};
+    sparse_iter_opts_t opts = {
+        .max_iter = 200,
+        .tol = 1e-10,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    sparse_err_t rc = sparse_solve_bicgstab(A, b, x, &opts, NULL, NULL, NULL);
+    ASSERT_EQ(rc, SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx.n_calls, 1);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "bicgstab") == 0);
+
+    free(b);
+    free(x);
+    sparse_free(A);
+}
+
+static void test_progress_cb_lanczos_emits_cancel(void) {
+    const idx_t n = 50;
+    SparseMatrix *A = build_solver_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    double vals[3] = {0, 0, 0};
+    progress_counter_t ctx = {.cancel_after_step = 0};
+    sparse_eigs_t res = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    sparse_err_t rc = sparse_eigs_sym(A, 3, &opts, &res);
+    ASSERT_EQ(rc, SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx.n_calls, 1);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "lanczos") == 0);
+
+    sparse_free(A);
+}
+
+static void test_progress_cb_lobpcg_emits_cancel(void) {
+    const idx_t n = 50;
+    SparseMatrix *A = build_solver_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    idx_t k = 3;
+    double vals[3] = {0, 0, 0};
+    double *vecs = calloc((size_t)n * (size_t)k, sizeof(double));
+    REQUIRE_OK(vecs ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    progress_counter_t ctx = {.cancel_after_step = 0};
+    sparse_eigs_t res = {.eigenvalues = vals, .eigenvectors = vecs};
+    sparse_eigs_opts_t opts = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .compute_vectors = 1,
+        .backend = SPARSE_EIGS_BACKEND_LOBPCG,
+        .block_size = k,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    sparse_err_t rc = sparse_eigs_sym(A, k, &opts, &res);
+    ASSERT_EQ(rc, SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx.n_calls, 1);
+    ASSERT_TRUE(strcmp(ctx.last_phase, "lobpcg") == 0);
+
+    free(vecs);
+    sparse_free(A);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
  * Test runner
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -388,6 +889,24 @@ int main(void) {
     RUN_TEST(test_all_reference_matrices);
     RUN_TEST(test_both_pivots_agree_integration);
     RUN_TEST(test_error_recovery);
+
+    /* Sprint 29 Day 6: progress / cancel callbacks (Item 4). */
+    RUN_TEST(test_progress_cb_lu_emits);
+    RUN_TEST(test_progress_cb_lu_cancel);
+    RUN_TEST(test_progress_cb_cholesky_emits_cancel);
+    RUN_TEST(test_progress_cb_ldlt_emits_cancel);
+    RUN_TEST(test_progress_cb_null_default_unchanged);
+    RUN_TEST(test_progress_cb_strerror);
+
+    /* Sprint 29 Day 7: progress / cancel coverage for QR, iterative
+     * solvers, and eigsolver Lanczos + LOBPCG backends. */
+    RUN_TEST(test_progress_cb_qr_emits_cancel);
+    RUN_TEST(test_progress_cb_cg_emits_cancel);
+    RUN_TEST(test_progress_cb_gmres_emits_cancel);
+    RUN_TEST(test_progress_cb_minres_emits_cancel);
+    RUN_TEST(test_progress_cb_bicgstab_emits_cancel);
+    RUN_TEST(test_progress_cb_lanczos_emits_cancel);
+    RUN_TEST(test_progress_cb_lobpcg_emits_cancel);
 
     TEST_SUITE_END();
 }

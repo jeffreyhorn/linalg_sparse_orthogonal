@@ -222,21 +222,43 @@ static clock_t tf_suite_start;
  * simultaneously must copy the returned string into a local buffer. */
 #include <stdlib.h>
 #include <string.h>
+/* Manual concatenation (memcpy + strlen, no snprintf) so the helper
+ * compiles in TUs that set `_POSIX_C_SOURCE 199309L` BEFORE any include
+ * — at that POSIX level Apple's `<stdio.h>` hides snprintf behind
+ * `__DARWIN_C_LEVEL >= __DARWIN_C_FULL` and Xcode 16's clang escalates
+ * the implicit declaration to a hard error.  memcpy/strlen are not
+ * feature-gated. */
 static inline const char *tf_tmp(const char *name) {
     static char buf[260];
+    const char *dir;
+    char sep;
 #ifdef _WIN32
-    const char *dir = getenv("TEMP");
+    dir = getenv("TEMP");
     if (!dir)
         dir = getenv("TMP");
     if (!dir)
         dir = ".";
-    snprintf(buf, sizeof buf, "%s\\%s", dir, name);
+    sep = '\\';
 #else
-    const char *dir = getenv("TMPDIR");
+    dir = getenv("TMPDIR");
     if (!dir)
         dir = "/tmp";
-    snprintf(buf, sizeof buf, "%s/%s", dir, name);
+    sep = '/';
 #endif
+    size_t len_d = strlen(dir);
+    size_t len_n = strlen(name);
+    /* Truncate cleanly if the composed path would overflow the
+     * fixed buffer (260 bytes accommodates POSIX PATH_MAX + Windows
+     * MAX_PATH; truncation is signalling that the test fixture name
+     * is unreasonably long and we'd want to know). */
+    if (len_d >= sizeof buf - 2)
+        len_d = sizeof buf - 2;
+    if (len_n >= sizeof buf - len_d - 1)
+        len_n = sizeof buf - len_d - 2;
+    memcpy(buf, dir, len_d);
+    buf[len_d] = sep;
+    memcpy(buf + len_d + 1, name, len_n);
+    buf[len_d + 1 + len_n] = '\0';
     return buf;
 }
 

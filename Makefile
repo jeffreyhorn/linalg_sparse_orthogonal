@@ -162,9 +162,15 @@ $(BUILDDIR):
 $(BUILDDIR)/%.o: $(SRCDIR)/%.c | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(INCLUDE) -c $< -o $@
 
-# Static library
+# Static library.  `ar rcs $@ $(LIB_OBJS)` instead of `$@ $^` because
+# the `$(LIB): $(GENERATED_VERSION)` rule below adds the generated
+# version header as a prerequisite (so the lib rebuilds when VERSION
+# bumps), and `$^` would forward that header into the archive.  Xcode
+# 16+ ld64 rejects non-mach-o archive members; the pre-Xcode-16 ld
+# silently tolerated them, which is why this only surfaced when the
+# Sprint 29 Day 9 macOS CI lit up on `macos-latest` (Xcode 16.4).
 $(LIB): $(LIB_OBJS)
-	ar rcs $@ $^
+	ar rcs $@ $(LIB_OBJS)
 
 # Thread tests need -pthread.  -lm is explicit here because CI may
 # override LDFLAGS (e.g., TSAN builds) without including -lm.

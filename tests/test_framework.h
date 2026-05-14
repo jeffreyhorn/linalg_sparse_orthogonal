@@ -247,10 +247,17 @@ static inline const char *tf_tmp(const char *name) {
 #endif
     size_t len_d = strlen(dir);
     size_t len_n = strlen(name);
-    /* Truncate cleanly if the composed path would overflow the
-     * fixed buffer (260 bytes accommodates POSIX PATH_MAX + Windows
-     * MAX_PATH; truncation is signalling that the test fixture name
-     * is unreasonably long and we'd want to know). */
+    /* Truncate cleanly if the composed path would overflow the fixed
+     * buffer.  260 bytes matches the classic Windows MAX_PATH; POSIX
+     * `PATH_MAX` is system-defined and typically larger (1024 on
+     * Darwin, 4096 on Linux).  Test fixture names in this codebase
+     * are short (< 30 chars) and `$TMPDIR` / `/tmp` resolve to
+     * paths well under MAX_PATH on every supported platform — the
+     * 260-byte buffer is sufficient in practice for the test
+     * harness's use case.  If a future test composes longer
+     * fixtures or runs under a deeply-nested $TMPDIR, the
+     * truncation will produce a wrong filename and surface
+     * immediately as an I/O test failure. */
     if (len_d >= sizeof buf - 2)
         len_d = sizeof buf - 2;
     if (len_n >= sizeof buf - len_d - 1)

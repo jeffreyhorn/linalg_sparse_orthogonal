@@ -375,9 +375,12 @@ typedef struct {
      *  LDL^T factor at the current Ritz value, normalises y, then
      *  updates lambda_j via the Rayleigh quotient `v_j^T A v_j`.
      *  Terminates when the per-pair residual
-     *  `||A * v_j - lambda_j * v_j||_2 / max(|lambda_j|, scale)` drops
+     *  `||A * v_j - lambda_j * v_j||_2 / max(|lambda_j|, 1.0)` drops
      *  below the tight tolerance (approximately `100 * machine_eps`)
-     *  or `refine_max_iters` is hit, whichever comes first.
+     *  or `refine_max_iters` is hit, whichever comes first.  The
+     *  `1.0` lower bound on the anchor keeps the gate from becoming
+     *  unrealistically strict for small-but-nonzero eigenvalues — see
+     *  `src/sparse_eigs.c::s29_refine_anchor` for the implementation.
      *
      *  Default 0 (refinement off; Sprint 28 behaviour bit-identical).
      *  Requires `compute_vectors = 1` — vectors are the input to

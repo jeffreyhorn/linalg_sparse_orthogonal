@@ -612,8 +612,16 @@ static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *c
 #define SPARSE_EIGS_REFINE_DEFAULT_MAX_ITERS 5
 
 static double s29_refine_anchor(double lambda) {
+    /* Anchor for relative residual / shift-perturbation / stall-break:
+     * `max(|lambda|, 1.0)` per the Day-4 design contract.  The
+     * lower-bounded `1.0` keeps the relative-residual criterion
+     * `||r|| / anchor < TIGHT_TOL` from becoming unrealistically strict
+     * for small-but-nonzero eigenvalues (e.g. |lambda| = 1e-6 would
+     * otherwise demand ||r|| < 1e-20, which is below the
+     * representation floor of double and would force refinement to
+     * run to `refine_max_iters` with no benefit). */
     double abs_lambda = fabs(lambda);
-    return (abs_lambda > 1e-15) ? abs_lambda : 1.0;
+    return (abs_lambda > 1.0) ? abs_lambda : 1.0;
 }
 
 static sparse_err_t s29_refine_pair(const SparseMatrix *A, idx_t n, double *v_j,

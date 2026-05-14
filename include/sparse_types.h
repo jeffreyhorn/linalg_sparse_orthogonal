@@ -70,14 +70,17 @@ typedef enum {
     SPARSE_ERR_NUMERIC = 14,   /**< Numerical failure (NaN or Inf produced during computation) */
     SPARSE_ERR_CANCELLED = 15, /**< Operation cancelled via opts.progress_cb (Sprint 29 Day 6).
                                     Callback returned non-zero; library freed intermediate state
-                                    and aborted.  For in-place factorisations the caller-visible
-                                    matrix is left in an indeterminate state — most routines have
-                                    already cached norms / cleared the `factored` flag / stripped
-                                    the upper triangle (Cholesky) by the time the first callback
-                                    fires, so even step=0 cancellation does NOT guarantee a
-                                    bit-identical input matrix.  See `sparse_progress_cb_t`
-                                    below and the per-routine opts headers (`sparse_lu_opts_t`,
-                                    `sparse_cholesky_opts_t`, etc.) for the actual contract. */
+                                    and aborted.  For in-place factorisations (LU, Cholesky)
+                                    the caller-visible matrix is left in an indeterminate state
+                                    — by the time the first callback fires the routine has
+                                    already cached norms / cleared the `factored` flag /
+                                    (Cholesky) stripped the upper triangle, so even step=0
+                                    cancellation does NOT guarantee a bit-identical input.
+                                    Out-of-place factorisations (LDL^T, QR) and the iterative /
+                                    eigsolver routines take `const SparseMatrix *A` and never
+                                    write to the input — cancellation leaves the input matrix
+                                    bit-identical.  See `sparse_progress_cb_t` below and the
+                                    per-routine opts headers for the contract. */
 } sparse_err_t;
 
 /* ─── Progress / cancel callback (Sprint 29 Day 6, Item 4) ──────────── */
@@ -123,17 +126,28 @@ typedef struct {
  * cancel the operation — the library will free any intermediate
  * state and return `SPARSE_ERR_CANCELLED` from the outer call.
  *
- * **In-place factorisations:** when the routine writes results
- * back to the input matrix (LU, Cholesky, LDL^T), cancellation
- * mid-iteration leaves the matrix in a partially-eliminated
- * state.  Even step=0 cancellation does NOT guarantee a bit-
- * identical input — by the time the first callback fires the
- * routine has typically already cleared `mat->factored`, cached
+ * **In-place factorisations (LU, Cholesky):** these routines
+ * write results back to the input matrix.  Cancellation mid-
+ * iteration leaves the matrix in a partially-eliminated state.
+ * Even step=0 cancellation does NOT guarantee a bit-identical
+ * input — by the time the first callback fires the routine has
+ * typically already cleared `mat->factored`, cached
  * `mat->factor_norm`, and (Cholesky) stripped the upper triangle.
  * Callers that need true bit-identical preservation should call
  * `sparse_copy(A)` before factoring and discard the copy on
- * cancellation.  See the per-routine opts headers for the
- * specific pre-iteration mutations each routine performs.
+ * cancellation.  See `include/sparse_lu.h` /
+ * `include/sparse_cholesky.h` for the specific pre-iteration
+ * mutations each routine performs.
+ *
+ * **Out-of-place factorisations (LDL^T, QR):** these routines
+ * take `const SparseMatrix *A` and write the factor into a
+ * separate output struct (`sparse_ldlt_t` / `sparse_qr_t`).
+ * Cancellation leaves the input matrix bit-identical; the output
+ * struct is freed before `SPARSE_ERR_CANCELLED` is returned, so
+ * the caller does not need to free anything extra.
+ *
+ * **Iterative solvers + eigensolvers:** never write to the input
+ * matrix; cancellation leaves all inputs bit-identical.
  *
  * The callback runs synchronously inside the call thread; it
  * should be fast (no I/O, no long computation).  Library guarantees

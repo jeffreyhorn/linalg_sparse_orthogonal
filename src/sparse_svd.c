@@ -628,8 +628,18 @@ void sparse_svd_free(sparse_svd_t *svd) {
  * Termination guarantee: when k_target ≤ dim, the span of cols 0..j-1
  * has codimension ≥ dim - j ≥ dim - (k_target - 1) ≥ 1 in R^dim for every
  * j ∈ [k_filled, k_target), so at least one canonical e_cand must lie
- * outside the span and the inner cand-loop succeeds.  When all candidates
- * collapse (only possible if k_target > dim), returns NOT_CONVERGED.
+ * outside the span and the inner cand-loop succeeds.
+ *
+ * Return codes:
+ *   SPARSE_OK              — basis padded successfully.
+ *   SPARSE_ERR_BADARG      — `k_target > dim` (early-exit guard before
+ *                            the loop; can never produce dim+1
+ *                            orthonormal vectors in dim-dim space).
+ *   SPARSE_ERR_NOT_CONVERGED — defensive fallback inside the cand loop
+ *                            when every canonical candidate collapses
+ *                            below the rejection threshold; mathematically
+ *                            unreachable given the BADARG guard above,
+ *                            kept as belt-and-braces.
  *
  * Cost: O(dim^2 · (k_target - k_filled)) for the typical case where the
  * first canonical succeeds (single iter of the cand loop with two MGS

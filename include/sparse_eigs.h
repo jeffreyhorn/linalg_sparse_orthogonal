@@ -407,13 +407,25 @@ typedef struct {
      *  Ignored when `refine == 0`. */
     idx_t refine_max_iters;
     /** Sprint 29 Day 7 (Item 4): optional progress / cancellation
-     *  callback.  Invoked at the top of each outer eigsolver iteration:
-     *  `phase = "lanczos"` (grow-m or thick-restart) or `"lobpcg"`,
-     *  `step = total_iter`, `total = max_iterations`.  Return 0 to
-     *  continue; non-zero cancels — the library frees intermediate
-     *  state and returns `SPARSE_ERR_CANCELLED`.  Default NULL
-     *  preserves Sprint 28 behaviour bit-identical.  Trailing field
-     *  for designated-init back-compat. */
+     *  callback.  Invoked at the top of each outer eigsolver iteration
+     *  on the **grow-m Lanczos** path (`phase = "lanczos"`) and the
+     *  **LOBPCG** path (`phase = "lobpcg"`); `step = total_iter`,
+     *  `total = max_iterations`.
+     *
+     *  **Thick-restart Lanczos** (`SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`,
+     *  AUTO-selected for `n >= SPARSE_EIGS_THICK_RESTART_THRESHOLD` without
+     *  a preconditioner) does NOT currently emit progress events from
+     *  `s21_thick_restart_outer_loop` — progress/cancel is wired through
+     *  the grow-m fast path only.  Callers that need progress/cancel on
+     *  large `n` without a preconditioner can force the grow-m backend
+     *  via `opts->backend = SPARSE_EIGS_BACKEND_LANCZOS` at the cost of
+     *  the higher peak-basis memory.  Thick-restart progress wiring is
+     *  routed to a Sprint 30+ follow-up.
+     *
+     *  Return 0 to continue; non-zero cancels — the library frees
+     *  intermediate state and returns `SPARSE_ERR_CANCELLED`.  Default
+     *  NULL preserves Sprint 28 behaviour bit-identical.  Trailing
+     *  field for designated-init back-compat. */
     sparse_progress_cb_t progress_cb;
     /** Opaque context pointer passed through unchanged to
      *  `progress_cb`.  Ignored when `progress_cb == NULL`. */

@@ -24,7 +24,7 @@ set(CMAKE_C_EXTENSIONS OFF)
 
 # Compiler warnings — Sprint 29 Day 7 gates the gcc/clang-style flags
 # on `NOT MSVC` so the Windows CI job (cl.exe) doesn't trip on
-# unrecognised `-W*` switches.  MSVC uses its own `/W4` warning level.
+# unrecognised `-W*` switches.  MSVC uses its own `/W3` warning level.
 if(NOT MSVC)
     add_compile_options(
         -Wall

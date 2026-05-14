@@ -45,6 +45,17 @@ else()
     # _CRT_SECURE_NO_WARNINGS: silence MSVC's "unsafe" warnings on
     # stdlib functions (fopen, etc.) that the codebase uses portably.
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
+    # /experimental:c11atomics enables MSVC's <stdatomic.h> implementation.
+    # src/sparse_matrix_internal.h uses _Atomic double + atomic_load /
+    # atomic_store for the cached_norm field (Sprint 11 inheritance — see
+    # the thread-safety comment block at the top of that header).
+    # Without this flag MSVC's <vcruntime_c11_stdatomic.h> emits
+    # "error C1189: C atomic support is not enabled".  Surfaced by
+    # Sprint 29 Days 7-8 when the Windows CI matrix lit up for the first
+    # time.  Flag has been stable since VS 2022 17.5; /std:c11 (from
+    # CMAKE_C_STANDARD 11) plus this flag is the MSVC-supported route to
+    # C11 atomics on Windows.
+    add_compile_options(/experimental:c11atomics)
 endif()
 
 # Optional sanitizers

@@ -70,11 +70,14 @@ typedef enum {
     SPARSE_ERR_NUMERIC = 14,   /**< Numerical failure (NaN or Inf produced during computation) */
     SPARSE_ERR_CANCELLED = 15, /**< Operation cancelled via opts.progress_cb (Sprint 29 Day 6).
                                     Callback returned non-zero; library freed intermediate state
-                                    and aborted.  For in-place factorisations, the caller-visible
-                                    matrix may be in a partially-eliminated state if cancellation
-                                    happened mid-iteration; on cancellation at step=0 (before any
-                                    mutation) the input matrix is bit-identical to entry.  See
-                                    `sparse_progress_cb_t` below. */
+                                    and aborted.  For in-place factorisations the caller-visible
+                                    matrix is left in an indeterminate state — most routines have
+                                    already cached norms / cleared the `factored` flag / stripped
+                                    the upper triangle (Cholesky) by the time the first callback
+                                    fires, so even step=0 cancellation does NOT guarantee a
+                                    bit-identical input matrix.  See `sparse_progress_cb_t`
+                                    below and the per-routine opts headers (`sparse_lu_opts_t`,
+                                    `sparse_cholesky_opts_t`, etc.) for the actual contract. */
 } sparse_err_t;
 
 /* ─── Progress / cancel callback (Sprint 29 Day 6, Item 4) ──────────── */
@@ -93,12 +96,22 @@ typedef struct {
                         *  "cholesky_factor", "ldlt_factor".  Static
                         *  string with the library's lifetime. */
     idx_t step;        /**< Monotonic 0-indexed counter within `phase`.
-                        *  Increments by 1 per emission. */
+                        *  Typically increments by 1 per emission, but
+                        *  some routines step by more than 1 — notably
+                        *  the linked-list LDL^T factor advances `step`
+                        *  by the pivot block size (1 or 2) per Bunch-
+                        *  Kaufman emission.  Treat as monotonic but not
+                        *  necessarily contiguous. */
     idx_t total;       /**< Expected total steps if known (e.g. matrix
                         *  dimension `n` for column-major elimination);
                         *  0 if the total isn't predictable. */
     double elapsed_s;  /**< Wall time in seconds since the routine
-                        *  entered `phase` (CLOCK_MONOTONIC). */
+                        *  entered `phase`.  Implementation uses
+                        *  `clock_gettime(CLOCK_MONOTONIC)` on POSIX +
+                        *  `timespec_get(TIME_UTC)` on Windows (TIME_UTC
+                        *  is NOT guaranteed monotonic; rare wall-clock
+                        *  adjustments may produce negative deltas on
+                        *  Windows). */
 } sparse_progress_t;
 
 /**
@@ -111,11 +124,16 @@ typedef struct {
  * state and return `SPARSE_ERR_CANCELLED` from the outer call.
  *
  * **In-place factorisations:** when the routine writes results
- * back to the input matrix (LU, Cholesky), cancellation mid-
- * iteration leaves the matrix in a partially-eliminated state.
- * Callers that need bit-identical input on cancellation should
- * return non-zero on the first callback invocation (`step == 0`),
- * which fires before any mutation has happened.
+ * back to the input matrix (LU, Cholesky, LDL^T), cancellation
+ * mid-iteration leaves the matrix in a partially-eliminated
+ * state.  Even step=0 cancellation does NOT guarantee a bit-
+ * identical input — by the time the first callback fires the
+ * routine has typically already cleared `mat->factored`, cached
+ * `mat->factor_norm`, and (Cholesky) stripped the upper triangle.
+ * Callers that need true bit-identical preservation should call
+ * `sparse_copy(A)` before factoring and discard the copy on
+ * cancellation.  See the per-routine opts headers for the
+ * specific pre-iteration mutations each routine performs.
  *
  * The callback runs synchronously inside the call thread; it
  * should be fast (no I/O, no long computation).  Library guarantees

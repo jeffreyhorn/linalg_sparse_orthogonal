@@ -9,7 +9,7 @@
 > flip blocked by the empirical wall verdict (Item 1 SVD outer-
 > product — memory gate passes 76-88 %, wall gate fails algorithmic-
 > equivalence-bound).  Three opt-in advisory APIs shipped (Item 1
-> SVD `SPARSE_SVD_LOWRANK_OUTER`, Item 2 SVD `full_u_v`, Item 3
+> SVD `SPARSE_SVD_LOWRANK_OUTER`, Item 2 SVD `economy=0`, Item 3
 > eigenpair `opts.refine`); one new error code
 > (`SPARSE_ERR_CANCELLED`) + cross-routine progress-callback type.
 > Windows CI + macOS CI (Apple Clang + Homebrew GCC) green on
@@ -39,7 +39,7 @@ breakdown; per-axis decision docs in
 | item | status | reference |
 |---|---|---|
 | 1. Sparse low-rank without dense accumulator | ✓ SHIPPED — advisory `SPARSE_SVD_LOWRANK_OUTER` | Day 1 `91bdd69` (skeleton + design); Day 2 `b611be7` (impl + sweep verdict; memory gate PASS 76-88 % rss reduction; wall gate FAIL; advisory ship) |
-| 2. Full SVD U/V output beyond economy mode | ✓ SHIPPED — `sparse_svd_full_opts.full_u_v` flag | Day 3 `3c4e182` (impl + orthonormality + reconstruction tests); Day 4 `cc264f0` (economy-unchanged close) |
+| 2. Full SVD U/V output beyond economy mode | ✓ SHIPPED — `sparse_svd_opts_t.economy = 0` branch lit up | Day 3 `3c4e182` (impl + orthonormality + reconstruction tests); Day 4 `cc264f0` (economy-unchanged close) |
 | 3. Optional eigenpair refinement (Sprint 20 deferred) | ✓ SHIPPED — `opts.refine` + `opts.refine_max_iters` | Day 4 `cc264f0` (design + failing-as-expected stubs); Day 5 `7f2cfe0` (impl + 4 tests; Lanczos + LOBPCG share post-pass; residual ~1e-13 on clustered spectrum) |
 | 4. Progress / cancel callbacks | ✓ SHIPPED — across 10 routines (ND deferred) | Day 6 `9a5ac90` (callback type + LU + Cholesky + LDL^T); Day 7 `e3017e8` (QR + 4 iterative solvers + Lanczos + LOBPCG); ND opts struct deferred to Sprint 30+ per Day 7 note |
 | 5. Windows CI | ✓ SHIPPED — MSVC via CMake on `windows-latest` | Day 7 `e3017e8` (draft); Day 8 `1730281` (close + portability sweep) |
@@ -73,7 +73,7 @@ Headline gates from PROJECT_PLAN.md Sprint 29:
 | Item | Env var / Opts field | Default | Verdict source |
 |---|---|---|---|
 | 1 | `SPARSE_SVD_LOWRANK_OUTER` | **off** (bit-identical to Sprint 28) | `lowrank_sweep_day2.txt` — memory gate PASS, wall gate FAIL → advisory only |
-| 2 | `sparse_svd_full_opts.full_u_v` | **false** (economy mode unchanged) | new opt-in API; default-off bit-identical to pre-Sprint 29 |
+| 2 | `sparse_svd_opts_t.economy = 0` (with `compute_uv = 1`) | **1** = thin/economy (unchanged) | new opt-in API; default `economy = 1` bit-identical to pre-Sprint 29 |
 | 3 | `sparse_eigs_sym_opts.refine` | **false** (Wu/Simon residual contract unchanged) | new opt-in API; default-off bit-identical to Sprint 28 |
 | 3 | `sparse_eigs_sym_opts.refine_max_iters` | 5 | Day 4 design |
 | 4 | `opts.progress_cb` / `opts.progress_user` | NULL (zero overhead) | new opt-in API across 10 routines |

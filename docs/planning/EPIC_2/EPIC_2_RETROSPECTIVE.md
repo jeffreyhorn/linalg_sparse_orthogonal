@@ -166,7 +166,7 @@ unmodified.
 | 27 | HCC Kuu-safe matching default flip | Sprint 27 Day 2 |
 | 27 | `nd_base_threshold = 128` default | Sprint 27 Day 3 |
 | **28** | none (zero production default flips) | Item-4 SUPERNODAL_POSTORDER advisory; bit-equivalent to default |
-| **29** | none (advisory-only ships: SVD outer-product, full_u_v, refine) | Item 1 wall-gate failure; Items 2 + 3 + 4 deliberate opt-in for back-compat |
+| **29** | none (advisory-only ships: SVD outer-product, full-SVD `economy=0`, refine) | Item 1 wall-gate failure; Items 2 + 3 + 4 deliberate opt-in for back-compat |
 
 ---
 
@@ -186,7 +186,7 @@ unmodified.
 | 28 | `SPARSE_FM_FINEST_STRATEGY=ensemble` + `SPARSE_FM_ENSEMBLE_STRATEGIES` | multi-strategy FM ensemble | `baseline,fifo,annealing` | Sprint 28 Item 2 advisory |
 | 28 | `SPARSE_SUPERNODAL_POSTORDER={off, on}` | supernodal-etree post-pass | off | Sprint 28 Item 4 advisory |
 | **29** | **`SPARSE_SVD_LOWRANK_OUTER={off, on}`** | SVD low-rank accumulator | **off** | **Sprint 29 Item 1 advisory** |
-| **29** | **`sparse_svd_full_opts.full_u_v`** | full (non-economy) SVD U/V output | **false** | **Sprint 29 Item 2 opts** |
+| **29** | **`sparse_svd_opts_t.economy = 0`** | full (non-economy) SVD U/V output (Day 3 lit up the previously-stubbed branch) | **1** (economy/thin) | **Sprint 29 Item 2 opts** |
 | **29** | **`sparse_eigs_sym_opts.refine` + `.refine_max_iters`** | inverse-iteration refinement post-pass | **false / 5** | **Sprint 29 Item 3 opts** |
 | **29** | **`opts.progress_cb` + `opts.progress_user`** (10 routines) | progress / cancel callback | **NULL / NULL** | **Sprint 29 Item 4 opts** |
 

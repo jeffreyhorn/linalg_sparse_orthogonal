@@ -736,10 +736,12 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
 
     for (idx_t step = 0; step < k; step++) {
         /* Sprint 29 Day 7: progress + cancel check at top of each
-         * Householder step.  Cancellation at step=0 leaves the
-         * partially-built `qr` struct empty; the caller must call
-         * sparse_qr_free() to release the few items allocated
-         * (W workspace, betas, vecs arrays etc.). */
+         * Householder step.  On cancellation the cancel path below
+         * frees workspace + attaches the partially-populated betas /
+         * vecs / col_perm / rank arrays to `qr` and calls
+         * sparse_qr_free(qr) itself before returning
+         * SPARSE_ERR_CANCELLED — the caller does NOT need to free
+         * any extra state. */
         if (qr_progress_cb) {
             sparse_progress_t p = {
                 .phase = "qr_factor",

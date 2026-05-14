@@ -55,12 +55,17 @@ typedef struct {
      *  iteration with `phase = "lu_factor"`, `step = k`, `total = n`.
      *  Return 0 to continue; non-zero cancels the factorisation —
      *  the library frees intermediate state and returns
-     *  `SPARSE_ERR_CANCELLED`.  Cancellation at `step == 0` leaves
-     *  the input matrix bit-identical to entry; cancellation at
-     *  `step > 0` leaves the matrix with the first `step` columns
-     *  fully eliminated.  NULL (default) disables the callback —
-     *  Sprint 28 behaviour bit-identical, zero overhead.
-     *  Trailing field for designated-init back-compat. */
+     *  `SPARSE_ERR_CANCELLED`.  Cancellation at `step > 0` leaves
+     *  the matrix with the first `step` columns fully eliminated.
+     *  Cancellation at `step == 0` leaves the entry-value data
+     *  unmodified BUT `mat->factor_norm` has already been cached
+     *  with `||A||_inf` and `mat->factored` cleared before the
+     *  first emission — callers who require bit-identical input on
+     *  immediate cancellation should pre-`sparse_copy()` the input
+     *  and discard the copy on cancellation.  NULL (default)
+     *  disables the callback — Sprint 28 behaviour bit-identical,
+     *  zero overhead.  Trailing field for designated-init back-
+     *  compat. */
     sparse_progress_cb_t progress_cb;
     /** Opaque context pointer passed through unchanged to
      *  `progress_cb`.  Ignored when `progress_cb == NULL`. */

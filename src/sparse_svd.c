@@ -37,12 +37,14 @@ static int size_mul_overflow(size_t a, size_t b, size_t *out) {
  * For each (i, j), evaluate the sum once + threshold-and-insert.
  * Memory: O(nnz_result) sparse output only.  Wall: O(m·n·rank_k)
  * same as the dense-intermediate path's accumulator-fill loop.
- * Day 2 lights up the real implementation; Day 1 ships a no-op stub
- * (returns empty matrix when env-on) so the failing-as-expected test
- * trips the Frobenius-residual assertion.
+ * Sprint 29 Day 2 fully implements the per-cell accumulator below in
+ * `sparse_svd_lowrank_outer_product`.
  *
  * Env-var gate `SPARSE_SVD_LOWRANK_OUTER={off (default), on}` lets
- * callers A/B compare the two paths during Day-2 validation. */
+ * callers A/B compare the two paths; Day-2 sweep verdict
+ * (`lowrank_sweep_day2.txt`) ships this as advisory only — memory
+ * gate -76-88 % rss reduction PASS, wall gate ~0 % delta FAIL
+ * (algorithmic-equivalence-bound), so production default stays off. */
 typedef enum {
     SVD_LOWRANK_OUTER_OFF = 0, /* Default — existing dense-intermediate path */
     SVD_LOWRANK_OUTER_ON = 1,  /* Day 2+ — outer-product accumulator */
@@ -1593,9 +1595,10 @@ sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, doub
     /* Sprint 29 Days 1-2: optional outer-product path that drops the
      * O(m·n) dense accumulator.  Default-off path is bit-identical
      * to Sprint 28; env-on dispatches to `sparse_svd_lowrank_outer_product`
-     * (Day-1 stub returns empty matrix; Day 2 implements the per-cell
-     * accumulator).  See
-     * `docs/planning/EPIC_2/SPRINT_29/lowrank_design_day1.md`. */
+     * (Day 2 per-cell accumulator implementation — matches the dense
+     * path's nnz output bit-for-bit on the corpus, with -76-88 % peak
+     * rss on bcsstk14-class fixtures per `lowrank_sweep_day2.txt`).
+     * See `docs/planning/EPIC_2/SPRINT_29/lowrank_design_day1.md`. */
     if (parse_svd_lowrank_outer() == SVD_LOWRANK_OUTER_ON) {
         SparseMatrix *outer_result = NULL;
         sparse_err_t outer_err =

@@ -96,9 +96,16 @@ static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t piv
 
     for (idx_t k = 0; k < n; k++) {
         /* Sprint 29 Day 6: progress emission + cancellation check at
-         * top of each column iteration (BEFORE any mutation for this
-         * column).  Cancellation at step=0 leaves the matrix bit-
-         * identical to entry (factored flag already cleared above). */
+         * top of each column iteration (BEFORE any column-k mutation).
+         * Cancellation at step=0 leaves the entry values unmodified —
+         * no column has been eliminated yet — BUT the matrix struct is
+         * NOT bit-identical to entry: `mat->factored` was cleared and
+         * `mat->factor_norm` was cached with `||A||_inf` immediately
+         * above this loop.  Callers that need true bit-identical
+         * preservation on immediate cancellation should pre-
+         * `sparse_copy()` the input and discard the copy.  See
+         * `include/sparse_lu.h::sparse_lu_opts_t.progress_cb` for the
+         * full contract. */
         if (progress_cb) {
             sparse_progress_t p = {
                 .phase = "lu_factor",

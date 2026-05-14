@@ -92,9 +92,15 @@ static void test_cross_eigs_refine_progress_cb(void) {
     ASSERT_EQ(rc, SPARSE_OK);
     ASSERT_EQ(res.n_converged, 3);
 
-    /* Progress callback fired during Lanczos. */
+    /* Progress callback fired during Lanczos.  Guard the strcmp on
+     * `last_phase != NULL` — the framework's ASSERT_TRUE /
+     * ASSERT_NOT_NULL are non-fatal (they log + continue), so a
+     * NULL `last_phase` (callback never fired) would otherwise
+     * segfault on the strcmp dereference and mask the real failure. */
     ASSERT_TRUE(ctx.n_calls_total > 0);
-    ASSERT_TRUE(strcmp(ctx.last_phase, "lanczos") == 0);
+    ASSERT_NOT_NULL(ctx.last_phase);
+    if (ctx.last_phase)
+        ASSERT_TRUE(strcmp(ctx.last_phase, "lanczos") == 0);
 
     /* Refinement tightened the per-pair residual.  On a well-
      * separated SPD spectrum the cubic-convergence Rayleigh iteration

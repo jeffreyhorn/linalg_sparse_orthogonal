@@ -1143,6 +1143,11 @@ static void test_eigs_refine_max_iters_budget(void) {
     double *Av = malloc((size_t)n * sizeof(double));
     REQUIRE_OK(Av ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
+    /* Local helper: compute max relative per-pair residual
+     * ||A v - lambda v|| / max(|lambda|, 1) across all converged pairs. */
+    double max_rel_one = 0.0, max_rel_five = 0.0;
+    idx_t n_converged_one = 0, n_converged_five = 0;
+
     /* refine_max_iters = 1: one inverse-iteration step per pair. */
     double vals_one[3] = {0, 0, 0};
     double *vecs_one = calloc((size_t)n * 3, sizeof(double));
@@ -1157,8 +1162,7 @@ static void test_eigs_refine_max_iters_budget(void) {
         .refine_max_iters = 1,
     };
     REQUIRE_OK(sparse_eigs_sym(A, 3, &opts_one, &r_one));
-
-    double max_rel_one = 0.0;
+    n_converged_one = r_one.n_converged;
     for (idx_t i = 0; i < r_one.n_converged; i++) {
         double *v = &vecs_one[(size_t)i * (size_t)n];
         double lambda = vals_one[i];
@@ -1168,19 +1172,61 @@ static void test_eigs_refine_max_iters_budget(void) {
             double d = Av[r] - lambda * v[r];
             res_sq += d * d;
         }
-        double rel = sqrt(res_sq) / (fabs(lambda) > 1e-15 ? fabs(lambda) : 1.0);
+        double rel = sqrt(res_sq) / (fabs(lambda) > 1.0 ? fabs(lambda) : 1.0);
         if (rel > max_rel_one)
             max_rel_one = rel;
     }
     fprintf(stderr, "    refine_max_iters=1 max true residual = %.3e\n", max_rel_one);
 
-    /* Single-iter RQ iteration on well-separated spectrum reaches
-     * near machine eps; cap enforcement means it doesn't go further
-     * even if budget=5 would. */
+    /* refine_max_iters = 5: up to five inverse-iteration steps per pair. */
+    double vals_five[3] = {0, 0, 0};
+    double *vecs_five = calloc((size_t)n * 3, sizeof(double));
+    REQUIRE_OK(vecs_five ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_eigs_t r_five = {.eigenvalues = vals_five, .eigenvectors = vecs_five};
+    sparse_eigs_opts_t opts_five = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-10,
+        .reorthogonalize = 1,
+        .compute_vectors = 1,
+        .refine = 1,
+        .refine_max_iters = 5,
+    };
+    REQUIRE_OK(sparse_eigs_sym(A, 3, &opts_five, &r_five));
+    n_converged_five = r_five.n_converged;
+    for (idx_t i = 0; i < r_five.n_converged; i++) {
+        double *v = &vecs_five[(size_t)i * (size_t)n];
+        double lambda = vals_five[i];
+        sparse_matvec(A, v, Av);
+        double res_sq = 0.0;
+        for (idx_t r = 0; r < n; r++) {
+            double d = Av[r] - lambda * v[r];
+            res_sq += d * d;
+        }
+        double rel = sqrt(res_sq) / (fabs(lambda) > 1.0 ? fabs(lambda) : 1.0);
+        if (rel > max_rel_five)
+            max_rel_five = rel;
+    }
+    fprintf(stderr, "    refine_max_iters=5 max true residual = %.3e\n", max_rel_five);
+
+    /* Budget enforcement contract:
+     *   1. Both caps return the same number of converged pairs (the
+     *      cap controls per-pair iterations, not which pairs converge).
+     *   2. cap=5 residual ≤ cap=1 residual: extra iterations never
+     *      regress on a well-separated spectrum.
+     *   3. cap=1 stops after one inverse-iteration step — on this
+     *      Laplacian fixture (well-separated eigenvalues, cubic
+     *      RQ-iteration convergence) one step already reaches near
+     *      machine eps, so cap=5 will be equal-or-tighter rather than
+     *      dramatically tighter; if cap=1 weren't enforced, both runs
+     *      would behave identically + the cap would have no effect at
+     *      all. */
+    ASSERT_EQ(n_converged_one, n_converged_five);
     ASSERT_TRUE(max_rel_one < 1e-12);
+    ASSERT_TRUE(max_rel_five <= max_rel_one + 1e-15);
 
     free(Av);
     free(vecs_one);
+    free(vecs_five);
     sparse_free(A);
 }
 

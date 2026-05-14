@@ -205,6 +205,12 @@ static void test_load_pattern(void) {
 
 static void test_load_nonexistent_file(void) {
     SparseMatrix *A = NULL;
+    /* Pre-delete to prevent flakiness if a stale file exists in
+     * $TMPDIR / $TEMP from a previous run.  `remove()` returns
+     * non-zero (and sets errno) if the file doesn't exist —
+     * ignore that; the load below produces the SPARSE_ERR_IO we
+     * actually assert against. */
+    remove(tf_tmp("no_such_file_xyz.mtx"));
     ASSERT_ERR(sparse_load_mm(&A, tf_tmp("no_such_file_xyz.mtx")), SPARSE_ERR_IO);
     ASSERT_NULL(A);
 }
@@ -241,6 +247,11 @@ static void test_save_invalid_path(void) {
 
 static void test_load_errno_enoent(void) {
     SparseMatrix *A = NULL;
+    /* Pre-delete to keep the ENOENT assertion deterministic — a
+     * stale file in $TMPDIR / $TEMP would make `sparse_errno()`
+     * return 0 (load success) instead of ENOENT.  `remove()`
+     * failure is fine if the file doesn't already exist. */
+    remove(tf_tmp("no_such_file_errno_test.mtx"));
     sparse_err_t err = sparse_load_mm(&A, tf_tmp("no_such_file_errno_test.mtx"));
     ASSERT_ERR(err, SPARSE_ERR_IO);
     ASSERT_NULL(A);
@@ -257,6 +268,14 @@ static void test_save_errno_bad_path(void) {
 }
 
 static void test_errno_cleared_on_success(void) {
+    /* Pre-delete the two paths that must NOT exist for the
+     * error-triggering loads to actually fail.  Stale files in
+     * $TMPDIR / $TEMP would otherwise make the loads succeed and
+     * leave `sparse_errno()` at 0, masking the contract.
+     * `remove()` failure is fine if the file doesn't already exist. */
+    remove(tf_tmp("no_such_file_clear_test.mtx"));
+    remove(tf_tmp("no_such_file_clear_test2.mtx"));
+
     /* First, trigger an I/O error to set sparse_errno */
     SparseMatrix *A = NULL;
     sparse_load_mm(&A, tf_tmp("no_such_file_clear_test.mtx"));

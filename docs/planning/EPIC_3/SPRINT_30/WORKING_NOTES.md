@@ -869,3 +869,106 @@ End-of-day verification passed:
 - `make format`
 - `make lint`
 - `make test`
+
+## Day 12
+
+**Objective:** Reconcile the Day 1 baseline with the post-core-fix state, confirm that the compile-hygiene playbook matches observed sprint behavior, finalize the first-fix queues, and prepare the final validation checklist for Days 13 and 14.
+
+### Files Added Or Updated
+
+- `artifacts/day12-baseline-reconciliation.md`
+- `FINAL_VALIDATION_CHECKLIST.md`
+- `COMPILE_HYGIENE_PLAYBOOK.md`
+
+### Reconciled Warning Counts
+
+Authoritative Apple Clang CMake full-tree path:
+
+- Day 1 baseline:
+  - full-tree warnings: `123`
+  - `src`: `11`
+  - `tests`: `98`
+  - `benchmarks`: `13`
+  - `examples`: `1`
+- post-core-fix state:
+  - full-tree warnings: `112`
+  - `src`: `0`
+  - `tests`: `98`
+  - `benchmarks`: `13`
+  - `examples`: `1`
+
+Net delta:
+
+- full-tree: `-11`
+- `src`: `-11`
+- `tests`: `0`
+- `benchmarks`: `0`
+- `examples`: `0`
+
+By warning class:
+
+- Day 1:
+  - `-Wmissing-field-initializers`: `72`
+  - `-Wdouble-promotion`: `45`
+  - `-Wunused-function`: `3`
+  - `-Wimplicit-function-declaration`: `2`
+  - `-Wswitch`: `1`
+- post-core-fix state:
+  - `-Wmissing-field-initializers`: `72`
+  - `-Wdouble-promotion`: `34`
+  - `-Wunused-function`: `3`
+  - `-Wimplicit-function-declaration`: `2`
+  - `-Wswitch`: `1`
+
+Class delta:
+
+- `-Wdouble-promotion`: `-11`
+- all other measured classes: `0`
+
+### Day 12 Reconciliation Result
+
+- Sprint 30’s implemented cleanup removed exactly the intended `src/` `-Wdouble-promotion` cluster.
+- No warning-class substitution or auxiliary-area count drift occurred during the core cleanup.
+- The Makefile `all` path remained at `0` warnings throughout, but still only as a library-only scope check.
+- Day 9’s stricter pass found one additional `src/` issue and closed it the same day, leaving no strict-only `src/` backlog open.
+
+### Finalized Follow-Up Queues
+
+Sprint 31 first-fix queue:
+
+- `benchmarks/bench_main.c`
+- `benchmarks/bench_convergence.c`
+- `benchmarks/bench_colamd.c`
+- `benchmarks/bench_chol_csc.c`
+- `benchmarks/bench_ldlt_csc.c`
+- `examples/example_colamd.c`
+
+Sprint 32 first-fix queue:
+
+- `tests/test_reorder_nd.c`
+
+Later auxiliary cleanup:
+
+- high-volume test initializer files already captured in Day 10
+- residual mechanical double-promotion files already captured in Day 10 and Day 11
+
+Strict-pass queue:
+
+- none open after Day 9
+
+### Playbook Finalization
+
+- `COMPILE_HYGIENE_PLAYBOOK.md` was upgraded from draft to finalized status on Day 12.
+- No policy corrections were needed; the later Sprint 30 evidence matched the Day 6 decision framework.
+
+### Final Validation Preparation
+
+- Added `FINAL_VALIDATION_CHECKLIST.md` to define the expected Day 13 and Day 14 warning counts, validation commands, artifact checks, and failure-handling rules.
+
+### Day 12 Validation
+
+End-of-day verification passed:
+
+- `make format`
+- `make lint`
+- `make test`

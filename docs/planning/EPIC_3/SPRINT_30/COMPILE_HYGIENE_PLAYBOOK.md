@@ -1,6 +1,6 @@
 # Sprint 30 Compile-Hygiene Playbook
 
-**Status:** Draft  
+**Status:** Finalized on Day 12  
 **Date:** 2026-05-16  
 **Sprint:** 30  
 **Related artifacts:**
@@ -37,6 +37,8 @@ By Day 5, the targeted core-library cleanup reduced that to:
 - `examples`: `1`
 
 The remaining warning debt is therefore auxiliary-code debt, not core-library debt.
+
+Day 9 then ran a stricter prototype-focused compile pass and found one additional `src/` warning in `src/sparse_types.c` (`-Wmissing-prototypes` on `sparse_set_errno_`). That issue was fixed the same day, and the strict-tree warning profile returned to the same post-Day-5 counts above. No separate strict-only `src/` backlog remains open after Day 9.
 
 ## Authoritative Build Surfaces
 

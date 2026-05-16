@@ -36,6 +36,18 @@ cd "$REPO_ROOT"
 
 CMAKE_BUILD_DIR="build/${LABEL}-cmake"
 MAKE_BUILD_DIR="build/${LABEL}-make"
+CMAKE_BUILD_JOBS="${WARNING_WORKFLOW_JOBS:-1}"
+
+case "$CMAKE_BUILD_JOBS" in
+    ''|*[!0-9]*)
+        echo "epic3_warning_workflow: WARNING_WORKFLOW_JOBS must be a positive integer" >&2
+        exit 2
+        ;;
+    0)
+        echo "epic3_warning_workflow: WARNING_WORKFLOW_JOBS must be greater than zero" >&2
+        exit 2
+        ;;
+esac
 
 mkdir -p "$ARTIFACTS_DIR"
 rm -rf "$CMAKE_BUILD_DIR" "$MAKE_BUILD_DIR"
@@ -130,7 +142,7 @@ summary_md="${ARTIFACTS_DIR}/${LABEL}-workflow-summary.md"
 run_step "CMake configure" "$cmake_configure_stdout" "$cmake_configure_stderr" \
     cmake -S . -B "$CMAKE_BUILD_DIR"
 run_step "CMake build" "$cmake_build_stdout" "$cmake_build_stderr" \
-    cmake --build "$CMAKE_BUILD_DIR" -j4
+    cmake --build "$CMAKE_BUILD_DIR" --parallel "$CMAKE_BUILD_JOBS"
 run_step "ctest" "$ctest_stdout" "$ctest_stderr" \
     ctest --test-dir "$CMAKE_BUILD_DIR" --output-on-failure
 run_step "Makefile library build" "$make_build_stdout" "$make_build_stderr" \
@@ -155,11 +167,12 @@ cat >"$summary_md" <<EOF_SUMMARY
 - CMake build directory: \`${CMAKE_BUILD_DIR}\`
 - Makefile build directory: \`${MAKE_BUILD_DIR}\`
 - Artifact directory: \`${ARTIFACTS_DIR}\`
+- CMake build jobs: \`${CMAKE_BUILD_JOBS}\`
 
 ## Commands Run
 
 1. \`cmake -S . -B ${CMAKE_BUILD_DIR}\`
-2. \`cmake --build ${CMAKE_BUILD_DIR} -j4\`
+2. \`cmake --build ${CMAKE_BUILD_DIR} --parallel ${CMAKE_BUILD_JOBS}\`
 3. \`ctest --test-dir ${CMAKE_BUILD_DIR} --output-on-failure\`
 4. \`make BUILDDIR=${MAKE_BUILD_DIR} all\`
 
@@ -190,6 +203,7 @@ cat >"$summary_md" <<EOF_SUMMARY
 
 - The CMake path is the authoritative full-tree warning inventory for Sprint 30.
 - The Makefile \`all\` path remains a library-only cross-check unless a wider Makefile target is used.
+- The workflow defaults to a serialized CMake warning capture (\`WARNING_WORKFLOW_JOBS=1\`) so area/file attribution remains stable and non-interleaved.
 - Re-run this workflow with a new label before and after edits to compare summaries without overwriting prior artifacts.
 EOF_SUMMARY
 

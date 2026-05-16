@@ -435,10 +435,12 @@ check: format-check lint test
 # cross-check without rebuilding the command sequence manually.
 WARNING_WORKFLOW_LABEL ?= warning-workflow
 WARNING_WORKFLOW_ARTIFACTS ?= docs/planning/EPIC_3/SPRINT_30/artifacts
+WARNING_WORKFLOW_JOBS ?= 1
 
 .PHONY: warning-workflow
 warning-workflow:
-	@bash scripts/epic3_warning_workflow.sh \
+	@WARNING_WORKFLOW_JOBS="$(WARNING_WORKFLOW_JOBS)" \
+	bash scripts/epic3_warning_workflow.sh \
 		"$(WARNING_WORKFLOW_LABEL)" \
 		"$(WARNING_WORKFLOW_ARTIFACTS)"
 

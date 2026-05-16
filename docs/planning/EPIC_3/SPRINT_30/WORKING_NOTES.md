@@ -464,3 +464,85 @@ Derived warning profile from the validated workflow run:
 - `artifacts/day7-workflow-cmake-warning-counts-by-area.txt`
 - `artifacts/day7-workflow-cmake-warning-counts-by-class.txt`
 - `artifacts/day7-workflow-cmake-warning-counts-by-file.txt`
+
+## Day 8
+
+**Objective:** Re-run the warning baseline on the Apple Clang CMake path and the Makefile path after the core cleanup batch, then separate shared warning debt from path-scope-only findings.
+
+### Files Added Or Updated
+
+- `artifacts/day8-cross-path-analysis.md`
+- `scripts/epic3_warning_workflow.sh`
+- `Makefile`
+- `REBUILD_WORKFLOW.md`
+
+### Day 8 Workflow Adjustment
+
+The first Day 8 rerun exposed a warning-capture stability issue:
+
+- parallel CMake builds could interleave stderr warning lines
+- total warning counts stayed correct
+- area/file attribution could drift because split warning lines stopped matching the parser assumptions
+
+Day 8 fixed this by changing the workflow default to:
+
+- `WARNING_WORKFLOW_JOBS=1`
+
+This keeps the warning-capture artifacts parse-stable for baseline comparison work.
+
+### Validation Performed
+
+Cross-path workflow run:
+
+- ran `make warning-workflow WARNING_WORKFLOW_LABEL=day8-crosspath`
+- ran `make format`
+- ran `make lint`
+- ran `make test`
+
+Observed results:
+
+- CMake configure warnings: `0`
+- CMake build warnings: `112`
+- Makefile build warnings: `0`
+- `ctest`: `52/52` passed in `159.95 sec`
+- end-of-day validation sequence: passed
+
+Remaining CMake warning profile:
+
+- by area
+  - `tests`: `98`
+  - `benchmarks`: `13`
+  - `examples`: `1`
+  - `src`: `0`
+- by class
+  - `-Wmissing-field-initializers`: `72`
+  - `-Wdouble-promotion`: `34`
+  - `-Wunused-function`: `3`
+  - `-Wimplicit-function-declaration`: `2`
+  - `-Wswitch`: `1`
+
+Cross-path comparison result:
+
+- shared warnings across both measured paths: none
+- CMake-only remaining warnings: `112`
+- Makefile-only warnings: `0`
+
+Interpretation:
+
+- the remaining warnings are not library-proper warnings
+- they are not false positives created by the CMake path
+- they remain because the default Makefile `all` path does not compile the same auxiliary-code scope as the CMake full-tree build
+
+### Day 8 Interpretation
+
+- Sprint 30 now has a clean cross-path statement: the core library is warning-clean on both measured paths.
+- The remaining warning debt is entirely auxiliary and CMake-visible because of build-scope differences, not because of new Day 8 regressions.
+- The warning workflow itself is now better suited for later Epic 3 comparisons because its default capture mode is stable rather than interleaved.
+
+### Day 8 Outputs
+
+- `artifacts/day8-cross-path-analysis.md`
+- `artifacts/day8-crosspath-workflow-summary.md`
+- `artifacts/day8-crosspath-cmake-warning-counts-by-area.txt`
+- `artifacts/day8-crosspath-cmake-warning-counts-by-class.txt`
+- `artifacts/day8-crosspath-cmake-warning-counts-by-file.txt`

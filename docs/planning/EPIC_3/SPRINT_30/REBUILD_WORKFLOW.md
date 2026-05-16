@@ -25,6 +25,10 @@ Default build directories:
 - `build/<label>-cmake`
 - `build/<label>-make`
 
+Default warning-capture parallelism:
+
+- `WARNING_WORKFLOW_JOBS=1`
+
 The label is mandatory at the call site in normal usage because it distinguishes one capture from another. Use labels such as:
 
 - `pre-fix`
@@ -38,12 +42,14 @@ For each label, the workflow:
 
 1. deletes the matching CMake and Makefile build directories
 2. runs a clean `cmake -S . -B build/<label>-cmake`
-3. runs a clean `cmake --build build/<label>-cmake -j4`
+3. runs a clean `cmake --build build/<label>-cmake --parallel <jobs>`
 4. runs `ctest --test-dir build/<label>-cmake --output-on-failure`
 5. runs `make BUILDDIR=build/<label>-make all`
 6. derives warning summaries from the CMake build stderr
 
 This keeps the authoritative full-tree warning inventory on the CMake path while preserving the Makefile library-build cross-check used earlier in Sprint 30.
+
+The default `WARNING_WORKFLOW_JOBS=1` is intentional. Serialized warning capture avoids interleaved compiler stderr lines, which keeps area/file attribution stable in the derived warning summaries. If a maintainer wants a faster build-only rerun, they can override the job count, but the Sprint 30 baseline artifacts should use the serialized default.
 
 ## Artifacts Produced
 

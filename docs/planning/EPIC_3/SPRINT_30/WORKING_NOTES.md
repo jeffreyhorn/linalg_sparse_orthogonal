@@ -269,3 +269,83 @@ Targeted regression slice:
 - `artifacts/day4-cmake-build.stderr.txt`
 - `artifacts/day4-targeted-ctest.stdout.txt`
 - `artifacts/day4-targeted-ctest.stderr.txt`
+
+## Day 5
+
+**Objective:** Apply the remaining Day 3 core-library cleanup in `src/sparse_qr.c` and `src/sparse_svd.c`, confirm the targeted `src/` warning class is gone, and re-verify both primary local build paths.
+
+### Files Edited
+
+- `src/sparse_qr.c`
+- `src/sparse_svd.c`
+
+### Change Applied
+
+Per the Day 3 decision, replaced the remaining implementation-side `INFINITY` uses with `HUGE_VAL` in the two Day 5 target files:
+
+- `src/sparse_qr.c`
+  - `double prev_rnorm = INFINITY;` -> `double prev_rnorm = HUGE_VAL;` at two refinement sites
+  - `info->condest = INFINITY;` -> `info->condest = HUGE_VAL;`
+  - `return INFINITY;` -> `return HUGE_VAL;`
+- `src/sparse_svd.c`
+  - five `return INFINITY;` sites -> `return HUGE_VAL;`
+
+This completed the local consistency sweep for the audited infinity-related warning pattern inside the Sprint 30 core files.
+
+### Validation Performed
+
+Fresh bounded CMake build:
+
+- configured and built `build/sprint30-day5-cmake`
+- captured logs in `artifacts/day5-cmake-*`
+
+Makefile verification build:
+
+- built `build/sprint30-day5-make`
+- captured logs in `artifacts/day5-make-*`
+
+Warning deltas relative to Day 4:
+
+- total warnings: `121` -> `112`
+- `src` warnings: `9` -> `0`
+- `src/sparse_qr.c`: `4` -> `0`
+- `src/sparse_svd.c`: `5` -> `0`
+
+Warning deltas relative to Day 1:
+
+- total warnings: `123` -> `112`
+- library-proper warnings: `11` -> `0`
+
+Remaining Day 5 CMake full-build warnings are all auxiliary:
+
+- `tests`: `98`
+- `benchmarks`: `13`
+- `examples`: `1`
+
+Makefile warning count:
+
+- `0`
+
+Targeted regression slice:
+
+- ran `ctest --test-dir build/sprint30-day5-cmake --output-on-failure -R 'test_qr|test_svd|test_bidiag|test_dense'`
+- executed `4` tests
+- result: `4/4` passed in `5.32 sec`
+
+### Day 5 Interpretation
+
+- Sprint 30’s targeted core-library warning sites are now fully resolved.
+- The warning reduction matched the exact remaining `src/` warning count, which confirms the Day 3 hotspot audit was complete and accurate.
+- The remaining warning debt is exclusively in auxiliary code and stays aligned with the Day 2 priority queue for later sprint work.
+
+### Day 5 Outputs
+
+- `artifacts/day5-core-fixes-batch2.md`
+- `artifacts/day5-cmake-configure.stdout.txt`
+- `artifacts/day5-cmake-configure.stderr.txt`
+- `artifacts/day5-cmake-build.stdout.txt`
+- `artifacts/day5-cmake-build.stderr.txt`
+- `artifacts/day5-make-build.stdout.txt`
+- `artifacts/day5-make-build.stderr.txt`
+- `artifacts/day5-targeted-ctest.stdout.txt`
+- `artifacts/day5-targeted-ctest.stderr.txt`

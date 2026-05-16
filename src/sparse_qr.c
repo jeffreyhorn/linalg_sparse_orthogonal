@@ -1077,7 +1077,7 @@ sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A, cons
         return SPARSE_ERR_ALLOC;
     }
 
-    double prev_rnorm = INFINITY;
+    double prev_rnorm = HUGE_VAL;
     sparse_err_t status = SPARSE_OK;
 
     for (idx_t iter = 0; iter <= max_refine; iter++) {
@@ -1234,7 +1234,7 @@ sparse_err_t sparse_qr_rank_info(const sparse_qr_t *qr, double tol, sparse_qr_ra
         info->condest = info->r_max / info->r_min;
         info->near_deficient = (info->r_min / info->r_max < 1e-8) ? 1 : 0;
     } else {
-        info->condest = INFINITY;
+        info->condest = HUGE_VAL;
         info->near_deficient = 1;
     }
 
@@ -1257,7 +1257,7 @@ double sparse_qr_condest(const sparse_qr_t *qr) {
     double r00 = fabs(sparse_get_phys(qr->R, 0, 0));
     double rkk = fabs(sparse_get_phys(qr->R, rank - 1, rank - 1));
     if (rkk == 0.0)
-        return INFINITY;
+        return HUGE_VAL;
 
     return r00 / rkk;
 }
@@ -1517,7 +1517,7 @@ sparse_err_t sparse_qr_refine_minnorm(const SparseMatrix *A, const double *b, do
         return SPARSE_ERR_ALLOC;
     }
 
-    double prev_rnorm = INFINITY;
+    double prev_rnorm = HUGE_VAL;
     sparse_err_t status = SPARSE_OK;
 
     for (idx_t iter = 0; iter <= max_refine; iter++) {

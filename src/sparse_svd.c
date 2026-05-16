@@ -1684,7 +1684,7 @@ double sparse_cond(const SparseMatrix *A, sparse_err_t *err) {
 
     if (!A) {
         *err = SPARSE_ERR_NULL;
-        return INFINITY;
+        return HUGE_VAL;
     }
 
     idx_t m = sparse_rows(A);
@@ -1693,7 +1693,7 @@ double sparse_cond(const SparseMatrix *A, sparse_err_t *err) {
 
     if (k == 0) {
         *err = SPARSE_OK;
-        return INFINITY;
+        return HUGE_VAL;
     }
 
     /* Compute full SVD (singular values only) */
@@ -1701,13 +1701,13 @@ double sparse_cond(const SparseMatrix *A, sparse_err_t *err) {
     sparse_err_t svd_err = sparse_svd_compute(A, NULL, &svd);
     if (svd_err != SPARSE_OK) {
         *err = svd_err;
-        return INFINITY;
+        return HUGE_VAL;
     }
 
     if (!svd.sigma) { /* LCOV_EXCL_START — cannot happen after SPARSE_OK */
         sparse_svd_free(&svd);
         *err = SPARSE_ERR_ALLOC;
-        return INFINITY;
+        return HUGE_VAL;
     } /* LCOV_EXCL_STOP */
     double sigma_max = svd.sigma[0];
     double sigma_min = svd.sigma[k - 1];
@@ -1718,7 +1718,7 @@ double sparse_cond(const SparseMatrix *A, sparse_err_t *err) {
     double tol = 2.2204460492503131e-16 * sigma_max * (double)((m > n) ? m : n);
     if (sigma_min <= tol) {
         *err = SPARSE_OK;
-        return INFINITY;
+        return HUGE_VAL;
     }
 
     *err = SPARSE_OK;

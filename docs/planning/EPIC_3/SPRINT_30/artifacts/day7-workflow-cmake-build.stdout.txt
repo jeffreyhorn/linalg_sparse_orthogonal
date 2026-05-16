@@ -1,0 +1,240 @@
+[  1%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_types.c.o
+[  1%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_matrix.c.o
+[  2%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_lu.c.o
+[  3%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_vector.c.o
+[  3%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_reorder.c.o
+[  4%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_cholesky.c.o
+[  4%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_csr.c.o
+[  5%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_iterative.c.o
+[  5%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_ilu.c.o
+[  6%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_qr.c.o
+[  7%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_dense.c.o
+[  7%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_bidiag.c.o
+[  8%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_svd.c.o
+[  8%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_lu_csr.c.o
+[  9%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_ldlt.c.o
+[ 10%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_ic.c.o
+[ 10%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_etree.c.o
+[ 11%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_analysis.c.o
+[ 11%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_colamd.c.o
+[ 12%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_chol_csc.c.o
+[ 13%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_ldlt_csc.c.o
+[ 13%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_eigs.c.o
+[ 14%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_graph.c.o
+[ 14%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_reorder_nd.c.o
+[ 15%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_reorder_amd_qg.c.o
+[ 16%] Linking C static library libsparse_lu_ortho.a
+[ 16%] Built target sparse_lu_ortho
+[ 17%] Building C object CMakeFiles/test_known_matrices.dir/tests/test_known_matrices.c.o
+[ 17%] Building C object CMakeFiles/test_sparse_io.dir/tests/test_sparse_io.c.o
+[ 18%] Building C object CMakeFiles/test_sparse_matrix.dir/tests/test_sparse_matrix.c.o
+[ 18%] Building C object CMakeFiles/test_sparse_lu.dir/tests/test_sparse_lu.c.o
+[ 19%] Linking C executable test_known_matrices
+[ 20%] Linking C executable test_sparse_io
+[ 21%] Linking C executable test_sparse_lu
+[ 21%] Linking C executable test_sparse_matrix
+[ 21%] Built target test_known_matrices
+[ 21%] Built target test_sparse_io
+[ 21%] Built target test_sparse_lu
+[ 21%] Built target test_sparse_matrix
+[ 22%] Building C object CMakeFiles/test_sparse_vector.dir/tests/test_sparse_vector.c.o
+[ 23%] Building C object CMakeFiles/test_edge_cases.dir/tests/test_edge_cases.c.o
+[ 24%] Building C object CMakeFiles/test_integration.dir/tests/test_integration.c.o
+[ 24%] Building C object CMakeFiles/test_sparse_arith.dir/tests/test_sparse_arith.c.o
+[ 24%] Linking C executable test_sparse_vector
+[ 24%] Linking C executable test_integration
+[ 25%] Linking C executable test_sparse_arith
+[ 25%] Linking C executable test_edge_cases
+[ 25%] Built target test_sparse_vector
+[ 25%] Built target test_integration
+[ 25%] Built target test_edge_cases
+[ 25%] Built target test_sparse_arith
+[ 26%] Building C object CMakeFiles/test_suitesparse.dir/tests/test_suitesparse.c.o
+[ 27%] Building C object CMakeFiles/test_reorder.dir/tests/test_reorder.c.o
+[ 27%] Building C object CMakeFiles/test_csr.dir/tests/test_csr.c.o
+[ 28%] Building C object CMakeFiles/test_cholesky.dir/tests/test_cholesky.c.o
+[ 28%] Linking C executable test_suitesparse
+[ 29%] Linking C executable test_csr
+[ 30%] Linking C executable test_cholesky
+[ 30%] Linking C executable test_reorder
+[ 30%] Built target test_suitesparse
+[ 30%] Built target test_csr
+[ 30%] Built target test_cholesky
+[ 30%] Built target test_reorder
+[ 31%] Building C object CMakeFiles/test_matmul.dir/tests/test_matmul.c.o
+[ 32%] Building C object CMakeFiles/test_iterative.dir/tests/test_iterative.c.o
+[ 32%] Building C object CMakeFiles/test_ilu.dir/tests/test_ilu.c.o
+[ 32%] Building C object CMakeFiles/test_omp.dir/tests/test_omp.c.o
+[ 32%] Linking C executable test_matmul
+[ 33%] Linking C executable test_omp
+[ 34%] Linking C executable test_ilu
+[ 34%] Built target test_matmul
+[ 34%] Linking C executable test_iterative
+[ 34%] Built target test_omp
+[ 35%] Building C object CMakeFiles/test_threads.dir/tests/test_threads.c.o
+[ 35%] Built target test_ilu
+[ 36%] Building C object CMakeFiles/test_sprint4_integration.dir/tests/test_sprint4_integration.c.o
+[ 36%] Built target test_iterative
+[ 37%] Building C object CMakeFiles/test_sprint5_integration.dir/tests/test_sprint5_integration.c.o
+[ 38%] Linking C executable test_threads
+[ 38%] Building C object CMakeFiles/test_qr.dir/tests/test_qr.c.o
+[ 38%] Linking C executable test_sprint4_integration
+[ 38%] Linking C executable test_sprint5_integration
+[ 38%] Built target test_threads
+[ 38%] Built target test_sprint4_integration
+[ 39%] Building C object CMakeFiles/test_sprint6_integration.dir/tests/test_sprint6_integration.c.o
+[ 40%] Linking C executable test_qr
+[ 40%] Built target test_sprint5_integration
+[ 41%] Building C object CMakeFiles/test_dense.dir/tests/test_dense.c.o
+[ 42%] Linking C executable test_sprint6_integration
+[ 42%] Building C object CMakeFiles/test_bidiag.dir/tests/test_bidiag.c.o
+[ 42%] Built target test_qr
+[ 42%] Linking C executable test_dense
+[ 43%] Building C object CMakeFiles/test_svd.dir/tests/test_svd.c.o
+[ 43%] Built target test_sprint6_integration
+[ 44%] Linking C executable test_bidiag
+[ 44%] Built target test_dense
+[ 44%] Building C object CMakeFiles/test_sprint8_integration.dir/tests/test_sprint8_integration.c.o
+[ 44%] Built target test_bidiag
+[ 45%] Building C object CMakeFiles/test_fuzz.dir/tests/test_fuzz.c.o
+[ 46%] Linking C executable test_sprint8_integration
+[ 47%] Building C object CMakeFiles/test_lu_csr.dir/tests/test_lu_csr.c.o
+[ 47%] Linking C executable test_svd
+[ 47%] Linking C executable test_fuzz
+[ 47%] Built target test_sprint8_integration
+[ 47%] Built target test_svd
+[ 47%] Linking C executable test_lu_csr
+[ 47%] Built target test_fuzz
+[ 48%] Building C object CMakeFiles/test_block_solvers.dir/tests/test_block_solvers.c.o
+[ 49%] Building C object CMakeFiles/test_sprint10_integration.dir/tests/test_sprint10_integration.c.o
+[ 49%] Building C object CMakeFiles/test_sprint11_integration.dir/tests/test_sprint11_integration.c.o
+[ 49%] Built target test_lu_csr
+[ 49%] Linking C executable test_block_solvers
+[ 50%] Linking C executable test_sprint10_integration
+[ 51%] Linking C executable test_sprint11_integration
+[ 51%] Building C object CMakeFiles/test_ldlt.dir/tests/test_ldlt.c.o
+[ 51%] Built target test_block_solvers
+[ 51%] Built target test_sprint10_integration
+[ 51%] Built target test_sprint11_integration
+[ 51%] Building C object CMakeFiles/test_sprint12_integration.dir/tests/test_sprint12_integration.c.o
+[ 51%] Building C object CMakeFiles/test_ic.dir/tests/test_ic.c.o
+[ 52%] Building C object CMakeFiles/test_minres.dir/tests/test_minres.c.o
+[ 53%] Linking C executable test_ldlt
+[ 54%] Linking C executable test_sprint12_integration
+[ 55%] Linking C executable test_ic
+[ 55%] Built target test_ldlt
+[ 56%] Linking C executable test_minres
+[ 56%] Built target test_sprint12_integration
+[ 57%] Building C object CMakeFiles/test_sprint13_integration.dir/tests/test_sprint13_integration.c.o
+[ 57%] Built target test_ic
+[ 57%] Building C object CMakeFiles/test_etree.dir/tests/test_etree.c.o
+[ 57%] Built target test_minres
+[ 57%] Building C object CMakeFiles/test_colamd.dir/tests/test_colamd.c.o
+[ 57%] Linking C executable test_sprint13_integration
+[ 57%] Building C object CMakeFiles/test_bicgstab.dir/tests/test_bicgstab.c.o
+[ 58%] Linking C executable test_etree
+[ 58%] Built target test_sprint13_integration
+[ 59%] Linking C executable test_colamd
+[ 60%] Linking C executable test_bicgstab
+[ 60%] Building C object CMakeFiles/test_stagnation.dir/tests/test_stagnation.c.o
+[ 60%] Built target test_etree
+[ 60%] Built target test_colamd
+[ 60%] Built target test_bicgstab
+[ 61%] Building C object CMakeFiles/test_chol_csc.dir/tests/test_chol_csc.c.o
+[ 61%] Building C object CMakeFiles/test_ldlt_csc.dir/tests/test_ldlt_csc.c.o
+[ 62%] Linking C executable test_stagnation
+[ 63%] Building C object CMakeFiles/test_sprint18_integration.dir/tests/test_sprint18_integration.c.o
+[ 63%] Built target test_stagnation
+[ 63%] Linking C executable test_sprint18_integration
+[ 64%] Building C object CMakeFiles/test_sprint19_integration.dir/tests/test_sprint19_integration.c.o
+[ 65%] Linking C executable test_ldlt_csc
+[ 65%] Linking C executable test_chol_csc
+[ 65%] Built target test_sprint18_integration
+[ 66%] Linking C executable test_sprint19_integration
+[ 66%] Built target test_ldlt_csc
+[ 66%] Building C object CMakeFiles/test_sprint20_integration.dir/tests/test_sprint20_integration.c.o
+[ 66%] Built target test_chol_csc
+[ 66%] Building C object CMakeFiles/test_sprint29_integration.dir/tests/test_sprint29_integration.c.o
+[ 66%] Built target test_sprint19_integration
+[ 67%] Building C object CMakeFiles/test_eigs.dir/tests/test_eigs.c.o
+[ 68%] Linking C executable test_sprint20_integration
+[ 68%] Building C object CMakeFiles/test_eigs_thick_restart.dir/tests/test_eigs_thick_restart.c.o
+[ 69%] Linking C executable test_sprint29_integration
+[ 70%] Linking C executable test_eigs
+[ 70%] Built target test_sprint20_integration
+[ 70%] Built target test_sprint29_integration
+[ 71%] Linking C executable test_eigs_thick_restart
+[ 71%] Building C object CMakeFiles/test_eigs_lobpcg.dir/tests/test_eigs_lobpcg.c.o
+[ 72%] Building C object CMakeFiles/test_graph.dir/tests/test_graph.c.o
+[ 72%] Built target test_eigs
+[ 72%] Built target test_eigs_thick_restart
+[ 73%] Building C object CMakeFiles/test_graph_fm_buckets.dir/tests/test_graph_fm_buckets.c.o
+[ 74%] Linking C executable test_eigs_lobpcg
+[ 75%] Building C object CMakeFiles/test_reorder_nd.dir/tests/test_reorder_nd.c.o
+[ 75%] Linking C executable test_graph
+[ 76%] Linking C executable test_graph_fm_buckets
+[ 76%] Built target test_eigs_lobpcg
+[ 77%] Linking C executable test_reorder_nd
+[ 77%] Built target test_graph
+[ 78%] Building C object CMakeFiles/test_reorder_amd_qg.dir/tests/test_reorder_amd_qg.c.o
+[ 78%] Built target test_graph_fm_buckets
+[ 78%] Building C object CMakeFiles/bench_fillin.dir/benchmarks/bench_fillin.c.o
+[ 78%] Built target test_reorder_nd
+[ 79%] Building C object CMakeFiles/bench_colamd.dir/benchmarks/bench_colamd.c.o
+[ 79%] Linking C executable test_reorder_amd_qg
+[ 79%] Building C object CMakeFiles/bench_reorder.dir/benchmarks/bench_reorder.c.o
+[ 80%] Linking C executable bench_fillin
+[ 80%] Linking C executable bench_colamd
+[ 80%] Built target test_reorder_amd_qg
+[ 81%] Linking C executable bench_reorder
+[ 81%] Built target bench_fillin
+[ 82%] Building C object CMakeFiles/bench_main.dir/benchmarks/bench_main.c.o
+[ 82%] Built target bench_colamd
+[ 82%] Building C object CMakeFiles/bench_scaling.dir/benchmarks/bench_scaling.c.o
+[ 82%] Built target bench_reorder
+[ 83%] Building C object CMakeFiles/bench_convergence.dir/benchmarks/bench_convergence.c.o
+[ 83%] Linking C executable bench_main
+[ 84%] Building C object CMakeFiles/bench_refactor.dir/benchmarks/bench_refactor.c.o
+[ 85%] Linking C executable bench_scaling
+[ 85%] Linking C executable bench_convergence
+[ 85%] Built target bench_main
+[ 85%] Linking C executable bench_refactor
+[ 85%] Built target bench_scaling
+[ 85%] Built target bench_convergence
+[ 85%] Building C object CMakeFiles/bench_bicgstab.dir/benchmarks/bench_bicgstab.c.o
+[ 85%] Building C object CMakeFiles/bench_chol_csc.dir/benchmarks/bench_chol_csc.c.o
+[ 85%] Building C object CMakeFiles/bench_ldlt_csc.dir/benchmarks/bench_ldlt_csc.c.o
+[ 85%] Built target bench_refactor
+[ 86%] Linking C executable bench_bicgstab
+[ 87%] Linking C executable bench_chol_csc
+[ 88%] Building C object CMakeFiles/bench_refactor_csc.dir/benchmarks/bench_refactor_csc.c.o
+[ 89%] Linking C executable bench_ldlt_csc
+[ 89%] Built target bench_bicgstab
+[ 90%] Linking C executable bench_refactor_csc
+[ 90%] Built target bench_chol_csc
+[ 91%] Building C object CMakeFiles/bench_eigs.dir/benchmarks/bench_eigs.c.o
+[ 91%] Built target bench_ldlt_csc
+[ 91%] Building C object CMakeFiles/bench_amd_qg.dir/benchmarks/bench_amd_qg.c.o
+[ 91%] Building C object CMakeFiles/example_ldlt.dir/examples/example_ldlt.c.o
+[ 91%] Built target bench_refactor_csc
+[ 92%] Linking C executable bench_eigs
+[ 93%] Linking C executable bench_amd_qg
+[ 93%] Building C object CMakeFiles/example_ic_minres.dir/examples/example_ic_minres.c.o
+[ 94%] Linking C executable example_ldlt
+[ 94%] Built target bench_eigs
+[ 95%] Linking C executable example_ic_minres
+[ 95%] Built target bench_amd_qg
+[ 95%] Built target example_ldlt
+[ 96%] Building C object CMakeFiles/example_analysis.dir/examples/example_analysis.c.o
+[ 97%] Building C object CMakeFiles/example_minnorm.dir/examples/example_minnorm.c.o
+[ 98%] Building C object CMakeFiles/example_colamd.dir/examples/example_colamd.c.o
+[ 98%] Built target example_ic_minres
+[ 98%] Linking C executable example_analysis
+[ 98%] Linking C executable example_minnorm
+[ 99%] Building C object CMakeFiles/example_eigs.dir/examples/example_eigs.c.o
+[ 99%] Linking C executable example_colamd
+[ 99%] Built target example_analysis
+[100%] Linking C executable example_eigs
+[100%] Built target example_minnorm
+[100%] Built target example_colamd
+[100%] Built target example_eigs

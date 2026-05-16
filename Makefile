@@ -429,6 +429,19 @@ lint: build/include/sparse_version.h
 .PHONY: check
 check: format-check lint test
 
+# Sprint 30 Day 7: reproducible Epic 3 warning-capture + validation
+# workflow.  Wraps the helper script so maintainers can recreate a
+# clean CMake warning inventory plus the library-only Makefile
+# cross-check without rebuilding the command sequence manually.
+WARNING_WORKFLOW_LABEL ?= warning-workflow
+WARNING_WORKFLOW_ARTIFACTS ?= docs/planning/EPIC_3/SPRINT_30/artifacts
+
+.PHONY: warning-workflow
+warning-workflow:
+	@bash scripts/epic3_warning_workflow.sh \
+		"$(WARNING_WORKFLOW_LABEL)" \
+		"$(WARNING_WORKFLOW_ARTIFACTS)"
+
 # ─── Performance regression gate (Sprint 24 Day 1) ────────────────────
 #
 # `make wall-check` runs two single-fixture benchmarks (bcsstk14 qg-AMD

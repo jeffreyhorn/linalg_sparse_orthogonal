@@ -398,3 +398,69 @@ The playbook records these main rules:
 
 - `COMPILE_HYGIENE_PLAYBOOK.md`
 - `artifacts/day6-compile-hygiene-playbook.md`
+
+## Day 7
+
+**Objective:** Automate the Sprint 30 rebuild and warning-capture workflow so clean baseline reproduction and post-edit validation no longer require manual command reconstruction.
+
+### Files Added Or Updated
+
+- `scripts/epic3_warning_workflow.sh`
+- `Makefile`
+- `REBUILD_WORKFLOW.md`
+- `artifacts/day7-rebuild-workflow.md`
+
+### Day 7 Workflow Decisions
+
+- the workflow uses label-based build directories:
+  - `build/<label>-cmake`
+  - `build/<label>-make`
+- the workflow writes all logs and derived summaries into `docs/planning/EPIC_3/SPRINT_30/artifacts`
+- the authoritative full-tree warning inventory remains the clean CMake build
+- the Makefile path remains a library-only cross-check
+- the workflow includes `ctest` so it validates the CMake path rather than only compiling it
+
+### Validation Performed
+
+Workflow validation run:
+
+- ran `make warning-workflow WARNING_WORKFLOW_LABEL=day7-workflow`
+- ran `make format`
+- ran `make lint`
+- ran `make test`
+
+Observed results:
+
+- CMake configure warnings: `0`
+- CMake build warnings: `112`
+- Makefile build warnings: `0`
+- `ctest`: `52/52` passed in `205.75 sec`
+- end-of-day validation sequence: passed
+
+Derived warning profile from the validated workflow run:
+
+- by area
+  - `tests`: `98`
+  - `benchmarks`: `13`
+  - `examples`: `1`
+- by warning class
+  - `-Wmissing-field-initializers`: `72`
+  - `-Wdouble-promotion`: `34`
+  - `-Wunused-function`: `3`
+  - `-Wimplicit-function-declaration`: `2`
+  - `-Wswitch`: `1`
+
+### Day 7 Interpretation
+
+- Sprint 30 now has a single documented command entry point for warning-baseline reproduction.
+- The new workflow is suitable for both pre-change and post-change capture because labels prevent artifact overwrites.
+- The validated workflow reproduced the current post-Day-5 warning state exactly, which confirms that it is measuring the intended build surfaces.
+
+### Day 7 Outputs
+
+- `REBUILD_WORKFLOW.md`
+- `artifacts/day7-rebuild-workflow.md`
+- `artifacts/day7-workflow-workflow-summary.md`
+- `artifacts/day7-workflow-cmake-warning-counts-by-area.txt`
+- `artifacts/day7-workflow-cmake-warning-counts-by-class.txt`
+- `artifacts/day7-workflow-cmake-warning-counts-by-file.txt`

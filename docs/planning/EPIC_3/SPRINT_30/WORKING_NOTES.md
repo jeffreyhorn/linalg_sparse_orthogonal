@@ -349,3 +349,52 @@ Targeted regression slice:
 - `artifacts/day5-make-build.stderr.txt`
 - `artifacts/day5-targeted-ctest.stdout.txt`
 - `artifacts/day5-targeted-ctest.stderr.txt`
+
+## Day 6
+
+**Objective:** Write the Sprint 30 compile-hygiene playbook so later Epic 3 warning cleanup can use explicit rules about scope, urgency, build-path authority, and closure evidence.
+
+### Documents Added
+
+- `COMPILE_HYGIENE_PLAYBOOK.md`
+- `artifacts/day6-compile-hygiene-playbook.md`
+
+### Day 6 Policy Decisions
+
+The playbook records these main rules:
+
+- the clean Apple Clang CMake build remains the authoritative full-tree warning inventory
+- the Makefile `all` path remains a library-only cross-check, not a repository-wide warning baseline
+- `src/` warnings are not acceptable on supported build surfaces
+- pre-existing auxiliary warnings may remain temporarily only if they are measured and explicitly queued
+- new warnings in any area are not acceptable
+- warning closure claims require before/after counts, captured logs, and proportional regression evidence
+- global `-Werror` remains deferred until the baseline debt is substantially reduced
+
+### Day 6 Scope Notes
+
+- Day 6 is a documentation-and-policy checkpoint, not a source-behavior change.
+- The playbook intentionally reflects Sprint 30’s measured state after Day 5:
+  - `src`: `0`
+  - `tests`: `98`
+  - `benchmarks`: `13`
+  - `examples`: `1`
+- The policy therefore separates “must stay clean now” from “documented debt queued for later cleanup.”
+
+### Validation Performed
+
+- ran `make format`
+- ran `make lint`
+- ran `make test`
+- result: all three completed successfully
+
+### Day 6 Interpretation
+
+- Sprint 30 now has an explicit compile-quality decision framework rather than relying on informal judgments.
+- Later warning-cleanup and gating work can reference a concrete rule set tied to the measured baseline.
+- The playbook stays within Sprint 30 scope by focusing on existing warning debt and validation standards, not feature expansion.
+
+### Day 6 Outputs
+
+- `COMPILE_HYGIENE_PLAYBOOK.md`
+- `artifacts/day6-compile-hygiene-playbook.md`

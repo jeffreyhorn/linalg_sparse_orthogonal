@@ -2,6 +2,8 @@
 
 static _Thread_local int last_errno = 0;
 
+void sparse_set_errno_(int errnum);
+
 void sparse_set_errno_(int errnum) { last_errno = errnum; }
 
 int sparse_errno(void) { return last_errno; }

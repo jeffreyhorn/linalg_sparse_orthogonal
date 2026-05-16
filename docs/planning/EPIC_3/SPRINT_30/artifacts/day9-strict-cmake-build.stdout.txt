@@ -1,0 +1,145 @@
+[  1%] Building C object CMakeFiles/sparse_lu_ortho.dir/src/sparse_types.c.o
+[  2%] Linking C static library libsparse_lu_ortho.a
+[ 16%] Built target sparse_lu_ortho
+[ 16%] Linking C executable test_sparse_matrix
+[ 17%] Built target test_sparse_matrix
+[ 18%] Linking C executable test_sparse_lu
+[ 18%] Built target test_sparse_lu
+[ 19%] Linking C executable test_sparse_io
+[ 19%] Built target test_sparse_io
+[ 20%] Linking C executable test_known_matrices
+[ 21%] Built target test_known_matrices
+[ 21%] Linking C executable test_sparse_vector
+[ 22%] Built target test_sparse_vector
+[ 22%] Linking C executable test_edge_cases
+[ 23%] Built target test_edge_cases
+[ 23%] Linking C executable test_integration
+[ 24%] Built target test_integration
+[ 25%] Linking C executable test_sparse_arith
+[ 25%] Built target test_sparse_arith
+[ 25%] Linking C executable test_suitesparse
+[ 26%] Built target test_suitesparse
+[ 26%] Linking C executable test_reorder
+[ 27%] Built target test_reorder
+[ 28%] Linking C executable test_cholesky
+[ 29%] Built target test_cholesky
+[ 30%] Linking C executable test_csr
+[ 30%] Built target test_csr
+[ 30%] Linking C executable test_matmul
+[ 31%] Built target test_matmul
+[ 31%] Linking C executable test_iterative
+[ 32%] Built target test_iterative
+[ 33%] Linking C executable test_ilu
+[ 33%] Built target test_ilu
+[ 34%] Linking C executable test_omp
+[ 34%] Built target test_omp
+[ 35%] Linking C executable test_threads
+[ 36%] Built target test_threads
+[ 36%] Linking C executable test_sprint4_integration
+[ 37%] Built target test_sprint4_integration
+[ 37%] Linking C executable test_sprint5_integration
+[ 38%] Built target test_sprint5_integration
+[ 39%] Linking C executable test_qr
+[ 39%] Built target test_qr
+[ 40%] Linking C executable test_sprint6_integration
+[ 41%] Built target test_sprint6_integration
+[ 41%] Linking C executable test_dense
+[ 42%] Built target test_dense
+[ 43%] Linking C executable test_bidiag
+[ 43%] Built target test_bidiag
+[ 43%] Linking C executable test_svd
+[ 44%] Built target test_svd
+[ 45%] Linking C executable test_sprint8_integration
+[ 45%] Built target test_sprint8_integration
+[ 45%] Linking C executable test_fuzz
+[ 46%] Built target test_fuzz
+[ 46%] Linking C executable test_lu_csr
+[ 47%] Built target test_lu_csr
+[ 47%] Linking C executable test_block_solvers
+[ 48%] Built target test_block_solvers
+[ 49%] Linking C executable test_sprint10_integration
+[ 50%] Built target test_sprint10_integration
+[ 51%] Linking C executable test_sprint11_integration
+[ 51%] Built target test_sprint11_integration
+[ 52%] Linking C executable test_ldlt
+[ 52%] Built target test_ldlt
+[ 53%] Linking C executable test_sprint12_integration
+[ 53%] Built target test_sprint12_integration
+[ 54%] Linking C executable test_ic
+[ 54%] Built target test_ic
+[ 55%] Linking C executable test_minres
+[ 56%] Built target test_minres
+[ 56%] Linking C executable test_sprint13_integration
+[ 57%] Built target test_sprint13_integration
+[ 58%] Linking C executable test_etree
+[ 58%] Built target test_etree
+[ 59%] Linking C executable test_colamd
+[ 59%] Built target test_colamd
+[ 60%] Linking C executable test_bicgstab
+[ 60%] Built target test_bicgstab
+[ 61%] Linking C executable test_stagnation
+[ 61%] Built target test_stagnation
+[ 61%] Linking C executable test_chol_csc
+[ 62%] Built target test_chol_csc
+[ 63%] Linking C executable test_ldlt_csc
+[ 63%] Built target test_ldlt_csc
+[ 63%] Linking C executable test_sprint18_integration
+[ 64%] Built target test_sprint18_integration
+[ 65%] Linking C executable test_sprint19_integration
+[ 66%] Built target test_sprint19_integration
+[ 67%] Linking C executable test_sprint20_integration
+[ 67%] Built target test_sprint20_integration
+[ 68%] Linking C executable test_sprint29_integration
+[ 68%] Built target test_sprint29_integration
+[ 69%] Linking C executable test_eigs
+[ 70%] Built target test_eigs
+[ 71%] Linking C executable test_eigs_thick_restart
+[ 71%] Built target test_eigs_thick_restart
+[ 72%] Linking C executable test_eigs_lobpcg
+[ 72%] Built target test_eigs_lobpcg
+[ 72%] Linking C executable test_graph
+[ 73%] Built target test_graph
+[ 74%] Linking C executable test_graph_fm_buckets
+[ 75%] Built target test_graph_fm_buckets
+[ 76%] Linking C executable test_reorder_nd
+[ 77%] Built target test_reorder_nd
+[ 77%] Linking C executable test_reorder_amd_qg
+[ 78%] Built target test_reorder_amd_qg
+[ 79%] Linking C executable bench_fillin
+[ 79%] Built target bench_fillin
+[ 79%] Linking C executable bench_colamd
+[ 80%] Built target bench_colamd
+[ 81%] Linking C executable bench_reorder
+[ 81%] Built target bench_reorder
+[ 81%] Linking C executable bench_main
+[ 82%] Built target bench_main
+[ 83%] Linking C executable bench_scaling
+[ 83%] Built target bench_scaling
+[ 83%] Linking C executable bench_convergence
+[ 84%] Built target bench_convergence
+[ 84%] Linking C executable bench_refactor
+[ 85%] Built target bench_refactor
+[ 86%] Linking C executable bench_bicgstab
+[ 86%] Built target bench_bicgstab
+[ 87%] Linking C executable bench_chol_csc
+[ 87%] Built target bench_chol_csc
+[ 88%] Linking C executable bench_ldlt_csc
+[ 88%] Built target bench_ldlt_csc
+[ 89%] Linking C executable bench_refactor_csc
+[ 90%] Built target bench_refactor_csc
+[ 91%] Linking C executable bench_eigs
+[ 92%] Built target bench_eigs
+[ 93%] Linking C executable bench_amd_qg
+[ 93%] Built target bench_amd_qg
+[ 94%] Linking C executable example_ldlt
+[ 94%] Built target example_ldlt
+[ 95%] Linking C executable example_ic_minres
+[ 95%] Built target example_ic_minres
+[ 95%] Linking C executable example_analysis
+[ 96%] Built target example_analysis
+[ 96%] Linking C executable example_minnorm
+[ 97%] Built target example_minnorm
+[ 97%] Linking C executable example_colamd
+[ 98%] Built target example_colamd
+[ 99%] Linking C executable example_eigs
+[100%] Built target example_eigs

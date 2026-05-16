@@ -1,0 +1,52 @@
+[1/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_cholesky.c.
+320 warnings generated.
+[2/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_reorder_amd_qg.c.
+640 warnings generated.
+[3/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_types.c.
+672 warnings generated.
+[4/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_lu_csr.c.
+1005 warnings generated.
+[5/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_analysis.c.
+1338 warnings generated.
+[6/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_ldlt_csc.c.
+1671 warnings generated.
+[7/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_reorder_nd.c.
+1978 warnings generated.
+[8/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_graph.c.
+2311 warnings generated.
+[9/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_matrix.c.
+2645 warnings generated.
+[10/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_iterative.c.
+2965 warnings generated.
+[11/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_chol_csc.c.
+3298 warnings generated.
+[12/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_svd.c.
+3631 warnings generated.
+[13/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_qr.c.
+3951 warnings generated.
+[14/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_colamd.c.
+4284 warnings generated.
+[15/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_bidiag.c.
+4617 warnings generated.
+[16/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_dense.c.
+4950 warnings generated.
+[17/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_eigs.c.
+5260 warnings generated.
+[18/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_csr.c.
+5593 warnings generated.
+[19/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_vector.c.
+5896 warnings generated.
+[20/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_ilu.c.
+6229 warnings generated.
+[21/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_reorder.c.
+6562 warnings generated.
+[22/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_ldlt.c.
+6882 warnings generated.
+[23/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_lu.c.
+7202 warnings generated.
+[24/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_etree.c.
+7535 warnings generated.
+[25/25] Processing file /Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_ic.c.
+7868 warnings generated.
+Suppressed 7986 warnings (7868 in non-user code, 118 NOLINT).
+Use -header-filter=.* or leave it as default to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.

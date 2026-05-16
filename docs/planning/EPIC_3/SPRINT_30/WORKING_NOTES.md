@@ -546,3 +546,96 @@ Interpretation:
 - `artifacts/day8-crosspath-cmake-warning-counts-by-area.txt`
 - `artifacts/day8-crosspath-cmake-warning-counts-by-class.txt`
 - `artifacts/day8-crosspath-cmake-warning-counts-by-file.txt`
+
+## Day 9
+
+**Objective:** Run a stricter compile-only or warning-focused pass beyond the default baseline, identify any new findings, decide what is Sprint 30-actionable, and confirm the core cleanup still holds under the stricter settings.
+
+### Files Added Or Updated
+
+- `src/sparse_types.c`
+- `artifacts/day9-stricter-compile-sweep.md`
+- `artifacts/day9-strict-final-cmake-warning-counts-by-area.txt`
+- `artifacts/day9-strict-final-cmake-warning-counts-by-class.txt`
+
+### Stricter Passes Run
+
+Compiler-stricter CMake pass:
+
+- configured `build/day9-strict-final-cmake` with `-DCMAKE_C_FLAGS='-Wstrict-prototypes -Wmissing-prototypes'`
+- built with `cmake --build build/day9-strict-final-cmake --parallel 1`
+
+Warning-focused quality pass:
+
+- ran `make lint`
+- result: passed
+
+End-of-day validation:
+
+- ran `make format`
+- ran `make lint`
+- ran `make test`
+- result: passed
+
+### New Finding From The Strict Sweep
+
+The initial strict CMake pass surfaced one new `src/` warning beyond the Day 8 baseline:
+
+- `src/sparse_types.c`
+  - `-Wmissing-prototypes`
+  - function: `sparse_set_errno_`
+
+This was Sprint 30-actionable because it was a core-library warning under stricter supported warning settings.
+
+### Fix Applied
+
+Added a prior declaration in `src/sparse_types.c` before the `sparse_set_errno_` definition:
+
+- [src/sparse_types.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_types.c:5)
+
+This kept the helper internal while satisfying the stricter prototype warning.
+
+### Post-Fix Strict Results
+
+Strict CMake build after the fix:
+
+- warnings: `112`
+- warning delta versus Day 8 baseline: `0`
+
+By area:
+
+- `tests`: `98`
+- `benchmarks`: `13`
+- `examples`: `1`
+- `src`: `0`
+
+By class:
+
+- `-Wmissing-field-initializers`: `72`
+- `-Wdouble-promotion`: `34`
+- `-Wunused-function`: `3`
+- `-Wimplicit-function-declaration`: `2`
+- `-Wswitch`: `1`
+
+Targeted strict-tree regression slice:
+
+- ran `ctest --test-dir build/day9-strict-final-cmake --output-on-failure -R 'test_sparse_matrix|test_sparse_io|test_sparse_lu|test_ldlt|test_qr|test_svd'`
+- observed `7/7` passed in `6.91 sec`
+
+### Day 9 Interpretation
+
+- The stricter pass found one real new `src/` issue rather than a large hidden second warning backlog.
+- That issue was narrow and easy to fix, which supports the Sprint 30 strategy of using stricter passes as controlled discovery rather than as uncontrolled baseline replacement.
+- After the fix, the stricter-pass warning profile collapsed back to the same auxiliary-code classes already present in the Day 8 baseline.
+
+### Day 9 Outputs
+
+- `artifacts/day9-stricter-compile-sweep.md`
+- `artifacts/day9-strict-final-cmake-warning-counts-by-area.txt`
+- `artifacts/day9-strict-final-cmake-warning-counts-by-class.txt`
+- `artifacts/day9-strict-final-cmake-build.stderr.txt`
+- `artifacts/day9-strict-final-cmake-build.stdout.txt`
+- `artifacts/day9-strict-final-ctest.stdout.txt`
+- `artifacts/day9-strict-final-ctest.stderr.txt`
+- `artifacts/day9-make-lint.stdout.txt`
+- `artifacts/day9-make-lint.stderr.txt`

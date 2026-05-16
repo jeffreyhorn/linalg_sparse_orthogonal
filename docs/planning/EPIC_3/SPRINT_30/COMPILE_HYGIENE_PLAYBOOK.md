@@ -42,7 +42,7 @@ Day 9 then ran a stricter prototype-focused compile pass and found one additiona
 
 ## Authoritative Build Surfaces
 
-Until Sprint 30 Day 7-9 expands the automation and cross-compiler replay, use these rules:
+For Sprint 30 closeout and the follow-on Epic 3 cleanup, use these rules:
 
 1. The authoritative full-tree warning inventory is the clean Apple Clang CMake build used in the Day 1 baseline.
 2. The Makefile `all` path is a secondary cross-check for library compilation only; it is not yet a repository-wide warning inventory because it does not compile the whole tree by default.

@@ -972,3 +972,77 @@ End-of-day verification passed:
 - `make format`
 - `make lint`
 - `make test`
+
+## Day 13
+
+**Objective:** Run the full clean configure/build/test flow through the Sprint 30 warning-workflow entry point, confirm that the final warning-count artifacts reflect the current branch state, and record the final validation result before Sprint 30 closeout.
+
+### Files Added
+
+- `artifacts/day13-validation-pass.md`
+- `artifacts/day13-final-workflow-summary.md`
+- `artifacts/day13-final-cmake-configure.stdout.txt`
+- `artifacts/day13-final-cmake-configure.stderr.txt`
+- `artifacts/day13-final-cmake-build.stdout.txt`
+- `artifacts/day13-final-cmake-build.stderr.txt`
+- `artifacts/day13-final-cmake-warning-counts-by-area.txt`
+- `artifacts/day13-final-cmake-warning-counts-by-class.txt`
+- `artifacts/day13-final-cmake-warning-counts-by-file.txt`
+- `artifacts/day13-final-ctest.stdout.txt`
+- `artifacts/day13-final-ctest.stderr.txt`
+- `artifacts/day13-final-make-build.stdout.txt`
+- `artifacts/day13-final-make-build.stderr.txt`
+
+### Workflow Run
+
+Ran:
+
+- `make warning-workflow WARNING_WORKFLOW_LABEL=day13-final`
+
+Workflow capture mode:
+
+- `WARNING_WORKFLOW_JOBS=1`
+
+### Day 13 Final Validation Result
+
+Authoritative Apple Clang CMake full-tree path:
+
+- configure warnings: `0`
+- build warnings: `112`
+- `ctest`: `52/52` passed
+- total CTest time: `162.13 sec`
+
+By area:
+
+- `tests`: `98`
+- `benchmarks`: `13`
+- `examples`: `1`
+- `src`: `0`
+
+By warning class:
+
+- `-Wmissing-field-initializers`: `72`
+- `-Wdouble-promotion`: `34`
+- `-Wunused-function`: `3`
+- `-Wimplicit-function-declaration`: `2`
+- `-Wswitch`: `1`
+
+Makefile `all` path:
+
+- warnings: `0`
+- stderr size: `0 B`
+
+### Day 13 Interpretation
+
+- The final workflow run matched the Day 12 expected warning counts exactly.
+- No `src/` warnings reappeared.
+- No warning-class drift occurred in auxiliary code.
+- The generated Day 13 artifacts now represent the validated Sprint 30 branch state immediately before closeout.
+
+### Day 13 Validation
+
+End-of-day verification passed:
+
+- `make format`
+- `make lint`
+- `make test`

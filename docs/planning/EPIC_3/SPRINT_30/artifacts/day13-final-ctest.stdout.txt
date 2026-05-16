@@ -1,0 +1,109 @@
+Test project /Users/jeff/experiments/linalg_sparse_orthogonal/build/day13-final-cmake
+      Start  1: test_sparse_matrix
+ 1/52 Test  #1: test_sparse_matrix ...............   Passed    0.44 sec
+      Start  2: test_sparse_lu
+ 2/52 Test  #2: test_sparse_lu ...................   Passed    0.47 sec
+      Start  3: test_sparse_io
+ 3/52 Test  #3: test_sparse_io ...................   Passed    0.48 sec
+      Start  4: test_known_matrices
+ 4/52 Test  #4: test_known_matrices ..............   Passed    0.46 sec
+      Start  5: test_sparse_vector
+ 5/52 Test  #5: test_sparse_vector ...............   Passed    0.45 sec
+      Start  6: test_edge_cases
+ 6/52 Test  #6: test_edge_cases ..................   Passed    0.47 sec
+      Start  7: test_integration
+ 7/52 Test  #7: test_integration .................   Passed    0.47 sec
+      Start  8: test_sparse_arith
+ 8/52 Test  #8: test_sparse_arith ................   Passed    0.47 sec
+      Start  9: test_suitesparse
+ 9/52 Test  #9: test_suitesparse .................   Passed    2.54 sec
+      Start 10: test_reorder
+10/52 Test #10: test_reorder .....................   Passed    2.93 sec
+      Start 11: test_cholesky
+11/52 Test #11: test_cholesky ....................   Passed    0.46 sec
+      Start 12: test_csr
+12/52 Test #12: test_csr .........................   Passed    0.42 sec
+      Start 13: test_matmul
+13/52 Test #13: test_matmul ......................   Passed    0.45 sec
+      Start 14: test_iterative
+14/52 Test #14: test_iterative ...................   Passed    1.93 sec
+      Start 15: test_ilu
+15/52 Test #15: test_ilu .........................   Passed    0.68 sec
+      Start 16: test_omp
+16/52 Test #16: test_omp .........................   Passed    0.43 sec
+      Start 17: test_threads
+17/52 Test #17: test_threads .....................   Passed    0.45 sec
+      Start 18: test_sprint4_integration
+18/52 Test #18: test_sprint4_integration .........   Passed    0.45 sec
+      Start 19: test_sprint5_integration
+19/52 Test #19: test_sprint5_integration .........   Passed    0.52 sec
+      Start 20: test_qr
+20/52 Test #20: test_qr ..........................   Passed    3.69 sec
+      Start 21: test_sprint6_integration
+21/52 Test #21: test_sprint6_integration .........   Passed    0.44 sec
+      Start 22: test_dense
+22/52 Test #22: test_dense .......................   Passed    0.38 sec
+      Start 23: test_bidiag
+23/52 Test #23: test_bidiag ......................   Passed    0.40 sec
+      Start 24: test_svd
+24/52 Test #24: test_svd .........................   Passed    0.96 sec
+      Start 25: test_sprint8_integration
+25/52 Test #25: test_sprint8_integration .........   Passed    0.53 sec
+      Start 26: test_fuzz
+26/52 Test #26: test_fuzz ........................   Passed   22.27 sec
+      Start 27: test_lu_csr
+27/52 Test #27: test_lu_csr ......................   Passed    8.77 sec
+      Start 28: test_block_solvers
+28/52 Test #28: test_block_solvers ...............   Passed    0.41 sec
+      Start 29: test_sprint10_integration
+29/52 Test #29: test_sprint10_integration ........   Passed    0.76 sec
+      Start 30: test_sprint11_integration
+30/52 Test #30: test_sprint11_integration ........   Passed    0.45 sec
+      Start 31: test_ldlt
+31/52 Test #31: test_ldlt ........................   Passed    0.59 sec
+      Start 32: test_sprint12_integration
+32/52 Test #32: test_sprint12_integration ........   Passed    0.45 sec
+      Start 33: test_ic
+33/52 Test #33: test_ic ..........................   Passed    0.49 sec
+      Start 34: test_minres
+34/52 Test #34: test_minres ......................   Passed    0.46 sec
+      Start 35: test_sprint13_integration
+35/52 Test #35: test_sprint13_integration ........   Passed    0.59 sec
+      Start 36: test_etree
+36/52 Test #36: test_etree .......................   Passed    1.26 sec
+      Start 37: test_colamd
+37/52 Test #37: test_colamd ......................   Passed    5.57 sec
+      Start 38: test_bicgstab
+38/52 Test #38: test_bicgstab ....................   Passed    0.49 sec
+      Start 39: test_stagnation
+39/52 Test #39: test_stagnation ..................   Passed    0.44 sec
+      Start 40: test_chol_csc
+40/52 Test #40: test_chol_csc ....................   Passed    5.64 sec
+      Start 41: test_ldlt_csc
+41/52 Test #41: test_ldlt_csc ....................   Passed    0.45 sec
+      Start 42: test_sprint18_integration
+42/52 Test #42: test_sprint18_integration ........   Passed    1.69 sec
+      Start 43: test_sprint19_integration
+43/52 Test #43: test_sprint19_integration ........   Passed    5.30 sec
+      Start 44: test_sprint20_integration
+44/52 Test #44: test_sprint20_integration ........   Passed    0.46 sec
+      Start 45: test_sprint29_integration
+45/52 Test #45: test_sprint29_integration ........   Passed    0.44 sec
+      Start 46: test_eigs
+46/52 Test #46: test_eigs ........................   Passed    0.72 sec
+      Start 47: test_eigs_thick_restart
+47/52 Test #47: test_eigs_thick_restart ..........   Passed    0.87 sec
+      Start 48: test_eigs_lobpcg
+48/52 Test #48: test_eigs_lobpcg .................   Passed    0.83 sec
+      Start 49: test_graph
+49/52 Test #49: test_graph .......................   Passed    5.26 sec
+      Start 50: test_graph_fm_buckets
+50/52 Test #50: test_graph_fm_buckets ............   Passed    0.44 sec
+      Start 51: test_reorder_nd
+51/52 Test #51: test_reorder_nd ..................   Passed   73.93 sec
+      Start 52: test_reorder_amd_qg
+52/52 Test #52: test_reorder_amd_qg ..............   Passed    1.14 sec
+
+100% tests passed, 0 tests failed out of 52
+
+Total Test time (real) = 162.13 sec

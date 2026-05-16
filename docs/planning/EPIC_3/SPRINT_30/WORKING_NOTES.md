@@ -753,3 +753,119 @@ End-of-day verification passed:
 - `make format`
 - `make lint`
 - `make test`
+
+## Day 11
+
+**Objective:** Turn the benchmark and example warning backlog into an actionable Sprint 31 queue by separating portability issues, stale CLI or API drift, initializer-pattern drift, and incidental numeric-literal warnings.
+
+### Files Added
+
+- `artifacts/day11-tooling-warning-triage.md`
+- `artifacts/day11-tooling-warning-counts-by-file.txt`
+- `artifacts/day11-tooling-warning-counts-by-file-and-class.txt`
+- `artifacts/day11-tooling-warning-counts-by-class.txt`
+
+### Benchmark And Example Warning Inventory
+
+Using the Day 1 serialized CMake baseline:
+
+- total benchmark/example warnings: `14`
+- benchmark warnings: `13`
+- example warnings: `1`
+- warning-bearing files: `6`
+
+By warning class:
+
+- `-Wmissing-field-initializers`: `10`
+- `-Wimplicit-function-declaration`: `2`
+- `-Wdouble-promotion`: `1`
+- `-Wswitch`: `1`
+
+Top warning-bearing files:
+
+- `benchmarks/bench_main.c`: `5`
+- `benchmarks/bench_colamd.c`: `3`
+- `benchmarks/bench_convergence.c`: `2`
+- `benchmarks/bench_ldlt_csc.c`: `2`
+- `benchmarks/bench_chol_csc.c`: `1`
+- `examples/example_colamd.c`: `1`
+
+### Day 11 Triage Result
+
+Category 1: initializer-pattern drift
+
+- dominant warning class: `-Wmissing-field-initializers`
+- affected files:
+  - `benchmarks/bench_colamd.c`
+  - `benchmarks/bench_main.c`
+  - `benchmarks/bench_chol_csc.c`
+  - `benchmarks/bench_ldlt_csc.c`
+  - `examples/example_colamd.c`
+- interpretation:
+  - maintainability drift around evolving public options structs
+  - benchmark/example code should move to designated initializers rather than keep teaching positional initialization
+
+Category 2: stale CLI and API-surface drift
+
+- direct warning class: `-Wswitch`
+- main file: `benchmarks/bench_main.c`
+- interpretation:
+  - the main benchmark harness still documents and parses only `none`, `rcm`, and `amd`
+  - this now conflicts with the library’s actual reorder support and with `benchmarks/bench_reorder.c`
+
+Category 3: portability and feature-test-macro drift
+
+- warning class: `-Wimplicit-function-declaration`
+- files:
+  - `benchmarks/bench_main.c`
+  - `benchmarks/bench_convergence.c`
+- interpretation:
+  - `_POSIX_C_SOURCE 199309L` is too low for the benchmark code’s later `snprintf` use on the measured Apple Clang path
+  - this is portability debt in project tooling, not a harmless warning
+
+Category 4: incidental numeric-literal precision warning
+
+- warning class: `-Wdouble-promotion`
+- file:
+  - `benchmarks/bench_convergence.c`
+- interpretation:
+  - lower-priority mechanical cleanup
+  - should follow the more important CLI and portability fixes
+
+### Documentation Drift Notes
+
+- `benchmarks/bench_main.c` usage text and CLI parsing still understate supported reorder modes.
+- `examples/example_colamd.c` still demonstrates positional QR options initialization even though the current public struct has grown trailing callback fields.
+
+### Sprint 31 First-Fix Queue
+
+Priority A:
+
+- `benchmarks/bench_main.c`
+- `benchmarks/bench_convergence.c`
+
+Priority B:
+
+- `benchmarks/bench_colamd.c`
+- `benchmarks/bench_chol_csc.c`
+- `benchmarks/bench_ldlt_csc.c`
+- `examples/example_colamd.c`
+
+Priority C:
+
+- remaining low-signal numeric-literal cleanup in `benchmarks/bench_convergence.c`
+
+### Day 11 Interpretation
+
+- Benchmark/example warnings are now organized by structural meaning instead of by raw count alone.
+- The biggest tooling maintainability issue is positional initializer drift.
+- The biggest developer-facing usability issue is stale reorder CLI drift in `bench_main.c`.
+- The biggest portability issue is the `snprintf` visibility problem under outdated feature-test-macro settings.
+
+### Day 11 Validation
+
+End-of-day verification passed:
+
+- `make format`
+- `make lint`
+- `make test`

@@ -639,3 +639,117 @@ Targeted strict-tree regression slice:
 - `artifacts/day9-strict-final-ctest.stderr.txt`
 - `artifacts/day9-make-lint.stdout.txt`
 - `artifacts/day9-make-lint.stderr.txt`
+
+## Day 10
+
+**Objective:** Turn the test-warning backlog into an actionable queue by separating dormant scaffolding, options-struct initializer drift, and lower-priority incidental numeric-literal warnings.
+
+### Files Added
+
+- `artifacts/day10-test-warning-triage.md`
+- `artifacts/day10-test-warning-counts-by-file.txt`
+- `artifacts/day10-test-warning-counts-by-file-and-class.txt`
+
+### Test Warning Inventory
+
+Using the Day 8 serialized CMake baseline:
+
+- total test warnings: `98`
+- warning-bearing test files: `21`
+
+By warning class:
+
+- `-Wmissing-field-initializers`: `62`
+- `-Wdouble-promotion`: `33`
+- `-Wunused-function`: `3`
+
+Top warning-bearing files:
+
+- `tests/test_ldlt.c`: `18`
+- `tests/test_sprint20_integration.c`: `9`
+- `tests/test_chol_csc.c`: `8`
+- `tests/test_colamd.c`: `8`
+- `tests/test_reorder_nd.c`: `7`
+
+### Day 10 Triage Result
+
+Category 1: positional option-struct drift
+
+- dominant warning class: `-Wmissing-field-initializers`
+- main files:
+  - `test_ldlt.c`
+  - `test_chol_csc.c`
+  - `test_colamd.c`
+  - `test_cholesky.c`
+  - `test_reorder.c`
+  - `test_reorder_nd.c`
+  - `test_sprint12_integration.c`
+  - `test_sprint18_integration.c`
+  - `test_sprint19_integration.c`
+  - `test_sprint20_integration.c`
+- interpretation:
+  - maintainability drift around evolving option structs
+  - strong candidate for designated-initializer cleanup in a later sprint
+
+Category 2: dormant or non-executed scaffolding
+
+- only file: `test_reorder_nd.c`
+- only warning class: `-Wunused-function`
+- interpretation:
+  - strongest test-honesty issue in the current warning set
+  - inactive future-check bodies should not remain as ordinary dead functions in the normal suite
+
+Category 3: incidental numeric-literal precision warnings
+
+- warning class: `-Wdouble-promotion`
+- broad but lower-priority spread across:
+  - `test_sprint6_integration.c`
+  - `test_svd.c`
+  - `test_bidiag.c`
+  - `test_sprint20_integration.c`
+  - smaller one- and two-site files
+- interpretation:
+  - mostly mechanical fixture/assertion literal cleanup rather than hidden algorithmic defects
+
+### First-Fix Queue For Later Cleanup
+
+Priority A:
+
+- `tests/test_reorder_nd.c`
+
+Priority B:
+
+- `tests/test_ldlt.c`
+- `tests/test_chol_csc.c`
+- `tests/test_colamd.c`
+- `tests/test_cholesky.c`
+- `tests/test_sprint12_integration.c`
+- `tests/test_sprint18_integration.c`
+- `tests/test_sprint19_integration.c`
+- `tests/test_sprint20_integration.c`
+- `tests/test_reorder.c`
+
+Priority C:
+
+- remaining `-Wdouble-promotion` test files after the higher-signal cleanup groups
+
+### Day 10 Interpretation
+
+- Test warnings are now organized by structural meaning instead of raw count alone.
+- The biggest maintainability issue is positional initializer drift.
+- The biggest test-honesty issue is dormant ND scaffolding.
+- The double-promotion cluster is real cleanup work, but it is lower priority than the first two categories.
+
+### Day 10 Outputs
+
+- `artifacts/day10-test-warning-triage.md`
+- `artifacts/day10-test-warning-counts-by-file.txt`
+- `artifacts/day10-test-warning-counts-by-file-and-class.txt`
+
+### Day 10 Validation
+
+End-of-day verification passed:
+
+- `make format`
+- `make lint`
+- `make test`

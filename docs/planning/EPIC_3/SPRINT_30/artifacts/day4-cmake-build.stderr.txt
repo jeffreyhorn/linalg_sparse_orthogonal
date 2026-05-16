@@ -1,0 +1,661 @@
+/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_qr.c:1080:25: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+    double prev_rnorm = INFINITY;
+           ~~~~~~~~~~   ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_qr.c:1237:25: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        info->condest = INFINITY;
+                      ~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_qr.c:1260:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_qr.c:1520:25: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+    double prev_rnorm = INFINITY;
+           ~~~~~~~~~~   ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+4 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_svd.c:1687:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_svd.c:1696:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_svd.c:1704:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_svd.c:1710:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_svd.c:1721:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+5 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_reorder.c:788:77: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_lu_opts_t opts = {SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_RCM, 1e-12};
+                                                                            ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_reorder.c:828:78: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_lu_opts_t opts = {SPARSE_PIVOT_COMPLETE, SPARSE_REORDER_AMD, 1e-12};
+                                                                             ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_reorder.c:860:78: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_lu_opts_t opts = {SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_NONE, 1e-12};
+                                                                             ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_reorder.c:896:77: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_lu_opts_t opts = {SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_AMD, 1e-12};
+                                                                            ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_cholesky.c:278:54: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD};
+                                                     ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_cholesky.c:317:54: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_RCM};
+                                                     ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_cholesky.c:348:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_NONE};
+                                                      ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_cholesky.c:431:54: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD};
+                                                     ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_cholesky.c:436:54: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_RCM};
+                                                     ^
+5 warnings generated.
+4 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ilu.c:40:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+1 warning generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint5_integration.c:26:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+1 warning generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_qr.c:604:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_qr.c:1068:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+2 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint6_integration.c:23:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint6_integration.c:63:20: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+    double rr_lu = INFINITY;
+           ~~~~~   ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint6_integration.c:78:20: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+    double rr_ch = INFINITY;
+           ~~~~~   ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint6_integration.c:92:20: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+    double rr_cg = INFINITY;
+           ~~~~~   ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint6_integration.c:102:20: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+    double rr_gm = INFINITY;
+           ~~~~~   ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint6_integration.c:119:20: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+    double rr_qr = INFINITY;
+           ~~~~~   ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+6 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_bidiag.c:31:20: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+            return INFINITY;
+            ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_bidiag.c:51:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_bidiag.c:86:20: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+            return INFINITY;
+            ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+3 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_svd.c:46:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_svd.c:309:20: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+    double recon = NAN;
+           ~~~~~   ^~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:60:28: note: expanded from macro 'NAN'
+#   define    NAN          __builtin_nanf("0x7fc00000")
+                           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_svd.c:3484:22: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+    ASSERT_TRUE(c == INFINITY);
+                  ~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_framework.h:86:15: note: expanded from macro 'ASSERT_TRUE'
+        if (!(cond))                                                                               \
+              ^~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_svd.c:3516:22: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+    ASSERT_TRUE(c == INFINITY);
+                  ~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_framework.h:86:15: note: expanded from macro 'ASSERT_TRUE'
+        if (!(cond))                                                                               \
+              ^~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_svd.c:3564:22: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+    ASSERT_TRUE(c == INFINITY);
+                  ~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_framework.h:86:15: note: expanded from macro 'ASSERT_TRUE'
+        if (!(cond))                                                                               \
+              ^~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_svd.c:3568:22: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+    ASSERT_TRUE(c == INFINITY);
+                  ~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_framework.h:86:15: note: expanded from macro 'ASSERT_TRUE'
+        if (!(cond))                                                                               \
+              ^~~~
+6 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_lu_csr.c:683:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+1 warning generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_block_solvers.c:35:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+1 warning generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint10_integration.c:56:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint10_integration.c:71:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+2 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ldlt.c:813:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ldlt.c:1080:59: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts_amd = {SPARSE_REORDER_AMD, 0.0};
+                                                          ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ldlt.c:1114:59: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts_rcm = {SPARSE_REORDER_RCM, 0.0};
+                                                          ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ldlt.c:1154:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ldlt.c:1192:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ldlt.c:1271:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ldlt.c:1290:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ldlt.c:1433:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ldlt.c:2110:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ldlt.c:2152:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ldlt.c:2312:93: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+                                                                                            ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ldlt.c:2336:99: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0, SPARSE_LDLT_BACKEND_LINKED_LIST, &used_csc};
+                                                                                                  ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ldlt.c:2361:92: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_CSC, &used_csc};
+                                                                                           ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ldlt.c:2381:89: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, (sparse_ldlt_backend_t)99, NULL};
+                                                                                        ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ldlt.c:2392:88: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, NULL};
+                                                                                       ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ldlt.c:2413:98: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts_ll = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_LINKED_LIST, NULL};
+                                                                                                 ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ldlt.c:2414:90: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts_cs = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_CSC, NULL};
+                                                                                         ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_ldlt.c:2552:93: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+                                                                                            ^
+18 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint12_integration.c:113:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint12_integration.c:175:59: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts_amd = {SPARSE_REORDER_AMD, 0.0};
+                                                          ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint12_integration.c:181:59: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts_rcm = {SPARSE_REORDER_RCM, 0.0};
+                                                          ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint12_integration.c:325:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint12_integration.c:364:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+5 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_etree.c:1246:77: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_lu_opts_t opts = {SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_AMD, 1e-12};
+                                                                            ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_colamd.c:817:57: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts = {SPARSE_REORDER_COLAMD, 0, 0};
+                                                        ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_colamd.c:851:60: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts_none = {SPARSE_REORDER_NONE, 0, 0};
+                                                           ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_colamd.c:852:58: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts_amd = {SPARSE_REORDER_AMD, 0, 0};
+                                                         ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_colamd.c:853:64: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts_colamd = {SPARSE_REORDER_COLAMD, 0, 0};
+                                                               ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_colamd.c:887:57: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts = {SPARSE_REORDER_COLAMD, 0, 1}; /* sparse_mode=1 */
+                                                        ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_colamd.c:910:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_colamd.c:1230:57: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts = {SPARSE_REORDER_COLAMD, 0, 0};
+                                                        ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_colamd.c:1805:54: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts = {SPARSE_REORDER_AMD, 0, 0};
+                                                     ^
+1 warning generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_bicgstab.c:72:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY; /* fails any tolerance check; MSVC rejects 1.0/0.0 as compile-time constant
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+8 warnings generated.
+1 warning generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_chol_csc.c:781:59: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t chol_opts = {SPARSE_REORDER_AMD};
+                                                          ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_chol_csc.c:4045:91: warning: missing field 'used_csc_path' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {use_amd ? SPARSE_REORDER_AMD : SPARSE_REORDER_NONE, 0.0};
+                                                                                          ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_chol_csc.c:4223:88: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_NONE, SPARSE_CHOL_BACKEND_AUTO, &used};
+                                                                                       ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_chol_csc.c:4246:87: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_AUTO, &used};
+                                                                                      ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_chol_csc.c:4290:47: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+                                      &used_ll};
+                                              ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_chol_csc.c:4298:93: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts_cs = {SPARSE_REORDER_NONE, SPARSE_CHOL_BACKEND_CSC, &used_cs};
+                                                                                            ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_chol_csc.c:4338:87: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_AUTO, &used};
+                                                                                      ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_chol_csc.c:4379:60: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, 0, 0};
+                                                           ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint18_integration.c:96:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint18_integration.c:140:87: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_AUTO, &used};
+                                                                                      ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint18_integration.c:143:18: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+    double rel = INFINITY;
+           ~~~   ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint18_integration.c:259:47: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+                                      &used_ll};
+                                              ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint18_integration.c:260:92: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts_cs = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_CSC, &used_cs};
+                                                                                           ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint18_integration.c:336:18: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+    double rel = INFINITY;
+           ~~~   ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+6 warnings generated.
+8 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint19_integration.c:94:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint19_integration.c:435:96: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts_ll = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_LINKED_LIST, NULL};
+                                                                                               ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint19_integration.c:457:88: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts_cs = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_CSC, NULL};
+                                                                                       ^
+3 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint20_integration.c:108:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint20_integration.c:117:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint20_integration.c:126:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint20_integration.c:133:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return INFINITY;
+        ~~~~~~ ^~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:68:21: note: expanded from macro 'INFINITY'
+#define INFINITY    HUGE_VALF
+                    ^~~~~~~~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:58:28: note: expanded from macro 'HUGE_VALF'
+#   define    HUGE_VALF    __builtin_huge_valf()
+                           ^~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint20_integration.c:166:93: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+                                                                                            ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint20_integration.c:185:93: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+                                                                                            ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint20_integration.c:209:93: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+                                                                                            ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint20_integration.c:233:41: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+                               &used_csc};
+                                        ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_sprint20_integration.c:252:92: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_CSC, &used_csc};
+                                                                                           ^
+9 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_reorder_nd.c:1107:67: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts_amd = {SPARSE_REORDER_AMD, 0, NULL};
+                                                                  ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_reorder_nd.c:1123:65: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts_nd = {SPARSE_REORDER_ND, 0, NULL};
+                                                                ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_reorder_nd.c:1600:74: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_lu_opts_t opts = {SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_ND, 0.0};
+                                                                         ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_reorder_nd.c:1648:86: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_ND, 0.0, SPARSE_LDLT_BACKEND_AUTO, NULL};
+                                                                                     ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_reorder_nd.c:923:13: warning: unused function 'test_finest_fm_annealing_pres_poisson_close_to_target' [-Wunused-function]
+static void test_finest_fm_annealing_pres_poisson_close_to_target(void) {
+            ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_reorder_nd.c:962:13: warning: unused function 'test_nd_root_spectral_pres_poisson_close_to_target' [-Wunused-function]
+static void test_nd_root_spectral_pres_poisson_close_to_target(void) {
+            ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/tests/test_reorder_nd.c:1504:13: warning: unused function 'test_non_pipeline_pres_poisson_close_to_target' [-Wunused-function]
+static void test_non_pipeline_pres_poisson_close_to_target(void) {
+            ^
+7 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_colamd.c:31:60: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts_none = {SPARSE_REORDER_NONE, 0, 0};
+                                                           ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_colamd.c:32:58: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts_amd = {SPARSE_REORDER_AMD, 0, 0};
+                                                         ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_colamd.c:33:64: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts_colamd = {SPARSE_REORDER_COLAMD, 0, 0};
+                                                               ^
+3 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_main.c:78:13: warning: enumeration values 'SPARSE_REORDER_COLAMD' and 'SPARSE_REORDER_ND' not handled in switch [-Wswitch]
+    switch (r) {
+            ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_main.c:78:13: note: add missing switch cases
+    switch (r) {
+            ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_main.c:134:54: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_lu_opts_t lu_opts = {pivot, reorder, 1e-12};
+                                                     ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_main.c:135:48: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t chol_opts = {reorder};
+                                               ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_main.c:257:51: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_lu_opts_t opts = {pivot, reorder, 1e-12};
+                                                  ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_main.c:340:9: warning: implicitly declaring library function 'snprintf' with type 'int (char *, unsigned long, const char *, ...)' [-Wimplicit-function-declaration]
+        snprintf(path, sizeof(path), "%s/%s", dirpath, ent->d_name);
+        ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_main.c:340:9: note: include the header <stdio.h> or explicitly provide a declaration for 'snprintf'
+5 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_convergence.c:43:16: warning: implicit conversion increases floating-point precision: 'float' to 'double' [-Wdouble-promotion]
+        return NAN;
+        ~~~~~~ ^~~
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/math.h:60:28: note: expanded from macro 'NAN'
+#   define    NAN          __builtin_nanf("0x7fc00000")
+                           ^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_convergence.c:375:9: warning: implicitly declaring library function 'snprintf' with type 'int (char *, unsigned long, const char *, ...)' [-Wimplicit-function-declaration]
+        snprintf(name, sizeof(name), "%s", base ? base + 1 : history_file);
+        ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_convergence.c:375:9: note: include the header <stdio.h> or explicitly provide a declaration for 'snprintf'
+2 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_chol_csc.c:106:97: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+        sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_LINKED_LIST, NULL};
+                                                                                                ^
+1 warning generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_ldlt_csc.c:85:98: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+        sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0, SPARSE_LDLT_BACKEND_LINKED_LIST, NULL};
+                                                                                                 ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_ldlt_csc.c:406:79: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+        sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0, backend, &used_csc};
+                                                                              ^
+2 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/examples/example_colamd.c:98:60: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t qr_opts = {SPARSE_REORDER_COLAMD, 0, 0};
+                                                           ^
+1 warning generated.

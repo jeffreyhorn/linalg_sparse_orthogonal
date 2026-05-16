@@ -211,3 +211,61 @@ Rejected alternatives:
 ### Day 3 Outputs
 
 - `artifacts/day3-core-warning-audit.md`
+
+## Day 4
+
+**Objective:** Apply the first narrow code-edit batch from the Day 3 audit, limited to `src/sparse_lu.c` and `src/sparse_ldlt.c`, then measure the warning reduction with a fresh bounded build.
+
+### Files Edited
+
+- `src/sparse_lu.c`
+- `src/sparse_ldlt.c`
+
+### Change Applied
+
+Per the Day 3 decision, replaced implementation-side `INFINITY` uses with `HUGE_VAL` in the two Day 4 target files:
+
+- `src/sparse_lu.c`
+  - `*condest = INFINITY;` -> `*condest = HUGE_VAL;`
+- `src/sparse_ldlt.c`
+  - `*condest = INFINITY;` -> `*condest = HUGE_VAL;`
+
+No public API contract changed.
+
+### Validation Performed
+
+Fresh bounded build:
+
+- configured and built `build/sprint30-day4-cmake`
+- captured logs in `artifacts/day4-cmake-*`
+
+Warning deltas relative to Day 1:
+
+- total warnings: `123` -> `121`
+- `src` warnings: `11` -> `9`
+- `src/sparse_lu.c`: `1` -> `0`
+- `src/sparse_ldlt.c`: `1` -> `0`
+
+Targeted regression slice:
+
+- ran `ctest --test-dir build/sprint30-day4-cmake --output-on-failure -R 'test_sparse_lu|test_ldlt|test_reorder|test_edge_cases'`
+- executed `7` tests because the regex also matched `test_ldlt_csc`, `test_reorder_nd`, and `test_reorder_amd_qg`
+- result: `7/7` passed in `88.14 sec`
+
+### Day 4 Interpretation
+
+- The Day 3 audit decision was correct: the targeted edits removed the warnings without disturbing behavior.
+- Day 4 removed the full warning contribution of the two edited files.
+- The remaining Sprint 30 library-proper warning work is now exactly:
+  - `src/sparse_qr.c`: `4`
+  - `src/sparse_svd.c`: `5`
+
+### Day 4 Outputs
+
+- `artifacts/day4-core-fixes-batch1.md`
+- `artifacts/day4-cmake-configure.stdout.txt`
+- `artifacts/day4-cmake-configure.stderr.txt`
+- `artifacts/day4-cmake-build.stdout.txt`
+- `artifacts/day4-cmake-build.stderr.txt`
+- `artifacts/day4-targeted-ctest.stdout.txt`
+- `artifacts/day4-targeted-ctest.stderr.txt`

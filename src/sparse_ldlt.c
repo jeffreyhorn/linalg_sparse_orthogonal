@@ -1403,7 +1403,7 @@ sparse_err_t sparse_ldlt_condest(const SparseMatrix *A, const sparse_ldlt_t *ldl
             norm_A = col_sum;
     }
     if (norm_A == 0.0) {
-        *condest = INFINITY;
+        *condest = HUGE_VAL;
         return SPARSE_OK;
     }
 

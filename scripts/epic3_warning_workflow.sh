@@ -115,7 +115,9 @@ count_by_file() {
     local path="$1"
     awk '
         /warning:/ {
-            counts[$1]++
+            file = $1
+            sub(/:[0-9]+:[0-9]+:$/, "", file)
+            counts[file]++
         }
         END {
             for (file in counts) {

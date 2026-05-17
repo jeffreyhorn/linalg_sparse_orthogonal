@@ -29,7 +29,10 @@ Default warning-capture parallelism:
 
 - `WARNING_WORKFLOW_JOBS=1`
 
-The label is mandatory at the call site in normal usage because it distinguishes one capture from another. Use labels such as:
+The Makefile wrapper provides a default label, so `make warning-workflow`
+will still run if no override is provided. In practice, a custom label is
+strongly recommended because it distinguishes one capture from another and
+prevents accidental reuse of the default artifact names. Use labels such as:
 
 - `pre-fix`
 - `post-fix`

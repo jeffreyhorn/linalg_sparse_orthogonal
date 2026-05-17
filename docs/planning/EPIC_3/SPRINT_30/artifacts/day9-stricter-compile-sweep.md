@@ -61,7 +61,7 @@ Why this mattered:
 
 ## Same-Day Fix
 
-Applied a minimal fix in [src/sparse_types.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_types.c:5):
+Applied a minimal fix in `src/sparse_types.c:5`:
 
 - added a prior declaration for `sparse_set_errno_` in its own translation unit before the definition
 

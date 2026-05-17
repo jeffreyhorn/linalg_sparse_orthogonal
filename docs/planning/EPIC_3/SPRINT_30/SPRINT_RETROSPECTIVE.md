@@ -22,7 +22,7 @@
 > highest-signal core-library warnings first, and create a repeatable
 > compile-quality workflow that later sprints can enforce.
 
-(See [PLAN.md](/Users/jeff/experiments/linalg_sparse_orthogonal/docs/planning/EPIC_3/SPRINT_30/PLAN.md:1) for the day-by-day breakdown; see [COMPILE_HYGIENE_PLAYBOOK.md](/Users/jeff/experiments/linalg_sparse_orthogonal/docs/planning/EPIC_3/SPRINT_30/COMPILE_HYGIENE_PLAYBOOK.md:1), [REBUILD_WORKFLOW.md](/Users/jeff/experiments/linalg_sparse_orthogonal/docs/planning/EPIC_3/SPRINT_30/REBUILD_WORKFLOW.md:1), and [WORKING_NOTES.md](/Users/jeff/experiments/linalg_sparse_orthogonal/docs/planning/EPIC_3/SPRINT_30/WORKING_NOTES.md:1) for the supporting detail.)
+(See [PLAN.md](./PLAN.md) for the day-by-day breakdown; see [COMPILE_HYGIENE_PLAYBOOK.md](./COMPILE_HYGIENE_PLAYBOOK.md), [REBUILD_WORKFLOW.md](./REBUILD_WORKFLOW.md), and [WORKING_NOTES.md](./WORKING_NOTES.md) for the supporting detail.)
 
 ## Definition of Done checklist
 
@@ -94,10 +94,8 @@ Headline gates from `PROJECT_PLAN.md` Sprint 30:
 
 The whole Sprint 30 reduction came from the library proper. Days 4-5
 replaced implementation-side `INFINITY` uses with `HUGE_VAL` in
-[src/sparse_lu.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_lu.c:478),
-[src/sparse_ldlt.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_ldlt.c:1406),
-[src/sparse_qr.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_qr.c:1080),
-and [src/sparse_svd.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_svd.c:1687).
+`src/sparse_lu.c:478`, `src/sparse_ldlt.c:1406`,
+`src/sparse_qr.c:1080`, and `src/sparse_svd.c:1687`.
 This was a narrow compile-hygiene fix, not a numerical-method change.
 The warning-class delta proves it: `-Wdouble-promotion` dropped `45 ->
 34`, and every removed warning came from `src/`.
@@ -120,8 +118,8 @@ alone.
 Day 9 proved the value of a stricter compile-only sweep. Adding
 `-Wstrict-prototypes` and `-Wmissing-prototypes` did not explode into
 noise; it revealed one genuine `src/` issue in
-[src/sparse_types.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_types.c:5),
-where `sparse_set_errno_` lacked a prior visible declaration. Fixing it
+`src/sparse_types.c:5`, where `sparse_set_errno_` lacked a prior visible
+declaration. Fixing it
 the same day let the strict-tree pass fall back to the same class/area
 profile as the normal Day 8 baseline.
 
@@ -159,7 +157,7 @@ the warning inventory.
 Concrete handoff items for Sprint 31 and the next Epic 3 cleanup steps:
 
 1. **Benchmark tooling sync is the highest-signal next move.**
-   [HANDOFF.md](/Users/jeff/experiments/linalg_sparse_orthogonal/docs/planning/EPIC_3/SPRINT_30/HANDOFF.md:1)
+   [HANDOFF.md](./HANDOFF.md)
    ranks `benchmarks/bench_main.c` and `benchmarks/bench_convergence.c`
    first because they combine correctness drift and portability debt.
 2. **Designated-initializer cleanup should follow immediately after.**

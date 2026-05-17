@@ -6,6 +6,7 @@
  * sparse_lu.c. NOT part of the public API.
  */
 
+#include "sparse_errno_internal.h"
 #include "sparse_matrix.h" /* picks up SPARSE_NODES_PER_SLAB, SPARSE_DROP_TOL */
 #include <float.h>
 #include <math.h>
@@ -165,11 +166,6 @@ typedef struct SparseMatrix {
     pthread_mutex_t mtx; /* optional mutex for concurrent mutation */
 #endif
 } SparseMatrix;
-
-/*
- * Internal errno capture (defined in sparse_types.c)
- */
-void sparse_set_errno_(int errnum);
 
 /*
  * Internal pool operations (used by sparse_matrix.c and sparse_lu.c)

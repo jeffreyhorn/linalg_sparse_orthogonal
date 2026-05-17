@@ -1,0 +1,4 @@
+  10 -Wmissing-field-initializers
+   2 -Wimplicit-function-declaration
+   1 -Wdouble-promotion
+   1 -Wswitch

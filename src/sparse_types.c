@@ -1,4 +1,5 @@
 #include "sparse_types.h"
+#include "sparse_errno_internal.h"
 
 static _Thread_local int last_errno = 0;
 

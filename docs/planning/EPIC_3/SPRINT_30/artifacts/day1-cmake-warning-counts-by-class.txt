@@ -1,0 +1,5 @@
+[-Wdouble-promotion]: 45
+[-Wimplicit-function-declaration]: 2
+[-Wmissing-field-initializers]: 72
+[-Wswitch]: 1
+[-Wunused-function]: 3

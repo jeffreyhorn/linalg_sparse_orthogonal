@@ -49,19 +49,20 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 ### Prerequisites from previous Sprints
 
 - Sprint 30 warning inventory and compiler-reproduction notes
+- Sprint 30 handoff and retrospectives, which identify `benchmarks/bench_main.c`, `benchmarks/bench_convergence.c`, `benchmarks/bench_colamd.c`, `benchmarks/bench_chol_csc.c`, `benchmarks/bench_ldlt_csc.c`, and `examples/example_colamd.c` as the first deferred tooling-cleanup queue
 - Existing benchmark suite (`bench_main`, `bench_reorder`, `bench_colamd`, `bench_convergence`, and related scripts)
 
 ### Items
 
 | # | Item | Description | Estimate |
 |---|------|-------------|----------|
-| 1 | `bench_main` reorder support | Update `bench_main` usage text, enum-to-string handling, and CLI parsing so it supports the reorder modes the library already supports (`COLAMD`, `ND`, and existing modes). | 20 hrs |
-| 2 | Benchmark portability warnings | Fix the `snprintf` / feature-test-macro issues in `bench_main`, `bench_convergence`, and any similar benchmark sources. Normalize `_POSIX_C_SOURCE` handling where needed. | 20 hrs |
-| 3 | Benchmark/example option initializers | Replace brittle positional options-struct initialization in benchmark and example code with designated initializers. | 20 hrs |
-| 4 | Benchmark behavior consistency audit | Verify that benchmark help text, supported flags, and emitted labels are consistent across `bench_main`, `bench_reorder`, and specialized benchmark programs. | 16 hrs |
+| 1 | `bench_main` reorder support | Update `bench_main` usage text, `reorder_name()` coverage, and CLI parsing so it supports the reorder modes the library already supports (`COLAMD`, `ND`, and existing modes). Explicitly close the Sprint 30 handoff items where `bench_main.c` still rejects `colamd` / `nd` or prints stale help text. | 20 hrs |
+| 2 | Benchmark portability warnings | Fix the `_POSIX_C_SOURCE` / `snprintf` issues in `bench_main`, `bench_convergence`, and any similar benchmark sources. Remove the known implicit-declaration portability debt called out by Sprint 30. | 20 hrs |
+| 3 | Benchmark/example option initializers | Replace brittle positional options-struct initialization in the specific Sprint 30 handoff files `benchmarks/bench_colamd.c`, `benchmarks/bench_chol_csc.c`, `benchmarks/bench_ldlt_csc.c`, and `examples/example_colamd.c` with designated initializers. | 20 hrs |
+| 4 | Benchmark behavior consistency audit | Verify that benchmark help text, supported flags, emitted labels, and reorder-mode coverage are consistent across `bench_main`, `bench_reorder`, and specialized benchmark programs. Include the stale CLI/help drift identified in Sprint 30. | 16 hrs |
 | 5 | Compile-only benchmark gate design | Define how benchmarks and examples should be compile-checked in the quality workflow so tooling drift is caught even when full benchmark execution is too expensive for every run. | 16 hrs |
-| 6 | Documentation updates | Refresh README / benchmark documentation where the current text no longer matches the supported reorder modes or usage patterns. | 12 hrs |
-| 7 | Validation | Rebuild benchmark and example targets cleanly and re-run the normal library validation flow. | 16 hrs |
+| 6 | Documentation updates | Refresh README / benchmark documentation where the current text no longer matches the supported reorder modes or usage patterns. Update examples/docs to teach designated-initializer usage instead of brittle positional initialization. | 12 hrs |
+| 7 | Validation | Rebuild benchmark and example targets cleanly, including the residual `bench_convergence.c` mechanical `-Wdouble-promotion` follow-through from the Sprint 30 handoff, and re-run the normal library validation flow. | 16 hrs |
 
 ### Deliverables
 
@@ -69,6 +70,7 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 - Benchmark portability warnings removed from the known failing files
 - Benchmark/example option structs use designated initialization
 - Benchmark documentation matches actual supported behavior
+- The Sprint 30 benchmark/example deferred queue is explicitly closed or reduced in the named files
 
 **Total estimate:** ~120 hours
 
@@ -83,6 +85,7 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 ### Prerequisites from previous Sprints
 
 - Sprint 30 warning taxonomy for unused-function and missing-initializer warnings
+- Sprint 30 handoff and retrospectives, which identify `tests/test_reorder_nd.c` as the first dormant-scaffolding target and name the follow-on high-volume initializer and mechanical double-promotion files in the test tree
 - Sprint 31 benchmark/example initializer cleanup patterns that can be reused in tests
 
 ### Items
@@ -90,10 +93,10 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 | # | Item | Description | Estimate |
 |---|------|-------------|----------|
 | 1 | Dormant-test inventory | Audit the full `tests/` tree for compiled-but-unexecuted test bodies, commented-out `RUN_TEST` sites, and historical “failing as expected” scaffolds. | 16 hrs |
-| 2 | `test_reorder_nd.c` refactor | Resolve the current dormant scaffolding in `tests/test_reorder_nd.c`: either delete historical-only code, move evidence into docs, or formalize the checks behind explicit skip/experimental mechanisms. | 24 hrs |
+| 2 | `test_reorder_nd.c` refactor | Resolve the current dormant scaffolding in `tests/test_reorder_nd.c`: either delete historical-only code, move evidence into docs, or formalize the checks behind explicit skip/experimental mechanisms. Explicitly close the Sprint 30 deferred issues around non-executed scaffolding, `-Wunused-function`, and designated-initializer drift in this file. | 24 hrs |
 | 3 | Slow/experimental test policy | Define a project-level distinction between normal CI tests, slow opt-in tests, and experimental/historical checks so future work does not repopulate the main suite with dormant code. | 16 hrs |
 | 4 | Test framework extensions | Add minimal framework support or naming conventions for skipped/experimental tests where that is cleaner than deletion. | 20 hrs |
-| 5 | Test warning cleanup | Remove or fix the test-side compile warnings that remain after dormant scaffolding is resolved, especially those caused by stale positional initializers and unused static functions. | 24 hrs |
+| 5 | Test warning cleanup | Remove or fix the test-side compile warnings that remain after dormant scaffolding is resolved, especially those caused by stale positional initializers and unused static functions. Include the high-volume initializer files named in the Sprint 30 handoff (`tests/test_ldlt.c`, `tests/test_chol_csc.c`, `tests/test_colamd.c`, `tests/test_cholesky.c`, `tests/test_sprint12_integration.c`, `tests/test_sprint18_integration.c`, `tests/test_sprint19_integration.c`, `tests/test_sprint20_integration.c`, `tests/test_reorder.c`) and the residual mechanical `-Wdouble-promotion` files (`tests/test_sprint6_integration.c`, `tests/test_svd.c`, `tests/test_bidiag.c`). | 24 hrs |
 | 6 | Coverage-honesty documentation | Update planning/docs notes to explain which checks are active, which are opt-in, and which historical experiments are retained only as evidence. | 12 hrs |
 | 7 | Validation | Re-run the full `ctest` / Makefile test suites and verify that the active suite remains green after the structural cleanup. | 16 hrs |
 
@@ -103,6 +106,7 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 - Clear split between normal, slow, and experimental test categories
 - Reduced test-tree warning noise
 - Documentation that matches the executed protection surface
+- The Sprint 30 deferred test-warning queue is explicitly tracked in named files rather than left as a generic backlog
 
 **Total estimate:** ~128 hours
 
@@ -323,12 +327,13 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 ### Prerequisites from previous Sprints
 
 - Sprints 30-38, especially the enforced quality targets, dead-code workflow, test cleanup, docs consistency, and cross-platform parity work
+- Sprint 30 compile-hygiene playbook and warning-workflow baseline, which remain the source of truth for full-tree warning claims (`Apple Clang CMake` authoritative; Makefile `all` library-only cross-check)
 
 ### Items
 
 | # | Item | Description | Estimate |
 |---|------|-------------|----------|
-| 1 | Final warning audit | Run a repository-wide compile-quality audit and close any remaining warning regressions in the reviewed target set. | 24 hrs |
+| 1 | Final warning audit | Run a repository-wide compile-quality audit and close any remaining warning regressions in the reviewed target set. Use the Sprint 30 workflow and Apple Clang CMake full-tree inventory as the authoritative reference rather than the narrower Makefile `all` path alone. | 24 hrs |
 | 2 | Final dead-code audit | Run the dead-code tooling and resolve or explicitly disposition remaining findings so the project exits Epic 3 with a known-clean or known-justified state. | 20 hrs |
 | 3 | Final cross-platform audit | Re-run the supported build/test/quality paths and record any residual platform-specific limitations that remain intentionally out of scope. | 20 hrs |
 | 4 | Standards/documentation closeout | Finalize maintainer docs for warning cleanliness, designated initializers, dormant-test policy, and dead-code workflow. | 20 hrs |

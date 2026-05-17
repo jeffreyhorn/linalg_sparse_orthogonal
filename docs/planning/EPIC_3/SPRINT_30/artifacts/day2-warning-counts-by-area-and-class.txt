@@ -1,0 +1,9 @@
+benchmarks: [-Wdouble-promotion]: 1
+benchmarks: [-Wimplicit-function-declaration]: 2
+benchmarks: [-Wmissing-field-initializers]: 9
+benchmarks: [-Wswitch]: 1
+examples: [-Wmissing-field-initializers]: 1
+src: [-Wdouble-promotion]: 11
+tests: [-Wdouble-promotion]: 33
+tests: [-Wmissing-field-initializers]: 62
+tests: [-Wunused-function]: 3

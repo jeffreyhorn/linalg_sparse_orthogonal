@@ -1,0 +1,6 @@
+   5 benchmarks/bench_main.c
+   3 benchmarks/bench_colamd.c
+   2 benchmarks/bench_convergence.c
+   2 benchmarks/bench_ldlt_csc.c
+   1 benchmarks/bench_chol_csc.c
+   1 examples/example_colamd.c

@@ -1,0 +1,19 @@
+Test project /Users/jeff/experiments/linalg_sparse_orthogonal/build/day9-strict-cmake
+    Start  1: test_sparse_matrix
+1/7 Test  #1: test_sparse_matrix ...............   Passed    0.44 sec
+    Start  2: test_sparse_lu
+2/7 Test  #2: test_sparse_lu ...................   Passed    0.43 sec
+    Start  3: test_sparse_io
+3/7 Test  #3: test_sparse_io ...................   Passed    0.61 sec
+    Start 20: test_qr
+4/7 Test #20: test_qr ..........................   Passed    3.66 sec
+    Start 24: test_svd
+5/7 Test #24: test_svd .........................   Passed    0.99 sec
+    Start 31: test_ldlt
+6/7 Test #31: test_ldlt ........................   Passed    0.59 sec
+    Start 41: test_ldlt_csc
+7/7 Test #41: test_ldlt_csc ....................   Passed    0.48 sec
+
+100% tests passed, 0 tests failed out of 7
+
+Total Test time (real) =   7.32 sec

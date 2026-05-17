@@ -1,0 +1,13 @@
+Test project /Users/jeff/experiments/linalg_sparse_orthogonal/build/sprint30-day5-cmake
+    Start 20: test_qr
+1/4 Test #20: test_qr ..........................   Passed    3.55 sec
+    Start 22: test_dense
+2/4 Test #22: test_dense .......................   Passed    0.37 sec
+    Start 23: test_bidiag
+3/4 Test #23: test_bidiag ......................   Passed    0.40 sec
+    Start 24: test_svd
+4/4 Test #24: test_svd .........................   Passed    0.94 sec
+
+100% tests passed, 0 tests failed out of 4
+
+Total Test time (real) =   5.32 sec

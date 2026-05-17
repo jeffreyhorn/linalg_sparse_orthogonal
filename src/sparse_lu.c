@@ -475,7 +475,7 @@ sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig, const SparseMatrix 
     /* Compute ||A||_1 from the original matrix */
     double norm_A = sparse_norm1(mat_orig);
     if (norm_A == 0.0) {
-        *condest = INFINITY;
+        *condest = HUGE_VAL;
         return SPARSE_OK;
     }
 

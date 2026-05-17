@@ -1,0 +1,9 @@
+---
+auxiliary: [-Wdouble-promotion]: 34
+auxiliary: [-Wimplicit-function-declaration]: 2
+auxiliary: [-Wmissing-field-initializers]: 72
+auxiliary: [-Wswitch]: 1
+auxiliary: [-Wunused-function]: 3
+auxiliary: total: 112
+library: [-Wdouble-promotion]: 11
+library: total: 11

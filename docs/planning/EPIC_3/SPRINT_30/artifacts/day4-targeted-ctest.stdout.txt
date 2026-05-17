@@ -1,0 +1,19 @@
+Test project /Users/jeff/experiments/linalg_sparse_orthogonal/build/sprint30-day4-cmake
+    Start  2: test_sparse_lu
+1/7 Test  #2: test_sparse_lu ...................   Passed    0.55 sec
+    Start  6: test_edge_cases
+2/7 Test  #6: test_edge_cases ..................   Passed    0.55 sec
+    Start 10: test_reorder
+3/7 Test #10: test_reorder .....................   Passed    3.43 sec
+    Start 31: test_ldlt
+4/7 Test #31: test_ldlt ........................   Passed    0.70 sec
+    Start 41: test_ldlt_csc
+5/7 Test #41: test_ldlt_csc ....................   Passed    0.56 sec
+    Start 51: test_reorder_nd
+6/7 Test #51: test_reorder_nd ..................   Passed   81.08 sec
+    Start 52: test_reorder_amd_qg
+7/7 Test #52: test_reorder_amd_qg ..............   Passed    1.18 sec
+
+100% tests passed, 0 tests failed out of 7
+
+Total Test time (real) =  88.14 sec

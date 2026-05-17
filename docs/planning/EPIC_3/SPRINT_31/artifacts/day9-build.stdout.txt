@@ -1,0 +1,14 @@
+[ 94%] Built target sparse_lu_ortho
+[100%] Building C object CMakeFiles/example_colamd.dir/examples/example_colamd.c.o
+[100%] Linking C executable example_colamd
+[100%] Built target example_colamd
+[ 94%] Built target sparse_lu_ortho
+[100%] Built target bench_main
+[ 94%] Built target sparse_lu_ortho
+[100%] Built target bench_reorder
+[ 94%] Built target sparse_lu_ortho
+[100%] Built target bench_colamd
+[ 94%] Built target sparse_lu_ortho
+[100%] Built target bench_chol_csc
+[ 94%] Built target sparse_lu_ortho
+[100%] Built target bench_ldlt_csc

@@ -1,0 +1,17 @@
+echo "Built 14 bench binaries (no execution)."
+echo "Built 12 example binaries (no execution)."
+echo "tooling-build: benchmark and example binaries built (no execution)."
+echo "Compiling with strict warnings (-Werror)..."
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Wstrict-prototypes -Wformat=2 -Werror \
+		-Ibuild/include -Iinclude -fsyntax-only src/sparse_cholesky.c src/sparse_reorder_amd_qg.c src/sparse_types.c src/sparse_lu_csr.c src/sparse_analysis.c src/sparse_ldlt_csc.c src/sparse_reorder_nd.c src/sparse_graph.c src/sparse_matrix.c src/sparse_iterative.c src/sparse_chol_csc.c src/sparse_svd.c src/sparse_qr.c src/sparse_colamd.c src/sparse_bidiag.c src/sparse_dense.c src/sparse_eigs.c src/sparse_csr.c src/sparse_vector.c src/sparse_ilu.c src/sparse_reorder.c src/sparse_ldlt.c src/sparse_lu.c src/sparse_etree.c src/sparse_ic.c
+echo ""
+echo "Running clang-tidy..."
+clang-tidy src/sparse_cholesky.c src/sparse_reorder_amd_qg.c src/sparse_types.c src/sparse_lu_csr.c src/sparse_analysis.c src/sparse_ldlt_csc.c src/sparse_reorder_nd.c src/sparse_graph.c src/sparse_matrix.c src/sparse_iterative.c src/sparse_chol_csc.c src/sparse_svd.c src/sparse_qr.c src/sparse_colamd.c src/sparse_bidiag.c src/sparse_dense.c src/sparse_eigs.c src/sparse_csr.c src/sparse_vector.c src/sparse_ilu.c src/sparse_reorder.c src/sparse_ldlt.c src/sparse_lu.c src/sparse_etree.c src/sparse_ic.c -- -Ibuild/include -Iinclude -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk
+echo ""
+echo "Running cppcheck..."
+cppcheck --enable=warning,style,performance,portability --error-exitcode=1 \
+		--suppress=missingIncludeSystem --suppress=constVariablePointer \
+		--suppress=constVariable --suppress=variableScope \
+		--suppress=nullPointerOutOfMemory --suppress=uninitvar \
+		--suppress=constParameterPointer --suppress=unreadVariable \
+		-I include src tests

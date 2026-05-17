@@ -1,0 +1,6 @@
+matrix,n,reorder,nnz_L,reorder_ms,factor_ms
+nos4,100,none,805,0.0,skip
+nos4,100,rcm,888,0.1,skip
+nos4,100,amd,637,0.2,skip
+nos4,100,colamd,778,0.6,skip
+nos4,100,nd,637,0.3,skip

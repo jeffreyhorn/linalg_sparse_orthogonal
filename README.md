@@ -104,6 +104,8 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 
 ```bash
 make            # build library
+make tooling-build  # compile benchmark/example binaries without running them
+make lint       # strict compile + static analysis (includes tooling-build)
 make test       # run all unit tests
 make bench      # run benchmarks
 make examples   # build standalone example programs

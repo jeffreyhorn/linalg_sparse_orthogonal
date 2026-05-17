@@ -705,7 +705,11 @@ expect to update both the baselines and the comment block.
 The `sparse_lu_factor_opts()` function provides a unified interface:
 
 ```c
-sparse_lu_opts_t opts = { SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_AMD, 1e-12 };
+sparse_lu_opts_t opts = {
+    .pivot = SPARSE_PIVOT_PARTIAL,
+    .reorder = SPARSE_REORDER_AMD,
+    .tol = 1e-12,
+};
 sparse_lu_factor_opts(LU, &opts);
 sparse_lu_solve(LU, b, x);  // reorder/unpermute handled automatically
 ```
@@ -715,7 +719,9 @@ The reordering permutation is stored in the matrix and automatically applied dur
 Similarly for Cholesky:
 
 ```c
-sparse_cholesky_opts_t opts = { SPARSE_REORDER_AMD };
+sparse_cholesky_opts_t opts = {
+    .reorder = SPARSE_REORDER_AMD,
+};
 sparse_cholesky_factor_opts(L, &opts);
 sparse_cholesky_solve(L, b, x);  // reorder/unpermute handled automatically
 ```
@@ -1285,7 +1291,10 @@ This is the standard approach from Gilbert and Peierls (1988).
 
 ```c
 // 1. Analyze once
-sparse_analysis_opts_t opts = { SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD };
+sparse_analysis_opts_t opts = {
+    .factor_type = SPARSE_FACTOR_CHOLESKY,
+    .reorder = SPARSE_REORDER_AMD,
+};
 sparse_analysis_t analysis = {0};
 sparse_analyze(A, &opts, &analysis);
 

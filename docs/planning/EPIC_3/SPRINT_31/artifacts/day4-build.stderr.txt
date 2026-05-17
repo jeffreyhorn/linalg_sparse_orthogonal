@@ -1,0 +1,14 @@
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_colamd.c:31:60: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts_none = {SPARSE_REORDER_NONE, 0, 0};
+                                                           ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_colamd.c:32:58: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts_amd = {SPARSE_REORDER_AMD, 0, 0};
+                                                         ^
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_colamd.c:33:64: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts_colamd = {SPARSE_REORDER_COLAMD, 0, 0};
+                                                               ^
+3 warnings generated.
+/Users/jeff/experiments/linalg_sparse_orthogonal/examples/example_colamd.c:98:60: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t qr_opts = {SPARSE_REORDER_COLAMD, 0, 0};
+                                                           ^
+1 warning generated.

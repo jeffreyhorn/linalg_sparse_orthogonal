@@ -1,4 +1,4 @@
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 200809L
 /*
  * bench_scaling.c — Measure factorization and solve scaling
  *

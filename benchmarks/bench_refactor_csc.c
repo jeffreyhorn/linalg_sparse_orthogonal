@@ -67,7 +67,7 @@
  *   ./bench_refactor_csc path/to/matrix.mtx           # single matrix
  *   ./bench_refactor_csc --repeat 5                   # 5 refactors instead of 10
  */
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 200809L
 
 #include "sparse_analysis.h"
 #include "sparse_chol_csc_internal.h"

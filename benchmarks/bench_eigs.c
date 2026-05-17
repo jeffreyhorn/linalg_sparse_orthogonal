@@ -54,7 +54,7 @@
  * so the bench skips precond combinations on NEAREST_SIGMA.
  */
 
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 200809L
 
 #include "sparse_eigs.h"
 #include "sparse_ic.h"

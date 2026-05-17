@@ -1,0 +1,228 @@
+tests/test_reorder.c:788:77: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_lu_opts_t opts = {SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_RCM, 1e-12};
+                                                                            ^
+tests/test_reorder.c:828:78: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_lu_opts_t opts = {SPARSE_PIVOT_COMPLETE, SPARSE_REORDER_AMD, 1e-12};
+                                                                             ^
+tests/test_reorder.c:860:78: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_lu_opts_t opts = {SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_NONE, 1e-12};
+                                                                             ^
+tests/test_reorder.c:896:77: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_lu_opts_t opts = {SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_AMD, 1e-12};
+                                                                            ^
+4 warnings generated.
+tests/test_cholesky.c:278:54: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD};
+                                                     ^
+tests/test_cholesky.c:317:54: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_RCM};
+                                                     ^
+tests/test_cholesky.c:348:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_NONE};
+                                                      ^
+tests/test_cholesky.c:431:54: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD};
+                                                     ^
+tests/test_cholesky.c:436:54: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_RCM};
+                                                     ^
+5 warnings generated.
+tests/test_ldlt.c:813:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+tests/test_ldlt.c:1080:59: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts_amd = {SPARSE_REORDER_AMD, 0.0};
+                                                          ^
+tests/test_ldlt.c:1114:59: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts_rcm = {SPARSE_REORDER_RCM, 0.0};
+                                                          ^
+tests/test_ldlt.c:1154:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+tests/test_ldlt.c:1192:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+tests/test_ldlt.c:1271:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+tests/test_ldlt.c:1290:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+tests/test_ldlt.c:1433:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+tests/test_ldlt.c:2110:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+tests/test_ldlt.c:2152:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+tests/test_ldlt.c:2312:93: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+                                                                                            ^
+tests/test_ldlt.c:2336:99: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0, SPARSE_LDLT_BACKEND_LINKED_LIST, &used_csc};
+                                                                                                  ^
+tests/test_ldlt.c:2361:92: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_CSC, &used_csc};
+                                                                                           ^
+tests/test_ldlt.c:2381:89: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, (sparse_ldlt_backend_t)99, NULL};
+                                                                                        ^
+tests/test_ldlt.c:2392:88: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, NULL};
+                                                                                       ^
+tests/test_ldlt.c:2413:98: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts_ll = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_LINKED_LIST, NULL};
+                                                                                                 ^
+tests/test_ldlt.c:2414:90: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts_cs = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_CSC, NULL};
+                                                                                         ^
+tests/test_ldlt.c:2552:93: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+                                                                                            ^
+18 warnings generated.
+tests/test_sprint12_integration.c:113:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+tests/test_sprint12_integration.c:175:59: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts_amd = {SPARSE_REORDER_AMD, 0.0};
+                                                          ^
+tests/test_sprint12_integration.c:181:59: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts_rcm = {SPARSE_REORDER_RCM, 0.0};
+                                                          ^
+tests/test_sprint12_integration.c:325:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+tests/test_sprint12_integration.c:364:55: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+                                                      ^
+5 warnings generated.
+tests/test_etree.c:1246:77: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_lu_opts_t opts = {SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_AMD, 1e-12};
+                                                                            ^
+1 warning generated.
+tests/test_colamd.c:817:57: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts = {SPARSE_REORDER_COLAMD, 0, 0};
+                                                        ^
+tests/test_colamd.c:851:60: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts_none = {SPARSE_REORDER_NONE, 0, 0};
+                                                           ^
+tests/test_colamd.c:852:58: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts_amd = {SPARSE_REORDER_AMD, 0, 0};
+                                                         ^
+tests/test_colamd.c:853:64: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts_colamd = {SPARSE_REORDER_COLAMD, 0, 0};
+                                                               ^
+tests/test_colamd.c:887:57: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts = {SPARSE_REORDER_COLAMD, 0, 1}; /* sparse_mode=1 */
+                                                        ^
+tests/test_colamd.c:1230:57: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts = {SPARSE_REORDER_COLAMD, 0, 0};
+                                                        ^
+tests/test_colamd.c:1805:54: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_qr_opts_t opts = {SPARSE_REORDER_AMD, 0, 0};
+                                                     ^
+7 warnings generated.
+tests/test_chol_csc.c:781:59: warning: missing field 'backend' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t chol_opts = {SPARSE_REORDER_AMD};
+                                                          ^
+tests/test_chol_csc.c:4045:91: warning: missing field 'used_csc_path' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {use_amd ? SPARSE_REORDER_AMD : SPARSE_REORDER_NONE, 0.0};
+                                                                                          ^
+tests/test_chol_csc.c:4223:88: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_NONE, SPARSE_CHOL_BACKEND_AUTO, &used};
+                                                                                       ^
+tests/test_chol_csc.c:4246:87: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_AUTO, &used};
+                                                                                      ^
+tests/test_chol_csc.c:4290:47: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+                                      &used_ll};
+                                              ^
+tests/test_chol_csc.c:4298:93: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts_cs = {SPARSE_REORDER_NONE, SPARSE_CHOL_BACKEND_CSC, &used_cs};
+                                                                                            ^
+tests/test_chol_csc.c:4338:87: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_AUTO, &used};
+                                                                                      ^
+tests/test_chol_csc.c:4379:60: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, 0, 0};
+                                                           ^
+8 warnings generated.
+tests/test_sprint18_integration.c:140:87: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_AUTO, &used};
+                                                                                      ^
+tests/test_sprint18_integration.c:259:47: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+                                      &used_ll};
+                                              ^
+tests/test_sprint18_integration.c:260:92: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts_cs = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_CSC, &used_cs};
+                                                                                           ^
+3 warnings generated.
+tests/test_sprint19_integration.c:435:96: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts_ll = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_LINKED_LIST, NULL};
+                                                                                               ^
+tests/test_sprint19_integration.c:457:88: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts_cs = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_CSC, NULL};
+                                                                                       ^
+2 warnings generated.
+tests/test_sprint20_integration.c:166:93: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+                                                                                            ^
+tests/test_sprint20_integration.c:185:93: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+                                                                                            ^
+tests/test_sprint20_integration.c:209:93: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+                                                                                            ^
+tests/test_sprint20_integration.c:233:41: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+                               &used_csc};
+                                        ^
+tests/test_sprint20_integration.c:252:92: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_CSC, &used_csc};
+                                                                                           ^
+5 warnings generated.
+tests/test_reorder_nd.c:1107:67: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts_amd = {SPARSE_REORDER_AMD, 0, NULL};
+                                                                  ^
+tests/test_reorder_nd.c:1123:65: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_cholesky_opts_t opts_nd = {SPARSE_REORDER_ND, 0, NULL};
+                                                                ^
+tests/test_reorder_nd.c:1600:74: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_lu_opts_t opts = {SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_ND, 0.0};
+                                                                         ^
+tests/test_reorder_nd.c:1648:86: warning: missing field 'progress_cb' initializer [-Wmissing-field-initializers]
+    sparse_ldlt_opts_t opts = {SPARSE_REORDER_ND, 0.0, SPARSE_LDLT_BACKEND_AUTO, NULL};
+                                                                                     ^
+tests/test_reorder_nd.c:923:13: warning: unused function 'test_finest_fm_annealing_pres_poisson_close_to_target' [-Wunused-function]
+static void test_finest_fm_annealing_pres_poisson_close_to_target(void) {
+            ^
+tests/test_reorder_nd.c:962:13: warning: unused function 'test_nd_root_spectral_pres_poisson_close_to_target' [-Wunused-function]
+static void test_nd_root_spectral_pres_poisson_close_to_target(void) {
+            ^
+tests/test_reorder_nd.c:1504:13: warning: unused function 'test_non_pipeline_pres_poisson_close_to_target' [-Wunused-function]
+static void test_non_pipeline_pres_poisson_close_to_target(void) {
+            ^
+7 warnings generated.
+    outer-product vs dense: ||A_off - A_on||_F / ||A_off||_F = 0.000e+00
+    nos4 k=10: rel_residual = 0.000e+00
+    nos4 k=50: rel_residual = 0.000e+00
+    bcsstk04 k=10: rel_residual = 0.000e+00
+    bcsstk04 k=50: rel_residual = 0.000e+00
+    full U (16x16) ||U^T U - I||_F = 2.216e-15
+    full Vt (8x8)  ||Vt Vt^T - I||_F = 2.502e-15
+    full-mode recon: ||A - U Sigma Vt||_F / ||A||_F = 9.648e-16
+    economy/full bit-identical on 16x8 fixture: sigma + U[:, 0..7] + Vt[0..7, :]
+    eigs+refine+cb: max ||Av - lambda v||/|lambda| = 4.198e-16, progress_cb calls = 1
+    full-SVD rank-k recon: ||A - U Sigma Vt||_F/||A||_F = 3.747e-15
+    refined max ||A v - lambda v|| / |lambda| = 9.861e-16
+    LOBPCG refined max ||A v - lambda v|| / |lambda| = 3.850e-24
+    refine_max_iters=1 max true residual = 7.138e-16
+    refine_max_iters=5 max true residual = 7.138e-16
+    Pres_Poisson (n=14822): AMD nnz(L) = 2668793, ND nnz(L) = 2462201 (ND/AMD = 0.923, ND wall 10.42 s)
+    Kuu (n=7102) under SPARSE_ND_COARSENING=hcc: AMD nnz(L) = 406264, ND nnz(L) = 764664 (ND/AMD = 1.882)
+    bcsstk14 (n=1806): baseline nnz(L) = 129576, annealing nnz(L) = 129224 (differ: yes)
+    Pres_Poisson (n=14822): multilevel nnz(L) = 2549740, spectral nnz(L) = 2555549 (differ: yes)
+    bcsstk14 (n=1806): baseline nnz(L) = 129576, thick_restart nnz(L) = 130961 (differ: yes)
+    bcsstk14: HEM nnz(L) = 129576, HCC+Kuu-safe nnz(L) = 130422 (delta: +0.65 %)
+    bcsstk04 fixed-K nnz(L): hybrid=3679, balance=4469, degree=4613

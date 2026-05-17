@@ -1,0 +1,15 @@
+Generating 8x8 sparse matrix...
+Matrix:  8 x 8, nnz = 38
+Memory:  131472 bytes
+Solver:  LU
+Pivot:   complete
+Reorder: nd
+Repeats: 1
+Bandwidth: 7
+
+SpMV:          0.000001 s
+Factor:        0.000153 s
+Solve:         0.000002 s
+nnz after:     62 (fill-in ratio: 1.63)
+Residual:      8.882e-16
+Cond est:      3.719e+00

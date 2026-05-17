@@ -3,7 +3,7 @@
  *
  * For each fixture in the SuiteSparse corpus the eigensolver work
  * has been stressing since Sprint 20, run the four fill-reducing
- * orderings (RCM / AMD / COLAMD / ND) plus NONE as a baseline and
+ * orderings (`rcm`, `amd`, `colamd`, `nd`) plus `none` as a baseline and
  * report:
  *
  *   - matrix          fixture name
@@ -63,8 +63,8 @@ typedef struct {
 } reorder_entry_t;
 
 static const reorder_entry_t kReorderings[] = {
-    {"NONE", SPARSE_REORDER_NONE},     {"RCM", SPARSE_REORDER_RCM}, {"AMD", SPARSE_REORDER_AMD},
-    {"COLAMD", SPARSE_REORDER_COLAMD}, {"ND", SPARSE_REORDER_ND},
+    {"none", SPARSE_REORDER_NONE},     {"rcm", SPARSE_REORDER_RCM}, {"amd", SPARSE_REORDER_AMD},
+    {"colamd", SPARSE_REORDER_COLAMD}, {"nd", SPARSE_REORDER_ND},
 };
 static const size_t kReorderingsCount = sizeof(kReorderings) / sizeof(kReorderings[0]);
 

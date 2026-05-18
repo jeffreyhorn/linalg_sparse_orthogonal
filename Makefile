@@ -466,6 +466,8 @@ warning-workflow:
 DEADCODE_CMAKE_DIR ?= build/deadcode-cmake
 DEADCODE_ARTIFACTS_DIR ?= build/deadcode
 DEADCODE_COMPILE_COMMANDS := $(DEADCODE_CMAKE_DIR)/compile_commands.json
+DEADCODE_REPORT_MD := $(DEADCODE_ARTIFACTS_DIR)/report.md
+DEADCODE_REPORT_TSV := $(DEADCODE_ARTIFACTS_DIR)/report.tsv
 
 .PHONY: deadcode-compile-db
 deadcode-compile-db:
@@ -478,6 +480,20 @@ deadcode: deadcode-compile-db
 	@bash scripts/deadcode_workflow.sh \
 		"$(DEADCODE_CMAKE_DIR)" \
 		"$(DEADCODE_ARTIFACTS_DIR)"
+
+.PHONY: deadcode-report
+deadcode-report: deadcode
+	@python3 scripts/deadcode_report.py \
+		"$(DEADCODE_ARTIFACTS_DIR)"
+	@echo "deadcode-report: $(DEADCODE_REPORT_MD)"
+	@echo "deadcode-report: $(DEADCODE_REPORT_TSV)"
+
+.PHONY: deadcode-check
+deadcode-check: deadcode-report
+	@python3 scripts/deadcode_report.py \
+		--check \
+		"$(DEADCODE_ARTIFACTS_DIR)"
+	@echo "deadcode-check: report completeness checks passed."
 
 # ─── Performance regression gate (Sprint 24 Day 1) ────────────────────
 #

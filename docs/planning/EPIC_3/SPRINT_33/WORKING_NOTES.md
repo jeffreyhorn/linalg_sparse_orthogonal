@@ -935,3 +935,106 @@ Future-tightening note:
 ### Day 6 Outputs
 
 - `artifacts/day6-reporting-classification-design.md`
+
+## Day 7
+
+**Objective:** Implement the Day 6 reporting layer by wiring `deadcode-report` and `deadcode-check`, generating the first classified dead-code report from the raw Day 5 artifacts, and turning the scanner output into a concrete Sprint 33 action queue.
+
+### Commands Run
+
+1. Re-read the Day 7 scope and Day 6 design inputs:
+   - `sed -n '140,220p' docs/planning/EPIC_3/SPRINT_33/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_33/artifacts/day6-reporting-classification-design.md`
+   - `nl -ba Makefile | sed -n '455,520p'`
+   - `nl -ba scripts/deadcode_workflow.sh | sed -n '1,220p'`
+2. Implement the report layer:
+   - edited `Makefile`
+   - added `scripts/deadcode_report.py`
+   - `python3 -m py_compile scripts/deadcode_report.py`
+3. Generate and validate the first report:
+   - `make deadcode-report`
+   - `make deadcode-check`
+4. Inspect the generated report artifacts:
+   - `sed -n '1,260p' build/deadcode/report.md`
+   - `wc -l build/deadcode/report.tsv`
+   - `sed -n '1,40p' build/deadcode/report.tsv`
+   - `python3 - <<'PY' ... summarize report.tsv bucket counts and queues ... PY`
+
+### What Shipped
+
+- Added `deadcode-report` to the Makefile.
+  - behavior:
+    - runs `deadcode`
+    - then normalizes the raw artifacts into:
+      - `build/deadcode/report.md`
+      - `build/deadcode/report.tsv`
+- Added `deadcode-check` to the Makefile.
+  - behavior:
+    - depends on `deadcode-report`
+    - then runs the report script in `--check` mode
+    - fails on report-generation/completeness problems rather than on the mere presence of candidates
+- Added `scripts/deadcode_report.py`.
+  - responsibilities:
+    - parse `coverage-notes.txt`
+    - parse `xunused.txt`
+    - parse and aggregate `cppcheck.txt`
+    - classify findings into the Day 6 buckets
+    - emit Markdown and TSV reports
+    - enforce the Day 6 `deadcode-check` invariants
+
+### Validation Results
+
+- `python3 -m py_compile scripts/deadcode_report.py`: passed
+- `make deadcode-report`: passed
+- `make deadcode-check`: passed
+
+Day 7 report/check invariant now enforced:
+
+1. `deadcode-report` must regenerate the report artifacts successfully
+2. every `xunused` finding must land in a named category
+3. the report must preserve the compile-db coverage-gap section
+
+### First Classified Report
+
+Generated report artifacts:
+
+- `build/deadcode/report.md`
+- `build/deadcode/report.tsv`
+
+Current normalized bucket counts:
+
+- `coverage-gap`: `7`
+- `definitely-unused-internal-candidate`: `1`
+- `public-surface-review`: `4`
+- `secondary-candidate-signal`: `35`
+- `non-deadcode-static-analysis-noise`: `6`
+
+Current cleanup-relevant queue from the report:
+
+- definitely-unused internal candidate:
+  - `chol_csc_dump_supernodes`
+- public-surface review items:
+  - `givens_apply_right`
+  - `sparse_print_dense`
+  - `sparse_print_entries`
+  - `sparse_print_info`
+
+Top secondary `cppcheck` signal files in the human report:
+
+- `src/sparse_chol_csc.c`: `20`
+- `src/sparse_ldlt_csc.c`: `17`
+- `src/sparse_matrix.c`: `16`
+- `src/sparse_qr.c`: `14`
+- `src/sparse_graph.c`: `14`
+
+### Day 7 Interpretation
+
+- The actionable Sprint 33 queue is now narrow and truthful.
+- Day 8 has a clearly bounded public-surface audit set of four symbols.
+- Day 9 starts with a single high-confidence internal cleanup candidate:
+  - `chol_csc_dump_supernodes`
+- The broader `cppcheck` rows remain supporting evidence only and are now intentionally separated from the cleanup-ready queue instead of being mixed into it.
+
+### Day 7 Outputs
+
+- `artifacts/day7-report-wiring-and-first-report.md`

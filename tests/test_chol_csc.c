@@ -778,7 +778,9 @@ static void test_predicted_nnz_matches_actual_bcsstk04(void) {
 
     /* Cholesky factor with the same AMD reorder to match symbolic prediction. */
     SparseMatrix *L = sparse_copy(A);
-    sparse_cholesky_opts_t chol_opts = {SPARSE_REORDER_AMD};
+    sparse_cholesky_opts_t chol_opts = {
+        .reorder = SPARSE_REORDER_AMD,
+    };
     REQUIRE_OK(sparse_cholesky_factor_opts(L, &chol_opts));
     idx_t actual_nnz_L = sparse_nnz(L);
 
@@ -4042,7 +4044,9 @@ static void day10_roundtrip_check(SparseMatrix *A, int use_amd, double tol) {
     /* Reference: scalar Cholesky factor_opts on a deep copy. */
     SparseMatrix *ref = sparse_copy(A);
     ASSERT_TRUE(ref != NULL);
-    sparse_cholesky_opts_t opts = {use_amd ? SPARSE_REORDER_AMD : SPARSE_REORDER_NONE, 0.0};
+    sparse_cholesky_opts_t opts = {
+        .reorder = use_amd ? SPARSE_REORDER_AMD : SPARSE_REORDER_NONE,
+    };
     REQUIRE_OK(sparse_cholesky_factor_opts(ref, &opts));
 
     /* CSC path + writeback. */
@@ -4220,7 +4224,11 @@ static void test_dispatch_auto_small_uses_linked_list(void) {
     SparseMatrix *A = day11_build_spd(10, 0.3, 0xa5a5a5a5u);
 
     int used = -1;
-    sparse_cholesky_opts_t opts = {SPARSE_REORDER_NONE, SPARSE_CHOL_BACKEND_AUTO, &used};
+    sparse_cholesky_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .backend = SPARSE_CHOL_BACKEND_AUTO,
+        .used_csc_path = &used,
+    };
     REQUIRE_OK(sparse_cholesky_factor_opts(A, &opts));
     ASSERT_EQ(used, 0); /* n < SPARSE_CSC_THRESHOLD */
 
@@ -4243,7 +4251,11 @@ static void test_dispatch_auto_large_uses_csc_and_solves(void) {
     ASSERT_TRUE(L != NULL);
 
     int used = -1;
-    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_AUTO, &used};
+    sparse_cholesky_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .backend = SPARSE_CHOL_BACKEND_AUTO,
+        .used_csc_path = &used,
+    };
     REQUIRE_OK(sparse_cholesky_factor_opts(L, &opts));
     ASSERT_EQ(used, 1); /* n >= SPARSE_CSC_THRESHOLD */
 
@@ -4286,8 +4298,11 @@ static void test_dispatch_forced_override_both_paths_agree(void) {
     /* Force linked-list. */
     SparseMatrix *L_ll = sparse_copy(A);
     int used_ll = -1;
-    sparse_cholesky_opts_t opts_ll = {SPARSE_REORDER_NONE, SPARSE_CHOL_BACKEND_LINKED_LIST,
-                                      &used_ll};
+    sparse_cholesky_opts_t opts_ll = {
+        .reorder = SPARSE_REORDER_NONE,
+        .backend = SPARSE_CHOL_BACKEND_LINKED_LIST,
+        .used_csc_path = &used_ll,
+    };
     REQUIRE_OK(sparse_cholesky_factor_opts(L_ll, &opts_ll));
     ASSERT_EQ(used_ll, 0);
     REQUIRE_OK(sparse_cholesky_solve(L_ll, b, x_ll));
@@ -4295,7 +4310,11 @@ static void test_dispatch_forced_override_both_paths_agree(void) {
     /* Force CSC. */
     SparseMatrix *L_cs = sparse_copy(A);
     int used_cs = -1;
-    sparse_cholesky_opts_t opts_cs = {SPARSE_REORDER_NONE, SPARSE_CHOL_BACKEND_CSC, &used_cs};
+    sparse_cholesky_opts_t opts_cs = {
+        .reorder = SPARSE_REORDER_NONE,
+        .backend = SPARSE_CHOL_BACKEND_CSC,
+        .used_csc_path = &used_cs,
+    };
     REQUIRE_OK(sparse_cholesky_factor_opts(L_cs, &opts_cs));
     ASSERT_EQ(used_cs, 1);
     REQUIRE_OK(sparse_cholesky_solve(L_cs, b, x_cs));
@@ -4335,7 +4354,11 @@ static void day12_spd_dispatch_and_residual(const char *path) {
 
     SparseMatrix *L = sparse_copy(A);
     int used = -1;
-    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_AUTO, &used};
+    sparse_cholesky_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .backend = SPARSE_CHOL_BACKEND_AUTO,
+        .used_csc_path = &used,
+    };
     REQUIRE_OK(sparse_cholesky_factor_opts(L, &opts));
     ASSERT_EQ(used, 1);
 
@@ -4376,7 +4399,9 @@ static void test_dispatch_legacy_opts_still_work(void) {
 
     /* Pre-Sprint-18 caller style: only set `reorder`.  Zero-init for
      * the new fields means AUTO + no used_csc_path reporting. */
-    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, 0, 0};
+    sparse_cholesky_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+    };
     REQUIRE_OK(sparse_cholesky_factor_opts(A, &opts));
     ASSERT_TRUE(A->factored);
 

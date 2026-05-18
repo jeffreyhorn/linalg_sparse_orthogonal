@@ -137,7 +137,11 @@ static void factor_solve_assert_path(SparseMatrix *A, int expect_csc, double tol
     }
 
     int used = -1;
-    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_AUTO, &used};
+    sparse_cholesky_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .backend = SPARSE_CHOL_BACKEND_AUTO,
+        .used_csc_path = &used,
+    };
     sparse_err_t err_factor = SPARSE_OK;
     sparse_err_t err_solve = SPARSE_OK;
     double rel = INFINITY;
@@ -255,9 +259,16 @@ static void test_s18_force_both_paths_agree(void) {
 
     int used_ll = -1;
     int used_cs = -1;
-    sparse_cholesky_opts_t opts_ll = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_LINKED_LIST,
-                                      &used_ll};
-    sparse_cholesky_opts_t opts_cs = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_CSC, &used_cs};
+    sparse_cholesky_opts_t opts_ll = {
+        .reorder = SPARSE_REORDER_AMD,
+        .backend = SPARSE_CHOL_BACKEND_LINKED_LIST,
+        .used_csc_path = &used_ll,
+    };
+    sparse_cholesky_opts_t opts_cs = {
+        .reorder = SPARSE_REORDER_AMD,
+        .backend = SPARSE_CHOL_BACKEND_CSC,
+        .used_csc_path = &used_cs,
+    };
     sparse_err_t err_ll_factor = SPARSE_OK;
     sparse_err_t err_cs_factor = SPARSE_OK;
     sparse_err_t err_ll_solve = SPARSE_OK;

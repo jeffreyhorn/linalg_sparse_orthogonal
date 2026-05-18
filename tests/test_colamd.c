@@ -814,7 +814,9 @@ static void test_qr_colamd_solve(void) {
     double x[4];
     double resid;
     sparse_qr_t qr;
-    sparse_qr_opts_t opts = {SPARSE_REORDER_COLAMD, 0, 0};
+    sparse_qr_opts_t opts = {
+        .reorder = SPARSE_REORDER_COLAMD,
+    };
 
     REQUIRE_OK(sparse_qr_factor_opts(A, &opts, &qr));
     REQUIRE_OK(sparse_qr_solve(&qr, b, x, &resid));
@@ -848,9 +850,15 @@ static void test_qr_colamd_vs_amd(void) {
     }
 
     sparse_qr_t qr_none, qr_amd, qr_colamd;
-    sparse_qr_opts_t opts_none = {SPARSE_REORDER_NONE, 0, 0};
-    sparse_qr_opts_t opts_amd = {SPARSE_REORDER_AMD, 0, 0};
-    sparse_qr_opts_t opts_colamd = {SPARSE_REORDER_COLAMD, 0, 0};
+    sparse_qr_opts_t opts_none = {
+        .reorder = SPARSE_REORDER_NONE,
+    };
+    sparse_qr_opts_t opts_amd = {
+        .reorder = SPARSE_REORDER_AMD,
+    };
+    sparse_qr_opts_t opts_colamd = {
+        .reorder = SPARSE_REORDER_COLAMD,
+    };
 
     REQUIRE_OK(sparse_qr_factor_opts(A, &opts_none, &qr_none));
     REQUIRE_OK(sparse_qr_factor_opts(A, &opts_amd, &qr_amd));
@@ -884,7 +892,10 @@ static void test_qr_colamd_sparse_mode(void) {
         sparse_insert(A, i, i % n, (double)(i + 1));
 
     sparse_qr_t qr;
-    sparse_qr_opts_t opts = {SPARSE_REORDER_COLAMD, 0, 1}; /* sparse_mode=1 */
+    sparse_qr_opts_t opts = {
+        .reorder = SPARSE_REORDER_COLAMD,
+        .sparse_mode = 1,
+    }; /* sparse_mode=1 */
 
     REQUIRE_OK(sparse_qr_factor_opts(A, &opts, &qr));
 
@@ -1227,7 +1238,9 @@ static void test_minnorm_with_colamd(void) {
 
     double b[2] = {3.0, 3.0};
     double x[5];
-    sparse_qr_opts_t opts = {SPARSE_REORDER_COLAMD, 0, 0};
+    sparse_qr_opts_t opts = {
+        .reorder = SPARSE_REORDER_COLAMD,
+    };
     REQUIRE_OK(sparse_qr_solve_minnorm(A, b, x, &opts));
 
     /* Check A*x = b */
@@ -1802,7 +1815,9 @@ static void test_backward_compat_qr_amd(void) {
     sparse_insert(A, 3, 2, 1.0);
 
     sparse_qr_t qr;
-    sparse_qr_opts_t opts = {SPARSE_REORDER_AMD, 0, 0};
+    sparse_qr_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+    };
     REQUIRE_OK(sparse_qr_factor_opts(A, &opts, &qr));
 
     double b[4] = {1, 2, 3, 4};

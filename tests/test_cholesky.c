@@ -275,7 +275,9 @@ static void test_cholesky_solve_amd(void) {
 
     SparseMatrix *L = sparse_copy(A);
     ASSERT_NOT_NULL(L);
-    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD};
+    sparse_cholesky_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+    };
     ASSERT_ERR(sparse_cholesky_factor_opts(L, &opts), SPARSE_OK);
 
     double *x = malloc((size_t)n * sizeof(double));
@@ -314,7 +316,9 @@ static void test_cholesky_solve_rcm(void) {
 
     SparseMatrix *L = sparse_copy(A);
     ASSERT_NOT_NULL(L);
-    sparse_cholesky_opts_t opts = {SPARSE_REORDER_RCM};
+    sparse_cholesky_opts_t opts = {
+        .reorder = SPARSE_REORDER_RCM,
+    };
     ASSERT_ERR(sparse_cholesky_factor_opts(L, &opts), SPARSE_OK);
 
     double *x = malloc((size_t)n * sizeof(double));
@@ -345,7 +349,9 @@ static void test_cholesky_solve_none(void) {
     double b[] = {8.0, 15.0, 11.0};
 
     SparseMatrix *L1 = sparse_copy(A);
-    sparse_cholesky_opts_t opts = {SPARSE_REORDER_NONE};
+    sparse_cholesky_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+    };
     ASSERT_ERR(sparse_cholesky_factor_opts(L1, &opts), SPARSE_OK);
     double x1[3];
     ASSERT_ERR(sparse_cholesky_solve(L1, b, x1), SPARSE_OK);
@@ -428,12 +434,16 @@ static void test_cholesky_nos4(void) { cholesky_validate(SS_DIR "/nos4.mtx", 1e-
 static void test_cholesky_bcsstk04(void) { cholesky_validate(SS_DIR "/bcsstk04.mtx", 1e-4, NULL); }
 
 static void test_cholesky_nos4_amd(void) {
-    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD};
+    sparse_cholesky_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+    };
     cholesky_validate(SS_DIR "/nos4.mtx", 1e-10, &opts);
 }
 
 static void test_cholesky_bcsstk04_rcm(void) {
-    sparse_cholesky_opts_t opts = {SPARSE_REORDER_RCM};
+    sparse_cholesky_opts_t opts = {
+        .reorder = SPARSE_REORDER_RCM,
+    };
     cholesky_validate(SS_DIR "/bcsstk04.mtx", 1e-4, &opts);
 }
 

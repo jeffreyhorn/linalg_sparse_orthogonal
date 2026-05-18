@@ -845,3 +845,148 @@ Per-file Day 8 reduction:
 ### Day 8 Outputs
 
 - `artifacts/day8-designated-initializers-batch1.md`
+
+## Day 9
+
+**Objective:** Close the remaining designated-initializer queue by converting the companion Cholesky, QR, and LU positional option-struct forms in the Day 7 Batch II files, then validate that the touched binaries still pass and the clean-build warning queue becomes pure double-promotion debt.
+
+### Commands Run
+
+1. Re-read the Day 9 target batch and inspect the exact remaining warning sites:
+   - `sed -n '1,240p' docs/planning/EPIC_3/SPRINT_32/artifacts/day7-initializer-batch-design.md`
+   - `rg -n "warning: missing field .*\\[-Wmissing-field-initializers\\]" /tmp/sprint32_day8_build.stderr`
+   - `rg -n "sparse_(cholesky|analysis|qr|lu)_opts_t [A-Za-z0-9_]+ = \\{" tests/test_chol_csc.c tests/test_cholesky.c tests/test_sprint18_integration.c tests/test_sprint19_integration.c tests/test_colamd.c tests/test_reorder.c tests/test_etree.c`
+   - `sed -n '260,460p' tests/test_cholesky.c`
+   - `sed -n '760,910p' tests/test_colamd.c`
+   - `sed -n '420,520p' tests/test_sprint19_integration.c`
+   - `sed -n '120,280p' tests/test_sprint18_integration.c`
+   - `sed -n '760,920p' tests/test_reorder.c`
+   - `sed -n '1228,1260p' tests/test_etree.c`
+   - `sed -n '760,810p' tests/test_chol_csc.c`
+   - `sed -n '4036,4395p' tests/test_chol_csc.c`
+2. Edit the Day 9 batch files:
+   - `tests/test_chol_csc.c`
+   - `tests/test_cholesky.c`
+   - `tests/test_sprint18_integration.c`
+   - `tests/test_sprint19_integration.c`
+   - `tests/test_colamd.c`
+   - `tests/test_reorder.c`
+   - `tests/test_etree.c`
+3. Format the touched sources:
+   - `make format`
+4. Validate the targeted Makefile path:
+   - `make build/test_chol_csc build/test_cholesky build/test_sprint18_integration build/test_sprint19_integration build/test_colamd build/test_reorder build/test_etree`
+   - `./build/test_chol_csc`
+   - `./build/test_cholesky`
+   - `./build/test_sprint18_integration`
+   - `./build/test_sprint19_integration`
+   - `./build/test_colamd`
+   - `./build/test_reorder`
+   - `./build/test_etree`
+5. Re-run a clean serialized Apple Clang CMake build to measure the final initializer delta:
+   - `cmake --build build/sprint32-day1-cmake --parallel 1 --clean-first > /tmp/sprint32_day9_build.stdout 2> /tmp/sprint32_day9_build.stderr`
+   - derive fresh counts by area, class, file, and file/class from `/tmp/sprint32_day9_build.stderr`
+
+### Changes Landed
+
+- `tests/test_cholesky.c`
+  - converted all remaining reorder-only `sparse_cholesky_opts_t` forms to designated initialization
+- `tests/test_sprint18_integration.c`
+  - converted the AUTO / LINKED_LIST / CSC Cholesky dispatch-routing options to designated form
+- `tests/test_sprint19_integration.c`
+  - converted the forced linked-list and forced CSC Cholesky comparison options to designated form
+- `tests/test_colamd.c`
+  - converted the remaining QR options to designated form
+  - preserved explicit `.sparse_mode = 1` where sparse-mode behavior is part of the test contract
+- `tests/test_reorder.c`
+  - converted all remaining LU option initializers to designated form
+- `tests/test_etree.c`
+  - converted the LU-with-AMD containment check options to designated form
+- `tests/test_chol_csc.c`
+  - converted the remaining Cholesky option sites to designated form
+  - replaced the brittle two-field `{reorder, 0.0}` form with a reorder-only designated initializer, making the default AUTO backend explicit by omission rather than by enum-zero coercion
+
+Chosen Day 9 rule:
+
+- name only the fields each test intentionally overrides:
+  - Cholesky:
+    - `.reorder`
+    - `.backend`
+    - `.used_csc_path`
+  - QR:
+    - `.reorder`
+    - `.sparse_mode` where needed
+  - LU:
+    - `.pivot`
+    - `.reorder`
+    - `.tol`
+- leave callback/context fields at default `NULL`
+- avoid positional mirroring of the evolving public option-struct layouts
+
+### Validation Results
+
+- `make build/test_chol_csc build/test_cholesky build/test_sprint18_integration build/test_sprint19_integration build/test_colamd build/test_reorder build/test_etree`
+  - passed
+- direct binary runs:
+  - `./build/test_chol_csc`
+    - passed
+    - summary: `137` tests run, `0` failed, `0` skipped
+  - `./build/test_cholesky`
+    - passed
+    - summary: `21` tests run, `0` failed, `0` skipped
+  - `./build/test_sprint18_integration`
+    - passed
+    - summary: `10` tests run, `0` failed, `0` skipped
+  - `./build/test_sprint19_integration`
+    - passed
+    - summary: `8` tests run, `0` failed, `0` skipped
+  - `./build/test_colamd`
+    - passed
+    - summary: `70` tests run, `0` failed, `0` skipped
+  - `./build/test_reorder`
+    - passed
+    - summary: `38` tests run, `0` failed, `0` skipped
+  - `./build/test_etree`
+    - passed
+    - summary: `94` tests run, `0` failed, `0` skipped
+- clean serialized Apple Clang CMake rebuild
+  - passed
+
+### Warning Delta
+
+Relative to the Day 8 baseline:
+
+- full-tree warnings: `63 -> 33`
+- `tests` warnings: `63 -> 33`
+- `-Wmissing-field-initializers`: `30 -> 0`
+- `-Wdouble-promotion`: unchanged at `33`
+
+Per-file Day 9 reduction:
+
+- `tests/test_chol_csc.c`: `8 -> 0`
+- `tests/test_colamd.c`: `8 -> 1`
+  - the `7` initializer warnings are gone
+  - the remaining `1` warning is the already-planned `-Wdouble-promotion` site
+- `tests/test_cholesky.c`: `5 -> 0`
+- `tests/test_reorder.c`: `4 -> 0`
+- `tests/test_sprint18_integration.c`: `6 -> 3`
+  - the `3` initializer warnings are gone
+  - the remaining `3` warnings are its already-planned `-Wdouble-promotion` sites
+- `tests/test_sprint19_integration.c`: `3 -> 1`
+  - the `2` initializer warnings are gone
+  - the remaining `1` warning is its already-planned `-Wdouble-promotion` site
+- `tests/test_etree.c`: `1 -> 0`
+
+### Day 9 Interpretation
+
+- The remaining Batch II queue matched the Day 7 plan exactly and closed cleanly in one pass.
+- Sprint 32’s designated-initializer work is now complete:
+  - `-Wmissing-field-initializers`: `62 -> 0` versus the Day 1 baseline
+- The entire residual warning queue is now purely numeric/mechanical promotion cleanup:
+  - full-tree warnings: `33`
+  - all `33` are `-Wdouble-promotion`
+- No touched-binary regressions appeared in the Cholesky, QR, LU, or companion integration coverage.
+
+### Day 9 Outputs
+
+- `artifacts/day9-designated-initializers-batch2.md`

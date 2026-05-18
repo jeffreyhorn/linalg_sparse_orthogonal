@@ -99,13 +99,13 @@ static SparseMatrix *s20_build_kkt(idx_t n_top, idx_t n_bot) {
 }
 
 /* Factor + solve a right-hand side `b = A * ones` and return the
- * max-norm residual ||A·x - b||_inf / ||b||_inf.  Returns INFINITY
+ * max-norm residual ||A·x - b||_inf / ||b||_inf.  Returns HUGE_VAL
  * on any intermediate failure. */
 static double s20_factor_solve_residual(SparseMatrix *A, const sparse_ldlt_opts_t *opts,
                                         sparse_ldlt_t *ldlt_out) {
     idx_t n = sparse_rows(A);
     if (sparse_ldlt_factor_opts(A, opts, ldlt_out) != SPARSE_OK)
-        return INFINITY;
+        return HUGE_VAL;
 
     double *ones = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
@@ -114,7 +114,7 @@ static double s20_factor_solve_residual(SparseMatrix *A, const sparse_ldlt_opts_
         free(ones);
         free(b);
         free(x);
-        return INFINITY;
+        return HUGE_VAL;
     }
     for (idx_t i = 0; i < n; i++)
         ones[i] = 1.0;
@@ -123,14 +123,14 @@ static double s20_factor_solve_residual(SparseMatrix *A, const sparse_ldlt_opts_
         free(ones);
         free(b);
         free(x);
-        return INFINITY;
+        return HUGE_VAL;
     }
     double *r = malloc((size_t)n * sizeof(double));
     if (!r) {
         free(ones);
         free(b);
         free(x);
-        return INFINITY;
+        return HUGE_VAL;
     }
     sparse_matvec(A, x, r);
     double nr = 0.0, nb = 0.0;

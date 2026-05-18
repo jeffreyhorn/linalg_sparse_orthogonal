@@ -601,7 +601,7 @@ static double qr_reconstruction_error(const SparseMatrix *A, const sparse_qr_t *
     idx_t n_cols = qr->n;
     double *Q = malloc((size_t)m * (size_t)m * sizeof(double));
     if (!Q)
-        return INFINITY;
+        return HUGE_VAL;
     sparse_qr_form_q(qr, Q);
 
     idx_t rrows = sparse_rows(qr->R);
@@ -1065,7 +1065,7 @@ static double compute_rel_residual(const SparseMatrix *A, const double *b, const
                                    idx_t m) {
     double *r = malloc((size_t)m * sizeof(double));
     if (!r)
-        return INFINITY;
+        return HUGE_VAL;
     sparse_matvec(A, x, r);
     for (idx_t i = 0; i < m; i++)
         r[i] = b[i] - r[i];

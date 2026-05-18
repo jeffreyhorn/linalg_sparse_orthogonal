@@ -918,7 +918,7 @@ static double solve_residual(const SparseMatrix *A, const double *b, const doubl
     idx_t n = sparse_rows(A);
     double *Ax = calloc((size_t)n, sizeof(double));
     if (!Ax)
-        return INFINITY;
+        return HUGE_VAL;
     sparse_matvec(A, x, Ax);
     double rnorm = 0, bnorm = 0;
     for (idx_t i = 0; i < n; i++) {

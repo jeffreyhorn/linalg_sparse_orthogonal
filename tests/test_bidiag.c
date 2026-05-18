@@ -28,7 +28,7 @@ static double bidiag_reconstruction_error(const SparseMatrix *A, const sparse_bi
     if (bd->transposed) {
         SparseMatrix *At = sparse_transpose(A);
         if (!At)
-            return INFINITY;
+            return HUGE_VAL;
         /* Create a non-transposed bd view for A^T */
         sparse_bidiag_t bd_t = *bd;
         bd_t.m = bd->n; /* A^T is n×m */
@@ -48,7 +48,7 @@ static double bidiag_reconstruction_error(const SparseMatrix *A, const sparse_bi
     /* Form dense B (m × n, upper bidiagonal) */
     double *B = calloc((size_t)m * (size_t)n, sizeof(double));
     if (!B)
-        return INFINITY;
+        return HUGE_VAL;
     for (idx_t i = 0; i < k; i++)
         B[(size_t)i * (size_t)m + (size_t)i] = bd->diag[i]; /* col-major */
     for (idx_t i = 0; i < k - 1; i++)
@@ -83,7 +83,7 @@ static double bidiag_reconstruction_error(const SparseMatrix *A, const sparse_bi
         double *row_buf = malloc((size_t)n * sizeof(double));
         if (!row_buf) {
             free(B);
-            return INFINITY;
+            return HUGE_VAL;
         }
         for (idx_t i = 0; i < m; i++) {
             /* Extract row i */

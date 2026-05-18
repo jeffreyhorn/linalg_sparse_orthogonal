@@ -91,7 +91,7 @@ static double s19_relative_residual(const SparseMatrix *A, const double *x, cons
     idx_t n = sparse_rows(A);
     double *r = malloc((size_t)n * sizeof(double));
     if (!r)
-        return INFINITY;
+        return HUGE_VAL;
     sparse_matvec(A, x, r);
     double nr = 0.0, nb = 0.0;
     for (idx_t i = 0; i < n; i++) {

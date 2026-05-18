@@ -93,7 +93,7 @@ static double relative_residual(const SparseMatrix *A, const double *x, const do
         /* Sentinel: return +INF so the caller's `rel < tol` check
          * fails visibly instead of segfaulting in `sparse_matvec` /
          * the r[i] loop below. */
-        return INFINITY;
+        return HUGE_VAL;
     }
     sparse_matvec(A, x, r);
     double nr = 0.0, nb = 0.0;
@@ -144,7 +144,7 @@ static void factor_solve_assert_path(SparseMatrix *A, int expect_csc, double tol
     };
     sparse_err_t err_factor = SPARSE_OK;
     sparse_err_t err_solve = SPARSE_OK;
-    double rel = INFINITY;
+    double rel = HUGE_VAL;
 
     if (alloc_ok && L != NULL) {
         err_factor = sparse_cholesky_factor_opts(L, &opts);
@@ -344,7 +344,7 @@ static void ldlt_csc_factor_solve(const SparseMatrix *A, double tol_residual) {
     sparse_err_t err_from = SPARSE_OK;
     sparse_err_t err_elim = SPARSE_OK;
     sparse_err_t err_solve = SPARSE_OK;
-    double rel = INFINITY;
+    double rel = HUGE_VAL;
 
     if (alloc_ok) {
         err_amd = sparse_reorder_amd(A, perm);

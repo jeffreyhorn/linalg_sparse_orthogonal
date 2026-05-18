@@ -990,3 +990,154 @@ Per-file Day 9 reduction:
 ### Day 9 Outputs
 
 - `artifacts/day9-designated-initializers-batch2.md`
+
+## Day 10 — Double-Promotion Batch Design
+
+### Objective
+
+Audit the residual Sprint 32 `-Wdouble-promotion` queue, confirm whether it is purely mechanical, and turn it into a tight implementation plan for Days 11 and 12.
+
+### Authoritative Current State
+
+Day 10 reused the clean serialized Apple Clang CMake rebuild captured after Day 9:
+
+- full-tree warnings: `33`
+- `src`: `0`
+- `tests`: `33`
+- `benchmarks`: `0`
+- `examples`: `0`
+- `-Wdouble-promotion`: `33`
+
+Compared to the Day 1 baseline:
+
+- full-tree warnings: `98 -> 33`
+- `-Wmissing-field-initializers`: `62 -> 0`
+- `-Wunused-function`: `3 -> 0`
+- remaining queue: `33` test-only `-Wdouble-promotion` sites
+
+### Remaining Warning Queue
+
+Residual `-Wdouble-promotion` warnings are concentrated in `14` test files:
+
+- `tests/test_sprint6_integration.c`: `6`
+- `tests/test_svd.c`: `6`
+- `tests/test_sprint20_integration.c`: `4`
+- `tests/test_bidiag.c`: `3`
+- `tests/test_sprint18_integration.c`: `3`
+- `tests/test_qr.c`: `2`
+- `tests/test_sprint10_integration.c`: `2`
+- `tests/test_bicgstab.c`: `1`
+- `tests/test_block_solvers.c`: `1`
+- `tests/test_colamd.c`: `1`
+- `tests/test_ilu.c`: `1`
+- `tests/test_lu_csr.c`: `1`
+- `tests/test_sprint19_integration.c`: `1`
+- `tests/test_sprint5_integration.c`: `1`
+
+### Pattern Audit
+
+The Day 10 `rg` sweep against the warning-bearing files and the Day 9 Apple Clang stderr log found no active:
+
+- `fabsf`
+- `sqrtf`
+- `powf`
+- `0.0f` / `1.0f` style float literal suffixes
+- mixed `float` temporaries participating in otherwise-double arithmetic
+
+The remaining queue is sentinel-macro driven.
+
+Exact split:
+
+- `32` sites are `INFINITY` used in a `double` context:
+  - return sentinels in helper functions
+  - local `double` sentinel initialization such as `double rel = INFINITY`
+  - `ASSERT_TRUE(c == INFINITY)` checks in `tests/test_svd.c`
+- `1` site is `NAN` assigned to a `double` local in `tests/test_svd.c`
+
+That means Sprint 32's remaining warning cleanup is still mechanical. There is no evidence that the queue hides broader numeric refactors or test-behavior ambiguity.
+
+### Chosen Replacement Idioms
+
+Day 10 standardizes on these replacements:
+
+1. `INFINITY` in `double` return / assignment contexts becomes `HUGE_VAL`
+2. `NAN` in `double` assignment contexts becomes `nan(\"\")`
+3. `ASSERT_TRUE(c == INFINITY)` becomes `ASSERT_TRUE(isinf(c) && c > 0.0)`
+
+Why this rule:
+
+- `HUGE_VAL` is the standard double-precision infinity sentinel
+- `nan(\"\")` already matches the Sprint 31 Day 13 fix pattern used in benchmark code
+- `isinf(c) && c > 0.0` states the test contract more honestly than exact equality against a float-typed macro
+
+### Chosen Batch Order
+
+#### Day 11 Batch I: helper-sentinel cleanup
+
+Files:
+
+- `tests/test_ilu.c`
+- `tests/test_sprint5_integration.c`
+- `tests/test_qr.c`
+- `tests/test_sprint6_integration.c`
+- `tests/test_bidiag.c`
+- `tests/test_lu_csr.c`
+- `tests/test_block_solvers.c`
+- `tests/test_sprint10_integration.c`
+- `tests/test_colamd.c`
+- `tests/test_bicgstab.c`
+- `tests/test_sprint18_integration.c`
+- `tests/test_sprint19_integration.c`
+- `tests/test_sprint20_integration.c`
+
+Count:
+
+- `27` warnings
+
+Why this batch lands first:
+
+- it is the mechanically simplest cohort
+- every site is a helper-level sentinel return or local sentinel initialization
+- validation can stay focused on residual and factor/solve helper behavior without touching the denser SVD condition-number coverage yet
+
+#### Day 12 Batch II: SVD sentinel + assertion cleanup
+
+Files:
+
+- `tests/test_svd.c`
+
+Count:
+
+- `6` warnings
+
+Why this file stands alone:
+
+- it mixes the only `NAN` site with the only infinity-assertion sites
+- the fixes are still mechanical, but the intended replacement idiom is slightly different from the helper-return cohort
+- isolating it keeps the Day 12 validation narrative tight: clean the specialized condition-number and reconstruction sentinels, then reconcile the full warning state
+
+### Validation Plan
+
+#### Day 11 validation
+
+- `make format`
+- targeted builds for the Batch I files' binaries
+- direct runs of the touched highest-signal integration / helper-heavy tests
+- clean serialized Apple Clang CMake rebuild to confirm the expected partial warning drop
+
+#### Day 12 validation
+
+- `make format`
+- targeted `test_svd` rebuild and run
+- clean serialized Apple Clang CMake rebuild
+- warning reconciliation against the Day 1 baseline and the Day 9 post-initializer state
+
+### Day 10 Interpretation
+
+- The residual Sprint 32 queue is cleaner than expected: it is almost entirely `INFINITY` in double contexts.
+- `tests/test_svd.c` is the only file that needs anything beyond the `HUGE_VAL` sentinel replacement rule.
+- There is no justification for deferring this work beyond Sprint 32 as "subtle numeric cleanup"; it is straightforward mechanical debt.
+
+### Day 10 Outputs
+
+- `artifacts/day10-double-promotion-batch-design.md`

@@ -459,3 +459,198 @@ Implications for Day 9 / Day 10 / Day 11 cleanup work:
 ### Day 3 Outputs
 
 - `artifacts/day3-dead-code-policy-and-limitations.md`
+
+## Day 4
+
+**Objective:** Design the concrete Makefile and workflow shape for Sprint 33 dead-code tooling so Day 5 can implement it without inventing target behavior or artifact paths mid-edit.
+
+### Commands Run
+
+1. Re-read the Sprint 33 policy and implementation scope:
+   - `git status --short --branch`
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_33/artifacts/day3-dead-code-policy-and-limitations.md`
+   - `sed -n '120,170p' docs/planning/EPIC_3/PROJECT_PLAN.md`
+2. Inspect current Makefile quality targets and helper-script precedent:
+   - `sed -n '380,470p' Makefile`
+   - `find scripts -maxdepth 1 -type f | sort`
+   - `sed -n '1,220p' scripts/epic3_warning_workflow.sh`
+3. Reconfirm the current CMake coverage and build-surface mismatch:
+   - `sed -n '1,320p' CMakeLists.txt`
+   - `grep '"file":' build/sprint33-day1-cmake/compile_commands.json | awk '...'`
+   - `ls build | sort`
+
+### Day 4 Design Decisions
+
+#### 1. Use Makefile entry points with a helper-script workflow pattern
+
+Chosen shape:
+
+- Makefile provides operator-facing targets
+- a helper script should own the nontrivial command flow and prerequisite checks when implementation complexity grows past one or two shell lines
+
+Reason:
+
+- the repo already uses this pattern successfully in `warning-workflow`
+- the dead-code flow needs:
+  - prerequisite checks
+  - deterministic artifact paths
+  - multiple tool invocations
+  - coverage-gap notes
+  - later report normalization
+
+Day 4 consequence:
+
+- Day 5 should keep the Makefile target readable and thin
+- if command logic starts expanding, move it into a dedicated `scripts/` helper rather than embedding brittle shell in the Makefile
+
+#### 2. Separate the compilation-database build path from normal local build paths
+
+Chosen path:
+
+- dead-code workflow owns a dedicated CMake build directory:
+  - `build/deadcode-cmake`
+
+Reason:
+
+- Sprint 33 needs a reliable `compile_commands.json` producer
+- reusing ad hoc previous sprint build trees would make the target stateful and fragile
+- a dedicated path lets the target:
+  - configure with `-DCMAKE_EXPORT_COMPILE_COMMANDS=ON`
+  - refresh predictably
+  - avoid colliding with other sprint artifact trees
+
+Day 4 consequence:
+
+- Day 5 should not depend on `build/sprint33-day1-cmake`
+- it should generate or refresh `build/deadcode-cmake/compile_commands.json` directly
+
+#### 3. Keep raw evidence artifacts in `build/`, not `docs/`
+
+Chosen local artifact root:
+
+- `build/deadcode/`
+
+Planned raw outputs:
+
+- `build/deadcode/cppcheck.txt`
+- `build/deadcode/xunused.txt`
+- `build/deadcode/coverage-notes.txt`
+
+Reason:
+
+- these are operator-generated local workflow artifacts, not sprint-history records
+- `docs/planning/` should hold curated sprint evidence, not routine generated outputs
+- local reruns should be cheap and overwritable
+
+Day 4 consequence:
+
+- later sprint-day artifacts can copy or summarize representative findings into `docs/planning/EPIC_3/SPRINT_33/artifacts/`
+- but the workflow itself should write to `build/`
+
+#### 4. `deadcode` should be evidence-gathering only in Sprint 33
+
+Chosen behavior for the first target:
+
+- `make deadcode`
+  - ensures `compile_commands.json` exists
+  - runs raw analysis commands
+  - writes raw outputs
+  - exits non-zero only for infrastructure/tool invocation failure, not for ordinary findings
+
+Reason:
+
+- Day 3 policy explicitly rejects treating raw scanner findings as deletion proof
+- the first implementation needs to gather evidence and make limitations visible before any enforcement semantics are introduced
+- forcing failure on any finding too early would collapse false positives, coverage gaps, and true positives into one unusable gate
+
+Day 4 consequence:
+
+- Day 6 / Day 7 can design and implement a stricter `deadcode-check` layer later
+- but Day 5 should ship `deadcode` as a reproducible evidence-gathering command
+
+#### 5. Coverage-gap visibility is a first-class workflow requirement
+
+Chosen reporting rule:
+
+- the raw workflow should emit an explicit note that current CMake compile-db coverage is narrower than the Makefile bench/example surface
+
+Known gap to surface:
+
+- `bench_svd`
+- `example_basic_solve`
+- `example_condition`
+- `example_iterative`
+- `example_least_squares`
+- `example_matrix_free`
+- `example_svd_lowrank`
+
+Reason:
+
+- this gap affects what `xunused` can prove
+- hiding it inside Sprint 33 notes would make local operator output misleading
+
+Day 4 consequence:
+
+- Day 5 should write the gap into a stable artifact such as `build/deadcode/coverage-notes.txt`
+- Day 6 / Day 7 should preserve that note in the report layer
+
+#### 6. Day 5 implementation contract for the raw commands
+
+Chosen initial command shape:
+
+1. CMake configure step for `compile_commands.json`
+   - `cmake -S . -B build/deadcode-cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`
+2. raw `cppcheck`
+   - `cppcheck --enable=all --quiet src/`
+3. raw `xunused`
+   - `xunused build/deadcode-cmake/compile_commands.json`
+
+Important Day 4 qualification:
+
+- these are the required raw analysis inputs from `PROJECT_PLAN.md`
+- they are not yet the final report format
+- additional normalization, categorization, and readable output belong in the later reporting target
+
+#### 7. Day 5 should not wire `deadcode` into `lint` yet
+
+Chosen boundary:
+
+- keep `deadcode` separate from `lint` in Sprint 33
+
+Reason:
+
+- `lint` is already a stable quality path
+- Sprint 33’s dead-code flow still has known coverage gaps and a missing local `xunused` prerequisite
+- folding it into `lint` before the reporting and category model exist would create noisy, hard-to-interpret failures
+
+Day 4 consequence:
+
+- Day 5 target should be explicitly opt-in
+- Day 7 or later can revisit whether a future enforcement target belongs in broader quality flows
+
+### Proposed Target Topology
+
+Day 4 recommended target structure:
+
+- `deadcode-compile-db`
+  - configure `build/deadcode-cmake` with `CMAKE_EXPORT_COMPILE_COMMANDS=ON`
+- `deadcode`
+  - depends on `deadcode-compile-db`
+  - runs raw `cppcheck` and `xunused`
+  - writes raw artifacts to `build/deadcode/`
+- `deadcode-report`
+  - later target
+  - consumes raw artifacts and emits a readable categorized summary
+- `deadcode-check`
+  - later target
+  - wraps report semantics or narrower enforcement semantics once the false-positive model is understood
+
+### Day 4 Interpretation
+
+- The key design decision is not the command lines themselves; it is keeping raw analysis, readable reporting, and future enforcement as separate layers.
+- That separation is what lets Sprint 33 preserve the Day 3 conservative policy while still shipping useful tooling quickly.
+- Day 5 can now implement the raw workflow without needing to invent target semantics or artifact placement on the fly.
+
+### Day 4 Outputs
+
+- `artifacts/day4-tooling-integration-design.md`

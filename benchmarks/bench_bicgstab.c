@@ -7,7 +7,7 @@
  * with and without ILU(0) preconditioning. Reports iteration count,
  * time, and final residual for each combination.
  */
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 200809L
 #include "sparse_ilu.h"
 #include "sparse_iterative.h"
 #include "sparse_matrix.h"

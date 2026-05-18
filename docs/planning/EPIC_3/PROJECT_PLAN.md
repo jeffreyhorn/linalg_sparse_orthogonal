@@ -86,6 +86,7 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 
 - Sprint 30 warning taxonomy for unused-function and missing-initializer warnings
 - Sprint 30 handoff and retrospectives, which identify `tests/test_reorder_nd.c` as the first dormant-scaffolding target and name the follow-on high-volume initializer and mechanical double-promotion files in the test tree
+- Sprint 31 handoff and retrospective, which reduce the benchmark/example queue to zero and convert the remaining deferred warning debt into an explicitly test-only named-file queue
 - Sprint 31 benchmark/example initializer cleanup patterns that can be reused in tests
 
 ### Items
@@ -96,7 +97,7 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 | 2 | `test_reorder_nd.c` refactor | Resolve the current dormant scaffolding in `tests/test_reorder_nd.c`: either delete historical-only code, move evidence into docs, or formalize the checks behind explicit skip/experimental mechanisms. Explicitly close the Sprint 30 deferred issues around non-executed scaffolding, `-Wunused-function`, and designated-initializer drift in this file. | 24 hrs |
 | 3 | Slow/experimental test policy | Define a project-level distinction between normal CI tests, slow opt-in tests, and experimental/historical checks so future work does not repopulate the main suite with dormant code. | 16 hrs |
 | 4 | Test framework extensions | Add minimal framework support or naming conventions for skipped/experimental tests where that is cleaner than deletion. | 20 hrs |
-| 5 | Test warning cleanup | Remove or fix the test-side compile warnings that remain after dormant scaffolding is resolved, especially those caused by stale positional initializers and unused static functions. Include the high-volume initializer files named in the Sprint 30 handoff (`tests/test_ldlt.c`, `tests/test_chol_csc.c`, `tests/test_colamd.c`, `tests/test_cholesky.c`, `tests/test_sprint12_integration.c`, `tests/test_sprint18_integration.c`, `tests/test_sprint19_integration.c`, `tests/test_sprint20_integration.c`, `tests/test_reorder.c`) and the residual mechanical `-Wdouble-promotion` files (`tests/test_sprint6_integration.c`, `tests/test_svd.c`, `tests/test_bidiag.c`). | 24 hrs |
+| 5 | Test warning cleanup | Remove or fix the test-side compile warnings that remain after dormant scaffolding is resolved, especially those caused by stale positional initializers and unused static functions. Include the high-volume initializer files named in the Sprint 30 and Sprint 31 handoffs (`tests/test_ldlt.c`, `tests/test_chol_csc.c`, `tests/test_colamd.c`, `tests/test_cholesky.c`, `tests/test_sprint12_integration.c`, `tests/test_sprint18_integration.c`, `tests/test_sprint19_integration.c`, `tests/test_sprint20_integration.c`, `tests/test_reorder.c`, `tests/test_etree.c`) and the residual mechanical `-Wdouble-promotion` files (`tests/test_sprint20_integration.c`, `tests/test_svd.c`, `tests/test_sprint6_integration.c`, `tests/test_sprint18_integration.c`, `tests/test_bidiag.c`, `tests/test_sprint19_integration.c`, `tests/test_qr.c`, `tests/test_sprint10_integration.c`, `tests/test_block_solvers.c`, `tests/test_ilu.c`, `tests/test_lu_csr.c`, `tests/test_sprint5_integration.c`). | 24 hrs |
 | 6 | Coverage-honesty documentation | Update planning/docs notes to explain which checks are active, which are opt-in, and which historical experiments are retained only as evidence. | 12 hrs |
 | 7 | Validation | Re-run the full `ctest` / Makefile test suites and verify that the active suite remains green after the structural cleanup. | 16 hrs |
 
@@ -106,7 +107,7 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 - Clear split between normal, slow, and experimental test categories
 - Reduced test-tree warning noise
 - Documentation that matches the executed protection surface
-- The Sprint 30 deferred test-warning queue is explicitly tracked in named files rather than left as a generic backlog
+- The Sprint 30 and Sprint 31 deferred test-warning queues are explicitly tracked in named files rather than left as a generic backlog
 
 **Total estimate:** ~128 hours
 

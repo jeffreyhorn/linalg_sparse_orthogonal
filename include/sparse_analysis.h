@@ -19,7 +19,10 @@
  * **Workflow:**
  * @code
  *   // 1. Analyze once
- *   sparse_analysis_opts_t opts = { SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD };
+ *   sparse_analysis_opts_t opts = {
+ *       .factor_type = SPARSE_FACTOR_CHOLESKY,
+ *       .reorder = SPARSE_REORDER_AMD,
+ *   };
  *   sparse_analysis_t analysis = {0};
  *   sparse_factors_t factors = {0};
  *   sparse_err_t err = sparse_analyze(A, &opts, &analysis);
@@ -66,12 +69,19 @@ typedef enum {
  * @brief Options controlling symbolic analysis.
  *
  * @code
- *   sparse_analysis_opts_t opts = { SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD };
+ *   sparse_analysis_opts_t opts = {
+ *       .factor_type = SPARSE_FACTOR_CHOLESKY,
+ *       .reorder = SPARSE_REORDER_AMD,
+ *   };
  * @endcode
  */
 typedef struct {
     sparse_factor_type_t factor_type; /**< Target factorization type */
-    sparse_reorder_t reorder;         /**< Fill-reducing reordering (NONE/RCM/AMD) */
+    sparse_reorder_t reorder;         /**< Fill-reducing reordering (NONE, RCM, AMD,
+                                           COLAMD, or ND). `sparse_analyze()`
+                                           applies COLAMD symmetrically; see
+                                           the note below for the QR-specific
+                                           column-only path. */
 } sparse_analysis_opts_t;
 
 /* ═══════════════════════════════════════════════════════════════════════════

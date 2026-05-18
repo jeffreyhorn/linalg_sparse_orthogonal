@@ -37,7 +37,7 @@
  *                                                   # (Sprint 19 Day 3; feeds Day 4's
  *                                                   # SPARSE_CSC_THRESHOLD retrospective)
  */
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 200809L
 
 #include "sparse_analysis.h"
 #include "sparse_chol_csc_internal.h"
@@ -103,7 +103,10 @@ static bench_result_t bench_linked_list(const SparseMatrix *A, const double *b, 
          * SPARSE_CHOL_BACKEND_AUTO the Sprint 18 Day 11 dispatch would
          * silently route large fixtures to the CSC supernodal kernel
          * and collapse the `speedup_csc*` columns to ~1. */
-        sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_LINKED_LIST, NULL};
+        sparse_cholesky_opts_t opts = {
+            .reorder = SPARSE_REORDER_AMD,
+            .backend = SPARSE_CHOL_BACKEND_LINKED_LIST,
+        };
 
         double t0 = wall_time();
         if (sparse_cholesky_factor_opts(L, &opts) != SPARSE_OK) {

@@ -1,0 +1,9 @@
+=== QR Fill-In Comparison: colamd vs amd vs none ===
+
+  Matrix                Size      nnz(R)none nnz(R)amd  nnz(R)colamd
+  ------                ----      ---------  ---------  --------- 
+  tridiag-20            20x20  none=103    amd=103    colamd=103     (0% vs none)
+  arrow-15              15x15  none=120    amd=120    colamd=120     (0% vs none)
+  west0067              67x67  none=1491   amd=1491   colamd=1491    (0% vs none)
+
+Done.

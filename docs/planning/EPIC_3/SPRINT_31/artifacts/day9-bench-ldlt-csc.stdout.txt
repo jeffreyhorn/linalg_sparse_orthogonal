@@ -1,0 +1,2 @@
+matrix,n,nnz,factor_ll_ms,factor_csc_native_ms,factor_csc_wrapper_ms,solve_ll_ms,solve_csc_native_ms,speedup_csc_native,speedup_csc_wrapper,res_ll,res_csc_native
+nos4.mtx,100,594,1.058,0.681,0.786,0.021,0.037,1.55,1.35,5.89e-16,5.89e-16

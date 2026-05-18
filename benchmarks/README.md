@@ -4,6 +4,45 @@ Permanent benchmark drivers for the sparse linear algebra library.
 Built via `make bench`; invoked individually via `make bench-<name>`
 or by running the binary in `build/` directly.
 
+## Compile-only gate
+
+Routine local quality checks should now catch benchmark/example compile
+drift without executing the long-running benchmark workloads:
+
+- `make tooling-build`
+  - builds all benchmark and example binaries
+  - does not run them
+- `make lint`
+  - now includes the same compile-only tooling gate before the existing
+    source-level lint passes
+
+Focused subsets remain available:
+
+- `make bench-build`
+- `make examples-build`
+
+## Reorder coverage
+
+Sprint 31 leaves the benchmark entry points with intentionally different
+reorder surfaces depending on what the underlying factorization path
+actually supports:
+
+- `bench_main --reorder none|rcm|amd|nd`
+  - solver-harness entry point for LU and `--cholesky`
+  - intentionally does not accept `colamd`
+  - LU / Cholesky factorization options use symmetric reorderings only
+- `bench_reorder`
+  - cross-ordering comparison harness for `none`, `rcm`, `amd`, `colamd`,
+    and `nd`
+  - supports both direct reorder calls and `--reorder-via-analyze`
+- `bench_colamd` and `example_colamd`
+  - QR-focused comparison tools for `none`, `amd`, and `colamd`
+  - use the same lowercase mode labels as the benchmark CLI
+- `bench_chol_csc` and `bench_ldlt_csc`
+  - backend-comparison tools, not general reorder sweeps
+  - keep their fixed reorder choices in the code path being compared so
+    backend timings stay like-for-like
+
 | Binary              | Topic                                       | Smoke target          |
 |---------------------|---------------------------------------------|-----------------------|
 | `bench_main`        | LU decomposition over the SuiteSparse corpus | `make bench-suitesparse` |

@@ -1,0 +1,1 @@
+Error: unknown reorder mode 'colamd' (use 'none', 'rcm', 'amd', or 'nd')

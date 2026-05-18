@@ -1,0 +1,2889 @@
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_sparse_matrix.c -Lbuild -lsparse_lu_ortho -lm -o build/test_sparse_matrix
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_sparse_lu.c -Lbuild -lsparse_lu_ortho -lm -o build/test_sparse_lu
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_sparse_io.c -Lbuild -lsparse_lu_ortho -lm -o build/test_sparse_io
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_known_matrices.c -Lbuild -lsparse_lu_ortho -lm -o build/test_known_matrices
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_sparse_vector.c -Lbuild -lsparse_lu_ortho -lm -o build/test_sparse_vector
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_edge_cases.c -Lbuild -lsparse_lu_ortho -lm -o build/test_edge_cases
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_integration.c -Lbuild -lsparse_lu_ortho -lm -o build/test_integration
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_sparse_arith.c -Lbuild -lsparse_lu_ortho -lm -o build/test_sparse_arith
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_suitesparse.c -Lbuild -lsparse_lu_ortho -lm -o build/test_suitesparse
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_reorder.c -Lbuild -lsparse_lu_ortho -lm -o build/test_reorder
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_cholesky.c -Lbuild -lsparse_lu_ortho -lm -o build/test_cholesky
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_csr.c -Lbuild -lsparse_lu_ortho -lm -o build/test_csr
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_matmul.c -Lbuild -lsparse_lu_ortho -lm -o build/test_matmul
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_threads.c -Lbuild -lsparse_lu_ortho -lm -lm -pthread -o build/test_threads
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_sprint4_integration.c -Lbuild -lsparse_lu_ortho -lm -lm -pthread -o build/test_sprint4_integration
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_iterative.c -Lbuild -lsparse_lu_ortho -lm -o build/test_iterative
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_ilu.c -Lbuild -lsparse_lu_ortho -lm -o build/test_ilu
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_omp.c -Lbuild -lsparse_lu_ortho -lm -o build/test_omp
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_sprint5_integration.c -Lbuild -lsparse_lu_ortho -lm -o build/test_sprint5_integration
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_qr.c -Lbuild -lsparse_lu_ortho -lm -o build/test_qr
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_sprint6_integration.c -Lbuild -lsparse_lu_ortho -lm -o build/test_sprint6_integration
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_dense.c -Lbuild -lsparse_lu_ortho -lm -o build/test_dense
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_bidiag.c -Lbuild -lsparse_lu_ortho -lm -o build/test_bidiag
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_svd.c -Lbuild -lsparse_lu_ortho -lm -o build/test_svd
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_sprint8_integration.c -Lbuild -lsparse_lu_ortho -lm -o build/test_sprint8_integration
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_fuzz.c -Lbuild -lsparse_lu_ortho -lm -o build/test_fuzz
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_lu_csr.c -Lbuild -lsparse_lu_ortho -lm -o build/test_lu_csr
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_block_solvers.c -Lbuild -lsparse_lu_ortho -lm -o build/test_block_solvers
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_sprint10_integration.c -Lbuild -lsparse_lu_ortho -lm -o build/test_sprint10_integration
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_sprint11_integration.c -Lbuild -lsparse_lu_ortho -lm -o build/test_sprint11_integration
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_ldlt.c -Lbuild -lsparse_lu_ortho -lm -o build/test_ldlt
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_sprint12_integration.c -Lbuild -lsparse_lu_ortho -lm -o build/test_sprint12_integration
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_ic.c -Lbuild -lsparse_lu_ortho -lm -o build/test_ic
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_minres.c -Lbuild -lsparse_lu_ortho -lm -o build/test_minres
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_sprint13_integration.c -Lbuild -lsparse_lu_ortho -lm -o build/test_sprint13_integration
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_etree.c -Lbuild -lsparse_lu_ortho -lm -o build/test_etree
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_colamd.c -Lbuild -lsparse_lu_ortho -lm -o build/test_colamd
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_bicgstab.c -Lbuild -lsparse_lu_ortho -lm -o build/test_bicgstab
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_stagnation.c -Lbuild -lsparse_lu_ortho -lm -o build/test_stagnation
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_chol_csc.c -Lbuild -lsparse_lu_ortho -lm -o build/test_chol_csc
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_ldlt_csc.c -Lbuild -lsparse_lu_ortho -lm -o build/test_ldlt_csc
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_sprint18_integration.c -Lbuild -lsparse_lu_ortho -lm -o build/test_sprint18_integration
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_sprint19_integration.c -Lbuild -lsparse_lu_ortho -lm -o build/test_sprint19_integration
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_sprint20_integration.c -Lbuild -lsparse_lu_ortho -lm -o build/test_sprint20_integration
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_sprint29_integration.c -Lbuild -lsparse_lu_ortho -lm -o build/test_sprint29_integration
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_eigs.c -Lbuild -lsparse_lu_ortho -lm -o build/test_eigs
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_eigs_thick_restart.c -Lbuild -lsparse_lu_ortho -lm -o build/test_eigs_thick_restart
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_eigs_lobpcg.c -Lbuild -lsparse_lu_ortho -lm -o build/test_eigs_lobpcg
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_graph.c -Lbuild -lsparse_lu_ortho -lm -o build/test_graph
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_graph_fm_buckets.c -Lbuild -lsparse_lu_ortho -lm -o build/test_graph_fm_buckets
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_reorder_nd.c -Lbuild -lsparse_lu_ortho -lm -o build/test_reorder_nd
+cc -std=c11 -Wall -Wextra -Wpedantic -Wshadow -Wconversion -O2 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk -Ibuild/include -Iinclude -Itests -Isrc tests/test_reorder_amd_qg.c -Lbuild -lsparse_lu_ortho -lm -o build/test_reorder_amd_qg
+=== Running test_sparse_matrix ===
+=== Sparse Matrix Data Structure Tests ===
+
+  [PASS] test_create_basic
+  [PASS] test_create_rectangular
+  [PASS] test_create_1x1
+  [PASS] test_create_invalid
+  [PASS] test_free_null
+  [PASS] test_insert_get_single
+  [PASS] test_insert_get_multiple
+  [PASS] test_insert_overwrite
+  [PASS] test_insert_zero_removes
+  [PASS] test_get_empty
+  [PASS] test_insert_multiple_same_row
+  [PASS] test_insert_multiple_same_col
+  [PASS] test_logical_get_set
+  [PASS] test_remove_existing
+  [PASS] test_remove_nonexistent
+  [PASS] test_remove_middle_of_row
+  [PASS] test_nnz_tracking
+  [PASS] test_insert_out_of_bounds
+  [PASS] test_remove_out_of_bounds
+  [PASS] test_set_out_of_bounds
+  [PASS] test_get_out_of_bounds
+  [PASS] test_null_pointer_args
+  [PASS] test_sparse_get_silent_zero_on_null
+  [PASS] test_sparse_get_silent_zero_on_oob
+  [PASS] test_sparse_get_zero_indistinguishable_from_absent
+  [PASS] test_copy_basic
+  [PASS] test_copy_independent
+  [PASS] test_copy_null
+  [PASS] test_matvec_identity
+  [PASS] test_matvec_general
+  [PASS] test_matvec_null
+  [PASS] test_perms_initial_identity
+  [PASS] test_perms_reset
+  [PASS] test_memory_usage
+  [PASS] test_norminf_identity
+  [PASS] test_norminf_tridiagonal
+  [PASS] test_norminf_empty
+  [PASS] test_norminf_rectangular
+  [PASS] test_norminf_negative_values
+  [PASS] test_norminf_cached
+  [PASS] test_norminf_null
+  [PASS] test_symmetric_spd
+  [PASS] test_symmetric_unsymmetric
+  [PASS] test_symmetric_rectangular
+  [PASS] test_symmetric_null
+  [PASS] test_symmetric_diagonal
+  [PASS] test_transpose_identity
+  [PASS] test_transpose_double
+  [PASS] test_transpose_rectangular
+  [PASS] test_transpose_symmetric
+  [PASS] test_transpose_row_vector
+  [PASS] test_transpose_col_vector
+  [PASS] test_transpose_nnz
+  [PASS] test_transpose_null
+  [PASS] test_transpose_nos4
+  [PASS] test_transpose_west0067
+
+--- Summary ---
+Tests run:    56
+Tests failed: 0
+Assertions:   350
+Time:         0.003 s
+ALL TESTS PASSED
+
+=== Running test_sparse_lu ===
+=== Sparse LU Factorization Tests ===
+
+  [PASS] test_solve_1x1
+  [PASS] test_solve_2x2
+  [PASS] test_solve_3x3
+  [PASS] test_solve_4x4
+  [PASS] test_lu_identity
+  [PASS] test_lu_diagonal
+  [PASS] test_lu_upper_triangular
+  [PASS] test_lu_lower_triangular
+  [PASS] test_lu_tridiag
+  [PASS] test_perm_consistency_after_lu
+  [PASS] test_perm_consistency_partial_pivot
+  [PASS] test_residual_10x10
+  [PASS] test_both_pivot_strategies_agree
+  [PASS] test_singular_zero_matrix
+  [PASS] test_singular_rank_deficient
+  [PASS] test_singular_zero_row
+  [PASS] test_lu_null_matrix
+  [PASS] test_lu_nonsquare
+  [PASS] test_solve_null_args
+  [PASS] test_forward_sub_null
+  [PASS] test_backward_sub_null
+  [PASS] test_iterative_refinement
+  [PASS] test_refine_null_args
+  [PASS] test_drop_tolerance_reduces_fillin
+  [PASS] test_relative_tol_scaled_identity
+  [PASS] test_relative_tol_singular_still_detected
+  [PASS] test_transpose_solve_3x3
+  [PASS] test_transpose_solve_identity
+  [PASS] test_transpose_solve_unsymmetric
+  [PASS] test_transpose_solve_complete_pivot
+  [PASS] test_transpose_solve_null
+  [PASS] test_condest_identity
+  [PASS] test_condest_diagonal
+  [PASS] test_condest_tridiag_wellcond
+  [PASS] test_condest_illcond
+  [PASS] test_condest_null
+  [PASS] test_condest_unfactored
+
+--- Summary ---
+Tests run:    37
+Tests failed: 0
+Assertions:   127
+Time:         0.001 s
+ALL TESTS PASSED
+
+=== Running test_sparse_io ===
+=== Sparse Matrix I/O Tests ===
+
+  [PASS] test_roundtrip_basic
+  [PASS] test_roundtrip_single_element
+  [PASS] test_roundtrip_rectangular
+  [PASS] test_roundtrip_precision
+  [PASS] test_roundtrip_nnz_preserved
+  [PASS] test_load_identity
+  [PASS] test_load_diagonal
+  [PASS] test_load_symmetric
+  [PASS] test_load_pattern
+  [PASS] test_load_nonexistent_file
+  [PASS] test_load_bad_header
+  [PASS] test_save_null_args
+  [PASS] test_load_null_args
+  [PASS] test_save_invalid_path
+  [PASS] test_load_errno_enoent
+  [PASS] test_save_errno_bad_path
+  [PASS] test_errno_cleared_on_success
+  [PASS] test_strerror_io
+  [PASS] test_roundtrip_1x1
+  [PASS] test_roundtrip_empty
+  [PASS] test_roundtrip_negative_values
+  [PASS] test_roundtrip_after_permutation
+
+--- Summary ---
+Tests run:    22
+Tests failed: 0
+Assertions:   155
+Time:         0.014 s
+ALL TESTS PASSED
+
+=== Running test_known_matrices ===
+=== Known Matrix Tests ===
+
+  [PASS] test_identity_complete
+  [PASS] test_identity_partial
+  [PASS] test_diagonal_complete
+  [PASS] test_diagonal_partial
+  [PASS] test_tridiag_complete
+  [PASS] test_tridiag_partial
+  [PASS] test_tridiag_refined
+  [PASS] test_symmetric_complete
+  [PASS] test_symmetric_partial
+  [PASS] test_bcsstk01_complete
+  [PASS] test_bcsstk01_refined
+  [PASS] test_unsymm_complete
+  [PASS] test_unsymm_partial
+  [PASS] test_solution_accuracy_diagonal
+  [PASS] test_solution_accuracy_unsymm
+
+--- Summary ---
+Tests run:    15
+Tests failed: 0
+Assertions:   41
+Time:         0.004 s
+ALL TESTS PASSED
+
+=== Running test_sparse_vector ===
+=== Vector Utilities, SpMV & Refinement Tests ===
+
+  [PASS] test_norm2_basic
+  [PASS] test_norm2_single
+  [PASS] test_norm2_zero
+  [PASS] test_norm2_null
+  [PASS] test_norminf_basic
+  [PASS] test_norminf_null
+  [PASS] test_axpy_basic
+  [PASS] test_axpy_zero_alpha
+  [PASS] test_axpy_negative
+  [PASS] test_axpy_null
+  [PASS] test_copy_basic
+  [PASS] test_copy_null
+  [PASS] test_zero_basic
+  [PASS] test_zero_null
+  [PASS] test_dot_basic
+  [PASS] test_dot_orthogonal
+  [PASS] test_dot_null
+  [PASS] test_matvec_vs_dense
+  [PASS] test_matvec_rectangular
+  [PASS] test_matvec_empty
+  [PASS] test_matvec_large_values
+  [PASS] test_refinement_improves_illcond
+  [PASS] test_refinement_zero_rhs
+  [PASS] test_refinement_multiple_rhs
+
+--- Summary ---
+Tests run:    24
+Tests failed: 0
+Assertions:   52
+Time:         0.000 s
+ALL TESTS PASSED
+
+=== Running test_edge_cases ===
+=== Edge Case & Hardening Tests ===
+
+  [PASS] test_1x1_complete_lifecycle
+  [PASS] test_1x1_extreme_values
+  [PASS] test_1x1_matvec
+  [PASS] test_single_nnz_offdiag_singular
+  [PASS] test_single_nnz_diagonal
+  [PASS] test_diagonal_extreme_solve
+  [PASS] test_diagonal_negative_values
+  [PASS] test_empty_matrix_copy
+  [PASS] test_empty_matrix_factor_singular
+  [PASS] test_empty_matrix_info
+  [PASS] test_negative_index_remove
+  [PASS] test_negative_index_set
+  [PASS] test_negative_index_get
+  [PASS] test_large_value_solve
+  [PASS] test_small_value_solve
+  [PASS] test_modify_after_copy
+  [PASS] test_insert_remove_insert_same_position
+  [PASS] test_perms_after_factor_are_valid
+  [PASS] test_reset_perms_then_factor
+  [PASS] test_freelist_reuse
+  [PASS] test_zero_matrix_factor_norm
+  [PASS] test_1x1_tiny_value_solves
+  [PASS] test_mixed_scale_no_false_singular
+  [PASS] test_large_norm_does_not_mask_singularity
+  [PASS] test_scaled_lu_tiny
+  [PASS] test_scaled_lu_huge
+  [PASS] test_scaled_cholesky_tiny
+  [PASS] test_scaled_cholesky_huge
+  [PASS] test_scaled_ilu_gmres_tiny
+  [PASS] test_scaled_ilu_gmres_huge
+  [PASS] test_scaled_qr_tiny
+  [PASS] test_scaled_qr_huge
+  [PASS] test_scaled_csr_lu_tiny
+  [PASS] test_scaled_csr_lu_huge
+  [PASS] test_near_singular_lu_with_refinement
+  [PASS] test_exactly_singular_all_solvers
+  [PASS] test_wide_magnitude_range_lu
+  [PASS] test_zero_matrix_all_solvers
+  [PASS] test_unfactored_lu_solve
+  [PASS] test_unfactored_lu_solve_block
+  [PASS] test_unfactored_lu_solve_transpose
+  [PASS] test_unfactored_lu_condest
+  [PASS] test_unfactored_lu_refine
+  [PASS] test_unfactored_cholesky_solve
+  [PASS] test_factored_insert_then_solve
+  [PASS] test_factored_remove_then_solve
+  [PASS] test_cholesky_insert_then_solve
+  [PASS] test_factor_solve_twice
+  [PASS] test_copy_factored_solve
+  [PASS] test_mark_factored_solve
+  [PASS] test_csr_factor_solve_no_flag
+  [PASS] test_ilu_on_factored_matrix
+  [PASS] test_ilut_on_factored_matrix
+  [PASS] test_ilu_on_fresh_matrix
+
+--- Summary ---
+Tests run:    54
+Tests failed: 0
+Assertions:   231
+Time:         0.002 s
+ALL TESTS PASSED
+
+=== Running test_integration ===
+=== Integration Tests ===
+
+  [PASS] test_load_factor_solve_save
+  [PASS] test_create_copy_factor_refine
+  [PASS] test_multiple_rhs_same_factorization
+  [PASS] test_full_roundtrip
+  [PASS] test_all_reference_matrices
+  [PASS] test_both_pivots_agree_integration
+  [PASS] test_error_recovery
+  [PASS] test_progress_cb_lu_emits
+  [PASS] test_progress_cb_lu_cancel
+  [PASS] test_progress_cb_cholesky_emits_cancel
+  [PASS] test_progress_cb_ldlt_emits_cancel
+  [PASS] test_progress_cb_null_default_unchanged
+  [PASS] test_progress_cb_strerror
+  [PASS] test_progress_cb_qr_emits_cancel
+  [PASS] test_progress_cb_cg_emits_cancel
+  [PASS] test_progress_cb_gmres_emits_cancel
+  [PASS] test_progress_cb_minres_emits_cancel
+  [PASS] test_progress_cb_bicgstab_emits_cancel
+  [PASS] test_progress_cb_lanczos_emits_cancel
+  [PASS] test_progress_cb_lobpcg_emits_cancel
+
+--- Summary ---
+Tests run:    20
+Tests failed: 0
+Assertions:   704
+Time:         0.006 s
+ALL TESTS PASSED
+
+=== Running test_sparse_arith ===
+=== Sparse Matrix Arithmetic Tests ===
+
+  [PASS] test_scale_identity_by_3
+  [PASS] test_scale_by_1
+  [PASS] test_scale_by_0
+  [PASS] test_scale_by_negative_1
+  [PASS] test_scale_rectangular
+  [PASS] test_scale_null
+  [PASS] test_scale_empty_matrix
+  [PASS] test_scale_invalidates_norm
+  [PASS] test_add_a_plus_zero
+  [PASS] test_add_a_minus_a
+  [PASS] test_add_disjoint_patterns
+  [PASS] test_add_overlapping_entries
+  [PASS] test_add_dimension_mismatch
+  [PASS] test_add_rectangular
+  [PASS] test_add_null_args
+  [PASS] test_add_inplace_basic
+  [PASS] test_add_inplace_with_scaling
+  [PASS] test_add_inplace_cancellation
+  [PASS] test_add_inplace_null
+  [PASS] test_add_inplace_shape_mismatch
+  [PASS] test_add_then_factor_solve
+  [PASS] test_scale_then_factor_solve
+  [PASS] test_norminf_after_add
+
+--- Summary ---
+Tests run:    23
+Tests failed: 0
+Assertions:   103
+Time:         0.000 s
+ALL TESTS PASSED
+
+=== Running test_suitesparse ===
+=== SuiteSparse Matrix Tests ===
+
+    n=67 nnz=294 pivot=partial rel_res=6.550e-16 OK
+  [PASS] test_west0067_partial
+    n=67 nnz=294 pivot=complete rel_res=3.553e-16 OK
+  [PASS] test_west0067_complete
+    n=100 nnz=594 pivot=partial rel_res=6.916e-16 OK
+  [PASS] test_nos4_partial
+    n=100 nnz=594 pivot=complete rel_res=7.063e-16 OK
+  [PASS] test_nos4_complete
+    n=132 nnz=3648 pivot=partial rel_res=4.541e-16 OK
+  [PASS] test_bcsstk04_partial
+    n=132 nnz=3648 pivot=complete rel_res=5.803e-15 OK
+  [PASS] test_bcsstk04_complete
+    n=240 nnz=2248 pivot=partial rel_res=2.829e-14 OK
+  [PASS] test_steam1_partial
+    n=240 nnz=2248 pivot=complete rel_res=6.771e-14 OK
+  [PASS] test_steam1_complete
+  [SKIP] Large matrix tests (set SPARSE_TEST_LARGE=1 to enable)
+  [PASS] test_norminf_all_matrices
+    tests/data/suitesparse/west0067.mtx: condest = 2.998e+02
+    tests/data/suitesparse/nos4.mtx: condest = 7.930e+02
+    tests/data/suitesparse/bcsstk04.mtx: condest = 5.609e+06
+    tests/data/suitesparse/steam1.mtx: condest = 2.988e+07
+  [PASS] test_condest_suitesparse
+
+--- Summary ---
+Tests run:    10
+Tests failed: 0
+Assertions:   40
+Time:         1.522 s
+ALL TESTS PASSED
+
+=== Running test_reorder ===
+=== Reordering & Permutation Tests ===
+
+  [PASS] test_permute_identity
+  [PASS] test_permute_reverse_diagonal
+  [PASS] test_permute_known
+  [PASS] test_permute_preserves_nnz
+  [PASS] test_permute_null
+  [PASS] test_bandwidth_diagonal
+  [PASS] test_bandwidth_tridiag
+  [PASS] test_bandwidth_full
+  [PASS] test_bandwidth_null
+  [PASS] test_permute_then_solve
+  [PASS] test_rcm_arrow
+  [PASS] test_rcm_tridiag
+  [PASS] test_rcm_diagonal
+  [PASS] test_rcm_disconnected
+  [PASS] test_rcm_solve
+    tests/data/suitesparse/west0067.mtx: bw 59->37, fill 928->982 (1.1x), res=8.88e-16
+  [PASS] test_rcm_west0067
+    tests/data/suitesparse/nos4.mtx: bw 13->15, fill 1510->1676 (1.1x), res=1.53e-16
+  [PASS] test_rcm_nos4
+    tests/data/suitesparse/bcsstk04.mtx: bw 47->54, fill 8581->8701 (1.0x), res=7.45e-09
+  [PASS] test_rcm_bcsstk04
+    tests/data/suitesparse/steam1.mtx: bw 146->52, fill 22956->15340 (0.7x), res=2.92e-07
+  [PASS] test_rcm_steam1
+  [PASS] test_amd_small
+  [PASS] test_amd_diagonal
+  [PASS] test_amd_solve
+  [PASS] test_amd_null
+    tests/data/suitesparse/west0067.mtx: fill nat=928 rcm=982 amd=819 (1.06x/0.88x), res=1.78e-15
+  [PASS] test_amd_west0067
+    tests/data/suitesparse/nos4.mtx: fill nat=1510 rcm=1676 amd=1174 (1.11x/0.78x), res=1.53e-16
+  [PASS] test_amd_nos4
+    tests/data/suitesparse/bcsstk04.mtx: fill nat=8581 rcm=8701 amd=9153 (1.01x/1.07x), res=5.59e-09
+  [PASS] test_amd_bcsstk04
+    tests/data/suitesparse/steam1.mtx: fill nat=22956 rcm=15340 amd=15402 (0.67x/0.67x), res=8.65e-07
+  [PASS] test_amd_steam1
+  [PASS] test_amd_stress
+  [PASS] test_opts_rcm_partial
+  [PASS] test_opts_amd_complete
+  [PASS] test_opts_none
+  [PASS] test_opts_suitesparse
+  [PASS] test_reorder_nonsquare
+  [PASS] test_reorder_1x1
+  [PASS] test_reorder_empty
+  [PASS] test_reorder_no_offdiag
+  [PASS] test_condest_edge_cases
+  [PASS] test_factor_opts_null
+
+--- Summary ---
+Tests run:    38
+Tests failed: 0
+Assertions:   301
+Time:         1.821 s
+ALL TESTS PASSED
+
+=== Running test_cholesky ===
+=== Cholesky Factorization Tests ===
+
+  [PASS] test_cholesky_2x2
+  [PASS] test_cholesky_3x3_tridiag
+  [PASS] test_cholesky_not_spd
+  [PASS] test_cholesky_nonsquare
+  [PASS] test_cholesky_null
+  [PASS] test_cholesky_1x1
+  [PASS] test_cholesky_identity
+  [PASS] test_cholesky_diagonal
+  [PASS] test_cholesky_reconstruct
+  [PASS] test_cholesky_solve_3x3
+  [PASS] test_cholesky_solve_5x5_tridiag
+  [PASS] test_cholesky_solve_amd
+  [PASS] test_cholesky_solve_rcm
+  [PASS] test_cholesky_solve_none
+  [PASS] test_cholesky_solve_null
+    tests/data/suitesparse/nos4.mtx: nnz_L=805, res=1.67e-16
+  [PASS] test_cholesky_nos4
+    tests/data/suitesparse/bcsstk04.mtx: nnz_L=3664, res=7.45e-09
+  [PASS] test_cholesky_bcsstk04
+    tests/data/suitesparse/nos4.mtx: nnz_L=637, res=1.67e-16
+  [PASS] test_cholesky_nos4_amd
+    tests/data/suitesparse/bcsstk04.mtx: nnz_L=3575, res=1.12e-08
+  [PASS] test_cholesky_bcsstk04_rcm
+    nos4: Cholesky nnz=805, LU nnz=1510
+  [PASS] test_cholesky_fillin_vs_lu
+  [PASS] test_cholesky_nearly_singular
+
+--- Summary ---
+Tests run:    21
+Tests failed: 0
+Assertions:   133
+Time:         0.017 s
+ALL TESTS PASSED
+
+=== Running test_csr ===
+=== CSR/CSC Conversion Tests ===
+
+  [PASS] test_csr_known
+  [PASS] test_csr_roundtrip
+  [PASS] test_csr_empty
+  [PASS] test_csr_dense
+  [PASS] test_csr_null
+  [PASS] test_csc_known
+  [PASS] test_csc_roundtrip
+  [PASS] test_csc_null
+    west0067: CSR round-trip OK, nnz=294
+  [PASS] test_csr_suitesparse_west0067
+    nos4: CSC round-trip OK, nnz=594
+  [PASS] test_csc_suitesparse_nos4
+  [PASS] test_csr_csc_transpose
+
+--- Summary ---
+Tests run:    11
+Tests failed: 0
+Assertions:   499
+Time:         0.001 s
+ALL TESTS PASSED
+
+=== Running test_matmul ===
+=== Sparse Matrix-Matrix Multiply Tests ===
+
+  [PASS] test_matmul_2x2
+  [PASS] test_matmul_identity_left
+  [PASS] test_matmul_identity_right
+  [PASS] test_matmul_diag_left
+  [PASS] test_matmul_diag_right
+  [PASS] test_matmul_shape_mismatch
+  [PASS] test_matmul_null
+  [PASS] test_matmul_rectangular
+  [PASS] test_matmul_cancellation
+  [PASS] test_matmul_empty
+  [PASS] test_matmul_row_col
+  [PASS] test_matmul_single_nnz
+    nos4: (A*A)*x vs A*(A*x) maxdiff = 4.91e-15
+  [PASS] test_matmul_associativity
+  [PASS] test_matmul_cholesky_reconstruct
+
+--- Summary ---
+Tests run:    14
+Tests failed: 0
+Assertions:   77
+Time:         0.001 s
+ALL TESTS PASSED
+
+=== Running test_threads ===
+=== Thread Safety Tests ===
+
+    thread 0: success=1 max_error=1.11e-16
+    thread 1: success=1 max_error=2.22e-16
+    thread 2: success=1 max_error=0.00e+00
+    thread 3: success=1 max_error=1.11e-16
+  [PASS] test_independent_lu_threads
+    thread 0: 100 iters, success=1 max_error=3.55e-15
+    thread 1: 100 iters, success=1 max_error=2.84e-14
+    thread 2: 100 iters, success=1 max_error=5.68e-14
+    thread 3: 100 iters, success=1 max_error=5.68e-14
+  [PASS] test_concurrent_solve_shared
+    thread 0: 100 iters, success=1 max_error=7.11e-15
+    thread 1: 100 iters, success=1 max_error=2.84e-14
+    thread 2: 100 iters, success=1 max_error=5.68e-14
+    thread 3: 100 iters, success=1 max_error=5.68e-14
+  [PASS] test_concurrent_cholesky_solve
+    LU stress: 8 threads × 1000 iters, all_pass=1
+  [PASS] test_lu_solve_stress
+    Cholesky stress: 8 threads × 1000 iters, all_pass=1
+  [PASS] test_cholesky_solve_stress
+    Independent stress: 8 threads, all_pass=1
+  [PASS] test_independent_stress
+    concurrent norminf: 4 threads × 1000 iters, all agree on norm=12.0
+  [PASS] test_concurrent_norminf
+    norminf+solve: 1 norminf thread + 3 solve threads, all clean
+  [PASS] test_concurrent_norminf_and_solve
+  [SKIP] test_concurrent_insert (requires -DSPARSE_MUTEX)
+
+--- Summary ---
+Tests run:    8
+Tests failed: 0
+Assertions:   88
+Time:         0.045 s
+ALL TESTS PASSED
+
+=== Running test_sprint4_integration ===
+=== Sprint 4 Integration Tests ===
+
+  [PASS] test_cholesky_csr_roundtrip_solve
+    nos4: L*L^T reconstruction maxdiff = 1.67e-16
+  [PASS] test_spmm_cholesky_reconstruct_nos4
+    nos4: condest = 7.930e+02 (via LU on SPD matrix)
+  [PASS] test_condest_via_lu_on_spd
+    concurrent Cholesky on nos4: 4 threads, all_pass=1
+  [PASS] test_concurrent_cholesky_suitesparse
+    nos4 Cholesky CSR: all 805 entries in lower triangle
+  [PASS] test_csr_cholesky_triangular
+
+--- Summary ---
+Tests run:    5
+Tests failed: 0
+Assertions:   44
+Time:         0.011 s
+ALL TESTS PASSED
+
+=== Running test_iterative ===
+=== Iterative Solvers ===
+
+  [PASS] test_cg_2x2_spd
+  [PASS] test_cg_3x3_tridiag
+  [PASS] test_cg_identity
+  [PASS] test_cg_zero_rhs
+  [PASS] test_cg_default_opts
+  [PASS] test_cg_laplacian_2d
+  [PASS] test_cg_initial_guess
+  [PASS] test_cg_1x1
+  [PASS] test_cg_diagonal
+  [PASS] test_cg_large_tridiag
+  [PASS] test_cg_max_iter_exceeded
+  [PASS] test_cg_exact_initial_guess
+  [PASS] test_cg_diagonal_preconditioner
+  [PASS] test_cg_precond_laplacian
+    nos4: CG iters=92, rel_res=4.830e-11
+  [PASS] test_cg_nos4
+    bcsstk04: CG iters=556, rel_res=7.200e-11
+  [PASS] test_cg_bcsstk04
+    nos4 initial guess: zero=92 iters, near=84 iters
+  [PASS] test_cg_suitesparse_initial_guess
+  [PASS] test_cg_tight_tolerance
+  [PASS] test_cg_loose_tolerance
+  [PASS] test_cg_residual_accuracy
+  [PASS] test_cg_nonsymmetric_behavior
+  [PASS] test_cg_indefinite_behavior
+  [PASS] test_cg_vs_cholesky_tridiag
+    nos4: CG res=4.830e-11 (92 iters), Cholesky res=3.299e-15
+    nos4: CG vs Cholesky max |diff| = 9.599e-10
+  [PASS] test_cg_vs_cholesky_nos4
+    bcsstk04: CG res=7.200e-11 (556 iters), Cholesky res=2.007e-16
+  [PASS] test_cg_vs_cholesky_bcsstk04
+  [PASS] test_cg_verbose_mode
+  [PASS] test_cg_null_inputs
+  [PASS] test_cg_nonsquare
+  [PASS] test_gmres_null_inputs
+  [PASS] test_gmres_nonsquare
+  [PASS] test_gmres_on_spd
+  [PASS] test_cg_result_struct
+  [PASS] test_cg_null_result
+  [PASS] test_gmres_2x2_nonsymmetric
+  [PASS] test_gmres_3x3_nonsymmetric
+  [PASS] test_gmres_identity
+  [PASS] test_gmres_zero_rhs
+  [PASS] test_gmres_4x4_unsymmetric
+  [PASS] test_gmres_1x1
+  [PASS] test_gmres_default_opts
+  [PASS] test_gmres_large_unsymmetric
+  [PASS] test_gmres_exact_initial_guess
+  [PASS] test_gmres_max_iter_exceeded
+  [PASS] test_gmres_arnoldi_correctness
+    restart comparison: restart=5 → 21 iters, restart=30 → 21 iters
+  [PASS] test_gmres_restart_comparison
+  [PASS] test_gmres_unrestarted
+  [PASS] test_gmres_lucky_breakdown
+  [PASS] test_gmres_small_krylov
+    GMRES precond: unprec=20 iters, prec=10 iters
+  [PASS] test_gmres_diagonal_preconditioner
+  [PASS] test_gmres_precond_large
+  [PASS] test_gmres_verbose_mode
+  [PASS] test_gmres_restart_1
+  [PASS] test_gmres_initial_guess
+    west0067: GMRES(67) iters=67, rel_res=4.036e-16
+  [PASS] test_gmres_west0067
+    steam1: GMRES(100) iters=78, rel_res=9.936e-07
+  [PASS] test_gmres_steam1
+    orsirr_1: GMRES iters=1862, rel_res=9.877e-09, converged=1
+  [PASS] test_gmres_orsirr_1
+    west0067 restart comparison:
+      GMRES(10): iters=500, res=5.903e-01, converged=0
+      GMRES(30): iters=500, res=4.464e-01, converged=0
+      GMRES(67): iters=67, res=4.036e-16, converged=1
+  [PASS] test_gmres_restart_comparison_suitesparse
+    steam1 restart comparison:
+      GMRES(10): iters=1000, res=9.817e-07, converged=0
+      GMRES(30): iters=1000, res=9.068e-07, converged=0
+      GMRES(50): iters=1000, res=7.247e-07, converged=0
+  [PASS] test_gmres_restart_comparison_steam1
+    west0067: GMRES res=4.036e-16 (67 iters), LU res=2.130e-16
+    west0067: GMRES vs LU max |diff| = 4.050e-13
+  [PASS] test_gmres_vs_lu_west0067
+    steam1: GMRES res=9.936e-07 (78 iters), LU res=2.508e-14
+  [PASS] test_gmres_vs_lu_steam1
+    nos4: CG iters=92 res=4.830e-11, GMRES iters=233 res=9.950e-11
+  [PASS] test_gmres_vs_cg_nos4
+    right-precond diag: left=10 iters (res=1.770e-11), right=10 iters (res=6.729e-12)
+  [PASS] test_gmres_right_precond_diag
+    nos4 right-ILU-GMRES: 25 iters, reported=3.288e-11, true=3.288e-11
+  [PASS] test_gmres_right_precond_ilu_nos4
+  [PASS] test_gmres_right_precond_default
+    right vs left: right=1 iters reported=1.438e-16 true=1.438e-16, left=1 iters reported=4.042e-16 true=4.042e-16
+  [PASS] test_gmres_right_vs_left_residual
+  [PASS] test_not_converged_strerror
+    CG_mf basic: cg=20 iters, mf=20 iters
+  [PASS] test_cg_mf_basic
+  [PASS] test_cg_mf_diagonal
+  [PASS] test_cg_mf_null
+    CG_mf nos4: cg=89 iters, mf=89 iters
+  [PASS] test_cg_mf_nos4
+    GMRES_mf basic: gm=20 iters, mf=20 iters
+  [PASS] test_gmres_mf_basic
+    GMRES_mf steam1 right: gm=5 iters, mf=5 iters
+  [PASS] test_gmres_mf_right_precond
+  [PASS] test_gmres_mf_unsymmetric
+  [PASS] test_gmres_mf_null
+  [PASS] test_gmres_mf_zero_dim
+  [PASS] test_gmres_mf_error_propagation
+
+--- Summary ---
+Tests run:    76
+Tests failed: 0
+Assertions:   559
+Time:         0.980 s
+ALL TESTS PASSED
+
+=== Running test_ilu ===
+=== ILU(0) Preconditioner ===
+
+  [PASS] test_ilu_3x3_dense
+  [PASS] test_ilu_diagonal
+  [PASS] test_ilu_tridiagonal
+  [PASS] test_ilu_drops_fill
+  [PASS] test_ilu_solve_identity
+  [PASS] test_ilu_solve_roundtrip
+    ILU-CG: unprec=18 iters, prec=1 iters
+  [PASS] test_ilu_precond_cg
+  [PASS] test_ilu_precond_gmres
+    nos4 ILU-CG: unprec=92 iters (res=4.830e-11), prec=25 iters (res=3.718e-11)
+  [PASS] test_ilu_cg_nos4
+    bcsstk04 ILU-CG: unprec=556 iters, prec=35 iters (res=3.409e-11)
+  [PASS] test_ilu_cg_bcsstk04
+    west0067: ILU(0) returns singular or nearly singular matrix (65/67 zero diag entries)
+  [PASS] test_ilu_gmres_west0067
+    steam1 ILU-GMRES(50): unprec=46 iters (res=9.506e-05), prec=2 iters (res=2.854e-05)
+  [PASS] test_ilu_gmres_steam1
+    orsirr_1 ILU-GMRES(50): unprec=596 iters (conv=1), prec=32 iters (res=9.709e-06)
+  [PASS] test_ilu_gmres_orsirr_1
+    nos4 Cholesky-CG: unprec=92 iters, prec=1 iters (res=3.304e-15)
+  [PASS] test_cholesky_precond_cg_nos4
+    ill-cond speedup: unprec=30 iters, prec=1 iters (30.0x)
+  [PASS] test_ilu_speedup_illcond
+  [PASS] test_ilut_3x3_dense
+  [PASS] test_ilut_tridiagonal
+    west0067: ILU(0) returns singular or nearly singular matrix (expected)
+    west0067: ILUT returns success
+    west0067: ILUT solve norm=inf
+  [PASS] test_ilut_west0067
+    west0067 ILUT-right-GMRES(30): 34 iters, res=1.000e+00, conv=0
+  [PASS] test_ilut_gmres_west0067
+    nos4: ILU(0)-CG=25 iters, ILUT-CG=500 iters (conv=0)
+  [PASS] test_ilut_cg_nos4
+  [PASS] test_ilut_null_inputs
+    steam1: ILU(0)-GMRES=2 iters (conv=1), ILUT-GMRES=20 iters (conv=0)
+  [PASS] test_ilut_vs_ilu0_steam1
+  [PASS] test_ilut_default_opts
+    pivot 3x3: perm=[2,1,0]
+  [PASS] test_ilut_pivot_3x3
+  [PASS] test_ilut_pivot_perm_valid
+  [PASS] test_ilut_pivot_default_no_perm
+  [PASS] test_ilut_pivot_identity
+    diag-dominant: pivot_res=4.527e-17, nopivot_res=4.527e-17
+  [PASS] test_ilut_pivot_diag_dominant
+    west0067 pivot-ILUT-GMRES: 500 iters, res=1.149e+05, conv=0
+  [PASS] test_ilut_pivot_gmres_west0067
+    steam1: pivot=200 iters (conv=0), nopivot=17 iters (conv=0)
+  [PASS] test_ilut_pivot_gmres_steam1
+  [PASS] test_ilut_pivot_null_opts
+  [PASS] test_ilu_null_inputs
+  [PASS] test_ilu_nonsquare
+  [PASS] test_ilu_singular
+
+--- Summary ---
+Tests run:    34
+Tests failed: 0
+Assertions:   328
+Time:         0.152 s
+ALL TESTS PASSED
+
+=== Running test_omp ===
+=== Parallel SpMV (OpenMP) ===
+
+    OpenMP DISABLED (serial build)
+  [PASS] test_omp_status
+  [PASS] test_spmv_identity
+  [PASS] test_spmv_tridiag
+  [PASS] test_spmv_laplacian
+  [PASS] test_spmv_nos4
+  [PASS] test_spmv_west0067
+  [PASS] test_spmv_steam1
+  [PASS] test_spmv_reproducible
+  [PASS] test_spmv_diagonal_small
+  [PASS] test_spmv_1x1
+  [PASS] test_spmv_cg_integration
+  [PASS] test_spmv_gmres_integration
+
+--- Summary ---
+Tests run:    12
+Tests failed: 0
+Assertions:   831
+Time:         0.006 s
+ALL TESTS PASSED
+
+=== Running test_sprint5_integration ===
+=== Sprint 5 Integration Tests ===
+
+    ILU-CG tests/data/suitesparse/nos4.mtx: 25 iters, res=3.718e-11
+    ILU-CG tests/data/suitesparse/bcsstk04.mtx: 35 iters, res=3.409e-11
+  [PASS] test_integration_ilu_cg_all_spd
+    ILU-GMRES tests/data/suitesparse/steam1.mtx: 1 iters, res=3.947e-03
+    ILU-GMRES tests/data/suitesparse/fs_541_1.mtx: 1 iters, res=1.318e-05
+    ILU-GMRES tests/data/suitesparse/orsirr_1.mtx: 3 iters, res=5.249e-03
+  [PASS] test_integration_ilu_gmres_all_unsym
+    nos4 precond: Cholesky=1 iters, ILU=25 iters
+  [PASS] test_integration_cholesky_vs_ilu_precond
+    orsirr_1 ILU-GMRES(10): 32 iters, res=1.799e-05
+  [PASS] test_integration_ilu_gmres_small_restart_orsirr
+    nos4 all solvers: CG=4.830e-11, GMRES=9.950e-11, LU=2.541e-15, Chol=3.299e-15
+  [PASS] test_integration_all_solvers_nos4
+  [PASS] test_integration_1x1_all_solvers
+  [PASS] test_integration_zero_tolerance
+  [PASS] test_integration_identity_preconditioner
+  [PASS] test_integration_ilu_multi_rhs
+  [PASS] test_hardening_illcond_nconv
+  [PASS] test_hardening_gmres_near_singular
+  [PASS] test_hardening_large_restart
+  [PASS] test_hardening_ilu_tiny_diagonal
+  [PASS] test_hardening_zero_max_iter
+
+--- Summary ---
+Tests run:    14
+Tests failed: 0
+Assertions:   417
+Time:         0.054 s
+ALL TESTS PASSED
+
+=== Running test_qr ===
+=== Sparse QR Factorization ===
+
+    3x2 QR: rank=2, R(0,0)=-5.000, R(1,1)=-1.414
+  [PASS] test_householder_3vec
+  [PASS] test_householder_identity
+  [PASS] test_qr_zero_matrix
+  [PASS] test_qr_1x1
+    3x3 reconstruction: ||A - Q*R*P^T|| = 3.553e-15
+  [PASS] test_qr_reconstruction
+    5x3 tall QR: rank=3
+  [PASS] test_qr_tall
+  [PASS] test_qr_null
+  [PASS] test_q_roundtrip
+    pivot ordering: R diag = [100.001, 10.000, 1.000, 0.001]
+  [PASS] test_qr_pivot_ordering
+  [PASS] test_qr_upper_triangular
+    3x5 wide QR: rank=3
+    3x5 reconstruction: ||A - Q*R*P^T|| = 1.776e-15
+  [PASS] test_qr_wide
+    rank-deficient 4x3: rank=2 (expected 2)
+  [PASS] test_qr_rank_deficient
+    10x8 QR: rank=8
+    10x8 reconstruction: ||A - Q*R*P^T|| = 9.992e-16
+  [PASS] test_qr_reconstruction_large
+    rank-1 (5x4): rank=1
+    rank-1 reconstruction: 1.110e-15
+  [PASS] test_qr_rank_1
+    nearly singular 4x3: rank=2
+    nearly singular reconstruction: 1.110e-15
+  [PASS] test_qr_nearly_singular
+  [PASS] test_qr_diagonal
+  [PASS] test_qr_single_row
+  [PASS] test_qr_single_col
+    6x5 perm valid: rank=5, recon=7.772e-16
+  [PASS] test_qr_perm_valid
+    8x5 Q orthogonality: diag_err=6.661e-16, off_diag=2.220e-16
+  [PASS] test_q_orthogonality_tall
+    Q^T*b: qtb = [-3.741657, 0.000000, 0.000000], residual_norm=3.058823e-16
+  [PASS] test_q_transpose_b
+  [PASS] test_q_apply_multiple
+  [PASS] test_q_apply_inplace
+  [PASS] test_q_orthogonality_wide
+    square QR solve: res=3.154e-16, residual_norm=0.000e+00
+  [PASS] test_qr_solve_square
+    overdetermined 5x3: x=[1.375, 2.250, 2.875], res=6.124e-01, true_res=8.257e-02
+  [PASS] test_qr_solve_overdetermined
+    analytical LS: x=2.000000 (expected 2.0), residual=1.414e+00
+  [PASS] test_qr_solve_analytical
+    rank-deficient solve: rank=2, res=2.483e-16, true_res=0.000e+00
+  [PASS] test_qr_solve_rank_deficient
+    nos4 QR solve: rank=100, res=0.000e+00, true_res=9.415e-15
+  [PASS] test_qr_solve_nos4
+  [PASS] test_qr_solve_null_residual
+    bcsstk04: rank=132, ||A-QRP^T||=9.313e-09
+    bcsstk04 QR solve: res_norm=0.000e+00, true_res=6.230e-16
+  [PASS] test_qr_bcsstk04
+    west0067: rank=67
+    west0067 QR solve: res_norm=0.000e+00, true_res=3.119e-16
+  [PASS] test_qr_west0067
+    nos4 QR vs LU: qr_res=9.415e-15, lu_res=2.541e-15
+    nos4 QR vs LU: max |diff| = 1.776e-12
+  [PASS] test_qr_vs_lu
+    50x20 synthetic: rank=20
+    50x20 reconstruction: 2.442e-15
+    50x20 solve: res_norm=7.590e-14, true_res=5.455e-16
+  [PASS] test_qr_tall_synthetic
+  [PASS] test_rank_full
+    rank-1 outer: rank=1
+    null vec 0: ||A*v|| = 0.000e+00
+    null vec 1: ||A*v|| = 0.000e+00
+  [PASS] test_rank_1_nullspace
+    known null: ||A*v|| = 0.000e+00, v=[-1.000, -0.000, 1.000]
+  [PASS] test_known_nullspace
+    3x5 rank-deficient: rank=2
+  [PASS] test_rank_rect_deficient
+    explicit tol: tight=2, loose=1
+  [PASS] test_rank_explicit_tol
+    AMD reorder solve: none_res=2.466e-16, amd_res=2.466e-16
+  [PASS] test_qr_reorder_amd_solve
+    nos4 R fill-in: none=4159, AMD=4377 (1.1x)
+  [PASS] test_qr_reorder_nos4_fillin
+  [PASS] test_qr_reorder_none
+    economy solve 50x10: full_res=2.063e+02, econ_res=2.063e+02
+  [PASS] test_economy_solve_tall
+    economy Q^T*Q orthogonality: max_err=4.441e-16
+  [PASS] test_economy_q_orthogonality
+  [PASS] test_economy_square
+  [PASS] test_economy_r_shape
+    economy rank-deficient 20x4: rank=2
+  [PASS] test_economy_rank_deficient
+  [PASS] test_economy_wide
+  [PASS] test_economy_1x1
+    nos4 economy vs full: max_diff=0.000e+00
+  [PASS] test_economy_nos4
+    sparse-mode 4x3: dense_res=1.648e+00, sparse_res=1.648e+00
+  [PASS] test_sparse_mode_basic
+    sparse-mode nos4: max_diff=0.000e+00, rank_dense=100, rank_sparse=100
+  [PASS] test_sparse_mode_nos4
+    sparse vs dense 50x10: max_diff=0.000e+00, rank_d=10, rank_s=10
+  [PASS] test_sparse_mode_tall
+    sparse vs dense 3x6: max_diff=0.000e+00, rank_d=3, rank_s=3
+  [PASS] test_sparse_mode_wide
+    sparse vs dense rank-def 4x3: max_diff=0.000e+00, rank_d=2, rank_s=2
+  [PASS] test_sparse_mode_rank_deficient
+    sparse vs dense west0067: max_diff=0.000e+00, rank_d=67, rank_s=67
+  [PASS] test_sparse_mode_west0067
+    sparse vs dense bcsstk04: max_diff=1.908e-17, rank_d=132, rank_s=132
+  [PASS] test_sparse_mode_bcsstk04
+    sparse vs dense 1x1: max_diff=0.000e+00, rank_d=1, rank_s=1
+  [PASS] test_sparse_mode_1x1
+    sparse-mode Q ortho: max_err=5.551e-16
+  [PASS] test_sparse_mode_q_ortho
+    reconstruction nos4: dense=8.442e-16, sparse=8.442e-16
+  [PASS] test_sparse_mode_reconstruction
+    sparse AMD reorder: rank_none=4, rank_amd=4
+  [PASS] test_sparse_mode_amd
+    sparse vs dense diag 20x20: max_diff=0.000e+00, rank_d=20, rank_s=20
+  [PASS] test_sparse_mode_diagonal
+    sparse vs dense 5x1: max_diff=0.000e+00, rank_d=1, rank_s=1
+  [PASS] test_sparse_mode_single_col
+    sparse vs dense 1x5: max_diff=0.000e+00, rank_d=1, rank_s=1
+  [PASS] test_sparse_mode_single_row
+    nos4 R nnz: dense=4159, sparse=4159
+  [PASS] test_sparse_mode_timing
+    well-cond refine: before=2.220e-16, after=0.000e+00
+  [PASS] test_qr_refine_well_conditioned
+    ill-cond refine: before=0.000e+00, after=0.000e+00
+  [PASS] test_qr_refine_ill_conditioned
+    zero-iter refine: res=0.000e+00
+  [PASS] test_qr_refine_zero_iter
+    nos4 refine: before=0.000e+00, after=2.457e-14
+  [PASS] test_qr_refine_nos4
+    overdetermined refine: before=5.306e+01, after=5.306e+01
+  [PASS] test_qr_refine_overdetermined
+  [PASS] test_qr_refine_null
+
+--- Summary ---
+Tests run:    71
+Tests failed: 0
+Assertions:   492
+Time:         3.873 s
+ALL TESTS PASSED
+
+=== Running test_sprint6_integration ===
+=== Sprint 6 Integration Tests ===
+
+    nos4 all solvers: LU=2.541e-15, Chol=3.299e-15, CG=4.830e-11, GMRES=3.288e-11, QR=9.415e-15
+  [PASS] test_all_solvers_nos4
+  [PASS] test_qr_vs_cholesky
+    west0067 ILUT-right-GMRES: 34 iters, res=1.000e+00, conv=0
+  [PASS] test_ilut_right_gmres_west0067
+  [PASS] test_qr_vs_gmres
+  [PASS] test_qr_solve_zero_rhs
+  [PASS] test_ilut_exact_lu
+    rank consistency: factor=2, estimate=2
+  [PASS] test_qr_rank_consistency
+
+--- Summary ---
+Tests run:    7
+Tests failed: 0
+Assertions:   55
+Time:         0.008 s
+ALL TESTS PASSED
+
+=== Running test_dense ===
+=== Dense Matrix Utilities ===
+
+  [PASS] test_dense_create_basic
+  [PASS] test_dense_create_empty
+  [PASS] test_dense_create_invalid
+  [PASS] test_dense_free_null
+  [PASS] test_dense_gemm_identity
+  [PASS] test_dense_gemm_rect
+  [PASS] test_dense_gemm_shape_error
+  [PASS] test_dense_gemm_null
+  [PASS] test_dense_gemv_identity
+  [PASS] test_dense_gemv_rect
+  [PASS] test_dense_gemv_null
+  [PASS] test_dense_at_layout
+  [PASS] test_givens_basic
+  [PASS] test_givens_b_zero
+  [PASS] test_givens_a_zero
+  [PASS] test_givens_both_zero
+  [PASS] test_givens_norm_preserving
+  [PASS] test_givens_apply_left
+  [PASS] test_givens_negative
+  [PASS] test_eigen2x2_diagonal
+  [PASS] test_eigen2x2_known
+  [PASS] test_eigen2x2_identity
+  [PASS] test_eigen2x2_nearly_equal
+  [PASS] test_eigen2x2_large
+  [PASS] test_eigen2x2_negative
+  [PASS] test_eigen2x2_zero_offdiag
+  [PASS] test_tridiag_diagonal
+  [PASS] test_tridiag_2x2
+  [PASS] test_tridiag_known
+  [PASS] test_tridiag_1x1
+  [PASS] test_tridiag_empty
+    tridiag n=50: lam_min=3.793343e-03 (expected 3.793343e-03), lam_max=3.996207e+00 (expected 3.996207e+00)
+  [PASS] test_tridiag_large
+  [PASS] test_tridiag_graded
+  [PASS] test_tridiag_null
+
+--- Summary ---
+Tests run:    34
+Tests failed: 0
+Assertions:   184
+Time:         0.000 s
+ALL TESTS PASSED
+
+=== Running test_bidiag ===
+=== Bidiagonal Reduction & Tridiagonal QR Hardening ===
+
+    3x3 bidiag recon: 4.441e-15
+  [PASS] test_bidiag_3x3
+    10x5 bidiag recon: 4.263e-14
+  [PASS] test_bidiag_tall
+    5x10 bidiag recon: 3.553e-15
+  [PASS] test_bidiag_wide
+    3x8 bidiag recon: 3.553e-15
+  [PASS] test_bidiag_wide_3x8
+    1x5 bidiag recon: 0.000e+00
+  [PASS] test_bidiag_single_row
+  [PASS] test_bidiag_diagonal
+  [PASS] test_bidiag_1x1
+  [PASS] test_bidiag_null
+    nos4 bidiag recon: 4.996e-16
+  [PASS] test_bidiag_nos4
+  [PASS] test_bidiag_free_zeroed
+    tridiag n=100: lam_min=9.674354e-04 (expected 9.674354e-04)
+  [PASS] test_tridiag_n100
+  [PASS] test_tridiag_clustered
+
+--- Summary ---
+Tests run:    12
+Tests failed: 0
+Assertions:   164
+Time:         0.007 s
+ALL TESTS PASSED
+
+=== Running test_svd ===
+=== SVD ===
+
+    GK 3x3: recon=3.553e-15
+  [PASS] test_gk_extract_3x3
+    GK 10x5: recon=2.842e-14
+  [PASS] test_gk_extract_tall
+    GK 5x10 (wide, transposed bidiag): skipping recon check
+  [PASS] test_gk_extract_wide
+    SVD sigma: 5.000, 3.000, 1.000
+  [PASS] test_svd_basic_sigma
+    GK 5x5: recon=1.776e-15, U_orth=2.220e-16, V_orth=1.110e-16
+  [PASS] test_gk_square_5x5
+    GK 10x5: recon=2.842e-14, U_orth=4.441e-16, V_orth=1.110e-15
+  [PASS] test_gk_tall_ortho
+    GK 5x10: recon=nan, U_orth=0.000e+00, V_orth=4.441e-16
+  [PASS] test_gk_wide_ortho
+    GK rank-def 6x4: recon=4.885e-15, U_orth=4.441e-16, V_orth=1.527e-16
+  [PASS] test_gk_rank_deficient
+    GK nos4: recon=4.441e-16, U_orth=1.110e-15, V_orth=1.332e-15
+  [PASS] test_gk_nos4
+    GK west0067: recon=1.332e-15, U_orth=8.882e-16, V_orth=1.110e-15
+  [PASS] test_gk_west0067
+    GK 1x1: U=1.000, V=1.000, diag=7.000
+  [PASS] test_gk_1x1
+    SVD 4x3 with UV: recon=3.553e-15, sigma=[8.892, 4.028, 0.837]
+  [PASS] test_svd_with_uv
+  [PASS] test_bidiag_svd_diagonal
+    bidiag SVD 2x2: [4.242641, 2.828427] expected [4.242641, 2.828427]
+  [PASS] test_bidiag_svd_2x2
+    bidiag SVD 3x3 UV recon: 8.882e-16, sigma=[4.2597, 3.0856, 1.8260]
+  [PASS] test_bidiag_svd_3x3_uv
+  [PASS] test_bidiag_svd_k1
+    SVD diag 5x5: [9.000, 7.000, 5.000, 3.000, 1.000]
+  [PASS] test_svd_diagonal_5x5
+  [PASS] test_svd_descending
+    SVD trace: sum(sigma^2)=96.000, ||A||_F^2=96.000
+  [PASS] test_svd_trace_invariant
+    SVD rank-1: [9.4868, 0.0000, 0.0000]
+  [PASS] test_svd_rank1
+    SVD rank-1 UV reconstruction error: 1.78e-15
+  [PASS] test_svd_rank1_uv
+    SVD rank-2: [2.4495, 2.0000, 0.0000, 0.0000, 0.0000]
+  [PASS] test_svd_rank2
+  [PASS] test_svd_rank5_in_10x10
+  [PASS] test_svd_rank1_square
+    SVD rank-1 wide: sigma[0]=9.1652 (expected 9.1652)
+  [PASS] test_svd_rank1_wide
+  [PASS] test_svd_near_singular
+  [PASS] test_svd_multi_zero_diag
+    SVD rank-2 dense: [30.4631, 3.1623, 0.0000, 0.0000]
+    SVD rank-2 dense UV reconstruction error: 1.33e-14
+  [PASS] test_svd_rank2_dense
+    nos4 rank-deficient (cols 0-49 only): rank=50 (of 100)
+    sparse_svd_rank reports: 50
+  [PASS] test_svd_suitesparse_rank_deficient
+  [PASS] test_bidiag_svd_zero_super
+  [PASS] test_svd_all_zero
+  [PASS] test_svd_repeated
+  [PASS] test_svd_1x1
+  [PASS] test_svd_null
+  [PASS] test_svd_diag_20x20
+  [PASS] test_svd_tall_10x5
+  [PASS] test_svd_wide_5x10
+    wide 5x10 UV recon: ||U*S*Vt - A||_max = 8.882e-16
+  [PASS] test_svd_wide_5x10_uv
+    sigma-only vs UV: sigma=[4.618, 2.382, 2.000, 1.000]
+  [PASS] test_svd_sigma_only_vs_uv
+    SVD nos4: sigma_max=0.849, sigma_min=0.000538
+  [PASS] test_svd_nos4
+    SVD west0067: sigma_max=4.061, sigma_min=3.118410e-02
+  [PASS] test_svd_west0067
+    SVD rank=2, QR rank=2
+  [PASS] test_svd_rank_vs_qr
+  [PASS] test_svd_null_input
+  [PASS] test_partial_svd_null
+  [PASS] test_partial_svd_bad_k
+    partial sigma[0]=10.000000, full sigma[0]=10.000000
+    partial sigma[1]=9.000000, full sigma[1]=9.000000
+    partial sigma[2]=8.000000, full sigma[2]=8.000000
+  [PASS] test_partial_svd_diag_10x10
+  [PASS] test_partial_svd_full_k
+    Hilbert 8x8 partial SVD (k=4):
+      sigma[0]: partial=1.69593900, full=1.69593900
+      sigma[1]: partial=0.29812521, full=0.29812521
+      sigma[2]: partial=0.02621284, full=0.02621284
+      sigma[3]: partial=0.00146769, full=0.00146769
+  [PASS] test_partial_svd_dense_8x8
+  [PASS] test_partial_svd_tall
+  [PASS] test_partial_svd_wide
+    nos4 partial SVD (k=5):
+      sigma[0]: partial=0.849138, full=0.849138
+      sigma[1]: partial=0.836701, full=0.836701
+      sigma[2]: partial=0.815884, full=0.815884
+      sigma[3]: partial=0.797969, full=0.797969
+      sigma[4]: partial=0.795400, full=0.795415
+  [PASS] test_partial_svd_nos4
+    k=1: partial=8.000000, full=8.000000
+  [PASS] test_partial_svd_k1
+    rank-def: sigma=[27.4489, 0.7466, 0.0000, 0.0000]
+  [PASS] test_partial_svd_rank_deficient
+    west0067 partial SVD (k=5):
+      sigma[0]: partial=4.060711, full=4.060711
+      sigma[1]: partial=3.906372, full=3.906372
+      sigma[2]: partial=3.655307, full=3.655307
+      sigma[3]: partial=3.183149, full=3.183149
+      sigma[4]: partial=2.830782, full=2.830782
+  [PASS] test_partial_svd_west0067
+    descending: sigma[0]=30.4509, sigma[6]=18.0000
+  [PASS] test_partial_svd_descending
+    nos4 timing: full=0.0026 s, partial(k=5)=0.0009 s
+  [PASS] test_partial_svd_timing
+    non-symmetric 10x8 partial (k=4):
+      sigma[0]: partial=16.365834, full=16.365834
+      sigma[1]: partial=8.362692, full=8.362692
+      sigma[2]: partial=4.369689, full=4.369689
+      sigma[3]: partial=0.000000, full=0.000000
+  [PASS] test_partial_svd_nonsymmetric
+    full-rank 5x5: rank=5
+  [PASS] test_svd_rank_full
+    rank-deficient 5x4: rank=2
+  [PASS] test_svd_rank_deficient
+    nearly-singular 3x3: rank=3
+    nearly-singular 3x3 (tol=1e-12): rank=2
+  [PASS] test_svd_rank_nearly_singular
+  [PASS] test_svd_rank_null
+  [PASS] test_pinv_diagonal
+    Moore-Penrose ||A*A^+*A - A||_max = 1.332e-15
+  [PASS] test_pinv_moore_penrose
+  [PASS] test_pinv_null
+    rectangular pinv ||A*A^+*A - A||_max = 4.441e-16
+  [PASS] test_pinv_rectangular
+    lowrank(2) diag: ||A - A_k||_F = 2.236068 (expected 2.236068)
+  [PASS] test_lowrank_diagonal
+    lowrank(3) tridiag: ||A-A_k||_F = 7.348561, expected = 7.348561
+  [PASS] test_lowrank_error_bound
+  [PASS] test_lowrank_errors
+    partial SVD vectors ortho: PASS (k=3, m=10, n=10)
+  [PASS] test_partial_svd_vectors_ortho
+    partial SVD A*v ≈ sigma*u: max_resid=2.52e-14
+  [PASS] test_partial_svd_vectors_Av
+    sigma[0]: partial=10.0000, full=10.0000
+    sigma[1]: partial=7.0000, full=7.0000
+    sigma[2]: partial=5.0000, full=5.0000
+    |u_part . u_full|[0] = 1.0000
+    |u_part . u_full|[1] = 1.0000
+    |u_part . u_full|[2] = 1.0000
+  [PASS] test_partial_svd_vectors_vs_full
+    nos4 partial vectors: max sigma err=1.47e-05
+    nos4 A*v ≈ sigma*u max_resid=1.74e-15
+  [PASS] test_partial_svd_vectors_nos4
+    west0067 partial vectors: max_resid=7.47e-15
+  [PASS] test_partial_svd_vectors_west0067
+    reconstruction error: 23.6221, expected: 23.6221
+  [PASS] test_partial_svd_vectors_recon
+  [PASS] test_partial_svd_vectors_k1
+    wide 4x8 partial vectors: max_resid=1.01e-15
+  [PASS] test_partial_svd_vectors_wide
+  [PASS] test_partial_svd_no_vectors
+  [PASS] test_lowrank_sparse_diagonal
+    sparse lowrank: orig_nnz=16, out_nnz=6
+  [PASS] test_lowrank_sparse_sparsity
+    sparse vs dense lowrank diff: 1.36e-02 (tol*sqrt(mn)=5.00e-02)
+  [PASS] test_lowrank_sparse_vs_dense
+    rank-1 sparse lowrank error: 2.66e-15
+  [PASS] test_lowrank_sparse_rank1
+  [PASS] test_lowrank_sparse_rectangular
+  [PASS] test_lowrank_sparse_errors
+  [PASS] test_sparse_svd_lowrank_outer_product_matches_dense
+  [PASS] test_sparse_svd_lowrank_outer_product_corpus_safety
+  [PASS] test_svd_full_u_v_orthonormality
+  [PASS] test_svd_full_u_v_reconstruction
+  [PASS] test_svd_full_u_v_economy_mode_unchanged
+  [PASS] test_cond_identity
+    cond(diag(100,10,1)) = 100.00
+  [PASS] test_cond_diagonal
+    cond(rank-1 3x3) = inf
+  [PASS] test_cond_singular
+  [PASS] test_cond_1x1
+  [PASS] test_cond_1x1_zero
+    cond(4x2 diag(3,1)) = 3.00
+  [PASS] test_cond_rectangular
+    cond(diag(1e6,1,1e-6)) = 1.00e+12
+  [PASS] test_cond_ill_conditioned
+  [PASS] test_cond_null
+
+--- Summary ---
+Tests run:    96
+Tests failed: 0
+Assertions:   1066
+Time:         0.335 s
+ALL TESTS PASSED
+
+=== Running test_sprint8_integration ===
+=== Sprint 8 Integration ===
+
+    nos4: sum(sigma^2)=17.527694, ||A||_F^2=17.527694
+  [PASS] test_svd_vs_ata_eigenvalues
+    steam1 MF-GMRES+ILU: iters=4, resid=2.857e-12, converged=1
+    steam1 ||x - x_true||/sqrt(n) = 4.261e-10
+  [PASS] test_mf_gmres_ilu_steam1
+    bcsstk04: n=132
+    bcsstk04 partial vs full (k=5):
+      sigma[0]: partial=9660618.314020, full=9660618.314020
+      sigma[1]: partial=9550523.049953, full=9550523.049953
+      sigma[2]: partial=9477588.089943, full=9477588.089954
+      sigma[3]: partial=9437385.835383, full=9437385.835383
+      sigma[4]: partial=8696002.145673, full=8696002.145701
+  [PASS] test_partial_vs_full_bcsstk04
+    rank-deficient 6x4: SVD rank=2, QR rank=2
+  [PASS] test_svd_rank_matches_qr
+    west0067 pinv: ||A*A^+*A - A||_max = 2.377e-14
+  [PASS] test_pinv_west0067
+    nos4 lowrank(10): ||A-A_k||_F = 3.356176, expected = 3.356176
+  [PASS] test_lowrank_nos4
+    west0067 SVD reconstruction: ||U*S*Vt - A||_max = 2.411e-14
+  [PASS] test_svd_reconstruction_west0067
+
+--- Summary ---
+Tests run:    7
+Tests failed: 0
+Assertions:   240
+Time:         0.050 s
+ALL TESTS PASSED
+
+=== Running test_fuzz ===
+=== Fuzz & Property Tests ===
+
+  [PASS] test_fuzz_empty_file
+  [PASS] test_fuzz_header_only
+  [PASS] test_fuzz_bad_header
+  [PASS] test_fuzz_missing_dimensions
+  [PASS] test_fuzz_zero_dimensions
+  [PASS] test_fuzz_negative_dimensions
+  [PASS] test_fuzz_truncated_entries
+  [PASS] test_fuzz_out_of_range_indices
+  [PASS] test_fuzz_zero_index
+  [PASS] test_fuzz_nan_value
+  [PASS] test_fuzz_inf_value
+  [PASS] test_fuzz_very_large_dimensions
+  [PASS] test_fuzz_binary_garbage
+  [PASS] test_fuzz_utf8_content
+  [PASS] test_fuzz_extra_whitespace
+  [PASS] test_fuzz_many_comments
+  [PASS] test_fuzz_duplicate_entries
+  [PASS] test_fuzz_symmetric_flag
+  [PASS] test_fuzz_null_args
+  [PASS] test_fuzz_nonexistent_file
+    LU property: 10/10 passed
+  [PASS] test_property_lu
+    Cholesky property: 10/10 passed
+  [PASS] test_property_cholesky
+    QR property: 10/10 passed
+  [PASS] test_property_qr
+    SVD property: 10/10 passed
+  [PASS] test_property_svd
+
+--- Summary ---
+Tests run:    24
+Tests failed: 0
+Assertions:   118
+Time:         28.526 s
+ALL TESTS PASSED
+
+=== Running test_lu_csr ===
+=== LU CSR Working Format ===
+
+  [PASS] test_lu_csr_null_args
+  [PASS] test_lu_csr_identity
+  [PASS] test_lu_csr_dense_5x5
+  [PASS] test_lu_csr_empty
+  [PASS] test_lu_csr_1x1
+  [PASS] test_lu_csr_with_permutations
+  [PASS] test_lu_csr_fill_factor_clamping
+  [PASS] test_lu_csr_suitesparse_orsirr1
+  [PASS] test_lu_csr_tridiagonal
+  [PASS] test_lu_csr_eliminate_3x3
+  [PASS] test_lu_csr_eliminate_5x5_solve
+  [PASS] test_lu_csr_eliminate_diagonal
+  [PASS] test_lu_csr_eliminate_tridiag
+  [PASS] test_lu_csr_eliminate_needs_pivot
+  [PASS] test_lu_csr_eliminate_singular
+  [PASS] test_lu_csr_solve_null
+  [PASS] test_lu_csr_factor_solve_tridiag
+  [PASS] test_lu_csr_factor_solve_dense
+    orsirr_1 residuals: CSR=2.869e-11  LL=2.998e-11
+  [PASS] test_lu_csr_factor_solve_orsirr1
+    steam1 residual: 2.438e-07
+  [PASS] test_lu_csr_factor_solve_steam1
+    orsirr_1 (n=1030): LL=1.6602s  CSR=0.1314s  speedup=12.63x
+  [PASS] test_lu_csr_benchmark_orsirr1
+  [PASS] test_detect_blocks_null
+  [PASS] test_detect_blocks_block_diagonal
+  [PASS] test_detect_blocks_sparse_tridiag
+  [PASS] test_detect_blocks_one_large
+  [PASS] test_extract_insert_round_trip
+  [PASS] test_detect_blocks_too_small
+  [PASS] test_lu_dense_factor_null
+  [PASS] test_lu_dense_factor_solve_3x3
+  [PASS] test_lu_dense_factor_singular
+  [PASS] test_lu_dense_factor_solve_5x5
+  [PASS] test_block_eliminate_block_diagonal
+  [PASS] test_block_eliminate_mixed
+  [PASS] test_block_near_singular_fallback
+  [PASS] test_block_at_boundary
+  [PASS] test_block_zero_pivot
+    orsirr_1 block: res=2.869e-11  plain: res=2.869e-11
+  [PASS] test_block_suitesparse_orsirr1
+    steam1 block: res=2.438e-07
+  [PASS] test_block_suitesparse_steam1
+  [PASS] test_block_eliminate_no_blocks
+  [PASS] test_block_solve_null
+  [PASS] test_block_solve_single_rhs
+  [PASS] test_block_solve_5_rhs
+  [PASS] test_block_solve_residual
+  [PASS] test_block_solve_nrhs_zero
+  [PASS] test_csr_block_solve_3_rhs
+  [PASS] test_block_solve_many_rhs
+  [PASS] test_csr_zero_dimension
+  [PASS] test_csr_solve_1x1
+  [PASS] test_dense_factor_rectangular
+  [PASS] test_csr_solve_block_edge
+  [PASS] test_detect_blocks_strict_threshold
+  [PASS] test_factor_solve_null
+  [PASS] test_extract_insert_null
+
+--- Summary ---
+Tests run:    53
+Tests failed: 0
+Assertions:   1062184
+Time:         7.563 s
+ALL TESTS PASSED
+
+=== Running test_block_solvers ===
+=== Block Solvers (CG + GMRES) ===
+
+  [PASS] test_matvec_block_null
+  [PASS] test_matvec_block_matches_single
+  [PASS] test_block_cg_null
+  [PASS] test_block_cg_nrhs_zero
+  [PASS] test_block_cg_single_rhs
+  [PASS] test_block_cg_3rhs
+  [PASS] test_block_cg_residuals
+    block_cg iters=17  single_cg iters=17
+  [PASS] test_block_cg_iteration_count
+  [PASS] test_block_gmres_null
+  [PASS] test_block_gmres_nrhs_zero
+  [PASS] test_block_gmres_single_rhs
+  [PASS] test_block_gmres_3rhs
+  [PASS] test_block_gmres_residuals
+  [PASS] test_block_gmres_preconditioned
+  [PASS] test_block_gmres_restart
+
+--- Summary ---
+Tests run:    15
+Tests failed: 0
+Assertions:   168
+Time:         0.000 s
+ALL TESTS PASSED
+
+=== Running test_sprint10_integration ===
+=== Sprint 10 Integration ===
+
+    nos4 (100×100): relres = 2.54e-15
+  [PASS] test_csr_solve_nos4
+    bcsstk04 (132×132): relres = 2.83e-16
+  [PASS] test_csr_solve_bcsstk04
+    west0067 (67×67): relres = 2.06e-16
+  [PASS] test_csr_solve_west0067
+    steam1 (240×240): relres = 5.26e-14
+  [PASS] test_csr_solve_steam1
+    fs_541_1 (541×541): relres = 2.83e-15
+  [PASS] test_csr_solve_fs_541_1
+    orsirr_1 (1030×1030): relres = 1.67e-12
+  [PASS] test_csr_solve_orsirr_1
+    nos4: CSR relres=2.54e-15  LL relres=2.54e-15
+    solution diff: 0.00e+00
+  [PASS] test_csr_vs_linkedlist_nos4
+    (skipped — set RUN_BENCH=1 to run timing benchmark)
+  [PASS] test_csr_speedup_orsirr_1
+    block LU:    max relres = 2.42e-15
+    block CG:    max relres = 9.23e-13  iters = 97
+    block GMRES: max relres = 9.21e-13  iters = 287
+    max |x_lu - x_cg/gmres| = 5.70e-09
+  [PASS] test_block_solvers_cross_validate_nos4
+    steam1 (240×240, 3 RHS): ILU+GMRES relres=1.73e-11 iters=4
+  [PASS] test_preconditioned_block_gmres_steam1
+    west0067: block vs single max diff = 1.69e-12
+  [PASS] test_csr_block_vs_single_solve
+    version: 2.2.0 (int 20200)
+  [PASS] test_version_macros
+    backward compat LU: relres = 2.54e-15
+  [PASS] test_backward_compat_lu_solve
+    backward compat CG: relres = 5.21e-13  iters = 97
+  [PASS] test_backward_compat_cg_single
+
+--- Summary ---
+Tests run:    14
+Tests failed: 0
+Assertions:   65
+Time:         0.254 s
+ALL TESTS PASSED
+
+=== Running test_sprint11_integration ===
+=== Sprint 11 Integration Tests ===
+
+  [PASS] test_all_solvers_tiny_scale
+  [PASS] test_all_solvers_huge_scale
+  [PASS] test_factored_state_lifecycle
+  [PASS] test_ilu_gmres_extreme_scales
+  [PASS] test_version_consistency
+    nos4 Cholesky relres = 2.56e-13
+  [PASS] test_suitesparse_tolerance_integration
+
+--- Summary ---
+Tests run:    6
+Tests failed: 0
+Assertions:   144
+Time:         0.001 s
+ALL TESTS PASSED
+
+=== Running test_ldlt ===
+=== LDL^T Factorization Tests ===
+
+  [PASS] test_ldlt_null_args
+  [PASS] test_ldlt_non_square
+  [PASS] test_ldlt_non_symmetric
+  [PASS] test_ldlt_empty_matrix
+  [PASS] test_ldlt_1x1
+  [PASS] test_ldlt_1x1_negative
+  [PASS] test_ldlt_diagonal_spd
+  [PASS] test_ldlt_diagonal_indefinite
+  [PASS] test_ldlt_singular_diagonal
+  [PASS] test_ldlt_spd_3x3
+  [PASS] test_ldlt_spd_5x5_tridiag
+  [PASS] test_ldlt_identity
+  [PASS] test_ldlt_reconstruct_ldlt
+  [PASS] test_ldlt_solve_multiple_rhs
+  [PASS] test_ldlt_2x2_indefinite
+  [PASS] test_ldlt_2x2_with_trailing
+  [PASS] test_ldlt_2x2_reconstruct
+  [PASS] test_ldlt_mixed_pivots_4x4
+  [PASS] test_ldlt_2x2_bk_swap
+  [PASS] test_ldlt_2x2_kkt_like
+  [PASS] test_ldlt_singular_zero_block
+  [PASS] test_ldlt_singular_rank_deficient
+  [PASS] test_ldlt_multiple_2x2_blocks
+  [PASS] test_ldlt_large_indefinite
+  [PASS] test_ldlt_tridiag_indefinite
+  [PASS] test_ldlt_error_recovery
+  [PASS] test_ldlt_2x2_with_reorder
+  [PASS] test_ldlt_scaled_matrix
+  [PASS] test_ldlt_solve_vs_cholesky
+  [PASS] test_ldlt_solve_aliased
+  [PASS] test_ldlt_solve_zero_rhs
+  [PASS] test_ldlt_solve_unfactored
+  [PASS] test_ldlt_solve_2x2_relative_residual
+  [PASS] test_ldlt_solve_indefinite_known_solution
+  [PASS] test_ldlt_reorder_none_vs_amd
+  [PASS] test_ldlt_reorder_rcm
+    arrow 30x30 fill-in: none=465, AMD=59
+  [PASS] test_ldlt_reorder_fillin
+  [PASS] test_ldlt_reorder_indefinite
+    tests/data/suitesparse/nos4.mtx: n=100, relres=1.012e-15
+  [PASS] test_ldlt_nos4
+    tests/data/suitesparse/bcsstk04.mtx: n=132, relres=2.699e-16
+  [PASS] test_ldlt_bcsstk04
+    tests/data/suitesparse/nos4.mtx: n=100, relres=9.021e-16
+  [PASS] test_ldlt_nos4_amd
+    bcsstk04 fill-in: none=3665, AMD=3046 (1.2x)
+  [PASS] test_ldlt_bcsstk04_amd
+  [PASS] test_ldlt_kkt_small
+  [PASS] test_ldlt_kkt_medium
+    KKT 50x50 (AMD): relres=1.155e-16
+  [PASS] test_ldlt_kkt_large
+    saddle-point 6x6: 0 of 6 pivots are 2x2
+  [PASS] test_ldlt_saddle_point
+  [PASS] test_ldlt_vs_lu
+  [PASS] test_ldlt_kkt_vs_lu
+  [PASS] test_ldlt_scale_tiny
+  [PASS] test_ldlt_scale_huge
+  [PASS] test_ldlt_scale_tiny_2x2
+  [PASS] test_ldlt_known_eigenvalues
+  [PASS] test_ldlt_negative_definite
+  [PASS] test_ldlt_eigenvalue_spread
+  [PASS] test_ldlt_rotated_indefinite
+  [PASS] test_ldlt_inertia_2x2_block
+  [PASS] test_ldlt_refine_null
+  [PASS] test_ldlt_refine_basic
+    refine: pre=2.266e-07, post=3.553e-15
+  [PASS] test_ldlt_refine_improves
+  [PASS] test_ldlt_refine_zero_rhs
+  [PASS] test_ldlt_condest_null
+    condest(I): 1.000
+  [PASS] test_ldlt_condest_identity
+    condest(diag): 2.500 (true=2.5)
+  [PASS] test_ldlt_condest_wellcond
+    condest(ill): 5.000e+07 (true=1e8)
+  [PASS] test_ldlt_condest_illcond
+    condest(indef): 1.800
+  [PASS] test_ldlt_condest_indefinite
+    bcsstk04 LDL^T vs Cholesky: max|diff| = 1.943e-14
+  [PASS] test_ldlt_bcsstk04_vs_cholesky
+    KKT 100x100: relres=9.811e-17, nnz(L)=258
+  [PASS] test_ldlt_kkt_100
+    KKT 500x500: relres=4.465e-17, nnz(L)=1298
+  [PASS] test_ldlt_kkt_500
+    nos4 (n=100): nnz(L_ldlt)=805, nnz(LU)=1510, ratio=0.53
+    nos4 LDL^T vs LU: max|diff| = 1.478e-12
+  [PASS] test_ldlt_vs_lu_fillin
+    bcsstk04 (n=132): nnz(L_ldlt)=3665, nnz(LU)=8581, ratio=0.43
+  [PASS] test_ldlt_vs_lu_fillin_bcsstk04
+  [PASS] test_ldlt_backend_auto_routes_linked_list
+  [PASS] test_ldlt_backend_linked_list_forced
+  [PASS] test_ldlt_backend_csc_forced_factors
+  [PASS] test_ldlt_backend_invalid_rejected
+  [PASS] test_ldlt_backend_used_csc_path_null_ok
+  [PASS] test_ldlt_day5_cross_backend_spd_tridiag
+  [PASS] test_ldlt_day5_cross_backend_spd_banded
+  [PASS] test_ldlt_day5_cross_backend_diagonal_indefinite
+  [PASS] test_ldlt_day5_cross_backend_kkt_5x5
+  [PASS] test_ldlt_day5_cross_backend_small_dense_indefinite
+  [PASS] test_ldlt_day5_auto_routes_csc_above_threshold
+  [PASS] test_ldlt_free_zeroed
+  [PASS] test_ldlt_inertia_null
+
+--- Summary ---
+Tests run:    83
+Tests failed: 0
+Assertions:   843
+Time:         0.091 s
+ALL TESTS PASSED
+
+=== Running test_sprint12_integration ===
+=== Sprint 12 Integration Tests (LDL^T) ===
+
+    scaled tolerance: 5 scales from 1e-35 to 1e+35 OK
+  [PASS] test_s12_scaled_tolerance
+    KKT pipeline: relres before=1.042e-16, after=1.042e-16
+    KKT condest: 22.55
+  [PASS] test_s12_kkt_pipeline
+    reorder equivalence: NONE/AMD/RCM agree to 1e-8
+  [PASS] test_s12_reorder_equivalence
+    inertia: (5+, 3-, 0) matches diagonal eigenvalues
+  [PASS] test_s12_inertia_eigenstructure
+    LDL^T vs LU: max|diff| = 1.776e-15
+    fill-in: nnz(L_ldlt)=57, nnz(LU)=100, ratio=0.57
+  [PASS] test_s12_ldlt_vs_lu
+  [PASS] test_s12_unfactored_solve_fails
+    nos4 (n=100, AMD): relres=9.021e-16, nnz(L)=637
+  [PASS] test_s12_suitesparse_nos4
+    KKT 280x280 (AMD): relres=6.020e-17, nnz(L)=718
+    KKT 280x280 condest: 22.57
+  [PASS] test_s12_large_kkt_pipeline
+
+--- Summary ---
+Tests run:    8
+Tests failed: 0
+Assertions:   124
+Time:         0.004 s
+ALL TESTS PASSED
+
+=== Running test_ic ===
+=== test_ic ===
+
+  [PASS] test_ic_null_args
+  [PASS] test_ic_non_square
+  [PASS] test_ic_non_symmetric
+  [PASS] test_ic_empty_matrix
+  [PASS] test_ic_not_spd
+  [PASS] test_ic_1x1
+  [PASS] test_ic_identity
+  [PASS] test_ic_diagonal_pattern
+  [PASS] test_ic_tridiag_pattern
+  [PASS] test_ic_tridiag_values
+    banded n=8 bw=2: nnz(L)=21
+  [PASS] test_ic_banded_pattern
+  [PASS] test_ic_solve_1x1
+  [PASS] test_ic_solve_identity
+  [PASS] test_ic_solve_diagonal
+    tridiag n=10: relres = 1.667e-16
+  [PASS] test_ic_solve_tridiag
+    banded n=20 bw=3: IC(0) solve relres = 1.719e-16
+  [PASS] test_ic_solve_banded
+  [PASS] test_ic_solve_multiple_rhs
+    large tridiag n=100: relres = 2.709e-16
+  [PASS] test_ic_solve_large_tridiag
+  [PASS] test_ic_precond_callback
+  [PASS] test_ic_precond_cg_diagonal
+  [PASS] test_ic_precond_cg_zero_rhs
+    tridiag n=20 IC(0)-CG: 1 iters
+  [PASS] test_ic_precond_cg_tridiag_exact
+    banded n=30 bw=3 CG iters: unprec=10, IC(0)=1, ILU(0)=1
+  [PASS] test_ic_precond_cg_banded
+    large banded n=100 bw=4 CG iters: unprec=10, IC(0)=1
+  [PASS] test_ic_precond_cg_large
+    bcsstk04 (n=132): unprec CG 529 iters (relres=7.4e-11), IC(0)-CG 35 iters (relres=1.4e-11)
+  [PASS] test_ic_suitesparse_bcsstk04
+    nos4 (n=100): unprec CG 92 iters (relres=4.6e-11), IC(0)-CG 25 iters (relres=3.7e-11)
+  [PASS] test_ic_suitesparse_nos4
+    bcsstk04 IC(0) vs ILU(0): IC(0)=39 iters, ILU(0)=39 iters
+  [PASS] test_ic_vs_ilu_suitesparse
+
+--- Summary ---
+Tests run:    27
+Tests failed: 0
+Assertions:   448
+Time:         0.034 s
+ALL TESTS PASSED
+
+=== Running test_minres ===
+=== test_minres ===
+
+  [PASS] test_minres_null_args
+  [PASS] test_minres_non_square
+  [PASS] test_minres_zero_rhs
+  [PASS] test_minres_1x1
+  [PASS] test_minres_1x1_negative
+    SPD diagonal: 5 iters, relres=1.606e-16
+  [PASS] test_minres_spd_diagonal
+    SPD tridiag n=20: 20 iters, relres=3.372e-16
+  [PASS] test_minres_spd_tridiag
+    SPD n=15: MINRES 15 iters, CG 15 iters
+  [PASS] test_minres_spd_vs_cg
+  [PASS] test_minres_already_converged
+    indefinite tridiag n=10: 10 iters, relres=2.673e-16
+  [PASS] test_minres_indefinite_tridiag
+    KKT 9x9: 9 iters, relres=1.808e-16
+  [PASS] test_minres_kkt_small
+    KKT 28x28: 28 iters, relres=3.743e-16
+  [PASS] test_minres_kkt_medium
+    MINRES vs GMRES on KKT 14x14: MINRES 14 iters, GMRES 14 iters
+  [PASS] test_minres_vs_gmres_indefinite
+    IC(0)-MINRES on SPD n=30: unprec=18 iters, IC(0)=1 iters
+  [PASS] test_minres_precond_ic_spd
+    IC(0)-precond n=20: MINRES 1 iters, CG 1 iters
+  [PASS] test_minres_precond_ic_vs_cg
+    Jacobi-MINRES on KKT 21x21: unprec=21 iters, Jacobi=17 iters
+  [PASS] test_minres_precond_jacobi_indefinite
+    Jacobi-MINRES on KKT 55x55: unprec=40 iters (relres=7.3e-11), Jacobi=28 iters (relres=9.2e-11)
+  [PASS] test_minres_precond_jacobi_large_kkt
+    banded n=50 MINRES iters: unprec=9, IC(0)=1, ILU(0)=1
+  [PASS] test_minres_precond_ic_banded
+  [PASS] test_minres_precond_identity
+    exact precond n=5: 1 iters
+  [PASS] test_minres_precond_exact
+  [PASS] test_minres_max_iter
+    indefinite tridiag n=50: 26 iters, relres=5.967e-11
+  [PASS] test_minres_large_indefinite
+    scaled tolerance: 5 scales from 1e-35 to 1e+35 OK
+  [PASS] test_minres_scaled_tolerance
+    scaled SPD: 5 scales from 1e-20 to 1e+20 OK
+  [PASS] test_minres_scaled_spd
+    ill-conditioned (cond~1e9): 14 iters, relres=1.000e-09
+  [PASS] test_minres_ill_conditioned
+  [PASS] test_minres_early_lanczos_termination
+  [PASS] test_minres_vs_ldlt_spd
+    MINRES vs LDL^T on KKT 11x11: max|diff|=3.553e-15
+  [PASS] test_minres_vs_ldlt_indefinite
+    KKT 28x28: MINRES relres=3.743e-16 (28 iters), LDL^T relres=1.400e-16
+  [PASS] test_minres_vs_ldlt_large_kkt
+    KKT 42x42: MINRES 39 iters, GMRES 39 iters
+  [PASS] test_minres_vs_gmres_large
+  [PASS] test_minres_block_null_args
+  [PASS] test_minres_block_zero_nrhs
+  [PASS] test_minres_block_single_rhs
+    block MINRES SPD n=15 nrhs=4: 15 iters, relres=3.348e-16
+  [PASS] test_minres_block_multi_rhs_spd
+    block MINRES KKT 14x14 nrhs=3: 14 iters, relres=4.904e-16
+  [PASS] test_minres_block_multi_rhs_indefinite
+  [PASS] test_minres_block_zero_rhs_column
+    block MINRES KKT 28x28 nrhs=5: 28 max iters, relres=3.922e-16
+  [PASS] test_minres_block_large
+    block IC(0)-MINRES SPD n=20 nrhs=5: unprec=17 iters, IC(0)=1 iters
+  [PASS] test_minres_block_precond_ic
+    block Jacobi-MINRES KKT 21x21 nrhs=3: unprec=21 iters, Jacobi=17 iters
+  [PASS] test_minres_block_precond_jacobi_indefinite
+  [PASS] test_minres_block_vs_sequential
+  [PASS] test_minres_block_all_zero_rhs
+    block MINRES KKT 50x50 nrhs=20: 42 max iters, relres=9.728e-11
+  [PASS] test_minres_block_many_rhs
+  [PASS] test_minres_block_non_square
+
+--- Summary ---
+Tests run:    43
+Tests failed: 0
+Assertions:   702
+Time:         0.003 s
+ALL TESTS PASSED
+
+=== Running test_sprint13_integration ===
+=== test_sprint13_integration ===
+
+    banded n=50 bw=3 CG: unprec=10, IC(0)=1, ILU(0)=1 iters
+  [PASS] test_s13_ic_vs_ilu_banded_cg
+    KKT 50x50: MINRES 39 iters (relres=6.6e-11), GMRES 39 iters (relres=6.6e-11)
+  [PASS] test_s13_minres_vs_gmres_kkt
+    KKT 100x100 MINRES: unprec=33 iters (relres=7.1e-09), Jacobi=26 iters (relres=2.4e-09)
+  [PASS] test_s13_minres_jacobi_large_kkt
+    cross-solver SPD n=25: CG=21, MINRES=21, GMRES=21 iters
+  [PASS] test_s13_cross_solver_spd
+    cross-solver KKT 21x21: MINRES=21, GMRES=21 iters, LDL^T=direct
+  [PASS] test_s13_cross_solver_indefinite
+    LDL^T-precond MINRES on SPD n=15: unprec=15 iters, LDL^T=1 iters
+  [PASS] test_s13_ldlt_precond_minres
+    bcsstk04 (n=132): IC(0)-CG=39, MINRES=2000, IC(0)-MINRES=39 iters
+  [PASS] test_s13_suitesparse_bcsstk04
+    nos4 (n=100): IC(0)-CG=26 iters, ILU(0)-CG=26 iters
+  [PASS] test_s13_suitesparse_nos4
+    block MINRES KKT 28x28 nrhs=4: 28 iters, verified vs LDL^T
+  [PASS] test_s13_block_minres_kkt
+    IC(0)-precond SPD n=40: CG=1 iters, MINRES=1 iters
+  [PASS] test_s13_ic_minres_vs_cg
+    extreme-scale IC(0)+MINRES: 5 scales from 1e-15 to 1e+15 OK
+  [PASS] test_s13_scaled_ic_minres
+  [PASS] test_s13_ic_unfactored_solve
+    (skipped — set RUN_BENCH=1 to enable)
+  [PASS] test_s13_large_kkt_benchmark
+    (skipped — set RUN_BENCH=1 to enable)
+  [PASS] test_s13_ic_ilu_benchmark_bcsstk04
+
+--- Summary ---
+Tests run:    14
+Tests failed: 0
+Assertions:   774
+Time:         0.106 s
+ALL TESTS PASSED
+
+=== Running test_etree ===
+=== test_etree ===
+
+  [PASS] test_etree_null_args
+  [PASS] test_etree_non_square
+  [PASS] test_etree_1x1
+  [PASS] test_etree_diagonal
+    tridiag n=6 etree: path 0→1→...→5 (root)
+  [PASS] test_etree_tridiag
+    arrow n=5 etree: star with center 4
+  [PASS] test_etree_arrow
+    5x5 etree: 0→2→4, 1→3→4 (root=4)
+  [PASS] test_etree_known_5x5
+  [PASS] test_postorder_null_args
+  [PASS] test_postorder_empty
+  [PASS] test_postorder_diagonal
+  [PASS] test_postorder_path
+  [PASS] test_postorder_star
+  [PASS] test_postorder_known_5x5
+  [PASS] test_etree_postorder_tridiag
+  [PASS] test_etree_postorder_arrow
+    large tridiag n=100: etree OK, postorder OK
+  [PASS] test_etree_postorder_large
+  [PASS] test_colcount_null_args
+  [PASS] test_colcount_1x1
+    diagonal n=5: all colcounts = 1, nnz(L) = 5
+  [PASS] test_colcount_diagonal
+    tridiag n=6: colcounts [2,..,2,1], nnz(L) = 11
+  [PASS] test_colcount_tridiag
+    arrow n=5: colcounts [2,..,2,1]
+  [PASS] test_colcount_arrow
+    dense n=4: colcounts [4,...,1], nnz(L) = 10
+  [PASS] test_colcount_dense
+    5x5: colcounts [2,2,2,2,1], nnz(L) = 9
+  [PASS] test_colcount_known_5x5
+    empty column: colcounts [2,1,1]
+  [PASS] test_colcount_empty_column
+    tridiag n=8 vs Cholesky: nnz(L) = 15 ✓
+  [PASS] test_colcount_vs_cholesky_tridiag
+    arrow n=6 vs Cholesky: nnz(L) = 11 ✓
+  [PASS] test_colcount_vs_cholesky_arrow
+    5x5 vs Cholesky: nnz(L) = 9 ✓
+  [PASS] test_colcount_vs_cholesky_known_5x5
+    dense n=4 vs Cholesky: nnz(L) = 10 ✓
+  [PASS] test_colcount_vs_cholesky_dense
+  [PASS] test_symbolic_null_args
+  [PASS] test_symbolic_1x1
+  [PASS] test_symbolic_diagonal
+    symbolic tridiag n=6: nnz(L) = 11, matches numeric ✓
+  [PASS] test_symbolic_tridiag
+    symbolic arrow n=5: nnz(L) = 9, matches numeric ✓
+  [PASS] test_symbolic_arrow
+    symbolic dense n=4: nnz(L) = 10, matches numeric ✓
+  [PASS] test_symbolic_dense
+    symbolic 5x5: nnz(L) = 9, row indices verified ✓
+  [PASS] test_symbolic_known_5x5
+  [PASS] test_symbolic_free_zeroed
+    bcsstk04 (132x132): symbolic nnz(L) = 3763, numeric nnz(L) = 3664 ✓
+  [PASS] test_symbolic_vs_cholesky_bcsstk04
+    nos4 (100x100): symbolic nnz(L) = 805, numeric nnz(L) = 805 ✓
+  [PASS] test_symbolic_vs_cholesky_nos4
+  [PASS] test_symbolic_lu_null_args
+  [PASS] test_symbolic_lu_diagonal
+    unsym 3x3: sym_L nnz = 6, sym_U nnz = 6, LU nnz = 7 ✓
+  [PASS] test_symbolic_lu_unsym_3x3
+    tridiag n=6: sym_L nnz = 15, sym_U nnz = 15 ✓
+  [PASS] test_symbolic_lu_tridiag
+  [PASS] test_symbolic_lu_L_only
+  [PASS] test_symbolic_lu_U_only
+    arrow n=5 with AMD: sym_L nnz = 15, sym_U nnz = 15 ✓
+  [PASS] test_symbolic_lu_with_amd
+    west0067 (67x67): sym_L nnz = 1284, sym_U nnz = 1284, LU nnz = 928 ✓
+  [PASS] test_symbolic_lu_vs_west0067
+    steam1 (240x240): sym_L nnz = 18699, sym_U nnz = 18699, LU nnz = 22956 ✓
+  [PASS] test_symbolic_lu_vs_steam1
+  [PASS] test_analyze_null_args
+  [PASS] test_analyze_non_square
+  [PASS] test_analyze_default_opts
+    analyze cholesky tridiag n=8: nnz(L) = 15 ✓
+  [PASS] test_analyze_cholesky_tridiag
+    analyze cholesky arrow n=6: nnz(L) = 11 ✓
+  [PASS] test_analyze_cholesky_arrow
+    analyze cholesky+AMD arrow n=8: nnz(L) = 15, perm stored ✓
+  [PASS] test_analyze_cholesky_with_amd
+    analyze cholesky+RCM arrow n=8: nnz(L) = 15 ✓
+  [PASS] test_analyze_cholesky_with_rcm
+    analyze bcsstk04 (132x132): symbolic nnz(L) = 3763, numeric nnz(L) = 3664 ✓
+  [PASS] test_analyze_cholesky_bcsstk04
+  [PASS] test_analyze_free_and_reanalyze
+  [PASS] test_analyze_free_null
+  [PASS] test_analyze_norm_cached
+  [PASS] test_analyze_sym_L_sorted
+    analyze LU unsym 3x3: sym_L nnz = 6, sym_U nnz = 6 ✓
+  [PASS] test_analyze_lu_unsym
+    analyze LU+AMD unsym 3x3: sym_L nnz = 6, sym_U nnz = 6 ✓
+  [PASS] test_analyze_lu_with_amd
+    analyze LU west0067 (67x67): sym_L nnz = 1284, sym_U nnz = 1284, LU nnz = 928 ✓
+  [PASS] test_analyze_lu_west0067
+    analyze LDL^T KKT 4x4: sym_L nnz = 9, numeric L nnz = 9 ✓
+  [PASS] test_analyze_ldlt_kkt
+    analyze LDL^T tridiag n=6: matches Cholesky sym_L ✓
+  [PASS] test_analyze_ldlt_tridiag
+    analyze LDL^T+AMD KKT 4x4: sym_L nnz = 7, perm stored ✓
+  [PASS] test_analyze_ldlt_with_amd
+    analyze LDL^T nos4 (100x100): sym_L nnz = 805, numeric L nnz = 805 ✓
+  [PASS] test_analyze_ldlt_nos4
+  [PASS] test_factor_numeric_null_args
+    factor_numeric cholesky tridiag n=8: residual = 3.33e-16 ✓
+  [PASS] test_factor_numeric_cholesky_tridiag
+    factor_numeric cholesky arrow n=6: residual = 2.22e-16 ✓
+  [PASS] test_factor_numeric_cholesky_arrow
+    factor_numeric cholesky+AMD arrow n=8: residual = 2.22e-16 ✓
+  [PASS] test_factor_numeric_cholesky_with_amd
+    factor_numeric bcsstk04 (132x132): residual = 4.45e-12 ✓
+  [PASS] test_factor_numeric_cholesky_bcsstk04
+    factor_numeric nos4 (100x100): residual = 1.64e-13 ✓
+  [PASS] test_factor_numeric_cholesky_nos4
+  [PASS] test_factor_free_null
+    factor_numeric LU unsym 3x3: residual = 0.00e+00 ✓
+  [PASS] test_factor_numeric_lu_unsym
+    factor_numeric LU tridiag n=8: residual = 2.22e-16 ✓
+  [PASS] test_factor_numeric_lu_tridiag
+    factor_numeric LU west0067 (67x67): residual = 1.78e-15 ✓
+  [PASS] test_factor_numeric_lu_west0067
+    factor_numeric LU+AMD unsym 3x3: residual = 0.00e+00 ✓
+  [PASS] test_factor_numeric_lu_with_amd
+    factor_numeric LDL^T KKT 4x4: residual = 2.22e-16 ✓
+  [PASS] test_factor_numeric_ldlt_kkt
+    factor_numeric LDL^T tridiag n=6: residual = 2.96e-16 ✓
+  [PASS] test_factor_numeric_ldlt_tridiag
+    factor_numeric LDL^T nos4 (100x100): residual = 1.27e-13 ✓
+  [PASS] test_factor_numeric_ldlt_nos4
+    factor_numeric LDL^T+AMD KKT 4x4: residual = 0.00e+00 ✓
+  [PASS] test_factor_numeric_ldlt_with_amd
+  [PASS] test_refactor_null_args
+    refactor cholesky: resid1 = 4.44e-16, resid2 = 2.22e-16 ✓
+  [PASS] test_refactor_cholesky_new_values
+    refactor modify single value: solutions differ, resid = 2.22e-16 ✓
+  [PASS] test_refactor_modify_single_value
+  [PASS] test_refactor_dimension_mismatch
+    refactor loop 10 iterations: all residuals < 1e-12 ✓
+  [PASS] test_refactor_loop
+    refactor LU: resid1 = 0.00e+00, resid2 = 0.00e+00 ✓
+  [PASS] test_refactor_lu
+    refactor LDL^T: resid1 = 2.22e-16, resid2 = 0.00e+00 ✓
+  [PASS] test_refactor_ldlt
+    compat cholesky tridiag n=10: one-shot == analyze+factor ✓
+  [PASS] test_compat_cholesky_tridiag
+    compat cholesky bcsstk04: oneshot resid=4.45e-12, analyze resid=4.45e-12 ✓
+  [PASS] test_compat_cholesky_bcsstk04
+    compat LU unsym 3x3: one-shot == analyze+factor ✓
+  [PASS] test_compat_lu_unsym
+    compat LU west0067: oneshot resid=1.78e-15, analyze resid=1.78e-15 ✓
+  [PASS] test_compat_lu_west0067
+    compat LDL^T KKT 4x4: one-shot == analyze+factor ✓
+  [PASS] test_compat_ldlt_kkt
+    compat LDL^T nos4: oneshot resid=1.27e-13, analyze resid=1.27e-13 ✓
+  [PASS] test_compat_ldlt_nos4
+
+--- Summary ---
+Tests run:    94
+Tests failed: 0
+Assertions:   648
+Time:         0.574 s
+ALL TESTS PASSED
+
+=== Running test_colamd ===
+=== test_colamd ===
+
+  [PASS] test_graph_null_args
+  [PASS] test_graph_empty
+  [PASS] test_graph_1x1
+  [PASS] test_graph_diagonal
+    dense row 1x4: all columns adjacent, total adj = 12 ✓
+  [PASS] test_graph_dense_row
+    tridiag 4x4: adjacency correct, symmetric ✓
+  [PASS] test_graph_tridiag
+    unsym 3x4: path adjacency, degrees [1,2,2,1] ✓
+  [PASS] test_graph_unsymmetric
+    arrow 5x5: fully connected, all degrees = 4 ✓
+  [PASS] test_graph_arrow
+    dense row skip: threshold=2 removes all adjacency ✓
+  [PASS] test_graph_dense_row_skip
+    tall 6x3: fully connected, symmetric ✓
+  [PASS] test_graph_rectangular_tall
+  [PASS] test_graph_free_zeroed
+  [PASS] test_order_null_args
+  [PASS] test_order_1x1
+    order diagonal n=5: valid perm ✓
+  [PASS] test_order_diagonal
+    order tridiag n=6: perm = [0,1,2,3,4,5] ✓
+  [PASS] test_order_tridiag
+    order unsym 3x4: perm = [0,1,2,3] ✓
+  [PASS] test_order_unsymmetric
+    order arrow n=5: valid perm ✓
+  [PASS] test_order_arrow
+    order initial degree: corner column eliminated first ✓
+  [PASS] test_order_initial_degree
+    order wide 2x6: valid perm ✓
+  [PASS] test_order_wide_matrix
+    order all-dense 5x5: valid perm ✓
+  [PASS] test_order_all_dense_rows
+    order single dense row (5x4): valid perm ✓
+  [PASS] test_order_single_dense_row
+    order very tall 100x3: valid perm ✓
+  [PASS] test_order_very_tall
+    order very wide 2x50: valid perm ✓
+  [PASS] test_order_very_wide
+    order empty columns: valid perm ✓
+  [PASS] test_order_empty_columns
+    order duplicate entries: valid perm ✓
+  [PASS] test_order_duplicate_entries
+  [PASS] test_public_api_null
+    public API square n=6: valid perm ✓
+  [PASS] test_public_api_square
+    public API rectangular 3x5: valid perm ✓
+  [PASS] test_public_api_rectangular
+    west0067 (67x67): natural fill=928, COLAMD fill=730 (21% reduction) ✓
+  [PASS] test_public_api_west0067
+    steam1 (240x240): valid COLAMD perm ✓
+  [PASS] test_public_api_steam1
+    COLAMD vs AMD n=8: both valid ✓
+  [PASS] test_colamd_vs_amd_fill
+    QR+COLAMD solve 6x4: residual = 5.07e+00 ✓
+  [PASS] test_qr_colamd_solve
+    QR COLAMD vs AMD vs natural: resid none=1.41e+00, amd=1.41e+00, colamd=1.41e+00 ✓
+  [PASS] test_qr_colamd_vs_amd
+    QR+COLAMD sparse_mode: residual = 0.00e+00 ✓
+  [PASS] test_qr_colamd_sparse_mode
+    analyze+factor LU+COLAMD: residual = 0.00e+00 ✓
+  [PASS] test_analyze_lu_colamd
+    analyze+factor Cholesky+COLAMD: residual = 4.44e-16 ✓
+  [PASS] test_analyze_cholesky_colamd
+    analyze+factor LU+COLAMD west0067: residual = 1.33e-15 ✓
+  [PASS] test_analyze_lu_colamd_west0067
+  [PASS] test_stress_identity
+  [PASS] test_stress_all_zero
+  [PASS] test_stress_single_entry
+  [PASS] test_stress_dense_matrix
+  [PASS] test_minnorm_null_args
+    minnorm 2x4: x=[0.500,0.500,0.500,0.500] ||x||=1.0000 ✓
+  [PASS] test_minnorm_2x4_known
+    minnorm is minimal: ||x_min||=1.0000 < ||x_other||=1.4142 ✓
+  [PASS] test_minnorm_is_minimal
+    minnorm 3x6: ||x||=2.8983, residual OK ✓
+  [PASS] test_minnorm_3x6
+    minnorm fallback 4x3: x=[1.000,2.000,3.000], maxerr=1.33e-15 ✓
+  [PASS] test_minnorm_fallback_overdetermined
+    minnorm+COLAMD 2x5: ||x||=2.1213 ✓
+  [PASS] test_minnorm_with_colamd
+    minnorm 5x10: ||x||=3.3166 ✓
+  [PASS] test_minnorm_5x10
+    minnorm rank-deficient 2x4: ||x||=1.0000 ✓
+  [PASS] test_minnorm_rank_deficient
+    minnorm square 3x3: exact solve ✓
+  [PASS] test_minnorm_square
+    minnorm 1x5: x=[1,1,1,1,1] ✓
+  [PASS] test_minnorm_1xn
+    refine minnorm: before=8.88e-16, after=0.00e+00 ✓
+  [PASS] test_refine_minnorm
+    minnorm zero row: Ax[0]=2.0000, ||x||=1.4142 ✓
+  [PASS] test_minnorm_zero_row
+    minnorm vs pinv: x_qr=[0.500,0.500,0.500,0.500] matches ✓
+  [PASS] test_minnorm_vs_pinv
+  [PASS] test_refine_minnorm_null
+  [PASS] test_diag_r_null
+    diag_r 4x3: R diag = [-5.000, 4.000, 3.162] ✓
+  [PASS] test_diag_r_basic
+    rank_info full-rank 4x3: rank=3, condest=1.58 ✓
+  [PASS] test_rank_info_full_rank
+    rank_info deficient 3x3: rank=2, condest=4.01 ✓
+  [PASS] test_rank_info_deficient
+    condest identity: 1.00 ✓
+  [PASS] test_condest_basic
+    condest ill 2x2: 1.00e+08, condest=1.00e+08 ✓
+  [PASS] test_condest_ill
+  [PASS] test_condest_null
+    condest vs true: qr=10.00, svd=11.58, ratio=0.86 ✓
+  [PASS] test_condest_vs_true
+    west0067 (67x67): natural fill=928, COLAMD fill=730 (21%) ✓
+  [PASS] test_ss_west0067
+    steam1 (240x240): natural fill=22956, COLAMD fill=9344 (59%) ✓
+  [PASS] test_ss_steam1
+    fs_541_1 (541x541): natural fill=7401, COLAMD fill=7053 (5%) ✓
+  [PASS] test_ss_fs_541_1
+    orsirr_1 (1030x1030): natural fill=78069, COLAMD fill=79006 (-1%) ✓
+  [PASS] test_ss_orsirr_1
+    minnorm west0067 submatrix 30x67: maxerr=1.78e-15, ||x||=4.30 <= ||1||=8.19 ✓
+  [PASS] test_minnorm_ss_submatrix
+    backward compat QR (no reorder): resid=2.13e+00, maxerr=1.82e+00 ✓
+  [PASS] test_backward_compat_qr_no_reorder
+    backward compat QR+AMD: resid=2.13e+00, maxerr=1.82e+00 ✓
+  [PASS] test_backward_compat_qr_amd
+
+--- Summary ---
+Tests run:    70
+Tests failed: 0
+Assertions:   260
+Time:         4.448 s
+ALL TESTS PASSED
+
+=== Running test_bicgstab ===
+=== BiCGSTAB ===
+
+  [PASS] test_bicgstab_null_A
+  [PASS] test_bicgstab_null_b
+  [PASS] test_bicgstab_null_x
+  [PASS] test_bicgstab_nonsquare
+  [PASS] test_bicgstab_bad_opts_negative_maxiter
+  [PASS] test_bicgstab_bad_opts_negative_tol
+  [PASS] test_bicgstab_null_result
+  [PASS] test_bicgstab_zero_size
+  [PASS] test_bicgstab_zero_rhs
+  [PASS] test_bicgstab_identity
+  [PASS] test_bicgstab_diagonal
+  [PASS] test_bicgstab_spd_tridiag
+  [PASS] test_bicgstab_unsym_tridiag
+  [PASS] test_bicgstab_1x1
+  [PASS] test_bicgstab_already_converged
+  [PASS] test_bicgstab_maxiter_zero
+  [PASS] test_bicgstab_default_opts
+  [PASS] test_bicgstab_larger_unsym
+  [PASS] test_bicgstab_result_fields
+  [PASS] test_bicgstab_3x3_known_solution
+  [PASS] test_bicgstab_5x5_known_solution
+  [PASS] test_bicgstab_vs_lu_direct
+  [PASS] test_bicgstab_true_residual_matches
+  [PASS] test_bicgstab_nonzero_initial_guess
+  [PASS] test_bicgstab_ilu_precond
+  [PASS] test_bicgstab_precond_fewer_iters
+  [PASS] test_bicgstab_precond_known_solution
+    west0067: BiCGSTAB+ILUT iters=500, rel_res=9.995e-01, converged=0
+  [PASS] test_bicgstab_west0067
+    steam1: BiCGSTAB+ILU iters=1, rel_res=6.950e-07
+  [PASS] test_bicgstab_steam1
+    orsirr_1: BiCGSTAB+ILU iters=25, rel_res=3.993e-09
+  [PASS] test_bicgstab_orsirr_1
+    steam1: BiCGSTAB iters=1 res=6.950e-07, GMRES(30) iters=3 res=1.369e-07
+  [PASS] test_bicgstab_vs_gmres_steam1
+    tridiag 100: BiCGSTAB iters=20, GMRES(30) iters=39
+  [PASS] test_bicgstab_vs_gmres_tridiag
+  [PASS] test_bicgstab_nan_inf_detection
+  [PASS] test_bicgstab_nearly_singular
+  [PASS] test_bicgstab_high_condition_number
+  [PASS] test_bicgstab_random_initial_guess
+  [PASS] test_bicgstab_near_solution_guess
+  [PASS] test_bicgstab_zero_diagonal
+  [PASS] test_bicgstab_err_numeric_strerror
+  [PASS] test_block_bicgstab_null_inputs
+  [PASS] test_block_bicgstab_nrhs_zero
+  [PASS] test_block_bicgstab_nrhs_negative
+  [PASS] test_block_bicgstab_nonsquare
+  [PASS] test_block_bicgstab_2rhs
+  [PASS] test_block_bicgstab_4rhs
+  [PASS] test_block_bicgstab_matches_single_rhs
+  [PASS] test_block_bicgstab_mixed_convergence
+  [PASS] test_block_bicgstab_nrhs_1
+  [PASS] test_block_bicgstab_preconditioned
+  [PASS] test_block_bicgstab_result_aggregation
+  [PASS] test_block_bicgstab_error_propagation
+  [PASS] test_bicgstab_mf_matches_matrix
+  [PASS] test_bicgstab_mf_scaled_identity
+  [PASS] test_bicgstab_mf_matvec_error
+  [PASS] test_bicgstab_mf_null_callback
+  [PASS] test_bicgstab_mf_zero_rhs
+  [PASS] test_bicgstab_mf_preconditioned
+  [PASS] test_bicgstab_mf_n_zero
+
+--- Summary ---
+Tests run:    58
+Tests failed: 0
+Assertions:   427
+Time:         0.032 s
+ALL TESTS PASSED
+
+=== Running test_stagnation ===
+=== Stagnation Detection ===
+
+  [PASS] test_cg_stagnation_disabled_by_default
+  [PASS] test_cg_no_stagnation_well_conditioned
+    CG stagnation: iters=47, stagnated=0, converged=1, res=4.633e-17
+  [PASS] test_cg_stagnation_detected
+    CG stagnation savings: no_stag=47 iters, stag=47 iters
+  [PASS] test_cg_stagnation_saves_iterations
+  [PASS] test_cg_stagnation_window_zero_disabled
+  [PASS] test_minres_no_stagnation_well_conditioned
+    MINRES stagnation: iters=3287, stagnated=1, converged=0, res=8.290e-09
+  [PASS] test_minres_stagnation_detected
+  [PASS] test_minres_stagnation_disabled_by_default
+  [PASS] test_gmres_no_stagnation_well_conditioned
+    GMRES stagnation (restart=5): iters=2568, stagnated=0, converged=1, res=9.912e-15
+  [PASS] test_gmres_stagnation_small_restart
+  [PASS] test_gmres_stagnation_disabled_default
+  [PASS] test_bicgstab_no_stagnation_well_conditioned
+    BiCGSTAB stagnation: iters=65, stagnated=0, converged=1, res=3.035e-15
+  [PASS] test_bicgstab_stagnation_detected
+  [PASS] test_bicgstab_stagnation_disabled_default
+  [PASS] test_stagnation_result_field_init
+  [PASS] test_stagnation_null_opts_safe
+  [PASS] test_cg_residual_history_basic
+  [PASS] test_cg_residual_history_null_disabled
+  [PASS] test_cg_residual_history_short_buffer
+  [PASS] test_gmres_residual_history
+  [PASS] test_minres_residual_history
+  [PASS] test_bicgstab_residual_history
+  [PASS] test_residual_history_count_matches_iters
+  [PASS] test_cg_callback_invoked
+  [PASS] test_gmres_callback_invoked
+  [PASS] test_minres_callback_invoked
+  [PASS] test_bicgstab_callback_invoked
+  [PASS] test_callback_null_uses_default
+  [PASS] test_callback_progress_fields
+  [PASS] test_cg_breakdown_singular
+  [PASS] test_cg_breakdown_semidefinite
+  [PASS] test_cg_no_breakdown_spd
+  [PASS] test_cg_breakdown_flag_init
+  [PASS] test_gmres_lucky_breakdown
+  [PASS] test_gmres_lucky_breakdown_identity
+  [PASS] test_gmres_no_breakdown_general
+  [PASS] test_minres_lanczos_breakdown_diagonal
+  [PASS] test_minres_no_breakdown_tridiag
+  [PASS] test_minres_breakdown_singular
+  [PASS] test_bicgstab_breakdown_singular
+  [PASS] test_bicgstab_no_breakdown_well_conditioned
+  [PASS] test_bicgstab_breakdown_permutation
+  [PASS] test_bicgstab_mf_breakdown_flag
+  [PASS] test_all_solvers_same_spd_system
+  [PASS] test_residual_history_matches_callback
+    Cross-solver stagnation: CG(stag=0,i=47) MINRES(stag=1,i=3287) BiCGSTAB(stag=0,i=65) GMRES(stag=0,i=1499)
+  [PASS] test_stagnation_across_solvers_same_system
+
+--- Summary ---
+Tests run:    46
+Tests failed: 0
+Assertions:   308
+Time:         0.018 s
+ALL TESTS PASSED
+
+=== Running test_chol_csc ===
+=== chol_csc (Sprint 17 Days 1-11 + Sprint 18 Days 6-11) ===
+
+  [PASS] test_chol_csc_alloc_null_out
+  [PASS] test_chol_csc_alloc_negative_n
+  [PASS] test_chol_csc_alloc_basic
+  [PASS] test_chol_csc_alloc_zero_initial_nnz
+  [PASS] test_chol_csc_alloc_zero_n
+  [PASS] test_chol_csc_free_null
+  [PASS] test_chol_csc_grow_null
+  [PASS] test_chol_csc_grow_noop
+  [PASS] test_chol_csc_grow_exact
+  [PASS] test_chol_csc_grow_geometric
+  [PASS] test_chol_csc_grow_to_needed
+  [PASS] test_chol_csc_grow_preserves_values
+  [PASS] test_from_sparse_null_args
+  [PASS] test_to_sparse_null_args
+  [PASS] test_roundtrip_identity
+  [PASS] test_roundtrip_diagonal_spd
+  [PASS] test_roundtrip_tridiagonal_spd
+  [PASS] test_roundtrip_dense_lower_5x5
+  [PASS] test_roundtrip_1x1
+  [PASS] test_from_sparse_strips_upper_triangle
+    nos4: n=100, nnz_lower=347, capacity=694
+  [PASS] test_roundtrip_nos4
+    bcsstk04: n=132, nnz_lower=1890, capacity=3780
+  [PASS] test_roundtrip_bcsstk04
+  [PASS] test_identity_perm_matches_null
+  [PASS] test_reverse_perm_symmetric
+  [PASS] test_amd_perm_entries_match
+  [PASS] test_invalid_perm_out_of_range
+  [PASS] test_invalid_perm_duplicate
+  [PASS] test_fill_factor_clamp
+  [PASS] test_factor_norm_cached
+  [PASS] test_with_analysis_null_args
+  [PASS] test_with_analysis_wrong_type
+  [PASS] test_exact_alloc_matches_dynamic_tridiag
+    nos4: predicted nnz(L)=805, actual nnz(L)=805
+  [PASS] test_predicted_nnz_matches_actual_nos4
+    bcsstk04 (AMD): predicted nnz(L)=3143, actual nnz(L)=3043
+  [PASS] test_predicted_nnz_matches_actual_bcsstk04
+  [PASS] test_predicted_nnz_matches_actual_random_spd
+  [PASS] test_validate_null
+  [PASS] test_validate_fresh_alloc_is_valid
+  [PASS] test_validate_catches_missing_diagonal
+  [PASS] test_validate_catches_upper_triangle
+  [PASS] test_validate_catches_unsorted_column
+  [PASS] test_validate_catches_col_ptr_inconsistency
+  [PASS] test_edge_case_diagonal_only
+  [PASS] test_edge_case_external_capacity_growth
+  [PASS] test_workspace_null_out
+  [PASS] test_workspace_negative_n
+  [PASS] test_workspace_free_null
+  [PASS] test_workspace_alloc_basic
+  [PASS] test_workspace_alloc_zero_n
+  [PASS] test_cdiv_null
+  [PASS] test_cdiv_positive_diagonal
+  [PASS] test_cdiv_zero_diagonal_not_spd
+  [PASS] test_cdiv_negative_diagonal_not_spd
+  [PASS] test_eliminate_null
+  [PASS] test_eliminate_diagonal
+  [PASS] test_eliminate_2x2_spd
+  [PASS] test_eliminate_tridiagonal_spd
+  [PASS] test_eliminate_detects_zero_diagonal
+  [PASS] test_eliminate_detects_indefinite
+  [PASS] test_eliminate_3x3_spd
+  [PASS] test_eliminate_4x4_spd
+  [PASS] test_eliminate_5x5_spd
+  [PASS] test_eliminate_tridiagonal_n10
+  [PASS] test_eliminate_block_diagonal
+  [PASS] test_eliminate_random_spd
+  [PASS] test_eliminate_fillin_reverse_arrowhead
+  [PASS] test_eliminate_fillin_with_analysis
+  [PASS] test_eliminate_drop_tolerance
+  [PASS] test_solve_null_args
+  [PASS] test_solve_identity
+  [PASS] test_solve_diagonal
+  [PASS] test_solve_2x2_spd
+  [PASS] test_solve_tridiagonal
+  [PASS] test_solve_in_place
+  [PASS] test_solve_perm_null_matches_plain
+    nos4 (AMD): rel_res = 5.886e-16
+  [PASS] test_solve_perm_amd_nos4
+    nos4: rel_res = 8.240e-16
+  [PASS] test_factor_solve_nos4
+    bcsstk04 (AMD): rel_res = 1.060e-15
+  [PASS] test_factor_solve_bcsstk04_amd
+  [PASS] test_factor_shim_null
+  [PASS] test_factor_solve_null
+  [PASS] test_factor_detects_indefinite
+  [PASS] test_factor_detects_negative_diagonal
+  [PASS] test_solve_detects_tiny_diagonal
+  [PASS] test_detect_supernodes_null_args
+  [PASS] test_detect_supernodes_diagonal
+  [PASS] test_detect_supernodes_dense
+  [PASS] test_detect_supernodes_block_diagonal
+  [PASS] test_detect_supernodes_tridiagonal
+  [PASS] test_detect_supernodes_reverse_arrowhead
+    tests/data/suitesparse/nos4.mtx (AMD): n=100 nnz(L)=637 supernodes=1 max_size=9 cols_in_super=9
+    tests/data/suitesparse/bcsstk04.mtx (AMD): n=132 nnz(L)=3143 supernodes=11 max_size=35 cols_in_super=90
+  [PASS] test_detect_supernodes_suitesparse_report
+    bcsstk04: residual off=6.055e-16 on=9.082e-16
+  [PASS] test_supernodal_postorder_residual_unchanged
+    bcsstk14: supernodes(min=4) off=(count=107 total=1246) on=(count=107 total=1246)
+  [PASS] test_supernodal_postorder_no_supernode_count_regression
+  [PASS] test_chol_dense_factor_null
+  [PASS] test_chol_dense_factor_1x1
+  [PASS] test_chol_dense_factor_2x2
+  [PASS] test_chol_dense_factor_4x4
+  [PASS] test_chol_dense_factor_not_spd
+  [PASS] test_chol_dense_solve_null
+  [PASS] test_chol_dense_solve_lower_3x3
+  [PASS] test_ldlt_dense_factor_arg_checks
+  [PASS] test_ldlt_dense_factor_4x4_indefinite
+  [PASS] test_ldlt_dense_factor_2x2_forced
+  [PASS] test_ldlt_dense_factor_6x6_mixed_pivots
+  [PASS] test_eliminate_supernodal_dense
+  [PASS] test_eliminate_supernodal_block_diagonal
+  [PASS] test_eliminate_supernodal_bcsstk04_amd
+  [PASS] test_chol_csc_kuu_scalar_no_regression
+  [PASS] test_eliminate_supernodal_null
+  [PASS] test_supernode_extract_writeback_dense
+  [PASS] test_supernode_extract_writeback_block_diagonal
+  [PASS] test_supernode_extract_writeback_with_below_panel
+  [PASS] test_supernode_extract_lda_padding
+  [PASS] test_supernode_extract_error_paths
+  [PASS] test_supernode_eliminate_diag_dense_8x8
+  [PASS] test_supernode_eliminate_diag_with_external_cmod
+  [PASS] test_supernode_eliminate_diag_block_diagonal
+  [PASS] test_supernode_eliminate_diag_not_spd
+  [PASS] test_supernode_eliminate_diag_error_paths
+  [PASS] test_eliminate_supernodal_dense_10x10_residual
+  [PASS] test_eliminate_supernodal_size1_matches_scalar
+  [PASS] test_eliminate_supernodal_random_spd_sweep
+  [PASS] test_eliminate_supernodal_bcsstk04_residual
+  [PASS] test_supernode_eliminate_panel_error_paths
+  [PASS] test_supernodal_parametrised_cross_check
+  [PASS] test_supernodal_boundary_singleton_plus_large
+  [PASS] test_writeback_roundtrip_dense5_noreorder
+  [PASS] test_writeback_roundtrip_tridiag_noreorder
+  [PASS] test_writeback_roundtrip_nos4_amd
+  [PASS] test_writeback_roundtrip_bcsstk04_amd
+  [PASS] test_writeback_rejects_already_factored
+  [PASS] test_writeback_rejects_nonidentity_row_perm
+  [PASS] test_writeback_rejects_null
+  [PASS] test_writeback_rejects_shape_mismatch
+  [PASS] test_dispatch_auto_small_uses_linked_list
+  [PASS] test_dispatch_auto_large_uses_csc_and_solves
+  [PASS] test_dispatch_forced_override_both_paths_agree
+  [PASS] test_dispatch_legacy_opts_still_work
+    tests/data/suitesparse/bcsstk14.mtx: n=1806, rel_residual=1.098e-15
+  [PASS] test_dispatch_day12_bcsstk14_residual
+
+--- Summary ---
+Tests run:    137
+Tests failed: 0
+Assertions:   28397
+Time:         3.814 s
+ALL TESTS PASSED
+
+=== Running test_ldlt_csc ===
+=== ldlt_csc (Sprint 17 Days 7-9 + Sprint 18 Days 1-5) ===
+
+  [PASS] test_alloc_null_out
+  [PASS] test_alloc_negative_n
+  [PASS] test_alloc_basic
+  [PASS] test_alloc_zero_n
+  [PASS] test_free_null
+  [PASS] test_row_adj_empty_round_trip
+  [PASS] test_row_adj_append_preserves_order
+  [PASS] test_row_adj_geometric_growth
+  [PASS] test_row_adj_append_arg_checks
+  [PASS] test_detect_supernodes_dense_all_1x1
+  [PASS] test_detect_supernodes_dense_with_2x2
+  [PASS] test_detect_supernodes_block_diagonal_with_2x2
+  [PASS] test_detect_supernodes_arg_checks
+  [PASS] test_supernode_extract_writeback_dense_6x6
+  [PASS] test_supernode_extract_writeback_block_diagonal_8x8
+  [PASS] test_supernode_extract_writeback_with_2x2
+  [PASS] test_supernode_extract_writeback_arg_checks
+  [PASS] test_supernodal_dense_spd_8x8
+  [PASS] test_supernodal_block_diagonal_spd_12x12
+  [PASS] test_supernodal_random_indefinite_30x30
+  [PASS] test_supernodal_arg_checks
+  [PASS] test_from_sparse_null_args
+  [PASS] test_from_sparse_shape
+  [PASS] test_roundtrip_identity
+  [PASS] test_roundtrip_diagonal_indefinite
+  [PASS] test_roundtrip_symmetric_indefinite
+  [PASS] test_from_sparse_with_analysis_arg_checks
+  [PASS] test_from_sparse_with_analysis_pattern_matches_sym_L
+  [PASS] test_from_sparse_with_analysis_scatter_preserves_values
+  [PASS] test_from_sparse_with_analysis_indefinite_kkt_smoke
+  [PASS] test_from_sparse_with_analysis_spd_factor_matches_heuristic
+  [PASS] test_s20_supernodal_with_analysis_kkt_5x5
+  [PASS] test_s20_supernodal_with_analysis_kkt_10x10
+  [PASS] test_s20_supernodal_with_analysis_random_indefinite_30x30
+  [PASS] test_s20_supernodal_heuristic_vs_with_analysis_residuals
+  [PASS] test_from_sparse_stores_perm
+  [PASS] test_from_sparse_invalid_perm
+  [PASS] test_reverse_perm_symmetric
+  [PASS] test_validate_null
+  [PASS] test_validate_fresh_alloc_is_valid
+  [PASS] test_validate_catches_bad_pivot_size
+  [PASS] test_validate_catches_half_2x2
+  [PASS] test_validate_catches_trailing_2x2
+  [PASS] test_validate_catches_bad_perm
+  [PASS] test_validate_accepts_valid_2x2
+  [PASS] test_eliminate_null
+  [PASS] test_eliminate_all_1x1_pivots
+  [PASS] test_eliminate_tridiagonal_all_1x1
+  [PASS] test_eliminate_forced_2x2
+  [PASS] test_eliminate_mixed_pivots
+  [PASS] test_eliminate_matches_linked_list_indefinite
+  [PASS] test_eliminate_matches_linked_list_random_indefinite
+  [PASS] test_row_adj_matches_reference
+  [PASS] test_eliminate_composes_perm
+  [PASS] test_eliminate_inertia
+  [PASS] test_eliminate_singular_zero
+  [PASS] test_native_override_roundtrip
+  [PASS] test_native_empty_matrix_ok
+  [PASS] test_native_rejects_null
+  [PASS] test_wrapper_override_still_factors
+  [PASS] test_workspace_alloc_free
+  [PASS] test_workspace_alloc_rejects_negative_n
+  [PASS] test_symmetric_swap_null
+  [PASS] test_symmetric_swap_out_of_range
+  [PASS] test_symmetric_swap_noop_i_equals_j
+  [PASS] test_symmetric_swap_adjacent_dense
+  [PASS] test_symmetric_swap_non_adjacent
+  [PASS] test_symmetric_swap_tridiagonal
+  [PASS] test_symmetric_swap_moves_tiny_diag
+  [PASS] test_symmetric_swap_aux_arrays
+  [PASS] test_symmetric_swap_stress_random
+  [PASS] test_native_1x1_diagonal_matches_wrapper
+  [PASS] test_native_1x1_tridiagonal_matches_wrapper
+  [PASS] test_native_1x1_mixed_indefinite_matches_wrapper
+  [PASS] test_native_1x1_with_swap_matches_wrapper
+  [PASS] test_native_1x1_tridiag_large_matches_wrapper
+  [PASS] test_native_detects_near_zero_1x1_pivot
+  [PASS] test_native_1x1_identity_matches_wrapper
+  [PASS] test_native_2x2_forced_matches_wrapper
+  [PASS] test_native_2x2_nonadjacent_partner_matches_wrapper
+  [PASS] test_native_mixed_pivots_matches_wrapper
+  [PASS] test_native_mixed_pivots_larger_matches_wrapper
+  [PASS] test_native_2x2_solve_matches_linked_list
+  [PASS] test_native_2x2_inertia_matches_wrapper
+  [PASS] test_solve_null_args
+  [PASS] test_solve_identity
+  [PASS] test_solve_diagonal_indefinite
+  [PASS] test_solve_forced_2x2
+    tridiag indefinite n=10: rel_res = 0.000e+00
+  [PASS] test_solve_tridiagonal_indefinite
+  [PASS] test_solve_matches_linked_list
+  [PASS] test_solve_in_place
+    arrow 6x6 indefinite (AMD): rel_res = 9.869e-17
+  [PASS] test_solve_with_amd_perm
+  [PASS] test_inertia_matches_linked_list
+  [PASS] test_solve_detects_tiny_1x1_pivot
+  [PASS] test_solve_detects_singular_2x2_block
+
+--- Summary ---
+Tests run:    95
+Tests failed: 0
+Assertions:   2233
+Time:         0.005 s
+ALL TESTS PASSED
+
+=== Running test_sprint18_integration ===
+=== test_sprint18_integration ===
+
+  [PASS] test_s18_below_threshold_uses_linked_list
+  [PASS] test_s18_just_above_threshold_uses_csc
+  [PASS] test_s18_mid_range_spd_banded_uses_csc
+  [PASS] test_s18_large_spd_banded_uses_csc
+  [PASS] test_s18_suitesparse_nos4
+  [PASS] test_s18_suitesparse_bcsstk04
+  [PASS] test_s18_suitesparse_bcsstk14
+  [PASS] test_s18_force_both_paths_agree
+  [PASS] test_s18_ldlt_csc_kkt_indefinite
+  [PASS] test_s18_ldlt_csc_native_matches_wrapper_indefinite
+
+--- Summary ---
+Tests run:    10
+Tests failed: 0
+Assertions:   68
+Time:         1.132 s
+ALL TESTS PASSED
+
+=== Running test_sprint19_integration ===
+=== test_sprint19_integration ===
+
+  [PASS] test_s19_supernodal_spd_tridiag_64
+  [PASS] test_s19_supernodal_spd_banded_128
+  [PASS] test_s19_supernodal_spd_banded_300
+  [PASS] test_s19_supernodal_force_both_paths_solve_agree
+  [PASS] test_s19_row_adj_matches_reference_bcsstk04
+  [PASS] test_s19_kuu_scalar_csc_no_regression
+  [PASS] test_s19_csc_threshold_documented_value
+  [PASS] test_s19_analyze_refactor_smoke
+
+--- Summary ---
+Tests run:    8
+Tests failed: 0
+Assertions:   42
+Time:         6.410 s
+ALL TESTS PASSED
+
+=== Running test_sprint20_integration ===
+=== test_sprint20_integration ===
+
+  [PASS] test_s20_auto_below_threshold_routes_linked_list
+  [PASS] test_s20_auto_above_threshold_spd_routes_csc
+  [PASS] test_s20_auto_above_threshold_indefinite_kkt_routes_csc
+  [PASS] test_s20_forced_linked_list_on_large_matrix
+  [PASS] test_s20_forced_csc_on_small_matrix
+  [PASS] test_s20_eigs_rejects_null_args
+  [PASS] test_s20_eigs_rejects_bad_args
+  [PASS] test_s20_eigs_well_formed_call_succeeds
+  [PASS] test_s20_eigs_null_opts_uses_defaults
+  [PASS] test_s20_eigs_compute_vectors_day11
+  [PASS] test_s20_eigs_nearest_sigma_day12
+  [PASS] test_s20_day8_lanczos_diagonal_spectrum
+  [PASS] test_s20_day8_lanczos_tridiagonal_identity
+  [PASS] test_s20_day8_lanczos_rejects_bad_args
+  [PASS] test_s20_day9_reorth_maintains_orthogonality
+  [PASS] test_s20_day9_no_reorth_completes_cleanly
+  [PASS] test_s20_day9_reorth_agrees_with_basic_on_small_matrix
+  [PASS] test_s20_day10_eigs_sym_largest
+  [PASS] test_s20_day10_eigs_sym_smallest_trivial
+  [PASS] test_s20_day10_eigs_sym_wide_spectrum
+
+--- Summary ---
+Tests run:    20
+Tests failed: 0
+Assertions:   128
+Time:         0.026 s
+ALL TESTS PASSED
+
+=== Running test_sprint29_integration ===
+=== Sprint 29 cross-feature integration ===
+
+  [PASS] test_cross_eigs_refine_progress_cb
+  [PASS] test_cross_full_svd_lowrank_reconstruction
+  [PASS] test_cross_eigs_refine_cancel_short_circuits
+
+--- Summary ---
+Tests run:    3
+Tests failed: 0
+Assertions:   25
+Time:         0.001 s
+ALL TESTS PASSED
+
+=== Running test_eigs ===
+=== Sparse eigensolver — Sprint 20 Days 11-13 ===
+
+  [PASS] test_diagonal_k3_largest
+  [PASS] test_diagonal_k3_smallest
+  [PASS] test_diagonal_eigenvectors_satisfy_equation
+  [PASS] test_non_symmetric_rejected
+  [PASS] test_tridiag_spd_matches_dense
+  [PASS] test_bad_args
+  [PASS] test_shift_invert_diagonal_k3
+  [PASS] test_shift_invert_indefinite_small
+  [PASS] test_shift_invert_singular_sigma
+  [PASS] test_shift_invert_eigenvectors
+  [PASS] test_shift_invert_wide_spectrum_middle
+  [PASS] test_suitesparse_nos4_largest_smallest
+  [PASS] test_suitesparse_bcsstk04_largest_smallest
+  [PASS] test_suitesparse_bcsstk14_largest_smoke
+  [PASS] test_svd_cross_check_aTa
+  [PASS] test_indefinite_shift_invert_uses_csc_above_threshold
+  [PASS] test_indefinite_shift_invert_uses_linked_list_below_threshold
+  [PASS] test_near_singular_stable
+  [PASS] test_eigs_zero_spectrum_no_div_by_zero
+  [PASS] test_zero_matrix
+  [PASS] test_one_by_one_matrix
+  [PASS] test_eigs_refine_default_off_unchanged
+  [PASS] test_eigs_refine_tightens_residual
+  [PASS] test_eigs_refine_lobpcg_backend
+  [PASS] test_eigs_refine_max_iters_budget
+
+--- Summary ---
+Tests run:    25
+Tests failed: 0
+Assertions:   219
+Time:         0.208 s
+ALL TESTS PASSED
+
+=== Running test_eigs_thick_restart ===
+=== Sprint 21 thick-restart Lanczos — Days 2-4 + 12 ===
+
+  [PASS] test_arrowhead_to_tridiag_preserves_spectrum
+  [PASS] test_arrowhead_to_tridiag_k_locked_one
+  [PASS] test_pick_locked_orthonormal
+  [PASS] test_restart_state_assemble_roundtrip
+  [PASS] test_restart_state_assemble_n_mismatch_rejected
+  [PASS] test_thick_restart_iterate_empty_state_matches_lanczos
+  [PASS] test_thick_restart_backend_converges_small
+  [PASS] test_thick_restart_backend_smallest
+  [PASS] test_thick_restart_matches_grow_m
+  [PASS] test_thick_restart_backend_eigenvectors
+  [PASS] test_thick_restart_backend_bad_enum_rejected
+  [PASS] test_thick_restart_bcsstk14_bounded_memory
+  [PASS] test_thick_restart_parity_nos4
+  [PASS] test_thick_restart_parity_bcsstk04
+  [PASS] test_thick_restart_parity_bcsstk14
+  [PASS] test_thick_restart_auto_dispatch_above_threshold
+  [PASS] test_thick_restart_auto_dispatch_below_threshold
+  [PASS] test_thick_restart_kkt_nearest_sigma_parity
+  [PASS] test_thick_restart_locked_progress_monotone
+  [PASS] test_thick_restart_single_phase_matches_grow_m
+
+--- Summary ---
+Tests run:    20
+Tests failed: 0
+Assertions:   269
+Time:         0.393 s
+ALL TESTS PASSED
+
+=== Running test_eigs_lobpcg ===
+=== Sprint 21 Days 8-10 + 13 — LOBPCG full coverage + AUTO dispatch ===
+
+  [PASS] test_orthonormalize_block_basic
+  [PASS] test_orthonormalize_block_ejects_dependent
+  [PASS] test_orthonormalize_block_bad_args
+  [PASS] test_lobpcg_diagonal_k3_largest
+  [PASS] test_lobpcg_diagonal_k3_smallest
+  [PASS] test_lobpcg_laplacian_tridiag_smallest
+  [PASS] test_lobpcg_nos4_k5_largest
+  [PASS] test_lobpcg_deterministic
+  [PASS] test_lobpcg_block_size_stability
+  [PASS] test_lobpcg_bad_opts
+  [PASS] test_lobpcg_vanilla_iter_count
+  [PASS] test_lobpcg_ic0_preconditioned
+  [PASS] test_lobpcg_ldlt_preconditioned
+  [PASS] test_lobpcg_ldlt_beats_ic0_on_bcsstk04
+  [PASS] test_lobpcg_soft_lock_correctness
+  [PASS] test_lobpcg_precond_error_propagates
+  [PASS] test_lobpcg_precond_null_ctx_legal
+  [PASS] test_lobpcg_nearest_sigma_diagonal
+  [PASS] test_lobpcg_nearest_sigma_kkt
+  [PASS] test_lobpcg_vs_lanczos_laplacian
+  [PASS] test_lobpcg_auto_dispatch_small_n
+  [PASS] test_lobpcg_auto_dispatch_thick_restart
+  [PASS] test_lobpcg_auto_dispatch_lobpcg
+  [PASS] test_lobpcg_auto_dispatch_no_precond_falls_back
+  [PASS] test_lobpcg_explicit_overrides_auto
+  [PASS] test_lobpcg_block_size_zero_defaults
+
+--- Summary ---
+Tests run:    26
+Tests failed: 0
+Assertions:   219
+Time:         0.235 s
+ALL TESTS PASSED
+
+=== Running test_graph ===
+=== Sprint 22 Days 1-5: graph + coarsen + bisect/FM + uncoarsen + partition + stress ===
+
+  [PASS] test_graph_from_sparse_nos4_round_trip
+  [PASS] test_graph_from_sparse_singleton
+  [PASS] test_graph_from_sparse_rejects_rectangular
+  [PASS] test_graph_from_sparse_null_args
+  [PASS] test_graph_subgraph_is_stub
+  [PASS] test_coarsen_5x5_grid_halves_in_one_step
+  [PASS] test_coarsen_5x5_grid_halves_again_in_two_steps
+  [PASS] test_coarsen_1d_path_halves
+  [PASS] test_coarsen_prefers_heaviest_edge
+  [PASS] test_coarsen_is_deterministic
+  [PASS] test_hcc_match_selection_grid
+  [PASS] test_hcc_match_selection_irregular
+  [PASS] test_hierarchy_build_5x5_grid
+  [PASS] test_hierarchy_free_safe_on_zero_init
+  [PASS] test_bisect_brute_force_path_n8
+  [PASS] test_bisect_brute_force_two_triangles
+  [PASS] test_bisect_gggp_5x6_grid
+  [PASS] test_bisect_singleton
+  [PASS] test_bisect_n41_uses_gggp
+  [PASS] test_bisect_null_args
+  [PASS] test_fm_reduces_checkerboard_cut
+  [PASS] test_fm_optimal_partition_no_regress
+  [PASS] test_bisect_then_fm_5x6_grid
+  [PASS] test_fm_null_args
+  [PASS] test_partition_10x10_grid
+  [PASS] test_fm_intermediate_passes_smoke
+    30x30 grid: baseline sep=30, fifo sep=30, partitions DIFFER (FIFO active)
+  [PASS] test_finest_fm_strategy_fifo_smoke
+    5x5x5 mesh: baseline sep=25, gain_noise_formal sep=25, partitions DIFFER (gain_noise_formal active)
+  [PASS] test_finest_fm_gain_noise_formal_disrupts_baseline
+    Kuu sep: baseline=260, fifo=214, annealing=280, ensemble=214, min=214
+  [PASS] test_finest_fm_ensemble_corpus_safety
+  [PASS] test_finest_fm_ensemble_deterministic
+    path graph (n=5): λ_0=-5.564e-17 (≈0), λ_1=3.820e-01 (>0); v_0 within ±10% of mean
+  [PASS] test_spectral_bisection_eigenvalue_ordering
+    star graph (n=11): n0=5, n1=6, balance ratio=0.83 (>=0.40 ⇒ GGGP fallback fired)
+  [PASS] test_spectral_bisection_gggp_fallback
+  [PASS] test_spectral_bisection_n1
+  [PASS] test_spectral_bisection_n2
+  [PASS] test_spectral_bisection_disconnected
+  [PASS] test_spectral_bisection_lanczos_failure
+  [PASS] test_partition_5x5x5_mesh
+  [PASS] test_partition_two_k10_with_bridge
+    bcsstk14 under SPARSE_ND_COARSENING=hcc: sep=97 (Sprint 26 Day 3 fall-back recovered)
+  [PASS] test_hcc_bcsstk14_no_degenerate_partition
+  [PASS] test_edge_to_vertex_separator_smaller_side
+  [PASS] test_partition_singleton
+  [PASS] test_partition_null_args
+  [PASS] test_uncoarsen_null_args
+  [PASS] test_edge_to_vertex_separator_null_args
+  [PASS] test_partition_n1_singleton
+  [PASS] test_partition_n2_one_edge
+  [PASS] test_partition_empty_graph_n10
+  [PASS] test_partition_complete_k20
+  [PASS] test_partition_bipartite_k_10_10
+  [PASS] test_partition_determinism_10x10_grid
+  [PASS] test_partition_determinism_two_cliques
+    tests/data/suitesparse/bcsstk14.mtx (n=1806): sep=97, 44.1 ms
+  [PASS] test_partition_bcsstk14_smoke
+    tests/data/suitesparse/Pres_Poisson.mtx (n=14822): sep=216, 268.6 ms
+  [PASS] test_partition_pres_poisson_smoke
+    30x30 grid: dynamic-K sep=60, fixed-K sep=30, partitions DIFFER (fixed-K active)
+  [PASS] test_per_vertex_fixed_k_differs_from_dynamic_k
+
+--- Summary ---
+Tests run:    54
+Tests failed: 0
+Assertions:   1605
+Time:         3.924 s
+ALL TESTS PASSED
+
+=== Running test_graph_fm_buckets ===
+=== Sprint 23 Day 9: gain-bucket data structure for FM refinement ===
+
+  [PASS] test_fm_buckets_init_arg_validation
+  [PASS] test_fm_buckets_pop_max_null_args
+  [PASS] test_fm_buckets_free_idempotent
+  [PASS] test_fm_buckets_empty
+  [PASS] test_fm_buckets_single_vertex_boundary
+  [PASS] test_fm_buckets_all_zero_gain_lifo
+  [PASS] test_fm_buckets_all_equal_positive_gain
+  [PASS] test_fm_buckets_mixed_pos_neg_gains
+  [PASS] test_fm_buckets_pop_all_non_increasing
+    fm_buckets stress (n=1000): 1653 inserts, 14 removes, 1633 pops over 5000 ops
+  [PASS] test_fm_buckets_random_stress
+
+--- Summary ---
+Tests run:    10
+Tests failed: 0
+Assertions:   11557
+Time:         0.001 s
+ALL TESTS PASSED
+
+=== Running test_reorder_nd ===
+=== Sprint 22 Days 6-8: nested-dissection reordering + analyze + enum dispatch ===
+
+  [PASS] test_nd_4x4_grid_valid_permutation
+    10x10 grid: AMD nnz(L) = 656, ND nnz(L) = 656 (ND/AMD = 1.00)
+  [PASS] test_nd_10x10_grid_matches_or_beats_amd_fill
+  [PASS] test_nd_1d_path_n20_valid_permutation
+  [PASS] test_nd_singleton
+  [PASS] test_nd_null_args
+  [PASS] test_nd_rejects_rectangular
+    bcsstk14 (n=1806): NONE=190791, RCM=178311, AMD=116071, ND=130422 (ND/AMD = 1.124)
+  [PASS] test_nd_bcsstk14_fill_vs_amd
+  [PASS] test_nd_pres_poisson_fill_with_leaf_amd
+  [PASS] test_hcc_kuu_no_default_flip_blocker
+  [PASS] test_finest_fm_annealing_differs_from_baseline
+  [PASS] test_nd_root_spectral_pres_poisson_smoke
+  [PASS] test_finest_fm_thick_restart_returns_to_anchor
+  [PASS] test_hcc_kuu_safe_corpus_parity
+  [PASS] test_per_vertex_fixed_k_three_schemes_differentiate
+  [PASS] test_nd_determinism_public_api
+    SPD synth (n=256, bw=8) Cholesky residual: ||Ax-b||_inf AMD=4.44e-16, ND=9.55e-15
+  [PASS] test_cholesky_via_nd_residual_spd_synth
+  [PASS] test_supernodal_postorder_etree_contract
+    nos4: nnz_L off=637 on=637
+    bcsstk04: nnz_L off=3143 on=3143
+    bcsstk14: nnz_L off=116071 on=116071
+    s3rmt3m3: nnz_L off=474609 on=474609
+  [PASS] test_supernodal_postorder_corpus_nnz_L_invariant
+  [PASS] test_supernodal_postorder_no_reorder_skips
+  [PASS] test_supernodal_postorder_deterministic
+  [PASS] test_supernodal_postorder_n_one
+    nos4 LU residual under ND: ||Ax-b||_inf = 1.99e-13
+  [PASS] test_lu_via_nd_dispatch
+    bcsstk04 LDL^T residual under ND: ||Ax-b||_inf = 7.56e-12
+  [PASS] test_ldlt_via_nd_dispatch
+
+--- Summary ---
+Tests run:    23
+Tests failed: 0
+Assertions:   88
+Time:         53.660 s
+ALL TESTS PASSED
+
+=== Running test_reorder_amd_qg ===
+=== Sprint 22 Days 11-12: quotient-graph AMD wrapper delegation + production swap ===
+
+  [PASS] test_amd_qg_null_args
+  [PASS] test_amd_qg_rejects_rectangular
+  [PASS] test_amd_qg_singleton
+    nos4 (n=100): wrapper nnz(L) = 637, qg nnz(L) = 637 (identical)
+  [PASS] test_amd_qg_delegation_nos4
+    bcsstk04 (n=132): wrapper nnz(L) = 3143, qg nnz(L) = 3143 (identical)
+  [PASS] test_amd_qg_delegation_bcsstk04
+    bcsstk14 (n=1806): wrapper nnz(L) = 116071, qg nnz(L) = 116071 (identical)
+  [PASS] test_amd_qg_delegation_bcsstk14
+    AMD on 10 000×10 000 banded (nnz=109970): 0.17 s
+  [PASS] test_amd_stress_10k_banded
+
+--- Summary ---
+Tests run:    7
+Tests failed: 0
+Assertions:   2068
+Time:         0.536 s
+ALL TESTS PASSED
+
+All tests passed.

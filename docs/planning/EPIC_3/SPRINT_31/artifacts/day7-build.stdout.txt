@@ -1,0 +1,8 @@
+[ 94%] Built target sparse_lu_ortho
+[100%] Building C object CMakeFiles/bench_colamd.dir/benchmarks/bench_colamd.c.o
+[100%] Linking C executable bench_colamd
+[100%] Built target bench_colamd
+[ 94%] Built target sparse_lu_ortho
+[ 94%] Building C object CMakeFiles/bench_chol_csc.dir/benchmarks/bench_chol_csc.c.o
+[100%] Linking C executable bench_chol_csc
+[100%] Built target bench_chol_csc

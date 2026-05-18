@@ -1,0 +1,1 @@
+# nd_base_threshold=128, factor=no, via_analyze=no

@@ -1,0 +1,3 @@
+-Wdouble-promotion	1
+-Wimplicit-function-declaration	2
+-Wmissing-field-initializers	10

@@ -39,7 +39,11 @@
  * the solution transparently.
  *
  * @code
- *   sparse_lu_opts_t opts = { SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_AMD, 1e-12 };
+ *   sparse_lu_opts_t opts = {
+ *       .pivot = SPARSE_PIVOT_PARTIAL,
+ *       .reorder = SPARSE_REORDER_AMD,
+ *       .tol = 1e-12,
+ *   };
  *   sparse_lu_factor_opts(A, &opts);
  *   sparse_lu_solve(A, b, x);  // reorder/unpermute handled automatically
  * @endcode

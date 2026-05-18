@@ -192,9 +192,16 @@ $(BUILDDIR)/bench_%: $(BENCHDIR)/bench_%.c $(LIB) | $(BUILDDIR)
 $(BUILDDIR)/example_%: $(EXDIR)/example_%.c $(LIB) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(INCLUDE) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
 
+# Compile example binaries without running them.  Sprint 31 Day 11:
+# pairs with `bench-build` to give the local quality flow compile-only
+# coverage for the public example entry points too.
+.PHONY: examples-build
+examples-build: $(EX_BINS)
+	@echo "Built $(words $(EX_BINS)) example binaries (no execution)."
+
 # Build all examples
 .PHONY: examples
-examples: $(EX_BINS)
+examples: examples-build
 	@echo "All examples built."
 
 # Smoke test
@@ -230,6 +237,14 @@ bench: $(BENCH_BINS)
 .PHONY: bench-build
 bench-build: $(BENCH_BINS)
 	@echo "Built $(words $(BENCH_BINS)) bench binaries (no execution)."
+
+# Sprint 31 Day 11: compile-only tooling gate for all benchmark +
+# example entry points.  Explicit target for focused reruns; `lint`
+# depends on it so the standard `make format && make lint && make test`
+# flow now catches tooling drift without executing bench workloads.
+.PHONY: tooling-build
+tooling-build: bench-build examples-build
+	@echo "tooling-build: benchmark and example binaries built (no execution)."
 
 # Sprint 29 Day 13 (Item 8 close): fast subset of `make bench` for CI's
 # `build-and-test` step — keeps the regression signal on PRs without the
@@ -409,7 +424,7 @@ format-check:
 
 # Run all linters
 .PHONY: lint
-lint: build/include/sparse_version.h
+lint: build/include/sparse_version.h tooling-build
 	@echo "Compiling with strict warnings (-Werror)..."
 	$(CC) $(CFLAGS) -Wstrict-prototypes -Wformat=2 -Werror \
 		$(INCLUDE) -fsyntax-only $(shell find $(SRCDIR) -type f -name '*.c')

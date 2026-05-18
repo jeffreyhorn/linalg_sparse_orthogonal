@@ -10,7 +10,7 @@
  * Reports: solver, preconditioner, iterations, time, residual for each matrix.
  * In --history mode, prints per-iteration residual for convergence analysis.
  */
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 200809L
 #include "sparse_cholesky.h"
 #include "sparse_ilu.h"
 #include "sparse_iterative.h"
@@ -40,7 +40,7 @@ static double compute_rel_residual(const SparseMatrix *A, const double *b, const
                                    idx_t n) {
     double *r = malloc((size_t)n * sizeof(double));
     if (!r)
-        return NAN;
+        return nan("");
     sparse_matvec(A, x, r);
     for (idx_t i = 0; i < n; i++)
         r[i] = b[i] - r[i];

@@ -1,0 +1,4 @@
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_convergence.c	-Wdouble-promotion	1
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_ldlt_csc.c	-Wmissing-field-initializers	2
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_main.c	-Wmissing-field-initializers	3
+/Users/jeff/experiments/linalg_sparse_orthogonal/examples/example_colamd.c	-Wmissing-field-initializers	1

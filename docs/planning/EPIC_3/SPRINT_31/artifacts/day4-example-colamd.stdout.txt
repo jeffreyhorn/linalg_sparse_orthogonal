@@ -1,0 +1,14 @@
+=== COLAMD Column Ordering Example ===
+
+Matrix: 10x10 unsymmetric (arrow + band), nnz = 44
+
+COLAMD permutation: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+
+LU fill-in comparison:
+  none (natural order): nnz(LU) = 44
+  colamd:               nnz(LU) = 44 (-0% increase)
+
+QR+COLAMD solve: residual = 0.00e+00
+Rank info: rank=10/10, condest=41.30
+
+Done.

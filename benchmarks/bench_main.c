@@ -7,7 +7,7 @@
  *   ./bench_main --size N --repeat R       Average over R repetitions
  *   ./bench_main --dir PATH                Benchmark all .mtx files in directory
  *   ./bench_main --dir PATH --pivot partial  Use partial pivoting (default: complete)
- *   ./bench_main --reorder rcm|amd|none      Apply fill-reducing reordering
+ *   ./bench_main --reorder none|rcm|amd|nd   Apply fill-reducing reordering
  *   ./bench_main --cholesky                  Use Cholesky instead of LU (SPD matrices only)
  *   ./bench_main --spmv [matrix.mtx|--dir PATH]  SpMV-only benchmark (throughput, MFLOP/s)
  *   ./bench_main --iterative [matrix.mtx|--dir PATH]  Iterative solver benchmark
@@ -15,7 +15,7 @@
  * Reports wall-clock time for: construction, factorization, solve, SpMV.
  * Also reports nnz, fill-in, memory, and residual norm.
  */
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 200809L
 #include "sparse_cholesky.h"
 #include "sparse_ilu.h"
 #include "sparse_iterative.h"
@@ -82,6 +82,10 @@ static const char *reorder_name(sparse_reorder_t r) {
         return "rcm";
     case SPARSE_REORDER_AMD:
         return "amd";
+    case SPARSE_REORDER_COLAMD:
+        return "colamd";
+    case SPARSE_REORDER_ND:
+        return "nd";
     }
     return "unknown";
 }
@@ -131,8 +135,14 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot, sparse
     double residual = 0.0;
     double cond_est = 0.0;
 
-    sparse_lu_opts_t lu_opts = {pivot, reorder, 1e-12};
-    sparse_cholesky_opts_t chol_opts = {reorder};
+    sparse_lu_opts_t lu_opts = {
+        .pivot = pivot,
+        .reorder = reorder,
+        .tol = 1e-12,
+    };
+    sparse_cholesky_opts_t chol_opts = {
+        .reorder = reorder,
+    };
     int reps_done = 0;
 
     for (int rep = 0; rep < repeats; rep++) {
@@ -254,7 +264,11 @@ static void benchmark_tabular(const char *name, SparseMatrix *A, int repeats, sp
     double cond_est = 0.0;
     int ok = 1;
 
-    sparse_lu_opts_t opts = {pivot, reorder, 1e-12};
+    sparse_lu_opts_t opts = {
+        .pivot = pivot,
+        .reorder = reorder,
+        .tol = 1e-12,
+    };
 
     for (int rep = 0; rep < repeats; rep++) {
         SparseMatrix *LU = sparse_copy(A);
@@ -662,8 +676,11 @@ int main(int argc, char **argv) {
                 reorder = SPARSE_REORDER_RCM;
             else if (strcmp(argv[i], "amd") == 0)
                 reorder = SPARSE_REORDER_AMD;
+            else if (strcmp(argv[i], "nd") == 0)
+                reorder = SPARSE_REORDER_ND;
             else {
-                fprintf(stderr, "Error: unknown reorder mode '%s' (use 'none', 'rcm', or 'amd')\n",
+                fprintf(stderr,
+                        "Error: unknown reorder mode '%s' (use 'none', 'rcm', 'amd', or 'nd')\n",
                         argv[i]);
                 return 1;
             }

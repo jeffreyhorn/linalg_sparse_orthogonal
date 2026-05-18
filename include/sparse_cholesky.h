@@ -19,7 +19,9 @@
  *
  *   // With fill-reducing reordering:
  *   SparseMatrix *L2 = sparse_copy(A);
- *   sparse_cholesky_opts_t opts = { SPARSE_REORDER_AMD };
+ *   sparse_cholesky_opts_t opts = {
+ *       .reorder = SPARSE_REORDER_AMD,
+ *   };
  *   sparse_cholesky_factor_opts(L2, &opts);
  *   sparse_cholesky_solve(L2, b, x);  // reorder/unpermute automatic
  * @endcode

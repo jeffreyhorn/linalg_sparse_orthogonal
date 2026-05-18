@@ -1,0 +1,6 @@
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_chol_csc.c	1
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_colamd.c	3
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_convergence.c	2
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_ldlt_csc.c	2
+/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_main.c	5
+/Users/jeff/experiments/linalg_sparse_orthogonal/examples/example_colamd.c	1

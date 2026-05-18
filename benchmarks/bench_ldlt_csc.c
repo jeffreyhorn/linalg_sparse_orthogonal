@@ -24,7 +24,7 @@
  * "speedup_csc_*" columns report `factor_ll / factor_csc_*` — higher
  * means the CSC path is faster than linked-list.
  */
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 200809L
 
 #include "sparse_ldlt.h"
 #include "sparse_ldlt_csc_internal.h"
@@ -82,7 +82,10 @@ static bench_result_t bench_linked_list(const SparseMatrix *A, const double *b, 
 
     for (int rep = 0; rep < repeat; rep++) {
         sparse_ldlt_t ldlt = {0};
-        sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0, SPARSE_LDLT_BACKEND_LINKED_LIST, NULL};
+        sparse_ldlt_opts_t opts = {
+            .reorder = SPARSE_REORDER_AMD,
+            .backend = SPARSE_LDLT_BACKEND_LINKED_LIST,
+        };
         double t0 = wall_time();
         if (sparse_ldlt_factor_opts(A, &opts, &ldlt) != SPARSE_OK) {
             r.ok = 0;
@@ -403,7 +406,11 @@ static dispatch_result_t bench_dispatch_path(const SparseMatrix *A, const double
 
     for (int rep = 0; rep < repeat; rep++) {
         sparse_ldlt_t ldlt = {0};
-        sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0, backend, &used_csc};
+        sparse_ldlt_opts_t opts = {
+            .reorder = SPARSE_REORDER_AMD,
+            .backend = backend,
+            .used_csc_path = &used_csc,
+        };
         double t0 = wall_time();
         if (sparse_ldlt_factor_opts(A, &opts, &ldlt) != SPARSE_OK) {
             r.ok = 0;

@@ -3,7 +3,7 @@
  *
  * Demonstrates:
  *   - Computing COLAMD ordering on an unsymmetric matrix
- *   - Comparing LU fill-in: natural vs COLAMD ordering
+ *   - Comparing LU fill-in: `none` (natural order) vs `colamd`
  *   - Using COLAMD with QR factorization
  *
  * Build:
@@ -14,6 +14,7 @@
 #include "sparse_matrix.h"
 #include "sparse_qr.h"
 #include "sparse_reorder.h"
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -84,18 +85,21 @@ int main(void) {
     idx_t fill_col = (err2 == SPARSE_OK) ? sparse_nnz(LU_col) : -1;
 
     printf("LU fill-in comparison:\n");
-    printf("  Natural ordering: nnz(LU) = %d\n", (int)fill_nat);
-    printf("  COLAMD ordering:  nnz(LU) = %d", (int)fill_col);
+    printf("  none (natural order): nnz(LU) = %d\n", (int)fill_nat);
+    printf("  colamd:               nnz(LU) = %d", (int)fill_col);
     if (fill_nat > 0 && fill_col > 0) {
         double reduction = 100.0 * (1.0 - (double)fill_col / (double)fill_nat);
-        printf(" (%.0f%% %s)", reduction > 0 ? reduction : -reduction,
-               reduction > 0 ? "reduction" : "increase");
+        if (fabs(reduction) < 0.5)
+            printf(" (0%% change)");
+        else
+            printf(" (%.0f%% %s)", reduction > 0 ? reduction : -reduction,
+                   reduction > 0 ? "reduction" : "increase");
     }
     printf("\n\n");
 
     /* QR with COLAMD */
     sparse_qr_t qr;
-    sparse_qr_opts_t qr_opts = {SPARSE_REORDER_COLAMD, 0, 0};
+    sparse_qr_opts_t qr_opts = {.reorder = SPARSE_REORDER_COLAMD};
     err = sparse_qr_factor_opts(A, &qr_opts, &qr);
     if (err == SPARSE_OK) {
         double b[10], x[10];

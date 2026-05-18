@@ -1,0 +1,2 @@
+-Wdouble-promotion	1
+-Wmissing-field-initializers	6

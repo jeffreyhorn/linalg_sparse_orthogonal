@@ -110,12 +110,13 @@ if ! "$BENCH_REORDER" --only Pres_Poisson --skip-factor > "$TMP_REORDER" 2>/dev/
     exit 2
 fi
 
-# Match by full CSV field equality.  `^Pres_Poisson,.*,AMD,` would also
-# match the `COLAMD` row (regex `AMD` is a suffix of `COLAMD`), and the
-# current code only worked because the AMD row appears before COLAMD in
-# bench_reorder's emit order.  $1=="Pres_Poisson" && $3=="AMD" is
-# robust to row ordering and future ordering additions.
-PRES_POISSON_ACTUAL=$(awk -F, '$1=="Pres_Poisson" && $3=="AMD" {print $5; exit}' "$TMP_REORDER")
+# Match by full CSV field equality, but normalize case on the reorder
+# label so the gate tracks the current bench_reorder contract rather
+# than depending on a specific presentation style.  Sprint 31
+# lowercased the public reorder labels (`amd`, `nd`, etc.), and the
+# wall-check gate should accept either historical uppercase captures or
+# current lowercase output.
+PRES_POISSON_ACTUAL=$(awk -F, '$1=="Pres_Poisson" && tolower($3)=="amd" {print $5; exit}' "$TMP_REORDER")
 
 if [ -z "$PRES_POISSON_ACTUAL" ]; then
     echo "wall-check: could not parse Pres_Poisson AMD reorder_ms from bench_reorder output" >&2
@@ -125,7 +126,7 @@ fi
 # Sprint 25 Day 12: extract the Pres_Poisson ND row from the same
 # bench_reorder capture (no need to re-run the bench — the existing
 # TMP_REORDER already contains all 5 orderings × 1 fixture = 5 rows).
-PRES_POISSON_ND_ACTUAL=$(awk -F, '$1=="Pres_Poisson" && $3=="ND" {print $5; exit}' "$TMP_REORDER")
+PRES_POISSON_ND_ACTUAL=$(awk -F, '$1=="Pres_Poisson" && tolower($3)=="nd" {print $5; exit}' "$TMP_REORDER")
 
 if [ -z "$PRES_POISSON_ND_ACTUAL" ]; then
     echo "wall-check: could not parse Pres_Poisson ND reorder_ms from bench_reorder output" >&2

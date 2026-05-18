@@ -1,5 +1,5 @@
 /*
- * bench_colamd.c — Compare fill-in: COLAMD vs AMD vs natural ordering.
+ * bench_colamd.c — Compare QR fill-in: `colamd` vs `amd` vs `none`.
  *
  * Reports nnz(R) for QR factorization with each ordering strategy
  * on built-in test matrices and SuiteSparse matrices.
@@ -28,9 +28,9 @@ static void bench_qr_fill(const char *name, const SparseMatrix *A) {
     idx_t n = sparse_cols(A);
 
     sparse_qr_t qr_none, qr_amd, qr_colamd;
-    sparse_qr_opts_t opts_none = {SPARSE_REORDER_NONE, 0, 0};
-    sparse_qr_opts_t opts_amd = {SPARSE_REORDER_AMD, 0, 0};
-    sparse_qr_opts_t opts_colamd = {SPARSE_REORDER_COLAMD, 0, 0};
+    sparse_qr_opts_t opts_none = {.reorder = SPARSE_REORDER_NONE};
+    sparse_qr_opts_t opts_amd = {.reorder = SPARSE_REORDER_AMD};
+    sparse_qr_opts_t opts_colamd = {.reorder = SPARSE_REORDER_COLAMD};
 
     idx_t nnz_none = -1, nnz_amd = -1, nnz_colamd = -1;
 
@@ -50,15 +50,15 @@ static void bench_qr_fill(const char *name, const SparseMatrix *A) {
     printf("  %-20s  %dx%d  none=%-6d amd=%-6d colamd=%-6d", name, (int)m, (int)n, (int)nnz_none,
            (int)nnz_amd, (int)nnz_colamd);
     if (nnz_colamd >= 0 && nnz_none > 0) {
-        printf("  (%.0f%% vs natural)", 100.0 * (1.0 - (double)nnz_colamd / (double)nnz_none));
+        printf("  (%.0f%% vs none)", 100.0 * (1.0 - (double)nnz_colamd / (double)nnz_none));
     }
     printf("\n");
 }
 
 int main(void) {
-    printf("=== QR Fill-In Comparison: COLAMD vs AMD vs Natural ===\n\n");
-    printf("  %-20s  %-8s  %-10s %-10s %-10s\n", "Matrix", "Size", "nnz(R)nat", "nnz(R)amd",
-           "nnz(R)col");
+    printf("=== QR Fill-In Comparison: colamd vs amd vs none ===\n\n");
+    printf("  %-20s  %-8s  %-10s %-10s %-10s\n", "Matrix", "Size", "nnz(R)none", "nnz(R)amd",
+           "nnz(R)colamd");
     printf("  %-20s  %-8s  %-10s %-10s %-10s\n", "------", "----", "---------", "---------",
            "---------");
 

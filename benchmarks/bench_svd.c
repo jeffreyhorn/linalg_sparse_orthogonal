@@ -12,7 +12,7 @@
  *   - Partial SVD (Lanczos, k=5)
  *   - Partial SVD with vectors (k=5)
  */
-#define _POSIX_C_SOURCE 199309L
+#define _POSIX_C_SOURCE 200809L
 #include "sparse_bidiag.h"
 #include "sparse_matrix.h"
 #include "sparse_svd.h"

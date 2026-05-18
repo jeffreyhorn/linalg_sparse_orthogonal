@@ -1,0 +1,26 @@
+Sprint 33 Day 1 tooling inventory
+Date: 2026-05-18
+Branch: sprint-33
+
+Current Makefile dead-code targets
+deadcode absent
+deadcode-report absent
+deadcode-check absent
+
+Local tools
+cppcheck /usr/local/bin/cppcheck
+clang-tidy /usr/local/opt/llvm/bin/clang-tidy
+xunused missing
+
+Compilation database path
+build/sprint33-day1-cmake/compile_commands.json
+compile_commands_entries 97
+
+Coverage gaps vs repo source lists
+missing_benchmark bench_svd
+missing_example example_basic_solve
+missing_example example_condition
+missing_example example_iterative
+missing_example example_least_squares
+missing_example example_matrix_free
+missing_example example_svd_lowrank

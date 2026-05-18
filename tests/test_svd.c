@@ -43,7 +43,7 @@ static double gk_reconstruction_error(const SparseMatrix *A, const double *U, co
     /* Compute U*B: (m×k) * (k×k upper bidiagonal) = m×k */
     double *UB = calloc((size_t)m * (size_t)k, sizeof(double));
     if (!UB)
-        return INFINITY;
+        return HUGE_VAL;
     for (idx_t j = 0; j < k; j++) {
         /* B(j,j) = diag[j] */
         for (idx_t i = 0; i < m; i++)
@@ -306,7 +306,7 @@ static void validate_gk(const SparseMatrix *A, const char *name) {
      * reconstruction for the non-transposed case. U/V orthogonality is checked
      * either way. End-to-end wide SVD reconstruction is validated by
      * test_svd_wide_5x10_uv. */
-    double recon = NAN;
+    double recon = nan("");
     if (!bd.transposed)
         recon = gk_reconstruction_error(A, U, V, bd.diag, bd.superdiag, m, n, k);
     double u_orth = orthogonality_error(U, m, k);
@@ -3481,7 +3481,7 @@ static void test_cond_singular(void) {
     double c = sparse_cond(A, &err);
     ASSERT_EQ(err, SPARSE_OK);
     printf("    cond(rank-1 3x3) = %f\n", c);
-    ASSERT_TRUE(c == INFINITY);
+    ASSERT_TRUE(isinf(c) && c > 0.0);
 
     sparse_free(A);
 }
@@ -3513,7 +3513,7 @@ static void test_cond_1x1_zero(void) {
     sparse_err_t err;
     double c = sparse_cond(A, &err);
     ASSERT_EQ(err, SPARSE_OK);
-    ASSERT_TRUE(c == INFINITY);
+    ASSERT_TRUE(isinf(c) && c > 0.0);
 
     sparse_free(A);
 }
@@ -3561,11 +3561,11 @@ static void test_cond_null(void) {
     sparse_err_t err;
     double c = sparse_cond(NULL, &err);
     ASSERT_EQ(err, SPARSE_ERR_NULL);
-    ASSERT_TRUE(c == INFINITY);
+    ASSERT_TRUE(isinf(c) && c > 0.0);
 
     /* NULL err pointer should not crash */
     c = sparse_cond(NULL, NULL);
-    ASSERT_TRUE(c == INFINITY);
+    ASSERT_TRUE(isinf(c) && c > 0.0);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

@@ -1263,3 +1263,90 @@ Residual queue after Day 11:
 ### Day 11 Outputs
 
 - `artifacts/day11-double-promotion-batch1.md`
+
+## Day 12 — Double-Promotion Cleanup Batch II & Reconciliation
+
+### Objective
+
+Finish the remaining Sprint 32 `-Wdouble-promotion` queue in `tests/test_svd.c` and reconcile the final warning state against the Day 1 baseline.
+
+### Files Updated
+
+- `tests/test_svd.c`
+
+### Changes Landed
+
+Day 12 applied the remaining Day 10 SVD-specific rules directly:
+
+- `return INFINITY;` -> `return HUGE_VAL;`
+- `double recon = NAN;` -> `double recon = nan("");`
+- `ASSERT_TRUE(c == INFINITY);` -> `ASSERT_TRUE(isinf(c) && c > 0.0);`
+
+Touched site breakdown:
+
+- one reconstruction-helper failure sentinel
+- one transposed-case `recon` placeholder
+- four condition-number infinity assertions
+
+No singular-value, reconstruction, or condition-number tolerances changed. This remained a purely mechanical warning cleanup.
+
+### Validation
+
+Validation commands:
+
+- `make format`
+- `make build/test_svd`
+- `./build/test_svd`
+- `cmake --build build/sprint32-day1-cmake --parallel 1 --clean-first > /tmp/sprint32_day12_build.stdout 2> /tmp/sprint32_day12_build.stderr`
+
+Observed results:
+
+- targeted build passed
+- `test_svd` passed
+- clean serialized Apple Clang CMake rebuild passed
+
+Direct-run summary:
+
+- `test_svd`: `96` tests, `0` failed, `0` skipped
+
+### Warning Delta
+
+Relative to the Day 11 starting state:
+
+- full-tree warnings: `6 -> 0`
+- `tests` warnings: `6 -> 0`
+- `-Wdouble-promotion`: `6 -> 0`
+
+Per-file Day 12 reduction:
+
+- `tests/test_svd.c`: `6 -> 0`
+
+### Final Sprint 32 Reconciliation
+
+Relative to the Day 1 baseline:
+
+- full-tree warnings: `98 -> 0`
+- `src`: `0 -> 0`
+- `tests`: `98 -> 0`
+- `benchmarks`: `0 -> 0`
+- `examples`: `0 -> 0`
+
+Warning-class closure across Sprint 32:
+
+- `-Wmissing-field-initializers`: `62 -> 0`
+- `-Wdouble-promotion`: `33 -> 0`
+- `-Wunused-function`: `3 -> 0`
+
+Residual warning queue after Day 12:
+
+- none
+
+### Day 12 Interpretation
+
+- Sprint 32's active warning cleanup is now complete.
+- There is no remaining implicit test-warning debt to defer from this sprint.
+- Day 13 can treat the warning inventory as solved and focus on full validation plus reconciliation evidence rather than additional cleanup.
+
+### Day 12 Outputs
+
+- `artifacts/day12-double-promotion-batch2-and-reconciliation.md`

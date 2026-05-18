@@ -53,7 +53,7 @@ static double local_norm2(const double *v, idx_t n) {
 static double relative_residual(const SparseMatrix *A, const double *b, const double *x, idx_t n) {
     double *r = calloc((size_t)n, sizeof(double));
     if (!r)
-        return INFINITY;
+        return HUGE_VAL;
     sparse_matvec(A, x, r);
     for (idx_t i = 0; i < n; i++)
         r[i] = b[i] - r[i];
@@ -68,7 +68,7 @@ static double block_relative_residual(const SparseMatrix *A, const double *B, co
                                       idx_t n, idx_t nrhs) {
     double *Y = calloc((size_t)n * (size_t)nrhs, sizeof(double));
     if (!Y)
-        return INFINITY;
+        return HUGE_VAL;
     sparse_matvec_block(A, X, nrhs, Y);
     double worst = 0.0;
     for (idx_t k = 0; k < nrhs; k++) {

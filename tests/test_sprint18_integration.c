@@ -93,7 +93,7 @@ static double relative_residual(const SparseMatrix *A, const double *x, const do
         /* Sentinel: return +INF so the caller's `rel < tol` check
          * fails visibly instead of segfaulting in `sparse_matvec` /
          * the r[i] loop below. */
-        return INFINITY;
+        return HUGE_VAL;
     }
     sparse_matvec(A, x, r);
     double nr = 0.0, nb = 0.0;
@@ -137,10 +137,14 @@ static void factor_solve_assert_path(SparseMatrix *A, int expect_csc, double tol
     }
 
     int used = -1;
-    sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_AUTO, &used};
+    sparse_cholesky_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .backend = SPARSE_CHOL_BACKEND_AUTO,
+        .used_csc_path = &used,
+    };
     sparse_err_t err_factor = SPARSE_OK;
     sparse_err_t err_solve = SPARSE_OK;
-    double rel = INFINITY;
+    double rel = HUGE_VAL;
 
     if (alloc_ok && L != NULL) {
         err_factor = sparse_cholesky_factor_opts(L, &opts);
@@ -255,9 +259,16 @@ static void test_s18_force_both_paths_agree(void) {
 
     int used_ll = -1;
     int used_cs = -1;
-    sparse_cholesky_opts_t opts_ll = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_LINKED_LIST,
-                                      &used_ll};
-    sparse_cholesky_opts_t opts_cs = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_CSC, &used_cs};
+    sparse_cholesky_opts_t opts_ll = {
+        .reorder = SPARSE_REORDER_AMD,
+        .backend = SPARSE_CHOL_BACKEND_LINKED_LIST,
+        .used_csc_path = &used_ll,
+    };
+    sparse_cholesky_opts_t opts_cs = {
+        .reorder = SPARSE_REORDER_AMD,
+        .backend = SPARSE_CHOL_BACKEND_CSC,
+        .used_csc_path = &used_cs,
+    };
     sparse_err_t err_ll_factor = SPARSE_OK;
     sparse_err_t err_cs_factor = SPARSE_OK;
     sparse_err_t err_ll_solve = SPARSE_OK;
@@ -333,7 +344,7 @@ static void ldlt_csc_factor_solve(const SparseMatrix *A, double tol_residual) {
     sparse_err_t err_from = SPARSE_OK;
     sparse_err_t err_elim = SPARSE_OK;
     sparse_err_t err_solve = SPARSE_OK;
-    double rel = INFINITY;
+    double rel = HUGE_VAL;
 
     if (alloc_ok) {
         err_amd = sparse_reorder_amd(A, perm);

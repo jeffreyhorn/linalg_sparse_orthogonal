@@ -69,7 +69,7 @@ static double compute_relative_residual(const SparseMatrix *A, const double *b, 
                                         idx_t n) {
     double *Ax = calloc((size_t)n, sizeof(double));
     if (!Ax)
-        return INFINITY; /* fails any tolerance check; MSVC rejects 1.0/0.0 as compile-time constant
+        return HUGE_VAL; /* fails any tolerance check without the float-to-double promotion warning
                           */
     sparse_matvec(A, x, Ax);
     double rnorm = 0.0, bnorm = 0.0;

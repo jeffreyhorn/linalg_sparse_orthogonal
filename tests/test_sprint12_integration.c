@@ -110,7 +110,10 @@ static void test_s12_kkt_pipeline(void) {
     idx_t n = 28;
 
     /* Factor with AMD */
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 0.0,
+    };
     sparse_ldlt_t ldlt;
     REQUIRE_OK(sparse_ldlt_factor_opts(K, &opts, &ldlt));
 
@@ -172,13 +175,19 @@ static void test_s12_reorder_equivalence(void) {
     REQUIRE_OK(sparse_ldlt_solve(&ldlt_none, b, x_none));
 
     /* Factor with AMD */
-    sparse_ldlt_opts_t opts_amd = {SPARSE_REORDER_AMD, 0.0};
+    sparse_ldlt_opts_t opts_amd = {
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 0.0,
+    };
     sparse_ldlt_t ldlt_amd;
     REQUIRE_OK(sparse_ldlt_factor_opts(K, &opts_amd, &ldlt_amd));
     REQUIRE_OK(sparse_ldlt_solve(&ldlt_amd, b, x_amd));
 
     /* Factor with RCM */
-    sparse_ldlt_opts_t opts_rcm = {SPARSE_REORDER_RCM, 0.0};
+    sparse_ldlt_opts_t opts_rcm = {
+        .reorder = SPARSE_REORDER_RCM,
+        .tol = 0.0,
+    };
     sparse_ldlt_t ldlt_rcm;
     REQUIRE_OK(sparse_ldlt_factor_opts(K, &opts_rcm, &ldlt_rcm));
     REQUIRE_OK(sparse_ldlt_solve(&ldlt_rcm, b, x_rcm));
@@ -322,7 +331,10 @@ static void test_s12_suitesparse_nos4(void) {
     idx_t n = sparse_rows(A);
 
     /* LDL^T with AMD */
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 0.0,
+    };
     sparse_ldlt_t ldlt;
     REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
 
@@ -361,7 +373,10 @@ static void test_s12_large_kkt_pipeline(void) {
     SparseMatrix *K = build_kkt(200, 80);
     idx_t n = 280;
 
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 0.0,
+    };
     sparse_ldlt_t ldlt;
     REQUIRE_OK(sparse_ldlt_factor_opts(K, &opts, &ldlt));
 

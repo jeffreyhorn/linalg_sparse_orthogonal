@@ -91,7 +91,7 @@ static double s19_relative_residual(const SparseMatrix *A, const double *x, cons
     idx_t n = sparse_rows(A);
     double *r = malloc((size_t)n * sizeof(double));
     if (!r)
-        return INFINITY;
+        return HUGE_VAL;
     sparse_matvec(A, x, r);
     double nr = 0.0, nb = 0.0;
     for (idx_t i = 0; i < n; i++) {
@@ -432,7 +432,11 @@ static void test_s19_kuu_scalar_csc_no_regression(void) {
     /* Baseline: linked-list Cholesky factor + solve for residual check. */
     SparseMatrix *L_ll = sparse_copy(A);
     ASSERT_NOT_NULL(L_ll);
-    sparse_cholesky_opts_t opts_ll = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_LINKED_LIST, NULL};
+    sparse_cholesky_opts_t opts_ll = {
+        .reorder = SPARSE_REORDER_AMD,
+        .backend = SPARSE_CHOL_BACKEND_LINKED_LIST,
+        .used_csc_path = NULL,
+    };
     REQUIRE_OK(sparse_cholesky_factor_opts(L_ll, &opts_ll));
 
     double *ones = malloc((size_t)n * sizeof(double));
@@ -454,7 +458,11 @@ static void test_s19_kuu_scalar_csc_no_regression(void) {
      * captured to bench_day7_post_kuu.txt records the actual ratio. */
     SparseMatrix *L_cs = sparse_copy(A);
     ASSERT_NOT_NULL(L_cs);
-    sparse_cholesky_opts_t opts_cs = {SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_CSC, NULL};
+    sparse_cholesky_opts_t opts_cs = {
+        .reorder = SPARSE_REORDER_AMD,
+        .backend = SPARSE_CHOL_BACKEND_CSC,
+        .used_csc_path = NULL,
+    };
     REQUIRE_OK(sparse_cholesky_factor_opts(L_cs, &opts_cs));
     double *x2 = calloc((size_t)n, sizeof(double));
     ASSERT_NOT_NULL(x2);

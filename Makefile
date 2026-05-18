@@ -119,6 +119,7 @@ TEST_SRCS = $(TESTDIR)/test_sparse_matrix.c \
             $(TESTDIR)/test_eigs_lobpcg.c \
             $(TESTDIR)/test_graph.c \
             $(TESTDIR)/test_graph_fm_buckets.c \
+            $(TESTDIR)/test_framework_optin.c \
             $(TESTDIR)/test_reorder_nd.c \
             $(TESTDIR)/test_reorder_amd_qg.c
 TEST_BINS = $(patsubst $(TESTDIR)/%.c,$(BUILDDIR)/%,$(TEST_SRCS))

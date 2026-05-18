@@ -99,13 +99,13 @@ static SparseMatrix *s20_build_kkt(idx_t n_top, idx_t n_bot) {
 }
 
 /* Factor + solve a right-hand side `b = A * ones` and return the
- * max-norm residual ||A·x - b||_inf / ||b||_inf.  Returns INFINITY
+ * max-norm residual ||A·x - b||_inf / ||b||_inf.  Returns HUGE_VAL
  * on any intermediate failure. */
 static double s20_factor_solve_residual(SparseMatrix *A, const sparse_ldlt_opts_t *opts,
                                         sparse_ldlt_t *ldlt_out) {
     idx_t n = sparse_rows(A);
     if (sparse_ldlt_factor_opts(A, opts, ldlt_out) != SPARSE_OK)
-        return INFINITY;
+        return HUGE_VAL;
 
     double *ones = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
@@ -114,7 +114,7 @@ static double s20_factor_solve_residual(SparseMatrix *A, const sparse_ldlt_opts_
         free(ones);
         free(b);
         free(x);
-        return INFINITY;
+        return HUGE_VAL;
     }
     for (idx_t i = 0; i < n; i++)
         ones[i] = 1.0;
@@ -123,14 +123,14 @@ static double s20_factor_solve_residual(SparseMatrix *A, const sparse_ldlt_opts_
         free(ones);
         free(b);
         free(x);
-        return INFINITY;
+        return HUGE_VAL;
     }
     double *r = malloc((size_t)n * sizeof(double));
     if (!r) {
         free(ones);
         free(b);
         free(x);
-        return INFINITY;
+        return HUGE_VAL;
     }
     sparse_matvec(A, x, r);
     double nr = 0.0, nb = 0.0;
@@ -163,7 +163,12 @@ static void test_s20_auto_below_threshold_routes_linked_list(void) {
     ASSERT_NOT_NULL(A);
 
     int used_csc = -1;
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_AUTO,
+        .used_csc_path = &used_csc,
+    };
     sparse_ldlt_t ldlt;
     double res = s20_factor_solve_residual(A, &opts, &ldlt);
     ASSERT_TRUE(res < 1e-10);
@@ -182,7 +187,12 @@ static void test_s20_auto_above_threshold_spd_routes_csc(void) {
     ASSERT_NOT_NULL(A);
 
     int used_csc = -1;
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_AUTO,
+        .used_csc_path = &used_csc,
+    };
     sparse_ldlt_t ldlt;
     double res = s20_factor_solve_residual(A, &opts, &ldlt);
     ASSERT_TRUE(res < 1e-10);
@@ -206,7 +216,12 @@ static void test_s20_auto_above_threshold_indefinite_kkt_routes_csc(void) {
     ASSERT_EQ(sparse_rows(A), 150);
 
     int used_csc = -1;
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_AUTO,
+        .used_csc_path = &used_csc,
+    };
     sparse_ldlt_t ldlt;
     double res = s20_factor_solve_residual(A, &opts, &ldlt);
     ASSERT_TRUE(res < 1e-10);
@@ -229,8 +244,12 @@ static void test_s20_forced_linked_list_on_large_matrix(void) {
     ASSERT_NOT_NULL(A);
 
     int used_csc = -1;
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_LINKED_LIST,
-                               &used_csc};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_LINKED_LIST,
+        .used_csc_path = &used_csc,
+    };
     sparse_ldlt_t ldlt;
     double res = s20_factor_solve_residual(A, &opts, &ldlt);
     ASSERT_TRUE(res < 1e-10);
@@ -249,7 +268,12 @@ static void test_s20_forced_csc_on_small_matrix(void) {
     ASSERT_NOT_NULL(A);
 
     int used_csc = -1;
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_CSC, &used_csc};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_CSC,
+        .used_csc_path = &used_csc,
+    };
     sparse_ldlt_t ldlt;
     double res = s20_factor_solve_residual(A, &opts, &ldlt);
     ASSERT_TRUE(res < 1e-10);

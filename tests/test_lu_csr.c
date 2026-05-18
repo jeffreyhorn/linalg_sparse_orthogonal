@@ -680,7 +680,7 @@ static void test_lu_csr_eliminate_singular(void) {
 static double residual_norminf(const SparseMatrix *A, const double *x, const double *b, idx_t n) {
     double *r = malloc((size_t)n * sizeof(double));
     if (!r)
-        return INFINITY;
+        return HUGE_VAL;
     sparse_matvec(A, x, r);
     double mx = 0.0;
     for (idx_t i = 0; i < n; i++) {

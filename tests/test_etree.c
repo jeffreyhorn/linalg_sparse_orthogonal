@@ -1243,7 +1243,11 @@ static void test_symbolic_lu_with_amd(void) {
 
     /* Factor with AMD reordering and verify containment */
     SparseMatrix *LU = sparse_copy(A);
-    sparse_lu_opts_t opts = {SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_AMD, 1e-12};
+    sparse_lu_opts_t opts = {
+        .pivot = SPARSE_PIVOT_PARTIAL,
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 1e-12,
+    };
     REQUIRE_OK(sparse_lu_factor_opts(LU, &opts));
 
     /* Note: the LU-factored matrix has been reordered internally,

@@ -785,7 +785,11 @@ static void test_opts_rcm_partial(void) {
 
     SparseMatrix *LU = sparse_copy(A);
     ASSERT_NOT_NULL(LU);
-    sparse_lu_opts_t opts = {SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_RCM, 1e-12};
+    sparse_lu_opts_t opts = {
+        .pivot = SPARSE_PIVOT_PARTIAL,
+        .reorder = SPARSE_REORDER_RCM,
+        .tol = 1e-12,
+    };
     ASSERT_ERR(sparse_lu_factor_opts(LU, &opts), SPARSE_OK);
 
     double *x = malloc((size_t)n * sizeof(double));
@@ -825,7 +829,11 @@ static void test_opts_amd_complete(void) {
 
     SparseMatrix *LU = sparse_copy(A);
     ASSERT_NOT_NULL(LU);
-    sparse_lu_opts_t opts = {SPARSE_PIVOT_COMPLETE, SPARSE_REORDER_AMD, 1e-12};
+    sparse_lu_opts_t opts = {
+        .pivot = SPARSE_PIVOT_COMPLETE,
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 1e-12,
+    };
     ASSERT_ERR(sparse_lu_factor_opts(LU, &opts), SPARSE_OK);
 
     double *x = malloc((size_t)n * sizeof(double));
@@ -857,7 +865,11 @@ static void test_opts_none(void) {
 
     /* Solve with opts NONE */
     SparseMatrix *LU1 = sparse_copy(A);
-    sparse_lu_opts_t opts = {SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_NONE, 1e-12};
+    sparse_lu_opts_t opts = {
+        .pivot = SPARSE_PIVOT_PARTIAL,
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 1e-12,
+    };
     ASSERT_ERR(sparse_lu_factor_opts(LU1, &opts), SPARSE_OK);
     double x1[3];
     ASSERT_ERR(sparse_lu_solve(LU1, b, x1), SPARSE_OK);
@@ -893,7 +905,11 @@ static void test_opts_suitesparse(void) {
 
     SparseMatrix *LU = sparse_copy(A);
     ASSERT_NOT_NULL(LU);
-    sparse_lu_opts_t opts = {SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_AMD, 1e-12};
+    sparse_lu_opts_t opts = {
+        .pivot = SPARSE_PIVOT_PARTIAL,
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 1e-12,
+    };
     ASSERT_ERR(sparse_lu_factor_opts(LU, &opts), SPARSE_OK);
 
     double *x = malloc((size_t)n * sizeof(double));

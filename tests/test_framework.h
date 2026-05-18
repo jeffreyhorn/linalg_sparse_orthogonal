@@ -21,14 +21,18 @@
 
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 /* ─── Global state ───────────────────────────────────────────────────── */
 
 static int tf_tests_run = 0;
 static int tf_tests_failed = 0;
+static int tf_tests_skipped = 0;
 static int tf_asserts = 0;
 static int tf_current_failed = 0;
+static int tf_current_skipped = 0;
 static const char *tf_current_name = NULL;
 static clock_t tf_suite_start;
 
@@ -37,7 +41,7 @@ static clock_t tf_suite_start;
 #define TEST_SUITE_BEGIN(name)                                                                     \
     do {                                                                                           \
         printf("=== %s ===\n\n", (name));                                                          \
-        tf_tests_run = tf_tests_failed = tf_asserts = 0;                                           \
+        tf_tests_run = tf_tests_failed = tf_tests_skipped = tf_asserts = 0;                        \
         tf_suite_start = clock();                                                                  \
     } while (0)
 
@@ -47,6 +51,7 @@ static clock_t tf_suite_start;
         printf("\n--- Summary ---\n");                                                             \
         printf("Tests run:    %d\n", tf_tests_run);                                                \
         printf("Tests failed: %d\n", tf_tests_failed);                                             \
+        printf("Tests skipped: %d\n", tf_tests_skipped);                                           \
         printf("Assertions:   %d\n", tf_asserts);                                                  \
         printf("Time:         %.3f s\n", elapsed);                                                 \
         if (tf_tests_failed == 0)                                                                  \
@@ -58,14 +63,39 @@ static clock_t tf_suite_start;
 
 /* ─── Running a test ─────────────────────────────────────────────────── */
 
-#define RUN_TEST(fn)                                                                               \
+#define TF_SKIP_DISABLED_(name, hint)                                                              \
+    do {                                                                                           \
+        tf_tests_skipped++;                                                                        \
+        printf("  [SKIP] %s (%s)\n", (name), (hint));                                              \
+    } while (0)
+
+#define TF_RUN_TEST_(fn)                                                                           \
     do {                                                                                           \
         tf_current_name = #fn;                                                                     \
         tf_current_failed = 0;                                                                     \
+        tf_current_skipped = 0;                                                                    \
         tf_tests_run++;                                                                            \
         fn();                                                                                      \
-        if (tf_current_failed == 0)                                                                \
+        if (tf_current_failed == 0 && tf_current_skipped == 0)                                     \
             printf("  [PASS] %s\n", #fn);                                                          \
+    } while (0)
+
+#define RUN_TEST(fn) TF_RUN_TEST_(fn)
+
+#define RUN_TEST_SLOW(fn)                                                                          \
+    do {                                                                                           \
+        if (!tf_env_enabled("SPARSE_TEST_SLOW"))                                                   \
+            TF_SKIP_DISABLED_(#fn, "set SPARSE_TEST_SLOW=1");                                      \
+        else                                                                                       \
+            TF_RUN_TEST_(fn);                                                                      \
+    } while (0)
+
+#define RUN_TEST_EXPERIMENTAL(fn)                                                                  \
+    do {                                                                                           \
+        if (!tf_env_enabled("SPARSE_TEST_EXPERIMENTAL"))                                           \
+            TF_SKIP_DISABLED_(#fn, "set SPARSE_TEST_EXPERIMENTAL=1");                              \
+        else                                                                                       \
+            TF_RUN_TEST_(fn);                                                                      \
     } while (0)
 
 /* ─── Assertion helpers ──────────────────────────────────────────────── */
@@ -78,6 +108,17 @@ static clock_t tf_suite_start;
         }                                                                                          \
         tf_current_failed++;                                                                       \
         printf("         %s:%d: " fmt "\n", __FILE__, __LINE__, __VA_ARGS__);                      \
+    } while (0)
+
+#define SKIP_TEST(reason)                                                                          \
+    do {                                                                                           \
+        if (tf_current_failed == 0 && tf_current_skipped == 0) {                                   \
+            printf("  [SKIP] %s\n", tf_current_name);                                              \
+            tf_tests_skipped++;                                                                    \
+        }                                                                                          \
+        tf_current_skipped++;                                                                      \
+        printf("         %s:%d: %s\n", __FILE__, __LINE__, (reason));                              \
+        return;                                                                                    \
     } while (0)
 
 #define ASSERT_TRUE(cond)                                                                          \
@@ -220,14 +261,38 @@ static clock_t tf_suite_start;
  * (`sparse_save_mm(A, tf_tmp("foo.mtx"))`).  Two consecutive calls
  * overwrite each other — callers that need to hold two paths
  * simultaneously must copy the returned string into a local buffer. */
-#include <stdlib.h>
-#include <string.h>
 /* Manual concatenation (memcpy + strlen, no snprintf) so the helper
  * compiles in TUs that set `_POSIX_C_SOURCE 199309L` BEFORE any include
  * — at that POSIX level Apple's `<stdio.h>` hides snprintf behind
  * `__DARWIN_C_LEVEL >= __DARWIN_C_FULL` and Xcode 16's clang escalates
  * the implicit declaration to a hard error.  memcpy/strlen are not
  * feature-gated. */
+static inline int tf_ascii_tolower(int c) {
+    if (c >= 'A' && c <= 'Z')
+        return c - 'A' + 'a';
+    return c;
+}
+
+static inline int tf_streq_ci(const char *a, const char *b) {
+    while (*a != '\0' && *b != '\0') {
+        if (tf_ascii_tolower((unsigned char)*a) != tf_ascii_tolower((unsigned char)*b))
+            return 0;
+        a++;
+        b++;
+    }
+    return *a == '\0' && *b == '\0';
+}
+
+static inline int tf_env_enabled(const char *name) {
+    const char *value = getenv(name);
+    if (!value || value[0] == '\0')
+        return 0;
+    if (strcmp(value, "0") == 0 || tf_streq_ci(value, "false") || tf_streq_ci(value, "off") ||
+        tf_streq_ci(value, "no"))
+        return 0;
+    return 1;
+}
+
 static inline const char *tf_tmp(const char *name) {
     static char buf[260];
     const char *dir;

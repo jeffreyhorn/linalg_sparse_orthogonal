@@ -20,7 +20,7 @@ static double compute_rel_residual(const SparseMatrix *A, const double *b, const
                                    idx_t m) {
     double *r = malloc((size_t)m * sizeof(double));
     if (!r)
-        return INFINITY;
+        return HUGE_VAL;
     sparse_matvec(A, x, r);
     for (idx_t i = 0; i < m; i++)
         r[i] = b[i] - r[i];
@@ -60,7 +60,7 @@ static void test_all_solvers_nos4(void) {
     /* LU */
     SparseMatrix *LU = sparse_copy(A);
     double *x_lu = malloc((size_t)n * sizeof(double));
-    double rr_lu = INFINITY;
+    double rr_lu = HUGE_VAL;
     if (LU && x_lu) {
         sparse_err_t lu_err = sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12);
         ASSERT_ERR(lu_err, SPARSE_OK);
@@ -75,7 +75,7 @@ static void test_all_solvers_nos4(void) {
     /* Cholesky */
     SparseMatrix *Ch = sparse_copy(A);
     double *x_ch = malloc((size_t)n * sizeof(double));
-    double rr_ch = INFINITY;
+    double rr_ch = HUGE_VAL;
     if (Ch && x_ch) {
         sparse_err_t ch_err = sparse_cholesky_factor(Ch);
         ASSERT_ERR(ch_err, SPARSE_OK);
@@ -89,7 +89,7 @@ static void test_all_solvers_nos4(void) {
 
     /* CG */
     double *x_cg = calloc((size_t)n, sizeof(double));
-    double rr_cg = INFINITY;
+    double rr_cg = HUGE_VAL;
     if (x_cg) {
         sparse_iter_opts_t cg_opts = {.max_iter = 500, .tol = 1e-10, .verbose = 0};
         sparse_iter_result_t res_cg;
@@ -99,7 +99,7 @@ static void test_all_solvers_nos4(void) {
 
     /* GMRES (right-preconditioned with ILU) */
     double *x_gm = calloc((size_t)n, sizeof(double));
-    double rr_gm = INFINITY;
+    double rr_gm = HUGE_VAL;
     sparse_ilu_t ilu;
     int have_ilu = 0;
     if (x_gm && sparse_ilu_factor(A, &ilu) == SPARSE_OK) {
@@ -116,7 +116,7 @@ static void test_all_solvers_nos4(void) {
 
     /* QR */
     double *x_qr = malloc((size_t)n * sizeof(double));
-    double rr_qr = INFINITY;
+    double rr_qr = HUGE_VAL;
     sparse_qr_t qr;
     if (x_qr && sparse_qr_factor(A, &qr) == SPARSE_OK) {
         sparse_qr_solve(&qr, b, x_qr, NULL);

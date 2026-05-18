@@ -132,3 +132,90 @@ Interpretation:
 - `artifacts/day1-warning-counts-by-file-and-class.txt`
 - `artifacts/day1-test-reorder-nd-structure.txt`
 - raw configure/build stdout/stderr logs for the clean Day 1 CMake rerun
+
+## Day 2
+
+**Objective:** Audit `tests/test_reorder_nd.c` precisely enough to separate active coverage from dormant scaffold, classify each commented-out test as delete vs formalize vs keep-active material, and write the structural end-state note before code edits begin.
+
+### Commands Run
+
+1. Re-read the Sprint 32 baseline and the current `test_reorder_nd.c` source:
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_32/WORKING_NOTES.md`
+   - `sed -n '1,320p' tests/test_reorder_nd.c`
+   - `sed -n '320,760p' tests/test_reorder_nd.c`
+   - `sed -n '1460,1755p' tests/test_reorder_nd.c`
+2. Enumerate active and dormant test entry points:
+   - `rg -n "test_finest_fm_annealing_pres_poisson_close_to_target|test_nd_root_spectral_pres_poisson_close_to_target|test_non_pipeline_pres_poisson_close_to_target|RUN_TEST\\(" tests/test_reorder_nd.c`
+   - Python one-off to list:
+     - all `static void test_*` functions
+     - active `RUN_TEST(...)` calls
+     - commented-out `RUN_TEST(...)` calls
+     - any unreferenced `static void test_*` functions
+3. Inspect supporting framework conventions and nearby policy signals:
+   - `sed -n '1,260p' tests/test_framework.h`
+   - `rg -n "RUN_TEST\\(|skipped \\(|TF_FAIL_|return;|tf_setenv|EXPERIMENT|opt-in|slow" tests`
+4. Re-read the sprint decision documents that the dormant ND stubs cite:
+   - `sed -n '1,240p' docs/planning/EPIC_2/SPRINT_27/headline_summary.md`
+   - `sed -n '1,120p' docs/planning/EPIC_2/SPRINT_27/thick_restart_decision.md`
+   - `sed -n '1,220p' docs/planning/EPIC_2/SPRINT_28/non_pipeline_decision.md`
+5. Reconfirm the local branch/commit state before writing the Day 2 note:
+   - `git show --stat --oneline --no-patch HEAD`
+
+### Audit Findings
+
+- `tests/test_reorder_nd.c` contains `26` `static void test_*` functions.
+- `23` of those functions are active through `RUN_TEST(...)`.
+- `3` are intentionally dormant through commented-out `RUN_TEST(...)` lines:
+  - `test_finest_fm_annealing_pres_poisson_close_to_target`
+  - `test_nd_root_spectral_pres_poisson_close_to_target`
+  - `test_non_pipeline_pres_poisson_close_to_target`
+- There are `0` hidden or unreferenced `static void test_*` functions beyond that active-vs-commented split.
+- The file’s `3` `-Wunused-function` warnings map exactly to the dormant trio.
+- The file’s `4` `-Wmissing-field-initializers` warnings are separate mechanical debt and are not the reason the dormant trio exists.
+
+### Classification of the Dormant Trio
+
+- `test_finest_fm_annealing_pres_poisson_close_to_target`
+  - status: historical failing-as-expected scaffold
+  - evidence: its own comment says the test was kept commented out because Sprint 27 Day 12 measured `0.943x` vs the `0.87x` tolerance gate; Sprint 27 Day 13 then concluded the default path was already the Pres_Poisson best and annealing remained advisory-only
+  - Day 2 classification: delete from active suite code or move its evidence into docs; do not formalize as opt-in coverage
+- `test_nd_root_spectral_pres_poisson_close_to_target`
+  - status: historical failing-as-expected scaffold
+  - evidence: its own comment and Sprint 27 notes say root-spectral landed `0.944x`, still far from the `0.87x` tolerance gate, and shipped advisory-only
+  - Day 2 classification: same as annealing; historical evidence, not a truthful opt-in test candidate
+- `test_non_pipeline_pres_poisson_close_to_target`
+  - status: retired-target scaffold
+  - evidence: Sprint 28 `non_pipeline_decision.md` formally retired the literal `0.85x` Pres_Poisson target after six consecutive sprint misses and explains why the supernodal-etree post-pass cannot change fill by construction
+  - Day 2 classification: strongest delete/docs-only candidate of the three because its target is explicitly retired, not merely currently unmet
+
+### Active Coverage That Should Stay Active
+
+- The advisory-axis smoke tests already present the truthful active suite surface:
+  - `test_finest_fm_annealing_differs_from_baseline`
+  - `test_nd_root_spectral_pres_poisson_smoke`
+  - `test_finest_fm_thick_restart_returns_to_anchor`
+  - `test_hcc_kuu_safe_corpus_parity`
+  - `test_per_vertex_fixed_k_three_schemes_differentiate`
+- These tests assert real current contracts:
+  - dispatch fires
+  - output changes or remains within an explicit parity budget
+  - the library’s shipped advisory paths behave as implemented today
+- They do not pretend that the retired or unmet `0.85x` Pres_Poisson goal is currently protected by CI.
+
+### Day 2 Interpretation
+
+- The dormant-scaffold problem in `tests/test_reorder_nd.c` is narrower than it first looked: it is not a generic “slow test” issue and it is not scattered through the file.
+- All three dormant helpers are descendants of a single historical pattern:
+  - write a failing-as-expected close-to-target stub
+  - leave it compiled
+  - comment out the `RUN_TEST(...)`
+- That pattern is no longer acceptable for a truthful suite because it leaves compile-visible code that implies active protection where none exists.
+- The current test framework has no first-class experimental or skipped-test category; today it only supports active `RUN_TEST(...)` execution or ordinary early-return skip behavior inside a test body.
+- Day 3 should therefore decide between:
+  - deleting these three historical stubs from the suite file and preserving their evidence only in sprint docs, or
+  - introducing a minimal explicit non-default category before any such tests remain in-tree
+- Based on the Sprint 27 and Sprint 28 decisions, the leading recommendation is deletion/docs-only for this specific trio rather than preserving them as opt-in tests.
+
+### Day 2 Outputs
+
+- `artifacts/day2-test-reorder-nd-audit.md`

@@ -1541,3 +1541,115 @@ Validation was a documentation sanity sweep:
 
 - `README.md`
 - `artifacts/day12-documentation-refresh.md`
+
+## Day 13
+
+**Objective:** Revalidate the full Sprint 33 end state across the normal
+Makefile path, the dedicated CMake/CTest path, and the Sprint 33 dead-code
+workflow before closeout docs begin.
+
+### Commands Run
+
+1. Re-read the Day 13 scope:
+   - `sed -n '320,380p' docs/planning/EPIC_3/SPRINT_33/PLAN.md`
+2. Run the normal quality path:
+   - `make format`
+   - `/usr/bin/time -p make lint`
+   - `/usr/bin/time -p make test`
+3. Rebuild and validate the dedicated CMake/CTest path:
+   - `/usr/bin/time -p cmake --build build/sprint33-day1-cmake --parallel 1 --clean-first`
+   - `ctest -N --test-dir build/sprint33-day1-cmake`
+   - `/usr/bin/time -p ctest --test-dir build/sprint33-day1-cmake --output-on-failure`
+4. Re-run the dead-code workflow serially:
+   - `/usr/bin/time -p make deadcode-report`
+   - `/usr/bin/time -p make deadcode-check`
+5. Reconfirm the live opt-in / truthfulness surface:
+   - `rg -n "RUN_TEST\\(|RUN_TEST_SLOW\\(|RUN_TEST_EXPERIMENTAL\\(" tests/test_framework_optin.c tests/test_reorder_nd.c`
+   - `cat build/deadcode/coverage-notes.txt`
+   - `python3 - <<'PY' ... summarize bucket counts from build/deadcode/report.tsv ... PY`
+
+### Validation Results
+
+All required Day 13 validation flows passed.
+
+Normal Makefile path:
+
+- `make format`: passed
+- `make lint`: passed
+  - wall time: `473.25 s`
+- `make test`: passed
+  - wall time: `132.22 s`
+
+Dedicated CMake/CTest path:
+
+- clean serialized rebuild of `build/sprint33-day1-cmake`: passed
+  - wall time: `53.22 s`
+- `ctest -N`: passed
+  - registered tests: `53`
+- full `ctest --output-on-failure`: passed
+  - `53 / 53` tests passed
+  - reported real test time: `178.31 s`
+  - wrapper wall time: `178.35 s`
+
+Dead-code workflow:
+
+- `make deadcode-report`: passed
+  - wall time: `83.23 s`
+- `make deadcode-check`: passed
+  - wall time: `104.00 s`
+
+### Dead-Code Report State
+
+The post-Day-11 report remains stable after the Day 13 rerun:
+
+- `coverage-gap`: `7`
+- `public-surface-review`: `4`
+- `secondary-candidate-signal`: `35`
+- `non-deadcode-static-analysis-noise`: `6`
+- `definitely-unused-internal-candidate`: `0`
+
+The compile-db coverage gap is unchanged:
+
+- benchmark:
+  - `bench_svd`
+- examples:
+  - `example_basic_solve`
+  - `example_condition`
+  - `example_iterative`
+  - `example_least_squares`
+  - `example_matrix_free`
+  - `example_svd_lowrank`
+
+### Truthfulness / Opt-In Confirmation
+
+Sprint 32's live opt-in policy remains intact:
+
+- `test_framework_optin` is still registered in CTest and passed in both
+  `make test` and the CTest path
+- the `make test` run reconfirmed the expected default-path behavior inside that
+  binary:
+  - `Tests run: 8`
+  - `Tests failed: 0`
+  - `Tests skipped: 3`
+- `tests/test_framework_optin.c` still contains:
+  - plain `RUN_TEST(...)`
+  - `RUN_TEST_SLOW(...)`
+  - `RUN_TEST_EXPERIMENTAL(...)`
+- `tests/test_reorder_nd.c` still has `23` active `RUN_TEST(...)`
+  registrations and did not regress back into a dormant commented-out queue
+
+### Day 13 End State
+
+- normal quality gates: green
+- CMake/CTest parity: green
+- dead-code workflow: green
+- definitely-unused internal cleanup queue: empty
+- residual dead-code backlog:
+  - compile-db coverage gaps
+  - audited public keeps
+  - secondary `cppcheck` evidence
+  - static-analysis noise
+
+### Day 13 Outputs
+
+- `artifacts/day13-full-validation-sweep.md`

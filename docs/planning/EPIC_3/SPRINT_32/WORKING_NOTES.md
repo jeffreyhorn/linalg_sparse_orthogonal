@@ -347,3 +347,85 @@ Why this is the least invasive fit:
 ### Day 3 Outputs
 
 - `artifacts/day3-test-truthfulness-policy.md`
+
+## Day 4
+
+**Objective:** Add the smallest real framework support needed for truthful slow/experimental test categories, prove it works under both Makefile and CMake flows, and keep default active-suite behavior unchanged.
+
+### Commands Run
+
+1. Re-read the Day 3 policy and the current framework:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_32/artifacts/day3-test-truthfulness-policy.md`
+   - `sed -n '1,360p' tests/test_framework.h`
+2. Implement the framework support and self-check wiring:
+   - edit `tests/test_framework.h`
+   - add `tests/test_framework_optin.c`
+   - edit `Makefile`
+   - edit `CMakeLists.txt`
+3. Format the touched code:
+   - `make format`
+4. Validate the Makefile path:
+   - `make build/test_framework_optin build/test_reorder_nd`
+   - `./build/test_framework_optin`
+   - `./build/test_reorder_nd`
+5. Validate the CMake path:
+   - `cmake -S . -B build/sprint32-day1-cmake`
+   - `cmake --build build/sprint32-day1-cmake --parallel 1 --target test_framework_optin test_reorder_nd`
+   - `ctest --test-dir build/sprint32-day1-cmake --output-on-failure -R '^test_framework_optin$'`
+   - `ctest --test-dir build/sprint32-day1-cmake --output-on-failure -R 'test_framework_optin|test_reorder_nd'`
+     - first combined rerun raced the fresh `test_framework_optin` link and marked it `Not Run`
+     - the rerun still proved the rebuilt CMake-side `test_reorder_nd` target passed
+     - `test_framework_optin` was then rerun cleanly once the binary existed
+
+### Implementation
+
+- `tests/test_framework.h`
+  - added `tf_tests_skipped`
+  - added `tf_current_skipped`
+  - summary output now reports skipped-count explicitly
+  - added `SKIP_TEST(reason)` for test-body-level truthful skip reporting
+  - added `RUN_TEST_SLOW(fn)` gated by `SPARSE_TEST_SLOW`
+  - added `RUN_TEST_EXPERIMENTAL(fn)` gated by `SPARSE_TEST_EXPERIMENTAL`
+  - added `tf_env_enabled(...)` so the env gate accepts ordinary truthy values and rejects `0` / `false` / `off` / `no`
+- `tests/test_framework_optin.c`
+  - new dedicated self-check binary for the Day 4 support
+  - verifies:
+    - normal `RUN_TEST(...)` behavior still works
+    - `SKIP_TEST(...)` records a skip instead of a pass
+    - disabled slow/experimental wrappers emit `[SKIP]` and do not execute the body
+    - enabled slow/experimental wrappers execute normally
+- `Makefile` and `CMakeLists.txt`
+  - both now register `test_framework_optin` so the support path is available in both local test entry points
+
+### Validation Results
+
+- `./build/test_framework_optin`
+  - passed
+  - summary: `Tests run: 8`, `Tests failed: 0`, `Tests skipped: 3`
+  - confirmed:
+    - one body-level `SKIP_TEST(...)`
+    - one disabled slow wrapper
+    - one disabled experimental wrapper
+    - both wrappers execute once enabled
+- `./build/test_reorder_nd`
+  - passed
+  - `23` active tests still pass under the modified framework
+- CMake build:
+  - `test_framework_optin` built and linked cleanly
+  - `test_reorder_nd` rebuilt cleanly
+- CTest:
+  - `test_framework_optin` passed once rerun against the completed build tree
+  - `test_reorder_nd` passed in the rebuilt CMake tree (`106.45 s`)
+
+### Day 4 Interpretation
+
+- The framework extension stayed appropriately small: no new runner, no Makefile/CTest architecture change, and no xfail layer.
+- The new support is source-auditable:
+  - active tests are still obvious `RUN_TEST(...)`
+  - opt-in tests will be explicit `RUN_TEST_SLOW(...)` or `RUN_TEST_EXPERIMENTAL(...)`
+  - historical evidence no longer needs to hide behind commented-out `RUN_TEST(...)`
+- The existing active ND suite still passes without any source changes in `tests/test_reorder_nd.c`, so Day 5 can now focus on structural cleanup rather than infrastructure risk.
+
+### Day 4 Outputs
+
+- `artifacts/day4-test-framework-support.md`

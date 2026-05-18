@@ -1467,3 +1467,77 @@ As on Day 10, one parallel pair of `deadcode` target invocations briefly reprodu
 ### Day 11 Outputs
 
 - `artifacts/day11-reconciliation.md`
+
+## Day 12
+
+**Objective:** Refresh the maintainer-facing documentation so the Sprint 33
+dead-code workflow, its conservative interpretation rules, and its known limits
+are visible in normal operator docs instead of only in sprint artifacts.
+
+### Commands Run
+
+1. Re-read the Day 12 scope and the current workflow/report state:
+   - `sed -n '280,340p' docs/planning/EPIC_3/SPRINT_33/PLAN.md`
+   - `sed -n '1,220p' build/deadcode/report.md`
+   - `cat build/deadcode/coverage-notes.txt`
+2. Inspect the current maintainer-facing doc surface:
+   - `sed -n '90,180p' README.md`
+   - `sed -n '540,650p' README.md`
+   - `sed -n '460,520p' Makefile`
+   - `sed -n '1,220p' scripts/deadcode_workflow.sh`
+   - `sed -n '258,380p' scripts/deadcode_report.py`
+3. Update the docs:
+   - edited `README.md`
+   - wrote `artifacts/day12-documentation-refresh.md`
+
+### Documentation Changes
+
+Day 12 was documentation-only.
+
+The maintainer-facing README now documents the Sprint 33 dead-code workflow
+directly:
+
+- `make deadcode`
+- `make deadcode-report`
+- `make deadcode-check`
+
+It also now records the operator contract that Sprint 33 established:
+
+- the workflow is conservative evidence, not perfect reachability proof
+- active code, opt-in tests, historical evidence, public-surface findings, and
+  secondary static-analysis signals are distinct classes
+- exported-header findings are review items, not automatic deletion targets
+- `deadcode-check` verifies report completeness, not zero findings
+
+### Known Limits Now Documented In README
+
+The README now includes the two most important Day 10 / Day 11 workflow limits:
+
+1. The current `xunused` compilation database still under-covers part of the
+   Makefile tooling surface:
+   - `bench_svd`
+   - `example_basic_solve`
+   - `example_condition`
+   - `example_iterative`
+   - `example_least_squares`
+   - `example_matrix_free`
+   - `example_svd_lowrank`
+2. The `deadcode*` targets should be run serially because they share
+   `build/deadcode-cmake` and `build/deadcode/`; concurrent invocation can race
+   on the shared CMake build tree.
+
+### Validation
+
+Day 12 did not change `*.c` or `*.h` files.
+
+Validation was a documentation sanity sweep:
+
+- confirmed the README command names match the current Makefile targets
+- confirmed the artifact paths match the current scripts
+- confirmed the documented compile-db coverage gap matches
+  `build/deadcode/coverage-notes.txt`
+
+### Day 12 Documentation Map
+
+- `README.md`
+- `artifacts/day12-documentation-refresh.md`

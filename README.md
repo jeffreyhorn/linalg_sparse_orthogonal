@@ -107,6 +107,9 @@ make            # build library
 make tooling-build  # compile benchmark/example binaries without running them
 make lint       # strict compile + static analysis (includes tooling-build)
 make test       # run all unit tests
+make deadcode   # refresh raw dead-code evidence in build/deadcode/
+make deadcode-report  # generate classified dead-code report.md / report.tsv
+make deadcode-check   # verify report completeness invariants
 make bench      # run benchmarks
 make examples   # build standalone example programs
 make docs       # generate Doxygen API reference (requires doxygen)
@@ -610,6 +613,55 @@ Historical measurements, retired targets, and old sprint evidence do not stay in
 normal suite files as commented-out `RUN_TEST(...)` entries. Preserve that
 material in `docs/planning/` artifacts instead of shipping dormant test
 scaffolding that overstates current CI coverage.
+
+### Dead-Code Workflow
+
+Sprint 33 adds a maintainer-facing dead-code workflow that is intentionally
+separate from `make lint` and `make test`:
+
+```bash
+make deadcode
+make deadcode-report
+make deadcode-check
+```
+
+- `make deadcode` refreshes `build/deadcode-cmake/compile_commands.json`, then
+  runs the raw `cppcheck` and `xunused` passes and writes:
+  - `build/deadcode/cppcheck.txt`
+  - `build/deadcode/xunused.txt`
+  - `build/deadcode/coverage-notes.txt`
+- `make deadcode-report` regenerates those raw artifacts and writes:
+  - `build/deadcode/report.md`
+  - `build/deadcode/report.tsv`
+- `make deadcode-check` validates report completeness. It does **not** mean
+  "zero findings"; it only enforces that the report was generated, every
+  `xunused` finding was categorized, and the coverage-gap section is present.
+
+Prerequisites:
+
+- `cppcheck` must be installed and on `PATH`
+- `xunused` must be installed and on `PATH`
+
+Interpretation rules:
+
+- Treat this workflow as conservative evidence, not as full reachability proof.
+- Active code, opt-in test code, and historical sprint evidence are distinct
+  classes. Historical evidence belongs in `docs/planning/`, not in commented-out
+  test registrations or ad hoc cleanup queues.
+- Findings against exported installed-header symbols are manual-review items, not
+  automatic deletion candidates.
+- `cppcheck` findings in the report's secondary/noise buckets are supporting
+  signals only.
+
+Current known limits:
+
+- The compilation database used by `xunused` still under-covers part of the
+  Makefile tooling surface. As of Sprint 33 it misses `bench_svd` and six
+  example programs; `build/deadcode/coverage-notes.txt` records the exact list
+  for each run.
+- Run the `deadcode*` targets serially. They share `build/deadcode-cmake` and
+  `build/deadcode/`; concurrent invocation can race on the shared CMake build
+  tree and produce transient failures.
 
 **Note:** Apple Clang's ASan hangs on macOS. Use an alternative compiler:
 ```bash

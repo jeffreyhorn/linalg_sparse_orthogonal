@@ -748,3 +748,190 @@ Day 4 recommended target structure:
 - Sprint 33 now has a reproducible, opt-in `make deadcode` entry point that matches the Day 4 layered-tooling design.
 - The workflow is useful as raw evidence gathering, not as an enforcement gate yet.
 - The next job is not more Makefile plumbing; it is report design and classification so Day 6 / Day 7 can turn these raw artifacts into an auditable cleanup queue without violating the Day 3 conservative policy.
+
+## Day 6
+
+**Objective:** Turn the Day 5 raw scanner outputs into a conservative reporting model by defining stable categories, a readable report layout, and a `deadcode-check` invariant that enforces report completeness rather than pretending the tools prove reachability perfectly.
+
+### Commands Run
+
+1. Re-read the Day 6 / Day 7 scope and Day 5 implementation context:
+   - `sed -n '140,190p' docs/planning/EPIC_3/SPRINT_33/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_33/artifacts/day5-deadcode-target-implementation.md`
+   - `tail -n 180 docs/planning/EPIC_3/SPRINT_33/WORKING_NOTES.md`
+2. Reinspect the current raw Day 5 artifacts:
+   - `sed -n '1,240p' build/deadcode/coverage-notes.txt`
+   - `sed -n '1,180p' build/deadcode/xunused.txt`
+   - `rg -o '\[[^]]+\]$' build/deadcode/cppcheck.txt | sort | uniq -c | sort -nr | sed -n '1,40p'`
+3. Derive category-driving counts from the raw outputs:
+   - `python3 - <<'PY' ... parse build/deadcode/cppcheck.txt by checker id and file ... PY`
+   - `python3 - <<'PY' ... parse build/deadcode/xunused.txt warning/note pairs ... PY`
+   - `rg -n "chol_csc_dump_supernodes|givens_apply_right|sparse_print_dense|sparse_print_entries|sparse_print_info" src include`
+4. Re-read the later-sprint sequencing so the Day 6 report/check design leaves room for Day 8 public-surface review and Day 10 / Day 11 cleanup batches:
+   - `sed -n '190,310p' docs/planning/EPIC_3/SPRINT_33/PLAN.md`
+
+### Raw-Finding Shape Confirmed On Day 6
+
+- `coverage-notes.txt` confirms the known compile-db gap remains unchanged:
+  - `bench_svd`
+  - `example_basic_solve`
+  - `example_condition`
+  - `example_iterative`
+  - `example_least_squares`
+  - `example_matrix_free`
+  - `example_svd_lowrank`
+- `xunused` remains the narrow, high-confidence signal:
+  - `5` warnings total
+  - `1` internal/private-helper candidate:
+    - `chol_csc_dump_supernodes`
+  - `4` exported-header/public-surface review items:
+    - `givens_apply_right`
+    - `sparse_print_dense`
+    - `sparse_print_entries`
+    - `sparse_print_info`
+- `cppcheck` remains broader and mixed-purpose:
+  - top ids:
+    - `constVariablePointer`: `106`
+    - `staticFunction`: `90`
+    - `unusedFunction`: `80`
+    - `normalCheckLevelMaxBranches`: `23`
+  - top files by total raw findings:
+    - `src/sparse_matrix.c`: `31`
+    - `src/sparse_qr.c`: `25`
+    - `src/sparse_chol_csc.c`: `24`
+    - `src/sparse_lu.c`: `22`
+    - `src/sparse_svd.c`: `22`
+
+### Chosen Classification Scheme
+
+Day 6 category model for the later report:
+
+1. `coverage-gap`
+   - meaning:
+     - code that is outside the current `compile_commands.json` surface, so scanner silence is not evidence
+   - source:
+     - `build/deadcode/coverage-notes.txt`
+   - Day 6 handling:
+     - always shown near the top of the report
+     - never mixed into the cleanup queue
+2. `definitely-unused-internal-candidate`
+   - meaning:
+     - scanner finding that currently points to internal-only implementation/declaration surface with no installed-header evidence
+   - current Day 6 example:
+     - `chol_csc_dump_supernodes`
+   - Day 6 handling:
+     - eligible for Day 9 batching after Day 8 confirms no public-surface conflict
+3. `public-surface-review`
+   - meaning:
+     - finding touches `include/`, documented examples, documented bench entry points, or other outward-facing surface
+   - current Day 6 examples:
+     - `givens_apply_right`
+     - `sparse_print_dense`
+     - `sparse_print_entries`
+     - `sparse_print_info`
+   - Day 6 handling:
+     - explicitly deferred to Day 8 review
+     - never auto-promoted into cleanup batches
+4. `secondary-candidate-signal`
+   - meaning:
+     - tool findings that may help prioritize inspection but are too noisy to treat as cleanup-ready on their own
+   - current Day 6 source:
+     - `cppcheck` `unusedFunction`
+     - `cppcheck` `staticFunction`
+   - Day 6 handling:
+     - summarized by file and checker id
+     - not emitted as a line-by-line deletion queue in the primary report
+5. `non-deadcode-static-analysis-noise`
+   - meaning:
+     - findings that are real static-analysis observations but not dead-code evidence
+   - current Day 6 source:
+     - `constVariablePointer`
+     - `variableScope`
+     - `normalCheckLevelMaxBranches`
+     - other style-only ids
+   - Day 6 handling:
+     - counted in an appendix/summary only
+     - omitted from the cleanup queue entirely
+
+### Chosen `deadcode-report` Design
+
+Day 7 should generate two stable report artifacts under `build/deadcode/`:
+
+1. human-readable summary
+   - proposed path:
+     - `build/deadcode/report.md`
+   - purpose:
+     - show coverage gaps
+     - show categorized `xunused` findings
+     - show aggregated `cppcheck` evidence
+     - name the current cleanup-ready queue explicitly
+2. machine-stable findings table
+   - proposed path:
+     - `build/deadcode/report.tsv`
+   - purpose:
+     - one normalized finding per line
+     - stable sorting for later sprint comparisons
+     - easier parsing if CI wiring is added later
+
+Proposed summary section order:
+
+1. run metadata
+2. compile-db coverage gaps
+3. definitely-unused internal candidates
+4. public-surface review items
+5. secondary `cppcheck` candidate signals by file/id
+6. deferred noise summary
+7. next-action queue for the current sprint
+
+Proposed normalized TSV columns:
+
+- `bucket`
+- `tool`
+- `symbol`
+- `path`
+- `line`
+- `detail`
+- `disposition`
+
+Why this split:
+
+- Markdown is better for maintainer review
+- TSV is better for reproducibility and later diffability
+- both can be generated from the same parser logic on Day 7
+
+### Chosen `deadcode-check` Behavior
+
+Day 6 decision:
+
+- `deadcode-check` should **not** fail merely because findings exist in Sprint 33
+- `deadcode-check` should enforce report completeness and category hygiene instead
+
+Proposed Day 7 `deadcode-check` invariant:
+
+1. run `deadcode-report`
+2. fail if report generation fails
+3. fail if any `xunused` warning is left uncategorized
+4. fail if the coverage-gap section is missing
+5. pass even when categorized candidates remain
+
+Reason:
+
+- Sprint 33 still expects real candidate findings before cleanup
+- failing on any finding would block the planned Day 8 public-surface audit and Day 10 / Day 11 cleanup batches
+- requiring complete categorization still gives the workflow a meaningful contract
+
+Future-tightening note:
+
+- a later sprint can choose to fail on non-empty `definitely-unused-internal-candidate`
+  buckets after the first cleanup passes have landed
+- Sprint 33 should not do that yet
+
+### Day 6 Interpretation
+
+- `xunused` should drive the primary actionable queue because it is the smallest high-confidence signal currently available.
+- `cppcheck` should remain visible, but as secondary evidence summarized by file/checker rather than as a direct deletion list.
+- `deadcode-check` should validate that the report tells the truth about the current evidence, not that the repository is already empty of all candidate findings.
+
+### Day 6 Outputs
+
+- `artifacts/day6-reporting-classification-design.md`

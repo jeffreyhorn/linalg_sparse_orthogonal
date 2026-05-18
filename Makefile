@@ -468,28 +468,39 @@ DEADCODE_ARTIFACTS_DIR ?= build/deadcode
 DEADCODE_COMPILE_COMMANDS := $(DEADCODE_CMAKE_DIR)/compile_commands.json
 DEADCODE_REPORT_MD := $(DEADCODE_ARTIFACTS_DIR)/report.md
 DEADCODE_REPORT_TSV := $(DEADCODE_ARTIFACTS_DIR)/report.tsv
+DEADCODE_WORKFLOW_STAMP := $(DEADCODE_ARTIFACTS_DIR)/.workflow.stamp
+DEADCODE_REPORT_STAMP := $(DEADCODE_ARTIFACTS_DIR)/.report.stamp
+DEADCODE_CMAKE_INPUTS := CMakeLists.txt $(wildcard cmake/*)
 
-.PHONY: deadcode-compile-db
-deadcode-compile-db:
+$(DEADCODE_COMPILE_COMMANDS): $(DEADCODE_CMAKE_INPUTS)
 	@echo "Configuring dead-code compile database in $(DEADCODE_CMAKE_DIR)..."
 	cmake -S . -B $(DEADCODE_CMAKE_DIR) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 	@test -f "$(DEADCODE_COMPILE_COMMANDS)"
 
-.PHONY: deadcode
-deadcode: deadcode-compile-db
+$(DEADCODE_WORKFLOW_STAMP): $(DEADCODE_COMPILE_COMMANDS) scripts/deadcode_workflow.sh
 	@bash scripts/deadcode_workflow.sh \
 		"$(DEADCODE_CMAKE_DIR)" \
 		"$(DEADCODE_ARTIFACTS_DIR)"
+	@touch "$(DEADCODE_WORKFLOW_STAMP)"
 
-.PHONY: deadcode-report
-deadcode-report: deadcode
+$(DEADCODE_REPORT_STAMP): $(DEADCODE_WORKFLOW_STAMP) scripts/deadcode_report.py
 	@python3 scripts/deadcode_report.py \
 		"$(DEADCODE_ARTIFACTS_DIR)"
+	@touch "$(DEADCODE_REPORT_STAMP)"
+
+.PHONY: deadcode-compile-db
+deadcode-compile-db: $(DEADCODE_COMPILE_COMMANDS)
+
+.PHONY: deadcode
+deadcode: $(DEADCODE_WORKFLOW_STAMP)
+
+.PHONY: deadcode-report
+deadcode-report: $(DEADCODE_REPORT_STAMP)
 	@echo "deadcode-report: $(DEADCODE_REPORT_MD)"
 	@echo "deadcode-report: $(DEADCODE_REPORT_TSV)"
 
 .PHONY: deadcode-check
-deadcode-check: deadcode-report
+deadcode-check: $(DEADCODE_REPORT_STAMP)
 	@python3 scripts/deadcode_report.py \
 		--check \
 		"$(DEADCODE_ARTIFACTS_DIR)"

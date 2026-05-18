@@ -16,6 +16,9 @@ INTERNAL_CANDIDATE = "definitely-unused-internal-candidate"
 PUBLIC_REVIEW = "public-surface-review"
 SECONDARY_SIGNAL = "secondary-candidate-signal"
 NOISE = "non-deadcode-static-analysis-noise"
+XUNUSED_ALLOWED_BUCKETS = frozenset({INTERNAL_CANDIDATE, PUBLIC_REVIEW})
+REPO_ROOT = Path(__file__).resolve().parent.parent
+PUBLIC_INCLUDE_ROOT = (REPO_ROOT / "include").resolve()
 
 REVIEWED_PUBLIC_KEEPS = {
     "givens_apply_right": "keep-public-api-day8-audited",
@@ -85,10 +88,25 @@ def parse_coverage_notes(path: Path) -> dict[str, object]:
     return data
 
 
+def resolve_repo_path(raw_path: str) -> Path:
+    path = Path(raw_path)
+    if not path.is_absolute():
+        path = REPO_ROOT / path
+    return path.resolve()
+
+
+def is_public_header(decl_file: str) -> bool:
+    try:
+        resolve_repo_path(decl_file).relative_to(PUBLIC_INCLUDE_ROOT)
+        return True
+    except ValueError:
+        return False
+
+
 def classify_xunused(symbol: str, decl_file: str) -> tuple[str, str]:
     if symbol in REVIEWED_PUBLIC_KEEPS:
         return PUBLIC_REVIEW, REVIEWED_PUBLIC_KEEPS[symbol]
-    if "/include/" in decl_file or decl_file.startswith("include/"):
+    if is_public_header(decl_file):
         return PUBLIC_REVIEW, "needs-public-surface-audit"
     return INTERNAL_CANDIDATE, "candidate-day9-cleanup-batching"
 
@@ -393,10 +411,12 @@ def run_check(
             raise SystemExit(
                 f"deadcode_report: report.md missing coverage-gap item for {symbol}"
             )
+    # Keep the accepted xunused bucket set explicit here so any future
+    # classifier expansion must also update the validator contract.
     uncategorized = [
         finding["symbol"]
         for finding in xunused
-        if finding.get("bucket") not in {INTERNAL_CANDIDATE, PUBLIC_REVIEW}
+        if finding.get("bucket") not in XUNUSED_ALLOWED_BUCKETS
     ]
     if uncategorized:
         raise SystemExit(

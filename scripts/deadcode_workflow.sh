@@ -37,6 +37,7 @@ need_cmd() {
 
 need_cmd cmake
 need_cmd cppcheck
+need_cmd python3
 need_cmd xunused
 if [ "$(uname -s)" = "Darwin" ]; then
     need_cmd xcrun
@@ -51,45 +52,59 @@ if [ ! -f "$COMPILE_COMMANDS" ]; then
 fi
 
 write_coverage_notes() {
-    local tmp_bench_all tmp_bench_seen tmp_ex_all tmp_ex_seen
-    tmp_bench_all="$(mktemp)"
-    tmp_bench_seen="$(mktemp)"
-    tmp_ex_all="$(mktemp)"
-    tmp_ex_seen="$(mktemp)"
-    trap 'rm -f "$tmp_bench_all" "$tmp_bench_seen" "$tmp_ex_all" "$tmp_ex_seen"' RETURN
+    python3 - "$REPO_ROOT" "$COMPILE_COMMANDS" "$COVERAGE_NOTES" <<'PY'
+import json
+import sys
+from pathlib import Path
 
-    find benchmarks -maxdepth 1 -name '*.c' -print \
-        | sed 's#^benchmarks/##; s#\.c$##' \
-        | sort >"$tmp_bench_all"
-    grep '"file":' "$COMPILE_COMMANDS" \
-        | sed -n 's#.*"/.*/benchmarks/\([^"]*\)\.c".*#\1#p' \
-        | sort -u >"$tmp_bench_seen"
+repo_root = Path(sys.argv[1]).resolve()
+compile_commands_path = Path(sys.argv[2])
+coverage_notes_path = Path(sys.argv[3])
 
-    find examples -maxdepth 1 -name '*.c' -print \
-        | sed 's#^examples/##; s#\.c$##' \
-        | sort >"$tmp_ex_all"
-    grep '"file":' "$COMPILE_COMMANDS" \
-        | sed -n 's#.*"/.*/examples/\([^"]*\)\.c".*#\1#p' \
-        | sort -u >"$tmp_ex_seen"
+entries = json.loads(compile_commands_path.read_text())
 
-    {
-        echo "Sprint 33 Day 5 dead-code coverage notes"
-        echo "compile_commands_json $COMPILE_COMMANDS"
-        echo "src $(grep '"file":' "$COMPILE_COMMANDS" | grep -c '/src/')"
-        echo "tests $(grep '"file":' "$COMPILE_COMMANDS" | grep -c '/tests/')"
-        echo "benchmarks $(grep '"file":' "$COMPILE_COMMANDS" | grep -c '/benchmarks/')"
-        echo "examples $(grep '"file":' "$COMPILE_COMMANDS" | grep -c '/examples/')"
-        echo
-        echo "missing_benchmarks"
-        if comm -23 "$tmp_bench_all" "$tmp_bench_seen" | sed 's/^/- /'; then
-            :
-        fi
-        echo
-        echo "missing_examples"
-        if comm -23 "$tmp_ex_all" "$tmp_ex_seen" | sed 's/^/- /'; then
-            :
-        fi
-    } >"$COVERAGE_NOTES"
+all_benchmarks = sorted(path.stem for path in (repo_root / "benchmarks").glob("*.c"))
+all_examples = sorted(path.stem for path in (repo_root / "examples").glob("*.c"))
+
+counts = {"src": 0, "tests": 0, "benchmarks": 0, "examples": 0}
+seen_benchmarks: set[str] = set()
+seen_examples: set[str] = set()
+
+for entry in entries:
+    file_path = Path(entry["file"])
+    if not file_path.is_absolute():
+        file_path = Path(entry["directory"]) / file_path
+    parts = file_path.resolve().parts
+    stem = file_path.stem
+    if "src" in parts:
+        counts["src"] += 1
+    if "tests" in parts:
+        counts["tests"] += 1
+    if "benchmarks" in parts:
+        counts["benchmarks"] += 1
+        seen_benchmarks.add(stem)
+    if "examples" in parts:
+        counts["examples"] += 1
+        seen_examples.add(stem)
+
+missing_benchmarks = sorted(set(all_benchmarks) - seen_benchmarks)
+missing_examples = sorted(set(all_examples) - seen_examples)
+
+lines = [
+    "Sprint 33 Day 5 dead-code coverage notes",
+    f"compile_commands_json {compile_commands_path}",
+    f"src {counts['src']}",
+    f"tests {counts['tests']}",
+    f"benchmarks {counts['benchmarks']}",
+    f"examples {counts['examples']}",
+    "",
+    "missing_benchmarks",
+]
+lines.extend(f"- {symbol}" for symbol in missing_benchmarks)
+lines.extend(["", "missing_examples"])
+lines.extend(f"- {symbol}" for symbol in missing_examples)
+coverage_notes_path.write_text("\n".join(lines) + "\n")
+PY
 }
 
 run_cppcheck() {
@@ -110,10 +125,14 @@ run_xunused() {
     args=(xunused)
 
     if [ "$(uname -s)" = "Darwin" ]; then
-        local sdkroot clang_for_resource resource_dir
+        local sdkroot clang_for_resource resource_dir llvm18_prefix
         sdkroot="$(xcrun --sdk macosx --show-sdk-path)"
-        if command -v brew >/dev/null 2>&1 && [ -x "$(brew --prefix llvm@18 2>/dev/null)/bin/clang" ]; then
-            clang_for_resource="$(brew --prefix llvm@18)/bin/clang"
+        llvm18_prefix=""
+        if command -v brew >/dev/null 2>&1; then
+            llvm18_prefix="$(brew --prefix llvm@18 2>/dev/null || true)"
+        fi
+        if [ -n "$llvm18_prefix" ] && [ -x "${llvm18_prefix}/bin/clang" ]; then
+            clang_for_resource="${llvm18_prefix}/bin/clang"
         else
             clang_for_resource="$(command -v clang)"
         fi

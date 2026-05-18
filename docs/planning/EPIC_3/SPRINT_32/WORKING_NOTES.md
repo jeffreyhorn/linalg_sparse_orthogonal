@@ -1350,3 +1350,142 @@ Residual warning queue after Day 12:
 ### Day 12 Outputs
 
 - `artifacts/day12-double-promotion-batch2-and-reconciliation.md`
+
+## Day 13 — Full Validation Sweep
+
+### Objective
+
+Re-run the authoritative warning reproduction and the full standard validation flow from the current branch state, then record the final Sprint 32 before/after evidence.
+
+### Validation Commands
+
+Authoritative warning reproduction:
+
+- `cmake --build build/sprint32-day1-cmake --parallel 1 --clean-first > /tmp/sprint32_day13_build.stdout 2> /tmp/sprint32_day13_build.stderr`
+
+Standard validation flow:
+
+- `make format`
+- `make lint`
+- `make test`
+- `ctest -N --test-dir build/sprint32-day1-cmake`
+- `ctest --test-dir build/sprint32-day1-cmake --output-on-failure`
+
+Truthfulness/coverage spot checks:
+
+- registry/runner grep across:
+  - `tests/test_reorder_nd.c`
+  - `tests/test_framework_optin.c`
+  - `tests/test_eigs.c`
+  - `tests/test_svd.c`
+  - `tests/test_chol_csc.c`
+- counted active vs commented `RUN_TEST(...)` lines in `tests/test_reorder_nd.c`
+
+### Observed Results
+
+Authoritative Apple Clang warning path:
+
+- clean serialized CMake rebuild passed
+- warning count from `/tmp/sprint32_day13_build.stderr`: `0`
+
+Makefile path:
+
+- `make format`: passed
+- `make lint`: passed
+- `make test`: passed
+
+CMake/CTest path:
+
+- `ctest -N --test-dir build/sprint32-day1-cmake`: `53` registered tests
+- `ctest --test-dir build/sprint32-day1-cmake --output-on-failure`: `53 / 53` passed
+- total CTest wall time: `159.66 sec`
+
+### High-Signal Validation Evidence
+
+Selected long/higher-risk paths that passed in the Day 13 sweep:
+
+- `test_reorder_nd`
+  - passed in `72.65 sec`
+- `test_fuzz`
+  - passed in `23.89 sec`
+- `test_lu_csr`
+  - passed in `8.78 sec`
+- `test_colamd`
+  - passed in `5.37 sec`
+- `test_chol_csc`
+  - passed in `5.52 sec`
+- `test_graph`
+  - passed in `5.21 sec`
+- `test_sprint19_integration`
+  - passed in `5.35 sec`
+
+Representative Makefile-run summaries:
+
+- `test_framework_optin`
+  - `8` tests run
+  - `0` failed
+  - `3` skipped
+- `test_svd`
+  - `96` tests run
+  - `0` failed
+- `test_reorder_nd`
+  - `23` tests run
+  - `0` failed
+
+### Truthfulness / Coverage Preservation Check
+
+Day 13 specifically checked that Sprint 32's truthfulness cleanup did not silently reduce active protection:
+
+- `tests/test_reorder_nd.c`
+  - active `RUN_TEST(...)` calls: `23`
+  - commented-out `RUN_TEST(...)` calls: `0`
+- `tests/test_framework_optin.c`
+  - still exercises:
+    - `SKIP_TEST(...)`
+    - `RUN_TEST_SLOW(...)`
+    - `RUN_TEST_EXPERIMENTAL(...)`
+- `ctest -N` still registers `53` runnable tests
+- `test_framework_optin` remains part of the active CTest set and passed in the full run
+
+Interpretation:
+
+- Sprint 32 removed dormant historical scaffold, not active protection
+- opt-in truthfulness mechanics remain live and tested
+- no active suite entry disappeared without corresponding documentation
+
+### Final Warning Comparison
+
+Relative to the Day 1 baseline:
+
+- full-tree warnings: `98 -> 0`
+- `src`: `0 -> 0`
+- `tests`: `98 -> 0`
+- `benchmarks`: `0 -> 0`
+- `examples`: `0 -> 0`
+
+By warning class:
+
+- `-Wmissing-field-initializers`: `62 -> 0`
+- `-Wdouble-promotion`: `33 -> 0`
+- `-Wunused-function`: `3 -> 0`
+
+### Residual Deferred Queue
+
+Warning debt after Day 13:
+
+- none
+
+Truthfulness/dormant-scaffold debt discovered during Day 13:
+
+- none requiring Sprint 32 carry-forward
+
+### Day 13 Interpretation
+
+- Sprint 32's structural cleanup held under both the Makefile and CTest validation paths.
+- The authoritative warning reproduction stayed at zero.
+- The truthfulness cleanup preserved active protection while removing dormant historical scaffolding.
+- Day 14 can focus on closeout, handoff, and forward-planning updates rather than unresolved validation risk.
+
+### Day 13 Outputs
+
+- `artifacts/day13-full-validation-sweep.md`

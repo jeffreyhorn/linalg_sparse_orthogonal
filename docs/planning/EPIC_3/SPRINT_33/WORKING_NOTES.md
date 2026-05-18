@@ -1653,3 +1653,75 @@ Sprint 32's live opt-in policy remains intact:
 ### Day 13 Outputs
 
 - `artifacts/day13-full-validation-sweep.md`
+
+## Day 14
+
+**Objective:** Close Sprint 33 by packaging the dead-code tooling, cleanup
+result, residual deferred queue, and validated end state into handoff and
+retrospective docs, and route any concrete later-sprint follow-up into the Epic
+3 project plan.
+
+### Commands Run
+
+1. Re-read the Day 14 scope and the validated Day 13 end state:
+   - `sed -n '340,390p' docs/planning/EPIC_3/SPRINT_33/PLAN.md`
+   - `tail -n 180 docs/planning/EPIC_3/SPRINT_33/WORKING_NOTES.md`
+   - `sed -n '1,220p' docs/planning/EPIC_3/PROJECT_PLAN.md`
+2. Re-read prior Epic 3 closeout doc format:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_32/HANDOFF.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_32/RETROSPECTIVE.md`
+3. Write Sprint 33 closeout docs:
+   - created `HANDOFF.md`
+   - created `RETROSPECTIVE.md`
+4. Route concrete Sprint 34 follow-up into the Epic 3 plan:
+   - edited `docs/planning/EPIC_3/PROJECT_PLAN.md`
+
+### Closeout Outcome
+
+Sprint 33 closes with:
+
+- a shipped dead-code workflow:
+  - `make deadcode`
+  - `make deadcode-report`
+  - `make deadcode-check`
+- a documented dead-code policy and interpretation contract
+- the first cleanup-ready definitely-unused internal candidate removed
+- no residual definitely-unused internal cleanup queue
+- preserved Sprint 32 invariants:
+  - warning-clean validated quality flows
+  - `53` registered CTest tests
+  - live opt-in coverage
+  - no dormant commented-out test scaffold regression
+
+### Deferred Queue Routed Forward
+
+Sprint 33 does not hand off another cleanup-ready deletion batch.
+
+It does hand off these concrete later-sprint tooling items:
+
+1. Broaden or explicitly preserve the dead-code compile-db exclusion list:
+   - `bench_svd`
+   - `example_basic_solve`
+   - `example_condition`
+   - `example_iterative`
+   - `example_least_squares`
+   - `example_matrix_free`
+   - `example_svd_lowrank`
+2. Preserve serialized dead-code execution or isolate the shared dead-code build
+   and artifact paths before stronger CI enforcement
+
+Those items are now reflected in Sprint 34 planning inside
+`docs/planning/EPIC_3/PROJECT_PLAN.md`.
+
+### Validation
+
+Day 14 was docs-only.
+
+I did not rerun `make format`, `make lint`, `make test`, `ctest`, or the
+dead-code targets on Day 14 itself. The closeout is grounded in the Day 13
+validated end state.
+
+### Day 14 Outputs
+
+- `HANDOFF.md`
+- `RETROSPECTIVE.md`

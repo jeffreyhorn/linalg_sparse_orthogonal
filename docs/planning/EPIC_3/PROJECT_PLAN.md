@@ -159,6 +159,9 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 - Sprint 30 core-warning cleanup and warning baseline
 - Sprint 31 benchmark/example compile cleanup
 - Sprint 33 `make deadcode` / reporting targets
+- Sprint 33 closeout/handoff, which leaves no residual definitely-unused
+  internal cleanup queue and records the remaining compile-db coverage gaps plus
+  the current serial-only dead-code workflow constraint
 - Sprint 32 closeout/handoff, which leaves no inherited test-warning or initializer backlog; later warning work should be treated as regression prevention
 
 ### Items
@@ -167,8 +170,8 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 |---|------|-------------|----------|
 | 1 | Warning gate design | Decide which targets must be warning-clean first (`src/`, key tests, benchmarks/examples compile-only) and how that requirement differs across primary compilers. Start from the Sprint 32 closeout invariant that the authoritative Apple Clang CMake full-tree path is at `0` warnings and should stay there. | 16 hrs |
 | 2 | Makefile compile-quality targets | Add or refine Makefile targets that perform warning-clean compile checks on the agreed target sets without conflating them with normal runtime test execution. Keep the Sprint 32 expectation that `make lint` and `make test` remain part of the normal local quality path. | 24 hrs |
-| 3 | CMake parity | Ensure equivalent compile-quality checks can be run from the CMake path or at least validated from the CMake-generated build tree, so the project does not regress into Make-only quality guarantees. Keep `ctest -N` and full `ctest` usable as auditable views of the active executed suite. | 20 hrs |
-| 4 | CI integration phase 1 | Add non-flaky warning/dead-code checks to the primary CI jobs, initially for the strictest reliable compiler/target combinations. | 28 hrs |
+| 3 | CMake parity | Ensure equivalent compile-quality checks can be run from the CMake path or at least validated from the CMake-generated build tree, so the project does not regress into Make-only quality guarantees. Keep `ctest -N` and full `ctest` usable as auditable views of the active executed suite. As part of dead-code parity, either broaden the dead-code compilation database to cover the current Sprint 33 gap (`bench_svd` plus the six missing examples) or preserve that exclusion list explicitly in generated reporting and enforcement. | 20 hrs |
+| 4 | CI integration phase 1 | Add non-flaky warning/dead-code checks to the primary CI jobs, initially for the strictest reliable compiler/target combinations. Preserve Sprint 33's current shared-build-tree limitation by enforcing serialized dead-code execution or by isolating dead-code build/artifact paths before CI starts running those targets concurrently. | 28 hrs |
 | 5 | Initializer-regression cleanup | If new high-noise positional options-struct initializers appear in reviewed targets, migrate them to designated initializers as part of warning-gate enforcement. Sprint 32 closed the inherited initializer backlog, so this item is for regression prevention rather than carried debt. | 20 hrs |
 | 6 | Failure-message quality | Make the new quality targets fail with clear, actionable output so future contributors can fix issues without reverse-engineering the gate. | 12 hrs |
 | 7 | Validation | Re-run local and CI-equivalent flows with the new gates enabled. | 16 hrs |

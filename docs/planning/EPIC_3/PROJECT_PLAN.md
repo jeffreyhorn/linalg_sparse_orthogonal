@@ -308,7 +308,7 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 | 1 | Coverage-honesty audit | Reconcile coverage expectations and reporting with the cleaned-up test categories so active, experimental, and opt-in checks are represented accurately. | 20 hrs |
 | 2 | Quality-gate expansion | Expand the warning/dead-code gates to the next tier of reviewed targets/toolchains once the initial gates have proven stable. | 24 hrs |
 | 3 | Compile-only regression coverage | Ensure examples and benchmarks that are not run routinely are still compile-checked in a way that meaningfully protects them from drift. | 20 hrs |
-| 4 | Dead-code workflow maturation | Promote the dead-code tooling from advisory reporting toward an actionable regression signal where the false-positive rate is acceptable. | 20 hrs |
+| 4 | Dead-code workflow maturation | Promote the dead-code tooling from advisory reporting toward an actionable regression signal where the false-positive rate is acceptable. Explicitly burn down the Sprint 33 residual `cppcheck` evidence buckets by reviewing or better classifying the supporting-signal set and static-analysis noise so later enforcement is not built on ambiguous findings. | 20 hrs |
 | 5 | Release/readiness checklist | Add a concise quality-readiness checklist covering warnings, dead code, test truthfulness, docs/examples consistency, and cross-platform parity. | 16 hrs |
 | 6 | CI/reporting polish | Improve artifact/report output for the new quality gates so failures are easy to understand in CI. | 16 hrs |
 | 7 | Validation | Re-run the full quality/test matrix practical for the sprint and record the resulting baseline. | 20 hrs |
@@ -340,7 +340,7 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 | # | Item | Description | Estimate |
 |---|------|-------------|----------|
 | 1 | Final warning audit | Run a repository-wide compile-quality audit and close any remaining warning regressions in the reviewed target set. Use the Sprint 30 workflow and Apple Clang CMake full-tree inventory as the authoritative reference rather than the narrower Makefile `all` path alone. | 24 hrs |
-| 2 | Final dead-code audit | Run the dead-code tooling and resolve or explicitly disposition remaining findings so the project exits Epic 3 with a known-clean or known-justified state. | 20 hrs |
+| 2 | Final dead-code audit | Run the dead-code tooling and resolve or explicitly disposition remaining findings so the project exits Epic 3 with a known-clean or known-justified state. This includes any residual Sprint 33-style coverage-gap exclusions, audited public keeps, and `cppcheck` supporting/noise buckets that earlier enforcement work chose to preserve rather than remove. | 20 hrs |
 | 3 | Final cross-platform audit | Re-run the supported build/test/quality paths and record any residual platform-specific limitations that remain intentionally out of scope. | 20 hrs |
 | 4 | Standards/documentation closeout | Finalize maintainer docs for warning cleanliness, designated initializers, dormant-test policy, and dead-code workflow. | 20 hrs |
 | 5 | Epic summary report | Produce a concise Epic 3 summary of what was fixed, what is now enforced, and what residual risks remain for future work. | 12 hrs |

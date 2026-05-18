@@ -219,3 +219,131 @@ Interpretation:
 ### Day 2 Outputs
 
 - `artifacts/day2-test-reorder-nd-audit.md`
+
+## Day 3
+
+**Objective:** Choose the project-level rule for active, slow, experimental, and historical tests so Sprint 32 can remove dormant scaffold without inventing a test model that the current Makefile/CMake harness cannot support.
+
+### Commands Run
+
+1. Re-read the Sprint 32 plan, project-plan scope, and Day 2 audit:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_32/PLAN.md`
+   - `sed -n '1,220p' docs/planning/EPIC_3/PROJECT_PLAN.md`
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_32/artifacts/day2-test-reorder-nd-audit.md`
+2. Inspect the actual test execution model:
+   - `rg -n "add_test\\(|ctest|make test|TEST_SUITE_BEGIN|RUN_TEST\\(" CMakeLists.txt tests Makefile`
+   - `sed -n '1,260p' Makefile`
+   - `sed -n '120,150p' CMakeLists.txt`
+   - `sed -n '1,260p' tests/test_framework.h`
+3. Search for repo-level policy signals and dormant-test guidance:
+   - `rg -n "slow test|experimental test|historical|opt-in|advisory|failing-as-expected|commented out|RUN_TEST commented out|active suite|coverage-honesty|skip behavior" docs tests README.md`
+   - `sed -n '30,60p' docs/planning/EPIC_3/reviews/todo-codex-2026-05-15.md`
+4. Reconfirm whether the commented-out `RUN_TEST(...)` anti-pattern is localized or widespread:
+   - `rg -n '^\\s*/\\*\\s*RUN_TEST\\(' tests`
+5. Sample adjacent historical stub patterns for policy calibration:
+   - `sed -n '2985,3035p' tests/test_svd.c`
+   - `sed -n '940,990p' tests/test_eigs.c`
+   - `sed -n '2210,2255p' tests/test_chol_csc.c`
+
+### Harness Constraints
+
+- `make test` builds every `tests/test_*.c` binary and runs each one directly.
+- CMake/CTest mirrors the same shape: one executable per `tests/test_*.c`, each registered with `add_test(...)`.
+- Inside each binary, the current first-class notion is simply `RUN_TEST(fn)`.
+- The framework already supports early-return skip behavior inside a test body, but that skip is reported as a pass because `RUN_TEST` only distinguishes "failed" from "did not fail".
+
+Interpretation:
+
+- Sprint 32 should not invent a new runner architecture.
+- Any new policy must fit one-binary-per-file execution and the existing macro-driven framework.
+- If we want truthful opt-in coverage, the minimal missing primitive is explicit skip accounting and explicit opt-in wrappers, not a broader harness rewrite.
+
+### Chosen Policy
+
+- **Active tests**
+  - run under default `make test` and `ctest`
+  - must assert a current supported behavior or measured bound
+  - must pass on the normal green path
+- **Slow opt-in tests**
+  - still assert a current supported behavior or measured bound
+  - are excluded from the default path only because of runtime or fixture cost
+  - must pass when explicitly enabled
+- **Experimental opt-in tests**
+  - assert a current non-default path or under-evaluation behavior whose contract is still live
+  - are excluded from the default path because they are non-default and not yet worth always running
+  - must still pass when explicitly enabled
+- **Historical evidence**
+  - documents missed targets, retired goals, or dead investigative branches
+  - does not compile into the normal test binary
+  - belongs in sprint notes / artifacts / decision docs, not behind commented-out `RUN_TEST(...)`
+
+### Anti-Pattern Rule
+
+- Do not merge commented-out `RUN_TEST(...)` lines as long-lived scaffolding.
+- Do not keep compiled failing-as-expected stubs in a normal suite file once the sprint that introduced them is over.
+- Do not use "experimental" as a parking lot for stale or already-retired target assertions.
+
+### Decision Framework
+
+- Keep a test **active** when it is cheap enough and expresses a live current contract.
+- Move a test to **slow opt-in** when the contract is live but the runtime cost is too high for default CI/local `make test`.
+- Move a test to **experimental opt-in** only when:
+  - the asserted behavior is still current
+  - the path is intentionally non-default
+  - there is value in rerunning it as code evolves
+- Move code to **docs-only historical evidence** when:
+  - the asserted target is explicitly missed or retired
+  - the sprint decision docs already carry the relevant measurements
+  - keeping the code would imply coverage the suite does not actually provide
+
+### Chosen Representation For Day 4
+
+- Add explicit skip accounting to `tests/test_framework.h`.
+- Add a true skip macro for use inside test bodies.
+- Add minimal opt-in wrappers for top-level test registration rather than inventing a separate runner:
+  - one wrapper for slow tests
+  - one wrapper for experimental tests
+- Gate them with simple environment variables so `make test` / `ctest` behavior stays unchanged by default.
+
+Recommended names:
+
+- `SPARSE_TEST_SLOW=1`
+- `SPARSE_TEST_EXPERIMENTAL=1`
+
+Recommended behavior when disabled:
+
+- print `[SKIP] <test-name> (set SPARSE_TEST_SLOW=1)` or `[SKIP] <test-name> (set SPARSE_TEST_EXPERIMENTAL=1)`
+- increment a skipped counter
+- do not report the disabled test as pass
+
+Why this is the least invasive fit:
+
+- it works inside the existing per-binary `main()` pattern
+- it preserves default `make test` and `ctest`
+- it makes opt-in behavior auditable in source instead of hidden in comments
+
+### Policy Implications For `test_reorder_nd.c`
+
+- The three dormant Pres_Poisson close-to-target stubs do **not** qualify for the new slow/experimental categories.
+- Their contracts are stale:
+  - two encode known-missed Sprint 27 target claims
+  - one encodes a Sprint 28 target that was formally retired
+- Day 5 should therefore delete those stubs from suite code and keep the supporting evidence in the existing Sprint 27 / Sprint 28 docs.
+- The currently active advisory smoke/parity tests should remain active because they express live behavior today.
+
+### Repo-Wide Scope Implication
+
+- The current commented-out `RUN_TEST(...)` anti-pattern is localized to `tests/test_reorder_nd.c`.
+- That makes Sprint 32's first structural cleanup well-bounded.
+- Day 3 still establishes a repo-wide rule so future sprint-day stub work does not reintroduce the same pattern elsewhere.
+
+### Day 3 Interpretation
+
+- The right split is not "everything non-default becomes experimental."
+- Cheap, stable advisory-path checks can stay active if they assert truthful current behavior.
+- The new opt-in category should exist for live checks with real rerun value, not as a storage layer for old failed targets.
+- Historical evidence is already well-served by this repo's sprint artifact discipline; moving dead scaffolding out of suite code is aligned with existing practice, not a new burden.
+
+### Day 3 Outputs
+
+- `artifacts/day3-test-truthfulness-policy.md`

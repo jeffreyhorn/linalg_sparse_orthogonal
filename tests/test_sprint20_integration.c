@@ -163,7 +163,12 @@ static void test_s20_auto_below_threshold_routes_linked_list(void) {
     ASSERT_NOT_NULL(A);
 
     int used_csc = -1;
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_AUTO,
+        .used_csc_path = &used_csc,
+    };
     sparse_ldlt_t ldlt;
     double res = s20_factor_solve_residual(A, &opts, &ldlt);
     ASSERT_TRUE(res < 1e-10);
@@ -182,7 +187,12 @@ static void test_s20_auto_above_threshold_spd_routes_csc(void) {
     ASSERT_NOT_NULL(A);
 
     int used_csc = -1;
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_AUTO,
+        .used_csc_path = &used_csc,
+    };
     sparse_ldlt_t ldlt;
     double res = s20_factor_solve_residual(A, &opts, &ldlt);
     ASSERT_TRUE(res < 1e-10);
@@ -206,7 +216,12 @@ static void test_s20_auto_above_threshold_indefinite_kkt_routes_csc(void) {
     ASSERT_EQ(sparse_rows(A), 150);
 
     int used_csc = -1;
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_AUTO,
+        .used_csc_path = &used_csc,
+    };
     sparse_ldlt_t ldlt;
     double res = s20_factor_solve_residual(A, &opts, &ldlt);
     ASSERT_TRUE(res < 1e-10);
@@ -229,8 +244,12 @@ static void test_s20_forced_linked_list_on_large_matrix(void) {
     ASSERT_NOT_NULL(A);
 
     int used_csc = -1;
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_LINKED_LIST,
-                               &used_csc};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_LINKED_LIST,
+        .used_csc_path = &used_csc,
+    };
     sparse_ldlt_t ldlt;
     double res = s20_factor_solve_residual(A, &opts, &ldlt);
     ASSERT_TRUE(res < 1e-10);
@@ -249,7 +268,12 @@ static void test_s20_forced_csc_on_small_matrix(void) {
     ASSERT_NOT_NULL(A);
 
     int used_csc = -1;
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_CSC, &used_csc};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_CSC,
+        .used_csc_path = &used_csc,
+    };
     sparse_ldlt_t ldlt;
     double res = s20_factor_solve_residual(A, &opts, &ldlt);
     ASSERT_TRUE(res < 1e-10);

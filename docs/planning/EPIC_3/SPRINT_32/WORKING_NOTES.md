@@ -742,3 +742,106 @@ Planned Day 9 validation targets:
 ### Day 7 Outputs
 
 - `artifacts/day7-initializer-batch-design.md`
+
+## Day 8
+
+**Objective:** Land the first designated-initializer cleanup batch from the Day 7 plan by converting the remaining LDLT-family positional option-struct forms in `tests/test_ldlt.c`, `tests/test_sprint12_integration.c`, and `tests/test_sprint20_integration.c`, then validate that the touched binaries still pass and the clean-build warning queue drops by the expected amount.
+
+### Commands Run
+
+1. Re-read the Day 8 target batch and inspect the exact LDLT warning sites:
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_32/artifacts/day7-initializer-batch-design.md`
+   - `rg -n "sparse_ldlt_opts_t [A-Za-z0-9_]+ = \\{" tests/test_ldlt.c tests/test_sprint12_integration.c tests/test_sprint20_integration.c`
+   - `sed -n '800,840p' tests/test_ldlt.c`
+   - `sed -n '1070,1125p' tests/test_ldlt.c`
+   - `sed -n '1148,1310p' tests/test_ldlt.c`
+   - `sed -n '1422,1450p' tests/test_ldlt.c`
+   - `sed -n '2098,2165p' tests/test_ldlt.c`
+   - `sed -n '2288,2565p' tests/test_ldlt.c`
+   - `sed -n '90,390p' tests/test_sprint12_integration.c`
+   - `sed -n '140,270p' tests/test_sprint20_integration.c`
+2. Edit the three Day 8 batch files:
+   - `tests/test_ldlt.c`
+   - `tests/test_sprint12_integration.c`
+   - `tests/test_sprint20_integration.c`
+3. Format the touched sources:
+   - `make format`
+4. Validate the targeted Makefile path:
+   - `make build/test_ldlt build/test_sprint12_integration build/test_sprint20_integration`
+   - `./build/test_ldlt`
+   - `./build/test_sprint12_integration`
+   - `./build/test_sprint20_integration`
+5. Re-run a clean serialized Apple Clang CMake build to measure the warning delta:
+   - `cmake --build build/sprint32-day1-cmake --parallel 1 --clean-first > /tmp/sprint32_day8_build.stdout 2> /tmp/sprint32_day8_build.stderr`
+   - derive fresh counts by area, class, file, and file/class from `/tmp/sprint32_day8_build.stderr`
+
+### Changes Landed
+
+- `tests/test_ldlt.c`
+  - converted all remaining `sparse_ldlt_opts_t` positional initializers to designated form
+  - covered both main sub-patterns:
+    - reorder/tolerance-only forms
+    - backend/telemetry forms used by the Sprint 20 backend-routing tests
+- `tests/test_sprint12_integration.c`
+  - converted the AMD and RCM LDLT option initializers to designated form
+- `tests/test_sprint20_integration.c`
+  - converted the AUTO / LINKED_LIST / CSC backend-routing option initializers to designated form
+
+Chosen Day 8 rule:
+
+- name the specific LDLT fields the test intends to control:
+  - `.reorder`
+  - `.tol`
+  - `.backend`
+  - `.used_csc_path` where telemetry is part of the test contract
+- leave trailing callback/context fields at their documented default `NULL` values rather than mirroring the evolving public struct layout positionally
+
+### Validation Results
+
+- `make build/test_ldlt build/test_sprint12_integration build/test_sprint20_integration`
+  - passed
+- `./build/test_ldlt`
+  - passed
+  - summary: `83` tests run, `0` failed, `0` skipped
+- `./build/test_sprint12_integration`
+  - passed
+  - summary: `8` tests run, `0` failed, `0` skipped
+- `./build/test_sprint20_integration`
+  - passed
+  - summary: `20` tests run, `0` failed, `0` skipped
+- clean serialized Apple Clang CMake rebuild
+  - passed
+
+### Warning Delta
+
+Relative to the Day 7 baseline:
+
+- full-tree warnings: `91 -> 63`
+- `tests` warnings: `91 -> 63`
+- `-Wmissing-field-initializers`: `58 -> 30`
+- `-Wdouble-promotion`: unchanged at `33`
+
+Per-file Day 8 reduction:
+
+- `tests/test_ldlt.c`: `18 -> 0`
+- `tests/test_sprint12_integration.c`: `5 -> 0`
+- `tests/test_sprint20_integration.c`: `9 -> 4`
+  - the `5` initializer warnings are gone
+  - the remaining `4` warnings are its already-planned `-Wdouble-promotion` sites
+
+### Day 8 Interpretation
+
+- The Day 7 batch design was accurate: the LDLT family was a coherent mechanical cleanup unit and closed cleanly in one pass.
+- No behavior regressions appeared in the touched high-signal binaries.
+- The remaining initializer queue is now exactly the planned Day 9 surface:
+  - `tests/test_chol_csc.c`: `8`
+  - `tests/test_colamd.c`: `7`
+  - `tests/test_cholesky.c`: `5`
+  - `tests/test_reorder.c`: `4`
+  - `tests/test_sprint18_integration.c`: `3`
+  - `tests/test_sprint19_integration.c`: `2`
+  - `tests/test_etree.c`: `1`
+
+### Day 8 Outputs
+
+- `artifacts/day8-designated-initializers-batch1.md`

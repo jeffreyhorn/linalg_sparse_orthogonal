@@ -810,7 +810,10 @@ static void test_ldlt_2x2_with_reorder(void) {
     sparse_insert(A, 2, 3, 1.0);
     sparse_insert(A, 3, 2, 1.0);
 
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 0.0,
+    };
     sparse_ldlt_t ldlt;
     REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
 
@@ -1077,7 +1080,10 @@ static void test_ldlt_reorder_none_vs_amd(void) {
     REQUIRE_OK(sparse_ldlt_factor(A, &ldlt_none));
 
     /* Factor with AMD */
-    sparse_ldlt_opts_t opts_amd = {SPARSE_REORDER_AMD, 0.0};
+    sparse_ldlt_opts_t opts_amd = {
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 0.0,
+    };
     sparse_ldlt_t ldlt_amd;
     REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts_amd, &ldlt_amd));
 
@@ -1111,7 +1117,10 @@ static void test_ldlt_reorder_rcm(void) {
     sparse_ldlt_t ldlt_none;
     REQUIRE_OK(sparse_ldlt_factor(A, &ldlt_none));
 
-    sparse_ldlt_opts_t opts_rcm = {SPARSE_REORDER_RCM, 0.0};
+    sparse_ldlt_opts_t opts_rcm = {
+        .reorder = SPARSE_REORDER_RCM,
+        .tol = 0.0,
+    };
     sparse_ldlt_t ldlt_rcm;
     REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts_rcm, &ldlt_rcm));
 
@@ -1151,7 +1160,10 @@ static void test_ldlt_reorder_fillin(void) {
     idx_t nnz_none = sparse_nnz(ldlt_none.L);
 
     /* Factor with AMD */
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 0.0,
+    };
     sparse_ldlt_t ldlt_amd;
     REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt_amd));
     idx_t nnz_amd = sparse_nnz(ldlt_amd.L);
@@ -1189,7 +1201,10 @@ static void test_ldlt_reorder_indefinite(void) {
         }
     }
 
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 0.0,
+    };
     sparse_ldlt_t ldlt;
     REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
 
@@ -1268,7 +1283,10 @@ static void test_ldlt_bcsstk04(void) {
 
 static void test_ldlt_nos4_amd(void) {
     /* nos4 with AMD reordering — solve result should be equally good */
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 0.0,
+    };
     ldlt_validate_mm(SS_DIR "/nos4.mtx", 1e-10, &opts);
 }
 
@@ -1287,7 +1305,10 @@ static void test_ldlt_bcsstk04_amd(void) {
     idx_t nnz_none = sparse_nnz(ldlt_none.L);
 
     /* With AMD */
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 0.0,
+    };
     sparse_ldlt_t ldlt_amd;
     REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt_amd));
     idx_t nnz_amd = sparse_nnz(ldlt_amd.L);
@@ -1430,7 +1451,10 @@ static void test_ldlt_kkt_large(void) {
     SparseMatrix *K = make_kkt(35, 15);
     idx_t n = 50;
 
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 0.0,
+    };
     sparse_ldlt_t ldlt;
     REQUIRE_OK(sparse_ldlt_factor_opts(K, &opts, &ldlt));
 
@@ -2107,7 +2131,10 @@ static void test_ldlt_kkt_100(void) {
     SparseMatrix *K = make_kkt(70, 30);
     idx_t n = 100;
 
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 0.0,
+    };
     sparse_ldlt_t ldlt;
     REQUIRE_OK(sparse_ldlt_factor_opts(K, &opts, &ldlt));
 
@@ -2149,7 +2176,10 @@ static void test_ldlt_kkt_500(void) {
     SparseMatrix *K = make_kkt(350, 150);
     idx_t n = 500;
 
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 0.0,
+    };
     sparse_ldlt_t ldlt;
     REQUIRE_OK(sparse_ldlt_factor_opts(K, &opts, &ldlt));
 
@@ -2309,7 +2339,12 @@ static SparseMatrix *day4_build_indefinite_4x4(void) {
 static void test_ldlt_backend_auto_routes_linked_list(void) {
     SparseMatrix *A = day4_build_indefinite_4x4();
     int used_csc = -1;
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_AUTO,
+        .used_csc_path = &used_csc,
+    };
     sparse_ldlt_t ldlt;
     REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
 
@@ -2333,7 +2368,12 @@ static void test_ldlt_backend_auto_routes_linked_list(void) {
 static void test_ldlt_backend_linked_list_forced(void) {
     SparseMatrix *A = day4_build_indefinite_4x4();
     int used_csc = -1;
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0, SPARSE_LDLT_BACKEND_LINKED_LIST, &used_csc};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_LINKED_LIST,
+        .used_csc_path = &used_csc,
+    };
     sparse_ldlt_t ldlt;
     REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
 
@@ -2358,7 +2398,12 @@ static void test_ldlt_backend_linked_list_forced(void) {
 static void test_ldlt_backend_csc_forced_factors(void) {
     SparseMatrix *A = day4_build_indefinite_4x4();
     int used_csc = -1;
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_CSC, &used_csc};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_CSC,
+        .used_csc_path = &used_csc,
+    };
     sparse_ldlt_t ldlt;
     REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
     ASSERT_EQ(used_csc, 1);
@@ -2378,7 +2423,12 @@ static void test_ldlt_backend_csc_forced_factors(void) {
 /* Out-of-range backend value rejected as SPARSE_ERR_BADARG. */
 static void test_ldlt_backend_invalid_rejected(void) {
     SparseMatrix *A = day4_build_indefinite_4x4();
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, (sparse_ldlt_backend_t)99, NULL};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = (sparse_ldlt_backend_t)99,
+        .used_csc_path = NULL,
+    };
     sparse_ldlt_t ldlt;
     ASSERT_ERR(sparse_ldlt_factor_opts(A, &opts, &ldlt), SPARSE_ERR_BADARG);
     sparse_free(A);
@@ -2389,7 +2439,12 @@ static void test_ldlt_backend_invalid_rejected(void) {
  * NULL pointer. */
 static void test_ldlt_backend_used_csc_path_null_ok(void) {
     SparseMatrix *A = day4_build_indefinite_4x4();
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, NULL};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_AUTO,
+        .used_csc_path = NULL,
+    };
     sparse_ldlt_t ldlt;
     REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
     sparse_ldlt_free(&ldlt);
@@ -2410,8 +2465,18 @@ static void test_ldlt_backend_used_csc_path_null_ok(void) {
 static int day5_cross_backend_solves_agree(SparseMatrix *A, double tol) {
     idx_t n = sparse_rows(A);
 
-    sparse_ldlt_opts_t opts_ll = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_LINKED_LIST, NULL};
-    sparse_ldlt_opts_t opts_cs = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_CSC, NULL};
+    sparse_ldlt_opts_t opts_ll = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_LINKED_LIST,
+        .used_csc_path = NULL,
+    };
+    sparse_ldlt_opts_t opts_cs = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_CSC,
+        .used_csc_path = NULL,
+    };
 
     sparse_ldlt_t ldlt_ll;
     sparse_ldlt_t ldlt_cs;
@@ -2549,7 +2614,12 @@ static void test_ldlt_day5_auto_routes_csc_above_threshold(void) {
         }
     }
     int used_csc = -1;
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_AUTO,
+        .used_csc_path = &used_csc,
+    };
     sparse_ldlt_t ldlt;
     REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
     ASSERT_EQ(used_csc, 1);

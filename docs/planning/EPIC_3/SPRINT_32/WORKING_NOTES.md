@@ -574,3 +574,171 @@ Why this is the least invasive fit:
 ### Day 6 Outputs
 
 - `artifacts/day6-coverage-honesty-docs.md`
+
+## Day 7
+
+**Objective:** Turn the remaining post-Day-5 test-side designated-initializer warning queue into a concrete implementation plan by rerunning the authoritative clean build, auditing the warning-bearing files by API family, and choosing validation-friendly edit batches for Days 8 and 9.
+
+### Commands Run
+
+1. Re-read the Day 7 scope and the Sprint 32 starting inventory:
+   - `sed -n '145,245p' docs/planning/EPIC_3/SPRINT_32/PLAN.md`
+   - `sed -n '1,140p' docs/planning/EPIC_3/SPRINT_32/WORKING_NOTES.md`
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_31/artifacts/day7-designated-initializers-batch1.md`
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_31/artifacts/day8-designated-initializers-batch2.md`
+2. Rerun the authoritative clean serialized Apple Clang CMake build for the current branch:
+   - `cmake --build build/sprint32-day1-cmake --parallel 1 --clean-first > /tmp/sprint32_day7b_build.stdout 2> /tmp/sprint32_day7b_build.stderr`
+3. Derive the current post-Day-5 warning counts from the fresh stderr capture:
+   - counts by area
+   - counts by warning class
+   - counts by file
+   - counts by file and warning class
+4. Inspect the remaining initializer-bearing test files and public option layouts:
+   - `rg -n "sparse_[a-z_]+_opts_t [A-Za-z0-9_]+ = \\{" tests/test_ldlt.c tests/test_colamd.c tests/test_chol_csc.c tests/test_cholesky.c tests/test_sprint12_integration.c tests/test_reorder.c tests/test_sprint18_integration.c tests/test_sprint19_integration.c tests/test_sprint20_integration.c tests/test_etree.c`
+   - `wc -l tests/test_ldlt.c tests/test_colamd.c tests/test_chol_csc.c tests/test_cholesky.c tests/test_sprint12_integration.c tests/test_reorder.c tests/test_sprint18_integration.c tests/test_sprint19_integration.c tests/test_sprint20_integration.c tests/test_etree.c`
+   - `sed -n '1,220p' include/sparse_cholesky.h`
+   - `sed -n '1,240p' include/sparse_ldlt.h`
+   - `sed -n '1,260p' include/sparse_analysis.h`
+   - `sed -n '1,220p' include/sparse_qr.h`
+   - `sed -n '1,220p' include/sparse_lu.h`
+5. Edit the Sprint 32 notes and write the Day 7 batch-design artifact:
+   - `docs/planning/EPIC_3/SPRINT_32/WORKING_NOTES.md`
+   - `docs/planning/EPIC_3/SPRINT_32/artifacts/day7-initializer-batch-design.md`
+
+### Current Post-Day-5 Warning State
+
+Fresh Day 7 clean-build counts:
+
+- full-tree warnings: `91`
+- `src`: `0`
+- `tests`: `91`
+- `benchmarks`: `0`
+- `examples`: `0`
+- `-Wmissing-field-initializers`: `58`
+- `-Wdouble-promotion`: `33`
+
+Initializer-bearing files now total `10`:
+
+- `tests/test_ldlt.c`: `18`
+- `tests/test_sprint20_integration.c`: `5`
+- `tests/test_chol_csc.c`: `8`
+- `tests/test_colamd.c`: `7`
+- `tests/test_cholesky.c`: `5`
+- `tests/test_sprint12_integration.c`: `5`
+- `tests/test_reorder.c`: `4`
+- `tests/test_sprint18_integration.c`: `3`
+- `tests/test_sprint19_integration.c`: `2`
+- `tests/test_etree.c`: `1`
+
+Interpretation:
+
+- Day 5 closed `tests/test_reorder_nd.c`, so the designated-initializer queue is now `62 -> 58`.
+- No non-test warnings reappeared.
+- The remaining initializer work is cleaner to batch by API family than by raw descending file size.
+
+### Pattern Audit
+
+The remaining `-Wmissing-field-initializers` sites are still the same Sprint 31 mechanical pattern: public option structs gained trailing backend, telemetry, or callback/context fields, while tests kept positional initializers that stop early.
+
+Main sub-patterns:
+
+- pre-backend Cholesky / LDLT forms
+  - examples: `sparse_cholesky_opts_t opts = {SPARSE_REORDER_AMD};`
+  - examples: `sparse_ldlt_opts_t opts = {SPARSE_REORDER_AMD, 0.0};`
+  - current first warning field: `backend`
+- pre-callback backend/telemetry forms
+  - examples: `{SPARSE_REORDER_NONE, 0.0, SPARSE_LDLT_BACKEND_AUTO, &used_csc}`
+  - examples: `{SPARSE_REORDER_AMD, SPARSE_CHOL_BACKEND_AUTO, &used}`
+  - current first warning field: `progress_cb`
+- pre-callback LU / QR forms
+  - LU examples: `{SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_AMD, 1e-12}`
+  - QR examples: `{SPARSE_REORDER_COLAMD, 0, 0}` or `{SPARSE_REORDER_COLAMD, 0, 1}`
+  - current first warning field: `progress_cb`
+
+One Day 7 high-signal special case:
+
+- `tests/test_chol_csc.c:4045` currently uses `sparse_cholesky_opts_t opts = {use_amd ? SPARSE_REORDER_AMD : SPARSE_REORDER_NONE, 0.0};`
+- that positional `0.0` is landing in the enum-valued `backend` slot only because `0` currently maps to `SPARSE_CHOL_BACKEND_AUTO`
+- this is exactly the kind of brittle positional coupling Day 8 / Day 9 should remove
+
+### Chosen Batch Order
+
+#### Day 8 Batch I: LDLT family
+
+Files:
+
+- `tests/test_ldlt.c`
+- `tests/test_sprint12_integration.c`
+- `tests/test_sprint20_integration.c`
+
+Why this batch first:
+
+- same `sparse_ldlt_opts_t` family across all three files
+- same two sub-patterns:
+  - old two-field `{reorder, tol}` forms that now need designated `.reorder` / `.tol`
+  - older four-field backend/telemetry forms that now need designated `.backend` / `.used_csc_path`
+- highest raw initializer payoff: `28` of the remaining `58`
+- `tests/test_sprint20_integration.c` is mixed-class, but its five initializer warnings are still mechanically LDLT-specific and belong with the LDLT family rather than the later double-promotion batch
+
+Planned Day 8 validation targets:
+
+- `make format`
+- `make build/test_ldlt build/test_sprint12_integration build/test_sprint20_integration`
+- run the three touched binaries
+- clean serialized CMake rebuild for warning delta
+
+#### Day 9 Batch II: Cholesky + QR + LU companion family
+
+Files:
+
+- `tests/test_chol_csc.c`
+- `tests/test_cholesky.c`
+- `tests/test_sprint18_integration.c`
+- `tests/test_sprint19_integration.c`
+- `tests/test_colamd.c`
+- `tests/test_reorder.c`
+- `tests/test_etree.c`
+
+Why this is the right second batch:
+
+- it closes the remaining `30` initializer warnings
+- the files fall into small, internally coherent subgroups:
+  - Cholesky backend/callback family:
+    - `test_chol_csc.c`
+    - `test_cholesky.c`
+    - `test_sprint18_integration.c`
+    - `test_sprint19_integration.c`
+  - QR callback family:
+    - `test_colamd.c`
+  - LU callback family:
+    - `test_reorder.c`
+    - `test_etree.c`
+- `tests/test_etree.c` is only `1` warning, so splitting it into a later sprint would just strand a same-pattern LU cleanup behind `tests/test_reorder.c`
+
+Planned Day 9 validation targets:
+
+- `make format`
+- targeted rebuild of the touched binaries
+- run the touched binaries with the highest-signal coverage:
+  - `test_chol_csc`
+  - `test_cholesky`
+  - `test_colamd`
+  - `test_reorder`
+  - `test_etree`
+  - plus the touched sprint integrations
+- clean serialized CMake rebuild for final initializer delta
+
+### Day 7 Interpretation
+
+- The Day 7 inventory confirms that the designated-initializer queue is now sharply separable from the double-promotion queue:
+  - initializer cleanup: `58` warnings in `10` files
+  - double-promotion cleanup: `33` warnings in `11` files
+- The Sprint 31 public-facing rule reuses cleanly for Sprint 32 tests:
+  - name only the fields the test intentionally overrides
+  - let default-valued trailing backend/telemetry/callback fields zero-initialize
+  - do not mirror evolving public struct layouts positionally
+- The chosen Day 8 / Day 9 batch order keeps the edit surfaces coherent and gives each implementation day a validation set that matches the edited API family instead of forcing a scattered whole-tree pass after every small change.
+
+### Day 7 Outputs
+
+- `artifacts/day7-initializer-batch-design.md`

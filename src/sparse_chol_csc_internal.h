@@ -590,15 +590,6 @@ sparse_err_t chol_csc_factor_solve(const SparseMatrix *A, const sparse_analysis_
 sparse_err_t chol_csc_detect_supernodes(const CholCsc *L, idx_t min_size, idx_t *super_starts,
                                         idx_t *super_sizes, idx_t *count);
 
-#ifndef NDEBUG
-/**
- * Debug dump of a supernode partition.  Prints each supernode's
- * `[start, start+size)` column range to stdout.  Compiled out in
- * release builds (NDEBUG defined).
- */
-void chol_csc_dump_supernodes(const idx_t *super_starts, const idx_t *super_sizes, idx_t count);
-#endif
-
 /* ═══════════════════════════════════════════════════════════════════════
  * Day 11: Dense Cholesky primitives + supernodal-aware elimination entry
  * ═══════════════════════════════════════════════════════════════════════

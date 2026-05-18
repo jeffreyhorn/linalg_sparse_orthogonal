@@ -1291,3 +1291,104 @@ Expected Day 11 result:
 ### Day 9 Outputs
 
 - `artifacts/day9-cleanup-batch-design.md`
+
+## Day 10
+
+**Objective:** Land Sprint 33 Batch I by removing the only approved definitely-unused internal candidate, validate the touched CSC-Cholesky surface directly, rerun the dead-code workflow to confirm the candidate queue drops to zero, and then pass the full required project validation gate.
+
+### Commands Run
+
+1. Reconfirm the Day 10 write set before editing:
+   - `git status --short --branch`
+   - `sed -n '1268,1318p' src/sparse_chol_csc.c`
+   - `sed -n '590,608p' src/sparse_chol_csc_internal.h`
+   - `rg -n "chol_csc_dump_supernodes" src include tests benchmarks docs README.md`
+2. Remove Batch I:
+   - edited `src/sparse_chol_csc.c`
+   - edited `src/sparse_chol_csc_internal.h`
+3. Focused subsystem validation:
+   - `make build/test_chol_csc`
+   - `./build/test_chol_csc`
+4. Dead-code workflow validation:
+   - `make deadcode-report`
+   - `make deadcode-check`
+   - `python3 - <<'PY' ... summarize build/deadcode/report.tsv bucket counts ... PY`
+5. Required full validation for `*.c` / `*.h` edits:
+   - `make format`
+   - `make lint`
+   - `make test`
+
+### Code Changes
+
+Batch I removed `chol_csc_dump_supernodes` completely:
+
+- removed the internal-header declaration from [sparse_chol_csc_internal.h](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_chol_csc_internal.h:590)
+- removed the `#ifndef NDEBUG` implementation block from [sparse_chol_csc.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_chol_csc.c:1293)
+
+No nearby user-facing docs or supported interfaces changed, because the helper was:
+
+- private to CSC-Cholesky internals
+- debug-only (`#ifndef NDEBUG`)
+- uncalled in the repo
+
+### Focused Validation Results
+
+- `make build/test_chol_csc`: passed
+- `./build/test_chol_csc`: passed
+  - `137` tests
+  - `0` failed
+- `make deadcode-report`: passed
+- `make deadcode-check`: passed
+
+Post-removal report state:
+
+- `definitely-unused-internal-candidate`: `0`
+- `public-surface-review`: `4`
+- `coverage-gap`: `7`
+- `secondary-candidate-signal`: `35`
+- `non-deadcode-static-analysis-noise`: `6`
+
+Day 10 queue consequence:
+
+- the first-pass internal deletion queue is now empty
+
+### Full Validation Results
+
+- `make format`: passed
+- `make lint`: passed
+- `make test`: passed
+
+### Report Delta Versus Day 7 Baseline
+
+Before Day 10:
+
+- `definitely-unused-internal-candidate`: `1`
+  - `chol_csc_dump_supernodes`
+
+After Day 10:
+
+- `definitely-unused-internal-candidate`: `0`
+
+Other meaningful deltas:
+
+- `src/sparse_chol_csc.c` secondary `cppcheck` total dropped `20 -> 19`
+  - the file still has secondary/static-analysis noise, but the high-confidence `xunused` candidate is gone
+
+### False-Positive / Workflow Lesson
+
+During focused validation, one parallel pair of `make deadcode-report` / `make deadcode-check` attempts raced on the shared `build/deadcode-cmake` configure path and one configure exited with a transient `configure_file(...)` failure from `CMakeLists.txt`.
+
+Interpretation:
+
+- this was not a code regression
+- it was a shared-build-tree concurrency issue
+- the serial rerun passed cleanly
+
+Day 10 takeaway:
+
+- the current dead-code workflow should be treated as serial/operator-invoked tooling
+- Day 12 docs should mention that `make deadcode*` targets are not designed for concurrent invocation against the same build tree
+
+### Day 10 Outputs
+
+- `artifacts/day10-cleanup-batch1.md`

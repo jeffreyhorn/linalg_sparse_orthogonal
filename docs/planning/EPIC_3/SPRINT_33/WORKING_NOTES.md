@@ -309,3 +309,153 @@ Day 2 makes the needed ordering clear:
 ### Day 2 Outputs
 
 - `artifacts/day2-dead-code-policy-audit.md`
+
+## Day 3
+
+**Objective:** Convert the Day 2 audit into a repository-level dead-code policy that Sprint 33 can apply consistently: define the code classes, capture confirmed and expected tooling limitations, and set a conservative deletion threshold for “definitely-unused internal code.”
+
+### Commands Run
+
+1. Re-read the Sprint 33 Day 2 outputs and Sprint 33 project-plan scope:
+   - `git status --short --branch`
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_33/PLAN.md`
+   - `sed -n '145,360p' docs/planning/EPIC_3/SPRINT_33/WORKING_NOTES.md`
+   - `sed -n '1,240p' docs/planning/EPIC_3/SPRINT_33/artifacts/day2-dead-code-policy-audit.md`
+   - `sed -n '120,170p' docs/planning/EPIC_3/PROJECT_PLAN.md`
+2. Tighten the tooling-limitations section with direct local evidence:
+   - `cppcheck --help | sed -n '1,220p'`
+   - `grep '"file":' build/sprint33-day1-cmake/compile_commands.json | awk '...'`
+3. Reconfirm the active truthfulness policy language that Sprint 33 must preserve:
+   - `sed -n '560,630p' README.md`
+   - `sed -n '1,240p' docs/planning/EPIC_3/SPRINT_32/artifacts/day3-test-truthfulness-policy.md`
+
+### Day 3 Policy Decisions
+
+#### 1. Sprint 33 dead-code policy is evidence-based, not grep-based
+
+The repository will not treat “no obvious local caller” as enough evidence for deletion.
+
+Reason:
+
+- the codebase already has multiple entry paths:
+  - Makefile
+  - CMake / CTest
+  - documented examples
+  - documented benchmark binaries
+  - env-gated opt-in test registration
+- the current compilation database does not cover the full bench/example surface
+
+Day 3 consequence:
+
+- “unused-looking” code is only a candidate until the policy checks, documentation checks, and validation checks all agree
+
+#### 2. The code classes for Sprint 33 are now explicit
+
+Sprint 33 uses these categories:
+
+1. **Active code**
+   - current default behavior
+   - active tests registered with `RUN_TEST(...)`
+   - code required by `make test`, `ctest`, normal examples, or documented benchmark flows
+2. **Live opt-in code**
+   - current supported behavior behind `RUN_TEST_SLOW(...)`, `RUN_TEST_EXPERIMENTAL(...)`, or other documented non-default execution knobs
+   - includes the policy self-check file `tests/test_framework_optin.c`
+3. **Historical evidence**
+   - sprint artifacts, planning docs, retired-target evidence, and explanatory notes
+   - belongs in `docs/planning/`, not as dormant compiled registrations
+4. **Documented public surface**
+   - installed headers in `include/`
+   - documented examples
+   - documented benchmark entry points and named CLI flows
+5. **Candidate unused public API**
+   - exported or documented surface with no obvious in-repo callers
+   - requires manual review and is not part of the first deletion pass
+6. **Definitely-unused internal code**
+   - internal-only code with no active registration, no public/documented contract, and sufficient corroborating evidence to delete safely
+7. **Comment/documentation debt**
+   - active code with outdated “stub”, “future”, or sprint-history wording
+   - not dead code by itself
+
+#### 3. Confirmed Day 3 tooling limitations
+
+The locally confirmed limitations are:
+
+- `cppcheck --enable=all` includes `unusedFunction`, and its own help recommends that check only when the whole program is scanned.
+- Sprint 33’s current Day 1 compilation database covers:
+  - `src`: `25`
+  - `tests`: `53`
+  - `benchmarks`: `13`
+  - `examples`: `6`
+- That coverage is narrower than the repository source surface:
+  - `bench_svd` is missing
+  - `example_basic_solve`, `example_condition`, `example_iterative`, `example_least_squares`, `example_matrix_free`, and `example_svd_lowrank` are missing
+- `xunused` is not installed locally yet, so its behavior is still a planned-input limitation rather than a Day 3 exercised fact.
+
+#### 4. Expected Sprint 33 false-positive classes
+
+Based on the Day 1/Day 2 audit and the planned tooling shape, Sprint 33 should expect at least these false-positive classes:
+
+1. **Under-covered bench/example surface**
+   - code absent from the current `compile_commands.json` may look unused to `xunused` even when it is built by the Makefile and documented
+2. **Live opt-in coverage**
+   - env-gated test wrappers and their self-check code may look unusual to shallow reachability or scanner logic
+3. **Public/documented API surface**
+   - exported declarations or documented entry points may have no in-repo callers and still be real supported surface
+4. **Comment-level historical wording**
+   - active tests with names or comments mentioning “stub” or earlier sprint states are not automatically dead
+5. **Scanner-only `unusedFunction` noise**
+   - `cppcheck` over a limited path can report “unused” without seeing all real entry paths
+
+#### 5. Deletion threshold for Sprint 33
+
+Sprint 33 will treat code as deletable “definitely-unused internal code” only when **all** of the following are true:
+
+1. The code is internal-only:
+   - not in `include/`
+   - not part of a documented example, benchmark, or CLI contract
+   - not active or opt-in test registration
+2. There is at least one tooling or compile-surface signal that the code is unused.
+3. Manual review finds no live registration, no documented contract, and no intended current non-default role.
+4. The code does not fall into a known coverage-gap or false-positive bucket.
+5. After removal, the normal validation and any relevant dead-code target reruns still pass.
+
+Corollary:
+
+- Sprint 33 will **not** delete code solely because a single scanner flags it
+- Sprint 33 will **not** delete code solely because local grep finds no call site
+
+#### 6. Manual-review threshold for candidate public API
+
+Any finding is automatically routed out of the first cleanup pass when it touches:
+
+- installed headers under `include/`
+- named/documented examples
+- named/documented benchmark binaries
+- README-described API or CLI behavior
+- active or opt-in test framework surface
+
+Those findings may still be reportable, but they are “candidate public API / documented surface” items, not first-pass removals.
+
+### Day 3 Implementation Guidance For Later Sprint Days
+
+Implications for Day 4 / Day 5 tooling work:
+
+- `deadcode` should start as an evidence-gathering target, not a blunt fail-on-any-finding gate
+- report output must preserve category boundaries instead of merging all findings into one list
+- coverage gaps in `compile_commands.json` must be visible in the workflow because they affect what `xunused` can prove
+
+Implications for Day 9 / Day 10 / Day 11 cleanup work:
+
+- first-pass deletion candidates should come from internal-only code in tests, benchmarks, examples, and private helpers
+- public/documented findings should remain in a separate review queue even if they look unused locally
+- comment cleanup and naming cleanup should not be mixed into dead-code counts unless compiled unused code is actually removed
+
+### Day 3 Interpretation
+
+- Day 3 turns Sprint 33 from a vague “find dead code” effort into a conservative classification workflow.
+- The key policy decision is that Sprint 33 is proving “safe to delete internal code,” not proving “no one could ever call this.”
+- That keeps the first cleanup pass aligned with the Epic 3 goal: reduce real dead internal code without regressing the truthful active surface or casually deleting documented/public entry points.
+
+### Day 3 Outputs
+
+- `artifacts/day3-dead-code-policy-and-limitations.md`

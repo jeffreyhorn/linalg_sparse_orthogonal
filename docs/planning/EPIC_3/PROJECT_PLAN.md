@@ -123,6 +123,7 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 
 - Sprint 30 warning baseline and warning-class taxonomy
 - Sprint 32 dormant-test cleanup, which removes a major source of false-positive “dead code” in the test tree
+- Sprint 32 closeout/handoff, which confirms zero residual test-warning debt and a live opt-in test policy (`SPARSE_TEST_SLOW`, `SPARSE_TEST_EXPERIMENTAL`)
 
 ### Items
 
@@ -158,6 +159,7 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 - Sprint 30 core-warning cleanup and warning baseline
 - Sprint 31 benchmark/example compile cleanup
 - Sprint 33 `make deadcode` / reporting targets
+- Sprint 32 closeout/handoff, which leaves no inherited test-warning or initializer backlog; later warning work should be treated as regression prevention
 
 ### Items
 
@@ -167,7 +169,7 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 | 2 | Makefile compile-quality targets | Add or refine Makefile targets that perform warning-clean compile checks on the agreed target sets without conflating them with normal runtime test execution. | 24 hrs |
 | 3 | CMake parity | Ensure equivalent compile-quality checks can be run from the CMake path or at least validated from the CMake-generated build tree, so the project does not regress into Make-only quality guarantees. | 20 hrs |
 | 4 | CI integration phase 1 | Add non-flaky warning/dead-code checks to the primary CI jobs, initially for the strictest reliable compiler/target combinations. | 28 hrs |
-| 5 | Remaining initializer cleanup | Migrate the remaining high-noise positional options-struct initializers in tests/benchmarks/examples to designated initializers where that is still needed to support the warning gate. | 20 hrs |
+| 5 | Initializer-regression cleanup | If new high-noise positional options-struct initializers appear in reviewed targets, migrate them to designated initializers as part of warning-gate enforcement. Sprint 32 closed the inherited initializer backlog, so this item is for regression prevention rather than carried debt. | 20 hrs |
 | 6 | Failure-message quality | Make the new quality targets fail with clear, actionable output so future contributors can fix issues without reverse-engineering the gate. | 12 hrs |
 | 7 | Validation | Re-run local and CI-equivalent flows with the new gates enabled. | 16 hrs |
 

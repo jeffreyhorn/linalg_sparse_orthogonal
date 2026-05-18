@@ -1489,3 +1489,62 @@ Truthfulness/dormant-scaffold debt discovered during Day 13:
 ### Day 13 Outputs
 
 - `artifacts/day13-full-validation-sweep.md`
+
+## Day 14 — Closeout, Handoff & Deferred Queue Update
+
+### Objective
+
+Convert Sprint 32's completed truthfulness and warning-cleanup work into durable closeout documents and correct later Epic 3 planning inputs so future sprints inherit the real state instead of the old deferred queue.
+
+### Changes Landed
+
+Day 14 added the Sprint 32 closeout documents:
+
+- `HANDOFF.md`
+- `RETROSPECTIVE.md`
+
+Day 14 also updated the later Epic 3 project plan so Sprint 33 and Sprint 34 start from the Sprint 32 closed state rather than assuming residual inherited initializer or warning backlog.
+
+### Closeout State
+
+Sprint 32 end state is now explicitly documented as:
+
+- authoritative Apple Clang serialized CMake warnings: `0`
+- `make lint`: passing
+- `make test`: passing
+- `ctest -N`: `53` registered tests
+- full `ctest`: `53 / 53` passing
+- residual warning debt: none
+- residual dormant-scaffold debt: none
+
+### Forward-Planning Update
+
+The project-plan correction made on Day 14 is intentional:
+
+- Sprint 33 prerequisites now name Sprint 32 closeout/handoff as the source of:
+  - zero residual test-warning debt
+  - live opt-in test policy
+- Sprint 34 no longer describes known initializer cleanup as inherited backlog work
+  - it now treats that area as regression prevention if new initializer drift appears later
+
+### Validation
+
+Day 14 itself was docs-only.
+
+No new code validation was rerun for the Day 14 edits. The closeout docs are grounded in the Day 13 validated end state:
+
+- `make format`: passed
+- `make lint`: passed
+- `make test`: passed
+- `ctest --test-dir build/sprint32-day1-cmake --output-on-failure`: `53 / 53` passed
+
+### Day 14 Interpretation
+
+- Sprint 32 does not hand off a hidden cleanup queue.
+- Later Epic 3 work should start from a warning-clean, truthfulness-documented test tree.
+- Any future warning or dormant-scaffold findings are new regressions or new scope, not unresolved Sprint 32 debt.
+
+### Day 14 Outputs
+
+- `HANDOFF.md`
+- `RETROSPECTIVE.md`

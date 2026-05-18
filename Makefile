@@ -460,6 +460,25 @@ warning-workflow:
 		"$(WARNING_WORKFLOW_LABEL)" \
 		"$(WARNING_WORKFLOW_ARTIFACTS)"
 
+# Sprint 33 Day 5: dedicated dead-code workflow inputs.  Keeps
+# compile-db generation separate from the normal lint/test paths and
+# leaves reporting/enforcement layering to later Sprint 33 days.
+DEADCODE_CMAKE_DIR ?= build/deadcode-cmake
+DEADCODE_ARTIFACTS_DIR ?= build/deadcode
+DEADCODE_COMPILE_COMMANDS := $(DEADCODE_CMAKE_DIR)/compile_commands.json
+
+.PHONY: deadcode-compile-db
+deadcode-compile-db:
+	@echo "Configuring dead-code compile database in $(DEADCODE_CMAKE_DIR)..."
+	cmake -S . -B $(DEADCODE_CMAKE_DIR) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+	@test -f "$(DEADCODE_COMPILE_COMMANDS)"
+
+.PHONY: deadcode
+deadcode: deadcode-compile-db
+	@bash scripts/deadcode_workflow.sh \
+		"$(DEADCODE_CMAKE_DIR)" \
+		"$(DEADCODE_ARTIFACTS_DIR)"
+
 # ─── Performance regression gate (Sprint 24 Day 1) ────────────────────
 #
 # `make wall-check` runs two single-fixture benchmarks (bcsstk14 qg-AMD

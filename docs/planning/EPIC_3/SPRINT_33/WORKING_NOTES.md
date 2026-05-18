@@ -654,3 +654,97 @@ Day 4 recommended target structure:
 ### Day 4 Outputs
 
 - `artifacts/day4-tooling-integration-design.md`
+
+## Day 5
+
+**Objective:** Implement the first executable Sprint 33 dead-code workflow so maintainers can refresh a dedicated compilation database, run the agreed raw `cppcheck` and `xunused` passes from one entry point, preserve the known bench/example coverage gap in a stable artifact, and capture the initial raw evidence for later reporting/classification work.
+
+### Commands Run
+
+1. Re-read the Day 4 contract before editing:
+   - `sed -n '110,145p' docs/planning/EPIC_3/SPRINT_33/PLAN.md`
+   - `sed -n '560,680p' docs/planning/EPIC_3/SPRINT_33/WORKING_NOTES.md`
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_33/artifacts/day4-tooling-integration-design.md`
+2. Validate the newly-installed `xunused` behavior locally and derive the macOS invocation shape:
+   - `command -v xunused`
+   - `xunused --help`
+   - `xunused build/sprint33-day1-cmake/compile_commands.json`
+   - `SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"; xunused --extra-arg-before=-isysroot --extra-arg-before="$SDKROOT" build/sprint33-day1-cmake/compile_commands.json`
+   - `LLVM_PREFIX="$(brew --prefix llvm@18)"; RESOURCE_DIR="$($LLVM_PREFIX/bin/clang -print-resource-dir)"; xunused --extra-arg-before=-isysroot --extra-arg-before="$SDKROOT" --extra-arg-before=-resource-dir="$RESOURCE_DIR" build/sprint33-day1-cmake/compile_commands.json`
+3. Implement the Makefile entry points and helper script:
+   - edited `Makefile`
+   - added `scripts/deadcode_workflow.sh`
+   - `bash -n scripts/deadcode_workflow.sh`
+4. Validate the workflow end to end:
+   - `git status --short --branch`
+   - `make deadcode-compile-db`
+   - `make deadcode`
+   - `wc -l build/deadcode/cppcheck.txt build/deadcode/xunused.txt build/deadcode/coverage-notes.txt`
+   - `cat build/deadcode/coverage-notes.txt`
+   - `rg '^/.+: warning:' build/deadcode/xunused.txt`
+   - `rg -o '\[[^]]+\]$' build/deadcode/cppcheck.txt | sort | uniq -c | sort -nr | sed -n '1,20p'`
+
+### Implementation Notes
+
+- Added `deadcode-compile-db` to refresh `build/deadcode-cmake/compile_commands.json` on every run rather than only when the file is missing.
+- Added `deadcode`, which stays Makefile-thin and delegates the nontrivial workflow to `scripts/deadcode_workflow.sh`.
+- The helper script now owns:
+  - tool prerequisite checks
+  - compile-database presence validation
+  - stable raw artifact paths under `build/deadcode/`
+  - compile-db coverage-gap notes
+  - raw `cppcheck` capture
+  - raw `xunused` capture
+- Actual Day 5 command contract is slightly stricter than the Day 4 sketch:
+  - `cppcheck` needs `-Iinclude -Ibuild/include -Isrc --std=c11 --suppress=missingIncludeSystem` to avoid turning the raw artifact into mostly header-resolution noise
+  - on macOS, `xunused` needs `xcrun`-provided `-isysroot` plus an LLVM `-resource-dir` so it can parse system and builtin headers successfully
+
+### Validation Results
+
+- `make deadcode` now runs end to end from a clean working tree on `sprint-33`.
+- The target refreshes its own dedicated CMake build tree:
+  - `build/deadcode-cmake/compile_commands.json`
+- The raw artifacts now land in the expected local workflow directory:
+  - `build/deadcode/cppcheck.txt`
+  - `build/deadcode/xunused.txt`
+  - `build/deadcode/coverage-notes.txt`
+- Final Day 5 artifact sizes after the successful rerun:
+  - `cppcheck.txt`: `920` lines
+  - `xunused.txt`: `107` lines
+  - `coverage-notes.txt`: `17` lines
+- The compile-db gap is now surfaced exactly as intended:
+  - missing benchmark: `bench_svd`
+  - missing examples:
+    - `example_basic_solve`
+    - `example_condition`
+    - `example_iterative`
+    - `example_least_squares`
+    - `example_matrix_free`
+    - `example_svd_lowrank`
+
+### First Raw Findings Snapshot
+
+- `xunused` is narrow and high-signal on the current compilation database:
+  - `5` unused-function warnings total
+  - reported names:
+    - `chol_csc_dump_supernodes`
+    - `givens_apply_right`
+    - `sparse_print_dense`
+    - `sparse_print_entries`
+    - `sparse_print_info`
+- Those `xunused` results already demonstrate why the Day 3 policy boundary matters:
+  - one candidate is internal-only (`chol_csc_dump_supernodes`)
+  - several others are declared through installed public headers, so they belong in a public-surface/manual-review bucket rather than an auto-delete bucket
+- `cppcheck` is much broader and not yet a dead-code-only signal:
+  - top recurring IDs in the raw output are:
+    - `constVariablePointer`: `106`
+    - `staticFunction`: `90`
+    - `unusedFunction`: `80`
+    - `normalCheckLevelMaxBranches`: `23`
+  - Day 6 therefore needs a report layer that separates likely dead-code evidence from general style/static-analysis noise
+
+### Day 5 Conclusion
+
+- Sprint 33 now has a reproducible, opt-in `make deadcode` entry point that matches the Day 4 layered-tooling design.
+- The workflow is useful as raw evidence gathering, not as an enforcement gate yet.
+- The next job is not more Makefile plumbing; it is report design and classification so Day 6 / Day 7 can turn these raw artifacts into an auditable cleanup queue without violating the Day 3 conservative policy.

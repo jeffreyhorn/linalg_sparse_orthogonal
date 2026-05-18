@@ -1038,3 +1038,119 @@ Top secondary `cppcheck` signal files in the human report:
 ### Day 7 Outputs
 
 - `artifacts/day7-report-wiring-and-first-report.md`
+
+## Day 8
+
+**Objective:** Audit the four Day 7 public-surface review items against the installed-header contract, maintained docs, and live operator paths so Sprint 33’s cleanup queue stays limited to definitely-unused internal code.
+
+### Commands Run
+
+1. Re-read the Day 8 scope and Day 7 report output:
+   - `sed -n '190,245p' docs/planning/EPIC_3/SPRINT_33/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_33/artifacts/day7-report-wiring-and-first-report.md`
+2. Search the repo for the four Day 8 symbols:
+   - `rg -n "givens_apply_right|sparse_print_dense|sparse_print_entries|sparse_print_info" README.md docs examples include src tests benchmarks`
+3. Re-read the installed-header declarations:
+   - `sed -n '100,140p' include/sparse_dense.h`
+   - `sed -n '500,545p' include/sparse_matrix.h`
+4. Confirm live maintained usage and install/export status:
+   - `rg -n "smoke_test|givens_apply_left|givens_apply_right|sparse_print_dense|sparse_print_entries|sparse_print_info" Makefile CMakeLists.txt tests README.md docs/algorithm.md examples/README.md include src`
+   - `sed -n '1,140p' tests/smoke_test.c`
+   - `sed -n '260,360p' CMakeLists.txt`
+
+### Audit Findings
+
+All four Day 8 review items are confirmed public-surface `keep` items, not Sprint 33 cleanup targets.
+
+#### 1. `givens_apply_right`
+
+Decision:
+
+- `keep`
+
+Evidence:
+
+- declared in installed public header [sparse_dense.h](/Users/jeff/experiments/linalg_sparse_orthogonal/include/sparse_dense.h:120)
+- shipped as part of the dense-matrix utility surface alongside `givens_apply_left`
+- present in generated public API docs under `sparse_dense.h`
+- referenced in earlier Epic 1 planning/retrospective materials as named API surface
+
+Interpretation:
+
+- `xunused` is only proving that the current compile-db-backed in-repo callers do not reach it
+- it is **not** evidence that the exported API should be removed
+
+#### 2. `sparse_print_dense`
+
+Decision:
+
+- `keep`
+
+Evidence:
+
+- declared in installed public header [sparse_matrix.h](/Users/jeff/experiments/linalg_sparse_orthogonal/include/sparse_matrix.h:517)
+- documented as part of the public display/debug API in the header comments and generated API docs
+- exercised by the maintained `make smoke` path in [smoke_test.c](/Users/jeff/experiments/linalg_sparse_orthogonal/tests/smoke_test.c:37)
+
+Interpretation:
+
+- this is active outward-facing utility surface, even though it is not part of the current `compile_commands.json` / CTest-backed dead-code scan
+
+#### 3. `sparse_print_entries`
+
+Decision:
+
+- `keep`
+
+Evidence:
+
+- declared in installed public header [sparse_matrix.h](/Users/jeff/experiments/linalg_sparse_orthogonal/include/sparse_matrix.h:526)
+- documented in the header comments and generated API docs as the non-zero-entry print helper
+- carried forward in Epic 1 planning/history as part of the public matrix display contract
+
+Interpretation:
+
+- lack of current in-repo callers is not enough to treat an installed, documented I/O helper as dead code
+
+#### 4. `sparse_print_info`
+
+Decision:
+
+- `keep`
+
+Evidence:
+
+- declared in installed public header [sparse_matrix.h](/Users/jeff/experiments/linalg_sparse_orthogonal/include/sparse_matrix.h:535)
+- documented in the header comments and generated API docs as the summary-information print helper
+- exercised by the maintained `make smoke` path in [smoke_test.c](/Users/jeff/experiments/linalg_sparse_orthogonal/tests/smoke_test.c:38)
+
+Interpretation:
+
+- this remains part of the operator-visible/debug surface and is not eligible for Sprint 33 cleanup
+
+### Install-Surface Confirmation
+
+Day 8 also reconfirmed that these are not accidentally-exported declarations:
+
+- CMake installs the full `include/` tree as public headers via [CMakeLists.txt](/Users/jeff/experiments/linalg_sparse_orthogonal/CMakeLists.txt:300)
+- therefore any removal here would be a real public API change, not an internal tidy-up
+
+### Refined Sprint 33 Queue
+
+After the Day 8 public-surface audit:
+
+- definitely-unused internal cleanup queue:
+  - `chol_csc_dump_supernodes`
+- public-surface review queue:
+  - closed for the current four items as `keep`
+- unresolved public-API deletion questions:
+  - none
+
+Day 8 consequence for Day 9:
+
+- Sprint 33 cleanup planning should treat `chol_csc_dump_supernodes` as the only current first-pass removal candidate from the `xunused` high-confidence queue
+- the four public-surface symbols stay out of deletion batches entirely
+
+### Day 8 Outputs
+
+- `artifacts/day8-public-surface-audit.md`

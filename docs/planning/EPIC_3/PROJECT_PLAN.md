@@ -129,13 +129,13 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 
 | # | Item | Description | Estimate |
 |---|------|-------------|----------|
-| 1 | Dead-code policy | Define what “dead code” means for this C repository: definitely-unused static functions/variables, unreachable helper paths, stale benchmark/test scaffolds, and separately “candidate unused public API” that needs manual review. | 12 hrs |
+| 1 | Dead-code policy | Define what “dead code” means for this C repository: definitely-unused static functions/variables, unreachable helper paths, stale benchmark/test scaffolds, and separately “candidate unused public API” that needs manual review. Explicitly preserve Sprint 32’s truthfulness rules: opt-in wrappers (`RUN_TEST_SLOW`, `RUN_TEST_EXPERIMENTAL`) are not dormant scaffold, `tests/test_framework_optin.c` remains live coverage for that policy, and historical evidence belongs in docs rather than commented-out registrations. | 12 hrs |
 | 2 | Makefile `deadcode` target | Add a Makefile target in the shape requested for Epic 3, starting with `cppcheck --enable=all --quiet src/` and `xunused build/compile_commands.json`. Wire the target so `compile_commands.json` is generated reliably before analysis, and document any local tool prerequisites or portability limits. | 24 hrs |
 | 3 | Makefile reporting target | Add a reporting-oriented companion target such as `make deadcode-report` or `make deadcode-check` that wraps the raw `cppcheck` + `xunused` output into a readable artifact suitable for local review and later CI use. | 20 hrs |
 | 4 | Candidate-public-API audit | Design a lightweight workflow for reviewing possibly-unused public entry points separately from definitely-dead static code, so the project does not delete public API only because local call sites are absent. | 16 hrs |
 | 5 | First cleanup pass | Remove or refactor the first batch of definitely-unused internal code discovered by the new tooling, prioritizing tests, benchmarks, examples, and private helpers before touching any public API. | 24 hrs |
-| 6 | Documentation | Document how to run the dead-code targets, what their limitations are, and which finding classes are actionable versus advisory. | 12 hrs |
-| 7 | Validation | Re-run build/test/quality flows after the first dead-code cleanup pass. | 16 hrs |
+| 6 | Documentation | Document how to run the dead-code targets, what their limitations are, and which finding classes are actionable versus advisory. Preserve the Sprint 32 distinction between active tests, opt-in tests, and historical evidence so dead-code reporting does not collapse those categories back together. | 12 hrs |
+| 7 | Validation | Re-run build/test/quality flows after the first dead-code cleanup pass. Preserve the Sprint 32 closeout baseline by checking `make lint`, `make test`, `ctest -N`, and full `ctest` in addition to the dead-code targets so the active suite size remains auditable and the warning-clean state is not lost. | 16 hrs |
 
 ### Deliverables
 
@@ -165,9 +165,9 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 
 | # | Item | Description | Estimate |
 |---|------|-------------|----------|
-| 1 | Warning gate design | Decide which targets must be warning-clean first (`src/`, key tests, benchmarks/examples compile-only) and how that requirement differs across primary compilers. | 16 hrs |
-| 2 | Makefile compile-quality targets | Add or refine Makefile targets that perform warning-clean compile checks on the agreed target sets without conflating them with normal runtime test execution. | 24 hrs |
-| 3 | CMake parity | Ensure equivalent compile-quality checks can be run from the CMake path or at least validated from the CMake-generated build tree, so the project does not regress into Make-only quality guarantees. | 20 hrs |
+| 1 | Warning gate design | Decide which targets must be warning-clean first (`src/`, key tests, benchmarks/examples compile-only) and how that requirement differs across primary compilers. Start from the Sprint 32 closeout invariant that the authoritative Apple Clang CMake full-tree path is at `0` warnings and should stay there. | 16 hrs |
+| 2 | Makefile compile-quality targets | Add or refine Makefile targets that perform warning-clean compile checks on the agreed target sets without conflating them with normal runtime test execution. Keep the Sprint 32 expectation that `make lint` and `make test` remain part of the normal local quality path. | 24 hrs |
+| 3 | CMake parity | Ensure equivalent compile-quality checks can be run from the CMake path or at least validated from the CMake-generated build tree, so the project does not regress into Make-only quality guarantees. Keep `ctest -N` and full `ctest` usable as auditable views of the active executed suite. | 20 hrs |
 | 4 | CI integration phase 1 | Add non-flaky warning/dead-code checks to the primary CI jobs, initially for the strictest reliable compiler/target combinations. | 28 hrs |
 | 5 | Initializer-regression cleanup | If new high-noise positional options-struct initializers appear in reviewed targets, migrate them to designated initializers as part of warning-gate enforcement. Sprint 32 closed the inherited initializer backlog, so this item is for regression prevention rather than carried debt. | 20 hrs |
 | 6 | Failure-message quality | Make the new quality targets fail with clear, actionable output so future contributors can fix issues without reverse-engineering the gate. | 12 hrs |

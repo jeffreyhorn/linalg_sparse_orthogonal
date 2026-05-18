@@ -1154,3 +1154,140 @@ Day 8 consequence for Day 9:
 ### Day 8 Outputs
 
 - `artifacts/day8-public-surface-audit.md`
+
+## Day 9
+
+**Objective:** Convert the post-Day-8 refined queue into an honest cleanup plan for Days 10 and 11, including exact touched files, focused validation commands, and a reconciliation path that matches the fact that only one high-confidence internal deletion candidate remains.
+
+### Commands Run
+
+1. Re-read the Day 9 sprint scope and the Day 8 refined queue:
+   - `sed -n '220,280p' docs/planning/EPIC_3/SPRINT_33/PLAN.md`
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_33/artifacts/day8-public-surface-audit.md`
+2. Reinspect the current report-backed queue:
+   - `sed -n '1,220p' build/deadcode/report.md`
+   - `rg -n "chol_csc_dump_supernodes|coverage-gap|secondary" build/deadcode/report.tsv`
+3. Inspect the exact code surface for the only remaining internal candidate:
+   - `rg -n "chol_csc_dump_supernodes" src include tests docs README.md`
+   - `sed -n '1260,1325p' src/sparse_chol_csc.c`
+   - `sed -n '580,615p' src/sparse_chol_csc_internal.h`
+   - `rg -n "chol_csc_dump_supernodes|SPARSE_DEBUG|dump_supernodes|supernodes" src/sparse_chol_csc.c src/sparse_chol_csc_internal.h tests benchmarks docs README.md`
+
+### Queue Reality After Day 8
+
+- high-confidence `xunused` cleanup queue: `1` symbol
+  - `chol_csc_dump_supernodes`
+- public-surface review queue: closed as `keep`
+- compile-db coverage-gap queue: unchanged and explicitly out of Sprint 33 cleanup scope
+- `cppcheck` secondary signals: still supporting evidence only, not first-pass deletion material
+
+Day 9 consequence:
+
+- Sprint 33 does **not** have enough cleanup-ready work to justify two independent deletion batches across multiple areas
+- forcing a fake second removal batch would be less truthful than the queue itself
+
+### Code-Surface Audit For `chol_csc_dump_supernodes`
+
+Current removal surface is narrowly bounded:
+
+- implementation:
+  - [sparse_chol_csc.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_chol_csc.c:1293)
+- declaration:
+  - [sparse_chol_csc_internal.h](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_chol_csc_internal.h:599)
+
+Important Day 9 observations:
+
+- the function is compiled only under `#ifndef NDEBUG`
+- no in-repo call sites remain
+- it is not referenced by tests, benchmarks, public headers, or maintainer/operator docs as a supported interface
+- the surrounding supernode-detection and supernodal-elimination code remains heavily covered by:
+  - `tests/test_chol_csc.c`
+  - `benchmarks/bench_chol_csc.c`
+  - the dead-code workflow itself
+
+### Chosen Batch Plan
+
+#### Day 10: Batch I
+
+Batch I should remove the only approved internal candidate:
+
+1. delete the debug helper implementation `chol_csc_dump_supernodes(...)`
+2. delete the matching internal-header declaration
+3. remove or tighten any nearby comments only if they imply the debug dump still exists
+
+Touched-file set:
+
+- [sparse_chol_csc.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_chol_csc.c:1293)
+- [sparse_chol_csc_internal.h](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_chol_csc_internal.h:599)
+
+Why this is the right first batch:
+
+- smallest possible write set
+- isolated to private CSC-Cholesky internals
+- zero public API risk after Day 8
+- directly closes the only remaining `xunused` internal candidate
+
+#### Day 11: Reconciliation Rather Than Invented Batch II
+
+Given the current queue, Day 11 should be treated as:
+
+- report regeneration
+- residual finding reconciliation
+- note cleanup if Day 10 changes any report classifications
+
+Day 11 should only remove additional code if the Day 10 rerun reveals a **new** high-confidence internal candidate that survives the existing Day 6 / Day 8 policy gates.
+
+If no such candidate appears, Day 11 should explicitly record:
+
+- Batch I completed the first-pass deletion queue
+- remaining report rows are coverage gaps, intentional public keeps, or secondary/noise buckets
+
+### Focused Validation Plan
+
+Because Day 10 will touch `*.c` / `*.h`, the required validation floor is:
+
+1. `make format`
+2. `make lint`
+3. `make test`
+
+Focused local confidence checks to run before or alongside the full gate:
+
+1. build and run the CSC-Cholesky test binary:
+   - `make build/test_chol_csc`
+   - `./build/test_chol_csc`
+2. refresh the dead-code report:
+   - `make deadcode-report`
+3. validate report completeness:
+   - `make deadcode-check`
+
+Reason for this validation split:
+
+- the CSC-Cholesky test suite directly covers the touched subsystem
+- the dead-code report confirms the candidate actually disappears from the actionable queue
+- the full `format` / `lint` / `test` gate preserves the project-wide standard for code edits
+
+### Expected Day 10 / Day 11 Outcomes
+
+Expected Day 10 result:
+
+- `chol_csc_dump_supernodes` removed cleanly
+- `definitely-unused-internal-candidate` bucket drops from `1` to `0`
+
+Expected Day 11 result:
+
+- regenerated report shows no remaining first-pass internal deletion queue
+- remaining buckets are:
+  - `coverage-gap`
+  - public-surface `keep`
+  - secondary `cppcheck` evidence
+  - non-deadcode static-analysis noise
+
+### Day 9 Interpretation
+
+- The most important Day 9 design choice is to preserve truthfulness about queue size.
+- Sprint 33 now has one real cleanup batch, not two independent deletion batches.
+- Day 11 still matters, but as reconciliation and post-cleanup report truthfulness, not as a forced second round of removals.
+
+### Day 9 Outputs
+
+- `artifacts/day9-cleanup-batch-design.md`

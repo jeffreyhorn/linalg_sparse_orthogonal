@@ -429,3 +429,78 @@ Why this is the least invasive fit:
 ### Day 4 Outputs
 
 - `artifacts/day4-test-framework-support.md`
+
+## Day 5
+
+**Objective:** Apply the Sprint 32 truthfulness model to `tests/test_reorder_nd.c` by removing the dormant historical scaffold, clearing the file’s `-Wunused-function` debt, and closing the file’s remaining designated-initializer warnings in the same pass.
+
+### Commands Run
+
+1. Re-read the Day 4 support note and inspect the Day 5 target regions:
+   - `sed -n '1,240p' docs/planning/EPIC_3/SPRINT_32/artifacts/day4-test-framework-support.md`
+   - `sed -n '780,1035p' tests/test_reorder_nd.c`
+   - `sed -n '1080,1760p' tests/test_reorder_nd.c`
+2. Inspect the public option-struct layouts before converting the active initializers:
+   - `sed -n '1,180p' include/sparse_analysis.h`
+   - `sed -n '1,180p' include/sparse_cholesky.h`
+   - `sed -n '1,220p' include/sparse_lu.h`
+   - `sed -n '1,200p' include/sparse_ldlt.h`
+3. Edit `tests/test_reorder_nd.c`:
+   - remove the three dormant historical Pres_Poisson close-to-target stubs
+   - remove their commented-out `RUN_TEST(...)` lines and stale scaffolding comments
+   - convert the active Cholesky/LU/LDLT option structs to designated initializers
+   - drop the now-unused `<errno.h>` include
+4. Validate the Makefile path:
+   - `make format`
+   - `make build/test_framework_optin build/test_reorder_nd`
+   - `./build/test_framework_optin`
+   - `./build/test_reorder_nd`
+5. Re-run a clean serialized Apple Clang CMake build to measure the warning delta:
+   - `cmake --build build/sprint32-day1-cmake --parallel 1 --clean-first`
+   - summarized from `/tmp/sprint32_day5_build.stderr`
+
+### Structural Cleanup Landed
+
+- Removed:
+  - `test_finest_fm_annealing_pres_poisson_close_to_target`
+  - `test_nd_root_spectral_pres_poisson_close_to_target`
+  - `test_non_pipeline_pres_poisson_close_to_target`
+- Removed the corresponding commented-out `RUN_TEST(...)` lines from `main()`.
+- Rewrote the surrounding narrative comments so the file now describes the preserved active checks instead of shipping dormant compiled target stubs.
+- Converted the remaining active warning sites to designated initialization:
+  - `sparse_cholesky_opts_t opts_amd`
+  - `sparse_cholesky_opts_t opts_nd`
+  - `sparse_lu_opts_t opts`
+  - `sparse_ldlt_opts_t opts`
+
+### Validation Results
+
+- `./build/test_framework_optin`
+  - passed
+  - confirms the Day 4 support path still behaves correctly after the Day 5 cleanup
+- `./build/test_reorder_nd`
+  - passed
+  - all `23` active tests still pass
+- clean serialized Apple Clang CMake rebuild
+  - passed
+  - full-tree warnings: `98 -> 91`
+  - warning-class delta:
+    - `-Wmissing-field-initializers`: `62 -> 58`
+    - `-Wdouble-promotion`: `33 -> 33`
+    - `-Wunused-function`: `3 -> 0`
+  - `tests/test_reorder_nd.c` no longer appears in the clean-build warning output
+
+### Day 5 Interpretation
+
+- The Day 2 / Day 3 recommendation held up under implementation: the dormant trio was historical evidence, not live opt-in coverage.
+- Deleting the dormant stubs and keeping the active advisory smoke/parity tests gives `tests/test_reorder_nd.c` an honest executed protection surface without reducing real coverage.
+- The file’s warning queue is now fully closed:
+  - no dormant compiled scaffold
+  - no commented-out `RUN_TEST(...)`
+  - no residual initializer warnings
+  - no residual unused-function warnings
+- Sprint 32 can now move on to the remaining test-warning queue with the highest-signal truthfulness target already resolved.
+
+### Day 5 Outputs
+
+- `artifacts/day5-test-reorder-nd-cleanup.md`

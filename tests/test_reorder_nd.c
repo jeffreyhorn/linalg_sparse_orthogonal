@@ -52,7 +52,6 @@
 #include "sparse_types.h"
 #include "test_framework.h"
 
-#include <errno.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -793,15 +792,11 @@ cleanup:
     sparse_free(A);
 }
 
-/* Sprint 27 Day 12 Item-8 scaffolding: 4 tests pinning Sprint 27
- * outcomes.  Two pass today (HCC corpus parity + per_vertex_fixed_k
- * 3-scheme differentiation); two are failing-as-expected (Pres_Poisson
- * close-to-0.85x-target under annealing / root-spectral) — the
- * latter two have RUN_TEST commented out so make test stays green
- * pending Day 13's combination-matrix verdict (which is unlikely to
- * close the gap given Days 7 and 9 verdicts; Sprint 28+ routing
- * documented in `thick_restart_decision.md` "Sprint 27 Headline").
- */
+/* Sprint 27 Day 12 preserved two active follow-through checks here:
+ * corpus parity for the HCC default flip and fixed-K weight-scheme
+ * differentiation. Historical Pres_Poisson close-to-target stubs
+ * were retired into the sprint decision docs rather than kept as
+ * dormant compiled scaffold. */
 
 /* Sprint 27 Day 12: HCC + Kuu-safe corpus parity contract.  Verifies
  * that the Sprint 27 Day 2 default flip (HCC + degree-CV-detection)
@@ -905,88 +900,6 @@ static void test_per_vertex_fixed_k_three_schemes_differentiate(void) {
     tf_unsetenv("SPARSE_ND_SEP_LIFT_WEIGHT");
     tf_unsetenv("SPARSE_ND_SEP_LIFT_STRATEGY");
     tf_unsetenv("SPARSE_ND_COARSENING");
-    sparse_free(A);
-}
-
-/* Sprint 27 Day 12: Pres_Poisson under annealing-best lands within
- * 2pp of the literal 0.85× target.  Failing-as-expected today —
- * Days 6-7's annealing best schedule (linear) lands at 0.943× of
- * AMD = 9.3pp from target.  RUN_TEST commented out; documents the
- * partial-close.  Sprint 28+ routing per `annealing_fm_decision.md`
- * + `thick_restart_decision.md` "Sprint 27 Headline".
- *
- * Test fixture cost: Pres_Poisson at n=14 822 takes ~7 s ND.  The
- * RUN_TEST line is commented out so this doesn't block CI; if Day 13
- * surfaces a closing combination, future-sprint test maintainers
- * can uncomment + tighten the bound.
- */
-static void test_finest_fm_annealing_pres_poisson_close_to_target(void) {
-    SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Pres_Poisson.mtx");
-    if (rc != SPARSE_OK) {
-        printf("    skipped (Pres_Poisson fixture not loadable: %d)\n", (int)rc);
-        return;
-    }
-
-    /* Bit-stable AMD constant (Sprint 22-26 invariant). */
-    const idx_t nnz_amd = 2668793;
-
-    if (tf_setenv("SPARSE_FM_FINEST_STRATEGY", "annealing") != 0 ||
-        tf_setenv("SPARSE_FM_ANNEALING_SCHEDULE", "linear") != 0) {
-        TF_FAIL_("setenv SPARSE_FM_FINEST_STRATEGY/SPARSE_FM_ANNEALING_SCHEDULE failed (rc=%d)",
-                 (int)0);
-        sparse_free(A);
-        return;
-    }
-    idx_t nnz_annealing = symbolic_cholesky_nnz_nd(A);
-    tf_unsetenv("SPARSE_FM_ANNEALING_SCHEDULE");
-    tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
-
-    fprintf(stderr,
-            "    Pres_Poisson under annealing-linear: nnz(L) = %d, "
-            "ND/AMD = %.3f (target 0.85, gap %.1fpp)\n",
-            (int)nnz_annealing, (double)nnz_annealing / (double)nnz_amd,
-            100.0 * ((double)nnz_annealing / (double)nnz_amd - 0.85));
-
-    /* Day-12 stub contract: Pres_Poisson nnz_L ≤ 0.87× AMD = 0.85×
-     * + 2pp tolerance.  FAILS today (annealing lands 0.943×;
-     * +9.3pp from target). */
-    ASSERT_TRUE((long long)nnz_annealing * 100 <= (long long)nnz_amd * 87);
-    sparse_free(A);
-}
-
-/* Sprint 27 Day 12: Pres_Poisson under root-spectral lands within
- * 2pp of the literal 0.85× target.  Failing-as-expected today —
- * Days 7-9's root-spectral lands at 0.944× of AMD = 9.4pp from
- * target.  RUN_TEST commented out; documents the partial-close. */
-static void test_nd_root_spectral_pres_poisson_close_to_target(void) {
-    SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Pres_Poisson.mtx");
-    if (rc != SPARSE_OK) {
-        printf("    skipped (Pres_Poisson fixture not loadable: %d)\n", (int)rc);
-        return;
-    }
-
-    const idx_t nnz_amd = 2668793;
-
-    if (tf_setenv("SPARSE_ND_ROOT_BISECT", "spectral") != 0) {
-        TF_FAIL_("setenv SPARSE_ND_ROOT_BISECT=%s failed", "spectral");
-        sparse_free(A);
-        return;
-    }
-    idx_t nnz_spectral = symbolic_cholesky_nnz_nd(A);
-    tf_unsetenv("SPARSE_ND_ROOT_BISECT");
-
-    fprintf(stderr,
-            "    Pres_Poisson under root-spectral: nnz(L) = %d, "
-            "ND/AMD = %.3f (target 0.85, gap %.1fpp)\n",
-            (int)nnz_spectral, (double)nnz_spectral / (double)nnz_amd,
-            100.0 * ((double)nnz_spectral / (double)nnz_amd - 0.85));
-
-    /* Day-12 stub contract: Pres_Poisson nnz_L ≤ 0.87× AMD = 0.85×
-     * + 2pp tolerance.  FAILS today (spectral lands 0.944×;
-     * +9.4pp from target). */
-    ASSERT_TRUE((long long)nnz_spectral * 100 <= (long long)nnz_amd * 87);
     sparse_free(A);
 }
 
@@ -1104,7 +1017,9 @@ static void test_cholesky_via_nd_residual_spd_synth(void) {
         REQUIRE_OK(SPARSE_ERR_ALLOC);
         return;
     }
-    sparse_cholesky_opts_t opts_amd = {SPARSE_REORDER_AMD, 0, NULL};
+    sparse_cholesky_opts_t opts_amd = {
+        .reorder = SPARSE_REORDER_AMD,
+    };
     REQUIRE_OK(sparse_cholesky_factor_opts(L_amd, &opts_amd));
     REQUIRE_OK(sparse_cholesky_solve(L_amd, b, x_amd));
 
@@ -1120,7 +1035,9 @@ static void test_cholesky_via_nd_residual_spd_synth(void) {
         REQUIRE_OK(SPARSE_ERR_ALLOC);
         return;
     }
-    sparse_cholesky_opts_t opts_nd = {SPARSE_REORDER_ND, 0, NULL};
+    sparse_cholesky_opts_t opts_nd = {
+        .reorder = SPARSE_REORDER_ND,
+    };
     REQUIRE_OK(sparse_cholesky_factor_opts(L_nd, &opts_nd));
     REQUIRE_OK(sparse_cholesky_solve(L_nd, b, x_nd));
 
@@ -1479,84 +1396,6 @@ cleanup:
     sparse_free(A);
 }
 
-/* Sprint 28 Day 10: Pres_Poisson under SPARSE_SUPERNODAL_POSTORDER=on
- * lands within 2pp of the literal 0.85× target.  Failing-as-expected
- * today — Sprint 28 Day-9 sweep measured 0.9226× under both env settings
- * (symmetric permutation preserves fill by construction; the
- * supernodal-etree post-pass reorders columns within the fill pattern
- * but cannot eliminate fill).  RUN_TEST commented out; documents the
- * MISSED verdict + 7.26pp gap to target.
- *
- * Sprint 28 `non_pipeline_decision.md` formally retires the literal
- * 0.85× Pres_Poisson target after 6 consecutive sprints (Sprints 23-28
- * inclusive; Sprint 22's 1.063× pre-dated the ND-beats-AMD framing) +
- * the non-pipeline pivot.  Sprint 29+ routing: revisit only with
- * fundamentally different machinery (METIS C library interop,
- * geometric mesh-aware ordering with first-class coordinate API, or
- * hybrid AMD-then-ND-on-separators).  None in the Sprint 29 budget.
- *
- * Mirrors the Sprint 27 Day 12 pattern for
- * test_finest_fm_annealing_pres_poisson_close_to_target +
- * test_nd_root_spectral_pres_poisson_close_to_target: ship the test
- * scaffolding with RUN_TEST commented out + bench evidence in-comment;
- * future sprints can uncomment + tighten the bound if a closing
- * combination emerges. */
-static void test_non_pipeline_pres_poisson_close_to_target(void) {
-    SparseMatrix *A = NULL;
-    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Pres_Poisson.mtx");
-    if (rc != SPARSE_OK) {
-        printf("    skipped (Pres_Poisson fixture not loadable: %d)\n", (int)rc);
-        return;
-    }
-
-    /* Bit-stable AMD constant (Sprint 22-28 invariant). */
-    const idx_t nnz_amd = 2668793;
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_ND};
-    sparse_analysis_t analysis = {0};
-    idx_t nnz_supernodal = -1;
-    int env_set = 0;
-
-    if (tf_setenv("SPARSE_SUPERNODAL_POSTORDER", "on") != 0) {
-        /* Treat setenv failure as a skip (matches the pattern in the
-         * other supernodal-postorder tests): setenv/unsetenv are POSIX
-         * extensions (NOT in ISO C — POSIX.1-2001 onward), so some
-         * constrained runtimes / non-POSIX platforms may not provide
-         * them or may reject mutations.  We don't want a platform
-         * constraint to fail the test. */
-        printf("    skipped (setenv SPARSE_SUPERNODAL_POSTORDER=on failed: errno=%d %s)\n", errno,
-               strerror(errno));
-        goto cleanup;
-    }
-    env_set = 1;
-
-    /* sparse_analyze with REORDER_ND so analysis->perm is set, which
-     * is the gate that fires the supernodal-postorder dispatch. */
-    rc = sparse_analyze(A, &opts, &analysis);
-    if (rc != SPARSE_OK) {
-        TF_FAIL_("sparse_analyze (env on): rc=%d", (int)rc);
-        goto cleanup;
-    }
-    nnz_supernodal = analysis.sym_L.nnz;
-
-    fprintf(stderr,
-            "    Pres_Poisson under SPARSE_SUPERNODAL_POSTORDER=on: nnz(L) = %d, "
-            "ND/AMD = %.3f (target 0.85, gap %.1fpp)\n",
-            (int)nnz_supernodal, (double)nnz_supernodal / (double)nnz_amd,
-            100.0 * ((double)nnz_supernodal / (double)nnz_amd - 0.85));
-
-    /* Day-10 stub contract: Pres_Poisson nnz_L ≤ 0.87× AMD = 0.85×
-     * + 2pp tolerance.  FAILS today (supernodal-postorder lands
-     * 0.923×; +7.26pp from target — the post-pass cannot eliminate
-     * symbolic Cholesky fill, only reorder columns within it). */
-    ASSERT_TRUE((long long)nnz_supernodal * 100 <= (long long)nnz_amd * 87);
-
-cleanup:
-    if (env_set)
-        tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
-    sparse_analysis_free(&analysis);
-    sparse_free(A);
-}
-
 /* ─── LU dispatch: opts.reorder = SPARSE_REORDER_ND ───────────────── */
 
 static void test_lu_via_nd_dispatch(void) {
@@ -1597,7 +1436,11 @@ static void test_lu_via_nd_dispatch(void) {
         REQUIRE_OK(SPARSE_ERR_ALLOC);
         return;
     }
-    sparse_lu_opts_t opts = {SPARSE_PIVOT_PARTIAL, SPARSE_REORDER_ND, 0.0};
+    sparse_lu_opts_t opts = {
+        .pivot = SPARSE_PIVOT_PARTIAL,
+        .reorder = SPARSE_REORDER_ND,
+        .tol = 0.0,
+    };
     REQUIRE_OK(sparse_lu_factor_opts(L, &opts));
     REQUIRE_OK(sparse_lu_solve(L, b, x));
 
@@ -1645,7 +1488,10 @@ static void test_ldlt_via_nd_dispatch(void) {
         b[i] = 1.0;
 
     sparse_ldlt_t ldlt = {0};
-    sparse_ldlt_opts_t opts = {SPARSE_REORDER_ND, 0.0, SPARSE_LDLT_BACKEND_AUTO, NULL};
+    sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_ND,
+        .tol = 0.0,
+    };
     REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
     REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
 
@@ -1695,17 +1541,8 @@ int main(void) {
     RUN_TEST(test_nd_root_spectral_pres_poisson_smoke);
     /* Sprint 27 Day 11: thick-restart FM differs from baseline. */
     RUN_TEST(test_finest_fm_thick_restart_returns_to_anchor);
-    /* Sprint 27 Day 12 Item-8 scaffolding: 4 tests pinning Sprint 27
-     * outcomes.  Two pass today; two are failing-as-expected
-     * (Pres_Poisson close-to-target under annealing / root-spectral)
-     * — the latter two stay commented out so make test stays green
-     * pending Day 13's combination-matrix verdict (which is unlikely
-     * to close the gap; Sprint 28+ routing per
-     * `thick_restart_decision.md`). */
     RUN_TEST(test_hcc_kuu_safe_corpus_parity);
     RUN_TEST(test_per_vertex_fixed_k_three_schemes_differentiate);
-    /* RUN_TEST(test_finest_fm_annealing_pres_poisson_close_to_target); */
-    /* RUN_TEST(test_nd_root_spectral_pres_poisson_close_to_target); */
     RUN_TEST(test_nd_determinism_public_api);
     RUN_TEST(test_cholesky_via_nd_residual_spd_synth);
 
@@ -1725,16 +1562,6 @@ int main(void) {
     RUN_TEST(test_supernodal_postorder_no_reorder_skips);
     RUN_TEST(test_supernodal_postorder_deterministic);
     RUN_TEST(test_supernodal_postorder_n_one);
-    /* Sprint 28 Day 10: failing-as-expected close-to-target test.
-     * Sprint 28's non_pipeline_decision.md formally retired the
-     * literal 0.85× Pres_Poisson target after 6 consecutive sprints
-     * (Sprints 23-28 inclusive) of misses + the non-pipeline pivot's
-     * nnz_L-invariance-by-construction.  RUN_TEST commented out
-     * until / unless a future sprint reaches 0.85× via fundamentally
-     * different machinery.  See test body for the contract +
-     * Sprint-28 evidence. */
-    /* RUN_TEST(test_non_pipeline_pres_poisson_close_to_target); */
-
     /* Day 8: enum dispatch on each factorization. */
     RUN_TEST(test_lu_via_nd_dispatch);
     RUN_TEST(test_ldlt_via_nd_dispatch);

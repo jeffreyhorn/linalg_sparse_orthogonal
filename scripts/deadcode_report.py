@@ -17,6 +17,13 @@ PUBLIC_REVIEW = "public-surface-review"
 SECONDARY_SIGNAL = "secondary-candidate-signal"
 NOISE = "non-deadcode-static-analysis-noise"
 
+REVIEWED_PUBLIC_KEEPS = {
+    "givens_apply_right": "keep-public-api-day8-audited",
+    "sparse_print_dense": "keep-public-api-day8-audited",
+    "sparse_print_entries": "keep-public-api-day8-audited",
+    "sparse_print_info": "keep-public-api-day8-audited",
+}
+
 XUNUSED_WARN_RE = re.compile(r"^(.+?):(\d+): warning: Function '([^']+)' is unused$")
 XUNUSED_NOTE_RE = re.compile(r"^(.+?):(\d+): note: declared here$")
 CPPCHECK_RE = re.compile(
@@ -78,9 +85,11 @@ def parse_coverage_notes(path: Path) -> dict[str, object]:
     return data
 
 
-def classify_xunused(decl_file: str) -> tuple[str, str]:
+def classify_xunused(symbol: str, decl_file: str) -> tuple[str, str]:
+    if symbol in REVIEWED_PUBLIC_KEEPS:
+        return PUBLIC_REVIEW, REVIEWED_PUBLIC_KEEPS[symbol]
     if "/include/" in decl_file or decl_file.startswith("include/"):
-        return PUBLIC_REVIEW, "defer-day8-public-surface-audit"
+        return PUBLIC_REVIEW, "needs-public-surface-audit"
     return INTERNAL_CANDIDATE, "candidate-day9-cleanup-batching"
 
 
@@ -107,7 +116,7 @@ def parse_xunused(path: Path) -> list[dict[str, str]]:
             current["decl_file"] = decl_file
             current["decl_line"] = decl_line
     for finding in findings:
-        bucket, disposition = classify_xunused(finding["decl_file"])
+        bucket, disposition = classify_xunused(finding["symbol"], finding["decl_file"])
         finding["bucket"] = bucket
         finding["disposition"] = disposition
     return findings
@@ -308,9 +317,14 @@ def write_markdown(
     else:
         lines.append("- None currently classified in this bucket.")
     lines.append("")
-    lines.append("## Public-Surface Review Items")
+    lines.append("## Public-Surface Reviewed Keeps")
     lines.append("")
     if public:
+        lines.append(
+            "These symbols remain in the public-surface bucket because they are exported through installed "
+            "headers. The current Day 8 audit outcome for all listed rows is `keep`, not cleanup."
+        )
+        lines.append("")
         for row in public:
             lines.append(
                 f"- `{row[2]}` in `{row[3]}:{row[4]}`. {row[5]} Disposition: `{row[6]}`."
@@ -341,14 +355,18 @@ def write_markdown(
     lines.append("")
     lines.append("## Current Sprint Next-Action Queue")
     lines.append("")
-    lines.append("- Day 8 public-surface audit queue: `givens_apply_right`, `sparse_print_dense`, `sparse_print_entries`, `sparse_print_info`.")
     if internal:
         internal_symbols = ", ".join(f"`{row[2]}`" for row in internal)
-        lines.append(f"- Day 9 cleanup-design starting internal queue: {internal_symbols}.")
+        lines.append(f"- remaining definitely-unused internal queue: {internal_symbols}.")
     else:
-        lines.append("- Day 9 cleanup-design starting internal queue: none yet.")
+        lines.append("- remaining definitely-unused internal queue: none.")
+    if public:
+        public_symbols = ", ".join(f"`{row[2]}`" for row in public)
+        lines.append(f"- public-surface reviewed keeps: {public_symbols}.")
+    else:
+        lines.append("- public-surface reviewed keeps: none.")
     lines.append(
-        "- `cppcheck` secondary signals remain supporting evidence only; they are summarized here to help batch later review work, not to justify direct removal."
+        "- `cppcheck` secondary signals remain supporting evidence only; they stay summarized for future review work, not as direct removal instructions."
     )
     path.write_text("\n".join(lines) + "\n")
 

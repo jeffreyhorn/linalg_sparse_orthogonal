@@ -1392,3 +1392,78 @@ Day 10 takeaway:
 ### Day 10 Outputs
 
 - `artifacts/day10-cleanup-batch1.md`
+
+## Day 11
+
+**Objective:** Reconcile the post-Day-10 dead-code report so the remaining queue is classified truthfully, confirm that no second removal batch is actually warranted, and leave Sprint 33 with an auditable post-cleanup report state.
+
+### Commands Run
+
+1. Re-read the Day 11 scope and Day 10 outcome:
+   - `sed -n '280,360p' docs/planning/EPIC_3/SPRINT_33/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_33/artifacts/day10-cleanup-batch1.md`
+2. Inspect the current post-Day-10 report state:
+   - `sed -n '1,260p' build/deadcode/report.md`
+   - `python3 - <<'PY' ... summarize build/deadcode/report.tsv bucket counts and secondary top rows ... PY`
+3. Reconcile the report generator with the completed Day 8 / Day 10 decisions:
+   - edited `scripts/deadcode_report.py`
+   - `python3 -m py_compile scripts/deadcode_report.py`
+4. Regenerate and validate the reconciled report:
+   - `make deadcode-report`
+   - `make deadcode-check`
+   - `sed -n '1,260p' build/deadcode/report.md`
+   - `python3 - <<'PY' ... print public-surface dispositions from report.tsv ... PY`
+
+### Reconciliation Change
+
+Day 11 did not remove additional code.
+
+Instead, it reconciled the reporting layer so the generated report now matches the actual sprint decisions:
+
+- public-surface `xunused` rows are now emitted with audited `keep` dispositions:
+  - `keep-public-api-day8-audited`
+- the human report section is now:
+  - `Public-Surface Reviewed Keeps`
+- the next-action queue no longer claims the Day 8 audit is pending
+- the next-action queue now states:
+  - remaining definitely-unused internal queue: none
+  - public-surface reviewed keeps: the four audited symbols
+
+### Validation Results
+
+- `python3 -m py_compile scripts/deadcode_report.py`: passed
+- serialized `make deadcode-report`: passed
+- serialized `make deadcode-check`: passed
+
+Post-reconciliation report bucket counts remain:
+
+- `coverage-gap`: `7`
+- `public-surface-review`: `4`
+- `secondary-candidate-signal`: `35`
+- `non-deadcode-static-analysis-noise`: `6`
+- `definitely-unused-internal-candidate`: `0`
+
+Audited public-surface dispositions are now explicit in `report.tsv`:
+
+- `givens_apply_right` → `keep-public-api-day8-audited`
+- `sparse_print_dense` → `keep-public-api-day8-audited`
+- `sparse_print_entries` → `keep-public-api-day8-audited`
+- `sparse_print_info` → `keep-public-api-day8-audited`
+
+### Day 11 Conclusion
+
+- The planned first cleanup pass is complete.
+- No second code-removal batch is justified by the current evidence.
+- The residual report is now categorized without ambiguity:
+  - coverage gaps
+  - audited public keeps
+  - secondary `cppcheck` evidence
+  - static-analysis noise
+
+### Workflow Note
+
+As on Day 10, one parallel pair of `deadcode` target invocations briefly reproduced the shared-build-tree CMake race. The serial rerun passed cleanly and is the authoritative Day 11 validation result.
+
+### Day 11 Outputs
+
+- `artifacts/day11-reconciliation.md`

@@ -587,6 +587,30 @@ make tsan          # TSan (thread sanitizer) for concurrent tests
 make coverage      # line coverage report (requires gcc + lcov + bc); fails if < 95%
 ```
 
+### Test Category Policy
+
+The default regression surface is the set of tests registered with plain
+`RUN_TEST(...)` in each `tests/test_*.c` binary. Those tests must pass under
+ordinary `make test` and `ctest`.
+
+The test framework also supports two explicit opt-in categories for live
+non-default checks:
+
+```bash
+SPARSE_TEST_SLOW=1 make test
+SPARSE_TEST_EXPERIMENTAL=1 make test
+```
+
+- `RUN_TEST_SLOW(...)` is for current supported behavior whose only default-path
+  problem is runtime or fixture cost.
+- `RUN_TEST_EXPERIMENTAL(...)` is for current live behavior on intentionally
+  non-default paths that still must pass when enabled.
+
+Historical measurements, retired targets, and old sprint evidence do not stay in
+normal suite files as commented-out `RUN_TEST(...)` entries. Preserve that
+material in `docs/planning/` artifacts instead of shipping dormant test
+scaffolding that overstates current CI coverage.
+
 **Note:** Apple Clang's ASan hangs on macOS. Use an alternative compiler:
 ```bash
 CC=gcc-14 make asan

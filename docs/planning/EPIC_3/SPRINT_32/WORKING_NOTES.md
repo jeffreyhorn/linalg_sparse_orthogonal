@@ -504,3 +504,73 @@ Why this is the least invasive fit:
 ### Day 5 Outputs
 
 - `artifacts/day5-test-reorder-nd-cleanup.md`
+
+## Day 6
+
+**Objective:** Document the now-landed active-vs-opt-in test split, cross-check that the maintainer-facing docs match the Day 5 `tests/test_reorder_nd.c` end state, and record the small residual truthfulness queue that remains out of scope for Sprint 32's ND cleanup.
+
+### Commands Run
+
+1. Re-read the Day 6 scope in the Sprint 32 plan and the Day 2 / Day 3 policy artifacts:
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_32/PLAN.md`
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_32/artifacts/day2-test-reorder-nd-audit.md`
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_32/artifacts/day3-test-truthfulness-policy.md`
+2. Inspect the current public testing docs and the post-Day-5 ND suite state:
+   - `sed -n '538,620p' README.md`
+   - `sed -n '1,220p' tests/test_reorder_nd.c`
+   - `sed -n '1,220p' tests/test_framework.h`
+3. Search the tree for remaining truthfulness markers and sample the surviving hits:
+   - `rg -n "commented-out RUN_TEST|RUN_TEST_SLOW|RUN_TEST_EXPERIMENTAL|SPARSE_TEST_SLOW|SPARSE_TEST_EXPERIMENTAL|failing-as-expected|expected fail" README.md docs tests`
+   - `sed -n '930,990p' tests/test_eigs.c`
+   - `sed -n '2990,3045p' tests/test_svd.c`
+   - `sed -n '2218,2250p' tests/test_chol_csc.c`
+4. Edit the maintainer-facing docs and Sprint 32 notes:
+   - `README.md`
+   - `docs/planning/EPIC_3/SPRINT_32/WORKING_NOTES.md`
+   - `docs/planning/EPIC_3/SPRINT_32/artifacts/day6-coverage-honesty-docs.md`
+5. Run targeted doc sanity checks:
+   - `git diff -- README.md docs/planning/EPIC_3/SPRINT_32/WORKING_NOTES.md docs/planning/EPIC_3/SPRINT_32/artifacts/day6-coverage-honesty-docs.md`
+   - `rg -n "RUN_TEST_SLOW|RUN_TEST_EXPERIMENTAL|SPARSE_TEST_SLOW|SPARSE_TEST_EXPERIMENTAL|commented-out RUN_TEST" README.md docs/planning/EPIC_3/SPRINT_32`
+
+### Documentation Landed
+
+- `README.md`
+  - added a `Test Category Policy` subsection under `## Testing`
+  - documented the default active surface (`RUN_TEST(...)`)
+  - documented the explicit opt-in commands:
+    - `SPARSE_TEST_SLOW=1 make test`
+    - `SPARSE_TEST_EXPERIMENTAL=1 make test`
+  - documented the rule that historical or retired targets belong in `docs/planning/` artifacts, not as commented-out `RUN_TEST(...)` lines in normal suite files
+- `artifacts/day6-coverage-honesty-docs.md`
+  - records the Day 5 before/after state for `tests/test_reorder_nd.c`
+  - captures the active / slow / experimental / historical category model in maintainer-facing form
+  - records the small residual out-of-scope queue
+
+### Cross-Check Results
+
+- The Day 5 `tests/test_reorder_nd.c` state matches the Day 6 docs:
+  - `23` active tests remain registered
+  - `0` commented-out `RUN_TEST(...)` lines remain
+  - the dormant historical Pres_Poisson close-to-target trio is gone from suite code
+- The new README policy matches the Day 4 framework support:
+  - `RUN_TEST_SLOW(...)` / `SPARSE_TEST_SLOW=1`
+  - `RUN_TEST_EXPERIMENTAL(...)` / `SPARSE_TEST_EXPERIMENTAL=1`
+- The repo-wide residual truthfulness queue is narrower than the original Day 1 risk implied:
+  - sampled files such as `tests/test_eigs.c`, `tests/test_svd.c`, and `tests/test_chol_csc.c` still carry older "failing-as-expected" narrative comments
+  - those sampled hits are comment-history debt, not live commented-out registrations or compiled dormant helpers
+  - Sprint 32 should treat them as future comment-cleanup candidates, not as evidence that the Day 5 ND structural problem still exists elsewhere
+
+### Day 6 Interpretation
+
+- Sprint 32 now has both halves of the truthfulness fix:
+  - code-level representation support from Day 4
+  - maintainer-facing documentation from Day 6
+- The project rule is now explicit:
+  - active current contracts run by default
+  - slow and experimental current contracts are opt-in but still green when enabled
+  - historical evidence stays in docs
+- The remaining out-of-scope debt is mostly wording cleanup in older test comments, not hidden execution drift in the default test surface.
+
+### Day 6 Outputs
+
+- `artifacts/day6-coverage-honesty-docs.md`

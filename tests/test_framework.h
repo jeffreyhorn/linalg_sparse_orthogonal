@@ -51,7 +51,7 @@ static clock_t tf_suite_start;
         printf("\n--- Summary ---\n");                                                             \
         printf("Tests run:    %d\n", tf_tests_run);                                                \
         printf("Tests failed: %d\n", tf_tests_failed);                                             \
-        printf("Tests skipped:%d\n", tf_tests_skipped);                                            \
+        printf("Tests skipped: %d\n", tf_tests_skipped);                                           \
         printf("Assertions:   %d\n", tf_asserts);                                                  \
         printf("Time:         %.3f s\n", elapsed);                                                 \
         if (tf_tests_failed == 0)                                                                  \

@@ -625,3 +625,233 @@ Design consequence:
 ### Day 3 Outputs
 
 - `artifacts/day3-warning-gate-design.md`
+
+## Day 4
+
+**Objective:** Turn the Day 3 contract into a concrete Makefile target topology by deciding the new phase-1 aggregate target names, dependency style, operator-facing output shape, and dead-code integration model before any Makefile edits land.
+
+### Commands Run
+
+1. Re-read the current Sprint 34 contract and Day 4 scope:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '1,520p' docs/planning/EPIC_3/SPRINT_34/WORKING_NOTES.md`
+   - `sed -n '95,210p' docs/planning/EPIC_3/SPRINT_34/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_34/artifacts/day3-warning-gate-design.md`
+2. Inspect the current Makefile quality-target region and target graph behavior:
+   - `sed -n '230,520p' Makefile`
+   - `make -n check`
+   - `make -n deadcode`
+   - `make -n deadcode-report`
+   - `make -n deadcode-check`
+   - `python3 - <<'PY' ... print line numbers for tooling-build / format-check / lint / check / deadcode* ... PY`
+3. Refresh prior layered-target precedent from Sprint 33:
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_33/artifacts/day4-tooling-integration-design.md`
+4. Reconfirm current operator-facing docs that Day 4 must preserve:
+   - `rg -n "reviewed-target|quality-flow|deadcode-check|tooling-build:|check:" docs/planning/EPIC_3 README.md -g '!docs/planning/EPIC_3/SPRINT_34/**'`
+
+### Day 4 Target-Graph Findings
+
+- current stable quality targets and line anchors:
+  - `tooling-build`: line `247`
+  - `format-check`: line `422`
+  - `lint`: line `428`
+  - `check`: line `446`
+  - `deadcode`: line `503`
+  - `deadcode-report`: line `506`
+  - `deadcode-check`: line `511`
+- current `check` dry run proves the inherited layering:
+  - formatting first
+  - then `lint` with `tooling-build` folded inside it
+  - then full test-binary build + execution
+- current `deadcode*` dry runs prove that:
+  - `deadcode` = raw workflow/stamp
+  - `deadcode-report` = raw workflow + report generation
+  - `deadcode-check` = report generation + completeness verification
+- important operational constraint:
+  - prerequisite-only aggregation would allow `make -j` to run sibling quality targets concurrently
+  - that is acceptable for `check` today
+  - but it is a bad fit for Sprint 34 because `deadcode*` still shares `build/deadcode-cmake` and `build/deadcode/`
+
+### Day 4 Design Decisions
+
+#### 1. Sprint 34 should add a new reviewed-quality aggregate instead of mutating `check`
+
+Chosen operator-facing target:
+
+- `quality-review`
+
+Chosen rule:
+
+- keep `check` unchanged as `format-check + lint + test`
+- add `quality-review` as the new Sprint 34 reviewed local quality contract
+
+Reasoning:
+
+- `check` already has stable repo semantics
+- `quality-review` communicates that this is the broader reviewed-target contract, not the historical minimal aggregate
+- this avoids silent behavior drift for existing users and CI jobs that currently rely on `check`
+
+#### 2. The aggregate should be implemented as a serial wrapper target, not as a pure prerequisite fan-out
+
+Chosen implementation shape:
+
+- `.PHONY: quality-review`
+- recipe body invokes subordinate targets in order using recursive `$(MAKE)` calls
+
+Recommended sequence:
+
+1. `format-check`
+2. `lint`
+3. `test`
+4. `deadcode-check`
+
+Reasoning:
+
+- preserves strict step order
+- makes failure attribution obvious
+- prevents accidental parallel execution of `deadcode*` under `make -j`
+- avoids the ambiguity of a large prerequisite fan-out where it is unclear which phase failed without reading dense raw output
+
+Day 4 implication:
+
+- `quality-review` should be a wrapper target, not a large dependency list
+
+#### 3. The Sprint 34 topology should expose one focused compile-only reviewed target in addition to the full aggregate
+
+Chosen supporting target:
+
+- `quality-review-compile`
+
+Chosen meaning:
+
+- formatting + compile/static-analysis reviewed surface only
+- intended sequence:
+  1. `format-check`
+  2. `lint`
+
+Reasoning:
+
+- Day 3 made the compile/static-analysis layer explicit
+- local developers and later CI work need a fast reviewed-target subset that stops before runtime tests and dead-code reporting
+- this keeps the target graph extension-friendly for Sprint 34 CI work
+
+Chosen non-goal:
+
+- do not add redundant wrappers for `test` or `deadcode-check` yet; those targets already exist with clear meanings
+
+#### 4. `lint` should remain the place where benchmark/example compile coverage enters the flow
+
+Chosen rule:
+
+- do not split `tooling-build` back out of `lint`
+- do not create a parallel compile-only bench/example branch outside `lint` for the main reviewed aggregate
+
+Reasoning:
+
+- Sprint 31 intentionally wired compile-only tooling coverage into `lint`
+- that existing layering already answers the Day 3 compile-quality contract for benchmarks/examples
+- adding a second path to build the same binaries in the same aggregate would create duplicate work and muddier output
+
+Implication:
+
+- `quality-review-compile` and `quality-review` should both enter compile-only benchmark/example coverage through `lint`
+
+#### 5. Dead-code should be integrated only at the top reviewed aggregate layer in phase 1
+
+Chosen rule:
+
+- `quality-review-compile` stops at `lint`
+- `quality-review` adds:
+  - `test`
+  - `deadcode-check`
+
+Reasoning:
+
+- dead-code is a sibling quality category, not compile-only warning logic
+- this keeps the compile subset fast and conceptually clean
+- it makes the full reviewed aggregate the only place where the serial dead-code step is forced
+
+#### 6. Failure-output design should use explicit phase banners
+
+Chosen output shape:
+
+- before each recursive `$(MAKE)` call, emit a short banner such as:
+  - `== quality-review: format-check ==`
+  - `== quality-review: lint ==`
+  - `== quality-review: test ==`
+  - `== quality-review: deadcode-check ==`
+
+Reasoning:
+
+- keeps output attributable even when downstream targets are verbose
+- avoids the need for users to infer which phase failed from raw tool stderr
+- fits the Sprint 34 goal of actionable operator-facing quality gates
+
+Chosen non-goal:
+
+- no deep shell orchestration
+- no opaque `&&` chains
+- no duplicated internal tool commands inside the wrapper target
+
+#### 7. Day 4 dead-code integration rule must preserve the Sprint 33 serial constraint explicitly
+
+Chosen rule:
+
+- `quality-review` runs `deadcode-check` as a terminal serial step
+- it does not list `deadcode-check` as a parallelizable sibling prerequisite
+- the target documentation should explicitly say that the reviewed aggregate preserves the current shared-build-tree dead-code execution model
+
+Reasoning:
+
+- this is the minimal truthful phase-1 integration
+- it keeps the dead-code flow in the quality path
+- but it does not pretend the underlying workflow is already parallel-safe
+
+#### 8. Recommended Day 5 / Day 6 implementation split
+
+**Day 5 Batch I**
+
+- add:
+  - `quality-review-compile`
+  - `quality-review`
+- implement serial wrapper recipes with phase banners
+- validate focused target behavior and output
+
+**Day 6 Batch II**
+
+- tighten dependency/variable reuse if needed
+- document the new targets
+- decide whether any small helper variables/macros are warranted to keep the recipes readable
+- validate the full reviewed path end to end
+
+### Day 4 Proposed Target Topology
+
+| Target | Type | Phase-1 meaning | Uses existing targets |
+|---|---|---|---|
+| `check` | unchanged inherited aggregate | existing repo quality shortcut | `format-check`, `lint`, `test` |
+| `quality-review-compile` | new serial wrapper | reviewed formatting + compile/static-analysis contract | `format-check`, `lint` |
+| `quality-review` | new serial wrapper | reviewed full local quality contract | `format-check`, `lint`, `test`, `deadcode-check` |
+| `deadcode-check` | unchanged inherited target | dead-code completeness invariant | `deadcode-report` + check script |
+
+### Day 4 Implementation Guidance
+
+- prefer recursive `$(MAKE)` step calls over a large prerequisite list
+- keep the wrappers thin and readable
+- reuse existing targets rather than copying their internals
+- do not rename `check`, `lint`, `test`, `deadcode-report`, or `deadcode-check`
+- do not wire the new targets into CI on Day 4; leave that to the later Sprint 34 CI design/implementation days
+
+### Day 4 Interpretation
+
+- The right Sprint 34 Makefile move is additive, serial, and explicit.
+- additive:
+  - preserve the existing target contract
+- serial:
+  - respect the dead-code shared-path constraint and keep failure attribution clean
+- explicit:
+  - expose reviewed-target aggregates by name instead of hiding broader behavior behind `check`
+
+### Day 4 Outputs
+
+- `artifacts/day4-makefile-enforcement-design.md`

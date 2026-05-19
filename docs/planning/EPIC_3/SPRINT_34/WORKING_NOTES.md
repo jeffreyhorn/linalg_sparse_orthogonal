@@ -1887,3 +1887,102 @@ CI message validation:
 ### Day 12 Outputs
 
 - `artifacts/day12-failure-ux-and-operator-docs.md`
+
+## Day 13
+
+**Objective:** Re-run the full Sprint 34 reviewed local quality path plus the CI-equivalent reviewed commands, capture timings and suite counts, and confirm the Sprint 32 truthfulness baseline plus Sprint 33 dead-code artifact flow still hold on the current branch state.
+
+### Commands Run
+
+1. Re-read the Day 13 scope and current branch state:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+2. Run the direct local quality gates with timings:
+   - `make format`
+   - `/usr/bin/time -p make lint`
+   - `/usr/bin/time -p make test`
+3. Run the reviewed wrapper and CI-equivalent local commands with timings:
+   - `/usr/bin/time -p make quality-review-compile`
+   - `/usr/bin/time -p make quality-review`
+   - `/usr/bin/time -p make deadcode-report`
+   - `/usr/bin/time -p make deadcode-check`
+   - `/usr/bin/time -p make quality-review-cmake-compile`
+   - `/usr/bin/time -p make quality-review-cmake`
+4. Confirm the Sprint 32 truthfulness and Sprint 33 dead-code artifact surfaces:
+   - `rg -n "RUN_TEST\\(" tests/test_reorder_nd.c | wc -l`
+   - `rg -n "RUN_TEST_SLOW|RUN_TEST_EXPERIMENTAL|SKIP_TEST" tests/test_framework_optin.c tests/test_framework.h`
+   - `ls -l build/deadcode/report.md build/deadcode/report.tsv build/deadcode/coverage-notes.txt build/deadcode/cppcheck.txt build/deadcode/xunused.txt`
+   - `git status --short`
+5. Record the Day 13 validation sweep:
+   - `apply_patch` on `docs/planning/EPIC_3/SPRINT_34/WORKING_NOTES.md`
+   - `apply_patch` on `docs/planning/EPIC_3/SPRINT_34/artifacts/day13-full-validation-sweep.md`
+
+### Day 13 Validation Results
+
+Direct local quality gates:
+
+- `make format`: passed
+- `make lint`: passed
+  - real time: `244.14 s`
+- `make test`: passed
+  - real time: `62.34 s`
+
+Reviewed wrapper / CI-equivalent local commands:
+
+- `make quality-review-compile`: passed
+  - real time: `314.65 s`
+- `make quality-review`: passed
+  - real time: `438.34 s`
+- `make deadcode-report`: passed
+  - real time: `0.39 s`
+- `make deadcode-check`: passed
+  - real time: `0.56 s`
+- `make quality-review-cmake-compile`: passed
+  - `ctest -N` reported `53` registered tests
+  - real time: `63.14 s`
+- `make quality-review-cmake`: passed
+  - full `ctest`: `53 / 53` passed
+  - CTest reported real test time: `181.55 s`
+  - wrapper wall time: `239.97 s`
+
+### Day 13 Invariant Checks
+
+Sprint 32 truthfulness surface:
+
+- `tests/test_reorder_nd.c`
+  - active `RUN_TEST(...)` registrations: `23`
+- `tests/test_framework_optin.c` / `tests/test_framework.h`
+  - `SKIP_TEST(...)`: present
+  - `RUN_TEST_SLOW(...)`: present
+  - `RUN_TEST_EXPERIMENTAL(...)`: present
+- `test_framework_optin` also passed again as part of:
+  - `make test`
+  - `make quality-review-cmake`
+
+Sprint 33 dead-code artifact flow:
+
+- regenerated artifact set present:
+  - `build/deadcode/report.md`
+  - `build/deadcode/report.tsv`
+  - `build/deadcode/coverage-notes.txt`
+  - `build/deadcode/cppcheck.txt`
+  - `build/deadcode/xunused.txt`
+- artifact timestamps refreshed during the Day 13 sweep:
+  - `coverage-notes.txt`: `12:05`
+  - `cppcheck.txt`: `12:06`
+  - `report.md`: `12:06`
+  - `report.tsv`: `12:06`
+  - `xunused.txt`: `12:06`
+
+### Day 13 Interpretation
+
+- Sprint 34’s reviewed paths are green both as direct local commands and as CI-equivalent wrapper commands.
+- The Makefile-reviewed path, the CMake-reviewed path, and the dead-code report/check path all remain operational together on the current branch state.
+- The earlier Sprint 32 and Sprint 33 invariants still hold:
+  - active test truthfulness surface still live
+  - opt-in/skip framework still live
+  - dead-code artifact/report flow still regenerates the documented evidence set
+
+### Day 13 Outputs
+
+- `artifacts/day13-full-validation-sweep.md`

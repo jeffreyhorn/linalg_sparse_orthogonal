@@ -109,6 +109,8 @@ make lint       # strict compile + static analysis (includes tooling-build)
 make quality-review-compile  # reviewed format-check + lint wrapper
 make test       # run all unit tests
 make quality-review  # reviewed format-check + lint + test + deadcode-check
+make quality-review-cmake-compile  # reviewed CMake configure + rebuild + ctest -N
+make quality-review-cmake  # reviewed CMake configure + rebuild + ctest -N + ctest
 make deadcode   # refresh raw dead-code evidence in build/deadcode/
 make deadcode-report  # generate classified dead-code report.md / report.tsv
 make deadcode-check   # verify report completeness invariants
@@ -673,6 +675,8 @@ commands:
 ```bash
 make quality-review-compile
 make quality-review
+make quality-review-cmake-compile
+make quality-review-cmake
 ```
 
 - `make quality-review-compile` runs:
@@ -683,11 +687,20 @@ make quality-review
   - `make lint`
   - `make test`
   - `make deadcode-check`
+- `make quality-review-cmake-compile` runs:
+  - `cmake -S . -B build/quality-review-cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`
+  - `cmake --build build/quality-review-cmake --parallel 1 --clean-first`
+  - `ctest -N --test-dir build/quality-review-cmake`
+- `make quality-review-cmake` runs:
+  - `make quality-review-cmake-compile`
+  - `ctest --test-dir build/quality-review-cmake --output-on-failure`
 
 These wrappers are additive. They do **not** replace the meanings of `make
 check`, `make lint`, `make test`, or `make deadcode-check`; they provide an
-explicit reviewed-target phase-1 local enforcement flow with step banners and a
-serial dead-code step.
+explicit reviewed-target phase-1 local enforcement flow with step banners. The
+CMake wrappers are the reviewed parity path for clean rebuild + `ctest -N` +
+full `ctest`; they do **not** replace the Makefile-authoritative formatter,
+static-analysis, or dead-code checks.
 
 **Note:** Apple Clang's ASan hangs on macOS. Use an alternative compiler:
 ```bash

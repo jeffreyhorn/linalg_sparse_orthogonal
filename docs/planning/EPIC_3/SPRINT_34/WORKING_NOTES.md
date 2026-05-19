@@ -1198,3 +1198,127 @@ Dead-code parity rule for Day 8:
 ### Day 7 Outputs
 
 - `artifacts/day7-cmake-parity-design.md`
+
+## Day 8
+
+**Objective:** Implement the reviewed CMake parity path from Day 7, validate the new wrapper targets end to end, and record which Sprint 34 quality guarantees now have named Make/CMake reviewed flows versus preserved documented limitations.
+
+### Commands Run
+
+1. Re-read the Day 7 design contract and the current wrapper surface:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_34/artifacts/day7-cmake-parity-design.md`
+   - `sed -n '430,560p' Makefile`
+   - `sed -n '100,140p' README.md`
+   - `sed -n '670,725p' README.md`
+2. Implement the Day 8 parity wrappers and maintained docs updates:
+   - `apply_patch` on `Makefile`
+   - `apply_patch` on `README.md`
+3. Validate the target graph and README contract:
+   - `make -n quality-review-cmake-compile`
+   - `make -n quality-review-cmake`
+   - `sed -n '100,118p' README.md`
+   - `sed -n '670,710p' README.md`
+4. Validate the live reviewed CMake parity path:
+   - `make quality-review-cmake-compile`
+   - `make quality-review-cmake`
+5. Record the Day 8 implementation result:
+   - `apply_patch` on `docs/planning/EPIC_3/SPRINT_34/WORKING_NOTES.md`
+   - `apply_patch` on `docs/planning/EPIC_3/SPRINT_34/artifacts/day8-cmake-parity-implementation.md`
+
+### Day 8 Implementation Result
+
+- `Makefile`
+  - added:
+    - `QUALITY_REVIEW_CMAKE_DIR ?= build/quality-review-cmake`
+    - `quality-review-cmake-compile`
+    - `quality-review-cmake`
+  - extended `.NOTPARALLEL` so the reviewed CMake wrappers also stay serial under `make -j`
+- `README.md`
+  - added both reviewed CMake targets to the maintained "With Make" command list
+  - extended the "Reviewed Local Quality Path" section with:
+    - exact command sequence for `quality-review-cmake-compile`
+    - exact command sequence for `quality-review-cmake`
+    - the explicit boundary that these CMake wrappers do not replace Makefile-authoritative formatter, static-analysis, or dead-code checks
+
+Implemented target behavior:
+
+- `quality-review-cmake-compile`
+  - configure:
+    - `cmake -S . -B build/quality-review-cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`
+  - rebuild:
+    - `cmake --build build/quality-review-cmake --parallel 1 --clean-first`
+  - active-suite audit:
+    - `ctest -N --test-dir build/quality-review-cmake`
+- `quality-review-cmake`
+  - runs `quality-review-cmake-compile`
+  - then runs:
+    - `ctest --test-dir build/quality-review-cmake --output-on-failure`
+
+### Day 8 Validation Results
+
+**Graph/contract validation**
+
+- `make -n quality-review-cmake-compile`
+  - showed the intended three explicit phases:
+    - configure
+    - build
+    - `ctest -N`
+- `make -n quality-review-cmake`
+  - showed the intended reviewed flow:
+    - recursive `quality-review-cmake-compile`
+    - then full `ctest`
+- README now exposes both reviewed CMake targets in the maintained operator-facing command list and documents the boundary versus the Makefile-reviewed path
+
+**Live validation**
+
+- `make quality-review-cmake-compile`: passed
+  - configured `build/quality-review-cmake`
+  - completed a clean serialized rebuild of the full CMake-defined reviewed set
+  - `ctest -N` reported `53` registered tests
+- `make quality-review-cmake`: passed
+  - reran the reviewed compile path on the dedicated build tree
+  - full `ctest` passed:
+    - `53 / 53` tests passed
+    - reported real time: `236.99 sec`
+
+Observed reviewed CMake parity surface after implementation:
+
+- direct CMake-reviewed guarantees now exist for:
+  - clean rebuild of the CMake-defined reviewed target set
+  - active-suite registration via `ctest -N`
+  - active-suite execution via full `ctest`
+- preserved Makefile-authoritative sibling checks remain:
+  - `format-check`
+  - `lint` static-analysis phases
+  - `deadcode-check`
+
+Preserved documented limitation:
+
+- the Sprint 33 dead-code compile-db gap remains unchanged and explicit:
+  - missing benchmark:
+    - `bench_svd`
+  - missing examples:
+    - `example_basic_solve`
+    - `example_condition`
+    - `example_iterative`
+    - `example_least_squares`
+    - `example_matrix_free`
+    - `example_svd_lowrank`
+
+### Day 8 Interpretation
+
+- Sprint 34 now has named reviewed paths on both sides of the build split:
+  - Makefile reviewed path:
+    - `quality-review-compile`
+    - `quality-review`
+  - CMake reviewed parity path:
+    - `quality-review-cmake-compile`
+    - `quality-review-cmake`
+- This closes the main Day 7 concern that the project could drift into an effectively Make-only reviewed build/test contract.
+- It does not yet close the dead-code compile-db coverage gap, which remains a truthful documented limitation rather than an implied guarantee.
+
+### Day 8 Outputs
+
+- `artifacts/day8-cmake-parity-implementation.md`

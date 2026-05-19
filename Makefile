@@ -451,7 +451,9 @@ check: format-check lint test
 # wrappers serial and bannered so failure attribution stays obvious
 # and the shared dead-code build/artifact paths are never driven as a
 # sibling prerequisite branch under `make -j`.
-.NOTPARALLEL: quality-review-compile quality-review deadcode deadcode-report deadcode-check
+QUALITY_REVIEW_CMAKE_DIR ?= build/quality-review-cmake
+
+.NOTPARALLEL: quality-review-compile quality-review quality-review-cmake-compile quality-review-cmake deadcode deadcode-report deadcode-check
 .PHONY: quality-review-compile
 quality-review-compile:
 	@echo "== quality-review-compile: format-check =="
@@ -469,6 +471,22 @@ quality-review:
 	@$(MAKE) test
 	@echo "== quality-review: deadcode-check =="
 	@$(MAKE) deadcode-check
+
+.PHONY: quality-review-cmake-compile
+quality-review-cmake-compile:
+	@echo "== quality-review-cmake-compile: configure =="
+	cmake -S . -B "$(QUALITY_REVIEW_CMAKE_DIR)" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+	@echo "== quality-review-cmake-compile: build =="
+	cmake --build "$(QUALITY_REVIEW_CMAKE_DIR)" --parallel 1 --clean-first
+	@echo "== quality-review-cmake-compile: ctest -N =="
+	ctest -N --test-dir "$(QUALITY_REVIEW_CMAKE_DIR)"
+
+.PHONY: quality-review-cmake
+quality-review-cmake:
+	@echo "== quality-review-cmake: compile path =="
+	@$(MAKE) quality-review-cmake-compile
+	@echo "== quality-review-cmake: ctest =="
+	ctest --test-dir "$(QUALITY_REVIEW_CMAKE_DIR)" --output-on-failure
 
 # Sprint 30 Day 7: reproducible Epic 3 warning-capture + validation
 # workflow.  Wraps the helper script so maintainers can recreate a

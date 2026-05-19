@@ -1288,18 +1288,6 @@ sparse_err_t chol_csc_detect_supernodes(const CholCsc *L, idx_t min_size, idx_t 
     return SPARSE_OK;
 }
 
-#ifndef NDEBUG
-#include <stdio.h>
-void chol_csc_dump_supernodes(const idx_t *super_starts, const idx_t *super_sizes, idx_t count) {
-    printf("chol_csc supernodes: count=%d\n", (int)count);
-    for (idx_t i = 0; i < count; i++) {
-        idx_t s = super_starts[i];
-        idx_t sz = super_sizes[i];
-        printf("  [%d]: cols [%d, %d) size=%d\n", (int)i, (int)s, (int)(s + sz), (int)sz);
-    }
-}
-#endif
-
 /* ═══════════════════════════════════════════════════════════════════════
  * Day 11: Dense Cholesky primitives
  * ═══════════════════════════════════════════════════════════════════════ */

@@ -1,0 +1,19 @@
+Sprint 33 Day 1 scope counts
+Date: 2026-05-18
+Branch: sprint-33
+
+Repository .c file counts
+src 25
+tests 54
+benchmarks 14
+examples 12
+
+compile_commands.json entries
+total 97
+src 25
+tests 53
+benchmarks 13
+examples 6
+
+ctest registry
+registered_tests 53

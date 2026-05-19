@@ -460,6 +460,60 @@ warning-workflow:
 		"$(WARNING_WORKFLOW_LABEL)" \
 		"$(WARNING_WORKFLOW_ARTIFACTS)"
 
+# Sprint 33 Day 5: dedicated dead-code workflow inputs.  Keeps
+# compile-db generation separate from the normal lint/test paths and
+# leaves reporting/enforcement layering to later Sprint 33 days.
+DEADCODE_CMAKE_DIR ?= build/deadcode-cmake
+DEADCODE_ARTIFACTS_DIR ?= build/deadcode
+DEADCODE_COMPILE_COMMANDS := $(DEADCODE_CMAKE_DIR)/compile_commands.json
+DEADCODE_REPORT_MD := $(DEADCODE_ARTIFACTS_DIR)/report.md
+DEADCODE_REPORT_TSV := $(DEADCODE_ARTIFACTS_DIR)/report.tsv
+DEADCODE_WORKFLOW_STAMP := $(DEADCODE_ARTIFACTS_DIR)/.workflow.stamp
+DEADCODE_REPORT_STAMP := $(DEADCODE_ARTIFACTS_DIR)/.report.stamp
+DEADCODE_CMAKE_INPUTS := CMakeLists.txt \
+	VERSION \
+	$(wildcard cmake/*) \
+	$(wildcard src/*.c) \
+	$(wildcard tests/*.c) \
+	$(wildcard benchmarks/*.c) \
+	$(wildcard examples/*.c) \
+	$(wildcard include/*.h) \
+	include/sparse_version.h.in
+
+$(DEADCODE_COMPILE_COMMANDS): $(DEADCODE_CMAKE_INPUTS)
+	@echo "Configuring dead-code compile database in $(DEADCODE_CMAKE_DIR)..."
+	cmake -S . -B $(DEADCODE_CMAKE_DIR) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+	@test -f "$(DEADCODE_COMPILE_COMMANDS)"
+
+$(DEADCODE_WORKFLOW_STAMP): $(DEADCODE_COMPILE_COMMANDS) scripts/deadcode_workflow.sh
+	@bash scripts/deadcode_workflow.sh \
+		"$(DEADCODE_CMAKE_DIR)" \
+		"$(DEADCODE_ARTIFACTS_DIR)"
+	@touch "$(DEADCODE_WORKFLOW_STAMP)"
+
+$(DEADCODE_REPORT_STAMP): $(DEADCODE_WORKFLOW_STAMP) scripts/deadcode_report.py
+	@python3 scripts/deadcode_report.py \
+		"$(DEADCODE_ARTIFACTS_DIR)"
+	@touch "$(DEADCODE_REPORT_STAMP)"
+
+.PHONY: deadcode-compile-db
+deadcode-compile-db: $(DEADCODE_COMPILE_COMMANDS)
+
+.PHONY: deadcode
+deadcode: $(DEADCODE_WORKFLOW_STAMP)
+
+.PHONY: deadcode-report
+deadcode-report: $(DEADCODE_REPORT_STAMP)
+	@echo "deadcode-report: $(DEADCODE_REPORT_MD)"
+	@echo "deadcode-report: $(DEADCODE_REPORT_TSV)"
+
+.PHONY: deadcode-check
+deadcode-check: $(DEADCODE_REPORT_STAMP)
+	@python3 scripts/deadcode_report.py \
+		--check \
+		"$(DEADCODE_ARTIFACTS_DIR)"
+	@echo "deadcode-check: report completeness checks passed."
+
 # ─── Performance regression gate (Sprint 24 Day 1) ────────────────────
 #
 # `make wall-check` runs two single-fixture benchmarks (bcsstk14 qg-AMD

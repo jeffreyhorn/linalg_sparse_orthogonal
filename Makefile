@@ -453,7 +453,7 @@ check: format-check lint test
 # sibling prerequisite branch under `make -j`.
 QUALITY_REVIEW_CMAKE_DIR ?= build/quality-review-cmake
 
-.NOTPARALLEL: quality-review-compile quality-review quality-review-cmake-compile quality-review-cmake deadcode deadcode-report deadcode-check
+.NOTPARALLEL: quality-review-compile quality-review quality-review-cmake-compile quality-review-cmake deadcode-compile-db deadcode deadcode-report deadcode-check
 .PHONY: quality-review-compile
 quality-review-compile:
 	@echo "quality-review-compile: reviewed compile-quality path"
@@ -489,7 +489,16 @@ quality-review-cmake-compile:
 	cmake --build "$(QUALITY_REVIEW_CMAKE_DIR)" --parallel 1 --clean-first
 	@echo "== quality-review-cmake-compile: ctest -N =="
 	ctest -N --test-dir "$(QUALITY_REVIEW_CMAKE_DIR)"
-	@echo "quality-review-cmake-compile: passed (configure + clean rebuild + ctest -N)"
+	@echo "== quality-review-cmake-compile: Makefile/CMake test-count parity =="
+	@cmake_count=$$(ctest -N --test-dir "$(QUALITY_REVIEW_CMAKE_DIR)" 2>&1 | awk '/Total Tests:/ {print $$NF}'); \
+	make_count="$(words $(TEST_BINS))"; \
+	echo "quality-review-cmake-compile: CMake tests: $$cmake_count, Makefile tests: $$make_count"; \
+	if [ "$$cmake_count" -ne "$$make_count" ]; then \
+		echo "quality-review-cmake-compile: FAIL: CMake ($$cmake_count) and Makefile ($$make_count) test counts differ"; \
+		exit 1; \
+	fi; \
+	echo "quality-review-cmake-compile: PASS: test counts match"
+	@echo "quality-review-cmake-compile: passed (configure + clean rebuild + ctest -N + test-count parity)"
 
 .PHONY: quality-review-cmake
 quality-review-cmake:

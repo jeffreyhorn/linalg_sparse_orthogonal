@@ -135,7 +135,7 @@ jobs:
         run: make quality-review-compile
 
   deadcode:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -147,12 +147,15 @@ jobs:
       - name: Build and install xunused
         run: |
           git clone --depth=1 https://github.com/mgehre/xunused.git /tmp/xunused
+          llvm_prefix="$(llvm-config-18 --prefix)"
+          llvm_cmake_dir="$(llvm-config-18 --cmakedir)"
+          clang_cmake_dir="$(dirname "$llvm_cmake_dir")/clang"
           cmake -S /tmp/xunused -B /tmp/xunused/build -G Ninja \
             -DCMAKE_C_COMPILER=clang-18 \
             -DCMAKE_CXX_COMPILER=clang++-18 \
-            -DCMAKE_PREFIX_PATH=/usr/lib/llvm-18 \
-            -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake/llvm \
-            -DClang_DIR=/usr/lib/llvm-18/lib/cmake/clang
+            -DCMAKE_PREFIX_PATH="$llvm_prefix" \
+            -DLLVM_DIR="$llvm_cmake_dir" \
+            -DClang_DIR="$clang_cmake_dir"
           cmake --build /tmp/xunused/build --parallel
           cmake --install /tmp/xunused/build --prefix "$HOME/.local"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"

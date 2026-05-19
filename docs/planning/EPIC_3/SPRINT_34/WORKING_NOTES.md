@@ -960,3 +960,100 @@ Most important Day 5 proof:
 ### Day 5 Outputs
 
 - `artifacts/day5-makefile-enforcement-batch1.md`
+
+## Day 6
+
+**Objective:** Tighten the Day 5 reviewed-quality path by documenting the new wrapper targets in the maintained README contract, making the serial dead-code constraint explicit at the Makefile target level, and revalidating the full reviewed path on the updated graph.
+
+### Commands Run
+
+1. Re-read the Day 5 result and inspect the current reviewed target/doc surfaces:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '430,540p' Makefile`
+   - `sed -n '100,145p' README.md`
+   - `sed -n '618,670p' README.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_34/artifacts/day5-makefile-enforcement-batch1.md`
+2. Implement the Day 6 tightening/documentation updates:
+   - `apply_patch` on `Makefile`
+   - `apply_patch` on `README.md`
+3. Validate the updated graph and docs shape:
+   - `make -n -j2 quality-review`
+   - `python3 - <<'PY' ... print .NOTPARALLEL and quality-review line anchors ... PY`
+   - `sed -n '103,120p' README.md`
+   - `sed -n '660,705p' README.md`
+4. Validate the full reviewed path on the updated graph:
+   - `make -j2 quality-review`
+5. Capture post-change state:
+   - `git status --short`
+   - `git diff --stat`
+
+### Day 6 Implementation Result
+
+- `Makefile`
+  - added an explicit `.NOTPARALLEL` declaration for:
+    - `quality-review-compile`
+    - `quality-review`
+    - `deadcode`
+    - `deadcode-report`
+    - `deadcode-check`
+- current relevant line anchors:
+  - `.NOTPARALLEL`: line `454`
+  - `quality-review-compile`: line `456`
+  - `quality-review`: line `463`
+- `README.md`
+  - added `quality-review-compile` and `quality-review` to the main "With Make" command list
+  - added a dedicated "Reviewed Local Quality Path" section describing:
+    - exact wrapper sequences
+    - the fact that the wrappers are additive
+    - the fact that `check`, `lint`, `test`, and `deadcode-check` keep their existing meanings
+
+### Day 6 Validation Results
+
+**Graph/documentation validation**
+
+- `make -n -j2 quality-review`
+  - still showed the intended bannered phase order:
+    - `format-check`
+    - `lint`
+    - `test`
+    - `deadcode-check`
+- README now exposes the new reviewed targets in the maintained build instructions and explains their meaning near the dead-code workflow section
+
+Interpretation:
+
+- the new Sprint 34 wrapper targets are no longer just Makefile-internal knowledge
+- they are part of the documented local quality contract
+
+**Live validation**
+
+- `make -j2 quality-review`: passed
+
+Important observed behavior:
+
+- the banner order remained serial and attributable under a `-j2` invocation
+- `lint` still entered benchmark/example compile coverage through its inherited `tooling-build` dependency
+- `test` still ran after the lint phase completed
+- `deadcode-check` still ran as the terminal reviewed step
+- because no dead-code inputs changed after the earlier Day 5 run, the final `deadcode-check` phase reused the existing report stamp and completed immediately with:
+  - `deadcode-check: report completeness checks passed.`
+
+Day 6 implication:
+
+- the reviewed path is now both documented and dependency-tight enough to avoid needless dead-code reruns when the report stamp is already fresh
+- the remaining limitation is still the Sprint 33 one:
+  - separate concurrent shell invocations can still race on the shared `build/deadcode-cmake` / `build/deadcode/` paths
+  - but the reviewed aggregate itself no longer exposes a parallel sibling path for those targets
+
+### Day 6 Interpretation
+
+- Sprint 34 now has a completed local reviewed-quality path, not just a first-pass wrapper implementation.
+- completed means:
+  - additive target contract
+  - explicit serial dead-code guard at the Makefile target level
+  - maintained README documentation
+  - revalidated full reviewed-path execution on the updated graph
+
+### Day 6 Outputs
+
+- `artifacts/day6-makefile-enforcement-batch2.md`

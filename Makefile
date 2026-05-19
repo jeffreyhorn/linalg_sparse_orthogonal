@@ -451,6 +451,7 @@ check: format-check lint test
 # wrappers serial and bannered so failure attribution stays obvious
 # and the shared dead-code build/artifact paths are never driven as a
 # sibling prerequisite branch under `make -j`.
+.NOTPARALLEL: quality-review-compile quality-review deadcode deadcode-report deadcode-check
 .PHONY: quality-review-compile
 quality-review-compile:
 	@echo "== quality-review-compile: format-check =="

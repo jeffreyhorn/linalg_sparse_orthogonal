@@ -106,7 +106,9 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 make            # build library
 make tooling-build  # compile benchmark/example binaries without running them
 make lint       # strict compile + static analysis (includes tooling-build)
+make quality-review-compile  # reviewed format-check + lint wrapper
 make test       # run all unit tests
+make quality-review  # reviewed format-check + lint + test + deadcode-check
 make deadcode   # refresh raw dead-code evidence in build/deadcode/
 make deadcode-report  # generate classified dead-code report.md / report.tsv
 make deadcode-check   # verify report completeness invariants
@@ -662,6 +664,30 @@ Current known limits:
 - Run the `deadcode*` targets serially. They share `build/deadcode-cmake` and
   `build/deadcode/`; concurrent invocation can race on the shared CMake build
   tree and produce transient failures.
+
+### Reviewed Local Quality Path
+
+Sprint 34 adds two reviewed local wrapper targets above the existing quality
+commands:
+
+```bash
+make quality-review-compile
+make quality-review
+```
+
+- `make quality-review-compile` runs:
+  - `make format-check`
+  - `make lint`
+- `make quality-review` runs:
+  - `make format-check`
+  - `make lint`
+  - `make test`
+  - `make deadcode-check`
+
+These wrappers are additive. They do **not** replace the meanings of `make
+check`, `make lint`, `make test`, or `make deadcode-check`; they provide an
+explicit reviewed-target phase-1 local enforcement flow with step banners and a
+serial dead-code step.
 
 **Note:** Apple Clang's ASan hangs on macOS. Use an alternative compiler:
 ```bash

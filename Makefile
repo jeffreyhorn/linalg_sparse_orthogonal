@@ -445,6 +445,30 @@ lint: build/include/sparse_version.h tooling-build
 .PHONY: check
 check: format-check lint test
 
+# Sprint 34 Day 5: reviewed quality wrappers that preserve the
+# existing meanings of `lint`, `test`, `check`, and `deadcode-check`
+# while exposing an explicit phase-1 reviewed-target flow.  Keep the
+# wrappers serial and bannered so failure attribution stays obvious
+# and the shared dead-code build/artifact paths are never driven as a
+# sibling prerequisite branch under `make -j`.
+.PHONY: quality-review-compile
+quality-review-compile:
+	@echo "== quality-review-compile: format-check =="
+	@$(MAKE) format-check
+	@echo "== quality-review-compile: lint =="
+	@$(MAKE) lint
+
+.PHONY: quality-review
+quality-review:
+	@echo "== quality-review: format-check =="
+	@$(MAKE) format-check
+	@echo "== quality-review: lint =="
+	@$(MAKE) lint
+	@echo "== quality-review: test =="
+	@$(MAKE) test
+	@echo "== quality-review: deadcode-check =="
+	@$(MAKE) deadcode-check
+
 # Sprint 30 Day 7: reproducible Epic 3 warning-capture + validation
 # workflow.  Wraps the helper script so maintainers can recreate a
 # clean CMake warning inventory plus the library-only Makefile

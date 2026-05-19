@@ -855,3 +855,108 @@ Reasoning:
 ### Day 4 Outputs
 
 - `artifacts/day4-makefile-enforcement-design.md`
+
+## Day 5
+
+**Objective:** Implement the Day 4 Makefile wrapper targets for Sprint 34 phase-1 reviewed quality enforcement, validate their sequencing and output shape, and confirm that the new aggregate layer works without changing the meanings of the inherited quality targets.
+
+### Commands Run
+
+1. Re-read the Day 4 design and current Makefile quality-target region:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '400,530p' Makefile`
+   - `sed -n '1,240p' docs/planning/EPIC_3/SPRINT_34/artifacts/day4-makefile-enforcement-design.md`
+2. Implement the new wrapper targets:
+   - `apply_patch` on `Makefile`
+3. Validate target shape and line placement:
+   - `make -n quality-review-compile`
+   - `make -n quality-review`
+   - `python3 - <<'PY' ... print line numbers for quality-review-compile / quality-review ... PY`
+4. Validate live behavior:
+   - `make quality-review-compile`
+   - `make quality-review`
+5. Capture post-change status:
+   - `git diff --stat`
+   - `git status --short`
+
+### Day 5 Implementation Result
+
+- Added two new serial reviewed-quality wrapper targets in `Makefile`:
+  - `quality-review-compile`
+  - `quality-review`
+- Target anchors after implementation:
+  - `quality-review-compile`: line `455`
+  - `quality-review`: line `462`
+- Existing target semantics were preserved:
+  - `check` unchanged
+  - `lint` unchanged
+  - `test` unchanged
+  - `deadcode-check` unchanged
+
+### Implemented Wrapper Behavior
+
+**`quality-review-compile`**
+
+- bannered serial sequence:
+  1. `format-check`
+  2. `lint`
+
+**`quality-review`**
+
+- bannered serial sequence:
+  1. `format-check`
+  2. `lint`
+  3. `test`
+  4. `deadcode-check`
+
+### Day 5 Validation Results
+
+**Dry-run validation**
+
+- `make -n quality-review-compile`
+  - showed the intended phase banners plus recursive `make format-check` then `make lint`
+- `make -n quality-review`
+  - showed the intended phase banners plus recursive `make format-check`, `make lint`, `make test`, then `make deadcode-check`
+
+Interpretation:
+
+- the target graph and operator-facing sequencing match the Day 4 design
+- the new wrappers reuse existing targets rather than duplicating tool commands internally
+
+**Live validation**
+
+- `make quality-review-compile`: passed
+  - validated the wrapper banners
+  - validated real execution of `format-check`
+  - validated real execution of `lint`, including:
+    - `tooling-build`
+    - strict `src/*.c` warning gate
+    - `clang-tidy`
+    - `cppcheck`
+- `make quality-review`: passed
+  - validated the full wrapper sequence end to end
+  - passed through:
+    - `format-check`
+    - `lint`
+    - `test`
+    - `deadcode-check`
+
+Most important Day 5 proof:
+
+- the full wrapper reaches the final dead-code phase in the intended serial order:
+  - `== quality-review: deadcode-check ==`
+  - then the inherited dead-code workflow/configure/report/check flow
+  - then `deadcode-check: report completeness checks passed.`
+
+### Day 5 Interpretation
+
+- The Sprint 34 reviewed-quality layer now exists as real Makefile behavior, not just design text.
+- The implementation stayed additive:
+  - no legacy target meaning was repurposed
+  - no parallel prerequisite fan-out was introduced for the dead-code step
+- The new wrappers are already usable for local enforcement and later CI integration work.
+
+### Day 5 Outputs
+
+- `artifacts/day5-makefile-enforcement-batch1.md`

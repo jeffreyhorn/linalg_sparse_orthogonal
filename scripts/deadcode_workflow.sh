@@ -161,9 +161,10 @@ run_xunused() {
     echo ">>> xunused"
     if "${args[@]}" >"$XUNUSED_OUT" 2>&1; then
         return 0
+    else
+        rc=$?
     fi
 
-    rc=$?
     # xunused can return nonzero even after it has processed the compile
     # database and emitted usable raw findings.  Preserve that output for
     # report generation instead of failing the whole dead-code job on the

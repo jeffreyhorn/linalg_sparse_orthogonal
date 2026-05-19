@@ -1519,3 +1519,102 @@ Dead-code job:
 ### Day 9 Outputs
 
 - `artifacts/day9-ci-enforcement-design.md`
+
+## Day 10
+
+**Objective:** Implement the phase-1 Linux CI enforcement plan from Day 9 in `.github/workflows/ci.yml`, preserve the dead-code serial execution model, and record the intentionally deferred CI scope.
+
+### Commands Run
+
+1. Re-read the Day 9 CI contract and current workflow state:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_34/artifacts/day9-ci-enforcement-design.md`
+   - `sed -n '1,260p' .github/workflows/ci.yml`
+2. Implement the Day 10 CI wiring in the Linux workflow only:
+   - `apply_patch` on `.github/workflows/ci.yml`
+3. Validate the workflow file shape locally:
+   - `sed -n '1,240p' .github/workflows/ci.yml`
+   - `python3 - <<'PY' ... print line anchors for cmake-build-and-test / lint / deadcode jobs ... PY`
+4. Record the Day 10 implementation result:
+   - `apply_patch` on `docs/planning/EPIC_3/SPRINT_34/WORKING_NOTES.md`
+   - `apply_patch` on `docs/planning/EPIC_3/SPRINT_34/artifacts/day10-ci-enforcement-implementation.md`
+
+### Day 10 Implementation Result
+
+- `.github/workflows/ci.yml`
+  - `cmake-build-and-test`
+    - replaced the hand-written configure/build/ctest/test-count steps with:
+      - `make quality-review-cmake`
+  - `lint`
+    - kept the tool-install step
+    - replaced the separate:
+      - `make format-check`
+      - `make lint`
+    - with:
+      - `make quality-review-compile`
+  - added new Linux `deadcode` job
+    - install step:
+      - `cppcheck`
+      - `clang-18`
+      - `llvm-18-dev`
+      - `libclang-18-dev`
+      - `ninja-build`
+    - build/install `xunused` from upstream source into `$HOME/.local`
+    - run:
+      - `make deadcode-report`
+      - `make deadcode-check`
+    - upload on `if: always()`:
+      - `build/deadcode/report.md`
+      - `build/deadcode/report.tsv`
+      - `build/deadcode/coverage-notes.txt`
+      - `build/deadcode/cppcheck.txt`
+      - `build/deadcode/xunused.txt`
+
+### Day 10 Validation Results
+
+Local workflow-file validation:
+
+- `sed -n '1,240p' .github/workflows/ci.yml`
+  - confirmed the intended Linux-only scope
+  - confirmed no edits to `build-and-test`, `tsan`, or `coverage`
+- anchor check:
+  - `cmake-build-and-test`: line `37`
+  - `lint`: line `124`
+  - `deadcode`: line `137`
+
+Interpretation:
+
+- the CI implementation landed exactly on the three Day 9 target jobs
+- macOS and Windows remained untouched
+- the dead-code flow remains a single non-matrix Linux job, which preserves the Sprint 33 serial execution assumption
+
+### Day 10 Deferred Scope
+
+Still intentionally deferred after this implementation:
+
+- Linux `build-and-test`
+  - unchanged runtime / sanitizer / benchmark-runtime role
+- Linux `tsan`
+  - unchanged race-detection role
+- Linux `coverage`
+  - unchanged coverage-production role
+- macOS workflow
+  - unchanged portability / `wall-check` role
+- Windows workflow
+  - unchanged MSVC CMake parity role
+- dead-code compile-db coverage gap
+  - still preserved and reported, not implicitly closed
+
+### Day 10 Interpretation
+
+- Sprint 34 now has a first CI enforcement pass that directly exercises the new reviewed paths rather than duplicating their internals in workflow YAML.
+- The implementation stays phase-1 narrow:
+  - Makefile reviewed compile-quality wrapper
+  - CMake reviewed parity wrapper
+  - serialized dead-code reporting/check job
+- It also preserves the inherited dead-code non-flakiness assumption by keeping one runner, one artifact tree, and always-on artifact upload for failure triage.
+
+### Day 10 Outputs
+
+- `artifacts/day10-ci-enforcement-implementation.md`

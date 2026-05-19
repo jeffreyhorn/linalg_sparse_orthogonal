@@ -39,25 +39,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: CMake configure
-        run: cmake -S . -B build -DCMAKE_C_STANDARD=11
-
-      - name: CMake build
-        run: cmake --build build
-
-      - name: CMake test
-        run: ctest --test-dir build --output-on-failure
-
-      - name: Verify test count matches Makefile
-        run: |
-          cmake_count=$(ctest --test-dir build -N 2>&1 | grep 'Total Tests' | awk '{print $NF}')
-          make_count=$(awk '/^TEST_SRCS/,/^TEST_BINS/' Makefile | grep -c 'test_')
-          echo "CMake tests: $cmake_count, Makefile tests: $make_count"
-          if [ "$cmake_count" -ne "$make_count" ]; then
-            echo "FAIL: CMake ($cmake_count) and Makefile ($make_count) test counts differ"
-            exit 1
-          fi
-          echo "PASS: test counts match"
+      - name: Run reviewed CMake parity path
+        run: make quality-review-cmake
 
   tsan:
     runs-on: ubuntu-latest
@@ -148,11 +131,49 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang-format clang-tidy cppcheck
 
-      - name: Check formatting
-        run: make format-check
+      - name: Run reviewed Makefile compile-quality path
+        run: make quality-review-compile
 
-      - name: Run linters
-        run: make lint
+  deadcode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dead-code tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cppcheck clang-18 llvm-18-dev libclang-18-dev ninja-build
+
+      - name: Build and install xunused
+        run: |
+          git clone --depth=1 https://github.com/mgehre/xunused.git /tmp/xunused
+          cmake -S /tmp/xunused -B /tmp/xunused/build -G Ninja \
+            -DCMAKE_C_COMPILER=clang-18 \
+            -DCMAKE_CXX_COMPILER=clang++-18 \
+            -DCMAKE_PREFIX_PATH=/usr/lib/llvm-18 \
+            -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake/llvm \
+            -DClang_DIR=/usr/lib/llvm-18/lib/cmake/clang
+          cmake --build /tmp/xunused/build --parallel
+          cmake --install /tmp/xunused/build --prefix "$HOME/.local"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Generate dead-code report
+        run: make deadcode-report
+
+      - name: Validate dead-code report
+        run: make deadcode-check
+
+      - name: Upload dead-code artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deadcode-report
+          path: |
+            build/deadcode/report.md
+            build/deadcode/report.tsv
+            build/deadcode/coverage-notes.txt
+            build/deadcode/cppcheck.txt
+            build/deadcode/xunused.txt
 
   coverage:
     runs-on: ubuntu-latest

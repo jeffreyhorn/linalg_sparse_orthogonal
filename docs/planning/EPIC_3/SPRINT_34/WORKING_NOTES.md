@@ -1322,3 +1322,200 @@ Preserved documented limitation:
 ### Day 8 Outputs
 
 - `artifacts/day8-cmake-parity-implementation.md`
+
+## Day 9
+
+**Objective:** Audit the existing GitHub Actions job surface, choose the narrow Sprint 34 phase-1 CI enforcement set, and write the workflow contract that Days 10 and 12 should implement without reintroducing dead-code flakiness.
+
+### Commands Run
+
+1. Re-read the Sprint 34 Day 9 scope and current branch state:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '220,340p' docs/planning/EPIC_3/SPRINT_34/PLAN.md`
+2. Inventory the existing CI workflows:
+   - `find .github -maxdepth 3 -type f | sort`
+   - `sed -n '1,260p' .github/workflows/ci.yml`
+   - `sed -n '1,260p' .github/workflows/macos-ci.yml`
+   - `sed -n '1,260p' .github/workflows/windows-ci.yml`
+3. Cross-check the local reviewed-target contract and dead-code execution model:
+   - `rg -n "quality-review|quality-review-cmake|deadcode|wall-check|format-check|lint|xunused|cppcheck" Makefile README.md .github/workflows`
+   - `sed -n '1,260p' scripts/deadcode_workflow.sh`
+   - `sed -n '1,260p' scripts/deadcode_report.py`
+4. Record the Day 9 CI design:
+   - `apply_patch` on `docs/planning/EPIC_3/SPRINT_34/WORKING_NOTES.md`
+   - `apply_patch` on `docs/planning/EPIC_3/SPRINT_34/artifacts/day9-ci-enforcement-design.md`
+
+### Day 9 Audit Result
+
+Current workflow split:
+
+- `.github/workflows/ci.yml`
+  - `build-and-test`
+    - `make test`
+    - `make sanitize`
+    - `make asan`
+    - `make bench-build`
+    - `make bench-fast`
+  - `cmake-build-and-test`
+    - CMake configure
+    - CMake build
+    - full `ctest`
+    - Makefile/CMake registered-test-count comparison
+  - `tsan`
+    - Linux thread / OpenMP TSan coverage
+  - `lint`
+    - `make format-check`
+    - `make lint`
+  - `coverage`
+    - `make coverage`
+- `.github/workflows/macos-ci.yml`
+  - compiler matrix on `macos-latest`
+  - `make`
+  - `make test`
+  - `make wall-check`
+  - Apple Clang `make sanitize`
+- `.github/workflows/windows-ci.yml`
+  - MSVC CMake configure/build/ctest only
+
+What already aligns with Sprint 34:
+
+- Linux `lint` is already the closest CI analogue to the reviewed Makefile compile-quality path.
+- Linux `cmake-build-and-test` is already the closest CI analogue to the reviewed CMake parity path.
+- Linux CI is the most realistic first place to add dead-code enforcement because:
+  - `cppcheck` already ships there
+  - the current dead-code scripts are POSIX-oriented
+  - it avoids dragging the initial xunused/toolchain provisioning burden across macOS and Windows in phase 1
+
+What should stay out of phase 1:
+
+- Linux `build-and-test`
+  - keep it focused on runtime tests, sanitizers, and benchmark runtime coverage
+- Linux `tsan`
+  - keep it focused on race-detection scope
+- Linux `coverage`
+  - keep it focused on coverage production
+- macOS matrix jobs
+  - keep them focused on portability and `wall-check`
+- Windows CMake job
+  - keep it focused on MSVC build/test parity rather than dead-code / strict-warning enforcement semantics that are not yet standardized there
+
+### Day 9 Design Decision
+
+Sprint 34 phase-1 CI enforcement should be Linux-first and split across three explicit job responsibilities:
+
+1. reviewed Makefile compile-quality job
+2. reviewed CMake parity job
+3. serialized dead-code job
+
+Chosen workflow targets by job:
+
+- Linux `lint` job
+  - replace the separate:
+    - `make format-check`
+    - `make lint`
+  - with:
+    - `make quality-review-compile`
+- Linux `cmake-build-and-test` job
+  - replace the step-by-step configure/build/test flow with:
+    - `make quality-review-cmake`
+- new Linux `deadcode` job
+  - install:
+    - `cppcheck`
+    - CMake/Ninja/LLVM/Clang inputs needed to build `xunused`
+  - build/install `xunused` in-job on the runner
+  - run:
+    - `make deadcode-report`
+    - `make deadcode-check`
+  - upload:
+    - `build/deadcode/report.md`
+    - `build/deadcode/report.tsv`
+    - `build/deadcode/coverage-notes.txt`
+    - raw `cppcheck.txt`
+    - raw `xunused.txt`
+    - on `if: always()`
+
+### Day 9 Job-Selection Matrix
+
+- enforce now:
+  - Linux `lint`
+    - reviewed compile-quality wrapper
+  - Linux `cmake-build-and-test`
+    - reviewed CMake parity wrapper
+  - Linux `deadcode`
+    - report + completeness enforcement
+- preserve unchanged for phase 1:
+  - Linux `build-and-test`
+  - Linux `tsan`
+  - Linux `coverage`
+  - macOS matrix jobs
+  - Windows build/test job
+
+Reasoning:
+
+- these three Linux jobs are narrow enough to stay attributable
+- they cover the new Sprint 34 reviewed paths directly
+- they avoid conflating warning/dead-code enforcement with sanitizer, benchmark-runtime, portability, or MSVC-specific concerns
+
+### Day 9 Dead-Code CI Execution Model
+
+The Sprint 33 dead-code serial constraint must remain explicit in CI:
+
+- do not run `deadcode`, `deadcode-report`, and `deadcode-check` as sibling parallel branches
+- do not put the dead-code job in a matrix
+- keep one job, one runner, one artifact tree:
+  - `build/deadcode-cmake`
+  - `build/deadcode/`
+- run the workflow in serial order:
+  - tool install / xunused build
+  - `make deadcode-report`
+  - `make deadcode-check`
+  - artifact upload with `if: always()`
+
+This preserves the current execution assumption without pretending the shared-path limitation is already solved.
+
+### Day 9 Failure-Output Expectations
+
+Reviewed compile-quality job:
+
+- failure should surface the existing `quality-review-compile` banners so the operator can distinguish:
+  - `format-check`
+  - `lint`
+
+Reviewed CMake parity job:
+
+- failure should surface the existing `quality-review-cmake` banners so the operator can distinguish:
+  - configure
+  - clean build
+  - `ctest -N`
+  - full `ctest`
+
+Dead-code job:
+
+- step names should remain explicit:
+  - install dead-code tools
+  - build/install `xunused`
+  - generate dead-code report
+  - validate dead-code report
+  - upload dead-code artifacts
+- `upload-artifact` must run on `if: always()` so a failure still leaves:
+  - classified report
+  - raw tool output
+  - coverage-gap note
+- failure interpretation should stay actionable:
+  - missing tool / xunused build failure
+  - raw workflow generation failure
+  - report completeness invariant failure
+
+### Day 9 Interpretation
+
+- Sprint 34 phase 1 should not try to make every existing CI leg enforce every new local reviewed path.
+- It should wire the reviewed paths into the jobs already closest to their responsibility:
+  - `quality-review-compile` into Linux `lint`
+  - `quality-review-cmake` into Linux `cmake-build-and-test`
+  - `deadcode-report` / `deadcode-check` into one serialized Linux job
+- This keeps CI narrow, attributable, and compatible with the inherited dead-code execution constraint.
+
+### Day 9 Outputs
+
+- `artifacts/day9-ci-enforcement-design.md`

@@ -165,3 +165,250 @@ Interpretation:
 
 - `artifacts/day1-enforcement-baseline.md`
 - `artifacts/day1-quality-target-inventory.txt`
+
+## Day 2
+
+**Objective:** Audit the current warning and compile-quality behavior across the Makefile, Apple Clang/CMake, benchmark/example compile-only, and dead-code paths so Sprint 34 can define a truthful phase-1 enforcement scope before target wiring begins.
+
+### Commands Run
+
+1. Re-read Sprint 34 Day 1 baseline and Day 2 plan scope:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '1,240p' docs/planning/EPIC_3/SPRINT_34/WORKING_NOTES.md`
+   - `sed -n '33,120p' docs/planning/EPIC_3/SPRINT_34/PLAN.md`
+2. Inspect current Makefile compile rules, target lists, and dry-run behavior:
+   - `rg -n "^TEST_SRCS|^BENCH_SRCS|^EX_SRCS|^LIB_SRCS|^CFLAGS|^INCLUDE|^CC \\?=|^SYSROOT|^BUILD_DIR|^BUILDDIR" Makefile`
+   - `sed -n '1,220p' Makefile`
+   - `make -n lint`
+   - `make -n tooling-build`
+   - `make -n deadcode-report`
+   - `make -n deadcode-check`
+3. Inspect current CMake warning configuration and compile-command surfaces:
+   - `sed -n '1,180p' CMakeLists.txt`
+   - `python3 - <<'PY' ... build/sprint33-day1-cmake/compile_commands.json ... PY`
+   - `python3 - <<'PY' ... build/deadcode-cmake/compile_commands.json ... PY`
+   - `python3 - <<'PY' ... count compile_commands by top-level dir ... PY`
+   - `rg -n "add_executable\\((bench_|example_)|add_sparse_test\\(" CMakeLists.txt`
+4. Refresh exact repo-area file counts for comparison with CMake/dead-code coverage:
+   - `find src -maxdepth 1 -name '*.c' | wc -l`
+   - `find tests -maxdepth 1 -name '*.c' | wc -l`
+   - `find benchmarks -maxdepth 1 -name '*.c' | wc -l`
+   - `find examples -maxdepth 1 -name '*.c' | wc -l`
+
+### Day 2 Audit Findings
+
+#### 1. The repo currently has three different compile-quality models, not one
+
+**Makefile `lint` model**
+
+- compiler: local default `cc` (`Apple Clang` on this branch state)
+- strict library-only compile check:
+  - `-Wall`
+  - `-Wextra`
+  - `-Wpedantic`
+  - `-Wshadow`
+  - `-Wconversion`
+  - `-Wstrict-prototypes`
+  - `-Wformat=2`
+  - `-Werror`
+- scope:
+  - `src/*.c` only
+  - syntax-only (`-fsyntax-only`)
+- supporting checks:
+  - `clang-tidy` on `src/*.c`
+  - `cppcheck` on `src/` and `tests/`
+
+**Makefile `tooling-build` model**
+
+- compile-only coverage for:
+  - all `14` benchmark binaries
+  - all `12` example binaries
+- warning flags inherited from base `CFLAGS`:
+  - `-Wall`
+  - `-Wextra`
+  - `-Wpedantic`
+  - `-Wshadow`
+  - `-Wconversion`
+- not included here:
+  - `-Werror`
+  - `-Wformat=2`
+  - `-Wdouble-promotion`
+- interpretation:
+  - good compile-coverage surface
+  - not yet a true “warning-clean gate” in the same sense as `lint`
+
+**CMake / dead-code compile-db model**
+
+- compiler on the current local Apple Clang path:
+  - `/usr/bin/cc`
+- warning flags for non-MSVC builds:
+  - `-Wall`
+  - `-Wextra`
+  - `-Wpedantic`
+  - `-Wshadow`
+  - `-Wconversion`
+  - `-Wdouble-promotion`
+  - `-Wformat=2`
+  - `-Wno-unused-parameter`
+- not included:
+  - `-Werror`
+  - `-Wstrict-prototypes`
+- current covered translation-unit counts:
+  - `src`: `25`
+  - `tests`: `53`
+  - `benchmarks`: `13`
+  - `examples`: `6`
+
+Interpretation:
+
+- the Makefile path is stricter on library compile failure behavior because it uses `-Werror`
+- the CMake/dead-code path is broader on warning categories for normal compilation because it includes `-Wdouble-promotion` and `-Wformat=2` across the covered tree
+- the benchmark/example surface is broader under the Makefile than under the current CMake/dead-code compilation database
+
+#### 2. The current target groups split naturally into four Sprint 34 categories
+
+**Category A: first-class warning-gate candidates**
+
+- `src/*.c`
+- rationale:
+  - already has an established strict `-Werror` path in `make lint`
+  - current scope is well-defined and low-ambiguity
+  - already exercised in Ubuntu `lint`
+
+**Category B: compile-quality reviewed targets, but not yet full `-Werror` targets**
+
+- all benchmark binaries via `bench-build`
+- all example binaries via `examples-build`
+- rationale:
+  - compile-only coverage already exists and is cheap enough to keep in the normal path
+  - this surface matters to Sprint 31/Sprint 35 contracts
+  - current flags are not yet normalized with the stricter library gate
+
+**Category C: key tests / active suite parity targets**
+
+- current active CMake suite (`53` locally on the Apple Clang build tree)
+- `ctest -N` and full `ctest`
+- rationale:
+  - this is the authoritative auditable executed-suite view
+  - the suite is essential to preserve, but current Makefile warning-gate infrastructure does not expose a dedicated strict compile-only test gate yet
+
+**Category D: dead-code support targets**
+
+- `deadcode-compile-db`
+- `deadcode`
+- `deadcode-report`
+- `deadcode-check`
+- rationale:
+  - these are build-quality support targets, but not direct warning gates
+  - they should be integrated intentionally, not conflated with warning cleanliness
+
+#### 3. The current compiler differences divide into real phase-1 scope boundaries versus acceptable temporary exclusions
+
+**Real phase-1 scope boundary**
+
+- MSVC / Windows warning parity
+- evidence:
+  - `CMakeLists.txt` switches from gcc/clang-style flags to `/W3`
+  - POSIX-only benches are already gated off on `WIN32`
+- interpretation:
+  - Windows remains important for portability validation
+  - but it is not a truthful first phase for a single shared “warning-clean” contract because the warning model and target surface are materially different
+
+**Real phase-1 tooling limitation**
+
+- dead-code compile-db gap:
+  - `bench_svd`
+  - `example_basic_solve`
+  - `example_condition`
+  - `example_iterative`
+  - `example_least_squares`
+  - `example_matrix_free`
+  - `example_svd_lowrank`
+- interpretation:
+  - this is not a reason to block Sprint 34
+  - but it must stay explicit in any dead-code enforcement or parity story
+
+**Acceptable phase-1 exclusion**
+
+- full test-tree `-Werror` gate in the Makefile path
+- interpretation:
+  - the tests are still compiled and executed routinely
+  - the CMake path still exposes the active suite with the stricter normal warning set
+  - but Sprint 34 should treat a dedicated test warning gate as future wiring, not a prerequisite for beginning enforcement
+
+**Acceptable phase-1 distinction, not a blocker**
+
+- Apple Clang / Linux gcc-style warning flag differences inside CI
+- interpretation:
+  - the shared Makefile target model already gives a portable first pass on POSIX compilers
+  - Sprint 34 can start with the strictest reliable reviewed combinations rather than pretending every compiler has identical signal today
+
+#### 4. Current CI already reinforces some of the desired scope, but not all of it
+
+- Ubuntu `lint` already runs:
+  - `make format-check`
+  - `make lint`
+- that means CI already enforces:
+  - `src/*.c` under `-Werror`
+  - tooling compile coverage via `tooling-build`
+  - `clang-tidy`
+  - `cppcheck`
+- but CI does **not** yet enforce:
+  - `deadcode`
+  - `deadcode-report`
+  - `deadcode-check`
+- macOS CI currently reinforces:
+  - runtime build/test
+  - `wall-check`
+  - Apple Clang `sanitize`
+- Windows CI currently reinforces:
+  - configure/build/test portability only
+
+Interpretation:
+
+- Sprint 34 does not need to invent phase-1 quality enforcement from scratch
+- it needs to unify and clarify the enforcement story that already exists in partial form
+
+### Day 2 First-Phase Enforcement Matrix
+
+| Surface | Current command/path | Current warning behavior | Recommended Sprint 34 phase-1 role |
+|---|---|---|---|
+| Library sources `src/*.c` | `make lint` | strict compile under `-Werror`, plus `clang-tidy` and `cppcheck` | authoritative local warning gate |
+| Benchmarks `bench_*` | `make tooling-build` / `make bench-build` | compile-only under base warnings, no `-Werror` | reviewed compile-quality gate |
+| Examples `example_*` | `make tooling-build` / `make examples-build` | compile-only under base warnings, no `-Werror` | reviewed compile-quality gate |
+| Active test suite | `make test`, `ctest -N`, full `ctest` | compiled/executed routinely, but no dedicated Makefile strict warning gate | parity and suite-truthfulness target |
+| CMake Apple Clang full-tree path | `cmake --build ... --clean-first` plus `ctest` | broad warnings, no `-Werror`, narrower bench/example coverage | authoritative cross-check and parity path |
+| Dead-code workflow | `make deadcode-report`, `make deadcode-check` | report completeness, not warning cleanliness | separate quality-flow gate |
+| Windows / MSVC | `windows-ci.yml` CMake build/test | `/W3`, different target surface | phase-1 portability cross-check, not shared warning gate |
+
+### Day 2 Include / Exclude Guidance
+
+**Include early in Sprint 34**
+
+- library compile cleanliness through `make lint`
+- benchmark/example compile coverage through `tooling-build`
+- active-suite visibility through `ctest -N` and full `ctest`
+- dead-code completeness through `deadcode-check`, with the Sprint 33 coverage-gap and serialization limitations preserved explicitly
+
+**Do not force into the first warning-gate contract yet**
+
+- MSVC equivalence with the POSIX warning contract
+- a full Makefile-side strict warning gate for every test translation unit
+- pretending the current dead-code compile-db covers all benchmark/example programs
+
+### Day 2 Interpretation
+
+- Sprint 34 phase 1 should start from the current strongest truthful split:
+  - `src/*.c` already has a real strict gate
+  - benchmarks/examples already have compile-only coverage
+  - the CMake Apple Clang path already provides the whole-suite parity view
+  - dead-code already has a completeness gate, but not yet a CI-safe execution model
+- The main design problem for Day 3 is therefore not “what should we check?”
+- It is:
+  - how to turn these existing partial checks into one coherent local contract
+  - without overstating what Windows, the full test tree, or the dead-code compile-db currently prove
+
+### Day 2 Outputs
+
+- `artifacts/day2-warning-gate-audit.md`

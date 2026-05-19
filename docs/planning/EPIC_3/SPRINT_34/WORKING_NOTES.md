@@ -1986,3 +1986,91 @@ Sprint 33 dead-code artifact flow:
 ### Day 13 Outputs
 
 - `artifacts/day13-full-validation-sweep.md`
+
+## Day 14
+
+**Objective:** Write the Sprint 34 closeout and handoff documents, route the
+remaining phase-2 enforcement work into the appropriate later Epic 3 sprints,
+and preserve the validated Day 13 baseline explicitly so Sprint 35 and later
+work can start from the reviewed-quality contract without rereading the full
+sprint history.
+
+### Commands Run
+
+1. Re-read the closeout scope and forward-plan inputs:
+   - `git status --short --branch`
+   - `sed -n '340,420p' docs/planning/EPIC_3/SPRINT_34/PLAN.md`
+   - `sed -n '224,460p' docs/planning/EPIC_3/PROJECT_PLAN.md`
+   - `sed -n '1,240p' docs/planning/EPIC_3/SPRINT_33/HANDOFF.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_33/RETROSPECTIVE.md`
+   - `tail -n 120 docs/planning/EPIC_3/SPRINT_34/WORKING_NOTES.md`
+2. Write Sprint 34 closeout docs and forward-plan updates:
+   - `apply_patch` on `docs/planning/EPIC_3/SPRINT_34/HANDOFF.md`
+   - `apply_patch` on `docs/planning/EPIC_3/SPRINT_34/RETROSPECTIVE.md`
+   - `apply_patch` on `docs/planning/EPIC_3/SPRINT_34/WORKING_NOTES.md`
+   - `apply_patch` on `docs/planning/EPIC_3/PROJECT_PLAN.md`
+3. Review the resulting docs and record the closeout state:
+   - `git diff -- docs/planning/EPIC_3/SPRINT_34 docs/planning/EPIC_3/PROJECT_PLAN.md`
+   - `git status --short`
+
+### Day 14 Closeout State
+
+Sprint 34 now hands off a reviewed-quality enforcement baseline instead of a
+cleanup queue:
+
+- reviewed local Makefile path delivered:
+  - `make quality-review-compile`
+  - `make quality-review`
+- reviewed CMake parity path delivered:
+  - `make quality-review-cmake-compile`
+  - `make quality-review-cmake`
+- Linux CI phase-1 enforcement delivered:
+  - reviewed Makefile compile-quality path
+  - reviewed CMake parity path
+  - serialized dead-code report/check path
+- operator-facing output and command-map docs delivered
+- reviewed-target initializer-regression queue closed
+
+The authoritative validated end state remains the Day 13 sweep:
+
+- `make format`: passed
+- `make lint`: passed
+- `make test`: passed
+- `make quality-review-compile`: passed
+- `make quality-review`: passed
+- `make quality-review-cmake-compile`: passed
+- `make quality-review-cmake`: passed
+- `ctest -N`: `53` registered tests
+- full `ctest`: `53 / 53` passed
+- `make deadcode-report`: passed
+- `make deadcode-check`: passed
+
+### Day 14 Deferred Queue Routed Forward
+
+Sprint 34 closeout did identify concrete later-sprint follow-through:
+
+- Sprint 36:
+  - macOS reviewed-quality parity
+  - Windows/MSVC reviewed-quality parity
+  - cross-platform CI expectation alignment for the reviewed wrappers
+  - portability follow-through for dead-code and reviewed-quality scripts
+- Sprint 38:
+  - broaden compile-only/dead-code coverage to `bench_svd` plus the six
+    excluded examples
+  - mature the dead-code workflow beyond the current shared-path serialized
+    execution model before stronger enforcement
+
+### Day 14 Interpretation
+
+- Sprint 34 completed its phase-1 enforcement scope without reopening earlier
+  cleanup sprints.
+- The closeout documents now preserve the Sprint 32 truthfulness invariants,
+  the Sprint 33 dead-code reporting contract, and the Sprint 34 reviewed-path
+  command map in one place.
+- Day 14 itself was docs-only. No validation commands were rerun; the closeout
+  is grounded in the Day 13 validated state above.
+
+### Day 14 Outputs
+
+- `HANDOFF.md`
+- `RETROSPECTIVE.md`

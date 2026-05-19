@@ -39,7 +39,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run reviewed CMake parity path
+      - name: Run reviewed CMake parity path (clean rebuild + ctest -N + ctest)
         run: make quality-review-cmake
 
   tsan:
@@ -131,7 +131,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang-format clang-tidy cppcheck
 
-      - name: Run reviewed Makefile compile-quality path
+      - name: Run reviewed Makefile compile-quality path (format-check + lint)
         run: make quality-review-compile
 
   deadcode:
@@ -157,13 +157,15 @@ jobs:
           cmake --install /tmp/xunused/build --prefix "$HOME/.local"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Generate dead-code report
+      # Sprint 34 Day 10-12: keep dead-code execution in one serial job
+      # so the shared build/artifact paths stay truthful and non-flaky.
+      - name: Generate dead-code report (report.md + report.tsv + raw evidence)
         run: make deadcode-report
 
-      - name: Validate dead-code report
+      - name: Validate dead-code report completeness
         run: make deadcode-check
 
-      - name: Upload dead-code artifacts
+      - name: Upload dead-code artifacts on failure or success
         if: always()
         uses: actions/upload-artifact@v4
         with:

@@ -702,6 +702,39 @@ CMake wrappers are the reviewed parity path for clean rebuild + `ctest -N` +
 full `ctest`; they do **not** replace the Makefile-authoritative formatter,
 static-analysis, or dead-code checks.
 
+Operator command map:
+
+- compile-quality only:
+  - `make quality-review-compile`
+- full reviewed local path:
+  - `make quality-review`
+- CMake parity without full suite execution:
+  - `make quality-review-cmake-compile`
+- full CMake parity path:
+  - `make quality-review-cmake`
+- dead-code evidence + classified report:
+  - `make deadcode-report`
+- dead-code completeness gate:
+  - `make deadcode-check`
+
+If a reviewed wrapper fails, rerun the named failing phase directly:
+
+- from `quality-review-compile` / `quality-review`:
+  - `make format-check`
+  - `make lint`
+  - `make test`
+  - `make deadcode-check`
+- from `quality-review-cmake-compile` / `quality-review-cmake`:
+  - `cmake -S . -B build/quality-review-cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`
+  - `cmake --build build/quality-review-cmake --parallel 1 --clean-first`
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - `ctest --test-dir build/quality-review-cmake --output-on-failure`
+- from the dead-code flow:
+  - inspect `build/deadcode/report.md`
+  - inspect `build/deadcode/report.tsv`
+  - inspect `build/deadcode/cppcheck.txt`
+  - inspect `build/deadcode/xunused.txt`
+
 **Note:** Apple Clang's ASan hangs on macOS. Use an alternative compiler:
 ```bash
 CC=gcc-14 make asan

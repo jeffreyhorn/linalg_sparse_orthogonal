@@ -1743,3 +1743,147 @@ Interpretation:
 ### Day 11 Outputs
 
 - `artifacts/day11-initializer-regression-audit.md`
+
+## Day 12
+
+**Objective:** Improve the clarity of Sprint 34’s local and CI quality messages so operators can tell which reviewed path they are running, which lower-level command to rerun on failure, and which artifacts to inspect when the dead-code flow succeeds but still reports findings.
+
+### Commands Run
+
+1. Re-read the Day 12 scope and current branch state:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '280,360p' docs/planning/EPIC_3/SPRINT_34/PLAN.md`
+   - `tail -n 140 docs/planning/EPIC_3/SPRINT_34/WORKING_NOTES.md`
+2. Inspect the current operator-facing local and CI text:
+   - `sed -n '420,565p' Makefile`
+   - `sed -n '100,145p' README.md`
+   - `sed -n '620,715p' README.md`
+   - `sed -n '1,220p' .github/workflows/ci.yml`
+3. Implement the Day 12 failure-UX and doc refresh:
+   - `apply_patch` on `Makefile`
+   - `apply_patch` on `README.md`
+   - `apply_patch` on `.github/workflows/ci.yml`
+4. Validate the resulting operator-facing surfaces:
+   - `make -n quality-review-compile`
+   - `make -n quality-review`
+   - `make -n quality-review-cmake-compile`
+   - `make -n quality-review-cmake`
+   - `make deadcode-report`
+   - `make deadcode-check`
+   - `python3 - <<'PY' ... print CI step-name anchors ... PY`
+5. Record the Day 12 result:
+   - `apply_patch` on `docs/planning/EPIC_3/SPRINT_34/WORKING_NOTES.md`
+   - `apply_patch` on `docs/planning/EPIC_3/SPRINT_34/artifacts/day12-failure-ux-and-operator-docs.md`
+
+### Day 12 Implementation Result
+
+- `Makefile`
+  - `quality-review-compile`
+    - now announces the reviewed compile-quality path explicitly
+    - now tells the operator to rerun `make format-check` or `make lint` directly on failure
+    - now prints a final pass summary
+  - `quality-review`
+    - now announces the reviewed full local path explicitly
+    - now lists the direct rerun commands for each lower-level phase
+    - now prints a final pass summary
+  - `quality-review-cmake-compile`
+    - now announces the reviewed CMake parity path explicitly
+    - now prints the dedicated build-tree path
+    - now lists the direct rerun commands for configure, build, and `ctest -N`
+    - now prints a final pass summary
+  - `quality-review-cmake`
+    - now explains that it is the full CMake parity path with suite execution
+    - now lists the direct rerun commands for the compile wrapper and full `ctest`
+    - now prints a final pass summary
+  - `deadcode-report`
+    - now prints:
+      - report path
+      - TSV path
+      - raw-evidence directory
+  - `deadcode-check`
+    - still reports completeness success
+    - now explicitly says findings may still exist and points to `report.md` / `report.tsv`
+- `README.md`
+  - added an operator command map that separates:
+    - compile-quality wrapper
+    - full local reviewed path
+    - CMake compile-only parity path
+    - full CMake parity path
+    - dead-code report
+    - dead-code completeness gate
+  - added explicit rerun guidance for:
+    - Makefile reviewed phases
+    - CMake reviewed phases
+    - dead-code artifacts
+- `.github/workflows/ci.yml`
+  - clarified step names so CI output now tells the operator the scope of each reviewed path:
+    - `Run reviewed CMake parity path (clean rebuild + ctest -N + ctest)`
+    - `Run reviewed Makefile compile-quality path (format-check + lint)`
+    - `Generate dead-code report (report.md + report.tsv + raw evidence)`
+    - `Validate dead-code report completeness`
+    - `Upload dead-code artifacts on failure or success`
+  - added a serial-execution comment above the dead-code report/check steps so the inherited shared-path constraint stays visible in the workflow file
+
+### Day 12 Validation Results
+
+Wrapper dry-run validation:
+
+- `make -n quality-review-compile`
+  - showed the new entry-point explanation and rerun hint before the existing phase banners
+- `make -n quality-review`
+  - showed the new full-path explanation and direct rerun command list
+- `make -n quality-review-cmake-compile`
+  - showed the dedicated build-tree message plus explicit rerun commands for configure/build/`ctest -N`
+- `make -n quality-review-cmake`
+  - showed the full-path message plus the direct rerun command for full `ctest`
+
+Dead-code message validation:
+
+- `make deadcode-report`: passed
+  - now prints:
+    - `report.md`
+    - `report.tsv`
+    - raw-evidence directory
+- `make deadcode-check`: passed
+  - now prints:
+    - completeness success
+    - explicit reminder that findings may still exist
+    - direct report paths to inspect next
+
+CI message validation:
+
+- step-name anchors after the update:
+  - reviewed CMake path: line `42`
+  - reviewed Makefile path: line `134`
+  - dead-code report generation: line `162`
+  - dead-code report validation: line `165`
+  - dead-code artifact upload: line `168`
+
+### Day 12 Final Operator Command Map
+
+- compile-quality only:
+  - `make quality-review-compile`
+- full reviewed local path:
+  - `make quality-review`
+- CMake parity without full suite execution:
+  - `make quality-review-cmake-compile`
+- full CMake parity path:
+  - `make quality-review-cmake`
+- dead-code report generation:
+  - `make deadcode-report`
+- dead-code completeness gate:
+  - `make deadcode-check`
+
+### Day 12 Interpretation
+
+- The underlying enforcement contract did not change on Day 12.
+- What changed is the operator’s ability to understand:
+  - which reviewed path is being executed
+  - which lower-level command to rerun when a phase fails
+  - where to look next after a successful dead-code completeness check that still leaves findings in the report
+- This closes the main “correct but not actionable enough” gap from the earlier Sprint 34 wrapper and CI work.
+
+### Day 12 Outputs
+
+- `artifacts/day12-failure-ux-and-operator-docs.md`

@@ -505,7 +505,10 @@ static void test_s19_analyze_refactor_smoke(void) {
     ASSERT_NOT_NULL(A);
     idx_t n = sparse_rows(A);
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t analysis = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
 

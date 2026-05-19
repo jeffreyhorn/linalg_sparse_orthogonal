@@ -652,7 +652,10 @@ static void test_with_analysis_null_args(void) {
     for (idx_t i = 0; i < 3; i++)
         sparse_insert(A, i, i, 1.0);
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t an = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
@@ -674,7 +677,10 @@ static void test_with_analysis_wrong_type(void) {
     sparse_insert(A, 1, 0, -1.0);
     sparse_insert(A, 0, 1, -1.0);
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LU, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LU,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t an = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
@@ -699,7 +705,10 @@ static void test_exact_alloc_matches_dynamic_tridiag(void) {
         }
     }
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t an = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
@@ -739,7 +748,10 @@ static void test_predicted_nnz_matches_actual_nos4(void) {
     SparseMatrix *A = NULL;
     REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/nos4.mtx"));
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t an = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
@@ -767,7 +779,10 @@ static void test_predicted_nnz_matches_actual_bcsstk04(void) {
     SparseMatrix *A = NULL;
     REQUIRE_OK(sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx"));
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t an = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
@@ -816,7 +831,10 @@ static void test_predicted_nnz_matches_actual_random_spd(void) {
         }
     }
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t an = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
@@ -938,7 +956,10 @@ static void test_edge_case_diagonal_only(void) {
     for (idx_t i = 0; i < n; i++)
         sparse_insert(A, i, i, 1.0 + (double)i);
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t an = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
@@ -1501,7 +1522,10 @@ static void test_eliminate_fillin_with_analysis(void) {
     sparse_insert(A, 2, 2, 1.0);
     sparse_insert(A, 3, 3, 1.0);
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t an = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
@@ -1806,7 +1830,10 @@ static void test_solve_perm_amd_nos4(void) {
         x_true[i] = 1.0;
     sparse_matvec(A, x_true, b);
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t an = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
@@ -1865,7 +1892,10 @@ static void test_factor_solve_bcsstk04_amd(void) {
         x_true[i] = 1.0;
     sparse_matvec(A, x_true, b);
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t an = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
@@ -2181,7 +2211,10 @@ static void test_detect_supernodes_suitesparse_report(void) {
         SparseMatrix *A = NULL;
         REQUIRE_OK(sparse_load_mm(&A, mtx_paths[mi]));
 
-        sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+        sparse_analysis_opts_t opts = {
+            .factor_type = SPARSE_FACTOR_CHOLESKY,
+            .reorder = SPARSE_REORDER_AMD,
+        };
         sparse_analysis_t an = {0};
         REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
@@ -2308,7 +2341,10 @@ static void test_supernodal_postorder_residual_unchanged(void) {
         x_true[i] = 1.0;
     sparse_matvec(A, x_true, b);
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t an_off = {0};
     sparse_factors_t fa_off = {0};
     sparse_analysis_t an_on = {0};
@@ -2406,7 +2442,10 @@ static void test_supernodal_postorder_no_supernode_count_regression(void) {
         return;
     }
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t an_off = {0};
     sparse_factors_t fa_off = {0};
     sparse_analysis_t an_on = {0};
@@ -2852,7 +2891,10 @@ static void test_eliminate_supernodal_bcsstk04_amd(void) {
         x_true[i] = 1.0;
     sparse_matvec(A, x_true, b);
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t an = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
@@ -2920,7 +2962,10 @@ static void test_chol_csc_kuu_scalar_no_regression(void) {
         ones[i] = 1.0;
     sparse_matvec(A, ones, b);
 
-    sparse_analysis_opts_t aopts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t aopts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t an = {0};
     REQUIRE_OK(sparse_analyze(A, &aopts, &an));
 

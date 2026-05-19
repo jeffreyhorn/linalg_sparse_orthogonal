@@ -886,7 +886,10 @@ static sparse_err_t ldlt_factor_csc_path(const SparseMatrix *A_work, double tol,
     sparse_reset_perms(A_perm);
 
     /* Step 3: analyze the pre-permuted matrix. */
-    sparse_analysis_opts_t an_opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t an_opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t an = {0};
     err = sparse_analyze(A_perm, &an_opts, &an);
     if (err != SPARSE_OK) {

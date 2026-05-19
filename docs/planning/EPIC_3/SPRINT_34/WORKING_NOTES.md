@@ -1618,3 +1618,128 @@ Still intentionally deferred after this implementation:
 ### Day 10 Outputs
 
 - `artifacts/day10-ci-enforcement-implementation.md`
+
+## Day 11
+
+**Objective:** Audit the reviewed Sprint 34 target set for newly surfaced positional options-struct initializers, convert the real reviewed regression sites to designated form, and revalidate the reviewed-target quality gates.
+
+### Commands Run
+
+1. Re-read the Day 11 scope and current Sprint 34 state:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '240,320p' docs/planning/EPIC_3/SPRINT_34/PLAN.md`
+   - `tail -n 120 docs/planning/EPIC_3/SPRINT_34/WORKING_NOTES.md`
+2. Audit the reviewed source tree for remaining positional options-struct initializers:
+   - `rg -n "sparse_[A-Za-z0-9_]+_options_t\\s+[A-Za-z0-9_]+\\s*=\\s*\\{" src tests benchmarks examples include`
+   - `rg -n "[A-Za-z0-9_]+_opts_t\\s+[A-Za-z0-9_]+\\s*=\\s*\\{[^.]" src tests benchmarks examples`
+   - `sed -n '1,220p' include/sparse_analysis.h`
+   - `sed -n '120,210p' benchmarks/bench_reorder.c`
+   - `sed -n '130,180p' benchmarks/bench_chol_csc.c`
+   - `sed -n '870,910p' src/sparse_ldlt.c`
+   - `sed -n '500,525p' tests/test_sprint19_integration.c`
+   - `sed -n '75,110p' examples/example_analysis.c`
+   - `sed -n '180,200p' benchmarks/bench_refactor_csc.c`
+   - `sed -n '360,390p' src/sparse_cholesky.c`
+3. Convert the reviewed regression batch:
+   - `apply_patch` on:
+     - `src/sparse_cholesky.c`
+     - `src/sparse_ldlt.c`
+     - `examples/example_analysis.c`
+     - `benchmarks/bench_amd_qg.c`
+     - `benchmarks/bench_chol_csc.c`
+     - `benchmarks/bench_refactor_csc.c`
+     - `benchmarks/bench_reorder.c`
+     - `tests/test_sprint19_integration.c`
+     - `tests/test_reorder_nd.c`
+     - `tests/test_reorder_amd_qg.c`
+     - `tests/test_etree.c`
+     - `tests/test_colamd.c`
+     - `tests/test_ldlt_csc.c`
+     - `tests/test_chol_csc.c`
+4. Re-audit the narrowed regression query:
+   - `rg -n "[A-Za-z0-9_]+_opts_t\\s+[A-Za-z0-9_]+\\s*=\\s*\\{[^.]" src tests benchmarks examples`
+5. Validate the touched reviewed targets:
+   - `make format`
+   - `make lint`
+   - `make test`
+6. Capture the Day 11 result:
+   - `git diff --stat`
+   - `git diff --name-only -- '*.c' | wc -l`
+   - `git status --short`
+   - `apply_patch` on `docs/planning/EPIC_3/SPRINT_34/WORKING_NOTES.md`
+   - `apply_patch` on `docs/planning/EPIC_3/SPRINT_34/artifacts/day11-initializer-regression-audit.md`
+
+### Day 11 Audit Result
+
+The Day 11 audit found a real reviewed-target drift pattern, but not a reopened warning backlog:
+
+- the inherited Sprint 32 `-Wmissing-field-initializers` queue remained closed
+- the remaining reviewed-target pattern was non-zero positional `sparse_analysis_opts_t` initialization
+- these sites were spread across:
+  - `src`
+  - `tests`
+  - `benchmarks`
+  - `examples`
+
+Why this counts as Sprint 34 regression-prevention work instead of backlog reopen:
+
+- the warning backlog was already at zero
+- the remaining sites were mechanically valid today because `sparse_analysis_opts_t` currently has only two fields
+- but they are brittle against future struct growth and work directly against the designated-initializer standard that Sprint 31-32 established
+
+### Day 11 Cleanup Result
+
+Converted the entire reviewed non-zero positional `sparse_analysis_opts_t` batch to designated form.
+
+Touched C files: `14`
+
+- `src`
+  - `src/sparse_cholesky.c`
+  - `src/sparse_ldlt.c`
+- `examples`
+  - `examples/example_analysis.c`
+- `benchmarks`
+  - `benchmarks/bench_amd_qg.c`
+  - `benchmarks/bench_chol_csc.c`
+  - `benchmarks/bench_refactor_csc.c`
+  - `benchmarks/bench_reorder.c`
+- `tests`
+  - `tests/test_sprint19_integration.c`
+  - `tests/test_reorder_nd.c`
+  - `tests/test_reorder_amd_qg.c`
+  - `tests/test_etree.c`
+  - `tests/test_colamd.c`
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_chol_csc.c`
+
+Post-cleanup narrowed query result:
+
+- the only remaining `*_opts_t = { ... }` hit in the reviewed C tree is:
+  - `tests/test_eigs.c:708`
+  - `sparse_svd_opts_t svd_opts = {0};`
+- this is a zero-init sentinel, not the Day 11 non-zero positional regression class
+
+### Day 11 Validation Results
+
+- `make format`: passed
+- `make lint`: passed
+- `make test`: passed
+
+Interpretation:
+
+- the reviewed-target quality gates stayed green after the cleanup
+- the conversions were mechanical and low-risk
+- Sprint 34 closed the newly surfaced positional-analysis-options drift without reopening the older Sprint 32 warning backlog
+
+### Day 11 Interpretation
+
+- Sprint 34 Day 11 did find actionable initializer drift, but it was narrow and coherent:
+  - one options-struct type
+  - one mechanical conversion pattern
+  - one reviewed target set
+- Closing it now is the right regression-prevention move because these are exactly the sources now guarded by the Sprint 34 reviewed paths.
+
+### Day 11 Outputs
+
+- `artifacts/day11-initializer-regression-audit.md`

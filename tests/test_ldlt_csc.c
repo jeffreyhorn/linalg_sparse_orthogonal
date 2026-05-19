@@ -990,7 +990,10 @@ static void test_from_sparse_with_analysis_arg_checks(void) {
     sparse_insert(A, 1, 1, 2.0);
     sparse_insert(A, 2, 2, 2.0);
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t an = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
@@ -1045,7 +1048,10 @@ static void test_from_sparse_with_analysis_pattern_matches_sym_L(void) {
         }
     }
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t an = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
@@ -1092,7 +1098,10 @@ static void test_from_sparse_with_analysis_scatter_preserves_values(void) {
         }
     }
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t an = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
@@ -1141,7 +1150,10 @@ static void test_from_sparse_with_analysis_indefinite_kkt_smoke(void) {
     sparse_insert(A, 1, 4, 1.0);
     sparse_insert(A, 4, 1, 1.0);
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t an = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
@@ -1196,7 +1208,10 @@ static void test_from_sparse_with_analysis_spd_factor_matches_heuristic(void) {
         REQUIRE_OK(ldlt_csc_validate(F_heuristic));
 
         /* Shim under test: analysis-driven CSC + batched supernodal. */
-        sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+        sparse_analysis_opts_t opts = {
+            .factor_type = SPARSE_FACTOR_LDLT,
+            .reorder = SPARSE_REORDER_NONE,
+        };
         sparse_analysis_t an = {0};
         REQUIRE_OK(sparse_analyze(A, &opts, &an));
 
@@ -1341,7 +1356,10 @@ static int s20_two_pass_indefinite_factor(const SparseMatrix *A, LdltCsc **F1_ou
     }
 
     /* Step 3: analyze the pre-permuted matrix. */
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t an = {0};
     if (sparse_analyze(A_perm, &opts, &an) != SPARSE_OK) {
         ldlt_csc_free(F1);
@@ -1541,7 +1559,10 @@ static void test_s20_supernodal_heuristic_vs_with_analysis_residuals(void) {
     }
 
     /* "After" path: _with_analysis shim → residual must be round-off. */
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t an = {0};
     REQUIRE_OK(sparse_analyze(A_perm, &opts, &an));
 

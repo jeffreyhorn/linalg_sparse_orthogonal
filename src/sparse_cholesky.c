@@ -371,7 +371,10 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
      * `chol_csc_from_sparse_with_analysis` pre-populates the full
      * sym_L pattern (Sprint 18 Day 12), which the supernodal extract
      * requires to see every fill row of each supernode's panel. */
-    sparse_analysis_opts_t an_opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t an_opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t an = {0};
     sparse_err_t err = sparse_analyze(mat, &an_opts, &an);
     if (err != SPARSE_OK)

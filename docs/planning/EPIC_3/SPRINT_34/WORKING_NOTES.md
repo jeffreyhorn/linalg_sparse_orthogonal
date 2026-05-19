@@ -412,3 +412,216 @@ Interpretation:
 ### Day 2 Outputs
 
 - `artifacts/day2-warning-gate-audit.md`
+
+## Day 3
+
+**Objective:** Turn the Day 2 audit into a concrete Sprint 34 phase-1 enforcement contract by deciding which commands are authoritative, how compile-only benchmark/example checks relate to runtime tests, and where dead-code checks sit in the quality flow without blurring the warning-clean story.
+
+### Commands Run
+
+1. Re-read the Day 2 audit and Sprint 34 Day 3 scope:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '1,420p' docs/planning/EPIC_3/SPRINT_34/WORKING_NOTES.md`
+   - `sed -n '55,155p' docs/planning/EPIC_3/SPRINT_34/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_34/artifacts/day2-warning-gate-audit.md`
+2. Refresh current maintainer/operator quality guidance:
+   - `sed -n '90,150p' README.md`
+   - `sed -n '490,660p' README.md`
+   - `rg -n "deadcode|tooling-build|lint|check|ctest -N|compile-quality|warning gate" README.md docs/algorithm.md docs/planning/EPIC_3 -g '!docs/planning/EPIC_3/SPRINT_34/**'`
+
+### Day 3 Design Decisions
+
+#### 1. Phase-1 enforcement must preserve the repo's existing top-level command contract
+
+Sprint 34 should preserve these user-facing meanings:
+
+- `make lint`
+  - remains the main local compile/static-analysis path
+- `make test`
+  - remains the runtime execution path
+- `ctest -N` and full `ctest`
+  - remain the authoritative active-suite visibility path
+- `make deadcode-report` / `make deadcode-check`
+  - remain dead-code reporting/completeness commands, not generic warning gates
+
+Interpretation:
+
+- Sprint 34 should harden and connect these commands
+- it should **not** redefine them in a way that makes the command names misleading
+- that argues for adding a new reviewed-target aggregate layer above existing commands rather than forcing one existing target to mean everything
+
+#### 2. The authoritative phase-1 warning contract is split intentionally across compile-quality and runtime-quality layers
+
+**Authoritative compile-quality layer**
+
+- library sources:
+  - `make lint`
+  - authoritative for strict warning cleanliness on `src/*.c`
+- benchmark/example compile-only reviewed surface:
+  - `make tooling-build`
+  - authoritative for "these entry points still compile under the maintained warning set"
+
+**Authoritative runtime/suite layer**
+
+- `make test`
+  - authoritative for Makefile-side runtime regression protection
+- `ctest -N`
+  - authoritative registry view of the currently active CMake suite
+- full `ctest`
+  - authoritative CMake-side executed-suite cross-check
+
+Interpretation:
+
+- Sprint 34 phase 1 should not pretend compile-only entry points and runtime test execution are the same kind of signal
+- compile-quality and runtime-quality should be siblings in the aggregate contract, not collapsed into one command's semantics
+
+#### 3. Compile-only benchmark/example enforcement should stay compile-only in phase 1
+
+Chosen rule:
+
+- benchmark/example compile-quality checks remain separate from execution
+- `bench-fast`, `bench`, `examples`, and `wall-check` stay runtime/perf/operator paths, not compile-quality prerequisites
+
+Reasoning:
+
+- Sprint 31 already established the compile-only tooling gate specifically to avoid conflating compile drift with slow benchmark execution
+- folding benchmark/example execution into a warning-clean contract would make the gate slower, noisier, and harder to reason about
+- the compile-quality question for Sprint 34 is:
+  - "do these reviewed entry points still build under the maintained warning set?"
+- not:
+  - "did every benchmark runtime and wall-time check also run?"
+
+Implication for Day 4-6:
+
+- the phase-1 Makefile contract should treat `tooling-build` as a compile-quality dependency
+- it should not absorb `bench-fast`, `wall-check`, or full benchmark/example execution into the same target
+
+#### 4. Dead-code stays separate from warning cleanliness in phase 1, but should become a sibling quality gate
+
+Chosen rule:
+
+- do **not** fold `deadcode-check` directly into the warning-clean definition
+- do **not** rename or reinterpret it as a warning gate
+- do treat it as a sibling build-quality invariant in the higher-level reviewed-target flow
+
+Reasoning:
+
+- the dead-code workflow currently proves report completeness and classification integrity, not "zero findings"
+- it still carries the Sprint 33 compile-db gap and serial-execution limitation
+- mixing it directly into the warning-clean definition would blur two different failure meanings:
+  - compile-quality regression
+  - dead-code report/infrastructure incompleteness
+
+Implication for Day 4-6:
+
+- the new aggregate quality target should sequence warning/compile-quality and dead-code checks as separate named steps
+- dead-code should remain separately invocable for maintainers
+- if integrated into a higher-level target, the output must make the category boundary obvious
+
+#### 5. The phase-1 contract should have one authoritative local path and one authoritative parity path
+
+**Authoritative local path**
+
+Chosen components:
+
+1. `make format-check`
+2. `make lint`
+3. `make test`
+4. `make deadcode-check`
+
+Role:
+
+- this is the reviewed local quality contract Sprint 34 should harden first
+- it preserves the Sprint 32 expectation that `make lint` and `make test` remain in the normal path
+- it keeps dead-code separate but adjacent
+
+**Authoritative parity path**
+
+Chosen components:
+
+1. serialized Apple Clang CMake rebuild
+2. `ctest -N`
+3. full `ctest`
+4. dead-code coverage-gap visibility through generated reporting
+
+Role:
+
+- this is the cross-check/parity contract
+- it confirms that the Makefile-side local path has not drifted away from the maintained CMake path
+- it does **not** need to replicate every Makefile target one-for-one on Day 3
+
+Interpretation:
+
+- Sprint 34 should aim for "one primary local enforcement story plus one primary parity story"
+- not "every path does everything"
+
+#### 6. The phase-1 aggregate target should be additive, not a semantic rewrite of `check`
+
+Chosen design direction:
+
+- keep current `check = format-check + lint + test` intact unless there is a compelling reason to broaden it later
+- add a new reviewed-target aggregate target in Days 4-6 for Sprint 34's expanded contract
+
+Reasoning:
+
+- `check` already has a stable meaning in the repo
+- `deadcode-check` has a stable meaning in the repo
+- overloading `check` immediately would make it harder to distinguish old behavior from Sprint 34 behavior in docs, CI, and operator usage
+
+Design consequence:
+
+- Day 4 should design a new top-level aggregate with stepwise, attributable output
+- that aggregate can depend on or sequence:
+  - `format-check`
+  - `lint`
+  - `test`
+  - `deadcode-check`
+- while preserving direct access to each underlying command
+
+#### 7. Explicit phase-1 inclusion and exclusion list
+
+**Include in the first Sprint 34 enforcement contract**
+
+- `src/*.c` strict compile cleanliness through `make lint`
+- benchmark/example compile-only reviewed coverage through `tooling-build`
+- runtime regression protection through `make test`
+- active-suite registry/execution visibility through `ctest -N` and full `ctest`
+- dead-code report completeness through `make deadcode-check`
+
+**Keep as supporting or deferred, not primary phase-1 gate semantics**
+
+- Windows `/W3` warning behavior
+- full Makefile-side strict warning gate for all test translation units
+- full bench/example runtime execution
+- `wall-check`
+- compile-db expansion beyond the current Sprint 33 exclusion list
+- any interpretation of `deadcode-check` as "zero dead-code findings"
+
+### Day 3 Command-Level Contract
+
+| Layer | Command(s) | Phase-1 status | Meaning |
+|---|---|---|---|
+| formatting | `make format-check` | authoritative local prerequisite | source formatting is clean |
+| library compile warnings | `make lint` | authoritative local warning gate | `src/*.c` clean under strict compile + static analysis; includes compile-only tooling build |
+| runtime tests | `make test` | authoritative local runtime gate | Makefile-side test binaries build and pass |
+| dead-code completeness | `make deadcode-check` | authoritative local sibling gate | dead-code report regenerated and completeness invariants hold |
+| CMake suite registry | `ctest -N` | authoritative parity/supporting gate | active CMake suite remains visible and countable |
+| CMake suite execution | full `ctest` | authoritative parity/supporting gate | CMake-executed suite still passes |
+| dead-code coverage gap | `build/deadcode/coverage-notes.txt` via `deadcode-report` | explicit preserved limitation | known bench/example exclusions remain truthful until broadened |
+
+### Day 3 Interpretation
+
+- Sprint 34 phase 1 should not define "warning-clean" as one overloaded command.
+- It should define a reviewed quality contract with:
+  - a strict local compile/static-analysis path
+  - a separate runtime test path
+  - a separate dead-code completeness path
+  - a maintained CMake parity path
+- That gives Day 4 a concrete design target:
+  - add an aggregate layer that sequences these checks cleanly
+  - without destroying the meaning of `lint`, `test`, `check`, or `deadcode-check`
+
+### Day 3 Outputs
+
+- `artifacts/day3-warning-gate-design.md`

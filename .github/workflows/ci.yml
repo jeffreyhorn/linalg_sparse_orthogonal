@@ -136,6 +136,8 @@ jobs:
 
   deadcode:
     runs-on: ubuntu-24.04
+    env:
+      XUNUSED_REF: b81e0ef09f3afc10d44b777a6760d096a34e3568
     steps:
       - uses: actions/checkout@v4
 
@@ -147,6 +149,8 @@ jobs:
       - name: Build and install xunused
         run: |
           git clone --depth=1 https://github.com/mgehre/xunused.git /tmp/xunused
+          git -C /tmp/xunused fetch --depth=1 origin "$XUNUSED_REF"
+          git -C /tmp/xunused checkout "$XUNUSED_REF"
           llvm_prefix="$(llvm-config-18 --prefix)"
           llvm_cmake_dir="$(llvm-config-18 --cmakedir)"
           clang_cmake_dir="$(dirname "$llvm_cmake_dir")/clang"

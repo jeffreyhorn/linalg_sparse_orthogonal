@@ -106,6 +106,8 @@ def is_public_header(decl_file: str) -> bool:
 def classify_xunused(symbol: str, decl_file: str) -> tuple[str, str]:
     if symbol in REVIEWED_PUBLIC_KEEPS:
         return PUBLIC_REVIEW, REVIEWED_PUBLIC_KEEPS[symbol]
+    if not decl_file:
+        return PUBLIC_REVIEW, "missing-declaration-note-review"
     if is_public_header(decl_file):
         return PUBLIC_REVIEW, "needs-public-surface-audit"
     return INTERNAL_CANDIDATE, "candidate-day9-cleanup-batching"
@@ -335,13 +337,25 @@ def write_markdown(
     else:
         lines.append("- None currently classified in this bucket.")
     lines.append("")
-    lines.append("## Public-Surface Reviewed Keeps")
+    public_reviewed_keeps = public and all(
+        row[6] == "keep-public-api-day8-audited" for row in public
+    )
+    if public_reviewed_keeps:
+        lines.append("## Public-Surface Reviewed Keeps")
+    else:
+        lines.append("## Public-Surface Review Items")
     lines.append("")
     if public:
-        lines.append(
-            "These symbols remain in the public-surface bucket because they are exported through installed "
-            "headers. The current Day 8 audit outcome for all listed rows is `keep`, not cleanup."
-        )
+        if public_reviewed_keeps:
+            lines.append(
+                "These symbols remain in the public-surface bucket because they are exported through installed "
+                "headers. The current Day 8 audit outcome for all listed rows is `keep`, not cleanup."
+            )
+        else:
+            lines.append(
+                "These symbols remain in the public-surface bucket because they need explicit public-surface "
+                "review rather than automatic deletion."
+            )
         lines.append("")
         for row in public:
             lines.append(

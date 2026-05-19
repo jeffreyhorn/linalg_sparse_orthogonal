@@ -470,7 +470,13 @@ DEADCODE_REPORT_MD := $(DEADCODE_ARTIFACTS_DIR)/report.md
 DEADCODE_REPORT_TSV := $(DEADCODE_ARTIFACTS_DIR)/report.tsv
 DEADCODE_WORKFLOW_STAMP := $(DEADCODE_ARTIFACTS_DIR)/.workflow.stamp
 DEADCODE_REPORT_STAMP := $(DEADCODE_ARTIFACTS_DIR)/.report.stamp
-DEADCODE_CMAKE_INPUTS := CMakeLists.txt $(wildcard cmake/*)
+DEADCODE_CMAKE_INPUTS := CMakeLists.txt \
+	$(wildcard cmake/*) \
+	$(wildcard src/*.c) \
+	$(wildcard tests/*.c) \
+	$(wildcard benchmarks/*.c) \
+	$(wildcard examples/*.c) \
+	$(wildcard include/*.h)
 
 $(DEADCODE_COMPILE_COMMANDS): $(DEADCODE_CMAKE_INPUTS)
 	@echo "Configuring dead-code compile database in $(DEADCODE_CMAKE_DIR)..."

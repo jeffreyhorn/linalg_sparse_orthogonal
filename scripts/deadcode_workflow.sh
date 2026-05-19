@@ -67,23 +67,30 @@ all_benchmarks = sorted(path.stem for path in (repo_root / "benchmarks").glob("*
 all_examples = sorted(path.stem for path in (repo_root / "examples").glob("*.c"))
 
 counts = {"src": 0, "tests": 0, "benchmarks": 0, "examples": 0}
-seen_benchmarks: set[str] = set()
-seen_examples: set[str] = set()
+seen_benchmarks = set()
+seen_examples = set()
 
 for entry in entries:
     file_path = Path(entry["file"])
     if not file_path.is_absolute():
         file_path = Path(entry["directory"]) / file_path
-    parts = file_path.resolve().parts
+    resolved_path = file_path.resolve()
+    try:
+        relative_parts = resolved_path.relative_to(repo_root).parts
+    except ValueError:
+        continue
+    if not relative_parts:
+        continue
+    top_level = relative_parts[0]
     stem = file_path.stem
-    if "src" in parts:
+    if top_level == "src":
         counts["src"] += 1
-    if "tests" in parts:
+    if top_level == "tests":
         counts["tests"] += 1
-    if "benchmarks" in parts:
+    if top_level == "benchmarks":
         counts["benchmarks"] += 1
         seen_benchmarks.add(stem)
-    if "examples" in parts:
+    if top_level == "examples":
         counts["examples"] += 1
         seen_examples.add(stem)
 

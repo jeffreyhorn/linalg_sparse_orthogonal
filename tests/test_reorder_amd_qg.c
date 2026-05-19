@@ -99,7 +99,10 @@ static idx_t symbolic_cholesky_nnz_with_perm(const SparseMatrix *A, const idx_t 
     SparseMatrix *PA = NULL;
     if (sparse_permute(A, perm, perm, &PA) != SPARSE_OK)
         return -1;
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
     sparse_err_t rc = sparse_analyze(PA, &opts, &analysis);
     idx_t nnz = (rc == SPARSE_OK) ? analysis.sym_L.nnz : (idx_t)-1;

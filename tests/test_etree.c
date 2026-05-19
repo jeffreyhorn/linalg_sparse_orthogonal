@@ -1324,7 +1324,10 @@ static void test_symbolic_lu_vs_steam1(void) {
 static void test_analyze_null_args(void) {
     SparseMatrix *A = sparse_create(3, 3);
     sparse_analysis_t analysis = {0};
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
 
     ASSERT_ERR(sparse_analyze(NULL, &opts, &analysis), SPARSE_ERR_NULL);
     ASSERT_ERR(sparse_analyze(A, &opts, NULL), SPARSE_ERR_NULL);
@@ -1335,7 +1338,10 @@ static void test_analyze_null_args(void) {
 static void test_analyze_non_square(void) {
     SparseMatrix *A = sparse_create(3, 4);
     sparse_analysis_t analysis = {0};
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
 
     ASSERT_ERR(sparse_analyze(A, &opts, &analysis), SPARSE_ERR_SHAPE);
 
@@ -1364,7 +1370,10 @@ static void test_analyze_default_opts(void) {
 static void test_analyze_cholesky_tridiag(void) {
     idx_t n = 8;
     SparseMatrix *A = make_tridiag(n);
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
 
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
@@ -1398,7 +1407,10 @@ static void test_analyze_cholesky_tridiag(void) {
 static void test_analyze_cholesky_arrow(void) {
     idx_t n = 6;
     SparseMatrix *A = make_arrow(n);
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
 
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
@@ -1423,7 +1435,10 @@ static void test_analyze_cholesky_arrow(void) {
 static void test_analyze_cholesky_with_amd(void) {
     idx_t n = 8;
     SparseMatrix *A = make_arrow(n);
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t analysis = {0};
 
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
@@ -1442,7 +1457,10 @@ static void test_analyze_cholesky_with_amd(void) {
 static void test_analyze_cholesky_with_rcm(void) {
     idx_t n = 8;
     SparseMatrix *A = make_arrow(n);
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_RCM};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_RCM,
+    };
     sparse_analysis_t analysis = {0};
 
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
@@ -1466,7 +1484,10 @@ static void test_analyze_cholesky_bcsstk04(void) {
     }
 
     idx_t n = A->rows;
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
 
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
@@ -1488,7 +1509,10 @@ static void test_analyze_free_and_reanalyze(void) {
     /* Analyze, free, re-analyze — no leaks (valgrind would catch) */
     idx_t n = 6;
     SparseMatrix *A = make_tridiag(n);
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
 
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
@@ -1558,7 +1582,10 @@ static void test_analyze_sym_L_sorted(void) {
 
 static void test_analyze_lu_unsym(void) {
     SparseMatrix *A = make_unsym_3x3();
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LU, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LU,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
 
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
@@ -1595,7 +1622,10 @@ static void test_analyze_lu_unsym(void) {
 
 static void test_analyze_lu_with_amd(void) {
     SparseMatrix *A = make_unsym_3x3();
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LU, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LU,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t analysis = {0};
 
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
@@ -1621,7 +1651,10 @@ static void test_analyze_lu_west0067(void) {
     }
 
     idx_t n = A->rows;
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LU, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LU,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
 
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
@@ -1677,7 +1710,10 @@ static SparseMatrix *make_kkt_4x4(void) {
 
 static void test_analyze_ldlt_kkt(void) {
     SparseMatrix *A = make_kkt_4x4();
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
 
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
@@ -1715,8 +1751,14 @@ static void test_analyze_ldlt_tridiag(void) {
     /* Symmetric tridiag — LDL^T should work the same as Cholesky path */
     idx_t n = 6;
     SparseMatrix *A = make_tridiag(n);
-    sparse_analysis_opts_t opts_ldlt = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
-    sparse_analysis_opts_t opts_chol = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts_ldlt = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_NONE,
+    };
+    sparse_analysis_opts_t opts_chol = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t a_ldlt = {0}, a_chol = {0};
 
     REQUIRE_OK(sparse_analyze(A, &opts_ldlt, &a_ldlt));
@@ -1739,7 +1781,10 @@ static void test_analyze_ldlt_tridiag(void) {
 
 static void test_analyze_ldlt_with_amd(void) {
     SparseMatrix *A = make_kkt_4x4();
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t analysis = {0};
 
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
@@ -1764,7 +1809,10 @@ static void test_analyze_ldlt_nos4(void) {
     }
 
     idx_t n = A->rows;
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
 
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
@@ -1883,7 +1931,10 @@ static void test_factor_numeric_cholesky_arrow(void) {
 static void test_factor_numeric_cholesky_with_amd(void) {
     idx_t n = 8;
     SparseMatrix *A = make_arrow(n);
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
 
@@ -1986,7 +2037,10 @@ static void test_factor_free_null(void) {
 
 static void test_factor_numeric_lu_unsym(void) {
     SparseMatrix *A = make_unsym_3x3();
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LU, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LU,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
 
@@ -2009,7 +2063,10 @@ static void test_factor_numeric_lu_unsym(void) {
 static void test_factor_numeric_lu_tridiag(void) {
     idx_t n = 8;
     SparseMatrix *A = make_tridiag(n);
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LU, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LU,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
 
@@ -2043,7 +2100,10 @@ static void test_factor_numeric_lu_west0067(void) {
     }
 
     idx_t n = A->rows;
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LU, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LU,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
 
@@ -2070,7 +2130,10 @@ static void test_factor_numeric_lu_west0067(void) {
 
 static void test_factor_numeric_lu_with_amd(void) {
     SparseMatrix *A = make_unsym_3x3();
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LU, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LU,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
 
@@ -2097,7 +2160,10 @@ static void test_factor_numeric_lu_with_amd(void) {
 
 static void test_factor_numeric_ldlt_kkt(void) {
     SparseMatrix *A = make_kkt_4x4();
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
 
@@ -2123,7 +2189,10 @@ static void test_factor_numeric_ldlt_kkt(void) {
 static void test_factor_numeric_ldlt_tridiag(void) {
     idx_t n = 6;
     SparseMatrix *A = make_tridiag(n);
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
 
@@ -2157,7 +2226,10 @@ static void test_factor_numeric_ldlt_nos4(void) {
     }
 
     idx_t n = A->rows;
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
 
@@ -2184,7 +2256,10 @@ static void test_factor_numeric_ldlt_nos4(void) {
 
 static void test_factor_numeric_ldlt_with_amd(void) {
     SparseMatrix *A = make_kkt_4x4();
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
 
@@ -2368,7 +2443,10 @@ static void test_refactor_loop(void) {
 
 static void test_refactor_lu(void) {
     SparseMatrix *A = make_unsym_3x3();
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LU, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LU,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
 
@@ -2401,7 +2479,10 @@ static void test_refactor_lu(void) {
 
 static void test_refactor_ldlt(void) {
     SparseMatrix *A = make_kkt_4x4();
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
 
@@ -2527,7 +2608,10 @@ static void test_compat_lu_unsym(void) {
     REQUIRE_OK(sparse_lu_solve(LU, b, x_oneshot));
 
     /* Analyze+factor */
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LU, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LU,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
@@ -2566,7 +2650,10 @@ static void test_compat_lu_west0067(void) {
     double resid_oneshot = solve_residual(A, b, x_oneshot);
 
     /* Analyze+factor */
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LU, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LU,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
@@ -2600,7 +2687,10 @@ static void test_compat_ldlt_kkt(void) {
     REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x_oneshot));
 
     /* Analyze+factor */
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));
@@ -2639,7 +2729,10 @@ static void test_compat_ldlt_nos4(void) {
     double resid_oneshot = solve_residual(A, b, x_oneshot);
 
     /* Analyze+factor */
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LDLT, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
     REQUIRE_OK(sparse_analyze(A, &opts, &analysis));

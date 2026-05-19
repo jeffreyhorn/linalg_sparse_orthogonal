@@ -242,7 +242,10 @@ static void test_nd_10x10_grid_matches_or_beats_amd_fill(void) {
      * the single cleanup label so partial allocations (analysis_amd,
      * analysis_nd, PA) don't leak into subsequent tests when
      * sparse_analyze / sparse_permute fails. */
-    sparse_analysis_opts_t opts_amd = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t opts_amd = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t analysis_amd = {0};
     sparse_analysis_t analysis_nd = {0};
     SparseMatrix *PA = NULL;
@@ -262,7 +265,10 @@ static void test_nd_10x10_grid_matches_or_beats_amd_fill(void) {
     if (rc != SPARSE_OK)
         goto cleanup;
 
-    sparse_analysis_opts_t opts_none = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts_none = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     rc = sparse_analyze(PA, &opts_none, &analysis_nd);
     if (rc != SPARSE_OK)
         goto cleanup;
@@ -371,7 +377,10 @@ static void test_nd_rejects_rectangular(void) {
 /* Compute symbolic Cholesky nnz(L) under a given reorder.  Returns -1
  * if the analysis fails (caller treats as a skip). */
 static idx_t symbolic_cholesky_nnz(const SparseMatrix *A, sparse_reorder_t reorder) {
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, reorder};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = reorder,
+    };
     sparse_analysis_t analysis = {0};
     sparse_err_t rc = sparse_analyze(A, &opts, &analysis);
     if (rc != SPARSE_OK) {
@@ -1117,7 +1126,10 @@ static void test_supernodal_postorder_etree_contract(void) {
     }
     idx_t n = sparse_rows(A);
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t analysis_off = {0};
     sparse_analysis_t analysis_on = {0};
     idx_t *expected_perm = NULL;
@@ -1193,7 +1205,10 @@ static void test_supernodal_postorder_corpus_nnz_L_invariant(void) {
     const char *names[] = {"nos4", "bcsstk04", "bcsstk14", "s3rmt3m3"};
     const size_t fixtures = sizeof(paths) / sizeof(paths[0]);
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
 
     for (size_t i = 0; i < fixtures; i++) {
         SparseMatrix *A = NULL;
@@ -1252,7 +1267,10 @@ static void test_supernodal_postorder_no_reorder_skips(void) {
         return;
     }
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t an_off = {0};
     sparse_analysis_t an_on = {0};
     int env_set = 0;
@@ -1314,7 +1332,10 @@ static void test_supernodal_postorder_deterministic(void) {
     }
     idx_t n = sparse_rows(A);
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t an_1 = {0};
     sparse_analysis_t an_2 = {0};
     int env_set = 0;
@@ -1367,7 +1388,10 @@ static void test_supernodal_postorder_n_one(void) {
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     REQUIRE_OK(sparse_insert(A, 0, 0, 1.0));
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t an = {0};
     int env_set = 0;
     sparse_err_t rc;

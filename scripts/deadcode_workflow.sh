@@ -136,6 +136,7 @@ run_cppcheck() {
 
 run_xunused() {
     local -a args
+    local rc
     args=(xunused)
 
     if [ "$(uname -s)" = "Darwin" ]; then
@@ -158,7 +159,23 @@ run_xunused() {
     args+=("$COMPILE_COMMANDS")
 
     echo ">>> xunused"
-    "${args[@]}" >"$XUNUSED_OUT" 2>&1
+    if "${args[@]}" >"$XUNUSED_OUT" 2>&1; then
+        return 0
+    else
+        rc=$?
+    fi
+
+    # xunused can return nonzero even after it has processed the compile
+    # database and emitted usable raw findings.  Preserve that output for
+    # report generation instead of failing the whole dead-code job on the
+    # tool's partial-success exit code.
+    if grep -q "Processing file " "$XUNUSED_OUT"; then
+        echo "deadcode_workflow: xunused exited with status ${rc}; preserving raw output for report generation" >&2
+        return 0
+    fi
+
+    echo "deadcode_workflow: xunused failed with status ${rc} before producing a usable scan trace" >&2
+    return "$rc"
 }
 
 write_coverage_notes

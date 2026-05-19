@@ -184,7 +184,10 @@ static int bench_matrix(const char *path, int repeat) {
     /* One analyze call — outside the timed region, reused across all
      * refactor iterations on both backends.  This is the cost that
      * amortises. */
-    sparse_analysis_opts_t aopts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t aopts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
     sparse_analysis_t an = {0};
     double t0 = wall_time();
     sparse_err_t err = sparse_analyze(A, &aopts, &an);

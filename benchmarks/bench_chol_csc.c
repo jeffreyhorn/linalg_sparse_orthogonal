@@ -141,7 +141,10 @@ static bench_result_t bench_csc_path(const SparseMatrix *A, const double *b, dou
                                      csc_eliminate_fn eliminate) {
     bench_result_t r = {0, 0, 0, 1};
     double factor_total = 0.0, solve_total = 0.0;
-    sparse_analysis_opts_t aopts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_AMD};
+    sparse_analysis_opts_t aopts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
 
     for (int rep = 0; rep < repeat; rep++) {
         /* Fair comparison: the linked-list path runs sparse_analyze's

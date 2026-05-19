@@ -1,0 +1,60 @@
+Sprint 34 Day 1 quality target inventory
+branch sprint-34
+head f1fe556
+
+makefile_targets
+- format
+- format-check
+- lint
+- test
+- check
+- bench-build
+- examples-build
+- tooling-build
+- deadcode-compile-db
+- deadcode
+- deadcode-report
+- deadcode-check
+- wall-check
+
+lint_behavior
+- depends_on build/include/sparse_version.h
+- depends_on tooling-build
+- strict_compile_scope src/*.c only
+- runs clang-tidy on src/*.c
+- runs cppcheck on src/ and tests/
+
+cmake_state
+- ctest_registered_tests 53
+- benchmarks_in_compile_db 13
+- examples_in_compile_db 6
+
+ci_workflows
+- ci.yml
+- macos-ci.yml
+- windows-ci.yml
+
+ci_not_yet_running
+- make deadcode
+- make deadcode-report
+- make deadcode-check
+
+deadcode_constraints
+- shared_build_dir build/deadcode-cmake
+- shared_artifacts_dir build/deadcode
+- missing_benchmark bench_svd
+- missing_example example_basic_solve
+- missing_example example_condition
+- missing_example example_iterative
+- missing_example example_least_squares
+- missing_example example_matrix_free
+- missing_example example_svd_lowrank
+
+first_implementation_surfaces
+- Makefile
+- CMakeLists.txt
+- scripts/deadcode_workflow.sh
+- scripts/deadcode_report.py
+- .github/workflows/ci.yml
+- .github/workflows/macos-ci.yml
+- .github/workflows/windows-ci.yml

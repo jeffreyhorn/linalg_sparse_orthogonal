@@ -231,6 +231,9 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 
 - Sprint 34 build-quality enforcement phase 1
 - Sprint 35 public-doc and example cleanup
+- Sprint 34 closeout/handoff, which leaves the reviewed-quality wrappers and
+  Linux CI enforcement path in place but records that macOS/Windows reviewed
+  parity and dead-code portability still remain phase-2 follow-through
 - Existing Linux/macOS/Windows CI workflows from Epic 2
 
 ### Items
@@ -239,8 +242,8 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 |---|------|-------------|----------|
 | 1 | macOS warning parity | Audit remaining warning differences on the macOS build paths and eliminate avoidable platform-specific noise in the reviewed targets. | 24 hrs |
 | 2 | Windows/MSVC quality audit | Review MSVC build output for equivalent quality issues, especially enum handling, initializer drift, missing includes, and warning-level differences that the Unix compilers may not expose. | 28 hrs |
-| 3 | CI job alignment | Update CI so compile-quality expectations are explicitly documented per platform rather than implicitly assumed from the Linux job only. | 20 hrs |
-| 4 | Script/target portability | Audit quality and dead-code Makefile/scripts for shell or tool assumptions that make them Linux/macOS-only when the project documents broader platform support. | 20 hrs |
+| 3 | CI job alignment | Update CI so compile-quality expectations are explicitly documented per platform rather than implicitly assumed from the Linux job only. This should expand the Sprint 34 reviewed wrapper contract beyond the current Linux-only enforcement pass and make the macOS/Windows expectation for reviewed Makefile/CMake paths explicit. | 20 hrs |
+| 4 | Script/target portability | Audit quality and dead-code Makefile/scripts for shell or tool assumptions that make them Linux/macOS-only when the project documents broader platform support. Include the Sprint 34 carry-forward constraints around `xunused` availability, dead-code job setup, and the current shared-path serialized execution model. | 20 hrs |
 | 5 | CMake/Makefile parity report | Produce a small parity report on which quality checks are available from Make, from CMake, and in CI on each platform. | 16 hrs |
 | 6 | Targeted fixes | Implement the concrete fixes surfaced by the parity audit across scripts, CI, and auxiliary code. | 20 hrs |
 | 7 | Validation | Re-run the practical cross-platform build/test/quality flows and capture results in sprint notes. | 16 hrs |
@@ -299,6 +302,9 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 ### Prerequisites from previous Sprints
 
 - Sprint 34 compile-quality gates
+- Sprint 34 handoff, which preserves the current dead-code compile-db exclusion
+  list (`bench_svd` plus six examples) and the shared-path serialized workflow
+  constraint as explicit limitations rather than closed work
 - Sprint 37 maintainability cleanup that makes the target set easier to gate
 
 ### Items
@@ -306,9 +312,9 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 | # | Item | Description | Estimate |
 |---|------|-------------|----------|
 | 1 | Coverage-honesty audit | Reconcile coverage expectations and reporting with the cleaned-up test categories so active, experimental, and opt-in checks are represented accurately. | 20 hrs |
-| 2 | Quality-gate expansion | Expand the warning/dead-code gates to the next tier of reviewed targets/toolchains once the initial gates have proven stable. | 24 hrs |
-| 3 | Compile-only regression coverage | Ensure examples and benchmarks that are not run routinely are still compile-checked in a way that meaningfully protects them from drift. | 20 hrs |
-| 4 | Dead-code workflow maturation | Promote the dead-code tooling from advisory reporting toward an actionable regression signal where the false-positive rate is acceptable. Explicitly burn down the Sprint 33 residual `cppcheck` evidence buckets by reviewing or better classifying the supporting-signal set and static-analysis noise so later enforcement is not built on ambiguous findings. | 20 hrs |
+| 2 | Quality-gate expansion | Expand the warning/dead-code gates to the next tier of reviewed targets/toolchains once the initial gates have proven stable. This includes moving beyond the Sprint 34 Linux-first CI enforcement shape where later evidence shows broader gating is safe. | 24 hrs |
+| 3 | Compile-only regression coverage | Ensure examples and benchmarks that are not run routinely are still compile-checked in a way that meaningfully protects them from drift. Explicitly close or re-document the Sprint 34 dead-code compile-db exclusion list: `bench_svd`, `example_basic_solve`, `example_condition`, `example_iterative`, `example_least_squares`, `example_matrix_free`, and `example_svd_lowrank`. | 20 hrs |
+| 4 | Dead-code workflow maturation | Promote the dead-code tooling from advisory reporting toward an actionable regression signal where the false-positive rate is acceptable. Explicitly burn down the Sprint 33 residual `cppcheck` evidence buckets by reviewing or better classifying the supporting-signal set and static-analysis noise, and address the Sprint 34 shared-path serialization limitation before stronger concurrent/local CI enforcement is assumed. | 20 hrs |
 | 5 | Release/readiness checklist | Add a concise quality-readiness checklist covering warnings, dead code, test truthfulness, docs/examples consistency, and cross-platform parity. | 16 hrs |
 | 6 | CI/reporting polish | Improve artifact/report output for the new quality gates so failures are easy to understand in CI. | 16 hrs |
 | 7 | Validation | Re-run the full quality/test matrix practical for the sprint and record the resulting baseline. | 20 hrs |

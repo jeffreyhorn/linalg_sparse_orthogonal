@@ -445,6 +445,71 @@ lint: build/include/sparse_version.h tooling-build
 .PHONY: check
 check: format-check lint test
 
+# Sprint 34 Day 5: reviewed quality wrappers that preserve the
+# existing meanings of `lint`, `test`, `check`, and `deadcode-check`
+# while exposing an explicit phase-1 reviewed-target flow.  Keep the
+# wrappers serial and bannered so failure attribution stays obvious
+# and the shared dead-code build/artifact paths are never driven as a
+# sibling prerequisite branch under `make -j`.
+QUALITY_REVIEW_CMAKE_DIR ?= build/quality-review-cmake
+
+.NOTPARALLEL: quality-review-compile quality-review quality-review-cmake-compile quality-review-cmake deadcode-compile-db deadcode deadcode-report deadcode-check
+.PHONY: quality-review-compile
+quality-review-compile:
+	@echo "quality-review-compile: reviewed compile-quality path"
+	@echo "quality-review-compile: rerun failing phases directly with 'make format-check' or 'make lint'"
+	@echo "== quality-review-compile: format-check =="
+	@$(MAKE) format-check
+	@echo "== quality-review-compile: lint =="
+	@$(MAKE) lint
+	@echo "quality-review-compile: passed (format-check + lint)"
+
+.PHONY: quality-review
+quality-review:
+	@echo "quality-review: reviewed local quality path"
+	@echo "quality-review: rerun failing phases directly with 'make format-check', 'make lint', 'make test', or 'make deadcode-check'"
+	@echo "== quality-review: format-check =="
+	@$(MAKE) format-check
+	@echo "== quality-review: lint =="
+	@$(MAKE) lint
+	@echo "== quality-review: test =="
+	@$(MAKE) test
+	@echo "== quality-review: deadcode-check =="
+	@$(MAKE) deadcode-check
+	@echo "quality-review: passed (format-check + lint + test + deadcode-check)"
+
+.PHONY: quality-review-cmake-compile
+quality-review-cmake-compile:
+	@echo "quality-review-cmake-compile: reviewed CMake parity path"
+	@echo "quality-review-cmake-compile: build tree = $(QUALITY_REVIEW_CMAKE_DIR)"
+	@echo "quality-review-cmake-compile: rerun failing phases directly with 'cmake -S . -B $(QUALITY_REVIEW_CMAKE_DIR)', 'cmake --build $(QUALITY_REVIEW_CMAKE_DIR) --parallel 1 --clean-first', or 'ctest -N --test-dir $(QUALITY_REVIEW_CMAKE_DIR)'"
+	@echo "== quality-review-cmake-compile: configure =="
+	cmake -S . -B "$(QUALITY_REVIEW_CMAKE_DIR)" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+	@echo "== quality-review-cmake-compile: build =="
+	cmake --build "$(QUALITY_REVIEW_CMAKE_DIR)" --parallel 1 --clean-first
+	@echo "== quality-review-cmake-compile: ctest -N =="
+	ctest -N --test-dir "$(QUALITY_REVIEW_CMAKE_DIR)"
+	@echo "== quality-review-cmake-compile: Makefile/CMake test-count parity =="
+	@cmake_count=$$(ctest -N --test-dir "$(QUALITY_REVIEW_CMAKE_DIR)" 2>&1 | awk '/Total Tests:/ {print $$NF}'); \
+	make_count="$(words $(TEST_BINS))"; \
+	echo "quality-review-cmake-compile: CMake tests: $$cmake_count, Makefile tests: $$make_count"; \
+	if [ "$$cmake_count" -ne "$$make_count" ]; then \
+		echo "quality-review-cmake-compile: FAIL: CMake ($$cmake_count) and Makefile ($$make_count) test counts differ"; \
+		exit 1; \
+	fi; \
+	echo "quality-review-cmake-compile: PASS: test counts match"
+	@echo "quality-review-cmake-compile: passed (configure + clean rebuild + ctest -N + test-count parity)"
+
+.PHONY: quality-review-cmake
+quality-review-cmake:
+	@echo "quality-review-cmake: reviewed CMake parity path with full suite execution"
+	@echo "quality-review-cmake: rerun failing phases directly with 'make quality-review-cmake-compile' or 'ctest --test-dir $(QUALITY_REVIEW_CMAKE_DIR) --output-on-failure'"
+	@echo "== quality-review-cmake: compile path =="
+	@$(MAKE) quality-review-cmake-compile
+	@echo "== quality-review-cmake: ctest =="
+	ctest --test-dir "$(QUALITY_REVIEW_CMAKE_DIR)" --output-on-failure
+	@echo "quality-review-cmake: passed (configure + clean rebuild + ctest -N + ctest)"
+
 # Sprint 30 Day 7: reproducible Epic 3 warning-capture + validation
 # workflow.  Wraps the helper script so maintainers can recreate a
 # clean CMake warning inventory plus the library-only Makefile
@@ -504,8 +569,9 @@ deadcode: $(DEADCODE_WORKFLOW_STAMP)
 
 .PHONY: deadcode-report
 deadcode-report: $(DEADCODE_REPORT_STAMP)
-	@echo "deadcode-report: $(DEADCODE_REPORT_MD)"
-	@echo "deadcode-report: $(DEADCODE_REPORT_TSV)"
+	@echo "deadcode-report: report written to $(DEADCODE_REPORT_MD)"
+	@echo "deadcode-report: tabular findings written to $(DEADCODE_REPORT_TSV)"
+	@echo "deadcode-report: raw evidence lives under $(DEADCODE_ARTIFACTS_DIR)/"
 
 .PHONY: deadcode-check
 deadcode-check: $(DEADCODE_REPORT_STAMP)
@@ -513,6 +579,7 @@ deadcode-check: $(DEADCODE_REPORT_STAMP)
 		--check \
 		"$(DEADCODE_ARTIFACTS_DIR)"
 	@echo "deadcode-check: report completeness checks passed."
+	@echo "deadcode-check: findings may still exist; inspect $(DEADCODE_REPORT_MD) and $(DEADCODE_REPORT_TSV)."
 
 # ─── Performance regression gate (Sprint 24 Day 1) ────────────────────
 #

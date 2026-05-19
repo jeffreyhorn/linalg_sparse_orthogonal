@@ -137,7 +137,10 @@ static idx_t symbolic_nnz_L(const SparseMatrix *A, const idx_t *perm) {
         if (sparse_permute(A, perm, perm, &PA) != SPARSE_OK)
             return -1;
     }
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
     sparse_err_t rc = sparse_analyze(perm ? PA : A, &opts, &analysis);
     idx_t nnz = (rc == SPARSE_OK) ? analysis.sym_L.nnz : (idx_t)-1;
@@ -183,7 +186,10 @@ static void run_one_via_analyze(const fixture_t *fx, int do_factor) {
     for (size_t i = 0; i < kReorderingsCount; i++) {
         const reorder_entry_t *r = &kReorderings[i];
 
-        sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, r->value};
+        sparse_analysis_opts_t opts = {
+            .factor_type = SPARSE_FACTOR_CHOLESKY,
+            .reorder = r->value,
+        };
         sparse_analysis_t analysis = {0};
         double t0 = now_ms();
         sparse_err_t rc = sparse_analyze(A, &opts, &analysis);

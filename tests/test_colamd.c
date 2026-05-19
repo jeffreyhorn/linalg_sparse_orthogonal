@@ -942,7 +942,10 @@ static void test_analyze_lu_colamd(void) {
     sparse_insert(A, 2, 0, 1.0);
     sparse_insert(A, 2, 2, 4.0);
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LU, SPARSE_REORDER_COLAMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LU,
+        .reorder = SPARSE_REORDER_COLAMD,
+    };
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
 
@@ -975,7 +978,10 @@ static void test_analyze_cholesky_colamd(void) {
         }
     }
 
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_COLAMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_COLAMD,
+    };
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
 
@@ -1009,7 +1015,10 @@ static void test_analyze_lu_colamd_west0067(void) {
     }
 
     idx_t n = sparse_rows(A);
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_LU, SPARSE_REORDER_COLAMD};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LU,
+        .reorder = SPARSE_REORDER_COLAMD,
+    };
     sparse_analysis_t analysis = {0};
     sparse_factors_t factors = {0};
 

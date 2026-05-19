@@ -79,7 +79,10 @@ int main(void) {
     printf("Matrix: %d×%d tridiagonal SPD, nnz = %d\n\n", (int)n, (int)n, (int)sparse_nnz(A));
 
     /* ── Step 2: Symbolic analysis (done once) ─────────────────────── */
-    sparse_analysis_opts_t opts = {SPARSE_FACTOR_CHOLESKY, SPARSE_REORDER_NONE};
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
     sparse_analysis_t analysis = {0};
 
     clock_t t0 = clock();

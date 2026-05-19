@@ -115,16 +115,23 @@ PY
 }
 
 run_cppcheck() {
+    local -a cppcheck_args
+    cppcheck_args=(
+        cppcheck
+        --enable=all
+        --quiet
+        --std=c11
+        --suppress=missingIncludeSystem
+        -Iinclude
+        -I"${CMAKE_BUILD_DIR}/include"
+        -Isrc
+    )
+    if [ -d "build/include" ] && [ "build/include" != "${CMAKE_BUILD_DIR}/include" ]; then
+        cppcheck_args+=(-Ibuild/include)
+    fi
+
     echo ">>> cppcheck"
-    cppcheck \
-        --enable=all \
-        --quiet \
-        --std=c11 \
-        --suppress=missingIncludeSystem \
-        -Iinclude \
-        -Ibuild/include \
-        -Isrc \
-        src/ >"$CPPCHECK_OUT" 2>&1
+    "${cppcheck_args[@]}" src/ >"$CPPCHECK_OUT" 2>&1
 }
 
 run_xunused() {

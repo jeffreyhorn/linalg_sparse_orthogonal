@@ -394,7 +394,10 @@ def write_markdown(
         lines.append("- remaining definitely-unused internal queue: none.")
     if public:
         public_symbols = ", ".join(f"`{row[2]}`" for row in public)
-        lines.append(f"- public-surface reviewed keeps: {public_symbols}.")
+        if public_reviewed_keeps:
+            lines.append(f"- public-surface reviewed keeps: {public_symbols}.")
+        else:
+            lines.append(f"- public-surface review items: {public_symbols}.")
     else:
         lines.append("- public-surface reviewed keeps: none.")
     lines.append(

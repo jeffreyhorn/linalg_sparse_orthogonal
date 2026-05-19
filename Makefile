@@ -471,12 +471,14 @@ DEADCODE_REPORT_TSV := $(DEADCODE_ARTIFACTS_DIR)/report.tsv
 DEADCODE_WORKFLOW_STAMP := $(DEADCODE_ARTIFACTS_DIR)/.workflow.stamp
 DEADCODE_REPORT_STAMP := $(DEADCODE_ARTIFACTS_DIR)/.report.stamp
 DEADCODE_CMAKE_INPUTS := CMakeLists.txt \
+	VERSION \
 	$(wildcard cmake/*) \
 	$(wildcard src/*.c) \
 	$(wildcard tests/*.c) \
 	$(wildcard benchmarks/*.c) \
 	$(wildcard examples/*.c) \
-	$(wildcard include/*.h)
+	$(wildcard include/*.h) \
+	include/sparse_version.h.in
 
 $(DEADCODE_COMPILE_COMMANDS): $(DEADCODE_CMAKE_INPUTS)
 	@echo "Configuring dead-code compile database in $(DEADCODE_CMAKE_DIR)..."

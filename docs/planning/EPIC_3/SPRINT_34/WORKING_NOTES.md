@@ -1057,3 +1057,144 @@ Day 6 implication:
 ### Day 6 Outputs
 
 - `artifacts/day6-makefile-enforcement-batch2.md`
+
+## Day 7
+
+**Objective:** Audit what the current CMake path already proves for Sprint 34 reviewed-target enforcement, separate true CMake-path parity from Makefile-only quality responsibilities, and write the concrete Day 8 implementation contract.
+
+### Commands Run
+
+1. Re-read the Sprint 34 Day 7 scope and the inherited Sprint 33 CMake/dead-code constraints:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_34/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_33/HANDOFF.md`
+2. Inspect the current CMake target graph and active-suite surface:
+   - `sed -n '1,260p' CMakeLists.txt`
+   - `sed -n '261,420p' CMakeLists.txt`
+   - `ctest -N --test-dir build/sprint33-day1-cmake`
+   - `find build/sprint33-day1-cmake -maxdepth 2 -type f | sort | sed -n '1,200p'`
+3. Measure the current compile-db coverage against the maintained bench/example inventories:
+   - `python3 - <<'PY' ... count build/deadcode-cmake/compile_commands.json by top-level directory ... PY`
+   - `python3 - <<'PY' ... list all bench_*.c and example_*.c files ... PY`
+   - `python3 - <<'PY' ... list benchmark/example files present in build/sprint33-day1-cmake/compile_commands.json ... PY`
+   - `sed -n '1,220p' build/deadcode/coverage-notes.txt`
+   - `sed -n '1,220p' build/deadcode/report.md`
+4. Cross-check the current Makefile/README quality-contract boundary:
+   - `sed -n '420,560p' Makefile`
+   - `rg -n "deadcode|quality-review|tooling-build|format-check|lint:|check:" Makefile README.md docs/planning/EPIC_3/PROJECT_PLAN.md`
+5. Record the Day 7 parity design:
+   - `apply_patch` on `docs/planning/EPIC_3/SPRINT_34/WORKING_NOTES.md`
+   - `apply_patch` on `docs/planning/EPIC_3/SPRINT_34/artifacts/day7-cmake-parity-design.md`
+
+### Day 7 Audit Result
+
+Current `build/sprint33-day1-cmake` proof surface:
+
+- `ctest -N` still shows `53` registered tests.
+- the generated CMake tree currently builds:
+  - library: `libsparse_lu_ortho.a`
+  - tests: `53`
+  - benchmarks: `13`
+  - examples: `6`
+- the CMake compile database currently covers:
+  - `src`: `25`
+  - `tests`: `53`
+  - `benchmarks`: `13`
+  - `examples`: `6`
+
+Current CMake-path coverage gaps versus the maintained Makefile tooling surface:
+
+- benchmarks missing from the CMake compile-db:
+  - `bench_svd`
+- examples missing from the CMake compile-db:
+  - `example_basic_solve`
+  - `example_condition`
+  - `example_iterative`
+  - `example_least_squares`
+  - `example_matrix_free`
+  - `example_svd_lowrank`
+
+What the current CMake path does prove:
+
+- active-suite registration remains auditable through `ctest -N`
+- active-suite execution remains auditable through full `ctest`
+- the CMake-defined reviewed target set can be rebuilt cleanly from one generated build tree
+- that build tree exercises a broader warning family than the Makefile lint syntax-only pass, including the Sprint 32 baseline categories preserved in `CMakeLists.txt`
+
+What the current CMake path does not prove:
+
+- it does not replace `make format-check`
+- it does not replace `make lint`'s `clang-tidy` / `cppcheck` phases
+- it does not replace `make deadcode-check`
+- it does not cover the full Makefile benchmark/example compile-only surface because the Sprint 33 compile-db exclusion list still exists
+- it does not make benchmark/example runtime execution part of Sprint 34's reviewed compile-quality contract
+
+### Day 7 Design Decision
+
+Day 8 should implement dedicated CMake-parity wrapper targets rather than changing the meaning of any existing local quality target.
+
+Chosen target shape:
+
+- `quality-review-cmake-compile`
+  - configure a dedicated build tree:
+    - `QUALITY_REVIEW_CMAKE_DIR ?= build/quality-review-cmake`
+  - run:
+    - `cmake -S . -B $(QUALITY_REVIEW_CMAKE_DIR) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`
+    - `cmake --build $(QUALITY_REVIEW_CMAKE_DIR) --parallel 1 --clean-first`
+    - `ctest -N --test-dir $(QUALITY_REVIEW_CMAKE_DIR)`
+- `quality-review-cmake`
+  - run `quality-review-cmake-compile`
+  - then run:
+    - `ctest --test-dir $(QUALITY_REVIEW_CMAKE_DIR) --output-on-failure`
+
+Why this shape:
+
+- it mirrors the Sprint 34 Day 5 split between compile-oriented review and full review
+- it keeps `ctest -N` as an explicit auditable active-suite check instead of burying it in implementation details
+- it keeps the full CTest execution step separate and attributable
+- it avoids overloading the historical `build/sprint33-day1-cmake` artifact tree with new reviewed-quality semantics
+
+### Day 7 Parity Boundary
+
+Direct Sprint 34 CMake parity target:
+
+- clean rebuild of the CMake-defined reviewed set
+- `ctest -N`
+- full `ctest`
+
+Documented Makefile-authoritative sibling checks:
+
+- `format-check`
+- `lint` static-analysis phases
+- `deadcode-check`
+- compile-only coverage for:
+  - `bench_svd`
+  - `example_basic_solve`
+  - `example_condition`
+  - `example_iterative`
+  - `example_least_squares`
+  - `example_matrix_free`
+  - `example_svd_lowrank`
+
+Dead-code parity rule for Day 8:
+
+- do not silently imply the dead-code compile-db gap is closed
+- keep the exclusion list explicit in:
+  - `build/deadcode/coverage-notes.txt`
+  - `build/deadcode/report.md`
+  - maintainer-facing documentation
+- treat compile-db broadening as later work unless Day 8 can do it without destabilizing the reviewed target contract
+
+### Day 7 Interpretation
+
+- Sprint 34 does not need to force all quality semantics through CMake to achieve phase-1 parity.
+- It does need a first-class, named CMake reviewed path so the project cannot drift into an effectively Make-only build/test contract.
+- The truthful Day 8 scope is therefore:
+  - add named CMake reviewed wrappers
+  - validate them end to end
+  - preserve the Sprint 33 dead-code coverage gap as an explicit limitation rather than hiding it
+
+### Day 7 Outputs
+
+- `artifacts/day7-cmake-parity-design.md`

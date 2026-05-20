@@ -248,7 +248,10 @@ sparse_ilut_opts_t ilu_opts = {
     .tol = 1e-3,
     .max_fill = 10,
 };
-sparse_ilut_factor(A_copy, &ilu, &ilu_opts);
+sparse_ilut_factor(A_copy, &ilu_opts, &ilu);
+
+sparse_ilu_free(&ilu);
+sparse_free(A_copy);
 ```
 
 ---

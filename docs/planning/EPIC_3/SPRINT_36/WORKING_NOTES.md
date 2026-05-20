@@ -473,3 +473,144 @@ queue.
 ### Day 3 Outputs
 
 - `artifacts/day3-windows-msvc-quality-audit.md`
+
+## Day 4
+
+**Objective:** Define the reviewed cross-platform quality contract before
+changing CI or helper scripts, including what Sprint 36 will enforce now, what
+it will report explicitly, and what remains intentionally staged for later
+work.
+
+### Commands Run
+
+1. Re-read the Day 4 plan and the Day 2/Day 3 audit outputs:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '89,113p' docs/planning/EPIC_3/SPRINT_36/PLAN.md`
+   - `cat docs/planning/EPIC_3/SPRINT_36/artifacts/day2-macos-warning-parity-audit.md`
+   - `cat docs/planning/EPIC_3/SPRINT_36/artifacts/day3-windows-msvc-quality-audit.md`
+2. Re-read the current Linux, macOS, and Windows workflows together:
+   - `cat .github/workflows/ci.yml`
+   - `cat .github/workflows/macos-ci.yml`
+   - `cat .github/workflows/windows-ci.yml`
+3. Reconfirm the reviewed local/CMake wrapper surface:
+   - inspect `Makefile`
+   - inspect `make -n quality-review-cmake-compile`
+
+### Day 4 Design Decisions
+
+#### 1. "Parity" in Sprint 36 means explicit reviewed-path interpretation, not identical commands everywhere
+
+Sprint 36 should not pretend that Linux, macOS, and Windows have identical
+tooling and runtime constraints today.
+
+Chosen Day 4 interpretation:
+
+- parity means each platform must have an explicit, truthful mapping to:
+  - reviewed compile-quality expectations
+  - reviewed CMake/test parity expectations
+  - dead-code expectation status
+  - named staged exclusions or unavailable surfaces
+- parity does **not** mean every platform must immediately run the exact same
+  command list
+
+Interpretation:
+
+- Sprint 36 is a contract-alignment sprint first
+- stronger same-command enforcement can come later once staged exclusions are
+  better closed or isolated
+
+#### 2. The platform contract now splits into enforced, staged, and excluded layers
+
+Chosen reporting model by platform:
+
+- Linux
+  - enforced reviewed compile-quality path
+  - enforced reviewed CMake parity path
+  - enforced dead-code report/check path
+- macOS
+  - enforced real build/test/sanitize/wall-check/install coverage
+  - staged reviewed-wrapper alignment
+  - staged dead-code parity
+- Windows
+  - enforced real CMake configure/build/ctest coverage
+  - staged reviewed-wrapper naming/parity alignment
+  - staged dead-code parity
+  - explicit excluded test/benchmark surfaces
+
+Interpretation:
+
+- Sprint 36 should make these states visible instead of flattening them into a
+  false "all platforms equal" story
+
+#### 3. The reviewed local contract remains the source-of-truth baseline
+
+Sprint 34/Sprint 35 local invariants remain authoritative:
+
+- `make quality-review-compile`
+- `make quality-review`
+- `make quality-review-cmake-compile`
+- `make quality-review-cmake`
+- `53` registered CTest tests
+
+Day 4 decision:
+
+- later platform-specific CI wording should point back to these as the baseline
+  reviewed contract
+- platform workflows may map to subsets or staged analogues, but they should
+  say so directly
+
+#### 4. Sprint 36 should not pull dead-code into fake cross-platform enforcement
+
+Dead-code remains a special case because of:
+
+- the compile-db coverage gap
+- the shared `build/deadcode-cmake` and `build/deadcode/` execution model
+- `xunused` setup differences
+
+Day 4 decision:
+
+- Linux keeps dead-code as the enforced path
+- macOS and Windows should document dead-code as staged/unavailable in parity
+  reporting unless Sprint 36 explicitly implements a safe path there
+- Sprint 36 should improve truthfulness of this status, not overclaim portable
+  dead-code support
+
+#### 5. The implementation order for Days 5 through 10 is now fixed
+
+Chosen sequence:
+
+- Day 5:
+  - macOS workflow alignment batch
+  - focus on `.github/workflows/macos-ci.yml`
+- Day 6:
+  - Windows workflow/reporting alignment batch
+  - focus on `.github/workflows/windows-ci.yml`
+- Day 7:
+  - script/target portability audit
+  - focus on `Makefile`, `scripts/deadcode_workflow.sh`, `scripts/deadcode_report.py`
+- Day 8:
+  - first portability fix batch
+- Day 9:
+  - CI expectation wording/reporting refinement across all three workflows
+- Day 10:
+  - compact parity report that classifies enforced vs staged vs excluded
+
+This order is load-bearing because it:
+
+- aligns platform CI entrypoints before broader reporting
+- keeps portability fixes informed by the real platform contract
+- delays the parity report until the workflow state is closer to final
+
+### Day 4 Interpretation
+
+- Day 4 closes the biggest ambiguity left by Days 2 and 3: Sprint 36 is not
+  trying to force identical commands on all platforms immediately.
+- It is making the reviewed contract explicit per platform, while keeping Linux
+  as the enforced source-of-truth baseline.
+- That gives the next implementation days a disciplined shape: workflow
+  alignment first, portability fixes second, compact parity reporting last.
+
+### Day 4 Outputs
+
+- `artifacts/day4-cross-platform-parity-design.md`

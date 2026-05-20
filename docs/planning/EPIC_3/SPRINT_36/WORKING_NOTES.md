@@ -1166,3 +1166,89 @@ Interpretation:
 ### Day 9 Outputs
 
 - `artifacts/day9-ci-expectation-refinement.md`
+
+## Day 10
+
+**Objective:** Produce a compact cross-platform parity report that shows which
+reviewed-quality surfaces are available from Make, from CMake, and in CI on
+Linux, macOS, and Windows, using the enforced/staged/excluded model fixed in
+Days 4-9.
+
+### Commands Run
+
+1. Re-read the parity-contract inputs and current workflow/docs state:
+   - `sed -n '224,258p' docs/planning/EPIC_3/PROJECT_PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_36/artifacts/day4-cross-platform-parity-design.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_36/artifacts/day7-script-target-portability-audit.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_36/artifacts/day8-portability-batch1.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_36/artifacts/day9-ci-expectation-refinement.md`
+2. Re-check the live operator/workflow surface:
+   - `sed -n '680,760p' README.md`
+   - `sed -n '1,120p' .github/workflows/ci.yml`
+   - `sed -n '1,140p' .github/workflows/macos-ci.yml`
+   - `sed -n '1,120p' .github/workflows/windows-ci.yml`
+3. Write the compact parity map and identify the bounded Day 11 follow-on queue.
+
+### Day 10 Findings
+
+#### 1. The parity surface is now compact enough to summarize directly
+
+By Day 10, the reviewed-quality contract is no longer scattered across sprint
+history:
+
+- the local reviewed Makefile wrappers are named
+- the local reviewed CMake parity path is named
+- Linux, macOS, and Windows CI now all classify their surfaces explicitly
+
+Interpretation:
+
+- Sprint 36 can now carry one compact parity map instead of relying on prose
+  spread across several artifacts
+
+#### 2. The reviewed CMake path is the only fully honest cross-platform reviewed baseline
+
+The report makes one structural fact explicit:
+
+- reviewed CMake parity is the only surface that all three platforms can claim
+  honestly today
+
+By contrast:
+
+- reviewed Makefile wrappers are enforced on Linux and macOS Apple Clang
+  locally/CI, but still staged on Windows
+- dead-code is enforced on Linux, staged on macOS, and excluded on Windows
+- Unix-maintainer helper flows remain supplemental or excluded rather than fake
+  parity surfaces
+
+Interpretation:
+
+- this confirms the Day 7 audit
+- later portability work should keep anchoring on the reviewed CMake path first
+
+#### 3. The remaining Day 11 queue is narrow and naming/reporting-focused
+
+The report does not surface a new broad implementation queue. It narrows the
+follow-on to a small final batch:
+
+- reconcile any remaining wording mismatch between local target names, workflow
+  comments, and the new parity report
+- tighten any residual contract wording around staged dead-code / staged
+  Windows Makefile reviewed paths if needed
+- avoid reopening dead-code maturity or fake Windows Makefile parity work
+
+Interpretation:
+
+- Day 11 should be a compact consistency pass, not another audit cycle
+
+### Day 10 Interpretation
+
+- Day 10 succeeded because Days 4-9 already turned the platform contract into a
+  stable enforced/staged/excluded model.
+- The important output is not just the table; it is that the repo now has one
+  operationally truthful parity map covering local Make, local CMake, and CI.
+- The remaining Sprint 36 implementation queue is now bounded tightly enough
+  that Day 11 can focus on final polish before validation.
+
+### Day 10 Outputs
+
+- `artifacts/day10-cross-platform-parity-report.md`

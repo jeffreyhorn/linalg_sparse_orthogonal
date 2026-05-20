@@ -664,3 +664,170 @@ Current risk by topic:
 ### Day 6 Outputs
 
 - `artifacts/day6-readme-tutorial-audit.md`
+
+## Day 7
+
+**Objective:** Convert the Day 6 audit into a concrete rewrite plan by
+assigning stable responsibilities across README/tutorial/header/example-facing
+docs, choosing canonical public wording for the highest-conflict topics, and
+defining the implementation order for the remaining Sprint 35 documentation
+batches.
+
+### Commands Run
+
+1. Re-read the Day 7 scope and current Sprint 35 state:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '170,240p' docs/planning/EPIC_3/SPRINT_35/PLAN.md`
+   - `tail -n 220 docs/planning/EPIC_3/SPRINT_35/WORKING_NOTES.md`
+2. Re-open the highest-conflict public surfaces from Day 6:
+   - `sed -n '200,260p' README.md`
+   - `sed -n '620,740p' README.md`
+   - `sed -n '1,220p' examples/example_iterative.c`
+   - `sed -n '1,220p' examples/README.md`
+   - `sed -n '1,240p' INSTALL.md`
+3. Cross-check the later sprint-day sequencing against the current plan:
+   - `sed -n '240,340p' docs/planning/EPIC_3/SPRINT_35/PLAN.md`
+
+### Day 7 Design Findings
+
+#### 1. The public-doc ownership split should be explicit, not inferred
+
+Day 6 showed that the remaining drift is caused partly by stale content and
+partly by multiple files trying to explain the same thing at different levels.
+
+The Sprint 35 ownership split should therefore be:
+
+- `README.md`
+  - concise public entrypoint
+  - current command map
+  - short, stable usage snippets
+  - high-level capability summary
+- `docs/tutorial.md`
+  - fuller user-teaching surface
+  - multi-step API workflows
+  - iterative/precondition guidance
+  - matrix-free and SVD usage walkthroughs
+- installed headers in `include/`
+  - authoritative parameter and behavior contract
+  - current type names
+  - accepted option values
+  - routine-level preconditions
+- `INSTALL.md`
+  - installation/platform/build guidance only
+  - not a second operator-workflow explainer
+- `examples/README.md`
+  - short catalog of shipped examples
+  - not the canonical API-usage teaching layer
+
+Interpretation:
+
+- README and tutorial can stop competing for the same explanatory depth
+- headers remain the contract surface that the prose must follow
+- support docs can be trimmed instead of expanded
+
+#### 2. Canonical wording should be fixed once for the highest-conflict topics
+
+The Day 7 rewrite plan needs stable wording rules for the recurring drift
+areas.
+
+**Initialization pattern**
+
+- use designated initializers for non-default public examples
+- use `NULL` only when the example is intentionally teaching the pure-default
+  path
+- avoid zero-init sentinel style in public docs
+
+**Iterative / precondition type names**
+
+- CG and matrix-free CG examples should use `sparse_iter_opts_t`
+- GMRES examples should use `sparse_gmres_opts_t`
+- ILUT configuration should use `sparse_ilut_opts_t`
+- ILU(0) should be described as the no-options/default incomplete
+  factorization path unless the example is specifically teaching ILUT
+
+**Reorder wording**
+
+- symmetric analysis/factor examples should name `NONE`, `RCM`, `AMD`, and
+  `ND` as the normal reorder set
+- `COLAMD` should be described as accepted in analysis but not as the normal
+  symmetric-analysis recommendation
+- QR-specific examples can teach the column-oriented `COLAMD` path directly
+
+**Quality-command wording**
+
+- README owns the concise public command map
+- `INSTALL.md` can reference the build/test flows, but should not duplicate the
+  full reviewed-quality operator explanation
+- tutorial should mention quality commands only when they are directly relevant
+  to example/build usage, not as a second command catalog
+
+#### 3. Public precondition guidance needs one home per level
+
+Precondition wording is a real later-sprint topic, so the rewrite plan needs
+the location split now rather than during Day 9.
+
+Chosen structure:
+
+- headers:
+  - authoritative routine-specific preconditions and accepted modes
+- tutorial:
+  - user-facing operational guidance
+  - which solver/preconditioner path to choose and what assumptions matter
+- README:
+  - brief signposts only
+  - enough context to avoid obviously misleading examples, but not the full
+    safety narrative
+- `INSTALL.md` / `examples/README.md`:
+  - no independent precondition explanation beyond minimal contextual wording
+
+Interpretation:
+
+- Day 9 can audit against a stable destination model instead of deciding
+  ownership and wording at the same time
+
+#### 4. The implementation order should follow dependency, not file prestige
+
+The remaining rewrite order should be:
+
+1. **Day 8 core public rewrite**
+   - `docs/tutorial.md`
+   - `README.md`
+2. **Day 9 audit**
+   - headers and rewritten docs for residual precondition-language debt
+3. **Day 10 implementation**
+   - whichever of `README.md`, `docs/tutorial.md`, installed headers, or
+     example comments need wording tightening from Day 9
+4. **Day 11 support-doc polish**
+   - `INSTALL.md`
+   - `examples/README.md`
+   - `benchmarks/README.md`
+   - any remaining quality-facing README sections if duplication still survives
+5. **Day 12 validation-linked cleanup**
+   - shipped example sources only if snippet-to-code validation exposes new
+     drift
+
+Why this order is correct:
+
+- tutorial must move first because it contains the strongest current falsehoods
+- README should be reconciled immediately after, while the canonical wording is
+  fresh
+- support docs should follow the main rewrite so they inherit the final public
+  wording instead of becoming a third competing source
+
+### Day 7 Interpretation
+
+- Day 7 closes the planning gap that Day 6 intentionally left open.
+- Sprint 35 now has one concrete doc architecture:
+  - README = entrypoint
+  - tutorial = teaching layer
+  - headers = contract layer
+  - install/examples docs = support layer
+- That gives Day 8 a narrow job:
+  - rewrite tutorial first
+  - reconcile README second
+  - avoid reopening support-doc ownership questions until Day 11
+
+### Day 7 Outputs
+
+- `artifacts/day7-readme-tutorial-rewrite-design.md`

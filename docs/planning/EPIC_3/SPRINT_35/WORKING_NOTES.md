@@ -1103,3 +1103,99 @@ Residual work there is secondary. The higher-value Day 10 queue is still:
 ### Day 9 Outputs
 
 - `artifacts/day9-api-precondition-audit.md`
+
+## Day 10
+
+**Objective:** Tighten the public safety and usage language identified on Day
+9, keeping the edits concise and user-facing while aligning tutorial/README
+prose more closely with the already-precise installed-header contracts.
+
+### Commands Run
+
+1. Re-read the Day 10 scope and the Day 9 audit queue:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '240,320p' docs/planning/EPIC_3/SPRINT_35/PLAN.md`
+   - `sed -n '120,320p' docs/tutorial.md`
+   - `sed -n '150,260p' README.md`
+   - `sed -n '145,185p' include/sparse_qr.h`
+2. Re-check the exact Day 9 wording targets:
+   - `rg -n "sparse_qr_solve_minnorm|minimum-norm|underdetermined|identity permutations|fresh copy|sparse_copy\\(A\\)" README.md docs/tutorial.md`
+   - `sed -n '312,326p' README.md`
+   - `sed -n '200,235p' docs/tutorial.md`
+3. Post-edit documentation sanity checks:
+   - `git diff -- README.md docs/tutorial.md`
+   - `rg -n "minimum-norm|identity permutations|fresh `sparse_copy\\(\\)`|IC\\(0\\)|ILUT|underdetermined" README.md docs/tutorial.md`
+
+### Day 10 Implementation Findings
+
+#### 1. The tutorial now surfaces the main matrix-state assumptions directly
+
+The highest-value Day 9 queue was the gap between precise header preconditions
+and more implicit tutorial prose. Day 10 closes the most important part of
+that gap:
+
+- the QR section now says directly that QR expects an unfactored, unreordered
+  matrix with identity permutations
+- the SVD section now says the same about using the original matrix view
+- the preconditioning section now explains why users may want a fresh
+  `sparse_copy()` before ILU(0), ILUT, or IC(0) setup when matrix state is
+  uncertain
+
+Interpretation:
+
+- the user-facing docs now expose the main "original matrix vs post-factor /
+  post-reorder matrix" distinction instead of leaving it buried in headers
+
+#### 2. Matrix-class / preconditioner guidance is now clearer in user prose
+
+The tutorial now states the practical pairing more directly:
+
+- IC(0) with SPD operators and CG/MINRES workflows
+- ILU(0) / ILUT with GMRES and other general or indefinite-system workflows
+
+This is still concise, but it is a materially better operational guide than
+the pre-Day-10 version, which implied the families without saying the pairing
+plainly.
+
+#### 3. QR routine selection is now clearer across tutorial and README
+
+The Day 9 QR distinction is now surfaced in user-facing docs:
+
+- tutorial QR wording now distinguishes `sparse_qr_solve()` from
+  `sparse_qr_solve_minnorm()`
+- README's QR API summary now says `sparse_qr_solve()` gives a basic solution
+  for underdetermined systems rather than the minimum-norm one
+
+That closes a real public-usage ambiguity without turning either file into a
+full duplicate of `include/sparse_qr.h`.
+
+#### 4. No header edits were needed
+
+Day 9 left open the possibility that a user-facing clarification might reveal
+an actual header-level ambiguity. That did not happen.
+
+The current installed headers were already the precise contract surface. The
+missing work was in the prose layer, so Day 10 stayed in:
+
+- `docs/tutorial.md`
+- `README.md`
+
+This is the right outcome. It keeps the sprint focused on public guidance
+rather than re-editing already-correct API contracts.
+
+### Day 10 Interpretation
+
+- The remaining Sprint 35 precondition-language queue is now substantially
+  smaller.
+- Day 11 can move into support-doc polish and duplication cleanup rather than
+  still carrying core safety-language debt from README/tutorial.
+- The likely Day 11 surfaces are now the intended ones:
+  - `INSTALL.md`
+  - `examples/README.md`
+  - `benchmarks/README.md`
+  - any remaining quality-facing README duplication
+
+### Day 10 Outputs
+
+- `artifacts/day10-api-precondition-implementation.md`

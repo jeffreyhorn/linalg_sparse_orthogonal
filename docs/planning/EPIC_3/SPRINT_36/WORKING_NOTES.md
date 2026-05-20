@@ -824,3 +824,143 @@ Interpretation:
 ### Day 6 Outputs
 
 - `artifacts/day6-windows-workflow-alignment.md`
+
+## Day 7
+
+**Objective:** Audit the reviewed-quality and dead-code helper surfaces for
+shell, path, environment, and tool-discovery assumptions that still bind the
+quality flow to POSIX-first behavior, and separate real portability debt from
+intentional staged exclusions.
+
+### Commands Run
+
+1. Re-read the Sprint 36 Day 7 plan plus the current platform workflows:
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_36/PLAN.md`
+   - `sed -n '1,260p' .github/workflows/macos-ci.yml`
+   - `sed -n '1,220p' .github/workflows/windows-ci.yml`
+   - `sed -n '1,260p' .github/workflows/ci.yml`
+2. Audit the maintained reviewed-quality and dead-code surfaces:
+   - `sed -n '1,620p' Makefile`
+   - `sed -n '620,820p' Makefile`
+   - `sed -n '1,260p' scripts/deadcode_workflow.sh`
+   - `sed -n '1,320p' scripts/deadcode_report.py`
+   - `sed -n '1,260p' scripts/ci.sh`
+   - `sed -n '1,260p' scripts/wall_check.sh`
+   - `sed -n '1,260p' scripts/epic3_warning_workflow.sh`
+3. Search for reviewed-path portability assumptions:
+   - `rg -n "quality-review|deadcode|wall-check|sanitize|SHELL|bash|python3|xunused|llvm|clang-tidy|cppcheck|ctest -N|uname|brew|/tmp|realpath|sed -i|mktemp|grep -P|readlink|pwd -P" Makefile scripts .github/workflows include src tests docs/planning/EPIC_3/SPRINT_36 -g '!build/**'`
+   - `rg -n "^\\.PHONY: clean|^clean:|rm -rf|find \\(|awk |for t in|for b in|python3|bash scripts|scripts/.*sh" Makefile`
+
+### Day 7 Findings
+
+#### 1. The reviewed CMake parity path is already the genuinely portable baseline
+
+The current cross-platform story is much stronger on the CMake side than on the
+Makefile side:
+
+- Linux explicitly runs `make quality-review-cmake`
+- macOS Apple Clang now explicitly runs `make quality-review-cmake`
+- Windows now explicitly runs reviewed CMake configure/build plus `ctest -N`
+  and full `ctest`
+
+Interpretation:
+
+- Sprint 36 does **not** need to invent a new portable quality path
+- the existing portable reviewed baseline is already the CMake path
+- the main portability debt sits in the Makefile-reviewed and dead-code helper
+  layers, not in the CMake parity layer
+
+#### 2. The Makefile reviewed wrappers are still intentionally POSIX-first
+
+The maintained Makefile quality flow still depends on POSIX shell tools and
+syntax in multiple places:
+
+- shell loops in `test`, `bench`, `bench-fast`, `sanitize-thread`,
+  `coverage-lcov`, and `coverage-gcovr`
+- inline `awk` parsing in `quality-review-cmake-compile`, `wall-check`, and
+  coverage thresholds
+- `find`-derived file lists in `format`, `format-check`, and `lint`
+- explicit `/bin/rm`, `/bin/mkdir`, and `bash` helper invocations
+
+Interpretation:
+
+- this is the real reason Windows does not yet claim `make quality-review-*`
+  parity
+- the problem is not "MSVC can't build the code"; it is that the Makefile path
+  is still a POSIX-maintainer path
+- only a subset of this is worth changing in Sprint 36, because the reviewed
+  CMake path already carries the portable enforcement contract
+
+#### 3. The dead-code workflow remains Linux-enforced by design, not by accident
+
+The dead-code surface still has stronger portability constraints than the other
+reviewed paths:
+
+- `scripts/deadcode_workflow.sh` is an explicit `bash` workflow
+- it requires `cppcheck`, `python3`, and `xunused`
+- it has Darwin-specific `xcrun` / SDK / resource-dir handling
+- Linux CI still builds and installs `xunused` from source at runtime
+- the workflow still shares `build/deadcode-cmake` and `build/deadcode/`
+  across `deadcode*` targets
+- the compile-db coverage gap remains `bench_svd` plus six examples
+
+Interpretation:
+
+- Sprint 36 should keep dead-code as:
+  - enforced on Linux CI
+  - local/staged on macOS
+  - excluded on Windows
+- treating dead-code as fake all-platform parity would be less truthful than
+  the current contract
+
+#### 4. `wall-check` and the warning-capture helpers are explicit maintenance tools, not cross-platform reviewed gates
+
+Two helper workflows still carry clear POSIX-only assumptions:
+
+- `scripts/wall_check.sh`
+  - `bash`
+  - `mktemp`
+  - `awk`
+- `scripts/epic3_warning_workflow.sh`
+  - `bash`
+  - `awk`
+  - `date`
+  - POSIX clean-build directory handling
+
+Interpretation:
+
+- this is acceptable today because neither helper is part of the Windows
+  reviewed-parity contract
+- they should be documented/report-classified as Unix-maintainer tools, not
+  treated as hidden Windows debt
+
+#### 5. The highest-value Sprint 36 portability fixes are narrower than a “port everything” pass
+
+The audit narrows the next implementation surface to a small set of
+high-value moves:
+
+- reduce avoidable POSIX-only parsing inside the maintained reviewed Makefile
+  path where practical
+- make Unix-only helper assumptions more explicit where they are intentional
+- keep dead-code and maintenance-only helpers truthfully staged/excluded by
+  platform instead of overclaiming parity
+
+Interpretation:
+
+- Day 8 should focus on reviewed-path helper portability and explicitness
+- Day 9 should focus on CI/reporting alignment around enforced vs staged vs
+  excluded surfaces
+
+### Day 7 Interpretation
+
+- The most important portability result is negative: the repo does **not** have
+  a hidden cross-platform build failure in its maintained reviewed baseline.
+- The portable baseline is already the CMake reviewed path; the remaining debt
+  is in the older POSIX-maintainer wrappers and helper workflows.
+- Sprint 36 should therefore tighten and clarify those wrappers rather than try
+  to force dead-code or Makefile maintenance tools into fake all-platform
+  symmetry.
+
+### Day 7 Outputs
+
+- `artifacts/day7-script-target-portability-audit.md`

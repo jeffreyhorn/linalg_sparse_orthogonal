@@ -1340,3 +1340,129 @@ Interpretation:
 ### Day 11 Outputs
 
 - `artifacts/day11-final-parity-consistency-pass.md`
+
+## Day 12
+
+**Objective:** Run the practical local validation paths that Sprint 36 changed
+or re-framed, re-check the parity-report claims against live command behavior,
+and pin the exact Day 13 full-sweep command set before closeout.
+
+### Commands Run
+
+1. Re-read the Day 12 plan and the live parity-contract surfaces:
+   - `sed -n '240,360p' docs/planning/EPIC_3/SPRINT_36/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_36/artifacts/day10-cross-platform-parity-report.md`
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_36/artifacts/day11-final-parity-consistency-pass.md`
+   - `tail -n 120 docs/planning/EPIC_3/SPRINT_36/WORKING_NOTES.md`
+2. Validate the current workflow/YAML and platform-focused local commands:
+   - `ruby -e 'require "yaml"; %w[.github/workflows/ci.yml .github/workflows/macos-ci.yml .github/workflows/windows-ci.yml].each { |p| YAML.load_file(p); puts "yaml_ok #{p}" }'`
+   - `make wall-check`
+   - `make quality-review-compile`
+   - `make quality-review-cmake-compile`
+   - `make deadcode-report`
+   - `make deadcode-check`
+   - `make sanitize`
+3. Record the Day 12 validation note and the exact Day 13 full-sweep command
+   set.
+
+### Day 12 Findings
+
+#### 1. The reviewed local paths Sprint 36 aligned still pass live
+
+The local reviewed-quality commands that matter most for Sprint 36 all passed:
+
+- `make quality-review-compile`
+- `make quality-review-cmake-compile`
+- `make deadcode-report`
+- `make deadcode-check`
+
+Interpretation:
+
+- the sprint’s cross-platform contract work did not break the maintained local
+  reviewed entry points
+- the Linux-style enforced baseline remains real, not just described
+
+#### 2. The CMake parity contract is still exact
+
+`make quality-review-cmake-compile` still reported:
+
+- `ctest -N`: `53`
+- Makefile tests: `53`
+- CMake tests: `53`
+- `PASS: test counts match`
+
+Interpretation:
+
+- the strongest honest cross-platform reviewed baseline is unchanged
+- Sprint 36 did not drift the audited active-suite parity count while updating
+  workflow and README contract wording
+
+#### 3. The staged dead-code story is still truthful
+
+The dead-code commands passed in their supported serialized local mode:
+
+- `make deadcode-report`
+- `make deadcode-check`
+
+Interpretation:
+
+- Sprint 36 still describes dead-code honestly:
+  - enforced on Linux
+  - staged on macOS
+  - excluded on Windows
+- Day 12 did not uncover any basis for broadening that claim prematurely
+
+#### 4. The macOS-side helper/supporting path still has live evidence
+
+Two Apple-Clang-adjacent supporting validations also passed:
+
+- `make wall-check`
+- `make sanitize`
+
+`make wall-check` ended with `wall-check: PASS`.
+
+`make sanitize` completed cleanly and ended with `All tests passed.` The long
+tail of the suite stayed green through the heavier reordering, CSC, eigensolver,
+graph, and framework tests.
+
+Interpretation:
+
+- the Sprint 36 wording around enforced Apple Clang reviewed paths and live
+  supplemental helper coverage remains grounded in working commands
+- no new platform regression surfaced in the local validation pass
+
+#### 5. Workflow structure remains syntactically valid
+
+Ruby YAML loading still passed for:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/macos-ci.yml`
+- `.github/workflows/windows-ci.yml`
+
+Interpretation:
+
+- the Day 5/6/9/11 CI alignment work remains structurally sound
+- the final sweep does not need to reopen workflow syntax concerns
+
+### Day 12 Interpretation
+
+- Day 12 succeeded because Sprint 36’s alignment work stayed attached to real
+  maintained commands instead of introducing a speculative portability layer.
+- The main result is that the Day 10 parity report is still operationally
+  truthful when checked against live commands.
+- No new parity debt or portability queue reopened, so Day 13 can stay a clean
+  full validation sweep.
+
+### Day 12 Outputs
+
+- `artifacts/day12-platform-focused-validation.md`
+
+### Day 13 Planned Full Sweep
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-compile`
+- `make quality-review`
+- `make quality-review-cmake-compile`
+- `make quality-review-cmake`

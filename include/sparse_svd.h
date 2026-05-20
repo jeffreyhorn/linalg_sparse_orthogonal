@@ -11,12 +11,16 @@
  * **Usage pattern:**
  * @code
  *   SparseMatrix *A = ...;  // m×n matrix
- *   sparse_svd_opts_t opts = { .compute_uv = 1, .economy = 1 };
+ *   sparse_svd_opts_t opts = {
+ *       .compute_uv = 1,
+ *       .economy = 1,  // thin/economy U and V^T
+ *   };
  *   sparse_svd_t svd;
  *   sparse_svd_compute(A, &opts, &svd);
  *
  *   // svd.sigma[0..k-1] are singular values in descending order
  *   // svd.U is m×k column-major, svd.Vt is k×n column-major
+ *   // Set opts.economy = 0 to request full U (m×m) and V^T (n×n)
  *
  *   sparse_svd_free(&svd);
  * @endcode
@@ -65,13 +69,18 @@ typedef struct {
  * @pre A must have identity permutations (not previously factored or reordered).
  *      A is not modified.
  *
+ * If @p opts is NULL, this routine computes singular values only. When
+ * `opts->compute_uv` is nonzero, `opts->economy = 1` returns thin/economy
+ * factors (`U` is m×k, `V^T` is k×n) and `opts->economy = 0` returns full
+ * orthonormal factors (`U` is m×m, `V^T` is n×n), where k = min(m,n).
+ *
  * @param A    The matrix to decompose (not modified).
  * @param opts Options (NULL for defaults: singular values only).
  * @param svd  Output: SVD result. Must be freed with sparse_svd_free().
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or svd is NULL.
  * @return SPARSE_ERR_BADARG if A has non-identity permutations, or if
- *         compute_uv is set without economy (full SVD not implemented).
+ *         opts requests a negative max_iter / tol.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  * @return SPARSE_ERR_NOT_CONVERGED if QR iteration fails to converge.
  *
@@ -108,20 +117,26 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
  * Lanczos bidiagonalization to build a small k×k bidiagonal, then
  * applies the bidiagonal SVD iteration to extract singular values.
  *
- * When opts->compute_uv is set (with opts->economy = 1), approximate
- * left and right singular vectors are recovered from the Lanczos basis.
- * The vectors satisfy A*v_i ≈ sigma_i * u_i for the top k triplets.
+ * When `opts->compute_uv` is set with `opts->economy = 1`, approximate
+ * thin left and right singular vectors are recovered from the Lanczos basis.
+ * The vectors satisfy A*v_i ≈ sigma_i * u_i for the top-k triplets.
+ * Partial SVD does not support the full-U / full-V^T mode.
  *
  * @param A    The matrix (not modified). Must have identity permutations.
  * @param k    Number of singular values to compute.
- * @param opts Options (NULL for defaults). Only max_iter and tol are used;
- *             singular vectors are not computed.
- * @param svd  Output: partial SVD result (sigma has k entries; U and V^T are NULL).
- *             Must be freed with sparse_svd_free().
+ * @param opts Options (NULL for defaults). `max_iter` and `tol` tune the
+ *             Lanczos / bidiagonal iteration. Set `compute_uv = 1` together
+ *             with `economy = 1` to recover approximate thin singular vectors;
+ *             `compute_uv = 1` with `economy = 0` is rejected.
+ * @param svd  Output: partial SVD result. `sigma` has k entries. When
+ *             `opts->compute_uv && opts->economy`, `U` is m×k and `V^T` is
+ *             k×n; otherwise `U` and `V^T` are NULL. Must be freed with
+ *             sparse_svd_free().
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if A or svd is NULL.
  * @return SPARSE_ERR_BADARG if k <= 0 or k > min(m,n), if A has non-identity
- *         permutations, or if opts has negative max_iter/tol.
+ *         permutations, if opts has negative max_iter/tol, or if
+ *         `opts->compute_uv` is set without `opts->economy = 1`.
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  * @return SPARSE_ERR_NOT_CONVERGED if bidiagonal SVD iteration fails.
  */

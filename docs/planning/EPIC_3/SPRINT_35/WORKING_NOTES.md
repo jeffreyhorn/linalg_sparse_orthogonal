@@ -337,3 +337,84 @@ Sprint 35 should apply the following cross-surface rule:
 ### Day 3 Outputs
 
 - `artifacts/day3-public-initialization-standard.md`
+
+## Day 4
+
+**Objective:** Apply the Day 3 public example contract to the first installed-header cleanup batch, starting with the highest-signal header truthfulness issue identified on Day 2 and keeping the scope narrow enough to stay documentation-facing and semantically neutral.
+
+### Commands Run
+
+1. Re-read the Sprint 35 Day 4 scope and prior audit/design decisions:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '80,170p' docs/planning/EPIC_3/SPRINT_35/PLAN.md`
+   - `sed -n '1,420p' docs/planning/EPIC_3/SPRINT_35/WORKING_NOTES.md`
+2. Re-open the target header and cross-check against current implementation:
+   - `sed -n '1,260p' include/sparse_svd.h`
+   - `rg -n "full SVD not implemented|singular vectors are not computed|economy|compute_uv" include/sparse_svd.h src examples docs -g '!build/**'`
+   - `sed -n '720,930p' src/sparse_svd.c`
+   - `sed -n '980,1385p' src/sparse_svd.c`
+3. Validation after the header edit:
+   - `make format`
+   - `make lint`
+   - `make test`
+
+### Day 4 Implementation Findings
+
+#### 1. The first installed-header batch stayed intentionally narrow
+
+Day 2 and Day 3 were accurate: the installed-header queue is not a large conversion pass. The only Day 4 header that justified direct editing was:
+
+- `include/sparse_svd.h`
+
+Interpretation:
+
+- this is still a real “header batch,” but the batch is driven by truthfulness and current behavior, not by a mechanical syntax sweep
+
+#### 2. `include/sparse_svd.h` now teaches the current public SVD contract
+
+The Day 4 header changes closed the two contradictions identified on Day 2:
+
+- `sparse_svd_compute()` no longer claims that full SVD with `compute_uv && !economy` is unimplemented
+- `sparse_svd_partial()` no longer contradicts itself about whether singular vectors can be recovered
+
+The header now states the actual split implemented in `src/sparse_svd.c`:
+
+- `sparse_svd_compute()`:
+  - `opts == NULL` => singular values only
+  - `compute_uv = 1, economy = 1` => thin/economy `U` and `V^T`
+  - `compute_uv = 1, economy = 0` => full `U` and `V^T`
+- `sparse_svd_partial()`:
+  - approximate singular vectors are supported only when
+    `compute_uv = 1, economy = 1`
+  - `compute_uv = 1, economy = 0` is rejected
+
+#### 3. The Day 3 public example contract is now applied in a touched installed header
+
+The top-level `sparse_svd.h` usage snippet was also refreshed to match the Day 3 rule more explicitly:
+
+- designated initializer for the non-default path
+- minimal fields only
+- explicit note that `economy = 0` requests full output
+
+Interpretation:
+
+- Day 4 is not just a wording correction; it is the first concrete application of the Sprint 35 public example standard at the installed-header layer
+
+### Day 4 Interpretation
+
+- The header queue remains small and high-signal.
+- Day 5 should now be a consistency/re-review pass across the remaining installed headers rather than a broad rewrite batch.
+- The larger Sprint 35 queue still lives outside the headers:
+  - `docs/tutorial.md`
+  - `README.md`
+  - selected shipped examples and example-facing docs
+- Validation for the touched header was complete:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - all passed
+
+### Day 4 Outputs
+
+- `artifacts/day4-header-batch1.md`

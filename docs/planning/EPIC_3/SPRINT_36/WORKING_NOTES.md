@@ -151,3 +151,154 @@ Likely first audit/fix split:
 
 - `artifacts/day1-cross-platform-baseline.md`
 - `artifacts/day1-parity-surface-inventory.txt`
+
+## Day 2
+
+**Objective:** Audit the maintained Apple Clang/macOS quality surface against
+the Sprint 34 reviewed-wrapper contract, distinguish real parity debt from
+acceptable platform variance, and define the concrete macOS queue for later
+Sprint 36 fixes.
+
+### Commands Run
+
+1. Re-read the Day 2 plan and the Day 1 baseline:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '39,63p' docs/planning/EPIC_3/SPRINT_36/PLAN.md`
+   - `cat docs/planning/EPIC_3/SPRINT_36/artifacts/day1-cross-platform-baseline.md`
+2. Re-read the current macOS workflow:
+   - `cat .github/workflows/macos-ci.yml`
+3. Re-read the reviewed Makefile targets and macOS-relevant target logic:
+   - `sed -n '1,80p' Makefile`
+   - `sed -n '288,585p' Makefile`
+4. Compare Linux and macOS CI command surfaces:
+   - inspect `.github/workflows/ci.yml`
+   - inspect `.github/workflows/macos-ci.yml`
+   - compare key hits for:
+     - `quality-review`
+     - `deadcode`
+     - `format-check`
+     - `lint`
+     - `ctest`
+     - `sanitize`
+     - `wall-check`
+     - `pkg-config`
+5. Check whether the reviewed wrappers are already callable on macOS-style local
+   `CC=cc` paths:
+   - `make -n CC=cc quality-review-compile`
+   - `make -n CC=cc quality-review-cmake-compile`
+   - `make -n CC=cc deadcode-check`
+6. Re-read the macOS-specific helper notes:
+   - `cat scripts/ci.sh`
+   - `rg -n "__APPLE__|APPLE|darwin|clang|gcc-15|libomp|sanitize-thread|tsan" Makefile scripts .github/workflows -g '*.*'`
+
+### Day 2 Findings
+
+#### 1. The main macOS parity gap is workflow entrypoint alignment, not target absence
+
+Day 2's most important result is that the maintained reviewed targets are
+already available on macOS locally:
+
+- `quality-review-compile`
+- `quality-review-cmake-compile`
+- `deadcode-check`
+
+The `make -n CC=cc ...` checks showed that those paths are callable with the
+default macOS `cc`-style toolchain and do not depend on Linux-only target
+names.
+
+Interpretation:
+
+- the dominant macOS parity gap is not "the reviewed wrapper contract cannot
+  run on macOS"
+- it is that `macos-ci.yml` still drives older direct entrypoints:
+  - `make`
+  - `make test`
+  - `make wall-check`
+  - Apple Clang `make sanitize`
+
+#### 2. macOS CI still lags the reviewed Sprint 34 contract in three concrete ways
+
+Compared to Linux CI, the current macOS workflow does **not** yet express:
+
+- reviewed Makefile compile-quality path
+  - no `make quality-review-compile`
+- reviewed CMake parity path
+  - no `make quality-review-cmake`
+  - no `ctest -N` / Makefile-vs-CMake test-count parity signal
+- dead-code reporting/check expectation
+  - no `make deadcode-report`
+  - no `make deadcode-check`
+
+Interpretation:
+
+- these are the highest-value Day 5/Day 9 macOS follow-on surfaces
+- they are CI contract gaps first, not necessarily code-level warning failures
+
+#### 3. Several macOS workflow differences are legitimate keeps, not fix debt
+
+Day 2 also identified differences that should stay explicit rather than being
+forced into fake parity:
+
+- keep:
+  - Homebrew GCC matrix leg
+    - it covers a useful second compiler on macOS that Linux parity work does
+      not replace
+  - `wall-check`
+    - this remains a real regression signal already used in macOS CI
+  - install/pkg-config verification job
+    - this is macOS-specific value, not workflow noise
+  - no TSan in macOS CI
+    - the existing notes still describe real Apple Clang/macOS TSan runtime
+      limits
+
+Interpretation:
+
+- Sprint 36 should align reviewed-quality expectations on macOS without
+  deleting the extra macOS-specific value already present
+
+#### 4. The main macOS document/report queue is now explicit
+
+The current macOS surface still carries a few platform-communication issues
+that are not necessarily code bugs:
+
+- document or normalize:
+  - the Homebrew GCC pin uses `gcc-15` in workflow comments and job config
+  - Apple Clang sanitizer expectations are split across:
+    - `make sanitize`
+    - `make asan`
+    - `scripts/ci.sh`
+  - OpenMP/libomp expectations are documented in Makefile comments but not yet
+    presented as part of a reviewed cross-platform parity report
+
+Interpretation:
+
+- Sprint 36 should keep these as explicit parity-report and CI-wording items
+- they do not yet justify source-code edits by themselves
+
+#### 5. The likely Day 5 macOS fix batch is narrow
+
+Based on the audit, the first macOS implementation batch should focus on:
+
+- `.github/workflows/macos-ci.yml`
+  - reviewed-path entrypoint alignment
+  - clearer platform expectation wording
+- possibly `Makefile`
+  - only if later work finds a real Apple Clang reviewed-path incompatibility
+- supporting docs/reporting
+  - to explain the resulting macOS reviewed-path interpretation truthfully
+
+This is narrower than a generic "fix all macOS warnings" queue.
+
+### Day 2 Interpretation
+
+- Day 2 did **not** find evidence that Apple Clang is presently blocked from
+  the reviewed wrapper contract locally.
+- Day 2 **did** find that macOS CI still expresses an older build/test contract
+  than Linux CI, even though the newer reviewed targets are already available.
+- The right next step is therefore not broad code churn. It is a disciplined
+  macOS parity batch centered on workflow entrypoints and truthful reporting.
+
+### Day 2 Outputs
+
+- `artifacts/day2-macos-warning-parity-audit.md`

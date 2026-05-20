@@ -30,9 +30,17 @@ this codebase).  Sprint 29 Day 8 routes the TSan job to Linux CI per
 
 ```sh
 make
+make tooling-build
+make quality-review-compile
 make test           # run the full test suite
+make quality-review
 make install PREFIX=/usr/local   # install library, headers, pkg-config
 ```
+
+`make quality-review-compile` is the maintained local compile-quality wrapper
+(`format-check` + `lint`). `make quality-review` adds `test` and
+`deadcode-check` on top of that reviewed path. For the full command map and
+failure-rerun guidance, use `README.md` as the canonical operator reference.
 
 The default `PREFIX` is `/usr/local`. Set `DESTDIR` for staged installs
 (e.g., packaging):
@@ -91,6 +99,10 @@ target_link_libraries(myapp PRIVATE Sparse::sparse_lu_ortho)
 Headers are included as `#include <sparse/sparse_types.h>`.
 
 See `examples/cmake_example/` for a complete working example.
+
+For the reviewed local CMake parity path used alongside the install flow, run
+`make quality-review-cmake-compile` or `make quality-review-cmake` from the
+project root before switching into packaging or staged-install work.
 
 ## Platform Notes
 

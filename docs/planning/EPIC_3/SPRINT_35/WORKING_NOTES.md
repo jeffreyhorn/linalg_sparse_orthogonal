@@ -1199,3 +1199,112 @@ rather than re-editing already-correct API contracts.
 ### Day 10 Outputs
 
 - `artifacts/day10-api-precondition-implementation.md`
+
+## Day 11
+
+**Objective:** Align the support-doc and quality-facing surfaces with the
+Sprint 35 public-doc rewrite, remove the most obvious remaining cross-doc
+mismatches, and define the exact validation scope for Days 12 and 13.
+
+### Commands Run
+
+1. Re-read the Day 11 scope and current Sprint 35 state:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '260,340p' docs/planning/EPIC_3/SPRINT_35/PLAN.md`
+   - `tail -n 220 docs/planning/EPIC_3/SPRINT_35/WORKING_NOTES.md`
+2. Re-open the support-doc targets:
+   - `sed -n '1,260p' INSTALL.md`
+   - `sed -n '1,240p' examples/README.md`
+   - `sed -n '1,260p' benchmarks/README.md`
+3. Cross-check those files against the current quality/public-usage wording:
+   - `rg -n "quality-review|deadcode-check|tooling-build|examples-build|minimum-norm|underdetermined|ILU\\(0\\)|ILUT|SPD|sparse_qr_solve_minnorm" README.md INSTALL.md examples/README.md benchmarks/README.md -g '!build/**'`
+   - `sed -n '620,740p' README.md`
+   - `sed -n '100,125p' README.md`
+
+### Day 11 Implementation Findings
+
+#### 1. `INSTALL.md` now points to the maintained reviewed-quality entry points
+
+The install guide previously showed only the basic `make` / `make test`
+workflow. That was still valid, but it no longer reflected the maintained
+Sprint 34 operator path.
+
+Day 11 now adds the reviewed local wrappers to the Makefile quick start:
+
+- `make tooling-build`
+- `make quality-review-compile`
+- `make quality-review`
+
+It also points CMake/install readers back to the reviewed local CMake parity
+wrappers without turning `INSTALL.md` into a second full command map.
+
+Interpretation:
+
+- `INSTALL.md` now reflects the current repo state
+- README remains the canonical operator reference, which preserves the Day 7
+  ownership split
+
+#### 2. `examples/README.md` now matches the Day 10 public-usage story
+
+The examples index now surfaces the most important Sprint 35 assumptions
+without duplicating the full tutorial:
+
+- in-place factorization examples are described as copying before mutation
+- the QR least-squares example is identified explicitly as the overdetermined
+  path, with minimum-norm underdetermined solves routed to
+  `sparse_qr_solve_minnorm()`
+- the iterative example now says the ILU(0) preconditioner is built from a
+  fresh matrix copy
+
+This is the right level for the examples catalog: short, accurate signposts
+instead of a second tutorial layer.
+
+#### 3. `benchmarks/README.md` now reflects the reviewed compile-quality flow
+
+The benchmark docs already described the compile-only gate correctly through
+`make tooling-build` and `make lint`. Day 11 adds the missing reviewed wrapper
+surface:
+
+- `make quality-review-compile`
+
+That keeps the benchmark docs aligned with the current local quality path
+without pretending that benchmark execution is part of the routine reviewed
+wrapper flow.
+
+#### 4. The remaining Sprint 35 queue is now validation, not more rewrite debt
+
+After the Day 11 pass:
+
+- core public API naming is already current
+- tutorial/README safety wording is already tightened
+- support docs now point at the same maintained workflow and public-usage
+  expectations
+
+The remaining work is now the intended last-sprint sequence:
+
+- Day 12: example/snippet/build validation
+- Day 13: full validation sweep
+
+### Day 11 Validation Scope Note
+
+Day 12 should validate the public-doc changes against the real shipped example
+and tooling surface:
+
+- `make examples`
+- targeted example binaries referenced by the rewritten docs
+- `make tooling-build`
+
+Day 13 should then re-run the maintained reviewed-quality baseline:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-compile`
+- `make quality-review`
+- `make quality-review-cmake-compile`
+- `make quality-review-cmake`
+
+### Day 11 Outputs
+
+- `artifacts/day11-install-quality-docs-polish.md`

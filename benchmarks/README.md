@@ -15,6 +15,10 @@ drift without executing the long-running benchmark workloads:
 - `make lint`
   - now includes the same compile-only tooling gate before the existing
     source-level lint passes
+- `make quality-review-compile`
+  - reviewed local compile-quality wrapper
+  - routes through `format-check` + `lint`, so benchmark/example compile drift
+    is covered there as well
 
 Focused subsets remain available:
 

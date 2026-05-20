@@ -1542,3 +1542,109 @@ day rather than another mixed cleanup pass.
 ### Day 13 Outputs
 
 - `artifacts/day13-full-validation-sweep.md`
+
+## Day 14 - Closeout, Handoff, and Forward Queue
+
+### Goals
+
+Package Sprint 35's public-surface cleanup into explicit handoff and
+retrospective docs, preserve the validated Sprint 34/Sprint 35 baseline for
+later work, and confirm whether any new deferred items need to be routed into
+Sprint 36 or later Epic 3 planning.
+
+### Commands Run
+
+1. Re-read the closeout scope and validated end-state inputs:
+   - `tail -n 260 docs/planning/EPIC_3/SPRINT_35/WORKING_NOTES.md`
+   - `sed -n '300,380p' docs/planning/EPIC_3/SPRINT_35/PLAN.md`
+   - `sed -n '180,260p' docs/planning/EPIC_3/PROJECT_PLAN.md`
+2. Re-read the prior sprint closeout format for consistency:
+   - `cat docs/planning/EPIC_3/SPRINT_34/HANDOFF.md`
+   - `cat docs/planning/EPIC_3/SPRINT_34/RETROSPECTIVE.md`
+3. Check whether Sprint 35 produced any new later-sprint queue not already
+   represented in the Epic 3 plan:
+   - `rg -n "Sprint 35|public-doc|header example|README|tutorial|INSTALL|examples/README|public-surface" docs/planning/EPIC_3/PROJECT_PLAN.md`
+4. Write Sprint 35 closeout docs:
+   - `docs/planning/EPIC_3/SPRINT_35/HANDOFF.md`
+   - `docs/planning/EPIC_3/SPRINT_35/RETROSPECTIVE.md`
+5. Recheck branch state:
+   - `git status --short --branch`
+
+### Day 14 Closeout Findings
+
+#### 1. Sprint 35 closes with public-surface cleanup complete, not partial
+
+Sprint 35 does **not** hand off a broken docs/examples surface or a known
+header-example contradiction.
+
+Authoritative validated close state inherited from Day 12 and Day 13:
+
+- installed headers now teach current stable designated-initializer usage
+  where non-default behavior is being shown
+- `README.md`, `docs/tutorial.md`, `INSTALL.md`, `examples/README.md`, and
+  `benchmarks/README.md` were reconciled to current API names and current
+  reviewed workflow names
+- `make examples`: passed
+- `make tooling-build`: passed
+- `make format`: passed
+- `make lint`: passed
+- `make test`: passed
+- `make quality-review-compile`: passed
+- `make quality-review`: passed
+- `make quality-review-cmake-compile`: passed
+- full `ctest` on `build/quality-review-cmake`: `53 / 53` passed
+
+Interpretation:
+
+- Sprint 35 shipped a real public-doc consistency pass rather than a partial
+  wording cleanup
+- the Sprint 34 reviewed-quality baseline remained intact the whole time
+
+#### 2. The highest-value delivered contract is now explicit
+
+Sprint 35 closes with these public-surface rules materially in force:
+
+- designated initializers are the normal public example style for non-default
+  option-struct usage
+- `NULL` remains the right teaching surface only for pure-default paths
+- installed headers are the authoritative API contract
+- `README.md` is the concise entrypoint and command map
+- `docs/tutorial.md` is the fuller usage-teaching surface
+- support docs should point back to those canonical layers instead of drifting
+  into competing guidance
+
+Interpretation:
+
+- later sprints should preserve this ownership split instead of reopening
+  README/tutorial/header duplication casually
+
+#### 3. No new later-sprint backlog item had to be added
+
+Day 14 rechecked the Epic 3 plan against the Sprint 35 closeout state and did
+not find a missing deferred item that needed new routing.
+
+Why no `PROJECT_PLAN.md` update was needed:
+
+- Sprint 36 already inherits Sprint 35 public-doc and example cleanup as a
+  prerequisite
+- Sprint 38 already includes docs/examples consistency in its quality/readiness
+  framing
+- Sprint 35 did not leave behind an unresolved public-doc contradiction,
+  example-build failure, or header-example backlog
+
+That means Sprint 35's residual follow-through is regression prevention, not a
+new cleanup queue.
+
+### Day 14 Interpretation
+
+- Sprint 35 successfully converted a broad public-doc consistency goal into a
+  closed documentation baseline with validated example/build parity.
+- The main thing later work must preserve is not a specific uncompleted file
+  list, but the public-surface contract and ownership split now documented in
+  the handoff.
+- No additional planning edits were required on Day 14.
+
+### Day 14 Outputs
+
+- `HANDOFF.md`
+- `RETROSPECTIVE.md`

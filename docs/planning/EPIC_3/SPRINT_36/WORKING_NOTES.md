@@ -964,3 +964,108 @@ Interpretation:
 ### Day 7 Outputs
 
 - `artifacts/day7-script-target-portability-audit.md`
+
+## Day 8
+
+**Objective:** Implement the first portability batch in the maintained reviewed
+Makefile path by removing avoidable external Unix-tool dependencies, while
+preserving the current Linux/macOS reviewed contract and not overclaiming
+Windows parity for the Unix-maintainer helper flows.
+
+### Commands Run
+
+1. Re-read the Day 7 audit and inspect the maintained reviewed-path touchpoints:
+   - `git status --short --branch`
+   - `sed -n '1,620p' Makefile`
+   - `sed -n '620,820p' Makefile`
+   - `cat docs/planning/EPIC_3/SPRINT_36/artifacts/day7-script-target-portability-audit.md`
+2. Update `Makefile` to:
+   - remove reviewed-path `find` use where repo-native file lists already exist
+   - remove hardcoded `/bin/mkdir` and `/bin/rm` paths
+   - keep the current reviewed command meanings unchanged
+3. Validate the touched reviewed paths directly:
+   - `make quality-review-compile`
+   - `make quality-review-cmake-compile`
+
+### Day 8 Findings
+
+#### 1. The maintained reviewed Makefile path no longer depends on external `find`
+
+Day 8 replaced `find`-based file discovery in the maintained reviewed path with
+repo-native Makefile file lists and globs:
+
+- `ALL_SRC` now derives from `$(LIB_SRCS)` plus `src/*.h`
+- `ALL_TEST_SRC` now derives from `$(TEST_SRCS)` plus `tests/*.h`
+- `ALL_BENCH_SRC` now uses `$(BENCH_SRCS)`
+- `ALL_EX_SRC` now uses `$(EX_SRCS)`
+- `ALL_HEADERS` now uses `include/*.h`
+- `lint` strict-compile and `clang-tidy` now run over `$(LIB_SRCS)`
+
+Interpretation:
+
+- this closes the most avoidable Unix-tool dependency in the maintained
+  reviewed Makefile path
+- the reviewed compile-quality path is now anchored more directly to the same
+  repo-native file lists already used for the actual build
+
+#### 2. Hardcoded `/bin/mkdir` and `/bin/rm` paths are gone from the maintained path
+
+Day 8 also removed hardcoded absolute tool paths in the touched Makefile
+surfaces:
+
+- `mkdir -p` now replaces `/bin/mkdir -p`
+- `rm -rf` / `rm -f` now replace `/bin/rm ...`
+
+Interpretation:
+
+- this is a smaller change than the `find` removal, but it is still valuable
+- it reduces unnecessary POSIX-environment assumptions without changing
+  semantics on the validated Linux/macOS paths
+
+#### 3. The portable reviewed baseline stayed intact
+
+Direct reruns of the touched reviewed paths both passed:
+
+- `make quality-review-compile`
+- `make quality-review-cmake-compile`
+
+Observed parity state after the batch:
+
+- Makefile reviewed compile-quality path still passed end to end
+- CMake reviewed parity path still passed end to end
+- `ctest -N` still reported `53` tests
+- Makefile/CMake test-count parity remained `53` vs `53`
+
+Interpretation:
+
+- the batch improved the reviewed-path portability surface without changing the
+  maintained quality contract
+
+#### 4. The Unix-maintainer helper flows remain intentionally staged
+
+Day 8 deliberately did **not** try to port or overclaim these surfaces:
+
+- `deadcode*`
+- `wall-check`
+- `warning-workflow`
+- coverage helpers
+
+Interpretation:
+
+- this matches the Day 7 audit
+- those helpers still carry real POSIX or toolchain assumptions, and pretending
+  they are now Windows-ready would make the contract less truthful
+
+### Day 8 Interpretation
+
+- Day 8 took the most justifiable portability win available in Sprint 36's
+  reviewed Makefile path: remove avoidable shell-tool coupling where the repo
+  already maintained the authoritative file lists anyway.
+- The result is narrower but stronger than a cosmetic portability pass because
+  the touched reviewed commands were rerun successfully after the change.
+- The next step is now reporting and contract refinement, not more speculative
+  portability churn.
+
+### Day 8 Outputs
+
+- `artifacts/day8-portability-batch1.md`

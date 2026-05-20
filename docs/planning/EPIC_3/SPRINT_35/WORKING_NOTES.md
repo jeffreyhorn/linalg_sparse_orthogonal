@@ -223,3 +223,117 @@ The strongest remaining public-example debt is now split clearly:
 ### Day 2 Outputs
 
 - `artifacts/day2-header-example-audit.md`
+
+## Day 3
+
+**Objective:** Define the maintainer-facing public example standard that Sprint 35 will apply across installed headers, README/tutorial snippets, shipped examples, and explanatory test references so later edits converge on one stable API-usage contract instead of making local one-off wording decisions.
+
+### Commands Run
+
+1. Re-read the Sprint 35 baseline, Day 2 audit, and Day 3 scope:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_35/WORKING_NOTES.md`
+   - `sed -n '60,120p' docs/planning/EPIC_3/SPRINT_35/PLAN.md`
+2. Inspect current public-facing example patterns across docs, headers, and examples:
+   - `rg -n "_opts_t [A-Za-z_][A-Za-z0-9_]* = \\{|_opts_t\\s+[A-Za-z_][A-Za-z0-9_]*\\s*=\\s*\\{0\\}|NULL for defaults|defaults|designated|\\.compute_|\\.reorder\\s*=|\\.pivot_tol\\s*=|\\.max_iter\\s*=" README.md docs/tutorial.md docs/algorithm.md examples include tests -g '!build/**'`
+   - `sed -n '1,220p' include/sparse_lu.h`
+   - `sed -n '1,220p' include/sparse_iterative.h`
+   - `sed -n '1,220p' README.md`
+   - `sed -n '150,260p' docs/tutorial.md`
+   - `sed -n '1,220p' examples/example_iterative.c`
+   - `sed -n '1,220p' tests/test_framework_optin.c`
+
+### Day 3 Style-Contract Findings
+
+#### 1. Public material already uses three distinct teaching modes
+
+The current public-facing surface is not inconsistent because designated initializers are rare. It is inconsistent because it mixes three different patterns without a stated rule for when each should be used:
+
+- **Designated initializer examples** for non-default tuning:
+  - installed headers such as `include/sparse_iterative.h` and `include/sparse_lu.h`
+  - `README.md`
+  - `docs/algorithm.md`
+  - multiple shipped examples
+- **`NULL` option-pointer examples** to teach the pure-default path:
+  - function parameter docs throughout installed headers
+- **Stale type-name / workflow examples** in a few public docs:
+  - especially `docs/tutorial.md` still using `sparse_cg_opts_t` and `sparse_ilu_opts_t`
+
+Interpretation:
+
+- Sprint 35 needs a public example **selection rule**, not just a syntax rule.
+- The main failure mode to prevent is not “someone used braces wrong”; it is “different public surfaces teach different API contracts.”
+
+#### 2. The stable public rule should be “designated init for non-defaults, NULL for pure defaults”
+
+The repo already points toward a coherent standard:
+
+- use a designated initializer whenever an example is trying to teach one or more meaningful non-default fields
+- use `NULL` only when the point of the example is explicitly “take the library defaults”
+
+This aligns with:
+
+- Sprint 31 / Sprint 34 designated-initializer cleanup
+- the trailing-field back-compat notes embedded in multiple public structs
+- the existing header idiom `@param opts ... NULL for defaults`
+
+Interpretation:
+
+- public examples should not use positional struct literals
+- public examples should also avoid spelling out a pseudo-default struct when the example really just wants default behavior
+- this rule is more truthful and shorter for readers than treating all examples as full struct declarations
+
+#### 3. Acceptable exceptions are narrow
+
+The Day 3 audit did not justify a broad exception bucket. The only useful public-facing exceptions are:
+
+- **pure-default call sites**: pass `NULL` instead of inventing an options struct
+- **single-line compact snippets**: designated initializers may stay on one line when readability is still good
+- **tests as explanatory references**: they may remain denser than README/header prose, but any snippet copied into public docs should still follow the public rule
+
+Non-exceptions:
+
+- stale historical type names
+- hypothetical option structs that no longer exist
+- positional options-struct literals in public docs
+- zero-init sentinels presented as if they were the recommended public style
+
+#### 4. The style rule also needs a wording contract
+
+Day 2 already showed that syntax alone is not enough: `include/sparse_svd.h` is a real public-surface problem even though its example syntax is already modern.
+
+The paired wording contract should therefore be:
+
+- examples and prose must name the **current shipped types**
+- examples and prose must describe the **current shipped behavior**
+- when defaults are discussed, they should describe what the current implementation actually does
+- reorder/precondition guidance should name only the modes or paths the shown API surface really supports
+
+Interpretation:
+
+- Day 4 / Day 5 header cleanup must include wording reconciliation where needed, not only snippet cleanup
+- Day 6 onward should treat stale type names and stale behavior claims as the primary public-doc truthfulness queue
+
+### Day 3 Maintainer Contract
+
+Sprint 35 should apply the following cross-surface rule:
+
+1. In installed headers, README snippets, tutorial snippets, and example-facing docs, show option structs with **designated initializers** whenever the example teaches any non-default configuration.
+2. When an example intends to teach the default path only, prefer passing `NULL` to the options parameter rather than declaring an all-default options struct.
+3. Use the **current public type names and field names only**.
+4. Keep snippets minimal: show only the fields relevant to the example instead of restating implicit defaults.
+5. Treat explanatory tests as an implementation-aligned reference surface, but not as permission to relax the public-doc rule.
+
+### Day 3 Interpretation
+
+- The Day 3 result is concrete enough to drive the rest of the sprint:
+  - Day 4 and Day 5 can focus on targeted header truthfulness and wording cleanup under a stable example rule
+  - Day 6 through Day 8 can rewrite README/tutorial material by applying one explicit contract instead of improvising per file
+- The strongest near-term implementation consequences are now clear:
+  - `include/sparse_svd.h` should be fixed for behavior truthfulness
+  - `docs/tutorial.md` should be rewritten around current type names and the designated-init/`NULL` split
+
+### Day 3 Outputs
+
+- `artifacts/day3-public-initialization-standard.md`

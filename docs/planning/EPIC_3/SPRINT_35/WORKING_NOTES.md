@@ -1308,3 +1308,88 @@ Day 13 should then re-run the maintained reviewed-quality baseline:
 ### Day 11 Outputs
 
 - `artifacts/day11-install-quality-docs-polish.md`
+
+## Day 12
+
+**Objective:** Validate the rewritten public-doc surface against the real
+shipped example and tooling targets, confirm that the examples referenced by
+the Sprint 35 docs still build and run cleanly, and close any last
+snippet-to-code mismatch before the final full validation sweep.
+
+### Commands Run
+
+1. Re-read the Day 12 scope and the Day 11 validation plan:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '300,360p' docs/planning/EPIC_3/SPRINT_35/PLAN.md`
+   - `tail -n 220 docs/planning/EPIC_3/SPRINT_35/WORKING_NOTES.md`
+2. Run the example/tooling build surfaces named on Day 11:
+   - `make examples`
+   - `make tooling-build`
+3. Run the example binaries referenced most directly by the rewritten docs:
+   - `./build/example_basic_solve`
+   - `./build/example_least_squares`
+   - `./build/example_iterative`
+   - `./build/example_svd_lowrank`
+   - `./build/example_eigs`
+
+### Day 12 Validation Findings
+
+#### 1. The shipped example build surface is clean
+
+The Day 11 validation-scope commands passed:
+
+- `make examples`
+  - built all `12` example binaries
+- `make tooling-build`
+  - built all `14` benchmark binaries
+  - built all `12` example binaries
+
+Interpretation:
+
+- the public-doc rewrite did not leave the example-facing or compile-only
+  tooling surface in a stale or broken state
+
+#### 2. The rewritten docs still match the high-traffic example binaries
+
+The specific binaries most closely tied to the rewritten public guidance all
+ran successfully:
+
+- `example_basic_solve`
+  - LU copy-before-factor story still matches the program behavior
+- `example_least_squares`
+  - QR least-squares path is still the overdetermined solve the docs describe
+- `example_iterative`
+  - GMRES + ILU(0) copy-before-precondition story still matches the program
+- `example_svd_lowrank`
+  - the SVD feature surface referenced in README/tutorial is still live
+- `example_eigs`
+  - the example fixture-based eigensolver workflow still runs from project root
+    as `examples/README.md` describes
+
+No doc/code mismatch surfaced that required another rewrite pass.
+
+#### 3. The Sprint 35 residual queue is now fully in final validation
+
+Day 12 did not uncover any new drift in:
+
+- public type names
+- public option-struct examples
+- the reviewed quality/workflow command names
+- the support-doc signposts added on Day 11
+
+That means Day 13 can be the intended full validation sweep, not a mixed
+debug-and-validation day.
+
+### Day 12 Interpretation
+
+- Sprint 35's public-doc changes now have both compile-surface and
+  runtime-smoke confirmation against the examples users are most likely to use
+  as references.
+- No additional doc edits were needed on Day 12.
+- Day 13 should therefore run the full maintained validation set exactly as
+  planned.
+
+### Day 12 Outputs
+
+- `artifacts/day12-example-build-validation.md`

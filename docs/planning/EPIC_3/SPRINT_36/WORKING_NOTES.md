@@ -302,3 +302,174 @@ This is narrower than a generic "fix all macOS warnings" queue.
 ### Day 2 Outputs
 
 - `artifacts/day2-macos-warning-parity-audit.md`
+
+## Day 3
+
+**Objective:** Audit the current Windows/MSVC quality surface against the
+Sprint 34 reviewed-wrapper contract, distinguish real repo portability debt
+from staged workflow limitations, and define the concrete MSVC queue for later
+Sprint 36 implementation work.
+
+### Commands Run
+
+1. Re-read the Day 3 plan and the Day 1/Day 2 baseline:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '64,88p' docs/planning/EPIC_3/SPRINT_36/PLAN.md`
+   - `cat docs/planning/EPIC_3/SPRINT_36/artifacts/day1-cross-platform-baseline.md`
+   - `cat docs/planning/EPIC_3/SPRINT_36/artifacts/day2-macos-warning-parity-audit.md`
+2. Re-read the current Windows workflow:
+   - `cat .github/workflows/windows-ci.yml`
+3. Re-read the MSVC-relevant CMake and compatibility surfaces:
+   - `cat CMakeLists.txt`
+   - `rg -n "MSVC|_WIN32|clock_gettime|CLOCK_MONOTONIC|unistd.h|sys/time.h|_putenv_s|setenv|unsetenv|NOMINMAX|PATH_MAX|strcasecmp|snprintf|ssize_t|drand48|mkstemp|realpath|popen|fmemopen" CMakeLists.txt include src tests scripts .github/workflows -g '*.*'`
+4. Compare Linux and Windows workflow entrypoints:
+   - inspect `.github/workflows/ci.yml`
+   - inspect `.github/workflows/windows-ci.yml`
+   - compare key hits for:
+     - `quality-review`
+     - `deadcode`
+     - `format-check`
+     - `lint`
+     - `ctest`
+     - `cmake --build`
+     - `sanitize`
+     - `wall-check`
+5. Re-read the reviewed CMake parity wrapper surface:
+   - `make -n quality-review-cmake-compile`
+6. Quantify the currently staged Win32/MSVC exclusions in CMake:
+   - inspect the conditional `add_sparse_test(...)` gates
+   - inspect the conditional benchmark `add_executable(...)` gates
+
+### Day 3 Findings
+
+#### 1. Windows already has explicit MSVC accommodations in code and CMake
+
+Day 3 did **not** uncover a naive Unix-only build system pretending Windows
+support exists. The repo already contains explicit MSVC/Win32 accommodations,
+including:
+
+- MSVC-specific CMake warning handling:
+  - non-MSVC `-W*` flags are gated away from `cl.exe`
+  - MSVC uses `/W3`
+  - `_CRT_SECURE_NO_WARNINGS` is set
+  - `/experimental:c11atomics` is enabled
+- `_WIN32` timing fallbacks for the progress-timer paths
+- `_putenv_s` compatibility in `tests/test_framework.h`
+- known POSIX-only test and benchmark surfaces already gated out in CMake
+
+Interpretation:
+
+- the dominant Windows issue is not "the repo has no MSVC portability work"
+- it is that the Windows path still expresses only a narrower CMake build/test
+  contract than the reviewed Linux/local contract
+
+#### 2. The current Windows workflow is the furthest from the reviewed contract
+
+Compared to Linux CI, `windows-ci.yml` still does not run:
+
+- `make quality-review-compile`
+- `make quality-review`
+- `make quality-review-cmake`
+- `make deadcode-report`
+- `make deadcode-check`
+
+Current Windows CI only runs:
+
+- CMake configure
+- CMake build
+- CMake `ctest`
+
+Interpretation:
+
+- Windows is further behind the reviewed-wrapper story than macOS
+- the highest-value Sprint 36 Windows work is workflow/contract alignment first
+- code changes should only follow where MSVC-specific evidence says they are
+  needed
+
+#### 3. The staged Windows exclusions are explicit and partly legitimate
+
+CMake currently excludes three tests on Windows/MSVC:
+
+- `test_threads`
+- `test_sprint4_integration`
+- `test_fuzz`
+
+And it gates out ten benchmark binaries on Win32:
+
+- `bench_main`
+- `bench_scaling`
+- `bench_convergence`
+- `bench_refactor`
+- `bench_bicgstab`
+- `bench_chol_csc`
+- `bench_ldlt_csc`
+- `bench_refactor_csc`
+- `bench_eigs`
+- `bench_amd_qg`
+
+Interpretation:
+
+- some of this is legitimate staged scope, not silent failure:
+  - `pthread`-based thread tests are explicitly POSIX-only today
+  - `test_fuzz` depends on POSIX temp-file behavior
+  - several benchmarks use POSIX-only APIs with no current MSVC equivalents
+- Sprint 36 should document these exclusions truthfully before trying to erase
+  them indiscriminately
+
+#### 4. The main Windows parity debt splits three ways
+
+##### Workflow / CI debt
+
+- Windows does not yet express the reviewed wrapper contract
+- no explicit reviewed CMake parity naming or test-count parity signal exists in
+  the workflow
+- no dead-code expectation is represented on Windows
+
+##### Code / build-surface debt
+
+- current CMake warning level on MSVC is only `/W3`
+- the repo does not yet provide a Windows-reviewed analogue to the stricter
+  Linux Makefile compile-quality path
+- several surfaces are still intentionally excluded rather than ported:
+  - thread tests
+  - fuzz test
+  - POSIX-bound benchmark set
+
+##### Documentation / reporting debt
+
+- the workflow currently does not explain what Windows is validating relative
+  to Linux/macOS
+- the Win32 exclusions live mostly in code comments/CMake comments rather than
+  in a compact parity report
+
+#### 5. The likely Day 6 / Day 9 Windows queue is bounded
+
+Based on the audit, the first Windows follow-on should focus on:
+
+- `.github/workflows/windows-ci.yml`
+  - clearer reviewed-path expectation wording
+  - stronger CMake parity framing
+- `CMakeLists.txt`
+  - only if Sprint 36 chooses to make the current Win32 exclusions/reporting
+    more explicit in the maintained parity surface
+- parity-report/docs work
+  - classify enforced vs staged vs intentionally excluded Windows surfaces
+
+This is narrower than a generic "make Windows equal to Linux in one sprint"
+queue.
+
+### Day 3 Interpretation
+
+- Day 3 found a more mature Windows surface than the old workflow comments
+  alone suggest: MSVC-specific accommodations already exist in CMake and the
+  codebase.
+- The main current gap is still contract expression and reporting, not evidence
+  of a large hidden MSVC source-bug backlog.
+- Sprint 36 should therefore treat Windows like macOS in one important sense:
+  reviewed-path alignment and truthful parity reporting come first, with code
+  changes driven only by concrete MSVC evidence.
+
+### Day 3 Outputs
+
+- `artifacts/day3-windows-msvc-quality-audit.md`

@@ -1393,3 +1393,152 @@ debug-and-validation day.
 ### Day 12 Outputs
 
 - `artifacts/day12-example-build-validation.md`
+
+## Day 13 - Full Validation Sweep
+
+### Goals
+
+Re-run the maintained Sprint 34 quality and CMake-parity paths after the
+Sprint 35 public-doc updates, confirm that the example-facing compile surface
+is still green under those wrappers, and capture the final validated baseline
+for closeout.
+
+### Commands Run
+
+1. Confirm clean Day 12 handoff state:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+2. Run the maintained direct Makefile gates with timings:
+   - `/usr/bin/time -p make format`
+   - `/usr/bin/time -p make lint`
+   - `/usr/bin/time -p make test`
+3. Run the reviewed Makefile wrapper paths with timings:
+   - `/usr/bin/time -p make quality-review-compile`
+   - `/usr/bin/time -p make quality-review`
+4. Run the reviewed CMake parity paths with timings:
+   - `/usr/bin/time -p make quality-review-cmake-compile`
+   - `/usr/bin/time -p make quality-review-cmake`
+5. Record the full-suite CTest wall time explicitly on the maintained
+   `build/quality-review-cmake` tree:
+   - `/usr/bin/time -p ctest --test-dir build/quality-review-cmake --output-on-failure`
+6. Recheck the resulting CTest logs and branch cleanliness:
+   - `tail -n 80 build/quality-review-cmake/Testing/Temporary/LastTest.log`
+   - `git status --short --branch`
+
+### Day 13 Validation Findings
+
+#### 1. The maintained direct gates all still pass
+
+The Sprint 35 doc-only changes did not disturb the direct reviewed gates:
+
+- `make format`
+  - passed
+  - `real 5.16`
+- `make lint`
+  - passed
+  - `real 432.50`
+- `make test`
+  - passed
+  - `real 106.16`
+
+Interpretation:
+
+- the Sprint 34 enforced baseline still holds after the Sprint 35 public-doc
+  rewrite
+- the compile-only benchmark/example surface built by `tooling-build` inside
+  `lint` remains green
+
+#### 2. The reviewed Makefile wrapper paths still hold end to end
+
+Both maintained wrapper targets passed:
+
+- `make quality-review-compile`
+  - passed
+  - `real 381.24`
+- `make quality-review`
+  - passed
+  - `real 560.29`
+
+The full reviewed path reached and passed:
+
+- `format-check`
+- `lint`
+- `test`
+- `deadcode-check`
+
+Interpretation:
+
+- Sprint 35 did not regress the reviewed local operator paths introduced in
+  Sprint 34
+- the dead-code sibling path still remains green alongside the public-doc work
+
+#### 3. The maintained CMake parity path is still exact
+
+The CMake reviewed compile wrapper passed:
+
+- `make quality-review-cmake-compile`
+  - passed
+  - `real 73.68`
+
+The parity checks remained exact:
+
+- `ctest -N` reported `53` registered tests
+- Makefile/CMake test-count parity remained `53` vs `53`
+
+The full reviewed CMake path also passed:
+
+- `make quality-review-cmake`
+  - passed
+  - verified via the completed `LastTest.log`
+
+To capture an explicit full-suite wall-clock number after the maintained
+wrapper run, the same build tree was rerun through raw `ctest`:
+
+- `ctest --test-dir build/quality-review-cmake --output-on-failure`
+  - `53 / 53` passed
+  - `Total Test time (real) = 173.23 sec`
+  - `/usr/bin/time -p` reported `real 173.27`
+
+Highest-signal runtime confirmations from the final CTest log:
+
+- `test_framework_optin`
+  - passed with `8` tests run, `0` failed, `3` skipped
+- `test_reorder_nd`
+  - passed
+  - `Test time = 100.57 sec`
+- `test_reorder_amd_qg`
+  - passed
+  - `Test time = 1.42 sec`
+
+Interpretation:
+
+- Sprint 35 preserved both the maintained active-suite count and the full
+  CMake parity contract established in earlier sprints
+
+#### 4. Sprint 35 now has a fully revalidated closeout baseline
+
+With Day 12 example/runtime validation and Day 13 maintained gate validation
+combined, the sprint now has:
+
+- current public docs rewritten to the shipped API
+- installed headers aligned with the same public example style
+- reviewed Makefile paths passing
+- reviewed CMake parity paths passing
+- dead-code checks still passing
+- the example/benchmark compile surface still green
+
+No new drift surfaced on Day 13, so Day 14 can stay a true closeout/handoff
+day rather than another mixed cleanup pass.
+
+### Day 13 Interpretation
+
+- Sprint 35 preserved the Sprint 34 enforcement baseline while improving the
+  public-facing docs.
+- The maintained quality wrappers and CMake parity checks remain the
+  authoritative validated closeout surface.
+- There is no newly discovered public-doc or snippet regression queue going
+  into the sprint closeout.
+
+### Day 13 Outputs
+
+- `artifacts/day13-full-validation-sweep.md`

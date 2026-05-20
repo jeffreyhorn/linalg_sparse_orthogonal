@@ -1,0 +1,69 @@
+Sprint 35 Day 1 public-surface inventory
+branch sprint-35
+baseline_head 9f2fe79
+
+installed_headers_count 18
+example_programs_count 12
+
+installed_headers
+- include/sparse_analysis.h
+- include/sparse_bidiag.h
+- include/sparse_cholesky.h
+- include/sparse_csr.h
+- include/sparse_dense.h
+- include/sparse_eigs.h
+- include/sparse_ic.h
+- include/sparse_ilu.h
+- include/sparse_iterative.h
+- include/sparse_ldlt.h
+- include/sparse_lu.h
+- include/sparse_lu_csr.h
+- include/sparse_matrix.h
+- include/sparse_qr.h
+- include/sparse_reorder.h
+- include/sparse_svd.h
+- include/sparse_types.h
+- include/sparse_vector.h
+
+primary_public_docs
+- README.md
+- docs/tutorial.md
+- docs/algorithm.md
+- examples/README.md
+- benchmarks/README.md
+- INSTALL.md
+
+shipped_example_programs
+- examples/example_analysis.c
+- examples/example_basic_solve.c
+- examples/example_colamd.c
+- examples/example_condition.c
+- examples/example_eigs.c
+- examples/example_ic_minres.c
+- examples/example_iterative.c
+- examples/example_ldlt.c
+- examples/example_least_squares.c
+- examples/example_matrix_free.c
+- examples/example_minnorm.c
+- examples/example_svd_lowrank.c
+
+highest_signal_day1_hotspots
+- docs/tutorial.md:175 sparse_cg_opts_t
+- docs/tutorial.md:190 sparse_gmres_opts_t
+- docs/tutorial.md:220 sparse_ilu_opts_t
+- docs/tutorial.md:327 sparse_cg_opts_t
+- docs/tutorial.md:331 sparse_gmres_opts_t
+- README.md:217 sparse_gmres_opts_t public snippet
+- include/sparse_iterative.h current public iterative option types
+- include/sparse_ilu.h current public ILU usage pattern
+
+maintained_validation_commands_inherited_from_sprint34
+- make format
+- make lint
+- make test
+- make quality-review-compile
+- make quality-review
+- make quality-review-cmake-compile
+- make quality-review-cmake
+- make deadcode-report
+- make deadcode-check

@@ -33,7 +33,9 @@
  *   idx_t *perm = malloc(ncols * sizeof(idx_t));
  *   sparse_reorder_colamd(A, perm);         // column-only permutation
  *   // Apply as column permutation only (e.g., via QR opts)
- *   sparse_qr_opts_t opts = { .reorder = SPARSE_REORDER_COLAMD };
+ *   sparse_qr_opts_t opts = {
+ *       .reorder = SPARSE_REORDER_COLAMD,
+ *   };
  *   sparse_qr_factor_opts(A, &opts, &qr);  // COLAMD applied internally
  * @endcode
  *

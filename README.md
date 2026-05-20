@@ -214,7 +214,11 @@ int main(void)
         return 1;
     }
 
-    sparse_gmres_opts_t opts = { .max_iter = 1000, .restart = 50, .tol = 1e-10 };
+    sparse_gmres_opts_t opts = {
+        .max_iter = 1000,
+        .restart = 50,
+        .tol = 1e-10,
+    };
     sparse_iter_result_t result;
     sparse_err_t err = sparse_solve_gmres(A, b, x, &opts,
                                            sparse_ilu_precond, &ilu, &result);
@@ -230,6 +234,11 @@ int main(void)
     sparse_free(A);
 }
 ```
+
+Use IC(0) with SPD iterative workflows and ILU(0) / ILUT with general or
+indefinite-system workflows. Preconditioner setup routines expect the original
+matrix state with identity permutations, so if a matrix may already have been
+factored or reordered, start from a fresh `sparse_copy()` of the original.
 
 ## API Overview
 
@@ -311,7 +320,7 @@ int main(void)
 **QR factorization (rectangular & rank-deficient):**
 - `sparse_qr_factor(A, &qr)` — column-pivoted QR: A*P = Q*R
 - `sparse_qr_factor_opts(A, &opts, &qr)` — with optional AMD column reordering
-- `sparse_qr_solve(&qr, b, x, &residual)` — least-squares: min ||Ax - b||
+- `sparse_qr_solve(&qr, b, x, &residual)` — least-squares for overdetermined systems; basic solution for underdetermined systems
 - `sparse_qr_apply_q(&qr, transpose, x, y)` — apply Q or Q^T to a vector
 - `sparse_qr_rank(&qr, tol)` — numerical rank estimation
 - `sparse_qr_nullspace(&qr, tol, basis, &ndim)` — null-space basis extraction

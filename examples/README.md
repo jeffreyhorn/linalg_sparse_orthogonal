@@ -12,11 +12,18 @@ make examples
 
 This builds all examples into the `build/` directory.
 
+The examples are intentionally small public-usage references. When an example
+demonstrates an in-place factorization or an incomplete-factorization
+preconditioner, it uses a fresh matrix copy before mutating factor state so
+the original matrix view remains available where the API expects it.
+
 ## Programs
 
 ### example_basic_solve
 
-Solve a 5x5 tridiagonal system `Ax = b` using LU factorization with partial pivoting. Demonstrates matrix creation, factorization, solve, and residual computation.
+Solve a 5x5 tridiagonal system `Ax = b` using LU factorization with partial
+pivoting. Demonstrates matrix creation, copying before in-place
+factorization, solve, and residual computation.
 
 ```bash
 ./build/example_basic_solve
@@ -24,7 +31,11 @@ Solve a 5x5 tridiagonal system `Ax = b` using LU factorization with partial pivo
 
 ### example_least_squares
 
-Solve an overdetermined 6x3 system via column-pivoted QR factorization. Shows how to find the least-squares solution that minimizes `||Ax - b||` and reports per-equation residuals.
+Solve an overdetermined 6x3 system via column-pivoted QR factorization. Shows
+how to find the least-squares solution that minimizes `||Ax - b||` and reports
+per-equation residuals. For underdetermined minimum-2-norm solves, use the
+public API path `sparse_qr_solve_minnorm()`, documented in `README.md` and
+`include/sparse_qr.h`.
 
 ```bash
 ./build/example_least_squares
@@ -40,7 +51,10 @@ Compute the SVD of an 8x8 matrix and demonstrate low-rank approximation. Shows t
 
 ### example_iterative
 
-Solve a 200x200 sparse system using GMRES with and without ILU(0) preconditioning. Compares iteration counts and convergence behavior.
+Solve a 200x200 sparse system using GMRES with and without ILU(0)
+preconditioning. Compares iteration counts and convergence behavior, and builds
+the ILU(0) preconditioner from a fresh matrix copy so the original matrix view
+remains available to the iterative solve.
 
 ```bash
 ./build/example_iterative

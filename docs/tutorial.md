@@ -142,7 +142,10 @@ sparse_free(L);
 
 ### QR Factorization
 
-For rectangular or rank-deficient systems:
+For rectangular or rank-deficient systems. Use the original matrix view here:
+QR expects an unfactored, unreordered matrix with identity permutations.
+If the matrix may already have been factored or reordered elsewhere, start
+from a fresh `sparse_copy()` of the original coefficients before calling QR.
 
 ```c
 #include "sparse_qr.h"
@@ -161,6 +164,10 @@ sparse_qr_solve(&qr, b, x, &residual_norm);
 sparse_qr_free(&qr);
 ```
 
+Use `sparse_qr_solve()` for square systems and overdetermined least-squares
+problems. For underdetermined systems where you want the minimum 2-norm
+solution, call `sparse_qr_solve_minnorm()` instead.
+
 ---
 
 ## 3. Iterative Solvers
@@ -172,7 +179,10 @@ For large SPD systems where direct methods are too expensive:
 ```c
 #include "sparse_iterative.h"
 
-sparse_cg_opts_t opts = {.max_iter = 1000, .tol = 1e-10};
+sparse_iter_opts_t opts = {
+    .max_iter = 1000,
+    .tol = 1e-10,
+};
 sparse_iter_result_t result;
 double x[N];
 memset(x, 0, N * sizeof(double));  // Initial guess
@@ -187,7 +197,11 @@ printf("Converged in %d iterations, residual = %e\n",
 For general (unsymmetric) systems:
 
 ```c
-sparse_gmres_opts_t opts = {.restart = 30, .max_iter = 500, .tol = 1e-10};
+sparse_gmres_opts_t opts = {
+    .restart = 30,
+    .max_iter = 500,
+    .tol = 1e-10,
+};
 sparse_iter_result_t result;
 double x[N];
 memset(x, 0, N * sizeof(double));
@@ -196,6 +210,17 @@ sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &result);
 ```
 
 ### Preconditioning
+
+Choose the preconditioner family to match the matrix class:
+
+- use IC(0) with SPD operators and CG/MINRES workflows
+- use ILU(0) or ILUT with GMRES and other general or indefinite-system
+  workflows
+
+Like QR and SVD, ILU(0), ILUT, and IC(0) expect an original matrix view with
+identity permutations. If the matrix may already have been factored or
+reordered, build the preconditioner from a fresh `sparse_copy()` of the
+original matrix.
 
 ILU preconditioning dramatically reduces iteration counts:
 
@@ -217,8 +242,16 @@ sparse_free(A_copy);
 For more difficult matrices, ILUT with threshold dropping:
 
 ```c
-sparse_ilu_opts_t ilu_opts = {.droptol = 1e-3, .fillfactor = 10};
-sparse_ilut_factor(A_copy, &ilu, &ilu_opts);
+SparseMatrix *A_copy = sparse_copy(A);
+sparse_ilu_t ilu;
+sparse_ilut_opts_t ilu_opts = {
+    .tol = 1e-3,
+    .max_fill = 10,
+};
+sparse_ilut_factor(A_copy, &ilu_opts, &ilu);
+
+sparse_ilu_free(&ilu);
+sparse_free(A_copy);
 ```
 
 ---
@@ -229,6 +262,11 @@ sparse_ilut_factor(A_copy, &ilu, &ilu_opts);
 
 Compute `A = U * diag(sigma) * V^T`:
 
+As with QR and the analyze-once workflow, pass the original unfactored /
+unreordered matrix to the SVD routines. If matrix state is uncertain, start
+from a fresh `sparse_copy()` of the original coefficients before factoring or
+reordering elsewhere.
+
 ```c
 #include "sparse_svd.h"
 
@@ -238,9 +276,13 @@ sparse_svd_compute(A, NULL, &svd);
 // svd.sigma[0..k-1] in descending order, k = min(m,n)
 
 // With singular vectors (economy/thin SVD)
-sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1};
+sparse_svd_opts_t opts = {
+    .compute_uv = 1,
+    .economy = 1,
+};
 sparse_svd_compute(A, &opts, &svd);
 // svd.U is m×k column-major, svd.Vt is k×n column-major
+// Set .economy = 0 to request full U (m×m) and V^T (n×n)
 
 sparse_svd_free(&svd);
 ```
@@ -255,9 +297,13 @@ sparse_svd_t svd;
 sparse_svd_partial(A, k, NULL, &svd);
 // svd.sigma[0..4] are the 5 largest singular values
 
-// With approximate singular vectors
-sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1};
+// With approximate thin singular vectors
+sparse_svd_opts_t opts = {
+    .compute_uv = 1,
+    .economy = 1,
+};
 sparse_svd_partial(A, k, &opts, &svd);
+// Partial SVD supports singular vectors only in the economy/thin path
 
 sparse_svd_free(&svd);
 ```
@@ -324,11 +370,18 @@ sparse_err_t my_matvec(const void *ctx, idx_t n, const double *x, double *y) {
 }
 
 // Use with CG (SPD operators)
-sparse_cg_opts_t cg_opts = {.max_iter = 1000, .tol = 1e-10};
+sparse_iter_opts_t cg_opts = {
+    .max_iter = 1000,
+    .tol = 1e-10,
+};
 sparse_solve_cg_mf(my_matvec, NULL, n, b, x, &cg_opts, NULL, NULL, &result);
 
 // Use with GMRES (general operators)
-sparse_gmres_opts_t gm_opts = {.restart = 30, .max_iter = 500, .tol = 1e-10};
+sparse_gmres_opts_t gm_opts = {
+    .restart = 30,
+    .max_iter = 500,
+    .tol = 1e-10,
+};
 sparse_solve_gmres_mf(my_matvec, NULL, n, b, x, &gm_opts, NULL, NULL, &result);
 ```
 

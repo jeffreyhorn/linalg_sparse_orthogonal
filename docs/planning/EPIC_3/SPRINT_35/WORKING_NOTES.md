@@ -515,3 +515,152 @@ longer the installed-header layer. It is now clearly:
 ### Day 5 Outputs
 
 - `artifacts/day5-header-batch2.md`
+
+## Day 6
+
+**Objective:** Audit the README, tutorial, and example-facing documentation
+surface as one public guidance layer, map stale API usage and duplicated
+workflow explanations against the current shipped codebase, and turn the
+remaining Sprint 35 doc cleanup into named rewrite batches before broad prose
+edits begin.
+
+### Commands Run
+
+1. Re-read the Day 6 scope and current Sprint 35 state:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '139,170p' docs/planning/EPIC_3/SPRINT_35/PLAN.md`
+   - `sed -n '1,760p' docs/planning/EPIC_3/SPRINT_35/WORKING_NOTES.md`
+2. Audit the highest-value public docs and example-facing files:
+   - `sed -n '90,240p' README.md`
+   - `sed -n '160,360p' docs/tutorial.md`
+   - `sed -n '1,220p' examples/README.md`
+   - `sed -n '1,240p' INSTALL.md`
+3. Cross-check public docs against current public headers and current names:
+   - `rg -n "sparse_cg_opts_t|sparse_ilu_opts_t|sparse_iter_opts_t|sparse_gmres_opts_t|sparse_ilut_opts_t|quality-review|deadcode-check|quality-review-cmake|compute_uv|economy = 0|economy=0|SPARSE_REORDER_COLAMD|SPARSE_REORDER_ND" README.md docs/tutorial.md docs/algorithm.md examples/README.md benchmarks/README.md INSTALL.md examples/*.c -g '!build/**'`
+   - `rg -n "typedef struct .*sparse_cg_opts_t|sparse_cg_opts_t|sparse_ilu_opts_t|sparse_iter_opts_t|sparse_gmres_opts_t" include README.md docs/tutorial.md examples -g '!build/**'`
+   - `sed -n '1,220p' include/sparse_ilu.h`
+   - `sed -n '1,220p' include/sparse_iterative.h`
+   - `sed -n '1,220p' include/sparse_analysis.h`
+
+### Day 6 Audit Findings
+
+#### 1. `docs/tutorial.md` is the dominant remaining public truthfulness queue
+
+The README/tutorial/example layer is not evenly stale. The tutorial is
+materially behind the shipped public API:
+
+- it still names `sparse_cg_opts_t` in the CG and matrix-free CG examples
+- it still names `sparse_ilu_opts_t` for ILUT configuration
+- the current public surface instead exposes:
+  - `sparse_iter_opts_t`
+  - `sparse_gmres_opts_t`
+  - `sparse_ilut_opts_t`
+
+Interpretation:
+
+- this is not cosmetic wording debt
+- it is the strongest remaining public API truthfulness issue in Sprint 35
+- Day 8 should treat `docs/tutorial.md` as the first rewrite target, not as a
+  trailing cleanup file
+
+#### 2. `README.md` is mostly current on behavior and workflow names
+
+The README already reflects the Sprint 34 operator workflow accurately:
+
+- `make quality-review-compile`
+- `make quality-review`
+- `make quality-review-cmake-compile`
+- `make quality-review-cmake`
+- `make deadcode-check`
+
+Its SVD top-level feature note is also current about `economy = 0` with
+`compute_uv = 1`.
+
+The README's residual queue is therefore narrower:
+
+- some public snippets still use compact one-line designated initializers
+  instead of the stronger multi-line Day 3 teaching style
+- the file now carries a large amount of operator/workflow explanation spread
+  across multiple sections, which risks duplication rather than direct API
+  falsehood
+
+Interpretation:
+
+- README is a real Sprint 35 target
+- but it is primarily a consistency and structure target, not the main
+  truthfulness risk
+
+#### 3. Example-facing support docs are secondary, not primary, rewrite debt
+
+`examples/README.md` and `INSTALL.md` are largely aligned with the shipped
+surface:
+
+- `examples/README.md` is short, current, and mainly descriptive
+- `INSTALL.md` still points to the maintained Make/CMake flows and does not
+  carry the stale iterative/ILU type-name drift found in the tutorial
+
+This does **not** mean they are permanently finished. It means they should
+follow the README/tutorial rewrite, not lead it.
+
+#### 4. The conflict map is now explicit
+
+The same user-facing topics are currently split across multiple public files:
+
+- iterative solver setup:
+  - `README.md`
+  - `docs/tutorial.md`
+  - `include/sparse_iterative.h`
+  - `include/sparse_ilu.h`
+  - shipped iterative examples
+- SVD usage:
+  - `README.md`
+  - `docs/tutorial.md`
+  - `include/sparse_svd.h`
+- user quality/build commands:
+  - `README.md`
+  - `INSTALL.md`
+
+Current risk by topic:
+
+- iterative setup is the highest conflict area because the headers are current
+  while the tutorial still teaches stale types
+- SVD is mostly stabilized after Day 4, but the tutorial still uses compact
+  snippet style that should be reconciled with the Day 3 public example rule
+- build/operator command guidance is currently truthful, but spread across
+  enough README sections that Day 7 should choose a clearer division of
+  responsibilities between README and `INSTALL.md`
+
+### Day 6 Named Cleanup Queue
+
+1. **Day 8 primary rewrite batch**
+   - `docs/tutorial.md`
+   - fix stale iterative / ILUT type names
+   - apply the Day 3 designated-initializer vs `NULL` teaching split
+   - keep SVD wording aligned with the Day 4 installed-header contract
+2. **Day 8 secondary rewrite batch**
+   - `README.md`
+   - normalize public snippet style
+   - reduce duplicated operator guidance where one section can be canonical
+3. **Follow-on support-doc pass**
+   - `examples/README.md`
+   - `INSTALL.md`
+   - only adjust if the README/tutorial rewrite changes the public wording
+     baseline or reveals duplication worth trimming
+
+### Day 6 Interpretation
+
+- The installed-header layer is genuinely closed enough that the remaining
+  Sprint 35 risk now lives in user-facing prose.
+- The tutorial is the primary truthfulness fix surface.
+- The README is the primary consistency/structure surface.
+- Example-facing support docs should follow those rewrites rather than compete
+  with them for ownership of the public API story.
+- Day 7 should therefore choose one canonical division of responsibilities:
+  - README = concise entrypoint + maintained workflow map
+  - tutorial = fuller API-usage teaching surface
+  - headers = authoritative parameter/behavior contract
+
+### Day 6 Outputs
+
+- `artifacts/day6-readme-tutorial-audit.md`

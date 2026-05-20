@@ -719,3 +719,108 @@ Interpretation:
 ### Day 5 Outputs
 
 - `artifacts/day5-macos-workflow-alignment.md`
+
+## Day 6
+
+**Objective:** Implement the first Windows parity batch by making the current
+Win32/MSVC workflow express its reviewed CMake subset more explicitly, while
+preserving the staged exclusion model surfaced by the Day 3 audit.
+
+### Commands Run
+
+1. Re-read the current Windows workflow and the Day 3/Day 4 design inputs:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `cat .github/workflows/windows-ci.yml`
+   - `cat docs/planning/EPIC_3/SPRINT_36/artifacts/day3-windows-msvc-quality-audit.md`
+   - `cat docs/planning/EPIC_3/SPRINT_36/artifacts/day4-cross-platform-parity-design.md`
+2. Update `.github/workflows/windows-ci.yml` to:
+   - frame the job as a reviewed CMake parity subset
+   - expose `ctest -N` directly in the workflow
+   - assert the current staged Windows test-count expectation
+   - surface the named Windows staged exclusions explicitly
+3. Validate the workflow syntax and resulting diff:
+   - `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/windows-ci.yml"); puts "yaml_ok"'`
+   - `sed -n '1,220p' .github/workflows/windows-ci.yml`
+   - `git diff -- .github/workflows/windows-ci.yml`
+
+### Day 6 Findings
+
+#### 1. Windows now names its reviewed CMake subset explicitly
+
+The workflow now describes the current Win32/MSVC contract as:
+
+- reviewed CMake configure path
+- reviewed CMake build path
+- reviewed Windows CTest surface via `ctest -N`
+- reviewed CMake execution path via full `ctest`
+
+Interpretation:
+
+- this closes the most important Day 3 wording gap
+- Windows still remains CMake-first, but no longer looks like an unqualified
+  generic build/test job
+
+#### 2. The staged Windows suite count is now visible and asserted
+
+Day 6 added a workflow-level expectation:
+
+- `EXPECTED_WINDOWS_CTEST_COUNT=50`
+
+And the workflow now:
+
+- runs `ctest -N`
+- prints the resulting registered test count
+- fails if the count drifts from `50`
+
+Interpretation:
+
+- Windows now exposes a real parity signal instead of only running the final
+  suite blindly
+- this is the Windows analogue to "make the staged scope explicit" without
+  claiming full Linux-count parity
+
+#### 3. The current staged exclusions are now surfaced directly in workflow output
+
+The workflow now prints the named staged Windows exclusions:
+
+- `test_threads`
+- `test_sprint4_integration`
+- `test_fuzz`
+
+Interpretation:
+
+- Sprint 36 no longer leaves these exclusions discoverable only through CMake
+  comments or prior sprint notes
+- this improves operator truthfulness without pretending those exclusions are
+  already closed
+
+#### 4. Day 6 deliberately did not overclaim Windows parity
+
+The workflow still does **not** add:
+
+- `make quality-review-compile`
+- `make quality-review`
+- `make deadcode-report`
+- `make deadcode-check`
+
+Interpretation:
+
+- this matches the Day 4 design
+- Windows remains a reviewed CMake subset plus explicit staged exclusions, not
+  a fake copy of the Linux contract
+
+### Day 6 Interpretation
+
+- Day 6 did for Windows what Day 5 did for macOS, but at the narrower Windows
+  CMake-first scope.
+- The workflow is now more truthful: it says what Windows actually enforces,
+  shows the staged test-count surface directly, and names the current excluded
+  tests.
+- The next major step is not more platform-specific workflow churn by itself;
+  it is the shared portability audit that will decide whether some staged
+  surfaces can be generalized cleanly across platforms.
+
+### Day 6 Outputs
+
+- `artifacts/day6-windows-workflow-alignment.md`

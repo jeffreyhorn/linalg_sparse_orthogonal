@@ -3,15 +3,20 @@ name: macOS CI
 # Sprint 36 Day 5: macOS CI now expresses the reviewed Sprint 34
 # contract more directly on the Apple Clang leg while preserving the
 # extra platform-specific value already present here.  Apple Clang is
-# the reviewed macOS baseline:
+# enforced reviewed macOS baseline:
 #   - `make quality-review-compile`
 #   - `make quality-review-cmake`
 #   - `make wall-check`
 #   - `make sanitize`
 #
-# The Homebrew GCC leg remains intentionally direct build/test coverage
+# The Homebrew GCC leg remains intentionally supplemental direct
+# build/test coverage
 # rather than a fake reviewed-wrapper copy, because it is valuable as a
 # second compiler signal on macOS, not as the primary reviewed contract.
+#
+# Dead-code remains staged on macOS in Sprint 36:
+#   - no `make deadcode-report`
+#   - no `make deadcode-check`
 #
 # OpenMP linkage: Apple Clang needs `-Xpreprocessor -fopenmp` + the
 # Homebrew libomp prefix; Homebrew GCC links libgomp via `-fopenmp`
@@ -39,6 +44,7 @@ on:
 
 jobs:
   build-and-test:
+    name: macOS enforced Apple Clang reviewed path + supplemental GCC leg
     runs-on: macos-latest
     strategy:
       fail-fast: false
@@ -114,6 +120,7 @@ jobs:
   # prefix + runs verification commands — keeps the matrix output
   # focused on compile + test signals.
   install-and-pkgconfig:
+    name: macOS supplemental install and pkg-config path
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4

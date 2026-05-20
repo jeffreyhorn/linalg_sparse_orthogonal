@@ -1,13 +1,13 @@
 name: Windows CI
 
-# Sprint 36 Day 6: Windows CI now frames the current Win32/MSVC
-# contract as a reviewed CMake parity subset rather than a generic
+# Sprint 36 Day 6/9: Windows CI now frames the current Win32/MSVC
+# contract as an enforced reviewed CMake subset rather than a generic
 # "draft" build/test path.  Windows remains CMake-first for now:
 #   - reviewed CMake configure/build signal
 #   - `ctest -N` visibility into the registered Windows suite
 #   - full `ctest` execution
 #
-# It does NOT yet claim the full Linux reviewed-wrapper contract:
+# Staged but not yet enforced on Windows:
 #   - no `make quality-review-compile`
 #   - no `make quality-review`
 #   - no dead-code path
@@ -33,6 +33,7 @@ on:
 
 jobs:
   build-and-test:
+    name: Windows enforced reviewed CMake subset (MSVC)
     runs-on: windows-latest
     env:
       EXPECTED_WINDOWS_CTEST_COUNT: "50"

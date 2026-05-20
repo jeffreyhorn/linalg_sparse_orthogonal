@@ -1069,3 +1069,100 @@ Interpretation:
 ### Day 8 Outputs
 
 - `artifacts/day8-portability-batch1.md`
+
+## Day 9
+
+**Objective:** Refine CI and operator-facing reporting so the platform quality
+contract is explicit in the workflows themselves and in the main README, with a
+clear enforced/staged/supplemental split that matches the actual Sprint 36
+implementation state.
+
+### Commands Run
+
+1. Re-read the Sprint 36 Day 9 plan and the current platform-contract inputs:
+   - `sed -n '224,258p' docs/planning/EPIC_3/PROJECT_PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_36/artifacts/day4-cross-platform-parity-design.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_36/artifacts/day7-script-target-portability-audit.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_36/artifacts/day8-portability-batch1.md`
+2. Update the workflow comments and job display names in:
+   - `.github/workflows/ci.yml`
+   - `.github/workflows/macos-ci.yml`
+   - `.github/workflows/windows-ci.yml`
+3. Add a concise cross-platform CI contract section to `README.md`.
+4. Validate the workflow syntax and wording alignment:
+   - `ruby -e 'require "yaml"; %w[.github/workflows/ci.yml .github/workflows/macos-ci.yml .github/workflows/windows-ci.yml].each { |p| YAML.load_file(p); puts "yaml_ok #{p}" }'`
+   - `sed -n '680,735p' README.md`
+   - `git diff -- .github/workflows/ci.yml .github/workflows/macos-ci.yml .github/workflows/windows-ci.yml README.md`
+
+### Day 9 Findings
+
+#### 1. Linux now names its role as the enforced reviewed baseline directly
+
+The Linux workflow now says, in both comments and job display names, that it
+contains:
+
+- enforced reviewed Makefile compile-quality path
+- enforced reviewed CMake parity path
+- enforced dead-code report/check path
+
+And that it also carries Linux-specific supplemental signals:
+
+- direct runtime + `bench-fast`
+- TSan
+- coverage
+
+Interpretation:
+
+- this closes the remaining "Linux is stronger, but only implicitly" gap
+- later parity work can now compare other platforms to a named baseline instead
+  of inferring it from job contents
+
+#### 2. macOS and Windows now use the same enforced/staged/supplemental language
+
+Day 9 tightened the non-Linux workflow wording so it matches the Sprint 36
+design vocabulary directly:
+
+- macOS:
+  - Apple Clang leg = enforced reviewed baseline
+  - Homebrew GCC leg = supplemental second-compiler signal
+  - dead-code = staged
+- Windows:
+  - reviewed CMake subset = enforced
+  - reviewed Makefile wrappers + dead-code = staged
+  - named test exclusions remain explicit
+
+Interpretation:
+
+- CI no longer leaves the macOS/Windows contract partly implicit in comments and
+  partly implicit in the job graph
+- the workflow language now matches the Day 4 design model directly
+
+#### 3. The README now carries the same platform contract as CI
+
+Day 9 added a compact `Cross-Platform CI Contract` section to `README.md`
+covering:
+
+- Linux enforced reviewed paths
+- macOS enforced reviewed Apple Clang paths
+- Windows enforced reviewed CMake subset
+- staged dead-code and reviewed-Makefile gaps where applicable
+- supplemental or excluded surfaces by platform
+
+Interpretation:
+
+- operator-facing docs and workflow YAML now tell the same story
+- Day 10 can build a compact parity report from an already-consistent contract
+  instead of reconciling contradictory wording first
+
+### Day 9 Interpretation
+
+- Day 9 did not change the underlying platform enforcement behavior; it changed
+  the truthfulness and readability of that behavior.
+- That is the correct shape for this day because the remaining Sprint 36 gap was
+  expectation clarity, not missing CI mechanics.
+- The repo now has a consistent enforced/staged/supplemental vocabulary across
+  the platform workflows and the main operator docs.
+
+### Day 9 Outputs
+
+- `artifacts/day9-ci-expectation-refinement.md`

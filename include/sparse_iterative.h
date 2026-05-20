@@ -14,7 +14,10 @@
  *   SparseMatrix *A = sparse_create(n, n);
  *   // ... populate A with SPD entries ...
  *   double *b = ..., *x = calloc(n, sizeof(double));
- *   sparse_iter_opts_t opts = { .max_iter = 1000, .tol = 1e-10 };
+ *   sparse_iter_opts_t opts = {
+ *       .max_iter = 1000,
+ *       .tol = 1e-10,
+ *   };
  *   sparse_iter_result_t result;
  *   sparse_solve_cg(A, b, x, &opts, NULL, NULL, &result);
  *   printf("converged in %d iterations, residual = %e\n",
@@ -23,7 +26,11 @@
  *
  * **GMRES usage pattern:**
  * @code
- *   sparse_gmres_opts_t opts = { .max_iter = 500, .restart = 30, .tol = 1e-10 };
+ *   sparse_gmres_opts_t opts = {
+ *       .max_iter = 500,
+ *       .restart = 30,
+ *       .tol = 1e-10,
+ *   };
  *   sparse_iter_result_t result;
  *   sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &result);
  * @endcode
@@ -33,6 +40,11 @@
  *   // ILU preconditioner (see sparse_ilu.h)
  *   sparse_ilu_t ilu;
  *   sparse_ilu_factor(A, &ilu);
+ *   sparse_gmres_opts_t opts = {
+ *       .max_iter = 500,
+ *       .restart = 30,
+ *       .tol = 1e-10,
+ *   };
  *   sparse_solve_gmres(A, b, x, &opts, sparse_ilu_precond, &ilu, &result);
  * @endcode
  */

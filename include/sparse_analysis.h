@@ -77,11 +77,13 @@ typedef enum {
  */
 typedef struct {
     sparse_factor_type_t factor_type; /**< Target factorization type */
-    sparse_reorder_t reorder;         /**< Fill-reducing reordering (NONE, RCM, AMD,
-                                           COLAMD, or ND). `sparse_analyze()`
-                                           applies COLAMD symmetrically; see
-                                           the note below for the QR-specific
-                                           column-only path. */
+    sparse_reorder_t reorder;         /**< Fill-reducing reordering. Use NONE, RCM,
+                                           AMD, or ND for the normal symmetric
+                                           analysis path. COLAMD is accepted,
+                                           but `sparse_analyze()` applies it as a
+                                           symmetric permutation; see the note
+                                           below for the QR-specific column-only
+                                           path. */
 } sparse_analysis_opts_t;
 
 /* ═══════════════════════════════════════════════════════════════════════════

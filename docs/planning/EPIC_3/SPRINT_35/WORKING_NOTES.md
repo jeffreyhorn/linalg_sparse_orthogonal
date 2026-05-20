@@ -418,3 +418,100 @@ Interpretation:
 ### Day 4 Outputs
 
 - `artifacts/day4-header-batch1.md`
+
+## Day 5
+
+**Objective:** Close the installed-header cleanup pass by reconciling the smaller style and wording inconsistencies left after Day 4, and verify that the remaining Sprint 35 queue has genuinely shifted out of headers and into README/tutorial/example-facing docs.
+
+### Commands Run
+
+1. Re-read the Day 5 plan scope and current Sprint 35 state:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '95,185p' docs/planning/EPIC_3/SPRINT_35/PLAN.md`
+   - `sed -n '1,560p' docs/planning/EPIC_3/SPRINT_35/WORKING_NOTES.md`
+2. Re-review the remaining installed headers for residual public-surface drift:
+   - `sed -n '1,220p' include/sparse_iterative.h`
+   - `sed -n '1,220p' include/sparse_reorder.h`
+   - `sed -n '1,220p' include/sparse_analysis.h`
+   - `sed -n '1,220p' include/sparse_lu.h`
+   - `sed -n '1,220p' include/sparse_cholesky.h`
+   - `sed -n '1,220p' include/sparse_ldlt.h`
+   - `sed -n '1,220p' include/sparse_ilu.h`
+3. Targeted searches for lingering stale type-name / wording signals:
+   - `rg -n "sparse_ilu_factor\\(|sparse_ilut_factor\\(|NULL for defaults|default:|reorder = SPARSE_REORDER_COLAMD|SPARSE_REORDER_COLAMD|economy = 0|compute_uv" include/sparse_ilu.h include/sparse_iterative.h include/sparse_reorder.h include/sparse_analysis.h include/sparse_lu.h include/sparse_cholesky.h include/sparse_ldlt.h README.md docs/tutorial.md examples -g '!build/**'`
+   - `rg -n "typedef struct .*sparse_cg_opts_t|sparse_cg_opts_t|sparse_ilu_opts_t|sparse_iter_opts_t|sparse_gmres_opts_t" include README.md docs/tutorial.md examples -g '!build/**'`
+4. Validation after the header edits:
+   - `make format`
+   - `make lint`
+   - `make test`
+
+### Day 5 Implementation Findings
+
+#### 1. The residual header queue was real, but small
+
+After Day 4, there were no remaining behavior contradictions on the scale of
+`include/sparse_svd.h`. The remaining header work was narrower:
+
+- a few high-traffic examples still used inconsistent presentation styles
+- one analysis comment still described the reorder set too broadly for the
+  normal symmetric-analysis path
+
+The Day 5 touched set was:
+
+- `include/sparse_iterative.h`
+- `include/sparse_reorder.h`
+- `include/sparse_analysis.h`
+
+#### 2. The public example contract is now more uniform across installed headers
+
+Day 5 brought the remaining high-traffic examples into clearer alignment with
+the Day 3 rule:
+
+- non-default examples use designated initializers
+- examples are self-contained instead of relying on surrounding snippet state
+- the COLAMD / QR snippet now matches the same designated-init presentation
+  used elsewhere
+
+This did not change API behavior. It changed how consistently the headers
+teach that behavior.
+
+#### 3. The analysis-layer wording is now more explicit about COLAMD's role
+
+`sparse_analysis_opts_t.reorder` still accepts `SPARSE_REORDER_COLAMD`, but
+the Day 5 wording now makes the intended split clearer:
+
+- `NONE`, `RCM`, `AMD`, and `ND` are the normal symmetric-analysis choices
+- `COLAMD` is accepted, but `sparse_analyze()` applies it symmetrically
+- the column-only COLAMD path belongs to QR-specific APIs
+
+Interpretation:
+
+- this reduces the chance that downstream readers infer that COLAMD is the
+  normal recommendation for symmetric factor-analysis workflows
+
+#### 4. The remaining Sprint 35 drift has now moved out of the headers
+
+The Day 5 re-review confirms that the larger residual truthfulness queue is no
+longer the installed-header layer. It is now clearly:
+
+- `docs/tutorial.md`
+- `README.md`
+- selected public examples and example-facing docs
+
+### Day 5 Interpretation
+
+- The installed-header cleanup is now effectively complete.
+- Sprint 35 can move into README/tutorial/example-facing work without carrying
+  a hidden header backlog.
+- Day 6 should therefore be a real cross-surface audit of user-facing docs,
+  not a continuation of header cleanup.
+- Validation for the touched headers was complete:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - all passed
+
+### Day 5 Outputs
+
+- `artifacts/day5-header-batch2.md`

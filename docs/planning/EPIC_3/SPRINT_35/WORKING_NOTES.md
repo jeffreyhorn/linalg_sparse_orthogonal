@@ -831,3 +831,104 @@ Why this order is correct:
 ### Day 7 Outputs
 
 - `artifacts/day7-readme-tutorial-rewrite-design.md`
+
+## Day 8
+
+**Objective:** Rewrite the main user-facing docs so the tutorial and README
+teach the current public API accurately, use the Sprint 35 public example
+style consistently, and narrow the remaining public-doc debt to precondition
+language rather than stale type names or stale option examples.
+
+### Commands Run
+
+1. Re-read the Day 8 scope and current Sprint 35 rewrite plan:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '200,320p' docs/planning/EPIC_3/SPRINT_35/PLAN.md`
+   - `sed -n '150,360p' docs/tutorial.md`
+   - `sed -n '180,260p' README.md`
+2. Cross-check the rewritten public snippets against the current public
+   headers:
+   - `sed -n '1,220p' include/sparse_iterative.h`
+   - `sed -n '1,220p' include/sparse_ilu.h`
+   - `sed -n '1,220p' include/sparse_svd.h`
+3. Post-edit documentation sanity checks:
+   - `rg -n "sparse_cg_opts_t|sparse_ilu_opts_t|sparse_gmres_opts_t opts = \\{|sparse_svd_opts_t opts = \\{\\.compute_uv|quality-review|deadcode-check" README.md docs/tutorial.md`
+   - `git diff -- README.md docs/tutorial.md`
+
+### Day 8 Implementation Findings
+
+#### 1. The tutorial now teaches the current iterative and ILUT public types
+
+The highest-signal Day 6 truthfulness issue is now closed in
+`docs/tutorial.md`:
+
+- `sparse_cg_opts_t` examples were replaced with `sparse_iter_opts_t`
+- the ILUT example now uses `sparse_ilut_opts_t`
+- the CG, GMRES, ILUT, and matrix-free examples now use the same multi-line
+  designated-initializer style already established in the installed headers
+
+Interpretation:
+
+- Day 8 removed the main stale public type-name drift instead of just
+  restyling the old snippets
+
+#### 2. The tutorial's SVD examples now match the Day 4 header contract
+
+The SVD section in `docs/tutorial.md` was reconciled with
+`include/sparse_svd.h`:
+
+- singular-values-only still uses `opts == NULL`
+- economy/thin vector recovery uses a designated initializer
+- the full-output path is now stated explicitly via `economy = 0`
+- partial SVD now says directly that singular vectors are supported only in
+  the economy/thin path
+
+Interpretation:
+
+- the tutorial no longer risks teaching an older or looser SVD contract than
+  the installed header documents
+
+#### 3. The README rewrite stayed intentionally smaller
+
+Day 7's ownership split was correct: `README.md` needed reconciliation, not a
+full second tutorial rewrite.
+
+The touched README surface was the public iterative example:
+
+- the GMRES options snippet now uses the same multi-line designated-init style
+  as the tutorial and headers
+
+The reviewed-quality command names in README were already current, so they did
+not need a Day 8 semantic rewrite.
+
+#### 4. The remaining queue is now genuinely precondition-language debt
+
+After the Day 8 rewrite, the residual Sprint 35 doc drift is no longer led by
+stale type names or stale option examples.
+
+The remaining higher-value queue is now about wording such as:
+
+- where user-facing docs should state that some routines require identity
+  permutations or fresh copies
+- how explicitly iterative/precondition examples should state SPD vs general
+  matrix assumptions
+- how much of the ILU / ILUT safety story belongs in tutorial prose versus
+  headers
+
+That is the right Day 9 queue, and it is materially narrower than the Day 6
+starting state.
+
+### Day 8 Interpretation
+
+- Day 8 completed the main public-facing rewrite batch correctly:
+  - tutorial first for truthfulness
+  - README second for consistency
+- The remaining Sprint 35 doc work is now about tightening public usage
+  assumptions, not about replacing stale public API names.
+- Day 9 can therefore audit precondition language directly without having to
+  finish unfinished Day 6/Day 8 truthfulness cleanup first.
+
+### Day 8 Outputs
+
+- `artifacts/day8-readme-tutorial-implementation.md`

@@ -214,7 +214,11 @@ int main(void)
         return 1;
     }
 
-    sparse_gmres_opts_t opts = { .max_iter = 1000, .restart = 50, .tol = 1e-10 };
+    sparse_gmres_opts_t opts = {
+        .max_iter = 1000,
+        .restart = 50,
+        .tol = 1e-10,
+    };
     sparse_iter_result_t result;
     sparse_err_t err = sparse_solve_gmres(A, b, x, &opts,
                                            sparse_ilu_precond, &ilu, &result);

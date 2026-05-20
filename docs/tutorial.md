@@ -172,7 +172,10 @@ For large SPD systems where direct methods are too expensive:
 ```c
 #include "sparse_iterative.h"
 
-sparse_cg_opts_t opts = {.max_iter = 1000, .tol = 1e-10};
+sparse_iter_opts_t opts = {
+    .max_iter = 1000,
+    .tol = 1e-10,
+};
 sparse_iter_result_t result;
 double x[N];
 memset(x, 0, N * sizeof(double));  // Initial guess
@@ -187,7 +190,11 @@ printf("Converged in %d iterations, residual = %e\n",
 For general (unsymmetric) systems:
 
 ```c
-sparse_gmres_opts_t opts = {.restart = 30, .max_iter = 500, .tol = 1e-10};
+sparse_gmres_opts_t opts = {
+    .restart = 30,
+    .max_iter = 500,
+    .tol = 1e-10,
+};
 sparse_iter_result_t result;
 double x[N];
 memset(x, 0, N * sizeof(double));
@@ -217,7 +224,12 @@ sparse_free(A_copy);
 For more difficult matrices, ILUT with threshold dropping:
 
 ```c
-sparse_ilu_opts_t ilu_opts = {.droptol = 1e-3, .fillfactor = 10};
+SparseMatrix *A_copy = sparse_copy(A);
+sparse_ilu_t ilu;
+sparse_ilut_opts_t ilu_opts = {
+    .tol = 1e-3,
+    .max_fill = 10,
+};
 sparse_ilut_factor(A_copy, &ilu, &ilu_opts);
 ```
 
@@ -238,9 +250,13 @@ sparse_svd_compute(A, NULL, &svd);
 // svd.sigma[0..k-1] in descending order, k = min(m,n)
 
 // With singular vectors (economy/thin SVD)
-sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1};
+sparse_svd_opts_t opts = {
+    .compute_uv = 1,
+    .economy = 1,
+};
 sparse_svd_compute(A, &opts, &svd);
 // svd.U is m×k column-major, svd.Vt is k×n column-major
+// Set .economy = 0 to request full U (m×m) and V^T (n×n)
 
 sparse_svd_free(&svd);
 ```
@@ -255,9 +271,13 @@ sparse_svd_t svd;
 sparse_svd_partial(A, k, NULL, &svd);
 // svd.sigma[0..4] are the 5 largest singular values
 
-// With approximate singular vectors
-sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1};
+// With approximate thin singular vectors
+sparse_svd_opts_t opts = {
+    .compute_uv = 1,
+    .economy = 1,
+};
 sparse_svd_partial(A, k, &opts, &svd);
+// Partial SVD supports singular vectors only in the economy/thin path
 
 sparse_svd_free(&svd);
 ```
@@ -324,11 +344,18 @@ sparse_err_t my_matvec(const void *ctx, idx_t n, const double *x, double *y) {
 }
 
 // Use with CG (SPD operators)
-sparse_cg_opts_t cg_opts = {.max_iter = 1000, .tol = 1e-10};
+sparse_iter_opts_t cg_opts = {
+    .max_iter = 1000,
+    .tol = 1e-10,
+};
 sparse_solve_cg_mf(my_matvec, NULL, n, b, x, &cg_opts, NULL, NULL, &result);
 
 // Use with GMRES (general operators)
-sparse_gmres_opts_t gm_opts = {.restart = 30, .max_iter = 500, .tol = 1e-10};
+sparse_gmres_opts_t gm_opts = {
+    .restart = 30,
+    .max_iter = 500,
+    .tol = 1e-10,
+};
 sparse_solve_gmres_mf(my_matvec, NULL, n, b, x, &gm_opts, NULL, NULL, &result);
 ```
 

@@ -614,3 +614,108 @@ This order is load-bearing because it:
 ### Day 4 Outputs
 
 - `artifacts/day4-cross-platform-parity-design.md`
+
+## Day 5
+
+**Objective:** Implement the first macOS parity batch by aligning the Apple
+Clang CI leg with the reviewed Sprint 34 contract while preserving the extra
+macOS-specific value already present in the workflow.
+
+### Commands Run
+
+1. Re-read the current macOS workflow and the reviewed wrapper surfaces:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '1,220p' .github/workflows/macos-ci.yml`
+   - `sed -n '454,520p' Makefile`
+2. Update `.github/workflows/macos-ci.yml` to:
+   - align the Apple Clang leg with `make quality-review-compile`
+   - align the Apple Clang leg with `make quality-review-cmake`
+   - preserve the Homebrew GCC direct build/test role
+   - preserve `wall-check`, sanitize, and install/pkg-config coverage
+3. Validate the workflow syntax and resulting diff:
+   - `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/macos-ci.yml"); puts "yaml_ok"'`
+   - `sed -n '1,220p' .github/workflows/macos-ci.yml`
+   - `git diff -- .github/workflows/macos-ci.yml`
+
+### Day 5 Findings
+
+#### 1. Apple Clang is now the explicit reviewed macOS baseline
+
+The Apple Clang matrix leg now expresses the reviewed contract directly:
+
+- installs reviewed-path tools:
+  - Homebrew `llvm`
+  - Homebrew `cppcheck`
+  - adds Homebrew LLVM `bin` to `PATH`
+- runs:
+  - `make quality-review-compile`
+  - `make quality-review-cmake`
+  - `make wall-check`
+  - `make sanitize`
+
+Interpretation:
+
+- the macOS workflow now names the same reviewed compile-quality and reviewed
+  CMake parity concepts that Linux CI already enforces
+- this closes the largest Day 2 macOS contract gap
+
+#### 2. The Homebrew GCC leg remains intentionally direct coverage
+
+The Homebrew GCC leg was **not** forced into a fake reviewed-wrapper copy.
+
+It still provides:
+
+- direct `make`
+- direct `make test`
+- `make wall-check`
+
+Interpretation:
+
+- this preserves useful second-compiler coverage on macOS
+- Sprint 36 keeps the distinction between:
+  - reviewed baseline compiler path
+  - additional compiler coverage path
+
+#### 3. macOS-specific value was preserved rather than collapsed
+
+Day 5 kept the macOS-only or macOS-high-value surfaces intact:
+
+- `wall-check`
+- Apple Clang sanitize
+- Homebrew GCC matrix coverage
+- install/pkg-config validation job
+
+Interpretation:
+
+- the parity batch aligned the contract without deleting the extra diagnostic
+  value already present in `macos-ci.yml`
+
+#### 4. Dead-code remains staged on macOS by design
+
+Day 5 intentionally did **not** add:
+
+- `make deadcode-report`
+- `make deadcode-check`
+
+Interpretation:
+
+- this matches the Day 4 contract
+- macOS dead-code parity remains staged/unavailable pending later portability
+  and execution-model work
+
+### Day 5 Interpretation
+
+- Day 5 converted the biggest macOS parity issue from an implicit mismatch into
+  an explicit reviewed contract:
+  - Apple Clang = reviewed baseline
+  - Homebrew GCC = direct second-compiler signal
+- The workflow is now more truthful and more aligned with Linux, while still
+  preserving the macOS-specific checks that make this workflow useful.
+- The next cross-platform implementation step should mirror this approach on
+  Windows: clarify the reviewed contract without pretending staged surfaces are
+  already enforced.
+
+### Day 5 Outputs
+
+- `artifacts/day5-macos-workflow-alignment.md`

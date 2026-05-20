@@ -1,8 +1,17 @@
 name: macOS CI
 
-# Sprint 29 Day 9 (Item 6): macOS build + test matrix.  Runs the
-# library + tests under both Apple Clang (default `cc` on macos-latest)
-# and Homebrew GCC.  The Apple Clang job also runs `make sanitize`.
+# Sprint 36 Day 5: macOS CI now expresses the reviewed Sprint 34
+# contract more directly on the Apple Clang leg while preserving the
+# extra platform-specific value already present here.  Apple Clang is
+# the reviewed macOS baseline:
+#   - `make quality-review-compile`
+#   - `make quality-review-cmake`
+#   - `make wall-check`
+#   - `make sanitize`
+#
+# The Homebrew GCC leg remains intentionally direct build/test coverage
+# rather than a fake reviewed-wrapper copy, because it is valuable as a
+# second compiler signal on macOS, not as the primary reviewed contract.
 #
 # OpenMP linkage: Apple Clang needs `-Xpreprocessor -fopenmp` + the
 # Homebrew libomp prefix; Homebrew GCC links libgomp via `-fopenmp`
@@ -40,6 +49,9 @@ jobs:
           - compiler: apple-clang
             cc: cc
             run_sanitize: "true"
+            run_reviewed_makefile: "true"
+            run_reviewed_cmake: "true"
+            run_direct_make_test: "false"
           # Homebrew GCC: requires `brew install gcc`.  The exact
           # binary name floats with Homebrew's gcc formula version;
           # use the unversioned symlink `gcc-15` (current Homebrew
@@ -50,6 +62,9 @@ jobs:
           - compiler: homebrew-gcc
             cc: gcc-15
             run_sanitize: "false"
+            run_reviewed_makefile: "false"
+            run_reviewed_cmake: "false"
+            run_direct_make_test: "true"
     steps:
       - uses: actions/checkout@v4
 
@@ -59,10 +74,30 @@ jobs:
         if: matrix.compiler == 'homebrew-gcc'
         run: brew install gcc
 
-      - name: Build (matrix=${{ matrix.compiler }})
+      # Sprint 36 Day 5: the reviewed compile-quality path depends on
+      # clang-format, clang-tidy, and cppcheck.  On macOS, use
+      # Homebrew LLVM + cppcheck for the Apple Clang leg and add the
+      # LLVM bin dir explicitly since the formula is keg-only.
+      - name: Install reviewed-path tools (Apple Clang only)
+        if: matrix.run_reviewed_makefile == 'true'
+        run: |
+          brew install llvm cppcheck
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+
+      - name: Run reviewed Makefile compile-quality path (Apple Clang only)
+        if: matrix.run_reviewed_makefile == 'true'
+        run: make quality-review-compile
+
+      - name: Run reviewed CMake parity path (Apple Clang only)
+        if: matrix.run_reviewed_cmake == 'true'
+        run: make quality-review-cmake
+
+      - name: Build (matrix=${{ matrix.compiler }}, direct path)
+        if: matrix.run_direct_make_test == 'true'
         run: make CC=${{ matrix.cc }}
 
-      - name: Run tests
+      - name: Run tests (matrix=${{ matrix.compiler }}, direct path)
+        if: matrix.run_direct_make_test == 'true'
         run: make CC=${{ matrix.cc }} test
 
       - name: Wall-time regression check

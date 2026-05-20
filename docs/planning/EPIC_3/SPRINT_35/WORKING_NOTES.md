@@ -125,3 +125,101 @@ Interpretation:
 
 - `artifacts/day1-public-doc-baseline.md`
 - `artifacts/day1-public-surface-inventory.txt`
+
+## Day 2
+
+**Objective:** Audit the installed-header example surface directly, determine which public headers still teach brittle or outdated patterns, and distinguish real header cleanup debt from the broader README/tutorial/example consistency queue identified on Day 1.
+
+### Commands Run
+
+1. Re-read the Sprint 35 Day 1 baseline and Day 2 scope:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '1,240p' docs/planning/EPIC_3/SPRINT_35/WORKING_NOTES.md`
+   - `sed -n '40,95p' docs/planning/EPIC_3/SPRINT_35/PLAN.md`
+2. Read the first-pass installed headers named on Day 1:
+   - `sed -n '1,140p' include/sparse_iterative.h`
+   - `sed -n '1,140p' include/sparse_reorder.h`
+   - `sed -n '1,140p' include/sparse_svd.h`
+   - `sed -n '1,140p' include/sparse_lu.h`
+   - `sed -n '1,140p' include/sparse_cholesky.h`
+   - `sed -n '1,140p' include/sparse_ldlt.h`
+   - `sed -n '1,140p' include/sparse_analysis.h`
+3. Search for stale example/style and wording signals inside the audited headers:
+   - `rg -n "= \\{[^.][^\\n]*\\}|not implemented|SPARSE_ERR_BADARG|reorder|precondition|default:|NULL for defaults|With fill-reducing reordering|Usage pattern|Workflow" include/sparse_iterative.h include/sparse_reorder.h include/sparse_svd.h include/sparse_lu.h include/sparse_cholesky.h include/sparse_ldlt.h include/sparse_analysis.h`
+   - `python3 - <<'PY' ... scan audited headers for *_opts_t example lines ... PY`
+4. Cross-check the likely stale wording against current public declarations:
+   - `sed -n '1,120p' include/sparse_lu.h`
+   - `sed -n '1,120p' include/sparse_cholesky.h`
+   - `sed -n '1,120p' include/sparse_svd.h`
+
+### Day 2 Audit Findings
+
+#### 1. The installed-header initializer surface is already mostly aligned
+
+Across the seven high-priority headers audited on Day 2:
+
+- `include/sparse_iterative.h`
+- `include/sparse_reorder.h`
+- `include/sparse_svd.h`
+- `include/sparse_lu.h`
+- `include/sparse_cholesky.h`
+- `include/sparse_ldlt.h`
+- `include/sparse_analysis.h`
+
+all currently visible public options-struct examples already use designated initializers.
+
+Interpretation:
+
+- Sprint 35 does **not** inherit a large installed-header positional-initializer rewrite queue.
+- Day 4 and Day 5 should therefore be scoped as targeted header cleanup and wording reconciliation, not as a broad mechanical conversion pass.
+
+#### 2. The strongest true header debt is internal contradiction in `include/sparse_svd.h`
+
+`include/sparse_svd.h` contains two public-surface inconsistencies:
+
+- `sparse_svd_opts_t::economy` documents that Sprint 29 Day 3 enabled full mode when `economy = 0`
+- but the `sparse_svd_compute()` return-code docs still say:
+  - `compute_uv is set without economy (full SVD not implemented)`
+- and the `sparse_svd_partial()` docs say:
+  - singular vectors are recovered when `opts->compute_uv` is set
+  - while the `@param opts` text still says singular vectors are not computed
+
+Interpretation:
+
+- this is a real installed-header truthfulness issue
+- it is more important than initializer syntax cleanup because it can misstate actual supported API behavior to downstream users
+
+#### 3. The other audited headers are primarily `keep`, not `rewrite`
+
+Current Day 2 classification:
+
+- `include/sparse_lu.h`: keep, already aligned on designated initializer usage
+- `include/sparse_cholesky.h`: keep, already aligned on designated initializer usage
+- `include/sparse_ldlt.h`: keep, already aligned on designated initializer usage
+- `include/sparse_analysis.h`: keep, already aligned on designated initializer usage
+- `include/sparse_reorder.h`: keep, example style aligned; wording may need later cross-doc consistency review only
+- `include/sparse_iterative.h`: keep, example style aligned; larger truthfulness drift is still in `docs/tutorial.md`, not here
+- `include/sparse_svd.h`: update, due to the full-SVD / partial-SVD wording contradictions above
+
+#### 4. The real Day 2 result narrows the sprint
+
+The strongest remaining public-example debt is now split clearly:
+
+- header-level direct rewrite queue:
+  - small
+  - led by `include/sparse_svd.h`
+- cross-surface truthfulness queue:
+  - larger
+  - still led by `docs/tutorial.md`
+  - likely followed by `README.md` and selected shipped examples
+
+### Day 2 Interpretation
+
+- Day 2 confirmed that Day 1's caution was correct: the installed-header surface is not where most of the remaining mechanical initializer debt lives.
+- The header work is now narrow enough that Day 3 should focus on a public-facing style/wording standard, not a broad conversion policy.
+- `include/sparse_svd.h` is the clearest concrete header file to carry into the first implementation batch because it contains actual contradictory user-facing behavior docs.
+
+### Day 2 Outputs
+
+- `artifacts/day2-header-example-audit.md`

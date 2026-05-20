@@ -932,3 +932,174 @@ starting state.
 ### Day 8 Outputs
 
 - `artifacts/day8-readme-tutorial-implementation.md`
+
+## Day 9
+
+**Objective:** Audit the rewritten public docs and the installed headers for
+residual precondition-language debt, identify which usage assumptions are still
+implicit or underspecified in user-facing prose, and map each item to the
+right public surface before Day 10 wording edits begin.
+
+### Commands Run
+
+1. Re-read the Day 9 scope and the Day 8 end state:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '220,290p' docs/planning/EPIC_3/SPRINT_35/PLAN.md`
+   - `tail -n 220 docs/planning/EPIC_3/SPRINT_35/WORKING_NOTES.md`
+2. Re-open the rewritten user-facing docs:
+   - `sed -n '150,360p' docs/tutorial.md`
+   - `sed -n '180,260p' README.md`
+   - `sed -n '330,365p' README.md`
+3. Cross-check user prose against the authoritative public headers:
+   - `rg -n "@pre|identity permutations|fresh matrix|sparse_copy\\(|SPD|symmetric positive-definite|not modified|in-place|economy = 0|compute_uv = 1|ILU\\(0\\)|ILUT|precondition" include README.md docs/tutorial.md docs/algorithm.md examples/*.c examples/README.md INSTALL.md -g '!build/**'`
+   - `sed -n '1,180p' include/sparse_lu.h`
+   - `sed -n '1,220p' include/sparse_qr.h`
+   - `sed -n '1,220p' include/sparse_analysis.h`
+   - `sed -n '1,220p' include/sparse_cholesky.h`
+   - `sed -n '1,220p' include/sparse_ilu.h`
+   - `sed -n '1,220p' include/sparse_ic.h`
+   - `sed -n '1,220p' include/sparse_ldlt.h`
+4. Check QR least-squares / minimum-norm wording specifically:
+   - `rg -n "minnorm|minimum-norm|underdetermined|least-squares|min \\|\\|Ax - b\\|\\|" README.md docs/tutorial.md examples/README.md include/sparse_qr.h -g '!build/**'`
+
+### Day 9 Audit Findings
+
+#### 1. The main residual queue is now "headers precise, prose implicit"
+
+After Day 8, the public docs no longer teach stale type names. The remaining
+debt is narrower: the installed headers often state the important usage
+preconditions precisely, while README/tutorial prose still leaves them
+implicit.
+
+That pattern shows up in three recurring classes:
+
+- matrix-state assumptions
+- matrix-class assumptions
+- routine-selection assumptions
+
+Interpretation:
+
+- Day 10 should tighten wording, not expand the docs into header duplicates
+
+#### 2. Matrix-state assumptions are the highest-signal tutorial gap
+
+Several public headers now state clearly that some routines require an
+original/unfactored matrix or identity permutations:
+
+- `include/sparse_ilu.h`
+- `include/sparse_ic.h`
+- `include/sparse_qr.h`
+- `include/sparse_ldlt.h`
+- `include/sparse_analysis.h`
+
+The tutorial and README only partially surface that story:
+
+- LU and Cholesky already explain the in-place overwrite and show `sparse_copy`
+- the iterative/precondition sections do **not** explain as clearly that ILU,
+  ILUT, IC, QR, LDL^T, SVD, and analysis routines expect an unfactored /
+  unreordered matrix view
+- the tutorial's ILUT example uses `sparse_copy(A)`, but it does not explain
+  why a fresh/original matrix matters
+
+This is the strongest Day 9 wording queue because it can affect whether a user
+feeds a previously factored or reordered matrix into the wrong API.
+
+#### 3. Matrix-class assumptions are partly stated, but unevenly
+
+Current state:
+
+- CG is labeled SPD in README/tutorial
+- Cholesky is labeled SPD in README/tutorial
+- GMRES is labeled general/unsymmetric in README/tutorial
+- IC(0) is documented in headers as the SPD-side analogue of ILU(0)
+
+Remaining gap:
+
+- the user-facing iterative/precondition prose does not yet say as directly
+  which preconditioner families align naturally with which matrix classes:
+  - IC(0) for SPD workflows
+  - ILU(0) / ILUT for general or indefinite workflows
+- the tutorial also does not yet explain that CG's preconditioned use still
+  assumes an SPD problem/operator path
+
+Interpretation:
+
+- this belongs mainly in tutorial prose, with only brief signposts in README
+
+#### 4. QR routine-selection wording still leaves one important distinction implicit
+
+`include/sparse_qr.h` is explicit:
+
+- `sparse_qr_solve()` gives least-squares for overdetermined systems
+- for underdetermined systems it gives a basic solution, not the minimum-norm
+  solution
+- the minimum-norm path is `sparse_qr_solve_minnorm()`
+
+The user-facing docs are looser:
+
+- tutorial QR wording says "rectangular or rank-deficient systems" and then
+  shows `sparse_qr_solve()` generically
+- README lists both QR least-squares and QR minimum-norm support, but the main
+  QR usage example does not help the reader choose between them
+
+This is a real public-usage distinction, not cosmetic polish, and it belongs
+in Day 10.
+
+#### 5. SVD and quality-command wording are no longer the main risk
+
+After Day 8:
+
+- SVD examples are aligned enough with `include/sparse_svd.h`
+- reviewed-quality command names in README remain current
+
+Residual work there is secondary. The higher-value Day 10 queue is still:
+
+- matrix-state assumptions
+- solver/precondition matrix-class assumptions
+- QR least-squares vs minimum-norm routine selection
+
+### Day 9 Named Cleanup Queue
+
+1. **Tutorial precondition-language pass**
+   - explain fresh/original matrix expectations where users are likely to copy
+     factorized or reordered matrices into ILU / ILUT / IC / QR / SVD /
+     analysis workflows
+   - state matrix-class guidance more directly:
+     - CG / IC(0) for SPD paths
+     - GMRES / ILU / ILUT for general paths
+2. **README signpost pass**
+   - add only short clarifying notes where the entrypoint examples currently
+     hide a meaningful usage assumption
+   - avoid turning README into a second contract surface
+3. **QR routine-selection pass**
+   - clarify in user-facing docs that `sparse_qr_solve()` is not the
+     minimum-norm underdetermined path
+   - point underdetermined readers to `sparse_qr_solve_minnorm()`
+
+### Day 9 Surface Mapping
+
+- installed headers:
+  - keep the precise contract language they already have
+  - only touch on Day 10 if one user-facing clarification reveals a genuine
+    header-level ambiguity
+- `docs/tutorial.md`:
+  - primary Day 10 target
+  - best place for matrix-state and matrix-class guidance
+- `README.md`:
+  - secondary Day 10 target
+  - brief signposts only
+- `examples/README.md` and support docs:
+  - not the right place for the main safety narrative
+  - any follow-on cleanup can wait for Day 11
+
+### Day 9 Interpretation
+
+- The remaining Sprint 35 public-doc debt is now sharply bounded.
+- Day 10 should be a concise wording pass, not another broad rewrite batch.
+- The highest-value fixes are the ones that prevent users from choosing the
+  wrong routine or feeding the wrong matrix state into a valid routine.
+
+### Day 9 Outputs
+
+- `artifacts/day9-api-precondition-audit.md`

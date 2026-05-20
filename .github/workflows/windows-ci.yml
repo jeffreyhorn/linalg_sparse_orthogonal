@@ -44,15 +44,15 @@ jobs:
       # so no setup step is needed.  MSVC `cl.exe` is available via
       # the Visual Studio environment that GitHub's image initialises.
 
-      - name: Run reviewed CMake configure path (MSVC, x64)
+      - name: Run enforced reviewed CMake configure path (MSVC, x64)
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
         shell: pwsh
 
-      - name: Run reviewed CMake build path (Release)
+      - name: Run enforced reviewed CMake build path (Release)
         run: cmake --build build --config Release
         shell: pwsh
 
-      - name: Inspect reviewed Windows CTest surface (ctest -N)
+      - name: Inspect enforced Windows reviewed CTest surface (ctest -N)
         run: |
           $ctestOutput = ctest --test-dir build -C Release -N
           $ctestOutput
@@ -68,6 +68,6 @@ jobs:
           Write-Host "Windows staged exclusions remain: test_threads, test_sprint4_integration, test_fuzz"
         shell: pwsh
 
-      - name: Run reviewed CMake execution path (ctest)
+      - name: Run enforced reviewed CMake execution path (ctest)
         run: ctest --test-dir build -C Release --output-on-failure
         shell: pwsh

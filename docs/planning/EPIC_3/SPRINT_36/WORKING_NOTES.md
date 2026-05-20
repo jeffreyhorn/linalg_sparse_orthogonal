@@ -1252,3 +1252,91 @@ Interpretation:
 ### Day 10 Outputs
 
 - `artifacts/day10-cross-platform-parity-report.md`
+
+## Day 11
+
+**Objective:** Close the remaining small naming/reporting mismatches between
+the parity report, the workflow comments, the workflow step names, and the main
+README so Sprint 36 enters validation with one consistent platform-contract
+vocabulary.
+
+### Commands Run
+
+1. Re-read the Day 10 parity report and the current live contract surfaces:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_36/artifacts/day10-cross-platform-parity-report.md`
+   - `sed -n '680,760p' README.md`
+   - `sed -n '1,120p' .github/workflows/ci.yml`
+   - `sed -n '1,140p' .github/workflows/macos-ci.yml`
+   - `sed -n '1,120p' .github/workflows/windows-ci.yml`
+   - `sed -n '450,520p' Makefile`
+2. Tighten workflow step names and README wording so they match the
+   enforced/staged/supplemental model directly.
+3. Validate workflow syntax and resulting wording:
+   - `ruby -e 'require "yaml"; %w[.github/workflows/ci.yml .github/workflows/macos-ci.yml .github/workflows/windows-ci.yml].each { |p| YAML.load_file(p); puts "yaml_ok #{p}" }'`
+   - `sed -n '714,732p' README.md`
+   - `git diff -- .github/workflows/ci.yml .github/workflows/macos-ci.yml .github/workflows/windows-ci.yml README.md`
+
+### Day 11 Findings
+
+#### 1. Workflow step names now match the contract model instead of only the comments
+
+Day 11 pushed the enforced/supplemental distinction down from top-of-file
+comments into the workflow step labels themselves:
+
+- Linux:
+  - reviewed compile-quality / CMake / dead-code steps now say `enforced`
+  - runtime, sanitizer, benchmark, TSan, and coverage paths now say
+    `supplemental` where appropriate
+- macOS:
+  - Apple Clang reviewed steps now say `enforced`
+  - GCC direct build/test and install/pkg-config paths now say `supplemental`
+- Windows:
+  - reviewed CMake configure/build/`ctest -N`/`ctest` steps now say `enforced`
+
+Interpretation:
+
+- the job graph now communicates the same contract as the workflow comments
+- CI output will be easier to interpret during Sprint 36 validation and later
+  maintenance
+
+#### 2. The README now states the Windows distinction more precisely
+
+Day 11 tightened the README’s cross-platform contract wording by stating that
+the Windows enforced subset is:
+
+- direct CI configure + build + `ctest -N` + full `ctest`
+
+and is **not** yet the same thing as:
+
+- full named local Makefile reviewed-wrapper parity
+
+Interpretation:
+
+- this closes the most important remaining wording ambiguity from the Day 10
+  report
+- the README now matches both the Windows workflow and the parity report
+
+#### 3. No broader implementation queue reopened
+
+Day 11 intentionally did **not** reopen:
+
+- dead-code maturity work
+- Windows Makefile reviewed-wrapper portability work
+- broader public-doc cleanup
+
+Interpretation:
+
+- the final pre-validation queue remains bounded
+- Sprint 36 can now move into validation without carrying unresolved contract
+  drift
+
+### Day 11 Interpretation
+
+- Day 11 was the correct final batch shape: small naming/reporting fixes only.
+- The important result is not more mechanics; it is that the workflows, README,
+  and parity report now all describe the same platform contract at the same
+  level of precision.
+
+### Day 11 Outputs
+
+- `artifacts/day11-final-parity-consistency-pass.md`

@@ -730,6 +730,9 @@ Interpretation:
 - Windows truthfully exposes a narrower reviewed CMake subset instead of
   pretending the POSIX-oriented Makefile and dead-code maintainer paths are
   already portable there.
+- On Windows, that enforced subset is expressed directly in CI as configure +
+  build + `ctest -N` + full `ctest`; it is not yet the same as claiming the
+  full named local Makefile reviewed-wrapper contract.
 
 Operator command map:
 

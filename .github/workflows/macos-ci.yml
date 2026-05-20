@@ -90,26 +90,26 @@ jobs:
           brew install llvm cppcheck
           echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
 
-      - name: Run reviewed Makefile compile-quality path (Apple Clang only)
+      - name: Run enforced reviewed Makefile compile-quality path (Apple Clang only)
         if: matrix.run_reviewed_makefile == 'true'
         run: make quality-review-compile
 
-      - name: Run reviewed CMake parity path (Apple Clang only)
+      - name: Run enforced reviewed CMake parity path (Apple Clang only)
         if: matrix.run_reviewed_cmake == 'true'
         run: make quality-review-cmake
 
-      - name: Build (matrix=${{ matrix.compiler }}, direct path)
+      - name: Run supplemental direct build path (matrix=${{ matrix.compiler }})
         if: matrix.run_direct_make_test == 'true'
         run: make CC=${{ matrix.cc }}
 
-      - name: Run tests (matrix=${{ matrix.compiler }}, direct path)
+      - name: Run supplemental direct test path (matrix=${{ matrix.compiler }})
         if: matrix.run_direct_make_test == 'true'
         run: make CC=${{ matrix.cc }} test
 
-      - name: Wall-time regression check
+      - name: Run enforced wall-check signal
         run: make CC=${{ matrix.cc }} wall-check
 
-      - name: Sanitizer build + test (Apple Clang only)
+      - name: Run enforced Apple Clang sanitizer path
         if: matrix.run_sanitize == 'true'
         run: |
           make clean
@@ -125,18 +125,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build library
+      - name: Run supplemental install-path build
         run: make
 
-      - name: Install to /tmp prefix
+      - name: Run supplemental install to /tmp prefix
         run: make install PREFIX=/tmp/sparse-prefix
 
-      - name: Verify pkg-config metadata
+      - name: Run supplemental pkg-config verification
         run: |
           export PKG_CONFIG_PATH=/tmp/sparse-prefix/lib/pkgconfig
           pkg-config --modversion sparse
           pkg-config --cflags sparse
           pkg-config --libs sparse
 
-      - name: Verify uninstall is reversible
+      - name: Run supplemental uninstall reversibility check
         run: make uninstall PREFIX=/tmp/sparse-prefix

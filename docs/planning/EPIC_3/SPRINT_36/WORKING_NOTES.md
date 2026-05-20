@@ -1466,3 +1466,139 @@ Interpretation:
 - `make quality-review`
 - `make quality-review-cmake-compile`
 - `make quality-review-cmake`
+
+## Day 13
+
+**Objective:** Run the full Sprint 36 validation set, capture the measured end
+state, and re-confirm that the reviewed local/CMake baseline still holds after
+the parity and portability work.
+
+### Commands Run
+
+1. Re-read the Day 13 plan and the Day 12 validation record:
+   - `sed -n '300,360p' docs/planning/EPIC_3/SPRINT_36/PLAN.md`
+   - `sed -n '1,240p' docs/planning/EPIC_3/SPRINT_36/artifacts/day12-platform-focused-validation.md`
+   - `git status --short --branch`
+2. Run the full validation set:
+   - `/usr/bin/time -p make format`
+   - `/usr/bin/time -p make lint`
+   - `/usr/bin/time -p make test`
+   - `/usr/bin/time -p make quality-review-compile`
+   - `/usr/bin/time -p make quality-review`
+   - `/usr/bin/time -p make quality-review-cmake-compile`
+   - `/usr/bin/time -p make quality-review-cmake`
+3. After the first `make lint` failure, reset the stale sanitizer build tree and
+   rerun from a clean baseline:
+   - `make clean`
+
+### Day 13 Findings
+
+#### 1. The full maintained command set passed after the clean-baseline rerun
+
+The authoritative rerun passed completely:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-compile`
+- `make quality-review`
+- `make quality-review-cmake-compile`
+- `make quality-review-cmake`
+
+Measured wall times:
+
+- `make format`: `real 3.31`
+- `make lint`: `real 303.32`
+- `make test`: `real 264.17`
+- `make quality-review-compile`: `real 696.45`
+- `make quality-review`: `real 487.59`
+- `make quality-review-cmake-compile`: `real 93.11`
+- `make quality-review-cmake`: `real 817.17`
+
+Interpretation:
+
+- Sprint 36 ends with the full maintained local validation surface still green
+- both the direct commands and the wrapper entry points remain valid
+
+#### 2. The one Day 13 failure was a stale sanitizer artifact, not a source regression
+
+The first `make lint` attempt failed because the prior Day 12 `make sanitize`
+pass had left a UBSan-instrumented `build/libsparse_lu_ortho.a` in place, and
+the benchmark link step then tried to reuse it without the UBSan runtime.
+
+The fix was simply:
+
+- `make clean`
+
+Then the full Day 13 sweep was rerun successfully.
+
+Interpretation:
+
+- this was an operational build-tree issue, not a Sprint 36 code or workflow
+  regression
+- Day 14 should carry a small note that direct authoritative sweeps should
+  start from a clean `build/` tree if a sanitizer path ran immediately before
+
+#### 3. The reviewed CMake parity contract remains exact
+
+`make quality-review-cmake-compile` again reported:
+
+- `ctest -N`: `53`
+- Makefile tests: `53`
+- CMake tests: `53`
+- `PASS: test counts match`
+
+`make quality-review-cmake` completed the full suite successfully:
+
+- `53 / 53` tests passed
+- `Total Test time (real) = 703.03 sec`
+
+Interpretation:
+
+- the strongest honest cross-platform reviewed baseline is unchanged
+- Sprint 36 did not drift the active-suite parity story while aligning CI,
+  README, and workflow naming
+
+#### 4. The reviewed wrapper contract is still fully live
+
+Wrapper end states:
+
+- `quality-review-compile: passed (format-check + lint)`
+- `quality-review: passed (format-check + lint + test + deadcode-check)`
+- `quality-review-cmake-compile: passed (configure + clean rebuild + ctest -N + test-count parity)`
+- `quality-review-cmake: passed (configure + clean rebuild + ctest -N + ctest)`
+
+Interpretation:
+
+- the Sprint 34 reviewed wrapper contract survived Sprint 36 intact
+- the platform-parity work improved truthfulness without weakening the
+  maintained operator entry points
+
+#### 5. The inherited baseline invariants remain intact
+
+The Day 13 end state still preserves the important inherited invariants:
+
+- active CTest registry remains `53`
+- Makefile/CMake test-count parity remains `53` vs `53`
+- `deadcode-check` still passes inside the reviewed local wrapper path
+- the Sprint 32 opt-in/self-check surface remains live through
+  `test_framework_optin`
+
+Interpretation:
+
+- Sprint 36 did not regress the validated baseline it inherited from Sprints
+  32, 34, and 35
+
+### Day 13 Interpretation
+
+- Day 13 succeeded because Sprint 36 stayed bounded to contract alignment and
+  portability truthfulness, not feature churn.
+- The only operational lesson is narrow and manageable:
+  sanitizer-built artifacts can contaminate a later direct lint sweep unless the
+  build tree is cleaned first.
+- Outside that one note, Sprint 36 is now in a clean validated state for
+  closeout.
+
+### Day 13 Outputs
+
+- `artifacts/day13-full-validation-sweep.md`

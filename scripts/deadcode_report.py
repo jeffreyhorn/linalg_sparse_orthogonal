@@ -9,6 +9,7 @@ import re
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
+from typing import List
 
 
 COVERAGE_GAP = "coverage-gap"
@@ -32,7 +33,7 @@ XUNUSED_NOTE_RE = re.compile(r"^(.+?):(\d+): note: declared here$")
 CPPCHECK_RE = re.compile(
     r"^(src/[^:]+):(\d+):(\d+):\s+(\w+):\s+(.*?)\s+\[([^\]]+)\]$"
 )
-Row = list[str]
+Row = List[str]
 
 
 def parse_args() -> argparse.Namespace:

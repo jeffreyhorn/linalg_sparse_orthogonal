@@ -1,29 +1,10 @@
 name: Windows CI
 
-# Sprint 36 Day 6/9: Windows CI now frames the current Win32/MSVC
-# contract as an enforced reviewed CMake subset rather than a generic
-# "draft" build/test path.  Windows remains CMake-first for now:
-#   - reviewed CMake configure/build signal
-#   - `ctest -N` visibility into the registered Windows suite
-#   - full `ctest` execution
-#
-# Staged but not yet enforced on Windows:
-#   - no `make quality-review-compile`
-#   - no `make quality-review`
-#   - no dead-code path
-#
-# Current staged Windows exclusions remain explicit:
-#   - `test_threads`
-#   - `test_sprint4_integration`
-#   - `test_fuzz`
-#
-# Expected failure modes the Sprint 29 Day-8 close targets:
-#   - clock_gettime / CLOCK_MONOTONIC not available on MSVC (used by
-#     the Sprint 29 Day 6/7 progress timing helpers).
-#   - POSIX-only headers (unistd.h, sys/time.h) included unconditionally.
-#   - Path separator handling in tests/data/* MM file loads.
-#   - Tests that exercise tf_setenv / tf_unsetenv (covered by Sprint 28
-#     PR #36's _putenv_s compat layer in test_framework.h).
+# Windows currently enforces the reviewed CMake subset only:
+# configure + build + `ctest -N` + full `ctest`. The Makefile reviewed
+# wrappers and dead-code flow remain staged, and the current excluded
+# tests remain explicit in job output. See README.md
+# "Cross-Platform CI Contract" for the full model.
 
 on:
   push:

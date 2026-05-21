@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate and validate Sprint 33 dead-code reports."""
+"""Generate and validate dead-code reports from raw workflow artifacts."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ Row = list[str]
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate or validate dead-code reports from raw Sprint 33 artifacts."
+        description="Generate or validate dead-code reports from raw workflow artifacts."
     )
     parser.add_argument(
         "--check",
@@ -426,7 +426,7 @@ def write_markdown(
     noise = grouped.get(NOISE, [])
 
     lines: list[str] = []
-    lines.append("# Sprint 33 Dead-Code Report")
+    lines.append("# Dead-Code Report")
     lines.append("")
     append_run_metadata(lines, coverage)
     append_coverage_gaps(lines, coverage)

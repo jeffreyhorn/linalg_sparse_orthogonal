@@ -2023,3 +2023,166 @@ Explicit non-targets for Day 11:
 ### Day 10 Outputs
 
 - `artifacts/day10-comment-and-maintainer-doc-audit.md`
+
+## Day 11
+
+**Objective:** Implement the bounded maintainer-workflow wording cleanup from
+Day 10, reduce duplicated or sprint-history-first guidance in active operator
+surfaces, and keep the current Sprint 34-Sprint 36 contract unchanged.
+
+### Commands Run
+
+1. Re-read the Day 11 scope and the Day 10 audit:
+   - `sed -n '241,320p' docs/planning/EPIC_3/SPRINT_37/PLAN.md`
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_37/artifacts/day10-comment-and-maintainer-doc-audit.md`
+2. Re-open the targeted maintainer-facing files:
+   - `sed -n '1,80p' .github/workflows/ci.yml`
+   - `sed -n '1,90p' .github/workflows/macos-ci.yml`
+   - `sed -n '1,80p' .github/workflows/windows-ci.yml`
+   - `sed -n '1,80p' scripts/deadcode_workflow.sh`
+   - `sed -n '1,80p' scripts/deadcode_report.py`
+   - `sed -n '632,790p' README.md`
+3. Validate the touched support surfaces directly:
+   - `ruby -e 'require "yaml"; ...'` for `.github/workflows/{ci,macos-ci,windows-ci}.yml`
+   - `bash -n scripts/deadcode_workflow.sh`
+   - `python3 -m py_compile scripts/deadcode_report.py`
+   - `make deadcode-report`
+   - `make deadcode-check`
+4. Re-run the dead-code path serially after one attempted concurrent rerun hit
+   the known shared-path race:
+   - `make deadcode-report && make deadcode-check`
+
+### Day 11 Findings
+
+#### 1. The highest-value cleanup was compression, not relocation
+
+The Day 10 audit was right about shape:
+
+- the workflow contract already lived in the correct files
+- the problem was repeated explanation and sprint-history-first framing
+- the best fix was to compress and relabel the active operator surfaces rather
+  than move ownership elsewhere
+
+The Day 11 batch therefore stayed narrow:
+
+- shorter workflow file headers
+- current-purpose dead-code utility wording
+- tighter README maintainer-workflow prose
+
+#### 2. Workflow YAML headers now point to the contract instead of retelling it
+
+Updated files:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/macos-ci.yml`
+- `.github/workflows/windows-ci.yml`
+
+What changed:
+
+- long Sprint 36 history-heavy top comments were replaced by short
+  pointer-style summaries
+- each workflow now states only:
+  - its current platform role
+  - the major enforced or staged boundary
+  - the README section that owns the fuller contract
+
+Why this is better:
+
+- maintainers can reach the jobs faster
+- the README remains the human-readable contract owner
+- the workflows still expose their role clearly without carrying the full
+  platform narrative at the top of every file
+
+#### 3. The dead-code utilities now describe current purpose instead of Sprint 33 origin first
+
+Updated files:
+
+- `scripts/deadcode_workflow.sh`
+- `scripts/deadcode_report.py`
+
+What changed:
+
+- the workflow script header now describes itself as a raw dead-code evidence
+  refresh utility
+- the generated coverage-notes banner now says `Dead-code coverage notes`
+- the report script docstring and CLI description now refer to raw workflow
+  artifacts instead of Sprint 33 artifacts
+- the rendered report title is now `# Dead-Code Report`
+
+Why this is better:
+
+- these tools now read like maintained utilities
+- Sprint 33 provenance is no longer the dominant operator-facing label
+- the reviewed/CI contract that grew around them in later sprints is not hidden
+  behind stale origin wording
+
+#### 4. `README.md` now says the same workflow contract with less duplication
+
+Updated maintainer-workflow areas:
+
+- dead-code workflow intro
+- reviewed local quality path
+- cross-platform CI contract interpretation
+- tree-mutating mode reset wording
+
+What changed:
+
+- removed unnecessary Sprint-introduction framing where the commands
+  themselves already communicate the current contract
+- compressed repeated interpretation bullets
+- kept the command map and rerun guidance, but reduced repeated restatement of
+  the same wrapper relationships
+
+What did **not** change:
+
+- README still owns the authoritative maintainer workflow summary
+- the enforced/staged/supplemental platform contract is unchanged
+- the rerun guidance and `make clean` reset guidance are still explicit
+
+#### 5. The one operational limitation remains the known dead-code shared-path race
+
+During Day 11 validation, one attempted concurrent dead-code rerun reproduced
+the known shared-path limitation:
+
+- `make deadcode-check` passed
+- a simultaneous `make deadcode-report` run tripped the expected
+  `report.md missing coverage-gap section` race
+
+The authoritative validation was the required serialized rerun:
+
+- `make deadcode-report && make deadcode-check`
+
+Interpretation:
+
+- the wording cleanup did not introduce a new regression
+- the Sprint 33 / Sprint 34 shared-path limitation remains real and still must
+  be respected in maintainer workflows
+
+#### 6. Residual maintainer-doc debt is now smaller and narrow
+
+Closed or materially reduced:
+
+- workflow top-of-file over-explanation
+- Sprint 33-first dead-code utility wording
+- repeated README maintainer-workflow framing
+
+Residual queue after Day 11:
+
+- dense but still-useful platform/tooling rationale in `Makefile` and Linux
+  TSan workflow comments
+- the known dead-code serial-only limitation, which remains a workflow
+  constraint until the shared-path work lands in later sprints
+- any further README compression beyond this point would risk losing operator
+  clarity rather than improving it
+
+### Day 11 Interpretation
+
+- Day 10’s chosen batch was the right one
+- the best improvement was to make active operator files point to the contract
+  instead of repeatedly narrating its sprint history
+- the current workflow model is now easier to scan without weakening the actual
+  maintained expectations
+
+### Day 11 Outputs
+
+- `artifacts/day11-maintainer-workflow-docs-batch.md`

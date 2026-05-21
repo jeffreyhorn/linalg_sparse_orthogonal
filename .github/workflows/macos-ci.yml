@@ -1,40 +1,9 @@
 name: macOS CI
 
-# Sprint 36 Day 5: macOS CI now expresses the reviewed Sprint 34
-# contract more directly on the Apple Clang leg while preserving the
-# extra platform-specific value already present here.  Apple Clang is
-# enforced reviewed macOS baseline:
-#   - `make quality-review-compile`
-#   - `make quality-review-cmake`
-#   - `make wall-check`
-#   - `make sanitize`
-#
-# The Homebrew GCC leg remains intentionally supplemental direct
-# build/test coverage
-# rather than a fake reviewed-wrapper copy, because it is valuable as a
-# second compiler signal on macOS, not as the primary reviewed contract.
-#
-# Dead-code remains staged on macOS in Sprint 36:
-#   - no `make deadcode-report`
-#   - no `make deadcode-check`
-#
-# OpenMP linkage: Apple Clang needs `-Xpreprocessor -fopenmp` + the
-# Homebrew libomp prefix; Homebrew GCC links libgomp via `-fopenmp`
-# directly.  The Makefile already handles both paths (see lines
-# 16-35 of `Makefile` — Sprint 21 inheritance).  `make omp` builds
-# with OpenMP enabled; this workflow exercises the serial path by
-# default to keep the matrix simple — OpenMP-on-macOS coverage lives
-# in `make sanitize-thread` / local development for now.
-#
-# Expected portability surface (Day-9 already de-risks most of these
-# via the Sprint 28 PR #36 + Sprint 29 Day 8 fixes):
-#  - `clock_gettime` / `_POSIX_C_SOURCE` — Day 8 added the shim to
-#    the Day 6/7 progress-timer helpers.
-#  - `tf_setenv` / `tf_unsetenv` — already routed through
-#    `_putenv_s` on `_WIN32` and `setenv`/`unsetenv` on POSIX
-#    (test_framework.h, Sprint 28 PR #36).
-#  - macOS-15+ TSan dyld hang — Sprint 28 inheritance; tsan stays on
-#    Linux CI per Item 10b.  This macOS workflow does NOT run tsan.
+# macOS enforces the Apple Clang reviewed path plus platform-specific
+# checks (`wall-check`, `sanitize`). The Homebrew GCC leg remains
+# supplemental second-compiler coverage, and dead-code remains staged on
+# macOS. See README.md "Cross-Platform CI Contract" for the full model.
 
 on:
   push:
@@ -80,10 +49,10 @@ jobs:
         if: matrix.compiler == 'homebrew-gcc'
         run: brew install gcc
 
-      # Sprint 36 Day 5: the reviewed compile-quality path depends on
-      # clang-format, clang-tidy, and cppcheck.  On macOS, use
-      # Homebrew LLVM + cppcheck for the Apple Clang leg and add the
-      # LLVM bin dir explicitly since the formula is keg-only.
+      # The reviewed compile-quality path depends on clang-format,
+      # clang-tidy, and cppcheck. On macOS, use Homebrew LLVM +
+      # cppcheck for the Apple Clang leg and add the LLVM bin dir
+      # explicitly since the formula is keg-only.
       - name: Install reviewed-path tools (Apple Clang only)
         if: matrix.run_reviewed_makefile == 'true'
         run: |

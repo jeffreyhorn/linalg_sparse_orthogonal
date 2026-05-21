@@ -1096,3 +1096,194 @@ than opening a new regression queue.
 
 - `tests/test_solver_helpers.h`
 - `artifacts/day5-test-helper-consolidation-batch1.md`
+
+## Day 6
+
+**Objective:** Convert the Day 3 benchmark-helper audit into the safest first
+benchmark consolidation slice by extracting the repeated backend-comparison
+support logic shared by `bench_chol_csc.c` and `bench_ldlt_csc.c`, while
+keeping the landing shape header-only and preserving the Sprint 31 benchmark
+behavior contract.
+
+### Commands Run
+
+1. Re-read the Day 6 plan and the Day 3 benchmark-helper audit:
+   - `git status --short --branch`
+   - `sed -n '146,176p' docs/planning/EPIC_3/SPRINT_37/PLAN.md`
+   - `cat docs/planning/EPIC_3/SPRINT_37/artifacts/day3-benchmark-helper-consolidation-audit.md`
+2. Re-read the backend-comparison benchmark pair:
+   - `sed -n '1,260p' benchmarks/bench_chol_csc.c`
+   - `sed -n '1,360p' benchmarks/bench_ldlt_csc.c`
+   - targeted `rg -n` scans for:
+     - `wall_time`
+     - `rel_residual`
+     - `bench_result_t`
+     - `bench_matrix`
+     - dispatch helpers
+3. Implement the narrow shared-helper batch:
+   - add `benchmarks/bench_backend_compare_helpers.h`
+   - replace repeated timer / residual / matrix-load / unit-RHS setup logic in:
+     - `benchmarks/bench_chol_csc.c`
+     - `benchmarks/bench_ldlt_csc.c`
+4. Validate touched benchmark paths directly:
+   - `make format`
+   - `make build/bench_chol_csc build/bench_ldlt_csc`
+   - `./build/bench_chol_csc --small-corpus --repeat 1`
+   - `./build/bench_ldlt_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/bench_ldlt_csc --dispatch --repeat 1`
+5. Run the required full gate because benchmark `*.c` and helper `*.h` changed:
+   - `make format`
+   - `make lint`
+   - `make test`
+
+### Day 6 Findings
+
+#### 1. The safest first benchmark consolidation surface really was the backend-comparison pair
+
+The Day 3 audit held up under implementation review:
+
+- `benchmarks/bench_chol_csc.c`
+- `benchmarks/bench_ldlt_csc.c`
+
+shared the cleanest low-risk support layer:
+
+- wall-clock timer helper
+- max-relative-residual checker
+- file-backed matrix load + display-label extraction
+- repeated `b = A * 1` / workspace allocation setup
+- identical factor/solve/residual status result struct shape
+
+This was a better first batch than:
+
+- timer-only repo-wide extraction
+- CLI/report formatting unification
+- broader helper moves touching `bench_main.c`, `bench_reorder.c`, or
+  `bench_eigs.c`
+
+#### 2. The right landing shape was a pair-scoped header-only helper, not a broad benchmark framework
+
+Day 6 landed as:
+
+- new header:
+  - `benchmarks/bench_backend_compare_helpers.h`
+
+with intentionally narrow support:
+
+- `bench_backend_result_t`
+- `bench_backend_wall_time(...)`
+- `bench_backend_rel_residual_max(...)`
+- `bench_backend_load_matrix(...)`
+- `bench_backend_make_unit_rhs(...)`
+
+Why this shape was the right first batch:
+
+- benchmarks still build one binary per source in both Makefile and CMake
+- the extracted logic is pure support code with no new link-time ownership
+- the helper layer is scoped to the backend-comparison pair instead of reading
+  like a new generic benchmark subsystem
+- the larger LDLT dispatch and Cholesky small-corpus logic stay local where
+  their behavior contracts still differ
+
+#### 3. The batch removed real duplication without changing benchmark semantics or CLI surfaces
+
+The implementation reduced duplicated support logic in:
+
+- `benchmarks/bench_chol_csc.c`
+- `benchmarks/bench_ldlt_csc.c`
+
+Shared now:
+
+- timer helper
+- residual helper
+- path loading + CSV label extraction
+- `b = A * [1, ..., 1]` workspace setup
+- common factor/solve result struct
+
+Still local by design:
+
+- Cholesky scalar vs supernodal elimination path definitions
+- LDLT native vs wrapper vs supernodal kernel timing logic
+- LDLT `--dispatch` benchmark mode
+- Cholesky synthetic-corpus builders
+- each benchmark's CSV schema and CLI contract
+
+Interpretation:
+
+- the batch reduced maintenance burden where the pair truly matched
+- it did not overreach into behavior-owner code paths
+
+#### 4. Direct benchmark validation stayed aligned with the existing Sprint 31 benchmark contract
+
+Touched benchmark validation passed directly:
+
+- `./build/bench_chol_csc --small-corpus --repeat 1`
+- `./build/bench_ldlt_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `./build/bench_ldlt_csc --dispatch --repeat 1`
+
+That confirmed the Day 6 batch did not disturb:
+
+- the fixed backend-comparison role of `bench_chol_csc`
+- the fixed backend-comparison + dispatch role of `bench_ldlt_csc`
+- the existing CSV/output surfaces those tools expose
+
+The Sprint 31 benchmark behavior split also remained intact because this batch
+did not touch:
+
+- `bench_main`
+- `bench_reorder`
+- `bench_colamd`
+
+#### 5. The required full code-quality gate passed
+
+Because this batch changed benchmark `*.c` and helper `*.h` files, the
+required gate was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Authoritative result:
+
+- `make format`: passed
+- `make lint`: passed
+- `make test`: passed
+
+This keeps Sprint 37 on the validated baseline rather than opening a new
+benchmark regression queue.
+
+#### 6. The residual benchmark-helper queue is now narrower and better partitioned
+
+Still deferred after Day 6:
+
+- timer/residual drift outside this pair, especially:
+  - `bench_refactor_csc.c`
+  - `bench_bicgstab.c`
+  - `bench_convergence.c`
+- larger behavior-owner benchmark surfaces:
+  - `bench_main.c`
+  - `bench_reorder.c`
+  - `bench_eigs.c`
+- benchmark-specific reporting / CLI helpers
+
+Reason:
+
+- those surfaces either carry broader CLI/report ownership or diverge more
+  structurally than the backend-comparison pair
+- forcing them into Day 6 would have widened the batch beyond the intended
+  low-risk scope
+
+### Day 6 Interpretation
+
+- Day 6 converted the Day 3 audit into a real first benchmark-helper batch
+  without inventing a broad benchmark framework
+- the backend-comparison pair was the right first target because its helper
+  duplication was both real and behaviorally stable
+- the remaining queue is now narrower and more clearly partitioned:
+  - pair-external timer/residual helpers
+  - larger behavior-owner benchmark files
+  - benchmark-specific reporting / CLI helpers
+
+### Day 6 Outputs
+
+- `benchmarks/bench_backend_compare_helpers.h`
+- `artifacts/day6-benchmark-helper-consolidation-batch1.md`

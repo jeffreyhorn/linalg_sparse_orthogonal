@@ -26,58 +26,20 @@
  */
 #define _POSIX_C_SOURCE 200809L
 
+#include "bench_backend_compare_helpers.h"
 #include "sparse_ldlt.h"
 #include "sparse_ldlt_csc_internal.h"
 #include "sparse_matrix.h"
 #include "sparse_reorder.h"
-#include "sparse_vector.h"
 
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
-static double wall_time(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
-}
-
-static double rel_residual(const SparseMatrix *A, const double *x, const double *b) {
-    idx_t n = sparse_rows(A);
-    double *Ax = malloc((size_t)n * sizeof(double));
-    if (!Ax) {
-        /* Sentinel value: NaN signals an unmeasurable residual due to
-         * allocation failure.  Callers print the raw value in the CSV
-         * row, so "nan" in the output column is the visible cue. */
-        fprintf(stderr, "bench_ldlt_csc: malloc failed in rel_residual (n=%d)\n", (int)n);
-        return (double)NAN;
-    }
-    sparse_matvec(A, x, Ax);
-    double rmax = 0.0, bmax = 0.0;
-    for (idx_t i = 0; i < n; i++) {
-        double r = fabs(Ax[i] - b[i]);
-        double bi = fabs(b[i]);
-        if (r > rmax)
-            rmax = r;
-        if (bi > bmax)
-            bmax = bi;
-    }
-    free(Ax);
-    return bmax > 0.0 ? rmax / bmax : rmax;
-}
-
-typedef struct {
-    double factor_ms;
-    double solve_ms;
-    double residual;
-    int ok;
-} bench_result_t;
-
-static bench_result_t bench_linked_list(const SparseMatrix *A, const double *b, double *x,
-                                        int repeat) {
-    bench_result_t r = {0, 0, 0, 1};
+static bench_backend_result_t bench_linked_list(const SparseMatrix *A, const double *b, double *x,
+                                                int repeat) {
+    bench_backend_result_t r = {0, 0, 0, 1};
     double factor_total = 0.0, solve_total = 0.0;
 
     for (int rep = 0; rep < repeat; rep++) {
@@ -86,23 +48,23 @@ static bench_result_t bench_linked_list(const SparseMatrix *A, const double *b, 
             .reorder = SPARSE_REORDER_AMD,
             .backend = SPARSE_LDLT_BACKEND_LINKED_LIST,
         };
-        double t0 = wall_time();
+        double t0 = bench_backend_wall_time();
         if (sparse_ldlt_factor_opts(A, &opts, &ldlt) != SPARSE_OK) {
             r.ok = 0;
             return r;
         }
-        factor_total += wall_time() - t0;
+        factor_total += bench_backend_wall_time() - t0;
 
-        t0 = wall_time();
+        t0 = bench_backend_wall_time();
         if (sparse_ldlt_solve(&ldlt, b, x) != SPARSE_OK) {
             sparse_ldlt_free(&ldlt);
             r.ok = 0;
             return r;
         }
-        solve_total += wall_time() - t0;
+        solve_total += bench_backend_wall_time() - t0;
 
         if (rep == repeat - 1)
-            r.residual = rel_residual(A, x, b);
+            r.residual = bench_backend_rel_residual_max("bench_ldlt_csc", A, x, b);
         sparse_ldlt_free(&ldlt);
     }
     r.factor_ms = factor_total * 1000.0 / (double)repeat;
@@ -133,9 +95,9 @@ static bench_result_t bench_linked_list(const SparseMatrix *A, const double *b, 
  * relative to `speedup_csc`.  Interpret `factor_csc_sn_ms` as the
  * steady-state cost of a fresh numeric factor on a previously-
  * analysed matrix, not as the end-to-end one-shot cost. */
-static bench_result_t bench_csc_supernodal(const SparseMatrix *A, const double *b, double *x,
-                                           int repeat) {
-    bench_result_t r = {0, 0, 0, 1};
+static bench_backend_result_t bench_csc_supernodal(const SparseMatrix *A, const double *b,
+                                                   double *x, int repeat) {
+    bench_backend_result_t r = {0, 0, 0, 1};
     double factor_total = 0.0, solve_total = 0.0;
     idx_t n = sparse_rows(A);
 
@@ -185,7 +147,7 @@ static bench_result_t bench_csc_supernodal(const SparseMatrix *A, const double *
 
     for (int rep = 0; rep < repeat; rep++) {
         LdltCsc *F2 = NULL;
-        double t0 = wall_time();
+        double t0 = bench_backend_wall_time();
         if (ldlt_csc_from_sparse(A, cached_perm, 2.0, &F2) != SPARSE_OK) {
             r.ok = 0;
             break;
@@ -198,18 +160,18 @@ static bench_result_t bench_csc_supernodal(const SparseMatrix *A, const double *
             r.ok = 0;
             break;
         }
-        factor_total += wall_time() - t0;
+        factor_total += bench_backend_wall_time() - t0;
 
-        t0 = wall_time();
+        t0 = bench_backend_wall_time();
         if (ldlt_csc_solve(F2, b, x) != SPARSE_OK) {
             ldlt_csc_free(F2);
             r.ok = 0;
             break;
         }
-        solve_total += wall_time() - t0;
+        solve_total += bench_backend_wall_time() - t0;
 
         if (rep == repeat - 1)
-            r.residual = rel_residual(A, x, b);
+            r.residual = bench_backend_rel_residual_max("bench_ldlt_csc", A, x, b);
         ldlt_csc_free(F2);
     }
 
@@ -228,9 +190,9 @@ static bench_result_t bench_csc_supernodal(const SparseMatrix *A, const double *
  * elimination body the benchmark exercises — both invocations run
  * the same scatter/cmod setup around `ldlt_csc_eliminate`, so the
  * only difference in factor_ms is the kernel body itself. */
-static bench_result_t bench_csc_path(const SparseMatrix *A, const double *b, double *x, int repeat,
-                                     LdltCscKernelOverride kernel) {
-    bench_result_t r = {0, 0, 0, 1};
+static bench_backend_result_t bench_csc_path(const SparseMatrix *A, const double *b, double *x,
+                                             int repeat, LdltCscKernelOverride kernel) {
+    bench_backend_result_t r = {0, 0, 0, 1};
     double factor_total = 0.0, solve_total = 0.0;
     idx_t n = sparse_rows(A);
 
@@ -247,7 +209,7 @@ static bench_result_t bench_csc_path(const SparseMatrix *A, const double *b, dou
             break;
         }
         LdltCsc *F = NULL;
-        double t0 = wall_time();
+        double t0 = bench_backend_wall_time();
         if (sparse_reorder_amd(A, amd_perm) != SPARSE_OK) {
             free(amd_perm);
             r.ok = 0;
@@ -264,19 +226,19 @@ static bench_result_t bench_csc_path(const SparseMatrix *A, const double *b, dou
             r.ok = 0;
             break;
         }
-        factor_total += wall_time() - t0;
+        factor_total += bench_backend_wall_time() - t0;
 
-        t0 = wall_time();
+        t0 = bench_backend_wall_time();
         if (ldlt_csc_solve(F, b, x) != SPARSE_OK) {
             ldlt_csc_free(F);
             free(amd_perm);
             r.ok = 0;
             break;
         }
-        solve_total += wall_time() - t0;
+        solve_total += bench_backend_wall_time() - t0;
 
         if (rep == repeat - 1)
-            r.residual = rel_residual(A, x, b);
+            r.residual = bench_backend_rel_residual_max("bench_ldlt_csc", A, x, b);
         ldlt_csc_free(F);
         free(amd_perm);
     }
@@ -292,41 +254,28 @@ static bench_result_t bench_csc_path(const SparseMatrix *A, const double *b, dou
 
 static int bench_matrix(const char *path, int repeat, int supernodal) {
     SparseMatrix *A = NULL;
-    if (sparse_load_mm(&A, path) != SPARSE_OK) {
-        fprintf(stderr, "bench_ldlt_csc: failed to load %s\n", path);
+    const char *base = NULL;
+    if (bench_backend_load_matrix("bench_ldlt_csc", path, &A, &base) != 0)
         return 1;
-    }
     idx_t n = sparse_rows(A);
     idx_t nnz = sparse_nnz(A);
 
-    double *ones = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x = malloc((size_t)n * sizeof(double));
-    if (!ones || !b || !x) {
-        fprintf(stderr, "bench_ldlt_csc: malloc failed in bench_matrix (n=%d)\n", (int)n);
-        free(ones);
-        free(b);
-        free(x);
+    double *b = NULL;
+    double *x = NULL;
+    if (bench_backend_make_unit_rhs("bench_ldlt_csc", A, &b, &x) != 0) {
         sparse_free(A);
         return 1;
     }
-    for (idx_t i = 0; i < n; i++)
-        ones[i] = 1.0;
-    sparse_matvec(A, ones, b);
 
-    bench_result_t rl = bench_linked_list(A, b, x, repeat);
-    bench_result_t rn = bench_csc_path(A, b, x, repeat, LDLT_CSC_KERNEL_NATIVE);
-    bench_result_t rw = bench_csc_path(A, b, x, repeat, LDLT_CSC_KERNEL_WRAPPER);
-    bench_result_t rs = {0, 0, 0, 1};
+    bench_backend_result_t rl = bench_linked_list(A, b, x, repeat);
+    bench_backend_result_t rn = bench_csc_path(A, b, x, repeat, LDLT_CSC_KERNEL_NATIVE);
+    bench_backend_result_t rw = bench_csc_path(A, b, x, repeat, LDLT_CSC_KERNEL_WRAPPER);
+    bench_backend_result_t rs = {0, 0, 0, 1};
     if (supernodal)
         rs = bench_csc_supernodal(A, b, x, repeat);
 
-    const char *base = strrchr(path, '/');
-    base = base ? base + 1 : path;
-
     if (!rl.ok || !rn.ok || !rw.ok || (supernodal && !rs.ok)) {
         fprintf(stderr, "bench_ldlt_csc: %s — one or more paths failed\n", base);
-        free(ones);
         free(b);
         free(x);
         sparse_free(A);
@@ -350,7 +299,6 @@ static int bench_matrix(const char *path, int repeat, int supernodal) {
                sp_wrapper, rl.residual, rn.residual);
     }
 
-    free(ones);
     free(b);
     free(x);
     sparse_free(A);
@@ -411,23 +359,23 @@ static dispatch_result_t bench_dispatch_path(const SparseMatrix *A, const double
             .backend = backend,
             .used_csc_path = &used_csc,
         };
-        double t0 = wall_time();
+        double t0 = bench_backend_wall_time();
         if (sparse_ldlt_factor_opts(A, &opts, &ldlt) != SPARSE_OK) {
             r.ok = 0;
             return r;
         }
-        factor_total += wall_time() - t0;
+        factor_total += bench_backend_wall_time() - t0;
 
-        t0 = wall_time();
+        t0 = bench_backend_wall_time();
         if (sparse_ldlt_solve(&ldlt, b, x) != SPARSE_OK) {
             sparse_ldlt_free(&ldlt);
             r.ok = 0;
             return r;
         }
-        solve_total += wall_time() - t0;
+        solve_total += bench_backend_wall_time() - t0;
 
         if (rep == repeat - 1)
-            r.residual = rel_residual(A, x, b);
+            r.residual = bench_backend_rel_residual_max("bench_ldlt_csc", A, x, b);
         sparse_ldlt_free(&ldlt);
     }
     r.factor_ms = factor_total * 1000.0 / (double)repeat;
@@ -440,26 +388,16 @@ static int bench_dispatch_for_matrix(const char *label, SparseMatrix *A, int rep
     idx_t n = sparse_rows(A);
     idx_t nnz = sparse_nnz(A);
 
-    double *ones = malloc((size_t)n * sizeof(double));
-    double *b = malloc((size_t)n * sizeof(double));
-    double *x = malloc((size_t)n * sizeof(double));
-    if (!ones || !b || !x) {
-        fprintf(stderr, "bench_ldlt_csc --dispatch: malloc failed (n=%d)\n", (int)n);
-        free(ones);
-        free(b);
-        free(x);
+    double *b = NULL;
+    double *x = NULL;
+    if (bench_backend_make_unit_rhs("bench_ldlt_csc --dispatch", A, &b, &x) != 0)
         return 1;
-    }
-    for (idx_t i = 0; i < n; i++)
-        ones[i] = 1.0;
-    sparse_matvec(A, ones, b);
 
     dispatch_result_t r_auto = bench_dispatch_path(A, b, x, repeat, SPARSE_LDLT_BACKEND_AUTO);
     dispatch_result_t r_ll = bench_dispatch_path(A, b, x, repeat, SPARSE_LDLT_BACKEND_LINKED_LIST);
 
     if (!r_auto.ok || !r_ll.ok) {
         fprintf(stderr, "bench_ldlt_csc --dispatch: %s — one or more factor runs failed\n", label);
-        free(ones);
         free(b);
         free(x);
         return 1;
@@ -471,7 +409,6 @@ static int bench_dispatch_for_matrix(const char *label, SparseMatrix *A, int rep
            r_auto.factor_ms, r_ll.factor_ms, r_auto.solve_ms, r_ll.solve_ms, speedup,
            r_auto.residual, r_ll.residual);
 
-    free(ones);
     free(b);
     free(x);
     return 0;

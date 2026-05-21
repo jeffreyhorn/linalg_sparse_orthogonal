@@ -1579,3 +1579,114 @@ Closed by Day 12:
 
 - lack of a concise canonical readiness checklist
 - need to infer readiness criteria from multiple README sections by hand
+
+## Day 13
+
+**Objective:** Re-run the full maintained quality/test matrix practical for
+Sprint 38 and record the resulting measured baseline after the coverage,
+compile-db, dead-code, gate-expansion, and readiness-checklist work.
+
+### Commands Run
+
+1. Create a dedicated log directory for measured outputs:
+   - `mkdir -p docs/planning/EPIC_3/SPRINT_38/artifacts/day13_logs`
+2. Direct maintained paths:
+   - `/usr/bin/time -p make format > docs/planning/EPIC_3/SPRINT_38/artifacts/day13_logs/make-format.log 2>&1`
+   - `/usr/bin/time -p make lint > docs/planning/EPIC_3/SPRINT_38/artifacts/day13_logs/make-lint.log 2>&1`
+   - `/usr/bin/time -p make test > docs/planning/EPIC_3/SPRINT_38/artifacts/day13_logs/make-test.log 2>&1`
+3. Strongest local reviewed baseline:
+   - `/usr/bin/time -p make quality-review-full > docs/planning/EPIC_3/SPRINT_38/artifacts/day13_logs/make-quality-review-full.log 2>&1`
+4. Dead-code path:
+   - accidental non-authoritative parallel launch:
+     - `/usr/bin/time -p make deadcode-report > .../make-deadcode-report.log 2>&1`
+     - `/usr/bin/time -p make deadcode-check > .../make-deadcode-check.log 2>&1`
+   - authoritative serial rerun:
+     - `/usr/bin/time -p make deadcode-report > docs/planning/EPIC_3/SPRINT_38/artifacts/day13_logs/make-deadcode-report-serial.log 2>&1`
+     - `/usr/bin/time -p make deadcode-check > docs/planning/EPIC_3/SPRINT_38/artifacts/day13_logs/make-deadcode-check-serial.log 2>&1`
+5. Extract measured outputs from the logs:
+   - `rg -n "^real |^user |^sys |Total Tests:|100% tests passed|Total Test time \\(real\\)|quality-review-full: passed|deadcode-check: report completeness checks passed|deadcode-report: report written|All tests passed\\." docs/planning/EPIC_3/SPRINT_38/artifacts/day13_logs/*.log`
+6. Re-read the current rendered dead-code report:
+   - `sed -n '1,220p' build/deadcode/report.md`
+
+### Day 13 Findings
+
+#### 1. The full maintained direct and reviewed local baseline passed
+
+Measured direct maintained gates:
+
+- `make format` -> passed, `real 3.05`
+- `make lint` -> passed, `real 239.91`
+- `make test` -> passed, `real 71.18`
+
+Measured strongest local reviewed baseline:
+
+- `make quality-review-full` -> passed, `real 485.93`
+
+Interpretation:
+
+- Sprint 38 changes did not destabilize the existing direct path
+- the new Day 10 aggregate wrapper remains a valid top-level local baseline
+
+#### 2. Reviewed CMake parity remained exact under the new local aggregate
+
+From `make quality-review-full`:
+
+- `ctest -N` remained `53`
+- Makefile/CMake parity remained `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 148.88 sec`
+
+Interpretation:
+
+- the active test-surface truthfulness contract still matches the actual
+  reviewed parity path
+- the Day 12 readiness checklist references are still accurate
+
+#### 3. The dead-code path remained green in the authoritative serialized model
+
+Authoritative serial rerun results:
+
+- `make deadcode-report` -> passed, `real 0.33`
+- `make deadcode-check` -> passed, `real 0.52`
+
+Observed report/check state remained:
+
+- `coverage-gap = 0`
+- `definitely-unused-internal-candidate = 0`
+- `public-surface-review = 4`
+- `secondary-candidate-signal = 35`
+- `non-deadcode-static-analysis-noise = 6`
+
+Interpretation:
+
+- Sprint 38’s dead-code maturity work stayed truthful and stable
+- the staged serialized contract remains unchanged
+
+#### 4. One execution caveat occurred, and it was resolved transparently
+
+I accidentally launched `make deadcode-report` and `make deadcode-check` in
+parallel once during the Day 13 sweep. Both happened to return success, but
+that run is **not** the authoritative result because the workflow still relies
+on shared serialized paths.
+
+Interpretation:
+
+- the authoritative Day 13 dead-code result is the serial rerun only
+- the Sprint 38 staged execution-model truthfulness claim remains unchanged
+
+#### 5. The new readiness/reporting surfaces remain accurate after validation
+
+The Sprint 38 additions still match measured reality:
+
+- `make quality-review-full` is a real passing strongest local reviewed
+  baseline
+- the README checklist still points at the correct maintained commands
+- the dead-code report still presents a zero-gap/no-internal-queue state
+  accurately
+- coverage remains a supplemental `80%` Linux signal, not part of the reviewed
+  baseline
+
+Interpretation:
+
+- the repo now has both the quality signals and the concise readiness surface
+  Sprint 38 set out to ship

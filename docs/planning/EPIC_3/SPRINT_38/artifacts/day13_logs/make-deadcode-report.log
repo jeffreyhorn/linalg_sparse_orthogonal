@@ -1,0 +1,6 @@
+deadcode-report: report written to build/deadcode/report.md
+deadcode-report: tabular findings written to build/deadcode/report.tsv
+deadcode-report: raw evidence lives under build/deadcode/
+real 0.38
+user 0.10
+sys 0.12

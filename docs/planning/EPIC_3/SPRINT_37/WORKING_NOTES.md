@@ -470,3 +470,237 @@ Keep local for now:
 ### Day 2 Outputs
 
 - `artifacts/day2-test-helper-consolidation-audit.md`
+
+## Day 3
+
+**Objective:** Audit the maintained benchmark tree for duplicated setup,
+timing, reporting, and synthetic-fixture logic, separate true shared-helper
+opportunities from benchmark-local behavior, and define a bounded first cleanup
+queue that preserves the Sprint 31 benchmark contract.
+
+### Commands Run
+
+1. Re-read the Day 3 plan and the Day 1 baseline:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '69,98p' docs/planning/EPIC_3/SPRINT_37/PLAN.md`
+   - `cat docs/planning/EPIC_3/SPRINT_37/artifacts/day1-auxiliary-maintainability-baseline.md`
+2. Measure benchmark-side helper density:
+   - `python3` static-function count sweep across `benchmarks/*.c`
+3. Identify repeated helper names and their file spread:
+   - `python3` helper-name frequency scan across `benchmarks/*.c`
+4. Inspect the strongest candidate benchmark files directly:
+   - `sed -n '1,220p' benchmarks/bench_chol_csc.c`
+   - `sed -n '1,220p' benchmarks/bench_ldlt_csc.c`
+   - `sed -n '1,220p' benchmarks/bench_main.c`
+   - `sed -n '1,220p' benchmarks/bench_reorder.c`
+5. Re-check the current benchmark build/support layer:
+   - `ls benchmarks`
+   - `sed -n '1,220p' benchmarks/README.md`
+   - `rg -n "BENCH_SRCS|BENCH_BINS|bench-fast|bench-build|add_executable\\(bench_|NOT WIN32" Makefile CMakeLists.txt`
+   - `rg -n "#include \\\".*bench.*\\.h\\\"|typedef struct \\{|static const .*kFixtures|static const .*kReorderings|Usage:" benchmarks --glob '*.[ch]'`
+
+### Day 3 Findings
+
+#### 1. The benchmark-helper queue is smaller than the test queue, but more structurally repetitive
+
+The benchmark tree is much smaller than the test tree:
+
+- `14` `.c` files
+- `5,170` total lines
+
+But the helper density is still meaningful, especially in a few maintained
+drivers:
+
+- `benchmarks/bench_eigs.c`
+  - `19` static functions
+  - `958` lines
+- `benchmarks/bench_chol_csc.c`
+  - `10` static functions
+  - `446` lines
+- `benchmarks/bench_main.c`
+  - `9` static functions
+  - `774` lines
+- `benchmarks/bench_ldlt_csc.c`
+  - `9` static functions
+  - `579` lines
+- `benchmarks/bench_amd_qg.c`
+  - `9` static functions
+  - `332` lines
+- `benchmarks/bench_reorder.c`
+  - `8` static functions
+  - `321` lines
+
+Interpretation:
+
+- Sprint 37's benchmark work is not about size pressure alone
+- it is about a few structurally similar harnesses that are now expensive to
+  keep behaviorally aligned
+
+#### 2. The strongest repeated helper families are timer, residual, and backend-comparison harness helpers
+
+The clearest repeated helper clusters from the Day 3 scan:
+
+- wall-clock timers: `11` hits
+  - almost every maintained benchmark defines its own `wall_time()`
+- residual helpers:
+  - `rel_residual`: `3` hits
+  - `compute_rel_residual`: `2` hits
+- backend comparison helpers:
+  - `bench_matrix`: `4` hits
+  - `bench_csc_path`: `2` hits
+  - `bench_linked_list`: `2` hits
+- smaller repeated utility helpers:
+  - `run_one`: `3` hits
+  - `ends_with`: `2` hits
+  - `symbolic_nnz_L`: `2` hits
+  - `now_ms`: `2` hits
+
+Interpretation:
+
+- the queue is not generic “all benchmark helpers”
+- it is a few repeated harness shapes plus a ubiquitous timer helper
+
+#### 3. `bench_chol_csc.c` and `bench_ldlt_csc.c` are the strongest first consolidation pair
+
+These two files are nearly mirror-image backend-comparison harnesses:
+
+- same `_POSIX_C_SOURCE 200809L` portability baseline
+- same local `wall_time()` helper shape
+- same relative-residual helper contract
+- same `bench_result_t` pattern
+- same linked-list vs CSC backend-comparison structure
+- same `bench_matrix` / dispatch-style harness naming
+
+Interpretation:
+
+- this pair is the cleanest first extraction target in the whole benchmark
+  tree
+- helper landing options can stay narrow and benchmark-local in spirit while
+  still reducing real duplication
+
+#### 4. `bench_main.c` and `bench_reorder.c` repeat smaller utility patterns, but much of their behavior should stay local
+
+Shared-looking pieces:
+
+- timer helpers (`wall_time` / `now_ms`)
+- path/filter helpers like `ends_with`
+- per-matrix runner structure (`benchmark*` / `run_one*`)
+- reorder/reporting utilities
+
+Reasons not to over-centralize them immediately:
+
+- `bench_main.c` is the broad solver harness with several modes:
+  - LU / `--cholesky`
+  - SpMV
+  - iterative
+  - directory sweeps
+- `bench_reorder.c` is a specialized reorder/factor comparison tool with:
+  - fixed reorder table
+  - fixed fixture table
+  - analyze-vs-preapply path split
+
+Interpretation:
+
+- there is some real small-helper duplication
+- but the high-risk part of these files is behavior breadth, not raw helper
+  count
+- Day 3 does not justify a first batch that merges their CLI/reporting logic
+
+#### 5. The current benchmark support layer is intentionally minimal
+
+At Day 3, there is still no shared benchmark support header or source layer:
+
+- no `bench_helpers.h`
+- no `bench_common.c`
+- no shared fixture/timing/reporting helper library
+
+Current structure is:
+
+- standalone benchmark executables
+- README-level contract documentation in `benchmarks/README.md`
+- explicit Makefile and CMake executable lists
+
+Interpretation:
+
+- the benchmark tree resembles the test tree in one important way:
+  shared support should be added only where the ownership win is obvious
+- the audit does not justify broad benchmark framework extraction as a first
+  move
+
+#### 6. The benchmark build model constrains the safest landing shapes
+
+Current build model:
+
+- Makefile:
+  - explicit `BENCH_SRCS`
+  - one binary per benchmark source
+- CMake:
+  - individual `add_executable(bench_...)` entries
+  - several benchmark binaries gated out on Windows via `NOT WIN32`
+
+Interpretation:
+
+- safest landing options are:
+  - small shared benchmark headers
+  - tightly scoped helper extraction for benchmark clusters
+  - local helper cleanup and sectioning inside the largest harnesses
+- riskiest first move is a broad new benchmark helper `.c` library that
+  requires touching every bench build path immediately
+
+#### 7. Sprint 31 benchmark-contract constraints remain load-bearing
+
+The current README and file shapes still encode the Sprint 31 benchmark split:
+
+- `bench_main --reorder none|rcm|amd|nd`
+- `bench_reorder` owns the broader `none|rcm|amd|colamd|nd` comparison surface
+- `bench_colamd` and `example_colamd` remain the QR/COLAMD-focused comparison
+  tools
+- `bench_chol_csc` and `bench_ldlt_csc` are backend-comparison tools, not
+  general reorder sweep tools
+
+Interpretation:
+
+- consolidation must not blur reorder-surface ownership
+- shared helpers are fine for timer/result plumbing
+- shared CLI or reorder-surface logic needs much stronger justification
+
+#### 8. The first consolidation batch should stay narrow and cluster-based
+
+Highest-value Day 3 cleanup order:
+
+Priority A:
+
+- `bench_chol_csc.c` + `bench_ldlt_csc.c`
+  - timer helper
+  - residual helper
+  - `bench_result_t`-style comparison harness helpers
+  - benchmark-matrix dispatch plumbing
+
+Priority B:
+
+- light utility cleanup around:
+  - `wall_time` / `now_ms`
+  - simple path/filter helpers like `ends_with`
+  - only if this can be done without obscuring the mode-specific harnesses
+
+Keep local for now:
+
+- `bench_main.c` CLI breadth and mode dispatch
+- `bench_reorder.c` fixture/reorder table ownership
+- `bench_eigs.c` backend-specific benchmark logic
+- `bench_amd_qg.c` bitset-specific local helpers
+
+### Day 3 Interpretation
+
+- Sprint 37 does have a meaningful benchmark-helper consolidation queue, but it
+  is smaller and more structurally obvious than the test queue.
+- The best first win is the nearly parallel `bench_chol_csc` /
+  `bench_ldlt_csc` harness pair.
+- `bench_main.c` and `bench_reorder.c` should be treated as behavior-rich
+  owners of their own CLI/reporting contracts, with only small utility cleanup
+  considered early.
+
+### Day 3 Outputs
+
+- `artifacts/day3-benchmark-helper-consolidation-audit.md`

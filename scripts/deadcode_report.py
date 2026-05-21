@@ -415,7 +415,6 @@ def append_next_action_queue(lines: list[str], internal: list[Row], public: list
 def write_markdown(
     path: Path,
     coverage: dict[str, object],
-    xunused: list[dict[str, str]],
     noise_counts: Counter[str],
     secondary_counts: Counter[tuple[str, str]],
     rows: list[Row],
@@ -496,7 +495,7 @@ def main() -> None:
 
     if not args.check:
         write_tsv(report_tsv, rows)
-        write_markdown(report_md, coverage, xunused, noise_counts, secondary_counts, rows)
+        write_markdown(report_md, coverage, noise_counts, secondary_counts, rows)
 
     run_check(coverage, xunused, report_md, report_tsv)
 

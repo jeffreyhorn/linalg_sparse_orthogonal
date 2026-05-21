@@ -2,7 +2,6 @@
 #define BENCH_BACKEND_COMPARE_HELPERS_H
 
 #include "sparse_matrix.h"
-#include "sparse_vector.h"
 
 #include <math.h>
 #include <stdio.h>

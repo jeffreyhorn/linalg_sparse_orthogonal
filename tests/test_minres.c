@@ -5,6 +5,7 @@
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 #include "test_framework.h"
+#include "test_solver_helpers.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -60,19 +61,6 @@ static SparseMatrix *make_sym_indef_tridiag(idx_t n) {
         }
     }
     return A;
-}
-
-static double relative_residual(const SparseMatrix *A, const double *x, const double *b, idx_t n) {
-    double *r = malloc((size_t)n * sizeof(double));
-    sparse_matvec(A, x, r);
-    double nr = 0.0, nb = 0.0;
-    for (idx_t i = 0; i < n; i++) {
-        double d = r[i] - b[i];
-        nr += d * d;
-        nb += b[i] * b[i];
-    }
-    free(r);
-    return (nb > 0.0) ? sqrt(nr / nb) : sqrt(nr);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -157,7 +145,7 @@ static void test_minres_spd_tridiag(void) {
     ASSERT_ERR(sparse_solve_minres(A, b, x, &opts, NULL, NULL, &res), SPARSE_OK);
 
     ASSERT_TRUE(res.converged);
-    double relres = relative_residual(A, x, b, n);
+    double relres = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     printf("    SPD tridiag n=%d: %d iters, relres=%.3e\n", (int)n, (int)res.iterations, relres);
     ASSERT_TRUE(relres < 1e-10);
 
@@ -226,7 +214,7 @@ static void test_minres_indefinite_tridiag(void) {
     ASSERT_ERR(sparse_solve_minres(A, b, x, &opts, NULL, NULL, &res), SPARSE_OK);
 
     ASSERT_TRUE(res.converged);
-    double relres = relative_residual(A, x, b, n);
+    double relres = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     printf("    indefinite tridiag n=%d: %d iters, relres=%.3e\n", (int)n, (int)res.iterations,
            relres);
     ASSERT_TRUE(relres < 1e-8);
@@ -255,7 +243,7 @@ static void test_minres_kkt_small(void) {
     ASSERT_ERR(sparse_solve_minres(K, b, x, &opts, NULL, NULL, &res), SPARSE_OK);
 
     ASSERT_TRUE(res.converged);
-    double relres = relative_residual(K, x, b, n);
+    double relres = tf_relative_residual_l2(K, b, x, n, HUGE_VAL);
     printf("    KKT %dx%d: %d iters, relres=%.3e\n", (int)n, (int)n, (int)res.iterations, relres);
     ASSERT_TRUE(relres < 1e-8);
 
@@ -283,7 +271,7 @@ static void test_minres_kkt_medium(void) {
     ASSERT_ERR(sparse_solve_minres(K, b, x, &opts, NULL, NULL, &res), SPARSE_OK);
 
     ASSERT_TRUE(res.converged);
-    double relres = relative_residual(K, x, b, n);
+    double relres = tf_relative_residual_l2(K, b, x, n, HUGE_VAL);
     printf("    KKT %dx%d: %d iters, relres=%.3e\n", (int)n, (int)n, (int)res.iterations, relres);
     ASSERT_TRUE(relres < 1e-8);
 
@@ -446,7 +434,7 @@ static void test_minres_precond_ic_spd(void) {
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x1[i], x2[i], 1e-6);
 
-    double relres = relative_residual(A, x2, b, n);
+    double relres = tf_relative_residual_l2(A, b, x2, n, HUGE_VAL);
     ASSERT_TRUE(relres < 1e-8);
 
     free(x_exact);
@@ -535,7 +523,7 @@ static void test_minres_precond_jacobi_indefinite(void) {
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x1[i], x2[i], 1e-5);
 
-    double relres = relative_residual(K, x2, b, n);
+    double relres = tf_relative_residual_l2(K, b, x2, n, HUGE_VAL);
     ASSERT_TRUE(relres < 1e-8);
 
     free(x_exact);
@@ -581,7 +569,7 @@ static void test_minres_precond_jacobi_large_kkt(void) {
     ASSERT_TRUE(res1.converged);
     ASSERT_TRUE(res2.converged);
 
-    double relres = relative_residual(K, x2, b, n);
+    double relres = tf_relative_residual_l2(K, b, x2, n, HUGE_VAL);
     ASSERT_TRUE(relres < 1e-8);
 
     free(x_exact);
@@ -692,7 +680,7 @@ static void test_minres_large_indefinite(void) {
     ASSERT_ERR(sparse_solve_minres(A, b, x, &opts, NULL, NULL, &res), SPARSE_OK);
 
     ASSERT_TRUE(res.converged);
-    double relres = relative_residual(A, x, b, n);
+    double relres = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     printf("    indefinite tridiag n=%d: %d iters, relres=%.3e\n", (int)n, (int)res.iterations,
            relres);
     ASSERT_TRUE(relres < 1e-8);
@@ -765,7 +753,7 @@ static void test_minres_precond_exact(void) {
     printf("    exact precond n=%d: %d iters\n", (int)n, (int)res.iterations);
     ASSERT_TRUE(res.iterations <= 1);
 
-    double relres = relative_residual(A, x, b, n);
+    double relres = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     ASSERT_TRUE(relres < 1e-10);
 
     free(b);
@@ -889,7 +877,7 @@ static void test_minres_ill_conditioned(void) {
     ASSERT_ERR(sparse_solve_minres(A, b, x, &opts, NULL, NULL, &res), SPARSE_OK);
 
     ASSERT_TRUE(res.converged);
-    double relres = relative_residual(A, x, b, n);
+    double relres = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     printf("    ill-conditioned (cond~1e9): %d iters, relres=%.3e\n", (int)res.iterations, relres);
     ASSERT_TRUE(relres < 1e-6);
 
@@ -1031,8 +1019,8 @@ static void test_minres_vs_ldlt_large_kkt(void) {
     REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x_ldlt));
 
     ASSERT_TRUE(res.converged);
-    double relres_minres = relative_residual(K, x_minres, b, n);
-    double relres_ldlt = relative_residual(K, x_ldlt, b, n);
+    double relres_minres = tf_relative_residual_l2(K, b, x_minres, n, HUGE_VAL);
+    double relres_ldlt = tf_relative_residual_l2(K, b, x_ldlt, n, HUGE_VAL);
     printf("    KKT %dx%d: MINRES relres=%.3e (%d iters), LDL^T relres=%.3e\n", (int)n, (int)n,
            relres_minres, (int)res.iterations, relres_ldlt);
 
@@ -1172,7 +1160,7 @@ static void test_minres_block_multi_rhs_spd(void) {
 
     /* Verify each column */
     for (idx_t j = 0; j < nrhs; j++) {
-        double relres = relative_residual(A, X + j * n, B + j * n, n);
+        double relres = tf_relative_residual_l2(A, B + j * n, X + j * n, n, HUGE_VAL);
         ASSERT_TRUE(relres < 1e-8);
     }
 
@@ -1207,7 +1195,7 @@ static void test_minres_block_multi_rhs_indefinite(void) {
            (int)res.iterations, res.residual_norm);
 
     for (idx_t j = 0; j < nrhs; j++) {
-        double relres = relative_residual(K, X + j * n, B + j * n, n);
+        double relres = tf_relative_residual_l2(K, B + j * n, X + j * n, n, HUGE_VAL);
         ASSERT_TRUE(relres < 1e-8);
     }
 
@@ -1257,8 +1245,8 @@ static void test_minres_block_zero_rhs_column(void) {
     ASSERT_TRUE(col2_norm > 0.1);
 
     /* Verify residuals for nonzero columns */
-    ASSERT_TRUE(relative_residual(A, X, B, n) < 1e-10);
-    ASSERT_TRUE(relative_residual(A, X + 2 * n, B + 2 * n, n) < 1e-10);
+    ASSERT_TRUE(tf_relative_residual_l2(A, B, X, n, HUGE_VAL) < 1e-10);
+    ASSERT_TRUE(tf_relative_residual_l2(A, B + 2 * n, X + 2 * n, n, HUGE_VAL) < 1e-10);
 
     free(B);
     free(X);
@@ -1290,7 +1278,7 @@ static void test_minres_block_large(void) {
            (int)nrhs, (int)res.iterations, res.residual_norm);
 
     for (idx_t j = 0; j < nrhs; j++) {
-        double relres = relative_residual(K, X + j * n, B + j * n, n);
+        double relres = tf_relative_residual_l2(K, B + j * n, X + j * n, n, HUGE_VAL);
         ASSERT_TRUE(relres < 1e-8);
         for (idx_t i = 0; i < n; i++)
             ASSERT_NEAR(X[j * n + i], X_exact[j * n + i], 1e-5);
@@ -1347,7 +1335,7 @@ static void test_minres_block_precond_ic(void) {
 
     /* Verify solutions match */
     for (idx_t j = 0; j < nrhs; j++) {
-        double relres = relative_residual(A, X2 + j * n, B + j * n, n);
+        double relres = tf_relative_residual_l2(A, B + j * n, X2 + j * n, n, HUGE_VAL);
         ASSERT_TRUE(relres < 1e-8);
     }
 
@@ -1396,7 +1384,7 @@ static void test_minres_block_precond_jacobi_indefinite(void) {
            (int)n, (int)nrhs, (int)res1.iterations, (int)res2.iterations);
 
     for (idx_t j = 0; j < nrhs; j++) {
-        double relres = relative_residual(K, X2 + j * n, B + j * n, n);
+        double relres = tf_relative_residual_l2(K, B + j * n, X2 + j * n, n, HUGE_VAL);
         ASSERT_TRUE(relres < 1e-8);
     }
 
@@ -1509,7 +1497,7 @@ static void test_minres_block_many_rhs(void) {
 
     /* Verify each column */
     for (idx_t j = 0; j < nrhs; j++) {
-        double relres = relative_residual(K, X + j * n, B + j * n, n);
+        double relres = tf_relative_residual_l2(K, B + j * n, X + j * n, n, HUGE_VAL);
         ASSERT_TRUE(relres < 1e-8);
     }
 

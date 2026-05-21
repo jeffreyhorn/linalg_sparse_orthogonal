@@ -15,6 +15,7 @@
 #include "sparse_types.h"
 #include "sparse_vector.h"
 #include "test_framework.h"
+#include "test_solver_helpers.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -40,52 +41,6 @@ static double wall_time(void) {
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
 #endif
-}
-
-static double local_norm2(const double *v, idx_t n) {
-    double s = 0.0;
-    for (idx_t i = 0; i < n; i++)
-        s += v[i] * v[i];
-    return sqrt(s);
-}
-
-/* Compute ||Ax - b||/||b|| for a single RHS */
-static double relative_residual(const SparseMatrix *A, const double *b, const double *x, idx_t n) {
-    double *r = calloc((size_t)n, sizeof(double));
-    if (!r)
-        return HUGE_VAL;
-    sparse_matvec(A, x, r);
-    for (idx_t i = 0; i < n; i++)
-        r[i] = b[i] - r[i];
-    double rnorm = local_norm2(r, n);
-    double bnorm = local_norm2(b, n);
-    free(r);
-    return (bnorm > 0.0) ? rnorm / bnorm : rnorm;
-}
-
-/* Compute max-column ||A*X(:,k) - B(:,k)||/||B(:,k)|| for block RHS */
-static double block_relative_residual(const SparseMatrix *A, const double *B, const double *X,
-                                      idx_t n, idx_t nrhs) {
-    double *Y = calloc((size_t)n * (size_t)nrhs, sizeof(double));
-    if (!Y)
-        return HUGE_VAL;
-    sparse_matvec_block(A, X, nrhs, Y);
-    double worst = 0.0;
-    for (idx_t k = 0; k < nrhs; k++) {
-        double rnorm = 0.0, bnorm = 0.0;
-        for (idx_t i = 0; i < n; i++) {
-            double ri = B[i + k * n] - Y[i + k * n];
-            rnorm += ri * ri;
-            bnorm += B[i + k * n] * B[i + k * n];
-        }
-        rnorm = sqrt(rnorm);
-        bnorm = sqrt(bnorm);
-        double rel = (bnorm > 0.0) ? rnorm / bnorm : rnorm;
-        if (rel > worst)
-            worst = rel;
-    }
-    free(Y);
-    return worst;
 }
 
 /* Generate b = A * x_exact where x_exact = [1, 2, ..., n] */
@@ -130,7 +85,7 @@ static void csr_solve_matrix(const char *path, const char *name) {
     sparse_err_t err = lu_csr_factor_solve(A, b, x, 1e-12);
     ASSERT_ERR(err, SPARSE_OK);
 
-    double rr = relative_residual(A, b, x, n);
+    double rr = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     printf("    %s (%d×%d): relres = %.2e\n", name, (int)n, (int)n, rr);
     ASSERT_TRUE(rr < 1e-10);
 
@@ -196,8 +151,8 @@ static void test_csr_vs_linkedlist_nos4(void) {
     ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
     ASSERT_ERR(sparse_lu_solve(LU, b, x_ll), SPARSE_OK);
 
-    double rr_csr = relative_residual(A, b, x_csr, n);
-    double rr_ll = relative_residual(A, b, x_ll, n);
+    double rr_csr = tf_relative_residual_l2(A, b, x_csr, n, HUGE_VAL);
+    double rr_ll = tf_relative_residual_l2(A, b, x_ll, n, HUGE_VAL);
     printf("    nos4: CSR relres=%.2e  LL relres=%.2e\n", rr_csr, rr_ll);
     ASSERT_TRUE(rr_csr < 1e-10);
     ASSERT_TRUE(rr_ll < 1e-10);
@@ -206,7 +161,7 @@ static void test_csr_vs_linkedlist_nos4(void) {
     double diff = 0.0;
     for (idx_t i = 0; i < n; i++)
         diff += (x_csr[i] - x_ll[i]) * (x_csr[i] - x_ll[i]);
-    diff = sqrt(diff) / local_norm2(x_csr, n);
+    diff = sqrt(diff) / tf_vec_norm2(x_csr, n);
     printf("    solution diff: %.2e\n", diff);
     ASSERT_TRUE(diff < 1e-8);
 
@@ -344,7 +299,7 @@ static void test_block_solvers_cross_validate_nos4(void) {
     ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
     ASSERT_ERR(sparse_lu_solve_block(LU, B, nrhs, X_lu), SPARSE_OK);
     sparse_free(LU);
-    double rr_lu = block_relative_residual(A, B, X_lu, n, nrhs);
+    double rr_lu = tf_block_relative_residual_l2(A, B, X_lu, n, nrhs, HUGE_VAL);
     printf("    block LU:    max relres = %.2e\n", rr_lu);
     ASSERT_TRUE(rr_lu < 1e-10);
 
@@ -352,7 +307,7 @@ static void test_block_solvers_cross_validate_nos4(void) {
     sparse_iter_opts_t cg_opts = {.max_iter = 2000, .tol = 1e-12};
     sparse_iter_result_t cg_res;
     ASSERT_ERR(sparse_cg_solve_block(A, B, nrhs, X_cg, &cg_opts, NULL, NULL, &cg_res), SPARSE_OK);
-    double rr_cg = block_relative_residual(A, B, X_cg, n, nrhs);
+    double rr_cg = tf_block_relative_residual_l2(A, B, X_cg, n, nrhs, HUGE_VAL);
     printf("    block CG:    max relres = %.2e  iters = %d\n", rr_cg, (int)cg_res.iterations);
     ASSERT_TRUE(rr_cg < 1e-8);
 
@@ -361,7 +316,7 @@ static void test_block_solvers_cross_validate_nos4(void) {
     sparse_iter_result_t gm_res;
     ASSERT_ERR(sparse_gmres_solve_block(A, B, nrhs, X_gmres, &gm_opts, NULL, NULL, &gm_res),
                SPARSE_OK);
-    double rr_gm = block_relative_residual(A, B, X_gmres, n, nrhs);
+    double rr_gm = tf_block_relative_residual_l2(A, B, X_gmres, n, nrhs, HUGE_VAL);
     printf("    block GMRES: max relres = %.2e  iters = %d\n", rr_gm, (int)gm_res.iterations);
     ASSERT_TRUE(rr_gm < 1e-8);
 
@@ -434,7 +389,7 @@ static void test_preconditioned_block_gmres_steam1(void) {
     ASSERT_ERR(sparse_gmres_solve_block(A, B, nrhs, X, &opts, sparse_ilu_precond, &ilu, &res),
                SPARSE_OK);
 
-    double rr = block_relative_residual(A, B, X, n, nrhs);
+    double rr = tf_block_relative_residual_l2(A, B, X, n, nrhs, HUGE_VAL);
     printf("    steam1 (%d×%d, %d RHS): ILU+GMRES relres=%.2e iters=%d\n", (int)n, (int)n,
            (int)nrhs, rr, (int)res.iterations);
     ASSERT_TRUE(rr < 1e-6);
@@ -597,7 +552,7 @@ static void test_backward_compat_lu_solve(void) {
     ASSERT_ERR(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12), SPARSE_OK);
     ASSERT_ERR(sparse_lu_solve(LU, b, x), SPARSE_OK);
 
-    double rr = relative_residual(A, b, x, n);
+    double rr = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     printf("    backward compat LU: relres = %.2e\n", rr);
     ASSERT_TRUE(rr < 1e-10);
 
@@ -631,7 +586,7 @@ static void test_backward_compat_cg_single(void) {
     sparse_iter_result_t res;
     ASSERT_ERR(sparse_solve_cg(A, b, x, &opts, NULL, NULL, &res), SPARSE_OK);
 
-    double rr = relative_residual(A, b, x, n);
+    double rr = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     printf("    backward compat CG: relres = %.2e  iters = %d\n", rr, (int)res.iterations);
     ASSERT_TRUE(rr < 1e-8);
 

@@ -6,6 +6,7 @@
 #include "sparse_types.h"
 #include "sparse_vector.h"
 #include "test_framework.h"
+#include "test_solver_helpers.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -89,30 +90,6 @@ static SparseMatrix *build_laplacian_2d(idx_t m) {
         }
     }
     return A;
-}
-
-/**
- * Compute the relative residual ||b - A*x|| / ||b||.
- * Returns 0.0 if ||b|| == 0.
- */
-static double compute_relative_residual(const SparseMatrix *A, const double *b, const double *x,
-                                        idx_t n) {
-    double *r = malloc((size_t)n * sizeof(double));
-    if (!r)
-        return -1.0;
-
-    /* r = A*x */
-    sparse_matvec(A, x, r);
-
-    /* r = b - A*x */
-    for (idx_t i = 0; i < n; i++)
-        r[i] = b[i] - r[i];
-
-    double rnorm = vec_norm2(r, n);
-    double bnorm = vec_norm2(b, n);
-    free(r);
-
-    return (bnorm > 0.0) ? rnorm / bnorm : 0.0;
 }
 
 /**
@@ -244,7 +221,7 @@ static void test_cg_laplacian_2d(void) {
     ASSERT_TRUE(result.converged);
     ASSERT_TRUE(result.residual_norm < 1e-10);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, -1.0);
     ASSERT_TRUE(rel_res < 1e-10);
 
     free(x_exact);
@@ -353,7 +330,7 @@ static void test_cg_large_tridiag(void) {
     ASSERT_TRUE(result.converged);
     ASSERT_TRUE(result.residual_norm < 1e-12);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, -1.0);
     ASSERT_TRUE(rel_res < 1e-10);
 
     free(x_exact);
@@ -509,7 +486,7 @@ static void test_cg_precond_laplacian(void) {
     ASSERT_TRUE(result.converged);
     ASSERT_TRUE(result.residual_norm < 1e-10);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, -1.0);
     ASSERT_TRUE(rel_res < 1e-8);
 
     free(diag_inv);
@@ -547,7 +524,7 @@ static void test_cg_nos4(void) {
     ASSERT_ERR(sparse_solve_cg(A, b, x, &opts, NULL, NULL, &result), SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, -1.0);
     printf("    nos4: CG iters=%d, rel_res=%.3e\n", (int)result.iterations, rel_res);
     ASSERT_TRUE(rel_res < 1e-8);
 
@@ -580,7 +557,7 @@ static void test_cg_bcsstk04(void) {
     ASSERT_ERR(sparse_solve_cg(A, b, x, &opts, NULL, NULL, &result), SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, -1.0);
     printf("    bcsstk04: CG iters=%d, rel_res=%.3e\n", (int)result.iterations, rel_res);
     ASSERT_TRUE(rel_res < 1e-8);
 
@@ -714,7 +691,7 @@ static void test_cg_residual_accuracy(void) {
         sparse_solve_cg(A, b, x, &opts, NULL, NULL, &result);
 
         /* Independently compute the actual relative residual */
-        double actual_res = compute_relative_residual(A, b, x, n);
+        double actual_res = tf_relative_residual_l2(A, b, x, n, -1.0);
 
         /* The reported residual should be close to the actual one */
         ASSERT_NEAR(result.residual_norm, actual_res, 1e-6);
@@ -856,8 +833,8 @@ static void test_cg_vs_cholesky_nos4(void) {
     sparse_cholesky_factor(A_chol);
     sparse_cholesky_solve(A_chol, b, x_chol);
 
-    double res_cg = compute_relative_residual(A_cg, b, x_cg, n);
-    double res_chol = compute_relative_residual(A_cg, b, x_chol, n);
+    double res_cg = tf_relative_residual_l2(A_cg, b, x_cg, n, -1.0);
+    double res_chol = tf_relative_residual_l2(A_cg, b, x_chol, n, -1.0);
 
     printf("    nos4: CG res=%.3e (%d iters), Cholesky res=%.3e\n", res_cg,
            (int)result_cg.iterations, res_chol);
@@ -909,8 +886,8 @@ static void test_cg_vs_cholesky_bcsstk04(void) {
     sparse_cholesky_factor(A_chol);
     sparse_cholesky_solve(A_chol, b, x_chol);
 
-    double res_cg = compute_relative_residual(A_cg, b, x_cg, n);
-    double res_chol = compute_relative_residual(A_cg, b, x_chol, n);
+    double res_cg = tf_relative_residual_l2(A_cg, b, x_cg, n, -1.0);
+    double res_chol = tf_relative_residual_l2(A_cg, b, x_chol, n, -1.0);
 
     printf("    bcsstk04: CG res=%.3e (%d iters), Cholesky res=%.3e\n", res_cg,
            (int)result_cg.iterations, res_chol);
@@ -1172,8 +1149,8 @@ static void test_gmres_right_precond_diag(void) {
     }
 
     if (x_left && x_right) {
-        double res_left = compute_relative_residual(A, b, x_left, n);
-        double res_right = compute_relative_residual(A, b, x_right, n);
+        double res_left = tf_relative_residual_l2(A, b, x_left, n, -1.0);
+        double res_right = tf_relative_residual_l2(A, b, x_right, n, -1.0);
         printf("    right-precond diag: left=%d iters (res=%.3e), right=%d iters (res=%.3e)\n",
                (int)result_left.iterations, res_left, (int)result_right.iterations, res_right);
 
@@ -1249,7 +1226,7 @@ static void test_gmres_right_precond_ilu_nos4(void) {
     ASSERT_ERR(sparse_solve_gmres(A, b, x, &opts, sparse_ilu_precond, &ilu, &result), SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    double true_res = compute_relative_residual(A, b, x, n);
+    double true_res = tf_relative_residual_l2(A, b, x, n, -1.0);
     printf("    nos4 right-ILU-GMRES: %d iters, reported=%.3e, true=%.3e\n", (int)result.iterations,
            result.residual_norm, true_res);
 
@@ -1353,8 +1330,8 @@ static void test_gmres_right_vs_left_residual(void) {
     }
 
     if (x_r && x_l) {
-        double true_r = compute_relative_residual(A, b, x_r, n);
-        double true_l = compute_relative_residual(A, b, x_l, n);
+        double true_r = tf_relative_residual_l2(A, b, x_r, n, -1.0);
+        double true_l = tf_relative_residual_l2(A, b, x_l, n, -1.0);
 
         printf("    right vs left: right=%d iters reported=%.3e true=%.3e, "
                "left=%d iters reported=%.3e true=%.3e\n",
@@ -1571,7 +1548,7 @@ static void test_gmres_large_unsymmetric(void) {
     ASSERT_ERR(sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &result), SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, -1.0);
     ASSERT_TRUE(rel_res < 1e-10);
 
     free(x_exact);
@@ -1674,7 +1651,7 @@ static void test_gmres_arnoldi_correctness(void) {
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x[i], x_exact[i], 1e-10);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, -1.0);
     ASSERT_TRUE(rel_res < 1e-10);
 
     sparse_free(A);
@@ -1732,8 +1709,8 @@ static void test_gmres_restart_comparison(void) {
            (int)result_small.iterations, (int)result_large.iterations);
 
     /* Both produce correct solutions */
-    double res_small = compute_relative_residual(A, b, x_small, n);
-    double res_large = compute_relative_residual(A, b, x_large, n);
+    double res_small = tf_relative_residual_l2(A, b, x_small, n, -1.0);
+    double res_large = tf_relative_residual_l2(A, b, x_large, n, -1.0);
     ASSERT_TRUE(res_small < 1e-8);
     ASSERT_TRUE(res_large < 1e-8);
 
@@ -1874,8 +1851,8 @@ static void test_gmres_diagonal_preconditioner(void) {
            (int)result_prec.iterations);
 
     /* Both solutions correct */
-    double res_unprec = compute_relative_residual(A, b, x_unprec, n);
-    double res_prec = compute_relative_residual(A, b, x_prec, n);
+    double res_unprec = tf_relative_residual_l2(A, b, x_unprec, n, -1.0);
+    double res_prec = tf_relative_residual_l2(A, b, x_prec, n, -1.0);
     ASSERT_TRUE(res_unprec < 1e-8);
     ASSERT_TRUE(res_prec < 1e-8);
 
@@ -1911,7 +1888,7 @@ static void test_gmres_precond_large(void) {
     ASSERT_ERR(sparse_solve_gmres(A, b, x, &opts, diag_precond_apply, &pc, &result), SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, -1.0);
     ASSERT_TRUE(rel_res < 1e-8);
 
     free(diag_inv);
@@ -2058,7 +2035,7 @@ static void test_gmres_west0067(void) {
     ASSERT_ERR(sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &result), SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, -1.0);
     printf("    west0067: GMRES(%d) iters=%d, rel_res=%.3e\n", 67, (int)result.iterations, rel_res);
     ASSERT_TRUE(rel_res < 1e-8);
 
@@ -2090,7 +2067,7 @@ static void test_gmres_steam1(void) {
     ASSERT_ERR(sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &result), SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, -1.0);
     printf("    steam1: GMRES(%d) iters=%d, rel_res=%.3e\n", 100, (int)result.iterations, rel_res);
     ASSERT_TRUE(rel_res < 1e-4);
 
@@ -2123,7 +2100,7 @@ static void test_gmres_orsirr_1(void) {
 
     sparse_err_t solve_err = sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &result);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, -1.0);
     printf("    orsirr_1: GMRES iters=%d, rel_res=%.3e, converged=%d\n", (int)result.iterations,
            rel_res, result.converged);
 
@@ -2161,7 +2138,7 @@ static void test_gmres_restart_comparison_suitesparse(void) {
             .max_iter = 500, .restart = (idx_t)restarts[r], .tol = 1e-10, .verbose = 0};
         sparse_iter_result_t result;
         sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &result);
-        double rel_res = compute_relative_residual(A, b, x, n);
+        double rel_res = tf_relative_residual_l2(A, b, x, n, -1.0);
         printf("      GMRES(%d): iters=%d, res=%.3e, converged=%d\n", restarts[r],
                (int)result.iterations, rel_res, result.converged);
         if (result.converged) {
@@ -2198,7 +2175,7 @@ static void test_gmres_restart_comparison_steam1(void) {
             .max_iter = 1000, .restart = (idx_t)restarts[r], .tol = 1e-10, .verbose = 0};
         sparse_iter_result_t result;
         sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &result);
-        double rel_res = compute_relative_residual(A, b, x, n);
+        double rel_res = tf_relative_residual_l2(A, b, x, n, -1.0);
         printf("      GMRES(%d): iters=%d, res=%.3e, converged=%d\n", restarts[r],
                (int)result.iterations, rel_res, result.converged);
         if (result.converged)
@@ -2237,8 +2214,8 @@ static void test_gmres_vs_lu_west0067(void) {
     ASSERT_ERR(sparse_lu_factor(A_lu, SPARSE_PIVOT_PARTIAL, 1e-14), SPARSE_OK);
     ASSERT_ERR(sparse_lu_solve(A_lu, b, x_lu), SPARSE_OK);
 
-    double res_gmres = compute_relative_residual(A_gmres, b, x_gmres, n);
-    double res_lu = compute_relative_residual(A_gmres, b, x_lu, n);
+    double res_gmres = tf_relative_residual_l2(A_gmres, b, x_gmres, n, -1.0);
+    double res_lu = tf_relative_residual_l2(A_gmres, b, x_lu, n, -1.0);
 
     printf("    west0067: GMRES res=%.3e (%d iters), LU res=%.3e\n", res_gmres,
            (int)result.iterations, res_lu);
@@ -2291,8 +2268,8 @@ static void test_gmres_vs_lu_steam1(void) {
     ASSERT_ERR(sparse_lu_factor(A_lu, SPARSE_PIVOT_PARTIAL, 1e-14), SPARSE_OK);
     ASSERT_ERR(sparse_lu_solve(A_lu, b, x_lu), SPARSE_OK);
 
-    double res_gmres = compute_relative_residual(A_gmres, b, x_gmres, n);
-    double res_lu = compute_relative_residual(A_gmres, b, x_lu, n);
+    double res_gmres = tf_relative_residual_l2(A_gmres, b, x_gmres, n, -1.0);
+    double res_lu = tf_relative_residual_l2(A_gmres, b, x_lu, n, -1.0);
 
     printf("    steam1: GMRES res=%.3e (%d iters), LU res=%.3e\n", res_gmres,
            (int)result.iterations, res_lu);
@@ -2335,8 +2312,8 @@ static void test_gmres_vs_cg_nos4(void) {
     sparse_iter_result_t result_gmres;
     sparse_solve_gmres(A_gmres, b, x_gmres, &gm_opts, NULL, NULL, &result_gmres);
 
-    double res_cg = compute_relative_residual(A_cg, b, x_cg, n);
-    double res_gmres = compute_relative_residual(A_cg, b, x_gmres, n);
+    double res_cg = tf_relative_residual_l2(A_cg, b, x_cg, n, -1.0);
+    double res_gmres = tf_relative_residual_l2(A_cg, b, x_gmres, n, -1.0);
 
     printf("    nos4: CG iters=%d res=%.3e, GMRES iters=%d res=%.3e\n", (int)result_cg.iterations,
            res_cg, (int)result_gmres.iterations, res_gmres);

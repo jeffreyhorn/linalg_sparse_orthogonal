@@ -5,6 +5,7 @@
 #include "sparse_types.h"
 #include "sparse_vector.h"
 #include "test_framework.h"
+#include "test_solver_helpers.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -63,23 +64,6 @@ static SparseMatrix *build_spd_tridiag(idx_t n, double diag_val, double offdiag_
             sparse_insert(A, i, i + 1, offdiag_val);
     }
     return A;
-}
-
-static double compute_relative_residual(const SparseMatrix *A, const double *b, const double *x,
-                                        idx_t n) {
-    double *Ax = calloc((size_t)n, sizeof(double));
-    if (!Ax)
-        return HUGE_VAL; /* fails any tolerance check without the float-to-double promotion warning
-                          */
-    sparse_matvec(A, x, Ax);
-    double rnorm = 0.0, bnorm = 0.0;
-    for (idx_t i = 0; i < n; i++) {
-        double ri = b[i] - Ax[i];
-        rnorm += ri * ri;
-        bnorm += b[i] * b[i];
-    }
-    free(Ax);
-    return (bnorm > 0.0) ? sqrt(rnorm / bnorm) : sqrt(rnorm);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -228,7 +212,7 @@ static void test_bicgstab_spd_tridiag(void) {
     ASSERT_ERR(err, SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     ASSERT_TRUE(rel_res < 1e-8);
 
     free(b);
@@ -252,7 +236,7 @@ static void test_bicgstab_unsym_tridiag(void) {
     ASSERT_ERR(err, SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     ASSERT_TRUE(rel_res < 1e-8);
 
     free(b);
@@ -317,7 +301,7 @@ static void test_bicgstab_default_opts(void) {
     sparse_err_t err = sparse_solve_bicgstab(A, b, x, NULL, NULL, NULL, NULL);
     ASSERT_ERR(err, SPARSE_OK);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     ASSERT_TRUE(rel_res < 1e-8);
 
     free(b);
@@ -341,7 +325,7 @@ static void test_bicgstab_larger_unsym(void) {
     ASSERT_ERR(err, SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     ASSERT_TRUE(rel_res < 1e-8);
 
     free(b);
@@ -492,7 +476,7 @@ static void test_bicgstab_true_residual_matches(void) {
     ASSERT_TRUE(result.converged);
 
     /* Independently compute true relative residual */
-    double true_res = compute_relative_residual(A, b, x, n);
+    double true_res = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
 
     /* The reported residual_norm should match the true residual */
     ASSERT_NEAR(result.residual_norm, true_res, 1e-14);
@@ -518,7 +502,7 @@ static void test_bicgstab_nonzero_initial_guess(void) {
     ASSERT_ERR(err, SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     ASSERT_TRUE(rel_res < 1e-8);
 
     free(b);
@@ -550,7 +534,7 @@ static void test_bicgstab_ilu_precond(void) {
     ASSERT_ERR(err, SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     ASSERT_TRUE(rel_res < 1e-10);
 
     sparse_ilu_free(&ilu);
@@ -658,7 +642,7 @@ static void test_bicgstab_west0067(void) {
     sparse_iter_result_t result;
     sparse_err_t err = sparse_solve_bicgstab(A, b, x, &opts, sparse_ilu_precond, &ilu, &result);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     printf("    west0067: BiCGSTAB+ILUT iters=%d, rel_res=%.3e, converged=%d\n",
            (int)result.iterations, rel_res, result.converged);
 
@@ -702,7 +686,7 @@ static void test_bicgstab_steam1(void) {
     ASSERT_ERR(err, SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     printf("    steam1: BiCGSTAB+ILU iters=%d, rel_res=%.3e\n", (int)result.iterations, rel_res);
     ASSERT_TRUE(rel_res < 1e-4);
 
@@ -740,7 +724,7 @@ static void test_bicgstab_orsirr_1(void) {
     ASSERT_ERR(err, SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     printf("    orsirr_1: BiCGSTAB+ILU iters=%d, rel_res=%.3e\n", (int)result.iterations, rel_res);
     ASSERT_TRUE(rel_res < 1e-6);
 
@@ -789,8 +773,8 @@ static void test_bicgstab_vs_gmres_steam1(void) {
     sparse_solve_gmres(A_gmres, b, x_gmres, &gmres_opts, sparse_ilu_precond, &ilu_gmres,
                        &gmres_result);
 
-    double res_bicg = compute_relative_residual(A_bicg, b, x_bicg, n);
-    double res_gmres = compute_relative_residual(A_bicg, b, x_gmres, n);
+    double res_bicg = tf_relative_residual_l2(A_bicg, b, x_bicg, n, HUGE_VAL);
+    double res_gmres = tf_relative_residual_l2(A_bicg, b, x_gmres, n, HUGE_VAL);
     printf("    steam1: BiCGSTAB iters=%d res=%.3e, GMRES(30) iters=%d res=%.3e\n",
            (int)bicg_result.iterations, res_bicg, (int)gmres_result.iterations, res_gmres);
 
@@ -927,7 +911,7 @@ static void test_bicgstab_high_condition_number(void) {
     /* Should converge (diagonally dominant) but may be slow */
     ASSERT_TRUE(err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED);
     if (result.converged) {
-        double rel_res = compute_relative_residual(A, b, x, n);
+        double rel_res = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
         ASSERT_TRUE(rel_res < 1e-6);
     }
 
@@ -954,7 +938,7 @@ static void test_bicgstab_random_initial_guess(void) {
     ASSERT_ERR(err, SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     ASSERT_TRUE(rel_res < 1e-8);
 
     free(b);
@@ -1103,7 +1087,7 @@ static void test_block_bicgstab_2rhs(void) {
     for (int col = 0; col < 2; col++) {
         double *x_col = X + (size_t)col * (size_t)n;
         double *b_col = B + (size_t)col * (size_t)n;
-        double rel_res = compute_relative_residual(A, b_col, x_col, n);
+        double rel_res = tf_relative_residual_l2(A, b_col, x_col, n, HUGE_VAL);
         ASSERT_TRUE(rel_res < 1e-8);
     }
 
@@ -1132,7 +1116,7 @@ static void test_block_bicgstab_4rhs(void) {
     for (idx_t j = 0; j < nrhs; j++) {
         double *x_col = X + (size_t)j * (size_t)n;
         double *b_col = B + (size_t)j * (size_t)n;
-        double rel_res = compute_relative_residual(A, b_col, x_col, n);
+        double rel_res = tf_relative_residual_l2(A, b_col, x_col, n, HUGE_VAL);
         ASSERT_TRUE(rel_res < 1e-8);
     }
 
@@ -1203,8 +1187,8 @@ static void test_block_bicgstab_mixed_convergence(void) {
 
     /* Both columns should have correct solutions */
     for (int col = 0; col < 2; col++) {
-        double rel_res = compute_relative_residual(A, B + (size_t)col * (size_t)n,
-                                                   X + (size_t)col * (size_t)n, n);
+        double rel_res = tf_relative_residual_l2(A, B + (size_t)col * (size_t)n,
+                                                 X + (size_t)col * (size_t)n, n, HUGE_VAL);
         ASSERT_TRUE(rel_res < 1e-8);
     }
 
@@ -1270,8 +1254,8 @@ static void test_block_bicgstab_preconditioned(void) {
     ASSERT_TRUE(result.converged);
 
     for (idx_t j = 0; j < nrhs; j++) {
-        double rel_res =
-            compute_relative_residual(A, B + (size_t)j * (size_t)n, X + (size_t)j * (size_t)n, n);
+        double rel_res = tf_relative_residual_l2(A, B + (size_t)j * (size_t)n,
+                                                 X + (size_t)j * (size_t)n, n, HUGE_VAL);
         ASSERT_TRUE(rel_res < 1e-8);
     }
 

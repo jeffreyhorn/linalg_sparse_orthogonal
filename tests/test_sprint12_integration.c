@@ -13,6 +13,7 @@
 #include "sparse_reorder.h"
 #include "sparse_types.h"
 #include "test_framework.h"
+#include "test_solver_helpers.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -58,20 +59,6 @@ static SparseMatrix *build_scaled_indef(double s) {
     sparse_insert(A, 2, 0, -1.0 * s);
     sparse_insert(A, 2, 2, 4.0 * s);
     return A;
-}
-
-/* Compute relative residual ||A*x - b|| / ||b||. */
-static double relative_residual(const SparseMatrix *A, const double *x, const double *b, idx_t n) {
-    double *r = malloc((size_t)n * sizeof(double));
-    sparse_matvec(A, x, r);
-    double nr = 0.0, nb = 0.0;
-    for (idx_t i = 0; i < n; i++) {
-        double d = r[i] - b[i];
-        nr += d * d;
-        nb += b[i] * b[i];
-    }
-    free(r);
-    return (nb > 0.0) ? sqrt(nr / nb) : sqrt(nr);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -132,11 +119,11 @@ static void test_s12_kkt_pipeline(void) {
     sparse_matvec(K, x_exact, b);
     REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
 
-    double rr_before = relative_residual(K, x, b, n);
+    double rr_before = tf_relative_residual_l2(K, b, x, n, HUGE_VAL);
 
     /* Refine */
     ASSERT_ERR(sparse_ldlt_refine(K, &ldlt, b, x, 5, 1e-15), SPARSE_OK);
-    double rr_after = relative_residual(K, x, b, n);
+    double rr_after = tf_relative_residual_l2(K, b, x, n, HUGE_VAL);
     printf("    KKT pipeline: relres before=%.3e, after=%.3e\n", rr_before, rr_after);
     ASSERT_TRUE(rr_after <= rr_before);
     ASSERT_TRUE(rr_after < 1e-12);
@@ -354,7 +341,7 @@ static void test_s12_suitesparse_nos4(void) {
     REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     ASSERT_ERR(sparse_ldlt_refine(A, &ldlt, b, x, 3, 1e-15), SPARSE_OK);
 
-    double rr = relative_residual(A, x, b, n);
+    double rr = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     printf("    nos4 (n=%d, AMD): relres=%.3e, nnz(L)=%d\n", (int)n, rr, (int)sparse_nnz(ldlt.L));
     ASSERT_TRUE(rr < 1e-12);
 
@@ -395,7 +382,7 @@ static void test_s12_large_kkt_pipeline(void) {
     REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x));
     ASSERT_ERR(sparse_ldlt_refine(K, &ldlt, b, x, 5, 1e-15), SPARSE_OK);
 
-    double rr = relative_residual(K, x, b, n);
+    double rr = tf_relative_residual_l2(K, b, x, n, HUGE_VAL);
     printf("    KKT 280x280 (AMD): relres=%.3e, nnz(L)=%d\n", rr, (int)sparse_nnz(ldlt.L));
     ASSERT_TRUE(rr < 1e-12);
 

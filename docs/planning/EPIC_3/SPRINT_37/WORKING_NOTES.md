@@ -934,3 +934,165 @@ Avoid in the first batch:
 ### Day 4 Outputs
 
 - `artifacts/day4-quality-target-normalization-design.md`
+
+## Day 5
+
+**Objective:** Convert the Day 2 audit into the safest first test-helper
+consolidation slice by extracting the repeated L2 residual helpers used across
+the iterative/preconditioner/integration cluster, while keeping the landing
+shape narrow, header-only, and easy to review.
+
+### Commands Run
+
+1. Re-read the Day 5 plan and the Day 2 helper audit:
+   - `git status --short --branch`
+   - `sed -n '114,145p' docs/planning/EPIC_3/SPRINT_37/PLAN.md`
+   - `cat docs/planning/EPIC_3/SPRINT_37/artifacts/day2-test-helper-consolidation-audit.md`
+2. Re-read the candidate test files from the residual-helper cluster:
+   - `rg -n "compute_relative_residual|relative_residual|block_relative_residual|local_norm2|compute_rel_residual|rel_residual" tests`
+   - `sed -n` spot reads in:
+     - `tests/test_iterative.c`
+     - `tests/test_bicgstab.c`
+     - `tests/test_ilu.c`
+     - `tests/test_minres.c`
+     - `tests/test_sprint5_integration.c`
+     - `tests/test_sprint10_integration.c`
+     - `tests/test_sprint12_integration.c`
+     - `tests/test_sprint13_integration.c`
+3. Implement the narrow shared-helper batch:
+   - add `tests/test_solver_helpers.h`
+   - replace duplicated local residual helpers in the selected cluster files
+4. Validate the touched batch:
+   - `make format`
+   - `make lint`
+   - `make test`
+5. Fix the one fallout from the first `make test` run:
+   - `tests/test_sprint10_integration.c` still referenced removed
+     `local_norm2(...)`
+   - replace it with `tf_vec_norm2(...)`
+6. Re-run the required full gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+
+### Day 5 Findings
+
+#### 1. The safest first shared landing shape was a small header-only solver helper layer
+
+Day 2 identified several real duplication families, but the test build model
+still makes a broad shared `.c` support layer a poor first move.
+
+The batch therefore landed as:
+
+- new header:
+  - `tests/test_solver_helpers.h`
+- intentionally narrow helper surface:
+  - `tf_vec_norm2(...)`
+  - `tf_relative_residual_l2(...)`
+  - `tf_block_relative_residual_l2(...)`
+
+Why this shape was the right first batch:
+
+- each touched test binary still compiles from its own test source
+- the shared logic is pure helper code with no separate link-time ownership
+- behavior stays explicit at the call site
+- the new layer is small enough that it does not read like a new generic test
+  framework
+
+#### 2. The clearest residual-helper duplication is now closed for the first cluster
+
+The Day 5 batch removed duplicated local L2 residual helpers from:
+
+- `tests/test_iterative.c`
+- `tests/test_bicgstab.c`
+- `tests/test_ilu.c`
+- `tests/test_minres.c`
+- `tests/test_sprint5_integration.c`
+- `tests/test_sprint10_integration.c`
+- `tests/test_sprint12_integration.c`
+- `tests/test_sprint13_integration.c`
+
+That included:
+
+- single-RHS residual helpers
+- one block-RHS residual helper
+- one local vector-norm helper that only existed to support the residual math
+
+Important preservation detail:
+
+- the new helper takes an explicit allocation-failure sentinel so each file can
+  preserve its previous failure semantics
+- `tests/test_iterative.c` kept its existing `-1.0` sentinel behavior
+- the other touched files kept `HUGE_VAL` behavior where that was already the
+  local convention
+
+#### 3. The batch stayed narrow and did not overreach into other audit families
+
+Day 5 deliberately did **not** try to absorb the full Day 2 queue.
+
+Still deferred after this batch:
+
+- SPD / tridiagonal matrix builders
+- KKT builders
+- file-specific residual helpers in other clusters such as:
+  - `tests/test_qr.c`
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_sprint19_integration.c`
+
+Reason:
+
+- those surfaces either carry more file-local semantics or belong to different
+  solver families
+- forcing them into the first batch would have widened the review surface
+  beyond the Day 5 “narrow batch” contract
+
+#### 4. One real fallout appeared immediately and was fixed before the authoritative rerun
+
+The first `make test` run found one legitimate cleanup fallout:
+
+- `tests/test_sprint10_integration.c` still used removed helper
+  `local_norm2(...)` in its CSR-vs-linked-list comparison
+
+Fix:
+
+- replace that remaining use with `tf_vec_norm2(...)`
+
+Interpretation:
+
+- this validates the Day 5 approach of doing the narrow extraction with a full
+  rerun immediately
+- the fallout was mechanical and local, not a design failure in the shared
+  helper contract
+
+#### 5. The required code-quality gate passed after the local cleanup
+
+Because this batch changed test `*.c` and `*.h` files, the required gate was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Authoritative result after the one local cleanup:
+
+- `make format`: passed
+- `make lint`: passed
+- `make test`: passed
+
+This keeps Sprint 37 on the validated Sprint 36 / Sprint 35 baseline rather
+than opening a new regression queue.
+
+### Day 5 Interpretation
+
+- Day 5 converted the Day 2 audit into a real first consolidation batch
+  without creating a broad new shared test framework
+- the right early consolidation surface was the repeated residual math cluster,
+  not builders or broader support scaffolding
+- the remaining helper queue is now narrower and better partitioned:
+  - residual helpers outside this cluster
+  - SPD/tridiagonal builders
+  - KKT builders
+
+### Day 5 Outputs
+
+- `tests/test_solver_helpers.h`
+- `artifacts/day5-test-helper-consolidation-batch1.md`

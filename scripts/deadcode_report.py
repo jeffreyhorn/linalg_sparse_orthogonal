@@ -9,7 +9,7 @@ import re
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 
 COVERAGE_GAP = "coverage-gap"
@@ -61,7 +61,7 @@ def parse_coverage_notes(path: Path) -> dict[str, object]:
         "missing_benchmarks": [],
         "missing_examples": [],
     }
-    section: str | None = None
+    section: Optional[str] = None
     for raw_line in path.read_text().splitlines():
         line = raw_line.strip()
         if not line:
@@ -117,7 +117,7 @@ def classify_xunused(symbol: str, decl_file: str) -> tuple[str, str]:
 
 def parse_xunused(path: Path) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
-    current: dict[str, str] | None = None
+    current: Optional[dict[str, str]] = None
     for raw_line in path.read_text().splitlines():
         warn_match = XUNUSED_WARN_RE.match(raw_line)
         if warn_match:

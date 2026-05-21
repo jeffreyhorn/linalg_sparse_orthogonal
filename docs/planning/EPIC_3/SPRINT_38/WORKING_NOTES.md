@@ -1149,3 +1149,126 @@ Closed by Day 8:
 - zero-gap report wording drift
 - generic empty-queue wording drift
 - ambiguous `deadcode-check` success wording
+
+## Day 9
+
+**Objective:** Re-audit the current reviewed gate boundaries after the Day 5
+through Day 8 truthfulness/compile-db/dead-code work and choose the smallest
+meaningful next-tier gate expansion that strengthens regression protection
+without collapsing the Sprint 36 enforced/staged/excluded platform contract.
+
+### Commands Run
+
+1. Re-read the Sprint 38 Day 9 plan section:
+   - `sed -n '180,320p' docs/planning/EPIC_3/SPRINT_38/PLAN.md`
+2. Re-read the Sprint 38 project-plan item wording:
+   - `sed -n '296,332p' docs/planning/EPIC_3/PROJECT_PLAN.md`
+3. Re-read the current quality command map and cross-platform CI contract:
+   - `sed -n '1,260p' README.md`
+4. Re-read the current reviewed/dead-code Makefile surface:
+   - `sed -n '470,640p' Makefile`
+5. Re-read the current CI workflow contract surfaces:
+   - `sed -n '1,260p' .github/workflows/ci.yml`
+   - `sed -n '1,260p' .github/workflows/macos-ci.yml`
+   - `sed -n '1,260p' .github/workflows/windows-ci.yml`
+
+### Day 9 Findings
+
+#### 1. The current enforced baseline is already broad; the next useful expansion is aggregation, not a new primitive gate
+
+The repo already has stable maintained reviewed primitives for:
+
+- reviewed Makefile compile-quality:
+  - `make quality-review-compile`
+- reviewed local Makefile quality:
+  - `make quality-review`
+- reviewed CMake parity:
+  - `make quality-review-cmake-compile`
+  - `make quality-review-cmake`
+- dead-code completeness/reporting:
+  - `make deadcode-report`
+  - `make deadcode-check`
+
+Interpretation:
+
+- the next useful hardening step is not another low-level target
+- it is a clearer next-tier aggregate over the maintained reviewed paths that
+  already exist
+
+#### 2. Coverage still should not be folded into the reviewed baseline
+
+After Day 5, coverage wording is now explicit:
+
+- coverage is supplemental
+- the Linux coverage job enforces the current `80%` threshold
+- it is not part of the cross-platform reviewed baseline
+
+Interpretation:
+
+- Sprint 38 still should not expand the reviewed gate by folding `make coverage`
+  into a top-level reviewed wrapper
+- that would blur the truthfulness work from Day 2 and Day 5
+
+#### 3. macOS dead-code and Windows local Makefile parity are still staged for good reasons
+
+The Sprint 36 contract remains accurate even after Day 6 and Day 8:
+
+- macOS dead-code is still staged
+- Windows local Makefile reviewed wrappers are still staged
+- Windows dead-code is still excluded
+
+Why this remains correct:
+
+- dead-code still depends on serialized shared paths
+- `xunused` setup remains more toolchain-sensitive than the reviewed CMake path
+- Windows still has an honest enforced subset centered on direct CMake
+
+Interpretation:
+
+- the next gate-expansion batch should not try to "promote" these staged paths
+  by documentation fiat
+- cross-platform honesty remains more important than symmetry
+
+#### 4. The highest-value narrow expansion is a single local aggregate reviewed baseline target
+
+Current local operator reality:
+
+- maintainers can run the full practical reviewed baseline today
+- but it is split across two top-level commands:
+  - `make quality-review`
+  - `make quality-review-cmake`
+
+That means there is still no single named top-level local command for:
+
+- reviewed Makefile path
+- reviewed CMake parity path
+
+Interpretation:
+
+- adding one explicit aggregate wrapper is the smallest meaningful expansion
+- it strengthens routine local regression-proofing without changing any staged
+  platform boundary
+
+#### 5. The Day 10 batch is now tightly bounded
+
+Chosen Day 10 batch:
+
+- add one serial top-level reviewed aggregate wrapper over:
+  - `make quality-review`
+  - `make quality-review-cmake`
+- document it as the strongest local reviewed baseline command
+- keep `coverage`, `wall-check`, `sanitize`, and cross-platform staged/excluded
+  paths outside that aggregate
+
+Not chosen for Day 10:
+
+- enforcing macOS dead-code
+- enforcing Windows local Makefile reviewed wrappers
+- folding `make coverage` into the reviewed baseline
+- changing the current Linux/macOS/Windows CI contract
+
+Interpretation:
+
+- the next expansion is real but low-risk
+- it improves local regression-proofing and future readiness-checklist clarity
+  without destabilizing current CI or platform-truthfulness boundaries

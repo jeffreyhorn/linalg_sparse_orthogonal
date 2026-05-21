@@ -1834,3 +1834,192 @@ Interpretation:
 ### Day 9 Outputs
 
 - `artifacts/day9-large-file-maintainability-batch1.md`
+
+## Day 10
+
+**Objective:** Audit auxiliary comments and maintainer-facing support docs for
+stale sprint-history framing, duplicated workflow explanation, and wording that
+now obscures the actual Sprint 34-Sprint 36 quality contract.
+
+### Commands Run
+
+1. Re-read the Day 10 plan and the Day 9 residual queue:
+   - `sed -n '241,320p' docs/planning/EPIC_3/SPRINT_37/PLAN.md`
+   - `tail -n 220 docs/planning/EPIC_3/SPRINT_37/WORKING_NOTES.md`
+2. Sweep the main maintainer-facing workflow surfaces for reviewed/dead-code /
+   staged/excluded / sanitizer wording:
+   - `rg -n "Sprint 33|Sprint 34|Sprint 35|Sprint 36|Sprint 37|dead-code|staged|excluded|sanitize|make clean|quality-review|quality-review-cmake|reviewed" README.md Makefile scripts/deadcode_report.py scripts/deadcode_workflow.sh .github/workflows/*.yml`
+3. Inspect the most likely high-duplication surfaces directly:
+   - `sed -n '1,120p' .github/workflows/ci.yml`
+   - `sed -n '1,140p' .github/workflows/macos-ci.yml`
+   - `sed -n '1,120p' .github/workflows/windows-ci.yml`
+   - `sed -n '632,790p' README.md`
+   - `sed -n '1,220p' scripts/deadcode_workflow.sh`
+   - `sed -n '1,220p' scripts/deadcode_report.py`
+
+### Day 10 Findings
+
+#### 1. The main Day 10 debt is duplication and sprint-history overframing, not contract breakage
+
+The current maintainer-facing workflow language is mostly accurate. The problem
+is that the same accurate contract is restated too many times, often with more
+historical sprint framing than operators need in the maintained surface.
+
+Most visible pattern:
+
+- workflow YAML headers explain the platform contract in detail
+- `README.md` explains the same platform contract again in more detail
+- individual script headers still frame themselves as the result of a specific
+  sprint day rather than as current maintained utilities
+- `Makefile` comments are already closer to the right shape, but still include
+  some very dense historical framing near the reviewed-wrapper / dead-code /
+  alternate-build sections
+
+Interpretation:
+
+- this is not a truthfulness failure
+- it is a clarity and reread-cost problem
+
+#### 2. Workflow file headers are the highest-value “simplify, don’t expand” target
+
+Top-of-file workflow comments in:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/macos-ci.yml`
+- `.github/workflows/windows-ci.yml`
+
+are all accurate, but they currently do too much at once:
+
+- define the enforced/staged/supplemental contract
+- explain why a platform differs
+- preserve sprint-history breadcrumbs
+- preserve detailed portability caveats
+
+Why this is the best Day 11 cleanup target:
+
+- operators hit these files directly when CI behavior changes
+- long header blocks slow down simple step-name or job-scope edits
+- the README already owns the fuller cross-platform contract summary
+
+Best cleanup shape:
+
+- keep a short pointer-style top comment in each workflow
+- state only the current platform role and major exclusions
+- point maintainers back to the authoritative README section for the fuller
+  contract
+
+#### 3. The dead-code script headers contain the clearest stale wording
+
+Two files still present themselves mainly as Sprint 33 artifacts:
+
+- `scripts/deadcode_workflow.sh`
+  - `Sprint 33 Day 5 raw dead-code workflow`
+  - `Sprint 33 Day 5 dead-code coverage notes`
+- `scripts/deadcode_report.py`
+  - `Generate and validate Sprint 33 dead-code reports.`
+  - `Generate or validate dead-code reports from raw Sprint 33 artifacts.`
+  - report title `# Sprint 33 Dead-Code Report`
+
+This wording is now stale for maintainers:
+
+- the workflow is still current and maintained
+- the report/check path is now part of the Sprint 34-Sprint 36 reviewed and CI
+  contract
+- “Sprint 33” is useful provenance, but not the right primary label anymore
+
+Interpretation:
+
+- these files should move from sprint-origin wording to current maintained
+  utility wording
+- provenance can stay in a shorter note, but should not dominate the header or
+  rendered report title
+
+#### 4. `README.md` is authoritative, but its maintainer-workflow section is more repetitive than it needs to be
+
+The key maintained README workflow section currently includes:
+
+- dead-code workflow overview
+- reviewed local quality path
+- cross-platform CI contract
+- operator command map
+- rerun guidance
+- tree-mutating mode reset guidance
+
+All of those topics belong there, but the section currently repeats some of the
+same command names and contract language in multiple sub-blocks.
+
+Main duplication pattern:
+
+- command names appear in the reviewed-wrapper intro, the cross-platform table,
+  the operator command map, and the rerun guidance
+- the dead-code section and the reviewed-wrapper section both restate
+  conservative interpretation caveats that could be slightly tighter
+- the reset guidance after sanitizer/coverage modes is correct, but could be
+  made more pointer-style now that the Makefile wrappers themselves also print
+  the same guidance
+
+Interpretation:
+
+- Day 11 should simplify and compress this section, not relocate ownership away
+  from README
+- README remains the authoritative maintainer workflow surface
+
+#### 5. Not every historical comment is debt
+
+Some comments should remain as-is, because they encode real platform or tooling
+constraints rather than historical clutter:
+
+- TSan / libomp caveats in `.github/workflows/ci.yml`
+- Apple Clang / libomp / GCC OpenMP details in `Makefile`
+- coverage backend split comments in `Makefile`
+- partial-success handling comments in `scripts/deadcode_workflow.sh`
+
+Interpretation:
+
+- Day 11 should not become a broad anti-comment pass
+- the target is stale or duplicative maintainer guidance, not dense but still
+  useful implementation rationale
+
+#### 6. The Day 11 cleanup batch is now concrete and bounded
+
+Ranked wording cleanup queue:
+
+Priority A:
+
+- workflow top-of-file headers in:
+  - `.github/workflows/ci.yml`
+  - `.github/workflows/macos-ci.yml`
+  - `.github/workflows/windows-ci.yml`
+- stale Sprint 33-first wording in:
+  - `scripts/deadcode_workflow.sh`
+  - `scripts/deadcode_report.py`
+
+Priority B:
+
+- maintainer-workflow compression in `README.md`
+
+Priority C:
+
+- any small matching `Makefile` comment simplifications discovered while doing
+  the above, but only if they reduce duplication without weakening the target
+  ownership model
+
+Explicit non-targets for Day 11:
+
+- numerical algorithm docs
+- public API tutorials
+- benchmark behavior-owner commentary
+- broad deletion of still-useful platform/tooling rationale
+
+### Day 10 Interpretation
+
+- the current workflow contract is already accurate
+- the debt is mainly too much repeated explanation and too much sprint-history
+  framing in maintained operator-facing files
+- the highest-value Day 11 batch is to simplify workflow/script headers and
+  compress the README maintainer workflow section while preserving the
+  authoritative contract
+
+### Day 10 Outputs
+
+- `artifacts/day10-comment-and-maintainer-doc-audit.md`

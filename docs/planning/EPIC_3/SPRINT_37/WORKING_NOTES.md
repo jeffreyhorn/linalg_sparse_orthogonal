@@ -2186,3 +2186,160 @@ Residual queue after Day 11:
 ### Day 11 Outputs
 
 - `artifacts/day11-maintainer-workflow-docs-batch.md`
+
+## Day 12
+
+**Objective:** Re-run the highest-signal Sprint 37 surfaces after the Day 5
+through Day 11 changes, confirm that the narrowed helper consolidations still
+behave correctly, and reconcile the Sprint 36 sanitizer/reset caveat against a
+fresh normal-tree reviewed path.
+
+### Commands Run
+
+1. Re-read the Day 12 validation scope:
+   - `sed -n '320,390p' docs/planning/EPIC_3/SPRINT_37/PLAN.md`
+   - `tail -n 260 docs/planning/EPIC_3/SPRINT_37/WORKING_NOTES.md`
+2. Re-run the Day 5 test-helper cluster directly:
+   - `make build/test_iterative build/test_bicgstab build/test_ilu build/test_minres build/test_sprint5_integration build/test_sprint10_integration build/test_sprint12_integration build/test_sprint13_integration`
+   - `./build/test_iterative`
+   - `./build/test_bicgstab`
+   - `./build/test_ilu`
+   - `./build/test_minres`
+   - `./build/test_sprint5_integration`
+   - `./build/test_sprint10_integration`
+   - `./build/test_sprint12_integration`
+   - `./build/test_sprint13_integration`
+3. Re-run the Day 6 benchmark-helper pair directly:
+   - `make build/bench_chol_csc build/bench_ldlt_csc`
+   - `./build/bench_chol_csc --small-corpus --repeat 1`
+   - `./build/bench_ldlt_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/bench_ldlt_csc --dispatch --repeat 1`
+4. Recheck the Sprint 36 sanitizer/reset caveat:
+   - `make sanitize`
+   - `make clean`
+5. Re-validate the Day 7 through Day 11 reviewed/dead-code support paths:
+   - `ruby -e 'require "yaml"; %w[.github/workflows/ci.yml .github/workflows/macos-ci.yml .github/workflows/windows-ci.yml].each { |p| YAML.load_file(p); puts "yaml_ok #{p}" }'`
+   - `bash -n scripts/deadcode_workflow.sh`
+   - `python3 -m py_compile scripts/deadcode_report.py`
+   - `make deadcode-report && make deadcode-check`
+   - `make quality-review-compile`
+   - `make quality-review-cmake-compile`
+
+### Day 12 Findings
+
+#### 1. The Day 5 shared test-helper slice still behaves cleanly as a narrow cluster header
+
+The first helper consolidation batch remained stable under direct binary
+execution:
+
+- `test_iterative`
+- `test_bicgstab`
+- `test_ilu`
+- `test_minres`
+- `test_sprint5_integration`
+- `test_sprint10_integration`
+- `test_sprint12_integration`
+- `test_sprint13_integration`
+
+All eight binaries passed after the Day 12 rerun.
+
+Interpretation:
+
+- `tests/test_solver_helpers.h` is still a good fit for the chosen
+  iterative/preconditioner/integration residual-helper cluster
+- the Day 5 batch did not create hidden ownership drift across those test
+  files
+- the residual queue stays where Day 5 left it:
+  - SPD/tridiagonal builders
+  - KKT builders
+  - separate file-local residual helpers in other clusters
+
+#### 2. The Day 6 backend-comparison helper pair still behaves correctly
+
+The direct benchmark rerun stayed clean:
+
+- `bench_chol_csc --small-corpus --repeat 1`
+- `bench_ldlt_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `bench_ldlt_csc --dispatch --repeat 1`
+
+Interpretation:
+
+- `bench_backend_compare_helpers.h` remains a safe narrow shared layer for the
+  Cholesky/LDLT backend-comparison pair
+- the helper extraction did not blur the benchmark-owner contracts established
+  in Sprint 31
+- the remaining benchmark-helper queue stays intentionally separate from:
+  - `bench_main.c`
+  - `bench_reorder.c`
+  - `bench_eigs.c`
+
+#### 3. The sanitizer caveat is still operational, and `make clean` remains the right reset
+
+The Day 12 rerun of `make sanitize` completed successfully on the current
+branch. The important reconciliation point is what happened next:
+
+- the tree was explicitly reset with `make clean`
+- the normal reviewed paths were then re-run successfully on a non-instrumented
+  tree
+
+This confirms the Sprint 36 handoff language:
+
+- the sanitizer/build-tree issue is not a latent source bug in the Day 5-Day
+  11 work
+- it is an operator workflow caveat tied to tree-mutating build modes
+- `make clean` remains the canonical reset when returning to normal direct or
+  reviewed quality paths
+
+#### 4. The Day 7 through Day 11 support-path contract still holds under serial validation
+
+The touched support surfaces all revalidated cleanly:
+
+- workflow YAML files still parse
+- `deadcode_workflow.sh` still parses under `bash -n`
+- `deadcode_report.py` still compiles under `python3 -m py_compile`
+- the authoritative serial dead-code path passed:
+  - `make deadcode-report && make deadcode-check`
+- the reviewed compile and CMake-compile wrappers both passed:
+  - `make quality-review-compile`
+  - `make quality-review-cmake-compile`
+
+The reviewed CMake parity contract also stayed exact:
+
+- `ctest -N` reported `53` tests
+- Makefile/CMake test-count parity remained `53` vs `53`
+
+Interpretation:
+
+- the Day 7 Makefile normalization kept behavior stable
+- the Day 9 report-render refactor in `deadcode_report.py` stayed sound
+- the Day 11 wording cleanup did not affect workflow behavior
+- the known dead-code shared-path race remains the only operational caveat, so
+  serial dead-code execution is still the authoritative mode
+
+#### 5. Day 12 did not surface a new reconciliation batch
+
+The focused rerun did **not** reveal a hidden follow-up patch.
+
+What stayed true after validation:
+
+- the helper consolidations remain intentionally narrow
+- the operator/reviewed path naming and reset guidance remain correct
+- the current dead-code serial-only limitation is already documented
+- the Sprint 36 cross-platform contract is unaffected by this maintainability
+  work
+
+So Day 12 closes as a confirmation/reconciliation day, not as a new
+implementation branch.
+
+### Day 12 Interpretation
+
+- the strongest Sprint 37 maintainability batches from Days 5, 6, 7, 9, and 11
+  held up under direct rerun
+- the sanitizer/build-tree caveat still belongs in workflow guidance, not in a
+  new code-fix queue
+- Day 13 can now be the full validation sweep without carrying unresolved
+  Sprint 37 reconciliation debt
+
+### Day 12 Outputs
+
+- `artifacts/day12-focused-validation-and-reconciliation.md`

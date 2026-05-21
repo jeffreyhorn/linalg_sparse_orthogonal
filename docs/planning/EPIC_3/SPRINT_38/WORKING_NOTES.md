@@ -1489,3 +1489,93 @@ Defer:
 - any large restructure of README sections
 - any new CI job or target semantics
 - any attempt to make staged/excluded surfaces look enforced
+
+## Day 12
+
+**Objective:** Ship the concise README quality-readiness checklist from the Day
+11 design and keep any surrounding polish limited to the minimum needed for the
+checklist to read cleanly in the maintained quality-contract section.
+
+### Commands Run
+
+1. Re-read the Day 11 readiness-checklist design note:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_38/artifacts/day11-readiness-checklist-design.md`
+2. Re-read the current README quality-contract area before editing:
+   - `sed -n '680,790p' README.md`
+   - `sed -n '100,140p' README.md`
+3. Validate the touched docs surface after editing:
+   - `rg -n "Quality Readiness Checklist|quality-review-full|deadcode-check|53|80%|Cross-Platform CI Contract|supplemental" README.md`
+   - `sed -n '718,790p' README.md`
+
+### Day 12 Findings
+
+#### 1. The checklist lands cleanly in the README quality-contract section
+
+The new checklist now lives in `README.md` directly under the existing quality
+command/CI-contract material.
+
+Interpretation:
+
+- this matches the Day 11 landing-surface decision
+- the checklist is now where maintainers already look for the maintained
+  quality contract
+
+#### 2. The checklist stayed criterion-based instead of becoming another command manual
+
+The new section focuses on what must remain true:
+
+- strongest local reviewed baseline
+- dead-code report/check truthfulness
+- reviewed CMake parity / current test-surface truthfulness
+- supplemental coverage truthfulness
+- docs/examples/header consistency
+- honest cross-platform enforced/staged/excluded boundaries
+
+Interpretation:
+
+- the batch preserved the Day 11 scope discipline
+- it reuses the existing command map, dead-code explanation, and CI contract
+  instead of duplicating them
+
+#### 3. The batch adds readability without changing any gate semantics
+
+Day 12 did **not** change:
+
+- any Makefile target behavior
+- any CI workflow behavior
+- any dead-code classifier/check semantics
+- any coverage threshold or classification
+
+Interpretation:
+
+- this is exactly the right shape for a readiness/reporting batch
+- the checklist improves operator clarity without inventing new enforcement
+
+#### 4. The README now has one concise release/readiness pass that matches the current repo reality
+
+The checklist now points to the real maintained truths:
+
+- `make quality-review-full` as the strongest local reviewed baseline
+- `make deadcode-report` / `make deadcode-check` as the dead-code truthfulness
+  pair
+- `53` current reviewed CTest registrations
+- `80%` Linux supplemental coverage threshold on `src/`
+- supporting links back to the existing dead-code and cross-platform contract
+  sections
+
+Interpretation:
+
+- Sprint 38 now has the concise readiness surface it planned for
+- later validation and closeout can reference this checklist directly
+
+#### 5. The residual Day 12 queue is narrow
+
+Still remaining after Day 12:
+
+- any final small CI/report-output polish identified on Day 13 validation
+- sprint closeout routing and final baseline recording
+
+Closed by Day 12:
+
+- lack of a concise canonical readiness checklist
+- need to infer readiness criteria from multiple README sections by hand

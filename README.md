@@ -754,6 +754,38 @@ Operator command map:
 - dead-code completeness gate:
   - `make deadcode-check`
 
+### Quality Readiness Checklist
+
+Use this checklist for a concise release/readiness pass over the maintained
+quality surface:
+
+- strongest local reviewed baseline passes:
+  - `make quality-review-full`
+- dead-code report and completeness path remain truthful:
+  - `make deadcode-report`
+  - `make deadcode-check`
+  - a passing `deadcode-check` is a completeness gate, not a zero-findings
+    claim, and the dead-code path remains serialized
+- active test-surface / reviewed CMake parity remains truthful:
+  - `ctest -N --test-dir build/quality-review-cmake` still reports the current
+    maintained suite size (`53`)
+  - full reviewed CMake parity still passes through `make quality-review-cmake`
+- coverage wording stays truthful:
+  - coverage is supplemental, not part of the reviewed baseline
+  - the current enforced threshold is `80%` line coverage on `src/` in the
+    Linux coverage path
+- docs/examples/header usage stays consistent with shipped behavior:
+  - public README/tutorial/header snippets and maintained examples should agree
+    on current API names, option fields, and supported behavior
+- cross-platform enforced/staged/excluded boundaries stay named honestly:
+  - use the `Cross-Platform CI Contract` table below as the source of truth
+  - do not treat staged or supplemental paths as part of the enforced reviewed
+    baseline
+
+This checklist is intentionally concise. For command details, rerun guidance,
+and staged/supplemental context, use the reviewed command map, the dead-code
+section above, and the cross-platform CI contract below.
+
 If a reviewed wrapper fails, rerun the named failing phase directly:
 
 - from `quality-review-compile` / `quality-review`:

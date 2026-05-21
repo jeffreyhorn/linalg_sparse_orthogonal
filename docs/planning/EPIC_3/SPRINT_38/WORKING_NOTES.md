@@ -1368,3 +1368,124 @@ Interpretation:
 
 - the new wrapper is not just a naming change
 - it is a validated aggregate over the maintained local reviewed baseline
+
+## Day 11
+
+**Objective:** Define a concise quality-readiness checklist that matches the
+current cleaned-up repo reality, with one authoritative landing surface and
+clear links outward to supporting detail rather than another broad duplicated
+documentation layer.
+
+### Commands Run
+
+1. Re-read the Sprint 38 Day 11 plan section:
+   - `sed -n '220,360p' docs/planning/EPIC_3/SPRINT_38/PLAN.md`
+2. Re-read the Sprint 38 project-plan item wording:
+   - `sed -n '296,332p' docs/planning/EPIC_3/PROJECT_PLAN.md`
+3. Re-read the current README/INSTALL quality command and contract sections:
+   - `rg -n "quality-review-full|quality-review|deadcode-check|coverage|Cross-Platform CI Contract|readiness|checklist|ctest -N|53 registered" README.md INSTALL.md docs -g '!docs/planning/**'`
+4. Re-read the current Sprint 38 working-state tail:
+   - `tail -n 180 docs/planning/EPIC_3/SPRINT_38/WORKING_NOTES.md`
+
+### Day 11 Findings
+
+#### 1. The checklist should live in README, not in a separate planning-only artifact
+
+Current reality:
+
+- `README.md` already owns the operator command map
+- `README.md` already owns the cross-platform CI contract
+- `INSTALL.md` already defers to the README for the canonical command map
+
+Interpretation:
+
+- the authoritative readiness checklist should land in `README.md`
+- it should sit near the maintained quality command/contract material, not in a
+  sprint-local or planning-only file
+
+#### 2. The checklist should be compact and criterion-based, not a duplicate procedure manual
+
+The repo already has detailed supporting material for:
+
+- command entry points
+- dead-code semantics
+- coverage semantics
+- cross-platform CI staging/exclusion boundaries
+
+Interpretation:
+
+- the checklist should answer "what must be true?" rather than "how does every
+  target work?"
+- supporting detail should be linked or referenced, not re-explained inline
+
+#### 3. The canonical checklist scope is now narrow and stable
+
+Chosen readiness criteria:
+
+- local reviewed baseline:
+  - `make quality-review-full`
+- dead-code completeness/report truthfulness:
+  - `make deadcode-report`
+  - `make deadcode-check`
+- active test surface / CMake parity truthfulness:
+  - `53` registered CTest tests
+  - `ctest -N` / reviewed CMake parity contract
+- coverage truthfulness:
+  - coverage remains supplemental
+  - current enforced threshold is `80%` on `src/` in the Linux coverage path
+- docs/examples truthfulness:
+  - no stale contract drift between README, tutorial, headers, and maintained
+    examples
+- cross-platform parity truthfulness:
+  - Linux reviewed baseline enforced
+  - macOS/Windows staged or excluded surfaces remain named honestly
+
+Interpretation:
+
+- this is enough to be a real readiness checklist
+- it avoids reopening broad design discussion about warning debt or dormant test
+  scaffolding that earlier sprints already closed
+
+#### 4. The checklist should explicitly separate enforced baseline from staged/supplemental signals
+
+The most important truthfulness line to preserve is:
+
+- reviewed local baseline
+- reviewed cross-platform enforced baseline
+- supplemental signals
+- staged/excluded signals
+
+Interpretation:
+
+- the checklist should not imply that coverage, wall-check, sanitize, or staged
+  dead-code/platform paths are required readiness gates in the same sense as
+  the reviewed local baseline
+- it should mention them only where they matter to truthful release/readiness
+  interpretation
+
+#### 5. The Day 12 batch is now tightly bounded
+
+Chosen Day 12 shape:
+
+- add one compact README readiness-checklist section
+- place it near the maintained quality command/contract material
+- apply only small surrounding wording polish if needed so the checklist reads
+  cleanly
+
+Keep:
+
+- README as canonical checklist landing surface
+- INSTALL as supporting setup doc
+- sprint artifacts as audit history only
+
+Link/reference:
+
+- reviewed command map
+- dead-code report/check explanation
+- cross-platform CI contract
+
+Defer:
+
+- any large restructure of README sections
+- any new CI job or target semantics
+- any attempt to make staged/excluded surfaces look enforced

@@ -23,6 +23,9 @@ static inline double tf_vec_norm2(const double *v, idx_t n) {
 
 static inline double tf_relative_residual_l2(const SparseMatrix *A, const double *b,
                                              const double *x, idx_t n, double alloc_fail_sentinel) {
+    if (n == 0)
+        return 0.0;
+
     double *r = calloc((size_t)n, sizeof(double));
     if (!r)
         return alloc_fail_sentinel;
@@ -40,6 +43,9 @@ static inline double tf_relative_residual_l2(const SparseMatrix *A, const double
 static inline double tf_block_relative_residual_l2(const SparseMatrix *A, const double *B,
                                                    const double *X, idx_t n, idx_t nrhs,
                                                    double alloc_fail_sentinel) {
+    if (n == 0 || nrhs == 0)
+        return 0.0;
+
     double *Y = calloc((size_t)n * (size_t)nrhs, sizeof(double));
     if (!Y)
         return alloc_fail_sentinel;

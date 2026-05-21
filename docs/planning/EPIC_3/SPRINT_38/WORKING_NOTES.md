@@ -533,3 +533,155 @@ Defer unless later evidence changes:
   reviewed baseline
 - any claim that reviewed CMake parity should own the full benchmark/example
   compile-only surface by default
+
+## Day 4
+
+**Objective:** Reassess the current dead-code workflow artifacts, buckets, and
+execution model so Sprint 38 can distinguish worthwhile signal-quality
+improvements from changes that would overclaim concurrency safety or cleanup
+readiness.
+
+### Commands Run
+
+1. Re-read the Sprint 38 Day 4 plan section:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_38/PLAN.md`
+2. Re-read the current generated dead-code report artifacts:
+   - `sed -n '1,260p' build/deadcode/report.md`
+   - `sed -n '1,220p' build/deadcode/report.tsv`
+   - `sed -n '1,260p' build/deadcode/cppcheck.txt`
+3. Re-read the current dead-code workflow implementation:
+   - `sed -n '1,260p' scripts/deadcode_workflow.sh`
+   - `sed -n '1,260p' scripts/deadcode_report.py`
+4. Summarize current report buckets/dispositions from `report.tsv`:
+   - `python3` bucket/disposition counter over `build/deadcode/report.tsv`
+5. Cross-check the inherited Sprint 33 dead-code contract and deferred queue:
+   - `sed -n '1,180p' docs/planning/EPIC_3/SPRINT_33/HANDOFF.md`
+   - `sed -n '1,140p' docs/planning/EPIC_3/SPRINT_33/RETROSPECTIVE.md`
+6. Re-scan current maintainer docs for dead-code limitation wording:
+   - `rg -n "deadcode\\*|serially|shared .*build/deadcode-cmake|coverage-gap|secondary signals|supporting evidence|noise" README.md docs/planning/EPIC_3/SPRINT_{33,34,36,37}/HANDOFF.md docs/planning/EPIC_3/SPRINT_{33,34,36,37}/RETROSPECTIVE.md`
+
+### Day 4 Findings
+
+#### 1. The dead-code workflow is stable as an advisory/report-completeness gate, not yet as a stronger cleanup gate
+
+Current live report buckets are:
+
+- `coverage-gap` = `7`
+- `public-surface-review` = `4`
+- `secondary-candidate-signal` = `35`
+- `non-deadcode-static-analysis-noise` = `6`
+- `definitely-unused-internal-candidate` = `0`
+
+Current dispositions are also stable:
+
+- `defer-until-compile-db-expanded` = `7`
+- `keep-public-api-day8-audited` = `4`
+- `summarize-only-supporting-evidence` = `35`
+- `appendix-only-not-cleanup-candidate` = `6`
+
+Interpretation:
+
+- the current workflow already succeeds at one important job:
+  - it turns raw scanner output into explicit, reviewable classes
+- but it does **not** currently surface a new cleanup-ready queue beyond the
+  already-audited public keeps and deferred evidence buckets
+
+#### 2. Since Sprint 33, the workflow has been revalidated more than fundamentally matured
+
+Compared to the Sprint 33 handoff/retrospective:
+
+- the bucket counts are unchanged except for the already-closed internal
+  candidate queue staying at `0`
+- the same three deferred areas remain:
+  - compile-db coverage gap
+  - shared-path serialization
+  - residual `cppcheck` supporting-signal / noise review
+
+Interpretation:
+
+- Sprint 38 Day 4 does not uncover a hidden new dead-code debt queue
+- it confirms that the next maturity step should focus on report signal and
+  scope clarity, not on pretending the workflow is ready for a more aggressive
+  cleanup or concurrency contract
+
+#### 3. The strongest currently actionable dead-code signal is still report completeness, not content-based failure
+
+Current `deadcode-check` truth model remains:
+
+- generated report exists
+- every `xunused` finding is categorized
+- coverage-gap section is present
+
+Current report content shows why that remains the right enforced boundary:
+
+- `coverage-gap` rows are still expected and truthful
+- public-surface rows are already explicitly audited keeps
+- `cppcheck` secondary signals are still summarized as supporting evidence only
+- `cppcheck` noise rows are still appendix-only and not cleanup candidates
+
+Interpretation:
+
+- a stronger content-based failure rule would still be premature
+- the more promising Sprint 38 refinement space is:
+  - clearer report structure
+  - tighter explanation of what each bucket means
+  - better alignment between the report and the named deferred queue
+
+#### 4. The shared-path execution model remains the main blocker for stronger local/CI enforcement assumptions
+
+Current workflow implementation still shares:
+
+- `build/deadcode-cmake`
+- `build/deadcode/`
+
+Current maintainer docs still correctly say:
+
+- run `deadcode*` targets serially
+- concurrent invocation can race on the shared CMake build tree
+
+Interpretation:
+
+- Sprint 38 should not treat dead-code as concurrency-safe yet
+- any future stronger local/CI enforcement claims still depend on either:
+  - path isolation, or
+  - preserving explicit serialized execution
+
+#### 5. Day 3 narrowed the compile-gap story, which changes the best dead-code framing
+
+Day 3 established that the seven named files are:
+
+- already compile-protected by Makefile `tooling-build`
+- still omitted from dead-code compile-db/reporting coverage
+
+Interpretation:
+
+- the dead-code workflow's leading unresolved gap is now more precisely named:
+  - partial compile-db/report coverage
+  - not generic benchmark/example compile drift
+- that makes the dead-code report easier to improve, because the coverage-gap
+  section can be framed as a bounded tooling-scope limit rather than a broad
+  compile-health warning
+
+#### 6. The actionable/staged/defer split is already clear
+
+Actionable enough for Sprint 38 refinement:
+
+- report wording/structure for the existing buckets
+- alignment between `report.md`, `report.tsv`, `coverage-notes.txt`, and README
+- clearer next-action guidance that distinguishes:
+  - no current cleanup-ready internal queue
+  - audited public keeps
+  - supporting-only `cppcheck` evidence
+
+Still staged / not ready for stronger enforcement:
+
+- treating `secondary-candidate-signal` as failure-worthy content
+- treating `non-deadcode-static-analysis-noise` as cleanup instructions
+- assuming concurrent-safe dead-code invocation
+- treating compile-db silence on the seven excluded files as meaningful
+
+Best Day 7 design target:
+
+- improve signal quality and operator clarity inside the current staged model
+- do not turn the advisory report into a stronger correctness gate until the
+  compile-db coverage and execution-model limits are addressed

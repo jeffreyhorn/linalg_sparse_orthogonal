@@ -707,7 +707,7 @@ coverage-gcovr: clean $(TEST_BINS)
 	done; \
 	if [ $$status -ne 0 ]; then echo "Some tests failed"; exit 1; fi
 	@echo ""
-	@/bin/mkdir -p $(COVDIR)/html
+	@mkdir -p $(COVDIR)/html
 	@echo "Generating HTML report..."
 	@gcovr --gcov-executable=/usr/bin/gcov --root . \
 		--filter 'src/' --exclude 'tests/' --exclude 'benchmarks/' \

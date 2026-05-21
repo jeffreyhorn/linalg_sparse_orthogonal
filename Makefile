@@ -224,6 +224,17 @@ define RUN_TEST_BINS_QUIET
 	done
 endef
 
+define RUN_TEST_BINS_QUIET_ALL
+	status=0; \
+	for t in $(TEST_BINS); do \
+		$$t || status=1; \
+	done; \
+	if [ $$status -ne 0 ]; then \
+		echo "Some tests failed"; \
+		exit 1; \
+	fi
+endef
+
 # Run all tests
 .PHONY: test
 test: $(TEST_BINS)
@@ -696,7 +707,7 @@ coverage-lcov: LDFLAGS += --coverage
 coverage-lcov: clean $(TEST_BINS)
 	@echo "Coverage backend: lcov (CC=$(CC))"
 	@echo "Running tests for coverage..."
-	@$(RUN_TEST_BINS_QUIET)
+	@$(RUN_TEST_BINS_QUIET_ALL)
 	@echo ""
 	@mkdir -p $(COVDIR)
 	@echo "Collecting coverage data..."
@@ -740,7 +751,7 @@ coverage-gcovr: clean $(TEST_BINS)
 		exit 1; \
 	fi
 	@echo "Running tests for coverage..."
-	@$(RUN_TEST_BINS_QUIET)
+	@$(RUN_TEST_BINS_QUIET_ALL)
 	@echo ""
 	@mkdir -p $(COVDIR)/html
 	@echo "Generating HTML report..."

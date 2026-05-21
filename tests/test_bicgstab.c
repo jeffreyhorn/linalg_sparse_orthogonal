@@ -3,7 +3,6 @@
 #include "sparse_lu.h"
 #include "sparse_matrix.h"
 #include "sparse_types.h"
-#include "sparse_vector.h"
 #include "test_framework.h"
 #include "test_solver_helpers.h"
 #include <math.h>

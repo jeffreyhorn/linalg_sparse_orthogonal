@@ -1602,3 +1602,92 @@ Interpretation:
 ### Day 13 Outputs
 
 - `artifacts/day13-full-validation-sweep.md`
+
+## Day 14
+
+**Objective:** Package Sprint 36's parity work into explicit handoff and
+retrospective documents, and route any concrete later-sprint follow-through
+into the Epic 3 project plan.
+
+### Commands Run
+
+1. Re-read the Day 14 sprint plan and the current later-sprint plan surface:
+   - `sed -n '340,420p' docs/planning/EPIC_3/SPRINT_36/PLAN.md`
+   - `sed -n '220,320p' docs/planning/EPIC_3/PROJECT_PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_36/artifacts/day13-full-validation-sweep.md`
+2. Re-read recent Epic 3 closeout formats so Sprint 36 closeout matches the
+   repo pattern:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_35/HANDOFF.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_35/RETROSPECTIVE.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_34/HANDOFF.md`
+3. Write Sprint 36 closeout docs and route the remaining bounded follow-through
+   into the project plan:
+   - `docs/planning/EPIC_3/SPRINT_36/HANDOFF.md`
+   - `docs/planning/EPIC_3/SPRINT_36/RETROSPECTIVE.md`
+   - `docs/planning/EPIC_3/PROJECT_PLAN.md`
+
+### Day 14 Findings
+
+#### 1. Sprint 36 closes with a validated parity baseline, not a fresh cleanup queue
+
+The handoff now makes the Sprint 36 end state explicit:
+
+- reviewed local direct commands are green
+- reviewed wrapper commands are green
+- reviewed CMake parity commands are green
+- the cross-platform CI contract is explicit rather than Linux-implied
+
+Interpretation:
+
+- Sprint 37 should not reopen Sprint 36 as a contract-discovery sprint
+- Sprint 38 should treat the staged limits as deliberate boundaries, not hidden
+  regressions
+
+#### 2. The remaining later-sprint work is bounded and mostly operational
+
+The real follow-through left after Sprint 36 is:
+
+- Windows local Makefile reviewed-wrapper parity remains staged
+- macOS dead-code remains staged
+- Windows dead-code remains excluded
+- dead-code compile-db exclusions and shared-path isolation remain later-sprint
+  work
+- direct authoritative sweeps should clean `build/` first if a sanitizer path
+  ran immediately before them
+
+Interpretation:
+
+- Sprint 36 did not leave behind a broad parity rework queue
+- the remaining debt is specific enough to route directly into Sprint 37 and
+  Sprint 38 planning
+
+#### 3. The project plan needed only narrow follow-through updates
+
+Day 14 updated `PROJECT_PLAN.md` in two targeted places:
+
+- Sprint 37 now explicitly inherits the Sprint 36 sanitizer/build-tree caveat
+  in:
+  - quality-target normalization
+  - maintainer workflow docs
+- Sprint 38 now explicitly inherits the Sprint 36 staged-boundary contract for:
+  - Windows local Makefile reviewed-wrapper parity
+  - macOS dead-code staging
+  - Windows dead-code exclusion
+
+Interpretation:
+
+- the later plan now carries the real residual constraints without overloading
+  Sprint 37/38 with generic restatements
+
+### Day 14 Interpretation
+
+- Sprint 36 closeout stayed the right size: package the validated parity
+  baseline, name the remaining staged limits, and route only the concrete
+  follow-through into later sprints.
+- No extra validation rerun was needed because Day 14 was docs-only and the
+  closeout is grounded directly in the Day 13 validated end state.
+
+### Day 14 Outputs
+
+- `HANDOFF.md`
+- `RETROSPECTIVE.md`

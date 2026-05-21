@@ -995,7 +995,7 @@ Day 8 replaced `find`-based file discovery in the maintained reviewed path with
 repo-native Makefile file lists and globs:
 
 - `ALL_SRC` now derives from `$(LIB_SRCS)` plus `src/*.h`
-- `ALL_TEST_SRC` now derives from `$(TEST_SRCS)` plus `tests/*.h`
+- `ALL_TEST_SRC` now derives from `tests/*.c` plus `tests/*.h`
 - `ALL_BENCH_SRC` now uses `$(BENCH_SRCS)`
 - `ALL_EX_SRC` now uses `$(EX_SRCS)`
 - `ALL_HEADERS` now uses `include/*.h`
@@ -1007,6 +1007,8 @@ Interpretation:
   reviewed Makefile path
 - the reviewed compile-quality path is now anchored more directly to the same
   repo-native file lists already used for the actual build
+- `tests/smoke_test.c` and future standalone test C files stay under the
+  formatting/checking contract without needing `find`
 
 #### 2. Hardcoded `/bin/mkdir` and `/bin/rm` paths are gone from the maintained path
 

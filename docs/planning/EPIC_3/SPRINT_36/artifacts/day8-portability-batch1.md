@@ -31,7 +31,7 @@ This is a real portability improvement, but it stays intentionally narrow:
 Updated `Makefile` source discovery:
 
 - `ALL_SRC = $(LIB_SRCS) $(wildcard $(SRCDIR)/*.h)`
-- `ALL_TEST_SRC = $(TEST_SRCS) $(wildcard $(TESTDIR)/*.h)`
+- `ALL_TEST_SRC = $(wildcard $(TESTDIR)/*.c) $(wildcard $(TESTDIR)/*.h)`
 - `ALL_BENCH_SRC = $(BENCH_SRCS)`
 - `ALL_EX_SRC = $(EX_SRCS)`
 - `ALL_HEADERS = $(wildcard include/*.h)`
@@ -46,6 +46,9 @@ Why this matters:
 - the repo already maintains explicit build lists
 - reusing those lists is more portable and less fragile than re-discovering the
   files through external `find`
+- the `tests/*.c` glob keeps `tests/smoke_test.c` and future standalone test C
+  files under the formatting/checking contract even though they are not part of
+  `$(TEST_SRCS)`
 - the maintained reviewed path is now closer to the actual build truth source
 
 ### 2. Removed hardcoded absolute Unix tool paths

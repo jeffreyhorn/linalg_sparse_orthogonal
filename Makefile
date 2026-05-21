@@ -410,7 +410,7 @@ sanitize-thread: $(GENERATED_VERSION)
 # the explicit file lists already maintained for build targets are the portable
 # truth source for format/lint coverage too.
 ALL_SRC = $(LIB_SRCS) $(wildcard $(SRCDIR)/*.h)
-ALL_TEST_SRC = $(TEST_SRCS) $(wildcard $(TESTDIR)/*.h)
+ALL_TEST_SRC = $(wildcard $(TESTDIR)/*.c) $(wildcard $(TESTDIR)/*.h)
 ALL_BENCH_SRC = $(BENCH_SRCS)
 ALL_EX_SRC = $(EX_SRCS)
 ALL_HEADERS = $(wildcard include/*.h)

@@ -1,11 +1,23 @@
 name: Windows CI
 
-# Sprint 29 Day 7 (Item 5 start): draft Windows CI matrix.  Builds the
-# library + tests via CMake under MSVC on windows-latest.  The first
-# run may surface portability issues that need source-level fixes;
-# Sprint 29 Day 8 closes any failures.
+# Sprint 36 Day 6/9: Windows CI now frames the current Win32/MSVC
+# contract as an enforced reviewed CMake subset rather than a generic
+# "draft" build/test path.  Windows remains CMake-first for now:
+#   - reviewed CMake configure/build signal
+#   - `ctest -N` visibility into the registered Windows suite
+#   - full `ctest` execution
 #
-# Expected failure modes the Day-8 close targets:
+# Staged but not yet enforced on Windows:
+#   - no `make quality-review-compile`
+#   - no `make quality-review`
+#   - no dead-code path
+#
+# Current staged Windows exclusions remain explicit:
+#   - `test_threads`
+#   - `test_sprint4_integration`
+#   - `test_fuzz`
+#
+# Expected failure modes the Sprint 29 Day-8 close targets:
 #   - clock_gettime / CLOCK_MONOTONIC not available on MSVC (used by
 #     the Sprint 29 Day 6/7 progress timing helpers).
 #   - POSIX-only headers (unistd.h, sys/time.h) included unconditionally.
@@ -21,7 +33,10 @@ on:
 
 jobs:
   build-and-test:
+    name: Windows enforced reviewed CMake subset (MSVC)
     runs-on: windows-latest
+    env:
+      EXPECTED_WINDOWS_CTEST_COUNT: "50"
     steps:
       - uses: actions/checkout@v4
 
@@ -29,14 +44,30 @@ jobs:
       # so no setup step is needed.  MSVC `cl.exe` is available via
       # the Visual Studio environment that GitHub's image initialises.
 
-      - name: CMake configure (MSVC, x64)
+      - name: Run enforced reviewed CMake configure path (MSVC, x64)
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
         shell: pwsh
 
-      - name: CMake build (Release)
+      - name: Run enforced reviewed CMake build path (Release)
         run: cmake --build build --config Release
         shell: pwsh
 
-      - name: CMake test (ctest)
+      - name: Inspect enforced Windows reviewed CTest surface (ctest -N)
+        run: |
+          $ctestOutput = ctest --test-dir build -C Release -N
+          $ctestOutput
+          $line = $ctestOutput | Select-String "Total Tests:"
+          if (-not $line) {
+            throw "Could not find 'Total Tests:' in Windows ctest -N output."
+          }
+          $count = [int]($line.ToString().Split(':')[-1].Trim())
+          Write-Host "Windows CTest registered tests: $count"
+          if ($count -ne [int]$env:EXPECTED_WINDOWS_CTEST_COUNT) {
+            throw "Expected $env:EXPECTED_WINDOWS_CTEST_COUNT Windows CTest tests, got $count."
+          }
+          Write-Host "Windows staged exclusions remain: test_threads, test_sprint4_integration, test_fuzz"
+        shell: pwsh
+
+      - name: Run enforced reviewed CMake execution path (ctest)
         run: ctest --test-dir build -C Release --output-on-failure
         shell: pwsh

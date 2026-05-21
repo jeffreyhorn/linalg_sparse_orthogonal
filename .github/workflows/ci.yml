@@ -1,5 +1,22 @@
 name: CI
 
+# Sprint 36 Day 9: Linux remains the enforced source-of-truth reviewed
+# baseline.  This workflow is intentionally stronger than the current
+# macOS and Windows contracts:
+#   - enforced reviewed Makefile compile-quality path
+#   - enforced reviewed CMake parity path
+#   - enforced dead-code report/check path
+#
+# It also carries Linux-specific supplemental signals that are useful
+# but not yet the cross-platform reviewed contract itself:
+#   - direct runtime + fast-benchmark path
+#   - TSan coverage
+#   - coverage reporting
+#
+# macOS and Windows now document their narrower contracts explicitly in
+# their own workflows rather than inheriting Linux expectations by
+# implication.
+
 on:
   push:
     branches: [main, master]
@@ -8,17 +25,18 @@ on:
 
 jobs:
   build-and-test:
+    name: Linux supplemental runtime and bench-fast path
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build and run tests
+      - name: Run supplemental direct runtime path
         run: make test
 
-      - name: Run UBSan
+      - name: Run supplemental UBSan path
         run: make sanitize
 
-      - name: Run ASan
+      - name: Run supplemental ASan path
         run: make asan
 
       # Sprint 29 Day 13 (Item 8 close): build all benchmark binaries
@@ -28,21 +46,23 @@ jobs:
       # timeout that full `make bench` triggered on PRs #28-32.  Full
       # `make bench` ships as a developer-side opt-in for deep
       # wall-time investigations.
-      - name: Build benchmark binaries (compile-only, no execution)
+      - name: Build supplemental benchmark binaries (compile-only)
         run: make clean && make bench-build
 
-      - name: Run fast benchmark subset (bench-fast)
+      - name: Run supplemental fast benchmark subset (bench-fast)
         run: make bench-fast
 
   cmake-build-and-test:
+    name: Linux enforced reviewed CMake parity path
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run reviewed CMake parity path (clean rebuild + ctest -N + ctest)
+      - name: Run enforced reviewed CMake parity path
         run: make quality-review-cmake
 
   tsan:
+    name: Linux supplemental ThreadSanitizer coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -122,6 +142,7 @@ jobs:
           OMP_NUM_THREADS: "4"
 
   lint:
+    name: Linux enforced reviewed Makefile compile-quality path
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -131,10 +152,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang-format clang-tidy cppcheck
 
-      - name: Run reviewed Makefile compile-quality path (format-check + lint)
+      - name: Run enforced reviewed Makefile compile-quality path
         run: make quality-review-compile
 
   deadcode:
+    name: Linux enforced dead-code report and completeness path
     runs-on: ubuntu-24.04
     env:
       XUNUSED_REF: b81e0ef09f3afc10d44b777a6760d096a34e3568
@@ -166,10 +188,10 @@ jobs:
 
       # Sprint 34 Day 10-12: keep dead-code execution in one serial job
       # so the shared build/artifact paths stay truthful and non-flaky.
-      - name: Generate dead-code report (report.md + report.tsv + raw evidence)
+      - name: Run enforced dead-code report generation
         run: make deadcode-report
 
-      - name: Validate dead-code report completeness
+      - name: Run enforced dead-code completeness check
         run: make deadcode-check
 
       - name: Upload dead-code artifacts on failure or success
@@ -185,6 +207,7 @@ jobs:
             build/deadcode/xunused.txt
 
   coverage:
+    name: Linux supplemental coverage report
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

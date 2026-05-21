@@ -152,7 +152,7 @@ all: $(LIB)
 
 # Build directory
 $(BUILDDIR):
-	/bin/mkdir -p $(BUILDDIR) $(BUILDDIR)/include
+	mkdir -p $(BUILDDIR) $(BUILDDIR)/include
 	@sed -e 's|@SPARSE_VERSION_MAJOR@|$(VERSION_MAJOR)|g' \
 		-e 's|@SPARSE_VERSION_MINOR@|$(VERSION_MINOR)|g' \
 		-e 's|@SPARSE_VERSION_PATCH@|$(VERSION_PATCH)|g' \
@@ -405,11 +405,15 @@ sanitize-thread: $(GENERATED_VERSION)
 # ─── Code quality targets ─────────────────────────────────────────────
 
 # Source files for formatting/linting
-ALL_SRC = $(shell find $(SRCDIR) -type f \( -name '*.c' -o -name '*.h' \))
-ALL_TEST_SRC = $(shell find $(TESTDIR) -type f \( -name '*.c' -o -name '*.h' \))
-ALL_BENCH_SRC = $(shell find $(BENCHDIR) -type f -name '*.c')
-ALL_EX_SRC = $(wildcard $(EXDIR)/*.c)
-ALL_HEADERS = $(shell find include -type f -name '*.h')
+# Sprint 36 Day 8: keep the maintained reviewed Makefile path on repo-native
+# globs instead of external `find` calls.  The source trees here are flat, so
+# the explicit file lists already maintained for build targets are the portable
+# truth source for format/lint coverage too.
+ALL_SRC = $(LIB_SRCS) $(wildcard $(SRCDIR)/*.h)
+ALL_TEST_SRC = $(wildcard $(TESTDIR)/*.c) $(wildcard $(TESTDIR)/*.h)
+ALL_BENCH_SRC = $(BENCH_SRCS)
+ALL_EX_SRC = $(EX_SRCS)
+ALL_HEADERS = $(wildcard include/*.h)
 
 # Format all source files in-place
 .PHONY: format
@@ -428,10 +432,10 @@ format-check:
 lint: build/include/sparse_version.h tooling-build
 	@echo "Compiling with strict warnings (-Werror)..."
 	$(CC) $(CFLAGS) -Wstrict-prototypes -Wformat=2 -Werror \
-		$(INCLUDE) -fsyntax-only $(shell find $(SRCDIR) -type f -name '*.c')
+		$(INCLUDE) -fsyntax-only $(LIB_SRCS)
 	@echo ""
 	@echo "Running clang-tidy..."
-	clang-tidy $(shell find $(SRCDIR) -type f -name '*.c') -- $(INCLUDE) $(CFLAGS)
+	clang-tidy $(LIB_SRCS) -- $(INCLUDE) $(CFLAGS)
 	@echo ""
 	@echo "Running cppcheck..."
 	cppcheck --enable=warning,style,performance,portability --error-exitcode=1 \
@@ -655,7 +659,7 @@ coverage-lcov: clean $(TEST_BINS)
 	done; \
 	if [ $$status -ne 0 ]; then echo "Some tests failed"; exit 1; fi
 	@echo ""
-	@/bin/mkdir -p $(COVDIR)
+	@mkdir -p $(COVDIR)
 	@echo "Collecting coverage data..."
 	lcov --capture --directory $(BUILDDIR) --output-file $(COVDIR)/coverage.info \
 		--ignore-errors mismatch,negative
@@ -703,7 +707,7 @@ coverage-gcovr: clean $(TEST_BINS)
 	done; \
 	if [ $$status -ne 0 ]; then echo "Some tests failed"; exit 1; fi
 	@echo ""
-	@/bin/mkdir -p $(COVDIR)/html
+	@mkdir -p $(COVDIR)/html
 	@echo "Generating HTML report..."
 	@gcovr --gcov-executable=/usr/bin/gcov --root . \
 		--filter 'src/' --exclude 'tests/' --exclude 'benchmarks/' \
@@ -804,5 +808,5 @@ uninstall:
 # Clean
 .PHONY: clean
 clean:
-	/bin/rm -rf $(BUILDDIR) $(COVDIR)
-	/bin/rm -f *.gcda *.gcno *.gcov
+	rm -rf $(BUILDDIR) $(COVDIR)
+	rm -f *.gcda *.gcno *.gcov

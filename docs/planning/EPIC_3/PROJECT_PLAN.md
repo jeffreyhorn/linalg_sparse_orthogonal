@@ -276,10 +276,10 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 |---|------|-------------|----------|
 | 1 | Test helper consolidation | Identify duplicated helper patterns in large test files and consolidate them where that reduces maintenance burden without obscuring test intent. | 24 hrs |
 | 2 | Benchmark helper consolidation | Reduce repeated benchmark CLI/help/utility logic where a shared helper would make behavior more consistent and easier to keep warning-clean. | 20 hrs |
-| 3 | Quality-target normalization | Clean up Makefile target naming and organization for warning, dead-code, formatting, lint, and validation tasks so the workflow is easier to understand and extend. | 20 hrs |
+| 3 | Quality-target normalization | Clean up Makefile target naming and organization for warning, dead-code, formatting, lint, and validation tasks so the workflow is easier to understand and extend. Fold in Sprint 36's operational validation caveat around sanitizer-built `build/` trees so direct/reviewed sweeps are less likely to trip over stale instrumentation artifacts. | 20 hrs |
 | 4 | Large-file maintainability pass | Tackle one or two oversized quality-problem files (for example `tests/test_reorder_nd.c` or other auxiliary hot spots) to improve readability, locality, and future cleanup cost. | 28 hrs |
 | 5 | Comment/documentation cleanup | Remove stale comments or misleading implementation notes in auxiliary code that no longer reflect current behavior. | 16 hrs |
-| 6 | Maintainer workflow docs | Document the intended workflow for running warning/dead-code/compile-quality checks locally before PRs. | 20 hrs |
+| 6 | Maintainer workflow docs | Document the intended workflow for running warning/dead-code/compile-quality checks locally before PRs. Preserve Sprint 36's enforced/staged/supplemental platform contract explicitly, including the clean-build expectation after sanitizer paths and the current Windows/macOS staged limits. | 20 hrs |
 | 7 | Validation | Re-run the main quality/test flows after the maintainability refactor. | 20 hrs |
 
 ### Deliverables
@@ -305,6 +305,9 @@ Epic 3 is intentionally a quality-hardening epic, not a feature-addition epic. T
 - Sprint 34 handoff, which preserves the current dead-code compile-db exclusion
   list (`bench_svd` plus six examples) and the shared-path serialized workflow
   constraint as explicit limitations rather than closed work
+- Sprint 36 handoff, which keeps Windows local Makefile reviewed-wrapper parity
+  staged, macOS dead-code staged, and Windows dead-code excluded rather than
+  falsely treating them as already-enforced cross-platform gates
 - Sprint 37 maintainability cleanup that makes the target set easier to gate
 
 ### Items

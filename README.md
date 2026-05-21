@@ -711,6 +711,29 @@ CMake wrappers are the reviewed parity path for clean rebuild + `ctest -N` +
 full `ctest`; they do **not** replace the Makefile-authoritative formatter,
 static-analysis, or dead-code checks.
 
+### Cross-Platform CI Contract
+
+Sprint 36 makes the platform CI contract explicit instead of leaving macOS and
+Windows to inherit Linux expectations by implication.
+
+| Platform | Enforced | Staged | Supplemental / Excluded |
+|--------|---------|---------|---------------------------|
+| Linux | `make quality-review-compile`; `make quality-review-cmake`; `make deadcode-report`; `make deadcode-check` | none inside the maintained reviewed baseline | direct runtime + `bench-fast`; TSan; coverage |
+| macOS | Apple Clang: `make quality-review-compile`; `make quality-review-cmake`; `make wall-check`; `make sanitize` | dead-code (`make deadcode-report`, `make deadcode-check`) | Homebrew GCC direct `make` + `make test` + `make wall-check`; install/pkg-config validation |
+| Windows | reviewed CMake configure/build; `ctest -N`; full `ctest` | `make quality-review-compile`; `make quality-review`; dead-code | excluded tests: `test_threads`, `test_sprint4_integration`, `test_fuzz` |
+
+Interpretation:
+
+- Linux is still the strongest enforced reviewed baseline.
+- macOS aligns the Apple Clang leg with the reviewed contract while keeping the
+  Homebrew GCC leg as a second-compiler supplemental signal.
+- Windows truthfully exposes a narrower reviewed CMake subset instead of
+  pretending the POSIX-oriented Makefile and dead-code maintainer paths are
+  already portable there.
+- On Windows, that enforced subset is expressed directly in CI as configure +
+  build + `ctest -N` + full `ctest`; it is not yet the same as claiming the
+  full named local Makefile reviewed-wrapper contract.
+
 Operator command map:
 
 - compile-quality only:

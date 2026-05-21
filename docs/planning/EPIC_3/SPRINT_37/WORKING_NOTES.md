@@ -704,3 +704,233 @@ Keep local for now:
 ### Day 3 Outputs
 
 - `artifacts/day3-benchmark-helper-consolidation-audit.md`
+
+## Day 4
+
+**Objective:** Define a clearer quality-target ownership model before changing
+the Makefile layout, with explicit separation between maintained operator entry
+points, helper plumbing, and tree-mutating instrumentation flows, while folding
+in the Sprint 36 sanitizer/build-tree caveat as a first-class design
+constraint.
+
+### Commands Run
+
+1. Re-read the Day 4 plan and inherited Sprint 36 constraint:
+   - `git status --short --branch`
+   - `git rev-parse --short HEAD`
+   - `sed -n '99,128p' docs/planning/EPIC_3/SPRINT_37/PLAN.md`
+   - `cat docs/planning/EPIC_3/SPRINT_36/HANDOFF.md`
+2. Re-read the current quality-target surface in the Makefile:
+   - `sed -n '380,760p' Makefile`
+3. Re-read the current operator-facing quality command map:
+   - `sed -n '680,760p' README.md`
+4. Inventory tree-mutating target behavior and `clean` usage:
+   - `rg -n "^(sanitize|asan|sanitize-all|omp|tsan|coverage-lcov|coverage-gcovr):|clean test|clean \\$\\(TEST_BINS\\)" Makefile`
+5. Inventory the current target entry points by name:
+   - `python3` target-location summary for:
+     - direct gates
+     - reviewed wrappers
+     - dead-code targets
+     - sanitizer/coverage targets
+     - build helpers
+     - `clean`
+
+### Day 4 Findings
+
+#### 1. The repo already has the needed quality targets; the problem is ownership clarity
+
+Current maintained quality/validation surfaces already cover the needed
+behaviors:
+
+- direct atomic gates:
+  - `format`
+  - `format-check`
+  - `lint`
+  - `test`
+  - `check`
+- reviewed wrappers:
+  - `quality-review-compile`
+  - `quality-review`
+  - `quality-review-cmake-compile`
+  - `quality-review-cmake`
+- dead-code surfaces:
+  - `deadcode-compile-db`
+  - `deadcode`
+  - `deadcode-report`
+  - `deadcode-check`
+- supporting validation helpers:
+  - `wall-check`
+  - `warning-workflow`
+- instrumentation / alternate-build flows:
+  - `sanitize`
+  - `asan`
+  - `sanitize-all`
+  - `tsan`
+  - `omp`
+  - `coverage`
+  - `coverage-lcov`
+  - `coverage-gcovr`
+- build plumbing:
+  - `bench-build`
+  - `examples-build`
+  - `tooling-build`
+  - `clean`
+
+Interpretation:
+
+- Sprint 37 does not need more entry points first
+- it needs a clearer target topology and clearer operator ownership rules
+
+#### 2. The correct normalization split is operator entry points vs helper plumbing vs tree-mutating modes
+
+The Day 4 design split is:
+
+Category A — maintained operator entry points
+
+- atomic direct gates:
+  - `format`
+  - `format-check`
+  - `lint`
+  - `test`
+  - `check`
+- reviewed local/CMake wrappers:
+  - `quality-review-compile`
+  - `quality-review`
+  - `quality-review-cmake-compile`
+  - `quality-review-cmake`
+- maintained specialized validation/report surfaces:
+  - `deadcode-report`
+  - `deadcode-check`
+  - `wall-check`
+
+Category B — helper / prerequisite plumbing
+
+- `bench-build`
+- `examples-build`
+- `tooling-build`
+- `deadcode-compile-db`
+- `deadcode`
+- `warning-workflow`
+
+Category C — tree-mutating instrumentation or alternate-build modes
+
+- `sanitize`
+- `asan`
+- `sanitize-all`
+- `tsan`
+- `omp`
+- `coverage`
+- `coverage-lcov`
+- `coverage-gcovr`
+
+Interpretation:
+
+- target normalization should make these categories more obvious in comments,
+  layout, and docs
+- helper targets should not read like peer operator entry points
+- tree-mutating modes should be called out as special modes, not ordinary
+  neighbors of the stable reviewed/direct gates
+
+#### 3. The Sprint 36 sanitizer/build-tree caveat generalizes to a broader “tree-mutating mode” rule
+
+Current Makefile behavior already shows the pattern:
+
+- `sanitize`, `asan`, `sanitize-all`, `omp`, and `tsan` all run through
+  `clean test`
+- `coverage-lcov` and `coverage-gcovr` both run through `clean $(TEST_BINS)`
+
+Interpretation:
+
+- the repo already treats these as alternate build modes that cannot safely
+  reuse the normal object tree without reset
+- Sprint 36's UBSan-aftereffects issue is therefore not isolated to `sanitize`
+  alone
+- the correct normalization rule is:
+  - tree-mutating instrumentation/build-mode targets own a clean-tree reset on
+    entry
+  - maintainers should treat `clean` as the canonical reset when returning from
+    those modes to the normal direct/reviewed path
+
+#### 4. Reviewed wrappers and direct gates should stay semantically stable
+
+The Day 4 design keeps these meanings unchanged:
+
+- `lint` remains the direct compile/static-analysis gate
+- `test` remains the direct runtime gate
+- `check` remains the simple legacy direct aggregate
+- `quality-review-compile` remains the reviewed local compile-quality wrapper
+- `quality-review` remains the reviewed local end-to-end wrapper
+- `quality-review-cmake-compile` remains the reviewed CMake parity wrapper
+- `quality-review-cmake` remains the full reviewed CMake execution wrapper
+- `deadcode-check` remains a sibling quality category, not part of the
+  warning-clean definition itself
+
+Interpretation:
+
+- normalization should improve readability and safety
+- it should not silently repurpose Sprint 34's reviewed contract
+
+#### 5. The simplest safe sanitizer-caveat fix is to normalize around the existing `clean` target, not invent a parallel reset name
+
+Day 4 decision:
+
+- do **not** introduce a second alias like `quality-clean-build` or
+  `reset-build-tree` in the first normalization pass
+- keep `clean` as the single canonical tree reset
+- instead:
+  - make tree-mutating target ownership explicit
+  - make reviewed/direct operator docs point back to `make clean` when
+    returning from instrumentation or alternate-build modes
+  - tighten comments and banners so this is hard to miss
+
+Why:
+
+- a new alias would increase target count without adding new behavior
+- the maintainability problem is ambiguity, not lack of a reset command
+- the existing `clean` target is already understood and widely referenced
+
+#### 6. The next implementation batch should be narrow and comment/layout focused first
+
+Highest-value Day 7 implementation order:
+
+Priority A:
+
+- normalize Makefile comments and section layout around the three target
+  classes:
+  - operator entry points
+  - helper plumbing
+  - tree-mutating modes
+
+Priority B:
+
+- make the tree-mutating-mode rule explicit in:
+  - target comments
+  - reviewed wrapper/operator docs
+  - maintainer workflow docs
+
+Priority C:
+
+- reduce low-value naming or placement ambiguity where it helps:
+  - keep helper targets physically near the operator targets they support
+  - keep dead-code helper/report/check layering easy to see
+
+Avoid in the first batch:
+
+- renaming established Sprint 34 or Sprint 36 targets
+- merging dead-code into reviewed warning-clean semantics
+- claiming fake Windows Makefile parity or fake dead-code universality
+
+### Day 4 Interpretation
+
+- the repo's problem is not missing targets, but a crowded flat quality surface
+  with too little ownership signaling
+- the right normalization contract is a three-way split:
+  - stable operator entry points
+  - helper plumbing
+  - tree-mutating alternate-build modes
+- the Sprint 36 sanitizer caveat should be treated as one instance of the
+  broader tree-mutating-mode rule, with `clean` remaining the canonical reset
+
+### Day 4 Outputs
+
+- `artifacts/day4-quality-target-normalization-design.md`

@@ -119,7 +119,7 @@ make examples   # build standalone example programs
 make docs       # generate Doxygen API reference (requires doxygen)
 make omp        # build and test with OpenMP-enabled parallel SpMV
 make sanitize   # build with undefined-behavior sanitizer
-make coverage   # generate lcov coverage report (requires gcc + lcov + bc)
+make coverage   # default line-coverage report on the active test surface (80% threshold; backend auto-selected)
 make install    # install to PREFIX (default /usr/local)
 make uninstall  # remove installed files
 make clean      # remove build artifacts
@@ -553,7 +553,10 @@ The library is safe for concurrent use under the following contract:
 
 ## Testing
 
-The test suite contains **1453 unit tests** across 42 test suites with >=95% line coverage (CI-enforced):
+The maintained default regression surface currently registers **53** test
+binaries in CTest. Coverage is a separate supplemental signal: the Linux
+coverage job enforces an **80%** line-coverage threshold on `src/` for the
+default instrumented test run, not for every opt-in test path automatically.
 
 - Sparse matrix data structure, norms, symmetry, transpose (53 tests)
 - LU factorization, solve, condition estimation (37 tests)
@@ -600,7 +603,7 @@ make sanitize      # UBSan (undefined behavior)
 make asan          # ASan (address sanitizer) — requires GCC or LLVM clang on macOS
 make sanitize-all  # both ASan + UBSan
 make tsan          # TSan (thread sanitizer) for concurrent tests
-make coverage      # line coverage report (requires gcc + lcov + bc); fails if < 95%
+make coverage      # line coverage report for the default active test surface; fails if < 80%
 ```
 
 ### Test Category Policy
@@ -621,6 +624,16 @@ SPARSE_TEST_EXPERIMENTAL=1 make test
   problem is runtime or fixture cost.
 - `RUN_TEST_EXPERIMENTAL(...)` is for current live behavior on intentionally
   non-default paths that still must pass when enabled.
+- Some suite-local opt-in surfaces also remain valid where a wrapper category is
+  not the right fit. The current maintained example is the large-matrix
+  SuiteSparse path in `tests/test_suitesparse.c`, enabled with:
+
+```bash
+SPARSE_TEST_LARGE=1 make test
+```
+
+That path is live supported test coverage when enabled; it is simply not part
+of the default regression run because of fixture/runtime cost.
 
 Historical measurements, retired targets, and old sprint evidence do not stay in
 normal suite files as commented-out `RUN_TEST(...)` entries. Preserve that

@@ -685,3 +685,115 @@ Best Day 7 design target:
 - improve signal quality and operator clarity inside the current staged model
 - do not turn the advisory report into a stronger correctness gate until the
   compile-db coverage and execution-model limits are addressed
+
+## Day 5
+
+**Objective:** Apply the safest first coverage-honesty cleanup slice from the
+Day 2 audit by fixing the highest-signal README wording drift without changing
+test execution behavior, coverage threshold policy, or reviewed gate semantics.
+
+### Commands Run
+
+1. Re-read the Sprint 38 Day 5 plan section:
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_38/PLAN.md`
+2. Re-read the current README testing/coverage sections before editing:
+   - `sed -n '548,700p' README.md`
+   - `sed -n '110,140p' README.md`
+3. Reconfirm the current maintained CTest count:
+   - `ctest -N --test-dir build/quality-review-cmake`
+4. Reconfirm the exact stale README matches before editing:
+   - `rg -n "1453 unit tests|42 test suites|95% line coverage|CI-enforced|SPARSE_TEST_LARGE|RUN_TEST_SLOW|RUN_TEST_EXPERIMENTAL|make coverage" README.md`
+5. After editing, run a doc sanity sweep against the relevant truth sources:
+   - `rg -n "53|80%|SPARSE_TEST_LARGE|make coverage" README.md`
+   - targeted cross-check against:
+     - `Makefile`
+     - `tests/test_framework.h`
+     - `tests/test_suitesparse.c`
+
+### Day 5 Findings
+
+#### 1. The highest-value coverage-honesty batch really was concentrated in the README
+
+The Day 2 audit was accurate: the strongest current truthfulness drift was not
+distributed across many surfaces. It was concentrated in the highest-visibility
+README language:
+
+- stale top-level suite-count claim
+- stale `95%` threshold claim
+- stale "CI-enforced" wording that could be read too broadly
+- missing mention of the large-matrix live opt-in test surface
+
+Interpretation:
+
+- Day 5 stayed intentionally narrow for the right reason
+- the batch improves the main user/operator truth source without reopening the
+  underlying gate machinery
+
+#### 2. The README now separates default regression execution from supplemental coverage more honestly
+
+The updated README now says directly:
+
+- the maintained default regression surface is `53` registered CTest test
+  binaries
+- coverage is a supplemental signal
+- Linux coverage enforcement is an `80%` line-coverage threshold on `src/` for
+  the default instrumented run path
+
+Interpretation:
+
+- this is a meaningful truthfulness improvement because it removes the old
+  implied equivalence between:
+  - default regression execution
+  - full live test surface
+  - coverage instrumentation
+
+#### 3. The opt-in test contract is now more complete in the main user-facing doc
+
+The README test-category policy already described:
+
+- `RUN_TEST_SLOW(...)`
+- `RUN_TEST_EXPERIMENTAL(...)`
+
+Day 5 added the missing suite-local live opt-in surface:
+
+- `SPARSE_TEST_LARGE=1 make test`
+
+Interpretation:
+
+- the public contract is now closer to the actual repo shape
+- the wrapper-based categories remain the main model, but the README no longer
+  implies they are the only non-default live test surface
+
+#### 4. This batch intentionally did not change behavior, thresholds, or reviewed-gate ownership
+
+Day 5 did **not** change:
+
+- `COV_THRESHOLD = 80`
+- coverage backend selection
+- reviewed local wrapper behavior
+- default `make test` behavior
+- automatic enabling of slow / experimental / large opt-in paths inside
+  `make coverage`
+
+Interpretation:
+
+- this was the right first batch because it improves truthfulness with minimal
+  semantic risk
+- any later stronger changes still need a separate audited justification
+
+#### 5. The residual coverage-honesty queue is now narrower
+
+After Day 5, the remaining Sprint 38 coverage-honesty work is smaller:
+
+- check for nearby docs that still flatten:
+  - default regression execution
+  - opt-in execution
+  - line-coverage instrumentation
+- reinforce in later readiness/report wording that coverage is supplemental,
+  not part of the reviewed baseline
+
+Interpretation:
+
+- the highest-signal README drift is now addressed
+- the remaining queue is mostly secondary consistency work, not another large
+  wording correction batch

@@ -2343,3 +2343,132 @@ implementation branch.
 ### Day 12 Outputs
 
 - `artifacts/day12-focused-validation-and-reconciliation.md`
+
+## Day 13
+
+**Objective:** Run the full maintained validation surface after the Day 12
+focused reconciliation pass and capture the authoritative Sprint 37 pre-close
+baseline across direct gates, reviewed wrapper paths, and reviewed CMake
+parity.
+
+### Commands Run
+
+1. Re-read the Day 13 validation context:
+   - `tail -n 220 docs/planning/EPIC_3/SPRINT_37/WORKING_NOTES.md`
+2. Run the direct maintained gates with timing:
+   - `/usr/bin/time -p make format`
+   - `/usr/bin/time -p make lint`
+   - `/usr/bin/time -p make test`
+3. Run the reviewed local wrapper paths with timing:
+   - `/usr/bin/time -p make quality-review-compile`
+   - `/usr/bin/time -p make quality-review`
+4. Run the reviewed CMake parity paths with timing:
+   - `/usr/bin/time -p make quality-review-cmake-compile`
+   - `/usr/bin/time -p make quality-review-cmake`
+
+### Day 13 Findings
+
+#### 1. The direct maintained gates all passed cleanly on the Day 12-normalized tree
+
+Measured direct-gate results:
+
+- `make format`
+  - passed
+  - `real 2.74`
+- `make lint`
+  - passed
+  - `real 235.65`
+- `make test`
+  - passed
+  - `real 111.30`
+
+Interpretation:
+
+- the helper consolidations and support-path refactors from Sprint 37 did not
+  reopen formatting, compile-quality, or default runtime regressions
+- the Day 12 `make sanitize` followed by `make clean` reset left the branch in
+  the expected normal-tree state
+
+#### 2. The reviewed local wrapper contract still holds end to end
+
+Measured reviewed-wrapper results:
+
+- `make quality-review-compile`
+  - passed
+  - `real 256.69`
+- `make quality-review`
+  - passed
+  - `real 313.09`
+
+Important Day 13 observations:
+
+- `quality-review-compile` still completed as:
+  - `format-check`
+  - `lint`
+- `quality-review` still completed as:
+  - `format-check`
+  - `lint`
+  - `test`
+  - `deadcode-check`
+- the serial dead-code behavior remained correct inside the wrapper path
+
+Interpretation:
+
+- the Day 7 quality-target normalization still preserved operator behavior
+- the Day 9 report-render refactor and Day 11 wording cleanup still did not
+  disturb the actual reviewed local workflow
+- the dead-code shared-path constraint remains operationally real, but the
+  maintained serial wrapper path handles it correctly
+
+#### 3. The reviewed CMake parity path remained exact and fully green
+
+Measured reviewed CMake results:
+
+- `make quality-review-cmake-compile`
+  - passed
+  - `real 47.31`
+- `make quality-review-cmake`
+  - passed
+  - `real 210.24`
+
+Stable parity details:
+
+- `ctest -N` remained `53`
+- Makefile/CMake test-count parity remained `53` vs `53`
+- full reviewed CMake execution passed `53 / 53`
+- `Total Test time (real) = 156.66 sec`
+
+Interpretation:
+
+- Sprint 36’s reviewed CMake parity baseline remains intact through Sprint 37
+- the auxiliary maintainability work did not create hidden divergence between
+  the Makefile-owned and CMake-owned test surfaces
+
+#### 4. Day 13 did not surface any new auxiliary cleanup debt
+
+The full sweep did **not** reveal:
+
+- hidden fallout from the Day 5 shared test-helper extraction
+- hidden fallout from the Day 6 benchmark-helper extraction
+- operator-path regressions from the Day 7 or Day 11 maintainability batches
+- dead-code report/check drift from the Day 9 refactor
+- reviewed CMake parity drift from the Sprint 36 carried baseline
+
+So the residual Sprint 37 queue stays exactly where earlier days placed it:
+
+- intentional non-target large feature-owner files
+- known dead-code serial-only limitation
+- tree-mutating mode reset rule owned by maintainer workflow guidance
+
+### Day 13 Interpretation
+
+- Day 12 did the right preparatory work: the full sweep ran on a normal,
+  reconciled tree with no extra fix cycle needed
+- Sprint 37’s maintainability refactors stayed behavior-preserving across all
+  maintained validation surfaces
+- Day 14 can therefore close the sprint from a validated baseline rather than
+  from an unresolved reconciliation state
+
+### Day 13 Outputs
+
+- `artifacts/day13-full-validation-sweep.md`

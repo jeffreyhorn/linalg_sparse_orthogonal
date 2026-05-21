@@ -254,6 +254,10 @@ if(NOT WIN32)
     add_executable(bench_eigs benchmarks/bench_eigs.c)
     target_link_libraries(bench_eigs PRIVATE sparse_lu_ortho)
 
+    add_executable(bench_svd benchmarks/bench_svd.c)
+    target_link_libraries(bench_svd PRIVATE sparse_lu_ortho)
+    target_include_directories(bench_svd PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
     add_executable(bench_amd_qg benchmarks/bench_amd_qg.c)
     target_link_libraries(bench_amd_qg PRIVATE sparse_lu_ortho)
     target_include_directories(bench_amd_qg PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -269,14 +273,32 @@ target_link_libraries(example_ic_minres PRIVATE sparse_lu_ortho)
 add_executable(example_analysis examples/example_analysis.c)
 target_link_libraries(example_analysis PRIVATE sparse_lu_ortho)
 
+add_executable(example_basic_solve examples/example_basic_solve.c)
+target_link_libraries(example_basic_solve PRIVATE sparse_lu_ortho)
+
 add_executable(example_minnorm examples/example_minnorm.c)
 target_link_libraries(example_minnorm PRIVATE sparse_lu_ortho)
 
 add_executable(example_colamd examples/example_colamd.c)
 target_link_libraries(example_colamd PRIVATE sparse_lu_ortho)
 
+add_executable(example_condition examples/example_condition.c)
+target_link_libraries(example_condition PRIVATE sparse_lu_ortho)
+
 add_executable(example_eigs examples/example_eigs.c)
 target_link_libraries(example_eigs PRIVATE sparse_lu_ortho)
+
+add_executable(example_iterative examples/example_iterative.c)
+target_link_libraries(example_iterative PRIVATE sparse_lu_ortho)
+
+add_executable(example_least_squares examples/example_least_squares.c)
+target_link_libraries(example_least_squares PRIVATE sparse_lu_ortho)
+
+add_executable(example_matrix_free examples/example_matrix_free.c)
+target_link_libraries(example_matrix_free PRIVATE sparse_lu_ortho)
+
+add_executable(example_svd_lowrank examples/example_svd_lowrank.c)
+target_link_libraries(example_svd_lowrank PRIVATE sparse_lu_ortho)
 
 # ─── Installation ────────────────────────────────────────────────────
 

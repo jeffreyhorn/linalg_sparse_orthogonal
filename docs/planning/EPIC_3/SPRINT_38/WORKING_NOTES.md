@@ -686,6 +686,145 @@ Best Day 7 design target:
 - do not turn the advisory report into a stronger correctness gate until the
   compile-db coverage and execution-model limits are addressed
 
+## Day 6
+
+**Objective:** Close the strongest remaining compile-only/dead-code coverage
+gap from the Day 3 audit by bringing the seven named exclusion-list binaries
+under the dead-code CMake compile-db/reporting surface, while keeping the batch
+structural and low-risk.
+
+### Commands Run
+
+1. Re-read the Sprint 38 Day 6 plan section:
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_38/PLAN.md`
+2. Re-read the current CMake benchmark/example registration block:
+   - `sed -n '220,340p' CMakeLists.txt`
+3. Re-read the omitted source files to confirm their CMake target shape:
+   - `sed -n '1,220p' benchmarks/bench_svd.c`
+   - `sed -n '1,200p' examples/example_basic_solve.c`
+   - `sed -n '1,200p' examples/example_condition.c`
+   - `sed -n '1,200p' examples/example_iterative.c`
+   - `sed -n '1,200p' examples/example_least_squares.c`
+   - `sed -n '1,200p' examples/example_matrix_free.c`
+   - `sed -n '1,200p' examples/example_svd_lowrank.c`
+4. Reconfirm the dead-code/report entry points before editing:
+   - `make -n deadcode-report`
+   - `make -n deadcode-check`
+5. Validate the batch after editing:
+   - `make deadcode-report && make deadcode-check`
+   - `python3 -m py_compile scripts/deadcode_report.py`
+   - direct checks of:
+     - `build/deadcode-cmake/compile_commands.json`
+     - `build/deadcode/coverage-notes.txt`
+     - `build/deadcode/report.md`
+     - `build/deadcode/report.tsv`
+
+### Day 6 Findings
+
+#### 1. The strongest Day 3 follow-through was the implementation path, not another documentation-only pass
+
+Day 3 established that the seven named files were already under the maintained
+Makefile compile-only path, but still absent from the dead-code compile
+database. Day 6 chose the stronger follow-through:
+
+- add `bench_svd` to the dead-code CMake benchmark registration surface
+- add the six omitted examples to the dead-code CMake example registration
+  surface
+
+Interpretation:
+
+- Sprint 38 now closes the concrete dead-code/reporting exclusion list instead
+  of just re-describing it more precisely
+
+#### 2. One real target-specific detail surfaced during implementation
+
+The initial `bench_svd` CMake target registration was not sufficient by itself:
+
+- `bench_svd.c` includes the private header:
+  - `sparse_svd_internal.h`
+- so the new target also needed:
+  - private `${CMAKE_CURRENT_SOURCE_DIR}/src` include dirs
+
+Interpretation:
+
+- this was a genuine implementation detail, not a conceptual blocker
+- the final Day 6 batch remains structural and low-risk because the fix stayed
+  localized to target registration
+
+#### 3. The dead-code compile-db coverage gap is now closed for the named Sprint 34 exclusion list
+
+Post-batch artifact truth:
+
+- `build/deadcode/coverage-notes.txt` now reports:
+  - `benchmarks 14`
+  - `examples 12`
+- `missing_benchmarks` is empty
+- `missing_examples` is empty
+
+`build/deadcode/report.md` now reports:
+
+- compile-db translation-unit counts:
+  - `src=25`
+  - `tests=53`
+  - `benchmarks=14`
+  - `examples=12`
+- `## Coverage Gaps`
+  - `No current benchmark/example compile-db coverage gaps are recorded in this run.`
+
+`build/deadcode/report.tsv` bucket counts are now:
+
+- `public-surface-review` = `4`
+- `secondary-candidate-signal` = `35`
+- `non-deadcode-static-analysis-noise` = `6`
+- `coverage-gap` = `0`
+
+Interpretation:
+
+- the Day 3 named exclusion list is now closed in the dead-code/reporting path
+- the remaining dead-code maturity queue is now more cleanly about:
+  - report/check signaling
+  - shared-path serialization
+  - residual `cppcheck` supporting evidence
+
+#### 4. The report wording also needed a small truthfulness adjustment once the gap closed
+
+After the compile-db expansion, the old report intro for `## Coverage Gaps`
+became misleading when the bucket was empty.
+
+Day 6 therefore also updated `scripts/deadcode_report.py` so the markdown now
+switches cleanly between:
+
+- gap-present wording when rows exist
+- `No current benchmark/example compile-db coverage gaps are recorded in this run.`
+  when the bucket is empty
+
+Interpretation:
+
+- this is still part of the compile-only batch because otherwise the new
+  zero-gap state would have been described with stale language
+
+#### 5. The residual compile-only queue is now smaller and better scoped
+
+Closed in Day 6:
+
+- `bench_svd`
+- `example_basic_solve`
+- `example_condition`
+- `example_iterative`
+- `example_least_squares`
+- `example_matrix_free`
+- `example_svd_lowrank`
+
+Still open after Day 6:
+
+- none from the named Sprint 34 compile-db exclusion list
+
+Residual adjacent work belongs to later Sprint 38 days:
+
+- dead-code report/check maturation
+- shared-path serialization / execution-model limits
+- readiness/reporting polish
+
 ## Day 5
 
 **Objective:** Apply the safest first coverage-honesty cleanup slice from the

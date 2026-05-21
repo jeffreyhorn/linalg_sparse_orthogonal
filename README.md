@@ -677,10 +677,6 @@ Interpretation rules:
 
 Current known limits:
 
-- The compilation database used by `xunused` still under-covers part of the
-  Makefile tooling surface. As of Sprint 33 it misses `bench_svd` and six
-  example programs; `build/deadcode/coverage-notes.txt` records the exact list
-  for each run.
 - Run the `deadcode*` targets serially. They share `build/deadcode-cmake` and
   `build/deadcode/`; concurrent invocation can race on the shared CMake build
   tree and produce transient failures.

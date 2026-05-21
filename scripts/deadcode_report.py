@@ -314,10 +314,15 @@ def append_coverage_gaps(lines: list[str], coverage: dict[str, object]) -> None:
     assert isinstance(missing_examples, list)
 
     append_section(lines, "## Coverage Gaps")
-    lines.append(
-        "The current CMake compilation database still under-covers part of the Makefile tooling surface. "
-        "Scanner silence on these paths is not evidence of absence."
-    )
+    if missing_benchmarks or missing_examples:
+        lines.append(
+            "The current CMake compilation database still under-covers part of the Makefile tooling surface. "
+            "Scanner silence on these paths is not evidence of absence."
+        )
+    else:
+        lines.append(
+            "No current benchmark/example compile-db coverage gaps are recorded in this run."
+        )
     lines.append("")
     if missing_benchmarks:
         lines.append("- missing benchmarks:")

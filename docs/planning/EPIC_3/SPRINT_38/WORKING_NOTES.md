@@ -936,3 +936,111 @@ Interpretation:
 - the highest-signal README drift is now addressed
 - the remaining queue is mostly secondary consistency work, not another large
   wording correction batch
+
+## Day 7
+
+**Objective:** Turn the Day 4 audit plus the Day 6 compile-db closure into a
+concrete dead-code maturation design that improves routine signal quality
+without overstating concurrency safety or content-based readiness.
+
+### Commands Run
+
+1. Re-read the Sprint 38 Day 7 plan section:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_38/PLAN.md`
+2. Re-read the Day 4 dead-code audit:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_38/artifacts/day4-deadcode-workflow-maturation-audit.md`
+3. Re-read the current dead-code report after Day 6:
+   - `sed -n '1,220p' build/deadcode/report.md`
+4. Re-check the current dead-code report implementation surface:
+   - `sed -n '1,260p' scripts/deadcode_report.py`
+
+### Day 7 Findings
+
+#### 1. The compile-db closure changes the dead-code design target materially
+
+After Day 6, the dead-code report no longer has the old named benchmark/example
+coverage gap:
+
+- `coverage-gap = 0`
+- `definitely-unused-internal-candidate = 0`
+- `public-surface-review = 4`
+- `secondary-candidate-signal = 35`
+- `non-deadcode-static-analysis-noise = 6`
+
+Interpretation:
+
+- the workflow is now narrower and more stable
+- the next maturity step should improve operator signal inside this cleaner
+  state rather than reopening compile-surface work
+
+#### 2. The strongest remaining dead-code limitation is still execution-model truthfulness
+
+The report is cleaner, but the workflow still depends on shared serialized
+paths:
+
+- `build/deadcode-cmake`
+- `build/deadcode/`
+
+Interpretation:
+
+- Sprint 38 still should not imply concurrent-safe `deadcode*` execution
+- shared-path isolation remains later work, not part of the next report batch
+
+#### 3. The safest Day 8 batch is report/check refinement, not stronger failure logic
+
+The current check boundary still proves:
+
+- report generation succeeded
+- every `xunused` finding was categorized
+- report completeness invariants held
+
+It still does **not** prove:
+
+- zero findings
+- zero `cppcheck` noise
+- cleanup-ready internal removals exist
+- fully parallel-safe execution
+
+Interpretation:
+
+- the next useful step is to make the report/check output say this more
+  directly
+- it is still too early to add content-based pass/fail rules over the
+  `cppcheck` buckets
+
+#### 4. The current next-action wording can now become more direct
+
+With the compile-db gap closed and the internal cleanup queue empty, the report
+can now speak more plainly:
+
+- no current compile-db coverage gaps
+- no current definitely-unused internal cleanup queue
+- public-surface rows are audited keeps
+- `cppcheck` rows remain supporting evidence only
+
+Interpretation:
+
+- this is the highest-value Day 8 improvement because it reduces operator
+  ambiguity without changing the staged contract
+
+#### 5. The Day 8 batch is now tightly bounded
+
+Chosen next batch:
+
+- refine `build/deadcode/report.md` wording/section shape for the zero-gap state
+- refine `deadcode-check` / report messaging only if needed to make the
+  completeness-vs-cleanup boundary more explicit
+- preserve serial authoritative validation:
+  - `make deadcode-report`
+  - `make deadcode-check`
+
+Not in the next batch:
+
+- stronger content-based failure rules
+- shared-path isolation
+- multi-platform dead-code expansion
+- reclassification of public audited keeps into cleanup work
+
+Interpretation:
+
+- the dead-code maturity batch is now small, deliberate, and low-risk

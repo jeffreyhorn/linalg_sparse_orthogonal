@@ -1437,3 +1437,227 @@ Reason:
 ### Day 7 Outputs
 
 - `artifacts/day7-quality-target-normalization-batch1.md`
+
+## Day 8
+
+**Objective:** Audit the largest auxiliary files across tests, benchmarks,
+scripts, docs, and Makefile-adjacent surfaces to separate files that are merely
+large from files whose size reflects real maintainability problems such as
+mixed concerns, helper drift, or review-hostile structure, then define the
+highest-value one-or-two-file cleanup batch for Day 9.
+
+### Commands Run
+
+1. Re-read the Day 8 plan and the Day 1 baseline:
+   - `git status --short --branch`
+   - `sed -n '209,240p' docs/planning/EPIC_3/SPRINT_37/PLAN.md`
+   - `cat docs/planning/EPIC_3/SPRINT_37/artifacts/day1-auxiliary-maintainability-baseline.md`
+2. Inventory the largest auxiliary files across the repo:
+   - `python3` line-count inventory for:
+     - `tests/**/*.c`
+     - `benchmarks/**/*.c`
+     - `scripts/**/*`
+     - `docs/**/*.md`
+     - `Makefile`
+     - `README.md`
+3. Compare candidate structure rather than line count alone:
+   - `python3` marker/function summary for:
+     - `tests/test_chol_csc.c`
+     - `tests/test_svd.c`
+     - `tests/test_ldlt_csc.c`
+     - `tests/test_qr.c`
+     - `tests/test_etree.c`
+     - `tests/test_iterative.c`
+     - `benchmarks/bench_eigs.c`
+     - `benchmarks/bench_main.c`
+     - `Makefile`
+     - `scripts/deadcode_report.py`
+     - `scripts/deadcode_workflow.sh`
+4. Re-read representative candidate files:
+   - `sed -n '1,220p' tests/test_chol_csc.c`
+   - `sed -n '1,220p' benchmarks/bench_eigs.c`
+   - `sed -n '1,220p' scripts/deadcode_report.py`
+   - `sed -n '220,520p' scripts/deadcode_report.py`
+   - `sed -n '1,220p' scripts/deadcode_workflow.sh`
+   - `sed -n '380,845p' Makefile`
+   - `sed -n '680,780p' README.md`
+
+### Day 8 Findings
+
+#### 1. The largest files are not automatically the best refactor targets
+
+The raw line-count leaders are dominated by tests:
+
+- `tests/test_chol_csc.c` = `4,643`
+- `tests/test_svd.c` = `3,712`
+- `tests/test_ldlt_csc.c` = `3,637`
+- `tests/test_qr.c` = `3,259`
+- `tests/test_etree.c` = `2,890`
+- `tests/test_iterative.c` = `2,796`
+
+But those files are not just large; they are also strongly sectioned behavior
+owners:
+
+- `tests/test_chol_csc.c`
+  - `155` static functions
+  - `138` section/marker lines
+- `tests/test_svd.c`
+  - `99` static functions
+  - `115` section/marker lines
+- `tests/test_ldlt_csc.c`
+  - `123` static functions
+  - `142` section/marker lines
+
+Interpretation:
+
+- these files are expensive to navigate, but they are also heavily structured
+  and map closely to broad feature surfaces
+- under the repo’s one-binary-per-test-source build model, mechanical splitting
+  would introduce more ownership and build-model complexity than Day 8 justifies
+- they are large, but not the clearest first maintainability win
+
+#### 2. The strongest Day 9 targets are mixed-concern auxiliary files, not the longest tests
+
+Two files stood out as large **and** structurally mixed:
+
+##### `Makefile`
+
+- `845` lines
+- `39` `.PHONY` declarations
+- about `101` target-like rule lines
+
+Why it is a stronger maintainability target than its raw size alone suggests:
+
+- it mixes:
+  - build products
+  - direct quality gates
+  - reviewed wrappers
+  - helper plumbing
+  - dead-code workflow layering
+  - instrumentation / sanitizer / coverage modes
+  - install / pkg-config logic
+- even after Day 7’s ownership pass, the file still concentrates too many
+  operational surfaces in one place
+- review locality is weak: small target changes still require large-context
+  rereads because the file is a broad command map as well as the implementation
+
+##### `scripts/deadcode_report.py`
+
+- `472` lines
+- `15` top-level functions
+
+Why it is a stronger maintainability target than its raw size alone suggests:
+
+- it combines several responsibilities in one file:
+  - parsing coverage notes
+  - parsing `xunused`
+  - parsing `cppcheck`
+  - classification policy
+  - TSV generation
+  - markdown rendering
+  - validator logic
+- the file has very low visual section signaling compared with the larger tests
+- Sprint 33 / 34 / 36 added capability incrementally, so the script now reads
+  as a layered workflow core rather than one clear single-purpose utility
+
+Interpretation:
+
+- these two files are not the largest in the repo
+- they are the clearest mixed-concern maintainability surfaces
+
+#### 3. `scripts/deadcode_workflow.sh` is not a first-pass large-file refactor target
+
+`scripts/deadcode_workflow.sh` is only `189` lines and still reads as a fairly
+cohesive workflow runner:
+
+- prerequisite checks
+- compile-db validation
+- coverage-note write
+- `cppcheck` run
+- `xunused` run
+
+It has complexity, but not the same mixed-concern sprawl as:
+
+- `Makefile`
+- `scripts/deadcode_report.py`
+
+Interpretation:
+
+- it can stay in the residual queue
+- it is not the highest-value Day 9 target
+
+#### 4. The large benchmark owners are real, but they are not the best structural cleanup target yet
+
+Largest benchmark files:
+
+- `benchmarks/bench_eigs.c` = `958`
+- `benchmarks/bench_main.c` = `774`
+
+Those files are genuinely large, but they still read as behavior-owner CLIs:
+
+- `bench_eigs.c`
+  - owns multi-mode eigensolver CLI/report behavior
+  - size comes from real sweep / compare / single-matrix behavior breadth
+- `bench_main.c`
+  - owns the narrower solver-harness benchmark contract from Sprint 31
+
+Interpretation:
+
+- they may deserve later cleanup
+- but they are not as strong a first large-file maintainability target as the
+  mixed-concern `Makefile` + dead-code reporting surfaces
+
+#### 5. Very large sprint working notes and planning docs are intentionally long and should not drive the refactor batch
+
+The repo contains many very large planning docs and sprint working notes, for
+example:
+
+- `docs/planning/EPIC_3/SPRINT_34/WORKING_NOTES.md` = `2,076`
+- `docs/algorithm.md` = `1,508`
+- `docs/planning/EPIC_3/SPRINT_37/WORKING_NOTES.md` = `1,439`
+
+Interpretation:
+
+- these are intentionally archival / narrative surfaces
+- they are not the right Day 9 maintainability target
+- refactoring them for line count alone would not materially improve the active
+  code-maintenance workflow
+
+#### 6. The highest-value Day 9 batch is now well-bounded
+
+Recommended Day 9 target set:
+
+Priority A:
+
+- `Makefile`
+
+Priority B:
+
+- `scripts/deadcode_report.py`
+
+Intended shape of the Day 9 cleanup:
+
+- structural simplification
+- clearer sectioning / helper boundaries
+- local helper extraction or layout cleanup where it reduces reread cost
+- no behavior change
+
+Avoid for Day 9:
+
+- splitting giant feature-owner tests mechanically
+- broad benchmark CLI refactors
+- narrative/planning doc churn
+
+### Day 8 Interpretation
+
+- line count alone would have pointed at giant tests, but the better
+  maintainability targets are the mixed-concern auxiliary surfaces
+- the strongest Day 9 cleanup batch is now explicit and bounded:
+  - `Makefile`
+  - `scripts/deadcode_report.py`
+- the large tests and large benchmark owners remain in the residual queue, but
+  they are not the best first structural cleanup win
+
+### Day 8 Outputs
+
+- `artifacts/day8-large-file-maintainability-audit.md`

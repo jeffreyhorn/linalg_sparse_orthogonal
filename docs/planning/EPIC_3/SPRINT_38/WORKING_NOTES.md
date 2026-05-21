@@ -1272,3 +1272,99 @@ Interpretation:
 - the next expansion is real but low-risk
 - it improves local regression-proofing and future readiness-checklist clarity
   without destabilizing current CI or platform-truthfulness boundaries
+
+## Day 10
+
+**Objective:** Implement the smallest meaningful next-tier gate expansion from
+the Day 9 design by adding one explicit local aggregate wrapper over the
+already-stable reviewed Makefile and reviewed CMake paths.
+
+### Commands Run
+
+1. Re-read the Sprint 38 Day 10 design note:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_38/artifacts/day9-quality-gate-expansion-design.md`
+2. Re-read the current reviewed wrapper surfaces before editing:
+   - `sed -n '470,560p' Makefile`
+   - `sed -n '100,140p' README.md`
+   - `sed -n '688,722p' README.md`
+3. Validate the new aggregate wrapper wiring:
+   - `make -n quality-review-full`
+4. Validate the new aggregate wrapper live:
+   - `make quality-review-full`
+
+### Day 10 Findings
+
+#### 1. The new gate expansion is real, but it stays entirely within the existing reviewed contract
+
+The new top-level wrapper is:
+
+- `make quality-review-full`
+
+It runs:
+
+- `make quality-review`
+- `make quality-review-cmake`
+
+Interpretation:
+
+- Sprint 38 expanded regression protection in one concrete area
+- it did so without inventing any new lower-level gate semantics
+
+#### 2. The wrapper makes the strongest local reviewed baseline explicit
+
+Before Day 10, the full local reviewed baseline existed but required maintainers
+to remember two separate top-level commands.
+
+After Day 10:
+
+- one command now names the strongest local reviewed baseline directly
+- the README command map now reflects that explicitly
+
+Interpretation:
+
+- this is a small but meaningful reduction in routine regression-proofing drift
+- it also sets up the later readiness checklist more cleanly
+
+#### 3. Failure attribution stayed clear because the wrapper remained serial and bannered
+
+The new wrapper preserves the same Day 9 design principles:
+
+- serial execution
+- explicit banners
+- direct rerun guidance:
+  - `make quality-review`
+  - `make quality-review-cmake`
+
+Interpretation:
+
+- the expansion remains attributable
+- the wrapper does not hide which half of the local reviewed baseline failed
+
+#### 4. The batch preserved the Sprint 36 enforced/staged/excluded contract
+
+Day 10 intentionally did **not** change:
+
+- Linux CI job ownership
+- macOS dead-code staging
+- Windows local Makefile reviewed-wrapper staging
+- Windows dead-code exclusion
+- coverage being supplemental rather than part of the reviewed baseline
+
+Interpretation:
+
+- the expansion strengthened local routine use without collapsing the
+  cross-platform honesty model
+
+#### 5. The live reviewed baseline passed under the new wrapper
+
+`make quality-review-full` passed end to end:
+
+- reviewed Makefile path passed
+- reviewed CMake parity path passed
+- `ctest -N` remained `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+
+Interpretation:
+
+- the new wrapper is not just a naming change
+- it is a validated aggregate over the maintained local reviewed baseline

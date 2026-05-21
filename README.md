@@ -109,6 +109,7 @@ make lint       # strict compile + static analysis (includes tooling-build)
 make quality-review-compile  # reviewed format-check + lint wrapper
 make test       # run all unit tests
 make quality-review  # reviewed format-check + lint + test + deadcode-check
+make quality-review-full  # strongest local reviewed baseline: quality-review + quality-review-cmake
 make quality-review-cmake-compile  # reviewed CMake configure + rebuild + ctest -N
 make quality-review-cmake  # reviewed CMake configure + rebuild + ctest -N + ctest
 make deadcode   # refresh raw dead-code evidence in build/deadcode/
@@ -688,6 +689,7 @@ Reviewed local wrappers sit above the existing direct quality commands:
 ```bash
 make quality-review-compile
 make quality-review
+make quality-review-full
 make quality-review-cmake-compile
 make quality-review-cmake
 ```
@@ -700,6 +702,9 @@ make quality-review-cmake
   - `make lint`
   - `make test`
   - `make deadcode-check`
+- `make quality-review-full` runs:
+  - `make quality-review`
+  - `make quality-review-cmake`
 - `make quality-review-cmake-compile` runs:
   - `cmake -S . -B build/quality-review-cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`
   - `cmake --build build/quality-review-cmake --parallel 1 --clean-first`
@@ -712,6 +717,7 @@ These wrappers are additive. They do **not** replace `make check`, `make lint`,
 `make test`, or `make deadcode-check`.
 
 - `quality-review-compile` / `quality-review` are the reviewed Makefile path
+- `quality-review-full` is the strongest local reviewed baseline command
 - `quality-review-cmake-compile` / `quality-review-cmake` are the reviewed
   CMake parity path for clean rebuild + `ctest -N` + full `ctest`
 - the CMake wrappers do **not** replace the Makefile-authoritative formatter,

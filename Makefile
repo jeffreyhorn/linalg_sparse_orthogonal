@@ -485,7 +485,7 @@ check: format-check lint test
 # never driven as a sibling prerequisite branch under `make -j`.
 QUALITY_REVIEW_CMAKE_DIR ?= build/quality-review-cmake
 
-.NOTPARALLEL: quality-review-compile quality-review quality-review-cmake-compile quality-review-cmake deadcode-compile-db deadcode deadcode-report deadcode-check
+.NOTPARALLEL: quality-review-compile quality-review quality-review-cmake-compile quality-review-cmake quality-review-full deadcode-compile-db deadcode deadcode-report deadcode-check
 .PHONY: quality-review-compile
 quality-review-compile:
 	@echo "quality-review-compile: reviewed compile-quality path"
@@ -544,6 +544,17 @@ quality-review-cmake:
 	@echo "== quality-review-cmake: ctest =="
 	ctest --test-dir "$(QUALITY_REVIEW_CMAKE_DIR)" --output-on-failure
 	@echo "quality-review-cmake: passed (configure + clean rebuild + ctest -N + ctest)"
+
+.PHONY: quality-review-full
+quality-review-full:
+	@echo "quality-review-full: strongest local reviewed baseline"
+	@echo "quality-review-full: rerun failing phases directly with 'make quality-review' or 'make quality-review-cmake'"
+	@echo "quality-review-full: if you are returning from sanitize/asan/sanitize-all/tsan/omp/coverage*, reset first with 'make clean'"
+	@echo "== quality-review-full: Makefile reviewed path =="
+	@$(MAKE) quality-review
+	@echo "== quality-review-full: CMake reviewed parity path =="
+	@$(MAKE) quality-review-cmake
+	@echo "quality-review-full: passed (quality-review + quality-review-cmake)"
 
 # ─── Helper / prerequisite plumbing for the quality surface ───────────
 #

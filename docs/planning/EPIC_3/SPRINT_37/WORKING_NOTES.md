@@ -2472,3 +2472,119 @@ So the residual Sprint 37 queue stays exactly where earlier days placed it:
 ### Day 13 Outputs
 
 - `artifacts/day13-full-validation-sweep.md`
+
+## Day 14
+
+**Objective:** Close Sprint 37 from the Day 13 validated baseline, convert the
+maintainability work into explicit handoff guidance for later Epic 3 sprints,
+and only route forward work into `PROJECT_PLAN.md` if Sprint 37 surfaced a real
+missing deferred item.
+
+### Commands Run
+
+1. Re-read the Day 14 closeout scope and current downstream plan sections:
+   - `tail -n 260 docs/planning/EPIC_3/SPRINT_37/WORKING_NOTES.md`
+   - `sed -n '260,360p' docs/planning/EPIC_3/PROJECT_PLAN.md`
+2. Re-open recent handoff/retrospective patterns for consistency:
+   - `sed -n '1,240p' docs/planning/EPIC_3/SPRINT_36/HANDOFF.md`
+   - `sed -n '1,240p' docs/planning/EPIC_3/SPRINT_36/RETROSPECTIVE.md`
+   - `sed -n '1,240p' docs/planning/EPIC_3/SPRINT_35/HANDOFF.md`
+3. Write Sprint 37 closeout docs:
+   - `docs/planning/EPIC_3/SPRINT_37/HANDOFF.md`
+   - `docs/planning/EPIC_3/SPRINT_37/RETROSPECTIVE.md`
+
+### Day 14 Findings
+
+#### 1. Sprint 37 closes from a validated maintainability baseline, not from a cleanup queue
+
+Day 13 already established the authoritative close state:
+
+- `make format`: passed
+- `make lint`: passed
+- `make test`: passed
+- `make quality-review-compile`: passed
+- `make quality-review`: passed
+- `make quality-review-cmake-compile`: passed
+- `make quality-review-cmake`: passed
+- `ctest -N`: `53`
+- full reviewed CMake `ctest`: `53 / 53` passed
+
+Interpretation:
+
+- Sprint 37 did not degrade the Sprint 34 reviewed local/CMake quality
+  baseline
+- Sprint 36’s cross-platform contract remains intact
+- the sprint therefore hands off maintainability improvements, not a repair
+  queue
+
+#### 2. The strongest Sprint 37 result is narrower ownership and lower duplication in auxiliary surfaces
+
+The sprint materially improved the non-core maintenance surfaces without trying
+to turn them into a new framework:
+
+- Day 5:
+  - residual helpers consolidated into `tests/test_solver_helpers.h`
+- Day 6:
+  - backend-comparison helper pair consolidated into
+    `benchmarks/bench_backend_compare_helpers.h`
+- Day 7:
+  - quality-target ownership clarified in `Makefile` and `README.md`
+- Day 9:
+  - repeated test-running loops and dead-code report rendering were split into
+    smaller helper structure
+- Day 11:
+  - workflow/dead-code/README maintainer docs were compressed without changing
+    contract
+
+Interpretation:
+
+- Sprint 37 achieved its goal by making the repo cheaper to keep clean, not by
+  opening a new abstraction layer or broad shared runtime/helper framework
+
+#### 3. The remaining caveats are already known and already routed forward
+
+The closeout review did **not** reveal a new missing deferred item.
+
+Still true after Sprint 37:
+
+- dead-code remains authoritative only in serial mode because of shared-path
+  execution
+- tree-mutating instrumentation modes still require `make clean` before
+  returning to the normal direct/reviewed path
+- Windows local Makefile reviewed-wrapper parity remains staged
+- macOS dead-code remains staged
+- Windows dead-code remains excluded
+- the dead-code compile-db exclusion list remains later work
+
+But these were already carried by Sprint 38 / Sprint 39 planning and the
+Sprint 36 handoff. Sprint 37 did not add a new class of deferred work beyond
+those existing later-sprint responsibilities.
+
+#### 4. `PROJECT_PLAN.md` does not need a Sprint 37 closeout patch
+
+I rechecked the Sprint 37-39 plan sections against the actual end state.
+
+No new routing patch was justified because:
+
+- Sprint 38 already inherits Sprint 37 maintainability cleanup as a
+  prerequisite
+- Sprint 38 already owns dead-code maturation, compile-db gap closure, and
+  gate expansion
+- Sprint 39 already owns final standards/documentation closeout and final
+  dead-code audit
+
+So Day 14 closes without modifying `PROJECT_PLAN.md`.
+
+### Day 14 Interpretation
+
+- Sprint 37 succeeded by making auxiliary code easier to maintain while
+  preserving the validated quality contract
+- the sprint did not reopen large feature-owner files as mandatory refactor
+  debt
+- the remaining queue is still later-sprint gate/readiness work, not new
+  Sprint 37 fallout
+
+### Day 14 Outputs
+
+- `HANDOFF.md`
+- `RETROSPECTIVE.md`

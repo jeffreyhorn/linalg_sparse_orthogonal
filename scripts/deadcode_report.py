@@ -321,7 +321,8 @@ def append_coverage_gaps(lines: list[str], coverage: dict[str, object]) -> None:
         )
     else:
         lines.append(
-            "No current benchmark/example compile-db coverage gaps are recorded in this run."
+            "No current benchmark/example compile-db coverage gaps are recorded in this run. "
+            "The dead-code compile database currently covers the maintained benchmark/example tooling surface."
         )
     lines.append("")
     if missing_benchmarks:
@@ -340,7 +341,9 @@ def append_internal_candidates(lines: list[str], rows: list[Row]) -> None:
     if rows:
         append_symbol_rows(lines, rows)
     else:
-        lines.append("- None currently classified in this bucket.")
+        lines.append(
+            "- No current definitely-unused internal cleanup batch is classified in this run."
+        )
     lines.append("")
 
 
@@ -354,7 +357,7 @@ def append_public_surface_items(lines: list[str], rows: list[Row]) -> None:
         if reviewed_keeps:
             lines.append(
                 "These symbols remain in the public-surface bucket because they are exported through installed "
-                "headers. The current Day 8 audit outcome for all listed rows is `keep`, not cleanup."
+                "headers. The current audited outcome for all listed rows is `keep`, not cleanup."
             )
         else:
             lines.append(
@@ -375,7 +378,8 @@ def append_secondary_signals(
     if top_secondary:
         lines.append(
             "These are supporting signals only. They stay out of the cleanup queue until a later pass confirms "
-            "that they represent real dead-code opportunities rather than broad static-analysis noise."
+            "that they represent real dead-code opportunities rather than broad static-analysis noise. "
+            "They are not direct removal instructions or pass/fail criteria in the current staged workflow."
         )
         lines.append("")
         for source, total, details in top_secondary[:10]:
@@ -401,12 +405,14 @@ def append_next_action_queue(lines: list[str], internal: list[Row], public: list
         internal_symbols = ", ".join(f"`{row[2]}`" for row in internal)
         lines.append(f"- remaining definitely-unused internal queue: {internal_symbols}.")
     else:
-        lines.append("- remaining definitely-unused internal queue: none.")
+        lines.append("- remaining definitely-unused internal queue: none in the current report.")
 
     if public:
         public_symbols = ", ".join(f"`{row[2]}`" for row in public)
         if public_bucket_reviewed_keeps(public):
-            lines.append(f"- public-surface reviewed keeps: {public_symbols}.")
+            lines.append(
+                f"- public-surface audited keeps remain visible for context, not cleanup: {public_symbols}."
+            )
         else:
             lines.append(f"- public-surface review items: {public_symbols}.")
     else:
@@ -414,6 +420,9 @@ def append_next_action_queue(lines: list[str], internal: list[Row], public: list
 
     lines.append(
         "- `cppcheck` secondary signals remain supporting evidence only; they stay summarized for future review work, not as direct removal instructions."
+    )
+    lines.append(
+        "- authoritative dead-code validation remains serialized through `make deadcode-report` and `make deadcode-check`."
     )
 
 

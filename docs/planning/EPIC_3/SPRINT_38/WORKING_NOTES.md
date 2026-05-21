@@ -1044,3 +1044,108 @@ Not in the next batch:
 Interpretation:
 
 - the dead-code maturity batch is now small, deliberate, and low-risk
+
+## Day 8
+
+**Objective:** Implement the first dead-code maturation batch by refining the
+report/check signal for the current zero-gap state without changing bucket
+semantics, adding content-based failure logic, or implying concurrent-safe
+execution.
+
+### Commands Run
+
+1. Re-read the Sprint 38 Day 8 design note:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_38/artifacts/day7-deadcode-workflow-maturation-design.md`
+2. Re-read the current report generator and operator-facing messages:
+   - `sed -n '1,260p' scripts/deadcode_report.py`
+   - `sed -n '600,635p' Makefile`
+3. Re-read the current rendered report before editing:
+   - `sed -n '1,220p' build/deadcode/report.md`
+4. Authoritative serial validation after editing:
+   - `python3 -m py_compile scripts/deadcode_report.py`
+   - `make deadcode-report`
+   - `make deadcode-check`
+
+### Day 8 Findings
+
+#### 1. The Day 8 batch improved signal quality without changing any bucket semantics
+
+The batch changed wording and next-action structure only:
+
+- no bucket names changed
+- no classifier rules changed
+- no `deadcode-check` content-based failure logic changed
+
+Interpretation:
+
+- the dead-code workflow remains the same staged completeness gate
+- the batch reduced operator ambiguity without creating new cleanup claims
+
+#### 2. The zero-gap state is now described directly as closure, not lingering debt
+
+The rendered `## Coverage Gaps` section now says:
+
+- no current benchmark/example compile-db gaps are recorded
+- the dead-code compile database currently covers the maintained
+  benchmark/example tooling surface
+
+Interpretation:
+
+- this closes the old Sprint 34 exclusion-list story explicitly in the report
+- the workflow no longer reads like it is still waiting on that compile-db gap
+
+#### 3. The empty internal queue is now described as an empty cleanup batch
+
+The rendered `## Definitely-Unused Internal Candidates` section now says:
+
+- no current definitely-unused internal cleanup batch is classified in this run
+
+Interpretation:
+
+- this is more useful than the older generic "none in this bucket" wording
+- it makes the current actionable state clearer for maintainers skimming the
+  report
+
+#### 4. Supporting evidence and audited keeps are now framed more explicitly as non-actionable
+
+The report now says more directly:
+
+- public rows are audited keeps, not cleanup
+- `cppcheck` secondary signals are not direct removal instructions or pass/fail
+  criteria
+- the next-action queue keeps those rows visible for context rather than
+  implying a pending removal batch
+
+Interpretation:
+
+- this was the highest-value signal refinement left after the Day 6 compile-db
+  closure
+- the report now better matches the real staged boundary
+
+#### 5. The operator-facing `deadcode-check` message now matches the staged contract more closely
+
+`make deadcode-check` now ends with:
+
+- report completeness checks passed
+- not a zero-findings gate
+- authoritative execution remains serialized
+
+Interpretation:
+
+- this aligns the target output with the actual workflow contract
+- it reduces the risk of reading a successful check as "no dead-code evidence
+  remains"
+
+#### 6. The residual dead-code queue is now narrower and cleaner
+
+Still remaining after Day 8:
+
+- shared-path serialization / execution-model limits
+- future review of `cppcheck` supporting evidence and summarized noise
+- later readiness/reporting integration work
+
+Closed by Day 8:
+
+- zero-gap report wording drift
+- generic empty-queue wording drift
+- ambiguous `deadcode-check` success wording

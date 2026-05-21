@@ -620,8 +620,8 @@ deadcode-check: $(DEADCODE_REPORT_STAMP)
 	@python3 scripts/deadcode_report.py \
 		--check \
 		"$(DEADCODE_ARTIFACTS_DIR)"
-	@echo "deadcode-check: report completeness checks passed."
-	@echo "deadcode-check: findings may still exist; inspect $(DEADCODE_REPORT_MD) and $(DEADCODE_REPORT_TSV)."
+	@echo "deadcode-check: report completeness checks passed (not a zero-findings gate)."
+	@echo "deadcode-check: authoritative execution remains serialized; inspect $(DEADCODE_REPORT_MD) and $(DEADCODE_REPORT_TSV)."
 
 # Maintained specialized validation gate: performance regression check.
 #

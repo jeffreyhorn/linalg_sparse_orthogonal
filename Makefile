@@ -210,14 +210,28 @@ examples: examples-build
 smoke: $(BUILDDIR)/smoke_test
 	$(BUILDDIR)/smoke_test
 
+define RUN_TEST_BINS_WITH_BANNERS
+	@status=0; \
+	for t in $(TEST_BINS); do \
+		echo "=== Running $$(basename $$t) ==="; \
+		$$t || status=1; \
+		echo; \
+	done; \
+	if [ $$status -ne 0 ]; then echo "Some tests failed"; exit 1; fi
+endef
+
+define RUN_TEST_BINS_QUIET
+	@status=0; \
+	for t in $(TEST_BINS); do \
+		$$t || status=1; \
+	done; \
+	if [ $$status -ne 0 ]; then echo "Some tests failed"; exit 1; fi
+endef
+
 # Run all tests
 .PHONY: test
 test: $(TEST_BINS)
-	@for t in $(TEST_BINS); do \
-		echo "=== Running $$(basename $$t) ==="; \
-		$$t || exit 1; \
-		echo; \
-	done
+	$(RUN_TEST_BINS_WITH_BANNERS)
 	@echo "All tests passed."
 
 # Run benchmarks
@@ -686,11 +700,7 @@ coverage-lcov: LDFLAGS += --coverage
 coverage-lcov: clean $(TEST_BINS)
 	@echo "Coverage backend: lcov (CC=$(CC))"
 	@echo "Running tests for coverage..."
-	@status=0; \
-	for t in $(TEST_BINS); do \
-		$$t || status=1; \
-	done; \
-	if [ $$status -ne 0 ]; then echo "Some tests failed"; exit 1; fi
+	$(RUN_TEST_BINS_QUIET)
 	@echo ""
 	@mkdir -p $(COVDIR)
 	@echo "Collecting coverage data..."
@@ -734,11 +744,7 @@ coverage-gcovr: clean $(TEST_BINS)
 		exit 1; \
 	fi
 	@echo "Running tests for coverage..."
-	@status=0; \
-	for t in $(TEST_BINS); do \
-		$$t || status=1; \
-	done; \
-	if [ $$status -ne 0 ]; then echo "Some tests failed"; exit 1; fi
+	$(RUN_TEST_BINS_QUIET)
 	@echo ""
 	@mkdir -p $(COVDIR)/html
 	@echo "Generating HTML report..."

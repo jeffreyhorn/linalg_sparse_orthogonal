@@ -1661,3 +1661,176 @@ Avoid for Day 9:
 ### Day 8 Outputs
 
 - `artifacts/day8-large-file-maintainability-audit.md`
+
+## Day 9
+
+**Objective:** Implement the first large-file maintainability refactor batch on
+the two mixed-concern auxiliary surfaces chosen on Day 8, improve structure
+without changing behavior, and leave the residual queue narrower and explicit.
+
+### Commands Run
+
+1. Re-read the Day 9 plan and Day 8 target selection:
+   - `sed -n '214,250p' docs/planning/EPIC_3/SPRINT_37/PLAN.md`
+   - `cat docs/planning/EPIC_3/SPRINT_37/artifacts/day8-large-file-maintainability-audit.md`
+2. Inspect the current target shapes before editing:
+   - `sed -n '1,240p' scripts/deadcode_report.py`
+   - `sed -n '240,520p' scripts/deadcode_report.py`
+   - `sed -n '140,360p' Makefile`
+   - `sed -n '360,780p' Makefile`
+   - `rg -n "for t in \\$\\(TEST_BINS\\)|Some tests failed|All tests passed" Makefile`
+3. Apply the Day 9 structural cleanup:
+   - shared `Makefile` test-loop helpers for `test`, `coverage-lcov`, and
+     `coverage-gcovr`
+   - `scripts/deadcode_report.py` markdown-render helper extraction
+4. Revalidate the touched support paths directly:
+   - `python3 -m py_compile scripts/deadcode_report.py`
+   - `make test`
+   - `make deadcode-report`
+   - `make deadcode-check`
+5. Capture post-change shape details for the notes:
+   - `wc -l Makefile scripts/deadcode_report.py`
+   - `python3` function-count scan over `scripts/deadcode_report.py`
+   - `python3` line-location scan for the new Makefile test-loop helpers
+
+### Day 9 Findings
+
+#### 1. The right Day 9 maintainability win was helper extraction, not file splitting
+
+Day 8's target choice held up under implementation:
+
+- `Makefile` still benefits more from internal structure cleanup than from
+  artificial splitting
+- `scripts/deadcode_report.py` still benefits more from internal phase
+  boundaries than from behavior or CLI changes
+
+The shipped batch therefore stayed deliberately narrow:
+
+- one shared test-loop seam in `Makefile`
+- one shared markdown-section seam in `scripts/deadcode_report.py`
+
+Interpretation:
+
+- this is a maintainability batch, not a shrink-the-file-count batch
+- line count alone did not improve, but reread locality did
+
+#### 2. `Makefile` now has one authoritative maintained test-run loop instead of three near-copies
+
+The direct `test` target and both coverage targets previously each carried
+their own all-test execution loop.
+
+Day 9 replaced that drift-prone repetition with two named helpers:
+
+- `RUN_TEST_BINS_WITH_BANNERS`
+- `RUN_TEST_BINS_QUIET`
+
+Current landing points:
+
+- helper definitions at lines `213` and `223`
+- `test` target uses the bannered helper
+- `coverage-lcov` and `coverage-gcovr` use the quiet helper
+
+Behavior stayed the same:
+
+- `test` still prints per-binary banners and ends with `All tests passed.`
+- coverage paths still fail the same way on any failing test binary
+- no target names or operator entry points changed
+
+Interpretation:
+
+- the maintained test-bin execution contract now has one clear ownership point
+- future edits to failure handling or shared loop behavior no longer require
+  three synchronized changes
+
+#### 3. `scripts/deadcode_report.py` now reads as sectioned report assembly instead of one long markdown block
+
+The script remains a single utility, but its markdown-render phase is no longer
+one large mixed block.
+
+Day 9 extracted the major report sections into dedicated helpers:
+
+- `append_run_metadata`
+- `append_coverage_gaps`
+- `append_internal_candidates`
+- `append_public_surface_items`
+- `append_secondary_signals`
+- `append_noise_summary`
+- `append_next_action_queue`
+
+Supporting helpers were also added for repeated report structure:
+
+- `append_section`
+- `append_symbol_rows`
+- `public_bucket_reviewed_keeps`
+
+Post-change shape:
+
+- `scripts/deadcode_report.py` is now `504` lines
+- it now has `25` top-level functions
+- that is larger in raw count than Day 8's `472` / `15`, but the added lines
+  are almost entirely internal structure and section boundaries rather than new
+  workflow semantics
+
+Interpretation:
+
+- the file is easier to navigate by report phase
+- Sprint 33 / 34 / 36 logic is now easier to audit without reading the full
+  renderer top-to-bottom
+- this is the right kind of growth for a maintainability pass
+
+#### 4. The touched support paths stayed behavior-stable
+
+Direct Day 9 validation passed:
+
+- `python3 -m py_compile scripts/deadcode_report.py`
+- `make test`
+- `make deadcode-report`
+- `make deadcode-check`
+
+Meaning:
+
+- the shared Makefile loop still drives the full maintained test suite cleanly
+- the dead-code report/check flow still produces the same artifacts and
+  validation contract after the renderer refactor
+
+#### 5. The residual large-file queue is now narrower and more explicit
+
+Closed or materially reduced by Day 9:
+
+- `Makefile` test-loop duplication across direct and coverage paths
+- `scripts/deadcode_report.py` markdown-render monolith
+
+Residual queue after Day 9:
+
+- `scripts/deadcode_workflow.sh`
+- `benchmarks/bench_eigs.c`
+- `benchmarks/bench_main.c`
+- large feature-owner tests such as:
+  - `tests/test_chol_csc.c`
+  - `tests/test_svd.c`
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_qr.c`
+  - `tests/test_etree.c`
+  - `tests/test_iterative.c`
+- wider `Makefile` target-graph density outside the now-shared test loop
+- broader `scripts/deadcode_report.py` parse/classify/validate layering, which
+  remains intentionally in one file for now
+
+Interpretation:
+
+- Day 9 improved the two chosen auxiliary surfaces without pretending to solve
+  every large-file concern at once
+- later Sprint 37 work can now focus on comment debt and final cleanup from a
+  smaller structural queue
+
+### Day 9 Interpretation
+
+- the best first large-file maintainability batch was still `Makefile` plus
+  `scripts/deadcode_report.py`
+- the right move was behavior-preserving helper extraction, not aggressive
+  splitting
+- the residual queue is now smaller and more concrete
+
+### Day 9 Outputs
+
+- `artifacts/day9-large-file-maintainability-batch1.md`

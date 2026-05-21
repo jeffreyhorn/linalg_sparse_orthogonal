@@ -227,7 +227,7 @@ endef
 # Run all tests
 .PHONY: test
 test: $(TEST_BINS)
-	$(RUN_TEST_BINS_WITH_BANNERS)
+	@$(RUN_TEST_BINS_WITH_BANNERS)
 	@echo "All tests passed."
 
 # Run benchmarks
@@ -696,7 +696,7 @@ coverage-lcov: LDFLAGS += --coverage
 coverage-lcov: clean $(TEST_BINS)
 	@echo "Coverage backend: lcov (CC=$(CC))"
 	@echo "Running tests for coverage..."
-	$(RUN_TEST_BINS_QUIET)
+	@$(RUN_TEST_BINS_QUIET)
 	@echo ""
 	@mkdir -p $(COVDIR)
 	@echo "Collecting coverage data..."
@@ -740,7 +740,7 @@ coverage-gcovr: clean $(TEST_BINS)
 		exit 1; \
 	fi
 	@echo "Running tests for coverage..."
-	$(RUN_TEST_BINS_QUIET)
+	@$(RUN_TEST_BINS_QUIET)
 	@echo ""
 	@mkdir -p $(COVDIR)/html
 	@echo "Generating HTML report..."

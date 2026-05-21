@@ -767,6 +767,24 @@ If a reviewed wrapper fails, rerun the named failing phase directly:
   - inspect `build/deadcode/cppcheck.txt`
   - inspect `build/deadcode/xunused.txt`
 
+Tree-mutating local modes are a separate operator category:
+
+- `make sanitize`
+- `make asan`
+- `make sanitize-all`
+- `make tsan`
+- `make omp`
+- `make coverage`
+- `make coverage-lcov`
+- `make coverage-gcovr`
+
+These targets intentionally rebuild the shared tree in an alternate mode.
+When returning from one of them to the normal direct or reviewed path, use:
+
+```bash
+make clean
+```
+
 **Note:** Apple Clang's ASan hangs on macOS. Use an alternative compiler:
 ```bash
 CC=gcc-14 make asan

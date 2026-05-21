@@ -1287,3 +1287,153 @@ Reason:
 
 - `benchmarks/bench_backend_compare_helpers.h`
 - `artifacts/day6-benchmark-helper-consolidation-batch1.md`
+
+## Day 7
+
+**Objective:** Implement the first Makefile normalization batch from the Day 4
+design by making the maintained quality-target ownership model more explicit in
+comments, section layout, and operator guidance, while reducing the visibility
+gap around the Sprint 36 sanitizer/build-tree caveat without changing target
+semantics.
+
+### Commands Run
+
+1. Re-read the Day 7 plan and the Day 4 target-normalization design:
+   - `git status --short --branch`
+   - `sed -n '177,208p' docs/planning/EPIC_3/SPRINT_37/PLAN.md`
+   - `cat docs/planning/EPIC_3/SPRINT_37/artifacts/day4-quality-target-normalization-design.md`
+2. Re-read the current maintained quality surface:
+   - `sed -n '300,780p' Makefile`
+   - `sed -n '680,780p' README.md`
+3. Recheck the tree-mutating target family and reset behavior:
+   - `rg -n "^(sanitize|asan|sanitize-all|omp|tsan|coverage-lcov|coverage-gcovr):|^\\.PHONY: sanitize|^\\.PHONY: asan|^\\.PHONY: sanitize-all|^\\.PHONY: omp|^\\.PHONY: tsan|^\\.PHONY: coverage" Makefile`
+4. Implement the normalization batch:
+   - clarify category boundaries in `Makefile`
+   - add explicit `make clean` return guidance to reviewed wrappers
+   - mirror the same operator rule in `README.md`
+5. Validate the touched operator paths directly:
+   - `make -n quality-review-compile`
+   - `make -n quality-review`
+   - `make -n quality-review-cmake-compile`
+   - `make -n sanitize`
+   - `make -n coverage-gcovr`
+
+### Day 7 Findings
+
+#### 1. The highest-value first batch was comment/layout normalization plus explicit reset guidance, not target renaming
+
+The Day 4 design still held:
+
+- the repo already had the needed direct, reviewed, helper, and instrumentation
+  targets
+- the main maintainability problem was that they still read too much like one
+  flat surface
+
+So Day 7 deliberately did **not**:
+
+- rename established targets
+- add a parallel reset alias
+- change the `lint` / `test` / `check` / reviewed-wrapper semantics
+
+It instead normalized:
+
+- category boundaries in the Makefile
+- operator-facing wrapper guidance
+- README operator documentation
+
+#### 2. The Makefile now reflects the Day 4 three-way ownership model more directly
+
+The Day 7 batch reorganized the quality section signaling around the Day 4
+classes:
+
+Category A — maintained operator entry points:
+
+- direct gates
+- reviewed local wrappers
+- reviewed CMake wrappers
+- maintained specialized top-level surfaces such as `deadcode-check` and
+  `wall-check`
+
+Category B — helper / prerequisite plumbing:
+
+- warning-workflow
+- dead-code compile/report layering
+- build-plumbing support for the maintained operator flows
+
+Category C — tree-mutating instrumentation or alternate-build modes:
+
+- sanitize / asan / sanitize-all / tsan / omp
+- coverage / coverage-lcov / coverage-gcovr
+
+Interpretation:
+
+- the target list is still the same
+- the ownership model is no longer implicit
+- helper targets read less like peer operator entry points
+- instrumentation/coverage modes read less like ordinary neighboring commands
+
+#### 3. The Sprint 36 sanitizer caveat is now surfaced where operators actually see it
+
+Day 4 said the right first fix was visibility and ownership, not a new reset
+command.
+
+Day 7 implemented that directly:
+
+- reviewed wrapper banners now say:
+  - if returning from `sanitize` / `asan` / `sanitize-all` / `tsan` / `omp` /
+    `coverage*`, reset first with `make clean`
+- the Makefile now labels sanitizer/coverage targets as tree-mutating
+  alternate-build modes
+- the README operator command map now mirrors the same rule instead of leaving
+  it as retrospective tribal knowledge
+
+This materially reduces the risk that maintainers jump straight from an
+instrumented build mode back into the normal direct/reviewed path without a
+reset.
+
+#### 4. The batch preserved the established reviewed-quality contract
+
+The Day 7 normalization kept these meanings unchanged:
+
+- `format`, `format-check`, `lint`, `test`, `check`
+- `quality-review-compile`
+- `quality-review`
+- `quality-review-cmake-compile`
+- `quality-review-cmake`
+- `deadcode-report`
+- `deadcode-check`
+
+Validation evidence from the dry-run path checks:
+
+- wrapper order is unchanged
+- lower-level invoked commands are unchanged
+- tree-mutating targets still own `clean` on entry
+- the new guidance is additive operator messaging rather than behavioral drift
+
+#### 5. The residual target-layout queue is now smaller and more bounded
+
+Still deferred after Day 7:
+
+- any deeper physical reordering of target blocks beyond the first category
+  signaling pass
+- any later cleanup in the coverage / instrumentation area beyond ownership
+  comments
+- any future build-tree isolation work for dead-code or alternate modes
+
+Reason:
+
+- Day 7 was the right scope for improving clarity without reopening target
+  semantics or inventing new command names
+
+### Day 7 Interpretation
+
+- Day 7 converted the Day 4 design into a real first normalization batch
+  without changing the maintained quality contract
+- the most valuable first move was making ownership and reset expectations
+  explicit where operators actually encounter them
+- the Sprint 36 sanitizer/build-tree caveat is now materially less implicit,
+  while `make clean` remains the single canonical reset
+
+### Day 7 Outputs
+
+- `artifacts/day7-quality-target-normalization-batch1.md`

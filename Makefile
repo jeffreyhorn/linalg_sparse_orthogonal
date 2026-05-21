@@ -402,8 +402,22 @@ sanitize-thread: $(GENERATED_VERSION)
 	done
 	@echo "sanitize-thread: all eigs tests clean under TSan"
 
-# ─── Code quality targets ─────────────────────────────────────────────
+# ─── Tree-mutating instrumentation / alternate-build modes ────────────
+#
+# Sprint 37 Day 4/7 ownership rule:
+# these targets intentionally rebuild the shared tree in a different mode.
+# They therefore own a clean-tree reset on entry and should not be read as
+# ordinary peers of the stable direct/reviewed quality gates below.
+#
+# Canonical operator reset when returning from these modes to the normal
+# direct/reviewed path:
+#   make clean
 
+# ─── Maintained quality operator entry points ─────────────────────────
+#
+# Category A from the Sprint 37 Day 4 design:
+# stable top-level maintainer commands for direct or reviewed quality work.
+#
 # Source files for formatting/linting
 # Sprint 36 Day 8: keep the maintained reviewed Makefile path on repo-native
 # globs instead of external `find` calls.  The source trees here are flat, so
@@ -445,16 +459,15 @@ lint: build/include/sparse_version.h tooling-build
 		--suppress=constParameterPointer --suppress=unreadVariable \
 		-I include $(SRCDIR) $(TESTDIR)
 
-# Run all quality checks: format + lint + test
+# Legacy direct aggregate: keep semantics stable (`format-check + lint + test`)
 .PHONY: check
 check: format-check lint test
 
-# Sprint 34 Day 5: reviewed quality wrappers that preserve the
-# existing meanings of `lint`, `test`, `check`, and `deadcode-check`
-# while exposing an explicit phase-1 reviewed-target flow.  Keep the
-# wrappers serial and bannered so failure attribution stays obvious
-# and the shared dead-code build/artifact paths are never driven as a
-# sibling prerequisite branch under `make -j`.
+# Reviewed wrappers: preserve the existing meanings of `lint`, `test`,
+# `check`, and `deadcode-check` while exposing the explicit Sprint 34
+# reviewed-target flow.  Keep them serial and bannered so failure
+# attribution stays obvious and the shared dead-code build/artifact paths are
+# never driven as a sibling prerequisite branch under `make -j`.
 QUALITY_REVIEW_CMAKE_DIR ?= build/quality-review-cmake
 
 .NOTPARALLEL: quality-review-compile quality-review quality-review-cmake-compile quality-review-cmake deadcode-compile-db deadcode deadcode-report deadcode-check
@@ -462,6 +475,7 @@ QUALITY_REVIEW_CMAKE_DIR ?= build/quality-review-cmake
 quality-review-compile:
 	@echo "quality-review-compile: reviewed compile-quality path"
 	@echo "quality-review-compile: rerun failing phases directly with 'make format-check' or 'make lint'"
+	@echo "quality-review-compile: if you are returning from sanitize/asan/sanitize-all/tsan/omp/coverage*, reset first with 'make clean'"
 	@echo "== quality-review-compile: format-check =="
 	@$(MAKE) format-check
 	@echo "== quality-review-compile: lint =="
@@ -472,6 +486,7 @@ quality-review-compile:
 quality-review:
 	@echo "quality-review: reviewed local quality path"
 	@echo "quality-review: rerun failing phases directly with 'make format-check', 'make lint', 'make test', or 'make deadcode-check'"
+	@echo "quality-review: if you are returning from sanitize/asan/sanitize-all/tsan/omp/coverage*, reset first with 'make clean'"
 	@echo "== quality-review: format-check =="
 	@$(MAKE) format-check
 	@echo "== quality-review: lint =="
@@ -487,6 +502,7 @@ quality-review-cmake-compile:
 	@echo "quality-review-cmake-compile: reviewed CMake parity path"
 	@echo "quality-review-cmake-compile: build tree = $(QUALITY_REVIEW_CMAKE_DIR)"
 	@echo "quality-review-cmake-compile: rerun failing phases directly with 'cmake -S . -B $(QUALITY_REVIEW_CMAKE_DIR)', 'cmake --build $(QUALITY_REVIEW_CMAKE_DIR) --parallel 1 --clean-first', or 'ctest -N --test-dir $(QUALITY_REVIEW_CMAKE_DIR)'"
+	@echo "quality-review-cmake-compile: local instrumented make-build leftovers can still confuse the normal Makefile path; when returning from sanitize/asan/sanitize-all/tsan/omp/coverage*, use 'make clean'"
 	@echo "== quality-review-cmake-compile: configure =="
 	cmake -S . -B "$(QUALITY_REVIEW_CMAKE_DIR)" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 	@echo "== quality-review-cmake-compile: build =="
@@ -514,10 +530,16 @@ quality-review-cmake:
 	ctest --test-dir "$(QUALITY_REVIEW_CMAKE_DIR)" --output-on-failure
 	@echo "quality-review-cmake: passed (configure + clean rebuild + ctest -N + ctest)"
 
-# Sprint 30 Day 7: reproducible Epic 3 warning-capture + validation
-# workflow.  Wraps the helper script so maintainers can recreate a
-# clean CMake warning inventory plus the library-only Makefile
-# cross-check without rebuilding the command sequence manually.
+# ─── Helper / prerequisite plumbing for the quality surface ───────────
+#
+# Category B from the Sprint 37 Day 4 design:
+# support targets that back the maintained operator entry points but are not
+# themselves the main top-level quality contract.
+#
+# Sprint 30 Day 7: reproducible Epic 3 warning-capture + validation workflow.
+# Wraps the helper script so maintainers can recreate a clean CMake warning
+# inventory plus the library-only Makefile cross-check without rebuilding the
+# command sequence manually.
 WARNING_WORKFLOW_LABEL ?= warning-workflow
 WARNING_WORKFLOW_ARTIFACTS ?= docs/planning/EPIC_3/SPRINT_30/artifacts
 WARNING_WORKFLOW_JOBS ?= 1
@@ -529,9 +551,10 @@ warning-workflow:
 		"$(WARNING_WORKFLOW_LABEL)" \
 		"$(WARNING_WORKFLOW_ARTIFACTS)"
 
-# Sprint 33 Day 5: dedicated dead-code workflow inputs.  Keeps
-# compile-db generation separate from the normal lint/test paths and
-# leaves reporting/enforcement layering to later Sprint 33 days.
+# Sprint 33 Day 5: dedicated dead-code workflow inputs.  Keep compile-db
+# generation separate from the normal lint/test paths and keep dead-code as a
+# sibling quality category instead of folding it into the warning-clean
+# definition.
 DEADCODE_CMAKE_DIR ?= build/deadcode-cmake
 DEADCODE_ARTIFACTS_DIR ?= build/deadcode
 DEADCODE_COMPILE_COMMANDS := $(DEADCODE_CMAKE_DIR)/compile_commands.json
@@ -585,6 +608,11 @@ deadcode-check: $(DEADCODE_REPORT_STAMP)
 	@echo "deadcode-check: report completeness checks passed."
 	@echo "deadcode-check: findings may still exist; inspect $(DEADCODE_REPORT_MD) and $(DEADCODE_REPORT_TSV)."
 
+# Maintained specialized validation gate: performance regression check.
+#
+# Still a top-level operator-facing quality target even though it shells out to
+# a helper script, because its contract is user-visible and documented.
+#
 # ─── Performance regression gate (Sprint 24 Day 1) ────────────────────
 #
 # `make wall-check` runs two single-fixture benchmarks (bcsstk14 qg-AMD
@@ -612,7 +640,12 @@ docs:
 	doxygen Doxyfile
 	@echo "Documentation generated in docs/api/html/"
 
-# ─── Code coverage ────────────────────────────────────────────────────
+# ─── Tree-mutating coverage modes ─────────────────────────────────────
+#
+# These coverage targets intentionally rebuild the test tree with coverage
+# instrumentation.  Like the sanitizer / OMP modes above, they own reset on
+# entry and operators returning to the normal direct/reviewed path should run:
+#   make clean
 
 # Build with gcov instrumentation, run tests, generate coverage report.
 # Two backends, auto-selected from the compiler:

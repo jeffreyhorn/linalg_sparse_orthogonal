@@ -14,6 +14,7 @@
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 #include "test_framework.h"
+#include "test_solver_helpers.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -71,19 +72,6 @@ static SparseMatrix *build_spd_tridiag(idx_t n) {
         }
     }
     return A;
-}
-
-static double relative_residual(const SparseMatrix *A, const double *x, const double *b, idx_t n) {
-    double *r = malloc((size_t)n * sizeof(double));
-    sparse_matvec(A, x, r);
-    double nr = 0.0, nb = 0.0;
-    for (idx_t i = 0; i < n; i++) {
-        double d = r[i] - b[i];
-        nr += d * d;
-        nb += b[i] * b[i];
-    }
-    free(r);
-    return (nb > 0.0) ? sqrt(nr / nb) : sqrt(nr);
 }
 
 /* Jacobi preconditioner */
@@ -691,7 +679,7 @@ static void test_s13_scaled_ic_minres(void) {
 
         /* IC(0) direct solve */
         REQUIRE_OK(sparse_ic_solve(&ic, b, x));
-        double relres_ic = relative_residual(A, x, b, n);
+        double relres_ic = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
         ASSERT_TRUE(relres_ic < 1e-6);
 
         /* IC(0)-preconditioned MINRES */
@@ -786,10 +774,10 @@ static void test_s13_large_kkt_benchmark(void) {
     double *x_ldlt = malloc((size_t)n * sizeof(double));
     REQUIRE_OK(sparse_ldlt_solve(&ldlt, b, x_ldlt));
 
-    double relres_mr = relative_residual(K, x_mr, b, n);
-    double relres_gm = relative_residual(K, x_gm, b, n);
-    double relres_jmr = relative_residual(K, x_jmr, b, n);
-    double relres_ldlt = relative_residual(K, x_ldlt, b, n);
+    double relres_mr = tf_relative_residual_l2(K, b, x_mr, n, HUGE_VAL);
+    double relres_gm = tf_relative_residual_l2(K, b, x_gm, n, HUGE_VAL);
+    double relres_jmr = tf_relative_residual_l2(K, b, x_jmr, n, HUGE_VAL);
+    double relres_ldlt = tf_relative_residual_l2(K, b, x_ldlt, n, HUGE_VAL);
 
     printf("    KKT %dx%d benchmark:\n", (int)n, (int)n);
     printf("      MINRES:        %d iters, relres=%.3e\n", (int)res_mr.iterations, relres_mr);

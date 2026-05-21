@@ -1,21 +1,12 @@
 name: CI
 
-# Sprint 36 Day 9: Linux remains the enforced source-of-truth reviewed
-# baseline.  This workflow is intentionally stronger than the current
-# macOS and Windows contracts:
-#   - enforced reviewed Makefile compile-quality path
-#   - enforced reviewed CMake parity path
-#   - enforced dead-code report/check path
-#
-# It also carries Linux-specific supplemental signals that are useful
-# but not yet the cross-platform reviewed contract itself:
-#   - direct runtime + fast-benchmark path
-#   - TSan coverage
-#   - coverage reporting
-#
-# macOS and Windows now document their narrower contracts explicitly in
-# their own workflows rather than inheriting Linux expectations by
-# implication.
+# Linux is the enforced source-of-truth reviewed baseline:
+# - reviewed Makefile compile-quality path
+# - reviewed CMake parity path
+# - dead-code report/check path
+# It also carries Linux-specific supplemental signals (`make test`,
+# `bench-fast`, TSan, coverage). See README.md "Cross-Platform CI Contract"
+# for the full enforced/staged/supplemental model.
 
 on:
   push:

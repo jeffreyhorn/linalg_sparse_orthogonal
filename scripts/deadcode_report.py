@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate and validate Sprint 33 dead-code reports."""
+"""Generate and validate dead-code reports from raw workflow artifacts."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import re
 import sys
 from collections import Counter, defaultdict
 from pathlib import Path
+from typing import List, Optional
 
 
 COVERAGE_GAP = "coverage-gap"
@@ -32,11 +33,12 @@ XUNUSED_NOTE_RE = re.compile(r"^(.+?):(\d+): note: declared here$")
 CPPCHECK_RE = re.compile(
     r"^(src/[^:]+):(\d+):(\d+):\s+(\w+):\s+(.*?)\s+\[([^\]]+)\]$"
 )
+Row = List[str]
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate or validate dead-code reports from raw Sprint 33 artifacts."
+        description="Generate or validate dead-code reports from raw workflow artifacts."
     )
     parser.add_argument(
         "--check",
@@ -59,7 +61,7 @@ def parse_coverage_notes(path: Path) -> dict[str, object]:
         "missing_benchmarks": [],
         "missing_examples": [],
     }
-    section: str | None = None
+    section: Optional[str] = None
     for raw_line in path.read_text().splitlines():
         line = raw_line.strip()
         if not line:
@@ -115,7 +117,7 @@ def classify_xunused(symbol: str, decl_file: str) -> tuple[str, str]:
 
 def parse_xunused(path: Path) -> list[dict[str, str]]:
     findings: list[dict[str, str]] = []
-    current: dict[str, str] | None = None
+    current: Optional[dict[str, str]] = None
     for raw_line in path.read_text().splitlines():
         warn_match = XUNUSED_WARN_RE.match(raw_line)
         if warn_match:
@@ -171,8 +173,8 @@ def build_tsv_rows(
     xunused: list[dict[str, str]],
     noise_counts: Counter[str],
     secondary_counts: Counter[tuple[str, str]],
-) -> list[list[str]]:
-    rows: list[list[str]] = []
+) -> list[Row]:
+    rows: list[Row] = []
 
     for symbol in coverage["missing_benchmarks"]:
         rows.append(
@@ -246,15 +248,15 @@ def build_tsv_rows(
     return rows
 
 
-def write_tsv(path: Path, rows: list[list[str]]) -> None:
+def write_tsv(path: Path, rows: list[Row]) -> None:
     with path.open("w", newline="") as handle:
         writer = csv.writer(handle, delimiter="\t")
         writer.writerow(["bucket", "tool", "symbol", "path", "line", "detail", "disposition"])
         writer.writerows(rows)
 
 
-def group_rows(rows: list[list[str]]) -> dict[str, list[list[str]]]:
-    grouped: dict[str, list[list[str]]] = defaultdict(list)
+def group_rows(rows: list[Row]) -> dict[str, list[Row]]:
+    grouped: dict[str, list[Row]] = defaultdict(list)
     for row in rows:
         grouped[row[0]].append(row)
     return grouped
@@ -272,33 +274,25 @@ def top_secondary_by_file(secondary_counts: Counter[tuple[str, str]]) -> list[tu
     return results
 
 
-def write_markdown(
-    path: Path,
-    coverage: dict[str, object],
-    xunused: list[dict[str, str]],
-    noise_counts: Counter[str],
-    secondary_counts: Counter[tuple[str, str]],
-    rows: list[list[str]],
-) -> None:
-    grouped = group_rows(rows)
-    top_secondary = top_secondary_by_file(secondary_counts)
+def public_bucket_reviewed_keeps(rows: list[Row]) -> bool:
+    return bool(rows) and all(row[6] == "keep-public-api-day8-audited" for row in rows)
+
+
+def append_section(lines: list[str], title: str) -> None:
+    lines.append(title)
+    lines.append("")
+
+
+def append_symbol_rows(lines: list[str], rows: list[Row]) -> None:
+    for row in rows:
+        lines.append(f"- `{row[2]}` in `{row[3]}:{row[4]}`. {row[5]} Disposition: `{row[6]}`.")
+
+
+def append_run_metadata(lines: list[str], coverage: dict[str, object]) -> None:
     counts = coverage["counts"]
     assert isinstance(counts, dict)
-    missing_benchmarks = coverage["missing_benchmarks"]
-    missing_examples = coverage["missing_examples"]
-    assert isinstance(missing_benchmarks, list)
-    assert isinstance(missing_examples, list)
 
-    internal = grouped.get(INTERNAL_CANDIDATE, [])
-    public = grouped.get(PUBLIC_REVIEW, [])
-    secondary = grouped.get(SECONDARY_SIGNAL, [])
-    noise = grouped.get(NOISE, [])
-
-    lines: list[str] = []
-    lines.append("# Sprint 33 Dead-Code Report")
-    lines.append("")
-    lines.append("## Run Metadata")
-    lines.append("")
+    append_section(lines, "## Run Metadata")
     lines.append(f"- compile database: `{coverage['compile_commands_json']}`")
     lines.append(
         "- compile-db translation-unit counts: "
@@ -311,8 +305,15 @@ def write_markdown(
         "- raw inputs: `coverage-notes.txt`, `xunused.txt`, and `cppcheck.txt` from `make deadcode`"
     )
     lines.append("")
-    lines.append("## Coverage Gaps")
-    lines.append("")
+
+
+def append_coverage_gaps(lines: list[str], coverage: dict[str, object]) -> None:
+    missing_benchmarks = coverage["missing_benchmarks"]
+    missing_examples = coverage["missing_examples"]
+    assert isinstance(missing_benchmarks, list)
+    assert isinstance(missing_examples, list)
+
+    append_section(lines, "## Coverage Gaps")
     lines.append(
         "The current CMake compilation database still under-covers part of the Makefile tooling surface. "
         "Scanner silence on these paths is not evidence of absence."
@@ -327,26 +328,25 @@ def write_markdown(
         for symbol in missing_examples:
             lines.append(f"  - `{symbol}`")
     lines.append("")
-    lines.append("## Definitely-Unused Internal Candidates")
-    lines.append("")
-    if internal:
-        for row in internal:
-            lines.append(
-                f"- `{row[2]}` in `{row[3]}:{row[4]}`. {row[5]} Disposition: `{row[6]}`."
-            )
+
+
+def append_internal_candidates(lines: list[str], rows: list[Row]) -> None:
+    append_section(lines, "## Definitely-Unused Internal Candidates")
+    if rows:
+        append_symbol_rows(lines, rows)
     else:
         lines.append("- None currently classified in this bucket.")
     lines.append("")
-    public_reviewed_keeps = public and all(
-        row[6] == "keep-public-api-day8-audited" for row in public
+
+
+def append_public_surface_items(lines: list[str], rows: list[Row]) -> None:
+    reviewed_keeps = public_bucket_reviewed_keeps(rows)
+    append_section(
+        lines,
+        "## Public-Surface Reviewed Keeps" if reviewed_keeps else "## Public-Surface Review Items",
     )
-    if public_reviewed_keeps:
-        lines.append("## Public-Surface Reviewed Keeps")
-    else:
-        lines.append("## Public-Surface Review Items")
-    lines.append("")
-    if public:
-        if public_reviewed_keeps:
+    if rows:
+        if reviewed_keeps:
             lines.append(
                 "These symbols remain in the public-surface bucket because they are exported through installed "
                 "headers. The current Day 8 audit outcome for all listed rows is `keep`, not cleanup."
@@ -357,15 +357,16 @@ def write_markdown(
                 "review rather than automatic deletion."
             )
         lines.append("")
-        for row in public:
-            lines.append(
-                f"- `{row[2]}` in `{row[3]}:{row[4]}`. {row[5]} Disposition: `{row[6]}`."
-            )
+        append_symbol_rows(lines, rows)
     else:
         lines.append("- None currently classified in this bucket.")
     lines.append("")
-    lines.append("## Secondary `cppcheck` Candidate Signals")
-    lines.append("")
+
+
+def append_secondary_signals(
+    lines: list[str], top_secondary: list[tuple[str, int, str]]
+) -> None:
+    append_section(lines, "## Secondary `cppcheck` Candidate Signals")
     if top_secondary:
         lines.append(
             "These are supporting signals only. They stay out of the cleanup queue until a later pass confirms "
@@ -377,32 +378,63 @@ def write_markdown(
     else:
         lines.append("- No secondary `cppcheck` candidate signals were detected.")
     lines.append("")
-    lines.append("## Deferred Noise Summary")
-    lines.append("")
-    if noise:
+
+
+def append_noise_summary(lines: list[str], noise_counts: Counter[str], rows: list[Row]) -> None:
+    append_section(lines, "## Deferred Noise Summary")
+    if rows:
         for checker_id, count in sorted(noise_counts.items(), key=lambda item: (-item[1], item[0])):
             lines.append(f"- `{checker_id}`: `{count}`")
     else:
         lines.append("- No non-deadcode static-analysis noise was recorded.")
     lines.append("")
-    lines.append("## Current Sprint Next-Action Queue")
-    lines.append("")
+
+
+def append_next_action_queue(lines: list[str], internal: list[Row], public: list[Row]) -> None:
+    append_section(lines, "## Current Sprint Next-Action Queue")
     if internal:
         internal_symbols = ", ".join(f"`{row[2]}`" for row in internal)
         lines.append(f"- remaining definitely-unused internal queue: {internal_symbols}.")
     else:
         lines.append("- remaining definitely-unused internal queue: none.")
+
     if public:
         public_symbols = ", ".join(f"`{row[2]}`" for row in public)
-        if public_reviewed_keeps:
+        if public_bucket_reviewed_keeps(public):
             lines.append(f"- public-surface reviewed keeps: {public_symbols}.")
         else:
             lines.append(f"- public-surface review items: {public_symbols}.")
     else:
         lines.append("- public-surface reviewed keeps: none.")
+
     lines.append(
         "- `cppcheck` secondary signals remain supporting evidence only; they stay summarized for future review work, not as direct removal instructions."
     )
+
+
+def write_markdown(
+    path: Path,
+    coverage: dict[str, object],
+    noise_counts: Counter[str],
+    secondary_counts: Counter[tuple[str, str]],
+    rows: list[Row],
+) -> None:
+    grouped = group_rows(rows)
+    top_secondary = top_secondary_by_file(secondary_counts)
+    internal = grouped.get(INTERNAL_CANDIDATE, [])
+    public = grouped.get(PUBLIC_REVIEW, [])
+    noise = grouped.get(NOISE, [])
+
+    lines: list[str] = []
+    lines.append("# Dead-Code Report")
+    lines.append("")
+    append_run_metadata(lines, coverage)
+    append_coverage_gaps(lines, coverage)
+    append_internal_candidates(lines, internal)
+    append_public_surface_items(lines, public)
+    append_secondary_signals(lines, top_secondary)
+    append_noise_summary(lines, noise_counts, noise)
+    append_next_action_queue(lines, internal, public)
     path.write_text("\n".join(lines) + "\n")
 
 
@@ -463,7 +495,7 @@ def main() -> None:
 
     if not args.check:
         write_tsv(report_tsv, rows)
-        write_markdown(report_md, coverage, xunused, noise_counts, secondary_counts, rows)
+        write_markdown(report_md, coverage, noise_counts, secondary_counts, rows)
 
     run_check(coverage, xunused, report_md, report_tsv)
 

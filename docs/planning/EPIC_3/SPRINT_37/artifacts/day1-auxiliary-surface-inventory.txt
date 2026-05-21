@@ -1,0 +1,111 @@
+Sprint 37 Day 1 Auxiliary Surface Inventory
+Branch: sprint-37
+HEAD: 58f296f
+Date: 2026-05-20
+
+Maintained validated baseline inherited from Sprint 36
+- make format
+- make lint
+- make test
+- make quality-review-compile
+- make quality-review
+- make quality-review-cmake-compile
+- make quality-review-cmake
+- make wall-check
+- make deadcode-report
+- make deadcode-check
+- make sanitize
+- ctest -N --test-dir build/quality-review-cmake = 53
+
+Largest test files
+4643 tests/test_chol_csc.c
+3712 tests/test_svd.c
+3637 tests/test_ldlt_csc.c
+3259 tests/test_qr.c
+2890 tests/test_etree.c
+2819 tests/test_iterative.c
+2774 tests/test_ldlt.c
+2628 tests/test_graph.c
+1988 tests/test_ilu.c
+1957 tests/test_colamd.c
+
+Largest benchmark files
+958 benchmarks/bench_eigs.c
+774 benchmarks/bench_main.c
+579 benchmarks/bench_ldlt_csc.c
+446 benchmarks/bench_chol_csc.c
+421 benchmarks/bench_convergence.c
+388 benchmarks/bench_refactor_csc.c
+332 benchmarks/bench_amd_qg.c
+321 benchmarks/bench_reorder.c
+
+Largest workflow/helper files
+812 Makefile
+472 scripts/deadcode_report.py
+231 .github/workflows/ci.yml
+215 scripts/epic3_warning_workflow.sh
+189 scripts/deadcode_workflow.sh
+162 scripts/wall_check.sh
+142 .github/workflows/macos-ci.yml
+83 scripts/ci.sh
+73 .github/workflows/windows-ci.yml
+
+Major non-core size totals
+- tests: 54 .c files, 62005 total lines
+- benchmarks: 14 .c files, 5170 total lines
+- Makefile + scripts + workflow YAML: 2464 total lines
+
+Named maintained quality/validation targets
+- format
+- format-check
+- lint
+- test
+- check
+- tooling-build
+- quality-review-compile
+- quality-review
+- quality-review-cmake-compile
+- quality-review-cmake
+- deadcode-compile-db
+- deadcode
+- deadcode-report
+- deadcode-check
+- wall-check
+- sanitize
+- asan
+- sanitize-all
+- tsan
+- coverage
+- coverage-lcov
+- coverage-gcovr
+
+Likely test-helper audit targets
+- repeated SPD/tridiagonal matrix builders
+- repeated KKT builders
+- repeated identity/diagonal builders
+- repeated residual/norm helpers
+- repeated Jacobi/precondition callback helpers
+
+Likely benchmark-helper audit targets
+- synthetic matrix builders
+- timing/result-format helpers
+- CLI/help parsing helpers
+- reorder/reporting helper logic
+
+Inherited Sprint 36 constraints to preserve
+- sanitizer-instrumented build/ tree can pollute later direct/reviewed runs
+- dead-code compile-db exclusions remain:
+  - bench_svd
+  - example_basic_solve
+  - example_condition
+  - example_iterative
+  - example_least_squares
+  - example_matrix_free
+  - example_svd_lowrank
+- dead-code shared execution paths remain:
+  - build/deadcode-cmake
+  - build/deadcode/
+- cross-platform contract remains:
+  - Linux enforced reviewed Makefile/CMake/dead-code baseline
+  - macOS enforced Apple Clang reviewed path, staged dead-code, supplemental GCC
+  - Windows enforced reviewed CMake subset, staged local Makefile parity, excluded dead-code

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# deadcode_workflow.sh — Sprint 33 Day 5 raw dead-code workflow.
+# deadcode_workflow.sh — refresh raw dead-code evidence artifacts.
 #
 # Usage:
 #   bash scripts/deadcode_workflow.sh <cmake_build_dir> <artifacts_dir>
@@ -98,7 +98,7 @@ missing_benchmarks = sorted(set(all_benchmarks) - seen_benchmarks)
 missing_examples = sorted(set(all_examples) - seen_examples)
 
 lines = [
-    "Sprint 33 Day 5 dead-code coverage notes",
+    "Dead-code coverage notes",
     f"compile_commands_json {compile_commands_path}",
     f"src {counts['src']}",
     f"tests {counts['tests']}",

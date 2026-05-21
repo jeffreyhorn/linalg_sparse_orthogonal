@@ -4,8 +4,8 @@
 #include "sparse_lu.h"
 #include "sparse_matrix.h"
 #include "sparse_types.h"
-#include "sparse_vector.h"
 #include "test_framework.h"
+#include "test_solver_helpers.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,20 +18,6 @@
 /* ═══════════════════════════════════════════════════════════════════════
  * Helpers
  * ═══════════════════════════════════════════════════════════════════════ */
-
-static double compute_relative_residual(const SparseMatrix *A, const double *b, const double *x,
-                                        idx_t n) {
-    double *r = malloc((size_t)n * sizeof(double));
-    if (!r)
-        return HUGE_VAL;
-    sparse_matvec(A, x, r);
-    for (idx_t i = 0; i < n; i++)
-        r[i] = b[i] - r[i];
-    double rnorm = vec_norm2(r, n);
-    double bnorm = vec_norm2(b, n);
-    free(r);
-    return (bnorm > 0.0) ? rnorm / bnorm : 0.0;
-}
 
 /* Cholesky preconditioner */
 static sparse_err_t cholesky_precond_apply(const void *ctx, idx_t n, const double *r, double *z) {
@@ -128,7 +114,7 @@ static void test_integration_ilu_cg_all_spd(void) {
                    SPARSE_OK);
         ASSERT_TRUE(result.converged);
 
-        double res = compute_relative_residual(sys.A, sys.b, x, sys.n);
+        double res = tf_relative_residual_l2(sys.A, sys.b, x, sys.n, HUGE_VAL);
         printf("    ILU-CG %s: %d iters, res=%.3e\n", spd_files[f], (int)result.iterations, res);
         ASSERT_TRUE(res < 1e-8);
 
@@ -181,7 +167,7 @@ static void test_integration_ilu_gmres_all_unsym(void) {
                    SPARSE_OK);
         ASSERT_TRUE(result.converged);
 
-        double res = compute_relative_residual(sys.A, sys.b, x, sys.n);
+        double res = tf_relative_residual_l2(sys.A, sys.b, x, sys.n, HUGE_VAL);
         printf("    ILU-GMRES %s: %d iters, res=%.3e\n", unsym_files[f], (int)result.iterations,
                res);
         ASSERT_TRUE(res < 1e-2);
@@ -311,7 +297,7 @@ static void test_integration_ilu_gmres_small_restart_orsirr(void) {
                SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    double res = compute_relative_residual(sys.A, sys.b, x, sys.n);
+    double res = tf_relative_residual_l2(sys.A, sys.b, x, sys.n, HUGE_VAL);
     printf("    orsirr_1 ILU-GMRES(10): %d iters, res=%.3e\n", (int)result.iterations, res);
     ASSERT_TRUE(res < 1e-4);
 
@@ -402,10 +388,10 @@ static void test_integration_all_solvers_nos4(void) {
     }
     ASSERT_ERR(sparse_cholesky_solve(Ch, sys.b, x_ch), SPARSE_OK);
 
-    double rr_cg = compute_relative_residual(sys.A, sys.b, x_cg, n);
-    double rr_gm = compute_relative_residual(sys.A, sys.b, x_gm, n);
-    double rr_lu = compute_relative_residual(sys.A, sys.b, x_lu, n);
-    double rr_ch = compute_relative_residual(sys.A, sys.b, x_ch, n);
+    double rr_cg = tf_relative_residual_l2(sys.A, sys.b, x_cg, n, HUGE_VAL);
+    double rr_gm = tf_relative_residual_l2(sys.A, sys.b, x_gm, n, HUGE_VAL);
+    double rr_lu = tf_relative_residual_l2(sys.A, sys.b, x_lu, n, HUGE_VAL);
+    double rr_ch = tf_relative_residual_l2(sys.A, sys.b, x_ch, n, HUGE_VAL);
 
     printf("    nos4 all solvers: CG=%.3e, GMRES=%.3e, LU=%.3e, Chol=%.3e\n", rr_cg, rr_gm, rr_lu,
            rr_ch);
@@ -586,7 +572,7 @@ static void test_integration_ilu_multi_rhs(void) {
         ASSERT_ERR(sparse_solve_cg(sys.A, b, x, &opts, sparse_ilu_precond, &ilu, &result),
                    SPARSE_OK);
         ASSERT_TRUE(result.converged);
-        double res = compute_relative_residual(sys.A, b, x, n);
+        double res = tf_relative_residual_l2(sys.A, b, x, n, HUGE_VAL);
         ASSERT_TRUE(res < 1e-8);
 
         free(b);

@@ -5,6 +5,7 @@
 #include "sparse_types.h"
 #include "sparse_vector.h"
 #include "test_framework.h"
+#include "test_solver_helpers.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -30,21 +31,6 @@ static SparseMatrix *build_spd_tridiag(idx_t n, double diag_val, double offdiag_
             sparse_insert(A, i, i + 1, offdiag_val);
     }
     return A;
-}
-
-/** Compute ||b - A*x|| / ||b|| */
-static double compute_relative_residual(const SparseMatrix *A, const double *b, const double *x,
-                                        idx_t n) {
-    double *r = malloc((size_t)n * sizeof(double));
-    if (!r)
-        return HUGE_VAL;
-    sparse_matvec(A, x, r);
-    for (idx_t i = 0; i < n; i++)
-        r[i] = b[i] - r[i];
-    double rnorm = vec_norm2(r, n);
-    double bnorm = vec_norm2(b, n);
-    free(r);
-    return (bnorm > 0.0) ? rnorm / bnorm : 0.0;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -476,7 +462,7 @@ static void test_ilu_precond_gmres(void) {
     ASSERT_ERR(sparse_solve_gmres(A, b, x, &opts, sparse_ilu_precond, &ilu, &result), SPARSE_OK);
     ASSERT_TRUE(result.converged);
 
-    double rel_res = compute_relative_residual(A, b, x, n);
+    double rel_res = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     ASSERT_TRUE(rel_res < 1e-8);
 
     free(x_exact);
@@ -556,8 +542,8 @@ static void test_ilu_cg_nos4(void) {
     ASSERT_TRUE(result_prec.converged);
     ASSERT_TRUE(result_prec.iterations <= result_unprec.iterations);
 
-    double res_unprec = compute_relative_residual(A, b, x_unprec, n);
-    double res_prec = compute_relative_residual(A, b, x_prec, n);
+    double res_unprec = tf_relative_residual_l2(A, b, x_unprec, n, HUGE_VAL);
+    double res_prec = tf_relative_residual_l2(A, b, x_prec, n, HUGE_VAL);
     printf("    nos4 ILU-CG: unprec=%d iters (res=%.3e), prec=%d iters (res=%.3e)\n",
            (int)result_unprec.iterations, res_unprec, (int)result_prec.iterations, res_prec);
     ASSERT_TRUE(res_unprec < 1e-8);
@@ -624,7 +610,7 @@ static void test_ilu_cg_bcsstk04(void) {
     ASSERT_TRUE(result_prec.converged);
     ASSERT_TRUE(result_prec.iterations <= result_unprec.iterations);
 
-    double res_prec = compute_relative_residual(A, b, x_prec, n);
+    double res_prec = tf_relative_residual_l2(A, b, x_prec, n, HUGE_VAL);
     printf("    bcsstk04 ILU-CG: unprec=%d iters, prec=%d iters (res=%.3e)\n",
            (int)result_unprec.iterations, (int)result_prec.iterations, res_prec);
     ASSERT_TRUE(res_prec < 1e-8);
@@ -727,8 +713,8 @@ static void test_ilu_gmres_steam1(void) {
     ASSERT_ERR(sparse_solve_gmres(A, b, x_prec, &opts, sparse_ilu_precond, &ilu, &result_prec),
                SPARSE_OK);
 
-    double res_unprec = compute_relative_residual(A, b, x_unprec, n);
-    double res_prec = compute_relative_residual(A, b, x_prec, n);
+    double res_unprec = tf_relative_residual_l2(A, b, x_unprec, n, HUGE_VAL);
+    double res_prec = tf_relative_residual_l2(A, b, x_prec, n, HUGE_VAL);
     printf("    steam1 ILU-GMRES(50): unprec=%d iters (res=%.3e), prec=%d iters (res=%.3e)\n",
            (int)result_unprec.iterations, res_unprec, (int)result_prec.iterations, res_prec);
 
@@ -811,7 +797,7 @@ static void test_ilu_gmres_orsirr_1(void) {
     ASSERT_ERR(sparse_solve_gmres(A, b, x_prec, &opts, sparse_ilu_precond, &ilu, &result_prec),
                SPARSE_OK);
 
-    double res_prec = compute_relative_residual(A, b, x_prec, n);
+    double res_prec = tf_relative_residual_l2(A, b, x_prec, n, HUGE_VAL);
     printf("    orsirr_1 ILU-GMRES(50): unprec=%d iters (conv=%d), prec=%d iters (res=%.3e)\n",
            (int)result_unprec.iterations, result_unprec.converged, (int)result_prec.iterations,
            res_prec);
@@ -908,7 +894,7 @@ static void test_cholesky_precond_cg_nos4(void) {
     ASSERT_ERR(sparse_solve_cg(A, b, x_prec, &opts, cholesky_precond_apply, &pc, &result_prec),
                SPARSE_OK);
 
-    double res_prec = compute_relative_residual(A, b, x_prec, n);
+    double res_prec = tf_relative_residual_l2(A, b, x_prec, n, HUGE_VAL);
     printf("    nos4 Cholesky-CG: unprec=%d iters, prec=%d iters (res=%.3e)\n",
            (int)result_unprec.iterations, (int)result_prec.iterations, res_prec);
 
@@ -1013,7 +999,7 @@ static void test_ilu_speedup_illcond(void) {
     /* ILU on tridiagonal = exact LU, so preconditioned should be 1 iteration */
     ASSERT_TRUE(result_prec.iterations <= result_unprec.iterations);
 
-    double res_prec = compute_relative_residual(A, b, x_prec, n);
+    double res_prec = tf_relative_residual_l2(A, b, x_prec, n, HUGE_VAL);
     ASSERT_TRUE(res_prec < 1e-8);
 
     free(x_exact);
@@ -1236,7 +1222,7 @@ static void test_ilut_gmres_west0067(void) {
     sparse_err_t solve_err =
         sparse_solve_gmres(A, b, x, &gm_opts, sparse_ilut_precond, &ilut, &result);
 
-    double res = compute_relative_residual(A, b, x, n);
+    double res = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     printf("    west0067 ILUT-right-GMRES(30): %d iters, res=%.3e, conv=%d\n",
            (int)result.iterations, res, result.converged);
 
@@ -1654,8 +1640,8 @@ static void test_ilut_pivot_diag_dominant(void) {
     ASSERT_ERR(sparse_ilu_solve(&ilu_nopiv, b, x_nopiv), SPARSE_OK);
 
     /* Both should produce similar results on diag-dominant matrix */
-    double res_piv = compute_relative_residual(A, b, x_piv, n);
-    double res_nopiv = compute_relative_residual(A, b, x_nopiv, n);
+    double res_piv = tf_relative_residual_l2(A, b, x_piv, n, HUGE_VAL);
+    double res_nopiv = tf_relative_residual_l2(A, b, x_nopiv, n, HUGE_VAL);
     printf("    diag-dominant: pivot_res=%.3e, nopivot_res=%.3e\n", res_piv, res_nopiv);
     ASSERT_TRUE(res_piv < 1e-8);
     ASSERT_TRUE(res_nopiv < 1e-8);
@@ -1722,7 +1708,7 @@ static void test_ilut_pivot_gmres_west0067(void) {
     sparse_err_t solve_err =
         sparse_solve_gmres(A, b, x, &gm_opts, sparse_ilut_precond, &ilut, &result);
 
-    double res = compute_relative_residual(A, b, x, n);
+    double res = tf_relative_residual_l2(A, b, x, n, HUGE_VAL);
     printf("    west0067 pivot-ILUT-GMRES: %d iters, res=%.3e, conv=%d\n", (int)result.iterations,
            res, result.converged);
 

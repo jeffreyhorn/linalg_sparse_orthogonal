@@ -629,8 +629,8 @@ scaffolding that overstates current CI coverage.
 
 ### Dead-Code Workflow
 
-Sprint 33 adds a maintainer-facing dead-code workflow that is intentionally
-separate from `make lint` and `make test`:
+The dead-code workflow is intentionally separate from `make lint` and
+`make test`:
 
 ```bash
 make deadcode
@@ -657,14 +657,10 @@ Prerequisites:
 
 Interpretation rules:
 
-- Treat this workflow as conservative evidence, not as full reachability proof.
-- Active code, opt-in test code, and historical sprint evidence are distinct
-  classes. Historical evidence belongs in `docs/planning/`, not in commented-out
-  test registrations or ad hoc cleanup queues.
-- Findings against exported installed-header symbols are manual-review items, not
-  automatic deletion candidates.
-- `cppcheck` findings in the report's secondary/noise buckets are supporting
-  signals only.
+- treat this workflow as conservative evidence, not as full reachability proof
+- exported installed-header symbols are manual-review items, not automatic
+  deletion candidates
+- `cppcheck` secondary/noise buckets are supporting signals only
 
 Current known limits:
 
@@ -678,8 +674,7 @@ Current known limits:
 
 ### Reviewed Local Quality Path
 
-Sprint 34 adds two reviewed local wrapper targets above the existing quality
-commands:
+Reviewed local wrappers sit above the existing direct quality commands:
 
 ```bash
 make quality-review-compile
@@ -704,17 +699,16 @@ make quality-review-cmake
   - `make quality-review-cmake-compile`
   - `ctest --test-dir build/quality-review-cmake --output-on-failure`
 
-These wrappers are additive. They do **not** replace the meanings of `make
-check`, `make lint`, `make test`, or `make deadcode-check`; they provide an
-explicit reviewed-target phase-1 local enforcement flow with step banners. The
-CMake wrappers are the reviewed parity path for clean rebuild + `ctest -N` +
-full `ctest`; they do **not** replace the Makefile-authoritative formatter,
-static-analysis, or dead-code checks.
+These wrappers are additive. They do **not** replace `make check`, `make lint`,
+`make test`, or `make deadcode-check`.
+
+- `quality-review-compile` / `quality-review` are the reviewed Makefile path
+- `quality-review-cmake-compile` / `quality-review-cmake` are the reviewed
+  CMake parity path for clean rebuild + `ctest -N` + full `ctest`
+- the CMake wrappers do **not** replace the Makefile-authoritative formatter,
+  static-analysis, or dead-code checks
 
 ### Cross-Platform CI Contract
-
-Sprint 36 makes the platform CI contract explicit instead of leaving macOS and
-Windows to inherit Linux expectations by implication.
 
 | Platform | Enforced | Staged | Supplemental / Excluded |
 |--------|---------|---------|---------------------------|
@@ -724,15 +718,11 @@ Windows to inherit Linux expectations by implication.
 
 Interpretation:
 
-- Linux is still the strongest enforced reviewed baseline.
-- macOS aligns the Apple Clang leg with the reviewed contract while keeping the
-  Homebrew GCC leg as a second-compiler supplemental signal.
+- Linux remains the strongest enforced reviewed baseline
+- macOS enforces the Apple Clang reviewed path and keeps the Homebrew GCC leg
+  supplemental
 - Windows truthfully exposes a narrower reviewed CMake subset instead of
-  pretending the POSIX-oriented Makefile and dead-code maintainer paths are
-  already portable there.
-- On Windows, that enforced subset is expressed directly in CI as configure +
-  build + `ctest -N` + full `ctest`; it is not yet the same as claiming the
-  full named local Makefile reviewed-wrapper contract.
+  overstating local Makefile or dead-code parity
 
 Operator command map:
 
@@ -766,6 +756,24 @@ If a reviewed wrapper fails, rerun the named failing phase directly:
   - inspect `build/deadcode/report.tsv`
   - inspect `build/deadcode/cppcheck.txt`
   - inspect `build/deadcode/xunused.txt`
+
+Tree-mutating local modes are a separate operator category:
+
+- `make sanitize`
+- `make asan`
+- `make sanitize-all`
+- `make tsan`
+- `make omp`
+- `make coverage`
+- `make coverage-lcov`
+- `make coverage-gcovr`
+
+These targets intentionally rebuild the shared tree in an alternate mode. When
+returning to the normal direct or reviewed path, use:
+
+```bash
+make clean
+```
 
 **Note:** Apple Clang's ASan hangs on macOS. Use an alternative compiler:
 ```bash

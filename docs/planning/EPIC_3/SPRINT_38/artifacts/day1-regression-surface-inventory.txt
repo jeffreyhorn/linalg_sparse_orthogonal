@@ -1,0 +1,79 @@
+Sprint 38 Day 1 Regression Surface Inventory
+Branch: sprint-38
+HEAD: 6e5b9a3
+Date: 2026-05-21
+
+Maintained validated baseline inherited from Sprint 37
+- make format
+- make lint
+- make test
+- make quality-review-compile
+- make quality-review
+- make quality-review-cmake-compile
+- make quality-review-cmake
+- make deadcode-report
+- make deadcode-check
+- make wall-check
+- ctest -N --test-dir build/quality-review-cmake = 53
+
+Current local prerequisite tools present
+- cppcheck
+- clang-tidy
+- xunused
+- gcovr
+- ctest
+
+Named maintained quality and reporting targets
+- format
+- format-check
+- lint
+- test
+- check
+- tooling-build
+- quality-review-compile
+- quality-review
+- quality-review-cmake-compile
+- quality-review-cmake
+- deadcode-compile-db
+- deadcode
+- deadcode-report
+- deadcode-check
+- wall-check
+- coverage
+- coverage-lcov
+- coverage-gcovr
+
+Current local dead-code artifact/report surfaces
+- build/deadcode/report.md
+- build/deadcode/report.tsv
+- build/deadcode/cppcheck.txt
+- build/deadcode/xunused.txt
+- build/deadcode/coverage-notes.txt
+- build/deadcode/.workflow.stamp
+- build/deadcode/.report.stamp
+
+Open dead-code compile-db exclusions inherited from Sprint 34
+- bench_svd
+- example_basic_solve
+- example_condition
+- example_iterative
+- example_least_squares
+- example_matrix_free
+- example_svd_lowrank
+
+Open dead-code shared-path constraints inherited from Sprint 34
+- build/deadcode-cmake
+- build/deadcode/
+
+Inherited platform/gating constraints to preserve
+- Linux enforced reviewed Makefile/CMake/dead-code baseline
+- macOS enforced Apple Clang reviewed path, staged dead-code, supplemental GCC leg
+- Windows enforced reviewed CMake subset, staged local Makefile reviewed-wrapper parity, excluded dead-code
+- make clean remains the canonical reset after tree-mutating/instrumented modes
+
+Likely Sprint 38 first-pass audit targets
+- coverage-honesty wording and report surfaces
+- compile-only regression protection for the named exclusion-list binaries
+- dead-code report/check maturity and residual evidence classification
+- release/readiness checklist surface
+- CI/reporting polish surfaces for easier failure interpretation

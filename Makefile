@@ -211,21 +211,17 @@ smoke: $(BUILDDIR)/smoke_test
 	$(BUILDDIR)/smoke_test
 
 define RUN_TEST_BINS_WITH_BANNERS
-	@status=0; \
 	for t in $(TEST_BINS); do \
 		echo "=== Running $$(basename $$t) ==="; \
-		$$t || status=1; \
+		$$t || exit 1; \
 		echo; \
-	done; \
-	if [ $$status -ne 0 ]; then echo "Some tests failed"; exit 1; fi
+	done
 endef
 
 define RUN_TEST_BINS_QUIET
-	@status=0; \
 	for t in $(TEST_BINS); do \
-		$$t || status=1; \
-	done; \
-	if [ $$status -ne 0 ]; then echo "Some tests failed"; exit 1; fi
+		$$t || exit 1; \
+	done
 endef
 
 # Run all tests

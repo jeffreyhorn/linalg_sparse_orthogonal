@@ -218,12 +218,6 @@ define RUN_TEST_BINS_WITH_BANNERS
 	done
 endef
 
-define RUN_TEST_BINS_QUIET
-	for t in $(TEST_BINS); do \
-		$$t || exit 1; \
-	done
-endef
-
 define RUN_TEST_BINS_QUIET_ALL
 	status=0; \
 	for t in $(TEST_BINS); do \

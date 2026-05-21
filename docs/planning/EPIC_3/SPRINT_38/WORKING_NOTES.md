@@ -380,3 +380,156 @@ Defer for later Sprint 38 or beyond:
 - any new cross-platform coverage parity expansion
 - any threshold recalibration work; the current Sprint 29 `80` decision remains
   the operative truth source unless new measured evidence justifies reopening it
+
+## Day 3
+
+**Objective:** Audit the named Sprint 34 exclusion-list binaries directly so
+Sprint 38 can distinguish true compile-only protection gaps from dead-code
+compile-db/reporting gaps that are merely being described too broadly.
+
+### Commands Run
+
+1. Re-read the Sprint 38 Day 3 plan section:
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_38/PLAN.md`
+2. Re-scan current docs and prior sprint notes for the named exclusion list:
+   - `rg -n "bench_svd|example_basic_solve|example_condition|example_iterative|example_least_squares|example_matrix_free|example_svd_lowrank|tooling-build|examples-build|bench-build|BENCH_BINS|EX_BINS" Makefile CMakeLists.txt README.md INSTALL.md docs/planning/EPIC_3/SPRINT_{34,36,37,38}/* docs/planning/EPIC_3/SPRINT_{34,36,37,38}/artifacts/*`
+3. Re-read the Makefile benchmark/example build surface:
+   - `sed -n '120,270p' Makefile`
+   - `make -n tooling-build`
+4. Re-read the CMake benchmark/example registration surface:
+   - `sed -n '220,320p' CMakeLists.txt`
+   - `rg -n "add_executable\\((bench_svd|example_basic_solve|example_condition|example_iterative|example_least_squares|example_matrix_free|example_svd_lowrank)|NOT WIN32|add_sparse_test\\(" CMakeLists.txt`
+5. Confirm the current file inventory for benchmarks/examples:
+   - `ls examples/*.c benchmarks/*.c`
+   - `python3` count/list of `examples/*.c` and `benchmarks/*.c`
+6. Recheck actual dead-code compile-db and coverage-notes status:
+   - `python3` membership check of the seven named source files in `build/deadcode-cmake/compile_commands.json`
+   - `sed -n '1,220p' build/deadcode/coverage-notes.txt`
+7. Re-read the current README dead-code limitation wording:
+   - `sed -n '640,680p' README.md`
+
+### Day 3 Findings
+
+#### 1. The named exclusion list is no longer a Makefile compile-only protection gap
+
+Current Makefile truth:
+
+- `BENCH_SRCS` explicitly includes:
+  - `bench_svd.c`
+- `EX_SRCS = $(wildcard examples/*.c)` includes:
+  - `example_basic_solve.c`
+  - `example_condition.c`
+  - `example_iterative.c`
+  - `example_least_squares.c`
+  - `example_matrix_free.c`
+  - `example_svd_lowrank.c`
+- `tooling-build` depends on:
+  - `bench-build`
+  - `examples-build`
+- `lint` depends on:
+  - `tooling-build`
+
+Interpretation:
+
+- all seven named binaries already compile under the maintained Makefile
+  compile-only path
+- the Sprint 34 wording is now too broad if it still implies these are missing
+  from compile-only protection in general
+
+#### 2. The seven named binaries are still absent from the dead-code CMake compile database
+
+Current `build/deadcode-cmake/compile_commands.json` truth:
+
+- `bench_svd.c` = missing
+- `example_basic_solve.c` = missing
+- `example_condition.c` = missing
+- `example_iterative.c` = missing
+- `example_least_squares.c` = missing
+- `example_matrix_free.c` = missing
+- `example_svd_lowrank.c` = missing
+
+Current `build/deadcode/coverage-notes.txt` truth:
+
+- benchmarks = `13`
+- examples = `6`
+- `missing_benchmarks`:
+  - `bench_svd`
+- `missing_examples`:
+  - `example_basic_solve`
+  - `example_condition`
+  - `example_iterative`
+  - `example_least_squares`
+  - `example_matrix_free`
+  - `example_svd_lowrank`
+
+Interpretation:
+
+- the exclusion list is still real
+- but it is specifically a dead-code compile-db/reporting gap, not a Makefile
+  compile-only protection gap
+
+#### 3. The root cause is narrower than “CMake parity misses random tooling surface”
+
+Current CMake truth:
+
+- examples registered in `CMakeLists.txt`:
+  - `example_ldlt`
+  - `example_ic_minres`
+  - `example_analysis`
+  - `example_minnorm`
+  - `example_colamd`
+  - `example_eigs`
+- the six named missing examples are not registered
+- benchmark registration includes many bench binaries, but still omits the named
+  `bench_svd` target from the dead-code compile-db tree
+
+Interpretation:
+
+- the exclusion list is caused by a bounded CMake registration gap
+- this is smaller and more actionable than a generic "compile_commands is
+  unreliable" story
+
+#### 4. The repo currently mixes two different compile-protection stories that should be separated
+
+Current repo behavior:
+
+- Makefile reviewed/compile-only path:
+  - already compiles all `14` benchmarks
+  - already compiles all `12` examples
+- dead-code compile-db/reporting path:
+  - still covers only `13` benchmarks
+  - still covers only `6` examples
+
+Interpretation:
+
+- Day 3's main audit result is a vocabulary split:
+  - compile-only regression protection through `tooling-build` is largely closed
+  - dead-code compile-db/reporting coverage for those seven files remains open
+- later Sprint 38 work should stop using the phrase "compile-only gap" for the
+  whole list unless it is explicitly talking about the dead-code CMake path
+
+#### 5. The keep/fix/defer split is already clear
+
+Keep as-is:
+
+- `tooling-build` as the Makefile compile-only regression surface
+- `lint -> tooling-build` as the maintained local ingress for benchmark/example
+  compile protection
+- current README statement that the dead-code compilation database under-covers
+  part of the Makefile tooling surface
+
+Fix in Sprint 38:
+
+- docs/notes that still describe the seven files as generic compile-only drift
+  instead of dead-code compile-db/reporting drift
+- whichever strongest safe follow-through Day 6 chooses:
+  - broaden the dead-code CMake compile-db to include some or all of the seven
+    files, or
+  - re-document the exclusion list more precisely as a dead-code/reporting limit
+
+Defer unless later evidence changes:
+
+- any attempt to move routine runtime execution of these binaries into the
+  reviewed baseline
+- any claim that reviewed CMake parity should own the full benchmark/example
+  compile-only surface by default

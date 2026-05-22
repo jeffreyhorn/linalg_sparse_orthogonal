@@ -690,3 +690,70 @@ Interpretation:
 
 - the generated report, the Makefile operator message, and the README dead-code
   docs now all describe the same final-state contract
+
+## Day 7
+
+**Objective:** Land the narrow cross-platform reconciliation batch identified
+on Day 4 by making the README state the final staged/excluded platform queue
+and the shared reviewed-baseline distinction directly, without changing any CI
+workflow behavior.
+
+### Commands Run
+
+1. Re-read the Sprint 39 Day 7 plan section:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_39/PLAN.md`
+2. Re-read the Day 4 cross-platform audit:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_39/artifacts/day4-final-cross-platform-audit.md`
+3. Re-read the current cross-platform contract surfaces:
+   - `sed -n '720,780p' README.md`
+   - `sed -n '1,120p' .github/workflows/ci.yml`
+   - `sed -n '1,120p' .github/workflows/macos-ci.yml`
+   - `sed -n '1,120p' .github/workflows/windows-ci.yml`
+4. Validate the touched doc surface directly:
+   - `rg -n "strongest shared reviewed baseline|macOS dead-code = staged|Windows local Makefile reviewed-wrapper parity = staged|Windows dead-code = excluded" README.md`
+   - `sed -n '736,748p' README.md`
+   - `sed -n '788,798p' README.md`
+
+### Day 7 Findings
+
+#### 1. The shipped batch is contract clarification only, not workflow expansion
+
+Day 4 already showed the current workflows and README were broadly consistent.
+The remaining closeout gap was subtle:
+
+- the README implied, but did not state directly enough, that reviewed CMake
+  parity is the strongest **shared** reviewed baseline
+- the README warned against overclaiming staged/supplemental paths, but did not
+  restate the exact remaining intentionally non-universal queue in the
+  readiness checklist
+
+Day 7 therefore stayed purely documentation-focused.
+
+#### 2. The README now states the shared-baseline distinction directly
+
+The `Cross-Platform CI Contract` interpretation section now says explicitly:
+
+- reviewed CMake parity remains the strongest shared reviewed baseline across
+  platforms
+
+Interpretation:
+
+- this preserves the Sprint 36 / Sprint 39 audit distinction between:
+  - Linux as the strongest overall enforced baseline
+  - reviewed CMake parity as the strongest shared reviewed baseline
+
+#### 3. The readiness checklist now names the exact staged/excluded queue directly
+
+The `Quality Readiness Checklist` now restates the current intentionally
+non-universal surfaces explicitly:
+
+- macOS dead-code = staged
+- Windows local Makefile reviewed-wrapper parity = staged
+- Windows dead-code = excluded
+
+Interpretation:
+
+- final Epic 3 closeout language now has a concise operator-facing anchor for
+  the remaining platform-specific limits
+- later summary/standards work does not have to infer them only from the table
+  or workflow comments

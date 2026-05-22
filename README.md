@@ -738,6 +738,8 @@ These wrappers are additive. They do **not** replace `make check`, `make lint`,
 Interpretation:
 
 - Linux remains the strongest enforced reviewed baseline
+- reviewed CMake parity remains the strongest shared reviewed baseline across
+  platforms
 - macOS enforces the Apple Clang reviewed path and keeps the Homebrew GCC leg
   supplemental
 - Windows truthfully exposes a narrower reviewed CMake subset instead of
@@ -790,6 +792,10 @@ quality surface:
   - use the `Cross-Platform CI Contract` table below as the source of truth
   - do not treat staged or supplemental paths as part of the enforced reviewed
     baseline
+  - current intentionally non-universal surfaces remain:
+    - macOS dead-code = staged
+    - Windows local Makefile reviewed-wrapper parity = staged
+    - Windows dead-code = excluded
 
 This checklist is intentionally concise. For command details, rerun guidance,
 and staged/supplemental context, use the reviewed command map, the dead-code

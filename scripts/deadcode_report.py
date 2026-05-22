@@ -274,7 +274,7 @@ def top_secondary_by_file(secondary_counts: Counter[tuple[str, str]]) -> list[tu
     return results
 
 
-def public_bucket_reviewed_keeps(rows: list[Row]) -> bool:
+def public_bucket_justified_keeps(rows: list[Row]) -> bool:
     return bool(rows) and all(row[6] == "keep-public-api-day8-audited" for row in rows)
 
 
@@ -348,13 +348,13 @@ def append_internal_candidates(lines: list[str], rows: list[Row]) -> None:
 
 
 def append_public_surface_items(lines: list[str], rows: list[Row]) -> None:
-    reviewed_keeps = public_bucket_reviewed_keeps(rows)
+    justified_keeps = public_bucket_justified_keeps(rows)
     append_section(
         lines,
-        "## Public-Surface Justified Keeps" if reviewed_keeps else "## Public-Surface Review Items",
+        "## Public-Surface Justified Keeps" if justified_keeps else "## Public-Surface Review Items",
     )
     if rows:
-        if reviewed_keeps:
+        if justified_keeps:
             lines.append(
                 "These symbols remain in the public-surface bucket because they are exported through installed "
                 "headers. The current audited outcome for all listed rows is `keep`, not cleanup, so this "
@@ -411,14 +411,14 @@ def append_next_action_queue(lines: list[str], internal: list[Row], public: list
 
     if public:
         public_symbols = ", ".join(f"`{row[2]}`" for row in public)
-        if public_bucket_reviewed_keeps(public):
+        if public_bucket_justified_keeps(public):
             lines.append(
                 f"- public-surface justified keeps remain visible for closeout context, not cleanup: {public_symbols}."
             )
         else:
             lines.append(f"- public-surface review items: {public_symbols}.")
     else:
-        lines.append("- public-surface reviewed keeps: none.")
+        lines.append("- public-surface justified keeps: none.")
 
     lines.append(
         "- `cppcheck` secondary signals remain supporting evidence only; they stay summarized for future focused review work, not as direct removal instructions."

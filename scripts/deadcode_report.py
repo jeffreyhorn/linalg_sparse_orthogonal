@@ -342,7 +342,7 @@ def append_internal_candidates(lines: list[str], rows: list[Row]) -> None:
         append_symbol_rows(lines, rows)
     else:
         lines.append(
-            "- No current definitely-unused internal cleanup batch is classified in this run."
+            "- No current definitely-unused internal cleanup batch remains in this run."
         )
     lines.append("")
 
@@ -351,13 +351,14 @@ def append_public_surface_items(lines: list[str], rows: list[Row]) -> None:
     reviewed_keeps = public_bucket_reviewed_keeps(rows)
     append_section(
         lines,
-        "## Public-Surface Reviewed Keeps" if reviewed_keeps else "## Public-Surface Review Items",
+        "## Public-Surface Justified Keeps" if reviewed_keeps else "## Public-Surface Review Items",
     )
     if rows:
         if reviewed_keeps:
             lines.append(
                 "These symbols remain in the public-surface bucket because they are exported through installed "
-                "headers. The current audited outcome for all listed rows is `keep`, not cleanup."
+                "headers. The current audited outcome for all listed rows is `keep`, not cleanup, so this "
+                "section is now closeout context rather than an active removal queue."
             )
         else:
             lines.append(
@@ -374,12 +375,13 @@ def append_public_surface_items(lines: list[str], rows: list[Row]) -> None:
 def append_secondary_signals(
     lines: list[str], top_secondary: list[tuple[str, int, str]]
 ) -> None:
-    append_section(lines, "## Secondary `cppcheck` Candidate Signals")
+    append_section(lines, "## Secondary `cppcheck` Supporting Signals")
     if top_secondary:
         lines.append(
             "These are supporting signals only. They stay out of the cleanup queue until a later pass confirms "
             "that they represent real dead-code opportunities rather than broad static-analysis noise. "
-            "They are not direct removal instructions or pass/fail criteria in the current staged workflow."
+            "They are not direct removal instructions or pass/fail criteria in the current staged workflow, "
+            "and they do not currently justify a new Sprint 39 removal batch by themselves."
         )
         lines.append("")
         for source, total, details in top_secondary[:10]:
@@ -390,7 +392,7 @@ def append_secondary_signals(
 
 
 def append_noise_summary(lines: list[str], noise_counts: Counter[str], rows: list[Row]) -> None:
-    append_section(lines, "## Deferred Noise Summary")
+    append_section(lines, "## Appendix Noise Summary")
     if rows:
         for checker_id, count in sorted(noise_counts.items(), key=lambda item: (-item[1], item[0])):
             lines.append(f"- `{checker_id}`: `{count}`")
@@ -411,7 +413,7 @@ def append_next_action_queue(lines: list[str], internal: list[Row], public: list
         public_symbols = ", ".join(f"`{row[2]}`" for row in public)
         if public_bucket_reviewed_keeps(public):
             lines.append(
-                f"- public-surface audited keeps remain visible for context, not cleanup: {public_symbols}."
+                f"- public-surface justified keeps remain visible for closeout context, not cleanup: {public_symbols}."
             )
         else:
             lines.append(f"- public-surface review items: {public_symbols}.")
@@ -419,10 +421,13 @@ def append_next_action_queue(lines: list[str], internal: list[Row], public: list
         lines.append("- public-surface reviewed keeps: none.")
 
     lines.append(
-        "- `cppcheck` secondary signals remain supporting evidence only; they stay summarized for future review work, not as direct removal instructions."
+        "- `cppcheck` secondary signals remain supporting evidence only; they stay summarized for future focused review work, not as direct removal instructions."
     )
     lines.append(
-        "- authoritative dead-code validation remains serialized through `make deadcode-report` and `make deadcode-check`."
+        "- static-analysis noise remains appendix-only context, not a cleanup queue."
+    )
+    lines.append(
+        "- authoritative dead-code validation remains serialized through `make deadcode-report` and `make deadcode-check`; that workflow-topology limit is separate from the content-level bucket dispositions above."
     )
 
 

@@ -673,9 +673,12 @@ Prerequisites:
 Interpretation rules:
 
 - treat this workflow as conservative evidence, not as full reachability proof
+- the current maintained benchmark/example compile-db coverage gap is closed
+- there is no current definitely-unused internal cleanup batch
 - exported installed-header symbols are manual-review items, not automatic
-  deletion candidates
-- `cppcheck` secondary/noise buckets are supporting signals only
+  deletion candidates; the current public bucket is an audited keep list
+- `cppcheck` secondary buckets are supporting signals only
+- static-analysis noise remains appendix-only context, not a cleanup queue
 
 Current known limits:
 

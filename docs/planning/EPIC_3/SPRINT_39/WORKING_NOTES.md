@@ -605,3 +605,88 @@ Interpretation:
   semantics
 - the current local reviewed baseline remains strong, but its evidence tier is
   now stated more precisely in the README
+
+## Day 6
+
+**Objective:** Land the narrow dead-code closeout batch identified on Day 3 by
+turning the residual report buckets into explicit final-state explanations,
+while keeping the serialized-execution limit visible as workflow topology
+rather than implying a new cleanup queue.
+
+### Commands Run
+
+1. Re-read the Sprint 39 Day 6 plan section:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_39/PLAN.md`
+2. Re-read the Day 3 dead-code audit:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_39/artifacts/day3-final-deadcode-audit.md`
+3. Re-read the current dead-code workflow surfaces before editing:
+   - `sed -n '1,320p' scripts/deadcode_report.py`
+   - `sed -n '320,520p' scripts/deadcode_report.py`
+   - `sed -n '640,720p' README.md`
+   - `sed -n '600,650p' Makefile`
+   - `sed -n '1,220p' build/deadcode/report.md`
+4. Validate the touched support surfaces:
+   - `python3 -m py_compile scripts/deadcode_report.py`
+   - `make deadcode-report`
+   - `make deadcode-check`
+
+### Day 6 Findings
+
+#### 1. The shipped batch is pure closeout clarification, not new dead-code policy
+
+Day 3 already showed the remaining dead-code work was explanation-heavy:
+
+- no current benchmark/example compile-db gap
+- no current definitely-unused internal cleanup batch
+- public rows already audited as keeps
+- `cppcheck` density still supporting-only
+- static-analysis noise still appendix-only
+
+Day 6 therefore kept the batch narrow and operator-facing.
+
+#### 2. The generated report now reads like a closeout-state report instead of a lingering active cleanup queue
+
+The report wording was tightened in these ways:
+
+- `Public-Surface Reviewed Keeps` became:
+  - `Public-Surface Justified Keeps`
+- the public section now states explicitly that it is closeout context, not an
+  active removal queue
+- `Secondary cppcheck Candidate Signals` became:
+  - `Secondary cppcheck Supporting Signals`
+- the secondary section now states directly that these rows do not currently
+  justify a new Sprint 39 removal batch
+- `Deferred Noise Summary` became:
+  - `Appendix Noise Summary`
+- the next-action queue now says explicitly:
+  - public justified keeps are closeout context
+  - static-analysis noise is appendix-only
+  - serialized execution is a separate workflow-topology limit
+
+Interpretation:
+
+- the dead-code report now matches the real post-Sprint-38 / post-Day-3 state
+  more closely
+- final Epic 3 closeout language now has a clearer generated artifact to point
+  at
+
+#### 3. The README and `deadcode-check` output now teach the same final contract
+
+README dead-code workflow wording now states:
+
+- current benchmark/example compile-db coverage gap is closed
+- there is no current definitely-unused internal cleanup batch
+- the public bucket is currently an audited keep list
+- `cppcheck` secondary rows are supporting-only
+- static-analysis noise is appendix-only
+
+`deadcode-check` output now states more precisely:
+
+- passing is not a zero-findings or removal-ready gate
+- residual buckets are closeout/supporting context only
+- authoritative execution remains serialized
+
+Interpretation:
+
+- the generated report, the Makefile operator message, and the README dead-code
+  docs now all describe the same final-state contract

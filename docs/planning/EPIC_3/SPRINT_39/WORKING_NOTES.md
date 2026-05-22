@@ -411,3 +411,125 @@ What Day 3 did **not** justify:
 - a new code-removal batch
 - a new compile-db expansion batch
 - stronger content-based `deadcode-check` failure logic
+
+## Day 4
+
+**Objective:** Reconfirm the final enforced/staged/excluded cross-platform
+contract against the current workflows and README so Sprint 39 can separate
+real platform drift from the intentionally preserved staged or excluded
+surfaces.
+
+### Commands Run
+
+1. Re-read the Sprint 39 Day 4 plan section:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_39/PLAN.md`
+2. Re-read the Sprint 36 cross-platform parity closeout:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_36/HANDOFF.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_36/RETROSPECTIVE.md`
+3. Re-read the Sprint 38 carried-forward residual queue:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_38/HANDOFF.md`
+4. Re-read the current cross-platform contract surfaces:
+   - `sed -n '720,760p' README.md`
+   - `sed -n '1,260p' .github/workflows/ci.yml`
+   - `sed -n '1,260p' .github/workflows/macos-ci.yml`
+   - `sed -n '1,260p' .github/workflows/windows-ci.yml`
+
+### Day 4 Findings
+
+#### 1. The current cross-platform contract still matches the Sprint 36 model cleanly
+
+The README and workflow files still describe the same top-level platform model:
+
+- Linux:
+  - enforced reviewed Makefile compile-quality path
+  - enforced reviewed CMake parity path
+  - enforced dead-code report/check path
+- macOS:
+  - enforced Apple Clang reviewed path
+  - enforced `wall-check`
+  - enforced `sanitize`
+  - supplemental Homebrew GCC leg
+  - staged dead-code
+- Windows:
+  - enforced reviewed CMake subset
+  - staged local Makefile reviewed-wrapper parity
+  - staged/excluded dead-code
+
+Interpretation:
+
+- Day 4 found no evidence that the Sprint 36 parity model has drifted out of
+  sync between README and CI workflows
+- Sprint 39 does not start from a broken platform-contract surface
+
+#### 2. The real remaining queue is exactly the intentionally staged/excluded queue
+
+Sprint 38 already narrowed the carried-forward platform queue to:
+
+- macOS dead-code remains staged
+- Windows local Makefile reviewed-wrapper parity remains staged
+- Windows dead-code remains excluded
+
+The current workflow/docs surfaces still present those limits honestly:
+
+- macOS workflow does **not** claim enforced dead-code
+- Windows workflow does **not** claim local Makefile reviewed-wrapper parity
+- Windows still names the enforced reviewed subset through CMake configure /
+  build / `ctest -N` / full `ctest`
+
+Interpretation:
+
+- the residual platform queue is not hidden or contradictory
+- the remaining Sprint 39 closeout work is final reconciliation and summary,
+  not discovery of a new parity gap
+
+#### 3. Reviewed CMake parity remains the only fully honest shared cross-platform reviewed baseline
+
+The current contract still clearly implies:
+
+- Linux has the strongest full reviewed baseline overall
+- reviewed CMake parity is the strongest shared cross-platform reviewed subset
+- local Makefile reviewed wrappers are not yet truthfully universal
+
+That remains consistent with:
+
+- Sprint 36 handoff
+- current README cross-platform contract section
+- current Windows workflow enforcement model
+
+Interpretation:
+
+- Sprint 39 should preserve this distinction in final summary language
+- Day 7 should not broaden into fake “all platforms now support the same local
+  reviewed command surface” claims
+
+#### 4. No new platform-specific regression surfaced at the workflow/docs level
+
+Day 4 did **not** find:
+
+- a mismatch between README platform claims and workflow enforcement names
+- a hidden new Windows exclusion beyond the already-named test set
+- a new macOS dead-code enforcement claim
+- a reopened Linux dead-code or reviewed-wrapper ambiguity
+
+Interpretation:
+
+- the likely Day 7 batch is narrow
+- it should focus on final wording reconciliation and closeout clarity rather
+  than new workflow topology or platform-feature changes
+
+#### 5. The likely Day 7 batch is contract-focused, not implementation-heavy
+
+Day 4 narrows the expected Sprint 39 Day 7 work to:
+
+- preserve the Linux / macOS / Windows enforced-staged-excluded model in final
+  closeout language
+- make sure final Epic 3 standards/summary docs do not overclaim Windows local
+  reviewed-wrapper parity or universal dead-code parity
+- keep reviewed CMake parity framed as the strongest shared reviewed baseline
+
+What Day 4 did **not** justify:
+
+- a new workflow-matrix expansion
+- new Windows Makefile parity work
+- new macOS dead-code enforcement work
+- any attempt to erase the staged/excluded distinctions for simplicity

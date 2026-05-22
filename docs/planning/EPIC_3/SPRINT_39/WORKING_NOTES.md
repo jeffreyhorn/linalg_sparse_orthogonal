@@ -176,7 +176,7 @@ The Sprint 30 compile-hygiene playbook remains unambiguous:
 The Sprint 30 rebuild workflow also remains the intended reproducible entry
 point for warning inventory work:
 
-- `make warning-workflow WARNING_WORKFLOW_LABEL=<label>`
+- `make warning-workflow WARNING_WORKFLOW_LABEL=label`
 
 Interpretation:
 
@@ -567,7 +567,7 @@ value remaining risk was contract drift between:
 - strongest routine local reviewed baseline:
   - `make quality-review-full`
 - authoritative repository-wide warning proof:
-  - `make warning-workflow WARNING_WORKFLOW_LABEL=<label>`
+  - `make warning-workflow WARNING_WORKFLOW_LABEL=label`
 
 Day 5 therefore stayed intentionally small and operator-facing.
 
@@ -576,7 +576,7 @@ Day 5 therefore stayed intentionally small and operator-facing.
 Two concrete clarifications landed:
 
 - the top-level Make command list now includes:
-  - `make warning-workflow WARNING_WORKFLOW_LABEL=<label>`
+  - `make warning-workflow WARNING_WORKFLOW_LABEL=label`
 - the Quality Readiness Checklist now states explicitly:
   - repository-wide warning claims still use the Sprint 30 authoritative path
   - the Apple Clang CMake full-tree inventory is the authoritative warning

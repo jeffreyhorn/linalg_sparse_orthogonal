@@ -34,7 +34,7 @@ That remains the main local pre-feature / pre-PR quality command.
 
 Repository-wide warning claims still use the Sprint 30 authority model:
 
-- `make warning-workflow WARNING_WORKFLOW_LABEL=<label>`
+- `make warning-workflow WARNING_WORKFLOW_LABEL=label`
 - Apple Clang CMake full-tree inventory as the authoritative warning proof
 - Makefile `all` as the narrower supporting library-only cross-check
 
@@ -113,7 +113,7 @@ Use this baseline before and after new feature work:
 
 If the feature needs repository-wide warning claims:
 
-7. `make warning-workflow WARNING_WORKFLOW_LABEL=<label>`
+7. `make warning-workflow WARNING_WORKFLOW_LABEL=label`
 
 ## Key References
 

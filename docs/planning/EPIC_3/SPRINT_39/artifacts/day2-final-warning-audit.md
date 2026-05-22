@@ -15,7 +15,7 @@ The key distinction remains:
 
 - **authoritative repository-wide warning proof**
   - Sprint 30 Apple Clang CMake full-tree inventory
-  - reproducible through `make warning-workflow WARNING_WORKFLOW_LABEL=<label>`
+  - reproducible through `make warning-workflow WARNING_WORKFLOW_LABEL=label`
 - **narrower secondary cross-check**
   - Makefile `all` library-only build
 - **routine maintained local reviewed baseline**

@@ -35,7 +35,7 @@ claims under an explicit evidence hierarchy:
 - strongest routine local reviewed baseline:
   - `make quality-review-full`
 - authoritative repository-wide warning proof:
-  - `make warning-workflow WARNING_WORKFLOW_LABEL=<label>`
+  - `make warning-workflow WARNING_WORKFLOW_LABEL=label`
   - Apple Clang CMake full-tree inventory
 - narrower supporting cross-check:
   - Makefile `all`

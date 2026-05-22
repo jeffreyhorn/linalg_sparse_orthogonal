@@ -15,7 +15,7 @@ Touched surface:
 
 Changes shipped:
 
-1. Added `make warning-workflow WARNING_WORKFLOW_LABEL=<label>` to the top-level
+1. Added `make warning-workflow WARNING_WORKFLOW_LABEL=label` to the top-level
    Make command list.
 2. Added explicit warning-authority wording to the `Quality Readiness
    Checklist`:

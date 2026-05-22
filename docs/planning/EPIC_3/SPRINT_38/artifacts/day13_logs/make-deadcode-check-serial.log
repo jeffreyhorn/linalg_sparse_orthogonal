@@ -1,0 +1,5 @@
+deadcode-check: report completeness checks passed (not a zero-findings gate).
+deadcode-check: authoritative execution remains serialized; inspect build/deadcode/report.md and build/deadcode/report.tsv.
+real 0.52
+user 0.21
+sys 0.14

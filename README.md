@@ -109,6 +109,7 @@ make lint       # strict compile + static analysis (includes tooling-build)
 make quality-review-compile  # reviewed format-check + lint wrapper
 make test       # run all unit tests
 make quality-review  # reviewed format-check + lint + test + deadcode-check
+make quality-review-full  # strongest local reviewed baseline: quality-review + quality-review-cmake
 make quality-review-cmake-compile  # reviewed CMake configure + rebuild + ctest -N
 make quality-review-cmake  # reviewed CMake configure + rebuild + ctest -N + ctest
 make deadcode   # refresh raw dead-code evidence in build/deadcode/
@@ -119,7 +120,7 @@ make examples   # build standalone example programs
 make docs       # generate Doxygen API reference (requires doxygen)
 make omp        # build and test with OpenMP-enabled parallel SpMV
 make sanitize   # build with undefined-behavior sanitizer
-make coverage   # generate lcov coverage report (requires gcc + lcov + bc)
+make coverage   # default line-coverage report on the active test surface (80% threshold; backend auto-selected)
 make install    # install to PREFIX (default /usr/local)
 make uninstall  # remove installed files
 make clean      # remove build artifacts
@@ -553,7 +554,10 @@ The library is safe for concurrent use under the following contract:
 
 ## Testing
 
-The test suite contains **1453 unit tests** across 42 test suites with >=95% line coverage (CI-enforced):
+The maintained default regression surface currently registers **53** test
+binaries in CTest. Coverage is a separate supplemental signal: the Linux
+coverage job enforces an **80%** line-coverage threshold on `src/` for the
+default instrumented test run, not for every opt-in test path automatically.
 
 - Sparse matrix data structure, norms, symmetry, transpose (53 tests)
 - LU factorization, solve, condition estimation (37 tests)
@@ -600,7 +604,7 @@ make sanitize      # UBSan (undefined behavior)
 make asan          # ASan (address sanitizer) — requires GCC or LLVM clang on macOS
 make sanitize-all  # both ASan + UBSan
 make tsan          # TSan (thread sanitizer) for concurrent tests
-make coverage      # line coverage report (requires gcc + lcov + bc); fails if < 95%
+make coverage      # line coverage report for the default active test surface; fails if < 80%
 ```
 
 ### Test Category Policy
@@ -621,6 +625,16 @@ SPARSE_TEST_EXPERIMENTAL=1 make test
   problem is runtime or fixture cost.
 - `RUN_TEST_EXPERIMENTAL(...)` is for current live behavior on intentionally
   non-default paths that still must pass when enabled.
+- Some suite-local opt-in surfaces also remain valid where a wrapper category is
+  not the right fit. The current maintained example is the large-matrix
+  SuiteSparse path in `tests/test_suitesparse.c`, enabled with:
+
+```bash
+SPARSE_TEST_LARGE=1 make test
+```
+
+That path is live supported test coverage when enabled; it is simply not part
+of the default regression run because of fixture/runtime cost.
 
 Historical measurements, retired targets, and old sprint evidence do not stay in
 normal suite files as commented-out `RUN_TEST(...)` entries. Preserve that
@@ -664,10 +678,6 @@ Interpretation rules:
 
 Current known limits:
 
-- The compilation database used by `xunused` still under-covers part of the
-  Makefile tooling surface. As of Sprint 33 it misses `bench_svd` and six
-  example programs; `build/deadcode/coverage-notes.txt` records the exact list
-  for each run.
 - Run the `deadcode*` targets serially. They share `build/deadcode-cmake` and
   `build/deadcode/`; concurrent invocation can race on the shared CMake build
   tree and produce transient failures.
@@ -679,6 +689,7 @@ Reviewed local wrappers sit above the existing direct quality commands:
 ```bash
 make quality-review-compile
 make quality-review
+make quality-review-full
 make quality-review-cmake-compile
 make quality-review-cmake
 ```
@@ -691,6 +702,9 @@ make quality-review-cmake
   - `make lint`
   - `make test`
   - `make deadcode-check`
+- `make quality-review-full` runs:
+  - `make quality-review`
+  - `make quality-review-cmake`
 - `make quality-review-cmake-compile` runs:
   - `cmake -S . -B build/quality-review-cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`
   - `cmake --build build/quality-review-cmake --parallel 1 --clean-first`
@@ -703,6 +717,7 @@ These wrappers are additive. They do **not** replace `make check`, `make lint`,
 `make test`, or `make deadcode-check`.
 
 - `quality-review-compile` / `quality-review` are the reviewed Makefile path
+- `quality-review-full` is the strongest local reviewed baseline command
 - `quality-review-cmake-compile` / `quality-review-cmake` are the reviewed
   CMake parity path for clean rebuild + `ctest -N` + full `ctest`
 - the CMake wrappers do **not** replace the Makefile-authoritative formatter,
@@ -738,6 +753,38 @@ Operator command map:
   - `make deadcode-report`
 - dead-code completeness gate:
   - `make deadcode-check`
+
+### Quality Readiness Checklist
+
+Use this checklist for a concise release/readiness pass over the maintained
+quality surface:
+
+- strongest local reviewed baseline passes:
+  - `make quality-review-full`
+- dead-code report and completeness path remain truthful:
+  - `make deadcode-report`
+  - `make deadcode-check`
+  - a passing `deadcode-check` is a completeness gate, not a zero-findings
+    claim, and the dead-code path remains serialized
+- active test-surface / reviewed CMake parity remains truthful:
+  - `ctest -N --test-dir build/quality-review-cmake` still reports the current
+    maintained suite size (`53`)
+  - full reviewed CMake parity still passes through `make quality-review-cmake`
+- coverage wording stays truthful:
+  - coverage is supplemental, not part of the reviewed baseline
+  - the current enforced threshold is `80%` line coverage on `src/` in the
+    Linux coverage path
+- docs/examples/header usage stays consistent with shipped behavior:
+  - public README/tutorial/header snippets and maintained examples should agree
+    on current API names, option fields, and supported behavior
+- cross-platform enforced/staged/excluded boundaries stay named honestly:
+  - use the `Cross-Platform CI Contract` table below as the source of truth
+  - do not treat staged or supplemental paths as part of the enforced reviewed
+    baseline
+
+This checklist is intentionally concise. For command details, rerun guidance,
+and staged/supplemental context, use the reviewed command map, the dead-code
+section above, and the cross-platform CI contract below.
 
 If a reviewed wrapper fails, rerun the named failing phase directly:
 

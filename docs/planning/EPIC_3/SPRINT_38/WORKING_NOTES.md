@@ -1690,3 +1690,69 @@ Interpretation:
 
 - the repo now has both the quality signals and the concise readiness surface
   Sprint 38 set out to ship
+
+## Day 14
+
+**Objective:** Close Sprint 38 by converting the Day 13 validated baseline into
+explicit handoff and retrospective docs, and confirm whether any residual work
+needs new routing in `PROJECT_PLAN.md`.
+
+### Commands Run
+
+1. Re-read the Sprint 38 project-plan section and Sprint 39 carry-forward area:
+   - `sed -n '296,360p' docs/planning/EPIC_3/PROJECT_PLAN.md`
+2. Re-read the Day 13 validation artifact:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_38/artifacts/day13-full-validation-sweep.md`
+3. Re-read a recent Epic 3 handoff/retrospective pair for shape:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_37/HANDOFF.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_37/RETROSPECTIVE.md`
+
+### Day 14 Findings
+
+#### 1. Sprint 38 closes with a stronger regression-proofing baseline, not a new cleanup queue
+
+Sprint 38 shipped the planned hardening layers:
+
+- coverage wording is now truthful
+- the old dead-code compile-db exclusion list is closed
+- dead-code report/check output is clearer in the zero-gap state
+- `make quality-review-full` now names the strongest local reviewed baseline
+- the README now carries a concise quality-readiness checklist
+
+Interpretation:
+
+- Sprint 38 materially improved routine regression-proofing
+- it did so without reopening warning debt, dormant-test debt, or cross-platform
+  contract confusion
+
+#### 2. The residual queue is bounded and already belongs to Sprint 39
+
+Still open after Sprint 38:
+
+- dead-code shared-path serialized execution remains a real limitation
+- residual dead-code report buckets remain:
+  - `public-surface-review = 4`
+  - `secondary-candidate-signal = 35`
+  - `non-deadcode-static-analysis-noise = 6`
+- cross-platform staged/excluded boundaries from Sprint 36 remain unchanged
+
+Interpretation:
+
+- this is not new residual work created by Sprint 38
+- it is the same bounded closeout queue that Sprint 39 already owns through its
+  final dead-code audit, final cross-platform audit, and standards/docs closeout
+
+#### 3. No new `PROJECT_PLAN.md` routing is required
+
+The Sprint 39 section already covers:
+
+- final dead-code audit
+- final cross-platform audit
+- standards/documentation closeout
+- final validation
+
+Interpretation:
+
+- Sprint 38 does not need to rewrite the project plan
+- the correct closeout move is explicit handoff/retrospective grounded in the
+  Day 13 validated baseline

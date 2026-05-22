@@ -1395,3 +1395,87 @@ Interpretation:
 
 - the closeout docs can now point to one measured validation package rather
   than reconstructing the final numbers from earlier sprints
+
+## Day 14
+
+**Objective:** Close Epic 3 from the Day 13 validated baseline by writing the
+final Sprint 39 handoff and retrospective, ensuring the summary/closeout/docs
+all point to the same authoritative end state, and confirming that no new
+deferred item needs to be routed into `PROJECT_PLAN.md`.
+
+### Commands Run
+
+1. Re-read the Sprint 39 Day 14 plan section:
+   - `sed -n '330,380p' docs/planning/EPIC_3/SPRINT_39/PLAN.md`
+2. Re-read the final measured baseline and summary inputs:
+   - `sed -n '1,240p' docs/planning/EPIC_3/SPRINT_39/artifacts/day13-full-validation-sweep.md`
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_39/artifacts/day12-epic3-summary-report.md`
+3. Re-read the prior sprint closeout shape for consistency:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_38/HANDOFF.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_38/RETROSPECTIVE.md`
+4. Confirm whether `PROJECT_PLAN.md` needs any new routing update:
+   - `sed -n '336,367p' docs/planning/EPIC_3/PROJECT_PLAN.md`
+
+### Day 14 Findings
+
+#### 1. Epic 3 now closes from one explicit validated baseline
+
+The final closeout package now points to one measured end state:
+
+- direct maintained gates: passing
+- strongest local reviewed baseline: passing
+- reviewed CMake parity: `53`
+- full reviewed CMake suite: `53 / 53`
+- authoritative serial dead-code path: passing
+
+Interpretation:
+
+- later feature work no longer needs to reconstruct the final Epic 3 baseline
+  from multiple sprint closeouts
+- Day 13 is now the authoritative measured anchor for Day 14 handoff language
+
+#### 2. The surviving limits are stable contract boundaries, not newly discovered backlog
+
+The final closeout package keeps the same intentionally bounded limits visible:
+
+- repository-wide warning claims still use the Sprint 30 authoritative path
+- dead-code remains a serialized completeness/reporting path
+- macOS dead-code remains staged
+- Windows local Makefile reviewed-wrapper parity remains staged
+- Windows dead-code remains excluded
+
+Interpretation:
+
+- these are final contract boundaries for post-Epic-3 feature work
+- they are not new Sprint 39 regressions or newly surfaced deferred cleanup
+  items
+
+#### 3. `PROJECT_PLAN.md` does not need a Day 14 routing change
+
+The final audit did **not** surface:
+
+- a new warning queue
+- a new dead-code cleanup batch
+- a new platform-expansion obligation
+- a new documentation standards gap
+
+Interpretation:
+
+- Sprint 39 closeout should leave `PROJECT_PLAN.md` unchanged
+- the repo now hands back to ordinary feature work rather than another planned
+  Epic 3 cleanup sprint
+
+#### 4. Epic 3 now has a full closeout package
+
+The final closeout set is now complete:
+
+- Sprint 39 handoff
+- Sprint 39 retrospective
+- Epic 3 summary report
+- final validation sweep artifact + raw logs
+
+Interpretation:
+
+- Epic 3 is now documented as a completed cleanup/stabilization program
+- the next branch after Sprint 39 should be able to inherit the maintained
+  contracts directly rather than continue closeout work

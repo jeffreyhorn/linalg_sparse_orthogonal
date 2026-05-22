@@ -1117,3 +1117,99 @@ Interpretation:
 - Sprint 39 now has a bounded temporary-scaffolding cleanup target
 - that target is small enough to implement safely in Day 11 without reopening
   quality, dead-code, or platform-contract semantics
+
+## Day 11
+
+**Objective:** Apply the narrow permanent-comment cleanup batch chosen on Day
+10 by removing sprint-implementation residue from permanent operator-facing
+files while preserving all maintained quality, dead-code, and platform
+contracts exactly as they currently behave.
+
+### Commands Run
+
+1. Re-read the chosen Day 11 cleanup scope:
+   - `sed -n '72,110p' docs/planning/EPIC_3/SPRINT_39/artifacts/day10-temporary-scaffolding-audit-and-cleanup-design.md`
+2. Re-read the permanent-file candidate comments before editing:
+   - `sed -n '188,620p' Makefile`
+   - `sed -n '1,220p' .github/workflows/ci.yml`
+3. Validate the touched maintained surfaces directly:
+   - `make -n quality-review-compile`
+   - `make -n quality-review-full`
+   - `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/ci.yml"); puts "yaml_ok"'`
+
+### Day 11 Findings
+
+#### 1. The shipped batch removed sprint-day provenance prefixes, not behavior
+
+The Day 11 cleanup stayed exactly within the Day 10 boundary:
+
+- touched permanent files:
+  - `Makefile`
+  - `.github/workflows/ci.yml`
+- untouched:
+  - target names
+  - target dependencies
+  - workflow jobs
+  - workflow step behavior
+  - any enforced/staged/excluded contract language
+
+The changes were comment-only and limited to places where the surrounding text
+already explained the behavior well enough without “Sprint XX Day YY” wording.
+
+#### 2. `Makefile` now reads more like a stable operator surface and less like a sprint diary
+
+The cleanup compressed several provenance-heavy comments into behavior-oriented
+wording, including:
+
+- compile-only example and tooling-build comments
+- `bench-fast` rationale
+- `bench-eigs` smoke-target description
+- `sanitize-thread` label
+- Category A / Category B / ownership headers
+- warning-workflow and dead-code helper-plumbing headers
+
+Interpretation:
+
+- the permanent Makefile contract is now easier to read without losing the
+  current rationale for:
+  - compile-only coverage
+  - reviewed wrapper ownership
+  - dead-code topology
+  - warning-workflow authority
+
+#### 3. Linux CI kept the same contract while shedding comment-level sprint residue
+
+The touched Linux CI comments now describe:
+
+- supplemental benchmark compile/runtime coverage
+- the serial dead-code topology limit
+
+without embedding the sprint-day provenance that originally introduced those
+decisions.
+
+Interpretation:
+
+- the workflow remains honest about the same constraints
+- the operator-facing CI file now points more directly to stable behavior rather
+  than the history of how the behavior was introduced
+
+#### 4. The Day 10 keep/remove boundary held cleanly
+
+What Day 11 removed or compressed:
+
+- sprint-day provenance prefixes in permanent operator-facing comments where
+  behavior was already clear
+
+What Day 11 intentionally kept:
+
+- load-bearing toolchain/runtime comments
+- `docs/planning/EPIC_3/**` historical evidence
+- current README contract surfaces
+- staged/excluded platform and dead-code boundaries
+
+Interpretation:
+
+- Day 11 reduced clutter without weakening the repo's historical evidence or
+  current contract truthfulness
+- the remaining closeout work should now stay in summary/final-validation
+  surfaces rather than more permanent-file cleanup

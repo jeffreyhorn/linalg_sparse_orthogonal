@@ -1304,3 +1304,94 @@ Interpretation:
 
 - the Day 12 summary is correctly placed as a Sprint 39 artifact
 - Day 14 closeout docs should link to it rather than re-embed all of it
+
+## Day 13
+
+**Objective:** Re-run the full maintained Epic 3 baseline from the direct
+quality gates through the strongest local reviewed baseline and the
+authoritative serial dead-code path, then capture one final measured end state
+that Day 14 can use without reconstruction.
+
+### Commands Run
+
+1. Create the raw log directory:
+   - `mkdir -p docs/planning/EPIC_3/SPRINT_39/artifacts/day13_logs`
+2. Direct maintained gates plus the strongest local reviewed baseline:
+   - `/usr/bin/time -p make format > docs/planning/EPIC_3/SPRINT_39/artifacts/day13_logs/make-format.log 2>&1`
+   - `/usr/bin/time -p make lint > docs/planning/EPIC_3/SPRINT_39/artifacts/day13_logs/make-lint.log 2>&1`
+   - `/usr/bin/time -p make test > docs/planning/EPIC_3/SPRINT_39/artifacts/day13_logs/make-test.log 2>&1`
+   - `/usr/bin/time -p make quality-review-full > docs/planning/EPIC_3/SPRINT_39/artifacts/day13_logs/make-quality-review-full.log 2>&1`
+3. Explicit reviewed CMake parity count capture:
+   - `/usr/bin/time -p ctest -N --test-dir build/quality-review-cmake > docs/planning/EPIC_3/SPRINT_39/artifacts/day13_logs/ctest-N.log 2>&1`
+4. Authoritative serial dead-code path:
+   - `/usr/bin/time -p make deadcode-report > docs/planning/EPIC_3/SPRINT_39/artifacts/day13_logs/make-deadcode-report-serial.log 2>&1`
+   - `/usr/bin/time -p make deadcode-check > docs/planning/EPIC_3/SPRINT_39/artifacts/day13_logs/make-deadcode-check-serial.log 2>&1`
+5. Reconcile final dead-code bucket counts:
+   - Python bucket-count read of `build/deadcode/report.tsv`
+
+### Day 13 Findings
+
+#### 1. The full maintained baseline passed end to end
+
+All direct and reviewed validation paths passed:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- authoritative serial `make deadcode-report`
+- authoritative serial `make deadcode-check`
+
+Interpretation:
+
+- Sprint 39 Day 13 did not surface a new validation or contract regression
+- Epic 3 still closes from a stable direct + reviewed + dead-code baseline
+
+#### 2. The strongest local reviewed baseline still matches the final closeout claims exactly
+
+Measured reviewed CMake parity remained:
+
+- `ctest -N --test-dir build/quality-review-cmake`: `53`
+- full reviewed CMake `ctest`: `53 / 53` passed
+- `Total Test time (real) = 143.93 sec`
+
+Interpretation:
+
+- the `53`-test maintained suite size remains truthful
+- `make quality-review-full` is still a correct top-level shorthand for the
+  strongest local reviewed baseline
+
+#### 3. The serial dead-code path still matches the post-Day-6 / post-Day-12 closeout state
+
+Final dead-code bucket counts remained:
+
+- `coverage-gap = 0`
+- `definitely-unused-internal-candidate = 0`
+- `public-surface-review = 4`
+- `secondary-candidate-signal = 35`
+- `non-deadcode-static-analysis-noise = 6`
+
+Interpretation:
+
+- the compile-db gap remains closed
+- there is still no active internal dead-code removal batch
+- the residual buckets remain closeout/supporting context rather than newly
+  surfaced cleanup debt
+
+#### 4. Day 13 now provides the final measured end-state package Day 14 needs
+
+The raw logs are captured under:
+
+- `docs/planning/EPIC_3/SPRINT_39/artifacts/day13_logs/`
+
+That gives Day 14 one explicit measured baseline for:
+
+- direct maintained gates
+- strongest local reviewed baseline
+- reviewed CMake parity count
+- authoritative serial dead-code path
+
+Interpretation:
+
+- the closeout docs can now point to one measured validation package rather
+  than reconstructing the final numbers from earlier sprints

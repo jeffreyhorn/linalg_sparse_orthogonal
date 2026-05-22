@@ -1,0 +1,5 @@
+deadcode-check: report completeness checks passed (not a zero-findings or removal-ready gate).
+deadcode-check: residual buckets are closeout/supporting context only; authoritative execution remains serialized. Inspect build/deadcode/report.md and build/deadcode/report.tsv.
+real 0.47
+user 0.17
+sys 0.12

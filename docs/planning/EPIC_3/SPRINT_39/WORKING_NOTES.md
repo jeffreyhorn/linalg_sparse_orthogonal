@@ -1213,3 +1213,94 @@ Interpretation:
   current contract truthfulness
 - the remaining closeout work should now stay in summary/final-validation
   surfaces rather than more permanent-file cleanup
+
+## Day 12
+
+**Objective:** Produce a concise Epic 3 summary suitable for later feature
+work handoff by stating what is now enforced, what remains staged or excluded,
+and what residual risks still matter, without turning the summary into another
+sprint diary.
+
+### Commands Run
+
+1. Re-read the Sprint 39 Day 12 plan section:
+   - `sed -n '291,330p' docs/planning/EPIC_3/SPRINT_39/PLAN.md`
+2. Re-read the current stable closeout inputs:
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_38/HANDOFF.md`
+   - `sed -n '720,840p' README.md`
+   - `tail -n 260 docs/planning/EPIC_3/SPRINT_39/WORKING_NOTES.md`
+3. Validate the summary artifact shape directly:
+   - `rg -n "Epic 3 Summary|Enforced Baseline|Dead-Code Final State|Cross-Platform Contract|Residual Risks|Start-Next-Work Guidance" docs/planning/EPIC_3/SPRINT_39/artifacts/day12-epic3-summary-report.md`
+
+### Day 12 Findings
+
+#### 1. Epic 3 now has a concise end-state narrative without reopening implementation scope
+
+The Day 12 summary report does **not** introduce a new command surface, policy
+document, or cleanup queue. It captures the final closeout state in one place:
+
+- what Epic 3 actually changed
+- what is now enforced
+- what remains staged or excluded
+- what residual risks remain real
+
+Interpretation:
+
+- later feature work should not need to reconstruct the last ten sprints just
+  to understand the maintained baseline
+- the summary now provides that handoff layer without duplicating all sprint
+  artifacts
+
+#### 2. The summary keeps the current evidence hierarchy intact
+
+The report preserves the important distinctions Sprint 39 has been tightening:
+
+- strongest routine local reviewed baseline:
+  - `make quality-review-full`
+- authoritative repository-wide warning proof:
+  - Sprint 30 warning workflow / Apple Clang CMake full-tree inventory
+- dead-code contract:
+  - completeness/reporting gate
+  - not a zero-findings gate
+  - still authoritative only under serialized execution
+- cross-platform contract:
+  - Linux strongest enforced reviewed baseline
+  - macOS dead-code staged
+  - Windows reviewed CMake subset enforced, local Makefile reviewed wrappers
+    staged, dead-code excluded
+
+Interpretation:
+
+- the summary is useful precisely because it preserves these tiers instead of
+  collapsing them into one overclaim
+
+#### 3. The residual-risk list is now bounded and future-facing
+
+The summary keeps only the remaining real limits visible:
+
+- dead-code shared-path execution remains serialized
+- residual dead-code content buckets remain closeout/supporting context, not an
+  active cleanup batch
+- macOS dead-code remains staged
+- Windows local Makefile reviewed-wrapper parity remains staged
+- Windows dead-code remains excluded
+
+Interpretation:
+
+- the residual-risk surface is now small enough to hand back to ordinary
+  feature work without pretending the repo is universally symmetric or
+  zero-noise
+
+#### 4. The summary belongs in Sprint 39 artifacts, not as a new permanent top-level policy file
+
+Day 8 and Day 9 already established the long-term ownership map:
+
+- `README.md` owns the maintained operator contract
+- Sprint 30 docs own warning authority
+- `tests/test_framework.h` owns executable opt-in truthfulness semantics
+- `docs/planning/EPIC_3/**` owns historical and closeout narrative
+
+Interpretation:
+
+- the Day 12 summary is correctly placed as a Sprint 39 artifact
+- Day 14 closeout docs should link to it rather than re-embed all of it

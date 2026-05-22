@@ -193,9 +193,9 @@ $(BUILDDIR)/bench_%: $(BENCHDIR)/bench_%.c $(LIB) | $(BUILDDIR)
 $(BUILDDIR)/example_%: $(EXDIR)/example_%.c $(LIB) | $(BUILDDIR)
 	$(CC) $(CFLAGS) $(INCLUDE) $< -L$(BUILDDIR) -lsparse_lu_ortho $(LDFLAGS) -o $@
 
-# Compile example binaries without running them.  Sprint 31 Day 11:
-# pairs with `bench-build` to give the local quality flow compile-only
-# coverage for the public example entry points too.
+# Compile example binaries without running them.  Pairs with `bench-build`
+# to give the local quality flow compile-only coverage for the public example
+# entry points too.
 .PHONY: examples-build
 examples-build: $(EX_BINS)
 	@echo "Built $(words $(EX_BINS)) example binaries (no execution)."
@@ -254,22 +254,22 @@ bench: $(BENCH_BINS)
 bench-build: $(BENCH_BINS)
 	@echo "Built $(words $(BENCH_BINS)) bench binaries (no execution)."
 
-# Sprint 31 Day 11: compile-only tooling gate for all benchmark +
-# example entry points.  Explicit target for focused reruns; `lint`
-# depends on it so the standard `make format && make lint && make test`
-# flow now catches tooling drift without executing bench workloads.
+# Compile-only tooling gate for all benchmark + example entry points.
+# Explicit target for focused reruns; `lint` depends on it so the standard
+# `make format && make lint && make test` flow now catches tooling drift
+# without executing bench workloads.
 .PHONY: tooling-build
 tooling-build: bench-build examples-build
 	@echo "tooling-build: benchmark and example binaries built (no execution)."
 
-# Sprint 29 Day 13 (Item 8 close): fast subset of `make bench` for CI's
-# `build-and-test` step — keeps the regression signal on PRs without the
-# 6 h timeout that full `bench_chol_csc` / `bench_convergence` /
-# `bench_refactor_csc` / `bench_reorder` runs caused on the GHA runners.
-# Runs only the genuinely fast benches + `bench_reorder --skip-factor`
-# (skips the multi-minute Pres_Poisson numeric factor pass while keeping
-# the symbolic / reorder timings).  Full `make bench` ships as a
-# developer-side opt-in for deep wall-time investigations.
+# Fast subset of `make bench` for CI's `build-and-test` step.  Keeps a
+# runtime regression signal on PRs without the 6 h timeout that full
+# `bench_chol_csc` / `bench_convergence` / `bench_refactor_csc` /
+# `bench_reorder` runs caused on the GHA runners.  Runs only the genuinely
+# fast benches + `bench_reorder --skip-factor` (skips the multi-minute
+# Pres_Poisson numeric factor pass while keeping the symbolic / reorder
+# timings).  Full `make bench` remains a developer-side opt-in for deep
+# wall-time investigations.
 BENCH_FAST_BINS = $(BUILDDIR)/bench_scaling \
                   $(BUILDDIR)/bench_fillin \
                   $(BUILDDIR)/bench_colamd \
@@ -291,10 +291,9 @@ bench-suitesparse: $(BUILDDIR)/bench_main
 	@$(BUILDDIR)/bench_main --dir tests/data/suitesparse --pivot partial --repeat 3
 	@$(BUILDDIR)/bench_main --dir tests/data/suitesparse --pivot complete --repeat 3
 
-# Sprint 21 Day 11: eigensolver bench (default sweep across all three
-# backends on the SuiteSparse + KKT corpus).  Smoke invocation —
-# emits a human-readable table to stdout; pass `--csv` to capture
-# CSV instead.
+# Eigensolver bench smoke target.  Defaults to a sweep across all three
+# backends on the SuiteSparse + KKT corpus and emits a human-readable table to
+# stdout; pass `--csv` to capture CSV instead.
 .PHONY: bench-eigs
 bench-eigs: $(BUILDDIR)/bench_eigs
 	@$(BUILDDIR)/bench_eigs --sweep default --repeats 3
@@ -363,7 +362,7 @@ tsan: CFLAGS += -fsanitize=thread -fno-omit-frame-pointer -g -O1
 tsan: LDFLAGS += -fsanitize=thread
 tsan: clean test
 
-# Sprint 21 Day 5: `sanitize-thread` — TSan on the eigensolver paths.
+# `sanitize-thread` runs TSan on the eigensolver paths.
 #
 # Scope: the three eigensolver test binaries listed in
 # `TSAN_EIGS_TESTS` below — `test_eigs`, `test_eigs_thick_restart`,
@@ -419,7 +418,7 @@ sanitize-thread: $(GENERATED_VERSION)
 
 # ─── Tree-mutating instrumentation / alternate-build modes ────────────
 #
-# Sprint 37 Day 4/7 ownership rule:
+# Ownership rule:
 # these targets intentionally rebuild the shared tree in a different mode.
 # They therefore own a clean-tree reset on entry and should not be read as
 # ordinary peers of the stable direct/reviewed quality gates below.
@@ -430,14 +429,14 @@ sanitize-thread: $(GENERATED_VERSION)
 
 # ─── Maintained quality operator entry points ─────────────────────────
 #
-# Category A from the Sprint 37 Day 4 design:
+# Category A:
 # stable top-level maintainer commands for direct or reviewed quality work.
 #
 # Source files for formatting/linting
-# Sprint 36 Day 8: keep the maintained reviewed Makefile path on repo-native
-# globs instead of external `find` calls.  The source trees here are flat, so
-# the explicit file lists already maintained for build targets are the portable
-# truth source for format/lint coverage too.
+# Keep the maintained reviewed Makefile path on repo-native globs instead of
+# external `find` calls.  The source trees here are flat, so the explicit file
+# lists already maintained for build targets are the portable truth source for
+# format/lint coverage too.
 ALL_SRC = $(LIB_SRCS) $(wildcard $(SRCDIR)/*.h)
 ALL_TEST_SRC = $(wildcard $(TESTDIR)/*.c) $(wildcard $(TESTDIR)/*.h)
 ALL_BENCH_SRC = $(BENCH_SRCS)
@@ -479,10 +478,10 @@ lint: build/include/sparse_version.h tooling-build
 check: format-check lint test
 
 # Reviewed wrappers: preserve the existing meanings of `lint`, `test`,
-# `check`, and `deadcode-check` while exposing the explicit Sprint 34
-# reviewed-target flow.  Keep them serial and bannered so failure
-# attribution stays obvious and the shared dead-code build/artifact paths are
-# never driven as a sibling prerequisite branch under `make -j`.
+# `check`, and `deadcode-check` while exposing the reviewed-target flow.
+# Keep them serial and bannered so failure attribution stays obvious and the
+# shared dead-code build/artifact paths are never driven as a sibling
+# prerequisite branch under `make -j`.
 QUALITY_REVIEW_CMAKE_DIR ?= build/quality-review-cmake
 
 .NOTPARALLEL: quality-review-compile quality-review quality-review-cmake-compile quality-review-cmake quality-review-full deadcode-compile-db deadcode deadcode-report deadcode-check
@@ -558,14 +557,14 @@ quality-review-full:
 
 # ─── Helper / prerequisite plumbing for the quality surface ───────────
 #
-# Category B from the Sprint 37 Day 4 design:
+# Category B:
 # support targets that back the maintained operator entry points but are not
 # themselves the main top-level quality contract.
 #
-# Sprint 30 Day 7: reproducible Epic 3 warning-capture + validation workflow.
-# Wraps the helper script so maintainers can recreate a clean CMake warning
-# inventory plus the library-only Makefile cross-check without rebuilding the
-# command sequence manually.
+# Reproducible Epic 3 warning-capture + validation workflow.  Wraps the helper
+# script so maintainers can recreate a clean CMake warning inventory plus the
+# library-only Makefile cross-check without rebuilding the command sequence
+# manually.
 WARNING_WORKFLOW_LABEL ?= warning-workflow
 WARNING_WORKFLOW_ARTIFACTS ?= docs/planning/EPIC_3/SPRINT_30/artifacts
 WARNING_WORKFLOW_JOBS ?= 1
@@ -577,10 +576,9 @@ warning-workflow:
 		"$(WARNING_WORKFLOW_LABEL)" \
 		"$(WARNING_WORKFLOW_ARTIFACTS)"
 
-# Sprint 33 Day 5: dedicated dead-code workflow inputs.  Keep compile-db
-# generation separate from the normal lint/test paths and keep dead-code as a
-# sibling quality category instead of folding it into the warning-clean
-# definition.
+# Dedicated dead-code workflow inputs.  Keep compile-db generation separate
+# from the normal lint/test paths and keep dead-code as a sibling quality
+# category instead of folding it into the warning-clean definition.
 DEADCODE_CMAKE_DIR ?= build/deadcode-cmake
 DEADCODE_ARTIFACTS_DIR ?= build/deadcode
 DEADCODE_COMPILE_COMMANDS := $(DEADCODE_CMAKE_DIR)/compile_commands.json
@@ -631,8 +629,8 @@ deadcode-check: $(DEADCODE_REPORT_STAMP)
 	@python3 scripts/deadcode_report.py \
 		--check \
 		"$(DEADCODE_ARTIFACTS_DIR)"
-	@echo "deadcode-check: report completeness checks passed (not a zero-findings gate)."
-	@echo "deadcode-check: authoritative execution remains serialized; inspect $(DEADCODE_REPORT_MD) and $(DEADCODE_REPORT_TSV)."
+	@echo "deadcode-check: report completeness checks passed (not a zero-findings or removal-ready gate)."
+	@echo "deadcode-check: residual buckets are closeout/supporting context only; authoritative execution remains serialized. Inspect $(DEADCODE_REPORT_MD) and $(DEADCODE_REPORT_TSV)."
 
 # Maintained specialized validation gate: performance regression check.
 #

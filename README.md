@@ -110,6 +110,7 @@ make quality-review-compile  # reviewed format-check + lint wrapper
 make test       # run all unit tests
 make quality-review  # reviewed format-check + lint + test + deadcode-check
 make quality-review-full  # strongest local reviewed baseline: quality-review + quality-review-cmake
+make warning-workflow WARNING_WORKFLOW_LABEL=label  # authoritative repository-wide warning inventory capture
 make quality-review-cmake-compile  # reviewed CMake configure + rebuild + ctest -N
 make quality-review-cmake  # reviewed CMake configure + rebuild + ctest -N + ctest
 make deadcode   # refresh raw dead-code evidence in build/deadcode/
@@ -672,9 +673,12 @@ Prerequisites:
 Interpretation rules:
 
 - treat this workflow as conservative evidence, not as full reachability proof
+- the current maintained benchmark/example compile-db coverage gap is closed
+- there is no current definitely-unused internal cleanup batch
 - exported installed-header symbols are manual-review items, not automatic
-  deletion candidates
-- `cppcheck` secondary/noise buckets are supporting signals only
+  deletion candidates; the current public bucket is an audited keep list
+- `cppcheck` secondary buckets are supporting signals only
+- static-analysis noise remains appendix-only context, not a cleanup queue
 
 Current known limits:
 
@@ -734,6 +738,8 @@ These wrappers are additive. They do **not** replace `make check`, `make lint`,
 Interpretation:
 
 - Linux remains the strongest enforced reviewed baseline
+- reviewed CMake parity remains the strongest shared reviewed baseline across
+  platforms
 - macOS enforces the Apple Clang reviewed path and keeps the Homebrew GCC leg
   supplemental
 - Windows truthfully exposes a narrower reviewed CMake subset instead of
@@ -759,6 +765,11 @@ Operator command map:
 Use this checklist for a concise release/readiness pass over the maintained
 quality surface:
 
+- repository-wide warning claims still use the Sprint 30 authoritative path:
+  - `make warning-workflow WARNING_WORKFLOW_LABEL=label`
+  - the Apple Clang CMake full-tree inventory is the authoritative warning
+    proof
+  - Makefile `all` remains the narrower library-only cross-check
 - strongest local reviewed baseline passes:
   - `make quality-review-full`
 - dead-code report and completeness path remain truthful:
@@ -781,10 +792,33 @@ quality surface:
   - use the `Cross-Platform CI Contract` table below as the source of truth
   - do not treat staged or supplemental paths as part of the enforced reviewed
     baseline
+  - current intentionally non-universal surfaces remain:
+    - macOS dead-code = staged
+    - Windows local Makefile reviewed-wrapper parity = staged
+    - Windows dead-code = excluded
 
 This checklist is intentionally concise. For command details, rerun guidance,
 and staged/supplemental context, use the reviewed command map, the dead-code
 section above, and the cross-platform CI contract below.
+
+### Maintainer Standards
+
+Use these as the stable Epic 3 maintainer expectations:
+
+- warning-clean authority:
+  - repository-wide warning claims should use the Sprint 30 authoritative docs:
+    - [Compile Hygiene Playbook](docs/planning/EPIC_3/SPRINT_30/COMPILE_HYGIENE_PLAYBOOK.md)
+    - [Rebuild Workflow](docs/planning/EPIC_3/SPRINT_30/REBUILD_WORKFLOW.md)
+- public non-default option examples:
+  - use designated initializers in README/tutorial/header/example snippets when
+    teaching non-default behavior
+- dormant or historical test evidence:
+  - keep retired targets, historical measurements, and old experiment evidence
+    in `docs/planning/` artifacts, not as commented-out or dormant active-suite
+    scaffold
+- live opt-in test semantics:
+  - `RUN_TEST_SLOW(...)`, `RUN_TEST_EXPERIMENTAL(...)`, and `SKIP_TEST(...)`
+    remain the executable truth in `tests/test_framework.h`
 
 If a reviewed wrapper fails, rerun the named failing phase directly:
 

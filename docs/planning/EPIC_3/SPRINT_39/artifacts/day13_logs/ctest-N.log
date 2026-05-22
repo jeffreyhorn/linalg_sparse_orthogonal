@@ -1,0 +1,59 @@
+Test project /Users/jeff/experiments/linalg_sparse_orthogonal/build/quality-review-cmake
+  Test  #1: test_sparse_matrix
+  Test  #2: test_sparse_lu
+  Test  #3: test_sparse_io
+  Test  #4: test_known_matrices
+  Test  #5: test_sparse_vector
+  Test  #6: test_edge_cases
+  Test  #7: test_integration
+  Test  #8: test_sparse_arith
+  Test  #9: test_suitesparse
+  Test #10: test_reorder
+  Test #11: test_cholesky
+  Test #12: test_csr
+  Test #13: test_matmul
+  Test #14: test_iterative
+  Test #15: test_ilu
+  Test #16: test_omp
+  Test #17: test_threads
+  Test #18: test_sprint4_integration
+  Test #19: test_sprint5_integration
+  Test #20: test_qr
+  Test #21: test_sprint6_integration
+  Test #22: test_dense
+  Test #23: test_bidiag
+  Test #24: test_svd
+  Test #25: test_sprint8_integration
+  Test #26: test_fuzz
+  Test #27: test_lu_csr
+  Test #28: test_block_solvers
+  Test #29: test_sprint10_integration
+  Test #30: test_sprint11_integration
+  Test #31: test_ldlt
+  Test #32: test_sprint12_integration
+  Test #33: test_ic
+  Test #34: test_minres
+  Test #35: test_sprint13_integration
+  Test #36: test_etree
+  Test #37: test_colamd
+  Test #38: test_bicgstab
+  Test #39: test_stagnation
+  Test #40: test_chol_csc
+  Test #41: test_ldlt_csc
+  Test #42: test_sprint18_integration
+  Test #43: test_sprint19_integration
+  Test #44: test_sprint20_integration
+  Test #45: test_sprint29_integration
+  Test #46: test_eigs
+  Test #47: test_eigs_thick_restart
+  Test #48: test_eigs_lobpcg
+  Test #49: test_graph
+  Test #50: test_graph_fm_buckets
+  Test #51: test_framework_optin
+  Test #52: test_reorder_nd
+  Test #53: test_reorder_amd_qg
+
+Total Tests: 53
+real 0.05
+user 0.02
+sys 0.01

@@ -263,3 +263,151 @@ Interpretation:
 - if no real warning regression is found during the stronger Day 5 rerun, the
   likely implementation work is maintainer-standard / closeout wording rather
   than source cleanup
+
+## Day 3
+
+**Objective:** Reassess the residual dead-code buckets after Sprint 38 closed
+the compile-db coverage gap so Sprint 39 can separate final content-level
+disposition work from the still-intentional serialized-execution workflow
+limit.
+
+### Commands Run
+
+1. Re-read the Sprint 39 Day 3 plan section:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_39/PLAN.md`
+2. Re-read the Sprint 33 dead-code workflow lineage:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_33/HANDOFF.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_33/RETROSPECTIVE.md`
+3. Re-read the Sprint 38 dead-code closeout state:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_38/HANDOFF.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_38/RETROSPECTIVE.md`
+4. Re-read the current dead-code report outputs:
+   - `sed -n '1,260p' build/deadcode/report.md`
+   - `sed -n '1,220p' build/deadcode/report.tsv`
+   - `sed -n '1,220p' build/deadcode/coverage-notes.txt`
+
+### Day 3 Findings
+
+#### 1. Sprint 39 no longer inherits a dead-code discovery problem; it inherits a final disposition problem
+
+Compared with the original Sprint 33 workflow closeout, two earlier categories
+are already fully closed:
+
+- `coverage-gap = 0`
+- `definitely-unused-internal-candidate = 0`
+
+Current residual buckets are:
+
+- `public-surface-review = 4`
+- `secondary-candidate-signal = 35`
+- `non-deadcode-static-analysis-noise = 6`
+
+Interpretation:
+
+- Sprint 39 is not reopening compile-db breadth work
+- Sprint 39 is not reopening a known internal cleanup-ready code-removal queue
+- the remaining dead-code work is now primarily about final classification and
+  justification
+
+#### 2. The public bucket is effectively already an audited keep set, not an active review queue
+
+All four current `public-surface-review` rows already carry audited keep
+dispositions:
+
+- `givens_apply_right`
+- `sparse_print_dense`
+- `sparse_print_entries`
+- `sparse_print_info`
+
+Current report language already says:
+
+- these remain exported through installed headers
+- current audited outcome for all listed rows is `keep`, not cleanup
+
+Interpretation:
+
+- the public bucket name survives for reporting continuity
+- but from a Sprint 39 closeout perspective, this is already a justified keep
+  context list rather than a live unresolved review backlog
+
+#### 3. The residual `cppcheck` bucket is still supporting evidence, not a cleanup-ready queue
+
+The current `secondary-candidate-signal` rows remain summarized, not escalated:
+
+- strongest concentrations include:
+  - `src/sparse_chol_csc.c`
+  - `src/sparse_ldlt_csc.c`
+  - `src/sparse_matrix.c`
+  - `src/sparse_qr.c`
+  - `src/sparse_graph.c`
+
+But the current report contract still frames them as:
+
+- supporting signals only
+- not direct removal instructions
+- not pass/fail criteria in the staged workflow
+
+Interpretation:
+
+- Day 3 found no evidence that these rows have crossed the threshold into a new
+  cleanup-ready deletion batch
+- the likely Sprint 39 closeout work is to preserve and clarify this boundary,
+  not to manufacture a larger removal queue from noisy scanner output
+
+#### 4. The `non-deadcode-static-analysis-noise` bucket is a documentation/appendix issue, not a cleanup issue
+
+The remaining noise summary is still:
+
+- `constVariablePointer = 106`
+- `normalCheckLevelMaxBranches = 23`
+- `variableScope = 4`
+- `constParameterPointer = 1`
+- `constVariable = 1`
+- `unreadVariable = 1`
+
+These rows are already classified as:
+
+- appendix-only
+- not cleanup candidates
+
+Interpretation:
+
+- Sprint 39 should not spend dead-code closeout time pretending this is
+  removal-ready engineering debt
+- the correct final treatment is honest explanation and bounded retention
+
+#### 5. The serialized dead-code execution limit remains a workflow-topology constraint, not a content finding
+
+The current coverage notes and Sprint 38 closeout still imply the same workflow
+topology:
+
+- shared compile-db path:
+  - `build/deadcode-cmake`
+- shared artifact path:
+  - `build/deadcode/`
+
+The current report/check contract remains truthful only under serialized
+execution.
+
+Interpretation:
+
+- Sprint 39 dead-code closeout must keep two separate categories visible:
+  - content-level bucket disposition
+  - workflow-topology limitation
+- a clean final report does **not** imply concurrent-safe execution
+
+#### 6. The likely Day 6 batch is narrow and explanation-heavy
+
+Day 3 narrows the expected Sprint 39 Day 6 dead-code batch to:
+
+- final disposition wording for the public audited keeps
+- final disposition wording for the `cppcheck` supporting-signal bucket
+- final disposition wording for the static-analysis-noise appendix bucket
+- preservation of the serialized-execution limitation as a still-open workflow
+  boundary
+
+What Day 3 did **not** justify:
+
+- a new code-removal batch
+- a new compile-db expansion batch
+- stronger content-based `deadcode-check` failure logic

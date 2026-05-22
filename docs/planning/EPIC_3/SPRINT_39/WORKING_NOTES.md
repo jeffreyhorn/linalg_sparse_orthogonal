@@ -533,3 +533,75 @@ What Day 4 did **not** justify:
 - new Windows Makefile parity work
 - new macOS dead-code enforcement work
 - any attempt to erase the staged/excluded distinctions for simplicity
+
+## Day 5
+
+**Objective:** Land the smallest warning-closeout batch that preserves the
+Sprint 30 authority model explicitly in the current operator-facing contract
+without inventing a broader warning rewrite or new gate semantics.
+
+### Commands Run
+
+1. Re-read the Sprint 39 Day 5 plan section:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_39/PLAN.md`
+2. Re-read the Day 2 warning audit:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_39/artifacts/day2-final-warning-audit.md`
+3. Re-read the current README warning/reviewed-quality sections:
+   - `sed -n '96,140p' README.md`
+   - `sed -n '680,780p' README.md`
+4. Re-read the Sprint 30 authoritative warning references:
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_30/COMPILE_HYGIENE_PLAYBOOK.md`
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_30/REBUILD_WORKFLOW.md`
+5. Validate the touched doc surface directly:
+   - `rg -n "warning-workflow|authoritative repository-wide warning inventory|authoritative warning proof|quality-review-full" README.md`
+   - `sed -n '104,120p' README.md`
+   - `sed -n '758,776p' README.md`
+
+### Day 5 Findings
+
+#### 1. The smallest useful warning-closeout batch was README contract clarification, not new tooling or code cleanup
+
+Day 2 already showed there was no known warning regression queue. The highest
+value remaining risk was contract drift between:
+
+- strongest routine local reviewed baseline:
+  - `make quality-review-full`
+- authoritative repository-wide warning proof:
+  - `make warning-workflow WARNING_WORKFLOW_LABEL=<label>`
+
+Day 5 therefore stayed intentionally small and operator-facing.
+
+#### 2. The README now teaches the warning authority model directly
+
+Two concrete clarifications landed:
+
+- the top-level Make command list now includes:
+  - `make warning-workflow WARNING_WORKFLOW_LABEL=<label>`
+- the Quality Readiness Checklist now states explicitly:
+  - repository-wide warning claims still use the Sprint 30 authoritative path
+  - the Apple Clang CMake full-tree inventory is the authoritative warning
+    proof
+  - Makefile `all` remains the narrower library-only cross-check
+
+Interpretation:
+
+- final Epic 3 closeout language now has a current user/operator-facing anchor
+  for the warning authority model
+- later Sprint 39 summary/standards work no longer has to infer this only from
+  Sprint 30 artifacts or Makefile comments
+
+#### 3. The reviewed-baseline contract stays separate and unchanged
+
+Day 5 intentionally did **not** collapse the existing reviewed-quality
+language:
+
+- `make quality-review-full` still means strongest routine local reviewed
+  baseline
+- it still does **not** mean repository-wide warning inventory proof
+
+Interpretation:
+
+- the warning-closeout batch improved truthfulness without changing gate
+  semantics
+- the current local reviewed baseline remains strong, but its evidence tier is
+  now stated more precisely in the README

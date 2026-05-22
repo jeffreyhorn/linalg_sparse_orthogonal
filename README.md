@@ -110,6 +110,7 @@ make quality-review-compile  # reviewed format-check + lint wrapper
 make test       # run all unit tests
 make quality-review  # reviewed format-check + lint + test + deadcode-check
 make quality-review-full  # strongest local reviewed baseline: quality-review + quality-review-cmake
+make warning-workflow WARNING_WORKFLOW_LABEL=<label>  # authoritative repository-wide warning inventory capture
 make quality-review-cmake-compile  # reviewed CMake configure + rebuild + ctest -N
 make quality-review-cmake  # reviewed CMake configure + rebuild + ctest -N + ctest
 make deadcode   # refresh raw dead-code evidence in build/deadcode/
@@ -759,6 +760,11 @@ Operator command map:
 Use this checklist for a concise release/readiness pass over the maintained
 quality surface:
 
+- repository-wide warning claims still use the Sprint 30 authoritative path:
+  - `make warning-workflow WARNING_WORKFLOW_LABEL=<label>`
+  - the Apple Clang CMake full-tree inventory is the authoritative warning
+    proof
+  - Makefile `all` remains the narrower library-only cross-check
 - strongest local reviewed baseline passes:
   - `make quality-review-full`
 - dead-code report and completeness path remain truthful:

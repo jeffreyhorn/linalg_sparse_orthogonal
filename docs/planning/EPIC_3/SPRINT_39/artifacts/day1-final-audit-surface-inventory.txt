@@ -1,0 +1,46 @@
+Sprint 39 Day 1 final-audit surface inventory
+
+Starting branch
+- sprint-39
+
+Authoritative inherited baseline
+- strongest local reviewed baseline: make quality-review-full
+- reviewed CMake parity: ctest -N --test-dir build/quality-review-cmake = 53
+- dead-code benchmark/example compile-db gap: closed
+
+Local prerequisite tools present
+- cppcheck: /usr/local/bin/cppcheck
+- clang-tidy: /usr/local/opt/llvm/bin/clang-tidy
+- xunused: /Users/jeff/.local/bin/xunused
+- ctest: /usr/local/bin/ctest
+
+Maintained final-audit command surfaces
+- make quality-review-full
+- make quality-review
+- make quality-review-cmake
+- make deadcode-report
+- make deadcode-check
+
+Current dead-code residual buckets
+- public-surface-review = 4
+- secondary-candidate-signal = 35
+- non-deadcode-static-analysis-noise = 6
+- coverage-gap = 0
+- definitely-unused-internal-candidate = 0
+
+Current dead-code workflow topology limits
+- authoritative execution remains serialized
+- shared build path: build/deadcode-cmake
+- shared artifact path: build/deadcode
+
+Current cross-platform carried-forward limits
+- macOS dead-code: staged
+- Windows local Makefile reviewed-wrapper parity: staged
+- Windows dead-code: excluded
+
+Highest-value Day 1 audit order
+- final warning audit
+- final dead-code audit
+- final cross-platform audit
+- standards/documentation closeout audit
+- temporary-scaffolding audit

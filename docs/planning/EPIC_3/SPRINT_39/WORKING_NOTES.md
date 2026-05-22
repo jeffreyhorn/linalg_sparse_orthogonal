@@ -757,3 +757,128 @@ Interpretation:
   the remaining platform-specific limits
 - later summary/standards work does not have to infer them only from the table
   or workflow comments
+
+## Day 8
+
+**Objective:** Audit the current maintainer-facing standards and ownership
+surfaces so Sprint 39 can consolidate only the guidance that should actually
+survive Epic 3, while leaving sprint-narrative material in artifacts rather
+than promoting it into permanent repo-level docs.
+
+### Commands Run
+
+1. Re-read the Sprint 39 Day 8 plan section:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_39/PLAN.md`
+2. Re-read the Sprint 30 warning-standard sources:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_30/COMPILE_HYGIENE_PLAYBOOK.md`
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_30/REBUILD_WORKFLOW.md`
+3. Re-read the current repo-root maintainer/operator contract surfaces:
+   - `sed -n '560,820p' README.md`
+   - `sed -n '1,260p' tests/test_framework.h`
+4. Sweep the repo for current standard-like language tied to the Epic 3 themes:
+   - `rg -n "designated initializer|designated-initializer|warning-workflow|deadcode|dormant|historical evidence|RUN_TEST_SLOW|RUN_TEST_EXPERIMENTAL|SPARSE_TEST_LARGE|Cross-Platform CI Contract|quality-review-full|warning-clean|compile-hygiene" README.md INSTALL.md docs include tests Makefile -g '!docs/planning/EPIC_3/SPRINT_39/**'`
+
+### Day 8 Findings
+
+#### 1. Maintainer-standard ownership is already narrower than the total amount of Epic 3 narrative
+
+The current repo has multiple kinds of “documentation,” but not all of them
+should survive as equal long-term standard sources.
+
+The stable top-level standards are already concentrated in:
+
+- `README.md`
+  - reviewed-quality command map
+  - dead-code workflow contract
+  - cross-platform CI contract
+  - readiness checklist
+  - test-category policy
+- `docs/planning/EPIC_3/SPRINT_30/COMPILE_HYGIENE_PLAYBOOK.md`
+  - authoritative warning-clean evidence model
+- `docs/planning/EPIC_3/SPRINT_30/REBUILD_WORKFLOW.md`
+  - authoritative warning-workflow reproduction method
+- `tests/test_framework.h`
+  - executable truth for skip/slow/experimental test semantics
+
+Interpretation:
+
+- the closeout batch should consolidate references and trim duplication
+- it should not try to collapse all Epic 3 policy into one monolithic document
+
+#### 2. The strongest long-term standards already have clear natural homes
+
+Current best ownership by topic:
+
+- repository-wide warning authority model:
+  - `COMPILE_HYGIENE_PLAYBOOK.md`
+  - `REBUILD_WORKFLOW.md`
+- routine operator command map and reviewed/dead-code/platform contract:
+  - `README.md`
+- executable dormant/slow/experimental truthfulness policy:
+  - `tests/test_framework.h`
+- public non-default example style / designated-initializer teaching:
+  - `README.md` and public headers/tutorial surface from Sprint 35
+
+Interpretation:
+
+- Day 9 should primarily make these ownership boundaries more explicit
+- it should avoid creating a new permanent standards document unless a real gap
+  exists, because the repo already has authoritative homes for the major
+  categories
+
+#### 3. The main residual standards problem is duplication and implicitness, not missing topics
+
+Day 8 did **not** find a missing repo-level standard for the main Epic 3 areas:
+
+- warning-clean authority model exists
+- reviewed local quality path exists
+- dead-code workflow contract exists
+- cross-platform enforced/staged/excluded contract exists
+- test truthfulness contract exists
+- public designated-initializer guidance exists in the Sprint 35 closeout
+  material and public-facing docs
+
+The main residual issue is that some of this remains implicit across multiple
+surfaces:
+
+- `README.md` teaches the operator contract but does not yet point back to the
+  Sprint 30 warning playbook/workflow as explicitly as it could in the
+  readiness/quality sections
+- designated-initializer guidance is still distributed across Sprint 35
+  artifacts and public-facing docs rather than summarized as one concise
+  maintainer expectation
+- dormant/historical-test guidance is currently clearest in the README test
+  category policy plus `test_framework.h`, but that link is still partly
+  inferential
+
+Interpretation:
+
+- Day 9 should be a consolidation/compression pass
+- it should prefer short cross-references and crisp policy statements over new
+  long-form narrative
+
+#### 4. Sprint-only narrative should stay in artifacts, not be promoted into permanent top-level docs
+
+Large amounts of Epic 3 explanation are useful historically, but they are not
+all stable standards:
+
+- Sprint working notes
+- day-by-day design artifacts
+- review documents that describe pre-cleanup debt in detail
+
+Interpretation:
+
+- the closeout batch should keep using sprint artifacts for historical rationale
+- permanent repo-level docs should keep only the stable contract and reference
+  the artifacts where needed
+
+#### 5. The likely Day 9 batch is small and reference-oriented
+
+Day 8 narrows the expected standards/documentation closeout batch to:
+
+- tighten README cross-references to the Sprint 30 warning authority docs
+- add one concise maintainer-facing statement about designated initializers as
+  the default public non-default-options style
+- add one concise maintainer-facing statement about dormant/historical test
+  evidence living in artifacts rather than the active suite
+- avoid broad README restructuring or new standalone standards files

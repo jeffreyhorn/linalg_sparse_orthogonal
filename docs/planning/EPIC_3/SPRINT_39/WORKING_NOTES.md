@@ -952,3 +952,168 @@ Day 8 narrows the expected standards/documentation closeout batch to:
 - add one concise maintainer-facing statement about dormant/historical test
   evidence living in artifacts rather than the active suite
 - avoid broad README restructuring or new standalone standards files
+
+## Day 10
+
+**Objective:** Audit the remaining transitional scaffolding across the
+maintained operator-facing surfaces, distinguish permanent support structure
+from Epic 3 implementation residue, and define the smallest safe Day 11 cleanup
+batch without destabilizing the validated reviewed/dead-code/platform baseline.
+
+### Commands Run
+
+1. Re-read the Sprint 39 Day 10 plan section:
+   - `sed -n '239,310p' docs/planning/EPIC_3/SPRINT_39/PLAN.md`
+2. Sweep permanent repo surfaces for transitional/scaffolding language:
+   - `rg -n "temporary|transitional|scaffold|scaffolding|staged|supplemental|excluded|authoritative serial|serialized|Sprint 3[0-9]|TODO|FIXME|allowlist|closeout|residual" README.md Makefile scripts .github/workflows docs/planning/EPIC_3 -g '!docs/planning/EPIC_3/SPRINT_39/**'`
+3. Inspect the main permanent operator/workflow surfaces:
+   - `sed -n '180,670p' Makefile`
+   - `sed -n '1,260p' scripts/deadcode_workflow.sh`
+   - `sed -n '1,260p' scripts/deadcode_report.py`
+   - `sed -n '720,840p' README.md`
+   - `sed -n '1,120p' .github/workflows/ci.yml`
+   - `sed -n '1,130p' .github/workflows/macos-ci.yml`
+   - `sed -n '1,100p' .github/workflows/windows-ci.yml`
+4. Re-read the most likely permanent-comment candidates in `Makefile`:
+   - `sed -n '160,210p' Makefile`
+   - `sed -n '236,280p' Makefile`
+   - `sed -n '680,760p' Makefile`
+5. Re-read the current dead-code closeout wording that might still read as
+   sprint-implementation residue:
+   - `sed -n '360,420p' scripts/deadcode_report.py`
+
+### Day 10 Findings
+
+#### 1. The main remaining scaffolding is not in `docs/planning/`; it is the residual sprint-day provenance embedded in permanent operator-facing comments
+
+The repo still contains many Sprint-day references, but they do not all belong
+to the same class:
+
+- `docs/planning/EPIC_3/**` sprint plans, working notes, handoffs, and
+  artifacts are intentional historical evidence
+- `README.md` sprint references inside feature-history/performance sections are
+  part of the project narrative and measured provenance
+- the highest-signal cleanup target is narrower:
+  - permanent comments in `Makefile`
+  - permanent comments in workflow YAML
+  - small residual closeout phrasing in support scripts
+
+Representative current examples:
+
+- `Makefile`
+  - `# Sprint 31 Day 11: compile-only tooling gate...`
+  - `# Sprint 37 Day 4/7 ownership rule:`
+  - `# Sprint 30 Day 7: reproducible Epic 3 warning-capture...`
+  - `# Sprint 33 Day 5: dedicated dead-code workflow inputs...`
+- `.github/workflows/ci.yml`
+  - `# Sprint 29 Day 13 (Item 8 close): build all benchmark binaries`
+  - `# Sprint 34 Day 10-12: keep dead-code execution in one serial job`
+
+Interpretation:
+
+- the strongest temporary-scaffolding cleanup opportunity is comment-level
+  provenance compression in permanent files
+- this is a better Sprint 39 Day 11 target than deleting `docs/planning/`
+  evidence or rewriting user-facing historical feature notes
+
+#### 2. Several historical comments are still load-bearing and should not be treated as removable scaffolding
+
+The audit also found comments that still carry real operational knowledge rather
+than merely sprint provenance:
+
+- `Makefile`
+  - Xcode 16+/ld64 archive-member rationale near `$(LIB)`
+  - Apple Clang vs `lcov` / `gcovr` coverage split
+  - `COV_THRESHOLD = 80` rationale
+  - TSan / libomp caveats
+- workflow YAML
+  - Linux OMP+TSan / libomp suppression rationale
+  - Windows staged exclusion output
+- dead-code support scripts
+  - serialized execution contract
+  - partial-success `xunused` behavior
+
+Interpretation:
+
+- Sprint 39 should not flatten all comments into bare minimalism
+- Day 11 should keep bug-history and toolchain-constraint comments that explain
+  why current behavior exists
+- the right cleanup boundary is:
+  - remove or compress pure sprint-day provenance
+  - retain comments that still encode behavior, constraints, or bug workarounds
+
+#### 3. `docs/planning/` sprint artifacts are historical evidence, not transitional clutter
+
+The broad inventory confirmed that Epic 3 already stores its long-form transient
+narrative in the correct place:
+
+- sprint plans
+- working notes
+- day-by-day artifacts
+- handoffs / retrospectives
+
+This matters because Sprint 39 Day 8/9 already established that:
+
+- permanent maintainer standards live in `README.md`, Sprint 30 authority docs,
+  and `tests/test_framework.h`
+- historical evidence belongs in `docs/planning/`
+
+Interpretation:
+
+- Day 11 should **not** remove or collapse sprint artifacts under
+  `docs/planning/EPIC_3/`
+- those files are the correct home for temporary narrative, metrics, and
+  intermediate engineering reasoning
+- the actual cleanup target is permanent-file residue that duplicates or
+  overstates that provenance
+
+#### 4. The smallest safe Day 11 batch is a permanent-comment cleanup, not a behavior change
+
+The safest cleanup batch now looks like:
+
+- `Makefile`
+  - remove or compress sprint-day provenance prefixes where the surrounding
+    comment already explains behavior
+  - keep load-bearing rationale comments for platform/toolchain quirks and
+    explicit contract boundaries
+- `.github/workflows/ci.yml`
+  - compress or neutralize sprint-day provenance comments where the job purpose
+    is already clear from the step names and surrounding explanation
+- avoid touching behavior:
+  - no target renames
+  - no dead-code contract changes
+  - no workflow-matrix expansion
+
+Interpretation:
+
+- Day 11 should be a readability/cleanup batch only
+- the best result is lower comment clutter in permanent operator surfaces
+  without changing any actual quality/reporting/platform behavior
+
+#### 5. Explicit Day 10 keep/remove/defer boundary
+
+Keep:
+
+- `docs/planning/EPIC_3/**` sprint artifacts as historical evidence
+- permanent comments that explain current toolchain, platform, or behavior
+  constraints
+- README references to Sprint 30 authority docs and current enforced/staged
+  contracts
+
+Remove or compress in Day 11:
+
+- sprint-day provenance prefixes in permanent `Makefile` and workflow comments
+  where the behavior is already described adequately without the day reference
+
+Defer:
+
+- serialized dead-code topology change
+- any broad README feature-history rewrite
+- any attempt to erase sprint provenance from measured feature-history text that
+  still provides useful technical context
+
+Interpretation:
+
+- Sprint 39 now has a bounded temporary-scaffolding cleanup target
+- that target is small enough to implement safely in Day 11 without reopening
+  quality, dead-code, or platform-contract semantics

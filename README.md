@@ -801,6 +801,25 @@ This checklist is intentionally concise. For command details, rerun guidance,
 and staged/supplemental context, use the reviewed command map, the dead-code
 section above, and the cross-platform CI contract below.
 
+### Maintainer Standards
+
+Use these as the stable Epic 3 maintainer expectations:
+
+- warning-clean authority:
+  - repository-wide warning claims should use the Sprint 30 authoritative docs:
+    - [Compile Hygiene Playbook](docs/planning/EPIC_3/SPRINT_30/COMPILE_HYGIENE_PLAYBOOK.md)
+    - [Rebuild Workflow](docs/planning/EPIC_3/SPRINT_30/REBUILD_WORKFLOW.md)
+- public non-default option examples:
+  - use designated initializers in README/tutorial/header/example snippets when
+    teaching non-default behavior
+- dormant or historical test evidence:
+  - keep retired targets, historical measurements, and old experiment evidence
+    in `docs/planning/` artifacts, not as commented-out or dormant active-suite
+    scaffold
+- live opt-in test semantics:
+  - `RUN_TEST_SLOW(...)`, `RUN_TEST_EXPERIMENTAL(...)`, and `SKIP_TEST(...)`
+    remain the executable truth in `tests/test_framework.h`
+
 If a reviewed wrapper fails, rerun the named failing phase directly:
 
 - from `quality-review-compile` / `quality-review`:

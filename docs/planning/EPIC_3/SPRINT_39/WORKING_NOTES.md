@@ -857,6 +857,76 @@ Interpretation:
 - it should prefer short cross-references and crisp policy statements over new
   long-form narrative
 
+## Day 9
+
+**Objective:** Land the narrow standards/documentation closeout batch
+identified on Day 8 by consolidating the lasting maintainer expectations into
+the current top-level contract, without creating a new standalone standards
+document or broadening the README unnecessarily.
+
+### Commands Run
+
+1. Re-read the Sprint 39 Day 9 plan section:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_39/PLAN.md`
+2. Re-read the Day 8 standards audit:
+   - `sed -n '1,260p' docs/planning/EPIC_3/SPRINT_39/artifacts/day8-standards-and-maintainer-doc-audit.md`
+3. Re-read the current top-level contract surfaces before editing:
+   - `sed -n '600,820p' README.md`
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_30/COMPILE_HYGIENE_PLAYBOOK.md`
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_30/REBUILD_WORKFLOW.md`
+   - `sed -n '1,180p' tests/test_framework.h`
+4. Validate the touched doc surface directly:
+   - `rg -n "Maintainer Standards|Compile Hygiene Playbook|Rebuild Workflow|designated initializers|historical measurements|RUN_TEST_SLOW|RUN_TEST_EXPERIMENTAL|SKIP_TEST" README.md`
+   - `sed -n '796,835p' README.md`
+
+### Day 9 Findings
+
+#### 1. The shipped batch is a small README consolidation, not a new policy surface
+
+Day 8 already showed the durable ownership map was clear:
+
+- Sprint 30 docs own warning authority
+- `README.md` owns the operator-facing command/contract surface
+- `tests/test_framework.h` owns executable test truthfulness semantics
+
+Day 9 therefore added one compact `Maintainer Standards` subsection to the
+README rather than creating a new standalone standards document.
+
+#### 2. The README now points to the right authoritative homes directly
+
+The new subsection makes four stable expectations explicit:
+
+- warning-clean authority lives in:
+  - `COMPILE_HYGIENE_PLAYBOOK.md`
+  - `REBUILD_WORKFLOW.md`
+- public non-default option examples should use designated initializers
+- dormant/historical test evidence belongs in `docs/planning/` artifacts, not
+  in the active suite as dormant scaffold
+- `RUN_TEST_SLOW(...)`, `RUN_TEST_EXPERIMENTAL(...)`, and `SKIP_TEST(...)` in
+  `tests/test_framework.h` remain the executable truth for non-default test
+  semantics
+
+Interpretation:
+
+- the lasting Epic 3 maintainer expectations now have one concise top-level
+  anchor
+- the authoritative deeper references still stay in their original homes
+
+#### 3. The batch reduced implicitness without broadening the README
+
+Day 9 intentionally did **not**:
+
+- create a new permanent standards file
+- rewrite the Sprint 30 playbook/workflow docs
+- duplicate large parts of Sprint 35 public-example reasoning
+- duplicate the full `test_framework.h` policy in prose
+
+Interpretation:
+
+- the standards closeout batch stayed aligned with the Day 8 audit
+- the remaining standards work for Sprint 39 should now be minimal and summary-
+  oriented rather than structural
+
 #### 4. Sprint-only narrative should stay in artifacts, not be promoted into permanent top-level docs
 
 Large amounts of Epic 3 explanation are useful historically, but they are not

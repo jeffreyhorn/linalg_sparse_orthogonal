@@ -1,6 +1,6 @@
 # Remediation Plan
 
-**Date:** 2026-05-22  
+**Date:** 2026-05-21  
 **Derived from:** `review-codex-2026-05-21.md`
 
 ## Goal

@@ -1,0 +1,58 @@
+Sprint 40 Day 2 quality-command inventory
+=========================================
+
+Direct local commands
+---------------------
+- make format
+- make format-check
+- make lint
+- make test
+- make check
+
+Reviewed Makefile wrappers
+--------------------------
+- make quality-review-compile
+  - format-check
+  - lint
+- make quality-review
+  - format-check
+  - lint
+  - test
+  - deadcode-check
+
+Reviewed CMake wrappers
+-----------------------
+- make quality-review-cmake-compile
+  - cmake configure
+  - clean rebuild
+  - ctest -N
+  - Makefile/CMake test-count parity
+- make quality-review-cmake
+  - quality-review-cmake-compile
+  - full ctest
+
+Strongest local reviewed baseline
+---------------------------------
+- make quality-review-full
+  - quality-review
+  - quality-review-cmake
+
+Adjacent but separate quality / policy surfaces
+-----------------------------------------------
+- make warning-workflow WARNING_WORKFLOW_LABEL=label
+- make deadcode
+- make deadcode-report
+- make deadcode-check
+- README.md "Cross-Platform CI Contract"
+- README.md "Quality Readiness Checklist"
+- .github/workflows/ci.yml
+- .github/workflows/macos-ci.yml
+- .github/workflows/windows-ci.yml
+
+Load-bearing operational caveats
+--------------------------------
+- after sanitize/asan/sanitize-all/tsan/omp/coverage*:
+  - make clean
+- deadcode* targets remain serialized because they share:
+  - build/deadcode-cmake
+  - build/deadcode/

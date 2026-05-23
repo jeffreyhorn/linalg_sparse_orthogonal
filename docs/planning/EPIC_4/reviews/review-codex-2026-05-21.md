@@ -36,14 +36,14 @@ The central `SparseMatrix` type still plays too many roles:
 
 Representative references:
 
-- [README.md](/Users/jeff/experiments/linalg_sparse_orthogonal/README.md:240)
-- [README.md](/Users/jeff/experiments/linalg_sparse_orthogonal/README.md:551)
-- [include/sparse_lu.h](/Users/jeff/experiments/linalg_sparse_orthogonal/include/sparse_lu.h:60)
-- [include/sparse_lu.h](/Users/jeff/experiments/linalg_sparse_orthogonal/include/sparse_lu.h:87)
-- [include/sparse_cholesky.h](/Users/jeff/experiments/linalg_sparse_orthogonal/include/sparse_cholesky.h:114)
-- [include/sparse_cholesky.h](/Users/jeff/experiments/linalg_sparse_orthogonal/include/sparse_cholesky.h:163)
-- [include/sparse_svd.h](/Users/jeff/experiments/linalg_sparse_orthogonal/include/sparse_svd.h:69)
-- [include/sparse_svd.h](/Users/jeff/experiments/linalg_sparse_orthogonal/include/sparse_svd.h:248)
+- `README.md:240`
+- `README.md:551`
+- `include/sparse_lu.h:60`
+- `include/sparse_lu.h:87`
+- `include/sparse_cholesky.h:114`
+- `include/sparse_cholesky.h:163`
+- `include/sparse_svd.h:69`
+- `include/sparse_svd.h:248`
 
 Why this matters:
 
@@ -69,10 +69,10 @@ The graph / nested-dissection surface is carrying too many responsibilities in o
 
 Representative references:
 
-- [src/sparse_graph.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_graph.c:1)
-- [src/sparse_graph.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_graph.c:1992)
-- [src/sparse_graph.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_graph.c:3171)
-- [src/sparse_graph.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_graph.c:3462)
+- `src/sparse_graph.c:1`
+- `src/sparse_graph.c:1992`
+- `src/sparse_graph.c:3171`
+- `src/sparse_graph.c:3462`
 
 The file is over 3,500 lines, and its hottest single routines are large enough to resist focused review:
 
@@ -100,15 +100,15 @@ The repository has clearly invested in integer-overflow defense, but the impleme
 
 Representative local helpers:
 
-- [src/sparse_etree.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_etree.c:5)
-- [src/sparse_dense.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_dense.c:8)
-- [src/sparse_svd.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_svd.c:12)
-- [src/sparse_eigs.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_eigs.c:153)
+- `src/sparse_etree.c:5`
+- `src/sparse_dense.c:8`
+- `src/sparse_svd.c:12`
+- `src/sparse_eigs.c:153`
 
 Representative unchecked auxiliary allocations:
 
-- [benchmarks/bench_main.c](/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_main.c:108)
-- [examples/example_analysis.c](/Users/jeff/experiments/linalg_sparse_orthogonal/examples/example_analysis.c:122)
+- `benchmarks/bench_main.c:108`
+- `examples/example_analysis.c:122`
 
 Repository-wide signal from this review pass:
 
@@ -131,12 +131,12 @@ The iterative and eigensolver paths allocate substantial temporary workspaces in
 
 Representative references:
 
-- [src/sparse_iterative.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_iterative.c:189)
-- [src/sparse_iterative.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_iterative.c:381)
-- [src/sparse_iterative.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_iterative.c:1027)
-- [src/sparse_eigs.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_eigs.c:1082)
-- [src/sparse_eigs.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_eigs.c:2174)
-- [src/sparse_eigs.c](/Users/jeff/experiments/linalg_sparse_orthogonal/src/sparse_eigs.c:2644)
+- `src/sparse_iterative.c:189`
+- `src/sparse_iterative.c:381`
+- `src/sparse_iterative.c:1027`
+- `src/sparse_eigs.c:1082`
+- `src/sparse_eigs.c:2174`
+- `src/sparse_eigs.c:2644`
 
 Why this matters:
 
@@ -158,11 +158,11 @@ Epic 3 successfully created a real quality workflow, but that workflow now lives
 
 Representative references:
 
-- [Makefile](/Users/jeff/experiments/linalg_sparse_orthogonal/Makefile:487)
-- [Makefile](/Users/jeff/experiments/linalg_sparse_orthogonal/Makefile:600)
-- [README.md](/Users/jeff/experiments/linalg_sparse_orthogonal/README.md:730)
-- [README.md](/Users/jeff/experiments/linalg_sparse_orthogonal/README.md:763)
-- [scripts/deadcode_workflow.sh](/Users/jeff/experiments/linalg_sparse_orthogonal/scripts/deadcode_workflow.sh:1)
+- `Makefile:487`
+- `Makefile:600`
+- `README.md:730`
+- `README.md:763`
+- `scripts/deadcode_workflow.sh:1`
 
 Why this matters:
 
@@ -188,8 +188,8 @@ Primary improvement:
 
 Representative references:
 
-- [benchmarks/bench_main.c](/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_main.c:4)
-- [benchmarks/bench_main.c](/Users/jeff/experiments/linalg_sparse_orthogonal/benchmarks/bench_main.c:631)
+- `benchmarks/bench_main.c:4`
+- `benchmarks/bench_main.c:631`
 
 Notable current mismatch:
 
@@ -221,10 +221,10 @@ The README currently owns:
 
 Representative references:
 
-- [README.md](/Users/jeff/experiments/linalg_sparse_orthogonal/README.md:730)
-- [README.md](/Users/jeff/experiments/linalg_sparse_orthogonal/README.md:763)
-- [docs/tutorial.md](/Users/jeff/experiments/linalg_sparse_orthogonal/docs/tutorial.md:146)
-- [include/sparse_lu.h](/Users/jeff/experiments/linalg_sparse_orthogonal/include/sparse_lu.h:60)
+- `README.md:730`
+- `README.md:763`
+- `docs/tutorial.md:146`
+- `include/sparse_lu.h:60`
 
 Why this matters:
 
@@ -287,7 +287,7 @@ The main usability issue is that the public library surface is stronger than som
 
 ## Validation
 
-This review was based on direct source inspection of the current `master`-derived tree, including:
+This review was based on direct source inspection of the current `main`-derived tree, including:
 
 - public headers under `include/`
 - core numeric implementations under `src/`

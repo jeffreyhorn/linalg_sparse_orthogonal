@@ -1,6 +1,6 @@
 # Project Plan: linalg_sparse_orthogonal -- Sprints 40-49 (Epic 4)
 
-Based on findings from `reviews/review-codex-2026-0521.md` and the remediation plan in `reviews/todo-codex-2026-05-21.md`.
+Based on findings from `reviews/review-codex-2026-05-21.md` and the remediation plan in `reviews/todo-codex-2026-05-21.md`.
 
 Epic 4 is intentionally a structural-refinement epic. The focus is not adding new numerical capability first; it is making the existing codebase easier to reason about, safer to evolve, cheaper to operate, and clearer to use and maintain.
 
@@ -18,7 +18,7 @@ All sprint estimates below are bounded for a 14-day sprint at no more than 12 ho
 
 - Epic 3 closeout baseline: `make quality-review-full`, serial `make deadcode-report`, serial `make deadcode-check`, and the documented cross-platform reviewed contract.
 - Epic 4 review and remediation plan:
-  - `reviews/review-codex-2026-0521.md`
+  - `reviews/review-codex-2026-05-21.md`
   - `reviews/todo-codex-2026-05-21.md`
 
 ### Items
@@ -343,7 +343,7 @@ All sprint estimates below are bounded for a 14-day sprint at no more than 12 ho
 | 1 | Public lifecycle API landing | Introduce the explicit lifecycle/handle improvements that are now safe to expose after the groundwork sprints, with compatibility wrappers where needed. | 28 hrs |
 | 2 | Migration-path documentation | Document how existing callers can keep using the old one-shot style and when the new explicit lifecycle/workspace style is preferable. | 12 hrs |
 | 3 | Cross-surface compatibility sweep | Verify that examples, benchmarks, tests, and docs all still agree on the final lifecycle/workspace model. | 20 hrs |
-| 4 | Final residual review | Revisit every finding from `review-codex-2026-0521.md` and classify it as fixed, intentionally deferred, or accepted tradeoff. | 20 hrs |
+| 4 | Final residual review | Revisit every finding from `review-codex-2026-05-21.md` and classify it as fixed, intentionally deferred, or accepted tradeoff. | 20 hrs |
 | 5 | Full integration validation | Run the complete reviewed baseline and any additional targeted checks needed by the lifecycle/API landing. | 24 hrs |
 | 6 | Epic 4 summary artifacts | Write the final sprint and epic summary artifacts, including the final post-remediation contract and residual risk set. | 16 hrs |
 | 7 | Closeout and handoff | Prepare the final handoff/retrospective material and route any true residuals into future planning. | 12 hrs |
@@ -356,4 +356,3 @@ All sprint estimates below are bounded for a 14-day sprint at no more than 12 ho
 - Final validation and closeout package
 
 **Total estimate:** ~132 hours
-

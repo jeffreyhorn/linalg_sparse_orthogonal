@@ -308,3 +308,170 @@ Interpretation:
 - the current system is coherent enough to use as a baseline
 - but it is still exactly the kind of distributed ownership model the Epic 4
   review said should be tightened and simplified later
+
+## Day 3
+
+**Objective:** Capture the remaining validated support baseline beyond the
+direct local wrappers by recording reviewed CMake parity truth, dead-code
+report/check semantics, cross-platform enforced/staged/excluded boundaries, and
+the current benchmark/example/tooling support surfaces that later Epic 4
+refactors must not regress.
+
+### Commands Run
+
+1. Re-read the Sprint 40 Day 3 plan section:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_40/PLAN.md`
+2. Re-read the current Sprint 40 working notes:
+   - `sed -n '1,360p' docs/planning/EPIC_4/SPRINT_40/WORKING_NOTES.md`
+3. Reconfirm the reviewed CMake suite baseline:
+   - `ctest -N --test-dir build/quality-review-cmake`
+4. Re-read the current dead-code report and coverage notes:
+   - `sed -n '1,240p' build/deadcode/report.md`
+   - `sed -n '1,220p' build/deadcode/coverage-notes.txt`
+5. Re-read the README support-contract sections:
+   - `sed -n '640,840p' README.md`
+6. Re-read the platform workflow contracts:
+   - `sed -n '1,220p' .github/workflows/ci.yml`
+   - `sed -n '1,220p' .github/workflows/macos-ci.yml`
+   - `sed -n '1,220p' .github/workflows/windows-ci.yml`
+7. Recheck current compile-only/support-target surfaces:
+   - `make -n tooling-build bench-build examples-build wall-check coverage | sed -n '1,240p'`
+
+### Day 3 Findings
+
+#### 1. Reviewed CMake parity remains the strongest shared reviewed baseline beyond the Makefile wrappers
+
+The current reviewed CMake parity baseline remains fully explicit:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- `quality-review-cmake-compile` owns:
+  - configure
+  - clean rebuild
+  - `ctest -N`
+  - Makefile/CMake test-count parity
+- `quality-review-cmake` owns:
+  - the compile wrapper
+  - full `ctest`
+
+Interpretation:
+
+- Day 3 confirms that reviewed CMake parity is the strongest shared reviewed
+  baseline across platforms
+- it remains a support baseline adjacent to, but distinct from, the direct
+  local Makefile reviewed path
+
+#### 2. The dead-code contract is now a closeout-state completeness workflow, not a discovery queue
+
+The current dead-code report state is:
+
+- compile-db translation-unit counts:
+  - `src = 25`
+  - `tests = 53`
+  - `benchmarks = 14`
+  - `examples = 12`
+- compile-db benchmark/example coverage gap:
+  - closed
+- current bucket state:
+  - `coverage-gap = 0`
+  - `definitely-unused-internal-candidate = 0`
+  - `public-surface-review = 4`
+  - `secondary-candidate-signal = 35`
+  - `non-deadcode-static-analysis-noise = 6`
+
+The current semantics remain:
+
+- `deadcode-report`
+  - refreshes evidence and writes classified report outputs
+- `deadcode-check`
+  - validates report completeness
+  - is not a zero-findings gate
+- authoritative execution remains serialized because `deadcode*` still shares:
+  - `build/deadcode-cmake`
+  - `build/deadcode/`
+
+Interpretation:
+
+- the dead-code support baseline is now about truthful reporting and
+  completeness, not “find and delete more code”
+- later Epic 4 ownership work should preserve this distinction explicitly
+
+#### 3. The cross-platform baseline remains intentionally asymmetric, but the asymmetry is honest and documented
+
+Current enforced/staged/excluded status remains:
+
+- Linux enforced:
+  - `make quality-review-compile`
+  - `make quality-review-cmake`
+  - `make deadcode-report`
+  - `make deadcode-check`
+- macOS enforced:
+  - Apple Clang `make quality-review-compile`
+  - Apple Clang `make quality-review-cmake`
+  - `make wall-check`
+  - `make sanitize`
+- macOS staged:
+  - `make deadcode-report`
+  - `make deadcode-check`
+- macOS supplemental:
+  - Homebrew GCC direct `make`
+  - Homebrew GCC direct `make test`
+  - Homebrew GCC `make wall-check`
+  - install/pkg-config validation
+- Windows enforced:
+  - reviewed CMake configure/build
+  - `ctest -N`
+  - full `ctest`
+  - expected registered test count = `50`
+- Windows staged:
+  - `make quality-review-compile`
+  - `make quality-review`
+  - dead-code
+- Windows excluded:
+  - `test_threads`
+  - `test_sprint4_integration`
+  - `test_fuzz`
+
+Interpretation:
+
+- Day 3 confirms the current platform baseline is truthfully asymmetric rather
+  than incomplete-by-accident
+- later Epic 4 ownership work should treat this as deliberate contract
+  structure, not a wording error to erase
+
+#### 4. The current benchmark/example/tooling support baseline is broader than the reviewed local wrappers alone
+
+Current support targets still matter as preserve-not-regress surfaces:
+
+- `tooling-build`
+  - builds benchmark and example binaries without execution
+- `bench-build`
+  - current dry-run reports nothing pending because the binaries are already
+    built, but it remains the benchmark compile-only support target
+- `examples-build`
+  - same current state for example binaries
+- `wall-check`
+  - maintained performance-regression gate
+- `coverage`
+  - supplemental coverage gate
+  - current threshold remains `80%`
+
+Interpretation:
+
+- these are not the strongest local reviewed baseline commands
+- but they are part of the inherited support surface that later Epic 4
+  refactors must not silently break
+
+#### 5. The support baseline is now broad enough for later ownership mapping work
+
+After Day 3, Sprint 40 now has a captured baseline for:
+
+- direct local reviewed commands
+- reviewed CMake parity
+- dead-code report/check semantics
+- cross-platform enforced/staged/excluded truth
+- compile-only/support-target surfaces
+
+Interpretation:
+
+- Sprint 40 can move on to hotspot and lifecycle inventory work without having
+  to come back later and reconstruct the inherited support baseline

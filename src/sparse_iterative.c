@@ -5,6 +5,7 @@
 #endif
 
 #include "sparse_iterative.h"
+#include "sparse_alloc_internal.h"
 #include "sparse_bicgstab_internal.h"
 #include "sparse_matrix_internal.h"
 #include "sparse_vector.h"
@@ -61,10 +62,8 @@ static sparse_err_t stag_init(stag_tracker_t *st, idx_t window) {
     *st = (stag_tracker_t){0};
     if (window <= 0)
         return SPARSE_OK;
-    if ((size_t)window > SIZE_MAX / sizeof(double))
-        return SPARSE_ERR_ALLOC;
-    double *buf = malloc((size_t)window * sizeof(double));
-    if (!buf)
+    double *buf = NULL;
+    if (sparse_malloc_array((size_t)window, sizeof(double), (void **)&buf) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
     st->buf = buf;
     st->capacity = window;
@@ -187,10 +186,11 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
     }
 
     /* Allocate workspace: r, z, p, Ap (4 vectors of length n) */
-    if ((size_t)n > SIZE_MAX / (4 * sizeof(double)))
+    size_t work_count = 0;
+    if (sparse_size_mul_overflow((size_t)n, 4, &work_count))
         return SPARSE_ERR_ALLOC;
-    double *work = malloc(4 * (size_t)n * sizeof(double));
-    if (!work)
+    double *work = NULL;
+    if (sparse_malloc_array(work_count, sizeof(double), (void **)&work) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
     double *r = work;
     double *z = work + n;
@@ -378,10 +378,11 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
         return SPARSE_OK;
     }
 
-    if ((size_t)n > SIZE_MAX / (4 * sizeof(double)))
+    size_t work_count = 0;
+    if (sparse_size_mul_overflow((size_t)n, 4, &work_count))
         return SPARSE_ERR_ALLOC;
-    double *work = malloc(4 * (size_t)n * sizeof(double));
-    if (!work)
+    double *work = NULL;
+    if (sparse_malloc_array(work_count, sizeof(double), (void **)&work) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
     double *r = work;
     double *z = work + n;
@@ -614,10 +615,8 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
     /* Fast path for max_iter==0: compute initial residual without
      * allocating the full Arnoldi workspace */
     if (o->max_iter == 0) {
-        if ((size_t)n > SIZE_MAX / sizeof(double))
-            return SPARSE_ERR_ALLOC;
-        double *tmp = malloc((size_t)n * sizeof(double));
-        if (!tmp)
+        double *tmp = NULL;
+        if (sparse_malloc_array((size_t)n, sizeof(double), (void **)&tmp) != SPARSE_OK)
             return SPARSE_ERR_ALLOC;
         merr = matvec(matvec_ctx, n, x, tmp);
         if (merr != SPARSE_OK) {
@@ -648,10 +647,8 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
     /* Check initial true residual before allocating the full workspace,
      * so we return cheaply if the initial guess already satisfies tol */
     {
-        if ((size_t)n > SIZE_MAX / sizeof(double))
-            return SPARSE_ERR_ALLOC;
-        double *tmp = malloc((size_t)n * sizeof(double));
-        if (!tmp)
+        double *tmp = NULL;
+        if (sparse_malloc_array((size_t)n, sizeof(double), (void **)&tmp) != SPARSE_OK)
             return SPARSE_ERR_ALLOC;
         merr = matvec(matvec_ctx, n, x, tmp);
         if (merr != SPARSE_OK) {
@@ -698,16 +695,12 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
     {
         size_t sizes[] = {sz_v, sz_h, sz_cs, sz_sn, sz_g, sz_y, sz_w};
         for (int s = 0; s < 7; s++) {
-            if (sizes[s] > SIZE_MAX - total)
+            if (sparse_size_add_overflow(total, sizes[s], &total))
                 return SPARSE_ERR_ALLOC;
-            total += sizes[s];
         }
     }
-    if (total > SIZE_MAX / sizeof(double))
-        return SPARSE_ERR_ALLOC;
-
-    double *mem = calloc(total, sizeof(double));
-    if (!mem)
+    double *mem = NULL;
+    if (sparse_calloc_array(total, sizeof(double), (void **)&mem) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
 
     double *v = mem;
@@ -1015,17 +1008,15 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
     }
 
     /* Upfront overflow guards — must run before any n*k pointer arithmetic */
-    if ((size_t)nrhs > SIZE_MAX / sizeof(double))
+    size_t blk = 0;
+    if (sparse_size_mul_overflow((size_t)n, (size_t)nrhs, &blk))
         return SPARSE_ERR_ALLOC;
-    if (n > 0 && (size_t)nrhs > SIZE_MAX / (size_t)n)
-        return SPARSE_ERR_ALLOC;
-    size_t blk = (size_t)n * (size_t)nrhs;
     if (blk > (size_t)INT32_MAX)
         return SPARSE_ERR_ALLOC;
 
     /* Compute ||B(:,k)|| for each column */
-    double *bnorms = malloc((size_t)nrhs * sizeof(double));
-    if (!bnorms)
+    double *bnorms = NULL;
+    if (sparse_malloc_array((size_t)nrhs, sizeof(double), (void **)&bnorms) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
     for (idx_t k = 0; k < nrhs; k++) {
         size_t off = (size_t)n * (size_t)k;
@@ -1037,18 +1028,20 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
     }
 
     /* Allocate workspace: R, Z, P, AP — each n × nrhs */
-    if (blk > SIZE_MAX / sizeof(double)) {
-        free(bnorms);
-        return SPARSE_ERR_ALLOC;
-    }
-    double *R = malloc(blk * sizeof(double));
-    double *Z = malloc(blk * sizeof(double));
-    double *P = malloc(blk * sizeof(double));
-    double *AP = malloc(blk * sizeof(double));
-    double *rz = malloc((size_t)nrhs * sizeof(double)); /* r^T*z per column */
-    int *conv = calloc((size_t)nrhs, sizeof(int));      /* convergence flags */
-    double *rnorms = malloc((size_t)nrhs * sizeof(double));
-    if (!R || !Z || !P || !AP || !rz || !conv || !rnorms) {
+    double *R = NULL;
+    double *Z = NULL;
+    double *P = NULL;
+    double *AP = NULL;
+    double *rz = NULL; /* r^T*z per column */
+    int *conv = NULL;  /* convergence flags */
+    double *rnorms = NULL;
+    if (sparse_malloc_array(blk, sizeof(double), (void **)&R) != SPARSE_OK ||
+        sparse_malloc_array(blk, sizeof(double), (void **)&Z) != SPARSE_OK ||
+        sparse_malloc_array(blk, sizeof(double), (void **)&P) != SPARSE_OK ||
+        sparse_malloc_array(blk, sizeof(double), (void **)&AP) != SPARSE_OK ||
+        sparse_malloc_array((size_t)nrhs, sizeof(double), (void **)&rz) != SPARSE_OK ||
+        sparse_calloc_array((size_t)nrhs, sizeof(int), (void **)&conv) != SPARSE_OK ||
+        sparse_malloc_array((size_t)nrhs, sizeof(double), (void **)&rnorms) != SPARSE_OK) {
         free(R);
         free(Z);
         free(P);
@@ -1350,10 +1343,11 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
     /* Workspace: v, v_old, w, d0, d1, d2 = 6 vectors
      * For preconditioned: +2 vectors (z, z_tmp) = 8 total */
     idx_t nvecs = precond ? 8 : 6;
-    if ((size_t)n > SIZE_MAX / ((size_t)nvecs * sizeof(double)))
+    size_t work_count = 0;
+    if (sparse_size_mul_overflow((size_t)nvecs, (size_t)n, &work_count))
         return SPARSE_ERR_ALLOC;
-    double *work = calloc((size_t)nvecs * (size_t)n, sizeof(double));
-    if (!work)
+    double *work = NULL;
+    if (sparse_calloc_array(work_count, sizeof(double), (void **)&work) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
 
     double *v = work;                  /* current Lanczos vector */

@@ -1254,3 +1254,154 @@ Interpretation:
 
 - the first broader `src/` migration batch is validated
 - Sprint 41 can proceed to the next broader pass from a clean state
+
+## Day 9
+
+**Objective:** Finish the main broader `src/` helper-consolidation pass by
+landing the next mainline target from the Day 8 handoff, confirming whether
+the shared helper layer still covers the live migration seam cleanly, and
+recording what remains intentionally local or deferred after the broader pass.
+
+### Commands Run
+
+1. Re-read the Sprint 41 Day 9 scope and the Day 8 handoff:
+   - `sed -n '244,320p' docs/planning/EPIC_4/SPRINT_41/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_41/artifacts/day8-broader-src-migration-batch1.md`
+2. Reconfirm the residual manual allocation/overflow surface in the Day 9 queue:
+   - `rg -n "SIZE_MAX / sizeof|SIZE_MAX -|malloc\\(|calloc\\(" src/sparse_iterative.c src/sparse_qr.c`
+3. Inspect the full iterative-solver seam across its main workspace families:
+   - `sed -n '1,420p' src/sparse_iterative.c`
+   - `sed -n '420,780p' src/sparse_iterative.c`
+   - `sed -n '780,1160p' src/sparse_iterative.c`
+   - `sed -n '1160,1440p' src/sparse_iterative.c`
+   - `sed -n '1440,1560p' src/sparse_iterative.c`
+4. Recheck the post-edit residual allocation surface in the main target:
+   - `rg -n "SIZE_MAX / sizeof|SIZE_MAX -|malloc\\(|calloc\\(" src/sparse_iterative.c`
+5. Run the required full validation gate after the code changes:
+   - `make format`
+   - `make lint`
+   - `make test`
+
+### Day 9 Findings
+
+#### 1. Day 9 completed the main broader `src/` target rather than widening the batch
+
+The live Day 9 decision held to the Day 8 handoff:
+
+- migrated:
+  - `src/sparse_iterative.c`
+- explicitly did **not** include:
+  - `src/sparse_qr.c`
+  - `src/sparse_graph.c`
+
+Interpretation:
+
+- Sprint 41 finished the main broader pass without turning Day 9 into a second
+  sprawling mixed-module batch
+- the bounded Day 7/8/9 order held up cleanly in live code
+
+#### 2. `src/sparse_iterative.c` absorbed the shared helper layer across all main workspace families
+
+Day 9 moved the remaining generic allocation/overflow seam in
+`src/sparse_iterative.c` onto the shared helper layer, including:
+
+- stagnation tracker allocation
+- CG packed workspaces
+- matrix-free CG packed workspaces
+- GMRES fast-path and initial-residual scratch buffers
+- GMRES Hessenberg/Arnoldi packed workspace allocation
+- block-CG per-column and packed workspaces
+- MINRES packed workspace allocation
+
+The batch adopted:
+
+- `sparse_malloc_array(...)`
+- `sparse_calloc_array(...)`
+- `sparse_size_mul_overflow(...)`
+- `sparse_size_add_overflow(...)`
+
+Interpretation:
+
+- the main Day 9 target was completed at the generic safety seam level
+- the file no longer carries the broad manual `malloc` / `calloc` /
+  `SIZE_MAX` drift that Day 7 identified
+
+#### 3. The shared helper layer still did not require redesign
+
+Day 9 was the strongest remaining test of the Day 4 helper API because
+`src/sparse_iterative.c` mixes:
+
+- packed workspaces
+- multi-solver ownership
+- matrix-free paths
+- block-solver paths
+- callback/progress/cancellation behavior
+
+Even with that broader pressure, the current helper layer was still enough:
+
+- `sparse_malloc_array(...)`
+- `sparse_calloc_array(...)`
+- `sparse_size_mul_overflow(...)`
+- `sparse_size_add_overflow(...)`
+
+Interpretation:
+
+- Sprint 41 can now say the shared helper layer is sufficient for the current
+  intended coverage set
+- no Day 9 helper-interface drift surfaced that would justify redesign inside
+  this sprint
+
+#### 4. Day 9 preserved the local algorithm/workspace boundary
+
+The migration did **not** rewrite or normalize:
+
+- Krylov method structure
+- solver/result semantics
+- progress/cancel behavior
+- residual-history logic
+- block-solver orchestration
+- matrix-free dispatch meaning
+
+Only the generic safety seam moved.
+
+Interpretation:
+
+- Sprint 41 remained within the internal-first helper-consolidation contract
+- Day 9 did not drift into workspace-API redesign or algorithm refactoring
+
+#### 5. The resulting Sprint 41 local-specialization keep/defer list is now explicit
+
+After Day 9, the remaining named broader surfaces separate into:
+
+- still local / deferred for later bounded work:
+  - `src/sparse_qr.c`
+  - `src/sparse_graph.c`
+
+The reasons differ:
+
+- `src/sparse_qr.c`
+  - still a real helper-alignment candidate
+  - but broader and more mixed than the bounded Day 9 target
+- `src/sparse_graph.c`
+  - still the clearest specialized keep/defer case because allocation meaning
+    is tightly bound to graph-structure and multilevel algorithm ownership
+
+Interpretation:
+
+- the main Sprint 41 source-tree consolidation target is complete
+- what remains local is now intentional rather than accidental
+
+#### 6. The required Day 9 gate passed completely
+
+Because `src/sparse_iterative.c` changed, the full required gate was run:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Interpretation:
+
+- the broader mainline `src/` consolidation pass is validated
+- Sprint 41 can now move on to the auxiliary-surface audit from a clean state

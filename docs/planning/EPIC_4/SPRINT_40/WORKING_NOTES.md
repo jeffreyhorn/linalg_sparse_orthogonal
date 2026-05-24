@@ -1489,3 +1489,127 @@ Interpretation:
 
 - this gives later implementation sprints a clearer safety rail
 - and helps keep early structural work behavior-preserving
+
+## Day 11
+
+**Objective:** Audit the current quality-contract truth surfaces and define the
+stable ownership model for commands, machine behavior, CI matrix truth,
+maintainer policy, and user-facing summaries before later Epic 4 cleanup starts
+removing duplication.
+
+### Commands Run
+
+1. Re-read the Sprint 40 Day 11 plan section:
+   - `sed -n '300,420p' docs/planning/EPIC_4/SPRINT_40/PLAN.md`
+2. Re-read the current Sprint 40 working notes through Day 10:
+   - `tail -n 220 docs/planning/EPIC_4/SPRINT_40/WORKING_NOTES.md`
+3. Sweep the main live quality-contract surfaces:
+   - `rg -n "quality-review-full|Quality Readiness Checklist|Cross-Platform CI Contract|deadcode-check|warning-workflow|Maintainer Standards" README.md Makefile .github/workflows/ci.yml .github/workflows/macos-ci.yml .github/workflows/windows-ci.yml docs/planning/EPIC_3/SPRINT_30/COMPILE_HYGIENE_PLAYBOOK.md docs/planning/EPIC_3/SPRINT_30/REBUILD_WORKFLOW.md tests/test_framework.h`
+4. Re-read the concentrated operator and command surfaces:
+   - `sed -n '96,140p' README.md`
+   - `sed -n '640,840p' README.md`
+   - `sed -n '470,640p' Makefile`
+
+### Day 11 Findings
+
+#### 1. The repo already has all major quality truth surfaces; the real problem is overlap
+
+The current quality contract is already represented in live artifacts:
+
+- `Makefile`
+- scripts
+- workflow YAML
+- `README.md`
+- Sprint 30 authority docs
+- `tests/test_framework.h`
+
+Interpretation:
+
+- Day 11 did not uncover a missing policy home
+- it uncovered an ownership/duplication problem across existing homes
+
+#### 2. `Makefile` should remain the authoritative owner of commands and wrapper composition
+
+The current command surface is already cleanly centered in `Makefile`:
+
+- reviewed wrappers
+- dead-code targets
+- warning-workflow entry point
+- rerun guidance emitted at runtime
+
+Interpretation:
+
+- later cleanup should not migrate command truth out of `Makefile`
+- it should instead stop duplicating full command semantics elsewhere
+
+#### 3. Scripts should remain the authoritative owners of machine behavior
+
+The behavior-level truth already lives in:
+
+- `scripts/deadcode_workflow.sh`
+- `scripts/deadcode_report.py`
+- `scripts/epic3_warning_workflow.sh`
+
+Interpretation:
+
+- later cleanup should preserve scripts as the behavioral source of truth
+- and keep surrounding prose focused on interpretation rather than restating
+  implementation detail
+
+#### 4. Workflow YAML should own CI matrix truth, with README only summarizing it
+
+The platform enforcement/staged/excluded model is represented both in workflow
+YAML and in the README cross-platform section.
+
+Interpretation:
+
+- workflows should remain the authority for what each platform/job actually
+  runs
+- README should remain the concise human summary of that matrix
+
+#### 5. Sprint 30 docs and `tests/test_framework.h` already form the stable maintainer-policy layer
+
+The warning-clean authority model and opt-in test semantics already have strong
+stable homes:
+
+- Sprint 30 warning docs
+- `tests/test_framework.h`
+
+Interpretation:
+
+- later Epic 4 work should reference those homes rather than expanding policy
+  prose inside README or workflow comments
+
+#### 6. README is the strongest current duplication hotspot
+
+README currently carries:
+
+- top-level command map
+- dead-code contract
+- reviewed-wrapper explanation
+- cross-platform CI contract
+- readiness checklist
+- maintainer standards
+- rerun guidance
+
+Interpretation:
+
+- README should stay the operator summary layer
+- later cleanup should resist turning it into the full source of machine
+  behavior or maintainer procedure
+
+#### 7. The quality-contract ownership model is now explicit enough for later simplification work
+
+The stable ownership model is now:
+
+- commands -> `Makefile`
+- machine behavior -> scripts / execution logic
+- CI matrix truth -> workflow YAML
+- maintainer authority/procedure -> Sprint 30 docs and executable policy
+- user/operator summaries -> `README.md`
+- API/lifecycle semantics -> headers/tutorial/examples
+
+Interpretation:
+
+- later Epic 4 cleanup can now decide what to delete, compress, or move using
+  a documented ownership rule instead of taste alone

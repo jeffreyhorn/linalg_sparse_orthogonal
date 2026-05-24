@@ -5,6 +5,7 @@
 #endif
 
 #include "sparse_qr.h"
+#include "sparse_alloc_internal.h"
 #include "sparse_matrix_internal.h"
 #include "sparse_reorder.h"
 #include "sparse_vector.h"
@@ -23,14 +24,6 @@ static double s29_qr_now_s(void) {
     clock_gettime(CLOCK_MONOTONIC, &ts);
 #endif
     return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
-}
-
-/* Portable overflow-safe multiplication: returns 0 on success, 1 on overflow */
-static int size_mul_overflow(size_t a, size_t b, size_t *result) {
-    if (a != 0 && b > SIZE_MAX / a)
-        return 1;
-    *result = a * b;
-    return 0;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -232,11 +225,11 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
     /* Overflow checks for buffer allocations */
     {
         size_t tmp = 0;
-        if (size_mul_overflow((size_t)n, sizeof(idx_t), &tmp) ||
-            size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
-            size_mul_overflow((size_t)n, sizeof(double), &tmp) ||
-            size_mul_overflow((size_t)k, sizeof(double), &tmp) ||
-            size_mul_overflow((size_t)k, sizeof(double *), &tmp)) {
+        if (sparse_size_mul_overflow((size_t)n, sizeof(idx_t), &tmp) ||
+            sparse_size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
+            sparse_size_mul_overflow((size_t)n, sizeof(double), &tmp) ||
+            sparse_size_mul_overflow((size_t)k, sizeof(double), &tmp) ||
+            sparse_size_mul_overflow((size_t)k, sizeof(double *), &tmp)) {
             sparse_free(W);
             return SPARSE_ERR_ALLOC;
         }
@@ -648,8 +641,8 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
     /* Overflow check for dense workspace sizing: m * n * sizeof(double) */
     {
         size_t mn = 0, mn_bytes = 0;
-        if (size_mul_overflow((size_t)m, (size_t)n, &mn) ||
-            size_mul_overflow(mn, sizeof(double), &mn_bytes)) {
+        if (sparse_size_mul_overflow((size_t)m, (size_t)n, &mn) ||
+            sparse_size_mul_overflow(mn, sizeof(double), &mn_bytes)) {
             free(col_reorder);
             return SPARSE_ERR_ALLOC;
         }
@@ -953,8 +946,8 @@ sparse_err_t sparse_qr_form_q(const sparse_qr_t *qr, double *Q) {
 
     /* Overflow-safe computation of m*ncols*sizeof(double) */
     size_t total = 0, bytes = 0;
-    if (size_mul_overflow((size_t)m, (size_t)ncols, &total) ||
-        size_mul_overflow(total, sizeof(double), &bytes))
+    if (sparse_size_mul_overflow((size_t)m, (size_t)ncols, &total) ||
+        sparse_size_mul_overflow(total, sizeof(double), &bytes))
         return SPARSE_ERR_ALLOC;
 
     /* Start with first ncols columns of identity (m × ncols) */
@@ -1062,8 +1055,8 @@ sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A, cons
     /* Overflow checks for buffer allocations */
     {
         size_t tmp = 0;
-        if (size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
-            size_mul_overflow((size_t)n, sizeof(double), &tmp))
+        if (sparse_size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
+            sparse_size_mul_overflow((size_t)n, sizeof(double), &tmp))
             return SPARSE_ERR_ALLOC;
     }
 
@@ -1420,8 +1413,8 @@ sparse_err_t sparse_qr_solve_minnorm(const SparseMatrix *A, const double *b, dou
     /* Overflow checks for workspace allocations */
     {
         size_t tmp = 0;
-        if (size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
-            size_mul_overflow((size_t)n, sizeof(double), &tmp)) {
+        if (sparse_size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
+            sparse_size_mul_overflow((size_t)n, sizeof(double), &tmp)) {
             sparse_qr_free(&qr_t);
             return SPARSE_ERR_ALLOC;
         }
@@ -1500,8 +1493,8 @@ sparse_err_t sparse_qr_refine_minnorm(const SparseMatrix *A, const double *b, do
     /* Overflow checks for workspace allocations */
     {
         size_t tmp = 0;
-        if (size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
-            size_mul_overflow((size_t)n, sizeof(double), &tmp))
+        if (sparse_size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
+            sparse_size_mul_overflow((size_t)n, sizeof(double), &tmp))
             return SPARSE_ERR_ALLOC;
     }
 

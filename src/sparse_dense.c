@@ -1,18 +1,10 @@
 #include "sparse_dense.h"
+#include "sparse_alloc_internal.h"
 #include "sparse_matrix_internal.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
-/* Portable overflow-safe multiplication: returns 0 on success, 1 on overflow.
- * Mirrors the helper in sparse_qr.c / sparse_svd.c / sparse_eigs.c. */
-static int size_mul_overflow(size_t a, size_t b, size_t *result) {
-    if (a != 0 && b > SIZE_MAX / a)
-        return 1;
-    *result = a * b;
-    return 0;
-}
 
 dense_matrix_t *dense_create(idx_t rows, idx_t cols) {
     if (rows < 0 || cols < 0)
@@ -30,22 +22,15 @@ dense_matrix_t *dense_create(idx_t rows, idx_t cols) {
         return M;
     }
 
-    /* Overflow check: rows*cols and rows*cols*sizeof(double) */
-    size_t n = (size_t)rows * (size_t)cols;
-    if (cols > 0 && n / (size_t)cols != (size_t)rows) {
+    /* Shared helper path: validate rows*cols and allocate dense storage. */
+    size_t n = 0;
+    void *data = NULL;
+    if (sparse_size_mul_overflow((size_t)rows, (size_t)cols, &n) ||
+        sparse_calloc_array(n, sizeof(double), &data) != SPARSE_OK) {
         free(M);
         return NULL;
     }
-    if (n > SIZE_MAX / sizeof(double)) {
-        free(M);
-        return NULL;
-    }
-
-    M->data = calloc(n, sizeof(double));
-    if (!M->data) {
-        free(M);
-        return NULL;
-    }
+    M->data = data;
 
     return M;
 }
@@ -423,8 +408,8 @@ sparse_err_t tridiag_qr_eigenpairs(double *diag, double *subdiag, double *Q, idx
      * silent undersized buffer that would follow. */
     size_t n2 = 0;
     size_t n2_bytes = 0;
-    if (size_mul_overflow((size_t)n, (size_t)n, &n2) ||
-        size_mul_overflow(n2, sizeof(double), &n2_bytes))
+    if (sparse_size_mul_overflow((size_t)n, (size_t)n, &n2) ||
+        sparse_size_mul_overflow(n2, sizeof(double), &n2_bytes))
         return SPARSE_ERR_ALLOC;
 
     /* Initialise Q = I_n. */

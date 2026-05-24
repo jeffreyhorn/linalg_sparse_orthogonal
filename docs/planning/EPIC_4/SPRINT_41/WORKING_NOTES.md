@@ -445,3 +445,136 @@ Interpretation:
 - the Sprint 41 utility layer should be designed for first-wave use now and
   broader `src/` reuse shortly after
 - Day 3's design is therefore deliberately small but not one-off
+
+## Day 4
+
+**Objective:** Implement the new shared internal helper layer from Day 3,
+wire it into the build, and prove it is practical with a narrow low-risk
+integration batch before the broader Sprint 41 migration days begin.
+
+### Commands Run
+
+1. Re-read the Day 3 design and current Sprint 41 notes:
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_41/artifacts/day3-shared-utility-api-design.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_41/WORKING_NOTES.md`
+2. Re-read the current low-risk proof candidates and build-surface locations:
+   - `sed -n '1,120p' src/sparse_dense.c`
+   - `sed -n '1,120p' src/sparse_qr.c`
+   - `sed -n '35,80p' Makefile`
+   - `sed -n '72,105p' CMakeLists.txt`
+3. Sweep the helper-copy and allocation call sites used for the first proof
+   batch:
+   - `rg -n "size_mul_overflow|malloc\\(|calloc\\(" src/sparse_qr.c src/sparse_dense.c`
+4. Implement the shared helper layer and wire it into both build systems:
+   - `src/sparse_alloc_internal.h`
+   - `src/sparse_alloc_internal.c`
+   - `Makefile`
+   - `CMakeLists.txt`
+5. Replace the first low-risk local helper uses:
+   - `src/sparse_dense.c`
+   - `src/sparse_qr.c`
+6. Re-sweep the touched source surface:
+   - `rg -n "size_mul_overflow|sparse_size_mul_overflow|sparse_calloc_array|sparse_malloc_array|sparse_alloc_internal" src/sparse_dense.c src/sparse_qr.c src/sparse_alloc_internal.h src/sparse_alloc_internal.c`
+7. Run the required code-quality gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+
+### Day 4 Findings
+
+#### 1. The shared helper layer now exists as a concrete private `src/` module
+
+Day 4 landed the planned private helper pair:
+
+- `src/sparse_alloc_internal.h`
+- `src/sparse_alloc_internal.c`
+
+The header now owns the shared arithmetic/bounds tier:
+
+- `sparse_size_mul_overflow(...)`
+- `sparse_size_add_overflow(...)`
+- `sparse_count_bytes_overflow(...)`
+- `sparse_idx_count_bytes_overflow(...)`
+- `sparse_size_to_idx_checked(...)`
+
+The source now owns the initial allocation-wrapper tier:
+
+- `sparse_malloc_array(...)`
+- `sparse_calloc_array(...)`
+
+Interpretation:
+
+- Sprint 41 has moved from design to a real shared internal helper layer
+- the landing shape matches the Day 3 private-header/private-source model
+
+#### 2. The new helper layer is wired into both maintained build surfaces
+
+Day 4 added `src/sparse_alloc_internal.c` to:
+
+- `Makefile` `LIB_SRCS`
+- `CMakeLists.txt` library source list
+
+Interpretation:
+
+- the helper layer is not a local experiment in one command path
+- it is now part of the maintained library build in both direct and CMake
+  flows
+
+#### 3. The first proof batch stayed narrow and behavior-preserving
+
+The Day 4 proof batch intentionally touched only two low-risk integration
+surfaces:
+
+- `src/sparse_dense.c`
+  - `dense_create()` now uses the shared helper path for:
+    - `rows * cols` validation
+    - dense storage allocation through `sparse_calloc_array(...)`
+  - one existing local multiplication call site was switched to
+    `sparse_size_mul_overflow(...)`
+- `src/sparse_qr.c`
+  - removed the file-local `size_mul_overflow(...)`
+  - switched existing overflow checks to `sparse_size_mul_overflow(...)`
+
+Interpretation:
+
+- Day 4 proved both helper tiers in live code:
+  - inline arithmetic helpers
+  - source-backed allocation wrapper
+- it did so without opening the broader Day 5/6 first-wave migration scope
+
+#### 4. The implementation needed two small safety-style cleanups during validation, both inside the new helper source
+
+The first `make lint` pass surfaced two helper-layer issues:
+
+- clang-analyzer rejected a zero-byte `calloc(...)` path
+- cppcheck flagged a redundant post-zero-size overflow branch
+
+Day 4 fixed both by tightening the shared helper behavior:
+
+- zero-size requests now return `SPARSE_OK` with `*out = NULL` without calling
+  `malloc` / `calloc`
+- `sparse_calloc_array(...)` now uses the same validated-bytes path as the
+  malloc wrapper and allocates with `calloc(1, bytes)`
+
+Interpretation:
+
+- the Day 4 gate did real work on the new helper layer rather than just
+  rubber-stamping it
+- the resulting helper surface is stricter and cleaner than the first draft
+
+#### 5. The required Day 4 code-quality gate passed completely
+
+After the two helper-source cleanups, the full required gate passed:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Interpretation:
+
+- the new private helper module builds cleanly in the maintained library
+  surfaces
+- the narrow proof batch did not introduce behavior drift in the full direct
+  test suite
+- Sprint 41 can now move into the first planned hotspot migration days from a
+  validated helper baseline

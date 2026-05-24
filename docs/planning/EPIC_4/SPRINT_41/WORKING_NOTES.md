@@ -1898,3 +1898,124 @@ Interpretation:
 - the artifact is small enough to use
 - while still being anchored to the richer Sprint 40 and Day 3/7/10/11 design
   history
+
+## Day 13
+
+**Objective:** Reconfirm the Sprint 41 end-state against the Sprint 40
+validation anchor by running the full required gate, the strongest local
+reviewed baseline, and the targeted follow-on checks justified by Sprint 41's
+touched library/example surfaces.
+
+### Commands Run
+
+1. Re-read the Sprint 41 Day 13 validation scope:
+   - `sed -n '350,430p' docs/planning/EPIC_4/SPRINT_41/PLAN.md`
+2. Run the full required code-quality gate with timings:
+   - `/usr/bin/time -p make format`
+   - `/usr/bin/time -p make lint`
+   - `/usr/bin/time -p make test`
+3. Run the strongest local reviewed baseline with timing:
+   - `/usr/bin/time -p make quality-review-full`
+4. Run the targeted follow-on checks justified by Sprint 41's touched
+   auxiliary/example surfaces:
+   - `/usr/bin/time -p make tooling-build`
+   - `./build/example_iterative`
+   - `./build/example_matrix_free`
+   - `./build/example_colamd`
+
+### Day 13 Findings
+
+#### 1. The full required gate passed cleanly
+
+Measured results:
+
+- `make format`
+  - passed
+  - `real 5.22`
+- `make lint`
+  - passed
+  - `real 411.69`
+- `make test`
+  - passed
+  - `real 116.28`
+
+Interpretation:
+
+- the Sprint 41 code changes still satisfy the standard required floor
+- no reconciliation edits were needed during the direct gate
+
+#### 2. The strongest local reviewed baseline also passed end to end
+
+`make quality-review-full` passed:
+
+- reviewed Makefile path
+- reviewed CMake parity path
+
+Measured result:
+
+- `make quality-review-full`
+  - passed
+  - `real 869.96`
+
+Interpretation:
+
+- Sprint 41 closes against the strongest maintained local reviewed baseline, not
+  just the direct gate
+
+#### 3. Reviewed CMake parity truth remained exact
+
+Inside `quality-review-full`, the reviewed CMake path confirmed:
+
+- `ctest -N` = `53`
+- Makefile/CMake test-count parity = `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 192.41 sec`
+
+Interpretation:
+
+- Sprint 41 preserved the Sprint 40 validation anchor exactly
+- no parity drift surfaced during the sweep
+
+#### 4. The touched auxiliary/example surfaces also passed targeted follow-on validation
+
+Because Sprint 41 changed examples in Day 11, the targeted follow-on validation
+stayed focused on those surfaces:
+
+- `make tooling-build`
+  - passed
+  - `real 0.43`
+- `./build/example_iterative`
+  - passed
+  - unpreconditioned GMRES converged in `25` iterations
+  - ILU(0)-preconditioned GMRES converged in `9` iterations
+- `./build/example_matrix_free`
+  - passed
+  - both runs converged in `3` iterations
+  - solution error stayed around `1e-13`
+- `./build/example_colamd`
+  - passed
+  - QR+COLAMD residual printed `0.00e+00`
+
+Interpretation:
+
+- the auxiliary example batch is validated both by the main gate and by direct
+  execution on the touched binaries
+
+#### 5. No standalone serial `deadcode-report` rerun was required for this sprint's scope
+
+Sprint 41 did not change:
+
+- dead-code scripts
+- dead-code reporting semantics
+- dead-code Makefile wiring
+
+So a standalone serial `make deadcode-report` rerun was not required as a Day
+13 targeted follow-on check.
+
+The maintained reviewed path still exercised `deadcode-check` successfully
+inside `make quality-review-full`.
+
+Interpretation:
+
+- the Day 13 follow-on scope stayed matched to the sprint's touched surfaces
+- the sweep did not widen into unnecessary support-surface reruns

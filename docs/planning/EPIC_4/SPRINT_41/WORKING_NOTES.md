@@ -894,3 +894,184 @@ Interpretation:
 - Sprint 41 now has a validated completed first-wave hotspot migration
 - the remaining Sprint 41 work can focus on the broader source-tree audit and
   migration passes rather than reopening the initial hotspot set
+
+## Day 7
+
+**Objective:** Turn the post-Day-6 residual helper queue into an explicit
+broader `src/` migration map by separating easy direct substitutions from
+moderate adapter-heavy cases and true specialized keep/defer cases, then
+record the next concrete migration order for Days 8 and 9.
+
+### Commands Run
+
+1. Re-read the Sprint 41 plan's Day 7 scope and the latest Day 6 handoff:
+   - `rg -n "Day 7" -A20 docs/planning/EPIC_4/SPRINT_41/PLAN.md`
+   - `tail -n 120 docs/planning/EPIC_4/SPRINT_41/WORKING_NOTES.md`
+2. Reconfirm the broader `src/` duplication map after Day 6:
+   - `rg -n "SIZE_MAX / sizeof|SIZE_MAX -|malloc\\(\\(size_t\\)|calloc\\(\\(size_t\\)|sparse_size_mul_overflow|sparse_malloc_array|sparse_calloc_array" src | sed -n '1,320p'`
+3. Reconfirm size concentration among the larger source modules:
+   - `wc -l src/*.c | sort -nr | sed -n '1,20p'`
+4. Inspect representative next-queue modules to classify migration difficulty:
+   - `sed -n '1,220p' src/sparse_ic.c`
+   - `sed -n '1,260p' src/sparse_analysis.c`
+   - `sed -n '1,260p' src/sparse_iterative.c`
+   - `sed -n '1,260p' src/sparse_graph.c`
+
+### Day 7 Findings
+
+#### 1. The broader `src/` queue is real, but it is not one flat migration class
+
+After the first-wave hotspot completion, the broader pressure is still
+concentrated in familiar patterns:
+
+- direct `malloc((size_t)n * sizeof(T))` / `calloc((size_t)n, sizeof(T))`
+- manual `SIZE_MAX / sizeof(...)` guards
+- manual `SIZE_MAX - ...` accumulation checks
+- modules that already use some shared helpers but still own large local
+  allocation seams
+
+But the representative file reads make the migration shape clearer:
+
+- some modules are now near-mechanical substitutions
+- some modules need helper adoption tied to larger local workspace choreography
+- some modules are still too algorithmically dense for Sprint 41's
+  “shared safety seam only” boundary
+
+Interpretation:
+
+- Day 7 should produce a priority map, not a generic “migrate more files”
+  note
+- Days 8 and 9 can now target the highest-value safe modules first
+
+#### 2. `src/sparse_ic.c` is the clearest next direct-substitution candidate
+
+`src/sparse_ic.c` still carries a compact local seam:
+
+- paired `SIZE_MAX / sizeof(...)` guards for `double` and `idx_t`
+- `calloc((size_t)n, sizeof(double))`
+- `malloc((size_t)n * sizeof(idx_t))`
+- `calloc((size_t)n, sizeof(char))`
+
+The file is otherwise structurally simple in the relevant area:
+
+- one main factorization entry point
+- straightforward n-based workspace ownership
+- local cleanup that does not depend on a custom allocator framework
+
+Interpretation:
+
+- `src/sparse_ic.c` is the strongest Day 8 candidate
+- it should be handled as an easy direct substitution, not deferred behind
+  larger hotspot files
+
+#### 3. `src/sparse_analysis.c` is also a strong near-term migration target
+
+`src/sparse_analysis.c` still has repeated manual n-based allocation logic:
+
+- repeated `SIZE_MAX / sizeof(idx_t)` checks
+- repeated `malloc((size_t)n * sizeof(idx_t))`
+- scratch/permutation arrays with clear count semantics
+
+The key distinction from `sparse_graph.c` or `sparse_iterative.c` is that
+these allocation sites are still mostly narrow and structurally obvious:
+
+- permutation arrays
+- etree/postorder arrays
+- compact analysis-side work arrays
+
+Interpretation:
+
+- `src/sparse_analysis.c` belongs in the same near-term batch as
+  `src/sparse_ic.c`
+- it is the best second proof that the shared helper layer scales beyond the
+  initial hotspot set without requiring helper-layer redesign
+
+#### 4. `src/sparse_iterative.c` is high-value, but it is a moderate adapter-heavy case
+
+`src/sparse_iterative.c` is one of the largest remaining source files and
+still carries many manual safety/allocation patterns:
+
+- `SIZE_MAX / sizeof(...)` guards
+- `SIZE_MAX - total` accumulation logic
+- large packed workspaces for Krylov methods
+- per-solver scratch ownership interleaved with progress/cancel/result logic
+
+This is no longer a “simple malloc replacement” module. The allocation seam is
+deeply tied to:
+
+- packed workspace layout
+- solver-specific cleanup paths
+- progress/cancel behavior
+- residual-history and stagnation helper state
+
+Interpretation:
+
+- `src/sparse_iterative.c` should remain a top Sprint 41 target
+- but it should be scheduled after the easier `ic` / `analysis` pair
+- it belongs in Day 9 or later within the sprint, not the first broader batch
+
+#### 5. `src/sparse_graph.c` is the clearest specialized keep/defer case
+
+`src/sparse_graph.c` remains the largest file in `src/` and carries a
+multi-algorithm allocation surface:
+
+- graph/subgraph construction
+- coarsening hierarchies
+- partition/refinement state
+- separator/workspace arrays
+- dense comment/history context around multiple algorithm families
+
+Even in the first representative slice, the file already shows:
+
+- parent/child graph build ownership
+- custom mapping arrays
+- CSR-style structural construction
+- multiple locally meaningful scratch lifetimes
+
+Interpretation:
+
+- `src/sparse_graph.c` should not be used as a routine Day 8 migration target
+- it is the strongest “specialized keep/defer” example in the broader queue
+- later work there should likely be bundled with a more focused maintainability
+  or decomposition pass, not just helper substitution
+
+#### 6. Day 7 produces a concrete Days 8-9 order instead of a generic backlog
+
+The broader `src/` queue now separates cleanly into:
+
+- easy direct substitutions:
+  - `src/sparse_ic.c`
+  - `src/sparse_analysis.c`
+- moderate helper-adapter cases:
+  - `src/sparse_iterative.c`
+  - `src/sparse_qr.c`
+  - likely follow-ons such as `src/sparse_lu.c`, `src/sparse_lu_csr.c`,
+    `src/sparse_chol_csc.c`, and `src/sparse_ldlt_csc.c`
+- specialized keep/defer cases:
+  - `src/sparse_graph.c`
+  - selected reorder/symbolic-heavy files where allocation meaning is tightly
+    bound to algorithm structure
+
+Interpretation:
+
+- Day 8 should target:
+  - `src/sparse_ic.c`
+  - `src/sparse_analysis.c`
+- Day 9 should target:
+  - `src/sparse_iterative.c`
+  - optionally `src/sparse_qr.c` if the live batch remains bounded
+- `src/sparse_graph.c` should stay out of the routine Sprint 41 migration path
+
+#### 7. Day 7 is intentionally docs-only and does not require the code-quality gate
+
+No `*.c` or `*.h` files changed today. The work was:
+
+- broader `src/` helper-duplication classification
+- next-batch prioritization
+- keep/defer boundary documentation
+
+Interpretation:
+
+- the full `make format` / `make lint` / `make test` gate was not required
+- the right output for Day 7 is the migration decision package that keeps
+  Days 8-9 bounded and behavior-preserving

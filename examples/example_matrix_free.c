@@ -14,6 +14,7 @@
  *   cc -O2 -Iinclude -o example_matrix_free examples/example_matrix_free.c \
  *      -Lbuild -lsparse_lu_ortho -lm
  */
+#include "example_alloc_helpers.h"
 #include "sparse_iterative.h"
 #include <math.h>
 #include <stdio.h>
@@ -49,10 +50,12 @@ int main(void) {
     printf("Operator: y[i] = -x[i-1] + 2*x[i] - x[i+1]\n\n");
 
     /* Right-hand side: b such that x_exact = sin(pi*i/(n+1)) */
-    double *b = calloc((size_t)n, sizeof(double));
-    double *x = calloc((size_t)n, sizeof(double));
-    double *x_exact = calloc((size_t)n, sizeof(double));
-    if (!b || !x || !x_exact) {
+    double *b = NULL;
+    double *x = NULL;
+    double *x_exact = NULL;
+    if (example_calloc_array(n, sizeof(double), (void **)&b) != SPARSE_OK ||
+        example_calloc_array(n, sizeof(double), (void **)&x) != SPARSE_OK ||
+        example_calloc_array(n, sizeof(double), (void **)&x_exact) != SPARSE_OK) {
         fprintf(stderr, "Allocation failed\n");
         free(b);
         free(x);

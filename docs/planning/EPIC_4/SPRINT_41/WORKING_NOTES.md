@@ -1581,3 +1581,171 @@ Interpretation:
 
 - Sprint 41 now has a clean auxiliary implementation boundary
 - Day 11 can stay low-risk and helper-focused instead of becoming mixed cleanup
+
+## Day 11
+
+**Objective:** Land the bounded auxiliary batch from Day 10 on the
+highest-value small example surfaces, keep the implementation aligned with the
+shared-helper conventions without leaking private `src/` internals into public
+examples, and validate the touched examples in addition to the required code
+quality gate.
+
+### Commands Run
+
+1. Re-read the Sprint 41 Day 11 plan section and the Day 10 batch boundary:
+   - `rg -n "Day 11" -A40 docs/planning/EPIC_4/SPRINT_41/PLAN.md`
+   - `sed -n '1,280p' docs/planning/EPIC_4/SPRINT_41/artifacts/day10-auxiliary-surface-alignment-audit.md`
+2. Inspect the touched example targets and confirm the public/private boundary:
+   - `sed -n '1,220p' examples/example_iterative.c`
+   - `sed -n '1,220p' examples/example_matrix_free.c`
+   - `sed -n '1,220p' examples/example_colamd.c`
+   - `sed -n '1,240p' src/sparse_alloc_internal.h`
+   - `sed -n '240,320p' CMakeLists.txt`
+   - `rg -n "target_include_directories|INCLUDE = -I\\$\\(BUILDDIR\\)/include -Iinclude" Makefile CMakeLists.txt`
+3. Implement the bounded auxiliary batch:
+   - add `examples/example_alloc_helpers.h`
+   - update:
+     - `examples/example_iterative.c`
+     - `examples/example_matrix_free.c`
+     - `examples/example_colamd.c`
+4. Run the required full gate because `*.c` / `*.h` files changed:
+   - `make format`
+   - `make lint`
+   - `make test`
+5. Run targeted checks for the touched auxiliary surfaces:
+   - `./build/example_iterative`
+   - `./build/example_matrix_free`
+   - `./build/example_colamd`
+6. Review the landed diff and residual raw-allocation surface in the touched files:
+   - `rg -n "calloc\\(|malloc\\(" examples/example_iterative.c examples/example_matrix_free.c examples/example_colamd.c examples/example_alloc_helpers.h`
+   - `git diff -- examples/example_alloc_helpers.h examples/example_iterative.c examples/example_matrix_free.c examples/example_colamd.c`
+
+### Day 11 Findings
+
+#### 1. Day 11 landed the bounded auxiliary batch without widening the sprint
+
+The landed batch was:
+
+- new helper surface:
+  - `examples/example_alloc_helpers.h`
+- primary Day 10 example targets:
+  - `examples/example_iterative.c`
+  - `examples/example_matrix_free.c`
+- optional bounded add-on:
+  - `examples/example_colamd.c`
+
+The batch did **not** widen into:
+
+- `examples/example_eigs.c`
+- `examples/example_ic_minres.c`
+- `examples/example_analysis.c`
+- benchmark harnesses
+- scripts
+
+Interpretation:
+
+- Day 11 stayed inside the Day 10 auxiliary boundary
+- Sprint 41 still avoided a mixed public-facing cleanup batch
+
+#### 2. The correct public-safe landing was an example-only helper seam, not private-header reuse
+
+The build-surface check confirmed that examples are intentionally compiled
+against public headers, not `src/` private internals.
+
+So Day 11 did **not** include `sparse_alloc_internal.h` in public examples.
+Instead it added a tiny example-only helper header that mirrors the same safety
+conventions:
+
+- count validation
+- overflow-safe array sizing
+- centralized `malloc` / `calloc` wrappers for the touched examples
+
+Interpretation:
+
+- Sprint 41 preserved the internal-first/public-boundary rule from Sprint 40
+- the examples now align with the helper style without leaking private library
+  implementation detail into user-facing code
+
+#### 3. The two primary iterative examples were true mechanical alignment wins
+
+`examples/example_iterative.c` and `examples/example_matrix_free.c` both fit
+the Day 10 prediction cleanly:
+
+- simple `double` array ownership
+- no broad CLI or harness logic
+- no lifecycle/doc churn needed
+
+Both now use `example_calloc_array(...)` instead of repeated raw
+`calloc((size_t)n, sizeof(double))`.
+
+What did **not** change:
+
+- solver flow
+- printed output structure
+- teaching semantics
+- error-reporting shape
+
+Interpretation:
+
+- these were the right primary Day 11 targets
+- the auxiliary batch produced real cleanup value without forcing a larger
+  rewrite
+
+#### 4. `example_colamd.c` was still small enough to include as the optional add-on
+
+After the two primary examples, the batch remained obviously mechanical, so the
+optional Day 10 candidate was also safe to land:
+
+- `perm`
+- `id_perm`
+
+now use `example_malloc_array(...)`.
+
+Interpretation:
+
+- Day 10's optional-add-on classification was correct
+- the final Day 11 batch is still bounded even with `example_colamd.c`
+
+#### 5. The residual auxiliary queue is now narrower and still explicitly bounded
+
+Still deferred:
+
+- public-teaching / lifecycle-significant examples:
+  - `examples/example_eigs.c`
+  - `examples/example_ic_minres.c`
+  - `examples/example_analysis.c`
+- benchmark harnesses:
+  - `benchmarks/bench_main.c`
+  - `benchmarks/bench_eigs.c`
+  - broader benchmark cluster
+- scripts:
+  - `scripts/deadcode_report.py`
+  - `scripts/deadcode_workflow.sh`
+
+Interpretation:
+
+- Sprint 41 did not accidentally erase the defer boundary just because the
+  first example batch landed cleanly
+- later auxiliary work is still explicitly bounded for future sprints
+
+#### 6. The required gate and the targeted example checks both passed
+
+Because `*.c` and `*.h` files changed, the full required gate was run:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Targeted touched-surface checks also passed:
+
+- `./build/example_iterative`
+- `./build/example_matrix_free`
+- `./build/example_colamd`
+
+Interpretation:
+
+- Day 11 closed from a measured validated state
+- the auxiliary batch is proven both by the standard gate and by direct example
+  execution on the files that changed

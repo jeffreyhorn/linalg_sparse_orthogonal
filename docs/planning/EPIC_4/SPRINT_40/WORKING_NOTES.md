@@ -809,3 +809,175 @@ Interpretation:
 - Day 5 provides a real architecture input for Days 6-9:
   - what is already close to an explicit handle model
   - what still overloads mutable state onto `SparseMatrix`
+
+## Day 6
+
+**Objective:** Extend the lifecycle inventory across QR, SVD, symbolic
+analysis / numeric factorization, iterative solvers, preconditioner builders,
+and eigensolvers so the later Epic 4 taxonomy and handle-model design work
+sees the full major stateful API surface instead of only the LU/Cholesky/LDLT
+cluster.
+
+### Commands Run
+
+1. Re-read the Sprint 40 Day 6 plan section:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_40/PLAN.md`
+2. Re-read the current Sprint 40 working baseline and Day 5 inventory:
+   - `tail -n 220 docs/planning/EPIC_4/SPRINT_40/WORKING_NOTES.md`
+3. Re-read the public QR / SVD / analysis / iterative / eigensolver headers:
+   - `sed -n '1,260p' include/sparse_qr.h`
+   - `sed -n '1,280p' include/sparse_svd.h`
+   - `sed -n '1,320p' include/sparse_analysis.h`
+   - `sed -n '1,320p' include/sparse_iterative.h`
+   - `sed -n '1,360p' include/sparse_eigs.h`
+4. Re-read the preconditioner-builder headers that shape iterative lifecycle use:
+   - `sed -n '1,220p' include/sparse_ilu.h`
+   - `sed -n '1,180p' include/sparse_ic.h`
+5. Sweep public docs and implementation wording for lifecycle cues:
+   - `rg -n "identity permutations|factored|sparse_copy\\(|not modified|progress_cb|SPARSE_ERR_CANCELLED|const SparseMatrix \\*A|sparse_analysis|sparse_factor_numeric|sparse_refactor_numeric|sparse_solve_cg|sparse_solve_gmres|sparse_eigs_sym|sparse_qr_factor|sparse_svd_compute|sparse_svd_partial" README.md docs/tutorial.md include src`
+6. Re-read the README / tutorial sections that currently teach these contracts:
+   - `sed -n '230,330p' README.md`
+   - `sed -n '140,310p' docs/tutorial.md`
+7. Re-read key implementation enforcement points:
+   - `sed -n '140,320p' include/sparse_analysis.h`
+   - `sed -n '1330,1525p' src/sparse_qr.c`
+   - `sed -n '700,1045p' src/sparse_svd.c`
+   - `sed -n '1,220p' src/sparse_analysis.c`
+   - `sed -n '210,330p' include/sparse_iterative.h`
+   - `sed -n '540,640p' include/sparse_eigs.h`
+
+### Day 6 Findings
+
+#### 1. QR, SVD, analysis, and preconditioner builders already prefer separate result handles
+
+The strongest Day 6 structural result is that much of the second-half API
+surface is already not matrix-as-handle:
+
+- QR uses `sparse_qr_t`
+- SVD uses `sparse_svd_t`
+- analyze-once uses `sparse_analysis_t` + `sparse_factors_t`
+- ILU / ILUT / IC use `sparse_ilu_t`
+
+Interpretation:
+
+- this cluster is much closer to the future explicit-handle direction than
+  the LU / Cholesky paths from Day 5
+- Epic 4 does not need to force every subsystem into a new model; several
+  already live near it
+
+#### 2. The main lifecycle burden in this cluster is strict matrix-eligibility rules
+
+QR, SVD, analysis, ILU, ILUT, and IC all share a similar input-state rule:
+
+- the matrix is not modified
+- but the matrix must still represent the original, identity-permutation,
+  unfactored physical storage view
+
+Interpretation:
+
+- the risk here is less “hidden mutation” and more “easy-to-violate caller
+  preconditions”
+- Day 6 therefore broadens the Epic 4 lifecycle problem: it is not only about
+  mutable state ownership; it is also about hard-to-remember matrix
+  eligibility rules
+
+#### 3. The tutorial and README are already compensating for that matrix-eligibility complexity
+
+The current user-facing docs explicitly teach “fresh copy of the original” or
+“use the original unfactored / unreordered matrix” around:
+
+- QR
+- SVD
+- analyze-once workflow
+- ILU / ILUT / IC preconditioner setup
+
+Interpretation:
+
+- the docs are truthful
+- but they are also acting as lifecycle safety scaffolding for an API model
+  that still requires careful state reasoning from the caller
+
+#### 4. Iterative solvers are best understood as read-only operator consumers
+
+The iterative solver entry points differ sharply from the factor-building APIs:
+
+- `A` is read-only
+- no persistent factor object is created by the solver itself
+- mutable state lives in:
+  - `x`
+  - result structs
+  - residual history
+  - Krylov workspaces
+  - optional preconditioner context
+
+Interpretation:
+
+- iterative solvers belong in a different lifecycle class from both
+  matrix-mutating direct solvers and separate-handle factor builders
+- this gives Day 7 a clean taxonomy candidate: “operator consumers”
+
+#### 5. Preconditioner builders sit between the iterative layer and the factor-handle layer
+
+ILU / ILUT / IC are important because they explain where iterative lifecycle
+complexity really comes from:
+
+- the solver itself is read-only on `A`
+- the practical workflow still depends on a separate preconditioner handle
+- building that handle reintroduces the strict original / identity-permutation
+  preconditions
+
+Interpretation:
+
+- for taxonomy purposes, preconditioner builders should group with QR/SVD/
+  analysis-style handle builders, not with the iterative solvers that consume
+  them
+
+#### 6. Eigensolvers are also operator consumers, but with richer external context composition
+
+The eigensolver layer is read-only on `A` and uses caller-owned result buffers,
+but it can compose with:
+
+- external preconditioner contexts for LOBPCG
+- internal LDLT factorization for shift-invert
+- internal LDLT refinement for post-pass accuracy tightening
+
+Interpretation:
+
+- eigensolvers are still not matrix-as-handle APIs
+- but they depend more heavily on other explicit-handle subsystems than the
+  plain iterative solve entry points do
+
+#### 7. Analysis is already a transitional explicit-handle subsystem
+
+The analyze-once workflow is the strongest Day 6 bridge case:
+
+- explicit symbolic and numeric handles already exist publicly
+- callers already think in terms of:
+  - analysis
+  - factors
+  - solve
+- but the factor payload still wraps a `SparseMatrix *F` internally, so the
+  old matrix-centric model has not fully disappeared
+
+Interpretation:
+
+- analysis is likely to be one of the most important later Epic 4 migration
+  surfaces because it already presents the public shape of the desired
+  architecture
+
+#### 8. Cancellation semantics now fall into at least three clear lifecycle classes
+
+Across Day 5 + Day 6, the cancellation classes are now explicit:
+
+- LU / Cholesky:
+  - early matrix mutation before callback return
+- QR / LDLT / SVD-family handle builders:
+  - free intermediates, preserve input matrix
+- iterative / eigensolver operator consumers:
+  - preserve input matrix and return latest iterate / partial convergence
+
+Interpretation:
+
+- cancellation behavior is now a real taxonomy input, not just a doc note
+- later handle-model design must decide which of these classes remain
+  user-visible and which should become more internalized

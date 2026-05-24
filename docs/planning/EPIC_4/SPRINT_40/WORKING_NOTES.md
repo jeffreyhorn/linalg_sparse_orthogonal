@@ -475,3 +475,182 @@ Interpretation:
 
 - Sprint 40 can move on to hotspot and lifecycle inventory work without having
   to come back later and reconstruct the inherited support baseline
+
+## Day 4
+
+**Objective:** Measure the structural hotspots that later Epic 4 refactors are
+supposed to target by separating true multi-concern maintainability hotspots
+from large but legitimate feature-owner files.
+
+### Commands Run
+
+1. Re-read the Sprint 40 Day 4 plan section:
+   - `sed -n '1,320p' docs/planning/EPIC_4/SPRINT_40/PLAN.md`
+2. Re-read the current Sprint 40 working notes:
+   - `sed -n '1,520p' docs/planning/EPIC_4/SPRINT_40/WORKING_NOTES.md`
+3. Measure the largest source/test/benchmark/example/script files:
+   - `python3` line-count inventory over `src/`, `tests/`, `benchmarks/`,
+     `examples/`, and `scripts/`
+4. Measure raw allocation-density signal across the main C surfaces:
+   - `python3` regex count inventory over `malloc`, `calloc`, `realloc`, and
+     `free` calls in `src/`, `tests/`, `benchmarks/`, and `examples/`
+
+### Day 4 Findings
+
+#### 1. The highest-signal structural hotspot is still `src/sparse_graph.c`
+
+The largest implementation files in `src/` are:
+
+- `src/sparse_graph.c` = `3555` lines
+- `src/sparse_eigs.c` = `3143` lines
+- `src/sparse_ldlt_csc.c` = `2723` lines
+- `src/sparse_iterative.c` = `2349` lines
+- `src/sparse_chol_csc.c` = `2208` lines
+
+Allocation-density signal in `src/` is also led by:
+
+- `src/sparse_graph.c` = `208`
+- `src/sparse_svd.c` = `182`
+- `src/sparse_ldlt_csc.c` = `156`
+- `src/sparse_iterative.c` = `156`
+- `src/sparse_ldlt.c` = `148`
+- `src/sparse_etree.c` = `144`
+
+Interpretation:
+
+- Day 4 strongly confirms the Epic 4 review judgment that `src/sparse_graph.c`
+  is the first-tier architectural decomposition target
+- the next implementation-heavy hotspot tier after graph is:
+  - eigensolvers
+  - iterative solvers
+  - CSC LDLT / Cholesky
+  - SVD / etree safety-helper concentration
+
+#### 2. The largest tests are real maintainability risks, but many are still feature-owner files rather than immediate split candidates
+
+The largest files in `tests/` are:
+
+- `tests/test_chol_csc.c` = `4643` lines
+- `tests/test_svd.c` = `3712` lines
+- `tests/test_ldlt_csc.c` = `3637` lines
+- `tests/test_qr.c` = `3259` lines
+- `tests/test_etree.c` = `2890` lines
+- `tests/test_iterative.c` = `2795` lines
+- `tests/test_ldlt.c` = `2774` lines
+- `tests/test_graph.c` = `2628` lines
+
+Allocation-density signal in `tests/` is led by:
+
+- `tests/test_chol_csc.c` = `451`
+- `tests/test_qr.c` = `424`
+- `tests/test_ilu.c` = `398`
+- `tests/test_iterative.c` = `387`
+- `tests/test_etree.c` = `360`
+- `tests/test_svd.c` = `339`
+- `tests/test_ldlt_csc.c` = `269`
+- `tests/test_minres.c` = `266`
+
+Interpretation:
+
+- the large-test queue is real, especially around helper concentration and raw
+  allocation density
+- but the biggest test files are still strongly organized around feature-owner
+  binaries under the repo’s one-binary-per-test model
+- the best Day 4 conclusion is not “split every giant test”; it is:
+  - prioritize helper extraction and fixture consolidation first
+  - treat whole-file splits as second-order work when ownership boundaries are
+    genuinely cleaner afterward
+
+#### 3. Benchmark hotspots are narrower and more mixed-concern than the tests
+
+The largest benchmark files are:
+
+- `benchmarks/bench_eigs.c` = `958` lines
+- `benchmarks/bench_main.c` = `774` lines
+- `benchmarks/bench_ldlt_csc.c` = `516` lines
+- `benchmarks/bench_convergence.c` = `421` lines
+- `benchmarks/bench_chol_csc.c` = `393` lines
+
+Allocation-density signal in benchmarks is led by:
+
+- `benchmarks/bench_main.c` = `75`
+- `benchmarks/bench_convergence.c` = `50`
+- `benchmarks/bench_refactor_csc.c` = `44`
+- `benchmarks/bench_ldlt_csc.c` = `44`
+
+Interpretation:
+
+- `bench_eigs.c` and `bench_main.c` remain the highest-value benchmark
+  maintainability hotspots
+- the backend-comparison pair (`bench_chol_csc.c` / `bench_ldlt_csc.c`) is no
+  longer the strongest hotspot after Sprint 37’s helper extraction; Day 4
+  confirms that that earlier narrow consolidation worked
+- the benchmark queue is therefore now centered on:
+  - CLI parsing / mode ownership in `bench_main.c`
+  - eigensolver workload concentration in `bench_eigs.c`
+
+#### 4. Examples are not the leading maintainability hotspot class
+
+The largest examples are:
+
+- `examples/example_eigs.c` = `284` lines
+- `examples/example_ic_minres.c` = `232` lines
+- `examples/example_analysis.c` = `191` lines
+- `examples/example_ldlt.c` = `186` lines
+
+Allocation-density signal in examples remains small relative to `src/`,
+`tests/`, and `benchmarks`.
+
+Interpretation:
+
+- examples remain a secondary safety/usability surface, not a first-tier
+  maintainability hotspot
+- later Epic 4 example work should be driven by consistency and safety
+  standardization rather than large-file decomposition
+
+#### 5. Scripts are concentrated around two real support hotspots
+
+The largest scripts are:
+
+- `scripts/deadcode_report.py` = `523` lines
+- `scripts/epic3_warning_workflow.sh` = `215` lines
+- `scripts/deadcode_workflow.sh` = `189` lines
+- `scripts/wall_check.sh` = `162` lines
+
+Interpretation:
+
+- `scripts/deadcode_report.py` remains the strongest script-side maintainability
+  hotspot
+- `scripts/deadcode_workflow.sh` remains a meaningful support hotspot because
+  it carries workflow topology, tool invocation, and artifact-generation logic
+- `epic3_warning_workflow.sh` is larger than the other shell helpers, but it is
+  more narrowly scoped and not the leading Epic 4 multi-concern risk
+
+#### 6. The first-tier Day 4 structural target list is now concrete
+
+Current first-tier maintainability/architecture hotspots are:
+
+- `src/sparse_graph.c`
+- `src/sparse_eigs.c`
+- `src/sparse_iterative.c`
+- `src/sparse_ldlt_csc.c`
+- `src/sparse_svd.c`
+- `tests/test_chol_csc.c`
+- `tests/test_svd.c`
+- `tests/test_ldlt_csc.c`
+- `tests/test_qr.c`
+- `benchmarks/bench_main.c`
+- `benchmarks/bench_eigs.c`
+- `scripts/deadcode_report.py`
+- `scripts/deadcode_workflow.sh`
+
+Interpretation:
+
+- the hotspot queue now aligns tightly with the Epic 4 review:
+  - graph decomposition
+  - workspace-heavy numeric internals
+  - large helper-dense tests
+  - benchmark CLI / workload concentration
+  - dead-code support-script ownership
+- Day 4 therefore gives later Epic 4 sprints a measured target set instead of
+  a generic “large files are bad” narrative

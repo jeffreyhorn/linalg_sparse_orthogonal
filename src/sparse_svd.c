@@ -1,4 +1,5 @@
 #include "sparse_svd.h"
+#include "sparse_alloc_internal.h"
 #include "sparse_bidiag.h"
 #include "sparse_dense.h"
 #include "sparse_matrix.h"
@@ -8,14 +9,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
-/** Return nonzero if a*b overflows size_t; store result in *out. */
-static int size_mul_overflow(size_t a, size_t b, size_t *out) {
-    if (a != 0 && b > SIZE_MAX / a)
-        return 1;
-    *out = a * b;
-    return 0;
-}
 
 /* Sprint 29 Days 1-2 — Item 1: outer-product accumulator for
  * `sparse_svd_lowrank_sparse`.  See
@@ -153,10 +146,10 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
 
         /* Overflow-checked sizes for mt*k and nt*k */
         size_t mt_k_elems, mt_k_bytes, nt_k_elems, nt_k_bytes;
-        if (size_mul_overflow((size_t)mt, (size_t)k, &mt_k_elems) ||
-            size_mul_overflow(mt_k_elems, sizeof(double), &mt_k_bytes) ||
-            size_mul_overflow((size_t)nt, (size_t)k, &nt_k_elems) ||
-            size_mul_overflow(nt_k_elems, sizeof(double), &nt_k_bytes))
+        if (sparse_size_mul_overflow((size_t)mt, (size_t)k, &mt_k_elems) ||
+            sparse_size_mul_overflow(mt_k_elems, sizeof(double), &mt_k_bytes) ||
+            sparse_size_mul_overflow((size_t)nt, (size_t)k, &nt_k_elems) ||
+            sparse_size_mul_overflow(nt_k_elems, sizeof(double), &nt_k_bytes))
             return SPARSE_ERR_ALLOC;
 
         /* Form U_t (n×k) from left reflectors of A^T */
@@ -218,10 +211,10 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
     size_t mk_bytes, nk_bytes;
     {
         size_t mk_elems, nk_elems;
-        if (size_mul_overflow((size_t)m, (size_t)k, &mk_elems) ||
-            size_mul_overflow(mk_elems, sizeof(double), &mk_bytes) ||
-            size_mul_overflow((size_t)n, (size_t)k, &nk_elems) ||
-            size_mul_overflow(nk_elems, sizeof(double), &nk_bytes))
+        if (sparse_size_mul_overflow((size_t)m, (size_t)k, &mk_elems) ||
+            sparse_size_mul_overflow(mk_elems, sizeof(double), &mk_bytes) ||
+            sparse_size_mul_overflow((size_t)n, (size_t)k, &nk_elems) ||
+            sparse_size_mul_overflow(nk_elems, sizeof(double), &nk_bytes))
             return SPARSE_ERR_ALLOC;
     }
 
@@ -754,8 +747,8 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
 
     /* Copy bidiag arrays (QR iteration modifies them in-place) */
     size_t bd_diag_bytes, bd_super_bytes = 0;
-    if (size_mul_overflow((size_t)k, sizeof(double), &bd_diag_bytes) ||
-        (k > 1 && size_mul_overflow((size_t)(k - 1), sizeof(double), &bd_super_bytes))) {
+    if (sparse_size_mul_overflow((size_t)k, sizeof(double), &bd_diag_bytes) ||
+        (k > 1 && sparse_size_mul_overflow((size_t)(k - 1), sizeof(double), &bd_super_bytes))) {
         sparse_bidiag_free(&bd);
         return SPARSE_ERR_ALLOC;
     }
@@ -777,9 +770,9 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
     if (compute_uv) {
         /* Extract economy U (m×k) and V (n×k) from Householder reflectors */
         size_t sz_u, sz_v;
-        if (size_mul_overflow((size_t)m, (size_t)k, &sz_u) ||
-            size_mul_overflow((size_t)n, (size_t)k, &sz_v) || sz_u > SIZE_MAX / sizeof(double) ||
-            sz_v > SIZE_MAX / sizeof(double)) {
+        if (sparse_size_mul_overflow((size_t)m, (size_t)k, &sz_u) ||
+            sparse_size_mul_overflow((size_t)n, (size_t)k, &sz_v) ||
+            sz_u > SIZE_MAX / sizeof(double) || sz_v > SIZE_MAX / sizeof(double)) {
             free(bd_diag);
             free(bd_super);
             sparse_bidiag_free(&bd);
@@ -877,7 +870,7 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
 
     if (compute_uv && !economy && m > k) {
         size_t sz_u_full;
-        if (size_mul_overflow((size_t)m, (size_t)m, &sz_u_full) ||
+        if (sparse_size_mul_overflow((size_t)m, (size_t)m, &sz_u_full) ||
             sz_u_full > SIZE_MAX / sizeof(double)) {
             free(U_work);
             free(V_work);
@@ -907,7 +900,7 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
 
     if (compute_uv && !economy && n > k) {
         size_t sz_v_full;
-        if (size_mul_overflow((size_t)n, (size_t)n, &sz_v_full) ||
+        if (sparse_size_mul_overflow((size_t)n, (size_t)n, &sz_v_full) ||
             sz_v_full > SIZE_MAX / sizeof(double)) {
             free(U_work);
             free(V_work);
@@ -940,7 +933,7 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
         U_work = NULL;
 
         size_t vt_sz;
-        if (size_mul_overflow((size_t)k_v_cols, (size_t)n, &vt_sz) ||
+        if (sparse_size_mul_overflow((size_t)k_v_cols, (size_t)n, &vt_sz) ||
             vt_sz > SIZE_MAX / sizeof(double)) {
             free(V_work);
             sparse_svd_free(svd);
@@ -1030,8 +1023,8 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     size_t sz_p, sz_q;
     size_t sz_alpha = (size_t)lanczos_k;
     size_t sz_beta = (size_t)(lanczos_k + 1);
-    if (size_mul_overflow((size_t)m, (size_t)lanczos_k, &sz_p) ||
-        size_mul_overflow((size_t)n, (size_t)(lanczos_k + 1), &sz_q) ||
+    if (sparse_size_mul_overflow((size_t)m, (size_t)lanczos_k, &sz_p) ||
+        sparse_size_mul_overflow((size_t)n, (size_t)(lanczos_k + 1), &sz_q) ||
         sz_p > SIZE_MAX / sizeof(double) || sz_q > SIZE_MAX / sizeof(double) ||
         sz_alpha > SIZE_MAX / sizeof(double) || sz_beta > SIZE_MAX / sizeof(double)) {
         sparse_free(At);
@@ -1164,7 +1157,7 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     double *bd_super = NULL;
     if (lanczos_k > 1) {
         size_t bd_super_bytes;
-        if (size_mul_overflow((size_t)(lanczos_k - 1), sizeof(double), &bd_super_bytes)) {
+        if (sparse_size_mul_overflow((size_t)(lanczos_k - 1), sizeof(double), &bd_super_bytes)) {
             free(alpha);
             free(beta);
             free(P);
@@ -1189,7 +1182,7 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     double *V_small = NULL;
     if (compute_uv) {
         size_t lk2;
-        if (size_mul_overflow((size_t)lanczos_k, (size_t)lanczos_k, &lk2) ||
+        if (sparse_size_mul_overflow((size_t)lanczos_k, (size_t)lanczos_k, &lk2) ||
             lk2 > SIZE_MAX / sizeof(double)) {
             free(alpha);
             free(bd_super);
@@ -1273,7 +1266,7 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
 
     /* Keep only the top kk singular values */
     size_t sigma_bytes;
-    if (size_mul_overflow((size_t)kk, sizeof(double), &sigma_bytes)) {
+    if (sparse_size_mul_overflow((size_t)kk, sizeof(double), &sigma_bytes)) {
         free(alpha);
         free(perm);
         free(P);
@@ -1302,8 +1295,8 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
         /* U_approx (m×kk column-major): U[:,s] = P * U_small[:,perm[s]]
          * Vt (kk×n column-major): Vt[j*kk+s] = sum_t Q[t*n+j] * V_small[perm[s]*lk+t] */
         size_t sz_u_out, sz_vt_out;
-        if (size_mul_overflow((size_t)m, (size_t)kk, &sz_u_out) ||
-            size_mul_overflow((size_t)kk, (size_t)n, &sz_vt_out) ||
+        if (sparse_size_mul_overflow((size_t)m, (size_t)kk, &sz_u_out) ||
+            sparse_size_mul_overflow((size_t)kk, (size_t)n, &sz_vt_out) ||
             sz_u_out > SIZE_MAX / sizeof(double) || sz_vt_out > SIZE_MAX / sizeof(double)) {
             free(perm);
             free(P);
@@ -1437,7 +1430,7 @@ sparse_err_t sparse_pinv(const SparseMatrix *A, double tol, double **pinv) {
      *            = sum_{i} (1/sigma_i) * Vt^T[:,i] * U[j,i]
      */
     size_t nm;
-    if (size_mul_overflow((size_t)n, (size_t)m, &nm) || nm > SIZE_MAX / sizeof(double)) {
+    if (sparse_size_mul_overflow((size_t)n, (size_t)m, &nm) || nm > SIZE_MAX / sizeof(double)) {
         sparse_svd_free(&svd);
         return SPARSE_ERR_ALLOC;
     }
@@ -1504,7 +1497,7 @@ sparse_err_t sparse_svd_lowrank(const SparseMatrix *A, idx_t rank_k, double **lo
     /* A_k = sum_{i=0}^{rank_k-1} sigma_i * U[:,i] * Vt[i,:]
      * Result is m×n column-major. */
     size_t mn;
-    if (size_mul_overflow((size_t)m, (size_t)n, &mn) || mn > SIZE_MAX / sizeof(double)) {
+    if (sparse_size_mul_overflow((size_t)m, (size_t)n, &mn) || mn > SIZE_MAX / sizeof(double)) {
         sparse_svd_free(&svd);
         return SPARSE_ERR_ALLOC;
     }
@@ -1627,7 +1620,7 @@ sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, doub
      * then threshold into the sparse result. Avoids repeated sparse_insert
      * calls during the O(m*n*rank_k) reconstruction. */
     size_t mn;
-    if (size_mul_overflow((size_t)m, (size_t)n, &mn) || mn > SIZE_MAX / sizeof(double)) {
+    if (sparse_size_mul_overflow((size_t)m, (size_t)n, &mn) || mn > SIZE_MAX / sizeof(double)) {
         sparse_free(out);
         sparse_svd_free(&svd);
         return SPARSE_ERR_ALLOC;

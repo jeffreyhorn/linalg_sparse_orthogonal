@@ -578,3 +578,149 @@ Interpretation:
   test suite
 - Sprint 41 can now move into the first planned hotspot migration days from a
   validated helper baseline
+
+## Day 5
+
+**Objective:** Apply the new shared helper layer to the first real hotspot
+pair by removing duplicated overflow-multiplication helpers from
+`src/sparse_svd.c` and `src/sparse_eigs.c`, migrating their shared
+count-to-bytes guard sites onto the Day 4 utility layer, and explicitly
+leaving their larger multi-buffer workspace cleanup choreography local.
+
+### Commands Run
+
+1. Re-read the Sprint 41 plan and current working notes:
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_41/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_41/WORKING_NOTES.md`
+2. Audit the first hotspot pair for duplicated helper definitions and live
+   call sites:
+   - `rg -n "size_mul_overflow|SIZE_MAX / sizeof|SIZE_MAX /|malloc\\(|calloc\\(" src/sparse_svd.c src/sparse_eigs.c`
+   - `sed -n '1,120p' src/sparse_svd.c`
+   - `sed -n '140,220p' src/sparse_eigs.c`
+3. Recheck the migration state after the first edit pass:
+   - `git status --short --branch`
+   - `sed -n '1,60p' src/sparse_eigs.c`
+   - `rg -n "size_mul_overflow|sparse_size_mul_overflow" src/sparse_svd.c src/sparse_eigs.c`
+4. Run the required code-quality gate because `*.c` changed:
+   - `make format`
+   - `make lint`
+   - `make test`
+5. Capture the final code delta and write the Day 5 notes:
+   - `git diff -- src/sparse_svd.c src/sparse_eigs.c`
+   - `git diff --stat`
+
+### Day 5 Findings
+
+#### 1. The first real hotspot pair was the right Day 5 target
+
+Day 2 had already identified the strongest shared migration pair as:
+
+- `src/sparse_svd.c`
+- `src/sparse_eigs.c`
+
+Day 5 confirmed why:
+
+- both still carried their own local `size_mul_overflow(...)`
+- both used that helper repeatedly for:
+  - element-count multiplication
+  - count-to-bytes derivation
+  - multi-buffer workspace sizing
+- both were large enough that removing the duplicate helper meaningfully
+  shrinks local safety-code repetition without forcing a broader redesign
+
+Interpretation:
+
+- this was the first migration batch with real leverage
+- it stayed within Sprint 41's bounded helper-consolidation scope
+
+#### 2. Day 5 removed the duplicated local multiply guards from both hotspot modules
+
+The code migration batch landed the same shared-helper pattern in both files:
+
+- removed the file-local `size_mul_overflow(...)` helper from:
+  - `src/sparse_svd.c`
+  - `src/sparse_eigs.c`
+- moved their shared overflow guard sites to:
+  - `sparse_size_mul_overflow(...)`
+
+Day 5 also completed the integration seam cleanly in `src/sparse_eigs.c` by:
+
+- adding the private helper include:
+  - `#include "sparse_alloc_internal.h"`
+- updating one retained explanatory comment to name the shared helper rather
+  than the removed local helper
+
+Interpretation:
+
+- Day 4's helper layer is now proven in the first major hotspot pair, not just
+  in low-risk proof files
+- the shared arithmetic helper is now an actual consolidation tool rather than
+  unused internal infrastructure
+
+#### 3. The migrated call sites are the shared arithmetic seam, not the broader workspace choreography
+
+The migrated sites in `src/sparse_svd.c` cover the repeated shared arithmetic
+cases:
+
+- economy/full U/V workspace sizes
+- bidiagonal diagonal/superdiagonal byte sizing
+- Lanczos partial-SVD workspace sizing
+- sigma/output allocation size guards
+- low-rank / pseudoinverse dense-buffer size checks
+
+The migrated sites in `src/sparse_eigs.c` cover the same seam in eigensolver
+workspaces:
+
+- Lanczos vector/work buffer bytes
+- thick-restart `V`, `Y`, and `K×K` dense scratch sizing
+- locked-vector growth sizing
+- LOBPCG block workspace sizing
+
+Interpretation:
+
+- the migrated code is the true shared arithmetic seam Day 2 measured
+- Day 5 intentionally did not try to genericize:
+  - multi-buffer sibling allocation ordering
+  - per-file cleanup labels / goto choreography
+  - file-specific ownership and cancellation cleanup paths
+
+#### 4. The residual local-helper boundary is now cleaner and more explicit
+
+After Day 5, the remaining specialized local logic in these files is no longer
+“each file owns its own generic multiply-overflow helper.” The remaining local
+ownership is narrower:
+
+- SVD-specific:
+  - bidiagonal / Lanczos workspace composition
+  - low-rank dense reconstruction policy
+  - output-shape-dependent cleanup sequencing
+- eigs-specific:
+  - Lanczos/thick-restart/LOBPCG workspace family composition
+  - restart-state and block-method buffer ownership
+  - algorithm-specific cleanup/error propagation sequencing
+
+Interpretation:
+
+- later Sprint 41 work can now focus on truly file-specific allocation
+  choreography and representability helpers
+- the generic arithmetic safety layer is no longer a hotspot-local concern in
+  the first migrated pair
+
+#### 5. The required Day 5 gate passed completely
+
+Because `src/sparse_svd.c` and `src/sparse_eigs.c` changed, the full required
+gate was run:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Interpretation:
+
+- the first real hotspot migration batch preserved behavior
+- the shared helper seam is safe in large solver modules, not just in small
+  proof integrations
+- Sprint 41 can move into the broader `src/` migration work from a validated
+  first-wave landing

@@ -2019,3 +2019,122 @@ Interpretation:
 
 - the Day 13 follow-on scope stayed matched to the sprint's touched surfaces
 - the sweep did not widen into unnecessary support-surface reruns
+
+## Day 14
+
+**Objective:** Close Sprint 41 as one coherent helper-consolidation handoff by
+synthesizing the shared-helper design, landed migrations, auxiliary alignment,
+prep rules, and Day 13 validation into one explicit Sprint 42-ready closeout.
+
+### Commands Run
+
+1. Re-read the Sprint 41 Day 14 plan section:
+   - `sed -n '390,470p' docs/planning/EPIC_4/SPRINT_41/PLAN.md`
+2. Re-read the late-sprint working notes through Day 13:
+   - `tail -n 220 docs/planning/EPIC_4/SPRINT_41/WORKING_NOTES.md`
+3. Inventory the Sprint 41 artifact set:
+   - `ls docs/planning/EPIC_4/SPRINT_41/artifacts`
+4. Re-read the key late-sprint implementation and rule artifacts:
+   - `day10-auxiliary-surface-alignment-audit.md`
+   - `day11-auxiliary-surface-alignment-batch.md`
+   - `day12-safety-style-and-prep-rules.md`
+   - `day13-full-validation-sweep.md`
+5. Re-read the Sprint 41 section of `PROJECT_PLAN.md`:
+   - `sed -n '48,82p' docs/planning/EPIC_4/PROJECT_PLAN.md`
+
+### Day 14 Findings
+
+#### 1. Sprint 41 now reduces cleanly to a shared-helper and prep-work package
+
+The sprint’s end-state is now:
+
+- preserved Sprint 40 baseline and validation contract
+- shared internal allocation/overflow helper layer
+- first-wave core-module migration onto that helper layer
+- broader `src/` migration pattern
+- bounded auxiliary/example alignment proof
+- compact execution rules for later internal-first refactor sprints
+
+Interpretation:
+
+- Sprint 41 no longer reads as isolated helper substitutions
+- it now hands off one coherent internal-safety and migration-prep package
+
+#### 2. The landed code changes stayed inside the Sprint 40 boundary exactly as intended
+
+Sprint 41 did **not**:
+
+- expose private helper internals publicly
+- reshape public lifecycle APIs
+- collapse specialized symbolic logic into generic helpers
+- reopen the graph decomposition queue
+- widen the auxiliary batch into a benchmark/script rewrite pass
+
+Interpretation:
+
+- the sprint preserved the Sprint 40 architecture contract
+- "internal-first" remained an actual execution rule rather than a loose theme
+
+#### 3. Sprint 42’s starting posture is now explicit
+
+Sprint 42 should inherit Sprint 41 as:
+
+- shared-helper default for new internal arithmetic/allocation work
+- preserve-public-semantics rule during lifecycle groundwork
+- reuse of the proven migration pattern from:
+  - `src/sparse_etree.c`
+  - `src/sparse_analysis.c`
+  - `src/sparse_iterative.c`
+- retention of explicit exception classes:
+  - symbolic accumulation choreography
+  - file-specific cleanup choreography
+  - specialized hotspot work such as `src/sparse_graph.c`
+
+Interpretation:
+
+- Sprint 42 can begin lifecycle-handle work from a proven implementation
+  posture
+- it does not need to reopen Sprint 41’s helper/safety design
+
+#### 4. The preserved quality baseline remained part of the closeout, not a side note
+
+Sprint 41 closes against the already-validated Day 13 baseline:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- `make tooling-build`
+- touched example reruns
+
+And the load-bearing truthfulness constraints remained unchanged:
+
+- reviewed CMake parity count stays `53`
+- dead-code remains serialized
+- `deadcode-check` remains a completeness gate
+- cross-platform enforced/staged/excluded wording remains unchanged
+
+Interpretation:
+
+- Sprint 41 hands off validated groundwork, not just code motion
+
+#### 5. Sprint 41 fully covers the scope promised in `PROJECT_PLAN.md`
+
+The promised workstreams are all now covered:
+
+- internal utility design
+- core helper implementation
+- first-wave core-module migration
+- broader `src/` migration
+- auxiliary-surface alignment
+- safety/prep-rule documentation
+- validation
+
+No `PROJECT_PLAN.md` update is required from Day 14 because Sprint 41 did not
+surface a new deferred queue outside the work already assigned to Sprint 42 and
+later Epic 4 sprints.
+
+Interpretation:
+
+- Sprint 41 closes cleanly within its planned scope
+- the handoff does not depend on undocumented follow-up work

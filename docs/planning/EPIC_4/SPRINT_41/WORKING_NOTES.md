@@ -298,3 +298,150 @@ Interpretation:
 - `sparse_dense.c` is a strong first migration target because it contains both:
   - an identical shared-helper candidate
   - older manual patterns that should collapse onto the same utility layer
+
+## Day 3
+
+**Objective:** Turn the Day 2 duplication map into a concrete internal utility
+API proposal by choosing the target private file layout, splitting helpers into
+inline vs normal-function tiers, and defining the explicit keep-local boundary
+for specialized symbolic/zero-size logic before Day 4 implementation begins.
+
+### Commands Run
+
+1. Re-read the Sprint 41 Day 3 plan section and current working notes:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_41/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_41/WORKING_NOTES.md`
+2. Re-read the Day 2 inventory artifact:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_41/artifacts/day2-helper-pattern-inventory.md`
+3. Sweep the current `src/` surface and exact helper-copy sites:
+   - `rg --files src | sort`
+   - `rg -n "static int size_mul_overflow|static inline int alloc_would_overflow|size_mul_overflow\\(|alloc_would_overflow\\(" src`
+4. Re-read representative internal helper/layout conventions:
+   - `sed -n '1,220p' src/sparse_errno_internal.h`
+   - `sed -n '1,220p' src/sparse_matrix_internal.h`
+   - `sed -n '1,180p' src/sparse_bicgstab_internal.h`
+   - `sed -n '1,120p' src/sparse_qr.c`
+5. Reconfirm build-surface implications for a new internal helper header/source:
+   - `rg -n "LIB_SRCS|src/.*\\.c|sparse_qr.c|sparse_dense.c|sparse_eigs.c|sparse_etree.c|sparse_svd.c" Makefile CMakeLists.txt`
+6. Re-read the relevant Epic 4 remediation/project-plan guidance:
+   - `rg -n "helper|allocation|overflow|size_mul_overflow|alloc_would_overflow|representability" docs/planning/EPIC_4/reviews/todo-codex-2026-05-21.md docs/planning/EPIC_4/PROJECT_PLAN.md docs/planning/EPIC_4/SPRINT_40/artifacts/day14-architecture-contract-synthesis.md`
+
+### Day 3 Findings
+
+#### 1. The utility layer should be a private `src/` helper pair, not a public API surface
+
+The cleanest Day 4 landing shape is:
+
+- private header:
+  - `src/sparse_alloc_internal.h`
+- private implementation file:
+  - `src/sparse_alloc_internal.c`
+
+Reasons:
+
+- the work is explicitly internal-first
+- current private naming conventions already support focused `*_internal.h`
+  surfaces
+- the new source file can be added cleanly to both:
+  - `Makefile` `LIB_SRCS`
+  - `CMakeLists.txt` library source list
+
+Interpretation:
+
+- Sprint 41 should not overload `sparse_matrix_internal.h` with another large
+  mixed-purpose utility section
+- a dedicated private helper layer keeps the Day 4 implementation bounded and
+  easy to audit
+
+#### 2. The API should be tiered: inline arithmetic helpers in the header, allocation wrappers in the source
+
+The strongest split is:
+
+- `static inline` helpers in `sparse_alloc_internal.h` for tiny pure
+  arithmetic/bounds operations
+- normal functions in `sparse_alloc_internal.c` only where a shared allocation
+  wrapper materially improves consistency
+
+Recommended header tier:
+
+- `sparse_size_mul_overflow(size_t a, size_t b, size_t *out)`
+- `sparse_size_add_overflow(size_t a, size_t b, size_t *out)`
+- `sparse_count_bytes_overflow(size_t count, size_t elem_size, size_t *bytes)`
+- `sparse_idx_count_bytes_overflow(idx_t count, size_t elem_size, size_t *bytes)`
+- `sparse_size_to_idx_checked(size_t value, idx_t *out)`
+
+Recommended source-tier candidates:
+
+- `sparse_malloc_array(size_t count, size_t elem_size, void **out)`
+- `sparse_calloc_array(size_t count, size_t elem_size, void **out)`
+
+Interpretation:
+
+- the repeated `size_mul_overflow` family belongs in header-inline form
+- small shared alloc wrappers are justified only where they preserve current
+  semantics cleanly and avoid another wave of ad hoc `malloc/calloc` error
+  translation
+
+#### 3. Sprint 41 should avoid a macro-heavy interface
+
+Day 3 does not support a macro-first design.
+
+Why:
+
+- arithmetic helpers have clear typed signatures already
+- macros would obscure evaluation and debugging for no real gain
+- the repo already uses `static inline` successfully for small internal helper
+  logic
+
+Design decision:
+
+- no public-facing macros
+- no typed allocation macros as the primary interface
+- use normal C helpers with explicit types/signatures instead
+
+Interpretation:
+
+- Sprint 41's goal is consolidation and clarity, not a preprocessor layer
+- the helper API should remain inspectable and easy to call-site-diff during
+  migration
+
+#### 4. Zero-size policy, symbolic prefix sums, and file-local cleanup choreography should remain caller-owned
+
+Day 2's specialization split is load-bearing here. The shared helper layer
+should not try to hide:
+
+- zero-size object policy:
+  - e.g. `NULL` data for empty dense matrices
+  - explicit `calloc(1, ...)` for empty symbolic column-pointer storage
+  - `nnz > 0 ? nnz : 1` sentinel allocation shapes
+- symbolic prefix-sum accumulation:
+  - `total_nnz > SIZE_MAX - cj`
+  - `u_total > SIZE_MAX - cj`
+- module-specific sibling-buffer cleanup sequences
+
+Interpretation:
+
+- the shared layer should centralize arithmetic and byte-derivation truth
+- it should not erase legitimate differences in symbolic-storage semantics or
+  lifecycle-specific cleanup ownership
+
+#### 5. Day 4 and the broader Sprint 41 queue now have concrete insertion points
+
+First-wave Day 4 / Day 5 / Day 6 insertion points remain:
+
+- `src/sparse_dense.c`
+- `src/sparse_svd.c`
+- `src/sparse_eigs.c`
+- `src/sparse_etree.c`
+
+But the Day 3 design also now explicitly anticipates the broader queue:
+
+- `src/sparse_qr.c` already carries the same `size_mul_overflow` idiom
+- later broader `src/` migration should be able to adopt the same utility layer
+  without redesign
+
+Interpretation:
+
+- the Sprint 41 utility layer should be designed for first-wave use now and
+  broader `src/` reuse shortly after
+- Day 3's design is therefore deliberately small but not one-off

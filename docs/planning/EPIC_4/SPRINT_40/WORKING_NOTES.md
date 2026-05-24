@@ -1613,3 +1613,119 @@ Interpretation:
 
 - later Epic 4 cleanup can now decide what to delete, compress, or move using
   a documented ownership rule instead of taste alone
+
+## Day 12
+
+**Objective:** Identify the public-facing surfaces most likely to need
+compatibility help during Epic 4 by separating internal-only refactor zones
+from externally visible lifecycle/workspace migration-risk zones.
+
+### Commands Run
+
+1. Re-read the Sprint 40 Day 12 plan section:
+   - `sed -n '320,390p' docs/planning/EPIC_4/SPRINT_40/PLAN.md`
+2. Re-read the current Sprint 40 working notes through Day 11:
+   - `tail -n 220 docs/planning/EPIC_4/SPRINT_40/WORKING_NOTES.md`
+3. Sweep the main public lifecycle-sensitive surfaces:
+   - `rg -n "factored|factor_norm|identity permutation|original matrix|sparse_factors_t|sparse_analysis_t|sparse_ldlt_t|sparse_qr_t|sparse_svd|iterative|workspace|ILUT|ILU|copy before reuse|copy-before-reuse|const SparseMatrix \\*A" include docs/tutorial.md README.md examples/README.md examples src tests`
+
+### Day 12 Findings
+
+#### 1. The highest migration risk is concentrated in a small set of public surfaces
+
+The strongest public-facing migration-risk surfaces are:
+
+- direct factorization entry points that currently imply matrix-state
+  transitions
+- README lifecycle wording
+- tutorial workflow examples
+- installed headers for lifecycle-sensitive families
+- analyze-once bridge handles
+- maintained examples that encode matrix-lifecycle expectations
+
+Interpretation:
+
+- later Epic 4 implementation sprints do not face broad repo-wide public
+  migration risk
+- they face a smaller but more sensitive set of user-visible surfaces
+
+#### 2. `README.md` and `docs/tutorial.md` are the strongest documentation-risk zones
+
+These two docs currently carry most of the practical user-facing explanation
+for:
+
+- original matrix requirements
+- identity-permutation expectations
+- copy-before-reuse guidance
+- cancellation semantics
+- preconditioner composition expectations
+
+Interpretation:
+
+- even internal-first lifecycle refactors will eventually need careful
+  documentation reconciliation here
+- these are the most likely places future migration notes or side-by-side
+  wrapper examples would be needed
+
+#### 3. LU and Cholesky remain the strongest public API compatibility-risk families
+
+Day 12 confirms the same priority Day 9 and Day 10 already implied:
+
+- LU
+- Cholesky
+
+Interpretation:
+
+- these are not just the strongest internal architecture targets
+- they are also the strongest public compatibility-risk families because they
+  currently sit closest to matrix-as-factor-handle semantics
+
+#### 4. The analyze-once bridge surfaces should be preserved, not treated as rewrite-first targets
+
+The strongest bridge surfaces are still:
+
+- `sparse_analysis_t`
+- `sparse_factors_t`
+
+Interpretation:
+
+- later internal payload normalization should preserve their conceptual public
+  role where possible
+- changing those surfaces carelessly would create unnecessary migration burden
+  in one of the cleaner current API zones
+
+#### 5. Most early structural work can remain internal-only
+
+The Day 12 internal-only boundary is now reasonably clear:
+
+- helper/allocation consolidation
+- graph decomposition
+- internal LU/Cholesky payload insertion
+- internal workspace plumbing
+- bridge payload normalization
+
+Interpretation:
+
+- later sprints should avoid turning these into public migration events unless
+  there is a clear user-facing benefit
+
+#### 6. Any future workspace API should be additive and wrapper-compatible
+
+Iterative/eigensolver workspaces are a public-risk surface only if they become
+visible as new public APIs.
+
+Interpretation:
+
+- if those APIs appear, they should be additive
+- one-shot iterative/eigensolver entry points should remain intact as wrappers
+  during the migration period
+
+#### 7. Examples are a secondary but real migration-risk surface
+
+Examples are not the primary contract surface, but they are often the first
+code users copy.
+
+Interpretation:
+
+- later lifecycle/workspace changes should plan for example refreshes
+- especially for LU, Cholesky, QR, iterative/preconditioner, and SVD workflows

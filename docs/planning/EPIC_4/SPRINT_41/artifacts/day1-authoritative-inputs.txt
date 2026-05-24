@@ -1,0 +1,48 @@
+Sprint 41 Day 1 authoritative inputs
+====================================
+
+Planning / architecture scope
+-----------------------------
+- docs/planning/EPIC_4/PROJECT_PLAN.md
+- docs/planning/EPIC_4/SPRINT_41/PLAN.md
+- docs/planning/EPIC_4/SPRINT_40/artifacts/day14-architecture-contract-synthesis.md
+- docs/planning/EPIC_4/SPRINT_40/artifacts/day11-quality-contract-ownership-map.md
+- docs/planning/EPIC_4/reviews/todo-codex-2026-05-21.md
+
+Inherited reviewed-quality / policy surfaces
+--------------------------------------------
+- README.md
+- Makefile
+- CMakeLists.txt
+- .github/workflows/ci.yml
+- .github/workflows/macos-ci.yml
+- .github/workflows/windows-ci.yml
+
+First helper-consolidation hotspot modules
+------------------------------------------
+- src/sparse_dense.c
+- src/sparse_svd.c
+- src/sparse_eigs.c
+- src/sparse_etree.c
+
+Day 1 preserve-not-reopen baseline
+----------------------------------
+- strongest local reviewed baseline already exists:
+  - make quality-review-full
+- reviewed CMake parity remains measurable:
+  - ctest -N --test-dir build/quality-review-cmake = 53
+- maintained dead-code paths already exist:
+  - make deadcode-report
+  - make deadcode-check
+- dead-code execution remains serialized
+- Sprint 40 ownership / validation / migration-risk contracts remain in force
+
+Sprint 41 workstreams confirmed on Day 1
+----------------------------------------
+- helper-pattern inventory
+- shared utility design
+- first core-module migration
+- broader src/ migration
+- auxiliary-surface alignment
+- prep-rule documentation
+- validation closeout

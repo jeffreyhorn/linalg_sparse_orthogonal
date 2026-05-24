@@ -1242,3 +1242,135 @@ And which seem more like implementation leakage:
 Interpretation:
 
 - Day 9 should preserve the first group and try to internalize the second
+
+## Day 9
+
+**Objective:** Turn the Day 7 taxonomy and Day 8 contract map into the first
+concrete explicit handle-model design for Epic 4 by defining the target object
+families, the keep/move responsibility split, and the minimum internal-first
+compatibility shape before any implementation-heavy refactor begins.
+
+### Commands Run
+
+1. Re-read the Sprint 40 Day 9 plan section:
+   - `sed -n '1,320p' docs/planning/EPIC_4/SPRINT_40/PLAN.md`
+2. Re-read the current Sprint 40 working notes through Day 8:
+   - `tail -n 280 docs/planning/EPIC_4/SPRINT_40/WORKING_NOTES.md`
+3. Re-read the Day 7 taxonomy, Day 8 contract map, and Epic 4 remediation plan:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_40/artifacts/day7-state-model-taxonomy.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_40/artifacts/day8-lifecycle-contract-map.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/reviews/todo-codex-2026-05-21.md`
+
+### Day 9 Findings
+
+#### 1. The future handle model should be built around four object families, not one universal abstraction
+
+The main Day 9 design decision is to organize the future architecture around:
+
+- coefficient matrix objects
+- symbolic analysis objects
+- numeric factor / decomposition objects
+- solve / operation context objects
+
+Interpretation:
+
+- this is a better fit for the current codebase than a single generic
+  “everything is a handle” layer
+- it preserves the important distinction between:
+  - persistent mathematical result
+  - reusable temporary workspace
+  - coefficient storage
+
+#### 2. `SparseMatrix` should remain the coefficient/value object, not the universal factor-state carrier
+
+Day 9’s central keep/move split is now explicit:
+
+- keep on `SparseMatrix`:
+  - coefficient storage
+  - value/structure editing
+  - matrix arithmetic and query behavior
+- move away from `SparseMatrix`:
+  - factor-specific permutations
+  - solve-readiness state
+  - factor-specific norm/tolerance telemetry
+  - cancellation-sensitive partial factor state
+
+Interpretation:
+
+- this keeps the matrix object meaningful and stable
+- without preserving the current matrix-as-factor-handle overloading
+
+#### 3. LU and Cholesky are the main target for explicit factor-handle convergence
+
+LDLT, QR, SVD, and the preconditioner builders already approximate the future
+design direction. LU and Cholesky are the main outliers.
+
+Interpretation:
+
+- later Epic 4 implementation work should focus the strongest internal handle
+  landing effort on LU / Cholesky first
+- this is where the design gets the biggest lifecycle simplification benefit
+
+#### 4. The analysis pipeline should remain a first-class architecture anchor
+
+The analyze-once workflow already gives the codebase:
+
+- separate analysis handle
+- separate factor handle
+- explicit solve boundary
+
+Interpretation:
+
+- `sparse_analysis_t` / `sparse_factors_t` are not just legacy surfaces to
+  preserve; they are the best public bridge into the future model
+- later refactors should evolve them inwardly rather than replacing their
+  conceptual shape wholesale
+
+#### 5. Iterative solvers and eigensolvers should be improved through composition boundaries, not recast as factor APIs
+
+Day 9 keeps the Day 7/8 distinction intact:
+
+- iterative/eigensolver APIs stay operator consumers
+- their evolution path is:
+  - reusable workspaces
+  - cleaner preconditioner/factor context contracts
+  - clearer composition seams
+
+Interpretation:
+
+- forcing them into the same redesign bucket as direct factorization would
+  damage the cleaner parts of the current architecture
+
+#### 6. The safest migration path is internal-first with wrapper preservation
+
+The minimum safe staged shape is now explicit:
+
+- Stage 1:
+  - add internal LU/Cholesky factor payloads
+  - keep public one-shot entry points stable
+- Stage 2:
+  - normalize bridge wrappers like `sparse_factors_t`
+  - reduce matrix-centric payload dependence
+- Stage 3:
+  - simplify caller-visible lifecycle/cancellation burden once the internals
+    have moved
+
+Interpretation:
+
+- Epic 4 should not start with public API churn
+- it should first move hidden ownership internally while preserving semantic
+  behavior at the call surface
+
+#### 7. The minimum compatibility scaffolding is now bounded
+
+The smallest compatibility layer later sprints should expect is:
+
+- one-shot wrapper preservation
+- bridge adapters during factor-payload transition
+- continued `sparse_factors_t` public wrapper presence while internals change
+- docs that teach stable semantics rather than internal field ownership
+
+Interpretation:
+
+- Day 9 kept the design concrete without overcommitting to unnecessary public
+  deprecation machinery before the internal landing is proven

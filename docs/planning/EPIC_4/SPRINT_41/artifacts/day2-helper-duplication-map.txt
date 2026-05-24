@@ -1,0 +1,76 @@
+Sprint 41 Day 2 helper duplication map
+======================================
+
+Audited modules
+---------------
+- src/sparse_dense.c
+- src/sparse_svd.c
+- src/sparse_eigs.c
+- src/sparse_etree.c
+
+Direct duplicate helper family
+------------------------------
+- size_mul_overflow(size_t a, size_t b, size_t *out/result)
+  - src/sparse_dense.c
+  - src/sparse_svd.c
+  - src/sparse_eigs.c
+
+Shared arithmetic patterns close to direct consolidation
+--------------------------------------------------------
+- count * sizeof(double) byte derivation after validated element counts
+  - src/sparse_dense.c
+  - src/sparse_svd.c
+  - src/sparse_eigs.c
+- repeated matrix/workspace element-count derivation
+  - src/sparse_svd.c
+  - src/sparse_eigs.c
+- one-dimensional count * sizeof(idx_t) / sizeof(double) guards
+  - src/sparse_dense.c
+  - src/sparse_etree.c
+
+Near-shared manual arithmetic that should be normalized
+-------------------------------------------------------
+- quotient-style multiply validation:
+  - mn / n != m
+  - rows*cols with reverse-division validation
+  - src/sparse_dense.c
+- mixed helper + explicit SIZE_MAX / sizeof(T) post-check style
+  - src/sparse_svd.c
+  - src/sparse_eigs.c
+
+Specialized helper family
+-------------------------
+- alloc_would_overflow(idx_t n, size_t elem_size)
+  - src/sparse_etree.c
+- cumulative prefix-sum overflow checks
+  - total_nnz > SIZE_MAX - cj
+  - u_total > SIZE_MAX - cj
+  - src/sparse_etree.c
+- idx_t cast-back representability checks
+  - src/sparse_etree.c
+
+Common allocation / cleanup shapes
+----------------------------------
+- allocate sibling workspace buffers after one validated sizing block
+  - src/sparse_svd.c
+  - src/sparse_eigs.c
+- free all sibling buffers on any allocation failure
+  - src/sparse_svd.c
+  - src/sparse_eigs.c
+  - selected symbolic-build paths in src/sparse_etree.c
+- zero/init after validated allocation
+  - src/sparse_dense.c
+  - src/sparse_svd.c
+  - src/sparse_eigs.c
+  - src/sparse_etree.c
+
+Day 2 migration interpretation
+------------------------------
+- strongest Day 3 design target:
+  - shared size_mul_overflow / count-to-bytes utility core
+- second-tier design target:
+  - representability / accumulation helpers or explicit keep-local rule
+- keep local for now:
+  - symbolic etree accumulation semantics
+  - zero-safe row-index special cases
+  - lifecycle-specific cleanup choreography

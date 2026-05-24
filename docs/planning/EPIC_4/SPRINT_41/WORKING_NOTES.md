@@ -141,3 +141,160 @@ Interpretation:
   - validation
 - explicit handle enrichment, bridge normalization, and public doc
   reconciliation remain later Epic 4 work
+
+## Day 2
+
+**Objective:** Inventory the local allocation/overflow helper patterns in the
+first Sprint 41 hotspot modules, classify them into explicit consolidation
+buckets, and separate truly shared safety helpers from the file-specific logic
+that should remain local during the first migration wave.
+
+### Commands Run
+
+1. Re-read the Sprint 41 Day 2 plan section and current working notes:
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_41/PLAN.md`
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_41/WORKING_NOTES.md`
+2. Sweep the Day 2 hotspot modules for allocation/overflow idioms:
+   - `rg -n "overflow|SIZE_MAX|IDX_MAX|malloc|calloc|realloc|sizeof\\(|bytes|count|capacity|alloc" src/sparse_dense.c src/sparse_svd.c src/sparse_eigs.c src/sparse_etree.c`
+3. Measure hotspot size for context:
+   - `wc -l src/sparse_dense.c src/sparse_svd.c src/sparse_eigs.c src/sparse_etree.c`
+4. Re-read the helper definitions and representative allocation sites:
+   - `sed -n '1,120p' src/sparse_dense.c`
+   - `sed -n '1,120p' src/sparse_svd.c`
+   - `sed -n '140,220p' src/sparse_eigs.c`
+   - `sed -n '1,120p' src/sparse_etree.c`
+5. Re-read representative specialized cases:
+   - `sed -n '150,240p' src/sparse_svd.c`
+   - `sed -n '1080,1135p' src/sparse_eigs.c`
+   - `sed -n '250,330p' src/sparse_etree.c`
+   - `sed -n '560,640p' src/sparse_etree.c`
+6. Re-sweep exact helper-family signals:
+   - `rg -n "size_mul_overflow|alloc_would_overflow|SIZE_MAX -|> SIZE_MAX / sizeof|> SIZE_MAX /" src/sparse_dense.c src/sparse_svd.c src/sparse_eigs.c src/sparse_etree.c`
+
+### Day 2 Findings
+
+#### 1. The strongest direct-consolidation seam is the repeated `size_mul_overflow` family
+
+Three of the four Day 2 hotspot modules carry their own local multiplication
+guard with the same core semantics:
+
+- `src/sparse_dense.c`
+- `src/sparse_svd.c`
+- `src/sparse_eigs.c`
+
+All three implement the same basic contract:
+
+- inputs:
+  - `size_t a`
+  - `size_t b`
+  - `size_t *out`
+- return:
+  - `0` on success
+  - nonzero on overflow
+- guard:
+  - `a != 0 && b > SIZE_MAX / a`
+
+Interpretation:
+
+- this is the highest-confidence shared helper candidate for Day 3 design and
+  Day 4 implementation
+- the helper already exists as an implicit repository-wide idiom; Sprint 41's
+  job is to stop carrying it as repeated file-local code
+
+#### 2. The hotspot modules reduce cleanly into four helper-pattern buckets
+
+Day 2's four planned buckets are now grounded in actual code:
+
+- size multiplication overflow checks:
+  - repeated `size_mul_overflow(...)`
+  - repeated `count > SIZE_MAX / sizeof(T)` style guards
+- `idx_t` / `size_t` representability checks:
+  - `sparse_etree.c` cast-back validation from accumulated `size_t` totals
+  - count/nnz values that must fit both allocation arithmetic and `idx_t`
+- count-to-bytes conversions:
+  - `elems -> bytes` derivation in SVD/eigs workspaces
+  - direct `n * sizeof(T)` / `m*n*sizeof(T)` guards in dense/etree
+- common allocation/free/reset helpers:
+  - repeated allocate-many-then-free-on-failure blocks
+  - repeated zeroing/init patterns after overflow validation
+
+Interpretation:
+
+- Sprint 41 is not just consolidating one multiplication helper
+- it is consolidating a small safety-helper family, with clear subtypes that
+  later design work can model separately
+
+#### 3. `sparse_etree.c` is the main specialized branch, not a direct clone of the dense/SVD/eigs pattern
+
+`src/sparse_etree.c` does carry repeated allocation-safety logic, but its main
+patterns are different:
+
+- single-dimension guard:
+  - `alloc_would_overflow(idx_t n, size_t elem_size)`
+- cumulative prefix-sum overflow checks:
+  - `total_nnz > SIZE_MAX - cj`
+  - `u_total > SIZE_MAX - cj`
+- cast-back representability checks:
+  - `(size_t)sym->col_ptr[j + 1] != total_nnz`
+- zero-safe/nonzero-safe row-index allocation shapes:
+  - `sym_U->nnz > 0 ? sym_U->nnz : 1`
+
+Interpretation:
+
+- `sparse_etree.c` should not be treated as a pure `size_mul_overflow`
+  migration
+- it likely needs:
+  - a shared one-dimensional count-to-bytes helper
+  - a shared accumulation/representability helper or documented keep-local
+    decision
+- its symbolic-structure accumulation rules are semantically different from
+  dense workspace sizing and should remain explicit in the Day 3 API design
+
+#### 4. `sparse_svd.c` and `sparse_eigs.c` share the strongest multi-buffer workspace pattern
+
+The most reusable allocation-shape cluster is the workspace-pack style used in:
+
+- `src/sparse_svd.c`
+- `src/sparse_eigs.c`
+
+Common structure:
+
+- derive element counts with `size_mul_overflow`
+- derive bytes from element counts with `size_mul_overflow(..., sizeof(T), ...)`
+- allocate several sibling buffers together
+- free the full sibling set on any failure
+
+Representative examples include:
+
+- SVD:
+  - `mt*k`, `nt*k`, `m*k`, `n*k`, `m*m`, `n*n`, `kk*n`
+- eigs:
+  - `n*m_cap`, `m_cap*m_cap`, `n*k`, `n*block_size`
+
+Interpretation:
+
+- Day 3 should consider not only a low-level multiply helper, but also whether
+  one or two tiny convenience helpers for:
+  - `count -> bytes`
+  - matrix/workspace element-count derivation
+  are justified
+- the free-on-failure blocks themselves are repeated, but they may not all
+  belong in a single generic allocation helper if that would obscure current
+  error/cleanup semantics
+
+#### 5. `sparse_dense.c` is the best example of near-duplicate logic that still needs cleanup even where it does not use `size_mul_overflow`
+
+`src/sparse_dense.c` mixes two styles today:
+
+- local `size_mul_overflow(...)`
+- older quotient-based overflow checks:
+  - `mn / n != m`
+  - `n > SIZE_MAX / sizeof(double)`
+
+Interpretation:
+
+- Day 2 confirms that Sprint 41 must normalize not only repeated helper
+  definitions but also repeated manual arithmetic idioms
+- `sparse_dense.c` is a strong first migration target because it contains both:
+  - an identical shared-helper candidate
+  - older manual patterns that should collapse onto the same utility layer

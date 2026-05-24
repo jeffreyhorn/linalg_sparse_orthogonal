@@ -1075,3 +1075,182 @@ Interpretation:
 - the full `make format` / `make lint` / `make test` gate was not required
 - the right output for Day 7 is the migration decision package that keeps
   Days 8-9 bounded and behavior-preserving
+
+## Day 8
+
+**Objective:** Land the first broader `src/` migration batch by moving the
+highest-value low-risk pair from Day 7 — `src/sparse_ic.c` and
+`src/sparse_analysis.c` — onto the shared helper layer while keeping the
+batch behavior-preserving and confirming whether the Day 4 helper API needs
+extension.
+
+### Commands Run
+
+1. Re-read the Sprint 41 Day 8 scope and the Day 7 priority map:
+   - `sed -n '220,280p' docs/planning/EPIC_4/SPRINT_41/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_41/artifacts/day7-broader-src-migration-audit.md`
+2. Inspect the two Day 8 target modules and the current shared helper layer:
+   - `sed -n '1,260p' src/sparse_ic.c`
+   - `sed -n '1,360p' src/sparse_analysis.c`
+   - `sed -n '360,520p' src/sparse_analysis.c`
+   - `sed -n '1,240p' src/sparse_alloc_internal.h`
+   - `sed -n '1,240p' src/sparse_alloc_internal.c`
+3. Reconfirm the live manual allocation/overflow sites in the target files:
+   - `rg -n "SIZE_MAX / sizeof|malloc\\(|calloc\\(" src/sparse_ic.c`
+   - `rg -n "SIZE_MAX / sizeof|malloc\\(|calloc\\(" src/sparse_analysis.c`
+4. Run the required full validation gate after the code changes:
+   - `make format`
+   - `make lint`
+   - `make test`
+5. Review the resulting source diff and final branch state:
+   - `git diff -- src/sparse_ic.c src/sparse_analysis.c`
+   - `git status --short --branch`
+
+### Day 8 Findings
+
+#### 1. Day 8 landed the planned first broader `src/` migration pair directly
+
+The broader Day 7 priority order held up cleanly in live code:
+
+- migrated:
+  - `src/sparse_ic.c`
+  - `src/sparse_analysis.c`
+- did not mix in:
+  - `src/sparse_iterative.c`
+  - `src/sparse_qr.c`
+  - `src/sparse_graph.c`
+
+Interpretation:
+
+- Sprint 41 stayed on the bounded Day 7 migration order
+- Day 8 is a real broader `src/` consolidation pass, not a reopened
+  first-wave hotspot batch
+
+#### 2. `src/sparse_ic.c` was a true direct-substitution success case
+
+Day 8 migrated the compact IC(0) allocation seam onto the shared helper layer:
+
+- added:
+  - `#include "sparse_alloc_internal.h"`
+- replaced the local workspace guards/allocations for:
+  - `val`
+  - `pattern`
+  - `in_pat`
+- adopted:
+  - `sparse_calloc_array(...)`
+  - `sparse_malloc_array(...)`
+
+What did **not** change:
+
+- factorization algorithm
+- error propagation
+- cleanup choreography
+- solve semantics
+
+Interpretation:
+
+- the Day 7 classification was correct
+- `src/sparse_ic.c` was a strong low-risk broader proof target
+
+#### 3. `src/sparse_analysis.c` also fit the shared helper layer without redesign
+
+Day 8 migrated the remaining direct analysis-side allocation seams:
+
+- added:
+  - `#include "sparse_alloc_internal.h"`
+- replaced manual n-based allocation in:
+  - `apply_supernodal_postorder(...)`
+  - permutation storage
+  - `etree` / `postorder` arrays
+  - `cc` scratch storage
+  - `b_perm`
+  - `x_tmp`
+- adopted:
+  - `sparse_malloc_array(...)`
+
+What stayed local:
+
+- reorder dispatch
+- symbolic-analysis ownership
+- factor-type dispatch
+- solve semantics and permutation meaning
+
+Interpretation:
+
+- the shared helper layer now covers a bridge/lifecycle-sensitive module, not
+  just the first-wave hotspot files
+- Day 8 broadened helper ownership without blurring Sprint 41 into lifecycle
+  refactor work
+
+#### 4. Day 8 did not require a helper-layer extension
+
+One explicit Day 8 question was whether the live broader migration would prove
+the Day 4 helper API too narrow. It did not.
+
+The existing helper set was sufficient:
+
+- `sparse_malloc_array(...)`
+- `sparse_calloc_array(...)`
+- `sparse_size_mul_overflow(...)`
+- `sparse_size_add_overflow(...)`
+- `sparse_count_bytes_overflow(...)`
+- `sparse_idx_count_bytes_overflow(...)`
+- `sparse_size_to_idx_checked(...)`
+
+Interpretation:
+
+- the current shared helper layer is still the right size for Sprint 41
+- Day 9 can stay focused on broader migration, not helper-API redesign
+
+#### 5. Day 8 preserves the keep-local boundary from Sprint 41's design
+
+The migration moved only the generic safety seam. It did **not** attempt to
+rewrite:
+
+- IC(0) symbolic/factor ownership
+- analysis/factor dispatch
+- permutation meaning
+- symbolic etree/postorder semantics
+- solve/result orchestration
+
+Interpretation:
+
+- Sprint 41 remains an internal helper consolidation sprint
+- the batch is consistent with the Sprint 40 architecture contract and the
+  Day 3 helper-layer design
+
+#### 6. Day 9 is now narrowed further rather than expanded
+
+After the Day 8 batch, the strongest remaining broader mainline target is:
+
+- `src/sparse_iterative.c`
+
+The next optional follow-on remains:
+
+- `src/sparse_qr.c`
+
+And the specialized defer remains:
+
+- `src/sparse_graph.c`
+
+Interpretation:
+
+- Day 8 did not surface a missing-helper emergency that would reorder the
+  broader queue
+- Day 9 can stay centered on `src/sparse_iterative.c`
+
+#### 7. The required Day 8 gate passed completely
+
+Because `src/sparse_ic.c` and `src/sparse_analysis.c` changed, the full
+required gate was run:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Interpretation:
+
+- the first broader `src/` migration batch is validated
+- Sprint 41 can proceed to the next broader pass from a clean state

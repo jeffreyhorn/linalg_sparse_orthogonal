@@ -1729,3 +1729,122 @@ Interpretation:
 
 - later lifecycle/workspace changes should plan for example refreshes
 - especially for LU, Cholesky, QR, iterative/preconditioner, and SVD workflows
+
+## Day 13
+
+**Objective:** Define the authoritative validation anchor for the
+implementation-heavy Epic 4 sprints by separating mandatory baseline gates from
+targeted follow-on validation and preserving the key truthfulness constraints
+inherited from Epic 3.
+
+### Commands Run
+
+1. Re-read the Sprint 40 Day 13 plan section:
+   - `sed -n '390,470p' docs/planning/EPIC_4/SPRINT_40/PLAN.md`
+2. Re-read the current Sprint 40 working notes through Day 12:
+   - `tail -n 240 docs/planning/EPIC_4/SPRINT_40/WORKING_NOTES.md`
+3. Re-read the live reviewed/dead-code command surfaces:
+   - `sed -n '470,660p' Makefile`
+   - `sed -n '640,840p' README.md`
+4. Reconfirm the current reviewed CMake active-suite count:
+   - `ctest -N --test-dir build/quality-review-cmake`
+
+### Day 13 Findings
+
+#### 1. The implementation-heavy Epic 4 sprints should use a layered validation model
+
+The Day 13 validation anchor is now:
+
+- mandatory full C/C-header gate
+- reviewed local baseline
+- serial dead-code sibling path
+- targeted benchmark/example/sanitizer/performance reruns only when justified
+
+Interpretation:
+
+- later sprints should not collapse these into a single “run everything”
+  expectation
+- they should preserve the strongest validated baseline honestly while adding
+  targeted checks where the touched surface requires them
+
+#### 2. The mandatory floor for all `*.c` / `*.h` changes remains unchanged
+
+The non-negotiable code-change floor is still:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Interpretation:
+
+- Epic 4 structural refactors do not relax this rule
+- they layer additional validation on top of it when the change type warrants
+  it
+
+#### 3. `make quality-review-full` is the default substantial-refactor proof
+
+Day 13 treats `make quality-review-full` as the strongest routine local
+reviewed baseline for later large refactors.
+
+Interpretation:
+
+- later lifecycle, helper, and hotspot refactors should usually use
+  `quality-review-full` as the default “strong proof” path
+- not just the smaller direct code gate
+
+#### 4. Dead-code remains a separate serialized sibling path
+
+The dead-code workflow still has its own distinct validation meaning and
+execution rule.
+
+Interpretation:
+
+- later sprints must continue treating `deadcode-report` / `deadcode-check` as
+  serial-only authoritative evidence
+- and must not fold dead-code into the universal mandatory code gate by
+  implication
+
+#### 5. Build/test registration changes require explicit CMake parity validation
+
+Day 13 makes the CMake parity trigger explicit:
+
+- if the change touches CMake wiring, test registration, or wrapper behavior
+  that affects parity, run:
+  - `make quality-review-cmake-compile`
+  - and usually `make quality-review-cmake`
+
+Interpretation:
+
+- this preserves the active-suite truth contract
+- instead of letting CTest-count or parity drift become an accidental side
+  effect of later refactors
+
+#### 6. Targeted validation should follow the touched surface, not habit
+
+The main targeted follow-on families are:
+
+- examples/benchmarks/tooling
+- sanitizer/performance helpers
+- dead-code support surfaces
+
+Interpretation:
+
+- later Epic 4 work should scope additional reruns to the actual changed
+  surfaces
+- rather than reflexively running unrelated validation that adds cost without
+  stronger evidence
+
+#### 7. Several truthfulness constraints are now fixed validation invariants
+
+The most important preserved constraints are:
+
+- `ctest -N --test-dir build/quality-review-cmake` still reports `53`
+- Makefile/CMake parity remains explicit
+- dead-code execution remains serialized
+- `deadcode-check` remains a completeness gate, not a zero-findings claim
+- the cross-platform enforced/staged/excluded wording remains honest
+
+Interpretation:
+
+- later sprints now have a written checklist of validation truths to preserve
+- not just a list of commands to run

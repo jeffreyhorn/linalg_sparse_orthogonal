@@ -1,0 +1,74 @@
+Sprint 40 Day 3 support-surface inventory
+=========================================
+
+Reviewed CMake parity baseline
+------------------------------
+- ctest -N --test-dir build/quality-review-cmake = 53
+- make quality-review-cmake-compile
+- make quality-review-cmake
+
+Dead-code baseline
+------------------
+- make deadcode
+- make deadcode-report
+- make deadcode-check
+- build/deadcode/report.md
+- build/deadcode/report.tsv
+- build/deadcode/coverage-notes.txt
+- current compile-db counts:
+  - src 25
+  - tests 53
+  - benchmarks 14
+  - examples 12
+- current compile-db benchmark/example gap:
+  - closed
+
+Cross-platform enforced / staged / excluded
+-------------------------------------------
+- Linux enforced:
+  - make quality-review-compile
+  - make quality-review-cmake
+  - make deadcode-report
+  - make deadcode-check
+- macOS enforced:
+  - Apple Clang make quality-review-compile
+  - Apple Clang make quality-review-cmake
+  - make wall-check
+  - make sanitize
+- macOS staged:
+  - make deadcode-report
+  - make deadcode-check
+- macOS supplemental:
+  - Homebrew GCC make
+  - Homebrew GCC make test
+  - Homebrew GCC make wall-check
+  - install/pkg-config validation
+- Windows enforced:
+  - reviewed CMake configure/build
+  - ctest -N
+  - full ctest
+  - expected test count 50
+- Windows staged:
+  - make quality-review-compile
+  - make quality-review
+  - dead-code
+- Windows excluded:
+  - test_threads
+  - test_sprint4_integration
+  - test_fuzz
+
+Compile-only / support targets
+------------------------------
+- make tooling-build
+- make bench-build
+- make examples-build
+- make wall-check
+- make coverage
+
+Load-bearing known limits
+-------------------------
+- deadcode* remains serialized because it shares:
+  - build/deadcode-cmake
+  - build/deadcode/
+- coverage remains supplemental
+- reviewed CMake parity remains the strongest shared reviewed baseline across platforms

@@ -49,11 +49,12 @@ All sprint estimates below are bounded for a 14-day sprint at no more than 12 ho
 
 **Duration:** 14 days (~136 hours)
 
-**Goal:** Centralize overflow checks, allocation sizing, and related internal safety helpers so the repository stops carrying multiple local safety idioms that drift over time.
+**Goal:** Centralize overflow checks, allocation sizing, and related internal safety helpers so the repository stops carrying multiple local safety idioms that drift over time, while beginning the bounded internal-first groundwork Sprint 40 handed forward for later lifecycle and hotspot refactors.
 
 ### Prerequisites from previous Sprints
 
 - Sprint 40 lifecycle inventory and architecture contract
+- Sprint 40 quality-truth ownership map and validation anchor
 - Existing local helper patterns in:
   - `src/sparse_etree.c`
   - `src/sparse_dense.c`
@@ -67,10 +68,10 @@ All sprint estimates below are bounded for a 14-day sprint at no more than 12 ho
 | 1 | Internal utility design | Design a shared internal utility layer for size multiplication, `idx_t`/`size_t` bounds, and common safe-allocation helpers. | 16 hrs |
 | 2 | Core helper implementation | Add the internal utility header/source and wire its initial tests or assertions. | 20 hrs |
 | 3 | Migrate first core modules | Replace local helper copies in `sparse_dense.c`, `sparse_svd.c`, `sparse_eigs.c`, and `sparse_etree.c`. | 28 hrs |
-| 4 | Broader `src/` migration pass | Audit and migrate the rest of `src/` where equivalent local size/overflow logic exists. | 28 hrs |
-| 5 | Auxiliary-surface alignment | Audit examples, benchmarks, and scripts for the same safety patterns and align the highest-signal surfaces. | 18 hrs |
-| 6 | Safety-style documentation | Add short internal guidance for when new code must use the shared helper layer rather than ad hoc local arithmetic. | 10 hrs |
-| 7 | Validation | Run the full required code-quality gate and verify no behavioral regressions after helper consolidation. | 16 hrs |
+| 4 | Broader `src/` migration pass | Audit and migrate the rest of `src/` where equivalent local size/overflow logic exists, prioritizing the hotspot-prep surfaces Sprint 40 identified for later lifecycle and graph work. | 28 hrs |
+| 5 | Auxiliary-surface alignment | Audit examples, benchmarks, and scripts for the same safety patterns and align the highest-signal surfaces, keeping the work internal-first unless a touched surface is already public-risk-ranked by Sprint 40. | 18 hrs |
+| 6 | Safety-style documentation and prep rules | Add short internal guidance for when new code must use the shared helper layer rather than ad hoc local arithmetic, and record the bounded internal-first prep rules Sprint 40 established for later refactor sprints. | 10 hrs |
+| 7 | Validation | Run the full required code-quality gate and verify no behavioral regressions after helper consolidation, using Sprint 40’s validation anchor as the default refactor-proof contract. | 16 hrs |
 
 ### Deliverables
 
@@ -87,22 +88,23 @@ All sprint estimates below are bounded for a 14-day sprint at no more than 12 ho
 
 **Duration:** 14 days (~144 hours)
 
-**Goal:** Start reducing the hidden mutable `SparseMatrix` lifecycle by introducing explicit internal handle boundaries and compatibility scaffolding without breaking the current public API.
+**Goal:** Start reducing the hidden mutable `SparseMatrix` lifecycle by introducing explicit internal handle boundaries and compatibility scaffolding without breaking the current public API, with LU/Cholesky internal payload separation and `sparse_factors_t` bridge normalization as the first major landing seams.
 
 ### Prerequisites from previous Sprints
 
 - Sprint 40 lifecycle taxonomy and handle-model design
+- Sprint 40 migration-risk audit and validation anchor
 - Sprint 41 shared internal utility layer
 
 ### Items
 
 | # | Item Name | Item Description | Estimate |
 |---|-----------|------------------|----------|
-| 1 | Internal handle scaffolding | Introduce internal analysis/factor/workspace handle types and ownership rules, without yet exposing all of them publicly. | 24 hrs |
+| 1 | Internal handle scaffolding | Introduce internal analysis/factor/workspace handle types and ownership rules, without yet exposing all of them publicly, with explicit focus on the LU/Cholesky payload seam and the analyze-once bridge boundary. | 24 hrs |
 | 2 | Matrix-state guard helpers | Centralize “identity permutations”, “original state required”, and “factored-state required” validation logic behind shared helpers. | 20 hrs |
-| 3 | Factor-path normalization | Refactor LU/Cholesky/LDL^T/QR/SVD entry paths to use the shared state-validation helpers instead of scattered bespoke checks. | 28 hrs |
+| 3 | Factor-path normalization | Refactor LU/Cholesky/LDL^T/QR/SVD entry paths to use the shared state-validation helpers instead of scattered bespoke checks, and start separating LU/Cholesky factor payload ownership from raw matrix-state ownership internally. | 28 hrs |
 | 4 | Cancellation-contract normalization | Reduce drift between headers, implementation, and README around cancellation semantics and in-place mutation boundaries. | 16 hrs |
-| 5 | Compatibility wrapper plan | Design the shim layer that will let current one-shot APIs continue to work while later sprints add more explicit lifecycle objects. | 16 hrs |
+| 5 | Compatibility wrapper and bridge plan | Design the shim layer that will let current one-shot APIs continue to work while later sprints add more explicit lifecycle objects, and define how `sparse_factors_t` remains a preserve-and-evolve bridge during payload normalization. | 16 hrs |
 | 6 | Focused tests | Add or tighten tests around state misuse, cancellation, and copy-before-use requirements before public lifecycle changes land. | 24 hrs |
 | 7 | Validation | Run full code validation and verify the existing public APIs remain behavior-compatible. | 16 hrs |
 

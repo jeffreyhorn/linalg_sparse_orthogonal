@@ -1,0 +1,45 @@
+Sprint 40 Day 1 authoritative inputs
+====================================
+
+Planning / architecture scope
+-----------------------------
+- docs/planning/EPIC_4/PROJECT_PLAN.md
+- docs/planning/EPIC_4/SPRINT_40/PLAN.md
+- docs/planning/EPIC_4/reviews/review-codex-2026-05-21.md
+- docs/planning/EPIC_4/reviews/todo-codex-2026-05-21.md
+
+Inherited reviewed-quality / policy surfaces
+--------------------------------------------
+- README.md
+- Makefile
+- CMakeLists.txt
+- .github/workflows/ci.yml
+- .github/workflows/macos-ci.yml
+- .github/workflows/windows-ci.yml
+
+Inherited measured baseline surfaces
+-----------------------------------
+- build/quality-review-cmake/  (ctest registration baseline)
+- build/deadcode/report.md
+- build/deadcode/report.tsv
+- build/deadcode/coverage-notes.txt
+
+Day 1 preserve-not-reopen baseline
+----------------------------------
+- strongest local reviewed baseline already exists:
+  - make quality-review-full
+- reviewed CMake parity remains measurable:
+  - ctest -N --test-dir build/quality-review-cmake = 53
+- maintained dead-code paths already exist:
+  - make deadcode-report
+  - make deadcode-check
+
+Sprint 40 workstreams confirmed on Day 1
+----------------------------------------
+- baseline capture
+- lifecycle inventory
+- state-model taxonomy
+- future handle-model design
+- quality-contract ownership map
+- public migration-risk audit
+- validation anchor

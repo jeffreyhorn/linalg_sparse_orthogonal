@@ -1,0 +1,84 @@
+Sprint 40 Day 4 hotspot inventory
+=================================
+
+Top source hotspots by size
+---------------------------
+- src/sparse_graph.c                    3555
+- src/sparse_eigs.c                     3143
+- src/sparse_ldlt_csc.c                 2723
+- src/sparse_iterative.c                2349
+- src/sparse_chol_csc.c                 2208
+- src/sparse_svd.c                      1726
+- src/sparse_lu_csr.c                   1666
+- src/sparse_qr.c                       1577
+
+Top source hotspots by raw allocation signal
+--------------------------------------------
+- src/sparse_graph.c                     208
+- src/sparse_svd.c                       182
+- src/sparse_ldlt_csc.c                  156
+- src/sparse_iterative.c                 156
+- src/sparse_ldlt.c                      148
+- src/sparse_etree.c                     144
+- src/sparse_eigs.c                      141
+- src/sparse_qr.c                        139
+
+Top test hotspots by size
+-------------------------
+- tests/test_chol_csc.c                 4643
+- tests/test_svd.c                      3712
+- tests/test_ldlt_csc.c                 3637
+- tests/test_qr.c                       3259
+- tests/test_etree.c                    2890
+- tests/test_iterative.c                2795
+- tests/test_ldlt.c                     2774
+- tests/test_graph.c                    2628
+
+Top test hotspots by raw allocation signal
+------------------------------------------
+- tests/test_chol_csc.c                  451
+- tests/test_qr.c                        424
+- tests/test_ilu.c                       398
+- tests/test_iterative.c                 387
+- tests/test_etree.c                     360
+- tests/test_svd.c                       339
+- tests/test_ldlt_csc.c                  269
+- tests/test_minres.c                    266
+
+Top benchmark hotspots
+----------------------
+- benchmarks/bench_eigs.c                958
+- benchmarks/bench_main.c                774
+- benchmarks/bench_ldlt_csc.c            516
+- benchmarks/bench_convergence.c         421
+- benchmarks/bench_chol_csc.c            393
+
+Top benchmark raw allocation signal
+-----------------------------------
+- benchmarks/bench_main.c                 75
+- benchmarks/bench_convergence.c          50
+- benchmarks/bench_refactor_csc.c         44
+- benchmarks/bench_ldlt_csc.c             44
+
+Top script hotspots
+-------------------
+- scripts/deadcode_report.py             523
+- scripts/epic3_warning_workflow.sh      215
+- scripts/deadcode_workflow.sh           189
+- scripts/wall_check.sh                  162
+
+First-tier measured maintainability targets
+-------------------------------------------
+- src/sparse_graph.c
+- src/sparse_eigs.c
+- src/sparse_iterative.c
+- src/sparse_ldlt_csc.c
+- src/sparse_svd.c
+- tests/test_chol_csc.c
+- tests/test_svd.c
+- tests/test_ldlt_csc.c
+- tests/test_qr.c
+- benchmarks/bench_main.c
+- benchmarks/bench_eigs.c
+- scripts/deadcode_report.py
+- scripts/deadcode_workflow.sh

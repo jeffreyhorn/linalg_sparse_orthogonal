@@ -91,7 +91,7 @@
 
 | Metric | Sprint 40 close state |
 |---|---:|
-| total artifact files under `SPRINT_40/artifacts/` | `17` |
+| total artifact files under `SPRINT_40/artifacts/` | `18` |
 | lifecycle inventory artifacts | `2` |
 | handle-model / migration-strategy artifacts | `2` |
 | ownership / migration-risk / validation / synthesis artifacts | `4` |

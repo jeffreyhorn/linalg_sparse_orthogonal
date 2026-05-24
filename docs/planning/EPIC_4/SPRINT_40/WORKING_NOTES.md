@@ -981,3 +981,127 @@ Interpretation:
 - cancellation behavior is now a real taxonomy input, not just a doc note
 - later handle-model design must decide which of these classes remain
   user-visible and which should become more internalized
+
+## Day 7
+
+**Objective:** Convert the Day 5 and Day 6 raw lifecycle inventory into a
+stable state-model taxonomy that groups APIs by lifecycle role rather than by
+header/file, so later Epic 4 handle-model design can target architectural
+classes instead of ad hoc subsystem lists.
+
+### Commands Run
+
+1. Re-read the Sprint 40 Day 7 plan section:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_40/PLAN.md`
+2. Re-read the current Sprint 40 working notes, especially Day 5 and Day 6:
+   - `tail -n 260 docs/planning/EPIC_4/SPRINT_40/WORKING_NOTES.md`
+3. Re-read the Day 5 and Day 6 lifecycle artifacts as the raw taxonomy input:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_40/artifacts/day5-lifecycle-inventory-lu-cholesky-ldlt.md`
+   - `sed -n '1,320p' docs/planning/EPIC_4/SPRINT_40/artifacts/day6-lifecycle-inventory-qr-svd-analysis-iterative-eigs.md`
+
+### Day 7 Findings
+
+#### 1. The current codebase is not one lifecycle model; it is at least five
+
+The strongest Day 7 result is that the inventory no longer reads like one
+continuous state story. It naturally divides into five lifecycle classes:
+
+- matrix-mutating factor builders
+- original-matrix consumers with separate result handles
+- analysis / factor handle pipelines
+- read-only operator consumers
+- bridge / mixed-boundary surfaces
+
+Interpretation:
+
+- later Epic 4 design work should target these classes directly
+- a one-size-fits-all “replace `SparseMatrix` state” narrative would be too
+  blunt for the actual codebase
+
+#### 2. Matrix-as-factor-handle overloading is now isolated to a much narrower class
+
+After Day 5 and Day 6 are merged into one taxonomy, the strongest overloaded
+matrix-state class is now clearly limited to:
+
+- LU
+- Cholesky
+
+Interpretation:
+
+- that sharpens the future refactor target
+- the codebase’s factor-lifecycle problem is real, but narrower than the full
+  API surface might suggest at first glance
+
+#### 3. Many “already good” subsystems still hide a caller-side lifecycle burden
+
+QR, SVD, analysis, and preconditioner builders already use separate result
+handles, but they still impose a strict matrix-eligibility contract:
+
+- original/unfactored matrix view
+- identity permutations
+- read physical storage as-is
+
+Interpretation:
+
+- Day 7 separates two different architecture problems:
+  - hidden mutable state ownership
+  - hard-to-satisfy or easy-to-forget input-state rules
+- Epic 4 later sprints will need to address both, not just the first one
+
+#### 4. The analysis workflow is the strongest bridge subsystem
+
+The analyze-once path now stands out as the most important transitional class:
+
+- explicit symbolic and numeric handles already exist
+- callers already think in terms of distinct lifecycle phases
+- but the factor payload still wraps matrix-centric state internally
+
+Interpretation:
+
+- analysis is likely to be the best staging ground for later handle-model
+  implementation because the public conceptual split is already there
+
+#### 5. Iterative and eigensolver APIs should be protected from the wrong refactor goals
+
+The taxonomy makes it clear that iterative solvers and eigensolvers are
+operator consumers, not matrix lifecycle owners:
+
+- they are read-only on `A`
+- their mutable state is iterative/workspace/result-oriented
+- their lifecycle complexity comes mainly from composed preconditioner or
+  shift-invert contexts
+
+Interpretation:
+
+- later Epic 4 refactors should not try to force them into the same design
+  bucket as direct factorization families
+- the better target is clearer composition boundaries with the handle-building
+  subsystems they depend on
+
+#### 6. Mixed-boundary objects are now named explicitly instead of getting lost in subsystem descriptions
+
+The taxonomy makes the bridge surfaces concrete:
+
+- `sparse_factors_t`
+- iterative workflows plus preconditioner handles
+- eigensolver workflows plus shift-invert / refinement handles
+
+Interpretation:
+
+- Day 7 gives later design work a place to attach “transitional” or
+  “composition-heavy” objects without pretending they are already cleanly
+  classified
+
+#### 7. The Day 8 / Day 9 path is now well-bounded
+
+With the taxonomy in place, the next steps are no longer broad:
+
+- Day 8 should map preconditions, mutation, and cancellation semantics onto
+  these lifecycle classes
+- Day 9 should design the future explicit handle model against these classes,
+  not against a flat API list
+
+Interpretation:
+
+- Day 7 completed the reduction from raw audit data to a reusable architecture
+  model

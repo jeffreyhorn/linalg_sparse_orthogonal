@@ -1374,3 +1374,118 @@ Interpretation:
 
 - Day 9 kept the design concrete without overcommitting to unnecessary public
   deprecation machinery before the internal landing is proven
+
+## Day 10
+
+**Objective:** Complete the Sprint 40 handle-model design by turning the Day 9
+end-state object model into a staged migration contract with internal-first
+landing phases, earliest safe insertion points, compatibility scaffolding, and
+explicit high-risk transition edges.
+
+### Commands Run
+
+1. Re-read the Sprint 40 Day 10 plan section:
+   - `sed -n '260,420p' docs/planning/EPIC_4/SPRINT_40/PLAN.md`
+2. Re-read the current Sprint 40 working notes through Day 9:
+   - `tail -n 240 docs/planning/EPIC_4/SPRINT_40/WORKING_NOTES.md`
+3. Re-read the Day 9 handle-model design and the Epic 4 remediation plan:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_40/artifacts/day9-handle-model-design-1.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/reviews/todo-codex-2026-05-21.md`
+
+### Day 10 Findings
+
+#### 1. The handle-model design is only implementation-useful once it has a staged landing contract
+
+Day 9 defined the target object families and ownership split, but Sprint 40
+still needed a realistic migration shape.
+
+The Day 10 result is a four-phase model:
+
+- internal payload separation
+- bridge-object normalization
+- public explicit-handle enrichment
+- compatibility narrowing
+
+Interpretation:
+
+- this keeps Epic 4 from starting with public API churn
+- and gives later lifecycle refactors a sequence that fits the current codebase
+
+#### 2. LU and Cholesky are still the earliest safe handle insertion points
+
+Day 10 confirms that the strongest initial landing points are:
+
+- LU internal builders
+- Cholesky internal builders
+
+Interpretation:
+
+- they carry the largest matrix-as-factor-handle burden
+- so internal factor payload insertion there should produce the highest
+  lifecycle simplification payoff without requiring immediate public API change
+
+#### 3. `sparse_factors_t` is the strongest bridge-object normalization seam
+
+The analyze-once workflow already matches the future architecture better than
+most of the matrix-mutating direct factorization cluster.
+
+Interpretation:
+
+- later work should preserve the public conceptual role of
+  `sparse_analysis_t` / `sparse_factors_t`
+- while changing the internal payload ownership behind `sparse_factors_t`
+
+#### 4. Compatibility help is required, but the necessary set is small
+
+Day 10 narrows the likely migration scaffolding to:
+
+- one-shot wrapper preservation
+- bridge adapters
+- documentation shims
+- delayed, conditional deprecation only after the new internals are proven
+
+Interpretation:
+
+- later Epic 4 work should not assume a broad compatibility program up front
+- the current architecture only justifies a bounded compatibility layer
+
+#### 5. Cancellation and copy-before-reuse are first-class migration risks
+
+The two most important non-API-shape migration risks are:
+
+- cancellation semantics
+- copy-before-reuse / original-state inference burden
+
+Interpretation:
+
+- later lifecycle refactors must treat these as architecture constraints
+- not as secondary documentation cleanup after ownership has already changed
+
+#### 6. Iterative/eigensolver work should keep the wrapper-backed composition model
+
+Day 10 keeps the Day 9 operator-consumer conclusion intact:
+
+- iterative/eigensolver APIs should evolve through reusable workspaces and
+  cleaner composition boundaries
+- not by being forced into the same public redesign bucket as LU/Cholesky
+
+Interpretation:
+
+- this preserves one of the cleaner architectural zones in the current codebase
+- while still allowing repeated-run performance/allocator improvements later
+
+#### 7. The migration strategy is also defined by what should not change early
+
+Day 10 makes the negative boundary explicit. Early Epic 4 work should avoid:
+
+- breaking one-shot public APIs
+- collapsing cache mutation and factor lifecycle mutation into one problem
+- damaging the public analysis/factor pipeline shape before internal
+  normalization
+- launching a broad deprecation campaign before the real migration burden is
+  measured
+
+Interpretation:
+
+- this gives later implementation sprints a clearer safety rail
+- and helps keep early structural work behavior-preserving

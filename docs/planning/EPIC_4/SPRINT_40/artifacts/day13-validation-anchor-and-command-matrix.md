@@ -279,7 +279,8 @@ Later sprints should preserve the current honest model:
 - Linux = strongest enforced reviewed baseline
 - macOS dead-code = staged
 - Windows local Makefile reviewed-wrapper parity = staged
-- Windows dead-code = excluded
+- Windows dead-code = staged for future work and excluded from the enforced
+  reviewed baseline
 
 ### 6. Instrumented-build reset caveat
 

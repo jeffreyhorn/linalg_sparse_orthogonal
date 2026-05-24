@@ -38,7 +38,8 @@ Sprint 40 explicitly preserves the validated Epic 3 baseline:
   - Linux = strongest enforced reviewed baseline
   - macOS dead-code = staged
   - Windows local Makefile reviewed-wrapper parity = staged
-  - Windows dead-code = excluded
+  - Windows dead-code = staged for future work and excluded from the current
+    enforced baseline
 
 Interpretation:
 

@@ -1405,3 +1405,179 @@ Interpretation:
 
 - the broader mainline `src/` consolidation pass is validated
 - Sprint 41 can now move on to the auxiliary-surface audit from a clean state
+
+
+## Day 10
+
+**Objective:** Audit the remaining auxiliary example/benchmark/script surfaces
+after the main `src/` migration pass, separate honest Sprint 41 helper-alignment
+targets from public-facing or specialized keep/defer surfaces, and choose a
+bounded Day 11 batch that preserves Sprint 40's public-risk boundary.
+
+### Commands Run
+
+1. Re-read the Sprint 41 Day 10 plan section and the current Day 9 closeout:
+   - `sed -n '320,420p' docs/planning/EPIC_4/SPRINT_41/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_41/artifacts/day9-broader-src-migration-batch2.md`
+2. Sweep auxiliary surfaces for raw allocation/count patterns:
+   - `rg -n "SIZE_MAX / sizeof|SIZE_MAX -|malloc\\(|calloc\\(" benchmarks examples scripts | sed -n '1,260p'`
+3. Measure auxiliary hotspot size for context:
+   - `wc -l benchmarks/*.c examples/*.c scripts/*.py scripts/*.sh | sort -nr | sed -n '1,40p'`
+4. Re-read representative benchmark/example candidates:
+   - `sed -n '1,220p' benchmarks/bench_main.c`
+   - `sed -n '1,220p' benchmarks/bench_eigs.c`
+   - `sed -n '1,220p' examples/example_iterative.c`
+   - `sed -n '1,180p' examples/example_matrix_free.c`
+   - `sed -n '1,220p' examples/example_colamd.c`
+   - `sed -n '1,240p' examples/example_analysis.c`
+   - `sed -n '1,220p' examples/example_eigs.c`
+
+### Day 10 Findings
+
+#### 1. The auxiliary queue is narrower than a generic examples/benchmarks/scripts cleanup pass
+
+Day 10 confirmed that raw allocation/count logic still exists across the
+auxiliary tree, but it does **not** all belong to the same Sprint 41 action
+class.
+
+The real split is:
+
+- easy alignment now:
+  - small examples with simple `n`-based allocations
+- defer until later public-facing work:
+  - larger teaching examples with lifecycle/composition significance
+- keep local / specialized / later bounded work:
+  - benchmark harnesses
+  - support scripts
+
+Interpretation:
+
+- Sprint 41 should not widen into a repo-wide "clean up every remaining
+  malloc/calloc" pass
+- the correct Day 11 shape is a small example-focused helper batch
+
+#### 2. The strongest Day 11 candidates are the simple iterative example surfaces
+
+The cleanest immediate helper-alignment wins are:
+
+- `examples/example_iterative.c`
+- `examples/example_matrix_free.c`
+
+Why these stand out:
+
+- both use straightforward `calloc((size_t)n, sizeof(double))` arrays
+- both are small and behaviorally simple
+- helper substitution would not blur into broader lifecycle or benchmark work
+
+Interpretation:
+
+- these are the right primary Day 11 targets
+- they provide auxiliary-surface proof without expanding the sprint boundary
+
+#### 3. `examples/example_colamd.c` is plausible but secondary
+
+`examples/example_colamd.c` still has a narrow local seam:
+
+- `perm`
+- `id_perm`
+
+using direct `malloc((size_t)n * sizeof(idx_t))`.
+
+It is still a valid helper-alignment candidate, but it is less important than
+the two iterative examples because:
+
+- Sprint 41 already gets cleaner proof from the simpler `double`-array cases
+- Day 11 does not need to widen unless the live batch remains clearly
+  mechanical
+
+Interpretation:
+
+- `example_colamd.c` is an optional bounded add-on, not a required Day 11
+  surface
+
+#### 4. Several larger examples should remain deferred for later public-facing work
+
+Day 10 confirmed that the following examples are not good routine Sprint 41
+targets even though helper duplication exists:
+
+- `examples/example_eigs.c`
+- `examples/example_ic_minres.c`
+- `examples/example_analysis.c`
+
+The reasons differ slightly, but the common pattern is:
+
+- they are stronger public-teaching surfaces
+- they intersect lifecycle/preconditioner/bridge semantics more directly
+- they are more likely to overlap with later documentation or public migration
+  work than with the narrow helper-consolidation goal
+
+Interpretation:
+
+- Sprint 41 should preserve Sprint 40's public-risk boundary here
+- helper alignment on these files can happen later under a better-matched work
+  stream
+
+#### 5. The benchmark hotspots are real, but they are not the right Sprint 41 auxiliary batch
+
+The largest and most obvious benchmark hotspots remain:
+
+- `benchmarks/bench_main.c`
+- `benchmarks/bench_eigs.c`
+
+and there is a broader secondary cluster:
+
+- `benchmarks/bench_convergence.c`
+- `benchmarks/bench_bicgstab.c`
+- `benchmarks/bench_scaling.c`
+- `benchmarks/bench_reorder.c`
+- `benchmarks/bench_amd_qg.c`
+- `benchmarks/bench_refactor_csc.c`
+- `benchmarks/bench_ldlt_csc.c`
+
+But Day 10's read-through made the key point explicit:
+
+- the real maintainability issue in these files is larger harness/CLI/specialized
+  benchmark ownership
+- helper substitution alone would not be the whole story
+
+Interpretation:
+
+- benchmark helper alignment is legitimate later work
+- it is not the right bounded Day 11 batch
+
+#### 6. Scripts are not the Day 10 helper-alignment problem
+
+The main script-side size hotspots remain:
+
+- `scripts/deadcode_report.py`
+- `scripts/deadcode_workflow.sh`
+
+But they are not Sprint 41 allocation-helper targets in the same sense as the
+library/example C sources.
+
+Interpretation:
+
+- Day 10 should not widen Sprint 41 into script refactoring
+- script maintainability remains a separate later concern
+
+#### 7. The Day 11 batch is now explicitly bounded
+
+Primary targets:
+
+- `examples/example_iterative.c`
+- `examples/example_matrix_free.c`
+
+Optional only if the batch stays small:
+
+- `examples/example_colamd.c`
+
+Explicitly deferred:
+
+- larger public-teaching examples
+- benchmark harnesses
+- scripts
+
+Interpretation:
+
+- Sprint 41 now has a clean auxiliary implementation boundary
+- Day 11 can stay low-risk and helper-focused instead of becoming mixed cleanup

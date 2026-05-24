@@ -1749,3 +1749,152 @@ Interpretation:
 - Day 11 closed from a measured validated state
 - the auxiliary batch is proven both by the standard gate and by direct example
   execution on the files that changed
+
+## Day 12
+
+**Objective:** Convert the Sprint 40 architecture handoff plus the live Sprint
+41 migration behavior into one stable helper-usage / internal-first prep-rule
+note, explicitly documenting when the shared helper layer is mandatory, when
+local specialization remains acceptable, and how later Epic 4 work should use
+the Sprint 40 validation anchor.
+
+### Commands Run
+
+1. Re-read the Sprint 41 Day 12 plan section:
+   - `rg -n "Day 12" -A50 docs/planning/EPIC_4/SPRINT_41/PLAN.md`
+2. Re-read the main prerequisite design/contract artifacts:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_41/artifacts/day3-shared-utility-api-design.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_40/artifacts/day14-architecture-contract-synthesis.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_41/artifacts/day11-auxiliary-surface-alignment-batch.md`
+3. Re-sweep the artifact set for the exact helper/exception/validation language
+   the prep rules need to reconcile:
+   - `rg -n "internal-first|validation anchor|public-risk|keep-local|exception|specialization" docs/planning/EPIC_4/SPRINT_40/artifacts/day14-architecture-contract-synthesis.md docs/planning/EPIC_4/SPRINT_41/artifacts/day3-shared-utility-api-design.md docs/planning/EPIC_4/SPRINT_41/artifacts/day7-broader-src-migration-audit.md docs/planning/EPIC_4/SPRINT_41/artifacts/day10-auxiliary-surface-alignment-audit.md docs/planning/EPIC_4/SPRINT_41/artifacts/day11-auxiliary-surface-alignment-batch.md`
+
+### Day 12 Findings
+
+#### 1. Sprint 41 now has a concrete shared-helper usage rule rather than an implicit style preference
+
+Day 12 turns the Day 3 helper design plus Days 4-11 migrations into one stable
+default rule:
+
+- for internal `src/` implementation code
+- when the logic is generic count/bytes arithmetic or normal array allocation
+- and when the intended failure contract is the normal `SPARSE_ERR_ALLOC`
+  mapping
+
+the shared helper layer should be used instead of creating new file-local
+arithmetic helpers.
+
+This applies to:
+
+- `sparse_size_mul_overflow(...)`
+- `sparse_size_add_overflow(...)`
+- `sparse_count_bytes_overflow(...)`
+- `sparse_idx_count_bytes_overflow(...)`
+- `sparse_size_to_idx_checked(...)`
+- `sparse_malloc_array(...)`
+- `sparse_calloc_array(...)`
+
+Interpretation:
+
+- later Epic 4 work no longer has to infer helper-usage expectations from
+  landed batches alone
+- Sprint 41 now leaves behind an explicit "reuse vs re-clone" rule
+
+#### 2. The Sprint 40 internal-first posture is now documented as an execution rule
+
+Day 12 makes explicit what Sprint 41 already did in practice:
+
+- prefer internal payload/helper/workspace cleanup before public API reshaping
+- prefer wrapper-preserving refactors before compatibility narrowing
+- prefer internal ownership normalization before public doc/example churn
+
+Sprint 41 examples of this rule:
+
+- internal helper layer in `src/`
+- broader `src/` migration before public-surface work
+- public examples aligned only through an example-local helper seam
+
+Interpretation:
+
+- "internal-first" is now a stable prep rule for later Epic 4 sprints
+- it is no longer just background context from Sprint 40
+
+#### 3. Public-semantics preservation is now stated directly as a helper-consolidation rule
+
+Day 12 makes the preserve-not-rewrite boundary explicit:
+
+- helper/safety cleanup is not permission to rewrite:
+  - function semantics
+  - lifecycle meaning
+  - example teaching flow
+  - command/CI contract wording
+  - error-class behavior
+  - printed example/operator output structure when it carries teaching value
+
+Interpretation:
+
+- later refactors can now use this as a direct scope check
+- it explains why Sprint 41's landed changes stayed mechanically narrow
+
+#### 4. The main specialization exceptions are now explicit instead of inferred
+
+Day 12 records the cases where local logic may still remain appropriate:
+
+- symbolic accumulation and representability choreography
+  - e.g. `src/sparse_etree.c`
+- file-specific cleanup choreography
+- specialized algorithm/harness surfaces
+  - e.g. `src/sparse_graph.c`
+  - larger benchmark harnesses
+- the public-example boundary
+  - no private `src/` helper headers in public examples
+  - use a public-safe example-local seam if bounded alignment is needed
+
+Interpretation:
+
+- later Epic 4 work now has an explicit keep-local/defer rule
+- exception cases are documented rather than left as implicit judgment calls
+
+#### 5. The validation anchor is now part of the prep rules, not a separate historical note
+
+Day 12 folds the Sprint 40 validation anchor into the execution guidance:
+
+- minimum gate for `*.c` / `*.h` changes:
+  - `make format`
+  - `make lint`
+  - `make test`
+- stronger default for substantial refactors:
+  - `make quality-review-full`
+- targeted follow-on checks only when the touched surface justifies them
+
+It also re-states the preserved truthfulness rules:
+
+- reviewed CMake count stays `53`
+- Makefile/CMake parity stays explicit
+- dead-code remains serialized
+- `deadcode-check` remains a completeness gate
+- cross-platform wording remains honest
+
+Interpretation:
+
+- later Epic 4 work now has one execution note tying code-shape rules and
+  validation rules together
+
+#### 6. The resulting Day 12 artifact is intentionally a compact execution guide, not a duplicate architecture document
+
+Day 12 does **not** try to replace Sprint 40's architecture contract. Instead,
+it condenses the parts later sprints need at implementation time:
+
+- shared-helper default
+- internal-first default
+- preserve-public-semantics rule
+- explicit exception classes
+- validation-anchor rule
+- simple decision order for new call sites
+
+Interpretation:
+
+- the artifact is small enough to use
+- while still being anchored to the richer Sprint 40 and Day 3/7/10/11 design
+  history

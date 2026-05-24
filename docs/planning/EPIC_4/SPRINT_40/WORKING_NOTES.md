@@ -1105,3 +1105,140 @@ Interpretation:
 
 - Day 7 completed the reduction from raw audit data to a reusable architecture
   model
+
+## Day 8
+
+**Objective:** Convert the Day 7 taxonomy into an explicit lifecycle contract
+map by separating caller-visible preconditions, mutation boundaries,
+cancellation-sensitive behavior, and internal-state leakage. This is the last
+audit reduction step before the future handle-model design work begins.
+
+### Commands Run
+
+1. Re-read the Sprint 40 Day 8 plan section:
+   - `sed -n '1,280p' docs/planning/EPIC_4/SPRINT_40/PLAN.md`
+2. Re-read the current Sprint 40 working notes and Day 7 taxonomy:
+   - `tail -n 260 docs/planning/EPIC_4/SPRINT_40/WORKING_NOTES.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_40/artifacts/day7-state-model-taxonomy.md`
+3. Re-read the Day 5 and Day 6 lifecycle artifacts for subsystem evidence:
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_40/artifacts/day5-lifecycle-inventory-lu-cholesky-ldlt.md`
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_40/artifacts/day6-lifecycle-inventory-qr-svd-analysis-iterative-eigs.md`
+4. Re-read the public `SparseMatrix` contract surfaces that expose internal
+   state machinery:
+   - `sed -n '300,380p' include/sparse_matrix.h`
+   - `sed -n '520,575p' include/sparse_matrix.h`
+5. Re-read the shared progress/cancellation contract wording:
+   - `sed -n '120,170p' include/sparse_types.h`
+6. Sweep current public references to factored state, cached norms, and
+   permutation access:
+   - `rg -n "cached_norm|factored flag|factored|row_perm|col_perm|sparse_mark_factored|SPARSE_ERR_CANCELLED|bit-identical" README.md include/sparse_matrix.h include/sparse_types.h src/sparse_matrix.c`
+
+### Day 8 Findings
+
+#### 1. The lifecycle contract now reduces to four caller-visible axes
+
+The strongest Day 8 result is that the audited lifecycle surface can now be
+described by four contract axes:
+
+- eligibility preconditions
+- mutation boundary
+- cancellation artifact
+- ownership visibility
+
+Interpretation:
+
+- this is a better design input than a flat API list
+- Day 9 can now reason about what the future handle model must preserve versus
+  what it should hide
+
+#### 2. The biggest public-facing burden is split between two different problems
+
+Day 8 makes the two biggest burdens explicit:
+
+- matrix-mutating factor builders:
+  - LU
+  - Cholesky
+- strict original / identity-permutation eligibility rules:
+  - QR
+  - SVD
+  - analysis
+  - ILU / ILUT / IC
+
+Interpretation:
+
+- Epic 4 should not treat those as one issue
+- one is an ownership/mutation problem
+- the other is a caller-eligibility/contract complexity problem
+
+#### 3. `SparseMatrix` still leaks too much internal lifecycle machinery into the public contract
+
+The most important Day 8 ownership-visibility finding is that `SparseMatrix`
+still publicly exposes or strongly implies:
+
+- factored-state semantics
+- permutation-array access
+- cached norm state
+- explicit `sparse_mark_factored()` escape hatch
+
+Interpretation:
+
+- some of that may remain necessary for advanced or compatibility use
+- but as an architecture target, this is now the clearest set of internal-like
+  details that future explicit handles should try to encapsulate
+
+#### 4. Cache-only mutation is a separate class from algorithmic mutation
+
+Day 8 also makes a smaller but important distinction explicit:
+
+- `sparse_norminf()` can mutate internal cached state
+- `sparse_mark_factored()` can mutate factor-state metadata
+- those are not the same kind of mutation as LU/Cholesky in-place factorization
+
+Interpretation:
+
+- later handle design should avoid conflating cache bookkeeping with factor
+  lifecycle mutation
+- Day 8 therefore adds a “cache-mutating” contract class that did not need its
+  own taxonomy class but does need explicit design treatment
+
+#### 5. Cancellation behavior is now explicit enough to rank by architectural risk
+
+The lifecycle risk order is now clear:
+
+- highest-risk:
+  - LU
+  - Cholesky
+- bridge-risk:
+  - analysis / numeric factorization when delegating to concrete builders
+- lowest-risk:
+  - LDLT
+  - QR
+  - SVD-family handle builders
+  - iterative solvers
+  - eigensolvers
+
+Interpretation:
+
+- Day 8 turns cancellation from a documentation caveat into a prioritization
+  input for future design work
+
+#### 6. The cleanest long-term public contract is narrower than the current exposed state story
+
+The Day 8 contract map shows which distinctions seem truly semantic:
+
+- mutates input or not
+- original matrix required or not
+- identity permutations required or not
+- cancellation preserves input or not
+- explicit cleanup required or not
+
+And which seem more like implementation leakage:
+
+- direct dependence on internal `factored` state
+- direct dependence on permutation arrays as lifecycle primitives
+- callback-time knowledge of cached `factor_norm`
+- matrix-centric payload shape inside bridge handles
+
+Interpretation:
+
+- Day 9 should preserve the first group and try to internalize the second

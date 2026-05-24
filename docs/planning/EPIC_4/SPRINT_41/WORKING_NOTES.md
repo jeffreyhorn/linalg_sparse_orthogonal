@@ -724,3 +724,173 @@ Interpretation:
   proof integrations
 - Sprint 41 can move into the broader `src/` migration work from a validated
   first-wave landing
+
+## Day 6
+
+**Objective:** Finish the planned first-wave hotspot migration set by moving
+the remaining named hotspot module and the lingering manual byte-count drift
+onto the shared helper layer, then record the broader `src/` gap list that
+still belongs to later Sprint 41 work.
+
+### Commands Run
+
+1. Re-read the Sprint 41 plan and the Day 5 handoff state:
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_41/PLAN.md`
+   - `sed -n '582,760p' docs/planning/EPIC_4/SPRINT_41/WORKING_NOTES.md`
+2. Re-audit the remaining first-wave surfaces and their helper drift:
+   - `rg -n "alloc_would_overflow|SIZE_MAX -|SIZE_MAX / sizeof|size_mul_overflow|sparse_size_mul_overflow|malloc\\(|calloc\\(" src/sparse_etree.c src/sparse_dense.c src/sparse_svd.c src/sparse_eigs.c src/sparse_qr.c`
+   - `sed -n '1,220p' src/sparse_alloc_internal.h`
+   - `sed -n '1,220p' src/sparse_etree.c`
+   - `sed -n '220,760p' src/sparse_etree.c`
+   - `sed -n '1,140p' src/sparse_dense.c`
+3. Recheck the final Day 6 helper surface after editing:
+   - `rg -n "alloc_would_overflow|SIZE_MAX / sizeof|SIZE_MAX -|sparse_idx_count_bytes_overflow|sparse_count_bytes_overflow|sparse_malloc_array|sparse_calloc_array" src/sparse_etree.c src/sparse_dense.c`
+   - `git diff -- src/sparse_dense.c src/sparse_etree.c`
+4. Run the required code-quality gate because `*.c` changed:
+   - `make format`
+   - `make lint`
+   - `make test`
+5. Capture the broader post-Day-6 gap list:
+   - `rg -n "SIZE_MAX / sizeof|SIZE_MAX -|malloc\\(\\(size_t\\)|calloc\\(\\(size_t\\)|sparse_size_mul_overflow|sparse_malloc_array|sparse_calloc_array" src | sed -n '1,240p'`
+   - `git diff --stat`
+
+### Day 6 Findings
+
+#### 1. Day 6 completed the planned first-wave hotspot set
+
+The Sprint 41 first-wave hotspot list from Day 1 was:
+
+- `src/sparse_dense.c`
+- `src/sparse_svd.c`
+- `src/sparse_eigs.c`
+- `src/sparse_etree.c`
+
+Status after Day 6:
+
+- `src/sparse_svd.c`:
+  - migrated in Day 5
+- `src/sparse_eigs.c`:
+  - migrated in Day 5
+- `src/sparse_dense.c`:
+  - initial proof landing in Day 4, reconciled in Day 6
+- `src/sparse_etree.c`:
+  - migrated in Day 6
+
+Interpretation:
+
+- the planned first-wave hotspot set is now complete
+- Day 7 can correctly shift to the broader `src/` audit rather than carrying
+  unfinished first-wave work
+
+#### 2. `src/sparse_etree.c` now uses the shared helper layer for its generic allocation-safety seam
+
+Day 6 removed the file-local `alloc_would_overflow(...)` helper and replaced
+the generic n-based allocation seam with the shared helper layer:
+
+- added the private helper include:
+  - `#include "sparse_alloc_internal.h"`
+- removed the local overflow helper entirely
+- migrated repeated array allocation sites to:
+  - `sparse_malloc_array(...)`
+  - `sparse_calloc_array(...)`
+- migrated count/bytes and accumulation checks to:
+  - `sparse_count_bytes_overflow(...)`
+  - `sparse_idx_count_bytes_overflow(...)`
+  - `sparse_size_add_overflow(...)`
+  - `sparse_size_to_idx_checked(...)`
+
+The migrated `etree` families include:
+
+- core etree and postorder work arrays
+- child-list and marker/tmp arrays
+- symbolic Cholesky `col_ptr` / `row_idx` sizing
+- symbolic LU bridge arrays and U-structure accumulation sizing
+
+Interpretation:
+
+- the remaining named hotspot module is no longer carrying its own generic
+  overflow/allocation helper
+- Day 2's “shared arithmetic/bytes helpers, keep-local symbolic semantics”
+  split held up cleanly in live code
+
+#### 3. `src/sparse_dense.c` reconciled the remaining manual byte-count drift
+
+Day 4 had already proven the helper layer in `dense_create()`, but `dense_gemm`
+and `dense_gemv` still carried hand-written byte-count logic. Day 6 aligned
+those with the shared helper style:
+
+- `dense_gemm(...)` now uses:
+  - `sparse_size_mul_overflow(...)`
+  - `sparse_count_bytes_overflow(...)`
+  for both the zero-sized matrix fast path and the normal output buffer path
+- `dense_gemv(...)` now uses:
+  - `sparse_count_bytes_overflow(...)`
+  for `y` byte sizing
+- `tridiag_qr_eigenpairs(...)` now uses:
+  - `sparse_malloc_array(...)`
+  for its sort/permutation scratch buffers
+
+Interpretation:
+
+- the first-wave hotspot list now has a more consistent helper-ownership model
+- Day 6 was not just “migrate etree”; it also closed the lingering style/semantics
+  mismatch inside the already-touched dense hotspot
+
+#### 4. The keep-local boundary is still explicit after the first-wave completion
+
+Day 6 did **not** flatten specialized logic that still belongs inside
+`src/sparse_etree.c` or `src/sparse_dense.c`, including:
+
+- symbolic-structure algorithms
+- etree/postorder traversal semantics
+- symbolic LU/Cholesky bridge logic
+- dense eigensolver/tridiagonal algorithm structure
+- file-specific cleanup/error-propagation choreography
+
+Interpretation:
+
+- first-wave migration is complete without turning Sprint 41 into a broad
+  allocator-framework rewrite
+- the shared helper layer now owns the generic safety seam, while algorithmic
+  ownership remains local
+
+#### 5. Day 6 produced a concrete broader `src/` gap list for Day 7
+
+The post-Day-6 broader sweep leaves a cleaner next queue, led by:
+
+- `src/sparse_ic.c`
+- `src/sparse_iterative.c`
+- `src/sparse_analysis.c`
+- `src/sparse_qr.c`
+- `src/sparse_graph.c`
+
+The remaining broader pressure points are now clearer:
+
+- direct `malloc((size_t)n * sizeof(T))` / `calloc((size_t)n, sizeof(T))`
+  families
+- manual `SIZE_MAX / sizeof(...)` guards
+- a few remaining `SIZE_MAX - ...` accumulation checks
+- modules that already use `sparse_size_mul_overflow(...)` but have not yet
+  adopted the source-backed shared wrappers
+
+Interpretation:
+
+- Day 7 can now separate easy direct substitutions from true specialized keeps
+- the first-wave migration no longer obscures the broader audit queue
+
+#### 6. The required Day 6 gate passed completely
+
+Because `src/sparse_dense.c` and `src/sparse_etree.c` changed, the full
+required gate was run:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Interpretation:
+
+- Sprint 41 now has a validated completed first-wave hotspot migration
+- the remaining Sprint 41 work can focus on the broader source-tree audit and
+  migration passes rather than reopening the initial hotspot set

@@ -1,12 +1,7 @@
+#include "sparse_alloc_internal.h"
 #include "sparse_analysis_internal.h"
 #include <stdint.h>
 #include <string.h>
-
-/* Guard against SIZE_MAX overflow on n-based allocations.
- * Returns 1 if (size_t)n * elem_size would overflow. */
-static inline int alloc_would_overflow(idx_t n, size_t elem_size) {
-    return n > 0 && (size_t)n > SIZE_MAX / elem_size;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Union-find helpers for etree computation
@@ -39,12 +34,9 @@ sparse_err_t sparse_etree_compute(const SparseMatrix *A, idx_t *parent) {
 
     idx_t n = A->rows;
 
-    if (alloc_would_overflow(n, sizeof(idx_t)))
-        return SPARSE_ERR_ALLOC;
-
     /* ancestor[i] is the union-find representative for column i */
-    idx_t *ancestor = malloc((size_t)n * sizeof(idx_t));
-    if (!ancestor && n > 0)
+    idx_t *ancestor = NULL;
+    if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&ancestor) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
 
     /* Initialize: each column is its own ancestor, no parents yet */
@@ -93,13 +85,11 @@ sparse_err_t sparse_colcount(const SparseMatrix *A, const idx_t *parent, const i
     idx_t n = A->rows;
     if (n == 0)
         return SPARSE_OK;
-    if (alloc_would_overflow(n, sizeof(idx_t)) || alloc_would_overflow(n, sizeof(idx_t *)))
-        return SPARSE_ERR_ALLOC;
-
     /* Build child lists from parent pointers */
-    idx_t *child_head = malloc((size_t)n * sizeof(idx_t));
-    idx_t *child_next = malloc((size_t)n * sizeof(idx_t));
-    if (!child_head || !child_next) {
+    idx_t *child_head = NULL;
+    idx_t *child_next = NULL;
+    if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&child_head) != SPARSE_OK ||
+        sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&child_next) != SPARSE_OK) {
         free(child_head);
         free(child_next);
         return SPARSE_ERR_ALLOC;
@@ -118,11 +108,14 @@ sparse_err_t sparse_colcount(const SparseMatrix *A, const idx_t *parent, const i
     }
 
     /* Per-column row index sets (propagated up the etree) */
-    idx_t **col_rows = calloc((size_t)n, sizeof(idx_t *));
-    idx_t *col_nrows = calloc((size_t)n, sizeof(idx_t));
-    idx_t *marker = malloc((size_t)n * sizeof(idx_t));
-    idx_t *tmp = malloc((size_t)n * sizeof(idx_t));
-    if (!col_rows || !col_nrows || !marker || !tmp) {
+    idx_t **col_rows = NULL;
+    idx_t *col_nrows = NULL;
+    idx_t *marker = NULL;
+    idx_t *tmp = NULL;
+    if (sparse_calloc_array((size_t)n, sizeof(idx_t *), (void **)&col_rows) != SPARSE_OK ||
+        sparse_calloc_array((size_t)n, sizeof(idx_t), (void **)&col_nrows) != SPARSE_OK ||
+        sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&marker) != SPARSE_OK ||
+        sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&tmp) != SPARSE_OK) {
         free(col_rows);
         free(col_nrows);
         free(marker);
@@ -170,8 +163,8 @@ sparse_err_t sparse_colcount(const SparseMatrix *A, const idx_t *parent, const i
 
         /* Store this column's row set for its parent to consume */
         if (count > 0) {
-            col_rows[j] = malloc((size_t)count * sizeof(idx_t));
-            if (!col_rows[j]) {
+            if (sparse_malloc_array((size_t)count, sizeof(idx_t), (void **)&col_rows[j]) !=
+                SPARSE_OK) {
                 for (idx_t i = 0; i < n; i++)
                     free(col_rows[i]);
                 free(col_rows);
@@ -254,20 +247,21 @@ sparse_err_t sparse_symbolic_cholesky(const SparseMatrix *A, const idx_t *parent
     memset(sym, 0, sizeof(*sym));
 
     if (n == 0) {
-        sym->col_ptr = calloc(1, sizeof(idx_t));
-        if (!sym->col_ptr)
+        if (sparse_calloc_array(1, sizeof(idx_t), (void **)&sym->col_ptr) != SPARSE_OK)
             return SPARSE_ERR_ALLOC;
         return SPARSE_OK;
     }
 
     {
         size_t col_ptr_len = (size_t)n + 1;
-        if (col_ptr_len > SIZE_MAX / sizeof(idx_t))
+        size_t col_ptr_bytes = 0;
+        if (sparse_size_add_overflow((size_t)n, 1, &col_ptr_len) ||
+            sparse_count_bytes_overflow(col_ptr_len, sizeof(idx_t), &col_ptr_bytes))
             return SPARSE_ERR_ALLOC;
 
         /* Compute total nnz and build col_ptr from column counts */
         sym->n = n;
-        sym->col_ptr = malloc(col_ptr_len * sizeof(idx_t));
+        sym->col_ptr = malloc(col_ptr_bytes);
     }
     if (!sym->col_ptr)
         return SPARSE_ERR_ALLOC;
@@ -277,37 +271,37 @@ sparse_err_t sparse_symbolic_cholesky(const SparseMatrix *A, const idx_t *parent
     size_t total_nnz = 0;
     for (idx_t j = 0; j < n; j++) {
         size_t cj = (size_t)colcount[j]; // NOLINT(clang-analyzer-security.ArrayBound)
-        if (total_nnz > SIZE_MAX - cj) {
+        if (sparse_size_add_overflow(total_nnz, cj, &total_nnz) ||
+            sparse_size_to_idx_checked(total_nnz, &sym->col_ptr[j + 1])) {
             sparse_symbolic_free(sym);
             return SPARSE_ERR_ALLOC;
         }
-        total_nnz += cj;
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
-        sym->col_ptr[j + 1] = (idx_t)total_nnz;
         /* Check idx_t representability and monotonicity */
-        if ((size_t)sym->col_ptr[j + 1] != total_nnz || sym->col_ptr[j + 1] < sym->col_ptr[j]) {
+        if (sym->col_ptr[j + 1] < sym->col_ptr[j]) {
             sparse_symbolic_free(sym);
             return SPARSE_ERR_ALLOC;
         }
     }
     sym->nnz = sym->col_ptr[n]; // NOLINT(clang-analyzer-security.ArrayBound)
 
-    if (alloc_would_overflow(sym->nnz, sizeof(idx_t))) {
+    if (sparse_idx_count_bytes_overflow(sym->nnz, sizeof(idx_t), &(size_t){0})) {
         sparse_symbolic_free(sym);
         return SPARSE_ERR_ALLOC;
     }
-    sym->row_idx = malloc((size_t)sym->nnz * sizeof(idx_t));
-    if (!sym->row_idx) {
+    if (sparse_malloc_array((size_t)sym->nnz, sizeof(idx_t), (void **)&sym->row_idx) != SPARSE_OK) {
         sparse_symbolic_free(sym);
         return SPARSE_ERR_ALLOC;
     }
 
     /* Build child lists */
-    idx_t *child_head = malloc((size_t)n * sizeof(idx_t));
-    idx_t *child_next = malloc((size_t)n * sizeof(idx_t));
-    idx_t *marker = malloc((size_t)n * sizeof(idx_t));
-    idx_t *tmp = malloc((size_t)n * sizeof(idx_t));
-    if (!child_head || !child_next || !marker || !tmp) {
+    idx_t *child_head = NULL;
+    idx_t *child_next = NULL;
+    idx_t *marker = NULL;
+    idx_t *tmp = NULL;
+    if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&child_head) != SPARSE_OK ||
+        sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&child_next) != SPARSE_OK ||
+        sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&marker) != SPARSE_OK ||
+        sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&tmp) != SPARSE_OK) {
         free(child_head);
         free(child_next);
         free(marker);
@@ -330,17 +324,10 @@ sparse_err_t sparse_symbolic_cholesky(const SparseMatrix *A, const idx_t *parent
     }
 
     /* Per-column row sets propagated up the etree */
-    if (alloc_would_overflow(n, sizeof(idx_t *))) {
-        free(child_head);
-        free(child_next);
-        free(marker);
-        free(tmp);
-        sparse_symbolic_free(sym);
-        return SPARSE_ERR_ALLOC;
-    }
-    idx_t **col_rows = calloc((size_t)n, sizeof(idx_t *));
-    idx_t *col_nrows = calloc((size_t)n, sizeof(idx_t));
-    if (!col_rows || !col_nrows) {
+    idx_t **col_rows = NULL;
+    idx_t *col_nrows = NULL;
+    if (sparse_calloc_array((size_t)n, sizeof(idx_t *), (void **)&col_rows) != SPARSE_OK ||
+        sparse_calloc_array((size_t)n, sizeof(idx_t), (void **)&col_nrows) != SPARSE_OK) {
         free(col_rows);
         free(col_nrows);
         free(child_head);
@@ -388,8 +375,8 @@ sparse_err_t sparse_symbolic_cholesky(const SparseMatrix *A, const idx_t *parent
 
         /* Store row set for parent */
         if (count > 0) {
-            col_rows[j] = malloc((size_t)count * sizeof(idx_t));
-            if (!col_rows[j]) {
+            if (sparse_malloc_array((size_t)count, sizeof(idx_t), (void **)&col_rows[j]) !=
+                SPARSE_OK) {
                 for (idx_t i = 0; i < n; i++)
                     free(col_rows[i]);
                 free(col_rows);
@@ -433,9 +420,6 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
 
     idx_t n = A->rows;
 
-    if (alloc_would_overflow(n, sizeof(idx_t)))
-        return SPARSE_ERR_ALLOC;
-
     /* Build B = structure of A^T * A (with optional permutation).
      * B(i,j) is nonzero iff columns i and j of A share a nonzero row.
      * This gives the correct column interaction graph for LU fill bounds.
@@ -449,8 +433,8 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
     idx_t *inv_perm = NULL;
     if (perm) {
         unsigned char *seen = calloc((size_t)n, sizeof(unsigned char));
-        inv_perm = malloc((size_t)n * sizeof(idx_t));
-        if (!seen || !inv_perm) {
+        if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&inv_perm) != SPARSE_OK ||
+            !seen) {
             free(seen);
             free(inv_perm);
             sparse_free(B);
@@ -471,8 +455,8 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
     }
 
     /* Workspace: collect permuted column indices per row */
-    idx_t *row_cols = malloc((size_t)n * sizeof(idx_t));
-    if (!row_cols) {
+    idx_t *row_cols = NULL;
+    if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&row_cols) != SPARSE_OK) {
         free(inv_perm);
         sparse_free(B);
         return SPARSE_ERR_ALLOC;
@@ -517,10 +501,12 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
     }
 
     /* Run the full symbolic Cholesky pipeline on B */
-    idx_t *parent = malloc((size_t)n * sizeof(idx_t));
-    idx_t *postorder = malloc((size_t)n * sizeof(idx_t));
-    idx_t *cc = malloc((size_t)n * sizeof(idx_t));
-    if (!parent || !postorder || !cc) {
+    idx_t *parent = NULL;
+    idx_t *postorder = NULL;
+    idx_t *cc = NULL;
+    if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&parent) != SPARSE_OK ||
+        sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&postorder) != SPARSE_OK ||
+        sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&cc) != SPARSE_OK) {
         free(parent);
         free(postorder);
         free(cc);
@@ -557,8 +543,8 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
         sym_U->n = n;
 
         /* Count entries per column of U (= entries per row of L) */
-        idx_t *u_cnt = calloc((size_t)n, sizeof(idx_t));
-        if (!u_cnt) {
+        idx_t *u_cnt = NULL;
+        if (sparse_calloc_array((size_t)n, sizeof(idx_t), (void **)&u_cnt) != SPARSE_OK) {
             sparse_symbolic_free(&sym_full);
             err = SPARSE_ERR_ALLOC;
             goto cleanup;
@@ -576,13 +562,15 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
         /* Build col_ptr for U */
         {
             size_t u_col_ptr_len = (size_t)n + 1;
-            if (u_col_ptr_len > SIZE_MAX / sizeof(idx_t)) {
+            size_t u_col_ptr_bytes = 0;
+            if (sparse_size_add_overflow((size_t)n, 1, &u_col_ptr_len) ||
+                sparse_count_bytes_overflow(u_col_ptr_len, sizeof(idx_t), &u_col_ptr_bytes)) {
                 free(u_cnt);
                 sparse_symbolic_free(&sym_full);
                 err = SPARSE_ERR_ALLOC;
                 goto cleanup;
             }
-            sym_U->col_ptr = malloc(u_col_ptr_len * sizeof(idx_t));
+            sym_U->col_ptr = malloc(u_col_ptr_bytes);
         }
         if (!sym_U->col_ptr) {
             free(u_cnt);
@@ -595,16 +583,8 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
             size_t u_total = 0;
             for (idx_t j = 0; j < n; j++) {
                 size_t cj = (size_t)u_cnt[j];
-                if (u_total > SIZE_MAX - cj) {
-                    free(u_cnt);
-                    sparse_symbolic_free(sym_U);
-                    sparse_symbolic_free(&sym_full);
-                    err = SPARSE_ERR_ALLOC;
-                    goto cleanup;
-                }
-                u_total += cj;
-                sym_U->col_ptr[j + 1] = (idx_t)u_total;
-                if ((size_t)sym_U->col_ptr[j + 1] != u_total) {
+                if (sparse_size_add_overflow(u_total, cj, &u_total) ||
+                    sparse_size_to_idx_checked(u_total, &sym_U->col_ptr[j + 1])) {
                     free(u_cnt);
                     sparse_symbolic_free(sym_U);
                     sparse_symbolic_free(&sym_full);
@@ -615,16 +595,16 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
         }
         sym_U->nnz = sym_U->col_ptr[n]; // NOLINT(clang-analyzer-security.ArrayBound)
 
-        if (alloc_would_overflow(sym_U->nnz > 0 ? sym_U->nnz : 1, sizeof(idx_t))) {
+        size_t u_nnz_count = (sym_U->nnz > 0) ? (size_t)sym_U->nnz : 1U;
+        if (sparse_idx_count_bytes_overflow((idx_t)u_nnz_count, sizeof(idx_t), &(size_t){0})) {
             free(u_cnt);
             sparse_symbolic_free(sym_U);
             sparse_symbolic_free(&sym_full);
             err = SPARSE_ERR_ALLOC;
             goto cleanup;
         }
-        sym_U->row_idx =
-            malloc((size_t)(sym_U->nnz > 0 ? sym_U->nnz : 1) * sizeof(idx_t)); // NOLINT
-        if (!sym_U->row_idx) {
+        if (sparse_malloc_array(u_nnz_count, sizeof(idx_t), (void **)&sym_U->row_idx) !=
+            SPARSE_OK) {
             free(u_cnt);
             sparse_symbolic_free(sym_U);
             sparse_symbolic_free(&sym_full);
@@ -682,15 +662,13 @@ sparse_err_t sparse_etree_postorder(const idx_t *parent, idx_t n, idx_t *postord
         return SPARSE_ERR_NULL;
     if (n == 0)
         return SPARSE_OK;
-    if (alloc_would_overflow(n, sizeof(idx_t)))
-        return SPARSE_ERR_ALLOC;
-
     /* Build child lists from parent pointers.
      * child_head[i] = first child of i, child_next[c] = next sibling of c.
      * Use -1 as sentinel. */
-    idx_t *child_head = malloc((size_t)n * sizeof(idx_t));
-    idx_t *child_next = malloc((size_t)n * sizeof(idx_t));
-    if (!child_head || !child_next) {
+    idx_t *child_head = NULL;
+    idx_t *child_next = NULL;
+    if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&child_head) != SPARSE_OK ||
+        sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&child_next) != SPARSE_OK) {
         free(child_head);
         free(child_next);
         return SPARSE_ERR_ALLOC;
@@ -716,8 +694,8 @@ sparse_err_t sparse_etree_postorder(const idx_t *parent, idx_t n, idx_t *postord
     }
 
     /* Iterative DFS postorder using an explicit stack */
-    idx_t *stack = malloc((size_t)n * sizeof(idx_t));
-    if (!stack) {
+    idx_t *stack = NULL;
+    if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&stack) != SPARSE_OK) {
         free(child_head);
         free(child_next);
         return SPARSE_ERR_ALLOC;

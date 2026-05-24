@@ -57,14 +57,14 @@ sparse_err_t dense_gemm(const dense_matrix_t *A, const dense_matrix_t *B, dense_
     /* Zero-sized matrices: C = 0 (any zero dimension means empty product) */
     if (m == 0 || k == 0 || n == 0) {
         if (m > 0 && n > 0) {
+            size_t mn = 0;
+            size_t c_bytes = 0;
             if (!C->data)
                 return SPARSE_ERR_NULL;
-            size_t mn = (size_t)m * (size_t)n;
-            if (mn / (size_t)n != (size_t)m)
+            if (sparse_size_mul_overflow((size_t)m, (size_t)n, &mn) ||
+                sparse_count_bytes_overflow(mn, sizeof(double), &c_bytes))
                 return SPARSE_ERR_ALLOC;
-            if (mn > SIZE_MAX / sizeof(double))
-                return SPARSE_ERR_ALLOC;
-            memset(C->data, 0, mn * sizeof(double));
+            memset(C->data, 0, c_bytes);
         }
         return SPARSE_OK;
     }
@@ -73,14 +73,14 @@ sparse_err_t dense_gemm(const dense_matrix_t *A, const dense_matrix_t *B, dense_
         return SPARSE_ERR_NULL;
 
     /* Overflow-safe byte count for C */
-    size_t mn = (size_t)m * (size_t)n;
-    if (n > 0 && mn / (size_t)n != (size_t)m)
-        return SPARSE_ERR_ALLOC;
-    if (mn > SIZE_MAX / sizeof(double))
+    size_t mn = 0;
+    size_t c_bytes = 0;
+    if (sparse_size_mul_overflow((size_t)m, (size_t)n, &mn) ||
+        sparse_count_bytes_overflow(mn, sizeof(double), &c_bytes))
         return SPARSE_ERR_ALLOC;
 
     /* Zero C */
-    memset(C->data, 0, mn * sizeof(double));
+    memset(C->data, 0, c_bytes);
 
     /* C(i,j) = sum_p A(i,p) * B(p,j)
      * Column-major: loop over j (output column), then p, then i for cache. */
@@ -109,9 +109,9 @@ sparse_err_t dense_gemv(const dense_matrix_t *A, const double *x, double *y) {
         return SPARSE_OK;
 
     /* Overflow check for m * sizeof(double) */
-    if ((size_t)m > SIZE_MAX / sizeof(double))
+    size_t y_bytes = 0;
+    if (sparse_count_bytes_overflow((size_t)m, sizeof(double), &y_bytes))
         return SPARSE_ERR_ALLOC;
-    size_t y_bytes = (size_t)m * sizeof(double);
 
     if (n == 0) {
         /* A is m×0: y should be the zero vector */
@@ -459,10 +459,12 @@ sparse_err_t tridiag_qr_eigenpairs(double *diag, double *subdiag, double *Q, idx
     /* Sort eigenvalues ascending and permute Q's columns to match.
      * Indirect sort through a (eigval, orig-index) pair array.
      * `n2_bytes` was overflow-validated above. */
-    tridiag_pair_t *pairs = malloc((size_t)n * sizeof(tridiag_pair_t));
-    double *Q_sorted = malloc(n2_bytes);
-    double *diag_sorted = malloc((size_t)n * sizeof(double));
-    if (!pairs || !Q_sorted || !diag_sorted) {
+    tridiag_pair_t *pairs = NULL;
+    double *Q_sorted = NULL;
+    double *diag_sorted = NULL;
+    if (sparse_malloc_array((size_t)n, sizeof(tridiag_pair_t), (void **)&pairs) != SPARSE_OK ||
+        sparse_malloc_array(1, n2_bytes, (void **)&Q_sorted) != SPARSE_OK ||
+        sparse_malloc_array((size_t)n, sizeof(double), (void **)&diag_sorted) != SPARSE_OK) {
         free(pairs);
         free(Q_sorted);
         free(diag_sorted);

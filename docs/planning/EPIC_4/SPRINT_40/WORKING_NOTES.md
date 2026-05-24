@@ -654,3 +654,158 @@ Interpretation:
   - dead-code support-script ownership
 - Day 4 therefore gives later Epic 4 sprints a measured target set instead of
   a generic “large files are bad” narrative
+
+## Day 5
+
+**Objective:** Audit the first major stateful matrix/factor API cluster
+(LU, Cholesky, LDLT) for in-place mutation, original-matrix assumptions,
+permutation assumptions, factored-state ownership, copy-before-reuse
+requirements, and cancellation/partial-mutation risk so later Epic 4
+handle-model design starts from actual code/documentation truth.
+
+### Commands Run
+
+1. Re-read the Sprint 40 Day 5 plan section:
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_40/PLAN.md`
+2. Re-read the current Sprint 40 working baseline:
+   - `sed -n '1,760p' docs/planning/EPIC_4/SPRINT_40/WORKING_NOTES.md`
+3. Re-read the public LU / Cholesky / LDLT headers:
+   - `sed -n '1,260p' include/sparse_lu.h`
+   - `sed -n '1,260p' include/sparse_cholesky.h`
+   - `sed -n '1,320p' include/sparse_ldlt.h`
+4. Sweep the current public and implementation wording for lifecycle cues:
+   - `rg -n "sparse_lu_factor|sparse_cholesky_factor|sparse_ldlt_factor|identity permutations|sparse_copy\\(|row_perm|col_perm|copy-before|bit-identical|factor_norm|factored" README.md docs/tutorial.md src include`
+5. Re-read the main README direct-solver / lifecycle / thread-safety sections:
+   - `sed -n '150,330p' README.md`
+   - `sed -n '520,575p' README.md`
+6. Re-read the tutorial’s direct-solver section:
+   - `sed -n '100,190p' docs/tutorial.md`
+7. Re-read the detailed LDLT header contract block:
+   - `sed -n '120,310p' include/sparse_ldlt.h`
+
+### Day 5 Findings
+
+#### 1. LU and Cholesky still carry the heaviest lifecycle overloading on `SparseMatrix`
+
+The LU and Cholesky paths both use a single `SparseMatrix *` as:
+
+- original coefficient container
+- mutable factorization workspace
+- permutation owner
+- post-factor solve handle
+- `factored` / `factor_norm` owner
+
+In both APIs, the normal usage pattern is explicitly:
+
+- make a `sparse_copy()` if the original matrix is still needed
+- factor the copy in place
+- solve through that same now-factored matrix object
+
+Interpretation:
+
+- these are the clearest “matrix object becomes factor handle” surfaces in the
+  current public API
+- Day 5 confirms the Epic 4 review’s core lifecycle concern with real
+  subsystem evidence, not just general suspicion
+
+#### 2. LDLT is already much closer to the future explicit factor-handle model
+
+The LDLT path separates concerns more cleanly:
+
+- factorization takes `const SparseMatrix *A`
+- factorization writes to `sparse_ldlt_t`
+- solve consumes `const sparse_ldlt_t *`
+- cleanup is explicit via `sparse_ldlt_free()`
+
+The input matrix remains the coefficient owner instead of being repurposed as
+the factor handle.
+
+Interpretation:
+
+- LDLT already provides an internal example of the kind of state split Epic 4
+  is likely to generalize later
+- the handle-model design work does not need to invent this boundary from
+  scratch; it already exists in one important factorization family
+
+#### 3. “Use a fresh copy” means different things across the cluster
+
+All three surfaces care about an original/original-like matrix state, but for
+different reasons:
+
+- LU / Cholesky:
+  - because factorization mutates or destroys the matrix representation
+- LDLT:
+  - because factorization expects identity permutations / original logical
+    state even though it does not mutate the input matrix
+
+Interpretation:
+
+- the current public docs can teach “copy before factoring,” but the real
+  lifecycle reason differs across APIs
+- that difference is exactly the kind of ambiguity Epic 4 should resolve into
+  a clearer state taxonomy
+
+#### 4. Cancellation semantics are a first-class lifecycle risk, not a small callback footnote
+
+LU and Cholesky both document and implement early mutation before the first
+progress callback can return:
+
+- `factored` is cleared immediately
+- `factor_norm` is cached immediately
+- Cholesky can also strip the upper triangle before cancellation returns
+
+By contrast, LDLT cancellation:
+
+- frees partial factor output
+- leaves the input matrix bit-identical
+
+Interpretation:
+
+- the important risk is not only “factorization mutates”; it is “cancellation
+  may leave a non-original object almost immediately”
+- that risk belongs in the future lifecycle/handle contract directly
+
+#### 5. Solve-handle identity is inconsistent even within this one factorization cluster
+
+Post-factor solve handle is:
+
+- LU: `SparseMatrix *`
+- Cholesky: `SparseMatrix *`
+- LDLT: `sparse_ldlt_t *`
+
+Interpretation:
+
+- this is one of the strongest concrete Day 5 findings in support of later
+  explicit-handle design work
+- direct solvers do not currently present one uniform lifecycle model to the
+  caller
+
+#### 6. The documentation layers currently agree on behavior, but they also expose the architectural split
+
+For this cluster, the three main documentation layers are aligned:
+
+- headers carry precise preconditions and cancellation semantics
+- `README.md` teaches copy-before-factor and solve-after-factor usage
+- `docs/tutorial.md` shows the expected call patterns
+
+Interpretation:
+
+- Sprint 40 Day 5 did not find a truthfulness problem here
+- it found an architecture-shape problem: the documented contract is accurate,
+  but it is split between matrix-mutating and separate-factor-object designs
+
+#### 7. Day 5 gives the later handle-model work a concrete starting split
+
+The first lifecycle cluster now divides cleanly into:
+
+- matrix-mutating direct factorization paths:
+  - LU
+  - Cholesky
+- separate factor-object path:
+  - LDLT
+
+Interpretation:
+
+- Day 5 provides a real architecture input for Days 6-9:
+  - what is already close to an explicit handle model
+  - what still overloads mutable state onto `SparseMatrix`

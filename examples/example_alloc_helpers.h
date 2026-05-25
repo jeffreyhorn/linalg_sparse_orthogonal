@@ -25,7 +25,7 @@ static inline sparse_err_t example_malloc_array(idx_t count, size_t elem_size, v
     *out = NULL;
 
     err = example_check_array_bytes(count, elem_size);
-    if (err != SPARSE_OK || count == 0)
+    if (err != SPARSE_OK || count == 0 || elem_size == 0)
         return err;
 
     *out = malloc((size_t)count * elem_size);
@@ -40,7 +40,7 @@ static inline sparse_err_t example_calloc_array(idx_t count, size_t elem_size, v
     *out = NULL;
 
     err = example_check_array_bytes(count, elem_size);
-    if (err != SPARSE_OK || count == 0)
+    if (err != SPARSE_OK || count == 0 || elem_size == 0)
         return err;
 
     *out = calloc((size_t)count, elem_size);

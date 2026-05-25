@@ -28,12 +28,20 @@ static inline int sparse_count_bytes_overflow(size_t count, size_t elem_size, si
     return sparse_size_mul_overflow(count, elem_size, bytes);
 }
 
+static inline int sparse_idx_to_size_checked(idx_t value, size_t *out) {
+    if (value < 0)
+        return 1;
+    if ((uintmax_t)value > SIZE_MAX)
+        return 1;
+    *out = (size_t)value;
+    return 0;
+}
+
 static inline int sparse_idx_count_bytes_overflow(idx_t count, size_t elem_size, size_t *bytes) {
-    if (count < 0)
+    size_t size_count = 0;
+    if (sparse_idx_to_size_checked(count, &size_count))
         return 1;
-    if ((uintmax_t)count > SIZE_MAX)
-        return 1;
-    return sparse_count_bytes_overflow((size_t)count, elem_size, bytes);
+    return sparse_count_bytes_overflow(size_count, elem_size, bytes);
 }
 
 static inline int sparse_size_to_idx_checked(size_t value, idx_t *out) {

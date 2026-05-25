@@ -63,7 +63,7 @@ static sparse_err_t stag_init(stag_tracker_t *st, idx_t window) {
     if (window <= 0)
         return SPARSE_OK;
     double *buf = NULL;
-    if (sparse_malloc_array((size_t)window, sizeof(double), (void **)&buf) != SPARSE_OK)
+    if (sparse_malloc_idx_array(window, sizeof(double), (void **)&buf) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
     st->buf = buf;
     st->capacity = window;
@@ -1008,18 +1008,21 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
     }
 
     /* Upfront overflow guards — must run before any n*k pointer arithmetic */
+    size_t n_size = 0;
+    size_t nrhs_size = 0;
     size_t blk = 0;
-    if (sparse_size_mul_overflow((size_t)n, (size_t)nrhs, &blk))
+    if (sparse_idx_to_size_checked(n, &n_size) || sparse_idx_to_size_checked(nrhs, &nrhs_size) ||
+        sparse_size_mul_overflow(n_size, nrhs_size, &blk))
         return SPARSE_ERR_ALLOC;
     if (blk > (size_t)INT32_MAX)
         return SPARSE_ERR_ALLOC;
 
     /* Compute ||B(:,k)|| for each column */
     double *bnorms = NULL;
-    if (sparse_malloc_array((size_t)nrhs, sizeof(double), (void **)&bnorms) != SPARSE_OK)
+    if (sparse_malloc_idx_array(nrhs, sizeof(double), (void **)&bnorms) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
     for (idx_t k = 0; k < nrhs; k++) {
-        size_t off = (size_t)n * (size_t)k;
+        size_t off = n_size * (size_t)k;
         bnorms[k] = vec_norm2(&B[off], n);
         if (bnorms[k] == 0.0) {
             vec_zero(&X[off], n);
@@ -1039,9 +1042,9 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
         sparse_malloc_array(blk, sizeof(double), (void **)&Z) != SPARSE_OK ||
         sparse_malloc_array(blk, sizeof(double), (void **)&P) != SPARSE_OK ||
         sparse_malloc_array(blk, sizeof(double), (void **)&AP) != SPARSE_OK ||
-        sparse_malloc_array((size_t)nrhs, sizeof(double), (void **)&rz) != SPARSE_OK ||
-        sparse_calloc_array((size_t)nrhs, sizeof(int), (void **)&conv) != SPARSE_OK ||
-        sparse_malloc_array((size_t)nrhs, sizeof(double), (void **)&rnorms) != SPARSE_OK) {
+        sparse_malloc_idx_array(nrhs, sizeof(double), (void **)&rz) != SPARSE_OK ||
+        sparse_calloc_idx_array(nrhs, sizeof(int), (void **)&conv) != SPARSE_OK ||
+        sparse_malloc_idx_array(nrhs, sizeof(double), (void **)&rnorms) != SPARSE_OK) {
         free(R);
         free(Z);
         free(P);

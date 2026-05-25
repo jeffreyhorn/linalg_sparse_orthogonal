@@ -61,8 +61,8 @@ sparse_err_t sparse_ic_factor(const SparseMatrix *A, sparse_ilu_t *ic) {
      * pattern[0..pat_len-1] holds the row indices with nonzero entries. */
     double *val = NULL;
     idx_t *pattern = NULL;
-    if (sparse_calloc_array((size_t)n, sizeof(double), (void **)&val) != SPARSE_OK ||
-        sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&pattern) != SPARSE_OK) {
+    if (sparse_calloc_idx_array(n, sizeof(double), (void **)&val) != SPARSE_OK ||
+        sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&pattern) != SPARSE_OK) {
         free(val);
         free(pattern);
         return SPARSE_ERR_ALLOC;
@@ -83,7 +83,7 @@ sparse_err_t sparse_ic_factor(const SparseMatrix *A, sparse_ilu_t *ic) {
      * column's sparsity pattern.  This is used instead of testing val[i]!=0
      * because val[i] can become exactly zero after subtractions. */
     char *in_pat = NULL;
-    if (sparse_calloc_array((size_t)n, sizeof(char), (void **)&in_pat) != SPARSE_OK) {
+    if (sparse_calloc_idx_array(n, sizeof(char), (void **)&in_pat) != SPARSE_OK) {
         free(val);
         free(pattern);
         sparse_free(L);

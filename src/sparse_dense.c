@@ -406,16 +406,17 @@ sparse_err_t tridiag_qr_eigenpairs(double *diag, double *subdiag, double *Q, idx
      * memcpy / malloc.  For very large n on a 32-bit size_t target
      * (or any target where n² overflows size_t) this prevents the
      * silent undersized buffer that would follow. */
+    size_t n_size = 0;
     size_t n2 = 0;
     size_t n2_bytes = 0;
-    if (sparse_size_mul_overflow((size_t)n, (size_t)n, &n2) ||
+    if (sparse_idx_to_size_checked(n, &n_size) || sparse_size_mul_overflow(n_size, n_size, &n2) ||
         sparse_size_mul_overflow(n2, sizeof(double), &n2_bytes))
         return SPARSE_ERR_ALLOC;
 
     /* Initialise Q = I_n. */
     memset(Q, 0, n2_bytes);
     for (idx_t i = 0; i < n; i++)
-        Q[(size_t)i * (size_t)n + (size_t)i] = 1.0;
+        Q[(size_t)i * n_size + (size_t)i] = 1.0;
 
     if (n == 1)
         return SPARSE_OK;
@@ -462,9 +463,9 @@ sparse_err_t tridiag_qr_eigenpairs(double *diag, double *subdiag, double *Q, idx
     tridiag_pair_t *pairs = NULL;
     double *Q_sorted = NULL;
     double *diag_sorted = NULL;
-    if (sparse_malloc_array((size_t)n, sizeof(tridiag_pair_t), (void **)&pairs) != SPARSE_OK ||
+    if (sparse_malloc_idx_array(n, sizeof(tridiag_pair_t), (void **)&pairs) != SPARSE_OK ||
         sparse_malloc_array(1, n2_bytes, (void **)&Q_sorted) != SPARSE_OK ||
-        sparse_malloc_array((size_t)n, sizeof(double), (void **)&diag_sorted) != SPARSE_OK) {
+        sparse_malloc_idx_array(n, sizeof(double), (void **)&diag_sorted) != SPARSE_OK) {
         free(pairs);
         free(Q_sorted);
         free(diag_sorted);

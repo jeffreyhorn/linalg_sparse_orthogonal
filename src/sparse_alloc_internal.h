@@ -31,6 +31,8 @@ static inline int sparse_count_bytes_overflow(size_t count, size_t elem_size, si
 static inline int sparse_idx_count_bytes_overflow(idx_t count, size_t elem_size, size_t *bytes) {
     if (count < 0)
         return 1;
+    if ((uintmax_t)count > SIZE_MAX)
+        return 1;
     return sparse_count_bytes_overflow((size_t)count, elem_size, bytes);
 }
 

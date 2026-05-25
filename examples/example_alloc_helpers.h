@@ -10,6 +10,8 @@
 static inline sparse_err_t example_check_array_bytes(idx_t count, size_t elem_size) {
     if (count < 0)
         return SPARSE_ERR_BADARG;
+    if ((uintmax_t)count > SIZE_MAX)
+        return SPARSE_ERR_ALLOC;
     if (elem_size != 0 && (size_t)count > SIZE_MAX / elem_size)
         return SPARSE_ERR_ALLOC;
     return SPARSE_OK;

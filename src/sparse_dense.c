@@ -7,6 +7,8 @@
 #include <string.h>
 
 dense_matrix_t *dense_create(idx_t rows, idx_t cols) {
+    size_t rows_size = 0;
+    size_t cols_size = 0;
     if (rows < 0 || cols < 0)
         return NULL;
 
@@ -25,7 +27,9 @@ dense_matrix_t *dense_create(idx_t rows, idx_t cols) {
     /* Shared helper path: validate rows*cols and allocate dense storage. */
     size_t n = 0;
     void *data = NULL;
-    if (sparse_size_mul_overflow((size_t)rows, (size_t)cols, &n) ||
+    if (sparse_idx_to_size_checked(rows, &rows_size) ||
+        sparse_idx_to_size_checked(cols, &cols_size) ||
+        sparse_size_mul_overflow(rows_size, cols_size, &n) ||
         sparse_calloc_array(n, sizeof(double), &data) != SPARSE_OK) {
         free(M);
         return NULL;

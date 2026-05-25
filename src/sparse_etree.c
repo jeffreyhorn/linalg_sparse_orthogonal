@@ -36,7 +36,7 @@ sparse_err_t sparse_etree_compute(const SparseMatrix *A, idx_t *parent) {
 
     /* ancestor[i] is the union-find representative for column i */
     idx_t *ancestor = NULL;
-    if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&ancestor) != SPARSE_OK)
+    if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&ancestor) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
 
     /* Initialize: each column is its own ancestor, no parents yet */
@@ -88,8 +88,8 @@ sparse_err_t sparse_colcount(const SparseMatrix *A, const idx_t *parent, const i
     /* Build child lists from parent pointers */
     idx_t *child_head = NULL;
     idx_t *child_next = NULL;
-    if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&child_head) != SPARSE_OK ||
-        sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&child_next) != SPARSE_OK) {
+    if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&child_head) != SPARSE_OK ||
+        sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&child_next) != SPARSE_OK) {
         free(child_head);
         free(child_next);
         return SPARSE_ERR_ALLOC;
@@ -112,10 +112,10 @@ sparse_err_t sparse_colcount(const SparseMatrix *A, const idx_t *parent, const i
     idx_t *col_nrows = NULL;
     idx_t *marker = NULL;
     idx_t *tmp = NULL;
-    if (sparse_calloc_array((size_t)n, sizeof(idx_t *), (void **)&col_rows) != SPARSE_OK ||
-        sparse_calloc_array((size_t)n, sizeof(idx_t), (void **)&col_nrows) != SPARSE_OK ||
-        sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&marker) != SPARSE_OK ||
-        sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&tmp) != SPARSE_OK) {
+    if (sparse_calloc_idx_array(n, sizeof(idx_t *), (void **)&col_rows) != SPARSE_OK ||
+        sparse_calloc_idx_array(n, sizeof(idx_t), (void **)&col_nrows) != SPARSE_OK ||
+        sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&marker) != SPARSE_OK ||
+        sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&tmp) != SPARSE_OK) {
         free(col_rows);
         free(col_nrows);
         free(marker);
@@ -517,9 +517,9 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
     idx_t *parent = NULL;
     idx_t *postorder = NULL;
     idx_t *cc = NULL;
-    if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&parent) != SPARSE_OK ||
-        sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&postorder) != SPARSE_OK ||
-        sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&cc) != SPARSE_OK) {
+    if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&parent) != SPARSE_OK ||
+        sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&postorder) != SPARSE_OK ||
+        sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&cc) != SPARSE_OK) {
         free(parent);
         free(postorder);
         free(cc);
@@ -557,7 +557,7 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
 
         /* Count entries per column of U (= entries per row of L) */
         idx_t *u_cnt = NULL;
-        if (sparse_calloc_array((size_t)n, sizeof(idx_t), (void **)&u_cnt) != SPARSE_OK) {
+        if (sparse_calloc_idx_array(n, sizeof(idx_t), (void **)&u_cnt) != SPARSE_OK) {
             sparse_symbolic_free(&sym_full);
             err = SPARSE_ERR_ALLOC;
             goto cleanup;

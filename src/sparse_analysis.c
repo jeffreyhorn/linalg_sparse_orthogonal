@@ -508,7 +508,7 @@ sparse_err_t sparse_factor_solve(const sparse_factors_t *factors, const sparse_a
     double *b_perm = NULL;
     const double *b_eff = b;
     if (perm) {
-        if (sparse_malloc_array((size_t)n, sizeof(double), (void **)&b_perm) != SPARSE_OK)
+        if (sparse_malloc_idx_array(n, sizeof(double), (void **)&b_perm) != SPARSE_OK)
             return SPARSE_ERR_ALLOC;
         for (idx_t i = 0; i < n; i++)
             b_perm[i] = b[perm[i]];
@@ -517,7 +517,7 @@ sparse_err_t sparse_factor_solve(const sparse_factors_t *factors, const sparse_a
 
     sparse_err_t err;
     double *x_tmp = NULL;
-    if (sparse_malloc_array((size_t)n, sizeof(double), (void **)&x_tmp) != SPARSE_OK) {
+    if (sparse_malloc_idx_array(n, sizeof(double), (void **)&x_tmp) != SPARSE_OK) {
         free(b_perm);
         return SPARSE_ERR_ALLOC;
     }

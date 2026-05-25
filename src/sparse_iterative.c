@@ -616,7 +616,7 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
      * allocating the full Arnoldi workspace */
     if (o->max_iter == 0) {
         double *tmp = NULL;
-        if (sparse_malloc_array((size_t)n, sizeof(double), (void **)&tmp) != SPARSE_OK)
+        if (sparse_malloc_idx_array(n, sizeof(double), (void **)&tmp) != SPARSE_OK)
             return SPARSE_ERR_ALLOC;
         merr = matvec(matvec_ctx, n, x, tmp);
         if (merr != SPARSE_OK) {
@@ -648,7 +648,7 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
      * so we return cheaply if the initial guess already satisfies tol */
     {
         double *tmp = NULL;
-        if (sparse_malloc_array((size_t)n, sizeof(double), (void **)&tmp) != SPARSE_OK)
+        if (sparse_malloc_idx_array(n, sizeof(double), (void **)&tmp) != SPARSE_OK)
             return SPARSE_ERR_ALLOC;
         merr = matvec(matvec_ctx, n, x, tmp);
         if (merr != SPARSE_OK) {

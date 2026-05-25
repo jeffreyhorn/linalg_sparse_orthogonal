@@ -725,6 +725,9 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
     idx_t m = sparse_rows(A);
     idx_t n = sparse_cols(A);
     idx_t k = (m < n) ? m : n;
+    size_t m_size = 0;
+    size_t n_size = 0;
+    size_t k_size = 0;
 
     svd->m = m;
     svd->n = n;
@@ -732,6 +735,9 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
 
     if (k == 0)
         return SPARSE_OK;
+    if (sparse_idx_to_size_checked(m, &m_size) || sparse_idx_to_size_checked(n, &n_size) ||
+        sparse_idx_to_size_checked(k, &k_size))
+        return SPARSE_ERR_ALLOC;
 
     /* Step 1: Bidiagonalize */
     sparse_bidiag_t bd;
@@ -761,8 +767,8 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
 
     /* Copy bidiag arrays (QR iteration modifies them in-place) */
     size_t bd_diag_bytes, bd_super_bytes = 0;
-    if (sparse_size_mul_overflow((size_t)k, sizeof(double), &bd_diag_bytes) ||
-        (k > 1 && sparse_size_mul_overflow((size_t)(k - 1), sizeof(double), &bd_super_bytes))) {
+    if (sparse_size_mul_overflow(k_size, sizeof(double), &bd_diag_bytes) ||
+        (k > 1 && sparse_size_mul_overflow(k_size - 1, sizeof(double), &bd_super_bytes))) {
         sparse_bidiag_free(&bd);
         return SPARSE_ERR_ALLOC;
     }
@@ -784,9 +790,9 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
     if (compute_uv) {
         /* Extract economy U (m×k) and V (n×k) from Householder reflectors */
         size_t sz_u, sz_v;
-        if (sparse_size_mul_overflow((size_t)m, (size_t)k, &sz_u) ||
-            sparse_size_mul_overflow((size_t)n, (size_t)k, &sz_v) ||
-            sz_u > SIZE_MAX / sizeof(double) || sz_v > SIZE_MAX / sizeof(double)) {
+        if (sparse_size_mul_overflow(m_size, k_size, &sz_u) ||
+            sparse_size_mul_overflow(n_size, k_size, &sz_v) || sz_u > SIZE_MAX / sizeof(double) ||
+            sz_v > SIZE_MAX / sizeof(double)) {
             free(bd_diag);
             free(bd_super);
             sparse_bidiag_free(&bd);
@@ -856,18 +862,18 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
             svd->sigma[best] = tmp;
             if (U_work) {
                 for (idx_t r = 0; r < m; r++) {
-                    double t = U_work[(size_t)i * (size_t)m + (size_t)r];
-                    U_work[(size_t)i * (size_t)m + (size_t)r] =
-                        U_work[(size_t)best * (size_t)m + (size_t)r];
-                    U_work[(size_t)best * (size_t)m + (size_t)r] = t;
+                    double t = U_work[(size_t)i * m_size + (size_t)r];
+                    U_work[(size_t)i * m_size + (size_t)r] =
+                        U_work[(size_t)best * m_size + (size_t)r];
+                    U_work[(size_t)best * m_size + (size_t)r] = t;
                 }
             }
             if (V_work) {
                 for (idx_t r = 0; r < n; r++) {
-                    double t = V_work[(size_t)i * (size_t)n + (size_t)r];
-                    V_work[(size_t)i * (size_t)n + (size_t)r] =
-                        V_work[(size_t)best * (size_t)n + (size_t)r];
-                    V_work[(size_t)best * (size_t)n + (size_t)r] = t;
+                    double t = V_work[(size_t)i * n_size + (size_t)r];
+                    V_work[(size_t)i * n_size + (size_t)r] =
+                        V_work[(size_t)best * n_size + (size_t)r];
+                    V_work[(size_t)best * n_size + (size_t)r] = t;
                 }
             }
         }
@@ -881,10 +887,11 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
      * The leading dim of Vt is `k_v_cols` (= k in economy, = n in full)
      * — U's leading dim is always m. */
     idx_t k_v_cols = (compute_uv && !economy) ? n : k;
+    size_t k_v_cols_size = (compute_uv && !economy) ? n_size : k_size;
 
     if (compute_uv && !economy && m > k) {
         size_t sz_u_full;
-        if (sparse_size_mul_overflow((size_t)m, (size_t)m, &sz_u_full) ||
+        if (sparse_size_mul_overflow(m_size, m_size, &sz_u_full) ||
             sz_u_full > SIZE_MAX / sizeof(double)) {
             free(U_work);
             free(V_work);
@@ -899,7 +906,7 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
             return SPARSE_ERR_ALLOC;
         }
         /* Copy economy cols 0..k-1 into U_full cols 0..k-1. */
-        memcpy(U_full, U_work, (size_t)m * (size_t)k * sizeof(double));
+        memcpy(U_full, U_work, m_size * k_size * sizeof(double));
         free(U_work);
         U_work = U_full;
 
@@ -914,7 +921,7 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
 
     if (compute_uv && !economy && n > k) {
         size_t sz_v_full;
-        if (sparse_size_mul_overflow((size_t)n, (size_t)n, &sz_v_full) ||
+        if (sparse_size_mul_overflow(n_size, n_size, &sz_v_full) ||
             sz_v_full > SIZE_MAX / sizeof(double)) {
             free(U_work);
             free(V_work);
@@ -928,7 +935,7 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
             sparse_svd_free(svd);
             return SPARSE_ERR_ALLOC;
         }
-        memcpy(V_full, V_work, (size_t)n * (size_t)k * sizeof(double));
+        memcpy(V_full, V_work, n_size * k_size * sizeof(double));
         free(V_work);
         V_work = V_full;
 
@@ -947,7 +954,7 @@ sparse_err_t sparse_svd_compute(const SparseMatrix *A, const sparse_svd_opts_t *
         U_work = NULL;
 
         size_t vt_sz;
-        if (sparse_size_mul_overflow((size_t)k_v_cols, (size_t)n, &vt_sz) ||
+        if (sparse_size_mul_overflow(k_v_cols_size, n_size, &vt_sz) ||
             vt_sz > SIZE_MAX / sizeof(double)) {
             free(V_work);
             sparse_svd_free(svd);

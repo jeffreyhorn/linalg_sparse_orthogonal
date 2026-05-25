@@ -469,7 +469,7 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
 
     /* Workspace: collect permuted column indices per row */
     idx_t *row_cols = NULL;
-    if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&row_cols) != SPARSE_OK) {
+    if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&row_cols) != SPARSE_OK) {
         free(inv_perm);
         sparse_free(B);
         return SPARSE_ERR_ALLOC;

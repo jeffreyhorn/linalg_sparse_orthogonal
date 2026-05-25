@@ -253,7 +253,7 @@ sparse_err_t sparse_symbolic_cholesky(const SparseMatrix *A, const idx_t *parent
     }
 
     {
-        size_t col_ptr_len = (size_t)n + 1;
+        size_t col_ptr_len = 0;
         size_t col_ptr_bytes = 0;
         if (sparse_size_add_overflow((size_t)n, 1, &col_ptr_len) ||
             sparse_count_bytes_overflow(col_ptr_len, sizeof(idx_t), &col_ptr_bytes))
@@ -561,7 +561,7 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
 
         /* Build col_ptr for U */
         {
-            size_t u_col_ptr_len = (size_t)n + 1;
+            size_t u_col_ptr_len = 0;
             size_t u_col_ptr_bytes = 0;
             if (sparse_size_add_overflow((size_t)n, 1, &u_col_ptr_len) ||
                 sparse_count_bytes_overflow(u_col_ptr_len, sizeof(idx_t), &u_col_ptr_bytes)) {

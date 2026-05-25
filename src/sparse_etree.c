@@ -432,9 +432,19 @@ sparse_err_t sparse_symbolic_lu(const SparseMatrix *A, const idx_t *perm, sparse
      * Reorder routines produce perm[new] = old, so we invert. */
     idx_t *inv_perm = NULL;
     if (perm) {
-        unsigned char *seen = calloc((size_t)n, sizeof(unsigned char));
-        if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&inv_perm) != SPARSE_OK ||
-            !seen) {
+        unsigned char *seen = NULL;
+        size_t seen_bytes = 0;
+        size_t inv_perm_bytes = 0;
+        if (sparse_idx_count_bytes_overflow(n, sizeof(unsigned char), &seen_bytes) ||
+            sparse_idx_count_bytes_overflow(n, sizeof(idx_t), &inv_perm_bytes)) {
+            sparse_free(B);
+            return SPARSE_ERR_ALLOC;
+        }
+        if (seen_bytes != 0)
+            seen = calloc(1, seen_bytes);
+        if (inv_perm_bytes != 0)
+            inv_perm = malloc(inv_perm_bytes);
+        if ((seen_bytes != 0 && !seen) || (inv_perm_bytes != 0 && !inv_perm)) {
             free(seen);
             free(inv_perm);
             sparse_free(B);

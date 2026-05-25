@@ -468,7 +468,7 @@ sparse_err_t tridiag_qr_eigenpairs(double *diag, double *subdiag, double *Q, idx
     double *Q_sorted = NULL;
     double *diag_sorted = NULL;
     if (sparse_malloc_idx_array(n, sizeof(tridiag_pair_t), (void **)&pairs) != SPARSE_OK ||
-        sparse_malloc_array(1, n2_bytes, (void **)&Q_sorted) != SPARSE_OK ||
+        sparse_malloc_array(n2, sizeof(double), (void **)&Q_sorted) != SPARSE_OK ||
         sparse_malloc_idx_array(n, sizeof(double), (void **)&diag_sorted) != SPARSE_OK) {
         free(pairs);
         free(Q_sorted);

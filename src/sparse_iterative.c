@@ -378,16 +378,20 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
         return SPARSE_OK;
     }
 
+    size_t n_size = 0;
+    if (sparse_idx_to_size_checked(n, &n_size))
+        return SPARSE_ERR_ALLOC;
+
     size_t work_count = 0;
-    if (sparse_size_mul_overflow((size_t)n, 4, &work_count))
+    if (sparse_size_mul_overflow(n_size, 4, &work_count))
         return SPARSE_ERR_ALLOC;
     double *work = NULL;
     if (sparse_malloc_array(work_count, sizeof(double), (void **)&work) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
     double *r = work;
-    double *z = work + n;
-    double *p = work + 2 * n;
-    double *Ap = work + 3 * n;
+    double *z = work + n_size;
+    double *p = work + 2 * n_size;
+    double *Ap = work + 3 * n_size;
 
     /* r_0 = b - A*x_0 */
     sparse_err_t merr = matvec(matvec_ctx, n, x, Ap);
@@ -1346,23 +1350,27 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
     /* Workspace: v, v_old, w, d0, d1, d2 = 6 vectors
      * For preconditioned: +2 vectors (z, z_tmp) = 8 total */
     idx_t nvecs = precond ? 8 : 6;
+    size_t n_size = 0;
+    size_t nvecs_size = 0;
+    if (sparse_idx_to_size_checked(n, &n_size) || sparse_idx_to_size_checked(nvecs, &nvecs_size))
+        return SPARSE_ERR_ALLOC;
     size_t work_count = 0;
-    if (sparse_size_mul_overflow((size_t)nvecs, (size_t)n, &work_count))
+    if (sparse_size_mul_overflow(nvecs_size, n_size, &work_count))
         return SPARSE_ERR_ALLOC;
     double *work = NULL;
     if (sparse_calloc_array(work_count, sizeof(double), (void **)&work) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
 
-    double *v = work;                  /* current Lanczos vector */
-    double *v_old = work + (size_t)n;  /* previous Lanczos vector */
-    double *w = work + 2 * (size_t)n;  /* A*v workspace */
-    double *d0 = work + 3 * (size_t)n; /* direction vector d_{k} */
-    double *d1 = work + 4 * (size_t)n; /* direction vector d_{k-1} */
-    double *d2 = work + 5 * (size_t)n; /* direction vector d_{k-2} */
+    double *v = work;               /* current Lanczos vector */
+    double *v_old = work + n_size;  /* previous Lanczos vector */
+    double *w = work + 2 * n_size;  /* A*v workspace */
+    double *d0 = work + 3 * n_size; /* direction vector d_{k} */
+    double *d1 = work + 4 * n_size; /* direction vector d_{k-1} */
+    double *d2 = work + 5 * n_size; /* direction vector d_{k-2} */
     double *z = NULL, *z_tmp = NULL;
     if (precond) {
-        z = work + 6 * (size_t)n;
-        z_tmp = work + 7 * (size_t)n;
+        z = work + 6 * n_size;
+        z_tmp = work + 7 * n_size;
     }
 
     stag_tracker_t stag;

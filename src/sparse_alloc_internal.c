@@ -39,12 +39,11 @@ sparse_err_t sparse_malloc_idx_array(idx_t count, size_t elem_size, void **out) 
     size_t size_count = 0;
     if (!out)
         return SPARSE_ERR_NULL;
+    *out = NULL;
     if (count < 0)
         return SPARSE_ERR_ALLOC;
-    if (count == 0 || elem_size == 0) {
-        *out = NULL;
+    if (count == 0 || elem_size == 0)
         return SPARSE_OK;
-    }
     if ((uintmax_t)count > SIZE_MAX)
         return SPARSE_ERR_ALLOC;
     size_count = (size_t)count;
@@ -55,12 +54,11 @@ sparse_err_t sparse_calloc_idx_array(idx_t count, size_t elem_size, void **out) 
     size_t size_count = 0;
     if (!out)
         return SPARSE_ERR_NULL;
+    *out = NULL;
     if (count < 0)
         return SPARSE_ERR_ALLOC;
-    if (count == 0 || elem_size == 0) {
-        *out = NULL;
+    if (count == 0 || elem_size == 0)
         return SPARSE_OK;
-    }
     if ((uintmax_t)count > SIZE_MAX)
         return SPARSE_ERR_ALLOC;
     size_count = (size_t)count;

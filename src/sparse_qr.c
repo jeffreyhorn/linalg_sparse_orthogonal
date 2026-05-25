@@ -173,11 +173,19 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
     if (!W)
         return SPARSE_ERR_ALLOC;
 
+    size_t n_size = 0;
+    size_t m_size = 0;
+    size_t k_size = 0;
+    if (sparse_idx_to_size_checked(n, &n_size) || sparse_idx_to_size_checked(m, &m_size) ||
+        sparse_idx_to_size_checked(k, &k_size)) {
+        sparse_free(W);
+        return SPARSE_ERR_ALLOC;
+    }
+
     /* Optional column reordering */
     idx_t *col_reorder = NULL;
     if (opts && opts->reorder == SPARSE_REORDER_COLAMD && n > 1) {
-        col_reorder = malloc((size_t)n * sizeof(idx_t));
-        if (col_reorder) {
+        if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&col_reorder) == SPARSE_OK) {
             if (sparse_reorder_colamd(A, col_reorder) != SPARSE_OK) {
                 free(col_reorder);
                 col_reorder = NULL;
@@ -202,9 +210,8 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
                     nd1 = nd1->right;
                 }
             }
-            if (ins_err == SPARSE_OK && (size_t)n <= SIZE_MAX / sizeof(idx_t)) {
-                col_reorder = malloc((size_t)n * sizeof(idx_t));
-                if (col_reorder) {
+            if (ins_err == SPARSE_OK) {
+                if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&col_reorder) == SPARSE_OK) {
                     sparse_err_t rerr = SPARSE_ERR_BADARG;
                     if (opts->reorder == SPARSE_REORDER_AMD)
                         rerr = sparse_reorder_amd(AtA, col_reorder);
@@ -225,27 +232,32 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
     /* Overflow checks for buffer allocations */
     {
         size_t tmp = 0;
-        if (sparse_size_mul_overflow((size_t)n, sizeof(idx_t), &tmp) ||
-            sparse_size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
-            sparse_size_mul_overflow((size_t)n, sizeof(double), &tmp) ||
-            sparse_size_mul_overflow((size_t)k, sizeof(double), &tmp) ||
-            sparse_size_mul_overflow((size_t)k, sizeof(double *), &tmp)) {
+        if (sparse_size_mul_overflow(n_size, sizeof(idx_t), &tmp) ||
+            sparse_size_mul_overflow(m_size, sizeof(double), &tmp) ||
+            sparse_size_mul_overflow(n_size, sizeof(double), &tmp) ||
+            sparse_size_mul_overflow(k_size, sizeof(double), &tmp) ||
+            sparse_size_mul_overflow(k_size, sizeof(double *), &tmp)) {
             sparse_free(W);
             return SPARSE_ERR_ALLOC;
         }
     }
 
     /* Allocate outputs */
-    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
-    double *betas = calloc((size_t)k, sizeof(double));
-    double **vecs = calloc((size_t)k, sizeof(double *));
-    double *col_norms = calloc((size_t)n, sizeof(double));
-    double *dense_col = malloc((size_t)m * sizeof(double));  /* pivot column */
-    double *dense_col2 = malloc((size_t)m * sizeof(double)); /* reusable work column */
+    idx_t *perm = NULL;
+    double *betas = NULL;
+    double **vecs = NULL;
+    double *col_norms = NULL;
+    double *dense_col = NULL;  /* pivot column */
+    double *dense_col2 = NULL; /* reusable work column */
     SparseMatrix *R = NULL;
     sparse_err_t status = SPARSE_OK;
 
-    if (!perm || !betas || !vecs || !col_norms || !dense_col || !dense_col2) {
+    if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&perm) != SPARSE_OK ||
+        sparse_calloc_idx_array(k, sizeof(double), (void **)&betas) != SPARSE_OK ||
+        sparse_calloc_idx_array(k, sizeof(double *), (void **)&vecs) != SPARSE_OK ||
+        sparse_calloc_idx_array(n, sizeof(double), (void **)&col_norms) != SPARSE_OK ||
+        sparse_malloc_idx_array(m, sizeof(double), (void **)&dense_col) != SPARSE_OK ||
+        sparse_malloc_idx_array(m, sizeof(double), (void **)&dense_col2) != SPARSE_OK) {
         status = SPARSE_ERR_ALLOC;
         goto cleanup_colwise;
     }
@@ -253,8 +265,8 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
     /* Apply column reordering to perm and swap columns in W */
     if (col_reorder) {
         /* Build inverse permutation */
-        idx_t *inv = malloc((size_t)n * sizeof(idx_t));
-        if (!inv) {
+        idx_t *inv = NULL;
+        if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&inv) != SPARSE_OK) {
             status = SPARSE_ERR_ALLOC;
             goto cleanup_colwise;
         }
@@ -337,8 +349,8 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
 
             /* Swap columns in W: extract both, clear, reinsert swapped.
              * Use dense_col for one, dense_col2 for the other. */
-            memset(dense_col, 0, (size_t)m * sizeof(double));
-            memset(dense_col2, 0, (size_t)m * sizeof(double));
+            memset(dense_col, 0, m_size * sizeof(double));
+            memset(dense_col2, 0, m_size * sizeof(double));
             sparse_extract_column(W, step, dense_col);
             sparse_extract_column(W, best, dense_col2);
 

@@ -155,7 +155,7 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
     /* Compute fill-reducing permutation if requested */
     sparse_err_t err = SPARSE_OK;
     if (reorder != SPARSE_REORDER_NONE && n > 0) {
-        if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&analysis->perm) != SPARSE_OK) {
+        if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&analysis->perm) != SPARSE_OK) {
             sparse_analysis_free(analysis);
             return SPARSE_ERR_ALLOC;
         }
@@ -207,9 +207,8 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
         }
 
         /* Allocate etree and postorder work arrays. */
-        if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&analysis->etree) != SPARSE_OK ||
-            sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&analysis->postorder) !=
-                SPARSE_OK) {
+        if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&analysis->etree) != SPARSE_OK ||
+            sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&analysis->postorder) != SPARSE_OK) {
             sparse_free(B_perm);
             sparse_analysis_free(analysis);
             return SPARSE_ERR_ALLOC;

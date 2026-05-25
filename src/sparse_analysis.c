@@ -85,6 +85,7 @@ static supernodal_postorder_mode_t parse_supernodal_postorder(void) {
  * is the AMD-permuted matrix's po[k]-th column, which corresponds to
  * original column perm_in[po[k]]. */
 static sparse_err_t apply_supernodal_postorder(const idx_t *postorder, idx_t n, idx_t *perm) {
+    size_t tmp_bytes = 0;
     if (n < 0)
         return SPARSE_ERR_BADARG;
     if (n == 0)
@@ -93,7 +94,8 @@ static sparse_err_t apply_supernodal_postorder(const idx_t *postorder, idx_t n, 
         return SPARSE_ERR_NULL;
 
     idx_t *tmp = NULL;
-    if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&tmp) != SPARSE_OK)
+    if (sparse_idx_count_bytes_overflow(n, sizeof(idx_t), &tmp_bytes) ||
+        sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&tmp) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
 
     for (idx_t k = 0; k < n; k++) {
@@ -104,7 +106,7 @@ static sparse_err_t apply_supernodal_postorder(const idx_t *postorder, idx_t n, 
         }
         tmp[k] = perm[j];
     }
-    memcpy(perm, tmp, (size_t)n * sizeof(idx_t));
+    memcpy(perm, tmp, tmp_bytes);
     free(tmp);
     return SPARSE_OK;
 }

@@ -57,6 +57,9 @@ sparse_err_t dense_gemm(const dense_matrix_t *A, const dense_matrix_t *B, dense_
     idx_t m = A->rows;
     idx_t k = A->cols;
     idx_t n = B->cols;
+    size_t m_size = 0;
+    size_t k_size = 0;
+    size_t n_size = 0;
 
     /* Zero-sized matrices: C = 0 (any zero dimension means empty product) */
     if (m == 0 || k == 0 || n == 0) {
@@ -65,7 +68,8 @@ sparse_err_t dense_gemm(const dense_matrix_t *A, const dense_matrix_t *B, dense_
             size_t c_bytes = 0;
             if (!C->data)
                 return SPARSE_ERR_NULL;
-            if (sparse_size_mul_overflow((size_t)m, (size_t)n, &mn) ||
+            if (sparse_idx_to_size_checked(m, &m_size) || sparse_idx_to_size_checked(n, &n_size) ||
+                sparse_size_mul_overflow(m_size, n_size, &mn) ||
                 sparse_count_bytes_overflow(mn, sizeof(double), &c_bytes))
                 return SPARSE_ERR_ALLOC;
             memset(C->data, 0, c_bytes);
@@ -76,10 +80,14 @@ sparse_err_t dense_gemm(const dense_matrix_t *A, const dense_matrix_t *B, dense_
     if (!A->data || !B->data || !C->data)
         return SPARSE_ERR_NULL;
 
+    if (sparse_idx_to_size_checked(m, &m_size) || sparse_idx_to_size_checked(k, &k_size) ||
+        sparse_idx_to_size_checked(n, &n_size))
+        return SPARSE_ERR_ALLOC;
+
     /* Overflow-safe byte count for C */
     size_t mn = 0;
     size_t c_bytes = 0;
-    if (sparse_size_mul_overflow((size_t)m, (size_t)n, &mn) ||
+    if (sparse_size_mul_overflow(m_size, n_size, &mn) ||
         sparse_count_bytes_overflow(mn, sizeof(double), &c_bytes))
         return SPARSE_ERR_ALLOC;
 

@@ -143,12 +143,19 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
     if (bd->transposed) {
         idx_t mt = n; /* A^T dimensions */
         idx_t nt = m;
+        size_t mt_size = 0;
+        size_t nt_size = 0;
+        size_t k_size = 0;
+
+        if (sparse_idx_to_size_checked(mt, &mt_size) || sparse_idx_to_size_checked(nt, &nt_size) ||
+            sparse_idx_to_size_checked(k, &k_size))
+            return SPARSE_ERR_ALLOC;
 
         /* Overflow-checked sizes for mt*k and nt*k */
         size_t mt_k_elems, mt_k_bytes, nt_k_elems, nt_k_bytes;
-        if (sparse_size_mul_overflow((size_t)mt, (size_t)k, &mt_k_elems) ||
+        if (sparse_size_mul_overflow(mt_size, k_size, &mt_k_elems) ||
             sparse_size_mul_overflow(mt_k_elems, sizeof(double), &mt_k_bytes) ||
-            sparse_size_mul_overflow((size_t)nt, (size_t)k, &nt_k_elems) ||
+            sparse_size_mul_overflow(nt_size, k_size, &nt_k_elems) ||
             sparse_size_mul_overflow(nt_k_elems, sizeof(double), &nt_k_bytes))
             return SPARSE_ERR_ALLOC;
 
@@ -161,14 +168,14 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
                 return SPARSE_ERR_ALLOC;
             /* Start with I_k embedded in n×k */
             for (idx_t i = 0; i < k; i++)
-                Ut[(size_t)i * (size_t)mt + (size_t)i] = 1.0;
+                Ut[(size_t)i * mt_size + (size_t)i] = 1.0;
             /* Apply U-reflectors (for A^T) right-to-left */
             for (idx_t j = 0; j < k; j++) {
                 for (idx_t r = k - 1; r >= 0; r--) {
                     if (bd->u_betas[r] == 0.0)
                         continue;
                     idx_t len = mt - r;
-                    hh_apply(bd->u_vecs[r], bd->u_betas[r], &Ut[(size_t)j * (size_t)mt + (size_t)r],
+                    hh_apply(bd->u_vecs[r], bd->u_betas[r], &Ut[(size_t)j * mt_size + (size_t)r],
                              len);
                 }
             }
@@ -186,7 +193,7 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
                 return SPARSE_ERR_ALLOC;
             /* Start with I_k embedded in m×k */
             for (idx_t i = 0; i < k; i++)
-                Vt[(size_t)i * (size_t)nt + (size_t)i] = 1.0;
+                Vt[(size_t)i * nt_size + (size_t)i] = 1.0;
             /* Apply V-reflectors (for A^T) right-to-left to each column */
             for (idx_t j = 0; j < k; j++) {
                 for (idx_t r = nv - 1; r >= 0; r--) {
@@ -194,7 +201,7 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
                         continue;
                     idx_t len = nt - r - 1;
                     hh_apply(bd->v_vecs[r], bd->v_betas[r],
-                             &Vt[(size_t)j * (size_t)nt + (size_t)(r + 1)], len);
+                             &Vt[(size_t)j * nt_size + (size_t)(r + 1)], len);
                 }
             }
             /* Copy Vt (m×k) to U (m×k) */
@@ -207,13 +214,20 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
 
     /* Non-transposed case (m >= n): form U and V directly from reflectors */
 
+    size_t m_size = 0;
+    size_t n_size = 0;
+    size_t k_size = 0;
+    if (sparse_idx_to_size_checked(m, &m_size) || sparse_idx_to_size_checked(n, &n_size) ||
+        sparse_idx_to_size_checked(k, &k_size))
+        return SPARSE_ERR_ALLOC;
+
     /* Overflow-checked byte sizes for U (m×k) and V (n×k) */
     size_t mk_bytes, nk_bytes;
     {
         size_t mk_elems, nk_elems;
-        if (sparse_size_mul_overflow((size_t)m, (size_t)k, &mk_elems) ||
+        if (sparse_size_mul_overflow(m_size, k_size, &mk_elems) ||
             sparse_size_mul_overflow(mk_elems, sizeof(double), &mk_bytes) ||
-            sparse_size_mul_overflow((size_t)n, (size_t)k, &nk_elems) ||
+            sparse_size_mul_overflow(n_size, k_size, &nk_elems) ||
             sparse_size_mul_overflow(nk_elems, sizeof(double), &nk_bytes))
             return SPARSE_ERR_ALLOC;
     }
@@ -222,7 +236,7 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
     if (U) {
         memset(U, 0, mk_bytes);
         for (idx_t i = 0; i < k; i++)
-            U[(size_t)i * (size_t)m + (size_t)i] = 1.0;
+            U[(size_t)i * m_size + (size_t)i] = 1.0;
 
         for (idx_t j = 0; j < k; j++) {
             /* Apply reflectors right-to-left: U = H_0 * H_1 * ... * H_{k-1} */
@@ -230,7 +244,7 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
                 if (bd->u_betas[r] == 0.0)
                     continue;
                 idx_t len = m - r;
-                hh_apply(bd->u_vecs[r], bd->u_betas[r], &U[(size_t)j * (size_t)m + (size_t)r], len);
+                hh_apply(bd->u_vecs[r], bd->u_betas[r], &U[(size_t)j * m_size + (size_t)r], len);
             }
         }
     }
@@ -240,7 +254,7 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
         idx_t nv = (k > 1) ? k - 1 : 0;
         memset(V, 0, nk_bytes);
         for (idx_t i = 0; i < k; i++)
-            V[(size_t)i * (size_t)n + (size_t)i] = 1.0;
+            V[(size_t)i * n_size + (size_t)i] = 1.0;
 
         for (idx_t j = 0; j < k; j++) {
             /* Apply reflectors right-to-left */
@@ -248,7 +262,7 @@ sparse_err_t sparse_svd_extract_uv(const sparse_bidiag_t *bd, double *U, double 
                 if (bd->v_betas[r] == 0.0)
                     continue;
                 idx_t len = n - r - 1;
-                hh_apply(bd->v_vecs[r], bd->v_betas[r], &V[(size_t)j * (size_t)n + (size_t)(r + 1)],
+                hh_apply(bd->v_vecs[r], bd->v_betas[r], &V[(size_t)j * n_size + (size_t)(r + 1)],
                          len);
             }
         }

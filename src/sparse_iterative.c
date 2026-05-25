@@ -186,16 +186,19 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
     }
 
     /* Allocate workspace: r, z, p, Ap (4 vectors of length n) */
+    size_t n_size = 0;
+    if (sparse_idx_to_size_checked(n, &n_size))
+        return SPARSE_ERR_ALLOC;
     size_t work_count = 0;
-    if (sparse_size_mul_overflow((size_t)n, 4, &work_count))
+    if (sparse_size_mul_overflow(n_size, 4, &work_count))
         return SPARSE_ERR_ALLOC;
     double *work = NULL;
     if (sparse_malloc_array(work_count, sizeof(double), (void **)&work) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
     double *r = work;
-    double *z = work + n;
-    double *p = work + 2 * n;
-    double *Ap = work + 3 * n;
+    double *z = work + n_size;
+    double *p = work + 2 * n_size;
+    double *Ap = work + 3 * n_size;
 
     stag_tracker_t stag;
     if (stag_init(&stag, o->stagnation_window) != SPARSE_OK) {

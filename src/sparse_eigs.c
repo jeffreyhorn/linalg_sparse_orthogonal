@@ -286,8 +286,10 @@ sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, cons
      * Overflow-check `n * sizeof(double)` so a pathological n on a
      * 32-bit size_t target fails cleanly rather than undersizing w
      * and corrupting memory in the recurrence loop below. */
+    size_t n_size = 0;
     size_t w_bytes = 0;
-    if (sparse_size_mul_overflow((size_t)n, sizeof(double), &w_bytes))
+    if (sparse_idx_to_size_checked(n, &n_size) ||
+        sparse_size_mul_overflow(n_size, sizeof(double), &w_bytes))
         return SPARSE_ERR_ALLOC;
     double *w = malloc(w_bytes);
     if (!w)

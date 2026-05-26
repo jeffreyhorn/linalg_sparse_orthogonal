@@ -1507,3 +1507,83 @@ compatibility-facing lifecycle misuse cases:
 
 That closes the bounded Day 11 test plan without widening Sprint 42 beyond its
 internal-handle / compatibility-scaffolding scope.
+
+## Day 13 - Full validation sweep
+
+Date: 2026-05-26
+
+### Summary
+
+Ran the full Sprint 42 validation sweep and rechecked the Sprint 40/Sprint 41
+truthfulness anchors after the Day 5 through Day 12 lifecycle-scaffolding
+changes.
+
+### Commands run
+
+Because Sprint 42 changed `*.c` and `*.h` files earlier in the sprint, the
+authoritative Day 13 sweep used the full validation floor plus the stronger
+reviewed wrapper:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+### Results
+
+- `make format`: passed
+  - `real 3.46`
+- `make lint`: passed
+  - `real 335.40`
+- `make test`: passed
+  - `real 95.92`
+- `make quality-review-full`: passed
+  - `real 781.65`
+
+Reviewed-CMake parity anchors remained exact:
+
+- `ctest -N --test-dir build/quality-review-cmake`: `53`
+- Makefile/CMake test-count parity: `53` vs `53`
+- full reviewed CMake `ctest`: `53 / 53` passed
+- `Total Test time (real) = 194.63 sec`
+
+The focused Day 12 lifecycle misuse regressions also remained live under the
+authoritative test sweep:
+
+- `test_analyze_rejects_factored_matrix`
+- `test_factor_numeric_rejects_nonidentity_row_col_state`
+- `test_qr_rejects_factored_matrix_reuse`
+- `test_svd_rejects_factored_matrix_reuse`
+
+### Interpretation
+
+Sprint 42's internal-handle scaffolding and guard-helper changes stayed
+behavior-compatible under the maintained baseline:
+
+- strongest local reviewed baseline still passes through
+  `make quality-review-full`
+- reviewed CMake parity remains stable at `53` tests
+- the new internal factor-state seam did not create a parity drift between the
+  direct Makefile path and the reviewed CMake path
+- the focused lifecycle misuse coverage added on Day 12 remains green inside
+  both the direct local suite and the reviewed wrapper
+
+### Reconciliation notes
+
+No new reconciliation queue surfaced from Day 13.
+
+The only notable operational detail was routine rather than corrective:
+
+- `quality-review-full` already exercised `deadcode-check` as part of the
+  reviewed local path, so no extra standalone dead-code rerun was needed for
+  this sprint's validation story
+
+### Day 13 conclusion
+
+Sprint 42 now has a measured, current validation anchor for the full
+internal-handle / compatibility-scaffolding batch:
+
+- direct validation floor: green
+- strongest reviewed local baseline: green
+- reviewed CMake parity: unchanged and exact
+- new lifecycle misuse regressions: green

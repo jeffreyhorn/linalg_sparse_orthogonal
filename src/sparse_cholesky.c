@@ -82,10 +82,13 @@ static sparse_err_t sparse_cholesky_factor_inner(SparseMatrix *mat,
         return SPARSE_ERR_SHAPE;
     if (n == 0)
         return SPARSE_OK;
+    sparse_err_t payload_err = sparse_factor_state_bind_cholesky(mat);
+    if (payload_err != SPARSE_OK)
+        return payload_err;
 
     /* Clear factored flag immediately so an aborted factorization
      * cannot leave a stale 'factored' state. */
-    mat->factored = 0;
+    sparse_factor_state_set_factored(mat, 0);
 
     /* Validate symmetry before allocating or modifying anything */
     if (!sparse_is_symmetric(mat, 1e-12))
@@ -96,7 +99,7 @@ static sparse_err_t sparse_cholesky_factor_inner(SparseMatrix *mat,
     sparse_err_t nerr = sparse_norminf(mat, &anorm);
     if (nerr != SPARSE_OK)
         return nerr;
-    mat->factor_norm = anorm;
+    sparse_factor_state_set_factor_norm(mat, anorm);
 
     /* Dense accumulator for column k (indices k..n-1) */
     double *col_acc = calloc((size_t)n, sizeof(double));
@@ -238,7 +241,7 @@ static sparse_err_t sparse_cholesky_factor_inner(SparseMatrix *mat,
     free(col_acc);
     free(nz_row);
     free(nz_rows);
-    mat->factored = 1;
+    sparse_factor_state_set_factored(mat, 1);
     return SPARSE_OK;
 }
 
@@ -320,7 +323,7 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
         mat->pool = PA->pool;
         mat->nnz = PA->nnz;
         mat->cached_norm = PA->cached_norm;
-        mat->factor_norm = -1.0; /* reset: not Cholesky-factored */
+        sparse_factor_state_set_factor_norm(mat, -1.0); /* reset: not Cholesky-factored */
 
         PA->row_headers = NULL;
         PA->col_headers = NULL;
@@ -411,7 +414,7 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
 sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat, const double *b, double *x) {
     if (!mat || !b || !x)
         return SPARSE_ERR_NULL;
-    if (!mat->factored)
+    if (!sparse_factor_state_is_factored(mat))
         return SPARSE_ERR_BADARG;
     idx_t n = mat->rows;
     const idx_t *rperm = mat->reorder_perm;
@@ -441,7 +444,8 @@ sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat, const double *b, dou
     /* Singularity threshold: relative to ||L||_inf ≈ sqrt(||A||_inf).
      * L entries scale as sqrt of A entries in Cholesky, so use the
      * square root of the original matrix norm as reference. */
-    double l_norm = (mat->factor_norm > 0.0) ? sqrt(mat->factor_norm) : 0.0;
+    double factor_norm = sparse_factor_state_factor_norm(mat);
+    double l_norm = (factor_norm > 0.0) ? sqrt(factor_norm) : 0.0;
     double sing_tol = sparse_rel_tol(l_norm, DROP_TOL);
 
     /* Forward substitution: solve L*y = b_eff

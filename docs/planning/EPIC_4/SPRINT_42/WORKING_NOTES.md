@@ -513,3 +513,96 @@ Interpretation:
 - the guard layer should preserve current error semantics
 - its purpose is to normalize implementation and wording drift, not change the
   public contract in Sprint 42
+
+## Day 5 - Internal handle scaffolding batch 1
+
+### What I changed
+
+Day 5 moved from design to the first real internal lifecycle-handle landing.
+The batch stayed intentionally narrow and internal-first:
+
+- added a private factor-state seam in:
+  - `src/sparse_factor_state_internal.c`
+  - `src/sparse_matrix_internal.h`
+- added private factor-state storage to `SparseMatrix`
+- wired matrix create / copy / free / invalidation to the new seam in
+  `src/sparse_matrix.c`
+- migrated the linked-list LU path in `src/sparse_lu.c` onto the seam
+- migrated the linked-list Cholesky path in `src/sparse_cholesky.c` onto the
+  seam
+- added the new helper source to:
+  - `Makefile`
+  - `CMakeLists.txt`
+
+The important boundary held:
+
+- public APIs did not change
+- `factored` and `factor_norm` remain compatibility-visible matrix fields
+- the new seam is internal ownership scaffolding, not a public handle rollout
+
+### What the new seam does
+
+The private layer now provides:
+
+- LU / Cholesky factor-state binding
+- compatibility-preserving publication of:
+  - factored state
+  - factor norm
+- clone support for `sparse_copy()`
+- clear/reset support for touched matrix mutation paths
+
+Interpretation:
+
+- Sprint 42 now has a real first-phase handle seam instead of another design
+  note
+- later guard-helper and bridge-normalization work can build on a live internal
+  ownership object
+
+### Validation and one important operational caveat
+
+Because `*.c` / `*.h` changed, I ran the required full gate:
+
+- `make format`
+- `make lint`
+- `make test`
+
+The first `make test` pass failed in `test_chol_csc` writeback round-trip
+coverage, but the failure was not a real Day 5 logic regression.
+
+Root cause:
+
+- Day 5 changed the private `SparseMatrix` layout
+- the local incremental build did not rebuild every consumer of
+  `src/sparse_matrix_internal.h`
+- `src/sparse_chol_csc.c` was still linked against the pre-Day-5 layout during
+  that first pass
+
+I verified this directly, then reran the authoritative validation from a clean
+tree:
+
+- `make clean`
+- `make format`
+- `make lint`
+- `make test`
+
+Authoritative result:
+
+- all passed
+
+Interpretation:
+
+- the Day 5 code batch is valid
+- the only snag was stale-object local validation after a private struct-layout
+  change
+- Sprint 42 should treat the clean rebuild result as authoritative
+
+### Day 5 conclusion
+
+Day 5 landed the intended Sprint 42 ownership seam:
+
+- LU and Cholesky now publish factor-state through a shared private layer
+- matrix lifecycle operations understand that layer
+- the Sprint 40 architecture contract is still preserved:
+  - internal-first
+  - compatibility-preserving
+  - no premature public lifecycle/API churn

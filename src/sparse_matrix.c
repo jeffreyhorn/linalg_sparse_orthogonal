@@ -91,6 +91,7 @@ SparseMatrix *sparse_create(idx_t rows, idx_t cols) {
     mat->cached_norm = -1.0;
     mat->factor_norm = -1.0;
     mat->factored = 0;
+    mat->factor_state = NULL;
     mat->reorder_perm = NULL;
 
     mat->row_headers = calloc((size_t)rows, sizeof(Node *));
@@ -152,6 +153,7 @@ void sparse_free(SparseMatrix *mat) {
     free(mat->inv_row_perm);
     free(mat->col_perm);
     free(mat->inv_col_perm);
+    free(mat->factor_state);
     free(mat->reorder_perm);
 #ifdef SPARSE_MUTEX
     pthread_mutex_destroy(&mat->mtx);
@@ -189,6 +191,10 @@ SparseMatrix *sparse_copy(const SparseMatrix *mat) {
     copy->cached_norm = mat->cached_norm;
     copy->factor_norm = mat->factor_norm;
     copy->factored = mat->factored;
+    if (sparse_factor_state_clone(copy, mat) != SPARSE_OK) {
+        sparse_free(copy);
+        return NULL;
+    }
 
     /* Copy reorder permutation if present */
     if (mat->reorder_perm) {
@@ -237,7 +243,7 @@ sparse_err_t sparse_insert(SparseMatrix *mat, idx_t row, idx_t col, double val) 
         return SPARSE_ERR_BOUNDS;
 
     SPARSE_LOCK(mat);
-    mat->factored = 0;
+    sparse_factor_state_set_factored(mat, 0);
 
     if (val == 0.0) {
         sparse_err_t err = sparse_remove_internal(mat, row, col);
@@ -336,8 +342,7 @@ sparse_err_t sparse_remove(SparseMatrix *mat, idx_t row, idx_t col) {
     if (row < 0 || row >= mat->rows || col < 0 || col >= mat->cols)
         return SPARSE_ERR_BOUNDS;
     SPARSE_LOCK(mat);
-    mat->factored = 0;
-    mat->factor_norm = -1.0;
+    sparse_factor_state_clear(mat);
     sparse_err_t err = sparse_remove_internal(mat, row, col);
     SPARSE_UNLOCK(mat);
     return err;
@@ -481,14 +486,14 @@ sparse_err_t sparse_mark_factored(SparseMatrix *mat) {
     if (mat->rows != mat->cols)
         return SPARSE_ERR_SHAPE;
     /* Compute factor_norm if not already set */
-    if (mat->factor_norm < 0.0) {
+    if (sparse_factor_state_factor_norm(mat) < 0.0) {
         double norm;
         sparse_err_t err = sparse_norminf(mat, &norm);
         if (err != SPARSE_OK)
             return err;
-        mat->factor_norm = norm;
+        sparse_factor_state_set_factor_norm(mat, norm);
     }
-    mat->factored = 1;
+    sparse_factor_state_set_factored(mat, 1);
     return SPARSE_OK;
 }
 
@@ -523,8 +528,7 @@ sparse_err_t sparse_scale(SparseMatrix *mat, double alpha) {
     }
 
     mat->cached_norm = -1.0;
-    mat->factored = 0;
-    mat->factor_norm = -1.0;
+    sparse_factor_state_clear(mat);
     return SPARSE_OK;
 }
 
@@ -609,8 +613,7 @@ sparse_err_t sparse_add_inplace(SparseMatrix *A, const SparseMatrix *B, double a
 
     /* Invalidate cache early: A will be mutated even on partial failure */
     A->cached_norm = -1.0;
-    A->factored = 0;
-    A->factor_norm = -1.0;
+    sparse_factor_state_clear(A);
 
     /* Scale A by alpha */
     if (alpha != 1.0) {

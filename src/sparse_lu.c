@@ -69,10 +69,13 @@ static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t piv
     idx_t n = mat->rows;
     if (n != mat->cols)
         return SPARSE_ERR_SHAPE;
+    sparse_err_t payload_err = sparse_factor_state_bind_lu(mat);
+    if (payload_err != SPARSE_OK)
+        return payload_err;
 
     /* Clear factored flag immediately so an aborted factorization
      * (e.g., singular pivot) cannot leave a stale 'factored' state. */
-    mat->factored = 0;
+    sparse_factor_state_set_factored(mat, 0);
 
     /*
      * Temporary buffer for collecting rows to eliminate.
@@ -90,7 +93,7 @@ static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t piv
         free(elim_rows);
         return nerr;
     }
-    mat->factor_norm = anorm;
+    sparse_factor_state_set_factor_norm(mat, anorm);
 
     double phase_start_s = progress_cb ? s29_now_s() : 0.0;
 
@@ -235,7 +238,7 @@ static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t piv
     }
 
     free(elim_rows);
-    mat->factored = 1;
+    sparse_factor_state_set_factored(mat, 1);
     return SPARSE_OK;
 }
 
@@ -333,7 +336,7 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
 sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat, const double *b, double *x) {
     if (!mat || !b || !x)
         return SPARSE_ERR_NULL;
-    if (!mat->factored)
+    if (!sparse_factor_state_is_factored(mat))
         return SPARSE_ERR_BADARG;
     idx_t n = mat->rows;
     const idx_t *rperm = mat->reorder_perm;
@@ -387,7 +390,8 @@ sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat, const double *b,
                 sum += node->value * d[log_j];
             node = node->down;
         }
-        double sing_tol = (mat->factor_norm > 0.0) ? DROP_TOL * mat->factor_norm : DROP_TOL;
+        double factor_norm = sparse_factor_state_factor_norm(mat);
+        double sing_tol = (factor_norm > 0.0) ? DROP_TOL * factor_norm : DROP_TOL;
         if (fabs(u_ii) < sing_tol) {
             free(c);
             free(d);
@@ -456,7 +460,7 @@ sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig, const SparseMatrix 
     if (!mat_orig || !mat_lu || !condest)
         return SPARSE_ERR_NULL;
     /* Check that mat_lu has been factored */
-    if (!mat_lu->factored)
+    if (!sparse_factor_state_is_factored(mat_lu))
         return SPARSE_ERR_BADARG;
     /* Check dimensions match and are square */
     if (mat_orig->rows != mat_orig->cols)
@@ -633,7 +637,8 @@ sparse_err_t sparse_backward_sub(const SparseMatrix *mat, const double *y, doubl
         }
 
         /* Use relative tolerance if factor_norm is available, else absolute */
-        double sing_tol = (mat->factor_norm > 0.0) ? DROP_TOL * mat->factor_norm : DROP_TOL;
+        double factor_norm = sparse_factor_state_factor_norm(mat);
+        double sing_tol = (factor_norm > 0.0) ? DROP_TOL * factor_norm : DROP_TOL;
         if (fabs(u_ii) < sing_tol)
             return SPARSE_ERR_SINGULAR;
 
@@ -648,7 +653,7 @@ sparse_err_t sparse_backward_sub(const SparseMatrix *mat, const double *y, doubl
 sparse_err_t sparse_lu_solve(const SparseMatrix *mat, const double *b, double *x) {
     if (!mat || !b || !x)
         return SPARSE_ERR_NULL;
-    if (!mat->factored)
+    if (!sparse_factor_state_is_factored(mat))
         return SPARSE_ERR_BADARG;
     idx_t n = mat->rows;
     const idx_t *rperm = mat->reorder_perm;
@@ -723,7 +728,7 @@ sparse_err_t sparse_lu_solve_block(const SparseMatrix *mat, const double *B, idx
                                    double *X) {
     if (!mat || !B || !X)
         return SPARSE_ERR_NULL;
-    if (!mat->factored)
+    if (!sparse_factor_state_is_factored(mat))
         return SPARSE_ERR_BADARG;
     if (nrhs < 0)
         return SPARSE_ERR_BADARG;
@@ -790,7 +795,8 @@ sparse_err_t sparse_lu_solve_block(const SparseMatrix *mat, const double *B, idx
 
     /* Step 3: Backward substitution — U*Z = Y.
      * For each row i (reverse), traverse once and update all nrhs vectors. */
-    double sing_tol = (mat->factor_norm > 0.0) ? DROP_TOL * mat->factor_norm : DROP_TOL;
+    double factor_norm = sparse_factor_state_factor_norm(mat);
+    double sing_tol = (factor_norm > 0.0) ? DROP_TOL * factor_norm : DROP_TOL;
 
     for (idx_t i = n - 1; i >= 0; i--) {
         /* Initialize Z[i,k] = Y[i,k] */
@@ -849,7 +855,7 @@ sparse_err_t sparse_lu_refine(const SparseMatrix *mat_orig, const SparseMatrix *
                               const double *b, double *x, int max_iters, double tol) {
     if (!mat_orig || !mat_lu || !b || !x)
         return SPARSE_ERR_NULL;
-    if (!mat_lu->factored)
+    if (!sparse_factor_state_is_factored(mat_lu))
         return SPARSE_ERR_BADARG;
     idx_t n = mat_orig->rows;
 

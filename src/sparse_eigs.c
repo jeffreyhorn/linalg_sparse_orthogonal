@@ -52,6 +52,7 @@
 
 #include "sparse_eigs.h"
 
+#include "sparse_alloc_internal.h"
 #include "sparse_dense.h"
 #include "sparse_eigs_internal.h"
 #include "sparse_ldlt.h"
@@ -148,15 +149,6 @@ static void s21_mgs_reorth(double *w, const double *V, idx_t n, idx_t k_stored) 
         for (idx_t i = 0; i < n; i++)
             w[i] -= dot * v_j[i];
     }
-}
-
-/* Portable overflow-safe multiplication: returns 0 on success, 1 on overflow.
- * Mirrors the helper in sparse_qr.c / sparse_svd.c. */
-static int size_mul_overflow(size_t a, size_t b, size_t *result) {
-    if (a != 0 && b > SIZE_MAX / a)
-        return 1;
-    *result = a * b;
-    return 0;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -294,8 +286,10 @@ sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, cons
      * Overflow-check `n * sizeof(double)` so a pathological n on a
      * 32-bit size_t target fails cleanly rather than undersizing w
      * and corrupting memory in the recurrence loop below. */
+    size_t n_size = 0;
     size_t w_bytes = 0;
-    if (size_mul_overflow((size_t)n, sizeof(double), &w_bytes))
+    if (sparse_idx_to_size_checked(n, &n_size) ||
+        sparse_size_mul_overflow(n_size, sizeof(double), &w_bytes))
         return SPARSE_ERR_ALLOC;
     double *w = malloc(w_bytes);
     if (!w)
@@ -1078,38 +1072,52 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     if (m_grow_wide > (int64_t)m_cap)
         m_grow_wide = (int64_t)m_cap;
     idx_t m_grow = (idx_t)m_grow_wide;
+    size_t n_size = 0;
+    size_t m_cap_size = 0;
+    size_t k_size = 0;
+    if (sparse_idx_to_size_checked(n, &n_size) || sparse_idx_to_size_checked(m_cap, &m_cap_size) ||
+        sparse_idx_to_size_checked(k, &k_size)) {
+        sparse_ldlt_free(&ldlt_shift);
+        sparse_free(A_shifted);
+        return SPARSE_ERR_ALLOC;
+    }
 
     /* Allocate workspace for the upper-bound Lanczos size so the
      * grow-on-retry path never reallocates.  Y_cap is m_cap × m_cap
      * (eigenvectors of T) — quadratic in m_cap but fine for the
      * practical m_cap we land on.  The multi-factor sizes (V, Y_long)
-     * are validated with `size_mul_overflow` so a pathological
+     * are validated with `sparse_size_mul_overflow` so a pathological
      * (n, m_cap) pair on a 32-bit size_t target fails cleanly with
      * SPARSE_ERR_ALLOC rather than undersizing a buffer; calloc()
      * handles its own nmemb*size overflow internally. */
     size_t v_elems = 0, v_bytes = 0;
     size_t y_elems = 0;
     size_t sel_idx_bytes = 0;
-    if (size_mul_overflow((size_t)n, (size_t)m_cap, &v_elems) ||
-        size_mul_overflow(v_elems, sizeof(double), &v_bytes) ||
-        size_mul_overflow((size_t)m_cap, (size_t)m_cap, &y_elems) ||
-        size_mul_overflow((size_t)k, sizeof(idx_t), &sel_idx_bytes)) {
+    if (sparse_size_mul_overflow(n_size, m_cap_size, &v_elems) ||
+        sparse_size_mul_overflow(v_elems, sizeof(double), &v_bytes) ||
+        sparse_size_mul_overflow(m_cap_size, m_cap_size, &y_elems) ||
+        sparse_size_mul_overflow(k_size, sizeof(idx_t), &sel_idx_bytes)) {
         sparse_ldlt_free(&ldlt_shift);
         sparse_free(A_shifted);
         return SPARSE_ERR_ALLOC;
     }
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
     double *V = malloc(v_bytes);
-    double *alpha = malloc((size_t)m_cap * sizeof(double));
-    double *beta = malloc((size_t)m_cap * sizeof(double));
-    double *v0 = calloc((size_t)n, sizeof(double));
-    double *theta_long = calloc((size_t)m_cap, sizeof(double));
-    double *subdiag = malloc((size_t)m_cap * sizeof(double));
+    double *alpha = NULL;
+    double *beta = NULL;
+    double *v0 = calloc(n_size, sizeof(double));
+    double *theta_long = calloc(m_cap_size, sizeof(double));
+    double *subdiag = NULL;
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
     double *Y_long = calloc(y_elems, sizeof(double));
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
     idx_t *sel_idx = malloc(sel_idx_bytes);
-    if (!V || !alpha || !beta || !v0 || !theta_long || !subdiag || !Y_long || !sel_idx) {
+    sparse_err_t alloc_err = sparse_malloc_array(m_cap_size, sizeof(double), (void **)&alpha);
+    if (alloc_err == SPARSE_OK)
+        alloc_err = sparse_malloc_array(m_cap_size, sizeof(double), (void **)&beta);
+    if (alloc_err == SPARSE_OK)
+        alloc_err = sparse_malloc_array(m_cap_size, sizeof(double), (void **)&subdiag);
+    if (!V || alloc_err != SPARSE_OK || !v0 || !theta_long || !Y_long || !sel_idx) {
         free(V);
         free(alpha);
         free(beta);
@@ -1458,8 +1466,8 @@ sparse_err_t s21_arrowhead_to_tridiag(const double *theta_locked, const double *
 
     /* Dense K×K scratch.  Overflow-check K*K*sizeof(double). */
     size_t K2 = 0, K2_bytes = 0;
-    if (size_mul_overflow((size_t)K, (size_t)K, &K2) ||
-        size_mul_overflow(K2, sizeof(double), &K2_bytes))
+    if (sparse_size_mul_overflow((size_t)K, (size_t)K, &K2) ||
+        sparse_size_mul_overflow(K2, sizeof(double), &K2_bytes))
         return SPARSE_ERR_ALLOC;
     double *T = calloc(K2, sizeof(double));
     if (!T) {
@@ -1681,8 +1689,8 @@ sparse_err_t lanczos_restart_state_assemble(lanczos_restart_state_t *state, idx_
      * allocated separately below. */
     if (k_locked > state->k_locked_cap) {
         size_t v_elems = 0, v_bytes = 0;
-        if (size_mul_overflow((size_t)n, (size_t)k_locked, &v_elems) ||
-            size_mul_overflow(v_elems, sizeof(double), &v_bytes))
+        if (sparse_size_mul_overflow((size_t)n, (size_t)k_locked, &v_elems) ||
+            sparse_size_mul_overflow(v_elems, sizeof(double), &v_bytes))
             return SPARSE_ERR_ALLOC;
         // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
         double *new_V = malloc(v_bytes);
@@ -1837,7 +1845,7 @@ sparse_err_t lanczos_thick_restart_iterate(lanczos_op_fn op, const void *ctx, id
      * MGS reorth against V[:, 0..k) at each step handles the
      * arrowhead-spoke subtraction implicitly. */
     size_t w_bytes = 0;
-    if (size_mul_overflow((size_t)n, sizeof(double), &w_bytes))
+    if (sparse_idx_count_bytes_overflow(n, sizeof(double), &w_bytes))
         return SPARSE_ERR_ALLOC;
     double *w = malloc(w_bytes);
     if (!w)
@@ -2176,12 +2184,12 @@ static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *c
     size_t v_elems = 0, v_bytes = 0;
     size_t K2 = 0, K2_bytes = 0;
     size_t vk_elems = 0, vk_bytes = 0;
-    if (size_mul_overflow((size_t)n, (size_t)m_restart, &v_elems) ||
-        size_mul_overflow(v_elems, sizeof(double), &v_bytes) ||
-        size_mul_overflow((size_t)m_restart, (size_t)m_restart, &K2) ||
-        size_mul_overflow(K2, sizeof(double), &K2_bytes) ||
-        size_mul_overflow((size_t)n, (size_t)k, &vk_elems) ||
-        size_mul_overflow(vk_elems, sizeof(double), &vk_bytes))
+    if (sparse_size_mul_overflow((size_t)n, (size_t)m_restart, &v_elems) ||
+        sparse_size_mul_overflow(v_elems, sizeof(double), &v_bytes) ||
+        sparse_size_mul_overflow((size_t)m_restart, (size_t)m_restart, &K2) ||
+        sparse_size_mul_overflow(K2, sizeof(double), &K2_bytes) ||
+        sparse_size_mul_overflow((size_t)n, (size_t)k, &vk_elems) ||
+        sparse_size_mul_overflow(vk_elems, sizeof(double), &vk_bytes))
         return SPARSE_ERR_ALLOC;
 
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
@@ -2645,12 +2653,12 @@ sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_
      * cap ≤ 3·bs.  Single sparse_err_t propagation site below
      * via goto cleanup. */
     size_t nc_bytes = 0, cc_bytes = 0, nb_bytes = 0;
-    if (size_mul_overflow((size_t)n, (size_t)cap, &nc_bytes) ||
-        size_mul_overflow(nc_bytes, sizeof(double), &nc_bytes) ||
-        size_mul_overflow((size_t)cap, (size_t)cap, &cc_bytes) ||
-        size_mul_overflow(cc_bytes, sizeof(double), &cc_bytes) ||
-        size_mul_overflow((size_t)n, (size_t)block_size, &nb_bytes) ||
-        size_mul_overflow(nb_bytes, sizeof(double), &nb_bytes))
+    if (sparse_size_mul_overflow((size_t)n, (size_t)cap, &nc_bytes) ||
+        sparse_size_mul_overflow(nc_bytes, sizeof(double), &nc_bytes) ||
+        sparse_size_mul_overflow((size_t)cap, (size_t)cap, &cc_bytes) ||
+        sparse_size_mul_overflow(cc_bytes, sizeof(double), &cc_bytes) ||
+        sparse_size_mul_overflow((size_t)n, (size_t)block_size, &nb_bytes) ||
+        sparse_size_mul_overflow(nb_bytes, sizeof(double), &nb_bytes))
         return SPARSE_ERR_ALLOC;
 
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
@@ -2910,8 +2918,8 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
     /* Workspace allocation.  Single sparse_err_t propagation via
      * goto cleanup; mirrors the thick-restart outer loop's pattern. */
     size_t nb_bytes = 0;
-    if (size_mul_overflow((size_t)n, (size_t)bs, &nb_bytes) ||
-        size_mul_overflow(nb_bytes, sizeof(double), &nb_bytes))
+    if (sparse_size_mul_overflow((size_t)n, (size_t)bs, &nb_bytes) ||
+        sparse_size_mul_overflow(nb_bytes, sizeof(double), &nb_bytes))
         return SPARSE_ERR_ALLOC;
 
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)

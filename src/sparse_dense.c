@@ -1,20 +1,14 @@
 #include "sparse_dense.h"
+#include "sparse_alloc_internal.h"
 #include "sparse_matrix_internal.h"
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* Portable overflow-safe multiplication: returns 0 on success, 1 on overflow.
- * Mirrors the helper in sparse_qr.c / sparse_svd.c / sparse_eigs.c. */
-static int size_mul_overflow(size_t a, size_t b, size_t *result) {
-    if (a != 0 && b > SIZE_MAX / a)
-        return 1;
-    *result = a * b;
-    return 0;
-}
-
 dense_matrix_t *dense_create(idx_t rows, idx_t cols) {
+    size_t rows_size = 0;
+    size_t cols_size = 0;
     if (rows < 0 || cols < 0)
         return NULL;
 
@@ -30,22 +24,17 @@ dense_matrix_t *dense_create(idx_t rows, idx_t cols) {
         return M;
     }
 
-    /* Overflow check: rows*cols and rows*cols*sizeof(double) */
-    size_t n = (size_t)rows * (size_t)cols;
-    if (cols > 0 && n / (size_t)cols != (size_t)rows) {
+    /* Shared helper path: validate rows*cols and allocate dense storage. */
+    size_t n = 0;
+    void *data = NULL;
+    if (sparse_idx_to_size_checked(rows, &rows_size) ||
+        sparse_idx_to_size_checked(cols, &cols_size) ||
+        sparse_size_mul_overflow(rows_size, cols_size, &n) ||
+        sparse_calloc_array(n, sizeof(double), &data) != SPARSE_OK) {
         free(M);
         return NULL;
     }
-    if (n > SIZE_MAX / sizeof(double)) {
-        free(M);
-        return NULL;
-    }
-
-    M->data = calloc(n, sizeof(double));
-    if (!M->data) {
-        free(M);
-        return NULL;
-    }
+    M->data = data;
 
     return M;
 }
@@ -68,18 +57,22 @@ sparse_err_t dense_gemm(const dense_matrix_t *A, const dense_matrix_t *B, dense_
     idx_t m = A->rows;
     idx_t k = A->cols;
     idx_t n = B->cols;
+    size_t m_size = 0;
+    size_t k_size = 0;
+    size_t n_size = 0;
 
     /* Zero-sized matrices: C = 0 (any zero dimension means empty product) */
     if (m == 0 || k == 0 || n == 0) {
         if (m > 0 && n > 0) {
+            size_t mn = 0;
+            size_t c_bytes = 0;
             if (!C->data)
                 return SPARSE_ERR_NULL;
-            size_t mn = (size_t)m * (size_t)n;
-            if (mn / (size_t)n != (size_t)m)
+            if (sparse_idx_to_size_checked(m, &m_size) || sparse_idx_to_size_checked(n, &n_size) ||
+                sparse_size_mul_overflow(m_size, n_size, &mn) ||
+                sparse_count_bytes_overflow(mn, sizeof(double), &c_bytes))
                 return SPARSE_ERR_ALLOC;
-            if (mn > SIZE_MAX / sizeof(double))
-                return SPARSE_ERR_ALLOC;
-            memset(C->data, 0, mn * sizeof(double));
+            memset(C->data, 0, c_bytes);
         }
         return SPARSE_OK;
     }
@@ -87,15 +80,19 @@ sparse_err_t dense_gemm(const dense_matrix_t *A, const dense_matrix_t *B, dense_
     if (!A->data || !B->data || !C->data)
         return SPARSE_ERR_NULL;
 
-    /* Overflow-safe byte count for C */
-    size_t mn = (size_t)m * (size_t)n;
-    if (n > 0 && mn / (size_t)n != (size_t)m)
+    if (sparse_idx_to_size_checked(m, &m_size) || sparse_idx_to_size_checked(k, &k_size) ||
+        sparse_idx_to_size_checked(n, &n_size))
         return SPARSE_ERR_ALLOC;
-    if (mn > SIZE_MAX / sizeof(double))
+
+    /* Overflow-safe byte count for C */
+    size_t mn = 0;
+    size_t c_bytes = 0;
+    if (sparse_size_mul_overflow(m_size, n_size, &mn) ||
+        sparse_count_bytes_overflow(mn, sizeof(double), &c_bytes))
         return SPARSE_ERR_ALLOC;
 
     /* Zero C */
-    memset(C->data, 0, mn * sizeof(double));
+    memset(C->data, 0, c_bytes);
 
     /* C(i,j) = sum_p A(i,p) * B(p,j)
      * Column-major: loop over j (output column), then p, then i for cache. */
@@ -119,14 +116,17 @@ sparse_err_t dense_gemv(const dense_matrix_t *A, const double *x, double *y) {
 
     idx_t m = A->rows;
     idx_t n = A->cols;
+    size_t m_size = 0;
 
     if (m == 0)
         return SPARSE_OK;
+    if (sparse_idx_to_size_checked(m, &m_size))
+        return SPARSE_ERR_ALLOC;
 
     /* Overflow check for m * sizeof(double) */
-    if ((size_t)m > SIZE_MAX / sizeof(double))
+    size_t y_bytes = 0;
+    if (sparse_count_bytes_overflow(m_size, sizeof(double), &y_bytes))
         return SPARSE_ERR_ALLOC;
-    size_t y_bytes = (size_t)m * sizeof(double);
 
     if (n == 0) {
         /* A is m×0: y should be the zero vector */
@@ -421,16 +421,17 @@ sparse_err_t tridiag_qr_eigenpairs(double *diag, double *subdiag, double *Q, idx
      * memcpy / malloc.  For very large n on a 32-bit size_t target
      * (or any target where n² overflows size_t) this prevents the
      * silent undersized buffer that would follow. */
+    size_t n_size = 0;
     size_t n2 = 0;
     size_t n2_bytes = 0;
-    if (size_mul_overflow((size_t)n, (size_t)n, &n2) ||
-        size_mul_overflow(n2, sizeof(double), &n2_bytes))
+    if (sparse_idx_to_size_checked(n, &n_size) || sparse_size_mul_overflow(n_size, n_size, &n2) ||
+        sparse_size_mul_overflow(n2, sizeof(double), &n2_bytes))
         return SPARSE_ERR_ALLOC;
 
     /* Initialise Q = I_n. */
     memset(Q, 0, n2_bytes);
     for (idx_t i = 0; i < n; i++)
-        Q[(size_t)i * (size_t)n + (size_t)i] = 1.0;
+        Q[(size_t)i * n_size + (size_t)i] = 1.0;
 
     if (n == 1)
         return SPARSE_OK;
@@ -474,10 +475,12 @@ sparse_err_t tridiag_qr_eigenpairs(double *diag, double *subdiag, double *Q, idx
     /* Sort eigenvalues ascending and permute Q's columns to match.
      * Indirect sort through a (eigval, orig-index) pair array.
      * `n2_bytes` was overflow-validated above. */
-    tridiag_pair_t *pairs = malloc((size_t)n * sizeof(tridiag_pair_t));
-    double *Q_sorted = malloc(n2_bytes);
-    double *diag_sorted = malloc((size_t)n * sizeof(double));
-    if (!pairs || !Q_sorted || !diag_sorted) {
+    tridiag_pair_t *pairs = NULL;
+    double *Q_sorted = NULL;
+    double *diag_sorted = NULL;
+    if (sparse_malloc_idx_array(n, sizeof(tridiag_pair_t), (void **)&pairs) != SPARSE_OK ||
+        sparse_malloc_array(n2, sizeof(double), (void **)&Q_sorted) != SPARSE_OK ||
+        sparse_malloc_idx_array(n, sizeof(double), (void **)&diag_sorted) != SPARSE_OK) {
         free(pairs);
         free(Q_sorted);
         free(diag_sorted);

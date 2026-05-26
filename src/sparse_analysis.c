@@ -1,4 +1,5 @@
 #include "sparse_analysis.h"
+#include "sparse_alloc_internal.h"
 #include "sparse_analysis_internal.h"
 #include "sparse_cholesky.h"
 #include "sparse_ldlt.h"
@@ -84,17 +85,17 @@ static supernodal_postorder_mode_t parse_supernodal_postorder(void) {
  * is the AMD-permuted matrix's po[k]-th column, which corresponds to
  * original column perm_in[po[k]]. */
 static sparse_err_t apply_supernodal_postorder(const idx_t *postorder, idx_t n, idx_t *perm) {
+    size_t tmp_bytes = 0;
     if (n < 0)
         return SPARSE_ERR_BADARG;
     if (n == 0)
         return SPARSE_OK;
     if (!postorder || !perm)
         return SPARSE_ERR_NULL;
-    if ((size_t)n > SIZE_MAX / sizeof(idx_t))
-        return SPARSE_ERR_ALLOC;
 
-    idx_t *tmp = malloc((size_t)n * sizeof(idx_t));
-    if (!tmp)
+    idx_t *tmp = NULL;
+    if (sparse_idx_count_bytes_overflow(n, sizeof(idx_t), &tmp_bytes) ||
+        sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&tmp) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
 
     for (idx_t k = 0; k < n; k++) {
@@ -105,7 +106,7 @@ static sparse_err_t apply_supernodal_postorder(const idx_t *postorder, idx_t n, 
         }
         tmp[k] = perm[j];
     }
-    memcpy(perm, tmp, (size_t)n * sizeof(idx_t));
+    memcpy(perm, tmp, tmp_bytes);
     free(tmp);
     return SPARSE_OK;
 }
@@ -154,12 +155,7 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
     /* Compute fill-reducing permutation if requested */
     sparse_err_t err = SPARSE_OK;
     if (reorder != SPARSE_REORDER_NONE && n > 0) {
-        if ((size_t)n > SIZE_MAX / sizeof(idx_t)) {
-            sparse_analysis_free(analysis);
-            return SPARSE_ERR_ALLOC;
-        }
-        analysis->perm = malloc((size_t)n * sizeof(idx_t));
-        if (!analysis->perm) {
+        if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&analysis->perm) != SPARSE_OK) {
             sparse_analysis_free(analysis);
             return SPARSE_ERR_ALLOC;
         }
@@ -210,15 +206,9 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
             B = B_perm;
         }
 
-        /* Allocate etree and postorder (overflow already checked above for perm) */
-        if ((size_t)n > SIZE_MAX / sizeof(idx_t)) {
-            sparse_free(B_perm);
-            sparse_analysis_free(analysis);
-            return SPARSE_ERR_ALLOC;
-        }
-        analysis->etree = malloc((size_t)n * sizeof(idx_t));
-        analysis->postorder = malloc((size_t)n * sizeof(idx_t));
-        if (!analysis->etree || !analysis->postorder) {
+        /* Allocate etree and postorder work arrays. */
+        if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&analysis->etree) != SPARSE_OK ||
+            sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&analysis->postorder) != SPARSE_OK) {
             sparse_free(B_perm);
             sparse_analysis_free(analysis);
             return SPARSE_ERR_ALLOC;
@@ -281,8 +271,8 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
             }
         }
 
-        idx_t *cc = malloc((size_t)n * sizeof(idx_t));
-        if (!cc) {
+        idx_t *cc = NULL;
+        if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&cc) != SPARSE_OK) {
             sparse_free(B_perm);
             sparse_analysis_free(analysis);
             return SPARSE_ERR_ALLOC;
@@ -512,16 +502,12 @@ sparse_err_t sparse_factor_solve(const sparse_factors_t *factors, const sparse_a
     idx_t n = factors->n;
     const idx_t *perm = analysis->perm;
 
-    if ((size_t)n > SIZE_MAX / sizeof(double))
-        return SPARSE_ERR_ALLOC;
-
     /* Permute b if a fill-reducing permutation was used.
      * perm[new] = old convention: b_perm[new_i] = b[perm[new_i]] */
     double *b_perm = NULL;
     const double *b_eff = b;
     if (perm) {
-        b_perm = malloc((size_t)n * sizeof(double));
-        if (!b_perm)
+        if (sparse_malloc_idx_array(n, sizeof(double), (void **)&b_perm) != SPARSE_OK)
             return SPARSE_ERR_ALLOC;
         for (idx_t i = 0; i < n; i++)
             b_perm[i] = b[perm[i]];
@@ -529,8 +515,8 @@ sparse_err_t sparse_factor_solve(const sparse_factors_t *factors, const sparse_a
     }
 
     sparse_err_t err;
-    double *x_tmp = malloc((size_t)n * sizeof(double));
-    if (!x_tmp) {
+    double *x_tmp = NULL;
+    if (sparse_malloc_idx_array(n, sizeof(double), (void **)&x_tmp) != SPARSE_OK) {
         free(b_perm);
         return SPARSE_ERR_ALLOC;
     }

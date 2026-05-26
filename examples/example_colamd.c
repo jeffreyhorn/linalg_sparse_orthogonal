@@ -10,6 +10,7 @@
  *   cc -O2 -Iinclude -o example_colamd examples/example_colamd.c \
  *      -Lbuild -lsparse_lu_ortho -lm
  */
+#include "example_alloc_helpers.h"
 #include "sparse_lu.h"
 #include "sparse_matrix.h"
 #include "sparse_qr.h"
@@ -45,8 +46,8 @@ int main(void) {
            (int)sparse_nnz(A));
 
     /* Compute COLAMD ordering */
-    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
-    if (!perm) {
+    idx_t *perm = NULL;
+    if (example_malloc_array(n, sizeof(idx_t), (void **)&perm) != SPARSE_OK) {
         sparse_free(A);
         return 1;
     }
@@ -70,8 +71,8 @@ int main(void) {
     idx_t fill_nat = (err == SPARSE_OK) ? sparse_nnz(LU_nat) : -1;
 
     /* Apply COLAMD as column-only permutation (identity row perm) */
-    idx_t *id_perm = malloc((size_t)n * sizeof(idx_t));
-    if (id_perm) {
+    idx_t *id_perm = NULL;
+    if (example_malloc_array(n, sizeof(idx_t), (void **)&id_perm) == SPARSE_OK) {
         for (idx_t i = 0; i < n; i++)
             id_perm[i] = i;
     }

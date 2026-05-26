@@ -5,6 +5,7 @@
 #endif
 
 #include "sparse_qr.h"
+#include "sparse_alloc_internal.h"
 #include "sparse_matrix_internal.h"
 #include "sparse_reorder.h"
 #include "sparse_vector.h"
@@ -23,14 +24,6 @@ static double s29_qr_now_s(void) {
     clock_gettime(CLOCK_MONOTONIC, &ts);
 #endif
     return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
-}
-
-/* Portable overflow-safe multiplication: returns 0 on success, 1 on overflow */
-static int size_mul_overflow(size_t a, size_t b, size_t *result) {
-    if (a != 0 && b > SIZE_MAX / a)
-        return 1;
-    *result = a * b;
-    return 0;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -180,11 +173,19 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
     if (!W)
         return SPARSE_ERR_ALLOC;
 
+    size_t n_size = 0;
+    size_t m_size = 0;
+    size_t k_size = 0;
+    if (sparse_idx_to_size_checked(n, &n_size) || sparse_idx_to_size_checked(m, &m_size) ||
+        sparse_idx_to_size_checked(k, &k_size)) {
+        sparse_free(W);
+        return SPARSE_ERR_ALLOC;
+    }
+
     /* Optional column reordering */
     idx_t *col_reorder = NULL;
     if (opts && opts->reorder == SPARSE_REORDER_COLAMD && n > 1) {
-        col_reorder = malloc((size_t)n * sizeof(idx_t));
-        if (col_reorder) {
+        if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&col_reorder) == SPARSE_OK) {
             if (sparse_reorder_colamd(A, col_reorder) != SPARSE_OK) {
                 free(col_reorder);
                 col_reorder = NULL;
@@ -209,9 +210,8 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
                     nd1 = nd1->right;
                 }
             }
-            if (ins_err == SPARSE_OK && (size_t)n <= SIZE_MAX / sizeof(idx_t)) {
-                col_reorder = malloc((size_t)n * sizeof(idx_t));
-                if (col_reorder) {
+            if (ins_err == SPARSE_OK) {
+                if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&col_reorder) == SPARSE_OK) {
                     sparse_err_t rerr = SPARSE_ERR_BADARG;
                     if (opts->reorder == SPARSE_REORDER_AMD)
                         rerr = sparse_reorder_amd(AtA, col_reorder);
@@ -232,27 +232,32 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
     /* Overflow checks for buffer allocations */
     {
         size_t tmp = 0;
-        if (size_mul_overflow((size_t)n, sizeof(idx_t), &tmp) ||
-            size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
-            size_mul_overflow((size_t)n, sizeof(double), &tmp) ||
-            size_mul_overflow((size_t)k, sizeof(double), &tmp) ||
-            size_mul_overflow((size_t)k, sizeof(double *), &tmp)) {
+        if (sparse_size_mul_overflow(n_size, sizeof(idx_t), &tmp) ||
+            sparse_size_mul_overflow(m_size, sizeof(double), &tmp) ||
+            sparse_size_mul_overflow(n_size, sizeof(double), &tmp) ||
+            sparse_size_mul_overflow(k_size, sizeof(double), &tmp) ||
+            sparse_size_mul_overflow(k_size, sizeof(double *), &tmp)) {
             sparse_free(W);
             return SPARSE_ERR_ALLOC;
         }
     }
 
     /* Allocate outputs */
-    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
-    double *betas = calloc((size_t)k, sizeof(double));
-    double **vecs = calloc((size_t)k, sizeof(double *));
-    double *col_norms = calloc((size_t)n, sizeof(double));
-    double *dense_col = malloc((size_t)m * sizeof(double));  /* pivot column */
-    double *dense_col2 = malloc((size_t)m * sizeof(double)); /* reusable work column */
+    idx_t *perm = NULL;
+    double *betas = NULL;
+    double **vecs = NULL;
+    double *col_norms = NULL;
+    double *dense_col = NULL;  /* pivot column */
+    double *dense_col2 = NULL; /* reusable work column */
     SparseMatrix *R = NULL;
     sparse_err_t status = SPARSE_OK;
 
-    if (!perm || !betas || !vecs || !col_norms || !dense_col || !dense_col2) {
+    if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&perm) != SPARSE_OK ||
+        sparse_calloc_idx_array(k, sizeof(double), (void **)&betas) != SPARSE_OK ||
+        sparse_calloc_idx_array(k, sizeof(double *), (void **)&vecs) != SPARSE_OK ||
+        sparse_calloc_idx_array(n, sizeof(double), (void **)&col_norms) != SPARSE_OK ||
+        sparse_malloc_idx_array(m, sizeof(double), (void **)&dense_col) != SPARSE_OK ||
+        sparse_malloc_idx_array(m, sizeof(double), (void **)&dense_col2) != SPARSE_OK) {
         status = SPARSE_ERR_ALLOC;
         goto cleanup_colwise;
     }
@@ -260,8 +265,8 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
     /* Apply column reordering to perm and swap columns in W */
     if (col_reorder) {
         /* Build inverse permutation */
-        idx_t *inv = malloc((size_t)n * sizeof(idx_t));
-        if (!inv) {
+        idx_t *inv = NULL;
+        if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&inv) != SPARSE_OK) {
             status = SPARSE_ERR_ALLOC;
             goto cleanup_colwise;
         }
@@ -344,8 +349,8 @@ static sparse_err_t sparse_qr_factor_colwise(const SparseMatrix *A, const sparse
 
             /* Swap columns in W: extract both, clear, reinsert swapped.
              * Use dense_col for one, dense_col2 for the other. */
-            memset(dense_col, 0, (size_t)m * sizeof(double));
-            memset(dense_col2, 0, (size_t)m * sizeof(double));
+            memset(dense_col, 0, m_size * sizeof(double));
+            memset(dense_col2, 0, m_size * sizeof(double));
             sparse_extract_column(W, step, dense_col);
             sparse_extract_column(W, best, dense_col2);
 
@@ -579,6 +584,12 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
     idx_t m = sparse_rows(A);
     idx_t n = sparse_cols(A);
     idx_t k = (m < n) ? m : n; /* min(m, n) */
+    size_t m_size = 0;
+    size_t n_size = 0;
+    size_t k_size = 0;
+    if (sparse_idx_to_size_checked(m, &m_size) || sparse_idx_to_size_checked(n, &n_size) ||
+        sparse_idx_to_size_checked(k, &k_size))
+        return SPARSE_ERR_ALLOC;
 
     qr->m = m;
     qr->n = n;
@@ -590,8 +601,7 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
     idx_t *col_reorder = NULL;
     if (opts && opts->reorder == SPARSE_REORDER_COLAMD && n > 1) {
         /* COLAMD operates directly on A's structure — no need to form A^T*A */
-        col_reorder = malloc((size_t)n * sizeof(idx_t));
-        if (col_reorder) {
+        if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&col_reorder) == SPARSE_OK) {
             if (sparse_reorder_colamd(A, col_reorder) != SPARSE_OK) {
                 free(col_reorder);
                 col_reorder = NULL;
@@ -626,8 +636,7 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
             }
 
             if (AtA) {
-                col_reorder = malloc((size_t)n * sizeof(idx_t));
-                if (col_reorder) {
+                if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&col_reorder) == SPARSE_OK) {
                     sparse_err_t rerr = SPARSE_ERR_BADARG;
                     if (opts->reorder == SPARSE_REORDER_AMD)
                         rerr = sparse_reorder_amd(AtA, col_reorder);
@@ -648,8 +657,8 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
     /* Overflow check for dense workspace sizing: m * n * sizeof(double) */
     {
         size_t mn = 0, mn_bytes = 0;
-        if (size_mul_overflow((size_t)m, (size_t)n, &mn) ||
-            size_mul_overflow(mn, sizeof(double), &mn_bytes)) {
+        if (sparse_size_mul_overflow(m_size, n_size, &mn) ||
+            sparse_size_mul_overflow(mn, sizeof(double), &mn_bytes)) {
             free(col_reorder);
             return SPARSE_ERR_ALLOC;
         }
@@ -657,13 +666,20 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
 
     /* Allocate dense m×n working matrix (column-major) */
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *W = calloc((size_t)m * (size_t)n, sizeof(double));
-    double *col_norms = malloc((size_t)n * sizeof(double));
-    idx_t *perm = malloc((size_t)n * sizeof(idx_t));
-    double *betas = calloc((size_t)k, sizeof(double));
-    double **vecs = calloc((size_t)k, sizeof(double *));
+    double *W = calloc(m_size * n_size, sizeof(double));
+    double *col_norms = NULL;
+    idx_t *perm = NULL;
+    double *betas = NULL;
+    double **vecs = NULL;
+    sparse_err_t alloc_err = sparse_malloc_array(n_size, sizeof(double), (void **)&col_norms);
+    if (alloc_err == SPARSE_OK)
+        alloc_err = sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&perm);
+    if (alloc_err == SPARSE_OK)
+        alloc_err = sparse_calloc_array(k_size, sizeof(double), (void **)&betas);
+    if (alloc_err == SPARSE_OK)
+        alloc_err = sparse_calloc_array(k_size, sizeof(double *), (void **)&vecs);
 
-    if (!W || !col_norms || !perm || !betas || !vecs) {
+    if (!W || alloc_err != SPARSE_OK) {
         free(W);
         free(col_norms);
         free(perm);
@@ -677,8 +693,7 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
      * col_reorder[new] = old, so inv_col_reorder[old] = new. */
     idx_t *inv_col_reorder = NULL;
     if (col_reorder) {
-        inv_col_reorder = malloc((size_t)n * sizeof(idx_t));
-        if (!inv_col_reorder) {
+        if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&inv_col_reorder) != SPARSE_OK) {
             free(W);
             free(col_norms);
             free(perm);
@@ -716,8 +731,8 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
     free(col_reorder); /* consumed into perm */
 
     /* Dense Householder vector workspace */
-    double *hv = malloc((size_t)m * sizeof(double));
-    if (!hv) {
+    double *hv = NULL;
+    if (sparse_malloc_array(m_size, sizeof(double), (void **)&hv) != SPARSE_OK) {
         free(W);
         free(col_norms);
         free(perm);
@@ -953,8 +968,8 @@ sparse_err_t sparse_qr_form_q(const sparse_qr_t *qr, double *Q) {
 
     /* Overflow-safe computation of m*ncols*sizeof(double) */
     size_t total = 0, bytes = 0;
-    if (size_mul_overflow((size_t)m, (size_t)ncols, &total) ||
-        size_mul_overflow(total, sizeof(double), &bytes))
+    if (sparse_size_mul_overflow((size_t)m, (size_t)ncols, &total) ||
+        sparse_size_mul_overflow(total, sizeof(double), &bytes))
         return SPARSE_ERR_ALLOC;
 
     /* Start with first ncols columns of identity (m × ncols) */
@@ -1062,8 +1077,8 @@ sparse_err_t sparse_qr_refine(const sparse_qr_t *qr, const SparseMatrix *A, cons
     /* Overflow checks for buffer allocations */
     {
         size_t tmp = 0;
-        if (size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
-            size_mul_overflow((size_t)n, sizeof(double), &tmp))
+        if (sparse_size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
+            sparse_size_mul_overflow((size_t)n, sizeof(double), &tmp))
             return SPARSE_ERR_ALLOC;
     }
 
@@ -1420,8 +1435,8 @@ sparse_err_t sparse_qr_solve_minnorm(const SparseMatrix *A, const double *b, dou
     /* Overflow checks for workspace allocations */
     {
         size_t tmp = 0;
-        if (size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
-            size_mul_overflow((size_t)n, sizeof(double), &tmp)) {
+        if (sparse_size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
+            sparse_size_mul_overflow((size_t)n, sizeof(double), &tmp)) {
             sparse_qr_free(&qr_t);
             return SPARSE_ERR_ALLOC;
         }
@@ -1500,8 +1515,8 @@ sparse_err_t sparse_qr_refine_minnorm(const SparseMatrix *A, const double *b, do
     /* Overflow checks for workspace allocations */
     {
         size_t tmp = 0;
-        if (size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
-            size_mul_overflow((size_t)n, sizeof(double), &tmp))
+        if (sparse_size_mul_overflow((size_t)m, sizeof(double), &tmp) ||
+            sparse_size_mul_overflow((size_t)n, sizeof(double), &tmp))
             return SPARSE_ERR_ALLOC;
     }
 

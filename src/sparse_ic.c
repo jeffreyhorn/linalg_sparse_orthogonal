@@ -1,4 +1,5 @@
 #include "sparse_ic.h"
+#include "sparse_alloc_internal.h"
 #include "sparse_matrix_internal.h"
 #include "sparse_vector.h"
 #include <math.h>
@@ -58,11 +59,10 @@ sparse_err_t sparse_ic_factor(const SparseMatrix *A, sparse_ilu_t *ic) {
     /* Allocate a dense workspace for one column of L at a time.
      * val[i] holds the accumulated value for row i in the current column.
      * pattern[0..pat_len-1] holds the row indices with nonzero entries. */
-    if ((size_t)n > SIZE_MAX / sizeof(double) || (size_t)n > SIZE_MAX / sizeof(idx_t))
-        return SPARSE_ERR_ALLOC;
-    double *val = calloc((size_t)n, sizeof(double));
-    idx_t *pattern = malloc((size_t)n * sizeof(idx_t));
-    if (!val || !pattern) {
+    double *val = NULL;
+    idx_t *pattern = NULL;
+    if (sparse_calloc_idx_array(n, sizeof(double), (void **)&val) != SPARSE_OK ||
+        sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&pattern) != SPARSE_OK) {
         free(val);
         free(pattern);
         return SPARSE_ERR_ALLOC;
@@ -82,8 +82,8 @@ sparse_err_t sparse_ic_factor(const SparseMatrix *A, sparse_ilu_t *ic) {
     /* Boolean marker: in_pat[i] is nonzero when row i is in the current
      * column's sparsity pattern.  This is used instead of testing val[i]!=0
      * because val[i] can become exactly zero after subtractions. */
-    char *in_pat = calloc((size_t)n, sizeof(char));
-    if (!in_pat) {
+    char *in_pat = NULL;
+    if (sparse_calloc_idx_array(n, sizeof(char), (void **)&in_pat) != SPARSE_OK) {
         free(val);
         free(pattern);
         sparse_free(L);

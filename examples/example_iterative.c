@@ -12,6 +12,7 @@
  *   cc -O2 -Iinclude -o example_iterative examples/example_iterative.c \
  *      -Lbuild -lsparse_lu_ortho -lm
  */
+#include "example_alloc_helpers.h"
 #include "sparse_ilu.h"
 #include "sparse_iterative.h"
 #include "sparse_matrix.h"
@@ -56,10 +57,12 @@ int main(void) {
     printf("Matrix: %d x %d, %d nonzeros\n", (int)n, (int)n, (int)sparse_nnz(A));
 
     /* Right-hand side: b = A * [1, 1, ..., 1]^T (so x_exact = [1, 1, ..., 1]) */
-    double *b = calloc((size_t)n, sizeof(double));
-    double *x = calloc((size_t)n, sizeof(double));
-    double *ones = calloc((size_t)n, sizeof(double));
-    if (!b || !x || !ones) {
+    double *b = NULL;
+    double *x = NULL;
+    double *ones = NULL;
+    if (example_calloc_array(n, sizeof(double), (void **)&b) != SPARSE_OK ||
+        example_calloc_array(n, sizeof(double), (void **)&x) != SPARSE_OK ||
+        example_calloc_array(n, sizeof(double), (void **)&ones) != SPARSE_OK) {
         fprintf(stderr, "Allocation failed\n");
         sparse_free(A);
         free(b);

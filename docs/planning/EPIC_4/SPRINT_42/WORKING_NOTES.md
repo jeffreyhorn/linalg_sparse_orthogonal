@@ -606,3 +606,92 @@ Day 5 landed the intended Sprint 42 ownership seam:
   - internal-first
   - compatibility-preserving
   - no premature public lifecycle/API churn
+
+## Day 6 - Matrix-state guard helper implementation
+
+### What I changed
+
+Day 6 implemented the shared matrix-state guard seam designed on Day 4 and
+landed the first live adoption set.
+
+Added:
+
+- `src/sparse_matrix_state_internal.h`
+
+The new private helper seam provides:
+
+- `sparse_matrix_has_identity_row_col_perms(...)`
+- `sparse_matrix_has_identity_perms(...)`
+- `sparse_matrix_require_original_row_col_state(...)`
+- `sparse_matrix_require_original_state(...)`
+- `sparse_matrix_require_factored_state(...)`
+
+The first-wave adoption set landed in:
+
+- `src/sparse_analysis.c`
+- `src/sparse_ldlt.c`
+- `src/sparse_qr.c`
+- `src/sparse_svd.c`
+- `src/sparse_bidiag.c`
+- `src/sparse_ilu.c`
+- `src/sparse_ic.c`
+- `src/sparse_cholesky.c`
+- `src/sparse_lu.c`
+
+The batch removed repeated bespoke checks for:
+
+- original matrix required
+- identity row/column permutations required
+- in the touched Cholesky path, full original permutation state required
+- factored matrix required in touched solve-side LU / Cholesky paths
+
+### Boundary that stayed intentionally local
+
+Day 6 did **not** try to genericize all validation.
+
+The shared helper seam owns only:
+
+- original-state required
+- identity-permutation required
+- factored-state required
+
+Algorithm-specific checks remain local:
+
+- symmetry / SPD
+- shape/dimension compatibility
+- reorder options
+- numeric thresholds
+- symbolic/storage assumptions
+
+Interpretation:
+
+- the new seam reduces lifecycle guard drift
+- it does not create a fuzzy catch-all validation layer
+
+### Validation
+
+Because `*.c` / `*.h` changed, I ran the required full gate:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Result:
+
+- all passed
+
+Unlike Day 5, this batch did not need a clean-tree rerun. The standard gate
+passed directly after the Day 6 implementation work.
+
+### Day 6 conclusion
+
+Sprint 42 now has a real shared matrix-state guard layer in live code:
+
+- the first-wave lifecycle-sensitive families no longer each interpret the
+  same original-state rules independently
+- touched factored-state checks now align better with the Day 5 private
+  factor-state seam
+- the Sprint 40 compatibility contract is still preserved:
+  - internal-first
+  - no public API churn
+  - stable `SPARSE_ERR_BADARG` lifecycle failures

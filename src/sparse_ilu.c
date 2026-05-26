@@ -1,5 +1,6 @@
 #include "sparse_ilu.h"
 #include "sparse_matrix_internal.h"
+#include "sparse_matrix_state_internal.h"
 #include "sparse_vector.h"
 #include <math.h>
 #include <stdlib.h>
@@ -25,22 +26,9 @@ sparse_err_t sparse_ilu_factor(const SparseMatrix *A, sparse_ilu_t *ilu) {
     idx_t n = A->rows;
     ilu->n = n;
 
-    /* Reject factored matrices — ILU(0) needs the original entries, not L/U. */
-    if (A->factored)
+    /* ILU(0) needs the original physical row/col view. */
+    if (sparse_matrix_require_original_row_col_state(A) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
-
-    /* Reject matrices with non-identity permutations (e.g., after LU pivoting).
-     * ILU(0) operates on physical storage and assumes identity perms. */
-    {
-        const idx_t *rp = sparse_row_perm(A);
-        const idx_t *cp = sparse_col_perm(A);
-        if (rp && cp) {
-            for (idx_t i = 0; i < n; i++) {
-                if (rp[i] != i || cp[i] != i)
-                    return SPARSE_ERR_BADARG;
-            }
-        }
-    }
 
     /* Compute ||A||_inf for relative tolerance.
      * Use const-safe helper to avoid mutating the caller's matrix. */
@@ -329,21 +317,9 @@ sparse_err_t sparse_ilut_factor(const SparseMatrix *A, const sparse_ilut_opts_t 
     idx_t n = A->rows;
     ilu->n = n;
 
-    /* Reject factored matrices — ILUT needs the original entries, not L/U. */
-    if (A->factored)
+    /* ILUT needs the original physical row/col view. */
+    if (sparse_matrix_require_original_row_col_state(A) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
-
-    /* Reject non-identity permutations */
-    {
-        const idx_t *rp = sparse_row_perm(A);
-        const idx_t *cp = sparse_col_perm(A);
-        if (rp && cp) {
-            for (idx_t i = 0; i < n; i++) {
-                if (rp[i] != i || cp[i] != i)
-                    return SPARSE_ERR_BADARG;
-            }
-        }
-    }
 
     /* Compute and cache ||A||_inf for relative tolerance */
     /* Compute ||A||_inf for relative tolerance.

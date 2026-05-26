@@ -4,6 +4,7 @@
 #include "sparse_cholesky.h"
 #include "sparse_ldlt.h"
 #include "sparse_lu.h"
+#include "sparse_matrix_state_internal.h"
 #include "sparse_reorder.h"
 
 #include <math.h>
@@ -111,18 +112,6 @@ static sparse_err_t apply_supernodal_postorder(const idx_t *postorder, idx_t n, 
     return SPARSE_OK;
 }
 
-/* Check that the matrix has identity row/col permutations and is not factored.
- * Analysis and factorization operate on physical index space, so non-identity
- * perms or factored state would produce incorrect results. */
-static int has_identity_perms(const SparseMatrix *A) {
-    idx_t n = A->rows;
-    for (idx_t i = 0; i < n; i++) {
-        if (A->row_perm[i] != i || A->col_perm[i] != i)
-            return 0;
-    }
-    return 1;
-}
-
 /* ═══════════════════════════════════════════════════════════════════════
  * sparse_analyze — compute symbolic analysis
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -133,7 +122,7 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
         return SPARSE_ERR_NULL;
     if (A->rows != A->cols)
         return SPARSE_ERR_SHAPE;
-    if (A->factored || !has_identity_perms(A))
+    if (sparse_matrix_require_original_row_col_state(A) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
 
     /* Default options: Cholesky, no reordering */
@@ -398,7 +387,7 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
         return SPARSE_ERR_NULL;
     if (A->rows != analysis->n || A->cols != analysis->n)
         return SPARSE_ERR_SHAPE;
-    if (A->factored || !has_identity_perms(A))
+    if (sparse_matrix_require_original_row_col_state(A) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
 
     idx_t n = analysis->n;

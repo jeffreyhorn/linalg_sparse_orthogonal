@@ -4,6 +4,7 @@
 #include "sparse_dense.h"
 #include "sparse_matrix.h"
 #include "sparse_matrix_internal.h"
+#include "sparse_matrix_state_internal.h"
 #include "sparse_svd_internal.h"
 #include <math.h>
 #include <stdint.h>
@@ -1005,21 +1006,9 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     if (opts && opts->compute_uv && !opts->economy)
         return SPARSE_ERR_BADARG;
 
-    /* Reject non-identity permutations (same check as sparse_bidiag_factor) */
-    {
-        const idx_t *rp = sparse_row_perm(A);
-        const idx_t *cp = sparse_col_perm(A);
-        if (rp) {
-            for (idx_t i = 0; i < m; i++)
-                if (rp[i] != i)
-                    return SPARSE_ERR_BADARG;
-        }
-        if (cp) {
-            for (idx_t i = 0; i < n; i++)
-                if (cp[i] != i)
-                    return SPARSE_ERR_BADARG;
-        }
-    }
+    /* Partial SVD consumes the original physical row/col view. */
+    if (sparse_matrix_require_original_row_col_state(A) != SPARSE_OK)
+        return SPARSE_ERR_BADARG;
 
     svd->m = m;
     svd->n = n;
@@ -1580,21 +1569,9 @@ sparse_err_t sparse_svd_lowrank_sparse(const SparseMatrix *A, idx_t rank_k, doub
     if (rank_k <= 0 || rank_k > kmax)
         return SPARSE_ERR_BADARG;
 
-    /* Reject non-identity permutations */
-    {
-        const idx_t *rp = sparse_row_perm(A);
-        const idx_t *cp = sparse_col_perm(A);
-        if (rp) {
-            for (idx_t i = 0; i < m; i++)
-                if (rp[i] != i)
-                    return SPARSE_ERR_BADARG;
-        }
-        if (cp) {
-            for (idx_t i = 0; i < n; i++)
-                if (cp[i] != i)
-                    return SPARSE_ERR_BADARG;
-        }
-    }
+    /* Low-rank reconstruction consumes the original physical row/col view. */
+    if (sparse_matrix_require_original_row_col_state(A) != SPARSE_OK)
+        return SPARSE_ERR_BADARG;
 
     /* Full SVD with U and Vt */
     sparse_svd_opts_t opts = {.compute_uv = 1, .economy = 1};

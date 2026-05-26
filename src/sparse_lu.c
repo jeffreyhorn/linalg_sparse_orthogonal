@@ -10,6 +10,7 @@
 
 #include "sparse_lu.h"
 #include "sparse_matrix_internal.h"
+#include "sparse_matrix_state_internal.h"
 #include "sparse_reorder.h"
 
 #include <math.h>
@@ -336,7 +337,7 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
 sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat, const double *b, double *x) {
     if (!mat || !b || !x)
         return SPARSE_ERR_NULL;
-    if (!sparse_factor_state_is_factored(mat))
+    if (sparse_matrix_require_factored_state(mat) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
     idx_t n = mat->rows;
     const idx_t *rperm = mat->reorder_perm;
@@ -460,7 +461,7 @@ sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig, const SparseMatrix 
     if (!mat_orig || !mat_lu || !condest)
         return SPARSE_ERR_NULL;
     /* Check that mat_lu has been factored */
-    if (!sparse_factor_state_is_factored(mat_lu))
+    if (sparse_matrix_require_factored_state(mat_lu) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
     /* Check dimensions match and are square */
     if (mat_orig->rows != mat_orig->cols)
@@ -653,7 +654,7 @@ sparse_err_t sparse_backward_sub(const SparseMatrix *mat, const double *y, doubl
 sparse_err_t sparse_lu_solve(const SparseMatrix *mat, const double *b, double *x) {
     if (!mat || !b || !x)
         return SPARSE_ERR_NULL;
-    if (!sparse_factor_state_is_factored(mat))
+    if (sparse_matrix_require_factored_state(mat) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
     idx_t n = mat->rows;
     const idx_t *rperm = mat->reorder_perm;
@@ -728,7 +729,7 @@ sparse_err_t sparse_lu_solve_block(const SparseMatrix *mat, const double *B, idx
                                    double *X) {
     if (!mat || !B || !X)
         return SPARSE_ERR_NULL;
-    if (!sparse_factor_state_is_factored(mat))
+    if (sparse_matrix_require_factored_state(mat) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
     if (nrhs < 0)
         return SPARSE_ERR_BADARG;
@@ -855,7 +856,7 @@ sparse_err_t sparse_lu_refine(const SparseMatrix *mat_orig, const SparseMatrix *
                               const double *b, double *x, int max_iters, double tol) {
     if (!mat_orig || !mat_lu || !b || !x)
         return SPARSE_ERR_NULL;
-    if (!sparse_factor_state_is_factored(mat_lu))
+    if (sparse_matrix_require_factored_state(mat_lu) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
     idx_t n = mat_orig->rows;
 

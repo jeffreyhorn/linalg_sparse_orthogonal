@@ -8,6 +8,7 @@
 #include "sparse_analysis.h"
 #include "sparse_chol_csc_internal.h"
 #include "sparse_matrix_internal.h"
+#include "sparse_matrix_state_internal.h"
 #include "sparse_reorder.h"
 
 #include <math.h>
@@ -263,12 +264,7 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
      * perms).  Enforcing the same contract on both paths means the
      * error a caller sees no longer depends on how `n` compares to
      * `SPARSE_CSC_THRESHOLD`. */
-    for (idx_t i = 0; i < n; i++) {
-        if (mat->row_perm[i] != i || mat->col_perm[i] != i || mat->inv_row_perm[i] != i ||
-            mat->inv_col_perm[i] != i)
-            return SPARSE_ERR_BADARG;
-    }
-    if (mat->factored)
+    if (sparse_matrix_require_original_state(mat) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
 
     /* Clear any previous reorder permutation */
@@ -414,7 +410,7 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
 sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat, const double *b, double *x) {
     if (!mat || !b || !x)
         return SPARSE_ERR_NULL;
-    if (!sparse_factor_state_is_factored(mat))
+    if (sparse_matrix_require_factored_state(mat) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
     idx_t n = mat->rows;
     const idx_t *rperm = mat->reorder_perm;

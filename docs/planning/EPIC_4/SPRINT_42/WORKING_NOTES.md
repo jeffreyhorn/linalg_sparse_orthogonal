@@ -1392,3 +1392,118 @@ Sprint 42 now has an explicit compatibility and focused-test design:
   - `tests/test_etree.c`
   - `tests/test_qr.c`
   - `tests/test_svd.c`
+
+## Day 12 - Focused lifecycle misuse tests
+
+### What I changed
+
+Day 12 landed the bounded lifecycle misuse / copy-before-use regression batch
+that Day 11 designed.
+
+Touched files:
+
+- `tests/test_etree.c`
+- `tests/test_qr.c`
+- `tests/test_svd.c`
+
+The batch stayed intentionally narrow:
+
+- no public API changes
+- no bridge redesign
+- no README/tutorial churn
+- no broad new lifecycle-test framework
+
+### What was added
+
+#### 1. Analyze-once misuse tightening in `tests/test_etree.c`
+
+Added regressions that now assert:
+
+- `sparse_analyze(...)` rejects an already-factored matrix with
+  `SPARSE_ERR_BADARG`
+- `sparse_factor_numeric(...)` rejects a matrix whose row/column permutation
+  state is no longer the original identity view
+
+Implementation shape:
+
+- the factored-matrix rejection case uses a real Cholesky-factored copy
+- the non-identity-state rejection case uses a copied matrix with swapped
+  row/column permutation state while preserving the clean original matrix for
+  the success-path follow-on assertion
+
+Interpretation:
+
+- the analyze-once bridge preconditions are now pinned directly in tests
+- copy-before-use and original-state requirements are no longer implied only by
+  internal helpers or docs
+
+#### 2. QR copy-before-use misuse tightening in `tests/test_qr.c`
+
+Added a focused regression that now asserts:
+
+- a LU-factored matrix copy is rejected by `sparse_qr_factor(...)` with
+  `SPARSE_ERR_BADARG`
+- the untouched original matrix still factors successfully through the same QR
+  surface
+
+Interpretation:
+
+- the public QR contract now has a direct regression for the
+  original-matrix-required rule
+- Sprint 42’s compatibility expectation is now exercised as code:
+  factor a copy, not the matrix you later want to feed to QR
+
+#### 3. SVD copy-before-use misuse tightening in `tests/test_svd.c`
+
+Added a focused regression that now asserts:
+
+- a LU-factored matrix copy is rejected by `sparse_svd_compute(...)`
+- the same reused factored copy is rejected by `sparse_svd_partial(...)`
+- the untouched original matrix still succeeds through `sparse_svd_compute(...)`
+
+Interpretation:
+
+- the SVD lifecycle-sensitive caller rule now has the same explicit regression
+  coverage as QR
+- the bounded Day 12 batch covers both the full and partial SVD entry points
+  that share the original-state contract
+
+### What stayed intentionally unchanged
+
+Day 12 did **not** widen into:
+
+- new lifecycle helper APIs
+- benchmark/example misuse expansion
+- broader cancellation redesign
+- public-handle tests for non-existent future interfaces
+
+Interpretation:
+
+- the batch remained contract-focused and Sprint 42-scoped
+- it hardened the highest-value touched lifecycle expectations without
+  reopening the full Epic 4 test strategy
+
+### Validation
+
+Because `*.c` changed, I ran the required full gate:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Authoritative result:
+
+- all passed
+
+### Day 12 conclusion
+
+Sprint 42 now has direct regression coverage for the most important remaining
+compatibility-facing lifecycle misuse cases:
+
+- analyze-once rejects already-factored or non-original-state matrices
+- QR rejects reused factored matrices while clean copies remain valid
+- SVD full/partial entry points reject reused factored matrices while clean
+  copies remain valid
+
+That closes the bounded Day 11 test plan without widening Sprint 42 beyond its
+internal-handle / compatibility-scaffolding scope.

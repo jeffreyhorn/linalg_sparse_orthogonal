@@ -4,6 +4,7 @@
 #include "sparse_ldlt.h"
 #include "sparse_lu.h"
 #include "sparse_matrix.h"
+#include "sparse_matrix_internal.h"
 #include "sparse_reorder.h"
 #include "sparse_types.h"
 #include "test_framework.h"
@@ -1367,6 +1368,20 @@ static void test_analyze_default_opts(void) {
     sparse_free(A);
 }
 
+static void test_analyze_rejects_factored_matrix(void) {
+    SparseMatrix *A = make_tridiag(4);
+    SparseMatrix *L = sparse_copy(A);
+    sparse_analysis_t analysis = {0};
+
+    REQUIRE_OK(L ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    REQUIRE_OK(sparse_cholesky_factor(L));
+    ASSERT_ERR(sparse_analyze(L, NULL, &analysis), SPARSE_ERR_BADARG);
+
+    sparse_analysis_free(&analysis);
+    sparse_free(L);
+    sparse_free(A);
+}
+
 static void test_analyze_cholesky_tridiag(void) {
     idx_t n = 8;
     SparseMatrix *A = make_tridiag(n);
@@ -1870,6 +1885,33 @@ static void test_factor_numeric_null_args(void) {
     ASSERT_ERR(sparse_factor_numeric(A, NULL, &factors), SPARSE_ERR_NULL);
     ASSERT_ERR(sparse_factor_numeric(A, &analysis, NULL), SPARSE_ERR_NULL);
 
+    sparse_free(A);
+}
+
+static void test_factor_numeric_rejects_nonidentity_row_col_state(void) {
+    SparseMatrix *A = make_tridiag(4);
+    SparseMatrix *A_bad = sparse_copy(A);
+    sparse_analysis_t analysis = {0};
+    sparse_factors_t factors = {0};
+
+    REQUIRE_OK(A_bad ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    REQUIRE_OK(sparse_analyze(A, NULL, &analysis));
+
+    A_bad->row_perm[0] = 1;
+    A_bad->row_perm[1] = 0;
+    A_bad->inv_row_perm[0] = 1;
+    A_bad->inv_row_perm[1] = 0;
+    A_bad->col_perm[0] = 1;
+    A_bad->col_perm[1] = 0;
+    A_bad->inv_col_perm[0] = 1;
+    A_bad->inv_col_perm[1] = 0;
+
+    ASSERT_ERR(sparse_factor_numeric(A_bad, &analysis, &factors), SPARSE_ERR_BADARG);
+    REQUIRE_OK(sparse_factor_numeric(A, &analysis, &factors));
+
+    sparse_factor_free(&factors);
+    sparse_analysis_free(&analysis);
+    sparse_free(A_bad);
     sparse_free(A);
 }
 
@@ -2854,6 +2896,7 @@ int main(void) {
     RUN_TEST(test_analyze_null_args);
     RUN_TEST(test_analyze_non_square);
     RUN_TEST(test_analyze_default_opts);
+    RUN_TEST(test_analyze_rejects_factored_matrix);
     RUN_TEST(test_analyze_cholesky_tridiag);
     RUN_TEST(test_analyze_cholesky_arrow);
     RUN_TEST(test_analyze_cholesky_with_amd);
@@ -2877,6 +2920,7 @@ int main(void) {
 
     /* sparse_factor_numeric() — Cholesky */
     RUN_TEST(test_factor_numeric_null_args);
+    RUN_TEST(test_factor_numeric_rejects_nonidentity_row_col_state);
     RUN_TEST(test_factor_numeric_cholesky_tridiag);
     RUN_TEST(test_factor_numeric_cholesky_arrow);
     RUN_TEST(test_factor_numeric_cholesky_with_amd);

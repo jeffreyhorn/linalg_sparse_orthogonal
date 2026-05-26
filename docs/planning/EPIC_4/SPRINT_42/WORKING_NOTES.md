@@ -395,3 +395,121 @@ Interpretation:
 
 - Sprint 42 should not try to solve both seams with one abstraction
 - Day 3 now fixes the ownership half before Day 4 defines the guard half
+
+## Day 4
+
+**Objective:** Define the shared internal matrix-state guard helper layer for
+Sprint 42 by turning the repeated factored/non-identity/original-state checks
+into a bounded internal validation seam, while leaving algorithm-specific
+numerical and structural checks local to their current factorization families.
+
+### Commands Run
+
+1. Re-read the Sprint 42 Day 4 plan section:
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_42/PLAN.md`
+2. Re-read the Day 2 and Day 3 Sprint 42 design inputs:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_42/artifacts/day2-lifecycle-seam-refresh-inventory.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_42/artifacts/day3-internal-handle-scaffolding-design.md`
+3. Sweep the current codebase for duplicated lifecycle-sensitive precondition
+   checks:
+   - `rg -n "identity permutations|non-identity|factored|original.*matrix|must have identity|has identity|has non-identity|A->factored|has_identity_perms|sparse_row_perm\\(|sparse_col_perm\\(" include src`
+4. Re-read representative duplicated guard implementations:
+   - `sed -n '100,180p' src/sparse_analysis.c`
+   - `sed -n '20,70p' src/sparse_ic.c`
+   - `sed -n '20,80p' src/sparse_ilu.c`
+   - `sed -n '550,590p' src/sparse_qr.c`
+   - `sed -n '1000,1035p' src/sparse_svd.c`
+
+### Day 4 Findings
+
+#### 1. The repeated seam is small enough for one shared internal guard layer
+
+The code sweep confirms that Sprint 42 does not need a broad lifecycle
+validation framework. The repeated seam is narrowly concentrated around:
+
+- factored-state rejection
+- identity row/column permutation checks
+- "original matrix / original-state required" as a semantic wrapper over those
+  concrete checks
+
+Interpretation:
+
+- Day 4 should define one small internal guard layer, not a large policy
+  framework
+- the strongest value is reducing duplicated bespoke loops and ad hoc guard
+  wording drift
+
+#### 2. The natural design split is shared lifecycle-state helpers plus local algorithm checks
+
+The live code already suggests the right boundary:
+
+- shared checks:
+  - matrix not factored
+  - identity row/column permutations
+  - common "original-state required" gate
+- local checks:
+  - symmetry / SPD checks
+  - square/rectangular shape checks
+  - reorder-enum validation
+  - algorithm-specific numerical or structural assumptions
+
+Interpretation:
+
+- Sprint 42 should centralize only the lifecycle-state checks that are
+  semantically common
+- it should not hide algorithm-specific validation behind a generic helper
+  layer
+
+#### 3. The first shared helper targets are now concrete enough to name
+
+The Day 4 guard layer should be designed around a small private seam such as:
+
+- identity-permutation predicate/helper
+- "matrix must be in original state" validator
+- "matrix must already be factored" validator
+- compatibility-consistent error-return helpers for touched families
+
+Interpretation:
+
+- the design target is a small internal helper family, likely in a private
+  `src/` header/source pair
+- the layer should be usable both by direct-factor families and by the already
+  handle-oriented QR/SVD/analysis families
+
+#### 4. The first adoption matrix is now explicit
+
+Primary Day 6 adoption targets:
+
+- LU
+- Cholesky
+- LDLT
+- analysis
+- QR
+- SVD
+
+Near-adjacent likely follow-ons once the helper exists:
+
+- ILU / ILUT / IC
+- selected CSC factor backends where they currently mirror the same entry
+  guards
+
+Interpretation:
+
+- Day 6 can land useful adoption immediately without needing a repo-wide
+  migration sweep
+- the helper layer is broad enough to justify its existence but still bounded
+
+#### 5. The guard layer must preserve current user-visible semantics, not reinterpret them
+
+The current families mostly agree on outward behavior already:
+
+- bad lifecycle state returns `SPARSE_ERR_BADARG`
+- matrix-shape and matrix-class errors remain separate
+- original-state requirements remain part of the public semantic contract even
+  when implemented through factored/permutation checks
+
+Interpretation:
+
+- the guard layer should preserve current error semantics
+- its purpose is to normalize implementation and wording drift, not change the
+  public contract in Sprint 42

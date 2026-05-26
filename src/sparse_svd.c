@@ -1039,9 +1039,10 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     size_t lanczos_k_size = 0;
     size_t lanczos_k1_size = 0;
     size_t kk_size = 0;
+    if (sparse_idx_to_size_checked(lanczos_k, &lanczos_k_size) ||
+        sparse_size_add_overflow(lanczos_k_size, 1, &lanczos_k1_size))
+        return SPARSE_ERR_ALLOC;
     if (sparse_idx_to_size_checked(m, &m_size) || sparse_idx_to_size_checked(n, &n_size) ||
-        sparse_idx_to_size_checked(lanczos_k, &lanczos_k_size) ||
-        sparse_idx_to_size_checked(lanczos_k + 1, &lanczos_k1_size) ||
         sparse_idx_to_size_checked(kk, &kk_size)) {
         return SPARSE_ERR_ALLOC;
     }

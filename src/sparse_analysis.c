@@ -272,7 +272,7 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
         }
 
         idx_t *cc = NULL;
-        if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&cc) != SPARSE_OK) {
+        if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&cc) != SPARSE_OK) {
             sparse_free(B_perm);
             sparse_analysis_free(analysis);
             return SPARSE_ERR_ALLOC;

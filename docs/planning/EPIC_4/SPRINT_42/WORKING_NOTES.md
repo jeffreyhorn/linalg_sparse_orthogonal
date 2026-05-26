@@ -1587,3 +1587,105 @@ internal-handle / compatibility-scaffolding batch:
 - strongest reviewed local baseline: green
 - reviewed CMake parity: unchanged and exact
 - new lifecycle misuse regressions: green
+
+## Day 14 - Closeout and handoff
+
+Date: 2026-05-26
+
+### Summary
+
+Closed Sprint 42 from the Day 13 validated baseline and synthesized the sprint
+into one coherent lifecycle-groundwork handoff package for Sprint 43 and later
+Epic 4 phases.
+
+### What Sprint 42 landed
+
+Sprint 42 now hands off five connected architecture outcomes rather than a set
+of unrelated local refactors:
+
+- internal factor-state scaffolding inside `SparseMatrix`
+- shared matrix-state guard helpers for original-state, identity-permutation,
+  and factored-state checks
+- first direct factor-path normalization across LU, linked-list Cholesky, CSC
+  Cholesky, and the analyze-once bridge
+- clearer compatibility direction for one-shot wrappers and
+  `sparse_factors_t`
+- focused regression coverage for the highest-value lifecycle misuse cases
+
+The important architectural boundary remained intact throughout the sprint:
+
+- `SparseMatrix` is still the public compatibility-facing wrapper
+- the new handle/state work is internal-first, not a premature public API
+  redesign
+- copy-before-use and original-matrix requirements remain explicit caller rules
+  for lifecycle-sensitive paths
+
+### Day 13 validation anchor carried forward
+
+Sprint 42 closes from the measured Day 13 baseline:
+
+- `make format`: passed
+- `make lint`: passed
+- `make test`: passed
+- `make quality-review-full`: passed
+- reviewed CMake parity stayed exact at `53`
+- Makefile/CMake test-count parity stayed `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+
+Interpretation:
+
+- the Sprint 42 lifecycle-groundwork package is validated as one maintained
+  unit, not just as day-by-day local edits
+
+### Explicit Sprint 43+ handoff
+
+Sprint 43 prerequisites are now concrete:
+
+- reuse the private seams introduced in Sprint 42 instead of reopening bespoke
+  state publication or guard logic:
+  - `sparse_factor_state_internal.c`
+  - `sparse_matrix_state_internal.h`
+- continue the internal-first lifecycle split before attempting public-handle
+  expansion
+- treat `sparse_factors_t` as the compatibility bridge, not as a redesign
+  target for this early phase
+- preserve the Day 12 misuse-test expectations as non-negotiable compatibility
+  coverage
+
+The remaining later-phase queue is still the planned Epic 4 queue rather than a
+new Sprint 42 escape list:
+
+- deeper LU / Cholesky payload separation
+- broader bridge normalization
+- future public-handle enrichment only after the internal seams are stable
+- later documentation/tutorial/example reconciliation when public lifecycle
+  guidance actually changes
+
+### `PROJECT_PLAN.md` follow-up
+
+Checked whether Sprint 42 surfaced any new deferred item that was not already
+routed in the Epic 4 plan.
+
+Result:
+
+- no `PROJECT_PLAN.md` update needed
+
+Reason:
+
+- Sprint 42 did not create a new lifecycle queue outside the work already owned
+  by Sprint 43 and later Epic 4 phases
+
+### Day 14 conclusion
+
+Sprint 42 closes as a coherent lifecycle-groundwork sprint:
+
+- internal handle scaffolding landed
+- shared guard logic landed
+- first factor-path normalization landed
+- compatibility direction stayed explicit
+- misuse-test coverage tightened
+- full maintained validation stayed green
+
+That is the correct handoff shape for the next lifecycle phase: preserve the
+new internal seams, expand them deliberately, and avoid reopening public API
+surface area before the internal ownership split is mature.

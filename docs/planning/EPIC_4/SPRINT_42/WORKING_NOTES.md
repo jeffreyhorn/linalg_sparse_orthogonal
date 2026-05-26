@@ -1201,3 +1201,194 @@ contract:
   boundary
 - the analyze-once bridge now commits factor output only on success
 - focused tests now assert the touched cancel/failure semantics directly
+
+## Day 11 - Compatibility bridge and focused-test design
+
+### What I reviewed
+
+Day 11 re-read the live Sprint 42 bridge and contract surfaces after the Day 10
+landing:
+
+- Sprint 42 plan and Day 7 through Day 10 artifacts
+- current public bridge/object contracts in:
+  - `include/sparse_analysis.h`
+  - `include/sparse_lu.h`
+  - `include/sparse_cholesky.h`
+- current operator-facing lifecycle wording in:
+  - `README.md`
+  - `docs/tutorial.md`
+- current focused lifecycle regression coverage in:
+  - `tests/test_integration.c`
+  - `tests/test_etree.c`
+  - `tests/test_qr.c`
+  - `tests/test_svd.c`
+  - `tests/test_edge_cases.c`
+  - `tests/test_ilu.c`
+  - `tests/test_ic.c`
+
+### Main compatibility design result
+
+Sprint 42 now has a clear preserve-and-evolve compatibility story.
+
+#### 1. One-shot APIs remain the primary public compatibility wrappers
+
+The current public one-shot families still sit at the top of the compatibility
+stack:
+
+- direct matrix-in / matrix-mutating wrappers:
+  - LU
+  - Cholesky
+- separate-handle families:
+  - LDLT
+  - QR
+  - SVD
+- analyze-once compatibility bridge:
+  - `sparse_analyze(...)`
+  - `sparse_factor_numeric(...)`
+  - `sparse_factor_solve(...)`
+  - `sparse_refactor_numeric(...)`
+
+Interpretation:
+
+- Sprint 42 is still internal-first
+- later Epic 4 phases should evolve internals beneath these public shapes first
+- compatibility shims should be thin adapters over newer internal seams rather
+  than a second public API family introduced too early
+
+#### 2. `sparse_factors_t` is now explicitly a preserve-and-evolve bridge
+
+The Day 9 and Day 10 code leaves `sparse_factors_t` in a stable bridge role:
+
+- preserve now:
+  - installed public struct shape
+  - current solve contract
+  - current factor-type dispatch role
+- evolve later:
+  - implementation-side payload interpretation
+  - bridge helper ownership
+  - success-only commit behavior
+  - future internal payload substitutions behind the same public shape
+
+Interpretation:
+
+- later lifecycle phases should keep treating `sparse_factors_t` as the public
+  compatibility shell while internal payload ownership changes underneath it
+- a public bridge redesign is later work, not a Sprint 42 requirement
+
+#### 3. Copy-before-use remains a wrapper-level compatibility expectation
+
+The current compatibility story still depends on one explicit caller rule:
+
+- if the original coefficient matrix must be preserved across direct
+  factorization or lifecycle-sensitive reuse, the caller should work from a
+  fresh `sparse_copy(...)`
+
+This remains load-bearing for:
+
+- LU one-shot factorization
+- Cholesky one-shot factorization
+- any workflow that mixes:
+  - direct matrix-mutating factorization
+  - later QR/SVD/analyze/ILU/IC use on the original state
+
+Interpretation:
+
+- Sprint 42 is not removing this rule yet
+- Day 12 should reinforce it through bounded regression tests rather than new
+  public helper APIs
+
+### Current test coverage assessment
+
+Day 11 split the lifecycle tests into "already strong enough" versus "still
+worth a bounded Day 12 addition."
+
+#### Already strong enough for Sprint 42
+
+- cancel-path coverage for:
+  - LU
+  - Cholesky
+  - LDLT
+  - QR
+  - iterative/eigensolver families
+- analyze-once bridge success path and refactor loop coverage in
+  `tests/test_etree.c`
+- Day 10 regression:
+  - failed `sparse_factor_numeric(...)` preserves the old bridge object
+- factored-state misuse coverage already present for:
+  - ILU
+  - ILUT
+
+Interpretation:
+
+- Day 12 does not need to reopen those paths broadly
+
+#### Highest-value bounded Day 12 additions
+
+The remaining gaps are narrower and mostly about explicit misuse rejection.
+
+1. Analyze-once misuse tightening in `tests/test_etree.c`
+
+- add direct regressions that:
+  - `sparse_analyze(...)` rejects already-factored matrices
+  - `sparse_factor_numeric(...)` rejects matrices with non-identity row/col
+    state when the caller violates the original-state contract
+
+Why:
+
+- these are core bridge preconditions
+- they fit naturally in the existing analyze/factor test home
+
+2. QR copy-before-use / original-state misuse tightening in `tests/test_qr.c`
+
+- add a focused regression that:
+  - factor or reorder a matrix first
+  - then assert `sparse_qr_factor(...)` or `sparse_qr_factor_opts(...)`
+    rejects the reused matrix with `SPARSE_ERR_BADARG`
+
+Why:
+
+- the public header and tutorial already promise this contract
+- Day 12 should pin it explicitly in tests rather than leaving it only in docs
+
+3. SVD copy-before-use / original-state misuse tightening in `tests/test_svd.c`
+
+- add a focused regression that:
+  - factor or reorder a matrix first
+  - then assert `sparse_svd_compute(...)` and/or `sparse_svd_partial(...)`
+    rejects the reused matrix with `SPARSE_ERR_BADARG`
+
+Why:
+
+- this is the same lifecycle-sensitive caller rule as QR
+- it is a high-value operator-facing compatibility expectation
+
+### What Day 12 should still avoid
+
+The Day 11 design also makes the Day 12 boundary explicit.
+
+Day 12 should **not** widen into:
+
+- broad new lifecycle-test framework work
+- README/tutorial rewrites
+- public-handle API tests for interfaces that do not exist yet
+- large benchmark/example misuse coverage
+- QR/SVD semantic redesign rather than simple rejection/contract tests
+
+Interpretation:
+
+- the right Day 12 batch is small and surgical
+- the objective is to harden the most important touched lifecycle expectations,
+  not to reopen the whole Epic 4 test strategy
+
+### Day 11 conclusion
+
+Sprint 42 now has an explicit compatibility and focused-test design:
+
+- one-shot APIs remain the public compatibility wrappers
+- `sparse_factors_t` remains the preserve-and-evolve bridge
+- copy-before-use stays an explicit caller compatibility rule for the
+  matrix-mutating families
+- Day 12 now has a concrete, bounded test batch:
+  - `tests/test_etree.c`
+  - `tests/test_qr.c`
+  - `tests/test_svd.c`

@@ -1103,16 +1103,21 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     }
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
     double *V = malloc(v_bytes);
-    double *alpha = malloc(m_cap_size * sizeof(double));
-    double *beta = malloc(m_cap_size * sizeof(double));
+    double *alpha = NULL;
+    double *beta = NULL;
     double *v0 = calloc(n_size, sizeof(double));
     double *theta_long = calloc(m_cap_size, sizeof(double));
-    double *subdiag = malloc(m_cap_size * sizeof(double));
+    double *subdiag = NULL;
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
     double *Y_long = calloc(y_elems, sizeof(double));
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
     idx_t *sel_idx = malloc(sel_idx_bytes);
-    if (!V || !alpha || !beta || !v0 || !theta_long || !subdiag || !Y_long || !sel_idx) {
+    sparse_err_t alloc_err = sparse_malloc_array(m_cap_size, sizeof(double), (void **)&alpha);
+    if (alloc_err == SPARSE_OK)
+        alloc_err = sparse_malloc_array(m_cap_size, sizeof(double), (void **)&beta);
+    if (alloc_err == SPARSE_OK)
+        alloc_err = sparse_malloc_array(m_cap_size, sizeof(double), (void **)&subdiag);
+    if (!V || alloc_err != SPARSE_OK || !v0 || !theta_long || !Y_long || !sel_idx) {
         free(V);
         free(alpha);
         free(beta);

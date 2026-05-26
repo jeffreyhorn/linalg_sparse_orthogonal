@@ -601,8 +601,7 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
     idx_t *col_reorder = NULL;
     if (opts && opts->reorder == SPARSE_REORDER_COLAMD && n > 1) {
         /* COLAMD operates directly on A's structure — no need to form A^T*A */
-        col_reorder = malloc(n_size * sizeof(idx_t));
-        if (col_reorder) {
+        if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&col_reorder) == SPARSE_OK) {
             if (sparse_reorder_colamd(A, col_reorder) != SPARSE_OK) {
                 free(col_reorder);
                 col_reorder = NULL;
@@ -637,8 +636,7 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
             }
 
             if (AtA) {
-                col_reorder = malloc(n_size * sizeof(idx_t));
-                if (col_reorder) {
+                if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&col_reorder) == SPARSE_OK) {
                     sparse_err_t rerr = SPARSE_ERR_BADARG;
                     if (opts->reorder == SPARSE_REORDER_AMD)
                         rerr = sparse_reorder_amd(AtA, col_reorder);
@@ -669,12 +667,19 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
     /* Allocate dense m×n working matrix (column-major) */
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
     double *W = calloc(m_size * n_size, sizeof(double));
-    double *col_norms = malloc(n_size * sizeof(double));
-    idx_t *perm = malloc(n_size * sizeof(idx_t));
-    double *betas = calloc(k_size, sizeof(double));
-    double **vecs = calloc(k_size, sizeof(double *));
+    double *col_norms = NULL;
+    idx_t *perm = NULL;
+    double *betas = NULL;
+    double **vecs = NULL;
+    sparse_err_t alloc_err = sparse_malloc_array(n_size, sizeof(double), (void **)&col_norms);
+    if (alloc_err == SPARSE_OK)
+        alloc_err = sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&perm);
+    if (alloc_err == SPARSE_OK)
+        alloc_err = sparse_calloc_array(k_size, sizeof(double), (void **)&betas);
+    if (alloc_err == SPARSE_OK)
+        alloc_err = sparse_calloc_array(k_size, sizeof(double *), (void **)&vecs);
 
-    if (!W || !col_norms || !perm || !betas || !vecs) {
+    if (!W || alloc_err != SPARSE_OK) {
         free(W);
         free(col_norms);
         free(perm);
@@ -688,8 +693,7 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
      * col_reorder[new] = old, so inv_col_reorder[old] = new. */
     idx_t *inv_col_reorder = NULL;
     if (col_reorder) {
-        inv_col_reorder = malloc(n_size * sizeof(idx_t));
-        if (!inv_col_reorder) {
+        if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&inv_col_reorder) != SPARSE_OK) {
             free(W);
             free(col_norms);
             free(perm);
@@ -727,8 +731,8 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
     free(col_reorder); /* consumed into perm */
 
     /* Dense Householder vector workspace */
-    double *hv = malloc(m_size * sizeof(double));
-    if (!hv) {
+    double *hv = NULL;
+    if (sparse_malloc_array(m_size, sizeof(double), (void **)&hv) != SPARSE_OK) {
         free(W);
         free(col_norms);
         free(perm);

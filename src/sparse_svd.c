@@ -1260,8 +1260,7 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
      * compute_uv is set (perm is only needed for vector recovery). */
     idx_t *perm = NULL;
     if (compute_uv) {
-        perm = malloc(lanczos_k_size * sizeof(idx_t));
-        if (!perm) {
+        if (sparse_malloc_idx_array(lanczos_k, sizeof(idx_t), (void **)&perm) != SPARSE_OK) {
             free(alpha);
             free(P);
             free(Q);

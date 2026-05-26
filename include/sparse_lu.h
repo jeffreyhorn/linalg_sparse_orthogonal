@@ -61,8 +61,8 @@ typedef struct {
      *  the library frees intermediate state and returns
      *  `SPARSE_ERR_CANCELLED`.  Cancellation at `step > 0` leaves
      *  the matrix with the first `step` columns fully eliminated.
-     *  Cancellation at `step == 0` leaves the entry-value data
-     *  with no in-loop mutation restores the pre-entry factored-state
+     *  Cancellation at `step == 0` leaves the entry-value data with no
+     *  in-loop mutation and restores the pre-entry factored-state
      *  compatibility mirrors (`factored`, `factor_norm`).  This does
      *  not undo any reorder that `sparse_lu_factor_opts()` may have
      *  applied before the callback path begins.  NULL (default)

@@ -280,3 +280,118 @@ Interpretation:
   spread the shared guard layer across the already handle-oriented paths
 - this preserves the Sprint 40 internal-first rule while avoiding premature
   public-handle churn
+
+## Day 3
+
+**Objective:** Define the first concrete internal handle scaffolding for Sprint
+42 by turning the Day 2 seam split into explicit ownership boundaries for LU,
+Cholesky, and the `sparse_factors_t` bridge, while preserving current public
+API behavior and leaving broader public explicit-handle work for later Epic 4
+phases.
+
+### Commands Run
+
+1. Re-read the Sprint 42 Day 3 plan section:
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_42/PLAN.md`
+2. Re-read the Sprint 40 handle-model design inputs:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_40/artifacts/day9-handle-model-design-1.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_40/artifacts/day10-handle-model-design-2-and-migration-strategy.md`
+3. Re-read the refreshed Sprint 42 lifecycle seam inventory:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_42/artifacts/day2-lifecycle-seam-refresh-inventory.md`
+
+### Day 3 Findings
+
+#### 1. Sprint 42 only needs three first-phase internal handle families
+
+The Day 2 seam inventory supports a narrow first-phase internal object set:
+
+- LU numeric payload handle
+- Cholesky numeric payload handle
+- `sparse_factors_t` bridge payload normalization seam
+
+Interpretation:
+
+- Sprint 42 does not need a broad internal object explosion
+- the first handle work should stay focused on the seams where ownership is
+  currently ambiguous or matrix-centric
+
+#### 2. The immediate architectural goal is payload separation, not public API shape change
+
+The first handle layer should change who owns numeric factor state internally,
+not what callers call publicly:
+
+- existing one-shot LU and Cholesky entry points remain the public wrapper
+  surface
+- existing analyze-once entry points remain the public bridge surface
+- internal payloads become the true owners of factor-state data
+
+Interpretation:
+
+- Sprint 42 should land internal handle boundaries under the current public
+  APIs
+- wrapper preservation is load-bearing throughout Phase 1
+
+#### 3. The stable keep/move split is now concrete enough for implementation
+
+Keep on `SparseMatrix` during Sprint 42:
+
+- coefficient/value storage semantics
+- structural editing semantics
+- matrix query/arithmetic behavior
+- current compatibility-facing wrapper role where public APIs still accept
+  matrix objects
+
+Move behind first-phase internal handles or bridge payloads:
+
+- LU/Cholesky numeric factor payload ownership
+- factor-local solve-readiness state
+- factor-local permutation/telemetry ownership where internal seams permit
+- bridge-owned numeric payload inside `sparse_factors_t`
+
+Interpretation:
+
+- Sprint 42 now has a practical ownership split for implementation
+- later public explicit-handle work can build on this split instead of having
+  to invent it again
+
+#### 4. `sparse_factors_t` should evolve as a preserve-and-normalize bridge, not be replaced
+
+The bridge rule is now explicit:
+
+- keep `sparse_factors_t` as the public factor-handle wrapper for the
+  analyze-once workflow
+- normalize what it owns internally before changing how callers reason about
+  it
+- treat it as the main compatibility scaffold between current matrix-centric
+  internals and later explicit numeric-factor payloads
+
+Interpretation:
+
+- the analyze-once workflow remains one of the cleanest public lifecycle
+  surfaces in the repo
+- Sprint 42 should protect that public shape while reducing its matrix-centric
+  internal coupling
+
+#### 5. The Day 5 / Day 6 implementation boundary is now explicit
+
+The first implementation batches should now divide cleanly:
+
+- Day 5:
+  - initial LU/Cholesky internal payload seam
+- Day 6:
+  - shared matrix-state guard helper layer and early adoption
+
+That ordering matters because the handle seam and the guard seam solve
+different lifecycle problems:
+
+- handle seam:
+  - ownership ambiguity
+  - hidden mutation overloading
+- guard seam:
+  - eligibility drift
+  - repeated precondition checks
+
+Interpretation:
+
+- Sprint 42 should not try to solve both seams with one abstraction
+- Day 3 now fixes the ownership half before Day 4 defines the guard half

@@ -161,6 +161,8 @@ typedef struct {
 
 typedef struct {
     sparse_factor_state_kind_t kind;
+    double prev_factor_norm;
+    int prev_factored;
     union {
         sparse_lu_factor_state_t lu;
         sparse_cholesky_factor_state_t cholesky;
@@ -211,6 +213,7 @@ void sparse_factor_state_set_factored(SparseMatrix *mat, int is_factored);
 void sparse_factor_state_set_factor_norm(SparseMatrix *mat, double factor_norm);
 void sparse_factor_state_replace_reorder_perm(SparseMatrix *mat, idx_t *perm);
 void sparse_factor_state_publish_factored(SparseMatrix *mat, double factor_norm, idx_t *perm);
+void sparse_factor_state_restore_compat(SparseMatrix *mat);
 int sparse_factor_state_is_factored(const SparseMatrix *mat);
 double sparse_factor_state_factor_norm(const SparseMatrix *mat);
 void sparse_factor_state_clear(SparseMatrix *mat);

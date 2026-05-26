@@ -472,7 +472,8 @@ static void test_progress_cb_lu_cancel(void) {
     ASSERT_EQ(sparse_lu_factor_opts(A, &opts), SPARSE_ERR_CANCELLED);
     ASSERT_EQ(ctx.n_calls, 1); /* cancelled at the very first emission */
 
-    /* Matrix must be unmodified: factored flag clear + same entries. */
+    /* Matrix entries and perms stay unchanged for this no-reorder path,
+     * and the cancelled matrix must not be accepted as factored. */
     ASSERT_EQ(sparse_get(A, 0, 0), sparse_get(A_orig, 0, 0));
     for (idx_t i = 0; i < n; i++) {
         ASSERT_TRUE(sparse_get(A, i, i) == sparse_get(A_orig, i, i));
@@ -481,6 +482,11 @@ static void test_progress_cb_lu_cancel(void) {
             ASSERT_TRUE(sparse_get(A, i - 1, i) == sparse_get(A_orig, i - 1, i));
         }
     }
+    double b_cancel[100];
+    double x_cancel[100];
+    for (idx_t i = 0; i < n; i++)
+        b_cancel[i] = 1.0;
+    ASSERT_EQ(sparse_lu_solve(A, b_cancel, x_cancel), SPARSE_ERR_BADARG);
 
     sparse_free(A);
     sparse_free(A_orig);
@@ -526,6 +532,11 @@ static void test_progress_cb_cholesky_emits_cancel(void) {
     /* Diagonal preserved: cancellation at step=0 fires before any
      * column-k=0 update writes to L(0, 0). */
     ASSERT_TRUE(sparse_get(A, 0, 0) == 4.0);
+    double b_cancel[100];
+    double x_cancel[100];
+    for (idx_t i = 0; i < n; i++)
+        b_cancel[i] = 1.0;
+    ASSERT_EQ(sparse_cholesky_solve(A, b_cancel, x_cancel), SPARSE_ERR_BADARG);
     sparse_free(A);
 }
 

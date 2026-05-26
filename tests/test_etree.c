@@ -2398,6 +2398,33 @@ static void test_refactor_dimension_mismatch(void) {
     sparse_free(A);
 }
 
+static void test_factor_numeric_preserves_old_factors_on_failure(void) {
+    idx_t n = 4;
+    SparseMatrix *A = make_tridiag(n);
+    sparse_analysis_t analysis = {0};
+    sparse_factors_t factors = {0};
+    double b[4] = {1.0, 2.0, 3.0, 4.0};
+    double x[4];
+
+    REQUIRE_OK(sparse_analyze(A, NULL, &analysis));
+    REQUIRE_OK(sparse_factor_numeric(A, &analysis, &factors));
+    REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b, x));
+    ASSERT_TRUE(solve_residual(A, b, x) < 1e-12);
+
+    SparseMatrix *A_bad = sparse_copy(A);
+    REQUIRE_OK(A_bad ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_insert(A_bad, 0, 1, 2.0);
+    ASSERT_ERR(sparse_factor_numeric(A_bad, &analysis, &factors), SPARSE_ERR_NOT_SPD);
+
+    REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b, x));
+    ASSERT_TRUE(solve_residual(A, b, x) < 1e-12);
+
+    sparse_factor_free(&factors);
+    sparse_analysis_free(&analysis);
+    sparse_free(A_bad);
+    sparse_free(A);
+}
+
 static void test_refactor_loop(void) {
     /* Factor then refactor 10 times in a loop — verify no memory growth */
     idx_t n = 8;
@@ -2874,6 +2901,7 @@ int main(void) {
     RUN_TEST(test_refactor_cholesky_new_values);
     RUN_TEST(test_refactor_modify_single_value);
     RUN_TEST(test_refactor_dimension_mismatch);
+    RUN_TEST(test_factor_numeric_preserves_old_factors_on_failure);
     RUN_TEST(test_refactor_loop);
     RUN_TEST(test_refactor_lu);
     RUN_TEST(test_refactor_ldlt);

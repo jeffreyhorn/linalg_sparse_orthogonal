@@ -1044,3 +1044,160 @@ public bridge object:
 - LDLT bridge ownership transfer and solve-view reconstruction are centralized
 - `sparse_factors_t` remains compatibility-preserving while the implementation
   seam becomes more uniform
+
+## Day 10 - Cancellation and mutation contract normalization
+
+### What I changed
+
+Day 10 landed the bounded contract-normalization batch Sprint 42 planned for
+the touched lifecycle paths:
+
+- direct LU cancellation / pre-mutation failure cleanup
+- direct and CSC Cholesky state-entry timing cleanup
+- analyze-once bridge output-commit cleanup
+- focused lifecycle-contract regression coverage
+
+The batch stayed intentionally narrow:
+
+- no public API redesign
+- no broader lifecycle rewrite
+- no QR / SVD / LDLT ownership expansion
+- no broad README/tutorial churn
+
+### What normalized
+
+The Day 10 batch reduced drift in three main places.
+
+#### 1. LU now restores compatibility state on pre-mutation exits
+
+Touched files:
+
+- `src/sparse_matrix_internal.h`
+- `src/sparse_factor_state_internal.c`
+- `src/sparse_lu.c`
+
+Day 10 changes:
+
+- private factor-state payloads now snapshot prior compatibility mirrors:
+  - previous `factored`
+  - previous `factor_norm`
+- added `sparse_factor_state_restore_compat(...)`
+- LU now restores those mirrors on pre-mutation exits such as:
+  - immediate cancellation before any in-loop mutation
+  - pre-mutation singular / early error exits
+
+Interpretation:
+
+- the direct LU path is now more internally consistent with its actual mutation
+  boundary
+- immediate cancellation no longer leaves the factor-state mirrors drifted if
+  the matrix body was still untouched by the inner factor path
+- this still does **not** undo any fill-reducing reorder already applied by
+  `sparse_lu_factor_opts(...)`
+
+#### 2. Cholesky now delays state-entry until the path is truly crossing its mutation seam
+
+Touched file:
+
+- `src/sparse_cholesky.c`
+
+Day 10 changes:
+
+- linked-list Cholesky now validates symmetry, computes `||A||_inf`, and
+  allocates its local work buffers before entering the private factor-state
+  seam
+- CSC Cholesky now delays `sparse_factor_state_begin_cholesky(...)` until after
+  successful symbolic / CSC working-format preparation and numeric CSC
+  elimination, just before writeback to `mat`
+- linked-list cancellation comments now say directly that the upper triangle is
+  already stripped before the first callback emission
+
+Interpretation:
+
+- Cholesky still has its load-bearing in-place mutation contract
+- but the code now enters the compatibility-state seam closer to the real
+  lifecycle boundary instead of mutating that state too early on preparatory
+  failures
+
+#### 3. The analyze-once bridge now commits output only on success
+
+Touched files:
+
+- `src/sparse_analysis.c`
+- `tests/test_etree.c`
+
+Day 10 changes:
+
+- `sparse_factor_numeric(...)` now factors into a local `new_factors` payload
+  first
+- the caller-provided `sparse_factors_t` is only freed/replaced after full
+  success
+- added focused regression coverage proving that an existing successful factor
+  object remains usable after a later `sparse_factor_numeric(...)` failure
+
+Interpretation:
+
+- the analyze-once bridge now has the same success-only commit shape already
+  used by `sparse_refactor_numeric(...)`
+- failure no longer leaves a partially rewritten bridge object behind
+
+#### 4. Focused lifecycle-contract assertions are now explicit in tests
+
+Touched files:
+
+- `tests/test_integration.c`
+- `tests/test_etree.c`
+
+Day 10 additions:
+
+- LU cancel-at-step-0 regression now asserts the cancelled matrix is rejected
+  by solve
+- Cholesky cancel-at-step-0 regression now asserts the cancelled matrix is
+  rejected by solve
+- analyze-once failure regression now asserts the old factors still solve
+  correctly after a failed replacement attempt
+
+Interpretation:
+
+- the touched lifecycle semantics are now exercised directly rather than living
+  only in comments
+
+### What stayed intentionally unchanged
+
+Day 10 did **not** widen into:
+
+- public lifecycle-header redesign beyond small contract wording cleanup
+- broader README/tutorial reconciliation
+- full public `sparse_factors_t` redesign
+- QR / SVD / LDLT cancellation work
+- reorder rollback or full bit-identical restoration after already-mutating
+  paths
+
+Interpretation:
+
+- the batch stayed on the Sprint 42 Day 10 target
+- remaining broader lifecycle wording or public-handle work still belongs to
+  later Epic 4 phases
+
+### Validation
+
+Because `*.c` / `*.h` changed, I ran the required full gate:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Authoritative result:
+
+- all passed
+
+### Day 10 conclusion
+
+Sprint 42's touched lifecycle paths now express a more consistent internal
+contract:
+
+- LU restores compatibility-state mirrors on pre-mutation exits
+- Cholesky enters the private factor-state seam closer to its actual mutation
+  boundary
+- the analyze-once bridge now commits factor output only on success
+- focused tests now assert the touched cancel/failure semantics directly

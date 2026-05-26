@@ -83,9 +83,6 @@ static sparse_err_t sparse_cholesky_factor_inner(SparseMatrix *mat,
         return SPARSE_ERR_SHAPE;
     if (n == 0)
         return SPARSE_OK;
-    sparse_err_t payload_err = sparse_factor_state_begin_cholesky(mat);
-    if (payload_err != SPARSE_OK)
-        return payload_err;
 
     /* Validate symmetry before allocating or modifying anything */
     if (!sparse_is_symmetric(mat, 1e-12))
@@ -96,7 +93,6 @@ static sparse_err_t sparse_cholesky_factor_inner(SparseMatrix *mat,
     sparse_err_t nerr = sparse_norminf(mat, &anorm);
     if (nerr != SPARSE_OK)
         return nerr;
-    sparse_factor_state_set_factor_norm(mat, anorm);
 
     /* Dense accumulator for column k (indices k..n-1) */
     double *col_acc = calloc((size_t)n, sizeof(double));
@@ -108,6 +104,15 @@ static sparse_err_t sparse_cholesky_factor_inner(SparseMatrix *mat,
         free(nz_rows);
         return SPARSE_ERR_ALLOC;
     }
+
+    sparse_err_t payload_err = sparse_factor_state_begin_cholesky(mat);
+    if (payload_err != SPARSE_OK) {
+        free(col_acc);
+        free(nz_row);
+        free(nz_rows);
+        return payload_err;
+    }
+    sparse_factor_state_set_factor_norm(mat, anorm);
 
     /* Remove upper triangle entries (we only store L) */
     for (idx_t i = 0; i < n; i++) {
@@ -126,11 +131,9 @@ static sparse_err_t sparse_cholesky_factor_inner(SparseMatrix *mat,
     for (idx_t k = 0; k < n; k++) {
         /* Sprint 29 Day 6: progress + cancel check at top of each
          * column iteration.  Cancellation at step=0 leaves the
-         * matrix's lower-triangle as the upper-triangle-stripped
-         * input — NOT bit-identical to the pre-call state because
-         * the upper-triangle strip ran above.  Callers that need
-         * the bit-identical contract should sparse_copy() before
-         * factor + cancel on the copy. */
+         * matrix's lower triangle in-place but does not restore the
+         * removed upper triangle, because the structural strip ran
+         * above this loop before the first emission. */
         if (progress_cb) {
             sparse_progress_t p = {
                 .phase = "cholesky_factor",
@@ -357,10 +360,6 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
     if (!use_csc)
         return sparse_cholesky_factor_inner(mat, opts->progress_cb, opts->progress_user);
 
-    sparse_err_t payload_err = sparse_factor_state_begin_cholesky(mat);
-    if (payload_err != SPARSE_OK)
-        return payload_err;
-
     /* CSC path: analyse, convert with the full symbolic L pattern,
      * factor via the batched supernodal kernel, transplant the result
      * back into `mat`.  After the reorder + transplant above mat lives
@@ -390,6 +389,13 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
         chol_csc_free(L_csc);
         sparse_analysis_free(&an);
         return err;
+    }
+
+    sparse_err_t payload_err = sparse_factor_state_begin_cholesky(mat);
+    if (payload_err != SPARSE_OK) {
+        chol_csc_free(L_csc);
+        sparse_analysis_free(&an);
+        return payload_err;
     }
 
     /* Writeback overwrites mat's storage with L and re-publishes the

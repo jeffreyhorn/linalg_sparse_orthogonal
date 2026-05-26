@@ -62,14 +62,12 @@ typedef struct {
      *  `SPARSE_ERR_CANCELLED`.  Cancellation at `step > 0` leaves
      *  the matrix with the first `step` columns fully eliminated.
      *  Cancellation at `step == 0` leaves the entry-value data
-     *  unmodified BUT `mat->factor_norm` has already been cached
-     *  with `||A||_inf` and `mat->factored` cleared before the
-     *  first emission — callers who require bit-identical input on
-     *  immediate cancellation should pre-`sparse_copy()` the input
-     *  and discard the copy on cancellation.  NULL (default)
+     *  with no in-loop mutation restores the pre-entry factored-state
+     *  compatibility mirrors (`factored`, `factor_norm`).  This does
+     *  not undo any reorder that `sparse_lu_factor_opts()` may have
+     *  applied before the callback path begins.  NULL (default)
      *  disables the callback — Sprint 28 behaviour bit-identical,
-     *  zero overhead.  Trailing field for designated-init back-
-     *  compat. */
+     *  zero overhead.  Trailing field for designated-init back-compat. */
     sparse_progress_cb_t progress_cb;
     /** Opaque context pointer passed through unchanged to
      *  `progress_cb`.  Ignored when `progress_cb == NULL`. */

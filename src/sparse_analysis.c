@@ -431,8 +431,8 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
         return SPARSE_ERR_BADARG;
 
     idx_t n = analysis->n;
-    sparse_factor_free(factors); /* free any prior contents */
-    sparse_factors_init_payload(factors, analysis->type, n);
+    sparse_factors_t new_factors = {0};
+    sparse_factors_init_payload(&new_factors, analysis->type, n);
 
     switch (analysis->type) {
     case SPARSE_FACTOR_CHOLESKY: {
@@ -448,7 +448,7 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
             return err;
         }
 
-        sparse_factors_take_matrix_factor(factors, L);
+        sparse_factors_take_matrix_factor(&new_factors, L);
         break;
     }
 
@@ -465,7 +465,7 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
             return err;
         }
 
-        sparse_factors_take_matrix_factor(factors, LU);
+        sparse_factors_take_matrix_factor(&new_factors, LU);
         break;
     }
 
@@ -482,7 +482,7 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
         if (err != SPARSE_OK)
             return err;
 
-        sparse_factors_take_ldlt_factor(factors, &ldlt);
+        sparse_factors_take_ldlt_factor(&new_factors, &ldlt);
         sparse_ldlt_free(&ldlt);
         break;
     }
@@ -491,6 +491,8 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
         return SPARSE_ERR_BADARG;
     }
 
+    sparse_factor_free(factors);
+    *factors = new_factors;
     return SPARSE_OK;
 }
 

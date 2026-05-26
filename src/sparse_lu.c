@@ -87,25 +87,23 @@ static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t piv
     double anorm;
     sparse_err_t nerr = sparse_norminf(mat, &anorm);
     if (nerr != SPARSE_OK) {
+        sparse_factor_state_restore_compat(mat);
         free(elim_rows);
         return nerr;
     }
     sparse_factor_state_set_factor_norm(mat, anorm);
 
     double phase_start_s = progress_cb ? s29_now_s() : 0.0;
+    int matrix_mutated = 0;
 
     for (idx_t k = 0; k < n; k++) {
         /* Sprint 29 Day 6: progress emission + cancellation check at
          * top of each column iteration (BEFORE any column-k mutation).
-         * Cancellation at step=0 leaves the entry values unmodified —
-         * no column has been eliminated yet — BUT the matrix struct is
-         * NOT bit-identical to entry: `mat->factored` was cleared and
-         * `mat->factor_norm` was cached with `||A||_inf` immediately
-         * above this loop.  Callers that need true bit-identical
-         * preservation on immediate cancellation should pre-
-         * `sparse_copy()` the input and discard the copy.  See
-         * `include/sparse_lu.h::sparse_lu_opts_t.progress_cb` for the
-         * full contract. */
+         * If cancellation happens before this inner path mutates the
+         * matrix, the compatibility mirrors (`factored`, `factor_norm`)
+         * are restored to their pre-entry state before returning.
+         * This does not undo any earlier reordering performed by
+         * `sparse_lu_factor_opts` before it entered this loop. */
         if (progress_cb) {
             sparse_progress_t p = {
                 .phase = "lu_factor",
@@ -114,6 +112,8 @@ static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t piv
                 .elapsed_s = s29_now_s() - phase_start_s,
             };
             if (progress_cb(&p, progress_user) != 0) {
+                if (!matrix_mutated)
+                    sparse_factor_state_restore_compat(mat);
                 free(elim_rows);
                 return SPARSE_ERR_CANCELLED;
             }
@@ -160,11 +160,15 @@ static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t piv
         }
 
         if (max_val < tol) {
+            if (!matrix_mutated)
+                sparse_factor_state_restore_compat(mat);
             free(elim_rows);
             return SPARSE_ERR_SINGULAR;
         }
 
         /* ── Swap rows (always) and columns (complete pivoting only) ── */
+        if (pivot_log_row != k || (pivot == SPARSE_PIVOT_COMPLETE && pivot_log_col != k))
+            matrix_mutated = 1;
         if (pivot_log_row != k)
             swap_row_perm(mat, k, pivot_log_row);
         if (pivot == SPARSE_PIVOT_COMPLETE && pivot_log_col != k)
@@ -190,10 +194,14 @@ static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t piv
         idx_t phys_row_k = mat->row_perm[k];
         double pivot_val = sparse_get_phys(mat, phys_row_k, phys_k_col_val);
         if (fabs(pivot_val) < tol) {
+            if (!matrix_mutated)
+                sparse_factor_state_restore_compat(mat);
             free(elim_rows);
             return SPARSE_ERR_SINGULAR;
         }
 
+        if (elim_count > 0)
+            matrix_mutated = 1;
         for (idx_t e = 0; e < elim_count; e++) {
             idx_t log_i = elim_rows[e];
             idx_t phys_i = mat->row_perm[log_i];

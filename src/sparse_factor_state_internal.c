@@ -13,8 +13,21 @@ static sparse_err_t sparse_factor_state_bind(SparseMatrix *mat, sparse_factor_st
     }
     memset(mat->factor_state, 0, sizeof(*mat->factor_state));
     mat->factor_state->kind = kind;
-    mat->factor_state->state.lu.factor_norm = mat->factor_norm;
-    mat->factor_state->state.lu.is_factored = mat->factored;
+    mat->factor_state->prev_factor_norm = mat->factor_norm;
+    mat->factor_state->prev_factored = mat->factored;
+    switch (kind) {
+    case SPARSE_FACTOR_STATE_LU:
+        mat->factor_state->state.lu.factor_norm = mat->factor_norm;
+        mat->factor_state->state.lu.is_factored = mat->factored;
+        break;
+    case SPARSE_FACTOR_STATE_CHOLESKY:
+        mat->factor_state->state.cholesky.factor_norm = mat->factor_norm;
+        mat->factor_state->state.cholesky.is_factored = mat->factored;
+        break;
+    case SPARSE_FACTOR_STATE_NONE:
+    default:
+        break;
+    }
     return SPARSE_OK;
 }
 
@@ -97,6 +110,26 @@ void sparse_factor_state_publish_factored(SparseMatrix *mat, double factor_norm,
     sparse_factor_state_replace_reorder_perm(mat, perm);
     sparse_factor_state_set_factor_norm(mat, factor_norm);
     sparse_factor_state_set_factored(mat, 1);
+}
+
+void sparse_factor_state_restore_compat(SparseMatrix *mat) {
+    if (!mat || !mat->factor_state)
+        return;
+    mat->factor_norm = mat->factor_state->prev_factor_norm;
+    mat->factored = mat->factor_state->prev_factored;
+    switch (mat->factor_state->kind) {
+    case SPARSE_FACTOR_STATE_LU:
+        mat->factor_state->state.lu.factor_norm = mat->factor_norm;
+        mat->factor_state->state.lu.is_factored = mat->factored;
+        break;
+    case SPARSE_FACTOR_STATE_CHOLESKY:
+        mat->factor_state->state.cholesky.factor_norm = mat->factor_norm;
+        mat->factor_state->state.cholesky.is_factored = mat->factored;
+        break;
+    case SPARSE_FACTOR_STATE_NONE:
+    default:
+        break;
+    }
 }
 
 int sparse_factor_state_is_factored(const SparseMatrix *mat) {

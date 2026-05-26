@@ -695,3 +695,132 @@ Sprint 42 now has a real shared matrix-state guard layer in live code:
   - internal-first
   - no public API churn
   - stable `SPARSE_ERR_BADARG` lifecycle failures
+
+## Day 7 - Factor-path landing audit
+
+### What I audited
+
+Day 7 turned the live Sprint 42 code into a bounded landing order for Days 8
+through 10 instead of treating every lifecycle-sensitive family as the same
+kind of problem.
+
+I re-read the current factor-entry and bridge surfaces in:
+
+- `src/sparse_lu.c`
+- `src/sparse_cholesky.c`
+- `src/sparse_ldlt.c`
+- `src/sparse_analysis.c`
+- `src/sparse_qr.c`
+- `src/sparse_svd.c`
+- `src/sparse_chol_csc.c`
+- `src/sparse_ldlt_csc.c`
+
+The key Day 7 question was not "where are factors involved?" It was:
+
+- where the Day 5 private factor-state seam is already strong enough to
+  support direct normalization
+- where a small bridge adapter is still needed first
+- which families are already sufficiently guard-complete for Sprint 42
+
+### Main classification result
+
+The current factor-path set now separates cleanly into three groups.
+
+#### 1. Ready for direct normalization
+
+- LU one-shot matrix path
+- Cholesky one-shot matrix path
+
+Why:
+
+- both now have the Day 5 private factor-state seam
+- both now have Day 6 factored/original-state guard normalization in the
+  touched entry points
+- both still preserve the public one-shot matrix API, so Sprint 42 can
+  tighten internal ownership/publication without public churn
+
+Interpretation:
+
+- Day 8 should target LU and Cholesky first
+
+#### 2. Bridge paths needing minor local adapters
+
+- `sparse_factors_t` analyze-once bridge in `src/sparse_analysis.c`
+- LDLT analyze-once / CSC bridge follow-ons where they support the above
+- Cholesky CSC writeback/publication seam
+
+Why:
+
+- `sparse_factors_t` is already the public compatibility bridge
+- but it still packages a matrix-centric payload:
+  - `SparseMatrix *F`
+  - LDLT-specific side arrays
+- `sparse_factor_numeric`, `sparse_factor_solve`, and `sparse_factor_free`
+  still do ad hoc bridge assembly/reconstruction work
+- the CSC writeback path still republishes factor state adjacent to, rather
+  than fully through, the Day 5 private seam
+
+Interpretation:
+
+- Day 9 should center on bounded `sparse_factors_t` normalization
+- LDLT and CSC follow-ons should only enter as small adapters that make that
+  bridge cleaner
+
+#### 3. Guard-complete or lower-priority for Sprint 42
+
+- QR
+- SVD
+- symbolic `sparse_analyze` entry
+
+Why:
+
+- Day 6 already gave QR and SVD the shared original-state seam they needed
+- both already externalize results/handles rather than overloading
+  `SparseMatrix` the way LU/Cholesky do
+- `sparse_analyze` itself is no longer the main lifecycle problem; the bridge
+  around `sparse_factor_numeric` is
+
+Interpretation:
+
+- QR/SVD are important preserved surfaces, but not the main Day 8/9 ownership
+  targets
+
+### `sparse_factors_t` readiness result
+
+Day 7 confirms that Sprint 42 can safely begin bounded bridge normalization
+around `sparse_factors_t` because:
+
+- the public bridge object already exists
+- the Day 5 factor-state seam is now live
+- the Day 6 lifecycle-state seam is now live
+- the current bridge logic is concentrated in `src/sparse_analysis.c`
+
+The important limit is equally explicit:
+
+- Sprint 42 should normalize implementation-side ownership and handoff
+- it should not redesign the installed public shape of `sparse_factors_t`
+
+### Day 8-10 landing order fixed
+
+Day 7 now fixes the main implementation order:
+
+- Day 8:
+  - LU / Cholesky direct path normalization
+- Day 9:
+  - bounded `sparse_factors_t` bridge normalization
+  - small LDLT / CSC adapter follow-ons only if they directly support that
+    bridge cleanup
+- Day 10:
+  - cancellation / mutation contract normalization across the touched direct
+    and bridge paths
+
+### Day 7 conclusion
+
+Sprint 42's next lifecycle batches are now bounded correctly:
+
+- LU and Cholesky are the direct normalization targets
+- `sparse_factors_t` is the main bridge seam
+- LDLT is mostly a follow-on adapter surface, not the primary ownership
+  rewrite target
+- QR and SVD can remain stable while the higher-pressure lifecycle seams are
+  cleaned up

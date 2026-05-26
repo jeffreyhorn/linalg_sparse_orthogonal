@@ -155,3 +155,128 @@ Interpretation:
   - focused tests
   - validation
 - broader public-handle enrichment remains later Epic 4 work
+
+## Day 2
+
+**Objective:** Refresh the lifecycle seam inventory against the current live
+LU / Cholesky / LDLT / analysis / QR / SVD surfaces so Sprint 42's first
+implementation batches are driven by the actual hidden-mutation and
+precondition seams still present in code, headers, and user-facing docs.
+
+### Commands Run
+
+1. Re-read the Sprint 42 Day 2 plan section:
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_42/PLAN.md`
+2. Re-read the Sprint 40 lifecycle baseline artifacts:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_40/artifacts/day5-lifecycle-inventory-lu-cholesky-ldlt.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_40/artifacts/day6-lifecycle-inventory-qr-svd-analysis-iterative-eigs.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_40/artifacts/day8-lifecycle-contract-map.md`
+3. Sweep the current headers, implementations, and user-facing docs for
+   lifecycle-sensitive seams:
+   - `rg -n "identity permutations|original matrix|factored|cancel|progress|perm|row_perm|col_perm|sparse_factors_t|typedef struct sparse_factors|sparse_lu_factor|sparse_cholesky_factor|sparse_ldlt_factor|sparse_qr_factor|sparse_svd_compute|sparse_analyze|sparse_factor_numeric|sparse_refactor_numeric" include src README.md docs/tutorial.md`
+4. Re-read the key lifecycle-sensitive header contracts:
+   - `sed -n '1,260p' include/sparse_analysis.h`
+   - `sed -n '1,260p' include/sparse_lu.h`
+   - `sed -n '1,260p' include/sparse_cholesky.h`
+   - `sed -n '1,260p' include/sparse_ldlt.h`
+   - `sed -n '1,260p' include/sparse_qr.h`
+   - `sed -n '1,260p' include/sparse_svd.h`
+
+### Day 2 Findings
+
+#### 1. LU and Cholesky remain the only high-risk matrix-as-factor-handle seams
+
+The live header and implementation contracts still make LU and Cholesky the
+clearest lifecycle outliers:
+
+- factorization mutates the same `SparseMatrix` that later becomes the solve
+  handle
+- permutation state remains owned directly by the matrix object
+- solve-readiness still depends on matrix-local state such as `factored`
+- cancellation can leave the matrix in a non-original state before the first
+  callback returns
+
+Interpretation:
+
+- LU and Cholesky are the strongest immediate Sprint 42 internal-handle
+  insertion targets
+- these are the seams where hidden lifecycle overloading is still the most
+  severe
+
+#### 2. LDLT and the analysis path are the main bridge class rather than direct mutation targets
+
+The current LDLT / analysis family remains structurally split:
+
+- LDLT already takes `const SparseMatrix *A` and writes into `sparse_ldlt_t`
+- `sparse_analyze()` and `sparse_factor_numeric()` already expose explicit
+  analysis/factor handles
+- but `sparse_factors_t` still stores a matrix-centric payload:
+  - `SparseMatrix *F`
+  - plus LDLT side arrays
+
+Interpretation:
+
+- Sprint 42 should treat `sparse_factors_t` as a bridge-normalization seam,
+  not as a full public redesign target
+- the highest-value work here is payload ownership cleanup and compatibility
+  scaffolding, not headline API replacement
+
+#### 3. QR and SVD are already handle-oriented, but their lifecycle friction is precondition drift
+
+The live QR/SVD family still fits the Sprint 40 pattern:
+
+- factor/result state is externalized into:
+  - `sparse_qr_t`
+  - `sparse_svd_t`
+- input matrices are read-only
+- cancellation is clean relative to LU/Cholesky
+
+The remaining friction is strict eligibility:
+
+- identity permutations required
+- original/unfactored matrix view required in practice
+- implementation and docs enforce these rules through repeated bespoke checks
+
+Interpretation:
+
+- QR and SVD are primary Day 4 / Day 6 guard-helper adoption targets
+- they do not need early internal-handle payload work on the same level as LU
+  and Cholesky
+
+#### 4. The main Day 2 seam split is now explicit: hidden mutation vs strict eligibility
+
+The current live lifecycle queue reduces to two fundamentally different seam
+classes:
+
+- hidden mutable lifecycle overloading:
+  - LU
+  - Cholesky
+- explicit-handle but strict eligibility burden:
+  - LDLT
+  - analysis / `sparse_factors_t`
+  - QR
+  - SVD
+
+Interpretation:
+
+- Sprint 42 should not treat every lifecycle-sensitive family as the same kind
+  of refactor
+- Day 3 handle design should center on the hidden-mutation class
+- Day 4 guard design should center on the strict-eligibility class
+
+#### 5. The immediate Sprint 42 landing order is now concrete
+
+The refreshed landing order is:
+
+1. LU and Cholesky internal ownership seams
+2. shared original-state / identity-permutation / factored-state guard helpers
+3. bounded adoption in LDLT / analysis / QR / SVD entry paths
+4. initial `sparse_factors_t` bridge normalization
+5. focused tests around misuse and cancellation
+
+Interpretation:
+
+- Sprint 42 should start where internal ownership ambiguity is highest, then
+  spread the shared guard layer across the already handle-oriented paths
+- this preserves the Sprint 40 internal-first rule while avoiding premature
+  public-handle churn

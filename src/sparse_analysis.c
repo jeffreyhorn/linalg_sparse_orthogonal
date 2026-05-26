@@ -355,8 +355,7 @@ static SparseMatrix *sanitize_working_copy(SparseMatrix *B) {
     if (!B)
         return NULL;
     sparse_reset_perms(B);
-    free(B->reorder_perm);
-    B->reorder_perm = NULL;
+    sparse_factor_state_replace_reorder_perm(B, NULL);
     return B;
 }
 
@@ -377,6 +376,47 @@ static sparse_err_t build_permuted_copy(const SparseMatrix *A, const idx_t *perm
     return *out ? SPARSE_OK : SPARSE_ERR_ALLOC;
 }
 
+static void sparse_factors_init_payload(sparse_factors_t *factors, sparse_factor_type_t type,
+                                        idx_t n) {
+    factors->type = type;
+    factors->n = n;
+}
+
+static void sparse_factors_take_matrix_factor(sparse_factors_t *factors, SparseMatrix *factor) {
+    factors->F = factor;
+    factors->factor_norm = sparse_factor_state_factor_norm(factor);
+}
+
+static void sparse_factors_take_ldlt_factor(sparse_factors_t *factors, sparse_ldlt_t *ldlt) {
+    factors->F = ldlt->L;
+    factors->factor_norm = ldlt->factor_norm;
+    factors->D = ldlt->D;
+    factors->D_offdiag = ldlt->D_offdiag;
+    factors->pivot_size = ldlt->pivot_size;
+    factors->ldlt_perm = ldlt->perm;
+
+    ldlt->L = NULL;
+    ldlt->D = NULL;
+    ldlt->D_offdiag = NULL;
+    ldlt->pivot_size = NULL;
+    ldlt->perm = NULL;
+    ldlt->n = 0;
+    ldlt->factor_norm = 0.0;
+    ldlt->tol = 0.0;
+}
+
+static void sparse_factors_make_ldlt_view(const sparse_factors_t *factors,
+                                          sparse_ldlt_t *ldlt_view) {
+    ldlt_view->L = factors->F;
+    ldlt_view->D = factors->D;
+    ldlt_view->D_offdiag = factors->D_offdiag;
+    ldlt_view->pivot_size = factors->pivot_size;
+    ldlt_view->perm = factors->ldlt_perm;
+    ldlt_view->n = factors->n;
+    ldlt_view->factor_norm = factors->factor_norm;
+    ldlt_view->tol = SPARSE_DROP_TOL;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * sparse_factor_numeric
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -392,8 +432,7 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
 
     idx_t n = analysis->n;
     sparse_factor_free(factors); /* free any prior contents */
-    factors->type = analysis->type;
-    factors->n = n;
+    sparse_factors_init_payload(factors, analysis->type, n);
 
     switch (analysis->type) {
     case SPARSE_FACTOR_CHOLESKY: {
@@ -409,8 +448,7 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
             return err;
         }
 
-        factors->F = L;
-        factors->factor_norm = L->factor_norm;
+        sparse_factors_take_matrix_factor(factors, L);
         break;
     }
 
@@ -427,8 +465,7 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
             return err;
         }
 
-        factors->F = LU;
-        factors->factor_norm = LU->factor_norm;
+        sparse_factors_take_matrix_factor(factors, LU);
         break;
     }
 
@@ -445,23 +482,7 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
         if (err != SPARSE_OK)
             return err;
 
-        /* Transfer ownership from ldlt to factors */
-        factors->F = ldlt.L;
-        factors->factor_norm = ldlt.factor_norm;
-        factors->D = ldlt.D;
-        factors->D_offdiag = ldlt.D_offdiag;
-        factors->pivot_size = ldlt.pivot_size;
-
-        /* Store the LDL^T pivot permutation separately; solve applies the
-         * analysis permutation first and then this LDL^T permutation. */
-        factors->ldlt_perm = ldlt.perm;
-
-        /* Null out ldlt pointers so sparse_ldlt_free doesn't double-free */
-        ldlt.L = NULL;
-        ldlt.D = NULL;
-        ldlt.D_offdiag = NULL;
-        ldlt.pivot_size = NULL;
-        ldlt.perm = NULL;
+        sparse_factors_take_ldlt_factor(factors, &ldlt);
         sparse_ldlt_free(&ldlt);
         break;
     }
@@ -518,16 +539,8 @@ sparse_err_t sparse_factor_solve(const sparse_factors_t *factors, const sparse_a
         err = sparse_lu_solve(factors->F, b_eff, x_tmp);
         break;
     case SPARSE_FACTOR_LDLT: {
-        /* Reconstruct a temporary sparse_ldlt_t for the solve call */
         sparse_ldlt_t ldlt_tmp;
-        ldlt_tmp.L = factors->F;
-        ldlt_tmp.D = factors->D;
-        ldlt_tmp.D_offdiag = factors->D_offdiag;
-        ldlt_tmp.pivot_size = factors->pivot_size;
-        ldlt_tmp.perm = factors->ldlt_perm;
-        ldlt_tmp.n = factors->n;
-        ldlt_tmp.factor_norm = factors->factor_norm;
-        ldlt_tmp.tol = SPARSE_DROP_TOL;
+        sparse_factors_make_ldlt_view(factors, &ldlt_tmp);
         err = sparse_ldlt_solve(&ldlt_tmp, b_eff, x_tmp);
         break;
     }

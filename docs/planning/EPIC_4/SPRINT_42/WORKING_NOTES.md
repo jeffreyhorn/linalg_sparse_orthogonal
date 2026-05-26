@@ -937,3 +937,110 @@ Sprint 42 now has a cleaner direct LU / Cholesky lifecycle publication path:
 - touched reorder-permutation ownership routes through one helper
 - CSC Cholesky writeback now publishes through the same internal seam instead
   of bypassing it
+
+## Day 9 - Factor-path normalization batch 2
+
+### What I changed
+
+Day 9 landed the bounded analyze-once bridge normalization batch chosen on Day
+7:
+
+- `sparse_factors_t` bridge cleanup in `src/sparse_analysis.c`
+- small LDLT bridge normalization where it directly supported that cleanup
+- no public shape changes in `include/sparse_analysis.h`
+
+The batch stayed intentionally local to `src/sparse_analysis.c`.
+
+Added new private bridge helpers:
+
+- `sparse_factors_init_payload(...)`
+- `sparse_factors_take_matrix_factor(...)`
+- `sparse_factors_take_ldlt_factor(...)`
+- `sparse_factors_make_ldlt_view(...)`
+
+I also brought working-copy sanitation onto the Day 8 private factor-state seam
+by replacing direct `reorder_perm` cleanup with:
+
+- `sparse_factor_state_replace_reorder_perm(...)`
+
+### What normalized
+
+The Day 9 batch removed the main ad hoc bridge assembly/reconstruction drift in
+three places.
+
+#### Working-copy sanitation
+
+- `sanitize_working_copy(...)` now clears owned reorder-permutation state
+  through `sparse_factor_state_replace_reorder_perm(...)`
+
+Interpretation:
+
+- working-copy cleanup now routes through the same ownership seam already used
+  by the touched LU / Cholesky publication paths
+
+#### LU / Cholesky analyze-once factor handoff
+
+- `sparse_factor_numeric(...)` now initializes bridge payload state through
+  `sparse_factors_init_payload(...)`
+- LU and Cholesky factor ownership transfer now routes through
+  `sparse_factors_take_matrix_factor(...)`
+
+Interpretation:
+
+- bridge payload setup is no longer open-coded at each factorization case
+- the analyze-once LU / Cholesky path now pulls factor norm from the private
+  factor-state seam rather than duplicating local handoff logic
+
+#### LDLT bridge assembly and solve-view reconstruction
+
+- LDLT ownership transfer now routes through
+  `sparse_factors_take_ldlt_factor(...)`
+- `sparse_factor_solve(...)` now rebuilds the temporary LDLT solve view through
+  `sparse_factors_make_ldlt_view(...)` instead of open-coding each field
+
+Interpretation:
+
+- the LDLT bridge remains compatibility-preserving, but its implementation-side
+  packaging is now centralized
+- the analyze-once bridge no longer spreads touched LDLT handoff logic across
+  multiple independent blocks
+
+### What stayed intentionally unchanged
+
+Day 9 did **not** widen into:
+
+- public `sparse_factors_t` redesign
+- installed-header changes in `include/sparse_analysis.h`
+- broader LDLT API churn
+- QR / SVD ownership changes
+- cancellation / mutation contract rewriting
+
+Interpretation:
+
+- the batch stayed exactly on the Day 7 Day 9 target
+- Day 10 can now focus on cancellation / mutation normalization rather than
+  bridge ownership drift
+
+### Validation
+
+Because `*.c` changed, I ran the required full gate:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Authoritative result:
+
+- all passed
+
+### Day 9 conclusion
+
+Sprint 42 now has a cleaner analyze-once bridge path without changing the
+public bridge object:
+
+- working-copy permutation cleanup now routes through the private factor-state
+  seam
+- LU / Cholesky bridge payload setup is centralized
+- LDLT bridge ownership transfer and solve-view reconstruction are centralized
+- `sparse_factors_t` remains compatibility-preserving while the implementation
+  seam becomes more uniform

@@ -116,13 +116,16 @@ sparse_err_t dense_gemv(const dense_matrix_t *A, const double *x, double *y) {
 
     idx_t m = A->rows;
     idx_t n = A->cols;
+    size_t m_size = 0;
 
     if (m == 0)
         return SPARSE_OK;
+    if (sparse_idx_to_size_checked(m, &m_size))
+        return SPARSE_ERR_ALLOC;
 
     /* Overflow check for m * sizeof(double) */
     size_t y_bytes = 0;
-    if (sparse_count_bytes_overflow((size_t)m, sizeof(double), &y_bytes))
+    if (sparse_count_bytes_overflow(m_size, sizeof(double), &y_bytes))
         return SPARSE_ERR_ALLOC;
 
     if (n == 0) {

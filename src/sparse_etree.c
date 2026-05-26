@@ -683,8 +683,8 @@ sparse_err_t sparse_etree_postorder(const idx_t *parent, idx_t n, idx_t *postord
      * Use -1 as sentinel. */
     idx_t *child_head = NULL;
     idx_t *child_next = NULL;
-    if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&child_head) != SPARSE_OK ||
-        sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&child_next) != SPARSE_OK) {
+    if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&child_head) != SPARSE_OK ||
+        sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&child_next) != SPARSE_OK) {
         free(child_head);
         free(child_next);
         return SPARSE_ERR_ALLOC;
@@ -711,7 +711,7 @@ sparse_err_t sparse_etree_postorder(const idx_t *parent, idx_t n, idx_t *postord
 
     /* Iterative DFS postorder using an explicit stack */
     idx_t *stack = NULL;
-    if (sparse_malloc_array((size_t)n, sizeof(idx_t), (void **)&stack) != SPARSE_OK) {
+    if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&stack) != SPARSE_OK) {
         free(child_head);
         free(child_next);
         return SPARSE_ERR_ALLOC;

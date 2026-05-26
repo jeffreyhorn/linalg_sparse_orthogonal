@@ -1072,6 +1072,15 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     if (m_grow_wide > (int64_t)m_cap)
         m_grow_wide = (int64_t)m_cap;
     idx_t m_grow = (idx_t)m_grow_wide;
+    size_t n_size = 0;
+    size_t m_cap_size = 0;
+    size_t k_size = 0;
+    if (sparse_idx_to_size_checked(n, &n_size) || sparse_idx_to_size_checked(m_cap, &m_cap_size) ||
+        sparse_idx_to_size_checked(k, &k_size)) {
+        sparse_ldlt_free(&ldlt_shift);
+        sparse_free(A_shifted);
+        return SPARSE_ERR_ALLOC;
+    }
 
     /* Allocate workspace for the upper-bound Lanczos size so the
      * grow-on-retry path never reallocates.  Y_cap is m_cap × m_cap
@@ -1084,21 +1093,21 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     size_t v_elems = 0, v_bytes = 0;
     size_t y_elems = 0;
     size_t sel_idx_bytes = 0;
-    if (sparse_size_mul_overflow((size_t)n, (size_t)m_cap, &v_elems) ||
+    if (sparse_size_mul_overflow(n_size, m_cap_size, &v_elems) ||
         sparse_size_mul_overflow(v_elems, sizeof(double), &v_bytes) ||
-        sparse_size_mul_overflow((size_t)m_cap, (size_t)m_cap, &y_elems) ||
-        sparse_size_mul_overflow((size_t)k, sizeof(idx_t), &sel_idx_bytes)) {
+        sparse_size_mul_overflow(m_cap_size, m_cap_size, &y_elems) ||
+        sparse_size_mul_overflow(k_size, sizeof(idx_t), &sel_idx_bytes)) {
         sparse_ldlt_free(&ldlt_shift);
         sparse_free(A_shifted);
         return SPARSE_ERR_ALLOC;
     }
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
     double *V = malloc(v_bytes);
-    double *alpha = malloc((size_t)m_cap * sizeof(double));
-    double *beta = malloc((size_t)m_cap * sizeof(double));
-    double *v0 = calloc((size_t)n, sizeof(double));
-    double *theta_long = calloc((size_t)m_cap, sizeof(double));
-    double *subdiag = malloc((size_t)m_cap * sizeof(double));
+    double *alpha = malloc(m_cap_size * sizeof(double));
+    double *beta = malloc(m_cap_size * sizeof(double));
+    double *v0 = calloc(n_size, sizeof(double));
+    double *theta_long = calloc(m_cap_size, sizeof(double));
+    double *subdiag = malloc(m_cap_size * sizeof(double));
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
     double *Y_long = calloc(y_elems, sizeof(double));
     // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
@@ -1831,7 +1840,7 @@ sparse_err_t lanczos_thick_restart_iterate(lanczos_op_fn op, const void *ctx, id
      * MGS reorth against V[:, 0..k) at each step handles the
      * arrowhead-spoke subtraction implicitly. */
     size_t w_bytes = 0;
-    if (sparse_size_mul_overflow((size_t)n, sizeof(double), &w_bytes))
+    if (sparse_idx_count_bytes_overflow(n, sizeof(double), &w_bytes))
         return SPARSE_ERR_ALLOC;
     double *w = malloc(w_bytes);
     if (!w)

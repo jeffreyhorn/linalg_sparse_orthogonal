@@ -26,6 +26,22 @@ sparse_err_t sparse_factor_state_bind_cholesky(SparseMatrix *mat) {
     return sparse_factor_state_bind(mat, SPARSE_FACTOR_STATE_CHOLESKY);
 }
 
+sparse_err_t sparse_factor_state_begin_lu(SparseMatrix *mat) {
+    sparse_err_t err = sparse_factor_state_bind_lu(mat);
+    if (err != SPARSE_OK)
+        return err;
+    sparse_factor_state_set_factored(mat, 0);
+    return SPARSE_OK;
+}
+
+sparse_err_t sparse_factor_state_begin_cholesky(SparseMatrix *mat) {
+    sparse_err_t err = sparse_factor_state_bind_cholesky(mat);
+    if (err != SPARSE_OK)
+        return err;
+    sparse_factor_state_set_factored(mat, 0);
+    return SPARSE_OK;
+}
+
 void sparse_factor_state_set_factored(SparseMatrix *mat, int is_factored) {
     if (!mat)
         return;
@@ -62,6 +78,25 @@ void sparse_factor_state_set_factor_norm(SparseMatrix *mat, double factor_norm) 
     default:
         break;
     }
+}
+
+void sparse_factor_state_replace_reorder_perm(SparseMatrix *mat, idx_t *perm) {
+    if (!mat) {
+        free(perm);
+        return;
+    }
+    free(mat->reorder_perm);
+    mat->reorder_perm = perm;
+}
+
+void sparse_factor_state_publish_factored(SparseMatrix *mat, double factor_norm, idx_t *perm) {
+    if (!mat) {
+        free(perm);
+        return;
+    }
+    sparse_factor_state_replace_reorder_perm(mat, perm);
+    sparse_factor_state_set_factor_norm(mat, factor_norm);
+    sparse_factor_state_set_factored(mat, 1);
 }
 
 int sparse_factor_state_is_factored(const SparseMatrix *mat) {

@@ -205,8 +205,12 @@ void pool_free_all(NodePool *pool);
 
 sparse_err_t sparse_factor_state_bind_lu(SparseMatrix *mat);
 sparse_err_t sparse_factor_state_bind_cholesky(SparseMatrix *mat);
+sparse_err_t sparse_factor_state_begin_lu(SparseMatrix *mat);
+sparse_err_t sparse_factor_state_begin_cholesky(SparseMatrix *mat);
 void sparse_factor_state_set_factored(SparseMatrix *mat, int is_factored);
 void sparse_factor_state_set_factor_norm(SparseMatrix *mat, double factor_norm);
+void sparse_factor_state_replace_reorder_perm(SparseMatrix *mat, idx_t *perm);
+void sparse_factor_state_publish_factored(SparseMatrix *mat, double factor_norm, idx_t *perm);
 int sparse_factor_state_is_factored(const SparseMatrix *mat);
 double sparse_factor_state_factor_norm(const SparseMatrix *mat);
 void sparse_factor_state_clear(SparseMatrix *mat);

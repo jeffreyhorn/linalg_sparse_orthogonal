@@ -70,13 +70,9 @@ static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t piv
     idx_t n = mat->rows;
     if (n != mat->cols)
         return SPARSE_ERR_SHAPE;
-    sparse_err_t payload_err = sparse_factor_state_bind_lu(mat);
+    sparse_err_t payload_err = sparse_factor_state_begin_lu(mat);
     if (payload_err != SPARSE_OK)
         return payload_err;
-
-    /* Clear factored flag immediately so an aborted factorization
-     * (e.g., singular pivot) cannot leave a stale 'factored' state. */
-    sparse_factor_state_set_factored(mat, 0);
 
     /*
      * Temporary buffer for collecting rows to eliminate.
@@ -253,8 +249,7 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
         return SPARSE_ERR_SHAPE;
 
     /* Clear any previous reorder permutation */
-    free(mat->reorder_perm);
-    mat->reorder_perm = NULL;
+    sparse_factor_state_replace_reorder_perm(mat, NULL);
 
     /* Apply fill-reducing reordering if requested */
     if (opts->reorder != SPARSE_REORDER_NONE && n > 1) {
@@ -323,8 +318,7 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
         }
 
         /* Store reorder permutation for solve to unpermute */
-        free(mat->reorder_perm);
-        mat->reorder_perm = perm;
+        sparse_factor_state_replace_reorder_perm(mat, perm);
     }
 
     /* Factor with given pivoting and tolerance */

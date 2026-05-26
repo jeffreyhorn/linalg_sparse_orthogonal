@@ -824,3 +824,116 @@ Sprint 42's next lifecycle batches are now bounded correctly:
   rewrite target
 - QR and SVD can remain stable while the higher-pressure lifecycle seams are
   cleaned up
+
+## Day 8 - Factor-path normalization batch 1
+
+### What I changed
+
+Day 8 landed the first direct normalization batch from the Day 7 landing map:
+
+- LU one-shot matrix path
+- Cholesky one-shot matrix path
+- bounded Cholesky CSC writeback/publication alignment
+
+The main code change was to strengthen the private factor-state seam as the
+touched authoritative internal publication path.
+
+Added to the private helper layer in:
+
+- `src/sparse_matrix_internal.h`
+- `src/sparse_factor_state_internal.c`
+
+New helpers:
+
+- `sparse_factor_state_begin_lu(...)`
+- `sparse_factor_state_begin_cholesky(...)`
+- `sparse_factor_state_replace_reorder_perm(...)`
+- `sparse_factor_state_publish_factored(...)`
+
+Then adopted them in:
+
+- `src/sparse_lu.c`
+- `src/sparse_cholesky.c`
+- `src/sparse_chol_csc.c`
+
+### What normalized
+
+The Day 8 batch removed the touched publication drift in three places.
+
+#### LU
+
+- factor entry now starts through `sparse_factor_state_begin_lu(...)`
+- touched reorder-permutation replacement now routes through
+  `sparse_factor_state_replace_reorder_perm(...)`
+
+#### Cholesky
+
+- linked-list factor entry now starts through
+  `sparse_factor_state_begin_cholesky(...)`
+- touched reorder-permutation replacement now routes through
+  `sparse_factor_state_replace_reorder_perm(...)`
+- the CSC dispatch path now also binds/resets the private Cholesky seam before
+  symbolic/numeric CSC work begins
+
+#### Cholesky CSC writeback
+
+- writeback precondition now uses the shared Day 6 original-state helper
+- empty and non-empty writeback completion now publish through
+  `sparse_factor_state_publish_factored(...)`
+  instead of setting:
+  - `reorder_perm`
+  - `factor_norm`
+  - `factored`
+  by hand
+
+Interpretation:
+
+- the CSC Cholesky path no longer bypasses the Day 5 private seam on its final
+  publication step
+- LU and Cholesky now look more like one internal lifecycle family in the
+  touched entry/publication paths
+
+### What stayed intentionally unchanged
+
+Day 8 did **not** widen into:
+
+- public API changes
+- `sparse_factors_t` bridge normalization
+- broader LDLT ownership work
+- QR/SVD ownership churn
+- cancellation-contract rewriting
+
+Interpretation:
+
+- the batch stayed exactly in the Day 7 scope
+- Day 9 can now focus on the analyze-once bridge rather than reopening direct
+  LU/Cholesky entry work
+
+### Validation
+
+Because `*.c` / `*.h` changed, I ran the required full gate:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Authoritative result:
+
+- all passed
+
+One compile issue surfaced on the first pass:
+
+- `sparse_cholesky_factor_opts(...)` reused `payload_err` in the CSC path
+  without declaring it locally
+
+I fixed that immediately and reran the full required gate from the top. The
+rerun passed completely.
+
+### Day 8 conclusion
+
+Sprint 42 now has a cleaner direct LU / Cholesky lifecycle publication path:
+
+- factor entry starts through dedicated private seam helpers
+- touched reorder-permutation ownership routes through one helper
+- CSC Cholesky writeback now publishes through the same internal seam instead
+  of bypassing it

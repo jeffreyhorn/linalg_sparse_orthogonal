@@ -83,13 +83,9 @@ static sparse_err_t sparse_cholesky_factor_inner(SparseMatrix *mat,
         return SPARSE_ERR_SHAPE;
     if (n == 0)
         return SPARSE_OK;
-    sparse_err_t payload_err = sparse_factor_state_bind_cholesky(mat);
+    sparse_err_t payload_err = sparse_factor_state_begin_cholesky(mat);
     if (payload_err != SPARSE_OK)
         return payload_err;
-
-    /* Clear factored flag immediately so an aborted factorization
-     * cannot leave a stale 'factored' state. */
-    sparse_factor_state_set_factored(mat, 0);
 
     /* Validate symmetry before allocating or modifying anything */
     if (!sparse_is_symmetric(mat, 1e-12))
@@ -268,8 +264,7 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
         return SPARSE_ERR_BADARG;
 
     /* Clear any previous reorder permutation */
-    free(mat->reorder_perm);
-    mat->reorder_perm = NULL;
+    sparse_factor_state_replace_reorder_perm(mat, NULL);
 
     /* Apply fill-reducing reordering if requested.  This permutes the
      * SparseMatrix into its final coordinate space and resets the
@@ -337,7 +332,7 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
         }
 
         /* Store reorder permutation for solve to unpermute */
-        mat->reorder_perm = perm;
+        sparse_factor_state_replace_reorder_perm(mat, perm);
     }
 
     /* Backend dispatch: AUTO compares against SPARSE_CSC_THRESHOLD;
@@ -361,6 +356,10 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
 
     if (!use_csc)
         return sparse_cholesky_factor_inner(mat, opts->progress_cb, opts->progress_user);
+
+    sparse_err_t payload_err = sparse_factor_state_begin_cholesky(mat);
+    if (payload_err != SPARSE_OK)
+        return payload_err;
 
     /* CSC path: analyse, convert with the full symbolic L pattern,
      * factor via the batched supernodal kernel, transplant the result

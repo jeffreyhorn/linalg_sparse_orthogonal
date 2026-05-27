@@ -771,3 +771,147 @@ Interpretation:
 - Sprint 44 should not interleave separator extraction with runtime cleanup
 - the residual orchestration layer can only be simplified honestly after the
   FM and separator moves are complete
+
+## Day 5
+
+**Objective:** Extract the bounded FM refinement subsystem out of the
+residual graph monolith while preserving `graph_uncoarsen(...)`,
+separator lifting, and top-level partition orchestration in
+`src/sparse_graph.c`.
+
+### Commands Run
+
+1. Re-read the Day 5 plan and the Day 3 FM boundary design:
+   - `sed -n '158,205p' docs/planning/EPIC_4/SPRINT_44/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_44/artifacts/day3-fm-refinement-module-boundary-design.md`
+2. Re-read the live FM region and shared graph contracts:
+   - `sed -n '1,1400p' src/sparse_graph.c`
+   - `sed -n '1,520p' src/sparse_graph_internal.h`
+   - `sed -n '1,260p' src/sparse_graph_fm_buckets.h`
+3. Sweep live FM-owned symbols and orchestration consumers:
+   - `rg -n "graph_refine_fm|compute_cut_weight|thick_restart_perturb|fm_|parse_.*fm|parse_.*anneal|parse_.*noise" src/sparse_graph.c src/sparse_graph_internal.h`
+4. Validate the landed extraction batch:
+   - `make format`
+   - `make lint`
+   - `make test`
+
+### Day 5 Findings
+
+#### 1. The FM Phase-2 batch landed as one real owned module
+
+The extracted implementation unit is now:
+
+- `src/sparse_graph_refine.c`
+
+It owns the bounded Day 3 seam:
+
+- FM thread-local runtime state
+- FM parser/helpers
+- thick-restart perturbation helper
+- shared cut-weight evaluation
+- FM bucket implementation
+- `graph_refine_fm(...)`
+
+Interpretation:
+
+- Sprint 44 now has a real FM subsystem file rather than FM logic still living
+  only inside the residual monolith
+
+#### 2. The residual graph file is now narrower and more honest
+
+`src/sparse_graph.c` no longer carries the FM implementation body.
+
+It now starts at the intended residual seam:
+
+- `graph_uncoarsen(...)`
+- separator lifting
+- top-level partition orchestration
+- sep=`0` retry / fallback glue
+
+Interpretation:
+
+- the remaining graph monolith now reads as orchestration and
+  separator-adjacent logic rather than as a mixed refinement +
+  orchestration file
+
+#### 3. The Day 5 interface growth stayed small and internal
+
+The extraction did not promote FM behaviour into public headers.
+
+The internal graph seam only grew enough to support orchestration:
+
+- FM schedule / perturbation enums
+- `sparse_graph_fm_runtime_t`
+- parser helpers
+- runtime get/set helpers
+- `sparse_graph_compute_cut_weight(...)`
+- `sparse_graph_thick_restart_perturb(...)`
+
+Interpretation:
+
+- Day 5 preserved the Day 3 rule: shared-header expansion is minimal and tied
+  directly to the live orchestration seam
+
+#### 4. The build wiring changed in the bounded expected way
+
+Both maintained build systems now compile the extracted FM module:
+
+- `Makefile`
+- `CMakeLists.txt`
+
+No broader graph build or test-matrix redesign was needed.
+
+Interpretation:
+
+- the FM extraction landed as a normal library-source split, not as a special
+  build-path exception
+
+#### 5. The runtime/orchestration boundary held
+
+Day 5 intentionally did **not** move:
+
+- `graph_uncoarsen(...)`
+- ensemble/top-level FM pass composition
+- separator lifting
+- `partition_once(...)`
+- `sparse_graph_partition(...)`
+
+Interpretation:
+
+- Sprint 44 stayed within the intended FM-only batch instead of pulling Day 6
+  or Day 7 work forward
+
+#### 6. Validation passed at the full required gate
+
+The Day 5 batch touched `*.c` and `*.h`, so the full gate was required:
+
+- `make format` — passed
+- `make lint` — passed
+- `make test` — passed
+
+The authoritative `make test` sweep also re-covered the graph-focused
+surfaces touched by the extraction:
+
+- `test_graph`
+- `test_graph_fm_buckets`
+- `test_reorder_nd`
+- `test_reorder_amd_qg`
+
+Interpretation:
+
+- the FM extraction was structural only; the maintained graph and ND regression
+  surface stayed green end to end
+
+#### 7. Day 6 is now cleanly prepared
+
+After Day 5, the next Phase-2 seam is better isolated:
+
+- separator lifting and separator-policy parsing still remain together in the
+  residual graph file
+- FM-owned parsing/state is already gone from that file
+
+Interpretation:
+
+- Day 6 can now extract separator ownership from a cleaner residual
+  orchestration layer instead of from the pre-Day-5 mixed FM/orchestration
+  monolith

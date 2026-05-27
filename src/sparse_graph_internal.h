@@ -276,6 +276,53 @@ typedef struct {
 } sparse_graph_hierarchy_t;
 
 /**
+ * @brief Annealing schedule selector for FM refinement.
+ */
+typedef enum {
+    FM_ANNEAL_SCHEDULE_LINEAR = 0,
+    FM_ANNEAL_SCHEDULE_EXPONENTIAL = 1,
+    FM_ANNEAL_SCHEDULE_COSINE = 2,
+} fm_anneal_schedule_t;
+
+/**
+ * @brief Thick-restart perturbation selector for FM refinement.
+ */
+typedef enum {
+    FM_THICK_RESTART_PERTURB_RANDOM_FLIP = 0,
+    FM_THICK_RESTART_PERTURB_BOUNDARY_SHUFFLE = 1,
+    FM_THICK_RESTART_PERTURB_GAUSS_NOISE = 2,
+    FM_THICK_RESTART_PERTURB_GAIN_NOISE_FORMAL = 3,
+} fm_thick_restart_perturb_t;
+
+/**
+ * @brief Gain-noise schedule selector for the formal thick-restart
+ *        FM variant.
+ */
+typedef enum {
+    FM_GAIN_NOISE_SCHEDULE_LINEAR = 0,
+    FM_GAIN_NOISE_SCHEDULE_EXPONENTIAL = 1,
+    FM_GAIN_NOISE_SCHEDULE_COSINE = 2,
+} fm_gain_noise_schedule_t;
+
+/**
+ * @brief Snapshot of FM thread-local runtime controls.
+ *
+ * `graph_uncoarsen(...)` uses this internal seam to set up
+ * finest-level FM behaviour without exposing the refinement module's
+ * thread-local storage directly.
+ */
+typedef struct {
+    int pop_use_tail;
+    int use_annealing;
+    fm_anneal_schedule_t anneal_schedule;
+    int anneal_pass_idx;
+    int anneal_total_passes;
+    int use_thick_restart;
+    fm_thick_restart_perturb_t thick_restart_perturb;
+    fm_gain_noise_schedule_t gain_noise_schedule;
+} sparse_graph_fm_runtime_t;
+
+/**
  * @brief Build a multilevel coarsening hierarchy from a root graph.
  *
  * Coarsens repeatedly until one of three stop conditions fires:
@@ -323,9 +370,10 @@ void sparse_graph_hierarchy_free(sparse_graph_hierarchy_t *h);
  * Sprint 43 Phase 1 extraction note:
  *   - coarse-bisection support now lives in
  *     `src/sparse_graph_bisect.c`
- *   - FM refinement and uncoarsening remain in the remaining
- *     `src/sparse_graph.c` monolith intentionally until later
- *     sprint phases
+ *   - Sprint 44 Phase 2 extraction note:
+ *       - FM refinement now lives in `src/sparse_graph_refine.c`
+ *       - uncoarsening remains in the residual `src/sparse_graph.c`
+ *         orchestration layer
  *
  * Day 4's uncoarsening pipeline composes these two routines: bisect
  * the coarsest hierarchy level into an initial 2-way partition, then
@@ -408,6 +456,47 @@ sparse_err_t graph_build_laplacian(const sparse_graph_t *G, SparseMatrix **L_out
  * @return SPARSE_ERR_ALLOC on allocation failure.
  */
 sparse_err_t graph_bisect_coarsest(const sparse_graph_t *G, idx_t *part_out);
+
+/**
+ * @brief Compute the cut weight of a 2-way partition.
+ *
+ * Internal FM/orchestration helper shared between `graph_refine_fm`
+ * and `graph_uncoarsen(...)`.
+ */
+idx_t sparse_graph_compute_cut_weight(const sparse_graph_t *G, const idx_t *part);
+
+/**
+ * @brief Parse the current annealing FM schedule from the environment.
+ */
+fm_anneal_schedule_t sparse_graph_parse_fm_anneal_schedule(void);
+
+/**
+ * @brief Parse the current thick-restart FM perturbation mode from the
+ *        environment.
+ */
+fm_thick_restart_perturb_t sparse_graph_parse_fm_thick_restart_perturb(void);
+
+/**
+ * @brief Parse the current formal gain-noise schedule from the
+ *        environment.
+ */
+fm_gain_noise_schedule_t sparse_graph_parse_fm_gain_noise_schedule(void);
+
+/**
+ * @brief Apply the thick-restart perturbation policy to a partition.
+ */
+void sparse_graph_thick_restart_perturb(const sparse_graph_t *G, idx_t *part,
+                                        fm_thick_restart_perturb_t mode, uint32_t *rng);
+
+/**
+ * @brief Snapshot the current FM thread-local runtime controls.
+ */
+void sparse_graph_fm_runtime_get(sparse_graph_fm_runtime_t *out);
+
+/**
+ * @brief Replace the current FM thread-local runtime controls.
+ */
+void sparse_graph_fm_runtime_set(const sparse_graph_fm_runtime_t *state);
 
 /**
  * @brief Single-pass Fiduccia-Mattheyses refinement of a 2-way partition.

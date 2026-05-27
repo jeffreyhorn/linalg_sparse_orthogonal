@@ -1,6 +1,6 @@
 /*
- * sparse_graph.c — Remaining FM / uncoarsening / orchestration slice
- *                  of the Sprint 22 multilevel graph partitioner.
+ * sparse_graph.c — Remaining uncoarsening / separator / orchestration
+ *                  slice of the Sprint 22 multilevel graph partitioner.
  *
  * ─── Design block ─────────────────────────────────────────────────────
  *
@@ -105,8 +105,9 @@
  *     `src/sparse_graph_coarsen.c`
  *   - coarse bisection now lives in
  *     `src/sparse_graph_bisect.c`
+ *   - FM refinement now lives in
+ *     `src/sparse_graph_refine.c`
  *   - this file intentionally retains:
- *       - FM refinement
  *       - uncoarsening
  *       - separator lifting
  *       - top-level partition orchestration
@@ -117,974 +118,19 @@
  */
 
 #include "sparse_alloc_internal.h"
-#include "sparse_graph_fm_buckets.h"
 #include "sparse_graph_internal.h"
 
-#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-/* Sprint 26 Day 7: thread-local override for the FINEST FM FIFO
- * tie-break.  `graph_uncoarsen` sets this to 1 before invoking
- * `graph_refine_fm` at the finest level when
- * SPARSE_FM_FINEST_STRATEGY=fifo, restores to 0 after.
- * `graph_refine_fm` reads this once on entry and dispatches to
- * `fm_bucket_pop_max_tail` (FIFO) or `fm_bucket_pop_max` (LIFO,
- * Sprint 23 baseline) accordingly.  `_Thread_local` keeps
- * concurrent FM calls race-free.  See
- * `docs/planning/EPIC_2/SPRINT_26/finest_fm_design.md`. */
-static _Thread_local int fm_pop_use_tail = 0;
-
-/* Sprint 27 Day 5: thread-local override for annealing-acceptance
- * FM at the finest level.  `graph_uncoarsen` sets this to 1 before
- * invoking `graph_refine_fm` at the finest level when
- * SPARSE_FM_FINEST_STRATEGY=annealing, restores to 0 after.  Day 5
- * lands the parser + dispatch wiring (skeleton); Day 6 implements
- * the acceptance probability `P = exp(-Δgain / T)` overlay in
- * `graph_refine_fm`'s pop-eval-accept loop.  `_Thread_local` keeps
- * concurrent FM calls race-free.  See
- * `docs/planning/EPIC_2/SPRINT_27/annealing_fm_design.md`. */
-static _Thread_local int fm_use_annealing = 0;
-
-/* Sprint 27 Day 5: temperature schedule for annealing FM.  Day 5
- * stubs three values; default exponential matches the classical
- * Kirkpatrick-1983 SA formulation (T_k = T_0 × α^k where α ≈ 0.5).
- * Day 6 wires the per-pass T computation; until then all three
- * values fall through to baseline. */
-typedef enum {
-    FM_ANNEAL_SCHEDULE_LINEAR = 0,
-    FM_ANNEAL_SCHEDULE_EXPONENTIAL = 1, /* default */
-    FM_ANNEAL_SCHEDULE_COSINE = 2,
-} fm_anneal_schedule_t;
-
-static _Thread_local fm_anneal_schedule_t fm_anneal_schedule = FM_ANNEAL_SCHEDULE_EXPONENTIAL;
-
-/* Sprint 27 Day 10: thread-local override for thick-restart FM at
- * the finest level.  `graph_uncoarsen` sets this to 1 before
- * invoking `graph_refine_fm` at the finest level when
- * SPARSE_FM_FINEST_STRATEGY=thick_restart, restored to 0 after.
- * Day 10 lands the parser + dispatch wiring (skeleton); Day 11
- * implements the global-best-tracking + per-pass perturbation
- * overlay in graph_refine_fm.  See
- * `docs/planning/EPIC_2/SPRINT_27/thick_restart_design.md`. */
-static _Thread_local int fm_use_thick_restart = 0;
-
-/* Sprint 27 Day 10: perturbation strategy for thick-restart.  Day
- * 10 stubs three values; default random_flip matches the simplest
- * formulation (flip k = 1 % × n random vertices' partition
- * assignments before each pass except the first).  Day 11 wires
- * the per-pass perturbation; until then all three values fall
- * through to baseline. */
-typedef enum {
-    FM_THICK_RESTART_PERTURB_RANDOM_FLIP = 0, /* default */
-    FM_THICK_RESTART_PERTURB_BOUNDARY_SHUFFLE = 1,
-    FM_THICK_RESTART_PERTURB_GAUSS_NOISE = 2,
-    /* Sprint 28 Day 2: formal gain-bucket-noise variant.  Replaces
-     * Sprint 27 Day 11's simplified gauss_noise with the Day-10
-     * design's intent (perturb gain comparator, not partition state).
-     * Inserts each vertex into the bucket at index
-     * `gain[v] + sigma_k * max_weighted_degree * randn()` where
-     * sigma_k decays per pass (linear / exponential). */
-    FM_THICK_RESTART_PERTURB_GAIN_NOISE_FORMAL = 3,
-} fm_thick_restart_perturb_t;
-
-static _Thread_local fm_thick_restart_perturb_t fm_thick_restart_perturb =
-    FM_THICK_RESTART_PERTURB_RANDOM_FLIP;
-
-static fm_thick_restart_perturb_t parse_fm_thick_restart_perturb(void) {
-    const char *env = getenv("SPARSE_FM_THICK_RESTART_PERTURB");
-    if (!env)
-        return FM_THICK_RESTART_PERTURB_RANDOM_FLIP;
-    if (strcmp(env, "boundary_shuffle") == 0)
-        return FM_THICK_RESTART_PERTURB_BOUNDARY_SHUFFLE;
-    if (strcmp(env, "gauss_noise") == 0)
-        return FM_THICK_RESTART_PERTURB_GAUSS_NOISE;
-    if (strcmp(env, "gain_noise_formal") == 0)
-        return FM_THICK_RESTART_PERTURB_GAIN_NOISE_FORMAL;
-    /* Default + unrecognized + "random_flip" all fall through. */
-    return FM_THICK_RESTART_PERTURB_RANDOM_FLIP;
-}
-
-/* Sprint 28 Day 2: gain-noise schedule for the formal variant.  Mirrors
- * the Sprint 27 Day 5-6 annealing-schedule axis but applies to
- * sigma_k decay rather than temperature decay.  Default linear
- * (cheaper than exponential to compute, predictable cutoff at last
- * pass).  Read once on entry to graph_refine_fm via the thread-local
- * `fm_gain_noise_schedule` set by graph_uncoarsen at the finest
- * level when fm_thick_restart_perturb == GAIN_NOISE_FORMAL. */
-typedef enum {
-    FM_GAIN_NOISE_SCHEDULE_LINEAR = 0,      /* default; sigma_k = sigma_0 * (1 - k/K) */
-    FM_GAIN_NOISE_SCHEDULE_EXPONENTIAL = 1, /* sigma_k = sigma_0 * 0.5^k */
-    FM_GAIN_NOISE_SCHEDULE_COSINE = 2,      /* sigma_k = sigma_0/2 * (1 + cos(πk/K)) */
-} fm_gain_noise_schedule_t;
-
-static _Thread_local fm_gain_noise_schedule_t fm_gain_noise_schedule =
-    FM_GAIN_NOISE_SCHEDULE_LINEAR;
-
-static fm_gain_noise_schedule_t parse_fm_gain_noise_schedule(void) {
-    const char *env = getenv("SPARSE_FM_GAIN_NOISE_SCHEDULE");
-    if (!env)
-        return FM_GAIN_NOISE_SCHEDULE_LINEAR;
-    if (strcmp(env, "exponential") == 0)
-        return FM_GAIN_NOISE_SCHEDULE_EXPONENTIAL;
-    if (strcmp(env, "cosine") == 0)
-        return FM_GAIN_NOISE_SCHEDULE_COSINE;
-    /* Default + unrecognized + "linear" all fall through. */
-    return FM_GAIN_NOISE_SCHEDULE_LINEAR;
-}
-
-/* Sprint 27 Day 11: thick-restart perturbation helper.  Modifies
- * `part[]` in place by flipping some 2-way partition assignments
- * (0 → 1 or 1 → 0) according to the chosen mode.  Called by
- * `graph_uncoarsen`'s finest-level pass loop before each pass except
- * the first when fm_use_thick_restart is set.
- *
- * Mode semantics:
- *   - RANDOM_FLIP (default): flip k = max(1, n/100) random vertices.
- *     O(k) per call.  Cheapest variant.
- *   - BOUNDARY_SHUFFLE: identify boundary vertices (vertices with at
- *     least one cross-edge to the other side), then random-flip ~50 %
- *     of them.  O(|E|) per call.  Targets the FM-relevant region.
- *   - GAUSS_NOISE: Day-10 design described this as "Gaussian noise on
- *     GAIN estimates".  Implementing that requires deeper integration
- *     with graph_refine_fm's gain-init phase.  Day 11 simplification:
- *     random-flip with k drawn proportional to a half-Gaussian
- *     (typical k ≈ n/50, more spread than RANDOM_FLIP).  Documented
- *     deviation in `SPRINT_27/thick_restart_design.md`; the formal
- *     gain-noise variant routes to Sprint 28+ if Day 12's flip-rule
- *     decision motivates it.
- *
- * Determinism: the RNG state is owned by the caller (typically a
- * per-call deterministic seed), passed through and updated
- * in-place.  Same input → same output.
- *
- * Sprint 28 Day 2: GAIN_NOISE_FORMAL is a no-op here — its
- * perturbation lives inside graph_refine_fm at gain-bucket-init
- * time (per-vertex Gaussian noise on bucket placement), not in the
- * partition state.  The graph_uncoarsen anchor-restoration memcpy
- * still fires for that mode (preserves global-best tracking across
- * passes); only the partition-state perturbation is skipped. */
-static void thick_restart_perturb(const sparse_graph_t *G, idx_t *part,
-                                  fm_thick_restart_perturb_t mode, uint32_t *rng) {
-    idx_t n = G->n;
-    if (n < 2)
-        return;
-
-    /* Sprint 28 Day 2: gain-noise formal variant has no partition-state
-     * perturbation step; the noise is applied inside graph_refine_fm. */
-    if (mode == FM_THICK_RESTART_PERTURB_GAIN_NOISE_FORMAL)
-        return;
-
-    if (mode == FM_THICK_RESTART_PERTURB_BOUNDARY_SHUFFLE) {
-        for (idx_t v = 0; v < n; v++) {
-            if (part[v] != 0 && part[v] != 1)
-                continue;
-            int boundary = 0;
-            for (idx_t k = G->xadj[v]; k < G->xadj[v + 1]; k++) {
-                idx_t u = G->adjncy[k];
-                if (part[u] != 0 && part[u] != 1)
-                    continue;
-                if (part[u] != part[v]) {
-                    boundary = 1;
-                    break;
-                }
-            }
-            if (!boundary)
-                continue;
-            /* xorshift32 advance — flip ~50 % of boundary vertices. */
-            *rng ^= *rng << 13;
-            *rng ^= *rng >> 17;
-            *rng ^= *rng << 5;
-            if ((*rng & 1U) != 0U)
-                part[v] = (idx_t)(1 - part[v]);
-        }
-        return;
-    }
-
-    /* RANDOM_FLIP and GAUSS_NOISE both flip k random vertices; only k
-     * differs.  GAUSS_NOISE doubles k vs RANDOM_FLIP per the Day-11
-     * simplification documented above. */
-    idx_t k = n / 100;
-    if (k < 1)
-        k = 1;
-    if (mode == FM_THICK_RESTART_PERTURB_GAUSS_NOISE) {
-        k = n / 50;
-        if (k < 2)
-            k = 2;
-    }
-    for (idx_t i = 0; i < k; i++) {
-        *rng ^= *rng << 13;
-        *rng ^= *rng >> 17;
-        *rng ^= *rng << 5;
-        idx_t v = (idx_t)((*rng) % (uint32_t)n);
-        if (part[v] == 0)
-            part[v] = 1;
-        else if (part[v] == 1)
-            part[v] = 0;
-    }
-}
-
-/* Sprint 27 Day 6: per-pass index + total passes used by
- * graph_refine_fm to compute the temperature `T_k` for the chosen
- * schedule.  graph_uncoarsen sets these before each finest-level
- * graph_refine_fm call when fm_use_annealing == 1; defaults to
- * (0, 1) which produces a single-pass T = T_0 (max temperature)
- * if read by accident from a non-annealing context.
- *
- * Rationale for thread-local rather than a function parameter:
- * graph_refine_fm's signature is part of the internal-but-stable
- * contract used by `partition_once`, `graph_uncoarsen`, and the
- * separator-lift code.  Threading a new (optional) parameter
- * through all callers would touch many sites; the thread-local
- * pattern is already established for the parallel
- * `fm_pop_use_tail` (FIFO) and `fm_use_annealing` flags. */
-static _Thread_local int fm_anneal_pass_idx = 0;
-static _Thread_local int fm_anneal_total_passes = 1;
-
-static fm_anneal_schedule_t parse_fm_anneal_schedule(void) {
-    const char *env = getenv("SPARSE_FM_ANNEALING_SCHEDULE");
-    if (!env)
-        return FM_ANNEAL_SCHEDULE_EXPONENTIAL;
-    if (strcmp(env, "linear") == 0)
-        return FM_ANNEAL_SCHEDULE_LINEAR;
-    if (strcmp(env, "cosine") == 0)
-        return FM_ANNEAL_SCHEDULE_COSINE;
-    /* Default + unrecognized + "exponential" all fall through. */
-    return FM_ANNEAL_SCHEDULE_EXPONENTIAL;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
- * Coarsest-graph bisection + FM refinement (Sprint 22 Day 3).
- * ═══════════════════════════════════════════════════════════════════════
+/* Sprint 44 Day 5 extraction note:
+ *   - FM refinement, bucket operations, FM parser helpers, cut-weight
+ *     evaluation, and FM thread-local runtime state now live in
+ *     `src/sparse_graph_refine.c`
+ *   - this file intentionally begins at uncoarsening / separator /
+ *     orchestration ownership only
  */
-
-/* Compute the cut weight of a 2-way partition.  Iterates each
- * undirected edge once via the i < j upper-triangle convention.
- *
- * Invariant: `part[]` is allocated with at least G->n entries (the
- * caller's responsibility — every site that constructs a partition
- * for a sparse_graph_t allocates G->n idx_t entries).  `G->adjncy[k]`
- * for k in [G->xadj[i], G->xadj[i+1]) yields a vertex index in
- * [0, G->n), so `part[j]` is always in bounds.  clang-analyzer can't
- * track adjncy's bounded-vertex invariant across function-call
- * boundaries; suppress the path-sensitive ArrayBound false positive. */
-// NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
-static idx_t compute_cut_weight(const sparse_graph_t *G, const idx_t *part) {
-    idx_t cut = 0;
-    for (idx_t i = 0; i < G->n; i++) {
-        for (idx_t k = G->xadj[i]; k < G->xadj[i + 1]; k++) {
-            idx_t j = G->adjncy[k];
-            if (j <= i)
-                continue;
-            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
-            if (part[i] != part[j])
-                cut += G->ewgt ? G->ewgt[k] : 1;
-        }
-    }
-    return cut;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
- * Sprint 23 Day 9: gain-bucket data structure for FM refinement.
- *
- * The implementation lives inline in this TU because Day 10 will
- * tightly couple it with `graph_refine_fm` below, and there are no
- * other consumers — keeping it in one file keeps the FM data path
- * inspectable in a single sweep.  The public API is declared in
- * `src/sparse_graph_fm_buckets.h` so `tests/test_graph_fm_buckets.c`
- * can pin the contract independently of the FM hot loop.
- *
- * Sentinel choice: `-1` for an empty bucket head and for next/prev
- * list ends.  All vertex IDs the caller ever passes are in
- * `[0, n_vertices)`, so `-1` never aliases a real ID.  `idx_t` is
- * signed (`int32_t` / `int64_t` per build config) so sign comparison
- * works without casting.
- * ═══════════════════════════════════════════════════════════════════════
- */
-
-#define FM_BUCKET_EMPTY ((idx_t) - 1)
-
-sparse_err_t fm_bucket_array_init(fm_bucket_array_t *arr, idx_t n_vertices, idx_t max_gain) {
-    if (!arr)
-        return SPARSE_ERR_NULL;
-    if (n_vertices < 0 || max_gain < 0)
-        return SPARSE_ERR_BADARG;
-
-    /* Guard size computations against overflow.  Same SIZE_MAX pattern
-     * the rest of the codebase uses (e.g. `src/sparse_lu_csr.c` lines
-     * 60, 1349) — under-allocation here would produce OOB writes in
-     * the heads/next/prev fills below.  The first bound uses IDX_MAX
-     * (defined alongside idx_t in include/sparse_types.h) so the
-     * guard tracks idx_t's actual range — the migration-to-int64_t
-     * path the typedef comment documents stays clean. */
-    if (max_gain > (IDX_MAX - 1) / 2)
-        return SPARSE_ERR_ALLOC; /* 2*max_gain + 1 would overflow idx_t */
-    idx_t num_buckets = 2 * max_gain + 1;
-    if ((size_t)num_buckets > SIZE_MAX / sizeof(idx_t))
-        return SPARSE_ERR_ALLOC; /* num_buckets * sizeof(idx_t) overflows size_t */
-
-    /* `next` / `prev` allocate to length max(n_vertices, 1) so a zero-
-     * vertex graph still gives malloc a non-zero length (avoids the
-     * implementation-defined `malloc(0)` corner case). */
-    size_t link_len = (size_t)(n_vertices > 0 ? n_vertices : 1);
-    if (link_len > SIZE_MAX / sizeof(idx_t))
-        return SPARSE_ERR_ALLOC; /* link_len * sizeof(idx_t) overflows size_t */
-
-    arr->heads = malloc((size_t)num_buckets * sizeof(idx_t));
-    arr->tails = malloc((size_t)num_buckets * sizeof(idx_t));
-    arr->counts = calloc((size_t)num_buckets, sizeof(idx_t));
-    arr->next = malloc(link_len * sizeof(idx_t));
-    arr->prev = malloc(link_len * sizeof(idx_t));
-    if (!arr->heads || !arr->tails || !arr->counts || !arr->next || !arr->prev) {
-        free(arr->heads);
-        free(arr->tails);
-        free(arr->counts);
-        free(arr->next);
-        free(arr->prev);
-        arr->heads = NULL;
-        arr->tails = NULL;
-        arr->counts = NULL;
-        arr->next = NULL;
-        arr->prev = NULL;
-        return SPARSE_ERR_ALLOC;
-    }
-    for (idx_t i = 0; i < num_buckets; i++) {
-        arr->heads[i] = FM_BUCKET_EMPTY;
-        arr->tails[i] = FM_BUCKET_EMPTY;
-    }
-    arr->n_vertices = n_vertices;
-    arr->max_gain = max_gain;
-    arr->bucket_offset = max_gain;
-    arr->num_buckets = num_buckets;
-    arr->cursor = FM_BUCKET_EMPTY;
-    return SPARSE_OK;
-}
-
-void fm_bucket_array_free(fm_bucket_array_t *arr) {
-    if (!arr)
-        return;
-    free(arr->heads);
-    free(arr->tails);
-    free(arr->counts);
-    free(arr->next);
-    free(arr->prev);
-    arr->heads = NULL;
-    arr->tails = NULL;
-    arr->counts = NULL;
-    arr->next = NULL;
-    arr->prev = NULL;
-    arr->n_vertices = 0;
-    arr->max_gain = 0;
-    arr->bucket_offset = 0;
-    arr->num_buckets = 0;
-    arr->cursor = FM_BUCKET_EMPTY;
-}
-
-void fm_bucket_insert(fm_bucket_array_t *arr, idx_t vertex, idx_t gain) {
-    idx_t bucket = arr->bucket_offset + gain;
-    /* Doubly-linked-list head insert: vertex becomes the new head,
-     * old head (if any) hangs off vertex's `next`. */
-    arr->prev[vertex] = FM_BUCKET_EMPTY;
-    arr->next[vertex] = arr->heads[bucket];
-    if (arr->heads[bucket] != FM_BUCKET_EMPTY)
-        arr->prev[arr->heads[bucket]] = vertex;
-    else
-        /* Sprint 26 Day 7: inserting into a previously-empty bucket
-         * makes this vertex both the head AND the tail.  Otherwise
-         * the existing tail (the first-inserted vertex) stays at
-         * the tail end of the chain. */
-        arr->tails[bucket] = vertex;
-    arr->heads[bucket] = vertex;
-    arr->counts[bucket]++;
-    if (bucket > arr->cursor)
-        arr->cursor = bucket;
-}
-
-void fm_bucket_remove(fm_bucket_array_t *arr, idx_t vertex, idx_t gain) {
-    idx_t bucket = arr->bucket_offset + gain;
-    idx_t p = arr->prev[vertex];
-    idx_t n = arr->next[vertex];
-    if (p != FM_BUCKET_EMPTY)
-        arr->next[p] = n;
-    else
-        arr->heads[bucket] = n;
-    if (n != FM_BUCKET_EMPTY)
-        arr->prev[n] = p;
-    else
-        /* Sprint 26 Day 7: removing the tail vertex (next[v] == EMPTY)
-         * means the previous vertex becomes the new tail.  If there
-         * was no previous (single-element bucket), tail goes to EMPTY
-         * — `p == FM_BUCKET_EMPTY` covers that case too. */
-        arr->tails[bucket] = p;
-    arr->counts[bucket]--;
-    /* Cursor walk-down: if we just emptied the cursor's bucket, slide
-     * the cursor down past every empty bucket below it.  Worst-case
-     * scan is the full array; amortised cost is O(1) over an FM pass
-     * because each bucket is visited at most twice (once descending,
-     * once if a later insert lifts the cursor back). */
-    if (bucket == arr->cursor) {
-        while (arr->cursor >= 0 && arr->counts[arr->cursor] == 0)
-            arr->cursor--;
-    }
-}
-
-sparse_err_t fm_bucket_pop_max(fm_bucket_array_t *arr, idx_t *vertex_out, idx_t *gain_out) {
-    if (!arr || !vertex_out || !gain_out)
-        return SPARSE_ERR_NULL;
-    if (arr->cursor < 0)
-        return SPARSE_ERR_BOUNDS;
-    idx_t bucket = arr->cursor;
-    idx_t v = arr->heads[bucket];
-    idx_t g = bucket - arr->bucket_offset;
-    fm_bucket_remove(arr, v, g);
-    *vertex_out = v;
-    *gain_out = g;
-    return SPARSE_OK;
-}
-
-/* Sprint 26 Day 7: FIFO pop variant — pops the cursor bucket's tail
- * (first-inserted vertex among the equal-gain tie group) instead of
- * the head (most-recently inserted).  Used by FM under
- * SPARSE_FM_FINEST_STRATEGY=fifo to break the saturation Sprint 25
- * Day 5 measured.  See SPRINT_26/finest_fm_design.md. */
-sparse_err_t fm_bucket_pop_max_tail(fm_bucket_array_t *arr, idx_t *vertex_out, idx_t *gain_out) {
-    if (!arr || !vertex_out || !gain_out)
-        return SPARSE_ERR_NULL;
-    if (arr->cursor < 0)
-        return SPARSE_ERR_BOUNDS;
-    idx_t bucket = arr->cursor;
-    idx_t v = arr->tails[bucket];
-    idx_t g = bucket - arr->bucket_offset;
-    fm_bucket_remove(arr, v, g);
-    *vertex_out = v;
-    *gain_out = g;
-    return SPARSE_OK;
-}
-
-sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
-    if (!G || !part_io)
-        return SPARSE_ERR_NULL;
-    if (G->n == 0)
-        return SPARSE_OK;
-
-    /* Sprint 26 Day 7: pick the pop-strategy based on the thread-
-     * local override.  `graph_uncoarsen` sets `fm_pop_use_tail = 1`
-     * before invoking `graph_refine_fm` at the finest level under
-     * SPARSE_FM_FINEST_STRATEGY=fifo; default 0 = Sprint 23 LIFO
-     * pop (head).  Read once on entry to avoid per-iteration
-     * branching in the FM hot loop. */
-    sparse_err_t (*pop_max)(fm_bucket_array_t *, idx_t *, idx_t *) =
-        fm_pop_use_tail ? fm_bucket_pop_max_tail : fm_bucket_pop_max;
-
-    /* Sprint 27 Day 6: annealing-acceptance overlay.  When
-     * fm_use_annealing is set, negative-gain pops are subjected to a
-     * per-vertex acceptance check `random < exp(g / T)`; rejected
-     * vertices are parked on the same per-step skipped list as
-     * balance-skipped vertices (re-considered next step).  Default
-     * fm_use_annealing == 0 → branch is bypassed; baseline FM
-     * behaviour is bit-identical to current master. */
-    const int use_annealing = fm_use_annealing;
-    const int anneal_debug = use_annealing && getenv("SPARSE_FM_ANNEALING_DEBUG") != NULL;
-    double anneal_T = 0.0;
-    uint32_t anneal_rng = 0;
-    idx_t anneal_worsening_accepted = 0;
-    idx_t anneal_worsening_rejected = 0;
-
-    /* Sprint 28 Day 2: formal gain-noise overlay (the Day-10 design's
-     * intent that Sprint 27 Day 11 simplified to partition-state random-
-     * flip).  When `fm_use_thick_restart` is set AND
-     * `fm_thick_restart_perturb == GAIN_NOISE_FORMAL`, perturb the
-     * bucket placement via `gain_for_bucket[v] = gain[v] + noise[v]`
-     * where `noise[v] = sigma_k * max_weighted_degree * randn()` is
-     * sampled once per pass per vertex.  The bucket structure is
-     * sized for `2 * max_weighted_degree` to absorb the noise +
-     * neighbour-update accumulation.  Cut accounting + neighbour-
-     * update gain equation use the TRUE `gain[v]`; only the bucket
-     * key carries the noise offset.  Default-off path (gain_for_bucket
-     * == NULL) is bit-identical to current master.
-     *
-     * sigma_k decays per pass under `fm_gain_noise_schedule` (default
-     * linear; matches PLAN.md Day 2 task 2).  Pass index k =
-     * fm_anneal_pass_idx (reused thread-local from Sprint 27 Day 6;
-     * graph_uncoarsen sets it before each finest-level call). */
-    const int use_gain_noise_formal =
-        fm_use_thick_restart &&
-        fm_thick_restart_perturb == FM_THICK_RESTART_PERTURB_GAIN_NOISE_FORMAL;
-    const int gain_noise_debug =
-        use_gain_noise_formal && getenv("SPARSE_FM_GAIN_NOISE_DEBUG") != NULL;
-    double gain_sigma_k = 0.0;
-    uint32_t gain_noise_rng = 0;
-
-    idx_t n = G->n;
-
-    /* Per-vertex gain = (sum of edge weights to other-side neighbours)
-     *                 − (sum of edge weights to same-side neighbours).
-     * Moving v flips the cut by -gain[v] (positive gain ⇒ smaller cut).
-     *
-     * Sprint 23 Day 10: gain values live in the bucket array (one
-     * bucket per gain level; doubly-linked list inside each bucket).
-     * Per-step max-find is O(1) amortised via the cursor in the
-     * bucket array — replaces Sprint 22's O(n) linear scan, lifts FM
-     * total complexity from O(n²) to O(|E|) per pass. */
-    idx_t *gain = malloc((size_t)n * sizeof(idx_t));
-    int *locked = calloc((size_t)n, sizeof(int));
-    int *in_bucket = calloc((size_t)n, sizeof(int));
-    idx_t *best_part = malloc((size_t)n * sizeof(idx_t));
-    /* `skipped_this_step` is the per-step deferred-pop list: vertices
-     * popped but balance-ineligible *this* step.  Re-inserted into the
-     * bucket at end-of-step so the next step (with shifted w0/w1)
-     * reconsiders them — Sprint 22's per-step full re-scan retried
-     * such vertices implicitly; the bucket-FM has to spell it out. */
-    idx_t *skipped_this_step = malloc((size_t)n * sizeof(idx_t));
-    /* Sprint 28 Day 2: gain-for-bucket array.  Only allocated under
-     * the gain_noise_formal overlay; carries the per-vertex noise
-     * offset that the bucket structure uses for placement.  NULL on
-     * the default code path → bucket inserts read `gain[v]` directly
-     * (bit-identical to Sprint 27 master).  calloc-zeroed so the
-     * path-sensitive analyzer sees an initialised value at the
-     * bucket-insert read site (the noise-init loop below covers all
-     * v ∈ [0, n), but the analyzer can't prove that across two
-     * separate `if (use_gain_noise_formal)` blocks).  The redundant
-     * `n > 0` guard the malloc previously had is dropped because
-     * line 1985's `if (G->n == 0) return SPARSE_OK;` already filters
-     * the n == 0 case before we reach this allocation. */
-    idx_t *gain_for_bucket = NULL;
-    if (use_gain_noise_formal) {
-        gain_for_bucket = calloc((size_t)n, sizeof(idx_t));
-    }
-    if (!gain || !locked || !in_bucket || !best_part || !skipped_this_step ||
-        (use_gain_noise_formal && !gain_for_bucket)) {
-        free(gain);
-        free(locked);
-        free(in_bucket);
-        free(best_part);
-        free(skipped_this_step);
-        free(gain_for_bucket);
-        return SPARSE_ERR_ALLOC;
-    }
-
-    /* Initial gains + max weighted degree (drives bucket array sizing).
-     * gain[v] always lives in [-weighted_degree(v), +weighted_degree(v)]
-     * — both initially (each edge contributes ±w to either internal or
-     * external) and after any sequence of neighbour moves (each edge's
-     * contribution to gain[v] flips sign when that edge crosses the
-     * partition, but the magnitude is unchanged), so max_weighted_degree
-     * is a tight bound on |gain| at every point in the FM walk. */
-    idx_t max_weighted_degree = 0;
-    for (idx_t v = 0; v < n; v++) {
-        idx_t internal = 0;
-        idx_t external = 0;
-        idx_t v_wd = 0;
-        for (idx_t k = G->xadj[v]; k < G->xadj[v + 1]; k++) {
-            idx_t u = G->adjncy[k];
-            idx_t w = G->ewgt ? G->ewgt[k] : 1;
-            v_wd += w;
-            if (part_io[v] == part_io[u])
-                internal += w;
-            else
-                external += w;
-        }
-        gain[v] = external - internal;
-        if (v_wd > max_weighted_degree)
-            max_weighted_degree = v_wd;
-    }
-
-    /* Sprint 28 Day 2: oversize the bucket array by 2× when the
-     * gain_noise_formal overlay is active.  Per-vertex noise (sampled
-     * below) is bounded by `sigma_0 * max_weighted_degree * |randn()|`;
-     * with sigma_0 = 0.5 and the Box-Muller-style sampling clamped to
-     * ~3σ, |noise| stays within max_weighted_degree.  The post-init
-     * `gain_for_bucket[v] = gain[v] + noise[v]` therefore lives in
-     * `[-2*max_weighted_degree, +2*max_weighted_degree]`; subsequent
-     * neighbour-updates change `gain[v]` by `±2w` per step but keep
-     * the noise offset constant, so the bucket key stays in the
-     * doubled range throughout.  Default-off path uses
-     * max_weighted_degree (bit-identical to Sprint 27 master). */
-    idx_t bucket_max_gain = max_weighted_degree;
-    if (use_gain_noise_formal) {
-        bucket_max_gain = max_weighted_degree * 2;
-        if (bucket_max_gain < max_weighted_degree) /* idx_t overflow guard */
-            bucket_max_gain = max_weighted_degree;
-    }
-    fm_bucket_array_t buckets = {0};
-    sparse_err_t rc = fm_bucket_array_init(&buckets, n, bucket_max_gain);
-    if (rc != SPARSE_OK) {
-        free(gain);
-        free(locked);
-        free(in_bucket);
-        free(best_part);
-        free(skipped_this_step);
-        free(gain_for_bucket);
-        return rc;
-    }
-
-    /* Sprint 27 Day 6: compute T_k for the current pass under the
-     * configured schedule.  T_0 = max_weighted_degree (an upper
-     * bound on |gain|; gives moderate initial acceptance for the
-     * worst-case worsening move).  Pass index k = fm_anneal_pass_idx
-     * (set by graph_uncoarsen before each finest-level call); total
-     * passes K = fm_anneal_total_passes (Sprint 23 Day 11 default 3).
-     * Schedule formulae per Day-5 design (annealing_fm_design.md):
-     *   LINEAR:      T_k = T_0 × (1 − k/K)
-     *   EXPONENTIAL: T_k = T_0 × 0.5^k        (Kirkpatrick-1983 §3)
-     *   COSINE:      T_k = T_0/2 × (1 + cos(πk/K))
-     * Cutoff: when T <= 1.0, all worsening-move probabilities collapse
-     * to <~ 0.37, so annealing effectively stops rejecting late in
-     * the schedule. */
-    if (use_annealing) {
-        int K = fm_anneal_total_passes > 0 ? fm_anneal_total_passes : 1;
-        int k = fm_anneal_pass_idx;
-        if (k < 0)
-            k = 0;
-        if (k >= K)
-            k = K - 1;
-        double T0 = (double)max_weighted_degree;
-        switch (fm_anneal_schedule) {
-        case FM_ANNEAL_SCHEDULE_LINEAR:
-            anneal_T = T0 * (1.0 - (double)k / (double)K);
-            break;
-        case FM_ANNEAL_SCHEDULE_COSINE:
-            anneal_T = T0 * 0.5 * (1.0 + cos(3.14159265358979323846 * (double)k / (double)K));
-            break;
-        case FM_ANNEAL_SCHEDULE_EXPONENTIAL:
-        default:
-            anneal_T = T0;
-            for (int i = 0; i < k; i++)
-                anneal_T *= 0.5;
-            break;
-        }
-        /* Per-call deterministic seed: hash of (n, k).  xorshift32
-         * needs a non-zero state; bias by + 1 to guarantee that. */
-        anneal_rng =
-            (uint32_t)(((uint64_t)(uint32_t)n * 31U + (uint32_t)(uint64_t)(unsigned long)k) *
-                           2654435761U +
-                       1U);
-    }
-
-    /* Sprint 28 Day 2: compute sigma_k for the gain_noise_formal
-     * overlay.  sigma_0 = 0.5 means the per-vertex noise magnitude
-     * is up to ~50% of max_weighted_degree at pass 0 (with Box-Muller
-     * sampling clamped to ~3σ); decays per pass under
-     * `fm_gain_noise_schedule`.  Same per-call deterministic seed
-     * recipe as Day-6 annealing, but biased by 7U to differentiate
-     * the RNG stream when the two overlays compose (annealing +
-     * gain_noise_formal). */
-    if (use_gain_noise_formal) {
-        int K = fm_anneal_total_passes > 0 ? fm_anneal_total_passes : 1;
-        int k = fm_anneal_pass_idx;
-        if (k < 0)
-            k = 0;
-        if (k >= K)
-            k = K - 1;
-        const double sigma_0 = 0.5;
-        switch (fm_gain_noise_schedule) {
-        case FM_GAIN_NOISE_SCHEDULE_EXPONENTIAL:
-            gain_sigma_k = sigma_0;
-            for (int i = 0; i < k; i++)
-                gain_sigma_k *= 0.5;
-            break;
-        case FM_GAIN_NOISE_SCHEDULE_COSINE:
-            gain_sigma_k =
-                sigma_0 * 0.5 * (1.0 + cos(3.14159265358979323846 * (double)k / (double)K));
-            break;
-        case FM_GAIN_NOISE_SCHEDULE_LINEAR:
-        default:
-            gain_sigma_k = sigma_0 * (1.0 - (double)k / (double)K);
-            break;
-        }
-        gain_noise_rng =
-            (uint32_t)(((uint64_t)(uint32_t)n * 31U + (uint32_t)(uint64_t)(unsigned long)k) *
-                           2654435761U +
-                       7U);
-    }
-
-    /* Sprint 28 Day 2: populate gain_for_bucket[v] = gain[v] + noise[v]
-     * when the gain_noise_formal overlay is active.  noise[v] is
-     * sampled via Box-Muller-style central-limit approximation: sum
-     * 12 uniform draws and subtract 6 to approximate N(0, 1).  Cheap,
-     * deterministic given the seeded RNG, and accurate to ~3σ for
-     * the bucket-placement use case.  The result is clamped to
-     * `±max_weighted_degree` so the post-init gain_for_bucket[v]
-     * stays within `±2*max_weighted_degree` (matches the doubled
-     * bucket sizing above). */
-    if (use_gain_noise_formal && gain_for_bucket) {
-        const double noise_scale = gain_sigma_k * (double)max_weighted_degree;
-        const idx_t noise_clamp = max_weighted_degree;
-        for (idx_t v = 0; v < n; v++) {
-            double u_sum = 0.0;
-            for (int i = 0; i < 12; i++) {
-                gain_noise_rng ^= gain_noise_rng << 13;
-                gain_noise_rng ^= gain_noise_rng >> 17;
-                gain_noise_rng ^= gain_noise_rng << 5;
-                u_sum += (double)gain_noise_rng / 4294967296.0;
-            }
-            double standard_normal = u_sum - 6.0;
-            double noise = noise_scale * standard_normal;
-            idx_t noise_int;
-            if (noise > (double)noise_clamp)
-                noise_int = noise_clamp;
-            else if (noise < -(double)noise_clamp)
-                noise_int = -noise_clamp;
-            else
-                noise_int = (idx_t)noise;
-            gain_for_bucket[v] = gain[v] + noise_int;
-        }
-    }
-
-    /* Insert every vertex into the bucket initially.  Vertices with
-     * negative gain (interior to their side) are still inserted —
-     * Sprint 22's FM scanned them too, accepting transient cut
-     * increases, and the rollback-to-best-cut step at the end keeps
-     * us from finalising a worse partition.
-     *
-     * Iterate in reverse so the bucket's head-insert pattern leaves
-     * the lowest-ID vertex at each bucket's head — this matches
-     * Sprint 22's lowest-ID-wins tie-breaking on equal gains, which
-     * `test_ldlt_via_nd_dispatch` (bcsstk04 LDL^T no-pivoting)
-     * happened to depend on.  Strictly an initial-state invariant —
-     * neighbour-update remove+inserts during the FM walk can
-     * scatter IDs within a bucket — but downstream tests show this
-     * is sufficient to avoid the catastrophic residual blow-up. */
-    for (idx_t v = n - 1; v >= 0; v--) {
-        /* Sprint 28 Day 2: clang-analyzer-core.uninitialized.Assign
-         * false positive — both `gain[v]` (init loop above, lines
-         * ~2086-2103) and `gain_for_bucket[v]` (calloc'd + noise-init
-         * loop above when use_gain_noise_formal is true) are written
-         * for every v ∈ [0, n) before this read.  The analyzer can't
-         * track the gain-init loop's write across the intervening
-         * thick-restart / annealing branches. */
-        // NOLINTNEXTLINE(clang-analyzer-core.uninitialized.Assign)
-        idx_t bucket_key =
-            (use_gain_noise_formal && gain_for_bucket) ? gain_for_bucket[v] : gain[v];
-        fm_bucket_insert(&buckets, v, bucket_key);
-        in_bucket[v] = 1;
-    }
-
-    idx_t cur_cut = compute_cut_weight(G, part_io);
-    idx_t best_cut = cur_cut;
-    memcpy(best_part, part_io, (size_t)n * sizeof(idx_t));
-
-    /* Side weights for balance tracking. */
-    idx_t w0 = 0;
-    idx_t w1 = 0;
-    idx_t max_vwgt = 1;
-    for (idx_t i = 0; i < n; i++) {
-        idx_t w = G->vwgt ? G->vwgt[i] : 1;
-        if (w > max_vwgt)
-            max_vwgt = w;
-        if (part_io[i] == 0)
-            w0 += w;
-        else
-            w1 += w;
-    }
-    idx_t total_vwgt = w0 + w1;
-    idx_t init_imbal = w0 > w1 ? w0 - w1 : w1 - w0;
-    idx_t max_imbal = total_vwgt / 20; /* 5% of total */
-    if (max_imbal < init_imbal)
-        max_imbal = init_imbal;
-    max_imbal += max_vwgt;
-
-    /* FM main loop.  pop_max returns the highest-gain still-in-bucket
-     * vertex; balance-ineligible pops get parked on the per-step
-     * skipped list and re-inserted at end-of-step so they're
-     * reconsidered next step (when w0/w1 may have shifted in their
-     * favour).  This preserves Sprint 22's "consider every unlocked
-     * vertex every step" semantics — the partition tests
-     * (tests/test_graph.c) and the bcsstk04 LDL^T no-pivoting
-     * residual test (tests/test_reorder_nd.c) both depend on it. */
-    for (idx_t step = 0; step < n; step++) {
-        idx_t best_v = -1;
-        idx_t best_g = 0;
-        int have_candidate = 0;
-        idx_t skipped_count = 0;
-        while (buckets.cursor >= 0) {
-            idx_t v = -1;
-            idx_t g = 0;
-            sparse_err_t pop_rc = pop_max(&buckets, &v, &g);
-            if (pop_rc != SPARSE_OK)
-                break;
-            in_bucket[v] = 0;
-            /* Plan invariant: pop_max never returns a locked vertex
-             * because vertices get popped (and thus removed) before
-             * being marked locked; subsequent neighbour-update
-             * propagation also remove-then-reinserts only unlocked
-             * neighbours. */
-            if (locked[v]) {
-                /* Defensive only — should be unreachable. */
-                continue;
-            }
-            idx_t v_w = G->vwgt ? G->vwgt[v] : 1;
-            idx_t new_w0 = part_io[v] == 0 ? w0 - v_w : w0 + v_w;
-            idx_t new_w1 = part_io[v] == 0 ? w1 + v_w : w1 - v_w;
-            idx_t new_imbal = new_w0 > new_w1 ? new_w0 - new_w1 : new_w1 - new_w0;
-            if (new_imbal > max_imbal) {
-                /* skipped_count ≤ n by construction: each pop sets
-                 * `in_bucket[v] = 0`, so the inner while can pop a
-                 * given vertex at most once per FM step, capping
-                 * skipped_count at the bucket's pre-step occupancy
-                 * (≤ n).  clang-analyzer's path-sensitive search
-                 * doesn't see this — silence the false positive. */
-                // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
-                skipped_this_step[skipped_count++] = v;
-                continue;
-            }
-            /* Sprint 27 Day 6: annealing-acceptance overlay.  When
-             * fm_use_annealing is set and T > 1, negative-gain pops
-             * are accepted with probability `exp(g / T)` and rejected
-             * (re-bucketed at end-of-step) with probability `1 - P`.
-             * Positive-gain (improving) moves and balance-eligible
-             * zero-gain moves bypass this check entirely — they're
-             * always accepted, matching baseline FM.  Default
-             * `use_annealing == 0` skips the branch. */
-            if (use_annealing && g < 0 && anneal_T > 1.0) {
-                /* xorshift32 advance — produces a uniform 32-bit
-                 * value; convert to [0, 1) by dividing by 2^32. */
-                anneal_rng ^= anneal_rng << 13;
-                anneal_rng ^= anneal_rng >> 17;
-                anneal_rng ^= anneal_rng << 5;
-                double r = (double)anneal_rng / 4294967296.0;
-                double accept_p = exp((double)g / anneal_T);
-                if (r >= accept_p) {
-                    anneal_worsening_rejected++;
-                    // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
-                    skipped_this_step[skipped_count++] = v;
-                    continue;
-                }
-                anneal_worsening_accepted++;
-            }
-            best_v = v;
-            best_g = g;
-            have_candidate = 1;
-            break;
-        }
-
-        /* Move + neighbour gain-update happen first (touches gain[]
-         * for all unlocked neighbours, bucket re-shuffle for
-         * in_bucket ones), so when we re-insert the skipped vertices
-         * below their gain[] reflects the move's effect. */
-        if (have_candidate) {
-            /* Sprint 28 Day 2: cut accounting uses the TRUE gain
-             * (gain[best_v]) rather than the popped bucket key
-             * (best_g) when the gain_noise_formal overlay is active —
-             * the bucket key carries the per-vertex noise offset and
-             * is not the actual cut delta.  Default-off path uses
-             * best_g (== gain[best_v] at pop) bit-identically. */
-            idx_t cut_delta = (use_gain_noise_formal && gain_for_bucket) ? gain[best_v] : best_g;
-            cur_cut -= cut_delta;
-            idx_t v_w = G->vwgt ? G->vwgt[best_v] : 1;
-            idx_t old_side = part_io[best_v];
-            idx_t new_side = 1 - old_side;
-            if (old_side == 0) {
-                w0 -= v_w;
-                w1 += v_w;
-            } else {
-                w0 += v_w;
-                w1 -= v_w;
-            }
-            part_io[best_v] = new_side;
-            locked[best_v] = 1;
-
-            /* Neighbour gains: edge (best_v, u) flipped from external
-             * to internal (u on new_side) → gain[u] -= 2w; from
-             * internal to external (u on old_side) → gain[u] += 2w.
-             * gain[] is updated for *every* unlocked neighbour; the
-             * bucket re-shuffle only fires for currently-in-bucket
-             * neighbours, so skipped-this-step vertices pick up their
-             * updated gain when we re-insert them below.
-             *
-             * Sprint 28 Day 2: when gain_noise_formal is active,
-             * gain_for_bucket[u] also shifts by the same ±2w delta
-             * (the per-vertex noise offset is constant within a pass;
-             * neighbour-update is linear).  Bucket remove+insert uses
-             * the noisy key on both sides. */
-            for (idx_t k = G->xadj[best_v]; k < G->xadj[best_v + 1]; k++) {
-                idx_t u = G->adjncy[k];
-                if (locked[u])
-                    continue;
-                idx_t w = G->ewgt ? G->ewgt[k] : 1;
-                idx_t old_g = gain[u];
-                idx_t old_bucket_key =
-                    (use_gain_noise_formal && gain_for_bucket) ? gain_for_bucket[u] : old_g;
-                if (part_io[u] == new_side) {
-                    gain[u] -= 2 * w;
-                    if (use_gain_noise_formal && gain_for_bucket)
-                        gain_for_bucket[u] -= 2 * w;
-                } else {
-                    gain[u] += 2 * w;
-                    if (use_gain_noise_formal && gain_for_bucket)
-                        gain_for_bucket[u] += 2 * w;
-                }
-                if (in_bucket[u]) {
-                    fm_bucket_remove(&buckets, u, old_bucket_key);
-                    idx_t new_bucket_key =
-                        (use_gain_noise_formal && gain_for_bucket) ? gain_for_bucket[u] : gain[u];
-                    fm_bucket_insert(&buckets, u, new_bucket_key);
-                }
-            }
-
-            if (cur_cut < best_cut) {
-                best_cut = cur_cut;
-                memcpy(best_part, part_io, (size_t)n * sizeof(idx_t));
-            }
-        }
-
-        /* Re-insert balance-skipped vertices for next-step
-         * consideration.  Their gain[] has been updated by the
-         * neighbour-update loop above (when applicable), so the
-         * bucket placement reflects their current gain.
-         *
-         * Sprint 28 Day 2: under the gain_noise_formal overlay, the
-         * bucket key is `gain_for_bucket[w]` (which carries the per-
-         * vertex noise offset and was tracked in lockstep with
-         * `gain[w]` above). */
-        for (idx_t i = 0; i < skipped_count; i++) {
-            idx_t w = skipped_this_step[i];
-            if (!locked[w]) {
-                idx_t reinsert_key =
-                    (use_gain_noise_formal && gain_for_bucket) ? gain_for_bucket[w] : gain[w];
-                fm_bucket_insert(&buckets, w, reinsert_key);
-                in_bucket[w] = 1;
-            }
-        }
-
-        if (!have_candidate)
-            break;
-    }
-
-    /* Roll back to the best state. */
-    memcpy(part_io, best_part, (size_t)n * sizeof(idx_t));
-
-    /* Sprint 27 Day 6: emit annealing per-pass stats under
-     * SPARSE_FM_ANNEALING_DEBUG=1 (default off; one-branch overhead
-     * when off). */
-    if (anneal_debug) {
-        fprintf(stderr,
-                "fm-annealing-debug n=%d pass=%d/%d schedule=%d T=%.3f "
-                "worsening_accepted=%d worsening_rejected=%d\n",
-                (int)n, fm_anneal_pass_idx, fm_anneal_total_passes, (int)fm_anneal_schedule,
-                anneal_T, (int)anneal_worsening_accepted, (int)anneal_worsening_rejected);
-    }
-
-    /* Sprint 28 Day 2: emit gain-noise per-pass stats under
-     * SPARSE_FM_GAIN_NOISE_DEBUG=1 (default off; one-branch overhead
-     * when off). */
-    if (gain_noise_debug) {
-        fprintf(stderr,
-                "fm-gain-noise-debug n=%d pass=%d/%d schedule=%d sigma_k=%.4f best_cut=%d\n",
-                (int)n, fm_anneal_pass_idx, fm_anneal_total_passes, (int)fm_gain_noise_schedule,
-                gain_sigma_k, (int)best_cut);
-    }
-
-    fm_bucket_array_free(&buckets);
-    free(gain);
-    free(locked);
-    free(in_bucket);
-    free(best_part);
-    free(skipped_this_step);
-    free(gain_for_bucket);
-    return SPARSE_OK;
-}
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Uncoarsening + vertex-separator extraction (Sprint 22 Day 4).
@@ -1216,13 +262,15 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
      * `fm_anneal_schedule` thread-locals; Day 6 lands the
      * acceptance-probability overlay + measurement.  `thick_restart`
      * stays unimplemented (Sprint 27 item 6 budget; Days 10-12). */
-    fm_anneal_schedule_t anneal_schedule_choice = parse_fm_anneal_schedule();
-    fm_thick_restart_perturb_t thick_restart_perturb_choice = parse_fm_thick_restart_perturb();
+    fm_anneal_schedule_t anneal_schedule_choice = sparse_graph_parse_fm_anneal_schedule();
+    fm_thick_restart_perturb_t thick_restart_perturb_choice =
+        sparse_graph_parse_fm_thick_restart_perturb();
     /* Sprint 28 Day 2: gain-noise schedule for the formal thick-restart
      * variant.  Only consulted by graph_refine_fm when
      * fm_thick_restart_perturb == GAIN_NOISE_FORMAL; defaults to
      * linear so the default-off code path stays bit-identical. */
-    fm_gain_noise_schedule_t gain_noise_schedule_choice = parse_fm_gain_noise_schedule();
+    fm_gain_noise_schedule_t gain_noise_schedule_choice =
+        sparse_graph_parse_fm_gain_noise_schedule();
 
     /* Sprint 28 Day 4: multi-strategy FM ensemble strategy list.
      * Parsed from `SPARSE_FM_ENSEMBLE_STRATEGIES` (default
@@ -1381,33 +429,24 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
         } else {
             passes = 1;
         }
-        /* Sprint 26 Day 7: at the finest level (level == 0) under
-         * SPARSE_FM_FINEST_STRATEGY=fifo, set the thread-local
-         * pop-strategy override so graph_refine_fm uses
-         * fm_bucket_pop_max_tail (FIFO; first-inserted wins) instead
-         * of the default fm_bucket_pop_max (LIFO; most-recently-
-         * inserted wins).  Restore after this level's passes finish. */
-        int prev_pop_use_tail = fm_pop_use_tail;
-        int prev_use_annealing = fm_use_annealing;
-        fm_anneal_schedule_t prev_schedule = fm_anneal_schedule;
-        int prev_anneal_pass_idx = fm_anneal_pass_idx;
-        int prev_anneal_total_passes = fm_anneal_total_passes;
-        int prev_use_thick_restart = fm_use_thick_restart;
-        fm_thick_restart_perturb_t prev_thick_restart_perturb = fm_thick_restart_perturb;
-        fm_gain_noise_schedule_t prev_gain_noise_schedule = fm_gain_noise_schedule;
+        sparse_graph_fm_runtime_t prev_runtime = {0};
+        sparse_graph_fm_runtime_t runtime = {0};
+        sparse_graph_fm_runtime_get(&prev_runtime);
+        runtime = prev_runtime;
         if (level == 0 && finest_strategy == FINEST_FM_FIFO)
-            fm_pop_use_tail = 1;
+            runtime.pop_use_tail = 1;
         if (level == 0 && finest_strategy == FINEST_FM_ANNEALING) {
-            fm_use_annealing = 1;
-            fm_anneal_schedule = anneal_schedule_choice;
-            fm_anneal_total_passes = passes;
+            runtime.use_annealing = 1;
+            runtime.anneal_schedule = anneal_schedule_choice;
+            runtime.anneal_total_passes = passes;
         }
         if (level == 0 && finest_strategy == FINEST_FM_THICK_RESTART) {
-            fm_use_thick_restart = 1;
-            fm_thick_restart_perturb = thick_restart_perturb_choice;
-            fm_anneal_total_passes = passes; /* reuse pass-count thread-local */
-            fm_gain_noise_schedule = gain_noise_schedule_choice;
+            runtime.use_thick_restart = 1;
+            runtime.thick_restart_perturb = thick_restart_perturb_choice;
+            runtime.anneal_total_passes = passes;
+            runtime.gain_noise_schedule = gain_noise_schedule_choice;
         }
+        sparse_graph_fm_runtime_set(&runtime);
         /* Sprint 27 Day 11: thick-restart anchor allocation.  Tracks
          * the global-best partition + cut across all passes at the
          * finest level.  Only allocated when fm_use_thick_restart is
@@ -1420,12 +459,12 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
         idx_t *tr_anchor_part = NULL;
         idx_t tr_anchor_cut = 0;
         uint32_t tr_rng = 0;
-        const int tr_active = (fm_use_thick_restart && dst_graph->n >= 2);
+        const int tr_active = (runtime.use_thick_restart && dst_graph->n >= 2);
         if (tr_active) {
             tr_anchor_part = malloc((size_t)dst_graph->n * sizeof(idx_t));
             if (tr_anchor_part) {
                 memcpy(tr_anchor_part, next, (size_t)dst_graph->n * sizeof(idx_t));
-                tr_anchor_cut = compute_cut_weight(dst_graph, tr_anchor_part);
+                tr_anchor_cut = sparse_graph_compute_cut_weight(dst_graph, tr_anchor_part);
                 /* Per-call deterministic seed: same xorshift32-state
                  * recipe as Day 6 annealing.  Non-zero by construction. */
                 tr_rng = (uint32_t)(((uint64_t)(uint32_t)dst_graph->n * 31U +
@@ -1472,7 +511,8 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
              * fm_use_annealing == 1.  Sprint 27 Day 10/11: thick-
              * restart also threads pass index for the perturbation
              * RNG advance (only fires for p > 0). */
-            fm_anneal_pass_idx = p;
+            runtime.anneal_pass_idx = p;
+            sparse_graph_fm_runtime_set(&runtime);
             /* Sprint 27 Day 11: thick-restart restart-from-anchor.
              * Pass 0 starts from `next` as projected from the coarser
              * level (baseline behaviour).  Passes p > 0 copy the
@@ -1483,7 +523,8 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
              * previous pass's result. */
             if (tr_active && tr_anchor_part && p > 0) {
                 memcpy(next, tr_anchor_part, (size_t)dst_graph->n * sizeof(idx_t));
-                thick_restart_perturb(dst_graph, next, fm_thick_restart_perturb, &tr_rng);
+                sparse_graph_thick_restart_perturb(dst_graph, next, runtime.thick_restart_perturb,
+                                                   &tr_rng);
             }
 
             /* Sprint 28 Day 4: multi-strategy FM ensemble dispatch.
@@ -1502,19 +543,24 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                 for (int s = 0; s < ensemble_strategy_count; s++) {
                     int strat = ensemble_strategy_list[s];
                     /* Reset to defaults (cleared between strategies). */
-                    fm_pop_use_tail = 0;
-                    fm_use_annealing = 0;
-                    fm_use_thick_restart = 0;
+                    sparse_graph_fm_runtime_t strategy_runtime = prev_runtime;
+                    strategy_runtime.pop_use_tail = 0;
+                    strategy_runtime.use_annealing = 0;
+                    strategy_runtime.use_thick_restart = 0;
+                    strategy_runtime.anneal_pass_idx = p;
+                    strategy_runtime.anneal_total_passes = passes;
+                    strategy_runtime.anneal_schedule = anneal_schedule_choice;
+                    strategy_runtime.thick_restart_perturb = thick_restart_perturb_choice;
+                    strategy_runtime.gain_noise_schedule = gain_noise_schedule_choice;
                     /* Set strategy-specific overrides.  `baseline`
                      * keeps the defaults; `thick_restart` is skipped
                      * by the parser so doesn't appear here. */
                     if (strat == FINEST_FM_FIFO) {
-                        fm_pop_use_tail = 1;
+                        strategy_runtime.pop_use_tail = 1;
                     } else if (strat == FINEST_FM_ANNEALING) {
-                        fm_use_annealing = 1;
-                        fm_anneal_schedule = anneal_schedule_choice;
-                        fm_anneal_total_passes = passes;
+                        strategy_runtime.use_annealing = 1;
                     }
+                    sparse_graph_fm_runtime_set(&strategy_runtime);
                     /* Clone start state into the working buffer. */
                     memcpy(ensemble_working, ensemble_start, (size_t)dst_graph->n * sizeof(idx_t));
                     sparse_err_t rc = graph_refine_fm(dst_graph, ensemble_working);
@@ -1523,19 +569,12 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                         free(ensemble_working);
                         free(ensemble_best);
                         free(tr_anchor_part);
-                        fm_pop_use_tail = prev_pop_use_tail;
-                        fm_use_annealing = prev_use_annealing;
-                        fm_anneal_schedule = prev_schedule;
-                        fm_anneal_pass_idx = prev_anneal_pass_idx;
-                        fm_anneal_total_passes = prev_anneal_total_passes;
-                        fm_use_thick_restart = prev_use_thick_restart;
-                        fm_thick_restart_perturb = prev_thick_restart_perturb;
-                        fm_gain_noise_schedule = prev_gain_noise_schedule;
+                        sparse_graph_fm_runtime_set(&prev_runtime);
                         free(cur);
                         free(next);
                         return rc;
                     }
-                    idx_t cur_cut = compute_cut_weight(dst_graph, ensemble_working);
+                    idx_t cur_cut = sparse_graph_compute_cut_weight(dst_graph, ensemble_working);
                     int is_winner = (s == 0) || (cur_cut < best_cut);
                     if (is_winner) {
                         best_cut = cur_cut;
@@ -1571,14 +610,7 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                 free(ensemble_working);
                 free(ensemble_best);
                 free(tr_anchor_part);
-                fm_pop_use_tail = prev_pop_use_tail;
-                fm_use_annealing = prev_use_annealing;
-                fm_anneal_schedule = prev_schedule;
-                fm_anneal_pass_idx = prev_anneal_pass_idx;
-                fm_anneal_total_passes = prev_anneal_total_passes;
-                fm_use_thick_restart = prev_use_thick_restart;
-                fm_thick_restart_perturb = prev_thick_restart_perturb;
-                fm_gain_noise_schedule = prev_gain_noise_schedule;
+                sparse_graph_fm_runtime_set(&prev_runtime);
                 free(cur);
                 free(next);
                 return rc;
@@ -1589,7 +621,7 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
              * "thick-restart globally-best-tracking" contract that
              * differentiates from Sprint 23 Day 11's per-pass rollback. */
             if (tr_active && tr_anchor_part) {
-                idx_t cur_cut = compute_cut_weight(dst_graph, next);
+                idx_t cur_cut = sparse_graph_compute_cut_weight(dst_graph, next);
                 if (cur_cut < tr_anchor_cut) {
                     memcpy(tr_anchor_part, next, (size_t)dst_graph->n * sizeof(idx_t));
                     tr_anchor_cut = cur_cut;
@@ -1605,7 +637,7 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
                 fprintf(stderr,
                         "fm-thick-restart-debug n=%d passes=%d perturb=%d "
                         "best_cut=%d\n",
-                        (int)dst_graph->n, passes, (int)fm_thick_restart_perturb,
+                        (int)dst_graph->n, passes, (int)runtime.thick_restart_perturb,
                         (int)tr_anchor_cut);
             }
         }
@@ -1613,14 +645,7 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
         free(ensemble_start);
         free(ensemble_working);
         free(ensemble_best);
-        fm_pop_use_tail = prev_pop_use_tail;
-        fm_use_annealing = prev_use_annealing;
-        fm_anneal_schedule = prev_schedule;
-        fm_anneal_pass_idx = prev_anneal_pass_idx;
-        fm_anneal_total_passes = prev_anneal_total_passes;
-        fm_use_thick_restart = prev_use_thick_restart;
-        fm_thick_restart_perturb = prev_thick_restart_perturb;
-        fm_gain_noise_schedule = prev_gain_noise_schedule;
+        sparse_graph_fm_runtime_set(&prev_runtime);
         idx_t *tmp = cur;
         cur = next;
         next = tmp;

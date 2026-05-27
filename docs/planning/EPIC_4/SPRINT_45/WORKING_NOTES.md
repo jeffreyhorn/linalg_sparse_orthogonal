@@ -386,3 +386,210 @@ Interpretation:
 - Sprint 45 now has a bounded internal rollout order driven by the live file
 - the next design work should focus on one reusable packed-buffer model that
   fits CG first and still scales to GMRES/block/MINRES
+
+## Day 3
+
+**Objective:** Turn the Day 2 seam inventory into a concrete internal reusable
+workspace model for Sprint 45 by defining the ownership objects, typed solver
+views, reset/resize rules, wrapper boundary, and the role of preconditioners,
+matrix-free operators, and repeated stable-dimension solves before any code
+edits land.
+
+### Commands Run
+
+1. Re-read the Sprint 45 Day 3 plan section:
+   - `sed -n '94,126p' docs/planning/EPIC_4/SPRINT_45/PLAN.md`
+2. Re-read the Day 2 seam inventory artifact:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_45/artifacts/day2-iterative-workspace-seam-inventory.md`
+3. Re-read the current BiCGSTAB internal workspace precedent:
+   - `sed -n '1,220p' src/sparse_bicgstab_internal.h`
+4. Re-read the shared allocation-helper surface that the new design should
+   build on:
+   - `sed -n '1,220p' src/sparse_alloc_internal.h`
+5. Refresh the live iterative object/function landmarks in
+   `src/sparse_iterative.c`:
+   - `rg -n "typedef struct|cg_defaults|gmres_defaults|stag_tracker_t|reshist_t|bicgstab_workspace_t|sparse_solve_cg|sparse_solve_gmres|sparse_cg_solve_block|sparse_solve_minres" src/sparse_iterative.c`
+
+### Day 3 Findings
+
+#### 1. Sprint 45 should use one shared storage owner plus typed solver views, not one giant generic iterative context
+
+The strongest bounded design shape is:
+
+- one shared internal storage owner for contiguous reusable memory
+- typed solver views layered on top of that owner:
+  - CG view
+  - GMRES view
+  - block-CG view
+  - later-extensible MINRES view
+- wrapper-owned temporary workspaces for one-shot public entry points
+
+Interpretation:
+
+- the reusable model should standardize allocation, capacity, and slicing
+- it should not flatten all solver control state into a single public- or
+  internal-facing mega-struct
+
+#### 2. The shared owner should be dimension/capacity-centric, not algorithm-centric
+
+The storage owner should primarily track:
+
+- contiguous `double` buffer
+- optional contiguous auxiliary integer/bool buffer when a solver family needs
+  it
+- current capacity metadata:
+  - `n`
+  - `nrhs`
+  - restart / Krylov dimension
+  - allocated scalar counts for each underlying contiguous region
+- a "prepared for solver family X" notion via typed prepare functions rather
+  than via a generic runtime tag switch in every iteration step
+
+Interpretation:
+
+- ownership should answer:
+  - how much memory is reserved
+  - whether the current solve can reuse it
+  - where each typed slice begins
+- algorithm code should still consume typed pointers rather than raw offsets
+
+#### 3. The first-phase typed view set is now explicit
+
+The first-phase internal views should be:
+
+- `cg_workspace_view`
+  - `r`
+  - `z`
+  - `p`
+  - `Ap`
+- `gmres_workspace_view`
+  - `v`
+  - `h`
+  - `cs`
+  - `sn`
+  - `g`
+  - `y`
+  - `w`
+- `block_cg_workspace_view`
+  - `R`
+  - `Z`
+  - `P`
+  - `AP`
+  - `bnorms`
+  - `rz`
+  - `conv`
+  - `rnorms`
+- `minres_workspace_view`
+  - `v`
+  - `v_old`
+  - `w`
+  - `d0`
+  - `d1`
+  - `d2`
+  - optional `z`
+  - optional `z_tmp`
+
+Interpretation:
+
+- the solver-specific APIs should consume views with already-sliced members
+- the shared storage owner should remain hidden behind these typed preparation
+  steps
+
+#### 4. Reset/reuse should be explicit and cheap between stable-dimension solves
+
+The correct ownership/lifecycle contract is:
+
+- create once for a bounded family/shape
+- prepare a typed view for a requested `(n, restart, nrhs, precond-shape)`
+- reuse when the new request fits within current capacity
+- resize/reallocate only when the request exceeds current capacity
+- destroy explicitly at the owning wrapper or repeated-solve caller boundary
+
+Reset rules should be narrow:
+
+- solver code resets its working slices before each solve
+- the owner does not promise mathematical-state preservation across solves
+- residual-history output buffers remain caller-owned and outside the workspace
+- stagnation tracker state should be reset per solve even if its backing
+  storage is reused
+
+Interpretation:
+
+- Sprint 45 should optimize allocator churn, not preserve old iterative state
+- "reuse" means reuse of capacity and contiguous storage, not resume-from-old
+  Krylov-state semantics
+
+#### 5. Resize/reject rules should stay internal and conservative in Sprint 45
+
+The correct Day 3 rule set is:
+
+- internal reusable helpers may resize when a request outgrows capacity
+- wrapper-owned temporary workspaces should simply create, use, and destroy
+- there is no Sprint 45 public "workspace mismatch" API surface
+- failures remain existing internal failure classes:
+  - overflow -> `SPARSE_ERR_ALLOC`
+  - allocation failure -> `SPARSE_ERR_ALLOC`
+
+Interpretation:
+
+- Sprint 45 should not add public partial-state or mismatch-management
+  semantics
+- resize policy remains an internal implementation detail of the reusable
+  workspace layer
+
+#### 6. Preconditioners and matrix-free operators affect prepare rules, not the shared owner model
+
+The main interaction rules are:
+
+- matrix-backed and matrix-free CG should share the same CG workspace layout
+- matrix-backed and matrix-free GMRES should share the same GMRES workspace
+  layout
+- optional preconditioner-dependent extra vectors stay encoded in the typed
+  view preparation contract
+- the shared owner should not know anything about callback function pointers or
+  matrix objects beyond the size/capacity request
+
+Interpretation:
+
+- the typed prepare layer should absorb shape differences
+- the low-level storage owner should stay allocation-focused rather than solver
+  callback-aware
+
+#### 7. BiCGSTAB should remain a separate precedent seam in Sprint 45
+
+BiCGSTAB proves that:
+
+- internal reusable contiguous solver-owned workspaces fit this codebase
+- explicit alloc/free helpers are already acceptable style
+
+But BiCGSTAB should remain separate for this sprint because:
+
+- it already has a stable dedicated internal header
+- its main value to Sprint 45 is precedent, not priority
+- forcing the first shared owner design to absorb BiCGSTAB immediately would
+  widen the batch before CG / GMRES / block-CG land
+
+Interpretation:
+
+- Sprint 45 should design with BiCGSTAB in mind
+- it should not require Day 5 or Day 6 to migrate BiCGSTAB immediately
+
+#### 8. The wrapper boundary is now explicit
+
+Sprint 45 should keep:
+
+- current public one-shot APIs as convenience wrappers
+- wrapper-local temporary workspace ownership for existing entry points
+- repeated-solve efficiency primarily as an internal capability plus benchmark
+  proof in this sprint
+
+What remains internal-only in Sprint 45:
+
+- storage-owner types
+- typed workspace-view types
+- prepare/reset/resize helpers
+
+Interpretation:
+
+- Day 5+ implementation should land the internal capability first
+- public explicit workspace APIs remain outside Sprint 45 scope

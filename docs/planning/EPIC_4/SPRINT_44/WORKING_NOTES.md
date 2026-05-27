@@ -1375,3 +1375,197 @@ Interpretation:
 - the residual orchestration cleanup is validated as behavior-preserving
 - Sprint 44 can now move on from graph-structure cleanup into the focused test
   maintainability work on the preserved Day 13-style quality baseline
+
+## Day 9
+
+**Objective:** Audit the post-Day-8 graph subsystem so the live ownership split
+and existing regression surface are reviewed before the sprint shifts toward
+large-test maintainability work, then define a bounded Day 10 graph-test batch
+that protects the new Sprint 44 boundaries without overfitting to private
+implementation details.
+
+### Commands Run
+
+1. Re-read the Sprint 44 Day 9 plan section and the earlier graph design notes:
+   - `sed -n '260,330p' docs/planning/EPIC_4/SPRINT_44/PLAN.md`
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_44/artifacts/day4-separator-runtime-and-large-test-design.md`
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_44/artifacts/day7-runtime-strategy-and-orchestration-audit.md`
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_44/artifacts/day8-runtime-parsing-and-orchestration-cleanup.md`
+2. Refresh the live Phase-2 graph ownership split:
+   - `wc -l src/sparse_graph.c src/sparse_graph_core.c src/sparse_graph_coarsen.c src/sparse_graph_bisect.c src/sparse_graph_refine.c src/sparse_graph_separator.c`
+   - `sed -n '1,260p' src/sparse_graph_internal.h`
+   - `sed -n '1,260p' src/sparse_graph.c`
+   - `sed -n '1,220p' src/sparse_graph_refine.c`
+   - `sed -n '1,220p' src/sparse_graph_separator.c`
+3. Refresh the current graph-focused regression surface:
+   - `wc -l tests/test_graph.c tests/test_graph_fm_buckets.c tests/test_reorder_nd.c tests/test_reorder_amd_qg.c`
+   - `rg -n "graph_refine_fm|graph_edge_separator_to_vertex_separator|graph_uncoarsen|SPARSE_FM_|SPARSE_ND_|gggp|brute|subgraph|separator|retry|forced_hem|balanced_boundary|per_vertex" tests/test_graph.c tests/test_graph_fm_buckets.c tests/test_reorder_nd.c tests/test_reorder_amd_qg.c`
+4. Re-read the highest-signal direct graph seam tests:
+   - `sed -n '1828,1935p' tests/test_graph.c`
+   - `sed -n '1180,1550p' tests/test_graph.c`
+
+### Day 9 Findings
+
+#### 1. The live graph ownership split is now clean enough that Day 10 should protect boundaries, not implementation details
+
+The current graph subsystem is now materially decomposed:
+
+- `src/sparse_graph_core.c` = `264`
+- `src/sparse_graph_coarsen.c` = `597`
+- `src/sparse_graph_bisect.c` = `521`
+- `src/sparse_graph_refine.c` = `619`
+- `src/sparse_graph_separator.c` = `311`
+- residual `src/sparse_graph.c` = `801`
+
+The remaining ownership model is also explicit in the live file headers:
+
+- core:
+  - graph construction / free / induced subgraph
+- coarsen:
+  - hierarchy build
+  - HEM/HCC coarsening
+  - temporary forced-HEM override seam
+- bisect:
+  - coarsest split
+  - brute/GGGP/spectral support
+- refine:
+  - FM runtime state
+  - FM parser helpers
+  - cut-weight evaluation
+  - gain buckets
+  - `graph_refine_fm(...)`
+- separator:
+  - separator policy parsers
+  - separator scoring helpers
+  - `graph_edge_separator_to_vertex_separator(...)`
+- residual orchestration:
+  - `graph_uncoarsen(...)`
+  - top-level partition composition
+  - retry/fallback glue
+
+Interpretation:
+
+- Sprint 44 has now crossed from "monolith being split" into "bounded module
+  seams need protection"
+- Day 10 should prefer behavior-level tests that pin cross-module contracts
+  rather than direct unit tests of local residual helpers
+
+#### 2. FM and bisection already have strong behavior-level coverage after the extraction
+
+The current graph-focused test surface already protects several major seams:
+
+- core/subgraph seam:
+  - `test_graph_subgraph_argument_validation`
+  - `test_graph_subgraph_path_slice`
+- bisection dispatch/fallback seam:
+  - `test_bisect_forced_gggp_small_graph`
+  - `test_bisect_forced_brute_large_graph_falls_back_to_gggp`
+  - spectral fallback coverage on star/small/disconnected fixtures
+- FM direct behavior:
+  - `test_fm_reduces_checkerboard_cut`
+  - `test_fm_optimal_partition_no_regress`
+  - `test_fm_null_args`
+- FM/orchestration env dispatch:
+  - `test_fm_intermediate_passes_smoke`
+  - `test_finest_fm_strategy_fifo_smoke`
+  - `test_finest_fm_gain_noise_formal_disrupts_baseline`
+  - `test_finest_fm_ensemble_corpus_safety`
+  - `test_finest_fm_ensemble_deterministic`
+- end-to-end ND and fill-quality coverage:
+  - `tests/test_reorder_nd.c`
+  - `tests/test_reorder_amd_qg.c`
+
+Interpretation:
+
+- Day 10 does not need to invent new FM-private tests just because the FM file
+  moved to `src/sparse_graph_refine.c`
+- the extracted FM seam is already mostly protected through direct behavior
+  tests and end-to-end environment-driven coverage
+
+#### 3. The strongest remaining direct gap is separator-policy coverage, not FM or coarsening
+
+The extracted separator module now owns:
+
+- separator strategy parsing
+- separator weight parsing
+- per-vertex selection/scoring
+- `graph_edge_separator_to_vertex_separator(...)`
+
+But the direct separator-helper coverage in `tests/test_graph.c` is still
+narrow:
+
+- `test_edge_to_vertex_separator_smaller_side`
+- `test_edge_to_vertex_separator_null_args`
+
+There is broader end-to-end separator-policy evidence through:
+
+- `test_per_vertex_fixed_k_differs_from_dynamic_k`
+- the ND fill-differentiation tests in `tests/test_reorder_nd.c`
+
+Even so, the direct helper seam still lacks one small behavior-level policy
+test after the module move.
+
+Interpretation:
+
+- the best Day 10 addition is a direct separator-policy contract test, not
+  another FM or bisection test
+- that gives the extracted `src/sparse_graph_separator.c` a stronger
+  behavior-level anchor without exposing its private local helpers
+
+#### 4. Residual orchestration already has the right kind of proof, so Day 10 should avoid private `graph_uncoarsen(...)` tests
+
+The residual orchestration file now owns:
+
+- `graph_uncoarsen(...)`
+- `partition_once(...)`
+- `sparse_graph_partition(...)`
+- sep=`0` retry / forced-HEM composition
+
+The current test surface already exercises those behaviors where they matter:
+
+- structural partition validity on grids, meshes, cliques, and corpus fixtures
+- HCC sep=`0` protection through the bcsstk14 contract
+- spectral fallback and coarsest-dispatch behavior
+- multiple non-default FM strategy/env paths
+
+What is still missing is **not** a direct private-helper unit test. A new
+`graph_uncoarsen(...)` choreography test would mostly pin internal buffer
+arrangement and per-level dispatch details that Sprint 44 is not trying to
+freeze.
+
+Interpretation:
+
+- Day 10 should keep residual coverage end-to-end and behavior-oriented
+- it should not add private orchestration tests just because the file is now
+  smaller
+
+#### 5. The Day 10 graph-test batch is now concrete and intentionally small
+
+Best Day 10 targets:
+
+1. `tests/test_graph.c`
+   - add one direct separator-policy test that exercises the extracted
+     separator seam beyond the existing smaller-side default
+   - strongest candidate:
+     - `balanced_boundary` on a small crafted graph/partition where its choice
+       is observably different from plain smaller-side lifting while still
+       preserving the public partition invariant
+2. `tests/test_graph.c`
+   - add one compact end-to-end orchestration smoke that composes the extracted
+     FM + separator modules through the residual `sparse_graph_partition(...)`
+     path under a non-default but stable env configuration
+   - goal:
+     - protect the post-Day-8 module interaction boundary without overfitting
+       to private helper structure
+
+Explicit non-goals for Day 10:
+
+- no new graph-specific test binary
+- no direct tests of static/local parser helpers
+- no attempt to pin exact intermediate FM runtime state
+- no broad expansion of ND fill-quality corpus tests
+
+Interpretation:
+
+- the graph seam-test batch can now stay small, high-signal, and consistent
+  with Sprint 44's behavior-first rule

@@ -1840,3 +1840,185 @@ Interpretation:
 - the remaining Sprint 45 work is now validation/closeout oriented
 - no new broad iterative workspace redesign queue surfaced from the benchmark
   batch
+
+## Day 12
+
+**Objective:** Document the new internal iterative workspace contract for later
+Epic 4 work, audit the residual repeated-allocation seams still visible in the
+iterative surface, and fix the exact Day 13 validation sweep shape before
+closeout.
+
+### Commands Run
+
+1. Re-read the Sprint 45 Day 12/13 plan section and the Day 11 handoff:
+   - `sed -n '330,420p' docs/planning/EPIC_4/SPRINT_45/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_45/artifacts/day11-repeated-solve-benchmark-batch.md`
+2. Sweep the live iterative and benchmark surfaces for remaining allocation /
+   workspace seams:
+   - `rg -n "malloc\\(|calloc\\(|sparse_malloc_|sparse_calloc_|workspace|reshist|stag_|malloc_array|calloc_array" src/sparse_iterative.c src/sparse_bicgstab_internal.h benchmarks/bench_iterative_reuse.c include/sparse_iterative.h`
+3. Re-read the current private workspace and residual solver seams directly:
+   - `sed -n '1,260p' src/sparse_iterative_workspace_internal.h`
+   - `sed -n '1,320p' src/sparse_bicgstab_internal.h`
+   - `sed -n '1140,1335p' src/sparse_iterative.c`
+   - `sed -n '1320,1665p' src/sparse_iterative.c`
+   - `sed -n '1700,2295p' src/sparse_iterative.c`
+4. Confirm final state:
+   - `git status --short`
+   - `git rev-parse --short HEAD`
+
+### Day 12 Findings
+
+#### 1. Sprint 45 now has a clear internal workspace contract rather than a loose implementation trend
+
+The live private workspace contract is now centered on:
+
+- `src/sparse_iterative_workspace_internal.h`
+- `src/sparse_iterative_workspace_internal.c`
+- `src/sparse_iterative_internal.h`
+
+The contract is now explicit:
+
+- one shared internal owner holds contiguous reusable storage plus capacity
+  metadata
+- typed solver views are prepared from that owner for:
+  - CG
+  - GMRES
+  - block CG
+  - MINRES
+- public one-shot scalar entries remain compatibility wrappers that:
+  - initialize a local workspace
+  - delegate to the reusable internal solver seam
+  - free the workspace on return
+
+Interpretation:
+
+- Sprint 45 now has a real maintainer-facing model for repeated-solve
+  iterative work
+- the new internal seam is explicit enough for later extension without forcing
+  a public API redesign in the same sprint
+
+#### 2. The shared workspace seam owns storage and typed views, not solver behavior policy
+
+The current shared workspace layer owns:
+
+- contiguous storage ownership
+- checked reserve/grow behavior
+- typed view preparation
+- reusable capacity across stable dimensions
+
+It does **not** own:
+
+- recurrence scalars
+- callback/progress policy
+- residual-history policy
+- stagnation tracking
+- preconditioner behavior
+- block-wrapper per-column orchestration
+
+Interpretation:
+
+- later Epic 4 work should keep extending this seam as a storage/layout owner
+- solver stopping logic and algorithm policy should stay in the solver-local
+  code rather than being pushed down into the shared workspace layer
+
+#### 3. The migrated direct workspace-reuse set is now explicit
+
+After Day 11, the live direct reusable-workspace adoption set is:
+
+- scalar CG
+- matrix-free CG
+- scalar GMRES
+- matrix-free GMRES
+- block CG
+
+Interpretation:
+
+- the main repeated-allocation targets Sprint 45 set out to address are now
+  materially covered
+- the sprint no longer has an implicit “maybe more CG/GMRES migration” queue
+
+#### 4. The remaining iterative surface now falls into three clear residual classes
+
+Residual Class A: wrapper/composition surfaces, not primary workspace targets
+
+- block GMRES
+- block MINRES
+- block BiCGSTAB
+
+Interpretation:
+
+- these are now mainly compatibility/delegation layers over scalar solves
+- they are not the next natural workspace-reuse landing zone
+
+Residual Class B: specialized later solver-local workspace seams
+
+- scalar MINRES
+  - still owns a local packed `work` allocation inside `sparse_solve_minres(...)`
+- scalar BiCGSTAB
+- matrix-free BiCGSTAB
+  - already use the separate `bicgstab_workspace_t` precedent in
+    `src/sparse_bicgstab_internal.h`
+
+Interpretation:
+
+- MINRES is the clearest still-local repeated-allocation seam left in
+  `src/sparse_iterative.c`
+- BiCGSTAB is not “missing workspace reuse”; it already has a separate internal
+  workspace model and should be treated as a later unification/evolution
+  question, not as an unfinished Sprint 45 gap
+
+Residual Class C: support-surface and later-epic non-goals
+
+- repeated-run eigensolver workspace reuse
+- public explicit iterative workspace APIs
+- broader public docs/tutorial refresh for repeated-solve guidance
+- broader benchmark CLI modernization
+
+Interpretation:
+
+- Sprint 45 intentionally stops short of these larger outward-facing or
+  eigensolver-oriented queues
+- they should be carried as later Epic 4 work rather than treated as hidden
+  Sprint 45 incompleteness
+
+#### 5. The Day 13 validation sweep shape is now fixed explicitly
+
+The right Day 13 authoritative sweep is:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+The targeted iterative/benchmark follow-ons justified by the touched Sprint 45
+surface are:
+
+- `./build/test_iterative`
+- `./build/test_block_solvers`
+- `./build/test_minres`
+- `./build/test_bicgstab`
+- `./build/test_stagnation`
+- `./build/bench_iterative_reuse`
+- `./build/example_matrix_free`
+
+Interpretation:
+
+- Day 13 now has a concrete validation floor plus a bounded touched-surface
+  rerun set
+- the sweep should re-check both the migrated workspace paths and the wrapper /
+  specialized seams that Sprint 45 interacted with indirectly
+
+#### 6. Sprint 45’s non-goals are now explicit enough for closeout
+
+Sprint 45 intentionally does **not** solve:
+
+- eigensolver repeated-run workspace reuse
+- public explicit iterative workspace handles
+- broad benchmark harness redesign
+- broad tutorial / README refresh for repeated-solve guidance
+
+Interpretation:
+
+- the sprint now has a clear “done vs later” boundary
+- Day 14 closeout can hand the remaining repeated-run efficiency work forward
+  without pretending the iterative story is fully universalized

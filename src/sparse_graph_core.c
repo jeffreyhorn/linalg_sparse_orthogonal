@@ -220,10 +220,11 @@ sparse_err_t sparse_graph_subgraph(const sparse_graph_t *parent, const idx_t *ve
             idx_t cu = p2c[parent->adjncy[pp]];
             if (cu < 0)
                 continue;
-            /* `adjncy` is allocated iff `total_edges > 0`; the inner
-             * branch only executes when at least one edge exists.
-             * The static analyser conflates this with the empty-graph
-             * path and reports a NULL deref / out-of-bounds. */
+            /* For k > 0, `adjncy` is always allocated with length
+             * max(1, total_edges). The static analyser still
+             * conflates the zero-edge placeholder path with a NULL or
+             * empty-buffer path and reports a false
+             * NULL-deref / out-of-bounds here. */
             // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.NullDereference)
             adjncy[pos] = cu;
             if (ewgt)

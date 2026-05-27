@@ -853,6 +853,14 @@ static void test_spectral_bisection_eigenvalue_ordering(void) {
     sparse_free(A);
 }
 
+static void test_graph_build_laplacian_rejects_zero_vertex_graph(void) {
+    sparse_graph_t G = {0};
+    SparseMatrix *L = (SparseMatrix *)0x1;
+
+    ASSERT_EQ(graph_build_laplacian(&G, &L), SPARSE_ERR_BADARG);
+    ASSERT_NULL(L);
+}
+
 /* Sprint 25 Day 6-7: pin the 60/40-balance fallback contract on a
  * star-graph fixture (1 hub + n-1 leaves).
  *
@@ -2705,6 +2713,7 @@ int main(void) {
     RUN_TEST(test_finest_fm_ensemble_deterministic);
     /* Sprint 25 Day 6 stubs (Day 7-8 land asserts): */
     RUN_TEST(test_spectral_bisection_eigenvalue_ordering);
+    RUN_TEST(test_graph_build_laplacian_rejects_zero_vertex_graph);
     RUN_TEST(test_spectral_bisection_gggp_fallback);
     /* Sprint 25 Day 8: edge-case spectral tests. */
     RUN_TEST(test_spectral_bisection_n1);

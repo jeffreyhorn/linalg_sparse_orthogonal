@@ -237,14 +237,12 @@ sparse_err_t graph_build_laplacian(const sparse_graph_t *G, SparseMatrix **L_out
         return SPARSE_ERR_NULL;
     *L_out = NULL;
 
+    if (G->n == 0)
+        return SPARSE_ERR_BADARG;
+
     SparseMatrix *L = sparse_create(G->n, G->n);
     if (!L)
         return SPARSE_ERR_ALLOC;
-
-    if (G->n == 0) {
-        *L_out = L;
-        return SPARSE_OK;
-    }
 
     /* For each vertex i: emit -weight(i, j) for every j adjacent to
      * i (off-diagonals); accumulate the row's weight sum for the

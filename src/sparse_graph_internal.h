@@ -365,6 +365,7 @@ void sparse_graph_hierarchy_free(sparse_graph_hierarchy_t *h);
  *                     freshly-allocated Laplacian SparseMatrix.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if G or L_out is NULL.
+ * @return SPARSE_ERR_BADARG if G->n == 0.
  * @return SPARSE_ERR_ALLOC on allocation failure.
  */
 sparse_err_t graph_build_laplacian(const sparse_graph_t *G, SparseMatrix **L_out);

@@ -1,3 +1,17 @@
+/*
+ * sparse_graph_coarsen.c — hierarchy/coarsening slice extracted from
+ * Sprint 43 Day 6's first graph-subsystem decomposition batch.
+ *
+ * This file owns:
+ *   - coarsening strategy parsing / HEM override plumbing
+ *   - hierarchy build / free lifecycle
+ *   - heavy-edge and HCC coarsening core
+ *
+ * It intentionally stays narrow: no graph construction ownership,
+ * no coarse bisection, no FM refinement, and no top-level partition
+ * orchestration.
+ */
+
 #include "sparse_alloc_internal.h"
 #include "sparse_graph_internal.h"
 

@@ -132,7 +132,7 @@ static void bfs_distances(const sparse_graph_t *G, idx_t start, idx_t *dist, idx
     }
 }
 
-/* Greedy Graph-Growing Partition (METIS §3) for n in [21, 40]:
+/* Greedy Graph-Growing Partition (METIS §3) for n > 20:
  * find a peripheral vertex via two BFS passes, BFS-grow side 0 from
  * it until half the vertex weight is consumed, leave the rest on
  * side 1.  The resulting partition is often coarsely balanced —

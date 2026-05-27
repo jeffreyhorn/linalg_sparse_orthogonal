@@ -33,6 +33,9 @@
  *     live at adjncy[xadj[i] .. xadj[i+1] - 1].
  *   - adjncy is symmetric (j ∈ adj(i)  ⇔  i ∈ adj(j)) and contains
  *     no self-loops.
+ *   - the logical adjacency count is xadj[n]; some constructors may
+ *     keep a 1-element non-NULL placeholder allocation for adjncy
+ *     when xadj[n] == 0 on a non-empty graph.
  *
  * Optional weights (multilevel hierarchy uses them; the root graph
  * leaves them NULL and the partitioner treats unweighted as
@@ -49,16 +52,17 @@
  * Invariants enforced by the constructors (`sparse_graph_from_sparse`,
  * the Day 2 `graph_coarsen_*` helpers, and `sparse_graph_subgraph`):
  *   - n ≥ 0; n == 0 is legal (empty graph).
- *   - xadj[0] == 0; xadj[n] == |adjncy|.
+ *   - xadj[0] == 0; xadj[n] is the logical adjacency count.
  *   - Each xadj[i+1] - xadj[i] is the degree of vertex i.
  *   - adj lists are sorted ascending and duplicate-free.
  */
 typedef struct {
     idx_t n;       /**< Number of vertices. */
     idx_t *xadj;   /**< CSR pointers, length n+1; owned. */
-    idx_t *adjncy; /**< Adjacency entries, length xadj[n]; owned. */
+    idx_t *adjncy; /**< Adjacency entries; logical length xadj[n], with a possible 1-entry
+                      placeholder when that count is 0. */
     idx_t *vwgt;   /**< Optional vertex weights, length n; NULL = uniform. */
-    idx_t *ewgt;   /**< Optional edge weights, length xadj[n]; NULL = uniform. */
+    idx_t *ewgt;   /**< Optional edge weights, logical length xadj[n]; NULL = uniform. */
 } sparse_graph_t;
 
 /**

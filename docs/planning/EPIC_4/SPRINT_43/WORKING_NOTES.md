@@ -1897,3 +1897,96 @@ Interpretation:
 
 - Sprint 43 can close from a measured, validated Phase-1 decomposition state
 - Day 14 can stay focused on closeout and handoff rather than repair work
+
+## Day 14
+
+1. Re-read the Sprint 43 Day 14 plan section and the Day 13 validation result:
+   - `sed -n '360,430p' docs/planning/EPIC_4/SPRINT_43/PLAN.md`
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_43/artifacts/day13-full-validation-sweep.md`
+2. Reconfirm the live Sprint 43 delivered seams and residual queue:
+   - `ls src/sparse_graph*.c src/sparse_graph*.h`
+   - `rg -n "sparse_graph_core|sparse_graph_coarsen|sparse_graph_bisect|FM|separator|orchestration" src/sparse_graph.c src/sparse_graph_internal.h`
+3. Check whether `docs/planning/EPIC_4/PROJECT_PLAN.md` needs a handoff update.
+4. Write the Sprint 43 closeout and handoff artifact.
+5. Record the final Sprint 43 synthesis in working notes.
+
+### Day 14 Findings
+
+#### 1. Sprint 43 now hands off one coherent Phase-1 graph decomposition package
+
+Sprint 43 did not end as a loose series of file moves. It now hands off a
+single coherent Phase-1 graph / ND subsystem package:
+
+- extracted graph ownership / construction seam:
+  - `src/sparse_graph_core.c`
+- extracted hierarchy / coarsening seam:
+  - `src/sparse_graph_coarsen.c`
+- extracted coarse-bisection seam:
+  - `src/sparse_graph_bisect.c`
+- updated shared internal header and build wiring:
+  - `src/sparse_graph_internal.h`
+  - `Makefile`
+  - `CMakeLists.txt`
+- focused seam tests for the extracted boundaries
+- Day 13 measured validation baseline
+
+Interpretation:
+
+- Sprint 43 achieved a real structural decomposition, not just comment cleanup
+  or symbol shuffling
+- later graph work can now start from explicit subsystem files instead of one
+  all-owning monolith
+
+#### 2. The residual graph queue remains intentionally bounded to later phases
+
+Sprint 43 Phase 1 intentionally did **not** extract or simplify:
+
+- FM refinement
+- separator lifting / final separator projection
+- deeper top-level orchestration cleanup
+- broader runtime-strategy simplification
+
+Those surfaces remain in the residual `src/sparse_graph.c` layer on purpose.
+
+Interpretation:
+
+- the remaining monolith content is now a deliberate later-phase queue rather
+  than an accidental leftover
+- Sprint 44+ graph work should continue from this bounded residual set instead
+  of reopening the already-extracted ownership, coarsening, and coarse-level
+  bisection seams
+
+#### 3. The Sprint 40/41/42 contracts stayed intact through the split
+
+Sprint 43 closed from the Day 13 validated baseline:
+
+- `make format`, `make lint`, and `make test` all passed
+- `make quality-review-full` passed
+- reviewed CMake parity stayed exact at `53`
+- direct graph and ND reruns passed
+
+Interpretation:
+
+- the decomposition preserved the Sprint 40 validation anchor
+- Sprint 41 shared-helper groundwork and Sprint 42 compatibility-preserving
+  refactor style remained intact
+- Sprint 43 did not create a new truthfulness or lifecycle reconciliation queue
+
+#### 4. `PROJECT_PLAN.md` does not need a Day 14 update
+
+I checked whether Sprint 43 surfaced any new deferred work that is not already
+owned by later Epic 4 graph phases.
+
+It did not.
+
+The residual queue Sprint 43 leaves behind is exactly the planned later-phase
+graph work:
+
+- FM refinement extraction
+- separator lifting extraction
+- deeper runtime-strategy simplification
+
+Interpretation:
+
+- no Sprint 43 plan correction was needed at closeout
+- the later Epic 4 plan already owns the remaining graph work cleanly

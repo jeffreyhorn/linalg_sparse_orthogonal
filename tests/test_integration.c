@@ -524,6 +524,38 @@ static void test_progress_cb_lu_cancel_after_reordered_factor_invalidates_old_fa
     sparse_free(A);
 }
 
+static void test_lu_invalid_reorder_opts_preserve_existing_reordered_factor(void) {
+    const idx_t n = 100;
+    SparseMatrix *A = build_tridiag_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_lu_opts_t factor_opts = {
+        .pivot = SPARSE_PIVOT_PARTIAL,
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 1e-12,
+    };
+    ASSERT_EQ(sparse_lu_factor_opts(A, &factor_opts), SPARSE_OK);
+
+    double b[100];
+    double x_before[100];
+    double x_after[100];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = 1.0;
+    ASSERT_EQ(sparse_lu_solve(A, b, x_before), SPARSE_OK);
+
+    sparse_lu_opts_t invalid_opts = {
+        .pivot = SPARSE_PIVOT_PARTIAL,
+        .reorder = (sparse_reorder_t)99,
+        .tol = 1e-12,
+    };
+    ASSERT_EQ(sparse_lu_factor_opts(A, &invalid_opts), SPARSE_ERR_BADARG);
+    ASSERT_EQ(sparse_lu_solve(A, b, x_after), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_after[i], x_before[i], 1e-12);
+
+    sparse_free(A);
+}
+
 static void test_progress_cb_cholesky_emits_cancel(void) {
     const idx_t n = 100;
     SparseMatrix *A = build_tridiag_spd(n);
@@ -937,6 +969,7 @@ int main(void) {
     RUN_TEST(test_progress_cb_lu_emits);
     RUN_TEST(test_progress_cb_lu_cancel);
     RUN_TEST(test_progress_cb_lu_cancel_after_reordered_factor_invalidates_old_factor);
+    RUN_TEST(test_lu_invalid_reorder_opts_preserve_existing_reordered_factor);
     RUN_TEST(test_progress_cb_cholesky_emits_cancel);
     RUN_TEST(test_progress_cb_ldlt_emits_cancel);
     RUN_TEST(test_progress_cb_null_default_unchanged);

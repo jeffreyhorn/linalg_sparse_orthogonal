@@ -9,6 +9,7 @@
 #endif
 
 #include "sparse_lu.h"
+#include "sparse_alloc_internal.h"
 #include "sparse_matrix_internal.h"
 #include "sparse_matrix_state_internal.h"
 #include "sparse_reorder.h"
@@ -72,18 +73,22 @@ static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t piv
     idx_t n = mat->rows;
     if (n != mat->cols)
         return SPARSE_ERR_SHAPE;
-    sparse_err_t payload_err = sparse_factor_state_begin_lu(mat);
-    if (payload_err != SPARSE_OK)
-        return payload_err;
 
     /*
      * Temporary buffer for collecting rows to eliminate.
      * This fixes the bug where the column list is walked while being
      * modified: we snapshot the row indices first, then process them.
      */
-    idx_t *elim_rows = malloc((size_t)n * sizeof(idx_t));
-    if (!elim_rows)
-        return SPARSE_ERR_ALLOC;
+    idx_t *elim_rows = NULL;
+    sparse_err_t alloc_err = sparse_malloc_idx_array(n, sizeof(*elim_rows), (void **)&elim_rows);
+    if (alloc_err != SPARSE_OK)
+        return alloc_err;
+
+    sparse_err_t payload_err = sparse_factor_state_begin_lu(mat);
+    if (payload_err != SPARSE_OK) {
+        free(elim_rows);
+        return payload_err;
+    }
 
     /* Compute and cache ||A||_inf before factorization for relative tolerance */
     double anorm;
@@ -259,19 +264,26 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
     if (n != mat->cols)
         return SPARSE_ERR_SHAPE;
 
-    int outer_reorder_metadata_mutated = (mat->reorder_perm != NULL) ? 1 : 0;
+    int outer_reorder_metadata_mutated = 0;
+    int reorder_requested = (opts->reorder != SPARSE_REORDER_NONE) ? 1 : 0;
 
-    /* Clear any previous reorder permutation */
-    sparse_factor_state_replace_reorder_perm(mat, NULL);
+    switch (opts->reorder) {
+    case SPARSE_REORDER_NONE:
+    case SPARSE_REORDER_RCM:
+    case SPARSE_REORDER_AMD:
+    case SPARSE_REORDER_ND:
+        break;
+    default:
+        return SPARSE_ERR_BADARG;
+    }
 
     /* Apply fill-reducing reordering if requested */
-    if (opts->reorder != SPARSE_REORDER_NONE && n > 1) {
-        outer_reorder_metadata_mutated = 1;
-        idx_t *perm = malloc((size_t)n * sizeof(idx_t));
-        if (!perm)
-            return SPARSE_ERR_ALLOC;
+    if (reorder_requested && n > 1) {
+        idx_t *perm = NULL;
+        sparse_err_t err = sparse_malloc_idx_array(n, sizeof(*perm), (void **)&perm);
+        if (err != SPARSE_OK)
+            return err;
 
-        sparse_err_t err;
         switch (opts->reorder) {
         case SPARSE_REORDER_RCM:
             err = sparse_reorder_rcm(mat, perm);
@@ -282,11 +294,11 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
         case SPARSE_REORDER_ND:
             err = sparse_reorder_nd(mat, perm);
             break;
+        case SPARSE_REORDER_NONE:
         default:
             free(perm);
             return SPARSE_ERR_BADARG;
         }
-
         if (err != SPARSE_OK) {
             free(perm);
             return err;
@@ -300,6 +312,12 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
             free(perm);
             return err;
         }
+
+        /* The reordered working copy is ready, so the old factor's
+         * reorder metadata is no longer valid past this mutation
+         * boundary. */
+        sparse_factor_state_replace_reorder_perm(mat, NULL);
+        outer_reorder_metadata_mutated = 1;
 
         /* Swap internal data from PA into mat:
          * Free mat's old data, steal PA's data */
@@ -333,6 +351,12 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
 
         /* Store reorder permutation for solve to unpermute */
         sparse_factor_state_replace_reorder_perm(mat, perm);
+    } else if (mat->reorder_perm != NULL) {
+        /* No new reorder metadata will be published for this factor
+         * attempt, so invalidate the old permutation immediately before
+         * entering the inner LU path. */
+        sparse_factor_state_replace_reorder_perm(mat, NULL);
+        outer_reorder_metadata_mutated = 1;
     }
 
     /* Factor with given pivoting and tolerance */

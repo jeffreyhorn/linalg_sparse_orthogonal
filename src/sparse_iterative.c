@@ -1149,6 +1149,67 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
     return all_converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
 }
 
+typedef sparse_err_t (*iter_block_column_solver_fn)(const SparseMatrix *A, const double *b,
+                                                    double *x, const void *opts,
+                                                    sparse_precond_fn precond,
+                                                    const void *precond_ctx,
+                                                    sparse_iter_result_t *result);
+
+static sparse_err_t solve_block_independent_columns(const SparseMatrix *A, const double *B,
+                                                    idx_t nrhs, double *X, idx_t n,
+                                                    const void *opts, sparse_precond_fn precond,
+                                                    const void *precond_ctx,
+                                                    sparse_iter_result_t *result,
+                                                    iter_block_column_solver_fn solve_column) {
+    idx_t max_iters = 0;
+    double max_residual = 0.0;
+    int all_converged = 1;
+    int any_stagnated = 0;
+    int any_breakdown = 0;
+    sparse_err_t worst_err = SPARSE_OK;
+
+    for (idx_t k = 0; k < nrhs; k++) {
+        size_t off = (size_t)n * (size_t)k;
+        sparse_iter_result_t col_result = {0, 0.0, 0, 0, 0, 0};
+        sparse_err_t err =
+            solve_column(A, &B[off], &X[off], opts, precond, precond_ctx, &col_result);
+
+        if (col_result.iterations > max_iters)
+            max_iters = col_result.iterations;
+        if (col_result.residual_norm > max_residual)
+            max_residual = col_result.residual_norm;
+        if (!col_result.converged)
+            all_converged = 0;
+        if (col_result.stagnated)
+            any_stagnated = 1;
+        if (col_result.breakdown)
+            any_breakdown = 1;
+
+        if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED && worst_err == SPARSE_OK)
+            worst_err = err;
+    }
+
+    if (result) {
+        result->iterations = max_iters;
+        result->residual_norm = max_residual;
+        result->converged = all_converged;
+        result->stagnated = any_stagnated;
+        result->breakdown = any_breakdown;
+    }
+
+    if (worst_err != SPARSE_OK)
+        return worst_err;
+    return all_converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
+}
+
+static sparse_err_t solve_block_gmres_column(const SparseMatrix *A, const double *b, double *x,
+                                             const void *opts, sparse_precond_fn precond,
+                                             const void *precond_ctx,
+                                             sparse_iter_result_t *result) {
+    return sparse_solve_gmres(A, b, x, (const sparse_gmres_opts_t *)opts, precond, precond_ctx,
+                              result);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Block GMRES (multiple RHS)
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -1182,52 +1243,8 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, id
     /* Overflow guard for per-column offset computation */
     if (n > 0 && (size_t)nrhs > SIZE_MAX / (size_t)n)
         return SPARSE_ERR_ALLOC;
-
-    /* Solve each column independently using the existing GMRES implementation.
-     * Per-column convergence tracking: each column gets its own result,
-     * and we report the worst case. */
-    idx_t max_iters = 0;
-    double max_residual = 0.0;
-    int all_converged = 1;
-    int any_stagnated = 0;
-    int any_breakdown = 0;
-    sparse_err_t worst_err = SPARSE_OK;
-
-    for (idx_t k = 0; k < nrhs; k++) {
-        size_t off = (size_t)n * (size_t)k;
-        sparse_iter_result_t col_result = {0, 0.0, 0, 0, 0, 0};
-        sparse_err_t err =
-            sparse_solve_gmres(A, &B[off], &X[off], opts, precond, precond_ctx, &col_result);
-
-        if (col_result.iterations > max_iters)
-            max_iters = col_result.iterations;
-        if (col_result.residual_norm > max_residual)
-            max_residual = col_result.residual_norm;
-        if (!col_result.converged)
-            all_converged = 0;
-        if (col_result.stagnated)
-            any_stagnated = 1;
-        if (col_result.breakdown)
-            any_breakdown = 1;
-
-        if (err != SPARSE_OK && (worst_err == SPARSE_OK || (worst_err == SPARSE_ERR_NOT_CONVERGED &&
-                                                            err != SPARSE_ERR_NOT_CONVERGED)))
-            worst_err = err;
-    }
-
-    if (result) {
-        result->iterations = max_iters;
-        result->residual_norm = max_residual;
-        result->converged = all_converged;
-        result->stagnated = any_stagnated;
-        result->breakdown = any_breakdown;
-    }
-
-    /* Return NOT_CONVERGED if any column failed, but not other errors
-     * (those indicate real failures like NULL/SHAPE/ALLOC) */
-    if (worst_err != SPARSE_OK && worst_err != SPARSE_ERR_NOT_CONVERGED)
-        return worst_err;
-    return all_converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
+    return solve_block_independent_columns(A, B, nrhs, X, n, opts, precond, precond_ctx, result,
+                                           solve_block_gmres_column);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1576,6 +1593,14 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
     return converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
 }
 
+static sparse_err_t solve_block_minres_column(const SparseMatrix *A, const double *b, double *x,
+                                              const void *opts, sparse_precond_fn precond,
+                                              const void *precond_ctx,
+                                              sparse_iter_result_t *result) {
+    return sparse_solve_minres(A, b, x, (const sparse_iter_opts_t *)opts, precond, precond_ctx,
+                               result);
+}
+
 sparse_err_t sparse_minres_solve_block(const SparseMatrix *A, const double *B, idx_t nrhs,
                                        double *X, const sparse_iter_opts_t *opts,
                                        sparse_precond_fn precond, const void *precond_ctx,
@@ -1612,47 +1637,8 @@ sparse_err_t sparse_minres_solve_block(const SparseMatrix *A, const double *B, i
             result->converged = 1;
         return SPARSE_OK;
     }
-
-    /* Run MINRES independently for each column */
-    idx_t max_iters = 0;
-    double max_residual = 0.0;
-    int all_converged = 1;
-    int any_stagnated = 0;
-    int any_breakdown = 0;
-    sparse_err_t worst_err = SPARSE_OK;
-
-    for (idx_t j = 0; j < nrhs; j++) {
-        const double *bj = B + (size_t)j * (size_t)n;
-        double *xj = X + (size_t)j * (size_t)n;
-        sparse_iter_result_t col_result = {0, 0.0, 0, 0, 0, 0};
-
-        sparse_err_t err = sparse_solve_minres(A, bj, xj, opts, precond, precond_ctx, &col_result);
-
-        if (col_result.iterations > max_iters)
-            max_iters = col_result.iterations;
-        if (col_result.residual_norm > max_residual)
-            max_residual = col_result.residual_norm;
-        if (!col_result.converged)
-            all_converged = 0;
-        if (col_result.stagnated)
-            any_stagnated = 1;
-        if (col_result.breakdown)
-            any_breakdown = 1;
-        if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED)
-            worst_err = err;
-    }
-
-    if (result) {
-        result->iterations = max_iters;
-        result->residual_norm = max_residual;
-        result->converged = all_converged;
-        result->stagnated = any_stagnated;
-        result->breakdown = any_breakdown;
-    }
-
-    if (worst_err != SPARSE_OK && worst_err != SPARSE_ERR_NOT_CONVERGED)
-        return worst_err;
-    return all_converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
+    return solve_block_independent_columns(A, B, nrhs, X, n, opts, precond, precond_ctx, result,
+                                           solve_block_minres_column);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1941,6 +1927,14 @@ done:;
     return converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
 }
 
+static sparse_err_t solve_block_bicgstab_column(const SparseMatrix *A, const double *b, double *x,
+                                                const void *opts, sparse_precond_fn precond,
+                                                const void *precond_ctx,
+                                                sparse_iter_result_t *result) {
+    return sparse_solve_bicgstab(A, b, x, (const sparse_iter_opts_t *)opts, precond, precond_ctx,
+                                 result);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Block BiCGSTAB — per-column independent solves
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -1980,48 +1974,8 @@ sparse_err_t sparse_bicgstab_solve_block(const SparseMatrix *A, const double *B,
             result->converged = 1;
         return SPARSE_OK;
     }
-
-    /* Run BiCGSTAB independently for each column */
-    idx_t max_iters = 0;
-    double max_residual = 0.0;
-    int all_converged = 1;
-    int any_stagnated = 0;
-    int any_breakdown = 0;
-    sparse_err_t worst_err = SPARSE_OK;
-
-    for (idx_t j = 0; j < nrhs; j++) {
-        const double *bj = B + (size_t)j * (size_t)n;
-        double *xj = X + (size_t)j * (size_t)n;
-        sparse_iter_result_t col_result = {0, 0.0, 0, 0, 0, 0};
-
-        sparse_err_t err =
-            sparse_solve_bicgstab(A, bj, xj, opts, precond, precond_ctx, &col_result);
-
-        if (col_result.iterations > max_iters)
-            max_iters = col_result.iterations;
-        if (col_result.residual_norm > max_residual)
-            max_residual = col_result.residual_norm;
-        if (!col_result.converged)
-            all_converged = 0;
-        if (col_result.stagnated)
-            any_stagnated = 1;
-        if (col_result.breakdown)
-            any_breakdown = 1;
-        if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED)
-            worst_err = err;
-    }
-
-    if (result) {
-        result->iterations = max_iters;
-        result->residual_norm = max_residual;
-        result->converged = all_converged;
-        result->stagnated = any_stagnated;
-        result->breakdown = any_breakdown;
-    }
-
-    if (worst_err != SPARSE_OK && worst_err != SPARSE_ERR_NOT_CONVERGED)
-        return worst_err;
-    return all_converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
+    return solve_block_independent_columns(A, B, nrhs, X, n, opts, precond, precond_ctx, result,
+                                           solve_block_bicgstab_column);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

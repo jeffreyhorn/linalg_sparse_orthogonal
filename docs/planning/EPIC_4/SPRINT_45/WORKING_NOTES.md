@@ -1389,3 +1389,132 @@ Interpretation:
 - Day 8 closes the main direct workspace migration queue
 - the sprint can now pivot from core storage adoption into wrapper clarity and
   efficiency evidence
+
+## Day 9
+
+**Objective:** Make the remaining one-shot block iterative compatibility
+wrappers read more explicitly as convenience delegation layers over the scalar
+solver entries, while keeping wrapper behavior unchanged and avoiding any new
+workspace or algorithm redesign.
+
+### Commands Run
+
+1. Re-read the Sprint 45 Day 9 plan section and the Day 8 handoff:
+   - `sed -n '285,325p' docs/planning/EPIC_4/SPRINT_45/PLAN.md`
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_45/artifacts/day8-block-iterative-migration-batch.md`
+2. Re-read the live scalar and block wrapper surfaces in:
+   - `src/sparse_iterative.c`
+3. Confirm the wrapper/test surface concentration:
+   - `rg -n "sparse_(solve|cg_solve|gmres_solve|minres_solve|bicgstab_solve)_block|sparse_solve_gmres|sparse_solve_minres|sparse_solve_bicgstab" src/sparse_iterative.c tests/test_block_solvers.c tests/test_minres.c tests/test_bicgstab.c`
+4. Implement the bounded wrapper normalization in:
+   - `src/sparse_iterative.c`
+5. Run the required code-quality gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+6. Run targeted touched-wrapper follow-ons:
+   - `./build/test_block_solvers`
+   - `./build/test_minres`
+   - `./build/test_bicgstab`
+7. Confirm final state:
+   - `git status --short`
+   - `git rev-parse --short HEAD`
+
+### Day 9 Findings
+
+#### 1. The block wrapper layer now routes through one explicit internal compatibility helper
+
+Day 9 added one small internal wrapper helper that now owns the common
+per-column pattern for:
+
+- `sparse_gmres_solve_block(...)`
+- `sparse_minres_solve_block(...)`
+- `sparse_bicgstab_solve_block(...)`
+
+That helper now owns:
+
+- column iteration
+- per-column scalar-solver delegation
+- max-iteration / max-residual aggregation
+- aggregate converged / stagnated / breakdown reporting
+- first hard-error propagation
+
+Interpretation:
+
+- the wrapper relationship is now explicit in code instead of repeated three
+  times
+- Day 9 normalized compatibility behavior without changing the solver kernels
+
+#### 2. The batch stayed in the wrapper/composition bucket
+
+This landing did **not** widen into:
+
+- scalar solver algorithm changes
+- new workspace APIs
+- MINRES workspace migration
+- BiCGSTAB workspace redesign
+- benchmark/example work
+- public API signature changes
+
+Interpretation:
+
+- Sprint 45 stayed inside the post-Day-8 queue it had actually earned
+- the Day 9 result is wrapper clarity, not another core iterative refactor
+
+#### 3. The scalar entries remain the behavioral truth while the block wrappers stay convenience layers
+
+After Day 9, the block compatibility shape is clearer:
+
+- block GMRES = repeated delegation to scalar GMRES
+- block MINRES = repeated delegation to scalar MINRES
+- block BiCGSTAB = repeated delegation to scalar BiCGSTAB
+
+Interpretation:
+
+- the block wrappers now read more honestly as composition surfaces
+- later Sprint 45 benchmark work can compare repeated-solve behavior without
+  any ambiguity about where the real solver/workspace behavior lives
+
+#### 4. Validation passed on both the full gate and the touched wrapper binaries
+
+Because `src/sparse_iterative.c` changed, the required gate was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Targeted touched-wrapper follow-ons also passed:
+
+- `./build/test_block_solvers`
+- `./build/test_minres`
+- `./build/test_bicgstab`
+
+Representative direct rerun outcomes:
+
+- `test_block_solvers`
+  - all `15` tests passed
+- `test_minres`
+  - all `43` tests passed
+- `test_bicgstab`
+  - all `58` tests passed
+
+Interpretation:
+
+- the wrapper normalization preserved current block compatibility behavior
+- the touched wrapper surfaces are directly re-validated beyond the full repo
+  gate
+
+#### 5. The remaining Sprint 45 queue is now benchmark-oriented
+
+After Day 9, the strongest remaining Sprint 45 buckets are:
+
+- repeated-solve benchmark design/evidence
+- optional later MINRES extension only if it stays obviously small
+
+Interpretation:
+
+- the wrapper/composition cleanup queue is now materially smaller
+- Sprint 45 can shift from internal structure cleanup to measured repeated-solve
+  evidence

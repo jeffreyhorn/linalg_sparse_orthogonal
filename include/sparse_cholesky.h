@@ -102,8 +102,11 @@ typedef struct {
      *  `SPARSE_ERR_CANCELLED` propagates up.  NULL (default)
      *  disables the callback.  Currently only the linked-list
      *  backend emits progress; the CSC supernodal backend's
-     *  emissions land in a future sprint.  Trailing field for
-     *  designated-init back-compat. */
+     *  emissions land in a future sprint.  The linked-list path
+     *  removes upper-triangle entries before the first emission, so
+     *  cancel-at-step-0 does not restore a bit-identical pre-call
+     *  matrix even though the factor is rejected as unfactored.
+     *  Trailing field for designated-init back-compat. */
     sparse_progress_cb_t progress_cb;
     /** Opaque context pointer passed through unchanged to
      *  `progress_cb`.  Ignored when `progress_cb == NULL`. */

@@ -1,6 +1,7 @@
 #include "sparse_ic.h"
 #include "sparse_alloc_internal.h"
 #include "sparse_matrix_internal.h"
+#include "sparse_matrix_state_internal.h"
 #include "sparse_vector.h"
 #include <math.h>
 #include <stdlib.h>
@@ -35,21 +36,9 @@ sparse_err_t sparse_ic_factor(const SparseMatrix *A, sparse_ilu_t *ic) {
     if (!sparse_is_symmetric(A, 1e-12))
         return SPARSE_ERR_NOT_SPD;
 
-    /* Reject factored matrices — IC(0) needs the original entries */
-    if (A->factored)
+    /* IC(0) needs the original physical row/col view. */
+    if (sparse_matrix_require_original_row_col_state(A) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
-
-    /* Reject matrices with non-identity permutations */
-    {
-        const idx_t *rp = sparse_row_perm(A);
-        const idx_t *cp = sparse_col_perm(A);
-        if (rp && cp) {
-            for (idx_t i = 0; i < n; i++) {
-                if (rp[i] != i || cp[i] != i)
-                    return SPARSE_ERR_BADARG;
-            }
-        }
-    }
 
     /* Compute ||A||_inf for relative tolerance */
     ic->factor_norm = sparse_norminf_const(A);

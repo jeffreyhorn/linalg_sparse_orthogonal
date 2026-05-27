@@ -7,6 +7,7 @@
 #include "sparse_qr.h"
 #include "sparse_alloc_internal.h"
 #include "sparse_matrix_internal.h"
+#include "sparse_matrix_state_internal.h"
 #include "sparse_reorder.h"
 #include "sparse_vector.h"
 #include <math.h>
@@ -557,25 +558,9 @@ sparse_err_t sparse_qr_factor_opts(const SparseMatrix *A, const sparse_qr_opts_t
     if (!A)
         return SPARSE_ERR_NULL;
 
-    /* Reject non-identity permutations (QR factors physical storage) */
-    {
-        const idx_t *rp = sparse_row_perm(A);
-        const idx_t *cp = sparse_col_perm(A);
-        idx_t nr = sparse_rows(A);
-        idx_t nc = sparse_cols(A);
-        if (rp) {
-            for (idx_t i = 0; i < nr; i++) {
-                if (rp[i] != i)
-                    return SPARSE_ERR_BADARG;
-            }
-        }
-        if (cp) {
-            for (idx_t i = 0; i < nc; i++) {
-                if (cp[i] != i)
-                    return SPARSE_ERR_BADARG;
-            }
-        }
-    }
+    /* QR factors physical storage and requires the original row/col view. */
+    if (sparse_matrix_require_original_row_col_state(A) != SPARSE_OK)
+        return SPARSE_ERR_BADARG;
 
     /* Dispatch to column-by-column path if sparse_mode is enabled */
     if (opts && opts->sparse_mode)
@@ -1375,23 +1360,9 @@ sparse_err_t sparse_qr_solve_minnorm(const SparseMatrix *A, const double *b, dou
     if (!A || !b || !x)
         return SPARSE_ERR_NULL;
 
-    /* Reject non-identity permutations (operates on physical storage) */
-    {
-        const idx_t *rp = sparse_row_perm(A);
-        const idx_t *cp = sparse_col_perm(A);
-        idx_t nr = sparse_rows(A);
-        idx_t nc = sparse_cols(A);
-        if (rp) {
-            for (idx_t i = 0; i < nr; i++)
-                if (rp[i] != i)
-                    return SPARSE_ERR_BADARG;
-        }
-        if (cp) {
-            for (idx_t i = 0; i < nc; i++)
-                if (cp[i] != i)
-                    return SPARSE_ERR_BADARG;
-        }
-    }
+    /* Minimum-norm QR solve operates on the original physical row/col view. */
+    if (sparse_matrix_require_original_row_col_state(A) != SPARSE_OK)
+        return SPARSE_ERR_BADARG;
 
     idx_t m = sparse_rows(A);
     idx_t n = sparse_cols(A);

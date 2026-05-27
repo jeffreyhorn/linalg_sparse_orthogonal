@@ -1,0 +1,61 @@
+Sprint 42 Day 1 authoritative inputs
+====================================
+
+Planning / architecture scope
+-----------------------------
+- docs/planning/EPIC_4/PROJECT_PLAN.md
+- docs/planning/EPIC_4/SPRINT_42/PLAN.md
+- docs/planning/EPIC_4/SPRINT_40/artifacts/day14-architecture-contract-synthesis.md
+- docs/planning/EPIC_4/SPRINT_40/artifacts/day10-handle-model-design-2-and-migration-strategy.md
+- docs/planning/EPIC_4/SPRINT_40/artifacts/day12-public-migration-risk-audit.md
+
+Inherited implementation / handoff surfaces
+-------------------------------------------
+- docs/planning/EPIC_4/SPRINT_41/artifacts/day14-closeout-and-handoff.md
+- docs/planning/EPIC_4/SPRINT_41/artifacts/day12-safety-style-and-prep-rules.md
+- src/sparse_alloc_internal.h
+- src/sparse_alloc_internal.c
+
+Inherited reviewed-quality / policy surfaces
+--------------------------------------------
+- README.md
+- Makefile
+- CMakeLists.txt
+- .github/workflows/ci.yml
+- .github/workflows/macos-ci.yml
+- .github/workflows/windows-ci.yml
+
+Day 1 preserve-not-reopen baseline
+----------------------------------
+- strongest local reviewed baseline already exists:
+  - make quality-review-full
+- reviewed CMake parity remains measurable:
+  - ctest -N --test-dir build/quality-review-cmake = 53
+- maintained dead-code paths already exist:
+  - make deadcode-report
+  - make deadcode-check
+- dead-code execution remains serialized
+- Sprint 40 ownership / validation / migration-risk contracts remain in force
+- Sprint 41 shared helper seam remains the default internal safety layer
+
+Highest-risk Day 1 lifecycle seams
+----------------------------------
+- LU factorization internals
+- Cholesky factorization internals
+- sparse_factors_t
+- lifecycle-sensitive precondition checks across:
+  - QR
+  - SVD
+  - analysis
+  - direct factorization paths
+
+Sprint 42 workstreams confirmed on Day 1
+----------------------------------------
+- lifecycle seam inventory refresh
+- internal handle scaffolding
+- matrix-state guard helpers
+- factor-path normalization
+- cancellation-contract normalization
+- compatibility bridge planning
+- focused lifecycle tests
+- validation closeout

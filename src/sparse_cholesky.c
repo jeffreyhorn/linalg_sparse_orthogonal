@@ -8,6 +8,7 @@
 #include "sparse_analysis.h"
 #include "sparse_chol_csc_internal.h"
 #include "sparse_matrix_internal.h"
+#include "sparse_matrix_state_internal.h"
 #include "sparse_reorder.h"
 
 #include <math.h>
@@ -83,10 +84,6 @@ static sparse_err_t sparse_cholesky_factor_inner(SparseMatrix *mat,
     if (n == 0)
         return SPARSE_OK;
 
-    /* Clear factored flag immediately so an aborted factorization
-     * cannot leave a stale 'factored' state. */
-    mat->factored = 0;
-
     /* Validate symmetry before allocating or modifying anything */
     if (!sparse_is_symmetric(mat, 1e-12))
         return SPARSE_ERR_NOT_SPD;
@@ -96,7 +93,6 @@ static sparse_err_t sparse_cholesky_factor_inner(SparseMatrix *mat,
     sparse_err_t nerr = sparse_norminf(mat, &anorm);
     if (nerr != SPARSE_OK)
         return nerr;
-    mat->factor_norm = anorm;
 
     /* Dense accumulator for column k (indices k..n-1) */
     double *col_acc = calloc((size_t)n, sizeof(double));
@@ -108,6 +104,15 @@ static sparse_err_t sparse_cholesky_factor_inner(SparseMatrix *mat,
         free(nz_rows);
         return SPARSE_ERR_ALLOC;
     }
+
+    sparse_err_t payload_err = sparse_factor_state_begin_cholesky(mat);
+    if (payload_err != SPARSE_OK) {
+        free(col_acc);
+        free(nz_row);
+        free(nz_rows);
+        return payload_err;
+    }
+    sparse_factor_state_set_factor_norm(mat, anorm);
 
     /* Remove upper triangle entries (we only store L) */
     for (idx_t i = 0; i < n; i++) {
@@ -126,11 +131,9 @@ static sparse_err_t sparse_cholesky_factor_inner(SparseMatrix *mat,
     for (idx_t k = 0; k < n; k++) {
         /* Sprint 29 Day 6: progress + cancel check at top of each
          * column iteration.  Cancellation at step=0 leaves the
-         * matrix's lower-triangle as the upper-triangle-stripped
-         * input — NOT bit-identical to the pre-call state because
-         * the upper-triangle strip ran above.  Callers that need
-         * the bit-identical contract should sparse_copy() before
-         * factor + cancel on the copy. */
+         * matrix's lower triangle in-place but does not restore the
+         * removed upper triangle, because the structural strip ran
+         * above this loop before the first emission. */
         if (progress_cb) {
             sparse_progress_t p = {
                 .phase = "cholesky_factor",
@@ -238,7 +241,7 @@ static sparse_err_t sparse_cholesky_factor_inner(SparseMatrix *mat,
     free(col_acc);
     free(nz_row);
     free(nz_rows);
-    mat->factored = 1;
+    sparse_factor_state_set_factored(mat, 1);
     return SPARSE_OK;
 }
 
@@ -260,17 +263,11 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
      * perms).  Enforcing the same contract on both paths means the
      * error a caller sees no longer depends on how `n` compares to
      * `SPARSE_CSC_THRESHOLD`. */
-    for (idx_t i = 0; i < n; i++) {
-        if (mat->row_perm[i] != i || mat->col_perm[i] != i || mat->inv_row_perm[i] != i ||
-            mat->inv_col_perm[i] != i)
-            return SPARSE_ERR_BADARG;
-    }
-    if (mat->factored)
+    if (sparse_matrix_require_original_state(mat) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
 
     /* Clear any previous reorder permutation */
-    free(mat->reorder_perm);
-    mat->reorder_perm = NULL;
+    sparse_factor_state_replace_reorder_perm(mat, NULL);
 
     /* Apply fill-reducing reordering if requested.  This permutes the
      * SparseMatrix into its final coordinate space and resets the
@@ -320,7 +317,7 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
         mat->pool = PA->pool;
         mat->nnz = PA->nnz;
         mat->cached_norm = PA->cached_norm;
-        mat->factor_norm = -1.0; /* reset: not Cholesky-factored */
+        sparse_factor_state_set_factor_norm(mat, -1.0); /* reset: not Cholesky-factored */
 
         PA->row_headers = NULL;
         PA->col_headers = NULL;
@@ -338,7 +335,7 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
         }
 
         /* Store reorder permutation for solve to unpermute */
-        mat->reorder_perm = perm;
+        sparse_factor_state_replace_reorder_perm(mat, perm);
     }
 
     /* Backend dispatch: AUTO compares against SPARSE_CSC_THRESHOLD;
@@ -394,6 +391,13 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
         return err;
     }
 
+    sparse_err_t payload_err = sparse_factor_state_begin_cholesky(mat);
+    if (payload_err != SPARSE_OK) {
+        chol_csc_free(L_csc);
+        sparse_analysis_free(&an);
+        return payload_err;
+    }
+
     /* Writeback overwrites mat's storage with L and re-publishes the
      * reorder perm.  We pass mat->reorder_perm so writeback preserves
      * the same permutation values / ordering semantics the linked-list
@@ -411,7 +415,7 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
 sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat, const double *b, double *x) {
     if (!mat || !b || !x)
         return SPARSE_ERR_NULL;
-    if (!mat->factored)
+    if (sparse_matrix_require_factored_state(mat) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
     idx_t n = mat->rows;
     const idx_t *rperm = mat->reorder_perm;
@@ -441,7 +445,8 @@ sparse_err_t sparse_cholesky_solve(const SparseMatrix *mat, const double *b, dou
     /* Singularity threshold: relative to ||L||_inf ≈ sqrt(||A||_inf).
      * L entries scale as sqrt of A entries in Cholesky, so use the
      * square root of the original matrix norm as reference. */
-    double l_norm = (mat->factor_norm > 0.0) ? sqrt(mat->factor_norm) : 0.0;
+    double factor_norm = sparse_factor_state_factor_norm(mat);
+    double l_norm = (factor_norm > 0.0) ? sqrt(factor_norm) : 0.0;
     double sing_tol = sparse_rel_tol(l_norm, DROP_TOL);
 
     /* Forward substitution: solve L*y = b_eff

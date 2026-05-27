@@ -76,6 +76,7 @@ endif()
 add_library(sparse_lu_ortho STATIC
     src/sparse_types.c
     src/sparse_matrix.c
+    src/sparse_factor_state_internal.c
     src/sparse_alloc_internal.c
     src/sparse_lu.c
     src/sparse_vector.c

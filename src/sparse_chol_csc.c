@@ -123,6 +123,8 @@
 #include "sparse_analysis_internal.h"
 #include "sparse_chol_csc_internal.h"
 #include "sparse_matrix.h"
+#include "sparse_matrix_internal.h"
+#include "sparse_matrix_state_internal.h"
 
 #include <math.h>
 #include <stdint.h>
@@ -2094,20 +2096,10 @@ sparse_err_t chol_csc_writeback_to_sparse(const CholCsc *L, SparseMatrix *mat, c
         return SPARSE_ERR_NULL;
     if (mat->rows != L->n || mat->cols != L->n)
         return SPARSE_ERR_SHAPE;
-    if (mat->factored)
+    if (sparse_matrix_require_original_state(mat) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
 
     idx_t n = L->n;
-
-    /* Precondition: caller-supplied matrix has identity row/col perms.
-     * The scalar path expects to start from an unpermuted input, and
-     * our transplant below keeps the caller's perm arrays intact —
-     * they must already match identity. */
-    for (idx_t i = 0; i < n; i++) {
-        if (mat->row_perm[i] != i || mat->col_perm[i] != i || mat->inv_row_perm[i] != i ||
-            mat->inv_col_perm[i] != i)
-            return SPARSE_ERR_BADARG;
-    }
 
     /* Copy the caller's perm (if any) up front so a later allocation
      * failure doesn't leave `mat` half-updated. */
@@ -2124,10 +2116,7 @@ sparse_err_t chol_csc_writeback_to_sparse(const CholCsc *L, SparseMatrix *mat, c
 
     /* Empty-matrix shortcut: nothing to transplant, just set state. */
     if (n == 0) {
-        free(mat->reorder_perm);
-        mat->reorder_perm = perm_copy;
-        mat->factor_norm = L->factor_norm;
-        mat->factored = 1;
+        sparse_factor_state_publish_factored(mat, L->factor_norm, perm_copy);
         /* cached_norm stays as-is (no matrix contents to invalidate). */
         return SPARSE_OK;
     }
@@ -2199,10 +2188,7 @@ sparse_err_t chol_csc_writeback_to_sparse(const CholCsc *L, SparseMatrix *mat, c
 
     /* Row/col perms stay identity (precondition enforced).  Apply the
      * fill-reducing perm and the factor state. */
-    free(mat->reorder_perm);
-    mat->reorder_perm = perm_copy;
-    mat->factor_norm = L->factor_norm;
-    mat->factored = 1;
+    sparse_factor_state_publish_factored(mat, L->factor_norm, perm_copy);
 
     return SPARSE_OK;
 }

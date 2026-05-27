@@ -11,6 +11,7 @@
 
 #include "sparse_bidiag.h"
 #include "sparse_dense.h"
+#include "sparse_lu.h"
 #include "sparse_matrix.h"
 #include "sparse_qr.h"
 #include "sparse_svd.h"
@@ -1451,6 +1452,38 @@ static void test_svd_null_input(void) {
 
     ASSERT_ERR(sparse_svd_compute(A, NULL, NULL), SPARSE_ERR_NULL);
 
+    sparse_free(A);
+}
+
+static void test_svd_rejects_factored_matrix_reuse(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 5.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 1, 4.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 0, 1.0);
+    sparse_insert(A, 2, 2, 3.0);
+
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_NOT_NULL(LU);
+    if (!LU) {
+        sparse_free(A);
+        return;
+    }
+    REQUIRE_OK(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12));
+
+    sparse_svd_t svd = {0};
+    ASSERT_ERR(sparse_svd_compute(LU, NULL, &svd), SPARSE_ERR_BADARG);
+    ASSERT_ERR(sparse_svd_partial(LU, 2, NULL, &svd), SPARSE_ERR_BADARG);
+
+    REQUIRE_OK(sparse_svd_compute(A, NULL, &svd));
+    ASSERT_EQ(svd.k, 3);
+
+    sparse_svd_free(&svd);
+    sparse_free(LU);
     sparse_free(A);
 }
 
@@ -3629,6 +3662,7 @@ int main(void) {
     RUN_TEST(test_svd_west0067);
     RUN_TEST(test_svd_rank_vs_qr);
     RUN_TEST(test_svd_null_input);
+    RUN_TEST(test_svd_rejects_factored_matrix_reuse);
 
     /* Partial SVD / Lanczos (Day 11) */
     RUN_TEST(test_partial_svd_null);

@@ -292,6 +292,37 @@ static void test_qr_null(void) {
     sparse_qr_free(&qr);
 }
 
+static void test_qr_rejects_factored_matrix_reuse(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 4.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 1, 3.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 0, 1.0);
+    sparse_insert(A, 2, 2, 2.0);
+
+    SparseMatrix *LU = sparse_copy(A);
+    ASSERT_NOT_NULL(LU);
+    if (!LU) {
+        sparse_free(A);
+        return;
+    }
+    REQUIRE_OK(sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12));
+
+    sparse_qr_t qr = {0};
+    ASSERT_ERR(sparse_qr_factor(LU, &qr), SPARSE_ERR_BADARG);
+
+    REQUIRE_OK(sparse_qr_factor(A, &qr));
+    ASSERT_EQ(qr.rank, 3);
+
+    sparse_qr_free(&qr);
+    sparse_free(LU);
+    sparse_free(A);
+}
+
 /* Q application: Q*Q^T*x = x */
 static void test_q_roundtrip(void) {
     SparseMatrix *A = sparse_create(4, 3);
@@ -3166,6 +3197,7 @@ int main(void) {
     RUN_TEST(test_qr_reconstruction);
     RUN_TEST(test_qr_tall);
     RUN_TEST(test_qr_null);
+    RUN_TEST(test_qr_rejects_factored_matrix_reuse);
     RUN_TEST(test_q_roundtrip);
 
     /* Column pivoting and extended tests (Day 5) */

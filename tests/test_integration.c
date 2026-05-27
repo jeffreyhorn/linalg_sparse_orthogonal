@@ -472,7 +472,8 @@ static void test_progress_cb_lu_cancel(void) {
     ASSERT_EQ(sparse_lu_factor_opts(A, &opts), SPARSE_ERR_CANCELLED);
     ASSERT_EQ(ctx.n_calls, 1); /* cancelled at the very first emission */
 
-    /* Matrix must be unmodified: factored flag clear + same entries. */
+    /* Matrix entries and perms stay unchanged for this no-reorder path,
+     * and the cancelled matrix must not be accepted as factored. */
     ASSERT_EQ(sparse_get(A, 0, 0), sparse_get(A_orig, 0, 0));
     for (idx_t i = 0; i < n; i++) {
         ASSERT_TRUE(sparse_get(A, i, i) == sparse_get(A_orig, i, i));
@@ -481,9 +482,78 @@ static void test_progress_cb_lu_cancel(void) {
             ASSERT_TRUE(sparse_get(A, i - 1, i) == sparse_get(A_orig, i - 1, i));
         }
     }
+    double b_cancel[100];
+    double x_cancel[100];
+    for (idx_t i = 0; i < n; i++)
+        b_cancel[i] = 1.0;
+    ASSERT_EQ(sparse_lu_solve(A, b_cancel, x_cancel), SPARSE_ERR_BADARG);
 
     sparse_free(A);
     sparse_free(A_orig);
+}
+
+static void test_progress_cb_lu_cancel_after_reordered_factor_invalidates_old_factor(void) {
+    const idx_t n = 100;
+    SparseMatrix *A = build_tridiag_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_lu_opts_t factor_opts = {
+        .pivot = SPARSE_PIVOT_PARTIAL,
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 1e-12,
+    };
+    ASSERT_EQ(sparse_lu_factor_opts(A, &factor_opts), SPARSE_OK);
+
+    progress_counter_t ctx = {.cancel_after_step = 0};
+    sparse_lu_opts_t cancel_opts = {
+        .pivot = SPARSE_PIVOT_PARTIAL,
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 1e-12,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    ASSERT_EQ(sparse_lu_factor_opts(A, &cancel_opts), SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx.n_calls, 1);
+
+    double b_cancel[100];
+    double x_cancel[100];
+    for (idx_t i = 0; i < n; i++)
+        b_cancel[i] = 1.0;
+    ASSERT_EQ(sparse_lu_solve(A, b_cancel, x_cancel), SPARSE_ERR_BADARG);
+
+    sparse_free(A);
+}
+
+static void test_lu_invalid_reorder_opts_preserve_existing_reordered_factor(void) {
+    const idx_t n = 100;
+    SparseMatrix *A = build_tridiag_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_lu_opts_t factor_opts = {
+        .pivot = SPARSE_PIVOT_PARTIAL,
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 1e-12,
+    };
+    ASSERT_EQ(sparse_lu_factor_opts(A, &factor_opts), SPARSE_OK);
+
+    double b[100];
+    double x_before[100];
+    double x_after[100];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = 1.0;
+    ASSERT_EQ(sparse_lu_solve(A, b, x_before), SPARSE_OK);
+
+    sparse_lu_opts_t invalid_opts = {
+        .pivot = SPARSE_PIVOT_PARTIAL,
+        .reorder = (sparse_reorder_t)99,
+        .tol = 1e-12,
+    };
+    ASSERT_EQ(sparse_lu_factor_opts(A, &invalid_opts), SPARSE_ERR_BADARG);
+    ASSERT_EQ(sparse_lu_solve(A, b, x_after), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_after[i], x_before[i], 1e-12);
+
+    sparse_free(A);
 }
 
 static void test_progress_cb_cholesky_emits_cancel(void) {
@@ -526,6 +596,11 @@ static void test_progress_cb_cholesky_emits_cancel(void) {
     /* Diagonal preserved: cancellation at step=0 fires before any
      * column-k=0 update writes to L(0, 0). */
     ASSERT_TRUE(sparse_get(A, 0, 0) == 4.0);
+    double b_cancel[100];
+    double x_cancel[100];
+    for (idx_t i = 0; i < n; i++)
+        b_cancel[i] = 1.0;
+    ASSERT_EQ(sparse_cholesky_solve(A, b_cancel, x_cancel), SPARSE_ERR_BADARG);
     sparse_free(A);
 }
 
@@ -893,6 +968,8 @@ int main(void) {
     /* Sprint 29 Day 6: progress / cancel callbacks (Item 4). */
     RUN_TEST(test_progress_cb_lu_emits);
     RUN_TEST(test_progress_cb_lu_cancel);
+    RUN_TEST(test_progress_cb_lu_cancel_after_reordered_factor_invalidates_old_factor);
+    RUN_TEST(test_lu_invalid_reorder_opts_preserve_existing_reordered_factor);
     RUN_TEST(test_progress_cb_cholesky_emits_cancel);
     RUN_TEST(test_progress_cb_ldlt_emits_cancel);
     RUN_TEST(test_progress_cb_null_default_unchanged);

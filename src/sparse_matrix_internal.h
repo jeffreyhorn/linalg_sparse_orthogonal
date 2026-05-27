@@ -143,6 +143,32 @@ typedef struct NodePool {
     idx_t num_slabs;
 } NodePool;
 
+typedef enum {
+    SPARSE_FACTOR_STATE_NONE = 0,
+    SPARSE_FACTOR_STATE_LU = 1,
+    SPARSE_FACTOR_STATE_CHOLESKY = 2,
+} sparse_factor_state_kind_t;
+
+typedef struct {
+    double factor_norm;
+    int is_factored;
+} sparse_lu_factor_state_t;
+
+typedef struct {
+    double factor_norm;
+    int is_factored;
+} sparse_cholesky_factor_state_t;
+
+typedef struct {
+    sparse_factor_state_kind_t kind;
+    double prev_factor_norm;
+    int prev_factored;
+    union {
+        sparse_lu_factor_state_t lu;
+        sparse_cholesky_factor_state_t cholesky;
+    } state;
+} sparse_factor_state_t;
+
 typedef struct SparseMatrix {
     idx_t rows;
     idx_t cols;
@@ -154,14 +180,19 @@ typedef struct SparseMatrix {
     idx_t *inv_col_perm; /* physical -> logical col */
     NodePool pool;
     idx_t nnz;
-    _Atomic double cached_norm; /* cached ||A||_inf, -1.0 = invalid.
-                                 * Atomic to allow concurrent norminf() calls
-                                 * on the same matrix from solve threads. */
-    double factor_norm;         /* ||A||_inf at factorization time, for relative tol */
-    int factored;               /* 1 after factorization, 0 otherwise.
-                                 * Solve functions check this to catch
-                                 * solve-before-factor bugs at runtime. */
-    idx_t *reorder_perm;        /* fill-reducing reorder: perm[new] = old, or NULL */
+    _Atomic double cached_norm;          /* cached ||A||_inf, -1.0 = invalid.
+                                          * Atomic to allow concurrent norminf() calls
+                                          * on the same matrix from solve threads. */
+    double factor_norm;                  /* ||A||_inf at factorization time, for relative tol */
+    int factored;                        /* 1 after factorization, 0 otherwise.
+                                          * Solve functions check this to catch
+                                          * solve-before-factor bugs at runtime. */
+    sparse_factor_state_t *factor_state; /* Private factor-state payload seam for
+                                          * compatibility-preserving LU/Cholesky
+                                          * lifecycle refactors. Public-facing
+                                          * matrix fields remain compatibility
+                                          * mirrors for now. */
+    idx_t *reorder_perm;                 /* fill-reducing reorder: perm[new] = old, or NULL */
 #ifdef SPARSE_MUTEX
     pthread_mutex_t mtx; /* optional mutex for concurrent mutation */
 #endif
@@ -173,6 +204,20 @@ typedef struct SparseMatrix {
 Node *pool_alloc(NodePool *pool);
 void pool_release(NodePool *pool, Node *node);
 void pool_free_all(NodePool *pool);
+
+sparse_err_t sparse_factor_state_bind_lu(SparseMatrix *mat);
+sparse_err_t sparse_factor_state_bind_cholesky(SparseMatrix *mat);
+sparse_err_t sparse_factor_state_begin_lu(SparseMatrix *mat);
+sparse_err_t sparse_factor_state_begin_cholesky(SparseMatrix *mat);
+void sparse_factor_state_set_factored(SparseMatrix *mat, int is_factored);
+void sparse_factor_state_set_factor_norm(SparseMatrix *mat, double factor_norm);
+void sparse_factor_state_replace_reorder_perm(SparseMatrix *mat, idx_t *perm);
+void sparse_factor_state_publish_factored(SparseMatrix *mat, double factor_norm, idx_t *perm);
+void sparse_factor_state_restore_compat(SparseMatrix *mat);
+int sparse_factor_state_is_factored(const SparseMatrix *mat);
+double sparse_factor_state_factor_norm(const SparseMatrix *mat);
+void sparse_factor_state_clear(SparseMatrix *mat);
+sparse_err_t sparse_factor_state_clone(SparseMatrix *dst, const SparseMatrix *src);
 
 /*
  * Build CSR adjacency graph of A+A^T (symmetrized, no self-loops).

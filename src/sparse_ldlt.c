@@ -8,6 +8,7 @@
 #include "sparse_analysis.h"
 #include "sparse_ldlt_csc_internal.h"
 #include "sparse_matrix_internal.h"
+#include "sparse_matrix_state_internal.h"
 #include "sparse_reorder.h"
 
 #include <math.h>
@@ -406,17 +407,9 @@ static sparse_err_t ldlt_factor_internal(const SparseMatrix *A, sparse_ldlt_t *l
     if (n == 0)
         return SPARSE_OK;
 
-    /* Reject matrices with non-identity permutations */
-    if (A->factored)
+    /* Reject matrices that are no longer in original row/col state. */
+    if (sparse_matrix_require_original_row_col_state(A) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
-    {
-        const idx_t *rp = sparse_row_perm(A);
-        const idx_t *cp = sparse_col_perm(A);
-        for (idx_t i = 0; i < n; i++) {
-            if ((rp && rp[i] != i) || (cp && cp[i] != i))
-                return SPARSE_ERR_BADARG;
-        }
-    }
 
     /* Validate symmetry */
     if (!sparse_is_symmetric(A, 1e-12))

@@ -9,7 +9,9 @@
 #endif
 
 #include "sparse_lu.h"
+#include "sparse_alloc_internal.h"
 #include "sparse_matrix_internal.h"
+#include "sparse_matrix_state_internal.h"
 #include "sparse_reorder.h"
 
 #include <math.h>
@@ -25,7 +27,8 @@
  * is captured here so `progress.elapsed_s` is monotonic across
  * the per-column emission stream. */
 static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t pivot, double tol,
-                                           sparse_progress_cb_t progress_cb, void *progress_user);
+                                           sparse_progress_cb_t progress_cb, void *progress_user,
+                                           int restore_compat_on_premutation_exit);
 
 /* Sprint 29 Day 8 (Item 5): Windows-portable monotonic clock helper. */
 static double s29_now_s(void) {
@@ -59,53 +62,56 @@ static void swap_col_perm(SparseMatrix *mat, idx_t log_a, idx_t log_b) {
 /* ─── LU factorization ───────────────────────────────────────────────── */
 
 sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double tol) {
-    return sparse_lu_factor_inner(mat, pivot, tol, NULL, NULL);
+    return sparse_lu_factor_inner(mat, pivot, tol, NULL, NULL, 1);
 }
 
 static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t pivot, double tol,
-                                           sparse_progress_cb_t progress_cb, void *progress_user) {
+                                           sparse_progress_cb_t progress_cb, void *progress_user,
+                                           int restore_compat_on_premutation_exit) {
     if (!mat)
         return SPARSE_ERR_NULL;
     idx_t n = mat->rows;
     if (n != mat->cols)
         return SPARSE_ERR_SHAPE;
 
-    /* Clear factored flag immediately so an aborted factorization
-     * (e.g., singular pivot) cannot leave a stale 'factored' state. */
-    mat->factored = 0;
-
     /*
      * Temporary buffer for collecting rows to eliminate.
      * This fixes the bug where the column list is walked while being
      * modified: we snapshot the row indices first, then process them.
      */
-    idx_t *elim_rows = malloc((size_t)n * sizeof(idx_t));
-    if (!elim_rows)
-        return SPARSE_ERR_ALLOC;
+    idx_t *elim_rows = NULL;
+    sparse_err_t alloc_err = sparse_malloc_idx_array(n, sizeof(*elim_rows), (void **)&elim_rows);
+    if (alloc_err != SPARSE_OK)
+        return alloc_err;
+
+    sparse_err_t payload_err = sparse_factor_state_begin_lu(mat);
+    if (payload_err != SPARSE_OK) {
+        free(elim_rows);
+        return payload_err;
+    }
 
     /* Compute and cache ||A||_inf before factorization for relative tolerance */
     double anorm;
     sparse_err_t nerr = sparse_norminf(mat, &anorm);
     if (nerr != SPARSE_OK) {
+        if (restore_compat_on_premutation_exit)
+            sparse_factor_state_restore_compat(mat);
         free(elim_rows);
         return nerr;
     }
-    mat->factor_norm = anorm;
+    sparse_factor_state_set_factor_norm(mat, anorm);
 
     double phase_start_s = progress_cb ? s29_now_s() : 0.0;
+    int matrix_mutated = 0;
 
     for (idx_t k = 0; k < n; k++) {
         /* Sprint 29 Day 6: progress emission + cancellation check at
          * top of each column iteration (BEFORE any column-k mutation).
-         * Cancellation at step=0 leaves the entry values unmodified —
-         * no column has been eliminated yet — BUT the matrix struct is
-         * NOT bit-identical to entry: `mat->factored` was cleared and
-         * `mat->factor_norm` was cached with `||A||_inf` immediately
-         * above this loop.  Callers that need true bit-identical
-         * preservation on immediate cancellation should pre-
-         * `sparse_copy()` the input and discard the copy.  See
-         * `include/sparse_lu.h::sparse_lu_opts_t.progress_cb` for the
-         * full contract. */
+         * If cancellation happens before this inner path mutates the
+         * matrix, the compatibility mirrors (`factored`, `factor_norm`)
+         * are restored to their pre-entry state before returning only
+         * when the outer entry path has not already invalidated reorder
+         * metadata before entering this loop. */
         if (progress_cb) {
             sparse_progress_t p = {
                 .phase = "lu_factor",
@@ -114,6 +120,8 @@ static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t piv
                 .elapsed_s = s29_now_s() - phase_start_s,
             };
             if (progress_cb(&p, progress_user) != 0) {
+                if (!matrix_mutated && restore_compat_on_premutation_exit)
+                    sparse_factor_state_restore_compat(mat);
                 free(elim_rows);
                 return SPARSE_ERR_CANCELLED;
             }
@@ -160,11 +168,15 @@ static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t piv
         }
 
         if (max_val < tol) {
+            if (!matrix_mutated && restore_compat_on_premutation_exit)
+                sparse_factor_state_restore_compat(mat);
             free(elim_rows);
             return SPARSE_ERR_SINGULAR;
         }
 
         /* ── Swap rows (always) and columns (complete pivoting only) ── */
+        if (pivot_log_row != k || (pivot == SPARSE_PIVOT_COMPLETE && pivot_log_col != k))
+            matrix_mutated = 1;
         if (pivot_log_row != k)
             swap_row_perm(mat, k, pivot_log_row);
         if (pivot == SPARSE_PIVOT_COMPLETE && pivot_log_col != k)
@@ -190,10 +202,14 @@ static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t piv
         idx_t phys_row_k = mat->row_perm[k];
         double pivot_val = sparse_get_phys(mat, phys_row_k, phys_k_col_val);
         if (fabs(pivot_val) < tol) {
+            if (!matrix_mutated && restore_compat_on_premutation_exit)
+                sparse_factor_state_restore_compat(mat);
             free(elim_rows);
             return SPARSE_ERR_SINGULAR;
         }
 
+        if (elim_count > 0)
+            matrix_mutated = 1;
         for (idx_t e = 0; e < elim_count; e++) {
             idx_t log_i = elim_rows[e];
             idx_t phys_i = mat->row_perm[log_i];
@@ -235,7 +251,7 @@ static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t piv
     }
 
     free(elim_rows);
-    mat->factored = 1;
+    sparse_factor_state_set_factored(mat, 1);
     return SPARSE_OK;
 }
 
@@ -248,17 +264,26 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
     if (n != mat->cols)
         return SPARSE_ERR_SHAPE;
 
-    /* Clear any previous reorder permutation */
-    free(mat->reorder_perm);
-    mat->reorder_perm = NULL;
+    int outer_reorder_metadata_mutated = 0;
+    int reorder_requested = (opts->reorder != SPARSE_REORDER_NONE) ? 1 : 0;
+
+    switch (opts->reorder) {
+    case SPARSE_REORDER_NONE:
+    case SPARSE_REORDER_RCM:
+    case SPARSE_REORDER_AMD:
+    case SPARSE_REORDER_ND:
+        break;
+    default:
+        return SPARSE_ERR_BADARG;
+    }
 
     /* Apply fill-reducing reordering if requested */
-    if (opts->reorder != SPARSE_REORDER_NONE && n > 1) {
-        idx_t *perm = malloc((size_t)n * sizeof(idx_t));
-        if (!perm)
-            return SPARSE_ERR_ALLOC;
+    if (reorder_requested && n > 1) {
+        idx_t *perm = NULL;
+        sparse_err_t err = sparse_malloc_idx_array(n, sizeof(*perm), (void **)&perm);
+        if (err != SPARSE_OK)
+            return err;
 
-        sparse_err_t err;
         switch (opts->reorder) {
         case SPARSE_REORDER_RCM:
             err = sparse_reorder_rcm(mat, perm);
@@ -269,11 +294,11 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
         case SPARSE_REORDER_ND:
             err = sparse_reorder_nd(mat, perm);
             break;
+        case SPARSE_REORDER_NONE:
         default:
             free(perm);
             return SPARSE_ERR_BADARG;
         }
-
         if (err != SPARSE_OK) {
             free(perm);
             return err;
@@ -287,6 +312,12 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
             free(perm);
             return err;
         }
+
+        /* The reordered working copy is ready, so the old factor's
+         * reorder metadata is no longer valid past this mutation
+         * boundary. */
+        sparse_factor_state_replace_reorder_perm(mat, NULL);
+        outer_reorder_metadata_mutated = 1;
 
         /* Swap internal data from PA into mat:
          * Free mat's old data, steal PA's data */
@@ -319,13 +350,18 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
         }
 
         /* Store reorder permutation for solve to unpermute */
-        free(mat->reorder_perm);
-        mat->reorder_perm = perm;
+        sparse_factor_state_replace_reorder_perm(mat, perm);
+    } else if (mat->reorder_perm != NULL) {
+        /* No new reorder metadata will be published for this factor
+         * attempt, so invalidate the old permutation immediately before
+         * entering the inner LU path. */
+        sparse_factor_state_replace_reorder_perm(mat, NULL);
+        outer_reorder_metadata_mutated = 1;
     }
 
     /* Factor with given pivoting and tolerance */
     return sparse_lu_factor_inner(mat, opts->pivot, opts->tol, opts->progress_cb,
-                                  opts->progress_user);
+                                  opts->progress_user, outer_reorder_metadata_mutated ? 0 : 1);
 }
 
 /* ─── Transpose solve ────────────────────────────────────────────────── */
@@ -333,7 +369,7 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
 sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat, const double *b, double *x) {
     if (!mat || !b || !x)
         return SPARSE_ERR_NULL;
-    if (!mat->factored)
+    if (sparse_matrix_require_factored_state(mat) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
     idx_t n = mat->rows;
     const idx_t *rperm = mat->reorder_perm;
@@ -387,7 +423,8 @@ sparse_err_t sparse_lu_solve_transpose(const SparseMatrix *mat, const double *b,
                 sum += node->value * d[log_j];
             node = node->down;
         }
-        double sing_tol = (mat->factor_norm > 0.0) ? DROP_TOL * mat->factor_norm : DROP_TOL;
+        double factor_norm = sparse_factor_state_factor_norm(mat);
+        double sing_tol = (factor_norm > 0.0) ? DROP_TOL * factor_norm : DROP_TOL;
         if (fabs(u_ii) < sing_tol) {
             free(c);
             free(d);
@@ -456,7 +493,7 @@ sparse_err_t sparse_lu_condest(const SparseMatrix *mat_orig, const SparseMatrix 
     if (!mat_orig || !mat_lu || !condest)
         return SPARSE_ERR_NULL;
     /* Check that mat_lu has been factored */
-    if (!mat_lu->factored)
+    if (sparse_matrix_require_factored_state(mat_lu) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
     /* Check dimensions match and are square */
     if (mat_orig->rows != mat_orig->cols)
@@ -633,7 +670,8 @@ sparse_err_t sparse_backward_sub(const SparseMatrix *mat, const double *y, doubl
         }
 
         /* Use relative tolerance if factor_norm is available, else absolute */
-        double sing_tol = (mat->factor_norm > 0.0) ? DROP_TOL * mat->factor_norm : DROP_TOL;
+        double factor_norm = sparse_factor_state_factor_norm(mat);
+        double sing_tol = (factor_norm > 0.0) ? DROP_TOL * factor_norm : DROP_TOL;
         if (fabs(u_ii) < sing_tol)
             return SPARSE_ERR_SINGULAR;
 
@@ -648,7 +686,7 @@ sparse_err_t sparse_backward_sub(const SparseMatrix *mat, const double *y, doubl
 sparse_err_t sparse_lu_solve(const SparseMatrix *mat, const double *b, double *x) {
     if (!mat || !b || !x)
         return SPARSE_ERR_NULL;
-    if (!mat->factored)
+    if (sparse_matrix_require_factored_state(mat) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
     idx_t n = mat->rows;
     const idx_t *rperm = mat->reorder_perm;
@@ -723,7 +761,7 @@ sparse_err_t sparse_lu_solve_block(const SparseMatrix *mat, const double *B, idx
                                    double *X) {
     if (!mat || !B || !X)
         return SPARSE_ERR_NULL;
-    if (!mat->factored)
+    if (sparse_matrix_require_factored_state(mat) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
     if (nrhs < 0)
         return SPARSE_ERR_BADARG;
@@ -790,7 +828,8 @@ sparse_err_t sparse_lu_solve_block(const SparseMatrix *mat, const double *B, idx
 
     /* Step 3: Backward substitution — U*Z = Y.
      * For each row i (reverse), traverse once and update all nrhs vectors. */
-    double sing_tol = (mat->factor_norm > 0.0) ? DROP_TOL * mat->factor_norm : DROP_TOL;
+    double factor_norm = sparse_factor_state_factor_norm(mat);
+    double sing_tol = (factor_norm > 0.0) ? DROP_TOL * factor_norm : DROP_TOL;
 
     for (idx_t i = n - 1; i >= 0; i--) {
         /* Initialize Z[i,k] = Y[i,k] */
@@ -849,7 +888,7 @@ sparse_err_t sparse_lu_refine(const SparseMatrix *mat_orig, const SparseMatrix *
                               const double *b, double *x, int max_iters, double tol) {
     if (!mat_orig || !mat_lu || !b || !x)
         return SPARSE_ERR_NULL;
-    if (!mat_lu->factored)
+    if (sparse_matrix_require_factored_state(mat_lu) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
     idx_t n = mat_orig->rows;
 

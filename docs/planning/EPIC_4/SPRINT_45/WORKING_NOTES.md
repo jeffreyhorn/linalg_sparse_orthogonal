@@ -1105,3 +1105,148 @@ Interpretation:
 - Day 7 should audit residual allocation churn rather than reopening CG/GMRES
 - Day 8 should stay focused on the real multi-RHS workspace seam instead of
   broad wrapper churn
+
+## Day 7
+
+**Objective:** Audit the post-Day-6 iterative state so Sprint 45's remaining
+workspace queue is reduced to real live targets, with explicit separation
+between true block-workspace migration work, wrapper-style paths, and solver-
+local or specialized seams that should remain later follow-ons.
+
+### Commands Run
+
+1. Re-read the Sprint 45 Day 7 plan section:
+   - `sed -n '218,250p' docs/planning/EPIC_4/SPRINT_45/PLAN.md`
+2. Re-read the Day 6 migration artifact:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_45/artifacts/day6-cg-gmres-migration-batch1.md`
+3. Refresh the live iterative function/seam map after Day 6:
+   - `rg -n "sparse_solve_cg_mf|sparse_solve_gmres_mf|sparse_cg_solve_block|sparse_gmres_solve_block|sparse_solve_minres|sparse_minres_solve_block|sparse_solve_bicgstab|sparse_bicgstab_solve_block|malloc|calloc|sparse_iter_workspace" src/sparse_iterative.c`
+4. Re-read the remaining block and MINRES regions directly:
+   - `sed -n '956,1288p' src/sparse_iterative.c`
+   - `sed -n '1288,1715p' src/sparse_iterative.c`
+5. Re-read the current private iterative workspace and BiCGSTAB precedent
+   surfaces:
+   - `sed -n '1,260p' src/sparse_iterative_workspace_internal.h`
+   - `rg -n "prepare_block_cg|prepare_minres|block_cg_workspace_view|minres_workspace_view|bicgstab_workspace_t|sparse_bicgstab_solve_block|sparse_solve_bicgstab_mf" src/sparse_iterative_workspace_internal.h src/sparse_iterative_workspace_internal.c src/sparse_bicgstab_internal.h src/sparse_iterative.c`
+6. Inspect branch state before writing the audit:
+   - `git status --short`
+   - `git rev-parse --short HEAD`
+
+### Day 7 Findings
+
+#### 1. The post-Day-6 queue is no longer a generic iterative-workspace backlog
+
+After the Day 5 and Day 6 landings, the remaining iterative surface now splits
+cleanly into three buckets:
+
+- one real remaining multi-RHS workspace target:
+  - `sparse_cg_solve_block(...)`
+- wrapper/composition paths:
+  - `sparse_gmres_solve_block(...)`
+  - `sparse_minres_solve_block(...)`
+  - `sparse_bicgstab_solve_block(...)`
+- solver-local or specialized later seams:
+  - scalar MINRES packed workspace
+  - the existing BiCGSTAB workspace model
+  - support state such as stagnation/history tracking
+
+Interpretation:
+
+- Sprint 45 no longer needs to think in terms of "migrate all iterative paths"
+- the real Day 8 target is narrower and clearer than the original project-plan
+  phrasing
+
+#### 2. Block CG is the only strong remaining direct workspace migration target
+
+`sparse_cg_solve_block(...)` still owns a true repeated-allocation bundle:
+
+- `R`
+- `Z`
+- `P`
+- `AP`
+- `bnorms`
+- `rz`
+- `conv`
+- `rnorms`
+
+That bundle aligns directly with the already-landed:
+
+- `sparse_block_cg_workspace_view_t`
+- `sparse_iter_workspace_prepare_block_cg(...)`
+
+Interpretation:
+
+- Day 8 should target block CG first
+- the next migration batch does not need a new helper redesign before it can
+  start
+
+#### 3. Block GMRES, block MINRES, and block BiCGSTAB are mostly wrapper surfaces
+
+The live code shape matters:
+
+- `sparse_gmres_solve_block(...)` is a per-column loop over scalar GMRES
+- `sparse_minres_solve_block(...)` is a per-column loop over scalar MINRES
+- `sparse_bicgstab_solve_block(...)` is a per-column loop over scalar
+  BiCGSTAB
+
+Interpretation:
+
+- these are not the same kind of workspace problem as block CG
+- they belong in the wrapper/composition review bucket unless a very small
+  follow-on naturally falls out later
+
+#### 4. MINRES remains a valid later workspace candidate, but not the best Day 8 target
+
+Scalar MINRES still uses its own one-shot 6/8-vector packed workspace and the
+private helper layer already contains `sparse_iter_workspace_prepare_minres(...)`.
+
+But compared with block CG:
+
+- MINRES still carries more solver-specific control/state coupling
+- block MINRES itself is currently just a wrapper path
+
+Interpretation:
+
+- MINRES remains a real later workspace extension candidate
+- it should not displace block CG as the next Sprint 45 implementation target
+
+#### 5. BiCGSTAB remains a precedent seam, not the next migration target
+
+BiCGSTAB already uses:
+
+- `bicgstab_workspace_t`
+
+for both scalar and matrix-free paths.
+
+Interpretation:
+
+- Sprint 45 should continue treating BiCGSTAB as:
+  - a useful precedent
+  - a compatibility/reference seam
+- not as the next major migration target
+
+#### 6. No new helper-layer redesign is needed before Day 8
+
+The current private helper surface already includes:
+
+- `sparse_iter_workspace_prepare_block_cg(...)`
+- `sparse_iter_workspace_prepare_minres(...)`
+
+Interpretation:
+
+- the helper layer is already sufficient for the next real block-CG landing
+- the right Day 8 move is adoption, not API growth
+
+#### 7. The real next queue is now explicitly sequenced
+
+The correct remaining Sprint 45 order is:
+
+1. block-CG migration
+2. wrapper/composition review
+3. repeated-solve benchmark evidence
+4. optional later MINRES extension only if it stays small
+
+Interpretation:
+
+- Day 7 did the job it needed to do: it turned the residual queue into a live
+  code-driven sequence rather than a generic backlog

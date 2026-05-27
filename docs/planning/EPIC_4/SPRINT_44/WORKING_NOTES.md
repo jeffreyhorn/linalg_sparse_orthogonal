@@ -1895,3 +1895,149 @@ Interpretation:
   high-signal helper extraction in `tests/test_qr.c`
 - any second file participation must remain obviously narrower than the QR
   batch itself
+
+## Day 12
+
+**Objective:** Implement the bounded large-test maintainability batch selected
+on Day 11 by consolidating the clearest repeated QR validation seams in
+`tests/test_qr.c` while preserving the existing one-binary test model and
+keeping the batch strictly behavior-neutral.
+
+### Commands Run
+
+1. Re-read the Sprint 44 Day 12 plan section and the Day 11 audit:
+   - `sed -n '350,430p' docs/planning/EPIC_4/SPRINT_44/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_44/artifacts/day11-large-test-helper-audit.md`
+2. Re-read the strongest QR helper candidate regions:
+   - `sed -n '150,260p' tests/test_qr.c`
+   - `sed -n '220,625p' tests/test_qr.c`
+   - `sed -n '630,910p' tests/test_qr.c`
+   - `sed -n '1085,1610p' tests/test_qr.c`
+   - `rg -n "compare_dense_sparse_qr|compute_rel_residual\\(|qr_reconstruction_error\\(|printf\\(\\\".*recon|printf\\(\\\".*res_norm|printf\\(\\\".*res=\"" tests/test_qr.c`
+3. Implement the bounded QR helper consolidation in `tests/test_qr.c`.
+4. Run the required validation gate:
+   - first pass:
+     - `make format`
+     - `make lint`
+     - `make test`
+     - `./build/test_qr`
+   - fix one touched-surface cleanup issue:
+     - remove an unused local `rr` after helper extraction
+   - authoritative rerun from the top:
+     - `make format`
+     - `make lint`
+     - `make test`
+     - `./build/test_qr`
+
+### Day 12 Findings
+
+#### 1. The Day 11 target was correct: `tests/test_qr.c` had one especially clean repeated validation seam
+
+Day 12 confirmed two high-signal repeated patterns in `tests/test_qr.c`:
+
+- repeated reconstruction assertions:
+  - compute `qr_reconstruction_error(...)`
+  - print a label/value pair
+  - assert against a tolerance
+- repeated solve residual checks:
+  - compute `compute_rel_residual(...)`
+  - print reported residual and true residual
+  - assert the true residual stays under a scenario-specific bound
+
+Interpretation:
+
+- this was a real helper seam, not generic file-size discomfort
+- the cleanup could stay entirely inside `tests/test_qr.c`
+
+#### 2. The landed batch stayed tightly bounded to helper extraction, with no behavior change
+
+Day 12 added two small local helpers:
+
+- `assert_qr_reconstruction_below(...)`
+- `assert_qr_true_residual_below(...)`
+
+It then rewired the repeated QR checks onto them in the intended high-signal
+cases:
+
+- reconstruction-oriented QR tests:
+  - `test_qr_reconstruction`
+  - `test_qr_wide`
+  - `test_qr_reconstruction_large`
+  - `test_qr_rank_1`
+  - `test_qr_nearly_singular`
+  - `test_qr_diagonal`
+  - `test_qr_perm_valid`
+  - `test_qr_bcsstk04`
+  - `test_qr_tall_synthetic`
+- solve/residual-oriented QR tests:
+  - `test_qr_solve_square`
+  - `test_qr_solve_overdetermined`
+  - `test_qr_solve_rank_deficient`
+  - `test_qr_solve_nos4`
+  - `test_qr_bcsstk04`
+  - `test_qr_west0067`
+  - `test_qr_tall_synthetic`
+
+Interpretation:
+
+- the batch removed one real maintainability seam from the largest tests
+- the one-binary QR test model stayed clear
+- no second file was needed to satisfy Day 12
+
+#### 3. The batch correctly stopped before broader structural cleanup
+
+Day 12 did **not**:
+
+- split `tests/test_qr.c`
+- introduce a cross-file test-helper library
+- alter fixture ownership
+- touch `tests/test_chol_csc.c`, `tests/test_ldlt_csc.c`, or `tests/test_svd.c`
+- change any production `src/` behavior
+
+Interpretation:
+
+- Sprint 44 stayed within the Day 11 boundary
+- the later large-test queue remains intact and honestly deferred
+
+#### 4. Validation passed after one small touched-surface cleanup rerun
+
+The first Day 12 validation pass surfaced one small issue during the direct
+`./build/test_qr` compile:
+
+- an unused local `rr` remained in `test_qr_solve_square(...)` after the new
+  helper adoption
+
+That was fixed immediately, and the full Day 12 validation gate was rerun from
+the top:
+
+- `make format`
+- `make lint`
+- `make test`
+- `./build/test_qr`
+
+All passed.
+
+The direct touched-binary rerun also showed the updated helper-driven cases
+passing inside `test_qr`, including:
+
+- `test_qr_reconstruction`
+- `test_qr_wide`
+- `test_qr_reconstruction_large`
+- `test_qr_rank_1`
+- `test_qr_nearly_singular`
+- `test_qr_diagonal`
+- `test_qr_perm_valid`
+- `test_qr_solve_square`
+- `test_qr_solve_overdetermined`
+- `test_qr_solve_rank_deficient`
+- `test_qr_solve_nos4`
+- `test_qr_bcsstk04`
+- `test_qr_west0067`
+- `test_qr_tall_synthetic`
+
+Interpretation:
+
+- the maintainability cleanup is validated on the same maintained gate as the
+  rest of Epic 4
+- Sprint 44 can now move into the Day 13 full validation sweep from a clean
+  Day 12 state

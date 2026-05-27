@@ -1250,3 +1250,142 @@ Interpretation:
 
 - Day 7 did the job it needed to do: it turned the residual queue into a live
   code-driven sequence rather than a generic backlog
+
+## Day 8
+
+**Objective:** Land the one real remaining direct workspace migration target
+identified on Day 7 by moving `sparse_cg_solve_block(...)` onto the already-
+landed shared block-CG workspace seam, while keeping Sprint 45 away from block
+GMRES/MINRES/BiCGSTAB churn and preserving current one-shot public behavior.
+
+### Commands Run
+
+1. Re-read the Sprint 45 Day 8 plan section and the Day 7 audit:
+   - `sed -n '249,285p' docs/planning/EPIC_4/SPRINT_45/PLAN.md`
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_45/artifacts/day7-primary-workspace-landing-audit.md`
+2. Re-read the live block-CG implementation and the private workspace helper
+   seam:
+   - `sed -n '956,1205p' src/sparse_iterative.c`
+   - `sed -n '1,260p' src/sparse_iterative_workspace_internal.h`
+   - `sed -n '120,210p' src/sparse_iterative_workspace_internal.c`
+3. Implement the bounded block-CG migration in:
+   - `src/sparse_iterative.c`
+4. Run the required code-quality gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+5. Run targeted touched-surface follow-ons:
+   - `./build/test_iterative`
+   - `./build/test_block_solvers`
+6. Confirm final state:
+   - `git status --short`
+   - `git rev-parse --short HEAD`
+
+### Day 8 Findings
+
+#### 1. Block CG now participates in the same reusable workspace model as the primary scalar paths
+
+`sparse_cg_solve_block(...)` now:
+
+- initializes `sparse_iter_workspace_t`
+- prepares `sparse_block_cg_workspace_view_t`
+- binds:
+  - `R`
+  - `Z`
+  - `P`
+  - `AP`
+  - `bnorms`
+  - `rz`
+  - `conv`
+  - `rnorms`
+- frees the shared owner on all touched exit paths
+
+Interpretation:
+
+- Sprint 45 no longer has a split repeated-allocation story between:
+  - scalar CG / matrix-free CG
+  - and the true multi-RHS CG path
+- Day 5's typed block-CG prepare seam was sufficient as designed; no helper
+  redesign was needed before adoption
+
+#### 2. The batch reduced real multi-RHS allocation churn without turning into a new block-only framework
+
+The old block-CG path owned direct per-call heap allocation for:
+
+- four packed `n * nrhs` vector bundles
+- three per-column side buffers
+- one convergence-state buffer
+
+Day 8 replaced that with the already-landed shared owner/view seam rather than
+introducing another specialized block allocator.
+
+Interpretation:
+
+- the sprint still uses one coherent iterative workspace model
+- Day 8 reduced real repeated allocation churn instead of just rearranging
+  wrapper code
+
+#### 3. The bounded Day 7 boundary held
+
+This batch did **not** widen into:
+
+- block GMRES
+- block MINRES
+- block BiCGSTAB
+- MINRES scalar workspace migration
+- benchmark/example implementation churn
+- public iterative API changes
+
+Interpretation:
+
+- Sprint 45 stayed focused on the one strong remaining direct workspace target
+- wrapper/composition review remains a later queue instead of being forced into
+  the same implementation batch
+
+#### 4. Validation passed on both the full gate and the touched iterative/block surfaces
+
+Because `src/sparse_iterative.c` changed, the required gate was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Targeted touched-surface follow-ons also passed:
+
+- `./build/test_iterative`
+- `./build/test_block_solvers`
+
+Representative direct rerun outcomes:
+
+- `test_iterative`
+  - all visible CG, CG_mf, GMRES, and GMRES_mf cases passed
+- `test_block_solvers`
+  - all `15` tests passed
+  - `test_block_cg_iteration_count` remained green with:
+    - `block_cg iters=17`
+    - `single_cg iters=17`
+
+Interpretation:
+
+- the shared-workspace landing preserved the current block-CG behavior contract
+- the migration is backed by both the authoritative repo-wide gate and the
+  direct touched binary reruns
+
+#### 5. The residual Sprint 45 queue is now clearly wrapper/benchmark oriented
+
+After Day 8, the strongest remaining Sprint 45 buckets are:
+
+- wrapper/composition review:
+  - `sparse_gmres_solve_block(...)`
+  - `sparse_minres_solve_block(...)`
+  - `sparse_bicgstab_solve_block(...)`
+- repeated-solve benchmark evidence
+- optional later MINRES extension only if it stays small
+
+Interpretation:
+
+- Day 8 closes the main direct workspace migration queue
+- the sprint can now pivot from core storage adoption into wrapper clarity and
+  efficiency evidence

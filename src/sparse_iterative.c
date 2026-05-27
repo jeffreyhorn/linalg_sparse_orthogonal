@@ -998,10 +998,21 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
     if (blk > (size_t)INT32_MAX)
         return SPARSE_ERR_ALLOC;
 
-    /* Compute ||B(:,k)|| for each column */
-    double *bnorms = NULL;
-    if (sparse_malloc_idx_array(nrhs, sizeof(double), (void **)&bnorms) != SPARSE_OK)
+    sparse_iter_workspace_t workspace;
+    sparse_block_cg_workspace_view_t block_ws;
+    sparse_iter_workspace_init(&workspace);
+    if (sparse_iter_workspace_prepare_block_cg(&workspace, n, nrhs, &block_ws) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
+    double *R = block_ws.R;
+    double *Z = block_ws.Z;
+    double *P = block_ws.P;
+    double *AP = block_ws.AP;
+    double *bnorms = block_ws.bnorms;
+    double *rz = block_ws.rz;
+    int *conv = block_ws.conv;
+    double *rnorms = block_ws.rnorms;
+
+    /* Compute ||B(:,k)|| for each column */
     for (idx_t k = 0; k < nrhs; k++) {
         size_t off = n_size * (size_t)k;
         bnorms[k] = vec_norm2(&B[off], n);
@@ -1011,44 +1022,11 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
         }
     }
 
-    /* Allocate workspace: R, Z, P, AP — each n × nrhs */
-    double *R = NULL;
-    double *Z = NULL;
-    double *P = NULL;
-    double *AP = NULL;
-    double *rz = NULL; /* r^T*z per column */
-    int *conv = NULL;  /* convergence flags */
-    double *rnorms = NULL;
-    if (sparse_malloc_array(blk, sizeof(double), (void **)&R) != SPARSE_OK ||
-        sparse_malloc_array(blk, sizeof(double), (void **)&Z) != SPARSE_OK ||
-        sparse_malloc_array(blk, sizeof(double), (void **)&P) != SPARSE_OK ||
-        sparse_malloc_array(blk, sizeof(double), (void **)&AP) != SPARSE_OK ||
-        sparse_malloc_idx_array(nrhs, sizeof(double), (void **)&rz) != SPARSE_OK ||
-        sparse_calloc_idx_array(nrhs, sizeof(int), (void **)&conv) != SPARSE_OK ||
-        sparse_malloc_idx_array(nrhs, sizeof(double), (void **)&rnorms) != SPARSE_OK) {
-        free(R);
-        free(Z);
-        free(P);
-        free(AP);
-        free(rz);
-        free(conv);
-        free(rnorms);
-        free(bnorms);
-        return SPARSE_ERR_ALLOC;
-    }
-
     /* R = B - A*X (initial residual for all columns) */
     {
         sparse_err_t mv_err = sparse_matvec_block(A, X, nrhs, AP);
         if (mv_err != SPARSE_OK) {
-            free(R);
-            free(Z);
-            free(P);
-            free(AP);
-            free(rz);
-            free(conv);
-            free(rnorms);
-            free(bnorms);
+            sparse_iter_workspace_free(&workspace);
             return mv_err;
         }
     }
@@ -1061,14 +1039,7 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
         if (precond) {
             sparse_err_t perr = precond(precond_ctx, n, &R[n * k], &Z[n * k]); // NOLINT
             if (perr != SPARSE_OK) {
-                free(R);
-                free(Z);
-                free(P);
-                free(AP);
-                free(rz);
-                free(conv);
-                free(rnorms);
-                free(bnorms);
+                sparse_iter_workspace_free(&workspace);
                 return perr;
             }
         } else {
@@ -1104,14 +1075,7 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
         {
             sparse_err_t mv_err = sparse_matvec_block(A, P, nrhs, AP);
             if (mv_err != SPARSE_OK) {
-                free(R);
-                free(Z);
-                free(P);
-                free(AP);
-                free(rz);
-                free(conv);
-                free(rnorms);
-                free(bnorms);
+                sparse_iter_workspace_free(&workspace);
                 return mv_err;
             }
         }
@@ -1138,14 +1102,7 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
             if (precond) {
                 sparse_err_t perr = precond(precond_ctx, n, &R[n * k], &Z[n * k]);
                 if (perr != SPARSE_OK) {
-                    free(R);
-                    free(Z);
-                    free(P);
-                    free(AP);
-                    free(rz);
-                    free(conv);
-                    free(rnorms);
-                    free(bnorms);
+                    sparse_iter_workspace_free(&workspace);
                     return perr;
                 }
             } else {
@@ -1188,14 +1145,7 @@ sparse_err_t sparse_cg_solve_block(const SparseMatrix *A, const double *B, idx_t
         result->converged = all_converged;
     }
 
-    free(R);
-    free(Z);
-    free(P);
-    free(AP);
-    free(rz);
-    free(conv);
-    free(rnorms);
-    free(bnorms);
+    sparse_iter_workspace_free(&workspace);
     return all_converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
 }
 

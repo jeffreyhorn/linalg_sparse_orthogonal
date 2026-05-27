@@ -116,6 +116,7 @@
  * `src/sparse_reorder_nd.c`.
  */
 
+#include "sparse_alloc_internal.h"
 #include "sparse_graph_fm_buckets.h"
 #include "sparse_graph_internal.h"
 
@@ -2034,9 +2035,11 @@ static const sparse_graph_t *graph_hierarchy_coarsest(const sparse_graph_t *root
 
 static sparse_err_t graph_partition_seed_coarsest(const sparse_graph_t *coarsest,
                                                   idx_t **coarsest_part_out) {
-    idx_t *coarsest_part = malloc((size_t)coarsest->n * sizeof(idx_t));
-    if (!coarsest_part)
-        return SPARSE_ERR_ALLOC;
+    idx_t *coarsest_part = NULL;
+    sparse_err_t alloc_rc =
+        sparse_malloc_idx_array(coarsest->n, sizeof(idx_t), (void **)&coarsest_part);
+    if (alloc_rc != SPARSE_OK)
+        return alloc_rc;
 
     sparse_err_t rc = graph_bisect_coarsest(coarsest, coarsest_part);
     if (rc == SPARSE_OK)

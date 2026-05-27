@@ -2163,3 +2163,130 @@ Interpretation:
 
 - Sprint 44 can move into Day 14 closeout from a measured, authoritative, and
   internally consistent validation state
+
+## Day 14
+
+**Objective:** Close Sprint 44 from the Day 13 validated baseline, synthesize
+the Phase-2 graph decomposition plus first large-test maintainability landing
+as one coherent handoff, and make the residual later-Epic-4 queue explicit
+instead of implied.
+
+### Commands Run
+
+1. Re-read the Sprint 44 Day 14 closeout criteria and current validated state:
+   - `sed -n '430,520p' docs/planning/EPIC_4/SPRINT_44/PLAN.md`
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_44/artifacts/day13-full-validation-sweep.md`
+   - `tail -n 220 docs/planning/EPIC_4/SPRINT_44/WORKING_NOTES.md`
+2. Re-read recent Epic 4 Day 14 closeout artifacts for handoff shape:
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_43/artifacts/day14-closeout-and-handoff.md`
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_42/artifacts/day14-closeout-and-handoff.md`
+3. Write the Sprint 44 closeout artifact and update working notes.
+4. Check whether Sprint 44 surfaced any newly deferred item that requires a
+   `PROJECT_PLAN.md` update.
+
+### Day 14 Findings
+
+#### 1. Sprint 44 now hands off one coherent Phase-2 graph decomposition package
+
+The graph / ND subsystem handoff after Sprint 44 is now:
+
+- `src/sparse_graph_core.c`
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_graph_bisect.c`
+- `src/sparse_graph_refine.c`
+- `src/sparse_graph_separator.c`
+- narrowed residual orchestration in `src/sparse_graph.c`
+
+Interpretation:
+
+- Sprint 44 did not just add another extracted file or two
+- it completed the major Phase-2 residual seam moves that Sprint 43 left
+  intentionally deferred:
+  - FM refinement
+  - separator lifting / separator-policy selection
+  - residual runtime/orchestration cleanup
+
+#### 2. Sprint 44 also landed the first bounded large-test maintainability proof point
+
+The sprint's test-maintainability result is intentionally modest but real:
+
+- `tests/test_qr.c` now has small local helper seams for repeated
+  reconstruction and solve-residual validation
+- the one-binary-per-test model stayed intact
+- no cross-file helper layer or test-framework redesign was introduced
+
+Interpretation:
+
+- Sprint 44 proved that the large-test maintainability queue can be reduced
+  through bounded helper extraction without coupling it to broad file-splitting
+  churn
+
+#### 3. Sprint 44 closes from the measured Day 13 validation baseline
+
+The closeout baseline remains the Day 13 authoritative sweep:
+
+- `make format` → passed
+- `make lint` → passed
+- `make test` → passed
+- `make quality-review-full` → passed
+
+Truthfulness anchors remained exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+
+The direct touched-surface reruns also remained green:
+
+- `./build/test_graph`
+- `./build/test_graph_fm_buckets`
+- `./build/test_reorder_nd`
+- `./build/test_reorder_amd_qg`
+- `./build/test_qr`
+
+Interpretation:
+
+- Sprint 44 closes from a measured validated state rather than from local
+  confidence in the extraction and helper batches
+
+#### 4. The residual later-Epic-4 queue is now explicit
+
+Sprint 44 intentionally does **not** finish all graph or large-test
+maintainability work.
+
+The remaining graph-side queue is now narrower and later-phase in nature:
+
+- deeper residual orchestration simplification in `src/sparse_graph.c`
+- any future sub-splitting of retry/fallback glue only if later evidence
+  justifies it
+- any broader readability or policy cleanup that is no longer tied to a real
+  ownership seam
+
+The remaining large-test maintainability queue is also explicit:
+
+- later helper/fixture consolidation candidates:
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_svd.c`
+- any future test-file splitting or broader domain-specific fixture extraction
+  only when a later sprint chooses that scope directly
+
+Interpretation:
+
+- Sprint 44 leaves behind a smaller, more honest queue
+- it does not pretend the entire remaining graph/test-maintainability surface
+  should have been finished in one sprint
+
+#### 5. `PROJECT_PLAN.md` did not need a closeout update
+
+I checked whether Sprint 44 surfaced any new deferred item not already covered
+by the later Epic 4 plan.
+
+Result:
+
+- no `PROJECT_PLAN.md` update needed
+
+Reason:
+
+- the remaining work fits inside the already-expected later graph cleanup and
+  large-test maintainability phases rather than creating a new planning branch

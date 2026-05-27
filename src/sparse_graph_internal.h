@@ -175,8 +175,10 @@ sparse_err_t sparse_graph_subgraph(const sparse_graph_t *parent, const idx_t *ve
  *   - implementation now lives in `src/sparse_graph_coarsen.c`
  *   - new coarsening helpers should not be added back to the
  *     remaining `src/sparse_graph.c` monolith
- *   - coarse-bisection support is intentionally grouped in the next
- *     section because that is the next planned extraction seam
+ *   - coarse-bisection support now lives in
+ *     `src/sparse_graph_bisect.c`, so new bisection helpers should
+ *     land there rather than drifting back into the remaining
+ *     orchestration layer
  */
 
 /**

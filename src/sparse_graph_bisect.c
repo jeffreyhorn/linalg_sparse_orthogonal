@@ -122,9 +122,9 @@ static void bfs_distances(const sparse_graph_t *G, idx_t start, idx_t *dist, idx
                  * check above), so over the lifetime of the BFS at
                  * most G->n entries get appended.  clang-analyzer
                  * doesn't track the dist[]-vs-queue invariant; this
-                 * suppression matches the existing pattern at
-                 * sparse_graph.c:269/301/622/624/656 + Sprint 22's
-                 * sparse_etree.c. */
+                 * suppression matches the existing queue-bound
+                 * annotation pattern in this graph subsystem and in
+                 * Sprint 22's `sparse_etree.c`. */
                 // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
                 queue[tail++] = u;
             }

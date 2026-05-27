@@ -556,3 +556,187 @@ Interpretation:
 
 - Day 3 turns the later build/include work into a wiring problem, not another
   architecture-design pass
+
+## Day 4
+
+**Objective:** Turn the Day 3 file layout into a concrete build/include
+strategy so the later extraction batches know exactly how to update source
+lists, shared declarations, local-only helpers, and graph-focused test wiring
+without reopening the architecture question.
+
+### Commands Run
+
+1. Re-read the Sprint 43 Day 4 plan section:
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_43/PLAN.md`
+2. Re-read the Day 3 module-boundary design:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_43/artifacts/day3-graph-module-boundary-design.md`
+3. Sweep the current build/test wiring for graph-adjacent sources and tests:
+   - `rg -n "sparse_graph\\.c|sparse_graph_internal\\.h|sparse_graph_fm_buckets\\.h|sparse_reorder_nd|test_graph|test_graph_fm_buckets|test_reorder_nd|test_reorder_amd_qg" Makefile CMakeLists.txt tests src | sed -n '1,240p'`
+4. Re-read the current maintained build surfaces:
+   - `sed -n '1,220p' Makefile`
+   - `sed -n '1,220p' CMakeLists.txt`
+
+### Day 4 Findings
+
+#### 1. The build-system change is a controlled source-list expansion, not a new build-model problem
+
+Both maintained build surfaces already treat the library as an explicit source
+list:
+
+- `Makefile`
+  - `LIB_SRCS = ...`
+- `CMakeLists.txt`
+  - `add_library(sparse_lu_ortho STATIC ...)`
+
+Day 4 implication:
+
+- Sprint 43 does not need generator logic, globbing changes, or a new graph
+  sub-build model
+- the extraction batches should simply:
+  - add `src/sparse_graph_core.c`
+  - add `src/sparse_graph_coarsen.c`
+  - add `src/sparse_graph_bisect.c`
+  - keep the remaining `src/sparse_graph.c`
+
+Interpretation:
+
+- build wiring for Phase 1 is a straightforward explicit-list update
+- this stays aligned with the repo's existing truthfulness model for both
+  `Makefile` and CMake
+
+#### 2. `src/sparse_graph_internal.h` should remain the single shared graph contract surface for Phase 1
+
+The current repo already routes graph and ND users through one main internal
+header:
+
+- `src/sparse_graph_internal.h`
+
+It is consumed by:
+
+- `src/sparse_reorder_nd.c`
+- `tests/test_graph.c`
+- `tests/test_reorder_nd.c`
+- the graph monolith itself
+
+Day 4 decision:
+
+- keep `src/sparse_graph_internal.h` as the shared internal graph surface in
+  Phase 1
+- expand it only where extracted modules need cross-file declarations
+- avoid creating several new narrow internal headers unless a later batch
+  exposes a real need
+
+Interpretation:
+
+- the extracted files should share one authoritative graph contract surface
+- Sprint 43 avoids premature header-tree fragmentation
+
+#### 3. FM bucket support stays isolated in its own header and remains Phase-1 local to the remaining monolith
+
+The repo already has a narrow FM support header:
+
+- `src/sparse_graph_fm_buckets.h`
+
+Current users:
+
+- `src/sparse_graph.c`
+- `tests/test_graph_fm_buckets.c`
+
+Day 4 decision:
+
+- keep `src/sparse_graph_fm_buckets.h` separate
+- do not fold FM bucket declarations into `src/sparse_graph_internal.h`
+- do not make extracted Phase-1 files depend on FM bucket internals
+
+Interpretation:
+
+- FM bucket support remains explicitly part of the later-phase FM seam
+- this protects the Phase-1 extraction batches from accidental FM coupling
+
+#### 4. Declaration placement should follow a simple shared-vs-local rule
+
+Phase-1 shared declarations belong in `src/sparse_graph_internal.h` when they
+are required by more than one of:
+
+- `src/sparse_graph_core.c`
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_graph_bisect.c`
+- remaining `src/sparse_graph.c`
+- `src/sparse_reorder_nd.c`
+- graph-focused tests that already consume internal graph APIs
+
+Phase-1 declarations should stay translation-unit local when they are:
+
+- helper-only comparators or tiny support structs
+- parser enums or support helpers used by just one implementation unit
+- FM-only thread-local state
+- separator-lift-only scoring helpers
+- one-off local scoring/shuffle helpers with no stable external consumer
+
+Interpretation:
+
+- Day 5-9 code movement should add shared declarations only when the extracted
+  seam genuinely needs them
+- the default remains local scope, not shared scope
+
+#### 5. Include-order risk is real around ND and graph tests, but the dependency graph is still simple
+
+The current high-signal dependency edges are:
+
+- `src/sparse_reorder_nd.c` -> `src/sparse_graph_internal.h`
+- `tests/test_graph.c` -> `src/sparse_graph_internal.h`
+- `tests/test_reorder_nd.c` -> `src/sparse_graph_internal.h`
+- `tests/test_graph_fm_buckets.c` -> `src/sparse_graph_fm_buckets.h`
+
+Day 4 implication:
+
+- extracted Phase-1 files should include `src/sparse_graph_internal.h`
+- ND and graph tests should continue to consume the same shared graph-internal
+  header rather than being retargeted to per-file private declarations
+- FM bucket tests should remain pointed at the narrow FM header only
+
+Interpretation:
+
+- include-order risk is mostly about keeping the shared graph contract surface
+  coherent, not about deep cyclic dependency problems
+
+#### 6. The graph-focused test wiring does not need structural change in Phase 1
+
+The maintained graph-focused tests already live as ordinary test executables in
+both build systems:
+
+- `test_graph`
+- `test_graph_fm_buckets`
+- `test_reorder_nd`
+- `test_reorder_amd_qg`
+
+Day 4 decision:
+
+- no new test target families are needed
+- no build-system specialization is needed for extracted graph modules
+- later seam tests should simply extend the existing graph-focused binaries
+
+Interpretation:
+
+- the testing follow-through in later Sprint 43 days is a coverage problem, not
+  a build-topology problem
+
+#### 7. The extraction batches now have concrete wiring rules
+
+When Phase-1 code movement starts, the rule set is:
+
+1. update both library source lists in lockstep:
+   - `Makefile`
+   - `CMakeLists.txt`
+2. keep `src/sparse_graph_internal.h` as the shared contract surface
+3. keep `src/sparse_graph_fm_buckets.h` isolated to the FM seam
+4. add declarations to the shared header only when they have multiple stable
+   consumers
+5. keep helper-only and phase-local support logic translation-unit local
+6. do not change graph test target topology just because the implementation
+   file count increases
+
+Interpretation:
+
+- Day 5 and later extraction work now has a concrete wiring checklist
+- the remaining uncertainty is implementation detail, not build/include policy

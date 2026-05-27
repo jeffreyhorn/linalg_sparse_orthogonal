@@ -1241,3 +1241,137 @@ Interpretation:
 - the remaining graph cleanup queue is now concrete rather than generic
 - Sprint 44 can finish the Phase-2 graph pass with one bounded residual
   cleanup batch
+
+## Day 8
+
+**Objective:** Land one bounded residual cleanup pass in `src/sparse_graph.c`
+so the remaining Phase-2 graph file reads like orchestration-owned runtime
+composition rather than another hidden subsystem, while preserving the Day 7
+keep-local boundary for retry/fallback glue and top-level partition control.
+
+### Commands Run
+
+1. Re-read the Sprint 44 Day 8 plan section and the Day 7 audit:
+   - `sed -n '92,126p' docs/planning/EPIC_4/SPRINT_44/PLAN.md`
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_44/artifacts/day7-runtime-strategy-and-orchestration-audit.md`
+2. Re-read the live residual orchestration path before editing:
+   - `sed -n '140,520p' src/sparse_graph.c`
+   - `rg -n "SPARSE_FM_FINEST_PASSES|SPARSE_FM_FINEST_STRATEGY|SPARSE_FM_ENSEMBLE_STRATEGIES|SPARSE_FM_ENSEMBLE_DEBUG|SPARSE_FM_INTERMEDIATE_PASSES|SPARSE_FM_THICK_RESTART_DEBUG|graph_uncoarsen|partition_once|sparse_graph_partition" src/sparse_graph.c`
+3. Re-read the shared graph internal declarations for residual ownership
+   context:
+   - `sed -n '320,470p' src/sparse_graph_internal.h`
+4. Edit the residual orchestration path in `src/sparse_graph.c`:
+   - consolidate local env-var parsing / runtime-selection helpers
+   - update residual section/ownership wording
+5. Run the required validation gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+
+### Day 8 Findings
+
+#### 1. The best remaining cleanup really was local orchestration parsing consolidation
+
+Day 8 did **not** uncover another extractable module.
+
+The real cleanup seam was the repeated env-var parsing and dispatch setup around
+`graph_uncoarsen(...)`:
+
+- finest-pass count parsing
+- finest-strategy parsing
+- ensemble-strategy list parsing
+- ensemble debug flag reads
+- intermediate-pass count parsing
+- thick-restart debug flag reads
+
+Those blocks are now routed through small local residual helpers instead of
+being open-coded inline.
+
+Interpretation:
+
+- the Day 7 audit was accurate
+- the right Phase-2 closeout move was simplification in place, not another file
+  split
+
+#### 2. `src/sparse_graph.c` now reads more clearly as orchestration-owned runtime composition
+
+The Day 8 batch introduced a small local helper layer for the remaining
+orchestration path:
+
+- `graph_parse_env_int_range(...)`
+- `graph_parse_finest_strategy(...)`
+- `graph_parse_ensemble_strategy_list(...)`
+- `graph_env_flag_enabled(...)`
+- `graph_uncoarsen_level_passes(...)`
+- `graph_uncoarsen_runtime_for_level(...)`
+
+These helpers now own the repetitive residual decisions around:
+
+- finest vs intermediate pass counts
+- baseline/FIFO/annealing/thick-restart/ensemble dispatch selection
+- debug-flag enablement
+- per-level FM runtime setup
+
+Interpretation:
+
+- the file now expresses the residual queue as:
+  - uncoarsening/runtime composition
+  - top-level partition orchestration
+  - retry/fallback glue
+- it no longer reads like it still owns a hidden FM parser subsystem
+
+#### 3. Ownership wording is now aligned with the live Sprint 44 split
+
+Day 8 also corrected the strongest stale wording in the residual file:
+
+- the old section banner:
+  - `Uncoarsening + vertex-separator extraction`
+- now reads as:
+  - `Uncoarsening + residual orchestration runtime`
+
+Interpretation:
+
+- Day 5 and Day 6 already moved FM and separator ownership
+- Day 8 now makes the residual file say that directly instead of preserving
+  stale pre-extraction wording
+
+#### 4. The keep-local orchestration boundary held
+
+Day 8 intentionally did **not** move or redesign:
+
+- `graph_uncoarsen(...)`
+- `graph_hierarchy_coarsest(...)`
+- `graph_partition_seed_coarsest(...)`
+- `graph_partition_count_separator_vertices(...)`
+- `graph_partition_should_retry_with_forced_hem(...)`
+- `partition_once(...)`
+- `sparse_graph_partition(...)`
+
+It also did **not** change:
+
+- retry-policy semantics
+- finest/intermediate FM strategy behavior
+- public graph APIs
+- shared graph header shape
+
+Interpretation:
+
+- the cleanup stayed inside the intended Sprint 44 Day 8 boundary
+- Sprint 44 did not reopen Phase-1/Phase-2 design decisions that were already
+  settled
+
+#### 5. The required validation gate passed after the residual cleanup
+
+Because `src/sparse_graph.c` changed, the full required gate was run:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Interpretation:
+
+- the residual orchestration cleanup is validated as behavior-preserving
+- Sprint 44 can now move on from graph-structure cleanup into the focused test
+  maintainability work on the preserved Day 13-style quality baseline

@@ -100,6 +100,7 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_eigs.c
     src/sparse_graph_core.c
     src/sparse_graph_coarsen.c
+    src/sparse_graph_bisect.c
     src/sparse_graph.c
     src/sparse_reorder_nd.c
     src/sparse_reorder_amd_qg.c

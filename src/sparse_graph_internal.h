@@ -315,10 +315,11 @@ void sparse_graph_hierarchy_free(sparse_graph_hierarchy_t *h);
  * ═══════════════════════════════════════════════════════════════════════
  *
  * Sprint 43 Phase 1 extraction note:
- *   - coarse-bisection support still lives in the remaining
- *     `src/sparse_graph.c` monolith
- *   - FM refinement and uncoarsening remain grouped here
- *     intentionally until later sprint phases
+ *   - coarse-bisection support now lives in
+ *     `src/sparse_graph_bisect.c`
+ *   - FM refinement and uncoarsening remain in the remaining
+ *     `src/sparse_graph.c` monolith intentionally until later
+ *     sprint phases
  *
  * Day 4's uncoarsening pipeline composes these two routines: bisect
  * the coarsest hierarchy level into an initial 2-way partition, then

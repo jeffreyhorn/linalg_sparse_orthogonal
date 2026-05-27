@@ -1270,3 +1270,138 @@ Interpretation:
 - the cleanup batch preserved behavior
 - the graph subsystem is now in a cleaner state for Day 9 coarse-bisection
   extraction
+
+## Day 9
+
+**Objective:** Extract the bounded coarse-level bisection seam into its own
+implementation unit while preserving current strategy semantics and leaving FM
+refinement, uncoarsening, separator lifting, and top-level orchestration in
+place.
+
+### Commands Run
+
+1. Re-read the Sprint 43 Day 9 plan section and the Day 8 closeout artifact:
+   - `sed -n '220,340p' docs/planning/EPIC_4/SPRINT_43/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_43/artifacts/day8-hierarchy-coarsening-extraction-batch2.md`
+2. Map the exact bisection seam in the live graph surfaces:
+   - `rg -n "compute_cut_weight|bisect_brute_force|bfs_distances|bisect_gggp|graph_build_laplacian|cmp_double_asc|graph_bisect_coarsest_spectral|coarsest_bisect_strategy_t|parse_coarsest_bisect_strategy|graph_bisect_coarsest|fm_bucket|graph_uncoarsen" src/sparse_graph.c src/sparse_graph_internal.h`
+   - `sed -n '360,890p' src/sparse_graph.c`
+3. Recheck build wiring before edits:
+   - `sed -n '1,120p' Makefile`
+   - `sed -n '1,140p' CMakeLists.txt`
+4. After landing the extraction, run the full required gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+
+### Day 9 Findings
+
+#### 1. The actual coarse-bisection seam moved cleanly into its own file
+
+Day 9 moved the bounded coarse-level split logic out of
+`src/sparse_graph.c` into:
+
+- `src/sparse_graph_bisect.c`
+
+The moved slice includes:
+
+- brute-force coarse search
+- GGGP coarse split
+- Laplacian builder
+- spectral coarse split
+- coarsest-bisection strategy parsing
+- top-level coarse-bisection dispatch
+
+Interpretation:
+
+- the Day 8 interface cleanup was enough
+- no extra graph-header redesign was needed to land the first bisection file
+
+#### 2. `compute_cut_weight(...)` was the main helper that correctly stayed behind
+
+One important shared helper did **not** move:
+
+- `compute_cut_weight(...)`
+
+It stayed in `src/sparse_graph.c` because it still serves:
+
+- FM refinement
+- uncoarsening rollback / anchor comparisons
+- ensemble and refinement bookkeeping
+
+Interpretation:
+
+- this was the right bounded seam
+- forcing that helper into the bisection file would have created a fake
+  dependency reversal into later graph phases
+
+#### 3. The remaining monolith is now materially narrower and more focused
+
+After the extraction, `src/sparse_graph.c` now retains primarily:
+
+- FM bucket / refinement implementation
+- `graph_uncoarsen(...)`
+- separator lifting
+- top-level `partition_once(...)`
+- `sparse_graph_partition(...)`
+
+Interpretation:
+
+- the file is now much closer to the Day 10 reconciliation target
+- the remaining hotspot is no longer carrying construction, coarsening, and
+  coarse bisection together
+
+#### 4. Shared declarations and build wiring stayed aligned with the move
+
+Day 9 also updated:
+
+- `Makefile`
+- `CMakeLists.txt`
+- `src/sparse_graph_internal.h`
+- the ownership note at the top of `src/sparse_graph.c`
+
+Interpretation:
+
+- the extracted module is wired as a first-class library source
+- the shared internal contract now points to the real bisection owner instead
+  of the old monolith
+
+#### 5. The keep-bounded rule held again
+
+Day 9 intentionally did **not** move:
+
+- FM refinement
+- `graph_uncoarsen(...)`
+- separator lifting
+- top-level retry/orchestration glue
+
+Interpretation:
+
+- the Sprint 43 Phase-1 order is still holding cleanly
+- Day 10 can now focus on glue reconciliation instead of another subsystem
+  carve-out
+
+#### 6. Full validation passed after the extraction
+
+Because `*.c` and `*.h` files changed, the full required gate ran:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+The authoritative `make test` sweep also covered the graph/ND surfaces most
+relevant to the split:
+
+- `test_graph`
+- `test_graph_fm_buckets`
+- `test_reorder_nd`
+- `test_reorder_amd_qg`
+
+All remained green.
+
+Interpretation:
+
+- the new `src/sparse_graph_bisect.c` seam is wired correctly
+- graph partitioning behavior remained stable through the extraction

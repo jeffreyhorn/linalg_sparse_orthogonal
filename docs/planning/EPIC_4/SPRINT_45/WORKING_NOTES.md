@@ -1518,3 +1518,163 @@ Interpretation:
 - the wrapper/composition cleanup queue is now materially smaller
 - Sprint 45 can shift from internal structure cleanup to measured repeated-solve
   evidence
+
+## Day 10
+
+**Objective:** Define the smallest honest repeated-solve benchmark slice that
+can demonstrate allocator-churn reduction from the Sprint 45 iterative
+workspace landings, while avoiding broader benchmark harness churn or unstable
+performance claims.
+
+### Commands Run
+
+1. Re-read the Sprint 45 Day 10 plan section and the Day 9 handoff:
+   - `sed -n '325,365p' docs/planning/EPIC_4/SPRINT_45/PLAN.md`
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_45/artifacts/day9-wrapper-compatibility-batch.md`
+2. Audit the live benchmark/example surfaces relevant to repeated iterative
+   solves:
+   - `rg -n "iterative|gmres|cg|repeat|reuse|workspace|benchmark" benchmarks/bench_convergence.c benchmarks/bench_refactor.c benchmarks/bench_bicgstab.c benchmarks/bench_main.c examples/example_iterative.c examples/example_matrix_free.c`
+3. Re-read the strongest benchmark structure precedents directly:
+   - `sed -n '1,260p' benchmarks/bench_convergence.c`
+   - `sed -n '1,220p' benchmarks/bench_refactor.c`
+   - `sed -n '460,575p' benchmarks/bench_main.c`
+4. Reconfirm the Epic 4 planning/review intent for repeated-solve evidence:
+   - `rg -n "benchmark|repeated|repeat|reuse|workspace" docs/planning/EPIC_4/PROJECT_PLAN.md docs/planning/EPIC_4/reviews/todo-codex-2026-05-21.md`
+5. Confirm final state:
+   - `git status --short`
+   - `git rev-parse --short HEAD`
+
+### Day 10 Findings
+
+#### 1. The current benchmark surface still measures one-shot solver calls, not the new reusable-workspace seam directly
+
+The live benchmark surfaces split clearly:
+
+- `bench_convergence.c`
+  - convergence tables and residual-vs-iteration history
+  - one-shot calls to:
+    - `sparse_solve_cg(...)`
+    - `sparse_solve_gmres(...)`
+- `bench_main --iterative`
+  - one-shot iterative timing summaries
+  - again centered on public one-shot entry points
+- `bench_bicgstab.c`
+  - solver comparison benchmark, but not a reusable-workspace measurement seam
+
+Interpretation:
+
+- the existing iterative benchmarks are useful baselines
+- they are not yet direct evidence of Sprint 45's internal workspace reuse
+- Day 11 should add a repeated-call comparison slice rather than repurposing
+  the current convergence-oriented tables wholesale
+
+#### 2. `bench_refactor.c` is the right structural precedent for Day 11
+
+`bench_refactor.c` already has the comparison shape Sprint 45 needs:
+
+- Approach A:
+  - repeated one-shot calls
+- Approach B:
+  - reusable internal state on the same stable shape/problem
+- bounded wall-clock comparison
+- no broad harness abstraction
+
+Interpretation:
+
+- Day 11 should copy this comparison style rather than inventing a new
+  benchmark framework
+- the right Sprint 45 evidence form is:
+  - repeated one-shot iterative solve
+  - repeated reusable-workspace-backed iterative solve
+  - stable dimensions and stable operator/preconditioner context
+
+#### 3. The strongest Day 11 target set is scalar CG plus scalar GMRES
+
+The best first repeated-solve targets are:
+
+- scalar CG
+- scalar GMRES
+
+Reasons:
+
+- both now participate in the shared iterative workspace seam
+- both already have benchmark visibility in:
+  - `bench_convergence.c`
+  - `bench_main --iterative`
+- both avoid the extra interpretation burden of block wrappers or solver-family
+  edge cases
+
+Interpretation:
+
+- Day 11 should center on one SPD repeated-CG case and one general repeated-
+  GMRES case
+- this is enough to demonstrate the Sprint 45 workspace model on the main
+  migrated scalar paths
+
+#### 4. Block CG is the only reasonable optional add-on, and only if it stays obviously small
+
+After Day 8, block CG is the only block path that represents a true direct
+workspace migration rather than primarily a wrapper/composition surface.
+
+Interpretation:
+
+- if Day 11 has an optional third case, it should be block CG
+- block GMRES, block MINRES, and block BiCGSTAB should not be the first
+  repeated-solve benchmark targets because their main Day 9 significance is
+  wrapper normalization, not unique workspace ownership
+
+#### 5. The benchmark comparison model should stay narrow and claim-safe
+
+The right comparison model is:
+
+- same matrix/problem shape
+- same tolerance/options
+- same operator/preconditioner context
+- repeated call loop with stable dimensions
+- report:
+  - wall time
+  - iteration counts / convergence summary
+  - allocation-path interpretation notes
+
+It should **not** claim:
+
+- universal speedups
+- machine-independent runtime guarantees
+- allocator counts unless Day 11 adds a bounded trustworthy counter
+
+Interpretation:
+
+- Day 11 should produce evidence, not marketing claims
+- Sprint 45 needs a narrow repeated-solve measurement slice, not a generalized
+  performance-reporting framework
+
+#### 6. The likely Day 11 landing site is a small dedicated benchmark, not a broad `bench_main` CLI expansion
+
+The cleanest implementation shapes are:
+
+- a new small dedicated repeated-solve benchmark source
+- or a very small dedicated mode in an existing iterative benchmark file
+
+The least attractive Day 11 move is:
+
+- broadening `bench_main` CLI surface during Sprint 45
+
+Interpretation:
+
+- CLI modernization belongs later in Epic 4
+- Day 11 should minimize parser churn and maximize comparison clarity
+
+#### 7. The concrete Day 11 plan is now bounded
+
+The right Day 11 scope is:
+
+1. add one repeated-solve CG case
+2. add one repeated-solve GMRES case
+3. optionally add one block-CG case only if it stays very small
+4. use the `bench_refactor` A/B comparison pattern
+5. record measured outputs in the artifact without overstating them
+
+Interpretation:
+
+- Day 10 succeeded: it turned a vague “benchmark evidence” task into a
+  specific, low-churn Day 11 plan

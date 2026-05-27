@@ -1,6 +1,7 @@
 /*
- * sparse_graph.c — Multilevel graph partitioner for Sprint 22 nested
- *                  dissection.
+ * sparse_graph.c — Remaining coarse-bisection / FM / orchestration
+ *                  slice of the Sprint 22 multilevel graph
+ *                  partitioner.
  *
  * ─── Design block ─────────────────────────────────────────────────────
  *
@@ -98,14 +99,21 @@
  *     Improving Network Partitions", DAC'82.  The FM refinement
  *     algorithm.
  *
- * **Shipped Sprint 22 contents.**  `sparse_graph_t` data structure
- * (Day 1), `sparse_graph_from_sparse` / `sparse_graph_free` (Day 1),
- * heavy-edge matching coarsener (Day 2), coarsest-graph bisection +
- * Fiduccia-Mattheyses refinement (Day 3), uncoarsening +
- * edge-to-vertex separator (Day 4), and the `sparse_graph_subgraph`
- * helper (Day 5) — collectively assembled into the multilevel
- * `sparse_graph_partition` entry point that the Day 6 recursive ND
- * driver in `src/sparse_reorder_nd.c` consumes.
+ * **Sprint 43 Phase 1 ownership note.**
+ *   - graph construction / ownership now lives in
+ *     `src/sparse_graph_core.c`
+ *   - hierarchy / coarsening now lives in
+ *     `src/sparse_graph_coarsen.c`
+ *   - this file intentionally retains:
+ *       - coarse bisection
+ *       - FM refinement
+ *       - uncoarsening
+ *       - separator lifting
+ *       - top-level partition orchestration
+ *
+ * That split keeps the current extraction phase bounded while
+ * preserving the original multilevel partition contract consumed by
+ * `src/sparse_reorder_nd.c`.
  */
 
 #include "sparse_eigs.h"

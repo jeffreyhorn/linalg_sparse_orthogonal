@@ -1138,3 +1138,135 @@ Interpretation:
 - the Phase-1 extraction order is holding
 - the sprint is positioned to move into bisection without re-auditing the
   coarsening module again
+
+## Day 8
+
+**Objective:** Complete the planned first-phase hierarchy/coarsening
+extraction by landing the residual shared-interface and ownership cleanup the
+Day 7 audit identified, without pulling coarse-bisection, FM refinement, or
+separator-lifting work forward.
+
+### Commands Run
+
+1. Re-read the Sprint 43 Day 8 plan section and the Day 7 audit:
+   - `sed -n '150,260p' docs/planning/EPIC_4/SPRINT_43/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_43/artifacts/day7-residual-coarsening-hierarchy-audit.md`
+2. Re-audit the live declaration/ownership split:
+   - `rg -n "coarsen|hierarch|coarsening_strategy|force_hem|parse_coarsening|sparse_graph_hierarchy|graph_coarsen|coarse_edge_t|splitmix64|fisher_yates" src/sparse_graph.c src/sparse_graph_coarsen.c src/sparse_graph_internal.h`
+   - `sed -n '130,360p' src/sparse_graph_internal.h`
+   - `sed -n '1,140p' src/sparse_graph.c`
+   - `sed -n '1,120p' src/sparse_graph_core.c`
+3. After landing the Day 8 cleanup, run the full required gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+
+### Day 8 Findings
+
+#### 1. The real residual Phase-1 risk was interface drift, not missing coarsening code movement
+
+The Day 7 audit held up under the final Day 8 pass:
+
+- `src/sparse_graph_coarsen.c` already owned the real hierarchy/coarsening
+  implementation seam
+- the remaining monolith did not hide another large coarsening block
+- the main residual mismatch was that the shared internal header still grouped
+  one coarse-bisection helper under the coarsening surface
+
+Interpretation:
+
+- the correct Day 8 batch was interface/ownership cleanup
+- another broad code move would have been fake progress
+
+#### 2. `graph_build_laplacian(...)` was the main declaration that still blurred the next seam
+
+Before Day 8, `graph_build_laplacian(...)` still sat inside the coarsening
+section of `src/sparse_graph_internal.h`, even though it exists only to
+support spectral coarse bisection.
+
+Day 8 moved it into the coarse-bisection / FM section.
+
+Interpretation:
+
+- the header now reflects the actual subsystem boundary more honestly
+- Day 9 no longer inherits a coarsening-vs-bisection grouping ambiguity for
+  the spectral path
+
+#### 3. The shared internal header now documents the extracted coarsening seam explicitly
+
+Day 8 also tightened the coarsening banner in
+`src/sparse_graph_internal.h` so it now states directly that:
+
+- the implementation lives in `src/sparse_graph_coarsen.c`
+- new coarsening helpers should not drift back into `src/sparse_graph.c`
+- the next grouped seam is coarse bisection, not more coarsening
+
+Interpretation:
+
+- the header is now a better ownership map for later graph work
+- the coarsening module is less likely to regress into "split in code, merged
+  in comments"
+
+#### 4. The remaining monolith now documents its real Sprint 43 ownership more accurately
+
+The top-level note in `src/sparse_graph.c` now names the file as the
+remaining:
+
+- coarse-bisection
+- FM refinement
+- uncoarsening
+- separator lifting
+- top-level orchestration
+
+slice, while pointing construction/ownership to `src/sparse_graph_core.c` and
+hierarchy/coarsening to `src/sparse_graph_coarsen.c`.
+
+Interpretation:
+
+- the file no longer reads like it still owns the full graph pipeline
+- that makes the next extraction batches less error-prone
+
+#### 5. The keep-bounded rule still held
+
+Day 8 intentionally did **not** move:
+
+- coarse-bisection implementation
+- `graph_uncoarsen(...)`
+- FM refinement
+- separator lifting
+- top-level retry/orchestration glue
+
+Interpretation:
+
+- Sprint 43 stayed inside the Day 7 boundary
+- the extraction order remains:
+  - graph ownership / construction
+  - hierarchy / coarsening
+  - coarse bisection
+  - later FM / separator cleanup
+
+#### 6. Full validation passed after the cleanup
+
+Because `*.c` and `*.h` files changed, the full required gate ran:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+The authoritative `make test` sweep also covered the graph-focused regression
+surface most relevant to the current subsystem split:
+
+- `test_graph`
+- `test_graph_fm_buckets`
+- `test_reorder_nd`
+- `test_reorder_amd_qg`
+
+All remained green.
+
+Interpretation:
+
+- the cleanup batch preserved behavior
+- the graph subsystem is now in a cleaner state for Day 9 coarse-bisection
+  extraction

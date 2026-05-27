@@ -943,3 +943,165 @@ Interpretation:
 - Day 5 converted the Sprint 45 workspace plan from design-only to live code
 - later sprint days can now focus on controlled migration breadth rather than
   on inventing the common layer
+
+## Day 6
+
+**Objective:** Convert the main remaining scalar repeated-solve paths onto the
+Day 5 shared workspace seam without widening into block paths, benchmarks, or
+public API changes, and close the batch from a fully validated baseline.
+
+### Commands Run
+
+1. Re-read the Sprint 45 Day 6 plan section and the Day 5 handoff:
+   - `sed -n '191,218p' docs/planning/EPIC_4/SPRINT_45/PLAN.md`
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_45/artifacts/day5-shared-iterative-buffer-layer-batch1.md`
+2. Re-read the live matrix-free CG and GMRES paths before editing:
+   - `sed -n '340,760p' src/sparse_iterative.c`
+   - `sed -n '760,1260p' src/sparse_iterative.c`
+3. Reconfirm the landed Day 5 helper surface:
+   - `sed -n '1,220p' src/sparse_iterative_workspace_internal.h`
+   - `sed -n '1,260p' src/sparse_iterative_workspace_internal.c`
+4. Land the bounded Day 6 migration in `src/sparse_iterative.c`:
+   - matrix-free CG
+   - matrix-free GMRES
+   - matrix-backed GMRES via its existing wrapper delegation
+5. Run the required gate for `*.c` changes:
+   - `make format`
+   - `make lint`
+   - `make test`
+6. Run targeted touched-surface follow-ons:
+   - `./build/test_iterative`
+   - `./build/test_stagnation`
+   - `./build/example_matrix_free`
+7. Inspect the final change surface and branch state:
+   - `git diff --stat`
+   - `git status --short`
+
+### Day 6 Findings
+
+#### 1. Sprint 45's primary scalar iterative paths now share one reusable-workspace model
+
+The Day 6 migration now covers:
+
+- `sparse_solve_cg_mf(...)`
+- `sparse_solve_gmres_mf(...)`
+
+And because the matrix-backed GMRES entry point is already a wrapper over the
+matrix-free core:
+
+- `sparse_solve_gmres(...)` now participates automatically in the same shared
+  workspace path
+
+Interpretation:
+
+- Sprint 45's primary repeated-solve scalar paths are no longer split between
+  raw one-shot heap bundles and the new shared owner
+- the iterative subsystem now has one coherent CG/GMRES workspace story across
+  matrix-backed and matrix-free variants
+
+#### 2. Matrix-free CG adopted the Day 5 shared seam cleanly
+
+`sparse_solve_cg_mf(...)` now:
+
+- initializes `sparse_iter_workspace_t`
+- prepares `sparse_cg_workspace_view_t`
+- binds:
+  - `r`
+  - `z`
+  - `p`
+  - `Ap`
+- frees the shared owner on all exits
+
+Interpretation:
+
+- the Day 5 CG view was correctly general enough for both matrix-backed and
+  matrix-free CG
+- no extra CG-specific workspace redesign was needed for Day 6
+
+#### 3. GMRES adopted the shared seam without reopening algorithm control
+
+`sparse_solve_gmres_mf(...)` now uses the shared GMRES typed view for:
+
+- Arnoldi basis storage
+- Hessenberg storage
+- Givens rotation scratch
+- Hessenberg-space residual/solve vectors
+- the main temporary work vector
+
+But it still keeps solver-local:
+
+- restart-loop control
+- Arnoldi / lucky-breakdown flow
+- callback/progress handling
+- preconditioner-side branching
+- final true-residual checks
+
+Interpretation:
+
+- the Day 3 / Day 4 shared-vs-local boundary held in the GMRES migration too
+- Day 6 changed storage ownership, not GMRES behavior policy
+
+#### 4. The Day 5 helper layer proved sufficient as designed
+
+Day 6 did not require:
+
+- new public APIs
+- a second helper layer
+- special-case matrix-free workspace objects
+- block-path helper expansion
+
+The existing Day 5 internal layer was sufficient for:
+
+- CG matrix-free adoption
+- GMRES matrix-free adoption
+- matrix-backed GMRES via wrapper composition
+
+Interpretation:
+
+- Sprint 45's implementation order is working as intended
+- Day 5's shared owner + typed-view design was broad enough for the first
+  primary-solver migration batch
+
+#### 5. Validation closed cleanly for the touched CG/GMRES paths
+
+Because `*.c` changed, the required gate was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Targeted touched-surface follow-ons also passed:
+
+- `./build/test_iterative`
+- `./build/test_stagnation`
+- `./build/example_matrix_free`
+
+Representative live outcomes:
+
+- direct iterative reruns kept all matrix-free CG / GMRES tests green
+- `example_matrix_free` converged in `3` iterations both with and without the
+  diagonal preconditioner, with solution error around `1e-13`
+
+Interpretation:
+
+- the shared-workspace migration did not destabilize the main iterative
+  repeated-solve paths
+- Sprint 45 now has a clean post-Day-6 baseline for the Day 7 audit
+
+#### 6. The remaining Sprint 45 queue is now narrower and more honest
+
+After Day 6, the main remaining iterative reuse queue is:
+
+- post-primary-path audit
+- block-CG as the real multi-RHS workspace target
+- wrapper-normalization review for block GMRES / MINRES / BiCGSTAB
+- repeated-solve benchmark evidence after the internal migration path is more
+  complete
+
+Interpretation:
+
+- Day 7 should audit residual allocation churn rather than reopening CG/GMRES
+- Day 8 should stay focused on the real multi-RHS workspace seam instead of
+  broad wrapper churn

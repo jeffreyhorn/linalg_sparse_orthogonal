@@ -377,25 +377,20 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
         return SPARSE_OK;
     }
 
-    size_t n_size = 0;
-    if (sparse_idx_to_size_checked(n, &n_size))
+    sparse_iter_workspace_t workspace;
+    sparse_cg_workspace_view_t cg_ws;
+    sparse_iter_workspace_init(&workspace);
+    if (sparse_iter_workspace_prepare_cg(&workspace, n, &cg_ws) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
-
-    size_t work_count = 0;
-    if (sparse_size_mul_overflow(n_size, 4, &work_count))
-        return SPARSE_ERR_ALLOC;
-    double *work = NULL;
-    if (sparse_malloc_array(work_count, sizeof(double), (void **)&work) != SPARSE_OK)
-        return SPARSE_ERR_ALLOC;
-    double *r = work;
-    double *z = work + n_size;
-    double *p = work + 2 * n_size;
-    double *Ap = work + 3 * n_size;
+    double *r = cg_ws.r;
+    double *z = cg_ws.z;
+    double *p = cg_ws.p;
+    double *Ap = cg_ws.Ap;
 
     /* r_0 = b - A*x_0 */
     sparse_err_t merr = matvec(matvec_ctx, n, x, Ap);
     if (merr != SPARSE_OK) {
-        free(work);
+        sparse_iter_workspace_free(&workspace);
         return merr;
     }
     for (idx_t i = 0; i < n; i++)
@@ -404,7 +399,7 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
     if (precond) {
         sparse_err_t perr = precond(precond_ctx, n, r, z);
         if (perr != SPARSE_OK) {
-            free(work);
+            sparse_iter_workspace_free(&workspace);
             return perr;
         }
     } else {
@@ -417,7 +412,7 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
 
     stag_tracker_t stag = {0};
     if (stag_init(&stag, o->stagnation_window) != SPARSE_OK) {
-        free(work);
+        sparse_iter_workspace_free(&workspace);
         return SPARSE_ERR_ALLOC;
     }
 
@@ -448,7 +443,7 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
                     result->residual_norm = rnorm / bnorm;
                 }
                 stag_free(&stag);
-                free(work);
+                sparse_iter_workspace_free(&workspace);
                 return SPARSE_ERR_CANCELLED;
             }
         }
@@ -458,7 +453,7 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
         merr = matvec(matvec_ctx, n, p, Ap);
         if (merr != SPARSE_OK) {
             stag_free(&stag);
-            free(work);
+            sparse_iter_workspace_free(&workspace);
             return merr;
         }
 
@@ -484,7 +479,7 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
             sparse_err_t perr = precond(precond_ctx, n, r, z);
             if (perr != SPARSE_OK) {
                 stag_free(&stag);
-                free(work);
+                sparse_iter_workspace_free(&workspace);
                 return perr;
             }
         } else {
@@ -517,7 +512,7 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
     }
 
     stag_free(&stag);
-    free(work);
+    sparse_iter_workspace_free(&workspace);
     return converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
 }
 
@@ -672,52 +667,35 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
         }
     }
 
-    /* Allocate workspace:
-     *   v:  (m+1) * n        Arnoldi basis vectors
-     *   h:  (m+1) * m        Upper Hessenberg matrix
-     *   cs: m                Givens cosines
-     *   sn: m                Givens sines
-     *   g:  m+1              Residual vector in Hessenberg space
-     *   y:  m                Solution of triangular system
-     *   w:  n                Temporary vector for matvec / precond
-     */
-    size_t sz_v = (size_t)(m + 1) * (size_t)n;
-    size_t sz_h = (size_t)(m + 1) * (size_t)m;
-    size_t sz_cs = (size_t)m;
-    size_t sz_sn = (size_t)m;
-    size_t sz_g = (size_t)(m + 1);
-    size_t sz_y = (size_t)m;
-    size_t sz_w = (size_t)n;
+    sparse_iter_workspace_t workspace;
+    sparse_gmres_workspace_view_t gmres_ws;
+    sparse_iter_workspace_init(&workspace);
+    if (sparse_iter_workspace_prepare_gmres(&workspace, n, m, &gmres_ws) != SPARSE_OK)
+        return SPARSE_ERR_ALLOC;
+    double *v = gmres_ws.v;
+    double *h = gmres_ws.h;
+    double *cs = gmres_ws.cs;
+    double *sn = gmres_ws.sn;
+    double *g = gmres_ws.g;
+    double *y = gmres_ws.y;
+    double *w = gmres_ws.w;
 
-    /* Overflow checks for workspace sizing */
-    if (n > 0 && sz_v / (size_t)n != (size_t)(m + 1))
+    size_t m_size = 0;
+    size_t m1_size = 0;
+    if (sparse_idx_to_size_checked(m, &m_size) || sparse_size_add_overflow(m_size, 1, &m1_size)) {
+        sparse_iter_workspace_free(&workspace);
         return SPARSE_ERR_ALLOC;
-    if (m > 0 && sz_h / (size_t)m != (size_t)(m + 1))
-        return SPARSE_ERR_ALLOC;
-    size_t total = 0;
-    {
-        size_t sizes[] = {sz_v, sz_h, sz_cs, sz_sn, sz_g, sz_y, sz_w};
-        for (int s = 0; s < 7; s++) {
-            if (sparse_size_add_overflow(total, sizes[s], &total))
-                return SPARSE_ERR_ALLOC;
-        }
     }
-    double *mem = NULL;
-    if (sparse_calloc_array(total, sizeof(double), (void **)&mem) != SPARSE_OK)
+    size_t sz_h = 0;
+    if (sparse_size_mul_overflow(m1_size, m_size, &sz_h)) {
+        sparse_iter_workspace_free(&workspace);
         return SPARSE_ERR_ALLOC;
-
-    double *v = mem;
-    double *h = v + sz_v;
-    double *cs = h + sz_h;
-    double *sn = cs + sz_cs;
-    double *g = sn + sz_sn;
-    double *y = g + sz_g;
-    double *w = y + sz_y;
+    }
 
     stag_tracker_t stag;
     if (stag_init(&stag, o->stagnation_window) != SPARSE_OK) {
         stag_free(&stag);
-        free(mem);
+        sparse_iter_workspace_free(&workspace);
         return SPARSE_ERR_ALLOC;
     }
 
@@ -738,7 +716,7 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
         merr = matvec(matvec_ctx, n, x, w);
         if (merr != SPARSE_OK) {
             stag_free(&stag);
-            free(mem);
+            sparse_iter_workspace_free(&workspace);
             return merr;
         }
         for (idx_t i = 0; i < n; i++)
@@ -750,7 +728,7 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
             sparse_err_t perr = precond(precond_ctx, n, w, V(0));
             if (perr != SPARSE_OK) {
                 stag_free(&stag);
-                free(mem);
+                sparse_iter_workspace_free(&workspace);
                 return perr;
             }
         }
@@ -794,7 +772,7 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
                         result->iterations = total_iter;
                     }
                     stag_free(&stag);
-                    free(mem);
+                    sparse_iter_workspace_free(&workspace);
                     return SPARSE_ERR_CANCELLED;
                 }
             }
@@ -806,13 +784,13 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
                 sparse_err_t perr = precond(precond_ctx, n, V(j), V(j + 1));
                 if (perr != SPARSE_OK) {
                     stag_free(&stag);
-                    free(mem);
+                    sparse_iter_workspace_free(&workspace);
                     return perr;
                 }
                 merr = matvec(matvec_ctx, n, V(j + 1), w);
                 if (merr != SPARSE_OK) {
                     stag_free(&stag);
-                    free(mem);
+                    sparse_iter_workspace_free(&workspace);
                     return merr;
                 }
             } else {
@@ -820,7 +798,7 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
                 merr = matvec(matvec_ctx, n, V(j), w);
                 if (merr != SPARSE_OK) {
                     stag_free(&stag);
-                    free(mem);
+                    sparse_iter_workspace_free(&workspace);
                     return merr;
                 }
 
@@ -830,7 +808,7 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
                     sparse_err_t perr = precond(precond_ctx, n, V(j + 1), w);
                     if (perr != SPARSE_OK) {
                         stag_free(&stag);
-                        free(mem);
+                        sparse_iter_workspace_free(&workspace);
                         return perr;
                     }
                 }
@@ -920,7 +898,7 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
             sparse_err_t perr = precond(precond_ctx, n, w, V(0)); /* reuse V(0) as temp */
             if (perr != SPARSE_OK) {
                 stag_free(&stag);
-                free(mem);
+                sparse_iter_workspace_free(&workspace);
                 return perr;
             }
             vec_axpy(1.0, V(0), x, n);
@@ -934,7 +912,7 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
         merr = matvec(matvec_ctx, n, x, w);
         if (merr != SPARSE_OK) {
             stag_free(&stag);
-            free(mem);
+            sparse_iter_workspace_free(&workspace);
             return merr;
         }
         for (idx_t i = 0; i < n; i++)
@@ -964,7 +942,7 @@ sparse_err_t sparse_solve_gmres_mf(sparse_matvec_fn matvec, const void *matvec_c
     }
 
     stag_free(&stag);
-    free(mem);
+    sparse_iter_workspace_free(&workspace);
     return converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
 }
 

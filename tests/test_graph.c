@@ -1132,16 +1132,18 @@ static void test_spectral_bisection_lanczos_failure(void) {
 }
 
 static void test_bisect_forced_gggp_small_graph(void) {
-    if (tf_setenv("SPARSE_ND_COARSEST_BISECTION", "gggp") != 0) {
-        printf("    skipped (setenv failed)\n");
-        return;
-    }
-
     SparseMatrix *A = make_path_1d(8);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
     sparse_graph_t G = {0};
     REQUIRE_OK(sparse_graph_from_sparse(A, &G));
     ASSERT_EQ(G.n, 8);
+
+    if (tf_setenv("SPARSE_ND_COARSEST_BISECTION", "gggp") != 0) {
+        printf("    skipped (setenv failed)\n");
+        sparse_graph_free(&G);
+        sparse_free(A);
+        return;
+    }
 
     idx_t part[8] = {0};
     sparse_err_t rc = graph_bisect_coarsest(&G, part);

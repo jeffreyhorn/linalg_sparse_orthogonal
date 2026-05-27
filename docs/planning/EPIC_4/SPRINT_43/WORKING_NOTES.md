@@ -875,3 +875,146 @@ Interpretation:
 - the extracted graph-core module is wired correctly into both maintained
   build surfaces
 - the current graph/ND regression surface still holds after the split
+
+## Day 6
+
+**Objective:** Land the first hierarchy/coarsening extraction batch by moving
+the multilevel coarsening core, hierarchy lifecycle, and the small internal
+HEM/HCC strategy seam into a dedicated implementation unit while preserving
+the remaining FM, separator-lifting, and orchestration boundaries.
+
+### Commands Run
+
+1. Re-read the Sprint 43 plan and the Day 3 boundary design, then inspect the
+   live coarsening/hierarchy seam:
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_43/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_43/artifacts/day3-graph-module-boundary-design.md`
+   - `sed -n '400,1065p' src/sparse_graph.c`
+   - `sed -n '1,420p' src/sparse_graph_internal.h`
+2. Land the extraction batch:
+   - add `src/sparse_graph_coarsen.c`
+   - move coarsening strategy ownership
+   - move heavy-edge/HCC coarsening core
+   - move `sparse_graph_hierarchy_build(...)`
+   - move `sparse_graph_hierarchy_free(...)`
+   - update `src/sparse_graph_internal.h`
+   - update `Makefile`
+   - update `CMakeLists.txt`
+   - reconnect the sep=0 retry path through explicit coarsening helpers
+3. Run the required full validation gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+4. Capture resulting status and diff shape:
+   - `git diff --stat`
+   - `git status --short`
+
+### Day 6 Findings
+
+#### 1. The hierarchy/coarsening seam was stable enough to extract as one real subsystem file
+
+Day 6 moved the bounded hierarchy/coarsening family into:
+
+- `src/sparse_graph_coarsen.c`
+
+The moved ownership cluster was:
+
+- coarsening strategy interpretation
+- HEM-override control
+- heavy-edge / HCC matching core
+- coarse-graph construction and dedup
+- hierarchy build / free lifecycle
+
+Interpretation:
+
+- this was the right Day 6 batch because the moved code already behaved like a
+  real subsystem rather than a random set of helpers
+- the batch reduced monolithic concentration materially without requiring FM or
+  separator movement
+
+#### 2. The small strategy seam is now explicit instead of being shared through raw file-local state
+
+The remaining `sparse_graph_partition(...)` retry path still needs to know:
+
+- what coarsening strategy is currently active
+- how to force temporary HEM fallback for the current thread
+
+Day 6 normalized that through a small internal seam:
+
+- `sparse_graph_coarsening_strategy_current(...)`
+- `sparse_graph_force_hem_override_begin(...)`
+- `sparse_graph_force_hem_override_end(...)`
+
+Interpretation:
+
+- this is better subsystem ownership than leaving the retry path coupled to a
+  raw thread-local defined in the same translation unit
+- the seam stays small enough that it does not blur Phase-1 boundaries
+
+#### 3. The remaining monolith is now more focused on the still-deferred graph phases
+
+After the extraction, `src/sparse_graph.c` now retains primarily:
+
+- coarse bisection
+- FM refinement
+- separator lifting
+- top-level uncoarsening / partition orchestration
+
+Interpretation:
+
+- Day 6 successfully peeled away the hierarchy/coarsening layer
+- the residual file is now closer to the Day 7/Day 8 and Day 9 target seams
+  instead of carrying all graph phases together
+
+#### 4. The build/include strategy still held cleanly under the second file split
+
+The bounded wiring changes were:
+
+- `Makefile` gained `src/sparse_graph_coarsen.c`
+- `CMakeLists.txt` gained `src/sparse_graph_coarsen.c`
+- `src/sparse_graph_internal.h` gained only the shared declarations the new
+  seam actually needed
+
+Interpretation:
+
+- the Phase-1 extraction still does not need build-system redesign
+- the current shared-header rule is sufficient for another file split
+
+#### 5. One moved analyser suppression and one moved include dependency had to be re-landed explicitly
+
+Two small extraction follow-ups surfaced during validation:
+
+- `src/sparse_graph.c` still needed `<math.h>` because the FM/annealing path
+  remained there
+- the moved duplicate-bucket fill path in `src/sparse_graph_coarsen.c` needed
+  the same targeted clang-analyzer suppression the pre-extraction code carried
+
+Interpretation:
+
+- these were seam-move maintenance details, not design regressions
+- the extraction batch stayed behavior-preserving after restoring those
+  load-bearing details
+
+#### 6. Full validation passed after the split
+
+Because `*.c` and `*.h` files changed, the full required gate ran:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+The authoritative `make test` sweep also covered the graph-focused regression
+surface most relevant to the extraction:
+
+- `test_graph`
+- `test_reorder_nd`
+- `test_reorder_amd_qg`
+
+All remained green.
+
+Interpretation:
+
+- the new `src/sparse_graph_coarsen.c` seam is wired correctly
+- the graph/ND behavior remained stable through the second extraction batch

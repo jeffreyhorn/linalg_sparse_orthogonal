@@ -62,6 +62,20 @@ typedef struct {
 } sparse_graph_t;
 
 /**
+ * @brief Internal multilevel coarsening strategy selector.
+ *
+ * `COARSENING_HEAVY_EDGE` is the Sprint 22 baseline. `COARSENING_HCC`
+ * is the Sprint 25 Heavy Connectivity Coarsening variant. The current
+ * strategy is selected through the internal parser in the coarsening
+ * module and is consumed by hierarchy build plus the sep=0 retry path
+ * in the remaining graph orchestration layer.
+ */
+typedef enum {
+    COARSENING_HEAVY_EDGE = 0,
+    COARSENING_HCC = 1,
+} coarsening_strategy_t;
+
+/**
  * @brief Build the symmetric adjacency graph of A.
  *
  * Wraps the existing internal `sparse_build_adj` helper so the
@@ -201,6 +215,27 @@ sparse_err_t graph_coarsen_heavy_edge_matching(const sparse_graph_t *fine, uint3
  */
 sparse_err_t graph_coarsen_hcc(const sparse_graph_t *fine, uint32_t seed,
                                sparse_graph_t *coarse_out, idx_t *cmap_out);
+
+/**
+ * @brief Return the currently active coarsening strategy after applying
+ *        internal override state and environment parsing.
+ */
+coarsening_strategy_t sparse_graph_coarsening_strategy_current(void);
+
+/**
+ * @brief Force temporary Heavy-Edge-Matching fallback for the current
+ *        thread.
+ *
+ * Used by the sep=0 retry path in the remaining graph orchestration
+ * layer. The begin/end calls must be paired.
+ */
+void sparse_graph_force_hem_override_begin(void);
+
+/**
+ * @brief Clear the temporary Heavy-Edge-Matching fallback for the
+ *        current thread.
+ */
+void sparse_graph_force_hem_override_end(void);
 
 /**
  * @brief Build the graph Laplacian L = D - A as a SparseMatrix.

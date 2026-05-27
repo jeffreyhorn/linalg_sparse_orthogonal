@@ -1548,3 +1548,141 @@ Interpretation:
 
 - the Day 10 cleanup stayed structural
 - top-level runtime behavior remained stable after the orchestration cleanup
+
+## Day 11
+
+**Objective:** Audit the current graph/ND regression surface against the new
+Sprint 43 Phase-1 module boundaries so Day 12 adds only the highest-value seam
+tests for ownership/construction, hierarchy/coarsening, coarse-bisection, and
+top-level orchestration safety, without drifting into a broad graph test
+rewrite.
+
+### Commands Run
+
+1. Re-read the Sprint 43 Day 11 plan section:
+   - `sed -n '260,380p' docs/planning/EPIC_4/SPRINT_43/PLAN.md`
+2. Re-read the Day 10 reconciliation result:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_43/artifacts/day10-runtime-strategy-and-glue-reconciliation.md`
+3. Re-read the current Sprint 43 Day 9-10 findings:
+   - `tail -n 220 docs/planning/EPIC_4/SPRINT_43/WORKING_NOTES.md`
+4. Sweep the live graph-focused regression surface for current seam coverage:
+   - `rg -n "test_graph_from_sparse|coarsen|hierarchy|graph_bisect_coarsest|spectral|sparse_graph_partition|sep=0|force_hem|separator|graph_subgraph|determinism|retry" tests/test_graph.c tests/test_reorder_nd.c tests/test_reorder_amd_qg.c tests/test_graph_fm_buckets.c`
+5. Re-read the most relevant live implementation seams:
+   - `sed -n '1,260p' src/sparse_graph_core.c`
+   - `sed -n '300,420p' tests/test_graph.c`
+   - `sed -n '600,660p' tests/test_graph.c`
+   - `sed -n '430,520p' src/sparse_graph_bisect.c`
+
+### Day 11 Findings
+
+#### 1. The existing graph/ND tests already cover the broad public behaviors well
+
+The current test surface still has good end-to-end coverage for:
+
+- graph construction from sparse matrices
+- hierarchy/coarsening behavior
+- spectral and default coarse-bisection behavior
+- full `sparse_graph_partition(...)` behavior
+- ND integration through `tests/test_reorder_nd.c`
+- quotient-graph AMD delegation through `tests/test_reorder_amd_qg.c`
+
+Interpretation:
+
+- Sprint 43 does **not** need a broad new algorithm test campaign
+- Day 12 should focus on seam protection and ownership regressions created by
+  the Phase-1 file split
+
+#### 2. The clearest current gap is successful subgraph coverage
+
+`src/sparse_graph_core.c` now contains a real implementation of:
+
+- `sparse_graph_subgraph(...)`
+
+but the current graph test file still only carries:
+
+- `test_graph_subgraph_is_stub(...)`
+
+which is now just a negative bad-argument probe.
+
+Interpretation:
+
+- this is the highest-value ownership/construction seam gap
+- Day 12 should replace or supersede the stale stub-era test with a real
+  successful induced-subgraph contract test
+
+#### 3. The extracted bisection seam is covered behaviorally, but not pinned as a dispatch seam
+
+Current tests already cover:
+
+- default coarse bisection
+- spectral routing and its fallback behavior
+- brute-force / GGGP behavior through size-driven paths
+
+What is still thin after the extraction is explicit routing protection for the
+new `src/sparse_graph_bisect.c` dispatch seam:
+
+- env-forced `gggp` on a small graph
+- env-forced `brute` on an oversized graph falling back safely to GGGP
+
+Interpretation:
+
+- Day 12 does not need new partition-quality assertions here
+- it does need one or two targeted dispatch-seam tests so later graph cleanup
+  does not accidentally blur ownership between routing and orchestration
+
+#### 4. The Day 10 orchestration retry seam is already covered enough at the public level
+
+The current suite already exercises the sep=0 recovery/public behavior through:
+
+- HCC/bcsstk14 fallback protection
+- ND integration
+- deterministic partition contracts
+
+Interpretation:
+
+- Day 12 does **not** need another broad retry/orchestration regression unless
+  a very small one falls out naturally from the bisection dispatch batch
+- the better bounded move is to focus on direct extracted-seam protection first
+
+#### 5. The strongest Day 12 batch is now explicit and small
+
+Recommended Day 12 implementation batch:
+
+- in `tests/test_graph.c`:
+  - add a real successful `sparse_graph_subgraph(...)` contract test on a
+    simple induced-subgraph fixture
+  - add a forced-`gggp` dispatch test on a small graph to pin the extracted
+    coarsest-bisection strategy routing seam
+  - add a forced-`brute` request on an oversized graph to pin the documented
+    safe fallback to GGGP
+
+Optional only if the batch stays obviously tiny:
+
+- rename or retire `test_graph_subgraph_is_stub(...)` so the test names match
+  the live implementation era
+
+Interpretation:
+
+- this is enough to pin the new ownership/construction and bisection dispatch
+  seams
+- it avoids opening FM, separator, or deep ND strategy rewrite work
+
+#### 6. The now-vs-later graph test boundary is clear
+
+Tests needed now:
+
+- extracted construction/ownership seam protection
+- extracted coarsest-bisection dispatch protection
+- behavior-preserving seam coverage for the current Phase-1 split
+
+Tests better deferred:
+
+- FM refinement extraction-specific tests
+- separator-lifting extraction-specific tests
+- deeper runtime-strategy matrix expansion
+- broader ND benchmark/performance-style comparisons
+
+Interpretation:
+
+- the graph seam-test queue is bounded
+- Day 12 can stay implementation-sized instead of turning into a second audit

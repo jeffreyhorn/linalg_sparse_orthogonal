@@ -1405,3 +1405,146 @@ Interpretation:
 
 - the new `src/sparse_graph_bisect.c` seam is wired correctly
 - graph partitioning behavior remained stable through the extraction
+
+## Day 10
+
+**Objective:** Reconcile the remaining top-level graph orchestration after the
+Phase-1 ownership, coarsening, and coarse-bisection extractions so the
+residual `src/sparse_graph.c` monolith reads as an explicit glue layer for FM,
+uncoarsening, separator lifting, and retry policy rather than as a leftover
+grab-bag of now-cross-module logic.
+
+### Commands Run
+
+1. Re-read the Sprint 43 Day 10 plan section and Day 9 outcome:
+   - `sed -n '220,420p' docs/planning/EPIC_4/SPRINT_43/PLAN.md`
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_43/artifacts/day9-coarse-bisection-extraction-batch1.md`
+2. Inspect the live remaining orchestration seam and the extracted module
+   ownership points:
+   - `sed -n '1,260p' src/sparse_graph_internal.h`
+   - `sed -n '260,620p' src/sparse_graph_internal.h`
+   - `sed -n '1,260p' src/sparse_graph.c`
+   - `sed -n '1990,2145p' src/sparse_graph.c`
+   - `sed -n '40,120p' src/sparse_graph_coarsen.c`
+   - `sed -n '430,520p' src/sparse_graph_bisect.c`
+   - `rg -n "static .*parse_|typedef enum|force_hem|current\\(|partition_once|sparse_graph_partition|graph_edge_separator_to_vertex_separator|graph_uncoarsen|graph_refine_fm|compute_cut_weight" src/sparse_graph.c src/sparse_graph_internal.h src/sparse_graph_core.c src/sparse_graph_coarsen.c src/sparse_graph_bisect.c`
+3. Land the bounded orchestration/glue cleanup in the remaining graph layer:
+   - update `src/sparse_graph.c`
+   - update `src/sparse_graph_internal.h`
+4. Run the full required gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+
+### Day 10 Findings
+
+#### 1. The remaining graph file now reads more honestly as an orchestration layer
+
+Day 10 did not extract a fourth subsystem. Instead, it made the residual
+ownership in `src/sparse_graph.c` explicit by tightening the top-level
+partition glue:
+
+- `graph_hierarchy_coarsest(...)`
+- `graph_partition_seed_coarsest(...)`
+- `graph_partition_count_separator_vertices(...)`
+- `graph_partition_should_retry_with_forced_hem(...)`
+
+Interpretation:
+
+- the remaining file now exposes its real job more clearly:
+  - compose extracted hierarchy/coarsening
+  - compose extracted coarse bisection
+  - run FM/uncoarsening/separator lift
+  - own the retry policy
+- this is the right Day 10 shape because it reduces cross-module drift without
+  reopening FM or separator extraction
+
+#### 2. The top-level retry policy now has a clearer single home
+
+Before Day 10, the sep=0 retry decision was embedded directly in
+`sparse_graph_partition(...)`.
+
+After Day 10, the orchestration layer makes that ownership clearer through:
+
+- `graph_partition_should_retry_with_forced_hem(...)`
+
+while still routing the actual override through the coarsening module's
+existing seam:
+
+- `sparse_graph_coarsening_strategy_current()`
+- `sparse_graph_force_hem_override_begin()`
+- `sparse_graph_force_hem_override_end()`
+
+Interpretation:
+
+- runtime mode selection behavior did not change
+- the layer boundary is clearer:
+  - coarsening owns strategy/override implementation
+  - orchestration owns the retry policy that composes it
+
+#### 3. The coarsest-partition seed step is now clearer as cross-module composition
+
+Day 10 also pulled the coarsest split + immediate FM seed step into one local
+helper:
+
+- `graph_partition_seed_coarsest(...)`
+
+Interpretation:
+
+- the orchestration layer now describes the real composition seam directly:
+  - coarsest split comes from `src/sparse_graph_bisect.c`
+  - first refinement still lives in `src/sparse_graph.c`
+- that reduces the remaining glue drift created by the earlier file splits
+
+#### 4. Shared ownership notes were reconciled with the live file split
+
+Day 10 updated the internal-header and local orchestration comments so the
+shared contract now states directly that:
+
+- `src/sparse_graph_coarsen.c` owns hierarchy build and coarsening strategy
+- `src/sparse_graph_bisect.c` owns coarsest split routing
+- `src/sparse_graph.c` owns FM refinement, uncoarsening, separator lifting,
+  and retry/orchestration glue
+
+Interpretation:
+
+- this is exactly the ownership clarification Day 10 was meant to provide
+- the internal declarations now match the actual Phase-1 decomposition shape
+
+#### 5. The deliberate Phase-2 deferrals remain explicit
+
+Day 10 intentionally did **not** pull forward:
+
+- FM refinement extraction
+- separator lifting extraction
+- broader environment-parser consolidation across all graph phases
+- deeper runtime-strategy cleanup beyond the top-level retry/orchestration seam
+
+Interpretation:
+
+- Sprint 43 remains bounded to Phase 1
+- Day 11 can now focus on seam-test design against a clearer subsystem shape
+
+#### 6. Full validation passed after the glue reconciliation
+
+Because `src/sparse_graph.c` and `src/sparse_graph_internal.h` changed, the
+full required gate ran:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+The authoritative `make test` sweep again covered the graph/ND surfaces most
+relevant to this work:
+
+- `test_graph`
+- `test_graph_fm_buckets`
+- `test_reorder_nd`
+- `test_reorder_amd_qg`
+
+Interpretation:
+
+- the Day 10 cleanup stayed structural
+- top-level runtime behavior remained stable after the orchestration cleanup

@@ -544,10 +544,26 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
 sparse_err_t graph_bisect_coarsest_spectral(const sparse_graph_t *G, idx_t *part_out);
 
 /* ═══════════════════════════════════════════════════════════════════════
- * sparse_graph_partition — multilevel vertex-separator partitioner.
+ * sparse_graph_partition — remaining multilevel orchestration layer.
  * ═══════════════════════════════════════════════════════════════════════
  *
  * The Sprint 22 entry point that nested dissection composes against.
+ * After Sprint 43 Phase 1 extraction, this top-level orchestration
+ * path composes three implementation slices:
+ *
+ *   - `src/sparse_graph_coarsen.c`
+ *     - hierarchy build
+ *     - coarsening strategy ownership
+ *     - sep=0 HEM retry override seam
+ *   - `src/sparse_graph_bisect.c`
+ *     - coarsest-level split selection
+ *     - spectral / brute / GGGP routing
+ *   - `src/sparse_graph.c`
+ *     - FM refinement
+ *     - uncoarsening
+ *     - separator lifting
+ *     - final retry/orchestration glue
+ *
  * Three-phase pipeline (Karypis & Kumar 1998; details in
  * `src/sparse_graph.c`'s file-header design block):
  *

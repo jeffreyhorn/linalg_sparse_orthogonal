@@ -2017,16 +2017,52 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
- * sparse_graph_partition — full multilevel pipeline (Sprint 22 Day 4).
+ * sparse_graph_partition — remaining multilevel orchestration layer.
  * ═══════════════════════════════════════════════════════════════════════
  *
- * Composes the four phases shipped over Sprint 22 Days 2-4:
- *   1. Build the multilevel coarsening hierarchy (Day 2).
- *   2. Bisect the coarsest level (Day 3) and FM-refine.
- *   3. Uncoarsen back to the root with FM at every level (Day 4).
- *   4. Convert the final 2-way edge separator to a 3-way vertex
- *      separator on the smaller side (Day 4).
+ * After Sprint 43 Phase 1 extraction, this remaining layer owns only
+ * the cross-module sequencing:
+ *   1. hierarchy build from `src/sparse_graph_coarsen.c`
+ *   2. coarsest split from `src/sparse_graph_bisect.c`
+ *   3. FM/uncoarsening + separator lifting in this file
+ *   4. sep=0 retry policy via the coarsening module's override seam
  */
+static const sparse_graph_t *graph_hierarchy_coarsest(const sparse_graph_t *root,
+                                                      const sparse_graph_hierarchy_t *h) {
+    return (h->nlevels > 0) ? &h->coarse[h->nlevels - 1] : root;
+}
+
+static sparse_err_t graph_partition_seed_coarsest(const sparse_graph_t *coarsest,
+                                                  idx_t **coarsest_part_out) {
+    idx_t *coarsest_part = malloc((size_t)coarsest->n * sizeof(idx_t));
+    if (!coarsest_part)
+        return SPARSE_ERR_ALLOC;
+
+    sparse_err_t rc = graph_bisect_coarsest(coarsest, coarsest_part);
+    if (rc == SPARSE_OK)
+        rc = graph_refine_fm(coarsest, coarsest_part);
+    if (rc != SPARSE_OK) {
+        free(coarsest_part);
+        return rc;
+    }
+
+    *coarsest_part_out = coarsest_part;
+    return SPARSE_OK;
+}
+
+static idx_t graph_partition_count_separator_vertices(const sparse_graph_t *G, const idx_t *part) {
+    idx_t sep = 0;
+    for (idx_t i = 0; i < G->n; i++) {
+        if (part[i] == 2)
+            sep++;
+    }
+    return sep;
+}
+
+static int graph_partition_should_retry_with_forced_hem(idx_t sep) {
+    return sep == 0 && sparse_graph_coarsening_strategy_current() != COARSENING_HEAVY_EDGE;
+}
+
 /* Sprint 26 Day 3: extracted partition body so `sparse_graph_partition`
  * can call it twice — once with the configured strategy, and (if the
  * first pass produces a degenerate sep=0) once more with the
@@ -2037,10 +2073,7 @@ static sparse_err_t partition_once(const sparse_graph_t *G, idx_t *part_out, idx
     if (rc != SPARSE_OK)
         return rc;
 
-    /* Coarsest = last hierarchy level if any coarsening happened, else
-     * the root itself (hierarchy.nlevels == 0 means the matching
-     * saturated immediately). */
-    const sparse_graph_t *coarsest = (h.nlevels > 0) ? &h.coarse[h.nlevels - 1] : G;
+    const sparse_graph_t *coarsest = graph_hierarchy_coarsest(G, &h);
     /* `graph_bisect_coarsest` handles any `n` (brute force ≤ 20, GGGP
      * above) so we don't need a coarsest-size cap here.  The hierarchy
      * may stop above the 20-vertex target on inputs where heavy-edge
@@ -2048,16 +2081,9 @@ static sparse_err_t partition_once(const sparse_graph_t *G, idx_t *part_out, idx
      * the hierarchy delivers, and Day 4's per-level FM polishes the
      * uncoarsened result. */
 
-    idx_t *coarsest_part = malloc((size_t)coarsest->n * sizeof(idx_t));
-    if (!coarsest_part) {
-        sparse_graph_hierarchy_free(&h);
-        return SPARSE_ERR_ALLOC;
-    }
-    rc = graph_bisect_coarsest(coarsest, coarsest_part);
-    if (rc == SPARSE_OK)
-        rc = graph_refine_fm(coarsest, coarsest_part);
+    idx_t *coarsest_part = NULL;
+    rc = graph_partition_seed_coarsest(coarsest, &coarsest_part);
     if (rc != SPARSE_OK) {
-        free(coarsest_part);
         sparse_graph_hierarchy_free(&h);
         return rc;
     }
@@ -2080,12 +2106,7 @@ static sparse_err_t partition_once(const sparse_graph_t *G, idx_t *part_out, idx
     if (rc != SPARSE_OK)
         return rc;
 
-    idx_t sep = 0;
-    for (idx_t i = 0; i < G->n; i++) {
-        if (part_out[i] == 2)
-            sep++;
-    }
-    *sep_out = sep;
+    *sep_out = graph_partition_count_separator_vertices(G, part_out);
     return SPARSE_OK;
 }
 
@@ -2107,7 +2128,7 @@ sparse_err_t sparse_graph_partition(const sparse_graph_t *G, idx_t *part_out, id
      * (so HEM hasn't already been tried), force HEM through the
      * coarsening module's internal override seam and re-run the
      * multilevel pipeline. */
-    if (sep == 0 && sparse_graph_coarsening_strategy_current() != COARSENING_HEAVY_EDGE) {
+    if (graph_partition_should_retry_with_forced_hem(sep)) {
         sparse_graph_force_hem_override_begin();
         rc = partition_once(G, part_out, &sep);
         sparse_graph_force_hem_override_end();

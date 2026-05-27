@@ -1,3 +1,4 @@
+#include "sparse_alloc_internal.h"
 #include "sparse_graph_internal.h"
 
 #include <math.h>
@@ -101,9 +102,9 @@ static sparse_err_t graph_coarsen_with_strategy(const sparse_graph_t *fine, uint
         return SPARSE_ERR_NULL;
 
     if (fine->n == 0) {
-        coarse_out->xadj = malloc(sizeof(idx_t));
-        if (!coarse_out->xadj)
-            return SPARSE_ERR_ALLOC;
+        sparse_err_t alloc_rc = sparse_malloc_array(1, sizeof(idx_t), (void **)&coarse_out->xadj);
+        if (alloc_rc != SPARSE_OK)
+            return alloc_rc;
         coarse_out->xadj[0] = 0;
         return SPARSE_OK;
     }
@@ -144,9 +145,10 @@ static sparse_err_t graph_coarsen_with_strategy(const sparse_graph_t *fine, uint
         }
     }
 
-    idx_t *perm = malloc((size_t)n_fine * sizeof(idx_t));
-    if (!perm)
-        return SPARSE_ERR_ALLOC;
+    idx_t *perm = NULL;
+    sparse_err_t alloc_rc = sparse_malloc_idx_array(n_fine, sizeof(idx_t), (void **)&perm);
+    if (alloc_rc != SPARSE_OK)
+        return alloc_rc;
     fisher_yates_shuffle(perm, n_fine, seed);
 
     for (idx_t i = 0; i < n_fine; i++)
@@ -197,7 +199,13 @@ static sparse_err_t graph_coarsen_with_strategy(const sparse_graph_t *fine, uint
 
     if (getenv("SPARSE_HCC_DEBUG")) {
         const char *strategy_name = (strategy == COARSENING_HCC) ? "hcc" : "heavy_edge";
-        idx_t *cluster_sizes = (n_coarse > 0) ? calloc((size_t)n_coarse, sizeof(idx_t)) : NULL;
+        idx_t *cluster_sizes = NULL;
+        if (n_coarse > 0) {
+            sparse_err_t cluster_rc =
+                sparse_calloc_idx_array(n_coarse, sizeof(idx_t), (void **)&cluster_sizes);
+            if (cluster_rc != SPARSE_OK)
+                cluster_sizes = NULL;
+        }
         idx_t matched = 0;
         if (cluster_sizes) {
             for (idx_t i = 0; i < n_fine; i++)
@@ -221,19 +229,22 @@ static sparse_err_t graph_coarsen_with_strategy(const sparse_graph_t *fine, uint
     }
 
     if (n_coarse <= 0) {
-        coarse_out->xadj = malloc(sizeof(idx_t));
-        if (!coarse_out->xadj)
-            return SPARSE_ERR_ALLOC;
+        alloc_rc = sparse_malloc_array(1, sizeof(idx_t), (void **)&coarse_out->xadj);
+        if (alloc_rc != SPARSE_OK)
+            return alloc_rc;
         coarse_out->xadj[0] = 0;
         return SPARSE_OK;
     }
 
-    idx_t *vwgt_coarse = calloc((size_t)n_coarse, sizeof(idx_t));
-    idx_t *deg_coarse = calloc((size_t)n_coarse, sizeof(idx_t));
-    if (!vwgt_coarse || !deg_coarse) {
+    idx_t *vwgt_coarse = NULL;
+    idx_t *deg_coarse = NULL;
+    alloc_rc = sparse_calloc_idx_array(n_coarse, sizeof(idx_t), (void **)&vwgt_coarse);
+    if (alloc_rc != SPARSE_OK)
+        return alloc_rc;
+    alloc_rc = sparse_calloc_idx_array(n_coarse, sizeof(idx_t), (void **)&deg_coarse);
+    if (alloc_rc != SPARSE_OK) {
         free(vwgt_coarse);
-        free(deg_coarse);
-        return SPARSE_ERR_ALLOC;
+        return alloc_rc;
     }
     for (idx_t i = 0; i < n_fine; i++) {
         idx_t c = cmap_out[i];
@@ -253,26 +264,49 @@ static sparse_err_t graph_coarsen_with_strategy(const sparse_graph_t *fine, uint
         }
     }
 
-    idx_t *xadj = malloc((size_t)(n_coarse + 1) * sizeof(idx_t));
-    if (!xadj) {
+    size_t n_coarse_size = 0;
+    size_t xadj_count = 0;
+    if (sparse_idx_to_size_checked(n_coarse, &n_coarse_size) ||
+        sparse_size_add_overflow(n_coarse_size, 1, &xadj_count)) {
         free(vwgt_coarse);
         free(deg_coarse);
         return SPARSE_ERR_ALLOC;
+    }
+    idx_t *xadj = NULL;
+    alloc_rc = sparse_malloc_array(xadj_count, sizeof(idx_t), (void **)&xadj);
+    if (alloc_rc != SPARSE_OK) {
+        free(vwgt_coarse);
+        free(deg_coarse);
+        return alloc_rc;
     }
     xadj[0] = 0;
     for (idx_t c = 0; c < n_coarse; c++)
         xadj[c + 1] = xadj[c] + deg_coarse[c];
     idx_t total = xadj[n_coarse]; // NOLINT(clang-analyzer-security.ArrayBound)
 
-    coarse_edge_t *buckets = calloc((size_t)(total > 0 ? total : 1), sizeof(coarse_edge_t));
-    idx_t *cursor = calloc((size_t)n_coarse, sizeof(idx_t));
-    if (!buckets || !cursor) {
-        free(buckets);
-        free(cursor);
+    size_t bucket_count = 1;
+    if (total > 0 && sparse_idx_to_size_checked(total, &bucket_count)) {
         free(xadj);
         free(vwgt_coarse);
         free(deg_coarse);
         return SPARSE_ERR_ALLOC;
+    }
+    coarse_edge_t *buckets = NULL;
+    idx_t *cursor = NULL;
+    alloc_rc = sparse_calloc_array(bucket_count, sizeof(coarse_edge_t), (void **)&buckets);
+    if (alloc_rc != SPARSE_OK) {
+        free(xadj);
+        free(vwgt_coarse);
+        free(deg_coarse);
+        return alloc_rc;
+    }
+    alloc_rc = sparse_calloc_idx_array(n_coarse, sizeof(idx_t), (void **)&cursor);
+    if (alloc_rc != SPARSE_OK) {
+        free(buckets);
+        free(xadj);
+        free(vwgt_coarse);
+        free(deg_coarse);
+        return alloc_rc;
     }
     free(deg_coarse);
 
@@ -294,12 +328,13 @@ static sparse_err_t graph_coarsen_with_strategy(const sparse_graph_t *fine, uint
     }
     free(cursor);
 
-    idx_t *new_deg = calloc((size_t)n_coarse, sizeof(idx_t));
-    if (!new_deg) {
+    idx_t *new_deg = NULL;
+    alloc_rc = sparse_calloc_idx_array(n_coarse, sizeof(idx_t), (void **)&new_deg);
+    if (alloc_rc != SPARSE_OK) {
         free(buckets);
         free(xadj);
         free(vwgt_coarse);
-        return SPARSE_ERR_ALLOC;
+        return alloc_rc;
     }
     for (idx_t c = 0; c < n_coarse; c++) {
         idx_t start = xadj[c];
@@ -322,30 +357,49 @@ static sparse_err_t graph_coarsen_with_strategy(const sparse_graph_t *fine, uint
         new_deg[c] = write;
     }
 
-    idx_t *final_xadj = malloc((size_t)(n_coarse + 1) * sizeof(idx_t));
-    if (!final_xadj) {
+    idx_t *final_xadj = NULL;
+    alloc_rc = sparse_malloc_array(xadj_count, sizeof(idx_t), (void **)&final_xadj);
+    if (alloc_rc != SPARSE_OK) {
         free(buckets);
         free(xadj);
         free(vwgt_coarse);
         free(new_deg);
-        return SPARSE_ERR_ALLOC;
+        return alloc_rc;
     }
     final_xadj[0] = 0;
     for (idx_t c = 0; c < n_coarse; c++)
         final_xadj[c + 1] = final_xadj[c] + new_deg[c];
     idx_t final_total = final_xadj[n_coarse];
 
-    idx_t *final_adjncy = malloc((size_t)(final_total > 0 ? final_total : 1) * sizeof(idx_t));
-    idx_t *final_ewgt = malloc((size_t)(final_total > 0 ? final_total : 1) * sizeof(idx_t));
-    if (!final_adjncy || !final_ewgt) {
-        free(final_adjncy);
-        free(final_ewgt);
+    size_t final_count = 1;
+    if (final_total > 0 && sparse_idx_to_size_checked(final_total, &final_count)) {
         free(final_xadj);
         free(buckets);
         free(xadj);
         free(vwgt_coarse);
         free(new_deg);
         return SPARSE_ERR_ALLOC;
+    }
+    idx_t *final_adjncy = NULL;
+    idx_t *final_ewgt = NULL;
+    alloc_rc = sparse_malloc_array(final_count, sizeof(idx_t), (void **)&final_adjncy);
+    if (alloc_rc != SPARSE_OK) {
+        free(final_xadj);
+        free(buckets);
+        free(xadj);
+        free(vwgt_coarse);
+        free(new_deg);
+        return alloc_rc;
+    }
+    alloc_rc = sparse_malloc_array(final_count, sizeof(idx_t), (void **)&final_ewgt);
+    if (alloc_rc != SPARSE_OK) {
+        free(final_adjncy);
+        free(final_xadj);
+        free(buckets);
+        free(xadj);
+        free(vwgt_coarse);
+        free(new_deg);
+        return alloc_rc;
     }
     for (idx_t c = 0; c < n_coarse; c++) {
         coarse_edge_t *src = &buckets[xadj[c]]; // NOLINT(clang-analyzer-security.ArrayBound)
@@ -440,11 +494,16 @@ sparse_err_t sparse_graph_hierarchy_build(const sparse_graph_t *root, uint32_t s
     int cap = 8;
     if (cap > level_cap)
         cap = level_cap;
-    h->coarse = calloc((size_t)cap, sizeof(sparse_graph_t));
-    h->cmaps = calloc((size_t)cap, sizeof(idx_t *));
-    if (!h->coarse || !h->cmaps) {
+    sparse_err_t hierarchy_rc =
+        sparse_calloc_array((size_t)cap, sizeof(sparse_graph_t), (void **)&h->coarse);
+    if (hierarchy_rc != SPARSE_OK) {
         sparse_graph_hierarchy_free(h);
-        return SPARSE_ERR_ALLOC;
+        return hierarchy_rc;
+    }
+    hierarchy_rc = sparse_calloc_array((size_t)cap, sizeof(idx_t *), (void **)&h->cmaps);
+    if (hierarchy_rc != SPARSE_OK) {
+        sparse_graph_hierarchy_free(h);
+        return hierarchy_rc;
     }
 
     const sparse_graph_t *prev = root;
@@ -452,10 +511,11 @@ sparse_err_t sparse_graph_hierarchy_build(const sparse_graph_t *root, uint32_t s
         idx_t n_prev = prev->n;
         if (n_prev <= 2)
             break;
-        idx_t *cmap = malloc((size_t)n_prev * sizeof(idx_t));
-        if (!cmap) {
+        idx_t *cmap = NULL;
+        sparse_err_t cmap_rc = sparse_malloc_idx_array(n_prev, sizeof(idx_t), (void **)&cmap);
+        if (cmap_rc != SPARSE_OK) {
             sparse_graph_hierarchy_free(h);
-            return SPARSE_ERR_ALLOC;
+            return cmap_rc;
         }
         sparse_graph_t coarse = {0};
         sparse_err_t rc;

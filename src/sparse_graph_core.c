@@ -11,6 +11,7 @@
  * no FM refinement, and no top-level partition orchestration.
  */
 
+#include "sparse_alloc_internal.h"
 #include "sparse_graph_internal.h"
 #include "sparse_matrix_internal.h"
 
@@ -55,9 +56,9 @@ sparse_err_t sparse_graph_from_sparse(const SparseMatrix *A, sparse_graph_t *G) 
     if (n == 0) {
         /* Empty graph: allocate xadj of length 1 holding [0] so the
          * (xadj[n] == |adjncy|) invariant holds vacuously. */
-        G->xadj = malloc(sizeof(idx_t));
-        if (!G->xadj)
-            return SPARSE_ERR_ALLOC;
+        sparse_err_t alloc_rc = sparse_malloc_array(1, sizeof(idx_t), (void **)&G->xadj);
+        if (alloc_rc != SPARSE_OK)
+            return alloc_rc;
         G->xadj[0] = 0;
         return SPARSE_OK;
     }
@@ -128,9 +129,9 @@ sparse_err_t sparse_graph_subgraph(const sparse_graph_t *parent, const idx_t *ve
         return SPARSE_ERR_NULL;
 
     if (k == 0) {
-        child->xadj = malloc(sizeof(idx_t));
-        if (!child->xadj)
-            return SPARSE_ERR_ALLOC;
+        sparse_err_t alloc_rc = sparse_malloc_array(1, sizeof(idx_t), (void **)&child->xadj);
+        if (alloc_rc != SPARSE_OK)
+            return alloc_rc;
         child->xadj[0] = 0;
         return SPARSE_OK;
     }
@@ -147,19 +148,28 @@ sparse_err_t sparse_graph_subgraph(const sparse_graph_t *parent, const idx_t *ve
     }
 
     /* Parent → child map: -1 for vertices not in the subset. */
-    idx_t *p2c = malloc((size_t)parent->n * sizeof(idx_t));
-    if (!p2c)
-        return SPARSE_ERR_ALLOC;
+    idx_t *p2c = NULL;
+    sparse_err_t alloc_rc = sparse_malloc_idx_array(parent->n, sizeof(idx_t), (void **)&p2c);
+    if (alloc_rc != SPARSE_OK)
+        return alloc_rc;
     for (idx_t i = 0; i < parent->n; i++)
         p2c[i] = -1;
     for (idx_t i = 0; i < k; i++)
         p2c[vertex_set[i]] = i;
 
     /* Pass 1: count degrees, prefix-sum into child->xadj. */
-    idx_t *xadj = malloc((size_t)(k + 1) * sizeof(idx_t));
-    if (!xadj) {
+    size_t k_size = 0;
+    size_t xadj_count = 0;
+    if (sparse_idx_to_size_checked(k, &k_size) ||
+        sparse_size_add_overflow(k_size, 1, &xadj_count)) {
         free(p2c);
         return SPARSE_ERR_ALLOC;
+    }
+    idx_t *xadj = NULL;
+    alloc_rc = sparse_malloc_array(xadj_count, sizeof(idx_t), (void **)&xadj);
+    if (alloc_rc != SPARSE_OK) {
+        free(p2c);
+        return alloc_rc;
     }
     xadj[0] = 0;
     for (idx_t i = 0; i < k; i++) {
@@ -178,19 +188,19 @@ sparse_err_t sparse_graph_subgraph(const sparse_graph_t *parent, const idx_t *ve
     idx_t *adjncy = NULL;
     idx_t *ewgt = NULL;
     if (total_edges > 0) {
-        adjncy = malloc((size_t)total_edges * sizeof(idx_t));
-        if (!adjncy) {
+        alloc_rc = sparse_malloc_idx_array(total_edges, sizeof(idx_t), (void **)&adjncy);
+        if (alloc_rc != SPARSE_OK) {
             free(p2c);
             free(xadj);
-            return SPARSE_ERR_ALLOC;
+            return alloc_rc;
         }
         if (parent->ewgt) {
-            ewgt = malloc((size_t)total_edges * sizeof(idx_t));
-            if (!ewgt) {
+            alloc_rc = sparse_malloc_idx_array(total_edges, sizeof(idx_t), (void **)&ewgt);
+            if (alloc_rc != SPARSE_OK) {
                 free(p2c);
                 free(xadj);
                 free(adjncy);
-                return SPARSE_ERR_ALLOC;
+                return alloc_rc;
             }
         }
     }
@@ -217,13 +227,13 @@ sparse_err_t sparse_graph_subgraph(const sparse_graph_t *parent, const idx_t *ve
     /* Optional vwgt copy. */
     idx_t *vwgt = NULL;
     if (parent->vwgt) {
-        vwgt = malloc((size_t)k * sizeof(idx_t));
-        if (!vwgt) {
+        alloc_rc = sparse_malloc_idx_array(k, sizeof(idx_t), (void **)&vwgt);
+        if (alloc_rc != SPARSE_OK) {
             free(p2c);
             free(xadj);
             free(adjncy);
             free(ewgt);
-            return SPARSE_ERR_ALLOC;
+            return alloc_rc;
         }
         for (idx_t i = 0; i < k; i++)
             vwgt[i] = parent->vwgt[vertex_set[i]];

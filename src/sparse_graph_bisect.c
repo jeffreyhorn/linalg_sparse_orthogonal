@@ -13,6 +13,7 @@
  * orchestration.
  */
 
+#include "sparse_alloc_internal.h"
 #include "sparse_eigs.h"
 #include "sparse_graph_internal.h"
 
@@ -139,14 +140,22 @@ static void bfs_distances(const sparse_graph_t *G, idx_t start, idx_t *dist, idx
  * cut. */
 static sparse_err_t bisect_gggp(const sparse_graph_t *G, idx_t *part_out) {
     idx_t n = G->n;
-    idx_t *dist = malloc((size_t)n * sizeof(idx_t));
-    idx_t *queue = malloc((size_t)n * sizeof(idx_t));
-    int *visited = calloc((size_t)n, sizeof(int));
-    if (!dist || !queue || !visited) {
+    idx_t *dist = NULL;
+    idx_t *queue = NULL;
+    int *visited = NULL;
+    sparse_err_t alloc_rc = sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&dist);
+    if (alloc_rc != SPARSE_OK)
+        return alloc_rc;
+    alloc_rc = sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&queue);
+    if (alloc_rc != SPARSE_OK) {
+        free(dist);
+        return alloc_rc;
+    }
+    alloc_rc = sparse_calloc_idx_array(n, sizeof(int), (void **)&visited);
+    if (alloc_rc != SPARSE_OK) {
         free(dist);
         free(queue);
-        free(visited);
-        return SPARSE_ERR_ALLOC;
+        return alloc_rc;
     }
 
     /* Two-BFS peripheral-vertex finder. */
@@ -329,9 +338,14 @@ sparse_err_t graph_bisect_coarsest_spectral(const sparse_graph_t *G, idx_t *part
      * eigenvectors stored as [n_components × k]).  On any allocation
      * failure, free the Laplacian + fall back to GGGP. */
     idx_t n = G->n;
-    double *eigvals = malloc(2 * sizeof(double));
-    double *eigvecs = malloc((size_t)n * 2 * sizeof(double));
-    if (!eigvals || !eigvecs) {
+    size_t n_size = 0;
+    size_t eigvec_count = 0;
+    double *eigvals = NULL;
+    double *eigvecs = NULL;
+    sparse_err_t alloc_rc = sparse_malloc_array(2, sizeof(double), (void **)&eigvals);
+    if (alloc_rc != SPARSE_OK || sparse_idx_to_size_checked(n, &n_size) ||
+        sparse_size_mul_overflow(n_size, 2, &eigvec_count) ||
+        sparse_malloc_array(eigvec_count, sizeof(double), (void **)&eigvecs) != SPARSE_OK) {
         free(eigvals);
         free(eigvecs);
         sparse_free(L);
@@ -386,8 +400,9 @@ sparse_err_t graph_bisect_coarsest_spectral(const sparse_graph_t *G, idx_t *part
      * sparse_graph_partition → ... → spectral call chain. */
     // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
     double *v1 = &eigvecs[n];
-    double *sorted = malloc((size_t)n * sizeof(double));
-    if (!sorted) {
+    double *sorted = NULL;
+    alloc_rc = sparse_malloc_idx_array(n, sizeof(double), (void **)&sorted);
+    if (alloc_rc != SPARSE_OK) {
         free(eigvals);
         free(eigvecs);
         return bisect_gggp(G, part_out);

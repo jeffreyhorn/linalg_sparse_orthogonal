@@ -2062,14 +2062,20 @@ static idx_t graph_partition_count_separator_vertices(const sparse_graph_t *G, c
     return sep;
 }
 
+/* Retry policy is keyed to the configured strategy surface, not the
+ * effective per-call strategy that graph_coarsen_with_strategy() may
+ * choose after HCC's internal CV-based fall-through. A sep==0 first
+ * pass under configured HCC still gets one explicit forced-HEM rerun
+ * through the override seam below. */
 static int graph_partition_should_retry_with_forced_hem(idx_t sep) {
     return sep == 0 && sparse_graph_coarsening_strategy_current() != COARSENING_HEAVY_EDGE;
 }
 
 /* Sprint 26 Day 3: extracted partition body so `sparse_graph_partition`
  * can call it twice — once with the configured strategy, and (if the
- * first pass produces a degenerate sep=0) once more with the
- * `force_hem_override` set.  See `SPRINT_26/hcc_sep_zero_diagnosis.md`. */
+ * first pass produces a degenerate sep=0 under non-HEM configured
+ * policy) once more with the `force_hem_override` set.  See
+ * `SPRINT_26/hcc_sep_zero_diagnosis.md`. */
 static sparse_err_t partition_once(const sparse_graph_t *G, idx_t *part_out, idx_t *sep_out) {
     sparse_graph_hierarchy_t h = {0};
     sparse_err_t rc = sparse_graph_hierarchy_build(G, /*seed=*/0U, &h);
@@ -2127,10 +2133,12 @@ sparse_err_t sparse_graph_partition(const sparse_graph_t *G, idx_t *part_out, id
         return rc;
 
     /* Sprint 26 Day 3: sep=0 fall-back. If the first pass produced a
-     * degenerate empty separator AND the configured strategy was HCC
-     * (so HEM hasn't already been tried), force HEM through the
-     * coarsening module's internal override seam and re-run the
-     * multilevel pipeline. */
+     * degenerate empty separator under non-HEM configured policy,
+     * force HEM through the coarsening module's internal override
+     * seam and re-run the multilevel pipeline. This check is keyed to
+     * the configured strategy surface; HCC may already have fallen
+     * through to HEM internally on the first pass, but the explicit
+     * retry contract still hangs off the non-HEM configuration path. */
     if (graph_partition_should_retry_with_forced_hem(sep)) {
         sparse_graph_force_hem_override_begin();
         rc = partition_once(G, part_out, &sep);

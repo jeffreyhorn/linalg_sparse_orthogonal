@@ -1,0 +1,20 @@
+docs/planning/EPIC_4/PROJECT_PLAN.md
+docs/planning/EPIC_4/SPRINT_43/PLAN.md
+docs/planning/EPIC_4/SPRINT_40/artifacts/day4-hotspot-allocation-baseline.md
+docs/planning/EPIC_4/SPRINT_41/artifacts/day12-safety-style-and-prep-rules.md
+docs/planning/EPIC_4/SPRINT_42/artifacts/day14-closeout-and-handoff.md
+README.md
+Makefile
+CMakeLists.txt
+.github/workflows/ci.yml
+.github/workflows/macos-ci.yml
+.github/workflows/windows-ci.yml
+src/sparse_graph.c
+src/sparse_alloc_internal.h
+src/sparse_alloc_internal.c
+tests/test_graph.c
+tests/test_graph_fm_buckets.c
+tests/test_reorder_nd.c
+tests/test_reorder_amd_qg.c
+build/quality-review-cmake (via ctest -N)
+build/deadcode-cmake and build/deadcode (serialized dead-code path contract)

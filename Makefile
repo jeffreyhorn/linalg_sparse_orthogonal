@@ -64,6 +64,9 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_chol_csc.c \
            $(SRCDIR)/sparse_ldlt_csc.c \
            $(SRCDIR)/sparse_eigs.c \
+           $(SRCDIR)/sparse_graph_core.c \
+           $(SRCDIR)/sparse_graph_coarsen.c \
+           $(SRCDIR)/sparse_graph_bisect.c \
            $(SRCDIR)/sparse_graph.c \
            $(SRCDIR)/sparse_reorder_nd.c \
            $(SRCDIR)/sparse_reorder_amd_qg.c

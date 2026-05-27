@@ -33,6 +33,9 @@
  *     live at adjncy[xadj[i] .. xadj[i+1] - 1].
  *   - adjncy is symmetric (j ∈ adj(i)  ⇔  i ∈ adj(j)) and contains
  *     no self-loops.
+ *   - the logical adjacency count is xadj[n]; some constructors may
+ *     keep a 1-element non-NULL placeholder allocation for adjncy
+ *     when xadj[n] == 0 on a non-empty graph.
  *
  * Optional weights (multilevel hierarchy uses them; the root graph
  * leaves them NULL and the partitioner treats unweighted as
@@ -49,17 +52,32 @@
  * Invariants enforced by the constructors (`sparse_graph_from_sparse`,
  * the Day 2 `graph_coarsen_*` helpers, and `sparse_graph_subgraph`):
  *   - n ≥ 0; n == 0 is legal (empty graph).
- *   - xadj[0] == 0; xadj[n] == |adjncy|.
+ *   - xadj[0] == 0; xadj[n] is the logical adjacency count.
  *   - Each xadj[i+1] - xadj[i] is the degree of vertex i.
  *   - adj lists are sorted ascending and duplicate-free.
  */
 typedef struct {
     idx_t n;       /**< Number of vertices. */
     idx_t *xadj;   /**< CSR pointers, length n+1; owned. */
-    idx_t *adjncy; /**< Adjacency entries, length xadj[n]; owned. */
+    idx_t *adjncy; /**< Adjacency entries; logical length xadj[n], with a possible 1-entry
+                      placeholder when that count is 0. */
     idx_t *vwgt;   /**< Optional vertex weights, length n; NULL = uniform. */
-    idx_t *ewgt;   /**< Optional edge weights, length xadj[n]; NULL = uniform. */
+    idx_t *ewgt;   /**< Optional edge weights, logical length xadj[n]; NULL = uniform. */
 } sparse_graph_t;
+
+/**
+ * @brief Internal multilevel coarsening strategy selector.
+ *
+ * `COARSENING_HEAVY_EDGE` is the Sprint 22 baseline. `COARSENING_HCC`
+ * is the Sprint 25 Heavy Connectivity Coarsening variant. The current
+ * strategy is selected through the internal parser in the coarsening
+ * module and is consumed by hierarchy build plus the sep=0 retry path
+ * in the remaining graph orchestration layer.
+ */
+typedef enum {
+    COARSENING_HEAVY_EDGE = 0,
+    COARSENING_HCC = 1,
+} coarsening_strategy_t;
 
 /**
  * @brief Build the symmetric adjacency graph of A.
@@ -127,7 +145,7 @@ sparse_err_t sparse_graph_subgraph(const sparse_graph_t *parent, const idx_t *ve
                                    sparse_graph_t *child, idx_t *vertex_id_map_out);
 
 /* ═══════════════════════════════════════════════════════════════════════
- * Multilevel coarsening (Sprint 22 Day 2).
+ * Multilevel coarsening + hierarchy lifecycle (Sprint 22 Day 2).
  * ═══════════════════════════════════════════════════════════════════════
  *
  * Heavy-edge matching (Karypis & Kumar 1998 §4): walk vertices in a
@@ -156,6 +174,15 @@ sparse_err_t sparse_graph_subgraph(const sparse_graph_t *parent, const idx_t *ve
  *   - Self-loops produced by collapsing matched pairs are dropped
  *     (the pair's connecting edge no longer exists in the coarse
  *     graph).
+ *
+ * Sprint 43 Phase 1 extraction note:
+ *   - implementation now lives in `src/sparse_graph_coarsen.c`
+ *   - new coarsening helpers should not be added back to the
+ *     remaining `src/sparse_graph.c` monolith
+ *   - coarse-bisection support now lives in
+ *     `src/sparse_graph_bisect.c`, so new bisection helpers should
+ *     land there rather than drifting back into the remaining
+ *     orchestration layer
  */
 
 /**
@@ -203,36 +230,25 @@ sparse_err_t graph_coarsen_hcc(const sparse_graph_t *fine, uint32_t seed,
                                sparse_graph_t *coarse_out, idx_t *cmap_out);
 
 /**
- * @brief Build the graph Laplacian L = D - A as a SparseMatrix.
- *
- * Sprint 25 Day 6 helper for spectral bisection (Days 6-8).  The
- * Laplacian is a symmetric n×n matrix with:
- *   - L[i][i] = sum of weights of edges incident to vertex i (the
- *     vertex's weighted degree)
- *   - L[i][j] = -weight(i, j) for j adjacent to i
- *   - L[i][j] = 0 otherwise
- *
- * For unit-weighted graphs (`G->ewgt == NULL`), edge weight = 1, so
- * `L[i][i] = degree(i)` and `L[i][j] = -1`.
- *
- * The Laplacian is positive semi-definite (smallest eigenvalue
- * λ_0 = 0 with the constant vector as eigenvector).  For connected
- * graphs, λ_1 > 0 and its eigenvector v_1 is the **Fiedler vector**
- * — used by `graph_bisect_coarsest_spectral` (Days 7-8) for
- * spectral graph bisection per Karypis-Kumar 1998 §3.
- *
- * The returned SparseMatrix is caller-owned (free with
- * `sparse_free`).  See
- * docs/planning/EPIC_2/SPRINT_25/spectral_bisection_design.md.
- *
- * @param G            Input graph (n×n symmetric).
- * @param L_out        Output: caller receives ownership of the
- *                     freshly-allocated Laplacian SparseMatrix.
- * @return SPARSE_OK on success.
- * @return SPARSE_ERR_NULL if G or L_out is NULL.
- * @return SPARSE_ERR_ALLOC on allocation failure.
+ * @brief Return the currently active coarsening strategy after applying
+ *        internal override state and environment parsing.
  */
-sparse_err_t graph_build_laplacian(const sparse_graph_t *G, SparseMatrix **L_out);
+coarsening_strategy_t sparse_graph_coarsening_strategy_current(void);
+
+/**
+ * @brief Force temporary Heavy-Edge-Matching fallback for the current
+ *        thread.
+ *
+ * Used by the sep=0 retry path in the remaining graph orchestration
+ * layer. The begin/end calls must be paired.
+ */
+void sparse_graph_force_hem_override_begin(void);
+
+/**
+ * @brief Clear the temporary Heavy-Edge-Matching fallback for the
+ *        current thread.
+ */
+void sparse_graph_force_hem_override_end(void);
 
 /**
  * @brief Multilevel coarsening hierarchy.
@@ -304,6 +320,13 @@ void sparse_graph_hierarchy_free(sparse_graph_hierarchy_t *h);
  * Coarsest-graph bisection + FM refinement (Sprint 22 Day 3).
  * ═══════════════════════════════════════════════════════════════════════
  *
+ * Sprint 43 Phase 1 extraction note:
+ *   - coarse-bisection support now lives in
+ *     `src/sparse_graph_bisect.c`
+ *   - FM refinement and uncoarsening remain in the remaining
+ *     `src/sparse_graph.c` monolith intentionally until later
+ *     sprint phases
+ *
  * Day 4's uncoarsening pipeline composes these two routines: bisect
  * the coarsest hierarchy level into an initial 2-way partition, then
  * project through the hierarchy with FM at every level until the
@@ -317,6 +340,39 @@ void sparse_graph_hierarchy_free(sparse_graph_hierarchy_t *h);
  * edge separator into the 3-way `{0, 1, 2}` form
  * `sparse_graph_partition` returns.
  */
+
+/**
+ * @brief Build the graph Laplacian L = D - A as a SparseMatrix.
+ *
+ * Sprint 25 Day 6 helper for spectral bisection (Days 6-8).  The
+ * Laplacian is a symmetric n×n matrix with:
+ *   - L[i][i] = sum of weights of edges incident to vertex i (the
+ *     vertex's weighted degree)
+ *   - L[i][j] = -weight(i, j) for j adjacent to i
+ *   - L[i][j] = 0 otherwise
+ *
+ * For unit-weighted graphs (`G->ewgt == NULL`), edge weight = 1, so
+ * `L[i][i] = degree(i)` and `L[i][j] = -1`.
+ *
+ * The Laplacian is positive semi-definite (smallest eigenvalue
+ * λ_0 = 0 with the constant vector as eigenvector).  For connected
+ * graphs, λ_1 > 0 and its eigenvector v_1 is the **Fiedler vector**
+ * — used by `graph_bisect_coarsest_spectral` (Days 7-8) for
+ * spectral graph bisection per Karypis-Kumar 1998 §3.
+ *
+ * The returned SparseMatrix is caller-owned (free with
+ * `sparse_free`).  See
+ * docs/planning/EPIC_2/SPRINT_25/spectral_bisection_design.md.
+ *
+ * @param G            Input graph (n×n symmetric).
+ * @param L_out        Output: caller receives ownership of the
+ *                     freshly-allocated Laplacian SparseMatrix.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if G or L_out is NULL.
+ * @return SPARSE_ERR_BADARG if G->n == 0.
+ * @return SPARSE_ERR_ALLOC on allocation failure.
+ */
+sparse_err_t graph_build_laplacian(const sparse_graph_t *G, SparseMatrix **L_out);
 
 /**
  * @brief Bisect a graph into a balanced 2-way partition.
@@ -495,10 +551,26 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
 sparse_err_t graph_bisect_coarsest_spectral(const sparse_graph_t *G, idx_t *part_out);
 
 /* ═══════════════════════════════════════════════════════════════════════
- * sparse_graph_partition — multilevel vertex-separator partitioner.
+ * sparse_graph_partition — remaining multilevel orchestration layer.
  * ═══════════════════════════════════════════════════════════════════════
  *
  * The Sprint 22 entry point that nested dissection composes against.
+ * After Sprint 43 Phase 1 extraction, this top-level orchestration
+ * path composes three implementation slices:
+ *
+ *   - `src/sparse_graph_coarsen.c`
+ *     - hierarchy build
+ *     - coarsening strategy ownership
+ *     - sep=0 HEM retry override seam
+ *   - `src/sparse_graph_bisect.c`
+ *     - coarsest-level split selection
+ *     - spectral / brute / GGGP routing
+ *   - `src/sparse_graph.c`
+ *     - FM refinement
+ *     - uncoarsening
+ *     - separator lifting
+ *     - final retry/orchestration glue
+ *
  * Three-phase pipeline (Karypis & Kumar 1998; details in
  * `src/sparse_graph.c`'s file-header design block):
  *

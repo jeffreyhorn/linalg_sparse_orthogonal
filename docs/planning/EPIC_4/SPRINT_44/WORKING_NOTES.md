@@ -1694,3 +1694,204 @@ Interpretation:
   rest of Epic 4
 - Sprint 44 can now shift from graph seam protection into the large-test
   maintainability batch with the post-split graph surface explicitly covered
+
+## Day 11
+
+**Objective:** Audit the largest current test binaries in depth so the Sprint
+44 maintainability batch is grounded in real helper/fixture duplication rather
+than generic file-size discomfort, with a concrete and bounded Day 12 landing
+set chosen before any test cleanup code moves.
+
+### Commands Run
+
+1. Re-read the Sprint 44 Day 11/12 plan section and the Day 4 design:
+   - `sed -n '330,390p' docs/planning/EPIC_4/SPRINT_44/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_44/artifacts/day4-separator-runtime-and-large-test-design.md`
+2. Refresh the current large-test hotspot sizing:
+   - `wc -l tests/test_chol_csc.c tests/test_svd.c tests/test_ldlt_csc.c tests/test_qr.c`
+3. Sweep the four target files for repeated helper/fixture seams:
+   - `rg -n "compare_dense_sparse_qr|qr_reconstruction_error|ASSERT_|build_|fixture|orthogon|reconstruct|economy|full" tests/test_qr.c tests/test_chol_csc.c tests/test_ldlt_csc.c tests/test_svd.c`
+   - `rg -n "^static .*\\(|build_|fixture|residual|orthogon|reconstruct|economy|full|compare|match|corpus|kkt|solve" tests/test_ldlt_csc.c | sed -n '1,220p'`
+   - `rg -n "^static .*\\(|build_|fixture|residual|orthogon|reconstruct|economy|full|compare|match|corpus|low-rank|svd" tests/test_svd.c | sed -n '1,220p'`
+4. Re-read the strongest candidate regions directly:
+   - `sed -n '154,340p' tests/test_qr.c`
+   - `sed -n '630,1110p' tests/test_qr.c`
+   - `sed -n '1110,1605p' tests/test_qr.c`
+
+### Day 11 Findings
+
+#### 1. Day 11 confirms that helper seams are real, but they are not evenly distributed across the four files
+
+The live large-test hotspot set remains:
+
+- `tests/test_chol_csc.c` = `4643`
+- `tests/test_svd.c` = `3746`
+- `tests/test_ldlt_csc.c` = `3637`
+- `tests/test_qr.c` = `3291`
+
+But the maintainability signal is not just file size.
+
+The strongest current helper/fixture classes are:
+
+- repeated dense-vs-sparse comparison / reconstruction harnesses in
+  `tests/test_qr.c`
+- repeated SPD/supernodal fixture and cross-check harnesses in
+  `tests/test_chol_csc.c`
+- repeated indefinite fixture builders and factor/solve comparison helpers in
+  `tests/test_ldlt_csc.c`
+- repeated UV/reconstruction/orthogonality validation patterns in
+  `tests/test_svd.c`
+
+Interpretation:
+
+- Sprint 44 should still prefer the file with the clearest bounded extraction
+  seam, not the numerically largest file
+
+#### 2. `tests/test_qr.c` is the clearest Day 12 first target
+
+`tests/test_qr.c` already has visible helper structure rather than a purely
+flat test layout:
+
+- `qr_reconstruction_error(...)`
+- `compare_dense_sparse_qr(...)`
+- repeated reconstruction-oriented checks across:
+  - square
+  - tall
+  - wide
+  - nearly singular
+  - larger sparse fixtures
+- repeated solve/comparison patterns against LU and direct residual checks
+
+The strongest bounded maintainability seam is the repeated QR result-validation
+shape:
+
+- factor
+- inspect rank/permutation conditions
+- compute reconstruction error
+- compare against a tolerance or reference path
+
+Why it is the best first target:
+
+- the helper seam is already partially established
+- the repeated patterns are behavior-aligned across many tests
+- the likely extraction can stay local to one file
+- it does not require redesigning fixtures, corpus loading, or test ownership
+
+Interpretation:
+
+- Day 12 should target `tests/test_qr.c` first
+- the batch should most likely center on one or two result-validation helpers,
+  not on broad file restructuring
+
+#### 3. `tests/test_chol_csc.c` has real duplication, but much of it is specialized rather than broadly reusable
+
+`tests/test_chol_csc.c` is still the biggest file and does contain genuine
+repetition:
+
+- SPD fixture builders
+- scalar-vs-batched / scalar-vs-supernodal cross-check paths
+- repeated residual / solution-comparison harnesses
+- repeated supernode extract/writeback/eliminate-panel setup
+
+But much of that repetition is clustered around specialized subsystem seams:
+
+- supernode panel extraction/writeback
+- CSC threshold dispatch
+- SuiteSparse fixture spot-checks
+- scalar-vs-batched kernel parity
+
+Interpretation:
+
+- this file is a strong later cleanup candidate
+- it is a weaker *first* landing than `tests/test_qr.c` because much of the
+  visible duplication is domain-specific and risks turning Day 12 into a broad
+  supernodal test cleanup rather than a small maintainability batch
+
+#### 4. `tests/test_ldlt_csc.c` has strong fixture-builder duplication, but the helpers are tightly tied to domain-specific factor-state coverage
+
+`tests/test_ldlt_csc.c` clearly contains reusable-looking helpers such as:
+
+- `build_dense_ldlt_with_pivots(...)`
+- `build_dense_spd(...)`
+- `build_random_symmetric(...)`
+- `build_kkt_5x5(...)`
+- `build_kkt_10x10(...)`
+- `build_symmetric(...)`
+- `build_ldlt_from_triples(...)`
+- `ldlt_csc_factor_state_matches(...)`
+- `s20_solve_residual(...)`
+
+The file therefore has real duplication, especially around:
+
+- indefinite fixture construction
+- two-pass factor comparison
+- solve residual validation
+- dense-oracle comparison
+
+But the same file is also heavily organized around specialized LDLT/CSC
+correctness claims:
+
+- pivot-size behavior
+- supernode extract/writeback
+- KKT-specific regressions
+- linked-list vs CSC parity
+- permutation/composition details
+
+Interpretation:
+
+- the file is maintainability-relevant, but it is better handled through a
+  later focused domain batch than through Sprint 44's first small helper pass
+
+#### 5. `tests/test_svd.c` shows repeated validation structure, but it is better as a later focused batch than the first landing
+
+`tests/test_svd.c` has obvious repetition around:
+
+- UV reconstruction checks
+- orthogonality checks
+- full vs economy option shapes
+- rank-deficient / low-rank / diagonal fixture families
+- recurring `sparse_svd_compute(...)` plus sigma-order assertions
+
+It also already has useful helper seams:
+
+- `gk_reconstruction_error(...)`
+- `orthogonality_error(...)`
+- `validate_gk(...)`
+
+Interpretation:
+
+- the file is a good later maintainability target
+- but it is less attractive than `tests/test_qr.c` for Day 12 because a large
+  share of the remaining repetition is spread across many distinct SVD regimes
+  rather than one especially clean helper seam
+
+#### 6. Day 12 now has a concrete bounded landing set
+
+Primary Day 12 target:
+
+- `tests/test_qr.c`
+
+Likely safe extraction classes:
+
+- one shared QR result-validation helper
+- one shared reconstruction / residual assertion helper
+- possibly one small setup wrapper if it removes obvious repeated local setup
+
+Optional second target only if the QR batch stays clearly small:
+
+- one narrow helper seam from `tests/test_chol_csc.c`
+
+Explicit non-goals:
+
+- no file splitting
+- no broad cross-file helper library
+- no test-framework redesign
+- no domain-behavior changes bundled into cleanup
+- no attempt to clean all four hotspot tests in one batch
+
+Interpretation:
+
+- Sprint 44's first large-test maintainability landing should be a small,
+  high-signal helper extraction in `tests/test_qr.c`
+- any second file participation must remain obviously narrower than the QR
+  batch itself

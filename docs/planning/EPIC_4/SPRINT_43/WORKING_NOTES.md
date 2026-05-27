@@ -1686,3 +1686,113 @@ Interpretation:
 
 - the graph seam-test queue is bounded
 - Day 12 can stay implementation-sized instead of turning into a second audit
+
+## Day 12
+
+1. Re-read the Sprint 43 Day 12 plan section and Day 11 outcome:
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_43/PLAN.md`
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_43/artifacts/day11-focused-graph-test-design.md`
+2. Re-open the touched graph test and implementation seams:
+   - `sed -n '1,260p' tests/test_graph.c`
+   - `rg -n "graph_subgraph|graph_bisect_coarsest|COARSEST_BISECTION|gggp|brute" tests/test_graph.c src/sparse_graph_core.c src/sparse_graph_bisect.c`
+3. Land the bounded Day 12 seam-test batch in `tests/test_graph.c`:
+   - replace the stale stub-era subgraph test with current-era argument validation
+   - add one real induced-subgraph success test
+   - add one forced-`gggp` dispatch test on a small graph
+   - add one forced-`brute` oversized fallback test
+4. Run the required full gate because `tests/test_graph.c` changed:
+   - `make format`
+   - `make lint`
+   - `make test`
+
+### Day 12 Findings
+
+#### 1. The extracted ownership/construction seam now has real successful coverage
+
+`tests/test_graph.c` now goes beyond the stale stub-era negative probe.
+
+The new subgraph coverage is split cleanly into:
+
+- `test_graph_subgraph_argument_validation(...)`
+- `test_graph_subgraph_path_slice(...)`
+
+The important change is the second test. It now pins a real successful
+induced-subgraph contract on a simple path fixture:
+
+- parent graph construction succeeds
+- the selected vertex slice produces the correct child shape
+- adjacency contains only the induced edges
+- `vertex_id_map_out` preserves the expected parent-to-child mapping
+- the extracted ownership/free path stays clean
+
+Interpretation:
+
+- the Day 5 `src/sparse_graph_core.c` extraction is now protected by a direct
+  success-path regression, not just a bad-argument check
+- future graph cleanup can no longer silently regress the core subgraph
+  contract while still passing the old stub-era test
+
+#### 2. The extracted coarse-bisection dispatch seam is now pinned explicitly
+
+`tests/test_graph.c` now includes two small routing-focused seam tests:
+
+- `test_bisect_forced_gggp_small_graph(...)`
+- `test_bisect_forced_brute_large_graph_falls_back_to_gggp(...)`
+
+These tests intentionally avoid broad partition-quality claims. They pin the
+module-boundary contract created by the Sprint 43 split:
+
+- a small graph honors explicit `SPARSE_ND_COARSEST_BISECTION=gggp`
+- an oversized graph requested as `brute` still returns through the documented
+  safe GGGP fallback path
+
+The oversized fallback test also compares the explicit-`brute` result against
+the default large-graph result to pin the practical fallback behavior instead
+of only checking that a valid bipartition exists.
+
+Interpretation:
+
+- the Day 9 `src/sparse_graph_bisect.c` extraction now has direct dispatch-seam
+  regression coverage
+- later refactors cannot easily blur routing ownership between the extracted
+  bisection module and the remaining orchestration layer
+
+#### 3. The batch stayed inside the intended Phase-1 boundary
+
+Day 11 explicitly rejected a broad graph-test expansion. Day 12 kept that
+boundary:
+
+- no FM refinement extraction tests
+- no separator-lifting extraction tests
+- no deeper ND strategy-matrix expansion
+- no new performance/benchmark-style graph checks
+
+Interpretation:
+
+- the new coverage is high-signal and seam-specific
+- Sprint 43 stays focused on Phase-1 module-boundary protection rather than
+  reopening algorithm-level test churn
+
+#### 4. The required validation gate passed cleanly
+
+Because `tests/test_graph.c` changed, the authoritative Day 12 validation was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+The live `make test` sweep covered the touched graph surface directly,
+including:
+
+- `test_graph_subgraph_argument_validation`
+- `test_graph_subgraph_path_slice`
+- `test_bisect_forced_gggp_small_graph`
+- `test_bisect_forced_brute_large_graph_falls_back_to_gggp`
+
+Interpretation:
+
+- the new seam tests integrate cleanly into the maintained graph regression
+  surface
+- no reconciliation queue surfaced from the Day 12 batch

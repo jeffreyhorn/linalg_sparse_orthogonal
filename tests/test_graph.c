@@ -602,14 +602,52 @@ static void test_hierarchy_free_safe_on_zero_init(void) {
     ASSERT_TRUE(h.cmaps == NULL);
 }
 
-/* ─── Day 1 / Day 6 stubs ───────────────────────────────────────────── */
+/* ─── Day 1 / Sprint 43 Day 12: subgraph seam tests ────────────────── */
 
-static void test_graph_subgraph_is_stub(void) {
+static void test_graph_subgraph_argument_validation(void) {
     sparse_graph_t parent = {0};
     sparse_graph_t child = {0};
     idx_t vs[1] = {0};
     idx_t map[1] = {0};
     ASSERT_ERR(sparse_graph_subgraph(&parent, vs, 1, &child, map), SPARSE_ERR_BADARG);
+}
+
+static void test_graph_subgraph_path_slice(void) {
+    SparseMatrix *A = make_path_1d(5);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_graph_t parent = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &parent));
+    ASSERT_EQ(parent.n, 5);
+
+    const idx_t keep[3] = {1, 2, 3};
+    idx_t parent_ids[3] = {-1, -1, -1};
+    sparse_graph_t child = {0};
+    REQUIRE_OK(sparse_graph_subgraph(&parent, keep, 3, &child, parent_ids));
+
+    ASSERT_EQ(child.n, 3);
+    ASSERT_NOT_NULL(child.xadj);
+    ASSERT_NOT_NULL(child.adjncy);
+    ASSERT_TRUE(child.vwgt == NULL);
+    ASSERT_TRUE(child.ewgt == NULL);
+
+    ASSERT_EQ(parent_ids[0], 1);
+    ASSERT_EQ(parent_ids[1], 2);
+    ASSERT_EQ(parent_ids[2], 3);
+
+    ASSERT_EQ(child.xadj[0], 0);
+    ASSERT_EQ(child.xadj[1], 1);
+    ASSERT_EQ(child.xadj[2], 3);
+    ASSERT_EQ(child.xadj[3], 4);
+
+    ASSERT_EQ(child.adjncy[0], 1);
+    ASSERT_EQ(child.adjncy[1], 0);
+    ASSERT_EQ(child.adjncy[2], 2);
+    ASSERT_EQ(child.adjncy[3], 1);
+
+    sparse_graph_free(&child);
+    sparse_graph_free(&parent);
+    sparse_free(A);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -674,6 +712,19 @@ static void count_partition_sides(const sparse_graph_t *G, const idx_t *part, id
             (*n1)++;
         else if (part[i] == 2)
             (*nsep)++;
+    }
+}
+
+static void count_bipartition_sides(const sparse_graph_t *G, const idx_t *part, idx_t *n0,
+                                    idx_t *n1) {
+    *n0 = 0;
+    *n1 = 0;
+    for (idx_t i = 0; i < G->n; i++) {
+        ASSERT_TRUE(part[i] == 0 || part[i] == 1);
+        if (part[i] == 0)
+            (*n0)++;
+        else
+            (*n1)++;
     }
 }
 
@@ -1067,6 +1118,67 @@ static void test_spectral_bisection_lanczos_failure(void) {
             has_one = 1;
     }
     ASSERT_TRUE(has_zero && has_one);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+static void test_bisect_forced_gggp_small_graph(void) {
+    if (tf_setenv("SPARSE_ND_COARSEST_BISECTION", "gggp") != 0) {
+        printf("    skipped (setenv failed)\n");
+        return;
+    }
+
+    SparseMatrix *A = make_path_1d(8);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    ASSERT_EQ(G.n, 8);
+
+    idx_t part[8] = {0};
+    sparse_err_t rc = graph_bisect_coarsest(&G, part);
+    tf_unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    REQUIRE_OK(rc);
+
+    idx_t n0 = 0, n1 = 0;
+    count_bipartition_sides(&G, part, &n0, &n1);
+    ASSERT_EQ(n0 + n1, 8);
+    ASSERT_EQ(n0, 4);
+    ASSERT_EQ(n1, 4);
+
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
+static void test_bisect_forced_brute_large_graph_falls_back_to_gggp(void) {
+    SparseMatrix *A = make_path_1d(41);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    sparse_graph_t G = {0};
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+    ASSERT_EQ(G.n, 41);
+
+    idx_t part_default[41] = {0};
+    REQUIRE_OK(graph_bisect_coarsest(&G, part_default));
+
+    if (tf_setenv("SPARSE_ND_COARSEST_BISECTION", "brute") != 0) {
+        printf("    skipped (setenv failed)\n");
+        sparse_graph_free(&G);
+        sparse_free(A);
+        return;
+    }
+
+    idx_t part_forced[41] = {0};
+    sparse_err_t rc = graph_bisect_coarsest(&G, part_forced);
+    tf_unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    REQUIRE_OK(rc);
+
+    idx_t n0 = 0, n1 = 0;
+    count_bipartition_sides(&G, part_forced, &n0, &n1);
+    ASSERT_EQ(n0 + n1, 41);
+    ASSERT_TRUE(n0 >= 20 && n1 >= 20);
+
+    for (idx_t i = 0; i < 41; i++)
+        ASSERT_EQ(part_forced[i], part_default[i]);
 
     sparse_graph_free(&G);
     sparse_free(A);
@@ -2542,8 +2654,8 @@ int main(void) {
     RUN_TEST(test_graph_from_sparse_rejects_rectangular);
     RUN_TEST(test_graph_from_sparse_null_args);
 
-    /* Day 6 stub still pending: subgraph */
-    RUN_TEST(test_graph_subgraph_is_stub);
+    RUN_TEST(test_graph_subgraph_argument_validation);
+    RUN_TEST(test_graph_subgraph_path_slice);
 
     /* Day 2: heavy-edge-matching coarsener */
     RUN_TEST(test_coarsen_5x5_grid_halves_in_one_step);
@@ -2599,6 +2711,8 @@ int main(void) {
     RUN_TEST(test_spectral_bisection_n2);
     RUN_TEST(test_spectral_bisection_disconnected);
     RUN_TEST(test_spectral_bisection_lanczos_failure);
+    RUN_TEST(test_bisect_forced_gggp_small_graph);
+    RUN_TEST(test_bisect_forced_brute_large_graph_falls_back_to_gggp);
     RUN_TEST(test_partition_5x5x5_mesh);
     RUN_TEST(test_partition_two_k10_with_bridge);
     /* Sprint 26 Day 2: stub for HCC bcsstk14 sep=0 blocker; Day 3

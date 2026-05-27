@@ -184,3 +184,205 @@ Interpretation:
 - Sprint 45 should preserve Sprint 40's core rule: structural refactors should
   be guided by measured seams and explicit ownership boundaries before code
   movement lands
+
+## Day 2
+
+**Objective:** Refresh the internal seam inventory inside
+`src/sparse_iterative.c` so Sprint 45's workspace landing order is grounded in
+the live post-Sprint-44 file rather than only in the project-plan labels, with
+explicit separation between shared packed-buffer patterns, solver-specific
+state, wrapper-only paths, and the already-existing BiCGSTAB workspace seam.
+
+### Commands Run
+
+1. Re-read the Sprint 45 Day 2 plan section:
+   - `sed -n '56,92p' docs/planning/EPIC_4/SPRINT_45/PLAN.md`
+2. Re-read the Day 1 baseline artifact:
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_45/artifacts/day1-scope-and-iterative-baseline.md`
+3. Re-read the public iterative surface and the current internal BiCGSTAB
+   workspace precedent:
+   - `sed -n '1,260p' include/sparse_iterative.h`
+   - `sed -n '1,260p' src/sparse_bicgstab_internal.h`
+4. Refresh the live iterative seam markers and function map:
+   - `rg -n "sparse_solve_cg|sparse_solve_cg_mf|sparse_solve_gmres|sparse_solve_gmres_mf|sparse_cg_solve_block|sparse_gmres_solve_block|sparse_solve_minres|sparse_minres_solve_block|sparse_solve_bicgstab|sparse_bicgstab_solve_block|sparse_solve_bicgstab_mf|stag_|reshist_|workspace_alloc|workspace_free|malloc|calloc" src/sparse_iterative.c`
+5. Re-read the main scalar / matrix-free / GMRES regions directly:
+   - `sed -n '140,980p' src/sparse_iterative.c`
+6. Re-read the block, MINRES, and BiCGSTAB regions directly:
+   - `sed -n '980,2360p' src/sparse_iterative.c`
+
+### Day 2 Findings
+
+#### 1. The iterative subsystem now reduces cleanly to six workspace seam classes
+
+The current file maps cleanly to these regions:
+
+- shared support state:
+  - `stag_tracker_t`
+  - `reshist_t`
+  - verbose/progress helpers
+- scalar CG family:
+  - `sparse_solve_cg(...)`
+  - `sparse_solve_cg_mf(...)`
+- GMRES family:
+  - `sparse_solve_gmres(...)`
+  - `sparse_solve_gmres_mf(...)`
+- block / multi-RHS family:
+  - `sparse_cg_solve_block(...)`
+  - `sparse_gmres_solve_block(...)`
+  - `sparse_minres_solve_block(...)`
+  - `sparse_bicgstab_solve_block(...)`
+- MINRES family:
+  - `sparse_solve_minres(...)`
+- existing separate-workspace precedent:
+  - `sparse_solve_bicgstab(...)`
+  - `sparse_solve_bicgstab_mf(...)`
+  - `bicgstab_workspace_t`
+
+Interpretation:
+
+- Sprint 45 is not solving one flat "iterative allocation" problem
+- it is solving a shared packed-buffer and repeated-solve problem across a
+  few distinct solver families, with BiCGSTAB already sitting in a partially
+  solved bucket
+
+#### 2. The strongest shared extraction targets are the packed contiguous vector bundles
+
+The clearest shared allocation patterns are:
+
+- four-vector `n`-sized bundles:
+  - CG
+  - matrix-free CG
+- GMRES full packed bundle:
+  - Arnoldi basis `v`
+  - Hessenberg `h`
+  - Givens vectors `cs` / `sn`
+  - Hessenberg RHS / solve scratch `g` / `y`
+  - temporary work vector `w`
+- block `n * nrhs` bundles:
+  - `R`
+  - `Z`
+  - `P`
+  - `AP`
+- MINRES packed `nvecs * n` bundle:
+  - six-vector unpreconditioned path
+  - eight-vector preconditioned path
+
+Interpretation:
+
+- the first reusable workspace design should center on packed bundle ownership
+  and typed slice views
+- the shared seam is more about "contiguous work-buffer families" than about
+  abstract solver contexts
+
+#### 3. Some important state should remain solver-local even after workspace reuse lands
+
+The main solver-local state that should not be forced into a generic shared
+schema is:
+
+- CG recurrence scalars:
+  - `rz`
+  - `alpha`
+  - `beta`
+- GMRES restart/Arnoldi control:
+  - `m`
+  - `total_iter`
+  - restart loop state
+  - left-vs-right preconditioning behavior
+- MINRES Lanczos / QR state:
+  - `cs`, `sn`
+  - `cs_old`, `sn_old`
+  - `phi_bar`, `beta_old`
+  - direction-vector rotation order
+- BiCGSTAB recurrence and half-step stabilization state
+
+Interpretation:
+
+- Sprint 45 should share buffer ownership and reset logic
+- it should not try to unify solver math state into one generic iterative
+  state machine
+
+#### 4. The block solver family splits into one true workspace target and three wrapper-style follow-ons
+
+The live block paths are not all equivalent:
+
+- `sparse_cg_solve_block(...)` is a real direct workspace target:
+  - its own `n * nrhs` bundles
+  - shared block SpMV path
+  - per-column side buffers
+- `sparse_gmres_solve_block(...)` is currently a wrapper-style column loop over
+  scalar GMRES
+- `sparse_minres_solve_block(...)` is currently a wrapper-style column loop over
+  scalar MINRES
+- `sparse_bicgstab_solve_block(...)` is currently a wrapper-style column loop
+  over scalar BiCGSTAB
+
+Interpretation:
+
+- the main Sprint 45 block-workspace target is block CG
+- block GMRES / MINRES / BiCGSTAB are primarily compatibility-wrapper and
+  repeated-call composition surfaces unless the sprint later chooses to widen
+  scope deliberately
+
+#### 5. The strongest wrapper-vs-reusable-core split is already visible
+
+The clearest one-shot wrapper / reusable-core separations are:
+
+- matrix-backed wrappers over matrix-free kernels:
+  - `sparse_solve_gmres(...)` -> `sparse_solve_gmres_mf(...)`
+- direct per-column block wrappers:
+  - `sparse_gmres_solve_block(...)`
+  - `sparse_minres_solve_block(...)`
+  - `sparse_bicgstab_solve_block(...)`
+
+Interpretation:
+
+- later Sprint 45 wrapper work should formalize and preserve this layering
+- it should not invent a second wrapper model after the reusable internals land
+
+#### 6. BiCGSTAB is the main "use as precedent, not first migration target" seam
+
+BiCGSTAB already owns:
+
+- explicit workspace type
+- dedicated alloc/free seam
+- contiguous vector ownership
+
+But it still differs from the Sprint 45 main target set because:
+
+- the workspace lives in a solver-specific internal header
+- it is not yet a generalized iterative workspace model
+- the main repeated-allocation pain still sits in CG / GMRES / block CG /
+  MINRES
+
+Interpretation:
+
+- Day 3 should treat BiCGSTAB as design evidence
+- it should not let BiCGSTAB pull the first migration batch away from the
+  bigger one-shot allocation seams
+
+#### 7. The first-phase adoption order is now concrete
+
+The correct first-phase workspace rollout is:
+
+1. shared support/buffer layer
+2. scalar CG and matrix-free CG
+3. GMRES and matrix-free GMRES
+4. block CG
+5. MINRES if the shared layer remains cleanly extensible
+6. wrapper normalization and repeated-solve measurement
+
+Explicit later/defer classification:
+
+- use as precedent, not first landing:
+  - BiCGSTAB
+- likely Sprint 45 wrapper/composition surfaces rather than primary workspace
+  migration targets:
+  - block GMRES
+  - block MINRES
+  - block BiCGSTAB
+
+Interpretation:
+
+- Sprint 45 now has a bounded internal rollout order driven by the live file
+- the next design work should focus on one reusable packed-buffer model that
+  fits CG first and still scales to GMRES/block/MINRES

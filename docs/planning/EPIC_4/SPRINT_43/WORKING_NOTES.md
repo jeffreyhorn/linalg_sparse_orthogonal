@@ -238,7 +238,7 @@ The most stable extraction candidates now are:
 
 - graph ownership / construction
   - already fronted by a small, coherent public-internal helper set
-  - low dependence on FM or separator-lifting internals
+- low dependence on FM or separator-lifting internals
 - hierarchy / coarsening
   - coherent around coarse-graph construction, `cmap` ownership, and
     strategy-selected matching
@@ -740,3 +740,138 @@ Interpretation:
 
 - Day 5 and later extraction work now has a concrete wiring checklist
 - the remaining uncertainty is implementation detail, not build/include policy
+
+## Day 5
+
+**Objective:** Land the first real Phase-1 extraction batch by moving the
+graph ownership / construction seam out of `src/sparse_graph.c` into its own
+translation unit, wiring the new file into both maintained build systems, and
+validating that the split preserves the current graph/ND behavior.
+
+### Commands Run
+
+1. Re-read the Sprint 43 Day 3/4 design inputs and inspect the current seam:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_43/artifacts/day3-graph-module-boundary-design.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_43/artifacts/day4-build-and-include-strategy-design.md`
+   - `sed -n '1,360p' src/sparse_graph.c`
+2. Land the extraction batch:
+   - move `sparse_graph_from_sparse(...)`
+   - move `sparse_graph_free(...)`
+   - move `sparse_graph_subgraph(...)`
+   - add `src/sparse_graph_core.c`
+   - update `Makefile`
+   - update `CMakeLists.txt`
+3. Run the required full validation gate for `*.c` changes:
+   - `make format`
+   - `make lint`
+   - `make test`
+4. Capture the resulting diff and status:
+   - `git diff --stat`
+   - `git status --short`
+
+### Day 5 Findings
+
+#### 1. The first extraction seam was exactly as stable as the Day 2/3 inventory predicted
+
+The moved batch was:
+
+- `sparse_graph_from_sparse(...)`
+- `sparse_graph_free(...)`
+- `sparse_graph_subgraph(...)`
+
+These functions form a coherent ownership / construction slice because they
+own:
+
+- graph-object initialization
+- adjacency build-up from `SparseMatrix`
+- partial-construction cleanup
+- graph-object teardown
+- the current subgraph helper stub
+
+Interpretation:
+
+- this was the right first batch because it is structurally important but
+  algorithmically low-risk
+- the extraction reduces the monolith without forcing premature movement of
+  coarsening, FM, separator, or orchestration code
+
+#### 2. `src/sparse_graph_core.c` is now the Phase-1 home for graph object lifecycle
+
+Day 5 created:
+
+- `src/sparse_graph_core.c`
+
+The new file now owns the graph lifecycle seam, while the remaining
+`src/sparse_graph.c` begins with the heavier algorithmic regions.
+
+Interpretation:
+
+- the decomposition is now real, not just planned
+- later hierarchy/coarsening extraction can build on a cleaner residual
+  monolith that no longer mixes object-lifecycle code with the core
+  partitioning pipeline
+
+#### 3. The remaining monolith is now less entangled with matrix-construction details
+
+After the extraction:
+
+- `src/sparse_graph.c` no longer needs `sparse_matrix_internal.h`
+- graph construction / teardown no longer sits at the top of the main graph
+  algorithm file
+
+Interpretation:
+
+- this is a good Phase-1 signal that seam ownership improved materially, not
+  just cosmetically
+- the residual monolith is now more purely about graph algorithms and
+  strategy flow
+
+#### 4. The Day 4 build/include strategy held exactly as designed
+
+The build wiring change stayed bounded:
+
+- `Makefile` gained `src/sparse_graph_core.c`
+- `CMakeLists.txt` gained `src/sparse_graph_core.c`
+- `src/sparse_graph.c` remained in both source lists
+- no public headers changed
+- `src/sparse_graph_internal.h` remained the shared internal contract surface
+
+Interpretation:
+
+- the Phase-1 extraction did not need build-system redesign
+- the current explicit-source ownership model is sufficient for the next
+  extraction batches
+
+#### 5. Day 5 preserved the intended defer boundary
+
+The batch explicitly did **not** move:
+
+- hierarchy lifecycle
+- heavy-edge matching / HCC coarsening
+- coarse bisection
+- FM refinement
+- separator lifting
+- top-level orchestration
+
+Interpretation:
+
+- Day 5 stayed within the Sprint 43 Phase-1 plan instead of drifting into a
+  broad graph rewrite
+- Day 6 can now focus cleanly on the hierarchy/coarsening seam without
+  reopening the ownership batch
+
+#### 6. Full validation passed after the split
+
+Because `*.c` files changed, the full required gate ran:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Interpretation:
+
+- the extracted graph-core module is wired correctly into both maintained
+  build surfaces
+- the current graph/ND regression surface still holds after the split

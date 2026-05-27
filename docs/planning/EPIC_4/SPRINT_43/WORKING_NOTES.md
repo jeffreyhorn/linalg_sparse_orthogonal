@@ -163,3 +163,203 @@ Interpretation:
   - validation
 - broader graph-orchestration, FM, and separator cleanup remains later-phase
   work
+
+## Day 2
+
+**Objective:** Refresh the internal seam inventory inside `src/sparse_graph.c`
+so Sprint 43's extraction order is grounded in the live monolith rather than
+only in the project-plan labels, with explicit separation between stable
+Phase-1 subsystem seams and later FM/separator-heavy regions.
+
+### Commands Run
+
+1. Re-read the Sprint 43 Day 2 plan section:
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_43/PLAN.md`
+2. Re-read the Sprint 40 hotspot baseline:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_40/artifacts/day4-hotspot-allocation-baseline.md`
+3. Sweep the live graph monolith for major seam markers and high-signal
+   helper clusters:
+   - `wc -l src/sparse_graph.c`
+   - `rg -n "^(static |typedef struct|typedef enum|sparse_err_t |void |idx_t |double )|graph_construct|graph_coars|graph_uncoars|graph_refine_fm|separator|bisection|spectral|match|hierarch|strategy|dispatch|partition_once|sparse_graph_partition|sparse_graph_hierarchy_build|sparse_graph_subgraph" src/sparse_graph.c`
+   - `rg -n "SPARSE_PARTITION|partition|separator|coars|match|bisection|spectral|fm_" src/sparse_graph.c | sed -n '1,120p'`
+4. Re-read the current graph-internal header surfaces:
+   - `sed -n '1,260p' src/sparse_graph_internal.h`
+   - `sed -n '1,260p' src/sparse_graph_fm_buckets.h`
+5. Reconfirm the current graph-focused test concentration:
+   - `rg --files tests | rg 'test_(graph|graph_fm_buckets|reorder_nd|reorder_amd_qg)\\.c$'`
+
+### Day 2 Findings
+
+#### 1. The live monolith reduces cleanly to seven internal seam classes
+
+The current `src/sparse_graph.c` implementation still maps cleanly to these
+main regions:
+
+- graph construction / ownership
+  - `sparse_graph_from_sparse(...)`
+  - `sparse_graph_free(...)`
+  - `sparse_graph_subgraph(...)`
+- hierarchy and coarse-graph lifecycle
+  - `sparse_graph_hierarchy_t`
+  - `sparse_graph_hierarchy_build(...)`
+  - `sparse_graph_hierarchy_free(...)`
+- matching / coarsening
+  - `graph_coarsen_with_strategy(...)`
+  - `graph_coarsen_heavy_edge_matching(...)`
+  - `graph_coarsen_hcc(...)`
+  - coarsening strategy parsing / scoring support
+- coarse bisection
+  - `bisect_brute_force(...)`
+  - `bisect_gggp(...)`
+  - `graph_build_laplacian(...)`
+  - `graph_bisect_coarsest_spectral(...)`
+  - `graph_bisect_coarsest(...)`
+- FM refinement
+  - bucket array implementation
+  - annealing / thick-restart / ensemble thread-local strategy support
+  - `graph_refine_fm(...)`
+- separator lifting / final partition projection
+  - `graph_edge_separator_to_vertex_separator(...)`
+  - separator-lift strategy parsing and scoring helpers
+- top-level orchestration and runtime strategy glue
+  - `graph_uncoarsen(...)`
+  - `partition_once(...)`
+  - `sparse_graph_partition(...)`
+
+Interpretation:
+
+- Sprint 43's planned subsystem labels match the live code structure
+- the file is large, but it is not structurally opaque anymore once these
+  seven seam classes are named directly
+
+#### 2. The strongest stable Phase-1 extraction seams are graph ownership, hierarchy/coarsening, and coarse bisection
+
+The most stable extraction candidates now are:
+
+- graph ownership / construction
+  - already fronted by a small, coherent public-internal helper set
+  - low dependence on FM or separator-lifting internals
+- hierarchy / coarsening
+  - coherent around coarse-graph construction, `cmap` ownership, and
+    strategy-selected matching
+  - depends heavily on graph internals, but not on the FM hot loop
+- coarse bisection
+  - brute-force, GGGP, and spectral coarse split logic already form a bounded
+    algorithm family
+  - naturally separable from later uncoarsening and separator lifting
+
+Interpretation:
+
+- these three seams are the right Phase-1 module targets
+- they can move without forcing Sprint 43 to solve the entire runtime-strategy
+  or separator-lifting topology at the same time
+
+#### 3. FM refinement is real subsystem material, but it is still too entangled for Phase 1
+
+The FM region is not just one function. It currently includes:
+
+- bucket-array implementation
+- thread-local pop/annealing/thick-restart/ensemble controls
+- gain-noise and perturbation strategy parsing
+- `graph_refine_fm(...)` itself
+
+The key complication is that this region is tightly coupled to:
+
+- `graph_uncoarsen(...)`
+- finest-level special-case control flow
+- ensemble strategy loops
+- separator-quality tuning expectations
+
+Interpretation:
+
+- FM refinement is a legitimate later subsystem, not dead weight inside the
+  file
+- it should remain explicitly deferred from Sprint 43 Phase 1 rather than
+  being half-extracted under unstable boundaries
+
+#### 4. Separator lifting is also a distinct subsystem, but it belongs to a later phase with FM
+
+The separator region already has its own bounded vocabulary:
+
+- separator-lift strategies
+- per-vertex scoring modes
+- weight-selection logic
+- `graph_edge_separator_to_vertex_separator(...)`
+
+But it still depends on:
+
+- the partition state output of coarse bisection + FM
+- top-level orchestration ordering
+- strategy parsing and later-stage partition semantics
+
+Interpretation:
+
+- separator lifting is a valid extraction target
+- it belongs in a later graph phase with the FM/toplevel cleanup rather than in
+  Sprint 43's first bounded extraction push
+
+#### 5. Cross-cutting runtime strategy state is a real risk cluster and should mostly stay in the orchestration layer for now
+
+The monolith carries several cross-cutting runtime selectors:
+
+- coarsening strategy parsing
+- coarse-bisection strategy parsing
+- FM annealing/thick-restart/ensemble toggles
+- separator-lift strategy parsing
+- degenerate-partition retry behavior
+
+Interpretation:
+
+- strategy parsing is not one flat extraction seam
+- the safest Sprint 43 rule is:
+  - move strategy parsing only when it belongs tightly to an extracted module
+  - otherwise leave the wider runtime-glue surface in the remaining orchestration
+    layer until Phase 2
+
+#### 6. The current internal header surface is still underpowered for a multi-file graph subsystem
+
+The current graph-internal headers cover:
+
+- core graph representation and hierarchy types:
+  - `src/sparse_graph_internal.h`
+- FM bucket-array API:
+  - `src/sparse_graph_fm_buckets.h`
+
+What is missing for a clean multi-file Phase-1 split is an explicit shared
+declaration surface for:
+
+- coarsening-only helpers/types
+- coarse-bisection-only helpers/types
+- graph-ownership/constructor helpers once they stop living only in the
+  monolith
+
+Interpretation:
+
+- Day 3/4 should explicitly design a stronger graph-internal header boundary
+- Sprint 43 should not attempt extraction without first deciding which
+  declarations stay shared and which remain translation-unit local
+
+#### 7. The extraction order is now clearer than the project-plan text alone
+
+The strongest initial Phase-1 landing order is:
+
+1. graph ownership / construction
+2. hierarchy / coarsening
+3. coarse bisection
+4. only then reconcile the remaining top-level orchestration glue
+
+Explicit defer list for Sprint 43 Phase 1:
+
+- FM refinement extraction
+- separator lifting extraction
+- broader finest-level strategy cleanup
+- deeper top-level partition orchestration simplification
+
+Interpretation:
+
+- Day 3 should design around this order directly
+- the sprint remains bounded if it treats the remaining monolith as:
+  - FM refinement
+  - separator lifting
+  - orchestration glue
+  rather than trying to erase `src/sparse_graph.c` completely in one pass

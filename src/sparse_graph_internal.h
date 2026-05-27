@@ -374,6 +374,8 @@ void sparse_graph_hierarchy_free(sparse_graph_hierarchy_t *h);
  *       - FM refinement now lives in `src/sparse_graph_refine.c`
  *       - uncoarsening remains in the residual `src/sparse_graph.c`
  *         orchestration layer
+ *       - separator lifting now lives in
+ *         `src/sparse_graph_separator.c`
  *
  * Day 4's uncoarsening pipeline composes these two routines: bisect
  * the coarsest hierarchy level into an initial 2-way partition, then
@@ -571,6 +573,9 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
 /**
  * @brief Convert a 2-way edge separator into a 3-way vertex separator.
  *
+ * Sprint 44 Phase 2 extraction note: the separator-policy and lifting
+ * implementation now lives in `src/sparse_graph_separator.c`.
+ *
  * Given `part_io[i] ∈ {0, 1}`, marks every boundary vertex on one
  * side as the separator (`part_io[i] = 2`).  Two strategies select
  * which side to lift, switched by the `SPARSE_ND_SEP_LIFT_STRATEGY`
@@ -654,10 +659,12 @@ sparse_err_t graph_bisect_coarsest_spectral(const sparse_graph_t *G, idx_t *part
  *   - `src/sparse_graph_bisect.c`
  *     - coarsest-level split selection
  *     - spectral / brute / GGGP routing
- *   - `src/sparse_graph.c`
+ *   - `src/sparse_graph_refine.c`
  *     - FM refinement
- *     - uncoarsening
+ *   - `src/sparse_graph_separator.c`
  *     - separator lifting
+ *   - `src/sparse_graph.c`
+ *     - uncoarsening
  *     - final retry/orchestration glue
  *
  * Three-phase pipeline (Karypis & Kumar 1998; details in

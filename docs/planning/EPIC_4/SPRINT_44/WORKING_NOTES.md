@@ -915,3 +915,161 @@ Interpretation:
 - Day 6 can now extract separator ownership from a cleaner residual
   orchestration layer instead of from the pre-Day-5 mixed FM/orchestration
   monolith
+
+## Day 6
+
+**Objective:** Land the bounded Sprint 44 Phase-2 separator extraction by
+moving separator-policy parsing, per-vertex separator scoring, and final
+edge-to-vertex separator conversion into a dedicated implementation unit
+without reopening FM or broader orchestration work.
+
+### Commands Run
+
+1. Re-read the Day 6 plan/design inputs and separator seam:
+   - `sed -n '170,220p' docs/planning/EPIC_4/SPRINT_44/PLAN.md`
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_44/artifacts/day4-separator-runtime-and-large-test-design.md`
+   - `sed -n '680,1180p' src/sparse_graph.c`
+   - `rg -n "sep_lift_strategy_t|sep_lift_weight_t|parse_sep_lift_strategy|parse_sep_lift_weight|is_per_vertex_strategy|per_vertex_score_cmp_desc|graph_edge_separator_to_vertex_separator|SPARSE_ND_SEP_LIFT" src/sparse_graph.c src/sparse_graph_internal.h tests/test_graph.c`
+2. Inspect the live residual graph/header/build ownership before editing:
+   - `sed -n '1,220p' src/sparse_graph.c`
+   - `sed -n '1,220p' src/sparse_graph_internal.h`
+   - `sed -n '56,78p' Makefile`
+   - `sed -n '96,108p' CMakeLists.txt`
+3. Land the Phase-2 separator extraction:
+   - create `src/sparse_graph_separator.c`
+   - remove the extracted separator block from `src/sparse_graph.c`
+   - update ownership notes in `src/sparse_graph.c` and
+     `src/sparse_graph_internal.h`
+   - add `src/sparse_graph_separator.c` to `Makefile` and `CMakeLists.txt`
+4. Reconfirm the post-edit ownership split:
+   - `rg -n "graph_edge_separator_to_vertex_separator|SEP_LIFT_|parse_sep_lift_strategy|parse_sep_lift_weight|per_vertex_score_cmp_desc" src/sparse_graph.c src/sparse_graph_separator.c src/sparse_graph_internal.h`
+   - `git status --short`
+5. Run the full required validation gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+
+### Day 6 Findings
+
+#### 1. Sprint 44 now has a real separator module
+
+Day 6 created:
+
+- `src/sparse_graph_separator.c`
+
+The new module now owns:
+
+- separator-lift strategy enums
+- separator weight enums
+- separator env-var parsers
+- per-vertex separator scoring helpers
+- `graph_edge_separator_to_vertex_separator(...)`
+
+Interpretation:
+
+- Day 6 delivered the intended Phase-2 separator seam as an actual
+  implementation unit, not just a comment-level ownership change
+
+#### 2. The residual graph file is now narrower and more honest
+
+After the extraction, `src/sparse_graph.c` no longer owns:
+
+- separator strategy enums
+- separator weight enums
+- separator env-var parsers
+- per-vertex separator scoring helpers
+- edge-to-vertex separator conversion
+
+It now retains only the intended residual Phase-2 seam:
+
+- `graph_uncoarsen(...)`
+- top-level partition orchestration
+- retry / fallback glue
+
+Interpretation:
+
+- the residual graph monolith is now closer to the final orchestration-only
+  target that Day 7/Day 8 are supposed to audit and simplify
+
+#### 3. Shared-header growth stayed minimal
+
+The extraction did **not** promote separator-local enums or parser helpers into
+`src/sparse_graph_internal.h`.
+
+The shared internal contract still exports only the behavior seam that other
+graph phases genuinely use:
+
+- `graph_edge_separator_to_vertex_separator(...)`
+
+Day 6 only updated the ownership comments around that seam.
+
+Interpretation:
+
+- the separator extraction preserved the Day 4 rule: move ownership by file,
+  not by broadly expanding shared internal interfaces
+
+#### 4. Build wiring changed in the expected bounded way
+
+Both maintained build systems now compile the extracted separator module:
+
+- `Makefile`
+- `CMakeLists.txt`
+
+No special-case graph build logic was required.
+
+Interpretation:
+
+- the separator extraction landed as a normal library-source split, consistent
+  with the Sprint 43 and Sprint 44 Phase-1/Phase-2 graph module pattern
+
+#### 5. Sprint 44 stayed within the planned mid-sprint boundary
+
+Day 6 intentionally did **not** move:
+
+- `graph_uncoarsen(...)`
+- `partition_once(...)`
+- `sparse_graph_partition(...)`
+- sep=`0` retry / fallback composition
+
+Interpretation:
+
+- Sprint 44 preserved the Day 4 order:
+  1. Day 5: FM extraction
+  2. Day 6: separator extraction
+  3. Day 7: runtime/orchestration audit
+  4. Day 8: residual cleanup
+
+#### 6. Validation passed at the full required gate
+
+Because `*.c` and `*.h` files changed, the full gate was required:
+
+- `make format` — passed
+- `make lint` — passed
+- `make test` — passed
+
+The authoritative `make test` sweep also re-covered the touched graph/ND
+surface directly:
+
+- `test_graph`
+- `test_graph_fm_buckets`
+- `test_reorder_nd`
+- `test_reorder_amd_qg`
+
+Interpretation:
+
+- the separator extraction was structural only; the maintained graph and ND
+  regression surface stayed green end to end
+
+#### 7. Day 7 is now cleanly prepared
+
+With FM and separator seams both extracted, the remaining graph file now
+mostly expresses:
+
+- uncoarsening
+- partition orchestration
+- retry/fallback glue
+
+Interpretation:
+
+- Day 7 can now audit real residual runtime/orchestration coupling rather than
+  rediscovering ownership noise from FM or separator-local code

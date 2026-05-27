@@ -1,6 +1,6 @@
 /*
- * sparse_graph.c — Remaining uncoarsening / separator / orchestration
- *                  slice of the Sprint 22 multilevel graph partitioner.
+ * sparse_graph.c — Remaining uncoarsening / orchestration slice of the
+ *                  Sprint 22 multilevel graph partitioner.
  *
  * ─── Design block ─────────────────────────────────────────────────────
  *
@@ -107,10 +107,12 @@
  *     `src/sparse_graph_bisect.c`
  *   - FM refinement now lives in
  *     `src/sparse_graph_refine.c`
+ *   - separator lifting now lives in
+ *     `src/sparse_graph_separator.c`
  *   - this file intentionally retains:
  *       - uncoarsening
- *       - separator lifting
  *       - top-level partition orchestration
+ *       - retry / fallback glue
  *
  * That split keeps the current extraction phase bounded while
  * preserving the original multilevel partition contract consumed by
@@ -124,12 +126,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Sprint 44 Day 5 extraction note:
+/* Sprint 44 Day 6 extraction note:
  *   - FM refinement, bucket operations, FM parser helpers, cut-weight
  *     evaluation, and FM thread-local runtime state now live in
  *     `src/sparse_graph_refine.c`
- *   - this file intentionally begins at uncoarsening / separator /
- *     orchestration ownership only
+ *   - separator policy / lifting now lives in
+ *     `src/sparse_graph_separator.c`
+ *   - this file intentionally begins at uncoarsening / orchestration
+ *     ownership only
  */
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -658,390 +662,6 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
     return SPARSE_OK;
 }
 
-/* Sprint 26 Day 10: separator-lift strategy enum.  Day 10 extends
- * Sprint 24 Day 6's two-value scheme with a third `per_vertex` value:
- * score boundary vertices individually + greedily pick top-K
- * regardless of side (vs the Sprint 22 / 24 side-then-lift heuristics
- * which lift one entire side's boundary).  See
- * `docs/planning/EPIC_2/SPRINT_26/per_vertex_sep_design.md`. */
-typedef enum {
-    SEP_LIFT_SMALLER_WEIGHT = 0,    /* Sprint 22 default — METIS convention */
-    SEP_LIFT_BALANCED_BOUNDARY = 1, /* Sprint 24 Day 6 advisory */
-    /* Sprint 26 Day 10/12 — per-vertex score + top-K.  Three preset
-     * weight schemes per PLAN.md Day 12 task 1: hybrid (default;
-     * cross_deg-priority + balance tie-break — Day 10's formula),
-     * balance (balance-priority; balance-bonus dominates), degree
-     * (low-total-degree priority + balance tie-break).  All three
-     * use the same greedy 70/30-balance-respecting top-K selection;
-     * only the score formula differs. */
-    SEP_LIFT_PER_VERTEX_HYBRID = 2,  /* SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex */
-    SEP_LIFT_PER_VERTEX_BALANCE = 3, /* SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_balance */
-    SEP_LIFT_PER_VERTEX_DEGREE = 4,  /* SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_degree */
-    /* Sprint 27 Day 4 — fixed-K termination instead of the
-     * 70/30-balance gate.  K = min(boundary_count[0],
-     * boundary_count[1]).  Stacks with the orthogonal
-     * SPARSE_ND_SEP_LIFT_WEIGHT={hybrid (default), balance, degree}
-     * axis to differentiate the three weight schemes (which Sprint
-     * 26 Day 12 found bit-identical on 5 of 6 fixtures because the
-     * 70/30 balance gate dominates).  See
-     * `docs/planning/EPIC_2/SPRINT_27/per_vertex_fixed_k_decision.md`. */
-    SEP_LIFT_PER_VERTEX_FIXED_K = 5, /* SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k */
-} sep_lift_strategy_t;
-
-/* Sprint 27 Day 4 — orthogonal weight-scheme axis for the fixed-K
- * variant.  Set via SPARSE_ND_SEP_LIFT_WEIGHT={hybrid, balance,
- * degree}; default hybrid.  Only consulted when strategy ==
- * SEP_LIFT_PER_VERTEX_FIXED_K (the existing per_vertex_* strategies
- * keep their hardcoded weight schemes for backward compatibility
- * with Sprint 26 advisory env-var users). */
-typedef enum {
-    SEP_LIFT_WEIGHT_HYBRID = 0,
-    SEP_LIFT_WEIGHT_BALANCE = 1,
-    SEP_LIFT_WEIGHT_DEGREE = 2,
-} sep_lift_weight_t;
-
-static sep_lift_strategy_t parse_sep_lift_strategy(void) {
-    const char *env = getenv("SPARSE_ND_SEP_LIFT_STRATEGY");
-    if (!env)
-        return SEP_LIFT_SMALLER_WEIGHT;
-    if (strcmp(env, "balanced_boundary") == 0)
-        return SEP_LIFT_BALANCED_BOUNDARY;
-    if (strcmp(env, "per_vertex") == 0)
-        return SEP_LIFT_PER_VERTEX_HYBRID;
-    if (strcmp(env, "per_vertex_balance") == 0)
-        return SEP_LIFT_PER_VERTEX_BALANCE;
-    if (strcmp(env, "per_vertex_degree") == 0)
-        return SEP_LIFT_PER_VERTEX_DEGREE;
-    if (strcmp(env, "per_vertex_fixed_k") == 0)
-        return SEP_LIFT_PER_VERTEX_FIXED_K;
-    /* Default + unrecognized + "smaller_weight" all fall through. */
-    return SEP_LIFT_SMALLER_WEIGHT;
-}
-
-static sep_lift_weight_t parse_sep_lift_weight(void) {
-    const char *env = getenv("SPARSE_ND_SEP_LIFT_WEIGHT");
-    if (!env)
-        return SEP_LIFT_WEIGHT_HYBRID;
-    if (strcmp(env, "balance") == 0)
-        return SEP_LIFT_WEIGHT_BALANCE;
-    if (strcmp(env, "degree") == 0)
-        return SEP_LIFT_WEIGHT_DEGREE;
-    /* Default + unrecognized + "hybrid" all fall through. */
-    return SEP_LIFT_WEIGHT_HYBRID;
-}
-
-/* Sprint 26 Day 12 / Sprint 27 Day 4: returns 1 if the strategy is
- * any per_vertex variant (hybrid / balance / degree / fixed_k).
- * Used to gate the per-vertex code path entry. */
-static int is_per_vertex_strategy(sep_lift_strategy_t s) {
-    return s == SEP_LIFT_PER_VERTEX_HYBRID || s == SEP_LIFT_PER_VERTEX_BALANCE ||
-           s == SEP_LIFT_PER_VERTEX_DEGREE || s == SEP_LIFT_PER_VERTEX_FIXED_K;
-}
-
-/* Sprint 26 Day 10/12: qsort comparator for per-vertex separator
- * scoring.  Sorts boundary-vertex indices DESCENDING by score
- * (highest score first).  Score is computed by one of three formulas
- * (HYBRID / BALANCE / DEGREE) — see graph_edge_separator_to_vertex_separator.
- *
- * `score` is `int64_t` (PR #34 review fix; was `idx_t`/int32_t):
- * BALANCE and DEGREE schemes use `1000 * (...)` multipliers that can
- * overflow int32 on graphs with vertex degrees approaching ~2M, which
- * would corrupt the qsort ordering and make the comparator non-
- * transitive.  int64_t lifts the worst-case to ~9.2e18 — beyond any
- * plausible graph size in this codebase. */
-typedef struct {
-    idx_t vertex;
-    int64_t score;
-} per_vertex_score_t;
-
-static int per_vertex_score_cmp_desc(const void *a, const void *b) {
-    const per_vertex_score_t *pa = (const per_vertex_score_t *)a;
-    const per_vertex_score_t *pb = (const per_vertex_score_t *)b;
-    /* DESCENDING: higher score first.  Tie-break by lower vertex id
-     * (deterministic when scores tie). */
-    if (pa->score != pb->score)
-        return (pa->score < pb->score) ? 1 : -1;
-    if (pa->vertex != pb->vertex)
-        return (pa->vertex > pb->vertex) ? 1 : -1;
-    return 0;
-}
-
-sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, idx_t *part_io) {
-    if (!G || !part_io)
-        return SPARSE_ERR_NULL;
-    if (G->n == 0)
-        return SPARSE_OK;
-
-    /* Side weights — Sprint 22 used these to pick the smaller-weight
-     * side as the lift target (METIS convention).  Sprint 24 Day 6
-     * adds a `balanced_boundary` strategy that picks the side with the
-     * smaller boundary count regardless of weight.  Both strategies
-     * compute the per-side boundary count up front so the strategy
-     * choice is a cheap branch on the same intermediate. */
-    idx_t w[2] = {0, 0};
-    for (idx_t i = 0; i < G->n; i++) {
-        idx_t wi = G->vwgt ? G->vwgt[i] : 1;
-        if (part_io[i] == 0)
-            w[0] += wi;
-        else
-            w[1] += wi;
-    }
-
-    /* Two-pass: first mark every boundary vertex on each side and
-     * accumulate per-side boundary counts + boundary weight, then
-     * pick the lift side under the configured strategy and move the
-     * boundary marks for that side into part_io.  Splitting the
-     * marking from the move keeps the boundary check simple — once we
-     * start moving, "neighbour on other side" gets ambiguous. */
-    int *is_boundary = calloc((size_t)G->n, sizeof(int));
-    if (!is_boundary)
-        return SPARSE_ERR_ALLOC;
-
-    idx_t boundary_count[2] = {0, 0};
-    idx_t boundary_weight[2] = {0, 0};
-    for (idx_t i = 0; i < G->n; i++) {
-        idx_t side = part_io[i];
-        if (side != 0 && side != 1)
-            continue;
-        idx_t other = 1 - side;
-        for (idx_t k = G->xadj[i]; k < G->xadj[i + 1]; k++) {
-            idx_t j = G->adjncy[k];
-            if (part_io[j] == other) {
-                is_boundary[i] = 1;
-                boundary_count[side]++;
-                boundary_weight[side] += G->vwgt ? G->vwgt[i] : 1;
-                break;
-            }
-        }
-    }
-
-    /* Strategy selection.  Default `smaller_weight` reproduces the
-     * Sprint 22 Day 4 behaviour: lift the side with smaller vertex
-     * weight.  `balanced_boundary` (Sprint 24 Day 6) lifts the side
-     * with the smaller boundary count.  `per_vertex` (Sprint 26 Day
-     * 10) scores each boundary vertex individually + greedily picks
-     * top-K regardless of side, maintaining the 70/30 post-lift
-     * balance check.  All non-default strategies fall back to
-     * smaller_weight if the post-lift balance would be worse than
-     * 70/30. */
-    sep_lift_strategy_t strategy = parse_sep_lift_strategy();
-    idx_t smaller_weight_side = (w[1] < w[0]) ? 1 : 0;
-    idx_t lift_side = smaller_weight_side;
-    int per_vertex_active = 0; /* Sprint 26 Day 10: 1 → use the
-                                  per_vertex_lifted[] array below
-                                  instead of per-side mass-lift. */
-    int *per_vertex_lifted = NULL;
-
-    if (strategy == SEP_LIFT_BALANCED_BOUNDARY) {
-        /* Pick the smaller-boundary side; ties go to side 0 to
-         * match the smaller_weight tie-break convention. */
-        idx_t bb_side = (boundary_count[1] < boundary_count[0]) ? 1 : 0;
-        idx_t lift_w = w[bb_side] - boundary_weight[bb_side];
-        idx_t other_w = w[1 - bb_side];
-        idx_t total_w = lift_w + other_w;
-        int balanced = 1;
-        if (total_w > 0) {
-            idx_t max_w = (lift_w > other_w) ? lift_w : other_w;
-            if ((int64_t)10 * (int64_t)max_w > (int64_t)7 * (int64_t)total_w)
-                balanced = 0;
-        }
-        if (balanced)
-            lift_side = bb_side;
-    } else if (is_per_vertex_strategy(strategy)) {
-        /* Sprint 26 Day 10/12 — per-vertex separator scoring with
-         * three preset weight schemes.
-         *
-         * Score formulas (all compute cross_deg + total_deg + side
-         * for each boundary vertex; combine via different weights):
-         *   - HYBRID  (default per_vertex; Day 10): `2 * cross_deg + balance_bonus`
-         *     — cross-degree-dominant; balance is tie-break.
-         *   - BALANCE (per_vertex_balance; Day 12 task 1):
-         *     `1000 * balance_bonus + cross_deg` — balance dominates;
-         *     cross-degree is tie-break.  Expects Kuu-class wins
-         *     (irregular SPDs where balanced_boundary already shines).
-         *   - DEGREE  (per_vertex_degree; Day 12 task 1):
-         *     `1000 * (max_deg - total_deg) + balance_bonus` — low
-         *     total-degree dominates; balance is tie-break.  Expects
-         *     regular-grid wins by avoiding high-degree separator
-         *     vertices.
-         *
-         * (max_deg in DEGREE is the maximum degree across all boundary
-         * vertices on this graph level — used to reverse the sort
-         * direction without a negative-int hack.)
-         *
-         * Selection: sort all boundary vertices by score descending,
-         * greedily lift one-by-one while maintaining 70/30 post-lift
-         * weight balance.  Stop on imbalance violation; if K=0 (can't
-         * lift anything safely), fall back to smaller_weight via the
-         * existing lift_side = smaller_weight_side default below.
-         *
-         * See SPRINT_26/per_vertex_sep_design.md for the full rationale
-         * + Day 12 sweep dimensions. */
-        idx_t total_boundary = boundary_count[0] + boundary_count[1];
-        if (total_boundary > 0) {
-            per_vertex_score_t *scored =
-                malloc((size_t)total_boundary * sizeof(per_vertex_score_t));
-            if (!scored) {
-                free(is_boundary);
-                return SPARSE_ERR_ALLOC;
-            }
-            idx_t larger_side = (w[0] >= w[1]) ? 0 : 1;
-            /* Sprint 27 Day 4: resolve the score-formula weight
-             * scheme.  The four legacy per_vertex_* strategies hardcode
-             * their weight; SEP_LIFT_PER_VERTEX_FIXED_K reads the
-             * orthogonal SPARSE_ND_SEP_LIFT_WEIGHT axis. */
-            sep_lift_weight_t weight;
-            switch (strategy) {
-            case SEP_LIFT_PER_VERTEX_HYBRID:
-            default:
-                weight = SEP_LIFT_WEIGHT_HYBRID;
-                break;
-            case SEP_LIFT_PER_VERTEX_BALANCE:
-                weight = SEP_LIFT_WEIGHT_BALANCE;
-                break;
-            case SEP_LIFT_PER_VERTEX_DEGREE:
-                weight = SEP_LIFT_WEIGHT_DEGREE;
-                break;
-            case SEP_LIFT_PER_VERTEX_FIXED_K:
-                weight = parse_sep_lift_weight();
-                break;
-            }
-
-            /* For DEGREE weight scheme: find max degree among boundary
-             * vertices (one-pass pre-scan; small overhead vs the
-             * boundary-walk below). */
-            idx_t max_deg = 0;
-            if (weight == SEP_LIFT_WEIGHT_DEGREE) {
-                for (idx_t v = 0; v < G->n; v++) {
-                    if (!is_boundary[v])
-                        continue;
-                    idx_t deg = G->xadj[v + 1] - G->xadj[v];
-                    if (deg > max_deg)
-                        max_deg = deg;
-                }
-            }
-            idx_t bidx = 0;
-            for (idx_t v = 0; v < G->n; v++) {
-                if (!is_boundary[v])
-                    continue;
-                idx_t side = part_io[v];
-                idx_t other = 1 - side;
-                idx_t cross_deg = 0;
-                for (idx_t k = G->xadj[v]; k < G->xadj[v + 1]; k++) {
-                    idx_t j = G->adjncy[k];
-                    if (part_io[j] == other)
-                        cross_deg++;
-                }
-                idx_t balance_bonus = (side == larger_side) ? 1 : 0;
-                /* PR #34 review fix: compute multiplications in int64
-                 * before assigning to `score`.  BALANCE / DEGREE schemes'
-                 * `1000 * (...)` multipliers can overflow int32 on
-                 * graphs with vertex degrees approaching ~2M, which
-                 * would corrupt qsort ordering. */
-                int64_t score = 0;
-                switch (weight) {
-                case SEP_LIFT_WEIGHT_HYBRID:
-                default:
-                    /* cross_deg dominant; balance tie-break. */
-                    score = (int64_t)2 * (int64_t)cross_deg + (int64_t)balance_bonus;
-                    break;
-                case SEP_LIFT_WEIGHT_BALANCE:
-                    /* balance dominant; cross_deg tie-break. */
-                    score = (int64_t)1000 * (int64_t)balance_bonus + (int64_t)cross_deg;
-                    break;
-                case SEP_LIFT_WEIGHT_DEGREE: {
-                    /* low total-degree dominant; balance tie-break. */
-                    idx_t deg = G->xadj[v + 1] - G->xadj[v];
-                    score = (int64_t)1000 * (int64_t)(max_deg - deg) + (int64_t)balance_bonus;
-                    break;
-                }
-                }
-                scored[bidx].vertex = v;
-                scored[bidx].score = score;
-                bidx++;
-            }
-            /* Sort descending by score. */
-            qsort(scored, (size_t)total_boundary, sizeof(per_vertex_score_t),
-                  per_vertex_score_cmp_desc);
-
-            /* Sprint 27 Day 4: termination predicate split.  The four
-             * legacy per_vertex_* strategies use the dynamic-K
-             * 70/30-balance gate (Sprint 26 Day 10 contract).
-             * SEP_LIFT_PER_VERTEX_FIXED_K terminates after exactly
-             * K = min(boundary_count[0], boundary_count[1]) iterations
-             * regardless of balance state — Sprint 26 Day 12 found the
-             * 70/30 gate fires early enough that the three weight
-             * schemes converge to bit-identical outputs on 5 of 6
-             * fixtures (the score formula doesn't get to differentiate
-             * before the gate stops the lift).  Fixed-K bypasses the
-             * gate so the score formulas can express their character. */
-            per_vertex_lifted = calloc((size_t)G->n, sizeof(int));
-            if (!per_vertex_lifted) {
-                free(scored);
-                free(is_boundary);
-                return SPARSE_ERR_ALLOC;
-            }
-            idx_t cur_w0 = w[0], cur_w1 = w[1];
-            idx_t lifted_count = 0;
-            const idx_t fixed_k_target =
-                (boundary_count[0] < boundary_count[1]) ? boundary_count[0] : boundary_count[1];
-            for (idx_t k = 0; k < total_boundary; k++) {
-                idx_t v = scored[k].vertex;
-                idx_t side = part_io[v];
-                idx_t vw = G->vwgt ? G->vwgt[v] : 1;
-                idx_t new_w0 = cur_w0;
-                idx_t new_w1 = cur_w1;
-                if (side == 0)
-                    new_w0 -= vw;
-                else
-                    new_w1 -= vw;
-                if (strategy == SEP_LIFT_PER_VERTEX_FIXED_K) {
-                    if (lifted_count >= fixed_k_target)
-                        break; /* fixed-K cap hit */
-                } else {
-                    idx_t total_w = new_w0 + new_w1;
-                    if (total_w > 0) {
-                        idx_t max_w = (new_w0 > new_w1) ? new_w0 : new_w1;
-                        if ((int64_t)10 * (int64_t)max_w > (int64_t)7 * (int64_t)total_w)
-                            break; /* would violate 70/30 — stop here */
-                    }
-                }
-                per_vertex_lifted[v] = 1;
-                cur_w0 = new_w0;
-                cur_w1 = new_w1;
-                lifted_count++;
-            }
-            free(scored);
-
-            /* If we lifted at least one vertex, use the per-vertex
-             * mask.  Otherwise fall back to smaller_weight (lift_side
-             * already set above). */
-            if (lifted_count > 0) {
-                per_vertex_active = 1;
-            } else {
-                free(per_vertex_lifted);
-                per_vertex_lifted = NULL;
-            }
-        }
-    }
-
-    if (per_vertex_active) {
-        for (idx_t i = 0; i < G->n; i++) {
-            if (per_vertex_lifted[i])
-                part_io[i] = 2;
-        }
-        free(per_vertex_lifted);
-    } else {
-        for (idx_t i = 0; i < G->n; i++) {
-            if (is_boundary[i] && part_io[i] == lift_side)
-                part_io[i] = 2;
-        }
-    }
-
-    free(is_boundary);
-    return SPARSE_OK;
-}
-
 /* ═══════════════════════════════════════════════════════════════════════
  * sparse_graph_partition — remaining multilevel orchestration layer.
  * ═══════════════════════════════════════════════════════════════════════
@@ -1050,7 +670,8 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
  * the cross-module sequencing:
  *   1. hierarchy build from `src/sparse_graph_coarsen.c`
  *   2. coarsest split from `src/sparse_graph_bisect.c`
- *   3. FM/uncoarsening + separator lifting in this file
+ *   3. FM in `src/sparse_graph_refine.c`, uncoarsening in this file,
+ *      and separator lifting in `src/sparse_graph_separator.c`
  *   4. sep=0 retry policy via the coarsening module's override seam
  */
 static const sparse_graph_t *graph_hierarchy_coarsest(const sparse_graph_t *root,

@@ -2022,3 +2022,170 @@ Interpretation:
 - the sprint now has a clear “done vs later” boundary
 - Day 14 closeout can hand the remaining repeated-run efficiency work forward
   without pretending the iterative story is fully universalized
+
+## Day 13
+
+**Objective:** Run the authoritative full validation pass for the Sprint 45
+iterative workspace and repeated-solve changes, then reconfirm the reviewed
+truthfulness anchors and the direct iterative/benchmark surfaces touched during
+the sprint.
+
+### Commands Run
+
+1. Run the mandatory code-change floor:
+   - `make format`
+   - `make lint`
+   - `/usr/bin/time -p make test`
+2. Run the stronger reviewed local baseline:
+   - `/usr/bin/time -p make quality-review-full`
+3. Run the Day 12-targeted iterative and benchmark follow-ons:
+   - `./build/test_iterative`
+   - `./build/test_block_solvers`
+   - `./build/test_minres`
+   - `./build/test_bicgstab`
+   - `./build/test_stagnation`
+   - `./build/bench_iterative_reuse`
+   - `./build/example_matrix_free`
+4. Confirm final state:
+   - `git status --short`
+   - `git rev-parse --short HEAD`
+
+### Day 13 Findings
+
+#### 1. The full required code-change floor passed cleanly
+
+The mandatory validation floor was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+The timed `make test` rerun completed at:
+
+- `real 83.44`
+
+Interpretation:
+
+- Sprint 45 remains green at the standard code-change floor
+- no iterative workspace or benchmark batch introduced a new repository-level
+  failure
+
+#### 2. The strongest local reviewed baseline also passed cleanly
+
+The stronger proof run was:
+
+- `make quality-review-full`
+
+It passed at:
+
+- `real 664.75`
+
+That run also completed the reviewed-path dead-code tail successfully:
+
+- `deadcode-check: report completeness checks passed`
+- `quality-review: passed (format-check + lint + test + deadcode-check)`
+- `quality-review-full: passed (quality-review + quality-review-cmake)`
+
+Interpretation:
+
+- Sprint 45 cleared the strongest routine local reviewed baseline
+- the sprint does not close only from direct touched tests; it also clears the
+  established reviewed wrapper and reviewed CMake parity path
+
+#### 3. The maintained truthfulness anchors remained exact
+
+The reviewed-parity contract stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake test-count parity = `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 160.79 sec`
+
+Interpretation:
+
+- Sprint 45 did not disturb the maintained local reviewed baseline
+- the iterative workspace and repeated-solve changes remain aligned with the
+  established Makefile/CMake parity contract
+
+#### 4. The direct iterative and benchmark follow-ons all passed
+
+The Day 12-targeted follow-ons passed:
+
+- `./build/test_iterative`
+- `./build/test_block_solvers`
+- `./build/test_minres`
+- `./build/test_bicgstab`
+- `./build/test_stagnation`
+- `./build/bench_iterative_reuse`
+- `./build/example_matrix_free`
+
+Representative direct rerun outcomes:
+
+- `test_iterative`
+  - all `76` tests passed
+- `test_block_solvers`
+  - all `15` tests passed
+  - `block_cg iters=17  single_cg iters=17`
+- `test_minres`
+  - all `43` tests passed
+- `test_bicgstab`
+  - all `58` tests passed
+- `test_stagnation`
+  - all `46` tests passed
+- `example_matrix_free`
+  - both GMRES runs converged in `3` iterations
+  - solution error stayed around `2.7e-13`
+
+Interpretation:
+
+- the migrated direct workspace paths, wrapper/composition surfaces, and
+  residual specialized seams all stayed green under focused reruns
+- the benchmark/example evidence still composes cleanly with the main solver
+  validation surface
+
+#### 5. The repeated-solve benchmark remained behavior-stable but timing-sensitive
+
+The direct Day 13 benchmark rerun produced:
+
+- CG repeated-solve case:
+  - one-shot = `26.5910 ms`
+  - reuse = `25.9270 ms`
+  - speedup = `1.03x`
+  - both paths:
+    - `17` iterations
+    - relative residual `5.192e-11`
+    - converged
+- GMRES repeated-solve case:
+  - one-shot = `18.0780 ms`
+  - reuse = `19.3130 ms`
+  - speedup = `0.94x`
+  - both paths:
+    - `12` iterations
+    - relative residual `7.364e-11`
+    - converged
+
+Interpretation:
+
+- the repeated-solve benchmark remains behavior-stable across reruns
+- the timing effect is modest and varies run-to-run
+- that confirms the right Sprint 45 claim:
+  - the reusable-workspace seam is real and measurable
+  - Sprint 45 should not overstate it as a stable universal speedup
+
+#### 6. No new reconciliation queue surfaced
+
+Day 13 did **not** surface:
+
+- reviewed-baseline drift
+- Makefile/CMake parity drift
+- new iterative solver regressions
+- new benchmark harness problems
+- a need to reopen the Sprint 45 residual classification
+
+Interpretation:
+
+- Sprint 45 can now close from a measured, validated state
+- Day 14 should be a clean closeout/handoff day rather than another
+  reconciliation batch

@@ -225,6 +225,44 @@ static SparseMatrix *make_two_cliques_with_bridge(idx_t k) {
     return A;
 }
 
+/* Build a graph whose smaller side has the larger boundary while the
+ * larger side has a single boundary vertex.  This lets separator-lift
+ * tests distinguish smaller-side lifting from balanced-boundary
+ * lifting without depending on private separator helpers. */
+static SparseMatrix *make_asymmetric_boundary_graph(void) {
+    SparseMatrix *A = sparse_create(10, 10);
+    if (!A)
+        return NULL;
+
+    /* Side 0: path on vertices 0-1-2-3. */
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 1, 1, 1.0);
+    sparse_insert(A, 2, 2, 1.0);
+    sparse_insert(A, 3, 3, 1.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 2, 1.0);
+    sparse_insert(A, 2, 1, 1.0);
+    sparse_insert(A, 2, 3, 1.0);
+    sparse_insert(A, 3, 2, 1.0);
+
+    /* Side 1: path on vertices 4-5-6-7-8-9. */
+    for (idx_t i = 4; i < 10; i++)
+        sparse_insert(A, i, i, 1.0);
+    for (idx_t i = 4; i < 9; i++) {
+        sparse_insert(A, i, i + 1, 1.0);
+        sparse_insert(A, i + 1, i, 1.0);
+    }
+
+    /* Cross edges: every side-0 vertex touches vertex 4 only. */
+    for (idx_t i = 0; i < 4; i++) {
+        sparse_insert(A, i, 4, 1.0);
+        sparse_insert(A, 4, i, 1.0);
+    }
+
+    return A;
+}
+
 /* ─── Day 2: heavy-edge-matching coarsener tests ───────────────────── */
 
 static void test_coarsen_5x5_grid_halves_in_one_step(void) {
@@ -1882,6 +1920,42 @@ static void test_edge_to_vertex_separator_smaller_side(void) {
     sparse_free(A);
 }
 
+static void test_edge_to_vertex_separator_balanced_boundary_prefers_smaller_boundary(void) {
+    SparseMatrix *A = make_asymmetric_boundary_graph();
+    sparse_graph_t G = {0};
+    int env_set = 0;
+
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    REQUIRE_OK(sparse_graph_from_sparse(A, &G));
+
+    idx_t part[10] = {0, 0, 0, 0, 1, 1, 1, 1, 1, 1};
+    if (tf_setenv("SPARSE_ND_SEP_LIFT_STRATEGY", "balanced_boundary") != 0) {
+        printf("    skipped (setenv SPARSE_ND_SEP_LIFT_STRATEGY failed)\n");
+        goto cleanup;
+    }
+    env_set = 1;
+
+    REQUIRE_OK(graph_edge_separator_to_vertex_separator(&G, part));
+    ASSERT_TRUE(check_partition_invariant(&G, part));
+
+    idx_t n0 = 0, n1 = 0, nsep = 0;
+    count_partition_sides(&G, part, &n0, &n1, &nsep);
+    ASSERT_EQ(nsep, 1);
+    ASSERT_EQ(n0, 4);
+    ASSERT_EQ(n1, 5);
+    ASSERT_EQ(part[4], 2);
+    for (idx_t i = 0; i < 4; i++)
+        ASSERT_EQ(part[i], 0);
+    for (idx_t i = 5; i < 10; i++)
+        ASSERT_EQ(part[i], 1);
+
+cleanup:
+    if (env_set)
+        tf_unsetenv("SPARSE_ND_SEP_LIFT_STRATEGY");
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
 /* ─── NULL-arg + n=0 + small-input contracts ──────────────────────── */
 
 static void test_partition_null_args(void) {
@@ -2650,6 +2724,77 @@ cleanup:
     sparse_free(A);
 }
 
+static void test_partition_fifo_balanced_boundary_smoke(void) {
+    SparseMatrix *A = NULL;
+    sparse_graph_t G = {0};
+    idx_t *part = NULL;
+    int coarsening_env_set = 0;
+    int finest_env_set = 0;
+    int sep_env_set = 0;
+
+    if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        goto cleanup;
+    }
+    coarsening_env_set = 1;
+    if (tf_setenv("SPARSE_FM_FINEST_STRATEGY", "fifo") != 0) {
+        printf("    skipped (setenv SPARSE_FM_FINEST_STRATEGY failed)\n");
+        goto cleanup;
+    }
+    finest_env_set = 1;
+    if (tf_setenv("SPARSE_ND_SEP_LIFT_STRATEGY", "balanced_boundary") != 0) {
+        printf("    skipped (setenv SPARSE_ND_SEP_LIFT_STRATEGY failed)\n");
+        goto cleanup;
+    }
+    sep_env_set = 1;
+
+    A = make_grid_2d(10, 10);
+    if (!A) {
+        TF_FAIL_("make_grid_2d(%d, %d) returned NULL (OOM)", 10, 10);
+        goto cleanup;
+    }
+    sparse_err_t rc = sparse_graph_from_sparse(A, &G);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_from_sparse: rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    part = malloc((size_t)G.n * sizeof(idx_t));
+    if (!part) {
+        TF_FAIL_("malloc(part) returned NULL (n=%d)", (int)G.n);
+        goto cleanup;
+    }
+
+    idx_t sep = 0;
+    rc = sparse_graph_partition(&G, part, &sep);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_graph_partition(fifo + balanced_boundary): rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    ASSERT_TRUE(check_partition_invariant(&G, part));
+    ASSERT_TRUE(sep >= 5);
+    ASSERT_TRUE(sep <= 15);
+
+    idx_t n0 = 0, n1 = 0, nsep = 0;
+    count_partition_sides(&G, part, &n0, &n1, &nsep);
+    ASSERT_EQ(n0 + n1 + nsep, 100);
+    ASSERT_EQ(nsep, sep);
+    ASSERT_TRUE(n0 >= 30);
+    ASSERT_TRUE(n1 >= 30);
+
+cleanup:
+    if (sep_env_set)
+        tf_unsetenv("SPARSE_ND_SEP_LIFT_STRATEGY");
+    if (finest_env_set)
+        tf_unsetenv("SPARSE_FM_FINEST_STRATEGY");
+    if (coarsening_env_set)
+        tf_unsetenv("SPARSE_ND_COARSENING");
+    free(part);
+    sparse_graph_free(&G);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════ */
 
 int main(void) {
@@ -2730,6 +2875,7 @@ int main(void) {
      * tightens the assertion after the sep=0 fall-back fix lands. */
     RUN_TEST(test_hcc_bcsstk14_no_degenerate_partition);
     RUN_TEST(test_edge_to_vertex_separator_smaller_side);
+    RUN_TEST(test_edge_to_vertex_separator_balanced_boundary_prefers_smaller_boundary);
     RUN_TEST(test_partition_singleton);
     RUN_TEST(test_partition_null_args);
     RUN_TEST(test_uncoarsen_null_args);
@@ -2748,6 +2894,7 @@ int main(void) {
     /* Sprint 27 Day 4: per_vertex_fixed_k differs-from-dynamic-K
      * smoke test. */
     RUN_TEST(test_per_vertex_fixed_k_differs_from_dynamic_k);
+    RUN_TEST(test_partition_fifo_balanced_boundary_smoke);
 
     TEST_SUITE_END();
 }

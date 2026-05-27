@@ -14,6 +14,15 @@
 #endif
 #define SS_DIR DATA_DIR "/suitesparse"
 
+static double qr_reconstruction_error(const SparseMatrix *A, const sparse_qr_t *qr);
+static void assert_qr_reconstruction_below(const char *label, const SparseMatrix *A,
+                                           const sparse_qr_t *qr, double tol);
+static double compute_rel_residual(const SparseMatrix *A, const double *b, const double *x,
+                                   idx_t m);
+static double assert_qr_true_residual_below(const char *label, const SparseMatrix *A,
+                                            const double *b, const double *x, idx_t m,
+                                            double reported_residual, double tol);
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Householder reflection tests (Day 4)
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -177,46 +186,7 @@ static void test_qr_reconstruction(void) {
     }
 
     ASSERT_EQ(qr.rank, 3);
-
-    /* Form Q explicitly */
-    idx_t m = qr.m;
-    idx_t n_cols = qr.n;
-    double *Q = malloc((size_t)m * (size_t)m * sizeof(double));
-    ASSERT_NOT_NULL(Q);
-    if (!Q) {
-        sparse_qr_free(&qr);
-        sparse_free(A);
-        return;
-    }
-    sparse_qr_form_q(&qr, Q);
-
-    /* Compute Q*R */
-    /* R is stored as sparse min(m,n) × n */
-    idx_t rrows = sparse_rows(qr.R);
-    double maxerr = 0.0;
-    for (idx_t i = 0; i < m; i++) {
-        for (idx_t jp = 0; jp < n_cols; jp++) {
-            /* (Q*R)(i, jp) = sum_k Q(i,k) * R(k, jp) */
-            double qr_val = 0.0;
-            for (idx_t kk = 0; kk < rrows; kk++) {
-                double q_ik = Q[(size_t)kk * (size_t)m + (size_t)i]; /* col-major */
-                double r_kj = sparse_get_phys(qr.R, kk, jp);
-                qr_val += q_ik * r_kj;
-            }
-
-            /* Unpermute: A(i, col_perm[jp]) should equal (Q*R)(i, jp) */
-            idx_t orig_col = qr.col_perm[jp];
-            double a_val = sparse_get_phys(A, i, orig_col);
-            double diff = fabs(qr_val - a_val);
-            if (diff > maxerr)
-                maxerr = diff;
-        }
-    }
-
-    printf("    3x3 reconstruction: ||A - Q*R*P^T|| = %.3e\n", maxerr);
-    ASSERT_TRUE(maxerr < 1e-10);
-
-    free(Q);
+    assert_qr_reconstruction_below("3x3 reconstruction", A, &qr, 1e-10);
     sparse_qr_free(&qr);
     sparse_free(A);
 }
@@ -481,38 +451,7 @@ static void test_qr_wide(void) {
     ASSERT_EQ(qr.n, 5);
     ASSERT_TRUE(qr.rank <= 3);
     printf("    3x5 wide QR: rank=%d\n", (int)qr.rank);
-
-    /* Verify reconstruction: ||A - Q*R*P^T|| */
-    double *Q = malloc(3 * 3 * sizeof(double));
-    ASSERT_NOT_NULL(Q);
-    if (!Q) {
-        sparse_qr_free(&qr);
-        sparse_free(A);
-        return;
-    }
-    sparse_qr_form_q(&qr, Q);
-
-    idx_t rrows = sparse_rows(qr.R);
-    double maxerr = 0.0;
-    for (idx_t i = 0; i < 3; i++) {
-        for (idx_t jp = 0; jp < 5; jp++) {
-            double qr_val = 0.0;
-            for (idx_t kk = 0; kk < rrows; kk++) {
-                double q_ik = Q[(size_t)kk * 3 + (size_t)i];
-                double r_kj = sparse_get_phys(qr.R, kk, jp);
-                qr_val += q_ik * r_kj;
-            }
-            idx_t orig_col = qr.col_perm[jp];
-            double a_val = sparse_get_phys(A, i, orig_col);
-            double diff = fabs(qr_val - a_val);
-            if (diff > maxerr)
-                maxerr = diff;
-        }
-    }
-    printf("    3x5 reconstruction: ||A - Q*R*P^T|| = %.3e\n", maxerr);
-    ASSERT_TRUE(maxerr < 1e-10);
-
-    free(Q);
+    assert_qr_reconstruction_below("3x5 reconstruction", A, &qr, 1e-10);
     sparse_qr_free(&qr);
     sparse_free(A);
 }
@@ -579,36 +518,7 @@ static void test_qr_reconstruction_large(void) {
     }
 
     printf("    10x8 QR: rank=%d\n", (int)qr.rank);
-
-    /* Verify reconstruction */
-    double *Q = malloc((size_t)m * (size_t)m * sizeof(double));
-    ASSERT_NOT_NULL(Q);
-    if (!Q) {
-        sparse_qr_free(&qr);
-        sparse_free(A);
-        return;
-    }
-    sparse_qr_form_q(&qr, Q);
-
-    idx_t rrows = sparse_rows(qr.R);
-    double maxerr = 0.0;
-    for (idx_t i = 0; i < m; i++) {
-        for (idx_t jp = 0; jp < n_cols; jp++) {
-            double qr_val = 0.0;
-            for (idx_t kk = 0; kk < rrows; kk++) {
-                double q_ik = Q[(size_t)kk * (size_t)m + (size_t)i];
-                double r_kj = sparse_get_phys(qr.R, kk, jp);
-                qr_val += q_ik * r_kj;
-            }
-            idx_t orig_col = qr.col_perm[jp];
-            double a_val = sparse_get_phys(A, i, orig_col);
-            double diff = fabs(qr_val - a_val);
-            if (diff > maxerr)
-                maxerr = diff;
-        }
-    }
-    printf("    10x8 reconstruction: ||A - Q*R*P^T|| = %.3e\n", maxerr);
-    ASSERT_TRUE(maxerr < 1e-10);
+    assert_qr_reconstruction_below("10x8 reconstruction", A, &qr, 1e-10);
 
     /* Verify R diagonal ordering */
     for (idx_t i = 0; i < qr.rank - 1; i++) {
@@ -617,7 +527,6 @@ static void test_qr_reconstruction_large(void) {
         ASSERT_TRUE(ri >= ri1 - 1e-10);
     }
 
-    free(Q);
     sparse_qr_free(&qr);
     sparse_free(A);
 }
@@ -656,6 +565,13 @@ static double qr_reconstruction_error(const SparseMatrix *A, const sparse_qr_t *
     return maxerr;
 }
 
+static void assert_qr_reconstruction_below(const char *label, const SparseMatrix *A,
+                                           const sparse_qr_t *qr, double tol) {
+    double recon_err = qr_reconstruction_error(A, qr);
+    printf("    %s: %.3e\n", label, recon_err);
+    ASSERT_TRUE(recon_err < tol);
+}
+
 /* Rank-1 matrix (outer product): rank should be 1 */
 static void test_qr_rank_1(void) {
     idx_t m = 5, n_c = 4;
@@ -679,9 +595,7 @@ static void test_qr_rank_1(void) {
     printf("    rank-1 (5x4): rank=%d\n", (int)qr.rank);
     ASSERT_EQ(qr.rank, 1);
 
-    double recon_err = qr_reconstruction_error(A, &qr);
-    printf("    rank-1 reconstruction: %.3e\n", recon_err);
-    ASSERT_TRUE(recon_err < 1e-10);
+    assert_qr_reconstruction_below("rank-1 reconstruction", A, &qr, 1e-10);
 
     sparse_qr_free(&qr);
     sparse_free(A);
@@ -721,9 +635,7 @@ static void test_qr_nearly_singular(void) {
     /* Rank should be 2 (the near-duplicate column is detected) */
     ASSERT_TRUE(qr.rank <= 3);
 
-    double recon_err = qr_reconstruction_error(A, &qr);
-    printf("    nearly singular reconstruction: %.3e\n", recon_err);
-    ASSERT_TRUE(recon_err < 1e-8);
+    assert_qr_reconstruction_below("nearly singular reconstruction", A, &qr, 1e-8);
 
     sparse_qr_free(&qr);
     sparse_free(A);
@@ -752,8 +664,7 @@ static void test_qr_diagonal(void) {
     /* R diagonals should be the original diagonal values (reordered by magnitude) */
     ASSERT_NEAR(fabs(sparse_get_phys(qr.R, 0, 0)), 7.0, 1e-10);
 
-    double recon_err = qr_reconstruction_error(A, &qr);
-    ASSERT_TRUE(recon_err < 1e-10);
+    assert_qr_reconstruction_below("diagonal reconstruction", A, &qr, 1e-10);
 
     sparse_qr_free(&qr);
     sparse_free(A);
@@ -851,9 +762,8 @@ static void test_qr_perm_valid(void) {
         free(seen);
     }
 
-    double recon_err = qr_reconstruction_error(A, &qr);
-    printf("    6x5 perm valid: rank=%d, recon=%.3e\n", (int)qr.rank, recon_err);
-    ASSERT_TRUE(recon_err < 1e-10);
+    printf("    6x5 perm valid: rank=%d\n", (int)qr.rank);
+    assert_qr_reconstruction_below("6x5 perm valid reconstruction", A, &qr, 1e-10);
 
     sparse_qr_free(&qr);
     sparse_free(A);
@@ -1106,6 +1016,15 @@ static double compute_rel_residual(const SparseMatrix *A, const double *b, const
     return (bnorm > 0.0) ? rnorm / bnorm : 0.0;
 }
 
+static double assert_qr_true_residual_below(const char *label, const SparseMatrix *A,
+                                            const double *b, const double *x, idx_t m,
+                                            double reported_residual, double tol) {
+    double rr = compute_rel_residual(A, b, x, m);
+    printf("    %s: res_norm=%.3e, true_res=%.3e\n", label, reported_residual, rr);
+    ASSERT_TRUE(rr < tol);
+    return rr;
+}
+
 /* Square full-rank: QR solve matches LU solve */
 static void test_qr_solve_square(void) {
     SparseMatrix *A = sparse_create(3, 3);
@@ -1150,9 +1069,7 @@ static void test_qr_solve_square(void) {
             ASSERT_NEAR(x_qr[i], x_lu[i], 1e-8);
     }
 
-    double rr = compute_rel_residual(A, b, x_qr, 3);
-    printf("    square QR solve: res=%.3e, residual_norm=%.3e\n", rr, res_qr);
-    ASSERT_TRUE(rr < 1e-10);
+    assert_qr_true_residual_below("square QR solve", A, b, x_qr, 3, res_qr, 1e-10);
     ASSERT_TRUE(res_qr < 1e-10);
 
     sparse_qr_free(&qr);
@@ -1189,9 +1106,8 @@ static void test_qr_solve_overdetermined(void) {
     double res;
     ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
 
-    double rr = compute_rel_residual(A, b, x, 5);
-    printf("    overdetermined 5x3: x=[%.3f, %.3f, %.3f], res=%.3e, true_res=%.3e\n", x[0], x[1],
-           x[2], res, rr);
+    double rr = assert_qr_true_residual_below("overdetermined 5x3", A, b, x, 5, res, 1.0);
+    printf("    overdetermined 5x3: x=[%.3f, %.3f, %.3f]\n", x[0], x[1], x[2]);
 
     /* Residual should be positive (overdetermined) */
     ASSERT_TRUE(res > 0.0);
@@ -1273,8 +1189,8 @@ static void test_qr_solve_rank_deficient(void) {
     ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
 
     /* Verify A*x ≈ b (within residual) */
-    double rr = compute_rel_residual(A, b, x, 4);
-    printf("    rank-deficient solve: rank=%d, res=%.3e, true_res=%.3e\n", (int)qr.rank, res, rr);
+    double rr = assert_qr_true_residual_below("rank-deficient solve", A, b, x, 4, res, 1.0);
+    printf("    rank-deficient solve: rank=%d\n", (int)qr.rank);
 
     /* Should produce a valid least-squares solution */
     ASSERT_TRUE(rr < 1.0); /* residual should be reasonable */
@@ -1331,9 +1247,8 @@ static void test_qr_solve_nos4(void) {
     double res;
     ASSERT_ERR(sparse_qr_solve(&qr, b, x_qr, &res), SPARSE_OK);
 
-    double rr = compute_rel_residual(A, b, x_qr, n);
-    printf("    nos4 QR solve: rank=%d, res=%.3e, true_res=%.3e\n", (int)qr.rank, res, rr);
-    ASSERT_TRUE(rr < 1e-8);
+    printf("    nos4 QR solve: rank=%d\n", (int)qr.rank);
+    assert_qr_true_residual_below("nos4 QR solve", A, b, x_qr, n, res, 1e-8);
 
     free(x_exact);
     free(b);
@@ -1399,9 +1314,8 @@ static void test_qr_bcsstk04(void) {
     ASSERT_EQ(qr.rank, n);
 
     /* Reconstruction */
-    double recon = qr_reconstruction_error(A, &qr);
-    printf("    bcsstk04: rank=%d, ||A-QRP^T||=%.3e\n", (int)qr.rank, recon);
-    ASSERT_TRUE(recon < 1e-6); /* relaxed for ill-conditioned matrix */
+    printf("    bcsstk04: rank=%d\n", (int)qr.rank);
+    assert_qr_reconstruction_below("bcsstk04 reconstruction", A, &qr, 1e-6);
 
     /* Solve */
     double *x_exact = malloc((size_t)n * sizeof(double));
@@ -1424,9 +1338,7 @@ static void test_qr_bcsstk04(void) {
 
     double res;
     ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
-    double rr = compute_rel_residual(A, b, x, n);
-    printf("    bcsstk04 QR solve: res_norm=%.3e, true_res=%.3e\n", res, rr);
-    ASSERT_TRUE(rr < 1e-4); /* bcsstk04 is ill-conditioned */
+    assert_qr_true_residual_below("bcsstk04 QR solve", A, b, x, n, res, 1e-4);
 
     free(x_exact);
     free(b);
@@ -1477,9 +1389,7 @@ static void test_qr_west0067(void) {
 
     double res;
     ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
-    double rr = compute_rel_residual(A, b, x, n);
-    printf("    west0067 QR solve: res_norm=%.3e, true_res=%.3e\n", res, rr);
-    ASSERT_TRUE(rr < 1e-8);
+    assert_qr_true_residual_below("west0067 QR solve", A, b, x, n, res, 1e-8);
 
     free(x_exact);
     free(b);
@@ -1591,9 +1501,7 @@ static void test_qr_tall_synthetic(void) {
     ASSERT_TRUE(qr.rank <= nc);
 
     /* Reconstruction */
-    double recon = qr_reconstruction_error(A, &qr);
-    printf("    50x20 reconstruction: %.3e\n", recon);
-    ASSERT_TRUE(recon < 1e-10);
+    assert_qr_reconstruction_below("50x20 reconstruction", A, &qr, 1e-10);
 
     /* Least-squares: construct b = A * x_exact + noise */
     double *x_exact = malloc((size_t)nc * sizeof(double));
@@ -1616,9 +1524,7 @@ static void test_qr_tall_synthetic(void) {
 
     double res;
     ASSERT_ERR(sparse_qr_solve(&qr, b, x, &res), SPARSE_OK);
-    double rr = compute_rel_residual(A, b, x, m);
-    printf("    50x20 solve: res_norm=%.3e, true_res=%.3e\n", res, rr);
-    ASSERT_TRUE(rr < 1e-8);
+    assert_qr_true_residual_below("50x20 solve", A, b, x, m, res, 1e-8);
 
     free(x_exact);
     free(b);

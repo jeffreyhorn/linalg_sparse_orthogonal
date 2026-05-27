@@ -964,24 +964,23 @@ sparse_err_t sparse_solve_gmres_with_workspace_internal(const SparseMatrix *A, c
                                                         const void *precond_ctx,
                                                         sparse_iter_result_t *result,
                                                         sparse_iter_workspace_t *workspace) {
-    if (!A || !b || !x) {
-        if (result) {
-            result->iterations = 0;
-            result->residual_norm = 0.0;
-            result->converged = 0;
-        }
-        return SPARSE_ERR_NULL;
+    /* Initialize result to safe defaults before any early return. */
+    if (result) {
+        result->iterations = 0;
+        result->residual_norm = 0.0;
+        result->converged = 0;
+        result->stagnated = 0;
+        result->residual_history_count = 0;
+        result->breakdown = 0;
     }
+
+    if (!A || !b || !x)
+        return SPARSE_ERR_NULL;
     if (!workspace)
         return SPARSE_ERR_NULL;
-    if (sparse_rows(A) != sparse_cols(A)) {
-        if (result) {
-            result->iterations = 0;
-            result->residual_norm = 0.0;
-            result->converged = 0;
-        }
+
+    if (sparse_rows(A) != sparse_cols(A))
         return SPARSE_ERR_SHAPE;
-    }
 
     return sparse_solve_gmres_mf_with_workspace_internal(gmres_sparse_matvec_adapter, A,
                                                          sparse_rows(A), b, x, opts, precond,

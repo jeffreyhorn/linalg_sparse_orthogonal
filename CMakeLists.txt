@@ -269,6 +269,10 @@ if(NOT WIN32)
     add_executable(bench_amd_qg benchmarks/bench_amd_qg.c)
     target_link_libraries(bench_amd_qg PRIVATE sparse_lu_ortho)
     target_include_directories(bench_amd_qg PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+    add_executable(bench_iterative_reuse benchmarks/bench_iterative_reuse.c)
+    target_link_libraries(bench_iterative_reuse PRIVATE sparse_lu_ortho)
+    target_include_directories(bench_iterative_reuse PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 endif()
 
 # Example programs (not part of ctest)

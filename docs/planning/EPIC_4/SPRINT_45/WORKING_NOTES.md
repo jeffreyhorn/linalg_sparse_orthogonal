@@ -1678,3 +1678,165 @@ Interpretation:
 
 - Day 10 succeeded: it turned a vague “benchmark evidence” task into a
   specific, low-churn Day 11 plan
+
+## Day 11
+
+**Objective:** Land the narrow repeated-solve benchmark slice defined on Day 10
+so Sprint 45 has direct measured evidence for the reusable iterative workspace
+seam on the migrated scalar solver paths, without widening into benchmark CLI
+or broad framework churn.
+
+### Commands Run
+
+1. Re-read the Sprint 45 Day 11 plan section and the Day 10 benchmark design:
+   - `sed -n '365,405p' docs/planning/EPIC_4/SPRINT_45/PLAN.md`
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_45/artifacts/day10-repeated-solve-benchmark-design.md`
+2. Audit the current benchmark/build wiring and the Day 9/Day 10 iterative
+   surfaces:
+   - `rg -n "bench_.*\\.c|BENCH_SRCS|bench_" Makefile CMakeLists.txt`
+   - `sed -n '188,208p' Makefile`
+   - `sed -n '232,272p' CMakeLists.txt`
+   - `sed -n '1,80p' src/sparse_iterative.c`
+   - `sed -n '146,340p' src/sparse_iterative.c`
+   - `sed -n '567,955p' src/sparse_iterative.c`
+   - `sed -n '1,260p' src/sparse_iterative_workspace_internal.c`
+3. Land the bounded Day 11 code batch:
+   - add `src/sparse_iterative_internal.h`
+   - add `benchmarks/bench_iterative_reuse.c`
+   - update `src/sparse_iterative.c`
+   - update `Makefile`
+   - update `CMakeLists.txt`
+4. Run the required authoritative gate because `*.c` and `*.h` files changed:
+   - `make format`
+   - `make lint`
+   - `make test`
+5. Run direct Day 11 follow-ons:
+   - `./build/test_iterative`
+   - `./build/bench_iterative_reuse`
+6. Confirm final state:
+   - `git status --short`
+   - `git rev-parse --short HEAD`
+
+### Day 11 Findings
+
+#### 1. Sprint 45 now has a dedicated repeated-solve benchmark surface
+
+Day 11 landed a small dedicated benchmark at:
+
+- `benchmarks/bench_iterative_reuse.c`
+
+It is intentionally narrow:
+
+- scalar CG repeated-solve case
+- scalar GMRES repeated-solve case
+- one-shot public call loop vs reusable-workspace-backed internal call loop
+
+Interpretation:
+
+- Sprint 45 now has direct benchmark evidence for the migrated scalar workspace
+  seam
+- the batch avoided `bench_main` CLI churn and broad benchmark framework work
+
+#### 2. The internal reusable-workspace seam is now explicit enough for direct repeated-call benchmarking
+
+Day 11 added a narrow private internal header:
+
+- `src/sparse_iterative_internal.h`
+
+That header exposes only the two internal repeated-solve benchmark entry
+points:
+
+- `sparse_solve_cg_with_workspace_internal(...)`
+- `sparse_solve_gmres_with_workspace_internal(...)`
+
+Interpretation:
+
+- the benchmark does not need to reach into implementation internals ad hoc
+- the new seam is still private and benchmark-oriented, not a public API change
+
+#### 3. The scalar one-shot entries now read clearly as compatibility wrappers over the reusable workspace model
+
+After Day 11:
+
+- `sparse_solve_cg(...)`
+  - owns the one-shot local workspace lifecycle
+  - delegates solver work to `sparse_solve_cg_with_workspace_internal(...)`
+- `sparse_solve_gmres(...)`
+  - owns the one-shot local workspace lifecycle
+  - delegates to `sparse_solve_gmres_with_workspace_internal(...)`
+- `sparse_solve_gmres_mf(...)`
+  - now follows the same one-shot wrapper pattern over the reusable workspace
+    preparation path
+
+Interpretation:
+
+- Sprint 45 preserved the public one-shot API contract
+- repeated-solve benchmarking now targets the same solver logic through a
+  reusable private workspace owner instead of duplicating algorithm code
+
+#### 4. The measured repeated-solve result is honest but modest on this local run
+
+Direct benchmark output was:
+
+- CG repeated-solve case:
+  - `cg-tridiag-300`
+  - one-shot = `24.7220 ms`
+  - reuse = `24.7000 ms`
+  - speedup = `1.00x`
+  - both paths:
+    - `17` iterations
+    - relative residual `5.192e-11`
+    - converged
+- GMRES repeated-solve case:
+  - `gmres-unsym-220`
+  - one-shot = `17.4030 ms`
+  - reuse = `17.1030 ms`
+  - speedup = `1.02x`
+  - both paths:
+    - `12` iterations
+    - relative residual `7.364e-11`
+    - converged
+
+Interpretation:
+
+- the reuse path preserved solver behavior exactly on the benchmarked cases
+- allocator-churn reduction is now directly measurable
+- the local timing win is small rather than dramatic, which is the right
+  claim-safe Sprint 45 result to record
+
+#### 5. The direct touched iterative surface remained green beyond the full repo gate
+
+Direct follow-on reruns passed:
+
+- `./build/test_iterative`
+- `./build/bench_iterative_reuse`
+
+Representative direct rerun outcomes:
+
+- `test_iterative`
+  - all `76` tests passed
+- `bench_iterative_reuse`
+  - both repeated-solve benchmark cases completed successfully
+  - one-shot and reuse paths matched on convergence/iteration counts
+
+Interpretation:
+
+- the Day 11 batch is validated both through the full repo gate and through the
+  exact iterative surfaces it touched
+
+#### 6. Sprint 45 is now positioned for closeout rather than more structural workspace churn
+
+After Day 11, the sprint has now landed:
+
+- shared iterative workspace owner
+- scalar CG / matrix-free CG migration
+- scalar GMRES / matrix-free GMRES migration
+- block-CG migration
+- wrapper normalization for block GMRES / MINRES / BiCGSTAB
+- direct repeated-solve benchmark evidence for scalar CG and GMRES
+
+Interpretation:
+
+- the remaining Sprint 45 work is now validation/closeout oriented
+- no new broad iterative workspace redesign queue surfaced from the benchmark
+  batch

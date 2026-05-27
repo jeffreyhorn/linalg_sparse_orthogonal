@@ -593,3 +593,183 @@ Interpretation:
 
 - Day 5+ implementation should land the internal capability first
 - public explicit workspace APIs remain outside Sprint 45 scope
+
+## Day 4
+
+**Objective:** Turn the Day 3 internal workspace model into a bounded shared
+iterative buffer-layer implementation plan by defining which helpers belong in
+the common layer, which stay solver-local, what zero/reset behavior the common
+layer owns, and what validation shape the first code batches must satisfy.
+
+### Commands Run
+
+1. Re-read the Sprint 45 Day 4 plan section:
+   - `sed -n '127,162p' docs/planning/EPIC_4/SPRINT_45/PLAN.md`
+2. Re-read the Day 3 workspace API design artifact:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_45/artifacts/day3-reusable-workspace-api-design.md`
+3. Re-read the Sprint 40 validation anchor and Sprint 41 prep rules:
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_40/artifacts/day13-validation-anchor-and-command-matrix.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_41/artifacts/day12-safety-style-and-prep-rules.md`
+4. Refresh the live iterative helper/allocation markers:
+   - `rg -n "sparse_matvec_block|vec_|stag_|reshist_|callback|progress_cb|precond|malloc|calloc|workspace" src/sparse_iterative.c`
+5. Re-read the strongest likely repeated-solve benchmark surfaces:
+   - `sed -n '1,220p' benchmarks/bench_convergence.c`
+   - `sed -n '1,220p' benchmarks/bench_refactor.c`
+
+### Day 4 Findings
+
+#### 1. The shared buffer layer should be one small internal seam, not a second iterative subsystem
+
+The bounded shared layer should own:
+
+- checked reserve/grow logic for contiguous storage
+- typed prepare helpers for:
+  - CG
+  - GMRES
+  - block CG
+  - later-extensible MINRES
+- slice derivation from one owned contiguous allocation
+- reset/zero helpers only where buffer reuse semantics need them to stay
+  consistent
+
+It should not own:
+
+- solver stopping logic
+- progress/logging callbacks
+- preconditioner callback invocation
+- matrix or matvec ownership
+- residual-history output ownership
+
+Interpretation:
+
+- Day 5 should land one focused internal buffer layer
+- it should not widen into a parallel "iterative framework" rewrite
+
+#### 2. The common helper vocabulary is now explicit
+
+The strongest shared helper set is:
+
+- owner lifecycle:
+  - init
+  - free
+  - reserve/ensure capacity
+- typed preparation:
+  - prepare CG view
+  - prepare GMRES view
+  - prepare block-CG view
+  - optional later prepare MINRES view
+- narrow reset helpers:
+  - zero contiguous slices before a solve when the solver depends on a clean
+    initial state
+  - reset reusable support state for stagnation tracking when storage is reused
+
+Interpretation:
+
+- the common layer should export view-preparation helpers, not raw offset math
+- the common layer should own the allocation and slicing contract that the
+  solver bodies currently hand-roll
+
+#### 3. Several important helpers should remain solver-local even after the shared layer lands
+
+Keep solver-local:
+
+- `stag_tracker_t` behavior and update rules
+- `reshist_t` and residual-history recording
+- `iter_report(...)`
+- GMRES-specific early-exit checks
+- MINRES QR/Lanczos update sequencing
+- block solver convergence aggregation logic
+- wrapper-level per-column dispatch loops
+
+Interpretation:
+
+- these are algorithm-flow or policy helpers, not shared contiguous-storage
+  helpers
+- Sprint 45 should not over-generalize them into the common layer
+
+#### 4. Zeroing/reset behavior should be explicit but narrow
+
+The common layer should guarantee:
+
+- newly grown capacity is safe to initialize before use
+- typed prepare helpers leave view metadata valid
+- callers can request clean zeroed storage where the solver currently depends
+  on `calloc`-style semantics
+
+But the common layer should not promise:
+
+- preservation of old vector contents across solves
+- hidden residual-history retention
+- automatic solver-state reconstruction after partial use
+
+Interpretation:
+
+- reset semantics should be "make the workspace ready for a fresh solve"
+- they should not imply resumable iterative state
+
+#### 5. The validation shape for implementation days is now concrete
+
+For any `*.c` / `*.h` change:
+
+- mandatory floor:
+  - `make format`
+  - `make lint`
+  - `make test`
+
+For substantial shared-layer or multi-solver migration batches:
+
+- stronger default:
+  - `make quality-review-full`
+
+Targeted follow-on checks when the touched surface justifies them:
+
+- direct touched iterative binaries:
+  - `./build/test_iterative`
+  - `./build/test_block_solvers`
+  - `./build/test_minres`
+  - `./build/test_bicgstab`
+  - `./build/test_stagnation`
+- touched example reruns if `examples/` change:
+  - `./build/example_iterative`
+  - `./build/example_matrix_free`
+- repeated-solve benchmark reruns once the benchmark batch lands:
+  - touched iterative benchmark binaries, likely centered on
+    `bench_convergence`
+
+Interpretation:
+
+- Day 5 through Day 11 now have a clear proof model
+- the sprint does not need to guess at validation scope per batch
+
+#### 6. The benchmark work should stay bounded to repeated-solve evidence, not generic solver benchmarking
+
+The live benchmark surfaces imply:
+
+- `bench_convergence.c` is the strongest likely repeated-solve comparison
+  surface for iterative methods
+- `bench_refactor.c` is useful mainly as a shape precedent for repeated-run
+  comparison framing, not as a direct implementation target
+
+Interpretation:
+
+- Sprint 45's benchmark batch should compare one-shot repeated calls against
+  reusable-workspace repeated calls
+- it should avoid a broad benchmark harness redesign
+
+#### 7. The first landing order is now fully fixed
+
+The correct implementation order is:
+
+1. shared internal buffer layer
+2. scalar CG / matrix-free CG
+3. GMRES / matrix-free GMRES
+4. block CG
+5. wrapper normalization
+6. repeated-solve benchmark batch
+7. MINRES only if the shared layer stays cleanly extensible
+
+Interpretation:
+
+- the first implementation batch should prove the shared layer in the smallest
+  high-value path first
+- Day 6 should not broaden into block or benchmark work early

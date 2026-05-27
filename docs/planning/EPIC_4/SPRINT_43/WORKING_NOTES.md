@@ -1796,3 +1796,104 @@ Interpretation:
 - the new seam tests integrate cleanly into the maintained graph regression
   surface
 - no reconciliation queue surfaced from the Day 12 batch
+
+## Day 13
+
+1. Re-read the Sprint 43 Day 13 plan section and the Day 12 result:
+   - `sed -n '300,380p' docs/planning/EPIC_4/SPRINT_43/PLAN.md`
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_43/artifacts/day12-focused-graph-seam-tests.md`
+2. Run the mandatory code-change floor:
+   - `/usr/bin/time -p make format`
+   - `/usr/bin/time -p make lint`
+   - `/usr/bin/time -p make test`
+3. Run the default strong proof for the substantial Phase-1 refactor:
+   - `/usr/bin/time -p make quality-review-full`
+4. Reconfirm the Sprint 40 truthfulness anchors and direct graph surface:
+   - `ctest -N --test-dir build/quality-review-cmake`
+   - `./build/test_graph`
+   - `./build/test_graph_fm_buckets`
+   - `./build/test_reorder_nd`
+   - `./build/test_reorder_amd_qg`
+
+### Day 13 Findings
+
+#### 1. The full validation floor passed cleanly
+
+The mandatory code-change floor completed without incident:
+
+- `make format` → passed, `real 4.04`
+- `make lint` → passed, `real 356.72`
+- `make test` → passed, `real 94.28`
+
+Interpretation:
+
+- the extracted graph-core, coarsening, and coarse-bisection modules remain
+  fully integrated with the maintained local build and static-analysis paths
+- the focused Day 12 seam tests did not introduce any regression or coverage
+  mismatch in the full runtime suite
+
+#### 2. The strongest local reviewed baseline also passed
+
+The authoritative reviewed wrapper completed end to end:
+
+- `make quality-review-full` → passed, `real 816.43`
+
+That includes:
+
+- reviewed Makefile path
+- `deadcode-check`
+- reviewed clean CMake rebuild
+- `ctest -N`
+- full reviewed CMake `ctest`
+
+Measured reviewed-CMake outcomes remained exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity remained `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 195.15 sec`
+
+Interpretation:
+
+- Sprint 43 Phase 1 is now proven not just against the direct local floor but
+  against the strongest maintained local reviewed baseline
+- the graph split did not disturb the Sprint 40/41/42 truthfulness anchors
+
+#### 3. Direct graph and ND reruns also passed
+
+Because Sprint 43 touched the graph / ND subsystem heavily, I also ran direct
+surface reruns beyond the aggregate wrappers:
+
+- `./build/test_graph` → passed, `Time: 2.381 s`
+- `./build/test_graph_fm_buckets` → passed, `Time: 0.000 s`
+- `./build/test_reorder_nd` → passed, `Time: 31.386 s`
+- `./build/test_reorder_amd_qg` → passed, `Time: 0.324 s`
+
+The Day 12 seam additions stayed green in the direct graph run:
+
+- `test_graph_subgraph_argument_validation`
+- `test_graph_subgraph_path_slice`
+- `test_bisect_forced_gggp_small_graph`
+- `test_bisect_forced_brute_large_graph_falls_back_to_gggp`
+
+Interpretation:
+
+- the extracted module seams are protected both indirectly through `make test`
+  and directly through the graph-specific regression surface
+- the residual monolith/orchestration layer still composes cleanly with the
+  extracted ownership, coarsening, and bisection files
+
+#### 4. No new reconciliation queue surfaced
+
+The validation sweep did not surface any new:
+
+- graph-behavior regression
+- build-wiring regression
+- CMake parity drift
+- dead-code path issue
+- review-wrapper caveat
+
+Interpretation:
+
+- Sprint 43 can close from a measured, validated Phase-1 decomposition state
+- Day 14 can stay focused on closeout and handoff rather than repair work

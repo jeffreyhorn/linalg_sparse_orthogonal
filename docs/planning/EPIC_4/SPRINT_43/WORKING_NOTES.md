@@ -1018,3 +1018,123 @@ Interpretation:
 
 - the new `src/sparse_graph_coarsen.c` seam is wired correctly
 - the graph/ND behavior remained stable through the second extraction batch
+
+## Day 7
+
+**Objective:** Audit the post-Day-6 hierarchy/coarsening state so the second
+coarsening-phase push stays bounded to real residual cleanup instead of
+drifting into coarse-bisection, FM refinement, or separator-lifting work.
+
+### Commands Run
+
+1. Re-read the Sprint 43 Day 7/8 plan sections:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_43/PLAN.md`
+2. Re-read the Day 6 extraction artifact:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_43/artifacts/day6-hierarchy-coarsening-extraction-batch1.md`
+3. Sweep the post-Day-6 graph surfaces for remaining coarsening, hierarchy,
+   and coarse-level ownership seams:
+   - `rg -n "graph_uncoarsen|graph_bisect_coarsest|graph_bisect_coarsest_spectral|bisect_brute_force|bisect_gggp|graph_build_laplacian|parse_coarsest_bisect_strategy|sparse_graph_hierarchy_build|graph_coarsen|coarsen|hierarchy|cmap|coarse" src/sparse_graph.c src/sparse_graph_coarsen.c src/sparse_graph_internal.h`
+   - `sed -n '340,980p' src/sparse_graph.c`
+   - `sed -n '1,320p' src/sparse_graph_coarsen.c`
+   - `sed -n '260,420p' src/sparse_graph_internal.h`
+
+### Day 7 Findings
+
+#### 1. The real hierarchy/coarsening implementation extraction is already substantially complete
+
+After Day 6, `src/sparse_graph_coarsen.c` already owns the main
+hierarchy/coarsening behavior:
+
+- coarsening-strategy ownership and override helpers
+- `graph_coarsen_with_strategy(...)`
+- `graph_coarsen_heavy_edge_matching(...)`
+- `graph_coarsen_hcc(...)`
+- `sparse_graph_hierarchy_build(...)`
+- `sparse_graph_hierarchy_free(...)`
+
+Interpretation:
+
+- there is no second large hidden coarsening core still stranded in
+  `src/sparse_graph.c`
+- Sprint 43's coarsening extraction is now closer to completion/consolidation
+  than to another major code-move batch
+
+#### 2. The remaining monolith now starts with coarse bisection, not residual coarsening
+
+The first major post-Day-6 seam still in `src/sparse_graph.c` is:
+
+- `bisect_brute_force(...)`
+- `bisect_gggp(...)`
+- `graph_build_laplacian(...)`
+- `graph_bisect_coarsest_spectral(...)`
+- `parse_coarsest_bisect_strategy(...)`
+- `graph_bisect_coarsest(...)`
+
+Interpretation:
+
+- this is the correct Day 9 extraction seam
+- it should not be pulled into Day 8 just because it still talks about coarse
+  levels
+
+#### 3. The other coarsening-adjacent region is really uncoarsening/orchestration work
+
+The remaining lifecycle that still references hierarchy/coarse-level state is
+primarily:
+
+- `graph_uncoarsen(...)`
+- `partition_once(...)`
+- `sparse_graph_partition(...)`
+
+Interpretation:
+
+- this logic is still coupled to FM refinement, separator lifting, and
+  top-level retry/orchestration behavior
+- it is intentionally out of scope for the second coarsening batch
+
+#### 4. The residual Day 8 queue is mainly interface cleanup, not another big move
+
+The bounded cleanup still worth doing before coarse-bisection extraction is:
+
+- clearer coarsening-facing declaration grouping in
+  `src/sparse_graph_internal.h`
+- comment/ownership wording cleanup so the extracted seam is documented as an
+  extracted subsystem rather than still described like one monolith
+- preservation of the small strategy-helper ownership map that the top-level
+  retry path still depends on
+
+Interpretation:
+
+- Day 8 should be a finish-and-consolidate batch
+- Day 8 should not reopen FM, separator, or orchestration churn
+
+#### 5. The keep-local / defer set remains explicit
+
+These should stay out of the Day 8 batch:
+
+- `graph_uncoarsen(...)`
+- FM bucket/refinement machinery
+- FM strategy parsing and thread-local controls
+- separator lifting / final partition projection
+- broader runtime strategy glue spanning multiple graph phases
+
+Interpretation:
+
+- Sprint 43 can stay bounded and still improve the graph subsystem structure
+- the remaining graph phases do not need to move just because the
+  coarsening/hierarchy split is now real
+
+#### 6. Day 9 now has a cleaner handoff target
+
+With Day 6 and Day 7 combined, the next extraction handoff is clearer:
+
+- `src/sparse_graph_coarsen.c` owns hierarchy/coarsening
+- `src/sparse_graph.c` retains coarse bisection, FM, separator lifting, and
+  orchestration
+- the next real implementation seam is coarse bisection, not another
+  hierarchy/coarsening block
+
+Interpretation:
+
+- the Phase-1 extraction order is holding
+- the sprint is positioned to move into bisection without re-auditing the
+  coarsening module again

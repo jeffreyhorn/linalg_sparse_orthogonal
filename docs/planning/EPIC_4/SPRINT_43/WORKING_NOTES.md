@@ -363,3 +363,196 @@ Interpretation:
   - separator lifting
   - orchestration glue
   rather than trying to erase `src/sparse_graph.c` completely in one pass
+
+## Day 3
+
+**Objective:** Turn the Day 2 seam map into a concrete Phase-1 graph module
+layout, with explicit ownership boundaries, shared-header rules, and an
+extract-now versus keep-in-monolith split that later code movement can follow
+without reopening sprint scope.
+
+### Commands Run
+
+1. Re-read the Sprint 43 Day 3 plan section:
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_43/PLAN.md`
+2. Re-read the Day 2 seam-refresh inventory:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_43/artifacts/day2-monolith-seam-refresh-inventory.md`
+3. Re-read the current graph internal header surface:
+   - `sed -n '1,320p' src/sparse_graph_internal.h`
+4. Sweep the live monolith for the current owners of the main Phase-1 seam
+   entry points and parser/glue boundaries:
+   - `rg -n "sparse_graph_from_sparse|sparse_graph_subgraph|graph_coarsen_with_strategy|graph_coarsen_heavy_edge_matching|graph_coarsen_hcc|sparse_graph_hierarchy_build|graph_build_laplacian|graph_bisect_coarsest_spectral|graph_bisect_coarsest|graph_uncoarsen|graph_edge_separator_to_vertex_separator|partition_once|sparse_graph_partition|parse_coarsening_strategy|parse_coarsest_bisect_strategy|parse_sep_lift_strategy|graph_refine_fm" src/sparse_graph.c`
+
+### Day 3 Findings
+
+#### 1. The Phase-1 file layout is now concrete rather than implied
+
+The strongest Sprint 43 Phase-1 target layout is:
+
+- `src/sparse_graph_core.c`
+  - graph construction / ownership
+  - graph subgraph extraction
+- `src/sparse_graph_coarsen.c`
+  - coarsening strategy parsing owned tightly by the coarsening seam
+  - matching / coarsening helpers
+  - hierarchy build/free logic
+- `src/sparse_graph_bisect.c`
+  - brute-force coarse bisection
+  - GGGP coarse bisection
+  - Laplacian builder
+  - spectral coarse bisection
+  - coarse-bisection strategy parsing
+- remaining `src/sparse_graph.c`
+  - FM refinement
+  - separator lifting
+  - top-level orchestration
+  - cross-phase runtime glue still spanning multiple later seams
+
+Interpretation:
+
+- Sprint 43 does not need a large family of tiny files to succeed
+- a three-module Phase-1 split is enough to remove the highest-value stable
+  seams from the monolith while leaving later-phase regions intact
+
+#### 2. `src/sparse_graph_internal.h` should remain the shared internal contract surface in Phase 1
+
+Day 3's design choice is to keep one shared internal header for the extracted
+graph subsystem in Phase 1 rather than introducing several new narrow internal
+headers immediately.
+
+That shared header should continue to own:
+
+- `sparse_graph_t`
+- `sparse_graph_hierarchy_t`
+- graph construction / free / subgraph declarations
+- coarsening declarations
+- hierarchy declarations
+- coarse-bisection declarations
+- top-level partition declarations
+
+What should remain translation-unit local for now:
+
+- helper-only local structs such as score/comparator scratch records
+- parser support enums that are not required cross-file
+- FM-only thread-local controls
+- separator-lifting-only scoring helpers
+
+Interpretation:
+
+- Phase 1 can succeed by strengthening one existing shared internal header
+  surface rather than creating premature header fragmentation
+- Day 4 should therefore focus on declaration placement discipline, not on a
+  broad header-tree expansion
+
+#### 3. The ownership boundaries for the extracted modules are now explicit
+
+**`sparse_graph_core.c` owns:**
+
+- raw graph object construction from sparse matrices
+- graph object teardown
+- induced subgraph creation
+- the core representation invariants for `sparse_graph_t`
+
+**`sparse_graph_coarsen.c` owns:**
+
+- one-step coarsening implementations
+- strategy-specific matching selection
+- hierarchy growth and hierarchy teardown
+- `cmap` ownership transitions across coarse levels
+
+**`sparse_graph_bisect.c` owns:**
+
+- all coarse-level partition-initialization logic
+- coarse bisection strategy selection
+- the Laplacian-builder dependency used by spectral bisection
+
+**remaining `sparse_graph.c` owns in Phase 1:**
+
+- FM refinement state and passes
+- separator lifting and per-vertex separator scoring
+- uncoarsening orchestration
+- retry/fallback orchestration
+- final public `sparse_graph_partition(...)` flow
+
+Interpretation:
+
+- each Phase-1 file has a real ownership story rather than being only a line
+  split
+- later graph phases can continue from the remaining monolith with a smaller,
+  clearer orchestration-focused scope
+
+#### 4. Parser ownership should follow the extracted seam only when the parser is tightly local
+
+The parser decision for Phase 1 is intentionally mixed:
+
+- move with extracted module:
+  - `parse_coarsening_strategy(...)`
+  - `parse_coarsest_bisect_strategy(...)`
+- keep in remaining monolith:
+  - FM strategy/annealing/thick-restart/ensemble parsers
+  - separator-lift strategy parsing
+
+Reason:
+
+- coarsening and coarse-bisection parsers are tightly owned by the extracted
+  algorithm families
+- FM and separator parsers remain coupled to later-phase orchestration and
+  should not be split early just to chase symmetry
+
+Interpretation:
+
+- Sprint 43 avoids fake consistency work
+- parser movement follows real ownership rather than superficial naming
+
+#### 5. The explicit keep-in-monolith set is now stable enough to protect scope
+
+After Phase 1 extraction, the remaining `src/sparse_graph.c` should still
+contain:
+
+- FM bucket-array implementation and FM thread-local controls
+- `graph_refine_fm(...)`
+- `graph_uncoarsen(...)`
+- separator-lifting helpers and
+  `graph_edge_separator_to_vertex_separator(...)`
+- `partition_once(...)`
+- `sparse_graph_partition(...)`
+- degenerate-partition retry logic and other cross-phase orchestration glue
+
+Interpretation:
+
+- the keep-in-monolith list is now explicit, not accidental
+- Day 5/6/8 extraction work can proceed without reopening FM or separator scope
+
+#### 6. The new file names are intentionally behavior-oriented, not sprint-history-oriented
+
+Chosen naming direction:
+
+- `sparse_graph_core.c`
+- `sparse_graph_coarsen.c`
+- `sparse_graph_bisect.c`
+
+Rejected naming directions:
+
+- sprint-day/history-derived names
+- overly generic names like `graph_helpers.c`
+- premature Phase-2 names that assume FM/separator extraction already happened
+
+Interpretation:
+
+- the file layout is meant to survive the sprint
+- the names describe owned behavior rather than temporary extraction history
+
+#### 7. Day 4 now has a narrower and better-defined job
+
+Because Day 3 fixes the Phase-1 file layout and ownership map, Day 4 can stay
+narrow:
+
+- decide how `Makefile` / `CMakeLists.txt` absorb the new files
+- decide which declarations become shared header surface versus local scope
+- document include-order and dependency hygiene
+- avoid reopening the basic extraction boundaries
+
+Interpretation:
+
+- Day 3 turns the later build/include work into a wiring problem, not another
+  architecture-design pass

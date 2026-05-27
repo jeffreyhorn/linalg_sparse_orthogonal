@@ -203,6 +203,14 @@ sparse_err_t sparse_graph_subgraph(const sparse_graph_t *parent, const idx_t *ve
                 return alloc_rc;
             }
         }
+    } else {
+        alloc_rc = sparse_malloc_array(1, sizeof(idx_t), (void **)&adjncy);
+        if (alloc_rc != SPARSE_OK) {
+            free(p2c);
+            free(xadj);
+            return alloc_rc;
+        }
+        adjncy[0] = 0;
     }
     idx_t pos = 0;
     for (idx_t i = 0; i < k; i++) {

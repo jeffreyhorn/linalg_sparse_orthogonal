@@ -773,3 +773,173 @@ Interpretation:
 - the first implementation batch should prove the shared layer in the smallest
   high-value path first
 - Day 6 should not broaden into block or benchmark work early
+
+## Day 5
+
+**Objective:** Land the first real Sprint 45 code batch by introducing the
+private reusable iterative workspace owner and proving it in one bounded live
+solver path, while preserving the internal-first / compatibility-wrapper
+contract and validating the touched iterative surface completely.
+
+### Commands Run
+
+1. Re-read the Day 3 and Day 4 design artifacts before code changes:
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_45/artifacts/day3-reusable-workspace-api-design.md`
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_45/artifacts/day4-shared-buffer-layer-design-and-validation-plan.md`
+2. Re-read the live iterative hotspot and current scalar-CG path:
+   - `sed -n '1,260p' src/sparse_iterative.c`
+   - `sed -n '146,340p' src/sparse_iterative.c`
+   - `sed -n '340,520p' src/sparse_iterative.c`
+3. Land the new internal workspace layer and the first solver adoption:
+   - created `src/sparse_iterative_workspace_internal.h`
+   - created `src/sparse_iterative_workspace_internal.c`
+   - updated `src/sparse_iterative.c`
+   - updated `Makefile`
+   - updated `CMakeLists.txt`
+4. Run the required gate for `*.c` / `*.h` changes:
+   - `make format`
+   - `make lint`
+   - `make test`
+5. After a first lint-pass cleanup issue, rerun the authoritative gate from
+   the top:
+   - `make format`
+   - `make lint`
+   - `make test`
+6. Run targeted touched-surface follow-ons:
+   - `./build/test_iterative`
+   - `./build/test_stagnation`
+7. Inspect the final change surface and branch state:
+   - `git diff --stat`
+   - `git status --short`
+
+### Day 5 Findings
+
+#### 1. Sprint 45 now has a real shared iterative workspace owner
+
+The new private helper layer is now live:
+
+- `src/sparse_iterative_workspace_internal.h`
+- `src/sparse_iterative_workspace_internal.c`
+
+That layer now owns:
+
+- reusable contiguous double storage
+- reusable integer side-buffer storage
+- checked reserve/grow behavior
+- typed workspace preparation for:
+  - CG
+  - GMRES
+  - block CG
+  - MINRES
+
+Interpretation:
+
+- the shared layer landed as an internal storage/view seam, not as a second
+  iterative subsystem
+- Sprint 45 now has the common allocation/capacity foundation it needs for the
+  later solver migrations
+
+#### 2. The first proof integration stayed correctly narrow
+
+The first live adoption was:
+
+- scalar `sparse_solve_cg(...)`
+
+That path now:
+
+- initializes a `sparse_iter_workspace_t`
+- prepares a typed `sparse_cg_workspace_view_t`
+- binds:
+  - `r`
+  - `z`
+  - `p`
+  - `Ap`
+- frees the shared owner on all exits instead of managing a raw local `work`
+  buffer
+
+Interpretation:
+
+- Day 5 proved the new seam in the smallest high-value path first
+- the batch did not broaden prematurely into GMRES, block solvers, or
+  benchmark work
+
+#### 3. The shared-vs-local boundary held during the code landing
+
+The new shared layer owns:
+
+- contiguous storage ownership
+- checked shape/count math
+- typed slice preparation
+- narrow zero/reset behavior where needed by prepare helpers
+
+The following stayed solver-local:
+
+- CG recurrence math
+- stagnation tracking policy
+- residual-history ownership
+- callback/progress behavior
+- preconditioner invocation choreography
+
+Interpretation:
+
+- the Day 4 boundary was preserved in code, not just in planning language
+- Sprint 45 is still doing structural reuse work rather than algorithm rewrite
+
+#### 4. The build surfaces now know about the new iterative helper layer
+
+The new private source is wired into both maintained build systems:
+
+- `Makefile`
+- `CMakeLists.txt`
+
+Interpretation:
+
+- later Sprint 45 migrations can adopt the helper layer without additional
+  build-system churn
+- the shared workspace seam is now part of the normal maintained library
+  surface
+
+#### 5. Validation passed cleanly after one small migration-boundary cleanup
+
+Because `*.c` and `*.h` changed, the required gate was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed on the authoritative rerun.
+
+The only issue surfaced during the first lint pass was:
+
+- stale cleanup references in `src/sparse_iterative.c` after switching scalar
+  CG from a raw local `work` buffer to the shared workspace owner
+
+That was fixed immediately, then the full gate was rerun from the top and
+passed.
+
+Targeted touched-surface reruns also passed:
+
+- `./build/test_iterative`
+- `./build/test_stagnation`
+
+Interpretation:
+
+- the new shared layer did not destabilize the touched iterative regression
+  surfaces
+- the first workspace landing now has a clean validated baseline for Day 6
+
+#### 6. The next migration order is now clearer after the first code batch
+
+Day 5 leaves the following clean next steps:
+
+1. matrix-free CG adoption of the same owner/view seam
+2. GMRES adoption of the already-landed typed prepare helper
+3. block-CG adoption of the shared double/int owner path
+4. later repeated-solve benchmark evidence once the main live paths use the
+   new seam
+
+Interpretation:
+
+- Day 5 converted the Sprint 45 workspace plan from design-only to live code
+- later sprint days can now focus on controlled migration breadth rather than
+  on inventing the common layer

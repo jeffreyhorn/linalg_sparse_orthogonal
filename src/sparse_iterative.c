@@ -7,6 +7,7 @@
 #include "sparse_iterative.h"
 #include "sparse_alloc_internal.h"
 #include "sparse_bicgstab_internal.h"
+#include "sparse_iterative_workspace_internal.h"
 #include "sparse_matrix_internal.h"
 #include "sparse_vector.h"
 #include <math.h>
@@ -185,24 +186,19 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
         return SPARSE_OK;
     }
 
-    /* Allocate workspace: r, z, p, Ap (4 vectors of length n) */
-    size_t n_size = 0;
-    if (sparse_idx_to_size_checked(n, &n_size))
+    sparse_iter_workspace_t workspace;
+    sparse_cg_workspace_view_t cg_ws;
+    sparse_iter_workspace_init(&workspace);
+    if (sparse_iter_workspace_prepare_cg(&workspace, n, &cg_ws) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
-    size_t work_count = 0;
-    if (sparse_size_mul_overflow(n_size, 4, &work_count))
-        return SPARSE_ERR_ALLOC;
-    double *work = NULL;
-    if (sparse_malloc_array(work_count, sizeof(double), (void **)&work) != SPARSE_OK)
-        return SPARSE_ERR_ALLOC;
-    double *r = work;
-    double *z = work + n_size;
-    double *p = work + 2 * n_size;
-    double *Ap = work + 3 * n_size;
+    double *r = cg_ws.r;
+    double *z = cg_ws.z;
+    double *p = cg_ws.p;
+    double *Ap = cg_ws.Ap;
 
     stag_tracker_t stag;
     if (stag_init(&stag, o->stagnation_window) != SPARSE_OK) {
-        free(work);
+        sparse_iter_workspace_free(&workspace);
         return SPARSE_ERR_ALLOC;
     }
 
@@ -216,7 +212,7 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
         sparse_err_t perr = precond(precond_ctx, n, r, z);
         if (perr != SPARSE_OK) {
             stag_free(&stag);
-            free(work);
+            sparse_iter_workspace_free(&workspace);
             return perr;
         }
     } else {
@@ -260,7 +256,7 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
                     result->residual_norm = rnorm / bnorm;
                 }
                 stag_free(&stag);
-                free(work);
+                sparse_iter_workspace_free(&workspace);
                 return SPARSE_ERR_CANCELLED;
             }
         }
@@ -299,7 +295,7 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
             sparse_err_t perr = precond(precond_ctx, n, r, z);
             if (perr != SPARSE_OK) {
                 stag_free(&stag);
-                free(work);
+                sparse_iter_workspace_free(&workspace);
                 return perr;
             }
         } else {
@@ -335,7 +331,7 @@ sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
     }
 
     stag_free(&stag);
-    free(work);
+    sparse_iter_workspace_free(&workspace);
     return converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
 }
 

@@ -1073,3 +1073,171 @@ Interpretation:
 
 - Day 7 can now audit real residual runtime/orchestration coupling rather than
   rediscovering ownership noise from FM or separator-local code
+
+## Day 7
+
+**Objective:** Audit the post-Day-6 residual graph file so the remaining
+runtime/config parsing, uncoarsening composition, and retry/fallback logic are
+classified concretely before the Day 8 cleanup batch.
+
+### Commands Run
+
+1. Re-read the Day 7/Day 8 sprint-plan and Day 4 design targets:
+   - `sed -n '200,255p' docs/planning/EPIC_4/SPRINT_44/PLAN.md`
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_44/artifacts/day4-separator-runtime-and-large-test-design.md`
+2. Re-read the live residual graph ownership surface:
+   - `sed -n '1,260p' src/sparse_graph.c`
+   - `sed -n '220,420p' src/sparse_graph.c`
+   - `sed -n '420,820p' src/sparse_graph.c`
+   - `sed -n '660,760p' src/sparse_graph_internal.h`
+3. Inventory the remaining runtime/config and orchestration seams:
+   - `rg -n "getenv|strtol|strcmp\\(|SPARSE_" src/sparse_graph.c`
+   - `rg -n "graph_uncoarsen|partition_once|sparse_graph_partition|retry|forced_hem|SPARSE_ND_|graph_hierarchy_coarsest|graph_partition_seed_coarsest|graph_partition_count_separator_vertices|graph_partition_should_retry_with_forced_hem|separator|coarsest" src/sparse_graph.c`
+
+### Day 7 Findings
+
+#### 1. The residual graph file now has one real runtime/config cluster, not a hidden fourth extraction seam
+
+After the Day 5 and Day 6 moves, the live residual `src/sparse_graph.c`
+contains two main classes of logic:
+
+- uncoarsening / finest-level FM pass composition inside `graph_uncoarsen(...)`
+- top-level partition orchestration / retry glue around:
+  - `graph_hierarchy_coarsest(...)`
+  - `graph_partition_seed_coarsest(...)`
+  - `graph_partition_count_separator_vertices(...)`
+  - `graph_partition_should_retry_with_forced_hem(...)`
+  - `partition_once(...)`
+  - `sparse_graph_partition(...)`
+
+The remaining env-var parsing cluster is concentrated entirely inside
+`graph_uncoarsen(...)`:
+
+- `SPARSE_FM_FINEST_PASSES`
+- `SPARSE_FM_FINEST_STRATEGY`
+- `SPARSE_FM_ENSEMBLE_STRATEGIES`
+- `SPARSE_FM_ENSEMBLE_DEBUG`
+- `SPARSE_FM_INTERMEDIATE_PASSES`
+- `SPARSE_FM_THICK_RESTART_DEBUG`
+
+Interpretation:
+
+- Day 7 did **not** uncover another self-contained module like FM or separator
+- the remaining cleanup target is a real orchestration/config simplification
+  seam, which matches the Day 4 design
+
+#### 2. The remaining parser logic is partly ready for direct consolidation, but not for another file extraction
+
+The residual parsing now splits into two sub-classes.
+
+Parser/config logic already ready for bounded Day 8 consolidation:
+
+- finest-level strategy enum + parse block
+- ensemble selector-list parsing block
+- finest-pass count parsing block
+- intermediate-pass count parsing block
+- ensemble debug flag read
+- thick-restart debug flag read
+
+Parser/config logic that is still meaningfully coupled to live orchestration:
+
+- per-level pass-count selection:
+  - finest vs intermediate vs coarse levels
+- runtime snapshot / restore choreography:
+  - `sparse_graph_fm_runtime_get(...)`
+  - `sparse_graph_fm_runtime_set(...)`
+- thick-restart anchor allocation / restore
+- ensemble buffer allocation / winner selection
+- per-pass dispatch wiring into `graph_refine_fm(...)`
+
+Interpretation:
+
+- Day 8 should consolidate the parser/config blocks and comment structure
+- Day 8 should **not** try to extract a new generic parser file or peel
+  `graph_uncoarsen(...)` apart into fake standalone pieces
+
+#### 3. Retry/fallback logic is now clearly a keep-local orchestration seam
+
+The residual retry/fallback surface is tight and already isolated:
+
+- `graph_partition_should_retry_with_forced_hem(...)`
+- `partition_once(...)`
+- `sparse_graph_partition(...)`
+
+These helpers compose:
+
+- hierarchy build from `src/sparse_graph_coarsen.c`
+- coarsest split from `src/sparse_graph_bisect.c`
+- FM refinement from `src/sparse_graph_refine.c`
+- separator lifting from `src/sparse_graph_separator.c`
+- forced-HEM retry through the coarsening override seam
+
+Interpretation:
+
+- retry/fallback logic should stay in the residual orchestration file for now
+- Day 8 should make this glue clearer, not try to move it into the coarsening
+  module or invent a new wrapper layer
+
+#### 4. The best Day 8 cleanup target is simplification around `graph_uncoarsen(...)`, not deeper partition-path surgery
+
+The highest-volume residual implementation body is still
+`graph_uncoarsen(...)`.
+
+Its main cleanup opportunities are now explicit:
+
+- consolidate the finest/intermediate env-var parse blocks
+- make strategy dispatch comments match the post-Day-5/Day-6 ownership split
+- tighten the ensemble / thick-restart / runtime-restore structure
+- keep the FM algorithm implementation itself out of this file
+
+The partition entry-point helpers are already comparatively small and honest.
+
+Interpretation:
+
+- Day 8 should focus on `graph_uncoarsen(...)` plus the small orchestration
+  helper cluster
+- it should not turn into a second separator/FM rewrite
+
+#### 5. Internal-header cleanup is minor and comment-oriented
+
+Day 7 did not find a large internal-header redesign need.
+
+The main residual cleanup notes are:
+
+- `src/sparse_graph_internal.h` already describes the live ownership split well
+- the stronger cleanup need is comment accuracy in `src/sparse_graph.c`
+- the section banner in `src/sparse_graph.c` still says:
+  - `Uncoarsening + vertex-separator extraction`
+  even though separator extraction now lives in
+  `src/sparse_graph_separator.c`
+
+Interpretation:
+
+- Day 8 should include small comment/section-heading cleanup
+- no broad shared-header contraction or expansion is needed first
+
+#### 6. Day 8 target set is now concrete
+
+Bounded Day 8 cleanup targets:
+
+- simplify the remaining config parsing blocks inside `graph_uncoarsen(...)`
+- make the per-level FM runtime/dispatched-orchestration structure easier to
+  read without changing behavior
+- clean up the residual file-level and section-level ownership comments
+- preserve the existing helper layering for:
+  - `partition_once(...)`
+  - `sparse_graph_partition(...)`
+  - forced-HEM retry
+
+Explicit non-goals for Day 8:
+
+- no new graph module beyond the Day 6 split
+- no behavior change in finest/intermediate FM strategy selection
+- no retry-policy semantic change
+- no public API/header change
+
+Interpretation:
+
+- the remaining graph cleanup queue is now concrete rather than generic
+- Sprint 44 can finish the Phase-2 graph pass with one bounded residual
+  cleanup batch

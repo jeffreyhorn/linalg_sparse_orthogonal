@@ -1569,3 +1569,128 @@ Interpretation:
 
 - the graph seam-test batch can now stay small, high-signal, and consistent
   with Sprint 44's behavior-first rule
+
+## Day 10
+
+**Objective:** Implement the bounded graph seam-test batch defined on Day 9 so
+the extracted separator-policy seam and the post-Day-8 orchestration path gain
+explicit regression coverage without introducing private helper tests or
+another graph-specific test surface.
+
+### Commands Run
+
+1. Re-read the Sprint 44 Day 10 plan section and the Day 9 audit:
+   - `sed -n '290,350p' docs/planning/EPIC_4/SPRINT_44/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_44/artifacts/day9-post-cleanup-graph-audit-and-test-design.md`
+2. Re-read the current graph-test seam region:
+   - `sed -n '1840,1935p' tests/test_graph.c`
+   - `sed -n '2570,2765p' tests/test_graph.c`
+   - `rg -n "edge_to_vertex_separator|balanced_boundary|fifo|test_graph" tests/test_graph.c`
+3. Implement the bounded Day 10 test batch in `tests/test_graph.c`:
+   - add one direct separator-policy contract test
+   - add one compact end-to-end orchestration smoke
+4. Run the required validation gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+
+### Day 10 Findings
+
+#### 1. The extracted separator seam now has a direct non-default policy test
+
+Day 10 added a new small crafted-fixture test:
+
+- `test_edge_to_vertex_separator_balanced_boundary_prefers_smaller_boundary`
+
+The fixture is intentionally asymmetric:
+
+- side 0 is smaller by weight
+- side 0 has four boundary vertices
+- side 1 has one boundary vertex
+
+That makes the separator-policy choice observable:
+
+- plain smaller-side lifting would lift the four boundary vertices on side 0
+- `balanced_boundary` instead lifts the single boundary vertex on side 1 while
+  still preserving a balanced post-lift split
+
+The test asserts only behavior-level outcomes:
+
+- `graph_edge_separator_to_vertex_separator(...)` succeeds
+- the partition invariant still holds
+- exactly one separator vertex is produced
+- the chosen lifted vertex is the unique side-1 boundary vertex
+
+Interpretation:
+
+- the extracted `src/sparse_graph_separator.c` seam now has a stronger direct
+  contract than the previous default-only smaller-side test
+- the test protects policy behavior without pinning private separator scoring
+  helpers or parser internals
+
+#### 2. The residual orchestration path now has one compact post-split smoke under non-default FM + separator config
+
+Day 10 also added:
+
+- `test_partition_fifo_balanced_boundary_smoke`
+
+This test runs the full `sparse_graph_partition(...)` path on a 10×10 grid
+under a deliberately non-default but stable configuration:
+
+- `SPARSE_ND_COARSENING=heavy_edge`
+- `SPARSE_FM_FINEST_STRATEGY=fifo`
+- `SPARSE_ND_SEP_LIFT_STRATEGY=balanced_boundary`
+
+The test asserts only structural contracts:
+
+- partition succeeds
+- partition invariant holds
+- separator count stays in a broad nondegenerate range
+- both interior sides remain meaningfully populated
+
+Interpretation:
+
+- this gives Sprint 44 one direct post-split orchestration smoke that composes:
+  - extracted coarsening
+  - extracted FM refinement
+  - extracted separator lifting
+  - residual uncoarsening / partition glue
+- it avoids freezing any private `graph_uncoarsen(...)` implementation detail
+
+#### 3. The Day 9 keep-small boundary held
+
+Day 10 intentionally stayed within the Day 9 design:
+
+- only `tests/test_graph.c` changed
+- no new graph-specific test binary was introduced
+- no direct tests of static parser helpers were added
+- no FM-private or bisection-private unit-test wave was reopened
+- no production `src/` files changed
+
+Interpretation:
+
+- Sprint 44 added load-bearing regression protection without turning the graph
+  test surface into another exploratory refactor
+
+#### 4. The required validation gate passed, and the new graph tests passed inside the authoritative suite
+
+Because `tests/test_graph.c` changed, the full required gate was run:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+The authoritative `make test` sweep also explicitly showed the new additions in
+`test_graph`:
+
+- `test_edge_to_vertex_separator_balanced_boundary_prefers_smaller_boundary`
+- `test_partition_fifo_balanced_boundary_smoke`
+
+Interpretation:
+
+- the new graph seam tests are validated on the same maintained gate as the
+  rest of Epic 4
+- Sprint 44 can now shift from graph seam protection into the large-test
+  maintainability batch with the post-split graph surface explicitly covered

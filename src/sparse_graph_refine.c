@@ -319,23 +319,33 @@ sparse_err_t graph_refine_fm(const sparse_graph_t *G, idx_t *part_io) {
     uint32_t gain_noise_rng = 0;
 
     idx_t n = G->n;
-    idx_t *gain = malloc((size_t)n * sizeof(idx_t));
-    int *locked = calloc((size_t)n, sizeof(int));
-    int *in_bucket = calloc((size_t)n, sizeof(int));
-    idx_t *best_part = malloc((size_t)n * sizeof(idx_t));
-    idx_t *skipped_this_step = malloc((size_t)n * sizeof(idx_t));
+    idx_t *gain = NULL;
+    int *locked = NULL;
+    int *in_bucket = NULL;
+    idx_t *best_part = NULL;
+    idx_t *skipped_this_step = NULL;
     idx_t *gain_for_bucket = NULL;
-    if (use_gain_noise_formal)
-        gain_for_bucket = calloc((size_t)n, sizeof(idx_t));
-    if (!gain || !locked || !in_bucket || !best_part || !skipped_this_step ||
-        (use_gain_noise_formal && !gain_for_bucket)) {
+    sparse_err_t alloc_rc = sparse_malloc_idx_array(n, sizeof(*gain), (void **)&gain);
+    if (alloc_rc == SPARSE_OK)
+        alloc_rc = sparse_calloc_idx_array(n, sizeof(*locked), (void **)&locked);
+    if (alloc_rc == SPARSE_OK)
+        alloc_rc = sparse_calloc_idx_array(n, sizeof(*in_bucket), (void **)&in_bucket);
+    if (alloc_rc == SPARSE_OK)
+        alloc_rc = sparse_malloc_idx_array(n, sizeof(*best_part), (void **)&best_part);
+    if (alloc_rc == SPARSE_OK)
+        alloc_rc =
+            sparse_malloc_idx_array(n, sizeof(*skipped_this_step), (void **)&skipped_this_step);
+    if (alloc_rc == SPARSE_OK && use_gain_noise_formal) {
+        alloc_rc = sparse_calloc_idx_array(n, sizeof(*gain_for_bucket), (void **)&gain_for_bucket);
+    }
+    if (alloc_rc != SPARSE_OK) {
         free(gain);
         free(locked);
         free(in_bucket);
         free(best_part);
         free(skipped_this_step);
         free(gain_for_bucket);
-        return SPARSE_ERR_ALLOC;
+        return alloc_rc;
     }
 
     idx_t max_weighted_degree = 0;

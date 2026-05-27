@@ -12,6 +12,7 @@
  * this file owns only the final separator-policy and conversion seam.
  */
 
+#include "sparse_alloc_internal.h"
 #include "sparse_graph_internal.h"
 
 #include <stdlib.h>
@@ -133,9 +134,10 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
             w[1] += wi;
     }
 
-    int *is_boundary = calloc((size_t)G->n, sizeof(int));
-    if (!is_boundary)
-        return SPARSE_ERR_ALLOC;
+    int *is_boundary = NULL;
+    sparse_err_t rc = sparse_calloc_idx_array(G->n, sizeof(*is_boundary), (void **)&is_boundary);
+    if (rc != SPARSE_OK)
+        return rc;
 
     idx_t boundary_count[2] = {0, 0};
     idx_t boundary_weight[2] = {0, 0};
@@ -177,11 +179,11 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
     } else if (is_per_vertex_strategy(strategy)) {
         idx_t total_boundary = boundary_count[0] + boundary_count[1];
         if (total_boundary > 0) {
-            per_vertex_score_t *scored =
-                malloc((size_t)total_boundary * sizeof(per_vertex_score_t));
-            if (!scored) {
+            per_vertex_score_t *scored = NULL;
+            rc = sparse_malloc_idx_array(total_boundary, sizeof(*scored), (void **)&scored);
+            if (rc != SPARSE_OK) {
                 free(is_boundary);
-                return SPARSE_ERR_ALLOC;
+                return rc;
             }
             idx_t larger_side = (w[0] >= w[1]) ? 0 : 1;
             sep_lift_weight_t weight;
@@ -246,11 +248,12 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
             qsort(scored, (size_t)total_boundary, sizeof(per_vertex_score_t),
                   per_vertex_score_cmp_desc);
 
-            per_vertex_lifted = calloc((size_t)G->n, sizeof(int));
-            if (!per_vertex_lifted) {
+            rc = sparse_calloc_idx_array(G->n, sizeof(*per_vertex_lifted),
+                                         (void **)&per_vertex_lifted);
+            if (rc != SPARSE_OK) {
                 free(scored);
                 free(is_boundary);
-                return SPARSE_ERR_ALLOC;
+                return rc;
             }
             idx_t cur_w0 = w[0], cur_w1 = w[1];
             idx_t lifted_count = 0;

@@ -2041,3 +2041,125 @@ Interpretation:
   rest of Epic 4
 - Sprint 44 can now move into the Day 13 full validation sweep from a clean
   Day 12 state
+
+## Day 13
+
+**Objective:** Run the full Sprint 40/41/42 validation anchor plus targeted
+graph/ND and touched-QR follow-on reruns so Sprint 44 closes its active code
+change window from a measured, authoritative validation baseline before Day 14
+closeout.
+
+### Commands Run
+
+1. Run the mandatory code-change floor:
+   - `/usr/bin/time -p make format`
+   - `/usr/bin/time -p make lint`
+   - `/usr/bin/time -p make test`
+2. Run the strongest local reviewed baseline:
+   - `/usr/bin/time -p make quality-review-full`
+3. Run targeted touched-surface follow-on reruns justified by the Sprint 44
+   graph and `test_qr` work:
+   - `./build/test_graph`
+   - `./build/test_graph_fm_buckets`
+   - `./build/test_reorder_nd`
+   - `./build/test_reorder_amd_qg`
+   - `./build/test_qr`
+
+### Day 13 Findings
+
+#### 1. The full mandatory validation floor passed cleanly
+
+The required code-change gate passed in full:
+
+- `make format` → passed, `real 8.12`
+- `make lint` → passed, `real 348.41`
+- `make test` → passed, `real 96.91`
+
+Interpretation:
+
+- Sprint 44's graph Phase-2 extraction and first large-test helper batch did
+  not introduce formatting, static-analysis, or direct runtime regressions
+
+#### 2. The strongest local reviewed baseline also passed cleanly
+
+The authoritative reviewed aggregate passed:
+
+- `make quality-review-full` → passed, `real 797.34`
+
+That covered:
+
+- reviewed Makefile path
+- `deadcode-check`
+- reviewed clean CMake rebuild
+- `ctest -N`
+- full reviewed CMake `ctest`
+
+Interpretation:
+
+- Sprint 44 remained aligned with the maintained local reviewed contract, not
+  just the lighter direct `make test` path
+
+#### 3. The Sprint 40 truthfulness anchors remained exact
+
+The preserved reviewed-baseline anchors stayed unchanged:
+
+- `ctest -N --test-dir build/quality-review-cmake` remained `53`
+- Makefile/CMake parity remained `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 194.88 sec`
+
+Interpretation:
+
+- Sprint 44 did not disturb the maintained Makefile/CMake reviewed-parity
+  contract while finishing the graph Phase-2 split and test-helper cleanup
+
+#### 4. The targeted graph / ND and QR follow-on reruns all passed
+
+The touched-surface reruns passed directly:
+
+- `./build/test_graph` → passed, `Time: 2.228 s`
+- `./build/test_graph_fm_buckets` → passed, `Time: 0.001 s`
+- `./build/test_reorder_nd` → passed, `Time: 29.940 s`
+- `./build/test_reorder_amd_qg` → passed, `Time: 0.310 s`
+- `./build/test_qr` → passed, `Time: 2.113 s`
+
+Important explicit Day 10 / Day 12 protections stayed green:
+
+- graph seam additions:
+  - `test_edge_to_vertex_separator_balanced_boundary_prefers_smaller_boundary`
+  - `test_partition_fifo_balanced_boundary_smoke`
+- QR helper-consolidation surface:
+  - `test_qr_reconstruction`
+  - `test_qr_wide`
+  - `test_qr_reconstruction_large`
+  - `test_qr_rank_1`
+  - `test_qr_nearly_singular`
+  - `test_qr_diagonal`
+  - `test_qr_perm_valid`
+  - `test_qr_solve_square`
+  - `test_qr_solve_overdetermined`
+  - `test_qr_solve_rank_deficient`
+  - `test_qr_solve_nos4`
+  - `test_qr_bcsstk04`
+  - `test_qr_west0067`
+  - `test_qr_tall_synthetic`
+
+Interpretation:
+
+- the extracted FM/separator/orchestration seams still compose correctly in the
+  focused graph/ND binaries
+- the new QR helper layer preserved behavior in the touched large test
+
+#### 5. No new reconciliation queue surfaced
+
+Day 13 did not surface a new cleanup or validation-repair queue.
+
+I also did **not** add a standalone serial `make deadcode-report` rerun for
+Day 13 because Sprint 44 did not change dead-code scripts, dead-code reporting
+semantics, or dead-code Makefile wiring, and `deadcode-check` still passed
+inside `make quality-review-full`.
+
+Interpretation:
+
+- Sprint 44 can move into Day 14 closeout from a measured, authoritative, and
+  internally consistent validation state

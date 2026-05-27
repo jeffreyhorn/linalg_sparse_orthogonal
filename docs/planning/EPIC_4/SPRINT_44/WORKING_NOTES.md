@@ -369,3 +369,202 @@ Interpretation:
   residual file rather than only the project-plan labels
 - Sprint 44 should not start with orchestration cleanup because the remaining
   orchestration shape depends on the FM and separator moves landing first
+
+## Day 3
+
+**Objective:** Define the explicit module boundary for FM refinement extraction
+so Sprint 44 can move the refinement core out of `src/sparse_graph.c` without
+dragging `graph_uncoarsen(...)` or broader orchestration logic into the same
+batch.
+
+### Commands Run
+
+1. Re-read the Sprint 44 Day 3 plan section:
+   - `sed -n '90,122p' docs/planning/EPIC_4/SPRINT_44/PLAN.md`
+2. Re-read the Day 2 residual seam inventory:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_44/artifacts/day2-residual-graph-seam-refresh-inventory.md`
+3. Re-read the current public-ish FM helper header:
+   - `sed -n '1,260p' src/sparse_graph_fm_buckets.h`
+4. Re-read the live FM region in `src/sparse_graph.c`:
+   - `sed -n '340,1165p' src/sparse_graph.c`
+5. Sweep the current FM-related symbol ownership across implementation, header,
+   and tests:
+   - `rg -n "graph_refine_fm|compute_cut_weight|fm_bucket_|fm_use_|fm_anneal_|fm_thick_restart|fm_gain_noise|parse_fm_anneal_schedule|FINEST_FM_|SPARSE_FM_" src/sparse_graph.c src/sparse_graph_internal.h src/sparse_graph_fm_buckets.h tests/test_graph_fm_buckets.c tests/test_graph.c`
+
+### Day 3 Findings
+
+#### 1. The right Day 5 target is one dedicated FM implementation unit, not another mixed graph helper file
+
+The best Sprint 44 FM target is:
+
+- `src/sparse_graph_refine.c`
+
+Reasoning:
+
+- the extracted ownership is algorithm-focused rather than generic
+- the live code already groups the FM region as one cohesive slice:
+  - local score calculation
+  - gain-bucket implementation
+  - thread-local FM mode state
+  - acceptance / perturbation overlays
+  - `graph_refine_fm(...)`
+- naming it `refine` matches the role better than a broader
+  `runtime`/`helpers`/`phase2` label
+
+Interpretation:
+
+- Day 5 should land a real FM subsystem file, not a catch-all helper bucket
+
+#### 2. The FM-owned extraction boundary is broader than just `graph_refine_fm(...)`
+
+The FM-owned extraction set should include:
+
+- FM thread-local controls:
+  - `fm_pop_use_tail`
+  - `fm_use_annealing`
+  - `fm_anneal_schedule`
+  - `fm_use_thick_restart`
+  - `fm_thick_restart_perturb`
+  - `fm_gain_noise_schedule`
+  - `fm_anneal_pass_idx`
+  - `fm_anneal_total_passes`
+- FM parser/helpers:
+  - `parse_fm_anneal_schedule(...)`
+  - `parse_fm_thick_restart_perturb(...)`
+  - `parse_fm_gain_noise_schedule(...)`
+  - `thick_restart_perturb(...)`
+- FM local score/update helper:
+  - `compute_cut_weight(...)`
+- FM bucket implementation:
+  - `fm_bucket_array_init(...)`
+  - `fm_bucket_array_free(...)`
+  - `fm_bucket_insert(...)`
+  - `fm_bucket_remove(...)`
+  - `fm_bucket_pop_max(...)`
+  - `fm_bucket_pop_max_tail(...)`
+- FM algorithm entry point:
+  - `graph_refine_fm(...)`
+
+Interpretation:
+
+- the FM module should own not just the hot loop, but also the local state and
+  perturbation vocabulary that make the hot loop work
+- leaving the thread-local FM control state behind in `src/sparse_graph.c`
+  would produce a fake boundary
+
+#### 3. `graph_uncoarsen(...)` should stay out of the FM extraction even though it currently parses most finest-level FM env vars
+
+`graph_uncoarsen(...)` currently owns:
+
+- `SPARSE_FM_FINEST_PASSES`
+- `SPARSE_FM_FINEST_STRATEGY`
+- `SPARSE_FM_ENSEMBLE_STRATEGIES`
+- `SPARSE_FM_INTERMEDIATE_PASSES`
+- the call-time setup/restoration of FM thread-local controls
+
+Day 3 decision:
+
+- keep `graph_uncoarsen(...)` in the residual orchestration file for Sprint 44
+- do **not** move the finest-level orchestration loop with the FM module
+- do move only the FM-local parser/helpers that describe refinement behavior
+  itself:
+  - annealing schedule
+  - thick-restart perturbation mode
+  - gain-noise schedule
+
+Interpretation:
+
+- Day 5 should extract the FM implementation seam
+- Day 8 can then simplify `graph_uncoarsen(...)` against that cleaner FM seam
+- this keeps the batch bounded and avoids treating orchestration as part of FM
+
+#### 4. The existing shared-header surface is already close to the right final shape
+
+Today the shared graph internal header exports:
+
+- `graph_refine_fm(...)`
+
+and the FM bucket header exports:
+
+- `fm_bucket_array_t`
+- bucket API functions
+
+Day 3 decision:
+
+- keep `graph_refine_fm(...)` as the only FM behavior seam in
+  `src/sparse_graph_internal.h`
+- keep the bucket API in `src/sparse_graph_fm_buckets.h`
+- do **not** promote FM parser/helpers or thread-local state into shared
+  headers
+- do **not** expose `compute_cut_weight(...)`
+
+Interpretation:
+
+- Day 5 can land with little or no shared-header expansion
+- most of the FM extraction is file movement plus include/ownership cleanup,
+  not interface growth
+
+#### 5. Bucket ownership is explicit and should remain separate from broader graph internals
+
+The live code already treats the bucket API as a narrow reusable FM support
+surface:
+
+- dedicated header:
+  - `src/sparse_graph_fm_buckets.h`
+- dedicated focused tests:
+  - `tests/test_graph_fm_buckets.c`
+
+Day 3 decision:
+
+- keep the bucket API and its tests as a dedicated FM-support seam
+- the extracted FM implementation unit should include that header rather than
+  reabsorbing bucket declarations into `src/sparse_graph_internal.h`
+
+Interpretation:
+
+- the FM extraction should preserve the existing narrow bucket abstraction
+- Sprint 44 should not collapse bucket internals back into a broader graph
+  header just because the implementation file moves
+
+#### 6. `compute_cut_weight(...)` should move with FM in Day 5, even though `graph_uncoarsen(...)` also uses it
+
+Current usage pattern:
+
+- FM uses `compute_cut_weight(...)` internally
+- `graph_uncoarsen(...)` uses it for thick-restart / ensemble bookkeeping
+
+Day 3 decision:
+
+- move `compute_cut_weight(...)` into `src/sparse_graph_refine.c`
+- add a minimal shared declaration for it in `src/sparse_graph_internal.h`
+  only if Day 5 needs `graph_uncoarsen(...)` to call across files
+- otherwise prefer a translation-unit-local helper wrapper strategy if the move
+  can stay narrower
+
+Interpretation:
+
+- the helper is more conceptually FM-owned than orchestration-owned
+- but it is the main candidate for a tiny shared-header addition during the
+  extraction batch
+
+#### 7. The Day 5 FM batch should stay explicitly bounded
+
+Do on Day 5:
+
+- create `src/sparse_graph_refine.c`
+- move the FM bucket implementation, FM parser/helpers, thread-local FM state,
+  `compute_cut_weight(...)`, and `graph_refine_fm(...)`
+- update build wiring and the minimal headers/includes needed
+
+Do not do on Day 5:
+
+- move `graph_uncoarsen(...)`
+- move separator lifting
+- redesign FM env-var contracts
+- redesign `tests/test_graph_fm_buckets.c` or `tests/test_graph.c`
+- broaden into runtime/orchestration cleanup
+
+Interpretation:
+
+- this preserves a real extracted FM subsystem while keeping the batch small
+  enough to validate cleanly before Sprint 44 pivots into separator work

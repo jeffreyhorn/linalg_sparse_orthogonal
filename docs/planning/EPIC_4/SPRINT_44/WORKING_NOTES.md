@@ -568,3 +568,206 @@ Interpretation:
 
 - this preserves a real extracted FM subsystem while keeping the batch small
   enough to validate cleanly before Sprint 44 pivots into separator work
+
+## Day 4
+
+**Objective:** Bound the separator-lifting extraction seam, the residual
+runtime/parser cleanup seam, and the first large-test maintainability target
+set before Sprint 44 begins the main implementation batches.
+
+### Commands Run
+
+1. Re-read the Sprint 44 Day 4 plan section:
+   - `sed -n '122,157p' docs/planning/EPIC_4/SPRINT_44/PLAN.md`
+2. Re-read the Day 2 and Day 3 design artifacts:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_44/artifacts/day2-residual-graph-seam-refresh-inventory.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_44/artifacts/day3-fm-refinement-module-boundary-design.md`
+3. Re-read the live separator and orchestration region:
+   - `sed -n '1630,2165p' src/sparse_graph.c`
+4. Reconfirm the largest-test size concentration and sweep for existing helper
+   structures:
+   - `wc -l tests/test_chol_csc.c tests/test_svd.c tests/test_ldlt_csc.c tests/test_qr.c`
+   - `rg -n '^static ' tests/test_chol_csc.c tests/test_svd.c tests/test_ldlt_csc.c tests/test_qr.c`
+   - `rg -n "static .*helper|fixture|make_.*matrix|build_.*matrix|assert_.*residual|check_.*residual|run_.*case|expect_.*|solve_.*case|compare_.*|setup_.*|teardown_.*" tests/test_chol_csc.c tests/test_svd.c tests/test_ldlt_csc.c tests/test_qr.c`
+5. Re-read the highest-signal helper-heavy slices in the large tests:
+   - `sed -n '2480,2915p' tests/test_qr.c`
+   - `sed -n '3840,4665p' tests/test_chol_csc.c`
+   - `sed -n '1160,1565p' tests/test_ldlt_csc.c`
+   - `sed -n '3090,3415p' tests/test_svd.c`
+
+### Day 4 Findings
+
+#### 1. The separator extraction target is one dedicated policy-and-conversion module
+
+The best Sprint 44 separator target is:
+
+- `src/sparse_graph_separator.c`
+
+The owned extraction set should include:
+
+- separator strategy enums:
+  - `sep_lift_strategy_t`
+  - `sep_lift_weight_t`
+- separator parser/helpers:
+  - `parse_sep_lift_strategy(...)`
+  - `parse_sep_lift_weight(...)`
+  - `is_per_vertex_strategy(...)`
+  - `per_vertex_score_cmp_desc(...)`
+- separator algorithm entry point:
+  - `graph_edge_separator_to_vertex_separator(...)`
+
+Interpretation:
+
+- Day 6 should land a real separator subsystem file, not just move the main
+  conversion function by itself
+- the parser/config logic should move with separator lifting because it is
+  policy-specific rather than orchestration-generic
+
+#### 2. The separator seam should stay narrower than the full post-FM orchestration layer
+
+Even after FM moves out, these should stay outside the separator module:
+
+- `graph_uncoarsen(...)`
+- `graph_partition_seed_coarsest(...)`
+- `partition_once(...)`
+- `sparse_graph_partition(...)`
+- `graph_partition_should_retry_with_forced_hem(...)`
+
+Reason:
+
+- those functions sequence multiple subsystems
+- separator lifting is the final projection step, not the owner of the full
+  partition pipeline
+
+Interpretation:
+
+- Day 6 should extract separator ownership without turning the separator module
+  into a new orchestration file
+
+#### 3. Runtime/config cleanup should follow subsystem ownership, not start from a generic parser file
+
+Day 4 confirms three runtime/config ownership classes:
+
+- FM-owned:
+  - FM refinement behavior parsers and overlays
+- separator-owned:
+  - separator policy parsers and per-vertex scoring mode selection
+- residual orchestration-owned:
+  - finest-pass count / strategy selection
+  - ensemble selector-list parsing
+  - intermediate-pass parsing
+  - sep=0 retry / forced-HEM composition
+
+Day 4 decision:
+
+- do not create a generic `src/sparse_graph_runtime.c` or parser bucket file
+- let Day 5 and Day 6 move parser logic along with FM and separator ownership
+- leave only the orchestration-scoped env parsing in the residual file for Day 8
+
+Interpretation:
+
+- Sprint 44's runtime cleanup is a post-extraction simplification step, not an
+  independent first-wave module split
+
+#### 4. The strongest large-test helper seams are real, but they differ by file
+
+The live large-test surfaces suggest different first-batch targets:
+
+- `tests/test_qr.c`
+  - strongest helper seam:
+    - `compare_dense_sparse_qr(...)`
+  - repeated sparse-mode cases already fan into one helper
+  - likely next opportunities:
+    - repeated factor/solve/compare harnesses
+    - repeated reconstruction/residual setup
+- `tests/test_chol_csc.c`
+  - strongest helper seam:
+    - repeated supernodal cross-check / roundtrip / dispatch fixture harnesses
+  - likely next opportunities:
+    - Day 9 / Day 10 helper clusters
+    - repeated SPD fixture builders and factor-match checks
+- `tests/test_ldlt_csc.c`
+  - strongest helper seam:
+    - repeated indefinite fixture builders and two-pass factor harnesses
+  - likely next opportunities:
+    - KKT fixture builders
+    - repeated solve-residual / factor-match harnesses
+- `tests/test_svd.c`
+  - strongest helper seam:
+    - repeated dense fixture fill and full/economy/output comparison harnesses
+  - likely next opportunities:
+    - repeated 16×8 full-mode fixture setup
+    - repeated low-rank corpus safety loops
+
+Interpretation:
+
+- Sprint 44's test maintainability work should target helper/fixture
+  consolidation, not file splitting
+- the strongest first batch is likely in QR and one of Chol/LDLT/SVD, not all
+  four files at once
+
+#### 5. The bounded Day 11 / Day 12 target shortlist is now explicit
+
+Best Day 11 audit focus:
+
+- `tests/test_qr.c`
+- `tests/test_chol_csc.c`
+- `tests/test_ldlt_csc.c`
+- `tests/test_svd.c`
+
+Best Day 12 likely implementation targets:
+
+- `tests/test_qr.c`
+  - because it already has a clear comparison-helper seam that can probably be
+    extended without structural churn
+- one of:
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_svd.c`
+
+Selection rule:
+
+- choose the file with the clearest repeated helper/fixture pattern after the
+  Day 11 audit, not the file that is merely largest
+
+Interpretation:
+
+- Sprint 44 should land a high-signal first maintainability batch instead of
+  spreading across all four large tests
+
+#### 6. Shared-header expansion for separator extraction should stay minimal, just like FM
+
+Today the internal graph header exports:
+
+- `graph_edge_separator_to_vertex_separator(...)`
+
+Day 4 decision:
+
+- keep that as the main shared separator behavior seam
+- do not promote separator strategy enums or parser helpers into broader shared
+  headers unless the extraction requires a narrow private header later
+- prefer translation-unit-local policy helpers in the new separator file
+
+Interpretation:
+
+- Day 6 should be mostly file movement plus build/include cleanup, not interface
+  growth
+
+#### 7. The Day 5-Day 8 graph order is now completely fixed
+
+The strongest implementation order is:
+
+1. Day 5:
+   - FM extraction
+2. Day 6:
+   - separator extraction
+3. Day 7:
+   - residual runtime/orchestration audit
+4. Day 8:
+   - runtime/orchestration cleanup after the moves land
+
+Interpretation:
+
+- Sprint 44 should not interleave separator extraction with runtime cleanup
+- the residual orchestration layer can only be simplified honestly after the
+  FM and separator moves are complete

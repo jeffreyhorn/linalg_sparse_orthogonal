@@ -1273,3 +1273,153 @@ Interpretation:
 
 - the full eigensolver workspace migration now closes from a reviewed green
   baseline rather than only from a narrow local proof
+
+## Day 9
+
+**Objective:** Normalize `sparse_eigs_sym(...)` so it reads explicitly as a
+compatibility-preserving one-shot wrapper over the already-migrated reusable
+internal backend paths, without widening Sprint 46 into another solver,
+workspace, benchmark, or public-API redesign batch.
+
+### Commands Run
+
+1. Re-read the Sprint 46 Day 9 plan section:
+   - `sed -n '330,375p' docs/planning/EPIC_4/SPRINT_46/PLAN.md`
+2. Re-read the Day 8 closeout and the current wrapper/public surface:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_46/artifacts/day8-lobpcg-workspace-migration-batch.md`
+   - `sed -n '1,260p' include/sparse_eigs.h`
+3. Re-read the live public entry and backend dispatch path:
+   - `sed -n '780,1325p' src/sparse_eigs.c`
+   - `rg -n "backend_used|AUTO|opts == NULL|result->|sparse_eigs_sym|dispatch" src/sparse_eigs.c`
+4. Re-read the closest prior compatibility-batch pattern:
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_45/artifacts/day9-wrapper-compatibility-batch.md`
+5. Implement the bounded wrapper/compatibility cleanup:
+   - `src/sparse_eigs.c`
+6. Run the required code-quality gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+7. Run the targeted wrapper-focused eigensolver follow-ons:
+   - `./build/test_eigs`
+   - `./build/test_eigs_thick_restart`
+   - `./build/test_eigs_lobpcg`
+   - `./build/example_eigs`
+
+### Day 9 Findings
+
+#### 1. `sparse_eigs_sym(...)` now reads more clearly as a public compatibility wrapper
+
+Day 9 moved the public-entry scaffolding in `sparse_eigs_sym(...)` behind small
+internal helper functions for:
+
+- public default option construction
+- entry validation
+- result-field initialization
+- AUTO/explicit backend selection
+- backend delegation
+
+Interpretation:
+
+- the public one-shot entry now reads more directly as a wrapper/composition
+  surface over reusable internal backends
+- the algorithm-specific backends remain the behavioral truth
+
+#### 2. Backend math ownership stayed with the existing internal solver paths
+
+Day 9 did **not** move or redesign the actual backend implementations:
+
+- grow-m Lanczos
+- thick-restart Lanczos
+- LOBPCG
+
+The new wrapper helper layer only routes to the already-existing internal
+implementations and preserves the existing refinement handoff.
+
+Interpretation:
+
+- Day 9 normalized composition structure, not eigensolver math
+- the reusable-workspace migration from Days 5-8 remains the implementation
+  owner for the real backend behavior
+
+#### 3. Public defaults, validation, and result-telemetry setup are now explicit wrapper responsibilities
+
+The following wrapper-facing responsibilities are now isolated more clearly from
+the backend bodies:
+
+- `opts == NULL` library-default mapping
+- null/shape/option validation
+- result telemetry reset:
+  - `n_requested`
+  - `n_converged`
+  - `iterations`
+  - `residual_norm`
+  - `used_csc_path_ldlt`
+  - `peak_basis_size`
+  - `backend_used`
+
+Interpretation:
+
+- the public wrapper contract is now easier to audit
+- later benchmark and maintainer-closeout work can reference one explicit
+  wrapper boundary instead of a monolithic public entry
+
+#### 4. AUTO/explicit backend selection is now one explicit compatibility seam
+
+Day 9 isolated the current backend choice logic into one explicit helper that
+preserves the existing behavior for:
+
+- explicit LOBPCG
+- explicit thick-restart
+- AUTO LOBPCG routing
+- AUTO thick-restart routing
+- grow-m fallback
+
+Interpretation:
+
+- the user-facing one-shot entry now has one clearly named dispatch decision
+  point
+- no public API redesign or dispatch-policy change was introduced
+
+#### 5. The batch stayed bounded to wrapper/composition cleanup
+
+Day 9 completed:
+
+- public wrapper structure cleanup
+- explicit wrapper-vs-backend ownership separation
+- compatibility-preserving dispatch normalization
+
+Day 9 intentionally did **not** widen into:
+
+- new public explicit workspace APIs
+- repeated-run benchmark work
+- eigensolver algorithm changes
+- helper-layer/workspace redesign
+- public docs/tutorial refresh
+
+Interpretation:
+
+- the batch stayed inside the Sprint 46 Day 9 boundary
+- Sprint 46 is now ready to pivot into repeated-run benchmark evidence from a
+  cleaner public-wrapper baseline
+
+#### 6. The validation baseline stayed green after the wrapper cleanup
+
+Because `*.c` changed, the required gate was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+The targeted wrapper-focused eigensolver follow-ons also passed:
+
+- `./build/test_eigs`
+- `./build/test_eigs_thick_restart`
+- `./build/test_eigs_lobpcg`
+- `./build/example_eigs`
+
+Interpretation:
+
+- the wrapper/composition cleanup did not disturb public defaults, AUTO/explicit
+  routing, or the example-facing one-shot flow

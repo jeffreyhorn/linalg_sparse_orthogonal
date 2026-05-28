@@ -792,20 +792,8 @@ static sparse_err_t s29_maybe_refine(const SparseMatrix *A, const sparse_eigs_op
     return backend_rc;
 }
 
-sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_opts_t *opts,
-                             sparse_eigs_t *result) {
-    /* Input validation (preconditions from the public doxygen). */
-    if (!A || !result)
-        return SPARSE_ERR_NULL;
-    idx_t n = sparse_rows(A);
-    if (n != sparse_cols(A))
-        return SPARSE_ERR_SHAPE;
-    if (k < 1 || k > n)
-        return SPARSE_ERR_BADARG;
-
-    /* Library defaults when opts == NULL match the doxygen
-     * contract in sparse_eigs.h. */
-    const sparse_eigs_opts_t defaults = {
+static sparse_eigs_opts_t s46_default_public_opts(void) {
+    return (sparse_eigs_opts_t){
         .which = SPARSE_EIGS_LARGEST,
         .sigma = 0.0,
         .max_iterations = 0,
@@ -813,10 +801,25 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
         .reorthogonalize = 1,
         .compute_vectors = 0,
         .backend = SPARSE_EIGS_BACKEND_AUTO,
-        .lobpcg_soft_lock = 1, /* Day 9: default-on per the public-header doc. */
+        .lobpcg_soft_lock = 1,
     };
-    const sparse_eigs_opts_t *o = opts ? opts : &defaults;
+}
 
+static sparse_err_t s46_validate_public_entry(const SparseMatrix *A, idx_t k,
+                                              const sparse_eigs_opts_t *o,
+                                              const sparse_eigs_t *result) {
+    if (!A || !result)
+        return SPARSE_ERR_NULL;
+
+    idx_t n = sparse_rows(A);
+    if (n != sparse_cols(A))
+        return SPARSE_ERR_SHAPE;
+    if (k < 1 || k > n)
+        return SPARSE_ERR_BADARG;
+    if (!result->eigenvalues)
+        return SPARSE_ERR_NULL;
+    if (o->compute_vectors && !result->eigenvectors)
+        return SPARSE_ERR_NULL;
     if (o->which != SPARSE_EIGS_LARGEST && o->which != SPARSE_EIGS_SMALLEST &&
         o->which != SPARSE_EIGS_NEAREST_SIGMA)
         return SPARSE_ERR_BADARG;
@@ -826,53 +829,80 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
         return SPARSE_ERR_BADARG;
     if (o->tol < 0.0 || o->max_iterations < 0)
         return SPARSE_ERR_BADARG;
-    if (!result->eigenvalues)
-        return SPARSE_ERR_NULL;
-    if (o->compute_vectors && !result->eigenvectors)
-        return SPARSE_ERR_NULL;
-    /* Sprint 21 Day 7: LOBPCG-specific opts validation.  Block size
-     * must be at least k (so the Rayleigh-Ritz step produces enough
-     * Ritz pairs); the special value 0 means "library default = k"
-     * and is accepted as the designated-init zero default.  The
-     * `precond_ctx != NULL && precond == NULL` mismatch is rejected
-     * as the obvious user error (forgot to set the callback after
-     * binding the context); the inverse `precond != NULL &&
-     * precond_ctx == NULL` is allowed because some preconditioners
-     * carry state via globals or thread-local storage. */
     if (o->block_size < 0 || o->block_size > n)
         return SPARSE_ERR_BADARG;
     if (o->block_size > 0 && o->block_size < k)
         return SPARSE_ERR_BADARG;
     if (o->precond_ctx && !o->precond)
         return SPARSE_ERR_BADARG;
-
-    /* Sprint 29 Day 4 (Item 3): refine API validation.  The refine
-     * loop reads result->eigenvectors as the inverse-iteration input
-     * → reject `refine && !compute_vectors`.  Negative iter budgets
-     * are user errors.  Day-4 lands API + validation only; Day-5
-     * lights up the actual Rayleigh-quotient iteration in
-     * src/sparse_eigs.c.  See
-     * docs/planning/EPIC_2/SPRINT_29/refinement_design_day4.md. */
     if (o->refine && !o->compute_vectors)
         return SPARSE_ERR_BADARG;
     if (o->refine_max_iters < 0)
         return SPARSE_ERR_BADARG;
-
-    /* Day 11: enforce symmetry precondition.  Matches the Cholesky /
-     * IC convention (both call sparse_is_symmetric(A, 1e-12) and
-     * return SPARSE_ERR_NOT_SPD on false).  Lanczos silently produces
-     * complex or nonsensical Ritz values on a non-symmetric operator,
-     * so rejecting at entry is the defensive choice. */
     if (!sparse_is_symmetric(A, 1e-12))
         return SPARSE_ERR_NOT_SPD;
+    return SPARSE_OK;
+}
 
+static void s46_init_public_result(sparse_eigs_t *result, idx_t k) {
     result->n_requested = k;
     result->n_converged = 0;
     result->iterations = 0;
     result->residual_norm = 0.0;
     result->used_csc_path_ldlt = 0;
     result->peak_basis_size = 0;
-    result->backend_used = SPARSE_EIGS_BACKEND_LANCZOS; /* updated per dispatch below */
+    result->backend_used = SPARSE_EIGS_BACKEND_LANCZOS;
+}
+
+static sparse_eigs_backend_t s46_select_backend(idx_t n, idx_t k, const sparse_eigs_opts_t *o) {
+    int explicit_lobpcg = (o->backend == SPARSE_EIGS_BACKEND_LOBPCG);
+    idx_t bs_for_auto = (o->block_size > 0) ? o->block_size : k;
+    int auto_lobpcg = (o->backend == SPARSE_EIGS_BACKEND_AUTO) && (o->precond != NULL) &&
+                      (n >= (idx_t)SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD) && (bs_for_auto >= 4);
+    if (explicit_lobpcg || auto_lobpcg)
+        return SPARSE_EIGS_BACKEND_LOBPCG;
+
+    if ((o->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART) ||
+        (o->backend == SPARSE_EIGS_BACKEND_AUTO && n >= (idx_t)SPARSE_EIGS_THICK_RESTART_THRESHOLD))
+        return SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART;
+
+    return SPARSE_EIGS_BACKEND_LANCZOS;
+}
+
+static sparse_err_t s46_run_backend(const SparseMatrix *A, sparse_eigs_backend_t backend,
+                                    lanczos_op_fn op_fn, const void *op_ctx, idx_t n, idx_t k,
+                                    const sparse_eigs_opts_t *o, double eff_tol, idx_t max_iters,
+                                    sparse_eigs_t *result) {
+    sparse_err_t rc = SPARSE_OK;
+
+    result->backend_used = backend;
+    switch (backend) {
+    case SPARSE_EIGS_BACKEND_LOBPCG:
+        rc = s21_lobpcg_solve(op_fn, op_ctx, n, k, o, eff_tol, max_iters, result);
+        break;
+    case SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART:
+        rc = s21_thick_restart_outer_loop(op_fn, op_ctx, n, k, o, eff_tol, max_iters, result);
+        break;
+    case SPARSE_EIGS_BACKEND_LANCZOS:
+    case SPARSE_EIGS_BACKEND_AUTO:
+        return SPARSE_OK;
+    }
+
+    return s29_maybe_refine(A, o, result, rc);
+}
+
+sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_opts_t *opts,
+                             sparse_eigs_t *result) {
+    /* Library defaults when opts == NULL match the doxygen
+     * contract in sparse_eigs.h. */
+    const sparse_eigs_opts_t defaults = s46_default_public_opts();
+    const sparse_eigs_opts_t *o = opts ? opts : &defaults;
+    sparse_err_t entry_err = s46_validate_public_entry(A, k, o, result);
+    if (entry_err != SPARSE_OK)
+        return entry_err;
+
+    idx_t n = sparse_rows(A);
+    s46_init_public_result(result, k);
 
     /* Day 12: shift-invert setup for NEAREST_SIGMA.  Factor
      * `A - sigma*I` via `sparse_ldlt_factor_opts` (Days 4-6 AUTO
@@ -992,33 +1022,15 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
      * small to amortise the per-iteration Jacobi cost vs Lanczos's
      * single-vector iteration.  See `SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD`
      * in the public header for the n threshold rationale. */
-    int explicit_lobpcg = (o->backend == SPARSE_EIGS_BACKEND_LOBPCG);
-    idx_t bs_for_auto = (o->block_size > 0) ? o->block_size : k;
-    int auto_lobpcg = (o->backend == SPARSE_EIGS_BACKEND_AUTO) && (o->precond != NULL) &&
-                      (n >= (idx_t)SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD) && (bs_for_auto >= 4);
-    if (explicit_lobpcg || auto_lobpcg) {
-        result->backend_used = SPARSE_EIGS_BACKEND_LOBPCG;
-        sparse_err_t lobpcg_rc =
-            s21_lobpcg_solve(op_fn, op_ctx, n, k, o, eff_tol, max_iters, result);
-        lobpcg_rc = s29_maybe_refine(A, o, result, lobpcg_rc);
+    sparse_eigs_backend_t backend = s46_select_backend(n, k, o);
+    if (backend != SPARSE_EIGS_BACKEND_LANCZOS) {
+        sparse_err_t backend_rc =
+            s46_run_backend(A, backend, op_fn, op_ctx, n, k, o, eff_tol, max_iters, result);
         sparse_ldlt_free(&ldlt_shift);
         sparse_free(A_shifted);
-        return lobpcg_rc;
+        return backend_rc;
     }
-
-    int use_thick_restart =
-        (o->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART) ||
-        (o->backend == SPARSE_EIGS_BACKEND_AUTO && n >= (idx_t)SPARSE_EIGS_THICK_RESTART_THRESHOLD);
-    if (use_thick_restart) {
-        result->backend_used = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART;
-        sparse_err_t tr_rc =
-            s21_thick_restart_outer_loop(op_fn, op_ctx, n, k, o, eff_tol, max_iters, result);
-        tr_rc = s29_maybe_refine(A, o, result, tr_rc);
-        sparse_ldlt_free(&ldlt_shift);
-        sparse_free(A_shifted);
-        return tr_rc;
-    }
-    result->backend_used = SPARSE_EIGS_BACKEND_LANCZOS;
+    result->backend_used = backend;
 
     /* Day 13 outer-loop redesign: single Lanczos batch with a
      * grow-m-on-retry strategy.  The Day 10-11 short/long stability

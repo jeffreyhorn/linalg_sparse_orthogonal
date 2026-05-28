@@ -355,3 +355,162 @@ Interpretation:
 - Day 6 should target the main Lanczos families
 - LOBPCG should follow once the shared owner has already proven itself on the
   simpler repeated-run eigensolver paths
+
+## Day 3
+
+**Objective:** Define the bounded internal reusable eigensolver
+workspace/state object model for Sprint 46 so later code changes have explicit
+ownership, reset, sizing, and wrapper-boundary rules before any implementation
+lands.
+
+### Commands Run
+
+1. Re-read the Sprint 46 Day 3 plan section:
+   - `sed -n '94,136p' docs/planning/EPIC_4/SPRINT_46/PLAN.md`
+2. Re-read the Day 2 seam inventory:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_46/artifacts/day2-eigensolver-workspace-seam-inventory.md`
+3. Re-read the Sprint 45 reusable-workspace precedent:
+   - `sed -n '1,220p' src/sparse_iterative_workspace_internal.h`
+   - `sed -n '1,260p' src/sparse_iterative_workspace_internal.c`
+4. Re-read the narrower BiCGSTAB workspace precedent:
+   - `sed -n '1,180p' src/sparse_bicgstab_internal.h`
+5. Refresh the live eigensolver state/prepare seam markers:
+   - `rg -n "typedef struct|prepare|ensure|reset|workspace|view" src/sparse_iterative_workspace_internal.h src/sparse_iterative_workspace_internal.c src/sparse_bicgstab_internal.h src/sparse_eigs.c`
+
+### Day 3 Findings
+
+#### 1. Sprint 46 should use one shared eigensolver buffer owner with typed solver-family views
+
+The best first-phase internal shape is:
+
+- one shared eigensolver storage owner for contiguous allocations and capacity
+  tracking
+- typed family views layered over that owner:
+  - grow-m Lanczos view/state
+  - thick-restart Lanczos view/state
+  - LOBPCG view/state
+
+Interpretation:
+
+- Sprint 46 should follow the Sprint 45 pattern of one internal owner plus
+  typed prepare helpers
+- it should not create three unrelated allocation frameworks inside
+  `src/sparse_eigs.c`
+
+#### 2. The shared owner should be capacity-centric, while solver-family state should stay separate
+
+The shared owner should track:
+
+- `n` capacity
+- Lanczos basis/restart capacities
+- block-size capacity
+- double scratch capacity
+- `idx_t` scratch capacity
+- optional int/flag capacity when needed
+
+The family-specific state should track:
+
+- grow-m:
+  - active `m`
+  - `m_cap`
+  - current selected-take counts
+- thick-restart:
+  - `m_restart`
+  - `k_locked`
+  - restart-state ownership
+- LOBPCG:
+  - `block_size`
+  - effective block/subspace dimensions
+  - optional `P` ownership state
+
+Interpretation:
+
+- the owner should answer "is the memory large enough and sliced correctly?"
+- the family state should answer "what is this algorithm doing with that
+  memory right now?"
+
+#### 3. Reset/reuse rules are now explicit
+
+The first Sprint 46 internal contract should be:
+
+- create:
+  - zero-initialized owner/state is legal
+  - first prepare call allocates as needed
+- reset between repeated runs:
+  - preserve capacity
+  - zero or reinitialize only the slices whose next run requires clean state
+  - never preserve old Krylov/Ritz/search-direction mathematical state as a
+    semantic feature
+- resize:
+  - internal prepare helpers may grow capacity when a repeated-run workload
+    exceeds current bounds
+  - no public resize API is introduced
+- destroy:
+  - one free path resets the owner/state back to zero form
+
+Interpretation:
+
+- repeated stable-dimension workloads should amortize allocation cost
+- Sprint 46 reuse means capacity reuse, not iterative continuation from prior
+  eigensolver history
+
+#### 4. Optional and mode-dependent buffers need explicit rules, especially for LOBPCG
+
+The shared model should handle:
+
+- fixed always-present Lanczos bundles
+- thick-restart extras only when that family is prepared
+- optional LOBPCG `P`/search-direction storage only when the active path
+  requires it
+- shift-invert / preconditioner composition without transferring ownership of:
+  - LDLT factors
+  - preconditioner callbacks
+  - operator contexts
+
+Interpretation:
+
+- workspace/state owners should own buffers only
+- operator/preconditioner/factor contexts remain caller-owned or solver-local
+  external dependencies
+
+#### 5. The internal-only versus wrapper-facing boundary is now fixed
+
+Internal-only in Sprint 46:
+
+- shared eigensolver workspace owner
+- typed prepare helpers
+- family-specific reusable state/view structs
+- capacity and reset helpers
+
+Wrapper-facing but still internal:
+
+- one-shot `sparse_eigs_sym(...)` routing into reusable-core internals
+- output/result initialization and compatibility reporting
+
+Not part of Sprint 46:
+
+- public workspace/state structs
+- public init/free/reset APIs
+- public repeated-run eigensolver handles
+
+Interpretation:
+
+- Sprint 46 should preserve the Sprint 42 / Sprint 45 compatibility pattern
+- one-shot public APIs remain the public contract while internals become
+  reusable
+
+#### 6. The first code landing order is now concrete
+
+The correct code-day order is:
+
+1. shared owner + typed prepare helpers
+2. grow-m Lanczos adoption
+3. thick-restart adoption
+4. LOBPCG adoption
+5. wrapper/benchmark/documentation closeout
+
+Interpretation:
+
+- Day 5 should land a narrow owner/view seam first
+- Day 6 should prove that seam on the simpler Lanczos families before LOBPCG
+  joins it

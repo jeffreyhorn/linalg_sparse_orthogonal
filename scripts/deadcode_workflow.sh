@@ -89,7 +89,13 @@ for index, entry in enumerate(entries):
         raise SystemExit(
             f"deadcode_workflow: compile_commands entry {index} missing 'file' key"
         )
-    file_path = Path(entry["file"])
+    file_value = entry["file"]
+    if not isinstance(file_value, str) or not file_value:
+        raise SystemExit(
+            "deadcode_workflow: compile_commands entry "
+            f"{index} has unusable 'file' value: {file_value!r}"
+        )
+    file_path = Path(file_value)
     if not file_path.is_absolute():
         directory = entry.get("directory")
         if not isinstance(directory, str) or not directory:

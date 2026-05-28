@@ -55,6 +55,7 @@
 #include "sparse_alloc_internal.h"
 #include "sparse_dense.h"
 #include "sparse_eigs_internal.h"
+#include "sparse_eigs_workspace_internal.h"
 #include "sparse_ldlt.h"
 #include "sparse_matrix.h"
 #include "sparse_types.h"
@@ -1075,12 +1076,15 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     size_t n_size = 0;
     size_t m_cap_size = 0;
     size_t k_size = 0;
+    sparse_eigs_workspace_t growm_ws;
+    sparse_eigs_growm_workspace_view_t growm_view;
     if (sparse_idx_to_size_checked(n, &n_size) || sparse_idx_to_size_checked(m_cap, &m_cap_size) ||
         sparse_idx_to_size_checked(k, &k_size)) {
         sparse_ldlt_free(&ldlt_shift);
         sparse_free(A_shifted);
         return SPARSE_ERR_ALLOC;
     }
+    sparse_eigs_workspace_init(&growm_ws);
 
     /* Allocate workspace for the upper-bound Lanczos size so the
      * grow-on-retry path never reallocates.  Y_cap is m_cap × m_cap
@@ -1090,46 +1094,22 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
      * (n, m_cap) pair on a 32-bit size_t target fails cleanly with
      * SPARSE_ERR_ALLOC rather than undersizing a buffer; calloc()
      * handles its own nmemb*size overflow internally. */
-    size_t v_elems = 0, v_bytes = 0;
-    size_t y_elems = 0;
-    size_t sel_idx_bytes = 0;
-    if (sparse_size_mul_overflow(n_size, m_cap_size, &v_elems) ||
-        sparse_size_mul_overflow(v_elems, sizeof(double), &v_bytes) ||
-        sparse_size_mul_overflow(m_cap_size, m_cap_size, &y_elems) ||
-        sparse_size_mul_overflow(k_size, sizeof(idx_t), &sel_idx_bytes)) {
+    sparse_err_t alloc_err =
+        sparse_eigs_workspace_prepare_growm(&growm_ws, n, m_cap, k, &growm_view);
+    if (alloc_err != SPARSE_OK) {
         sparse_ldlt_free(&ldlt_shift);
         sparse_free(A_shifted);
-        return SPARSE_ERR_ALLOC;
+        return alloc_err;
     }
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *V = malloc(v_bytes);
-    double *alpha = NULL;
-    double *beta = NULL;
-    double *v0 = calloc(n_size, sizeof(double));
-    double *theta_long = calloc(m_cap_size, sizeof(double));
-    double *subdiag = NULL;
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *Y_long = calloc(y_elems, sizeof(double));
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    idx_t *sel_idx = malloc(sel_idx_bytes);
-    sparse_err_t alloc_err = sparse_malloc_array(m_cap_size, sizeof(double), (void **)&alpha);
-    if (alloc_err == SPARSE_OK)
-        alloc_err = sparse_malloc_array(m_cap_size, sizeof(double), (void **)&beta);
-    if (alloc_err == SPARSE_OK)
-        alloc_err = sparse_malloc_array(m_cap_size, sizeof(double), (void **)&subdiag);
-    if (!V || alloc_err != SPARSE_OK || !v0 || !theta_long || !Y_long || !sel_idx) {
-        free(V);
-        free(alpha);
-        free(beta);
-        free(v0);
-        free(theta_long);
-        free(subdiag);
-        free(Y_long);
-        free(sel_idx);
-        sparse_ldlt_free(&ldlt_shift);
-        sparse_free(A_shifted);
-        return SPARSE_ERR_ALLOC;
-    }
+
+    double *V = growm_view.V;
+    double *alpha = growm_view.alpha;
+    double *beta = growm_view.beta;
+    double *v0 = growm_view.v0;
+    double *theta_long = growm_view.theta_long;
+    double *subdiag = growm_view.subdiag;
+    double *Y_long = growm_view.Y_long;
+    idx_t *sel_idx = growm_view.sel_idx;
 
     s20_lanczos_starting_vector(v0, n);
 
@@ -1298,14 +1278,7 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     }
 
 cleanup:
-    free(V);
-    free(alpha);
-    free(beta);
-    free(v0);
-    free(theta_long);
-    free(subdiag);
-    free(Y_long);
-    free(sel_idx);
+    sparse_eigs_workspace_free(&growm_ws);
     sparse_ldlt_free(&ldlt_shift);
     sparse_free(A_shifted);
     rc = s29_maybe_refine(A, o, result, rc);

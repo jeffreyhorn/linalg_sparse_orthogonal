@@ -637,3 +637,166 @@ Interpretation:
 - Day 5 should not broaden into algorithm migration yet
 - Day 6 should prove the shared owner on the simpler Lanczos families before
   LOBPCG joins the reusable path
+
+## Day 5
+
+**Objective:** Land the first real Sprint 46 code batch by introducing the
+private reusable eigensolver workspace/state owner and proving it in one
+bounded live grow-m Lanczos path before widening the migration to
+thick-restart, LOBPCG, examples, or benchmarks.
+
+### Commands Run
+
+1. Re-read the Sprint 46 Day 5 plan section:
+   - `sed -n '136,178p' docs/planning/EPIC_4/SPRINT_46/PLAN.md`
+2. Re-read the Day 4 shared-buffer design and validation contract:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_46/artifacts/day4-shared-buffer-layer-design-and-validation-plan.md`
+3. Re-read the closest reusable-workspace precedents and current eigensolver
+   allocation regions:
+   - `sed -n '1,260p' src/sparse_iterative_workspace_internal.h`
+   - `sed -n '1,320p' src/sparse_iterative_workspace_internal.c`
+   - `sed -n '1,240p' src/sparse_bicgstab_internal.h`
+   - `sed -n '240,1385p' src/sparse_eigs.c`
+4. Refresh maintained build wiring before landing the new module:
+   - `sed -n '1,220p' Makefile`
+   - `sed -n '1,220p' CMakeLists.txt`
+5. Implement the shared eigensolver workspace/state layer and the first live
+   grow-m adoption:
+   - `apply_patch` on:
+     - `src/sparse_eigs_workspace_internal.h`
+     - `src/sparse_eigs_workspace_internal.c`
+     - `src/sparse_eigs.c`
+     - `Makefile`
+     - `CMakeLists.txt`
+6. Run the mandatory full C/C-header gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+7. Run the stronger reviewed baseline for the shared-layer landing:
+   - `make quality-review-full`
+8. Run the targeted eigensolver follow-ons justified by the touched seam:
+   - `./build/test_eigs`
+   - `./build/test_eigs_thick_restart`
+   - `./build/test_eigs_lobpcg`
+
+### Day 5 Findings
+
+#### 1. Sprint 46 now has a real shared eigensolver workspace/state layer, not just a design
+
+The first bounded shared seam now exists in:
+
+- `src/sparse_eigs_workspace_internal.h`
+- `src/sparse_eigs_workspace_internal.c`
+
+That layer is intentionally narrow in this first batch:
+
+- one reusable internal owner for:
+  - double-backed work buffers
+  - `idx_t` side buffers
+  - `int` side buffers
+  - cached eigensolver shape/capacity metadata
+- typed prepare helpers for:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - LOBPCG
+
+Interpretation:
+
+- Sprint 46 now has the capacity-oriented internal owner/view seam that Day 3
+  and Day 4 were aiming for
+- this did not require public API changes or a second allocation framework
+
+#### 2. The first live adoption is deliberately the simpler grow-m Lanczos path
+
+`sparse_eigs_sym(...)` now proves the shared seam through the grow-m branch:
+
+- it initializes a private `sparse_eigs_workspace_t`
+- it prepares a typed `sparse_eigs_growm_workspace_view_t`
+- it binds the former local allocation bundle through shared typed slices:
+  - `V`
+  - `alpha`
+  - `beta`
+  - `v0`
+  - `theta_long`
+  - `subdiag`
+  - `Y_long`
+  - `sel_idx`
+- it frees the shared owner on all exits instead of manually freeing the
+  former per-call grow-m heap bundle
+
+Interpretation:
+
+- the first proof point is a real live eigensolver path, not a dead internal
+  scaffold
+- the batch stayed bounded by proving the shared owner on the simpler Lanczos
+  family before widening into thick-restart or LOBPCG control-heavy paths
+
+#### 3. The shared layer stayed on the Day 4 ownership boundary
+
+Day 5 moved only clearly shared sizing, allocation, and packed-slice logic into
+the new seam.
+
+It did **not** move:
+
+- `lanczos_iterate_op(...)`
+- Ritz extraction / selection helpers
+- arrowhead or dense Jacobi helpers
+- thick-restart lock/restart choreography
+- LOBPCG RR-step sequencing
+- result/reporting semantics
+
+Interpretation:
+
+- the shared layer owns memory, checked sizing, capacity growth, and typed view
+  preparation
+- eigensolver math kernels and algorithm control remain in `src/sparse_eigs.c`
+  for later bounded migrations
+
+#### 4. The batch remained intentionally narrow
+
+Day 5 did **not** yet migrate:
+
+- thick-restart Lanczos call sites
+- LOBPCG call sites
+- public wrappers or explicit public workspace APIs
+- eigensolver benchmark or example code
+
+Interpretation:
+
+- this was the right Day 5 landing shape:
+  - add the shared owner
+  - prove it in one live high-value path
+  - keep the rest of the solver-family migration queue for Day 6 and later
+
+#### 5. The shared-layer landing validated cleanly
+
+Because `*.c` and `*.h` files changed, the required gate was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+The stronger reviewed baseline for this shared-layer landing was also run:
+
+- `make quality-review-full`
+
+Targeted eigensolver follow-ons were also run:
+
+- `./build/test_eigs`
+- `./build/test_eigs_thick_restart`
+- `./build/test_eigs_lobpcg`
+
+One small implementation issue surfaced during the first lint pass:
+
+- the initial LOBPCG prepare helper formed `view->X` through a null
+  `view->P_new` branch in the no-`P` case, which `cppcheck` flagged as a null
+  pointer arithmetic path
+
+That was fixed immediately by making the `with_p` and no-`P` slice derivation
+branches explicit, and the authoritative rerun from the top passed fully.
+
+Interpretation:
+
+- the shared owner is already clean under the maintained static-analysis gate
+- the first shared-buffer batch closes from a measured reviewed baseline rather
+  than from partial local testing

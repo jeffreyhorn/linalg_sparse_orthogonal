@@ -98,6 +98,7 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_colamd.c
     src/sparse_chol_csc.c
     src/sparse_ldlt_csc.c
+    src/sparse_eigs_workspace_internal.c
     src/sparse_eigs.c
     src/sparse_graph_core.c
     src/sparse_graph_coarsen.c

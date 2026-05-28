@@ -1967,3 +1967,167 @@ Interpretation:
 - there is no new `*.c` / `*.h` change to validate here
 - the sprint can carry the Day 11 green baseline directly into the Day 13
   full sweep
+
+## Day 13
+
+**Objective:** Run the full Sprint 46 validation sweep against the landed
+eigensolver workspace reuse and repeated-run benchmark work, then confirm the
+direct eigensolver test/example/benchmark surfaces still behave correctly
+before closeout.
+
+### Commands Run
+
+1. Re-read the Sprint 46 Day 13 plan section:
+   - `sed -n '384,417p' docs/planning/EPIC_4/SPRINT_46/PLAN.md`
+2. Re-read the Day 12 validation contract:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_46/artifacts/day12-workspace-contract-memory-behavior-and-residual-audit.md`
+3. Run the authoritative validation floor plus reviewed proof:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+4. Run the targeted eigensolver follow-ons justified by the touched surface:
+   - `./build/test_eigs`
+   - `./build/test_eigs_thick_restart`
+   - `./build/test_eigs_lobpcg`
+   - `./build/example_eigs`
+   - `./build/bench_eigs_reuse`
+5. Write the Day 13 validation artifact:
+   - `docs/planning/EPIC_4/SPRINT_46/artifacts/day13-full-validation-sweep.md`
+
+### Day 13 Findings
+
+#### 1. The full authoritative sweep passed cleanly
+
+The required validation floor passed:
+
+- `make format`
+- `make lint`
+- `make test`
+
+The stronger reviewed proof also passed:
+
+- `make quality-review-full`
+
+Interpretation:
+
+- Sprint 46’s eigensolver workspace and repeated-run changes remain green under
+  the normal local gate
+- they also remain green under the strongest maintained reviewed baseline used
+  throughout Epic 4
+
+#### 2. The maintained truthfulness anchors stayed exact
+
+The reviewed CMake parity path inside `make quality-review-full` remained
+unchanged:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 172.98 sec`
+
+The reviewed path also kept the established closeout semantics:
+
+- `deadcode-check` passed
+- dead-code execution remained serialized
+
+Interpretation:
+
+- Sprint 46 did not disturb the maintained local reviewed baseline
+- the eigensolver reuse work remains aligned with the established
+  Makefile/CMake parity contract from earlier Epic 4 sprints
+
+#### 3. The direct eigensolver follow-ons all stayed green
+
+The targeted reruns all passed:
+
+- `./build/test_eigs`
+  - `25` tests passed
+  - `Time: 0.133 s`
+- `./build/test_eigs_thick_restart`
+  - `20` tests passed
+  - `Time: 0.291 s`
+- `./build/test_eigs_lobpcg`
+  - `26` tests passed
+  - `Time: 0.143 s`
+- `./build/example_eigs`
+  - passed
+- `./build/bench_eigs_reuse`
+  - passed
+
+Interpretation:
+
+- the three main migrated eigensolver families remain correct on their direct
+  test surfaces
+- the example and repeated-run benchmark evidence surfaces still compose
+  correctly with the new internal workspace seam
+
+#### 4. The example rerun still demonstrates the intended solver coverage
+
+`./build/example_eigs` completed successfully across the three maintained
+demonstration modes:
+
+- nos4 largest-eigenvalue run:
+  - `5 / 5` converged
+  - `115` Lanczos iterations
+  - residual norm `4.326e-14`
+- KKT nearest-sigma run:
+  - `3 / 3` converged
+  - `6` Lanczos iterations
+  - linked-list inner LDLT path remained active below threshold
+- bcsstk04 smallest-eigenvalue LOBPCG run:
+  - `3 / 3` converged
+  - `62` outer iterations
+  - residual norm `8.808e-09`
+
+Interpretation:
+
+- the example still demonstrates the intended mix of:
+  - grow-m Lanczos
+  - shift-invert / nearest-sigma behavior
+  - LOBPCG with preconditioning
+- Sprint 46 did not regress the maintained user-facing eigensolver demo path
+
+#### 5. The repeated-run benchmark rerun stayed behavior-stable but timing-light
+
+`./build/bench_eigs_reuse` reran cleanly with exact behavior parity and modest
+timing movement:
+
+- grow-m Lanczos repeated-run case (`nos4`, `k=5`, `repeats=40`)
+  - one-shot = `1.4920 ms`
+  - reuse = `1.4770 ms`
+  - speedup = `1.01x`
+  - both paths:
+    - `115` iterations
+    - converged
+    - relative residual `4.326e-14`
+    - `|lambda|max diff = 0`
+- thick-restart repeated-run case (`bcsstk14`, `k=5`, `repeats=8`)
+  - one-shot = `51.4250 ms`
+  - reuse = `52.1510 ms`
+  - speedup = `0.99x`
+  - both paths:
+    - `105` iterations
+    - converged
+    - relative residual `7.864e-14`
+    - `|lambda|max diff = 0`
+
+Interpretation:
+
+- the reusable-workspace seam is real and directly measurable
+- the runtime effect remains modest and local-run sensitive
+- Sprint 46 should therefore keep its claim narrow:
+  - repeated-run behavior matches exactly
+  - workspace reuse is demonstrable
+  - no universal speedup claim is justified
+
+#### 6. No new reconciliation queue surfaced
+
+The Day 13 sweep did not reveal any new correctness, contract, or validation
+gaps.
+
+Interpretation:
+
+- Sprint 46 can move into Day 14 closeout from a measured validated state
+- no extra late-sprint cleanup batch is needed beyond the already-planned
+  closeout/handoff work

@@ -899,3 +899,133 @@ Interpretation:
 
 - the sprint remains sequenced correctly: helper seam first, main CLI second,
   residual audit next, parity cleanup after that
+
+## Day 7
+
+**Objective:** Audit the post-Day-6 auxiliary state so Sprint 47 can separate
+the real remaining reorder-mode parity work from lower-priority peer benchmark,
+example, and script surfaces before the next implementation batch lands.
+
+### Commands Run
+
+1. Re-read the Sprint 47 Day 7 plan section:
+   - `sed -n '221,260p' docs/planning/EPIC_4/SPRINT_47/PLAN.md`
+2. Re-read the Day 6 modernization artifact:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_47/artifacts/day6-bench-main-parser-modernization-batch.md`
+3. Refresh the live auxiliary seam markers across the main benchmark/example/
+   tooling surfaces:
+   - `rg -n "colamd|reorder|Reorder:|--reorder|unknown option|--help|Usage:" benchmarks/bench_main.c benchmarks/bench_eigs.c benchmarks/bench_iterative_reuse.c benchmarks/bench_eigs_reuse.c examples/example_eigs.c examples/example_iterative.c examples/example_matrix_free.c scripts/deadcode_report.py scripts/deadcode_workflow.sh README.md docs -g '!docs/planning/EPIC_4/SPRINT_47/**'`
+   - `wc -l benchmarks/bench_main.c benchmarks/bench_eigs.c benchmarks/bench_iterative_reuse.c benchmarks/bench_eigs_reuse.c examples/example_eigs.c examples/example_iterative.c examples/example_matrix_free.c scripts/deadcode_report.py scripts/deadcode_workflow.sh`
+4. Re-read prior benchmark ownership and review notes relevant to reorder-surface
+   scope:
+   - `sed -n '24,36p' docs/planning/EPIC_3/reviews/todo-codex-2026-05-15.md`
+   - `sed -n '640,670p' docs/planning/EPIC_3/SPRINT_37/WORKING_NOTES.md`
+5. Re-read the specialized peer benchmark ownership surfaces:
+   - `sed -n '1,220p' benchmarks/bench_reorder.c`
+   - `sed -n '1,220p' benchmarks/bench_colamd.c`
+
+### Day 7 Findings
+
+#### 1. The remaining direct benchmark seam is now reorder-mode parity, not parser mechanics
+
+After Day 6, `bench_main.c` already has:
+
+- explicit help/usage handling
+- explicit unknown-option handling
+- shared-helper parsing for:
+  - `--spmv-iters`
+  - `--size`
+  - `--repeat`
+  - `--pivot`
+  - `--reorder`
+
+But the live main residual drift is still:
+
+- `reorder_name()` supports `colamd`
+- help text and accepted `--reorder` values still stop at:
+  - `none`
+  - `rcm`
+  - `amd`
+  - `nd`
+
+Interpretation:
+
+- Day 8 should be about supported-mode / emitted-label parity, not more parser
+  refactoring
+
+#### 2. `bench_reorder` still owns the broader reorder-comparison surface
+
+The specialized reorder benchmark still explicitly owns:
+
+- `none`
+- `rcm`
+- `amd`
+- `colamd`
+- `nd`
+
+Interpretation:
+
+- Sprint 47 must preserve that ownership boundary
+- Day 8 should make `bench_main` honest and internally consistent, not turn it
+  into a second general reorder-comparison harness
+
+#### 3. `bench_colamd` remains a specialized QR/COLAMD comparison surface
+
+The dedicated COLAMD benchmark still exists as its own bounded tool.
+
+Interpretation:
+
+- Day 8 should not blur the QR/COLAMD comparison ownership into `bench_main`
+- any `bench_main` parity decision must respect that specialized surface
+
+#### 4. `bench_eigs.c` remains a reference surface, not a required next target
+
+The current `bench_eigs.c` already has:
+
+- explicit usage/help text
+- explicit unknown-option handling
+- checked parse helpers
+
+Interpretation:
+
+- it remains useful as a CLI-shape reference
+- it does not need to join the Day 8 batch unless something unexpectedly tiny
+  falls out
+
+#### 5. The rest of the auxiliary queue is now clearly later follow-on work
+
+The remaining bounded auxiliary surfaces are:
+
+- `bench_iterative_reuse.c`
+- `bench_eigs_reuse.c`
+- `example_eigs.c`
+- `example_iterative.c`
+- `example_matrix_free.c`
+- `scripts/deadcode_report.py`
+- `scripts/deadcode_workflow.sh`
+
+Interpretation:
+
+- the front half of Sprint 47 has done the narrowing work it needed to do
+- Day 8 should not pull these surfaces forward
+
+#### 6. Day 8 is now tightly bounded
+
+The correct Day 8 target set is:
+
+- align supported reorder modes and emitted reporting in the touched
+  `bench_main` surface
+- remove the current internal drift between:
+  - `reorder_name()`
+  - help/usage text
+  - accepted `--reorder` values
+
+The correct Day 8 non-goals are:
+
+- no broad peer benchmark rewrite
+- no helper-layer redesign
+- no example or script cleanup yet
+
+Interpretation:
+
+- Sprint 47’s next implementation batch is now concrete rather than generic

@@ -50,6 +50,7 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_cholesky.c \
            $(SRCDIR)/sparse_csr.c \
            $(SRCDIR)/sparse_iterative.c \
+           $(SRCDIR)/sparse_iterative_workspace_internal.c \
            $(SRCDIR)/sparse_ilu.c \
            $(SRCDIR)/sparse_qr.c \
            $(SRCDIR)/sparse_dense.c \
@@ -145,7 +146,8 @@ BENCH_SRCS = $(BENCHDIR)/bench_main.c \
              $(BENCHDIR)/bench_refactor_csc.c \
              $(BENCHDIR)/bench_eigs.c \
              $(BENCHDIR)/bench_reorder.c \
-             $(BENCHDIR)/bench_amd_qg.c
+             $(BENCHDIR)/bench_amd_qg.c \
+             $(BENCHDIR)/bench_iterative_reuse.c
 BENCH_BINS = $(patsubst $(BENCHDIR)/%.c,$(BUILDDIR)/%,$(BENCH_SRCS))
 
 # Example sources

@@ -1423,3 +1423,168 @@ Interpretation:
 
 - the wrapper/composition cleanup did not disturb public defaults, AUTO/explicit
   routing, or the example-facing one-shot flow
+
+## Day 10
+
+**Objective:** Define the smallest honest repeated-run benchmark slice for the
+new reusable eigensolver workspace/state model so Day 11 can add measured
+evidence without reopening broad `bench_eigs` CLI churn, backend-sweep sprawl,
+or public-facing documentation work.
+
+### Commands Run
+
+1. Re-read the Sprint 46 Day 10 plan section:
+   - `sed -n '375,430p' docs/planning/EPIC_4/SPRINT_46/PLAN.md`
+2. Re-read the Day 9 wrapper closeout:
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_46/artifacts/day9-compatibility-wrapper-batch.md`
+3. Re-read the current permanent eigensolver benchmark driver:
+   - `sed -n '1,260p' benchmarks/bench_eigs.c`
+4. Re-read the closest repeated-run benchmark shape from Sprint 45:
+   - `sed -n '1,260p' benchmarks/bench_iterative_reuse.c`
+5. Sweep the current eigensolver benchmark/example/test references for repeated-run
+   relevance and surface coupling:
+   - `rg -n "backend|repeat|repeats|wall|median|csv|compare|LOBPCG|THICK_RESTART|AUTO|bench" benchmarks/bench_eigs.c examples/example_eigs.c tests/test_eigs.c tests/test_eigs_thick_restart.c tests/test_eigs_lobpcg.c include/sparse_eigs.h src/sparse_eigs.c`
+
+### Day 10 Findings
+
+#### 1. The current benchmark surface is broader than the Sprint 46 Day 11 target
+
+`benchmarks/bench_eigs.c` is a broad backend/corpus sweep driver. It already
+covers:
+
+- grow-m Lanczos
+- thick-restart Lanczos
+- LOBPCG
+- multiple `which` modes
+- multiple SuiteSparse/KKT cases
+- CSV and compare modes
+- preconditioner sweeps
+
+Interpretation:
+
+- it is a good existing benchmark surface
+- it is **not** the right place for a first Sprint 46 repeated-run proof if the
+  goal is to keep Day 11 narrow and honest
+
+#### 2. The right Day 11 comparison shape is the Sprint 45-style A/B repeated-run driver
+
+`benchmarks/bench_iterative_reuse.c` provides the cleaner model for the Day 11
+shape:
+
+- one-shot path
+- reusable-workspace path
+- repeated stable-dimension calls
+- median wall-time comparison
+- behavior-level parity checks
+- no universal speedup claims
+
+Interpretation:
+
+- Day 11 should follow that style for eigensolvers rather than broadening
+  `bench_eigs.c` into a repeated-run benchmarking framework
+- the benchmark evidence should stay focused on allocator-churn reduction, not
+  on replacing the permanent backend-sweep driver
+
+#### 3. The narrow repeated-run target set should center on the three migrated primary families
+
+After Days 5-9, the clean repeated-run targets are now:
+
+- grow-m Lanczos
+- thick-restart Lanczos
+- LOBPCG
+
+But the design should still be staged:
+
+- required Day 11 cases:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+- bounded add-on only if it stays obviously small:
+  - LOBPCG
+
+Interpretation:
+
+- grow-m and thick-restart are the most direct stable repeated-run comparison
+  cases
+- LOBPCG should be included only if the Day 11 batch stays narrow and does not
+  drag in preconditioner-selection or block-size experiment churn
+
+#### 4. The benchmark cases should use stable dimensions and fixed option shapes
+
+The repeated-run benchmark cases should be selected around fixed and repeatable:
+
+- matrix
+- `k`
+- backend
+- `which`
+- restart/block-size settings
+
+The cleanest first cases are:
+
+- `nos4`, `k = 5`, `which = LARGEST`, explicit grow-m Lanczos
+- `bcsstk14`, `k = 5`, `which = LARGEST`, explicit thick-restart Lanczos
+- optional bounded LOBPCG add-on:
+  - `bcsstk04`, `k = 3`, `which = SMALLEST`, explicit LOBPCG with IC(0)
+
+Interpretation:
+
+- these cases align with the existing benchmark/example/test corpus
+- they avoid introducing new fixture-selection churn just to prove repeated-run
+  reuse
+
+#### 5. The claim scope must stay behavior-first and modest
+
+The Day 11 repeated-run benchmark should measure:
+
+- one-shot wall time
+- reusable internal path wall time
+- median comparison over repeated stable-dimension runs
+- iteration-count parity
+- convergence parity
+- residual/output parity
+
+It should explicitly avoid:
+
+- universal speedup claims
+- corpus-wide backend ranking claims
+- benchmark CLI redesign
+- claims about asymptotic improvements beyond reduced repeated allocation churn
+
+Interpretation:
+
+- the right Sprint 46 proof is “the migrated reusable internal paths support a
+  narrow repeated-run A/B comparison without changing behavior”
+- anything stronger belongs in later benchmark work, not this sprint
+
+#### 6. Day 11 should add a new narrow repeated-run driver rather than mutate `bench_eigs` heavily
+
+The best implementation shape for Day 11 is:
+
+- a new bounded repeated-run benchmark driver, parallel to Sprint 45’s approach
+- reuse existing public one-shot entry points plus the internal reusable backend
+  seams as needed
+- keep `bench_eigs.c` intact as the broader corpus/backend sweep driver
+
+Interpretation:
+
+- Sprint 46 can add repeated-run evidence without destabilizing or overloading
+  the permanent multi-mode benchmark driver
+- benchmark layering remains cleaner:
+  - `bench_eigs.c` = broad backend/corpus sweep
+  - new Sprint 46 driver = repeated-run reuse comparison evidence
+
+#### 7. The Day 11 target set is now explicit and bounded
+
+Day 11 should be bounded to:
+
+1. one new repeated-run eigensolver benchmark driver
+2. required A/B cases:
+   - grow-m Lanczos
+   - thick-restart Lanczos
+3. optional LOBPCG add-on only if it stays obviously small
+4. measured output notes in the Day 11 artifact
+5. no broad `bench_eigs` CLI churn
+
+Interpretation:
+
+- Sprint 46 now has a concrete, honest repeated-run benchmark target
+- the benchmark slice stays tied directly to the migrated eigensolver paths

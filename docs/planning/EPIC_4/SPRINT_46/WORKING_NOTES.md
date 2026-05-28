@@ -947,3 +947,158 @@ Interpretation:
   smoke coverage
 - the direct eigensolver binaries remain the right touched-surface proof for
   this batch
+
+## Day 7
+
+**Objective:** Audit the post-Day-6 eigensolver state so the remaining Sprint
+46 queue is driven by the live code after the shared Lanczos workspace
+landings, with an explicit Day 8 LOBPCG target set and a clear separation
+between real remaining repeated-allocation work, wrapper/composition surfaces,
+and helper/state paths that should stay local.
+
+### Commands Run
+
+1. Re-read the Sprint 46 Day 7 plan section:
+   - `sed -n '225,275p' docs/planning/EPIC_4/SPRINT_46/PLAN.md`
+2. Re-read the Day 6 Lanczos migration closeout:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_46/artifacts/day6-lanczos-migration-batch1.md`
+3. Refresh the live shared-owner surface and the remaining eigensolver seam
+   markers:
+   - `sed -n '1,260p' src/sparse_eigs_workspace_internal.h`
+   - `sed -n '1,360p' src/sparse_eigs_workspace_internal.c`
+   - `rg -n "malloc|calloc|workspace_prepare|sparse_eigs_workspace|lanczos_restart_state_t|lobpcg|block_size|bench|example|with_workspace|prepare_" src/sparse_eigs.c src/sparse_eigs_workspace_internal.h src/sparse_eigs_workspace_internal.c include/sparse_eigs.h src/sparse_eigs_internal.h`
+4. Re-read the main residual LOBPCG allocation regions directly:
+   - `sed -n '2580,3075p' src/sparse_eigs.c`
+5. Re-read the closest prior audit shape for comparison:
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_45/artifacts/day7-primary-workspace-landing-audit.md`
+
+### Day 7 Findings
+
+#### 1. Sprint 46 no longer has a generic “eigensolver workspace migration” queue
+
+After Day 6, the live state now breaks into three concrete buckets:
+
+- primary families already on the shared workspace seam:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+- one real remaining main workspace migration target:
+  - LOBPCG
+- later wrapper/benchmark/documentation follow-ons:
+  - one-shot public dispatch/wrapper edges
+  - repeated-run benchmark evidence
+  - maintainer memory-behavior closeout
+
+Interpretation:
+
+- the front half of Sprint 46 has already completed the main Lanczos-family
+  shared-workspace landing
+- the remaining implementation queue is now concrete rather than generic
+
+#### 2. The strongest remaining direct repeated-allocation target is the LOBPCG family
+
+The live LOBPCG path still owns the clearest repeated-allocation bundles in:
+
+- `s21_lobpcg_rr_step(...)`
+- `s21_lobpcg_solve(...)`
+
+The main remaining buffer groups are:
+
+- RR-step subspace/intermediate bundle:
+  - `Q`
+  - `AQ`
+  - `G`
+  - `Y`
+  - `theta_full`
+  - `sel_idx`
+  - `X_new`
+  - optional `P_new`
+- outer-loop block bundle:
+  - `X`
+  - `R`
+  - `W`
+  - `AX`
+  - `theta`
+  - `converged`
+  - lazily allocated `P`
+
+Interpretation:
+
+- the shared owner/view model already has an explicit LOBPCG prepare seam for
+  these shapes
+- Day 8 should target these two LOBPCG allocation regions directly rather than
+  reopening Lanczos work or jumping ahead to wrappers/benchmarks
+
+#### 3. The remaining non-LOBPCG helper allocations are not the next migration target
+
+The live code still contains some local helper allocations outside the shared
+owner:
+
+- Lanczos/refinement helper scratch:
+  - `lanczos_iterate_op(...)` local `w`
+  - `lanczos_thick_restart_iterate(...)` local `w`
+  - `s29_refine_eigenpairs(...)` local `Av` / `y`
+- arrowhead/tridiagonal helper scratch:
+  - `s21_arrowhead_to_tridiag(...)`
+  - dense Householder helper buffers
+- restart-state owned buffers:
+  - `lanczos_restart_state_t`
+
+Interpretation:
+
+- these are real allocations, but they are not the main repeated-run target for
+  Sprint 46 Day 8
+- they either remain family-local by design or are small helper scratch rather
+  than the main repeated bundle the shared seam was created to absorb
+
+#### 4. Wrapper and public-surface work remain later follow-ons, not Day 8 work
+
+The live public path is still intentionally simple:
+
+- `sparse_eigs_sym(...)` remains the compatibility-facing one-shot entry point
+- backend AUTO/explicit dispatch still routes internally to:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - LOBPCG
+
+The benchmark/example surfaces also remain later buckets:
+
+- `benchmarks/bench_eigs.c`
+- `examples/example_eigs.c`
+
+Interpretation:
+
+- Day 8 should keep its focus on the remaining internal LOBPCG bundle
+- wrapper cleanup, repeated-run benchmark evidence, and memory-behavior notes
+  should remain sequenced after the last major family migration lands
+
+#### 5. No new internal-header redesign is needed before Day 8
+
+The current private helper surface already contains the LOBPCG owner/view seam:
+
+- `sparse_eigs_workspace_prepare_lobpcg(...)`
+- `sparse_eigs_lobpcg_workspace_view_t`
+
+Interpretation:
+
+- Day 8 does not need another helper-layer redesign first
+- the right next move is live adoption of the already-landed LOBPCG prepare seam
+  in the main LOBPCG path
+
+#### 6. The Day 8 target set is now explicit and bounded
+
+Day 8 should be bounded to:
+
+1. `s21_lobpcg_rr_step(...)`
+2. `s21_lobpcg_solve(...)`
+3. adoption of `sparse_eigs_workspace_prepare_lobpcg(...)`
+4. preservation of current one-shot/public behavior
+5. no benchmark or wrapper churn unless a follow-on is obviously trivial
+
+Interpretation:
+
+- the remaining eigensolver migration order is now stable:
+  1. shared owner
+  2. grow-m
+  3. thick-restart
+  4. LOBPCG
+  5. wrapper/benchmark/memory-contract closeout

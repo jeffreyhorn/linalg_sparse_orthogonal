@@ -29,6 +29,7 @@
  * Run (from the project root so the SuiteSparse fixtures resolve):
  *   ./build/example_eigs
  */
+#include "example_alloc_helpers.h"
 #include "sparse_eigs.h"
 #include "sparse_ic.h"
 #include "sparse_ilu.h"
@@ -102,8 +103,8 @@ int main(void) {
 
     idx_t k = 5;
     double vals[5] = {0};
-    double *vecs = calloc((size_t)n * (size_t)k, sizeof(double));
-    if (!vecs) {
+    double *vecs = NULL;
+    if (example_calloc_array(n, sizeof(double[5]), (void **)&vecs) != SPARSE_OK) {
         fprintf(stderr, "Allocation failed\n");
         sparse_free(A);
         return 1;
@@ -129,8 +130,8 @@ int main(void) {
     /* Check each pair against the eigen-equation (self-validating —
      * the solver's Wu/Simon bound and this direct check should agree
      * to within round-off for a converged run). */
-    double *Av = malloc((size_t)n * sizeof(double));
-    if (!Av) {
+    double *Av = NULL;
+    if (example_malloc_array(n, sizeof(double), (void **)&Av) != SPARSE_OK) {
         fprintf(stderr, "Allocation failed\n");
         free(vecs);
         sparse_free(A);
@@ -158,8 +159,8 @@ int main(void) {
            (int)sparse_nnz(K));
 
     double kvals[3] = {0};
-    double *kvecs = calloc((size_t)nk * 3, sizeof(double));
-    if (!kvecs) {
+    double *kvecs = NULL;
+    if (example_calloc_array(nk, sizeof(double[3]), (void **)&kvecs) != SPARSE_OK) {
         fprintf(stderr, "Allocation failed\n");
         sparse_free(K);
         return 1;
@@ -184,8 +185,8 @@ int main(void) {
     printf("  Inner LDL^T factor routed through CSC supernodal: %s\n",
            kres.used_csc_path_ldlt ? "yes" : "no (below threshold — linked-list path)");
 
-    double *KAv = malloc((size_t)nk * sizeof(double));
-    if (!KAv) {
+    double *KAv = NULL;
+    if (example_malloc_array(nk, sizeof(double), (void **)&KAv) != SPARSE_OK) {
         fprintf(stderr, "Allocation failed\n");
         free(kvecs);
         sparse_free(K);
@@ -228,8 +229,8 @@ int main(void) {
 
     idx_t kb = 3;
     double bvals[3] = {0};
-    double *bvecs = calloc((size_t)nb * (size_t)kb, sizeof(double));
-    if (!bvecs) {
+    double *bvecs = NULL;
+    if (example_calloc_array(nb, sizeof(double[3]), (void **)&bvecs) != SPARSE_OK) {
         fprintf(stderr, "Allocation failed\n");
         sparse_ic_free(&ic);
         sparse_free(B);
@@ -261,8 +262,8 @@ int main(void) {
            bres.backend_used == SPARSE_EIGS_BACKEND_LOBPCG ? "LOBPCG" : "(other)");
     printf("  Reported residual_norm: %.3e\n", bres.residual_norm);
 
-    double *BAv = malloc((size_t)nb * sizeof(double));
-    if (!BAv) {
+    double *BAv = NULL;
+    if (example_malloc_array(nb, sizeof(double), (void **)&BAv) != SPARSE_OK) {
         fprintf(stderr, "Allocation failed\n");
         free(bvecs);
         sparse_ic_free(&ic);

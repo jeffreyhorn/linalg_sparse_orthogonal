@@ -1264,3 +1264,113 @@ Interpretation:
 
 - Sprint 47 now has a concrete example cleanup day rather than another generic
   auxiliary bucket
+
+## Day 10
+
+**Objective:** Land the bounded Day 9 example cleanup by aligning
+`example_eigs.c` to the current example allocation-helper seam, without
+broadening into larger multi-demo examples or unrelated benchmark/script churn.
+
+### Commands Run
+
+1. Re-read the primary target and current helper seam:
+   - `sed -n '1,340p' examples/example_eigs.c`
+   - `sed -n '1,220p' examples/example_alloc_helpers.h`
+   - `sed -n '341,420p' docs/planning/EPIC_4/SPRINT_47/PLAN.md`
+2. Land the bounded Day 10 code batch:
+   - `apply_patch` on:
+     - `examples/example_eigs.c`
+3. Run the required code-quality gate and the auxiliary build/runtime checks:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make tooling-build`
+   - `./build/example_eigs`
+
+### Day 10 Findings
+
+#### 1. The right Day 10 move was helper adoption, not example redesign
+
+`example_eigs.c` had a clear repeated allocation pattern across its three
+sub-demos:
+
+- eigenvector bundles
+- per-demo `A*v` scratch vectors
+- repeated raw `malloc` / `calloc` usage
+
+Interpretation:
+
+- the correct Sprint 47 cleanup was to route those allocations through the
+  existing example helper seam
+- the batch did not need algorithm or output redesign
+
+#### 2. `example_eigs.c` now follows the shared example allocation seam
+
+The file now includes `example_alloc_helpers.h`, and the touched dynamic
+buffers now allocate through:
+
+- `example_calloc_array(...)`
+- `example_malloc_array(...)`
+
+Covered buffers:
+
+- `vecs`
+- `Av`
+- `kvecs`
+- `KAv`
+- `bvecs`
+- `BAv`
+
+Interpretation:
+
+- the strongest direct shared-helper adoption target from Day 9 is now complete
+
+#### 3. The multi-vector bundles avoid pre-multiplied count drift
+
+The cleanup kept the row count as the helper count argument and encoded the
+fixed sub-vector width into the element size where appropriate:
+
+- `example_calloc_array(n, sizeof(double[5]), ...)`
+- `example_calloc_array(nk, sizeof(double[3]), ...)`
+- `example_calloc_array(nb, sizeof(double[3]), ...)`
+
+Interpretation:
+
+- the touched example is safer than the original raw allocation form rather
+  than merely cosmetically different
+
+#### 4. Validation and direct runtime proof both stayed green
+
+Because `*.c` changed, the required gate was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Those passed.
+
+Auxiliary build/runtime checks also passed:
+
+- `make tooling-build`
+- `./build/example_eigs`
+
+Interpretation:
+
+- the helper adoption did not regress the maintained code-quality baseline
+- the public example runtime behavior remained intact
+
+#### 5. The Day 9 defer/keep boundary held
+
+No Day 10 changes were needed in:
+
+- `example_iterative.c`
+- `example_matrix_free.c`
+- `example_colamd.c`
+- `example_analysis.c`
+- `example_condition.c`
+- `example_ic_minres.c`
+
+Interpretation:
+
+- the example batch stayed bounded
+- Sprint 47 did not turn into a broad example rewrite

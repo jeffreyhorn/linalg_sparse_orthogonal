@@ -207,7 +207,10 @@ sparse_err_t sparse_eigs_workspace_prepare_lobpcg(sparse_eigs_workspace_t *ws, i
     if (sparse_idx_to_size_checked(n, &n_size) || sparse_idx_to_size_checked(block_size, &bs_size))
         return SPARSE_ERR_ALLOC;
 
-    size_t cap = with_p ? 3U * bs_size : 2U * bs_size;
+    size_t cap = 0;
+    size_t cap_factor = with_p ? 3U : 2U;
+    if (sparse_size_mul_overflow(bs_size, cap_factor, &cap))
+        return SPARSE_ERR_ALLOC;
     size_t nc = 0;
     size_t cc = 0;
     size_t nb = 0;

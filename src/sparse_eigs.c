@@ -2608,7 +2608,7 @@ sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_
                                 sparse_eigs_lobpcg_workspace_view_t *view,
                                 sparse_eigs_which_t which, int use_p) {
     if (!op || !view || !view->Q || !view->AQ || !view->G || !view->Y || !view->theta_full ||
-        !view->sel_idx || !view->X_new || !view->theta)
+        !view->sel_idx || !view->X_new || !view->X || !view->W || !view->theta)
         return SPARSE_ERR_NULL;
     if (n < 1 || block_size < 1)
         return SPARSE_ERR_BADARG;

@@ -458,3 +458,132 @@ Interpretation:
 - the right Sprint 47 helper seam is intentionally small
 - this preserves momentum toward Day 5 implementation without opening another
   architecture sprint
+
+## Day 4
+
+**Objective:** Fix the validation contract and peer-surface landing order for
+Sprint 47 before code changes begin, so the shared parser-helper batch,
+`bench_main` modernization, reorder-mode cleanup, example work, and auxiliary
+tooling cleanup all inherit explicit validation rules and scope boundaries.
+
+### Commands Run
+
+1. Re-read the Sprint 47 Day 4 plan section:
+   - `sed -n '127,161p' docs/planning/EPIC_4/SPRINT_47/PLAN.md`
+2. Re-read the Day 3 parser-helper design:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_47/artifacts/day3-shared-cli-parsing-helper-design.md`
+3. Re-read the Sprint 40 validation anchor:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_40/artifacts/day13-validation-anchor-and-command-matrix.md`
+4. Inspect the maintained benchmark/example build and quality wrapper surfaces:
+   - `sed -n '130,220p' Makefile`
+   - `rg -n "bench_main|bench-eigs|example|deadcode|quality-review-full|tooling-build" Makefile CMakeLists.txt README.md docs -g '!docs/planning/EPIC_4/SPRINT_47/**'`
+
+### Day 4 Findings
+
+#### 1. Sprint 47 should keep the same layered validation model as the earlier refactor sprints
+
+The Sprint 40 validation anchor still applies cleanly:
+
+- mandatory full gate for all `*.c` / `*.h` changes:
+  - `make format`
+  - `make lint`
+  - `make test`
+- stronger reviewed wrapper baseline for substantial batches:
+  - `make quality-review-full`
+
+Interpretation:
+
+- Sprint 47 auxiliary cleanup does not weaken the core code gate
+- substantial parser/helper/benchmark batches should still prove themselves
+  against the stronger reviewed baseline when justified
+
+#### 2. `tooling-build` is the right maintained compile-only auxiliary gate
+
+The live `Makefile` already provides:
+
+- `bench-build`
+- `examples-build`
+- `tooling-build`
+
+Interpretation:
+
+- Sprint 47 should use `make tooling-build` as the default compile-only
+  benchmark/example follow-on for touched auxiliary code
+- this gives honest compile coverage without pretending it proves full runtime
+  behavior
+
+#### 3. Direct CLI and binary reruns should stay targeted
+
+The live surfaces suggest specific targeted checks, such as:
+
+- `./build/bench_main --help`
+- direct `bench_main` option sanity checks
+- `./build/bench_eigs --help`
+- touched example binary reruns when example behavior changes
+
+Interpretation:
+
+- Sprint 47 should add these only when the touched surface makes a usability or
+  parity claim
+- they are not a universal always-run expansion of the mandatory code gate
+
+#### 4. `bench_eigs.c` remains a later bounded alignment surface, not a first-wave rewrite target
+
+Day 4 reconfirms the Day 2 / Day 3 shape:
+
+- `bench_eigs.c` already has the stronger checked parser style
+- it is a good reference surface and possible later helper-alignment consumer
+- it is not the main modernization hotspot
+
+Interpretation:
+
+- Sprint 47 should not dilute the early batches by trying to rewrite both main
+  benchmark CLIs at once
+
+#### 5. The repeated-run benchmark drivers and small examples remain later follow-on surfaces
+
+The live maintained auxiliary build/docs surfaces still support the narrower
+sequence:
+
+- parser helper first
+- `bench_main` second
+- parity cleanup third
+- examples and repeated-run binaries only after that shape is stable
+
+Interpretation:
+
+- Day 10 and Day 11 should remain bounded cleanup phases rather than broad
+  peer-surface churn
+
+#### 6. The out-of-scope boundary is now explicit before code edits begin
+
+Sprint 47 should not expand into:
+
+- benchmark framework redesign
+- public CLI support APIs in the core library
+- large README/tutorial restructuring
+- dead-code workflow redesign
+
+Interpretation:
+
+- the sprint remains an auxiliary-surface modernization pass
+- the implementation days can now proceed without architectural ambiguity
+
+#### 7. The mid-sprint landing order is fixed
+
+The correct post-Day-4 order is:
+
+1. shared parsing-helper implementation
+2. `bench_main` parser modernization
+3. post-`bench_main` audit
+4. reorder-mode / emitted-label parity cleanup
+5. example safety audit and bounded cleanup
+6. auxiliary tooling cleanup
+7. docs refresh
+8. full validation and closeout
+
+Interpretation:
+
+- the front half remains benchmark-helper-first
+- examples/scripts/docs stay explicitly subordinate to the stabilized parser and
+  parity shape

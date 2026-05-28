@@ -587,3 +587,151 @@ Interpretation:
 - the front half remains benchmark-helper-first
 - examples/scripts/docs stay explicitly subordinate to the stabilized parser and
   parity shape
+
+## Day 5
+
+**Objective:** Land the bounded shared CLI parsing helper seam designed on Day 3
+and Day 4, prove it in `bench_main.c` on the highest-signal parser-drift
+arguments, and validate the batch from the full required gate through direct
+`bench_main` sanity checks without widening yet into reorder-mode parity or
+peer benchmark/example cleanup.
+
+### Commands Run
+
+1. Re-read the Sprint 47 Day 5 plan section:
+   - `sed -n '102,133p' docs/planning/EPIC_4/SPRINT_47/PLAN.md`
+2. Re-read the Day 3 helper design and Day 4 landing contract:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_47/artifacts/day3-shared-cli-parsing-helper-design.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_47/artifacts/day4-validation-and-peer-surface-landing-design.md`
+3. Inspect the maintained benchmark build wiring and current `bench_main`
+   parser body:
+   - `sed -n '130,210p' Makefile`
+   - `sed -n '1,220p' CMakeLists.txt`
+   - `sed -n '1,220p' benchmarks/bench_main.c`
+   - `sed -n '220,420p' benchmarks/bench_main.c`
+   - `sed -n '420,760p' benchmarks/bench_main.c`
+4. Inspect the stronger parser/reference shape in `bench_eigs.c`:
+   - `sed -n '1,220p' benchmarks/bench_eigs.c`
+5. Land the Day 5 code batch:
+   - `apply_patch` on:
+     - `benchmarks/bench_cli_parse_internal.h`
+     - `benchmarks/bench_main.c`
+6. Run the mandatory gate plus the stronger reviewed wrapper baseline:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+7. Run direct touched-surface sanity checks:
+   - `./build/bench_main --spmv --size 8 --spmv-iters 5 --repeat 2 --pivot partial`
+   - `./build/bench_main --size 8 --repeat 1 --pivot partial`
+   - `./build/bench_main --spmv-iters nope`
+
+### Day 5 Findings
+
+#### 1. A header-only internal helper seam was the right first landing
+
+The maintained benchmark build surfaces already compile benchmark binaries
+directly from their `.c` files.
+
+Interpretation:
+
+- a small internal header-only seam let Day 5 land the helper contract without
+  broad build-wiring churn
+- this kept the batch focused on parser behavior rather than infrastructure
+
+#### 2. `bench_main.c` now proves the shared helper seam in the main parser-drift hotspot
+
+The new helper seam in `benchmarks/bench_cli_parse_internal.h` now covers:
+
+- checked bounded integer parsing
+- checked positive integer parsing
+- finite double parsing support for later batches
+- caller-configured enum-like choice parsing
+
+`bench_main.c` now uses that seam for:
+
+- `--spmv-iters`
+- `--size`
+- `--repeat`
+- `--pivot`
+
+Interpretation:
+
+- Day 5 landed real parser modernization, not only scaffolding
+- the first proof is in exactly the file Day 1 and Day 2 identified as the main
+  modernization hotspot
+
+#### 3. Parse-plus-range-check is now one helper contract in the touched paths
+
+The migrated argument paths no longer rely on:
+
+- raw `atoi(...)`
+- split parse-first / validate-later logic
+- local ad hoc choice-branching for pivot mode
+
+Interpretation:
+
+- the Day 3 helper contract is now real in code
+- Day 6 can widen `bench_main` from a stable checked-parse base instead of
+  re-arguing helper shape
+
+#### 4. The Day 5 boundary held: reorder-mode cleanup is still deferred
+
+The batch intentionally left `--reorder` handling in its existing local shape.
+
+Interpretation:
+
+- Day 5 stayed within the planned shared-helper boundary
+- Day 8 can still handle reorder-mode / emitted-label parity as its own bounded
+  implementation step instead of piggybacking on the first helper landing
+
+#### 5. Direct CLI proof already shows the right success and failure behavior
+
+The touched parse paths were exercised directly:
+
+- valid generated-matrix SpMV input completed successfully
+- valid solve-path `--pivot partial` input completed successfully
+- malformed `--spmv-iters nope` input failed with a flag-aware checked parse
+  error
+
+Interpretation:
+
+- Day 5 proved both the success path and the malformed-input rejection path
+- the helper seam is already improving observable auxiliary-surface behavior,
+  not only internal code shape
+
+#### 6. Validation stayed fully green for the touched helper batch
+
+Because `*.c` and `*.h` changed, the required gate was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Those all passed.
+
+The stronger reviewed wrapper baseline also passed:
+
+- `make quality-review-full`
+
+Interpretation:
+
+- the first helper landing did not regress the maintained reviewed contract
+- Sprint 47 can continue widening the benchmark modernization work from a green
+  Day 5 baseline
+
+#### 7. Day 6 is now correctly constrained
+
+After Day 5, the next correct step is:
+
+- widen `bench_main` modernization from the shared helper seam
+
+and not:
+
+- broad `bench_eigs.c` rewrite
+- reorder-mode parity cleanup early
+- example or script-side churn
+
+Interpretation:
+
+- Sprint 47 remains helper-first and benchmark-main-first, exactly as intended

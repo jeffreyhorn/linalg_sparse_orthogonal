@@ -16,6 +16,7 @@
  * Also reports nnz, fill-in, memory, and residual norm.
  */
 #define _POSIX_C_SOURCE 200809L
+#include "bench_cli_parse_internal.h"
 #include "sparse_cholesky.h"
 #include "sparse_ilu.h"
 #include "sparse_iterative.h"
@@ -626,6 +627,11 @@ static void benchmark_iterative_dir(const char *dirpath) {
     printf("\n");
 }
 
+static const sparse_cli_choice_t bench_main_pivot_choices[] = {
+    {"partial", SPARSE_PIVOT_PARTIAL},
+    {"complete", SPARSE_PIVOT_COMPLETE},
+};
+
 /* ─── Main ──────────────────────────────────────────────────────────── */
 
 int main(int argc, char **argv) {
@@ -639,6 +645,7 @@ int main(int argc, char **argv) {
     int mode_spmv = 0;
     int mode_iterative = 0;
     int spmv_iters = 1000;
+    const char *tool = "bench_main";
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--spmv") == 0) {
@@ -646,28 +653,31 @@ int main(int argc, char **argv) {
         } else if (strcmp(argv[i], "--iterative") == 0) {
             mode_iterative = 1;
         } else if (strcmp(argv[i], "--spmv-iters") == 0 && i + 1 < argc) {
-            spmv_iters = atoi(argv[++i]);
-            if (spmv_iters <= 0) {
-                fprintf(stderr, "Error: --spmv-iters must be > 0\n");
+            if (!sparse_cli_parse_int_arg(tool, "--spmv-iters", argv[++i], 1, INT_MAX,
+                                          &spmv_iters)) {
                 return 1;
             }
         } else if (strcmp(argv[i], "--size") == 0 && i + 1 < argc) {
-            size = (idx_t)atoi(argv[++i]);
+            long parsed_size = 0;
+            if (!sparse_cli_parse_long_arg(tool, "--size", argv[++i], 1, (long)INT_MAX,
+                                           &parsed_size)) {
+                return 1;
+            }
+            size = (idx_t)parsed_size;
         } else if (strcmp(argv[i], "--repeat") == 0 && i + 1 < argc) {
-            repeats = atoi(argv[++i]);
+            if (!sparse_cli_parse_int_arg(tool, "--repeat", argv[++i], 1, INT_MAX, &repeats))
+                return 1;
         } else if (strcmp(argv[i], "--dir") == 0 && i + 1 < argc) {
             dirpath = argv[++i];
         } else if (strcmp(argv[i], "--pivot") == 0 && i + 1 < argc) {
-            i++;
-            if (strcmp(argv[i], "partial") == 0)
-                pivot = SPARSE_PIVOT_PARTIAL;
-            else if (strcmp(argv[i], "complete") == 0)
-                pivot = SPARSE_PIVOT_COMPLETE;
-            else {
-                fprintf(stderr, "Error: unknown pivot mode '%s' (use 'partial' or 'complete')\n",
-                        argv[i]);
+            int parsed_pivot = 0;
+            if (!sparse_cli_parse_choice_arg(tool, "--pivot", argv[++i], bench_main_pivot_choices,
+                                             sizeof(bench_main_pivot_choices) /
+                                                 sizeof(bench_main_pivot_choices[0]),
+                                             &parsed_pivot, "use 'partial' or 'complete'")) {
                 return 1;
             }
+            pivot = (sparse_pivot_t)parsed_pivot;
         } else if (strcmp(argv[i], "--reorder") == 0 && i + 1 < argc) {
             i++;
             if (strcmp(argv[i], "none") == 0)

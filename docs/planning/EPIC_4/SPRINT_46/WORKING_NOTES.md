@@ -1,0 +1,193 @@
+# Sprint 46 Working Notes
+
+## Day 1
+
+**Objective:** Turn the Sprint 46 project-plan scope plus the Sprint 40/41/42
+execution rules and the Sprint 45 iterative-workspace closeout into a concrete
+eigensolver starting point by confirming the preserved reviewed contracts,
+naming the Sprint 46 workstreams explicitly, and defining the authoritative
+eigensolver solver, test, example, and benchmark inputs before workspace-reuse
+implementation begins.
+
+### Commands Run
+
+1. Confirm branch and starting state:
+   - `git status --short`
+   - `git rev-parse --abbrev-ref HEAD`
+2. Re-read the Sprint 46 plan and the main prerequisite planning artifacts:
+   - `sed -n '223,253p' docs/planning/EPIC_4/PROJECT_PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_46/PLAN.md`
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_45/artifacts/day14-closeout-and-handoff.md`
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_42/artifacts/day14-closeout-and-handoff.md`
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_41/artifacts/day12-safety-style-and-prep-rules.md`
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_40/artifacts/day13-validation-anchor-and-command-matrix.md`
+3. Reconfirm the inherited reviewed CMake baseline:
+   - `ctest -N --test-dir build/quality-review-cmake`
+4. Reconfirm the current maintained reviewed/dead-code command surfaces:
+   - `make -n quality-review-full deadcode-report deadcode-check`
+5. Measure the live eigensolver hotspot and current eigensolver-support
+   concentration:
+   - `wc -l src/sparse_eigs.c tests/test_eigs.c tests/test_eigs_thick_restart.c tests/test_eigs_lobpcg.c benchmarks/bench_eigs.c benchmarks/bench_iterative_reuse.c examples/example_eigs.c src/sparse_iterative_workspace_internal.h src/sparse_iterative_workspace_internal.c`
+6. Refresh the live eigensolver seam markers:
+   - `rg -n "lanczos|thick[_-]restart|lobpcg|workspace|malloc|calloc|basis|ritz|projected|restart" src/sparse_eigs.c`
+
+### Day 1 Findings
+
+#### 1. Sprint 46 starts from a preserved Sprint 40/41/42/45 baseline, not from baseline repair work
+
+The inherited starting contract remains explicit and stable:
+
+- strongest local reviewed baseline already exists:
+  - `make quality-review-full`
+- reviewed CMake parity remains measurable:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+- maintained dead-code/reporting paths already exist:
+  - `make deadcode-report`
+  - `make deadcode-check`
+- dead-code execution remains serialized
+- Sprint 41 already left behind the shared internal arithmetic/allocation seam:
+  - `src/sparse_alloc_internal.h`
+  - `src/sparse_alloc_internal.c`
+- Sprint 42 already left behind:
+  - compatibility-preserving internal-first refactor rules
+  - shared matrix/lifecycle state guard rules
+- Sprint 45 already left behind the reusable iterative workspace model:
+  - `src/sparse_iterative_workspace_internal.h`
+  - `src/sparse_iterative_workspace_internal.c`
+
+Interpretation:
+
+- Sprint 46 is not a quality-baseline sprint
+- Sprint 46 is an eigensolver workspace and repeated-run efficiency sprint on
+  top of an already-validated Epic 4 baseline and an already-landed internal
+  reusable-workspace precedent
+
+#### 2. The live eigensolver surface is still concentrated in one real hotspot
+
+The live implementation/test concentration is:
+
+- `src/sparse_eigs.c` = `3151` lines
+- primary eigensolver regression surfaces:
+  - `tests/test_eigs.c` = `1269`
+  - `tests/test_eigs_thick_restart.c` = `1161`
+  - `tests/test_eigs_lobpcg.c` = `1196`
+- main maintained eigensolver example:
+  - `examples/example_eigs.c` = `284`
+- strongest likely repeated-run benchmark surface:
+  - `benchmarks/bench_eigs.c` = `958`
+- direct reusable-workspace precedent from Sprint 45:
+  - `src/sparse_iterative_workspace_internal.h` = `76`
+  - `src/sparse_iterative_workspace_internal.c` = `215`
+
+Interpretation:
+
+- Sprint 46 does not need another exploratory sprint before it begins
+  eigensolver workspace work
+- the real repeated-run target is still one concentrated subsystem rather than
+  a wide repo-spanning efficiency pass
+
+#### 3. The strongest repeated-run eigensolver targets are explicit before code changes begin
+
+The live seam map shows the main repeated-allocation / repeated-run families
+are:
+
+- grow-m Lanczos
+- thick-restart Lanczos
+- LOBPCG
+
+The main high-value workspace shapes already visible in `src/sparse_eigs.c`
+are:
+
+- `n * m` Krylov basis bundles
+- tridiagonal / Ritz / restart scratch
+- `n * k` and `n * block_size` block bundles
+- dense projected-subproblem intermediates
+- thick-restart state carryover buffers
+
+Interpretation:
+
+- Sprint 46 should target reusable basis/scratch ownership first, not broad
+  public API redesign
+- Day 2 should classify shared packed-buffer patterns separately from
+  solver-local spectral control state and wrapper-only behavior
+
+#### 4. Sprint 46 already contains one useful partial precedent, but not the full reusable-workspace model yet
+
+The live code already shows:
+
+- thick-restart carries dedicated restart-state ownership:
+  - `lanczos_restart_state_t`
+  - `lanczos_restart_state_free(...)`
+- but grow-m Lanczos, thick-restart outer-loop scratch, and LOBPCG still
+  allocate large work buffers directly inside `src/sparse_eigs.c`
+- Sprint 45 already proved the internal reusable-workspace direction in a
+  neighboring solver family
+
+Interpretation:
+
+- Sprint 46 is not inventing the first eigensolver state owner from nothing
+- Sprint 46 still needs a broader shared reusable workspace/state layer before
+  repeated-run efficiency claims become real across the main eigensolver paths
+
+#### 5. The Sprint 46 workstreams are explicit and already bounded by the plan
+
+Day 1 confirms the sprint's eight bounded workstreams directly from the plan:
+
+- eigensolver seam inventory
+- reusable workspace/state design
+- shared buffer layer
+- grow-m / thick-restart migration
+- LOBPCG migration
+- wrapper preservation
+- repeated-run benchmark batch
+- memory-behavior documentation and validation closeout
+
+Interpretation:
+
+- the front half of the sprint should stay internal-first:
+  - seam inventory
+  - workspace/state design
+  - shared buffer layer
+  - primary eigensolver migration
+- the back half should then pivot into:
+  - benchmark evidence
+  - memory-behavior documentation
+  - validation closeout
+
+#### 6. Sprint 46 inherits a clear preserve-not-reopen boundary
+
+Sprint 46 should not reopen:
+
+- public eigensolver API redesign
+- explicit public workspace/state APIs
+- iterative-solver workspace redesign that already closed in Sprint 45
+- dead-code topology changes
+- cross-platform CI contract changes
+- broad benchmark CLI redesign
+- broad documentation/tutorial refresh that depends on future public API work
+
+Interpretation:
+
+- the correct Sprint 46 shape is:
+  - land internal reusable eigensolver workspaces/state
+  - preserve one-shot public APIs as compatibility wrappers
+  - add bounded repeated-run benchmark evidence
+  - document the internal memory-behavior contract for maintainers
+
+#### 7. The Day 1 landing order is fixed before implementation starts
+
+The correct early sprint order is:
+
+1. baseline and seam inventory
+2. reusable workspace/state design
+3. shared buffer-layer design
+4. shared buffer landing
+5. grow-m / thick-restart migration
+6. LOBPCG migration
+7. wrapper + benchmark + memory-contract closeout
+
+Interpretation:
+
+- Sprint 46 should preserve Sprint 40's core rule: structural refactors should
+  be guided by measured seams and explicit ownership boundaries before code
+  movement lands

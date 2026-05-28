@@ -64,6 +64,7 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_colamd.c \
            $(SRCDIR)/sparse_chol_csc.c \
            $(SRCDIR)/sparse_ldlt_csc.c \
+           $(SRCDIR)/sparse_eigs_workspace_internal.c \
            $(SRCDIR)/sparse_eigs.c \
            $(SRCDIR)/sparse_graph_core.c \
            $(SRCDIR)/sparse_graph_coarsen.c \
@@ -145,6 +146,7 @@ BENCH_SRCS = $(BENCHDIR)/bench_main.c \
              $(BENCHDIR)/bench_ldlt_csc.c \
              $(BENCHDIR)/bench_refactor_csc.c \
              $(BENCHDIR)/bench_eigs.c \
+             $(BENCHDIR)/bench_eigs_reuse.c \
              $(BENCHDIR)/bench_reorder.c \
              $(BENCHDIR)/bench_amd_qg.c \
              $(BENCHDIR)/bench_iterative_reuse.c

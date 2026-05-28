@@ -13,6 +13,7 @@
  */
 
 #include "sparse_eigs.h" /* sparse_eigs_opts_t / sparse_eigs_t for LOBPCG entry point. */
+#include "sparse_eigs_workspace_internal.h"
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 
@@ -122,6 +123,26 @@ typedef sparse_err_t (*lanczos_op_fn)(const void *ctx, idx_t n, const double *x,
 sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, const double *v0,
                                 idx_t m_max, int reorthogonalize, double *V, double *alpha,
                                 double *beta, idx_t *m_actual);
+
+/**
+ * @brief Internal repeated-run entry that reuses a caller-owned eigensolver
+ *        workspace when the selected backend supports it.
+ *
+ * Mirrors `sparse_eigs_sym()`'s validation, shift-invert setup, AUTO/explicit
+ * backend selection, and result contract. Sprint 46 Day 11 uses it for the
+ * repeated-run benchmark A/B path: the public call remains the compatibility
+ * one-shot entry, while this helper reuses a stable-dimension internal
+ * workspace across runs.
+ *
+ * The reusable workspace currently applies to the migrated Lanczos-family
+ * backends (`SPARSE_EIGS_BACKEND_LANCZOS` grow-m and
+ * `SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`). Other backends keep their
+ * existing local allocation model until later work widens reuse there.
+ */
+sparse_err_t sparse_eigs_sym_with_workspace_internal(const SparseMatrix *A, idx_t k,
+                                                     const sparse_eigs_opts_t *opts,
+                                                     sparse_eigs_t *result,
+                                                     sparse_eigs_workspace_t *workspace);
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Sprint 21 Day 1: Thick-restart Lanczos data structures + entry point
@@ -532,28 +553,23 @@ sparse_err_t s21_lobpcg_orthonormalize_block(double *Q, idx_t n, idx_t block_siz
  * @param ctx            Opaque context for `op`.
  * @param n              Vector length.
  * @param block_size     LOBPCG block size.  X/W/P are each n × block_size.
- * @param X              In/out: current eigenvector estimates,
- *                       n × block_size, column-major.  Replaced with
- *                       the next iterate on return.
- * @param W              In/out: preconditioned residual block,
- *                       n × block_size, column-major.  Used as input
- *                       only; caller refills for the next iteration.
- * @param P              In/out: previous search direction block,
- *                       n × block_size, column-major.  Replaced with
- *                       the new direction on return.  May be NULL on
- *                       the first iteration (signals "no P yet").
+ * @param view           Reusable LOBPCG workspace view.  Supplies the
+ *                       RR-step shared buffers plus the persistent
+ *                       X / P / W storage owned by the caller.
  * @param which          Spectrum-selection mode (LARGEST / SMALLEST /
  *                       NEAREST_SIGMA via the same op-negation /
  *                       shift-invert wrappers Lanczos uses).
- * @param theta_out      Output: block_size Ritz values; ordered to
- *                       match `which`.
+ * @param use_p          When nonzero, include `view->P` in the
+ *                       Rayleigh-Ritz subspace and write back the new
+ *                       direction to `view->P`.  When zero, behave as
+ *                       the first-iteration `[X | W]` step.
  *
  * @return SPARSE_OK on success, or any error from `op` /
  *         allocation / dense eigensolve.
  */
 sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_t block_size,
-                                double *X, double *W, double *P, sparse_eigs_which_t which,
-                                double *theta_out);
+                                sparse_eigs_lobpcg_workspace_view_t *view,
+                                sparse_eigs_which_t which, int use_p);
 
 /**
  * @brief LOBPCG outer loop — full block iteration to convergence.

@@ -55,6 +55,7 @@
 #include "sparse_alloc_internal.h"
 #include "sparse_dense.h"
 #include "sparse_eigs_internal.h"
+#include "sparse_eigs_workspace_internal.h"
 #include "sparse_ldlt.h"
 #include "sparse_matrix.h"
 #include "sparse_types.h"
@@ -575,6 +576,7 @@ static void s20_lift_ritz_vectors(const double *V, const double *Y, idx_t n, idx
 static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *ctx, idx_t n,
                                                  idx_t k, const sparse_eigs_opts_t *o,
                                                  double eff_tol, idx_t max_iters,
+                                                 sparse_eigs_workspace_t *workspace,
                                                  sparse_eigs_t *result);
 
 /* Sprint 29 Day 5 (Item 3): eigenpair refinement via Rayleigh-quotient
@@ -791,20 +793,8 @@ static sparse_err_t s29_maybe_refine(const SparseMatrix *A, const sparse_eigs_op
     return backend_rc;
 }
 
-sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_opts_t *opts,
-                             sparse_eigs_t *result) {
-    /* Input validation (preconditions from the public doxygen). */
-    if (!A || !result)
-        return SPARSE_ERR_NULL;
-    idx_t n = sparse_rows(A);
-    if (n != sparse_cols(A))
-        return SPARSE_ERR_SHAPE;
-    if (k < 1 || k > n)
-        return SPARSE_ERR_BADARG;
-
-    /* Library defaults when opts == NULL match the doxygen
-     * contract in sparse_eigs.h. */
-    const sparse_eigs_opts_t defaults = {
+static sparse_eigs_opts_t s46_default_public_opts(void) {
+    return (sparse_eigs_opts_t){
         .which = SPARSE_EIGS_LARGEST,
         .sigma = 0.0,
         .max_iterations = 0,
@@ -812,10 +802,25 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
         .reorthogonalize = 1,
         .compute_vectors = 0,
         .backend = SPARSE_EIGS_BACKEND_AUTO,
-        .lobpcg_soft_lock = 1, /* Day 9: default-on per the public-header doc. */
+        .lobpcg_soft_lock = 1,
     };
-    const sparse_eigs_opts_t *o = opts ? opts : &defaults;
+}
 
+static sparse_err_t s46_validate_public_entry(const SparseMatrix *A, idx_t k,
+                                              const sparse_eigs_opts_t *o,
+                                              const sparse_eigs_t *result) {
+    if (!A || !result)
+        return SPARSE_ERR_NULL;
+
+    idx_t n = sparse_rows(A);
+    if (n != sparse_cols(A))
+        return SPARSE_ERR_SHAPE;
+    if (k < 1 || k > n)
+        return SPARSE_ERR_BADARG;
+    if (!result->eigenvalues)
+        return SPARSE_ERR_NULL;
+    if (o->compute_vectors && !result->eigenvectors)
+        return SPARSE_ERR_NULL;
     if (o->which != SPARSE_EIGS_LARGEST && o->which != SPARSE_EIGS_SMALLEST &&
         o->which != SPARSE_EIGS_NEAREST_SIGMA)
         return SPARSE_ERR_BADARG;
@@ -825,200 +830,50 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
         return SPARSE_ERR_BADARG;
     if (o->tol < 0.0 || o->max_iterations < 0)
         return SPARSE_ERR_BADARG;
-    if (!result->eigenvalues)
-        return SPARSE_ERR_NULL;
-    if (o->compute_vectors && !result->eigenvectors)
-        return SPARSE_ERR_NULL;
-    /* Sprint 21 Day 7: LOBPCG-specific opts validation.  Block size
-     * must be at least k (so the Rayleigh-Ritz step produces enough
-     * Ritz pairs); the special value 0 means "library default = k"
-     * and is accepted as the designated-init zero default.  The
-     * `precond_ctx != NULL && precond == NULL` mismatch is rejected
-     * as the obvious user error (forgot to set the callback after
-     * binding the context); the inverse `precond != NULL &&
-     * precond_ctx == NULL` is allowed because some preconditioners
-     * carry state via globals or thread-local storage. */
     if (o->block_size < 0 || o->block_size > n)
         return SPARSE_ERR_BADARG;
     if (o->block_size > 0 && o->block_size < k)
         return SPARSE_ERR_BADARG;
     if (o->precond_ctx && !o->precond)
         return SPARSE_ERR_BADARG;
-
-    /* Sprint 29 Day 4 (Item 3): refine API validation.  The refine
-     * loop reads result->eigenvectors as the inverse-iteration input
-     * → reject `refine && !compute_vectors`.  Negative iter budgets
-     * are user errors.  Day-4 lands API + validation only; Day-5
-     * lights up the actual Rayleigh-quotient iteration in
-     * src/sparse_eigs.c.  See
-     * docs/planning/EPIC_2/SPRINT_29/refinement_design_day4.md. */
     if (o->refine && !o->compute_vectors)
         return SPARSE_ERR_BADARG;
     if (o->refine_max_iters < 0)
         return SPARSE_ERR_BADARG;
-
-    /* Day 11: enforce symmetry precondition.  Matches the Cholesky /
-     * IC convention (both call sparse_is_symmetric(A, 1e-12) and
-     * return SPARSE_ERR_NOT_SPD on false).  Lanczos silently produces
-     * complex or nonsensical Ritz values on a non-symmetric operator,
-     * so rejecting at entry is the defensive choice. */
     if (!sparse_is_symmetric(A, 1e-12))
         return SPARSE_ERR_NOT_SPD;
+    return SPARSE_OK;
+}
 
+static void s46_init_public_result(sparse_eigs_t *result, idx_t k) {
     result->n_requested = k;
     result->n_converged = 0;
     result->iterations = 0;
     result->residual_norm = 0.0;
     result->used_csc_path_ldlt = 0;
     result->peak_basis_size = 0;
-    result->backend_used = SPARSE_EIGS_BACKEND_LANCZOS; /* updated per dispatch below */
+    result->backend_used = SPARSE_EIGS_BACKEND_LANCZOS;
+}
 
-    /* Day 12: shift-invert setup for NEAREST_SIGMA.  Factor
-     * `A - sigma*I` via `sparse_ldlt_factor_opts` (Days 4-6 AUTO
-     * dispatch — benefits from CSC supernodal on big symmetric
-     * indefinite shifts) and swap the Lanczos operator from
-     * `sparse_matvec(A)` to `sparse_ldlt_solve(ldlt)`.  The
-     * factorisation is owned by this call; freed in `cleanup:`.
-     * If `A - sigma*I` is singular (σ is exactly an eigenvalue of A),
-     * LDL^T reports `SPARSE_ERR_SINGULAR` and we propagate — the
-     * public doxygen tells callers to perturb σ slightly in that
-     * case. */
-    SparseMatrix *A_shifted = NULL;
-    sparse_ldlt_t ldlt_shift = {0}; /* zeroed so sparse_ldlt_free is safe */
-    lanczos_op_fn op_fn = s20_op_matvec;
-    const void *op_ctx = A;
-    if (o->which == SPARSE_EIGS_NEAREST_SIGMA) {
-        A_shifted = sparse_copy(A);
-        if (!A_shifted)
-            return SPARSE_ERR_ALLOC;
-        for (idx_t i = 0; i < n; i++) {
-            double dii = sparse_get(A_shifted, i, i);
-            sparse_err_t err = sparse_set(A_shifted, i, i, dii - o->sigma);
-            if (err != SPARSE_OK) {
-                sparse_free(A_shifted);
-                return err;
-            }
-        }
-        int used_csc_path = 0;
-        sparse_ldlt_opts_t ldlt_opts = {
-            .reorder = SPARSE_REORDER_NONE,
-            .tol = 0.0,
-            .backend = SPARSE_LDLT_BACKEND_AUTO,
-            .used_csc_path = &used_csc_path,
-        };
-        sparse_err_t err = sparse_ldlt_factor_opts(A_shifted, &ldlt_opts, &ldlt_shift);
-        result->used_csc_path_ldlt = used_csc_path;
-        if (err != SPARSE_OK) {
-            sparse_ldlt_free(&ldlt_shift);
-            sparse_free(A_shifted);
-            return err;
-        }
-        op_fn = s20_op_shift_invert;
-        op_ctx = &ldlt_shift;
-    }
-
-    /* Effective tolerance and iteration budget.  The library
-     * defaults match sparse_eigs.h: tol = 1e-10, max_iterations =
-     * max(10*k + 20, 100).  Compute the default in int64_t so large
-     * k values don't overflow idx_t (int32) before the min-with-n
-     * clamp below catches it.
-     *
-     * When the caller supplies `opts->max_iterations > 0`, honor it
-     * as the user's explicit cap rather than silently bumping it up
-     * to the library default's 100-iteration floor — that silent
-     * promotion contradicted the documented contract ("0 selects the
-     * library default ... positive values are honored").  Reject an
-     * explicit cap that is too small to run Lanczos safely (< the
-     * per-run m_cap_min of 2k+10, clamped to n for small-n inputs)
-     * as SPARSE_ERR_BADARG, consistent with the header's
-     * "opts values are invalid" SPARSE_ERR_BADARG return. */
-    double eff_tol = o->tol > 0.0 ? o->tol : 1e-10;
-    idx_t max_iters;
-    if (o->max_iterations > 0) {
-        int64_t min_required = (int64_t)2 * (int64_t)k + 10;
-        if (min_required > (int64_t)n)
-            min_required = (int64_t)n;
-        if ((int64_t)o->max_iterations < min_required) {
-            sparse_ldlt_free(&ldlt_shift);
-            sparse_free(A_shifted);
-            return SPARSE_ERR_BADARG;
-        }
-        max_iters = o->max_iterations;
-    } else {
-        int64_t def_iters = (int64_t)10 * (int64_t)k + 20;
-        if (def_iters < 100)
-            def_iters = 100;
-        if (def_iters > (int64_t)INT32_MAX)
-            def_iters = (int64_t)INT32_MAX;
-        max_iters = (idx_t)def_iters;
-    }
-
-    /* Sprint 21 Day 3/4: thick-restart backend dispatch.
-     *
-     * Day 3 opt-in path: `opts->backend ==
-     * SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART` forces the
-     * Wu/Simon restart pipeline.
-     *
-     * Day 4 AUTO routing: when `opts->backend == _AUTO` and the
-     * problem is large enough (`n >= SPARSE_EIGS_THICK_RESTART_THRESHOLD`,
-     * default 500; tuned in `docs/planning/EPIC_2/SPRINT_21/bench_day4_restart.txt`),
-     * also route here — the grow-m path's `O(m_cap · n)` peak
-     * memory becomes prohibitive on the big SuiteSparse fixtures
-     * where the thick-restart's `O((m_restart + k) · n)` bound
-     * wins by an order of magnitude or more (bcsstk14 at
-     * n = 1806, k = 5: grow-m ~7 MB of V vs thick-restart
-     * ~500 KB). */
-    /* Sprint 21 Day 10: AUTO + explicit-opt-in dispatch decision tree.
-     *
-     * Three concrete backends, two AUTO crossover thresholds.  In
-     * priority order:
-     *
-     *   1. Explicit `opts->backend == SPARSE_EIGS_BACKEND_LOBPCG`:
-     *      route to LOBPCG.  Honored regardless of preconditioner /
-     *      n / block_size — the user asked for LOBPCG.
-     *   2. Explicit `opts->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`:
-     *      route to thick-restart.
-     *   3. AUTO with preconditioner + large n + adequate block:
-     *      route to LOBPCG (Day 10 addition; the precond is the
-     *      signal that the caller is prepared for LOBPCG's per-iter
-     *      block work).
-     *   4. AUTO with `n >= SPARSE_EIGS_THICK_RESTART_THRESHOLD`:
-     *      route to thick-restart Lanczos (Day 4 routing, unchanged).
-     *   5. Otherwise: grow-m Lanczos (Sprint 20 default).
-     *
-     * The AUTO LOBPCG route requires `block_size >= 4` (defaulting
-     * to `k` when `block_size == 0`) — below that the block is too
-     * small to amortise the per-iteration Jacobi cost vs Lanczos's
-     * single-vector iteration.  See `SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD`
-     * in the public header for the n threshold rationale. */
+static sparse_eigs_backend_t s46_select_backend(idx_t n, idx_t k, const sparse_eigs_opts_t *o) {
     int explicit_lobpcg = (o->backend == SPARSE_EIGS_BACKEND_LOBPCG);
     idx_t bs_for_auto = (o->block_size > 0) ? o->block_size : k;
     int auto_lobpcg = (o->backend == SPARSE_EIGS_BACKEND_AUTO) && (o->precond != NULL) &&
                       (n >= (idx_t)SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD) && (bs_for_auto >= 4);
-    if (explicit_lobpcg || auto_lobpcg) {
-        result->backend_used = SPARSE_EIGS_BACKEND_LOBPCG;
-        sparse_err_t lobpcg_rc =
-            s21_lobpcg_solve(op_fn, op_ctx, n, k, o, eff_tol, max_iters, result);
-        lobpcg_rc = s29_maybe_refine(A, o, result, lobpcg_rc);
-        sparse_ldlt_free(&ldlt_shift);
-        sparse_free(A_shifted);
-        return lobpcg_rc;
-    }
+    if (explicit_lobpcg || auto_lobpcg)
+        return SPARSE_EIGS_BACKEND_LOBPCG;
 
-    int use_thick_restart =
-        (o->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART) ||
-        (o->backend == SPARSE_EIGS_BACKEND_AUTO && n >= (idx_t)SPARSE_EIGS_THICK_RESTART_THRESHOLD);
-    if (use_thick_restart) {
-        result->backend_used = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART;
-        sparse_err_t tr_rc =
-            s21_thick_restart_outer_loop(op_fn, op_ctx, n, k, o, eff_tol, max_iters, result);
-        tr_rc = s29_maybe_refine(A, o, result, tr_rc);
-        sparse_ldlt_free(&ldlt_shift);
-        sparse_free(A_shifted);
-        return tr_rc;
-    }
-    result->backend_used = SPARSE_EIGS_BACKEND_LANCZOS;
+    if ((o->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART) ||
+        (o->backend == SPARSE_EIGS_BACKEND_AUTO && n >= (idx_t)SPARSE_EIGS_THICK_RESTART_THRESHOLD))
+        return SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART;
 
+    return SPARSE_EIGS_BACKEND_LANCZOS;
+}
+
+static sparse_err_t s46_run_growm_backend(lanczos_op_fn op_fn, const void *op_ctx, idx_t n, idx_t k,
+                                          const sparse_eigs_opts_t *o, double eff_tol,
+                                          idx_t max_iters, sparse_eigs_t *result,
+                                          sparse_eigs_workspace_t *workspace) {
     /* Day 13 outer-loop redesign: single Lanczos batch with a
      * grow-m-on-retry strategy.  The Day 10-11 short/long stability
      * check converged poorly on SuiteSparse matrices because each
@@ -1072,15 +927,12 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     if (m_grow_wide > (int64_t)m_cap)
         m_grow_wide = (int64_t)m_cap;
     idx_t m_grow = (idx_t)m_grow_wide;
-    size_t n_size = 0;
-    size_t m_cap_size = 0;
-    size_t k_size = 0;
-    if (sparse_idx_to_size_checked(n, &n_size) || sparse_idx_to_size_checked(m_cap, &m_cap_size) ||
-        sparse_idx_to_size_checked(k, &k_size)) {
-        sparse_ldlt_free(&ldlt_shift);
-        sparse_free(A_shifted);
-        return SPARSE_ERR_ALLOC;
-    }
+    sparse_eigs_workspace_t local_ws;
+    sparse_eigs_workspace_t *growm_ws = workspace ? workspace : &local_ws;
+    sparse_eigs_growm_workspace_view_t growm_view;
+    sparse_err_t rc = SPARSE_ERR_NOT_CONVERGED;
+    if (!workspace)
+        sparse_eigs_workspace_init(growm_ws);
 
     /* Allocate workspace for the upper-bound Lanczos size so the
      * grow-on-retry path never reallocates.  Y_cap is m_cap × m_cap
@@ -1090,46 +942,21 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
      * (n, m_cap) pair on a 32-bit size_t target fails cleanly with
      * SPARSE_ERR_ALLOC rather than undersizing a buffer; calloc()
      * handles its own nmemb*size overflow internally. */
-    size_t v_elems = 0, v_bytes = 0;
-    size_t y_elems = 0;
-    size_t sel_idx_bytes = 0;
-    if (sparse_size_mul_overflow(n_size, m_cap_size, &v_elems) ||
-        sparse_size_mul_overflow(v_elems, sizeof(double), &v_bytes) ||
-        sparse_size_mul_overflow(m_cap_size, m_cap_size, &y_elems) ||
-        sparse_size_mul_overflow(k_size, sizeof(idx_t), &sel_idx_bytes)) {
-        sparse_ldlt_free(&ldlt_shift);
-        sparse_free(A_shifted);
-        return SPARSE_ERR_ALLOC;
+    sparse_err_t alloc_err =
+        sparse_eigs_workspace_prepare_growm(growm_ws, n, m_cap, k, &growm_view);
+    if (alloc_err != SPARSE_OK) {
+        rc = alloc_err;
+        goto cleanup;
     }
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *V = malloc(v_bytes);
-    double *alpha = NULL;
-    double *beta = NULL;
-    double *v0 = calloc(n_size, sizeof(double));
-    double *theta_long = calloc(m_cap_size, sizeof(double));
-    double *subdiag = NULL;
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *Y_long = calloc(y_elems, sizeof(double));
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    idx_t *sel_idx = malloc(sel_idx_bytes);
-    sparse_err_t alloc_err = sparse_malloc_array(m_cap_size, sizeof(double), (void **)&alpha);
-    if (alloc_err == SPARSE_OK)
-        alloc_err = sparse_malloc_array(m_cap_size, sizeof(double), (void **)&beta);
-    if (alloc_err == SPARSE_OK)
-        alloc_err = sparse_malloc_array(m_cap_size, sizeof(double), (void **)&subdiag);
-    if (!V || alloc_err != SPARSE_OK || !v0 || !theta_long || !Y_long || !sel_idx) {
-        free(V);
-        free(alpha);
-        free(beta);
-        free(v0);
-        free(theta_long);
-        free(subdiag);
-        free(Y_long);
-        free(sel_idx);
-        sparse_ldlt_free(&ldlt_shift);
-        sparse_free(A_shifted);
-        return SPARSE_ERR_ALLOC;
-    }
+
+    double *V = growm_view.V;
+    double *alpha = growm_view.alpha;
+    double *beta = growm_view.beta;
+    double *v0 = growm_view.v0;
+    double *theta_long = growm_view.theta_long;
+    double *subdiag = growm_view.subdiag;
+    double *Y_long = growm_view.Y_long;
+    idx_t *sel_idx = growm_view.sel_idx;
 
     s20_lanczos_starting_vector(v0, n);
 
@@ -1139,7 +966,6 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     result->peak_basis_size = m_cap;
 
     idx_t total_iters = 0;
-    sparse_err_t rc = SPARSE_ERR_NOT_CONVERGED;
     idx_t m = m_init;
     idx_t last_m_actual = 0;
     double last_partial_res = 0.0;
@@ -1298,18 +1124,180 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
     }
 
 cleanup:
-    free(V);
-    free(alpha);
-    free(beta);
-    free(v0);
-    free(theta_long);
-    free(subdiag);
-    free(Y_long);
-    free(sel_idx);
+    if (!workspace)
+        sparse_eigs_workspace_free(growm_ws);
+    return rc;
+}
+
+static sparse_err_t s46_run_backend(sparse_eigs_backend_t backend, lanczos_op_fn op_fn,
+                                    const void *op_ctx, idx_t n, idx_t k,
+                                    const sparse_eigs_opts_t *o, double eff_tol, idx_t max_iters,
+                                    sparse_eigs_t *result, sparse_eigs_workspace_t *workspace) {
+    result->backend_used = backend;
+    switch (backend) {
+    case SPARSE_EIGS_BACKEND_LOBPCG:
+        return s21_lobpcg_solve(op_fn, op_ctx, n, k, o, eff_tol, max_iters, result);
+    case SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART:
+        return s21_thick_restart_outer_loop(op_fn, op_ctx, n, k, o, eff_tol, max_iters, workspace,
+                                            result);
+    case SPARSE_EIGS_BACKEND_LANCZOS:
+    case SPARSE_EIGS_BACKEND_AUTO:
+        return s46_run_growm_backend(op_fn, op_ctx, n, k, o, eff_tol, max_iters, result, workspace);
+    }
+
+    return SPARSE_ERR_BADARG;
+}
+
+static sparse_err_t s46_sparse_eigs_sym_impl(const SparseMatrix *A, idx_t k,
+                                             const sparse_eigs_opts_t *opts, sparse_eigs_t *result,
+                                             sparse_eigs_workspace_t *workspace) {
+    /* Library defaults when opts == NULL match the doxygen
+     * contract in sparse_eigs.h. */
+    const sparse_eigs_opts_t defaults = s46_default_public_opts();
+    const sparse_eigs_opts_t *o = opts ? opts : &defaults;
+    sparse_err_t entry_err = s46_validate_public_entry(A, k, o, result);
+    if (entry_err != SPARSE_OK)
+        return entry_err;
+
+    idx_t n = sparse_rows(A);
+    s46_init_public_result(result, k);
+
+    /* Day 12: shift-invert setup for NEAREST_SIGMA.  Factor
+     * `A - sigma*I` via `sparse_ldlt_factor_opts` (Days 4-6 AUTO
+     * dispatch — benefits from CSC supernodal on big symmetric
+     * indefinite shifts) and swap the Lanczos operator from
+     * `sparse_matvec(A)` to `sparse_ldlt_solve(ldlt)`.  The
+     * factorisation is owned by this call; freed in `cleanup:`.
+     * If `A - sigma*I` is singular (σ is exactly an eigenvalue of A),
+     * LDL^T reports `SPARSE_ERR_SINGULAR` and we propagate — the
+     * public doxygen tells callers to perturb σ slightly in that
+     * case. */
+    SparseMatrix *A_shifted = NULL;
+    sparse_ldlt_t ldlt_shift = {0}; /* zeroed so sparse_ldlt_free is safe */
+    lanczos_op_fn op_fn = s20_op_matvec;
+    const void *op_ctx = A;
+    if (o->which == SPARSE_EIGS_NEAREST_SIGMA) {
+        A_shifted = sparse_copy(A);
+        if (!A_shifted)
+            return SPARSE_ERR_ALLOC;
+        for (idx_t i = 0; i < n; i++) {
+            double dii = sparse_get(A_shifted, i, i);
+            sparse_err_t err = sparse_set(A_shifted, i, i, dii - o->sigma);
+            if (err != SPARSE_OK) {
+                sparse_free(A_shifted);
+                return err;
+            }
+        }
+        int used_csc_path = 0;
+        sparse_ldlt_opts_t ldlt_opts = {
+            .reorder = SPARSE_REORDER_NONE,
+            .tol = 0.0,
+            .backend = SPARSE_LDLT_BACKEND_AUTO,
+            .used_csc_path = &used_csc_path,
+        };
+        sparse_err_t err = sparse_ldlt_factor_opts(A_shifted, &ldlt_opts, &ldlt_shift);
+        result->used_csc_path_ldlt = used_csc_path;
+        if (err != SPARSE_OK) {
+            sparse_ldlt_free(&ldlt_shift);
+            sparse_free(A_shifted);
+            return err;
+        }
+        op_fn = s20_op_shift_invert;
+        op_ctx = &ldlt_shift;
+    }
+
+    /* Effective tolerance and iteration budget.  The library
+     * defaults match sparse_eigs.h: tol = 1e-10, max_iterations =
+     * max(10*k + 20, 100).  Compute the default in int64_t so large
+     * k values don't overflow idx_t (int32) before the min-with-n
+     * clamp below catches it.
+     *
+     * When the caller supplies `opts->max_iterations > 0`, honor it
+     * as the user's explicit cap rather than silently bumping it up
+     * to the library default's 100-iteration floor — that silent
+     * promotion contradicted the documented contract ("0 selects the
+     * library default ... positive values are honored").  Reject an
+     * explicit cap that is too small to run Lanczos safely (< the
+     * per-run m_cap_min of 2k+10, clamped to n for small-n inputs)
+     * as SPARSE_ERR_BADARG, consistent with the header's
+     * "opts values are invalid" SPARSE_ERR_BADARG return. */
+    double eff_tol = o->tol > 0.0 ? o->tol : 1e-10;
+    idx_t max_iters;
+    if (o->max_iterations > 0) {
+        int64_t min_required = (int64_t)2 * (int64_t)k + 10;
+        if (min_required > (int64_t)n)
+            min_required = (int64_t)n;
+        if ((int64_t)o->max_iterations < min_required) {
+            sparse_ldlt_free(&ldlt_shift);
+            sparse_free(A_shifted);
+            return SPARSE_ERR_BADARG;
+        }
+        max_iters = o->max_iterations;
+    } else {
+        int64_t def_iters = (int64_t)10 * (int64_t)k + 20;
+        if (def_iters < 100)
+            def_iters = 100;
+        if (def_iters > (int64_t)INT32_MAX)
+            def_iters = (int64_t)INT32_MAX;
+        max_iters = (idx_t)def_iters;
+    }
+
+    /* Sprint 21 Day 3/4: thick-restart backend dispatch.
+     *
+     * Day 3 opt-in path: `opts->backend ==
+     * SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART` forces the
+     * Wu/Simon restart pipeline.
+     *
+     * Day 4 AUTO routing: when `opts->backend == _AUTO` and the
+     * problem is large enough (`n >= SPARSE_EIGS_THICK_RESTART_THRESHOLD`,
+     * default 500; tuned in `docs/planning/EPIC_2/SPRINT_21/bench_day4_restart.txt`),
+     * also route here — the grow-m path's `O(m_cap · n)` peak
+     * memory becomes prohibitive on the big SuiteSparse fixtures
+     * where the thick-restart's `O((m_restart + k) · n)` bound
+     * wins by an order of magnitude or more (bcsstk14 at
+     * n = 1806, k = 5: grow-m ~7 MB of V vs thick-restart
+     * ~500 KB). */
+    /* Sprint 21 Day 10: AUTO + explicit-opt-in dispatch decision tree.
+     *
+     * Three concrete backends, two AUTO crossover thresholds.  In
+     * priority order:
+     *
+     *   1. Explicit `opts->backend == SPARSE_EIGS_BACKEND_LOBPCG`:
+     *      route to LOBPCG.  Honored regardless of preconditioner /
+     *      n / block_size — the user asked for LOBPCG.
+     *   2. Explicit `opts->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`:
+     *      route to thick-restart.
+     *   3. AUTO with preconditioner + large n + adequate block:
+     *      route to LOBPCG (Day 10 addition; the precond is the
+     *      signal that the caller is prepared for LOBPCG's per-iter
+     *      block work).
+     *   4. AUTO with `n >= SPARSE_EIGS_THICK_RESTART_THRESHOLD`:
+     *      route to thick-restart Lanczos (Day 4 routing, unchanged).
+     *   5. Otherwise: grow-m Lanczos (Sprint 20 default).
+     *
+     * The AUTO LOBPCG route requires `block_size >= 4` (defaulting
+     * to `k` when `block_size == 0`) — below that the block is too
+     * small to amortise the per-iteration Jacobi cost vs Lanczos's
+     * single-vector iteration.  See `SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD`
+     * in the public header for the n threshold rationale. */
+    sparse_eigs_backend_t backend = s46_select_backend(n, k, o);
+    sparse_err_t rc =
+        s46_run_backend(backend, op_fn, op_ctx, n, k, o, eff_tol, max_iters, result, workspace);
     sparse_ldlt_free(&ldlt_shift);
     sparse_free(A_shifted);
-    rc = s29_maybe_refine(A, o, result, rc);
-    return rc;
+    return s29_maybe_refine(A, o, result, rc);
+}
+
+sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_opts_t *opts,
+                             sparse_eigs_t *result) {
+    return s46_sparse_eigs_sym_impl(A, k, opts, result, NULL);
+}
+
+sparse_err_t sparse_eigs_sym_with_workspace_internal(const SparseMatrix *A, idx_t k,
+                                                     const sparse_eigs_opts_t *opts,
+                                                     sparse_eigs_t *result,
+                                                     sparse_eigs_workspace_t *workspace) {
+    return s46_sparse_eigs_sym_impl(A, k, opts, result, workspace);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -2147,6 +2135,7 @@ static sparse_err_t s21_recompute_residual(lanczos_op_fn op, const void *ctx, id
 static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *ctx, idx_t n,
                                                  idx_t k, const sparse_eigs_opts_t *o,
                                                  double eff_tol, idx_t max_iters,
+                                                 sparse_eigs_workspace_t *workspace,
                                                  sparse_eigs_t *result) {
     /* Restart basis size.  Day 4 tuning: `2k + 20` keeps peak
      * `V + V_locked` at ~`m_restart + k = 3k + 20` columns, which
@@ -2168,6 +2157,11 @@ static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *c
     if (m_restart_wide > (int64_t)n)
         m_restart_wide = (int64_t)n;
     idx_t m_restart = (idx_t)m_restart_wide;
+    sparse_eigs_workspace_t local_ws;
+    sparse_eigs_workspace_t *thick_ws = workspace ? workspace : &local_ws;
+    sparse_eigs_thick_restart_workspace_view_t thick_view;
+    if (!workspace)
+        sparse_eigs_workspace_init(thick_ws);
 
     /* Day 4 telemetry: peak simultaneous V columns = m_restart
      * (main buffer) + k (locked state across restarts) + k (the
@@ -2179,44 +2173,28 @@ static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *c
      * numbers. */
     result->peak_basis_size = m_restart + 2 * k;
 
-    /* Workspace.  All sizes bounded by (m_restart, k) regardless
-     * of how many restarts the outer loop eventually runs. */
-    size_t v_elems = 0, v_bytes = 0;
-    size_t K2 = 0, K2_bytes = 0;
-    size_t vk_elems = 0, vk_bytes = 0;
-    if (sparse_size_mul_overflow((size_t)n, (size_t)m_restart, &v_elems) ||
-        sparse_size_mul_overflow(v_elems, sizeof(double), &v_bytes) ||
-        sparse_size_mul_overflow((size_t)m_restart, (size_t)m_restart, &K2) ||
-        sparse_size_mul_overflow(K2, sizeof(double), &K2_bytes) ||
-        sparse_size_mul_overflow((size_t)n, (size_t)k, &vk_elems) ||
-        sparse_size_mul_overflow(vk_elems, sizeof(double), &vk_bytes))
-        return SPARSE_ERR_ALLOC;
-
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *V = malloc(v_bytes);
-    double *alpha = malloc((size_t)m_restart * sizeof(double));
-    double *beta = malloc((size_t)m_restart * sizeof(double));
-    double *v0 = calloc((size_t)n, sizeof(double));
-    double *residual_vec = malloc((size_t)n * sizeof(double));
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *T_arrow = malloc(K2_bytes);
-    double *theta_arrow = malloc((size_t)m_restart * sizeof(double));
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *Y_arrow = malloc(K2_bytes);
-    idx_t *sel_idx = malloc((size_t)k * sizeof(idx_t));
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *V_locked_tmp = malloc(vk_bytes);
-    double *theta_locked_tmp = malloc((size_t)k * sizeof(double));
-    double *beta_coupling_tmp = malloc((size_t)k * sizeof(double));
     lanczos_restart_state_t state = {0};
 
     sparse_err_t rc = SPARSE_ERR_NOT_CONVERGED;
-
-    if (!V || !alpha || !beta || !v0 || !residual_vec || !T_arrow || !theta_arrow || !Y_arrow ||
-        !sel_idx || !V_locked_tmp || !theta_locked_tmp || !beta_coupling_tmp) {
-        rc = SPARSE_ERR_ALLOC;
+    sparse_err_t ws_err =
+        sparse_eigs_workspace_prepare_thick_restart(thick_ws, n, m_restart, k, &thick_view);
+    if (ws_err != SPARSE_OK) {
+        rc = ws_err;
         goto cleanup;
     }
+
+    double *V = thick_view.V;
+    double *alpha = thick_view.alpha;
+    double *beta = thick_view.beta;
+    double *v0 = thick_view.v0;
+    double *residual_vec = thick_view.residual_vec;
+    double *T_arrow = thick_view.T_arrow;
+    double *theta_arrow = thick_view.theta_arrow;
+    double *Y_arrow = thick_view.Y_arrow;
+    idx_t *sel_idx = thick_view.sel_idx;
+    double *V_locked_tmp = thick_view.V_locked_tmp;
+    double *theta_locked_tmp = thick_view.theta_locked_tmp;
+    double *beta_coupling_tmp = thick_view.beta_coupling_tmp;
 
     s20_lanczos_starting_vector(v0, n);
 
@@ -2367,18 +2345,8 @@ static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *c
     }
 
 cleanup:
-    free(V);
-    free(alpha);
-    free(beta);
-    free(v0);
-    free(residual_vec);
-    free(T_arrow);
-    free(theta_arrow);
-    free(Y_arrow);
-    free(sel_idx);
-    free(V_locked_tmp);
-    free(theta_locked_tmp);
-    free(beta_coupling_tmp);
+    if (!workspace)
+        sparse_eigs_workspace_free(thick_ws);
     lanczos_restart_state_free(&state);
     return rc;
 }
@@ -2637,50 +2605,34 @@ static void s21_lobpcg_init_X(double *X, idx_t n, idx_t bs) {
  * + cap doubles for theta_full + n × bs for X_new + n × bs for P_new.
  * For bs = 5 and n = 1806 this is ~75 KB per RR step. */
 sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_t block_size,
-                                double *X, double *W, double *P, sparse_eigs_which_t which,
-                                double *theta_out) {
-    if (!op || !X || !W || !theta_out)
+                                sparse_eigs_lobpcg_workspace_view_t *view,
+                                sparse_eigs_which_t which, int use_p) {
+    if (!op || !view || !view->Q || !view->AQ || !view->G || !view->Y || !view->theta_full ||
+        !view->sel_idx || !view->X_new || !view->X || !view->W || !view->theta)
         return SPARSE_ERR_NULL;
     if (n < 1 || block_size < 1)
         return SPARSE_ERR_BADARG;
 
-    int has_p = (P != NULL);
+    double *X = view->X;
+    double *W = view->W;
+    double *P = use_p ? view->P : NULL;
+    double *Q = view->Q;
+    double *AQ = view->AQ;
+    double *G = view->G;
+    double *Y = view->Y;
+    double *theta_full = view->theta_full;
+    idx_t *sel_idx = view->sel_idx;
+    double *X_new = view->X_new;
+    double *P_new = use_p ? view->P_new : NULL;
+    double *theta_out = view->theta;
+
+    if (use_p && (!P || !P_new))
+        return SPARSE_ERR_NULL;
+
+    int has_p = use_p != 0;
     idx_t cap = has_p ? 3 * block_size : 2 * block_size;
     if (cap > n)
         return SPARSE_ERR_BADARG;
-
-    /* Workspace allocation.  All sizes bounded by (n, cap) where
-     * cap ≤ 3·bs.  Single sparse_err_t propagation site below
-     * via goto cleanup. */
-    size_t nc_bytes = 0, cc_bytes = 0, nb_bytes = 0;
-    if (sparse_size_mul_overflow((size_t)n, (size_t)cap, &nc_bytes) ||
-        sparse_size_mul_overflow(nc_bytes, sizeof(double), &nc_bytes) ||
-        sparse_size_mul_overflow((size_t)cap, (size_t)cap, &cc_bytes) ||
-        sparse_size_mul_overflow(cc_bytes, sizeof(double), &cc_bytes) ||
-        sparse_size_mul_overflow((size_t)n, (size_t)block_size, &nb_bytes) ||
-        sparse_size_mul_overflow(nb_bytes, sizeof(double), &nb_bytes))
-        return SPARSE_ERR_ALLOC;
-
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *Q = malloc(nc_bytes);
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *AQ = malloc(nc_bytes);
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *G = malloc(cc_bytes);
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *Y = malloc(cc_bytes);
-    double *theta_full = malloc((size_t)cap * sizeof(double));
-    idx_t *sel_idx = malloc((size_t)block_size * sizeof(idx_t));
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *X_new = malloc(nb_bytes);
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *P_new = has_p ? malloc(nb_bytes) : NULL;
-
-    sparse_err_t rc = SPARSE_OK;
-    if (!Q || !AQ || !G || !Y || !theta_full || !sel_idx || !X_new || (has_p && !P_new)) {
-        rc = SPARSE_ERR_ALLOC;
-        goto cleanup;
-    }
 
     /* Q ← [X | W | P] (column-major concatenation). */
     size_t nb = (size_t)n * (size_t)block_size;
@@ -2693,16 +2645,13 @@ sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_
      * ejection.  K_eff ≤ cap is the effective subspace dimension. */
     idx_t K_eff = 0;
     sparse_err_t err = s21_lobpcg_orthonormalize_block(Q, n, cap, &K_eff);
-    if (err != SPARSE_OK) {
-        rc = err;
-        goto cleanup;
-    }
+    if (err != SPARSE_OK)
+        return err;
     if (K_eff < block_size) {
         /* The X block alone didn't survive orthogonalisation —
          * caller's X is rank-deficient.  Punt back to the outer
          * loop's allocation/init path. */
-        rc = SPARSE_ERR_BADARG;
-        goto cleanup;
+        return SPARSE_ERR_BADARG;
     }
 
     /* AQ ← A · Q, column-by-column.  Sprint 22 may swap in a block
@@ -2710,10 +2659,8 @@ sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_
      * unchanged from the Lanczos backends. */
     for (idx_t j = 0; j < K_eff; j++) {
         err = op(ctx, n, Q + (size_t)j * (size_t)n, AQ + (size_t)j * (size_t)n);
-        if (err != SPARSE_OK) {
-            rc = err;
-            goto cleanup;
-        }
+        if (err != SPARSE_OK)
+            return err;
     }
 
     /* G ← Q^T · AQ.  Symmetric K_eff × K_eff Gram matrix; explicit
@@ -2743,18 +2690,15 @@ sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_
     /* Diagonalise G via the Sprint 21 Day 2 dense Jacobi helper.
      * theta_full is sorted ascending; Y is K_eff × K_eff column-major. */
     err = s21_dense_sym_jacobi(G, K_eff, theta_full, Y);
-    if (err != SPARSE_OK) {
-        rc = err;
-        goto cleanup;
-    }
+    if (err != SPARSE_OK)
+        return err;
 
     /* Select block_size Ritz pairs per `which`. */
     idx_t take = s20_select_indices(theta_full, K_eff, which, block_size, sel_idx);
     if (take < block_size) {
         /* Subspace too small to extract block_size pairs.  Caller's
          * outer loop treats this as a non-convergent step. */
-        rc = SPARSE_ERR_NOT_CONVERGED;
-        goto cleanup;
+        return SPARSE_ERR_NOT_CONVERGED;
     }
 
     /* Day 9 BLOPEX-style conditioning guard.  Detect a rank-deficient
@@ -2830,25 +2774,17 @@ sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_
         memcpy(P, P_new, nb * sizeof(double));
     for (idx_t j = 0; j < block_size; j++)
         theta_out[j] = theta_full[sel_idx[j]];
-
-cleanup:
-    free(Q);
-    free(AQ);
-    free(G);
-    free(Y);
-    free(theta_full);
-    free(sel_idx);
-    free(X_new);
-    free(P_new);
-    return rc;
+    return SPARSE_OK;
 }
 
 /* Day 8 + 9: LOBPCG outer loop.
  *
- * 1. Allocate X, R, W, P, AX (each n × bs).  R is the raw residual
- *    AX − X·diag(theta); W is the preconditioned residual that gets
- *    fed into the Rayleigh-Ritz step (W = R when `o->precond` is
- *    NULL — vanilla LOBPCG; W = precond(R) otherwise).
+ * 1. Prepare the reusable LOBPCG workspace view, which supplies
+ *    X, R, W, P, AX, theta, converged, and the RR-step shared
+ *    intermediates.  R is the raw residual AX − X·diag(theta); W
+ *    is the preconditioned residual that gets fed into the
+ *    Rayleigh-Ritz step (W = R when `o->precond` is NULL —
+ *    vanilla LOBPCG; W = precond(R) otherwise).
  * 2. Initialise X with deterministic pseudo-random columns,
  *    orthonormalise.
  * 3. Compute AX = A · X and initial Rayleigh quotients
@@ -2874,10 +2810,11 @@ cleanup:
  *       Ritz pipeline.
  *    g. Recompute AX = A · X for the next residual.
  *
- * On the first iteration P is passed as NULL (signals "no P yet");
- * `s21_lobpcg_rr_step` handles the 2·bs subspace case by skipping
- * the P concatenation and the P_new write-back.  Subsequent
- * iterations pass the persistent P buffer.
+ * On the first iteration the persistent P buffer exists but is not
+ * yet part of the RR subspace; `s21_lobpcg_rr_step(..., use_p = 0)`
+ * handles the 2·bs `[X | W]` case and leaves P untouched.
+ * Subsequent iterations pass `use_p = 1`, at which point P becomes
+ * part of the RR subspace and is updated in place.
  *
  * Preconditioning convergence claim (Day 9 PLAN target): on an
  * ill-conditioned SPD with cond(A) ~ 1e6, vanilla LOBPCG converges
@@ -2915,38 +2852,28 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
      * the reservation comparison vs the Lanczos backends. */
     result->peak_basis_size = 10 * bs;
 
-    /* Workspace allocation.  Single sparse_err_t propagation via
-     * goto cleanup; mirrors the thick-restart outer loop's pattern. */
-    size_t nb_bytes = 0;
-    if (sparse_size_mul_overflow((size_t)n, (size_t)bs, &nb_bytes) ||
-        sparse_size_mul_overflow(nb_bytes, sizeof(double), &nb_bytes))
-        return SPARSE_ERR_ALLOC;
-
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *X = malloc(nb_bytes);
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *R = malloc(nb_bytes); /* raw residual AX − X·diag(theta) */
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *W = malloc(nb_bytes); /* preconditioned residual fed into RR */
-    double *P = NULL;             /* allocated lazily after the first RR step */
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *AX = malloc(nb_bytes);
-    /* `theta` zero-initialised so the emit block's `theta[j]` reads
-     * are clean even on the SPARSE_ERR_NOT_CONVERGED early-return
-     * paths the clang-analyzer cannot prove reach the post-init
-     * `theta[j] = <X[:, j], AX[:, j]>` loop.  Matches the existing
-     * `converged` calloc convention below. */
-    double *theta = calloc((size_t)bs, sizeof(double));
-    int *converged = calloc((size_t)bs, sizeof(int));
+    sparse_eigs_workspace_t lobpcg_ws;
+    sparse_eigs_lobpcg_workspace_view_t lobpcg_view;
+    sparse_eigs_workspace_init(&lobpcg_ws);
 
     sparse_err_t rc = SPARSE_ERR_NOT_CONVERGED;
     idx_t total_iters = 0;
     double last_res_rel = 0.0;
+    int have_p = 0;
 
-    if (!X || !R || !W || !AX || !theta || !converged) {
-        rc = SPARSE_ERR_ALLOC;
+    sparse_err_t ws_err = sparse_eigs_workspace_prepare_lobpcg(&lobpcg_ws, n, bs, 1, &lobpcg_view);
+    if (ws_err != SPARSE_OK) {
+        rc = ws_err;
         goto cleanup;
     }
+
+    double *X = lobpcg_view.X;
+    double *R = lobpcg_view.R;
+    double *W = lobpcg_view.W;
+    double *P = lobpcg_view.P;
+    double *AX = lobpcg_view.AX;
+    double *theta = lobpcg_view.theta;
+    int *converged = lobpcg_view.converged;
 
     /* Step 1: deterministic pseudo-random init + orthonormalise. */
     s21_lobpcg_init_X(X, n, bs);
@@ -2964,6 +2891,7 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
         goto cleanup;
     }
     bs = bs_eff;
+    size_t nb_bytes = (size_t)n * (size_t)bs * sizeof(double);
 
     /* Step 2: AX = A · X, then theta_j = <X[:, j], AX[:, j]>. */
     for (idx_t j = 0; j < bs; j++) {
@@ -3086,29 +3014,16 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
             }
         }
 
-        /* Rayleigh-Ritz step.  P is NULL on the first iteration so
-         * the RR step works on the 2·bs subspace [X | W]; from
-         * iter 1 onward P is allocated and carries the search
-         * direction across iterations. */
-        err = s21_lobpcg_rr_step(op, ctx, n, bs, X, W, P, o->which, theta);
+        /* Rayleigh-Ritz step.  On the first iteration `have_p == 0`,
+         * so the RR step works on the 2·bs subspace [X | W]; from
+         * iter 1 onward `have_p == 1` and the persistent P buffer
+         * participates in the subspace and write-back. */
+        err = s21_lobpcg_rr_step(op, ctx, n, bs, &lobpcg_view, o->which, have_p);
         if (err != SPARSE_OK) {
             rc = err;
             goto cleanup;
         }
-
-        /* Lazy P allocation.  After the first RR step X has been
-         * updated in span(X_old, W) but P_new wasn't computed (P was
-         * NULL).  Allocate P and zero it for the next iteration's
-         * RR step, which then builds the BLOPEX P_new internally. */
-        if (!P) {
-            // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-            P = malloc(nb_bytes);
-            if (!P) {
-                rc = SPARSE_ERR_ALLOC;
-                goto cleanup;
-            }
-            memset(P, 0, nb_bytes);
-        }
+        have_p = 1;
 
         /* AX = A · X for the next residual. */
         for (idx_t j = 0; j < bs; j++) {
@@ -3140,12 +3055,6 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
     result->residual_norm = last_res_rel;
 
 cleanup:
-    free(X);
-    free(R);
-    free(W);
-    free(P);
-    free(AX);
-    free(theta);
-    free(converged);
+    sparse_eigs_workspace_free(&lobpcg_ws);
     return rc;
 }

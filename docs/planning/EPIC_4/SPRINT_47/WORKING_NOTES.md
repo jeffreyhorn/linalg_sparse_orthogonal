@@ -1476,3 +1476,79 @@ Interpretation:
 
 - Sprint 47 remained in a narrow tooling-safety lane rather than drifting into
   framework redesign
+
+## Day 12
+
+**Objective:** Refresh the touched benchmark/example documentation so it
+matches the live Sprint 47 CLI and helper behavior, without broadening into
+unrelated tutorial or architecture-document churn.
+
+### Commands Run
+
+1. Re-read the touched benchmark/example docs and the live runtime surfaces:
+   - `sed -n '1,260p' benchmarks/README.md`
+   - `sed -n '1,220p' examples/README.md`
+   - `sed -n '640,760p' benchmarks/bench_main.c`
+   - `sed -n '1,120p' examples/example_eigs.c`
+2. Land the bounded Day 12 docs batch:
+   - `apply_patch` on:
+     - `benchmarks/README.md`
+     - `examples/README.md`
+
+### Day 12 Findings
+
+#### 1. The benchmark doc drift was narrow and specific
+
+After Days 5-8, the real benchmark doc gap was the live `bench_main` contract:
+
+- `--help`
+- malformed-input behavior
+- conflicting-mode rejection
+- the intentional `--reorder` ownership split
+
+Interpretation:
+
+- Sprint 47 did not need a broad benchmark-doc rewrite
+- it needed the touched README to state the live runtime contract clearly
+
+#### 2. `benchmarks/README.md` now matches the live `bench_main` behavior
+
+The Day 12 update now makes explicit:
+
+- `bench_main`'s role as the main LU / Cholesky / SpMV / iterative harness
+- real `--help` support
+- explicit malformed-input diagnostics
+- conflicting-mode rejection
+- the intentional `none|rcm|amd|nd` `--reorder` surface
+- the handoff to `bench_reorder` / `bench_colamd` for COLAMD comparisons
+
+Interpretation:
+
+- the README now matches the Day 6 and Day 8 runtime contract
+
+#### 3. `examples/README.md` now matches the live helper/example state
+
+The Day 12 update now records:
+
+- the current small-example helper convention around
+  `examples/example_alloc_helpers.h`
+- the full three-part `example_eigs` story, including the explicit LOBPCG +
+  IC(0) `bcsstk04` section
+
+Interpretation:
+
+- the example docs now reflect both the Day 10 helper adoption direction and
+  the actual runtime behavior of `example_eigs`
+
+#### 4. The docs batch stayed bounded
+
+No Day 12 changes were needed in:
+
+- top-level `README.md`
+- tutorial docs
+- broad example narrative restructuring
+- broader benchmark implementation comments
+
+Interpretation:
+
+- Sprint 47 stayed inside the touched benchmark/example documentation surface

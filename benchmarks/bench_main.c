@@ -8,6 +8,8 @@
  *   ./bench_main --dir PATH                Benchmark all .mtx files in directory
  *   ./bench_main --dir PATH --pivot partial  Use partial pivoting (default: complete)
  *   ./bench_main --reorder none|rcm|amd|nd   Apply fill-reducing reordering
+ *                                            (use bench_reorder / bench_colamd
+ *                                             for COLAMD comparisons)
  *   ./bench_main --cholesky                  Use Cholesky instead of LU (SPD matrices only)
  *   ./bench_main --spmv [matrix.mtx|--dir PATH]  SpMV-only benchmark (throughput, MFLOP/s)
  *   ./bench_main --iterative [matrix.mtx|--dir PATH]  Iterative solver benchmark
@@ -75,7 +77,7 @@ static SparseMatrix *generate_sparse(idx_t n, unsigned seed) {
 
 /* ─── Benchmark a single matrix ─────────────────────────────────────── */
 
-static const char *reorder_name(sparse_reorder_t r) {
+static const char *bench_main_reorder_name(sparse_reorder_t r) {
     switch (r) {
     case SPARSE_REORDER_NONE:
         return "none";
@@ -83,10 +85,10 @@ static const char *reorder_name(sparse_reorder_t r) {
         return "rcm";
     case SPARSE_REORDER_AMD:
         return "amd";
-    case SPARSE_REORDER_COLAMD:
-        return "colamd";
     case SPARSE_REORDER_ND:
         return "nd";
+    case SPARSE_REORDER_COLAMD:
+        return "unsupported-colamd";
     }
     return "unknown";
 }
@@ -101,7 +103,7 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot, sparse
     printf("Solver:  %s\n", use_cholesky ? "Cholesky" : "LU");
     if (!use_cholesky)
         printf("Pivot:   %s\n", pivot == SPARSE_PIVOT_PARTIAL ? "partial" : "complete");
-    printf("Reorder: %s\n", reorder_name(reorder));
+    printf("Reorder: %s\n", bench_main_reorder_name(reorder));
     printf("Repeats: %d\n", repeats);
     printf("Bandwidth: %d\n\n", (int)sparse_bandwidth(A));
 
@@ -339,7 +341,7 @@ static void benchmark_dir(const char *dirpath, int repeats, sparse_pivot_t pivot
 
     const char *piv_name = (pivot == SPARSE_PIVOT_PARTIAL) ? "partial" : "complete";
     printf("=== Benchmarking %s (pivot=%s, reorder=%s, repeats=%d) ===\n\n", dirpath, piv_name,
-           reorder_name(reorder), repeats);
+           bench_main_reorder_name(reorder), repeats);
     printf("%-20s %5s %7s %9s %6s  %10s %10s %10s %10s  %10s  %10s\n", "name", "n", "nnz", "nnz_LU",
            "fill", "factor(ms)", "solve(ms)", "spmv(ms)", "memory", "residual", "condest");
     printf("%-20s %5s %7s %9s %6s  %10s %10s %10s %10s  %10s  %10s\n", "----", "-----", "-------",
@@ -639,6 +641,10 @@ static const sparse_cli_choice_t bench_main_reorder_choices[] = {
     {"nd", SPARSE_REORDER_ND},
 };
 
+static const char *bench_main_reorder_hint =
+    "use 'none', 'rcm', 'amd', or 'nd'; use bench_reorder or bench_colamd "
+    "for COLAMD comparisons";
+
 static void bench_main_print_usage(FILE *stream) {
     fprintf(stream, "Usage: bench_main [options] [matrix.mtx]\n"
                     "  --size N                  Generate NxN diag-dominant random sparse\n"
@@ -646,6 +652,8 @@ static void bench_main_print_usage(FILE *stream) {
                     "  --dir PATH                Benchmark all .mtx files in directory\n"
                     "  --pivot MODE              Pivot mode: partial|complete\n"
                     "  --reorder MODE            Reorder mode: none|rcm|amd|nd\n"
+                    "                           Use bench_reorder / bench_colamd\n"
+                    "                           for COLAMD comparisons\n"
                     "  --cholesky                Use Cholesky instead of LU\n"
                     "  --spmv                    Run the SpMV-only benchmark\n"
                     "  --spmv-iters N            SpMV iterations (default: 1000)\n"
@@ -723,10 +731,10 @@ int main(int argc, char **argv) {
             int parsed_reorder = 0;
             const char *value = bench_main_require_value(tool, "--reorder", argc, argv, &i);
             if (!value ||
-                !sparse_cli_parse_choice_arg(
-                    tool, "--reorder", value, bench_main_reorder_choices,
-                    sizeof(bench_main_reorder_choices) / sizeof(bench_main_reorder_choices[0]),
-                    &parsed_reorder, "use 'none', 'rcm', 'amd', or 'nd'")) {
+                !sparse_cli_parse_choice_arg(tool, "--reorder", value, bench_main_reorder_choices,
+                                             sizeof(bench_main_reorder_choices) /
+                                                 sizeof(bench_main_reorder_choices[0]),
+                                             &parsed_reorder, bench_main_reorder_hint)) {
                 return 1;
             }
             reorder = (sparse_reorder_t)parsed_reorder;

@@ -1029,3 +1029,126 @@ The correct Day 8 non-goals are:
 Interpretation:
 
 - Sprint 47’s next implementation batch is now concrete rather than generic
+
+## Day 8
+
+**Objective:** Land the bounded reorder-mode / emitted-label parity cleanup in
+`bench_main.c` by making the supported `--reorder` surface, printed labels, and
+user guidance line up cleanly with the intended benchmark ownership split,
+without broadening into peer benchmark rewrites or example/script work.
+
+### Commands Run
+
+1. Re-read the Sprint 47 Day 8 plan section:
+   - `sed -n '237,268p' docs/planning/EPIC_4/SPRINT_47/PLAN.md`
+2. Re-read the Day 7 audit and the current benchmark ownership notes:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_47/artifacts/day7-post-bench-main-audit.md`
+   - `sed -n '1,90p' benchmarks/README.md`
+   - `sed -n '650,666p' docs/planning/EPIC_3/SPRINT_37/WORKING_NOTES.md`
+3. Re-read the live `bench_main` reorder surface and the older review note:
+   - `sed -n '1,140p' benchmarks/bench_main.c`
+   - `sed -n '632,760p' benchmarks/bench_main.c`
+   - `sed -n '188,206p' docs/planning/EPIC_4/reviews/review-codex-2026-05-21.md`
+4. Refresh the current parity markers and peer benchmark ownership surfaces:
+   - `rg -n "bench_main --reorder|Reorder:|colamd|bench_reorder|bench_colamd" README.md docs benchmarks -g '!docs/planning/EPIC_4/SPRINT_47/**'`
+   - `./build/bench_main --reorder colamd`
+5. Land the Day 8 code batch:
+   - `apply_patch` on:
+     - `benchmarks/bench_main.c`
+6. Run the required gate plus the stronger reviewed baseline:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+7. Run direct touched-surface CLI sanity checks:
+   - `./build/bench_main --help`
+   - `./build/bench_main --reorder nd --size 8 --repeat 1`
+   - `./build/bench_main --reorder colamd`
+
+### Day 8 Findings
+
+#### 1. The right Day 8 fix was to clarify the main benchmark surface, not widen it
+
+The current benchmark contract still intentionally splits reorder ownership:
+
+- `bench_main`:
+  - `none`
+  - `rcm`
+  - `amd`
+  - `nd`
+- `bench_reorder`:
+  - broader `none|rcm|amd|colamd|nd` comparison surface
+- `bench_colamd`:
+  - QR/COLAMD-focused comparison surface
+
+Interpretation:
+
+- the correct Day 8 move was not “accept every enum in `bench_main`”
+- the correct move was to make `bench_main`’s supported surface, labels, and
+  guidance internally consistent
+
+#### 2. `bench_main` no longer carries the internal `colamd` drift
+
+Before Day 8:
+
+- `reorder_name()` knew about `colamd`
+- the parser and help text did not
+
+After Day 8:
+
+- `bench_main` uses a main-benchmark-specific reorder label path
+- help/usage text and runtime labels now align with the supported main surface
+- unsupported `colamd` input now points users to:
+  - `bench_reorder`
+  - `bench_colamd`
+
+Interpretation:
+
+- the remaining internal drift identified on Day 7 is now gone
+
+#### 3. The direct CLI proof shows the intended parity behavior
+
+The touched surface was exercised directly:
+
+- `--help` now documents the supported main-benchmark reorder set and the
+  specialized COLAMD handoff
+- valid `--reorder nd` input succeeds and reports `Reorder: nd`
+- unsupported `--reorder colamd` input fails with an explicit handoff message
+
+Interpretation:
+
+- Day 8 improved the user-facing benchmark contract without changing the
+  benchmark capability boundary
+
+#### 4. The peer benchmark ownership boundary held
+
+No Day 8 changes were needed in:
+
+- `bench_reorder.c`
+- `bench_colamd.c`
+- `bench_eigs.c`
+
+Interpretation:
+
+- the batch stayed narrow and respected the ownership split confirmed on Day 7
+- Sprint 47 did not drift back into broad peer benchmark churn
+
+#### 5. Validation stayed fully green for the touched parity batch
+
+Because `*.c` changed, the required gate was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Those passed.
+
+The stronger reviewed baseline also passed:
+
+- `make quality-review-full`
+
+Interpretation:
+
+- the parity cleanup did not regress the maintained local reviewed contract
+- Sprint 47 can now move into the later example/tooling/docs queue from a clean
+  benchmark front-half baseline

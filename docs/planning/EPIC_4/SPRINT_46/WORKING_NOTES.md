@@ -1789,3 +1789,181 @@ Interpretation:
   surface
 - Sprint 46 can move to documentation/residual audit work from a reviewed green
   baseline
+
+## Day 12
+
+**Objective:** Document the internal eigensolver workspace/state contract now
+established by Sprint 46, classify the residual repeated-allocation seams still
+visible in the eigensolver surface, and fix the exact Day 13 validation sweep
+shape before sprint closeout.
+
+### Commands Run
+
+1. Re-read the Sprint 46 Day 12 plan section:
+   - `sed -n '348,382p' docs/planning/EPIC_4/SPRINT_46/PLAN.md`
+2. Re-read the Day 11 benchmark closeout:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_46/artifacts/day11-repeated-run-benchmark-batch.md`
+3. Re-read the closest prior contract/audit artifact shape:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_45/artifacts/day12-workspace-contract-and-residual-audit.md`
+4. Re-read the live private eigensolver workspace contract surface:
+   - `sed -n '1,240p' src/sparse_eigs_workspace_internal.h`
+   - `sed -n '1,240p' src/sparse_eigs_workspace_internal.c`
+   - `sed -n '1,220p' src/sparse_eigs_internal.h`
+5. Sweep the live residual eigensolver surface for still-local allocation seams:
+   - `rg -n "sparse_eigs_workspace_t|malloc\\(|calloc\\(|free\\(" src/sparse_eigs.c src/sparse_eigs_workspace_internal.c src/sparse_eigs_internal.h include/sparse_eigs.h`
+6. Write the Day 12 docs/residual audit artifact:
+   - `docs/planning/EPIC_4/SPRINT_46/artifacts/day12-workspace-contract-memory-behavior-and-residual-audit.md`
+
+### Day 12 Findings
+
+#### 1. Sprint 46 now has a clear internal eigensolver workspace/state contract
+
+The live private workspace/state contract is now centered on:
+
+- `src/sparse_eigs_workspace_internal.h`
+- `src/sparse_eigs_workspace_internal.c`
+- `src/sparse_eigs_internal.h`
+
+The shared owner now holds:
+
+- contiguous `double` / `idx_t` / `int` storage
+- checked capacity metadata
+- dimension/family capacity tracking:
+  - `n_capacity`
+  - `lanczos_capacity`
+  - `restart_capacity`
+  - `block_capacity`
+
+Typed reusable views are prepared from that owner for:
+
+- grow-m Lanczos
+- thick-restart Lanczos
+- LOBPCG
+
+Interpretation:
+
+- Sprint 46 now leaves behind a real internal workspace/state contract surface
+- later Epic 4 work can extend this without inventing a new ownership model
+
+#### 2. The shared workspace layer owns storage/layout, not solver policy
+
+The shared eigensolver workspace seam owns:
+
+- storage ownership
+- checked reserve/grow behavior
+- typed view derivation
+- cheap reuse across stable dimensions
+- zero/reset behavior for reused buffers
+
+It does **not** own:
+
+- convergence policy
+- Ritz extraction policy
+- refinement policy
+- restart/locking orchestration
+- shift-invert factor ownership
+- public result-buffer ownership
+- benchmark/reporting policy
+
+Interpretation:
+
+- maintainers should treat this as a storage/layout layer
+- algorithm policy remains local to the solver implementations
+
+#### 3. The direct migrated reusable-workspace set is now explicit
+
+After Day 11, the direct reusable-workspace adoption set is:
+
+- grow-m Lanczos
+- thick-restart Lanczos
+- LOBPCG
+
+The public compatibility wrapper shape is now also explicit:
+
+- `sparse_eigs_sym(...)`
+  - remains the one-shot public entry
+- `sparse_eigs_sym_with_workspace_internal(...)`
+  - is the bounded internal repeated-run seam used by the Day 11 benchmark
+
+Interpretation:
+
+- Sprint 46 materially covered the main eigensolver-family repeated-allocation
+  targets it chose
+- there is no hidden remaining grow-m/thick-restart/LOBPCG migration queue
+  inside this sprint
+
+#### 4. The residual eigensolver surface now classifies cleanly
+
+Residual Class A: family-local helper scratch and state that remain
+intentionally local
+
+- Day 5/6/8 shared-owner migrations did **not** absorb:
+  - refinement scratch in `s29_refine_eigenpairs(...)`
+  - dense Jacobi scratch and arrowhead-to-tridiagonal helper scratch
+  - `lanczos_restart_state_t` owned locked/restart buffers
+
+Interpretation:
+
+- these are real allocations, but they are solver-local helper/state seams
+  rather than the main repeated-run bundle the shared owner was created to
+  absorb
+- they belong to later specialization/unification work, not Sprint 46
+  incompleteness
+
+Residual Class B: benchmark/example/public-buffer surfaces
+
+- caller-owned `sparse_eigs_t` output buffers
+- `benchmarks/bench_eigs.c`
+- `benchmarks/bench_eigs_reuse.c`
+- `examples/example_eigs.c`
+
+Interpretation:
+
+- these are composition/evidence surfaces, not workspace-owner gaps
+- Sprint 46 intentionally does not turn them into a public explicit workspace
+  API or a broad benchmark framework
+
+Residual Class C: later Epic 4 non-goals
+
+- public explicit eigensolver workspace APIs
+- broad benchmark CLI redesign
+- broad public docs/tutorial refresh for repeated-run guidance
+- corpus-wide repeated-run benchmark expansion
+
+Interpretation:
+
+- Sprint 46 intentionally does not solve these
+- they should be handed forward explicitly rather than treated as hidden sprint
+  incompleteness
+
+#### 5. The Day 13 validation shape is now fixed explicitly
+
+The authoritative Day 13 sweep should be:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+The targeted follow-ons justified by the touched Sprint 46 surface are:
+
+- `./build/test_eigs`
+- `./build/test_eigs_thick_restart`
+- `./build/test_eigs_lobpcg`
+- `./build/example_eigs`
+- `./build/bench_eigs_reuse`
+
+Interpretation:
+
+- the validation floor is explicit
+- the follow-ons stay bounded to the sprint’s real touched surfaces
+
+#### 6. Day 12 is docs-only and does not need a new code-validation pass
+
+Day 12 only documents and classifies the already-landed Sprint 46 state.
+
+Interpretation:
+
+- there is no new `*.c` / `*.h` change to validate here
+- the sprint can carry the Day 11 green baseline directly into the Day 13
+  full sweep

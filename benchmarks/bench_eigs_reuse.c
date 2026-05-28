@@ -55,6 +55,8 @@ static double max_abs_eig_diff(const sparse_eigs_t *a, const sparse_eigs_t *b) {
     return max_diff;
 }
 
+static double abs_diff(double a, double b) { return fabs(a - b); }
+
 static sparse_err_t run_repeated_case(const char *name, const char *path, idx_t k,
                                       sparse_eigs_backend_t backend, idx_t repeats) {
     SparseMatrix *A = NULL;
@@ -121,6 +123,10 @@ static sparse_err_t run_repeated_case(const char *name, const char *path, idx_t 
     double med_reuse = median_double(times_reuse, repeats);
     int parity_match = (one_err == reuse_err) && (one_shot.n_converged == reuse.n_converged);
     double max_eig_diff = parity_match ? max_abs_eig_diff(&one_shot, &reuse) : NAN;
+    double residual_diff =
+        parity_match ? abs_diff(one_shot.residual_norm, reuse.residual_norm) : NAN;
+    const double eig_tol = 1e-9;
+    const double residual_tol = 1e-12;
 
     printf("  %-24s one-shot=%8.4f ms  reuse=%8.4f ms  speedup=%5.2fx\n", name, med_one * 1000.0,
            med_reuse * 1000.0, med_reuse > 0.0 ? med_one / med_reuse : 0.0);
@@ -140,6 +146,19 @@ static sparse_err_t run_repeated_case(const char *name, const char *path, idx_t 
     if (one_err != SPARSE_OK) {
         printf("    parity:        FAILED matched non-success status=%d\n", (int)one_err);
         err = SPARSE_ERR_NOT_CONVERGED;
+        goto cleanup;
+    }
+    if (one_shot.iterations != reuse.iterations) {
+        printf("    parity:        FAILED iter_one=%d iter_reuse=%d\n", (int)one_shot.iterations,
+               (int)reuse.iterations);
+        err = SPARSE_ERR_BADARG;
+        goto cleanup;
+    }
+    if (max_eig_diff > eig_tol || residual_diff > residual_tol) {
+        printf("    parity:        FAILED |lambda|max diff=%.3e relres diff=%.3e "
+               "(tol eig=%.1e relres=%.1e)\n",
+               max_eig_diff, residual_diff, eig_tol, residual_tol);
+        err = SPARSE_ERR_BADARG;
         goto cleanup;
     }
     printf("    parity:        |lambda|max diff=%.3e backend=%d\n", max_eig_diff,

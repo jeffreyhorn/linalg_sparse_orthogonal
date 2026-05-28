@@ -632,6 +632,37 @@ static const sparse_cli_choice_t bench_main_pivot_choices[] = {
     {"complete", SPARSE_PIVOT_COMPLETE},
 };
 
+static const sparse_cli_choice_t bench_main_reorder_choices[] = {
+    {"none", SPARSE_REORDER_NONE},
+    {"rcm", SPARSE_REORDER_RCM},
+    {"amd", SPARSE_REORDER_AMD},
+    {"nd", SPARSE_REORDER_ND},
+};
+
+static void bench_main_print_usage(FILE *stream) {
+    fprintf(stream, "Usage: bench_main [options] [matrix.mtx]\n"
+                    "  --size N                  Generate NxN diag-dominant random sparse\n"
+                    "  --repeat R                Average over R repetitions (default: 3)\n"
+                    "  --dir PATH                Benchmark all .mtx files in directory\n"
+                    "  --pivot MODE              Pivot mode: partial|complete\n"
+                    "  --reorder MODE            Reorder mode: none|rcm|amd|nd\n"
+                    "  --cholesky                Use Cholesky instead of LU\n"
+                    "  --spmv                    Run the SpMV-only benchmark\n"
+                    "  --spmv-iters N            SpMV iterations (default: 1000)\n"
+                    "  --iterative               Run the iterative-solver benchmark\n"
+                    "  --help, -h                Show this help text\n");
+}
+
+static const char *bench_main_require_value(const char *tool, const char *flag, int argc,
+                                            char **argv, int *i) {
+    if (*i + 1 >= argc) {
+        fprintf(stderr, "%s: %s requires a value\n", tool, flag);
+        return NULL;
+    }
+    *i += 1;
+    return argv[*i];
+}
+
 /* ─── Main ──────────────────────────────────────────────────────────── */
 
 int main(int argc, char **argv) {
@@ -648,61 +679,79 @@ int main(int argc, char **argv) {
     const char *tool = "bench_main";
 
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--spmv") == 0) {
+        if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            bench_main_print_usage(stdout);
+            return 0;
+        } else if (strcmp(argv[i], "--spmv") == 0) {
             mode_spmv = 1;
         } else if (strcmp(argv[i], "--iterative") == 0) {
             mode_iterative = 1;
-        } else if (strcmp(argv[i], "--spmv-iters") == 0 && i + 1 < argc) {
-            if (!sparse_cli_parse_int_arg(tool, "--spmv-iters", argv[++i], 1, INT_MAX,
-                                          &spmv_iters)) {
+        } else if (strcmp(argv[i], "--spmv-iters") == 0) {
+            const char *value = bench_main_require_value(tool, "--spmv-iters", argc, argv, &i);
+            if (!value ||
+                !sparse_cli_parse_int_arg(tool, "--spmv-iters", value, 1, INT_MAX, &spmv_iters)) {
                 return 1;
             }
-        } else if (strcmp(argv[i], "--size") == 0 && i + 1 < argc) {
+        } else if (strcmp(argv[i], "--size") == 0) {
             long parsed_size = 0;
-            if (!sparse_cli_parse_long_arg(tool, "--size", argv[++i], 1, (long)INT_MAX,
-                                           &parsed_size)) {
+            const char *value = bench_main_require_value(tool, "--size", argc, argv, &i);
+            if (!value ||
+                !sparse_cli_parse_long_arg(tool, "--size", value, 1, (long)INT_MAX, &parsed_size)) {
                 return 1;
             }
             size = (idx_t)parsed_size;
-        } else if (strcmp(argv[i], "--repeat") == 0 && i + 1 < argc) {
-            if (!sparse_cli_parse_int_arg(tool, "--repeat", argv[++i], 1, INT_MAX, &repeats))
+        } else if (strcmp(argv[i], "--repeat") == 0) {
+            const char *value = bench_main_require_value(tool, "--repeat", argc, argv, &i);
+            if (!value || !sparse_cli_parse_int_arg(tool, "--repeat", value, 1, INT_MAX, &repeats))
                 return 1;
-        } else if (strcmp(argv[i], "--dir") == 0 && i + 1 < argc) {
-            dirpath = argv[++i];
-        } else if (strcmp(argv[i], "--pivot") == 0 && i + 1 < argc) {
+        } else if (strcmp(argv[i], "--dir") == 0) {
+            dirpath = bench_main_require_value(tool, "--dir", argc, argv, &i);
+            if (!dirpath)
+                return 1;
+        } else if (strcmp(argv[i], "--pivot") == 0) {
             int parsed_pivot = 0;
-            if (!sparse_cli_parse_choice_arg(tool, "--pivot", argv[++i], bench_main_pivot_choices,
+            const char *value = bench_main_require_value(tool, "--pivot", argc, argv, &i);
+            if (!value ||
+                !sparse_cli_parse_choice_arg(tool, "--pivot", value, bench_main_pivot_choices,
                                              sizeof(bench_main_pivot_choices) /
                                                  sizeof(bench_main_pivot_choices[0]),
                                              &parsed_pivot, "use 'partial' or 'complete'")) {
                 return 1;
             }
             pivot = (sparse_pivot_t)parsed_pivot;
-        } else if (strcmp(argv[i], "--reorder") == 0 && i + 1 < argc) {
-            i++;
-            if (strcmp(argv[i], "none") == 0)
-                reorder = SPARSE_REORDER_NONE;
-            else if (strcmp(argv[i], "rcm") == 0)
-                reorder = SPARSE_REORDER_RCM;
-            else if (strcmp(argv[i], "amd") == 0)
-                reorder = SPARSE_REORDER_AMD;
-            else if (strcmp(argv[i], "nd") == 0)
-                reorder = SPARSE_REORDER_ND;
-            else {
-                fprintf(stderr,
-                        "Error: unknown reorder mode '%s' (use 'none', 'rcm', 'amd', or 'nd')\n",
-                        argv[i]);
+        } else if (strcmp(argv[i], "--reorder") == 0) {
+            int parsed_reorder = 0;
+            const char *value = bench_main_require_value(tool, "--reorder", argc, argv, &i);
+            if (!value ||
+                !sparse_cli_parse_choice_arg(
+                    tool, "--reorder", value, bench_main_reorder_choices,
+                    sizeof(bench_main_reorder_choices) / sizeof(bench_main_reorder_choices[0]),
+                    &parsed_reorder, "use 'none', 'rcm', 'amd', or 'nd'")) {
                 return 1;
             }
+            reorder = (sparse_reorder_t)parsed_reorder;
         } else if (strcmp(argv[i], "--cholesky") == 0) {
             use_cholesky = 1;
         } else if (argv[i][0] != '-') {
+            if (filename) {
+                fprintf(stderr, "%s: multiple input files provided ('%s' and '%s')\n", tool,
+                        filename, argv[i]);
+                return 1;
+            }
             filename = argv[i];
+        } else {
+            fprintf(stderr, "%s: unknown option '%s' (try --help)\n", tool, argv[i]);
+            return 1;
         }
     }
 
-    if (repeats < 1) {
-        fprintf(stderr, "Error: --repeat must be >= 1\n");
+    if (mode_spmv && mode_iterative) {
+        fprintf(stderr, "%s: choose only one mode: --spmv or --iterative\n", tool);
+        return 1;
+    }
+
+    if (filename && dirpath) {
+        fprintf(stderr, "%s: cannot combine a matrix path with --dir\n", tool);
         return 1;
     }
 

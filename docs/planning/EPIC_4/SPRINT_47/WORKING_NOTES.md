@@ -735,3 +735,167 @@ and not:
 Interpretation:
 
 - Sprint 47 remains helper-first and benchmark-main-first, exactly as intended
+
+## Day 6
+
+**Objective:** Widen the Day 5 helper landing into `bench_main.c` by replacing
+the remaining ad hoc parser branches, tightening malformed-input and
+unsupported-option handling, and validating the modernized main benchmark CLI
+without widening yet into the later reorder-mode parity batch.
+
+### Commands Run
+
+1. Re-read the Sprint 47 Day 6 plan section:
+   - `sed -n '193,221p' docs/planning/EPIC_4/SPRINT_47/PLAN.md`
+2. Re-read the Day 5 helper landing artifact:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_47/artifacts/day5-shared-cli-parsing-helper-batch.md`
+3. Re-read the live `bench_main.c` parser and dispatch body:
+   - `sed -n '1,260p' benchmarks/bench_main.c`
+   - `sed -n '260,520p' benchmarks/bench_main.c`
+   - `sed -n '520,820p' benchmarks/bench_main.c`
+4. Refresh the current parser drift markers and the peer help/unknown-option
+   shape in `bench_eigs.c`:
+   - `rg -n "unknown|help|Usage:|argv\\[i\\]\\[0\\] != '-'|--reorder|--dir|--cholesky|--iterative|--spmv" benchmarks/bench_main.c`
+   - `rg -n "parse_choice|unknown option|--help|Usage:" benchmarks/bench_eigs.c`
+5. Land the Day 6 code batch:
+   - `apply_patch` on:
+     - `benchmarks/bench_main.c`
+6. Run the required gate plus the stronger reviewed baseline:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+7. Run direct touched-surface CLI sanity checks:
+   - `./build/bench_main --help`
+   - `./build/bench_main --reorder amd --size 8 --repeat 1`
+   - `./build/bench_main --reorder`
+   - `./build/bench_main --bogus`
+   - `./build/bench_main --spmv --iterative`
+
+### Day 6 Findings
+
+#### 1. The remaining `bench_main` drift was real parser behavior, not just style
+
+Before Day 6, `bench_main.c` still had:
+
+- an ad hoc `--reorder` parse branch
+- no explicit `--help` / `-h` handling
+- weak missing-value behavior for string-valued options
+- no consistent unknown-option rejection
+
+Interpretation:
+
+- Day 6 needed to be a real main-CLI behavior cleanup, not only a cosmetic
+  helper-follow-on
+
+#### 2. `bench_main` is now a full shared-helper consumer on the intended parser set
+
+After the Day 6 batch, `bench_main.c` now routes:
+
+- `--spmv-iters`
+- `--size`
+- `--repeat`
+- `--pivot`
+- `--reorder`
+
+through the shared parsing helper seam or the same explicit value-requirement
+shape.
+
+Interpretation:
+
+- the main benchmark CLI no longer mixes a modern helper path with a legacy
+  mode-string parser on the highest-signal argument set
+
+#### 3. Help and malformed-input behavior are now explicit
+
+The Day 6 batch added:
+
+- `--help`
+- `-h`
+
+and explicit missing-value failures for:
+
+- `--spmv-iters`
+- `--size`
+- `--repeat`
+- `--dir`
+- `--pivot`
+- `--reorder`
+
+Interpretation:
+
+- `bench_main` now behaves more like a maintained CLI surface and less like a
+  thin benchmark harness with incidental parsing
+
+#### 4. Unsupported and conflicting input reporting is now clearer
+
+The modernized CLI now rejects:
+
+- unknown options
+- multiple positional matrix inputs
+- mixed matrix path plus `--dir`
+- mixed `--spmv` plus `--iterative`
+
+Interpretation:
+
+- Day 6 improved user-facing failure clarity without changing benchmark feature
+  scope
+- the batch stayed within parser/error-reporting modernization rather than
+  becoming a capability redesign
+
+#### 5. The direct CLI proof already shows the intended Day 6 contract
+
+The touched surface was exercised directly:
+
+- `--help` now prints usage and exits cleanly
+- valid `--reorder amd` input completes successfully and reports `Reorder: amd`
+- missing `--reorder` value fails with a clear message
+- unknown option fails with a clear `try --help` message
+- conflicting `--spmv` and `--iterative` flags fail with a clear exclusivity
+  message
+
+Interpretation:
+
+- Day 6 proved both the positive path and the clearer malformed/unsupported
+  input paths
+
+#### 6. Validation stayed fully green for the broader main-CLI batch
+
+Because `*.c` changed, the required gate was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Those all passed.
+
+The stronger reviewed baseline also passed:
+
+- `make quality-review-full`
+
+including the reviewed CMake parity path:
+
+- `53 / 53` tests passed
+
+Interpretation:
+
+- the broader `bench_main` modernization did not regress the maintained local
+  reviewed contract
+- Sprint 47 can now move into the Day 7 audit and Day 8 parity batch from a
+  fully green main-CLI baseline
+
+#### 7. Day 7 is now correctly constrained
+
+After Day 6, the next correct step is:
+
+- audit the residual benchmark drift honestly
+
+and not:
+
+- reopen main parser modernization
+- jump straight into broad peer benchmark/example churn
+
+Interpretation:
+
+- the sprint remains sequenced correctly: helper seam first, main CLI second,
+  residual audit next, parity cleanup after that

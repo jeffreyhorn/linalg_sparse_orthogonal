@@ -1552,3 +1552,159 @@ No Day 12 changes were needed in:
 Interpretation:
 
 - Sprint 47 stayed inside the touched benchmark/example documentation surface
+
+## Day 13
+
+**Objective:** Run the full Sprint 47 validation sweep against the landed
+benchmark CLI, example, tooling, and docs work, then confirm the direct
+auxiliary surfaces still behave correctly before closeout.
+
+### Commands Run
+
+1. Re-read the Sprint 47 Day 13 plan section:
+   - `sed -n '348,382p' docs/planning/EPIC_4/SPRINT_47/PLAN.md`
+2. Re-read the Day 12 docs refresh and the Day 11 tooling cleanup contract:
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_47/artifacts/day12-benchmark-example-docs-refresh.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_47/artifacts/day11-auxiliary-tooling-safety-cleanup-batch.md`
+3. Run the authoritative validation floor plus reviewed proof:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+4. Run the targeted auxiliary follow-ons justified by the touched Sprint 47
+   surface:
+   - `make tooling-build`
+   - `./build/bench_main --help`
+   - `./build/bench_main --reorder nd --size 8 --repeat 1`
+   - `./build/bench_main --reorder colamd`
+   - `./build/example_eigs`
+   - `python3 -m py_compile scripts/deadcode_report.py`
+   - `bash -n scripts/deadcode_workflow.sh`
+   - synthetic valid and malformed `deadcode_report.py` checks
+5. Write the Day 13 validation artifact:
+   - `docs/planning/EPIC_4/SPRINT_47/artifacts/day13-full-validation-sweep.md`
+
+### Day 13 Findings
+
+#### 1. The full authoritative sweep passed cleanly
+
+The required validation floor passed:
+
+- `make format`
+- `make lint`
+- `make test`
+
+The stronger reviewed proof also passed:
+
+- `make quality-review-full`
+
+Interpretation:
+
+- Sprint 47’s benchmark CLI, example, tooling, and docs changes remain green
+  under the normal local gate
+- they also remain green under the strongest maintained reviewed baseline used
+  throughout Epic 4
+
+#### 2. The maintained truthfulness anchors stayed exact
+
+The reviewed CMake parity path inside `make quality-review-full` remained
+unchanged:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 186.24 sec`
+
+The reviewed path also kept the established closeout semantics:
+
+- `deadcode-check` passed
+- dead-code execution remained serialized
+
+Interpretation:
+
+- Sprint 47 did not disturb the maintained local reviewed baseline
+- the auxiliary cleanup work remains aligned with the established
+  Makefile/CMake parity contract from earlier Epic 4 sprints
+
+#### 3. The direct Sprint 47 follow-ons all stayed green
+
+The targeted reruns all passed:
+
+- `make tooling-build`
+  - built `16` benchmark binaries
+  - built `12` example binaries
+- `./build/bench_main --help`
+  - passed
+- `./build/bench_main --reorder nd --size 8 --repeat 1`
+  - passed
+- `./build/bench_main --reorder colamd`
+  - rejected unsupported input as intended
+  - exited with status `1`
+- `./build/example_eigs`
+  - passed
+- `python3 -m py_compile scripts/deadcode_report.py`
+  - passed
+- `bash -n scripts/deadcode_workflow.sh`
+  - passed
+- synthetic valid and malformed `deadcode_report.py` checks
+  - passed
+
+Interpretation:
+
+- the touched benchmark CLI remains correct on both normal and malformed-input
+  paths
+- the touched example still composes correctly with the helper convention
+- the auxiliary dead-code tooling remains strict on malformed inputs without
+  regressing its support path
+
+#### 4. The direct benchmark/example outputs still match the intended contract
+
+The benchmark/example reruns remained behaviorally honest:
+
+- `bench_main --help`
+  - now prints the real usage block and exits cleanly
+- `bench_main --reorder nd --size 8 --repeat 1`
+  - completed successfully
+  - reported `Reorder: nd`
+- `bench_main --reorder colamd`
+  - rejected the unsupported mode
+  - pointed users to `bench_reorder` / `bench_colamd`
+- `example_eigs`
+  - nos4 largest-eigenvalue demo converged `5 / 5`
+  - KKT nearest-sigma demo converged `3 / 3`
+  - bcsstk04 LOBPCG + IC(0) demo converged `3 / 3`
+
+Interpretation:
+
+- Sprint 47’s user-facing auxiliary surfaces still say what they do and do
+  what they say
+- the benchmark/example refresh did not drift into documentation-only claims
+  detached from the live binaries
+
+#### 5. One non-gating reviewed-build warning surfaced outside the touched Day 47 files
+
+The clean reviewed CMake rebuild emitted a non-failing warning in
+`bench_eigs_reuse.c`:
+
+- `-Wdouble-promotion` on `NAN` fallback expressions
+
+Interpretation:
+
+- this did not fail the maintained reviewed gate
+- it also did not come from a Sprint 47 touched file
+- it should be treated as auxiliary follow-on context, not a Day 13 blocker
+
+#### 6. No new Sprint-47-specific reconciliation queue surfaced
+
+After the full sweep and direct reruns, no Sprint 47-specific regressions
+appeared in:
+
+- benchmark CLI parsing
+- reorder-mode / emitted-label parity
+- example helper adoption
+- auxiliary dead-code tooling behavior
+- touched benchmark/example docs alignment
+
+Interpretation:
+
+- Sprint 47 is ready to enter Day 14 closeout from a measured validated state

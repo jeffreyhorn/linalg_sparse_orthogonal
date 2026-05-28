@@ -353,3 +353,108 @@ Interpretation:
 - Sprint 47 should stay benchmark-helper-first through the front half
 - examples and scripts should remain bounded follow-on surfaces rather than
   competing first-wave targets
+
+## Day 3
+
+**Objective:** Define the shared parsing-helper seam for benchmark/example
+auxiliary CLIs so Sprint 47 can modernize `bench_main` first, keep
+benchmark-specific semantics local, and avoid creating a broad public-facing or
+framework-level CLI abstraction.
+
+### Commands Run
+
+1. Re-read the Sprint 47 Day 3 plan section:
+   - `sed -n '94,127p' docs/planning/EPIC_4/SPRINT_47/PLAN.md`
+2. Re-read the Day 2 inventory artifact:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_47/artifacts/day2-cli-and-auxiliary-surface-inventory.md`
+3. Re-read the main `bench_main` argument loop and parse-related seam:
+   - `sed -n '620,760p' benchmarks/bench_main.c`
+4. Re-read the stronger parser reference surface in `bench_eigs.c`:
+   - `sed -n '740,960p' benchmarks/bench_eigs.c`
+5. Refresh the exact parser/helper markers across both benchmark binaries:
+   - `rg -n "parse_|strtol|strtod|atoi|Usage:|--help|unknown option|reorder" benchmarks/bench_main.c benchmarks/bench_eigs.c`
+
+### Day 3 Findings
+
+#### 1. The correct shared helper seam is small and mechanical, not semantic
+
+The live contrast is explicit:
+
+- `bench_main.c` needs checked parse mechanics and consistent diagnostics
+- `bench_eigs.c` already has stronger helpers, but still keeps command-specific
+  mode semantics local
+
+Interpretation:
+
+- Sprint 47 should share:
+  - positive/bounded integer parsing
+  - finite double parsing
+  - bounded mode-string matching patterns
+- Sprint 47 should not try to centralize:
+  - benchmark-specific usage text
+  - backend/preconditioner semantics
+  - command-specific aliases and policy
+
+#### 2. Parse-plus-range-check should be one helper contract, not two caller steps
+
+The Day 3 design should not split parsing into:
+
+- string-to-number conversion
+- then separate caller-side range enforcement
+
+Interpretation:
+
+- helpers should own both checked parse and the common lower-bound check
+- this is the main way to prevent `bench_main.c` from recreating the same drift
+  after helper adoption
+
+#### 3. The helper layer should be internal-only
+
+The live Sprint 47 targets are benchmark/example/tooling surfaces, not public
+library APIs.
+
+Interpretation:
+
+- the shared parser helper seam should not live under `include/`
+- it should be reusable by benchmark/example binaries without becoming a
+  supported public API surface
+
+#### 4. Reorder-mode parsing must stay caller-configured
+
+Day 2 already showed that reorder-mode parity is a separate Sprint 47 seam.
+
+Interpretation:
+
+- the shared helper layer should not hard-code today's `bench_main` reorder
+  set
+- callers should supply the accepted strings and own final mode policy
+- this preserves space for the Day 6 parity cleanup
+
+#### 5. `bench_main` remains the first intended consumer, while `bench_eigs.c` remains partly local
+
+The live parser evidence supports a bounded adoption model:
+
+- `bench_main.c` should adopt the new shared helper seam directly
+- `bench_eigs.c` should keep command-specific backend/preconditioner/mode logic
+  local even if a small shared numeric parser seam later helps it
+
+Interpretation:
+
+- Day 5 can stay narrow and high-value
+- Sprint 47 does not need to force both benchmark binaries into the same
+  full parser structure
+
+#### 6. The Day 3 design boundary is now fixed
+
+Sprint 47 should explicitly avoid designing:
+
+- a public CLI parsing API
+- a benchmark framework abstraction layer
+- a shared help/usage text renderer
+- a generalized shell/workflow parsing system
+
+Interpretation:
+
+- the right Sprint 47 helper seam is intentionally small
+- this preserves momentum toward Day 5 implementation without opening another
+  architecture sprint

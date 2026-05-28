@@ -1374,3 +1374,105 @@ Interpretation:
 
 - the example batch stayed bounded
 - Sprint 47 did not turn into a broad example rewrite
+
+## Day 11
+
+**Objective:** Land the bounded auxiliary tooling cleanup by tightening the
+dead-code workflow support path around malformed coverage metadata and malformed
+compile-database entries, without redesigning the broader dead-code workflow
+contract.
+
+### Commands Run
+
+1. Re-read the Sprint 47 Day 11 plan section:
+   - `sed -n '309,390p' docs/planning/EPIC_4/SPRINT_47/PLAN.md`
+2. Re-read the primary tooling targets and the Sprint 47 inventory/design notes:
+   - `sed -n '1,260p' scripts/deadcode_report.py`
+   - `sed -n '1,260p' scripts/deadcode_workflow.sh`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_47/artifacts/day2-cli-and-auxiliary-surface-inventory.md`
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_47/artifacts/day4-validation-and-peer-surface-landing-design.md`
+3. Re-read one existing bounded benchmark support seam for scope calibration:
+   - `sed -n '1,220p' benchmarks/bench_backend_compare_helpers.h`
+4. Refresh the live auxiliary weak-pattern markers:
+   - `rg -n "atoi|strtol|strtod|int\\(|assert |compile_commands_json|missing_benchmarks|missing_examples" scripts benchmarks examples -g '!docs/**'`
+5. Land the bounded Day 11 tooling batch:
+   - `apply_patch` on:
+     - `scripts/deadcode_report.py`
+     - `scripts/deadcode_workflow.sh`
+6. Run targeted touched-tool validation:
+   - `python3 -m py_compile scripts/deadcode_report.py`
+   - `bash -n scripts/deadcode_workflow.sh`
+   - synthetic valid artifact round-trip through:
+     - `python3 scripts/deadcode_report.py <tmpdir>`
+     - `python3 scripts/deadcode_report.py --check <tmpdir>`
+   - synthetic malformed coverage-note rejection via:
+     - `parse_coverage_notes(...)` on a bad temp file
+
+### Day 11 Findings
+
+#### 1. The right Day 11 target was the dead-code metadata path
+
+The strongest live script-side safety seam was the dead-code support path:
+
+- `scripts/deadcode_report.py`
+- `scripts/deadcode_workflow.sh`
+
+Interpretation:
+
+- Sprint 47 did not need a broad workflow rewrite
+- it needed stricter validation around malformed support metadata
+
+#### 2. `deadcode_report.py` now rejects malformed coverage-note input explicitly
+
+The Day 11 batch tightened `parse_coverage_notes(...)` so it now:
+
+- parses non-negative counts through an explicit helper
+- rejects malformed section entries
+- rejects unrecognized coverage-note lines
+- requires a `compile_commands_json` line
+
+Interpretation:
+
+- malformed coverage metadata now fails with a clearer contract instead of
+  depending on weaker implicit parsing assumptions
+
+#### 3. `deadcode_workflow.sh` now validates compile-database shape more clearly
+
+The embedded Python coverage-note generator now rejects:
+
+- invalid JSON
+- non-array compile databases
+- non-object entries
+- entries missing `file`
+- relative entries missing a usable `directory`
+
+Interpretation:
+
+- the workflow now fails earlier and more clearly when the compile database is
+  malformed
+
+#### 4. Script-level validation covered both success and failure paths
+
+The touched-tool validation covered:
+
+- Python syntax compilation
+- shell syntax validation
+- a synthetic valid artifact round-trip
+- a synthetic malformed coverage-note rejection path
+
+Interpretation:
+
+- Day 11 is grounded in direct support-code checks, not only code inspection
+
+#### 5. The batch stayed bounded
+
+No Day 11 changes were needed in:
+
+- peer benchmark drivers
+- examples
+- broader dead-code semantics or workflow topology
+
+Interpretation:
+
+- Sprint 47 remained in a narrow tooling-safety lane rather than drifting into
+  framework redesign

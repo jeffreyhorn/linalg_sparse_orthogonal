@@ -54,17 +54,34 @@ def require_file(path: Path) -> None:
         raise SystemExit(f"deadcode_report: required artifact missing: {path}")
 
 
+def parse_nonnegative_int(value: str, *, context: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise SystemExit(f"deadcode_report: invalid integer for {context}: {value!r}") from exc
+    if parsed < 0:
+        raise SystemExit(f"deadcode_report: negative integer for {context}: {value!r}")
+    return parsed
+
+
 def parse_coverage_notes(path: Path) -> dict[str, object]:
+    counts: dict[str, int] = {}
+    missing_benchmarks: list[str] = []
+    missing_examples: list[str] = []
+    compile_commands_json = ""
     data: dict[str, object] = {
-        "compile_commands_json": "",
-        "counts": {},
-        "missing_benchmarks": [],
-        "missing_examples": [],
+        "compile_commands_json": compile_commands_json,
+        "counts": counts,
+        "missing_benchmarks": missing_benchmarks,
+        "missing_examples": missing_examples,
     }
     section: Optional[str] = None
-    for raw_line in path.read_text().splitlines():
+    for lineno, raw_line in enumerate(path.read_text().splitlines(), start=1):
         line = raw_line.strip()
         if not line:
+            continue
+        if line == "Dead-code coverage notes":
+            section = None
             continue
         if line == "missing_benchmarks":
             section = "missing_benchmarks"
@@ -73,20 +90,30 @@ def parse_coverage_notes(path: Path) -> dict[str, object]:
             section = "missing_examples"
             continue
         if line.startswith("compile_commands_json "):
-            data["compile_commands_json"] = line.split(" ", 1)[1]
+            compile_commands_json = line.split(" ", 1)[1]
+            data["compile_commands_json"] = compile_commands_json
             section = None
             continue
-        if section and line.startswith("- "):
-            cast_list = data[section]
-            assert isinstance(cast_list, list)
-            cast_list.append(line[2:])
-            continue
-        if " " in line and section is None:
+        if section:
+            if line.startswith("- "):
+                if section == "missing_benchmarks":
+                    missing_benchmarks.append(line[2:])
+                else:
+                    missing_examples.append(line[2:])
+                continue
+            raise SystemExit(
+                f"deadcode_report: malformed coverage note at {path}:{lineno}: {line!r}"
+            )
+        if " " in line:
             key, value = line.split(" ", 1)
             if key in {"src", "tests", "benchmarks", "examples"}:
-                counts = data["counts"]
-                assert isinstance(counts, dict)
-                counts[key] = int(value)
+                counts[key] = parse_nonnegative_int(value, context=f"{path}:{lineno} {key}")
+                continue
+        raise SystemExit(
+            f"deadcode_report: unrecognized coverage note at {path}:{lineno}: {line!r}"
+        )
+    if not compile_commands_json:
+        raise SystemExit(f"deadcode_report: coverage notes missing compile_commands_json: {path}")
     return data
 
 

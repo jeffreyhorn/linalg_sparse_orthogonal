@@ -514,3 +514,126 @@ Interpretation:
 - Day 5 should land a narrow owner/view seam first
 - Day 6 should prove that seam on the simpler Lanczos families before LOBPCG
   joins it
+
+## Day 4
+
+**Objective:** Bound the shared eigensolver buffer-backed helper layer and the
+implementation-day validation contract so Day 5 can land one narrow internal
+workspace seam instead of reopening allocation policy, wrapper policy, or
+validation scope mid-implementation.
+
+### Commands Run
+
+1. Re-read the Sprint 46 Day 4 plan section:
+   - `sed -n '136,178p' docs/planning/EPIC_4/SPRINT_46/PLAN.md`
+2. Re-read the Day 3 reusable-workspace/state design:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_46/artifacts/day3-reusable-eigensolver-workspace-state-design.md`
+3. Re-read the Sprint 40 validation anchor:
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_40/artifacts/day13-validation-anchor-and-command-matrix.md`
+4. Refresh the maintained eigensolver test/example/benchmark/build surfaces:
+   - `rg -n "test_eigs|test_eigs_thick_restart|test_eigs_lobpcg|bench_eigs|example_eigs|quality-review-full|deadcode-check" Makefile CMakeLists.txt .github/workflows/ci.yml .github/workflows/macos-ci.yml .github/workflows/windows-ci.yml`
+5. Refresh the live shared-vs-local allocation seam markers:
+   - `rg -n "malloc|calloc|free|theta_|alpha|beta|sel_idx|workspace|restart_state|prepare" src/sparse_eigs.c`
+
+### Day 4 Findings
+
+#### 1. The shared eigensolver helper layer should be narrow and capacity-oriented
+
+The shared layer should own:
+
+- checked sizing for common eigensolver buffer shapes
+- contiguous internal storage ownership
+- reserve/grow helpers
+- typed prepare helpers for:
+  - grow-m Lanczos views
+  - thick-restart Lanczos views
+  - LOBPCG views
+- narrow reset/zero helpers for slices that require clean-state reuse
+
+Interpretation:
+
+- Day 5 should land one bounded internal owner/view seam
+- it should not migrate dense spectral math helpers or solver control flow into
+  the shared layer just because they allocate memory nearby
+
+#### 2. Several high-signal helpers should remain solver-local even after the shared owner lands
+
+Keep local to their families:
+
+- `lanczos_iterate_op(...)`
+- `s20_ritz_pairs(...)`
+- `s20_select_indices(...)`
+- arrowhead assembly / dense Jacobi logic
+- thick-restart lock-selection and restart-state choreography
+- LOBPCG RR-step sequencing and soft-lock policy
+- shift-invert factor and operator-composition handling
+
+Interpretation:
+
+- the shared layer is about ownership and slicing
+- eigensolver math kernels and algorithm sequencing stay in their current
+  solver-family codepaths
+
+#### 3. The common owner must support two different kinds of reuse cleanly
+
+The shared layer has to support:
+
+- stable-dimension repeated runs:
+  - same `n`
+  - same or smaller `k`
+  - same or smaller restart/block settings
+- bounded internal growth when later runs exceed prior dimensions
+
+It should not support:
+
+- preserving old Krylov, Ritz, restart, or search-direction mathematical state
+  as a cross-run semantic feature
+
+Interpretation:
+
+- reuse remains capacity reuse, not solver-history reuse
+- Day 5 / Day 6 should make that distinction explicit in helper naming and
+  reset behavior
+
+#### 4. The implementation-day validation contract is now fixed
+
+Mandatory for any `*.c` / `*.h` change:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Strong default for substantial shared-layer or migration batches:
+
+- `make quality-review-full`
+
+Targeted eigensolver follow-ons when the touched surface justifies them:
+
+- `./build/test_eigs`
+- `./build/test_eigs_thick_restart`
+- `./build/test_eigs_lobpcg`
+- `./build/example_eigs`
+- `./build/bench_eigs`
+
+Interpretation:
+
+- Day 5 and later code days should assume the full C gate always applies
+- the reviewed wrapper baseline should be used whenever the batch touches the
+  shared owner or multiple eigensolver families
+- direct example/benchmark reruns stay targeted rather than universal
+
+#### 5. The first code landing order is now locked in
+
+The correct implementation order remains:
+
+1. shared eigensolver owner + typed prepare helpers
+2. grow-m Lanczos migration
+3. thick-restart migration
+4. LOBPCG migration
+5. wrapper, benchmark, and memory-contract closeout
+
+Interpretation:
+
+- Day 5 should not broaden into algorithm migration yet
+- Day 6 should prove the shared owner on the simpler Lanczos families before
+  LOBPCG joins the reusable path

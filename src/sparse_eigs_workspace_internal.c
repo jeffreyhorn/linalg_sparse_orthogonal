@@ -160,7 +160,7 @@ sparse_eigs_workspace_prepare_thick_restart(sparse_eigs_workspace_t *ws, idx_t n
 
     size_t total = 0;
     size_t pieces[] = {v_elems, m_restart_size, m_restart_size, n_size, n_size, K2, m_restart_size,
-                       K2,      k_size,         vk_elems,       k_size, k_size};
+                       K2,      vk_elems,       k_size,         k_size};
     for (size_t i = 0; i < sizeof(pieces) / sizeof(pieces[0]); i++) {
         if (sparse_size_add_overflow(total, pieces[i], &total))
             return SPARSE_ERR_ALLOC;

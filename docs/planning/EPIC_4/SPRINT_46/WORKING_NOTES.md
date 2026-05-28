@@ -2131,3 +2131,132 @@ Interpretation:
 - Sprint 46 can move into Day 14 closeout from a measured validated state
 - no extra late-sprint cleanup batch is needed beyond the already-planned
   closeout/handoff work
+
+## Day 14
+
+**Objective:** Close Sprint 46 with one coherent eigensolver workspace reuse
+handoff, record the exact later-work boundaries that remain intentionally
+deferred, and confirm whether any immediate `PROJECT_PLAN.md` adjustment is
+required.
+
+### Commands Run
+
+1. Re-read the Sprint 46 Day 14 plan section:
+   - `sed -n '420,455p' docs/planning/EPIC_4/SPRINT_46/PLAN.md`
+2. Re-read the closest prior closeout artifact shape:
+   - `cat docs/planning/EPIC_4/SPRINT_45/artifacts/day14-closeout-and-handoff.md`
+3. Re-read the final Day 13 validated baseline:
+   - `tail -n 120 docs/planning/EPIC_4/SPRINT_46/WORKING_NOTES.md`
+   - `cat docs/planning/EPIC_4/SPRINT_46/artifacts/day13-full-validation-sweep.md`
+4. Recheck whether Sprint 46 surfaced any new deferred queue requiring an
+   immediate plan update:
+   - `sed -n '223,253p' docs/planning/EPIC_4/PROJECT_PLAN.md`
+5. Write the closeout/handoff artifact:
+   - `docs/planning/EPIC_4/SPRINT_46/artifacts/day14-closeout-and-handoff.md`
+
+### Day 14 Findings
+
+#### 1. Sprint 46 now closes with one coherent eigensolver reuse package
+
+Sprint 46 now hands off:
+
+- a shared internal eigensolver workspace/state owner
+- typed reusable workspace views for:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - LOBPCG
+- migrated direct reusable-workspace adoption across those three main
+  eigensolver families
+- a compatibility-preserving one-shot public wrapper structure
+- direct repeated-run benchmark evidence
+- a Day 13 validated baseline
+
+Interpretation:
+
+- Sprint 46 ends with a real internal repeated-run efficiency package
+- it does **not** end as a loose collection of local allocation substitutions
+
+#### 2. The internal/public boundary remained intentionally conservative
+
+Sprint 46 preserved the intended boundary from the earlier Epic 4 architecture
+work:
+
+- internal reusable workspace/state infrastructure is real and extensible
+- public `sparse_eigs_sym(...)` remains the one-shot compatibility entry
+- caller-owned public result buffers remain unchanged
+- no public explicit eigensolver workspace API was introduced
+
+Interpretation:
+
+- Sprint 46 improved internal repeated-run capability without forcing outward
+  API churn
+- this keeps the sprint aligned with the internal-first Epic 4 migration model
+
+#### 3. The benchmark evidence is now good enough to hand off honestly
+
+Sprint 46’s repeated-run benchmark story is now explicit and claim-safe:
+
+- repeated one-shot vs reusable-workspace paths match exactly on:
+  - iteration counts
+  - convergence
+  - residuals
+  - eigenvalues
+- local timing impact is measurable but modest
+- timing direction can vary across reruns
+
+Interpretation:
+
+- later work can cite Sprint 46 as proof that the reuse seam is real
+- later work should **not** overclaim universal speedups from this sprint alone
+
+#### 4. The main later-work queue is now explicit
+
+Sprint 46 intentionally leaves later Epic 4 work in a few bounded classes:
+
+- family-local helper/state cleanup that is not part of the main repeated-run
+  owner:
+  - refinement scratch
+  - dense Jacobi scratch
+  - arrowhead/tridiagonal helper scratch
+  - `lanczos_restart_state_t` internal restart state
+- outward-facing work still intentionally deferred:
+  - public explicit eigensolver workspace APIs
+  - broader benchmark CLI redesign
+  - broader public repeated-run docs/tutorial refresh
+  - corpus-wide repeated-run benchmark expansion
+- broader later repeated-run efficiency work beyond Sprint 46:
+  - any further specialization/unification across eigensolver helper/state
+    seams
+
+Interpretation:
+
+- these are deliberate handoff boundaries, not hidden Sprint 46 misses
+- the sprint’s deferred queue is explicit enough for later planning without
+  reopening Sprint 46 itself
+
+#### 5. Sprint 46 closes from a measured validated baseline
+
+Sprint 46 closes from the Day 13 green baseline:
+
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+- `make quality-review-full` passed
+- reviewed CMake parity stayed exact at `53`
+- direct eigensolver/example/benchmark follow-ons all passed
+
+Interpretation:
+
+- the handoff is grounded in measured validation, not inferred confidence
+- no extra late closeout validation pass is needed because Day 14 is docs-only
+
+#### 6. No `PROJECT_PLAN.md` update is needed at closeout
+
+Sprint 46 did not surface any new deferred queue beyond the later eigensolver
+workspace, public API, and benchmark/doc modernization work already implied by
+the Epic 4 roadmap.
+
+Interpretation:
+
+- no immediate `PROJECT_PLAN.md` patch is needed
+- Sprint 46 can close cleanly without adding new planning debt

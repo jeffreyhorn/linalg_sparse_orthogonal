@@ -1708,3 +1708,124 @@ appeared in:
 Interpretation:
 
 - Sprint 47 is ready to enter Day 14 closeout from a measured validated state
+
+## Day 14
+
+**Objective:** Synthesize the Sprint 47 results, residual queue, and handoff
+constraints so the sprint closes with an explicit auxiliary-surface package
+rather than a loose collection of parser, example, tooling, and docs changes.
+
+### Commands Run
+
+1. Re-read the Sprint 47 Day 14 closeout plan section:
+   - `sed -n '382,430p' docs/planning/EPIC_4/SPRINT_47/PLAN.md`
+2. Re-read the validated Day 13 baseline:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_47/artifacts/day13-full-validation-sweep.md`
+3. Re-read the recent Sprint 47 landing artifacts that define the final
+   handoff:
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_47/artifacts/day5-shared-cli-parsing-helper-batch.md`
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_47/artifacts/day6-bench-main-parser-modernization-batch.md`
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_47/artifacts/day8-reorder-mode-parity-batch.md`
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_47/artifacts/day10-example-safety-cleanup-batch.md`
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_47/artifacts/day11-auxiliary-tooling-safety-cleanup-batch.md`
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_47/artifacts/day12-benchmark-example-docs-refresh.md`
+4. Write the Sprint 47 closeout artifact:
+   - `docs/planning/EPIC_4/SPRINT_47/artifacts/day14-closeout-and-handoff.md`
+5. Check whether closeout requires a `PROJECT_PLAN.md` update:
+   - no update needed
+
+### Day 14 Findings
+
+#### 1. Sprint 47 closes with one coherent auxiliary-surface package
+
+The landed sprint result is now explicit across five linked areas:
+
+- shared internal benchmark CLI parsing helpers
+- `bench_main` modernization
+- reorder-mode / emitted-label parity cleanup
+- bounded example/tooling safety alignment
+- touched benchmark/example docs refresh
+
+Interpretation:
+
+- Sprint 47 should be handed off as one coherent auxiliary-surface cleanup
+  package
+- it should not be described as isolated parser churn or docs-only polish
+
+#### 2. The benchmark CLI work stayed intentionally internal-first
+
+Sprint 47’s benchmark CLI handoff is now clear:
+
+- the helper seam is internal-only
+- `bench_main` is the first real consumer
+- malformed-input behavior is materially better
+- no public core-library CLI helper API was introduced
+
+Interpretation:
+
+- Sprint 47 improved benchmark usability and safety without creating a new
+  outward-facing API burden
+
+#### 3. Reorder-mode ownership is now explicit instead of implicit
+
+The closeout state is clearer than the Day 1/2 baseline:
+
+- `bench_main` owns:
+  - `none`
+  - `rcm`
+  - `amd`
+  - `nd`
+- COLAMD comparison ownership is explicitly handed off to:
+  - `bench_reorder`
+  - `bench_colamd`
+
+Interpretation:
+
+- Sprint 47 removed real ownership drift from the benchmark surface
+- that is a more valuable handoff than simply accepting more enum aliases
+
+#### 4. The example and tooling batches stayed bounded on purpose
+
+Sprint 47 did not broaden into:
+
+- wide example-file cleanup
+- example narrative redesign
+- dead-code workflow redesign
+- support-framework rewrite
+
+Instead it landed:
+
+- one bounded `example_eigs` safety/helper cleanup
+- one bounded dead-code tooling hardening batch
+
+Interpretation:
+
+- Sprint 47 respected the intended “small but real” auxiliary cleanup scope
+- later follow-on surfaces remain available without muddying this sprint’s
+  closeout
+
+#### 5. The sprint closes from a strong validated baseline
+
+The Day 13 baseline remained the authoritative closeout anchor:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- reviewed CMake parity at `53`
+- direct `bench_main`, `example_eigs`, and dead-code tooling reruns green
+
+Interpretation:
+
+- Sprint 47 closes from measured proof, not from inferred confidence
+
+#### 6. No `PROJECT_PLAN.md` adjustment was needed
+
+Sprint 47 did not surface any new deferred queue beyond the benchmark CLI,
+auxiliary safety, example/tooling, and touched-doc cleanup work already implied
+by the Epic 4 roadmap.
+
+Interpretation:
+
+- closeout did not discover a new planning branch
+- the existing Epic 4 roadmap remains sufficient for the inherited queue

@@ -191,3 +191,167 @@ Interpretation:
 - Sprint 46 should preserve Sprint 40's core rule: structural refactors should
   be guided by measured seams and explicit ownership boundaries before code
   movement lands
+
+## Day 2
+
+**Objective:** Refresh the internal seam inventory inside
+`src/sparse_eigs.c` so Sprint 46's workspace landing order is grounded in the
+live post-Sprint-45 file rather than only in the project-plan labels, with
+explicit separation between shared packed-buffer patterns, solver-specific
+state, optional/preconditioner-dependent buffers, and one-shot wrapper logic.
+
+### Commands Run
+
+1. Re-read the Sprint 46 Day 2 plan section:
+   - `sed -n '56,94p' docs/planning/EPIC_4/SPRINT_46/PLAN.md`
+2. Re-read the Day 1 baseline artifact:
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_46/artifacts/day1-scope-and-eigensolver-baseline.md`
+3. Re-read the public and internal eigensolver surfaces:
+   - `sed -n '1,260p' include/sparse_eigs.h`
+   - `sed -n '1,260p' src/sparse_eigs_internal.h`
+4. Refresh the live eigensolver seam markers and function map:
+   - `rg -n "lanczos_iterate|lanczos_thick_restart_iterate|s21_thick_restart_outer_loop|s21_lobpcg_rr_step|s21_lobpcg_solve|malloc|calloc|sparse_malloc_array|workspace|restart_state|basis|projected|sel_idx|theta|alpha|beta|subdiag" src/sparse_eigs.c`
+5. Re-read the main grow-m / thick-restart / LOBPCG allocation regions
+   directly:
+   - `sed -n '240,1315p' src/sparse_eigs.c`
+   - `sed -n '1760,2385p' src/sparse_eigs.c`
+   - `sed -n '2639,3155p' src/sparse_eigs.c`
+
+### Day 2 Findings
+
+#### 1. The eigensolver subsystem now reduces cleanly to four workspace seam classes
+
+The current file maps cleanly to these regions:
+
+- shared spectral helper/support paths:
+  - `lanczos_iterate_op(...)`
+  - Ritz extraction / selection helpers
+  - dense arrowhead / Jacobi helpers
+  - residual recomputation and restart-state assembly support
+- grow-m Lanczos path:
+  - `sparse_eigs_sym(...)` grow-m branch
+  - full basis `V`
+  - tridiagonal / Ritz / selection scratch
+- thick-restart Lanczos path:
+  - `lanczos_restart_state_t`
+  - `lanczos_thick_restart_iterate(...)`
+  - `s21_thick_restart_outer_loop(...)`
+  - bounded restart-phase and arrowhead scratch
+- LOBPCG path:
+  - `s21_lobpcg_rr_step(...)`
+  - `s21_lobpcg_solve(...)`
+  - block `(n * bs)` bundles and dense projected-subproblem scratch
+
+Interpretation:
+
+- Sprint 46 is not one flat "reuse all eigensolver buffers" problem
+- the shared buffer layer should be designed around these seam classes rather
+  than by forcing all allocations into one identical view model
+
+#### 2. The strongest shared extraction targets are real, but they are narrower than the full solver bodies
+
+The most reusable shared allocation shapes are:
+
+- graph-sized basis / vector bundles:
+  - `n * m`
+  - `n * k`
+  - `n * block_size`
+- tridiagonal / Ritz / restart scratch:
+  - `alpha`
+  - `beta`
+  - `theta_*`
+  - `subdiag`
+  - `sel_idx`
+- dense projected-subproblem intermediates:
+  - `K * K`
+  - `cap * cap`
+- packed temporary bundles used to derive solver-local typed views
+
+Interpretation:
+
+- Day 3 should design one shared buffer owner around checked capacity and typed
+  slicing
+- the shared seam should own size/capacity and reset rules, not full solver
+  control flow
+
+#### 3. Solver-local state that should stay local is now explicit
+
+The live code shows several solver-local state groups that should not be
+collapsed into the shared buffer layer:
+
+- grow-m Lanczos control:
+  - `m`
+  - `m_cap`
+  - outer grow/retry policy
+  - Wu/Simon convergence gating
+- thick-restart control:
+  - `k_locked`
+  - `m_restart`
+  - restart acceptance / lock selection
+  - arrowhead phase orchestration
+- LOBPCG control:
+  - block Rayleigh-Ritz sequencing
+  - soft-lock policy
+  - preconditioner-composed residual/update flow
+
+Interpretation:
+
+- Sprint 46 should reuse buffer ownership, not erase algorithm boundaries
+- Day 3 should keep solver-local math/control state outside the shared owner
+
+#### 4. Optional and preconditioner-dependent buffers are concentrated in the LOBPCG family
+
+The live asymmetry is now explicit:
+
+- grow-m Lanczos and thick-restart Lanczos are primarily fixed-structure basis
+  and spectral-scratch consumers
+- LOBPCG carries the main optional / mode-dependent workspace behavior:
+  - `P_new` present only when the conjugate-direction block is active
+  - preconditioned residual flow via `W`
+  - block-size-dependent dense `G`, `Y`, and `theta_full` scratch
+
+Interpretation:
+
+- the first shared workspace/state layer should be able to describe optional
+  buffers cleanly
+- LOBPCG should be a second major migration phase after the Lanczos family,
+  not forced into the first shared landing batch
+
+#### 5. The one-shot wrapper versus reusable-core split is now clear
+
+The public entry surface is still intentionally one-shot:
+
+- `sparse_eigs_sym(...)` remains the compatibility-facing entry point
+
+The reusable-core candidates sit below that layer:
+
+- grow-m Lanczos internals
+- thick-restart outer loop and restart-state support
+- LOBPCG outer-loop and RR-step work buffers
+
+Interpretation:
+
+- Sprint 46 should preserve the Sprint 45 pattern:
+  - one-shot public entry point remains
+  - reusable internal workspace/state paths sit underneath it
+- no public workspace API is needed for the first Sprint 46 landing
+
+#### 6. The first migration order is fixed by the live file
+
+The correct adoption order is:
+
+1. shared eigensolver buffer/state owner
+2. grow-m Lanczos
+3. thick-restart Lanczos
+4. LOBPCG
+
+The main later / lower-priority bucket is:
+
+- broader helper cleanup that is support-only rather than repeated-run-critical
+
+Interpretation:
+
+- Day 5 should land only the shared owner and typed view seam
+- Day 6 should target the main Lanczos families
+- LOBPCG should follow once the shared owner has already proven itself on the
+  simpler repeated-run eigensolver paths

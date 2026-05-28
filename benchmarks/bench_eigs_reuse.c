@@ -119,7 +119,8 @@ static sparse_err_t run_repeated_case(const char *name, const char *path, idx_t 
 
     double med_one = median_double(times_one, repeats);
     double med_reuse = median_double(times_reuse, repeats);
-    double max_eig_diff = max_abs_eig_diff(&one_shot, &reuse);
+    int parity_match = (one_err == reuse_err) && (one_shot.n_converged == reuse.n_converged);
+    double max_eig_diff = parity_match ? max_abs_eig_diff(&one_shot, &reuse) : NAN;
 
     printf("  %-24s one-shot=%8.4f ms  reuse=%8.4f ms  speedup=%5.2fx\n", name, med_one * 1000.0,
            med_reuse * 1000.0, med_reuse > 0.0 ? med_one / med_reuse : 0.0);
@@ -129,6 +130,13 @@ static sparse_err_t run_repeated_case(const char *name, const char *path, idx_t 
     printf("    last reuse:    iters=%4d conv=%d nconv=%d relres=%.3e peak=%d\n",
            (int)reuse.iterations, (reuse_err == SPARSE_OK), (int)reuse.n_converged,
            reuse.residual_norm, (int)reuse.peak_basis_size);
+    if (!parity_match) {
+        printf("    parity:        FAILED status_one=%d status_reuse=%d nconv_one=%d "
+               "nconv_reuse=%d\n",
+               (int)one_err, (int)reuse_err, (int)one_shot.n_converged, (int)reuse.n_converged);
+        err = SPARSE_ERR_BADARG;
+        goto cleanup;
+    }
     printf("    parity:        |lambda|max diff=%.3e backend=%d\n", max_eig_diff,
            (int)reuse.backend_used);
 

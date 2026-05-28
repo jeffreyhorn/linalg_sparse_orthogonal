@@ -13,6 +13,7 @@
  */
 
 #include "sparse_eigs.h" /* sparse_eigs_opts_t / sparse_eigs_t for LOBPCG entry point. */
+#include "sparse_eigs_workspace_internal.h"
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 
@@ -532,28 +533,23 @@ sparse_err_t s21_lobpcg_orthonormalize_block(double *Q, idx_t n, idx_t block_siz
  * @param ctx            Opaque context for `op`.
  * @param n              Vector length.
  * @param block_size     LOBPCG block size.  X/W/P are each n × block_size.
- * @param X              In/out: current eigenvector estimates,
- *                       n × block_size, column-major.  Replaced with
- *                       the next iterate on return.
- * @param W              In/out: preconditioned residual block,
- *                       n × block_size, column-major.  Used as input
- *                       only; caller refills for the next iteration.
- * @param P              In/out: previous search direction block,
- *                       n × block_size, column-major.  Replaced with
- *                       the new direction on return.  May be NULL on
- *                       the first iteration (signals "no P yet").
+ * @param view           Reusable LOBPCG workspace view.  Supplies the
+ *                       RR-step shared buffers plus the persistent
+ *                       X / P / W storage owned by the caller.
  * @param which          Spectrum-selection mode (LARGEST / SMALLEST /
  *                       NEAREST_SIGMA via the same op-negation /
  *                       shift-invert wrappers Lanczos uses).
- * @param theta_out      Output: block_size Ritz values; ordered to
- *                       match `which`.
+ * @param use_p          When nonzero, include `view->P` in the
+ *                       Rayleigh-Ritz subspace and write back the new
+ *                       direction to `view->P`.  When zero, behave as
+ *                       the first-iteration `[X | W]` step.
  *
  * @return SPARSE_OK on success, or any error from `op` /
  *         allocation / dense eigensolve.
  */
 sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_t block_size,
-                                double *X, double *W, double *P, sparse_eigs_which_t which,
-                                double *theta_out);
+                                sparse_eigs_lobpcg_workspace_view_t *view,
+                                sparse_eigs_which_t which, int use_p);
 
 /**
  * @brief LOBPCG outer loop — full block iteration to convergence.

@@ -216,7 +216,8 @@ sparse_err_t sparse_eigs_workspace_prepare_lobpcg(sparse_eigs_workspace_t *ws, i
         return SPARSE_ERR_ALLOC;
 
     size_t total = 0;
-    size_t pieces[] = {nc, nc, cc, cc, cap, nb, with_p ? nb : 0U, nb, nb, nb, nb, bs_size};
+    size_t pieces[] = {nc, nc, cc, cc, cap,    nb, with_p ? nb : 0U, nb, with_p ? nb : 0U,
+                       nb, nb, nb, nb, bs_size};
     for (size_t i = 0; i < sizeof(pieces) / sizeof(pieces[0]); i++) {
         if (sparse_size_add_overflow(total, pieces[i], &total))
             return SPARSE_ERR_ALLOC;
@@ -245,11 +246,13 @@ sparse_err_t sparse_eigs_workspace_prepare_lobpcg(sparse_eigs_workspace_t *ws, i
     if (with_p) {
         view->P_new = view->X_new + nb;
         view->X = view->P_new + nb;
+        view->P = view->X + nb;
     } else {
         view->P_new = NULL;
         view->X = view->X_new + nb;
+        view->P = NULL;
     }
-    view->R = view->X + nb;
+    view->R = with_p ? (view->P + nb) : (view->X + nb);
     view->W = view->R + nb;
     view->AX = view->W + nb;
     view->theta = view->AX + nb;

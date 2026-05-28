@@ -2586,50 +2586,34 @@ static void s21_lobpcg_init_X(double *X, idx_t n, idx_t bs) {
  * + cap doubles for theta_full + n × bs for X_new + n × bs for P_new.
  * For bs = 5 and n = 1806 this is ~75 KB per RR step. */
 sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_t block_size,
-                                double *X, double *W, double *P, sparse_eigs_which_t which,
-                                double *theta_out) {
-    if (!op || !X || !W || !theta_out)
+                                sparse_eigs_lobpcg_workspace_view_t *view,
+                                sparse_eigs_which_t which, int use_p) {
+    if (!op || !view || !view->Q || !view->AQ || !view->G || !view->Y || !view->theta_full ||
+        !view->sel_idx || !view->X_new || !view->theta)
         return SPARSE_ERR_NULL;
     if (n < 1 || block_size < 1)
         return SPARSE_ERR_BADARG;
 
-    int has_p = (P != NULL);
+    double *X = view->X;
+    double *W = view->W;
+    double *P = use_p ? view->P : NULL;
+    double *Q = view->Q;
+    double *AQ = view->AQ;
+    double *G = view->G;
+    double *Y = view->Y;
+    double *theta_full = view->theta_full;
+    idx_t *sel_idx = view->sel_idx;
+    double *X_new = view->X_new;
+    double *P_new = use_p ? view->P_new : NULL;
+    double *theta_out = view->theta;
+
+    if (use_p && (!P || !P_new))
+        return SPARSE_ERR_NULL;
+
+    int has_p = use_p != 0;
     idx_t cap = has_p ? 3 * block_size : 2 * block_size;
     if (cap > n)
         return SPARSE_ERR_BADARG;
-
-    /* Workspace allocation.  All sizes bounded by (n, cap) where
-     * cap ≤ 3·bs.  Single sparse_err_t propagation site below
-     * via goto cleanup. */
-    size_t nc_bytes = 0, cc_bytes = 0, nb_bytes = 0;
-    if (sparse_size_mul_overflow((size_t)n, (size_t)cap, &nc_bytes) ||
-        sparse_size_mul_overflow(nc_bytes, sizeof(double), &nc_bytes) ||
-        sparse_size_mul_overflow((size_t)cap, (size_t)cap, &cc_bytes) ||
-        sparse_size_mul_overflow(cc_bytes, sizeof(double), &cc_bytes) ||
-        sparse_size_mul_overflow((size_t)n, (size_t)block_size, &nb_bytes) ||
-        sparse_size_mul_overflow(nb_bytes, sizeof(double), &nb_bytes))
-        return SPARSE_ERR_ALLOC;
-
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *Q = malloc(nc_bytes);
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *AQ = malloc(nc_bytes);
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *G = malloc(cc_bytes);
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *Y = malloc(cc_bytes);
-    double *theta_full = malloc((size_t)cap * sizeof(double));
-    idx_t *sel_idx = malloc((size_t)block_size * sizeof(idx_t));
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *X_new = malloc(nb_bytes);
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *P_new = has_p ? malloc(nb_bytes) : NULL;
-
-    sparse_err_t rc = SPARSE_OK;
-    if (!Q || !AQ || !G || !Y || !theta_full || !sel_idx || !X_new || (has_p && !P_new)) {
-        rc = SPARSE_ERR_ALLOC;
-        goto cleanup;
-    }
 
     /* Q ← [X | W | P] (column-major concatenation). */
     size_t nb = (size_t)n * (size_t)block_size;
@@ -2642,16 +2626,13 @@ sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_
      * ejection.  K_eff ≤ cap is the effective subspace dimension. */
     idx_t K_eff = 0;
     sparse_err_t err = s21_lobpcg_orthonormalize_block(Q, n, cap, &K_eff);
-    if (err != SPARSE_OK) {
-        rc = err;
-        goto cleanup;
-    }
+    if (err != SPARSE_OK)
+        return err;
     if (K_eff < block_size) {
         /* The X block alone didn't survive orthogonalisation —
          * caller's X is rank-deficient.  Punt back to the outer
          * loop's allocation/init path. */
-        rc = SPARSE_ERR_BADARG;
-        goto cleanup;
+        return SPARSE_ERR_BADARG;
     }
 
     /* AQ ← A · Q, column-by-column.  Sprint 22 may swap in a block
@@ -2659,10 +2640,8 @@ sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_
      * unchanged from the Lanczos backends. */
     for (idx_t j = 0; j < K_eff; j++) {
         err = op(ctx, n, Q + (size_t)j * (size_t)n, AQ + (size_t)j * (size_t)n);
-        if (err != SPARSE_OK) {
-            rc = err;
-            goto cleanup;
-        }
+        if (err != SPARSE_OK)
+            return err;
     }
 
     /* G ← Q^T · AQ.  Symmetric K_eff × K_eff Gram matrix; explicit
@@ -2692,18 +2671,15 @@ sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_
     /* Diagonalise G via the Sprint 21 Day 2 dense Jacobi helper.
      * theta_full is sorted ascending; Y is K_eff × K_eff column-major. */
     err = s21_dense_sym_jacobi(G, K_eff, theta_full, Y);
-    if (err != SPARSE_OK) {
-        rc = err;
-        goto cleanup;
-    }
+    if (err != SPARSE_OK)
+        return err;
 
     /* Select block_size Ritz pairs per `which`. */
     idx_t take = s20_select_indices(theta_full, K_eff, which, block_size, sel_idx);
     if (take < block_size) {
         /* Subspace too small to extract block_size pairs.  Caller's
          * outer loop treats this as a non-convergent step. */
-        rc = SPARSE_ERR_NOT_CONVERGED;
-        goto cleanup;
+        return SPARSE_ERR_NOT_CONVERGED;
     }
 
     /* Day 9 BLOPEX-style conditioning guard.  Detect a rank-deficient
@@ -2779,25 +2755,17 @@ sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_
         memcpy(P, P_new, nb * sizeof(double));
     for (idx_t j = 0; j < block_size; j++)
         theta_out[j] = theta_full[sel_idx[j]];
-
-cleanup:
-    free(Q);
-    free(AQ);
-    free(G);
-    free(Y);
-    free(theta_full);
-    free(sel_idx);
-    free(X_new);
-    free(P_new);
-    return rc;
+    return SPARSE_OK;
 }
 
 /* Day 8 + 9: LOBPCG outer loop.
  *
- * 1. Allocate X, R, W, P, AX (each n × bs).  R is the raw residual
- *    AX − X·diag(theta); W is the preconditioned residual that gets
- *    fed into the Rayleigh-Ritz step (W = R when `o->precond` is
- *    NULL — vanilla LOBPCG; W = precond(R) otherwise).
+ * 1. Prepare the reusable LOBPCG workspace view, which supplies
+ *    X, R, W, P, AX, theta, converged, and the RR-step shared
+ *    intermediates.  R is the raw residual AX − X·diag(theta); W
+ *    is the preconditioned residual that gets fed into the
+ *    Rayleigh-Ritz step (W = R when `o->precond` is NULL —
+ *    vanilla LOBPCG; W = precond(R) otherwise).
  * 2. Initialise X with deterministic pseudo-random columns,
  *    orthonormalise.
  * 3. Compute AX = A · X and initial Rayleigh quotients
@@ -2823,10 +2791,11 @@ cleanup:
  *       Ritz pipeline.
  *    g. Recompute AX = A · X for the next residual.
  *
- * On the first iteration P is passed as NULL (signals "no P yet");
- * `s21_lobpcg_rr_step` handles the 2·bs subspace case by skipping
- * the P concatenation and the P_new write-back.  Subsequent
- * iterations pass the persistent P buffer.
+ * On the first iteration the persistent P buffer exists but is not
+ * yet part of the RR subspace; `s21_lobpcg_rr_step(..., use_p = 0)`
+ * handles the 2·bs `[X | W]` case and leaves P untouched.
+ * Subsequent iterations pass `use_p = 1`, at which point P becomes
+ * part of the RR subspace and is updated in place.
  *
  * Preconditioning convergence claim (Day 9 PLAN target): on an
  * ill-conditioned SPD with cond(A) ~ 1e6, vanilla LOBPCG converges
@@ -2864,38 +2833,28 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
      * the reservation comparison vs the Lanczos backends. */
     result->peak_basis_size = 10 * bs;
 
-    /* Workspace allocation.  Single sparse_err_t propagation via
-     * goto cleanup; mirrors the thick-restart outer loop's pattern. */
-    size_t nb_bytes = 0;
-    if (sparse_size_mul_overflow((size_t)n, (size_t)bs, &nb_bytes) ||
-        sparse_size_mul_overflow(nb_bytes, sizeof(double), &nb_bytes))
-        return SPARSE_ERR_ALLOC;
-
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *X = malloc(nb_bytes);
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *R = malloc(nb_bytes); /* raw residual AX − X·diag(theta) */
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *W = malloc(nb_bytes); /* preconditioned residual fed into RR */
-    double *P = NULL;             /* allocated lazily after the first RR step */
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *AX = malloc(nb_bytes);
-    /* `theta` zero-initialised so the emit block's `theta[j]` reads
-     * are clean even on the SPARSE_ERR_NOT_CONVERGED early-return
-     * paths the clang-analyzer cannot prove reach the post-init
-     * `theta[j] = <X[:, j], AX[:, j]>` loop.  Matches the existing
-     * `converged` calloc convention below. */
-    double *theta = calloc((size_t)bs, sizeof(double));
-    int *converged = calloc((size_t)bs, sizeof(int));
+    sparse_eigs_workspace_t lobpcg_ws;
+    sparse_eigs_lobpcg_workspace_view_t lobpcg_view;
+    sparse_eigs_workspace_init(&lobpcg_ws);
 
     sparse_err_t rc = SPARSE_ERR_NOT_CONVERGED;
     idx_t total_iters = 0;
     double last_res_rel = 0.0;
+    int have_p = 0;
 
-    if (!X || !R || !W || !AX || !theta || !converged) {
-        rc = SPARSE_ERR_ALLOC;
+    sparse_err_t ws_err = sparse_eigs_workspace_prepare_lobpcg(&lobpcg_ws, n, bs, 1, &lobpcg_view);
+    if (ws_err != SPARSE_OK) {
+        rc = ws_err;
         goto cleanup;
     }
+
+    double *X = lobpcg_view.X;
+    double *R = lobpcg_view.R;
+    double *W = lobpcg_view.W;
+    double *P = lobpcg_view.P;
+    double *AX = lobpcg_view.AX;
+    double *theta = lobpcg_view.theta;
+    int *converged = lobpcg_view.converged;
 
     /* Step 1: deterministic pseudo-random init + orthonormalise. */
     s21_lobpcg_init_X(X, n, bs);
@@ -2913,6 +2872,7 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
         goto cleanup;
     }
     bs = bs_eff;
+    size_t nb_bytes = (size_t)n * (size_t)bs * sizeof(double);
 
     /* Step 2: AX = A · X, then theta_j = <X[:, j], AX[:, j]>. */
     for (idx_t j = 0; j < bs; j++) {
@@ -3035,29 +2995,16 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
             }
         }
 
-        /* Rayleigh-Ritz step.  P is NULL on the first iteration so
-         * the RR step works on the 2·bs subspace [X | W]; from
-         * iter 1 onward P is allocated and carries the search
-         * direction across iterations. */
-        err = s21_lobpcg_rr_step(op, ctx, n, bs, X, W, P, o->which, theta);
+        /* Rayleigh-Ritz step.  On the first iteration `have_p == 0`,
+         * so the RR step works on the 2·bs subspace [X | W]; from
+         * iter 1 onward `have_p == 1` and the persistent P buffer
+         * participates in the subspace and write-back. */
+        err = s21_lobpcg_rr_step(op, ctx, n, bs, &lobpcg_view, o->which, have_p);
         if (err != SPARSE_OK) {
             rc = err;
             goto cleanup;
         }
-
-        /* Lazy P allocation.  After the first RR step X has been
-         * updated in span(X_old, W) but P_new wasn't computed (P was
-         * NULL).  Allocate P and zero it for the next iteration's
-         * RR step, which then builds the BLOPEX P_new internally. */
-        if (!P) {
-            // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-            P = malloc(nb_bytes);
-            if (!P) {
-                rc = SPARSE_ERR_ALLOC;
-                goto cleanup;
-            }
-            memset(P, 0, nb_bytes);
-        }
+        have_p = 1;
 
         /* AX = A · X for the next residual. */
         for (idx_t j = 0; j < bs; j++) {
@@ -3089,12 +3036,6 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
     result->residual_norm = last_res_rel;
 
 cleanup:
-    free(X);
-    free(R);
-    free(W);
-    free(P);
-    free(AX);
-    free(theta);
-    free(converged);
+    sparse_eigs_workspace_free(&lobpcg_ws);
     return rc;
 }

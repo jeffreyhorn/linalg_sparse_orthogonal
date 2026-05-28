@@ -1102,3 +1102,174 @@ Interpretation:
   3. thick-restart
   4. LOBPCG
   5. wrapper/benchmark/memory-contract closeout
+
+## Day 8
+
+**Objective:** Migrate the remaining primary eigensolver workspace target,
+LOBPCG, onto the shared reusable internal owner/view seam by converting both
+the RR-step bundle and the outer-loop block bundle to
+`sparse_eigs_workspace_prepare_lobpcg(...)`, while preserving current
+one-shot/public behavior and keeping the batch bounded away from wrappers,
+benchmarks, and broader closeout work.
+
+### Commands Run
+
+1. Re-read the Sprint 46 Day 8 plan section and the Day 7 narrowed target set:
+   - `sed -n '275,325p' docs/planning/EPIC_4/SPRINT_46/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_46/artifacts/day7-primary-workspace-landing-audit.md`
+2. Re-read the shared LOBPCG workspace prepare surface:
+   - `sed -n '1,260p' src/sparse_eigs_workspace_internal.h`
+   - `sed -n '1,320p' src/sparse_eigs_workspace_internal.c`
+3. Re-read the live LOBPCG allocation regions directly:
+   - `sed -n '2580,3075p' src/sparse_eigs.c`
+4. Re-read the internal eigensolver helper declarations:
+   - `sed -n '1,260p' src/sparse_eigs_internal.h`
+5. Implement the LOBPCG workspace migration batch:
+   - `src/sparse_eigs_workspace_internal.h`
+   - `src/sparse_eigs_workspace_internal.c`
+   - `src/sparse_eigs_internal.h`
+   - `src/sparse_eigs.c`
+6. Run the required code-quality gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+7. Run the stronger reviewed baseline for this shared-layer/family-migration
+   batch:
+   - `make quality-review-full`
+8. Run the targeted touched-surface follow-ons:
+   - `./build/test_eigs`
+   - `./build/test_eigs_thick_restart`
+   - `./build/test_eigs_lobpcg`
+   - `./build/example_eigs`
+
+### Day 8 Findings
+
+#### 1. LOBPCG is now on the shared reusable workspace seam
+
+The Day 8 batch moved both remaining primary LOBPCG allocation regions onto the
+already-landed shared owner/view model:
+
+- `s21_lobpcg_rr_step(...)`
+- `s21_lobpcg_solve(...)`
+
+The migrated path now prepares a reusable:
+
+- `sparse_eigs_workspace_t`
+- `sparse_eigs_lobpcg_workspace_view_t`
+
+Interpretation:
+
+- Sprint 46 no longer has a remaining primary eigensolver-family workspace
+  migration target
+- the shared eigensolver owner now covers:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - LOBPCG
+
+#### 2. The RR-step bundle now consumes a typed shared view instead of owning a per-call heap bundle
+
+`s21_lobpcg_rr_step(...)` no longer allocates and frees its own:
+
+- `Q`
+- `AQ`
+- `G`
+- `Y`
+- `theta_full`
+- `sel_idx`
+- `X_new`
+- optional `P_new`
+
+Instead, it now receives those through
+`sparse_eigs_lobpcg_workspace_view_t`.
+
+Interpretation:
+
+- the RR-step path is now aligned with the same owner/view pattern already used
+  by the migrated Lanczos families
+- the function remains algorithm-local in control flow, but no longer owns the
+  repeated heap churn the shared seam was created to absorb
+
+#### 3. The outer-loop block bundle now binds through the same shared view
+
+`s21_lobpcg_solve(...)` now prepares the shared owner and binds the former
+outer-loop block bundle through typed slices:
+
+- `X`
+- `R`
+- `W`
+- `P`
+- `AX`
+- `theta`
+- `converged`
+
+The prior lazy `P` allocation is gone from the outer loop; first-iteration
+behavior is now preserved by an explicit `have_p` / `use_p` contract instead of
+by “allocate later” semantics.
+
+Interpretation:
+
+- Day 8 reduced the last main repeated LOBPCG allocation churn without changing
+  public behavior
+- first-iteration LOBPCG semantics stayed explicit and readable even after the
+  owner/view conversion
+
+#### 4. The helper-layer extension stayed minimal and justified
+
+The only meaningful helper-layer widening for Day 8 was to make the existing
+LOBPCG view model carry the persistent `P` slice in addition to the already
+planned view-owned temporary bundles.
+
+Interpretation:
+
+- Day 8 did not reopen helper-layer design
+- it only widened the existing LOBPCG typed view enough to support the live
+  outer-loop migration cleanly
+
+#### 5. The batch stayed inside the Day 7 boundary
+
+Day 8 completed:
+
+- LOBPCG RR-step migration
+- LOBPCG outer-loop migration
+- shared-owner adoption through
+  `sparse_eigs_workspace_prepare_lobpcg(...)`
+
+Day 8 intentionally did **not** widen into:
+
+- public wrapper/API changes
+- repeated-run benchmark work
+- example/tutorial refresh
+- maintainer memory-behavior closeout
+
+Interpretation:
+
+- the batch remained the right bounded Sprint 46 migration step
+- wrapper/benchmark/closeout work can now proceed from a fully migrated
+  eigensolver-family workspace baseline instead of from a mixed state
+
+#### 6. The reviewed validation baseline stayed green after the final family migration
+
+Because `*.c` and `*.h` changed, the required gate was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+The stronger reviewed baseline for this shared-layer/final-family migration
+batch also passed:
+
+- `make quality-review-full`
+
+The targeted eigensolver follow-ons also passed:
+
+- `./build/test_eigs`
+- `./build/test_eigs_thick_restart`
+- `./build/test_eigs_lobpcg`
+- `./build/example_eigs`
+
+Interpretation:
+
+- the full eigensolver workspace migration now closes from a reviewed green
+  baseline rather than only from a narrow local proof

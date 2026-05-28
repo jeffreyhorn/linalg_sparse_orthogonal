@@ -58,6 +58,7 @@ typedef struct {
     double *X_new;
     double *P_new;
     double *X;
+    double *P;
     double *R;
     double *W;
     double *AX;

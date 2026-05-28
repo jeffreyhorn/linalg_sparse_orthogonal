@@ -1588,3 +1588,204 @@ Interpretation:
 
 - Sprint 46 now has a concrete, honest repeated-run benchmark target
 - the benchmark slice stays tied directly to the migrated eigensolver paths
+
+## Day 11
+
+**Objective:** Land the narrow repeated-run eigensolver benchmark slice defined
+on Day 10 so Sprint 46 has direct measured evidence for the migrated reusable
+workspace seam, without widening into `bench_eigs.c` CLI churn, public API
+changes, or broader benchmark-framework work.
+
+### Commands Run
+
+1. Re-read the Day 10 benchmark design and the Sprint 45 repeated-run benchmark
+   precedent:
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_46/artifacts/day10-repeated-run-benchmark-design.md`
+   - `sed -n '1,260p' benchmarks/bench_iterative_reuse.c`
+2. Re-read the live eigensolver wrapper/backend seams and workspace-owner
+   surface:
+   - `sed -n '760,1520p' src/sparse_eigs.c`
+   - `sed -n '2060,2420p' src/sparse_eigs.c`
+   - `sed -n '1,260p' src/sparse_eigs_internal.h`
+   - `sed -n '1,260p' src/sparse_eigs_workspace_internal.h`
+   - `sed -n '1,260p' src/sparse_eigs_workspace_internal.c`
+3. Re-read the benchmark/build wiring surfaces:
+   - `sed -n '1,240p' benchmarks/bench_eigs.c`
+   - `sed -n '130,180p' Makefile`
+   - `sed -n '250,285p' CMakeLists.txt`
+4. Implement the Day 11 benchmark and bounded private reuse seam:
+   - `src/sparse_eigs.c`
+   - `src/sparse_eigs_internal.h`
+   - `benchmarks/bench_eigs_reuse.c`
+   - `Makefile`
+   - `CMakeLists.txt`
+5. Run the required code-quality gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+6. Run the targeted Day 11 eigensolver follow-ons:
+   - `./build/test_eigs`
+   - `./build/test_eigs_thick_restart`
+   - `./build/test_eigs_lobpcg`
+   - `./build/example_eigs`
+   - `./build/bench_eigs_reuse`
+
+### Day 11 Findings
+
+#### 1. Sprint 46 now has a dedicated repeated-run eigensolver benchmark driver
+
+Day 11 added:
+
+- `benchmarks/bench_eigs_reuse.c`
+
+The benchmark follows the Sprint 45 A/B repeated-run shape:
+
+- one-shot public eigensolver path
+- reusable internal workspace-backed path
+- repeated stable-dimension calls
+- median wall-time comparison
+- behavior-level parity reporting
+
+The benchmark stayed intentionally narrow:
+
+- grow-m Lanczos on `nos4`
+- thick-restart Lanczos on `bcsstk14`
+
+Interpretation:
+
+- Sprint 46 now has direct repeated-run evidence for the migrated Lanczos-family
+  reuse seam
+- the broad permanent sweep driver `benchmarks/bench_eigs.c` remained untouched
+
+#### 2. A bounded internal reuse entry now exists without changing the public API
+
+Day 11 added:
+
+- `sparse_eigs_sym_with_workspace_internal(...)`
+
+This internal helper mirrors the existing public entry’s:
+
+- validation
+- shift-invert setup
+- AUTO/explicit backend selection
+- result-field contract
+
+while accepting a caller-owned `sparse_eigs_workspace_t` for the migrated
+Lanczos-family backends.
+
+Interpretation:
+
+- the benchmark uses a real internal seam rather than ad hoc implementation
+  reach-through
+- `sparse_eigs_sym(...)` remains the compatibility-facing one-shot public API
+
+#### 3. The public one-shot eigensolver path now composes around the shared implementation
+
+Day 11 refactored the public one-shot path and the new internal reusable path
+to share one implementation layer.
+
+The shared implementation now owns:
+
+- public defaults/validation
+- shift-invert preprocessing
+- backend dispatch
+- refinement post-pass handoff
+
+The reusable internal path is currently active for:
+
+- grow-m Lanczos
+- thick-restart Lanczos
+
+LOBPCG intentionally kept its existing local allocation model for Day 11.
+
+Interpretation:
+
+- the repeated-run benchmark compares one-shot vs reuse across the same
+  behavioral implementation path
+- Day 11 avoided reopening the optional LOBPCG scope extension
+
+#### 4. The measured repeated-run result is modest but clean
+
+Direct benchmark output on this local run was:
+
+- grow-m Lanczos case:
+  - fixture: `nos4`
+  - backend: explicit `SPARSE_EIGS_BACKEND_LANCZOS`
+  - `k = 5`
+  - repeats: `40`
+  - one-shot median: `1.3680 ms`
+  - reuse median: `1.3610 ms`
+  - speedup: `1.01x`
+  - last-run parity:
+    - `115` iterations in both paths
+    - converged in both paths
+    - residual `4.326e-14` in both paths
+    - `|lambda|max diff = 0.000e+00`
+- thick-restart Lanczos case:
+  - fixture: `bcsstk14`
+  - backend: explicit `SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`
+  - `k = 5`
+  - repeats: `8`
+  - one-shot median: `49.7370 ms`
+  - reuse median: `47.7710 ms`
+  - speedup: `1.04x`
+  - last-run parity:
+    - `105` iterations in both paths
+    - converged in both paths
+    - residual `7.864e-14` in both paths
+    - `|lambda|max diff = 0.000e+00`
+
+Interpretation:
+
+- the repeated-run reusable path preserved solver behavior exactly on the
+  benchmarked cases
+- the local timing gain is modest rather than dramatic
+- that is still a valid Sprint 46 Day 11 result because the batch was about
+  direct repeated-run measurement, not forced speedup claims
+
+#### 5. The batch stayed inside the Day 10 boundary
+
+Day 11 completed:
+
+- one new repeated-run eigensolver benchmark driver
+- one bounded internal reusable-workspace benchmark seam
+- required grow-m and thick-restart repeated-run cases
+- measured output capture for the Day 11 artifact
+
+Day 11 intentionally did **not** widen into:
+
+- broad `bench_eigs.c` CLI redesign
+- public explicit eigensolver workspace APIs
+- broad example/tutorial refresh
+- mandatory LOBPCG repeated-run benchmarking
+
+Interpretation:
+
+- the benchmark slice stayed cleanly tied to the migrated primary reuse paths
+- Sprint 46 remains on track for closeout without another broad eigensolver
+  redesign batch
+
+#### 6. The validation baseline stayed fully green after the benchmark landing
+
+Because `*.c` and `*.h` changed, the required gate was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+The targeted Day 11 eigensolver follow-ons also passed:
+
+- `./build/test_eigs`
+- `./build/test_eigs_thick_restart`
+- `./build/test_eigs_lobpcg`
+- `./build/example_eigs`
+- `./build/bench_eigs_reuse`
+
+Interpretation:
+
+- the benchmark landing preserved the existing eigensolver behavior and example
+  surface
+- Sprint 46 can move to documentation/residual audit work from a reviewed green
+  baseline

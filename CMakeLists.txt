@@ -263,6 +263,10 @@ if(NOT WIN32)
     add_executable(bench_eigs benchmarks/bench_eigs.c)
     target_link_libraries(bench_eigs PRIVATE sparse_lu_ortho)
 
+    add_executable(bench_eigs_reuse benchmarks/bench_eigs_reuse.c)
+    target_link_libraries(bench_eigs_reuse PRIVATE sparse_lu_ortho)
+    target_include_directories(bench_eigs_reuse PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
     add_executable(bench_svd benchmarks/bench_svd.c)
     target_link_libraries(bench_svd PRIVATE sparse_lu_ortho)
     target_include_directories(bench_svd PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)

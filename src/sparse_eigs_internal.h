@@ -124,6 +124,26 @@ sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, cons
                                 idx_t m_max, int reorthogonalize, double *V, double *alpha,
                                 double *beta, idx_t *m_actual);
 
+/**
+ * @brief Internal repeated-run entry that reuses a caller-owned eigensolver
+ *        workspace when the selected backend supports it.
+ *
+ * Mirrors `sparse_eigs_sym()`'s validation, shift-invert setup, AUTO/explicit
+ * backend selection, and result contract. Sprint 46 Day 11 uses it for the
+ * repeated-run benchmark A/B path: the public call remains the compatibility
+ * one-shot entry, while this helper reuses a stable-dimension internal
+ * workspace across runs.
+ *
+ * The reusable workspace currently applies to the migrated Lanczos-family
+ * backends (`SPARSE_EIGS_BACKEND_LANCZOS` grow-m and
+ * `SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`). Other backends keep their
+ * existing local allocation model until later work widens reuse there.
+ */
+sparse_err_t sparse_eigs_sym_with_workspace_internal(const SparseMatrix *A, idx_t k,
+                                                     const sparse_eigs_opts_t *opts,
+                                                     sparse_eigs_t *result,
+                                                     sparse_eigs_workspace_t *workspace);
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Sprint 21 Day 1: Thick-restart Lanczos data structures + entry point
  * ═══════════════════════════════════════════════════════════════════════

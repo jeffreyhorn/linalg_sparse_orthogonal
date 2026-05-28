@@ -146,6 +146,7 @@ BENCH_SRCS = $(BENCHDIR)/bench_main.c \
              $(BENCHDIR)/bench_ldlt_csc.c \
              $(BENCHDIR)/bench_refactor_csc.c \
              $(BENCHDIR)/bench_eigs.c \
+             $(BENCHDIR)/bench_eigs_reuse.c \
              $(BENCHDIR)/bench_reorder.c \
              $(BENCHDIR)/bench_amd_qg.c \
              $(BENCHDIR)/bench_iterative_reuse.c

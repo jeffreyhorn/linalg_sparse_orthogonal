@@ -1152,3 +1152,115 @@ Interpretation:
 - the parity cleanup did not regress the maintained local reviewed contract
 - Sprint 47 can now move into the later example/tooling/docs queue from a clean
   benchmark front-half baseline
+
+## Day 9
+
+**Objective:** Audit the example surface for unchecked arithmetic, weak helper
+patterns, and stale auxiliary conventions after the Day 8 benchmark-front-half
+landing, then choose a bounded Day 10 cleanup batch instead of carrying a
+generic "example cleanup" backlog.
+
+### Commands Run
+
+1. Re-read the Sprint 47 Day 9-10 plan section:
+   - `sed -n '269,340p' docs/planning/EPIC_4/SPRINT_47/PLAN.md`
+2. Re-read the touched small-example surfaces and the current example allocation
+   helper seam:
+   - `sed -n '1,260p' examples/example_eigs.c`
+   - `sed -n '1,240p' examples/example_iterative.c`
+   - `sed -n '1,220p' examples/example_matrix_free.c`
+   - `sed -n '1,220p' examples/example_alloc_helpers.h`
+3. Refresh the broader example queue and raw-allocation markers:
+   - `rg --files examples`
+   - `rg -n "malloc\\(|calloc\\(|strtol|strtod|atoi|example_[mc]alloc_array|argc|argv|SPARSE_ERR_ALLOC|sqrt\\(\\(double\\)n\\)" examples`
+4. Re-read the strongest remaining raw-allocation candidates and the already
+   aligned COLAMD example:
+   - `sed -n '1,220p' examples/example_analysis.c`
+   - `sed -n '1,220p' examples/example_condition.c`
+   - `sed -n '1,280p' examples/example_ic_minres.c`
+   - `sed -n '220,360p' examples/example_eigs.c`
+   - `sed -n '1,220p' examples/example_colamd.c`
+5. Re-read the current example README contract:
+   - `sed -n '1,220p' examples/README.md`
+
+### Day 9 Findings
+
+#### 1. The example queue is narrower than a generic cleanup backlog
+
+The examples now fall into three practical classes:
+
+- already aligned to the current helper/safety direction
+- clear direct shared-helper adoption targets
+- larger raw-allocation examples that would turn Day 10 into a broad rewrite
+
+Interpretation:
+
+- the right Day 10 move is a narrow helper-adoption batch
+- the wrong move is to treat every example with a raw `malloc` or `calloc` as
+  an equal-priority Sprint 47 target
+
+#### 2. Three current examples are already aligned enough to leave alone
+
+These examples already use `examples/example_alloc_helpers.h` where dynamic
+scratch is part of the public example story:
+
+- `example_iterative.c`
+- `example_matrix_free.c`
+- `example_colamd.c`
+
+Interpretation:
+
+- they should remain intentionally untouched on Day 10 unless a very small
+  follow-on falls out for free
+
+#### 3. `example_eigs.c` is the strongest direct Day 10 target
+
+`example_eigs.c` still repeats raw allocation shapes such as:
+
+- `calloc((size_t)n * (size_t)k, sizeof(double))`
+- `malloc((size_t)n * sizeof(double))`
+
+across multiple sub-demos.
+
+Interpretation:
+
+- it is the cleanest direct shared-helper adoption candidate
+- the cleanup is mostly helper adoption rather than algorithm churn
+
+#### 4. The remaining raw-allocation examples are real, but not the right first batch
+
+The strongest later raw-allocation surfaces are:
+
+- `example_ic_minres.c`
+- `example_analysis.c`
+- `example_condition.c`
+
+Interpretation:
+
+- they do contain real safety/helper cleanup opportunities
+- they are not the right first Sprint 47 batch because they either widen the
+  scope too much or offer too little payoff for the churn
+
+#### 5. Day 10 is now bounded
+
+Primary target:
+
+- `examples/example_eigs.c`
+
+Allowed tiny follow-on only if it stays obviously narrow:
+
+- one helper-seam adoption in `example_condition.c`
+
+Explicit non-targets:
+
+- `example_ic_minres.c`
+- `example_analysis.c`
+- `example_iterative.c`
+- `example_matrix_free.c`
+- `example_colamd.c`
+- broad example README churn
+
+Interpretation:
+
+- Sprint 47 now has a concrete example cleanup day rather than another generic
+  auxiliary bucket

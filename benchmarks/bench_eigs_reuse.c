@@ -137,6 +137,11 @@ static sparse_err_t run_repeated_case(const char *name, const char *path, idx_t 
         err = SPARSE_ERR_BADARG;
         goto cleanup;
     }
+    if (one_err != SPARSE_OK) {
+        printf("    parity:        FAILED matched non-success status=%d\n", (int)one_err);
+        err = SPARSE_ERR_NOT_CONVERGED;
+        goto cleanup;
+    }
     printf("    parity:        |lambda|max diff=%.3e backend=%d\n", max_eig_diff,
            (int)reuse.backend_used);
 
@@ -160,7 +165,7 @@ int main(void) {
     printf("Grow-m Lanczos repeated-run case (nos4, k=5, repeats=%d)\n", (int)growm_repeats);
     sparse_err_t err = run_repeated_case("growm-nos4-k5", "tests/data/suitesparse/nos4.mtx", 5,
                                          SPARSE_EIGS_BACKEND_LANCZOS, growm_repeats);
-    if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED) {
+    if (err != SPARSE_OK) {
         fprintf(stderr, "Grow-m repeated benchmark failed: %s\n", sparse_strerror(err));
         return 1;
     }
@@ -168,7 +173,7 @@ int main(void) {
     printf("\nThick-restart repeated-run case (bcsstk14, k=5, repeats=%d)\n", (int)thick_repeats);
     err = run_repeated_case("thick-bcsstk14-k5", "tests/data/suitesparse/bcsstk14.mtx", 5,
                             SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART, thick_repeats);
-    if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED) {
+    if (err != SPARSE_OK) {
         fprintf(stderr, "Thick-restart repeated benchmark failed: %s\n", sparse_strerror(err));
         return 1;
     }

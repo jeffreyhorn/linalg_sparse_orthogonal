@@ -219,8 +219,8 @@ sparse_err_t sparse_eigs_workspace_prepare_lobpcg(sparse_eigs_workspace_t *ws, i
         return SPARSE_ERR_ALLOC;
 
     size_t total = 0;
-    size_t pieces[] = {nc, nc, cc, cc, cap,    nb, with_p ? nb : 0U, nb, with_p ? nb : 0U,
-                       nb, nb, nb, nb, bs_size};
+    size_t pieces[] = {nc, nc, cc, cc,     cap, nb, with_p ? nb : 0U, nb, with_p ? nb : 0U,
+                       nb, nb, nb, bs_size};
     for (size_t i = 0; i < sizeof(pieces) / sizeof(pieces[0]); i++) {
         if (sparse_size_add_overflow(total, pieces[i], &total))
             return SPARSE_ERR_ALLOC;

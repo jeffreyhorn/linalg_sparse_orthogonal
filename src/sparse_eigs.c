@@ -2141,6 +2141,9 @@ static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *c
     if (m_restart_wide > (int64_t)n)
         m_restart_wide = (int64_t)n;
     idx_t m_restart = (idx_t)m_restart_wide;
+    sparse_eigs_workspace_t thick_ws;
+    sparse_eigs_thick_restart_workspace_view_t thick_view;
+    sparse_eigs_workspace_init(&thick_ws);
 
     /* Day 4 telemetry: peak simultaneous V columns = m_restart
      * (main buffer) + k (locked state across restarts) + k (the
@@ -2152,44 +2155,28 @@ static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *c
      * numbers. */
     result->peak_basis_size = m_restart + 2 * k;
 
-    /* Workspace.  All sizes bounded by (m_restart, k) regardless
-     * of how many restarts the outer loop eventually runs. */
-    size_t v_elems = 0, v_bytes = 0;
-    size_t K2 = 0, K2_bytes = 0;
-    size_t vk_elems = 0, vk_bytes = 0;
-    if (sparse_size_mul_overflow((size_t)n, (size_t)m_restart, &v_elems) ||
-        sparse_size_mul_overflow(v_elems, sizeof(double), &v_bytes) ||
-        sparse_size_mul_overflow((size_t)m_restart, (size_t)m_restart, &K2) ||
-        sparse_size_mul_overflow(K2, sizeof(double), &K2_bytes) ||
-        sparse_size_mul_overflow((size_t)n, (size_t)k, &vk_elems) ||
-        sparse_size_mul_overflow(vk_elems, sizeof(double), &vk_bytes))
-        return SPARSE_ERR_ALLOC;
-
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *V = malloc(v_bytes);
-    double *alpha = malloc((size_t)m_restart * sizeof(double));
-    double *beta = malloc((size_t)m_restart * sizeof(double));
-    double *v0 = calloc((size_t)n, sizeof(double));
-    double *residual_vec = malloc((size_t)n * sizeof(double));
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *T_arrow = malloc(K2_bytes);
-    double *theta_arrow = malloc((size_t)m_restart * sizeof(double));
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *Y_arrow = malloc(K2_bytes);
-    idx_t *sel_idx = malloc((size_t)k * sizeof(idx_t));
-    // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-    double *V_locked_tmp = malloc(vk_bytes);
-    double *theta_locked_tmp = malloc((size_t)k * sizeof(double));
-    double *beta_coupling_tmp = malloc((size_t)k * sizeof(double));
     lanczos_restart_state_t state = {0};
 
     sparse_err_t rc = SPARSE_ERR_NOT_CONVERGED;
-
-    if (!V || !alpha || !beta || !v0 || !residual_vec || !T_arrow || !theta_arrow || !Y_arrow ||
-        !sel_idx || !V_locked_tmp || !theta_locked_tmp || !beta_coupling_tmp) {
-        rc = SPARSE_ERR_ALLOC;
+    sparse_err_t ws_err =
+        sparse_eigs_workspace_prepare_thick_restart(&thick_ws, n, m_restart, k, &thick_view);
+    if (ws_err != SPARSE_OK) {
+        rc = ws_err;
         goto cleanup;
     }
+
+    double *V = thick_view.V;
+    double *alpha = thick_view.alpha;
+    double *beta = thick_view.beta;
+    double *v0 = thick_view.v0;
+    double *residual_vec = thick_view.residual_vec;
+    double *T_arrow = thick_view.T_arrow;
+    double *theta_arrow = thick_view.theta_arrow;
+    double *Y_arrow = thick_view.Y_arrow;
+    idx_t *sel_idx = thick_view.sel_idx;
+    double *V_locked_tmp = thick_view.V_locked_tmp;
+    double *theta_locked_tmp = thick_view.theta_locked_tmp;
+    double *beta_coupling_tmp = thick_view.beta_coupling_tmp;
 
     s20_lanczos_starting_vector(v0, n);
 
@@ -2340,18 +2327,7 @@ static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *c
     }
 
 cleanup:
-    free(V);
-    free(alpha);
-    free(beta);
-    free(v0);
-    free(residual_vec);
-    free(T_arrow);
-    free(theta_arrow);
-    free(Y_arrow);
-    free(sel_idx);
-    free(V_locked_tmp);
-    free(theta_locked_tmp);
-    free(beta_coupling_tmp);
+    sparse_eigs_workspace_free(&thick_ws);
     lanczos_restart_state_free(&state);
     return rc;
 }

@@ -800,3 +800,150 @@ Interpretation:
 - the shared owner is already clean under the maintained static-analysis gate
 - the first shared-buffer batch closes from a measured reviewed baseline rather
   than from partial local testing
+
+## Day 6
+
+**Objective:** Convert the main Lanczos migration target that still owned a
+per-call heap bundle — the thick-restart outer loop — to the shared reusable
+internal workspace/state seam, while preserving the already-migrated grow-m
+path, keeping `lanczos_restart_state_t` as the family-specific control/state
+owner, and explicitly not widening into LOBPCG yet.
+
+### Commands Run
+
+1. Re-read the Sprint 46 Day 6 plan section:
+   - `sed -n '179,224p' docs/planning/EPIC_4/SPRINT_46/PLAN.md`
+2. Re-read the Day 5 shared-buffer closeout:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_46/artifacts/day5-shared-eigensolver-buffer-layer-batch1.md`
+3. Re-read the landed shared workspace surface and the live thick-restart
+   allocation region:
+   - `sed -n '1,260p' src/sparse_eigs_workspace_internal.h`
+   - `sed -n '1,360p' src/sparse_eigs_workspace_internal.c`
+   - `sed -n '1600,1865p' src/sparse_eigs.c`
+   - `sed -n '2110,2305p' src/sparse_eigs.c`
+4. Refresh the live eigensolver seam markers around thick-restart:
+   - `rg -n "lanczos_thick_restart_iterate|s21_thick_restart_outer_loop|lanczos_restart_state_t|malloc|calloc|workspace_prepare|growm_view|thick_restart" src/sparse_eigs.c`
+5. Implement the bounded thick-restart migration:
+   - `apply_patch` on:
+     - `src/sparse_eigs.c`
+6. Run the mandatory full C/C-header gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+7. Run the stronger reviewed baseline for the multi-family Lanczos migration:
+   - `make quality-review-full`
+8. Run the targeted eigensolver follow-ons justified by the touched solver
+   paths:
+   - `./build/test_eigs`
+   - `./build/test_eigs_thick_restart`
+   - `./build/test_eigs_lobpcg`
+   - `./build/example_eigs`
+
+### Day 6 Findings
+
+#### 1. The main remaining thick-restart heap bundle is now on the shared reusable seam
+
+The live Day 5 gap was the thick-restart outer loop in
+`s21_thick_restart_outer_loop(...)`, which still built a per-call bundle for:
+
+- `V`
+- `alpha`
+- `beta`
+- `v0`
+- `residual_vec`
+- `T_arrow`
+- `theta_arrow`
+- `Y_arrow`
+- `sel_idx`
+- temporary locked-state buffers
+
+Day 6 now routes that bundle through the shared owner via:
+
+- `sparse_eigs_workspace_t`
+- `sparse_eigs_thick_restart_workspace_view_t`
+- `sparse_eigs_workspace_prepare_thick_restart(...)`
+
+Interpretation:
+
+- the main repeated-run thick-restart basis/scratch path no longer depends only
+  on ad hoc outer-loop heap allocation
+- Sprint 46 now has both primary Lanczos families on the shared reusable seam
+
+#### 2. The family-specific thick-restart control/state stayed separate, as designed
+
+Day 6 did **not** collapse the algorithm-specific thick-restart control into the
+shared owner.
+
+It intentionally preserved:
+
+- `lanczos_restart_state_t`
+- `lanczos_restart_state_assemble(...)`
+- `lanczos_restart_state_free(...)`
+- lock-selection and restart choreography
+- residual recomputation / restart assembly flow
+
+Interpretation:
+
+- the shared owner remains about capacity, ownership, and typed slicing
+- family-specific restart semantics remain in the thick-restart code path, which
+  matches the Day 3 design boundary
+
+#### 3. The grow-m proof from Day 5 remains intact and unchanged in shape
+
+Grow-m Lanczos was already migrated in Day 5 through:
+
+- `sparse_eigs_workspace_prepare_growm(...)`
+- `sparse_eigs_growm_workspace_view_t`
+
+Day 6 did not reopen that path.  Instead it completed the first Lanczos-family
+pairing by bringing thick-restart onto the same owner/view model.
+
+Interpretation:
+
+- the migration order is holding:
+  1. shared owner
+  2. grow-m proof
+  3. thick-restart adoption
+- this keeps Sprint 46's front half disciplined and bounded
+
+#### 4. The batch stayed within the Day 6 boundary
+
+Day 6 did **not** yet migrate:
+
+- LOBPCG call sites
+- public wrappers or explicit public workspace/state APIs
+- eigensolver benchmark work
+- maintainer memory-contract closeout
+
+Interpretation:
+
+- this was the correct Day 6 landing shape:
+  - finish the primary Lanczos migration
+  - keep LOBPCG and repeated-run evidence for later Sprint 46 batches
+
+#### 5. The multi-family Lanczos migration validated from the full reviewed baseline
+
+Because `*.c` changed, the required gate was:
+
+- `make format`
+- `make lint`
+- `make test`
+
+The stronger reviewed baseline for this shared-layer/multi-family Lanczos
+migration was also run:
+
+- `make quality-review-full`
+
+Targeted eigensolver follow-ons were also run:
+
+- `./build/test_eigs`
+- `./build/test_eigs_thick_restart`
+- `./build/test_eigs_lobpcg`
+- `./build/example_eigs`
+
+Interpretation:
+
+- Day 6 closes from the maintained full reviewed baseline, not from partial
+  smoke coverage
+- the direct eigensolver binaries remain the right touched-surface proof for
+  this batch

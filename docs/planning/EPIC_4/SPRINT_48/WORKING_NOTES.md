@@ -1126,3 +1126,124 @@ Interpretation:
 
 - Day 10 should be mostly README + guide
 - it should not become a workflow or script redesign batch
+
+## Day 10
+
+**Objective:** Land the bounded quality-contract ownership simplification
+identified on Day 9 so `README.md` stays a concise operator map,
+`docs/maintainer_guide.md` clearly owns repository-wide interpretation, and the
+executable command details remain local to `Makefile` and the dead-code
+supporting surfaces.
+
+### Commands Run
+
+1. Re-read the Sprint 48 Day 10 plan section:
+   - `sed -n '379,452p' docs/planning/EPIC_4/SPRINT_48/PLAN.md`
+2. Re-read the Day 9 ownership audit:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_48/artifacts/day9-quality-contract-ownership-audit.md`
+3. Re-read the current quality-contract wording in the main doc surfaces:
+   - `sed -n '690,790p' README.md`
+   - `sed -n '40,170p' docs/maintainer_guide.md`
+4. Reconfirm the maintained command-detail home before editing:
+   - `sed -n '500,640p' Makefile`
+5. Land the bounded ownership simplification batch:
+   - `README.md`
+   - `docs/maintainer_guide.md`
+6. Run targeted Day 10 sanity checks:
+   - `rg -n "Maintainer Guide|quality-review-full|deadcode-check|Cross-Platform CI Contract|quality-review-cmake" README.md docs/maintainer_guide.md`
+   - `wc -l README.md docs/maintainer_guide.md`
+   - `make -n quality-review-full deadcode-report deadcode-check`
+7. Record the Day 10 artifact:
+   - `docs/planning/EPIC_4/SPRINT_48/artifacts/day10-quality-contract-simplification-batch.md`
+
+### Day 10 Findings
+
+#### 1. README is now more clearly an operator map than a maintainer-policy surface
+
+The Day 10 pass tightened the README quality tail so it still gives a compact
+entry point for:
+
+- reviewed wrapper commands
+- the cross-platform table
+- the release/readiness checklist
+- direct links to deeper policy and historical references
+
+But it now points outward more consistently instead of re-explaining
+maintainer-policy meaning:
+
+- wrapper/rerun detail now points back to `make <target>`
+- repository-wide interpretation now points back to
+  `docs/maintainer_guide.md`
+- the readiness checklist now reads more like a command/status checklist than a
+  mini policy note
+
+Interpretation:
+
+- README stayed useful for operators
+- Day 10 reduced the chance that README becomes the shadow policy home again
+
+#### 2. The maintainer guide now states the command-detail boundary directly
+
+`docs/maintainer_guide.md` now says explicitly that:
+
+- wrapper expansion
+- rerun guidance
+- build-tree paths
+- dead-code execution detail
+
+stay with the executable surfaces:
+
+- `Makefile`
+- `scripts/deadcode_workflow.sh`
+- `scripts/deadcode_report.py`
+
+while the guide owns repository-wide interpretation of those surfaces.
+
+Interpretation:
+
+- the guide is now a clearer policy layer
+- it did not broaden into a shadow command manual
+
+#### 3. The strongest repeated quality claims are now better separated by ownership
+
+The three repeated Day 9 claims were tightened successfully:
+
+- strongest/default local reviewed closeout naming
+- `deadcode-check` meaning
+- cross-platform enforced/staged interpretation
+
+The ownership split is now cleaner:
+
+- command semantics and emitted detail:
+  - `Makefile`
+- compact operator map:
+  - `README.md`
+- repository-wide interpretation:
+  - `docs/maintainer_guide.md`
+
+Interpretation:
+
+- Day 10 simplified ownership without changing any command behavior
+- the quality contract is easier to maintain because fewer future edits need to
+  be mirrored across prose surfaces
+
+#### 4. The Day 10 batch remained docs-only but still validated the touched contract surfaces
+
+The targeted sanity pass confirmed:
+
+- touched references still resolve cleanly
+- the retained reviewed/dead-code command names still match the live repo
+- the maintained dry-run command surface still reflects the README/guide
+  wording
+
+Measured size check:
+
+- README after Day 5 reduction:
+  - `832` lines
+- README after Day 10 simplification:
+  - `830` lines
+
+Interpretation:
+
+- Day 10 was a wording-ownership cleanup, not another broad README shrink pass
+- the value came from cleaner boundary definition, not large line-count change

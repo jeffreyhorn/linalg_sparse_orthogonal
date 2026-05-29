@@ -50,6 +50,15 @@ This guide owns:
 - which surface is authoritative for which kind of claim
 - where maintainer-only policy should live instead of spreading through README
 
+Command-detail boundary:
+
+- keep wrapper expansion, rerun guidance, build-tree paths, and other
+  executable command detail in `Makefile`
+- keep dead-code workflow execution detail in `Makefile`,
+  `scripts/deadcode_workflow.sh`, and `scripts/deadcode_report.py`
+- use this guide for repository-wide interpretation of those surfaces, not as a
+  shadow command reference
+
 ## Reviewed Baseline and Warning Authority
 
 ### Strongest local reviewed baseline
@@ -66,6 +75,8 @@ Interpretation:
 - it composes the reviewed Makefile path and the reviewed CMake parity path
 - it is the right default proof point for local “current branch is in the
   reviewed baseline” claims unless a narrower claim is being made
+- exact wrapper expansion and rerun guidance should stay with the
+  `Makefile` target help
 
 ### Reviewed CMake parity
 
@@ -81,6 +92,7 @@ Interpretation:
 - use `ctest -N` to confirm the maintained suite count when truthfulness about
   the active parity surface matters
 - use the full reviewed CMake path when claiming CMake parity still passes
+- keep configure/build/ctest command detail in the `Makefile` target help
 
 ### Repository-wide warning-clean claims
 
@@ -115,6 +127,8 @@ Interpretation:
 - `make deadcode-report` regenerates the classified report outputs
 - `make deadcode-check` is a report-completeness gate, not a zero-findings
   claim
+- keep exact emitted report wording and execution sequencing local to the
+  `Makefile` and dead-code scripts
 
 How to read the results:
 
@@ -145,6 +159,7 @@ It should keep:
 - build/test essentials
 - high-level feature map
 - concise operator-quality command map
+- compact cross-platform quality table
 - direct links to deeper docs
 
 It should not become the full maintainer-policy home again.

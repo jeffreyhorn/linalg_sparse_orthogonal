@@ -109,7 +109,7 @@ make lint       # strict compile + static analysis (includes tooling-build)
 make quality-review-compile  # reviewed format-check + lint wrapper
 make test       # run all unit tests
 make quality-review  # reviewed format-check + lint + test + deadcode-check
-make quality-review-full  # strongest local reviewed baseline: quality-review + quality-review-cmake
+make quality-review-full  # default local reviewed closeout: quality-review + quality-review-cmake
 make warning-workflow WARNING_WORKFLOW_LABEL=label  # authoritative repository-wide warning inventory capture
 make quality-review-cmake-compile  # reviewed CMake configure + rebuild + ctest -N
 make quality-review-cmake  # reviewed CMake configure + rebuild + ctest -N + ctest
@@ -659,9 +659,9 @@ make deadcode-check
 - `make deadcode-report` regenerates those artifacts and writes:
   - `build/deadcode/report.md`
   - `build/deadcode/report.tsv`
-- `make deadcode-check` is a completeness gate, not a "zero findings" claim:
-  it enforces that the report exists, every `xunused` finding was categorized,
-  and the coverage-gap section is present
+- `make deadcode-check` verifies the report-completeness invariants:
+  the report exists, every `xunused` finding was categorized, and the
+  coverage-gap section is present
 
 Prerequisites:
 
@@ -690,13 +690,14 @@ make quality-review-cmake
 ```
 
 - `quality-review-compile` / `quality-review` are the reviewed Makefile path
-- `quality-review-full` is the strongest local reviewed baseline command
+- `quality-review-full` is the default local reviewed closeout command
 - `quality-review-cmake-compile` / `quality-review-cmake` are the reviewed
   CMake parity path for clean rebuild + `ctest -N` + full `ctest`
-- these wrappers are additive; they do **not** replace `make lint`,
-  `make test`, or `make deadcode-check`
-- the CMake wrappers do **not** replace the Makefile-authoritative formatter,
-  static-analysis, or dead-code checks
+- the CMake wrappers are additive; they do **not** replace the
+  Makefile-authoritative formatter, static-analysis, or dead-code checks
+- for exact wrapper expansion, rerun guidance, and maintainer-policy
+  interpretation, use `make <target>` and the
+  [Maintainer Guide](docs/maintainer_guide.md)
 
 ### Cross-Platform CI Contract
 
@@ -706,34 +707,32 @@ make quality-review-cmake
 | macOS | Apple Clang: `make quality-review-compile`; `make quality-review-cmake`; `make wall-check`; `make sanitize` | dead-code (`make deadcode-report`, `make deadcode-check`) | Homebrew GCC direct `make` + `make test` + `make wall-check`; install/pkg-config validation |
 | Windows | reviewed CMake configure/build; `ctest -N`; full `ctest` | `make quality-review-compile`; `make quality-review`; dead-code | excluded tests: `test_threads`, `test_sprint4_integration`, `test_fuzz` |
 
-Use the table above as the truth source for enforced, staged, and
-supplemental/excluded boundaries. Linux remains the strongest enforced reviewed
-baseline, and reviewed CMake parity remains the strongest shared reviewed
-baseline across platforms.
+Use the table above as the compact operator map for enforced, staged, and
+supplemental/excluded boundaries. For repository-wide interpretation of those
+claims, use the [Maintainer Guide](docs/maintainer_guide.md).
 
 ### Quality Readiness Checklist
 
 Use this checklist for a concise release/readiness pass:
 
-- repository-wide warning claims still use:
+- repository-wide warning evidence still uses:
   - `make warning-workflow WARNING_WORKFLOW_LABEL=label`
-- strongest local reviewed baseline still passes:
+- default local reviewed closeout still passes:
   - `make quality-review-full`
-- dead-code evidence and completeness still pass truthfully:
+- dead-code evidence refresh and completeness gate still pass:
   - `make deadcode-report`
   - `make deadcode-check`
-- reviewed CMake parity remains truthful:
-  - `ctest -N --test-dir build/quality-review-cmake` still reports the current
-    maintained suite size (`53`)
-  - `make quality-review-cmake` still passes
+- reviewed CMake parity still passes when that claim matters:
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - `make quality-review-cmake`
 - docs/examples/header usage stays aligned with shipped behavior
 - enforced/staged/excluded platform boundaries still match the
   `Cross-Platform CI Contract` table above
 
 ### Maintainer References
 
-For repository-wide quality-contract interpretation, documentation ownership,
-dead-code meaning, and stable maintainer norms, use the
+For repository-wide quality-contract interpretation, dead-code meaning,
+documentation ownership, and stable maintainer norms, use the
 [Maintainer Guide](docs/maintainer_guide.md).
 
 For the Sprint 30 authoritative warning-baseline and rebuild references used by
@@ -743,7 +742,7 @@ that guide, see:
 - [Rebuild Workflow](docs/planning/EPIC_3/SPRINT_30/REBUILD_WORKFLOW.md)
 
 Keep README maintainer notes concise and prefer the guide over repeating policy
-blocks here.
+or `Makefile` target-help detail here.
 
 Tree-mutating local modes are a separate operator category:
 

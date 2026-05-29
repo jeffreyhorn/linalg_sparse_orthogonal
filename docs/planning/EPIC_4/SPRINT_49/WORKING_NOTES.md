@@ -1206,3 +1206,193 @@ Bottom line:
 - it gave explicit handles a real top-level documentation home
 - it stayed tightly bounded to the README plus one supporting example-scope
   surface
+
+## Day 9 — Cross-Surface Compatibility Audit
+
+### Goal
+
+Map the smallest high-signal compatibility sweep now that the public lifecycle
+API is landed and the migration path is documented.
+
+### Audited Surfaces
+
+Docs / examples:
+
+- `README.md`
+- `examples/README.md`
+- `benchmarks/README.md`
+- `docs/tutorial.md`
+
+Benchmarks:
+
+- `benchmarks/bench_iterative_reuse.c`
+- `benchmarks/bench_eigs_reuse.c`
+
+Tests:
+
+- `tests/test_iterative.c`
+- `tests/test_eigs.c`
+- broader `tests/` public-contract references via search
+
+Public headers:
+
+- `include/sparse_iterative.h`
+- `include/sparse_eigs.h`
+
+### Main Audit Result
+
+The remaining cross-surface drift is now narrower than the Day 7 audit first
+suggested.
+
+What now looks good enough to leave alone for Day 10:
+
+- the main README migration guidance is in place
+- `examples/README.md` now explains why the shipped examples still lean on the
+  one-shot path
+- the public headers already describe the handle contract clearly
+- broad tutorial churn is not required for Epic 4 closeout
+
+What still looks like the highest-value remaining compatibility drift:
+
+1. repeated-run benchmarks still present internal reuse seams rather than the
+   final public handle path
+2. direct public-handle regression coverage is still absent from `tests/`
+
+Interpretation:
+
+- examples and top-level docs are no longer the strongest Day 10 targets
+- the highest-value Day 10 work should center on benchmarks plus focused tests
+
+### Example-Surface Disposition
+
+The example surface now reads acceptably for Sprint 49 closeout:
+
+- examples remain simple one-shot public usage references
+- that is now documented explicitly
+- no example currently claims that one-shot is the *only* supported caller
+  model
+
+Therefore:
+
+- no broad example rewrite is needed for Day 10
+- only a small example touch would be justified if it were required to support
+  a nearby benchmark/test clarification, which does not currently appear
+  necessary
+
+### Benchmark-Surface Drift
+
+The strongest remaining benchmark disagreement is real and concrete.
+
+`bench_iterative_reuse.c` still proves repeated-run evidence through:
+
+- `sparse_solve_cg_with_workspace_internal(...)`
+- `sparse_solve_gmres_with_workspace_internal(...)`
+
+`bench_eigs_reuse.c` still proves repeated-run evidence through:
+
+- `sparse_eigs_sym_with_workspace_internal(...)`
+
+Why this now matters more than it did before Sprint 49:
+
+- these were the correct seams when repeated-run support was still internal
+- after Day 5/6, the final caller-facing repeated-run contract is the public
+  handle path
+- continuing to benchmark only the internal seams leaves the public repeated-run
+  story only partially reflected in the repo surface
+
+That makes the reuse benchmarks strong Day 10 candidates.
+
+### Test-Surface Drift
+
+The second strongest remaining gap is also concrete:
+
+- there is still no direct regression coverage for:
+  - `sparse_iter_handle_init(...)`
+  - `sparse_iter_handle_prepare_cg(...)`
+  - `sparse_iter_handle_prepare_gmres(...)`
+  - `sparse_solve_cg_with_handle(...)`
+  - `sparse_solve_gmres_with_handle(...)`
+  - `sparse_eigs_handle_init(...)`
+  - `sparse_eigs_handle_prepare(...)`
+  - `sparse_eigs_sym_with_handle(...)`
+
+Current test coverage is still mainly through:
+
+- one-shot iterative/eigensolver behavior surfaces
+- family-level regression and integration tests
+
+That is a good safety floor, but it does not yet pin the final public repeated-
+run contract directly.
+
+This makes focused public-handle regression coverage the other strong Day 10
+candidate.
+
+### Docs-Surface Drift
+
+`benchmarks/README.md` remains mostly benchmark-local and does not yet mention
+the public repeated-run handle path.
+
+That is now a secondary issue rather than the primary one:
+
+- if Day 10 touches the reuse benchmarks, a small corresponding
+  `benchmarks/README.md` clarification would be justified
+- a broader docs pass is not needed
+
+`docs/tutorial.md` still teaches the one-shot iterative path and matrix-free
+path without the new repeated-run handle discussion.
+
+That is acceptable for Sprint 49:
+
+- the tutorial is still functionally correct
+- the README now owns the primary old-vs-new migration explanation
+- rewriting the tutorial would be broader than the highest-value remaining
+  sweep
+
+### Day 10 Target List
+
+The smallest coherent high-signal Day 10 batch now looks like:
+
+Primary targets:
+
+- `benchmarks/bench_iterative_reuse.c`
+- `benchmarks/bench_eigs_reuse.c`
+- focused direct public-handle regression additions in:
+  - `tests/test_iterative.c`
+  - `tests/test_eigs.c`
+
+Secondary touch only if needed:
+
+- `benchmarks/README.md`
+
+Intended Day 10 behavior boundary:
+
+- preserve the same numerical behavior and repeated-run evidence goals
+- update the repeated-run path to reflect the final public handle model
+- add compact direct public-handle regression coverage
+- avoid broad example or tutorial churn
+
+### Important Non-Goals
+
+Day 10 should still avoid:
+
+- converting all examples to handle usage
+- broad benchmark framework work
+- large test refactors unrelated to the public handle contract
+- tutorial expansion beyond a tiny local clarification, if any
+
+### Day 9 Position
+
+Sprint 49 is now down to a very small final compatibility queue:
+
+- reuse benchmarks should likely move from internal repeated-run seams to the
+  final public handle path
+- direct regression coverage should pin the new public handle contract
+- any docs touch beyond that should stay minimal and local
+
+Bottom line:
+
+- Day 9 reduced the compatibility sweep to one strong implementation bucket and
+  one strong regression bucket
+- examples and the main README now look good enough to leave alone
+- Day 10 should focus on reuse benchmarks, direct public-handle tests, and at
+  most one tiny benchmark-doc clarification

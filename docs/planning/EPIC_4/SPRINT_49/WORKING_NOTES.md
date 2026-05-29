@@ -353,3 +353,128 @@ Interpretation:
 - Sprint 49 should not start by editing examples, README, or benchmark drivers
 - it should first define and land the bounded public lifecycle/workspace shape
   the rest of the surfaces must then describe
+
+## Day 3
+
+**Objective:** Define the bounded public lifecycle/workspace model Sprint 49
+can safely expose now that the lifecycle scaffolding, internal reusable
+workspace seams, and documentation-policy homes already exist, while keeping
+the old one-shot solver/eigensolver entry points as supported first-class
+compatibility surfaces.
+
+### Commands Run
+
+1. Re-read the Sprint 49 Day 3 plan section:
+   - `sed -n '97,131p' docs/planning/EPIC_4/SPRINT_49/PLAN.md`
+2. Re-read the Day 2 seam inventory:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_49/artifacts/day2-public-lifecycle-surface-inventory.md`
+3. Re-read the public reusable lifecycle precedent and the current one-shot
+   public iterative/eigensolver surfaces:
+   - `sed -n '1,220p' include/sparse_analysis.h`
+   - `sed -n '220,520p' include/sparse_iterative.h`
+   - `sed -n '237,620p' include/sparse_eigs.h`
+4. Re-read the maintainer-facing policy-home guidance relevant to public
+   contract placement:
+   - `sed -n '1,220p' docs/maintainer_guide.md`
+5. Refresh the current public/internal usage split markers:
+   - `rg -n "sparse_analyze|sparse_factor_numeric|sparse_refactor_numeric|sparse_solve_cg|sparse_solve_gmres|sparse_eigs_sym|with_workspace_internal|bench_iterative_reuse|bench_eigs_reuse" README.md docs examples benchmarks tests include src -g '!build'`
+6. Re-read the repeated-run benchmark and example surfaces that will later need
+   to agree with the final public model:
+   - `sed -n '1,240p' benchmarks/bench_iterative_reuse.c`
+   - `sed -n '1,240p' benchmarks/bench_eigs_reuse.c`
+   - `sed -n '1,240p' examples/example_iterative.c`
+   - `sed -n '1,240p' examples/example_eigs.c`
+
+### Day 3 Findings
+
+#### 1. Sprint 49 should expose a public lifecycle layer, not a public internal-workspace mirror
+
+The Day 2 seam map plus the live headers make the main design rule explicit:
+
+- `sparse_analysis.h` already teaches a public reusable-handle lifecycle
+- the repeated-run iterative/eigensolver helpers already exist internally
+- the internal helper names are implementation-oriented and benchmark-oriented
+
+Interpretation:
+
+- Sprint 49 should not publish the exact `*_with_workspace_internal(...)`
+  surfaces or the raw internal workspace owner structs
+- it should expose a bounded public lifecycle layer that composes with the
+  existing repeated-run internals while preserving a cleaner public contract
+
+#### 2. The public contract should follow one common lifecycle shape across iterative and eigensolver work
+
+The best bounded public model now follows the same high-level lifecycle already
+present in `sparse_analysis.h`:
+
+1. initialize / zero a public handle
+2. prepare or configure for a stable-dimension repeated-run path
+3. run one or more solves / eigensolver calls through that handle
+4. reset or reuse without preserving old Krylov/subspace state
+5. free explicit owned resources
+
+Interpretation:
+
+- Sprint 49 should align iterative/eigensolver public lifecycle wording with
+  the existing analyze/factor precedent
+- it should avoid surfacing algorithm-specific storage layout details as part of
+  the public contract
+
+#### 3. Compatibility wrappers must remain first-class rather than transitional leftovers
+
+The current public headers, examples, and README still teach one-shot usage.
+That caller shape remains valid and important.
+
+Interpretation:
+
+- the existing one-shot entries should stay supported public entry points
+- Sprint 49 should describe them explicitly as compatibility-oriented or
+  convenience-oriented one-shot wrappers over the new lifecycle layer
+- Sprint 49 should not frame them as deprecated or second-class
+
+#### 4. Option structs and result structs should stay stable caller surfaces rather than being redesigned around handle ownership
+
+The existing public iterative/eigensolver APIs already expose:
+
+- option structs
+- result structs
+- caller-owned output buffers for eigensolvers
+- designated-initializer usage patterns
+
+Interpretation:
+
+- Sprint 49 should preserve those option/result surfaces as the primary caller
+  configuration/result contract
+- the new lifecycle layer should compose around them rather than replacing them
+  with large new configuration objects
+
+#### 5. Reset/reuse semantics must be explicit and cheap
+
+The internal repeated-run model already proves the intended behavior:
+
+- preserve allocation capacity across repeated stable-dimension runs
+- do not preserve prior iteration/subspace/search state as a feature
+- let each run start fresh numerically while amortizing allocation churn
+
+Interpretation:
+
+- the public lifecycle design should make reuse capacity explicit
+- it should make numerical-state persistence explicitly unsupported
+- it should keep resize/reprepare semantics bounded to stable dimensions unless
+  later work chooses to widen them
+
+#### 6. The main Day 3 non-goals are now explicit
+
+Sprint 49 should not do any of the following under the banner of public
+lifecycle exposure:
+
+- broad solver API redesign
+- publicizing every internal helper or workspace view
+- removing or deprecating the one-shot solver/eigensolver entry points
+- rewriting examples/README before the public header/source contract is landed
+- introducing a public API promise around internal storage layout
+
+Interpretation:
+
+- the design is now bounded tightly enough to guide Day 5/6 implementation
+  without encouraging public-surface sprawl

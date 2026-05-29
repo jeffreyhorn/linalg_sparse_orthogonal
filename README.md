@@ -242,6 +242,65 @@ indefinite-system workflows. Preconditioner setup routines expect the original
 matrix state with identity permutations, so if a matrix may already have been
 factored or reordered, start from a fresh `sparse_copy()` of the original.
 
+### Repeated-Run Lifecycle Handles
+
+Sprint 49 adds an explicit repeated-run handle path for callers solving many
+same-dimension problems while wanting to preserve allocation capacity between
+runs.
+
+The one-shot APIs remain fully supported:
+
+- `sparse_solve_cg(...)`
+- `sparse_solve_gmres(...)`
+- `sparse_eigs_sym(...)`
+
+Use them when:
+
+- you are solving once or only occasionally
+- simplicity matters more than workspace reuse
+- you do not want to manage a prepare / free lifecycle explicitly
+
+Use the explicit handle path when:
+
+- the problem dimension is stable across repeated solves
+- allocator churn or repeated workspace setup is worth avoiding
+- you want one caller-owned object whose capacity can be prepared once and
+  reused across runs
+
+The public repeated-run iterative surface is:
+
+- `sparse_iter_handle_t`
+- `sparse_iter_handle_init(...)`
+- `sparse_iter_handle_prepare_cg(...)`
+- `sparse_iter_handle_prepare_gmres(...)`
+- `sparse_solve_cg_with_handle(...)`
+- `sparse_solve_gmres_with_handle(...)`
+- `sparse_iter_handle_free(...)`
+
+The public repeated-run eigensolver surface is:
+
+- `sparse_eigs_handle_t`
+- `sparse_eigs_handle_init(...)`
+- `sparse_eigs_handle_prepare(...)`
+- `sparse_eigs_sym_with_handle(...)`
+- `sparse_eigs_handle_free(...)`
+
+The lifecycle contract is:
+
+1. zero-initialize the handle or call the init helper
+2. optionally prepare it for the stable dimension / working-set shape
+3. run the corresponding `*_with_handle(...)` entry as many times as needed
+4. free the handle when done
+
+Important behavior:
+
+- reusing a handle preserves allocation capacity, not old numerical iteration
+  state
+- re-preparing may grow capacity and discards prior Krylov / Ritz /
+  search-direction state
+- existing one-shot entries remain the compatibility path and are not
+  deprecated by Sprint 49
+
 ## API Overview
 
 | Header | Purpose |
@@ -253,7 +312,7 @@ factored or reordered, start from a fresh `sparse_copy()` of the original.
 | [`sparse_cholesky.h`](include/sparse_cholesky.h) | Cholesky factorization and solve for SPD matrices |
 | [`sparse_ldlt.h`](include/sparse_ldlt.h) | LDL^T factorization with Bunch-Kaufman pivoting for symmetric indefinite matrices |
 | [`sparse_analysis.h`](include/sparse_analysis.h) | Symbolic analysis, numeric factorization, refactorization (analyze-once workflow) |
-| [`sparse_iterative.h`](include/sparse_iterative.h) | CG, GMRES, MINRES, BiCGSTAB; block CG/GMRES/MINRES; GMRES left/right preconditioning |
+| [`sparse_iterative.h`](include/sparse_iterative.h) | CG, GMRES, MINRES, BiCGSTAB; block CG/GMRES/MINRES; GMRES left/right preconditioning; explicit repeated-run handles for CG/GMRES |
 | [`sparse_ilu.h`](include/sparse_ilu.h) | ILU(0) and ILUT incomplete factorization preconditioners |
 | [`sparse_ic.h`](include/sparse_ic.h) | IC(0) incomplete Cholesky preconditioner for SPD systems |
 | [`sparse_qr.h`](include/sparse_qr.h) | Column-pivoted QR factorization, least-squares, rank, null space, refinement |
@@ -262,7 +321,7 @@ factored or reordered, start from a fresh `sparse_copy()` of the original.
 | [`sparse_csr.h`](include/sparse_csr.h) | CSR/CSC compressed format conversion |
 | [`sparse_reorder.h`](include/sparse_reorder.h) | Fill-reducing reordering (RCM, AMD, ND, COLAMD), permutation, bandwidth |
 | [`sparse_svd.h`](include/sparse_svd.h) | SVD, partial SVD, condition number, pseudoinverse, low-rank approximation |
-| [`sparse_eigs.h`](include/sparse_eigs.h) | Sparse symmetric eigensolver — Lanczos with growing-m outer loop, shift-invert mode, Ritz pairs |
+| [`sparse_eigs.h`](include/sparse_eigs.h) | Sparse symmetric eigensolver — Lanczos/LOBPCG backends, shift-invert mode, Ritz pairs, explicit repeated-run handle |
 | [`sparse_vector.h`](include/sparse_vector.h) | Dense vector utilities (norms, axpy, dot product) |
 
 ### Key Functions
@@ -309,6 +368,7 @@ factored or reordered, start from a fresh `sparse_copy()` of the original.
 
 **Symmetric eigensolvers (Sprint 20):**
 - `sparse_eigs_sym(A, k, &opts, &result)` — k extreme or near-sigma eigenpairs of symmetric A via Lanczos (growing-m outer loop) with full MGS reorthogonalization
+- `sparse_eigs_handle_init(&handle)` / `sparse_eigs_handle_prepare(&handle, n, k, &opts)` / `sparse_eigs_sym_with_handle(A, k, &opts, &result, &handle)` / `sparse_eigs_handle_free(&handle)` — explicit repeated-run lifecycle path for stable-dimension symmetric eigensolves
 - `opts.which` = `SPARSE_EIGS_LARGEST` / `_SMALLEST` / `_NEAREST_SIGMA`; the shift-invert mode composes with `sparse_ldlt_factor_opts` (Sprint 20 Days 4-6 AUTO dispatch)
 - `opts.compute_vectors = 1` populates `result.eigenvectors` (column-major, caller-owned); `result.used_csc_path_ldlt` reports the inner LDL^T backend for shift-invert
 
@@ -346,7 +406,9 @@ factored or reordered, start from a fresh `sparse_copy()` of the original.
 
 **Iterative solvers:**
 - `sparse_solve_cg(A, b, x, &opts, precond, ctx, &result)` — Preconditioned Conjugate Gradient (SPD only)
+- `sparse_iter_handle_init(&handle)` / `sparse_iter_handle_prepare_cg(&handle, n)` / `sparse_solve_cg_with_handle(A, b, x, &opts, precond, ctx, &result, &handle)` / `sparse_iter_handle_free(&handle)` — explicit repeated-run CG lifecycle path
 - `sparse_solve_gmres(A, b, x, &opts, precond, ctx, &result)` — Restarted GMRES(k) with left/right preconditioning
+- `sparse_iter_handle_prepare_gmres(&handle, n, restart)` / `sparse_solve_gmres_with_handle(A, b, x, &opts, precond, ctx, &result, &handle)` — explicit repeated-run GMRES lifecycle path
 - `sparse_cg_solve_block(A, B, nrhs, X, &opts, precond, ctx, &result)` — Block CG for multiple RHS
 - `sparse_gmres_solve_block(A, B, nrhs, X, &opts, precond, ctx, &result)` — Block GMRES for multiple RHS
 - `sparse_solve_cg_mf(matvec, ctx, n, b, x, &opts, precond, ctx, &result)` — Matrix-free CG

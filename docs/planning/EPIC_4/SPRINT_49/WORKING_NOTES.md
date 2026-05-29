@@ -1076,3 +1076,133 @@ Bottom line:
 - Day 8 should document the old-vs-new usage path
 - Day 9/10 should then reconcile the highest-value examples/benchmarks/tests
   around that final model
+
+## Day 8 — Migration-Path Documentation Batch
+
+### Goal
+
+Document the final old-vs-new caller path clearly enough that existing users
+can stay on the one-shot APIs while repeated-run callers can see when explicit
+handles are worth using.
+
+### Files Touched
+
+- `README.md`
+- `examples/README.md`
+
+### Main Documentation Result
+
+Sprint 49 now has a real migration-path explanation instead of only header
+contracts and sprint-local notes.
+
+The Day 8 batch stayed intentionally narrow:
+
+- `README.md` is now the primary user-facing explanation of:
+  - one-shot compatibility
+  - explicit repeated-run handles
+  - when reuse is worth it
+  - the basic prepare / run / free lifecycle
+- `examples/README.md` now clarifies that the shipped examples remain simple
+  one-shot public references even though explicit repeated-run handles now
+  exist
+
+Interpretation:
+
+- existing callers can now read the top-level docs and know they do **not**
+  need to migrate just to stay supported
+- repeated-run callers can now find the public-handle path without digging only
+  through header comments
+
+### README Migration Guidance
+
+The new top-level README section now makes the final public shape explicit:
+
+- one-shot entries remain first-class:
+  - `sparse_solve_cg(...)`
+  - `sparse_solve_gmres(...)`
+  - `sparse_eigs_sym(...)`
+- repeated-run handles are the opt-in path for stable-dimension repeated work:
+  - iterative:
+    - `sparse_iter_handle_t`
+    - `sparse_iter_handle_init(...)`
+    - `sparse_iter_handle_prepare_cg(...)`
+    - `sparse_iter_handle_prepare_gmres(...)`
+    - `sparse_solve_cg_with_handle(...)`
+    - `sparse_solve_gmres_with_handle(...)`
+    - `sparse_iter_handle_free(...)`
+  - eigensolver:
+    - `sparse_eigs_handle_t`
+    - `sparse_eigs_handle_init(...)`
+    - `sparse_eigs_handle_prepare(...)`
+    - `sparse_eigs_sym_with_handle(...)`
+    - `sparse_eigs_handle_free(...)`
+
+The guidance also states the most important behavioral truth:
+
+- reuse preserves allocation capacity, not old numerical iteration state
+
+That is the right Day 8 level of detail:
+
+- enough for caller migration-path clarity
+- not so much that the README becomes a duplicate of the public headers
+
+### Example-Surface Handoff
+
+`examples/README.md` now states the intended scope explicitly:
+
+- the shipped examples still lean on one-shot public APIs
+- that is deliberate, because those APIs remain first-class and simpler for
+  most callers
+- repeated-run handles exist, but they are an opt-in path for stable-dimension
+  repeated work rather than a replacement for the shipped one-shot examples
+
+This was the right supporting touch:
+
+- it keeps example scope honest
+- it avoids forcing Day 8 into a broad example rewrite
+- it leaves Day 9/10 free to decide whether any concrete example should change
+  later for compatibility-sweep reasons
+
+### Important Boundary Decisions
+
+The migration-doc batch deliberately did **not** yet land:
+
+- benchmark-driver wording changes
+- direct public-handle regression tests
+- tutorial rewrite
+- maintainer-guide expansion
+- broad example rewrites to use the new handles
+
+That was the correct fence:
+
+- Day 8 needed to explain the final caller model
+- it did not need to start the broader cross-surface agreement sweep early
+
+### Targeted Sanity Checks
+
+This was a docs-only batch, so I did not run `make format`, `make lint`, or
+`make test`.
+
+I ran targeted Day 8 sanity checks instead:
+
+- `rg -n "Repeated-Run Lifecycle Handles|sparse_iter_handle_|sparse_eigs_handle_|one-shot public APIs|opt-in path" README.md examples/README.md`
+- `wc -l README.md examples/README.md`
+- spot-read the new README migration section in context
+
+All were clean.
+
+### Day 8 Position
+
+The migration-path explanation is now in place, which makes the next queue
+cleaner:
+
+- Day 9 can audit the highest-value remaining drift across benchmarks/tests/docs
+- Day 10 can then land the smallest coherent agreement batch
+
+Bottom line:
+
+- Day 8 successfully documented the old-vs-new repeated-run caller path
+- it preserved the one-shot compatibility story explicitly
+- it gave explicit handles a real top-level documentation home
+- it stayed tightly bounded to the README plus one supporting example-scope
+  surface

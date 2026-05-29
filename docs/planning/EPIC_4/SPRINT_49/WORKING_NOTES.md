@@ -1396,3 +1396,147 @@ Bottom line:
 - examples and the main README now look good enough to leave alone
 - Day 10 should focus on reuse benchmarks, direct public-handle tests, and at
   most one tiny benchmark-doc clarification
+
+## Day 10 — Cross-Surface Compatibility Sweep Batch
+
+### Goal
+
+Land the smallest coherent agreement batch across benchmarks and regression
+tests so the final Sprint 49 repeated-run story reflects the new public handle
+contract instead of only the earlier internal reuse seams.
+
+### Touched Surfaces
+
+Benchmarks:
+
+- `benchmarks/bench_iterative_reuse.c`
+- `benchmarks/bench_eigs_reuse.c`
+
+Tests:
+
+- `tests/test_iterative.c`
+- `tests/test_eigs.c`
+
+Untouched by design:
+
+- `README.md`
+- `examples/README.md`
+- `benchmarks/README.md`
+- `docs/tutorial.md`
+
+### Main Day 10 Result
+
+The compatibility sweep landed cleanly without widening into example or docs
+churn.
+
+What changed:
+
+1. the repeated-run benchmarks now prove the final public handle path instead
+   of internal-only workspace entry points
+2. direct regression coverage now pins the new iterative and eigensolver public
+   handle APIs
+
+What stayed intentionally unchanged:
+
+- one-shot public APIs remain the default example/docs path
+- no benchmark framework redesign
+- no tutorial rewrite
+- no broad example conversion to explicit handle usage
+
+### Benchmark Agreement Outcome
+
+`bench_iterative_reuse.c` now routes its repeated-run path through:
+
+- `sparse_iter_handle_t`
+- `sparse_iter_handle_prepare_cg(...)`
+- `sparse_iter_handle_prepare_gmres(...)`
+- `sparse_solve_cg_with_handle(...)`
+- `sparse_solve_gmres_with_handle(...)`
+
+`bench_eigs_reuse.c` now routes its repeated-run path through:
+
+- `sparse_eigs_handle_t`
+- `sparse_eigs_handle_prepare(...)`
+- `sparse_eigs_sym_with_handle(...)`
+
+Interpretation:
+
+- the benchmark evidence now matches the final caller-facing repeated-run API
+- internal workspace seams remain implementation detail rather than the visible
+  benchmark contract
+- Sprint 49 now closes with the reuse benchmarks proving the public lifecycle
+  path that Day 5/6 exposed
+
+### Direct Public-Handle Regression Coverage
+
+`tests/test_iterative.c` now adds compact direct handle coverage for:
+
+- explicit prepare-and-reuse for CG
+- public GMRES handle validation
+- zero-initialized on-demand handle growth for GMRES
+
+`tests/test_eigs.c` now adds compact direct handle coverage for:
+
+- explicit prepare-and-reuse for symmetric eigensolve
+- public eigensolver handle validation
+- zero-initialized on-demand handle growth
+
+That is the right Day 10 test boundary:
+
+- the public lifecycle contract is now pinned directly
+- the batch avoids large refactors or duplicated family-level solver coverage
+- one-shot regression coverage continues to protect the compatibility wrappers
+
+### Validation
+
+Because `*.c` changed, the required gate ran:
+
+```bash
+make format
+make lint
+make test
+```
+
+All passed.
+
+Focused Day 10 follow-ons also passed:
+
+- `./build/test_iterative`
+- `./build/test_eigs`
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+
+Representative direct results:
+
+- `test_iterative`: `78 / 78` passed
+- `test_eigs`: `27 / 27` passed
+- iterative repeated-run benchmark:
+  - CG: `43.9660 ms` one-shot vs `46.9730 ms` handle reuse, `0.94x`
+  - GMRES: `30.5820 ms` one-shot vs `28.4040 ms` handle reuse, `1.08x`
+- eigensolver repeated-run benchmark:
+  - grow-m: `2.1650 ms` one-shot vs `2.0980 ms` handle reuse, `1.03x`
+  - thick-restart: `74.7310 ms` one-shot vs `78.1250 ms` handle reuse,
+    `0.96x`
+
+Behavior-level parity remained intact:
+
+- iterative reuse cases matched one-shot iteration counts and residuals
+- eigensolver reuse cases matched one-shot iterations, convergence,
+  `n_converged`, residuals, and eigenvalues
+
+### Day 10 Position
+
+Sprint 49 now has the intended cross-surface compatibility state:
+
+- public lifecycle headers are landed
+- implementation and compatibility wrappers are landed
+- migration guidance is documented
+- reuse benchmarks now exercise the final public handle contract
+- direct public-handle regression coverage is in place
+
+Bottom line:
+
+- Day 10 closed the strongest remaining implementation drift
+- it also closed the strongest remaining public-handle regression gap
+- the batch stayed small enough to preserve the Sprint 49 final-integration
+  fence

@@ -1,19 +1,18 @@
 /*
- * bench_iterative_reuse.c — repeated one-shot vs reusable-workspace iterative
- * solve comparison for Sprint 45.
+ * bench_iterative_reuse.c — repeated one-shot vs public repeated-run-handle
+ * iterative solve comparison for Sprint 45 / Sprint 49.
  *
  * Keeps the scope intentionally narrow:
  *   - scalar CG on a generated SPD tridiagonal
  *   - scalar GMRES on a generated nonsymmetric tridiagonal
  *
  * Reports repeated-call wall time, last-iteration summary, and a simple
- * speedup ratio. This is evidence for allocator-churn reduction, not a
- * machine-independent performance claim.
+ * speedup ratio. This is evidence for allocator-churn reduction through the
+ * final public repeated-run contract, not a machine-independent performance
+ * claim.
  */
 #define _POSIX_C_SOURCE 200809L
 #include "sparse_iterative.h"
-#include "sparse_iterative_internal.h"
-#include "sparse_iterative_workspace_internal.h"
 #include "sparse_matrix.h"
 #include "sparse_vector.h"
 #include <math.h>
@@ -111,22 +110,21 @@ static sparse_err_t run_cg_repeated_case(const char *name, SparseMatrix *A, idx_
 
     double one_shot_rr = compute_rel_residual(A, b, x, n);
 
-    sparse_iter_workspace_t workspace;
-    sparse_iter_workspace_init(&workspace);
+    sparse_iter_handle_t handle = {0};
+    err = sparse_iter_handle_prepare_cg(&handle, n);
+    if (err != SPARSE_OK)
+        goto cleanup;
 
     t0 = wall_time();
-    if (err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED) {
-        for (idx_t rep = 0; rep < repeats; rep++) {
-            vec_zero(x, n);
-            err = sparse_solve_cg_with_workspace_internal(A, b, x, &opts, NULL, NULL, &reuse,
-                                                          &workspace);
-            if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED)
-                break;
-        }
+    for (idx_t rep = 0; rep < repeats; rep++) {
+        vec_zero(x, n);
+        err = sparse_solve_cg_with_handle(A, b, x, &opts, NULL, NULL, &reuse, &handle);
+        if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED)
+            break;
     }
     double t_reuse = wall_time() - t0;
     double reuse_rr = compute_rel_residual(A, b, x, n);
-    sparse_iter_workspace_free(&workspace);
+    sparse_iter_handle_free(&handle);
 
     if (err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED) {
         printf("  %-18s one-shot=%8.4f ms  reuse=%8.4f ms  speedup=%5.2fx\n", name,
@@ -137,6 +135,7 @@ static sparse_err_t run_cg_repeated_case(const char *name, SparseMatrix *A, idx_
                reuse_rr, reuse.converged);
     }
 
+cleanup:
     free(x_exact);
     free(b);
     free(x);
@@ -175,22 +174,21 @@ static sparse_err_t run_gmres_repeated_case(const char *name, SparseMatrix *A, i
 
     double one_shot_rr = compute_rel_residual(A, b, x, n);
 
-    sparse_iter_workspace_t workspace;
-    sparse_iter_workspace_init(&workspace);
+    sparse_iter_handle_t handle = {0};
+    err = sparse_iter_handle_prepare_gmres(&handle, n, opts.restart);
+    if (err != SPARSE_OK)
+        goto cleanup;
 
     t0 = wall_time();
-    if (err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED) {
-        for (idx_t rep = 0; rep < repeats; rep++) {
-            vec_zero(x, n);
-            err = sparse_solve_gmres_with_workspace_internal(A, b, x, &opts, NULL, NULL, &reuse,
-                                                             &workspace);
-            if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED)
-                break;
-        }
+    for (idx_t rep = 0; rep < repeats; rep++) {
+        vec_zero(x, n);
+        err = sparse_solve_gmres_with_handle(A, b, x, &opts, NULL, NULL, &reuse, &handle);
+        if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED)
+            break;
     }
     double t_reuse = wall_time() - t0;
     double reuse_rr = compute_rel_residual(A, b, x, n);
-    sparse_iter_workspace_free(&workspace);
+    sparse_iter_handle_free(&handle);
 
     if (err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED) {
         printf("  %-18s one-shot=%8.4f ms  reuse=%8.4f ms  speedup=%5.2fx\n", name,
@@ -201,6 +199,7 @@ static sparse_err_t run_gmres_repeated_case(const char *name, SparseMatrix *A, i
                reuse_rr, reuse.converged);
     }
 
+cleanup:
     free(x_exact);
     free(b);
     free(x);
@@ -211,9 +210,9 @@ int main(void) {
     const idx_t cg_repeats = 400;
     const idx_t gmres_repeats = 300;
 
-    printf("=== Sprint 45 Iterative Workspace Reuse Benchmark ===\n\n");
+    printf("=== Sprint 45/49 Iterative Repeated-Run Benchmark ===\n\n");
     printf("Repeated-call comparison only; results are local evidence, not universal performance "
-           "claims.\n\n");
+           "claims. The reuse path now exercises the public handle API.\n\n");
 
     SparseMatrix *cg_A = make_spd_tridiag(300, 4.0, -1.0);
     if (!cg_A) {

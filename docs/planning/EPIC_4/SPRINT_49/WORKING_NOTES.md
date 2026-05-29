@@ -1922,3 +1922,115 @@ Bottom line:
 - Day 12 turned the Epic 4 closeout story into one explicit summary package
 - it fixed the Day 13 checklist before validation starts
 - it left no need for extra reconciliation before the authoritative sweep
+
+## Day 13 — Full Integration Validation Sweep
+
+### Goal
+
+Run the authoritative final Epic 4 validation pass from the integrated Sprint
+49 public lifecycle/workspace end state and confirm that the maintained
+truthfulness anchors still hold exactly.
+
+### Primary Validation Result
+
+The full Day 13 baseline passed cleanly:
+
+- `make format` -> passed
+- `make lint` -> passed
+- `make test` -> passed
+- `make quality-review-full` -> passed
+
+Interpretation:
+
+- the Sprint 49 public lifecycle exposure, compatibility sweep, and Epic 4
+  closeout framing all sit on a still-green maintained baseline
+
+### Maintained Truthfulness Anchors
+
+The reviewed-baseline anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` remained `53`
+- Makefile/CMake parity remained `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 414.75 sec`
+
+This is the most important Day 13 closeout fact:
+
+- Epic 4 closes without drifting the reviewed validation contract that Sprint
+  40 established and later sprints preserved
+
+### Targeted Sprint 49 Follow-Ons
+
+The Sprint 49-targeted follow-ons also all passed:
+
+- `./build/test_iterative`
+- `./build/test_eigs`
+- `./build/test_eigs_lobpcg`
+- `./build/example_iterative`
+- `./build/example_eigs`
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+
+Representative direct results:
+
+- `test_iterative`: `78 / 78` passed
+- `test_eigs`: `27 / 27` passed
+- `test_eigs_lobpcg`: `26 / 26` passed
+- `example_iterative`:
+  - GMRES unpreconditioned converged in `25` iterations
+  - GMRES with ILU(0) converged in `9` iterations
+- `example_eigs`:
+  - nos4 largest-eigenvalue demo converged `5 / 5`
+  - KKT nearest-`sigma` demo converged `3 / 3`
+  - bcsstk04 LOBPCG demo converged `3 / 3`
+
+### Public Repeated-Run Evidence Recheck
+
+The final repeated-run benchmark evidence remained behavior-stable through the
+new public handle path:
+
+- iterative repeated-run benchmark:
+  - CG: `90.1570 ms` one-shot vs `88.5640 ms` reuse, `1.02x`
+  - GMRES: `95.9320 ms` one-shot vs `87.5930 ms` reuse, `1.10x`
+- eigensolver repeated-run benchmark:
+  - grow-m: `4.0260 ms` one-shot vs `3.5480 ms` reuse, `1.13x`
+  - thick-restart: `125.2890 ms` one-shot vs `124.6060 ms` reuse, `1.01x`
+
+Behavior-level parity remained exact where it matters:
+
+- iterative reuse still matched one-shot iteration counts and residuals
+- eigensolver reuse still matched one-shot iterations, convergence,
+  `n_converged`, residuals, and eigenvalues
+
+Interpretation:
+
+- Day 13 re-validated the final public repeated-run contract from the actual
+  benchmark/test/example surfaces, not only from static API inspection
+
+### Failure / Reconciliation Status
+
+Day 13 failure status:
+
+- none
+
+Day 13 reconciliation queue:
+
+- none surfaced
+
+No bounded repair batch was needed during the authoritative sweep.
+
+### Day 13 Position
+
+Sprint 49 now enters Day 14 closeout from the intended validated state:
+
+- final public lifecycle/workspace package validated
+- reviewed baseline preserved
+- reviewed CMake parity preserved
+- targeted repeated-run/example/test surfaces re-confirmed
+- no new hidden residual queue created by the final sweep
+
+Bottom line:
+
+- Day 13 fully validated the integrated Epic 4 end state
+- the strongest local reviewed baseline still holds
+- the sprint is ready for final closeout and handoff

@@ -25,6 +25,11 @@ Focused subsets remain available:
 - `make bench-build`
 - `make examples-build`
 
+For repository-wide reviewed-baseline, dead-code, and maintainer-policy
+interpretation, use the top-level [README](../README.md) and the
+[Maintainer Guide](../docs/maintainer_guide.md). This file stays focused on
+benchmark-local command usage and surface-specific behavior.
+
 ## Reorder coverage
 
 Sprint 31 leaves the benchmark entry points with intentionally different

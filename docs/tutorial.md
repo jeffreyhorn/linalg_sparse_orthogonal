@@ -146,6 +146,8 @@ For rectangular or rank-deficient systems. Use the original matrix view here:
 QR expects an unfactored, unreordered matrix with identity permutations.
 If the matrix may already have been factored or reordered elsewhere, start
 from a fresh `sparse_copy()` of the original coefficients before calling QR.
+For the repository-wide documentation-ownership and lifecycle-policy boundary
+behind this rule, see the [Maintainer Guide](maintainer_guide.md).
 
 ```c
 #include "sparse_qr.h"
@@ -217,9 +219,9 @@ Choose the preconditioner family to match the matrix class:
 - use ILU(0) or ILUT with GMRES and other general or indefinite-system
   workflows
 
-Like QR and SVD, ILU(0), ILUT, and IC(0) expect an original matrix view with
-identity permutations. If the matrix may already have been factored or
-reordered, build the preconditioner from a fresh `sparse_copy()` of the
+As in the QR section above, ILU(0), ILUT, and IC(0) expect an original matrix
+view with identity permutations. If the matrix may already have been factored
+or reordered, build the preconditioner from a fresh `sparse_copy()` of the
 original matrix.
 
 ILU preconditioning dramatically reduces iteration counts:
@@ -262,10 +264,10 @@ sparse_free(A_copy);
 
 Compute `A = U * diag(sigma) * V^T`:
 
-As with QR and the analyze-once workflow, pass the original unfactored /
-unreordered matrix to the SVD routines. If matrix state is uncertain, start
-from a fresh `sparse_copy()` of the original coefficients before factoring or
-reordering elsewhere.
+As in the QR section above, pass the original unfactored / unreordered matrix
+to the SVD routines. If matrix state is uncertain, start from a fresh
+`sparse_copy()` of the original coefficients before factoring or reordering
+elsewhere.
 
 ```c
 #include "sparse_svd.h"

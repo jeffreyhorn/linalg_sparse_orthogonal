@@ -21,6 +21,11 @@ For examples that need dynamic scratch buffers, the current small-example
 convention is to route allocation through `examples/example_alloc_helpers.h`
 rather than open-coding unchecked count/byte multiplication at each call site.
 
+For the broader user-facing workflow behind those matrix-state rules, use the
+[tutorial](../docs/tutorial.md) and the relevant public headers under
+[`include/`](../include/). This file stays focused on example-local behavior
+and entry points.
+
 ## Programs
 
 ### example_basic_solve
@@ -38,8 +43,8 @@ factorization, solve, and residual computation.
 Solve an overdetermined 6x3 system via column-pivoted QR factorization. Shows
 how to find the least-squares solution that minimizes `||Ax - b||` and reports
 per-equation residuals. For underdetermined minimum-2-norm solves, use the
-public API path `sparse_qr_solve_minnorm()`, documented in `README.md` and
-`include/sparse_qr.h`.
+public API path `sparse_qr_solve_minnorm()`, documented in the
+[README](../README.md) and [`sparse_qr.h`](../include/sparse_qr.h).
 
 ```bash
 ./build/example_least_squares

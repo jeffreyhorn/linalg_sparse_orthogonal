@@ -732,20 +732,18 @@ Use this checklist for a concise release/readiness pass:
 
 ### Maintainer References
 
-For maintainer-facing warning-baseline and rebuild policy, use the Sprint 30
-authoritative docs:
+For repository-wide quality-contract interpretation, documentation ownership,
+dead-code meaning, and stable maintainer norms, use the
+[Maintainer Guide](docs/maintainer_guide.md).
+
+For the Sprint 30 authoritative warning-baseline and rebuild references used by
+that guide, see:
 
 - [Compile Hygiene Playbook](docs/planning/EPIC_3/SPRINT_30/COMPILE_HYGIENE_PLAYBOOK.md)
 - [Rebuild Workflow](docs/planning/EPIC_3/SPRINT_30/REBUILD_WORKFLOW.md)
 
-Stable repo norms that still affect user-facing docs:
-
-- use designated initializers in README/tutorial/header/example snippets when
-  teaching non-default option behavior
-- keep retired targets, historical measurements, and old experiment evidence in
-  `docs/planning/` artifacts rather than dormant active-suite scaffolding
-- `RUN_TEST_SLOW(...)`, `RUN_TEST_EXPERIMENTAL(...)`, and `SKIP_TEST(...)`
-  remain the executable truth in `tests/test_framework.h`
+Keep README maintainer notes concise and prefer the guide over repeating policy
+blocks here.
 
 Tree-mutating local modes are a separate operator category:
 
@@ -825,6 +823,7 @@ After installation, downstream projects can use:
 
 - [Algorithm Description](docs/algorithm.md) — data structure, LU algorithm, complexity analysis
 - [Matrix Market Format](docs/matrix_market.md) — supported features and limitations
+- [Maintainer Guide](docs/maintainer_guide.md) — repository-wide quality-contract interpretation and documentation ownership
 - [Installation Guide](INSTALL.md) — cross-platform build and install instructions
 
 ## License

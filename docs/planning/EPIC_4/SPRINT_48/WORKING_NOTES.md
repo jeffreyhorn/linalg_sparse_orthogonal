@@ -761,3 +761,83 @@ Interpretation:
 
 - this is a first reduction pass, not the final policy-home move
 - Day 6 still needs to create the real maintainer guide
+
+## Day 6
+
+**Objective:** Create the real maintainer-facing policy home scoped on Day 3,
+move the highest-value maintainer-policy ownership into it, and reduce the
+remaining README maintainer section to a bounded cross-reference.
+
+### Commands Run
+
+1. Re-read the Sprint 48 Day 6 plan section:
+   - `sed -n '205,290p' docs/planning/EPIC_4/SPRINT_48/PLAN.md`
+2. Re-read the Day 3 guide design:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_48/artifacts/day3-maintainer-guide-design.md`
+3. Re-read the current README maintainer-facing tail:
+   - `sed -n '700,790p' README.md`
+4. Re-read the current Sprint 48 working-notes context:
+   - `tail -n 180 docs/planning/EPIC_4/SPRINT_48/WORKING_NOTES.md`
+5. Create the new guide and land the bounded README cross-references:
+   - `docs/maintainer_guide.md`
+   - `README.md`
+6. Run targeted Day 6 sanity checks:
+   - `rg -n "Maintainer Guide|maintainer_guide.md|Compile Hygiene Playbook|Rebuild Workflow" README.md docs/maintainer_guide.md`
+   - `test -f docs/maintainer_guide.md`
+
+### Day 6 Findings
+
+#### 1. Sprint 48 now has a real maintainer-policy home outside sprint artifacts
+
+Day 6 created:
+
+- `docs/maintainer_guide.md`
+
+It now owns the repository-wide policy interpretation for:
+
+- reviewed baseline semantics
+- warning authority
+- dead-code meaning
+- documentation ownership rules
+- lifecycle/cancellation maintainer expectations
+- stable repo norms
+
+Interpretation:
+
+- the maintainer-policy target from Day 3 is now real
+- later cleanup can now point at a stable file instead of a future placeholder
+
+#### 2. The guide moved policy interpretation without trying to replace executable truth
+
+The new guide explicitly leaves executable truth with:
+
+- `Makefile`
+- dead-code scripts
+- CI workflows
+- local headers and test framework surfaces
+
+Interpretation:
+
+- Day 6 moved ownership, not behavior
+- the batch stayed within Sprint 48’s bounded scope
+
+#### 3. The README maintainer block is now a real handoff instead of a mini policy home
+
+README now:
+
+- points maintainers to `docs/maintainer_guide.md`
+- keeps the Sprint 30 warning/rebuild references visible
+- drops the remaining mini-policy prose that no longer needs to live there
+
+Interpretation:
+
+- README is now closer to a true user/operator entry point
+- the maintainer guide is now the right place for further policy refinement
+
+#### 4. The new guide is visible in the top-level documentation map
+
+The README documentation list now includes the maintainer guide directly.
+
+Interpretation:
+
+- the guide is a maintained repo document, not a hidden side note

@@ -654,37 +654,28 @@ make deadcode-check
 ```
 
 - `make deadcode` refreshes `build/deadcode-cmake/compile_commands.json`, then
-  runs the raw `cppcheck` and `xunused` passes and writes:
-  - `build/deadcode/cppcheck.txt`
-  - `build/deadcode/xunused.txt`
-  - `build/deadcode/coverage-notes.txt`
-- `make deadcode-report` regenerates those raw artifacts and writes:
+  runs the raw `cppcheck` and `xunused` passes and refreshes the raw evidence
+  under `build/deadcode/`
+- `make deadcode-report` regenerates those artifacts and writes:
   - `build/deadcode/report.md`
   - `build/deadcode/report.tsv`
-- `make deadcode-check` validates report completeness. It does **not** mean
-  "zero findings"; it only enforces that the report was generated, every
-  `xunused` finding was categorized, and the coverage-gap section is present.
+- `make deadcode-check` is a completeness gate, not a "zero findings" claim:
+  it enforces that the report exists, every `xunused` finding was categorized,
+  and the coverage-gap section is present
 
 Prerequisites:
 
 - `cppcheck` must be installed and on `PATH`
 - `xunused` must be installed and on `PATH`
 
-Interpretation rules:
+Interpretation:
 
-- treat this workflow as conservative evidence, not as full reachability proof
-- the current maintained benchmark/example compile-db coverage gap is closed
-- there is no current definitely-unused internal cleanup batch
-- exported installed-header symbols are manual-review items, not automatic
-  deletion candidates; the current public bucket is an audited keep list
-- `cppcheck` secondary buckets are supporting signals only
-- static-analysis noise remains appendix-only context, not a cleanup queue
-
-Current known limits:
-
-- Run the `deadcode*` targets serially. They share `build/deadcode-cmake` and
-  `build/deadcode/`; concurrent invocation can race on the shared CMake build
-  tree and produce transient failures.
+- treat this workflow as conservative evidence rather than full reachability
+  proof
+- exported installed-header symbols remain manual-review items, not automatic
+  deletion candidates
+- run the `deadcode*` targets serially because they share
+  `build/deadcode-cmake` and `build/deadcode/`
 
 ### Reviewed Local Quality Path
 
@@ -698,32 +689,12 @@ make quality-review-cmake-compile
 make quality-review-cmake
 ```
 
-- `make quality-review-compile` runs:
-  - `make format-check`
-  - `make lint`
-- `make quality-review` runs:
-  - `make format-check`
-  - `make lint`
-  - `make test`
-  - `make deadcode-check`
-- `make quality-review-full` runs:
-  - `make quality-review`
-  - `make quality-review-cmake`
-- `make quality-review-cmake-compile` runs:
-  - `cmake -S . -B build/quality-review-cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`
-  - `cmake --build build/quality-review-cmake --parallel 1 --clean-first`
-  - `ctest -N --test-dir build/quality-review-cmake`
-- `make quality-review-cmake` runs:
-  - `make quality-review-cmake-compile`
-  - `ctest --test-dir build/quality-review-cmake --output-on-failure`
-
-These wrappers are additive. They do **not** replace `make check`, `make lint`,
-`make test`, or `make deadcode-check`.
-
 - `quality-review-compile` / `quality-review` are the reviewed Makefile path
 - `quality-review-full` is the strongest local reviewed baseline command
 - `quality-review-cmake-compile` / `quality-review-cmake` are the reviewed
   CMake parity path for clean rebuild + `ctest -N` + full `ctest`
+- these wrappers are additive; they do **not** replace `make lint`,
+  `make test`, or `make deadcode-check`
 - the CMake wrappers do **not** replace the Makefile-authoritative formatter,
   static-analysis, or dead-code checks
 
@@ -735,108 +706,46 @@ These wrappers are additive. They do **not** replace `make check`, `make lint`,
 | macOS | Apple Clang: `make quality-review-compile`; `make quality-review-cmake`; `make wall-check`; `make sanitize` | dead-code (`make deadcode-report`, `make deadcode-check`) | Homebrew GCC direct `make` + `make test` + `make wall-check`; install/pkg-config validation |
 | Windows | reviewed CMake configure/build; `ctest -N`; full `ctest` | `make quality-review-compile`; `make quality-review`; dead-code | excluded tests: `test_threads`, `test_sprint4_integration`, `test_fuzz` |
 
-Interpretation:
-
-- Linux remains the strongest enforced reviewed baseline
-- reviewed CMake parity remains the strongest shared reviewed baseline across
-  platforms
-- macOS enforces the Apple Clang reviewed path and keeps the Homebrew GCC leg
-  supplemental
-- Windows truthfully exposes a narrower reviewed CMake subset instead of
-  overstating local Makefile or dead-code parity
-
-Operator command map:
-
-- compile-quality only:
-  - `make quality-review-compile`
-- full reviewed local path:
-  - `make quality-review`
-- CMake parity without full suite execution:
-  - `make quality-review-cmake-compile`
-- full CMake parity path:
-  - `make quality-review-cmake`
-- dead-code evidence + classified report:
-  - `make deadcode-report`
-- dead-code completeness gate:
-  - `make deadcode-check`
+Use the table above as the truth source for enforced, staged, and
+supplemental/excluded boundaries. Linux remains the strongest enforced reviewed
+baseline, and reviewed CMake parity remains the strongest shared reviewed
+baseline across platforms.
 
 ### Quality Readiness Checklist
 
-Use this checklist for a concise release/readiness pass over the maintained
-quality surface:
+Use this checklist for a concise release/readiness pass:
 
-- repository-wide warning claims still use the Sprint 30 authoritative path:
+- repository-wide warning claims still use:
   - `make warning-workflow WARNING_WORKFLOW_LABEL=label`
-  - the Apple Clang CMake full-tree inventory is the authoritative warning
-    proof
-  - Makefile `all` remains the narrower library-only cross-check
-- strongest local reviewed baseline passes:
+- strongest local reviewed baseline still passes:
   - `make quality-review-full`
-- dead-code report and completeness path remain truthful:
+- dead-code evidence and completeness still pass truthfully:
   - `make deadcode-report`
   - `make deadcode-check`
-  - a passing `deadcode-check` is a completeness gate, not a zero-findings
-    claim, and the dead-code path remains serialized
-- active test-surface / reviewed CMake parity remains truthful:
+- reviewed CMake parity remains truthful:
   - `ctest -N --test-dir build/quality-review-cmake` still reports the current
     maintained suite size (`53`)
-  - full reviewed CMake parity still passes through `make quality-review-cmake`
-- coverage wording stays truthful:
-  - coverage is supplemental, not part of the reviewed baseline
-  - the current enforced threshold is `80%` line coverage on `src/` in the
-    Linux coverage path
-- docs/examples/header usage stays consistent with shipped behavior:
-  - public README/tutorial/header snippets and maintained examples should agree
-    on current API names, option fields, and supported behavior
-- cross-platform enforced/staged/excluded boundaries stay named honestly:
-  - use the `Cross-Platform CI Contract` table below as the source of truth
-  - do not treat staged or supplemental paths as part of the enforced reviewed
-    baseline
-  - current intentionally non-universal surfaces remain:
-    - macOS dead-code = staged
-    - Windows local Makefile reviewed-wrapper parity = staged
-    - Windows dead-code = excluded
+  - `make quality-review-cmake` still passes
+- docs/examples/header usage stays aligned with shipped behavior
+- enforced/staged/excluded platform boundaries still match the
+  `Cross-Platform CI Contract` table above
 
-This checklist is intentionally concise. For command details, rerun guidance,
-and staged/supplemental context, use the reviewed command map, the dead-code
-section above, and the cross-platform CI contract below.
+### Maintainer References
 
-### Maintainer Standards
+For maintainer-facing warning-baseline and rebuild policy, use the Sprint 30
+authoritative docs:
 
-Use these as the stable Epic 3 maintainer expectations:
+- [Compile Hygiene Playbook](docs/planning/EPIC_3/SPRINT_30/COMPILE_HYGIENE_PLAYBOOK.md)
+- [Rebuild Workflow](docs/planning/EPIC_3/SPRINT_30/REBUILD_WORKFLOW.md)
 
-- warning-clean authority:
-  - repository-wide warning claims should use the Sprint 30 authoritative docs:
-    - [Compile Hygiene Playbook](docs/planning/EPIC_3/SPRINT_30/COMPILE_HYGIENE_PLAYBOOK.md)
-    - [Rebuild Workflow](docs/planning/EPIC_3/SPRINT_30/REBUILD_WORKFLOW.md)
-- public non-default option examples:
-  - use designated initializers in README/tutorial/header/example snippets when
-    teaching non-default behavior
-- dormant or historical test evidence:
-  - keep retired targets, historical measurements, and old experiment evidence
-    in `docs/planning/` artifacts, not as commented-out or dormant active-suite
-    scaffold
-- live opt-in test semantics:
-  - `RUN_TEST_SLOW(...)`, `RUN_TEST_EXPERIMENTAL(...)`, and `SKIP_TEST(...)`
-    remain the executable truth in `tests/test_framework.h`
+Stable repo norms that still affect user-facing docs:
 
-If a reviewed wrapper fails, rerun the named failing phase directly:
-
-- from `quality-review-compile` / `quality-review`:
-  - `make format-check`
-  - `make lint`
-  - `make test`
-  - `make deadcode-check`
-- from `quality-review-cmake-compile` / `quality-review-cmake`:
-  - `cmake -S . -B build/quality-review-cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=ON`
-  - `cmake --build build/quality-review-cmake --parallel 1 --clean-first`
-  - `ctest -N --test-dir build/quality-review-cmake`
-  - `ctest --test-dir build/quality-review-cmake --output-on-failure`
-- from the dead-code flow:
-  - inspect `build/deadcode/report.md`
-  - inspect `build/deadcode/report.tsv`
-  - inspect `build/deadcode/cppcheck.txt`
-  - inspect `build/deadcode/xunused.txt`
+- use designated initializers in README/tutorial/header/example snippets when
+  teaching non-default option behavior
+- keep retired targets, historical measurements, and old experiment evidence in
+  `docs/planning/` artifacts rather than dormant active-suite scaffolding
+- `RUN_TEST_SLOW(...)`, `RUN_TEST_EXPERIMENTAL(...)`, and `SKIP_TEST(...)`
+  remain the executable truth in `tests/test_framework.h`
 
 Tree-mutating local modes are a separate operator category:
 

@@ -668,3 +668,96 @@ Interpretation:
 
 - Day 4 locks the sprint into ownership simplification and documentation
   cleanup, not broader workflow redesign
+
+## Day 5
+
+**Objective:** Land the first bounded README reduction pass so the project
+entry point remains strong for users and operators while materially shrinking
+the embedded maintainer-policy duplication around quality, dead-code, and
+readiness guidance.
+
+### Commands Run
+
+1. Re-read the Sprint 48 Day 5 plan section:
+   - `sed -n '185,255p' docs/planning/EPIC_4/SPRINT_48/PLAN.md`
+2. Re-read the Day 4 landing/validation design:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_48/artifacts/day4-landing-and-validation-design.md`
+3. Re-read the live README hotspot and heading layout:
+   - `sed -n '600,930p' README.md`
+   - `sed -n '1,180p' README.md`
+   - `rg -n "^### |^## " README.md`
+4. Refresh the quality/maintainer markers inside `README.md`:
+   - `rg -n "quality-review-full|deadcode-check|deadcode-report|Maintainer|maintainer|quality readiness|cross-platform|CI|lifecycle|cancellation" README.md`
+5. Land the first README reduction pass:
+   - `README.md`
+6. Run targeted Day 5 sanity checks:
+   - `rg -n "Compile Hygiene Playbook|Rebuild Workflow|Cross-Platform CI Contract|Maintainer References|Quality Readiness Checklist" README.md`
+   - `test -f docs/planning/EPIC_3/SPRINT_30/COMPILE_HYGIENE_PLAYBOOK.md`
+   - `test -f docs/planning/EPIC_3/SPRINT_30/REBUILD_WORKFLOW.md`
+
+### Day 5 Findings
+
+#### 1. The README can shrink materially without losing the operator command map
+
+The Day 5 pass kept the high-signal operator surfaces visible:
+
+- direct build/test commands
+- reviewed local wrappers
+- dead-code commands
+- cross-platform CI truth table
+- concise readiness checks
+
+Interpretation:
+
+- README can become smaller and more user-facing without becoming shallow
+
+#### 2. The dead-code section was carrying too much maintainer interpretation for a user entry point
+
+The Day 5 reduction keeps the user-relevant contract:
+
+- what the three dead-code commands do
+- that `deadcode-check` is a completeness gate rather than a zero-findings
+  claim
+- that the dead-code path remains serialized
+
+Interpretation:
+
+- the operator truth remains
+- the oversized maintainer-policy density is lower
+
+#### 3. The reviewed-quality wrapper section was the clearest place to reduce repeated prose
+
+The README now still identifies:
+
+- reviewed Makefile path
+- strongest local reviewed baseline
+- reviewed CMake parity path
+- additive relationship between wrappers and direct commands
+
+Interpretation:
+
+- the command map is still visible
+- the long wrapper-expansion prose no longer dominates the entry document
+
+#### 4. The CI truth table remains worth keeping in README, but the surrounding restatement was not
+
+The cross-platform CI contract table is still useful because it tells users and
+operators what is enforced, staged, and supplemental.
+
+Interpretation:
+
+- the table should stay
+- the large amount of adjacent policy restatement did not need to stay
+
+#### 5. Day 5 reduced maintainer-policy density before the guide exists, but did not pretend relocation is finished
+
+The README now keeps only concise maintainer references:
+
+- Sprint 30 compile-hygiene and rebuild docs
+- designated-initializer reminder for non-default examples
+- historical-evidence / test-truth reminders
+
+Interpretation:
+
+- this is a first reduction pass, not the final policy-home move
+- Day 6 still needs to create the real maintainer guide

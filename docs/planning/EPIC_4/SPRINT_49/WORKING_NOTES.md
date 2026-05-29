@@ -1781,3 +1781,144 @@ Bottom line:
 - it avoided overclaiming the matrix-state story as “fully solved”
 - it left Sprint 49 with no true blocker before the final summary and
   validation passes
+
+## Day 12 — Epic 4 Summary Artifact Batch
+
+### Goal
+
+Prepare the final integrated Epic 4 summary framing and lock the Day 13
+validation checklist before the authoritative closeout sweep begins.
+
+### Main Day 12 Result
+
+Sprint 49 now has an explicit pre-validation Epic 4 summary package instead of
+only a long chain of sprint-local notes.
+
+This batch stayed intentionally narrow:
+
+- one integrated summary artifact
+- one explicit validation checklist for Day 13
+- no code churn
+- no premature validation rerun
+
+That was the correct Day 12 boundary.
+
+### Final Epic 4 Structural Summary
+
+The summary package now states the final structural change set clearly:
+
+- Sprint 40 preserved the reviewed validation contract and truthfulness anchor
+- Sprint 42 landed internal lifecycle/state scaffolding and the analysis/factor
+  bridge direction
+- Sprint 43 and Sprint 44 split the graph/ND subsystem into owned modules
+- Sprint 45 landed iterative reusable workspace/state support
+- Sprint 46 landed eigensolver reusable workspace/state support
+- Sprint 47 modernized the benchmark/developer auxiliary surfaces
+- Sprint 48 simplified README/policy ownership and created the maintainer guide
+- Sprint 49 exposed the bounded public repeated-run lifecycle handles and
+  reconciled the final caller-facing compatibility story
+
+Interpretation:
+
+- Epic 4 is now representable as one coherent structural package rather than a
+  collection of isolated sprint notes
+
+### Final Public Contract Framing
+
+The Day 12 summary now makes the final public contract explicit:
+
+- one-shot iterative/eigensolver APIs remain first-class supported paths
+- explicit repeated-run handles are opt-in lifecycle surfaces for stable-
+  dimension repeated workloads
+- repeated-run handle reuse preserves allocation capacity, not old numerical
+  Krylov / Ritz / search state
+- `sparse_analysis.h` remains the public analysis/factor lifecycle precedent
+- the compatibility-facing mutable `SparseMatrix` / in-place factor model
+  remains as an accepted tradeoff rather than a hidden unfinished migration
+
+That is the right closeout framing:
+
+- the public contract is explicit
+- the accepted tradeoff boundary is explicit
+- the remaining later non-goals are explicit
+
+### Validation Authority Framing
+
+The Day 12 package also fixes the final validation authority wording before Day
+13:
+
+- strongest local reviewed baseline:
+  - `make quality-review-full`
+- maintained truthfulness anchors:
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - Makefile/CMake parity
+  - full reviewed CMake `ctest`
+- required gate for any `*.c` / `*.h` landing:
+  - `make format`
+  - `make lint`
+  - `make test`
+
+The current measured anchor set remains the same pre-Day-13:
+
+- reviewed CMake count = `53`
+- Makefile/CMake parity target = `53` vs `53`
+
+### Day 13 Validation Checklist
+
+The explicit Day 13 checklist is now fixed:
+
+Primary validation:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Truthfulness anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake`
+- reviewed CMake `ctest`
+- Makefile/CMake parity confirmation
+
+Targeted Sprint 49 follow-ons:
+
+- `./build/test_iterative`
+- `./build/test_eigs`
+- `./build/test_eigs_lobpcg`
+- `./build/example_iterative`
+- `./build/example_eigs`
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+
+Interpretation:
+
+- the final validation inputs are fixed before the sweep begins
+- Day 13 should not need to decide its scope ad hoc
+
+### Residual Risk Framing
+
+The Day 12 summary also locks the final residual-risk story:
+
+- accepted tradeoff:
+  - compatibility-facing mutable `SparseMatrix` / in-place factor APIs remain
+- later non-goals:
+  - broader public factor-handle redesign
+  - larger tutorial/example modernization around explicit repeated-run handles
+  - benchmark-framework redesign beyond the bounded Sprint 47/49 cleanup
+- hidden blocker:
+  - none
+
+### Day 12 Position
+
+Sprint 49 now has the intended pre-validation summary state:
+
+- final structural change framing is written
+- final public contract framing is explicit
+- residual-risk / accepted-tradeoff boundaries are explicit
+- Day 13 validation inputs are fixed before the run
+
+Bottom line:
+
+- Day 12 turned the Epic 4 closeout story into one explicit summary package
+- it fixed the Day 13 checklist before validation starts
+- it left no need for extra reconciliation before the authoritative sweep

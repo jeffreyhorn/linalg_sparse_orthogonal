@@ -523,3 +523,148 @@ Interpretation:
 - Day 3 was the prerequisite for honest redistribution work
 - later days can now move content toward a concrete target instead of a vague
   future guide
+
+## Day 4
+
+**Objective:** Bound the Sprint 48 documentation redistribution batches and
+define the focused validation contract before README reduction,
+maintainer-guide implementation, and later quality-contract simplification
+begin.
+
+### Commands Run
+
+1. Re-read the Sprint 48 Day 4 plan section:
+   - `sed -n '120,190p' docs/planning/EPIC_4/SPRINT_48/PLAN.md`
+2. Re-read the Day 3 maintainer-guide design:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_48/artifacts/day3-maintainer-guide-design.md`
+3. Re-read the current Sprint 48 working-notes tail:
+   - `tail -n 220 docs/planning/EPIC_4/SPRINT_48/WORKING_NOTES.md`
+4. Reconfirm the live maintained target names in `Makefile`:
+   - `rg -n "^(quality-review-full|tooling-build|deadcode|deadcode-report|deadcode-check|format|lint|test):" Makefile`
+   - `sed -n '120,230p' Makefile`
+5. Write the Day 4 design artifact:
+   - `docs/planning/EPIC_4/SPRINT_48/artifacts/day4-landing-and-validation-design.md`
+
+### Day 4 Findings
+
+#### 1. Sprint 48 needs separate validation rules for docs, scripts, and compiled code
+
+The live sprint scope spans three different edit classes:
+
+- docs-only redistribution
+- script and command-surface clarification
+- possible compiled-surface touches if later reconciliation reaches `*.c` or
+  `*.h`
+
+Interpretation:
+
+- one generic “docs sprint” validation rule would be too loose
+- Sprint 48 needs proportionate validation based on the touched surface
+
+#### 2. Docs-only days should use targeted sanity checks rather than the full code gate
+
+The main docs-only redistribution targets are:
+
+- `README.md`
+- `docs/maintainer_guide.md`
+- `docs/tutorial.md`
+- benchmark/example READMEs
+- sprint artifacts and notes
+
+Interpretation:
+
+- docs-only days should validate:
+  - link and reference correctness
+  - local path accuracy
+  - command-name accuracy against the live `Makefile`
+  - any direct spot-check command needed for truthfulness
+- they should not automatically rerun the full `make format` / `make lint` /
+  `make test` gate
+
+#### 3. Script and command-surface days should validate directly against the touched executable truth
+
+Sprint 48 may still touch:
+
+- `scripts/deadcode_report.py`
+- `scripts/deadcode_workflow.sh`
+- README/help text describing maintained quality commands
+
+Interpretation:
+
+- these days should use focused validation such as:
+  - `python3 -m py_compile scripts/deadcode_report.py`
+  - `bash -n scripts/deadcode_workflow.sh`
+  - synthetic malformed/valid input checks where relevant
+  - direct `make -n` spot checks for maintained quality targets
+
+#### 4. Any `*.c` or `*.h` change still triggers the full required gate
+
+The sprint may be docs-heavy, but the compiled-surface rule does not change.
+
+Interpretation:
+
+- any Sprint 48 day touching `*.c` or `*.h` must still run:
+  - `make format`
+  - `make lint`
+  - `make test`
+
+#### 5. The stronger reviewed baseline should be reserved for high-signal quality-contract days
+
+The expensive reviewed baseline remains:
+
+- `make quality-review-full`
+
+Interpretation:
+
+- rerun it on:
+  - quality-contract simplification days
+  - the final validation sweep
+- do not pay that cost on every prose-only redistribution day
+
+#### 6. `make tooling-build` is the right maintained compile-only follow-on for touched public auxiliary surfaces
+
+The live auxiliary compile-only target remains:
+
+- `make tooling-build`
+
+Interpretation:
+
+- use it when Sprint 48 touches:
+  - example source or example docs coupled to built binaries
+  - benchmark docs or compile-only public auxiliary surfaces
+- do not invent ad hoc compile-only command matrices when a maintained target
+  already exists
+
+#### 7. The implementation order is now fixed as five bounded landing batches
+
+With Day 3's policy-home target fixed, the intended order becomes:
+
+1. README reduction
+2. maintainer-guide implementation
+3. tutorial/header cross-reference reconciliation
+4. quality-contract ownership simplification
+5. docs sanity sweep
+
+Interpretation:
+
+- the user-facing scope should become clearer before broader reconciliation
+- the maintainer guide should land before local references are retuned toward
+  it
+- quality-contract simplification belongs later, after the prose homes are
+  already stable
+
+#### 8. Out-of-scope items need to stay explicit before redistribution begins
+
+Sprint 48 should continue to exclude:
+
+- broad CI redesign
+- dead-code workflow redesign
+- broad tutorial rewrite
+- large benchmark/example content expansion
+- public API behavior changes via docs cleanup
+- replacing local executable truth with prose summaries
+
+Interpretation:
+
+- Day 4 locks the sprint into ownership simplification and documentation
+  cleanup, not broader workflow redesign

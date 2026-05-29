@@ -149,6 +149,9 @@ typedef struct {
  * **Iterative solvers + eigensolvers:** never write to the input
  * matrix; cancellation leaves all inputs bit-identical.
  *
+ * For the repository-wide documentation-ownership and maintainer-policy
+ * interpretation of these lifecycle rules, see `docs/maintainer_guide.md`.
+ *
  * The callback runs synchronously inside the call thread; it
  * should be fast (no I/O, no long computation).  Library guarantees
  * single-threaded invocation per outer routine call — the callback

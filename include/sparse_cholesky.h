@@ -106,7 +106,10 @@ typedef struct {
      *  removes upper-triangle entries before the first emission, so
      *  cancel-at-step-0 does not restore a bit-identical pre-call
      *  matrix even though the factor is rejected as unfactored.
-     *  Trailing field for designated-init back-compat. */
+     *  See `sparse_progress_cb_t` in `sparse_types.h` for the
+     *  generic callback contract and `docs/maintainer_guide.md`
+     *  for the broader maintainer-policy interpretation.  Trailing
+     *  field for designated-init back-compat. */
     sparse_progress_cb_t progress_cb;
     /** Opaque context pointer passed through unchanged to
      *  `progress_cb`.  Ignored when `progress_cb == NULL`. */

@@ -965,3 +965,77 @@ Interpretation:
 
 - Day 9 should focus on quality-contract ownership simplification
 - not on turning the guide into a broader handbook first
+
+## Day 8
+
+**Objective:** Land the bounded tutorial/header cross-reference cleanup
+identified on Day 7 so the remaining lifecycle and original-matrix caveats stay
+locally useful while repeating less policy text and acknowledging the new
+maintainer-guide ownership boundary.
+
+### Commands Run
+
+1. Re-read the Sprint 48 Day 8 plan section:
+   - `sed -n '285,360p' docs/planning/EPIC_4/SPRINT_48/PLAN.md`
+2. Re-read the Day 7 post-guide audit:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_48/artifacts/day7-post-guide-audit.md`
+3. Re-read the exact tutorial and header target blocks:
+   - `sed -n '138,170p' docs/tutorial.md`
+   - `sed -n '216,270p' docs/tutorial.md`
+   - `sed -n '120,170p' include/sparse_types.h`
+   - `sed -n '57,115p' include/sparse_lu.h`
+   - `sed -n '97,145p' include/sparse_cholesky.h`
+4. Land the bounded cross-reference batch:
+   - `docs/tutorial.md`
+   - `include/sparse_types.h`
+   - `include/sparse_lu.h`
+   - `include/sparse_cholesky.h`
+5. Record the Day 8 implementation artifact:
+   - `docs/planning/EPIC_4/SPRINT_48/artifacts/day8-tutorial-and-header-cross-reference-batch.md`
+
+### Day 8 Findings
+
+#### 1. The first tutorial-to-guide policy boundary is now real
+
+The QR tutorial section still teaches the original-matrix rule locally and now
+adds the first direct guide-aware reference for the broader documentation and
+lifecycle-policy interpretation.
+
+Interpretation:
+
+- the tutorial keeps the user-facing workflow truth
+- it no longer behaves like it owns the full policy explanation
+
+#### 2. Later tutorial sections now reuse the original-matrix rule more cleanly
+
+The ILU/ILUT/IC(0) and SVD sections now refer back to the QR section’s
+original-matrix guidance instead of fully restating the same rule.
+
+Interpretation:
+
+- the repeated wording is lower
+- the tutorial did not turn into a broad rewrite
+
+#### 3. The generic callback contract now marks the guide-aware policy boundary
+
+`include/sparse_types.h` now states that the broader maintainer-policy
+interpretation of lifecycle/cancellation rules lives in
+`docs/maintainer_guide.md`.
+
+Interpretation:
+
+- the shared callback contract remains local
+- the broader ownership boundary is now explicit
+
+#### 4. LU and Cholesky still keep their routine-specific details, but no longer stand alone as policy surfaces
+
+`include/sparse_lu.h` and `include/sparse_cholesky.h` now:
+
+- preserve their routine-specific cancellation and mutation details
+- point back to `sparse_progress_cb_t` for the generic callback contract
+- point to the maintainer guide for the broader maintainer-policy
+  interpretation
+
+Interpretation:
+
+- Day 8 reduced repetition without stripping away the routine-local truth

@@ -607,3 +607,139 @@ Interpretation:
 
 - Day 5/6 code work now has a concrete fence that should prevent public-surface
   sprawl while still allowing a real public lifecycle landing
+
+## Day 5 — Public Lifecycle API Landing Batch I
+
+### Summary
+
+Sprint 49 now has the first real public repeated-run lifecycle declarations for
+the two main internal reuse seams already established by Sprint 45 and Sprint
+46:
+
+- iterative repeated-run handle surface in `include/sparse_iterative.h`
+- eigensolver repeated-run handle surface in `include/sparse_eigs.h`
+
+This Day 5 batch stayed intentionally header/API-only, matching the Day 4
+landing order:
+
+1. public header / API surface
+2. implementation / wrapper integration
+3. migration-path documentation
+4. cross-surface compatibility sweep
+5. residual review
+6. final validation
+
+Interpretation:
+
+- Day 5 is the public contract landing
+- Day 6 remains the implementation/wrapper integration day
+- no attempt was made to widen into examples, benchmarks, or migration docs
+  before the public surface existed
+
+### Landed Public Surface
+
+The iterative header now exposes a bounded repeated-run lifecycle seam:
+
+- `sparse_iter_handle_t`
+- `sparse_iter_handle_init(...)`
+- `sparse_iter_handle_free(...)`
+- `sparse_iter_handle_prepare_cg(...)`
+- `sparse_iter_handle_prepare_gmres(...)`
+- `sparse_solve_cg_with_handle(...)`
+- `sparse_solve_gmres_with_handle(...)`
+
+The eigensolver header now exposes the parallel bounded seam:
+
+- `sparse_eigs_handle_t`
+- `sparse_eigs_handle_init(...)`
+- `sparse_eigs_handle_free(...)`
+- `sparse_eigs_handle_prepare(...)`
+- `sparse_eigs_sym_with_handle(...)`
+
+Design properties preserved:
+
+- public terminology is lifecycle-centric rather than raw internal-helper
+  centric
+- one-shot `sparse_solve_cg(...)`, `sparse_solve_gmres(...)`, and
+  `sparse_eigs_sym(...)` remain first-class supported compatibility entries
+- no raw internal workspace owners, typed internal views, or storage-layout
+  promises were made public
+
+### Important Boundary Decisions
+
+The public handle structs are intentionally opaque at the public level:
+
+- each handle currently exposes only `internal_state`
+- callers are directed to zero-init or use the init helper
+- prepare/run/free is the public contract, not storage-field manipulation
+
+The solve-path declarations deliberately stay narrow:
+
+- iterative public repeated-run declarations cover the already-migrated direct
+  CG/GMRES paths
+- eigensolver repeated-run declarations cover the main symmetric eigensolver
+  public path
+- block/minres/BiCGSTAB public repeated-run expansion did not land early
+- matrix-free repeated-run public declarations did not land early
+
+Interpretation:
+
+- Day 5 delivered the smallest coherent public lifecycle surface that Day 6 can
+  back with real implementation
+- Sprint 49 did not turn the header batch into a broad public solver-family
+  redesign
+
+### Validation
+
+Because `*.h` changed, the required gate ran:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Because this was a substantial public-API landing, the stronger reviewed
+baseline also ran:
+
+- `make quality-review-full`
+
+That also passed, including:
+
+- reviewed CMake parity still at `53`
+- Makefile/CMake test-count parity still `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 597.27 sec`
+
+Targeted touched-family follow-ons also passed:
+
+- `./build/test_iterative`
+- `./build/test_eigs`
+- `./build/example_iterative`
+- `./build/example_eigs`
+
+Representative direct results:
+
+- `test_iterative`: all `76` tests passed
+- `test_eigs`: all `25` tests passed
+- `example_iterative`: GMRES converged in `25` iterations unpreconditioned and
+  `9` with ILU(0)
+- `example_eigs`: all three shipped demos converged and reported stable
+  residuals
+
+### Day 5 Position
+
+The public contract is now real enough for Day 6 to do the bounded
+implementation/wrapper integration:
+
+- wire the public handle declarations to the existing internal reuse seams
+- preserve result initialization, error-path safety, and free semantics
+- keep one-shot compatibility wrappers intact
+- avoid widening into README/examples/benchmarks as an implementation driver
+
+Bottom line:
+
+- Day 5 successfully landed the first public lifecycle API surface
+- it preserved compatibility by leaving the one-shot public model intact
+- it stayed inside the intended Sprint 49 fence
+- the full required and reviewed validation baselines are green

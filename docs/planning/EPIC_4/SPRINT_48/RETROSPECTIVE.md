@@ -50,7 +50,7 @@
    That was the main structural gap Sprint 48 needed to fix.
 
 4. **README is materially more operator-facing now.** Sprint 48 reduced
-   `README.md` from `923` lines at Day 1 to `827` lines at close, but more
+   `README.md` from `923` lines at Day 1 to `827` lines at Sprint 48 close, but more
    importantly it changed *what* the README tries to be:
    - command map
    - cross-platform quality table
@@ -139,7 +139,7 @@
 | new maintainer-facing top-level docs added | `1` |
 | primary redistributed doc surfaces directly reshaped | `5` |
 | touched public headers with cross-reference cleanup | `3` |
-| README line count change across the sprint | `923 -> 827` |
+| README line count at Day 1 vs Sprint 48 close | `923 -> 827` |
 | targeted Sprint 48 follow-ons rerun in Day 13 | `4` |
 
 Notes:

@@ -109,7 +109,7 @@ make lint       # strict compile + static analysis (includes tooling-build)
 make quality-review-compile  # reviewed format-check + lint wrapper
 make test       # run all unit tests
 make quality-review  # reviewed format-check + lint + test + deadcode-check
-make quality-review-full  # default local reviewed closeout: quality-review + quality-review-cmake
+make quality-review-full  # strongest local reviewed baseline: quality-review + quality-review-cmake
 make warning-workflow WARNING_WORKFLOW_LABEL=label  # authoritative repository-wide warning inventory capture
 make quality-review-cmake-compile  # reviewed CMake configure + rebuild + ctest -N
 make quality-review-cmake  # reviewed CMake configure + rebuild + ctest -N + ctest
@@ -687,7 +687,7 @@ make quality-review-cmake
 ```
 
 - `quality-review-compile` / `quality-review` are the reviewed Makefile path
-- `quality-review-full` is the default local reviewed closeout command
+- `quality-review-full` is the strongest local reviewed baseline command
 - `quality-review-cmake-compile` / `quality-review-cmake` are the reviewed
   CMake parity path for clean rebuild + `ctest -N` + full `ctest`
 - the CMake wrappers are additive; they do **not** replace the
@@ -714,7 +714,7 @@ Use this checklist for a concise release/readiness pass:
 
 - repository-wide warning evidence still uses:
   - `make warning-workflow WARNING_WORKFLOW_LABEL=label`
-- default local reviewed closeout still passes:
+- strongest local reviewed baseline still passes:
   - `make quality-review-full`
 - dead-code evidence refresh and completeness gate still pass:
   - `make deadcode-report`

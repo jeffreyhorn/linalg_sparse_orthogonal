@@ -200,3 +200,157 @@ Interpretation:
 - Sprint 48 should preserve Sprint 40's core rule: maintainability cleanup
   should be guided by measured seams and an explicit validation anchor before
   broader documentation redistribution lands
+
+## Day 2
+
+**Objective:** Refresh the documentation and quality-contract seam inventory so
+Sprint 48's maintainer-guide design, README reduction, tutorial/header
+cross-reference pass, and later quality-contract simplification are sequenced
+from the live post-Sprint-47 repo state rather than only from the project-plan
+labels.
+
+### Commands Run
+
+1. Re-read the Sprint 48 Day 2 plan section:
+   - `sed -n '55,108p' docs/planning/EPIC_4/SPRINT_48/PLAN.md`
+2. Re-read the Day 1 baseline artifact:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_48/artifacts/day1-scope-and-quality-contract-baseline.md`
+3. Re-read the current high-density README quality/maintainer block:
+   - `sed -n '640,845p' README.md`
+4. Refresh the live quality-command ownership markers:
+   - `rg -n "quality-review-full|quality-review-cmake|deadcode-check|tooling-build" Makefile README.md docs/tutorial.md scripts/deadcode_report.py scripts/deadcode_workflow.sh .github -g '!build'`
+5. Refresh the broader duplication markers across docs, headers, scripts, and
+   workflows:
+   - `rg -n "lifecycle|factored|dead-code|quality-review|maintainer|reviewed baseline|designated initializer|designated-initializer|README|tutorial" README.md docs/tutorial.md include scripts Makefile .github -g '!build'`
+6. Reconfirm the current hotspot sizes for the bounded Sprint 48 targets:
+   - `wc -l README.md benchmarks/README.md examples/README.md docs/tutorial.md Makefile .github/workflows/ci.yml .github/workflows/macos-ci.yml .github/workflows/windows-ci.yml`
+   - `wc -l README.md docs/tutorial.md include/sparse_matrix.h include/sparse_lu.h include/sparse_cholesky.h Makefile scripts/deadcode_report.py scripts/deadcode_workflow.sh`
+7. Write the Day 2 seam-inventory artifact:
+   - `docs/planning/EPIC_4/SPRINT_48/artifacts/day2-docs-and-quality-contract-surface-inventory.md`
+
+### Day 2 Findings
+
+#### 1. Sprint 48’s live duplication surface reduces cleanly to five seam classes
+
+The current problem is no longer a generic docs backlog. It reduces to:
+
+- quality-command ownership drift
+- README user-vs-maintainer scope drift
+- tutorial/header behavioral-caveat duplication
+- lifecycle/cancellation caveat duplication
+- maintainer norms with no stable policy home
+
+Interpretation:
+
+- Sprint 48 should continue from explicit ownership seams
+- it should not treat README, headers, tutorial, workflows, and helper scripts
+  as one undifferentiated rewrite surface
+
+#### 2. The strongest direct implementation target is still the README quality-policy block
+
+Day 2 confirms that the densest concentration of duplicated maintainer-policy
+content remains in `README.md`, especially around:
+
+- dead-code workflow
+- reviewed local quality path
+- cross-platform CI contract
+- quality readiness checklist
+- maintainer standards
+
+Interpretation:
+
+- the README reduction pass should be the first real redistribution target
+- Sprint 48 should not wait for every other doc to move before reducing that
+  block
+
+#### 3. The quality contract currently has three separate authority shapes
+
+The live ownership map is now clearer:
+
+- executable authority:
+  - `Makefile`
+  - `scripts/deadcode_workflow.sh`
+  - `scripts/deadcode_report.py`
+- enforced/staged CI authority:
+  - `.github/workflows/ci.yml`
+  - `.github/workflows/macos-ci.yml`
+  - `.github/workflows/windows-ci.yml`
+- prose authority:
+  - `README.md`
+
+Interpretation:
+
+- Sprint 48 does not need to redesign command semantics first
+- it needs a clearer prose home for maintainer-facing policy and contract
+  interpretation
+
+#### 4. Tutorial and public headers should keep local behavioral truth, but not own full maintainer policy
+
+The live Day 2 inventory confirms recurring caveats in:
+
+- `docs/tutorial.md`
+- `include/sparse_lu.h`
+- `include/sparse_cholesky.h`
+- `include/sparse_ldlt.h`
+- `include/sparse_qr.h`
+- `include/sparse_svd.h`
+- `include/sparse_analysis.h`
+
+These caveats are still useful locally because they are API-relevant:
+
+- original/unfactored matrix requirements
+- factored-state restrictions
+- lifecycle/cancellation semantics
+
+Interpretation:
+
+- headers and tutorial should retain concise behavioral truth where users need
+  it locally
+- repeated maintainer-policy explanation should move elsewhere
+
+#### 5. The strongest “move to maintainer guide” candidates are now explicit
+
+Day 2 confirms the main maintainer-facing policy content currently living in
+README:
+
+- reviewed baseline use
+- dead-code interpretation
+- cross-platform contract reading
+- designated-initializer norms
+- dormant historical evidence versus live suite truth
+
+Interpretation:
+
+- Sprint 48 does not need to invent new policy from scratch
+- it needs a stable maintainer-facing home for policy that already exists
+
+#### 6. The first implementation order is now fixed from live ownership
+
+The correct order after Day 2 is:
+
+1. maintainer-guide design
+2. README reduction
+3. maintainer-guide implementation
+4. tutorial/header cross-reference reconciliation
+5. quality-contract ownership simplification
+
+Interpretation:
+
+- policy-home design must come first
+- README reduction should happen before broader reconciliation
+- quality-contract simplification belongs later, after the prose homes are
+  clearer
+
+#### 7. The strongest “leave local” content is also explicit
+
+Sprint 48 should avoid over-centralizing:
+
+- direct command behavior owned by executable surfaces
+- concise API-local caveats in headers
+- tutorial flow that still teaches user-facing matrix-state expectations
+- local benchmark/example usage details already owned by their own READMEs
+
+Interpretation:
+
+- Sprint 48 should simplify ownership, not centralize everything into one
+  giant maintainer document

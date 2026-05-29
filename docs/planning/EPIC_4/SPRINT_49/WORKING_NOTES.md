@@ -478,3 +478,132 @@ Interpretation:
 
 - the design is now bounded tightly enough to guide Day 5/6 implementation
   without encouraging public-surface sprawl
+
+## Day 4
+
+**Objective:** Convert the Day 3 public lifecycle target into a concrete
+implementation order, validation contract, and scope boundary so the header/API
+landing and wrapper integration work can proceed without widening into generic
+example, benchmark, or post-Epic-4 churn.
+
+### Commands Run
+
+1. Re-read the Sprint 49 Day 4 plan section:
+   - `sed -n '132,171p' docs/planning/EPIC_4/SPRINT_49/PLAN.md`
+2. Re-read the Day 3 public lifecycle API design:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_49/artifacts/day3-public-lifecycle-api-design.md`
+3. Re-read the Sprint 40 validation anchor:
+   - `sed -n '1,220p' docs/planning/EPIC_4/SPRINT_40/artifacts/day13-validation-anchor-and-command-matrix.md`
+4. Re-read the current benchmark/example README scope boundaries:
+   - `sed -n '1,240p' benchmarks/README.md`
+   - `sed -n '1,240p' examples/README.md`
+
+### Day 4 Findings
+
+#### 1. Any Sprint 49 code/header landing must use the full required C/header gate by default
+
+The Sprint 40 validation anchor still governs Sprint 49 implementation work:
+
+- any `*.c` / `*.h` change requires:
+  - `make format`
+  - `make lint`
+  - `make test`
+
+Interpretation:
+
+- Sprint 49 should treat this as the non-negotiable floor for Day 5/6 code
+  landing
+- there is no special exception just because the work is mostly public-API
+  exposure rather than algorithm invention
+
+#### 2. Substantial public-API landing batches should also default to the reviewed local baseline
+
+The Day 3 design affects:
+
+- public headers
+- wrapper routing
+- caller-visible lifecycle semantics
+- likely later docs/example/benchmark alignment
+
+Interpretation:
+
+- Day 5/6 substantial public-API batches should default to:
+  - `make quality-review-full`
+- Sprint 49 should preserve the stronger reviewed baseline whenever the change
+  spans public header and implementation surfaces together
+
+#### 3. Targeted follow-on checks should be driven by touched surface, not run universally
+
+The current repo already has focused verification surfaces that map naturally to
+the expected Sprint 49 work:
+
+- examples:
+  - `./build/example_iterative`
+  - `./build/example_matrix_free`
+  - `./build/example_eigs`
+- repeated-run benchmarks:
+  - `./build/bench_iterative_reuse`
+  - `./build/bench_eigs_reuse`
+- compile-only tooling gate:
+  - `make tooling-build`
+- solver/eigensolver regression binaries:
+  - `./build/test_iterative`
+  - `./build/test_block_solvers`
+  - `./build/test_minres`
+  - `./build/test_bicgstab`
+  - `./build/test_stagnation`
+  - `./build/test_eigs`
+  - `./build/test_eigs_thick_restart`
+  - `./build/test_eigs_lobpcg`
+
+Interpretation:
+
+- Sprint 49 should rerun these only when the touched surface justifies them
+- examples and repeated-run benchmarks are high-value follow-ons after public
+  lifecycle landing, but they are not universal every-day gates
+
+#### 4. The landing order must stay header/API first, then migration/docs/examples/benchmarks
+
+The Day 2 seam map and Day 3 design still force the correct order:
+
+1. public header / API surface
+2. implementation / wrapper integration
+3. migration-path documentation
+4. cross-surface compatibility sweep
+5. residual review
+6. final validation
+
+Interpretation:
+
+- Sprint 49 should not start by rewriting examples or README to "guess" the
+  final public contract
+- the public header/source shape must become real first
+
+#### 5. Benchmark/example surfaces are later verification layers, not implementation drivers
+
+The current benchmark/example docs stay intentionally local in scope:
+
+- `benchmarks/README.md` focuses on benchmark-local command usage
+- `examples/README.md` focuses on example-local public usage references
+
+Interpretation:
+
+- Sprint 49 should keep benchmark/example changes bounded to agreement with the
+  landed API
+- it should not turn Day 5/6 into a broad educational-surface rewrite
+
+#### 6. Sprint 49’s out-of-scope boundary is now explicit enough to protect the implementation days
+
+The following are not part of the intended Sprint 49 implementation landing:
+
+- post-Epic-4 feature expansion
+- large new benchmark framework work
+- new solver families
+- broad tutorial rewrite unrelated to the final lifecycle shape
+- exposing raw internal workspace layout as public API
+- replacing the existing one-shot public entries instead of preserving them
+
+Interpretation:
+
+- Day 5/6 code work now has a concrete fence that should prevent public-surface
+  sprawl while still allowing a real public lifecycle landing

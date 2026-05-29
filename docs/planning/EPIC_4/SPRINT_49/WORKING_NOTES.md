@@ -1540,3 +1540,244 @@ Bottom line:
 - it also closed the strongest remaining public-handle regression gap
 - the batch stayed small enough to preserve the Sprint 49 final-integration
   fence
+
+## Day 11 — Final Residual Review
+
+### Goal
+
+Revisit every tracked Epic 4 review finding from
+`docs/planning/EPIC_4/reviews/review-codex-2026-05-21.md`, classify it against
+the final landed state, and check whether any true blocking gap remains before
+the final validation sweep.
+
+### Inputs Re-Read
+
+Primary review inputs:
+
+- `docs/planning/EPIC_4/reviews/review-codex-2026-05-21.md`
+- `docs/planning/EPIC_4/reviews/todo-codex-2026-05-21.md`
+
+Later Epic 4 closeout / residual anchors:
+
+- Sprint 42 Day 14 closeout
+- Sprint 44 Day 14 closeout
+- Sprint 45 Day 12 / Day 14 residual and closeout notes
+- Sprint 46 Day 12 / Day 14 residual and closeout notes
+- Sprint 47 Day 14 closeout
+- Sprint 48 Day 14 closeout
+- current Sprint 49 Day 1-10 working notes and artifacts
+
+### Final Classification Result
+
+The original Epic 4 review carried seven top-level findings.
+
+Final dispositions:
+
+- fixed:
+  - Finding 2 — graph / nested-dissection monolith
+  - Finding 3 — fragmented allocation/overflow hardening
+  - Finding 4 — one-shot iterative/eigensolver workspaces
+  - Finding 5 — over-distributed quality contract
+  - Finding 6 — inconsistent benchmark/developer CLI surfaces
+  - Finding 7 — overloaded README / missing maintainer-policy home
+- accepted tradeoff:
+  - Finding 1 — mutable `SparseMatrix` state model remains on the compatibility
+    surface
+- intentionally deferred:
+  - none of the seven original review findings remain as an unowned Epic 4
+    deferral item
+
+### Finding-By-Finding Disposition
+
+#### Finding 1 — Mutable matrix-state model
+
+Disposition:
+
+- accepted tradeoff
+
+Why not “fixed”:
+
+- Epic 4 materially improved the lifecycle model, but it did not remove the
+  compatibility-facing in-place factor APIs or the caller-visible original-
+  matrix / factored-state distinction
+- `SparseMatrix` still remains part of the public compatibility surface for LU,
+  Cholesky, LDLT, QR, and related workflows
+
+What Epic 4 did land:
+
+- Sprint 42 internal factor-state scaffolding and shared matrix-state guards
+- the analyze/factor bridge in `include/sparse_analysis.h`
+- stronger lifecycle/cancellation documentation and regression coverage
+- Sprint 49 public repeated-run handles for iterative and eigensolver repeated
+  work
+
+Why this is acceptable for Epic 4 closeout:
+
+- the mutable-state model is now better guarded, better documented, and less ad
+  hoc than it was on 2026-05-21
+- the remaining compatibility-facing in-place factor path is deliberate, not an
+  accidental unfinished migration
+- fully replacing that surface with new public factor handles would now be a
+  broader post-Epic-4 API redesign rather than unfinished Sprint 49 work
+
+#### Finding 2 — `src/sparse_graph.c` monolith
+
+Disposition:
+
+- fixed
+
+Evidence:
+
+- Sprint 43/44 split the subsystem into:
+  - `src/sparse_graph_core.c`
+  - `src/sparse_graph_coarsen.c`
+  - `src/sparse_graph_bisect.c`
+  - `src/sparse_graph_refine.c`
+  - `src/sparse_graph_separator.c`
+- the residual orchestration file is now `801` lines instead of the old
+  3,500+-line monolith
+
+Interpretation:
+
+- the review’s primary structural complaint was resolved to Epic 4 scope
+
+#### Finding 3 — Fragmented allocation/overflow hardening
+
+Disposition:
+
+- fixed
+
+Evidence:
+
+- shared internal allocation utilities now exist in:
+  - `src/sparse_alloc_internal.h`
+  - `src/sparse_alloc_internal.c`
+- shared checked helpers and overflow routines are now used across the core
+  library
+- later auxiliary follow-ons hardened benchmark/example/tooling surfaces where
+  Epic 4 had explicitly named drift
+
+Interpretation:
+
+- Epic 4 did not eliminate every raw allocation call in the repository, but it
+  did centralize the maintained hardening pattern and migrate the important
+  structural hotspots the review identified
+
+#### Finding 4 — One-shot iterative/eigensolver workspaces
+
+Disposition:
+
+- fixed
+
+Evidence:
+
+- Sprint 45 landed reusable iterative workspace/state support
+- Sprint 46 landed reusable eigensolver workspace/state support
+- Sprint 49 exposed bounded public repeated-run handles for the final caller
+  path and aligned tests/benchmarks/docs around that model
+
+Interpretation:
+
+- the review’s main repeated-run allocator-churn concern is now directly
+  addressed
+
+#### Finding 5 — Over-distributed quality contract
+
+Disposition:
+
+- fixed
+
+Evidence:
+
+- Sprint 48 created `docs/maintainer_guide.md`
+- README ownership was reduced and clarified
+- quality-policy interpretation now has a stable maintainer-facing home instead
+  of being repeated across README prose
+
+Interpretation:
+
+- command truth, machine behavior, policy, and user-facing summary are now
+  substantially cleaner than the review baseline
+
+#### Finding 6 — Inconsistent benchmark/developer CLI surfaces
+
+Disposition:
+
+- fixed
+
+Evidence:
+
+- Sprint 47 landed:
+  - `benchmarks/bench_cli_parse_internal.h`
+  - `bench_main` parser modernization
+  - reorder-mode / emitted-label parity cleanup
+  - bounded follow-on docs/tooling alignment
+
+Interpretation:
+
+- the main benchmark CLI now matches the intended supported-mode and
+  malformed-input contract closely enough to close the original finding
+
+#### Finding 7 — Overloaded README / no maintainer-policy home
+
+Disposition:
+
+- fixed
+
+Evidence:
+
+- Sprint 48 reduced README size and maintainer-policy density
+- `docs/maintainer_guide.md` now owns the maintainer-facing quality and policy
+  layer
+- tutorial/header/example/benchmark docs now use clearer cross-reference
+  boundaries
+
+Interpretation:
+
+- the original “README is doing too many jobs” complaint is resolved to Epic 4
+  scope
+
+### Residual Queue After Classification
+
+No original Epic 4 review finding remains as a hidden unowned residual.
+
+The real post-classification queue is smaller and explicit:
+
+- accepted tradeoff:
+  - compatibility-facing mutable `SparseMatrix` / in-place factor APIs remain
+    part of the public surface
+- later non-goals, not unfinished Epic 4 work:
+  - broader public factor-handle redesign
+  - larger tutorial/example modernization around explicit repeated-run handles
+  - any future benchmark-framework redesign beyond Sprint 47/49 cleanup
+
+### Blocking-Gap Check
+
+Blocking gap status:
+
+- none
+
+Why:
+
+- the only non-fixed top-level finding is now an explicit accepted tradeoff
+  rather than an accidental unfinished migration
+- the rest of the original review findings have landed concrete structural
+  remediation inside the validated Epic 4 sprint sequence
+- no new pre-Day-13 repair batch is required to keep the final validation pass
+  honest
+
+### Day 11 Position
+
+Sprint 49 now has a clear pre-validation residual state:
+
+- every original Epic 4 review finding has a final disposition
+- no hidden blocking repair queue remains
+- the remaining non-goal/accepted-tradeoff boundary is explicit enough for the
+  Day 12 summary batch and Day 13 validation closeout
+
+Bottom line:
+
+- Day 11 closed the original Epic 4 review loop honestly
+- it avoided overclaiming the matrix-state story as “fully solved”
+- it left Sprint 49 with no true blocker before the final summary and
+  validation passes

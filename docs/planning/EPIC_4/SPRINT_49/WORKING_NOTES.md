@@ -912,3 +912,167 @@ Bottom line:
   eigensolver path coherent
 - the full required, reviewed, and targeted follow-on validation baselines are
   green
+
+## Day 7 — Post-Landing API Audit
+
+### Goal
+
+Re-audit the live post-landing public lifecycle/workspace surface so the
+remaining Sprint 49 queue is concrete before migration docs or compatibility
+cleanup starts.
+
+### Audited Surfaces
+
+Public contract / implementation:
+
+- `include/sparse_iterative.h`
+- `include/sparse_eigs.h`
+- `src/sparse_iterative.c`
+- `src/sparse_eigs.c`
+
+Caller-facing and compatibility surfaces:
+
+- `README.md`
+- `examples/README.md`
+- `benchmarks/README.md`
+- `benchmarks/bench_iterative_reuse.c`
+- `benchmarks/bench_eigs_reuse.c`
+- `tests/`
+
+### Main Audit Result
+
+The public lifecycle landing itself is complete and still bounded.
+
+What is already true:
+
+- public iterative and eigensolver handle declarations exist
+- the implementation/wrapper path is live behind those declarations
+- existing one-shot public entries remain first-class and route through the
+  new handle-backed model where appropriate
+- no raw internal workspace layout or typed internal view leaked into the
+  public contract
+
+Interpretation:
+
+- Sprint 49 is no longer blocked on public API exposure itself
+- the remaining work is now caller-guidance and cross-surface agreement work,
+  not another lifecycle implementation batch
+
+### What Is Complete
+
+The following Day 5/6 goals now look done rather than still implied:
+
+- bounded lifecycle-centric public terminology
+- compatibility-preserving one-shot wrapper continuity
+- public prepare / run / free contract for the first iterative and
+  eigensolver repeated-run paths
+- internal implementation reuse behind the public lifecycle surface
+
+No meaningful API-sprawl was found:
+
+- public exposure is still limited to the intended CG/GMRES and symmetric
+  eigensolve repeated-run handles
+- matrix-free, block, MINRES, and BiCGSTAB repeated-run public exposure did
+  not accidentally widen
+- README/tutorial/example churn did not leak into the Day 5/6 code batches
+
+### What Is Not Done Yet
+
+The strongest remaining gaps are now outside the core public headers:
+
+1. migration-path documentation is still missing
+2. cross-surface agreement on the final caller story is still incomplete
+3. direct regression coverage for the new public handle entries is still absent
+
+Evidence from the live repo state:
+
+- the public handle names appear in `include/` and Sprint 49 notes/artifacts,
+  but not yet in the main user-facing docs
+- `README.md` does not yet explain:
+  - old one-shot usage remains supported
+  - when explicit handles are preferable
+  - what “prepare once / repeated run” means for callers
+- `examples/README.md` still presents the current examples as one-shot public
+  usage references only
+- the repeated-run benchmarks still exercise internal reuse seams:
+  - `bench_iterative_reuse.c` uses
+    `sparse_solve_*_with_workspace_internal(...)`
+  - `bench_eigs_reuse.c` uses
+    `sparse_eigs_sym_with_workspace_internal(...)`
+- there is still no direct `tests/` coverage for:
+  - `sparse_iter_handle_*`
+  - `sparse_solve_*_with_handle(...)`
+  - `sparse_eigs_handle_*`
+  - `sparse_eigs_sym_with_handle(...)`
+
+### Naming / Ownership Drift
+
+No serious naming drift remains in the public headers themselves, but there is
+ownership drift across adjacent surfaces:
+
+- public headers now define the final repeated-run caller contract
+- benchmarks still describe repeated-run evidence in internal-workspace terms
+- examples and README do not yet present the new public repeated-run path as
+  part of the supported caller model
+
+Interpretation:
+
+- Day 8 should focus on migration-path clarity
+- Day 9 should focus on mapping which examples/benchmarks/tests/docs need the
+  smallest agreement sweep
+- Day 10 should then land the smallest coherent compatibility cleanup
+
+### Day 8 Boundary
+
+The migration-doc batch should stay focused on caller guidance, not on broad
+surface churn.
+
+Strongest likely Day 8 targets:
+
+- `README.md`
+- one bounded supporting docs surface if needed:
+  - `examples/README.md`
+  - or a small tutorial/maintainer-guide cross-reference
+
+What Day 8 should explain explicitly:
+
+- the one-shot path remains fully supported
+- explicit handles are the repeated-run opt-in path
+- reuse preserves allocation capacity, not numerical iteration state
+- repeated-run handles are worth using on stable-dimension repeated solves
+- callers do not need to adopt handles just to stay supported
+
+### Day 9/10 Boundary
+
+The compatibility sweep should stay behavior-level and targeted.
+
+Strongest Day 9 audit / Day 10 batch candidates:
+
+- reuse benchmarks
+- direct public-handle regression coverage in `tests/`
+- any nearby README/examples wording that would still contradict the final
+  caller story after the migration-doc batch lands
+
+Important non-goal:
+
+- do not turn the compatibility sweep into a broad example or benchmark
+  framework rewrite
+
+### Day 7 Position
+
+Sprint 49 is now in the right final shape:
+
+- public lifecycle API exposure is materially done
+- the next value is in migration guidance and cross-surface agreement
+- the remaining queue is concrete enough to keep the last code/doc batches
+  bounded
+
+Bottom line:
+
+- Day 7 confirmed the public lifecycle landing is complete and bounded
+- the strongest remaining gaps are migration docs, direct public-handle
+  regression coverage, and reuse-benchmark alignment with the final public
+  caller model
+- Day 8 should document the old-vs-new usage path
+- Day 9/10 should then reconcile the highest-value examples/benchmarks/tests
+  around that final model

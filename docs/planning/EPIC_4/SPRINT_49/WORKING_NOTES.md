@@ -743,3 +743,172 @@ Bottom line:
 - it preserved compatibility by leaving the one-shot public model intact
 - it stayed inside the intended Sprint 49 fence
 - the full required and reviewed validation baselines are green
+
+## Day 6 — Public Lifecycle API Integration Batch II
+
+### Goal
+
+Back the new Day 5 public lifecycle declarations with real implementation and
+compatibility-preserving wrapper routing, without widening the public promise
+set beyond the intended repeated-run handle contract.
+
+### Files Touched
+
+- `src/sparse_iterative.c`
+- `src/sparse_eigs.c`
+- `src/sparse_eigs_internal.h`
+
+### Main Integration Result
+
+Sprint 49 now has a real public repeated-run implementation path, not just a
+declared handle surface.
+
+The Day 6 batch stayed within the Day 3/4 fence:
+
+- iterative public handles now own and reuse the existing internal iterative
+  workspace seam
+- eigensolver public handles now own and reuse the existing internal
+  eigensolver workspace seam
+- one-shot public wrappers remain first-class compatibility entries, but now
+  route through the new public handle path instead of standing apart from it
+- no raw internal workspace layout, typed internal views, or benchmark-only
+  helpers were made public
+
+### Iterative Public Handle Integration
+
+`src/sparse_iterative.c` now implements the new public lifecycle surface:
+
+- `sparse_iter_handle_init(...)`
+- `sparse_iter_handle_free(...)`
+- `sparse_iter_handle_prepare_cg(...)`
+- `sparse_iter_handle_prepare_gmres(...)`
+- `sparse_solve_cg_with_handle(...)`
+- `sparse_solve_gmres_with_handle(...)`
+
+Key behavior:
+
+- `sparse_iter_handle_t` owns a `sparse_iter_workspace_t` through
+  `internal_state`
+- prepare calls allocate or grow capacity through the same checked internal
+  workspace prepare helpers already used by the Sprint 45 repeated-run seam
+- run calls delegate to the existing internal workspace-backed CG/GMRES solve
+  paths
+- one-shot `sparse_solve_cg(...)` and `sparse_solve_gmres(...)` now create a
+  temporary handle, run through the public handle path, and free it afterward
+
+Interpretation:
+
+- the public repeated-run iterative contract is now real rather than
+  documentary
+- the one-shot iterative API remains supported by construction rather than by
+  parallel duplicated logic
+
+### Eigensolver Public Handle Integration
+
+`src/sparse_eigs.c` and `src/sparse_eigs_internal.h` now implement the public
+repeated-run eigensolver path:
+
+- `sparse_eigs_handle_init(...)`
+- `sparse_eigs_handle_free(...)`
+- `sparse_eigs_handle_prepare(...)`
+- `sparse_eigs_sym_with_handle(...)`
+
+Key behavior:
+
+- `sparse_eigs_handle_t` owns a `sparse_eigs_workspace_t` through
+  `internal_state`
+- prepare calls pre-allocate the correct backend-shaped capacity for:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - LOBPCG
+- `sparse_eigs_sym_with_handle(...)` delegates to the existing shared backend
+  implementation with caller-owned reusable workspace
+- one-shot `sparse_eigs_sym(...)` now routes through the public handle path
+  before freeing the temporary handle
+
+Important Day 6 widening that stayed internal-only:
+
+- `s21_lobpcg_solve(...)` now accepts an optional reusable workspace pointer so
+  the new public eigensolver handle path covers LOBPCG cleanly instead of only
+  the Lanczos families
+- that change remained in internal code and did not widen the public API beyond
+  the already-declared lifecycle contract
+
+### Important Boundary Decisions
+
+The public implementation batch deliberately did **not** land:
+
+- public matrix-free repeated-run handle entries
+- public block/minres/BiCGSTAB repeated-run entries
+- benchmark/example migration as an API driver
+- README/tutorial migration text
+- raw internal-storage field semantics as public API
+
+That was the correct fence:
+
+- Day 6 needed to make Day 5’s public declarations true
+- it did not need to turn Sprint 49 into a broad public solver-family redesign
+
+### Validation
+
+Because `*.c` and `*.h` changed, the required gate ran:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Because this was a substantial public-API integration batch, the stronger
+reviewed baseline also ran:
+
+- `make quality-review-full`
+
+That also passed, including:
+
+- reviewed CMake parity still at `53`
+- Makefile/CMake test-count parity still `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 422.68 sec`
+
+Targeted touched-family follow-ons also passed:
+
+- `./build/test_iterative`
+- `./build/test_eigs`
+- `./build/test_eigs_lobpcg`
+- `./build/example_iterative`
+- `./build/example_eigs`
+
+Representative direct results:
+
+- `test_iterative`: all `76` tests passed
+- `test_eigs`: all `25` tests passed
+- `test_eigs_lobpcg`: all `26` tests passed
+- `example_iterative`: GMRES converged in `25` iterations unpreconditioned and
+  `9` with ILU(0)
+- `example_eigs`: all three shipped demos converged cleanly, including the
+  LOBPCG `bcsstk04` section at `3 / 3`
+
+### Day 6 Position
+
+Sprint 49 now has both sides of the bounded public lifecycle story:
+
+- Day 5 made the public repeated-run contract explicit
+- Day 6 wired that contract to the real internal reuse seams
+- one-shot wrappers remain compatibility-preserving convenience surfaces
+
+That leaves the next queue much clearer:
+
+- migration-path documentation
+- cross-surface compatibility proof across docs/examples/benchmarks/tests
+- final residual review and Epic 4 closeout validation
+
+Bottom line:
+
+- Day 6 successfully made the new public lifecycle API real
+- it preserved compatibility by routing existing one-shot entries through the
+  same handle-backed implementation path
+- it widened internal LOBPCG reuse just enough to keep the public repeated-run
+  eigensolver path coherent
+- the full required, reviewed, and targeted follow-on validation baselines are
+  green

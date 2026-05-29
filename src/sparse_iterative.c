@@ -45,6 +45,68 @@ static const sparse_gmres_opts_t gmres_defaults = {
     .precond_side = SPARSE_PRECOND_LEFT,
 };
 
+static sparse_iter_workspace_t *s49_iter_handle_workspace(const sparse_iter_handle_t *handle) {
+    return handle ? (sparse_iter_workspace_t *)handle->internal_state : NULL;
+}
+
+static sparse_err_t s49_iter_handle_ensure(sparse_iter_handle_t *handle,
+                                           sparse_iter_workspace_t **workspace_out) {
+    if (!handle || !workspace_out)
+        return SPARSE_ERR_NULL;
+
+    sparse_iter_workspace_t *workspace = s49_iter_handle_workspace(handle);
+    if (!workspace) {
+        workspace = NULL;
+        sparse_err_t err = sparse_malloc_array(1, sizeof(*workspace), (void **)&workspace);
+        if (err != SPARSE_OK)
+            return err;
+        sparse_iter_workspace_init(workspace);
+        handle->internal_state = workspace;
+    }
+
+    *workspace_out = workspace;
+    return SPARSE_OK;
+}
+
+void sparse_iter_handle_init(sparse_iter_handle_t *handle) {
+    if (handle)
+        *handle = (sparse_iter_handle_t){0};
+}
+
+void sparse_iter_handle_free(sparse_iter_handle_t *handle) {
+    sparse_iter_workspace_t *workspace = s49_iter_handle_workspace(handle);
+    if (!handle)
+        return;
+    if (workspace) {
+        sparse_iter_workspace_free(workspace);
+        free(workspace);
+    }
+    *handle = (sparse_iter_handle_t){0};
+}
+
+sparse_err_t sparse_iter_handle_prepare_cg(sparse_iter_handle_t *handle, idx_t n) {
+    if (n < 0)
+        return SPARSE_ERR_BADARG;
+    sparse_iter_workspace_t *workspace = NULL;
+    sparse_err_t err = s49_iter_handle_ensure(handle, &workspace);
+    if (err != SPARSE_OK)
+        return err;
+    sparse_cg_workspace_view_t view;
+    return sparse_iter_workspace_prepare_cg(workspace, n, &view);
+}
+
+sparse_err_t sparse_iter_handle_prepare_gmres(sparse_iter_handle_t *handle, idx_t n,
+                                              idx_t restart) {
+    if (n < 0)
+        return SPARSE_ERR_BADARG;
+    sparse_iter_workspace_t *workspace = NULL;
+    sparse_err_t err = s49_iter_handle_ensure(handle, &workspace);
+    if (err != SPARSE_OK)
+        return err;
+    sparse_gmres_workspace_view_t view;
+    return sparse_iter_workspace_prepare_gmres(workspace, n, restart, &view);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Stagnation detection helper
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -336,12 +398,23 @@ sparse_err_t sparse_solve_cg_with_workspace_internal(const SparseMatrix *A, cons
 sparse_err_t sparse_solve_cg(const SparseMatrix *A, const double *b, double *x,
                              const sparse_iter_opts_t *opts, sparse_precond_fn precond,
                              const void *precond_ctx, sparse_iter_result_t *result) {
-    sparse_iter_workspace_t workspace;
-    sparse_iter_workspace_init(&workspace);
-    sparse_err_t err = sparse_solve_cg_with_workspace_internal(A, b, x, opts, precond, precond_ctx,
-                                                               result, &workspace);
-    sparse_iter_workspace_free(&workspace);
+    sparse_iter_handle_t handle = {0};
+    sparse_err_t err =
+        sparse_solve_cg_with_handle(A, b, x, opts, precond, precond_ctx, result, &handle);
+    sparse_iter_handle_free(&handle);
     return err;
+}
+
+sparse_err_t sparse_solve_cg_with_handle(const SparseMatrix *A, const double *b, double *x,
+                                         const sparse_iter_opts_t *opts, sparse_precond_fn precond,
+                                         const void *precond_ctx, sparse_iter_result_t *result,
+                                         sparse_iter_handle_t *handle) {
+    sparse_iter_workspace_t *workspace = NULL;
+    sparse_err_t err = s49_iter_handle_ensure(handle, &workspace);
+    if (err != SPARSE_OK)
+        return err;
+    return sparse_solve_cg_with_workspace_internal(A, b, x, opts, precond, precond_ctx, result,
+                                                   workspace);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -569,11 +642,10 @@ sparse_err_t sparse_solve_gmres(const SparseMatrix *A, const double *b, double *
         return SPARSE_ERR_SHAPE;
     }
 
-    sparse_iter_workspace_t workspace;
-    sparse_iter_workspace_init(&workspace);
-    sparse_err_t err = sparse_solve_gmres_with_workspace_internal(A, b, x, opts, precond,
-                                                                  precond_ctx, result, &workspace);
-    sparse_iter_workspace_free(&workspace);
+    sparse_iter_handle_t handle = {0};
+    sparse_err_t err =
+        sparse_solve_gmres_with_handle(A, b, x, opts, precond, precond_ctx, result, &handle);
+    sparse_iter_handle_free(&handle);
     return err;
 }
 
@@ -985,6 +1057,19 @@ sparse_err_t sparse_solve_gmres_with_workspace_internal(const SparseMatrix *A, c
     return sparse_solve_gmres_mf_with_workspace_internal(gmres_sparse_matvec_adapter, A,
                                                          sparse_rows(A), b, x, opts, precond,
                                                          precond_ctx, result, workspace);
+}
+
+sparse_err_t sparse_solve_gmres_with_handle(const SparseMatrix *A, const double *b, double *x,
+                                            const sparse_gmres_opts_t *opts,
+                                            sparse_precond_fn precond, const void *precond_ctx,
+                                            sparse_iter_result_t *result,
+                                            sparse_iter_handle_t *handle) {
+    sparse_iter_workspace_t *workspace = NULL;
+    sparse_err_t err = s49_iter_handle_ensure(handle, &workspace);
+    if (err != SPARSE_OK)
+        return err;
+    return sparse_solve_gmres_with_workspace_internal(A, b, x, opts, precond, precond_ctx, result,
+                                                      workspace);
 }
 
 #undef H

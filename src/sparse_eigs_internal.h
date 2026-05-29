@@ -615,6 +615,6 @@ sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_
  */
 sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t k,
                               const sparse_eigs_opts_t *o, double eff_tol, idx_t max_iters,
-                              sparse_eigs_t *result);
+                              sparse_eigs_t *result, sparse_eigs_workspace_t *workspace);
 
 #endif /* SPARSE_EIGS_INTERNAL_H */

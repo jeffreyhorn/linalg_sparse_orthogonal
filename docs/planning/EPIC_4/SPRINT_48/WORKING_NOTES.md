@@ -354,3 +354,172 @@ Interpretation:
 
 - Sprint 48 should simplify ownership, not centralize everything into one
   giant maintainer document
+
+## Day 3
+
+**Objective:** Define the maintainer-facing policy home Sprint 48 will use for
+README reduction, tutorial/header reconciliation, and later quality-contract
+simplification so the sprint moves toward one stable ownership target rather
+than continuing to distribute maintainer policy across user-facing docs.
+
+### Commands Run
+
+1. Re-read the Sprint 48 Day 3 plan section:
+   - `sed -n '85,138p' docs/planning/EPIC_4/SPRINT_48/PLAN.md`
+2. Re-read the Day 2 seam inventory:
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_48/artifacts/day2-docs-and-quality-contract-surface-inventory.md`
+3. Re-read the current Sprint 48 working-notes context:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_48/WORKING_NOTES.md`
+4. Refresh reference patterns for maintainer-facing policy docs already used in
+   planning artifacts:
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_30/COMPILE_HYGIENE_PLAYBOOK.md`
+   - `sed -n '1,220p' docs/planning/EPIC_3/SPRINT_30/REBUILD_WORKFLOW.md`
+5. Reconfirm the top-level docs surface that would own a stable maintainer
+   guide:
+   - `find docs -maxdepth 2 -type f | rg 'maintainer|playbook|workflow|guide'`
+6. Write the Day 3 design artifact:
+   - `docs/planning/EPIC_4/SPRINT_48/artifacts/day3-maintainer-guide-design.md`
+
+### Day 3 Findings
+
+#### 1. Sprint 48 needs one stable maintainer-policy home under `docs/`, not more sprint-only policy capture
+
+The repo already has useful maintainer-policy precedent in sprint artifacts:
+
+- `docs/planning/EPIC_3/SPRINT_30/COMPILE_HYGIENE_PLAYBOOK.md`
+- `docs/planning/EPIC_3/SPRINT_30/REBUILD_WORKFLOW.md`
+
+Those files prove the repo can carry rigorous maintainer-facing policy prose,
+but they are not the right permanent home for active repo-wide policy.
+
+Interpretation:
+
+- Sprint 48 should create one stable maintainer-policy home under top-level
+  `docs/`
+- the correct first target is one main guide, not another planning-only policy
+  artifact
+
+#### 2. The right target file is one bounded main document: `docs/maintainer_guide.md`
+
+The current top-level docs layout is still small and flat:
+
+- `docs/tutorial.md`
+- `docs/algorithm.md`
+- `docs/matrix_market.md`
+
+There is no stable maintainer guide there yet.
+
+Interpretation:
+
+- Day 6 should create:
+  - `docs/maintainer_guide.md`
+- Sprint 48 does not need a new doc subtree or multi-file maintainer handbook
+- one bounded main guide is the clearest first landing
+
+#### 3. The guide’s audience is maintainers and high-context contributors, not end users
+
+Day 2 already showed the main ownership problem: README currently serves both
+users and maintainers at once.
+
+The new guide should instead serve:
+
+- maintainers
+- high-context contributors
+- reviewers evaluating quality-contract and documentation-ownership claims
+
+Interpretation:
+
+- README remains the user/operator entry point
+- the maintainer guide becomes the policy and interpretation surface
+
+#### 4. Six policy classes should move into the guide as first-class sections
+
+Day 2's strongest “move to maintainer guide” candidates now define the guide’s
+core scope:
+
+- reviewed baseline use
+- warning authority
+- dead-code meaning
+- lifecycle/cancellation expectations as maintainer policy
+- documentation ownership rules
+- designated-initializer / evolving-option-struct norms where still relevant
+
+Interpretation:
+
+- Sprint 48 is not inventing a new policy stack
+- it is relocating and tightening the maintainer-policy stack that already
+  exists in diluted form across README and nearby docs
+
+#### 5. Executable truth should stay local even after the guide lands
+
+The guide should not try to replace executable or enforced truth owned by:
+
+- `Makefile`
+- `scripts/deadcode_workflow.sh`
+- `scripts/deadcode_report.py`
+- CI workflows under `.github/workflows/`
+
+Interpretation:
+
+- the guide should explain ownership, interpretation, and intended use
+- it should not become a second command reference or duplicate workflow
+  implementations in prose
+
+#### 6. The content that must stay outside the guide is now explicit
+
+Sprint 48 should avoid over-centralizing these content classes:
+
+- end-user quick-start material:
+  - stays in `README.md`
+- concise API-local caveats:
+  - stay in public headers
+- tutorial teaching flow and user-facing matrix-state guidance:
+  - stays in `docs/tutorial.md`
+- benchmark/example usage syntax:
+  - stays in `benchmarks/README.md`
+  - stays in `examples/README.md`
+
+Interpretation:
+
+- the maintainer guide should centralize policy
+- it should not centralize all explanation
+
+#### 7. Cross-reference rules are now fixed before implementation begins
+
+The correct cross-reference shape is:
+
+- `README.md`
+  - user-facing entry point
+  - links to the maintainer guide for policy
+- `docs/maintainer_guide.md`
+  - repository-wide policy and ownership interpretation
+  - links outward to executable or API-local truth
+- `docs/tutorial.md`
+  - user-facing behavior guidance
+  - only links to the guide when policy interpretation matters
+- public headers
+  - concise call-site caveats
+  - not long maintainer-policy blocks
+- local benchmark/example READMEs
+  - local usage details
+  - not repo-wide policy duplication
+
+Interpretation:
+
+- Sprint 48 now has a concrete “one policy home, local truth where needed”
+  redistribution rule
+
+#### 8. The next landing order is now cleaner and more bounded
+
+With the policy-home target fixed, the next order becomes:
+
+1. README reduction
+2. maintainer-guide implementation
+3. tutorial/header cross-reference reconciliation
+4. quality-contract ownership simplification
+
+Interpretation:
+
+- Day 3 was the prerequisite for honest redistribution work
+- later days can now move content toward a concrete target instead of a vague
+  future guide

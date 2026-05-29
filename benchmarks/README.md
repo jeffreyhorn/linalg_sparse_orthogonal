@@ -35,6 +35,8 @@ actually supports:
   - solver-harness entry point for LU and `--cholesky`
   - intentionally does not accept `colamd`
   - LU / Cholesky factorization options use symmetric reorderings only
+  - `--help` and invalid `--reorder` errors now explicitly point users to
+    `bench_reorder` / `bench_colamd` for COLAMD comparisons
 - `bench_reorder`
   - cross-ordering comparison harness for `none`, `rcm`, `amd`, `colamd`,
     and `nd`
@@ -61,6 +63,40 @@ actually supports:
 | `bench_chol_csc`    | CSC Cholesky (Sprint 18)                     | (in `make bench`)     |
 | `bench_ldlt_csc`    | LDL^T linked-list vs CSC + dispatch          | (in `make bench`)     |
 | `bench_eigs`        | Symmetric eigensolver (3 backends)           | `make bench-eigs`     |
+
+## bench_main
+
+Main solver-harness benchmark for:
+
+- LU solve timing
+- Cholesky solve timing via `--cholesky`
+- SpMV-only timing via `--spmv`
+- iterative-solver timing via `--iterative`
+
+### CLI notes
+
+```
+bench_main [matrix.mtx]
+bench_main --dir PATH
+bench_main --size N
+bench_main --help
+```
+
+Important touched behavior from Sprint 47:
+
+- `--help` / `-h` now prints the live usage block
+- malformed numeric or enum-like arguments fail with explicit flag-local
+  diagnostics
+- missing option values fail explicitly instead of silently falling through
+- conflicting modes such as `--spmv --iterative` are rejected
+- `--reorder` accepts only:
+  - `none`
+  - `rcm`
+  - `amd`
+  - `nd`
+- unsupported `colamd` requests are intentionally redirected to:
+  - `bench_reorder`
+  - `bench_colamd`
 
 ## bench_eigs (Sprint 21 Day 11)
 

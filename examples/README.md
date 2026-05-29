@@ -17,6 +17,10 @@ demonstrates an in-place factorization or an incomplete-factorization
 preconditioner, it uses a fresh matrix copy before mutating factor state so
 the original matrix view remains available where the API expects it.
 
+For examples that need dynamic scratch buffers, the current small-example
+convention is to route allocation through `examples/example_alloc_helpers.h`
+rather than open-coding unchecked count/byte multiplication at each call site.
+
 ## Programs
 
 ### example_basic_solve
@@ -62,7 +66,13 @@ remains available to the iterative solve.
 
 ### example_eigs
 
-Compute symmetric eigenpairs with `sparse_eigs_sym` (Sprint 20). Part (a) finds the five largest eigenvalues of a small SPD SuiteSparse matrix (nos4, n = 100) and reports per-pair eigen-equation residuals. Part (b) exercises shift-invert mode: three eigenvalues nearest σ = 0 on a KKT indefinite saddle-point matrix, composing with the LDL^T dispatch from Sprint 20 Days 4-6. Run from the project root so the nos4.mtx fixture resolves.
+Compute symmetric eigenpairs with `sparse_eigs_sym` (Sprint 20). Part (a)
+finds the five largest eigenvalues of a small SPD SuiteSparse matrix (nos4,
+n = 100) and reports per-pair eigen-equation residuals. Part (b) exercises
+shift-invert mode: three eigenvalues nearest σ = 0 on a KKT indefinite
+saddle-point matrix, composing with the LDL^T dispatch from Sprint 20 Days 4-6.
+Part (c) runs explicit LOBPCG with IC(0) preconditioning on `bcsstk04`. Run
+from the project root so the SuiteSparse fixtures resolve.
 
 ```bash
 ./build/example_eigs

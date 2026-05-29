@@ -8,6 +8,8 @@
  *   ./bench_main --dir PATH                Benchmark all .mtx files in directory
  *   ./bench_main --dir PATH --pivot partial  Use partial pivoting (default: complete)
  *   ./bench_main --reorder none|rcm|amd|nd   Apply fill-reducing reordering
+ *                                            (use bench_reorder / bench_colamd
+ *                                             for COLAMD comparisons)
  *   ./bench_main --cholesky                  Use Cholesky instead of LU (SPD matrices only)
  *   ./bench_main --spmv [matrix.mtx|--dir PATH]  SpMV-only benchmark (throughput, MFLOP/s)
  *   ./bench_main --iterative [matrix.mtx|--dir PATH]  Iterative solver benchmark
@@ -16,6 +18,7 @@
  * Also reports nnz, fill-in, memory, and residual norm.
  */
 #define _POSIX_C_SOURCE 200809L
+#include "bench_cli_parse_internal.h"
 #include "sparse_cholesky.h"
 #include "sparse_ilu.h"
 #include "sparse_iterative.h"
@@ -74,7 +77,7 @@ static SparseMatrix *generate_sparse(idx_t n, unsigned seed) {
 
 /* ─── Benchmark a single matrix ─────────────────────────────────────── */
 
-static const char *reorder_name(sparse_reorder_t r) {
+static const char *bench_main_reorder_name(sparse_reorder_t r) {
     switch (r) {
     case SPARSE_REORDER_NONE:
         return "none";
@@ -82,10 +85,10 @@ static const char *reorder_name(sparse_reorder_t r) {
         return "rcm";
     case SPARSE_REORDER_AMD:
         return "amd";
-    case SPARSE_REORDER_COLAMD:
-        return "colamd";
     case SPARSE_REORDER_ND:
         return "nd";
+    case SPARSE_REORDER_COLAMD:
+        return "unsupported-colamd";
     }
     return "unknown";
 }
@@ -100,7 +103,7 @@ static void benchmark(SparseMatrix *A, int repeats, sparse_pivot_t pivot, sparse
     printf("Solver:  %s\n", use_cholesky ? "Cholesky" : "LU");
     if (!use_cholesky)
         printf("Pivot:   %s\n", pivot == SPARSE_PIVOT_PARTIAL ? "partial" : "complete");
-    printf("Reorder: %s\n", reorder_name(reorder));
+    printf("Reorder: %s\n", bench_main_reorder_name(reorder));
     printf("Repeats: %d\n", repeats);
     printf("Bandwidth: %d\n\n", (int)sparse_bandwidth(A));
 
@@ -338,7 +341,7 @@ static void benchmark_dir(const char *dirpath, int repeats, sparse_pivot_t pivot
 
     const char *piv_name = (pivot == SPARSE_PIVOT_PARTIAL) ? "partial" : "complete";
     printf("=== Benchmarking %s (pivot=%s, reorder=%s, repeats=%d) ===\n\n", dirpath, piv_name,
-           reorder_name(reorder), repeats);
+           bench_main_reorder_name(reorder), repeats);
     printf("%-20s %5s %7s %9s %6s  %10s %10s %10s %10s  %10s  %10s\n", "name", "n", "nnz", "nnz_LU",
            "fill", "factor(ms)", "solve(ms)", "spmv(ms)", "memory", "residual", "condest");
     printf("%-20s %5s %7s %9s %6s  %10s %10s %10s %10s  %10s  %10s\n", "----", "-----", "-------",
@@ -626,6 +629,48 @@ static void benchmark_iterative_dir(const char *dirpath) {
     printf("\n");
 }
 
+static const sparse_cli_choice_t bench_main_pivot_choices[] = {
+    {"partial", SPARSE_PIVOT_PARTIAL},
+    {"complete", SPARSE_PIVOT_COMPLETE},
+};
+
+static const sparse_cli_choice_t bench_main_reorder_choices[] = {
+    {"none", SPARSE_REORDER_NONE},
+    {"rcm", SPARSE_REORDER_RCM},
+    {"amd", SPARSE_REORDER_AMD},
+    {"nd", SPARSE_REORDER_ND},
+};
+
+static const char *bench_main_reorder_hint =
+    "use 'none', 'rcm', 'amd', or 'nd'; use bench_reorder or bench_colamd "
+    "for COLAMD comparisons";
+
+static void bench_main_print_usage(FILE *stream) {
+    fprintf(stream, "Usage: bench_main [options] [matrix.mtx]\n"
+                    "  --size N                  Generate NxN diag-dominant random sparse\n"
+                    "  --repeat R                Average over R repetitions (default: 3)\n"
+                    "  --dir PATH                Benchmark all .mtx files in directory\n"
+                    "  --pivot MODE              Pivot mode: partial|complete\n"
+                    "  --reorder MODE            Reorder mode: none|rcm|amd|nd\n"
+                    "                           Use bench_reorder / bench_colamd\n"
+                    "                           for COLAMD comparisons\n"
+                    "  --cholesky                Use Cholesky instead of LU\n"
+                    "  --spmv                    Run the SpMV-only benchmark\n"
+                    "  --spmv-iters N            SpMV iterations (default: 1000)\n"
+                    "  --iterative               Run the iterative-solver benchmark\n"
+                    "  --help, -h                Show this help text\n");
+}
+
+static const char *bench_main_require_value(const char *tool, const char *flag, int argc,
+                                            char **argv, int *i) {
+    if (*i + 1 >= argc) {
+        fprintf(stderr, "%s: %s requires a value\n", tool, flag);
+        return NULL;
+    }
+    *i += 1;
+    return argv[*i];
+}
+
 /* ─── Main ──────────────────────────────────────────────────────────── */
 
 int main(int argc, char **argv) {
@@ -639,60 +684,82 @@ int main(int argc, char **argv) {
     int mode_spmv = 0;
     int mode_iterative = 0;
     int spmv_iters = 1000;
+    const char *tool = "bench_main";
 
     for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--spmv") == 0) {
+        if (strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "-h") == 0) {
+            bench_main_print_usage(stdout);
+            return 0;
+        } else if (strcmp(argv[i], "--spmv") == 0) {
             mode_spmv = 1;
         } else if (strcmp(argv[i], "--iterative") == 0) {
             mode_iterative = 1;
-        } else if (strcmp(argv[i], "--spmv-iters") == 0 && i + 1 < argc) {
-            spmv_iters = atoi(argv[++i]);
-            if (spmv_iters <= 0) {
-                fprintf(stderr, "Error: --spmv-iters must be > 0\n");
+        } else if (strcmp(argv[i], "--spmv-iters") == 0) {
+            const char *value = bench_main_require_value(tool, "--spmv-iters", argc, argv, &i);
+            if (!value ||
+                !sparse_cli_parse_int_arg(tool, "--spmv-iters", value, 1, INT_MAX, &spmv_iters)) {
                 return 1;
             }
-        } else if (strcmp(argv[i], "--size") == 0 && i + 1 < argc) {
-            size = (idx_t)atoi(argv[++i]);
-        } else if (strcmp(argv[i], "--repeat") == 0 && i + 1 < argc) {
-            repeats = atoi(argv[++i]);
-        } else if (strcmp(argv[i], "--dir") == 0 && i + 1 < argc) {
-            dirpath = argv[++i];
-        } else if (strcmp(argv[i], "--pivot") == 0 && i + 1 < argc) {
-            i++;
-            if (strcmp(argv[i], "partial") == 0)
-                pivot = SPARSE_PIVOT_PARTIAL;
-            else if (strcmp(argv[i], "complete") == 0)
-                pivot = SPARSE_PIVOT_COMPLETE;
-            else {
-                fprintf(stderr, "Error: unknown pivot mode '%s' (use 'partial' or 'complete')\n",
-                        argv[i]);
+        } else if (strcmp(argv[i], "--size") == 0) {
+            long parsed_size = 0;
+            const char *value = bench_main_require_value(tool, "--size", argc, argv, &i);
+            if (!value ||
+                !sparse_cli_parse_long_arg(tool, "--size", value, 1, (long)INT_MAX, &parsed_size)) {
                 return 1;
             }
-        } else if (strcmp(argv[i], "--reorder") == 0 && i + 1 < argc) {
-            i++;
-            if (strcmp(argv[i], "none") == 0)
-                reorder = SPARSE_REORDER_NONE;
-            else if (strcmp(argv[i], "rcm") == 0)
-                reorder = SPARSE_REORDER_RCM;
-            else if (strcmp(argv[i], "amd") == 0)
-                reorder = SPARSE_REORDER_AMD;
-            else if (strcmp(argv[i], "nd") == 0)
-                reorder = SPARSE_REORDER_ND;
-            else {
-                fprintf(stderr,
-                        "Error: unknown reorder mode '%s' (use 'none', 'rcm', 'amd', or 'nd')\n",
-                        argv[i]);
+            size = (idx_t)parsed_size;
+        } else if (strcmp(argv[i], "--repeat") == 0) {
+            const char *value = bench_main_require_value(tool, "--repeat", argc, argv, &i);
+            if (!value || !sparse_cli_parse_int_arg(tool, "--repeat", value, 1, INT_MAX, &repeats))
+                return 1;
+        } else if (strcmp(argv[i], "--dir") == 0) {
+            dirpath = bench_main_require_value(tool, "--dir", argc, argv, &i);
+            if (!dirpath)
+                return 1;
+        } else if (strcmp(argv[i], "--pivot") == 0) {
+            int parsed_pivot = 0;
+            const char *value = bench_main_require_value(tool, "--pivot", argc, argv, &i);
+            if (!value ||
+                !sparse_cli_parse_choice_arg(tool, "--pivot", value, bench_main_pivot_choices,
+                                             sizeof(bench_main_pivot_choices) /
+                                                 sizeof(bench_main_pivot_choices[0]),
+                                             &parsed_pivot, "use 'partial' or 'complete'")) {
                 return 1;
             }
+            pivot = (sparse_pivot_t)parsed_pivot;
+        } else if (strcmp(argv[i], "--reorder") == 0) {
+            int parsed_reorder = 0;
+            const char *value = bench_main_require_value(tool, "--reorder", argc, argv, &i);
+            if (!value ||
+                !sparse_cli_parse_choice_arg(tool, "--reorder", value, bench_main_reorder_choices,
+                                             sizeof(bench_main_reorder_choices) /
+                                                 sizeof(bench_main_reorder_choices[0]),
+                                             &parsed_reorder, bench_main_reorder_hint)) {
+                return 1;
+            }
+            reorder = (sparse_reorder_t)parsed_reorder;
         } else if (strcmp(argv[i], "--cholesky") == 0) {
             use_cholesky = 1;
         } else if (argv[i][0] != '-') {
+            if (filename) {
+                fprintf(stderr, "%s: multiple input files provided ('%s' and '%s')\n", tool,
+                        filename, argv[i]);
+                return 1;
+            }
             filename = argv[i];
+        } else {
+            fprintf(stderr, "%s: unknown option '%s' (try --help)\n", tool, argv[i]);
+            return 1;
         }
     }
 
-    if (repeats < 1) {
-        fprintf(stderr, "Error: --repeat must be >= 1\n");
+    if (mode_spmv && mode_iterative) {
+        fprintf(stderr, "%s: choose only one mode: --spmv or --iterative\n", tool);
+        return 1;
+    }
+
+    if (filename && dirpath) {
+        fprintf(stderr, "%s: cannot combine a matrix path with --dir\n", tool);
         return 1;
     }
 

@@ -61,7 +61,17 @@ repo_root = Path(sys.argv[1]).resolve()
 compile_commands_path = Path(sys.argv[2])
 coverage_notes_path = Path(sys.argv[3])
 
-entries = json.loads(compile_commands_path.read_text())
+try:
+    entries = json.loads(compile_commands_path.read_text())
+except json.JSONDecodeError as exc:
+    raise SystemExit(
+        f"deadcode_workflow: invalid compile_commands.json: {compile_commands_path}: {exc}"
+    ) from exc
+
+if not isinstance(entries, list):
+    raise SystemExit(
+        f"deadcode_workflow: compile_commands.json must be a JSON array: {compile_commands_path}"
+    )
 
 all_benchmarks = sorted(path.stem for path in (repo_root / "benchmarks").glob("*.c"))
 all_examples = sorted(path.stem for path in (repo_root / "examples").glob("*.c"))
@@ -70,10 +80,30 @@ counts = {"src": 0, "tests": 0, "benchmarks": 0, "examples": 0}
 seen_benchmarks = set()
 seen_examples = set()
 
-for entry in entries:
-    file_path = Path(entry["file"])
+for index, entry in enumerate(entries):
+    if not isinstance(entry, dict):
+        raise SystemExit(
+            f"deadcode_workflow: compile_commands entry {index} is not an object: {entry!r}"
+        )
+    if "file" not in entry:
+        raise SystemExit(
+            f"deadcode_workflow: compile_commands entry {index} missing 'file' key"
+        )
+    file_value = entry["file"]
+    if not isinstance(file_value, str) or not file_value:
+        raise SystemExit(
+            "deadcode_workflow: compile_commands entry "
+            f"{index} has unusable 'file' value: {file_value!r}"
+        )
+    file_path = Path(file_value)
     if not file_path.is_absolute():
-        file_path = Path(entry["directory"]) / file_path
+        directory = entry.get("directory")
+        if not isinstance(directory, str) or not directory:
+            raise SystemExit(
+                "deadcode_workflow: relative compile_commands entry missing usable "
+                f"'directory' at index {index}"
+            )
+        file_path = Path(directory) / file_path
     resolved_path = file_path.resolve()
     try:
         relative_parts = resolved_path.relative_to(repo_root).parts

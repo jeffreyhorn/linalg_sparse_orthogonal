@@ -841,3 +841,127 @@ The README documentation list now includes the maintainer guide directly.
 Interpretation:
 
 - the guide is a maintained repo document, not a hidden side note
+
+## Day 7
+
+**Objective:** Audit the post-Day-6 documentation state so Sprint 48 can
+separate the remaining tutorial/header cross-reference cleanup from the later
+quality-contract ownership batch instead of treating both as one generic
+follow-on queue.
+
+### Commands Run
+
+1. Re-read the Sprint 48 Day 7 plan section:
+   - `sed -n '245,330p' docs/planning/EPIC_4/SPRINT_48/PLAN.md`
+2. Re-read the new maintainer guide:
+   - `sed -n '1,260p' docs/maintainer_guide.md`
+3. Re-read the touched README maintainer-facing tail:
+   - `sed -n '700,790p' README.md`
+4. Refresh duplication markers across tutorial, headers, README, and guide:
+   - `rg -n "factored|factor|cancel|cancellation|original/unfactored|original matrix|maintainer guide|Maintainer Guide|quality-review-full|deadcode-check" docs/tutorial.md include README.md docs/maintainer_guide.md`
+5. Read the strongest remaining tutorial and header caveat blocks:
+   - `sed -n '138,170p' docs/tutorial.md`
+   - `sed -n '216,270p' docs/tutorial.md`
+   - `sed -n '57,115p' include/sparse_lu.h`
+   - `sed -n '97,145p' include/sparse_cholesky.h`
+   - `sed -n '120,170p' include/sparse_types.h`
+6. Confirm where the new guide is already referenced:
+   - `rg -n "maintainer_guide|Maintainer Guide" docs/tutorial.md include README.md`
+7. Write the Day 7 audit artifact:
+   - `docs/planning/EPIC_4/SPRINT_48/artifacts/day7-post-guide-audit.md`
+
+### Day 7 Findings
+
+#### 1. The remaining queue is now mostly local-behavior duplication, not maintainer-policy homelessness
+
+Day 6 solved the main policy-home problem:
+
+- `docs/maintainer_guide.md` now exists
+- `README.md` now points to it
+
+What remains is narrower:
+
+- repeated tutorial wording about original/unfactored matrix expectations
+- repeated cancellation/lifecycle wording across callback docs and routine
+  option comments
+- a small number of local README behavioral reminders that should stay local
+
+Interpretation:
+
+- Sprint 48 is no longer deciding where policy belongs
+- it is now deciding where concise local caveats should stay and where a
+  reference is enough
+
+#### 2. The strongest Day 8 tutorial target is the repeated “original matrix view” guidance
+
+The live tutorial still repeats the same original/unfactored-state guidance in:
+
+- QR
+- ILU(0) / ILUT / IC(0)
+- SVD
+
+Interpretation:
+
+- Day 8 should target these passages first
+- the goal is consistent phrasing and lighter repetition, not removing the
+  user-facing guidance
+
+#### 3. The strongest Day 8 header target is the cancellation/lifecycle seam across `sparse_types.h`, LU, and Cholesky
+
+The current cancellation contract still appears at three levels:
+
+- generic callback contract in `include/sparse_types.h`
+- LU-specific details in `include/sparse_lu.h`
+- Cholesky-specific details in `include/sparse_cholesky.h`
+
+Interpretation:
+
+- Day 8 should keep the local truth in those headers
+- it should tighten the generic-vs-specific boundary and add the guide-aware
+  reference seam
+
+#### 4. README is no longer the main Day 8 landing zone
+
+The post-Day-6 README still has local behavioral notes around:
+
+- original matrix copies
+- in-place factorization
+- factored-state validation
+- thread-safety constraints
+
+Interpretation:
+
+- those notes still belong close to the API/limitations surface
+- further README quality-contract simplification belongs to Day 9/10 instead
+
+#### 5. There are not yet any tutorial or header references to the new guide
+
+Current guide references appear in README only.
+
+Interpretation:
+
+- Day 8 is the first cross-reference pass for tutorial/header surfaces
+- the batch should stay small and deliberate
+
+#### 6. The bounded Day 8 target set is now explicit
+
+The highest-value Day 8 targets are:
+
+- `docs/tutorial.md`
+- `include/sparse_types.h`
+- `include/sparse_lu.h`
+- `include/sparse_cholesky.h`
+
+Interpretation:
+
+- this is a bounded cross-reference batch
+- it is not a broad tutorial rewrite or header comment overhaul
+
+#### 7. No maintainer-guide scope expansion is needed before the quality-contract batch
+
+The new guide already covers the right policy classes for Sprint 48.
+
+Interpretation:
+
+- Day 9 should focus on quality-contract ownership simplification
+- not on turning the guide into a broader handbook first

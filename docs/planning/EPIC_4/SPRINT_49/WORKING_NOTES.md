@@ -2034,3 +2034,142 @@ Bottom line:
 - Day 13 fully validated the integrated Epic 4 end state
 - the strongest local reviewed baseline still holds
 - the sprint is ready for final closeout and handoff
+
+## Day 14 — Epic 4 Closeout and Handoff
+
+### Goal
+
+Close Sprint 49 and Epic 4 from the measured Day 13 baseline, route any true
+residuals explicitly, and leave the final handoff package coherent for the
+Sprint 49 retrospective and the post-Epic-4 roadmap.
+
+### Main Day 14 Result
+
+Epic 4 now has a coherent final handoff package rather than only a set of
+validated sprint-local closeouts.
+
+The final handoff package now explicitly combines:
+
+- delivered structural package
+- final public lifecycle/workspace contract
+- measured Day 13 validation baseline
+- accepted tradeoff / later non-goal boundaries
+- future-planning handoff notes
+
+That is the correct Day 14 end state.
+
+### Final Delivered Package
+
+Epic 4 now hands off one integrated repository package:
+
+- preserved reviewed validation contract and truthfulness baseline
+- internal lifecycle/state scaffolding and analysis/factor bridge direction
+- split graph / nested-dissection subsystem ownership
+- reusable workspace/state support for iterative solvers
+- reusable workspace/state support for eigensolvers
+- benchmark/developer auxiliary-surface modernization
+- clearer README / maintainer-guide / documentation ownership split
+- bounded public repeated-run lifecycle handles for iterative and eigensolver
+  repeated work
+
+Interpretation:
+
+- Epic 4 ended as a structural remediation and bounded public finalization epic,
+  not as one more local optimization sprint
+
+### Final Measured Validation Baseline
+
+Sprint 49 closes from the Day 13 validated baseline:
+
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+- `make quality-review-full` passed
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 414.75 sec`
+
+Key implication:
+
+- Epic 4 closes without weakening the strongest local reviewed baseline or the
+  reviewed CMake parity surface
+
+### Final Residual / Accepted-Tradeoff State
+
+The Day 11 residual classification remains the final closeout truth:
+
+- fixed:
+  - graph monolith
+  - allocation/overflow hardening fragmentation
+  - iterative/eigensolver repeated-run workspace churn
+  - quality-contract ownership drift
+  - benchmark CLI inconsistency
+  - overloaded README / missing maintainer-policy home
+- accepted tradeoff:
+  - compatibility-facing mutable `SparseMatrix` / in-place factor APIs remain
+- hidden blocking residual:
+  - none
+
+That is the right final closeout framing:
+
+- Epic 4 does not overclaim a full public factor-handle migration
+- it does explicitly claim the structural and public repeated-run work it
+  actually landed
+
+### Future-Planning Handoff
+
+The real post-Epic-4 queue is now explicit instead of implied:
+
+- broader public factor-handle redesign beyond the compatibility-facing
+  `SparseMatrix` model
+- larger tutorial/example modernization around explicit repeated-run handles
+- any later benchmark-framework redesign beyond the bounded Sprint 47/49 work
+
+These are not unfinished Epic 4 tasks.
+
+They are future-planning candidates after the validated Epic 4 close state.
+
+### `PROJECT_PLAN.md` Check
+
+Checked whether Epic 4 closeout requires any final `PROJECT_PLAN.md` update.
+
+Result:
+
+- no update needed
+
+Reason:
+
+- Sprint 49 did not surface any new deferred queue outside the already-explicit
+  accepted-tradeoff and later non-goal boundaries
+- Epic 4’s remaining forward work is future planning, not an unrecorded closeout
+  defect
+
+### Retrospective Input Check
+
+Retrospective inputs are now complete for Sprint 49:
+
+- day-by-day working notes
+- Day 14 closeout synthesis
+- measured Day 13 validation baseline
+- final residual classification
+- final Epic 4 summary framing
+
+That means the retrospective can now be written from an explicit final state
+rather than reconstructed from scattered sprint-local notes.
+
+### Day 14 Position
+
+Sprint 49 now closes from the intended handoff state:
+
+- final package is explicit
+- final measured baseline is explicit
+- final residual boundary is explicit
+- future-planning handoff is explicit
+- no hidden blocker or silent deferred queue remains
+
+Bottom line:
+
+- Day 14 closed Sprint 49 and Epic 4 from the measured Day 13 baseline
+- it left the validated package, accepted tradeoff, and future queue explicit
+- no additional closeout repair work is needed on this branch

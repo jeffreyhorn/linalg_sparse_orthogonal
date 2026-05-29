@@ -211,3 +211,145 @@ Interpretation:
 
 - Sprint 49 should preserve the Epic 4 pattern that public-facing cleanup lands
   only after seam mapping and bounded implementation design are explicit
+
+## Day 2
+
+**Objective:** Refresh the public lifecycle/workspace seam inventory so Sprint
+49's lifecycle API design, bounded public landing, migration-path
+documentation, compatibility sweep, and final residual review are sequenced
+from the live post-Sprint-48 repo state rather than only from the project-plan
+labels.
+
+### Commands Run
+
+1. Re-read the Sprint 49 Day 2 plan section:
+   - `sed -n '57,96p' docs/planning/EPIC_4/SPRINT_49/PLAN.md`
+2. Re-read the Day 1 baseline artifact:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_49/artifacts/day1-scope-and-lifecycle-api-baseline.md`
+3. Re-read the main public lifecycle precedent and the current one-shot public
+   solver/eigensolver headers:
+   - `sed -n '1,220p' include/sparse_analysis.h`
+   - `sed -n '1,260p' include/sparse_iterative.h`
+   - `sed -n '1,260p' include/sparse_eigs.h`
+4. Refresh the live caller-facing usage markers:
+   - `rg -n "sparse_analyze|sparse_factor_numeric|sparse_refactor_numeric|sparse_solve_cg|sparse_solve_gmres|sparse_eigs_sym|with_workspace_internal|bench_iterative_reuse|bench_eigs_reuse" README.md docs examples benchmarks tests include src -g '!build'`
+5. Re-read the direct repeated-run comparison drivers:
+   - `sed -n '1,240p' benchmarks/bench_iterative_reuse.c`
+   - `sed -n '1,240p' benchmarks/bench_eigs_reuse.c`
+6. Re-read the main public examples that currently teach solver/eigensolver
+   usage:
+   - `sed -n '1,240p' examples/example_iterative.c`
+   - `sed -n '1,240p' examples/example_eigs.c`
+
+### Day 2 Findings
+
+#### 1. The public lifecycle story now breaks cleanly into three distinct classes rather than one generic API backlog
+
+The live repo already exposes three different public-facing patterns:
+
+- reusable public lifecycle already present:
+  - `sparse_analyze(...)`
+  - `sparse_factor_numeric(...)`
+  - `sparse_refactor_numeric(...)`
+  - `sparse_factor_free(...)`
+- compatibility-oriented one-shot iterative entry points:
+  - `sparse_solve_cg(...)`
+  - `sparse_solve_gmres(...)`
+  - matrix-free and block convenience variants nearby
+- compatibility-oriented one-shot eigensolver entry point:
+  - `sparse_eigs_sym(...)`
+
+Interpretation:
+
+- Sprint 49 is not choosing between "handles everywhere" and "one-shot
+  everywhere"
+- it is reconciling these three already-existing public classes into a coherent
+  final lifecycle/workspace story
+
+#### 2. The real first landing targets are the iterative and eigensolver public surfaces, not the analysis/factor public precedent
+
+`include/sparse_analysis.h` already teaches a stable explicit reusable-handle
+workflow. The missing public-side work is concentrated instead in:
+
+- `include/sparse_iterative.h`
+- `include/sparse_eigs.h`
+- `src/sparse_iterative.c`
+- `src/sparse_eigs.c`
+
+Interpretation:
+
+- `sparse_analysis.h` is mainly the public precedent and terminology anchor
+- Sprint 49's first direct landing targets are the iterative/eigensolver public
+  headers and their wrapper implementation surfaces
+
+#### 3. The internal repeated-run paths are explicit and isolated enough to support a bounded public exposure
+
+The direct repeated-run benchmark drivers prove that the reusable paths already
+exist as stable internal seams:
+
+- iterative:
+  - `sparse_solve_cg_with_workspace_internal(...)`
+  - `sparse_solve_gmres_with_workspace_internal(...)`
+  - `benchmarks/bench_iterative_reuse.c`
+- eigensolver:
+  - `sparse_eigs_sym_with_workspace_internal(...)`
+  - `benchmarks/bench_eigs_reuse.c`
+
+Interpretation:
+
+- Sprint 49 does not need another internal groundwork sprint before public
+  exposure
+- it can treat the internal repeated-run helpers as the backing seam and focus
+  on a compatibility-preserving public contract
+
+#### 4. Examples and README still teach one-shot usage, which makes them later verification surfaces rather than the first design surface
+
+The main public examples and top-level docs currently present:
+
+- iterative usage via:
+  - `examples/example_iterative.c`
+  - `README.md`
+- eigensolver usage via:
+  - `examples/example_eigs.c`
+  - `README.md`
+
+Those surfaces demonstrate valuable caller expectations, but they do not define
+the public contract by themselves.
+
+Interpretation:
+
+- examples and README are migration-proof and compatibility-proof surfaces
+- they should be updated after the bounded header/source landing is stable
+- they are not the right first design surface for Sprint 49
+
+#### 5. The remaining Sprint 49 work now reduces cleanly to five bounded seam buckets
+
+The live repo state now reduces the remaining queue to:
+
+- explicit lifecycle/workspace public exposure
+- compatibility-preserving one-shot wrapper routing
+- caller guidance and migration rules
+- cross-surface documentation/example/benchmark/test agreement
+- final residual-review and Epic 4 bookkeeping
+
+Interpretation:
+
+- Sprint 49 no longer has a generic "final integration" backlog
+- each remaining deliverable class now has a concrete ownership surface
+
+#### 6. The first landing order is fixed by the live public-vs-internal split
+
+The correct execution order from the current repo state is:
+
+1. lifecycle API design
+2. bounded public header / source landing
+3. migration-path documentation
+4. cross-surface compatibility sweep
+5. final residual review
+6. final validation and closeout
+
+Interpretation:
+
+- Sprint 49 should not start by editing examples, README, or benchmark drivers
+- it should first define and land the bounded public lifecycle/workspace shape
+  the rest of the surfaces must then describe

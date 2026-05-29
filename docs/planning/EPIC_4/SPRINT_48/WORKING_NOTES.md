@@ -1247,3 +1247,112 @@ Interpretation:
 
 - Day 10 was a wording-ownership cleanup, not another broad README shrink pass
 - the value came from cleaner boundary definition, not large line-count change
+
+## Day 11
+
+**Objective:** Re-read the redistributed Sprint 48 documentation set as one
+coherent group and land the first bounded consistency cleanup so the top-level
+README, maintainer guide, benchmark docs, and example docs point to each other
+more cleanly without reopening broad rewrites.
+
+### Commands Run
+
+1. Re-read the Sprint 48 Day 11 plan section:
+   - `sed -n '357,438p' docs/planning/EPIC_4/SPRINT_48/PLAN.md`
+2. Re-read the current touched documentation set end-to-end:
+   - `sed -n '1,260p' README.md`
+   - `sed -n '1,260p' docs/maintainer_guide.md`
+   - `sed -n '130,280p' docs/tutorial.md`
+   - `sed -n '120,180p' include/sparse_types.h`
+   - `sed -n '57,120p' include/sparse_lu.h`
+   - `sed -n '97,150p' include/sparse_cholesky.h`
+3. Re-read the local benchmark/example docs referenced by the guide:
+   - `sed -n '1,220p' benchmarks/README.md`
+   - `sed -n '1,220p' examples/README.md`
+4. Refresh the remaining wording markers across the touched docs:
+   - `rg -n "strongest local reviewed baseline|default local reviewed closeout|report-completeness gate|zero-findings|maintainer guide|Maintainer Guide|Cross-Platform CI Contract|warning-workflow|original matrix view|original unfactored|identity permutations" README.md docs/maintainer_guide.md docs/tutorial.md include/sparse_types.h include/sparse_lu.h include/sparse_cholesky.h benchmarks/README.md examples/README.md`
+5. Land the first bounded sanity-sweep cleanup:
+   - `README.md`
+   - `benchmarks/README.md`
+   - `examples/README.md`
+6. Run targeted Day 11 sanity checks:
+   - `rg -n "Maintainer Guide|deadcode\\*|quality-review-compile|docs/tutorial.md|public headers" README.md benchmarks/README.md examples/README.md`
+   - `wc -l README.md benchmarks/README.md examples/README.md`
+7. Record the Day 11 artifact:
+   - `docs/planning/EPIC_4/SPRINT_48/artifacts/day11-documentation-sanity-sweep-pass1.md`
+
+### Day 11 Findings
+
+#### 1. The top-level README still had one small interpretation block that belonged more cleanly in the maintainer guide
+
+After Day 10, the README quality tail had the right ownership boundary, but
+the earlier dead-code section still carried a small interpretation block about:
+
+- conservative evidence
+- manual-review header symbols
+- workflow-level cleanup meaning
+
+Day 11 tightened that section so the top-level README now:
+
+- keeps the command map
+- keeps the prerequisites
+- keeps the operational serial-run note
+- points repository-wide dead-code interpretation back to
+  `docs/maintainer_guide.md`
+
+Interpretation:
+
+- README is now more consistent about staying the operator-facing command map
+- the guide is more consistently the policy-meaning home
+
+#### 2. The local benchmark docs now declare their scope more clearly
+
+`benchmarks/README.md` already had useful benchmark-local command truth, but it
+did not explicitly say where repository-wide quality-contract interpretation
+should live.
+
+Day 11 added that boundary directly:
+
+- repository-wide quality/dead-code/maintainer-policy interpretation:
+  - top-level `README.md`
+  - `docs/maintainer_guide.md`
+- benchmark-local command usage and surface behavior:
+  - `benchmarks/README.md`
+
+Interpretation:
+
+- the benchmark docs now read more coherently inside the Sprint 48 ownership
+  model
+- they did not absorb repo-wide policy just because they mention local quality
+  wrappers
+
+#### 3. The example docs now hand broader matrix-state guidance back to the tutorial/header surfaces
+
+`examples/README.md` already kept the small-example copy-before-mutation rule,
+but it did not explicitly hand users back to the broader workflow guidance.
+
+Day 11 added that handoff:
+
+- broader workflow and matrix-state guidance:
+  - `docs/tutorial.md`
+  - relevant public headers
+- example-local entry points and small-example conventions:
+  - `examples/README.md`
+
+Interpretation:
+
+- the examples README now fits better with the Day 8 tutorial/header
+  cross-reference boundary
+- user-facing workflow guidance is less likely to drift into duplicate local
+  prose
+
+#### 4. The remaining queue is now small enough for a final bounded Day 12 pass
+
+After the Day 11 pass, the remaining consistency work is no longer structural.
+What remains is now small wording-polish territory rather than ownership
+redistribution.
+
+Interpretation:
+
+- no broad rewrite is needed before Sprint 48 closeout
+- Day 12 should stay bounded to any last small wording or reference cleanup

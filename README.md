@@ -668,14 +668,11 @@ Prerequisites:
 - `cppcheck` must be installed and on `PATH`
 - `xunused` must be installed and on `PATH`
 
-Interpretation:
-
-- treat this workflow as conservative evidence rather than full reachability
-  proof
-- exported installed-header symbols remain manual-review items, not automatic
-  deletion candidates
-- run the `deadcode*` targets serially because they share
-  `build/deadcode-cmake` and `build/deadcode/`
+For repository-wide interpretation of the dead-code evidence, completeness
+gate, and maintainer cleanup rules, use the
+[Maintainer Guide](docs/maintainer_guide.md). Operationally, run the
+`deadcode*` targets serially because they share `build/deadcode-cmake` and
+`build/deadcode/`.
 
 ### Reviewed Local Quality Path
 

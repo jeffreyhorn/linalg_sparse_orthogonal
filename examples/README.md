@@ -21,6 +21,10 @@ For examples that need dynamic scratch buffers, the current small-example
 convention is to route allocation through `examples/example_alloc_helpers.h`
 rather than open-coding unchecked count/byte multiplication at each call site.
 
+For the broader user-facing workflow behind those matrix-state rules, use the
+[tutorial](../docs/tutorial.md) and the relevant public headers. This file
+stays focused on example-local behavior and entry points.
+
 ## Programs
 
 ### example_basic_solve

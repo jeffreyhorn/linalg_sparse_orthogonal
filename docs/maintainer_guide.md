@@ -26,10 +26,10 @@ This document is not the primary entry point for:
 
 Those audiences should start with:
 
-- `README.md`
-- `docs/tutorial.md`
-- `benchmarks/README.md`
-- `examples/README.md`
+- [README](../README.md)
+- [tutorial](tutorial.md)
+- [benchmarks/README](../benchmarks/README.md)
+- [examples/README](../examples/README.md)
 
 ## Authoritative Surfaces
 

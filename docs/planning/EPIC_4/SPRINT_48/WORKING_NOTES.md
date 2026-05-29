@@ -1356,3 +1356,85 @@ Interpretation:
 
 - no broad rewrite is needed before Sprint 48 closeout
 - Day 12 should stay bounded to any last small wording or reference cleanup
+
+## Day 12
+
+**Objective:** Finish the bounded documentation-sanity cleanup by tightening
+the last small cross-reference seams in the already-touched Sprint 48 docs so
+the maintainer guide, top-level README, tutorial, examples docs, and public
+header references point to each other cleanly before validation.
+
+### Commands Run
+
+1. Re-read the Sprint 48 Day 12 plan section:
+   - `sed -n '398,470p' docs/planning/EPIC_4/SPRINT_48/PLAN.md`
+2. Re-read the Day 11 sanity-sweep pass:
+   - `sed -n '1,240p' docs/planning/EPIC_4/SPRINT_48/artifacts/day11-documentation-sanity-sweep-pass1.md`
+3. Re-read the remaining touched cross-reference surfaces:
+   - `sed -n '648,760p' README.md`
+   - `sed -n '1,120p' docs/maintainer_guide.md`
+   - `sed -n '1,70p' benchmarks/README.md`
+   - `sed -n '1,60p' examples/README.md`
+4. Refresh the remaining path/link markers:
+   - `rg -n "README.md|docs/maintainer_guide.md|docs/tutorial.md|include/sparse_qr.h|Maintainer Guide|tutorial" README.md docs/maintainer_guide.md benchmarks/README.md examples/README.md docs/tutorial.md include/sparse_types.h include/sparse_lu.h include/sparse_cholesky.h`
+5. Land the final bounded sanity-sweep cleanup:
+   - `docs/maintainer_guide.md`
+   - `examples/README.md`
+6. Run targeted Day 12 sanity checks:
+   - `rg -n "\\[README\\]|\\[tutorial\\]|\\[Maintainer Guide\\]|\\[examples/README\\]|\\[benchmarks/README\\]|sparse_qr.h" docs/maintainer_guide.md examples/README.md README.md benchmarks/README.md`
+   - `wc -l docs/maintainer_guide.md examples/README.md`
+7. Record the Day 12 artifact:
+   - `docs/planning/EPIC_4/SPRINT_48/artifacts/day12-documentation-sanity-sweep-pass2.md`
+
+### Day 12 Findings
+
+#### 1. The maintainer guide now points readers outward with live links instead of only path text
+
+The Day 11 re-read showed that the maintainer guide had the right ownership
+boundaries, but its audience handoff list still used plain path text.
+
+Day 12 tightened that list into direct links for:
+
+- README
+- tutorial
+- benchmarks README
+- examples README
+
+Interpretation:
+
+- the guide now reads more cleanly as a navigation surface
+- the ownership model is easier to follow because the handoff targets are
+  directly clickable
+
+#### 2. The examples docs now complete the final user-facing link handoff
+
+`examples/README.md` already had the right scope, but two remaining references
+were still plain text:
+
+- the public-header home for broader usage guidance
+- the QR minimum-norm documentation pointers
+
+Day 12 converted those into direct links:
+
+- `include/`
+- top-level README
+- `include/sparse_qr.h`
+
+Interpretation:
+
+- the examples docs now point outward more cleanly
+- the last small path-text drift is gone from the touched example surface
+
+#### 3. The touched Sprint 48 docs now read coherently enough for validation closeout
+
+After the Day 12 pass, the remaining Sprint 48-touched docs now have:
+
+- stable ownership boundaries
+- smaller repeated policy wording
+- cleaner local-vs-global handoffs
+- direct links where the previous passes still had plain path references
+
+Interpretation:
+
+- no further docs-only cleanup batch is needed before Day 13
+- Sprint 48 is ready for the final validation sweep

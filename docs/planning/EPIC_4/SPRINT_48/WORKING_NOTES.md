@@ -1039,3 +1039,90 @@ Interpretation:
 Interpretation:
 
 - Day 8 reduced repetition without stripping away the routine-local truth
+
+## Day 9
+
+**Objective:** Audit the live Makefile, script, README, guide, and workflow
+wording around the quality-command surface so Sprint 48 can separate the
+remaining ownership simplification work from command behavior that should stay
+local and unchanged.
+
+### Commands Run
+
+1. Re-read the Sprint 48 Day 9 plan section:
+   - `sed -n '330,410p' docs/planning/EPIC_4/SPRINT_48/PLAN.md`
+2. Re-read the Day 8 cross-reference artifact:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_48/artifacts/day8-tutorial-and-header-cross-reference-batch.md`
+3. Refresh the quality-command ownership markers across live surfaces:
+   - `rg -n "quality-review-full|quality-review-cmake|quality-review-compile|deadcode-report|deadcode-check|warning-workflow|tooling-build" README.md docs/maintainer_guide.md docs/tutorial.md Makefile scripts/deadcode_report.py scripts/deadcode_workflow.sh .github/workflows -g '!build'`
+4. Re-read the maintained quality target definitions in `Makefile`:
+   - `sed -n '540,670p' Makefile`
+5. Re-read the current README quality-contract tail:
+   - `sed -n '700,790p' README.md`
+6. Re-read the maintainer-guide quality-contract sections:
+   - `sed -n '40,150p' docs/maintainer_guide.md`
+7. Write the Day 9 audit artifact:
+   - `docs/planning/EPIC_4/SPRINT_48/artifacts/day9-quality-contract-ownership-audit.md`
+
+### Day 9 Findings
+
+#### 1. The quality-contract now has clearer homes, but the wording still repeats the same three ownership claims
+
+The remaining repeated claims are mostly:
+
+- which local command is the strongest reviewed baseline
+- what `deadcode-check` actually means
+- where cross-platform enforced/staged truth should be read
+
+Interpretation:
+
+- Day 10 does not need another broad redistribution pass
+- it needs a small ownership-tightening pass around those repeated claims
+
+#### 2. `Makefile` should remain the authoritative home for rerun guidance and wrapper expansion details
+
+The maintained `Makefile` target help still carries the richest live command
+surface for:
+
+- rerun-failing-phase guidance
+- reviewed wrapper composition
+- parity-path details
+- dead-code completeness wording
+
+Interpretation:
+
+- Day 10 should point to `Makefile` where needed
+- not duplicate more of that detail into docs
+
+#### 3. README is still slightly over-describing the reviewed-quality surface for an operator entry point
+
+The current README quality tail is smaller than Day 1, but it still repeats
+some maintainability-oriented interpretation.
+
+Interpretation:
+
+- Day 10 should keep the operator checklist
+- but tighten the remaining phrasing so README stays more clearly operator-
+  facing
+
+#### 4. The maintainer guide is the right home for meaning, but not for every command variant detail
+
+`docs/maintainer_guide.md` now owns the policy interpretation correctly.
+
+Interpretation:
+
+- Day 10 should keep the guide interpretive
+- not expand it into a shadow CLI manual
+
+#### 5. The bounded Day 10 target set is now explicit
+
+The highest-value Day 10 targets are:
+
+- `README.md`
+- `docs/maintainer_guide.md`
+- possibly one very small `Makefile` wording adjustment only if needed
+
+Interpretation:
+
+- Day 10 should be mostly README + guide
+- it should not become a workflow or script redesign batch

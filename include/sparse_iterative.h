@@ -265,7 +265,7 @@ void sparse_iter_handle_free(sparse_iter_handle_t *handle);
  * @param n       Problem dimension.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if handle is NULL.
- * @return SPARSE_ERR_BADARG if n is negative.
+ * @return SPARSE_ERR_BADARG if n is less than 1.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails.
  */
 sparse_err_t sparse_iter_handle_prepare_cg(sparse_iter_handle_t *handle, idx_t n);
@@ -283,7 +283,7 @@ sparse_err_t sparse_iter_handle_prepare_cg(sparse_iter_handle_t *handle, idx_t n
  * @param restart  GMRES restart parameter.
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if handle is NULL.
- * @return SPARSE_ERR_BADARG if n or restart is invalid.
+ * @return SPARSE_ERR_BADARG if n is less than 1 or restart is invalid.
  * @return SPARSE_ERR_ALLOC if workspace allocation fails or overflows.
  */
 sparse_err_t sparse_iter_handle_prepare_gmres(sparse_iter_handle_t *handle, idx_t n, idx_t restart);

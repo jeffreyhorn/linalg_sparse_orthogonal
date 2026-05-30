@@ -915,9 +915,9 @@ void sparse_eigs_handle_init(sparse_eigs_handle_t *handle) {
 }
 
 void sparse_eigs_handle_free(sparse_eigs_handle_t *handle) {
-    sparse_eigs_workspace_t *workspace = s49_eigs_handle_workspace(handle);
     if (!handle)
         return;
+    sparse_eigs_workspace_t *workspace = s49_eigs_handle_workspace(handle);
     if (workspace) {
         sparse_eigs_workspace_free(workspace);
         free(workspace);

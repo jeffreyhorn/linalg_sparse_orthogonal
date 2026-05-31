@@ -355,3 +355,196 @@ Interpretation:
   also trying to rediscover the quality contract
 - the main remaining Sprint 50 work is design narrowing, not validation-policy
   argument
+
+## Day 3
+
+**Objective:** Re-map the live direct-solver public API surface across LU,
+Cholesky, LDL^T, the analysis/refactor bridge, and QR-as-contrast so Sprint 50
+can reduce the lifecycle problem to named public seams instead of a generic
+state-model complaint.
+
+### Commands Run
+
+1. Re-read the Sprint 50 Day 3 plan item and the current sprint notes:
+   - `sed -n '60,180p' docs/planning/EPIC_5/SPRINT_50/PLAN.md`
+   - `sed -n '1,420p' docs/planning/EPIC_5/SPRINT_50/WORKING_NOTES.md`
+2. Re-read the main direct-solver public lifecycle/state headers:
+   - `sed -n '1,260p' include/sparse_analysis.h`
+   - `sed -n '1,260p' include/sparse_lu.h`
+   - `sed -n '1,240p' include/sparse_cholesky.h`
+   - `sed -n '1,320p' include/sparse_ldlt.h`
+3. Re-read the public contrast surface where factor ownership is already
+   explicit but refactor/reuse is not:
+   - `sed -n '1,260p' include/sparse_qr.h`
+4. Re-read the strongest shipped direct repeated-workflow caller and the main
+   refactor benchmarks:
+   - `sed -n '1,260p' examples/example_analysis.c`
+   - `sed -n '1,240p' benchmarks/bench_refactor.c`
+   - `sed -n '1,260p' benchmarks/bench_refactor_csc.c`
+5. Re-read the public README and local example/benchmark README language around
+   repeated-run, one-shot, and analyze/refactor workflows:
+   - `sed -n '200,340p' README.md`
+   - `sed -n '1,120p' examples/README.md`
+   - `sed -n '50,90p' benchmarks/README.md`
+   - `rg -n "analysis|refactor|Repeated-Run|one-shot|lifecycle" README.md examples/README.md benchmarks/README.md include/sparse_analysis.h include/sparse_lu.h include/sparse_cholesky.h include/sparse_ldlt.h include/sparse_qr.h`
+
+### Day 3 Findings
+
+#### 1. The live public direct-solver surface reduces cleanly to five lifecycle seam classes rather than one generic “state model” problem
+
+The current public surface now maps cleanly to:
+
+- matrix-mutating one-shot factor-and-solve:
+  - `sparse_lu_factor(...)`
+  - `sparse_lu_factor_opts(...)`
+  - `sparse_lu_solve(...)`
+  - `sparse_cholesky_factor(...)`
+  - `sparse_cholesky_factor_opts(...)`
+  - `sparse_cholesky_solve(...)`
+- factor-object one-shot lifecycle:
+  - `sparse_ldlt_factor(...)`
+  - `sparse_ldlt_factor_opts(...)`
+  - `sparse_ldlt_solve(...)`
+  - `sparse_ldlt_free(...)`
+- explicit analysis/factor/refactor bridge:
+  - `sparse_analysis_t`
+  - `sparse_factors_t`
+  - `sparse_analyze(...)`
+  - `sparse_factor_numeric(...)`
+  - `sparse_refactor_numeric(...)`
+  - `sparse_factor_solve(...)`
+  - `sparse_analysis_free(...)`
+  - `sparse_factor_free(...)`
+- backend/reorder/telemetry side paths that affect implementation choice more
+  than lifecycle ownership:
+  - `sparse_chol_backend_t`
+  - `sparse_ldlt_backend_t`
+  - `used_csc_path`
+  - reorder fields in the one-shot opts structs
+- comparison surface for lifecycle expectations, not a direct Sprint 50 target:
+  - `sparse_qr_t`
+  - `sparse_qr_factor(...)`
+  - `sparse_qr_factor_opts(...)`
+  - `sparse_qr_free(...)`
+
+Interpretation:
+
+- Sprint 50’s lifecycle problem is not “direct solvers have no state model”
+- it is that the repo already exposes multiple different state models, and the
+  explicit repeated direct workflow is not yet the dominant public story
+
+#### 2. The current direct-solver workflows split into three real caller buckets plus two later verification buckets
+
+The public direct-solver caller stories group into:
+
+- one-shot matrix-copy then in-place factor:
+  - LU
+  - Cholesky
+- one-shot factor object:
+  - LDL^T
+  - QR as a lifecycle contrast
+- analyze-once / factor-many:
+  - `sparse_analysis_t` + `sparse_factors_t`
+
+And the shipped verification/support caller stories sit separately:
+
+- example surface:
+  - `example_analysis.c`
+- benchmark surface:
+  - `bench_refactor.c`
+  - `bench_refactor_csc.c`
+
+Interpretation:
+
+- the first public lifecycle landing should target the real API buckets, not
+  the example/benchmark mirror surfaces
+- Day 3 now separates caller contract from proof/demo surface
+
+#### 3. The strongest hidden-state / documentation-discipline gap remains concentrated in the matrix-mutating one-shot paths
+
+LU and Cholesky still rely most heavily on caller discipline:
+
+- examples teach `sparse_copy()` before factorization
+- factor state and permutations live inside the mutated `SparseMatrix`
+- preserving the original matrix view is mainly a documentation rule, not an
+  explicit lifecycle object boundary
+
+LDL^T improves that story materially:
+
+- factors live in `sparse_ldlt_t`
+- the input matrix is not modified
+- solve/free ownership is explicit
+
+But LDL^T still does not make the analysis/refactor bridge the dominant direct
+public caller story.
+
+Interpretation:
+
+- the highest-value Sprint 50 lifecycle tension is the gap between
+  matrix-mutating one-shot compatibility and explicit caller-owned lifecycle
+- LDL^T and QR show that explicit factor containers are already acceptable repo
+  patterns
+
+#### 4. The explicit analysis/refactor bridge is already the closest thing to the target public lifecycle, but it still reads as a partial bridge instead of the default direct contract
+
+The analysis path already exposes the strongest direct repeated-run contract:
+
+- analyze once
+- factor numerically
+- solve
+- refactor with same sparsity pattern
+- solve again
+- free explicit owned objects
+
+But the public docs and comments still frame it as:
+
+- an analyze/refactor workflow
+- a future-optimization bridge
+- a specialist path alongside delegated one-shot factorization routines
+
+Interpretation:
+
+- Sprint 50’s first design target should anchor on `sparse_analysis.h`
+- the key question is how to make this bridge relate cleanly to LU, Cholesky,
+  and LDL^T without pretending the one-shot APIs are going away
+
+#### 5. QR matters to Sprint 50 mainly as a boundary-setting contrast surface
+
+QR is not a direct solver, but it is still useful Day 3 contrast:
+
+- it already uses a caller-owned factor object (`sparse_qr_t`)
+- it has explicit factor / solve / free ownership
+- it does not expose a public refactor/reuse workflow
+- its reorder policy is direct and local to QR’s own structural model
+
+Interpretation:
+
+- Sprint 50 should not pull QR into the first implementation target set
+- but QR confirms that explicit factor-object lifecycle ownership is already a
+  normalized public pattern in the repo
+
+#### 6. The true first landing targets are now narrower than the full caller/support surface
+
+The strongest first public landing targets are:
+
+- `include/sparse_analysis.h`
+- `include/sparse_lu.h`
+- `include/sparse_cholesky.h`
+- `include/sparse_ldlt.h`
+
+The strongest later compatibility and verification surfaces are:
+
+- `README.md`
+- `examples/example_analysis.c`
+- `examples/README.md`
+- `benchmarks/bench_refactor.c`
+- `benchmarks/bench_refactor_csc.c`
+- `benchmarks/README.md`
+- `include/sparse_qr.h`
+
+Interpretation:
+
+- Day 3 now fixes the real target boundary before Day 4 precedent inventory and
+  Day 5 gap analysis begin
+- the lifecycle landing should start at the direct public headers, not at the
+  example/benchmark/docs perimeter

@@ -190,3 +190,168 @@ Interpretation:
 - Sprint 50 should not spend time acting like Sprint 51
 - the correct Day 1 close is a clean design baseline and authoritative-input
   package
+
+## Day 2
+
+**Objective:** Reconfirm the maintained reviewed baseline and truthfulness
+anchors Sprint 50 must preserve, then define the smallest authoritative
+validation boundary for this design sprint versus the broader rerun set later
+direct-solver implementation days will need once `*.c` / `*.h` edits begin.
+
+### Commands Run
+
+1. Re-read the Sprint 50 Day 2 plan item and existing working-notes context:
+   - `sed -n '1,220p' docs/planning/EPIC_5/SPRINT_50/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_50/WORKING_NOTES.md`
+2. Re-read the direct-solver public lifecycle/state surfaces that will later
+   define the touched implementation set:
+   - `sed -n '1,260p' include/sparse_analysis.h`
+   - `sed -n '1,260p' include/sparse_lu.h`
+   - `sed -n '1,260p' include/sparse_cholesky.h`
+   - `sed -n '1,260p' include/sparse_ldlt.h`
+3. Reconfirm the maintained reviewed CMake truthfulness anchor:
+   - `ctest -N --test-dir build/quality-review-cmake`
+4. Reconfirm the maintained reviewed wrapper authority surface:
+   - `make -n quality-review-full`
+5. Re-read the live quality-contract wording sources:
+   - `rg -n "quality-review-full|deadcode-check|reviewed baseline|strongest local reviewed baseline|quality-review-cmake" README.md docs/maintainer_guide.md Makefile .github/workflows -g '!build'`
+6. Reconfirm the direct-solver example, benchmark, and regression binaries that
+   later API-implementation batches are most likely to touch:
+   - `rg -n "example_analysis|bench_refactor|bench_refactor_csc|test_chol_csc|test_ldlt_csc|test_etree|test_cholesky|test_ldlt" Makefile CMakeLists.txt tests benchmarks examples`
+
+### Day 2 Findings
+
+#### 1. The strongest local reviewed baseline remains explicit, stable, and already uses the exact wording Sprint 50 should preserve
+
+The maintained wrapper surface still says exactly:
+
+- `quality-review-full: strongest local reviewed baseline`
+- `quality-review-full: rerun failing phases directly with 'make quality-review'
+  or 'make quality-review-cmake'`
+
+The README and maintainer guide stay aligned with that same language:
+
+- `README.md` calls `make quality-review-full` the strongest local reviewed
+  baseline
+- `docs/maintainer_guide.md` treats that phrasing as the authoritative local
+  close state
+
+Interpretation:
+
+- Sprint 50 should keep using the exact “strongest local reviewed baseline”
+  language
+- later direct-solver lifecycle work should not invent narrower wording unless
+  it is making a genuinely narrower claim
+
+#### 2. The reviewed CMake parity anchor remains exact and is still the main truthfulness backstop for later public API work
+
+The maintained reviewed CMake path still resolves cleanly to:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+The concrete reviewed suite list still includes the direct-solver and
+supporting structural tests Sprint 50 is most likely to care about later:
+
+- `test_cholesky`
+- `test_ldlt`
+- `test_etree`
+- `test_chol_csc`
+- `test_ldlt_csc`
+
+Interpretation:
+
+- later Sprint 50+ implementation batches should treat the exact `53` count as
+  a truthfulness anchor, not as a fuzzy “about the same” metric
+- the direct-solver lifecycle work must preserve both the count and the
+  Makefile/CMake parity contract
+
+#### 3. The reviewed quality contract is intentionally layered, and Day 2 fixes the authority split Sprint 50 should use
+
+The live repo still divides authority cleanly:
+
+- `make quality-review-full`:
+  - strongest local reviewed baseline
+- `make quality-review`:
+  - reviewed Makefile local path
+  - `format-check + lint + test + deadcode-check`
+- `make quality-review-cmake`:
+  - reviewed CMake parity path with full suite execution
+- `make deadcode-check`:
+  - report-completeness gate, not a zero-findings or removal-ready gate
+
+Interpretation:
+
+- Sprint 50 Day 2 should use this same split rather than restating the whole
+  quality contract ad hoc
+- later direct-solver public API days that touch `*.c` / `*.h` should rerun the
+  full required gate and then escalate to `make quality-review-full` for
+  substantial lifecycle-surface batches
+
+#### 4. Sprint 50 as a design sprint has a much smaller authoritative validation requirement than the later implementation sprints
+
+For the design-only days, the smallest authoritative validation set is:
+
+- preserve the wording and meaning of:
+  - `make quality-review-full`
+  - reviewed CMake parity
+  - `53` tests
+- rerun targeted sanity checks only when docs or planning artifacts change
+
+For later implementation days that touch `*.c` / `*.h`, the minimum
+authoritative gate should remain:
+
+- `make format`
+- `make lint`
+- `make test`
+
+And for substantial public lifecycle API batches, the stronger default should
+remain:
+
+- `make quality-review-full`
+
+Interpretation:
+
+- Day 2 fixes the validation boundary before the design artifacts get deeper
+- Sprint 50 should not blur docs-only design work with code-touch validation
+  claims
+
+#### 5. The later direct-solver touched-surface follow-on list is already clear enough to freeze before API design begins
+
+The most likely later direct-solver follow-on binaries and regression surfaces
+are explicit in the live build/test graph:
+
+- examples:
+  - `./build/example_analysis`
+- benchmarks:
+  - `./build/bench_refactor`
+  - `./build/bench_refactor_csc`
+- regression tests:
+  - `./build/test_cholesky`
+  - `./build/test_ldlt`
+  - `./build/test_etree`
+  - `./build/test_chol_csc`
+  - `./build/test_ldlt_csc`
+
+Interpretation:
+
+- Sprint 50 later implementation days should treat these as the highest-signal
+  touched follow-ons when public direct lifecycle work lands
+- broader full-suite and CMake parity execution still belongs to the
+  authoritative reviewed baseline, not to an improvised subset
+
+#### 6. The direct-solver validation story is now bounded enough that Day 3 can stay focused on public-surface inventory
+
+Day 2 resolves the validation ambiguity that could otherwise distort the design
+work:
+
+- strongest local reviewed baseline meaning remains fixed
+- reviewed CMake test-count truth remains fixed at `53`
+- the design sprint has a small sanity-check boundary
+- later implementation follow-ons are already named
+
+Interpretation:
+
+- Day 3 can now inventory the direct-solver public lifecycle surface without
+  also trying to rediscover the quality contract
+- the main remaining Sprint 50 work is design narrowing, not validation-policy
+  argument

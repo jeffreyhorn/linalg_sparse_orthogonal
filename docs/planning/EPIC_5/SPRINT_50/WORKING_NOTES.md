@@ -1636,3 +1636,145 @@ Interpretation:
 
 - the remaining Sprint 50 work can now focus on caller-surface audit, summary,
   validation sweep, and closeout rather than more contract discovery
+
+## Day 11
+
+**Objective:** Re-audit the live caller-facing docs, examples, benchmark docs,
+and direct public headers from the perspective of the finished Sprint 50
+direct-lifecycle contract, then bound the later adoption set.
+
+### Commands Run
+
+1. Re-read the Day 11 plan item and the latest Sprint 50 notes:
+   - `sed -n '420,520p' docs/planning/EPIC_5/SPRINT_50/PLAN.md`
+   - `tail -n 260 docs/planning/EPIC_5/SPRINT_50/WORKING_NOTES.md`
+2. Re-read the current top-level and local caller docs:
+   - `sed -n '1,260p' README.md`
+   - `sed -n '1,260p' examples/README.md`
+   - `sed -n '1,220p' benchmarks/README.md`
+   - `sed -n '1,260p' docs/tutorial.md`
+3. Re-check the strongest direct public lifecycle and family-local header
+   surfaces:
+   - `sed -n '1,260p' include/sparse_analysis.h`
+   - `sed -n '1,220p' include/sparse_lu.h`
+   - `sed -n '1,220p' include/sparse_cholesky.h`
+   - `sed -n '1,260p' include/sparse_ldlt.h`
+4. Search for repeated-run / refactor / copy-discipline wording drift:
+   - `rg -n "analy(z|s)e once|refactor|repeated-run|same-pattern|copy\\(|identity permutations|one-shot|simple/default path|peer entry" README.md docs/tutorial.md examples/README.md benchmarks/README.md include/sparse_analysis.h include/sparse_lu.h include/sparse_cholesky.h include/sparse_ldlt.h`
+
+### Day 11 Findings
+
+#### 1. `include/sparse_analysis.h` is already the strongest repeated-run direct contract surface
+
+The header already teaches:
+
+- analyze once
+- factor
+- solve
+- refactor
+- free
+
+And it already uses zeroed `analysis` / `factors` in the public workflow
+example.
+
+Interpretation:
+
+- this header needs later wording alignment, not conceptual redesign
+- it remains the main repeated-run direct header contract
+
+#### 2. The family-local direct headers are aligned enough as one-shot-first surfaces
+
+`include/sparse_lu.h`, `include/sparse_cholesky.h`, and `include/sparse_ldlt.h`
+already do the right main thing:
+
+- they teach their family-local contract honestly
+- LU / Cholesky explicitly teach copy-before-in-place-factorization
+- LDL^T explicitly teaches separate factor-object output and identity-
+  permutation input expectations
+
+Interpretation:
+
+- these surfaces should stay family-local
+- later work should mostly add bounded relationship wording or cross-reference,
+  not rewrite them into repeated-run guides
+
+#### 3. The top-level README is only partially aligned: it names the direct repeated-run workflow but does not yet frame it as a caller decision path
+
+The README already:
+
+- lists `sparse_analysis.h` in the API overview
+- names `sparse_analyze`, `sparse_factor_numeric`, `sparse_refactor_numeric`,
+  and `sparse_factor_solve`
+- describes analyze-once / factor-many in feature terms
+
+But unlike the iterative/eigensolver repeated-run story, it does not yet give
+direct callers a migration-style explanation for:
+
+- when to stay on one-shot direct APIs
+- when to use analysis/factor/refactor
+- what direct reuse preserves and what it does not
+
+Interpretation:
+
+- `README.md` is a high-signal later adoption target
+
+#### 4. `docs/tutorial.md` should stay mostly one-shot-first but will need a bounded repeated-run cross-reference
+
+The tutorial already teaches:
+
+- copy-before-factorization
+- identity-permutation discipline for QR and preconditioners
+
+But it does not yet contain a bounded explicit repeated direct-run note.
+
+Interpretation:
+
+- the tutorial should not be broadly rewritten
+- it should later gain only a small repeated-run section or cross-reference
+
+#### 5. `examples/README.md` should stay one-shot-first by design, but it currently omits the strongest direct repeated-run example
+
+The examples README already correctly says:
+
+- shipped examples lean on one-shot public APIs
+- those one-shot paths remain first-class
+
+But it does not list `example_analysis`.
+
+Interpretation:
+
+- the file’s one-shot-first scope is correct
+- the omission of `example_analysis` is a real later fix target
+
+#### 6. `benchmarks/README.md` contains one real behavior/documentation contradiction today
+
+The benchmark table currently says:
+
+- `bench_refactor` = “LDL^T re-factor with cached symbolic”
+
+But the live driver is a Cholesky analyze-once / factor-many benchmark.
+
+Interpretation:
+
+- this is an actual docs drift, not merely a future adoption opportunity
+- it should be corrected when the direct repeated-run docs/benchmark adoption
+  work lands
+
+#### 7. The later caller-surface adoption set is now small and explicit
+
+Highest-signal later updates:
+
+1. `README.md`
+2. `examples/example_analysis.c` supporting docs around it
+3. `examples/README.md`
+4. `benchmarks/README.md`
+
+Lower-priority or bounded later updates:
+
+1. `docs/tutorial.md` repeated-run cross-reference only
+2. family-local direct headers only if touched during implementation
+
+Interpretation:
+
+- Sprint 51+ does not need a broad caller-doc rewrite
+- it needs a narrow adoption batch around the real repeated-run direct surfaces

@@ -257,6 +257,64 @@ static void test_bad_args(void) {
     sparse_free(A);
 }
 
+/* Public repeated-run eigensolver handle: explicit prepare + reuse should
+ * preserve the same converged values and iteration count on a simple diagonal
+ * fixture. */
+static void test_public_handle_prepare_and_reuse(void) {
+    double diag[8];
+    for (idx_t i = 0; i < 8; i++)
+        diag[i] = (double)(i + 1);
+    SparseMatrix *A = build_diag(8, diag);
+    ASSERT_NOT_NULL(A);
+
+    double vals1[3] = {0, 0, 0};
+    double vals2[3] = {0, 0, 0};
+    sparse_eigs_t r1 = {.eigenvalues = vals1};
+    sparse_eigs_t r2 = {.eigenvalues = vals2};
+    sparse_eigs_opts_t opts = {.which = SPARSE_EIGS_LARGEST, .tol = 1e-12};
+    sparse_eigs_handle_t handle = {0};
+
+    ASSERT_ERR(sparse_eigs_handle_prepare(&handle, 8, 3, &opts), SPARSE_OK);
+    REQUIRE_OK(sparse_eigs_sym_with_handle(A, 3, &opts, &r1, &handle));
+    REQUIRE_OK(sparse_eigs_sym_with_handle(A, 3, &opts, &r2, &handle));
+
+    ASSERT_EQ(r1.n_converged, 3);
+    ASSERT_EQ(r2.n_converged, 3);
+    ASSERT_EQ(r1.iterations, r2.iterations);
+    for (idx_t i = 0; i < 3; i++)
+        ASSERT_NEAR(vals1[i], vals2[i], 1e-12);
+
+    sparse_eigs_handle_free(&handle);
+    sparse_free(A);
+}
+
+/* Public repeated-run eigensolver handle: NULL-handle validation and zero-init
+ * on-demand growth should both work under the final public contract. */
+static void test_public_handle_validation_and_on_demand(void) {
+    double diag[6];
+    for (idx_t i = 0; i < 6; i++)
+        diag[i] = (double)(i + 1);
+    SparseMatrix *A = build_diag(6, diag);
+    ASSERT_NOT_NULL(A);
+
+    double vals[2] = {0, 0};
+    sparse_eigs_t result = {.eigenvalues = vals};
+    sparse_eigs_opts_t opts = {.which = SPARSE_EIGS_SMALLEST, .tol = 1e-12};
+    sparse_eigs_handle_t handle = {0};
+
+    ASSERT_ERR(sparse_eigs_handle_prepare(NULL, 6, 2, &opts), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_eigs_sym_with_handle(A, 2, &opts, &result, NULL), SPARSE_ERR_NULL);
+
+    /* Zero-init handle should grow on demand without explicit prepare. */
+    REQUIRE_OK(sparse_eigs_sym_with_handle(A, 2, &opts, &result, &handle));
+    ASSERT_EQ(result.n_converged, 2);
+    ASSERT_NEAR(vals[0], 1.0, 1e-9);
+    ASSERT_NEAR(vals[1], 2.0, 1e-9);
+
+    sparse_eigs_handle_free(&handle);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Day 12 — shift-invert Lanczos (SPARSE_EIGS_NEAREST_SIGMA)
  * ═══════════════════════════════════════════════════════════════════════
@@ -1239,6 +1297,8 @@ int main(void) {
     RUN_TEST(test_non_symmetric_rejected);
     RUN_TEST(test_tridiag_spd_matches_dense);
     RUN_TEST(test_bad_args);
+    RUN_TEST(test_public_handle_prepare_and_reuse);
+    RUN_TEST(test_public_handle_validation_and_on_demand);
 
     /* Day 12: shift-invert Lanczos. */
     RUN_TEST(test_shift_invert_diagonal_k3);

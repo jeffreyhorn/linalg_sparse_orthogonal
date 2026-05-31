@@ -530,6 +530,72 @@ typedef struct {
     sparse_eigs_backend_t backend_used;
 } sparse_eigs_t;
 
+/* ═══════════════════════════════════════════════════════════════════════
+ * Explicit repeated-run lifecycle handle
+ * ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * @brief Reusable handle for repeated symmetric eigensolves on
+ *        stable-dimension problems.
+ *
+ * The one-shot public entry (`sparse_eigs_sym()`) remains first-class and
+ * fully supported. This handle exposes the explicit repeated-run lifecycle
+ * for callers that want to preserve workspace capacity across solves while
+ * keeping the existing options and result structs.
+ *
+ * The layout is intentionally opaque at the public level: zero-initialize
+ * the struct (`{0}`) or call sparse_eigs_handle_init() before first use,
+ * then use the prepare / run / free helpers below. Re-preparing or re-running
+ * the handle may preserve allocation capacity, but it does not preserve prior
+ * Krylov, Ritz, restart, or search-direction state as a numerical feature.
+ *
+ * sparse_eigs_handle_free() is safe on a zeroed struct.
+ */
+typedef struct {
+    void *internal_state; /**< Opaque internal repeated-run workspace owner.
+                               Treat as private implementation state. */
+} sparse_eigs_handle_t;
+
+/**
+ * @brief Initialize a reusable eigensolver handle.
+ *
+ * Equivalent to assigning `{0}`. Safe to call on an already-zeroed handle.
+ *
+ * @param handle  Handle to initialize. NULL is ignored.
+ */
+void sparse_eigs_handle_init(sparse_eigs_handle_t *handle);
+
+/**
+ * @brief Release all memory owned by a reusable eigensolver handle.
+ *
+ * Safe to call on a zeroed struct; after freeing, the handle is reset to the
+ * zero state.
+ *
+ * @param handle  Handle to free. NULL is ignored.
+ */
+void sparse_eigs_handle_free(sparse_eigs_handle_t *handle);
+
+/**
+ * @brief Prepare a reusable eigensolver handle for repeated symmetric solves.
+ *
+ * Successful prepare preserves reusable capacity for later
+ * `sparse_eigs_sym_with_handle()` calls with the same or smaller working-set
+ * requirements. Re-preparing may grow capacity and discards any prior
+ * numerical iteration state.
+ *
+ * @param handle  Reusable handle to prepare.
+ * @param n       Problem dimension.
+ * @param k       Requested eigenpair count.
+ * @param opts    Eigensolver options that determine the working-set shape.
+ *                NULL uses the library defaults.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if handle is NULL.
+ * @return SPARSE_ERR_BADARG if n, k, or opts values are invalid.
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails.
+ */
+sparse_err_t sparse_eigs_handle_prepare(sparse_eigs_handle_t *handle, idx_t n, idx_t k,
+                                        const sparse_eigs_opts_t *opts);
+
 /**
  * @brief Compute k extreme or near-sigma eigenpairs of a symmetric matrix.
  *
@@ -588,5 +654,27 @@ typedef struct {
  */
 sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_opts_t *opts,
                              sparse_eigs_t *result);
+
+/**
+ * @brief Compute k extreme or near-sigma eigenpairs using an explicit reusable
+ *        handle.
+ *
+ * This has the same numerical contract as sparse_eigs_sym(), but reuses a
+ * caller-owned handle across repeated solves. Callers may explicitly prepare
+ * the handle via sparse_eigs_handle_prepare() first; if the handle is zeroed
+ * or underprepared, the implementation may grow it on demand.
+ *
+ * @param A       Symmetric sparse matrix (not modified). Must be square.
+ * @param k       Number of eigenpairs to compute (1 <= k <= n).
+ * @param opts    Options (NULL for defaults; see `sparse_eigs_opts_t`).
+ * @param result  Output: caller-owned eigenvalue / eigenvector buffers
+ *                filled in place, plus library-written scalar outputs.
+ * @param handle  Reusable handle. Must be non-NULL.
+ * @return Same error contract as sparse_eigs_sym(), plus SPARSE_ERR_NULL when
+ *         handle is NULL.
+ */
+sparse_err_t sparse_eigs_sym_with_handle(const SparseMatrix *A, idx_t k,
+                                         const sparse_eigs_opts_t *opts, sparse_eigs_t *result,
+                                         sparse_eigs_handle_t *handle);
 
 #endif /* SPARSE_EIGS_H */

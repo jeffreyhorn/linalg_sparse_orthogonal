@@ -1,6 +1,6 @@
 /*
- * bench_eigs_reuse.c — repeated one-shot vs reusable-workspace eigensolver
- * comparison for Sprint 46.
+ * bench_eigs_reuse.c — repeated one-shot vs public repeated-run-handle
+ * eigensolver comparison for Sprint 46 / Sprint 49.
  *
  * Scope intentionally stays narrow:
  *   - grow-m Lanczos on nos4
@@ -8,13 +8,12 @@
  *
  * Reports median repeated-call wall time, last-run solver summaries, and a
  * simple speedup ratio. This is local evidence for reduced repeated allocation
- * churn, not a machine-independent performance claim.
+ * churn through the final public repeated-run contract, not a machine-
+ * independent performance claim.
  */
 #define _POSIX_C_SOURCE 200809L
 
 #include "sparse_eigs.h"
-#include "sparse_eigs_internal.h"
-#include "sparse_eigs_workspace_internal.h"
 #include "sparse_matrix.h"
 
 #include <math.h>
@@ -103,21 +102,23 @@ static sparse_err_t run_repeated_case(const char *name, const char *path, idx_t 
             goto cleanup;
     }
 
-    sparse_eigs_workspace_t workspace;
-    sparse_eigs_workspace_init(&workspace);
+    sparse_eigs_handle_t handle = {0};
+    err = sparse_eigs_handle_prepare(&handle, sparse_rows(A), k, &opts);
+    if (err != SPARSE_OK)
+        goto cleanup;
     for (idx_t rep = 0; rep < repeats; rep++) {
         memset(vals_reuse, 0, (size_t)k * sizeof(double));
         reuse = (sparse_eigs_t){.eigenvalues = vals_reuse};
         double t0 = wall_time();
-        err = sparse_eigs_sym_with_workspace_internal(A, k, &opts, &reuse, &workspace);
+        err = sparse_eigs_sym_with_handle(A, k, &opts, &reuse, &handle);
         reuse_err = err;
         times_reuse[rep] = wall_time() - t0;
         if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED) {
-            sparse_eigs_workspace_free(&workspace);
+            sparse_eigs_handle_free(&handle);
             goto cleanup;
         }
     }
-    sparse_eigs_workspace_free(&workspace);
+    sparse_eigs_handle_free(&handle);
 
     double med_one = median_double(times_one, repeats);
     double med_reuse = median_double(times_reuse, repeats);
@@ -177,9 +178,9 @@ int main(void) {
     const idx_t growm_repeats = 40;
     const idx_t thick_repeats = 8;
 
-    printf("=== Sprint 46 Eigensolver Workspace Reuse Benchmark ===\n\n");
+    printf("=== Sprint 46/49 Eigensolver Repeated-Run Benchmark ===\n\n");
     printf("Repeated-call comparison only; results are local evidence, not universal performance "
-           "claims.\n\n");
+           "claims. The reuse path now exercises the public handle API.\n\n");
 
     printf("Grow-m Lanczos repeated-run case (nos4, k=5, repeats=%d)\n", (int)growm_repeats);
     sparse_err_t err = run_repeated_case("growm-nos4-k5", "tests/data/suitesparse/nos4.mtx", 5,

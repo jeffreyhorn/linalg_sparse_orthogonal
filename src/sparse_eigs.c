@@ -806,6 +806,163 @@ static sparse_eigs_opts_t s46_default_public_opts(void) {
     };
 }
 
+static sparse_eigs_workspace_t *s49_eigs_handle_workspace(const sparse_eigs_handle_t *handle) {
+    return handle ? (sparse_eigs_workspace_t *)handle->internal_state : NULL;
+}
+
+static sparse_eigs_backend_t s46_select_backend(idx_t n, idx_t k, const sparse_eigs_opts_t *o);
+
+static sparse_err_t s49_eigs_handle_ensure(sparse_eigs_handle_t *handle,
+                                           sparse_eigs_workspace_t **workspace_out) {
+    if (!handle || !workspace_out)
+        return SPARSE_ERR_NULL;
+
+    sparse_eigs_workspace_t *workspace = s49_eigs_handle_workspace(handle);
+    if (!workspace) {
+        workspace = NULL;
+        sparse_err_t err = sparse_malloc_array(1, sizeof(*workspace), (void **)&workspace);
+        if (err != SPARSE_OK)
+            return err;
+        sparse_eigs_workspace_init(workspace);
+        handle->internal_state = workspace;
+    }
+
+    *workspace_out = workspace;
+    return SPARSE_OK;
+}
+
+static sparse_err_t s49_eigs_effective_max_iters(idx_t n, idx_t k, const sparse_eigs_opts_t *o,
+                                                 idx_t *max_iters_out) {
+    if (!max_iters_out)
+        return SPARSE_ERR_NULL;
+
+    if (o->max_iterations > 0) {
+        int64_t min_required = (int64_t)2 * (int64_t)k + 10;
+        if (min_required > (int64_t)n)
+            min_required = (int64_t)n;
+        if ((int64_t)o->max_iterations < min_required)
+            return SPARSE_ERR_BADARG;
+        *max_iters_out = o->max_iterations;
+        return SPARSE_OK;
+    }
+
+    int64_t def_iters = (int64_t)10 * (int64_t)k + 20;
+    if (def_iters < 100)
+        def_iters = 100;
+    if (def_iters > (int64_t)INT32_MAX)
+        def_iters = (int64_t)INT32_MAX;
+    *max_iters_out = (idx_t)def_iters;
+    return SPARSE_OK;
+}
+
+static idx_t s49_eigs_growm_capacity(idx_t n, idx_t k, idx_t max_iters) {
+    idx_t m_min = (n >= 2) ? 2 : n;
+    idx_t m_cap = max_iters < n ? max_iters : n;
+    int64_t m_cap_min = (int64_t)2 * (int64_t)k + 10;
+    if ((int64_t)m_cap < m_cap_min)
+        m_cap = (m_cap_min > (int64_t)n) ? n : (idx_t)m_cap_min;
+    if (m_cap > n)
+        m_cap = n;
+    if (m_cap < m_min)
+        m_cap = m_min;
+    return m_cap;
+}
+
+static idx_t s49_eigs_thick_restart_capacity(idx_t n, idx_t k, idx_t max_iters) {
+    int64_t m_restart_wide = (int64_t)2 * (int64_t)k + 20;
+    if (m_restart_wide > (int64_t)n)
+        m_restart_wide = (int64_t)n;
+    if (m_restart_wide > (int64_t)max_iters)
+        m_restart_wide = (int64_t)max_iters;
+    if (m_restart_wide < (int64_t)k + 1)
+        m_restart_wide = (int64_t)k + 1;
+    if (m_restart_wide > (int64_t)n)
+        m_restart_wide = (int64_t)n;
+    return (idx_t)m_restart_wide;
+}
+
+static sparse_err_t s49_eigs_handle_prepare_backend(sparse_eigs_workspace_t *workspace, idx_t n,
+                                                    idx_t k, const sparse_eigs_opts_t *o,
+                                                    idx_t max_iters) {
+    sparse_eigs_backend_t backend = s46_select_backend(n, k, o);
+    switch (backend) {
+    case SPARSE_EIGS_BACKEND_LOBPCG: {
+        idx_t bs = (o->block_size > 0) ? o->block_size : k;
+        if (bs > n)
+            bs = n;
+        sparse_eigs_lobpcg_workspace_view_t view;
+        return sparse_eigs_workspace_prepare_lobpcg(workspace, n, bs, 1, &view);
+    }
+    case SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART: {
+        idx_t m_restart = s49_eigs_thick_restart_capacity(n, k, max_iters);
+        sparse_eigs_thick_restart_workspace_view_t view;
+        return sparse_eigs_workspace_prepare_thick_restart(workspace, n, m_restart, k, &view);
+    }
+    case SPARSE_EIGS_BACKEND_LANCZOS:
+    case SPARSE_EIGS_BACKEND_AUTO: {
+        idx_t m_cap = s49_eigs_growm_capacity(n, k, max_iters);
+        sparse_eigs_growm_workspace_view_t view;
+        return sparse_eigs_workspace_prepare_growm(workspace, n, m_cap, k, &view);
+    }
+    }
+
+    return SPARSE_ERR_BADARG;
+}
+
+void sparse_eigs_handle_init(sparse_eigs_handle_t *handle) {
+    if (handle)
+        *handle = (sparse_eigs_handle_t){0};
+}
+
+void sparse_eigs_handle_free(sparse_eigs_handle_t *handle) {
+    if (!handle)
+        return;
+    sparse_eigs_workspace_t *workspace = s49_eigs_handle_workspace(handle);
+    if (workspace) {
+        sparse_eigs_workspace_free(workspace);
+        free(workspace);
+    }
+    *handle = (sparse_eigs_handle_t){0};
+}
+
+sparse_err_t sparse_eigs_handle_prepare(sparse_eigs_handle_t *handle, idx_t n, idx_t k,
+                                        const sparse_eigs_opts_t *opts) {
+    const sparse_eigs_opts_t defaults = s46_default_public_opts();
+    const sparse_eigs_opts_t *o = opts ? opts : &defaults;
+    if (n < 1 || k < 1 || k > n)
+        return SPARSE_ERR_BADARG;
+    if (o->which != SPARSE_EIGS_LARGEST && o->which != SPARSE_EIGS_SMALLEST &&
+        o->which != SPARSE_EIGS_NEAREST_SIGMA)
+        return SPARSE_ERR_BADARG;
+    if (o->backend != SPARSE_EIGS_BACKEND_AUTO && o->backend != SPARSE_EIGS_BACKEND_LANCZOS &&
+        o->backend != SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART &&
+        o->backend != SPARSE_EIGS_BACKEND_LOBPCG)
+        return SPARSE_ERR_BADARG;
+    if (o->tol < 0.0 || o->max_iterations < 0)
+        return SPARSE_ERR_BADARG;
+    if (o->block_size < 0 || o->block_size > n)
+        return SPARSE_ERR_BADARG;
+    if (o->block_size > 0 && o->block_size < k)
+        return SPARSE_ERR_BADARG;
+    if (o->precond_ctx && !o->precond)
+        return SPARSE_ERR_BADARG;
+    if (o->refine && !o->compute_vectors)
+        return SPARSE_ERR_BADARG;
+    if (o->refine_max_iters < 0)
+        return SPARSE_ERR_BADARG;
+
+    idx_t max_iters = 0;
+    sparse_err_t err = s49_eigs_effective_max_iters(n, k, o, &max_iters);
+    if (err != SPARSE_OK)
+        return err;
+
+    sparse_eigs_workspace_t *workspace = NULL;
+    err = s49_eigs_handle_ensure(handle, &workspace);
+    if (err != SPARSE_OK)
+        return err;
+    return s49_eigs_handle_prepare_backend(workspace, n, k, o, max_iters);
+}
+
 static sparse_err_t s46_validate_public_entry(const SparseMatrix *A, idx_t k,
                                               const sparse_eigs_opts_t *o,
                                               const sparse_eigs_t *result) {
@@ -1136,7 +1293,7 @@ static sparse_err_t s46_run_backend(sparse_eigs_backend_t backend, lanczos_op_fn
     result->backend_used = backend;
     switch (backend) {
     case SPARSE_EIGS_BACKEND_LOBPCG:
-        return s21_lobpcg_solve(op_fn, op_ctx, n, k, o, eff_tol, max_iters, result);
+        return s21_lobpcg_solve(op_fn, op_ctx, n, k, o, eff_tol, max_iters, result, workspace);
     case SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART:
         return s21_thick_restart_outer_loop(op_fn, op_ctx, n, k, o, eff_tol, max_iters, workspace,
                                             result);
@@ -1290,7 +1447,20 @@ static sparse_err_t s46_sparse_eigs_sym_impl(const SparseMatrix *A, idx_t k,
 
 sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_opts_t *opts,
                              sparse_eigs_t *result) {
-    return s46_sparse_eigs_sym_impl(A, k, opts, result, NULL);
+    sparse_eigs_handle_t handle = {0};
+    sparse_err_t err = sparse_eigs_sym_with_handle(A, k, opts, result, &handle);
+    sparse_eigs_handle_free(&handle);
+    return err;
+}
+
+sparse_err_t sparse_eigs_sym_with_handle(const SparseMatrix *A, idx_t k,
+                                         const sparse_eigs_opts_t *opts, sparse_eigs_t *result,
+                                         sparse_eigs_handle_t *handle) {
+    sparse_eigs_workspace_t *workspace = NULL;
+    sparse_err_t err = s49_eigs_handle_ensure(handle, &workspace);
+    if (err != SPARSE_OK)
+        return err;
+    return s46_sparse_eigs_sym_impl(A, k, opts, result, workspace);
 }
 
 sparse_err_t sparse_eigs_sym_with_workspace_internal(const SparseMatrix *A, idx_t k,
@@ -2830,7 +3000,7 @@ sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_
  * results contract). */
 sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t k,
                               const sparse_eigs_opts_t *o, double eff_tol, idx_t max_iters,
-                              sparse_eigs_t *result) {
+                              sparse_eigs_t *result, sparse_eigs_workspace_t *workspace) {
     if (!op || !o || !result || !result->eigenvalues)
         return SPARSE_ERR_NULL;
     if (n < 1 || k < 1 || max_iters < 1)
@@ -2852,16 +3022,18 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
      * the reservation comparison vs the Lanczos backends. */
     result->peak_basis_size = 10 * bs;
 
-    sparse_eigs_workspace_t lobpcg_ws;
+    sparse_eigs_workspace_t local_ws;
     sparse_eigs_lobpcg_workspace_view_t lobpcg_view;
-    sparse_eigs_workspace_init(&lobpcg_ws);
+    sparse_eigs_workspace_t *lobpcg_ws = workspace ? workspace : &local_ws;
+    if (!workspace)
+        sparse_eigs_workspace_init(lobpcg_ws);
 
     sparse_err_t rc = SPARSE_ERR_NOT_CONVERGED;
     idx_t total_iters = 0;
     double last_res_rel = 0.0;
     int have_p = 0;
 
-    sparse_err_t ws_err = sparse_eigs_workspace_prepare_lobpcg(&lobpcg_ws, n, bs, 1, &lobpcg_view);
+    sparse_err_t ws_err = sparse_eigs_workspace_prepare_lobpcg(lobpcg_ws, n, bs, 1, &lobpcg_view);
     if (ws_err != SPARSE_OK) {
         rc = ws_err;
         goto cleanup;
@@ -3055,6 +3227,7 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
     result->residual_norm = last_res_rel;
 
 cleanup:
-    sparse_eigs_workspace_free(&lobpcg_ws);
+    if (!workspace)
+        sparse_eigs_workspace_free(lobpcg_ws);
     return rc;
 }

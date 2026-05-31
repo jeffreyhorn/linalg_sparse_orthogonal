@@ -17,6 +17,12 @@ demonstrates an in-place factorization or an incomplete-factorization
 preconditioner, it uses a fresh matrix copy before mutating factor state so
 the original matrix view remains available where the API expects it.
 
+The shipped examples still lean on the one-shot public APIs because those
+remain first-class and are the simplest entry point for most callers. Sprint 49
+adds explicit repeated-run handles for iterative solves and symmetric
+eigensolves, but those are an opt-in path for stable-dimension repeated runs,
+not a replacement for the one-shot examples here.
+
 For examples that need dynamic scratch buffers, the current small-example
 convention is to route allocation through `examples/example_alloc_helpers.h`
 rather than open-coding unchecked count/byte multiplication at each call site.

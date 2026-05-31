@@ -718,3 +718,189 @@ Interpretation:
   around the analysis/refactor story instead of displacing it
 - Day 5 can now analyze gaps against a much narrower and better-grounded
   precedent set
+
+## Day 5
+
+**Objective:** Turn the Day 3 surface inventory and Day 4 precedent map into a
+ranked direct-solver lifecycle gap analysis that is explicit about usability,
+correctness, efficiency, maintainability, and compatibility tradeoffs before
+the API-design days begin.
+
+### Commands Run
+
+1. Re-read the Sprint 50 Day 5 plan item and the current notes:
+   - `sed -n '150,280p' docs/planning/EPIC_5/SPRINT_50/PLAN.md`
+   - `sed -n '1,760p' docs/planning/EPIC_5/SPRINT_50/WORKING_NOTES.md`
+2. Re-read the Epic 5 review and remediation todo to keep the gap framing
+   aligned with the project-level queue:
+   - `sed -n '1,260p' docs/planning/EPIC_5/reviews/review-codex-2026-05-31.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/reviews/todo-codex-2026-05-31.md`
+3. Re-read the Day 3 public-surface inventory and Day 4 precedent inventory:
+   - `sed -n '1,220p' docs/planning/EPIC_5/SPRINT_50/artifacts/day3-direct-solver-public-surface-inventory.md`
+   - `sed -n '1,220p' docs/planning/EPIC_5/SPRINT_50/artifacts/day4-lifecycle-precedent-inventory.md`
+
+### Day 5 Findings
+
+#### 1. The highest-value lifecycle gap is still usability: the repeated direct workflow is real but not the dominant public caller story
+
+The repo already supports an explicit repeated direct workflow through:
+
+- `sparse_analysis_t`
+- `sparse_factors_t`
+- `sparse_analyze(...)`
+- `sparse_factor_numeric(...)`
+- `sparse_refactor_numeric(...)`
+- `sparse_factor_solve(...)`
+
+But the dominant public direct-solver mental model is still:
+
+- copy a matrix
+- factor it in place or into a family-specific object
+- solve
+- rely on docs/examples to decide when and how to preserve original state
+
+Gap class:
+
+- usability
+- product-shape clarity
+
+Interpretation:
+
+- the biggest problem is no longer missing capability
+- it is that the strongest repeated direct workflow is still under-centered and
+  therefore easy for callers to miss
+
+#### 2. The strongest correctness-risk gap is still hidden mutable state and caller-discipline dependence in the one-shot LU / Cholesky path
+
+The one-shot LU and Cholesky story still depends most on undocumented-in-code
+caller discipline:
+
+- copy before factorization if the original matrix view matters
+- understand that reorder/factor state now lives inside the factor-bearing
+  `SparseMatrix`
+- know which later workflows require identity permutations or unfactored input
+
+Gap class:
+
+- correctness-risk by misuse
+- API ergonomics
+
+Interpretation:
+
+- this is not an immediate numerical bug
+- it is the strongest remaining “easy to use wrong” public direct-solver seam
+
+#### 3. The strongest efficiency gap is that analysis-driven factor-many is public but still not clearly the default performance story
+
+The analysis/refactor bridge already exists, but Day 1 and the Epic 5 review
+still show that it is framed as:
+
+- a bridge
+- a partial optimization hook
+- a specialist repeated-run path
+
+rather than the obvious public answer to stable-pattern direct solves.
+
+Gap class:
+
+- efficiency
+- performance-story clarity
+
+Interpretation:
+
+- the project risks leaving real factor-many efficiency on the table not
+  because the mechanism is absent, but because the public contract does not yet
+  center it strongly enough
+
+#### 4. The strongest maintainability gap is the mismatch between three public direct lifecycle models that are individually reasonable but not yet reconciled
+
+Current direct public models:
+
+- matrix-mutating one-shot:
+  - LU
+  - Cholesky
+- factor-object one-shot:
+  - LDL^T
+- explicit analysis/factor/refactor bridge
+
+Each model is defensible alone, but together they create public-shape drift.
+
+Gap class:
+
+- maintainability
+- long-term API coherence
+
+Interpretation:
+
+- the repository already has enough direct-solver public surface that leaving
+  these models only loosely related will keep generating docs, test, and
+  example drift
+
+#### 5. The docs/examples gap is real but secondary: they still over-center the one-shot path because the contract itself is not fully centered yet
+
+Examples and user-facing docs still lean heavily one-shot-first:
+
+- that is intentional for simplicity
+- but it also means the repeated direct workflow remains easy to read as
+  advanced or specialist rather than as the supported stable-pattern path
+
+Gap class:
+
+- documentation
+- migration clarity
+
+Interpretation:
+
+- docs are not the root cause
+- they are reflecting an API-centering gap that the later design days need to
+  resolve first
+
+#### 6. The main compatibility constraint remains explicit and should stay that way
+
+Sprint 50 still has to preserve:
+
+- one-shot direct public APIs as first-class supported paths
+- mutable `SparseMatrix` compatibility behavior where already public
+- family-specific factor semantics that are real API differences, not mere
+  naming noise
+
+Interpretation:
+
+- Sprint 50 cannot solve its lifecycle gap by pretending the old surface is
+  going away
+- the correct target is a bounded additive or centering move, not a redesign
+
+#### 7. The smallest credible public direct-lifecycle exposure is now narrow enough to state explicitly
+
+The minimum credible target that would materially improve the system without
+reopening broad API churn is:
+
+- make the analysis/factor/refactor lifecycle the explicit repeated direct-run
+  public story
+- clarify or extend its ownership/lifecycle contract where needed
+- keep LU / Cholesky / LDL^T one-shot entries as compatibility-first wrappers
+  or peer entry points
+- do not expose CSC/native internal layout, backend-specific storage, or broad
+  new public solver-family abstractions in Sprint 50
+
+Interpretation:
+
+- Day 5 rules out both extremes:
+  - no-op documentation-only cleanup
+  - broad new direct-solver framework redesign
+
+#### 8. The ranked gap list is now concrete enough for the Day 6 design batch
+
+Ranked highest to lowest:
+
+1. repeated direct workflow is under-centered publicly
+2. hidden mutable matrix-state dependence in one-shot LU / Cholesky
+3. factor-many efficiency story is public but not first-class
+4. multiple direct lifecycle models remain unreconciled
+5. docs/examples still over-center one-shot usage
+
+Interpretation:
+
+- Day 6 should attack the first three directly
+- Day 7 can then audit the resulting contract for whether it narrows the last
+  two enough without overreaching

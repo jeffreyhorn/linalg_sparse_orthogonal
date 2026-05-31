@@ -1892,3 +1892,150 @@ Interpretation:
 
 - these are now recorded implementation-adjacent docs fixes, not forgotten
   observations
+
+## Day 13
+
+**Objective:** Run the final Sprint 50 design-sprint sanity sweep so the
+artifacts close from an internally consistent, budget-aligned, and
+truthful docs/design-only state before Day 14 closeout.
+
+### Commands Run
+
+1. Re-read the Day 13 plan item and the latest Sprint 50 notes:
+   - `sed -n '520,620p' docs/planning/EPIC_5/SPRINT_50/PLAN.md`
+   - `tail -n 320 docs/planning/EPIC_5/SPRINT_50/WORKING_NOTES.md`
+2. Reconfirm the day-count and hour-budget alignment directly from the plan:
+   - `python3 - <<'PY' ...` to count `**Time estimate:**` rows, total hours,
+     and max day estimate in `docs/planning/EPIC_5/SPRINT_50/PLAN.md`
+3. Reconfirm the current Sprint 50 artifact set:
+   - `ls docs/planning/EPIC_5/SPRINT_50/artifacts`
+
+### Day 13 Findings
+
+#### 1. Sprint 50 still matches the planned budget exactly
+
+The plan sanity check remains:
+
+- `14` days present
+- `132` total hours
+- `12` hours max single-day estimate
+
+Interpretation:
+
+- the sprint still matches the Epic 5 project-plan budget
+- no late-sprint design drift changed the intended workload envelope
+
+#### 2. Lifecycle terminology is now stable across the Sprint 50 artifacts
+
+The core lifecycle terms remain consistent:
+
+- zero / init
+- analyze / prepare
+- factor
+- solve
+- refactor / reuse
+- free
+
+The repeated-run direct story also remains stable:
+
+- analyze once / factor-refactor many
+
+And the main reuse truth remains stable:
+
+- reuse preserves symbolic/permutation setup, not old numeric factor state
+
+Interpretation:
+
+- no artifact drifted back into generic handle/workspace language as the main
+  direct public story
+
+#### 3. Compatibility wording is still internally consistent
+
+The artifacts still agree that:
+
+- one-shot LU / Cholesky / LDL^T remain first-class peer entry points
+- one-shot direct usage remains the simple/default path for one-off solves
+- mutable-`SparseMatrix` one-shot behavior for LU / Cholesky remains an
+  accepted compatibility tradeoff
+- family-specific semantics remain real API differences
+
+Interpretation:
+
+- no late artifact quietly demoted the one-shot direct paths or implied forced
+  migration
+
+#### 4. The Day 9 non-goal fence still holds through the later summary artifacts
+
+No artifact reopened:
+
+- broad direct-solver API redesign
+- generic public direct-handle introduction as the main landing
+- raw CSC/native storage exposure
+- structural-pattern verifier redesign
+- broad benchmark framework redesign
+- sweeping example conversion
+
+Interpretation:
+
+- the later summary/handoff work stayed inside the written scope fence instead
+  of weakening it by implication
+
+#### 5. The validation and landing plan remains consistent and singular
+
+The later implementation validation contract still reads as:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full` for substantial public API batches
+
+And the targeted follow-on set remains:
+
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc`
+- `./build/test_cholesky`
+- `./build/test_ldlt`
+- `./build/test_etree`
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+
+Interpretation:
+
+- Sprint 50 now has one stable later-landing story, not multiple competing
+  validation lists
+
+#### 6. No major accidental overcommitment to Sprint 51-52 behavior surfaced
+
+What remains intentionally implementation-shaped:
+
+- exact header patch shape
+- exact source integration shape
+- whether any tiny additive lifecycle helper is justified
+- exact regression-test additions
+- exact docs/example adoption patches
+
+What is appropriately settled as design:
+
+- public repeated-run contract
+- one-shot compatibility relationship
+- non-goal fence
+- validation baseline
+- implementation order
+
+Interpretation:
+
+- Sprint 50 is closing from the right side of the design/implementation
+  boundary
+
+#### 7. No new corrective patch queue surfaced during the sanity sweep
+
+The only recorded later doc-fix items remain:
+
+1. `benchmarks/README.md` mislabels `bench_refactor`
+2. `examples/README.md` omits `example_analysis`
+
+Interpretation:
+
+- these remain future implementation-adjacent docs fixes
+- Day 13 did not uncover any new contradiction that needs immediate repair

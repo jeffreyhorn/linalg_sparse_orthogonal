@@ -1508,3 +1508,131 @@ Interpretation:
 
 - the fence protects against broad surface churn before the core lifecycle
   implementation lands
+
+## Day 10
+
+**Objective:** Define the validation contract, targeted follow-ons, and
+implementation order for the later public direct-solver lifecycle landing so
+Sprint 51 begins from an explicit execution plan rather than sprint memory.
+
+### Commands Run
+
+1. Re-read the Day 10 plan item and the latest Sprint 50 notes:
+   - `sed -n '360,460p' docs/planning/EPIC_5/SPRINT_50/PLAN.md`
+   - `tail -n 260 docs/planning/EPIC_5/SPRINT_50/WORKING_NOTES.md`
+2. Re-read the Day 9 scope/compatibility fence:
+   - `sed -n '1,320p' docs/planning/EPIC_5/SPRINT_50/artifacts/day9-non-goal-and-compatibility-fence.md`
+3. Recheck the live build/test/example/benchmark target surfaces:
+   - `rg -n "example_analysis|bench_refactor|bench_refactor_csc|test_cholesky|test_ldlt|test_etree|test_chol_csc|test_ldlt_csc" Makefile CMakeLists.txt tests benchmarks examples`
+   - `sed -n '1,260p' examples/example_analysis.c`
+
+### Day 10 Findings
+
+#### 1. Later direct-lifecycle code days should use the same baseline validation gate as the other public Epic 4/5 landings
+
+Day 10 fixes the mandatory gate for later `*.c` / `*.h` lifecycle batches as:
+
+- `make format`
+- `make lint`
+- `make test`
+
+And for substantial public API batches:
+
+- `make quality-review-full`
+
+Interpretation:
+
+- direct lifecycle work is public-surface work
+- it should use the strongest established local validation contract rather than
+  a lighter sprint-local shortcut
+
+#### 2. The highest-signal targeted follow-ons are now explicit and grounded in the live repo surfaces
+
+Later lifecycle implementation should treat these as the main targeted reruns:
+
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc`
+- `./build/test_cholesky`
+- `./build/test_ldlt`
+- `./build/test_etree`
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+
+Interpretation:
+
+- the explicit repeated-run teaching surface is already real in
+  `example_analysis`
+- the factor-many benchmark surfaces are already real in `bench_refactor*`
+- the family-level regression binaries already exist and should be used instead
+  of inventing a new ad hoc validation story
+
+#### 3. The implementation order should remain public-first, then behavior, then adoption
+
+Day 10 fixes the intended order as:
+
+1. public headers / API surface
+2. implementation and wrapper integration
+3. high-signal example / benchmark adoption
+4. compatibility sweep
+5. final validation
+
+Interpretation:
+
+- header review should happen before broad source churn
+- the first docs/example/benchmark adoption should follow stable behavior, not
+  race ahead of it
+
+#### 4. The most likely early landing targets are now concrete
+
+Primary public header targets remain:
+
+- `include/sparse_analysis.h`
+- `include/sparse_lu.h`
+- `include/sparse_cholesky.h`
+- `include/sparse_ldlt.h`
+
+Primary early adoption surfaces remain:
+
+- `examples/example_analysis.c`
+- `benchmarks/bench_refactor.c`
+
+Interpretation:
+
+- Day 10 keeps the landing plan aligned with the strongest repeated-run direct
+  seams instead of widening into every direct surface at once
+
+#### 5. The validation plan also inherits the Day 9 scope fence
+
+The landing plan explicitly stays out of:
+
+- raw CSC/native storage exposure
+- broad benchmark framework redesign
+- structural-pattern verifier redesign
+- sweeping example conversion
+- large tutorial rewrite
+- generic direct-handle introduction as the main landing
+
+Interpretation:
+
+- the validation/landing plan reinforces the scope boundary instead of quietly
+  weakening it
+
+#### 6. Sprint 50 now has a complete pre-implementation package for Sprint 51
+
+By the end of Day 10, Sprint 50 has:
+
+- baseline/truthfulness anchors
+- public-surface inventory
+- precedent map
+- ranked gap analysis
+- first-pass lifecycle design
+- post-design audit
+- final public contract
+- scope/compatibility fence
+- validation and landing plan
+
+Interpretation:
+
+- the remaining Sprint 50 work can now focus on caller-surface audit, summary,
+  validation sweep, and closeout rather than more contract discovery

@@ -2039,3 +2039,149 @@ Interpretation:
 
 - these remain future implementation-adjacent docs fixes
 - Day 13 did not uncover any new contradiction that needs immediate repair
+
+## Day 14
+
+**Objective:** Close Sprint 50 with a coherent direct-solver lifecycle design
+package and a truthful Sprint 51 implementation handoff, while keeping the
+closeout explicitly docs/design-only.
+
+### Commands Run
+
+1. Re-read the Day 14 closeout intent from the plan and the latest notes:
+   - `sed -n '560,640p' docs/planning/EPIC_5/SPRINT_50/PLAN.md`
+   - `tail -n 260 docs/planning/EPIC_5/SPRINT_50/WORKING_NOTES.md`
+2. Re-read the Day 12 summary draft and Day 13 sanity-sweep artifact:
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_50/artifacts/day12-summary-and-handoff-draft.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_50/artifacts/day13-design-sanity-sweep.md`
+
+### Day 14 Findings
+
+#### 1. Sprint 50 now closes with one coherent direct repeated-run design package
+
+The sprint now hands off:
+
+- preserved validation/truthfulness baseline
+- direct public-surface and precedent inventories
+- ranked lifecycle gap analysis
+- first-pass and final public lifecycle design
+- post-design audit
+- explicit non-goal and compatibility fence
+- validation and landing plan
+- caller-surface audit
+- summary/handoff draft
+- final sanity-sweep confirmation
+
+Interpretation:
+
+- Sprint 50 no longer leaves the direct lifecycle effort as a loose planning
+  trail
+- it closes as one bounded implementation-ready design package
+
+#### 2. The final Sprint 50 deliverable is now explicit
+
+The main Sprint 50 result is the analysis-centric repeated-run contract around:
+
+- `sparse_analysis_t`
+- `sparse_factors_t`
+- analyze once
+- factor / solve
+- refactor / solve many
+- free explicitly
+
+And this is now the intended stable-pattern repeated direct-run contract for:
+
+- LU
+- Cholesky
+- LDL^T
+
+Interpretation:
+
+- Sprint 51 can begin implementation from an explicit public model rather than
+  rediscovering the contract
+
+#### 3. The compatibility and non-goal boundary is now stable enough to hand forward unchanged
+
+Sprint 50 closes with these still explicit:
+
+- one-shot LU / Cholesky / LDL^T remain first-class peer entry points
+- one-shot direct usage remains the simple/default path for one-off solves
+- mutable-`SparseMatrix` one-shot behavior for LU / Cholesky remains an
+  accepted compatibility tradeoff
+- broad direct-solver redesign, generic direct handles, raw CSC/native
+  exposure, structural-pattern verifier redesign, broad benchmark redesign,
+  and sweeping example conversion remain out of scope
+
+Interpretation:
+
+- Sprint 51 inherits a clear additive boundary rather than negotiating support
+  and scope again
+
+#### 4. Sprint 51’s starting boundary is now fully specified
+
+The inherited implementation order remains:
+
+1. public headers / API surface
+2. implementation and wrapper integration
+3. high-signal example / benchmark adoption
+4. compatibility sweep
+5. final validation
+
+The inherited code-day validation contract remains:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full` for substantial public API batches
+
+And the inherited targeted follow-ons remain:
+
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc`
+- `./build/test_cholesky`
+- `./build/test_ldlt`
+- `./build/test_etree`
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+
+Interpretation:
+
+- Sprint 51 now has both design guidance and landing discipline fixed before
+  implementation begins
+
+#### 5. Sprint 50 does not require a project-plan update
+
+The sprint stayed within:
+
+- `14` planned days
+- `132` planned hours
+- the intended design-first scope from `PROJECT_PLAN.md`
+
+And no new blocker or replanning queue surfaced.
+
+Interpretation:
+
+- there is no need to adjust the Epic 5 project-plan assumptions at closeout
+
+#### 6. The closeout remains truthful as docs/design-only work
+
+Sprint 50 did **not**:
+
+- land public header edits
+- land source integration
+- land new direct-lifecycle regression tests
+- rerun code-quality gates for a code change
+
+Sprint 50 **did**:
+
+- define the public repeated-run contract
+- fix the compatibility boundary
+- fix the non-goal fence
+- fix the landing order and validation contract
+- bound the caller-surface adoption set
+
+Interpretation:
+
+- the sprint closes honestly from a design state, not by implying code is
+  already landed

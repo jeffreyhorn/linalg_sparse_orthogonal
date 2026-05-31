@@ -904,3 +904,181 @@ Interpretation:
 - Day 6 should attack the first three directly
 - Day 7 can then audit the resulting contract for whether it narrows the last
   two enough without overreaching
+
+## Day 6
+
+**Objective:** Convert the Day 5 ranked gap list into the first bounded public
+direct-solver lifecycle contract, with explicit decisions on abstraction
+shape, lifecycle stages, naming, and first-model family coverage before the
+post-design audit.
+
+### Commands Run
+
+1. Re-read the Day 6 plan item and the current Sprint 50 notes:
+   - `sed -n '120,320p' docs/planning/EPIC_5/SPRINT_50/PLAN.md`
+   - `tail -n 220 docs/planning/EPIC_5/SPRINT_50/WORKING_NOTES.md`
+2. Re-read the Day 5 gap-analysis artifact:
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_50/artifacts/day5-direct-solver-lifecycle-gap-analysis.md`
+3. Re-read the strongest direct public lifecycle anchor and adjacent public
+   family headers:
+   - `sed -n '1,420p' include/sparse_analysis.h`
+   - `sed -n '1,220p' include/sparse_lu.h`
+   - `sed -n '1,220p' include/sparse_cholesky.h`
+   - `sed -n '1,260p' include/sparse_ldlt.h`
+4. Re-read the Epic 4 repeated-run public-lifecycle design shape for generic
+   init / prepare / run / reuse / free precedent:
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_49/artifacts/day3-public-lifecycle-api-design.md`
+
+### Day 6 Findings
+
+#### 1. The strongest first-pass abstraction shape is a bounded hybrid, but it is analysis-centric rather than handle-centric
+
+Day 6 compared three plausible directions:
+
+- keep only the existing analysis/factor/refactor API and merely document it
+  better
+- add a brand-new generic public direct handle
+- keep the current analysis/factor model as the direct repeated-run core and
+  allow only small additive lifecycle clarifications around it
+
+The strongest choice is the third:
+
+- analysis-centric bounded hybrid
+
+Interpretation:
+
+- docs-only centering is too small
+- a new generic direct handle would be too broad and duplicative
+- the repo already has a meaningful public direct lifecycle through:
+  - `sparse_analysis_t`
+  - `sparse_factors_t`
+  - `sparse_analyze(...)`
+  - `sparse_factor_numeric(...)`
+  - `sparse_refactor_numeric(...)`
+  - `sparse_factor_solve(...)`
+
+#### 2. The public repeated direct lifecycle stages are now concrete enough to name explicitly
+
+Day 6 fixes the target public stages as:
+
+1. initialize / zero
+2. analyze / prepare
+3. factor
+4. solve
+5. refactor / reuse
+6. free
+
+Interpretation:
+
+- this preserves the direct domain vocabulary already present in
+  `sparse_analysis.h`
+- it also borrows the clearer lifecycle sequencing discipline proven on the
+  iterative/eigensolver side during Epic 4
+
+#### 3. “Prepare” should remain analysis-specific vocabulary, not a generic storage-reserve abstraction
+
+The direct repeated-run side is not primarily a workspace-reserve story.
+Its true prepare step is:
+
+- choose factor family
+- choose reorder policy
+- compute symbolic structure
+- establish same-pattern reuse preconditions
+
+Interpretation:
+
+- Sprint 50 should not flatten direct solver preparation into a generic
+  “allocate handle buffers” concept
+- the analysis step is the real direct public preparation contract
+
+#### 4. The first model must explicitly cover LU, Cholesky, and LDL^T
+
+Day 6 rejects a smaller direct-lifecycle model that would only speak clearly
+about one or two factor families.
+
+The first explicit lifecycle coverage set should be:
+
+- LU
+- Cholesky
+- LDL^T
+
+And it should not try to pull QR in as a first landing target.
+
+Interpretation:
+
+- LU / Cholesky / LDL^T are already the direct families tied to the public
+  analysis/factor/refactor bridge
+- QR remains a useful contrast surface, but broadening the first contract to
+  include QR would widen scope without closing the highest-value gap
+
+#### 5. One-shot direct APIs should remain first-class peer entry points, not be reframed as deprecated leftovers
+
+Day 6 fixes the relationship between the repeated direct lifecycle and the
+family-specific one-shot APIs:
+
+- one-shot APIs remain:
+  - simple/default caller path
+  - compatibility-preserving path
+  - first-class supported path
+- explicit analysis/factor/refactor remains:
+  - stable-pattern repeated-run path
+  - factor-many performance path
+  - clearer lifecycle path for higher-context callers
+
+Interpretation:
+
+- Sprint 50 should center the repeated-run contract without lying about the
+  continued importance of one-shot LU / Cholesky / LDL^T usage
+
+#### 6. The right naming is domain-specific first: analysis and factors, not generic handles
+
+Day 6 explicitly prefers:
+
+- analysis
+- factors
+- refactor
+- repeated direct run
+
+over generic public nouns such as:
+
+- handle
+- workspace
+- context
+
+Interpretation:
+
+- `sparse_analysis.h` is already the strongest direct precedent
+- generic naming would hide direct-solver semantics that callers actually need
+  to reason about
+
+#### 7. Reuse semantics are now narrow enough to state cleanly
+
+Public direct reuse should mean:
+
+- preserve symbolic/permutation setup
+- reuse the analyzed structure for new values
+- replace numeric factor state on success
+
+It should not mean:
+
+- preserve old triangular numeric state as an incremental-update contract
+- promise backend-specific CSC/native storage layout
+- validate structural compatibility beyond the current caller precondition
+
+Interpretation:
+
+- this is the direct-solver analogue of the Epic 4 repeated-run rule:
+  preserve setup investment, not old numerical iteration state
+
+#### 8. Day 6 leaves Day 7 a concrete audit target rather than a generic design backlog
+
+The remaining high-value questions are now narrow:
+
+- whether the analysis-centric shape fully closes the repeated-run centering gap
+- what should stay one-shot-first even after the lifecycle story is centered
+- whether any tiny additive helper surface is justified later
+
+Interpretation:
+
+- Sprint 50 now has a real first-pass lifecycle contract
+- Day 7 can audit a bounded design instead of re-opening architecture search

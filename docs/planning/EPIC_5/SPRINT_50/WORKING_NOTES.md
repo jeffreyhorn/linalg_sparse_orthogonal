@@ -548,3 +548,173 @@ Interpretation:
   Day 5 gap analysis begin
 - the lifecycle landing should start at the direct public headers, not at the
   example/benchmark/docs perimeter
+
+## Day 4
+
+**Objective:** Map the existing lifecycle precedents Sprint 50 can reuse,
+separate them from the direct-solver-specific structural seams that should stay
+private, and fix a bounded “borrow vs keep direct-specific” rule set before the
+gap-analysis day.
+
+### Commands Run
+
+1. Re-read the Sprint 50 Day 4 plan item and the current working-notes state:
+   - `sed -n '110,230p' docs/planning/EPIC_5/SPRINT_50/PLAN.md`
+   - `sed -n '1,520p' docs/planning/EPIC_5/SPRINT_50/WORKING_NOTES.md`
+2. Re-read the direct public lifecycle precedent in full:
+   - `sed -n '1,340p' include/sparse_analysis.h`
+3. Refresh the Epic 4 explicit handle precedents for lifecycle shape and
+   terminology:
+   - `sed -n '180,340p' include/sparse_iterative.h`
+   - `sed -n '500,680p' include/sparse_eigs.h`
+   - `sed -n '1,260p' docs/planning/EPIC_4/SPRINT_49/artifacts/day3-public-lifecycle-api-design.md`
+4. Re-read the direct implementation bridge seams most relevant to later public
+   lifecycle exposure:
+   - `rg -n "sparse_factor_numeric|sparse_refactor_numeric|chol_csc_from_sparse_with_analysis|ldlt_csc_from_sparse_with_analysis|sparse_analyze\\(|sparse_factor_solve\\(" src include`
+   - `sed -n '1,340p' src/sparse_analysis.c`
+   - `sed -n '340,760p' src/sparse_analysis.c`
+   - `sed -n '1,260p' src/sparse_chol_csc_internal.h`
+   - `sed -n '1,260p' src/sparse_ldlt_csc_internal.h`
+
+### Day 4 Findings
+
+#### 1. Sprint 50 already has two different kinds of lifecycle precedent, and they should be reused differently
+
+The current repo gives Sprint 50:
+
+- a direct public lifecycle precedent:
+  - `sparse_analysis_t`
+  - `sparse_factors_t`
+  - `sparse_analyze(...)`
+  - `sparse_factor_numeric(...)`
+  - `sparse_refactor_numeric(...)`
+  - `sparse_factor_solve(...)`
+- a generic public repeated-run handle precedent:
+  - `sparse_iter_handle_t`
+  - `sparse_iter_handle_init(...)`
+  - `sparse_iter_handle_prepare_*`
+  - `sparse_solve_*_with_handle(...)`
+  - `sparse_iter_handle_free(...)`
+  - `sparse_eigs_handle_t`
+  - `sparse_eigs_handle_prepare(...)`
+  - `sparse_eigs_sym_with_handle(...)`
+
+Interpretation:
+
+- Sprint 50 does not need to invent public lifecycle shape from scratch
+- but it also should not mirror Sprint 49 handles mechanically, because the
+  direct-solver side already has a public analyze/factor/refactor bridge
+
+#### 2. `sparse_analysis.h` is the main direct-solver design anchor because it already matches the domain’s real repeated-run workflow
+
+The direct public bridge already captures the right solver-domain sequence:
+
+1. analyze once
+2. factor numerically
+3. solve
+4. refactor on new values with the same sparsity pattern
+5. solve again
+6. free explicit owned state
+
+The implementation side reinforces that this bridge is real:
+
+- `sparse_factor_numeric(...)` builds a working copy, dispatches by direct
+  factor type, and owns factor payload handoff
+- `sparse_factor_solve(...)` applies analysis permutation state and delegates
+  to the factor-specific solve path
+- `sparse_refactor_numeric(...)` preserves old factors on error and rewrites
+  through the same bridge
+
+Interpretation:
+
+- Sprint 50 should borrow its direct lifecycle sequence primarily from
+  `sparse_analysis.h`
+- later public direct lifecycle design should feel like an extension or
+  centering of this bridge, not a replacement vocabulary borrowed from a
+  different solver family
+
+#### 3. The iterative/eigensolver handle work is still valuable precedent, but mostly for handle discipline and public-contract rules
+
+The Epic 4 handle surfaces contribute the generic public repeated-run rules:
+
+- zero-init or init helper
+- explicit prepare step
+- repeated run through one-shot-compatible option/result surfaces
+- free safe on zeroed state
+- reuse preserves allocation capacity, not old numerical state
+
+Interpretation:
+
+- Sprint 50 should borrow:
+  - lifecycle-centric wording
+  - initialize / prepare / run / free discipline
+  - “one-shot remains first-class” compatibility framing
+- Sprint 50 should not borrow:
+  - opaque-workspace-first framing as the primary direct design anchor
+  - a purely dimension/workspace-centric model detached from analysis/refactor
+
+#### 4. The internal direct-solver structural seams are implementation precedents, not public-shape precedents
+
+The main direct implementation bridge seams are now explicit:
+
+- `src/sparse_analysis.c`
+  - permutation-aware working-copy construction
+  - factor payload ownership transfer
+  - factor-type dispatch
+  - solve dispatch
+  - safe refactor overwrite semantics
+- `src/sparse_chol_csc_internal.h`
+  - `chol_csc_from_sparse_with_analysis(...)`
+  - symbolic-aware CSC preallocation
+  - analysis-driven CSC working-format path
+- `src/sparse_ldlt_csc_internal.h`
+  - `ldlt_csc_from_sparse_with_analysis(...)`
+  - pre-pass / pre-permuted indefinite path rules
+  - CSC-side factor object writeback and row-adjacency scaffolding
+
+Interpretation:
+
+- Sprint 50 should treat these as structural implementation precedents that
+  later public lifecycle work can route through
+- Sprint 50 should not expose these names, layouts, or CSC-specific sequencing
+  as the public API target
+
+#### 5. The main “borrow vs direct-specific” split is now clean enough to guide Day 5
+
+Borrow from existing precedents:
+
+- explicit owned lifecycle objects
+- zero-init / init helper safety
+- explicit prepare / analyze step before repeated runs
+- one-shot API preservation
+- reuse preserves setup/capacity, not old numerical state
+- free safe on zeroed/empty state
+
+Keep direct-solver-specific:
+
+- factor-type differences between LU / Cholesky / LDL^T
+- symbolic-analysis semantics
+- same-pattern refactor contract
+- permutation / reordered-copy interaction
+- CSC/native dispatch and backend telemetry
+- mutable-`SparseMatrix` compatibility realities in LU / Cholesky
+
+Interpretation:
+
+- Day 4 now fixes which parts of Sprint 49 are generic pattern and which parts
+  are solver-family-specific implementation detail
+
+#### 6. Sprint 50’s public lifecycle target should read as analysis-centric first, handle-centric second
+
+The strongest design signal after Day 4 is:
+
+- generic repeated-run handles are a good public-contract model
+- but on the direct-solver side the public repeated-run truth already centers
+  on analysis/factor/refactor
+
+Interpretation:
+
+- if Sprint 50 exposes any new public lifecycle layer later, it should compose
+  around the analysis/refactor story instead of displacing it
+- Day 5 can now analyze gaps against a much narrower and better-grounded
+  precedent set

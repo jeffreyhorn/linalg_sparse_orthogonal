@@ -3,7 +3,7 @@
 **Date:** 2026-05-31  
 **Reviewer:** Codex  
 **Purpose:** Step-by-step plan to address the gaps identified in
-`review-codex-2026-0531.md`.
+`review-codex-2026-05-31.md`.
 
 ## Goal
 
@@ -81,8 +81,9 @@ Exit criteria:
 
 Work:
 
-1. Implement `ldlt_csc_from_sparse_with_analysis` or an equivalent full-pattern
-   indefinite path.
+1. Audit, validate, and if needed extend the existing
+   `ldlt_csc_from_sparse_with_analysis` path for the full-pattern indefinite
+   workflow.
 2. Revisit transparent LDL^T dispatch and analysis-aware CSC routing.
 3. Validate indefinite supernodal / factor-many behavior on the intended
    workloads.

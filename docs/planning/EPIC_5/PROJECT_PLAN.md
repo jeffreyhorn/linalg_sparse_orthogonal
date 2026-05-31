@@ -4,7 +4,7 @@ Epic 5 takes the repository from a structurally strong post-Epic-4 state to a
 more uniform product surface. The main goal is not to add a large new solver
 family. It is to close the remaining lifecycle, usability, maintainability,
 documentation, and quality-platform gaps identified in
-`reviews/review-codex-2026-0531.md`.
+`reviews/review-codex-2026-05-31.md`.
 
 The strongest themes are:
 
@@ -133,7 +133,7 @@ limit the direct-solver lifecycle story.
 
 | # | Item Name | Item Description | Estimate |
 |---|---|---|---:|
-| 1 | LDL^T Analysis-Aware Indefinite Path | Implement `ldlt_csc_from_sparse_with_analysis` or the equivalent full-pattern indefinite preparation path. | 32 |
+| 1 | LDL^T Analysis-Aware Indefinite Path | Audit, validate, and if needed extend the existing `ldlt_csc_from_sparse_with_analysis` path so the full-pattern indefinite preparation workflow is complete and well supported. | 32 |
 | 2 | Transparent LDL^T Dispatch | Revisit transparent LDL^T dispatch so CSC/native/supernodal routing is more uniform with Cholesky. | 24 |
 | 3 | Indefinite Supernodal Factor-Many Proof | Validate the indefinite batched/factor-many path on the intended workloads and tighten fallbacks where needed. | 24 |
 | 4 | Cholesky / LDL^T Dispatch Reconciliation | Reconcile API-local docs and behavior so the direct CSC dispatch story is easier to reason about. | 18 |

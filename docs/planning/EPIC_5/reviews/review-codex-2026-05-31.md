@@ -93,7 +93,8 @@ Why this matters:
   factorization still delegates to underlying one-shot factorization routines
   instead of fully bypassing internal symbolic work.
 - Older deferred CSC follow-ons are still visible:
-  - `ldlt_csc_from_sparse_with_analysis`
+  - deeper use and validation of the existing
+    `ldlt_csc_from_sparse_with_analysis` path
   - more transparent LDL^T dispatch
   - stronger indefinite supernodal factor-many integration
 - As a result, the project has the shape of an explicit lifecycle system

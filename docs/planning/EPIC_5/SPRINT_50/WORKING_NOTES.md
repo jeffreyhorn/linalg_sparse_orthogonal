@@ -1082,3 +1082,144 @@ Interpretation:
 
 - Sprint 50 now has a real first-pass lifecycle contract
 - Day 7 can audit a bounded design instead of re-opening architecture search
+
+## Day 7
+
+**Objective:** Audit the Day 6 lifecycle design against the Day 5 ranked gaps
+and the inherited Epic 4 compatibility boundary, then separate true Sprint 50
+public-contract decisions from Sprint 51 implementation details.
+
+### Commands Run
+
+1. Re-read the Day 7 plan item and the latest Sprint 50 notes:
+   - `sed -n '240,320p' docs/planning/EPIC_5/SPRINT_50/PLAN.md`
+   - `tail -n 220 docs/planning/EPIC_5/SPRINT_50/WORKING_NOTES.md`
+2. Re-read the Day 6 design artifact:
+   - `sed -n '1,320p' docs/planning/EPIC_5/SPRINT_50/artifacts/day6-public-direct-solver-lifecycle-api-design-batch1.md`
+3. Re-read the strongest current repeated direct-run caller surfaces:
+   - `sed -n '1,260p' examples/example_analysis.c`
+   - `sed -n '1,260p' benchmarks/bench_refactor.c`
+   - `sed -n '1,240p' benchmarks/bench_refactor_csc.c`
+   - `sed -n '1,260p' examples/README.md`
+
+### Day 7 Findings
+
+#### 1. The Day 6 design closes the main repeated-run centering gap well enough to keep
+
+The Day 5 highest-ranked issue was that repeated direct workflow was real but
+not centered enough publicly.
+
+After the Day 7 audit, the Day 6 model still looks correct:
+
+- explicit analysis/factor/refactor lifecycle
+- one-shot compatibility paths preserved
+- no unnecessary new generic direct handle
+
+Interpretation:
+
+- no stronger competing abstraction surfaced during audit
+- the analysis-centric bounded hybrid remains the right Sprint 50 shape
+
+#### 2. The biggest remaining public question is now relationship wording, not architecture
+
+The highest-value unresolved contract work is no longer:
+
+- whether to add a lifecycle
+- whether to introduce a new direct handle
+
+It is now:
+
+- how strongly to frame analysis/factor/refactor as the intended stable-pattern
+  repeated-run path
+- how to describe one-shot LU / Cholesky / LDL^T as:
+  - peer entry points
+  - simple/default path
+  - or both depending on caller context
+
+Interpretation:
+
+- Sprint 50’s remaining queue is now mostly wording and boundary work rather
+  than model selection
+
+#### 3. The one-shot mutable-matrix story should remain explicit rather than being papered over
+
+The audit confirms that Sprint 50 should not try to “solve” the one-shot LU /
+Cholesky mutation model by hiding it behind more abstract public wording.
+
+What should stay one-shot-first:
+
+- simple single-solve LU on a copied matrix
+- simple single-solve Cholesky on a copied matrix
+- small examples whose job is to teach basic public factor-and-solve flow
+
+Interpretation:
+
+- the repeated lifecycle should be centered for stable-pattern repeated work
+- the one-shot mutable path should remain visibly supported where it is the
+  simpler caller story
+
+#### 4. The internal-only boundary is now concrete enough to protect the Sprint 50 scope
+
+The audit confirms that the following should remain internal-only:
+
+- CSC/native factor storage layout
+- analysis-aware CSC helper names
+- backend-selection plumbing beyond the existing public option structs
+- structural-pattern validation machinery beyond the current caller
+  precondition
+- generic direct-handle storage abstractions
+
+Interpretation:
+
+- this keeps Sprint 50 focused on the public repeated-run contract rather than
+  implementation plumbing
+
+#### 5. The example and benchmark adoption boundary should be selective, not universal
+
+The live caller surfaces make the adoption boundary fairly clear.
+
+Should adopt the final repeated-run story early:
+
+- `examples/example_analysis.c`
+- `benchmarks/bench_refactor.c`
+
+Can lag intentionally:
+
+- small one-shot examples
+- one-shot example wording in `examples/README.md`
+- `benchmarks/bench_refactor_csc.c`
+
+Interpretation:
+
+- the highest-signal repeated-run surfaces should align early
+- backend-heavy or intentionally simple one-shot surfaces do not need to be
+  pulled forward prematurely
+
+#### 6. The remaining Sprint 50 “must decide” list is now small and public-contract-specific
+
+Day 7 narrows the real remaining Sprint 50 decisions to:
+
+1. exact zero/init/free expectations
+2. exact analyze-once / factor-refactor-many wording
+3. exact one-shot vs repeated-lifecycle relationship wording
+4. exact reuse meaning and non-meaning
+
+Interpretation:
+
+- these are true public-contract questions
+- they are now cleanly separated from Sprint 51 implementation details
+
+#### 7. The rest should wait for Sprint 51+
+
+The audit confirms that several questions are real but not Sprint 50 design
+work:
+
+- exact header/source implementation shape
+- regression-test expansion details
+- broad README/tutorial/example rewrites
+- benchmark-framework adjustments
+
+Interpretation:
+
+- Sprint 50 stays bounded away from solving implementation in advance
+- Day 8 can now finalize the contract without reopening code-shape planning

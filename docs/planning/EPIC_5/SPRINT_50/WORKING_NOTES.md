@@ -1223,3 +1223,147 @@ Interpretation:
 
 - Sprint 50 stays bounded away from solving implementation in advance
 - Day 8 can now finalize the contract without reopening code-shape planning
+
+## Day 8
+
+**Objective:** Finalize the caller-facing direct repeated-run lifecycle
+contract: zero/init, analyze/factor/refactor/solve/free semantics, reuse
+meaning, struct expectations, and the exact one-shot versus repeated-run
+relationship.
+
+### Commands Run
+
+1. Re-read the Day 8 plan item and the latest Sprint 50 notes:
+   - `sed -n '280,360p' docs/planning/EPIC_5/SPRINT_50/PLAN.md`
+   - `tail -n 260 docs/planning/EPIC_5/SPRINT_50/WORKING_NOTES.md`
+2. Re-read the Day 6 design artifact and Day 7 audit:
+   - `sed -n '1,320p' docs/planning/EPIC_5/SPRINT_50/artifacts/day6-public-direct-solver-lifecycle-api-design-batch1.md`
+   - `sed -n '1,340p' docs/planning/EPIC_5/SPRINT_50/artifacts/day7-post-design-audit.md`
+3. Re-read the Epic 4 migration-path wording shape to keep the final
+   relationship language aligned with the repo’s recent public-contract style:
+   - `sed -n '1,320p' docs/planning/EPIC_4/SPRINT_49/artifacts/day8-migration-path-documentation-batch.md`
+
+### Day 8 Findings
+
+#### 1. Zero-init plus explicit free is the right final lifecycle baseline
+
+Day 7 left open whether Sprint 50 should require only zero-init or should
+design around new init helpers immediately.
+
+Day 8 fixes the contract as:
+
+- `sparse_analysis_t` may begin zeroed
+- `sparse_factors_t` may begin zeroed
+- zeroed structs are the normative initial state
+- free is explicit and safe on zeroed state
+
+Interpretation:
+
+- Sprint 50 does not need new public init helpers to make the lifecycle
+  coherent
+- optional additive helpers can remain a later implementation question if
+  Sprint 51 proves they are justified
+
+#### 2. Analyze-once / factor-refactor-many is now the final repeated-run direct story
+
+Day 8 finalizes the repeated direct-run contract as:
+
+1. zero / init
+2. analyze / prepare
+3. factor
+4. solve
+5. refactor / reuse
+6. free
+
+And it fixes the main caller-facing meaning:
+
+- analyze once
+- factor / solve
+- refactor / solve many
+
+Interpretation:
+
+- this is no longer just the strongest implementation path
+- it is the intended stable-pattern repeated-run public contract for:
+  - LU
+  - Cholesky
+  - LDL^T
+
+#### 3. “Prepare” remains analysis-specific public vocabulary
+
+Day 8 confirms that the direct public prepare step should still mean:
+
+- choose factor family
+- choose reorder policy
+- compute reusable symbolic/permutation state
+- establish the same-pattern reuse contract
+
+Interpretation:
+
+- Sprint 50 should not flatten the direct lifecycle into generic
+  workspace/handle language
+- `sparse_analyze(...)` remains the real public analysis/prepare entry point
+
+#### 4. Reuse meaning and non-meaning are now explicit enough to stabilize later docs
+
+Day 8 fixes the one-sentence behavioral truth as:
+
+- reuse preserves symbolic/permutation setup, not old numeric factor state
+
+It also fixes the negative boundary:
+
+- no incremental-update guarantee on prior triangular numeric data
+- no backend-specific CSC/native storage persistence contract
+- no automatic structural-pattern validation beyond the current caller
+  precondition
+
+Interpretation:
+
+- this is the direct-solver analogue of the Epic 4 repeated-run truth anchor
+
+#### 5. The one-shot versus repeated-run relationship is now explicit instead of only implied
+
+Day 8 finalizes the relationship as:
+
+- one-shot APIs are first-class peer entry points
+- for one-off or low-context solves, they are also the simple/default path
+- the analysis/factor/refactor lifecycle is the explicit opt-in path for
+  stable-pattern repeated direct runs
+
+Interpretation:
+
+- Sprint 50 can now say both truths clearly:
+  - one-shot APIs remain fully supported
+  - the repeated lifecycle is the intended factor-many performance story
+
+#### 6. The struct/option story is now clear enough for later implementation and docs adoption
+
+Day 8 fixes the caller-facing struct expectations as:
+
+- `sparse_analysis_t` owns symbolic/permutation state
+- `sparse_factors_t` owns numeric factor state
+- neither object should be described as owning the source matrix
+- designated initializers remain the preferred public style for option structs
+- family-specific option structs stay family-specific where that reflects real
+  semantics
+
+Interpretation:
+
+- Sprint 51 now has enough contract clarity to align header wording and tests
+  without reopening the public model
+
+#### 7. Sprint 50’s remaining design queue is now fence work, not contract-shape work
+
+After Day 8, the remaining design work is no longer about the repeated-run
+public contract itself.
+
+What remains for later Sprint 50 design days is:
+
+- non-goal recording
+- compatibility fence wording
+- sprint-to-sprint boundary documentation
+
+Interpretation:
+
+- the public direct lifecycle design is now complete enough to drive Sprint 51
+  implementation

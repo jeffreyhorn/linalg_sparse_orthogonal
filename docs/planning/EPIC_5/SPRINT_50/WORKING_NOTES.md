@@ -1367,3 +1367,144 @@ Interpretation:
 
 - the public direct lifecycle design is now complete enough to drive Sprint 51
   implementation
+
+## Day 9
+
+**Objective:** Turn the finalized Day 8 lifecycle contract into an explicit
+scope and compatibility fence so Sprint 50-52 stay additive, preserve the
+one-shot public story, and avoid widening into a broad direct-solver rewrite.
+
+### Commands Run
+
+1. Re-read the Day 9 plan item and the latest Sprint 50 notes:
+   - `sed -n '320,420p' docs/planning/EPIC_5/SPRINT_50/PLAN.md`
+   - `tail -n 260 docs/planning/EPIC_5/SPRINT_50/WORKING_NOTES.md`
+2. Re-read the finalized Day 8 contract:
+   - `sed -n '1,340p' docs/planning/EPIC_5/SPRINT_50/artifacts/day8-public-direct-solver-lifecycle-api-design-batch2.md`
+
+### Day 9 Findings
+
+#### 1. The strongest remaining risk after Day 8 is scope drift, not contract ambiguity
+
+After Day 8, the repeated direct-run contract is already concrete enough to
+implement. The largest remaining risk is therefore not “what should the public
+model be?” but:
+
+- accidental API widening
+- accidental demotion of one-shot paths
+- accidental exposure of internal CSC/native structures
+- accidental benchmark/docs churn masquerading as lifecycle progress
+
+Interpretation:
+
+- Day 9 is the right point to convert the scope boundary into an explicit
+  written fence
+
+#### 2. Sprint 50-52 should be allowed to clarify and strengthen the existing analysis/factor/refactor story, not replace it
+
+The allowed change set should include:
+
+- making the repeated direct-run story easier to discover
+- aligning public headers and docs with the Day 8 contract
+- adding only bounded lifecycle-supporting public refinements where justified
+- improving tests and benchmarks around the explicit repeated-run path
+
+Interpretation:
+
+- Epic 5 is an additive lifecycle-centering effort
+- it is not a ground-up direct-solver API replacement
+
+#### 3. The non-goal list is now explicit enough to stop the main likely overreaches
+
+Day 9 fixes the main explicit non-goals as:
+
+- no broad public factor-container redesign everywhere at once
+- no removal or demotion of one-shot direct APIs
+- no raw internal storage exposure
+- no unrelated solver-family expansion
+- no broad benchmark-framework redesign
+- no structural-pattern verifier redesign in Sprint 50-52
+
+Interpretation:
+
+- the main likely forms of design drift are now named and fenced off directly
+
+#### 4. One-shot compatibility preservation is now recorded as a conscious contract
+
+Day 9 fixes that Sprint 50-52 must preserve that callers can still use:
+
+- `sparse_lu_factor(...)`
+- `sparse_lu_factor_opts(...)`
+- `sparse_cholesky_factor(...)`
+- `sparse_cholesky_factor_opts(...)`
+- `sparse_ldlt_factor(...)`
+- `sparse_ldlt_factor_opts(...)`
+
+And that these are still:
+
+- supported
+- documented
+- appropriate for one-off or low-context solves
+
+Interpretation:
+
+- one-shot direct APIs are not tolerated leftovers
+- they are an explicit compatibility commitment inside Epic 5
+
+#### 5. Mutable-`SparseMatrix` one-shot behavior remains an accepted tradeoff rather than a hidden future promise
+
+Day 9 fixes that Epic 5 may clarify the one-shot LU / Cholesky mutation model
+more clearly, but does not remove it.
+
+That includes:
+
+- factorization on a copied matrix when the original matrix view matters
+- mutation of matrix-carried factor/reorder state in the one-shot path
+
+Interpretation:
+
+- the compatibility boundary is now honest about what Epic 5 is and is not
+  trying to change
+
+#### 6. The Sprint 50-to-51 boundary is now clean
+
+Sprint 50 design owns:
+
+- contract wording
+- non-goals
+- compatibility fence
+- adoption-boundary decisions
+- validation/landing planning
+
+Sprint 51+ implementation owns:
+
+- header edits
+- source integration
+- targeted test additions
+- selected example/benchmark adoption
+- validation execution
+
+Interpretation:
+
+- Sprint 50 now has a clear stop line
+- implementation planning can proceed later without reopening the public model
+
+#### 7. The adoption boundary remains selective and now inherits the compatibility fence
+
+Early adopters should still be:
+
+- `examples/example_analysis.c`
+- `benchmarks/bench_refactor.c`
+- the most directly related public headers
+
+Intentional lagging surfaces remain:
+
+- small one-shot examples
+- `examples/README.md` one-shot teaching surfaces
+- `benchmarks/bench_refactor_csc.c`
+- broader README/tutorial reshaping
+
+Interpretation:
+
+- the fence protects against broad surface churn before the core lifecycle
+  implementation lands

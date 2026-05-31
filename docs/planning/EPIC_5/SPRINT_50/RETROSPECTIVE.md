@@ -142,6 +142,7 @@
 | Metric | Sprint 50 close state |
 |---|---:|
 | total artifact files under `SPRINT_50/artifacts/` | `15` |
+| baseline/truthfulness artifacts (Days 1-2) | `3` |
 | inventory/analysis/design/fence artifacts (Days 3-10) | `8` |
 | caller/synthesis/closeout artifacts (Days 11-14) | `4` |
 

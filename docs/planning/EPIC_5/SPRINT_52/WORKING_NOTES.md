@@ -252,3 +252,191 @@ begins:
 
 That is enough to move into the Day 3 analysis/factors contract audit without
 validation ambiguity.
+
+# Day 3 - analysis/factors contract audit
+
+Date: 2026-06-01
+
+## Goal
+
+Audit the live `sparse_analysis_t` / `sparse_factors_t` repeated-run direct
+path against the Sprint 52 Phase 2 goal and reduce the remaining work to named
+fallback and reuse seams.
+
+## Main audit findings
+
+### 1. The public lifecycle contract is analysis/factors-centric and stable enough to keep
+
+The live public header still describes the direct repeated-run story around:
+
+- `sparse_analysis_t`
+- `sparse_factors_t`
+- `sparse_analyze(...)`
+- `sparse_factor_numeric(...)`
+- `sparse_factor_solve(...)`
+- `sparse_refactor_numeric(...)`
+
+The header wording also stays consistent with the Sprint 50-51 fence:
+
+- one-shot LU / Cholesky / LDL^T remain first-class peer entry points
+- reuse preserves symbolic/permutation setup, not old numeric factor state
+- refactor assumes the same sparsity pattern and treats structural
+  compatibility as a caller precondition
+
+Interpretation:
+
+- Sprint 52 does not need a new public abstraction
+- the public contract is already coherent enough to deepen rather than replace
+
+### 2. The strongest remaining gap is still internal fallback under the shared path
+
+The live `sparse_factor_numeric(...)` path still:
+
+- builds a fresh working copy for every factorization/refactor call
+- reapplies the analysis permutation by materializing a permuted matrix copy
+- delegates into the family one-shot implementations
+
+The public header says this explicitly:
+
+- symbolic structures are "available for future optimizations"
+- they are "not currently used to bypass internal symbolic work"
+
+Interpretation:
+
+- this is the core Sprint 52 integration problem
+- the repeated-run direct path is public and correct, but it is still more of
+  a shared orchestration layer than a deeply integrated factor-many path
+
+### 3. Cholesky and LDL^T are the cleanest shared-path candidates for deeper integration
+
+In `src/sparse_analysis.c`, the shared repeated-run path for:
+
+- `SPARSE_FACTOR_CHOLESKY`
+- `SPARSE_FACTOR_LDLT`
+
+already routes through the corresponding public one-shot options entry with:
+
+- `.reorder = SPARSE_REORDER_NONE`
+
+after the matrix has already been permuted by the analysis path.
+
+Interpretation:
+
+- these families already have the cleanest shared-path relationship
+- Sprint 52 should look first at reducing avoidable repeated setup/fallback
+  here before trying to push LU into uniformity
+
+### 4. LU remains the strongest family-specific seam
+
+The shared LU path in `sparse_factor_numeric(...)` still:
+
+- builds a fresh permuted/copy working matrix
+- calls `sparse_lu_factor(...)`
+- uses fixed parameters:
+  - `SPARSE_PIVOT_PARTIAL`
+  - tolerance `1e-12`
+
+This matches the public header note that LU currently uses fixed parameters and
+may expose more through analysis options later.
+
+Interpretation:
+
+- LU is still the highest-risk family for deeper integration
+- Sprint 52 should treat LU as a bounded Phase 2 seam, not as a forced
+  symmetry target with Cholesky/LDL^T
+
+### 5. Refactor is still a convenience full numeric rebuild, not a tighter reuse path
+
+The live `sparse_refactor_numeric(...)` path still:
+
+- allocates a fresh temporary `sparse_factors_t`
+- calls `sparse_factor_numeric(...)`
+- replaces the old factors only on success
+
+The implementation explicitly says it:
+
+- performs a full numeric refactorization
+- does not validate or reuse previous numeric structure
+
+Interpretation:
+
+- Sprint 52’s "Refactor Path Tightening" item is real
+- the biggest open gap is not correctness but the shallowness of the current
+  refactor implementation relative to the public repeated-run story
+
+### 6. Solve-path workspace churn is real but secondary to the main Sprint 52 queue
+
+The live `sparse_factor_solve(...)` path still allocates fresh temporary
+buffers for:
+
+- permuted RHS storage
+- temporary solution storage
+
+on each call.
+
+Interpretation:
+
+- this is a real repeated-run efficiency seam
+- but it is secondary to the stronger Sprint 52 mandate around analysis/factor
+  fallback and refactor tightening
+- it should not displace the main Phase 2 queue unless later integration work
+  depends on it
+
+### 7. The strongest proof and adoption surfaces are already the right ones
+
+The live strongest proof/adoption surfaces still are:
+
+- `tests/test_integration.c`
+- `benchmarks/bench_refactor.c`
+- `benchmarks/bench_refactor_csc.c`
+- `examples/example_analysis.c`
+
+The benchmark comments already frame:
+
+- analyze once
+- factor/prime once
+- refactor many
+- solve after refactor
+
+as the intended repeated-run direct story.
+
+Interpretation:
+
+- Sprint 52 should concentrate proof and adoption work here
+- it does not need to broaden into scattered tutorial/example churn
+
+## Ranked Phase 2 target list
+
+1. reduce avoidable family-local fallback inside `sparse_factor_numeric(...)`
+2. tighten `sparse_refactor_numeric(...)` so the public refactor story is less
+   shallow
+3. preserve Cholesky/LDL^T as the cleanest shared-path deepening targets
+4. treat LU as a bounded special-case seam instead of forcing full symmetry
+5. refresh factor-many benchmark proof in `bench_refactor*`
+6. expand regression proof in `tests/test_integration.c`
+7. keep solve-path workspace churn as a secondary seam, not the main Sprint 52
+   target
+
+## Explicit non-targets for Sprint 52
+
+This audit also fixes what Sprint 52 should *not* broaden into:
+
+- new public generic direct-handle abstraction
+- raw CSC/native storage exposure
+- broad factor-container redesign
+- structural-pattern verifier redesign
+- sweeping tutorial rewrite
+- broad example conversion outside the strongest repeated-run surfaces
+
+## Day 3 outcome
+
+Sprint 52’s main problem is now concrete instead of generic:
+
+- the public direct repeated-run contract is stable enough to keep
+- the main remaining gap is internal fallback and shallow refactor behavior
+- Cholesky/LDL^T are the strongest shared-path deepening candidates
+- LU is the strongest bounded family-specific seam
+- benchmarks/tests/example surfaces for later proof are already clear
+
+That is enough to start the Day 4 numeric-reuse integration batch without
+guessing at the real Phase 2 target.

@@ -1151,3 +1151,102 @@ with the stronger Phase 2 lifecycle story:
   output
 - the batch stayed narrow enough that later work can focus on regression proof
   and compatibility review instead of reopening adoption drift
+
+## Day 11 outcome
+
+Sprint 52 now has a tighter public-lifecycle regression proof instead of only
+the Day 10 caller-facing adoption alignment:
+
+- the integration suite now proves that `sparse_factor_solve(...)` rejects a
+  mismatched `sparse_analysis_t` / `sparse_factors_t` pairing
+- the solve path now has direct public proof for both main mismatch classes:
+  - wrong factor family -> `SPARSE_ERR_BADARG`
+  - wrong dimension -> `SPARSE_ERR_SHAPE`
+- the same regression also proves that a rejected mismatched solve does not
+  damage the already-factored good state
+- the batch stayed deliberately narrow:
+  - no library implementation changes
+  - no public contract changes
+  - no benchmark or example churn
+
+### What changed
+
+The Day 11 regression batch landed in:
+
+- `tests/test_integration.c`
+
+The new coverage adds a direct public-lifecycle solve-time ownership check:
+
+- build a valid Cholesky analysis/factors pair on a 4x4 SPD matrix
+- build a mismatched LU analysis on a same-size unsymmetric matrix
+- build a mismatched Cholesky analysis on a different-size SPD matrix
+- verify:
+  - `sparse_factor_solve(&factors, &lu_analysis, ...)` returns
+    `SPARSE_ERR_BADARG`
+  - `sparse_factor_solve(&factors, &other_n_analysis, ...)` returns
+    `SPARSE_ERR_SHAPE`
+  - the original good `factors` still solve correctly with the matching
+    `good_analysis`
+
+This closes the most obvious remaining Day 9/10 public-lifecycle regression
+gap without widening the Sprint 52 scope.
+
+### What stayed intentionally unchanged
+
+Day 11 stayed within the regression-expansion fence:
+
+- no `src/` library code changed
+- no new repeated-run contract wording was introduced
+- no LU routing or wrapper posture was reopened
+- no broad parity sweep was added beyond the one missing high-signal public
+  solve-time seam
+- no README / example / benchmark surfaces were retouched
+
+### Validation
+
+Because `tests/test_integration.c` changed, the full required code-day gate
+was run:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All passed.
+
+The maintained reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` remained `53`
+- Makefile/CMake parity remained `53 vs 53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 156.92 sec`
+
+### Focused follow-ons
+
+The targeted Day 11 public repeated-run follow-ons also stayed clean:
+
+- `./build/test_integration`
+  - `33 / 33` passed
+  - the new regression passed directly:
+    - `test_public_lifecycle_solve_rejects_mismatched_analysis_and_preserves_factors`
+- `./build/example_analysis`
+  - solve residual remained `4.44e-16`
+- `./build/bench_refactor`
+  - the repeated-run Cholesky proof remained ahead on all shipped fixtures:
+    - `tridiag-200 4.78x`
+    - `tridiag-500 5.24x`
+    - `bcsstk04 2.48x`
+    - `nos4 2.81x`
+
+### Day 11 conclusion
+
+Sprint 52 now has a more complete public-lifecycle regression floor:
+
+- zeroed/unfactored solve rejection was already covered
+- refactor acceptance, mismatch rejection, and old-factor preservation were
+  already covered
+- solve-time analysis/factors mismatch rejection and post-failure state
+  preservation are now covered too
+
+That keeps Day 12 focused on compatibility review rather than reopening the
+public repeated-run proof surface.

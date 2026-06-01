@@ -1373,3 +1373,91 @@ Sprint 52’s live branch still reads like the intended bounded Phase 2 package:
 
 That leaves Day 13 with a clean validation task rather than a hidden
 compatibility repair queue.
+
+## Day 13 outcome
+
+Sprint 52 now has a full measured validation close state rather than only the
+Day 12 compatibility audit and checklist:
+
+- the full required gate passed:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- the maintained reviewed anchors stayed exact:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+  - Makefile/CMake parity = `53 vs 53`
+  - full reviewed CMake `ctest` = `53 / 53`
+- the targeted Sprint 52 follow-ons also all passed
+
+### Required gate results
+
+Day 13 ran the full required closeout gate from the live Sprint 52 branch:
+
+- `make format`
+  - passed
+- `make lint`
+  - passed
+- `make test`
+  - passed
+- `make quality-review-full`
+  - passed
+
+The strongest reviewed truthfulness anchors remained exact:
+
+- `ctest -N --test-dir build/quality-review-cmake`
+  - `53`
+- Makefile/CMake parity
+  - `53 vs 53`
+- full reviewed CMake `ctest`
+  - `53 / 53`
+- `Total Test time (real)`
+  - `200.43 sec`
+
+### Targeted follow-ons
+
+The targeted Sprint 52 follow-ons also all ran cleanly:
+
+- `./build/test_integration`
+  - `33 / 33`
+- `./build/example_analysis`
+  - solve residual stayed `4.44e-16`
+  - repeated-run output still states:
+    - reused state = symbolic/permutation setup only
+    - not reused = stale numeric factor contents
+- `./build/bench_refactor`
+  - repeated-run direct path stayed ahead on all shipped fixtures:
+    - `tridiag-50 2.73x`
+    - `tridiag-200 4.81x`
+    - `tridiag-500 5.28x`
+    - `bcsstk04 2.45x`
+    - `nos4 2.72x`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - repeated-run CSC path stayed ahead:
+    - `speedup_refactor = 1.52x`
+    - `res_ll = 8.24e-16`
+    - `res_csc = 7.06e-16`
+- direct family/regression reruns:
+  - `./build/test_cholesky`
+    - `21 / 21`
+  - `./build/test_ldlt`
+    - `83 / 83`
+  - `./build/test_etree`
+    - `97 / 97`
+  - `./build/test_chol_csc`
+    - `137 / 137`
+  - `./build/test_ldlt_csc`
+    - `95 / 95`
+
+### Validation conclusion
+
+The final measured close state matches the intended Sprint 52 package:
+
+- the stronger shared analysis/factor/refactor path still validates cleanly
+- the preserved one-shot family paths still validate cleanly
+- the factor-many benchmark story remains measured and positive
+- the reviewed Makefile/CMake truthfulness baseline stayed exact through the
+  full closeout gate
+
+No new reconciliation queue surfaced during validation. That leaves Day 14 as
+true closeout and handoff work, not post-validation repair.

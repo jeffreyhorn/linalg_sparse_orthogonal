@@ -851,3 +851,114 @@ The remaining bounded work should now focus on:
 - factor-many benchmark proof closeout
 - later docs/example adoption
 - keeping LU as the intentionally bounded special-case seam
+
+## Day 8 outcome
+
+Sprint 52 now has a real factor-many benchmark-proof batch rather than only
+the earlier integration and contract-tightening work:
+
+- `bench_refactor` now measures same-pattern numeric value changes across
+  iterations instead of repeatedly refactoring the identical matrix
+- the repeated-run public direct path is broken out more truthfully:
+  - one-shot average
+  - analyze-once cost
+  - initial numeric factorization cost
+  - later refactor average
+  - repeated-run average
+  - final solve residual on the last perturbed matrix
+- the benchmark ownership docs now match the live benchmark behavior
+- a real reviewed CMake portability seam was caught and fixed before closeout
+
+### What changed
+
+The Day 8 batch landed in:
+
+- `benchmarks/bench_refactor.c`
+- `benchmarks/README.md`
+
+The main implementation move is that `bench_refactor` now behaves like an
+honest same-pattern repeated-run proof:
+
+- keep the one-shot path as:
+  - `sparse_copy(...)`
+  - perturb values
+  - `sparse_cholesky_factor(...)`
+- keep the repeated-run path as:
+  - `sparse_analyze(...)` once
+  - `sparse_factor_numeric(...)` once
+  - perturb later copies with the same pattern
+  - `sparse_refactor_numeric(...)` on later iterations
+  - `sparse_factor_solve(...)` on the final perturbed matrix
+- report the timing breakdown in a form that makes the repeated-run story
+  auditable instead of implied
+
+The small but important review-quality correction is also explicit:
+
+- the first Day 8 draft perturbed values by walking `SparseMatrix` internals
+  through a private header
+- `make quality-review-full` caught that on the reviewed CMake parity path
+- the final benchmark uses only the public matrix API for perturbation, which
+  makes the benchmark both portable and more faithful to the public proof
+  boundary
+
+### What stayed intentionally unchanged
+
+Day 8 stayed inside the Sprint 52 scope fence:
+
+- no direct-solver API redesign
+- no changes to `sparse_analysis_t` / `sparse_factors_t` ownership
+- no LU routing expansion
+- no benchmark-framework redesign
+- no docs/tutorial sweep beyond the benchmark ownership surface
+
+### Validation
+
+Because `bench_refactor.c` changed, the full required code-day gate was run:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Because this remained a substantial repeated-run proof patch, the stronger
+reviewed baseline was also rerun:
+
+- `make quality-review-full`
+
+That also passed after the public-API portability fix.
+
+### Focused follow-ons
+
+The main benchmark proof is now measured rather than inferred:
+
+- `./build/bench_refactor`
+  - `tridiag-50` repeated-run speedup = `2.83x`
+  - `tridiag-200` repeated-run speedup = `4.80x`
+  - `tridiag-500` repeated-run speedup = `5.19x`
+  - `bcsstk04` repeated-run speedup = `2.42x`
+  - `nos4` repeated-run speedup = `2.49x`
+  - final residuals stayed in the `1e-15` to `1e-16` range
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `analyze_ms = 1.224`
+  - `refactor_ll_ms = 0.426`
+  - `refactor_csc_ms = 0.186`
+  - `speedup_refactor = 2.29x`
+  - `res_ll = 8.24e-16`
+  - `res_csc = 7.06e-16`
+
+### Day 8 conclusion
+
+Sprint 52 now has measured factor-many evidence that matches the strengthened
+shared lifecycle story:
+
+- the repeated-run direct path is still ahead on the moderate and corpus cases
+- the benchmark now proves same-pattern value-changing work instead of a static
+  no-op refactor story
+- the proof surface stays inside public API boundaries
+
+The next bounded work should now focus on:
+
+- any remaining direct-lifecycle regression proof
+- later docs/example adoption
+- keeping LU as the intentionally bounded special-case seam

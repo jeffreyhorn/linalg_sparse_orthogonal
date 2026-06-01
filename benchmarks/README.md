@@ -74,10 +74,15 @@ for the public repeated-run direct lifecycle:
 
 - `bench_refactor`
   - compares one-shot Cholesky factorization against the analyze-once /
-    factor-many direct path
+    factor-many direct path on same-pattern value changes
+  - reports one-shot average, one-time analysis cost, initial numeric factor,
+    average later refactor cost, repeated-run average cost, speedup, and final
+    residual
 - `bench_refactor_csc`
   - keeps the same caller story, then compares linked-list refactorization
     against the CSC/supernodal path on the same repeated-run workflow
+  - reports CSV rows with analyze cost, linked-list refactor time, CSC
+    refactor time, solve times, speedup, and residuals
 
 ## bench_main
 

@@ -35,26 +35,6 @@ static double s29_now_s(void) {
     return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
 }
 
-/*
- * Minimum supernode width for the CSC dispatch's batched path.
- * `chol_csc_eliminate_supernodal` uses the batched dense kernel for
- * supernodes of size >= SPARSE_CSC_SUPERNODE_MIN_SIZE and falls back
- * to the scalar scatter/cmod/cdiv/gather loop for smaller supernodes
- * (where the detection + extract overhead would dominate the dense-
- * block win).  The default of 4 was chosen from the Sprint 18 Day 9
- * / Day 12 cross-checks (min_size sweep across {1, 4, 16}; size 1
- * triggered the known singleton fill-in issue on matrices with fill,
- * leaving {4, 16} as the usable options with 4 matching or beating
- * 16 on every fixture in the default corpus).  See
- * `docs/planning/EPIC_2/SPRINT_18/bench_day14.txt` for the captured
- * speedups.  Override at compile time via
- * `-DSPARSE_CSC_SUPERNODE_MIN_SIZE=N` if benchmarking suggests a
- * different value for a specific workload.
- */
-#ifndef SPARSE_CSC_SUPERNODE_MIN_SIZE
-#define SPARSE_CSC_SUPERNODE_MIN_SIZE 4
-#endif
-
 /* ─── Cholesky factorization ─────────────────────────────────────────── */
 
 /*

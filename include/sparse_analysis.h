@@ -235,13 +235,14 @@ typedef struct {
 /**
  * @brief Perform numeric factorization using a precomputed analysis.
  *
- * Applies the fill-reducing permutation from the analysis (if any),
- * builds a permuted copy, and delegates to the appropriate one-shot
- * factorization routine (sparse_cholesky_factor, sparse_lu_factor, or
- * sparse_ldlt_factor). The symbolic structure (etree, column counts,
- * sym_L/sym_U) computed by sparse_analyze() is available for future
- * optimizations but is not currently used to bypass internal symbolic
- * work in the underlying factorization routines.
+ * Applies the fill-reducing permutation from the analysis (if any) and
+ * performs the numeric factorization for the requested family. The shared
+ * Cholesky CSC path reuses the provided analysis directly on larger
+ * repeated-run problems; the remaining paths still delegate through the
+ * corresponding one-shot family routines. The symbolic structure
+ * (etree, column counts, sym_L/sym_U) computed by sparse_analyze() is
+ * therefore partly consumed today and remains available for further
+ * shared-path reuse work.
  *
  * For Cholesky: computes L such that P*A*P^T = L*L^T.
  * For LU: computes L and U such that P*A*Q = L*U (with pivoting).

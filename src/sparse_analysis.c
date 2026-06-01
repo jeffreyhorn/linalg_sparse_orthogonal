@@ -1,6 +1,7 @@
 #include "sparse_analysis.h"
 #include "sparse_alloc_internal.h"
 #include "sparse_analysis_internal.h"
+#include "sparse_chol_csc_internal.h"
 #include "sparse_cholesky.h"
 #include "sparse_ldlt.h"
 #include "sparse_lu.h"
@@ -376,6 +377,51 @@ static sparse_err_t build_permuted_copy(const SparseMatrix *A, const idx_t *perm
     return *out ? SPARSE_OK : SPARSE_ERR_ALLOC;
 }
 
+static void sparse_factors_take_matrix_factor(sparse_factors_t *factors, SparseMatrix *factor);
+
+static sparse_err_t factor_cholesky_with_analysis_csc(const SparseMatrix *A,
+                                                      const sparse_analysis_t *analysis,
+                                                      sparse_factors_t *factors) {
+    CholCsc *L_csc = NULL;
+    SparseMatrix *L = NULL;
+    sparse_err_t err = chol_csc_from_sparse_with_analysis(A, analysis, &L_csc);
+    if (err != SPARSE_OK)
+        return err;
+
+    err = chol_csc_eliminate_supernodal(L_csc, SPARSE_CSC_SUPERNODE_MIN_SIZE);
+    if (err != SPARSE_OK) {
+        chol_csc_free(L_csc);
+        return err;
+    }
+
+    L = sparse_create(analysis->n, analysis->n);
+    if (!L) {
+        chol_csc_free(L_csc);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    err = sparse_factor_state_begin_cholesky(L);
+    if (err != SPARSE_OK) {
+        chol_csc_free(L_csc);
+        sparse_free(L);
+        return err;
+    }
+
+    /* Keep the shared analysis/factor surface in analysis coordinate space.
+     * `analysis->perm` stays the published symmetric permutation, so the
+     * factors matrix itself keeps a NULL reorder_perm like the old
+     * REORDER_NONE delegated path did. */
+    err = chol_csc_writeback_to_sparse(L_csc, L, NULL);
+    chol_csc_free(L_csc);
+    if (err != SPARSE_OK) {
+        sparse_free(L);
+        return err;
+    }
+
+    sparse_factors_take_matrix_factor(factors, L);
+    return SPARSE_OK;
+}
+
 static void sparse_factors_init_payload(sparse_factors_t *factors, sparse_factor_type_t type,
                                         idx_t n) {
     factors->type = type;
@@ -436,25 +482,31 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
 
     switch (analysis->type) {
     case SPARSE_FACTOR_CHOLESKY: {
-        /* Build the already-permuted working copy, then route through the
-         * normal one-shot Cholesky options entry with REORDER_NONE so the
-         * shared repeated-run path inherits the same linked-list/CSC backend
-         * dispatch and writeback behavior as the public one-shot surface. */
-        SparseMatrix *L = NULL;
-        sparse_err_t err = build_permuted_copy(A, analysis->perm, &L);
+        sparse_err_t err = SPARSE_OK;
+        if (n >= SPARSE_CSC_THRESHOLD) {
+            /* Avoid the extra `sparse_analyze(...)` hidden inside the CSC
+             * one-shot wrapper on larger repeated-run Cholesky problems. */
+            err = factor_cholesky_with_analysis_csc(A, analysis, &new_factors);
+        } else {
+            /* Keep the linked-list route unchanged for smaller problems. */
+            SparseMatrix *L = NULL;
+            err = build_permuted_copy(A, analysis->perm, &L);
+            if (err != SPARSE_OK)
+                return err;
+
+            sparse_cholesky_opts_t chol_opts = {
+                .reorder = SPARSE_REORDER_NONE,
+            };
+            err = sparse_cholesky_factor_opts(L, &chol_opts);
+            if (err != SPARSE_OK) {
+                sparse_free(L);
+                return err;
+            }
+
+            sparse_factors_take_matrix_factor(&new_factors, L);
+        }
         if (err != SPARSE_OK)
             return err;
-
-        sparse_cholesky_opts_t chol_opts = {
-            .reorder = SPARSE_REORDER_NONE,
-        };
-        err = sparse_cholesky_factor_opts(L, &chol_opts);
-        if (err != SPARSE_OK) {
-            sparse_free(L);
-            return err;
-        }
-
-        sparse_factors_take_matrix_factor(&new_factors, L);
         break;
     }
 

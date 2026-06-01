@@ -440,3 +440,99 @@ Sprint 52’s main problem is now concrete instead of generic:
 
 That is enough to start the Day 4 numeric-reuse integration batch without
 guessing at the real Phase 2 target.
+
+## Day 4 outcome
+
+Sprint 52 now has a real first shared-path deepening batch rather than only a
+Phase 2 audit:
+
+- the shared Cholesky path in `sparse_factor_numeric(...)` now reuses the
+  caller's `sparse_analysis_t` directly on CSC-sized matrices
+- the old hidden second `sparse_analyze(...)` inside the one-shot Cholesky CSC
+  wrapper is no longer on that repeated-run path
+- the linked-list Cholesky path stays unchanged for smaller matrices
+- LDL^T and LU remain explicitly deferred:
+  - LDL^T still has the harder BK/symmetric-permutation seam
+  - LU still remains the bounded family-specific seam
+
+### What changed
+
+The Day 4 code batch landed in:
+
+- `src/sparse_analysis.c`
+- `src/sparse_chol_csc_internal.h`
+- `src/sparse_cholesky.c`
+- `include/sparse_analysis.h`
+
+The key implementation move is narrow and deliberate:
+
+- add a shared-path Cholesky CSC helper in `src/sparse_analysis.c`
+- feed `chol_csc_from_sparse_with_analysis(...)` directly from the caller's
+  `analysis`
+- run `chol_csc_eliminate_supernodal(...)` with the same
+  `SPARSE_CSC_SUPERNODE_MIN_SIZE` cutoff used by the one-shot Cholesky surface
+- write the factor back into a fresh factor-owned `SparseMatrix`
+- keep the factors matrix in analysis coordinate space with `reorder_perm ==
+  NULL`, so `analysis->perm` remains the single published symmetric
+  permutation for the repeated-run direct path
+
+### What stayed intentionally unchanged
+
+Day 4 stayed inside the Sprint 52 scope fence:
+
+- no new public generic direct handle
+- no raw CSC/native storage exposure
+- no redesign of `sparse_factors_t`
+- no change to one-shot LU / Cholesky / LDL^T public posture
+- no overclaim that reuse preserves old numeric factor state
+- no attempt yet to deepen the LDL^T BK prepass path
+- no LU parameterization or wrapper redesign
+
+### Validation
+
+Because `*.c` / `*.h` changed, the full required gate was run:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Because this was a substantial shared direct-lifecycle batch, the stronger
+reviewed baseline was also run:
+
+- `make quality-review-full`
+
+That also passed.
+
+The maintained truthfulness anchors stayed exact:
+
+- reviewed CMake parity remained `53`
+- Makefile/CMake parity remained `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 354.23 sec`
+
+### Focused follow-ons
+
+The highest-value repeated-run direct follow-ons also stayed clean:
+
+- `./build/example_analysis`
+  - residuals remained `4.44e-16`
+- `./build/bench_refactor`
+  - analyze-once stayed ahead on the main repeated-run cases:
+    - `tridiag-200` = `1.46x`
+    - `bcsstk04` = `1.66x`
+    - `nos4` = `1.57x`
+
+### Day 4 conclusion
+
+Sprint 52 has now converted the Day 3 audit into one live repeated-run
+integration improvement:
+
+- Cholesky is no longer purely "analysis outside, one-shot symbolic work
+  inside" on the CSC repeated-run path
+- the repeated-run direct story remains analysis/factors-centric
+- the next bounded work should target either:
+  - deeper LDL^T integration
+  - refactor-path tightening
+  - both, if the next batch can keep LU excluded and the scope narrow

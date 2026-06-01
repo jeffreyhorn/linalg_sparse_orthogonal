@@ -1250,3 +1250,126 @@ Sprint 52 now has a more complete public-lifecycle regression floor:
 
 That keeps Day 12 focused on compatibility review rather than reopening the
 public repeated-run proof surface.
+
+## Day 12 outcome
+
+Sprint 52’s landed Phase 2 branch still matches the Sprint 50-51
+compatibility fence instead of only looking green in tests:
+
+- one-shot LU / Cholesky / LDL^T entries still read as first-class peer entry
+  points
+- repeated direct runs still read as analysis/factors-centric rather than as a
+  new generic direct-handle redesign
+- reuse/refactor semantics remain honestly bounded in both code and docs
+- benchmark and README/example claims still map to measured or explicitly
+  bounded behavior
+
+### What was audited
+
+The Day 12 compatibility audit rechecked the live touched surfaces after the
+Day 4-11 implementation and proof batches:
+
+- shared repeated-run direct contract:
+  - `include/sparse_analysis.h`
+  - `src/sparse_analysis.c`
+- family-local one-shot direct headers:
+  - `include/sparse_lu.h`
+  - `include/sparse_cholesky.h`
+  - `include/sparse_ldlt.h`
+- strongest public caller-facing adoption surfaces:
+  - `README.md`
+  - `examples/example_analysis.c`
+  - `examples/README.md`
+  - `benchmarks/README.md`
+- strongest public proof surface:
+  - `tests/test_integration.c`
+
+### Compatibility conclusions
+
+The live branch still matches the intended compatibility fence:
+
+- one-shot APIs remain first-class
+  - `include/sparse_lu.h` still presents LU as the simple/default copied-
+    matrix path
+  - `include/sparse_cholesky.h` still presents Cholesky as the one-shot SPD
+    path
+  - `include/sparse_ldlt.h` still preserves the family-local owned-factor
+    LDL^T surface
+  - `README.md` still calls the one-shot direct APIs first-class peer entry
+    points
+- repeated direct runs remain analysis/factors-centric
+  - `include/sparse_analysis.h` still centers:
+    - `sparse_analysis_t`
+    - `sparse_factors_t`
+    - analyze once
+    - factor / solve
+    - refactor / solve many
+  - `examples/example_analysis.c` and `README.md` teach the same lifecycle
+    shape rather than a competing one
+  - `benchmarks/README.md` still treats `bench_refactor*` as proof of the
+    same caller story, not a separate benchmark-only abstraction
+- reuse/refactor semantics remain bounded
+  - `include/sparse_analysis.h` still says reuse preserves
+    symbolic/permutation setup, not stale numeric factors
+  - `src/sparse_analysis.c` still enforces cheap dimension / original-matrix /
+    `nnz` boundary checks, not a full structural-pattern verifier
+  - `tests/test_integration.c` still proves:
+    - zeroed first-factorization support
+    - mismatch rejection
+    - old-factor preservation on failure
+    - solve-time analysis/factors mismatch rejection
+- benchmark and docs claims remain honest
+  - `benchmarks/README.md` now describes the measured outputs actually printed
+    by `bench_refactor` and `bench_refactor_csc`
+  - `README.md` uses bounded language such as measured speedups and cheap
+    gross-structure rejection rather than universal guarantees
+
+### Residual-risk classification
+
+No blocker-level residual drift surfaced before Day 13.
+
+The remaining residual risks are the expected bounded ones, not closeout
+defects:
+
+- LU is still the strongest intentionally family-local special-case seam
+- repeated-run structure validation is still cheap `nnz` drift rejection, not
+  a full sparsity-pattern verifier
+- benchmark evidence remains representative measured proof, not a promise that
+  every matrix family gets the same speedup
+
+### Day 13 pre-validation checklist
+
+The final validation checklist is now explicit from the landed state:
+
+- required full gate:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- truthfulness anchors:
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - Makefile/CMake parity check
+  - full reviewed CMake `ctest`
+- targeted Sprint 52 follow-ons:
+  - `./build/example_analysis`
+  - `./build/bench_refactor`
+  - `./build/bench_refactor_csc`
+  - `./build/test_integration`
+  - `./build/test_cholesky`
+  - `./build/test_ldlt`
+  - `./build/test_etree`
+  - `./build/test_chol_csc`
+  - `./build/test_ldlt_csc`
+
+### Day 12 conclusion
+
+Sprint 52’s live branch still reads like the intended bounded Phase 2 package:
+
+- stronger shared analysis/refactor integration
+- preserved first-class one-shot family entries
+- honestly bounded reuse/refactor semantics
+- caller-facing docs/examples aligned with the implementation
+- measured benchmark claims that still track the live binaries
+
+That leaves Day 13 with a clean validation task rather than a hidden
+compatibility repair queue.

@@ -194,3 +194,164 @@ Interpretation:
   direct-solver research
 - the correct Day 1 close is a clean implementation baseline and
   authoritative-input package
+
+## Day 2
+
+**Objective:** Reconfirm the maintained reviewed baseline and truthfulness
+anchors Sprint 51 must preserve, then define the smallest authoritative
+validation boundary for the later header/source integration days and the
+high-signal direct-solver rerun set those code-touch batches should use.
+
+### Commands Run
+
+1. Re-read the Sprint 51 Day 2 plan item and the current sprint notes:
+   - `sed -n '70,150p' docs/planning/EPIC_5/SPRINT_51/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_51/WORKING_NOTES.md`
+2. Reconfirm the maintained reviewed CMake truthfulness anchor:
+   - `ctest -N --test-dir build/quality-review-cmake`
+3. Reconfirm the maintained reviewed wrapper authority surface:
+   - `make -n quality-review-full`
+4. Re-read the live quality-contract wording sources:
+   - `rg -n "quality-review-full|quality-review-cmake|deadcode-check|strongest local reviewed baseline" README.md docs/maintainer_guide.md Makefile .github/workflows -g '!build'`
+5. Reconfirm the direct-solver example, benchmark, and regression binaries
+   most likely to matter once Sprint 51 `*.c` / `*.h` edits begin:
+   - `rg -n "example_analysis|bench_refactor|bench_refactor_csc|test_cholesky|test_ldlt|test_etree|test_chol_csc|test_ldlt_csc" Makefile CMakeLists.txt tests benchmarks examples`
+
+### Day 2 Findings
+
+#### 1. The strongest local reviewed baseline remains exact and should stay visible on all substantial Sprint 51 public API batches
+
+The maintained wrapper surface still says exactly:
+
+- `quality-review-full: strongest local reviewed baseline`
+- `quality-review-full: rerun failing phases directly with 'make quality-review' or 'make quality-review-cmake'`
+
+The README and maintainer guide remain aligned with that same language:
+
+- `README.md` still calls `make quality-review-full` the strongest local
+  reviewed baseline
+- `docs/maintainer_guide.md` still treats that phrasing as the authoritative
+  maintainer close state
+
+Interpretation:
+
+- Sprint 51 should preserve the exact “strongest local reviewed baseline”
+  wording
+- public direct-lifecycle batches should not introduce narrower or looser
+  baseline language
+
+#### 2. The reviewed CMake parity anchor remains exact and is still the main truthfulness backstop for the phase-1 direct lifecycle landing
+
+The maintained reviewed CMake path still resolves to:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+And that suite still includes the strongest direct-solver structural and family
+tests Sprint 51 is likely to rely on:
+
+- `test_cholesky`
+- `test_ldlt`
+- `test_etree`
+- `test_chol_csc`
+- `test_ldlt_csc`
+
+Interpretation:
+
+- Sprint 51 should continue to treat the exact `53` count as a truthfulness
+  anchor rather than an approximate expectation
+- the direct-lifecycle landing must preserve both the count and the
+  Makefile/CMake parity contract
+
+#### 3. The quality contract remains layered, and Day 2 fixes the authority split Sprint 51 should use
+
+The live repo still divides authority cleanly:
+
+- `make quality-review-full`:
+  - strongest local reviewed baseline
+- `make quality-review`:
+  - reviewed Makefile local path
+  - `format-check + lint + test + deadcode-check`
+- `make quality-review-cmake`:
+  - reviewed CMake parity path with full suite execution
+- `make deadcode-check`:
+  - report-completeness gate, not a zero-findings or removal-ready gate
+
+Interpretation:
+
+- Sprint 51 should use this same split rather than inventing a sprint-local
+  quality contract
+- direct public lifecycle code days should distinguish between the mandatory
+  gate and the stronger reviewed baseline rerun clearly
+
+#### 4. The later Sprint 51 code-day validation boundary is now explicit before any header/source landing begins
+
+For any later Sprint 51 `*.c` / `*.h` batch, the mandatory gate remains:
+
+- `make format`
+- `make lint`
+- `make test`
+
+For substantial public API batches, the stronger default remains:
+
+- `make quality-review-full`
+
+Interpretation:
+
+- Day 2 fixes the exact code-day validation boundary before Day 3’s header map
+  and Day 4’s implementation landing
+- Sprint 51 should not blur docs-only notes with code-touch validation claims
+
+#### 5. The high-signal touched-surface rerun list is already clear enough to freeze before code changes begin
+
+The most relevant later direct-lifecycle follow-ons remain:
+
+- examples:
+  - `./build/example_analysis`
+- benchmarks:
+  - `./build/bench_refactor`
+  - `./build/bench_refactor_csc`
+- regression tests:
+  - `./build/test_cholesky`
+  - `./build/test_ldlt`
+  - `./build/test_etree`
+  - `./build/test_chol_csc`
+  - `./build/test_ldlt_csc`
+
+Interpretation:
+
+- Sprint 51 already knows the highest-signal rerun set before header/source
+  edits land
+- the touched-surface story is centered on the explicit repeated-run direct
+  example, the direct refactor benchmarks, and the strongest family/structural
+  regression binaries
+
+#### 6. The current docs already expose one concrete adoption-adjacent drift Sprint 51 may naturally fix later, but it should not distort the validation plan
+
+The live benchmark README still says:
+
+- `bench_refactor` = “LDL^T re-factor with cached symbolic”
+
+while the live driver is still a Cholesky analyze-once / factor-many benchmark.
+
+Interpretation:
+
+- this is a real later docs drift
+- but the existence of that drift should not change the authoritative
+  validation boundary for the actual public API landing days
+
+#### 7. Day 2 leaves Sprint 51 with a clean operational starting point for Day 3
+
+By the end of Day 2, Sprint 51 now has:
+
+- exact baseline wording
+- exact reviewed CMake truthfulness count
+- fixed mandatory code-day gate
+- fixed stronger reviewed default for substantial public API batches
+- fixed high-signal direct rerun set
+
+Interpretation:
+
+- Day 3 can now focus on the header implementation map instead of re-arguing
+  the quality contract
+- the remaining Sprint 51 work is concrete header/source integration planning
+  and implementation, not validation-policy discovery

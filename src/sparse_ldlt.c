@@ -967,7 +967,15 @@ static sparse_err_t ldlt_factor_csc_path(const SparseMatrix *A_work, double tol,
 /* ─── Public factor API (delegates to internal with default tol) ────── */
 
 sparse_err_t sparse_ldlt_factor(const SparseMatrix *A, sparse_ldlt_t *ldlt) {
-    return ldlt_factor_internal(A, ldlt, 0.0, NULL, NULL);
+    const sparse_ldlt_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_AUTO,
+        .used_csc_path = NULL,
+        .progress_cb = NULL,
+        .progress_user = NULL,
+    };
+    return sparse_ldlt_factor_opts(A, &opts, ldlt);
 }
 
 /* ─── Factor with options (reordering + tolerance) ────────────────── */

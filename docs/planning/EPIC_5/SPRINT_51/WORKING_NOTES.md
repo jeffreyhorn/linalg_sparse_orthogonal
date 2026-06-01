@@ -1323,3 +1323,186 @@ Interpretation:
   direct surfaces
 - Sprint 51 now has bounded lifecycle routing in place across LU, Cholesky,
   and LDL^T on a green validation baseline
+
+# Day 8 - Wrapper Preservation Batch
+
+Date: 2026-06-01
+
+## Goal
+
+Preserve the one-shot direct entry points while routing the safe default
+wrappers through the Phase-1 lifecycle-aware options seams where appropriate,
+without reopening the broader Sprint 50 non-goal fence.
+
+## Files touched
+
+- `src/sparse_cholesky.c`
+- `src/sparse_ldlt.c`
+- `tests/test_integration.c`
+
+## What changed
+
+### 1. The default one-shot Cholesky wrapper now delegates through the options seam
+
+`sparse_cholesky_factor(...)` no longer calls the linked-list inner routine
+directly.
+
+It now builds the bounded default option set:
+
+- `.reorder = SPARSE_REORDER_NONE`
+- `.backend = SPARSE_CHOL_BACKEND_AUTO`
+- no telemetry output
+- no progress callback
+
+and delegates to `sparse_cholesky_factor_opts(...)`.
+
+Interpretation:
+
+- the simple/default Cholesky wrapper now inherits the same linked-list vs CSC
+  backend dispatch and validation behavior as the explicit options surface
+- the one-shot caller contract stays intact
+
+### 2. The default one-shot LDL^T wrapper now delegates through the options seam
+
+`sparse_ldlt_factor(...)` no longer calls the linked-list internal factor
+routine directly.
+
+It now builds the bounded default option set:
+
+- `.reorder = SPARSE_REORDER_NONE`
+- `.tol = 0.0`
+- `.backend = SPARSE_LDLT_BACKEND_AUTO`
+- no telemetry output
+- no progress callback
+
+and delegates to `sparse_ldlt_factor_opts(...)`.
+
+Interpretation:
+
+- the simple/default LDL^T wrapper now inherits the same linked-list vs CSC
+  backend dispatch behavior as the explicit options surface
+- the family-local owned-factor contract remains unchanged for callers
+
+### 3. LU intentionally stayed on the family-local one-shot entry path
+
+The first Day 8 attempt also routed `sparse_lu_factor(...)` through
+`sparse_lu_factor_opts(...)`.
+
+That surfaced a real recursion seam:
+
+- `sparse_lu_factor_opts(...)`
+- bounded shared-lifecycle route
+- `sparse_factor_numeric(..., SPARSE_FACTOR_LU)`
+- `sparse_lu_factor(...)`
+
+So the LU wrapper change was explicitly backed out in the final Day 8 landing.
+
+Interpretation:
+
+- Day 8 still preserved the simple/default LU wrapper contract
+- the bounded Phase-1 result is now clearer:
+  - Cholesky and LDL^T default wrappers safely reuse their options seams
+  - LU still needs a later dedicated routing refactor before its one-shot
+    wrapper can safely delegate the same way
+- this stays inside the Sprint 50 scope fence because it avoids inventing a
+  new generic direct-handle layer or broad LU redesign
+
+### 4. Focused wrapper-parity regression coverage now exists for Cholesky and LDL^T
+
+The integration suite gained two direct public-surface regressions:
+
+- `test_cholesky_default_wrapper_matches_default_opts`
+- `test_ldlt_default_wrapper_matches_default_opts`
+
+Each compares:
+
+- the simple/default one-shot wrapper
+- the explicit default options form
+
+on the same tridiagonal SPD case and checks that the solved outputs are
+bit-identical.
+
+Interpretation:
+
+- future drift between the wrapper and default options entry for Cholesky or
+  LDL^T now fails visibly
+- LU already kept its existing default-wrapper parity check from earlier in
+  Sprint 51, so Day 8 did not need a third new wrapper test there
+
+### 5. The batch stayed inside the Sprint 50/51 compatibility fence
+
+Day 8 did not:
+
+- expose raw internal CSC/native storage layout
+- introduce a new generic direct handle
+- demote/remove one-shot direct APIs
+- claim that reuse preserves old numeric factor state
+- reopen broad docs/example conversion before the routing seam stabilized
+
+Interpretation:
+
+- this is a bounded wrapper-preservation batch, not a direct-solver redesign
+- Sprint 51 can continue from a clearer "where appropriate" wrapper-routing
+  rule instead of an over-broadened all-families rewrite
+
+## Validation
+
+### Required code-day gate
+
+The required gate passed:
+
+- `make format`
+- `make lint`
+- `make test`
+
+### Stronger reviewed baseline
+
+The stronger reviewed baseline also passed:
+
+- `make quality-review-full`
+
+Maintained truthfulness anchors stayed exact:
+
+- reviewed CMake parity remained `53`
+- Makefile/CMake parity remained `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 427.72 sec`
+
+### Targeted direct-lifecycle follow-ons
+
+The targeted follow-ons that completed cleanly were:
+
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc`
+- `./build/test_cholesky`
+- `./build/test_ldlt`
+- `./build/test_etree`
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+
+Representative direct results:
+
+- `example_analysis` kept solve residuals at `4.44e-16`
+- `bench_refactor` remained behavior-stable, including:
+  - `tridiag-50`: `speedup=1.14x`
+  - `bcsstk04`: `speedup=1.02x`
+- `bench_refactor_csc` preserved the larger CSC refactor wins:
+  - `bcsstk04`: `speedup_refactor=5.78`
+  - `bcsstk14`: `speedup_refactor=5.48`
+  - `s3rmt3m3`: `speedup_refactor=7.97`
+  - `Kuu`: `speedup_refactor=6.96`
+  - `Pres_Poisson`: `speedup_refactor=12.14`
+- all touched direct structural regression binaries stayed green
+
+## Day 8 outcome
+
+Sprint 51 Day 8 closed the wrapper-preservation seam in the bounded safe
+places:
+
+- Cholesky default one-shot entry now reuses the normal options seam
+- LDL^T default one-shot entry now reuses the normal options seam
+- LU deliberately remains on the family-local one-shot path until a later
+  dedicated routing refactor removes the recursion seam
+- direct regression coverage now proves wrapper-vs-default-options parity for
+  Cholesky and LDL^T

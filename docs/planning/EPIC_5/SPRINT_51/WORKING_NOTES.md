@@ -355,3 +355,195 @@ Interpretation:
   the quality contract
 - the remaining Sprint 51 work is concrete header/source integration planning
   and implementation, not validation-policy discovery
+
+## Day 3
+
+**Objective:** Turn the Sprint 50 direct-lifecycle contract and the Sprint 51
+validation fence into a concrete public-header edit map across
+`sparse_analysis.h`, `sparse_lu.h`, `sparse_cholesky.h`, and
+`sparse_ldlt.h`, while fixing the boundary between shared repeated-run
+vocabulary and family-local one-shot wording before Day 4 header edits begin.
+
+### Commands Run
+
+1. Re-read the Sprint 51 Day 3 plan item and the current sprint notes:
+   - `sed -n '1,220p' docs/planning/EPIC_5/SPRINT_51/PLAN.md`
+   - `sed -n '1,420p' docs/planning/EPIC_5/SPRINT_51/WORKING_NOTES.md`
+2. Reconfirm the direct repeated-run public anchor and the family-local direct
+   headers:
+   - `rg -n "sparse_analysis_t|sparse_factors_t|sparse_analyze\\(|sparse_factor_numeric\\(|sparse_refactor_numeric\\(|sparse_factor_solve\\(|sparse_solve_.*lu|sparse_solve_.*chol|sparse_ldlt" include/sparse_analysis.h include/sparse_lu.h include/sparse_cholesky.h include/sparse_ldlt.h`
+3. Re-read the live header contracts in full:
+   - `sed -n '1,260p' include/sparse_analysis.h`
+   - `sed -n '1,260p' include/sparse_lu.h`
+   - `sed -n '1,240p' include/sparse_cholesky.h`
+   - `sed -n '1,260p' include/sparse_ldlt.h`
+
+### Day 3 Findings
+
+#### 1. `sparse_analysis.h` is already the shared repeated-run direct anchor, so Day 4 should extend clarity there rather than invent new public vocabulary elsewhere
+
+The live header already carries the strongest repeated-run direct workflow:
+
+- zeroed `sparse_analysis_t`
+- zeroed `sparse_factors_t`
+- `sparse_analyze(...)`
+- `sparse_factor_numeric(...)`
+- `sparse_factor_solve(...)`
+- `sparse_refactor_numeric(...)`
+- explicit `sparse_factor_free(...)`
+- explicit `sparse_analysis_free(...)`
+
+And the header-level prose already says:
+
+- symbolic analysis is reusable for multiple numeric factorizations
+- the analysis object does not own or retain the source matrix
+- refactor requires the same sparsity pattern
+
+Interpretation:
+
+- Day 4 should keep `sparse_analysis.h` as the shared repeated-run vocabulary
+  home
+- Sprint 51 should not scatter equivalent repeated-run lifecycle wording across
+  all direct family headers as though each family needs its own generic handle
+  model
+
+#### 2. `sparse_lu.h` is still strongly one-shot-first, and that is the correct compatibility posture to preserve
+
+The live LU header still centers:
+
+- in-place factorization of a copied matrix
+- `sparse_lu_factor(...)`
+- `sparse_lu_factor_opts(...)`
+- `sparse_lu_solve(...)`
+- iterative refinement / condition-estimation helpers
+- explicit “use `sparse_copy()` first to preserve the original” guidance
+
+What it does not yet do clearly enough for the Sprint 51 phase-1 story:
+
+- point callers to the existing analyze/factor/refactor repeated-run path when
+  the matrix pattern is stable across many solves
+- distinguish the one-shot convenience path from the repeated-run lifecycle
+  path without demoting the one-shot API
+
+Interpretation:
+
+- Day 4 LU header edits should stay additive and explanatory
+- the LU header should remain family-local and one-shot-first, but it should
+  acknowledge the shared repeated-run direct path in `sparse_analysis.h`
+
+#### 3. `sparse_cholesky.h` has the same one-shot-first shape as LU, but its wording should stay even more explicit about matrix mutation
+
+The live Cholesky header still centers:
+
+- in-place SPD factorization
+- overwrite of the lower triangle with `L`
+- removal of upper-triangle entries
+- reordered one-shot factorization via `sparse_cholesky_factor_opts(...)`
+- one-shot solve via `sparse_cholesky_solve(...)`
+
+Its compatibility-sensitive truths are already explicit:
+
+- caller should copy the matrix first if the original is needed later
+- one-shot factorization mutates the matrix structure and values
+- the factorization path is still the simple/default path for one-off SPD
+  solves
+
+Interpretation:
+
+- Day 4 Cholesky header edits should preserve this visible mutable-matrix truth
+- any cross-reference to the repeated-run path must not obscure that the
+  one-shot Cholesky surface remains intentionally simple and compatibility-first
+
+#### 4. `sparse_ldlt.h` already exposes an owned factor object, so its Sprint 51 header work is mainly relationship wording rather than lifecycle invention
+
+The live LDL^T header already has:
+
+- explicit owned factor state in `sparse_ldlt_t`
+- explicit free discipline via `sparse_ldlt_free(...)`
+- one-shot factor / solve separation
+- family-local options / backend / telemetry discussion
+
+But relative to the Sprint 50 repeated-run direct contract, the LDL^T header
+still leaves one relationship under-centered:
+
+- how the family-local `sparse_ldlt_t` surface relates to the shared
+  `sparse_analysis_t` / `sparse_factors_t` repeated-run path
+
+Interpretation:
+
+- Sprint 51 should not try to replace the existing `sparse_ldlt_t` public shape
+- the useful header work is to clarify that the analysis/factor/refactor path is
+  the shared repeated-run direct story, while `sparse_ldlt_t` remains the
+  family-local one-shot / owned-factor surface
+
+#### 5. The shared-vs-family-local vocabulary split is now explicit enough to guide Day 4 edits
+
+Shared repeated-run wording should stay centered in `sparse_analysis.h`:
+
+- analyze once
+- factor / solve
+- refactor / solve many
+- same-pattern reuse
+- analysis owns symbolic/permutation setup
+- factors own numeric factor state
+- neither object owns the source matrix
+- explicit free on zeroed/init state
+
+Family-local wording should stay with the direct family headers:
+
+- matrix mutation and copy-before-factor guidance for LU / Cholesky
+- backend / telemetry and pivoting details
+- family-specific factor object semantics (`sparse_ldlt_t`)
+- one-shot convenience path as the simple/default story
+- refinement / condest / inertia helpers
+
+Interpretation:
+
+- Day 4 should update shared lifecycle truth once in `sparse_analysis.h`
+- Day 4 should use cross-references plus short family-local wording in the
+  LU / Cholesky / LDL^T headers rather than copy the whole repeated-run story
+
+#### 6. The true phase-1 header batch is now small enough to name directly
+
+The first real header batch should be limited to:
+
+- `include/sparse_analysis.h`
+  - sharpen the shared repeated-run contract wording
+  - keep zero/init, analyze, factor, solve, refactor, and free semantics
+    explicit
+- `include/sparse_lu.h`
+  - add a bounded cross-reference to the shared repeated-run direct path
+  - preserve the one-shot and copied-matrix guidance
+- `include/sparse_cholesky.h`
+  - add a bounded cross-reference to the shared repeated-run direct path
+  - preserve the one-shot SPD and in-place-mutation guidance
+- `include/sparse_ldlt.h`
+  - add a bounded relationship note between the owned LDL^T factor object and
+    the shared analysis/factor/refactor path
+
+Later documentation-only follow-ons should stay out of Day 4:
+
+- README repeated-run direct wording
+- `examples/README.md`
+- `benchmarks/README.md`
+- tutorial updates
+
+Interpretation:
+
+- the header phase is now reduced to named additive edits instead of a broad
+  “touch all direct docs” instruction
+- Sprint 51 can begin header changes without reopening wider documentation scope
+
+#### 7. Day 3 leaves Sprint 51 ready for the first public header/API landing
+
+By the end of Day 3, Sprint 51 now has:
+
+- a concrete shared repeated-run header anchor
+- explicit family-local one-shot wording boundaries
+- a small named first header batch
+- a clear “later docs-only” exclusion set
+
+Interpretation:
+
+- Day 4 can proceed directly to header edits plus required validation
+- the remaining uncertainty is implementation detail, not public-contract shape

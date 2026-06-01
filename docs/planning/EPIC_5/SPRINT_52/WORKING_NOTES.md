@@ -1461,3 +1461,121 @@ The final measured close state matches the intended Sprint 52 package:
 
 No new reconciliation queue surfaced during validation. That leaves Day 14 as
 true closeout and handoff work, not post-validation repair.
+
+## Day 14 outcome
+
+Sprint 52 now closes from the Day 13 validated baseline with one coherent
+Phase 2 direct-lifecycle package instead of only a sequence of bounded
+implementation and audit batches.
+
+### Sprint 52 delivered package
+
+Sprint 52 leaves behind one coherent Phase 2 package:
+
+- stronger shared analysis/factor integration on the highest-value repeated-run
+  paths:
+  - shared Cholesky CSC path now reuses the caller's `sparse_analysis_t`
+    directly on larger repeated-run problems
+  - shared LDL^T CSC path now reuses the caller's `sparse_analysis_t`
+    directly when the scalar pivot pre-pass does not introduce extra swaps
+- tighter shared refactor boundary:
+  - zero-init first-factorization support preserved
+  - family/dimension/payload mismatch rejection made more explicit
+  - cheap gross-structure drift rejection added via analyzed `nnz` tracking
+- refreshed factor-many benchmark proof:
+  - `bench_refactor` now measures real same-pattern value changes
+  - `bench_refactor_csc` still proves the heavier CSC repeated-run path
+- aligned high-signal caller-facing adoption:
+  - `README.md`
+  - `examples/example_analysis.c`
+- expanded public repeated-run regression proof in:
+  - `tests/test_integration.c`
+
+### Preserved compatibility fence
+
+Sprint 52 closes with the Sprint 50-51 compatibility rules still intact:
+
+- one-shot LU / Cholesky / LDL^T APIs remain first-class peer entry points
+- repeated direct runs remain analysis/factors-centric around:
+  - `sparse_analysis_t`
+  - `sparse_factors_t`
+  - `sparse_analyze(...)`
+  - `sparse_factor_numeric(...)`
+  - `sparse_factor_solve(...)`
+  - `sparse_refactor_numeric(...)`
+- reuse preserves symbolic/permutation setup, not stale numeric factor
+  contents
+- repeated-run structure validation remains a cheap boundary check, not a full
+  structural-pattern verifier
+- LU remains the strongest intentionally family-local special-case seam
+- no raw CSC/native storage layout was exposed
+- no generic direct-handle redesign was introduced
+
+### Validation close state
+
+Sprint 52 closes from the Day 13 validated baseline:
+
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+- `make quality-review-full` passed
+
+Maintained truthfulness anchors:
+
+- reviewed CMake parity = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 200.43 sec`
+
+Representative measured Sprint 52 follow-on results:
+
+- `example_analysis` residual remained `4.44e-16`
+- `bench_refactor` kept the repeated-run direct path ahead:
+  - `tridiag-200 4.81x`
+  - `tridiag-500 5.28x`
+  - `bcsstk04 2.45x`
+  - `nos4 2.72x`
+- `bench_refactor_csc nos4` kept the CSC repeated-run path ahead:
+  - `speedup_refactor = 1.52x`
+  - `res_ll = 8.24e-16`
+  - `res_csc = 7.06e-16`
+
+### Handoff to Sprint 53
+
+Sprint 53 no longer needs to prove that the shared public direct lifecycle is
+real or validated for the main Phase 2 paths.
+
+The next queue can therefore stay bounded to real post-Sprint-52 work such as:
+
+- later direct-solver lifecycle depth beyond the Sprint 52 fence
+- stronger or broader same-pattern structure validation if a later sprint
+  chooses to pay that cost
+- any later LU-specific follow-on that should remain family-local rather than
+  reopening the shared direct contract
+- future caller-surface or benchmark expansion that builds on the now-validated
+  Phase 2 package
+
+### Project-plan impact
+
+Sprint 52 does not require a `PROJECT_PLAN.md` update.
+
+Reason:
+
+- the sprint closed from the planned Day 13 validation baseline
+- the delivered package still matches the Epic 5 Sprint 52 intent
+- no blocker or replanning queue surfaced during closeout
+
+### Day 14 conclusion
+
+Sprint 52 is complete. It hands off a validated Phase 2 direct-solver
+lifecycle package with:
+
+- stronger shared analysis/refactor integration
+- preserved first-class one-shot family entries
+- honestly bounded reuse/refactor semantics
+- measured factor-many benchmark proof
+- aligned high-signal docs/example surfaces
+- stable reviewed-baseline truthfulness anchors
+
+The next queue is now bounded to real follow-on work instead of unresolved
+Phase 2 closeout defects.

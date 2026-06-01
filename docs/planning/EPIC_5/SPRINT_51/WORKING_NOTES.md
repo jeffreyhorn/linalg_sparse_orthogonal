@@ -2130,3 +2130,128 @@ well as the compiler/test record:
 - refactor reuse semantics remain correctly bounded
 - the strongest example/benchmark adoption surfaces are aligned
 - no residual blocker remains before Day 13 validation
+
+# Day 13 - Full validation sweep
+
+Date: 2026-06-01
+
+## Goal
+
+Run the full Sprint 51 validation closeout from the landed Day 12 state and
+record the exact truthfulness anchors for Day 14 handoff.
+
+## Commands run
+
+Full gate:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Truthfulness anchor recheck:
+
+- `ctest -N --test-dir build/quality-review-cmake`
+
+Sprint 51 targeted follow-ons:
+
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc`
+- `./build/test_cholesky`
+- `./build/test_ldlt`
+- `./build/test_etree`
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+
+## Results
+
+### 1. Full gate passed
+
+All required Day 13 validation gates passed cleanly:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+This keeps Sprint 51 on the normal code-day validation contract and confirms
+that the Day 4-10 public direct-lifecycle landing did not regress the broader
+repository baseline.
+
+### 2. Reviewed baseline anchors stayed exact
+
+The strongest reviewed local baseline remains:
+
+- `make quality-review-full`
+
+The reviewed CMake parity/truthfulness anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 500.45 sec`
+
+Interpretation:
+
+- Sprint 51 did not accidentally perturb the maintained reviewed parity record
+- the direct-lifecycle work still closes from the same validated count anchor
+  carried forward through late Epic 4 and Sprint 50
+
+### 3. Direct-lifecycle follow-ons all passed
+
+All targeted Sprint 51 follow-ons passed:
+
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc`
+- `./build/test_cholesky`
+- `./build/test_ldlt`
+- `./build/test_etree`
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+
+Representative direct results:
+
+- `example_analysis`
+  - initial solve residual: `4.44e-16`
+  - refactor loop still closed with `4.44e-16` residual on the sampled
+    iterations
+- `bench_refactor`
+  - `tridiag-200`: `1.01x`
+  - `tridiag-500`: `1.04x`
+  - `bcsstk04`: `1.04x`
+  - `nos4`: `0.76x`
+- `bench_refactor_csc`
+  - `nos4`: `2.34x`
+  - `bcsstk04`: `2.81x`
+  - `bcsstk14`: `5.36x`
+  - `s3rmt3m3`: `7.87x`
+  - `Kuu`: `6.33x`
+  - `Pres_Poisson`: `12.14x`
+- direct family tests stayed green:
+  - `test_cholesky`: `21 / 21`
+  - `test_ldlt`: `83 / 83`
+  - `test_etree`: `97 / 97`
+  - `test_chol_csc`: `137 / 137`
+  - `test_ldlt_csc`: `95 / 95`
+
+Interpretation:
+
+- the new shared public direct-lifecycle path still agrees with the older
+  one-shot family stories on correctness
+- the repeated-run direct performance story remains credible on the intended
+  heavier CSC-oriented path
+
+## Day 13 outcome
+
+Sprint 51 validation is complete:
+
+- required full gate passed
+- strongest reviewed baseline passed
+- reviewed CMake parity stayed exact at `53`
+- full reviewed CMake test run stayed green at `53 / 53`
+- targeted direct-lifecycle follow-ons all passed
+
+No new reconciliation queue surfaced during the validation sweep. Sprint 51 is
+ready for Day 14 closeout and handoff.

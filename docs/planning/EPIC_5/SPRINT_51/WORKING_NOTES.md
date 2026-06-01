@@ -1506,3 +1506,177 @@ places:
   dedicated routing refactor removes the recursion seam
 - direct regression coverage now proves wrapper-vs-default-options parity for
   Cholesky and LDL^T
+
+# Day 9 - Focused Regression Expansion Design & Inventory
+
+Date: 2026-06-01
+
+## Goal
+
+Re-audit the live direct-solver lifecycle regression and adoption surfaces
+after the Day 4-8 implementation work so Day 10 only lands the smallest
+remaining high-signal additions.
+
+## Surfaces reviewed
+
+Primary regression and lifecycle surfaces:
+
+- `tests/test_integration.c`
+- `tests/test_etree.c`
+- `tests/test_cholesky.c`
+- `tests/test_ldlt.c`
+- `tests/test_chol_csc.c`
+- `tests/test_ldlt_csc.c`
+
+Strongest adoption / caller-story surfaces:
+
+- `examples/example_analysis.c`
+- `examples/README.md`
+- `benchmarks/bench_refactor.c`
+- `benchmarks/bench_refactor_csc.c`
+- `benchmarks/README.md`
+
+## Findings
+
+### 1. The current direct lifecycle regression surface is already deeper than the original Day 9 placeholder assumed
+
+The live tree already has substantial direct lifecycle coverage spread across
+two main surfaces:
+
+- `tests/test_etree.c`
+  - `sparse_analyze(...)`
+  - `sparse_factor_numeric(...)`
+  - `sparse_factor_solve(...)`
+  - `sparse_refactor_numeric(...)`
+  - family-specific compatibility checks for Cholesky, LU, and LDL^T
+- `tests/test_integration.c`
+  - default-wrapper parity for LU
+  - Day 8 default-wrapper parity for Cholesky and LDL^T
+  - explicit analysis-path parity for LU / Cholesky / LDL^T
+
+Interpretation:
+
+- the public lifecycle path is no longer under-tested in a generic sense
+- Day 10 should not broaden into a large new test campaign just because the
+  original sprint plan reserved room for regression work
+
+### 2. The strongest remaining direct-test gap is sequencing/ownership truth, not raw solve parity
+
+The live tests now cover:
+
+- one-shot vs explicit-analysis parity
+- wrapper vs default-options parity for the safe wrapped families
+- analyze/refactor solve loops
+- null / shape / some invalid-state rejection
+
+The main remaining phase-1 test gap is narrower:
+
+- making the public lifecycle ownership/sequence rules more directly visible in
+  small focused tests instead of only through larger `test_etree.c` end-to-end
+  coverage
+
+Likely highest-value Day 10 targets:
+
+- small focused sequencing coverage around:
+  - zero-init `sparse_analysis_t`
+  - zero-init `sparse_factors_t`
+  - analyze → factor → solve → refactor → solve flow
+- direct invalid-sequence rejection where already supported by the public
+  contract, without inventing new behavior requirements
+
+Interpretation:
+
+- the next test batch should add clarity, not bulk
+- broad family-by-family parity expansion is no longer the best use of the day
+
+### 3. LU is no longer a wrapper-routing target for Day 10
+
+Day 8 confirmed a real recursion seam if the default LU wrapper is pushed
+through the options/lifecycle route today:
+
+- `sparse_lu_factor_opts(...)`
+- shared lifecycle route
+- `sparse_factor_numeric(..., SPARSE_FACTOR_LU)`
+- `sparse_lu_factor(...)`
+
+Interpretation:
+
+- Day 10 must not try to “finish” LU wrapper routing under the banner of test
+  completion
+- LU’s remaining work is a later routing refactor problem, not a missing
+  Sprint 51 regression-addition problem
+
+### 4. The strongest adoption surfaces are already identified and still narrow
+
+The strongest repeated-run direct example remains:
+
+- `examples/example_analysis.c`
+
+The strongest benchmark adoption surfaces remain:
+
+- `benchmarks/bench_refactor.c`
+- `benchmarks/bench_refactor_csc.c`
+
+Those are still the right next caller-story surfaces because they already sit
+closest to:
+
+- analyze-once / factor-many
+- refactor-many
+- direct timing and residual reporting
+
+Interpretation:
+
+- Sprint 51 should continue to center the repeated-run direct story where the
+  repo already has natural ownership
+- the smaller one-shot examples and the tutorial can remain out of scope
+
+### 5. The two carried-forward docs drifts are still the most concrete adoption-side fixes
+
+The carried-forward documentation drift from Sprint 50 remains live:
+
+- `benchmarks/README.md`
+  - still labels `bench_refactor` as LDL^T re-factor with cached symbolic
+  - the live driver is the Cholesky analyze-once / factor-many benchmark
+- `examples/README.md`
+  - still omits `example_analysis`
+
+Interpretation:
+
+- Day 11 can fix these naturally if it touches the surrounding adoption files
+- they do not justify an earlier standalone docs batch
+
+## Day 10 boundary
+
+### Mandatory targets
+
+- small focused lifecycle sequencing/ownership regressions
+- no new broad family-by-family parity matrix
+
+### Likely best landing surface
+
+- `tests/test_integration.c`
+
+Rationale:
+
+- it already hosts the small public-surface parity checks added in Sprint 51
+- it is a better fit for bounded lifecycle-sequencing tests than expanding the
+  already-large `tests/test_etree.c` sweep further without need
+
+### Explicit non-goals
+
+- no new LU wrapper-routing attempt
+- no broad rework of `tests/test_etree.c`
+- no benchmark/example adoption yet
+- no tutorial churn
+
+## Day 9 outcome
+
+Sprint 51’s remaining queue is now smaller than the original plan placeholder
+implied:
+
+- the lifecycle core is already well-covered across `test_etree.c` and
+  `test_integration.c`
+- the strongest remaining Day 10 work is small public-surface
+  sequencing/ownership coverage
+- the strongest later Day 11 work remains `example_analysis`,
+  `bench_refactor*`, and the two carried-forward README drifts

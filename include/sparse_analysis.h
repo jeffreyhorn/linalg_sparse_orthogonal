@@ -337,7 +337,8 @@ void sparse_factor_free(sparse_factors_t *factors);
  * from the new values and are not incrementally updated.
  *
  * @pre A_new must be structurally compatible with the analyzed matrix.
- * @pre factors must be zeroed or contain a valid existing factorization.
+ * @pre factors must be zeroed or contain a valid existing factorization
+ *      produced for the same factor family and dimension as @p analysis.
  *
  * @param A_new     The new matrix to factor (not modified). Must have
  *                  dimensions compatible with the original analysis.
@@ -349,6 +350,8 @@ void sparse_factor_free(sparse_factors_t *factors);
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
  * @return SPARSE_ERR_SHAPE if matrix dimensions don't match.
+ * @return SPARSE_ERR_BADARG if a non-zeroed @p factors object does not
+ *         match @p analysis or does not contain a valid factor payload.
  * @return SPARSE_ERR_NOT_SPD if A_new is not symmetric (Cholesky/LDL^T)
  *         or not positive-definite (Cholesky).
  * @return SPARSE_ERR_SINGULAR if a zero pivot is encountered.

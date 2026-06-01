@@ -647,3 +647,101 @@ Sprint 52 now has two live repeated-run direct deepening batches in code:
   - tightening `sparse_refactor_numeric(...)`
   - additional factor-many proof surfaces
   - keeping LU as the intentionally bounded special-case seam
+
+## Day 6 outcome
+
+Sprint 52 now has a first real refactor-path tightening batch rather than only
+deeper factor-many routing:
+
+- `sparse_refactor_numeric(...)` is no longer just a second spelling of
+  `sparse_factor_numeric(...)`
+- the Sprint 51 zero-init first-factorization path is still preserved
+- non-zeroed factor objects now have to match the analysis family and
+  dimension, and they must carry the expected family-specific payload
+- failed refactor attempts still preserve the last good factorization
+
+### What changed
+
+The Day 6 code batch landed in:
+
+- `src/sparse_analysis.c`
+- `include/sparse_analysis.h`
+- `tests/test_integration.c`
+
+The key implementation move is narrow and deliberate:
+
+- add a shared validator in `src/sparse_analysis.c` for the incoming
+  `sparse_factors_t` object used by `sparse_refactor_numeric(...)`
+- keep accepting the all-zero initial state so the public repeated-run path
+  still supports "analyze once, first factor via refactor"
+- require existing factors to match the analysis family and dimension before
+  attempting a replacement numeric factorization
+- require LDL^T factors to carry their `D`, `D_offdiag`, `pivot_size`, and
+  `ldlt_perm` payload, while non-LDL^T factors must not carry those LDL^T-only
+  fields
+- continue factoring into a temporary object first, so old factors survive any
+  later refactor failure unchanged
+
+### What stayed intentionally unchanged
+
+Day 6 stayed inside the Sprint 52 scope fence:
+
+- no public API redesign
+- no new direct-handle abstraction
+- no raw CSC/native storage exposure
+- no change to one-shot LU / Cholesky / LDL^T public posture
+- no incremental numeric-update claim for `sparse_refactor_numeric(...)`
+- no LU routing expansion
+
+### Validation
+
+Because `*.c` / `*.h` changed, the full required gate was run:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Because this was a substantial shared direct-lifecycle batch, the stronger
+reviewed baseline was also run:
+
+- `make quality-review-full`
+
+That also passed.
+
+The maintained truthfulness anchors stayed exact:
+
+- reviewed CMake parity remained `53`
+- Makefile/CMake parity remained `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 229.89 sec`
+
+### Focused follow-ons
+
+The highest-value repeated-run direct proof also stayed clean:
+
+- `./build/test_integration`
+  - `31 / 31` passed
+  - new coverage now proves:
+    - zeroed factors remain valid for first-factorization through
+      `sparse_refactor_numeric(...)`
+    - mismatched preexisting factors are rejected before replacement
+    - failed refactor attempts preserve the last good factors
+
+### Day 6 conclusion
+
+Sprint 52 now has three live Phase 2 direct-lifecycle improvements in code:
+
+- Cholesky avoids an unnecessary second symbolic-analysis pass on the CSC
+  repeated-run path
+- LDL^T reuses caller analysis directly whenever BK does not force a deeper
+  symmetric-permutation change
+- `sparse_refactor_numeric(...)` now has a tighter and more truthful
+  replacement contract
+
+The next bounded work should focus on:
+
+- deeper factor-many benchmark proof
+- additional direct-lifecycle sequencing/ownership proof if needed
+- keeping LU as the intentionally bounded special-case seam

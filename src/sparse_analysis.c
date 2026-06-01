@@ -746,12 +746,40 @@ void sparse_factor_free(sparse_factors_t *factors) {
     memset(factors, 0, sizeof(*factors));
 }
 
+static int sparse_factors_is_zeroed(const sparse_factors_t *factors) {
+    return !factors->F && !factors->D && !factors->D_offdiag && !factors->pivot_size &&
+           !factors->ldlt_perm && factors->n == 0 && factors->factor_norm == 0.0;
+}
+
+static sparse_err_t sparse_refactor_validate_existing_factors(const sparse_factors_t *factors,
+                                                              const sparse_analysis_t *analysis) {
+    if (sparse_factors_is_zeroed(factors))
+        return SPARSE_OK;
+
+    if (!factors->F)
+        return SPARSE_ERR_BADARG;
+    if (factors->n != analysis->n)
+        return SPARSE_ERR_SHAPE;
+    if (factors->type != analysis->type)
+        return SPARSE_ERR_BADARG;
+
+    if (factors->type == SPARSE_FACTOR_LDLT) {
+        if (!factors->D || !factors->D_offdiag || !factors->pivot_size || !factors->ldlt_perm)
+            return SPARSE_ERR_BADARG;
+    } else if (factors->D || factors->D_offdiag || factors->pivot_size || factors->ldlt_perm) {
+        return SPARSE_ERR_BADARG;
+    }
+
+    return SPARSE_OK;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * sparse_refactor_numeric
  *
- * Convenience wrapper around sparse_factor_numeric() using an existing
- * symbolic analysis. Performs a full numeric refactorization and does
- * not attempt to validate or reuse the previous numeric structure.
+ * Same-analysis numeric refresh wrapper around sparse_factor_numeric().
+ * Preserves the zero-init first-factorization path from Sprint 51, but
+ * otherwise requires the existing factors object to already match the
+ * analysis family and dimension.
  * ═══════════════════════════════════════════════════════════════════════ */
 
 sparse_err_t sparse_refactor_numeric(const SparseMatrix *A_new, const sparse_analysis_t *analysis,
@@ -762,10 +790,14 @@ sparse_err_t sparse_refactor_numeric(const SparseMatrix *A_new, const sparse_ana
     if (A_new->rows != analysis->n || A_new->cols != analysis->n)
         return SPARSE_ERR_SHAPE;
 
+    sparse_err_t err = sparse_refactor_validate_existing_factors(factors, analysis);
+    if (err != SPARSE_OK)
+        return err;
+
     /* Factor into a temporary first so old factors survive on error */
     sparse_factors_t new_factors;
     memset(&new_factors, 0, sizeof(new_factors));
-    sparse_err_t err = sparse_factor_numeric(A_new, analysis, &new_factors);
+    err = sparse_factor_numeric(A_new, analysis, &new_factors);
     if (err != SPARSE_OK)
         return err;
 

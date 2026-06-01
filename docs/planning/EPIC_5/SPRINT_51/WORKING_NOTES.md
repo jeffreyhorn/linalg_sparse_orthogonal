@@ -1119,3 +1119,207 @@ Interpretation:
   direct surfaces
 - Sprint 51 now has both LU and Cholesky bounded lifecycle routing in place on
   a green validation baseline
+
+## Day 7
+
+### Objective
+
+Extend the same bounded repeated-run direct lifecycle routing through LDL^T so
+the shared analysis/factor/refactor path inherits the same linked-list vs CSC
+backend dispatch behavior as the public one-shot LDL^T options surface, while
+preserving the family-local owned-factor contract.
+
+### Commands Run
+
+- `git status --short --branch`
+- `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_51/PLAN.md`
+- `sed -n '260,420p' docs/planning/EPIC_5/SPRINT_51/PLAN.md`
+- `rg -n "SPARSE_FACTOR_LDLT|sparse_ldlt_factor_opts|sparse_ldlt_factor\\(|sparse_factor_numeric|sparse_refactor_numeric|used_csc_path|reorder_perm" src include tests`
+- `sed -n '1,260p' src/sparse_ldlt.c`
+- `sed -n '420,560p' src/sparse_analysis.c`
+- `sed -n '1,260p' include/sparse_ldlt.h`
+- `sed -n '969,1125p' src/sparse_ldlt.c`
+- `sed -n '1125,1265p' src/sparse_ldlt.c`
+- `sed -n '640,840p' tests/test_integration.c`
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc`
+- `./build/test_cholesky`
+- `./build/test_ldlt`
+- `./build/test_etree`
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+
+### Files Changed
+
+- `src/sparse_analysis.c`
+- `tests/test_integration.c`
+
+### Key Findings
+
+#### 1. The shared LDL^T repeated-run path had still been bypassing the normal backend-selection seam
+
+Before the Day 7 patch, the `SPARSE_FACTOR_LDLT` branch inside
+`sparse_factor_numeric(...)` built the already-permuted working copy and then
+called `sparse_ldlt_factor(...)` directly.
+
+Interpretation:
+
+- the shared repeated-run LDL^T path was functionally correct
+- but it was still bypassing the public one-shot LDL^T options seam that owns
+  backend dispatch and CSC-path selection
+- that left a real remaining drift between the explicit analysis API and the
+  one-shot LDL^T options surface
+
+#### 2. The right Phase-1 seam was to route shared LDL^T factoring through `sparse_ldlt_factor_opts(...)` with `REORDER_NONE`
+
+Day 7 changed the `SPARSE_FACTOR_LDLT` branch in
+`sparse_factor_numeric(...)` to:
+
+- build the already-permuted working copy exactly as before
+- call `sparse_ldlt_factor_opts(...)`
+- force `.reorder = SPARSE_REORDER_NONE`
+
+Interpretation:
+
+- the shared repeated-run direct path now inherits the same linked-list vs CSC
+  backend dispatch and writeback behavior as the public one-shot LDL^T path
+- the patch does not double-apply reordering, because the explicit analysis
+  object still owns the symbolic permutation choice
+- this is the narrowest LDL^T source change that reconciles the lifecycle path
+  with the shipped one-shot options surface
+
+#### 3. The family-local owned-factor LDL^T contract stayed intact
+
+The Day 7 patch did not alter the caller-facing LDL^T owned-factor surface:
+
+- `sparse_ldlt_factor(...)`
+- `sparse_ldlt_factor_opts(...)`
+- `sparse_ldlt_solve(...)`
+- `sparse_ldlt_free(...)`
+
+It only changed how the shared `sparse_analysis_t` / `sparse_factors_t`
+direct path internally realizes the numeric LDL^T phase.
+
+Interpretation:
+
+- Sprint 51 advanced the repeated-run direct contract without flattening the
+  distinct LDL^T factor-object story
+- the Sprint 50 compatibility fence remained intact through the third source
+  routing batch
+
+#### 4. The shared lifecycle path still intentionally does not publish LDL^T backend telemetry
+
+The public one-shot LDL^T options surface can expose backend-routing details
+through:
+
+- `sparse_ldlt_opts_t::backend`
+- `sparse_ldlt_opts_t::used_csc_path`
+
+The shared repeated-run direct lifecycle contract still does not publish
+whether a given LDL^T factorization used the CSC path.
+
+Interpretation:
+
+- Day 7 correctly reused the backend-selection seam without broadening the
+  public repeated-run direct API
+- LDL^T backend telemetry remains a possible later refinement rather than
+  accidental Sprint 51 scope creep
+
+#### 5. Direct parity coverage now proves the bounded LDL^T route matches the explicit analysis API on the CSC-threshold side
+
+Day 7 added a focused integration test that compares:
+
+- `sparse_ldlt_factor_opts(...)` with AMD reordering on a `200x200`
+  tridiagonal SPD matrix
+- explicit `sparse_analyze(...)` + `sparse_factor_numeric(...)` +
+  `sparse_factor_solve(...)`
+
+The chosen matrix size is intentionally above the default CSC auto-routing
+threshold, so the parity test exercises the backend-selection seam that Day 7
+was meant to reconcile.
+
+Interpretation:
+
+- the repeated-run LDL^T route is now covered by a direct public-surface
+  regression, not just by indirect suite fallout
+- future drift between the one-shot options path and the explicit lifecycle
+  path will now fail visibly
+
+#### 6. The LDL^T lifecycle batch stayed inside the Sprint 50/51 scope fence
+
+The Day 7 patch did not:
+
+- expose raw internal CSC/native storage layout
+- introduce a new generic direct handle
+- demote/remove one-shot LDL^T APIs
+- broaden the public lifecycle contract to promise backend telemetry
+- reopen documentation/example conversion before the source seam stabilized
+
+Interpretation:
+
+- Day 7 is a true Phase-1 implementation batch rather than the start of a
+  larger direct-solver redesign
+- the bounded analysis-centric lifecycle plan from Sprint 50 still governs the
+  source work
+
+#### 7. Validation stayed green through the required gate and the stronger reviewed baseline
+
+The required code-day gate passed:
+
+- `make format`
+- `make lint`
+- `make test`
+
+The stronger reviewed baseline also passed:
+
+- `make quality-review-full`
+
+The maintained truthfulness anchors stayed exact:
+
+- reviewed CMake parity remained `53`
+- Makefile/CMake parity remained `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 390.43 sec`
+
+Interpretation:
+
+- the shared LDL^T lifecycle routing landed from a fully green reviewed state
+- Sprint 51 can move to wrapper-preservation work from a validated LU +
+  Cholesky + LDL^T baseline
+
+#### 8. The targeted direct-lifecycle follow-ons stayed green after the LDL^T routing batch
+
+The targeted follow-ons that completed cleanly were:
+
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc`
+- `./build/test_cholesky`
+- `./build/test_ldlt`
+- `./build/test_etree`
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+
+Representative direct results:
+
+- `example_analysis` retained residuals at `4.44e-16` through the
+  analyze-once / refactor-many path
+- `bench_refactor_csc` continued to show strong CSC refactor wins on the
+  larger SuiteSparse cases, including:
+  - `bcsstk14`: `speedup_refactor=5.49`
+  - `Kuu`: `speedup_refactor=6.17`
+  - `Pres_Poisson`: `speedup_refactor=11.31`
+- the structural direct-solver regression binaries remained green after the
+  LDL^T lifecycle reroute
+
+Interpretation:
+
+- the Day 7 source change did not destabilize the surrounding repeated-run
+  direct surfaces
+- Sprint 51 now has bounded lifecycle routing in place across LU, Cholesky,
+  and LDL^T on a green validation baseline

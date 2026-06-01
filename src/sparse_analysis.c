@@ -476,14 +476,20 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
     }
 
     case SPARSE_FACTOR_LDLT: {
-        /* Build (optionally permuted) copy and factor with existing LDL^T */
+        /* Build the already-permuted working copy, then route through the
+         * normal one-shot LDL^T options entry with REORDER_NONE so the shared
+         * repeated-run path inherits the same linked-list/CSC backend dispatch
+         * and writeback behavior as the public one-shot surface. */
         SparseMatrix *B = NULL;
         sparse_err_t err = build_permuted_copy(A, analysis->perm, &B);
         if (err != SPARSE_OK)
             return err;
 
         sparse_ldlt_t ldlt;
-        err = sparse_ldlt_factor(B, &ldlt);
+        sparse_ldlt_opts_t ldlt_opts = {
+            .reorder = SPARSE_REORDER_NONE,
+        };
+        err = sparse_ldlt_factor_opts(B, &ldlt_opts, &ldlt);
         sparse_free(B);
         if (err != SPARSE_OK)
             return err;

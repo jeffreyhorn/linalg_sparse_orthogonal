@@ -788,6 +788,54 @@ static void test_cholesky_factor_opts_matches_explicit_analysis_path(void) {
     sparse_free(A_analysis);
 }
 
+static void test_ldlt_factor_opts_matches_explicit_analysis_path(void) {
+    const idx_t n = 200;
+    SparseMatrix *A_opts = build_tridiag_spd(n);
+    SparseMatrix *A_analysis = build_tridiag_spd(n);
+    sparse_analysis_t analysis = {0};
+    sparse_factors_t factors = {0};
+    sparse_ldlt_t ldlt = {0};
+    double *b = NULL;
+    double *x_opts = NULL;
+    double *x_analysis = NULL;
+
+    REQUIRE_OK(A_opts && A_analysis ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_ldlt_opts_t ldlt_opts = {
+        .reorder = SPARSE_REORDER_AMD,
+    };
+    ASSERT_EQ(sparse_ldlt_factor_opts(A_opts, &ldlt_opts, &ldlt), SPARSE_OK);
+
+    sparse_analysis_opts_t analysis_opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_AMD,
+    };
+    ASSERT_EQ(sparse_analyze(A_analysis, &analysis_opts, &analysis), SPARSE_OK);
+    ASSERT_EQ(sparse_factor_numeric(A_analysis, &analysis, &factors), SPARSE_OK);
+
+    b = malloc((size_t)n * sizeof(double));
+    x_opts = malloc((size_t)n * sizeof(double));
+    x_analysis = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(b && x_opts && x_analysis ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    for (idx_t i = 0; i < n; i++)
+        b[i] = (double)(i + 1);
+
+    ASSERT_EQ(sparse_ldlt_solve(&ldlt, b, x_opts), SPARSE_OK);
+    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b, x_analysis), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_opts[i], x_analysis[i], 1e-12);
+
+    free(b);
+    free(x_opts);
+    free(x_analysis);
+    sparse_ldlt_free(&ldlt);
+    sparse_factor_free(&factors);
+    sparse_analysis_free(&analysis);
+    sparse_free(A_opts);
+    sparse_free(A_analysis);
+}
+
 /* SPARSE_ERR_CANCELLED string round-trips through sparse_strerror. */
 static void test_progress_cb_strerror(void) {
     const char *s = sparse_strerror(SPARSE_ERR_CANCELLED);
@@ -1070,6 +1118,7 @@ int main(void) {
     RUN_TEST(test_progress_cb_null_default_unchanged);
     RUN_TEST(test_lu_factor_opts_matches_explicit_analysis_path);
     RUN_TEST(test_cholesky_factor_opts_matches_explicit_analysis_path);
+    RUN_TEST(test_ldlt_factor_opts_matches_explicit_analysis_path);
     RUN_TEST(test_progress_cb_strerror);
 
     /* Sprint 29 Day 7: progress / cancel coverage for QR, iterative

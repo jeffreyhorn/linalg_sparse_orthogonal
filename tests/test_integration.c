@@ -912,6 +912,10 @@ static void test_ldlt_factor_opts_matches_explicit_analysis_path(void) {
     ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b, x_analysis), SPARSE_OK);
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x_opts[i], x_analysis[i], 1e-12);
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_EQ(ldlt.perm[i], analysis.perm[i]);
+        ASSERT_EQ(factors.ldlt_perm[i], analysis.perm[i]);
+    }
 
     free(b);
     free(x_opts);

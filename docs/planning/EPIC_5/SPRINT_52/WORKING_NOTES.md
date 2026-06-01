@@ -536,3 +536,114 @@ integration improvement:
   - deeper LDL^T integration
   - refactor-path tightening
   - both, if the next batch can keep LU excluded and the scope narrow
+
+## Day 5 outcome
+
+Sprint 52 now has a second real Phase 2 shared-path deepening batch rather
+than only a Cholesky-only result:
+
+- the shared LDL^T path in `sparse_factor_numeric(...)` now reuses the
+  caller's `sparse_analysis_t` directly on CSC-sized repeated-run problems
+  when the scalar BK pre-pass does not introduce extra symmetric swaps beyond
+  the caller's reorder
+- if BK *does* introduce extra swaps, the path now rebuilds symbolic analysis
+  only on the resulting pre-permuted matrix rather than pretending the caller's
+  analysis still matches
+- the smaller linked-list LDL^T route stays unchanged
+- LU remains intentionally out of scope
+
+### What changed
+
+The Day 5 code batch landed in:
+
+- `src/sparse_analysis.c`
+- `src/sparse_ldlt_csc_internal.h`
+- `include/sparse_analysis.h`
+- `tests/test_integration.c`
+
+The key implementation move is narrow and deliberate:
+
+- add a shared-path LDL^T CSC helper in `src/sparse_analysis.c`
+- run the existing scalar BK CSC pre-pass first to determine whether the final
+  symmetric permutation still matches the caller's reorder
+- reuse `ldlt_csc_from_sparse_with_analysis(...)` directly from the caller's
+  `analysis` when that permutation matches
+- rebuild analysis only on the BK-pre-permuted matrix when the pre-pass adds
+  extra swaps
+- seed the batched CSC factor with the scalar pre-pass pivot-size choices
+- keep the existing scalar-pre-pass factor as the fallback source if the
+  supernodal CSC elimination path does not complete cleanly
+
+### What stayed intentionally unchanged
+
+Day 5 stayed inside the Sprint 52 scope fence:
+
+- no new public direct-handle abstraction
+- no raw CSC/native storage exposure
+- no redesign of `sparse_factors_t`
+- no one-shot LU / Cholesky / LDL^T public demotion
+- no overclaim that reuse preserves old numeric factor contents
+- no LU routing change
+- no refactor-path redesign yet
+
+### Validation
+
+Because `*.c` / `*.h` changed, the full required gate was run:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Because this was a substantial shared direct-lifecycle batch, the stronger
+reviewed baseline was also run:
+
+- `make quality-review-full`
+
+That also passed.
+
+The maintained truthfulness anchors stayed exact:
+
+- reviewed CMake parity remained `53`
+- Makefile/CMake parity remained `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 220.30 sec`
+
+### Focused follow-ons
+
+The highest-value repeated-run direct follow-ons also stayed clean:
+
+- `./build/example_analysis`
+  - residuals remained `4.44e-16`
+- `./build/test_integration`
+  - `29 / 29` passed
+- `./build/test_ldlt`
+  - `83 / 83` passed
+- `./build/test_ldlt_csc`
+  - `95 / 95` passed
+- `./build/bench_refactor`
+  - analyze-once stayed ahead on repeated-run cases including:
+    - `tridiag-200` = `1.69x`
+    - `tridiag-500` = `1.40x`
+    - `bcsstk04` = `1.73x`
+    - `nos4` = `1.48x`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - CSC repeated-run path stayed ahead:
+    - `speedup_refactor = 1.70x`
+    - `res_ll = 8.24e-16`
+    - `res_csc = 7.06e-16`
+
+### Day 5 conclusion
+
+Sprint 52 now has two live repeated-run direct deepening batches in code:
+
+- Cholesky no longer hides an avoidable second symbolic-analysis pass on the
+  CSC repeated-run path
+- LDL^T now reuses the caller's analysis directly whenever BK does not force a
+  deeper symmetric-permutation change, and rebuilds analysis only when it has
+  to
+- the next bounded work should focus on:
+  - tightening `sparse_refactor_numeric(...)`
+  - additional factor-many proof surfaces
+  - keeping LU as the intentionally bounded special-case seam

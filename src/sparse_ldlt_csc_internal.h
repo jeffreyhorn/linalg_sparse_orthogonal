@@ -43,6 +43,7 @@
 
 #include "sparse_analysis.h"
 #include "sparse_chol_csc_internal.h"
+#include "sparse_ldlt.h"
 #include "sparse_matrix_internal.h"
 #include <stdlib.h>
 

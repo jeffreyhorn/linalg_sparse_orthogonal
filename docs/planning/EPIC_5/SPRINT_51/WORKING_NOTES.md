@@ -1978,3 +1978,155 @@ Sprint 51’s remaining queue is narrower again:
   live lifecycle path
 - the remaining work is no longer basic adoption discoverability; it is later
   compatibility/audit/closeout work
+
+## Day 12
+
+### Objective
+
+Re-audit the landed Sprint 51 public lifecycle surface against the Sprint 50
+contract and compatibility fence so the branch is checked against its intended
+rules, not just against compile/test success.
+
+### Commands Run
+
+- `git status --short --branch`
+- `sed -n '428,477p' docs/planning/EPIC_5/SPRINT_51/PLAN.md`
+- `rg -n "example_analysis|bench_refactor|analyze-once|refactor-many|one-shot|sparse_analysis_t|sparse_factors_t|Sprint 51" README.md examples/README.md benchmarks/README.md docs/tutorial.md docs/maintainer_guide.md include/sparse_analysis.h include/sparse_lu.h include/sparse_cholesky.h include/sparse_ldlt.h examples/example_analysis.c benchmarks/bench_refactor.c benchmarks/bench_refactor_csc.c`
+- `rg -n "Day 11|Day 12|example_analysis|bench_refactor|README" docs/planning/EPIC_5/SPRINT_51/PLAN.md docs/planning/EPIC_5/SPRINT_51/WORKING_NOTES.md docs/planning/EPIC_5/SPRINT_51/artifacts/day9-focused-regression-expansion-design-and-inventory.md`
+- `sed -n '1,220p' examples/README.md`
+- `sed -n '1,160p' benchmarks/README.md`
+- `sed -n '1,240p' examples/example_analysis.c`
+- `sed -n '1,220p' benchmarks/bench_refactor.c`
+
+### Files Changed
+
+- `docs/planning/EPIC_5/SPRINT_51/WORKING_NOTES.md`
+- `docs/planning/EPIC_5/SPRINT_51/artifacts/day12-post-landing-compatibility-audit.md`
+
+### Key Findings
+
+#### 1. One-shot entries remain first-class and clearly framed as the simple/default path
+
+The landed Sprint 51 surfaces still preserve the Sprint 50 compatibility rule:
+
+- `include/sparse_lu.h`
+- `include/sparse_cholesky.h`
+- `include/sparse_ldlt.h`
+- `README.md`
+
+all continue to frame the one-shot family APIs as:
+
+- first-class supported peer entry points
+- the simple/default path for one-off solves
+
+Interpretation:
+
+- Sprint 51 did not accidentally demote or obsolete the existing one-shot
+  direct APIs
+- the repeated-run direct path advanced without changing the intended public
+  compatibility posture
+
+#### 2. The repeated-run direct path remains analysis/factors-centric rather than generic-handle centric
+
+The shared repeated-run public story still centers on:
+
+- `sparse_analysis_t`
+- `sparse_factors_t`
+- `sparse_analyze(...)`
+- `sparse_factor_numeric(...)`
+- `sparse_factor_solve(...)`
+- `sparse_refactor_numeric(...)`
+
+That remains true across:
+
+- `include/sparse_analysis.h`
+- `README.md`
+- `examples/example_analysis.c`
+- `benchmarks/bench_refactor.c`
+- `benchmarks/bench_refactor_csc.c`
+
+Interpretation:
+
+- the landed implementation still matches the Sprint 50 design anchor
+- there is no hidden drift toward a new generic direct handle abstraction
+
+#### 3. Reuse semantics remain correctly bounded
+
+The live surfaces continue to describe reuse as preserving:
+
+- symbolic structure
+- permutation/setup state
+
+and not preserving:
+
+- old numeric factor state
+
+No touched file now overpromises numeric-state reuse across refactor calls.
+
+Interpretation:
+
+- Sprint 51’s public lifecycle wording is still honest about what
+  refactorization reuses and what it recomputes
+- the reuse contract is stable enough for Day 13 validation and Day 14
+  closeout
+
+#### 4. The major Day 11 adoption drifts are now gone
+
+The two explicit adoption drifts carried out of Sprint 50 and Day 9 are now
+resolved:
+
+- `examples/README.md`
+  - now includes `example_analysis`
+- `benchmarks/README.md`
+  - now labels `bench_refactor` and `bench_refactor_csc` consistently with the
+    live Cholesky analyze-once / refactor-many story
+
+Interpretation:
+
+- the strongest public caller surfaces no longer fight each other on the
+  repeated-run direct story
+- Day 12 did not uncover a hidden second round of adoption-file repair
+
+#### 5. No true blocker surfaced before Day 13 validation
+
+The audit did not surface any residual drift that needs a Day 12 code patch.
+
+What remains is normal closeout work:
+
+- Day 13 full validation
+- Day 14 closeout/handoff synthesis
+
+Interpretation:
+
+- Sprint 51 has moved past implementation and compatibility-risk mode
+- there is no hidden scope creep left to unwind before the validation sweep
+
+## Day 12 pre-validation checklist
+
+The final Day 13 checklist is now explicit:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- reconfirm reviewed CMake `ctest -N` parity at `53`
+- rerun the Sprint 51 follow-ons:
+  - `./build/example_analysis`
+  - `./build/bench_refactor`
+  - `./build/bench_refactor_csc`
+  - `./build/test_cholesky`
+  - `./build/test_ldlt`
+  - `./build/test_etree`
+  - `./build/test_chol_csc`
+  - `./build/test_ldlt_csc`
+
+## Day 12 outcome
+
+Sprint 51’s live branch state now matches the Sprint 50 compatibility fence as
+well as the compiler/test record:
+
+- one-shot direct APIs remain first-class
+- repeated direct runs remain analysis/factors-centric
+- refactor reuse semantics remain correctly bounded
+- the strongest example/benchmark adoption surfaces are aligned
+- no residual blocker remains before Day 13 validation

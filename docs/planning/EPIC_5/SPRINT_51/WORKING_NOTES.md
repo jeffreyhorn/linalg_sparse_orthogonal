@@ -923,3 +923,199 @@ Interpretation:
   lifecycle surfaces
 - Day 6 can focus on Cholesky integration rather than re-debugging the LU
   bridge
+
+## Day 6
+
+### Objective
+
+Wire the shared repeated-run direct lifecycle path through the bounded
+Cholesky options route so the analyze/factor/refactor seam inherits the same
+linked-list vs CSC backend dispatch behavior as the public one-shot Cholesky
+surface, while preserving the existing one-shot API contract.
+
+### Commands Run
+
+- `git status --short --branch`
+- `sed -n '240,300p' docs/planning/EPIC_5/SPRINT_51/PLAN.md`
+- `rg -n "Cholesky|analysis|factor_numeric|bench_refactor|example_analysis|used_csc_path" include src tests benchmarks examples`
+- `sed -n '1,260p' src/sparse_cholesky.c`
+- `sed -n '1,220p' include/sparse_cholesky.h`
+- `sed -n '360,520p' src/sparse_analysis.c`
+- `rg -n "factor_opts|analyze|factor_numeric|Cholesky" tests/test_integration.c tests/test_cholesky.c tests/test_chol_csc.c tests/test_etree.c`
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc`
+- `./build/test_cholesky`
+- `./build/test_ldlt`
+- `./build/test_etree`
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+
+### Files Changed
+
+- `src/sparse_analysis.c`
+- `tests/test_integration.c`
+
+### Key Findings
+
+#### 1. The shared Cholesky repeated-run path had still been bypassing the normal backend-selection seam
+
+Before the Day 6 patch, the `SPARSE_FACTOR_CHOLESKY` branch inside
+`sparse_factor_numeric(...)` built the already-permuted working copy and then
+called `sparse_cholesky_factor(L)` directly.
+
+Interpretation:
+
+- the shared repeated-run direct path was functionally correct
+- but it was not inheriting the public one-shot Cholesky routing logic that
+  chooses between linked-list and CSC backends
+- that left a real Phase-1 drift between the explicit analysis API and the
+  one-shot options surface
+
+#### 2. The right Phase-1 seam was to route shared Cholesky factoring through `sparse_cholesky_factor_opts(...)` with `REORDER_NONE`
+
+Day 6 changed the `SPARSE_FACTOR_CHOLESKY` branch in
+`sparse_factor_numeric(...)` to:
+
+- build the already-permuted working copy exactly as before
+- call `sparse_cholesky_factor_opts(...)`
+- force `.reorder = SPARSE_REORDER_NONE`
+
+Interpretation:
+
+- the shared repeated-run path now inherits the same linked-list vs CSC
+  backend dispatch and writeback behavior as the public one-shot Cholesky path
+- the patch did not double-apply reordering, because the explicit analysis
+  object already owns the symbolic permutation choice
+- this is the narrowest source change that reconciles the lifecycle path with
+  the shipped one-shot options surface
+
+#### 3. One-shot Cholesky semantics stayed intact
+
+The Day 6 patch did not alter the caller-facing one-shot Cholesky APIs:
+
+- `sparse_cholesky_factor(...)`
+- `sparse_cholesky_factor_opts(...)`
+- `sparse_cholesky_solve(...)`
+
+It only changed how the shared analyze/factor path internally realizes the
+Cholesky numeric phase.
+
+Interpretation:
+
+- Sprint 51 advanced the repeated-run direct contract without demoting the
+  simple/default one-shot Cholesky story
+- the Sprint 50 compatibility fence remained intact through the second source
+  routing batch
+
+#### 4. The shared lifecycle path still intentionally does not publish backend telemetry
+
+The public one-shot Cholesky options path can surface backend-routing details
+through its existing result/telemetry surface. The shared
+`sparse_analysis_t` / `sparse_factors_t` lifecycle contract still does not
+publish whether a given Cholesky factorization used the CSC route.
+
+Interpretation:
+
+- Day 6 correctly reused the backend-selection seam without broadening the
+  public direct repeated-run API
+- backend telemetry remains a later possible refinement rather than accidental
+  Sprint 51 scope creep
+
+#### 5. Direct parity coverage now proves the bounded Cholesky route matches the explicit analysis API even on the CSC-threshold side
+
+Day 6 added a focused integration test that compares:
+
+- `sparse_cholesky_factor_opts(...)` with AMD reordering on a `200x200`
+  tridiagonal SPD matrix
+- explicit `sparse_analyze(...)` + `sparse_factor_numeric(...)` +
+  `sparse_factor_solve(...)`
+
+The chosen matrix size is intentionally above the default CSC auto-routing
+threshold, so the parity test exercises the backend-selection seam that Day 6
+was meant to reconcile.
+
+Interpretation:
+
+- the repeated-run Cholesky route is now covered by a direct public-surface
+  regression, not just by indirect suite fallout
+- future drift between the one-shot options path and the explicit lifecycle
+  path will now fail visibly
+
+#### 6. The Cholesky lifecycle batch stayed inside the Sprint 50/51 scope fence
+
+The Day 6 patch did not:
+
+- expose raw internal CSC/native storage layout
+- introduce a new generic direct handle
+- demote/remove one-shot Cholesky APIs
+- broaden the public lifecycle contract to promise backend telemetry
+- reopen documentation/example conversion before the main source seam settled
+
+Interpretation:
+
+- Day 6 is a real Phase-1 implementation batch, not the start of a larger
+  direct-solver redesign
+- the bounded analysis-centric lifecycle plan from Sprint 50 still governs the
+  source work
+
+#### 7. Validation stayed green through the required gate and the stronger reviewed baseline
+
+The required code-day gate passed:
+
+- `make format`
+- `make lint`
+- `make test`
+
+The stronger reviewed baseline also passed:
+
+- `make quality-review-full`
+
+The maintained truthfulness anchors stayed exact:
+
+- reviewed CMake parity remained `53`
+- Makefile/CMake parity remained `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 347.18 sec`
+
+Interpretation:
+
+- the shared Cholesky lifecycle routing landed from a fully green reviewed
+  state
+- Sprint 51 can proceed without reopening validation-baseline repair work
+
+#### 8. The targeted direct-lifecycle follow-ons stayed green after the Cholesky routing batch
+
+The targeted follow-ons that completed cleanly were:
+
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc`
+- `./build/test_cholesky`
+- `./build/test_ldlt`
+- `./build/test_etree`
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+
+Representative direct results:
+
+- `example_analysis` retained residuals at `4.44e-16` through the
+  analyze-once / refactor-many path
+- `bench_refactor_csc` continued to show the CSC refactor path beating the
+  linked-list refactor path on larger SuiteSparse cases, including:
+  - `Pres_Poisson`: `speedup_refactor=13.11`
+  - `Kuu`: `speedup_refactor=6.30`
+  - `s3rmt3m3`: `speedup_refactor=8.13`
+- the structural direct-solver regression binaries remained green after the
+  Cholesky lifecycle reroute
+
+Interpretation:
+
+- the Day 6 source change did not destabilize the surrounding repeated-run
+  direct surfaces
+- Sprint 51 now has both LU and Cholesky bounded lifecycle routing in place on
+  a green validation baseline

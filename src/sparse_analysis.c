@@ -436,13 +436,19 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
 
     switch (analysis->type) {
     case SPARSE_FACTOR_CHOLESKY: {
-        /* Build (optionally permuted) copy and factor with existing Cholesky */
+        /* Build the already-permuted working copy, then route through the
+         * normal one-shot Cholesky options entry with REORDER_NONE so the
+         * shared repeated-run path inherits the same linked-list/CSC backend
+         * dispatch and writeback behavior as the public one-shot surface. */
         SparseMatrix *L = NULL;
         sparse_err_t err = build_permuted_copy(A, analysis->perm, &L);
         if (err != SPARSE_OK)
             return err;
 
-        err = sparse_cholesky_factor(L);
+        sparse_cholesky_opts_t chol_opts = {
+            .reorder = SPARSE_REORDER_NONE,
+        };
+        err = sparse_cholesky_factor_opts(L, &chol_opts);
         if (err != SPARSE_OK) {
             sparse_free(L);
             return err;

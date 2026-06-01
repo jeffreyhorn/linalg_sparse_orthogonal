@@ -718,3 +718,208 @@ Interpretation:
   architecture
 - the remaining Sprint 51 uncertainty is now implementation behavior, not
   public header wording
+
+## Day 5
+
+**Objective:** Route the bounded default LU options path through the shared
+`sparse_analysis` / `sparse_factor_numeric` lifecycle seam while preserving the
+existing one-shot LU caller story for the simple/default entry point and for
+legacy custom-pivot / callback cases.
+
+### Commands Run
+
+1. Re-read the Sprint 51 Day 5 plan item and the Day 4 header artifact:
+   - `sed -n '192,240p' docs/planning/EPIC_5/SPRINT_51/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_51/artifacts/day4-public-direct-lifecycle-header-batch.md`
+2. Audit the live LU and shared lifecycle implementation seams:
+   - `sed -n '1,420p' src/sparse_lu.c`
+   - `sed -n '240,520p' src/sparse_analysis.c`
+   - `sed -n '1,180p' src/sparse_factor_state_internal.c`
+   - `sed -n '1,240p' src/sparse_matrix_state_internal.h`
+   - `sed -n '430,700p' tests/test_integration.c`
+3. Land the bounded LU lifecycle routing batch:
+   - `src/sparse_lu.c`
+   - `tests/test_integration.c`
+4. Run the mandatory code-day gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+5. Run the stronger reviewed baseline:
+   - `make quality-review-full`
+6. Run the high-signal direct-lifecycle follow-ons:
+   - `./build/example_analysis`
+   - `./build/bench_refactor`
+   - `./build/test_cholesky`
+   - `./build/test_ldlt`
+   - `./build/test_etree`
+   - `./build/test_chol_csc`
+   - `./build/test_ldlt_csc`
+
+### Day 5 Findings
+
+#### 1. The narrowest credible LU lifecycle seam was `sparse_lu_factor_opts(...)`, not `sparse_lu_factor(...)`
+
+The live implementation audit showed:
+
+- the shared repeated-run direct seam already exists in `sparse_analysis.c`
+- the shared LU numeric path already delegates to:
+  - `sparse_lu_factor(LU, SPARSE_PIVOT_PARTIAL, 1e-12)`
+- the simple `sparse_lu_factor(...)` entry point still exposes caller-chosen:
+  - pivot strategy
+  - tolerance
+
+Interpretation:
+
+- routing the simple one-shot LU entry point through the shared lifecycle path
+  directly would have reopened the Sprint 50/51 contract, because the shared
+  analysis path does not yet expose arbitrary LU pivot/tolerance controls
+- `sparse_lu_factor_opts(...)` was the right Phase-1 seam because it already
+  represents the more structured LU surface without demoting the simple
+  one-shot API
+
+#### 2. The new routing is intentionally bounded to the default lifecycle-compatible LU option set
+
+The landed gate for the shared lifecycle route is explicit:
+
+- partial pivoting
+- `tol == 1e-12`
+- `progress_cb == NULL`
+- matrix still in original row/column state
+
+When those conditions hold, `sparse_lu_factor_opts(...)` now:
+
+- analyzes with `SPARSE_FACTOR_LU`
+- factors through `sparse_factor_numeric(...)`
+- republishes the resulting factored matrix back onto the caller-owned
+  one-shot LU matrix
+
+Interpretation:
+
+- this matches the Sprint 50 design exactly: Phase 1 centers the shared
+  analysis/factor/refactor contract without pretending the lifecycle layer
+  already covers every LU-specific option
+- the route is real for the bounded default LU options surface, not merely a
+  docs-only cross-reference
+
+#### 3. Legacy LU option surfaces remain intact where the shared lifecycle contract is not yet expressive enough
+
+The pre-existing direct LU path still handles:
+
+- custom pivot/tolerance combinations
+- progress / cancellation callback routing
+- non-original or already-mutated matrix state
+
+Interpretation:
+
+- Day 5 preserved the one-shot LU compatibility story instead of forcing the
+  lifecycle path into cases it cannot yet represent cleanly
+- the sprint advanced the public repeated-run direction without breaking the
+  already-shipped cancellation and custom-LU semantics
+
+#### 4. The implementation had to republish lifecycle-owned LU state back onto the matrix to preserve `sparse_lu_solve(...)`
+
+The shared lifecycle factor object keeps permutation state outside the matrix,
+but `sparse_lu_solve(...)` expects:
+
+- a factored matrix payload
+- matrix-local `reorder_perm`
+
+The Day 5 patch therefore:
+
+- steals the factorized working-copy payload from the lifecycle LU matrix
+- transfers the analysis permutation back onto the caller-owned LU matrix
+- republishes the factor-state compatibility mirrors through
+  `sparse_factor_state_publish_factored(...)`
+
+Interpretation:
+
+- the implementation now uses the shared lifecycle seam internally while
+  preserving the public one-shot LU solve contract unchanged
+- this is the key compatibility bridge that lets Sprint 51 advance without a
+  larger public solver-handle redesign
+
+#### 5. Direct regression coverage now proves the bounded lifecycle route matches the explicit analysis API
+
+Day 5 added a focused integration test that compares:
+
+- `sparse_lu_factor_opts(...)` on the bounded default LU+AMD path
+- explicit `sparse_analyze(...)` + `sparse_factor_numeric(...)` +
+  `sparse_factor_solve(...)`
+
+The new test verifies solution parity on the same matrix/right-hand side pair.
+
+Interpretation:
+
+- the new source routing is not just structurally plausible; it is covered by
+  a direct public-surface parity check
+- Sprint 51 now has an explicit regression that will fail if the one-shot LU
+  options path drifts away from the shared lifecycle route again
+
+#### 6. The LU lifecycle batch stayed inside the Sprint 50/51 scope fence
+
+The Day 5 patch did not:
+
+- expose raw internal CSC/native storage layout
+- introduce a new generic direct handle
+- demote or remove one-shot LU APIs
+- broaden the shared lifecycle path to arbitrary LU pivot/tolerance options
+- reopen README/tutorial/example teaching work before the source path settled
+
+Interpretation:
+
+- the patch is a true Phase-1 implementation batch rather than the start of a
+  larger direct-solver redesign
+- the Sprint 50 compatibility and non-goal fence held through the first source
+  routing step
+
+#### 7. Validation stayed green through both the required gate and the stronger reviewed baseline
+
+The required code-day gate passed:
+
+- `make format`
+- `make lint`
+- `make test`
+
+The stronger reviewed baseline also passed:
+
+- `make quality-review-full`
+
+The maintained truthfulness anchors stayed exact:
+
+- reviewed CMake parity remained `53`
+- Makefile/CMake parity remained `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 357.29 sec`
+
+Interpretation:
+
+- the first LU source-routing batch is validated from both the normal code-day
+  gate and the stronger reviewed close state
+- Sprint 51 can move to Cholesky routing from a green LU lifecycle baseline
+
+#### 8. The direct-lifecycle follow-ons that completed stayed green after the LU routing batch
+
+The targeted follow-ons that completed cleanly were:
+
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/test_cholesky`
+- `./build/test_ldlt`
+- `./build/test_etree`
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+
+Representative direct results:
+
+- `example_analysis` still showed the analyze-once / refactor-many path with
+  residuals at `4.44e-16`
+- `bench_refactor` still completed all listed fixtures, with the analyze-once
+  path beating one-shot on `bcsstk04`
+- the direct structural regression binaries remained green after the LU batch
+
+Interpretation:
+
+- the LU routing change did not destabilize the surrounding direct-solver
+  lifecycle surfaces
+- Day 6 can focus on Cholesky integration rather than re-debugging the LU
+  bridge

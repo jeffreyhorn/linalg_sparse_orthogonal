@@ -1905,15 +1905,18 @@ truthful docs/design-only state before Day 14 closeout.
    - `sed -n '520,620p' docs/planning/EPIC_5/SPRINT_50/PLAN.md`
    - `tail -n 320 docs/planning/EPIC_5/SPRINT_50/WORKING_NOTES.md`
 2. Reconfirm the day-count and hour-budget alignment directly from the plan:
-   - `python3 - <<'PY'
+   - runnable heredoc:
+```python
+python3 - <<'PY'
 from pathlib import Path
 import re
 text = Path("docs/planning/EPIC_5/SPRINT_50/PLAN.md").read_text()
-hours = [int(m.group(1)) for m in re.finditer(r"\\*\\*Time estimate:\\*\\*\\s*(\\d+) hours", text)]
+hours = [int(m.group(1)) for m in re.finditer(r"\*\*Time estimate:\*\*\s*(\d+) hours", text)]
 print("day_count", len(hours))
 print("total_hours", sum(hours))
 print("max_day", max(hours))
-PY`
+PY
+```
 3. Reconfirm the current Sprint 50 artifact set:
    - `ls docs/planning/EPIC_5/SPRINT_50/artifacts`
 

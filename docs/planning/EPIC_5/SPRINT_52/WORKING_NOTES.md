@@ -1060,3 +1060,94 @@ Sprint 52’s remaining adoption queue is now smaller and clearer:
   - `examples/example_analysis.c`
 - everything else can remain secondary unless a small supporting edit proves
   necessary
+
+## Day 10 outcome
+
+Sprint 52 now has a bounded public adoption batch instead of only the Day 9
+audit target list:
+
+- `README.md` now states the repeated-run direct workflow more explicitly as a
+  compact public contract
+- `examples/example_analysis.c` now explains the Phase 2 boundary more clearly
+  in both comments and runtime output
+- the one-shot direct APIs remain visible and first-class
+- the batch stayed inside the Day 9 fence and did not widen into tutorial or
+  broad example churn
+
+### What changed
+
+The Day 10 adoption batch landed in:
+
+- `README.md`
+- `examples/example_analysis.c`
+
+The README now carries a more explicit direct repeated-run summary:
+
+- public objects:
+  - `sparse_analysis_t`
+  - `sparse_factors_t`
+- lifecycle:
+  - analyze once
+  - factor / solve
+  - refactor / solve many
+  - free explicitly
+- key Phase 2 boundaries:
+  - one-shot LU / Cholesky / LDL^T remain first-class peer entries
+  - reuse preserves symbolic/permutation setup, not stale numeric factor
+    contents
+  - `sparse_refactor_numeric(...)` is the same-pattern numeric refresh path
+  - obvious gross-structure drift is rejected cheaply, not fully proven
+
+The example now teaches the same boundary more directly:
+
+- file-level comments now state what reuse means and does not mean
+- the refactor-loop comments now explain why rebuilding a fresh same-pattern
+  matrix is still the safest high-signal example discipline
+- runtime output now prints the repeated-run contract and the reused-vs-not-
+  reused split
+
+### What stayed intentionally unchanged
+
+Day 10 stayed inside the adoption fence:
+
+- no public lifecycle contract redesign
+- no library implementation changes
+- no broad tutorial rewrite
+- no conversion of smaller one-shot examples into repeated-run examples
+- no benchmark README widening beyond the already-finished Day 8 work
+- no LU posture change
+
+### Validation
+
+Because `examples/example_analysis.c` changed, the full required code-day gate
+was run:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+### Focused follow-ons
+
+The main shipped repeated-run direct example also stayed clean:
+
+- `./build/example_analysis`
+  - the new explanatory output now states:
+    - reuse preserves symbolic/permutation setup
+    - refactor expects the same sparsity pattern
+    - fresh same-pattern matrices keep the contract explicit
+    - stale numeric factor contents are not what gets reused
+  - residuals remained `4.44e-16`
+
+### Day 10 conclusion
+
+Sprint 52 now has the highest-value caller-facing adoption surfaces aligned
+with the stronger Phase 2 lifecycle story:
+
+- the README now says the repeated-run direct contract compactly and
+  truthfully
+- the main shipped example teaches the same boundary in code comments and live
+  output
+- the batch stayed narrow enough that later work can focus on regression proof
+  and compatibility review instead of reopening adoption drift

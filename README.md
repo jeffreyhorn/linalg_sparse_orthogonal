@@ -301,6 +301,38 @@ Important behavior:
 - existing one-shot entries remain the compatibility path and are not
   deprecated by Sprint 49
 
+### Repeated-Run Direct Workflow
+
+The direct-solver side uses a different public repeated-run shape from the
+iterative and eigensolver handles. The explicit repeated-run direct path is:
+
+- `sparse_analysis_t`
+- `sparse_factors_t`
+- `sparse_analyze(...)`
+- `sparse_factor_numeric(...)`
+- `sparse_factor_solve(...)`
+- `sparse_refactor_numeric(...)`
+- `sparse_analysis_free(...)`
+- `sparse_factor_free(...)`
+
+The intended lifecycle is:
+
+1. zero-initialize `sparse_analysis_t` and `sparse_factors_t`
+2. analyze once for the chosen direct family
+3. factor / solve
+4. refactor / solve many on same-pattern value changes
+5. free both objects explicitly when done
+
+Important behavior:
+
+- the one-shot LU / Cholesky / LDL^T APIs remain first-class peer entry points
+- repeated direct reuse preserves symbolic/permutation setup, not old numeric
+  factor contents
+- `sparse_refactor_numeric(...)` is the public same-pattern numeric-refresh
+  path, not a general “accept any changed matrix” rebuild path
+- the library now rejects obvious gross-structure drift cheaply, but it does
+  not promise a full structural-pattern verifier
+
 ## API Overview
 
 | Header | Purpose |
@@ -378,6 +410,15 @@ Important behavior:
 - `sparse_refactor_numeric(A_new, &analysis, &factors)` — refactor with new values (same pattern)
 - `sparse_factor_solve(&factors, &analysis, b, x)` — solve using factors with auto-permutation
 - `sparse_analysis_free(&analysis)` / `sparse_factor_free(&factors)` — cleanup
+
+The direct repeated-run contract is therefore:
+
+- analyze once
+- factor / solve
+- refactor / solve many
+
+with reuse preserving symbolic/permutation setup rather than stale numeric
+factor contents.
 
 **QR factorization (rectangular & rank-deficient):**
 - `sparse_qr_factor(A, &qr)` — column-pivoted QR: A*P = Q*R

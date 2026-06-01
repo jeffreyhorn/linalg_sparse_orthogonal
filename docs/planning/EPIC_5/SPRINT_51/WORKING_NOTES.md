@@ -2255,3 +2255,109 @@ Sprint 51 validation is complete:
 
 No new reconciliation queue surfaced during the validation sweep. Sprint 51 is
 ready for Day 14 closeout and handoff.
+
+# Day 14 - Closeout and handoff
+
+Date: 2026-06-01
+
+## Goal
+
+Close Sprint 51 from the validated Day 13 state, summarize the actual landed
+Phase 1 public direct-solver lifecycle package, and leave a clean Sprint 52
+handoff boundary.
+
+## What Sprint 51 actually landed
+
+Sprint 51 leaves behind one coherent implemented Phase 1 direct-lifecycle
+package rather than a loose set of family-specific changes:
+
+- shared public header contract refresh in:
+  - `include/sparse_analysis.h`
+  - `include/sparse_lu.h`
+  - `include/sparse_cholesky.h`
+  - `include/sparse_ldlt.h`
+- LU lifecycle integration through the bounded shared analysis/factor path
+  where the default option surface already fit cleanly
+- shared Cholesky lifecycle routing through the existing analysis/factor path
+- shared LDL^T lifecycle routing through the existing analysis/factor path
+- preserved one-shot wrapper posture for the touched direct families
+- focused public lifecycle regression additions in `tests/test_integration.c`
+- adopted caller-surface docs in:
+  - `examples/README.md`
+  - `benchmarks/README.md`
+
+## Preserved contract and compatibility rules
+
+Sprint 51 closed without reopening the Sprint 50 fence:
+
+- one-shot LU / Cholesky / LDL^T APIs remain first-class supported peer entry
+  points
+- one-shot usage still reads as the simple/default path for one-off solves
+- repeated direct runs stay analysis/factors-centric around:
+  - `sparse_analysis_t`
+  - `sparse_factors_t`
+  - `sparse_analyze(...)`
+  - `sparse_factor_numeric(...)`
+  - `sparse_factor_solve(...)`
+  - `sparse_refactor_numeric(...)`
+- reuse remains correctly bounded:
+  - symbolic/permutation/setup state is reused
+  - old numeric factor contents are not promised
+- no raw internal CSC/native storage layout was exposed publicly
+- no broad generic direct-handle redesign was introduced
+
+## Validated closing baseline
+
+Sprint 51 closes from the Day 13 validated baseline:
+
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+- `make quality-review-full` passed
+
+The maintained truthfulness anchors stayed exact:
+
+- reviewed CMake parity = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 500.45 sec`
+
+Targeted direct-lifecycle follow-ons also passed:
+
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc`
+- `./build/test_cholesky`
+- `./build/test_ldlt`
+- `./build/test_etree`
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+
+## Sprint 52 handoff boundary
+
+The next sprint no longer needs to invent the public direct lifecycle story.
+Sprint 52 can start from an already-implemented and validated Phase 1 surface.
+
+What is now clearly in-bounds for later work:
+
+- deeper direct-solver lifecycle adoption beyond the Sprint 51 high-signal
+  surfaces
+- broader direct-solver workflow cleanup that builds on the shared
+  analysis/factor/refactor contract
+- any later direct-family expansions that were intentionally deferred from
+  Sprint 51
+
+What Sprint 51 intentionally did not do:
+
+- broad public factor-container redesign
+- raw internal storage exposure
+- structural-pattern verifier redesign
+- broad tutorial rewrite
+- sweeping conversion of every example to the repeated-run path
+
+## Day 14 outcome
+
+Sprint 51 is closed from a clean validated state. The branch now hands off a
+real implemented public direct-solver lifecycle Phase 1 package with preserved
+one-shot compatibility, focused regression proof, aligned example/benchmark
+documentation, and unchanged reviewed-baseline truthfulness anchors.

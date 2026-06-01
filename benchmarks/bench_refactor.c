@@ -127,7 +127,8 @@ static void bench_matrix(const char *name, SparseMatrix *A, int reps) {
     fflush(stdout);
 
     /* ── Approach A: one-shot repeated on value-perturbed copies ─────────── */
-    double t0 = wall_time();
+    double t0 = 0.0;
+    double t_oneshot_total = 0.0;
     int ok = 1;
     for (int r = 0; r < reps && ok; r++) {
         SparseMatrix *L = sparse_copy(A);
@@ -136,14 +137,15 @@ static void bench_matrix(const char *name, SparseMatrix *A, int reps) {
             break;
         }
         perturb_values_in_place(L, 1e-9, (uint64_t)r * 0xcafef00dULL);
+        t0 = wall_time();
         if (sparse_cholesky_factor(L) != SPARSE_OK) {
             ok = 0;
             sparse_free(L);
             break;
         }
+        t_oneshot_total += wall_time() - t0;
         sparse_free(L);
     }
-    double t_oneshot_total = wall_time() - t0;
 
     if (!ok) {
         printf("  [SKIP] one-shot factorization failed\n");

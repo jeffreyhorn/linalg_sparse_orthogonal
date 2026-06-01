@@ -137,3 +137,118 @@ Sprint 52 now starts from a concrete Phase 2 baseline:
 
 That is enough to move into the Day 2 validation baseline and touched-surface
 recheck without reopening Sprint 50 or Sprint 51 design decisions.
+
+# Day 2 - validation baseline
+
+Date: 2026-06-01
+
+## Goal
+
+Reconfirm the reviewed local baseline and fix the exact Sprint 52 rerun set
+before any deeper analysis/refactor code work begins.
+
+## Validation baseline conclusions
+
+### 1. The strongest reviewed local baseline remains unchanged
+
+The authoritative local reviewed closeout command is still:
+
+- `make quality-review-full`
+
+The wrapper wording remains aligned with the current repo state:
+
+- `quality-review-full: strongest local reviewed baseline`
+
+Interpretation:
+
+- Sprint 52 should continue to treat `make quality-review-full` as the
+  strongest local reviewed baseline on substantial lifecycle batches
+- there is no need to invent a new Sprint 52-specific validation authority
+
+### 2. The main truthfulness anchor remains exact
+
+The maintained reviewed CMake parity anchor is still:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+Interpretation:
+
+- the Phase 2 lifecycle work starts from the same parity/truthfulness anchor
+  Sprint 51 closed on
+- Day 13 validation later in the sprint should continue to use that exact count
+  as the key anchor
+
+### 3. The code-day gate remains fixed
+
+For later `*.c` / `*.h` lifecycle batches, the mandatory code-day gate remains:
+
+- `make format`
+- `make lint`
+- `make test`
+
+The stronger default for substantial public direct-lifecycle batches remains:
+
+- `make quality-review-full`
+
+Interpretation:
+
+- Sprint 52 should not weaken its code-day validation just because the
+  public lifecycle surface already exists
+- deeper integration work still needs the full baseline gate
+
+### 4. The targeted Sprint 52 rerun set is now explicit
+
+The highest-value direct-lifecycle follow-ons remain present in the current
+`build/` tree:
+
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc`
+- `./build/test_integration`
+- `./build/test_cholesky`
+- `./build/test_ldlt`
+- `./build/test_etree`
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+
+Interpretation:
+
+- Sprint 52 already knows the strongest repeated-run direct example surface
+- Sprint 52 already knows the strongest factor-many benchmark surfaces
+- Sprint 52 already knows the strongest direct lifecycle and factor-family
+  regression surfaces
+
+### 5. The docs-only vs code-day boundary is clean
+
+Docs-only audit/design/narrowing days:
+
+- preserve wording/truthfulness anchors
+- run only targeted sanity checks when needed
+
+Code-touch analysis/refactor lifecycle days:
+
+- run `make format`
+- run `make lint`
+- run `make test`
+- default to `make quality-review-full` for substantial public/direct-lifecycle
+  batches
+
+Interpretation:
+
+- the validation contract is fixed before Sprint 52 begins changing lifecycle
+  behavior
+- later implementation days do not need to renegotiate their gate
+
+## Day 2 outcome
+
+Sprint 52 now has an explicit validation contract before deeper integration
+begins:
+
+- strongest reviewed local baseline rechecked
+- reviewed CMake parity anchor rechecked at `53`
+- mandatory code-day gate restated
+- stronger reviewed default restated
+- targeted direct-lifecycle rerun set fixed
+
+That is enough to move into the Day 3 analysis/factors contract audit without
+validation ambiguity.

@@ -962,3 +962,101 @@ The next bounded work should now focus on:
 - any remaining direct-lifecycle regression proof
 - later docs/example adoption
 - keeping LU as the intentionally bounded special-case seam
+
+## Day 9 outcome
+
+Sprint 52 now has a post-benchmark caller-surface audit instead of a generic
+“update the docs/examples” placeholder:
+
+- the strongest remaining adoption work is narrower than the original Day 9
+  placeholder implied
+- `README.md` and `examples/example_analysis.c` are the only clearly
+  high-value Day 10 adoption targets
+- `examples/README.md` and `benchmarks/README.md` are already aligned enough
+  to leave alone unless a very small supporting cross-reference becomes useful
+- tutorial-scale rewrite and broad example conversion remain out of scope
+
+### What was audited
+
+The Day 9 audit focused on the strongest caller-facing repeated-run direct
+surfaces after the Day 4-8 code and benchmark work:
+
+- `README.md`
+- `examples/example_analysis.c`
+- `examples/README.md`
+- `benchmarks/README.md`
+
+The audit also cross-checked the public contract home and the family-local
+headers to make sure the caller-facing docs still match the real lifecycle
+boundary:
+
+- `include/sparse_analysis.h`
+- `include/sparse_lu.h`
+- `include/sparse_cholesky.h`
+- `include/sparse_ldlt.h`
+
+### Main findings
+
+The remaining queue is now concrete:
+
+- strongest Day 10 target:
+  - `README.md`
+    - it already names the analyze/factor/refactor path, but the high-level
+      user-facing repeated-run direct story is still more compact than the now
+      stronger Sprint 52 behavior
+    - the best follow-on is a bounded clarification of:
+      - analyze once
+      - factor / solve
+      - refactor / solve many
+      - reuse preserves symbolic/permutation setup, not old numeric factor
+        contents
+      - obvious gross-structure drift is rejected cheaply, not fully proven
+- strongest shipped example target:
+  - `examples/example_analysis.c`
+    - it is already the strongest repeated-run direct example
+    - it now lags the Phase 2 story mainly in explanation, not in mechanics
+    - the best follow-on is a bounded clarification of:
+      - same-pattern value changes as the governing contract
+      - what is being reused
+      - why rebuilding a fresh matrix with the same pattern is still the right
+        example-level discipline
+
+Surfaces that are aligned enough to leave alone for now:
+
+- `examples/README.md`
+  - already names `example_analysis` as the strongest repeated-run direct
+    example
+  - already keeps the one-shot examples as first-class and simpler defaults
+- `benchmarks/README.md`
+  - Day 8 already brought the factor-many benchmark ownership story up to date
+  - no additional widening is justified on an adoption day
+
+### Day 10 boundary
+
+Day 10 should stay tightly bounded:
+
+- primary targets:
+  - `README.md`
+  - `examples/example_analysis.c`
+- optional tiny supporting touch only if truly needed:
+  - `examples/README.md`
+
+Day 10 should explicitly avoid:
+
+- broad tutorial rewrite
+- sweeping conversion of one-shot examples into repeated-run examples
+- broad benchmark README expansion
+- reopening LU as anything other than the intentionally bounded special-case
+  seam
+- changing the public lifecycle contract instead of just reflecting it
+
+### Day 9 conclusion
+
+Sprint 52’s remaining adoption queue is now smaller and clearer:
+
+- the benchmark proof and shared header contract are already in good shape
+- the highest-value remaining public adoption work is concentrated in:
+  - `README.md`
+  - `examples/example_analysis.c`
+- everything else can remain secondary unless a small supporting edit proves
+  necessary

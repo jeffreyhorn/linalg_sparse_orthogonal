@@ -61,13 +61,23 @@ actually supports:
 | `bench_fillin`      | Fill-in vs reordering quality                | (in `make bench`)     |
 | `bench_convergence` | Iterative-solver convergence rates           | (in `make bench`)     |
 | `bench_svd`         | Sparse SVD (bidiagonalisation + QR)          | (in `make bench`)     |
-| `bench_refactor`    | LDL^T re-factor with cached symbolic         | (in `make bench`)     |
-| `bench_refactor_csc`| Same but the CSC supernodal kernel           | (in `make bench`)     |
+| `bench_refactor`    | Cholesky analyze-once / refactor-many path   | (in `make bench`)     |
+| `bench_refactor_csc`| Same repeated-run path, plus CSC supernodal comparison | (in `make bench`)     |
 | `bench_colamd`      | COLAMD ordering quality                      | (in `make bench`)     |
 | `bench_bicgstab`    | BiCGStab convergence                         | (in `make bench`)     |
 | `bench_chol_csc`    | CSC Cholesky (Sprint 18)                     | (in `make bench`)     |
 | `bench_ldlt_csc`    | LDL^T linked-list vs CSC + dispatch          | (in `make bench`)     |
 | `bench_eigs`        | Symmetric eigensolver (3 backends)           | `make bench-eigs`     |
+
+The two refactor benchmarks are the strongest benchmark-side adoption surfaces
+for the public repeated-run direct lifecycle:
+
+- `bench_refactor`
+  - compares one-shot Cholesky factorization against the analyze-once /
+    factor-many direct path
+- `bench_refactor_csc`
+  - keeps the same caller story, then compares linked-list refactorization
+    against the CSC/supernodal path on the same repeated-run workflow
 
 ## bench_main
 

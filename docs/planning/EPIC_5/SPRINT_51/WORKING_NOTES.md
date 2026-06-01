@@ -1842,3 +1842,139 @@ Sprint 51’s lifecycle/test queue is now narrower again:
   - `benchmarks/bench_refactor_csc.c`
   - `benchmarks/README.md`
   - `examples/README.md`
+
+## Day 11
+
+### Objective
+
+Land the smallest high-signal adoption/docs cleanup left after the Day 10
+regression batch by aligning the strongest shipped repeated-run direct example
+and benchmark documentation surfaces with the now-live lifecycle path.
+
+### Commands Run
+
+- `git status --short --branch`
+- `rg -n "Day 11|Day 12|example_analysis|bench_refactor|README" docs/planning/EPIC_5/SPRINT_51/PLAN.md docs/planning/EPIC_5/SPRINT_51/WORKING_NOTES.md docs/planning/EPIC_5/SPRINT_51/artifacts/day9-focused-regression-expansion-design-and-inventory.md`
+- `rg -n "example_analysis|analyze once|refactor|bench_refactor|LDL\\^T|Cholesky" examples/README.md benchmarks/README.md examples/example_analysis.c benchmarks/bench_refactor.c benchmarks/bench_refactor_csc.c`
+- `sed -n '392,427p' docs/planning/EPIC_5/SPRINT_51/PLAN.md`
+- `sed -n '1,220p' examples/README.md`
+- `sed -n '1,160p' benchmarks/README.md`
+- `sed -n '1,240p' examples/example_analysis.c`
+- `sed -n '1,220p' benchmarks/bench_refactor.c`
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `rg -n "example_analysis|analyze-once|refactor-many|bench_refactor|CSC supernodal" examples/README.md benchmarks/README.md`
+
+### Files Changed
+
+- `examples/README.md`
+- `benchmarks/README.md`
+
+### Key Findings
+
+#### 1. The strongest source surfaces were already aligned enough to leave alone
+
+The live Day 11 check confirmed that:
+
+- `examples/example_analysis.c` already teaches the explicit repeated-run
+  direct path clearly
+- `benchmarks/bench_refactor.c` already frames the benchmark around one-shot
+  vs analyze-once / refactor-many Cholesky usage
+- `benchmarks/bench_refactor_csc.c` already documents the CSC comparison as a
+  repeated-run direct benchmark rather than a generic factor benchmark
+
+Interpretation:
+
+- the main Day 11 drift was no longer in the source files themselves
+- touching those `.c` files would have added churn without improving the
+  caller story materially
+
+#### 2. `examples/README.md` had one real omission: `example_analysis`
+
+Before the Day 11 patch, the examples README:
+
+- explained the one-shot examples
+- explained iterative and eigensolver repeated-run context
+- omitted the strongest shipped repeated-run direct example entirely
+
+Day 11 added an explicit `example_analysis` entry that now calls out:
+
+- zero-init `sparse_analysis_t` / `sparse_factors_t`
+- analyze once
+- factor / solve
+- refactor / solve many
+
+Interpretation:
+
+- the examples index now includes the repo’s strongest direct repeated-run
+  public example instead of leaving it discoverable only from filenames
+- the one-shot-vs-repeated-run split is now clearer for callers browsing the
+  examples surface
+
+#### 3. `benchmarks/README.md` had one real labeling drift: `bench_refactor`
+
+Before the Day 11 patch, the benchmark table still described:
+
+- `bench_refactor` as LDL^T re-factor with cached symbolic
+
+That no longer matched the live driver. Day 11 corrected the benchmark docs
+to say:
+
+- `bench_refactor` = Cholesky analyze-once / refactor-many path
+- `bench_refactor_csc` = the same repeated-run caller story plus CSC
+  supernodal comparison
+
+Interpretation:
+
+- the benchmark README now matches the real repeated-run direct benchmark
+  ownership instead of carrying a stale LDL^T description forward
+- the benchmark-side public lifecycle story is now consistent with Sprint 50
+  and Sprint 51
+
+#### 4. The Day 11 batch stayed bounded to the strongest adoption surfaces
+
+Day 11 did not:
+
+- broaden into tutorial work
+- reopen README-wide repeated-run restructuring
+- touch the lifecycle source code
+- change the public contracts themselves
+
+Interpretation:
+
+- this was a true adoption/docs batch, not a disguised implementation change
+- Sprint 51 kept the Day 9-10 promise to limit adoption work to the strongest
+  repeated-run direct example/benchmark surfaces
+
+#### 5. Targeted runtime sanity checks stayed green on the touched caller story
+
+Because Day 11 was documentation-only, the full C-file validation gate was not
+required. Targeted touched-surface runtime checks still completed cleanly:
+
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+
+Representative direct results:
+
+- `example_analysis` still reported residuals at `4.44e-16`
+- `bench_refactor` still completed its one-shot vs analyze-once comparison
+- `bench_refactor_csc` still completed the repeated-run linked-list vs CSC
+  comparison on `nos4`
+
+Interpretation:
+
+- the touched docs now match live shipped behavior on the exact adoption
+  surfaces they describe
+- Day 12 can move to compatibility audit work from a cleaner caller-story
+  baseline
+
+## Day 11 outcome
+
+Sprint 51’s remaining queue is narrower again:
+
+- the strongest repeated-run direct example and benchmark docs now match the
+  live lifecycle path
+- the remaining work is no longer basic adoption discoverability; it is later
+  compatibility/audit/closeout work

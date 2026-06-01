@@ -9,6 +9,12 @@
  * triangular. Exploits symmetry: only the lower triangle is stored after
  * factorization. No pivoting is needed for SPD matrices.
  *
+ * This header remains the one-shot Cholesky surface: callers typically copy
+ * the matrix, factor it in place, solve, and optionally refine. For stable-
+ * pattern repeated runs, prefer the shared direct lifecycle path in
+ * `sparse_analysis.h` (`sparse_analyze` → `sparse_factor_numeric` →
+ * `sparse_factor_solve` → `sparse_refactor_numeric`).
+ *
  * **Usage pattern:**
  * @code
  *   SparseMatrix *A = sparse_create(n, n);
@@ -126,6 +132,11 @@ typedef struct {
  * Fill-in entries with |value| < SPARSE_DROP_TOL * L(k,k) are dropped to
  * control memory growth.
  *
+ * For repeated solves on SPD matrices with a fixed sparsity pattern and
+ * changing values, use the shared analyze/factor/refactor path in
+ * `sparse_analysis.h` instead of repeatedly re-entering this in-place
+ * one-shot API.
+ *
  * @note **Tolerance semantics:** Factorization computes and caches ||A||_inf.
  *       The solve phase checks each L(i,i) against a norm-relative threshold:
  *       |L(i,i)| < SPARSE_DROP_TOL × sqrt(||A||_inf).  The square root is
@@ -158,6 +169,8 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat);
  * If opts->reorder != SPARSE_REORDER_NONE, the matrix is symmetrically
  * permuted before factorization. The reordering permutation is stored in
  * the matrix so that sparse_cholesky_solve() can automatically unpermute.
+ * This remains a one-shot entry point; the repeated-run direct path is the
+ * shared analysis/factor/refactor API in `sparse_analysis.h`.
  *
  * @param mat   The SPD matrix to factor (modified in-place).
  * @param opts  Factorization options.

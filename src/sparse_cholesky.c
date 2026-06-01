@@ -70,7 +70,14 @@ static double s29_now_s(void) {
  * efficiently, then write back nonzeros into the sparse structure.
  */
 sparse_err_t sparse_cholesky_factor(SparseMatrix *mat) {
-    return sparse_cholesky_factor_inner(mat, NULL, NULL);
+    const sparse_cholesky_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .backend = SPARSE_CHOL_BACKEND_AUTO,
+        .used_csc_path = NULL,
+        .progress_cb = NULL,
+        .progress_user = NULL,
+    };
+    return sparse_cholesky_factor_opts(mat, &opts);
 }
 
 static sparse_err_t sparse_cholesky_factor_inner(SparseMatrix *mat,

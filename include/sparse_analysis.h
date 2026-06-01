@@ -10,6 +10,13 @@
  * sparsity pattern without redoing ordering and symbolic work — critical
  * for nonlinear solvers, time-stepping codes, and optimization loops.
  *
+ * This is the library's explicit public repeated-run direct-solver path:
+ * zero/init `sparse_analysis_t` and `sparse_factors_t`, analyze once, factor
+ * and solve, refactor with new numeric values on the same sparsity pattern,
+ * then free both objects explicitly. The one-shot LU, Cholesky, and LDL^T
+ * family APIs remain first-class peer entry points for one-off or lower-
+ * context solves.
+ *
  * @note For LU, the one-time symbolic analysis can be substantially more
  * expensive than the subsequent numeric refactorizations may suggest. In
  * particular, LU symbolic analysis builds the structural pattern of A^T*A,
@@ -118,6 +125,9 @@ typedef struct {
  *
  * Callers must call sparse_analysis_free() when done. The free function
  * is safe on a zeroed struct.
+ *
+ * This object owns symbolic/permutation setup only. It does not own the
+ * source matrix and it does not retain old numeric factor state.
  */
 typedef struct {
     idx_t n;                     /**< Matrix dimension */
@@ -206,7 +216,9 @@ void sparse_analysis_free(sparse_analysis_t *analysis);
  * Wraps the factored matrix (L for Cholesky, L+U for LU, L+D for LDL^T)
  * along with the factorization type and permutation needed for solve.
  *
- * Callers must call sparse_factor_free() when done.
+ * Callers must call sparse_factor_free() when done. This object owns numeric
+ * factor state only; repeated refactorization reuses the symbolic/permutation
+ * setup from sparse_analysis_t but replaces the numeric factor contents.
  */
 typedef struct {
     SparseMatrix *F;           /**< Factored matrix (L for Cholesky, L+U for LU, L for LDL^T) */
@@ -260,6 +272,11 @@ typedef struct {
  * @return SPARSE_ERR_ALLOC if memory allocation fails.
  * @return Error codes from the delegated factorization routine may also
  *         be propagated.
+ *
+ * @note This is the shared repeated-run direct entry point for LU,
+ *       Cholesky, and LDL^T when the matrix pattern is stable across many
+ *       solves. Reuse comes from preserving symbolic/permutation setup in
+ *       @p analysis; it does not preserve old numeric factor state.
  */
 sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_t *analysis,
                                    sparse_factors_t *factors);
@@ -310,6 +327,10 @@ void sparse_factor_free(sparse_factors_t *factors);
  * This avoids the cost of repeated symbolic analysis when solving
  * multiple systems with the same structure but different values
  * (e.g., nonlinear solvers, time-stepping).
+ *
+ * Reuse here preserves the symbolic/permutation setup stored in
+ * @p analysis. The numeric factor contents in @p factors are rebuilt
+ * from the new values and are not incrementally updated.
  *
  * @pre A_new must be structurally compatible with the analyzed matrix.
  * @pre factors must be zeroed or contain a valid existing factorization.

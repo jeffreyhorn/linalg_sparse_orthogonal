@@ -34,6 +34,11 @@
  *   sparse_ldlt_free(&ldlt);
  *   sparse_ldlt_free(&ldlt2);
  * @endcode
+ *
+ * This header exposes the family-local owned-factor LDL^T surface. For
+ * stable-pattern repeated direct runs across LU, Cholesky, or LDL^T, the
+ * shared analysis/factor/refactor path in `sparse_analysis.h` is the common
+ * repeated-run contract.
  */
 
 #include "sparse_matrix.h"
@@ -55,6 +60,11 @@
  * Callers must call sparse_ldlt_free() before reusing a sparse_ldlt_t for
  * a new factorization; the factor functions overwrite the struct without
  * freeing prior contents. sparse_ldlt_free() is safe on a zeroed struct.
+ *
+ * This owned factor object is distinct from the shared repeated-run direct
+ * path in `sparse_analysis.h`: `sparse_ldlt_t` owns family-local LDL^T
+ * numeric state, while `sparse_analysis_t` / `sparse_factors_t` carry the
+ * shared analyze/factor/refactor direct lifecycle.
  */
 typedef struct {
     SparseMatrix *L;    /**< Unit lower triangular factor */

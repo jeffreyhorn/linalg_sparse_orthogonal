@@ -27,6 +27,12 @@
  *   sparse_lu_condest(A, LU, &cond);
  *   if (cond > 1e12) fprintf(stderr, "Warning: ill-conditioned (cond ~%.1e)\n", cond);
  * @endcode
+ *
+ * For stable-pattern repeated runs, prefer the shared direct lifecycle path
+ * in `sparse_analysis.h` (`sparse_analyze` → `sparse_factor_numeric` →
+ * `sparse_factor_solve` → `sparse_refactor_numeric`). The LU APIs in this
+ * header remain first-class one-shot peer entry points and the simple/default
+ * path for copied-matrix solves.
  */
 
 #include "sparse_matrix.h"
@@ -102,6 +108,10 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
  *
  * Fill-in entries with |value| < SPARSE_DROP_TOL * |pivot| are dropped
  * to control memory growth.
+ *
+ * For repeated solves on matrices that keep the same sparsity pattern but
+ * change values, use the shared analyze/factor/refactor path in
+ * `sparse_analysis.h` instead of repeatedly re-entering this one-shot API.
  *
  * @pre mat must not be needed after factorization — use sparse_copy() first
  *      to preserve the original.  The matrix is overwritten with L and U.

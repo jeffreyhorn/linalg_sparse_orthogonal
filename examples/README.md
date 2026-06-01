@@ -44,6 +44,24 @@ factorization, solve, and residual computation.
 ./build/example_basic_solve
 ```
 
+### example_analysis
+
+Demonstrate the explicit repeated-run direct lifecycle:
+
+- zero-init `sparse_analysis_t` / `sparse_factors_t`
+- analyze once through `sparse_analyze(...)`
+- factor / solve through `sparse_factor_numeric(...)` and
+  `sparse_factor_solve(...)`
+- refactor / solve many through `sparse_refactor_numeric(...)`
+
+This is the strongest shipped example for stable-pattern repeated direct
+solves. It complements the smaller one-shot examples rather than replacing
+them.
+
+```bash
+./build/example_analysis
+```
+
 ### example_least_squares
 
 Solve an overdetermined 6x3 system via column-pivoted QR factorization. Shows

@@ -10,6 +10,7 @@
 
 #include "sparse_lu.h"
 #include "sparse_alloc_internal.h"
+#include "sparse_analysis.h"
 #include "sparse_matrix_internal.h"
 #include "sparse_matrix_state_internal.h"
 #include "sparse_reorder.h"
@@ -29,6 +30,79 @@
 static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t pivot, double tol,
                                            sparse_progress_cb_t progress_cb, void *progress_user,
                                            int restore_compat_on_premutation_exit);
+
+static int s51_lu_opts_can_use_shared_lifecycle(const SparseMatrix *mat,
+                                                const sparse_lu_opts_t *opts) {
+    if (!mat || !opts)
+        return 0;
+    return opts->pivot == SPARSE_PIVOT_PARTIAL && opts->tol == 1e-12 && opts->progress_cb == NULL &&
+           sparse_matrix_require_original_row_col_state(mat) == SPARSE_OK;
+}
+
+/* Re-home a factored working copy onto the caller-owned one-shot matrix so
+ * `sparse_lu_solve()` keeps the existing public contract (`reorder_perm`
+ * lives on the matrix, not in a separate factor object). */
+static void s51_lu_steal_factor_payload(SparseMatrix *dst, SparseMatrix *src) {
+    if (!dst || !src)
+        return;
+
+    pool_free_all(&dst->pool);
+    free(dst->row_headers);
+    free(dst->col_headers);
+    free(dst->row_perm);
+    free(dst->inv_row_perm);
+    free(dst->col_perm);
+    free(dst->inv_col_perm);
+    free(dst->factor_state);
+    free(dst->reorder_perm);
+
+    dst->row_headers = src->row_headers;
+    dst->col_headers = src->col_headers;
+    dst->row_perm = src->row_perm;
+    dst->inv_row_perm = src->inv_row_perm;
+    dst->col_perm = src->col_perm;
+    dst->inv_col_perm = src->inv_col_perm;
+    dst->pool = src->pool;
+    dst->nnz = src->nnz;
+    dst->cached_norm = src->cached_norm;
+    dst->factor_norm = src->factor_norm;
+    dst->factored = src->factored;
+    dst->factor_state = src->factor_state;
+    dst->reorder_perm = src->reorder_perm;
+
+    src->row_headers = NULL;
+    src->col_headers = NULL;
+    src->row_perm = NULL;
+    src->inv_row_perm = NULL;
+    src->col_perm = NULL;
+    src->inv_col_perm = NULL;
+    src->pool.head = NULL;
+    src->pool.current = NULL;
+    src->pool.free_list = NULL;
+    src->nnz = 0;
+    src->factor_norm = -1.0;
+    src->factored = 0;
+    src->factor_state = NULL;
+    src->reorder_perm = NULL;
+}
+
+static sparse_err_t s51_lu_publish_analysis_factor(SparseMatrix *mat, sparse_analysis_t *analysis,
+                                                   sparse_factors_t *factors) {
+    if (!mat || !analysis || !factors || !factors->F || factors->type != SPARSE_FACTOR_LU)
+        return SPARSE_ERR_BADARG;
+
+    idx_t *reorder_perm = analysis->perm;
+    SparseMatrix *factor = factors->F;
+    double factor_norm = factors->factor_norm;
+
+    analysis->perm = NULL;
+    factors->F = NULL;
+
+    s51_lu_steal_factor_payload(mat, factor);
+    sparse_factor_state_publish_factored(mat, factor_norm, reorder_perm);
+    sparse_free(factor);
+    return SPARSE_OK;
+}
 
 /* Sprint 29 Day 8 (Item 5): Windows-portable monotonic clock helper. */
 static double s29_now_s(void) {
@@ -275,6 +349,23 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
         break;
     default:
         return SPARSE_ERR_BADARG;
+    }
+
+    if (s51_lu_opts_can_use_shared_lifecycle(mat, opts)) {
+        sparse_analysis_t analysis = {0};
+        sparse_factors_t factors = {0};
+        sparse_analysis_opts_t analysis_opts = {
+            .factor_type = SPARSE_FACTOR_LU,
+            .reorder = opts->reorder,
+        };
+        sparse_err_t err = sparse_analyze(mat, &analysis_opts, &analysis);
+        if (err == SPARSE_OK)
+            err = sparse_factor_numeric(mat, &analysis, &factors);
+        if (err == SPARSE_OK)
+            err = s51_lu_publish_analysis_factor(mat, &analysis, &factors);
+        sparse_factor_free(&factors);
+        sparse_analysis_free(&analysis);
+        return err;
     }
 
     /* Apply fill-reducing reordering if requested */

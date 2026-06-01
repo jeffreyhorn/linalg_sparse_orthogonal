@@ -1,0 +1,45 @@
+Sprint 51 Day 1 authoritative inputs
+===================================
+
+Project-plan source
+-------------------
+- docs/planning/EPIC_5/PROJECT_PLAN.md (Sprint 51 section, lines 57-86)
+- docs/planning/EPIC_5/SPRINT_51/PLAN.md
+
+Inherited Sprint 50 handoff
+---------------------------
+- docs/planning/EPIC_5/SPRINT_50/artifacts/day14-closeout-and-handoff.md
+- docs/planning/EPIC_5/SPRINT_50/RETROSPECTIVE.md
+- docs/planning/EPIC_5/SPRINT_50/artifacts/day8-public-direct-solver-lifecycle-api-design-batch2.md
+- docs/planning/EPIC_5/SPRINT_50/artifacts/day10-validation-and-landing-plan.md
+
+Reviewed baseline / truthfulness anchors
+----------------------------------------
+- ctest -N --test-dir build/quality-review-cmake
+- make -n quality-review-full
+
+Primary direct public lifecycle surfaces
+----------------------------------------
+- include/sparse_analysis.h
+- include/sparse_lu.h
+- include/sparse_cholesky.h
+- include/sparse_ldlt.h
+- src/sparse_analysis.c
+
+Primary repeated-run teaching / adoption surfaces
+-------------------------------------------------
+- examples/example_analysis.c
+- benchmarks/bench_refactor.c
+- benchmarks/bench_refactor_csc.c
+
+Primary direct regression surfaces
+----------------------------------
+- tests/test_cholesky.c
+- tests/test_ldlt.c
+- tests/test_etree.c
+- tests/test_chol_csc.c
+- tests/test_ldlt_csc.c
+
+Supporting caller-surface context
+---------------------------------
+- README.md

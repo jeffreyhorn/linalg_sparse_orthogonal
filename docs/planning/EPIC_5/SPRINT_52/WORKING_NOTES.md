@@ -745,3 +745,109 @@ The next bounded work should focus on:
 - deeper factor-many benchmark proof
 - additional direct-lifecycle sequencing/ownership proof if needed
 - keeping LU as the intentionally bounded special-case seam
+
+## Day 7 outcome
+
+Sprint 52 now has a second refactor-tightening batch rather than only the Day
+6 factors-object validation layer:
+
+- the shared analysis path now rejects obvious gross structure drift before
+  later numeric factorization/refactor work begins
+- the repeated-run direct contract is tighter without claiming a full
+  structural-pattern verifier
+- zero-init first-factorization, repeat refactor/solve, and old-factor
+  preservation behavior all remain intact
+
+### What changed
+
+The Day 7 code batch landed in:
+
+- `include/sparse_analysis.h`
+- `src/sparse_analysis.c`
+- `tests/test_integration.c`
+
+The key implementation move is narrow and deliberate:
+
+- cache the analyzed matrix nonzero count in `sparse_analysis_t`
+- add a shared input validator for the analysis/factor path
+- reject matrices whose current `sparse_nnz(...)` no longer matches the matrix
+  that produced the analysis
+- use that shared validator in both `sparse_factor_numeric(...)` and
+  `sparse_refactor_numeric(...)`
+- prove that rejected NNZ-drift refactor attempts still leave the prior good
+  factors usable
+
+### What stayed intentionally unchanged
+
+Day 7 stayed inside the Sprint 52 scope fence:
+
+- no public direct-handle redesign
+- no raw CSC/native storage exposure
+- no full structural-pattern verifier
+- no one-shot LU / Cholesky / LDL^T posture change
+- no incremental numeric-update claim
+- no LU routing expansion
+
+### Validation
+
+Because `*.c` / `*.h` changed, the full required gate was run:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Because this remained a substantial shared direct-lifecycle batch, the stronger
+reviewed baseline was also run:
+
+- `make quality-review-full`
+
+That also passed.
+
+The maintained truthfulness anchors stayed exact:
+
+- reviewed CMake parity remained `53`
+- Makefile/CMake parity remained `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 242.05 sec`
+
+### Focused follow-ons
+
+The highest-value repeated-run direct proof also stayed clean:
+
+- `./build/test_integration`
+  - `32 / 32` passed
+  - new coverage now proves:
+    - NNZ-drift refactor attempts are rejected as obvious gross structure
+      mismatch
+    - the prior good factors still solve the original system afterward
+- `./build/example_analysis`
+  - residuals stayed at `4.44e-16`
+- `./build/bench_refactor`
+  - analyze-once stayed ahead on the repeated-run cases:
+    - `tridiag-200` = `1.86x`
+    - `tridiag-500` = `1.37x`
+    - `bcsstk04` = `1.84x`
+    - `nos4` = `1.72x`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - CSC repeated-run path stayed ahead:
+    - `speedup_refactor = 1.72x`
+    - `res_ll = 8.24e-16`
+    - `res_csc = 7.06e-16`
+
+### Day 7 conclusion
+
+Sprint 52 now has a materially more complete refactor boundary on the shared
+analysis path:
+
+- zeroed-state first factorization still works
+- mismatched preexisting factors are rejected
+- obvious gross structure drift is rejected
+- failed refactor attempts still preserve the prior factors
+
+The remaining bounded work should now focus on:
+
+- factor-many benchmark proof closeout
+- later docs/example adoption
+- keeping LU as the intentionally bounded special-case seam

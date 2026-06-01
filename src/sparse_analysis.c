@@ -138,6 +138,7 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
     idx_t n = A->rows;
     sparse_analysis_free(analysis); /* free any prior contents */
     analysis->n = n;
+    analysis->source_nnz = sparse_nnz(A);
     analysis->type = ftype;
 
     /* Cache ||A||_inf */
@@ -556,6 +557,17 @@ static void sparse_factors_make_ldlt_view(const sparse_factors_t *factors,
     ldlt_view->tol = SPARSE_DROP_TOL;
 }
 
+static sparse_err_t sparse_validate_analysis_input_matrix(const SparseMatrix *A,
+                                                          const sparse_analysis_t *analysis) {
+    if (A->rows != analysis->n || A->cols != analysis->n)
+        return SPARSE_ERR_SHAPE;
+    if (sparse_matrix_require_original_row_col_state(A) != SPARSE_OK)
+        return SPARSE_ERR_BADARG;
+    if (sparse_nnz(A) != analysis->source_nnz)
+        return SPARSE_ERR_BADARG;
+    return SPARSE_OK;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * sparse_factor_numeric
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -564,10 +576,9 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
                                    sparse_factors_t *factors) {
     if (!A || !analysis || !factors)
         return SPARSE_ERR_NULL;
-    if (A->rows != analysis->n || A->cols != analysis->n)
-        return SPARSE_ERR_SHAPE;
-    if (sparse_matrix_require_original_row_col_state(A) != SPARSE_OK)
-        return SPARSE_ERR_BADARG;
+    sparse_err_t input_err = sparse_validate_analysis_input_matrix(A, analysis);
+    if (input_err != SPARSE_OK)
+        return input_err;
 
     idx_t n = analysis->n;
     sparse_factors_t new_factors = {0};
@@ -786,11 +797,11 @@ sparse_err_t sparse_refactor_numeric(const SparseMatrix *A_new, const sparse_ana
                                      sparse_factors_t *factors) {
     if (!A_new || !analysis || !factors)
         return SPARSE_ERR_NULL;
+    sparse_err_t err = sparse_validate_analysis_input_matrix(A_new, analysis);
+    if (err != SPARSE_OK)
+        return err;
 
-    if (A_new->rows != analysis->n || A_new->cols != analysis->n)
-        return SPARSE_ERR_SHAPE;
-
-    sparse_err_t err = sparse_refactor_validate_existing_factors(factors, analysis);
+    err = sparse_refactor_validate_existing_factors(factors, analysis);
     if (err != SPARSE_OK)
         return err;
 

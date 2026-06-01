@@ -131,6 +131,12 @@ typedef struct {
  */
 typedef struct {
     idx_t n;                     /**< Matrix dimension */
+    idx_t source_nnz;            /**< Stored nonzero count of the matrix that
+                                     produced this analysis. Used for cheap
+                                     gross-structure compatibility checks on
+                                     later factor/refactor calls; does not
+                                     replace the caller's same-pattern
+                                     contract. */
     idx_t *perm;                 /**< Fill-reducing permutation (length n), or NULL */
     idx_t *etree;                /**< Elimination tree parent pointers (length n);
                                      NULL when type == SPARSE_FACTOR_LU. */
@@ -340,6 +346,11 @@ void sparse_factor_free(sparse_factors_t *factors);
  * @pre factors must be zeroed or contain a valid existing factorization
  *      produced for the same factor family and dimension as @p analysis.
  *
+ * This routine performs cheap boundary validation only. In addition to
+ * dimension and matrix-state checks, it rejects obvious gross structure drift
+ * when `sparse_nnz(A_new)` no longer matches the matrix analyzed into
+ * @p analysis. It does not run a full structural-pattern verifier.
+ *
  * @param A_new     The new matrix to factor (not modified). Must have
  *                  dimensions compatible with the original analysis.
  * @param analysis  Precomputed symbolic analysis (from sparse_analyze).
@@ -350,8 +361,10 @@ void sparse_factor_free(sparse_factors_t *factors);
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
  * @return SPARSE_ERR_SHAPE if matrix dimensions don't match.
- * @return SPARSE_ERR_BADARG if a non-zeroed @p factors object does not
- *         match @p analysis or does not contain a valid factor payload.
+ * @return SPARSE_ERR_BADARG if A_new is not in original row/col state, has an
+ *         obvious gross structure mismatch against @p analysis, or if a
+ *         non-zeroed @p factors object does not match @p analysis or does not
+ *         contain a valid factor payload.
  * @return SPARSE_ERR_NOT_SPD if A_new is not symmetric (Cholesky/LDL^T)
  *         or not positive-definite (Cholesky).
  * @return SPARSE_ERR_SINGULAR if a zero pivot is encountered.

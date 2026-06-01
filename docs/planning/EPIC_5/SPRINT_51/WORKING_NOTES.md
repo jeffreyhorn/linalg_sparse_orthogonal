@@ -547,3 +547,174 @@ Interpretation:
 
 - Day 4 can proceed directly to header edits plus required validation
 - the remaining uncertainty is implementation detail, not public-contract shape
+
+## Day 4
+
+**Objective:** Land the bounded first public direct-lifecycle header/API batch
+across `sparse_analysis.h`, `sparse_lu.h`, `sparse_cholesky.h`, and
+`sparse_ldlt.h`, while preserving one-shot direct family compatibility wording
+and validating the touched `*.h` surface with the full required gate plus the
+stronger reviewed baseline.
+
+### Commands Run
+
+1. Re-read the Sprint 51 Day 4 plan item and the Day 3 header-map artifact:
+   - `sed -n '120,260p' docs/planning/EPIC_5/SPRINT_51/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_51/artifacts/day3-public-header-surface-design-to-code-map.md`
+2. Re-read the live direct header surfaces to patch the bounded batch exactly:
+   - `sed -n '1,360p' include/sparse_analysis.h`
+   - `sed -n '1,220p' include/sparse_lu.h`
+   - `sed -n '1,220p' include/sparse_cholesky.h`
+   - `sed -n '1,260p' include/sparse_ldlt.h`
+3. Reconfirm existing free/zero-init semantics before tightening comments:
+   - `rg -n "sparse_analysis_free|sparse_factor_free|sparse_ldlt_free|safe on a zeroed|zeroed struct|no-op" src include`
+4. Land the bounded header batch:
+   - `include/sparse_analysis.h`
+   - `include/sparse_lu.h`
+   - `include/sparse_cholesky.h`
+   - `include/sparse_ldlt.h`
+5. Run the mandatory code-day gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+6. Run the stronger reviewed baseline:
+   - `make quality-review-full`
+
+### Day 4 Findings
+
+#### 1. The shared repeated-run direct contract is now explicit in `sparse_analysis.h` instead of relying mainly on inference
+
+The Day 4 header batch made the shared repeated-run direct story explicit in
+the public analysis/factor header:
+
+- `sparse_analysis.h` now states directly that it is the explicit public
+  repeated-run direct-solver path
+- the zero/init → analyze once → factor / solve → refactor / solve many →
+  free lifecycle is now named in the file-level contract
+- the object-ownership boundary is now clearer:
+  - `sparse_analysis_t` owns symbolic/permutation setup only
+  - `sparse_factors_t` owns numeric factor state only
+  - neither owns the source matrix
+- reuse wording is now more exact:
+  - same-pattern reuse preserves symbolic/permutation setup
+  - refactor rebuilds numeric factor contents instead of preserving old numeric
+    state
+
+Interpretation:
+
+- the shared direct repeated-run contract is now visible where Sprint 50 said
+  it should live
+- Sprint 51 no longer depends on later README/example work just to explain the
+  public direct lifecycle truth
+
+#### 2. LU remains one-shot-first, but it now points callers to the shared repeated-run path without demotion
+
+The Day 4 LU header edits stayed bounded:
+
+- the file-level LU surface now points stable-pattern repeated runs to
+  `sparse_analysis.h`
+- `sparse_lu_factor(...)` now explicitly steers repeated same-pattern solves to
+  the shared analyze/factor/refactor path
+- the one-shot LU surface remained intact:
+  - copied-matrix guidance stayed explicit
+  - one-shot factor / solve remains the simple/default path
+
+Interpretation:
+
+- Day 4 made the repeated-run relationship visible without turning the LU
+  header into a second copy of `sparse_analysis.h`
+- the compatibility-facing LU teaching remains honest and unchanged
+
+#### 3. Cholesky now exposes the same relationship boundary while preserving visible mutable-matrix truth
+
+The Day 4 Cholesky header edits also stayed additive:
+
+- the file-level header now identifies the one-shot Cholesky role explicitly
+- the shared repeated-run direct path in `sparse_analysis.h` is now named as
+  the stable-pattern alternative
+- the one-shot SPD / in-place mutation truths remained explicit:
+  - copy first if the original matrix is needed later
+  - lower triangle overwritten with `L`
+  - upper triangle removed
+
+Interpretation:
+
+- Day 4 improved the caller-facing relationship wording without softening the
+  mutable-matrix compatibility story
+- the header still reads as a one-shot-first SPD surface rather than a generic
+  lifecycle wrapper
+
+#### 4. LDL^T now names its relationship to the shared repeated-run direct path while keeping the owned-factor model intact
+
+The Day 4 LDL^T header edits clarified the intended split:
+
+- `sparse_ldlt.h` now says directly that it is the family-local owned-factor
+  LDL^T surface
+- it now cross-references the shared `sparse_analysis.h` path as the common
+  repeated-run direct contract across LU / Cholesky / LDL^T
+- the owned `sparse_ldlt_t` semantics remained intact and were not generalized
+  into a new direct-handle abstraction
+
+Interpretation:
+
+- Sprint 51 preserved the existing LDL^T factor-object surface
+- the new wording clarifies relationship and scope rather than introducing a
+  second public lifecycle model
+
+#### 5. The Day 4 batch stayed inside the Sprint 50/51 scope fence
+
+The header landing did not reopen any of the preserved non-goals:
+
+- no raw internal CSC/native storage exposure
+- no generic direct-handle redesign
+- no demotion or removal of one-shot direct APIs
+- no promise that repeated-run direct reuse preserves old numeric factor state
+- no broader README/tutorial/benchmark-doc expansion in this batch
+
+Interpretation:
+
+- Day 4 landed the first public direct lifecycle header/API batch without
+  expanding the sprint scope
+- the repo now has a cleaner header contract while preserving the planned
+  compatibility fence
+
+#### 6. The mandatory gate and stronger reviewed baseline both passed after the header batch
+
+The required code-day gate passed:
+
+- `make format`
+- `make lint`
+- `make test`
+
+The stronger reviewed baseline also passed:
+
+- `make quality-review-full`
+
+The maintained truthfulness anchors stayed exact:
+
+- reviewed CMake parity remained `53`
+- Makefile/CMake parity remained `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- `Total Test time (real) = 440.65 sec`
+
+Interpretation:
+
+- the public header batch is validated from both the normal code-day gate and
+  the stronger reviewed close state
+- Sprint 51 can move to LU integration from a green public-header baseline
+
+#### 7. Day 4 leaves the next seam concrete: source integration, not more public contract design
+
+With the header batch landed:
+
+- the shared repeated-run direct contract is now public and explicit
+- the family headers now point to that shared path cleanly
+- the next real work is implementation routing in the LU / Cholesky / LDL^T
+  source paths
+
+Interpretation:
+
+- Day 5 should focus on LU lifecycle integration rather than further header
+  architecture
+- the remaining Sprint 51 uncertainty is now implementation behavior, not
+  public header wording

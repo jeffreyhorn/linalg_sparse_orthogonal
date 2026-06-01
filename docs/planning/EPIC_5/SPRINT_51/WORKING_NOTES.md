@@ -1680,3 +1680,165 @@ implied:
   sequencing/ownership coverage
 - the strongest later Day 11 work remains `example_analysis`,
   `bench_refactor*`, and the two carried-forward README drifts
+
+## Day 10
+
+### Objective
+
+Land the smallest high-signal direct-lifecycle regression expansion left after
+the Day 9 audit, centered on public sequencing and ownership truth rather than
+new routing or broad parity churn.
+
+### Commands Run
+
+- `git status --short --branch`
+- `rg -n "test_lu_opts_match_explicit_analysis_path|test_cholesky_opts_match_explicit_analysis_path|test_ldlt_opts_match_explicit_analysis_path|test_cholesky_default_wrapper_matches_default_opts|test_ldlt_default_wrapper_matches_default_opts|build_tridiag_spd|int main\\(" tests/test_integration.c`
+- `rg -n "sparse_factor_solve\\(|sparse_refactor_numeric\\(|sparse_analysis_free\\(|sparse_factor_free\\(" src/sparse_analysis.c include/sparse_analysis.h tests/test_etree.c`
+- `sed -n '1,120p' tests/test_integration.c`
+- `sed -n '410,460p' tests/test_integration.c`
+- `sed -n '640,940p' tests/test_integration.c`
+- `sed -n '1180,1235p' tests/test_integration.c`
+- `sed -n '2330,2415p' tests/test_etree.c`
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- `./build/test_integration`
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc`
+
+### Files Changed
+
+- `tests/test_integration.c`
+
+### Key Findings
+
+#### 1. The highest-value Day 10 coverage gap was sequencing clarity, not family parity volume
+
+The Day 9 audit held up once the live tree was rechecked:
+
+- `tests/test_etree.c` already carries broad analyze/factor/solve/refactor
+  coverage
+- `tests/test_integration.c` already carries the bounded public-surface parity
+  checks added in Sprint 51
+
+What was still worth adding was smaller:
+
+- direct rejection for solve-before-factor on a zeroed `sparse_factors_t`
+- direct acceptance of `sparse_refactor_numeric(...)` when `factors` is zeroed
+
+Interpretation:
+
+- the best Day 10 work was to make the public lifecycle sequence easier to see
+  and harder to drift
+- broad family-by-family parity expansion would have been lower-signal churn
+
+#### 2. Day 10 added a direct public regression for solve-before-factor rejection
+
+The first new integration test now:
+
+- analyzes a Cholesky repeated-run path
+- leaves `sparse_factors_t factors = {0}`
+- verifies `sparse_factor_solve(&factors, &analysis, b, x)` returns
+  `SPARSE_ERR_BADARG`
+
+Interpretation:
+
+- the public direct lifecycle now has an explicit small regression that proves
+  callers cannot skip the numeric-factor step
+- this was already the documented contract in `sparse_analysis.h`, and the
+  test makes that contract locally visible in the bounded integration surface
+
+#### 3. Day 10 also proved that `sparse_refactor_numeric(...)` can act as the first numeric factorization on zeroed factors
+
+The second new integration test now:
+
+- analyzes a Cholesky repeated-run path once
+- calls `sparse_refactor_numeric(...)` with zeroed `sparse_factors_t`
+- solves successfully against the original matrix
+- mutates only diagonal values on a same-pattern matrix
+- calls `sparse_refactor_numeric(...)` again and solves successfully again
+
+Interpretation:
+
+- the public “analyze once / refactor-solve many” story is now explicit in a
+  small test rather than only inferable from larger `test_etree.c` coverage
+- Sprint 51 now has direct regression evidence that zeroed factor ownership is
+  a supported starting state for the repeated-run direct path
+
+#### 4. The batch stayed inside the Day 9 and Sprint 50/51 fences
+
+Day 10 did not:
+
+- reopen LU wrapper-routing work
+- touch `tests/test_etree.c`
+- broaden into example or benchmark adoption
+- introduce new public behavior beyond already-documented header truth
+
+Interpretation:
+
+- this was a true focused regression expansion batch, not a disguised routing
+  or API redesign step
+- the sprint is still tracking the bounded Phase-1 direct lifecycle plan
+
+#### 5. Validation stayed green through both the required code-day gate and the stronger reviewed baseline
+
+The required code-day gate passed:
+
+- `make format`
+- `make lint`
+- `make test`
+
+The stronger reviewed baseline also passed:
+
+- `make quality-review-full`
+
+The maintained truthfulness anchors stayed exact:
+
+- reviewed CMake parity remained `53`
+- Makefile/CMake parity remained `53` vs `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+
+Interpretation:
+
+- the new regression coverage did not destabilize the direct-lifecycle path
+- Sprint 51 can move to the adoption/documentation surfaces from a green
+  validated baseline
+
+#### 6. The targeted direct-lifecycle follow-ons stayed green after the test expansion
+
+The touched-surface follow-ons that completed cleanly were:
+
+- `./build/test_integration`
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc`
+
+Representative direct results:
+
+- `test_integration` remained fully green with the two new lifecycle cases
+- `example_analysis` still showed analyze-once / refactor-many residuals at
+  `4.44e-16`
+- the refactor benchmarks still preserved the repeated-run direct story after
+  the Day 10 regression expansion
+
+Interpretation:
+
+- the added tests are aligned with the real shipped repeated-run direct
+  surfaces
+- Day 11 can focus on adoption and documentation rather than re-debugging the
+  lifecycle core
+
+## Day 10 outcome
+
+Sprint 51’s lifecycle/test queue is now narrower again:
+
+- the remaining implementation/value is no longer in public lifecycle core
+  routing or regression basics
+- the strongest next surfaces are adoption and documentation:
+  - `examples/example_analysis.c`
+  - `benchmarks/bench_refactor.c`
+  - `benchmarks/bench_refactor_csc.c`
+  - `benchmarks/README.md`
+  - `examples/README.md`

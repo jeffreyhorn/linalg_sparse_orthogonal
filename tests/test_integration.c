@@ -923,6 +923,94 @@ static void test_ldlt_factor_opts_matches_explicit_analysis_path(void) {
     sparse_free(A_analysis);
 }
 
+static void test_public_lifecycle_solve_rejects_zeroed_factors(void) {
+    const idx_t n = 50;
+    SparseMatrix *A = build_tridiag_spd(n);
+    sparse_analysis_t analysis = {0};
+    sparse_factors_t factors = {0};
+    double *b = NULL;
+    double *x = NULL;
+
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_analysis_opts_t analysis_opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_NONE,
+    };
+    ASSERT_EQ(sparse_analyze(A, &analysis_opts, &analysis), SPARSE_OK);
+
+    b = malloc((size_t)n * sizeof(double));
+    x = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(b && x ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    for (idx_t i = 0; i < n; i++)
+        b[i] = 1.0;
+
+    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b, x), SPARSE_ERR_BADARG);
+
+    free(b);
+    free(x);
+    sparse_factor_free(&factors);
+    sparse_analysis_free(&analysis);
+    sparse_free(A);
+}
+
+static void test_public_lifecycle_refactor_accepts_zeroed_factors(void) {
+    const idx_t n = 50;
+    SparseMatrix *A1 = build_tridiag_spd(n);
+    SparseMatrix *A2 = build_tridiag_spd(n);
+    sparse_analysis_t analysis = {0};
+    sparse_factors_t factors = {0};
+    double *x_exact = NULL;
+    double *b1 = NULL;
+    double *b2 = NULL;
+    double *x1 = NULL;
+    double *x2 = NULL;
+
+    REQUIRE_OK(A1 && A2 ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_analysis_opts_t analysis_opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
+    ASSERT_EQ(sparse_analyze(A1, &analysis_opts, &analysis), SPARSE_OK);
+
+    x_exact = malloc((size_t)n * sizeof(double));
+    b1 = malloc((size_t)n * sizeof(double));
+    b2 = malloc((size_t)n * sizeof(double));
+    x1 = malloc((size_t)n * sizeof(double));
+    x2 = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(x_exact && b1 && b2 && x1 && x2 ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = 1.0;
+
+    sparse_matvec(A1, x_exact, b1);
+    ASSERT_EQ(sparse_refactor_numeric(A1, &analysis, &factors), SPARSE_OK);
+    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b1, x1), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x1[i], x_exact[i], 1e-12);
+
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_EQ(sparse_set(A2, i, i, 5.0), SPARSE_OK);
+
+    sparse_matvec(A2, x_exact, b2);
+    ASSERT_EQ(sparse_refactor_numeric(A2, &analysis, &factors), SPARSE_OK);
+    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b2, x2), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x2[i], x_exact[i], 1e-12);
+
+    free(x_exact);
+    free(b1);
+    free(b2);
+    free(x1);
+    free(x2);
+    sparse_factor_free(&factors);
+    sparse_analysis_free(&analysis);
+    sparse_free(A1);
+    sparse_free(A2);
+}
+
 /* SPARSE_ERR_CANCELLED string round-trips through sparse_strerror. */
 static void test_progress_cb_strerror(void) {
     const char *s = sparse_strerror(SPARSE_ERR_CANCELLED);
@@ -1208,6 +1296,8 @@ int main(void) {
     RUN_TEST(test_lu_factor_opts_matches_explicit_analysis_path);
     RUN_TEST(test_cholesky_factor_opts_matches_explicit_analysis_path);
     RUN_TEST(test_ldlt_factor_opts_matches_explicit_analysis_path);
+    RUN_TEST(test_public_lifecycle_solve_rejects_zeroed_factors);
+    RUN_TEST(test_public_lifecycle_refactor_accepts_zeroed_factors);
     RUN_TEST(test_progress_cb_strerror);
 
     /* Sprint 29 Day 7: progress / cancel coverage for QR, iterative

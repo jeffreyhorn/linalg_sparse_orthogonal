@@ -131,6 +131,12 @@ typedef struct {
  */
 typedef struct {
     idx_t n;                     /**< Matrix dimension */
+    idx_t source_nnz;            /**< Stored nonzero count of the matrix that
+                                     produced this analysis. Used for cheap
+                                     gross-structure compatibility checks on
+                                     later factor/refactor calls; does not
+                                     replace the caller's same-pattern
+                                     contract. */
     idx_t *perm;                 /**< Fill-reducing permutation (length n), or NULL */
     idx_t *etree;                /**< Elimination tree parent pointers (length n);
                                      NULL when type == SPARSE_FACTOR_LU. */
@@ -235,13 +241,17 @@ typedef struct {
 /**
  * @brief Perform numeric factorization using a precomputed analysis.
  *
- * Applies the fill-reducing permutation from the analysis (if any),
- * builds a permuted copy, and delegates to the appropriate one-shot
- * factorization routine (sparse_cholesky_factor, sparse_lu_factor, or
- * sparse_ldlt_factor). The symbolic structure (etree, column counts,
- * sym_L/sym_U) computed by sparse_analyze() is available for future
- * optimizations but is not currently used to bypass internal symbolic
- * work in the underlying factorization routines.
+ * Applies the fill-reducing permutation from the analysis (if any) and
+ * performs the numeric factorization for the requested family. The shared
+ * Cholesky CSC path reuses the provided analysis directly on larger
+ * repeated-run problems. The LDL^T CSC path also reuses the caller's
+ * analysis when its scalar pivot pre-pass does not introduce extra
+ * symmetric swaps beyond the caller's reorder; otherwise it rebuilds the
+ * symbolic analysis on the pre-permuted matrix. The remaining paths still
+ * delegate through the corresponding one-shot family routines. The
+ * symbolic structure (etree, column counts, sym_L/sym_U) computed by
+ * sparse_analyze() is therefore partly consumed today and remains
+ * available for further shared-path reuse work.
  *
  * For Cholesky: computes L such that P*A*P^T = L*L^T.
  * For LU: computes L and U such that P*A*Q = L*U (with pivoting).
@@ -333,7 +343,13 @@ void sparse_factor_free(sparse_factors_t *factors);
  * from the new values and are not incrementally updated.
  *
  * @pre A_new must be structurally compatible with the analyzed matrix.
- * @pre factors must be zeroed or contain a valid existing factorization.
+ * @pre factors must be zeroed or contain a valid existing factorization
+ *      produced for the same factor family and dimension as @p analysis.
+ *
+ * This routine performs cheap boundary validation only. In addition to
+ * dimension and matrix-state checks, it rejects obvious gross structure drift
+ * when `sparse_nnz(A_new)` no longer matches the matrix analyzed into
+ * @p analysis. It does not run a full structural-pattern verifier.
  *
  * @param A_new     The new matrix to factor (not modified). Must have
  *                  dimensions compatible with the original analysis.
@@ -345,6 +361,10 @@ void sparse_factor_free(sparse_factors_t *factors);
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if any argument is NULL.
  * @return SPARSE_ERR_SHAPE if matrix dimensions don't match.
+ * @return SPARSE_ERR_BADARG if A_new is not in original row/col state, has an
+ *         obvious gross structure mismatch against @p analysis, or if a
+ *         non-zeroed @p factors object does not match @p analysis or does not
+ *         contain a valid factor payload.
  * @return SPARSE_ERR_NOT_SPD if A_new is not symmetric (Cholesky/LDL^T)
  *         or not positive-definite (Cholesky).
  * @return SPARSE_ERR_SINGULAR if a zero pivot is encountered.

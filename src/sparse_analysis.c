@@ -1,8 +1,10 @@
 #include "sparse_analysis.h"
 #include "sparse_alloc_internal.h"
 #include "sparse_analysis_internal.h"
+#include "sparse_chol_csc_internal.h"
 #include "sparse_cholesky.h"
 #include "sparse_ldlt.h"
+#include "sparse_ldlt_csc_internal.h"
 #include "sparse_lu.h"
 #include "sparse_matrix_state_internal.h"
 #include "sparse_reorder.h"
@@ -136,6 +138,7 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
     idx_t n = A->rows;
     sparse_analysis_free(analysis); /* free any prior contents */
     analysis->n = n;
+    analysis->source_nnz = sparse_nnz(A);
     analysis->type = ftype;
 
     /* Cache ||A||_inf */
@@ -376,6 +379,143 @@ static sparse_err_t build_permuted_copy(const SparseMatrix *A, const idx_t *perm
     return *out ? SPARSE_OK : SPARSE_ERR_ALLOC;
 }
 
+static void sparse_factors_take_matrix_factor(sparse_factors_t *factors, SparseMatrix *factor);
+static void sparse_factors_take_ldlt_factor(sparse_factors_t *factors, sparse_ldlt_t *ldlt);
+
+static sparse_err_t factor_cholesky_with_analysis_csc(const SparseMatrix *A,
+                                                      const sparse_analysis_t *analysis,
+                                                      sparse_factors_t *factors) {
+    CholCsc *L_csc = NULL;
+    SparseMatrix *L = NULL;
+    sparse_err_t err = chol_csc_from_sparse_with_analysis(A, analysis, &L_csc);
+    if (err != SPARSE_OK)
+        return err;
+
+    err = chol_csc_eliminate_supernodal(L_csc, SPARSE_CSC_SUPERNODE_MIN_SIZE);
+    if (err != SPARSE_OK) {
+        chol_csc_free(L_csc);
+        return err;
+    }
+
+    L = sparse_create(analysis->n, analysis->n);
+    if (!L) {
+        chol_csc_free(L_csc);
+        return SPARSE_ERR_ALLOC;
+    }
+
+    err = sparse_factor_state_begin_cholesky(L);
+    if (err != SPARSE_OK) {
+        chol_csc_free(L_csc);
+        sparse_free(L);
+        return err;
+    }
+
+    /* Keep the shared analysis/factor surface in analysis coordinate space.
+     * `analysis->perm` stays the published symmetric permutation, so the
+     * factors matrix itself keeps a NULL reorder_perm like the old
+     * REORDER_NONE delegated path did. */
+    err = chol_csc_writeback_to_sparse(L_csc, L, NULL);
+    chol_csc_free(L_csc);
+    if (err != SPARSE_OK) {
+        sparse_free(L);
+        return err;
+    }
+
+    sparse_factors_take_matrix_factor(factors, L);
+    return SPARSE_OK;
+}
+
+static int perm_matches_analysis_reorder(const idx_t *perm, const sparse_analysis_t *analysis) {
+    idx_t n = analysis->n;
+    if (analysis->perm) {
+        for (idx_t i = 0; i < n; i++) {
+            if (perm[i] != analysis->perm[i]) // NOLINT
+                return 0;
+        }
+        return 1;
+    }
+
+    for (idx_t i = 0; i < n; i++) {
+        if (perm[i] != i) // NOLINT
+            return 0;
+    }
+    return 1;
+}
+
+static sparse_err_t factor_ldlt_with_analysis_csc(const SparseMatrix *A,
+                                                  const sparse_analysis_t *analysis,
+                                                  sparse_factors_t *factors) {
+    LdltCsc *F_pre = NULL;
+    LdltCsc *F_batched = NULL;
+    LdltCsc *source = NULL;
+    SparseMatrix *A_perm = NULL;
+    sparse_analysis_t derived_analysis = {0};
+    sparse_ldlt_t ldlt = {0};
+
+    sparse_err_t err = ldlt_csc_from_sparse(A, analysis->perm, 2.0, &F_pre);
+    if (err != SPARSE_OK)
+        return err;
+
+    err = ldlt_csc_eliminate_native(F_pre);
+    if (err != SPARSE_OK) {
+        ldlt_csc_free(F_pre);
+        return err;
+    }
+
+    if (perm_matches_analysis_reorder(F_pre->perm, analysis)) {
+        /* The scalar BK pre-pass did not introduce extra symmetric swaps
+         * beyond the caller's fill-reducing reorder, so the caller's
+         * symbolic analysis already matches the CSC repeated-run path. */
+        err = ldlt_csc_from_sparse_with_analysis(A, analysis, &F_batched);
+    } else {
+        /* When BK adds extra swaps, rebuild the symbolic analysis on the
+         * pre-permuted matrix so the batched CSC factor sees the complete
+         * symmetric pattern in its final coordinate space. */
+        err = sparse_permute(A, F_pre->perm, F_pre->perm, &A_perm);
+        if (err == SPARSE_OK) {
+            sparse_reset_perms(A_perm);
+
+            sparse_analysis_opts_t an_opts = {
+                .factor_type = SPARSE_FACTOR_LDLT,
+                .reorder = SPARSE_REORDER_NONE,
+            };
+            err = sparse_analyze(A_perm, &an_opts, &derived_analysis);
+        }
+        if (err == SPARSE_OK)
+            err = ldlt_csc_from_sparse_with_analysis(A_perm, &derived_analysis, &F_batched);
+    }
+    if (err != SPARSE_OK) {
+        ldlt_csc_free(F_pre);
+        ldlt_csc_free(F_batched);
+        sparse_analysis_free(&derived_analysis);
+        sparse_free(A_perm);
+        return err;
+    }
+
+    for (idx_t k = 0; k < analysis->n; k++)
+        F_batched->pivot_size[k] = F_pre->pivot_size[k];
+
+    err = ldlt_csc_eliminate_supernodal(F_batched, /*min_size=*/2);
+    if (err == SPARSE_OK) {
+        for (idx_t i = 0; i < analysis->n; i++)
+            F_batched->perm[i] = F_pre->perm[i];
+        source = F_batched;
+    } else {
+        source = F_pre;
+    }
+
+    err = ldlt_csc_writeback_to_ldlt(source, SPARSE_DROP_TOL, &ldlt);
+    if (err == SPARSE_OK)
+        sparse_factors_take_ldlt_factor(factors, &ldlt);
+
+    sparse_ldlt_free(&ldlt);
+    ldlt_csc_free(F_batched);
+    ldlt_csc_free(F_pre);
+    sparse_analysis_free(&derived_analysis);
+    sparse_free(A_perm);
+    return err;
+}
+
 static void sparse_factors_init_payload(sparse_factors_t *factors, sparse_factor_type_t type,
                                         idx_t n) {
     factors->type = type;
@@ -417,6 +557,17 @@ static void sparse_factors_make_ldlt_view(const sparse_factors_t *factors,
     ldlt_view->tol = SPARSE_DROP_TOL;
 }
 
+static sparse_err_t sparse_validate_analysis_input_matrix(const SparseMatrix *A,
+                                                          const sparse_analysis_t *analysis) {
+    if (A->rows != analysis->n || A->cols != analysis->n)
+        return SPARSE_ERR_SHAPE;
+    if (sparse_matrix_require_original_row_col_state(A) != SPARSE_OK)
+        return SPARSE_ERR_BADARG;
+    if (sparse_nnz(A) != analysis->source_nnz)
+        return SPARSE_ERR_BADARG;
+    return SPARSE_OK;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * sparse_factor_numeric
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -425,10 +576,9 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
                                    sparse_factors_t *factors) {
     if (!A || !analysis || !factors)
         return SPARSE_ERR_NULL;
-    if (A->rows != analysis->n || A->cols != analysis->n)
-        return SPARSE_ERR_SHAPE;
-    if (sparse_matrix_require_original_row_col_state(A) != SPARSE_OK)
-        return SPARSE_ERR_BADARG;
+    sparse_err_t input_err = sparse_validate_analysis_input_matrix(A, analysis);
+    if (input_err != SPARSE_OK)
+        return input_err;
 
     idx_t n = analysis->n;
     sparse_factors_t new_factors = {0};
@@ -436,25 +586,31 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
 
     switch (analysis->type) {
     case SPARSE_FACTOR_CHOLESKY: {
-        /* Build the already-permuted working copy, then route through the
-         * normal one-shot Cholesky options entry with REORDER_NONE so the
-         * shared repeated-run path inherits the same linked-list/CSC backend
-         * dispatch and writeback behavior as the public one-shot surface. */
-        SparseMatrix *L = NULL;
-        sparse_err_t err = build_permuted_copy(A, analysis->perm, &L);
+        sparse_err_t err = SPARSE_OK;
+        if (n >= SPARSE_CSC_THRESHOLD) {
+            /* Avoid the extra `sparse_analyze(...)` hidden inside the CSC
+             * one-shot wrapper on larger repeated-run Cholesky problems. */
+            err = factor_cholesky_with_analysis_csc(A, analysis, &new_factors);
+        } else {
+            /* Keep the linked-list route unchanged for smaller problems. */
+            SparseMatrix *L = NULL;
+            err = build_permuted_copy(A, analysis->perm, &L);
+            if (err != SPARSE_OK)
+                return err;
+
+            sparse_cholesky_opts_t chol_opts = {
+                .reorder = SPARSE_REORDER_NONE,
+            };
+            err = sparse_cholesky_factor_opts(L, &chol_opts);
+            if (err != SPARSE_OK) {
+                sparse_free(L);
+                return err;
+            }
+
+            sparse_factors_take_matrix_factor(&new_factors, L);
+        }
         if (err != SPARSE_OK)
             return err;
-
-        sparse_cholesky_opts_t chol_opts = {
-            .reorder = SPARSE_REORDER_NONE,
-        };
-        err = sparse_cholesky_factor_opts(L, &chol_opts);
-        if (err != SPARSE_OK) {
-            sparse_free(L);
-            return err;
-        }
-
-        sparse_factors_take_matrix_factor(&new_factors, L);
         break;
     }
 
@@ -476,26 +632,30 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
     }
 
     case SPARSE_FACTOR_LDLT: {
-        /* Build the already-permuted working copy, then route through the
-         * normal one-shot LDL^T options entry with REORDER_NONE so the shared
-         * repeated-run path inherits the same linked-list/CSC backend dispatch
-         * and writeback behavior as the public one-shot surface. */
-        SparseMatrix *B = NULL;
-        sparse_err_t err = build_permuted_copy(A, analysis->perm, &B);
+        sparse_err_t err = SPARSE_OK;
+        if (n >= SPARSE_CSC_THRESHOLD) {
+            err = factor_ldlt_with_analysis_csc(A, analysis, &new_factors);
+        } else {
+            /* Keep the linked-list route unchanged for smaller problems. */
+            SparseMatrix *B = NULL;
+            err = build_permuted_copy(A, analysis->perm, &B);
+            if (err != SPARSE_OK)
+                return err;
+
+            sparse_ldlt_t ldlt;
+            sparse_ldlt_opts_t ldlt_opts = {
+                .reorder = SPARSE_REORDER_NONE,
+            };
+            err = sparse_ldlt_factor_opts(B, &ldlt_opts, &ldlt);
+            sparse_free(B);
+            if (err != SPARSE_OK)
+                return err;
+
+            sparse_factors_take_ldlt_factor(&new_factors, &ldlt);
+            sparse_ldlt_free(&ldlt);
+        }
         if (err != SPARSE_OK)
             return err;
-
-        sparse_ldlt_t ldlt;
-        sparse_ldlt_opts_t ldlt_opts = {
-            .reorder = SPARSE_REORDER_NONE,
-        };
-        err = sparse_ldlt_factor_opts(B, &ldlt_opts, &ldlt);
-        sparse_free(B);
-        if (err != SPARSE_OK)
-            return err;
-
-        sparse_factors_take_ldlt_factor(&new_factors, &ldlt);
-        sparse_ldlt_free(&ldlt);
         break;
     }
 
@@ -597,26 +757,58 @@ void sparse_factor_free(sparse_factors_t *factors) {
     memset(factors, 0, sizeof(*factors));
 }
 
+static int sparse_factors_is_zeroed(const sparse_factors_t *factors) {
+    return !factors->F && !factors->D && !factors->D_offdiag && !factors->pivot_size &&
+           !factors->ldlt_perm && factors->n == 0 && factors->factor_norm == 0.0;
+}
+
+static sparse_err_t sparse_refactor_validate_existing_factors(const sparse_factors_t *factors,
+                                                              const sparse_analysis_t *analysis) {
+    if (sparse_factors_is_zeroed(factors))
+        return SPARSE_OK;
+
+    if (!factors->F)
+        return SPARSE_ERR_BADARG;
+    if (factors->n != analysis->n)
+        return SPARSE_ERR_SHAPE;
+    if (factors->type != analysis->type)
+        return SPARSE_ERR_BADARG;
+
+    if (factors->type == SPARSE_FACTOR_LDLT) {
+        if (!factors->D || !factors->D_offdiag || !factors->pivot_size || !factors->ldlt_perm)
+            return SPARSE_ERR_BADARG;
+    } else if (factors->D || factors->D_offdiag || factors->pivot_size || factors->ldlt_perm) {
+        return SPARSE_ERR_BADARG;
+    }
+
+    return SPARSE_OK;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * sparse_refactor_numeric
  *
- * Convenience wrapper around sparse_factor_numeric() using an existing
- * symbolic analysis. Performs a full numeric refactorization and does
- * not attempt to validate or reuse the previous numeric structure.
+ * Same-analysis numeric refresh wrapper around sparse_factor_numeric().
+ * Preserves the zero-init first-factorization path from Sprint 51, but
+ * otherwise requires the existing factors object to already match the
+ * analysis family and dimension.
  * ═══════════════════════════════════════════════════════════════════════ */
 
 sparse_err_t sparse_refactor_numeric(const SparseMatrix *A_new, const sparse_analysis_t *analysis,
                                      sparse_factors_t *factors) {
     if (!A_new || !analysis || !factors)
         return SPARSE_ERR_NULL;
+    sparse_err_t err = sparse_validate_analysis_input_matrix(A_new, analysis);
+    if (err != SPARSE_OK)
+        return err;
 
-    if (A_new->rows != analysis->n || A_new->cols != analysis->n)
-        return SPARSE_ERR_SHAPE;
+    err = sparse_refactor_validate_existing_factors(factors, analysis);
+    if (err != SPARSE_OK)
+        return err;
 
     /* Factor into a temporary first so old factors survive on error */
     sparse_factors_t new_factors;
     memset(&new_factors, 0, sizeof(new_factors));
-    sparse_err_t err = sparse_factor_numeric(A_new, analysis, &new_factors);
+    err = sparse_factor_numeric(A_new, analysis, &new_factors);
     if (err != SPARSE_OK)
         return err;
 

@@ -63,6 +63,17 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+/*
+ * Minimum supernode width for the CSC dispatch's batched path.
+ *
+ * Shared here so both the one-shot Cholesky surface and the shared
+ * analysis/factor path can use the same supernodal cutoff when they route
+ * through `chol_csc_eliminate_supernodal`.
+ */
+#ifndef SPARSE_CSC_SUPERNODE_MIN_SIZE
+#define SPARSE_CSC_SUPERNODE_MIN_SIZE 4
+#endif
+
 /* ═══════════════════════════════════════════════════════════════════════
  * CholCsc: CSC working format for Cholesky / LDL^T numeric factorization
  * ═══════════════════════════════════════════════════════════════════════ */

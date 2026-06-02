@@ -6,13 +6,22 @@
  *   2. Compute symbolic analysis once (etree, column counts, symbolic structure)
  *   3. Perform numeric Cholesky factorization
  *   4. Solve a linear system
- *   5. Modify matrix values (same sparsity pattern)
+ *   5. Rebuild matrix values with the same sparsity pattern
  *   6. Refactor numerically (no re-analysis)
  *   7. Solve the updated system
  *
  * This pattern is critical for nonlinear solvers, time-stepping codes,
  * and optimization loops that solve many systems with the same structure
  * but different values.
+ *
+ * The important public contract boundary is:
+ *   - reuse preserves symbolic/permutation setup
+ *   - reuse does not preserve old numeric factor contents
+ *   - later matrices must keep the same sparsity pattern
+ *
+ * This example therefore rebuilds a fresh matrix with the same pattern and
+ * new values on each iteration, which is the safest high-signal usage pattern
+ * for callers.
  *
  * Build:
  *   cc -O2 -Iinclude -o example_analysis examples/example_analysis.c \
@@ -100,6 +109,10 @@ int main(void) {
     printf("  Predicted nnz(L) = %d\n", (int)analysis.sym_L.nnz);
     printf("  ||A||_inf        = %.1f\n", analysis.analysis_norm);
     printf("  Time             = %.6f s\n\n", analysis_time);
+    printf("Repeated-run contract:\n");
+    printf("  Reuse preserves symbolic/permutation setup from analysis.\n");
+    printf("  Refactor expects new values on the same sparsity pattern.\n");
+    printf("  Fresh same-pattern matrices keep that contract explicit.\n\n");
 
     /* ── Step 3: Numeric factorization ─────────────────────────────── */
     sparse_factors_t factors = {0};
@@ -137,7 +150,11 @@ int main(void) {
     double total_refactor_time = 0;
     int completed_refactors = 0;
     for (int iter = 0; iter < num_refactors; iter++) {
-        /* Build new matrix with same pattern, different diagonal */
+        /*
+         * Build a fresh matrix with the same sparsity pattern but different
+         * values. This keeps the public same-pattern contract explicit:
+         * analysis state is reused, but the old numeric factor contents are not.
+         */
         double new_diag = 4.0 + 0.5 * (double)iter;
         SparseMatrix *A_new = make_tridiag(n, new_diag);
         if (!A_new)
@@ -177,7 +194,9 @@ int main(void) {
         printf("  %d refactorizations:       %.6f s (avg %.6f s each)\n", completed_refactors,
                total_refactor_time, total_refactor_time / completed_refactors);
     }
-    printf("  Savings: analysis cost amortized over %d solves\n\n", completed_refactors + 1);
+    printf("  Savings: analysis cost amortized over %d solves\n", completed_refactors + 1);
+    printf("  Reused state: symbolic/permutation setup only\n");
+    printf("  Not reused: stale numeric factor contents\n\n");
 
     /* ── Cleanup ──────────────────────────────────────────────────── */
     free(b);

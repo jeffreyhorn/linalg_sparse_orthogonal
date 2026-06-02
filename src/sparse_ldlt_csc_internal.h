@@ -331,7 +331,9 @@ sparse_err_t ldlt_csc_writeback_to_ldlt(const LdltCsc *F, double tol, sparse_ldl
  *   1. builds an `LdltCsc` via `ldlt_csc_from_sparse_with_analysis`
  *   2. seeds `pivot_size` from `pre_factor`
  *   3. attempts `ldlt_csc_eliminate_supernodal`
- *   4. falls back to `pre_factor` if the batched path fails
+ *   4. falls back to `pre_factor` only when the batched path returns
+ *      `SPARSE_ERR_BADARG`
+ *   5. propagates other batched-path failures unchanged
  *   5. writes the chosen factor back into `sparse_ldlt_t`
  *
  * On the batched-success path, the final public permutation is overwritten

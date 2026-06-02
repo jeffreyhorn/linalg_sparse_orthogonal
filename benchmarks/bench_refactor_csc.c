@@ -145,22 +145,35 @@ static SparseMatrix *build_kkt_150(void) {
     return A;
 }
 
-static void perturb_kkt_values_in_place(SparseMatrix *A, idx_t n_top, idx_t n_bot, double scale) {
+static sparse_err_t perturb_kkt_values_in_place(SparseMatrix *A, idx_t n_top, idx_t n_bot,
+                                                double scale) {
     for (idx_t i = 0; i < n_top; i++) {
         double diag = 6.0 + scale * (double)((i % 7) - 3);
-        sparse_set(A, i, i, diag);
+        sparse_err_t err = sparse_set(A, i, i, diag);
+        if (err != SPARSE_OK)
+            return err;
         if (i > 0) {
             double offdiag = -1.0 - 0.1 * scale * (double)(i % 3);
-            sparse_set(A, i, i - 1, offdiag);
-            sparse_set(A, i - 1, i, offdiag);
+            err = sparse_set(A, i, i - 1, offdiag);
+            if (err != SPARSE_OK)
+                return err;
+            err = sparse_set(A, i - 1, i, offdiag);
+            if (err != SPARSE_OK)
+                return err;
         }
     }
 
     for (idx_t j = 0; j < n_bot; j++) {
         double coupling = 1.0 + 0.05 * scale * (double)((j % 5) - 2);
-        sparse_set(A, n_top + j, j, coupling);
-        sparse_set(A, j, n_top + j, coupling);
+        sparse_err_t err = sparse_set(A, n_top + j, j, coupling);
+        if (err != SPARSE_OK)
+            return err;
+        err = sparse_set(A, j, n_top + j, coupling);
+        if (err != SPARSE_OK)
+            return err;
     }
+
+    return SPARSE_OK;
 }
 
 static void emit_csv_row(const char *matrix, const char *workflow, idx_t n, idx_t nnz,
@@ -436,7 +449,17 @@ static int bench_indefinite_kkt(int repeat) {
             ok = 0;
             break;
         }
-        perturb_kkt_values_in_place(A_perturb, n_top, n_bot, 0.20 + 0.03 * (double)(rep % 5));
+        sparse_err_t perturb_err =
+            perturb_kkt_values_in_place(A_perturb, n_top, n_bot, 0.20 + 0.03 * (double)(rep % 5));
+        if (perturb_err != SPARSE_OK) {
+            fprintf(stderr,
+                    "bench_refactor_csc: kkt perturbation failed on kkt-150 "
+                    "(rep=%d, err=%d)\n",
+                    rep, (int)perturb_err);
+            sparse_free(A_perturb);
+            ok = 0;
+            break;
+        }
 
         double t_public0 = wall_time();
         sparse_err_t e_public = sparse_refactor_numeric(A_perturb, &an, &factors_public);

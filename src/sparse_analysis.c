@@ -593,15 +593,15 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
                 return err;
 
             if (analysis->perm && ldlt.perm) {
-                idx_t *composed = malloc((size_t)n * sizeof(idx_t));
-                if (!composed) {
+                idx_t *composed = NULL;
+                if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&composed) != SPARSE_OK) {
                     sparse_ldlt_free(&ldlt);
                     return SPARSE_ERR_ALLOC;
                 }
                 for (idx_t i = 0; i < n; i++)
                     composed[i] = analysis->perm[ldlt.perm[i]];
-                memcpy(ldlt.perm, composed, (size_t)n * sizeof(idx_t));
-                free(composed);
+                free(ldlt.perm);
+                ldlt.perm = composed;
             }
 
             sparse_factors_take_ldlt_factor(&new_factors, &ldlt);

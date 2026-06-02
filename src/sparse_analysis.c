@@ -592,6 +592,18 @@ sparse_err_t sparse_factor_numeric(const SparseMatrix *A, const sparse_analysis_
             if (err != SPARSE_OK)
                 return err;
 
+            if (analysis->perm && ldlt.perm) {
+                idx_t *composed = malloc((size_t)n * sizeof(idx_t));
+                if (!composed) {
+                    sparse_ldlt_free(&ldlt);
+                    return SPARSE_ERR_ALLOC;
+                }
+                for (idx_t i = 0; i < n; i++)
+                    composed[i] = analysis->perm[ldlt.perm[i]];
+                memcpy(ldlt.perm, composed, (size_t)n * sizeof(idx_t));
+                free(composed);
+            }
+
             sparse_factors_take_ldlt_factor(&new_factors, &ldlt);
             sparse_ldlt_free(&ldlt);
         }
@@ -626,6 +638,15 @@ sparse_err_t sparse_factor_solve(const sparse_factors_t *factors, const sparse_a
 
     idx_t n = factors->n;
     const idx_t *perm = analysis->perm;
+
+    /* LDL^T factor objects already carry the final composed symmetric
+     * permutation in `factors->ldlt_perm`, and `sparse_ldlt_solve(...)`
+     * applies that permutation internally. The analysis/factor shared
+     * surface therefore must NOT pre/post-apply `analysis->perm` again
+     * for LDL^T or reordered indefinite repeated-run solves will
+     * double-permute the RHS and solution. */
+    if (factors->type == SPARSE_FACTOR_LDLT)
+        perm = NULL;
 
     /* Permute b if a fill-reducing permutation was used.
      * perm[new] = old convention: b_perm[new_i] = b[perm[new_i]] */

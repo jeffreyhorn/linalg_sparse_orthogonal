@@ -1218,3 +1218,221 @@ Interpretation:
 
 - Day 8 can now focus on measured indefinite factor-many evidence instead of
   more cleanup around hidden CSC completion semantics
+
+## Day 8
+
+**Objective:** Turn the deferred LDL^T-specific factor-many proof into real
+measured evidence without redesigning the benchmark framework, while keeping
+the benchmark claims truthful about the live public repeated-run path and the
+direct CSC completion seam.
+
+### Commands Run
+
+1. Re-read the Sprint 53 Day 8 plan item plus the Day 3-7 findings:
+   - `sed -n '321,380p' docs/planning/EPIC_5/SPRINT_53/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_53/artifacts/day3-analysis-aware-indefinite-path-audit.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_53/artifacts/day7-ldlt-dispatch-batch2.md`
+   - `tail -n 220 docs/planning/EPIC_5/SPRINT_53/WORKING_NOTES.md`
+2. Re-read the live benchmark and direct-lifecycle proof surfaces:
+   - `sed -n '1,260p' benchmarks/bench_refactor_csc.c`
+   - `sed -n '1,220p' benchmarks/README.md`
+   - `sed -n '1030,1115p' tests/test_integration.c`
+   - `sed -n '1340,1425p' tests/test_ldlt.c`
+   - `sed -n '400,520p' benchmarks/bench_ldlt_csc.c`
+3. Land the bounded benchmark / correctness / regression batch:
+   - `apply_patch` on:
+     - `benchmarks/bench_refactor_csc.c`
+     - `benchmarks/README.md`
+     - `src/sparse_analysis.c`
+     - `tests/test_integration.c`
+4. Run targeted proof and regression checks while iterating:
+   - `./build/test_integration`
+   - `./build/test_etree`
+   - `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/bench_refactor_csc --indefinite-kkt --repeat 1`
+   - `./build/example_analysis`
+5. Run the required code-day gate on the corrected state:
+   - `make format`
+   - `make test`
+   - `make lint`
+
+### Day 8 Findings
+
+#### 1. Day 8 now leaves a real indefinite factor-many benchmark mode instead of only a Cholesky/SPD proof surface
+
+`benchmarks/bench_refactor_csc.c` now has two bounded workflows:
+
+- `chol_spd`
+  - the existing SPD / Cholesky repeated-run surface
+- `ldlt_kkt`
+  - a new synthetic above-threshold indefinite KKT repeated-run surface
+
+The new mode is intentionally narrow:
+
+- single built-in `kkt-150` workload
+- same-pattern numeric perturbations only
+- one analyze call amortized across later refactors
+- public repeated-run path versus direct CSC completion path
+
+Interpretation:
+
+- Sprint 53 now has measured indefinite factor-many evidence on the intended
+  workload class instead of only dispatch and regression proof
+- Day 8 did not introduce a new benchmark framework or a larger corpus design
+
+#### 2. The benchmark contract is now more truthful about the live direct repeated-run surfaces
+
+Day 8 removed the stale generic “LL side” wording from the benchmark and its
+local README.
+
+The benchmark now reports:
+
+- `workflow`
+- `refactor_public_ms`
+- `refactor_csc_ms`
+- `solve_public_ms`
+- `solve_csc_ms`
+- `speedup_refactor`
+- `res_public`
+- `res_csc`
+
+Interpretation:
+
+- the benchmark now matches the live repo state where the public repeated-run
+  path is not always a pure linked-list-only story
+- the local benchmark docs now describe the SPD and indefinite modes directly
+  instead of overclaiming one generic surface
+
+#### 3. The first indefinite benchmark run exposed a real LDL^T permutation bug in the shared solve wrapper
+
+The first `--indefinite-kkt` run produced:
+
+- CSC residual at round-off
+- public repeated-run residual badly wrong
+
+That turned out not to be a benchmark mistake. It exposed a real contract bug:
+
+- `sparse_factor_solve(...)` was still pre/post-applying `analysis->perm` for
+  LDL^T factors
+- but the factor object may already carry a final composed symmetric
+  permutation
+
+Interpretation:
+
+- Day 8 became both a benchmark-proof batch and a correctness batch
+- the benchmark did exactly what it should do here: surface a real mismatch
+  between the public repeated-run contract and the internal permutation state
+
+#### 4. Day 8 fixed the LDL^T analysis/factor permutation contract so reordered indefinite repeated runs solve correctly
+
+The final Day 8 landing tightened `src/sparse_analysis.c` in two places:
+
+- `sparse_factor_solve(...)`
+  - LDL^T factors now skip the extra outer `analysis->perm` shuffle because
+    `sparse_ldlt_solve(...)` already owns the final factor permutation
+- small-path LDL^T `sparse_factor_numeric(...)`
+  - after factoring an already permuted working copy, the factor object's
+    stored permutation is now composed back into original matrix coordinates
+
+Interpretation:
+
+- LDL^T factor objects now carry one consistent permutation contract across:
+  - below-threshold linked-list analysis/factor path
+  - above-threshold CSC analysis/factor path
+  - later repeated-run refactor path
+- the public shared solve wrapper no longer double-permutes reordered
+  indefinite workloads
+
+#### 5. Sprint 53 now has direct regression proof for the reordered indefinite repeated-run case that Day 8 fixed
+
+Day 8 added:
+
+- `test_public_lifecycle_ldlt_refactor_same_pattern_indefinite_kkt_amd`
+
+That regression proves:
+
+- `SPARSE_FACTOR_LDLT` analysis with `SPARSE_REORDER_AMD`
+- first factorization on a KKT workload
+- same-pattern indefinite refactor on perturbed values
+- `sparse_factor_solve(...)` still recovers the exact known solution after the
+  refactor
+
+The existing proof also remained relevant:
+
+- `test_public_lifecycle_ldlt_refactor_same_pattern_indefinite_kkt`
+  - same contract under `SPARSE_REORDER_NONE`
+
+Interpretation:
+
+- Day 8 closed the permutation bug with a direct future-facing regression, not
+  only with a benchmark observation
+
+#### 6. The measured Day 8 benchmark outputs now stay numerically clean on both the SPD and indefinite proof surfaces
+
+Representative Day 8 results after the bug fix:
+
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `workflow = chol_spd`
+  - `analyze_ms = 0.313`
+  - `refactor_public_ms = 0.157`
+  - `refactor_csc_ms = 0.110`
+  - `solve_public_ms = 0.010`
+  - `solve_csc_ms = 0.004`
+  - `speedup_refactor = 1.43x`
+  - `res_public = 8.24e-16`
+  - `res_csc = 7.06e-16`
+- `./build/bench_refactor_csc --indefinite-kkt --repeat 1`
+  - `workflow = ldlt_kkt`
+  - `analyze_ms = 0.124`
+  - `refactor_public_ms = 0.172`
+  - `refactor_csc_ms = 0.137`
+  - `solve_public_ms = 0.006`
+  - `solve_csc_ms = 0.002`
+  - `speedup_refactor = 1.26x`
+  - `res_public = 2.96e-16`
+  - `res_csc = 2.96e-16`
+
+Interpretation:
+
+- the new indefinite benchmark now proves the intended same-pattern workload at
+  round-off accuracy on both sides
+- Day 8 leaves measured evidence rather than only a narrative claim
+
+#### 7. The focused follow-on proof surfaces stayed clean
+
+Focused reruns after the bug fix:
+
+- `./build/test_integration`
+  - `36 / 36`
+- `./build/test_etree`
+  - `97 / 97`
+- `./build/example_analysis`
+  - residual stayed `4.44e-16`
+
+Interpretation:
+
+- the Day 8 LDL^T permutation fix did not only help the benchmark
+- it also kept the higher-value integration and analysis/factor proof surfaces
+  clean
+
+#### 8. Day 8 closes the benchmark-proof gap and leaves a cleaner Day 9 audit starting point
+
+What Day 8 materially improved:
+
+- added a real indefinite factor-many benchmark mode
+- made the repeated-run benchmark wording more truthful
+- exposed and fixed a real reordered indefinite solve bug
+- added missing AMD repeated-run regression proof
+
+What Day 8 intentionally did not solve:
+
+- broader Cholesky / LDL^T dispatch reconciliation is still later work
+- public top-level README wording is still later work
+- the scalar BK pre-pass still remains the authoritative indefinite
+  permutation-resolution step
+
+Interpretation:
+
+- Day 9 can now audit the remaining adoption/documentation queue from a
+  measured and correctness-checked benchmark surface rather than from a proof
+  gap

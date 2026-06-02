@@ -1614,3 +1614,132 @@ Sprint 53's remaining reconciliation queue is now concrete:
 
 This was a docs-only audit day, so I did not rerun `make format`, `make lint`,
 `make test`, or `make quality-review-full`.
+
+## Day 10: Dispatch Reconciliation Batch
+
+### Commands run
+
+- `sed -n '381,440p' docs/planning/EPIC_5/SPRINT_53/PLAN.md`
+- `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_53/artifacts/day9-cholesky-ldlt-dispatch-reconciliation-audit.md`
+- `sed -n '280,380p' README.md`
+- `rg -n "bench_refactor_csc|Cholesky|LDL\\^T|CSC pipeline|used_csc_path|Repeated-Run Direct Workflow|direct workflow|factor-many|indefinite" README.md`
+- `sed -n '510,625p' README.md`
+- `sed -n '1,140p' benchmarks/README.md`
+- `rg -n "bench_refactor_csc|indefinite-kkt|Bunch-Kaufman|CSC pipeline|batched path|resolved scalar-prepass factor|Cholesky CSC dispatch|LDL\\^T CSC dispatch" README.md benchmarks/README.md include/sparse_ldlt.h include/sparse_cholesky.h`
+- `sed -n '548,648p' README.md`
+- `wc -l README.md benchmarks/README.md include/sparse_ldlt.h include/sparse_cholesky.h`
+
+### Findings
+
+#### 1. Day 9's target ranking held: only `README.md` needed a real follow-through patch
+
+The Day 10 batch rechecked the live top-level and local docs surfaces before
+editing:
+
+- `README.md`
+- `benchmarks/README.md`
+- `include/sparse_ldlt.h`
+- `include/sparse_cholesky.h`
+
+Result:
+
+- the benchmark-local README and headers were already aligned enough
+- the remaining real drift was still concentrated in the top-level README
+
+Interpretation:
+
+- Day 10 stayed on the Day 9 primary target without reopening secondary
+  surfaces
+
+#### 2. The top-level Cholesky CSC story is now explicit about being the simpler family-local case
+
+The Day 10 README patch now says the repeated-run CSC story on the Cholesky
+side is intentionally simple:
+
+- AUTO picks linked-list vs CSC by size
+- forcing CSC means the CSC backend directly
+- the highest-signal repeated-run proof surfaces are:
+  - `bench_refactor`
+  - default SPD mode in `bench_refactor_csc`
+
+Interpretation:
+
+- the top-level README no longer implies Cholesky and LDL^T share one identical
+  internal CSC model
+
+#### 3. The stale pre-Sprint-53 LDL^T CSC wording is now gone
+
+Before Day 10, the LDL^T CSC section still read as if the analysis-aware
+follow-through was mainly a future Sprint 20 direction.
+
+The Day 10 patch replaced that stale wording with the current bounded Sprint 53
+contract:
+
+- forcing CSC means the CSC pipeline, not a blanket promise that the batched
+  completion path wins every indefinite input
+- the scalar Bunch-Kaufman pre-pass remains the authoritative indefinite
+  permutation-resolution step
+- once the CSC pipeline is selected, completion may:
+  - retain the batched path
+  - or fall back to the resolved scalar-prepass factor when the batched path
+    rejects the cached pivot pattern
+
+Interpretation:
+
+- the README now matches the live LDL^T dispatch layering instead of the older
+  pre-follow-through mental model
+
+#### 4. Day 8's new indefinite factor-many proof is now visible at the top-level README layer
+
+The Day 10 patch added a compact README-level handoff for:
+
+- `bench_refactor_csc --indefinite-kkt`
+
+It now states that this mode:
+
+- measures the public repeated-run LDL^T path against the direct
+  resolved-analysis CSC completion path
+- uses a bounded same-pattern KKT workload
+- closes at round-off residuals on both sides after the Sprint 53
+  permutation-contract fix
+
+Interpretation:
+
+- the indefinite repeated-run proof is no longer hidden only in benchmark-local
+  docs and sprint artifacts
+
+#### 5. No README-driven contradiction forced a header follow-on
+
+The targeted Day 10 sanity checks confirmed:
+
+- `include/sparse_ldlt.h` already used the same CSC-pipeline vocabulary
+- `include/sparse_cholesky.h` already matched the simpler Cholesky CSC story
+- `benchmarks/README.md` already matched the new README benchmark references
+
+Interpretation:
+
+- Day 10 stayed narrowly bounded to the README
+- no header churn was justified
+
+### Day 10 output
+
+Landed bounded reconciliation in:
+
+- `README.md`
+
+Recorded artifact:
+
+- `docs/planning/EPIC_5/SPRINT_53/artifacts/day10-dispatch-reconciliation-batch.md`
+
+### Targeted sanity checks
+
+Because this was docs-only, I did not run `make format`, `make lint`,
+`make test`, or `make quality-review-full`.
+
+I ran targeted Day 10 wording checks instead:
+
+- `rg -n "bench_refactor_csc|indefinite-kkt|Bunch-Kaufman|CSC pipeline|batched path|resolved scalar-prepass factor|Cholesky CSC dispatch|LDL\\^T CSC dispatch" README.md benchmarks/README.md include/sparse_ldlt.h include/sparse_cholesky.h`
+- `sed -n '548,648p' README.md`
+- `wc -l README.md benchmarks/README.md include/sparse_ldlt.h include/sparse_cholesky.h`
+
+All were clean.

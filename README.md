@@ -559,6 +559,14 @@ same pattern, and the CSC kernel's speedup over the linked-list
 kernel is larger because only the numeric factor time remains in
 the comparison.
 
+That repeated-run CSC story stays intentionally simple on the Cholesky side:
+
+- AUTO picks linked-list vs CSC by size
+- forcing CSC means the CSC backend directly
+- the highest-signal repeated-run proof surfaces are:
+  - `bench_refactor`
+  - default SPD mode in `bench_refactor_csc`
+
 **Transparent dispatch (Sprint 18 Day 11).**
 `sparse_cholesky_factor_opts(mat, opts)` now routes through the CSC
 supernodal kernel whenever `mat->rows >= SPARSE_CSC_THRESHOLD`
@@ -605,12 +613,46 @@ the per-step prior-column scan from the cmod inner loop.  The
 batched supernodal LDL^T (`--supernodal` mode) lifts that further to
 6.83× on bcsstk14 by delegating supernode diagonal blocks to a
 dense LDL^T primitive and solving panel rows en masse.  Residuals
-match across paths to round-off.  The supernodal LDL^T path is
-currently SPD-biased (heuristic CSC fill via `ldlt_csc_from_sparse`
-covers SPD cmod fill but not always indefinite cmod fill — KKT-style
-saddle points should fall back to scalar `ldlt_csc_eliminate`); a
-`_with_analysis` mirror that pre-allocates full `sym_L` is the
-natural Sprint 20 follow-up.
+match across paths to round-off.
+
+Sprint 53 tightened the public LDL^T CSC interpretation beyond that
+historical Sprint 19 snapshot:
+
+- `sparse_ldlt_factor_opts(...)`
+  - still gives callers the same one-shot AUTO / forced-backend interface
+- forcing CSC now means the CSC **pipeline**, not a blanket promise that the
+  batched completion path wins every indefinite input
+- the scalar Bunch-Kaufman pre-pass remains the authoritative indefinite
+  permutation-resolution step
+- once that CSC pipeline is selected, completion may:
+  - retain the batched path
+  - or fall back to the resolved scalar-prepass factor when the batched path
+    rejects the cached pivot pattern
+
+That layering is intentionally different from Cholesky's simpler CSC story.
+Both families have size-based AUTO dispatch, but LDL^T keeps the extra
+indefinite permutation-resolution layer because symmetric indefinite CSC
+completion is not just "Cholesky with a different dense kernel."
+
+Sprint 53 also added a bounded indefinite repeated-run proof surface:
+
+- `bench_refactor_csc --indefinite-kkt`
+  - measures the public repeated-run LDL^T path against the direct
+    resolved-analysis CSC completion path on a same-pattern KKT workload
+  - closes at round-off residuals on both sides after the Sprint 53
+    permutation-contract fix
+
+So the current compact public interpretation is:
+
+- Cholesky CSC dispatch
+  - simpler size-based linked-list vs CSC selection
+- LDL^T CSC dispatch
+  - size-based outer selection plus the scalar BK pre-pass and CSC-pipeline
+    completion rules above
+- repeated-run benchmark proof
+  - benchmark-local source of truth lives in `benchmarks/README.md`
+  - default `bench_refactor_csc` mode covers SPD / Cholesky
+  - `--indefinite-kkt` covers LDL^T on the bounded same-pattern KKT workload
 
 End-of-sprint snapshot in `docs/planning/EPIC_2/SPRINT_19/bench_day14.txt`
 covers all three benchmarks (`bench_chol_csc`, `bench_ldlt_csc`, and

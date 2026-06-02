@@ -1859,3 +1859,148 @@ Sprint 53's indefinite repeated-run proof surface is now better balanced:
 - bounded failure-path proof now exists too
 - the measured indefinite benchmark surface stayed numerically unchanged and
   healthy
+
+## Day 12: Post-Landing Compatibility Audit
+
+### Commands run
+
+- `sed -n '520,590p' docs/planning/EPIC_5/SPRINT_53/PLAN.md`
+- `tail -n 260 docs/planning/EPIC_5/SPRINT_53/WORKING_NOTES.md`
+- `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_53/artifacts/day11-regression-expansion-batch.md`
+- `rg -n "one-shot|first-class|analysis/factors|analysis/factor/refactor|raw CSC|direct-handle|CSC pipeline|same-pattern|gross-structure|old numeric|used_csc_path|indefinite-kkt|bench_refactor_csc" README.md benchmarks/README.md include/sparse_analysis.h include/sparse_cholesky.h include/sparse_ldlt.h docs/maintainer_guide.md docs/planning/EPIC_5/SPRINT_53/artifacts/day1-scope-and-csc-completion-baseline.md`
+
+### Findings
+
+#### 1. The landed Sprint 53 branch still matches the preserved Sprint 50-52 scope fence
+
+The compatibility audit rechecked the main public/direct-solver surfaces:
+
+- `README.md`
+- `benchmarks/README.md`
+- `include/sparse_analysis.h`
+- `include/sparse_cholesky.h`
+- `include/sparse_ldlt.h`
+- `docs/maintainer_guide.md`
+
+Result:
+
+- no blocker-level compatibility drift surfaced
+- the branch still reflects the bounded direct-lifecycle model chosen in
+  Sprint 50 and implemented in Sprints 51-52
+
+Interpretation:
+
+- Day 13 can validate from a clean audited state instead of from a branch with
+  hidden scope drift
+
+#### 2. One-shot direct APIs still read as first-class peer entry points
+
+The current public story still presents:
+
+- one-shot Cholesky as the normal in-place SPD path
+- one-shot LDL^T as the normal owned-factor indefinite path
+- one-shot LU / Cholesky / LDL^T as first-class peer entry points in the
+  repeated-run direct discussion
+
+Interpretation:
+
+- Sprint 53 did not quietly demote one-shot direct APIs into legacy-only
+  compatibility shims
+
+#### 3. The repeated-run direct workflow remains analysis/factors-centric
+
+The shared repeated-run contract still centers on:
+
+- `sparse_analysis_t`
+- `sparse_factors_t`
+- `sparse_analyze(...)`
+- `sparse_factor_numeric(...)`
+- `sparse_factor_solve(...)`
+- `sparse_refactor_numeric(...)`
+
+Interpretation:
+
+- Sprint 53 deepened the existing analysis/factors lifecycle instead of
+  introducing a generic public direct handle or a broader direct-solver API
+  redesign
+
+#### 4. Reuse/refactor semantics remain honestly bounded
+
+The landed wording and proof still agree that:
+
+- symbolic / permutation setup is reused
+- stale numeric factor contents are not
+- `sparse_refactor_numeric(...)` remains the same-pattern numeric refresh path
+- gross-structure rejection is still a cheap bounded guard, not a full
+  structural-pattern verifier
+
+Day 11 materially improved this by adding the bounded failure-side proof on the
+high-value indefinite KKT repeated-run path.
+
+Interpretation:
+
+- Sprint 53 improved proof strength without inflating the public promise
+
+#### 5. The CSC follow-through stayed internal and bounded
+
+The audit did not find public exposure of:
+
+- raw CSC/native factor storage
+- a generic direct CSC handle
+- a broad public factor-container redesign
+
+Interpretation:
+
+- Sprint 53 stayed inside the explicit non-goal fence from Sprint 50
+- the CSC work remains implementation/depth behind stable public direct APIs
+
+#### 6. The top-level README and benchmark surfaces now match the proved scope
+
+The current README now states:
+
+- Cholesky CSC dispatch is the simpler family-local case
+- LDL^T CSC dispatch is the layered CSC-pipeline case
+- `bench_refactor_csc --indefinite-kkt` is the bounded indefinite repeated-run
+  proof surface
+
+The benchmark-local README still holds the detailed benchmark contract.
+
+Interpretation:
+
+- the branch no longer has a major docs-vs-implementation truthfulness gap on
+  the Sprint 53 CSC story
+
+### Day 13 checklist
+
+Run from the landed Day 12 state:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- `ctest -N --test-dir build/quality-review-cmake`
+- targeted Sprint 53 follow-ons:
+  - `./build/bench_refactor_csc`
+  - `./build/test_chol_csc`
+  - `./build/test_ldlt_csc`
+  - `./build/test_cholesky`
+  - `./build/test_ldlt`
+  - `./build/test_etree`
+  - `./build/test_integration`
+  - `./build/example_analysis`
+
+### Future-facing queue
+
+Still future-facing rather than a Sprint 53 blocker:
+
+- broader benchmark modernization beyond the bounded `bench_refactor*` work
+- any future public factor-container redesign discussion
+- broader tutorial/example rewrite around CSC internals
+- deeper structural-pattern verification beyond the current cheap guard
+
+### Day 12 outcome
+
+No blocker-level compatibility drift remains before Day 13 validation.
+
+This was a docs-only audit day, so I did not rerun `make format`, `make lint`,
+`make test`, or `make quality-review-full`.

@@ -103,12 +103,15 @@ typedef struct {
  *   otherwise the linked-list backend.
  * - `SPARSE_LDLT_BACKEND_LINKED_LIST`: always use the linked-list
  *   kernel regardless of dimension (the pre-Sprint-20 behaviour).
- * - `SPARSE_LDLT_BACKEND_CSC`: always use the CSC supernodal kernel
- *   (`sparse_analyze` → `ldlt_csc_from_sparse_with_analysis` →
- *   `ldlt_csc_eliminate_supernodal` → CSC→`sparse_ldlt_t` writeback).
- *   The only exception is the empty-matrix edge case: `n == 0` still
- *   routes to the linked-list path because the CSC scalar pre-pass
- *   has no meaningful empty input to factor.
+ * - `SPARSE_LDLT_BACKEND_CSC`: always use the CSC pipeline
+ *   (`sparse_analyze` / scalar pre-pass resolution →
+ *   `ldlt_csc_factor_with_resolved_analysis` → CSC→`sparse_ldlt_t`
+ *   writeback).  Once selected, that CSC pipeline may retain the
+ *   batched supernodal completion or fall back to the resolved scalar
+ *   pre-pass factor when the batched path rejects the cached pivot
+ *   pattern.  The only exception is the empty-matrix edge case:
+ *   `n == 0` still routes to the linked-list path because the CSC
+ *   scalar pre-pass has no meaningful empty input to factor.
  */
 typedef enum {
     SPARSE_LDLT_BACKEND_AUTO = 0,
@@ -139,11 +142,15 @@ typedef enum {
  * linked-list backend is the only valid implementation there.
  *
  * Note that "CSC selected" means the CSC kernel chain handled the
- * factor end-to-end — this includes the Sprint 20 Day 5 structural-
- * fallback case where the supernodal factor tripped the pivot-
- * stability check and `ldlt_factor_csc_path` fell back to the
- * scalar pre-pass factor; both paths still route through the CSC
- * entry points and write back via `ldlt_csc_writeback_to_ldlt`.
+ * factor end-to-end — this includes both of the internal completion
+ * variants:
+ *
+ * - the batched supernodal completion path
+ * - the resolved scalar-prepass fallback when the batched path rejects
+ *   the cached pivot pattern
+ *
+ * Both variants still route through the CSC entry points and write
+ * back via `ldlt_csc_writeback_to_ldlt`.
  * Pass NULL if the caller does not need this telemetry.
  */
 typedef struct {

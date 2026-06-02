@@ -11,9 +11,10 @@
  *     dimension.
  *   - Indefinite (KKT-style) matrix at n >= threshold factors
  *     end-to-end through the AUTO CSC path and produces a
- *     round-off solve residual — validates Day 3's
- *     `ldlt_csc_from_sparse_with_analysis` plumbing end-to-end
- *     through the public API.
+ *     round-off solve residual — validates the CSC pipeline
+ *     end-to-end through the public API without overpromising
+ *     that the batched supernodal completion is retained on
+ *     every indefinite fixture.
  *   - `used_csc_path` telemetry reports the path correctly on
  *     every branch.
  */
@@ -179,8 +180,8 @@ static void test_s20_auto_below_threshold_routes_linked_list(void) {
 }
 
 /* Above-threshold AUTO dispatch on SPD: matrix at SPARSE_CSC_THRESHOLD
- * routes to the CSC supernodal pipeline.  `used_csc_path == 1` and
- * solve residual round-off. */
+ * routes to the CSC pipeline.  `used_csc_path == 1` and solve
+ * residual round-off. */
 static void test_s20_auto_above_threshold_spd_routes_csc(void) {
     idx_t n = SPARSE_CSC_THRESHOLD;
     SparseMatrix *A = s20_build_spd_banded(n, 3);
@@ -203,10 +204,9 @@ static void test_s20_auto_above_threshold_spd_routes_csc(void) {
 }
 
 /* Above-threshold AUTO dispatch on indefinite KKT: validates the
- * Day 3 `ldlt_csc_from_sparse_with_analysis` enablement end-to-end
- * through the public API.  n = 150 (well above default threshold
- * of 100), KKT structure with 6 rows of coupling into a
- * non-trivial SPD block. */
+ * CSC pipeline end-to-end through the public API.  n = 150
+ * (well above default threshold of 100), KKT structure with 6
+ * rows of coupling into a non-trivial SPD block. */
 static void test_s20_auto_above_threshold_indefinite_kkt_routes_csc(void) {
     /* KKT at n = 150: top SPD block 140x140 tridiagonal, bottom
      * zero block 10x10, identity-pattern coupling on first 10

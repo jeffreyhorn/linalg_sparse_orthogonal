@@ -1048,3 +1048,173 @@ Interpretation:
 
 - Day 7 can now focus on cross-surface dispatch follow-through instead of
   another round of basic LDL^T selector cleanup
+
+## Day 7
+
+**Objective:** Tighten the next LDL^T CSC dispatch seam by making the
+shared analysis-aware CSC completion helper distinguish between the intended
+batched-path rejection fallback and real helper failures, while aligning the
+public CSC wording with that narrower internal contract and adding direct
+proof that contract violations do not get silently masked as scalar fallback.
+
+### Commands Run
+
+1. Re-read the Sprint 53 Day 7 plan item plus the Day 3-6 results:
+   - `sed -n '261,320p' docs/planning/EPIC_5/SPRINT_53/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_53/artifacts/day3-analysis-aware-indefinite-path-audit.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_53/artifacts/day4-analysis-aware-ldlt-integration-batch1.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_53/artifacts/day5-analysis-aware-ldlt-integration-batch2.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_53/artifacts/day6-ldlt-dispatch-batch1.md`
+   - `tail -n 220 docs/planning/EPIC_5/SPRINT_53/WORKING_NOTES.md`
+2. Re-read the live CSC completion and cross-surface dispatch wording seams:
+   - `sed -n '120,210p' include/sparse_ldlt.h`
+   - `sed -n '780,860p' src/sparse_ldlt.c`
+   - `sed -n '2388,2488p' tests/test_ldlt.c`
+   - `sed -n '1,260p' tests/test_sprint20_integration.c`
+   - `sed -n '1540,1615p' tests/test_ldlt_csc.c`
+3. Land the bounded CSC-completion and proof batch:
+   - `apply_patch` on:
+     - `include/sparse_ldlt.h`
+     - `src/sparse_ldlt.c`
+     - `tests/test_ldlt.c`
+     - `tests/test_sprint20_integration.c`
+     - `tests/test_ldlt_csc.c`
+4. Review the exact patch:
+   - `git diff -- include/sparse_ldlt.h src/sparse_ldlt.c tests/test_ldlt.c tests/test_sprint20_integration.c tests/test_ldlt_csc.c`
+5. Run the required code-day gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+6. Run the touched LDL^T/CSC follow-ons justified by the batch:
+   - `./build/test_ldlt`
+   - `./build/test_ldlt_csc`
+   - `./build/test_sprint20_integration`
+   - `./build/example_analysis`
+
+### Day 7 Findings
+
+#### 1. The shared LDL^T CSC completion helper now distinguishes real fallback from real failure
+
+Day 7 tightened `ldlt_csc_factor_with_resolved_analysis(...)` in
+`src/sparse_ldlt.c`.
+
+Before Day 7:
+
+- any non-`SPARSE_OK` return from `ldlt_csc_eliminate_supernodal(...)`
+  silently fell back to the resolved scalar pre-pass factor
+
+After Day 7:
+
+- `SPARSE_OK`
+  - retains the batched supernodal completion
+- `SPARSE_ERR_BADARG`
+  - falls back to the resolved scalar pre-pass factor because the batched path
+    rejected the cached pivot pattern
+- all other errors
+  - now propagate directly instead of being masked as dispatch fallback
+
+Interpretation:
+
+- the CSC completion seam is more honest and easier to reason about
+- Day 7 removed a real silent-failure risk instead of just rewording comments
+
+#### 2. The helper contract is now explicit enough to reject invalid completion configuration up front
+
+Day 7 also tightened the entry validation in
+`ldlt_csc_factor_with_resolved_analysis(...)`:
+
+- `analysis->type` must be `SPARSE_FACTOR_LDLT`
+- `min_size` must be at least `1`
+
+Interpretation:
+
+- misuse of the shared completion helper is now a direct contract failure
+- it no longer aliases into the same path used for intended supernodal
+  rejection fallback
+
+#### 3. The public LDL^T CSC wording now matches the actual dispatch layering better
+
+Day 7 updated `include/sparse_ldlt.h` and the related test commentary so the
+cross-surface story is clearer:
+
+- `SPARSE_LDLT_BACKEND_CSC` now means the CSC pipeline, not a promise that the
+  batched supernodal completion always survives
+- `used_csc_path` continues to report the selected CSC-vs-linked-list path
+- the internal CSC completion variants are now described explicitly as:
+  - batched supernodal completion
+  - resolved scalar-prepass fallback
+
+Interpretation:
+
+- the public wording is now closer to Cholesky where it should be
+- the valid indefinite-family exception remains explicit instead of being
+  flattened away
+
+#### 4. Sprint 53 now has direct proof that contract violations are rejected instead of being silently treated as fallback
+
+Day 7 added a new focused regression in `tests/test_ldlt_csc.c`:
+
+- `test_s53_with_analysis_invalid_min_size_rejected`
+
+That proof checks:
+
+- valid KKT-style resolved-analysis setup
+- invalid `min_size = 0` passed to
+  `ldlt_csc_factor_with_resolved_analysis(...)`
+- direct `SPARSE_ERR_BADARG` return
+
+Interpretation:
+
+- the helper no longer quietly “succeeds” through scalar fallback on an
+  invalid completion configuration
+- the LDL^T CSC dispatch story is tighter at the exact seam Day 7 targeted
+
+#### 5. The code-day gate and touched LDL^T/CSC follow-ons closed cleanly
+
+Because `*.c` / `*.h` changed, Day 7 ran:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+The touched follow-ons also passed:
+
+- `./build/test_ldlt`
+- `./build/test_ldlt_csc`
+- `./build/test_sprint20_integration`
+- `./build/example_analysis`
+
+Representative direct results:
+
+- `test_ldlt` = `84 / 84`
+- `test_ldlt_csc` = `96 / 96`
+- `test_sprint20_integration` = `20 / 20`
+- `example_analysis` residual stayed `4.44e-16`
+
+Interpretation:
+
+- the Day 7 batch is validated from the normal code-day gate plus the most
+  relevant LDL^T/CSC follow-ons for the touched seam
+
+#### 6. Day 7 leaves a cleaner Day 8 benchmark-proof starting point
+
+What Day 7 materially improved:
+
+- the CSC completion fallback seam is narrower
+- public CSC wording is more accurate about what “CSC selected” actually means
+- the internal helper contract has direct regression proof
+
+What Day 7 intentionally did not solve:
+
+- LDL^T-specific factor-many benchmark proof is still Day 8 work
+- broader benchmark/documentation claims still need to stay bounded to
+  measured evidence
+- the scalar BK pre-pass remains the authoritative indefinite permutation
+  resolution step
+
+Interpretation:
+
+- Day 8 can now focus on measured indefinite factor-many evidence instead of
+  more cleanup around hidden CSC completion semantics

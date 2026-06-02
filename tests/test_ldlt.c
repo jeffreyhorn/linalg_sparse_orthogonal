@@ -2391,10 +2391,12 @@ static void test_ldlt_backend_linked_list_forced(void) {
 }
 
 /* Forced CSC backend now routes through the Sprint 20 Day 5
- * pipeline: scalar pre-pass → pre-permute → analyze →
- * ldlt_csc_from_sparse_with_analysis → supernodal factor →
- * writeback to sparse_ldlt_t.  Factor must succeed on the 4x4
- * indefinite fixture and `used_csc_path` reports 1. */
+ * CSC pipeline: scalar pre-pass / resolved-analysis preparation →
+ * `ldlt_csc_factor_with_resolved_analysis(...)` → CSC writeback to
+ * `sparse_ldlt_t`.  The public contract is the CSC pipeline, not a
+ * guarantee that the batched supernodal completion was retained on
+ * every fixture.  Factor must succeed on the 4x4 indefinite fixture
+ * and `used_csc_path` reports 1. */
 static void test_ldlt_backend_csc_forced_factors(void) {
     SparseMatrix *A = day4_build_indefinite_4x4();
     int used_csc = -1;

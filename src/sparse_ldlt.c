@@ -810,6 +810,8 @@ sparse_err_t ldlt_csc_factor_with_resolved_analysis(const SparseMatrix *mat,
         return SPARSE_ERR_NULL;
     if (mat->rows != mat->cols || mat->rows != analysis->n || pre_factor->n != analysis->n)
         return SPARSE_ERR_SHAPE;
+    if (analysis->type != SPARSE_FACTOR_LDLT || min_size < 1)
+        return SPARSE_ERR_BADARG;
     if (!pre_factor->perm || !pre_factor->pivot_size)
         return SPARSE_ERR_BADARG;
 
@@ -821,12 +823,22 @@ sparse_err_t ldlt_csc_factor_with_resolved_analysis(const SparseMatrix *mat,
     for (idx_t k = 0; k < analysis->n; k++)
         F_batched->pivot_size[k] = pre_factor->pivot_size[k];
 
+    /* The CSC completion seam is intentionally narrow:
+     * - SPARSE_OK    => retain the batched supernodal completion
+     * - SPARSE_ERR_BADARG => fall back to the resolved scalar pre-pass factor
+     *   because the batched path rejected the cached pivot pattern
+     * Any other error (NULL / BADARG contract violation / ALLOC / SINGULAR)
+     * is a real helper failure and must propagate rather than being masked
+     * as a dispatch fallback. */
     const LdltCsc *source = pre_factor;
     err = ldlt_csc_eliminate_supernodal(F_batched, min_size);
     if (err == SPARSE_OK) {
         for (idx_t i = 0; i < analysis->n; i++)
             F_batched->perm[i] = pre_factor->perm[i];
         source = F_batched;
+    } else if (err != SPARSE_ERR_BADARG) {
+        ldlt_csc_free(F_batched);
+        return err;
     }
 
     const double effective_tol = (tol > SPARSE_DROP_TOL) ? tol : SPARSE_DROP_TOL;

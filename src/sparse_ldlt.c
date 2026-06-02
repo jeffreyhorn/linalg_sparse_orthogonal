@@ -982,6 +982,47 @@ static sparse_err_t ldlt_factor_csc_path(const SparseMatrix *A_work, double tol,
     return err;
 }
 
+static sparse_err_t ldlt_dispatch_select_backend(const sparse_ldlt_opts_t *opts, idx_t n,
+                                                 int *use_csc_out) {
+    if (!opts || !use_csc_out)
+        return SPARSE_ERR_NULL;
+    if (opts->backend != SPARSE_LDLT_BACKEND_AUTO &&
+        opts->backend != SPARSE_LDLT_BACKEND_LINKED_LIST &&
+        opts->backend != SPARSE_LDLT_BACKEND_CSC)
+        return SPARSE_ERR_BADARG;
+
+    int use_csc;
+    switch (opts->backend) {
+    case SPARSE_LDLT_BACKEND_LINKED_LIST:
+        use_csc = 0;
+        break;
+    case SPARSE_LDLT_BACKEND_CSC:
+        use_csc = 1;
+        break;
+    case SPARSE_LDLT_BACKEND_AUTO:
+    default:
+        use_csc = (n >= SPARSE_CSC_THRESHOLD);
+        break;
+    }
+
+    /* The CSC scalar pre-pass has no meaningful empty input to factor, so
+     * the empty-matrix edge case remains on the linked-list path even when
+     * the caller forced the CSC backend. */
+    if (n == 0)
+        use_csc = 0;
+
+    *use_csc_out = use_csc;
+    return SPARSE_OK;
+}
+
+static sparse_err_t ldlt_factor_selected_backend(const SparseMatrix *A_work, int use_csc,
+                                                 const sparse_ldlt_opts_t *opts,
+                                                 sparse_ldlt_t *ldlt) {
+    if (use_csc)
+        return ldlt_factor_csc_path(A_work, opts->tol, ldlt);
+    return ldlt_factor_internal(A_work, ldlt, opts->tol, opts->progress_cb, opts->progress_user);
+}
+
 /* ─── Public factor API (delegates to internal with default tol) ────── */
 
 sparse_err_t sparse_ldlt_factor(const SparseMatrix *A, sparse_ldlt_t *ldlt) {
@@ -1020,39 +1061,11 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
     };
     const sparse_ldlt_opts_t *o = opts ? opts : &defaults;
 
-    /* Sprint 20 Days 4-5 dispatch: validate the backend selector and
-     * decide whether to take the CSC supernodal path.
-     *
-     *   LINKED_LIST → existing linked-list kernel (pre-Sprint-20).
-     *   CSC         → Day 5 CSC path unconditionally.
-     *   AUTO        → CSC when n >= SPARSE_CSC_THRESHOLD, else
-     *                 linked-list (matches the Sprint 18 Cholesky
-     *                 dispatch heuristic).
-     *
-     * For n == 0 the CSC pipeline is undefined (scalar pre-pass
-     * can't factor an empty matrix); fall through to linked-list
-     * regardless of the selector. */
-    if (o->backend != SPARSE_LDLT_BACKEND_AUTO && o->backend != SPARSE_LDLT_BACKEND_LINKED_LIST &&
-        o->backend != SPARSE_LDLT_BACKEND_CSC)
-        return SPARSE_ERR_BADARG;
-
     idx_t n = A->rows;
-
-    int use_csc;
-    switch (o->backend) {
-    case SPARSE_LDLT_BACKEND_LINKED_LIST:
-        use_csc = 0;
-        break;
-    case SPARSE_LDLT_BACKEND_CSC:
-        use_csc = 1;
-        break;
-    case SPARSE_LDLT_BACKEND_AUTO:
-    default:
-        use_csc = (n >= SPARSE_CSC_THRESHOLD);
-        break;
-    }
-    if (n == 0)
-        use_csc = 0;
+    int use_csc = 0;
+    sparse_err_t dispatch_err = ldlt_dispatch_select_backend(o, n, &use_csc);
+    if (dispatch_err != SPARSE_OK)
+        return dispatch_err;
 
     /* Publish the chosen backend through `used_csc_path` immediately,
      * before any early returns from reorder / allocation / factor
@@ -1103,12 +1116,10 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
         /* Reset permutations on PA to identity so factor accepts it */
         sparse_reset_perms(PA);
 
-        /* Factor the permuted matrix — CSC supernodal pipeline or
-         * linked-list kernel depending on the Day 5 dispatch. */
-        if (use_csc)
-            err = ldlt_factor_csc_path(PA, o->tol, ldlt);
-        else
-            err = ldlt_factor_internal(PA, ldlt, o->tol, o->progress_cb, o->progress_user);
+        /* Factor the permuted matrix through the already-resolved
+         * selected backend so the reorder and no-reorder branches share
+         * the same dispatch contract. */
+        err = ldlt_factor_selected_backend(PA, use_csc, o, ldlt);
         sparse_free(PA);
 
         if (err != SPARSE_OK) {
@@ -1135,8 +1146,7 @@ sparse_err_t sparse_ldlt_factor_opts(const SparseMatrix *A, const sparse_ldlt_op
     }
 
     /* No reordering — delegate directly to the chosen kernel. */
-    return use_csc ? ldlt_factor_csc_path(A, o->tol, ldlt)
-                   : ldlt_factor_internal(A, ldlt, o->tol, o->progress_cb, o->progress_user);
+    return ldlt_factor_selected_backend(A, use_csc, o, ldlt);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

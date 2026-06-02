@@ -862,3 +862,189 @@ Interpretation:
 
 - Day 6 can now focus on dispatch reasoning and public path clarity instead of
   more duplicated indefinite preparation plumbing
+
+## Day 6
+
+**Objective:** Make the LDL^T CSC-vs-linked-list dispatch contract easier to
+reason about on the highest-value public path by centralizing backend
+selection, reusing one selected-backend execution seam across reorder and
+no-reorder control flow, clarifying the `used_csc_path` contract, and adding
+focused proof that selected-path telemetry is still published before later
+validation failures.
+
+### Commands Run
+
+1. Re-read the Sprint 53 Day 6 plan item plus the Day 3-5 results:
+   - `sed -n '229,260p' docs/planning/EPIC_5/SPRINT_53/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_53/artifacts/day3-analysis-aware-indefinite-path-audit.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_53/artifacts/day4-analysis-aware-ldlt-integration-batch1.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_53/artifacts/day5-analysis-aware-ldlt-integration-batch2.md`
+   - `tail -n 220 docs/planning/EPIC_5/SPRINT_53/WORKING_NOTES.md`
+2. Re-read the live LDL^T dispatch and backend-telemetry seams:
+   - `sed -n '96,180p' include/sparse_ldlt.h`
+   - `sed -n '960,1165p' src/sparse_ldlt.c`
+   - `sed -n '2380,2795p' tests/test_ldlt.c`
+   - `sed -n '1,220p' tests/test_sprint20_integration.c`
+3. Land the bounded dispatch-selection and public-proof batch:
+   - `apply_patch` on:
+     - `include/sparse_ldlt.h`
+     - `src/sparse_ldlt.c`
+     - `tests/test_ldlt.c`
+4. Review the exact patch:
+   - `git diff -- include/sparse_ldlt.h src/sparse_ldlt.c tests/test_ldlt.c`
+5. Run the required code-day gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+6. Run the touched LDL^T/dispatch follow-ons justified by the batch:
+   - `./build/test_ldlt`
+   - `./build/test_sprint20_integration`
+   - `./build/test_integration`
+   - `./build/example_analysis`
+
+### Day 6 Findings
+
+#### 1. The public LDL^T dispatch decision is now centralized instead of being partly inlined in the one-shot wrapper
+
+Day 6 extracted a new helper in `src/sparse_ldlt.c`:
+
+- `ldlt_dispatch_select_backend(...)`
+
+That helper now owns the explicit backend decision for:
+
+- `SPARSE_LDLT_BACKEND_LINKED_LIST`
+- `SPARSE_LDLT_BACKEND_CSC`
+- `SPARSE_LDLT_BACKEND_AUTO`
+- the `n == 0` empty-matrix exception
+
+Interpretation:
+
+- the public backend contract is easier to audit because the selected-path
+  decision is now one named seam
+- later LDL^T dispatch-follow-through days can start from a clearer selector
+  instead of more wrapper-local branching
+
+#### 2. Reorder and no-reorder LDL^T factor flow now share one selected-backend execution seam
+
+Day 6 also extracted:
+
+- `ldlt_factor_selected_backend(...)`
+
+That helper now owns the actual selected-path execution after backend
+resolution:
+
+- CSC path:
+  - `ldlt_factor_csc_path(...)`
+- linked-list path:
+  - `ldlt_factor_internal(...)`
+
+And `sparse_ldlt_factor_opts(...)` now uses that one helper in both:
+
+- reorder path after `sparse_permute(...)`
+- no-reorder direct path
+
+Interpretation:
+
+- Day 6 did not redesign the LDL^T factor kernels
+- it reduced another reasoning seam by making reorder and no-reorder branches
+  share the same selected-backend contract
+
+#### 3. The public backend telemetry contract is now more explicit and more honest
+
+Day 6 tightened the public header wording in `include/sparse_ldlt.h` for:
+
+- `SPARSE_LDLT_BACKEND_CSC`
+- `used_csc_path`
+
+The important clarifications are now explicit:
+
+- `used_csc_path` reports the actual selected numeric path, not just the
+  caller-requested backend enum
+- forced CSC still reports linked-list on the `n == 0` empty-matrix edge case
+  because the CSC scalar pre-pass has no meaningful empty input to factor
+
+Interpretation:
+
+- the wording now matches the implementation better
+- later README or broader dispatch-summary work can refer back to a clearer
+  header-level source of truth
+
+#### 4. Sprint 53 now has direct proof that selected-path telemetry survives later reorder validation failure
+
+Day 6 added a focused public regression in `tests/test_ldlt.c`:
+
+- `test_ldlt_backend_csc_reports_selected_path_before_reorder_error`
+
+That proof checks:
+
+- forced CSC backend request
+- `used_csc_path` output pointer set
+- later invalid reorder enum
+- selected-path telemetry still published as `1` before the later
+  `SPARSE_ERR_BADARG` return
+
+Interpretation:
+
+- the repo now proves a higher-signal part of the dispatch contract than it
+  did before
+- callers can trust that the telemetry reports the selected numeric path even
+  when later wrapper validation rejects the call
+
+#### 5. The full code-day gate, stronger reviewed baseline, and touched follow-ons all closed cleanly
+
+Because `*.c` / `*.h` changed, Day 6 ran:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All passed.
+
+The maintained reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 120.16 sec`
+
+The touched follow-ons also passed:
+
+- `./build/test_ldlt`
+- `./build/test_sprint20_integration`
+- `./build/test_integration`
+- `./build/example_analysis`
+
+Representative direct results:
+
+- `test_ldlt` = `84 / 84`
+- `test_sprint20_integration` = `20 / 20`
+- `test_integration` = `35 / 35`
+- `example_analysis` residual stayed `4.44e-16`
+
+Interpretation:
+
+- the Day 6 batch is validated from the normal code-day gate, the strongest
+  local reviewed baseline, and the most relevant LDL^T/dispatch follow-ons
+
+#### 6. Day 6 leaves a cleaner Day 7 dispatch-reconciliation starting point
+
+What Day 6 materially improved:
+
+- selected-path backend reasoning is now more explicit
+- selected-backend execution is more centralized
+- public backend telemetry wording is more honest
+- direct public proof around dispatch telemetry is stronger
+
+What Day 6 intentionally did not solve:
+
+- LDL^T-specific factor-many benchmark proof is still later work
+- broader Cholesky/LDL^T dispatch reconciliation is still later work
+- the scalar BK pre-pass remains the authoritative indefinite permutation
+  resolution step
+
+Interpretation:
+
+- Day 7 can now focus on cross-surface dispatch follow-through instead of
+  another round of basic LDL^T selector cleanup

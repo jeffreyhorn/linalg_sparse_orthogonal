@@ -106,6 +106,9 @@ typedef struct {
  * - `SPARSE_LDLT_BACKEND_CSC`: always use the CSC supernodal kernel
  *   (`sparse_analyze` → `ldlt_csc_from_sparse_with_analysis` →
  *   `ldlt_csc_eliminate_supernodal` → CSC→`sparse_ldlt_t` writeback).
+ *   The only exception is the empty-matrix edge case: `n == 0` still
+ *   routes to the linked-list path because the CSC scalar pre-pass
+ *   has no meaningful empty input to factor.
  */
 typedef enum {
     SPARSE_LDLT_BACKEND_AUTO = 0,
@@ -129,8 +132,12 @@ typedef enum {
  * @note **Transparent CSC dispatch (Sprint 20 Days 4-6).** Same
  * pattern as the Sprint 18 Cholesky dispatch.  See
  * `sparse_ldlt_backend_t` above for the per-value semantics.  The
- * optional `used_csc_path` output pointer is set to 1 when the CSC
- * pipeline was selected and 0 when the linked-list backend ran.
+ * optional `used_csc_path` output pointer reports the actual selected
+ * numeric path: 1 when the CSC pipeline ran and 0 when the linked-list
+ * backend ran.  That means a forced `SPARSE_LDLT_BACKEND_CSC` request
+ * still reports 0 on the `n == 0` empty-matrix edge case because the
+ * linked-list backend is the only valid implementation there.
+ *
  * Note that "CSC selected" means the CSC kernel chain handled the
  * factor end-to-end — this includes the Sprint 20 Day 5 structural-
  * fallback case where the supernodal factor tripped the pivot-

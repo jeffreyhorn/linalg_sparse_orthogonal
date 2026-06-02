@@ -1436,3 +1436,181 @@ Interpretation:
 - Day 9 can now audit the remaining adoption/documentation queue from a
   measured and correctness-checked benchmark surface rather than from a proof
   gap
+
+## Day 9: Cholesky / LDL^T Dispatch Reconciliation Audit
+
+### Commands run
+
+- `sed -n '332,380p' docs/planning/EPIC_5/SPRINT_53/PLAN.md`
+- `sed -n '280,360p' README.md`
+- `sed -n '1,220p' benchmarks/README.md`
+- `sed -n '1,220p' include/sparse_ldlt.h`
+- `sed -n '180,360p' include/sparse_analysis.h`
+- `rg -n "bench_refactor_csc|CSC|LDL\\^T|Cholesky|used_csc_path|repeated-run" README.md include/sparse_ldlt.h include/sparse_cholesky.h tests/test_chol_csc.c tests/test_ldlt_csc.c tests/test_ldlt.c`
+- `sed -n '1,260p' include/sparse_cholesky.h`
+- `sed -n '1500,1635p' tests/test_ldlt_csc.c`
+- `sed -n '2400,2495p' tests/test_ldlt.c`
+
+### Findings
+
+#### 1. The remaining Sprint 53 reconciliation queue is now mostly a top-level README problem, not a code or test problem
+
+The Day 9 audit checked the live dispatch story across:
+
+- `README.md`
+- `benchmarks/README.md`
+- `include/sparse_cholesky.h`
+- `include/sparse_ldlt.h`
+- `include/sparse_analysis.h`
+- CSC-specific dispatch tests
+
+Result:
+
+- `README.md` is now the main place where the Cholesky / LDL^T CSC story is
+  still lower-resolution than the landed code
+- the other inspected surfaces are already more aligned than the top-level
+  README
+
+Interpretation:
+
+- Day 10 should not reopen Sprint 53 implementation work
+- it should land one bounded public-story clarification batch instead
+
+#### 2. `include/sparse_ldlt.h` is already the strongest authoritative wording for the LDL^T CSC dispatch contract
+
+The LDL^T header already states the critical Sprint 53 distinctions:
+
+- AUTO vs forced backend selection
+- forced CSC means the CSC pipeline, not an unconditional promise of batched
+  supernodal completion
+- `used_csc_path` reports the selected numeric path
+- the `n == 0` empty-matrix exception stays explicit
+
+Interpretation:
+
+- Day 10 should not spend effort rewriting the LDL^T header again unless a
+  real contradiction appears while touching the primary target
+
+#### 3. `benchmarks/README.md` is aligned enough after Day 8
+
+The benchmark-local README now correctly distinguishes:
+
+- `bench_refactor`
+  - Cholesky analyze-once / refactor-many proof
+- `bench_refactor_csc`
+  - default SPD / Cholesky repeated-run proof
+  - optional indefinite LDL^T KKT repeated-run proof
+  - public repeated-run path vs direct CSC completion path
+
+Interpretation:
+
+- the benchmark-local docs no longer look like the main remaining drift source
+- Day 10 should leave them alone unless a primary README edit forces one tiny
+  consistency tweak
+
+#### 4. The CSC-specific tests are already describing the LDL^T pipeline accurately enough
+
+The inspected test commentary already reflects the landed layered LDL^T story:
+
+- scalar BK pre-pass remains the authoritative indefinite
+  permutation-resolution step
+- the CSC pipeline may retain batched completion or resolved scalar fallback
+- helper contract violations no longer silently alias into fallback
+
+Interpretation:
+
+- tests are already a stronger description of the live LDL^T CSC contract than
+  the top-level README
+- they are not the right Day 10 target by default
+
+#### 5. The real remaining drift is that `README.md` still compresses Cholesky and LDL^T dispatch into one story that is now too coarse
+
+What the live code now supports:
+
+- Cholesky
+  - simpler size-based linked-list vs CSC backend selection
+  - forced CSC means the CSC backend
+- LDL^T
+  - similar outer size-based dispatch
+  - but forced CSC means the CSC pipeline
+  - that pipeline still begins from the scalar BK pre-pass
+  - completion may retain the batched path or fall back to the resolved scalar
+    factor
+
+Interpretation:
+
+- Day 10 needs to clarify the top-level dispatch story without pretending the
+  two families are internally identical
+
+#### 6. Day 8's new indefinite factor-many benchmark proof is still under-centered in the top-level README
+
+After Day 8:
+
+- `bench_refactor_csc` now has a real `--indefinite-kkt` LDL^T mode
+- that mode measures the public repeated-run path vs the direct CSC completion
+  path
+- the benchmark now closes at round-off residuals after the Day 8 LDL^T
+  permutation fix
+
+Interpretation:
+
+- Day 10 should probably add a small README-level benchmark-story
+  reconciliation
+- it should point readers to `benchmarks/README.md` rather than restating the
+  full benchmark contract
+
+### Ranked Day 10 targets
+
+#### Primary target
+
+- `README.md`
+
+Why:
+
+- it is now the highest-visibility place where the dispatch story still lags
+  the landed CSC reality
+
+What to do:
+
+- tighten the Cholesky / LDL^T CSC wording
+- mention the new indefinite repeated-run proof surface briefly
+- keep the detailed truth in:
+  - `include/sparse_ldlt.h`
+  - `benchmarks/README.md`
+
+#### Secondary target only if truly needed
+
+- one very small header touch in:
+  - `include/sparse_cholesky.h`
+  - or `include/sparse_analysis.h`
+
+Constraint:
+
+- only if the README clarification would otherwise contradict a local header
+  sentence
+
+### Explicit non-goals
+
+- no tutorial-scale rewrite
+- no broad example rewrite
+- no benchmark-framework redesign
+- no new public direct-solver API work
+- no fake symmetry rewrite that hides the real Cholesky vs LDL^T CSC
+  differences
+
+### Day 9 outcome
+
+Sprint 53's remaining reconciliation queue is now concrete:
+
+- main target:
+  - `README.md`
+- already aligned enough:
+  - `benchmarks/README.md`
+  - `include/sparse_ldlt.h`
+  - CSC-specific dispatch tests
+- optional tiny follow-on only if needed:
+  - `include/sparse_cholesky.h`
+  - `include/sparse_analysis.h`
+
+This was a docs-only audit day, so I did not rerun `make format`, `make lint`,
+`make test`, or `make quality-review-full`.

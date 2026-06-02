@@ -677,3 +677,188 @@ Interpretation:
 
 - Day 5 can now focus more directly on deeper indefinite repeated-run follow-
   through and proof, rather than on duplicated CSC completion plumbing
+
+## Day 5
+
+**Objective:** Remove the next highest-value indefinite CSC seam by unifying
+the shared scalar-prepass / resolved-analysis preparation front half used by
+the one-shot CSC dispatch path and the repeated-run analysis/factors path,
+while adding direct proof that the public LDL^T refactor workflow still stays
+inside the bounded same-pattern reuse contract on an indefinite CSC workload.
+
+### Commands Run
+
+1. Re-read the Sprint 53 Day 5 plan item plus the Day 3 and Day 4 results:
+   - `sed -n '196,228p' docs/planning/EPIC_5/SPRINT_53/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_53/artifacts/day3-analysis-aware-indefinite-path-audit.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_53/artifacts/day4-analysis-aware-ldlt-integration-batch1.md`
+   - `tail -n 220 docs/planning/EPIC_5/SPRINT_53/WORKING_NOTES.md`
+2. Re-read the remaining shared LDL^T preparation and refactor hotspots:
+   - `sed -n '420,560p' src/sparse_analysis.c`
+   - `sed -n '780,980p' src/sparse_ldlt.c`
+   - `sed -n '320,380p' src/sparse_ldlt_csc_internal.h`
+   - `sed -n '940,1325p' tests/test_integration.c`
+3. Reconfirm the later sprint ordering so Day 5 would not steal Day 8-10
+   benchmark or dispatch work:
+   - `sed -n '140,340p' docs/planning/EPIC_5/SPRINT_53/PLAN.md`
+4. Land the bounded shared-preparation and regression batch:
+   - `apply_patch` on:
+     - `src/sparse_ldlt.c`
+     - `src/sparse_analysis.c`
+     - `src/sparse_ldlt_csc_internal.h`
+     - `tests/test_integration.c`
+5. Review the exact patch:
+   - `git diff -- src/sparse_analysis.c src/sparse_ldlt.c src/sparse_ldlt_csc_internal.h tests/test_integration.c`
+6. Run the required code-day gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+7. Run the touched follow-ons justified by the batch:
+   - `./build/test_integration`
+   - `./build/test_ldlt`
+   - `./build/test_ldlt_csc`
+   - `./build/test_sprint20_integration`
+   - `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/example_analysis`
+
+### Day 5 Findings
+
+#### 1. The remaining duplicated indefinite CSC preparation seam is now materially smaller
+
+Day 5 extracted a second shared internal helper:
+
+- `ldlt_csc_prepare_resolved_analysis(...)`
+
+That helper now owns the indefinite CSC preparation front half that Day 4 had
+left duplicated:
+
+- scalar BK pre-pass via `ldlt_csc_from_sparse(...)`
+- `ldlt_csc_eliminate_native(...)`
+- comparison against caller analysis when one exists
+- pre-permuted matrix build when the resolved BK permutation diverges
+- `SPARSE_FACTOR_LDLT` + `SPARSE_REORDER_NONE` derived analysis on that
+  pre-permuted matrix
+
+Interpretation:
+
+- Day 4 unified the CSC completion half
+- Day 5 unified the resolved-analysis preparation half
+- the main indefinite CSC control flow is now split more cleanly into:
+  - preparation
+  - analysis-aware CSC completion
+
+#### 2. The one-shot CSC path and the repeated-run shared path now share the same preparation boundary
+
+Day 5 now routes both of these through the new helper:
+
+- `ldlt_factor_csc_path(...)`
+- `factor_ldlt_with_analysis_csc(...)`
+
+That means the two paths still differ only where they should:
+
+- one-shot path has no caller analysis hint, so it always resolves through a
+  pre-permuted matrix plus derived analysis
+- repeated-run path can still reuse the caller analysis directly when the BK
+  pre-pass does not introduce extra swaps beyond that analysis
+
+But they no longer duplicate the actual decision and setup logic that chooses
+between those two cases.
+
+Interpretation:
+
+- Sprint 53 reduced another real CSC ownership seam without redesigning the
+  public direct-solver surface
+- later dispatch-follow-through days can now start from a cleaner internal
+  base
+
+#### 3. The bounded reuse semantics stayed honest
+
+Day 5 did not change the preserved LDL^T repeated-run contract:
+
+- one-shot LDL^T remains first-class
+- repeated direct runs remain analysis/factors-centric
+- reuse preserves symbolic/permutation setup when the resolved BK structure
+  stays compatible with the caller analysis
+- the path still performs a fresh scalar BK pre-pass each time
+- the path still does not promise reuse of stale numeric factor values or old
+  pivot choices
+
+Interpretation:
+
+- the batch strengthens reuse of symbolic/permutation setup
+- it does not overclaim reuse of stale pivot or numeric state
+
+#### 4. The public indefinite refactor story is now better proved
+
+Day 5 added a new integration test:
+
+- `test_public_lifecycle_ldlt_refactor_same_pattern_indefinite_kkt`
+
+That proof uses an above-threshold indefinite KKT matrix and checks:
+
+- initial explicit `sparse_analyze(...)` + `sparse_factor_numeric(...)`
+- correct solve on the original indefinite matrix
+- same-pattern value perturbation on a fresh KKT matrix
+- `sparse_refactor_numeric(...)` success on that perturbed indefinite matrix
+- correct solve after refactor using the same public analysis/factors objects
+
+Interpretation:
+
+- Sprint 53 now has direct proof that the public LDL^T repeated-run refactor
+  path works on a same-pattern indefinite CSC workload
+- the proof is still honest: the contract is same-pattern numeric refresh, not
+  stale-factor reuse
+
+#### 5. The full code-day gate and touched follow-ons closed cleanly
+
+Because `*.c` / `*.h` changed, Day 5 ran:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+The touched follow-ons also passed:
+
+- `./build/test_integration`
+- `./build/test_ldlt`
+- `./build/test_ldlt_csc`
+- `./build/test_sprint20_integration`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `./build/example_analysis`
+
+Representative direct results:
+
+- `test_integration` = `35 / 35`
+- `test_ldlt` = `83 / 83`
+- `test_ldlt_csc` = `95 / 95`
+- `test_sprint20_integration` = `20 / 20`
+- `bench_refactor_csc nos4`:
+  - `speedup_refactor = 1.70x`
+  - `res_ll = 8.24e-16`
+  - `res_csc = 7.06e-16`
+- `example_analysis` residual stayed `4.44e-16`
+
+Interpretation:
+
+- the Day 5 batch is validated from the normal code-day gate plus the
+  highest-signal LDL^T/CSC follow-ons justified by the touched seam
+
+#### 6. Day 5 leaves a cleaner Day 6 dispatch starting point
+
+What Day 5 materially improved:
+
+- duplicated indefinite CSC preparation logic is smaller
+- repeated-run indefinite refactor proof is stronger
+
+What Day 5 intentionally did not solve:
+
+- public backend/telemetry wording and reasoning are still Day 6-7 work
+- there is still no LDL^T-specific factor-many benchmark batch yet
+- the scalar BK pre-pass remains the authoritative permutation-resolution step
+
+Interpretation:
+
+- Day 6 can now focus on dispatch reasoning and public path clarity instead of
+  more duplicated indefinite preparation plumbing

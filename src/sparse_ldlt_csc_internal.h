@@ -346,6 +346,45 @@ sparse_err_t ldlt_csc_factor_with_resolved_analysis(const SparseMatrix *mat,
                                                     const LdltCsc *pre_factor, idx_t min_size,
                                                     double tol, sparse_ldlt_t *ldlt_out);
 
+/**
+ * Resolve the indefinite LDL^T CSC preparation front half shared by the
+ * one-shot CSC dispatch path and the repeated-run analysis/factors path.
+ *
+ * The helper always performs the scalar BK pre-pass:
+ *
+ *   1. `ldlt_csc_from_sparse(...)`
+ *   2. `ldlt_csc_eliminate_native(...)`
+ *
+ * It then resolves which matrix / analysis pair the later CSC completion
+ * helper should factor:
+ *
+ * - when `analysis_hint` is non-NULL and the resolved BK permutation still
+ *   matches that caller analysis, the original `mat` plus `analysis_hint`
+ *   remain valid
+ * - otherwise the helper builds `A_perm = P A P^T`, resets its logical
+ *   permutation metadata, and analyzes that matrix with
+ *   `SPARSE_FACTOR_LDLT` + `SPARSE_REORDER_NONE`
+ *
+ * Outputs:
+ *
+ * - `pre_factor_out` receives the completed scalar pre-pass factor
+ * - `owned_perm_mat_out` receives any owned pre-permuted matrix that the
+ *   caller must free (NULL when the original matrix remains valid)
+ * - `derived_analysis_out` receives any derived analysis built on the
+ *   pre-permuted matrix and should be zero-initialized by the caller
+ * - `factored_mat_out` points at the matrix to feed into
+ *   `ldlt_csc_factor_with_resolved_analysis(...)`
+ * - `resolved_analysis_out` points at the matching analysis for that matrix
+ *
+ * This helper reduces duplicated indefinite CSC preparation logic but does
+ * not hide the real family-specific boundary: the scalar BK pre-pass still
+ * owns final symmetric permutation resolution.
+ */
+sparse_err_t ldlt_csc_prepare_resolved_analysis(
+    const SparseMatrix *mat, const sparse_analysis_t *analysis_hint, LdltCsc **pre_factor_out,
+    SparseMatrix **owned_perm_mat_out, sparse_analysis_t *derived_analysis_out,
+    const SparseMatrix **factored_mat_out, const sparse_analysis_t **resolved_analysis_out);
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Invariant checking
  * ═══════════════════════════════════════════════════════════════════════ */

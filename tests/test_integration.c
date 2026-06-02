@@ -1165,6 +1165,58 @@ static void test_public_lifecycle_ldlt_refactor_same_pattern_indefinite_kkt_amd(
     sparse_free(A2);
 }
 
+static void
+test_public_lifecycle_ldlt_refactor_rejects_nnz_drift_and_preserves_old_factors_amd(void) {
+    SparseMatrix *A_good = build_kkt(/*n_top=*/140, /*n_bot=*/10);
+    SparseMatrix *A_bad = NULL;
+    sparse_analysis_t analysis = {0};
+    sparse_factors_t factors = {0};
+    double *x_exact = NULL;
+    double *b = NULL;
+    double *x = NULL;
+    const idx_t n_top = 140;
+    const idx_t n_bot = 10;
+    const idx_t n = n_top + n_bot;
+
+    REQUIRE_OK(A_good ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_analysis_opts_t analysis_opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_AMD,
+    };
+    ASSERT_EQ(sparse_analyze(A_good, &analysis_opts, &analysis), SPARSE_OK);
+    ASSERT_EQ(sparse_factor_numeric(A_good, &analysis, &factors), SPARSE_OK);
+    ASSERT_NOT_NULL(factors.ldlt_perm);
+    ASSERT_NOT_NULL(factors.pivot_size);
+
+    x_exact = malloc((size_t)n * sizeof(double));
+    b = malloc((size_t)n * sizeof(double));
+    x = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(x_exact && b && x ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = 1.0;
+    sparse_matvec(A_good, x_exact, b);
+
+    A_bad = sparse_copy(A_good);
+    REQUIRE_OK(A_bad ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    ASSERT_EQ(sparse_set(A_bad, 0, n_top, 0.0), SPARSE_OK);
+    ASSERT_EQ(sparse_set(A_bad, n_top, 0, 0.0), SPARSE_OK);
+
+    ASSERT_EQ(sparse_refactor_numeric(A_bad, &analysis, &factors), SPARSE_ERR_BADARG);
+    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b, x), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x[i], x_exact[i], 1e-10);
+
+    free(x_exact);
+    free(b);
+    free(x);
+    sparse_factor_free(&factors);
+    sparse_analysis_free(&analysis);
+    sparse_free(A_bad);
+    sparse_free(A_good);
+}
+
 static void test_public_lifecycle_solve_rejects_zeroed_factors(void) {
     const idx_t n = 50;
     SparseMatrix *A = build_tridiag_spd(n);
@@ -1728,6 +1780,7 @@ int main(void) {
     RUN_TEST(test_ldlt_factor_opts_matches_explicit_analysis_path_indefinite_kkt);
     RUN_TEST(test_public_lifecycle_ldlt_refactor_same_pattern_indefinite_kkt);
     RUN_TEST(test_public_lifecycle_ldlt_refactor_same_pattern_indefinite_kkt_amd);
+    RUN_TEST(test_public_lifecycle_ldlt_refactor_rejects_nnz_drift_and_preserves_old_factors_amd);
     RUN_TEST(test_public_lifecycle_solve_rejects_zeroed_factors);
     RUN_TEST(test_public_lifecycle_solve_rejects_mismatched_analysis_and_preserves_factors);
     RUN_TEST(test_public_lifecycle_refactor_accepts_zeroed_factors);

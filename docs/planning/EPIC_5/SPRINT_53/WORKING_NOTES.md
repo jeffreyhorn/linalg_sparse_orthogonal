@@ -1743,3 +1743,119 @@ I ran targeted Day 10 wording checks instead:
 - `wc -l README.md benchmarks/README.md include/sparse_ldlt.h include/sparse_cholesky.h`
 
 All were clean.
+
+## Day 11: Regression Expansion Batch
+
+### Commands run
+
+- `sed -n '440,520p' docs/planning/EPIC_5/SPRINT_53/PLAN.md`
+- `tail -n 220 docs/planning/EPIC_5/SPRINT_53/WORKING_NOTES.md`
+- `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_53/artifacts/day10-dispatch-reconciliation-batch.md`
+- `rg -n "Sprint 53|ldlt|chol|refactor|same-pattern|indefinite|used_csc_path|pipeline|bench_refactor_csc|test_public_lifecycle|analysis-aware" tests src include benchmarks README.md docs/planning/EPIC_5/SPRINT_53 -g '!build'`
+- `rg -n "test_public_lifecycle_ldlt|used_csc_path|refactor_same_pattern|indefinite_kkt|analysis-aware|resolved_analysis|csc pipeline|mismatch|nnz drift|preserve|old factors" tests/test_integration.c tests/test_ldlt.c tests/test_ldlt_csc.c tests/test_sprint20_integration.c`
+- `sed -n '820,1225p' tests/test_integration.c`
+- `sed -n '1225,1365p' tests/test_integration.c`
+- `sed -n '430,520p' tests/test_integration.c`
+- `make format`
+- `make lint`
+- `make test`
+- `./build/test_integration`
+- `./build/test_ldlt_csc`
+- `./build/bench_refactor_csc --indefinite-kkt --repeat 1`
+
+### Findings
+
+#### 1. The strongest remaining proof gap was the bounded failure contract on the high-value indefinite repeated-run path
+
+Before Day 11, Sprint 53 already had:
+
+- one-shot vs explicit-analysis indefinite KKT parity
+- same-pattern indefinite refactor success
+- reordered indefinite repeated-run success
+- measured indefinite factor-many benchmark proof
+
+Sprint 52 already had the generic failure-side proof on the SPD path:
+
+- cheap `nnz`-drift rejection
+- old-factor preservation on failed refactor
+
+What Sprint 53 still lacked was that same bounded failure-side proof on the
+main above-threshold indefinite KKT repeated-run path.
+
+Interpretation:
+
+- Day 11 should add one focused regression on that path instead of broad new
+  CSC coverage
+
+#### 2. Day 11 added the missing indefinite `nnz`-drift + old-factor-preservation proof
+
+Added in `tests/test_integration.c`:
+
+- `test_public_lifecycle_ldlt_refactor_rejects_nnz_drift_and_preserves_old_factors_amd`
+
+What it proves:
+
+1. analyze `kkt-150` with:
+   - `SPARSE_FACTOR_LDLT`
+   - `SPARSE_REORDER_AMD`
+2. factor once through the public repeated-run path
+3. remove one symmetric coupling pair from a copied matrix to create obvious
+   `nnz` drift
+4. `sparse_refactor_numeric(...)` returns:
+   - `SPARSE_ERR_BADARG`
+5. the old factors remain valid for the original RHS/solution pair afterward
+
+Interpretation:
+
+- the cheap gross-structure guard is now directly proved on the high-value
+  indefinite CSC path
+- old-factor preservation is also now directly proved on that same path
+
+#### 3. This stayed tightly bounded to proof, not implementation
+
+Day 11 changed:
+
+- `tests/test_integration.c`
+
+Day 11 did not change:
+
+- `src/`
+- public headers
+- benchmarks
+- README
+
+Interpretation:
+
+- this was the intended Day 11 shape: close one real proof gap without
+  reopening Sprint 53's implementation or docs queue
+
+### Validation
+
+Because `tests/test_integration.c` changed, I ran the full required gate:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Focused Day 11 follow-ons also passed:
+
+- `./build/test_integration`
+  - `37 / 37`
+- `./build/test_ldlt_csc`
+  - `96 / 96`
+- `./build/bench_refactor_csc --indefinite-kkt --repeat 1`
+  - `workflow = ldlt_kkt`
+  - `speedup_refactor = 1.26x`
+  - `res_public = 2.96e-16`
+  - `res_csc = 2.96e-16`
+
+### Day 11 outcome
+
+Sprint 53's indefinite repeated-run proof surface is now better balanced:
+
+- success-path proof already existed
+- bounded failure-path proof now exists too
+- the measured indefinite benchmark surface stayed numerically unchanged and
+  healthy

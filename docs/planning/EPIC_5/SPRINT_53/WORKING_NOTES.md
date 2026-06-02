@@ -183,3 +183,136 @@ Interpretation:
   direct-solver research
 - the correct Day 1 close is a clean CSC baseline and authoritative-input
   package
+
+## Day 2
+
+**Objective:** Reconfirm the maintained reviewed baseline and truthfulness
+anchors Sprint 53 must preserve, then define the smallest authoritative
+validation boundary for the later CSC implementation days and the high-signal
+CSC rerun set those code-touch batches should use.
+
+### Commands Run
+
+1. Re-read the Sprint 53 Day 2 plan item and the current sprint notes:
+   - `sed -n '78,123p' docs/planning/EPIC_5/SPRINT_53/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_53/WORKING_NOTES.md`
+2. Reconfirm the maintained reviewed CMake truthfulness anchor:
+   - `ctest -N --test-dir build/quality-review-cmake`
+3. Reconfirm the maintained reviewed wrapper authority surface:
+   - `make -n quality-review-full`
+4. Re-read the live quality-contract wording sources:
+   - `rg -n "strongest local reviewed baseline|quality-review-full|quality-review-cmake|deadcode-check" README.md docs/maintainer_guide.md Makefile .github/workflows -g '!build'`
+5. Reconfirm the targeted CSC follow-on binaries already present in the build
+   tree:
+   - `ls build/bench_refactor_csc build/test_chol_csc build/test_ldlt_csc build/test_cholesky build/test_ldlt build/test_etree build/test_integration build/example_analysis`
+
+### Day 2 Findings
+
+#### 1. The strongest local reviewed baseline and truthfulness anchors remain exact
+
+The maintained Sprint 53 baseline remains:
+
+- strongest local reviewed baseline:
+  - `make quality-review-full`
+- reviewed CMake parity anchor:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+The authority split is still the same:
+
+- `make quality-review-full`
+  - strongest local reviewed baseline
+- `make quality-review`
+  - reviewed Makefile path
+- `make quality-review-cmake`
+  - reviewed CMake parity path
+- `make deadcode-check`
+  - report-completeness gate, not a zero-findings gate
+
+Interpretation:
+
+- Sprint 53 should keep using the exact “strongest local reviewed baseline”
+  phrasing
+- the sprint should treat the reviewed CMake count and parity contract as
+  truthfulness anchors rather than as loose guidance
+
+#### 2. The later CSC code-day gate is simple and should stay explicit
+
+The mandatory gate for later `*.c` / `*.h` CSC work remains:
+
+- `make format`
+- `make lint`
+- `make test`
+
+And the stronger default for substantial shared direct-solver or CSC dispatch
+batches remains:
+
+- `make quality-review-full`
+
+Interpretation:
+
+- Sprint 53 does not need a sprint-specific validation invention
+- it needs to preserve the same code-day and substantial-batch boundary that
+  already governs the repo
+
+#### 3. The high-signal Sprint 53 CSC rerun set is now fixed from the live build tree
+
+The targeted CSC follow-on binaries already present and ready to rerun are:
+
+- `./build/bench_refactor_csc`
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+- `./build/test_cholesky`
+- `./build/test_ldlt`
+- `./build/test_etree`
+- `./build/test_integration`
+- `./build/example_analysis`
+
+Interpretation:
+
+- Sprint 53 does not need to guess which post-patch binaries matter most
+- the strongest follow-on set is already concrete before Day 3 auditing and
+  Day 4+ CSC patches begin
+
+#### 4. The quality-contract wording remains internally aligned across the main authority sources
+
+The current wording still agrees across:
+
+- `Makefile`
+- `README.md`
+- `docs/maintainer_guide.md`
+
+The key retained truths are:
+
+- `quality-review-full` is still the strongest local reviewed baseline
+- `quality-review-cmake-compile` / `quality-review-cmake` still own the
+  reviewed CMake parity path
+- `deadcode-check` still means report completeness, not zero findings
+
+Interpretation:
+
+- Sprint 53 can safely cite the existing quality contract without rewording it
+- Day 2 does not surface any need to reopen the Sprint 48 quality-contract
+  simplification work
+
+#### 5. The smallest authoritative validation boundary is now explicit
+
+For Sprint 53:
+
+- docs-only days:
+  - preserve the reviewed wording/count anchors
+  - use targeted sanity checks only
+- `*.c` / `*.h` CSC days:
+  - `make format`
+  - `make lint`
+  - `make test`
+- substantial shared direct-solver or dispatch batches:
+  - add `make quality-review-full`
+- targeted CSC follow-ons:
+  - rerun only the binaries justified by the touched seam
+
+Interpretation:
+
+- Sprint 53 now has a clean validation boundary before any CSC implementation
+  work starts
+- there is no ambiguity around when a batch needs only sanity checks versus
+  full code-day validation

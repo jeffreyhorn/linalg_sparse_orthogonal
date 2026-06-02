@@ -2004,3 +2004,133 @@ No blocker-level compatibility drift remains before Day 13 validation.
 
 This was a docs-only audit day, so I did not rerun `make format`, `make lint`,
 `make test`, or `make quality-review-full`.
+
+## Day 13: Full Validation Sweep
+
+### Commands run
+
+- `sed -n '590,660p' docs/planning/EPIC_5/SPRINT_53/PLAN.md`
+- `tail -n 260 docs/planning/EPIC_5/SPRINT_53/WORKING_NOTES.md`
+- `sed -n '1,240p' docs/planning/EPIC_5/SPRINT_53/artifacts/day12-post-landing-compatibility-audit.md`
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- `ctest -N --test-dir build/quality-review-cmake`
+- `ctest --test-dir build/quality-review-cmake -R test_reorder_amd_qg -V`
+- `ctest --test-dir build/quality-review-cmake --output-on-failure`
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+- `./build/test_cholesky`
+- `./build/test_ldlt`
+- `./build/test_etree`
+- `./build/test_integration`
+- `./build/example_analysis`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `./build/bench_refactor_csc --indefinite-kkt --repeat 1`
+
+### Findings
+
+#### 1. The full required gate passed from the landed Day 12 state
+
+Day 13 ran the full required validation gate:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Result:
+
+- all passed
+
+The maintained reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- reviewed CMake total time inside `make quality-review-full` = `124.22 sec`
+
+Interpretation:
+
+- Sprint 53 has a real measured validation close state, not just a set of
+  focused local reruns
+
+#### 2. The earlier reviewed-CMake miss was transient, not a real branch defect
+
+During the Day 13 sweep, one direct `ctest` invocation transiently reported:
+
+- missing executable:
+  - `build/quality-review-cmake/test_reorder_amd_qg`
+
+Day 13 then rechecked that surface directly:
+
+- `ctest --test-dir build/quality-review-cmake -R test_reorder_amd_qg -V`
+- `./build/quality-review-cmake/test_reorder_amd_qg`
+- `ctest --test-dir build/quality-review-cmake --output-on-failure`
+
+All of those passed cleanly. The full `make quality-review-full` rerun also
+finished cleanly at `53 / 53`.
+
+Interpretation:
+
+- the validated branch state is green
+- the transient direct `ctest` miss did not reproduce and did not require a
+  code fix
+
+#### 3. The targeted Sprint 53 CSC proof surfaces also stayed green
+
+Focused reruns passed on the high-signal Sprint 53 surfaces:
+
+- `./build/test_integration`
+  - `37 / 37`
+- `./build/test_chol_csc`
+  - `137 / 137`
+- `./build/test_ldlt_csc`
+  - `96 / 96`
+- `./build/test_cholesky`
+  - `21 / 21`
+- `./build/test_ldlt`
+  - `84 / 84`
+- `./build/test_etree`
+  - `97 / 97`
+
+The main repeated-run direct example also stayed healthy:
+
+- `./build/example_analysis`
+  - residual = `4.44e-16`
+
+Interpretation:
+
+- the shared lifecycle, direct-family, and CSC-specific proof surfaces stayed
+  aligned through the full validation sweep
+
+#### 4. Both bounded CSC factor-many proof surfaces remained numerically healthy
+
+Measured Day 13 benchmark results:
+
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `workflow = chol_spd`
+  - `speedup_refactor = 1.64x`
+  - `res_public = 8.24e-16`
+  - `res_csc = 7.06e-16`
+
+- `./build/bench_refactor_csc --indefinite-kkt --repeat 1`
+  - `workflow = ldlt_kkt`
+  - `speedup_refactor = 1.36x`
+  - `res_public = 2.96e-16`
+  - `res_csc = 2.96e-16`
+
+Interpretation:
+
+- Sprint 53 closes with both SPD and indefinite repeated-run CSC proof surfaces
+  still ahead and still numerically stable
+
+### Day 13 outcome
+
+Sprint 53 now has a validated measured close state:
+
+- the full required gate passed
+- the reviewed Makefile/CMake anchors remained exact
+- the targeted CSC follow-through and repeated-run proof surfaces stayed green
+- no new reconciliation queue surfaced during validation

@@ -446,8 +446,6 @@ static sparse_err_t factor_ldlt_with_analysis_csc(const SparseMatrix *A,
                                                   const sparse_analysis_t *analysis,
                                                   sparse_factors_t *factors) {
     LdltCsc *F_pre = NULL;
-    LdltCsc *F_batched = NULL;
-    LdltCsc *source = NULL;
     SparseMatrix *A_perm = NULL;
     sparse_analysis_t derived_analysis = {0};
     sparse_ldlt_t ldlt = {0};
@@ -466,7 +464,8 @@ static sparse_err_t factor_ldlt_with_analysis_csc(const SparseMatrix *A,
         /* The scalar BK pre-pass did not introduce extra symmetric swaps
          * beyond the caller's fill-reducing reorder, so the caller's
          * symbolic analysis already matches the CSC repeated-run path. */
-        err = ldlt_csc_from_sparse_with_analysis(A, analysis, &F_batched);
+        err =
+            ldlt_csc_factor_with_resolved_analysis(A, analysis, F_pre, /*min_size=*/2, 0.0, &ldlt);
     } else {
         /* When BK adds extra swaps, rebuild the symbolic analysis on the
          * pre-permuted matrix so the batched CSC factor sees the complete
@@ -482,38 +481,23 @@ static sparse_err_t factor_ldlt_with_analysis_csc(const SparseMatrix *A,
             err = sparse_analyze(A_perm, &an_opts, &derived_analysis);
         }
         if (err == SPARSE_OK)
-            err = ldlt_csc_from_sparse_with_analysis(A_perm, &derived_analysis, &F_batched);
+            err = ldlt_csc_factor_with_resolved_analysis(A_perm, &derived_analysis, F_pre,
+                                                         /*min_size=*/2, 0.0, &ldlt);
     }
     if (err != SPARSE_OK) {
         ldlt_csc_free(F_pre);
-        ldlt_csc_free(F_batched);
         sparse_analysis_free(&derived_analysis);
         sparse_free(A_perm);
         return err;
     }
 
-    for (idx_t k = 0; k < analysis->n; k++)
-        F_batched->pivot_size[k] = F_pre->pivot_size[k];
-
-    err = ldlt_csc_eliminate_supernodal(F_batched, /*min_size=*/2);
-    if (err == SPARSE_OK) {
-        for (idx_t i = 0; i < analysis->n; i++)
-            F_batched->perm[i] = F_pre->perm[i];
-        source = F_batched;
-    } else {
-        source = F_pre;
-    }
-
-    err = ldlt_csc_writeback_to_ldlt(source, SPARSE_DROP_TOL, &ldlt);
-    if (err == SPARSE_OK)
-        sparse_factors_take_ldlt_factor(factors, &ldlt);
+    sparse_factors_take_ldlt_factor(factors, &ldlt);
 
     sparse_ldlt_free(&ldlt);
-    ldlt_csc_free(F_batched);
     ldlt_csc_free(F_pre);
     sparse_analysis_free(&derived_analysis);
     sparse_free(A_perm);
-    return err;
+    return SPARSE_OK;
 }
 
 static void sparse_factors_init_payload(sparse_factors_t *factors, sparse_factor_type_t type,

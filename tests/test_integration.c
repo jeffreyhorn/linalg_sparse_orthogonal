@@ -450,6 +450,31 @@ static SparseMatrix *build_unsym_4x4(void) {
     return A;
 }
 
+/* KKT-style saddle-point indefinite matrix:
+ *   [ H    B^T ]
+ *   [ B    0   ]
+ * H is `n_top`×`n_top` tridiagonal SPD (diag 6, off-diag -1).
+ * B = [I_k | 0] where k = n_bot. This keeps the system symmetric,
+ * indefinite, and nonsingular for n_top >= n_bot. */
+static SparseMatrix *build_kkt(idx_t n_top, idx_t n_bot) {
+    idx_t n = n_top + n_bot;
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n_top; i++) {
+        sparse_insert(A, i, i, 6.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+    for (idx_t j = 0; j < n_bot; j++) {
+        sparse_insert(A, n_top + j, j, 1.0);
+        sparse_insert(A, j, n_top + j, 1.0);
+    }
+    return A;
+}
+
 static void test_progress_cb_lu_emits(void) {
     const idx_t n = 100;
     SparseMatrix *A = build_tridiag_spd(n);
@@ -937,6 +962,65 @@ static void test_ldlt_factor_opts_matches_explicit_analysis_path(void) {
         ASSERT_EQ(factors.ldlt_perm[i], analysis.perm[i]);
     }
 
+    free(b);
+    free(x_opts);
+    free(x_analysis);
+    sparse_ldlt_free(&ldlt);
+    sparse_factor_free(&factors);
+    sparse_analysis_free(&analysis);
+    sparse_free(A_opts);
+    sparse_free(A_analysis);
+}
+
+static void test_ldlt_factor_opts_matches_explicit_analysis_path_indefinite_kkt(void) {
+    SparseMatrix *A_opts = build_kkt(/*n_top=*/140, /*n_bot=*/10);
+    SparseMatrix *A_analysis = build_kkt(/*n_top=*/140, /*n_bot=*/10);
+    sparse_analysis_t analysis = {0};
+    sparse_factors_t factors = {0};
+    sparse_ldlt_t ldlt = {0};
+    double *x_exact = NULL;
+    double *b = NULL;
+    double *x_opts = NULL;
+    double *x_analysis = NULL;
+    int used_csc = -1;
+    const idx_t n = 150;
+
+    REQUIRE_OK(A_opts && A_analysis ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_ldlt_opts_t ldlt_opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .backend = SPARSE_LDLT_BACKEND_AUTO,
+        .used_csc_path = &used_csc,
+    };
+    ASSERT_EQ(sparse_ldlt_factor_opts(A_opts, &ldlt_opts, &ldlt), SPARSE_OK);
+    ASSERT_EQ(used_csc, 1);
+
+    sparse_analysis_opts_t analysis_opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_NONE,
+    };
+    ASSERT_EQ(sparse_analyze(A_analysis, &analysis_opts, &analysis), SPARSE_OK);
+    ASSERT_EQ(sparse_factor_numeric(A_analysis, &analysis, &factors), SPARSE_OK);
+
+    x_exact = malloc((size_t)n * sizeof(double));
+    b = malloc((size_t)n * sizeof(double));
+    x_opts = malloc((size_t)n * sizeof(double));
+    x_analysis = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(x_exact && b && x_opts && x_analysis ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = 1.0;
+    sparse_matvec(A_opts, x_exact, b);
+
+    ASSERT_EQ(sparse_ldlt_solve(&ldlt, b, x_opts), SPARSE_OK);
+    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b, x_analysis), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_NEAR(x_opts[i], x_exact[i], 1e-10);
+        ASSERT_NEAR(x_analysis[i], x_exact[i], 1e-10);
+        ASSERT_NEAR(x_opts[i], x_analysis[i], 1e-10);
+    }
+
+    free(x_exact);
     free(b);
     free(x_opts);
     free(x_analysis);
@@ -1507,6 +1591,7 @@ int main(void) {
     RUN_TEST(test_lu_factor_opts_matches_explicit_analysis_path);
     RUN_TEST(test_cholesky_factor_opts_matches_explicit_analysis_path);
     RUN_TEST(test_ldlt_factor_opts_matches_explicit_analysis_path);
+    RUN_TEST(test_ldlt_factor_opts_matches_explicit_analysis_path_indefinite_kkt);
     RUN_TEST(test_public_lifecycle_solve_rejects_zeroed_factors);
     RUN_TEST(test_public_lifecycle_solve_rejects_mismatched_analysis_and_preserves_factors);
     RUN_TEST(test_public_lifecycle_refactor_accepts_zeroed_factors);

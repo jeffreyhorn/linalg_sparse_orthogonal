@@ -315,6 +315,37 @@ sparse_err_t ldlt_csc_to_sparse(const LdltCsc *ldlt, const idx_t *perm_out, Spar
  */
 sparse_err_t ldlt_csc_writeback_to_ldlt(const LdltCsc *F, double tol, sparse_ldlt_t *ldlt_out);
 
+/**
+ * Complete an analysis-aware LDL^T CSC factorization from a resolved scalar
+ * pre-pass.
+ *
+ * Shared helper for the public one-shot CSC dispatch path and the shared
+ * repeated-run analysis/factors path. The caller provides:
+ *
+ * - `mat` in the same coordinate space as `analysis`
+ * - `analysis` whose `sym_L` is valid for `mat`
+ * - `pre_factor`, a completed scalar BK pre-pass whose `perm` and
+ *   `pivot_size` describe the resolved indefinite structure to preserve
+ *
+ * The helper:
+ *   1. builds an `LdltCsc` via `ldlt_csc_from_sparse_with_analysis`
+ *   2. seeds `pivot_size` from `pre_factor`
+ *   3. attempts `ldlt_csc_eliminate_supernodal`
+ *   4. falls back to `pre_factor` if the batched path fails
+ *   5. writes the chosen factor back into `sparse_ldlt_t`
+ *
+ * On the batched-success path, the final public permutation is overwritten
+ * with `pre_factor->perm` so callers still observe the resolved BK
+ * permutation regardless of which numeric CSC route succeeded.
+ *
+ * `tol` is clamped to at least `SPARSE_DROP_TOL` before writeback, matching
+ * the CSC backend's effective numeric floor.
+ */
+sparse_err_t ldlt_csc_factor_with_resolved_analysis(const SparseMatrix *mat,
+                                                    const sparse_analysis_t *analysis,
+                                                    const LdltCsc *pre_factor, idx_t min_size,
+                                                    double tol, sparse_ldlt_t *ldlt_out);
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Invariant checking
  * ═══════════════════════════════════════════════════════════════════════ */

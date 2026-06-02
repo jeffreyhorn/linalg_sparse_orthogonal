@@ -800,6 +800,41 @@ err_cleanup:
     return rc;
 }
 
+/* ─── Shared analysis-aware CSC completion helper ────────────────────── */
+
+sparse_err_t ldlt_csc_factor_with_resolved_analysis(const SparseMatrix *mat,
+                                                    const sparse_analysis_t *analysis,
+                                                    const LdltCsc *pre_factor, idx_t min_size,
+                                                    double tol, sparse_ldlt_t *ldlt_out) {
+    if (!mat || !analysis || !pre_factor || !ldlt_out)
+        return SPARSE_ERR_NULL;
+    if (mat->rows != mat->cols || mat->rows != analysis->n || pre_factor->n != analysis->n)
+        return SPARSE_ERR_SHAPE;
+    if (!pre_factor->perm || !pre_factor->pivot_size)
+        return SPARSE_ERR_BADARG;
+
+    LdltCsc *F_batched = NULL;
+    sparse_err_t err = ldlt_csc_from_sparse_with_analysis(mat, analysis, &F_batched);
+    if (err != SPARSE_OK)
+        return err;
+
+    for (idx_t k = 0; k < analysis->n; k++)
+        F_batched->pivot_size[k] = pre_factor->pivot_size[k];
+
+    const LdltCsc *source = pre_factor;
+    err = ldlt_csc_eliminate_supernodal(F_batched, min_size);
+    if (err == SPARSE_OK) {
+        for (idx_t i = 0; i < analysis->n; i++)
+            F_batched->perm[i] = pre_factor->perm[i];
+        source = F_batched;
+    }
+
+    const double effective_tol = (tol > SPARSE_DROP_TOL) ? tol : SPARSE_DROP_TOL;
+    sparse_err_t write_err = ldlt_csc_writeback_to_ldlt(source, effective_tol, ldlt_out);
+    ldlt_csc_free(F_batched);
+    return write_err;
+}
+
 /* ─── Sprint 20 Day 5: CSC-path factor helper ────────────────────────── */
 
 /* Factor `A_work` (already in its natural coordinate space — the
@@ -892,72 +927,7 @@ static sparse_err_t ldlt_factor_csc_path(const SparseMatrix *A_work, double tol,
         return err;
     }
 
-    /* Step 4: build F_batched with full sym_L pre-allocation. */
-    LdltCsc *F_batched = NULL;
-    err = ldlt_csc_from_sparse_with_analysis(A_perm, &an, &F_batched);
-    if (err != SPARSE_OK) {
-        sparse_analysis_free(&an);
-        sparse_free(A_perm);
-        ldlt_csc_free(F_pre);
-        return err;
-    }
-
-    /* Step 5: seed pivot_size from scalar pass so supernode
-     * detection respects the 2x2-aware boundaries BK produced. */
-    for (idx_t k = 0; k < n; k++)
-        F_batched->pivot_size[k] = F_pre->pivot_size[k];
-
-    /* Step 6: batched supernodal factor with structural fallback.
-     * F_pre already holds a valid scalar factor by this point, so
-     * ANY failure on the batched side (pivot-stability BADARG,
-     * numerical tolerance SINGULAR tripped by drift between the
-     * two passes, or other) falls back to F_pre.  Sprint 19's
-     * --supernodal bench on bcsstk14 / s3rmt3m3 shows the batched
-     * path can produce factors that either trip the singularity
-     * threshold or produce garbage residuals on those matrices —
-     * see the post-Sprint-19 NOTE in `bench_ldlt_csc.c`.  The
-     * fallback always gives a correct factor; the telemetry flag
-     * continues to report `used_csc_path = 1` because the CSC
-     * kernel chain handled the factor end-to-end. */
-    LdltCsc *source = NULL;
-    err = ldlt_csc_eliminate_supernodal(F_batched, /*min_size=*/2);
-    if (err == SPARSE_OK) {
-        /* Batched numeric factor succeeded — F_batched->perm is
-         * identity in A_perm's coordinate space.  Overwrite with
-         * F_pre->perm so the public ldlt->perm carries the
-         * effective BK permutation, matching the behaviour of
-         * the linked-list path. */
-        for (idx_t i = 0; i < n; i++)
-            F_batched->perm[i] = F_pre->perm[i];
-        source = F_batched;
-    } else {
-        /* Any batched failure → fall back to F_pre's scalar
-         * factor.  The pivot-stability BADARG case is the
-         * intended fast-path trip; SINGULAR and other codes are
-         * numerical drift between the two passes, where F_pre's
-         * factor remains valid. */
-        source = F_pre;
-    }
-
-    /* Step 7: writeback.
-     *
-     * The CSC elimination pipeline (ldlt_csc_eliminate_scalar /
-     * ldlt_csc_eliminate_supernodal) currently enforces an internal
-     * tolerance floor of `SPARSE_DROP_TOL`.  Thread the caller-
-     * provided `tol` into the public LDLT object's recorded
-     * tolerance, but never below that CSC floor, so
-     * `sparse_ldlt_solve` sees a tolerance that both reflects an
-     * explicitly stricter caller request and remains compatible
-     * with the factorization that actually ran.  This avoids
-     * silently discarding `tol` when the CSC path is selected while
-     * also preventing a user-supplied tolerance smaller than
-     * `SPARSE_DROP_TOL` from recording a looser check than the CSC
-     * kernels applied.  See the backend caveat documented on
-     * `sparse_ldlt_opts_t::tol` in include/sparse_ldlt.h. */
-    const double effective_tol = (tol > SPARSE_DROP_TOL) ? tol : SPARSE_DROP_TOL;
-    err = ldlt_csc_writeback_to_ldlt(source, effective_tol, ldlt_out);
-
-    ldlt_csc_free(F_batched);
+    err = ldlt_csc_factor_with_resolved_analysis(A_perm, &an, F_pre, /*min_size=*/2, tol, ldlt_out);
     ldlt_csc_free(F_pre);
     sparse_analysis_free(&an);
     sparse_free(A_perm);

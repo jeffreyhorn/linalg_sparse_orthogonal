@@ -510,3 +510,170 @@ Explicit non-goals from the audit:
 - no full structural-pattern verifier redesign
 - no broad tutorial or example rewrite
 - no new generic direct-handle abstraction
+
+## Day 4
+
+**Objective:** Reduce the strongest Day 3 CSC ownership seam by unifying the
+analysis-aware LDL^T CSC completion half that was still duplicated between the
+shared repeated-run path and the one-shot CSC dispatch path, while adding
+focused indefinite regression proof and closing the full code-day validation
+gate.
+
+### Commands Run
+
+1. Re-read the Sprint 53 plan and Day 3 audit before touching code:
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_53/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_53/artifacts/day3-analysis-aware-indefinite-path-audit.md`
+   - `sed -n '320,520p' docs/planning/EPIC_5/SPRINT_53/WORKING_NOTES.md`
+2. Re-read the live shared and one-shot LDL^T CSC orchestration hotspots:
+   - `rg -n "factor_ldlt_with_analysis_csc|ldlt_factor_csc_path|ldlt_csc_from_sparse_with_analysis|ldlt_csc_eliminate_supernodal|ldlt_csc_writeback_to_ldlt" src/sparse_analysis.c src/sparse_ldlt.c src/sparse_ldlt_csc_internal.h`
+   - `sed -n '360,560p' src/sparse_analysis.c`
+   - `sed -n '720,980p' src/sparse_ldlt.c`
+   - `sed -n '1,140p' src/sparse_ldlt_csc_internal.h`
+3. Re-read the strongest current shared-path integration coverage surface:
+   - `rg -n "explicit_analysis_path|ldlt_factor_opts|sparse_factor_numeric|sparse_factor_solve" tests/test_integration.c`
+   - `sed -n '1,260p' tests/test_integration.c`
+   - `sed -n '860,1080p' tests/test_integration.c`
+4. Land the bounded shared-helper and regression batch:
+   - `apply_patch` on:
+     - `src/sparse_ldlt_csc_internal.h`
+     - `src/sparse_ldlt.c`
+     - `src/sparse_analysis.c`
+     - `tests/test_integration.c`
+5. Review the exact patch:
+   - `git diff -- src/sparse_ldlt_csc_internal.h src/sparse_ldlt.c src/sparse_analysis.c tests/test_integration.c`
+6. Run the required code-day gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+7. Run the stronger reviewed baseline:
+   - `make quality-review-full`
+
+### Day 4 Findings
+
+#### 1. The strongest Day 3 duplication seam is now materially smaller
+
+Day 4 extracted a new shared internal helper:
+
+- `ldlt_csc_factor_with_resolved_analysis(...)`
+
+That helper now owns the analysis-aware LDL^T CSC completion half that both
+paths previously carried separately:
+
+- `ldlt_csc_from_sparse_with_analysis(...)`
+- seeding the CSC factor's `pivot_size` from the resolved scalar pre-pass
+- supernodal attempt via `ldlt_csc_eliminate_supernodal(...)`
+- scalar fallback when the supernodal path is not retained
+- writeback into public `sparse_ldlt_t`
+
+Interpretation:
+
+- Sprint 53 did not redesign the indefinite CSC path
+- it reduced the amount of LDL^T CSC completion logic that had to be reasoned
+  about in two places
+
+#### 2. The one-shot CSC dispatch path and the shared repeated-run path now share the same completion helper
+
+The new helper is now used from both:
+
+- `ldlt_factor_csc_path(...)`
+- `factor_ldlt_with_analysis_csc(...)`
+
+That means the two paths still differ where they genuinely need to differ:
+
+- scalar BK pre-pass
+- whether the caller analysis can be reused directly
+- whether a pre-permuted matrix plus derived analysis is needed
+
+But they no longer duplicate the later CSC completion half once that analysis
+state has been resolved.
+
+Interpretation:
+
+- the Sprint 53 CSC ownership split is cleaner
+- the dispatch story is easier to reason about without broadening the public
+  API
+
+#### 3. The shared repeated-run indefinite path kept its bounded semantics
+
+Day 4 did not change the preserved Phase 2 contract:
+
+- one-shot LDL^T remains first-class
+- repeated direct runs remain analysis/factors-centric
+- the LDL^T shared path still reuses caller analysis directly only when the
+  scalar BK pre-pass does not force extra swaps beyond the caller reorder
+- otherwise the path still rebuilds analysis only on the pre-permuted matrix
+
+Interpretation:
+
+- Day 4 tightened internal ownership
+- it did not overpromise that indefinite LDL^T is as simple as Cholesky
+
+#### 4. The focused regression proof is now stronger on the explicit indefinite shared path
+
+Day 4 added a new integration test centered on the above-threshold indefinite
+KKT case:
+
+- `test_ldlt_factor_opts_matches_explicit_analysis_path_indefinite_kkt`
+
+The new proof checks:
+
+- one-shot `sparse_ldlt_factor_opts(...)` on an indefinite CSC-routed KKT
+  matrix
+- explicit `sparse_analyze(...)` + `sparse_factor_numeric(...)` on the same
+  matrix
+- solve parity against the same exact right-hand side
+
+Interpretation:
+
+- Sprint 53 now has more direct proof that the public explicit-analysis LDL^T
+  path and the one-shot CSC dispatch path stay behaviorally aligned on the
+  intended indefinite workload class
+
+#### 5. The full code-day validation gate closed cleanly
+
+Day 4 touched `*.c` / `*.h`, so the required gate ran:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+The stronger reviewed baseline also passed:
+
+- `make quality-review-full`
+
+Maintained truthfulness anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 131.51 sec`
+
+Interpretation:
+
+- the Day 4 CSC batch is validated from the repo's strongest local reviewed
+  baseline
+- no new validation drift surfaced while reducing the indefinite CSC
+  orchestration seam
+
+#### 6. Day 4 leaves a cleaner Day 5 starting point
+
+What Day 4 materially improved:
+
+- shared-vs-one-shot LDL^T CSC completion logic is more unified
+- explicit indefinite shared-path proof is stronger
+
+What Day 4 intentionally did not solve:
+
+- the scalar BK pre-pass itself is still required
+- derived-analysis fallback still exists when that pre-pass changes the final
+  symmetric permutation
+- there is still no LDL^T-specific factor-many benchmark equivalent to the
+  Cholesky repeated-run proof
+
+Interpretation:
+
+- Day 5 can now focus more directly on deeper indefinite repeated-run follow-
+  through and proof, rather than on duplicated CSC completion plumbing

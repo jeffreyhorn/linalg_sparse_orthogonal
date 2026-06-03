@@ -1330,3 +1330,91 @@ The remaining queue can now move on from first adoption/proof cleanup to:
 - any final residual proof/docs sweep
 - compatibility audit
 - validation closeout
+
+## Sprint 54 Day 11 - regression and example adoption batch II
+
+Date: 2026-06-03
+Commit intent: close the last high-value explicit repeated-run proof gap and
+remove the last stale high-signal wording seams before the compatibility audit.
+
+### What changed
+
+- Expanded `tests/test_eigs.c` with:
+  - `test_public_handle_growm_prepare_reuse_and_growth`
+- The new regression now proves the remaining supported repeated-run
+  eigensolver backend branch directly:
+  - explicit `SPARSE_EIGS_BACKEND_LANCZOS`
+  - explicit prepare on a smaller problem
+  - repeated reuse on the same prepared shape
+  - later on-demand growth to a larger problem and larger `k`
+  - preserved `backend_used == SPARSE_EIGS_BACKEND_LANCZOS`
+- Updated the README project-structure line for `sparse_iterative.h` so it no
+  longer understates the landed handle set:
+  - repeated-run handles for `CG` / `GMRES` / `MINRES`
+- Updated the small top-of-tutorial include comment so it now matches the live
+  iterative-family surface:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+
+### Why this stayed inside the Sprint 54 fence
+
+- No new public API family was added.
+- No new solver backend was exposed beyond the already supported surface.
+- No broad tutorial rewrite was started.
+- The batch only closed the final high-signal proof/docs drift:
+  - explicit grow-m public-handle proof
+  - last stale high-signal summary lines
+
+### Validation
+
+Required Day 11 gates:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Focused Day 11 follow-ons:
+
+- `./build/test_eigs` -> `30 / 30`
+- `./build/example_eigs`
+- `./build/bench_eigs_reuse`
+- `rg` sanity checks over the touched README/tutorial wording
+
+Representative direct results:
+
+- `test_eigs` now directly passes the full explicit public repeated-run
+  eigensolver backend proof set:
+  - `test_public_handle_growm_prepare_reuse_and_growth`
+  - `test_public_handle_thick_restart_prepare_reuse_and_growth`
+  - `test_public_handle_lobpcg_prepare_reuse_and_growth`
+- `bench_eigs_reuse` stayed aligned with the full supported backend set:
+  - `growm-nos4-k5`: `1.07x`
+  - `thick-bcsstk14-k5`: `1.01x`
+  - `lobpcg-diag40-k3`: `0.99x`
+  - all three kept exact eigenvalue parity:
+    - `|lambda|max diff = 0.000e+00`
+- `example_eigs` stayed stable on the explicit LOBPCG teaching path:
+  - `bcsstk04`: `3 / 3` smallest eigenpairs
+  - `62` outer iterations
+  - `backend_used = LOBPCG`
+  - `residual_norm = 8.808e-09`
+
+### Day 11 outcome
+
+Sprint 54’s remaining high-value proof/docs gaps are now closed:
+
+- direct public-handle proof explicitly covers:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+- the highest-signal README/tutorial summary lines now match the landed support
+  surface instead of implying an older narrower state
+
+That leaves the branch ready for:
+
+- compatibility audit
+- final validation sweep
+- closeout

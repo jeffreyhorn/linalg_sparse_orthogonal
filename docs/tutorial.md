@@ -25,7 +25,7 @@ Include the headers you need:
 #include "sparse_lu.h"       // LU factorization
 #include "sparse_cholesky.h" // Cholesky factorization (SPD matrices)
 #include "sparse_qr.h"       // QR factorization
-#include "sparse_iterative.h" // CG, GMRES iterative solvers
+#include "sparse_iterative.h" // CG, GMRES, MINRES iterative solvers
 #include "sparse_ilu.h"      // ILU preconditioners
 #include "sparse_svd.h"      // SVD, condition number, pseudoinverse
 ```

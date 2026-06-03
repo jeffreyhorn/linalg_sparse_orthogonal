@@ -937,7 +937,7 @@ linalg_sparse_orthogonal/
 │   ├── sparse_lu.h           LU factorization, solve, block solve
 │   ├── sparse_lu_csr.h       CSR LU — scatter-gather elimination, dense blocks
 │   ├── sparse_cholesky.h     Cholesky factorization and solve
-│   ├── sparse_iterative.h    CG, GMRES, MINRES, BiCGSTAB; block variants; GMRES left/right precond
+│   ├── sparse_iterative.h    CG, GMRES, MINRES, BiCGSTAB; block variants; GMRES left/right precond; repeated-run handles for CG/GMRES/MINRES
 │   ├── sparse_ilu.h          ILU(0) and ILUT preconditioners
 │   ├── sparse_ic.h           IC(0) incomplete Cholesky preconditioner
 │   ├── sparse_qr.h           QR factorization, least-squares, rank, null space

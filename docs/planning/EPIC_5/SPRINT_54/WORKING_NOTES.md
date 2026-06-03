@@ -866,3 +866,89 @@ The remaining queue can now move on from iterative-handle proof symmetry to:
 
 - eigensolver lifecycle/proof/docs tightening, especially around LOBPCG
 - later benchmark/example/README adoption for the final support boundary
+
+## Sprint 54 Day 7 - eigensolver lifecycle tightening batch
+
+Date: 2026-06-03
+Commit intent: tighten the supported public repeated-run eigensolver handle
+contract and direct proof surface without expanding Sprint 54 into new
+backend-specific public API families.
+
+### What changed
+
+- Tightened `include/sparse_eigs.h` so the public repeated-run eigensolver
+  handle contract now says the real supported backend set explicitly:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit LOBPCG
+- The header now also states the intended public boundary more directly:
+  - repeated-run prepare/run/free still lives on one handle surface
+  - Sprint 54 does not introduce backend-specific public handle types
+  - explicit LOBPCG still uses the same public repeated-run lifecycle path
+- Expanded `tests/test_eigs.c` with:
+  - `test_public_handle_lobpcg_prepare_reuse_and_growth`
+- The new regression proves the supported LOBPCG repeated-run handle path
+  directly:
+  - explicit `SPARSE_EIGS_BACKEND_LOBPCG`
+  - explicit prepare on a smaller problem
+  - repeated reuse on the same prepared shape
+  - later on-demand growth to a larger problem and larger `k`
+  - preserved `backend_used == SPARSE_EIGS_BACKEND_LOBPCG`
+
+### Why this stayed inside the Sprint 54 fence
+
+- No new eigensolver API family was added.
+- No backend-specific public handle type was introduced.
+- No new benchmark mode or example workflow was required to land the core Day 7
+  contract/proof tightening.
+- The batch preserved the Day 4 support boundary:
+  - symmetric eigensolver repeated-run handle surface remains the single public
+    lifecycle path
+  - Sprint 54 keeps focusing on lifecycle/proof/docs tightening rather than
+    broad eigensolver API expansion
+
+### Validation
+
+Required Day 7 gates:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Focused Day 7 follow-ons:
+
+- `./build/test_eigs` -> `28 / 28`
+- `./build/test_eigs_lobpcg` -> `26 / 26`
+- `./build/example_eigs`
+- `./build/bench_eigs_reuse`
+
+Representative direct results:
+
+- `test_eigs` now directly passes the new public repeated-run LOBPCG proof:
+  - `test_public_handle_lobpcg_prepare_reuse_and_growth`
+- `example_eigs` stayed stable on the explicit LOBPCG path:
+  - `bcsstk04` converged `3 / 3` smallest eigenpairs in `62` outer iterations
+  - `backend_used = LOBPCG`
+  - `reported residual_norm = 8.808e-09`
+- `bench_eigs_reuse` preserved repeated-run parity on the supported public
+  handle path:
+  - `growm-nos4-k5`: `0.96x`
+  - `thick-bcsstk14-k5`: `1.04x`
+  - both repeated-run cases kept exact eigenvalue parity with the one-shot path
+
+### Day 7 outcome
+
+Sprint 54’s supported public repeated-run eigensolver handle story is now
+clearer and better proved:
+
+- one public eigensolver handle surface
+- explicit support for grow-m Lanczos, thick-restart Lanczos, and explicit
+  LOBPCG through that surface
+- direct repeated-run proof for the LOBPCG branch, not just generic handle
+  coverage
+
+The remaining queue can now move on from eigensolver lifecycle/proof tightening
+to:
+
+- repeated-run benchmark support-set alignment
+- example/README adoption and explicit support-boundary wording

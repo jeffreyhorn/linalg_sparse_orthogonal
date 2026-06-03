@@ -344,3 +344,194 @@ Interpretation:
   being decided
 - no validation ambiguity remains around later decision, expansion, or
   tightening days
+
+## Day 3
+
+**Objective:** Audit the live public repeated-run iterative and eigensolver
+surfaces so Sprint 54 can separate already-supported handle paths from
+families that still remain one-shot-only or internal-only, then reduce the
+remaining repeated-run problem to a ranked set of explicit support-boundary
+and implementation seams before Day 4 decisions begin.
+
+### Commands Run
+
+1. Re-read the Sprint 54 Day 3 plan item and the current sprint notes:
+   - `sed -n '121,180p' docs/planning/EPIC_5/SPRINT_54/PLAN.md`
+   - `sed -n '1,420p' docs/planning/EPIC_5/SPRINT_54/WORKING_NOTES.md`
+2. Re-read the public repeated-run iterative handle contract:
+   - `sed -n '210,620p' include/sparse_iterative.h`
+3. Re-read the public repeated-run eigensolver handle contract:
+   - `sed -n '534,720p' include/sparse_eigs.h`
+4. Reconfirm the live public repeated-run entry points and one-shot-only
+   remaining-family surfaces:
+   - `rg -n "sparse_iter_handle_prepare|with_handle|sparse_solve_minres|sparse_solve_bicgstab|sparse_minres_solve_block|sparse_bicgstab_solve_block|sparse_eigs_handle_prepare|sparse_eigs_sym_with_handle" src include tests benchmarks examples README.md docs/maintainer_guide.md`
+5. Re-scan the current benchmark/example/docs surfaces for support-boundary
+   drift:
+   - `rg -n "bench_iterative_reuse|bench_eigs_reuse|example_iterative|example_eigs|example_ic_minres|MINRES|BiCGSTAB|LOBPCG|repeated-run|one-shot" benchmarks examples README.md docs/maintainer_guide.md`
+6. Re-read the main public repeated-run benchmark and example surfaces:
+   - `sed -n '1,180p' benchmarks/bench_iterative_reuse.c`
+   - `sed -n '1,220p' benchmarks/bench_eigs_reuse.c`
+   - `sed -n '1,140p' examples/README.md`
+   - `sed -n '430,470p' README.md`
+   - `sed -n '1,180p' examples/example_iterative.c`
+   - `sed -n '1,220p' examples/example_eigs.c`
+   - `sed -n '1,220p' examples/example_ic_minres.c`
+7. Audit the internal reusable-workspace boundary behind the remaining
+   iterative families:
+   - `rg -n "prepare_minres|prepare_bicgstab|block_cg|block_gmres|block_minres|block_bicgstab|workspace_prepare" src/sparse_iterative_workspace_internal.c src/sparse_iterative.c src/sparse_iterative_workspace_internal.h`
+   - `sed -n '1,180p' src/sparse_iterative_workspace_internal.h`
+   - `sed -n '160,320p' src/sparse_iterative_workspace_internal.c`
+   - `sed -n '1360,2140p' src/sparse_iterative.c`
+
+### Day 3 Findings
+
+#### 1. The supported public repeated-run surface is explicit and still intentionally narrow
+
+The live public handle support is concrete and bounded:
+
+- iterative public handle support exists for:
+  - CG
+  - GMRES
+- eigensolver public handle support exists for:
+  - symmetric eigensolves through the shared `sparse_eigs_sym_with_handle(...)`
+    surface
+- the public docs still describe one-shot APIs as first-class and the handle
+  paths as opt-in repeated-run surfaces
+
+Interpretation:
+
+- Sprint 54 is not filling a “no public repeated-run support” gap
+- it is deciding whether to keep this support set narrow or extend it to a few
+  remaining families
+
+#### 2. MINRES is the strongest remaining iterative candidate because it already has an internal reusable-workspace seam
+
+The iterative implementation audit shows:
+
+- `sparse_iter_workspace_prepare_minres(...)` already exists in the internal
+  workspace layer
+- MINRES already sits closer to the CG/GMRES reusable-workspace model than the
+  public headers suggest
+- MINRES still has no public handle prepare/run entry points
+
+Interpretation:
+
+- the strongest “public repeated-run asymmetry” is not that MINRES lacks any
+  reusable seam
+- it is that MINRES reusable workspace is still internal-only even though the
+  public handle model already exists for closely related iterative families
+
+#### 3. BiCGSTAB is a different class of gap from MINRES
+
+The BiCGSTAB path is still more isolated:
+
+- BiCGSTAB uses its own `bicgstab_workspace_t` allocation/free path
+- it does not plug into the public iterative handle owner or the shared
+  `sparse_iter_workspace_t` prepare helpers the way CG/GMRES/MINRES do
+- public surfaces already include:
+  - scalar BiCGSTAB
+  - block BiCGSTAB
+  - matrix-free BiCGSTAB
+
+Interpretation:
+
+- BiCGSTAB is a real public repeated-run asymmetry
+- but it is also a more implementation-heavy target than MINRES because the
+  reusable seam is not already aligned with the existing public handle owner
+
+#### 4. Block iterative workflows are better understood as compatibility surfaces than first public handle targets
+
+The current block APIs remain one-shot or per-column wrappers:
+
+- block CG has a reusable internal workspace view, but the public repeated-run
+  story still centers on scalar handles
+- block GMRES, block MINRES, and block BiCGSTAB are currently independent or
+  per-column compatibility surfaces, not explicit handle-based lifecycle paths
+- the current examples and README do not frame block workflows as the main
+  repeated-run public story
+
+Interpretation:
+
+- block iterative workflows are poor first candidates for Sprint 54 public
+  handle expansion
+- they are stronger candidates for explicit bounded exclusion unless a clear
+  user-facing lifecycle case emerges on Day 4
+
+#### 5. The eigensolver side is structurally closer to “done” than the iterative side
+
+The eigensolver repeated-run surface is already comparatively coherent:
+
+- one public handle surface exists for symmetric eigensolves
+- that surface already fronts the main public `sparse_eigs_sym(...)` entry
+- the public handle contract is generic enough to cover backend-shaped working
+  sets through `sparse_eigs_handle_prepare(...)`
+- the main proof surfaces in `bench_eigs_reuse.c` currently cover:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+
+Interpretation:
+
+- the main eigensolver gap is more likely:
+  - proof drift
+  - example/docs drift
+  - LOBPCG repeated-run caller-surface underrepresentation
+- it is less likely to require a broad new public API shape
+
+#### 6. The examples and benchmarks still underrepresent the full repeated-run public story
+
+The caller-facing surfaces remain intentionally one-shot-first:
+
+- `examples/README.md` explicitly says the shipped examples still lean on the
+  one-shot public APIs
+- `example_iterative.c` is still a GMRES one-shot/preconditioner demo
+- `example_eigs.c` is still a one-shot eigensolver demo, including explicit
+  LOBPCG backend usage without the public handle path
+- `example_ic_minres.c` is a one-shot MINRES/block-MINRES teaching surface
+- repeated-run public-handle benchmarks remain narrow:
+  - `bench_iterative_reuse.c` only proves CG and GMRES
+  - `bench_eigs_reuse.c` only proves grow-m and thick-restart Lanczos
+
+Interpretation:
+
+- the repeated-run public story is real but still concentrated in dedicated
+  benchmark drivers and README bullets
+- examples and benchmarks currently do not make a strong case that MINRES,
+  BiCGSTAB, or LOBPCG belong on the same steady-state public repeated-run
+  support tier as the currently handled families
+
+#### 7. The remaining Sprint 54 problem now reduces to five seam classes instead of a generic “finish the remaining families” bucket
+
+The audited queue now reduces cleanly to:
+
+1. public iterative-handle support asymmetry:
+   - CG/GMRES supported
+   - MINRES internal seam exists but is public-surface missing
+   - BiCGSTAB remains both public-surface and implementation-shape asymmetric
+2. block-workflow support-boundary ambiguity
+3. eigensolver repeated-run proof/example drift, especially around LOBPCG
+4. repeated-run benchmark support-set drift
+5. example/README support-boundary drift
+
+Interpretation:
+
+- Sprint 54 can start Day 4 from a small ranked seam list
+- the remaining work is materially more concrete than the raw project-plan
+  placeholder
+
+#### 8. The ranked Day 4 target list is now explicit
+
+The highest-value Day 4 decisions should center on:
+
+1. MINRES: strongest candidate for public repeated-run inclusion
+2. BiCGSTAB: explicit inclusion vs explicit bounded exclusion
+3. block iterative workflows: likely bounded exclusion unless a compelling
+   repeated-run caller story exists
+4. eigensolver tightening: likely keep one public handle surface, but expand
+   proof/docs if needed rather than inventing a new API family
+5. examples/benchmarks: treat as support-surface alignment work after the
+   inclusion/exclusion boundary is fixed
+
+Interpretation:
+
+- Day 4 should decide the support boundary first
+- implementation should follow only after these ranked decisions are explicit

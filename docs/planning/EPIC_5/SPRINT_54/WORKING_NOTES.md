@@ -952,3 +952,165 @@ to:
 
 - repeated-run benchmark support-set alignment
 - example/README adoption and explicit support-boundary wording
+
+## Sprint 54 Day 8 - public reuse benchmark alignment audit
+
+Date: 2026-06-03
+Commit intent: audit the repeated-run benchmark surfaces against the final
+Sprint 54 public support boundary before changing benchmark drivers, so Day 9
+can land only the smallest benchmark-alignment batch instead of reopening
+framework work.
+
+### Commands run
+
+1. Re-read the Day 8 plan target:
+   - `sed -n '296,328p' docs/planning/EPIC_5/SPRINT_54/PLAN.md`
+2. Re-read the current Sprint 54 close state around Days 6-7:
+   - `tail -n 140 docs/planning/EPIC_5/SPRINT_54/WORKING_NOTES.md`
+3. Audit the live iterative reuse benchmark:
+   - `sed -n '1,260p' benchmarks/bench_iterative_reuse.c`
+4. Audit the live eigensolver reuse benchmark:
+   - `sed -n '1,260p' benchmarks/bench_eigs_reuse.c`
+5. Re-read the benchmark-local docs:
+   - `sed -n '1,220p' benchmarks/README.md`
+6. Re-read the caller-facing repeated-run support wording for later audit
+   cross-check:
+   - `sed -n '240,310p' README.md`
+   - `sed -n '340,365p' README.md`
+   - `sed -n '1,180p' examples/README.md`
+7. Cross-check benchmark, README, and examples wording:
+   - `rg -n "MINRES|GMRES|CG|LOBPCG|thick-restart|grow-m|public handle|repeated-run|reuse" benchmarks/bench_iterative_reuse.c benchmarks/bench_eigs_reuse.c benchmarks/README.md README.md examples/README.md`
+
+### Day 8 findings
+
+#### 1. The reuse benchmarks already prove public handle paths, not internal-only seams
+
+The strongest Day 8 positive result is that neither benchmark is stale in the
+worst way:
+
+- `bench_iterative_reuse.c`
+  - uses `sparse_iter_handle_prepare_cg(...)`
+  - uses `sparse_iter_handle_prepare_gmres(...)`
+  - compares one-shot paths against `*_with_handle(...)`
+- `bench_eigs_reuse.c`
+  - uses `sparse_eigs_handle_prepare(...)`
+  - uses `sparse_eigs_sym_with_handle(...)`
+  - keeps direct parity checks between one-shot and repeated-run results
+
+Interpretation:
+
+- Day 8 did not uncover any reuse benchmark that is still proving only an
+  internal workspace seam
+- the benchmark drift is about support-set completeness, not public-contract
+  dishonesty
+
+#### 2. The highest-value iterative benchmark drift is now explicit: MINRES is supported publicly but missing from `bench_iterative_reuse`
+
+The final supported iterative repeated-run set after Day 6 is:
+
+- `CG`
+- `GMRES`
+- `MINRES`
+
+But `bench_iterative_reuse.c` still only measures:
+
+- `CG`
+- `GMRES`
+
+Interpretation:
+
+- this is now a real public-support-set drift, not a theoretical future idea
+- Day 9 should add one bounded `MINRES` repeated-run case to the existing reuse
+  driver instead of inventing a separate benchmark framework
+
+#### 3. The strongest eigensolver benchmark drift is also concrete: `bench_eigs_reuse` still lacks an explicit LOBPCG repeated-run case
+
+After Day 7, the public eigensolver repeated-run contract explicitly covers:
+
+- grow-m Lanczos
+- thick-restart Lanczos
+- explicit LOBPCG
+
+But `bench_eigs_reuse.c` still proves only:
+
+- grow-m Lanczos on `nos4`
+- thick-restart Lanczos on `bcsstk14`
+
+Interpretation:
+
+- the eigensolver benchmark surface now under-covers the final public support
+  set
+- the best Day 9 fix is a bounded explicit LOBPCG repeated-run case rather
+  than a broad expansion of `bench_eigs`
+- the likely stable shape is one explicit LOBPCG case with fixed backend and
+  fixed option shape, not a new general-purpose benchmark matrix
+
+#### 4. `benchmarks/README.md` understates the public repeated-run benchmark proof surface
+
+The benchmark README currently documents:
+
+- `bench_main`
+- `bench_scaling`
+- `bench_fillin`
+- `bench_convergence`
+- `bench_svd`
+- `bench_refactor`
+- `bench_refactor_csc`
+- `bench_colamd`
+- `bench_bicgstab`
+- `bench_chol_csc`
+- `bench_ldlt_csc`
+- `bench_eigs`
+
+But it does not currently name the two dedicated public repeated-run benchmark
+drivers:
+
+- `bench_iterative_reuse`
+- `bench_eigs_reuse`
+
+Interpretation:
+
+- the benchmark-local docs currently underrepresent the public repeated-run
+  benchmark surfaces that Sprint 54 is explicitly relying on
+- this is a small documentation sync target for Day 9, not a Day 8 code issue
+
+#### 5. The correct non-goal boundary is now explicit
+
+Day 8 also made the benchmark non-goal line sharper:
+
+- do not add `BiCGSTAB` repeated-run-handle benchmarking
+  - because `BiCGSTAB` stays outside the Sprint 54 public handle boundary
+- do not add block iterative reuse benchmarks
+  - because block workflows remain compatibility surfaces, not first-class
+    repeated-run public handle surfaces
+- do not turn `bench_eigs_reuse` into a full backends/preconditioners sweep
+  - that job already belongs to `bench_eigs`
+- do not redesign the benchmark framework or CLI just to close the Sprint 54
+  support-set gap
+
+Interpretation:
+
+- Day 9 should update benchmark proof surfaces, not benchmark architecture
+
+### Ranked Day 9 target list
+
+1. `bench_iterative_reuse.c`
+   - add one bounded repeated-run `MINRES` case so the iterative reuse
+     benchmark matches the final supported iterative handle set
+2. `bench_eigs_reuse.c`
+   - add one bounded explicit LOBPCG repeated-run case so the eigensolver
+     reuse benchmark matches the final supported handle set
+3. `benchmarks/README.md`
+   - document `bench_iterative_reuse` and `bench_eigs_reuse`
+   - state their intentionally narrow public-handle proof role
+
+### Day 8 outcome
+
+Sprint 54’s benchmark queue is now materially smaller and clearer:
+
+- no benchmark is still proving only an internal reuse seam
+- the remaining drift is a narrow support-set completeness problem
+- the smallest alignment batch is now explicit:
+  - `MINRES` on the iterative reuse side
+  - explicit `LOBPCG` on the eigensolver reuse side
+  - small benchmark README synchronization after that

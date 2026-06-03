@@ -377,9 +377,9 @@ static void test_public_handle_validation_and_on_demand(void) {
     sparse_free(A);
 }
 
-/* Public repeated-run eigensolver handle: explicit LOBPCG should reuse the
- * same public handle surface, preserve backend selection, and grow on demand
- * when a later solve needs a larger working set. */
+/* Public repeated-run eigensolver handle: thick-restart Lanczos should reuse
+ * the same public handle surface, preserve backend selection, and grow on
+ * demand when a later solve needs a larger working set. */
 static void test_public_handle_thick_restart_prepare_reuse_and_growth(void) {
     double diag_small[16];
     double diag_large[24];

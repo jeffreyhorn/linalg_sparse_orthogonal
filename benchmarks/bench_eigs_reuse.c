@@ -85,7 +85,6 @@ static sparse_err_t run_repeated_case_matrix(const char *name, SparseMatrix *A, 
         free(vals_reuse);
         free(times_one);
         free(times_reuse);
-        sparse_free(A);
         return SPARSE_ERR_ALLOC;
     }
 

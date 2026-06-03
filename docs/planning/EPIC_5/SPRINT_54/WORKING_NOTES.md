@@ -779,3 +779,90 @@ The remaining Sprint 54 queue is now smaller and cleaner:
 - iterative proof/alignment for the final supported set
 - eigensolver lifecycle/proof/docs tightening, especially around LOBPCG
 - benchmark/example/README adoption and explicit exclusion wording
+
+## Sprint 54 Day 6 - iterative contract tightening batch
+
+Date: 2026-06-03
+Commit intent: tighten the supported public iterative repeated-run handle
+contract around validation, explicit prepare/reuse, and underprepared
+on-demand growth without broadening Sprint 54 beyond the Day 4 boundary.
+
+### What changed
+
+- Tightened the top-level iterative handle wording in
+  `include/sparse_iterative.h` so the public repeated-run contract now reads
+  coherently with the Day 5 MINRES landing instead of still sounding like a
+  CG/GMRES-only handle surface.
+- Expanded `tests/test_iterative.c` so the supported iterative handle set now
+  has more symmetric direct public proof:
+  - `CG`:
+    - null prepare validation
+    - null handle solve validation
+    - explicit prepare + repeated reuse
+    - zero-init on-demand growth
+  - `GMRES`:
+    - null prepare validation
+    - null handle solve validation
+    - explicit prepare + repeated reuse
+    - same-handle growth from a smaller prepared dimension/restart to a later
+      larger solve
+    - zero-init on-demand growth
+  - `MINRES`:
+    - preserved null validation and explicit prepare + reuse
+    - same-handle growth from a smaller prepared dimension to a later larger
+      solve
+    - zero-init on-demand growth
+
+### Why this stayed inside the Sprint 54 fence
+
+- No new public solver family was added beyond the Day 5 MINRES inclusion.
+- `BiCGSTAB` remained outside the public repeated-run handle support set.
+- Block iterative workflows remained untouched and excluded from handle
+  exposure.
+- The patch tightened proof and support symmetry for the already supported
+  iterative-handle families rather than reopening solver-API design.
+
+### Validation
+
+Required Day 6 gates:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Focused Day 6 follow-ons:
+
+- `./build/test_iterative` -> `79 / 79`
+- `./build/test_minres` -> `43 / 43`
+- `./build/example_ic_minres`
+- `./build/bench_iterative_reuse`
+
+Representative direct results:
+
+- `test_iterative` now directly passes the strengthened public-handle proofs:
+  - `test_cg_public_handle_validation_reuse_and_on_demand`
+  - `test_gmres_public_handle_prepare_reuse_and_growth`
+  - `test_minres_public_handle_prepare_reuse_and_growth`
+- `example_ic_minres` stayed stable:
+  - MINRES on the `42x42` KKT system converged in `39` iterations
+  - Jacobi-preconditioned MINRES converged in `26` iterations
+- `bench_iterative_reuse` stayed aligned with the supported public-handle
+  benchmark surface:
+  - `cg-tridiag-300`: `1.12x`
+  - `gmres-unsym-220`: `1.05x`
+
+### Day 6 outcome
+
+Sprint 54’s supported iterative repeated-run handle set is now stronger at the
+contract/proof layer, not just at the API listing layer:
+
+- `CG`
+- `GMRES`
+- `MINRES`
+
+The remaining queue can now move on from iterative-handle proof symmetry to:
+
+- eigensolver lifecycle/proof/docs tightening, especially around LOBPCG
+- later benchmark/example/README adoption for the final support boundary

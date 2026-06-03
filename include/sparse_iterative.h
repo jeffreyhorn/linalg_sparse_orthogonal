@@ -215,10 +215,10 @@ typedef sparse_err_t (*sparse_precond_fn)(const void *ctx, idx_t n, const double
  *        problems.
  *
  * The one-shot public entries (`sparse_solve_cg()`,
- * `sparse_solve_gmres()`, and related wrappers) remain first-class and
- * fully supported. This handle exposes the explicit repeated-run lifecycle
- * for callers that want to preserve workspace capacity across solves while
- * keeping the existing option/result contracts.
+ * `sparse_solve_gmres()`, `sparse_solve_minres()`, and related wrappers)
+ * remain first-class and fully supported. This handle exposes the explicit
+ * repeated-run lifecycle for callers that want to preserve workspace
+ * capacity across solves while keeping the existing option/result contracts.
  *
  * The layout is intentionally opaque at the public level: zero-initialize
  * the struct (`{0}`) or call sparse_iter_handle_init() before first use,

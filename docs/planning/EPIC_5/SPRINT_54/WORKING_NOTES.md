@@ -1114,3 +1114,113 @@ Sprint 54’s benchmark queue is now materially smaller and clearer:
   - `MINRES` on the iterative reuse side
   - explicit `LOBPCG` on the eigensolver reuse side
   - small benchmark README synchronization after that
+
+## Sprint 54 Day 9 - public reuse benchmark alignment batch
+
+Date: 2026-06-03
+Commit intent: align the repeated-run benchmark proof surfaces with the final
+Sprint 54 supported public solver-lifecycle set without expanding benchmark
+scope beyond the Day 8 fence.
+
+### What changed
+
+- Expanded `benchmarks/bench_iterative_reuse.c` so the iterative public-handle
+  reuse benchmark now covers:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- Added a bounded generated symmetric-indefinite KKT fixture for the new
+  `MINRES` repeated-run case:
+  - `42x42`
+  - same one-shot vs explicit public-handle comparison shape as the existing
+    iterative reuse cases
+- Expanded `benchmarks/bench_eigs_reuse.c` so the eigensolver public-handle
+  reuse benchmark now covers:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+- Refactored the eigensolver reuse benchmark just enough to support both:
+  - file-backed cases
+  - one bounded generated diagonal SPD case for explicit `LOBPCG`
+- Updated `benchmarks/README.md` so the benchmark-local docs now name:
+  - `bench_iterative_reuse`
+  - `bench_eigs_reuse`
+- The README batch also states their intended narrow proof role explicitly:
+  - public-handle-path proof for the supported reuse set
+  - not a claim of public repeated-run-handle support for `BiCGSTAB`
+  - not a broad replacement for `bench_eigs`
+
+### Why this stayed inside the Sprint 54 fence
+
+- No new public solver family was exposed.
+- `BiCGSTAB` remained outside the public repeated-run handle support boundary.
+- Block iterative workflows remained outside the repeated-run handle target set.
+- No benchmark-framework or CLI redesign was introduced.
+- The batch only closed the support-set completeness gap identified on Day 8:
+  - `MINRES` on the iterative side
+  - explicit `LOBPCG` on the eigensolver side
+
+### Validation
+
+Required Day 9 gates:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full` was not required by the Sprint 54 Day 9 landing
+  contract, because this batch only touched benchmark sources and benchmark
+  docs
+
+All required gates passed.
+
+Focused Day 9 follow-ons:
+
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+- `./build/example_ic_minres`
+- `./build/example_eigs`
+
+Representative direct results:
+
+- `bench_iterative_reuse` now matches the final supported iterative public
+  handle set:
+  - `cg-tridiag-300`: `1.00x`
+  - `gmres-unsym-220`: `1.05x`
+  - `minres-kkt-42`: `1.01x`
+  - the new `MINRES` repeated-run case kept exact iteration/residual parity:
+    - one-shot: `39` iterations, `3.870e-11`
+    - reuse: `39` iterations, `3.870e-11`
+- `bench_eigs_reuse` now matches the final supported eigensolver public handle
+  set:
+  - `growm-nos4-k5`: `1.00x`
+  - `thick-bcsstk14-k5`: `0.98x`
+  - `lobpcg-diag40-k3`: `1.00x`
+  - the new explicit `LOBPCG` repeated-run case kept exact eigenvalue parity:
+    - `|lambda|max diff = 0.000e+00`
+    - one-shot / reuse both: `45` iterations, `6.696e-11`
+- `example_ic_minres` stayed stable on the bounded `MINRES` teaching path:
+  - `MINRES`: `39` iterations, `3.87e-11`
+  - `Jacobi-MINRES`: `26` iterations, `4.16e-11`
+- `example_eigs` stayed stable on the explicit `LOBPCG` teaching path:
+  - `bcsstk04`: `3 / 3` smallest eigenpairs
+  - `62` outer iterations
+  - `residual_norm = 8.808e-09`
+
+### Day 9 outcome
+
+Sprint 54’s benchmark proof surfaces now match the final supported repeated-run
+solver lifecycle set instead of lagging it:
+
+- iterative public reuse benchmark set:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- eigensolver public reuse benchmark set:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+
+The remaining queue can now move on from benchmark support-set completeness to:
+
+- example/README support-boundary adoption
+- final validation and closeout

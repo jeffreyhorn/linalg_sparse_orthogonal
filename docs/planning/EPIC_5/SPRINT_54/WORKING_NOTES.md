@@ -535,3 +535,167 @@ Interpretation:
 
 - Day 4 should decide the support boundary first
 - implementation should follow only after these ranked decisions are explicit
+
+## Day 4
+
+**Objective:** Convert the Day 3 audit into an explicit steady-state public
+repeated-run support boundary so Sprint 54 can implement only the highest-value
+in-scope lifecycle work and treat the rest as conscious compatibility
+boundaries rather than accidental omissions.
+
+### Commands Run
+
+1. Re-read the Sprint 54 Day 4 plan item and the current sprint notes:
+   - `sed -n '150,235p' docs/planning/EPIC_5/SPRINT_54/PLAN.md`
+   - `sed -n '1,520p' docs/planning/EPIC_5/SPRINT_54/WORKING_NOTES.md`
+2. Re-read the Day 3 audit artifact:
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_54/artifacts/day3-public-solver-lifecycle-audit.md`
+3. Re-read the Epic 5 review section that framed the repeated-run gap:
+   - `sed -n '170,230p' docs/planning/EPIC_5/reviews/review-codex-2026-05-31.md`
+4. Re-scan the current public docs and headers where the support boundary will
+   need to remain truthful:
+   - `rg -n "MINRES|BiCGSTAB|block|LOBPCG|repeated-run handle|public handle|one-shot" README.md examples/README.md include/sparse_iterative.h include/sparse_eigs.h docs/planning/EPIC_5/reviews/review-codex-2026-05-31.md`
+
+### Day 4 Findings
+
+#### 1. Sprint 54 should include MINRES in the public repeated-run support set
+
+MINRES is the strongest in-scope inclusion target because:
+
+- it already has an internal reusable-workspace seam:
+  - `sparse_iter_workspace_prepare_minres(...)`
+- it is symmetric with the current CG/GMRES public-handle story in caller
+  shape:
+  - scalar iterative solve
+  - stable-dimension repeated workloads
+  - clear prepare/run/free lifecycle
+- it carries strong user value:
+  - symmetric indefinite systems are already a documented first-class solver
+    case
+  - the repo already has large dedicated MINRES regression and example
+    surfaces
+
+Interpretation:
+
+- MINRES is the one remaining iterative family whose public-handle omission now
+  looks more accidental than intentional
+- Sprint 54 should treat MINRES repeated-run exposure as in-scope
+
+#### 2. Sprint 54 should exclude BiCGSTAB from public repeated-run handle exposure
+
+BiCGSTAB should remain outside the Sprint 54 repeated-run handle expansion
+boundary because:
+
+- its reusable seam is still implementation-shaped around a separate
+  `bicgstab_workspace_t` path instead of the existing public iterative handle
+  owner
+- its public surface is already broad:
+  - scalar
+  - block
+  - matrix-free
+- adding a public handle for BiCGSTAB would therefore be a larger design and
+  proof commitment than the MINRES case
+- the current review finding only requires that the support boundary become
+  obviously intentional, not that every solver family be made uniform
+
+Interpretation:
+
+- BiCGSTAB is an explicit bounded exclusion for Sprint 54
+- it should remain a one-shot-first compatibility surface rather than a hidden
+  “not yet wired” handle omission
+
+#### 3. Selected block iterative workflows should remain excluded from public repeated-run handle exposure
+
+Block iterative workflows should remain outside the Sprint 54 handle expansion
+boundary because:
+
+- their current public story is compatibility-first, not lifecycle-first
+- they span multiple algorithm shapes:
+  - shared block CG
+  - per-column GMRES
+  - per-column MINRES
+  - per-column BiCGSTAB
+- adding a coherent public block-handle story would broaden Sprint 54 into a
+  separate API-design sprint
+
+Interpretation:
+
+- Sprint 54 should preserve block workflows as supported one-shot compatibility
+  surfaces
+- they should be explicitly excluded from the public repeated-run handle
+  support set rather than implicitly deferred
+
+#### 4. The eigensolver side should stay on one public repeated-run handle surface, with LOBPCG alignment in-scope
+
+The eigensolver decision is narrower:
+
+- keep the single public repeated-run eigensolver handle surface
+- do not invent a second backend-specific public API family
+- treat LOBPCG repeated-run alignment as in-scope for:
+  - proof
+  - docs/examples
+  - benchmark coverage
+- treat backend-specific lifecycle surfacing beyond that as out of scope
+
+Interpretation:
+
+- Sprint 54 should tighten the existing public eigensolver handle story
+- it should not fragment the public API by backend
+
+#### 5. The final Sprint 54 support boundary is now explicit
+
+The steady-state public repeated-run support boundary for Sprint 54 is:
+
+- supported public repeated-run iterative handles:
+  - CG
+  - GMRES
+  - MINRES
+- supported public repeated-run eigensolver handles:
+  - symmetric eigensolves through the existing `sparse_eigs_handle_t` surface
+  - including better LOBPCG alignment at the proof/docs layer if needed
+- intentionally excluded from public repeated-run handle exposure in Sprint 54:
+  - BiCGSTAB
+  - block iterative workflows
+  - backend-specific eigensolver public API families
+
+Interpretation:
+
+- Sprint 54 now has a concrete “include vs exclude” line instead of a fuzzy
+  completeness goal
+- the support boundary is now small enough to implement without reopening the
+  broader handle model
+
+#### 6. The implementation order is now fixed from the chosen boundary
+
+The correct Sprint 54 landing order is now:
+
+1. MINRES public-handle exposure
+2. iterative regression proof for the final supported iterative handle set
+3. eigensolver lifecycle/proof/docs tightening, especially around LOBPCG
+4. repeated-run benchmark alignment to the final supported set
+5. example/README adoption and explicit exclusion wording
+6. final validation and closeout
+
+Interpretation:
+
+- implementation should start with the only newly included iterative family
+- exclusion wording and benchmark/example alignment should follow the code
+  boundary, not precede it
+
+#### 7. Sprint 54 is now materially smaller and clearer than the raw placeholder
+
+Day 4 cuts the raw placeholder down to one real public iterative expansion
+target plus bounded alignment work:
+
+- one new iterative-handle family in-scope:
+  - MINRES
+- one iterative family explicitly out of scope for handle exposure:
+  - BiCGSTAB
+- block workflows explicitly out of scope
+- eigensolver work narrowed to support-tightening rather than API expansion
+
+Interpretation:
+
+- Sprint 54 now has a credible bounded implementation plan
+- the remaining queue is small enough to execute without pretending all solver
+  families should or will become uniform immediately

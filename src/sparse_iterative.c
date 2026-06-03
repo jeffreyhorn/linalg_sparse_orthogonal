@@ -107,6 +107,17 @@ sparse_err_t sparse_iter_handle_prepare_gmres(sparse_iter_handle_t *handle, idx_
     return sparse_iter_workspace_prepare_gmres(workspace, n, restart, &view);
 }
 
+sparse_err_t sparse_iter_handle_prepare_minres(sparse_iter_handle_t *handle, idx_t n) {
+    if (n < 1)
+        return SPARSE_ERR_BADARG;
+    sparse_iter_workspace_t *workspace = NULL;
+    sparse_err_t err = s49_iter_handle_ensure(handle, &workspace);
+    if (err != SPARSE_OK)
+        return err;
+    sparse_minres_workspace_view_t view;
+    return sparse_iter_workspace_prepare_minres(workspace, n, /*with_precond=*/1, &view);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Stagnation detection helper
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -1377,9 +1388,10 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, id
  * MINRES — Minimum Residual method for symmetric systems
  * ═══════════════════════════════════════════════════════════════════════ */
 
-sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double *x,
-                                 const sparse_iter_opts_t *opts, sparse_precond_fn precond,
-                                 const void *precond_ctx, sparse_iter_result_t *result) {
+static sparse_err_t sparse_solve_minres_with_workspace_internal(
+    const SparseMatrix *A, const double *b, double *x, const sparse_iter_opts_t *opts,
+    sparse_precond_fn precond, const void *precond_ctx, sparse_iter_result_t *result,
+    sparse_iter_workspace_t *workspace) {
     /* Initialize result to safe defaults */
     if (result) {
         result->iterations = 0;
@@ -1391,6 +1403,8 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
     }
 
     if (!A || !b || !x)
+        return SPARSE_ERR_NULL;
+    if (!workspace)
         return SPARSE_ERR_NULL;
     if (A->rows != A->cols)
         return SPARSE_ERR_SHAPE;
@@ -1417,35 +1431,21 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
         return SPARSE_OK;
     }
 
-    /* Workspace: v, v_old, w, d0, d1, d2 = 6 vectors
-     * For preconditioned: +2 vectors (z, z_tmp) = 8 total */
-    idx_t nvecs = precond ? 8 : 6;
-    size_t n_size = 0;
-    size_t nvecs_size = 0;
-    if (sparse_idx_to_size_checked(n, &n_size) || sparse_idx_to_size_checked(nvecs, &nvecs_size))
+    sparse_minres_workspace_view_t minres_ws;
+    if (sparse_iter_workspace_prepare_minres(workspace, n, precond != NULL, &minres_ws) !=
+        SPARSE_OK)
         return SPARSE_ERR_ALLOC;
-    size_t work_count = 0;
-    if (sparse_size_mul_overflow(nvecs_size, n_size, &work_count))
-        return SPARSE_ERR_ALLOC;
-    double *work = NULL;
-    if (sparse_calloc_array(work_count, sizeof(double), (void **)&work) != SPARSE_OK)
-        return SPARSE_ERR_ALLOC;
-
-    double *v = work;               /* current Lanczos vector */
-    double *v_old = work + n_size;  /* previous Lanczos vector */
-    double *w = work + 2 * n_size;  /* A*v workspace */
-    double *d0 = work + 3 * n_size; /* direction vector d_{k} */
-    double *d1 = work + 4 * n_size; /* direction vector d_{k-1} */
-    double *d2 = work + 5 * n_size; /* direction vector d_{k-2} */
-    double *z = NULL, *z_tmp = NULL;
-    if (precond) {
-        z = work + 6 * n_size;
-        z_tmp = work + 7 * n_size;
-    }
+    double *v = minres_ws.v;         /* current Lanczos vector */
+    double *v_old = minres_ws.v_old; /* previous Lanczos vector */
+    double *w = minres_ws.w;         /* A*v workspace */
+    double *d0 = minres_ws.d0;       /* direction vector d_{k} */
+    double *d1 = minres_ws.d1;       /* direction vector d_{k-1} */
+    double *d2 = minres_ws.d2;       /* direction vector d_{k-2} */
+    double *z = minres_ws.z;
+    double *z_tmp = minres_ws.z_tmp;
 
     stag_tracker_t stag;
     if (stag_init(&stag, o->stagnation_window) != SPARSE_OK) {
-        free(work);
         return SPARSE_ERR_ALLOC;
     }
 
@@ -1460,19 +1460,16 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
         sparse_err_t perr = precond(precond_ctx, n, v, z);
         if (perr != SPARSE_OK) {
             stag_free(&stag);
-            free(work);
             return perr;
         }
         beta = vec_dot(v, z, n);
         if (beta < 0.0) {
             stag_free(&stag);
-            free(work);
             return SPARSE_ERR_BADARG; /* M is not SPD */
         }
         beta = sqrt(beta);
         if (beta <= 0.0) {
             stag_free(&stag);
-            free(work);
             return SPARSE_ERR_BADARG; /* degenerate preconditioner */
         }
     } else {
@@ -1490,7 +1487,6 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
                 result->residual_norm = r0norm / bnorm;
             }
             stag_free(&stag);
-            free(work);
             return SPARSE_OK;
         }
     }
@@ -1537,7 +1533,6 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
                     result->iterations = iter - 1;
                 }
                 stag_free(&stag);
-                free(work);
                 return SPARSE_ERR_CANCELLED;
             }
         }
@@ -1566,13 +1561,11 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
             sparse_err_t perr = precond(precond_ctx, n, w, z_tmp);
             if (perr != SPARSE_OK) {
                 stag_free(&stag);
-                free(work);
                 return perr;
             }
             double inner = vec_dot(w, z_tmp, n);
             if (inner < 0.0) {
                 stag_free(&stag);
-                free(work);
                 return SPARSE_ERR_BADARG; /* M not SPD */
             }
             beta_new = sqrt(inner);
@@ -1715,8 +1708,31 @@ sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double 
     }
 
     stag_free(&stag);
-    free(work);
     return converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
+}
+
+sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double *x,
+                                 const sparse_iter_opts_t *opts, sparse_precond_fn precond,
+                                 const void *precond_ctx, sparse_iter_result_t *result) {
+    sparse_iter_workspace_t workspace;
+    sparse_iter_workspace_init(&workspace);
+    sparse_err_t err = sparse_solve_minres_with_workspace_internal(A, b, x, opts, precond,
+                                                                   precond_ctx, result, &workspace);
+    sparse_iter_workspace_free(&workspace);
+    return err;
+}
+
+sparse_err_t sparse_solve_minres_with_handle(const SparseMatrix *A, const double *b, double *x,
+                                             const sparse_iter_opts_t *opts,
+                                             sparse_precond_fn precond, const void *precond_ctx,
+                                             sparse_iter_result_t *result,
+                                             sparse_iter_handle_t *handle) {
+    sparse_iter_workspace_t *workspace = NULL;
+    sparse_err_t err = s49_iter_handle_ensure(handle, &workspace);
+    if (err != SPARSE_OK)
+        return err;
+    return sparse_solve_minres_with_workspace_internal(A, b, x, opts, precond, precond_ctx, result,
+                                                       workspace);
 }
 
 static sparse_err_t solve_block_minres_column(const SparseMatrix *A, const double *b, double *x,

@@ -699,3 +699,83 @@ Interpretation:
 - Sprint 54 now has a credible bounded implementation plan
 - the remaining queue is small enough to execute without pretending all solver
   families should or will become uniform immediately
+
+## Sprint 54 Day 5 - iterative handle expansion batch 1
+
+Date: 2026-06-03
+Commit intent: expose MINRES on the existing public iterative repeated-run
+handle surface without broadening Sprint 54 beyond the Day 4 boundary.
+
+### What changed
+
+- Added public iterative-handle surface for MINRES in
+  `include/sparse_iterative.h`:
+  - `sparse_iter_handle_prepare_minres(...)`
+  - `sparse_solve_minres_with_handle(...)`
+- Refactored MINRES implementation in `src/sparse_iterative.c` around a shared
+  internal workspace-backed execution seam so:
+  - one-shot `sparse_solve_minres(...)` remains first-class
+  - explicit repeated-run callers can reuse the existing
+    `sparse_iter_handle_t` owner
+  - zero-init handle growth still works on demand
+- Added direct regression proof in `tests/test_iterative.c` covering:
+  - null-handle / null-prepare validation
+  - explicit prepare + repeated reuse
+  - zero-init on-demand growth
+  - repeated-run parity on solution and iteration counts
+
+### Why this stayed inside the Sprint 54 fence
+
+- MINRES was the only new iterative public-handle family included by Day 4.
+- The landing reused the existing public iterative-handle model rather than
+  inventing a new owner or changing the one-shot API shape.
+- BiCGSTAB and block iterative workflows remained untouched and out of scope.
+
+### Validation
+
+Required gates:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All passed.
+
+Maintained reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 123.22 sec`
+
+Focused Day 5 follow-ons:
+
+- `./build/test_iterative` -> `79 / 79`
+- `./build/test_minres` -> `43 / 43`
+- `./build/example_ic_minres`
+- `./build/bench_iterative_reuse`
+
+Representative direct results:
+
+- `example_ic_minres`:
+  - MINRES on the `42x42` KKT system converged in `39` iterations
+  - Jacobi-preconditioned MINRES converged in `26` iterations
+- `bench_iterative_reuse`:
+  - `cg-tridiag-300`: `1.00x`
+  - `gmres-unsym-220`: `1.05x`
+
+### Day 5 outcome
+
+Sprint 54 now has a coherent supported public repeated-run iterative-handle
+set for:
+
+- `CG`
+- `GMRES`
+- `MINRES`
+
+The remaining Sprint 54 queue is now smaller and cleaner:
+
+- iterative proof/alignment for the final supported set
+- eigensolver lifecycle/proof/docs tightening, especially around LOBPCG
+- benchmark/example/README adoption and explicit exclusion wording

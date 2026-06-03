@@ -2742,6 +2742,57 @@ static void test_gmres_public_handle_validation_and_on_demand(void) {
     sparse_free(A);
 }
 
+/* Public repeated-run MINRES handle: explicit prepare + reuse should preserve
+ * the same numerical behavior as the one-shot path, and zero-init handles
+ * should grow on demand. */
+static void test_minres_public_handle_prepare_reuse_and_on_demand(void) {
+    SparseMatrix *A = build_spd_tridiag(8, 4.0, -1.0);
+    ASSERT_NOT_NULL(A);
+
+    double x_exact[8];
+    double b[8];
+    double x1[8] = {0};
+    double x2[8] = {0};
+    double x3[8] = {0};
+    for (idx_t i = 0; i < 8; i++)
+        x_exact[i] = (double)(i + 1);
+    compute_rhs(A, x_exact, b);
+
+    sparse_iter_opts_t opts = {.max_iter = 200, .tol = 1e-10, .verbose = 0};
+    sparse_iter_result_t r1 = {0}, r2 = {0}, r3 = {0};
+    sparse_iter_handle_t handle = {0};
+    sparse_iter_handle_t zero_handle = {0};
+
+    ASSERT_ERR(sparse_iter_handle_prepare_minres(NULL, 8), SPARSE_ERR_NULL);
+    ASSERT_ERR(sparse_solve_minres_with_handle(A, b, x1, &opts, NULL, NULL, &r1, NULL),
+               SPARSE_ERR_NULL);
+
+    ASSERT_ERR(sparse_iter_handle_prepare_minres(&handle, 8), SPARSE_OK);
+    ASSERT_ERR(sparse_solve_minres_with_handle(A, b, x1, &opts, NULL, NULL, &r1, &handle),
+               SPARSE_OK);
+    ASSERT_ERR(sparse_solve_minres_with_handle(A, b, x2, &opts, NULL, NULL, &r2, &handle),
+               SPARSE_OK);
+
+    /* Zero-init handle should grow on demand without explicit prepare. */
+    ASSERT_ERR(sparse_solve_minres_with_handle(A, b, x3, &opts, NULL, NULL, &r3, &zero_handle),
+               SPARSE_OK);
+
+    ASSERT_TRUE(r1.converged);
+    ASSERT_TRUE(r2.converged);
+    ASSERT_TRUE(r3.converged);
+    ASSERT_EQ(r1.iterations, r2.iterations);
+    ASSERT_EQ(r1.iterations, r3.iterations);
+    for (idx_t i = 0; i < 8; i++) {
+        ASSERT_NEAR(x1[i], x_exact[i], 1e-10);
+        ASSERT_NEAR(x2[i], x_exact[i], 1e-10);
+        ASSERT_NEAR(x3[i], x_exact[i], 1e-10);
+    }
+
+    sparse_iter_handle_free(&handle);
+    sparse_iter_handle_free(&zero_handle);
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Test suite
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -2846,6 +2897,7 @@ int main(void) {
     /* Public repeated-run handles (Sprint 49 Day 10) */
     RUN_TEST(test_cg_public_handle_prepare_and_reuse);
     RUN_TEST(test_gmres_public_handle_validation_and_on_demand);
+    RUN_TEST(test_minres_public_handle_prepare_reuse_and_on_demand);
 
     /* Matrix-free CG (Sprint 8 Day 2) */
     RUN_TEST(test_cg_mf_basic);

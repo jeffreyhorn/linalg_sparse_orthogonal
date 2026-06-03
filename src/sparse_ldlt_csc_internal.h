@@ -315,6 +315,78 @@ sparse_err_t ldlt_csc_to_sparse(const LdltCsc *ldlt, const idx_t *perm_out, Spar
  */
 sparse_err_t ldlt_csc_writeback_to_ldlt(const LdltCsc *F, double tol, sparse_ldlt_t *ldlt_out);
 
+/**
+ * Complete an analysis-aware LDL^T CSC factorization from a resolved scalar
+ * pre-pass.
+ *
+ * Shared helper for the public one-shot CSC dispatch path and the shared
+ * repeated-run analysis/factors path. The caller provides:
+ *
+ * - `mat` in the same coordinate space as `analysis`
+ * - `analysis` whose `sym_L` is valid for `mat`
+ * - `pre_factor`, a completed scalar BK pre-pass whose `perm` and
+ *   `pivot_size` describe the resolved indefinite structure to preserve
+ *
+ * The helper:
+ *   1. builds an `LdltCsc` via `ldlt_csc_from_sparse_with_analysis`
+ *   2. seeds `pivot_size` from `pre_factor`
+ *   3. attempts `ldlt_csc_eliminate_supernodal`
+ *   4. falls back to `pre_factor` only when the batched path returns
+ *      `SPARSE_ERR_PIVOT_REJECTED`
+ *   5. propagates other batched-path failures unchanged
+ *   6. writes the chosen factor back into `sparse_ldlt_t`
+ *
+ * On the batched-success path, the final public permutation is overwritten
+ * with `pre_factor->perm` so callers still observe the resolved BK
+ * permutation regardless of which numeric CSC route succeeded.
+ *
+ * `tol` is clamped to at least `SPARSE_DROP_TOL` before writeback, matching
+ * the CSC backend's effective numeric floor.
+ */
+sparse_err_t ldlt_csc_factor_with_resolved_analysis(const SparseMatrix *mat,
+                                                    const sparse_analysis_t *analysis,
+                                                    const LdltCsc *pre_factor, idx_t min_size,
+                                                    double tol, sparse_ldlt_t *ldlt_out);
+
+/**
+ * Resolve the indefinite LDL^T CSC preparation front half shared by the
+ * one-shot CSC dispatch path and the repeated-run analysis/factors path.
+ *
+ * The helper always performs the scalar BK pre-pass:
+ *
+ *   1. `ldlt_csc_from_sparse(...)`
+ *   2. `ldlt_csc_eliminate_native(...)`
+ *
+ * It then resolves which matrix / analysis pair the later CSC completion
+ * helper should factor:
+ *
+ * - when `analysis_hint` is non-NULL and the resolved BK permutation still
+ *   matches that caller analysis, the original `mat` plus `analysis_hint`
+ *   remain valid
+ * - otherwise the helper builds `A_perm = P A P^T`, resets its logical
+ *   permutation metadata, and analyzes that matrix with
+ *   `SPARSE_FACTOR_LDLT` + `SPARSE_REORDER_NONE`
+ *
+ * Outputs:
+ *
+ * - `pre_factor_out` receives the completed scalar pre-pass factor
+ * - `owned_perm_mat_out` receives any owned pre-permuted matrix that the
+ *   caller must free (NULL when the original matrix remains valid)
+ * - `derived_analysis_out` receives any derived analysis built on the
+ *   pre-permuted matrix and should be zero-initialized by the caller
+ * - `factored_mat_out` points at the matrix to feed into
+ *   `ldlt_csc_factor_with_resolved_analysis(...)`
+ * - `resolved_analysis_out` points at the matching analysis for that matrix
+ *
+ * This helper reduces duplicated indefinite CSC preparation logic but does
+ * not hide the real family-specific boundary: the scalar BK pre-pass still
+ * owns final symmetric permutation resolution.
+ */
+sparse_err_t ldlt_csc_prepare_resolved_analysis(
+    const SparseMatrix *mat, const sparse_analysis_t *analysis_hint, LdltCsc **pre_factor_out,
+    SparseMatrix **owned_perm_mat_out, sparse_analysis_t *derived_analysis_out,
+    const SparseMatrix **factored_mat_out, const sparse_analysis_t **resolved_analysis_out);
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Invariant checking
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -736,7 +808,7 @@ sparse_err_t ldlt_csc_supernode_writeback(LdltCsc *F, idx_t s_start, idx_t s_siz
  * @param tol              Drop / singularity tolerance for the dense
  *                         factor; <=0 uses SPARSE_DROP_TOL.
  * @return SPARSE_OK on success.  SPARSE_ERR_NULL / SPARSE_ERR_BADARG
- *         on invalid args.  SPARSE_ERR_BADARG if `pivot_size_block`
+ *         on invalid args.  SPARSE_ERR_PIVOT_REJECTED if `pivot_size_block`
  *         disagrees with `F->pivot_size[s_start..s_start+s_size)`
  *         (the dense factor made a different BK decision than the
  *         cached scalar pass — caller should fall back).
@@ -796,8 +868,8 @@ sparse_err_t ldlt_csc_supernode_eliminate_panel(const double *L_diag, const doub
  * @param min_size  Minimum supernode size to batch (>= 1).  Below
  *                  `min_size`, columns fall through to the scalar path.
  * @return SPARSE_OK on success.  Same error codes as
- *         `ldlt_csc_eliminate_native` plus `SPARSE_ERR_BADARG` if any
- *         batched supernode's BK decision diverged from cached
+ *         `ldlt_csc_eliminate_native` plus `SPARSE_ERR_PIVOT_REJECTED`
+ *         if any batched supernode's BK decision diverged from cached
  *         `F->pivot_size`.
  */
 sparse_err_t ldlt_csc_eliminate_supernodal(LdltCsc *F, idx_t min_size);

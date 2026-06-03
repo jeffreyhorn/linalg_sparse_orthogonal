@@ -784,7 +784,7 @@ static void test_supernodal_random_indefinite_30x30(void) {
         F2->pivot_size[k] = F1->pivot_size[k];
 
     sparse_err_t err_b = ldlt_csc_eliminate_supernodal(F2, /*min_size=*/2);
-    if (err_b == SPARSE_ERR_BADARG) {
+    if (err_b == SPARSE_ERR_PIVOT_REJECTED) {
         /* The batched path's pivot-stability check rejected the
          * supernode (e.g., dense BK diverged on numerical drift).
          * Skip — the test's main purpose is to verify equivalence
@@ -1578,6 +1578,48 @@ static void test_s20_supernodal_heuristic_vs_with_analysis_residuals(void) {
     ldlt_csc_free(F_pre);
     ldlt_csc_free(F_after);
     sparse_analysis_free(&an);
+    sparse_free(A);
+    sparse_free(A_perm);
+}
+
+/* Sprint 53 Day 7: the shared analysis-aware CSC completion helper must
+ * reject an invalid `min_size` contract violation directly instead of
+ * silently treating it as a scalar-fallback dispatch case. */
+static void test_s53_with_analysis_invalid_min_size_rejected(void) {
+    SparseMatrix *A = build_kkt_10x10();
+    idx_t n = sparse_rows(A);
+
+    LdltCsc *F_pre = NULL;
+    REQUIRE_OK(ldlt_csc_from_sparse(A, NULL, 2.0, &F_pre));
+    REQUIRE_OK(ldlt_csc_eliminate_native(F_pre));
+
+    SparseMatrix *A_perm = sparse_create(n, n);
+    ASSERT_NOT_NULL(A_perm);
+    for (idx_t i_new = 0; i_new < n; i_new++) {
+        for (idx_t j_new = 0; j_new < n; j_new++) {
+            idx_t i_old = F_pre->perm[i_new];
+            idx_t j_old = F_pre->perm[j_new];
+            double v = sparse_get(A, i_old, j_old);
+            if (v != 0.0)
+                sparse_insert(A_perm, i_new, j_new, v);
+        }
+    }
+
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_NONE,
+    };
+    sparse_analysis_t an = {0};
+    REQUIRE_OK(sparse_analyze(A_perm, &opts, &an));
+
+    sparse_ldlt_t ldlt = {0};
+    ASSERT_ERR(
+        ldlt_csc_factor_with_resolved_analysis(A_perm, &an, F_pre, /*min_size=*/0, 0.0, &ldlt),
+        SPARSE_ERR_BADARG);
+
+    sparse_ldlt_free(&ldlt);
+    sparse_analysis_free(&an);
+    ldlt_csc_free(F_pre);
     sparse_free(A);
     sparse_free(A_perm);
 }
@@ -3556,6 +3598,7 @@ int main(void) {
     RUN_TEST(test_s20_supernodal_with_analysis_kkt_10x10);
     RUN_TEST(test_s20_supernodal_with_analysis_random_indefinite_30x30);
     RUN_TEST(test_s20_supernodal_heuristic_vs_with_analysis_residuals);
+    RUN_TEST(test_s53_with_analysis_invalid_min_size_rejected);
 
     /* permutation */
     RUN_TEST(test_from_sparse_stores_perm);

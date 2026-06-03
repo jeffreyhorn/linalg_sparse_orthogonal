@@ -2391,10 +2391,12 @@ static void test_ldlt_backend_linked_list_forced(void) {
 }
 
 /* Forced CSC backend now routes through the Sprint 20 Day 5
- * pipeline: scalar pre-pass → pre-permute → analyze →
- * ldlt_csc_from_sparse_with_analysis → supernodal factor →
- * writeback to sparse_ldlt_t.  Factor must succeed on the 4x4
- * indefinite fixture and `used_csc_path` reports 1. */
+ * CSC pipeline: scalar pre-pass / resolved-analysis preparation →
+ * `ldlt_csc_factor_with_resolved_analysis(...)` → CSC writeback to
+ * `sparse_ldlt_t`.  The public contract is the CSC pipeline, not a
+ * guarantee that the batched supernodal completion was retained on
+ * every fixture.  Factor must succeed on the 4x4 indefinite fixture
+ * and `used_csc_path` reports 1. */
 static void test_ldlt_backend_csc_forced_factors(void) {
     SparseMatrix *A = day4_build_indefinite_4x4();
     int used_csc = -1;
@@ -2447,6 +2449,27 @@ static void test_ldlt_backend_used_csc_path_null_ok(void) {
     };
     sparse_ldlt_t ldlt;
     REQUIRE_OK(sparse_ldlt_factor_opts(A, &opts, &ldlt));
+    sparse_ldlt_free(&ldlt);
+    sparse_free(A);
+}
+
+/* `used_csc_path` is published before later reorder / factor errors so
+ * callers still observe the selected numeric path on failure. */
+static void test_ldlt_backend_csc_reports_selected_path_before_reorder_error(void) {
+    SparseMatrix *A = day4_build_indefinite_4x4();
+    int used_csc = -1;
+    sparse_ldlt_opts_t opts = {
+        .reorder = (sparse_reorder_t)99,
+        .tol = 0.0,
+        .backend = SPARSE_LDLT_BACKEND_CSC,
+        .used_csc_path = &used_csc,
+    };
+    sparse_ldlt_t ldlt;
+
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    ASSERT_ERR(sparse_ldlt_factor_opts(A, &opts, &ldlt), SPARSE_ERR_BADARG);
+    ASSERT_EQ(used_csc, 1);
+
     sparse_ldlt_free(&ldlt);
     sparse_free(A);
 }
@@ -2757,6 +2780,7 @@ int main(void) {
     RUN_TEST(test_ldlt_backend_csc_forced_factors);
     RUN_TEST(test_ldlt_backend_invalid_rejected);
     RUN_TEST(test_ldlt_backend_used_csc_path_null_ok);
+    RUN_TEST(test_ldlt_backend_csc_reports_selected_path_before_reorder_error);
 
     /* Sprint 20 Day 5 — full CSC pipeline + cross-backend agreement */
     RUN_TEST(test_ldlt_day5_cross_backend_spd_tridiag);

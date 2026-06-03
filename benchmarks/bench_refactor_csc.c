@@ -1,81 +1,53 @@
 /*
- * bench_refactor_csc.c — Analyze-once / factor-many Cholesky benchmark
+ * bench_refactor_csc.c — analyze-once / factor-many direct benchmark
  *
- * Sprint 17 and Sprint 18 `PERF_NOTES.md` both hypothesise that the
- * CSC Cholesky kernel's speedup over the linked-list baseline is
- * LARGER in the analyze-once / factor-many workflow — where one
- * `sparse_analyze` amortises across N refactorizations with the
- * same sparsity pattern but perturbed values — than in the one-shot
- * factor workflow where AMD reordering runs on every call and
- * dominates the small-matrix cost.
+ * Default mode keeps the original SPD / Cholesky repeated-run corpus:
  *
- * `benchmarks/bench_chol_csc.c` measures the one-shot case; this
- * benchmark measures the analyze-once case.  Together they let the
- * Day 2 `PERF_NOTES.md` update record both numbers side-by-side and
- * either confirm or disconfirm the hypothesis.
+ *   public repeated-run path:
+ *     sparse_analyze + sparse_factor_numeric + sparse_refactor_numeric
+ *   direct CSC path:
+ *     chol_csc_from_sparse_with_analysis + chol_csc_eliminate_supernodal
  *
- * ─── Workflow ──────────────────────────────────────────────────────
+ * Sprint 53 adds a bounded LDL^T indefinite mode:
  *
- * Per matrix (outside the timed region):
- *   1. Load A from .mtx.
- *   2. `sparse_analyze(A, AMD, &an)` — computes AMD perm + symbolic
- *      L pattern. Cost measured once and reported in `analyze_ms`.
- *   3. One priming `sparse_factor_numeric` on the original A so the
- *      subsequent `sparse_refactor_numeric` calls have a valid
- *      starting `sparse_factors_t`.  Not timed — setup only.
+ *   ./bench_refactor_csc --indefinite-kkt [--repeat N]
  *
- * Per iteration i = 0..N-1 (timed):
- *   4. `sparse_copy(A)` → `A_perturb` with per-entry multiplicative
- *      noise `v *= 1 + 1e-9 * symmetric_noise(row, col, seed)`.
- *      `symmetric_noise` is a deterministic hash keyed on
- *      `min(i, j) * n + max(i, j) + seed` so A[i,j] and A[j,i] get
- *      the same multiplier — required to keep the matrix symmetric
- *      (`sparse_cholesky_factor` runs `sparse_is_symmetric` first
- *      and returns SPARSE_ERR_NOT_SPD on asymmetry).  Preserves the
- *      sparsity pattern (no inserts / removes) and keeps the matrix
- *      well within SPD territory for the test corpus.
- *   5. `sparse_refactor_numeric(A_perturb, &an, &factors_ll)` — the
- *      LL side. Timed into `refactor_ll`.
- *   6. `chol_csc_from_sparse_with_analysis(A_perturb, &an, &L_csc)`
- *      + `chol_csc_eliminate_supernodal(L_csc, 4)` — the CSC side.
- *      Timed into `refactor_csc`.
- *   7. `sparse_factor_solve(&factors_ll, &an, b, x_ll)` — LL solve
- *      on every iteration (timed into `solve_ll`).
- *   8. `chol_csc_solve_perm(L_csc, an.perm, b, x_csc)` — CSC solve
- *      on every iteration (timed into `solve_csc`).
- *   9. On the last iteration, compute relative residuals `res_ll`,
- *      `res_csc` against the perturbed A to confirm both backends
- *      produced equivalent solutions to round-off.
+ * That mode builds a synthetic above-threshold KKT saddle-point matrix and
+ * compares:
  *
- * N is 10 by default; change with the existing `--repeat` flag.
+ *   public repeated-run path:
+ *     sparse_analyze + sparse_factor_numeric + sparse_refactor_numeric
+ *   direct CSC completion path:
+ *     ldlt_csc_prepare_resolved_analysis +
+ *     ldlt_csc_factor_with_resolved_analysis
  *
- * Output is CSV on stdout: one header row, one row per matrix with
- *   matrix, n, nnz, analyze_ms,
- *   refactor_ll_ms, refactor_csc_ms,
- *   solve_ll_ms, solve_csc_ms,
- *   speedup_refactor, res_ll, res_csc
+ * The benchmark stays intentionally narrow:
  *
- * `speedup_refactor = refactor_ll_ms / refactor_csc_ms`; > 1.0 means
- * CSC is faster in the refactor-many regime.  `analyze_ms` is
- * reported so callers can see the amortisation opportunity — with
- * N = 10 refactors, the analyze cost amortises to `analyze_ms / 10`
- * per factor, whereas the one-shot `bench_chol_csc` measures that
- * cost in every factor timing.
+ * - one analyze call is amortized across N same-pattern numeric refreshes
+ * - value perturbations happen outside the timed region
+ * - solves remain timed separately from refactor work
+ * - the direct CSC side measures the resolved-analysis completion seam
+ *   explicitly instead of re-entering the public one-shot wrapper path
  *
- * Usage:
- *   ./bench_refactor_csc                              # default matrix list
- *   ./bench_refactor_csc path/to/matrix.mtx           # single matrix
- *   ./bench_refactor_csc --repeat 5                   # 5 refactors instead of 10
+ * Output is CSV on stdout:
+ *   matrix,workflow,n,nnz,analyze_ms,
+ *   refactor_public_ms,refactor_csc_ms,
+ *   solve_public_ms,solve_csc_ms,
+ *   speedup_refactor,res_public,res_csc
+ *
+ * `speedup_refactor = refactor_public_ms / refactor_csc_ms`; > 1.0 means the
+ * direct CSC completion path is faster than the public repeated-run path on
+ * that workflow.
  */
 #define _POSIX_C_SOURCE 200809L
 
 #include "sparse_analysis.h"
 #include "sparse_chol_csc_internal.h"
 #include "sparse_cholesky.h"
+#include "sparse_ldlt.h"
+#include "sparse_ldlt_csc_internal.h"
 #include "sparse_matrix.h"
 #include "sparse_matrix_internal.h"
-#include "sparse_reorder.h"
-#include "sparse_vector.h"
 
 #include <math.h>
 #include <stdatomic.h>
@@ -153,8 +125,68 @@ static void perturb_values_in_place(SparseMatrix *A, double eps, uint64_t seed) 
     atomic_store_explicit(&A->cached_norm, -1.0, memory_order_relaxed);
 }
 
-/* Matrix runner: analyze once, refactor N times, emit one CSV row. */
-static int bench_matrix(const char *path, int repeat) {
+static SparseMatrix *build_kkt_150(void) {
+    idx_t n_top = 140, n_bot = 10;
+    idx_t n = n_top + n_bot;
+    SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
+    for (idx_t i = 0; i < n_top; i++) {
+        sparse_insert(A, i, i, 6.0);
+        if (i > 0) {
+            sparse_insert(A, i, i - 1, -1.0);
+            sparse_insert(A, i - 1, i, -1.0);
+        }
+    }
+    for (idx_t j = 0; j < n_bot; j++) {
+        sparse_insert(A, n_top + j, j, 1.0);
+        sparse_insert(A, j, n_top + j, 1.0);
+    }
+    return A;
+}
+
+static sparse_err_t perturb_kkt_values_in_place(SparseMatrix *A, idx_t n_top, idx_t n_bot,
+                                                double scale) {
+    for (idx_t i = 0; i < n_top; i++) {
+        double diag = 6.0 + scale * (double)((i % 7) - 3);
+        sparse_err_t err = sparse_set(A, i, i, diag);
+        if (err != SPARSE_OK)
+            return err;
+        if (i > 0) {
+            double offdiag = -1.0 - 0.1 * scale * (double)(i % 3);
+            err = sparse_set(A, i, i - 1, offdiag);
+            if (err != SPARSE_OK)
+                return err;
+            err = sparse_set(A, i - 1, i, offdiag);
+            if (err != SPARSE_OK)
+                return err;
+        }
+    }
+
+    for (idx_t j = 0; j < n_bot; j++) {
+        double coupling = 1.0 + 0.05 * scale * (double)((j % 5) - 2);
+        sparse_err_t err = sparse_set(A, n_top + j, j, coupling);
+        if (err != SPARSE_OK)
+            return err;
+        err = sparse_set(A, j, n_top + j, coupling);
+        if (err != SPARSE_OK)
+            return err;
+    }
+
+    return SPARSE_OK;
+}
+
+static void emit_csv_row(const char *matrix, const char *workflow, idx_t n, idx_t nnz,
+                         double analyze_ms, double refactor_public_ms, double refactor_csc_ms,
+                         double solve_public_ms, double solve_csc_ms, double speedup,
+                         double res_public, double res_csc) {
+    printf("%s,%s,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2e,%.2e\n", matrix, workflow, (int)n,
+           (int)nnz, analyze_ms, refactor_public_ms, refactor_csc_ms, solve_public_ms, solve_csc_ms,
+           speedup, res_public, res_csc);
+}
+
+/* SPD / Cholesky matrix runner: analyze once, refactor N times, emit one CSV row. */
+static int bench_spd_matrix(const char *path, int repeat) {
     SparseMatrix *A = NULL;
     if (sparse_load_mm(&A, path) != SPARSE_OK) {
         fprintf(stderr, "bench_refactor_csc: failed to load %s\n", path);
@@ -166,13 +198,13 @@ static int bench_matrix(const char *path, int repeat) {
     /* RHS b = A * [1, 1, ..., 1] — same fixture as bench_chol_csc. */
     double *ones = malloc((size_t)n * sizeof(double));
     double *b = malloc((size_t)n * sizeof(double));
-    double *x_ll = calloc((size_t)n, sizeof(double));
+    double *x_public = calloc((size_t)n, sizeof(double));
     double *x_csc = calloc((size_t)n, sizeof(double));
-    if (!ones || !b || !x_ll || !x_csc) {
+    if (!ones || !b || !x_public || !x_csc) {
         fprintf(stderr, "bench_refactor_csc: malloc failed in bench_matrix (n=%d)\n", (int)n);
         free(ones);
         free(b);
-        free(x_ll);
+        free(x_public);
         free(x_csc);
         sparse_free(A);
         return 1;
@@ -200,7 +232,7 @@ static int bench_matrix(const char *path, int repeat) {
         sparse_analysis_free(&an);
         free(ones);
         free(b);
-        free(x_ll);
+        free(x_public);
         free(x_csc);
         sparse_free(A);
         return 1;
@@ -209,22 +241,22 @@ static int bench_matrix(const char *path, int repeat) {
     /* Prime the LL factors via a non-timed factor_numeric — subsequent
      * refactor calls can then refactor in place.  Uses the original A
      * (unperturbed) for priming. */
-    sparse_factors_t factors_ll = {0};
-    if (sparse_factor_numeric(A, &an, &factors_ll) != SPARSE_OK) {
+    sparse_factors_t factors_public = {0};
+    if (sparse_factor_numeric(A, &an, &factors_public) != SPARSE_OK) {
         fprintf(stderr, "bench_refactor_csc: priming sparse_factor_numeric failed on %s\n", path);
         sparse_analysis_free(&an);
         free(ones);
         free(b);
-        free(x_ll);
+        free(x_public);
         free(x_csc);
         sparse_free(A);
         return 1;
     }
 
     /* Timed region: N refactors on both backends. */
-    double refactor_ll_total = 0.0, refactor_csc_total = 0.0;
-    double solve_ll_total = 0.0, solve_csc_total = 0.0;
-    double res_ll = 0.0, res_csc = 0.0;
+    double refactor_public_total = 0.0, refactor_csc_total = 0.0;
+    double solve_public_total = 0.0, solve_csc_total = 0.0;
+    double res_public = 0.0, res_csc = 0.0;
     int ok = 1;
 
     for (int rep = 0; rep < repeat; rep++) {
@@ -242,14 +274,14 @@ static int bench_matrix(const char *path, int repeat) {
          * the cached factor. */
         perturb_values_in_place(A_perturb, 1e-9, (uint64_t)rep * 0xcafef00dULL);
 
-        /* Linked-list refactor. */
-        double t_ll0 = wall_time();
-        sparse_err_t e_ll = sparse_refactor_numeric(A_perturb, &an, &factors_ll);
-        refactor_ll_total += wall_time() - t_ll0;
-        if (e_ll != SPARSE_OK) {
+        /* Public repeated-run refactor path. */
+        double t_public0 = wall_time();
+        sparse_err_t e_public = sparse_refactor_numeric(A_perturb, &an, &factors_public);
+        refactor_public_total += wall_time() - t_public0;
+        if (e_public != SPARSE_OK) {
             fprintf(stderr,
                     "bench_refactor_csc: sparse_refactor_numeric failed on %s (rep=%d, err=%d)\n",
-                    path, rep, (int)e_ll);
+                    path, rep, (int)e_public);
             sparse_free(A_perturb);
             ok = 0;
             break;
@@ -277,15 +309,15 @@ static int bench_matrix(const char *path, int repeat) {
 
         /* Solve on both backends; residuals measured vs the PERTURBED
          * A so they should be within round-off on every iteration. */
-        double t_sll0 = wall_time();
-        sparse_err_t e_sll = sparse_factor_solve(&factors_ll, &an, b, x_ll);
-        solve_ll_total += wall_time() - t_sll0;
+        double t_spublic0 = wall_time();
+        sparse_err_t e_spublic = sparse_factor_solve(&factors_public, &an, b, x_public);
+        solve_public_total += wall_time() - t_spublic0;
 
         double t_scsc0 = wall_time();
         sparse_err_t e_scsc = chol_csc_solve_perm(L_csc, an.perm, b, x_csc);
         solve_csc_total += wall_time() - t_scsc0;
 
-        if (e_sll != SPARSE_OK || e_scsc != SPARSE_OK) {
+        if (e_spublic != SPARSE_OK || e_scsc != SPARSE_OK) {
             fprintf(stderr, "bench_refactor_csc: solve failed on %s (rep=%d)\n", path, rep);
             chol_csc_free(L_csc);
             sparse_free(A_perturb);
@@ -303,7 +335,7 @@ static int bench_matrix(const char *path, int repeat) {
          * `A_perturb * x`, which is `1e-9`-level noise, not a
          * factorization quality signal.) */
         if (rep == repeat - 1) {
-            res_ll = rel_residual(A_perturb, x_ll, b);
+            res_public = rel_residual(A_perturb, x_public, b);
             res_csc = rel_residual(A_perturb, x_csc, b);
         }
 
@@ -316,33 +348,219 @@ static int bench_matrix(const char *path, int repeat) {
 
     if (!ok) {
         fprintf(stderr, "bench_refactor_csc: %s — aborted, partial timings discarded\n", base);
-        sparse_factor_free(&factors_ll);
+        sparse_factor_free(&factors_public);
         sparse_analysis_free(&an);
         free(ones);
         free(b);
-        free(x_ll);
+        free(x_public);
         free(x_csc);
         sparse_free(A);
         return 1;
     }
 
-    double refactor_ll_ms = refactor_ll_total * 1000.0 / (double)repeat;
+    double refactor_public_ms = refactor_public_total * 1000.0 / (double)repeat;
     double refactor_csc_ms = refactor_csc_total * 1000.0 / (double)repeat;
-    double solve_ll_ms = solve_ll_total * 1000.0 / (double)repeat;
+    double solve_public_ms = solve_public_total * 1000.0 / (double)repeat;
     double solve_csc_ms = solve_csc_total * 1000.0 / (double)repeat;
-    double speedup = refactor_ll_ms / refactor_csc_ms;
+    double speedup = refactor_public_ms / refactor_csc_ms;
 
-    /* CSV row:
-     * matrix, n, nnz, analyze_ms, refactor_ll_ms, refactor_csc_ms,
-     * solve_ll_ms, solve_csc_ms, speedup_refactor, res_ll, res_csc */
-    printf("%s,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2e,%.2e\n", base, (int)n, (int)nnz, analyze_ms,
-           refactor_ll_ms, refactor_csc_ms, solve_ll_ms, solve_csc_ms, speedup, res_ll, res_csc);
+    emit_csv_row(base, "chol_spd", n, nnz, analyze_ms, refactor_public_ms, refactor_csc_ms,
+                 solve_public_ms, solve_csc_ms, speedup, res_public, res_csc);
 
-    sparse_factor_free(&factors_ll);
+    sparse_factor_free(&factors_public);
     sparse_analysis_free(&an);
     free(ones);
     free(b);
-    free(x_ll);
+    free(x_public);
+    free(x_csc);
+    sparse_free(A);
+    return 0;
+}
+
+static int bench_indefinite_kkt(int repeat) {
+    const idx_t n_top = 140;
+    const idx_t n_bot = 10;
+    SparseMatrix *A = build_kkt_150();
+    if (!A) {
+        fprintf(stderr, "bench_refactor_csc: failed to build kkt-150\n");
+        return 1;
+    }
+    idx_t n = sparse_rows(A);
+    idx_t nnz = sparse_nnz(A);
+
+    double *ones = malloc((size_t)n * sizeof(double));
+    double *b = malloc((size_t)n * sizeof(double));
+    double *x_public = calloc((size_t)n, sizeof(double));
+    double *x_csc = calloc((size_t)n, sizeof(double));
+    if (!ones || !b || !x_public || !x_csc) {
+        fprintf(stderr, "bench_refactor_csc: malloc failed in bench_indefinite_kkt (n=%d)\n",
+                (int)n);
+        free(ones);
+        free(b);
+        free(x_public);
+        free(x_csc);
+        sparse_free(A);
+        return 1;
+    }
+    for (idx_t i = 0; i < n; i++)
+        ones[i] = 1.0;
+    sparse_matvec(A, ones, b);
+
+    sparse_analysis_opts_t aopts = {
+        .factor_type = SPARSE_FACTOR_LDLT,
+        .reorder = SPARSE_REORDER_AMD,
+    };
+    sparse_analysis_t an = {0};
+    double t0 = wall_time();
+    sparse_err_t err = sparse_analyze(A, &aopts, &an);
+    double analyze_ms = (wall_time() - t0) * 1000.0;
+    if (err != SPARSE_OK) {
+        fprintf(stderr, "bench_refactor_csc: sparse_analyze failed on kkt-150 (err=%d)\n",
+                (int)err);
+        sparse_analysis_free(&an);
+        free(ones);
+        free(b);
+        free(x_public);
+        free(x_csc);
+        sparse_free(A);
+        return 1;
+    }
+
+    sparse_factors_t factors_public = {0};
+    if (sparse_factor_numeric(A, &an, &factors_public) != SPARSE_OK) {
+        fprintf(stderr, "bench_refactor_csc: priming sparse_factor_numeric failed on kkt-150\n");
+        sparse_analysis_free(&an);
+        free(ones);
+        free(b);
+        free(x_public);
+        free(x_csc);
+        sparse_free(A);
+        return 1;
+    }
+
+    double refactor_public_total = 0.0, refactor_csc_total = 0.0;
+    double solve_public_total = 0.0, solve_csc_total = 0.0;
+    double res_public = 0.0, res_csc = 0.0;
+    int ok = 1;
+
+    for (int rep = 0; rep < repeat; rep++) {
+        SparseMatrix *A_perturb = sparse_copy(A);
+        if (!A_perturb) {
+            ok = 0;
+            break;
+        }
+        sparse_err_t perturb_err =
+            perturb_kkt_values_in_place(A_perturb, n_top, n_bot, 0.20 + 0.03 * (double)(rep % 5));
+        if (perturb_err != SPARSE_OK) {
+            fprintf(stderr,
+                    "bench_refactor_csc: kkt perturbation failed on kkt-150 "
+                    "(rep=%d, err=%d)\n",
+                    rep, (int)perturb_err);
+            sparse_free(A_perturb);
+            ok = 0;
+            break;
+        }
+
+        double t_public0 = wall_time();
+        sparse_err_t e_public = sparse_refactor_numeric(A_perturb, &an, &factors_public);
+        refactor_public_total += wall_time() - t_public0;
+        if (e_public != SPARSE_OK) {
+            fprintf(stderr,
+                    "bench_refactor_csc: sparse_refactor_numeric failed on kkt-150 "
+                    "(rep=%d, err=%d)\n",
+                    rep, (int)e_public);
+            sparse_free(A_perturb);
+            ok = 0;
+            break;
+        }
+
+        LdltCsc *pre_factor = NULL;
+        SparseMatrix *A_perm = NULL;
+        sparse_analysis_t derived_analysis = {0};
+        const SparseMatrix *factored_mat = NULL;
+        const sparse_analysis_t *resolved_analysis = NULL;
+        sparse_ldlt_t ldlt_csc = {0};
+
+        double t_csc0 = wall_time();
+        sparse_err_t e_csc = ldlt_csc_prepare_resolved_analysis(A_perturb, &an, &pre_factor,
+                                                                &A_perm, &derived_analysis,
+                                                                &factored_mat, &resolved_analysis);
+        if (e_csc == SPARSE_OK) {
+            e_csc = ldlt_csc_factor_with_resolved_analysis(
+                factored_mat, resolved_analysis, pre_factor, /*min_size=*/2, 0.0, &ldlt_csc);
+        }
+        refactor_csc_total += wall_time() - t_csc0;
+        if (e_csc != SPARSE_OK) {
+            fprintf(stderr,
+                    "bench_refactor_csc: LDLT CSC refactor failed on kkt-150 "
+                    "(rep=%d, err=%d)\n",
+                    rep, (int)e_csc);
+            sparse_ldlt_free(&ldlt_csc);
+            ldlt_csc_free(pre_factor);
+            sparse_analysis_free(&derived_analysis);
+            sparse_free(A_perm);
+            sparse_free(A_perturb);
+            ok = 0;
+            break;
+        }
+
+        double t_spublic0 = wall_time();
+        sparse_err_t e_spublic = sparse_factor_solve(&factors_public, &an, b, x_public);
+        solve_public_total += wall_time() - t_spublic0;
+
+        double t_scsc0 = wall_time();
+        sparse_err_t e_scsc = sparse_ldlt_solve(&ldlt_csc, b, x_csc);
+        solve_csc_total += wall_time() - t_scsc0;
+
+        if (e_spublic != SPARSE_OK || e_scsc != SPARSE_OK) {
+            fprintf(stderr, "bench_refactor_csc: solve failed on kkt-150 (rep=%d)\n", rep);
+            sparse_ldlt_free(&ldlt_csc);
+            ldlt_csc_free(pre_factor);
+            sparse_analysis_free(&derived_analysis);
+            sparse_free(A_perm);
+            sparse_free(A_perturb);
+            ok = 0;
+            break;
+        }
+
+        if (rep == repeat - 1) {
+            res_public = rel_residual(A_perturb, x_public, b);
+            res_csc = rel_residual(A_perturb, x_csc, b);
+        }
+
+        sparse_ldlt_free(&ldlt_csc);
+        ldlt_csc_free(pre_factor);
+        sparse_analysis_free(&derived_analysis);
+        sparse_free(A_perm);
+        sparse_free(A_perturb);
+    }
+
+    if (!ok) {
+        fprintf(stderr, "bench_refactor_csc: kkt-150 — aborted, partial timings discarded\n");
+        sparse_factor_free(&factors_public);
+        sparse_analysis_free(&an);
+        free(ones);
+        free(b);
+        free(x_public);
+        free(x_csc);
+        sparse_free(A);
+        return 1;
+    }
+
+    double refactor_public_ms = refactor_public_total * 1000.0 / (double)repeat;
+    double refactor_csc_ms = refactor_csc_total * 1000.0 / (double)repeat;
+    double solve_public_ms = solve_public_total * 1000.0 / (double)repeat;
+    double solve_csc_ms = solve_csc_total * 1000.0 / (double)repeat;
+    double speedup = refactor_public_ms / refactor_csc_ms;
+
+    emit_csv_row("kkt-150", "ldlt_kkt", n, nnz, analyze_ms, refactor_public_ms, refactor_csc_ms,
+                 solve_public_ms, solve_csc_ms, speedup, res_public, res_csc);
+
+    sparse_factor_free(&factors_public);
+    sparse_analysis_free(&an);
+    free(ones);
+    free(b);
+    free(x_public);
     free(x_csc);
     sparse_free(A);
     return 0;
@@ -360,6 +578,7 @@ static const int default_matrix_count =
 
 int main(int argc, char **argv) {
     int repeat = 10;
+    int indefinite_kkt = 0;
     const char *single_path = NULL;
 
     for (int i = 1; i < argc; i++) {
@@ -367,22 +586,26 @@ int main(int argc, char **argv) {
             repeat = atoi(argv[++i]);
             if (repeat < 1)
                 repeat = 1;
+        } else if (!strcmp(argv[i], "--indefinite-kkt")) {
+            indefinite_kkt = 1;
         } else if (argv[i][0] != '-') {
             single_path = argv[i];
         }
     }
 
-    printf("matrix,n,nnz,analyze_ms,"
-           "refactor_ll_ms,refactor_csc_ms,"
-           "solve_ll_ms,solve_csc_ms,"
-           "speedup_refactor,res_ll,res_csc\n");
+    printf("matrix,workflow,n,nnz,analyze_ms,"
+           "refactor_public_ms,refactor_csc_ms,"
+           "solve_public_ms,solve_csc_ms,"
+           "speedup_refactor,res_public,res_csc\n");
 
     int rc = 0;
-    if (single_path) {
-        rc |= bench_matrix(single_path, repeat);
+    if (indefinite_kkt) {
+        rc |= bench_indefinite_kkt(repeat);
+    } else if (single_path) {
+        rc |= bench_spd_matrix(single_path, repeat);
     } else {
         for (int i = 0; i < default_matrix_count; i++)
-            rc |= bench_matrix(default_matrices[i], repeat);
+            rc |= bench_spd_matrix(default_matrices[i], repeat);
     }
     return rc;
 }

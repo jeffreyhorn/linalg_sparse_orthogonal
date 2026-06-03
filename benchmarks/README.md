@@ -62,7 +62,7 @@ actually supports:
 | `bench_convergence` | Iterative-solver convergence rates           | (in `make bench`)     |
 | `bench_svd`         | Sparse SVD (bidiagonalisation + QR)          | (in `make bench`)     |
 | `bench_refactor`    | Cholesky analyze-once / refactor-many path   | (in `make bench`)     |
-| `bench_refactor_csc`| Same repeated-run path, plus CSC supernodal comparison | (in `make bench`)     |
+| `bench_refactor_csc`| Repeated-run direct path proof: SPD Cholesky by default, plus optional indefinite LDL^T KKT mode | (in `make bench`)     |
 | `bench_colamd`      | COLAMD ordering quality                      | (in `make bench`)     |
 | `bench_bicgstab`    | BiCGStab convergence                         | (in `make bench`)     |
 | `bench_chol_csc`    | CSC Cholesky (Sprint 18)                     | (in `make bench`)     |
@@ -79,10 +79,23 @@ for the public repeated-run direct lifecycle:
     average later refactor cost, repeated-run average cost, speedup, and final
     residual
 - `bench_refactor_csc`
-  - keeps the same caller story, then compares linked-list refactorization
-    against the CSC/supernodal path on the same repeated-run workflow
-  - reports CSV rows with analyze cost, linked-list refactor time, CSC
-    refactor time, solve times, speedup, and residuals
+  - default mode keeps the SPD / Cholesky repeated-run workflow and compares
+    the public repeated-run path against the direct CSC/supernodal completion
+    path
+  - `--indefinite-kkt` switches to a synthetic above-threshold KKT saddle-point
+    workload and compares the public repeated-run LDL^T path against the direct
+    resolved-analysis CSC completion path
+  - reports CSV rows with:
+    - `matrix`
+    - `workflow`
+    - `analyze_ms`
+    - `refactor_public_ms`
+    - `refactor_csc_ms`
+    - `solve_public_ms`
+    - `solve_csc_ms`
+    - `speedup_refactor`
+    - `res_public`
+    - `res_csc`
 
 ## bench_main
 

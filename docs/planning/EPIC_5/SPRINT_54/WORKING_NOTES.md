@@ -1557,3 +1557,135 @@ solver fence:
 - excluded families still read as intentional exclusions, not half-supported
   promises
 - the final validation checklist is now explicit and ready for Day 13
+
+## Sprint 54 Day 13 - validation sweep
+
+Date: 2026-06-03
+Commit intent: run the full required gate, confirm the reviewed Makefile/CMake
+truthfulness anchors, and rerun the high-signal iterative/eigensolver
+repeated-run follow-ons from the landed Sprint 54 state.
+
+### Commands run
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- `ctest -N --test-dir build/quality-review-cmake`
+- `./build/test_iterative`
+- `./build/test_minres`
+- `./build/test_eigs`
+- `./build/test_eigs_lobpcg`
+- `./build/example_iterative`
+- `./build/example_ic_minres`
+- `./build/example_eigs`
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+
+### Findings
+
+#### 1. The full required gate passed from the landed Sprint 54 state
+
+Day 13 completed the full required gate successfully:
+
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+- `make quality-review-full` passed
+
+Interpretation:
+
+- Sprint 54 reached a real validated close state rather than only a
+  compatibility-audited state
+
+#### 2. The reviewed Makefile/CMake truthfulness anchors stayed exact
+
+Measured Day 13 reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- reviewed CMake total time from `make quality-review-full` = `144.25 sec`
+
+Interpretation:
+
+- the maintained reviewed closeout contract is still stable after the final
+  supported repeated-run handle completion work
+
+#### 3. The supported iterative repeated-run handle proof set stayed green
+
+Targeted iterative reruns all passed:
+
+- `./build/test_iterative`
+  - `79 / 79`
+- `./build/test_minres`
+  - `43 / 43`
+
+The shipped iterative examples also stayed healthy:
+
+- `./build/example_iterative`
+  - unpreconditioned GMRES: `25` iterations, residual `9.56e-11`
+  - ILU(0)-preconditioned GMRES: `9` iterations, residual `3.14e-11`
+- `./build/example_ic_minres`
+  - MINRES on the `42x42` KKT system: `39` iterations, residual `3.87e-11`
+  - Jacobi-MINRES: `26` iterations, residual `4.16e-11`
+  - block MINRES on the `28x28` KKT system: residual `8.06e-16`
+
+Measured iterative reuse benchmark results:
+
+- `./build/bench_iterative_reuse`
+  - `cg-tridiag-300`: `1.12x`
+  - `gmres-unsym-220`: `0.85x`
+  - `minres-kkt-42`: `1.28x`
+
+Interpretation:
+
+- the final supported iterative handle set:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- stayed correct and measurable across direct tests, examples, and the public
+  reuse benchmark surface
+
+#### 4. The supported eigensolver repeated-run handle proof set stayed green
+
+Targeted eigensolver reruns all passed:
+
+- `./build/test_eigs`
+  - `30 / 30`
+- `./build/test_eigs_lobpcg`
+  - `26 / 26`
+
+The shipped eigensolver example also stayed healthy:
+
+- `./build/example_eigs`
+  - nos4 largest-eigenvalue case: `5 / 5` pairs in `115` Lanczos iterations
+  - KKT nearest-`sigma` case: `3 / 3` pairs in `6` Lanczos iterations
+  - explicit LOBPCG on `bcsstk04`: `3 / 3` pairs in `62` outer iterations
+  - LOBPCG reported residual = `8.808e-09`
+
+Measured eigensolver reuse benchmark results:
+
+- `./build/bench_eigs_reuse`
+  - `growm-nos4-k5`: `1.00x`
+  - `thick-bcsstk14-k5`: `0.99x`
+  - `lobpcg-diag40-k3`: `1.00x`
+  - all three kept exact eigenvalue parity:
+    - `|lambda|max diff = 0.000e+00`
+
+Interpretation:
+
+- the final supported eigensolver handle backend set:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+- stayed aligned across direct proof, examples, and the public reuse benchmark
+
+### Day 13 outcome
+
+Sprint 54 now has a validated measured close state:
+
+- the full required gate passed
+- the reviewed Makefile/CMake truthfulness anchors remained exact
+- the supported iterative and eigensolver repeated-run follow-ons stayed green
+- no new reconciliation queue surfaced during validation

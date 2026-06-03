@@ -1418,3 +1418,142 @@ That leaves the branch ready for:
 - compatibility audit
 - final validation sweep
 - closeout
+
+## Sprint 54 Day 12 - post-landing compatibility audit
+
+Date: 2026-06-03
+Commit intent: audit the landed Sprint 54 branch against the preserved
+public-handle fence and chosen exclusion boundaries, then fix the Day 13
+validation checklist from the landed state.
+
+### Audit scope
+
+The Day 12 audit re-checked the highest-signal surfaces across:
+
+- public headers
+  - `include/sparse_iterative.h`
+  - `include/sparse_eigs.h`
+- caller-facing docs
+  - `README.md`
+  - `examples/README.md`
+  - `docs/tutorial.md`
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+- proof surfaces
+  - `tests/test_iterative.c`
+  - `tests/test_eigs.c`
+  - `benchmarks/bench_iterative_reuse.c`
+  - `benchmarks/bench_eigs_reuse.c`
+- example surfaces
+  - `example_iterative`
+  - `example_ic_minres`
+  - `example_eigs`
+
+### Day 12 findings
+
+#### 1. The landed branch still matches the preserved one-shot vs handle fence
+
+The main compatibility rule still holds everywhere that matters:
+
+- one-shot solver APIs remain first-class
+- repeated-run handles remain opt-in paths for stable-dimension repeated runs
+- the shipped examples still read as intentionally one-shot-first rather than
+  as accidental omissions
+
+This stayed consistent across:
+
+- `README.md`
+- `examples/README.md`
+- the public handle sections in `include/sparse_iterative.h`
+- the public handle sections in `include/sparse_eigs.h`
+
+#### 2. The supported iterative repeated-run handle set remains honest and bounded
+
+The final intended iterative handle surface still reads consistently as:
+
+- `CG`
+- `GMRES`
+- `MINRES`
+
+And the intended exclusions still read as exclusions rather than broken partial
+implementations:
+
+- `BiCGSTAB`
+- block iterative workflows
+
+No benchmark, example, or README section audited on Day 12 overclaimed handle
+support for those excluded families.
+
+#### 3. The supported eigensolver repeated-run handle set remains honest and bounded
+
+The final intended eigensolver handle surface still reads consistently as:
+
+- grow-m Lanczos
+- thick-restart Lanczos
+- explicit `LOBPCG`
+
+The direct test surface, benchmark surface, and user-facing docs now all agree
+on that same three-backend set:
+
+- `tests/test_eigs.c`
+- `benchmarks/bench_eigs_reuse.c`
+- `README.md`
+- `examples/README.md`
+
+#### 4. Reuse semantics remain honestly bounded
+
+The repeated-run lifecycle wording still preserves the intended honesty line:
+
+- reuse preserves allocation capacity
+- reuse does not preserve old numerical Krylov / Ritz / search-direction state
+- one-shot APIs remain supported and are not deprecated by Sprint 54
+
+The same honesty line also remains consistent with the benchmark proof and the
+example adoption surfaces.
+
+#### 5. No blocker-level drift surfaced
+
+Day 12 did not surface a blocker-level mismatch between:
+
+- code
+- tests
+- benchmarks
+- examples
+- top-level docs
+
+The only remaining queue is future-facing rather than corrective:
+
+- larger tutorial modernization if later epics want explicit repeated-run
+  teaching examples
+- any later public-handle expansion beyond the bounded Sprint 54 fence
+
+### Day 13 validation checklist
+
+The final validation checklist is now fixed from the landed Day 9-11 state:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- `ctest -N --test-dir build/quality-review-cmake`
+- targeted Sprint 54 follow-ons:
+  - `./build/test_iterative`
+  - `./build/test_minres`
+  - `./build/test_eigs`
+  - `./build/test_eigs_lobpcg`
+  - `./build/example_iterative`
+  - `./build/example_ic_minres`
+  - `./build/example_eigs`
+  - `./build/bench_iterative_reuse`
+  - `./build/bench_eigs_reuse`
+
+### Day 12 outcome
+
+The landed Sprint 54 branch still matches the preserved public repeated-run
+solver fence:
+
+- one-shot APIs remain first-class
+- repeated-run handles remain bounded opt-in paths
+- excluded families still read as intentional exclusions, not half-supported
+  promises
+- the final validation checklist is now explicit and ready for Day 13

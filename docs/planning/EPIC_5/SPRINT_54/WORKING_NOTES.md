@@ -1689,3 +1689,128 @@ Sprint 54 now has a validated measured close state:
 - the reviewed Makefile/CMake truthfulness anchors remained exact
 - the supported iterative and eigensolver repeated-run follow-ons stayed green
 - no new reconciliation queue surfaced during validation
+
+## Sprint 54 Day 14 - closeout and handoff
+
+Date: 2026-06-03
+Commit intent: close Sprint 54 from the validated Day 13 baseline, summarize
+the delivered repeated-run solver lifecycle package, and hand off the bounded
+post-Sprint-54 queue without reopening the public support fence.
+
+### Commands run
+
+- `tail -n 220 docs/planning/EPIC_5/SPRINT_54/WORKING_NOTES.md`
+- `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_53/artifacts/day14-closeout-and-handoff.md`
+- `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_54/PLAN.md`
+
+### Findings
+
+#### 1. Sprint 54 now closes from a validated repeated-run solver state, not from partial support
+
+The final Sprint 54 package now includes:
+
+- explicit steady-state public repeated-run support decisions
+- public iterative handles for:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- explicit retained exclusions for:
+  - `BiCGSTAB`
+  - block iterative workflows
+- a tightened public eigensolver handle story spanning:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+- aligned direct proof, reuse-benchmark proof, and caller-facing README/example
+  wording
+
+Interpretation:
+
+- Sprint 54 completed the bounded “support boundary plus proof alignment” work
+  it set out to land rather than stopping at one more handle patch
+
+#### 2. The final validated baseline is explicit and stable
+
+Sprint 54 closes from the Day 13 validated baseline:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Maintained truthfulness anchors:
+
+- reviewed CMake parity = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- reviewed CMake total time = `144.25 sec`
+
+Representative measured repeated-run evidence stayed healthy:
+
+- `bench_iterative_reuse`
+  - `cg-tridiag-300 1.12x`
+  - `gmres-unsym-220 0.85x`
+  - `minres-kkt-42 1.28x`
+- `bench_eigs_reuse`
+  - `growm-nos4-k5 1.00x`
+  - `thick-bcsstk14-k5 0.99x`
+  - `lobpcg-diag40-k3 1.00x`
+- `example_eigs`
+  - explicit `LOBPCG` on `bcsstk04`
+  - `3 / 3` pairs
+  - `62` outer iterations
+  - residual `8.808e-09`
+
+Interpretation:
+
+- Sprint 54 hands off measured repeated-run solver evidence, not only API and
+  documentation claims
+
+#### 3. The preserved compatibility fence is still intact
+
+Sprint 54 kept the intended public repeated-run solver fence:
+
+- one-shot solver APIs remain first-class
+- repeated-run handles remain bounded opt-in paths
+- supported iterative handle families are now explicit and complete for the
+  intended set:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- supported eigensolver handle backends are now explicit and fully proved:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+- excluded families still read as intentional exclusions instead of
+  half-supported promises:
+  - `BiCGSTAB`
+  - block iterative workflows
+
+Interpretation:
+
+- the sprint strengthened the steady-state public contract without reopening
+  broad solver-API redesign or support-surface ambiguity
+
+#### 4. The remaining queue is future-facing rather than a hidden closeout defect
+
+The remaining queue after Sprint 54 is bounded to later follow-on work such as:
+
+- larger tutorial/example modernization if a later sprint wants explicit
+  repeated-run teaching code
+- any later public-handle expansion beyond the bounded Sprint 54 support set
+- broader benchmark or caller-surface evolution built on the now-explicit
+  repeated-run fence
+
+Interpretation:
+
+- Day 14 did not surface a blocker that should force Sprint 54 replanning or a
+  `PROJECT_PLAN.md` correction
+
+### Day 14 outcome
+
+Sprint 54 is complete:
+
+- it closes from a validated, well-bounded repeated-run solver lifecycle state
+- it preserves the bounded public support fence
+- it hands off a coherent next-step package for Sprint 55
+- it does not require a `PROJECT_PLAN.md` update

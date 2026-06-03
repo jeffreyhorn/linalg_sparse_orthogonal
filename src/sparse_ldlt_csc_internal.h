@@ -332,9 +332,9 @@ sparse_err_t ldlt_csc_writeback_to_ldlt(const LdltCsc *F, double tol, sparse_ldl
  *   2. seeds `pivot_size` from `pre_factor`
  *   3. attempts `ldlt_csc_eliminate_supernodal`
  *   4. falls back to `pre_factor` only when the batched path returns
- *      `SPARSE_ERR_BADARG`
+ *      `SPARSE_ERR_PIVOT_REJECTED`
  *   5. propagates other batched-path failures unchanged
- *   5. writes the chosen factor back into `sparse_ldlt_t`
+ *   6. writes the chosen factor back into `sparse_ldlt_t`
  *
  * On the batched-success path, the final public permutation is overwritten
  * with `pre_factor->perm` so callers still observe the resolved BK
@@ -808,7 +808,7 @@ sparse_err_t ldlt_csc_supernode_writeback(LdltCsc *F, idx_t s_start, idx_t s_siz
  * @param tol              Drop / singularity tolerance for the dense
  *                         factor; <=0 uses SPARSE_DROP_TOL.
  * @return SPARSE_OK on success.  SPARSE_ERR_NULL / SPARSE_ERR_BADARG
- *         on invalid args.  SPARSE_ERR_BADARG if `pivot_size_block`
+ *         on invalid args.  SPARSE_ERR_PIVOT_REJECTED if `pivot_size_block`
  *         disagrees with `F->pivot_size[s_start..s_start+s_size)`
  *         (the dense factor made a different BK decision than the
  *         cached scalar pass — caller should fall back).
@@ -868,8 +868,8 @@ sparse_err_t ldlt_csc_supernode_eliminate_panel(const double *L_diag, const doub
  * @param min_size  Minimum supernode size to batch (>= 1).  Below
  *                  `min_size`, columns fall through to the scalar path.
  * @return SPARSE_OK on success.  Same error codes as
- *         `ldlt_csc_eliminate_native` plus `SPARSE_ERR_BADARG` if any
- *         batched supernode's BK decision diverged from cached
+ *         `ldlt_csc_eliminate_native` plus `SPARSE_ERR_PIVOT_REJECTED`
+ *         if any batched supernode's BK decision diverged from cached
  *         `F->pivot_size`.
  */
 sparse_err_t ldlt_csc_eliminate_supernodal(LdltCsc *F, idx_t min_size);

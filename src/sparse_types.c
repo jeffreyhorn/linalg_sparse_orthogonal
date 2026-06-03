@@ -41,6 +41,8 @@ const char *sparse_strerror(sparse_err_t err) {
         return "numerical failure (NaN or Inf)";
     case SPARSE_ERR_CANCELLED:
         return "operation cancelled via progress callback";
+    case SPARSE_ERR_PIVOT_REJECTED:
+        return "cached pivot pattern rejected";
     }
     return "unknown error";
 }

@@ -825,8 +825,9 @@ sparse_err_t ldlt_csc_factor_with_resolved_analysis(const SparseMatrix *mat,
 
     /* The CSC completion seam is intentionally narrow:
      * - SPARSE_OK    => retain the batched supernodal completion
-     * - SPARSE_ERR_BADARG => fall back to the resolved scalar pre-pass factor
-     *   because the batched path rejected the cached pivot pattern
+     * - SPARSE_ERR_PIVOT_REJECTED => fall back to the resolved scalar
+     *   pre-pass factor because the batched path rejected the cached
+     *   pivot pattern
      * Any other error (NULL / BADARG contract violation / ALLOC / SINGULAR)
      * is a real helper failure and must propagate rather than being masked
      * as a dispatch fallback. */
@@ -836,7 +837,7 @@ sparse_err_t ldlt_csc_factor_with_resolved_analysis(const SparseMatrix *mat,
         for (idx_t i = 0; i < analysis->n; i++)
             F_batched->perm[i] = pre_factor->perm[i];
         source = F_batched;
-    } else if (err != SPARSE_ERR_BADARG) {
+    } else if (err != SPARSE_ERR_PIVOT_REJECTED) {
         ldlt_csc_free(F_batched);
         return err;
     }

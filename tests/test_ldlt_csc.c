@@ -784,7 +784,7 @@ static void test_supernodal_random_indefinite_30x30(void) {
         F2->pivot_size[k] = F1->pivot_size[k];
 
     sparse_err_t err_b = ldlt_csc_eliminate_supernodal(F2, /*min_size=*/2);
-    if (err_b == SPARSE_ERR_BADARG) {
+    if (err_b == SPARSE_ERR_PIVOT_REJECTED) {
         /* The batched path's pivot-stability check rejected the
          * supernode (e.g., dense BK diverged on numerical drift).
          * Skip — the test's main purpose is to verify equivalence

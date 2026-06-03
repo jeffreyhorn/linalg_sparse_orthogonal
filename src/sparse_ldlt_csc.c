@@ -2486,7 +2486,7 @@ sparse_err_t ldlt_csc_supernode_eliminate_diag(const LdltCsc *F, idx_t s_start, 
      * caller must fall back to scalar. */
     for (idx_t j = 0; j < s_size; j++) {
         if (pivot_size_block[j] != F->pivot_size[s_start + j])
-            return SPARSE_ERR_BADARG;
+            return SPARSE_ERR_PIVOT_REJECTED;
     }
 
     return SPARSE_OK;

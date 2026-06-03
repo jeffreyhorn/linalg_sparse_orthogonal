@@ -81,6 +81,9 @@ typedef enum {
                                     write to the input — cancellation leaves the input matrix
                                     bit-identical.  See `sparse_progress_cb_t` below and the
                                     per-routine opts headers for the contract. */
+    SPARSE_ERR_PIVOT_REJECTED = 16, /**< Cached pivot pattern rejected; caller should fall back
+                                         to a scalar or rebuild route instead of treating the
+                                         condition as a generic argument failure. */
 } sparse_err_t;
 
 /* ─── Progress / cancel callback (Sprint 29 Day 6, Item 4) ──────────── */

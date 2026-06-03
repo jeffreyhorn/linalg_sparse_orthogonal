@@ -252,6 +252,7 @@ The one-shot APIs remain fully supported:
 
 - `sparse_solve_cg(...)`
 - `sparse_solve_gmres(...)`
+- `sparse_solve_minres(...)`
 - `sparse_eigs_sym(...)`
 
 Use them when:
@@ -273,8 +274,10 @@ The public repeated-run iterative surface is:
 - `sparse_iter_handle_init(...)`
 - `sparse_iter_handle_prepare_cg(...)`
 - `sparse_iter_handle_prepare_gmres(...)`
+- `sparse_iter_handle_prepare_minres(...)`
 - `sparse_solve_cg_with_handle(...)`
 - `sparse_solve_gmres_with_handle(...)`
+- `sparse_solve_minres_with_handle(...)`
 - `sparse_iter_handle_free(...)`
 
 The public repeated-run eigensolver surface is:
@@ -298,6 +301,13 @@ Important behavior:
   state
 - re-preparing may grow capacity and discards prior Krylov / Ritz /
   search-direction state
+- Sprint 54's supported iterative repeated-run handle families are:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- Sprint 54 does not expose public repeated-run handles for:
+  - `BiCGSTAB`
+  - block iterative workflows
 - existing one-shot entries remain the compatibility path and are not
   deprecated by Sprint 49
 
@@ -344,7 +354,7 @@ Important behavior:
 | [`sparse_cholesky.h`](include/sparse_cholesky.h) | Cholesky factorization and solve for SPD matrices |
 | [`sparse_ldlt.h`](include/sparse_ldlt.h) | LDL^T factorization with Bunch-Kaufman pivoting for symmetric indefinite matrices |
 | [`sparse_analysis.h`](include/sparse_analysis.h) | Symbolic analysis, numeric factorization, refactorization (analyze-once workflow) |
-| [`sparse_iterative.h`](include/sparse_iterative.h) | CG, GMRES, MINRES, BiCGSTAB; block CG/GMRES/MINRES; GMRES left/right preconditioning; explicit repeated-run handles for CG/GMRES |
+| [`sparse_iterative.h`](include/sparse_iterative.h) | CG, GMRES, MINRES, BiCGSTAB; block CG/GMRES/MINRES; GMRES left/right preconditioning; explicit repeated-run handles for CG/GMRES/MINRES |
 | [`sparse_ilu.h`](include/sparse_ilu.h) | ILU(0) and ILUT incomplete factorization preconditioners |
 | [`sparse_ic.h`](include/sparse_ic.h) | IC(0) incomplete Cholesky preconditioner for SPD systems |
 | [`sparse_qr.h`](include/sparse_qr.h) | Column-pivoted QR factorization, least-squares, rank, null space, refinement |
@@ -450,6 +460,7 @@ factor contents.
 - `sparse_iter_handle_init(&handle)` / `sparse_iter_handle_prepare_cg(&handle, n)` / `sparse_solve_cg_with_handle(A, b, x, &opts, precond, ctx, &result, &handle)` / `sparse_iter_handle_free(&handle)` — explicit repeated-run CG lifecycle path
 - `sparse_solve_gmres(A, b, x, &opts, precond, ctx, &result)` — Restarted GMRES(k) with left/right preconditioning
 - `sparse_iter_handle_prepare_gmres(&handle, n, restart)` / `sparse_solve_gmres_with_handle(A, b, x, &opts, precond, ctx, &result, &handle)` — explicit repeated-run GMRES lifecycle path
+- `sparse_iter_handle_prepare_minres(&handle, n)` / `sparse_solve_minres_with_handle(A, b, x, &opts, precond, ctx, &result, &handle)` — explicit repeated-run MINRES lifecycle path
 - `sparse_cg_solve_block(A, B, nrhs, X, &opts, precond, ctx, &result)` — Block CG for multiple RHS
 - `sparse_gmres_solve_block(A, B, nrhs, X, &opts, precond, ctx, &result)` — Block GMRES for multiple RHS
 - `sparse_solve_cg_mf(matvec, ctx, n, b, x, &opts, precond, ctx, &result)` — Matrix-free CG
@@ -459,6 +470,10 @@ factor contents.
 - `sparse_solve_bicgstab(A, b, x, &opts, precond, ctx, &result)` — BiCGSTAB for general nonsymmetric systems
 - `sparse_bicgstab_solve_block(A, B, nrhs, X, &opts, precond, ctx, &result)` — Block BiCGSTAB for multiple RHS
 - `sparse_solve_bicgstab_mf(matvec, ctx, n, b, x, &opts, precond, ctx, &result)` — Matrix-free BiCGSTAB
+
+Sprint 54's public repeated-run iterative handle support remains intentionally
+bounded to `CG`, `GMRES`, and `MINRES`; `BiCGSTAB` and block iterative
+workflows remain one-shot compatibility surfaces.
 
 **ILU(0) / ILUT preconditioners:**
 - `sparse_ilu_factor(A, &ilu)` — ILU(0) factorization (no fill-in beyond A's pattern)

@@ -1224,3 +1224,109 @@ The remaining queue can now move on from benchmark support-set completeness to:
 
 - example/README support-boundary adoption
 - final validation and closeout
+
+## Sprint 54 Day 10 - regression and example adoption batch I
+
+Date: 2026-06-03
+Commit intent: tighten the highest-value direct proof and user-facing wording
+for the final repeated-run solver boundary without reopening broader tutorial,
+example-corpus, or solver-family scope.
+
+### What changed
+
+- Expanded `tests/test_eigs.c` with:
+  - `test_public_handle_thick_restart_prepare_reuse_and_growth`
+- The new regression proves the last still-implicit supported eigensolver
+  repeated-run branch directly:
+  - explicit `SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`
+  - explicit prepare on a smaller problem
+  - repeated reuse on the same prepared shape
+  - later on-demand growth to a larger problem and larger `k`
+  - preserved `backend_used == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`
+- Updated the top-level `README.md` repeated-run sections so they now state the
+  final supported iterative-handle set explicitly:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- The README batch also makes the bounded exclusions explicit:
+  - `BiCGSTAB` remains outside the public repeated-run handle surface
+  - block iterative workflows remain compatibility surfaces
+- Updated the `README.md` API summary surfaces so they match the landed state:
+  - `sparse_iterative.h` summary row
+  - repeated-run handle list
+  - key-functions iterative section
+- Updated `examples/README.md` so the shipped-example contract now matches the
+  final support boundary:
+  - examples remain intentionally one-shot-first
+  - iterative handle support is named explicitly
+  - eigensolver handle support is named explicitly
+  - exclusions for `BiCGSTAB` and block iterative handles are stated directly
+
+### Why this stayed inside the Sprint 54 fence
+
+- No new public API family was added.
+- No example source was broadened into a dedicated public-handle demo.
+- `BiCGSTAB` stayed out of scope for public repeated-run handles.
+- Block iterative workflows stayed out of scope for public repeated-run
+  handles.
+- The batch only closed the highest-value remaining proof/docs adoption drift:
+  - explicit thick-restart public-handle proof
+  - strongest README/examples support-boundary wording
+
+### Validation
+
+Required Day 10 gates:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Focused Day 10 follow-ons:
+
+- `./build/test_eigs` -> `29 / 29`
+- `./build/test_eigs_lobpcg` -> `26 / 26`
+- `./build/example_eigs`
+- `./build/example_iterative`
+- `./build/example_ic_minres`
+- `./build/bench_eigs_reuse`
+
+Representative direct results:
+
+- `test_eigs` now directly passes the full bounded public repeated-run backend
+  proof set:
+  - `test_public_handle_prepare_and_reuse`
+  - `test_public_handle_thick_restart_prepare_reuse_and_growth`
+  - `test_public_handle_lobpcg_prepare_reuse_and_growth`
+- `bench_eigs_reuse` stayed aligned with the final supported eigensolver
+  handle set:
+  - `growm-nos4-k5`: `1.00x`
+  - `thick-bcsstk14-k5`: `1.05x`
+  - `lobpcg-diag40-k3`: `1.05x`
+  - all three kept exact eigenvalue parity:
+    - `|lambda|max diff = 0.000e+00`
+- `example_eigs` stayed stable on the explicit LOBPCG teaching path:
+  - `bcsstk04`: `3 / 3` smallest eigenpairs
+  - `62` outer iterations
+  - `backend_used = LOBPCG`
+  - `residual_norm = 8.808e-09`
+- `example_iterative` remained the intended one-shot teaching surface:
+  - GMRES: `25` iterations, `9.56e-11`
+  - ILU(0)-GMRES: `9` iterations, `3.14e-11`
+- `example_ic_minres` remained the bounded MINRES teaching surface:
+  - `MINRES`: `39` iterations, `3.87e-11`
+  - `Jacobi-MINRES`: `26` iterations, `4.16e-11`
+
+### Day 10 outcome
+
+Sprint 54’s highest-value public solver-lifecycle surfaces now have both:
+
+- direct proof for the full intended eigensolver handle backend set
+- user-facing wording that matches the final support boundary
+
+The remaining queue can now move on from first adoption/proof cleanup to:
+
+- any final residual proof/docs sweep
+- compatibility audit
+- validation closeout

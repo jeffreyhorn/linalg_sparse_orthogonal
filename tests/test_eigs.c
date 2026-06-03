@@ -318,6 +318,70 @@ static void test_public_handle_validation_and_on_demand(void) {
 /* Public repeated-run eigensolver handle: explicit LOBPCG should reuse the
  * same public handle surface, preserve backend selection, and grow on demand
  * when a later solve needs a larger working set. */
+static void test_public_handle_thick_restart_prepare_reuse_and_growth(void) {
+    double diag_small[16];
+    double diag_large[24];
+    for (idx_t i = 0; i < 16; i++)
+        diag_small[i] = (double)(i + 1);
+    for (idx_t i = 0; i < 24; i++)
+        diag_large[i] = (double)(i + 1);
+
+    SparseMatrix *A_small = build_diag(16, diag_small);
+    SparseMatrix *A_large = build_diag(24, diag_large);
+    ASSERT_NOT_NULL(A_small);
+    ASSERT_NOT_NULL(A_large);
+
+    double vals1[3] = {0, 0, 0};
+    double vals2[3] = {0, 0, 0};
+    double vals3[4] = {0, 0, 0, 0};
+    sparse_eigs_t r1 = {.eigenvalues = vals1};
+    sparse_eigs_t r2 = {.eigenvalues = vals2};
+    sparse_eigs_t r3 = {.eigenvalues = vals3};
+    sparse_eigs_opts_t opts_small = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-12,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART,
+        .compute_vectors = 0,
+    };
+    sparse_eigs_opts_t opts_large = {
+        .which = SPARSE_EIGS_LARGEST,
+        .tol = 1e-12,
+        .backend = SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART,
+        .compute_vectors = 0,
+    };
+    sparse_eigs_handle_t handle = {0};
+
+    ASSERT_ERR(sparse_eigs_handle_prepare(&handle, 16, 3, &opts_small), SPARSE_OK);
+    REQUIRE_OK(sparse_eigs_sym_with_handle(A_small, 3, &opts_small, &r1, &handle));
+    REQUIRE_OK(sparse_eigs_sym_with_handle(A_small, 3, &opts_small, &r2, &handle));
+
+    ASSERT_EQ(r1.backend_used, SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART);
+    ASSERT_EQ(r2.backend_used, SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART);
+    ASSERT_EQ(r1.n_converged, 3);
+    ASSERT_EQ(r2.n_converged, 3);
+    ASSERT_EQ(r1.iterations, r2.iterations);
+    ASSERT_NEAR(vals1[0], 16.0, 1e-9);
+    ASSERT_NEAR(vals1[1], 15.0, 1e-9);
+    ASSERT_NEAR(vals1[2], 14.0, 1e-9);
+    ASSERT_NEAR(vals2[0], 16.0, 1e-9);
+    ASSERT_NEAR(vals2[1], 15.0, 1e-9);
+    ASSERT_NEAR(vals2[2], 14.0, 1e-9);
+
+    /* Underprepared handle should grow on demand for a later larger
+     * thick-restart solve while staying on the same public surface. */
+    REQUIRE_OK(sparse_eigs_sym_with_handle(A_large, 4, &opts_large, &r3, &handle));
+    ASSERT_EQ(r3.backend_used, SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART);
+    ASSERT_EQ(r3.n_converged, 4);
+    ASSERT_NEAR(vals3[0], 24.0, 1e-9);
+    ASSERT_NEAR(vals3[1], 23.0, 1e-9);
+    ASSERT_NEAR(vals3[2], 22.0, 1e-9);
+    ASSERT_NEAR(vals3[3], 21.0, 1e-9);
+
+    sparse_eigs_handle_free(&handle);
+    sparse_free(A_small);
+    sparse_free(A_large);
+}
+
 static void test_public_handle_lobpcg_prepare_reuse_and_growth(void) {
     double diag_small[8];
     double diag_large[12];
@@ -1363,6 +1427,7 @@ int main(void) {
     RUN_TEST(test_bad_args);
     RUN_TEST(test_public_handle_prepare_and_reuse);
     RUN_TEST(test_public_handle_validation_and_on_demand);
+    RUN_TEST(test_public_handle_thick_restart_prepare_reuse_and_growth);
     RUN_TEST(test_public_handle_lobpcg_prepare_reuse_and_growth);
 
     /* Day 12: shift-invert Lanczos. */

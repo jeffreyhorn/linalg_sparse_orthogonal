@@ -74,7 +74,7 @@ actually supports:
 The strongest benchmark-side public repeated-run adoption surfaces split into
 two bounded groups:
 
-- direct repeated-run direct lifecycle:
+- direct repeated-run lifecycle:
   - `bench_refactor`
   - `bench_refactor_csc`
 - iterative/eigensolver public handle proof:

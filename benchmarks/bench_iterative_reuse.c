@@ -269,6 +269,8 @@ static sparse_err_t run_minres_repeated_case(const char *name, SparseMatrix *A, 
             break;
     }
     double t_one_shot = wall_time() - t0;
+    if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED)
+        goto cleanup;
 
     double one_shot_rr = compute_rel_residual(A, b, x, n);
 

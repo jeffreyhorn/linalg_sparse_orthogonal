@@ -1,0 +1,51 @@
+Sprint 55 Day 1 authoritative inputs
+====================================
+
+Planning sources
+----------------
+- docs/planning/EPIC_5/PROJECT_PLAN.md
+- docs/planning/EPIC_5/SPRINT_55/PLAN.md
+
+Inherited closeout / baseline sources
+-------------------------------------
+- docs/planning/EPIC_5/SPRINT_54/artifacts/day14-closeout-and-handoff.md
+- docs/planning/EPIC_5/SPRINT_54/RETROSPECTIVE.md
+- docs/planning/EPIC_5/reviews/review-codex-2026-05-31.md
+- docs/planning/EPIC_5/reviews/todo-codex-2026-05-31.md
+
+Validation anchors
+------------------
+- make quality-review-full
+- ctest -N --test-dir build/quality-review-cmake
+
+Primary implementation / proof hotspots
+---------------------------------------
+- include/sparse_iterative.h
+- include/sparse_eigs.h
+- src/sparse_iterative.c
+- src/sparse_eigs.c
+- src/sparse_iterative_workspace_internal.c
+- src/sparse_eigs_workspace_internal.c
+- src/sparse_iterative_internal.h
+- src/sparse_eigs_internal.h
+- tests/test_iterative.c
+- tests/test_eigs.c
+- tests/test_eigs_lobpcg.c
+- benchmarks/bench_iterative_reuse.c
+- benchmarks/bench_eigs_reuse.c
+- examples/example_iterative.c
+- examples/example_eigs.c
+- README.md
+- docs/maintainer_guide.md
+
+Key live symbols / seams
+------------------------
+- sparse_iter_handle_t
+- sparse_iter_handle_prepare_cg(...)
+- sparse_iter_handle_prepare_gmres(...)
+- sparse_iter_handle_prepare_minres(...)
+- sparse_eigs_handle_t
+- sparse_eigs_handle_prepare(...)
+- repeated-run vs one-shot support boundary
+- helper-vs-orchestration ownership split
+- historical sprint-history narrative in permanent implementation files

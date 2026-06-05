@@ -84,6 +84,7 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_cholesky.c
     src/sparse_csr.c
     src/sparse_iterative.c
+    src/sparse_iterative_minres.c
     src/sparse_iterative_workspace_internal.c
     src/sparse_ilu.c
     src/sparse_qr.c
@@ -99,6 +100,8 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_chol_csc.c
     src/sparse_ldlt_csc.c
     src/sparse_eigs_workspace_internal.c
+    src/sparse_eigs_lobpcg.c
+    src/sparse_eigs_thick_restart.c
     src/sparse_eigs.c
     src/sparse_graph_core.c
     src/sparse_graph_coarsen.c

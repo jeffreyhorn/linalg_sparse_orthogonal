@@ -1,4 +1,5 @@
-/* Sprint 29 Day 8 (Item 5): feature-test macro for clock_gettime. */
+/* Request POSIX clock_gettime on platforms that gate it behind
+ * _POSIX_C_SOURCE; Windows uses timespec_get below instead. */
 #if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 199309L)
 // NOLINTNEXTLINE(bugprone-reserved-identifier)
 #define _POSIX_C_SOURCE 199309L
@@ -6,48 +7,14 @@
 
 /**
  * @file sparse_eigs.c
- * @brief Sparse symmetric eigensolvers — Sprint 20 Days 7-12 +
- *        Sprint 21 thick-restart Lanczos.
+ * @brief Sparse symmetric eigensolver front door plus shared Lanczos-family
+ *        helpers.
  *
- * Sprint 20 shipped the symmetric Lanczos eigensolver end-to-end:
- * public API (Day 7), 3-term recurrence (Day 8), full MGS
- * reorthogonalization (Day 9), outer-loop restart mechanism
- * (Day 10, superseded by the Day 13 Wu/Simon redesign), Ritz
- * extraction + convergence gate (Day 11), shift-invert mode for
- * SPARSE_EIGS_NEAREST_SIGMA (Day 12), and the grow-m outer-loop
- * redesign that actually converges on SuiteSparse (Day 13).
- *
- * The Sprint 20 grow-m outer loop holds the full Lanczos basis V
- * across retries — peak memory `O(m_cap · n)`, which on bcsstk14
- * (n = 1806) reaches ~26 MB at m_cap = n.  Sprint 21 Day 1 begins
- * the thick-restart replacement that bounds peak memory at
- * `O((k_locked + m_restart) · n)` by preserving only the
- * converged Ritz subspace across restarts (Wu/Simon 2000;
- * Stathopoulos/Saad 2007).
- *
- * The Sprint 21 roadmap per SPRINT_21/PLAN.md:
- *
- *   Day 1  — arrowhead restart state (`lanczos_restart_state_t`)
- *            + `lanczos_thick_restart_iterate` signature + design
- *            block.  Compile-ready stub returning
- *            SPARSE_ERR_BADARG.
- *   Day 2  — arrowhead-to-tridiagonal Givens reduction +
- *            Ritz-locking helper that forms V_locked = V · Y_k
- *            and packs the restart state.
- *   Day 3  — phase execution: chain Lanczos phases through a
- *            restart state; outer loop composing iterate +
- *            restart + convergence.  Opt-in backend dispatch via
- *            `SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`.
- *   Day 4  — memory-bounded convergence tests + cross-backend
- *            parity vs grow-m on the Sprint 20 corpus.
- *   Days 5-6 — OpenMP reorth parallelism (both backends).
- *   Day 7  — LOBPCG API surface + Rayleigh-Ritz infrastructure
- *            stubs (`s21_lobpcg_solve` returns BADARG); design
- *            block landed here, between the Lanczos and
- *            thick-restart blocks.
- *   Days 8-10 — LOBPCG body, preconditioning, AUTO dispatch.
- *   Day 11 — permanent `benchmarks/bench_eigs.c` driver.
- *   Days 12-14 — tests, docs, retrospective.
+ * This file owns the public entry points, backend selection, shared Lanczos
+ * kernels, shift-invert setup, dense Jacobi helper, and refinement logic.
+ * Backend-specific implementations that grew large enough to stand on their
+ * own live in `src/sparse_eigs_thick_restart.c` and
+ * `src/sparse_eigs_lobpcg.c`.
  */
 
 #include "sparse_eigs.h"
@@ -68,9 +35,9 @@
 #include <string.h>
 #include <time.h>
 
-/* Sprint 29 Day 7 (Item 4): progress / cancel wiring helper.
- * Day 8 added the _WIN32 fallback to `timespec_get(..., TIME_UTC)`. */
-static double s29_eigs_now_s(void) {
+/* Shared monotonic timer for progress reporting and benchmark-style
+ * elapsed-time bookkeeping. */
+double s29_eigs_now_s(void) {
     struct timespec ts;
 #ifdef _WIN32
     timespec_get(&ts, TIME_UTC);
@@ -87,21 +54,19 @@ static double s29_eigs_now_s(void) {
 #pragma GCC diagnostic pop
 #endif
 
-/* ─── Sprint 21 Day 5/6: shared MGS reorth kernel (OpenMP-parallel) ── */
+/* ─── Shared MGS Reorth Kernel ─────────────────────────────────────── */
 
 /* Small-n gate for the MGS reorth parallelism.  Below this `n`,
  * per-call OMP fork/join overhead (measured ~5-20 μs on macOS
  * Homebrew libomp) dominates the dot-product + daxpy work, and
- * the parallel reduction is a net loss — the Day 6 scaling sweep
- * showed every thread count > 1 regressed on nos4 (n = 100),
- * bcsstk04 (n = 132), and kkt-150 (n = 150), while bcsstk14
- * (n = 1806) scaled to 2.2× at 4 threads.  500 is a safe
- * crossover: well above the n = 150 loser set, well below the
- * n ≈ 1800 clear winner.  Callers who need a different
+ * the parallel reduction is a net loss on small matrices, while
+ * larger SuiteSparse-style problems do benefit.  `500` is a
+ * conservative crossover that keeps the small cases on the serial
+ * path and still enables parallelism well before the large-matrix
+ * regime.  Callers who need a different
  * crossover on their hardware can override by building with
  * `-DSPARSE_EIGS_OMP_REORTH_MIN_N=<value>`.  See
- * SPRINT_21/bench_day6_omp_scaling.txt for the raw sweep and
- * SPRINT_17/PERF_NOTES.md for the threshold rationale. */
+ * the project performance notes for the threshold rationale. */
 #ifndef SPARSE_EIGS_OMP_REORTH_MIN_N
 #define SPARSE_EIGS_OMP_REORTH_MIN_N 500
 #endif
@@ -111,31 +76,25 @@ static double s29_eigs_now_s(void) {
  * is serial — MGS stability requires each iteration to see the
  * partially-orthogonalised `w` from the previous subtraction
  * (classical Gram-Schmidt parallelises `j` but loses the stability
- * bound; see the Sprint 20 Day 9 design block for the MGS-vs-CGS
- * tradeoff).  The inner dot-product and daxpy bodies are
- * independent across `i` and parallelised under `-DSPARSE_OPENMP`,
- * using the same pragma pattern as `sparse_matvec` from
- * Sprint 17/18 (`#pragma omp parallel for`).
+ * bound; the inner dot-product and daxpy bodies are independent
+ * across `i` and parallelised under `-DSPARSE_OPENMP`, using the
+ * same pragma pattern as `sparse_matvec`.
  *
- * Day 6 threshold gate: the `if (n >= SPARSE_EIGS_OMP_REORTH_MIN_N)`
- * clause causes each `parallel for` to run serially (a single
+ * The `if (n >= SPARSE_EIGS_OMP_REORTH_MIN_N)` clause causes each
+ * `parallel for` to run serially (a single
  * implicit team of one) when `n` is small enough that OMP
  * overhead would exceed the parallel work.  The clause is a
  * zero-cost no-op in serial builds (the whole pragma is
- * `#ifdef SPARSE_OPENMP`-gated out).  Matvec in Sprint 17/18 has
- * the same overhead structure but does not gate — its tuning
- * lives in a future sprint; Day 6 only addresses MGS reorth.
+ * `#ifdef SPARSE_OPENMP`-gated out).
  *
- * Serial builds are bit-for-bit identical to the Sprint 20 inline
- * MGS body the helper replaced — the Day 5 refactor collapses
- * three call sites (`lanczos_iterate_op`, the thick-restart seed
- * orthogonalisation, the thick-restart phase reorth) into one
- * kernel so parallelism lands once and benefits all three paths.
+ * Serial builds are bit-for-bit identical to the inline MGS body
+ * this helper replaced.  Centralising the kernel keeps the standard
+ * Lanczos path and the thick-restart path in sync.
  *
- * Shared across Sprint 20 (`lanczos_iterate_op`) and Sprint 21
- * (`lanczos_thick_restart_iterate`).  Does nothing when
+ * Shared across `lanczos_iterate_op` and
+ * `lanczos_thick_restart_iterate`.  Does nothing when
  * `k_stored == 0`. */
-static void s21_mgs_reorth(double *w, const double *V, idx_t n, idx_t k_stored) {
+void s21_mgs_reorth(double *w, const double *V, idx_t n, idx_t k_stored) {
     for (idx_t j = 0; j < k_stored; j++) {
         const double *v_j = V + (size_t)j * (size_t)n;
         double dot = 0.0;
@@ -154,14 +113,12 @@ static void s21_mgs_reorth(double *w, const double *V, idx_t n, idx_t k_stored) 
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Lanczos — 3-term recurrence + optional reorthogonalization
- *           (Sprint 20 Days 8-9)
  * ═══════════════════════════════════════════════════════════════════════
  *
  * `lanczos_iterate` builds an m-step Lanczos basis V and
  * tridiagonal T from a symmetric matrix A and starting vector v0.
- * Day 8 implemented the recurrence without reorthogonalization;
- * Day 9 added the `reorthogonalize` gate that layers full MGS
- * reorth on top.
+ * The optional `reorthogonalize` gate layers full MGS reorthogonalization
+ * on top of the classical three-term recurrence.
  *
  * The classical 3-term recurrence:
  *
@@ -182,16 +139,15 @@ static void s21_mgs_reorth(double *w, const double *V, idx_t n, idx_t k_stored) 
  * columns form an orthonormal basis of K_m and T = V^T·A·V is the
  * projection of A onto that subspace.  T's eigenvalues — the Ritz
  * values — approximate A's eigenvalues, and the approximation is
- * sharpest at the extremes of the spectrum.  That's why Day 11 will
- * pick `LARGEST` / `SMALLEST` Ritz values from T once the
- * thick-restart mechanism keeps m bounded.
+ * sharpest at the extremes of the spectrum, which is why the solver
+ * selects `LARGEST` / `SMALLEST` Ritz values from T.
  *
  * Finite-precision caveat.  Without reorthogonalization V^T·V
  * drifts from I as k grows and "ghost" Ritz values — duplicates of
  * eigenvalues that already converged — appear in T's spectrum.
  * Paige's analysis (1972) shows ghosts arrive around k ≈ condition-
- * number-scale steps.  Day 9's full reorth suppresses this; Day 8's
- * basic recurrence is sufficient for the unit tests below where m
+ * number-scale steps.  Full reorth suppresses this; the basic
+ * recurrence is sufficient for the unit tests below where m
  * ≤ n on well-conditioned small fixtures.
  *
  * Early-exit rule.  When `beta_k` falls below the implementation's
@@ -204,8 +160,8 @@ static void s21_mgs_reorth(double *w, const double *V, idx_t n, idx_t k_stored) 
  * approximations).  The helper returns SPARSE_OK with
  * *m_actual = k + 1.
  *
- * Reorthogonalization (Day 9).  When the caller sets
- * `reorthogonalize != 0`, after the standard 3-term recurrence
+ * Reorthogonalization.  When the caller sets `reorthogonalize != 0`,
+ * after the standard 3-term recurrence
  * produces the tentative w (A·v_k minus the beta_{k-1}·v_{k-1}
  * and alpha_k·v_k pieces), the helper subtracts the projection
  * of w onto every stored Lanczos vector V[:, 0..k):
@@ -225,14 +181,12 @@ static void s21_mgs_reorth(double *w, const double *V, idx_t n, idx_t k_stored) 
  *
  * A "twice-MGS" refinement (two passes of the inner j-loop)
  * recovers orthogonality to machine precision on pathological
- * inputs at 2× the reorth cost.  Not currently wired — if Day 11
+ * inputs at 2× the reorth cost.  Not currently wired; if future
  * convergence tests show lingering orthogonality drift, add a
  * `opts->reorthogonalize == 2` escalation.
  *
- * Day 9 scope.  Basic recurrence + optional full MGS reorth.  No
- * thick-restart (Day 10), no Ritz extraction (Day 11).  Unit
- * tests via sparse_eigs_internal.h exercise both paths through
- * lanczos_iterate directly. */
+ * Unit tests via `sparse_eigs_internal.h` exercise both paths
+ * through `lanczos_iterate` directly. */
 
 /* Default matvec operator: `y = A · x` via `sparse_matvec`.  Used
  * by `lanczos_iterate` as the thin wrapper over
@@ -311,8 +265,8 @@ sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, cons
         const double *v_k = V + k * n;
 
         /* w = op · v_k — either sparse_matvec(A) for the default
-         * path or (A - sigma*I)^{-1} via LDL^T solve for shift-
-         * invert mode (Day 12). */
+         * path or (A - sigma*I)^{-1} via LDL^T solve for shift-invert
+         * mode. */
         sparse_err_t op_rc = op(ctx, n, v_k, w);
         if (op_rc != SPARSE_OK) {
             free(w);
@@ -341,11 +295,9 @@ sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, cons
          * it's already orthogonal to w after the alpha_k
          * subtraction above.  Each projection uses the current
          * partially-orthogonalized w; that's what distinguishes
-         * MGS from classical Gram-Schmidt.  Skipped entirely
-         * when `reorthogonalize == 0` (Day 8 baseline).  Sprint
-         * 21 Day 5 shares the kernel with `lanczos_thick_restart_iterate`
-         * via the `s21_mgs_reorth` helper, which parallelises the
-         * inner dot-product + daxpy under `-DSPARSE_OPENMP`. */
+         * MGS from classical Gram-Schmidt.  The shared
+         * `s21_mgs_reorth` helper keeps this path and the
+         * thick-restart path aligned. */
         if (reorthogonalize && k > 0)
             s21_mgs_reorth(w, V, n, k);
 
@@ -398,10 +350,10 @@ sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, cons
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
- * Thick-restart Lanczos outer loop (Sprint 20 Day 10)
+ * Grow-m Lanczos outer loop
  * ═══════════════════════════════════════════════════════════════════════
  *
- * Day 10 wires `sparse_eigs_sym` into an outer-loop driver that:
+ * This outer-loop driver:
  *
  *   1. Starts from a deterministic pseudo-random v0 (golden-ratio
  *      fractional mixing — avoids alignment with any eigenvector
@@ -416,35 +368,25 @@ sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, cons
  *      values from the two runs.  If they agree to
  *      eff_tol · |θ_j| for every j, the k extreme Ritz values
  *      have converged — their insensitivity to the choice of m
- *      is itself the convergence signal (no Y-based Wu/Simon
- *      residual needed, which is the approach Day 11 can add
- *      later when full eigenvector computation lands).
+ *      is itself the convergence signal.
  *   5. Selects the `k` values matching `opts->which` (LARGEST
  *      from the top of the ascending θ array; SMALLEST from the
- *      bottom) and emits.  NEAREST_SIGMA is deferred to Day 12.
+ *      bottom) and emits.
  *   6. On non-convergence, restarts: use the last Lanczos vector
  *      of the longer run (best approximation of the extreme Ritz
  *      direction) as the next v0.  Extends the iteration budget
- *      and retries.  Simpler than Wu/Simon's full arrowhead-state
- *      thick-restart; Day 11 can upgrade if convergence tests
- *      show it's insufficient.
+ *      and retries.  This path intentionally stays simpler than the
+ *      full arrowhead-state thick-restart backend.
  *
- * Scope deferred to Day 11/12:
- *   - Eigenvector output (`opts->compute_vectors`): needs Y from
- *     the tridiagonal eigenproblem, which `tridiag_qr_eigenvalues`
- *     doesn't produce.  Returns SPARSE_ERR_BADARG when requested
- *     on Day 10.
- *   - Shift-invert mode (`SPARSE_EIGS_NEAREST_SIGMA`): needs the
- *     Day 4-6 LDL^T factor of `A - sigma·I`.  Returns
- *     SPARSE_ERR_BADARG on Day 10.
- *   - Wu/Simon per-pair residual estimators (requires Y).  Day
- *     11 adds them; Day 10 uses the cheaper stability proxy. */
+ * This grow-m path is intentionally conservative: it relies on a
+ * stability proxy rather than Wu/Simon per-pair residual estimators
+ * and trades memory for a smaller control surface. */
 
 /* Deterministic starting vector — golden-ratio fractional mixing.
  * Avoids alignment with any standard-basis eigenvector (diagonal
  * fixtures would otherwise terminate Lanczos in one step) and is
  * reproducible across runs. */
-static void s20_lanczos_starting_vector(double *v0, idx_t n) {
+void s20_lanczos_starting_vector(double *v0, idx_t n) {
     for (idx_t i = 0; i < n; i++) {
         double x = (double)(i + 1) * 0.618033988749895;
         v0[i] = 0.3 + (x - floor(x));
@@ -455,7 +397,7 @@ static void s20_lanczos_starting_vector(double *v0, idx_t n) {
  * against the largest Ritz value.  If theta_max dominates the
  * iteration's spectrum, ||A||_inf is at least |theta_max|; we
  * use that as the tolerance anchor. */
-static double s20_spectrum_scale(const double *theta, idx_t m) {
+double s20_spectrum_scale(const double *theta, idx_t m) {
     double s = 0.0;
     for (idx_t i = 0; i < m; i++) {
         double a = fabs(theta[i]);
@@ -465,10 +407,10 @@ static double s20_spectrum_scale(const double *theta, idx_t m) {
     return s;
 }
 
-/* Day 11: Ritz pair extraction — returns eigenvalues of the
- * tridiagonal T in `theta_out` (ascending) and T's orthonormal
- * eigenvectors as columns of `Y_out` (m × m, column-major) so the
- * Day 11 lift V · Y[:, j] produces full-problem Ritz vectors.
+/* Ritz-pair extraction — returns eigenvalues of the tridiagonal T
+ * in `theta_out` (ascending) and T's orthonormal eigenvectors as
+ * columns of `Y_out` (m × m, column-major) so the later lift
+ * V · Y[:, j] produces full-problem Ritz vectors.
  * Preserves the caller's alpha / beta; the subdiag_scratch buffer
  * is written to then destroyed by `tridiag_qr_eigenpairs`. */
 static sparse_err_t s20_ritz_pairs(const double *alpha, const double *beta, idx_t m,
@@ -480,8 +422,8 @@ static sparse_err_t s20_ritz_pairs(const double *alpha, const double *beta, idx_
     return tridiag_qr_eigenpairs(theta_out, subdiag_scratch, Y_out, m, 0);
 }
 
-/* Day 12: shift-invert Lanczos operator.  `ctx` is a
- * `(const sparse_ldlt_t *)` pointing at a pre-computed LDL^T
+/* Shift-invert Lanczos operator.  `ctx` is a `(const sparse_ldlt_t *)`
+ * pointing at a pre-computed LDL^T
  * factorisation of `A - sigma*I`.  Applying the operator to a vector
  * `x` means solving `(A - sigma*I) y = x`, i.e. `y = (A - sigma*I)^{-1}
  * x` — exactly the transform that makes Lanczos converge on
@@ -506,8 +448,8 @@ static sparse_err_t s20_op_shift_invert(const void *ctx, idx_t n, const double *
  *
  * Assumes theta is sorted ascending (as `tridiag_qr_eigenpairs`
  * returns it).  Returns the number of indices written. */
-static idx_t s20_select_indices(const double *theta, idx_t m, sparse_eigs_which_t which,
-                                idx_t k_want, idx_t *sel_idx) {
+idx_t s20_select_indices(const double *theta, idx_t m, sparse_eigs_which_t which, idx_t k_want,
+                         idx_t *sel_idx) {
     idx_t take = k_want < m ? k_want : m;
     if (take < 1)
         return 0;
@@ -546,13 +488,14 @@ static idx_t s20_select_indices(const double *theta, idx_t m, sparse_eigs_which_
  *   eigenvector_j = V · Y[:, idx_j]
  * where V is the Lanczos basis (n × m, column-major) and idx_j is
  * the m-space column index of the j-th selected Ritz pair.  Assumes
- * V's columns are already orthonormal (guaranteed by Day 9's full
- * reorth) so the lifted vectors inherit unit norm up to the MGS
+ * V's columns are already orthonormal (assuming full
+ * reorthogonalization) so the lifted vectors inherit unit norm up
+ * to the MGS
  * drift bound (‖ε‖ ≲ 1e-12 on well-conditioned A).  Ritz vectors of
  * (A - σI)^{-1} are also eigenvectors of A (same eigenspaces), so
  * the same lift works for shift-invert mode. */
-static void s20_lift_ritz_vectors(const double *V, const double *Y, idx_t n, idx_t m, idx_t take,
-                                  const idx_t *idx, double *eigenvectors_out) {
+void s20_lift_ritz_vectors(const double *V, const double *Y, idx_t n, idx_t m, idx_t take,
+                           const idx_t *idx, double *eigenvectors_out) {
     for (idx_t j = 0; j < take; j++) {
         const double *y = Y + (size_t)idx[j] * (size_t)m;
         double *out = eigenvectors_out + (size_t)j * (size_t)n;
@@ -569,19 +512,7 @@ static void s20_lift_ritz_vectors(const double *V, const double *Y, idx_t n, idx
     }
 }
 
-/* Forward declaration: the Sprint 21 thick-restart outer loop is
- * defined below but dispatched to from `sparse_eigs_sym` here.
- * Keeps the Day 3 dispatch self-contained without moving the
- * thick-restart block above the Sprint 20 code. */
-static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *ctx, idx_t n,
-                                                 idx_t k, const sparse_eigs_opts_t *o,
-                                                 double eff_tol, idx_t max_iters,
-                                                 sparse_eigs_workspace_t *workspace,
-                                                 sparse_eigs_t *result);
-
-/* Sprint 29 Day 5 (Item 3): eigenpair refinement via Rayleigh-quotient
- * iteration.  Per the Day-4 design doc
- * (`docs/planning/EPIC_2/SPRINT_29/refinement_design_day4.md`), each
+/* Eigenpair refinement via Rayleigh-quotient iteration.  Each
  * converged pair `(lambda_j, v_j)` is refined by:
  *
  *   for iter in [0, max_iters):
@@ -1031,20 +962,11 @@ static sparse_err_t s46_run_growm_backend(lanczos_op_fn op_fn, const void *op_ct
                                           const sparse_eigs_opts_t *o, double eff_tol,
                                           idx_t max_iters, sparse_eigs_t *result,
                                           sparse_eigs_workspace_t *workspace) {
-    /* Day 13 outer-loop redesign: single Lanczos batch with a
-     * grow-m-on-retry strategy.  The Day 10-11 short/long stability
-     * check converged poorly on SuiteSparse matrices because each
-     * "restart" threw away the partial basis and resumed from a
-     * warm-start v0 — the top-k Ritz values re-approached the same
-     * neighbourhood on every pass without tightening.  Day 13
-     * replaces that with a single growing Lanczos run: pick an
-     * initial m, build the basis, compute Wu/Simon residuals, and
-     * (if not converged) grow m and restart from the same v0 (so
-     * the first m_prev steps are bit-for-bit identical and the
-     * extra m_new − m_prev steps are where the convergence happens).
-     * Because Lanczos with full reorth is deterministic under the
-     * same v0, each growth round strictly contains the previous
-     * one's information. */
+    /* Use a single grow-m-on-retry strategy rather than alternating
+     * short/long stability probes.  Reusing the same deterministic
+     * v0 means each retry strictly contains the previous one: the
+     * first `m_prev` Lanczos steps are reproduced exactly and only
+     * the extra `m_new - m_prev` steps change. */
 
     /* Initial and maximum Lanczos basis sizes.
      *   m_cap: upper bound on any single Lanczos run.  Capped at min(n,
@@ -1117,7 +1039,7 @@ static sparse_err_t s46_run_growm_backend(lanczos_op_fn op_fn, const void *op_ct
 
     s20_lanczos_starting_vector(v0, n);
 
-    /* Day 4 telemetry: grow-m holds V at m_cap columns from
+    /* Grow-m holds V at m_cap columns from
      * allocation until cleanup — peak basis size is `m_cap`
      * regardless of how many grow-on-retry passes actually run. */
     result->peak_basis_size = m_cap;
@@ -1129,9 +1051,9 @@ static sparse_err_t s46_run_growm_backend(lanczos_op_fn op_fn, const void *op_ct
     double lanczos_phase_start_s = o->progress_cb ? s29_eigs_now_s() : 0.0;
 
     for (;;) {
-        /* Sprint 29 Day 7 (Item 4): progress + cancel at each grow-m
-         * outer retry boundary.  Cancellation propagates through the
-         * existing cleanup label, freeing all workspaces. */
+        /* Publish progress at each grow-m retry boundary.
+         * Cancellation propagates through the existing cleanup
+         * label, freeing all workspaces. */
         if (o->progress_cb) {
             sparse_progress_t pp = {
                 .phase = "lanczos",
@@ -1197,15 +1119,10 @@ static sparse_err_t s46_run_growm_backend(lanczos_op_fn op_fn, const void *op_ct
             double abs_res = fabs(last_beta * y_last);
             double tv_l = theta_long[idx_l];
             double anchor = fabs(tv_l);
-            /* Sprint 26 Day 1: extend the zero-spectrum guard to cover
-             * the case `scale == 0.0 && tv_l == 0.0`.  The original
-             * `anchor < scale * 1e-12` check evaluates to `0.0 < 0.0`
-             * = false in that case and `anchor` stays 0.0, producing
-             * a 0/0 division below (UBSan flagged this on Sprint 25
-             * Day 14 sanitize).  Adding `|| anchor == 0.0` catches
-             * the exact-zero case explicitly so anchor falls through
-             * to the `scale > 0.0 ? scale : 1.0` branch.  Routed
-             * from `SPRINT_25/RETROSPECTIVE.md` "Items deferred" #5. */
+            /* Guard the exact-zero spectrum case as well as the
+             * near-zero one.  Without the explicit `anchor == 0.0`
+             * branch, `scale == 0.0 && tv_l == 0.0` would leave
+             * anchor at zero and produce a 0/0 relative residual. */
             if (anchor < scale * 1e-12 || anchor == 0.0)
                 anchor = scale > 0.0 ? scale : 1.0;
             double rel_res = abs_res / anchor;
@@ -1225,7 +1142,7 @@ static sparse_err_t s46_run_growm_backend(lanczos_op_fn op_fn, const void *op_ct
             for (idx_t j = 0; j < take; j++) {
                 idx_t idx_l = sel_idx[j];
                 double theta = theta_long[idx_l];
-                /* For shift-invert (Day 12), the Ritz values of
+                /* For shift-invert, the Ritz values of
                  * (A - σI)^{-1} are 1/(λ − σ), so the original-space
                  * eigenvalue is λ = σ + 1/θ.  θ cannot be zero
                  * because (A - σI) was factored nonsingular. */
@@ -1319,11 +1236,9 @@ static sparse_err_t s46_sparse_eigs_sym_impl(const SparseMatrix *A, idx_t k,
     idx_t n = sparse_rows(A);
     s46_init_public_result(result, k);
 
-    /* Day 12: shift-invert setup for NEAREST_SIGMA.  Factor
-     * `A - sigma*I` via `sparse_ldlt_factor_opts` (Days 4-6 AUTO
-     * dispatch — benefits from CSC supernodal on big symmetric
-     * indefinite shifts) and swap the Lanczos operator from
-     * `sparse_matvec(A)` to `sparse_ldlt_solve(ldlt)`.  The
+    /* Shift-invert setup for NEAREST_SIGMA.  Factor `A - sigma*I`
+     * via `sparse_ldlt_factor_opts` and swap the Lanczos operator
+     * from `sparse_matvec(A)` to `sparse_ldlt_solve(ldlt)`.  The
      * factorisation is owned by this call; freed in `cleanup:`.
      * If `A - sigma*I` is singular (σ is exactly an eigenvalue of A),
      * LDL^T reports `SPARSE_ERR_SINGULAR` and we propagate — the
@@ -1399,44 +1314,20 @@ static sparse_err_t s46_sparse_eigs_sym_impl(const SparseMatrix *A, idx_t k,
         max_iters = (idx_t)def_iters;
     }
 
-    /* Sprint 21 Day 3/4: thick-restart backend dispatch.
+    /* AUTO + explicit-opt-in dispatch decision tree.
      *
-     * Day 3 opt-in path: `opts->backend ==
-     * SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART` forces the
-     * Wu/Simon restart pipeline.
-     *
-     * Day 4 AUTO routing: when `opts->backend == _AUTO` and the
-     * problem is large enough (`n >= SPARSE_EIGS_THICK_RESTART_THRESHOLD`,
-     * default 500; tuned in `docs/planning/EPIC_2/SPRINT_21/bench_day4_restart.txt`),
-     * also route here — the grow-m path's `O(m_cap · n)` peak
-     * memory becomes prohibitive on the big SuiteSparse fixtures
-     * where the thick-restart's `O((m_restart + k) · n)` bound
-     * wins by an order of magnitude or more (bcsstk14 at
-     * n = 1806, k = 5: grow-m ~7 MB of V vs thick-restart
-     * ~500 KB). */
-    /* Sprint 21 Day 10: AUTO + explicit-opt-in dispatch decision tree.
-     *
-     * Three concrete backends, two AUTO crossover thresholds.  In
-     * priority order:
-     *
-     *   1. Explicit `opts->backend == SPARSE_EIGS_BACKEND_LOBPCG`:
-     *      route to LOBPCG.  Honored regardless of preconditioner /
-     *      n / block_size — the user asked for LOBPCG.
-     *   2. Explicit `opts->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`:
-     *      route to thick-restart.
-     *   3. AUTO with preconditioner + large n + adequate block:
-     *      route to LOBPCG (Day 10 addition; the precond is the
-     *      signal that the caller is prepared for LOBPCG's per-iter
-     *      block work).
+     * Priority order:
+     *   1. Explicit LOBPCG request.
+     *   2. Explicit thick-restart Lanczos request.
+     *   3. AUTO with preconditioner, large n, and adequate block size:
+     *      route to LOBPCG.
      *   4. AUTO with `n >= SPARSE_EIGS_THICK_RESTART_THRESHOLD`:
-     *      route to thick-restart Lanczos (Day 4 routing, unchanged).
-     *   5. Otherwise: grow-m Lanczos (Sprint 20 default).
+     *      route to thick-restart Lanczos.
+     *   5. Otherwise: grow-m Lanczos.
      *
      * The AUTO LOBPCG route requires `block_size >= 4` (defaulting
-     * to `k` when `block_size == 0`) — below that the block is too
-     * small to amortise the per-iteration Jacobi cost vs Lanczos's
-     * single-vector iteration.  See `SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD`
-     * in the public header for the n threshold rationale. */
+     * to `k` when `block_size == 0`) so the block work can amortise
+     * the denser per-iteration costs. */
     sparse_eigs_backend_t backend = s46_select_backend(n, k, o);
     sparse_err_t rc =
         s46_run_backend(backend, op_fn, op_ctx, n, k, o, eff_tol, max_iters, result, workspace);
@@ -1470,645 +1361,21 @@ sparse_err_t sparse_eigs_sym_with_workspace_internal(const SparseMatrix *A, idx_
     return s46_sparse_eigs_sym_impl(A, k, opts, result, workspace);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════
- * Sprint 21: Thick-restart Lanczos (Wu/Simon arrowhead)
- * ═══════════════════════════════════════════════════════════════════════
- *
- * The Sprint 20 Day 13 grow-m outer loop converges reliably on the
- * target corpus but holds the full Lanczos basis `V` across all
- * retries — peak memory `O(m_cap · n)`.  On bcsstk14 (n = 1806) a
- * single run at `m_cap = n` already reaches ~26 MB of V alone.
- * Sprint 21 Day 1 introduces a thick-restart mechanism (Wu/Simon
- * 2000; Stathopoulos/Saad 2007) that preserves only the converged
- * Ritz subspace across restarts and re-runs Lanczos from a small
- * locked-plus-residual basis.  Peak memory drops to
- * `O((k_locked + m_restart) · n)`; at k = 5, m_restart = 30 this
- * is ~35 columns regardless of total iteration count.
- *
- * Restart protocol (Option C in SPRINT_21/PLAN.md Day 1 Task 3).
- *
- *   1. Run a Lanczos phase of length `m_restart`, writing α / β / V
- *      as usual.  `lanczos_thick_restart_iterate` with an empty
- *      state is equivalent to `lanczos_iterate_op`.
- *   2. On non-convergence, extract Ritz pairs (θ_j, y_j) from T via
- *      the Sprint 20 `s20_ritz_pairs` helper and select the top k
- *      (or matching `which`) via `s20_select_indices` — reused
- *      wholesale.
- *   3. Pack the locked state:
- *        V_locked      = V · Y[:, sel_idx]          (n × k_locked)
- *        theta_locked  = θ[sel_idx]                 (k_locked)
- *        beta_coupling = β_m · Y[m-1, sel_idx]      (k_locked)
- *        residual      = β_m · v_{m+1}              (length n)
- *   4. Launch the next phase with the locked state.  The new phase
- *      copies V_locked into V[:, 0..k_locked), seeds v_{k_locked}
- *      from residual / ||residual||, writes the arrowhead rows
- *      0..k_locked-1 of α / β from theta_locked / beta_coupling,
- *      and continues the 3-term recurrence from step k_locked.
- *   5. Ritz extraction on the arrowhead T → same Ritz pairs the
- *      previous phase produced for the locked block, plus new
- *      approximations from the freshly grown Krylov steps.
- *      Monotone progress is Wu/Simon's core guarantee.
- *
- * Arrowhead T shape (k_locked = 3, m_restart = 7):
- *
- *       [ θ_0   0    0    β_0   0    0    0   ]
- *       [  0   θ_1   0    β_1   0    0    0   ]
- *       [  0    0   θ_2   β_2   0    0    0   ]
- *       [ β_0  β_1  β_2   α_3  β_3   0    0   ]
- *       [  0    0    0    β_3  α_4  β_4   0   ]
- *       [  0    0    0    0    β_4  α_5  β_5  ]
- *       [  0    0    0    0    0    β_5  α_6  ]
- *
- * The top-left k_locked × k_locked block is diagonal (locked Ritz
- * values); the trailing row/column of the block contains the
- * coupling entries β_coupling that tie each locked pair to the
- * active Lanczos frontier; rows k_locked.. are standard tridiagonal.
- * Day 2 implements the Givens chase that reduces this arrowhead
- * back to a symmetric tridiagonal so `tridiag_qr_eigenpairs`
- * (Sprint 20 Day 11) consumes it unchanged.
- *
- * Why keep the grow-m path.  Grow-m is simpler and the constants
- * are good on small-to-moderate n — it converges nos4 (n=100) in
- * 70 Lanczos steps / ~3 ms, bcsstk04 (n=132) in 62 steps / 4.6 ms
- * (Sprint 20 Day 13 numbers in `bench_day13_lanczos.txt`).  The
- * thick-restart path is only a win when the basis would otherwise
- * blow memory.  Day 4 tunes the crossover threshold
- * `SPARSE_EIGS_THICK_RESTART_THRESHOLD`; AUTO dispatches based on
- * n.
- *
- * Field ownership.  `lanczos_restart_state_t` owns its allocations
- * (V_locked / theta_locked / beta_coupling / residual) once
- * populated; `lanczos_restart_state_free` releases them.  An
- * empty state (zeroed struct) is legal input and represents a
- * fresh start.  The Day 2 assembly helpers allocate on first use
- * sized to `k_locked_cap` and reuse the buffers across subsequent
- * restarts when `k_locked <= k_locked_cap` holds (avoids reallocing
- * on every restart — the inner k_locked fluctuates as Ritz pairs
- * lock and the spectrum's active front advances).
- */
-
-void lanczos_restart_state_free(lanczos_restart_state_t *state) {
-    if (!state)
-        return;
-    free(state->V_locked);
-    free(state->theta_locked);
-    free(state->beta_coupling);
-    free(state->residual);
-    state->V_locked = NULL;
-    state->theta_locked = NULL;
-    state->beta_coupling = NULL;
-    state->residual = NULL;
-    state->n = 0;
-    state->k_locked = 0;
-    state->k_locked_cap = 0;
-    state->residual_norm = 0.0;
-}
-
-/* ─── Sprint 21 Day 2: Arrowhead reduction + Ritz locking helpers ─── */
-
-/* s21_arrowhead_to_tridiag: reduce a symmetric arrowhead T to
- * tridiagonal form via dense Householder tridiagonalisation.
- *
- * Arrowhead layout (K = k_locked + m_ext):
- *   T[i, i]                 = theta_locked[i]    for i in [0, k_locked)
- *   T[i, i]                 = alpha_ext[i-k_locked]
- *                                                for i in [k_locked, K)
- *   T[k_locked, j]          = beta_coupling[j]    (spoke)
- *   T[j, k_locked]          = beta_coupling[j]    (symmetric)
- *                                                for j in [0, k_locked)
- *   T[i, i+1] = T[i+1, i]   = beta_ext[i-k_locked]
- *                                                for i in [k_locked, K-1)
- *   all other entries are zero.
- *
- * The implementation builds a dense K×K scratch matrix and applies
- * (K-2) Householder similarity transforms, each zeroing the
- * sub-subdiagonal entries of one column.  Classical algorithm from
- * Golub & Van Loan §8.3.1.  Choice notes:
- *   - Householder over Givens here because the arrowhead pattern
- *     produces fill across the locked block under simple spoke-
- *     zeroing Givens (the bulge-chase sequence is equivalent work
- *     to a full Householder on the dense matrix but much harder to
- *     get correct).  Dense Householder is O(K^3); for K up to a
- *     few hundred the cost is a microsecond-scale fixed overhead
- *     per restart.
- *   - Scratch allocation is owned by this function (caller passes
- *     no workspace).  Size is K*K doubles; overflow-checked.
- *   - Spectrum-only reduction (Day 2 scope).  Day 3 extends the
- *     helper to return an orthogonal Q accumulating the Householder
- *     products so downstream Ritz extraction composes through the
- *     reduction.
- */
-sparse_err_t s21_arrowhead_to_tridiag(const double *theta_locked, const double *beta_coupling,
-                                      idx_t k_locked, const double *alpha_ext,
-                                      const double *beta_ext, idx_t m_ext, double *diag_out,
-                                      double *subdiag_out) {
-    if (!theta_locked || !diag_out)
-        return SPARSE_ERR_NULL;
-    if (k_locked >= 1 && !beta_coupling)
-        return SPARSE_ERR_NULL;
-    if (m_ext >= 1 && !alpha_ext)
-        return SPARSE_ERR_NULL;
-    if (m_ext >= 2 && !beta_ext)
-        return SPARSE_ERR_NULL;
-    if (k_locked < 1)
-        return SPARSE_ERR_BADARG;
-
-    /* K is the dimension of the (k_locked + m_ext) arrowhead.  We
-     * require K >= 1; subdiag_out is needed only when K >= 2. */
-    int64_t K_wide = (int64_t)k_locked + (int64_t)m_ext;
-    if (K_wide < 1 || K_wide > (int64_t)INT32_MAX)
-        return SPARSE_ERR_BADARG;
-    idx_t K = (idx_t)K_wide;
-    if (K >= 2 && !subdiag_out)
-        return SPARSE_ERR_NULL;
-
-    /* Dense K×K scratch.  Overflow-check K*K*sizeof(double). */
-    size_t K2 = 0, K2_bytes = 0;
-    if (sparse_size_mul_overflow((size_t)K, (size_t)K, &K2) ||
-        sparse_size_mul_overflow(K2, sizeof(double), &K2_bytes))
-        return SPARSE_ERR_ALLOC;
-    double *T = calloc(K2, sizeof(double));
-    if (!T) {
-        return SPARSE_ERR_ALLOC;
-    }
-
-    /* Materialise the arrowhead.  Layout column-major: T[i + j*K]. */
-#define T_AT(i, j) T[(size_t)(i) + (size_t)(j) * (size_t)K]
-
-    /* K >= k_locked by construction (K_wide = k_locked + m_ext with
-     * k_locked >= 1 already checked), but the analyzer can't prove
-     * it — suppress the false-positive heap-bound warning. */
-    for (idx_t i = 0; i < k_locked; i++)
-        // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
-        T_AT(i, i) = theta_locked[i];
-    for (idx_t i = 0; i < m_ext; i++)
-        T_AT(k_locked + i, k_locked + i) = alpha_ext[i];
-    if (m_ext >= 2) {
-        for (idx_t i = 0; i + 1 < m_ext; i++) {
-            idx_t r = k_locked + i;
-            T_AT(r + 1, r) = beta_ext[i];
-            T_AT(r, r + 1) = beta_ext[i];
-        }
-    }
-    /* Spoke: row k_locked holds beta_coupling, but only when there
-     * is a spoke row at all (m_ext >= 1; otherwise the arrowhead is
-     * just the locked diagonal and there is no spoke column).  When
-     * m_ext >= 1 we also put beta_coupling[k_locked-1] at
-     * (k_locked, k_locked-1) as the standard subdiagonal entry
-     * connecting the last locked row to the first extension row. */
-    if (m_ext >= 1) {
-        for (idx_t j = 0; j < k_locked; j++) {
-            T_AT(k_locked, j) = beta_coupling[j];
-            T_AT(j, k_locked) = beta_coupling[j];
-        }
-    }
-
-    /* Householder tridiagonalisation of the symmetric K×K matrix.
-     * Per iteration j in [0, K-2):
-     *   - Let x = T[j+1..K-1, j] (column j below the diagonal).
-     *   - If ||x[1:]|| < eps (already reduced), skip.
-     *   - Choose sign(alpha) = sign(x[0]) so v = x + alpha*e_0 has
-     *     a numerically large magnitude (avoid cancellation).
-     *   - Normalise v so that beta_scale = 2 / (v^T v) defines the
-     *     reflector H = I - beta_scale * v * v^T.
-     *   - Apply the symmetric similarity T -> H T H (affects only
-     *     rows and columns j+1..K-1).  Implementation uses the
-     *     two-step form: compute p = T_sub * v, then
-     *     q = beta_scale * p - (beta_scale^2 / 2) * (v^T p) * v,
-     *     and update T_sub -= v * q^T + q * v^T (rank-2 update).
-     *   - Write the reduced subdiagonal entry T[j+1, j] = -alpha
-     *     directly; zero the rest of column j below the subdiagonal.
-     */
-    if (K >= 3) {
-        /* Scratch buffers sized to K-1 (worst case for column 0). */
-        double *v = calloc((size_t)K, sizeof(double));
-        double *p = calloc((size_t)K, sizeof(double));
-        double *q = calloc((size_t)K, sizeof(double));
-        if (!v || !p || !q) {
-            free(v);
-            free(p);
-            free(q);
-            free(T);
-            return SPARSE_ERR_ALLOC;
-        }
-
-        for (idx_t j = 0; j + 2 < K; j++) {
-            idx_t len = K - j - 1; /* length of column vector below diagonal */
-
-            /* Extract x = T[j+1..K-1, j] into v. */
-            for (idx_t i = 0; i < len; i++)
-                v[i] = T_AT(j + 1 + i, j);
-
-            /* sigma = ||x[1:]||^2 = sum_{i>=1} v[i]^2 */
-            double sigma = 0.0;
-            for (idx_t i = 1; i < len; i++)
-                sigma += v[i] * v[i];
-            if (sigma < 1e-300) {
-                /* Already reduced (or len == 1) — subdiag[j] = v[0];
-                 * rest of column j is already zero. */
-                continue;
-            }
-
-            /* alpha = sign(v[0]) * sqrt(sigma + v[0]^2).  The sign
-             * choice matches the "avoid cancellation" rule:
-             * v[0]_new = v[0] + sign(v[0]) * ||x|| has large
-             * magnitude. */
-            double v0 = v[0];
-            double x_norm = sqrt(sigma + v0 * v0);
-            double alpha = (v0 >= 0.0) ? x_norm : -x_norm;
-            v[0] = v0 + alpha;
-
-            /* beta_scale = 2 / (v^T v) = 2 / (sigma + v[0]_new^2)
-             * where v[0]_new = v0 + alpha, so
-             *   v[0]_new^2 = v0^2 + 2*v0*alpha + alpha^2
-             *             = v0^2 + 2*v0*alpha + (sigma + v0^2)
-             *             = 2*v0^2 + 2*v0*alpha + sigma
-             * and v^T v = sigma + v[0]_new^2 = 2*sigma + 2*v0^2 + 2*v0*alpha
-             *           = 2 * (alpha^2 + v0*alpha)
-             *           = 2 * alpha * (alpha + v0)
-             *           = 2 * alpha * v[0]_new
-             * so beta_scale = 1 / (alpha * v[0]_new).
-             *
-             * Defensive: if the denominator is numerically zero the
-             * reflector is ill-conditioned; bail out of this step. */
-            double denom = alpha * v[0];
-            if (fabs(denom) < 1e-300)
-                continue;
-            double beta_scale = 1.0 / denom;
-
-            /* p = T_sub * v (T_sub is the (len × len) submatrix
-             * T[j+1..K-1, j+1..K-1]). */
-            for (idx_t i = 0; i < len; i++) {
-                double pi = 0.0;
-                for (idx_t c = 0; c < len; c++)
-                    pi += T_AT(j + 1 + i, j + 1 + c) * v[c];
-                p[i] = pi;
-            }
-
-            /* vtp = v^T p */
-            double vtp = 0.0;
-            for (idx_t i = 0; i < len; i++)
-                vtp += v[i] * p[i];
-
-            /* q = beta_scale * p - (beta_scale^2 / 2) * vtp * v */
-            double K_coef = 0.5 * beta_scale * beta_scale * vtp;
-            for (idx_t i = 0; i < len; i++)
-                q[i] = beta_scale * p[i] - K_coef * v[i];
-
-            /* T_sub -= v * q^T + q * v^T (symmetric rank-2 update). */
-            for (idx_t i = 0; i < len; i++) {
-                double vi = v[i];
-                double qi = q[i];
-                for (idx_t c = 0; c < len; c++)
-                    T_AT(j + 1 + i, j + 1 + c) -= vi * q[c] + qi * v[c];
-            }
-
-            /* Write the reduced subdiagonal explicitly (avoid drift
-             * from floating-point cancellation in the rank-2 update). */
-            T_AT(j + 1, j) = -alpha;
-            T_AT(j, j + 1) = -alpha;
-            for (idx_t i = 2; i < len; i++) {
-                T_AT(j + 1 + i - 1, j) = 0.0;
-                T_AT(j, j + 1 + i - 1) = 0.0;
-            }
-        }
-
-        free(v);
-        free(p);
-        free(q);
-    }
-
-    /* Extract the tridiagonal form.  The Householder loop stops at
-     * K-3 because column K-2 is already reduced (only one
-     * sub-diagonal entry) and column K-1 has no sub-diagonal.  Both
-     * are already in the correct place in T. */
-    for (idx_t i = 0; i < K; i++)
-        diag_out[i] = T_AT(i, i);
-    if (K >= 2) {
-        for (idx_t i = 0; i + 1 < K; i++)
-            subdiag_out[i] = T_AT(i + 1, i);
-    }
-#undef T_AT
-
-    free(T);
-    return SPARSE_OK;
-}
-
-/* lanczos_restart_pick_locked: Day 2 Task 2 — assemble the three
- * locked-block arrays from a completed Lanczos phase's Ritz pairs.
- *
- *   V_locked[:, j] = V · Y[:, sel_idx[j]]
- *   theta_locked[j] = theta[sel_idx[j]]
- *   beta_coupling[j] = beta_m * Y[m-1, sel_idx[j]]
- *
- * Reuses the `s20_lift_ritz_vectors` kernel shape directly for the
- * V · Y[:, idx] column-major gemm. */
-void lanczos_restart_pick_locked(const double *V, idx_t n, idx_t m, const double *Y,
-                                 const double *theta, const idx_t *sel_idx, idx_t take,
-                                 double beta_m, double *V_locked_out, double *theta_locked_out,
-                                 double *beta_coupling_out) {
-    s20_lift_ritz_vectors(V, Y, n, m, take, sel_idx, V_locked_out);
-    for (idx_t j = 0; j < take; j++) {
-        idx_t col = sel_idx[j];
-        theta_locked_out[j] = theta[col];
-        /* Y is column-major m × m: Y[m-1, col] lives at offset
-         * (m - 1) + col * m. */
-        double y_last = Y[(size_t)(m - 1) + (size_t)col * (size_t)m];
-        beta_coupling_out[j] = beta_m * y_last;
-    }
-}
-
-/* lanczos_restart_state_assemble: Day 2 Task 3 — pack the picked
- * locked block + residual into `state`, allocating buffers if the
- * current capacity is insufficient.  Reuses existing buffers when
- * `k_locked <= state->k_locked_cap` and `state->n == n`. */
-sparse_err_t lanczos_restart_state_assemble(lanczos_restart_state_t *state, idx_t n, idx_t k_locked,
-                                            const double *V_locked_src,
-                                            const double *theta_locked_src,
-                                            const double *beta_coupling_src,
-                                            const double *residual_src, double residual_norm) {
-    if (!state)
-        return SPARSE_ERR_NULL;
-    if (n < 1 || k_locked < 0)
-        return SPARSE_ERR_BADARG;
-    if (k_locked > 0 && (!V_locked_src || !theta_locked_src || !beta_coupling_src))
-        return SPARSE_ERR_NULL;
-    if (!residual_src)
-        return SPARSE_ERR_NULL;
-
-    /* If state is non-empty and n mismatches, the caller is trying
-     * to reuse a state across different eigenproblems — reject
-     * rather than silently reallocating. */
-    if (state->n != 0 && state->n != n)
-        return SPARSE_ERR_SHAPE;
-
-    /* Allocate or grow V_locked capacity if needed.  We keep the
-     * residual buffer sized to n regardless of k_locked, so it's
-     * allocated separately below. */
-    if (k_locked > state->k_locked_cap) {
-        size_t v_elems = 0, v_bytes = 0;
-        if (sparse_size_mul_overflow((size_t)n, (size_t)k_locked, &v_elems) ||
-            sparse_size_mul_overflow(v_elems, sizeof(double), &v_bytes))
-            return SPARSE_ERR_ALLOC;
-        // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-        double *new_V = malloc(v_bytes);
-        double *new_theta = malloc((size_t)k_locked * sizeof(double));
-        double *new_beta = malloc((size_t)k_locked * sizeof(double));
-        if (!new_V || !new_theta || !new_beta) {
-            free(new_V);
-            free(new_theta);
-            free(new_beta);
-            return SPARSE_ERR_ALLOC;
-        }
-        free(state->V_locked);
-        free(state->theta_locked);
-        free(state->beta_coupling);
-        state->V_locked = new_V;
-        state->theta_locked = new_theta;
-        state->beta_coupling = new_beta;
-        state->k_locked_cap = k_locked;
-    }
-
-    /* Residual buffer allocated lazily / on first use.  Same n
-     * across restarts, so only allocate once. */
-    if (!state->residual) {
-        state->residual = malloc((size_t)n * sizeof(double));
-        if (!state->residual)
-            return SPARSE_ERR_ALLOC;
-    }
-
-    /* Copy the locked block + residual into state-owned memory. */
-    if (k_locked > 0) {
-        memcpy(state->V_locked, V_locked_src, (size_t)n * (size_t)k_locked * sizeof(double));
-        memcpy(state->theta_locked, theta_locked_src, (size_t)k_locked * sizeof(double));
-        memcpy(state->beta_coupling, beta_coupling_src, (size_t)k_locked * sizeof(double));
-    }
-    memcpy(state->residual, residual_src, (size_t)n * sizeof(double));
-
-    state->n = n;
-    state->k_locked = k_locked;
-    state->residual_norm = residual_norm;
-    return SPARSE_OK;
-}
-
-/* lanczos_thick_restart_iterate: Day 3 implementation.
- *
- * Runs one Lanczos phase of length `m_restart` against the
- * symmetric operator `op`.  Two modes:
- *
- *   Empty state (NULL, or k_locked == 0, or V_locked == NULL): the
- *     body delegates directly to `lanczos_iterate_op` — the
- *     phase behaves exactly like a fresh Lanczos run.  This is the
- *     first-phase path in `s21_thick_restart_outer_loop`.
- *
- *   Non-empty state: the body injects the locked Ritz block at the
- *     head of V / alpha / beta, seeds v_{k_locked} from
- *     `state->residual / state->residual_norm` (re-orthogonalised
- *     against V_locked to kill finite-precision drift), and
- *     continues the 3-term recurrence from step k_locked onward.
- *     The arrowhead T's spokes `beta_coupling[j]` are NOT written
- *     into the flat `alpha / beta` arrays for j < k_locked - 1 —
- *     those rows of the arrowhead are off-tridiagonal and the
- *     caller reads them back from `state->beta_coupling` when
- *     building the arrowhead for Ritz extraction.  The last
- *     spoke `beta_coupling[k_locked-1]` IS written as the standard
- *     subdiagonal entry `beta[k_locked - 1]` because it sits on
- *     the natural tridiagonal line between the locked block and
- *     the first extension row.  Full-MGS reorth handles the
- *     implicit spoke subtraction at step k_locked so no explicit
- *     spoke-correction is needed in the recurrence (each new
- *     Lanczos vector is orthogonalised against ALL previously
- *     stored V columns, including the locked block).
- */
-sparse_err_t lanczos_thick_restart_iterate(lanczos_op_fn op, const void *ctx, idx_t n,
-                                           const double *v0, idx_t m_restart, int reorthogonalize,
-                                           lanczos_restart_state_t *state, double *V, double *alpha,
-                                           double *beta, idx_t *m_actual) {
-    if (!op || !V || !alpha || !beta || !m_actual)
-        return SPARSE_ERR_NULL;
-    if (n < 1)
-        return SPARSE_ERR_SHAPE;
-    if (m_restart < 1 || m_restart > n)
-        return SPARSE_ERR_BADARG;
-    int state_empty = (state == NULL) || (state->k_locked == 0) || (state->V_locked == NULL);
-    if (state_empty && !v0)
-        return SPARSE_ERR_NULL;
-    if (!state_empty) {
-        if (state->n != n)
-            return SPARSE_ERR_SHAPE;
-        if (state->k_locked < 0 || state->k_locked >= m_restart)
-            return SPARSE_ERR_BADARG;
-        if (state->k_locked > state->k_locked_cap)
-            return SPARSE_ERR_BADARG;
-        if (!state->theta_locked || !state->beta_coupling || !state->residual)
-            return SPARSE_ERR_NULL;
-        if (state->residual_norm <= 0.0)
-            return SPARSE_ERR_BADARG; /* invariant-subspace trip; caller should stop */
-    }
-
-    *m_actual = 0;
-
-    /* Empty-state fast path: delegates to the Sprint 20 helper. */
-    if (state_empty)
-        return lanczos_iterate_op(op, ctx, n, v0, m_restart, reorthogonalize, V, alpha, beta,
-                                  m_actual);
-
-    idx_t k_locked = state->k_locked;
-
-    /* Copy locked block into V[:, 0..k_locked-1]. */
-    memcpy(V, state->V_locked, (size_t)n * (size_t)k_locked * sizeof(double));
-    /* alpha[0..k_locked-1] = theta_locked. */
-    memcpy(alpha, state->theta_locked, (size_t)k_locked * sizeof(double));
-    /* beta[0..k_locked-2] = 0 (locked block is diagonal in T);
-     * beta[k_locked-1] = beta_coupling[k_locked-1] (standard
-     * subdiagonal connecting the locked block to the first
-     * extension row; the preceding k_locked-1 coupling entries
-     * are off-tridiagonal spokes that the outer loop reads from
-     * state->beta_coupling). */
-    for (idx_t i = 0; i + 1 < k_locked; i++)
-        beta[i] = 0.0;
-    if (k_locked >= 1)
-        beta[k_locked - 1] = state->beta_coupling[k_locked - 1];
-
-    /* Seed v_{k_locked} from the state's residual.  MGS-reorthogonalise
-     * against V_locked once (the residual should be orthogonal to
-     * V_locked by the Lanczos property in exact arithmetic; the
-     * reorth pass cleans up finite-precision drift).  Then
-     * normalise. */
-    double *v_seed = V + (size_t)k_locked * (size_t)n;
-    double inv_rn = 1.0 / state->residual_norm;
-    for (idx_t i = 0; i < n; i++)
-        v_seed[i] = state->residual[i] * inv_rn;
-    if (reorthogonalize) {
-        s21_mgs_reorth(v_seed, V, n, k_locked);
-        double sq = 0.0;
-        for (idx_t i = 0; i < n; i++)
-            sq += v_seed[i] * v_seed[i];
-        double nrm = sqrt(sq);
-        if (nrm < DBL_MIN * 100.0) {
-            /* Residual collapsed under reorth — invariant subspace
-             * was essentially reached.  Report the locked block only. */
-            *m_actual = k_locked;
-            return SPARSE_OK;
-        }
-        double inv = 1.0 / nrm;
-        for (idx_t i = 0; i < n; i++)
-            v_seed[i] *= inv;
-    }
-
-    /* Continue the 3-term recurrence from step k_locked onward.
-     * Mirrors the Sprint 20 `lanczos_iterate_op` inner body but
-     * with a starting step index of k_locked and an augmented
-     * V whose first k_locked columns are the locked block.  Full-
-     * MGS reorth against V[:, 0..k) at each step handles the
-     * arrowhead-spoke subtraction implicitly. */
-    size_t w_bytes = 0;
-    if (sparse_idx_count_bytes_overflow(n, sizeof(double), &w_bytes))
-        return SPARSE_ERR_ALLOC;
-    double *w = malloc(w_bytes);
-    if (!w)
-        return SPARSE_ERR_ALLOC;
-
-    /* beta_prev at step k_locked: from the Lanczos relation after
-     * restart, v_{k_locked} was seeded from the prior-phase residual
-     * and the coupling to V_locked is carried in the arrowhead spokes
-     * (not in beta_prev).  For the 3-term recurrence continuation,
-     * beta_prev of step k_locked is *0* because v_{k_locked-1} is
-     * part of the locked block and the arrowhead subdiagonal
-     * inside the locked block is 0.  The MGS reorth pass picks up
-     * the spoke coupling from the locked vectors. */
-    double beta_prev = 0.0;
-    double t_norm = 0.0;
-
-    for (idx_t k = k_locked; k < m_restart; k++) {
-        double *v_k = V + (size_t)k * (size_t)n;
-
-        sparse_err_t op_rc = op(ctx, n, v_k, w);
-        if (op_rc != SPARSE_OK) {
-            free(w);
-            return op_rc;
-        }
-
-        /* w -= beta_{k-1} · v_{k-1}  (only for the first new step,
-         * this evaluates to zero since beta_prev initialises to 0;
-         * for subsequent steps it's the standard tridiagonal
-         * continuation). */
-        if (k > k_locked) {
-            const double *v_prev = V + (size_t)(k - 1) * (size_t)n;
-            for (idx_t i = 0; i < n; i++)
-                w[i] -= beta_prev * v_prev[i];
-        }
-
-        double a = 0.0;
-        for (idx_t i = 0; i < n; i++)
-            a += w[i] * v_k[i];
-        alpha[k] = a;
-
-        for (idx_t i = 0; i < n; i++)
-            w[i] -= a * v_k[i];
-
-        /* Full MGS reorth against V[:, 0..k).  This is the step
-         * where the arrowhead spoke coupling gets absorbed on the
-         * first new step (k == k_locked): w is orthogonalised
-         * against V_locked columns, which implicitly subtracts
-         * beta_coupling[j] · V_locked[:, j] for j in [0, k_locked). */
-        if (reorthogonalize && k > 0)
-            s21_mgs_reorth(w, V, n, k);
-
-        double b_sq = 0.0;
-        for (idx_t i = 0; i < n; i++)
-            b_sq += w[i] * w[i];
-        double b = sqrt(b_sq);
-        beta[k] = b;
-
-        /* Running ||T||_inf for the scale-aware breakdown check. */
-        double row_k_bound = beta_prev + fabs(a) + b;
-        if (row_k_bound > t_norm)
-            t_norm = row_k_bound;
-
-        double breakdown_tol = t_norm * 1e-14;
-        if (breakdown_tol < DBL_MIN * 100.0)
-            breakdown_tol = DBL_MIN * 100.0;
-        if (b < breakdown_tol) {
-            *m_actual = k + 1;
-            free(w);
-            return SPARSE_OK;
-        }
-
-        /* Normalise w into v_{k+1} when there's room. */
-        if (k + 1 < m_restart) {
-            double inv = 1.0 / b;
-            double *v_next = V + (size_t)(k + 1) * (size_t)n;
-            for (idx_t i = 0; i < n; i++)
-                v_next[i] = w[i] * inv;
-        }
-
-        beta_prev = b;
-    }
-
-    free(w);
-    *m_actual = m_restart;
-    return SPARSE_OK;
-}
-
-/* ─── Sprint 21 Day 3: Dense symmetric eigensolver (Jacobi) ─────── */
+/* ─── Dense Symmetric Eigensolver (Jacobi) ───────────────────────── */
 
 /* Classical Jacobi sweeps on a dense symmetric K × K matrix.
  * Returns ascending eigenvalues in `theta_out[0..K-1]` and the
  * corresponding orthonormal eigenvectors as columns of `Q_out`
  * (K × K, column-major).  Used for arrowhead Ritz extraction
- * (Day 3) because the arrowhead doesn't have the tridiagonal
- * shape `tridiag_qr_eigenpairs` needs; bypasses the Day 2
- * reduction-to-tridiag shim so the outer loop doesn't have to
- * thread a separate Q accumulator through the reduction.
+ * because the arrowhead does not have the tridiagonal shape
+ * `tridiag_qr_eigenpairs` expects.
  *
  * Cost: O(K^3) per sweep × O(log K) sweeps.  For K ≤ 100 this is
  * microsecond-scale; acceptable as long as m_restart stays bounded.
  *
  * Input `A_scratch` is destroyed (overwritten with the diagonalised
  * form as a side effect). */
-static sparse_err_t s21_dense_sym_jacobi(double *A_scratch, idx_t K, double *theta_out,
-                                         double *Q_out) {
+sparse_err_t s21_dense_sym_jacobi(double *A_scratch, idx_t K, double *theta_out, double *Q_out) {
     if (!A_scratch || !theta_out || !Q_out)
         return SPARSE_ERR_NULL;
     if (K < 1)
@@ -2220,431 +1487,37 @@ static sparse_err_t s21_dense_sym_jacobi(double *A_scratch, idx_t K, double *the
     return SPARSE_OK;
 }
 
-/* ─── Sprint 21 Day 3: Thick-restart outer loop ─────────────────── */
-
-/* Compose the arrowhead T (dense K × K) from the flat alpha / beta
- * arrays plus the state's off-tridiagonal spoke entries.  When
- * `k_locked == 0` (fresh phase), T is pure tridiagonal; when
- * `k_locked > 0` the top-left k_locked × k_locked block is
- * diagonal, row/col k_locked carries the spoke `beta_coupling`
- * (with the last entry already in beta[k_locked-1] as standard
- * subdiag), and rows k_locked.. are standard tridiagonal. */
-static void s21_build_dense_arrowhead(const double *alpha, const double *beta,
-                                      const double *beta_coupling, idx_t k_locked, idx_t K,
-                                      double *T_out) {
-    memset(T_out, 0, (size_t)K * (size_t)K * sizeof(double));
-    for (idx_t i = 0; i < K; i++)
-        T_out[(size_t)i + (size_t)i * (size_t)K] = alpha[i];
-    if (K >= 2) {
-        for (idx_t i = 0; i + 1 < K; i++) {
-            T_out[(size_t)(i + 1) + (size_t)i * (size_t)K] = beta[i];
-            T_out[(size_t)i + (size_t)(i + 1) * (size_t)K] = beta[i];
-        }
-    }
-    if (k_locked >= 2) {
-        /* Spokes at (k_locked, j) for j in [0, k_locked-1); the
-         * last coupling entry beta_coupling[k_locked-1] is already
-         * at (k_locked, k_locked-1) via the beta subdiagonal fill
-         * above. */
-        for (idx_t j = 0; j + 1 < k_locked; j++) {
-            T_out[(size_t)k_locked + (size_t)j * (size_t)K] = beta_coupling[j];
-            T_out[(size_t)j + (size_t)k_locked * (size_t)K] = beta_coupling[j];
-        }
-    }
-}
-
-/* Recompute the unnormalised Lanczos residual
- *   residual = A v_{m-1} − alpha[m-1] v_{m-1} − beta[m-2] v_{m-2}
- * from the completed V / alpha / beta arrays.  This is the
- * Lanczos "overflow" vector that `lanczos_iterate_op` normally
- * normalises into `v_m` when k+1 < m_max; by recomputing it here
- * we avoid threading a residual output through the iterator
- * signature (one extra matvec per restart).  `||residual||`
- * should equal `beta[m-1]` in exact arithmetic. */
-static sparse_err_t s21_recompute_residual(lanczos_op_fn op, const void *ctx, idx_t n,
-                                           const double *V, const double *alpha, const double *beta,
-                                           idx_t m, double *residual_out) {
-    if (m < 1)
-        return SPARSE_ERR_BADARG;
-    const double *v_last = V + (size_t)(m - 1) * (size_t)n;
-    sparse_err_t op_rc = op(ctx, n, v_last, residual_out);
-    if (op_rc != SPARSE_OK)
-        return op_rc;
-    for (idx_t i = 0; i < n; i++)
-        residual_out[i] -= alpha[m - 1] * v_last[i];
-    if (m >= 2) {
-        const double *v_prev = V + (size_t)(m - 2) * (size_t)n;
-        for (idx_t i = 0; i < n; i++)
-            residual_out[i] -= beta[m - 2] * v_prev[i];
-    }
-    return SPARSE_OK;
-}
-
-/* s21_thick_restart_outer_loop: Wu/Simon thick-restart dispatch.
- * Called from `sparse_eigs_sym` when
- * `opts->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`
- * (Day 3; Day 4 extends AUTO to route here above a size threshold).
- *
- * Manages the phase-by-phase restart loop with bounded memory:
- * V / alpha / beta are sized to `m_restart` (fixed), not the
- * monotone-growing `m_cap` of the Sprint 20 grow-m path.  Peak
- * memory is `O((m_restart + k_locked_cap) · n)`, independent of
- * total iteration count.
- *
- * Convergence gate mirrors the grow-m path: Wu/Simon per-pair
- * residual `|beta_last · Y_arrow[m_actual - 1, j]|` scaled by
- * `max(|theta_j|, scale)`.  When `beta_last` is the last Lanczos
- * beta of the CURRENT phase (not the prior-phase spoke), the
- * identity `||A V_aug y - θ V_aug y|| = |beta_last · y_last|` holds
- * across the augmented (locked + new) subspace by the same Paige
- * derivation the Sprint 20 grow-m path uses.
- *
- * Arguments are the pre-processed outer-loop inputs from
- * `sparse_eigs_sym` (operator + context + shift-invert state).
- * Result is populated on exit. */
-static sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *ctx, idx_t n,
-                                                 idx_t k, const sparse_eigs_opts_t *o,
-                                                 double eff_tol, idx_t max_iters,
-                                                 sparse_eigs_workspace_t *workspace,
-                                                 sparse_eigs_t *result) {
-    /* Restart basis size.  Day 4 tuning: `2k + 20` keeps peak
-     * `V + V_locked` at ~`m_restart + k = 3k + 20` columns, which
-     * for `k = 5` gives 35 columns — roughly 15× smaller than the
-     * grow-m path's typical `m_cap = 500` while still leaving
-     * enough of a Krylov spectrum per phase to converge extreme
-     * Ritz values in < 30 restarts on the Sprint 20 SuiteSparse
-     * corpus (see
-     * `docs/planning/EPIC_2/SPRINT_21/bench_day4_restart.txt`).
-     * Capped at `n` and `max_iters`, and floored so `m_restart >
-     * k_locked` (the thick-restart iterator precondition). */
-    int64_t m_restart_wide = (int64_t)2 * (int64_t)k + 20;
-    if (m_restart_wide > (int64_t)n)
-        m_restart_wide = (int64_t)n;
-    if (m_restart_wide > (int64_t)max_iters)
-        m_restart_wide = (int64_t)max_iters;
-    if (m_restart_wide < (int64_t)k + 1)
-        m_restart_wide = (int64_t)k + 1;
-    if (m_restart_wide > (int64_t)n)
-        m_restart_wide = (int64_t)n;
-    idx_t m_restart = (idx_t)m_restart_wide;
-    sparse_eigs_workspace_t local_ws;
-    sparse_eigs_workspace_t *thick_ws = workspace ? workspace : &local_ws;
-    sparse_eigs_thick_restart_workspace_view_t thick_view;
-    if (!workspace)
-        sparse_eigs_workspace_init(thick_ws);
-
-    /* Day 4 telemetry: peak simultaneous V columns = m_restart
-     * (main buffer) + k (locked state across restarts) + k (the
-     * transient `V_locked_tmp` during pick_locked, briefly live
-     * alongside both V and state->V_locked).  On a grow-m run
-     * with m_cap = 500, k = 5 this metric lands at 510, so the
-     * bcsstk14 parity test captures the memory savings by
-     * comparing peak_basis_size ratios rather than absolute
-     * numbers. */
-    result->peak_basis_size = m_restart + 2 * k;
-
-    lanczos_restart_state_t state = {0};
-
-    sparse_err_t rc = SPARSE_ERR_NOT_CONVERGED;
-    sparse_err_t ws_err =
-        sparse_eigs_workspace_prepare_thick_restart(thick_ws, n, m_restart, k, &thick_view);
-    if (ws_err != SPARSE_OK) {
-        rc = ws_err;
-        goto cleanup;
-    }
-
-    double *V = thick_view.V;
-    double *alpha = thick_view.alpha;
-    double *beta = thick_view.beta;
-    double *v0 = thick_view.v0;
-    double *residual_vec = thick_view.residual_vec;
-    double *T_arrow = thick_view.T_arrow;
-    double *theta_arrow = thick_view.theta_arrow;
-    double *Y_arrow = thick_view.Y_arrow;
-    idx_t *sel_idx = thick_view.sel_idx;
-    double *V_locked_tmp = thick_view.V_locked_tmp;
-    double *theta_locked_tmp = thick_view.theta_locked_tmp;
-    double *beta_coupling_tmp = thick_view.beta_coupling_tmp;
-
-    s20_lanczos_starting_vector(v0, n);
-
-    /* Outer restart loop.  Total work cap via `max_iters` — each
-     * phase contributes (m_actual - k_locked) new Lanczos steps to
-     * the cumulative count. */
-    idx_t total_iters = 0;
-    idx_t last_m_actual = 0;
-    idx_t last_take = 0;
-    double last_partial_res = 0.0;
-
-    /* Upper bound on phases: each phase does at least 1 new step,
-     * so max_restarts = max_iters is safe.  The scale-aware break
-     * conditions below exit earlier in practice. */
-    for (idx_t phase = 0; phase < max_iters; phase++) {
-        if (total_iters >= max_iters)
-            break;
-
-        idx_t m_actual = 0;
-        sparse_err_t err = lanczos_thick_restart_iterate(
-            op, ctx, n, v0, m_restart, o->reorthogonalize, &state, V, alpha, beta, &m_actual);
-        if (err != SPARSE_OK) {
-            rc = err;
-            goto cleanup;
-        }
-        if (m_actual < 1)
-            break;
-
-        /* Accumulate new-iteration count.  The first k_locked
-         * columns are the locked block (no new Lanczos work),
-         * so only m_actual - k_locked counts toward the budget. */
-        total_iters += (m_actual > state.k_locked) ? (m_actual - state.k_locked) : 0;
-        last_m_actual = m_actual;
-
-        /* Build the arrowhead T and extract Ritz pairs via
-         * dense Jacobi (bypasses the Day 2 reduce-to-tridiag
-         * helper because Jacobi produces Y directly in the
-         * arrowhead basis — no composition of transforms needed). */
-        idx_t K = m_actual;
-        s21_build_dense_arrowhead(alpha, beta, state.beta_coupling, state.k_locked, K, T_arrow);
-        err = s21_dense_sym_jacobi(T_arrow, K, theta_arrow, Y_arrow);
-        if (err != SPARSE_OK) {
-            rc = err;
-            goto cleanup;
-        }
-
-        idx_t take = s20_select_indices(theta_arrow, K, o->which, k, sel_idx);
-        last_take = take;
-        if (take < 1)
-            break;
-
-        /* Wu/Simon residual: |beta_last · y_{K-1, j}| scaled by
-         * max(|theta_j|, scale).  beta_last is the LAST Lanczos
-         * beta of the current phase (beta[m_actual - 1]); on an
-         * invariant-subspace early exit this is the breakdown-
-         * threshold scalar, which makes the residual tiny. */
-        double beta_last = beta[m_actual - 1];
-        double scale = s20_spectrum_scale(theta_arrow, K);
-        double max_res_rel = 0.0;
-        for (idx_t j = 0; j < take; j++) {
-            idx_t idx_l = sel_idx[j];
-            double y_last = Y_arrow[(size_t)(K - 1) + (size_t)idx_l * (size_t)K];
-            double abs_res = fabs(beta_last * y_last);
-            double tv_l = theta_arrow[idx_l];
-            double anchor = fabs(tv_l);
-            if (anchor < scale * 1e-12)
-                anchor = scale > 0.0 ? scale : 1.0;
-            double rel_res = abs_res / anchor;
-            if (rel_res > max_res_rel)
-                max_res_rel = rel_res;
-        }
-        last_partial_res = max_res_rel;
-
-        int converged = (max_res_rel <= eff_tol);
-        int invariant = (m_actual < m_restart);
-
-        if (converged || invariant) {
-            for (idx_t j = 0; j < take; j++) {
-                idx_t idx_l = sel_idx[j];
-                double theta = theta_arrow[idx_l];
-                result->eigenvalues[j] =
-                    (o->which == SPARSE_EIGS_NEAREST_SIGMA) ? (o->sigma + 1.0 / theta) : theta;
-            }
-            if (o->compute_vectors) {
-                s20_lift_ritz_vectors(V, Y_arrow, n, K, take, sel_idx, result->eigenvectors);
-            }
-            result->n_converged = take;
-            result->iterations = total_iters;
-            result->residual_norm = max_res_rel;
-            rc = (take == k) ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
-            goto cleanup;
-        }
-
-        /* Not converged and didn't hit an invariant subspace —
-         * assemble the next restart state and loop. */
-        idx_t k_lock_next = take; /* lock exactly the target set */
-        lanczos_restart_pick_locked(V, n, K, Y_arrow, theta_arrow, sel_idx, k_lock_next, beta_last,
-                                    V_locked_tmp, theta_locked_tmp, beta_coupling_tmp);
-
-        /* Recompute the unnormalised residual = beta_last · v_{m+1}
-         * from the completed V / alpha / beta.  One extra matvec;
-         * keeps `lanczos_thick_restart_iterate`'s signature tight. */
-        err = s21_recompute_residual(op, ctx, n, V, alpha, beta, m_actual, residual_vec);
-        if (err != SPARSE_OK) {
-            rc = err;
-            goto cleanup;
-        }
-
-        /* If the recomputed residual norm has collapsed (numerical
-         * invariant subspace that the breakdown check didn't
-         * catch — can happen when finite-precision reorth leaves
-         * a tiny residual), emit partial results rather than
-         * launching a doomed restart. */
-        double res_norm_check = 0.0;
-        for (idx_t i = 0; i < n; i++)
-            res_norm_check += residual_vec[i] * residual_vec[i];
-        res_norm_check = sqrt(res_norm_check);
-        if (res_norm_check < DBL_MIN * 100.0)
-            break;
-
-        err = lanczos_restart_state_assemble(&state, n, k_lock_next, V_locked_tmp, theta_locked_tmp,
-                                             beta_coupling_tmp, residual_vec, res_norm_check);
-        if (err != SPARSE_OK) {
-            rc = err;
-            goto cleanup;
-        }
-    }
-
-    /* Budget or restart cap reached without convergence.  Emit
-     * partial results from the last phase (matches Sprint 20
-     * grow-m path's final-phase fallthrough). */
-    if (last_m_actual > 0 && last_take > 0) {
-        /* Re-run the selection + lift from the last phase's
-         * already-cached theta_arrow / Y_arrow / sel_idx. */
-        for (idx_t j = 0; j < last_take; j++) {
-            idx_t idx_l = sel_idx[j];
-            double theta = theta_arrow[idx_l];
-            result->eigenvalues[j] =
-                (o->which == SPARSE_EIGS_NEAREST_SIGMA) ? (o->sigma + 1.0 / theta) : theta;
-        }
-        if (o->compute_vectors) {
-            s20_lift_ritz_vectors(V, Y_arrow, n, last_m_actual, last_take, sel_idx,
-                                  result->eigenvectors);
-        }
-        result->n_converged = last_take;
-        result->iterations = total_iters;
-        result->residual_norm = last_partial_res;
-    }
-
-cleanup:
-    if (!workspace)
-        sparse_eigs_workspace_free(thick_ws);
-    lanczos_restart_state_free(&state);
-    return rc;
-}
-
 /* ═══════════════════════════════════════════════════════════════════════
  * LOBPCG — Locally Optimal Block Preconditioned Conjugate Gradient
- *          (Sprint 21 Days 7-10; Knyazev 2001)
+ *          (Knyazev 2001)
  * ═══════════════════════════════════════════════════════════════════════
  *
- * Day 7 lands the API surface, the design block below, and stubs
- * (`s21_lobpcg_orthonormalize_block`, `s21_lobpcg_rr_step`,
- * `s21_lobpcg_solve`) that return SPARSE_ERR_BADARG.  Day 8
- * implements the unpreconditioned core, Day 9 wires preconditioning
- * + the BLOPEX P-update, Day 10 tunes AUTO routing.
+ * LOBPCG complements the Lanczos-family backends in two regimes:
+ * ill-conditioned SPD problems where a preconditioner materially
+ * improves convergence, and clustered spectra where block iteration
+ * can converge several target pairs together.
  *
- * Why a third backend.  Lanczos (with full reorth) is the workhorse
- * for symmetric eigenproblems on well-conditioned A — convergence is
- * geometric in the spectral gap and full-MGS reorth keeps the
- * Krylov basis orthonormal to machine precision.  Two regimes
- * motivate LOBPCG:
+ * Each iteration builds a Rayleigh-Ritz basis from the current
+ * approximations X, the preconditioned residual block W, and the
+ * previous search directions P.  The dense eigensolve over that
+ * basis yields the next X/P update and the current Ritz values.
  *
- *   1. **Ill-conditioned SPD.** When `cond(A)` reaches 1e6+, the
- *      Lanczos spectral-gap rate slows to 1 − O(1/sqrt(cond)) per
- *      step.  A cheap preconditioner M ≈ A (IC(0), LDL^T) accelerates
- *      LOBPCG to an effective rate determined by `cond(M^{-1}·A)` —
- *      often four or five orders of magnitude faster on the same
- *      fixture.  Lanczos has no equivalent inner preconditioning
- *      hook (shift-invert is the closest analogue, but it requires
- *      a near-eigenvalue σ to work).
+ * The implementation preserves a few important numerical guards:
+ *   - orthonormalise each block before forming the dense Gram matrix;
+ *   - eject columns whose norm collapses below the scale-aware
+ *     breakdown threshold;
+ *   - keep the more stable BLOPEX-style P update for near-singular
+ *     Gram matrices;
+ *   - report convergence with the same relative-residual convention
+ *     used by the Lanczos-family backends.
  *
- *   2. **Block convergence.** When the requested eigenvalues are
- *      clustered (k = 5 from a tightly-packed bottom of the
- *      spectrum), Lanczos converges them sequentially while LOBPCG
- *      converges them in parallel via the block_size > k mechanism.
- *      Each LOBPCG iteration costs O(block_size) matvecs vs Lanczos's
- *      one, so the parallel-block win has to be measured per
- *      problem; Day 10's AUTO threshold encodes the rule of thumb.
- *
- * Pipeline.  Each LOBPCG iteration maintains three n × block_size
- * matrices stored column-major:
- *
- *     X : current eigenvector approximations (init: random-deterministic)
- *     W : preconditioned residual            (M^{-1} · R when precond
- *                                             != NULL, else R itself)
- *     P : previous search direction          (init: 0; updated each step)
- *
- * The block Rayleigh-Ritz step concatenates these into an
- * n × (3·block_size) basis Q, orthonormalises it, forms the dense
- * symmetric Gram matrix
- *
- *     G = Q^T · A · Q
- *
- * (size 3·block_size × 3·block_size, computed by applying `op` to
- * each column of Q individually — Day 7 keeps the per-column
- * application; Sprint 22 may add a block matvec).  The dense
- * symmetric eigensolve via `s21_dense_sym_jacobi` (already in this
- * file from Day 2) yields all 3·block_size Ritz pairs (θ_j, y_j);
- * the block_size Ritz values matching `which` (LARGEST / SMALLEST /
- * NEAREST_SIGMA) become the new theta estimates, and the
- * combination coefficients produce the next X / P:
- *
- *     X_{new} = Q · Y[:, sel]                  (n × block_size)
- *     P_{new} = (W block of Q) · Y[W, sel]
- *             + (P block of Q) · Y[P, sel]     (n × block_size)
- *
- * Knyazev's "locally optimal" name comes from this Rayleigh-Ritz
- * minimisation over the 3-block subspace — at each step it picks the
- * best X / P combination available without lookahead, and the P
- * block carries the "momentum" that gives LOBPCG its
- * conjugate-gradient flavour.
- *
- * Numerical guards.
- *   - **Orthonormality.** Q must be orthonormal for G to be
- *     symmetric to within O(eps · cond) — `s21_lobpcg_orthonormalize_block`
- *     applies modified Gram-Schmidt with the Sprint 20 commit 70015a4
- *     scale-aware breakdown threshold; columns whose norm collapses
- *     below the threshold are ejected and the effective block size
- *     shrinks.  Day 8 unit tests that this ejection actually happens
- *     on near-singular Gram matrices.
- *   - **P-block stability.** Knyazev's original eq. 2.11 derives the
- *     new P from the difference of current and previous combination
- *     coefficients; on near-singular Gram matrices this loses
- *     significance.  Day 9 swaps in the BLOPEX (Stathopoulos 2007)
- *     formulation that conditions the P update on the Gram
- *     eigenvalue spread.  Day 8 ships the simpler Knyazev formula.
- *   - **Soft-locking.** Once a Ritz pair's residual drops below
- *     tol, optionally freeze it in X by setting the corresponding
- *     W and P columns to zero — saves work on the converged columns
- *     in subsequent iterations.  Day 9 wires this behind an opts
- *     flag (omitted from Day 7's struct since the field is
- *     deferrable; left for the Day 9 design step to land).
- *
- * Convergence gate.  Per-column residual `||R[:, j]||` scaled by
- * `max(|theta_j|, scale)` matches the Sprint 20 Wu/Simon convention
- * so `result->residual_norm` has consistent semantics across all
- * three backends.  When all `k` selected columns pass, emit and
- * return SPARSE_OK; on iteration-cap exhaustion, partial results
- * via SPARSE_ERR_NOT_CONVERGED.
- *
- * Spectrum modes.
- *   - LARGEST: standard LOBPCG converges to SMALLEST natively, so
- *     LARGEST wraps `op` in a negation `(neg_op)(x) := -A·x` and
- *     negates the returned eigenvalues.  Sprint 21 Day 10 lands the
- *     adapter; Day 7 stubs return BADARG for now.
- *   - SMALLEST: native LOBPCG path.  Day 8 implements this.
- *   - NEAREST_SIGMA: LOBPCG on `(A - σI)^{-1}` via the Sprint 20
- *     Day 12 LDL^T-shift-invert callback — the same `op_fn` /
- *     `op_ctx` setup `sparse_eigs_sym` builds for the Lanczos
- *     backends.  Post-process λ = σ + 1/θ.  Day 10 lands.
- *
- * Memory.  Peak `O((3·block_size + scratch) · n)` where scratch is
- * the dense Gram matrix and its eigenvector matrix (each
- * 3·block_size × 3·block_size) plus the per-iteration A·Q product
- * block (n × 3·block_size).  For block_size ≤ 30 this is ~5 MB on
- * bcsstk14 (n = 1806) — comparable to thick-restart's ~500 KB but
- * with much better convergence on ill-conditioned fixtures.
- *
- * References.
- *   - Knyazev, A. (2001).  Toward the Optimal Preconditioned
- *     Eigensolver: Locally Optimal Block Preconditioned Conjugate
- *     Gradient Method.  SIAM J. Sci. Comput. 23(2), 517-541.
- *   - Stathopoulos, A. (2007).  Nearly optimal preconditioned
- *     methods for Hermitian eigenproblems under limited memory.
- *     Part I: Seeking one eigenvalue.  SIAM J. Sci. Comput. 29(2),
- *     481-514.  (BLOPEX-style P-update formulation.)
+ * The concrete LOBPCG implementation lives in
+ * `src/sparse_eigs_lobpcg.c`, leaving this file focused on public
+ * orchestration plus the shared helpers that all eigensolver
+ * backends reuse.
  */
 
-/* Day 8: orthonormalise an n × block_size_in column-major block via
+/* Orthonormalise an n × block_size_in column-major block via
  * per-column modified Gram-Schmidt with scale-aware breakdown
  * ejection.  Walks columns left-to-right, applying MGS against the
  * already-accepted columns 0..accepted-1 and either accepting (post-
@@ -2652,582 +1525,10 @@ cleanup:
  * (post-MGS norm collapsed → linear-dependence on prior columns;
  * skip and forward-compact subsequent columns into this slot).
  *
- * Breakdown threshold mirrors the Sprint 20 commit 70015a4 pattern:
- * a relative `scale * 1e-14` threshold where `scale` is the running
+ * Breakdown threshold uses a relative `scale * 1e-14` threshold
+ * where `scale` is the running
  * max input column norm (pre-MGS), with a `DBL_MIN * 100` absolute
  * floor for the all-zero edge case. */
-sparse_err_t s21_lobpcg_orthonormalize_block(double *Q, idx_t n, idx_t block_size_in,
-                                             idx_t *block_size_out) {
-    if (!Q || !block_size_out)
-        return SPARSE_ERR_NULL;
-    if (n < 1 || block_size_in < 0)
-        return SPARSE_ERR_BADARG;
-
-    if (block_size_in == 0) {
-        *block_size_out = 0;
-        return SPARSE_OK;
-    }
-
-    double scale = 0.0;
-    idx_t accepted = 0;
-
-    for (idx_t j = 0; j < block_size_in; j++) {
-        double *col_in = Q + (size_t)j * (size_t)n;
-        double *col_out = Q + (size_t)accepted * (size_t)n;
-
-        /* Forward-compact when prior ejections have left a gap.
-         * When `accepted == j` (no ejections yet) the copy is a
-         * no-op and we skip it. */
-        if (accepted != j) {
-            for (idx_t i = 0; i < n; i++)
-                col_out[i] = col_in[i];
-        }
-
-        /* Pre-MGS norm tracks the running scale of the input — a
-         * "raw magnitude" reference for the post-MGS breakdown
-         * comparison.  Without this, scale would always equal 1
-         * (post-normalisation) and the threshold would fail to
-         * distinguish a near-collinear column from a genuinely
-         * orthogonal one. */
-        double sq_in = 0.0;
-        for (idx_t i = 0; i < n; i++)
-            sq_in += col_out[i] * col_out[i];
-        double norm_in = sqrt(sq_in);
-        if (norm_in > scale)
-            scale = norm_in;
-
-        /* MGS against the prior accepted columns — reuses the
-         * Sprint 20/21 OMP-parallel kernel so block orthogonalisation
-         * automatically benefits from the matvec-class parallelism. */
-        s21_mgs_reorth(col_out, Q, n, accepted);
-
-        double sq_out = 0.0;
-        for (idx_t i = 0; i < n; i++)
-            sq_out += col_out[i] * col_out[i];
-        double norm_out = sqrt(sq_out);
-
-        double breakdown_tol = scale * 1e-14;
-        if (breakdown_tol < DBL_MIN * 100.0)
-            breakdown_tol = DBL_MIN * 100.0;
-
-        if (norm_out > breakdown_tol) {
-            double inv = 1.0 / norm_out;
-            for (idx_t i = 0; i < n; i++)
-                col_out[i] *= inv;
-            accepted++;
-        }
-        /* Else: ejected.  Next column overwrites this slot via the
-         * forward-compact copy at the top of the next iteration. */
-    }
-
-    *block_size_out = accepted;
-    return SPARSE_OK;
-}
-
-/* Day 8: deterministic pseudo-random initial X for LOBPCG.  Extends
- * the Sprint 20 `s20_lanczos_starting_vector` per-column with a
- * column-dependent additive shift in the golden-ratio fractional
- * argument (using π for an irrational that is incommensurate with
- * the golden ratio, so different columns produce linearly-independent
- * starting vectors with high probability for the small n × bs we
- * care about).  Reproducible across runs. */
-static void s21_lobpcg_init_X(double *X, idx_t n, idx_t bs) {
-    for (idx_t j = 0; j < bs; j++) {
-        double *col = X + (size_t)j * (size_t)n;
-        for (idx_t i = 0; i < n; i++) {
-            double x = (double)(i + 1) * 0.618033988749895 + (double)(j + 1) * 0.31415926535897932;
-            col[i] = 0.3 + (x - floor(x));
-        }
-    }
-}
-
-/* Day 8 (Knyazev): one block Rayleigh-Ritz step.
- *
- *   Q ← [X | W | P]   (n × cap, where cap = 3·bs or 2·bs when P==NULL)
- *   orthonormalise Q in place                  → K_eff cols
- *   G ← Q^T · A · Q                            (K_eff × K_eff)
- *   diagonalise G via Jacobi                   → theta_full, Y
- *   select bs Ritz pairs per `which`           → sel_idx
- *   X_new ← Q · Y[:, sel_idx]                  (n × bs)
- *   P_new ← X_new − X · (X^T · X_new)          (orthogonal-projection
- *                                               formulation; equivalent
- *                                               to Knyazev eq. 2.11
- *                                               when X is orthonormal,
- *                                               which we maintain
- *                                               across iterations)
- *
- * Day 9 BLOPEX (Stathopoulos 2007) conditioning guard: when Jacobi
- * reports a near-singular G (smallest |theta_full| collapses
- * relative to the spectrum scale, indicating a rank-deficient Q
- * that the orthonormalise-block ejection didn't catch), fall back
- * to `P_new = 0` — equivalent to restarting the conjugate-gradient
- * direction track on the next iteration.  Rare in practice; observed
- * on extreme `bs > k` oversize-block runs against degenerate
- * spectra.  Same recovery BLOPEX 1.1 uses
- * (`lobpcg_solve_double.c::SolveTriDiagSystem`).  The orthogonal-
- * projection P-update formula is equivalent to BLOPEX's block-
- * structured `P_new = W'·Y_W + P'·Y_P` in exact arithmetic when X
- * is orthonormal — Day 9 keeps the cheaper Day 8 form and adds
- * only the conditioning guard, since the wholesale orthonormalise
- * pass already yields well-conditioned G in non-degenerate cases.
- *
- * Memory: n × cap doubles for Q + n × cap for AQ + cap × cap for G + Y
- * + cap doubles for theta_full + n × bs for X_new + n × bs for P_new.
- * For bs = 5 and n = 1806 this is ~75 KB per RR step. */
-sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_t block_size,
-                                sparse_eigs_lobpcg_workspace_view_t *view,
-                                sparse_eigs_which_t which, int use_p) {
-    if (!op || !view || !view->Q || !view->AQ || !view->G || !view->Y || !view->theta_full ||
-        !view->sel_idx || !view->X_new || !view->X || !view->W || !view->theta)
-        return SPARSE_ERR_NULL;
-    if (n < 1 || block_size < 1)
-        return SPARSE_ERR_BADARG;
-
-    double *X = view->X;
-    double *W = view->W;
-    double *P = use_p ? view->P : NULL;
-    double *Q = view->Q;
-    double *AQ = view->AQ;
-    double *G = view->G;
-    double *Y = view->Y;
-    double *theta_full = view->theta_full;
-    idx_t *sel_idx = view->sel_idx;
-    double *X_new = view->X_new;
-    double *P_new = use_p ? view->P_new : NULL;
-    double *theta_out = view->theta;
-
-    if (use_p && (!P || !P_new))
-        return SPARSE_ERR_NULL;
-
-    int has_p = use_p != 0;
-    idx_t cap = has_p ? 3 * block_size : 2 * block_size;
-    if (cap > n)
-        return SPARSE_ERR_BADARG;
-
-    /* Q ← [X | W | P] (column-major concatenation). */
-    size_t nb = (size_t)n * (size_t)block_size;
-    memcpy(Q, X, nb * sizeof(double));
-    memcpy(Q + nb, W, nb * sizeof(double));
-    if (has_p)
-        memcpy(Q + 2 * nb, P, nb * sizeof(double));
-
-    /* In-place orthonormalisation of Q with scale-aware breakdown
-     * ejection.  K_eff ≤ cap is the effective subspace dimension. */
-    idx_t K_eff = 0;
-    sparse_err_t err = s21_lobpcg_orthonormalize_block(Q, n, cap, &K_eff);
-    if (err != SPARSE_OK)
-        return err;
-    if (K_eff < block_size) {
-        /* The X block alone didn't survive orthogonalisation —
-         * caller's X is rank-deficient.  Punt back to the outer
-         * loop's allocation/init path. */
-        return SPARSE_ERR_BADARG;
-    }
-
-    /* AQ ← A · Q, column-by-column.  Sprint 22 may swap in a block
-     * matvec; for now per-column matches the existing op_fn shape
-     * unchanged from the Lanczos backends. */
-    for (idx_t j = 0; j < K_eff; j++) {
-        err = op(ctx, n, Q + (size_t)j * (size_t)n, AQ + (size_t)j * (size_t)n);
-        if (err != SPARSE_OK)
-            return err;
-    }
-
-    /* G ← Q^T · AQ.  Symmetric K_eff × K_eff Gram matrix; explicit
-     * symmetrisation suppresses the ~eps·||A|| asymmetry that
-     * floating-point rounding leaves in the off-diagonal entries
-     * (matters for Jacobi's `apq == aqp` invariant). */
-    for (idx_t i = 0; i < K_eff; i++) {
-        const double *qi = Q + (size_t)i * (size_t)n;
-        for (idx_t j = 0; j < K_eff; j++) {
-            const double *aqj = AQ + (size_t)j * (size_t)n;
-            double s = 0.0;
-            for (idx_t r = 0; r < n; r++)
-                s += qi[r] * aqj[r];
-            G[(size_t)i + (size_t)j * (size_t)K_eff] = s;
-        }
-    }
-    for (idx_t i = 0; i < K_eff; i++) {
-        for (idx_t j = i + 1; j < K_eff; j++) {
-            size_t ij = (size_t)i + (size_t)j * (size_t)K_eff;
-            size_t ji = (size_t)j + (size_t)i * (size_t)K_eff;
-            double avg = 0.5 * (G[ij] + G[ji]);
-            G[ij] = avg;
-            G[ji] = avg;
-        }
-    }
-
-    /* Diagonalise G via the Sprint 21 Day 2 dense Jacobi helper.
-     * theta_full is sorted ascending; Y is K_eff × K_eff column-major. */
-    err = s21_dense_sym_jacobi(G, K_eff, theta_full, Y);
-    if (err != SPARSE_OK)
-        return err;
-
-    /* Select block_size Ritz pairs per `which`. */
-    idx_t take = s20_select_indices(theta_full, K_eff, which, block_size, sel_idx);
-    if (take < block_size) {
-        /* Subspace too small to extract block_size pairs.  Caller's
-         * outer loop treats this as a non-convergent step. */
-        return SPARSE_ERR_NOT_CONVERGED;
-    }
-
-    /* Day 9 BLOPEX-style conditioning guard.  Detect a rank-deficient
-     * Gram matrix that the orthonormalise-block ejection missed by
-     * inspecting the spread of Jacobi's eigenvalues: when the
-     * smallest |theta_full| collapses below `scale * 1e-12` relative
-     * to the running max, treat the iteration as degenerate and
-     * restart the CG direction (P_new = 0) on the next outer-loop
-     * step rather than producing a numerically suspect P_new. */
-    double scale_theta = 0.0;
-    for (idx_t l = 0; l < K_eff; l++) {
-        double a = fabs(theta_full[l]);
-        if (a > scale_theta)
-            scale_theta = a;
-    }
-    int gram_singular = 0;
-    if (scale_theta > 0.0) {
-        double cond_floor = scale_theta * 1e-12;
-        for (idx_t l = 0; l < K_eff; l++) {
-            if (fabs(theta_full[l]) < cond_floor) {
-                gram_singular = 1;
-                break;
-            }
-        }
-    }
-
-    /* X_new ← Q · Y[:, sel_idx].  Column j of X_new is a linear
-     * combination of Q's columns weighted by Y's selected eigenvector. */
-    for (idx_t j = 0; j < block_size; j++) {
-        const double *yj = Y + (size_t)sel_idx[j] * (size_t)K_eff;
-        double *xn = X_new + (size_t)j * (size_t)n;
-        for (idx_t i = 0; i < n; i++)
-            xn[i] = 0.0;
-        for (idx_t c = 0; c < K_eff; c++) {
-            double yc = yj[c];
-            if (yc == 0.0)
-                continue;
-            const double *qc = Q + (size_t)c * (size_t)n;
-            for (idx_t i = 0; i < n; i++)
-                xn[i] += yc * qc[i];
-        }
-    }
-
-    /* P_new ← X_new − X · (X^T · X_new) (Knyazev 2001 eq. 2.11
-     * orthogonal-projection formulation).  When the conditioning
-     * guard fires, fall back to P_new = 0 — equivalent to restarting
-     * the CG track. */
-    if (has_p) {
-        if (gram_singular) {
-            memset(P_new, 0, nb * sizeof(double));
-        } else {
-            for (idx_t j = 0; j < block_size; j++) {
-                const double *xn = X_new + (size_t)j * (size_t)n;
-                double *pn = P_new + (size_t)j * (size_t)n;
-                for (idx_t i = 0; i < n; i++)
-                    pn[i] = xn[i];
-                for (idx_t l = 0; l < block_size; l++) {
-                    const double *xl = X + (size_t)l * (size_t)n;
-                    double dot = 0.0;
-                    for (idx_t i = 0; i < n; i++)
-                        dot += xn[i] * xl[i];
-                    for (idx_t i = 0; i < n; i++)
-                        pn[i] -= dot * xl[i];
-                }
-            }
-        }
-    }
-
-    /* Write back X = X_new, P = P_new (when P provided), and the
-     * selected Ritz values. */
-    memcpy(X, X_new, nb * sizeof(double));
-    if (has_p)
-        memcpy(P, P_new, nb * sizeof(double));
-    for (idx_t j = 0; j < block_size; j++)
-        theta_out[j] = theta_full[sel_idx[j]];
-    return SPARSE_OK;
-}
-
-/* Day 8 + 9: LOBPCG outer loop.
- *
- * 1. Prepare the reusable LOBPCG workspace view, which supplies
- *    X, R, W, P, AX, theta, converged, and the RR-step shared
- *    intermediates.  R is the raw residual AX − X·diag(theta); W
- *    is the preconditioned residual that gets fed into the
- *    Rayleigh-Ritz step (W = R when `o->precond` is NULL —
- *    vanilla LOBPCG; W = precond(R) otherwise).
- * 2. Initialise X with deterministic pseudo-random columns,
- *    orthonormalise.
- * 3. Compute AX = A · X and initial Rayleigh quotients
- *    theta_j = <X[:, j], AX[:, j]>.
- * 4. Loop until convergence or max_iters:
- *    a. R = AX − X · diag(theta).
- *    b. Per-column Wu/Simon residual:
- *           ||R[:, j]|| / max(|theta_j|, scale)
- *       Track per-column convergence flags + max across columns.
- *    c. If all columns converged: emit and return.
- *    d. W ← precond(R) when o->precond != NULL, else W = R.
- *    e. Soft-locking (when o->lobpcg_soft_lock is set): for any
- *       per-column converged j, zero W[:, j] and P[:, j] before
- *       running the RR step — the orthonormaliser ejects those
- *       zero columns, so the active Rayleigh-Ritz subspace shrinks
- *       to (bs + active_W + active_P) instead of (3·bs).  The
- *       locked X[:, j] stays in the basis and its Ritz pair is
- *       preserved by the RR step (X is in Q, so A·X[:, j] =
- *       theta[j]·X[:, j] + O(residual_j) maps back to the same
- *       column of Y).
- *    f. Run `s21_lobpcg_rr_step(X, W, P)` — updates X, P, theta
- *       in place via the BLOPEX-style block-preserving Rayleigh-
- *       Ritz pipeline.
- *    g. Recompute AX = A · X for the next residual.
- *
- * On the first iteration the persistent P buffer exists but is not
- * yet part of the RR subspace; `s21_lobpcg_rr_step(..., use_p = 0)`
- * handles the 2·bs `[X | W]` case and leaves P untouched.
- * Subsequent iterations pass `use_p = 1`, at which point P becomes
- * part of the RR subspace and is updated in place.
- *
- * Preconditioning convergence claim (Day 9 PLAN target): on an
- * ill-conditioned SPD with cond(A) ~ 1e6, vanilla LOBPCG converges
- * in O(sqrt(cond(A)) / log(1/eps)) iterations while preconditioned
- * LOBPCG with M ≈ A converges in O(sqrt(cond(M^{-1}·A)) / log(1/eps))
- * — typically 5×+ faster.  The Day 9 regression tests verify this
- * with IC(0) and LDL^T preconditioners on a 1D-Laplacian-shifted
- * fixture.
- *
- * On reaching `max_iters` without convergence, returns
- * SPARSE_ERR_NOT_CONVERGED with the current best Ritz values written
- * to result->eigenvalues (matching the Sprint 20 grow-m partial-
- * results contract). */
-sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t k,
-                              const sparse_eigs_opts_t *o, double eff_tol, idx_t max_iters,
-                              sparse_eigs_t *result, sparse_eigs_workspace_t *workspace) {
-    if (!op || !o || !result || !result->eigenvalues)
-        return SPARSE_ERR_NULL;
-    if (n < 1 || k < 1 || max_iters < 1)
-        return SPARSE_ERR_BADARG;
-
-    /* Resolve effective block size.  o->block_size == 0 selects the
-     * library default `bs = k`; sparse_eigs_sym already validated
-     * that nonzero values satisfy `k ≤ block_size ≤ n`. */
-    idx_t bs = (o->block_size > 0) ? o->block_size : k;
-    if (bs > n)
-        bs = n;
-    if (bs < k)
-        return SPARSE_ERR_BADARG;
-
-    /* peak_basis_size telemetry: outer-loop holds X + W + P + AX = 4·bs
-     * length-n vectors live; the RR step adds another 3·bs (Q) +
-     * 3·bs (AQ) inside its scope.  Peak across the call is therefore
-     * 4·bs (outer) + 6·bs (RR transient) = 10·bs.  Lower bound for
-     * the reservation comparison vs the Lanczos backends. */
-    result->peak_basis_size = 10 * bs;
-
-    sparse_eigs_workspace_t local_ws;
-    sparse_eigs_lobpcg_workspace_view_t lobpcg_view;
-    sparse_eigs_workspace_t *lobpcg_ws = workspace ? workspace : &local_ws;
-    if (!workspace)
-        sparse_eigs_workspace_init(lobpcg_ws);
-
-    sparse_err_t rc = SPARSE_ERR_NOT_CONVERGED;
-    idx_t total_iters = 0;
-    double last_res_rel = 0.0;
-    int have_p = 0;
-
-    sparse_err_t ws_err = sparse_eigs_workspace_prepare_lobpcg(lobpcg_ws, n, bs, 1, &lobpcg_view);
-    if (ws_err != SPARSE_OK) {
-        rc = ws_err;
-        goto cleanup;
-    }
-
-    double *X = lobpcg_view.X;
-    double *R = lobpcg_view.R;
-    double *W = lobpcg_view.W;
-    double *P = lobpcg_view.P;
-    double *AX = lobpcg_view.AX;
-    double *theta = lobpcg_view.theta;
-    int *converged = lobpcg_view.converged;
-
-    /* Step 1: deterministic pseudo-random init + orthonormalise. */
-    s21_lobpcg_init_X(X, n, bs);
-    idx_t bs_eff = 0;
-    sparse_err_t err = s21_lobpcg_orthonormalize_block(X, n, bs, &bs_eff);
-    if (err != SPARSE_OK) {
-        rc = err;
-        goto cleanup;
-    }
-    if (bs_eff < k) {
-        /* Pathological: starting vectors collapsed to a subspace
-         * smaller than k.  Should never happen with the golden-
-         * ratio init for n ≥ k ≥ 1. */
-        rc = SPARSE_ERR_BADARG;
-        goto cleanup;
-    }
-    bs = bs_eff;
-    size_t nb_bytes = (size_t)n * (size_t)bs * sizeof(double);
-
-    /* Step 2: AX = A · X, then theta_j = <X[:, j], AX[:, j]>. */
-    for (idx_t j = 0; j < bs; j++) {
-        err = op(ctx, n, X + (size_t)j * (size_t)n, AX + (size_t)j * (size_t)n);
-        if (err != SPARSE_OK) {
-            rc = err;
-            goto cleanup;
-        }
-    }
-    for (idx_t j = 0; j < bs; j++) {
-        const double *xj = X + (size_t)j * (size_t)n;
-        const double *axj = AX + (size_t)j * (size_t)n;
-        double s = 0.0;
-        for (idx_t i = 0; i < n; i++)
-            s += xj[i] * axj[i];
-        theta[j] = s;
-    }
-
-    /* Step 3: outer loop until convergence or max_iters. */
-    double lobpcg_phase_start_s = o->progress_cb ? s29_eigs_now_s() : 0.0;
-    for (idx_t iter = 0; iter < max_iters; iter++) {
-        /* Sprint 29 Day 7: progress + cancel for LOBPCG. */
-        if (o->progress_cb) {
-            sparse_progress_t pp = {
-                .phase = "lobpcg",
-                .step = iter,
-                .total = max_iters,
-                .elapsed_s = s29_eigs_now_s() - lobpcg_phase_start_s,
-            };
-            if (o->progress_cb(&pp, o->progress_user) != 0) {
-                rc = SPARSE_ERR_CANCELLED;
-                goto cleanup;
-            }
-        }
-
-        total_iters = iter + 1;
-
-        /* Raw residual R = AX − X · diag(theta).  Convergence gate
-         * runs against R (the un-preconditioned residual) so the
-         * tolerance has problem-physical meaning regardless of the
-         * preconditioner choice. */
-        for (idx_t j = 0; j < bs; j++) {
-            const double *xj = X + (size_t)j * (size_t)n;
-            const double *axj = AX + (size_t)j * (size_t)n;
-            double *rj = R + (size_t)j * (size_t)n;
-            double tj = theta[j];
-            for (idx_t i = 0; i < n; i++)
-                rj[i] = axj[i] - tj * xj[i];
-        }
-
-        /* Per-column Wu/Simon residual: ||R[:, j]|| / max(|theta_j|, scale).
-         * scale = max |theta| across the block; matches the Lanczos
-         * backends so result->residual_norm has consistent semantics. */
-        double scale = 0.0;
-        for (idx_t j = 0; j < bs; j++) {
-            double a = fabs(theta[j]);
-            if (a > scale)
-                scale = a;
-        }
-        double max_res_rel = 0.0;
-        idx_t n_locked = 0;
-        for (idx_t j = 0; j < bs; j++) {
-            const double *rj = R + (size_t)j * (size_t)n;
-            double sq = 0.0;
-            for (idx_t i = 0; i < n; i++)
-                sq += rj[i] * rj[i];
-            double r_norm = sqrt(sq);
-            double anchor = fabs(theta[j]);
-            if (anchor < scale * 1e-12)
-                anchor = scale > 0.0 ? scale : 1.0;
-            double rel = r_norm / anchor;
-            if (rel > max_res_rel)
-                max_res_rel = rel;
-            /* Per-column convergence flag.  Once a column meets tol,
-             * stays converged across iterations (soft-lock semantics
-             * — matches the BLOPEX reference: latched flag, not
-             * recomputed-from-scratch). */
-            if (rel <= eff_tol)
-                converged[j] = 1;
-            if (converged[j])
-                n_locked++;
-        }
-        last_res_rel = max_res_rel;
-        if (max_res_rel <= eff_tol) {
-            rc = SPARSE_OK;
-            break;
-        }
-
-        /* Day 9: preconditioning.  W ← M^{-1} · R when o->precond is
-         * non-NULL; else W = R (vanilla LOBPCG).  The precond is
-         * applied per-column unconditionally; soft-locking (below)
-         * then zeroes locked columns regardless of whether they
-         * passed through the precond. */
-        if (o->precond) {
-            for (idx_t j = 0; j < bs; j++) {
-                const double *rj = R + (size_t)j * (size_t)n;
-                double *wj = W + (size_t)j * (size_t)n;
-                err = o->precond(o->precond_ctx, n, rj, wj);
-                if (err != SPARSE_OK) {
-                    rc = err;
-                    goto cleanup;
-                }
-            }
-        } else {
-            memcpy(W, R, nb_bytes);
-        }
-
-        /* Soft-locking (Day 9): when enabled and a column has
-         * converged, zero its W and (if allocated) P entries so the
-         * RR step's orthonormaliser ejects them.  Locked X[:, j]
-         * stays in the basis; the RR step preserves its Ritz pair
-         * because X is part of Q's leading bs columns. */
-        if (o->lobpcg_soft_lock && n_locked > 0) {
-            for (idx_t j = 0; j < bs; j++) {
-                if (!converged[j])
-                    continue;
-                memset(W + (size_t)j * (size_t)n, 0, (size_t)n * sizeof(double));
-                if (P)
-                    memset(P + (size_t)j * (size_t)n, 0, (size_t)n * sizeof(double));
-            }
-        }
-
-        /* Rayleigh-Ritz step.  On the first iteration `have_p == 0`,
-         * so the RR step works on the 2·bs subspace [X | W]; from
-         * iter 1 onward `have_p == 1` and the persistent P buffer
-         * participates in the subspace and write-back. */
-        err = s21_lobpcg_rr_step(op, ctx, n, bs, &lobpcg_view, o->which, have_p);
-        if (err != SPARSE_OK) {
-            rc = err;
-            goto cleanup;
-        }
-        have_p = 1;
-
-        /* AX = A · X for the next residual. */
-        for (idx_t j = 0; j < bs; j++) {
-            err = op(ctx, n, X + (size_t)j * (size_t)n, AX + (size_t)j * (size_t)n);
-            if (err != SPARSE_OK) {
-                rc = err;
-                goto cleanup;
-            }
-        }
-    }
-
-    /* Emit results.  Pick the first k of the bs converged columns
-     * (the RR step's selection has already ordered them per `which`). */
-    idx_t emit = (k < bs) ? k : bs;
-    for (idx_t j = 0; j < emit; j++) {
-        double t = theta[j];
-        result->eigenvalues[j] = (o->which == SPARSE_EIGS_NEAREST_SIGMA) ? (o->sigma + 1.0 / t) : t;
-    }
-    if (o->compute_vectors) {
-        for (idx_t j = 0; j < emit; j++) {
-            const double *xj = X + (size_t)j * (size_t)n;
-            double *vj = result->eigenvectors + (size_t)j * (size_t)n;
-            for (idx_t i = 0; i < n; i++)
-                vj[i] = xj[i];
-        }
-    }
-    result->n_converged = (rc == SPARSE_OK) ? emit : 0;
-    result->iterations = total_iters;
-    result->residual_norm = last_res_rel;
-
-cleanup:
-    if (!workspace)
-        sparse_eigs_workspace_free(lobpcg_ws);
-    return rc;
-}
+/* The explicit LOBPCG backend implementation lives in
+ * `src/sparse_eigs_lobpcg.c`, leaving this file focused on public
+ * orchestration plus the Lanczos-family backends. */

@@ -2205,3 +2205,96 @@ decomposition work:
 - targeted solver/eigensolver proof surfaces stayed behavior-stable
 
 No new reconciliation queue surfaced during validation.
+
+# Sprint 55 Day 14 - closeout and handoff
+
+Date: 2026-06-04
+Branch: `sprint-55`
+
+## Closeout summary
+
+Sprint 55 now closes as one coherent bounded Phase 1 decomposition package
+rather than as separate extraction patches:
+
+- eigensolver ownership improved materially:
+  - `src/sparse_eigs.c`: `3233` -> `1534`
+  - extracted backend-owned files:
+    - `src/sparse_eigs_lobpcg.c`
+    - `src/sparse_eigs_thick_restart.c`
+- iterative ownership improved materially:
+  - `src/sparse_iterative.c`: `2377` -> `1985`
+  - extracted backend-owned file:
+    - `src/sparse_iterative_minres.c`
+- touched permanent implementation commentary is cleaner:
+  - stale sprint-history narrative was removed from Sprint 55 touched
+    implementation files
+  - durable algorithm and ownership commentary was preserved
+- validation confidence remained high:
+  - `make format`, `make lint`, `make test`, and `make quality-review-full`
+    all passed
+  - reviewed CMake parity stayed exact at `53`
+  - Makefile/CMake parity stayed `53 vs 53`
+  - full reviewed CMake `ctest` passed `53 / 53`
+  - `Total Test time (real) = 253.48 sec`
+
+## Remaining next-phase seams
+
+The next large-source decomposition queue is now explicit and future-facing
+instead of hidden inside Sprint 55:
+
+- later iterative decomposition:
+  - `GMRES`
+  - shared block-wrapper scaffolding
+- later eigensolver cleanup/decomposition:
+  - additional trimming of the retained `src/sparse_eigs.c`
+  - possible future private-header taxonomy cleanup if it clearly improves
+    maintainability
+- still intentionally deferred:
+  - turning `BiCGSTAB` into a Sprint 55-style public repeated-run handle topic
+  - broad public API redesign
+  - large documentation/tutorial rewrites unrelated to source ownership
+
+## Plan alignment check
+
+Sprint 55 still matches the planned bounded Phase 1 scope:
+
+- planned scope:
+  - two eigensolver decomposition batches
+  - one iterative decomposition batch
+  - historical-comment cleanup
+  - validation and closeout
+- delivered scope:
+  - two eigensolver decomposition batches landed
+  - one iterative decomposition batch landed
+  - historical-comment cleanup landed
+  - full validation and closeout completed
+- planned cadence/budget:
+  - `14` days
+  - `~160` hours
+- delivered cadence:
+  - Sprint 55 completed in the planned `14` day structure without opening a
+    replanning queue
+
+## Project plan check
+
+Rechecked whether the landed Sprint 55 state requires an `EPIC_5/PROJECT_PLAN`
+adjustment.
+
+Conclusion:
+
+- no project-plan update is needed
+- Sprint 55 delivered the bounded Phase 1 decomposition work it was supposed
+  to deliver
+- the remaining queue already fits naturally into later Epic 5 large-source
+  phases
+
+## Day 14 Close
+
+Sprint 55 closes from a clean validated baseline with a clear next-phase
+handoff:
+
+- ownership improved in both major large-source hotspots
+- public behavior and support boundaries stayed intact
+- the residual decomposition queue is explicit and bounded
+
+The next sprint can start from a clean, validated, and documented handoff.

@@ -1,0 +1,49 @@
+Sprint 56 Day 1 authoritative inputs
+====================================
+
+Planning sources
+----------------
+- docs/planning/EPIC_5/PROJECT_PLAN.md
+- docs/planning/EPIC_5/SPRINT_56/PLAN.md
+
+Inherited closeout / baseline sources
+-------------------------------------
+- docs/planning/EPIC_5/SPRINT_55/artifacts/day14-closeout-and-handoff.md
+- docs/planning/EPIC_5/SPRINT_55/RETROSPECTIVE.md
+- docs/planning/EPIC_5/reviews/review-codex-2026-05-31.md
+- docs/planning/EPIC_5/reviews/todo-codex-2026-05-31.md
+
+Validation anchors
+------------------
+- make quality-review-full
+- ctest -N --test-dir build/quality-review-cmake
+
+Primary implementation / proof hotspots
+---------------------------------------
+- include/sparse_ldlt.h
+- include/sparse_cholesky.h
+- include/sparse_svd.h
+- src/sparse_ldlt_csc.c
+- src/sparse_chol_csc.c
+- src/sparse_svd.c
+- src/sparse_ldlt_csc_internal.h
+- src/sparse_chol_csc_internal.h
+- src/sparse_svd_internal.h
+- tests/test_ldlt_csc.c
+- tests/test_chol_csc.c
+- tests/test_svd.c
+- tests/test_integration.c
+- benchmarks/bench_refactor_csc.c
+- examples/example_analysis.c
+- README.md
+- docs/maintainer_guide.md
+
+Key live symbols / seams
+------------------------
+- ldlt_csc_from_sparse_with_analysis(...)
+- chol_csc_from_sparse_with_analysis(...)
+- helper-vs-orchestration ownership split
+- scalar vs supernodal CSC helper clusters
+- native CSC storage/container ownership
+- sparse_svd.c maintainability hotspot
+- historical sprint-history narrative in permanent implementation files

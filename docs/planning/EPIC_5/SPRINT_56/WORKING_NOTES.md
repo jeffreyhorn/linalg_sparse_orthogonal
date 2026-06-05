@@ -1335,3 +1335,181 @@ Day 7 fixes the first Cholesky CSC extraction boundary explicitly:
 
 That gives Sprint 56 a concrete, bounded, maintainability-first Day 8 landing
 plan.
+
+## Day 8
+
+**Objective:** Land the first bounded Cholesky CSC source split from the Day 7
+design by extracting the full Cholesky-owned supernodal backend into its own
+owned file while preserving CSC proof parity and the full reviewed validation
+baseline.
+
+### Commands Run
+
+1. Re-read the Sprint 56 Day 8 plan item and the Day 7 design boundary:
+   - `sed -n '305,380p' docs/planning/EPIC_5/SPRINT_56/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_56/artifacts/day7-cholesky-csc-decomposition-design.md`
+2. Re-read the live Cholesky CSC implementation, internal contract, and build
+   surfaces before editing:
+   - `sed -n '1,2400p' src/sparse_chol_csc.c`
+   - `sed -n '1,260p' src/sparse_chol_csc_internal.h`
+   - `sed -n '1,140p' Makefile`
+   - `sed -n '80,120p' CMakeLists.txt`
+3. Land the Cholesky CSC extraction batch:
+   - edited `src/sparse_chol_csc.c`
+   - added `src/sparse_chol_csc_supernodal.c`
+   - edited `src/sparse_chol_csc_internal.h`
+   - edited `Makefile`
+   - edited `CMakeLists.txt`
+4. Run the required validation gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+5. Run the high-signal Day 8 follow-ons:
+   - `./build/test_chol_csc`
+   - `./build/test_cholesky`
+   - `./build/test_integration`
+   - `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/example_analysis`
+6. Capture the post-split size deltas:
+   - `wc -l src/sparse_chol_csc.c src/sparse_chol_csc_supernodal.c src/sparse_chol_csc_internal.h`
+   - `git diff --stat`
+
+### Day 8 Findings
+
+#### 1. Sprint 56 Batch 2 successfully extracted the full Cholesky-owned supernodal backend into its own owned source file
+
+The landed new file is:
+
+- `src/sparse_chol_csc_supernodal.c`
+
+Moved function set:
+
+- `columns_in_same_supernode(...)`
+- `chol_csc_detect_supernodes(...)`
+- `chol_dense_factor(...)`
+- `chol_dense_solve_lower(...)`
+- `chol_csc_eliminate_supernodal(...)`
+- `chol_csc_bsearch_row_map(...)`
+- `chol_csc_supernode_extract(...)`
+- `chol_csc_supernode_eliminate_diag(...)`
+- `chol_csc_supernode_eliminate_panel(...)`
+- `chol_csc_supernode_writeback(...)`
+
+Interpretation:
+
+- the extracted file is a real SPD/backend-owned slice
+- the first Cholesky CSC split stayed aligned with the Day 7 ownership model
+  rather than degrading into a cosmetic helper spill
+
+#### 2. The retained `src/sparse_chol_csc.c` boundary stayed inside the Day 7 fence
+
+Retained in the main file:
+
+- lifecycle / conversion ownership
+- validation
+- scalar workspace and native elimination/solve core
+- wrapper / dispatch glue
+- `chol_csc_writeback_to_sparse(...)`
+- shared dense LDLT helpers:
+  - `ldlt_dense_sym_swap(...)`
+  - `ldlt_dense_factor(...)`
+
+Interpretation:
+
+- the retained file is still the compatibility-facing control path
+- Batch 2 did not blur the boundary by moving writeback, shared dense
+  indefinite primitives, or wrapper-specific logic into the Cholesky-owned
+  file
+
+#### 3. The private-header strategy stayed bounded, but the retained helper surfaces needed one analyzer-facing cleanup pass
+
+The batch kept the existing internal contract in:
+
+- `src/sparse_chol_csc_internal.h`
+
+Bounded header cleanup landed:
+
+- top-level usage wording now names:
+  - `src/sparse_chol_csc.c`
+  - `src/sparse_chol_csc_supernodal.c`
+- the Cholesky dense/supernodal status comments now match the live ownership
+  and behavior contract
+
+The retained main file also needed a bounded static-analysis cleanup in:
+
+- `bsearch_row(...)`
+- `chol_csc_scatter(...)`
+- `chol_csc_gather(...)`
+
+The cleanup tightened those paths to explicit bounded slice/count logic
+without changing the behavioral contract.
+
+Interpretation:
+
+- Day 8 stayed decomposition-first
+- the extra retained-file cleanup was a proof/maintainability tightening, not
+  a hidden semantic redesign
+
+#### 4. The ownership reduction is real and measurable
+
+Post-split line counts:
+
+- `src/sparse_chol_csc.c` = `1625`
+- `src/sparse_chol_csc_supernodal.c` = `544`
+- `src/sparse_chol_csc_internal.h` = `979`
+
+Compared with the Sprint 56 Day 1 baseline:
+
+- `src/sparse_chol_csc.c`: `2194 -> 1625`
+
+Interpretation:
+
+- the retained main file dropped by `569` lines
+- the new file is large enough to represent a true backend-owned seam
+
+#### 5. The full required validation baseline remained exact after the Cholesky split
+
+Required gate:
+
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+- `make quality-review-full` passed
+
+Maintained reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 279.57 sec`
+
+High-signal follow-ons also remained green:
+
+- `./build/test_chol_csc` -> `137 / 137`
+- `./build/test_cholesky` -> `21 / 21`
+- `./build/test_integration` -> `37 / 37`
+- `./build/example_analysis` -> residual `4.44e-16`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `speedup_refactor = 1.53x`
+  - `res_public = 8.24e-16`
+  - `res_csc = 7.06e-16`
+
+Interpretation:
+
+- the first Cholesky CSC split preserved both the direct CSC proof surface and
+  the broader reviewed project baseline
+
+## Day 8 Close
+
+Sprint 56 now has a landed second decomposition batch:
+
+- the Cholesky-owned supernodal CSC backend has its own source file
+- the retained main Cholesky CSC file is materially smaller and more focused
+- the internal-header and build-surface changes stayed bounded
+- the analyzer-facing retained-helper tightening stayed local and
+  behavior-preserving
+- the full local and reviewed validation baseline remained exact
+
+That gives Sprint 56 a real Cholesky CSC maintainability landing rather than
+only a design artifact.

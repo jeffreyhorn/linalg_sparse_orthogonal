@@ -1992,3 +1992,155 @@ Sprint 56 Day 11 delivered a bounded CSC comment reconciliation pass:
 
 That gives Sprint 56 a truthful Day 11 maintainability result without
 pretending the broader CSC legacy-comment backlog is already gone.
+
+## Day 12
+
+**Objective:** Confirm that the landed Sprint 56 decomposition still matches
+the preserved public and implementation fences, that the ownership gains are
+real, and that no blocker-level drift remains before final validation.
+
+### Commands Run
+
+1. Re-read the Sprint 56 Day 12 plan item:
+   - `sed -n '424,490p' docs/planning/EPIC_5/SPRINT_56/PLAN.md`
+2. Re-read the landed Sprint 56 close state leading into the audit:
+   - `tail -n 260 docs/planning/EPIC_5/SPRINT_56/WORKING_NOTES.md`
+3. Re-measure the touched hotspot files from the live tree:
+   - `wc -l src/sparse_ldlt_csc.c src/sparse_ldlt_csc_supernodal.c src/sparse_chol_csc.c src/sparse_chol_csc_supernodal.c src/sparse_svd.c src/sparse_svd_partial.c Makefile CMakeLists.txt`
+4. Recheck the full Sprint 56 branch delta against `master`:
+   - `git diff --stat master...HEAD`
+   - `git diff --name-only master...HEAD | rg "^(include/|src/|docs/planning/EPIC_5/SPRINT_56/)"`
+5. Reconfirm build-surface alignment for the extracted files:
+   - `rg -n "sparse_ldlt_csc_supernodal|sparse_chol_csc_supernodal|sparse_svd_partial" Makefile CMakeLists.txt`
+
+### Day 12 Findings
+
+#### 1. Sprint 56 still matches the preserved public fence because the branch never touched `include/`
+
+The strongest compatibility fact is structural:
+
+- `git diff --name-only master...HEAD` shows no `include/` changes
+
+Interpretation:
+
+- Sprint 56 remained decomposition-first
+- the sprint did not drift into public API redesign
+- the direct-solver and SVD caller-facing support boundaries remain the same as
+  on `master`
+
+#### 2. The ownership reductions remain real and defensible in all three hotspot areas
+
+Live post-Day-11 line counts:
+
+- `src/sparse_ldlt_csc.c` = `2127`
+- `src/sparse_ldlt_csc_supernodal.c` = `392`
+- `src/sparse_chol_csc.c` = `1532`
+- `src/sparse_chol_csc_supernodal.c` = `544`
+- `src/sparse_svd.c` = `1319`
+- `src/sparse_svd_partial.c` = `402`
+
+Compared with the Sprint 56 Day 1 baseline:
+
+- `src/sparse_ldlt_csc.c`: `2723 -> 2127`
+- `src/sparse_chol_csc.c`: `2194 -> 1532`
+- `src/sparse_svd.c`: `1728 -> 1319`
+
+Interpretation:
+
+- the retained LDLT CSC main file is smaller by `596` lines
+- the retained Cholesky CSC main file is smaller by `662` lines
+- the retained SVD main file is smaller by `409` lines
+- the extracted files are large enough to be true owned seams rather than
+  cosmetic spill files
+
+#### 3. The Makefile and CMake ownership surfaces still agree exactly
+
+Rechecked extracted-file naming:
+
+- `Makefile`
+  - `src/sparse_svd_partial.c`
+  - `src/sparse_chol_csc_supernodal.c`
+  - `src/sparse_ldlt_csc_supernodal.c`
+- `CMakeLists.txt`
+  - `src/sparse_svd_partial.c`
+  - `src/sparse_chol_csc_supernodal.c`
+  - `src/sparse_ldlt_csc_supernodal.c`
+
+Interpretation:
+
+- Sprint 56 did not introduce build-path drift between the reviewed Makefile
+  and CMake surfaces
+- the extracted file inventory remains aligned across both build systems
+
+#### 4. No blocker-level residual drift surfaced before final validation
+
+The `master...HEAD` branch delta remains bounded to:
+
+- `src/`
+- `Makefile`
+- `CMakeLists.txt`
+- `docs/planning/EPIC_5/SPRINT_56/`
+
+No evidence surfaced for:
+
+- public-header drift
+- solver-family support-boundary drift
+- behavior-visible repeated-run lifecycle drift
+
+Residual queue remains non-blocking and future-facing:
+
+- deeper CSC legacy-comment cleanup beyond Day 11's bounded sweep
+- later CSC decomposition phases if the retained files still justify more
+  ownership reduction
+- later SVD/private-header cleanup only if it clearly improves maintainability
+
+Interpretation:
+
+- Sprint 56 is carrying a future maintainability queue, not a hidden closeout
+  defect
+- the branch is ready for Day 13 validation from the current landed state
+
+#### 5. The Day 13 validation checklist is now fixed from the landed state
+
+Required full validation gate:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Truthfulness anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake`
+- Makefile/CMake parity
+- full reviewed CMake `ctest`
+
+Targeted Sprint 56 follow-ons:
+
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+- `./build/test_cholesky`
+- `./build/test_ldlt`
+- `./build/test_etree`
+- `./build/test_svd`
+- `./build/test_integration`
+- `./build/bench_refactor_csc`
+- `./build/example_analysis`
+
+Interpretation:
+
+- the Day 13 close path is explicit
+- no pre-validation ambiguity remains
+
+## Day 12 Close
+
+Sprint 56 Day 12 confirms that the landed branch still matches the preserved
+Sprint 56 fences:
+
+- the sprint stayed decomposition-first and never touched public headers
+- the ownership reductions are real and measurable in the CSC and SVD hotspots
+- Makefile and CMake still agree on the extracted source inventory
+- no blocker-level drift remains before final validation
+
+Sprint 56 can move to Day 13 from the current landed state without reopening
+its public or architectural boundary.

@@ -1137,3 +1137,201 @@ Sprint 56 now has a concrete Cholesky CSC decomposition map:
 
 That is enough to move to the next Sprint 56 Cholesky design/implementation
 step without leaving the first Cholesky batch boundary ambiguous.
+
+## Day 7
+
+**Objective:** Freeze the first Cholesky CSC extraction boundary before
+editing permanent implementation files by turning the Day 6
+supernodal-first ranking into an exact file split, declaration strategy, and
+preserved-behavior checklist.
+
+### Commands Run
+
+1. Re-read the Sprint 56 Day 7 plan item and the Day 6 closing state:
+   - `sed -n '230,304p' docs/planning/EPIC_5/SPRINT_56/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_56/artifacts/day6-cholesky-csc-residual-ownership-audit.md`
+2. Re-read the live private contract and build-list state before fixing the
+   Cholesky boundary:
+   - `sed -n '1,260p' src/sparse_chol_csc_internal.h`
+   - `sed -n '1,140p' Makefile`
+   - `sed -n '80,120p' CMakeLists.txt`
+3. Re-read the earlier Phase 2 LDLT design batch for shape/reference:
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_56/artifacts/day4-ldlt-csc-decomposition-design.md`
+
+### Day 7 Findings
+
+#### 1. Sprint 56 Batch 2 should extract the full Cholesky-owned supernodal backend into its own source file
+
+The Day 6 ranking still holds after re-reading the concrete helper block and
+the private contract:
+
+- new file:
+  - `src/sparse_chol_csc_supernodal.c`
+
+The first moved function set should be:
+
+- `columns_in_same_supernode(...)`
+- `chol_csc_detect_supernodes(...)`
+- `chol_dense_factor(...)`
+- `chol_dense_solve_lower(...)`
+- `chol_csc_eliminate_supernodal(...)`
+- `chol_csc_bsearch_row_map(...)`
+- `chol_csc_supernode_extract(...)`
+- `chol_csc_supernode_eliminate_diag(...)`
+- `chol_csc_supernode_eliminate_panel(...)`
+- `chol_csc_supernode_writeback(...)`
+
+Interpretation:
+
+- this is a real backend-owned seam, not a cosmetic file move
+- Cholesky can justify moving the top-level batched driver together with the
+  helper cluster because the ownership is cleaner than the earlier LDLT case
+
+#### 2. The retained main file should keep lifecycle/conversion, scalar/native core, wrapper glue, CSC writeback, and shared dense LDLT helpers
+
+### Keep in `src/sparse_chol_csc.c`
+
+- lifecycle / storage / structural conversion
+- sparse-to-CSC and analysis-aware conversion entry points
+- validation
+- scalar workspace and native elimination/solve core
+- wrapper / dispatch-specific glue
+- `chol_csc_writeback_to_sparse(...)`
+- shared dense indefinite primitive helpers:
+  - `ldlt_dense_sym_swap(...)`
+  - `ldlt_dense_factor(...)`
+
+### Move to `src/sparse_chol_csc_supernodal.c`
+
+- supernode detection
+- dense Cholesky factor/solve primitives
+- supernodal row-map lookup helper
+- supernode extract logic
+- supernode diagonal-block eliminate helper
+- supernode panel eliminate helper
+- supernode CSC writeback helper
+- top-level supernodal elimination driver
+
+Interpretation:
+
+- Batch 2 should create one clean SPD backend-owned file
+- the retained main file should stay the home of the compatibility-facing
+  conversion/scalar/control path
+
+#### 3. Sprint 56 should keep using the existing internal header rather than mix in a private-header taxonomy redesign
+
+The first Cholesky batch should keep declarations in the existing:
+
+- `src/sparse_chol_csc_internal.h`
+
+Reason:
+
+- Batch 2 already changes one major ownership axis:
+  - source-file extraction
+- opening a new private-header taxonomy in the same batch would combine:
+  - source extraction
+  - private-header redesign
+- the current internal header already contains the authoritative private
+  contract for:
+  - `CholCsc`
+  - `CholCscWorkspace`
+  - scalar/native helpers
+  - Cholesky supernodal helpers
+  - shared dense helper declarations
+
+Interpretation:
+
+- Sprint 56 should separate source ownership first
+- private-header taxonomy cleanup remains a later maintainability choice, not
+  a Day 8 dependency
+
+#### 4. The first batch must preserve scalar/supernodal parity, writeback semantics, dispatch behavior, and CSC proof parity exactly
+
+### Public and compatibility invariants
+
+- no public header/API changes
+- no user-visible direct-solver lifecycle behavior change
+- no change to the public analysis/factors path that ultimately reaches the
+  Cholesky CSC completion seam
+
+### Scalar/supernodal parity invariants
+
+- scalar versus supernodal result parity unchanged
+- supernode-detection semantics unchanged
+- `min_size` threshold behavior unchanged
+- dense Cholesky diagonal/panel behavior unchanged
+
+### Dispatch/writeback invariants
+
+- one-shot and shared analysis-aware CSC routing unchanged
+- `chol_csc_factor(...)` and `chol_csc_factor_solve(...)` behavior unchanged
+- `chol_csc_writeback_to_sparse(...)` semantics unchanged
+- drop-threshold and diagonal-preservation behavior unchanged
+
+### Proof-surface invariants
+
+- `tests/test_chol_csc.c` remains the primary direct proof surface
+- `tests/test_cholesky.c` remains unchanged in meaning
+- `tests/test_integration.c` remains unchanged in meaning
+- `benchmarks/bench_refactor_csc.c` keeps its current repeated-run CSC proof
+- `examples/example_analysis.c` keeps its current caller-facing repeated direct
+  workflow proof
+
+Interpretation:
+
+- Day 8 should preserve the current Cholesky CSC proof story exactly
+- the extraction is successful only if the source ownership changes while the
+  behavior contracts stay still
+
+#### 5. The bounded non-goal fence is now explicit before the first Cholesky code move
+
+The first Cholesky batch should not:
+
+- redesign CSC dispatch
+- change public APIs or header shape
+- create a new private-header taxonomy
+- move the shared dense LDLT primitive into the Cholesky-owned file
+- widen into broader Cholesky/LDLT CSC code reconciliation
+- reopen benchmark or example design beyond parity checks
+
+Interpretation:
+
+- the Sprint 56 Cholesky implementation batch is now bounded clearly enough
+  that the Day 8 touch set should stay narrow
+
+#### 6. The expected Day 8 touch set and landing checklist are now fixed
+
+Primary expected touched set:
+
+- `src/sparse_chol_csc.c`
+- `src/sparse_chol_csc_supernodal.c`
+- `src/sparse_chol_csc_internal.h`
+- `Makefile`
+- `CMakeLists.txt`
+
+Secondary touch only if truly needed:
+
+- `tests/test_chol_csc.c`
+
+Avoid by default:
+
+- `include/sparse_cholesky.h`
+- `tests/test_cholesky.c`
+- `tests/test_integration.c`
+- `benchmarks/bench_refactor_csc.c`
+- `src/sparse_ldlt_csc.c`
+
+## Day 7 Close
+
+Day 7 fixes the first Cholesky CSC extraction boundary explicitly:
+
+- move the full Cholesky-owned supernodal backend into
+  `src/sparse_chol_csc_supernodal.c`
+- keep lifecycle/conversion, scalar/native core, wrapper glue, CSC writeback,
+  and shared dense LDLT helpers in `src/sparse_chol_csc.c`
+- reuse the existing internal header for Phase 2
+- preserve the full scalar/supernodal, dispatch, threshold, and proof contract
+  exactly
+
+That gives Sprint 56 a concrete, bounded, maintainability-first Day 8 landing
+plan.

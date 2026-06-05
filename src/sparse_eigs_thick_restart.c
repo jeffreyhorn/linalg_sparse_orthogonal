@@ -151,13 +151,12 @@ sparse_err_t s21_arrowhead_to_tridiag(const double *theta_locked, const double *
     if (K >= 2 && !subdiag_out)
         return SPARSE_ERR_NULL;
 
-    /* Dense K×K scratch.  Overflow-check K*K*sizeof(double). */
-    size_t K2 = 0, K2_bytes = 0;
-    if (sparse_size_mul_overflow((size_t)K, (size_t)K, &K2) ||
-        sparse_size_mul_overflow(K2, sizeof(double), &K2_bytes))
+    /* Dense K×K scratch with checked count arithmetic. */
+    size_t K_size = 0, K2 = 0;
+    if (sparse_idx_to_size_checked(K, &K_size) || sparse_size_mul_overflow(K_size, K_size, &K2))
         return SPARSE_ERR_ALLOC;
-    double *T = calloc(K2, sizeof(double));
-    if (!T) {
+    double *T = NULL;
+    if (sparse_calloc_array(K2, sizeof(double), (void **)&T) != SPARSE_OK) {
         return SPARSE_ERR_ALLOC;
     }
 
@@ -210,10 +209,12 @@ sparse_err_t s21_arrowhead_to_tridiag(const double *theta_locked, const double *
      */
     if (K >= 3) {
         /* Scratch buffers sized to K-1 (worst case for column 0). */
-        double *v = calloc((size_t)K, sizeof(double));
-        double *p = calloc((size_t)K, sizeof(double));
-        double *q = calloc((size_t)K, sizeof(double));
-        if (!v || !p || !q) {
+        double *v = NULL;
+        double *p = NULL;
+        double *q = NULL;
+        if (sparse_calloc_idx_array(K, sizeof(double), (void **)&v) != SPARSE_OK ||
+            sparse_calloc_idx_array(K, sizeof(double), (void **)&p) != SPARSE_OK ||
+            sparse_calloc_idx_array(K, sizeof(double), (void **)&q) != SPARSE_OK) {
             free(v);
             free(p);
             free(q);
@@ -370,19 +371,23 @@ sparse_err_t lanczos_restart_state_assemble(lanczos_restart_state_t *state, idx_
     if (state->n != 0 && state->n != n)
         return SPARSE_ERR_SHAPE;
 
+    size_t n_size = 0, k_locked_size = 0, v_elems = 0;
+    if (sparse_idx_to_size_checked(n, &n_size) ||
+        sparse_idx_to_size_checked(k_locked, &k_locked_size))
+        return SPARSE_ERR_ALLOC;
+    if (k_locked > 0 && sparse_size_mul_overflow(n_size, k_locked_size, &v_elems))
+        return SPARSE_ERR_ALLOC;
+
     /* Allocate or grow V_locked capacity if needed.  We keep the
      * residual buffer sized to n regardless of k_locked, so it's
      * allocated separately below. */
     if (k_locked > state->k_locked_cap) {
-        size_t v_elems = 0, v_bytes = 0;
-        if (sparse_size_mul_overflow((size_t)n, (size_t)k_locked, &v_elems) ||
-            sparse_size_mul_overflow(v_elems, sizeof(double), &v_bytes))
-            return SPARSE_ERR_ALLOC;
-        // NOLINTNEXTLINE(clang-analyzer-optin.portability.UnixAPI)
-        double *new_V = malloc(v_bytes);
-        double *new_theta = malloc((size_t)k_locked * sizeof(double));
-        double *new_beta = malloc((size_t)k_locked * sizeof(double));
-        if (!new_V || !new_theta || !new_beta) {
+        double *new_V = NULL;
+        double *new_theta = NULL;
+        double *new_beta = NULL;
+        if (sparse_malloc_array(v_elems, sizeof(double), (void **)&new_V) != SPARSE_OK ||
+            sparse_malloc_idx_array(k_locked, sizeof(double), (void **)&new_theta) != SPARSE_OK ||
+            sparse_malloc_idx_array(k_locked, sizeof(double), (void **)&new_beta) != SPARSE_OK) {
             free(new_V);
             free(new_theta);
             free(new_beta);
@@ -400,18 +405,17 @@ sparse_err_t lanczos_restart_state_assemble(lanczos_restart_state_t *state, idx_
     /* Residual buffer allocated lazily / on first use.  Same n
      * across restarts, so only allocate once. */
     if (!state->residual) {
-        state->residual = malloc((size_t)n * sizeof(double));
-        if (!state->residual)
+        if (sparse_malloc_idx_array(n, sizeof(double), (void **)&state->residual) != SPARSE_OK)
             return SPARSE_ERR_ALLOC;
     }
 
     /* Copy the locked block + residual into state-owned memory. */
     if (k_locked > 0) {
-        memcpy(state->V_locked, V_locked_src, (size_t)n * (size_t)k_locked * sizeof(double));
-        memcpy(state->theta_locked, theta_locked_src, (size_t)k_locked * sizeof(double));
-        memcpy(state->beta_coupling, beta_coupling_src, (size_t)k_locked * sizeof(double));
+        memcpy(state->V_locked, V_locked_src, v_elems * sizeof(double));
+        memcpy(state->theta_locked, theta_locked_src, k_locked_size * sizeof(double));
+        memcpy(state->beta_coupling, beta_coupling_src, k_locked_size * sizeof(double));
     }
-    memcpy(state->residual, residual_src, (size_t)n * sizeof(double));
+    memcpy(state->residual, residual_src, n_size * sizeof(double));
 
     state->n = n;
     state->k_locked = k_locked;

@@ -346,3 +346,214 @@ Sprint 56 now has an explicit validation boundary:
 
 That is enough to move to the Day 3 `sparse_ldlt_csc.c` residual ownership
 audit without any remaining ambiguity around validation expectations.
+
+## Day 3
+
+**Objective:** Reduce `src/sparse_ldlt_csc.c` to a concrete extraction map by
+separating the live LDLT CSC ownership bands, ranking the real bounded seam
+options, and fixing the strongest first extraction target before any code
+movement begins.
+
+### Commands Run
+
+1. Re-read the Sprint 56 Day 3 plan item and current sprint notes:
+   - `sed -n '122,159p' docs/planning/EPIC_5/SPRINT_56/PLAN.md`
+   - `sed -n '337,520p' docs/planning/EPIC_5/SPRINT_56/WORKING_NOTES.md`
+2. Re-read the current private LDLT CSC header surface:
+   - `sed -n '1,260p' src/sparse_ldlt_csc_internal.h`
+3. Re-read the front portion of the production file and file-level design note:
+   - `sed -n '1,260p' src/sparse_ldlt_csc.c`
+4. Build a function map for the whole translation unit:
+   - `rg -n "^static |^sparse_err_t |^int |^void |^double |^idx_t " src/sparse_ldlt_csc.c`
+5. Re-read the strongest direct proof surface:
+   - `sed -n '1,260p' tests/test_ldlt_csc.c`
+6. Re-read the CSC repeated-run benchmark surface:
+   - `sed -n '1,260p' benchmarks/bench_refactor_csc.c`
+
+### Day 3 Findings
+
+#### 1. The `src/sparse_ldlt_csc.c` problem now reduces cleanly to five ownership bands instead of one generic large-file target
+
+The live function map breaks into five clear bands:
+
+1. lifecycle / storage / structural conversion
+   - `ldlt_csc_free(...)`
+   - `ldlt_csc_alloc(...)`
+   - `ldlt_csc_row_adj_append(...)`
+   - `ldlt_csc_detect_supernodes(...)`
+   - `ldlt_csc_from_sparse(...)`
+   - `ldlt_csc_from_sparse_with_analysis(...)`
+   - `ldlt_csc_to_sparse(...)`
+   - `ldlt_csc_writeback_to_ldlt(...)`
+   - `ldlt_csc_validate(...)`
+2. legacy wrapper and compatibility path
+   - `csc_to_full_symmetric_matrix(...)`
+   - `ldlt_csc_eliminate_wrapper(...)`
+3. scalar/native LDLT CSC kernel and dispatch core
+   - `ldlt_csc_symmetric_swap(...)`
+   - `ldlt_csc_eliminate(...)`
+   - workspace alloc/free
+   - Bunch-Kaufman helpers
+   - scatter / lookup / cmod / one-step elimination
+   - `ldlt_csc_eliminate_native(...)`
+   - `ldlt_csc_solve(...)`
+4. supernodal LDLT CSC helper cluster
+   - `ldlt_csc_supernode_extract(...)`
+   - `ldlt_csc_supernode_writeback(...)`
+   - `ldlt_csc_supernode_eliminate_diag(...)`
+   - `ldlt_csc_supernode_eliminate_panel(...)`
+   - `ldlt_csc_eliminate_supernodal(...)`
+5. small local helper seams serving the larger clusters
+   - `ldlt_csc_bsearch_row_map(...)`
+   - row-adjacency and dense-column clear helpers
+
+Interpretation:
+
+- Sprint 56 no longer needs to talk about `sparse_ldlt_csc.c` as one monolith
+- the real choice is which owned cluster to move first without weakening the
+  scalar/native CSC kernel or the public compatibility path
+
+#### 2. The strongest first extraction target is the supernodal helper cluster, not the scalar/native kernel
+
+The supernodal cluster is the clearest first owned slice because it already
+reads as a bounded subsystem:
+
+- extraction and dense writeback
+- dense diagonal block factor step
+- dense panel solve step
+- top-level supernodal elimination driver
+
+Why it is stronger than the scalar/native kernel for Batch 1:
+
+- it is already grouped contiguously near the end of the file
+- it has its own vocabulary and helper surface
+- it is easier to move without reopening the main scalar Bunch-Kaufman control
+  loop
+- it is directly exercised by the CSC-specific tests, which gives clearer proof
+  boundaries after extraction
+
+Interpretation:
+
+- the supernodal cluster is the highest-value first extraction seam because it
+  offers real ownership reduction without forcing a riskier rewrite of the
+  scalar/native elimination heart of the file
+
+#### 3. The scalar/native kernel is the largest residual seam, but it is a better second target than first target
+
+The middle scalar/native band remains the biggest residual ownership mass:
+
+- symmetric swap
+- workspace lifecycle
+- Bunch-Kaufman scan helpers
+- scatter / lookup / cmod
+- one-step elimination
+- native elimination driver
+- solve path
+
+This band is important, but it is more intertwined than the supernodal slice:
+
+- `ldlt_csc_eliminate_native(...)` depends on multiple local helpers and the
+  row-adjacency population path
+- `ldlt_csc_symmetric_swap(...)` and cmod behavior are tightly coupled to the
+  scalar elimination path
+- the solve path carries user-visible correctness expectations, so a purely
+  mechanical extraction would be risky
+
+Interpretation:
+
+- this is the strongest second-phase seam after a cleaner supernodal-first
+  extraction has reduced file size and clarified the remaining core
+- Sprint 56 should not start by splitting the scalar kernel just because it is
+  the biggest line-count region
+
+#### 4. Conversion / validation / writeback is real ownership, but a weak first extraction target
+
+The top lifecycle/conversion band is substantial, but it is not the best first
+batch:
+
+- it contains real owned logic
+- it touches public-facing conversion semantics indirectly
+- it is less behaviorally cohesive than the supernodal cluster
+
+Moving it first would risk a lower-value split:
+
+- more files
+- less line-count relief in the numerically dense backend section
+- weaker improvement to the main implementation readability problem
+
+Interpretation:
+
+- this band is a valid later cleanup seam
+- it should not outrank the supernodal cluster or the scalar/native kernel in
+  the first extraction order
+
+#### 5. The wrapper path is intentionally secondary and should not drive the decomposition order
+
+The wrapper/compatibility path is narrow:
+
+- full symmetric linked-list expansion helper
+- wrapper elimination path retained for comparison and regression purposes
+
+Its main role is compatibility and A/B proof, not primary ownership:
+
+- it is already bounded
+- it is not where most maintainability weight lives
+- extracting it first would reduce little risk and little line count
+
+Interpretation:
+
+- keep it visible as a seam
+- do not let it distort the first extraction order
+
+#### 6. The proof surfaces argue for CSC-native ownership bands, not arbitrary utility-file slicing
+
+The main proof surfaces remain:
+
+- `tests/test_ldlt_csc.c` = `3680`
+- `tests/test_integration.c` still carries public repeated-run direct-lifecycle
+  coverage
+- `benchmarks/bench_refactor_csc.c` = `611`
+
+And the benchmark is especially informative:
+
+- it proves both SPD Cholesky and indefinite LDLT repeated-run CSC paths
+- it names the direct CSC completion seam explicitly
+
+Interpretation:
+
+- Sprint 56 should extract ownership bands that those tests and benchmarks
+  already imply exist
+- a utility-first split that cuts across these proof boundaries would be harder
+  to validate and explain
+
+#### 7. The ranked extraction order is now explicit
+
+Ranked `src/sparse_ldlt_csc.c` target order from strongest to weakest:
+
+1. supernodal LDLT CSC helper cluster
+2. scalar/native elimination kernel cluster
+3. conversion / validation / writeback cluster
+4. wrapper/compatibility cluster
+5. small residual local helper cleanup
+
+That gives Sprint 56 a concrete first-batch recommendation:
+
+- first extraction target:
+  - supernodal LDLT CSC helper cluster
+- keep in the main file initially:
+  - public-ish lifecycle/conversion entry points
+  - wrapper compatibility path
+  - scalar/native Bunch-Kaufman core
+  - solve path
+
+## Day 3 Close
+
+Sprint 56 now has a concrete LDLT CSC decomposition map:
+
+- named ownership bands
+- a ranked extraction order
+- an explicit first target centered on the supernodal helper cluster
+- a clear reason not to start with the scalar/native kernel despite its size
+
+That is enough to move to the Day 4 LDLT CSC decomposition design without
+leaving the first batch boundary ambiguous.

@@ -108,8 +108,15 @@ double s29_eigs_now_s(void);
 
 void s21_mgs_reorth(double *w, const double *V, idx_t n, idx_t k_stored);
 
+void s20_lanczos_starting_vector(double *v0, idx_t n);
+
+double s20_spectrum_scale(const double *theta, idx_t m);
+
 idx_t s20_select_indices(const double *theta, idx_t m, sparse_eigs_which_t which, idx_t k_want,
                          idx_t *sel_idx);
+
+void s20_lift_ritz_vectors(const double *V, const double *Y, idx_t n, idx_t m, idx_t take,
+                           const idx_t *idx, double *eigenvectors_out);
 
 sparse_err_t s21_dense_sym_jacobi(double *A_scratch, idx_t K, double *theta_out, double *Q_out);
 
@@ -484,6 +491,11 @@ sparse_err_t lanczos_thick_restart_iterate(lanczos_op_fn op, const void *ctx, id
                                            const double *v0, idx_t m_restart, int reorthogonalize,
                                            lanczos_restart_state_t *state, double *V, double *alpha,
                                            double *beta, idx_t *m_actual);
+
+sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *ctx, idx_t n, idx_t k,
+                                          const sparse_eigs_opts_t *o, double eff_tol,
+                                          idx_t max_iters, sparse_eigs_workspace_t *workspace,
+                                          sparse_eigs_t *result);
 
 /* ═══════════════════════════════════════════════════════════════════════
  * LOBPCG building blocks (Knyazev 2001)

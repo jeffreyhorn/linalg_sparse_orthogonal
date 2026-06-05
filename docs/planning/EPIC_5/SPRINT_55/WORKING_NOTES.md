@@ -1076,3 +1076,170 @@ Sprint 55 now has an explicit second eigensolver batch design:
 
 That is enough to start the Day 7 implementation batch from the landed Day 5
 reality instead of the original pre-extraction estimate.
+
+# Sprint 55 Day 7 - eigensolver decomposition batch 2
+
+Date: 2026-06-04
+Branch: `sprint-55`
+
+## Goal
+
+Land the second bounded `src/sparse_eigs.c` decomposition batch by moving the
+thick-restart restart-state / arrowhead / bounded-memory outer-loop backend
+cluster into its own permanent source file while preserving the public
+eigensolver contract, backend routing, reuse semantics, and the existing proof
+surfaces.
+
+## Work completed
+
+### 1. Extracted the thick-restart backend into its own permanent source file
+
+The Day 7 batch moved the thick-restart implementation cluster into:
+
+- `src/sparse_eigs_thick_restart.c`
+
+The extracted implementation set is now:
+
+- `lanczos_restart_state_free(...)`
+- `s21_arrowhead_to_tridiag(...)`
+- `lanczos_restart_pick_locked(...)`
+- `lanczos_restart_state_assemble(...)`
+- `lanczos_thick_restart_iterate(...)`
+- `s21_build_dense_arrowhead(...)`
+- `s21_recompute_residual(...)`
+- `s21_thick_restart_outer_loop(...)`
+
+### 2. Kept the shared front-door eigensolver file focused on public/shared ownership
+
+After the extraction, the retained `src/sparse_eigs.c` ownership is now clearer:
+
+- public one-shot and handle entry points
+- shared validation and result setup
+- AUTO/explicit backend selection
+- generic Lanczos helpers
+- grow-m Lanczos path
+- shared dense Jacobi helper
+- shift-invert/shared operator composition
+- the LOBPCG dispatch/orchestration call sites
+
+Interpretation:
+
+- the second extraction materially improved source ownership
+- `src/sparse_eigs.c` now reads more like the shared eigensolver front door
+  instead of a mixed orchestration-plus-backend dump
+
+### 3. Reused the existing internal header instead of opening a second private-header redesign
+
+The batch kept the Sprint 55 Day 6 declaration strategy:
+
+- reused:
+  - `src/sparse_eigs_internal.h`
+
+The only header widening needed was to make the shared helper surface explicit
+for the extracted thick-restart file:
+
+- `s20_lanczos_starting_vector(...)`
+- `s20_spectrum_scale(...)`
+- `s20_lift_ritz_vectors(...)`
+- `s21_thick_restart_outer_loop(...)`
+
+Interpretation:
+
+- the source split landed without a second taxonomy rewrite
+- the batch stayed inside the planned decomposition-first fence
+
+### 4. The main ownership reduction is now measurable
+
+Current post-Day-7 line counts:
+
+- `src/sparse_eigs.c` = `1727`
+- `src/sparse_eigs_thick_restart.c` = `934`
+
+Relative to the post-Day-5 baseline:
+
+- `src/sparse_eigs.c`: `2660` -> `1727`
+
+Interpretation:
+
+- Batch 2 is a real decomposition step, not a cosmetic move
+- the remaining main eigensolver file is now substantially smaller than the
+  Sprint 55 Day 1 baseline
+
+### 5. The first landing needed two real splice fixes before validation completed
+
+The initial extraction exposed two real follow-up issues:
+
+- `src/sparse_eigs_thick_restart.c` still ended with a dangling section-banner
+  fragment
+- `src/sparse_eigs.c` lost the opening `/*` for the retained LOBPCG banner
+
+Both were fixed before validation. No algorithm change was needed after that;
+the remaining work was shared-helper visibility plus build-system integration.
+
+## Touched permanent files
+
+- `CMakeLists.txt`
+- `Makefile`
+- `src/sparse_eigs.c`
+- `src/sparse_eigs_internal.h`
+- `src/sparse_eigs_thick_restart.c` (new)
+
+## Validation
+
+Required code-day validation passed:
+
+- `make format`
+- `make lint`
+- `make test`
+
+The stronger reviewed baseline also passed:
+
+- `make quality-review-full`
+
+Reviewed truthfulness anchors remained exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 248.71 sec`
+
+## Focused follow-ons
+
+The strongest eigensolver parity surfaces also passed:
+
+- `./build/test_eigs` -> `30 / 30`
+- `./build/test_eigs_thick_restart` -> `20 / 20`
+- `./build/test_eigs_lobpcg` -> `26 / 26`
+- `./build/example_eigs`
+- `./build/bench_eigs_reuse`
+
+Representative retained behavior:
+
+- `example_eigs`:
+  - explicit `LOBPCG` on `bcsstk04` still converged `3 / 3` smallest pairs in
+    `62` outer iterations
+  - reported residual stayed `8.808e-09`
+- `bench_eigs_reuse`:
+  - `growm-nos4-k5` -> `1.02x`
+  - `thick-bcsstk14-k5` -> `0.97x`
+  - `lobpcg-diag40-k3` -> `0.96x`
+  - all retained exact eigenvalue parity:
+    - `|lambda|max diff = 0.000e+00`
+
+## Day 7 Close
+
+Sprint 55 Day 7 successfully landed the second bounded eigensolver extraction:
+
+- thick-restart backend ownership now lives in `src/sparse_eigs_thick_restart.c`
+- `src/sparse_eigs.c` is materially smaller and more orchestration-focused
+- the existing internal header strategy was sufficient for the move
+- public eigensolver behavior, repeated-run parity, examples, and benchmarks
+  remained stable under full validation
+
+That closes the planned Phase 1 eigensolver decomposition pair:
+
+- Day 5: LOBPCG extraction
+- Day 7: thick-restart extraction
+
+The remaining Sprint 55 queue can now audit the post-extraction state instead
+of debating whether the second ownership split should happen at all.

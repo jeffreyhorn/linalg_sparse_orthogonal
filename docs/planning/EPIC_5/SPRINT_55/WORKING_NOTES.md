@@ -533,3 +533,180 @@ Sprint 55 now has a concrete eigensolver extraction map:
 
 That is enough to move to the Day 4 first-batch design work without ambiguity
 about the first extraction boundary.
+
+## Day 4
+
+**Objective:** Freeze the first eigensolver extraction boundary by turning the
+Day 3 LOBPCG-first ranking into an exact file-boundary, declaration, and
+validation-preservation design before any permanent implementation code moves.
+
+### Commands Run
+
+1. Re-read the Sprint 55 Day 4 plan item and current sprint notes:
+   - `sed -n '160,194p' docs/planning/EPIC_5/SPRINT_55/PLAN.md`
+   - `sed -n '1,520p' docs/planning/EPIC_5/SPRINT_55/WORKING_NOTES.md`
+2. Re-read the Day 3 eigensolver seam audit:
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_55/artifacts/day3-sparse-eigs-seam-audit.md`
+3. Reconfirm the current eigensolver side-file inventory:
+   - `ls src | rg '^sparse_eigs'`
+4. Re-read the public entry / thick-restart boundary where the first extraction
+   must stop:
+   - `sed -n '1450,1515p' src/sparse_eigs.c`
+5. Re-read the full LOBPCG block that the first batch would move:
+   - `sed -n '2650,3233p' src/sparse_eigs.c`
+6. Re-read the reusable workspace typed-view header that the LOBPCG extraction
+   already depends on:
+   - `sed -n '1,220p' src/sparse_eigs_workspace_internal.h`
+
+### Day 4 Findings
+
+#### 1. The first extraction should create a backend-owned source file, not a new public surface
+
+The strongest first-batch source split is now explicit:
+
+- keep in `src/sparse_eigs.c`:
+  - public one-shot and handle entry points
+  - backend AUTO/explicit selection
+  - shared validation and result setup
+  - grow-m Lanczos path
+  - thick-restart path and restart-state machinery
+- move to a new backend-owned source file:
+  - `src/sparse_eigs_lobpcg.c`
+
+The functions that should move together are:
+
+- `s21_lobpcg_orthonormalize_block(...)`
+- `s21_lobpcg_rr_step(...)`
+- `s21_lobpcg_solve(...)`
+- `s21_lobpcg_init_X(...)`
+
+Interpretation:
+
+- the first batch is a real backend/module extraction, not a public API change
+- the retained `src/sparse_eigs.c` role becomes clearer: public orchestration
+  plus non-LOBPCG shared backend dispatch
+
+#### 2. Sprint 55 Phase 1 should not introduce a new private header just for the first batch
+
+The current internal structure already provides:
+
+- `src/sparse_eigs_internal.h`
+  - prototypes for generic Lanczos, thick-restart, and LOBPCG helpers
+- `src/sparse_eigs_workspace_internal.h`
+  - the reusable typed workspace views the LOBPCG code already needs
+
+That is enough for the first batch.
+
+Interpretation:
+
+- the first extraction should keep LOBPCG declarations in the existing
+  `src/sparse_eigs_internal.h`
+- introducing `src/sparse_eigs_lobpcg_internal.h` in the same batch would mix
+  two ownership changes:
+  - source extraction
+  - private-header taxonomy redesign
+- Sprint 55 can defer header narrowing to a later batch if the post-extraction
+  shape makes it worthwhile
+
+#### 3. The first extraction invariants are now concrete
+
+The first batch must preserve:
+
+- public handle semantics:
+  - `sparse_eigs_handle_prepare(...)`
+  - `sparse_eigs_sym_with_handle(...)`
+  - reuse preserves allocation/setup capacity, not stale Ritz/search state
+- backend selection/reporting behavior:
+  - explicit `SPARSE_EIGS_BACKEND_LOBPCG`
+  - AUTO behavior unchanged
+  - `result->backend_used` unchanged
+- workspace and growth behavior:
+  - current `sparse_eigs_workspace_prepare_lobpcg(...)` contract
+  - zero-init/local-workspace fallback behavior
+  - on-demand handle/workspace reuse behavior
+- benchmark and example parity:
+  - `benchmarks/bench_eigs_reuse.c`
+  - `examples/example_eigs.c`
+- dedicated proof parity:
+  - `tests/test_eigs_lobpcg.c`
+  - public-handle LOBPCG proof in `tests/test_eigs.c`
+
+Interpretation:
+
+- the first batch succeeds only if it leaves the public repeated-run and
+  one-shot eigensolver behavior observably unchanged
+- file-count improvement alone is not enough
+
+#### 4. The first batch should keep the thick-restart block untouched except for call-site continuity
+
+The Day 3 ranking still holds:
+
+- thick-restart remains the second strongest extraction target
+- it is more entangled with generic Lanczos assumptions than LOBPCG
+
+Interpretation:
+
+- Day 5 should avoid opportunistic thick-restart cleanup unless the build
+  requires trivial include/prototype adjustments
+- mixing LOBPCG extraction and thick-restart refactoring in one batch would
+  weaken the ownership proof of the first extraction
+
+#### 5. Comment cleanup should be scoped to touched LOBPCG blocks and the retained public dispatch seam
+
+The minimal comment policy for the first batch is now explicit:
+
+- preserve:
+  - algorithm meaning
+  - invariants
+  - convergence and workspace semantics
+- reduce where touched:
+  - sprint chronology
+  - landing-history narrative
+  - comments that explain prior sprint ordering instead of present code truth
+
+Interpretation:
+
+- Sprint 55 should not try to clean the entire eigensolver file in the first
+  extraction batch
+- it should clean the touched LOBPCG region and any adjacent retained dispatch
+  comments that become obviously stale after the move
+
+#### 6. The Day 5 touched-file set is now bounded
+
+The first-batch expected touched set is:
+
+- `src/sparse_eigs.c`
+- `src/sparse_eigs_lobpcg.c` (new)
+- `src/sparse_eigs_internal.h`
+- possibly `tests/test_eigs.c` only if a small include or comment adjustment is
+  needed
+
+The batch should avoid by default:
+
+- `include/sparse_eigs.h`
+- `src/sparse_eigs_workspace_internal.h`
+- `tests/test_eigs_lobpcg.c`
+- `benchmarks/bench_eigs_reuse.c`
+- `examples/example_eigs.c`
+
+Interpretation:
+
+- Day 5 can stay small and ownership-focused
+- proof surfaces should mostly validate the extraction, not need redesign
+
+## Day 4 Close
+
+Sprint 55 now has an explicit first eigensolver extraction design:
+
+- first batch target:
+  - move the LOBPCG backend into `src/sparse_eigs_lobpcg.c`
+- retained main-file role:
+  - public orchestration plus non-LOBPCG backend dispatch
+- declaration strategy:
+  - reuse `src/sparse_eigs_internal.h` for Phase 1
+- validation goal:
+  - preserve one-shot, handle, benchmark, example, and backend-reporting
+    behavior exactly
+
+That is enough to begin the Day 5 implementation batch without reopening the
+first extraction boundary.

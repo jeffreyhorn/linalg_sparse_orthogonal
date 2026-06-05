@@ -710,3 +710,171 @@ Sprint 55 now has an explicit first eigensolver extraction design:
 
 That is enough to begin the Day 5 implementation batch without reopening the
 first extraction boundary.
+
+## Day 5
+
+**Objective:** Land the first bounded `src/sparse_eigs.c` decomposition batch by
+extracting the LOBPCG backend into its own permanent source file while keeping
+the public repeated-run eigensolver contract, backend-selection/reporting
+behavior, and proof surfaces observably unchanged.
+
+### Commands Run
+
+1. Finish the Day 5 permanent implementation batch:
+   - `apply_patch` updates to:
+     - `CMakeLists.txt`
+     - `Makefile`
+     - `src/sparse_eigs.c`
+     - `src/sparse_eigs_internal.h`
+     - `src/sparse_eigs_lobpcg.c` (new)
+2. Run the required code-day formatting gate:
+   - `make format`
+3. Run the required code-day lint gate:
+   - `make lint`
+4. Run the required full test gate:
+   - `make test`
+5. Run the stronger reviewed baseline for the substantial extraction batch:
+   - `make quality-review-full`
+6. Run the Day 5 touched-family follow-ons:
+   - `./build/test_eigs`
+   - `./build/test_eigs_lobpcg`
+   - `./build/example_eigs`
+   - `./build/bench_eigs_reuse`
+7. Re-measure the landed eigensolver ownership split:
+   - `wc -l src/sparse_eigs.c src/sparse_eigs_lobpcg.c src/sparse_eigs_internal.h`
+
+### Day 5 Findings
+
+#### 1. The first bounded eigensolver extraction landed exactly on the Day 4 seam
+
+The permanent code move is now real:
+
+- new source file:
+  - `src/sparse_eigs_lobpcg.c`
+- moved backend-owned function set:
+  - `s21_lobpcg_orthonormalize_block(...)`
+  - `s21_lobpcg_rr_step(...)`
+  - `s21_lobpcg_solve(...)`
+  - `s21_lobpcg_init_X(...)`
+
+And the retained `src/sparse_eigs.c` role stayed bounded:
+
+- public one-shot and handle entry points
+- backend AUTO/explicit selection
+- shared validation/result setup
+- generic Lanczos helpers
+- grow-m Lanczos path
+- thick-restart path and restart-state machinery
+- top-level backend dispatch/orchestration
+
+Interpretation:
+
+- Sprint 55 Day 5 achieved a real source decomposition, not just comment motion
+- the first extraction stayed maintainability-first and ownership-first rather
+  than reopening the public solver contract
+
+#### 2. The batch reused the existing internal header strategy instead of mixing in a new private-header redesign
+
+The extraction reused the existing:
+
+- `src/sparse_eigs_internal.h`
+
+No new LOBPCG-private header was introduced.
+
+Interpretation:
+
+- the Day 4 design rule held in practice
+- Batch 1 changed one ownership axis:
+  - source-file placement
+- it did not mix in a second taxonomy redesign around private-header
+  partitioning
+
+#### 3. The main large-file hotspot is materially smaller while public behavior stays anchored
+
+The landed line-count split is now:
+
+- `src/sparse_eigs.c`:
+  - Day 1 baseline: `3233`
+  - after Day 5 extraction: `2660`
+- extracted `src/sparse_eigs_lobpcg.c`:
+  - `401`
+
+Interpretation:
+
+- the biggest remaining eigensolver file is materially smaller now
+- the extracted code lives in a backend-owned translation unit instead of
+  remaining embedded in the public orchestration file
+- Sprint 55 made real maintainability progress without needing a public-header
+  or benchmark/example redesign in the same batch
+
+#### 4. The preserved contract stayed observably unchanged across the strongest public proof surfaces
+
+The preserved invariants were revalidated directly:
+
+- public repeated-run handle proof:
+  - `./build/test_eigs` -> `30 / 30`
+- dedicated LOBPCG proof:
+  - `./build/test_eigs_lobpcg` -> `26 / 26`
+- shipped example:
+  - `./build/example_eigs`
+- public-handle reuse benchmark:
+  - `./build/bench_eigs_reuse`
+
+Representative direct results stayed stable:
+
+- `example_eigs`:
+  - explicit `LOBPCG` on `bcsstk04` still converged `3 / 3` smallest pairs in
+    `62` outer iterations
+  - reported residual stayed `8.808e-09`
+- `bench_eigs_reuse`:
+  - `growm-nos4-k5` -> `1.10x`
+  - `thick-bcsstk14-k5` -> `0.99x`
+  - `lobpcg-diag40-k3` -> `1.02x`
+  - all retained exact eigenvalue parity:
+    - `|lambda|max diff = 0.000e+00`
+
+Interpretation:
+
+- the first extraction preserved one-shot, handle, benchmark, and example
+  behavior closely enough that Day 5 did not surface a reconciliation queue
+- the explicit LOBPCG backend still behaves exactly like a first-class member
+  of the public repeated-run surface after the move
+
+#### 5. The full required validation stack stayed green, including the reviewed parity path
+
+The Day 5 code-day gates all passed:
+
+- `make format`
+- `make lint`
+- `make test`
+
+The stronger reviewed baseline also passed:
+
+- `make quality-review-full`
+
+And the maintained truthfulness anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 248.97 sec`
+
+Interpretation:
+
+- the first decomposition batch is validated as a structural ownership change,
+  not just as a local compile success
+- the reviewed parity path remained truthful with the extracted new source file
+  in place
+
+## Day 5 Close
+
+Sprint 55 now has a real first eigensolver decomposition batch:
+
+- `src/sparse_eigs.c` is smaller and more orchestration-focused
+- the LOBPCG backend now lives in `src/sparse_eigs_lobpcg.c`
+- the existing internal header strategy carried the move cleanly
+- the public repeated-run eigensolver contract remained stable across tests,
+  examples, and reuse benchmarks
+
+That is enough to move into the next decomposition day without reopening the
+Batch 1 ownership boundary.

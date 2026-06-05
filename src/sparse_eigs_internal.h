@@ -104,6 +104,15 @@ sparse_err_t lanczos_iterate(const SparseMatrix *A, const double *v0, idx_t m_ma
  */
 typedef sparse_err_t (*lanczos_op_fn)(const void *ctx, idx_t n, const double *x, double *y);
 
+double s29_eigs_now_s(void);
+
+void s21_mgs_reorth(double *w, const double *V, idx_t n, idx_t k_stored);
+
+idx_t s20_select_indices(const double *theta, idx_t m, sparse_eigs_which_t which, idx_t k_want,
+                         idx_t *sel_idx);
+
+sparse_err_t s21_dense_sym_jacobi(double *A_scratch, idx_t K, double *theta_out, double *Q_out);
+
 /**
  * @brief m-step Lanczos recurrence on a symmetric operator supplied
  *        via callback.

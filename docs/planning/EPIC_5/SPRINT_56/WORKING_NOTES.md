@@ -765,3 +765,166 @@ Day 4 fixes the first LDLT CSC extraction boundary explicitly:
 
 That gives Sprint 56 a concrete, bounded, maintainability-first Day 5 landing
 plan.
+
+## Day 5
+
+**Objective:** Land the first bounded LDLT CSC source split by moving the
+supernodal helper cluster out of `src/sparse_ldlt_csc.c` while preserving the
+existing private-header contract, build surfaces, and CSC proof behavior.
+
+### Commands Run
+
+1. Re-read the Day 4 design boundary and the live moved-function set:
+   - `sed -n '1,240p' docs/planning/EPIC_5/SPRINT_56/artifacts/day4-ldlt-csc-decomposition-design.md`
+   - `rg -n "ldlt_csc_bsearch_row_map|ldlt_csc_supernode_extract|ldlt_csc_supernode_writeback|ldlt_csc_supernode_eliminate_diag|ldlt_csc_supernode_eliminate_panel|ldlt_csc_eliminate_supernodal" src/sparse_ldlt_csc.c src/sparse_ldlt_csc_internal.h`
+   - `sed -n '1,220p' src/sparse_ldlt_csc_internal.h`
+   - `nl -ba src/sparse_ldlt_csc.c | sed -n '2138,2725p'`
+2. Re-read the current build-list patterns before editing:
+   - `sed -n '40,85p' Makefile`
+   - `sed -n '92,110p' CMakeLists.txt`
+3. Land the bounded split:
+   - `apply_patch` on:
+     - `src/sparse_ldlt_csc.c`
+     - `src/sparse_ldlt_csc_supernodal.c` (new)
+     - `src/sparse_ldlt_csc_internal.h`
+     - `Makefile`
+     - `CMakeLists.txt`
+4. Run the required validation gate:
+   - `make format && make lint && make test && make quality-review-full`
+5. Run the focused Day 5 follow-ons:
+   - `./build/test_ldlt_csc`
+   - `./build/test_ldlt`
+   - `./build/test_integration`
+   - `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/example_analysis`
+6. Capture post-split size/state checks:
+   - `wc -l src/sparse_ldlt_csc.c src/sparse_ldlt_csc_supernodal.c src/sparse_ldlt_csc_internal.h`
+   - `git status --short --branch`
+
+### Day 5 Findings
+
+#### 1. The first LDLT CSC decomposition batch landed cleanly with the exact Day 4 boundary
+
+The moved Batch 1 cluster now lives in:
+
+- `src/sparse_ldlt_csc_supernodal.c`
+
+Moved function set:
+
+- `ldlt_csc_bsearch_row_map(...)`
+- `ldlt_csc_supernode_extract(...)`
+- `ldlt_csc_supernode_writeback(...)`
+- `ldlt_csc_supernode_eliminate_diag(...)`
+- `ldlt_csc_supernode_eliminate_panel(...)`
+
+Retained in `src/sparse_ldlt_csc.c`:
+
+- lifecycle/conversion ownership
+- wrapper compatibility path
+- scalar/native Bunch-Kaufman kernel
+- top-level `ldlt_csc_eliminate_supernodal(...)`
+- solve path
+
+Interpretation:
+
+- the split is real ownership reduction, not just comment motion
+- `src/sparse_ldlt_csc.c` now reads more clearly as the retained CSC
+  orchestration/native home
+- the supernodal cluster is now an owned backend slice with one narrow private
+  dependency surface
+
+#### 2. Phase 2 kept the existing private contract instead of mixing in a taxonomy redesign
+
+The batch reused the existing:
+
+- `src/sparse_ldlt_csc_internal.h`
+
+Only bounded header change:
+
+- top-level usage wording now reflects both:
+  - `src/sparse_ldlt_csc.c`
+  - `src/sparse_ldlt_csc_supernodal.c`
+
+Interpretation:
+
+- Sprint 56 still separated source ownership first
+- no new private-header hierarchy was opened in the same batch
+
+#### 3. The ownership reduction is measurable
+
+Post-split line counts:
+
+- `src/sparse_ldlt_csc.c` = `2289`
+- `src/sparse_ldlt_csc_supernodal.c` = `392`
+- `src/sparse_ldlt_csc_internal.h` = `878`
+
+Compared with the Day 1 baseline:
+
+- `src/sparse_ldlt_csc.c`: `2723 -> 2289`
+
+Interpretation:
+
+- the main LDLT CSC file dropped by `434` lines in the first bounded batch
+- the new source file size is large enough to be a real owned slice but still
+  narrow enough to stay reviewable
+
+#### 4. The full validation and reviewed parity baseline stayed intact
+
+Required gate:
+
+- `make format` → passed
+- `make lint` → passed
+- `make test` → passed
+- `make quality-review-full` → passed
+
+Maintained reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 296.94 sec`
+
+Interpretation:
+
+- the source split did not disturb the reviewed baseline
+- the new source file is fully represented in both Makefile and CMake paths
+
+#### 5. Focused LDLT CSC follow-ons stayed behavior-stable
+
+Focused reruns:
+
+- `./build/test_ldlt_csc` → `96 / 96`
+- `./build/test_ldlt` → `84 / 84`
+- `./build/test_integration` → `37 / 37`
+- `./build/example_analysis`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+
+Representative direct results:
+
+- `example_analysis` residual stayed `4.44e-16`
+- `bench_refactor_csc nos4`:
+  - `speedup_refactor = 1.52x`
+  - `res_public = 8.24e-16`
+  - `res_csc = 7.06e-16`
+
+Interpretation:
+
+- the split preserved both the CSC-specific regression surface and the repeated-run
+  direct proof surface
+- no new reconciliation queue surfaced from the extraction itself
+
+## Day 5 Close
+
+Day 5 lands the first bounded LDLT CSC decomposition batch:
+
+- extracted the supernodal helper cluster into
+  `src/sparse_ldlt_csc_supernodal.c`
+- kept lifecycle/conversion, wrapper compatibility, and the scalar/native
+  kernel in `src/sparse_ldlt_csc.c`
+- preserved the existing private-header contract in
+  `src/sparse_ldlt_csc_internal.h`
+- updated both build systems to compile the new owned source file
+- preserved full local and reviewed validation parity
+
+That gives Sprint 56 a validated Phase 2 decomposition landing rather than
+only a design boundary.

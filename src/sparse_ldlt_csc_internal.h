@@ -5,7 +5,8 @@
  * @file sparse_ldlt_csc_internal.h
  * @brief CSC working format for LDL^T numeric factorization.
  *
- * Not part of the public API.  Used by sparse_ldlt_csc.c.
+ * Not part of the public API.  Used by sparse_ldlt_csc.c and
+ * sparse_ldlt_csc_supernodal.c.
  *
  * ─── Design: LDL^T on top of the Cholesky CSC ──────────────────────────
  *

@@ -1432,3 +1432,208 @@ Sprint 55 now has an explicit iterative decomposition map:
 
 That is enough to begin Day 9 from a real implementation boundary instead of a
 generic large-file reduction goal.
+
+## Day 9
+
+**Objective:** Freeze the first iterative extraction boundary at file/helper
+ level, define the exact private-declaration and invariants strategy for the
+ first `MINRES` move, and record the landing checklist before any iterative
+ implementation files are edited.
+
+### Commands Run
+
+1. Re-read the Sprint 55 Day 9 plan item plus the landed Day 8 state:
+   - `sed -n '290,340p' docs/planning/EPIC_5/SPRINT_55/PLAN.md`
+   - `sed -n '1,240p' docs/planning/EPIC_5/SPRINT_55/artifacts/day8-sparse-iterative-seam-audit.md`
+   - `tail -n 260 docs/planning/EPIC_5/SPRINT_55/WORKING_NOTES.md`
+2. Re-read the current iterative private-header surfaces:
+   - `sed -n '1,220p' src/sparse_iterative_internal.h`
+   - `sed -n '1,260p' src/sparse_iterative_workspace_internal.h`
+3. Re-read the exact `MINRES` implementation band and the nearby block helper:
+   - `sed -n '1240,1388p' src/sparse_iterative.c`
+   - `sed -n '1360,1795p' src/sparse_iterative.c`
+4. Reconfirm the current live size of the main iterative implementation and
+   proof/adoption surfaces:
+   - `wc -l src/sparse_iterative.c src/sparse_iterative_internal.h src/sparse_iterative_workspace_internal.h tests/test_iterative.c tests/test_minres.c benchmarks/bench_iterative_reuse.c examples/example_iterative.c`
+5. Re-scan the touched iterative files for stale sprint-history narrative that
+   Day 10 should trim only inside the moved `MINRES` ownership block:
+   - `rg -n "Sprint|Day [0-9]+" src/sparse_iterative.c src/sparse_iterative_internal.h src/sparse_iterative_workspace_internal.h`
+
+### Day 9 Findings
+
+#### 1. The first iterative extraction should be narrower than the Day 8 sketch
+
+Day 8 was correct about the first family target:
+
+- `MINRES`
+
+But the exact Day 10 landing boundary should be tighter than the original
+sketch:
+
+- move the core `MINRES` solver family
+- keep the block-wrapper orchestration in `src/sparse_iterative.c`
+
+Interpretation:
+
+- the first iterative batch should optimize for clean ownership with minimal
+  helper widening
+- moving the block wrapper in the same batch would force the generic
+  block-column helper to become an extra cross-file seam too early
+
+#### 2. The exact Day 10 file split is now explicit
+
+Recommended new file:
+
+- `src/sparse_iterative_minres.c`
+
+Move into that new file:
+
+- `sparse_solve_minres_with_workspace_internal(...)`
+- `sparse_solve_minres(...)`
+- `sparse_solve_minres_with_handle(...)`
+
+Retain in `src/sparse_iterative.c`:
+
+- public handle init/free and growth helpers
+- shared staging / residual-history / reporting helpers
+- `CG`
+- `GMRES`
+- shared block-column orchestration:
+  - `iter_block_column_solver_fn`
+  - `solve_block_independent_columns(...)`
+- block wrapper entry points, including:
+  - `solve_block_minres_column(...)`
+  - `sparse_minres_solve_block(...)`
+- `BiCGSTAB`
+
+Interpretation:
+
+- the moved file owns the coherent scalar/handle `MINRES` family
+- the retained file keeps the shared front-door and block-wrapper scaffolding
+- this is a cleaner Phase 1 boundary than moving both family code and shared
+  block orchestration at once
+
+#### 3. The private-header strategy should widen the existing internal header, not add a new one
+
+The first iterative extraction does not need a new private-header taxonomy.
+
+Keep using:
+
+- `src/sparse_iterative_internal.h`
+- `src/sparse_iterative_workspace_internal.h`
+
+Expected Day 10 declaration widening:
+
+- add:
+  - `sparse_solve_minres_with_workspace_internal(...)`
+
+Do not add:
+
+- `src/sparse_iterative_minres_internal.h`
+
+Interpretation:
+
+- the existing iterative internal header already serves as the workspace-backed
+  internal-entry surface
+- adding `MINRES` there matches the current `CG` / `GMRES` internal pattern
+- this keeps the first batch ownership-focused instead of taxonomy-focused
+
+#### 4. The invariants for the first iterative move are now fixed
+
+Day 10 must preserve all of the following:
+
+- public repeated-run handle semantics for:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- one-shot/default caller behavior for `sparse_solve_minres(...)`
+- handle growth and reuse behavior for `sparse_solve_minres_with_handle(...)`
+- workspace typing and capacity ownership through:
+  - `sparse_iter_workspace_prepare_minres(...)`
+- result/reporting behavior:
+  - `iterations`
+  - `residual_norm`
+  - `converged`
+  - `stagnated`
+  - `breakdown`
+- no benchmark/example contract drift on:
+  - `bench_iterative_reuse`
+  - `example_ic_minres`
+
+Interpretation:
+
+- the first iterative extraction is an ownership change, not a behavior change
+- Day 10 should treat any observed parity drift as a bug, not as a permitted
+  side effect of the split
+
+#### 5. The first iterative batch now has an explicit comment-cleanup policy
+
+The moved `MINRES` block currently carries stale sprint-history narrative such
+as:
+
+- `Sprint 29 Day 7` progress/cancel comments
+
+Day 10 should:
+
+- preserve durable algorithm commentary
+- preserve comments that explain numerical invariants or convergence checks
+- remove or rewrite stale sprint-history narration only inside the touched
+  moved `MINRES` block
+
+Day 10 should not:
+
+- try to normalize the entire remaining `src/sparse_iterative.c` comment body
+- mix the first extraction with a whole-file comment-style rewrite
+
+Interpretation:
+
+- comment cleanup remains part of the maintainability goal
+- but it must stay bounded to the moved ownership band
+
+#### 6. The first iterative landing checklist is now concrete
+
+Expected Day 10 touched permanent files:
+
+- `src/sparse_iterative.c`
+- `src/sparse_iterative_minres.c` (new)
+- `src/sparse_iterative_internal.h`
+- `Makefile`
+- `CMakeLists.txt`
+
+Primary proof surfaces:
+
+- `tests/test_minres.c`
+- `tests/test_iterative.c`
+
+Secondary parity surfaces:
+
+- `benchmarks/bench_iterative_reuse.c`
+- `examples/example_iterative.c`
+- `build/example_ic_minres`
+
+Required validation:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Interpretation:
+
+- Day 10 now has an explicit minimal file set
+- the proof surface priority is fixed before code movement begins
+
+## Day 9 Close
+
+Sprint 55 now has an explicit first iterative implementation design:
+
+- new file:
+  - `src/sparse_iterative_minres.c`
+- move only the scalar/handle `MINRES` family in Batch 1
+- keep block-wrapper scaffolding in the main iterative file
+- widen the existing internal header instead of adding a new one
+- preserve the full Sprint 54 repeated-run support fence and proof surfaces
+- trim stale sprint-history comments only inside the moved `MINRES` block
+
+That is enough to begin Day 10 from a precise ownership map and landing
+checklist instead of refining the boundary mid-implementation.

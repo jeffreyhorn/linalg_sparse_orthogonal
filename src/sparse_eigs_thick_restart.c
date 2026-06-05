@@ -532,11 +532,8 @@ sparse_err_t lanczos_thick_restart_iterate(lanczos_op_fn op, const void *ctx, id
      * V whose first k_locked columns are the locked block.  Full-
      * MGS reorth against V[:, 0..k) at each step handles the
      * arrowhead-spoke subtraction implicitly. */
-    size_t w_bytes = 0;
-    if (sparse_idx_count_bytes_overflow(n, sizeof(double), &w_bytes))
-        return SPARSE_ERR_ALLOC;
-    double *w = malloc(w_bytes);
-    if (!w)
+    double *w = NULL;
+    if (sparse_malloc_idx_array(n, sizeof(double), (void **)&w) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
 
     /* beta_prev at step k_locked: from the Lanczos relation after

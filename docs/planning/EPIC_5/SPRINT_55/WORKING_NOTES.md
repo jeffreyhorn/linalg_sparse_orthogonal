@@ -878,3 +878,201 @@ Sprint 55 now has a real first eigensolver decomposition batch:
 
 That is enough to move into the next decomposition day without reopening the
 Batch 1 ownership boundary.
+
+## Day 6
+
+**Objective:** Re-audit the post-Day-5 eigensolver ownership shape and freeze
+the second bounded eigensolver batch around the thick-restart restart-state
+cluster so Day 7 can land a real follow-on decomposition instead of a generic
+cleanup pass.
+
+### Commands Run
+
+1. Re-read the Day 6 / Day 7 sprint-plan boundary:
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_55/PLAN.md`
+2. Re-read the landed Day 5 artifact:
+   - `sed -n '1,220p' docs/planning/EPIC_5/SPRINT_55/artifacts/day5-eigensolver-decomposition-batch1.md`
+3. Re-audit the post-Day-5 thick-restart block and retained public dispatch
+   seam:
+   - `sed -n '1450,2445p' src/sparse_eigs.c`
+4. Re-audit the current internal declaration surface for the thick-restart
+   block:
+   - `sed -n '150,560p' src/sparse_eigs_internal.h`
+5. Reconfirm the remaining file-size and proof context:
+   - `wc -l src/sparse_eigs.c src/sparse_eigs_internal.h tests/test_eigs_thick_restart.c`
+6. Reconfirm the strongest thick-restart references across the landed
+   eigensolver sources and proof surface:
+   - `rg -n "thick-restart|restart-state|arrowhead|cluster" docs/planning/EPIC_5/SPRINT_55/PLAN.md docs/planning/EPIC_5/SPRINT_55/WORKING_NOTES.md src/sparse_eigs.c src/sparse_eigs_internal.h tests/test_eigs_thick_restart.c`
+
+### Day 6 Findings
+
+#### 1. The post-Day-5 eigensolver ownership map now makes the thick-restart cluster the clearest second batch
+
+After the LOBPCG extraction, the residual large owned block inside
+`src/sparse_eigs.c` is now the Sprint 21 thick-restart cluster:
+
+- restart-state lifecycle:
+  - `lanczos_restart_state_free(...)`
+- spectrum-preservation helper:
+  - `s21_arrowhead_to_tridiag(...)`
+- restart-state assembly helpers:
+  - `s21_pick_locked(...)`
+  - `s21_recompute_residual(...)`
+  - `s21_build_dense_arrowhead(...)`
+- phase / outer-loop execution:
+  - `lanczos_thick_restart_iterate(...)`
+  - `s21_thick_restart_outer_loop(...)`
+
+Interpretation:
+
+- Day 5 made the second batch easier to see cleanly
+- the next ownership improvement target is no longer ambiguous:
+  - the thick-restart restart-state and arrowhead machinery is now the
+    strongest remaining backend-owned block in `src/sparse_eigs.c`
+
+#### 2. The second batch should still be a real helper/module split, not merely comment cleanup or header gardening
+
+The strongest residual maintainability issue is not:
+
+- public dispatch wording
+- header prose alone
+- generic dense-helper naming
+
+It is that the thick-restart implementation still sits inside the main
+orchestration file even though it has a coherent backend-owned helper cluster.
+
+Interpretation:
+
+- Day 7 should still land a real source extraction
+- a docs/comment-only or declaration-only Day 7 would under-deliver against the
+  post-Day-5 ownership map
+
+#### 3. The exact second-batch split is now concrete
+
+The preferred second-batch new file is:
+
+- `src/sparse_eigs_thick_restart.c`
+
+Move into that file:
+
+- `lanczos_restart_state_free(...)`
+- `s21_arrowhead_to_tridiag(...)`
+- `s21_pick_locked(...)`
+- `s21_recompute_residual(...)`
+- `s21_build_dense_arrowhead(...)`
+- `lanczos_thick_restart_iterate(...)`
+- `s21_thick_restart_outer_loop(...)`
+
+Keep in `src/sparse_eigs.c`:
+
+- public one-shot and handle entry points
+- shared result setup / validation
+- AUTO and explicit backend selection
+- generic Lanczos helpers
+- grow-m Lanczos path
+- shift-invert and shared operator composition
+- the call sites that dispatch into thick-restart
+
+Interpretation:
+
+- the second batch can improve ownership materially without reopening the
+  public orchestration layer
+- the retained main file continues to read as the shared eigensolver front door
+  rather than a backend dump
+
+#### 4. The second batch should continue reusing the existing internal header, not mix in a second taxonomy redesign
+
+The Day 5 rule still holds for Batch 2:
+
+- keep using:
+  - `src/sparse_eigs_internal.h`
+
+Do not combine Day 7 with:
+
+- a new `src/sparse_eigs_thick_restart_internal.h`
+- broad private-header narrowing
+- generic helper relocation unrelated to the thick-restart move
+
+Interpretation:
+
+- the next clean ownership improvement is source-file extraction first
+- private-header taxonomy cleanup can remain a later optional follow-on once the
+  post-Day-7 shape is known
+
+#### 5. Some helpers must stay shared even if the thick-restart backend moves
+
+The post-Day-5 audit makes the non-goal boundary clearer:
+
+- keep shared:
+  - `s21_dense_sym_jacobi(...)`
+  - `s20_select_indices(...)`
+  - generic Lanczos kernels and reorthogonalization helpers
+  - shared workspace preparation and public-handle orchestration
+
+Reason:
+
+- these helpers are used across grow-m, thick-restart, and LOBPCG-adjacent
+  proof/orchestration paths
+- moving them in the same batch would blur the backend-owned seam and weaken
+  the Day 7 extraction story
+
+Interpretation:
+
+- Day 7 should move the thick-restart backend-owned cluster only
+- it should not try to turn the second batch into a generic “all eigensolver
+  helpers rehome” rewrite
+
+#### 6. The strongest proof surface for Day 7 is already fixed
+
+The main touched proof surface for the second batch should be:
+
+- `tests/test_eigs_thick_restart.c`
+
+Secondary validation surfaces remain:
+
+- `tests/test_eigs.c`
+- `tests/test_eigs_lobpcg.c`
+- `examples/example_eigs.c`
+- `benchmarks/bench_eigs_reuse.c`
+
+Interpretation:
+
+- Day 7 should validate the extracted thick-restart backend primarily through
+  the dedicated thick-restart test surface
+- the broader eigensolver example/benchmark/public-handle surfaces should act
+  as parity checks rather than redesign targets
+
+#### 7. The second batch should also trim the most stale Sprint 21 chronology comments inside the moved block
+
+The thick-restart block still contains dense landing-history narrative such as:
+
+- sprint-day chronology
+- “Day X did Y” implementation history
+- planning-order notes that no longer help code ownership
+
+Interpretation:
+
+- Day 7 should preserve durable algorithm meaning and invariants
+- while moving the thick-restart cluster, it should reduce the most stale
+  sprint-history prose inside that moved backend-owned block
+- it should not try to normalize the entire remaining `src/sparse_eigs.c`
+  comment body in the same batch
+
+## Day 6 Close
+
+Sprint 55 now has an explicit second eigensolver batch design:
+
+- strongest next target:
+  - thick-restart restart-state / arrowhead cluster extraction
+- preferred new file:
+  - `src/sparse_eigs_thick_restart.c`
+- retained main-file role:
+  - public orchestration plus shared Lanczos-family dispatch
+- declaration strategy:
+  - keep using `src/sparse_eigs_internal.h`
+- proof focus:
+  - `tests/test_eigs_thick_restart.c` first, then the broader eigensolver
+    parity surfaces
+
+That is enough to start the Day 7 implementation batch from the landed Day 5
+reality instead of the original pre-extraction estimate.

@@ -2144,3 +2144,134 @@ Sprint 56 fences:
 
 Sprint 56 can move to Day 13 from the current landed state without reopening
 its public or architectural boundary.
+
+## Day 13
+
+**Objective:** Run the full Sprint 56 validation contract from the landed
+decomposition state, recheck the reviewed truthfulness anchors, and rerun the
+targeted CSC/SVD follow-ons for the touched implementation surfaces.
+
+### Commands Run
+
+1. Run the required local gates:
+   - `make format`
+   - `make lint`
+   - `make test`
+2. Run the strongest reviewed baseline:
+   - `make quality-review-full`
+3. Reconfirm the targeted Sprint 56 follow-ons:
+   - `./build/test_chol_csc`
+   - `./build/test_ldlt_csc`
+   - `./build/test_cholesky`
+   - `./build/test_ldlt`
+   - `./build/test_etree`
+   - `./build/test_svd`
+   - `./build/test_integration`
+   - `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/example_analysis`
+4. Re-run the `nos4` CSC refactor benchmark once after a suspicious first
+   single-repeat microbenchmark result:
+   - `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+
+### Day 13 Findings
+
+#### 1. The full required validation gate remained green from the landed Sprint 56 state
+
+Required gate:
+
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+- `make quality-review-full` passed
+
+Interpretation:
+
+- the landed CSC/SVD decomposition state remains locally and reviewed-valid
+- Sprint 56 did not accumulate a hidden validation regression across the later
+  comment/audit days
+
+#### 2. The reviewed truthfulness anchors stayed exact
+
+Maintained reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 290.02 sec`
+
+Interpretation:
+
+- the reviewed Makefile and reviewed CMake paths still agree exactly
+- Sprint 56 preserved the repo’s main truthfulness contract through the full
+  decomposition batch
+
+#### 3. All targeted Sprint 56 follow-ons also remained green
+
+Targeted reruns:
+
+- `./build/test_chol_csc` -> `137 / 137`
+- `./build/test_ldlt_csc` -> `96 / 96`
+- `./build/test_cholesky` -> `21 / 21`
+- `./build/test_ldlt` -> `84 / 84`
+- `./build/test_etree` -> `97 / 97`
+- `./build/test_svd` -> `97 / 97`
+- `./build/test_integration` -> `37 / 37`
+- `./build/example_analysis` -> residual `4.44e-16`
+
+Interpretation:
+
+- the touched CSC and SVD implementation surfaces retained their focused proof
+  envelope
+- no decomposition-induced drift surfaced in the highest-signal direct
+  regression set
+
+#### 4. The CSC refactor benchmark stayed correct, and the first small-case timing outlier was only measurement noise
+
+`bench_refactor_csc` on `nos4`:
+
+- first single-repeat run returned a clear microbenchmark outlier:
+  - `speedup_refactor = 0.10x`
+- immediate rerun returned the stable retained result:
+  - `analyze_ms = 0.575`
+  - `refactor_public_ms = 0.224`
+  - `refactor_csc_ms = 0.166`
+  - `solve_public_ms = 0.017`
+  - `solve_csc_ms = 0.005`
+  - `speedup_refactor = 1.35x`
+  - `res_public = 8.24e-16`
+  - `res_csc = 7.06e-16`
+
+Interpretation:
+
+- the benchmark behavior and residuals remain correct
+- the very small `nos4` single-repeat timing is noisy enough that one outlier
+  was not actionable
+- no code reconciliation was warranted from that measurement blip
+
+#### 5. No new reconciliation queue surfaced during full validation
+
+No failures appeared in:
+
+- local validation
+- reviewed validation
+- targeted CSC follow-ons
+- targeted SVD follow-ons
+
+Interpretation:
+
+- Sprint 56 now has a fully validated closeout baseline
+- the remaining queue is still future-facing maintainability work rather than a
+  hidden defect
+
+## Day 13 Close
+
+Sprint 56 Day 13 completed the full validation contract successfully:
+
+- local format, lint, test, and reviewed-baseline gates all passed
+- reviewed Makefile/CMake parity stayed exact at `53 vs 53`
+- the focused CSC/SVD rerun surfaces remained green
+- the only measurement anomaly was a one-off small-case timing outlier that did
+  not reproduce and did not indicate a correctness problem
+- no new blocker-level reconciliation queue surfaced
+
+Sprint 56 can now move to Day 14 closeout from a fully validated landed state.

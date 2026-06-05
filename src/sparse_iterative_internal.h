@@ -28,10 +28,10 @@ typedef struct {
 double s29_iter_now_s(void);
 sparse_err_t s49_iter_handle_ensure(sparse_iter_handle_t *handle,
                                     sparse_iter_workspace_t **workspace_out);
-sparse_err_t stag_init(stag_tracker_t *st, idx_t window);
-void stag_free(stag_tracker_t *st);
-void stag_record(stag_tracker_t *st, double residual);
-int stag_check(const stag_tracker_t *st);
+sparse_err_t sparse_iter_stag_init(stag_tracker_t *st, idx_t window);
+void sparse_iter_stag_free(stag_tracker_t *st);
+void sparse_iter_stag_record(stag_tracker_t *st, double residual);
+int sparse_iter_stag_check(const stag_tracker_t *st);
 
 static inline reshist_t reshist_make(double *buf, idx_t len) {
     return (reshist_t){.buf = buf, .len = (buf && len > 0) ? len : 0, .count = 0};

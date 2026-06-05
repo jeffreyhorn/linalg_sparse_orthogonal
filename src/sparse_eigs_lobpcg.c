@@ -390,7 +390,7 @@ sparse_err_t s21_lobpcg_solve(lanczos_op_fn op, const void *ctx, idx_t n, idx_t 
                 vj[i] = xj[i];
         }
     }
-    result->n_converged = (rc == SPARSE_OK) ? emit : 0;
+    result->n_converged = emit;
     result->iterations = total_iters;
     result->residual_norm = last_res_rel;
 

@@ -67,7 +67,7 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
     double *z_tmp = minres_ws.z_tmp;
 
     stag_tracker_t stag;
-    if (stag_init(&stag, o->stagnation_window) != SPARSE_OK)
+    if (sparse_iter_stag_init(&stag, o->stagnation_window) != SPARSE_OK)
         return SPARSE_ERR_ALLOC;
 
     sparse_matvec(A, x, w);
@@ -78,17 +78,17 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
     if (precond) {
         sparse_err_t perr = precond(precond_ctx, n, v, z);
         if (perr != SPARSE_OK) {
-            stag_free(&stag);
+            sparse_iter_stag_free(&stag);
             return perr;
         }
         beta = vec_dot(v, z, n);
         if (beta < 0.0) {
-            stag_free(&stag);
+            sparse_iter_stag_free(&stag);
             return SPARSE_ERR_BADARG;
         }
         beta = sqrt(beta);
         if (beta <= 0.0) {
-            stag_free(&stag);
+            sparse_iter_stag_free(&stag);
             return SPARSE_ERR_BADARG;
         }
     } else {
@@ -102,7 +102,7 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
                 result->converged = 1;
                 result->residual_norm = r0norm / bnorm;
             }
-            stag_free(&stag);
+            sparse_iter_stag_free(&stag);
             return SPARSE_OK;
         }
     }
@@ -141,7 +141,7 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
             if (o->progress_cb(&pp, o->progress_user) != 0) {
                 if (result)
                     result->iterations = iter - 1;
-                stag_free(&stag);
+                sparse_iter_stag_free(&stag);
                 return SPARSE_ERR_CANCELLED;
             }
         }
@@ -160,12 +160,12 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
         if (precond) {
             sparse_err_t perr = precond(precond_ctx, n, w, z_tmp);
             if (perr != SPARSE_OK) {
-                stag_free(&stag);
+                sparse_iter_stag_free(&stag);
                 return perr;
             }
             double inner = vec_dot(w, z_tmp, n);
             if (inner < 0.0) {
-                stag_free(&stag);
+                sparse_iter_stag_free(&stag);
                 return SPARSE_ERR_BADARG;
             }
             beta_new = sqrt(inner);
@@ -219,8 +219,8 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
             }
         }
 
-        stag_record(&stag, relres);
-        if (stag_check(&stag)) {
+        sparse_iter_stag_record(&stag, relres);
+        if (sparse_iter_stag_check(&stag)) {
             stagnated = 1;
             break;
         }
@@ -279,7 +279,7 @@ sparse_err_t sparse_solve_minres_with_workspace_internal(const SparseMatrix *A, 
         result->residual_history_count = rh.count < rh.len ? rh.count : rh.len;
     }
 
-    stag_free(&stag);
+    sparse_iter_stag_free(&stag);
     return converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
 }
 

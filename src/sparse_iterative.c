@@ -124,7 +124,7 @@ sparse_err_t sparse_iter_handle_prepare_minres(sparse_iter_handle_t *handle, idx
 
 #define STAG_DEFAULT_TOL 0.01
 
-sparse_err_t stag_init(stag_tracker_t *st, idx_t window) {
+sparse_err_t sparse_iter_stag_init(stag_tracker_t *st, idx_t window) {
     *st = (stag_tracker_t){0};
     if (window <= 0)
         return SPARSE_OK;
@@ -139,12 +139,12 @@ sparse_err_t stag_init(stag_tracker_t *st, idx_t window) {
     return SPARSE_OK;
 }
 
-void stag_free(stag_tracker_t *st) {
+void sparse_iter_stag_free(stag_tracker_t *st) {
     free(st->buf);
     *st = (stag_tracker_t){0};
 }
 
-void stag_record(stag_tracker_t *st, double residual) {
+void sparse_iter_stag_record(stag_tracker_t *st, double residual) {
     if (!st->buf)
         return;
     st->buf[st->head] = residual;
@@ -153,7 +153,7 @@ void stag_record(stag_tracker_t *st, double residual) {
         st->count++;
 }
 
-int stag_check(const stag_tracker_t *st) {
+int sparse_iter_stag_check(const stag_tracker_t *st) {
     if (!st->buf || st->count < st->capacity)
         return 0;
     double mn = st->buf[0], mx = st->buf[0];
@@ -233,7 +233,7 @@ sparse_err_t sparse_solve_cg_with_workspace_internal(const SparseMatrix *A, cons
     double *Ap = cg_ws.Ap;
 
     stag_tracker_t stag;
-    if (stag_init(&stag, o->stagnation_window) != SPARSE_OK) {
+    if (sparse_iter_stag_init(&stag, o->stagnation_window) != SPARSE_OK) {
         return SPARSE_ERR_ALLOC;
     }
 
@@ -246,7 +246,7 @@ sparse_err_t sparse_solve_cg_with_workspace_internal(const SparseMatrix *A, cons
     if (precond) {
         sparse_err_t perr = precond(precond_ctx, n, r, z);
         if (perr != SPARSE_OK) {
-            stag_free(&stag);
+            sparse_iter_stag_free(&stag);
             return perr;
         }
     } else {
@@ -288,7 +288,7 @@ sparse_err_t sparse_solve_cg_with_workspace_internal(const SparseMatrix *A, cons
                     result->iterations = iter;
                     result->residual_norm = rnorm / bnorm;
                 }
-                stag_free(&stag);
+                sparse_iter_stag_free(&stag);
                 return SPARSE_ERR_CANCELLED;
             }
         }
@@ -316,8 +316,8 @@ sparse_err_t sparse_solve_cg_with_workspace_internal(const SparseMatrix *A, cons
 
         /* Record post-update residual and check stagnation */
         reshist_record(&rh, rnorm / bnorm);
-        stag_record(&stag, rnorm / bnorm);
-        if (stag_check(&stag)) {
+        sparse_iter_stag_record(&stag, rnorm / bnorm);
+        if (sparse_iter_stag_check(&stag)) {
             stagnated = 1;
             break;
         }
@@ -326,7 +326,7 @@ sparse_err_t sparse_solve_cg_with_workspace_internal(const SparseMatrix *A, cons
         if (precond) {
             sparse_err_t perr = precond(precond_ctx, n, r, z);
             if (perr != SPARSE_OK) {
-                stag_free(&stag);
+                sparse_iter_stag_free(&stag);
                 return perr;
             }
         } else {
@@ -361,7 +361,7 @@ sparse_err_t sparse_solve_cg_with_workspace_internal(const SparseMatrix *A, cons
         result->residual_history_count = rh.count < rh.len ? rh.count : rh.len;
     }
 
-    stag_free(&stag);
+    sparse_iter_stag_free(&stag);
     return converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
 }
 
@@ -463,7 +463,7 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
     double rnorm = vec_norm2(r, n);
 
     stag_tracker_t stag = {0};
-    if (stag_init(&stag, o->stagnation_window) != SPARSE_OK) {
+    if (sparse_iter_stag_init(&stag, o->stagnation_window) != SPARSE_OK) {
         sparse_iter_workspace_free(&workspace);
         return SPARSE_ERR_ALLOC;
     }
@@ -494,7 +494,7 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
                     result->iterations = iter;
                     result->residual_norm = rnorm / bnorm;
                 }
-                stag_free(&stag);
+                sparse_iter_stag_free(&stag);
                 sparse_iter_workspace_free(&workspace);
                 return SPARSE_ERR_CANCELLED;
             }
@@ -504,7 +504,7 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
 
         merr = matvec(matvec_ctx, n, p, Ap);
         if (merr != SPARSE_OK) {
-            stag_free(&stag);
+            sparse_iter_stag_free(&stag);
             sparse_iter_workspace_free(&workspace);
             return merr;
         }
@@ -521,8 +521,8 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
         rnorm = vec_norm2(r, n);
 
         reshist_record(&rh, rnorm / bnorm);
-        stag_record(&stag, rnorm / bnorm);
-        if (stag_check(&stag)) {
+        sparse_iter_stag_record(&stag, rnorm / bnorm);
+        if (sparse_iter_stag_check(&stag)) {
             stagnated = 1;
             break;
         }
@@ -530,7 +530,7 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
         if (precond) {
             sparse_err_t perr = precond(precond_ctx, n, r, z);
             if (perr != SPARSE_OK) {
-                stag_free(&stag);
+                sparse_iter_stag_free(&stag);
                 sparse_iter_workspace_free(&workspace);
                 return perr;
             }
@@ -563,7 +563,7 @@ sparse_err_t sparse_solve_cg_mf(sparse_matvec_fn matvec, const void *matvec_ctx,
         result->residual_history_count = rh.count < rh.len ? rh.count : rh.len;
     }
 
-    stag_free(&stag);
+    sparse_iter_stag_free(&stag);
     sparse_iter_workspace_free(&workspace);
     return converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
 }
@@ -746,8 +746,8 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
     }
 
     stag_tracker_t stag;
-    if (stag_init(&stag, o->stagnation_window) != SPARSE_OK) {
-        stag_free(&stag);
+    if (sparse_iter_stag_init(&stag, o->stagnation_window) != SPARSE_OK) {
+        sparse_iter_stag_free(&stag);
         return SPARSE_ERR_ALLOC;
     }
 
@@ -767,7 +767,7 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
         /* Compute r = b - A*x */
         merr = matvec(matvec_ctx, n, x, w);
         if (merr != SPARSE_OK) {
-            stag_free(&stag);
+            sparse_iter_stag_free(&stag);
             return merr;
         }
         for (idx_t i = 0; i < n; i++)
@@ -778,7 +778,7 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
             vec_copy(V(0), w, n);
             sparse_err_t perr = precond(precond_ctx, n, w, V(0));
             if (perr != SPARSE_OK) {
-                stag_free(&stag);
+                sparse_iter_stag_free(&stag);
                 return perr;
             }
         }
@@ -821,7 +821,7 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
                     if (result) {
                         result->iterations = total_iter;
                     }
-                    stag_free(&stag);
+                    sparse_iter_stag_free(&stag);
                     return SPARSE_ERR_CANCELLED;
                 }
             }
@@ -832,19 +832,19 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
                 /* Right preconditioning: w = A * M^{-1} * v_j */
                 sparse_err_t perr = precond(precond_ctx, n, V(j), V(j + 1));
                 if (perr != SPARSE_OK) {
-                    stag_free(&stag);
+                    sparse_iter_stag_free(&stag);
                     return perr;
                 }
                 merr = matvec(matvec_ctx, n, V(j + 1), w);
                 if (merr != SPARSE_OK) {
-                    stag_free(&stag);
+                    sparse_iter_stag_free(&stag);
                     return merr;
                 }
             } else {
                 /* w = A * v_j */
                 merr = matvec(matvec_ctx, n, V(j), w);
                 if (merr != SPARSE_OK) {
-                    stag_free(&stag);
+                    sparse_iter_stag_free(&stag);
                     return merr;
                 }
 
@@ -853,7 +853,7 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
                     vec_copy(w, V(j + 1), n);
                     sparse_err_t perr = precond(precond_ctx, n, V(j + 1), w);
                     if (perr != SPARSE_OK) {
-                        stag_free(&stag);
+                        sparse_iter_stag_free(&stag);
                         return perr;
                     }
                 }
@@ -942,7 +942,7 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
                 vec_axpy(y[k], V(k), w, n);
             sparse_err_t perr = precond(precond_ctx, n, w, V(0)); /* reuse V(0) as temp */
             if (perr != SPARSE_OK) {
-                stag_free(&stag);
+                sparse_iter_stag_free(&stag);
                 return perr;
             }
             vec_axpy(1.0, V(0), x, n);
@@ -955,7 +955,7 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
         /* Compute true residual to decide convergence */
         merr = matvec(matvec_ctx, n, x, w);
         if (merr != SPARSE_OK) {
-            stag_free(&stag);
+            sparse_iter_stag_free(&stag);
             return merr;
         }
         for (idx_t i = 0; i < n; i++)
@@ -968,8 +968,8 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
         }
 
         /* Stagnation check across restarts */
-        stag_record(&stag, rel_res);
-        if (stag_check(&stag)) {
+        sparse_iter_stag_record(&stag, rel_res);
+        if (sparse_iter_stag_check(&stag)) {
             stagnated = 1;
             break;
         }
@@ -984,7 +984,7 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
         result->residual_history_count = rh.count < rh.len ? rh.count : rh.len;
     }
 
-    stag_free(&stag);
+    sparse_iter_stag_free(&stag);
     return converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
 }
 
@@ -1444,7 +1444,7 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
         return werr;
 
     stag_tracker_t stag;
-    if (stag_init(&stag, o->stagnation_window) != SPARSE_OK) {
+    if (sparse_iter_stag_init(&stag, o->stagnation_window) != SPARSE_OK) {
         bicgstab_workspace_free(&ws);
         return SPARSE_ERR_ALLOC;
     }
@@ -1498,7 +1498,7 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
                     result->iterations = iter;
                     result->residual_norm = rnorm / bnorm;
                 }
-                stag_free(&stag);
+                sparse_iter_stag_free(&stag);
                 bicgstab_workspace_free(&ws);
                 return SPARSE_ERR_CANCELLED;
             }
@@ -1514,7 +1514,7 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
         if (precond) {
             sparse_err_t perr = precond(precond_ctx, n, ws.p, ws.p_hat);
             if (perr != SPARSE_OK) {
-                stag_free(&stag);
+                sparse_iter_stag_free(&stag);
                 bicgstab_workspace_free(&ws);
                 return perr;
             }
@@ -1559,7 +1559,7 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
         if (precond) {
             sparse_err_t perr = precond(precond_ctx, n, ws.s, ws.s_hat);
             if (perr != SPARSE_OK) {
-                stag_free(&stag);
+                sparse_iter_stag_free(&stag);
                 bicgstab_workspace_free(&ws);
                 return perr;
             }
@@ -1622,8 +1622,8 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
         }
 
         /* Stagnation check */
-        stag_record(&stag, rnorm / bnorm);
-        if (stag_check(&stag)) {
+        sparse_iter_stag_record(&stag, rnorm / bnorm);
+        if (sparse_iter_stag_check(&stag)) {
             stagnated = 1;
             break;
         }
@@ -1670,7 +1670,7 @@ done:;
         result->residual_history_count = rh.count < rh.len ? rh.count : rh.len;
     }
 
-    stag_free(&stag);
+    sparse_iter_stag_free(&stag);
     bicgstab_workspace_free(&ws);
     if (numeric_err != SPARSE_OK)
         return numeric_err;
@@ -1777,15 +1777,15 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
         return werr;
 
     stag_tracker_t stag;
-    if (stag_init(&stag, o->stagnation_window) != SPARSE_OK) {
-        stag_free(&stag);
+    if (sparse_iter_stag_init(&stag, o->stagnation_window) != SPARSE_OK) {
+        sparse_iter_stag_free(&stag);
         bicgstab_workspace_free(&ws);
         return SPARSE_ERR_ALLOC;
     }
 
     sparse_err_t merr = matvec(matvec_ctx, n, x, ws.v);
     if (merr != SPARSE_OK) {
-        stag_free(&stag);
+        sparse_iter_stag_free(&stag);
         bicgstab_workspace_free(&ws);
         return merr;
     }
@@ -1823,7 +1823,7 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
         if (precond) {
             sparse_err_t perr = precond(precond_ctx, n, ws.p, ws.p_hat);
             if (perr != SPARSE_OK) {
-                stag_free(&stag);
+                sparse_iter_stag_free(&stag);
                 bicgstab_workspace_free(&ws);
                 return perr;
             }
@@ -1832,7 +1832,7 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
 
         merr = matvec(matvec_ctx, n, p_eff, ws.v);
         if (merr != SPARSE_OK) {
-            stag_free(&stag);
+            sparse_iter_stag_free(&stag);
             bicgstab_workspace_free(&ws);
             return merr;
         }
@@ -1864,7 +1864,7 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
         if (precond) {
             sparse_err_t perr = precond(precond_ctx, n, ws.s, ws.s_hat);
             if (perr != SPARSE_OK) {
-                stag_free(&stag);
+                sparse_iter_stag_free(&stag);
                 bicgstab_workspace_free(&ws);
                 return perr;
             }
@@ -1873,7 +1873,7 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
 
         merr = matvec(matvec_ctx, n, s_eff, ws.t);
         if (merr != SPARSE_OK) {
-            stag_free(&stag);
+            sparse_iter_stag_free(&stag);
             bicgstab_workspace_free(&ws);
             return merr;
         }
@@ -1893,7 +1893,7 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
             vec_axpy(alpha, p_eff, x, n);
             merr = matvec(matvec_ctx, n, x, ws.r);
             if (merr != SPARSE_OK) {
-                stag_free(&stag);
+                sparse_iter_stag_free(&stag);
                 bicgstab_workspace_free(&ws);
                 return merr;
             }
@@ -1928,8 +1928,8 @@ sparse_err_t sparse_solve_bicgstab_mf(sparse_matvec_fn matvec, const void *matve
         }
 
         /* Stagnation check */
-        stag_record(&stag, rnorm / bnorm);
-        if (stag_check(&stag)) {
+        sparse_iter_stag_record(&stag, rnorm / bnorm);
+        if (sparse_iter_stag_check(&stag)) {
             stagnated = 1;
             break;
         }
@@ -1957,7 +1957,7 @@ done_mf:;
     if (iter > 0) {
         merr = matvec(matvec_ctx, n, x, ws.r);
         if (merr != SPARSE_OK) {
-            stag_free(&stag);
+            sparse_iter_stag_free(&stag);
             bicgstab_workspace_free(&ws);
             return merr;
         }
@@ -1977,7 +1977,7 @@ done_mf:;
         result->residual_history_count = rh.count < rh.len ? rh.count : rh.len;
     }
 
-    stag_free(&stag);
+    sparse_iter_stag_free(&stag);
     bicgstab_workspace_free(&ws);
     if (numeric_err != SPARSE_OK)
         return numeric_err;

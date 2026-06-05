@@ -16,8 +16,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-/* Sprint 29 Day 7 (Item 4): progress / cancel wiring helper. */
-static double s29_iter_now_s(void) {
+double s29_iter_now_s(void) {
     struct timespec ts;
 #ifdef _WIN32
     timespec_get(&ts, TIME_UTC);
@@ -49,8 +48,8 @@ static sparse_iter_workspace_t *s49_iter_handle_workspace(const sparse_iter_hand
     return handle ? (sparse_iter_workspace_t *)handle->internal_state : NULL;
 }
 
-static sparse_err_t s49_iter_handle_ensure(sparse_iter_handle_t *handle,
-                                           sparse_iter_workspace_t **workspace_out) {
+sparse_err_t s49_iter_handle_ensure(sparse_iter_handle_t *handle,
+                                    sparse_iter_workspace_t **workspace_out) {
     if (!handle || !workspace_out)
         return SPARSE_ERR_NULL;
 
@@ -124,15 +123,7 @@ sparse_err_t sparse_iter_handle_prepare_minres(sparse_iter_handle_t *handle, idx
 
 #define STAG_DEFAULT_TOL 0.01
 
-typedef struct {
-    double *buf;
-    idx_t capacity;
-    idx_t count;
-    idx_t head;
-    double tol;
-} stag_tracker_t;
-
-static sparse_err_t stag_init(stag_tracker_t *st, idx_t window) {
+sparse_err_t stag_init(stag_tracker_t *st, idx_t window) {
     *st = (stag_tracker_t){0};
     if (window <= 0)
         return SPARSE_OK;
@@ -147,12 +138,12 @@ static sparse_err_t stag_init(stag_tracker_t *st, idx_t window) {
     return SPARSE_OK;
 }
 
-static void stag_free(stag_tracker_t *st) {
+void stag_free(stag_tracker_t *st) {
     free(st->buf);
     *st = (stag_tracker_t){0};
 }
 
-static void stag_record(stag_tracker_t *st, double residual) {
+void stag_record(stag_tracker_t *st, double residual) {
     if (!st->buf)
         return;
     st->buf[st->head] = residual;
@@ -161,7 +152,7 @@ static void stag_record(stag_tracker_t *st, double residual) {
         st->count++;
 }
 
-static int stag_check(const stag_tracker_t *st) {
+int stag_check(const stag_tracker_t *st) {
     if (!st->buf || st->count < st->capacity)
         return 0;
     double mn = st->buf[0], mx = st->buf[0];
@@ -179,38 +170,6 @@ static int stag_check(const stag_tracker_t *st) {
 /* ═══════════════════════════════════════════════════════════════════════
  * Residual history recording helper
  * ═══════════════════════════════════════════════════════════════════════ */
-
-typedef struct {
-    double *buf;
-    idx_t len;
-    idx_t count;
-} reshist_t;
-
-static inline reshist_t reshist_make(double *buf, idx_t len) {
-    return (reshist_t){.buf = buf, .len = (buf && len > 0) ? len : 0, .count = 0};
-}
-
-static inline void reshist_record(reshist_t *rh, double relres) {
-    if (rh->count < rh->len)
-        rh->buf[rh->count] = relres;
-    rh->count++;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
- * Verbose callback helper
- * ═══════════════════════════════════════════════════════════════════════ */
-
-static inline void iter_report(sparse_iter_callback_fn cb, void *cb_ctx, int verbose,
-                               const char *solver, idx_t iteration, double residual_norm) {
-    if (cb) {
-        sparse_iter_progress_t p = {
-            .iteration = iteration, .residual_norm = residual_norm, .solver = solver};
-        cb(&p, cb_ctx);
-    } else if (verbose) {
-        fprintf(stderr, "  %s iter %4d: ||r||/||b|| = %.6e\n", solver, (int)iteration,
-                residual_norm);
-    }
-}
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Conjugate Gradient
@@ -1382,357 +1341,6 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, id
         return SPARSE_ERR_ALLOC;
     return solve_block_independent_columns(A, B, nrhs, X, n, opts, precond, precond_ctx, result,
                                            solve_block_gmres_column);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
- * MINRES — Minimum Residual method for symmetric systems
- * ═══════════════════════════════════════════════════════════════════════ */
-
-static sparse_err_t sparse_solve_minres_with_workspace_internal(
-    const SparseMatrix *A, const double *b, double *x, const sparse_iter_opts_t *opts,
-    sparse_precond_fn precond, const void *precond_ctx, sparse_iter_result_t *result,
-    sparse_iter_workspace_t *workspace) {
-    /* Initialize result to safe defaults */
-    if (result) {
-        result->iterations = 0;
-        result->residual_norm = 0.0;
-        result->converged = 0;
-        result->stagnated = 0;
-        result->residual_history_count = 0;
-        result->breakdown = 0;
-    }
-
-    if (!A || !b || !x)
-        return SPARSE_ERR_NULL;
-    if (!workspace)
-        return SPARSE_ERR_NULL;
-    if (A->rows != A->cols)
-        return SPARSE_ERR_SHAPE;
-
-    const sparse_iter_opts_t *o = opts ? opts : &cg_defaults;
-    if (o->max_iter < 0 || o->tol < 0.0)
-        return SPARSE_ERR_BADARG;
-
-    idx_t n = A->rows;
-
-    if (n == 0) {
-        if (result)
-            result->converged = 1;
-        return SPARSE_OK;
-    }
-
-    double bnorm = vec_norm2(b, n);
-    if (bnorm == 0.0) {
-        vec_zero(x, n);
-        if (result) {
-            result->converged = 1;
-            result->residual_norm = 0.0;
-        }
-        return SPARSE_OK;
-    }
-
-    sparse_minres_workspace_view_t minres_ws;
-    if (sparse_iter_workspace_prepare_minres(workspace, n, precond != NULL, &minres_ws) !=
-        SPARSE_OK)
-        return SPARSE_ERR_ALLOC;
-    double *v = minres_ws.v;         /* current Lanczos vector */
-    double *v_old = minres_ws.v_old; /* previous Lanczos vector */
-    double *w = minres_ws.w;         /* A*v workspace */
-    double *d0 = minres_ws.d0;       /* direction vector d_{k} */
-    double *d1 = minres_ws.d1;       /* direction vector d_{k-1} */
-    double *d2 = minres_ws.d2;       /* direction vector d_{k-2} */
-    double *z = minres_ws.z;
-    double *z_tmp = minres_ws.z_tmp;
-
-    stag_tracker_t stag;
-    if (stag_init(&stag, o->stagnation_window) != SPARSE_OK) {
-        return SPARSE_ERR_ALLOC;
-    }
-
-    /* r0 = b - A*x0 (store in v temporarily) */
-    sparse_matvec(A, x, w);
-    for (idx_t i = 0; i < n; i++)
-        v[i] = b[i] - w[i];
-
-    /* Compute beta1 = ||r0|| or sqrt(r0^T * M^{-1} * r0) */
-    double beta;
-    if (precond) {
-        sparse_err_t perr = precond(precond_ctx, n, v, z);
-        if (perr != SPARSE_OK) {
-            stag_free(&stag);
-            return perr;
-        }
-        beta = vec_dot(v, z, n);
-        if (beta < 0.0) {
-            stag_free(&stag);
-            return SPARSE_ERR_BADARG; /* M is not SPD */
-        }
-        beta = sqrt(beta);
-        if (beta <= 0.0) {
-            stag_free(&stag);
-            return SPARSE_ERR_BADARG; /* degenerate preconditioner */
-        }
-    } else {
-        beta = vec_norm2(v, n);
-    }
-
-    /* Check early convergence using the true Euclidean residual norm.
-     * When preconditioned, beta = sqrt(r^T M^{-1} r) which differs from
-     * ||r||_2, so always use vec_norm2(v, n) (v holds r0 before normalization). */
-    {
-        double r0norm = vec_norm2(v, n);
-        if (r0norm / bnorm <= o->tol) {
-            if (result) {
-                result->converged = 1;
-                result->residual_norm = r0norm / bnorm;
-            }
-            stag_free(&stag);
-            return SPARSE_OK;
-        }
-    }
-
-    /* Normalize: v = r0/beta, z = M^{-1}r0/beta */
-    {
-        double inv_beta = 1.0 / beta;
-        for (idx_t i = 0; i < n; i++)
-            v[i] *= inv_beta;
-        if (precond) {
-            for (idx_t i = 0; i < n; i++)
-                z[i] *= inv_beta;
-        }
-    }
-
-    /* Givens rotation state:
-     * cs, sn   = G_{k-1} (initialized as identity)
-     * cs_old, sn_old = G_{k-2} (initialized as identity) */
-    double cs = 1.0, sn = 0.0;
-    double cs_old = 1.0, sn_old = 0.0;
-
-    double phi_bar = beta; /* residual norm estimate */
-    double beta_old = 0.0;
-
-    idx_t iter = 0;
-    int converged = 0;
-    int stagnated = 0;
-    int breakdown = 0;
-    double true_res_cached = -1.0; /* set by in-loop verification if QR converged */
-    reshist_t rh = reshist_make(o->residual_history, o->residual_history_len);
-    double minres_phase_start_s = o->progress_cb ? s29_iter_now_s() : 0.0;
-
-    for (iter = 1; iter <= o->max_iter; iter++) {
-        /* Sprint 29 Day 7: progress + cancel for MINRES. */
-        if (o->progress_cb) {
-            sparse_progress_t pp = {
-                .phase = "minres",
-                .step = iter - 1,
-                .total = o->max_iter,
-                .elapsed_s = s29_iter_now_s() - minres_phase_start_s,
-            };
-            if (o->progress_cb(&pp, o->progress_user) != 0) {
-                if (result) {
-                    result->iterations = iter - 1;
-                }
-                stag_free(&stag);
-                return SPARSE_ERR_CANCELLED;
-            }
-        }
-
-        /* ── Lanczos step ──────────────────────────────────────────── */
-        /* w = A * v_k (unpreconditioned) or A * z_k (preconditioned) */
-        if (precond)
-            sparse_matvec(A, z, w);
-        else
-            sparse_matvec(A, v, w);
-
-        /* alpha = <v_k, w> (or <z_k, w> for preconditioned) */
-        double alpha;
-        if (precond)
-            alpha = vec_dot(z, w, n);
-        else
-            alpha = vec_dot(v, w, n);
-
-        /* w = w - alpha*v - beta_old*v_old (three-term recurrence) */
-        for (idx_t i = 0; i < n; i++)
-            w[i] = w[i] - alpha * v[i] - beta_old * v_old[i];
-
-        /* Compute beta_new */
-        double beta_new;
-        if (precond) {
-            sparse_err_t perr = precond(precond_ctx, n, w, z_tmp);
-            if (perr != SPARSE_OK) {
-                stag_free(&stag);
-                return perr;
-            }
-            double inner = vec_dot(w, z_tmp, n);
-            if (inner < 0.0) {
-                stag_free(&stag);
-                return SPARSE_ERR_BADARG; /* M not SPD */
-            }
-            beta_new = sqrt(inner);
-        } else {
-            beta_new = vec_norm2(w, n);
-        }
-
-        /* ── QR update: process column k of the tridiagonal ──────── */
-        /* The column has: beta_old at row k-1, alpha at row k,
-         * beta_new at row k+1. Apply previous Givens rotations. */
-
-        /* Step 1: Apply G_{k-2} to (row k-2, row k-1) = (0, beta_old) */
-        double eps = sn_old * beta_old;
-        double delta_bar = cs_old * beta_old;
-
-        /* Step 2: Apply G_{k-1} to (row k-1, row k) = (delta_bar, alpha) */
-        double delta = cs * delta_bar + sn * alpha;
-        double gamma_bar = -sn * delta_bar + cs * alpha;
-
-        /* Step 3: Compute G_k to zero out beta_new at row k+1 */
-        double gamma = sqrt(gamma_bar * gamma_bar + beta_new * beta_new);
-
-        if (gamma < sparse_rel_tol(0, DROP_TOL)) {
-            breakdown = 1;
-            iter--;
-            break;
-        }
-
-        double cs_new = gamma_bar / gamma;
-        double sn_new = beta_new / gamma;
-
-        /* Step 4: Update RHS */
-        double phi = cs_new * phi_bar;
-        phi_bar = -sn_new * phi_bar;
-
-        /* Step 5: Direction vector d_k = (v_k - eps*d_{k-2} - delta*d_{k-1}) / gamma
-         * For preconditioned: use z instead of v */
-        {
-            const double *dv = precond ? z : v;
-            double inv_gamma = 1.0 / gamma;
-            for (idx_t i = 0; i < n; i++)
-                d0[i] = (dv[i] - eps * d2[i] - delta * d1[i]) * inv_gamma;
-        }
-
-        /* Step 6: Update solution x = x + phi * d_k */
-        for (idx_t i = 0; i < n; i++)
-            x[i] += phi * d0[i];
-
-        /* Step 7: Check convergence */
-        double relres = fabs(phi_bar) / bnorm;
-
-        iter_report(o->callback, o->callback_ctx, o->verbose, "MINRES", iter - 1, relres);
-        reshist_record(&rh, relres);
-
-        if (relres <= o->tol) {
-            /* QR estimate says converged — verify with true residual before
-             * breaking, since the QR estimate can underestimate in finite
-             * precision (especially with preconditioning). Use d2 as scratch
-             * (already consumed in Step 5, safe to overwrite before shift). */
-            sparse_matvec(A, x, d2);
-            double tr = 0.0;
-            for (idx_t i = 0; i < n; i++) {
-                double di = d2[i] - b[i];
-                tr += di * di;
-            }
-            double verified_res = sqrt(tr) / bnorm;
-            if (verified_res <= o->tol) {
-                true_res_cached = verified_res;
-                break;
-            }
-        }
-
-        /* Stagnation check (after convergence check so we don't
-         * misreport a converged solve as stagnated) */
-        stag_record(&stag, relres);
-        if (stag_check(&stag)) {
-            stagnated = 1;
-            break;
-        }
-
-        /* ── Prepare for next iteration ──────────────────────────── */
-        /* Shift Givens rotations */
-        cs_old = cs;
-        sn_old = sn;
-        cs = cs_new;
-        sn = sn_new;
-
-        /* Shift direction vectors: d2 ← d1, d1 ← d0 (swap pointers) */
-        {
-            double *tmp = d2;
-            d2 = d1;
-            d1 = d0;
-            d0 = tmp;
-        }
-
-        /* Shift Lanczos vectors and normalize */
-        if (beta_new > sparse_rel_tol(0, DROP_TOL)) {
-            double inv_beta = 1.0 / beta_new;
-            for (idx_t i = 0; i < n; i++) {
-                v_old[i] = v[i];
-                v[i] = w[i] * inv_beta;
-            }
-            if (precond) {
-                for (idx_t i = 0; i < n; i++)
-                    z[i] = z_tmp[i] * inv_beta;
-            }
-        } else {
-            breakdown = 1;
-            break;
-        }
-
-        beta_old = beta_new;
-    }
-
-    /* Compute true residual ||b - A*x|| / ||b|| (skip if already cached
-     * from in-loop verification) */
-    double true_res;
-    if (true_res_cached >= 0.0) {
-        true_res = true_res_cached;
-    } else {
-        sparse_matvec(A, x, w);
-        true_res = 0.0;
-        for (idx_t i = 0; i < n; i++) {
-            double di = w[i] - b[i];
-            true_res += di * di;
-        }
-        true_res = sqrt(true_res) / bnorm;
-    }
-
-    /* Final convergence decision based on true residual, not QR estimate */
-    converged = (true_res <= o->tol);
-
-    if (result) {
-        result->iterations = iter > o->max_iter ? o->max_iter : iter;
-        result->residual_norm = true_res;
-        result->converged = converged;
-        result->stagnated = stagnated;
-        result->breakdown = breakdown;
-        result->residual_history_count = rh.count < rh.len ? rh.count : rh.len;
-    }
-
-    stag_free(&stag);
-    return converged ? SPARSE_OK : SPARSE_ERR_NOT_CONVERGED;
-}
-
-sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double *x,
-                                 const sparse_iter_opts_t *opts, sparse_precond_fn precond,
-                                 const void *precond_ctx, sparse_iter_result_t *result) {
-    sparse_iter_workspace_t workspace;
-    sparse_iter_workspace_init(&workspace);
-    sparse_err_t err = sparse_solve_minres_with_workspace_internal(A, b, x, opts, precond,
-                                                                   precond_ctx, result, &workspace);
-    sparse_iter_workspace_free(&workspace);
-    return err;
-}
-
-sparse_err_t sparse_solve_minres_with_handle(const SparseMatrix *A, const double *b, double *x,
-                                             const sparse_iter_opts_t *opts,
-                                             sparse_precond_fn precond, const void *precond_ctx,
-                                             sparse_iter_result_t *result,
-                                             sparse_iter_handle_t *handle) {
-    sparse_iter_workspace_t *workspace = NULL;
-    sparse_err_t err = s49_iter_handle_ensure(handle, &workspace);
-    if (err != SPARSE_OK)
-        return err;
-    return sparse_solve_minres_with_workspace_internal(A, b, x, opts, precond, precond_ctx, result,
-                                                       workspace);
 }
 
 static sparse_err_t solve_block_minres_column(const SparseMatrix *A, const double *b, double *x,

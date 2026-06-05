@@ -1637,3 +1637,185 @@ Sprint 55 now has an explicit first iterative implementation design:
 
 That is enough to begin Day 10 from a precise ownership map and landing
 checklist instead of refining the boundary mid-implementation.
+
+## Day 10
+
+**Objective:** Land the first bounded `src/sparse_iterative.c` extraction by
+ moving the scalar/handle `MINRES` family into its own permanent source file,
+ keeping block-wrapper scaffolding in the retained main iterative file, and
+ preserving the full repeated-run/public-handle proof and reviewed validation
+ contract.
+
+### Commands Run
+
+1. Re-read the Day 9 landing design plus the live `MINRES` band:
+   - `sed -n '1,240p' docs/planning/EPIC_5/SPRINT_55/artifacts/day9-iterative-decomposition-batch1-design.md`
+   - `sed -n '1360,1795p' src/sparse_iterative.c`
+   - `rg -n "sparse_eigs_lobpcg.c|sparse_eigs_thick_restart.c|sparse_iterative.c" Makefile CMakeLists.txt`
+2. Re-audit the shared helper dependencies that the moved `MINRES` block still
+   needed:
+   - `sed -n '1,260p' src/sparse_iterative.c`
+   - `rg -n "static (inline )?(double|void|int|sparse_err_t) (vec_|matvec_|stag_|reshist_|iter_report|s29_iter_now_s)" src/sparse_iterative.c`
+   - `rg -n "cg_defaults|gmres_defaults|s49_iter_handle_ensure|s29_iter_now_s|stag_tracker_t|reshist_t|iter_report" src/sparse_iterative.c src/sparse_iterative_internal.h`
+3. Land the first iterative extraction batch:
+   - split the scalar/handle `MINRES` family into `src/sparse_iterative_minres.c`
+   - widen `src/sparse_iterative_internal.h`
+   - update `Makefile` and `CMakeLists.txt`
+4. Run the required code-day gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+5. Run focused iterative follow-ons and ownership checks:
+   - `./build/test_iterative`
+   - `./build/test_minres`
+   - `./build/example_ic_minres`
+   - `./build/bench_iterative_reuse`
+   - `wc -l src/sparse_iterative.c src/sparse_iterative_minres.c src/sparse_iterative_internal.h`
+
+### Day 10 Findings
+
+#### 1. The first iterative extraction landed as the intended narrow `MINRES` batch
+
+The new owned iterative file is now:
+
+- `src/sparse_iterative_minres.c`
+
+Moved ownership:
+
+- `sparse_solve_minres_with_workspace_internal(...)`
+- `sparse_solve_minres(...)`
+- `sparse_solve_minres_with_handle(...)`
+
+Retained in `src/sparse_iterative.c`:
+
+- public handle init/free and growth helpers
+- shared staging / residual-history / reporting helpers
+- `CG`
+- `GMRES`
+- shared block-column scaffolding
+- block MINRES wrappers
+- `BiCGSTAB`
+
+Interpretation:
+
+- the first iterative split stayed inside the Day 9 fence
+- the main file kept the shared front-door/block-wrapper role
+- the new file owns the coherent scalar/handle `MINRES` family
+
+#### 2. The shared-helper/header widening stayed minimal but real
+
+The first extraction exposed one genuine shared-helper seam:
+
+- `MINRES` still needed:
+  - `s29_iter_now_s(...)`
+  - `s49_iter_handle_ensure(...)`
+  - `stag_*`
+  - `reshist_*`
+  - `iter_report(...)`
+
+The landed solution stayed within the planned header strategy:
+
+- widened:
+  - `src/sparse_iterative_internal.h`
+- did not add:
+  - a new private `MINRES` header
+
+Interpretation:
+
+- Batch 1 remained ownership-focused rather than taxonomy-focused
+- the internal iterative header now carries the shared helper declarations
+  needed for split implementation ownership
+
+#### 3. The ownership reduction is now measurable
+
+Current post-Day-10 line counts:
+
+- `src/sparse_iterative.c` = `1985`
+- `src/sparse_iterative_minres.c` = `308`
+- `src/sparse_iterative_internal.h` = `79`
+
+Relative to the pre-Day-10 state:
+
+- `src/sparse_iterative.c`: `2377` -> `1985`
+
+Interpretation:
+
+- this is a real decomposition step, not a comment-only cleanup pass
+- the retained main iterative file is materially smaller and more
+  orchestration-focused than the Sprint 55 Day 1 baseline
+
+#### 4. The moved `MINRES` block also dropped its stale sprint-history narration
+
+The moved `MINRES` ownership band no longer carries the stale
+`Sprint 29 Day 7` progress/cancel narrative inside the extracted backend body.
+
+Interpretation:
+
+- the comment cleanup stayed bounded to the moved ownership band
+- durable algorithm commentary was preserved
+- the batch did not turn into a whole-file comment rewrite
+
+#### 5. The full required validation and reviewed baseline both stayed green
+
+Required code-day validation passed:
+
+- `make format`
+- `make lint`
+- `make test`
+
+The stronger reviewed baseline also passed:
+
+- `make quality-review-full`
+
+Reviewed truthfulness anchors remained exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real)` = `244.60 sec`
+
+Interpretation:
+
+- the iterative extraction did not disturb the maintained reviewed parity path
+- the Day 10 batch preserved the repo’s strongest local reviewed baseline
+
+#### 6. The strongest iterative follow-ons remained stable after the split
+
+Focused follow-ons passed:
+
+- `./build/test_iterative` -> `79 / 79`
+- `./build/test_minres` -> `43 / 43`
+- `./build/example_ic_minres`
+- `./build/bench_iterative_reuse`
+
+Representative direct results:
+
+- `example_ic_minres`:
+  - `MINRES` on the `42x42` KKT system converged in `39` iterations
+  - Jacobi-`MINRES` converged in `26` iterations
+- `bench_iterative_reuse`:
+  - `cg-tridiag-300` -> `1.05x`
+  - `gmres-unsym-220` -> `1.04x`
+  - `minres-kkt-42` -> `1.11x`
+
+Interpretation:
+
+- the public repeated-run iterative handle story stayed intact
+- the split did not introduce parity drift on the strongest `MINRES` proof and
+  adoption surfaces
+
+## Day 10 Close
+
+Sprint 55 Day 10 successfully landed the first bounded iterative extraction:
+
+- `MINRES` scalar/handle ownership now lives in `src/sparse_iterative_minres.c`
+- the retained `src/sparse_iterative.c` is smaller and more
+  orchestration-focused
+- the existing internal header strategy was sufficient after one bounded shared
+  helper widening
+- block wrappers stayed in the main file as planned
+- the full required validation and reviewed parity path remained green
+
+That closes the planned Batch 1 implementation step without reopening the
+Sprint 54 repeated-run solver support boundary.

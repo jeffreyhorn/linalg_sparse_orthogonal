@@ -50,6 +50,7 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_cholesky.c \
            $(SRCDIR)/sparse_csr.c \
            $(SRCDIR)/sparse_iterative.c \
+           $(SRCDIR)/sparse_iterative_minres.c \
            $(SRCDIR)/sparse_iterative_workspace_internal.c \
            $(SRCDIR)/sparse_ilu.c \
            $(SRCDIR)/sparse_qr.c \

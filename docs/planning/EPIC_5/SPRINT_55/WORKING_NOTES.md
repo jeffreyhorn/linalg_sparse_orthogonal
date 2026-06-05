@@ -1925,3 +1925,207 @@ reduction sweep:
 
 That leaves Day 12 free to audit the decomposed source ownership state rather
 than to clean up leftover Sprint 55 implementation narration.
+
+# Sprint 55 Day 12 - post-landing compatibility audit
+
+Date: 2026-06-04
+Branch: `sprint-55`
+
+## Goal
+
+Audit the landed Sprint 55 branch against the preserved solver/lifecycle
+compatibility fence and confirm that the decomposition work improved ownership
+rather than merely moving code across files.
+
+## Audit inputs used
+
+Primary public and caller-facing surfaces rechecked:
+
+- `README.md`
+- `examples/README.md`
+- `docs/tutorial.md`
+- `benchmarks/README.md`
+- `include/sparse_iterative.h`
+- `include/sparse_eigs.h`
+
+Primary implementation and ownership surfaces rechecked:
+
+- `src/sparse_eigs.c`
+- `src/sparse_eigs_lobpcg.c`
+- `src/sparse_eigs_thick_restart.c`
+- `src/sparse_eigs_internal.h`
+- `src/sparse_iterative.c`
+- `src/sparse_iterative_minres.c`
+- `src/sparse_iterative_internal.h`
+
+Build-wiring confirmation surfaces:
+
+- `Makefile`
+- `CMakeLists.txt`
+
+## Compatibility-fence audit
+
+### 1. No public API redesign surfaced
+
+The public headers and README still describe the same preserved public repeated-
+run solver boundary:
+
+- iterative repeated-run handles remain intentionally bounded to:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- eigensolver repeated-run handles remain intentionally bounded to:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+- explicit retained exclusions still read as exclusions, not hidden drift:
+  - `BiCGSTAB`
+  - block iterative workflows
+
+Interpretation:
+
+- Sprint 55 moved implementation ownership only
+- it did not widen or narrow the public solver support boundary fixed in Sprint
+  54
+
+### 2. No behavior-visible lifecycle change surfaced
+
+The caller-facing docs still describe the same lifecycle semantics:
+
+- one-shot solver APIs remain first-class
+- repeated-run handles remain opt-in paths
+- handle reuse preserves allocation capacity, not stale numerical iteration
+  state
+- examples remain intentionally one-shot-first
+
+Interpretation:
+
+- Sprint 55 did not introduce any new public lifecycle model
+- the decomposition work stayed underneath the already-validated behavior
+
+### 3. Examples, benchmarks, and tutorial wording stayed aligned
+
+The high-signal non-header surfaces still agree with the preserved contract:
+
+- `examples/README.md`
+  - still states the bounded iterative/eigensolver handle sets explicitly
+- `benchmarks/README.md`
+  - still treats the reuse drivers as narrow proof surfaces rather than general
+    solver bake-offs
+- `docs/tutorial.md`
+  - still names the iterative family as `CG`, `GMRES`, `MINRES`
+
+Interpretation:
+
+- no public-documentation drift appeared while the code was being split
+
+## Ownership-gain audit
+
+### 1. The eigensolver split is now materially real
+
+Current file ownership shape:
+
+- retained orchestration/shared file:
+  - `src/sparse_eigs.c` = `1534`
+- extracted backend-owned files:
+  - `src/sparse_eigs_lobpcg.c` = `401`
+  - `src/sparse_eigs_thick_restart.c` = `914`
+- shared private declaration surface:
+  - `src/sparse_eigs_internal.h` = `631`
+
+Relative to the Day 1 baseline:
+
+- `src/sparse_eigs.c`: `3233` -> `1534`
+
+Interpretation:
+
+- this is no longer one large eigensolver file with conceptual bands
+- the LOBPCG and thick-restart backends now own real permanent source files
+- the retained main file is now clearly the public/shared front door
+
+### 2. The iterative split is also materially real
+
+Current file ownership shape:
+
+- retained orchestration/shared file:
+  - `src/sparse_iterative.c` = `1985`
+- extracted backend-owned file:
+  - `src/sparse_iterative_minres.c` = `308`
+- shared private declaration surface:
+  - `src/sparse_iterative_internal.h` = `79`
+
+Relative to the Day 1 baseline:
+
+- `src/sparse_iterative.c`: `2377` -> `1985`
+
+Interpretation:
+
+- `MINRES` scalar/handle ownership now lives in its own permanent file
+- the retained iterative main file is smaller and more orchestration-focused
+- the split improved maintainability without reopening the public handle model
+
+### 3. The build system now reflects the same ownership reality
+
+Both build surfaces explicitly include the extracted files:
+
+- `Makefile`
+  - `src/sparse_iterative_minres.c`
+  - `src/sparse_eigs_lobpcg.c`
+  - `src/sparse_eigs_thick_restart.c`
+- `CMakeLists.txt`
+  - `src/sparse_iterative_minres.c`
+  - `src/sparse_eigs_lobpcg.c`
+  - `src/sparse_eigs_thick_restart.c`
+
+Interpretation:
+
+- the decomposition is not local-only or tool-path-only
+- the maintained Makefile/CMake ownership surfaces agree on the landed split
+
+## Residual follow-up queue
+
+The remaining large-source follow-ons are now explicit and future-facing rather
+than Sprint 55 blockers:
+
+- later iterative decomposition candidates:
+  - `GMRES`
+  - block-wrapper scaffolding
+- later eigensolver cleanup/decomposition candidates:
+  - additional trimming inside the retained `src/sparse_eigs.c`
+  - possible future private-header taxonomy cleanup if it buys clarity
+- still intentionally deferred:
+  - `BiCGSTAB` extraction as a first-class public repeated-run handle topic
+  - broad public API redesign
+  - large doc/tutorial rewrites unrelated to ownership
+
+## Day 13 checklist
+
+Final validation should run from the landed Day 12 state:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Targeted Sprint 55 follow-ons:
+
+- `./build/test_iterative`
+- `./build/test_minres`
+- `./build/test_eigs`
+- `./build/test_eigs_lobpcg`
+- `./build/example_iterative`
+- `./build/example_eigs`
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+
+## Day 12 Close
+
+Sprint 55 Day 12 confirms the landed branch still matches the preserved public
+solver/lifecycle fence:
+
+- no public API redesign surfaced
+- no solver support-boundary drift surfaced
+- no behavior-visible repeated-run lifecycle change surfaced
+- the source splits are now explicit and defensible ownership improvements
+
+No blocker-level drift remains before Day 13 validation.

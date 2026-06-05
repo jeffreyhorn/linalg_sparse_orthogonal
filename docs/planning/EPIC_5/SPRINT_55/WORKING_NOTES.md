@@ -353,3 +353,183 @@ Sprint 55 now has an explicit validation boundary:
 
 That is enough to move to the Day 3 `sparse_eigs.c` seam audit without any
 remaining ambiguity around validation expectations.
+
+## Day 3
+
+**Objective:** Reduce `src/sparse_eigs.c` to a concrete extraction map by
+separating the live eigensolver ownership bands, ranking the real bounded seam
+options, and choosing the first extraction target on maintainability grounds
+rather than line-count reduction alone.
+
+### Commands Run
+
+1. Re-read the Sprint 55 Day 3 plan item and the current sprint notes:
+   - `sed -n '123,159p' docs/planning/EPIC_5/SPRINT_55/PLAN.md`
+   - `sed -n '1,420p' docs/planning/EPIC_5/SPRINT_55/WORKING_NOTES.md`
+2. Reconfirm the live eigensolver implementation / proof hotspot sizes:
+   - `wc -l src/sparse_eigs.c src/sparse_eigs_internal.h tests/test_eigs.c tests/test_eigs_lobpcg.c benchmarks/bench_eigs_reuse.c examples/example_eigs.c`
+3. Build a top-level `src/sparse_eigs.c` function map:
+   - `rg -n "^(static |sparse_err_t |void )" src/sparse_eigs.c`
+4. Re-read the file head and the largest backend-specific cluster:
+   - `sed -n '1,220p' src/sparse_eigs.c`
+   - `sed -n '2280,3233p' src/sparse_eigs.c`
+5. Re-read the current internal eigensolver declarations:
+   - `sed -n '1,260p' src/sparse_eigs_internal.h`
+   - `sed -n '260,620p' src/sparse_eigs_internal.h`
+6. Recheck the strongest dedicated proof surfaces around the likely extraction
+   seams:
+   - `sed -n '1,260p' tests/test_eigs.c`
+   - `sed -n '1,240p' benchmarks/bench_eigs_reuse.c`
+7. Reconfirm the live seam keywords across implementation and proof files:
+   - `rg -n "static |sparse_eigs_handle|lobpcg|thick|grow|workspace|prepare|ritz|residual|backend" src/sparse_eigs.c src/sparse_eigs_internal.h include/sparse_eigs.h tests/test_eigs.c tests/test_eigs_lobpcg.c benchmarks/bench_eigs_reuse.c examples/example_eigs.c`
+
+### Day 3 Findings
+
+#### 1. `src/sparse_eigs.c` already contains three large ownership bands, but they still live in one permanent file
+
+The live top-level map now separates cleanly into three major bands:
+
+- generic Lanczos and public-entry orchestration:
+  - top-of-file helpers through:
+    - `s46_sparse_eigs_sym_impl(...)`
+    - `sparse_eigs_sym(...)`
+    - `sparse_eigs_sym_with_handle(...)`
+    - `sparse_eigs_sym_with_workspace_internal(...)`
+- thick-restart Lanczos and restart-state machinery:
+  - `lanczos_restart_state_free(...)`
+  - `s21_arrowhead_to_tridiag(...)`
+  - `lanczos_restart_pick_locked(...)`
+  - `lanczos_restart_state_assemble(...)`
+  - `lanczos_thick_restart_iterate(...)`
+  - `s21_dense_sym_jacobi(...)`
+  - `s21_build_dense_arrowhead(...)`
+  - `s21_recompute_residual(...)`
+  - `s21_thick_restart_outer_loop(...)`
+- LOBPCG backend:
+  - `s21_lobpcg_orthonormalize_block(...)`
+  - `s21_lobpcg_rr_step(...)`
+  - `s21_lobpcg_solve(...)`
+
+Interpretation:
+
+- the file is no longer ambiguous about where the ownership bands are
+- the main problem is that those bands still share one permanent translation
+  unit instead of cleaner file-level seams
+
+#### 2. The cleanest first extraction target is the LOBPCG backend, not the outer public-entry layer
+
+The LOBPCG region is the strongest first extraction candidate because it is:
+
+- contiguous in `src/sparse_eigs.c`
+- already grouped in `src/sparse_eigs_internal.h`
+- solver-family-specific rather than cross-cutting
+- directly covered by a dedicated proof file:
+  - `tests/test_eigs_lobpcg.c`
+- caller-visible through the same public handle and one-shot surface, but not
+  mixed deeply into the public orchestration layer itself
+
+Interpretation:
+
+- a LOBPCG extraction can materially reduce `src/sparse_eigs.c` size while
+  preserving the public eigensolver contract intact
+- it is the strongest first helper/module slice because it improves ownership
+  rather than just moving generic glue
+
+#### 3. The second-best extraction target is the thick-restart restart-state block, but it is a higher-risk second batch
+
+The thick-restart cluster is also large and contiguous, but it is more
+entangled than LOBPCG because it shares:
+
+- Lanczos basis and Ritz-selection assumptions
+- restart-state types already declared in `src/sparse_eigs_internal.h`
+- generic dense-arrowhead and residual recomputation helpers
+- direct interaction with the main public backend dispatch layer
+
+Interpretation:
+
+- this is a strong second batch candidate
+- it should follow the first extraction so the remaining orchestration layer is
+  smaller before the more interdependent restart-state cluster moves
+
+#### 4. The outer public-entry and handle layer should remain in `src/sparse_eigs.c` for Sprint 55 Phase 1
+
+The public-entry band currently owns:
+
+- backend AUTO/explicit selection
+- one-shot vs handle entry routing
+- validation and result initialization
+- shift-invert setup and public contract preservation
+
+Interpretation:
+
+- moving that layer first would not give the best maintainability return
+- it is cross-cutting orchestration, not the cleanest backend-owned slice
+- Sprint 55 Phase 1 should keep `src/sparse_eigs.c` centered on that public
+  orchestration role while moving family-specific backend bodies out around it
+
+#### 5. `src/sparse_eigs_internal.h` is already broad enough to support extraction, but it also exposes where comment cleanup is overdue
+
+The internal header already groups:
+
+- generic Lanczos helpers
+- thick-restart types and helpers
+- LOBPCG helpers
+- internal repeated-run workspace entry points
+
+That is enough structure to support a module split, but it also confirms that
+the eigensolver code still carries too much sprint-history narrative directly
+inside permanent implementation comments.
+
+Interpretation:
+
+- Sprint 55 does not need a new abstraction vocabulary before extraction begins
+- it does need to reduce sprint-history prose in touched eigensolver files as
+  part of the implementation work
+
+#### 6. The dedicated proof surfaces already line up with the likely extraction boundaries
+
+The strongest proof surfaces match the likely backend seams:
+
+- generic public lifecycle and backend proof:
+  - `tests/test_eigs.c` = `1522`
+  - `benchmarks/bench_eigs_reuse.c` = `253`
+  - `examples/example_eigs.c` = `285`
+- dedicated LOBPCG backend proof:
+  - `tests/test_eigs_lobpcg.c` = `1196`
+
+Interpretation:
+
+- the proof layout already favors a first LOBPCG extraction
+- Sprint 55 can preserve behavior confidence by treating the dedicated LOBPCG
+  test file as the primary proof surface for the first batch
+
+#### 7. The ranked eigensolver extraction order is now concrete
+
+The bounded seam ranking is:
+
+1. LOBPCG backend extraction
+2. thick-restart restart-state / arrowhead cluster extraction
+3. residual cleanup of the remaining `src/sparse_eigs.c` orchestration layer
+4. later reconsideration of smaller generic helper splits only if they improve
+   ownership further
+
+Rejected Day 3 candidates:
+
+- move the public-entry / handle layer first
+  - rejected because it is the highest cross-cutting glue layer, not the
+    cleanest backend-owned slice
+- split only by helper count or comment size
+  - rejected because that would be mechanical churn, not ownership
+
+## Day 3 Close
+
+Sprint 55 now has a concrete eigensolver extraction map:
+
+- `src/sparse_eigs.c` reduced to named ownership bands
+- LOBPCG selected as the strongest first extraction target
+- thick-restart selected as the strongest second batch target
+- public orchestration retained in `src/sparse_eigs.c` for Phase 1
+- historical comment reduction explicitly tied to the touched eigensolver files
+
+That is enough to move to the Day 4 first-batch design work without ambiguity
+about the first extraction boundary.

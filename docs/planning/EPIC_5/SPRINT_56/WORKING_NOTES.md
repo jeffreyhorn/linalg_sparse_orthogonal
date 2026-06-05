@@ -1657,3 +1657,176 @@ Sprint 56 now has an explicit SVD maintainability direction:
 
 That is enough to start the Day 10 SVD batch from a concrete maintainability
 plan instead of a vague residual cleanup scope.
+
+## Day 10
+
+**Objective:** Land the bounded SVD maintainability split selected on Day 9 by
+extracting the partial-SVD Lanczos backend into its own owned file while
+preserving full-SVD/public behavior, proof parity, build parity, and durable
+implementation commentary.
+
+### Commands Run
+
+1. Re-read the Sprint 56 Day 10 plan item and the Day 9 maintainability
+   boundary:
+   - `sed -n '365,425p' docs/planning/EPIC_5/SPRINT_56/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_56/artifacts/day9-sparse-svd-maintainability-audit.md`
+2. Re-read the live SVD implementation, internal contract, and build surfaces
+   before editing:
+   - `sed -n '1,1800p' src/sparse_svd.c`
+   - `sed -n '1,200p' src/sparse_svd_internal.h`
+   - `sed -n '1,140p' Makefile`
+   - `sed -n '80,120p' CMakeLists.txt`
+3. Land the SVD maintainability split:
+   - edited `src/sparse_svd.c`
+   - added `src/sparse_svd_partial.c`
+   - edited `src/sparse_svd_internal.h`
+   - edited `Makefile`
+   - edited `CMakeLists.txt`
+4. Remove stale sprint-history narrative from the touched permanent SVD code:
+   - `rg -n "Sprint|Day [0-9]+" src/sparse_svd.c src/sparse_svd_partial.c src/sparse_svd_internal.h`
+5. Run the required validation gate on the final Day 10 source state:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+6. Run the high-signal Day 10 follow-ons:
+   - `./build/test_svd`
+   - `./build/test_sprint8_integration`
+   - `./build/bench_svd`
+   - `./build/example_svd_lowrank`
+7. Capture the post-split size deltas:
+   - `wc -l src/sparse_svd.c src/sparse_svd_partial.c src/sparse_svd_internal.h`
+   - `git diff --stat`
+
+### Day 10 Findings
+
+#### 1. Sprint 56 Day 10 successfully extracted the partial-SVD Lanczos backend into its own owned source file
+
+The landed new file is:
+
+- `src/sparse_svd_partial.c`
+
+Moved function set:
+
+- `sparse_svd_partial(...)`
+
+Interpretation:
+
+- the extracted file is a real backend-owned slice rather than a cosmetic
+  helper spill
+- the split stayed aligned with the Day 9 ownership model instead of reopening
+  the full-SVD/public front door
+
+#### 2. The retained `src/sparse_svd.c` boundary stayed inside the Day 9 fence
+
+Retained in the main file:
+
+- low-rank sparse reconstruction toggle plus outer-product path
+- reflector extraction and bidiagonal QR machinery
+- full-SVD orchestration and full-mode basis padding
+- application wrappers:
+  - `sparse_svd_rank(...)`
+  - `sparse_pinv(...)`
+  - `sparse_svd_lowrank(...)`
+  - `sparse_svd_lowrank_sparse(...)`
+  - `sparse_cond(...)`
+
+Interpretation:
+
+- the retained file is still the full-SVD/public control path
+- Day 10 did not blur the boundary by moving the bidiagonal QR core,
+  wrapper/reporting utilities, or public orchestration into the new file
+
+#### 3. The private-header strategy stayed bounded and the touched permanent-code comments now match the maintainability fence
+
+The batch kept the existing internal contract in:
+
+- `src/sparse_svd_internal.h`
+
+Bounded header cleanup landed:
+
+- the top-level usage wording now names:
+  - the retained full-SVD path
+  - the partial-SVD backend
+  - the selected proof/benchmark surfaces that still use the shared helpers
+
+Touched permanent-code cleanup also landed in `src/sparse_svd.c`:
+
+- removed stale sprint-history narrative from the retained SVD blocks
+- preserved the durable algorithm and rationale commentary
+- rechecked with:
+  - `rg -n "Sprint|Day [0-9]+" src/sparse_svd.c src/sparse_svd_partial.c src/sparse_svd_internal.h`
+  - result: no remaining sprint-history matches
+
+Interpretation:
+
+- Day 10 stayed decomposition-first
+- the comment cleanup was tightly coupled to the landed ownership split rather
+  than drifting into a broad wording pass
+
+#### 4. The ownership reduction is real and measurable
+
+Post-split line counts:
+
+- `src/sparse_svd.c` = `1323`
+- `src/sparse_svd_partial.c` = `402`
+- `src/sparse_svd_internal.h` = `22`
+
+Compared with the Sprint 56 Day 1 baseline:
+
+- `src/sparse_svd.c`: `1728 -> 1323`
+
+Interpretation:
+
+- the retained main file dropped by `405` lines
+- the new file is large enough to represent a true owned backend seam
+
+#### 5. The full required validation baseline remained exact after the SVD split
+
+Required gate:
+
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+- `make quality-review-full` passed
+
+Maintained reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 281.71 sec`
+
+High-signal follow-ons also remained green:
+
+- `./build/test_svd` -> `97 / 97`
+- `./build/test_sprint8_integration` -> `7 / 7`
+- `./build/bench_svd`
+  - `nos4`: partial/full `2.3x`
+  - `west0067`: partial/full `1.3x`
+  - `bcsstk04`: partial/full `1.3x`
+  - `steam1`: partial/full `11.8x`
+  - `orsirr_1`: partial/full `260.9x`
+- `./build/example_svd_lowrank`
+  - condition number = `1.41e+03`
+  - sparse low-rank `k=2`: `22 -> 6` nnz (`3.7x` compression)
+
+Interpretation:
+
+- the SVD maintainability split preserved both the SVD-specific proof surface
+  and the broader reviewed project baseline
+
+## Day 10 Close
+
+Sprint 56 now has a landed bounded SVD maintainability batch:
+
+- the partial-SVD Lanczos backend has its own source file
+- the retained main SVD file is materially smaller and more focused
+- the internal-header and build-surface changes stayed bounded
+- the touched permanent-code commentary now reads as durable algorithm and
+  ownership guidance rather than sprint history
+- the full local and reviewed validation baseline remained exact
+
+That gives Sprint 56 a real SVD maintainability landing rather than leaving
+`src/sparse_svd.c` as a residual large-file cleanup item.

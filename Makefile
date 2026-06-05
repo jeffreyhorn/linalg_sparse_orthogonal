@@ -57,6 +57,7 @@ LIB_SRCS = $(SRCDIR)/sparse_types.c \
            $(SRCDIR)/sparse_dense.c \
            $(SRCDIR)/sparse_bidiag.c \
            $(SRCDIR)/sparse_svd.c \
+           $(SRCDIR)/sparse_svd_partial.c \
            $(SRCDIR)/sparse_lu_csr.c \
            $(SRCDIR)/sparse_ldlt.c \
            $(SRCDIR)/sparse_ic.c \

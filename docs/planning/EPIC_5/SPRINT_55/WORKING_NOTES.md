@@ -1243,3 +1243,192 @@ That closes the planned Phase 1 eigensolver decomposition pair:
 
 The remaining Sprint 55 queue can now audit the post-extraction state instead
 of debating whether the second ownership split should happen at all.
+
+## Day 8
+
+**Objective:** Reduce `src/sparse_iterative.c` to concrete ownership seams
+ before any iterative code movement begins, rank the real extraction targets by
+ maintainability value and behavioral risk, and define the first bounded
+ iterative extraction boundary from the landed post-Day-7 state.
+
+### Commands Run
+
+1. Re-read the Sprint 55 Day 8 plan item plus the current sprint notes:
+   - `sed -n '245,290p' docs/planning/EPIC_5/SPRINT_55/PLAN.md`
+   - `tail -n 220 docs/planning/EPIC_5/SPRINT_55/WORKING_NOTES.md`
+2. Re-read the Day 7 landed state:
+   - `sed -n '1,220p' docs/planning/EPIC_5/SPRINT_55/artifacts/day7-eigensolver-decomposition-batch2.md`
+3. Re-audit the live iterative implementation and internal declaration seams:
+   - `wc -l src/sparse_iterative.c src/sparse_iterative_internal.h src/sparse_iterative_workspace_internal.h benchmarks/bench_iterative_reuse.c tests/test_iterative.c tests/test_minres.c examples/example_iterative.c`
+   - `rg -n "^static |^sparse_err_t |^void |^double |^idx_t " src/sparse_iterative.c`
+   - `sed -n '1,260p' src/sparse_iterative_internal.h`
+   - `sed -n '1,260p' src/sparse_iterative_workspace_internal.h`
+4. Re-read the strongest public repeated-run and family-local proof/adoption
+   surfaces:
+   - `sed -n '1,260p' benchmarks/bench_iterative_reuse.c`
+   - `sed -n '2660,2865p' tests/test_iterative.c`
+   - `sed -n '1,260p' tests/test_minres.c`
+   - `sed -n '1,220p' examples/example_iterative.c`
+
+### Day 8 Findings
+
+#### 1. The iterative decomposition problem now reduces cleanly to six named ownership seams
+
+The live `src/sparse_iterative.c` body no longer needs to be treated as one
+generic large-file problem. It now separates into:
+
+1. public handle orchestration and handle-growth helpers
+2. shared staging / residual-history / reporting utilities
+3. `CG` execution path
+4. `GMRES` execution path
+5. `MINRES` execution path
+6. block-wrapper and `BiCGSTAB` family-local compatibility surfaces
+
+Interpretation:
+
+- Sprint 55 no longer needs a size-first decomposition strategy for the
+  iterative side
+- the right next move is an ownership-first extraction that leaves the shared
+  public front-door layer intact
+
+#### 2. The strongest first extraction target is `MINRES`, not the largest remaining code region
+
+The most credible first iterative extraction target is the `MINRES` family:
+
+- internal reusable-workspace preparation already exists:
+  - `sparse_iter_workspace_prepare_minres(...)`
+- public repeated-run handle support already exists:
+  - `sparse_iter_handle_prepare_minres(...)`
+  - `sparse_solve_minres_with_handle(...)`
+- family-local numerical proof already exists:
+  - `tests/test_minres.c`
+- public repeated-run proof already exists:
+  - `tests/test_iterative.c`
+
+Interpretation:
+
+- `MINRES` is already a coherent ownership band
+- extracting it would reduce `src/sparse_iterative.c` without reopening the
+  public handle contract or the one-shot/default caller story
+- this is a better maintainability target than a mechanically larger but more
+  entangled split
+
+#### 3. `GMRES` remains important, but it is a worse first split than `MINRES`
+
+The live `GMRES` cluster is materially larger and clearly valuable, but it is
+also more entangled with:
+
+- matrix-free adapters
+- restart-state orchestration
+- public handle reuse path
+- block-column wrapper reuse
+
+Interpretation:
+
+- `GMRES` remains a strong later extraction candidate
+- it is not the best first move for Sprint 55 Phase 1 because it carries more
+  orchestration coupling risk than `MINRES`
+
+#### 4. `BiCGSTAB` is a real seam, but it should stay outside the first extraction boundary
+
+`BiCGSTAB` still sits on a distinct family-local reusable-workspace model
+rather than the public iterative handle owner:
+
+- `sparse_bicgstab_internal.h`
+- `bicgstab_workspace_t`
+
+And Sprint 54 already fixed its public repeated-run support boundary as:
+
+- supported handles:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- excluded handle families:
+  - `BiCGSTAB`
+  - block iterative workflows
+
+Interpretation:
+
+- `BiCGSTAB` is not the right first extraction target for Sprint 55 Phase 1
+- extracting it early would mix decomposition work with a less unified
+  ownership model and a consciously excluded public-handle family
+
+#### 5. The block wrappers are a secondary seam, not the primary Sprint 55 target
+
+The block portion of `src/sparse_iterative.c` is real, but the dominant shape
+is still wrapper-oriented:
+
+- shared per-column orchestration
+- thin family-local block adapters for `CG`, `GMRES`, `MINRES`, and
+  `BiCGSTAB`
+
+Interpretation:
+
+- a future block-wrapper extraction could improve locality
+- doing that first would not reduce the main reasoning burden as much as
+  extracting one numerically coherent repeated-run family like `MINRES`
+
+#### 6. The first iterative extraction boundary is now explicit enough for Day 9
+
+The recommended first iterative extraction target is:
+
+- new owned implementation file:
+  - `src/sparse_iterative_minres.c`
+
+Move target set:
+
+- `sparse_solve_minres_with_workspace_internal(...)`
+- `sparse_solve_minres(...)`
+- `sparse_solve_minres_with_handle(...)`
+- `solve_block_minres_column(...)`
+- `sparse_minres_solve_block(...)`
+
+Retain in `src/sparse_iterative.c`:
+
+- public handle init/free and growth helpers
+- shared staging/residual/reporting utilities
+- `CG`
+- `GMRES`
+- block-shared wrapper scaffolding
+- `BiCGSTAB`
+
+Interpretation:
+
+- this would be a real ownership improvement
+- it would not require public API changes
+- it would preserve the Sprint 54 steady-state support fence
+
+#### 7. The Day 8 non-goal fence is now explicit
+
+Day 8 also rules out several weaker split strategies:
+
+- do not split by arbitrary line ranges
+- do not start with tiny utility-only moves that leave the main reasoning load
+  unchanged
+- do not reopen the Sprint 54 public repeated-run support boundary
+- do not treat `BiCGSTAB` extraction as equivalent to the supported
+  handle-backed families
+- do not combine the first iterative extraction with a broad comment-taxonomy
+  rewrite
+
+Interpretation:
+
+- the next implementation batch should be maintainability-shaped, not purely
+  mechanical
+- the main success criterion is cleaner ownership with stable solver behavior
+
+## Day 8 Close
+
+Sprint 55 now has an explicit iterative decomposition map:
+
+- named ownership seams inside `src/sparse_iterative.c`
+- ranked extraction targets
+- a clear first bounded extraction recommendation:
+  - `MINRES`
+- an explicit defer list:
+  - `GMRES` later
+  - block wrappers later
+  - `BiCGSTAB` outside the first extraction fence
+
+That is enough to begin Day 9 from a real implementation boundary instead of a
+generic large-file reduction goal.

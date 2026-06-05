@@ -3,192 +3,30 @@
  * @brief CSC working-format numeric backend for symmetric indefinite
  *        LDL^T factorization.
  *
- * ─── Native kernel ────────────────────────────────────────────────────
+ * This backend runs Bunch-Kaufman directly on CSC storage. The factor keeps
+ * its unit lower-triangular L in the shared `CholCsc` layout and carries the
+ * block-diagonal D state in the companion `D`, `D_offdiag`, `pivot_size`,
+ * and `perm` arrays.
  *
- * `ldlt_csc_eliminate` runs column-by-column Bunch-Kaufman directly on
- * the packed CSC arrays: four-criteria pivot selection (α = (1 + √17)/8),
- * in-place symmetric row/column swaps, element-growth tracking, and
- * 1×1 / 2×2 block pivots.  The column-sweep structure mirrors
- * `chol_csc_eliminate`, with the Bunch-Kaufman scan/swap/cmod
- * replacing Cholesky's cdiv at each step.  No linked-list round-trip
- * anywhere — the kernel operates on `CholCsc` row/value arrays plus
- * the auxiliary `D`, `D_offdiag`, `pivot_size`, and `perm` slots
- * defined in `LdltCsc`.
+ * The file owns:
  *
- * Sprint 19 Day 8-9 added a per-row adjacency index (`row_adj[r]`,
- * `row_adj_count[r]`, `row_adj_cap[r]` on `LdltCsc`) populated by
- * `ldlt_csc_eliminate_native` after each column writeback.
- * `ldlt_csc_cmod_unified`'s Phase A (1×1 prior contributions) and
- * Phase B (2×2 cross-terms) iterate `F->row_adj[col]` instead of
- * `[0, step_k)` with a binary search per prior — restoring the
- * sparse-row scaling the linked-list reference's `acc_schur_col`
- * provides via its cross-linked SparseMatrix row chain.
+ * - the native CSC LDL^T elimination kernel
+ * - the linked-list compatibility wrapper path used by tests and A/B benches
+ * - row-adjacency support for sparse cmod updates
+ * - the scalar solve path
+ * - top-level orchestration for the batched supernodal LDL^T path
  *
- * Factor times (see `benchmarks/bench_ldlt_csc.c`,
- * `docs/planning/EPIC_2/SPRINT_19/bench_day14.txt`, and
- * `docs/planning/EPIC_2/SPRINT_17/PERF_NOTES.md`): 1.7-3.5× faster
- * than the linked-list `sparse_ldlt_factor` on bcsstk04 (1.7×) and
- * bcsstk14 (3.5×), one-shot factor with AMD inside the timed region
- * on both sides.
+ * The batched supernodal path mirrors the Cholesky CSC structure but adds one
+ * LDL^T-specific rule: a 2x2 pivot block is atomic and cannot be split across
+ * a supernode boundary. The detection and elimination helpers that implement
+ * that rule live in the paired internal contract and the extracted
+ * `src/sparse_ldlt_csc_supernodal.c` file.
  *
- * ─── Legacy wrapper path (tests/benchmarks only) ──────────────────────
- *
- * A secondary body, `ldlt_csc_eliminate_wrapper`, remains compiled in
- * so the benchmark and a handful of regression tests can A/B-test the
- * native kernel against the Sprint 17 expand-and-delegate path.  That
- * body builds a full symmetric `SparseMatrix`, calls
- * `sparse_ldlt_factor`, and unpacks the result back into CSC — bit-
- * identical output, ~2× slower on anything larger than bcsstk04.  No
- * production call site reaches it.  Selection between the two is a
- * runtime override (`ldlt_csc_set_kernel_override`); the compile-
- * time `-DLDLT_CSC_USE_NATIVE=0` fallback flips the default for
- * emergency debugging.
- *
- * ─── Storage layout ───────────────────────────────────────────────────
- *
- * `LdltCsc` mirrors `sparse_ldlt_t`'s pivot conventions so the solve
- * code paths can share idioms:
- *
- *   L          — unit lower triangular factor, stored in a `CholCsc`.
- *                Diagonal entries are stored as 1.0 (for CSC invariant
- *                uniformity); below-diagonal entries are the actual L
- *                multipliers.
- *   D          — diagonal of D, length n.  For a 1×1 pivot at step k,
- *                D[k] is the scalar.  For a 2×2 pivot at (k, k+1),
- *                D[k] and D[k+1] hold the 2×2 block's diagonal.
- *   D_offdiag  — off-diagonal of 2×2 pivots, length n.  D_offdiag[k] =
- *                D(k, k+1) = D(k+1, k) when pivot_size[k] == 2.  Zero
- *                for 1×1 pivots.
- *   pivot_size — length n.  1 for a 1×1 pivot at step k, or 2 for both
- *                indices of a 2×2 pair (pivot_size[k] == pivot_size[k+1]
- *                == 2).
- *   perm       — length n, composed symmetric permutation such that
- *                `perm[k]` maps factorization-order index k back to the
- *                user's original row/column index.  Combines any
- *                fill-reducing input permutation with the Bunch-
- *                Kaufman pivot permutation chosen during elimination.
- *
- * ─── Worked solve example ─────────────────────────────────────────────
- *
- * For P·A·P^T = L·D·L^T, solving A·x = b proceeds in five phases:
- *
- *   1. y[i] = b[perm[i]]                        (apply P to b)
- *   2. Solve L·w = y                            (forward on unit L)
- *   3. Solve D·z = w                            (block-diagonal):
- *        1×1 block at k : z[k] = w[k] / D[k]
- *        2×2 block at k : det = D[k]·D[k+1] - D_offdiag[k]²
- *                         z[k]   = ( D[k+1]·w[k]   - D_offdiag[k]·w[k+1]) / det
- *                         z[k+1] = (-D_offdiag[k]·w[k] +      D[k]·w[k+1]) / det
- *   4. Solve L^T·v = z                          (backward on unit L^T)
- *   5. x[perm[i]] = v[i]                        (apply P^T to v)
- *
- * Both triangular sweeps walk the CSC column slice once each, skipping
- * the unit diagonal (same structure as `chol_csc_solve` but without the
- * diagonal division).
- *
- * ─── Batched supernodal LDL^T (Sprint 19 Days 10-14) ──────────────────
- *
- * The Sprint 18 Cholesky batched supernodal path (Days 6-10 on the
- * Cholesky side) does four things per detected supernode: extract the
- * diagonal block + panel into a dense column-major buffer, factor the
- * diagonal block with `chol_dense_factor`, solve the panel via
- * `chol_dense_solve_lower`, then gather the result back.  The LDL^T
- * version mirrors that structure but has one extra constraint: a 2×2
- * pivot block spans two columns (k, k+1), and the batched
- * `eliminate_diag` needs to see both columns together to run
- * Bunch-Kaufman correctly.  That means a 2×2 pivot pair cannot be
- * split across a supernode boundary — if the fundamental-supernode
- * detection would end a supernode at column `end-1` where `end-1` is
- * the first of a 2×2 pair, the boundary must move (either to include
- * `end` too, or to exclude `end-1`).
- *
- * **Two-pass model.**  The atomicity check needs `pivot_size[]`, which
- * only exists after a first factor runs.  The intended workflow for
- * the batched path is therefore: (1) run `ldlt_csc_eliminate_native`
- * once to populate `pivot_size[]`; (2) call
- * `ldlt_csc_detect_supernodes` to identify 2×2-safe supernodes from
- * the factored pivot pattern; (3) on subsequent refactorizations with
- * the same sparsity pattern and a structurally-identical pivot choice
- * (warm state), use the batched path.  The two-pass model matches the
- * Cholesky batched supernodal's analyze-once / factor-many workflow
- * and keeps the detection logic purely structural — no numerical
- * decisions during supernode selection.
- *
- * An alternative "rollback" design, where supernodes are detected
- * during the first factor and rolled back if a 2×2 pivot crosses a
- * tentative boundary, was considered and rejected: it requires two
- * writeback code paths (batched success, rollback to scalar), and
- * the Cholesky two-pass analogue already sets the precedent.
- *
- * **Detection rules (`ldlt_csc_detect_supernodes`).**  Start with the
- * Liu-Ng-Peyton three-condition scan from `chol_csc_detect_supernodes`
- * operating on `F->L`.  After each tentative supernode `[j, end)`:
- *
- *   1. If `end-1` is the first of a 2×2 pair (`pivot_size[end-1] == 2`
- *      AND (`end-1 == 0` or `pivot_size[end-2] == 1`)), extend by 1
- *      so the pair's second column is included — provided the
- *      Liu-Ng-Peyton pattern check between `end-1` and `end` still
- *      holds.  If it doesn't, retract `end-- ` to exclude the 2×2's
- *      first column entirely; the column pair gets factored by the
- *      scalar kernel.
- *
- *   2. At the start of the next iteration, if `j` is the second of a
- *      2×2 pair (`pivot_size[j] == 2` AND `pivot_size[j-1] == 2`),
- *      skip it — it belongs to the 2×2 unit that the prior iteration
- *      already decided about, and starting a supernode mid-pair is
- *      invalid.  Advance `j` by 1 and continue.
- *
- * Size gating by `min_size` happens after boundary adjustment.  Every
- * emitted supernode therefore satisfies: (a) both boundary columns
- * are on a 1×1-or-2×2-pair boundary, and (b) `size >= min_size`.
- *
- * **Sprint 19 Day 11 — Dense LDL^T primitive.**  `ldlt_dense_factor`
- * (in `src/sparse_chol_csc.c`) runs Bunch-Kaufman on a dense column-
- * major buffer, returning the unit lower-triangular L plus per-column
- * D / D_offdiag / pivot_size.  Used by Day 13's `eliminate_diag` per
- * supernode block.
- *
- * **Sprint 19 Day 12 — Extract / writeback plumbing.**
- * `ldlt_csc_supernode_extract` and `_writeback` move the supernode's
- * diagonal block + panel between packed CSC (`F->L`) and a dense
- * column-major scratch.  Writeback applies a per-column drop rule
- * scaled to `|D[k]|` for 1×1 pivots and `|d11| + |d22| + |d21|` for
- * 2×2 pivots, matching the scalar `ldlt_csc_eliminate_native`'s
- * `chol_csc_gather` invocations.  See declarations in
- * `src/sparse_ldlt_csc_internal.h`.
- *
- * **Sprint 19 Day 13 — eliminate_diag / eliminate_panel /
- * eliminate_supernodal.**  Wire the four helpers together:
- *   1. `extract`: A → dense buffer.
- *   2. `eliminate_diag`: external cmod from priors `[0, s_start)`
- *      (handles 1×1 and 2×2 prior cmod), then `ldlt_dense_factor`
- *      on the diagonal slab.
- *   3. `eliminate_panel`: per-row two-phase solve
- *      `D_block^{-1} · L_diag^{-1} · panel_row^T`.
- *   4. `writeback`: dense → CSC with the per-column drop rule.
- * `ldlt_csc_eliminate_supernodal` interleaves this batched path with
- * the scalar `ldlt_csc_eliminate_one_step` for non-supernodal columns
- * (singletons + columns outside detected supernodes).
- *
- * **Production scope (Sprint 19 end).**  The batched supernodal LDL^T
- * path delivers strong speedups on SPD matrices (bcsstk14: 6.83×
- * vs linked-list, bcsstk04: 3.05×, nos4: 2.62× — Day 14 bench).
- * Indefinite matrices that need 2×2 pivots also work *when* the
- * heuristic CSC fill from `ldlt_csc_from_sparse` covers the
- * supernodal cmod's structural fill.  KKT-style saddle points and
- * other matrices with non-trivial off-block structure can produce
- * cmod fill rows that the heuristic slot lacks; the writeback then
- * silently drops them, yielding an incorrect factor.  Same root
- * cause as the Cholesky path's pre-Sprint-18-Day-6 Kuu regression,
- * resolved on the Cholesky side via
- * `chol_csc_from_sparse_with_analysis`.  An
- * `ldlt_csc_from_sparse_with_analysis` mirror is the natural Sprint
- * 20 follow-up — until then, callers needing batched LDL^T on
- * indefinite matrices should fall back to the scalar
- * `ldlt_csc_eliminate` path.  Test coverage: SPD-only batched
- * checks live in `tests/test_sprint19_integration.c`; the indefinite
- * batched path is exercised by the random 30×30 cross-check in
- * `tests/test_ldlt_csc.c` (where heuristic fill happens to suffice).
+ * For indefinite matrices, the analysis-aware conversion path matters for the
+ * same reason it does on the Cholesky side: the batched path needs the full
+ * structural pattern available up front so panel writeback does not silently
+ * drop valid fill rows. Callers that cannot provide that pattern should stay
+ * on the scalar CSC path.
  */
 
 #include "sparse_ldlt.h"

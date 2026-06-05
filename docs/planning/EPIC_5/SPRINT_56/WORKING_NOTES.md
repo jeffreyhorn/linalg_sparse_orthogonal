@@ -1830,3 +1830,165 @@ Sprint 56 now has a landed bounded SVD maintainability batch:
 
 That gives Sprint 56 a real SVD maintainability landing rather than leaving
 `src/sparse_svd.c` as a residual large-file cleanup item.
+
+## Day 11
+
+**Objective:** Normalize the ownership-defining comments in the permanent CSC
+implementation files touched by Sprint 56 while preserving durable numerical
+and dispatch commentary and avoiding a broad comment-archaeology pass.
+
+### Commands Run
+
+1. Re-read the Sprint 56 Day 11 plan item and the landed Sprint 56 Day 5 / Day
+   8 / Day 10 boundaries:
+   - `sed -n '396,455p' docs/planning/EPIC_5/SPRINT_56/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_56/artifacts/day5-ldlt-csc-decomposition-batch1.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_56/artifacts/day8-cholesky-csc-decomposition-batch.md`
+   - `sed -n '1,220p' docs/planning/EPIC_5/SPRINT_56/artifacts/day10-svd-maintainability-batch.md`
+2. Re-read the live CSC implementation and internal-header surfaces before
+   editing:
+   - `sed -n '1,260p' src/sparse_chol_csc.c`
+   - `sed -n '1,260p' src/sparse_ldlt_csc.c`
+   - `sed -n '1,260p' src/sparse_chol_csc_internal.h`
+   - `sed -n '1,260p' src/sparse_ldlt_csc_internal.h`
+   - `sed -n '1,220p' src/sparse_chol_csc_supernodal.c`
+   - `sed -n '1,220p' src/sparse_ldlt_csc_supernodal.c`
+3. Land the bounded CSC comment/wording cleanup:
+   - edited `src/sparse_chol_csc.c`
+   - edited `src/sparse_chol_csc_internal.h`
+   - edited `src/sparse_chol_csc_supernodal.c`
+   - edited `src/sparse_ldlt_csc.c`
+   - edited `src/sparse_ldlt_csc_internal.h`
+4. Measure the residual historical-note surface instead of assuming it was
+   fully eliminated:
+   - `rg -n "Sprint|Day [0-9]+" src/sparse_chol_csc.c src/sparse_chol_csc_internal.h src/sparse_chol_csc_supernodal.c src/sparse_ldlt_csc.c src/sparse_ldlt_csc_internal.h src/sparse_ldlt_csc_supernodal.c`
+5. Capture the comment-only patch shape:
+   - `git diff --stat`
+   - `wc -l src/sparse_chol_csc.c src/sparse_chol_csc_internal.h src/sparse_chol_csc_supernodal.c src/sparse_ldlt_csc.c src/sparse_ldlt_csc_internal.h src/sparse_ldlt_csc_supernodal.c`
+6. Run the required code-day validation gate on the final Day 11 source state:
+   - `make format`
+   - `make lint`
+   - `make test`
+
+### Day 11 Findings
+
+#### 1. Sprint 56 Day 11 materially improved the ownership-defining CSC file commentary without reopening the decomposition scope
+
+The landed bounded cleanup touched:
+
+- `src/sparse_chol_csc.c`
+- `src/sparse_chol_csc_internal.h`
+- `src/sparse_chol_csc_supernodal.c`
+- `src/sparse_ldlt_csc.c`
+- `src/sparse_ldlt_csc_internal.h`
+
+The largest changes were at the top of the retained main CSC files:
+
+- the Cholesky CSC banner now reads as a compact ownership/architecture summary
+- the LDLT CSC banner now reads as a compact ownership/architecture summary
+
+Interpretation:
+
+- Day 11 improved the highest-visibility permanent CSC comments for future
+  maintainers
+- the sweep stayed bounded to wording/ownership cleanup rather than drifting
+  into source reshaping or behavior change
+
+#### 2. The coupled internal-header wording is closer to the landed CSC ownership boundaries
+
+Bounded header cleanup landed in:
+
+- `src/sparse_chol_csc_internal.h`
+- `src/sparse_ldlt_csc_internal.h`
+
+Specific improvement classes:
+
+- removed a small number of Sprint-local phrasing fragments from top-level
+  design comments
+- kept the actual storage, gather, and factorization contract explanations
+- normalized the touched supernodal heading in
+  `src/sparse_chol_csc_supernodal.c`
+
+Interpretation:
+
+- the headers now better match the lived Sprint 56 ownership boundary
+- Day 11 preserved the dense algorithm commentary that still helps explain the
+  CSC kernels
+
+#### 3. This was not a full purge of every historical CSC note, and the residual queue is now explicit
+
+Truthfulness recheck:
+
+- `rg -n "Sprint|Day [0-9]+" src/sparse_chol_csc.c src/sparse_chol_csc_internal.h src/sparse_chol_csc_supernodal.c src/sparse_ldlt_csc.c src/sparse_ldlt_csc_internal.h src/sparse_ldlt_csc_supernodal.c`
+  still returned matches after the patch
+
+The remaining residual is concentrated in:
+
+- `src/sparse_chol_csc.c`
+- `src/sparse_chol_csc_internal.h`
+- `src/sparse_ldlt_csc.c`
+- `src/sparse_ldlt_csc_internal.h`
+
+Interpretation:
+
+- Day 11 removed the most visible stale banner/history blocks
+- it did not fully eliminate the deeper CSC chronology still embedded in some
+  algorithm notes
+- that residual is now explicit future maintainability work rather than hidden
+  drift
+
+#### 4. The patch was materially reductive but intentionally narrow
+
+Post-Day-11 line counts:
+
+- `src/sparse_chol_csc.c` = `1532`
+- `src/sparse_chol_csc_internal.h` = `979`
+- `src/sparse_chol_csc_supernodal.c` = `544`
+- `src/sparse_ldlt_csc.c` = `2127`
+- `src/sparse_ldlt_csc_internal.h` = `878`
+- `src/sparse_ldlt_csc_supernodal.c` = `392`
+
+Diff-stat summary:
+
+- `src/sparse_chol_csc.c` = `131` changed lines
+- `src/sparse_chol_csc_internal.h` = `8` changed lines
+- `src/sparse_chol_csc_supernodal.c` = `2` changed lines
+- `src/sparse_ldlt_csc.c` = `202` changed lines
+- `src/sparse_ldlt_csc_internal.h` = `6` changed lines
+- total patch = `47` insertions / `302` deletions
+
+Interpretation:
+
+- the sweep materially reduced bulky historical comment blocks
+- the patch stayed comment-only and deliberately smaller than a full CSC note
+  rewrite
+
+#### 5. The required code-day validation gate remained green after the comment-only CSC cleanup
+
+Required gate:
+
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+
+Interpretation:
+
+- the bounded comment/wording cleanup did not disturb the validated Sprint 56
+  decomposition state
+- Day 11 can close without reopening the functional CSC or SVD proof surfaces
+
+## Day 11 Close
+
+Sprint 56 Day 11 delivered a bounded CSC comment reconciliation pass:
+
+- the touched CSC ownership-defining headers/comments now read more like
+  durable architecture guidance and less like sprint history
+- the coupled internal-header wording is closer to the landed CSC ownership
+  boundaries
+- the cleanup remained intentionally narrower than a full historical-note purge
+- the remaining deeper CSC chronology is explicit future work rather than
+  hidden drift
+- the required code-day validation gate remained green
+
+That gives Sprint 56 a truthful Day 11 maintainability result without
+pretending the broader CSC legacy-comment backlog is already gone.

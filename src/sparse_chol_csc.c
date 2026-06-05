@@ -2,122 +2,29 @@
  * @file sparse_chol_csc.c
  * @brief CSC working-format numeric backend for Cholesky factorization.
  *
- * ─── Why CSC over the linked-list Cholesky ────────────────────────────
+ * This backend keeps the Cholesky factor in column-oriented CSC storage
+ * because both the scalar `cmod` / `cdiv` updates and the triangular solves
+ * are naturally column sweeps. Compared with the linked-list
+ * `SparseMatrix` path, the CSC layout replaces pointer chasing and per-entry
+ * fill allocation with contiguous row/value arrays plus a dense
+ * scatter-gather workspace.
  *
- * The library's original Cholesky kernel (`src/sparse_cholesky.c`)
- * factors A = L·L^T in place on the linked-list `SparseMatrix`.  Each
- * column update walks a sorted linked list of row nodes, chasing
- * pointers; each fill-in insertion allocates a new node from the slab
- * pool and re-links it into both the row and column chains.  For
- * structural matrices where L has significant fill, the pointer
- * chasing and node allocation dominate the runtime.
+ * The file owns:
  *
- * This file ships the Sprint 17 answer: a *column-oriented CSC working
- * format* that mirrors Sprint 10's CSR-for-LU strategy but uses
- * column storage because Cholesky's inner loop (`cmod` / `cdiv`) is
- * fundamentally column-by-column.  Contiguous `row_idx` / `values`
- * arrays replace node-chasing with sequential loads, and the dense
- * scatter-gather workspace absorbs fill-in without per-entry
- * allocation.
+ * - CSC lifecycle and validation helpers
+ * - linked-list ↔ CSC conversion and writeback
+ * - the scalar numeric elimination and solve path
+ * - backend dispatch and compatibility shims
  *
- * Measured on SuiteSparse SPD matrices (3-repeat `make bench` runs,
- * one-shot factor with AMD reorder inside the timed region on every
- * path — apples-to-apples comparison with
- * sparse_cholesky_factor_opts(..., AMD), which Sprint 18 Day 11
- * transparently dispatches to the CSC supernodal kernel whenever
- * n >= SPARSE_CSC_THRESHOLD):
- *   nos4         (n=100)     →  1.09× scalar / 1.22× supernodal
- *   bcsstk04     (n=132)     →  1.16× scalar / 1.01× supernodal
- *   bcsstk14     (n=1806)    →  1.74× scalar / 2.38× supernodal
- *   s3rmt3m3     (n=5357)    →  2.10× scalar / 3.41× supernodal
- *   Kuu          (n=7102)    →  0.77× scalar / 2.22× supernodal
- *   Pres_Poisson (n=14822)   →  2.61× scalar / 4.35× supernodal
+ * The supernodal batched backend lives beside this file in
+ * `src/sparse_chol_csc_supernodal.c`. The two paths share the same storage
+ * invariants and can be selected transparently by the higher-level Cholesky
+ * API.
  *
- * Residuals match the linked-list path to double-precision round-off.
- * The analyze-once / factor-many workflow (sparse_analyze +
- * sparse_factor_numeric, Sprint 14) amortizes AMD across many
- * numeric refactorizations of the same pattern, so callers repeatedly
- * refactoring with the same structure should see a larger speedup
- * than these one-shot numbers.
- *
- * ─── cdiv / cmod walked end-to-end on a tiny example ─────────────────
- *
- * For A = [[4, 2],          L = [[2, 0],
- *          [2, 5]],              [1, 2]]
- *
- * Column 0:
- *   1. scatter column 0 of A → dense_col = {0: 4, 1: 2}
- *      pattern = [0, 1]
- *   2. cmod: no prior columns, skip.
- *   3. cdiv: L[0,0] = sqrt(dense_col[0]) = sqrt(4) = 2
- *            dense_col[1] /= 2  →  dense_col[1] = 1
- *   4. gather: write dense_col[0..1] back to column 0's CSC slot:
- *      col 0 row 0 = 2, col 0 row 1 = 1.
- *
- * Column 1:
- *   1. scatter column 1 of A → dense_col = {1: 5}
- *      pattern = [1]
- *   2. cmod from k = 0: L[1, 0] = 1 (present in column 0). The
- *      contribution is L[i, 0] · L[1, 0] for every stored row i ≥ 1
- *      of column 0. The only such i is 1, so:
- *        dense_col[1] -= L[1, 0] · L[1, 0] = 1 · 1 = 1
- *        dense_col[1] = 5 - 1 = 4
- *   3. cdiv: L[1,1] = sqrt(4) = 2.
- *   4. gather: col 1 row 1 = 2.
- *
- * The resulting CSC stores L = [[2, 0], [1, 2]], which satisfies
- * L·L^T = A exactly.
- *
- * ─── Supernodal extension ────────────────────────────────────────────
- *
- * For well-structured SPD matrices, groups of adjacent columns often
- * share the same below-diagonal pattern.  Those *fundamental
- * supernodes* (Liu, Ng, Peyton) factor as a single dense Cholesky on
- * the diagonal block plus a dense triangular solve for the panel
- * below — replacing s scalar cdivs with one dense factor.
- *
- * `chol_csc_detect_supernodes` identifies supernodes directly on the
- * sorted CSC arrays (three O(nnz(column)) conditions per pair).
- * `chol_csc_eliminate_supernodal` is the entry point and runs the
- * batched path in four steps:
- *
- *   `chol_csc_supernode_extract` / `_writeback`  — scatter the
- *     supernode's CSC entries into a dense column-major buffer and
- *     gather the factored values back.
- *   `chol_csc_supernode_eliminate_diag`          — apply left-looking
- *     external cmod from prior columns and run `chol_dense_factor` on
- *     the s_size × s_size diagonal slab.
- *   `chol_csc_supernode_eliminate_panel`         — forward-substitute
- *     each panel row against the factored diagonal (row-by-row
- *     `chol_dense_solve_lower`), producing the below-supernode L
- *     entries.
- *
- * `chol_csc_eliminate_supernodal` interleaves the batched path for
- * detected supernodes with the scalar scatter → cmod → cdiv → gather
- * loop for every other column, so matrices with mixed structure see
- * the dense speedup on their fundamental supernodes without losing
- * the scalar kernel's correctness on the remainder.
- *
- * ─── Role of Sprint 14 symbolic analysis ──────────────────────────────
- *
- * `sparse_analyze` (Sprint 14) computes the exact symbolic structure
- * of L via the elimination tree and column counts.
- * `chol_csc_from_sparse_with_analysis` materialises that full sym_L
- * pattern up front: every (row, column) position that can be non-
- * zero in L after elimination gets a pre-allocated slot, with A's
- * entries placed at matching positions and fill slots initialised to
- * zero.  This is load-bearing for the supernodal path — the batched
- * extract reads `col_ptr[j+1] - col_ptr[j]` as the supernode's panel
- * height and requires every fill row to be present.
- *
- * Without analysis, `chol_csc_from_sparse` uses a `fill_factor`-
- * multiplier over A's lower-triangle nnz and relies on the scalar
- * kernel's `shift_columns_right_of` to extend columns as fill is
- * discovered.  That path is still correct for scalar eliminate but
- * is *not* safe to drive the supernodal extract on matrices with
- * non-trivial fill — callers that want the batched path must start
- * from `_with_analysis` (which `sparse_cholesky_factor_opts` does
- * internally under the Day 11 dispatch).
+ * Symbolic analysis matters because the batched supernodal path needs the
+ * full structural `sym_L` pattern up front. `chol_csc_from_sparse_with_analysis`
+ * materialises that exact pattern, while `chol_csc_from_sparse` keeps the
+ * heuristic growth path for the scalar kernel.
  */
 
 #include "sparse_analysis_internal.h"

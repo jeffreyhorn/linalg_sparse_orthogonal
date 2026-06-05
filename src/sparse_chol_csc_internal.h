@@ -10,7 +10,7 @@
  *
  * ─── Design: why CSC for Cholesky? ───────────────────────────────────────
  *
- * The CSR working format introduced in Sprint 10 accelerated LU elimination
+ * The CSR working format used for LU elimination
  * by replacing linked-list pointer chasing with contiguous row arrays.  LU's
  * inner loop is row-oriented (`row[k] -= (row[k][j] / pivot) * row[pivot]`),
  * which maps naturally onto CSR.
@@ -96,9 +96,9 @@ typedef struct {
     double *values;     /**< Nonzero values (length capacity). */
     double factor_norm; /**< ||A||_inf at conversion time, for relative tolerance. */
 
-    /* Sprint 19 Day 7: set to 1 when `chol_csc_from_sparse_with_analysis`
-     * pre-populated the full sym_L pattern.  `chol_csc_gather`'s fast
-     * path (Day 6) reads this to skip the O(pattern_count) merge-walk
+    /* Set to 1 when `chol_csc_from_sparse_with_analysis`
+     * pre-populated the full sym_L pattern. `chol_csc_gather`'s fast
+     * path reads this to skip the O(pattern_count) merge-walk
      * check that confirms every survivor row is in the slot — the
      * sym_L pre-population is itself the proof.  Set to 0 by
      * `chol_csc_from_sparse` (heuristic) so its callers fall back to

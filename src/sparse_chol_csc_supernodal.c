@@ -142,7 +142,7 @@ sparse_err_t chol_dense_solve_lower(const double *L, idx_t n, idx_t lda, double 
     return SPARSE_OK;
 }
 
-/* Sprint 18 Day 8: fully integrated batched supernodal elimination.
+/* Fully integrated batched supernodal elimination.
  *
  * Walks the CSC column-by-column, dispatching to:
  *   - the batched path for columns that start a supernode of size

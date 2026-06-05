@@ -215,10 +215,10 @@ typedef sparse_err_t (*sparse_precond_fn)(const void *ctx, idx_t n, const double
  *        problems.
  *
  * The one-shot public entries (`sparse_solve_cg()`,
- * `sparse_solve_gmres()`, and related wrappers) remain first-class and
- * fully supported. This handle exposes the explicit repeated-run lifecycle
- * for callers that want to preserve workspace capacity across solves while
- * keeping the existing option/result contracts.
+ * `sparse_solve_gmres()`, `sparse_solve_minres()`, and related wrappers)
+ * remain first-class and fully supported. This handle exposes the explicit
+ * repeated-run lifecycle for callers that want to preserve workspace
+ * capacity across solves while keeping the existing option/result contracts.
  *
  * The layout is intentionally opaque at the public level: zero-initialize
  * the struct (`{0}`) or call sparse_iter_handle_init() before first use,
@@ -287,6 +287,27 @@ sparse_err_t sparse_iter_handle_prepare_cg(sparse_iter_handle_t *handle, idx_t n
  * @return SPARSE_ERR_ALLOC if workspace allocation fails or overflows.
  */
 sparse_err_t sparse_iter_handle_prepare_gmres(sparse_iter_handle_t *handle, idx_t n, idx_t restart);
+
+/**
+ * @brief Prepare an iterative handle for repeated MINRES solves.
+ *
+ * Successful prepare preserves reusable capacity for later
+ * `sparse_solve_minres_with_handle()` calls with the same or smaller
+ * dimension. Re-preparing may grow capacity and discards any prior
+ * numerical iteration state.
+ *
+ * MINRES may be run with or without a preconditioner on the same prepared
+ * handle. Reuse preserves allocation capacity only; it does not preserve
+ * prior Lanczos state, recurrence state, or convergence history.
+ *
+ * @param handle  Reusable handle to prepare.
+ * @param n       Problem dimension.
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if handle is NULL.
+ * @return SPARSE_ERR_BADARG if n is less than 1.
+ * @return SPARSE_ERR_ALLOC if workspace allocation fails or overflows.
+ */
+sparse_err_t sparse_iter_handle_prepare_minres(sparse_iter_handle_t *handle, idx_t n);
 
 /**
  * @brief Solve A*x = b using the Preconditioned Conjugate Gradient method.
@@ -510,6 +531,32 @@ sparse_err_t sparse_gmres_solve_block(const SparseMatrix *A, const double *B, id
 sparse_err_t sparse_solve_minres(const SparseMatrix *A, const double *b, double *x,
                                  const sparse_iter_opts_t *opts, sparse_precond_fn precond,
                                  const void *precond_ctx, sparse_iter_result_t *result);
+
+/**
+ * @brief Solve A*x = b using MINRES with an explicit reusable handle.
+ *
+ * This has the same numerical contract as sparse_solve_minres(), but reuses a
+ * caller-owned handle across repeated solves. Callers may explicitly prepare
+ * the handle via sparse_iter_handle_prepare_minres() first; if the handle is
+ * zeroed or underprepared, the implementation may grow it on demand.
+ *
+ * @param A           The symmetric coefficient matrix (not modified). Must be square.
+ * @param b           Right-hand side vector of length n.
+ * @param x           On entry, initial guess; on exit, approximate solution.
+ * @param opts        Solver options (NULL for defaults).
+ * @param precond     Preconditioner callback (NULL for no preconditioning).
+ *                    Must be SPD if provided.
+ * @param precond_ctx Context pointer passed to precond callback.
+ * @param result      Output: iteration count, residual, convergence flag (may be NULL).
+ * @param handle      Reusable handle. Must be non-NULL.
+ * @return Same error contract as sparse_solve_minres(), plus SPARSE_ERR_NULL
+ *         when handle is NULL.
+ */
+sparse_err_t sparse_solve_minres_with_handle(const SparseMatrix *A, const double *b, double *x,
+                                             const sparse_iter_opts_t *opts,
+                                             sparse_precond_fn precond, const void *precond_ctx,
+                                             sparse_iter_result_t *result,
+                                             sparse_iter_handle_t *handle);
 
 /**
  * @brief Solve A*X = B for multiple RHS using per-column MINRES.

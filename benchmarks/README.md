@@ -63,14 +63,26 @@ actually supports:
 | `bench_svd`         | Sparse SVD (bidiagonalisation + QR)          | (in `make bench`)     |
 | `bench_refactor`    | Cholesky analyze-once / refactor-many path   | (in `make bench`)     |
 | `bench_refactor_csc`| Repeated-run direct path proof: SPD Cholesky by default, plus optional indefinite LDL^T KKT mode | (in `make bench`)     |
+| `bench_iterative_reuse` | Public repeated-run iterative handle proof: CG, GMRES, MINRES | (in `make bench`) |
+| `bench_eigs_reuse`  | Public repeated-run eigensolver handle proof: grow-m, thick-restart, explicit LOBPCG | (in `make bench`) |
 | `bench_colamd`      | COLAMD ordering quality                      | (in `make bench`)     |
 | `bench_bicgstab`    | BiCGStab convergence                         | (in `make bench`)     |
 | `bench_chol_csc`    | CSC Cholesky (Sprint 18)                     | (in `make bench`)     |
 | `bench_ldlt_csc`    | LDL^T linked-list vs CSC + dispatch          | (in `make bench`)     |
 | `bench_eigs`        | Symmetric eigensolver (3 backends)           | `make bench-eigs`     |
 
-The two refactor benchmarks are the strongest benchmark-side adoption surfaces
-for the public repeated-run direct lifecycle:
+The strongest benchmark-side public repeated-run adoption surfaces split into
+two bounded groups:
+
+- direct repeated-run lifecycle:
+  - `bench_refactor`
+  - `bench_refactor_csc`
+- iterative/eigensolver public handle proof:
+  - `bench_iterative_reuse`
+  - `bench_eigs_reuse`
+
+The two refactor benchmarks remain the strongest benchmark-side adoption
+surfaces for the public repeated-run direct lifecycle:
 
 - `bench_refactor`
   - compares one-shot Cholesky factorization against the analyze-once /
@@ -96,6 +108,25 @@ for the public repeated-run direct lifecycle:
     - `speedup_refactor`
     - `res_public`
     - `res_csc`
+
+The two reuse benchmarks stay intentionally narrow and should be read as public
+handle-path proof surfaces, not broad solver bake-offs:
+
+- `bench_iterative_reuse`
+  - compares one-shot and explicit public-handle repeated-run paths for:
+    - `CG`
+    - `GMRES`
+    - `MINRES`
+  - intentionally does not claim public repeated-run-handle support for:
+    - `BiCGSTAB`
+    - block iterative workflows
+- `bench_eigs_reuse`
+  - compares one-shot and explicit public-handle repeated-run paths for:
+    - grow-m Lanczos
+    - thick-restart Lanczos
+    - explicit LOBPCG
+  - intentionally stays narrower than `bench_eigs`, which remains the broader
+    backend/preconditioner sweep harness
 
 ## bench_main
 

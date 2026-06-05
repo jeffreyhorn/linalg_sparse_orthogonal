@@ -541,7 +541,10 @@ typedef struct {
  * The one-shot public entry (`sparse_eigs_sym()`) remains first-class and
  * fully supported. This handle exposes the explicit repeated-run lifecycle
  * for callers that want to preserve workspace capacity across solves while
- * keeping the existing options and result structs.
+ * keeping the existing options and result structs. The same handle surface
+ * covers the supported symmetric eigensolver backends:
+ * grow-m Lanczos, thick-restart Lanczos, and explicit LOBPCG. Sprint 54 does
+ * not introduce separate backend-specific public handle types.
  *
  * The layout is intentionally opaque at the public level: zero-initialize
  * the struct (`{0}`) or call sparse_eigs_handle_init() before first use,
@@ -581,7 +584,9 @@ void sparse_eigs_handle_free(sparse_eigs_handle_t *handle);
  * Successful prepare preserves reusable capacity for later
  * `sparse_eigs_sym_with_handle()` calls with the same or smaller working-set
  * requirements. Re-preparing may grow capacity and discards any prior
- * numerical iteration state.
+ * numerical iteration state. The working-set shape is derived from the
+ * selected public backend and options, so explicit LOBPCG prepares, Lanczos
+ * prepares, and later re-prepares all stay on this single public handle path.
  *
  * @param handle  Reusable handle to prepare.
  * @param n       Problem dimension.
@@ -662,7 +667,9 @@ sparse_err_t sparse_eigs_sym(const SparseMatrix *A, idx_t k, const sparse_eigs_o
  * This has the same numerical contract as sparse_eigs_sym(), but reuses a
  * caller-owned handle across repeated solves. Callers may explicitly prepare
  * the handle via sparse_eigs_handle_prepare() first; if the handle is zeroed
- * or underprepared, the implementation may grow it on demand.
+ * or underprepared, the implementation may grow it on demand. This remains
+ * the only public repeated-run eigensolver lifecycle surface even when the
+ * solve routes to explicit LOBPCG.
  *
  * @param A       Symmetric sparse matrix (not modified). Must be square.
  * @param k       Number of eigenpairs to compute (1 <= k <= n).

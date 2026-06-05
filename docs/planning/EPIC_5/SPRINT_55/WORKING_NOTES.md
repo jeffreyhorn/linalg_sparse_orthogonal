@@ -205,3 +205,151 @@ Sprint 55 now has an explicit starting point:
 
 That is enough to move to the Day 2 validation and touched-surface recheck
 without reopening Sprint 49-54 public lifecycle decisions.
+
+## Day 2
+
+**Objective:** Reconfirm the maintained reviewed baseline and truthfulness
+anchors Sprint 55 must preserve, then define the smallest authoritative
+validation boundary for the later eigensolver/iterative extraction days and
+the high-signal rerun set those code-touch batches should use.
+
+### Commands Run
+
+1. Re-read the Sprint 55 Day 2 plan item and the current sprint notes:
+   - `sed -n '79,122p' docs/planning/EPIC_5/SPRINT_55/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_55/WORKING_NOTES.md`
+2. Reconfirm the maintained reviewed CMake truthfulness anchor:
+   - `ctest -N --test-dir build/quality-review-cmake`
+3. Reconfirm the maintained reviewed wrapper authority surface:
+   - `make -n quality-review-full`
+4. Re-read the live quality-contract wording sources:
+   - `rg -n "strongest local reviewed baseline|quality-review-full|quality-review-cmake|deadcode-check" README.md docs/maintainer_guide.md Makefile .github/workflows -g '!build'`
+5. Reconfirm the main Sprint 55 follow-on binaries already present in the
+   build tree:
+   - `ls build/test_iterative build/test_eigs build/test_eigs_lobpcg build/test_minres build/example_iterative build/example_eigs build/bench_iterative_reuse build/bench_eigs_reuse`
+6. Measure the live size of those main proof/adoption surfaces:
+   - `wc -l tests/test_minres.c tests/test_eigs.c tests/test_eigs_lobpcg.c benchmarks/bench_iterative_reuse.c benchmarks/bench_eigs_reuse.c examples/example_iterative.c examples/example_eigs.c`
+
+### Day 2 Findings
+
+#### 1. The strongest local reviewed baseline and truthfulness anchors remain exact
+
+The maintained Sprint 55 baseline remains:
+
+- strongest local reviewed baseline:
+  - `make quality-review-full`
+- reviewed CMake parity anchor:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+The authority split is still the same:
+
+- `make quality-review-full`
+  - strongest local reviewed baseline
+- `make quality-review`
+  - reviewed Makefile path
+- `make quality-review-cmake`
+  - reviewed CMake parity path
+- `make deadcode-check`
+  - report-completeness gate, not a zero-findings gate
+
+Interpretation:
+
+- Sprint 55 should keep using the exact `strongest local reviewed baseline`
+  phrasing
+- the reviewed CMake count and Makefile/CMake parity contract remain the
+  authoritative truthfulness anchors for later extraction days
+
+#### 2. The later decomposition code-day gate is simple and should stay explicit
+
+The mandatory gate for later `*.c` / `*.h` decomposition work remains:
+
+- `make format`
+- `make lint`
+- `make test`
+
+And the stronger default for substantial implementation ownership batches
+remains:
+
+- `make quality-review-full`
+
+Interpretation:
+
+- docs-only audit/design/summary days do not need the full code-day gate
+- substantial extraction batches should continue to run both the direct gate
+  and the stronger reviewed baseline path
+
+#### 3. The live quality-contract wording still matches the maintained split across README, maintainer guide, and Makefile
+
+The quality-contract wording remains aligned across the main authority
+surfaces:
+
+- `README.md`
+  - user-facing command map
+  - strongest local reviewed baseline wording
+  - explicit `deadcode-check` completeness-gate wording
+- `docs/maintainer_guide.md`
+  - maintainer-facing authority framing
+  - reviewed CMake parity anchor
+  - dead-code interpretation boundary
+- `Makefile`
+  - executable reviewed-target authority
+  - current rerun guidance
+  - current test-count parity checks
+
+Interpretation:
+
+- Sprint 55 does not need to reopen any quality-contract wording work on Day 2
+- the maintained reviewed baseline language is already stable enough to carry
+  forward unchanged
+
+#### 4. The high-signal Sprint 55 rerun set is now fixed explicitly from the live build tree
+
+The main Sprint 55 follow-on binaries already present in `build/` are:
+
+- `./build/test_iterative`
+- `./build/test_eigs`
+- `./build/test_eigs_lobpcg`
+- `./build/test_minres`
+- `./build/example_iterative`
+- `./build/example_eigs`
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+
+Interpretation:
+
+- Sprint 55 can keep its rerun set focused on the iterative/eigensolver
+  families actually touched by the large-source decomposition work
+- no extra cross-domain direct-solver rerun set is needed for the sprint's
+  default extraction batches
+
+#### 5. The proof and adoption surfaces are now large enough that parity preservation is part of the extraction work itself
+
+The live proof/adoption surface sizes are now:
+
+- `tests/test_minres.c` = `1588`
+- `tests/test_eigs.c` = `1522`
+- `tests/test_eigs_lobpcg.c` = `1196`
+- `benchmarks/bench_iterative_reuse.c` = `370`
+- `benchmarks/bench_eigs_reuse.c` = `253`
+- `examples/example_iterative.c` = `144`
+- `examples/example_eigs.c` = `285`
+
+Interpretation:
+
+- Sprint 55 extraction work should assume that proof-surface legibility and
+  parity matter alongside implementation-file size reduction
+- the rerun set is not ceremonial; it is the main defense against accidental
+  behavior drift while ownership moves under the hood
+
+## Day 2 Close
+
+Sprint 55 now has an explicit validation boundary:
+
+- preserved reviewed baseline wording
+- exact reviewed CMake count anchor
+- explicit code-day gate
+- explicit stronger reviewed-baseline default
+- authoritative iterative/eigensolver rerun set from the live build tree
+
+That is enough to move to the Day 3 `sparse_eigs.c` seam audit without any
+remaining ambiguity around validation expectations.

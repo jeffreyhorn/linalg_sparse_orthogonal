@@ -3,10 +3,8 @@
 
 /**
  * @file sparse_eigs_internal.h
- * @brief Internal (non-public) entry points for the symmetric
- *        eigensolver.  Used by unit tests that exercise individual
- *        Lanczos building blocks before Day 11 wires the full
- *        `sparse_eigs_sym` path.
+ * @brief Internal entry points shared across the symmetric eigensolver
+ *        implementation and the targeted backend/unit-test surfaces.
  *
  * The public API lives in `include/sparse_eigs.h`; nothing here is
  * shipped in the library's public headers.
@@ -24,8 +22,7 @@
  *
  * See the Lanczos design block at the top of `src/sparse_eigs.c`
  * for the classical 3-term recurrence, finite-precision caveats,
- * and the reorthogonalization rationale.  Day 8 landed the no-
- * reorth recurrence; Day 9 added the `reorthogonalize` gate.
+ * and the reorthogonalization rationale.
  *
  * On success, writes:
  *
@@ -72,8 +69,8 @@
  * @param reorthogonalize  If nonzero, apply MGS full
  *                 reorthogonalization against V[:, 0..k) after
  *                 each 3-term step.  If zero, the basic
- *                 recurrence only (Day 8 behaviour; ghost Ritz
- *                 values possible on wide-spectrum A).
+ *                 recurrence only (ghost Ritz values are possible
+ *                 on wide-spectrum A).
  * @param V        Output Lanczos basis (n × m_max, column-major).
  * @param alpha    Output T diagonal, length m_max.
  * @param beta     Output T sub/super-diagonal, length m_max.
@@ -96,11 +93,11 @@ sparse_err_t lanczos_iterate(const SparseMatrix *A, const double *v0, idx_t m_ma
  * vector length; redundant with ctx but kept explicit so the helper
  * can validate inputs without peeking at the ctx struct.
  *
- * Sprint 20 Day 12 adds this indirection so `lanczos_iterate_op`
- * can drive the 3-term recurrence against either `sparse_matvec(A)`
- * (default) or `(A - sigma*I)^{-1}·v` via `sparse_ldlt_solve`
- * (shift-invert).  The operator is expected to be symmetric — the
- * caller is responsible for passing only symmetric operators.
+ * `lanczos_iterate_op` uses this indirection so the same recurrence
+ * can run against either `sparse_matvec(A)` (default) or
+ * `(A - sigma*I)^{-1}·v` via `sparse_ldlt_solve` (shift-invert).
+ * The operator is expected to be symmetric — the caller is
+ * responsible for passing only symmetric operators.
  */
 typedef sparse_err_t (*lanczos_op_fn)(const void *ctx, idx_t n, const double *x, double *y);
 
@@ -127,9 +124,8 @@ sparse_err_t s21_dense_sym_jacobi(double *A_scratch, idx_t K, double *theta_out,
  * Same semantics as `lanczos_iterate` (3-term recurrence, optional
  * full MGS reorthogonalization, invariant-subspace early-exit) but
  * calls `op(ctx, n, v_k, w)` to compute `w = op · v_k` instead of
- * `sparse_matvec`.  Used by shift-invert Lanczos (Sprint 20 Day 12)
- * where `op` is `(A - sigma*I)^{-1}` via a pre-computed LDL^T
- * factorization.
+ * `sparse_matvec`.  Shift-invert Lanczos uses the same hook with
+ * `op = (A - sigma*I)^{-1}` via a pre-computed LDL^T factorization.
  *
  * All output arguments follow the same conventions as
  * `lanczos_iterate`.  Errors from `op` propagate as-is (e.g. a
@@ -145,10 +141,9 @@ sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, cons
  *        workspace when the selected backend supports it.
  *
  * Mirrors `sparse_eigs_sym()`'s validation, shift-invert setup, AUTO/explicit
- * backend selection, and result contract. Sprint 46 Day 11 uses it for the
- * repeated-run benchmark A/B path: the public call remains the compatibility
- * one-shot entry, while this helper reuses a stable-dimension internal
- * workspace across runs.
+ * backend selection, and result contract.  The public call remains
+ * the compatibility one-shot entry, while this helper reuses a
+ * stable-dimension internal workspace across runs.
  *
  * The reusable workspace currently applies to the migrated Lanczos-family
  * backends (`SPARSE_EIGS_BACKEND_LANCZOS` grow-m and
@@ -161,17 +156,15 @@ sparse_err_t sparse_eigs_sym_with_workspace_internal(const SparseMatrix *A, idx_
                                                      sparse_eigs_workspace_t *workspace);
 
 /* ═══════════════════════════════════════════════════════════════════════
- * Sprint 21 Day 1: Thick-restart Lanczos data structures + entry point
+ * Thick-restart Lanczos data structures + entry point
  * ═══════════════════════════════════════════════════════════════════════
  *
- * The Sprint 20 Day 13 growing-m outer loop grows the Krylov basis
- * up to `m_cap` across retries, with peak memory `O(m_cap · n)`.
- * For large-n SuiteSparse matrices (bcsstk14 at n = 1806) this is
- * already ~26 MB of V at `m_cap = n`.  Sprint 21 Day 1 introduces
- * a thick-restart mechanism (Wu/Simon 2000; Stathopoulos/Saad 2007)
- * that preserves the converged Ritz subspace in a compact "locked"
- * block and continues Lanczos from a trailing residual, so peak
- * memory drops to `O((k_locked + m_restart) · n)`.
+ * The grow-m Lanczos outer loop grows the Krylov basis up to `m_cap`
+ * across retries, with peak memory `O(m_cap · n)`.  The thick-restart
+ * mechanism (Wu/Simon 2000; Stathopoulos/Saad 2007) preserves the
+ * converged Ritz subspace in a compact locked block and continues
+ * Lanczos from a trailing residual, so peak memory drops to
+ * `O((k_locked + m_restart) · n)`.
  *
  * Data layout.  After a restart that locks `k_locked` Ritz pairs:
  *
@@ -209,10 +202,10 @@ sparse_err_t sparse_eigs_sym_with_workspace_internal(const SparseMatrix *A, idx_
  *   - `s21_arrowhead_to_tridiag` materialises the K × K dense
  *     symmetric form and runs classical Householder
  *     tridiagonalisation to produce `diag_out` / `subdiag_out`
- *     that the existing Sprint 20 `tridiag_qr_eigenpairs` consumes
- *     unchanged.  This path is spectrum-only (no Q returned) and is
- *     used by `tests/test_eigs_thick_restart.c` as a spectrum-
- *     preservation oracle.
+ *     that `tridiag_qr_eigenpairs` consumes unchanged.  This path
+ *     is spectrum-only (no Q returned) and is used by
+ *     `tests/test_eigs_thick_restart.c` as a
+ *     spectrum-preservation oracle.
  *
  *   - `s21_thick_restart_outer_loop` (the production path) runs
  *     dense Jacobi (`s21_dense_sym_jacobi`) directly on the K × K
@@ -293,8 +286,8 @@ void lanczos_restart_state_free(lanczos_restart_state_t *state);
  * not use this helper at all — it runs dense Jacobi
  * (`s21_dense_sym_jacobi`) directly on the K × K arrowhead, which
  * yields both eigenvalues *and* the orthonormal Q in a single sweep
- * (avoids the separate Q accumulator the Day 2 design originally
- * envisioned).  This helper remains live as a spectrum-preservation
+ * (avoids threading a separate Q accumulator through the reduction).
+ * This helper remains live as a spectrum-preservation
  * oracle for `test_eigs_thick_restart.c` — useful when validating
  * that future arrowhead constructions still produce the expected
  * Lanczos invariants.
@@ -342,12 +335,11 @@ sparse_err_t s21_arrowhead_to_tridiag(const double *theta_locked, const double *
 /**
  * @brief Pick the locked Ritz block from a completed Lanczos phase.
  *
- * Day 2 Task 2.  Given the completed Lanczos basis V (n × m), the
- * tridiag eigenvectors Y (m × m, column-major), the eigenvalues
- * theta (length m, ascending from `tridiag_qr_eigenpairs`), and a
- * selection `sel_idx[0..take-1]` (from Sprint 20's
- * `s20_select_indices`), form the three Day 1 arrowhead state
- * pieces:
+ * Given the completed Lanczos basis V (n × m), the tridiag
+ * eigenvectors Y (m × m, column-major), the eigenvalues theta
+ * (length m, ascending from `tridiag_qr_eigenpairs`), and a
+ * selection `sel_idx[0..take-1]` (from `s20_select_indices`),
+ * form the three arrowhead-state pieces:
  *
  *   V_locked[:, j] = V · Y[:, sel_idx[j]]              (n × take)
  *   theta_locked[j] = theta[sel_idx[j]]                (take)
@@ -355,17 +347,16 @@ sparse_err_t s21_arrowhead_to_tridiag(const double *theta_locked, const double *
  *
  * where `beta_m` is `beta[m_actual - 1]` from the Lanczos run — the
  * trailing residual norm that drives the Wu/Simon per-pair
- * residual gate.  Reuses the Sprint 20 `s20_lift_ritz_vectors`
- * kernel shape (column-major gemm inlined).
+ * residual gate.  Reuses the `s20_lift_ritz_vectors` kernel shape
+ * (column-major gemm inlined).
  *
  * Output buffers are caller-allocated (`V_locked_out` is
  * `n * take` doubles; the two scalar arrays are `take` doubles).
  *
  * Precondition: V's columns must be orthonormal (i.e. the Lanczos
- * run that produced V had `reorthogonalize = 1`).  The Sprint 20
- * Day 14 reliability caveat on `sparse_eigs_opts_t::reorthogonalize`
- * applies here too — without reorth, `V_locked` won't be
- * orthonormal and the arrowhead reduction's guarantees break.
+ * run that produced V had `reorthogonalize = 1`).  Without reorth,
+ * `V_locked` will not be orthonormal and the arrowhead reduction's
+ * guarantees break.
  */
 void lanczos_restart_pick_locked(const double *V, idx_t n, idx_t m, const double *Y,
                                  const double *theta, const idx_t *sel_idx, idx_t take,
@@ -377,11 +368,11 @@ void lanczos_restart_pick_locked(const double *V, idx_t n, idx_t m, const double
  *        `lanczos_restart_state_t`, allocating or reusing buffers
  *        as needed.
  *
- * Day 2 Task 3.  Resizes the state's `_cap` fields if the incoming
- * `k_locked` exceeds the current capacity, otherwise reuses the
- * existing buffers.  Copies the three locked-block arrays and the
- * residual vector into state-owned memory.  The state's `n` field
- * is set (or validated unchanged) from the argument.
+ * Resizes the state's `_cap` fields if the incoming `k_locked`
+ * exceeds the current capacity, otherwise reuses the existing
+ * buffers.  Copies the three locked-block arrays and the residual
+ * vector into state-owned memory.  The state's `n` field is set
+ * (or validated unchanged) from the argument.
  *
  * On failure, leaves the state in a consistent (possibly empty)
  * form and returns SPARSE_ERR_ALLOC; callers treat failure as "no
@@ -567,8 +558,7 @@ sparse_err_t s21_lobpcg_orthonormalize_block(double *Q, idx_t n, idx_t block_siz
  * `G`, selects the `block_size` Ritz pairs that match `which`, and
  * forms the next X / P from the combination coefficients
  * (Knyazev 2001 eq. 2.11; the BLOPEX-style robust formulation
- * lives in `s21_lobpcg_solve` as a conditioning guard, see
- * Sprint 21 Day 9 retrospective).
+ * lives in `s21_lobpcg_solve` as a conditioning guard).
  *
  * @param op             Symmetric linear operator (A or shift-invert).
  * @param ctx            Opaque context for `op`.
@@ -595,9 +585,9 @@ sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_
 /**
  * @brief LOBPCG outer loop — full block iteration to convergence.
  *
- * Initialises X to a deterministic block (Sprint 20 golden-ratio
- * fractional mixing extended across `block_size` columns) and
- * P := 0.  Each iteration:
+ * Initialises X to a deterministic block (golden-ratio fractional
+ * mixing extended across `block_size` columns) and P := 0.  Each
+ * iteration:
  *
  *   1. Compute residual `R = A·X − X·diag(theta)` for the current
  *      Ritz values theta.
@@ -612,7 +602,7 @@ sparse_err_t s21_lobpcg_rr_step(lanczos_op_fn op, const void *ctx, idx_t n, idx_
  *
  * On reaching `max_iters` without converging all `k` columns,
  * returns SPARSE_ERR_NOT_CONVERGED with the current best estimates
- * filled in (matches the Sprint 20 grow-m partial-results contract).
+ * filled in.
  *
  * @param op             Symmetric linear operator.
  * @param ctx            Opaque context for `op`.

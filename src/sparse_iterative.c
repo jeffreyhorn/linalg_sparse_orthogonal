@@ -1,4 +1,5 @@
-/* Sprint 29 Day 8 (Item 5): feature-test macro for clock_gettime. */
+/* Request POSIX clock_gettime on platforms that gate it behind
+ * _POSIX_C_SOURCE; Windows uses timespec_get below instead. */
 #if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 199309L)
 // NOLINTNEXTLINE(bugprone-reserved-identifier)
 #define _POSIX_C_SOURCE 199309L
@@ -273,9 +274,8 @@ sparse_err_t sparse_solve_cg_with_workspace_internal(const SparseMatrix *A, cons
             break;
         }
 
-        /* Sprint 29 Day 7: progress + cancel check at top of each
-         * CG iteration.  Cancellation frees workspace + returns
-         * SPARSE_ERR_CANCELLED; output x has the latest iterate. */
+        /* Publish progress at the top of each iteration.  On
+         * cancellation, return the latest iterate in x. */
         if (o->progress_cb) {
             sparse_progress_t pp = {
                 .phase = "cg",
@@ -809,7 +809,7 @@ static sparse_err_t sparse_solve_gmres_mf_with_workspace_internal(
             if (total_iter >= o->max_iter)
                 break;
 
-            /* Sprint 29 Day 7: progress + cancel for GMRES inner. */
+            /* Publish progress for each inner GMRES iteration. */
             if (o->progress_cb) {
                 sparse_progress_t pp = {
                     .phase = "gmres",
@@ -1485,7 +1485,7 @@ sparse_err_t sparse_solve_bicgstab(const SparseMatrix *A, const double *b, doubl
     double bicgstab_phase_start_s = o->progress_cb ? s29_iter_now_s() : 0.0;
 
     for (iter = 0; iter < o->max_iter; iter++) {
-        /* Sprint 29 Day 7: progress + cancel for BiCGSTAB. */
+        /* Publish progress for each BiCGSTAB iteration. */
         if (o->progress_cb) {
             sparse_progress_t pp = {
                 .phase = "bicgstab",

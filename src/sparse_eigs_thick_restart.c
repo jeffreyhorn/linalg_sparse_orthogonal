@@ -7,35 +7,30 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Sprint 55 Day 7: extracted thick-restart backend implementation.
- * Keeps the Wu/Simon restart-state, arrowhead, and bounded-memory outer loop
- * out of src/sparse_eigs.c so the retained main file can focus on shared
- * orchestration plus the non-thick-restart backends. */
+/* Thick-restart backend extracted from `src/sparse_eigs.c` so the
+ * main eigensolver file can stay focused on shared orchestration and
+ * the non-thick-restart backends. */
 
 /* ═══════════════════════════════════════════════════════════════════════
- * Sprint 21: Thick-restart Lanczos (Wu/Simon arrowhead)
+ * Thick-restart Lanczos (Wu/Simon arrowhead)
  * ═══════════════════════════════════════════════════════════════════════
  *
- * The Sprint 20 Day 13 grow-m outer loop converges reliably on the
- * target corpus but holds the full Lanczos basis `V` across all
- * retries — peak memory `O(m_cap · n)`.  On bcsstk14 (n = 1806) a
- * single run at `m_cap = n` already reaches ~26 MB of V alone.
- * Sprint 21 Day 1 introduces a thick-restart mechanism (Wu/Simon
- * 2000; Stathopoulos/Saad 2007) that preserves only the converged
- * Ritz subspace across restarts and re-runs Lanczos from a small
- * locked-plus-residual basis.  Peak memory drops to
+ * The grow-m Lanczos outer loop converges reliably on the target
+ * corpus but holds the full Lanczos basis `V` across all retries —
+ * peak memory `O(m_cap · n)`.  Thick-restart preserves only the
+ * converged Ritz subspace across restarts and re-runs Lanczos from
+ * a small locked-plus-residual basis.  Peak memory drops to
  * `O((k_locked + m_restart) · n)`; at k = 5, m_restart = 30 this
- * is ~35 columns regardless of total iteration count.
+ * is roughly 35 columns regardless of total iteration count.
  *
- * Restart protocol (Option C in SPRINT_21/PLAN.md Day 1 Task 3).
+ * Restart protocol.
  *
  *   1. Run a Lanczos phase of length `m_restart`, writing α / β / V
  *      as usual.  `lanczos_thick_restart_iterate` with an empty
  *      state is equivalent to `lanczos_iterate_op`.
  *   2. On non-convergence, extract Ritz pairs (θ_j, y_j) from T via
- *      the Sprint 20 `s20_ritz_pairs` helper and select the top k
- *      (or matching `which`) via `s20_select_indices` — reused
- *      wholesale.
+ *      `s20_ritz_pairs` and select the top k (or matching `which`)
+ *      via `s20_select_indices`.
  *   3. Pack the locked state:
  *        V_locked      = V · Y[:, sel_idx]          (n × k_locked)
  *        theta_locked  = θ[sel_idx]                 (k_locked)
@@ -65,28 +60,21 @@
  * values); the trailing row/column of the block contains the
  * coupling entries β_coupling that tie each locked pair to the
  * active Lanczos frontier; rows k_locked.. are standard tridiagonal.
- * Day 2 implements the Givens chase that reduces this arrowhead
- * back to a symmetric tridiagonal so `tridiag_qr_eigenpairs`
- * (Sprint 20 Day 11) consumes it unchanged.
+ * The spectrum-only arrowhead reduction helper converts this shape
+ * back to a symmetric tridiagonal when needed.
  *
- * Why keep the grow-m path.  Grow-m is simpler and the constants
- * are good on small-to-moderate n — it converges nos4 (n=100) in
- * 70 Lanczos steps / ~3 ms, bcsstk04 (n=132) in 62 steps / 4.6 ms
- * (Sprint 20 Day 13 numbers in `bench_day13_lanczos.txt`).  The
- * thick-restart path is only a win when the basis would otherwise
- * blow memory.  Day 4 tunes the crossover threshold
- * `SPARSE_EIGS_THICK_RESTART_THRESHOLD`; AUTO dispatches based on
- * n.
+ * Why keep the grow-m path.  Grow-m is simpler and its constants
+ * are good on small-to-moderate n.  The thick-restart path is only
+ * a clear win when the basis would otherwise grow too large, which
+ * is why AUTO dispatch uses `SPARSE_EIGS_THICK_RESTART_THRESHOLD`.
  *
  * Field ownership.  `lanczos_restart_state_t` owns its allocations
  * (V_locked / theta_locked / beta_coupling / residual) once
  * populated; `lanczos_restart_state_free` releases them.  An
  * empty state (zeroed struct) is legal input and represents a
- * fresh start.  The Day 2 assembly helpers allocate on first use
- * sized to `k_locked_cap` and reuse the buffers across subsequent
- * restarts when `k_locked <= k_locked_cap` holds (avoids reallocing
- * on every restart — the inner k_locked fluctuates as Ritz pairs
- * lock and the spectrum's active front advances).
+ * fresh start.  The assembly helpers allocate on first use sized to
+ * `k_locked_cap` and reuse the buffers across subsequent restarts
+ * when `k_locked <= k_locked_cap` holds.
  */
 
 void lanczos_restart_state_free(lanczos_restart_state_t *state) {
@@ -106,7 +94,7 @@ void lanczos_restart_state_free(lanczos_restart_state_t *state) {
     state->residual_norm = 0.0;
 }
 
-/* ─── Sprint 21 Day 2: Arrowhead reduction + Ritz locking helpers ─── */
+/* ─── Arrowhead reduction + Ritz locking helpers ─────────────────── */
 
 /* s21_arrowhead_to_tridiag: reduce a symmetric arrowhead T to
  * tridiagonal form via dense Householder tridiagonalisation.
@@ -135,10 +123,9 @@ void lanczos_restart_state_free(lanczos_restart_state_t *state) {
  *     per restart.
  *   - Scratch allocation is owned by this function (caller passes
  *     no workspace).  Size is K*K doubles; overflow-checked.
- *   - Spectrum-only reduction (Day 2 scope).  Day 3 extends the
- *     helper to return an orthogonal Q accumulating the Householder
- *     products so downstream Ritz extraction composes through the
- *     reduction.
+ *   - Spectrum-only reduction.  The production path uses dense
+ *     Jacobi when it needs both eigenvalues and the orthogonal
+ *     transform.
  */
 sparse_err_t s21_arrowhead_to_tridiag(const double *theta_locked, const double *beta_coupling,
                                       idx_t k_locked, const double *alpha_ext,
@@ -336,8 +323,8 @@ sparse_err_t s21_arrowhead_to_tridiag(const double *theta_locked, const double *
     return SPARSE_OK;
 }
 
-/* lanczos_restart_pick_locked: Day 2 Task 2 — assemble the three
- * locked-block arrays from a completed Lanczos phase's Ritz pairs.
+/* Assemble the three locked-block arrays from a completed Lanczos
+ * phase's Ritz pairs.
  *
  *   V_locked[:, j] = V · Y[:, sel_idx[j]]
  *   theta_locked[j] = theta[sel_idx[j]]
@@ -360,10 +347,9 @@ void lanczos_restart_pick_locked(const double *V, idx_t n, idx_t m, const double
     }
 }
 
-/* lanczos_restart_state_assemble: Day 2 Task 3 — pack the picked
- * locked block + residual into `state`, allocating buffers if the
- * current capacity is insufficient.  Reuses existing buffers when
- * `k_locked <= state->k_locked_cap` and `state->n == n`. */
+/* Pack the picked locked block + residual into `state`, allocating
+ * buffers if the current capacity is insufficient.  Reuses existing
+ * buffers when `k_locked <= state->k_locked_cap` and `state->n == n`. */
 sparse_err_t lanczos_restart_state_assemble(lanczos_restart_state_t *state, idx_t n, idx_t k_locked,
                                             const double *V_locked_src,
                                             const double *theta_locked_src,
@@ -433,9 +419,7 @@ sparse_err_t lanczos_restart_state_assemble(lanczos_restart_state_t *state, idx_
     return SPARSE_OK;
 }
 
-/* lanczos_thick_restart_iterate: Day 3 implementation.
- *
- * Runs one Lanczos phase of length `m_restart` against the
+/* Run one Lanczos phase of length `m_restart` against the
  * symmetric operator `op`.  Two modes:
  *
  *   Empty state (NULL, or k_locked == 0, or V_locked == NULL): the
@@ -490,7 +474,7 @@ sparse_err_t lanczos_thick_restart_iterate(lanczos_op_fn op, const void *ctx, id
 
     *m_actual = 0;
 
-    /* Empty-state fast path: delegates to the Sprint 20 helper. */
+    /* Empty-state fast path: delegate to the standard Lanczos helper. */
     if (state_empty)
         return lanczos_iterate_op(op, ctx, n, v0, m_restart, reorthogonalize, V, alpha, beta,
                                   m_actual);
@@ -539,7 +523,7 @@ sparse_err_t lanczos_thick_restart_iterate(lanczos_op_fn op, const void *ctx, id
     }
 
     /* Continue the 3-term recurrence from step k_locked onward.
-     * Mirrors the Sprint 20 `lanczos_iterate_op` inner body but
+     * Mirrors the shared `lanczos_iterate_op` inner body but
      * with a starting step index of k_locked and an augmented
      * V whose first k_locked columns are the locked block.  Full-
      * MGS reorth against V[:, 0..k) at each step handles the
@@ -633,7 +617,7 @@ sparse_err_t lanczos_thick_restart_iterate(lanczos_op_fn op, const void *ctx, id
     return SPARSE_OK;
 }
 
-/* ─── Sprint 21 Day 3: Thick-restart outer loop ─────────────────── */
+/* ─── Thick-restart outer loop ───────────────────────────────────── */
 
 /* Compose the arrowhead T (dense K × K) from the flat alpha / beta
  * arrays plus the state's off-tridiagonal spoke entries.  When
@@ -693,14 +677,12 @@ static sparse_err_t s21_recompute_residual(lanczos_op_fn op, const void *ctx, id
     return SPARSE_OK;
 }
 
-/* s21_thick_restart_outer_loop: Wu/Simon thick-restart dispatch.
- * Called from `sparse_eigs_sym` when
- * `opts->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`
- * (Day 3; Day 4 extends AUTO to route here above a size threshold).
+/* Wu/Simon thick-restart dispatch.  Called from `sparse_eigs_sym`
+ * when AUTO or an explicit backend request selects this path.
  *
  * Manages the phase-by-phase restart loop with bounded memory:
  * V / alpha / beta are sized to `m_restart` (fixed), not the
- * monotone-growing `m_cap` of the Sprint 20 grow-m path.  Peak
+ * monotone-growing `m_cap` of the grow-m path.  Peak
  * memory is `O((m_restart + k_locked_cap) · n)`, independent of
  * total iteration count.
  *
@@ -710,7 +692,7 @@ static sparse_err_t s21_recompute_residual(lanczos_op_fn op, const void *ctx, id
  * beta of the CURRENT phase (not the prior-phase spoke), the
  * identity `||A V_aug y - θ V_aug y|| = |beta_last · y_last|` holds
  * across the augmented (locked + new) subspace by the same Paige
- * derivation the Sprint 20 grow-m path uses.
+ * derivation the grow-m path uses.
  *
  * Arguments are the pre-processed outer-loop inputs from
  * `sparse_eigs_sym` (operator + context + shift-invert state).
@@ -719,14 +701,12 @@ sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *ctx, idx
                                           const sparse_eigs_opts_t *o, double eff_tol,
                                           idx_t max_iters, sparse_eigs_workspace_t *workspace,
                                           sparse_eigs_t *result) {
-    /* Restart basis size.  Day 4 tuning: `2k + 20` keeps peak
+    /* Restart basis size.  `2k + 20` keeps peak
      * `V + V_locked` at ~`m_restart + k = 3k + 20` columns, which
      * for `k = 5` gives 35 columns — roughly 15× smaller than the
      * grow-m path's typical `m_cap = 500` while still leaving
      * enough of a Krylov spectrum per phase to converge extreme
-     * Ritz values in < 30 restarts on the Sprint 20 SuiteSparse
-     * corpus (see
-     * `docs/planning/EPIC_2/SPRINT_21/bench_day4_restart.txt`).
+     * Ritz values without letting the basis grow unbounded.
      * Capped at `n` and `max_iters`, and floored so `m_restart >
      * k_locked` (the thick-restart iterator precondition). */
     int64_t m_restart_wide = (int64_t)2 * (int64_t)k + 20;
@@ -745,7 +725,7 @@ sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *ctx, idx
     if (!workspace)
         sparse_eigs_workspace_init(thick_ws);
 
-    /* Day 4 telemetry: peak simultaneous V columns = m_restart
+    /* Peak simultaneous V columns = m_restart
      * (main buffer) + k (locked state across restarts) + k (the
      * transient `V_locked_tmp` during pick_locked, briefly live
      * alongside both V and state->V_locked).  On a grow-m run
@@ -812,7 +792,7 @@ sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *ctx, idx
         last_m_actual = m_actual;
 
         /* Build the arrowhead T and extract Ritz pairs via
-         * dense Jacobi (bypasses the Day 2 reduce-to-tridiag
+         * dense Jacobi (bypasses the spectrum-only reduce-to-tridiag
          * helper because Jacobi produces Y directly in the
          * arrowhead basis — no composition of transforms needed). */
         idx_t K = m_actual;
@@ -906,8 +886,8 @@ sparse_err_t s21_thick_restart_outer_loop(lanczos_op_fn op, const void *ctx, idx
     }
 
     /* Budget or restart cap reached without convergence.  Emit
-     * partial results from the last phase (matches Sprint 20
-     * grow-m path's final-phase fallthrough). */
+     * partial results from the last phase, matching the grow-m
+     * path's final-phase fallthrough. */
     if (last_m_actual > 0 && last_take > 0) {
         /* Re-run the selection + lift from the last phase's
          * already-cached theta_arrow / Y_arrow / sel_idx. */

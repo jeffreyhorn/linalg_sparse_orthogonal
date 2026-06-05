@@ -1,4 +1,5 @@
-/* Sprint 29 Day 8 (Item 5): feature-test macro for clock_gettime. */
+/* Request POSIX clock_gettime on platforms that gate it behind
+ * _POSIX_C_SOURCE; Windows uses timespec_get below instead. */
 #if !defined(_WIN32) && (!defined(_POSIX_C_SOURCE) || _POSIX_C_SOURCE < 199309L)
 // NOLINTNEXTLINE(bugprone-reserved-identifier)
 #define _POSIX_C_SOURCE 199309L
@@ -6,48 +7,14 @@
 
 /**
  * @file sparse_eigs.c
- * @brief Sparse symmetric eigensolvers — Sprint 20 Days 7-12 +
- *        Sprint 21 thick-restart Lanczos.
+ * @brief Sparse symmetric eigensolver front door plus shared Lanczos-family
+ *        helpers.
  *
- * Sprint 20 shipped the symmetric Lanczos eigensolver end-to-end:
- * public API (Day 7), 3-term recurrence (Day 8), full MGS
- * reorthogonalization (Day 9), outer-loop restart mechanism
- * (Day 10, superseded by the Day 13 Wu/Simon redesign), Ritz
- * extraction + convergence gate (Day 11), shift-invert mode for
- * SPARSE_EIGS_NEAREST_SIGMA (Day 12), and the grow-m outer-loop
- * redesign that actually converges on SuiteSparse (Day 13).
- *
- * The Sprint 20 grow-m outer loop holds the full Lanczos basis V
- * across retries — peak memory `O(m_cap · n)`, which on bcsstk14
- * (n = 1806) reaches ~26 MB at m_cap = n.  Sprint 21 Day 1 begins
- * the thick-restart replacement that bounds peak memory at
- * `O((k_locked + m_restart) · n)` by preserving only the
- * converged Ritz subspace across restarts (Wu/Simon 2000;
- * Stathopoulos/Saad 2007).
- *
- * The Sprint 21 roadmap per SPRINT_21/PLAN.md:
- *
- *   Day 1  — arrowhead restart state (`lanczos_restart_state_t`)
- *            + `lanczos_thick_restart_iterate` signature + design
- *            block.  Compile-ready stub returning
- *            SPARSE_ERR_BADARG.
- *   Day 2  — arrowhead-to-tridiagonal Givens reduction +
- *            Ritz-locking helper that forms V_locked = V · Y_k
- *            and packs the restart state.
- *   Day 3  — phase execution: chain Lanczos phases through a
- *            restart state; outer loop composing iterate +
- *            restart + convergence.  Opt-in backend dispatch via
- *            `SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`.
- *   Day 4  — memory-bounded convergence tests + cross-backend
- *            parity vs grow-m on the Sprint 20 corpus.
- *   Days 5-6 — OpenMP reorth parallelism (both backends).
- *   Day 7  — LOBPCG API surface + Rayleigh-Ritz infrastructure
- *            stubs (`s21_lobpcg_solve` returns BADARG); design
- *            block landed here, between the Lanczos and
- *            thick-restart blocks.
- *   Days 8-10 — LOBPCG body, preconditioning, AUTO dispatch.
- *   Day 11 — permanent `benchmarks/bench_eigs.c` driver.
- *   Days 12-14 — tests, docs, retrospective.
+ * This file owns the public entry points, backend selection, shared Lanczos
+ * kernels, shift-invert setup, dense Jacobi helper, and refinement logic.
+ * Backend-specific implementations that grew large enough to stand on their
+ * own live in `src/sparse_eigs_thick_restart.c` and
+ * `src/sparse_eigs_lobpcg.c`.
  */
 
 #include "sparse_eigs.h"
@@ -68,8 +35,8 @@
 #include <string.h>
 #include <time.h>
 
-/* Sprint 29 Day 7 (Item 4): progress / cancel wiring helper.
- * Day 8 added the _WIN32 fallback to `timespec_get(..., TIME_UTC)`. */
+/* Shared monotonic timer for progress reporting and benchmark-style
+ * elapsed-time bookkeeping. */
 double s29_eigs_now_s(void) {
     struct timespec ts;
 #ifdef _WIN32
@@ -87,21 +54,19 @@ double s29_eigs_now_s(void) {
 #pragma GCC diagnostic pop
 #endif
 
-/* ─── Sprint 21 Day 5/6: shared MGS reorth kernel (OpenMP-parallel) ── */
+/* ─── Shared MGS Reorth Kernel ─────────────────────────────────────── */
 
 /* Small-n gate for the MGS reorth parallelism.  Below this `n`,
  * per-call OMP fork/join overhead (measured ~5-20 μs on macOS
  * Homebrew libomp) dominates the dot-product + daxpy work, and
- * the parallel reduction is a net loss — the Day 6 scaling sweep
- * showed every thread count > 1 regressed on nos4 (n = 100),
- * bcsstk04 (n = 132), and kkt-150 (n = 150), while bcsstk14
- * (n = 1806) scaled to 2.2× at 4 threads.  500 is a safe
- * crossover: well above the n = 150 loser set, well below the
- * n ≈ 1800 clear winner.  Callers who need a different
+ * the parallel reduction is a net loss on small matrices, while
+ * larger SuiteSparse-style problems do benefit.  `500` is a
+ * conservative crossover that keeps the small cases on the serial
+ * path and still enables parallelism well before the large-matrix
+ * regime.  Callers who need a different
  * crossover on their hardware can override by building with
  * `-DSPARSE_EIGS_OMP_REORTH_MIN_N=<value>`.  See
- * SPRINT_21/bench_day6_omp_scaling.txt for the raw sweep and
- * SPRINT_17/PERF_NOTES.md for the threshold rationale. */
+ * the project performance notes for the threshold rationale. */
 #ifndef SPARSE_EIGS_OMP_REORTH_MIN_N
 #define SPARSE_EIGS_OMP_REORTH_MIN_N 500
 #endif
@@ -111,29 +76,23 @@ double s29_eigs_now_s(void) {
  * is serial — MGS stability requires each iteration to see the
  * partially-orthogonalised `w` from the previous subtraction
  * (classical Gram-Schmidt parallelises `j` but loses the stability
- * bound; see the Sprint 20 Day 9 design block for the MGS-vs-CGS
- * tradeoff).  The inner dot-product and daxpy bodies are
- * independent across `i` and parallelised under `-DSPARSE_OPENMP`,
- * using the same pragma pattern as `sparse_matvec` from
- * Sprint 17/18 (`#pragma omp parallel for`).
+ * bound; the inner dot-product and daxpy bodies are independent
+ * across `i` and parallelised under `-DSPARSE_OPENMP`, using the
+ * same pragma pattern as `sparse_matvec`.
  *
- * Day 6 threshold gate: the `if (n >= SPARSE_EIGS_OMP_REORTH_MIN_N)`
- * clause causes each `parallel for` to run serially (a single
+ * The `if (n >= SPARSE_EIGS_OMP_REORTH_MIN_N)` clause causes each
+ * `parallel for` to run serially (a single
  * implicit team of one) when `n` is small enough that OMP
  * overhead would exceed the parallel work.  The clause is a
  * zero-cost no-op in serial builds (the whole pragma is
- * `#ifdef SPARSE_OPENMP`-gated out).  Matvec in Sprint 17/18 has
- * the same overhead structure but does not gate — its tuning
- * lives in a future sprint; Day 6 only addresses MGS reorth.
+ * `#ifdef SPARSE_OPENMP`-gated out).
  *
- * Serial builds are bit-for-bit identical to the Sprint 20 inline
- * MGS body the helper replaced — the Day 5 refactor collapses
- * three call sites (`lanczos_iterate_op`, the thick-restart seed
- * orthogonalisation, the thick-restart phase reorth) into one
- * kernel so parallelism lands once and benefits all three paths.
+ * Serial builds are bit-for-bit identical to the inline MGS body
+ * this helper replaced.  Centralising the kernel keeps the standard
+ * Lanczos path and the thick-restart path in sync.
  *
- * Shared across Sprint 20 (`lanczos_iterate_op`) and Sprint 21
- * (`lanczos_thick_restart_iterate`).  Does nothing when
+ * Shared across `lanczos_iterate_op` and
+ * `lanczos_thick_restart_iterate`.  Does nothing when
  * `k_stored == 0`. */
 void s21_mgs_reorth(double *w, const double *V, idx_t n, idx_t k_stored) {
     for (idx_t j = 0; j < k_stored; j++) {
@@ -154,14 +113,12 @@ void s21_mgs_reorth(double *w, const double *V, idx_t n, idx_t k_stored) {
 
 /* ═══════════════════════════════════════════════════════════════════════
  * Lanczos — 3-term recurrence + optional reorthogonalization
- *           (Sprint 20 Days 8-9)
  * ═══════════════════════════════════════════════════════════════════════
  *
  * `lanczos_iterate` builds an m-step Lanczos basis V and
  * tridiagonal T from a symmetric matrix A and starting vector v0.
- * Day 8 implemented the recurrence without reorthogonalization;
- * Day 9 added the `reorthogonalize` gate that layers full MGS
- * reorth on top.
+ * The optional `reorthogonalize` gate layers full MGS reorthogonalization
+ * on top of the classical three-term recurrence.
  *
  * The classical 3-term recurrence:
  *
@@ -182,16 +139,15 @@ void s21_mgs_reorth(double *w, const double *V, idx_t n, idx_t k_stored) {
  * columns form an orthonormal basis of K_m and T = V^T·A·V is the
  * projection of A onto that subspace.  T's eigenvalues — the Ritz
  * values — approximate A's eigenvalues, and the approximation is
- * sharpest at the extremes of the spectrum.  That's why Day 11 will
- * pick `LARGEST` / `SMALLEST` Ritz values from T once the
- * thick-restart mechanism keeps m bounded.
+ * sharpest at the extremes of the spectrum, which is why the solver
+ * selects `LARGEST` / `SMALLEST` Ritz values from T.
  *
  * Finite-precision caveat.  Without reorthogonalization V^T·V
  * drifts from I as k grows and "ghost" Ritz values — duplicates of
  * eigenvalues that already converged — appear in T's spectrum.
  * Paige's analysis (1972) shows ghosts arrive around k ≈ condition-
- * number-scale steps.  Day 9's full reorth suppresses this; Day 8's
- * basic recurrence is sufficient for the unit tests below where m
+ * number-scale steps.  Full reorth suppresses this; the basic
+ * recurrence is sufficient for the unit tests below where m
  * ≤ n on well-conditioned small fixtures.
  *
  * Early-exit rule.  When `beta_k` falls below the implementation's
@@ -204,8 +160,8 @@ void s21_mgs_reorth(double *w, const double *V, idx_t n, idx_t k_stored) {
  * approximations).  The helper returns SPARSE_OK with
  * *m_actual = k + 1.
  *
- * Reorthogonalization (Day 9).  When the caller sets
- * `reorthogonalize != 0`, after the standard 3-term recurrence
+ * Reorthogonalization.  When the caller sets `reorthogonalize != 0`,
+ * after the standard 3-term recurrence
  * produces the tentative w (A·v_k minus the beta_{k-1}·v_{k-1}
  * and alpha_k·v_k pieces), the helper subtracts the projection
  * of w onto every stored Lanczos vector V[:, 0..k):
@@ -225,14 +181,12 @@ void s21_mgs_reorth(double *w, const double *V, idx_t n, idx_t k_stored) {
  *
  * A "twice-MGS" refinement (two passes of the inner j-loop)
  * recovers orthogonality to machine precision on pathological
- * inputs at 2× the reorth cost.  Not currently wired — if Day 11
+ * inputs at 2× the reorth cost.  Not currently wired; if future
  * convergence tests show lingering orthogonality drift, add a
  * `opts->reorthogonalize == 2` escalation.
  *
- * Day 9 scope.  Basic recurrence + optional full MGS reorth.  No
- * thick-restart (Day 10), no Ritz extraction (Day 11).  Unit
- * tests via sparse_eigs_internal.h exercise both paths through
- * lanczos_iterate directly. */
+ * Unit tests via `sparse_eigs_internal.h` exercise both paths
+ * through `lanczos_iterate` directly. */
 
 /* Default matvec operator: `y = A · x` via `sparse_matvec`.  Used
  * by `lanczos_iterate` as the thin wrapper over
@@ -311,8 +265,8 @@ sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, cons
         const double *v_k = V + k * n;
 
         /* w = op · v_k — either sparse_matvec(A) for the default
-         * path or (A - sigma*I)^{-1} via LDL^T solve for shift-
-         * invert mode (Day 12). */
+         * path or (A - sigma*I)^{-1} via LDL^T solve for shift-invert
+         * mode. */
         sparse_err_t op_rc = op(ctx, n, v_k, w);
         if (op_rc != SPARSE_OK) {
             free(w);
@@ -341,11 +295,9 @@ sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, cons
          * it's already orthogonal to w after the alpha_k
          * subtraction above.  Each projection uses the current
          * partially-orthogonalized w; that's what distinguishes
-         * MGS from classical Gram-Schmidt.  Skipped entirely
-         * when `reorthogonalize == 0` (Day 8 baseline).  Sprint
-         * 21 Day 5 shares the kernel with `lanczos_thick_restart_iterate`
-         * via the `s21_mgs_reorth` helper, which parallelises the
-         * inner dot-product + daxpy under `-DSPARSE_OPENMP`. */
+         * MGS from classical Gram-Schmidt.  The shared
+         * `s21_mgs_reorth` helper keeps this path and the
+         * thick-restart path aligned. */
         if (reorthogonalize && k > 0)
             s21_mgs_reorth(w, V, n, k);
 
@@ -398,10 +350,10 @@ sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, cons
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
- * Thick-restart Lanczos outer loop (Sprint 20 Day 10)
+ * Grow-m Lanczos outer loop
  * ═══════════════════════════════════════════════════════════════════════
  *
- * Day 10 wires `sparse_eigs_sym` into an outer-loop driver that:
+ * This outer-loop driver:
  *
  *   1. Starts from a deterministic pseudo-random v0 (golden-ratio
  *      fractional mixing — avoids alignment with any eigenvector
@@ -416,29 +368,19 @@ sparse_err_t lanczos_iterate_op(lanczos_op_fn op, const void *ctx, idx_t n, cons
  *      values from the two runs.  If they agree to
  *      eff_tol · |θ_j| for every j, the k extreme Ritz values
  *      have converged — their insensitivity to the choice of m
- *      is itself the convergence signal (no Y-based Wu/Simon
- *      residual needed, which is the approach Day 11 can add
- *      later when full eigenvector computation lands).
+ *      is itself the convergence signal.
  *   5. Selects the `k` values matching `opts->which` (LARGEST
  *      from the top of the ascending θ array; SMALLEST from the
- *      bottom) and emits.  NEAREST_SIGMA is deferred to Day 12.
+ *      bottom) and emits.
  *   6. On non-convergence, restarts: use the last Lanczos vector
  *      of the longer run (best approximation of the extreme Ritz
  *      direction) as the next v0.  Extends the iteration budget
- *      and retries.  Simpler than Wu/Simon's full arrowhead-state
- *      thick-restart; Day 11 can upgrade if convergence tests
- *      show it's insufficient.
+ *      and retries.  This path intentionally stays simpler than the
+ *      full arrowhead-state thick-restart backend.
  *
- * Scope deferred to Day 11/12:
- *   - Eigenvector output (`opts->compute_vectors`): needs Y from
- *     the tridiagonal eigenproblem, which `tridiag_qr_eigenvalues`
- *     doesn't produce.  Returns SPARSE_ERR_BADARG when requested
- *     on Day 10.
- *   - Shift-invert mode (`SPARSE_EIGS_NEAREST_SIGMA`): needs the
- *     Day 4-6 LDL^T factor of `A - sigma·I`.  Returns
- *     SPARSE_ERR_BADARG on Day 10.
- *   - Wu/Simon per-pair residual estimators (requires Y).  Day
- *     11 adds them; Day 10 uses the cheaper stability proxy. */
+ * This grow-m path is intentionally conservative: it relies on a
+ * stability proxy rather than Wu/Simon per-pair residual estimators
+ * and trades memory for a smaller control surface. */
 
 /* Deterministic starting vector — golden-ratio fractional mixing.
  * Avoids alignment with any standard-basis eigenvector (diagonal
@@ -465,10 +407,10 @@ double s20_spectrum_scale(const double *theta, idx_t m) {
     return s;
 }
 
-/* Day 11: Ritz pair extraction — returns eigenvalues of the
- * tridiagonal T in `theta_out` (ascending) and T's orthonormal
- * eigenvectors as columns of `Y_out` (m × m, column-major) so the
- * Day 11 lift V · Y[:, j] produces full-problem Ritz vectors.
+/* Ritz-pair extraction — returns eigenvalues of the tridiagonal T
+ * in `theta_out` (ascending) and T's orthonormal eigenvectors as
+ * columns of `Y_out` (m × m, column-major) so the later lift
+ * V · Y[:, j] produces full-problem Ritz vectors.
  * Preserves the caller's alpha / beta; the subdiag_scratch buffer
  * is written to then destroyed by `tridiag_qr_eigenpairs`. */
 static sparse_err_t s20_ritz_pairs(const double *alpha, const double *beta, idx_t m,
@@ -480,8 +422,8 @@ static sparse_err_t s20_ritz_pairs(const double *alpha, const double *beta, idx_
     return tridiag_qr_eigenpairs(theta_out, subdiag_scratch, Y_out, m, 0);
 }
 
-/* Day 12: shift-invert Lanczos operator.  `ctx` is a
- * `(const sparse_ldlt_t *)` pointing at a pre-computed LDL^T
+/* Shift-invert Lanczos operator.  `ctx` is a `(const sparse_ldlt_t *)`
+ * pointing at a pre-computed LDL^T
  * factorisation of `A - sigma*I`.  Applying the operator to a vector
  * `x` means solving `(A - sigma*I) y = x`, i.e. `y = (A - sigma*I)^{-1}
  * x` — exactly the transform that makes Lanczos converge on
@@ -546,8 +488,9 @@ idx_t s20_select_indices(const double *theta, idx_t m, sparse_eigs_which_t which
  *   eigenvector_j = V · Y[:, idx_j]
  * where V is the Lanczos basis (n × m, column-major) and idx_j is
  * the m-space column index of the j-th selected Ritz pair.  Assumes
- * V's columns are already orthonormal (guaranteed by Day 9's full
- * reorth) so the lifted vectors inherit unit norm up to the MGS
+ * V's columns are already orthonormal (assuming full
+ * reorthogonalization) so the lifted vectors inherit unit norm up
+ * to the MGS
  * drift bound (‖ε‖ ≲ 1e-12 on well-conditioned A).  Ritz vectors of
  * (A - σI)^{-1} are also eigenvectors of A (same eigenspaces), so
  * the same lift works for shift-invert mode. */
@@ -569,9 +512,7 @@ void s20_lift_ritz_vectors(const double *V, const double *Y, idx_t n, idx_t m, i
     }
 }
 
-/* Sprint 29 Day 5 (Item 3): eigenpair refinement via Rayleigh-quotient
- * iteration.  Per the Day-4 design doc
- * (`docs/planning/EPIC_2/SPRINT_29/refinement_design_day4.md`), each
+/* Eigenpair refinement via Rayleigh-quotient iteration.  Each
  * converged pair `(lambda_j, v_j)` is refined by:
  *
  *   for iter in [0, max_iters):
@@ -1021,20 +962,11 @@ static sparse_err_t s46_run_growm_backend(lanczos_op_fn op_fn, const void *op_ct
                                           const sparse_eigs_opts_t *o, double eff_tol,
                                           idx_t max_iters, sparse_eigs_t *result,
                                           sparse_eigs_workspace_t *workspace) {
-    /* Day 13 outer-loop redesign: single Lanczos batch with a
-     * grow-m-on-retry strategy.  The Day 10-11 short/long stability
-     * check converged poorly on SuiteSparse matrices because each
-     * "restart" threw away the partial basis and resumed from a
-     * warm-start v0 — the top-k Ritz values re-approached the same
-     * neighbourhood on every pass without tightening.  Day 13
-     * replaces that with a single growing Lanczos run: pick an
-     * initial m, build the basis, compute Wu/Simon residuals, and
-     * (if not converged) grow m and restart from the same v0 (so
-     * the first m_prev steps are bit-for-bit identical and the
-     * extra m_new − m_prev steps are where the convergence happens).
-     * Because Lanczos with full reorth is deterministic under the
-     * same v0, each growth round strictly contains the previous
-     * one's information. */
+    /* Use a single grow-m-on-retry strategy rather than alternating
+     * short/long stability probes.  Reusing the same deterministic
+     * v0 means each retry strictly contains the previous one: the
+     * first `m_prev` Lanczos steps are reproduced exactly and only
+     * the extra `m_new - m_prev` steps change. */
 
     /* Initial and maximum Lanczos basis sizes.
      *   m_cap: upper bound on any single Lanczos run.  Capped at min(n,
@@ -1107,7 +1039,7 @@ static sparse_err_t s46_run_growm_backend(lanczos_op_fn op_fn, const void *op_ct
 
     s20_lanczos_starting_vector(v0, n);
 
-    /* Day 4 telemetry: grow-m holds V at m_cap columns from
+    /* Grow-m holds V at m_cap columns from
      * allocation until cleanup — peak basis size is `m_cap`
      * regardless of how many grow-on-retry passes actually run. */
     result->peak_basis_size = m_cap;
@@ -1119,9 +1051,9 @@ static sparse_err_t s46_run_growm_backend(lanczos_op_fn op_fn, const void *op_ct
     double lanczos_phase_start_s = o->progress_cb ? s29_eigs_now_s() : 0.0;
 
     for (;;) {
-        /* Sprint 29 Day 7 (Item 4): progress + cancel at each grow-m
-         * outer retry boundary.  Cancellation propagates through the
-         * existing cleanup label, freeing all workspaces. */
+        /* Publish progress at each grow-m retry boundary.
+         * Cancellation propagates through the existing cleanup
+         * label, freeing all workspaces. */
         if (o->progress_cb) {
             sparse_progress_t pp = {
                 .phase = "lanczos",
@@ -1187,15 +1119,10 @@ static sparse_err_t s46_run_growm_backend(lanczos_op_fn op_fn, const void *op_ct
             double abs_res = fabs(last_beta * y_last);
             double tv_l = theta_long[idx_l];
             double anchor = fabs(tv_l);
-            /* Sprint 26 Day 1: extend the zero-spectrum guard to cover
-             * the case `scale == 0.0 && tv_l == 0.0`.  The original
-             * `anchor < scale * 1e-12` check evaluates to `0.0 < 0.0`
-             * = false in that case and `anchor` stays 0.0, producing
-             * a 0/0 division below (UBSan flagged this on Sprint 25
-             * Day 14 sanitize).  Adding `|| anchor == 0.0` catches
-             * the exact-zero case explicitly so anchor falls through
-             * to the `scale > 0.0 ? scale : 1.0` branch.  Routed
-             * from `SPRINT_25/RETROSPECTIVE.md` "Items deferred" #5. */
+            /* Guard the exact-zero spectrum case as well as the
+             * near-zero one.  Without the explicit `anchor == 0.0`
+             * branch, `scale == 0.0 && tv_l == 0.0` would leave
+             * anchor at zero and produce a 0/0 relative residual. */
             if (anchor < scale * 1e-12 || anchor == 0.0)
                 anchor = scale > 0.0 ? scale : 1.0;
             double rel_res = abs_res / anchor;
@@ -1215,7 +1142,7 @@ static sparse_err_t s46_run_growm_backend(lanczos_op_fn op_fn, const void *op_ct
             for (idx_t j = 0; j < take; j++) {
                 idx_t idx_l = sel_idx[j];
                 double theta = theta_long[idx_l];
-                /* For shift-invert (Day 12), the Ritz values of
+                /* For shift-invert, the Ritz values of
                  * (A - σI)^{-1} are 1/(λ − σ), so the original-space
                  * eigenvalue is λ = σ + 1/θ.  θ cannot be zero
                  * because (A - σI) was factored nonsingular. */
@@ -1309,11 +1236,9 @@ static sparse_err_t s46_sparse_eigs_sym_impl(const SparseMatrix *A, idx_t k,
     idx_t n = sparse_rows(A);
     s46_init_public_result(result, k);
 
-    /* Day 12: shift-invert setup for NEAREST_SIGMA.  Factor
-     * `A - sigma*I` via `sparse_ldlt_factor_opts` (Days 4-6 AUTO
-     * dispatch — benefits from CSC supernodal on big symmetric
-     * indefinite shifts) and swap the Lanczos operator from
-     * `sparse_matvec(A)` to `sparse_ldlt_solve(ldlt)`.  The
+    /* Shift-invert setup for NEAREST_SIGMA.  Factor `A - sigma*I`
+     * via `sparse_ldlt_factor_opts` and swap the Lanczos operator
+     * from `sparse_matvec(A)` to `sparse_ldlt_solve(ldlt)`.  The
      * factorisation is owned by this call; freed in `cleanup:`.
      * If `A - sigma*I` is singular (σ is exactly an eigenvalue of A),
      * LDL^T reports `SPARSE_ERR_SINGULAR` and we propagate — the
@@ -1389,44 +1314,20 @@ static sparse_err_t s46_sparse_eigs_sym_impl(const SparseMatrix *A, idx_t k,
         max_iters = (idx_t)def_iters;
     }
 
-    /* Sprint 21 Day 3/4: thick-restart backend dispatch.
+    /* AUTO + explicit-opt-in dispatch decision tree.
      *
-     * Day 3 opt-in path: `opts->backend ==
-     * SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART` forces the
-     * Wu/Simon restart pipeline.
-     *
-     * Day 4 AUTO routing: when `opts->backend == _AUTO` and the
-     * problem is large enough (`n >= SPARSE_EIGS_THICK_RESTART_THRESHOLD`,
-     * default 500; tuned in `docs/planning/EPIC_2/SPRINT_21/bench_day4_restart.txt`),
-     * also route here — the grow-m path's `O(m_cap · n)` peak
-     * memory becomes prohibitive on the big SuiteSparse fixtures
-     * where the thick-restart's `O((m_restart + k) · n)` bound
-     * wins by an order of magnitude or more (bcsstk14 at
-     * n = 1806, k = 5: grow-m ~7 MB of V vs thick-restart
-     * ~500 KB). */
-    /* Sprint 21 Day 10: AUTO + explicit-opt-in dispatch decision tree.
-     *
-     * Three concrete backends, two AUTO crossover thresholds.  In
-     * priority order:
-     *
-     *   1. Explicit `opts->backend == SPARSE_EIGS_BACKEND_LOBPCG`:
-     *      route to LOBPCG.  Honored regardless of preconditioner /
-     *      n / block_size — the user asked for LOBPCG.
-     *   2. Explicit `opts->backend == SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`:
-     *      route to thick-restart.
-     *   3. AUTO with preconditioner + large n + adequate block:
-     *      route to LOBPCG (Day 10 addition; the precond is the
-     *      signal that the caller is prepared for LOBPCG's per-iter
-     *      block work).
+     * Priority order:
+     *   1. Explicit LOBPCG request.
+     *   2. Explicit thick-restart Lanczos request.
+     *   3. AUTO with preconditioner, large n, and adequate block size:
+     *      route to LOBPCG.
      *   4. AUTO with `n >= SPARSE_EIGS_THICK_RESTART_THRESHOLD`:
-     *      route to thick-restart Lanczos (Day 4 routing, unchanged).
-     *   5. Otherwise: grow-m Lanczos (Sprint 20 default).
+     *      route to thick-restart Lanczos.
+     *   5. Otherwise: grow-m Lanczos.
      *
      * The AUTO LOBPCG route requires `block_size >= 4` (defaulting
-     * to `k` when `block_size == 0`) — below that the block is too
-     * small to amortise the per-iteration Jacobi cost vs Lanczos's
-     * single-vector iteration.  See `SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD`
-     * in the public header for the n threshold rationale. */
+     * to `k` when `block_size == 0`) so the block work can amortise
+     * the denser per-iteration costs. */
     sparse_eigs_backend_t backend = s46_select_backend(n, k, o);
     sparse_err_t rc =
         s46_run_backend(backend, op_fn, op_ctx, n, k, o, eff_tol, max_iters, result, workspace);
@@ -1460,16 +1361,14 @@ sparse_err_t sparse_eigs_sym_with_workspace_internal(const SparseMatrix *A, idx_
     return s46_sparse_eigs_sym_impl(A, k, opts, result, workspace);
 }
 
-/* ─── Sprint 21 Day 3: Dense symmetric eigensolver (Jacobi) ─────── */
+/* ─── Dense Symmetric Eigensolver (Jacobi) ───────────────────────── */
 
 /* Classical Jacobi sweeps on a dense symmetric K × K matrix.
  * Returns ascending eigenvalues in `theta_out[0..K-1]` and the
  * corresponding orthonormal eigenvectors as columns of `Q_out`
  * (K × K, column-major).  Used for arrowhead Ritz extraction
- * (Day 3) because the arrowhead doesn't have the tridiagonal
- * shape `tridiag_qr_eigenpairs` needs; bypasses the Day 2
- * reduction-to-tridiag shim so the outer loop doesn't have to
- * thread a separate Q accumulator through the reduction.
+ * because the arrowhead does not have the tridiagonal shape
+ * `tridiag_qr_eigenpairs` expects.
  *
  * Cost: O(K^3) per sweep × O(log K) sweeps.  For K ≤ 100 this is
  * microsecond-scale; acceptable as long as m_restart stays bounded.
@@ -1590,127 +1489,35 @@ sparse_err_t s21_dense_sym_jacobi(double *A_scratch, idx_t K, double *theta_out,
 
 /* ═══════════════════════════════════════════════════════════════════════
  * LOBPCG — Locally Optimal Block Preconditioned Conjugate Gradient
- *          (Sprint 21 Days 7-10; Knyazev 2001)
+ *          (Knyazev 2001)
  * ═══════════════════════════════════════════════════════════════════════
  *
- * Day 7 lands the API surface, the design block below, and stubs
- * (`s21_lobpcg_orthonormalize_block`, `s21_lobpcg_rr_step`,
- * `s21_lobpcg_solve`) that return SPARSE_ERR_BADARG.  Day 8
- * implements the unpreconditioned core, Day 9 wires preconditioning
- * + the BLOPEX P-update, Day 10 tunes AUTO routing.
+ * LOBPCG complements the Lanczos-family backends in two regimes:
+ * ill-conditioned SPD problems where a preconditioner materially
+ * improves convergence, and clustered spectra where block iteration
+ * can converge several target pairs together.
  *
- * Why a third backend.  Lanczos (with full reorth) is the workhorse
- * for symmetric eigenproblems on well-conditioned A — convergence is
- * geometric in the spectral gap and full-MGS reorth keeps the
- * Krylov basis orthonormal to machine precision.  Two regimes
- * motivate LOBPCG:
+ * Each iteration builds a Rayleigh-Ritz basis from the current
+ * approximations X, the preconditioned residual block W, and the
+ * previous search directions P.  The dense eigensolve over that
+ * basis yields the next X/P update and the current Ritz values.
  *
- *   1. **Ill-conditioned SPD.** When `cond(A)` reaches 1e6+, the
- *      Lanczos spectral-gap rate slows to 1 − O(1/sqrt(cond)) per
- *      step.  A cheap preconditioner M ≈ A (IC(0), LDL^T) accelerates
- *      LOBPCG to an effective rate determined by `cond(M^{-1}·A)` —
- *      often four or five orders of magnitude faster on the same
- *      fixture.  Lanczos has no equivalent inner preconditioning
- *      hook (shift-invert is the closest analogue, but it requires
- *      a near-eigenvalue σ to work).
+ * The implementation preserves a few important numerical guards:
+ *   - orthonormalise each block before forming the dense Gram matrix;
+ *   - eject columns whose norm collapses below the scale-aware
+ *     breakdown threshold;
+ *   - keep the more stable BLOPEX-style P update for near-singular
+ *     Gram matrices;
+ *   - report convergence with the same relative-residual convention
+ *     used by the Lanczos-family backends.
  *
- *   2. **Block convergence.** When the requested eigenvalues are
- *      clustered (k = 5 from a tightly-packed bottom of the
- *      spectrum), Lanczos converges them sequentially while LOBPCG
- *      converges them in parallel via the block_size > k mechanism.
- *      Each LOBPCG iteration costs O(block_size)
- matvecs vs
-         Lanczos's *one, so the parallel - block win has to be measured per *problem; Day 10's AUTO
-             threshold encodes the rule of thumb.**Pipeline.Each
-                 LOBPCG iteration maintains three n × block_size *matrices stored column -
-     major : **X : current eigenvector approximations(init : random - deterministic) *
-                   W
-     : preconditioned residual(M ^ {-1} · R when precond * != NULL, else R itself) *
-       P : previous search direction(init : 0; updated each step) * *The block Rayleigh
-     - Ritz step concatenates these into an *n × (3·block_size)basis Q,
-     orthonormalises it,
-     forms the dense *symmetric Gram matrix **G =
-         Q ^ T · A · Q *
-                 *(size 3·block_size × 3·block_size, computed by applying `op` to *each column of Q
-                                                             individually — Day 7 keeps the per -
-                                                         column * application;
-                   Sprint 22 may add a block matvec)
-                      .The dense
-                 *
-                 symmetric eigensolve via `s21_dense_sym_jacobi` (already in this *
-                                                                  file from Day 2) yields all
-                 3·block_size Ritz pairs(θ_j, y_j);
- * the block_size Ritz values matching `which` (LARGEST / SMALLEST /
- * NEAREST_SIGMA) become the new theta estimates, and the
- * combination coefficients produce the next X / P:
- *
- *     X_{new} = Q · Y[:, sel]                  (n × block_size)
- *     P_{new} = (W block of Q) · Y[W, sel]
- *             + (P block of Q) · Y[P, sel]     (n × block_size)
- *
- * Knyazev's "locally optimal" name comes from this Rayleigh-Ritz
- * minimisation over the 3-block subspace — at each step it picks the
- * best X / P combination available without lookahead, and the P
- * block carries the "momentum" that gives LOBPCG its
- * conjugate-gradient flavour.
- *
- * Numerical guards.
- *   - **Orthonormality.** Q must be orthonormal for G to be
- *     symmetric to within O(eps · cond) — `s21_lobpcg_orthonormalize_block`
- *     applies modified Gram-Schmidt with the Sprint 20 commit 70015a4
- *     scale-aware breakdown threshold;
- columns whose norm collapses *below the threshold are ejected and the effective
-         block size *shrinks.Day 8 unit tests that this ejection actually happens *on near -
-     singular Gram matrices.* -**P -
-     block stability
-         .**Knyazev's original eq. 2.11 derives the *new P from the difference of current and
-             previous combination *coefficients; on near-singular Gram matrices this loses
- *     significance.  Day 9 swaps in the BLOPEX (Stathopoulos 2007)
- *     formulation that conditions the P update on the Gram
- *     eigenvalue spread.  Day 8 ships the simpler Knyazev formula.
- *   - **Soft-locking.** Once a Ritz pair's residual drops below
- *     tol, optionally freeze it in X by setting the corresponding
- *     W and P columns to zero — saves work on the converged columns
- *     in subsequent iterations.  Day 9 wires this behind an opts
- *     flag (omitted from Day 7's struct since the field is
- *     deferrable; left for the Day 9 design step to land).
- *
- * Convergence gate.  Per-column residual `||R[:, j]||` scaled by
- * `max(|theta_j|, scale)` matches the Sprint 20 Wu/Simon convention
- * so `result->residual_norm` has consistent semantics across all
- * three backends.  When all `k` selected columns pass, emit and
- * return SPARSE_OK;
- on iteration - cap exhaustion,
-     partial results *via SPARSE_ERR_NOT_CONVERGED.**Spectrum modes.* -LARGEST
-     : standard LOBPCG converges to SMALLEST natively,
-     so *LARGEST wraps `op` in a negation `(neg_op)(x)
-     : = -A·x` and * negates the returned eigenvalues.Sprint 21 Day 10 lands the * adapter; Day 7
- stubs return BADARG for now.
- *   - SMALLEST: native LOBPCG path.  Day 8 implements this.
- *   - NEAREST_SIGMA: LOBPCG on `(A - σI)^{
-    -1}` via the Sprint 20
- *     Day 12 LDL^T-shift-invert callback — the same `op_fn` /
- *     `op_ctx` setup `sparse_eigs_sym` builds for the Lanczos
- *     backends.  Post-process λ = σ + 1/θ.  Day 10 lands.
- *
- * Memory.  Peak `O((3·block_size + scratch) · n)` where scratch is
- * the dense Gram matrix and its eigenvector matrix (each
- * 3·block_size × 3·block_size) plus the per-iteration A·Q product
- * block (n × 3·block_size).  For block_size ≤ 30 this is ~5 MB on
- * bcsstk14 (n = 1806) — comparable to thick-restart's ~500 KB but
- * with much better convergence on ill-conditioned fixtures.
- *
- * References.
- *   - Knyazev, A. (2001).  Toward the Optimal Preconditioned
- *     Eigensolver: Locally Optimal Block Preconditioned Conjugate
- *     Gradient Method.  SIAM J. Sci. Comput. 23(2), 517-541.
- *   - Stathopoulos, A. (2007).  Nearly optimal preconditioned
- *     methods for Hermitian eigenproblems under limited memory.
- *     Part I: Seeking one eigenvalue.  SIAM J. Sci. Comput. 29(2),
- *     481-514.  (BLOPEX-style P-update formulation.)
+ * The concrete LOBPCG implementation lives in
+ * `src/sparse_eigs_lobpcg.c`, leaving this file focused on public
+ * orchestration plus the shared helpers that all eigensolver
+ * backends reuse.
  */
 
-/* Day 8: orthonormalise an n × block_size_in column-major block via
+/* Orthonormalise an n × block_size_in column-major block via
  * per-column modified Gram-Schmidt with scale-aware breakdown
  * ejection.  Walks columns left-to-right, applying MGS against the
  * already-accepted columns 0..accepted-1 and either accepting (post-
@@ -1718,8 +1525,8 @@ sparse_err_t s21_dense_sym_jacobi(double *A_scratch, idx_t K, double *theta_out,
  * (post-MGS norm collapsed → linear-dependence on prior columns;
  * skip and forward-compact subsequent columns into this slot).
  *
- * Breakdown threshold mirrors the Sprint 20 commit 70015a4 pattern:
- * a relative `scale * 1e-14` threshold where `scale` is the running
+ * Breakdown threshold uses a relative `scale * 1e-14` threshold
+ * where `scale` is the running
  * max input column norm (pre-MGS), with a `DBL_MIN * 100` absolute
  * floor for the all-zero edge case. */
 /* The explicit LOBPCG backend implementation lives in

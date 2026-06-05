@@ -1819,3 +1819,109 @@ Sprint 55 Day 10 successfully landed the first bounded iterative extraction:
 
 That closes the planned Batch 1 implementation step without reopening the
 Sprint 54 repeated-run solver support boundary.
+
+# Sprint 55 Day 11 - historical comment reduction sweep
+
+Date: 2026-06-04
+Branch: `sprint-55`
+
+## Goal
+
+Do the bounded historical-comment cleanup planned for Day 11:
+
+- re-scan the Sprint 55 touched permanent implementation files
+- remove stale sprint/day chronology comments
+- preserve durable algorithm, ownership, and invariant commentary
+- rerun the required code-day validation gate
+
+## Files reviewed and touched
+
+The sweep stayed inside the Sprint 55 touched implementation set:
+
+- `src/sparse_iterative.c`
+- `src/sparse_eigs.c`
+- `src/sparse_eigs_internal.h`
+- `src/sparse_eigs_thick_restart.c`
+
+No public headers, tests, benchmarks, examples, or build wiring changed.
+
+## What changed
+
+The patch was comment-only and focused on permanent maintainability:
+
+- removed stale `Sprint ... Day ...` narrative from the iterative/eigensolver
+  implementation files touched earlier in Sprint 55
+- rewrote those comments as durable explanations of:
+  - why `_POSIX_C_SOURCE` is requested
+  - what the progress callbacks mean
+  - what the shared Lanczos/MGS helpers own
+  - what the grow-m, thick-restart, arrowhead, and LOBPCG sections are
+    responsible for
+  - what the restart-state and shift-invert seams guarantee
+- kept algorithm commentary that still helps future maintainers reason about:
+  - recurrence invariants
+  - workspace ownership
+  - spectrum / residual semantics
+  - backend dispatch boundaries
+
+The intended truthfulness check is now clean:
+
+- `rg -n "Sprint|Day [0-9]+" src/sparse_eigs.c src/sparse_eigs_internal.h src/sparse_eigs_thick_restart.c src/sparse_iterative.c`
+  returned no matches after the cleanup
+
+## Measured outcome
+
+This was a real reduction sweep rather than churn:
+
+- `git diff --stat`:
+  - `src/sparse_eigs.c` = `429` changed lines
+  - `src/sparse_eigs_internal.h` = `106` changed lines
+  - `src/sparse_eigs_thick_restart.c` = `110` changed lines
+  - `src/sparse_iterative.c` = `12` changed lines
+- total patch shape:
+  - `217` insertions
+  - `440` deletions
+
+Current post-Day-11 line counts:
+
+- `src/sparse_eigs.c` = `1534`
+- `src/sparse_eigs_internal.h` = `631`
+- `src/sparse_eigs_thick_restart.c` = `914`
+- `src/sparse_iterative.c` = `1985`
+
+Interpretation:
+
+- the sweep materially reduced stale narrative in the extracted eigensolver
+  ownership bands
+- the retained iterative main file kept its Day 10 ownership size while losing
+  the remaining sprint-history comments
+- the cleanup stayed within the Day 11 maintainability fence and did not reopen
+  decomposition scope
+
+## Validation
+
+Required Day 11 code-day validation passed:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Interpretation:
+
+- the comment-only patch did not disturb the maintained compile/lint/test
+  contract
+- the touched implementation files remained formatting-clean and tool-clean
+
+## Day 11 Close
+
+Sprint 55 Day 11 successfully completed the planned historical comment
+reduction sweep:
+
+- stale sprint/day narrative is gone from the Sprint 55 touched permanent
+  implementation files
+- durable algorithm and ownership commentary remains in place
+- the patch stayed comment-only and bounded
+- the required Day 11 validation gate remained green
+
+That leaves Day 12 free to audit the decomposed source ownership state rather
+than to clean up leftover Sprint 55 implementation narration.

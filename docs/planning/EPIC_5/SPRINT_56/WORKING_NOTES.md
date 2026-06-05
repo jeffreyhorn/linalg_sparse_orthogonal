@@ -557,3 +557,211 @@ Sprint 56 now has a concrete LDLT CSC decomposition map:
 
 That is enough to move to the Day 4 LDLT CSC decomposition design without
 leaving the first batch boundary ambiguous.
+
+## Day 4
+
+**Objective:** Freeze the first LDLT CSC extraction boundary before editing
+permanent implementation files by turning the Day 3 supernodal-first ranking
+into an exact file split, declaration strategy, and preserved-behavior
+checklist.
+
+### Commands Run
+
+1. Re-read the Sprint 56 Day 4 plan item and the Day 3 closing state:
+   - `sed -n '160,194p' docs/planning/EPIC_5/SPRINT_56/PLAN.md`
+   - `sed -n '520,620p' docs/planning/EPIC_5/SPRINT_56/WORKING_NOTES.md`
+2. Re-read the earlier decomposition-design artifact shape for reference:
+   - `sed -n '1,240p' docs/planning/EPIC_5/SPRINT_55/artifacts/day4-eigensolver-decomposition-batch1-design.md`
+3. Re-read the Day 3 LDLT CSC seam audit:
+   - `sed -n '1,220p' docs/planning/EPIC_5/SPRINT_56/artifacts/day3-ldlt-csc-residual-ownership-audit.md`
+4. Re-read the selected supernodal helper cluster in the live production file:
+   - `sed -n '2140,2615p' src/sparse_ldlt_csc.c`
+
+### Day 4 Findings
+
+#### 1. Sprint 56 Batch 1 should extract the supernodal LDLT CSC helper cluster into its own source file
+
+The Day 3 ranking still holds after re-reading the concrete helper block:
+
+- new file:
+  - `src/sparse_ldlt_csc_supernodal.c`
+
+The first moved function set should be:
+
+- `ldlt_csc_supernode_extract(...)`
+- `ldlt_csc_supernode_writeback(...)`
+- `ldlt_csc_supernode_eliminate_diag(...)`
+- `ldlt_csc_supernode_eliminate_panel(...)`
+- `ldlt_csc_eliminate_supernodal(...)`
+
+These functions already form a contiguous owned cluster and share the same
+dense-workflow vocabulary:
+
+- supernode extraction
+- dense diagonal/panel work
+- CSC writeback
+- top-level supernodal elimination driver
+
+Interpretation:
+
+- this is a real ownership seam, not a cosmetic file move
+- moving it first reduces `src/sparse_ldlt_csc.c` meaningfully while leaving
+  the scalar/native kernel intact for a later phase
+
+#### 2. The retained main file should keep the public-facing lifecycle and scalar/native kernel ownership
+
+### Keep in `src/sparse_ldlt_csc.c`
+
+- lifecycle / storage / structural conversion:
+  - alloc / free
+  - row-adjacency growth
+  - supernode detection
+  - sparse-to-CSC conversion
+  - analysis-aware sparse-to-CSC conversion
+  - CSC-to-sparse conversion
+  - writeback to `sparse_ldlt_t`
+  - validation
+- wrapper / compatibility path:
+  - linked-list expansion helper
+  - wrapper elimination path
+- scalar/native kernel core:
+  - symmetric swap
+  - workspace alloc/free
+  - Bunch-Kaufman scan helpers
+  - scatter / lookup / cmod helpers
+  - one-step elimination
+  - native elimination driver
+  - solve path
+- small residual local helpers not specific to the moved supernodal cluster
+
+### Move to `src/sparse_ldlt_csc_supernodal.c`
+
+- row-map lookup helper used only by the supernodal cluster:
+  - `ldlt_csc_bsearch_row_map(...)`
+- supernodal extract/writeback helpers
+- supernodal diagonal-block eliminate helper
+- supernodal panel eliminate helper
+- supernodal elimination driver
+
+Interpretation:
+
+- Batch 1 should create one clean “supernodal-owned” file
+- the retained main file should stay the home of the CSC-native scalar/control
+  path
+
+#### 3. Sprint 56 Phase 2 should keep using the existing internal header rather than open a new private-header taxonomy
+
+The first batch should keep declarations in the existing:
+
+- `src/sparse_ldlt_csc_internal.h`
+
+Reason:
+
+- Batch 1 already changes one major ownership axis:
+  - source-file extraction
+- adding a new private-header taxonomy in the same batch would combine:
+  - source extraction
+  - header redesign
+- the current internal header is already the authoritative private contract for:
+  - `LdltCsc`
+  - `LdltCscWorkspace`
+  - scalar/native helpers
+  - supernodal helper declarations
+
+Deferred by design:
+
+- creation of a dedicated `src/sparse_ldlt_csc_supernodal_internal.h`
+- broader narrowing or repartitioning of `src/sparse_ldlt_csc_internal.h`
+
+Interpretation:
+
+- Sprint 56 should separate source ownership first
+- header taxonomy cleanup is a later maintainability choice, not a Day 5
+  dependency
+
+#### 4. The first batch must preserve native/wrapper semantics, permutation behavior, and CSC proof parity exactly
+
+### Public and compatibility invariants
+
+- `ldlt_csc_eliminate(...)` runtime override behavior unchanged
+- native versus wrapper routing unchanged
+- linked-list comparison path retained for regression and benchmark use
+- no public header/API changes
+
+### Numerical and storage invariants
+
+- permutation semantics unchanged
+- pivot-size and `D` / `D_offdiag` semantics unchanged
+- row-adjacency assumptions unchanged
+- residual and inertia behavior unchanged
+- direct CSC repeated-run completion path unchanged
+
+### Proof-surface invariants
+
+- `tests/test_ldlt_csc.c` remains the primary direct proof surface
+- `tests/test_integration.c` continues to prove public repeated-run direct
+  lifecycle correctness
+- `benchmarks/bench_refactor_csc.c` continues to prove:
+  - SPD repeated-run Cholesky CSC behavior
+  - indefinite repeated-run LDLT CSC behavior
+
+Interpretation:
+
+- the Day 5 extraction is successful only if the file boundary changes while
+  all these behaviors remain exact
+
+#### 5. The minimal comment policy for Batch 1 is again ownership-truthful rather than sprint-historical
+
+Preserve:
+
+- durable algorithm meaning
+- supernodal/scalar ownership boundaries
+- pivot/permutation invariants
+- writeback/drop-threshold semantics
+
+Reduce where touched:
+
+- sprint chronology
+- implementation-history narrative
+- comments that explain landing order instead of present code truth
+
+Do not try in Batch 1:
+
+- repo-wide LDLT CSC comment normalization
+- private-header taxonomy cleanup
+- broad CSC doc rewriting
+
+#### 6. The expected Day 5 touched-file set is now explicit
+
+Primary expected touched set:
+
+- `src/sparse_ldlt_csc.c`
+- `src/sparse_ldlt_csc_supernodal.c` (new)
+- `src/sparse_ldlt_csc_internal.h`
+- `Makefile`
+- `CMakeLists.txt`
+
+Secondary touch only if truly needed:
+
+- `tests/test_ldlt_csc.c`
+
+Avoid by default:
+
+- `include/sparse_ldlt.h`
+- `tests/test_integration.c`
+- `benchmarks/bench_refactor_csc.c`
+- `src/sparse_chol_csc.c`
+
+## Day 4 Close
+
+Day 4 fixes the first LDLT CSC extraction boundary explicitly:
+
+- move the supernodal LDLT CSC helper cluster into
+  `src/sparse_ldlt_csc_supernodal.c`
+- keep lifecycle/conversion, wrapper compatibility, and scalar/native kernel
+  ownership in `src/sparse_ldlt_csc.c`
+- reuse the existing internal header for Phase 2
+- preserve the full native/wrapper/permutation/proof contract exactly
+
+That gives Sprint 56 a concrete, bounded, maintainability-first Day 5 landing
+plan.

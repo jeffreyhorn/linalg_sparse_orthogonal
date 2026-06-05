@@ -2129,3 +2129,79 @@ solver/lifecycle fence:
 - the source splits are now explicit and defensible ownership improvements
 
 No blocker-level drift remains before Day 13 validation.
+
+# Sprint 55 Day 13 - validation sweep
+
+Date: 2026-06-04
+Branch: `sprint-55`
+
+## Validation run
+
+Ran the planned Day 13 full gate from the landed Day 12 state:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All four passed.
+
+## Reviewed baseline anchors
+
+The maintained reviewed baseline stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 253.48 sec`
+
+Interpretation:
+
+- Sprint 55 did not disturb the reviewed parity contract
+- the large-source splits remain compatible with both supported local build
+  surfaces
+
+## Targeted Sprint 55 follow-ons
+
+The planned high-signal reruns all passed:
+
+- `./build/test_iterative` -> `79 / 79`
+- `./build/test_minres` -> `43 / 43`
+- `./build/test_eigs` -> `30 / 30`
+- `./build/test_eigs_lobpcg` -> `26 / 26`
+- `./build/example_iterative`
+- `./build/example_eigs`
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+
+Representative retained behavior:
+
+- `example_iterative`
+  - unpreconditioned GMRES still converged in `25` iterations
+  - ILU(0)-GMRES still converged in `9` iterations
+- `example_eigs`
+  - explicit `LOBPCG` on `bcsstk04` still converged `3 / 3` smallest pairs
+    in `62` outer iterations
+  - reported residual stayed `8.808e-09`
+- `bench_iterative_reuse`
+  - `cg-tridiag-300` = `0.84x`
+  - `gmres-unsym-220` = `1.44x`
+  - `minres-kkt-42` = `0.87x`
+  - all preserved iteration-count and residual parity between one-shot and
+    reuse paths
+- `bench_eigs_reuse`
+  - `growm-nos4-k5` = `1.21x`
+  - `thick-bcsstk14-k5` = `1.04x`
+  - `lobpcg-diag40-k3` = `1.03x`
+  - all preserved exact eigenvalue parity with `|lambda|max diff = 0.000e+00`
+
+## Day 13 Close
+
+Sprint 55 Day 13 re-established the full validated baseline after the
+decomposition work:
+
+- full quality gate passed
+- reviewed parity stayed exact
+- targeted solver/eigensolver proof surfaces stayed behavior-stable
+
+No new reconciliation queue surfaced during validation.

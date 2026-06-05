@@ -199,3 +199,150 @@ Sprint 56 now has an explicit starting point:
 
 That is enough to move to the Day 2 validation and touched-surface recheck
 without reopening Sprint 50-55 public contract decisions.
+
+## Day 2
+
+**Objective:** Reconfirm the maintained reviewed baseline and truthfulness
+anchors Sprint 56 must preserve, then define the smallest authoritative
+validation boundary for the later CSC direct-solver and SVD extraction days
+and the high-signal rerun set those code-touch batches should use.
+
+### Commands Run
+
+1. Re-read the Sprint 56 Day 2 plan item and the current sprint notes:
+   - `sed -n '78,122p' docs/planning/EPIC_5/SPRINT_56/PLAN.md`
+   - `sed -n '1,220p' docs/planning/EPIC_5/SPRINT_56/WORKING_NOTES.md`
+2. Reconfirm the maintained reviewed CMake truthfulness anchor:
+   - `ctest -N --test-dir build/quality-review-cmake`
+3. Reconfirm the maintained reviewed wrapper authority surface:
+   - `make -n quality-review-full`
+4. Re-read the live quality-contract wording sources:
+   - `rg -n "strongest local reviewed baseline|quality-review-full|quality-review-cmake|deadcode-check" README.md docs/maintainer_guide.md Makefile .github/workflows -g '!build'`
+5. Reconfirm the main Sprint 56 follow-on binaries already present in the
+   build tree:
+   - `ls build/test_chol_csc build/test_ldlt_csc build/test_cholesky build/test_ldlt build/test_etree build/test_svd build/test_integration build/bench_refactor_csc build/example_analysis`
+6. Measure the live size of those main proof/adoption surfaces:
+   - `wc -l tests/test_chol_csc.c tests/test_ldlt_csc.c tests/test_svd.c tests/test_integration.c benchmarks/bench_refactor_csc.c examples/example_analysis.c`
+
+### Day 2 Findings
+
+#### 1. The strongest local reviewed baseline and truthfulness anchors remain exact
+
+The maintained Sprint 56 baseline remains:
+
+- strongest local reviewed baseline:
+  - `make quality-review-full`
+- reviewed CMake parity anchor:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+The authority split is still the same:
+
+- `make quality-review-full`
+  - strongest local reviewed baseline
+- `make quality-review`
+  - reviewed Makefile path
+- `make quality-review-cmake`
+  - reviewed CMake parity path
+- `make deadcode-check`
+  - report-completeness gate, not a zero-findings gate
+
+Interpretation:
+
+- Sprint 56 should keep using the exact `strongest local reviewed baseline`
+  phrasing
+- the reviewed CMake count and Makefile/CMake parity contract remain the
+  authoritative truthfulness anchors for later extraction days
+
+#### 2. The later decomposition code-day gate is simple and should stay explicit
+
+The mandatory gate for later `*.c` / `*.h` decomposition work remains:
+
+- `make format`
+- `make lint`
+- `make test`
+
+And the stronger default for substantial implementation ownership batches
+remains:
+
+- `make quality-review-full`
+
+Interpretation:
+
+- docs-only audit/design/summary days do not need the full code-day gate
+- substantial extraction batches should continue to run both the direct gate
+  and the stronger reviewed baseline path
+
+#### 3. The live quality-contract wording still matches the maintained split across README, maintainer guide, and Makefile
+
+The quality-contract wording remains aligned across the main authority
+surfaces:
+
+- `README.md`
+  - user-facing command map
+  - strongest local reviewed baseline wording
+  - explicit `deadcode-check` completeness-gate wording
+- `docs/maintainer_guide.md`
+  - maintainer-facing authority framing
+  - reviewed CMake parity anchor
+  - dead-code interpretation boundary
+- `Makefile`
+  - executable reviewed-target authority
+  - current rerun guidance
+  - current test-count parity checks
+
+Interpretation:
+
+- Sprint 56 does not need to reopen any quality-contract wording work on Day 2
+- the maintained reviewed baseline language is already stable enough to carry
+  forward unchanged
+
+#### 4. The high-signal Sprint 56 rerun set is now fixed explicitly from the live build tree
+
+The main Sprint 56 follow-on binaries already present in `build/` are:
+
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+- `./build/test_cholesky`
+- `./build/test_ldlt`
+- `./build/test_etree`
+- `./build/test_svd`
+- `./build/test_integration`
+- `./build/bench_refactor_csc`
+- `./build/example_analysis`
+
+Interpretation:
+
+- Sprint 56 can keep its rerun set focused on the CSC direct-solver and SVD
+  families actually touched by the large-source decomposition work
+- no broader default rerun set is needed on Day 2
+
+#### 5. The proof and adoption surfaces are now large enough that parity preservation is part of the extraction work itself
+
+The live proof/adoption surface sizes are now:
+
+- `tests/test_chol_csc.c` = `4643`
+- `tests/test_ldlt_csc.c` = `3680`
+- `tests/test_svd.c` = `3746`
+- `tests/test_integration.c` = `1803`
+- `benchmarks/bench_refactor_csc.c` = `611`
+- `examples/example_analysis.c` = `210`
+
+Interpretation:
+
+- Sprint 56 extraction work should assume that proof-surface legibility and
+  parity matter alongside implementation-file size reduction
+- the rerun set is not ceremonial; it is the main defense against accidental
+  behavior drift while ownership moves under the hood
+
+## Day 2 Close
+
+Sprint 56 now has an explicit validation boundary:
+
+- preserved reviewed baseline wording
+- exact reviewed CMake count anchor
+- explicit code-day gate
+- explicit stronger reviewed-baseline default
+- authoritative CSC direct-solver and SVD rerun set from the live build tree
+
+That is enough to move to the Day 3 `sparse_ldlt_csc.c` residual ownership
+audit without any remaining ambiguity around validation expectations.

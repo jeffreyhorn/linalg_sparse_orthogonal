@@ -1513,3 +1513,147 @@ Sprint 56 now has a landed second decomposition batch:
 
 That gives Sprint 56 a real Cholesky CSC maintainability landing rather than
 only a design artifact.
+
+## Day 9
+
+**Objective:** Reduce `src/sparse_svd.c` to a bounded Sprint 56
+maintainability target and pick the specific Day 10 landing direction before
+any SVD code movement begins.
+
+### Commands Run
+
+1. Re-read the Sprint 56 Day 9 plan item:
+   - `sed -n '260,347p' docs/planning/EPIC_5/SPRINT_56/PLAN.md`
+2. Inspect the live SVD hotspot, internal header, and proof surfaces:
+   - `wc -l src/sparse_svd.c src/sparse_svd_internal.h tests/test_svd.c benchmarks/bench_svd.c examples/example_svd_lowrank.c`
+   - `sed -n '1,260p' src/sparse_svd_internal.h`
+   - `sed -n '1,260p' src/sparse_svd.c`
+   - `sed -n '260,760p' src/sparse_svd.c`
+   - `sed -n '760,1280p' src/sparse_svd.c`
+   - `sed -n '1280,1760p' src/sparse_svd.c`
+3. Build a function/seam map from the live file:
+   - `rg -n "^(static )?[A-Za-z_][A-Za-z0-9_ *]+\\([^;]*\\)\\s*\\{$" src/sparse_svd.c`
+   - `nl -ba src/sparse_svd.c | sed -n '1,1750p' | rg "sparse_svd_extract_uv|bidiag_svd_step|bidiag_svd_iterate|pad_orthonormal_basis|sparse_svd_compute|sparse_svd_partial|sparse_svd_rank|sparse_pinv|sparse_svd_lowrank\\(|sparse_svd_lowrank_sparse|sparse_cond|parse_svd_lowrank_outer|sparse_svd_lowrank_outer_product|hh_apply"`
+   - `rg -n "^/\\* ═|^/\\* Sprint|^sparse_err_t sparse_svd_partial|^static void bidiag_svd_step|^sparse_err_t bidiag_svd_iterate|^sparse_err_t sparse_svd_compute|^sparse_err_t sparse_svd_lowrank_sparse|^double sparse_cond" src/sparse_svd.c`
+4. Re-read the benchmark and test surfaces most coupled to the SVD seam choice:
+   - `sed -n '1,220p' benchmarks/bench_svd.c`
+   - `rg -n "partial|lowrank|pinv|cond|rank|compute_uv|economy" tests/test_svd.c | tail -n 120`
+
+### Day 9 Findings
+
+#### 1. `src/sparse_svd.c` now reduces cleanly to five ownership bands instead of one generic large-file target
+
+The live file separates into:
+
+1. low-rank sparse reconstruction toggle plus outer-product path
+2. bidiagonal reflector extraction plus implicit QR core
+3. full-SVD orchestration plus full-mode basis padding
+4. partial-SVD Lanczos backend
+5. application wrappers and reporting utilities
+
+Interpretation:
+
+- Sprint 56 no longer needs to treat SVD as a vague cleanup bucket
+- the file is structured enough to support a bounded maintainability landing
+  if the right seam is chosen
+
+#### 2. The strongest remaining SVD maintainability target is the partial-SVD Lanczos backend
+
+The partial-SVD band centered on:
+
+- `sparse_svd_partial(...)`
+
+already owns a distinct algorithm family:
+
+- Lanczos subspace sizing
+- `A^T` construction/reuse
+- `P/Q/alpha/beta` Lanczos storage lifecycle
+- bidiagonalization loop
+- small bidiagonal solve
+- singular-value sorting and vector recovery
+
+Interpretation:
+
+- this is the strongest first owned slice because it is both large and
+  behaviorally cohesive
+- it is a better first target than a mechanical file-local cleanup or a
+  deeper split of the shared bidiagonal QR core
+
+#### 3. The bidiagonal QR helper cluster is real, but it is the wrong first extraction target
+
+The cluster around:
+
+- `hh_apply(...)`
+- `sparse_svd_extract_uv(...)`
+- `bidiag_svd_step(...)`
+- `bidiag_svd_iterate(...)`
+
+is cohesive algorithmically, but it also remains tightly central to the main
+full-SVD/public orchestration path and the current internal test surface.
+
+Interpretation:
+
+- moving the QR/bidiagonal core first would force the broadest private-contract
+  expansion
+- Sprint 56 should keep the full-SVD/public core stable in the main file and
+  extract the cleaner partial-SVD backend first
+
+#### 4. The proof surfaces already support a bounded partial-SVD extraction better than any other SVD seam
+
+The strongest explicit proof surfaces already cluster around partial SVD:
+
+- `tests/test_svd.c`
+  - partial sigma-only coverage
+  - partial vector recovery coverage
+  - timing/parity coverage
+- `benchmarks/bench_svd.c`
+  - explicit partial-vs-full timing/reporting
+
+Interpretation:
+
+- the partial-SVD backend has a naturally bounded proof envelope
+- that makes it the safest maintainability landing relative to the size of the
+  ownership gain
+
+#### 5. Day 10 should emphasize helper extraction, not broad file-local cleanup
+
+Chosen Day 10 direction:
+
+- helper extraction
+
+Specific landing direction:
+
+- move the partial-SVD Lanczos backend into:
+  - `src/sparse_svd_partial.c`
+
+Keep in `src/sparse_svd.c`:
+
+- full-SVD/public orchestration
+- reflector extraction and bidiagonal QR machinery
+- full-mode basis padding
+- application wrappers:
+  - `sparse_svd_rank(...)`
+  - `sparse_pinv(...)`
+  - `sparse_svd_lowrank(...)`
+  - `sparse_svd_lowrank_sparse(...)`
+  - `sparse_cond(...)`
+
+Interpretation:
+
+- Day 10 now has a bounded extraction target rather than a generic “make
+  sparse_svd.c nicer” task
+- the public full-SVD front door stays stable while Sprint 56 reduces one real
+  backend seam
+
+## Day 9 Close
+
+Sprint 56 now has an explicit SVD maintainability direction:
+
+- `src/sparse_svd.c` reduces to named ownership bands
+- the strongest first target is the partial-SVD Lanczos backend
+- Day 10 should land helper extraction, not a broad in-place cleanup pass
+- the full-SVD/public orchestration path should stay in the main file this
+  sprint
+
+That is enough to start the Day 10 SVD batch from a concrete maintainability
+plan instead of a vague residual cleanup scope.

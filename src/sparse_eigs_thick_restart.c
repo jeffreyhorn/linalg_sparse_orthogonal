@@ -297,9 +297,9 @@ sparse_err_t s21_arrowhead_to_tridiag(const double *theta_locked, const double *
              * from floating-point cancellation in the rank-2 update). */
             T_AT(j + 1, j) = -alpha;
             T_AT(j, j + 1) = -alpha;
-            for (idx_t i = 2; i < len; i++) {
-                T_AT(j + 1 + i - 1, j) = 0.0;
-                T_AT(j, j + 1 + i - 1) = 0.0;
+            for (idx_t row = j + 2; row < K; row++) {
+                T_AT(row, j) = 0.0;
+                T_AT(j, row) = 0.0;
             }
         }
 

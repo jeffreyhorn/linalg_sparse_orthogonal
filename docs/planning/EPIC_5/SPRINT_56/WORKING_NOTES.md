@@ -928,3 +928,212 @@ Day 5 lands the first bounded LDLT CSC decomposition batch:
 
 That gives Sprint 56 a validated Phase 2 decomposition landing rather than
 only a design boundary.
+
+## Day 6
+
+**Objective:** Reduce `src/sparse_chol_csc.c` to concrete ownership seams by
+auditing the live Cholesky CSC implementation bands, comparing them against
+the landed LDLT CSC split, and fixing a ranked extraction order plus a
+defensible first Cholesky CSC boundary before any code movement begins.
+
+### Commands Run
+
+1. Re-read the Sprint 56 Day 6 plan item and the current sprint notes:
+   - `sed -n '200,236p' docs/planning/EPIC_5/SPRINT_56/PLAN.md`
+   - `sed -n '1,980p' docs/planning/EPIC_5/SPRINT_56/WORKING_NOTES.md`
+2. Re-read the landed LDLT audit/design state for comparison:
+   - `sed -n '1,220p' docs/planning/EPIC_5/SPRINT_56/artifacts/day3-ldlt-csc-residual-ownership-audit.md`
+   - `sed -n '1,220p' docs/planning/EPIC_5/SPRINT_56/artifacts/day4-ldlt-csc-decomposition-design.md`
+3. Audit the live Cholesky CSC production file and internal contract:
+   - `rg -n "^(static |sparse_err_t |void |double |idx_t )" src/sparse_chol_csc.c`
+   - `sed -n '1,520p' src/sparse_chol_csc_internal.h`
+   - `sed -n '1210,2210p' src/sparse_chol_csc.c`
+4. Reconfirm the strongest direct Cholesky proof surfaces:
+   - `rg -n "chol_csc_detect_supernodes|chol_dense_factor|chol_dense_solve_lower|chol_csc_eliminate_supernodal|chol_csc_supernode_extract|chol_csc_supernode_eliminate_diag|chol_csc_supernode_eliminate_panel|chol_csc_supernode_writeback|chol_csc_writeback_to_sparse" tests/test_chol_csc.c benchmarks/bench_refactor_csc.c examples/example_analysis.c`
+5. Measure the coarse Cholesky ownership bands for ranking support:
+   - ```sh
+     python3 - <<'PY'
+     from pathlib import Path
+     text = Path('src/sparse_chol_csc.c').read_text().splitlines()
+     ranges = {
+         'lifecycle_conversion': (136, 713),
+         'workspace_scalar_core': (714, 1223),
+         'chol_supernodal_backend_candidate': (1224, 2093),
+         'writeback_to_sparse': (2094, 2194),
+         'shared_ldlt_dense_primitives_within_supernode_band': (1406, 1672),
+     }
+     for name, (a, b) in ranges.items():
+         print(f"{name}: {b - a + 1}")
+     PY
+     ```
+
+### Day 6 Findings
+
+#### 1. The Cholesky CSC large-file problem is now reduced to named ownership bands
+
+The current `src/sparse_chol_csc.c` function map separates into six real
+ownership bands:
+
+1. lifecycle / storage / structural conversion
+2. scalar workspace and native elimination/solve core
+3. wrapper / dispatch-specific glue
+4. Cholesky-owned supernodal backend
+5. compatibility-facing CSC writeback seam
+6. shared dense indefinite primitive seam
+
+Interpretation:
+
+- the file is large, but it is no longer ambiguous
+- the remaining design question is which ownership band should move first
+- Cholesky also has one important family-specific wrinkle:
+  - `ldlt_dense_factor(...)` still lives here even though it is not purely
+    Cholesky-owned
+
+#### 2. The strongest first Cholesky extraction target is the full Cholesky-owned supernodal backend
+
+The strongest first extraction target is the Cholesky-owned supernodal backend
+as one coherent file-owned slice.
+
+Recommended moved set:
+
+- `columns_in_same_supernode(...)`
+- `chol_csc_detect_supernodes(...)`
+- `chol_dense_factor(...)`
+- `chol_dense_solve_lower(...)`
+- `chol_csc_eliminate_supernodal(...)`
+- `chol_csc_bsearch_row_map(...)`
+- `chol_csc_supernode_extract(...)`
+- `chol_csc_supernode_eliminate_diag(...)`
+- `chol_csc_supernode_eliminate_panel(...)`
+- `chol_csc_supernode_writeback(...)`
+
+Why it outranks the scalar/native kernel:
+
+- it is already contiguous and internally cohesive
+- it carries a clean SPD-only vocabulary
+- it is the clearest line-count relief in the file
+- `tests/test_chol_csc.c` already treats it like a real backend boundary
+- `bench_refactor_csc.c` already names the same CSC completion seam directly
+
+Measured ownership value:
+
+- approximate supernodal backend candidate band:
+  - `1224..2093`
+  - about `870` lines
+
+Interpretation:
+
+- unlike the LDLT batch, Cholesky can justify moving the top-level batched
+  driver together with its helper cluster
+- that would create a real backend-owned file rather than a narrower helper
+  spillover module
+
+#### 3. The scalar workspace/native elimination core is still the strongest second seam
+
+The scalar workspace and native elimination/solve core remains the strongest
+second target:
+
+- it still carries a large ownership mass
+- it is still the highest-risk numerical band
+- it becomes easier to reason about once the supernodal backend no longer
+  shares the same file
+
+Approximate ownership mass:
+
+- scalar/workspace/elimination/solve band:
+  - `714..1223`
+  - about `510` lines
+
+Interpretation:
+
+- Sprint 56 still should not start by splitting the scalar kernel only because
+  it is large
+- the cleaner first maintainability win is still the supernodal backend
+
+#### 4. The LDLT comparison is still useful, but Cholesky should not copy it mechanically
+
+The landed LDLT Batch 1 remains the right comparison point, but not the exact
+template.
+
+Shared pattern with LDLT:
+
+- supernodal backend work is still the best first seam
+- keep the existing private header
+- avoid mixing source extraction with private-header taxonomy redesign
+
+Intentional differences from LDLT:
+
+1. Cholesky's first seam should be wider.
+   - LDLT kept the top-level supernodal driver in the main file.
+   - Cholesky's `chol_csc_eliminate_supernodal(...)` is more cleanly part of
+     the same SPD backend cluster as its detect/extract/diag/panel/writeback
+     helpers.
+2. Cholesky should move its dense Cholesky primitives with the backend.
+   - `chol_dense_factor(...)` and `chol_dense_solve_lower(...)` are naturally
+     owned by the same slice.
+3. Cholesky should leave the shared dense LDLT primitive behind.
+   - `ldlt_dense_factor(...)` is used by LDLT CSC and should not be blurred
+     into a Cholesky-owned module.
+
+Interpretation:
+
+- the right Day 6 outcome is not "repeat the LDLT split"
+- it is "reuse the LDLT decision logic, then pick the seam that matches the
+  Cholesky file's real ownership"
+
+#### 5. The proof surfaces already reinforce the Cholesky backend boundary
+
+The current proof surfaces already imply a real Cholesky backend seam:
+
+- `tests/test_chol_csc.c` directly names:
+  - supernode detection
+  - dense Cholesky helpers
+  - supernodal elimination
+  - extract / diag / panel / writeback helpers
+  - writeback-to-sparse
+- `benchmarks/bench_refactor_csc.c` directly exercises:
+  - `chol_csc_from_sparse_with_analysis(...)`
+  - `chol_csc_eliminate_supernodal(...)`
+- `examples/example_analysis.c` remains the high-signal caller-facing repeated
+  direct workflow proof surface
+
+Interpretation:
+
+- the best extraction seam is the one the proof surfaces already imply exists
+- utility-first slicing across those proof boundaries would be harder to
+  validate and harder to explain
+
+#### 6. The ranked extraction order is now explicit
+
+Ranked `src/sparse_chol_csc.c` target order from strongest to weakest:
+
+1. Cholesky-owned supernodal backend cluster
+2. scalar workspace and native elimination/solve core
+3. lifecycle / conversion / validation cluster
+4. CSC writeback-to-sparse seam
+5. wrapper / dispatch glue
+6. shared dense indefinite primitive cleanup
+
+That gives Sprint 56 a concrete first-batch recommendation:
+
+- proposed file:
+  - `src/sparse_chol_csc_supernodal.c`
+- keep in the main file initially:
+  - lifecycle/conversion entry points
+  - scalar workspace/native elimination/solve core
+  - wrapper/dispatch glue
+  - `chol_csc_writeback_to_sparse(...)`
+  - shared dense LDLT primitive helpers
+
+## Day 6 Close
+
+Sprint 56 now has a concrete Cholesky CSC decomposition map:
+
+- named ownership bands
+- a ranked extraction order
+- an explicit first target centered on the full Cholesky-owned supernodal
+  backend
+- a clear family-difference boundary versus the landed LDLT split
+
+That is enough to move to the next Sprint 56 Cholesky design/implementation
+step without leaving the first Cholesky batch boundary ambiguous.

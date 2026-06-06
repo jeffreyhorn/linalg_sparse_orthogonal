@@ -1198,3 +1198,95 @@ Sprint 57 now has an explicit first solver-family refactor boundary:
 
 That leaves Day 8 with a concrete implementation boundary instead of a generic
 "refactor one of the big solver tests" instruction.
+
+## Sprint 57 Day 8 - solver-family test refactor batch 1
+
+Date: 2026-06-06 18:09:02 CDT
+Branch: `sprint-57`
+
+### Goal
+
+Land the first bounded solver-family giant-test refactor by extracting the
+partial-SVD proof family out of `tests/test_svd.c` into the Day 7-selected
+build-neutral local helper seam, while keeping the `test_svd` binary shape and
+proof meaning intact.
+
+### Implementation
+
+Touched files:
+
+- `tests/test_svd.c`
+- `tests/test_svd_partial_helpers.h`
+
+Landed boundary:
+
+- `tests/test_svd.c` now includes `tests/test_svd_partial_helpers.h`
+- the extracted owned seam is the partial-SVD family:
+  - `test_partial_svd_*`
+  - `test_partial_svd_vectors_*`
+- `main()` and the current `RUN_TEST(...)` ordering remain in
+  `tests/test_svd.c`
+- no `Makefile` / `CMakeLists.txt` changes were needed
+
+Measured ownership reduction:
+
+- `tests/test_svd.c`: `3746 -> 2766`
+- new `tests/test_svd_partial_helpers.h`: `915`
+
+### Validation
+
+Required gate:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Reviewed baseline:
+
+- `make quality-review-full`
+
+Passed with maintained anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 225.66 sec`
+
+Focused SVD follow-ons:
+
+- `./build/test_svd` -> `97 / 97`
+- `./build/test_sprint8_integration` -> `7 / 7`
+- `./build/bench_svd`
+- `./build/example_svd_lowrank`
+
+Representative retained outputs:
+
+- `bench_svd`
+  - `nos4` partial/full = `2.1x`
+  - `west0067` partial/full = `2.2x`
+  - `bcsstk04` partial/full = `1.5x`
+  - `steam1` partial/full = `11.3x`
+  - `orsirr_1` partial/full = `236.2x`
+- `example_svd_lowrank`
+  - sparse low-rank `k=2`: `22 -> 6` nnz
+  - compression = `3.7x`
+
+### Day 8 result
+
+The first solver-family refactor landed cleanly and stayed inside the Day 7
+fence:
+
+- build-neutral include seam
+- same `test_svd` binary shape
+- same `main()` ownership
+- same `RUN_TEST(...)` ordering
+- no SVD behavior, fixture, or caller-surface drift
+
+This leaves Sprint 57 with a real solver-family ownership reduction instead of
+just a design note:
+
+- `tests/test_svd.c` is no longer the largest untouched solver-family proof
+  surface by the same margin
+- the partial-SVD backend/vector proof family is now an explicit owned seam

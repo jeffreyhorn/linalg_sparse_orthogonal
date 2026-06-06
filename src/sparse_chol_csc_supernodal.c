@@ -1,3 +1,4 @@
+#include "sparse_alloc_internal.h"
 #include "sparse_chol_csc_internal.h"
 
 #include <math.h>
@@ -172,9 +173,10 @@ sparse_err_t chol_csc_eliminate_supernodal(CholCsc *csc, idx_t min_size) {
     if (n == 0)
         return SPARSE_OK;
 
-    idx_t *starts = malloc((size_t)n * sizeof(idx_t));
-    idx_t *sizes = malloc((size_t)n * sizeof(idx_t));
-    if (!starts || !sizes) {
+    idx_t *starts = NULL;
+    idx_t *sizes = NULL;
+    if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&starts) != SPARSE_OK ||
+        sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&sizes) != SPARSE_OK) {
         free(starts);
         free(sizes);
         return SPARSE_ERR_ALLOC;

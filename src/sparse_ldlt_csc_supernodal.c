@@ -107,10 +107,10 @@ sparse_err_t ldlt_csc_supernode_writeback(LdltCsc *F, idx_t s_start, idx_t s_siz
      *     second) — robust against adjacent 2x2 pairs where
      *     pivot_size_block alone is ambiguous.
      *
-     * Storing thresholds on the stack works because s_size is bounded
-     * by SPARSE_MAX_SUPERNODE (set elsewhere); for general n we'd
-     * need a heap allocation, but supernodes are sized for cache
-     * efficiency well below that bound. */
+     * Thresholds are allocated on the heap with an explicit overflow
+     * guard. Supernodes are still bounded for cache efficiency, but the
+     * heap allocation keeps this helper from depending on large
+     * stack-resident scratch storage. */
     if ((size_t)s_size > SIZE_MAX / sizeof(double))
         return SPARSE_ERR_ALLOC;
     double *thresholds = malloc((size_t)s_size * sizeof(double));

@@ -1290,3 +1290,112 @@ just a design note:
 - `tests/test_svd.c` is no longer the largest untouched solver-family proof
   surface by the same margin
 - the partial-SVD backend/vector proof family is now an explicit owned seam
+
+## Sprint 57 Day 9 - solver-family test refactor batch 2
+
+Date: 2026-06-06 18:25:49 CDT
+Branch: `sprint-57`
+
+### Goal
+
+Land the second bounded solver-family maintainability improvement by extracting
+the public repeated-run iterative handle proof cluster out of
+`tests/test_iterative.c`, keeping the `test_iterative` binary shape, proof
+meaning, and support-boundary coverage intact.
+
+### Re-audit result
+
+Post-Day-8 solver-family shape:
+
+- `tests/test_svd.c` is materially smaller and now reads as intentionally
+  proof-dense rather than helper-dense
+- `tests/test_iterative.c` remains the strongest next solver-family seam
+  because its repeated-run public-handle cluster is contiguous and
+  behaviorally cohesive
+- `tests/test_qr.c` remains intentionally deferred
+
+Selected Day 9 seam:
+
+- `tests/test_iterative.c`
+- public repeated-run handle proof cluster:
+  - `test_cg_public_handle_validation_reuse_and_on_demand`
+  - `test_gmres_public_handle_prepare_reuse_and_growth`
+  - `test_minres_public_handle_prepare_reuse_and_growth`
+
+### Implementation
+
+Touched files:
+
+- `tests/test_iterative.c`
+- `tests/test_iterative_handle_helpers.h`
+
+Landed boundary:
+
+- `tests/test_iterative.c` now includes
+  `tests/test_iterative_handle_helpers.h`
+- the extracted owned seam is exactly the public repeated-run handle family
+- `main()` and current `RUN_TEST(...)` ordering remain in
+  `tests/test_iterative.c`
+- no `Makefile` / `CMakeLists.txt` changes were needed
+
+Measured ownership reduction:
+
+- `tests/test_iterative.c`: `2993 -> 2802`
+- new `tests/test_iterative_handle_helpers.h`: `197`
+
+### Validation
+
+Required gate:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Focused iterative follow-ons:
+
+- `./build/test_iterative` -> `79 / 79`
+- `./build/test_minres` -> `43 / 43`
+- `./build/bench_iterative_reuse`
+- `./build/example_ic_minres`
+
+Representative retained outputs:
+
+- `bench_iterative_reuse`
+  - `cg-tridiag-300` = `1.08x`
+  - `gmres-unsym-220` = `1.11x`
+  - `minres-kkt-42` = `1.27x`
+- `example_ic_minres`
+  - `MINRES` on KKT `42x42` = `39` iterations
+  - `Jacobi-MINRES` = `26` iterations
+  - speedup = `1.5x`
+
+Reviewed baseline:
+
+- `make quality-review-full`
+
+Passed with maintained anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 207.54 sec`
+
+### Day 9 result
+
+The second solver-family batch stayed inside the Day 7-9 fence:
+
+- build-neutral include seam
+- same `test_iterative` binary shape
+- same `main()` ownership
+- same `RUN_TEST(...)` ordering
+- no repeated-run support-boundary drift
+
+Intentionally deferred remaining density:
+
+- the larger CG / GMRES / matrix-free proof surface in `tests/test_iterative.c`
+  now reads as intentionally dense coverage rather than an obvious next helper
+  clutter seam
+- `tests/test_qr.c` remains deferred unless a later sprint needs broader
+  solver-family proof cleanup

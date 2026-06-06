@@ -731,3 +731,151 @@ Sprint 57 now has an exact first direct-solver test landing boundary:
   ownership clutter
 
 That gives Day 5 a precise, build-neutral, maintainability-first landing plan.
+
+---
+
+# Day 5 - direct-solver test refactor batch 1
+
+## Summary
+
+Landed the first bounded Sprint 57 direct-solver giant-test refactor by
+extracting the `test_chol_csc.c` supernodal family's local helper seam into a
+new build-neutral helper header while keeping the test binary, `main()`, and
+`RUN_TEST(...)` ordering stable.
+
+## Goals
+
+- execute the Day 4 helper-header extraction plan exactly
+- reduce local ownership clutter in `tests/test_chol_csc.c` without changing
+  proof meaning
+- preserve the existing `test_chol_csc` binary shape and fixture coverage
+- validate the batch with the required code-day gate plus the stronger reviewed
+  baseline
+
+## Implementation Notes
+
+### 1. The selected helper seam moved into a new local header
+
+Created:
+
+- `tests/test_chol_csc_supernodal_helpers.h`
+
+Moved the family-local helper layer into it:
+
+- `detect_supernodes_alloc(...)`
+- `day8_count_supernodes(...)`
+- `day9_assert_batched_matches_scalar(...)`
+- `day11_build_spd(...)`
+
+Interpretation:
+
+- this is the exact helper seam chosen on Day 4
+- the moved functions are meaningful only for the supernodal / writeback /
+  dispatch proof family
+- the helper header stays local to `test_chol_csc.c` rather than widening into
+  a generic CSC test utility surface
+
+### 2. `test_chol_csc.c` kept the proof bodies and runner shape
+
+Retained in `tests/test_chol_csc.c`:
+
+- all existing test bodies
+- `main()`
+- current grouped `RUN_TEST(...)` ordering
+- the existing supernodal / writeback / dispatch proof surfaces themselves
+
+Only structural changes in the main file:
+
+- added a forward declaration for `day8_chol_csc_match(...)` so the new helper
+  header can use the existing family-local comparator without reordering the
+  test file
+- added the new helper-header include
+- removed the in-file bodies of the extracted helpers
+
+Interpretation:
+
+- the landing stayed build-neutral
+- the batch changed ownership/readability, not proof topology
+
+### 3. The first batch stayed inside the non-goal fence
+
+Did not change:
+
+- `Makefile`
+- `CMakeLists.txt`
+- `tests/test_ldlt_csc.c`
+- `tests/test_integration.c`
+- `tests/test_solver_helpers.h`
+- test names, residual thresholds, or fixture coverage
+
+This matters because the first Sprint 57 direct-test batch was supposed to
+prove that a local ownership seam could land cleanly before any broader
+test-topology or cross-family helper redesign.
+
+## Resulting Ownership State
+
+Touched files:
+
+- `tests/test_chol_csc.c`
+- `tests/test_chol_csc_supernodal_helpers.h`
+
+Current measured sizes:
+
+- `tests/test_chol_csc.c` = `4552` lines
+- `tests/test_chol_csc_supernodal_helpers.h` = `96` lines
+
+Net effect:
+
+- the largest direct-solver giant test now has a real owned helper seam for
+  the highest-value supernodal family
+- the first Sprint 57 landing reduced main-file helper clutter without
+  fragmenting the test binary
+
+## Validation
+
+Required code-day gate:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Stronger reviewed baseline:
+
+- `make quality-review-full`
+
+Passed.
+
+Maintained reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 266.18 sec`
+
+Focused touched-surface reruns:
+
+- `./build/test_chol_csc` -> `137 / 137`
+- `./build/test_integration` -> `37 / 37`
+- `./build/test_cholesky` -> `21 / 21`
+- `./build/example_analysis` -> residual `4.44e-16`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `speedup_refactor = 1.11x`
+  - `res_public = 8.24e-16`
+  - `res_csc = 7.06e-16`
+
+## Day 5 Conclusion
+
+Sprint 57 now has its first landed direct-solver giant-test maintainability
+batch:
+
+- the target stayed `tests/test_chol_csc.c`
+- the chosen Day 4 seam landed exactly as
+  `tests/test_chol_csc_supernodal_helpers.h`
+- the `test_chol_csc` binary shape and proof meaning stayed intact
+- the required quality gate and the stronger reviewed baseline both passed
+
+This gives Day 6 a cleaner base for deciding whether the next direct-solver
+giant-test step should stay within Cholesky CSC or shift to the next highest
+value proof surface.

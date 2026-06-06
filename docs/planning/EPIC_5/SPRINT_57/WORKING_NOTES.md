@@ -374,3 +374,183 @@ Sprint 57 now has an explicit validation boundary:
 
 That is enough to move to the Day 3 direct-solver giant-test audit without any
 remaining ambiguity around validation expectations.
+
+## Day 3
+
+**Objective:** Reduce the strongest direct-solver giant tests to a concrete
+helper and proof-group extraction map by separating the live ownership bands,
+ranking the real bounded seam options, and fixing the strongest first refactor
+target before any code movement begins.
+
+### Commands Run
+
+1. Re-read the Sprint 57 Day 3 plan item and current sprint notes:
+   - `sed -n '130,180p' docs/planning/EPIC_5/SPRINT_57/PLAN.md`
+   - `sed -n '1,520p' docs/planning/EPIC_5/SPRINT_57/WORKING_NOTES.md`
+2. Inventory the helper/test function map for the direct-solver giant tests:
+   - `python3 - <<'PY' ... test_chol_csc.c / test_ldlt_csc.c / test_integration.c ... PY`
+3. Inspect the live section/comment boundaries inside those tests:
+   - `python3 - <<'PY' ... section/comment scan ... PY`
+4. Inspect the runner ordering and grouped `RUN_TEST(...)` blocks:
+   - `rg -n "RUN_TEST|main\\(" tests/test_chol_csc.c tests/test_ldlt_csc.c tests/test_integration.c`
+   - `sed -n '4300,4475p' tests/test_chol_csc.c`
+   - `sed -n '3520,3695p' tests/test_ldlt_csc.c`
+   - `sed -n '1720,1815p' tests/test_integration.c`
+5. Re-read the top-of-file ownership/comments and the existing shared
+   test-helper seam:
+   - `ls tests`
+   - `sed -n '1,260p' tests/test_solver_helpers.h`
+   - `sed -n '1,120p' tests/test_chol_csc.c`
+   - `sed -n '1,120p' tests/test_ldlt_csc.c`
+   - `sed -n '1,120p' tests/test_integration.c`
+6. Measure rough helper density in the two CSC giant tests:
+   - `python3 - <<'PY' ... helper/assert count ... PY`
+
+### Day 3 Findings
+
+#### 1. The direct-solver giant-test problem reduces cleanly to three different seam shapes, not one generic “big test” pattern
+
+The three target files have materially different ownership shapes:
+
+- `tests/test_chol_csc.c`
+  - broad CSC-family proof binary with:
+    - alloc/grow/roundtrip/perm/validate scaffolding
+    - scalar elimination and solve groups
+    - supernodal detection/elimination/writeback clusters
+    - dispatch and compatibility tail
+- `tests/test_ldlt_csc.c`
+  - broad CSC-family proof binary with:
+    - alloc/row-adjacency/from-sparse scaffolding
+    - analysis-aware repeated-run groups
+    - supernodal indefinite groups
+    - native-kernel / symmetric-swap / solve groups
+- `tests/test_integration.c`
+  - smaller cross-family caller-story binary with:
+    - baseline LU workflows
+    - progress/cancel coverage
+    - public direct lifecycle proof
+    - repeated-run mismatch/failure-preservation proof
+    - iterative/eigensolver progress coverage tail
+
+Interpretation:
+
+- Sprint 57 should not treat all three files as needing the same refactor move
+- the CSC family binaries are the real giant-test ownership problem
+- `test_integration.c` is mainly a proof-group clarity and later lifecycle
+  coverage surface, not the best first extraction target
+
+#### 2. `test_chol_csc.c` is the strongest first refactor target because its largest proof cluster is both contiguous and behaviorally cohesive
+
+The live `test_chol_csc.c` structure already separates into named bands:
+
+- low-risk foundational scaffolding:
+  - alloc/grow: `39-154`
+  - conversion/roundtrip/permutation/analysis/validate: `155-1012`
+  - workspace/scalar elimination/solve: `1013-1997`
+- high-mass supernodal and CSC-dispatch cluster:
+  - detect-supernodes and postorder: `1998-2515`
+  - dense helper and supernodal elimination cross-checks: `2529-3996`
+  - writeback and dispatch tail: `4120-4455`
+
+The file also carries `137` test functions with only about `12` helper/assert
+functions, which means the main maintainability pain is not “too many generic
+helpers”; it is that too many related supernodal proof groups still live in one
+translation unit.
+
+Interpretation:
+
+- the strongest first landing should follow the supernodal / dispatch proof
+  boundary, not a generic helper-only cleanup
+- `test_chol_csc.c` is large enough that a bounded first split can improve
+  reviewability materially without scattering unrelated scalar-path proof
+
+#### 3. `test_ldlt_csc.c` is the strongest second target because it already has clear family-local clusters but a denser helper/fixture seam
+
+The live `test_ldlt_csc.c` structure already separates into named bands:
+
+- alloc/row-adjacency and conversion scaffolding: `1-1274`
+- analysis-aware repeated-run and supernodal indefinite groups: `1275-1707`
+- scalar/native elimination and native-kernel groups: `1784-3166`
+- solve / inertia / singularity groups: `3177-3523`
+
+Compared with Cholesky, LDLT has more local helper and fixture density:
+
+- `96` test functions
+- about `19` helper/assert/builder functions
+
+Interpretation:
+
+- `test_ldlt_csc.c` is a good second refactor target because it has both:
+  - a real giant-file problem
+  - a clearer local helper/builder seam than `test_chol_csc.c`
+- it is not the best first target because its proof surface mixes more native,
+  swap, supernodal, and analysis-aware indefinite ownership in one family
+
+#### 4. `test_integration.c` should stay mostly intact during the first direct-test batch
+
+The live `test_integration.c` structure is already much smaller and more
+caller-shaped:
+
+- baseline LU workflows: `20-384`
+- progress/cancel plus explicit-analysis/direct-lifecycle groups: `385-1495`
+- QR / iterative / eigensolver progress tail: `1502-1800`
+
+Interpretation:
+
+- the direct lifecycle and factor-many tests inside `test_integration.c` are
+  already grouped contiguously enough to support later additive coverage
+  without making Day 5’s first refactor depend on an integration-file split
+- mechanically splitting `test_integration.c` early would risk scattering the
+  strongest cross-family caller-story surface without meaningfully reducing the
+  largest direct-solver maintenance pain
+
+#### 5. The existing shared helper seam should be extended cautiously, not turned into a generic test framework
+
+The live shared helper layer is still intentionally narrow:
+
+- `tests/test_solver_helpers.h`
+  - L2 residual helpers for solver/integration tests
+
+Interpretation:
+
+- Sprint 57 should extend shared helpers only where they clearly support
+  repeated direct-solver proof without creating a broad generic framework
+- the first direct-test refactor should prefer:
+  - family-local helper extraction
+  - behavior-cluster separation
+  over pushing many CSC-specific details into a global shared test header
+
+#### 6. The first refactor target should be chosen by proof ownership clarity, not only by line count
+
+Ranked candidate landing order after audit:
+
+1. `tests/test_chol_csc.c`
+   - first target: supernodal / writeback / dispatch proof cluster
+2. `tests/test_ldlt_csc.c`
+   - second target: analysis-aware supernodal / native-kernel family seam
+3. `tests/test_integration.c`
+   - later target only if lifecycle expansion proves a small helper boundary is
+     worth it
+
+Rejected as the first move:
+
+- purely mechanical “extract generic asserts first” cleanup
+  - too low-impact on reviewability
+- early `test_integration.c` split
+  - too much cross-family caller-story scattering for too little giant-file
+    relief
+
+## Day 3 Close
+
+Sprint 57's direct-solver giant-test problem is now reduced to concrete seam
+classes and a ranked landing order:
+
+- `test_chol_csc.c` is the strongest first refactor target
+- `test_ldlt_csc.c` is the strongest second target
+- `test_integration.c` should stay mostly intact during the first direct-test
+  batch
+- the first landing should follow a real supernodal/direct-proof boundary, not
+  a generic helper-only cleanup
+
+That is enough to move to the Day 4 direct-solver test refactor design without
+any remaining ambiguity around the first bounded target.

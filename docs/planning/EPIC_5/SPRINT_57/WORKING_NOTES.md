@@ -1015,3 +1015,186 @@ Day 5 materially changed the direct-test queue:
 
 That means Sprint 57 can pivot cleanly to Day 7's solver-family giant-test
 audit without leaving the direct-test queue ambiguous.
+
+---
+
+# Day 7 - solver-family giant-test audit and design
+
+## Summary
+
+Reduced the iterative/eigensolver giant-test queue to explicit seam classes and
+froze the first bounded solver-family refactor boundary. The strongest first
+target is now `tests/test_svd.c`, not `tests/test_iterative.c` or
+`tests/test_qr.c`, because it combines the largest remaining line count with
+the cleanest backend-owned family split.
+
+## Goals
+
+- reduce the remaining solver-family giant-test problem to named seams
+- rank the iterative/eigensolver candidate targets by real maintainability
+  value rather than line count alone
+- select the first bounded solver-family refactor target
+- define the exact first ownership boundary before Day 8 code movement
+
+## Audit Findings
+
+### 1. Live solver-family hotspot ranking
+
+Current sizes:
+
+- `tests/test_svd.c` = `3746`
+- `tests/test_qr.c` = `3197`
+- `tests/test_iterative.c` = `2993`
+
+The highest-value Sprint 57 solver-family targets remain real giant tests, but
+their maintainability shapes are not equivalent.
+
+### 2. `test_iterative.c` is large, but already centered on a shared front-door model
+
+`tests/test_iterative.c` currently groups around one public repeated-run
+surface with adjacent one-shot and matrix-free variants:
+
+- CG baseline and preconditioned proof
+- GMRES baseline and restart/preconditioning proof
+- right-preconditioning proof
+- matrix-free CG/GMRES proof
+- public-handle repeated-run proof for:
+  - CG
+  - GMRES
+  - MINRES
+
+Maintainability conclusion:
+
+- the file is large, but its density is dominated by solver-behavior proof
+  rather than a large accidental helper seam
+- the strongest remaining local helpers are generic matrix builders and
+  callback/preconditioner shims
+- extracting those first would buy less clarity than the comparable move in
+  `test_svd.c`
+
+### 3. `test_qr.c` is broad, but its helper layer is already consolidated
+
+`tests/test_qr.c` has a wide proof surface:
+
+- basic Householder / reconstruction
+- least-squares solve
+- SuiteSparse validation
+- rank / null-space
+- economy mode
+- sparse-mode
+- refinement
+
+But the file already centralizes its cross-cutting helpers near the top:
+
+- reconstruction-error helpers
+- true-residual helpers
+- sparse-vs-dense comparison helpers
+
+Maintainability conclusion:
+
+- `test_qr.c` is still large, but it is already closer to a consciously dense
+  proof file than to a cluttered helper file
+- a first Sprint 57 solver-family move here would likely become a mechanical
+  split rather than a high-value ownership improvement
+
+### 4. `test_svd.c` has the cleanest backend-owned seam
+
+`tests/test_svd.c` is the strongest first target because it separates into
+large, behaviorally cohesive families:
+
+- Golub-Kahan extraction / validation
+- bidiagonal / full-SVD convergence and driver proof
+- partial-SVD backend proof
+- partial-SVD vector proof
+- low-rank / pseudoinverse / condition-number applications
+- Sprint 29 outer-product / full-mode follow-through
+
+The most compelling first owned slice is the partial-SVD family:
+
+- partial-SVD backend proof (`Day 11-12` groups)
+- partial-SVD vector proof (`Sprint 9 Day 4-5` groups)
+
+This family is attractive because:
+
+- it is large and contiguous
+- it is backend-specific rather than truly generic
+- it already carries its own local proof identity
+- it can be separated without reopening the top-level `test_svd` binary shape
+
+## Ranked Solver-Family Target Order
+
+1. `tests/test_svd.c`
+   - first target
+   - strongest backend-owned seam
+2. `tests/test_iterative.c`
+   - second target if Sprint 57 still needs another solver-family test batch
+3. `tests/test_qr.c`
+   - intentionally deferred unless a later sprint needs broader QR proof
+     normalization
+
+## Selected First Refactor Boundary
+
+### Target file
+
+- `tests/test_svd.c`
+
+### First owned seam
+
+- the partial-SVD family, spanning:
+  - partial-SVD backend proof
+  - partial-SVD vector proof
+
+### Recommended new local helper/proof file
+
+- `tests/test_svd_partial_helpers.h`
+
+The first Sprint 57 solver-family landing should stay build-neutral and use an
+include-style local helper/proof seam, not a new test target.
+
+## Exact Day 8 landing fence
+
+### Move into `tests/test_svd_partial_helpers.h`
+
+- partial-SVD-family local helpers and any narrow support code used only by:
+  - `test_partial_svd_*`
+  - `test_partial_svd_vectors_*`
+
+### Keep in `tests/test_svd.c`
+
+- Golub-Kahan extraction / validation groups
+- bidiagonal and full-SVD driver groups
+- low-rank / pseudoinverse / condition-number groups
+- Sprint 29 outer-product and full-mode follow-through
+- `main()` and current `RUN_TEST(...)` order
+
+## Preserved invariants
+
+Day 8 must preserve:
+
+- the `test_svd` binary shape
+- `main()` ownership in `tests/test_svd.c`
+- test names and their current proof meaning
+- low-rank / full-mode / partial-SVD output truthfulness
+- corpus fixture coverage, especially:
+  - `nos4`
+  - `west0067`
+  - `bcsstk04`
+  - `steam1`
+  - `orsirr_1`
+
+This is a maintainability move, not an SVD behavior change.
+
+## Day 7 Conclusion
+
+Sprint 57 now has an explicit first solver-family refactor boundary:
+
+- first target:
+  - `tests/test_svd.c`
+- first owned seam:
+  - the partial-SVD family
+- preferred Day 8 landing:
+  - a build-neutral local include seam in
+    `tests/test_svd_partial_helpers.h`
+
+That leaves Day 8 with a concrete implementation boundary instead of a generic
+"refactor one of the big solver tests" instruction.

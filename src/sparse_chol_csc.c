@@ -2,122 +2,29 @@
  * @file sparse_chol_csc.c
  * @brief CSC working-format numeric backend for Cholesky factorization.
  *
- * ─── Why CSC over the linked-list Cholesky ────────────────────────────
+ * This backend keeps the Cholesky factor in column-oriented CSC storage
+ * because both the scalar `cmod` / `cdiv` updates and the triangular solves
+ * are naturally column sweeps. Compared with the linked-list
+ * `SparseMatrix` path, the CSC layout replaces pointer chasing and per-entry
+ * fill allocation with contiguous row/value arrays plus a dense
+ * scatter-gather workspace.
  *
- * The library's original Cholesky kernel (`src/sparse_cholesky.c`)
- * factors A = L·L^T in place on the linked-list `SparseMatrix`.  Each
- * column update walks a sorted linked list of row nodes, chasing
- * pointers; each fill-in insertion allocates a new node from the slab
- * pool and re-links it into both the row and column chains.  For
- * structural matrices where L has significant fill, the pointer
- * chasing and node allocation dominate the runtime.
+ * The file owns:
  *
- * This file ships the Sprint 17 answer: a *column-oriented CSC working
- * format* that mirrors Sprint 10's CSR-for-LU strategy but uses
- * column storage because Cholesky's inner loop (`cmod` / `cdiv`) is
- * fundamentally column-by-column.  Contiguous `row_idx` / `values`
- * arrays replace node-chasing with sequential loads, and the dense
- * scatter-gather workspace absorbs fill-in without per-entry
- * allocation.
+ * - CSC lifecycle and validation helpers
+ * - linked-list ↔ CSC conversion and writeback
+ * - the scalar numeric elimination and solve path
+ * - backend dispatch and compatibility shims
  *
- * Measured on SuiteSparse SPD matrices (3-repeat `make bench` runs,
- * one-shot factor with AMD reorder inside the timed region on every
- * path — apples-to-apples comparison with
- * sparse_cholesky_factor_opts(..., AMD), which Sprint 18 Day 11
- * transparently dispatches to the CSC supernodal kernel whenever
- * n >= SPARSE_CSC_THRESHOLD):
- *   nos4         (n=100)     →  1.09× scalar / 1.22× supernodal
- *   bcsstk04     (n=132)     →  1.16× scalar / 1.01× supernodal
- *   bcsstk14     (n=1806)    →  1.74× scalar / 2.38× supernodal
- *   s3rmt3m3     (n=5357)    →  2.10× scalar / 3.41× supernodal
- *   Kuu          (n=7102)    →  0.77× scalar / 2.22× supernodal
- *   Pres_Poisson (n=14822)   →  2.61× scalar / 4.35× supernodal
+ * The supernodal batched backend lives beside this file in
+ * `src/sparse_chol_csc_supernodal.c`. The two paths share the same storage
+ * invariants and can be selected transparently by the higher-level Cholesky
+ * API.
  *
- * Residuals match the linked-list path to double-precision round-off.
- * The analyze-once / factor-many workflow (sparse_analyze +
- * sparse_factor_numeric, Sprint 14) amortizes AMD across many
- * numeric refactorizations of the same pattern, so callers repeatedly
- * refactoring with the same structure should see a larger speedup
- * than these one-shot numbers.
- *
- * ─── cdiv / cmod walked end-to-end on a tiny example ─────────────────
- *
- * For A = [[4, 2],          L = [[2, 0],
- *          [2, 5]],              [1, 2]]
- *
- * Column 0:
- *   1. scatter column 0 of A → dense_col = {0: 4, 1: 2}
- *      pattern = [0, 1]
- *   2. cmod: no prior columns, skip.
- *   3. cdiv: L[0,0] = sqrt(dense_col[0]) = sqrt(4) = 2
- *            dense_col[1] /= 2  →  dense_col[1] = 1
- *   4. gather: write dense_col[0..1] back to column 0's CSC slot:
- *      col 0 row 0 = 2, col 0 row 1 = 1.
- *
- * Column 1:
- *   1. scatter column 1 of A → dense_col = {1: 5}
- *      pattern = [1]
- *   2. cmod from k = 0: L[1, 0] = 1 (present in column 0). The
- *      contribution is L[i, 0] · L[1, 0] for every stored row i ≥ 1
- *      of column 0. The only such i is 1, so:
- *        dense_col[1] -= L[1, 0] · L[1, 0] = 1 · 1 = 1
- *        dense_col[1] = 5 - 1 = 4
- *   3. cdiv: L[1,1] = sqrt(4) = 2.
- *   4. gather: col 1 row 1 = 2.
- *
- * The resulting CSC stores L = [[2, 0], [1, 2]], which satisfies
- * L·L^T = A exactly.
- *
- * ─── Supernodal extension ────────────────────────────────────────────
- *
- * For well-structured SPD matrices, groups of adjacent columns often
- * share the same below-diagonal pattern.  Those *fundamental
- * supernodes* (Liu, Ng, Peyton) factor as a single dense Cholesky on
- * the diagonal block plus a dense triangular solve for the panel
- * below — replacing s scalar cdivs with one dense factor.
- *
- * `chol_csc_detect_supernodes` identifies supernodes directly on the
- * sorted CSC arrays (three O(nnz(column)) conditions per pair).
- * `chol_csc_eliminate_supernodal` is the entry point and runs the
- * batched path in four steps:
- *
- *   `chol_csc_supernode_extract` / `_writeback`  — scatter the
- *     supernode's CSC entries into a dense column-major buffer and
- *     gather the factored values back.
- *   `chol_csc_supernode_eliminate_diag`          — apply left-looking
- *     external cmod from prior columns and run `chol_dense_factor` on
- *     the s_size × s_size diagonal slab.
- *   `chol_csc_supernode_eliminate_panel`         — forward-substitute
- *     each panel row against the factored diagonal (row-by-row
- *     `chol_dense_solve_lower`), producing the below-supernode L
- *     entries.
- *
- * `chol_csc_eliminate_supernodal` interleaves the batched path for
- * detected supernodes with the scalar scatter → cmod → cdiv → gather
- * loop for every other column, so matrices with mixed structure see
- * the dense speedup on their fundamental supernodes without losing
- * the scalar kernel's correctness on the remainder.
- *
- * ─── Role of Sprint 14 symbolic analysis ──────────────────────────────
- *
- * `sparse_analyze` (Sprint 14) computes the exact symbolic structure
- * of L via the elimination tree and column counts.
- * `chol_csc_from_sparse_with_analysis` materialises that full sym_L
- * pattern up front: every (row, column) position that can be non-
- * zero in L after elimination gets a pre-allocated slot, with A's
- * entries placed at matching positions and fill slots initialised to
- * zero.  This is load-bearing for the supernodal path — the batched
- * extract reads `col_ptr[j+1] - col_ptr[j]` as the supernode's panel
- * height and requires every fill row to be present.
- *
- * Without analysis, `chol_csc_from_sparse` uses a `fill_factor`-
- * multiplier over A's lower-triangle nnz and relies on the scalar
- * kernel's `shift_columns_right_of` to extend columns as fill is
- * discovered.  That path is still correct for scalar eliminate but
- * is *not* safe to drive the supernodal extract on matrices with
- * non-trivial fill — callers that want the batched path must start
- * from `_with_analysis` (which `sparse_cholesky_factor_opts` does
- * internally under the Day 11 dispatch).
+ * Symbolic analysis matters because the batched supernodal path needs the
+ * full structural `sym_L` pattern up front. `chol_csc_from_sparse_with_analysis`
+ * materialises that exact pattern, while `chol_csc_from_sparse` keeps the
+ * heuristic growth path for the scalar kernel.
  */
 
 #include "sparse_analysis_internal.h"
@@ -760,16 +667,23 @@ sparse_err_t chol_csc_workspace_alloc(idx_t n, CholCscWorkspace **out) {
  * end (out-of-range) when not present.  Uses a standard lower_bound-style
  * search on the sorted row_idx slice. */
 static idx_t bsearch_row(const idx_t *row_idx, idx_t start, idx_t end, idx_t target) {
-    idx_t lo = start;
-    idx_t hi = end;
+    if (start >= end)
+        return end;
+
+    const idx_t *slice = row_idx + start;
+    idx_t count = end - start;
+    idx_t lo = 0;
+    idx_t hi = count;
     while (lo < hi) {
         idx_t mid = lo + (hi - lo) / 2;
-        if (row_idx[mid] < target)
+        if (slice[mid] < target)
             lo = mid + 1;
         else
             hi = mid;
     }
-    return (lo < end && row_idx[lo] == target) ? lo : end;
+    if (lo >= count)
+        return end;
+    return (slice[lo] == target) ? (start + lo) : end;
 }
 
 /* ─── Scatter / cmod / cdiv / gather / end_column ─────────────────── */
@@ -777,9 +691,15 @@ static idx_t bsearch_row(const idx_t *row_idx, idx_t start, idx_t end, idx_t tar
 void chol_csc_scatter(const CholCsc *csc, idx_t j, CholCscWorkspace *ws) {
     idx_t start = csc->col_ptr[j];
     idx_t end = csc->col_ptr[j + 1];
-    for (idx_t p = start; p < end; p++) {
-        idx_t i = csc->row_idx[p];
-        ws->dense_col[i] = csc->values[p];
+    if (start >= end)
+        return;
+
+    const idx_t *rows = csc->row_idx + start;
+    const double *values = csc->values + start;
+    idx_t count = end - start;
+    for (idx_t p = 0; p < count; p++) {
+        idx_t i = rows[p];
+        ws->dense_col[i] = values[p];
         if (!ws->dense_marker[i]) {
             ws->dense_marker[i] = 1;
             ws->dense_pattern[ws->pattern_count++] = i;
@@ -995,12 +915,19 @@ sparse_err_t chol_csc_gather(CholCsc *csc, idx_t j, CholCscWorkspace *ws, double
          * any pre-populated position whose accumulator is below
          * threshold (drop-tol) or untouched (fill row that did not
          * collect a cmod contribution). */
-        for (idx_t p = csc->col_ptr[j]; p < csc->col_ptr[j + 1]; p++) {
-            idx_t i = csc->row_idx[p];
+        idx_t start = csc->col_ptr[j];
+        idx_t end = csc->col_ptr[j + 1];
+        if (start >= end)
+            return SPARSE_OK;
+        const idx_t *rows = csc->row_idx + start;
+        double *values = csc->values + start;
+        idx_t count = end - start;
+        for (idx_t p = 0; p < count; p++) {
+            idx_t i = rows[p];
             double v = ws->dense_col[i];
             if (i != j && fabs(v) < threshold)
                 v = 0.0;
-            csc->values[p] = v;
+            values[p] = v;
         }
         return SPARSE_OK;
     }
@@ -1211,154 +1138,6 @@ sparse_err_t chol_csc_factor_solve(const SparseMatrix *A, const sparse_analysis_
 
     chol_csc_free(L);
     return err;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
- * Day 10: Fundamental supernode detection
- * ═══════════════════════════════════════════════════════════════════════ */
-
-/* Return 1 iff columns `prev` and `curr = prev + 1` belong to the same
- * fundamental supernode of L.  See the header's design block for the
- * three conditions; all three run in O(nnz(column prev)) on sorted
- * CSC storage. */
-static int columns_in_same_supernode(const CholCsc *L, idx_t prev) {
-    idx_t curr = prev + 1;
-    idx_t prev_start = L->col_ptr[prev];
-    idx_t prev_end = L->col_ptr[prev + 1];
-    idx_t curr_start = L->col_ptr[curr];
-    idx_t curr_end = L->col_ptr[curr + 1];
-
-    idx_t prev_size = prev_end - prev_start;
-    idx_t curr_size = curr_end - curr_start;
-
-    /* Condition 1: column prev has at least the diagonal plus one
-     * sub-diagonal entry, and that sub-diagonal is exactly row `curr`
-     * (i.e., L[curr, prev] != 0 and is the first stored below-diag
-     * entry of column prev). */
-    if (prev_size < 2)
-        return 0;
-    if (L->row_idx[prev_start + 1] != curr)
-        return 0;
-
-    /* Condition 2: column curr has exactly one fewer stored entry. */
-    if (curr_size != prev_size - 1)
-        return 0;
-
-    /* Condition 3: rows after curr's diagonal match rows after prev's
-     * first sub-diagonal, 1-for-1.  prev_start + 0 is prev's diagonal
-     * (row = prev), prev_start + 1 is row = curr; so prev's remaining
-     * rows start at prev_start + 2.  curr's diagonal is at curr_start
-     * (row = curr); its remaining rows start at curr_start + 1. */
-    idx_t tail_len = curr_size - 1;
-    for (idx_t t = 0; t < tail_len; t++) {
-        if (L->row_idx[curr_start + 1 + t] != L->row_idx[prev_start + 2 + t])
-            return 0;
-    }
-    return 1;
-}
-
-sparse_err_t chol_csc_detect_supernodes(const CholCsc *L, idx_t min_size, idx_t *super_starts,
-                                        idx_t *super_sizes, idx_t *count) {
-    if (!L || !super_starts || !super_sizes || !count)
-        return SPARSE_ERR_NULL;
-    if (min_size < 1)
-        return SPARSE_ERR_BADARG;
-
-    idx_t n = L->n;
-    idx_t written = 0;
-    idx_t j = 0;
-
-    while (j < n) {
-        /* Extend from column j as long as consecutive columns satisfy
-         * the supernode invariants. */
-        idx_t end = j + 1;
-        while (end < n && columns_in_same_supernode(L, end - 1))
-            end++;
-
-        idx_t size = end - j;
-        if (size >= min_size) {
-            super_starts[written] = j;
-            super_sizes[written] = size;
-            written++;
-        }
-        /* Columns that don't form a large-enough supernode are simply
-         * skipped — the caller's elimination treats them scalar-wise. */
-        j = end;
-    }
-
-    *count = written;
-    return SPARSE_OK;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
- * Day 11: Dense Cholesky primitives
- * ═══════════════════════════════════════════════════════════════════════ */
-
-/* Column-major indexing helper: A[i, j] lives at A[i + j*lda]. */
-
-sparse_err_t chol_dense_factor(double *A, idx_t n, idx_t lda, double tol) {
-    if (!A)
-        return SPARSE_ERR_NULL;
-    if (n < 0 || lda < n)
-        return SPARSE_ERR_BADARG;
-    if (n == 0)
-        return SPARSE_OK;
-
-    /* Approximate reference norm from A's initial diagonal (before any
-     * updates) for relative tolerance scaling.  Keeps the kernel
-     * self-contained without forcing callers to pass ||A||_inf. */
-    double ref_norm = 0.0;
-    for (idx_t j = 0; j < n; j++) {
-        double d = fabs(A[j + j * lda]);
-        if (d > ref_norm)
-            ref_norm = d;
-    }
-    double sing_tol = sparse_rel_tol(ref_norm, tol > 0.0 ? tol : SPARSE_DROP_TOL);
-
-    for (idx_t k = 0; k < n; k++) {
-        /* Diagonal accumulator: A[k,k] - sum_{j<k} L[k,j]^2. */
-        double s = A[k + k * lda];
-        for (idx_t j = 0; j < k; j++) {
-            double l_kj = A[k + j * lda];
-            s -= l_kj * l_kj;
-        }
-        if (s < sing_tol)
-            return SPARSE_ERR_NOT_SPD;
-        double l_kk = sqrt(s);
-        A[k + k * lda] = l_kk;
-        double inv_l_kk = 1.0 / l_kk;
-
-        /* Below-diagonal column: L[i, k] = (A[i,k] - sum_{j<k} L[i,j]*L[k,j]) / L[k,k]. */
-        for (idx_t i = k + 1; i < n; i++) {
-            double t = A[i + k * lda];
-            for (idx_t j = 0; j < k; j++)
-                t -= A[i + j * lda] * A[k + j * lda];
-            A[i + k * lda] = t * inv_l_kk;
-        }
-    }
-    return SPARSE_OK;
-}
-
-sparse_err_t chol_dense_solve_lower(const double *L, idx_t n, idx_t lda, double *b) {
-    if (!L || !b)
-        return SPARSE_ERR_NULL;
-    if (n < 0 || lda < n)
-        return SPARSE_ERR_BADARG;
-    if (n == 0)
-        return SPARSE_OK;
-
-    /* Forward substitution: for each row i, b[i] -= L[i, j] * b[j] for
-     * j < i, then b[i] /= L[i, i]. */
-    for (idx_t i = 0; i < n; i++) {
-        double sum = b[i];
-        for (idx_t j = 0; j < i; j++)
-            sum -= L[i + j * lda] * b[j];
-        double l_ii = L[i + i * lda];
-        if (l_ii == 0.0)
-            return SPARSE_ERR_SINGULAR;
-        b[i] = sum / l_ii;
-    }
-    return SPARSE_OK;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1644,447 +1423,6 @@ sparse_err_t ldlt_dense_factor(double *A, double *D, double *D_offdiag, idx_t *p
 cleanup:
     free(pivot_scratch);
     return err;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
- * Day 11: Supernode-aware elimination dispatch
- * ═══════════════════════════════════════════════════════════════════════ */
-
-/* Sprint 18 Day 8: fully integrated batched supernodal elimination.
- *
- * Walks the CSC column-by-column, dispatching to:
- *   - the batched path for columns that start a supernode of size
- *     >= min_size (per chol_csc_detect_supernodes);
- *   - the scalar cdiv/cmod/gather path for every other column.
- *
- * For each supernode, the batched path runs:
- *   1. chol_csc_supernode_extract            (A → dense buffer)
- *   2. chol_csc_supernode_eliminate_diag     (external cmod + dense
- *                                             Cholesky on the top
- *                                             s_size × s_size slab)
- *   3. chol_csc_supernode_eliminate_panel    (chol_dense_solve_lower
- *                                             row-by-row on the panel)
- *   4. chol_csc_supernode_writeback          (dense buffer → CSC)
- *
- * After writeback, columns [s_start, s_start + s_size) hold the
- * factored L values (diagonal block + panel).  Subsequent scalar
- * columns therefore pick up correct L entries when they cmod from
- * prior supernode columns. */
-sparse_err_t chol_csc_eliminate_supernodal(CholCsc *csc, idx_t min_size) {
-    if (!csc)
-        return SPARSE_ERR_NULL;
-    if (min_size < 1)
-        return SPARSE_ERR_BADARG;
-
-    idx_t n = csc->n;
-    if (n == 0)
-        return SPARSE_OK;
-
-    idx_t *starts = malloc((size_t)n * sizeof(idx_t));
-    idx_t *sizes = malloc((size_t)n * sizeof(idx_t));
-    if (!starts || !sizes) {
-        free(starts);
-        free(sizes);
-        return SPARSE_ERR_ALLOC;
-    }
-
-    idx_t super_count = 0;
-    sparse_err_t err = chol_csc_detect_supernodes(csc, min_size, starts, sizes, &super_count);
-    if (err != SPARSE_OK) {
-        free(starts);
-        free(sizes);
-        return err;
-    }
-
-    CholCscWorkspace *ws = NULL;
-    err = chol_csc_workspace_alloc(n, &ws);
-    if (err != SPARSE_OK) {
-        free(starts);
-        free(sizes);
-        return err;
-    }
-
-    const double drop_tol = SPARSE_DROP_TOL;
-    idx_t super_idx = 0;
-    idx_t j = 0;
-    while (j < n) {
-        /* Skip past singleton detected supernodes: a size-1 "supernode"
-         * has no within-supernode factoring to batch, and the batched
-         * extract uses A's pre-fill column pattern — which misses
-         * fill rows that the scalar gather path handles correctly via
-         * its column-shift machinery.  Delegating singletons to the
-         * scalar branch keeps min_size == 1 correct on matrices with
-         * fill without sacrificing the batched speedup on size >= 2
-         * supernodes (where the fundamental-supernode invariant
-         * guarantees no new fill lands inside the supernode). */
-        if (super_idx < super_count && j == starts[super_idx] && sizes[super_idx] == 1) {
-            super_idx++;
-            /* Fall through to the scalar branch for this column. */
-        }
-        if (super_idx < super_count && j == starts[super_idx]) {
-            /* Batched supernode at column j (size >= 2). */
-            idx_t s_start = j;
-            idx_t s_size = sizes[super_idx];
-            idx_t panel_height = chol_csc_supernode_panel_height(csc, s_start);
-
-            double *dense = NULL;
-            idx_t *row_map = NULL;
-            /* By construction `chol_csc_detect_supernodes` only
-             * reports supernodes with `s_size >= min_size >= 1`, and
-             * `panel_height >= s_size` because the supernode's first
-             * column stores its diagonal block plus the panel.  Guard
-             * explicitly so the overflow checks below (and `calloc`)
-             * can assume both are > 0. */
-            if (panel_height < 1 || s_size < 1) {
-                err = SPARSE_ERR_BADARG;
-                break;
-            }
-            if ((size_t)panel_height > SIZE_MAX / sizeof(idx_t)) {
-                err = SPARSE_ERR_ALLOC;
-                break;
-            }
-            /* Guard the multiplication itself before computing the
-             * product: `(size_t)panel_height * (size_t)s_size` can
-             * overflow on pathological inputs, and a subsequent
-             * `dense_cells > SIZE_MAX / sizeof(double)` check on an
-             * already-wrapped product would miss the overflow and
-             * `calloc` could under-allocate. */
-            if ((size_t)s_size > SIZE_MAX / (size_t)panel_height) {
-                err = SPARSE_ERR_ALLOC;
-                break;
-            }
-            size_t dense_cells = (size_t)panel_height * (size_t)s_size;
-            if (dense_cells > SIZE_MAX / sizeof(double)) {
-                err = SPARSE_ERR_ALLOC;
-                break;
-            }
-            dense = calloc(dense_cells, sizeof(double));
-            row_map = malloc((size_t)panel_height * sizeof(idx_t));
-            if (!dense || !row_map) {
-                free(dense);
-                free(row_map);
-                err = SPARSE_ERR_ALLOC;
-                break;
-            }
-
-            idx_t ph_out = 0;
-            err = chol_csc_supernode_extract(csc, s_start, s_size, dense, panel_height, row_map,
-                                             &ph_out);
-            if (err != SPARSE_OK) {
-                free(dense);
-                free(row_map);
-                break;
-            }
-
-            err = chol_csc_supernode_eliminate_diag(csc, s_start, s_size, dense, panel_height,
-                                                    row_map, panel_height, drop_tol);
-            if (err != SPARSE_OK) {
-                free(dense);
-                free(row_map);
-                break;
-            }
-
-            /* Panel triangular solve: for each below-supernode row,
-             * solve L_diag * x = panel_row to produce L[row, :]. */
-            idx_t panel_rows = panel_height - s_size;
-            if (panel_rows > 0) {
-                err = chol_csc_supernode_eliminate_panel(dense, s_size, panel_height,
-                                                         dense + s_size, panel_height, panel_rows);
-                if (err != SPARSE_OK) {
-                    free(dense);
-                    free(row_map);
-                    break;
-                }
-            }
-
-            err = chol_csc_supernode_writeback(csc, s_start, s_size, dense, panel_height, row_map,
-                                               panel_height, drop_tol);
-            free(dense);
-            free(row_map);
-            if (err != SPARSE_OK)
-                break;
-
-            j += s_size;
-            super_idx++;
-        } else {
-            /* Scalar column: standard scatter → cmod → cdiv → gather. */
-            chol_csc_scatter(csc, j, ws);
-            chol_csc_cmod(csc, j, ws);
-            err = chol_csc_cdiv(ws, j);
-            if (err != SPARSE_OK) {
-                chol_csc_end_column(ws);
-                break;
-            }
-            err = chol_csc_gather(csc, j, ws, drop_tol);
-            if (err != SPARSE_OK) {
-                chol_csc_end_column(ws);
-                break;
-            }
-            chol_csc_end_column(ws);
-            j++;
-        }
-    }
-
-    chol_csc_workspace_free(ws);
-    free(starts);
-    free(sizes);
-    return err;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
- * Sprint 18 Day 6: supernode extract / writeback plumbing
- * ═══════════════════════════════════════════════════════════════════════ */
-
-/* Binary-search a row_map (sorted ascending) for a target global row.
- * Returns the local index, or `panel_height` when not found. */
-static idx_t chol_csc_bsearch_row_map(const idx_t *row_map, idx_t panel_height, idx_t target) {
-    idx_t lo = 0;
-    idx_t hi = panel_height;
-    while (lo < hi) {
-        idx_t mid = lo + (hi - lo) / 2;
-        if (row_map[mid] < target) {
-            lo = mid + 1;
-        } else {
-            hi = mid;
-        }
-    }
-    if (lo < panel_height && row_map[lo] == target) {
-        return lo;
-    }
-    return panel_height;
-}
-
-sparse_err_t chol_csc_supernode_extract(const CholCsc *csc, idx_t s_start, idx_t s_size,
-                                        double *dense, idx_t lda, idx_t *row_map,
-                                        idx_t *panel_height_out) {
-    if (!csc || !dense || !row_map || !panel_height_out)
-        return SPARSE_ERR_NULL;
-    if (s_start < 0 || s_size < 1 || s_start > csc->n - s_size)
-        return SPARSE_ERR_BADARG;
-
-    /* Panel height is the first column's stored-entry count.  By the
-     * fundamental-supernode invariant this equals s_size + |S| for the
-     * shared below-supernode row set S. */
-    idx_t first_start = csc->col_ptr[s_start];
-    idx_t panel_height = csc->col_ptr[s_start + 1] - first_start;
-    if (lda < panel_height)
-        return SPARSE_ERR_BADARG;
-    if (panel_height < s_size)
-        return SPARSE_ERR_BADARG;
-
-    /* Seed row_map from the first column's sorted row_idx slice.  The
-     * first s_size entries must be [s_start, s_start+1, ..., s_start+s_size-1]
-     * by the supernode invariant (the diagonal block is stored before
-     * the shared panel). */
-    for (idx_t i = 0; i < panel_height; i++) {
-        row_map[i] = csc->row_idx[first_start + i];
-    }
-    for (idx_t i = 0; i < s_size; i++) {
-        if (row_map[i] != s_start + i)
-            return SPARSE_ERR_BADARG;
-    }
-    *panel_height_out = panel_height;
-
-    /* Scatter each column into the dense buffer.  For col s_start + j,
-     * each stored (row, value) goes to dense[local_row + j*lda] where
-     * local_row is looked up in row_map. */
-    for (idx_t j = 0; j < s_size; j++) {
-        idx_t c = s_start + j;
-        idx_t cstart = csc->col_ptr[c];
-        idx_t cend = csc->col_ptr[c + 1];
-        for (idx_t p = cstart; p < cend; p++) {
-            idx_t row = csc->row_idx[p];
-            idx_t local = chol_csc_bsearch_row_map(row_map, panel_height, row);
-            if (local >= panel_height)
-                return SPARSE_ERR_BADARG;
-            dense[local + j * lda] = csc->values[p];
-        }
-    }
-
-    return SPARSE_OK;
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
- * Sprint 18 Day 7: supernode external-cmod + diagonal-block factor
- * ═══════════════════════════════════════════════════════════════════════
- *
- * Algorithm for a supernode [s_start, s_start + s_size):
- *
- *   For each prior column k in [0, s_start):
- *     Extract L[s_start + j, k] for j in [0, s_size) into scratch
- *     `L_col_k`.  If all entries are zero, skip k entirely.
- *     Otherwise, iterate every stored (row, k, value) entry in L's
- *     col k.  For each entry whose row is in the supernode's row_map,
- *     subtract `value * L_col_k[j]` from dense[local + j * lda] for
- *     each j in [0, s_size).
- *
- *   After external cmod, run `chol_dense_factor` on the top
- *   `s_size × s_size` diagonal slab.  The panel portion receives the
- *   external cmod but is not further updated here — Day 8's
- *   `chol_dense_solve_lower` will run the panel triangular solve.
- */
-
-sparse_err_t chol_csc_supernode_eliminate_diag(const CholCsc *csc, idx_t s_start, idx_t s_size,
-                                               double *dense, idx_t lda, const idx_t *row_map,
-                                               idx_t panel_height, double tol) {
-    if (!csc || !dense || !row_map)
-        return SPARSE_ERR_NULL;
-    if (s_start < 0 || s_size < 1 || s_start > csc->n - s_size)
-        return SPARSE_ERR_BADARG;
-    if (panel_height < s_size || lda < panel_height)
-        return SPARSE_ERR_BADARG;
-
-    /* Scratch for L[s_start..s_start+s_size-1, k] values per prior
-     * column.  Stored densely — s_size is typically small relative
-     * to n, and the external-cmod loop runs once per k. */
-    if ((size_t)s_size > SIZE_MAX / sizeof(double))
-        return SPARSE_ERR_ALLOC;
-    double *L_col_k = malloc((size_t)s_size * sizeof(double));
-    if (!L_col_k)
-        return SPARSE_ERR_ALLOC;
-
-    for (idx_t k = 0; k < s_start; k++) {
-        idx_t cstart = csc->col_ptr[k];
-        idx_t cend = csc->col_ptr[k + 1];
-        if (cstart == cend)
-            continue;
-
-        /* Harvest L[s_start+j, k] into L_col_k[j].  row_idx within a
-         * column is sorted ascending, so stop scanning once we've
-         * passed the last supernode row. */
-        for (idx_t j = 0; j < s_size; j++)
-            L_col_k[j] = 0.0;
-        int saw_supernode_row = 0;
-        for (idx_t p = cstart; p < cend; p++) {
-            idx_t r = csc->row_idx[p];
-            if (r < s_start)
-                continue;
-            if (r >= s_start + s_size)
-                break;
-            L_col_k[r - s_start] = csc->values[p];
-            saw_supernode_row = 1;
-        }
-        if (!saw_supernode_row)
-            continue;
-
-        /* Apply cmod: for each stored (row, k, value) whose row maps
-         * into the supernode's local coordinate, subtract
-         * value * L_col_k[j] from dense[local + j*lda] for j in
-         * [0, s_size).
-         *
-         * This updates both the diagonal block (local < s_size) and
-         * the panel (local >= s_size).  chol_dense_factor only reads
-         * the lower triangle of the diagonal block, so writing the
-         * upper triangle of that block is harmless — we don't branch
-         * on local < j for correctness. */
-        for (idx_t p = cstart; p < cend; p++) {
-            idx_t r = csc->row_idx[p];
-            idx_t local = chol_csc_bsearch_row_map(row_map, panel_height, r);
-            if (local >= panel_height)
-                continue;
-            double v_r_k = csc->values[p];
-            for (idx_t j = 0; j < s_size; j++) {
-                double ljk = L_col_k[j];
-                if (ljk != 0.0)
-                    dense[local + j * lda] -= v_r_k * ljk;
-            }
-        }
-    }
-
-    free(L_col_k);
-
-    /* Dense Cholesky factor on the top s_size × s_size diagonal
-     * block.  Reads the lower triangle only; writes the factor L back
-     * in place over that same region. */
-    return chol_dense_factor(dense, s_size, lda, tol);
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
- * Sprint 18 Day 8: supernode panel triangular solve
- * ═══════════════════════════════════════════════════════════════════════
- *
- * The panel update `L_panel = rect * L_diag^{-T}` is equivalent to
- * solving `L_diag * x = rect_row^T` in place for each panel row.
- * Since the dense buffer is column-major, a panel row lives at stride
- * `lda_panel`; we gather it into a contiguous scratch vector, forward-
- * substitute via `chol_dense_solve_lower`, and scatter back.
- */
-
-sparse_err_t chol_csc_supernode_eliminate_panel(const double *L_diag, idx_t s_size, idx_t lda_diag,
-                                                double *panel, idx_t lda_panel, idx_t panel_rows) {
-    if (!L_diag)
-        return SPARSE_ERR_NULL;
-    if (s_size < 1 || lda_diag < s_size || panel_rows < 0)
-        return SPARSE_ERR_BADARG;
-    if (panel_rows == 0)
-        return SPARSE_OK;
-    if (!panel)
-        return SPARSE_ERR_NULL;
-    if (lda_panel < panel_rows)
-        return SPARSE_ERR_BADARG;
-
-    if ((size_t)s_size > SIZE_MAX / sizeof(double))
-        return SPARSE_ERR_ALLOC;
-    double *row_buf = malloc((size_t)s_size * sizeof(double));
-    if (!row_buf)
-        return SPARSE_ERR_ALLOC;
-
-    for (idx_t i = 0; i < panel_rows; i++) {
-        for (idx_t j = 0; j < s_size; j++)
-            row_buf[j] = panel[i + j * lda_panel];
-        sparse_err_t err = chol_dense_solve_lower(L_diag, s_size, lda_diag, row_buf);
-        if (err != SPARSE_OK) {
-            free(row_buf);
-            return err;
-        }
-        for (idx_t j = 0; j < s_size; j++)
-            panel[i + j * lda_panel] = row_buf[j];
-    }
-
-    free(row_buf);
-    return SPARSE_OK;
-}
-
-sparse_err_t chol_csc_supernode_writeback(CholCsc *csc, idx_t s_start, idx_t s_size,
-                                          const double *dense, idx_t lda, const idx_t *row_map,
-                                          idx_t panel_height, double drop_tol) {
-    if (!csc || !dense || !row_map)
-        return SPARSE_ERR_NULL;
-    if (s_start < 0 || s_size < 1 || s_start > csc->n - s_size)
-        return SPARSE_ERR_BADARG;
-    if (panel_height < s_size || lda < panel_height)
-        return SPARSE_ERR_BADARG;
-
-    /* Gather: walk each column's stored entries, translate row →
-     * local_row via row_map, overwrite values[p] with the dense cell.
-     * Apply the same per-column drop rule as `chol_csc_gather`:
-     * below-diagonal entries below `drop_tol * |L[j, j]|` get written
-     * as 0.0 so downstream consumers (solve, writeback_to_sparse) see
-     * matching sparsity to the scalar path. */
-    for (idx_t j = 0; j < s_size; j++) {
-        idx_t c = s_start + j;
-        idx_t cstart = csc->col_ptr[c];
-        idx_t cend = csc->col_ptr[c + 1];
-        /* Diagonal value is at dense[j + j*lda] after the diag block
-         * factor ran.  Used to set the per-column threshold. */
-        double abs_l_jj = fabs(dense[j + j * lda]);
-        double threshold = drop_tol * abs_l_jj;
-        for (idx_t p = cstart; p < cend; p++) {
-            idx_t row = csc->row_idx[p];
-            idx_t local = chol_csc_bsearch_row_map(row_map, panel_height, row);
-            if (local >= panel_height)
-                return SPARSE_ERR_BADARG;
-            double v = dense[local + j * lda];
-            /* Never drop the diagonal (local == j for column s_start+j
-             * because row_map's first s_size slots are the supernode
-             * rows in order). */
-            if (local != j && fabs(v) < threshold)
-                v = 0.0;
-            csc->values[p] = v;
-        }
-    }
-
-    return SPARSE_OK;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

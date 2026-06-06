@@ -5,12 +5,12 @@
  * @file sparse_chol_csc_internal.h
  * @brief CSC working format for Cholesky (and LDL^T) numeric factorization.
  *
- * Not part of the public API.  Used by sparse_chol_csc.c (and, in later
- * days of Sprint 17, sparse_ldlt_csc.c).
+ * Not part of the public API.  Shared by the internal Cholesky/LDL^T CSC
+ * implementation, orchestration, and proof surfaces.
  *
  * ─── Design: why CSC for Cholesky? ───────────────────────────────────────
  *
- * The CSR working format introduced in Sprint 10 accelerated LU elimination
+ * The CSR working format used for LU elimination
  * by replacing linked-list pointer chasing with contiguous row arrays.  LU's
  * inner loop is row-oriented (`row[k] -= (row[k][j] / pivot) * row[pivot]`),
  * which maps naturally onto CSR.
@@ -96,9 +96,9 @@ typedef struct {
     double *values;     /**< Nonzero values (length capacity). */
     double factor_norm; /**< ||A||_inf at conversion time, for relative tolerance. */
 
-    /* Sprint 19 Day 7: set to 1 when `chol_csc_from_sparse_with_analysis`
-     * pre-populated the full sym_L pattern.  `chol_csc_gather`'s fast
-     * path (Day 6) reads this to skip the O(pattern_count) merge-walk
+    /* Set to 1 when `chol_csc_from_sparse_with_analysis`
+     * pre-populated the full sym_L pattern. `chol_csc_gather`'s fast
+     * path reads this to skip the O(pattern_count) merge-walk
      * check that confirms every survivor row is in the slot — the
      * sym_L pre-population is itself the proof.  Set to 0 by
      * `chol_csc_from_sparse` (heuristic) so its callers fall back to
@@ -605,30 +605,17 @@ sparse_err_t chol_csc_detect_supernodes(const CholCsc *L, idx_t min_size, idx_t 
  * Day 11: Dense Cholesky primitives + supernodal-aware elimination entry
  * ═══════════════════════════════════════════════════════════════════════
  *
- * These dense kernels are self-contained and reusable by future
- * supernodal paths.  They work on column-major arrays, matching the
+ * These dense kernels are self-contained and reusable by the Cholesky
+ * supernodal path.  They work on column-major arrays, matching the
  * convention of Sprint 10's `lu_dense_factor` / `lu_dense_solve`.
  *
- * ─── Current integration status ───────────────────────────────────────
- *
- * Day 11 ships:
- *   (1) `chol_dense_factor` — in-place Cholesky on an n×n column-major
- *       block, with the same non-positive-diagonal → NOT_SPD semantics
- *       as the scalar CSC path.
- *   (2) `chol_dense_solve_lower` — forward substitution for L·x = b on
- *       the output of (1).
- *   (3) `chol_csc_eliminate_supernodal` — an elimination entry point
- *       that detects supernodes with `chol_csc_detect_supernodes` and
- *       then runs the Day 5 scalar kernel.  The detection step is real
- *       and validated; the *batched* supernodal cmod + dense factor +
- *       panel solve is a future-sprint deliverable (cross-supernode
- *       cmod in packed CSC storage requires a workspace layout change
- *       that is beyond the Day 11 scope).
- *
- * Correctness: residuals match the scalar path bit-for-bit on every
- * test matrix today because the integrated path still executes the
- * scalar kernel.  The dense primitives stand on their own for unit
- * testing and future reuse.
+ * Current integration:
+ *   (1) `chol_dense_factor` factors the diagonal block of each detected
+ *       supernode.
+ *   (2) `chol_dense_solve_lower` applies the panel triangular solve.
+ *   (3) `chol_csc_eliminate_supernodal` interleaves the batched
+ *       supernodal path with the scalar scatter/cmod/cdiv/gather path for
+ *       every non-supernodal column.
  */
 
 /**
@@ -711,17 +698,15 @@ sparse_err_t ldlt_dense_factor(double *A, double *D, double *D_offdiag, idx_t *p
 /**
  * Supernode-aware elimination entry point.
  *
- * Currently a thin wrapper that detects supernodes and then delegates
- * to the scalar `chol_csc_eliminate`.  The supernode detection lets
- * Day 11 test infrastructure observe that a detected partition exists
- * and falls into reasonable shape without changing numeric behaviour.
- * A future sprint will replace the scalar delegation with a batched
- * dense-kernel path over each supernode's diagonal block and panel.
+ * Detects fundamental supernodes, runs the dense Cholesky + panel solve path
+ * for each detected supernode, and interleaves that batched path with the
+ * scalar CSC elimination kernel for every other column.
  *
  * @param csc       Input CSC with A's lower triangle (as produced by
  *                  `chol_csc_from_sparse` / `chol_csc_from_sparse_with_analysis`).
  * @param min_size  Minimum supernode size to consider, e.g. 4.
- * @return SPARSE_OK, or any error from scalar elimination or detection.
+ * @return SPARSE_OK, or any error from detection, dense supernode
+ *         elimination, workspace allocation, or scalar elimination.
  */
 sparse_err_t chol_csc_eliminate_supernodal(CholCsc *csc, idx_t min_size);
 

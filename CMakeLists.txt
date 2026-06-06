@@ -91,6 +91,7 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_dense.c
     src/sparse_bidiag.c
     src/sparse_svd.c
+    src/sparse_svd_partial.c
     src/sparse_lu_csr.c
     src/sparse_ldlt.c
     src/sparse_ic.c
@@ -98,7 +99,9 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_analysis.c
     src/sparse_colamd.c
     src/sparse_chol_csc.c
+    src/sparse_chol_csc_supernodal.c
     src/sparse_ldlt_csc.c
+    src/sparse_ldlt_csc_supernodal.c
     src/sparse_eigs_workspace_internal.c
     src/sparse_eigs_lobpcg.c
     src/sparse_eigs_thick_restart.c

@@ -5,11 +5,12 @@
  * @file sparse_ldlt_csc_internal.h
  * @brief CSC working format for LDL^T numeric factorization.
  *
- * Not part of the public API.  Used by sparse_ldlt_csc.c.
+ * Not part of the public API.  Used by sparse_ldlt_csc.c and
+ * sparse_ldlt_csc_supernodal.c.
  *
  * ─── Design: LDL^T on top of the Cholesky CSC ──────────────────────────
  *
- * The CSC working format introduced in Days 1-6 for Cholesky lays out L
+ * The shared CSC working format from the Cholesky backend lays out L
  * as sorted-row columns with the diagonal first in each column.  LDL^T
  * reuses exactly that layout for its L factor — unit lower triangular
  * with the diagonal stored as 1.0 for uniformity — and attaches three
@@ -19,7 +20,7 @@
  *       `L->values[col_ptr[j]]` carrying the (stored) unit 1.0 at the
  *       diagonal.  Before elimination the diagonal position actually
  *       carries A[j,j] (conversion preserves A's values bit-for-bit).
- *       After elimination (Days 8-9) the diagonal holds the stored 1.0
+ *       After elimination the diagonal holds the stored 1.0
  *       and below-diagonal rows hold the L multipliers.
  *   D          ─ length n, diagonal of D.  1x1 pivot at step k stores the
  *                scalar in D[k].  2x2 pivot at k,k+1 stores the block
@@ -38,7 +39,7 @@
  *
  * The field layout deliberately mirrors the linked-list `sparse_ldlt_t`
  * (src/sparse_ldlt.h) so solve / inertia / refinement helpers can be
- * shared or ported verbatim in Days 9+.
+ * shared or ported with minimal translation.
  */
 
 #include "sparse_analysis.h"

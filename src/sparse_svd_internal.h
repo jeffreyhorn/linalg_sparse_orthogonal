@@ -3,7 +3,8 @@
 
 /**
  * @file sparse_svd_internal.h
- * @brief Internal SVD helpers exposed for testing only.
+ * @brief Internal SVD helpers shared by the retained full-SVD path, the
+ * partial-SVD backend, and selected proof/benchmark surfaces.
  *
  * Not part of the public API. Test code may include this header to access
  * internal functions; library consumers should not depend on these symbols.

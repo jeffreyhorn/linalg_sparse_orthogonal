@@ -879,3 +879,139 @@ batch:
 This gives Day 6 a cleaner base for deciding whether the next direct-solver
 giant-test step should stay within Cholesky CSC or shift to the next highest
 value proof surface.
+
+---
+
+# Day 6 - direct-solver refactor follow-through audit
+
+## Summary
+
+Re-audited the direct-solver giant-test queue from the landed Day 5 state and
+reduced the remaining work to one explicit deferred seam plus one intentional
+"leave it dense" decision. The Day 5 helper extraction materially changed the
+shape of the queue: `test_chol_csc.c` is still large, but it is now
+proof-heavy rather than helper-heavy, so the next highest-value follow-through
+target shifts to `tests/test_ldlt_csc.c` instead of forcing a second Cholesky
+batch immediately.
+
+## Goals
+
+- shape the remaining direct-test queue from the landed Day 5 reality
+- identify the next highest-value direct-test seam without reopening build
+  topology or proof meaning
+- decide which direct giant-test surfaces can intentionally stay dense in
+  Sprint 57
+- leave a clean handoff into the Day 7 solver-family audit
+
+## Audit Findings
+
+### 1. Day 5 changed `test_chol_csc.c` from helper-cluttered to proof-heavy
+
+Current touched direct-test sizes:
+
+- `tests/test_chol_csc.c` = `4552` lines
+- `tests/test_ldlt_csc.c` = `3680` lines
+- `tests/test_integration.c` = `1803` lines
+
+The key qualitative difference after Day 5 is that the selected
+supernodal-family helper seam is now gone from the Cholesky giant file:
+
+- `tests/test_chol_csc_supernodal_helpers.h` now owns:
+  - `detect_supernodes_alloc(...)`
+  - `day8_count_supernodes(...)`
+  - `day9_assert_batched_matches_scalar(...)`
+  - `day11_build_spd(...)`
+
+What remains in `tests/test_chol_csc.c` is still large, but it is dominated by
+cohesive proof groups:
+
+- supernode detection + postorder corpus-safety proof
+- dense/supernodal elimination proof
+- writeback proof
+- dispatch proof
+
+Interpretation:
+
+- another immediate Cholesky helper-only extraction would now buy much less
+  than Day 5 did
+- the remaining Cholesky density is mostly test-body density, not accidental
+  local-helper clutter
+
+### 2. The next highest-value direct-test seam is now in `test_ldlt_csc.c`
+
+`tests/test_ldlt_csc.c` still contains a large contiguous helper-heavy front
+half:
+
+- supernode detection
+- extract/writeback round-trips
+- batched supernodal LDLT cross-checks
+- analysis-aware indefinite two-pass workflow proof
+
+The strongest local helper seam is concentrated around:
+
+- `build_dense_ldlt_with_pivots(...)`
+- `snapshot_supernode_state(...)`
+- `ldlt_csc_factor_state_matches(...)`
+- `build_kkt_5x5(...)`
+- `build_kkt_10x10(...)`
+- `s20_two_pass_indefinite_factor(...)`
+- `s20_solve_residual(...)`
+
+Interpretation:
+
+- unlike post-Day-5 `test_chol_csc.c`, LDLT CSC still has a cleaner remaining
+  helper-ownership win
+- if Sprint 57 needed a second direct-solver test batch, the best boundary is
+  now a local LDLT CSC helper header rather than another Cholesky move
+
+### 3. `test_integration.c` should intentionally stay dense in Sprint 57
+
+`tests/test_integration.c` is only `1803` lines and already functions as the
+cross-family caller-story hub for:
+
+- public lifecycle sequencing
+- factor-many and refactor failure preservation
+- progress/cancellation behavior
+- one-shot versus repeated-run parity
+
+Interpretation:
+
+- this file should not be split as direct-test follow-through
+- Sprint 57 should keep it intact for the later Day 10-11 lifecycle and
+  factor-many regression expansion work
+
+## Updated Direct-Test Seam Map
+
+### Intentionally completed in Sprint 57 direct-test work
+
+- `tests/test_chol_csc.c`
+  - landed helper extraction via
+    `tests/test_chol_csc_supernodal_helpers.h`
+  - no further direct-test refactor required before the sprint pivots
+
+### Best remaining direct-test seam, but consciously deferred
+
+- `tests/test_ldlt_csc.c`
+  - next-best future seam:
+    - a local helper header for the supernode / analysis-aware indefinite
+      proof family
+  - deferred because Sprint 57 now gets higher value from pivoting to the
+    iterative/eigensolver giant tests and the final lifecycle-regression work
+
+### Intentionally dense and preserved
+
+- `tests/test_integration.c`
+  - keep intact as the later lifecycle / factor-many proof hub
+
+## Day 6 Conclusion
+
+Day 5 materially changed the direct-test queue:
+
+- the first Cholesky seam is landed and validated
+- the remaining Cholesky density is now mostly cohesive proof density
+- the strongest remaining direct seam is LDLT CSC, not another immediate
+  Cholesky helper peel
+- `test_integration.c` stays intact for the later regression-expansion days
+
+That means Sprint 57 can pivot cleanly to Day 7's solver-family giant-test
+audit without leaving the direct-test queue ambiguous.

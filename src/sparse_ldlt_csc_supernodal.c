@@ -16,7 +16,7 @@
 #include <stdlib.h>
 
 /* Local copy of `chol_csc_bsearch_row_map` (static in
- * sparse_chol_csc.c).  Could be shared via the chol internal header,
+ * sparse_chol_csc_supernodal.c).  Could be shared via the chol internal header,
  * but it's a five-line function and duplicating keeps the LDL^T side
  * loosely coupled. */
 static idx_t ldlt_csc_bsearch_row_map(const idx_t *row_map, idx_t panel_height, idx_t target) {

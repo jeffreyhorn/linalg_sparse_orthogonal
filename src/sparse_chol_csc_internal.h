@@ -5,8 +5,8 @@
  * @file sparse_chol_csc_internal.h
  * @brief CSC working format for Cholesky (and LDL^T) numeric factorization.
  *
- * Not part of the public API.  Used by `src/sparse_chol_csc.c`,
- * `src/sparse_chol_csc_supernodal.c`, and `src/sparse_ldlt_csc.c`.
+ * Not part of the public API.  Shared by the internal Cholesky/LDL^T CSC
+ * implementation, orchestration, and proof surfaces.
  *
  * ─── Design: why CSC for Cholesky? ───────────────────────────────────────
  *

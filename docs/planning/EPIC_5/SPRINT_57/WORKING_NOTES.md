@@ -554,3 +554,180 @@ classes and a ranked landing order:
 
 That is enough to move to the Day 4 direct-solver test refactor design without
 any remaining ambiguity around the first bounded target.
+
+## Day 4
+
+**Objective:** Freeze the first bounded direct-solver giant-test refactor
+boundary before editing permanent proof surfaces by defining the exact
+`test_chol_csc.c` ownership split, helper strategy, preserved invariants, and
+minimal cleanup policy for the first landing batch.
+
+### Commands Run
+
+1. Re-read the Sprint 57 Day 4 plan item, current notes, and Day 3 audit:
+   - `sed -n '180,240p' docs/planning/EPIC_5/SPRINT_57/PLAN.md`
+   - `sed -n '520,780p' docs/planning/EPIC_5/SPRINT_57/WORKING_NOTES.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_57/artifacts/day3-direct-solver-giant-test-seam-audit.md`
+2. Re-read two recent bounded-design artifacts for shape and invariants:
+   - `sed -n '1,240p' docs/planning/EPIC_5/SPRINT_55/artifacts/day9-iterative-decomposition-batch1-design.md`
+   - `sed -n '1,240p' docs/planning/EPIC_5/SPRINT_56/artifacts/day7-cholesky-csc-decomposition-design.md`
+3. Reconfirm the existing test/build pattern and helper-header precedent:
+   - `rg -n "#include \\\"test_.*\\.h\\\"|#include \\\".*helpers.*\\\"" tests`
+   - `rg -n "test_chol_csc|test_ldlt_csc|test_integration" Makefile CMakeLists.txt`
+4. Inspect the selected `test_chol_csc.c` proof cluster and runner grouping:
+   - `sed -n '4548,4645p' tests/test_chol_csc.c`
+   - `sed -n '1998,2518p' tests/test_chol_csc.c`
+   - `sed -n '2520,3998p' tests/test_chol_csc.c`
+5. Locate the current family-local helper seams in that cluster:
+   - `python3 - <<'PY' ... detect_supernodes_alloc / day8_count_supernodes / day9_assert_batched_matches_scalar / day11_build_spd ... PY`
+6. Measure rough test/helper density inside the selected sub-clusters:
+   - `python3 - <<'PY' ... detect/postorder vs dense+supernodal core vs writeback+dispatch ... PY`
+
+### Day 4 Findings
+
+#### 1. The first direct-test landing should stay build-neutral and follow the repo’s existing local helper-header pattern
+
+The live build pattern is clear:
+
+- `test_chol_csc`, `test_ldlt_csc`, and `test_integration` are each compiled
+  as single-source test binaries
+- the repo already uses local helper headers where that keeps a binary shape
+  stable:
+  - `tests/test_solver_helpers.h`
+  - `benchmarks/bench_backend_compare_helpers.h`
+  - `examples/example_alloc_helpers.h`
+
+Interpretation:
+
+- Day 5 should not start by creating a new multi-translation-unit test binary
+- the first bounded `test_chol_csc.c` refactor should use a narrow local helper
+  header include rather than a new Makefile/CMake test-target topology
+
+#### 2. The selected first seam remains the `test_chol_csc.c` supernodal / writeback / dispatch family
+
+The selected first target stays:
+
+- `tests/test_chol_csc.c`
+
+The first owned proof family remains:
+
+- supernode detection and reporting
+- postorder corpus-safety regression
+- dense-helper and supernodal elimination cross-checks
+- extract/writeback helpers and tests
+- writeback and dispatch tail
+
+Measured rough density inside the selected ranges:
+
+- detect/postorder cluster (`1998-2518`)
+  - `9` tests
+  - `2` family-local helpers
+- dense+supernodal core (`2520-3998`)
+  - `33` tests
+  - `7` family-local helpers
+- writeback+dispatch tail (`4120-4455`)
+  - `13` tests
+  - `1` family-local helper
+
+Interpretation:
+
+- this is large enough to justify a real family extraction
+- the cluster already has enough local helper identity that moving it as one
+  owned group is cleaner than trying to tease out one or two generic asserts
+
+#### 3. The exact Day 5 ownership split should be helper-header extraction first, not test-binary splitting
+
+Recommended new local helper file:
+
+- `tests/test_chol_csc_supernodal_helpers.h`
+
+Move into it:
+
+- family-local helper functions that are only meaningful for the selected
+  supernodal/writeback/dispatch proof family, including:
+  - `detect_supernodes_alloc(...)`
+  - `day8_count_supernodes(...)`
+  - `day9_assert_batched_matches_scalar(...)`
+  - `day11_build_spd(...)`
+- any small adjacent family-local utility helpers needed only by the moved
+  proof cluster
+
+Keep in `tests/test_chol_csc.c`:
+
+- alloc/grow/conversion/permutation/analysis/validate scaffolding
+- workspace/scalar elimination/solve/factor-solve groups
+- the selected supernodal/writeback/dispatch tests themselves in the first
+  batch
+- `main()` and current `RUN_TEST(...)` grouping
+
+Interpretation:
+
+- Batch 1 should reduce ownership clutter first by moving the local helper seam
+  out of the main file while leaving the test binary and its runner shape
+  stable
+- a later follow-through day can decide whether the supernodal proof group
+  itself should become a second owned include-style block once the helper
+  extraction proves useful
+
+#### 4. The first batch should not widen into global CSC test utilities
+
+Do not move in Batch 1:
+
+- broad residual or matrix-builder helpers into `tests/test_solver_helpers.h`
+- generic direct-solver CSC helpers shared across Cholesky and LDLT
+- any `test_ldlt_csc.c` or `test_integration.c` logic
+
+Reason:
+
+- Sprint 57 still needs the first batch to clarify one family’s ownership
+  before trying to generalize helper contracts across multiple giant tests
+- widening too early would blur whether the landing actually improved review
+  cost in `test_chol_csc.c`
+
+#### 5. The first batch invariants are now explicit
+
+Day 5 must preserve:
+
+- test names and their current intent
+- `RUN_TEST(...)` ordering and binary identity for `test_chol_csc`
+- output and reporting truthfulness
+- corpus fixture coverage, especially:
+  - `nos4`
+  - `bcsstk04`
+  - `bcsstk14`
+  - `Kuu`
+- one-shot scalar-path versus repeated-run / dispatch proof boundaries
+- existing supernodal residual thresholds and scalar↔batched parity checks
+
+This is an ownership and readability change, not a behavior change.
+
+#### 6. The cleanup policy for the first direct-test batch should stay tightly bounded
+
+Day 5 should:
+
+- preserve durable assertion commentary
+- preserve comments that explain structural expectations, residual thresholds,
+  or corpus-safety meaning
+- trim stale sprint-history narrative where it is encountered inside the moved
+  supernodal family-local helper block
+
+Day 5 should not:
+
+- normalize the entire `test_chol_csc.c` comment body
+- rewrite all historical comments in the retained scalar-path sections
+- turn the helper extraction into a repo-wide CSC test-comment cleanup
+
+## Day 4 Close
+
+Sprint 57 now has an exact first direct-solver test landing boundary:
+
+- target file:
+  - `tests/test_chol_csc.c`
+- first move:
+  - extract the supernodal family’s local helper seam into
+    `tests/test_chol_csc_supernodal_helpers.h`
+- keep the binary shape, runner, and main proof groups stable in Batch 1
+- preserve all proof meaning and fixture coverage while reducing local
+  ownership clutter
+
+That gives Day 5 a precise, build-neutral, maintainability-first landing plan.

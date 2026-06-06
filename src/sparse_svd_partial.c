@@ -71,18 +71,18 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     size_t sz_alpha = lanczos_k_size;
     size_t sz_beta = lanczos_k1_size;
     if (sparse_size_mul_overflow(m_size, lanczos_k_size, &sz_p) ||
-        sparse_size_mul_overflow(n_size, lanczos_k1_size, &sz_q) ||
-        sz_p > SIZE_MAX / sizeof(double) || sz_q > SIZE_MAX / sizeof(double) ||
-        sz_alpha > SIZE_MAX / sizeof(double) || sz_beta > SIZE_MAX / sizeof(double)) {
+        sparse_size_mul_overflow(n_size, lanczos_k1_size, &sz_q)) {
         sparse_free(At);
         return SPARSE_ERR_ALLOC;
     }
-    double *P = calloc(sz_p, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
-    double *Q = calloc(sz_q, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
-    double *alpha = calloc(sz_alpha, sizeof(double));
-    double *beta = calloc(sz_beta, sizeof(double));
-
-    if (!P || !Q || !alpha || !beta) {
+    double *P = NULL;
+    double *Q = NULL;
+    double *alpha = NULL;
+    double *beta = NULL;
+    if (sparse_calloc_array(sz_p, sizeof(double), (void **)&P) != SPARSE_OK ||
+        sparse_calloc_array(sz_q, sizeof(double), (void **)&Q) != SPARSE_OK ||
+        sparse_calloc_array(sz_alpha, sizeof(double), (void **)&alpha) != SPARSE_OK ||
+        sparse_calloc_array(sz_beta, sizeof(double), (void **)&beta) != SPARSE_OK) {
         free(P);
         free(Q);
         free(alpha);
@@ -203,16 +203,8 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
      * diag=alpha, superdiag=beta[1..lanczos_k-1] */
     double *bd_super = NULL;
     if (lanczos_k > 1) {
-        size_t bd_super_bytes;
-        if (sparse_size_mul_overflow((size_t)(lanczos_k - 1), sizeof(double), &bd_super_bytes)) {
-            free(alpha);
-            free(beta);
-            free(P);
-            free(Q);
-            return SPARSE_ERR_ALLOC;
-        }
-        bd_super = malloc(bd_super_bytes);
-        if (!bd_super) {
+        if (sparse_malloc_idx_array(lanczos_k - 1, sizeof(double), (void **)&bd_super) !=
+            SPARSE_OK) {
             free(alpha);
             free(beta);
             free(P);
@@ -229,17 +221,15 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     double *V_small = NULL;
     if (compute_uv) {
         size_t lk2;
-        if (sparse_size_mul_overflow(lanczos_k_size, lanczos_k_size, &lk2) ||
-            lk2 > SIZE_MAX / sizeof(double)) {
+        if (sparse_size_mul_overflow(lanczos_k_size, lanczos_k_size, &lk2)) {
             free(alpha);
             free(bd_super);
             free(P);
             free(Q);
             return SPARSE_ERR_ALLOC;
         }
-        U_small = calloc(lk2, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
-        V_small = calloc(lk2, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
-        if (!U_small || !V_small) {
+        if (sparse_calloc_array(lk2, sizeof(double), (void **)&U_small) != SPARSE_OK ||
+            sparse_calloc_array(lk2, sizeof(double), (void **)&V_small) != SPARSE_OK) {
             free(alpha);
             free(bd_super);
             free(P);
@@ -307,8 +297,8 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
         }
     }
 
-    size_t sigma_bytes;
-    if (sparse_size_mul_overflow(kk_size, sizeof(double), &sigma_bytes)) {
+    double *sigma = NULL;
+    if (sparse_malloc_array(kk_size, sizeof(double), (void **)&sigma) != SPARSE_OK) {
         free(alpha);
         free(perm);
         free(P);
@@ -317,17 +307,7 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
         free(V_small);
         return SPARSE_ERR_ALLOC;
     }
-    double *sigma = malloc(sigma_bytes);
-    if (!sigma) {
-        free(alpha);
-        free(perm);
-        free(P);
-        free(Q);
-        free(U_small);
-        free(V_small);
-        return SPARSE_ERR_ALLOC;
-    }
-    memcpy(sigma, alpha, sigma_bytes);
+    memcpy(sigma, alpha, kk_size * sizeof(double));
     free(alpha);
 
     svd->sigma = sigma;
@@ -335,8 +315,7 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
     if (compute_uv) {
         size_t sz_u_out, sz_vt_out;
         if (sparse_size_mul_overflow(m_size, kk_size, &sz_u_out) ||
-            sparse_size_mul_overflow(kk_size, n_size, &sz_vt_out) ||
-            sz_u_out > SIZE_MAX / sizeof(double) || sz_vt_out > SIZE_MAX / sizeof(double)) {
+            sparse_size_mul_overflow(kk_size, n_size, &sz_vt_out)) {
             free(perm);
             free(P);
             free(Q);
@@ -345,11 +324,10 @@ sparse_err_t sparse_svd_partial(const SparseMatrix *A, idx_t kk, const sparse_sv
             sparse_svd_free(svd);
             return SPARSE_ERR_ALLOC;
         }
-        double *U_out =
-            calloc(sz_u_out, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
-        double *Vt_out =
-            calloc(sz_vt_out, sizeof(double)); // NOLINT(clang-analyzer-optin.portability.UnixAPI)
-        if (!U_out || !Vt_out) {
+        double *U_out = NULL;
+        double *Vt_out = NULL;
+        if (sparse_calloc_array(sz_u_out, sizeof(double), (void **)&U_out) != SPARSE_OK ||
+            sparse_calloc_array(sz_vt_out, sizeof(double), (void **)&Vt_out) != SPARSE_OK) {
             free(U_out);
             free(Vt_out);
             free(perm);

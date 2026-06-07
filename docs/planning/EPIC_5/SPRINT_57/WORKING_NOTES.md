@@ -1839,3 +1839,157 @@ Sprint 57 Day 13 completed the full validation contract successfully:
 - no new blocker-level reconciliation queue surfaced during validation
 
 Sprint 57 can move to Day 14 closeout from a fully validated landed state.
+
+## Sprint 57 Day 14 - closeout and handoff
+
+Date: 2026-06-06 20:12:57 CDT
+Branch: `sprint-57`
+
+### Goal
+
+Close Sprint 57 from the validated Day 13 state, summarize the landed
+giant-test maintainability and lifecycle-regression outcomes, recheck whether
+`PROJECT_PLAN.md` needs adjustment, and hand off the explicit future queue.
+
+### Closeout state
+
+Sprint 57 now closes as one coherent validated giant-test refactor and
+regression-expansion package:
+
+- bounded direct-solver giant-test maintainability improvement
+- bounded solver-family giant-test maintainability improvement
+- stronger public direct repeated-run lifecycle proof
+- stronger factor-many / one-shot compatibility proof
+- preserved public/API and solver-support fences
+
+### Landed giant-test maintainability results
+
+Direct-solver proof surfaces:
+
+- `tests/test_chol_csc.c`
+  - landed owned helper seam:
+    - `tests/test_chol_csc_supernodal_helpers.h`
+- `tests/test_ldlt_csc.c`
+  - intentionally deferred as the strongest remaining direct-solver giant-test
+    seam
+- `tests/test_integration.c`
+  - intentionally retained as the dense public caller-story proof surface
+
+Solver-family proof surfaces:
+
+- `tests/test_svd.c`
+  - landed owned helper seam:
+    - `tests/test_svd_partial_helpers.h`
+  - retained main-file reduction:
+    - `3746 -> 2766`
+- `tests/test_iterative.c`
+  - landed owned helper seam:
+    - `tests/test_iterative_handle_helpers.h`
+  - retained main-file reduction:
+    - `2993 -> 2802`
+- `tests/test_qr.c`
+  - intentionally deferred rather than touched mechanically
+
+Interpretation:
+
+- Sprint 57 reduced helper-density where the proof-family seams were actually
+  clean
+- it did not force cosmetic splits into caller-story surfaces that are still
+  more valuable as dense integration proof hubs
+
+### Lifecycle and compatibility proof gains
+
+The landed regression-expansion results are now explicit:
+
+- repeated `sparse_factor_solve(...)` reuse on one analyzed/factored public
+  direct path is directly covered
+- `sparse_factor_free(...)` and `sparse_analysis_free(...)` zeroed-state
+  behavior is directly covered
+- same-pattern analyze-once / refactor-many parity with the one-shot
+  Cholesky compatibility path is directly covered
+
+That means Sprint 57 tightened the benchmark-facing and example-facing direct
+story without widening the public API.
+
+### Preserved fences
+
+Sprint 57 stayed inside the intended fence:
+
+- no public header/API redesign
+- no solver-family support-boundary drift
+- no benchmark/example workflow drift
+- no hidden lifecycle semantics expansion
+
+The strongest compatibility fact remains structural:
+
+- `master...HEAD` still has no `include/` changes at all
+
+### Final validation baseline
+
+Sprint 57 closes from the Day 13 validated baseline:
+
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+- `make quality-review-full` passed
+
+Reviewed truthfulness anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 202.24 sec`
+
+Targeted follow-ons also passed:
+
+- `./build/test_chol_csc` -> `137 / 137`
+- `./build/test_ldlt_csc` -> `96 / 96`
+- `./build/test_svd` -> `97 / 97`
+- `./build/test_iterative` -> `79 / 79`
+- `./build/test_integration` -> `39 / 39`
+- `./build/example_analysis` -> residual `4.44e-16`
+- `./build/bench_refactor` -> retained repeated-run evidence
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  -> `speedup_refactor = 2.20x`
+- `./build/bench_iterative_reuse` -> retained public-handle parity evidence
+- `./build/bench_eigs_reuse` -> retained repeated-run eigensolver parity
+  evidence
+
+### `PROJECT_PLAN.md` check
+
+Rechecked:
+
+- `docs/planning/EPIC_5/PROJECT_PLAN.md`
+
+Result:
+
+- no update was needed
+
+Interpretation:
+
+- Sprint 57 delivered the planned bounded giant-test and regression-expansion
+  work
+- the closeout queue is future-facing rather than a replanning correction
+
+### Future-facing residual queue
+
+The remaining queue is explicit and non-blocking:
+
+- deferred direct-solver giant-test seam:
+  - `tests/test_ldlt_csc.c`
+- deferred solver-family giant-test seam:
+  - `tests/test_qr.c`
+- intentionally retained dense caller-story surface:
+  - `tests/test_integration.c`
+
+### Day 14 result
+
+Sprint 57 now closes from a coherent validated state:
+
+- giant-test maintainability improved where proof-family seams were clean
+- direct repeated-run lifecycle proof is stronger
+- factor-many / one-shot compatibility proof is stronger
+- the deferred queue is explicit instead of ambiguous
+
+Sprint 57 is ready for retrospective creation from a coherent validated
+closeout state.

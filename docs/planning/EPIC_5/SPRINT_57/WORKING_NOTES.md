@@ -1512,3 +1512,117 @@ implicit in two high-signal places:
   just inference from refactor tests
 - `sparse_factor_free(...)` and `sparse_analysis_free(...)` now have direct
   zeroed-state proof in the lifecycle regression surface
+
+## Sprint 57 Day 11 - factor-many and compatibility regression batch
+
+Date: 2026-06-06 19:26:07 CDT
+Branch: `sprint-57`
+
+### Goal
+
+Add the highest-signal remaining factor-many / compatibility proof without
+changing the Sprint 50-56 public direct lifecycle contract:
+
+- same-pattern refactor-many expectations
+- repeated-run versus one-shot compatibility parity
+- benchmark-facing workflow truthfulness
+
+### Re-audit result
+
+Post-Day-10 lifecycle proof shape:
+
+- `tests/test_integration.c` remains the right Day 11 surface because it owns
+  the public direct caller story rather than family-local kernel detail
+- existing lifecycle coverage already proved:
+  - zero-init refactor acceptance
+  - mismatched existing-factor rejection
+  - old-factor preservation on failed refactor
+  - repeated solve reuse
+  - zeroed free behavior
+- the strongest still-implicit factor-many seam was:
+  - same-pattern refactor-many parity with the still-supported one-shot
+    Cholesky compatibility path across successive value updates
+
+### Implementation
+
+Touched files:
+
+- `tests/test_integration.c`
+
+Landed batch:
+
+- added `test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesky`
+- the new test:
+  - analyzes one SPD tridiagonal matrix once with
+    `SPARSE_FACTOR_CHOLESKY` + `SPARSE_REORDER_AMD`
+  - performs one initial numeric factorization on the shared public path
+  - applies two successive same-pattern diagonal-value updates on fresh
+    matrices
+  - refactors the shared `sparse_factors_t` across both updates
+  - solves each updated system on the public repeated-run path
+  - factors matching fresh matrices through
+    `sparse_cholesky_factor_opts(...)`
+  - proves the repeated-run and one-shot paths recover the same solution on
+    both updates
+
+Test-surface effect:
+
+- `./build/test_integration` now passes `39 / 39`
+- the public lifecycle regression cluster now directly proves the benchmark-
+  facing analyze-once / refactor-many compatibility assumption instead of
+  leaving it implied by separate one-shot and lifecycle tests
+
+### Validation
+
+Required gate:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Focused factor-many follow-ons:
+
+- `./build/test_integration` -> `39 / 39`
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+
+Representative retained outputs:
+
+- `example_analysis`
+  - solve residual = `4.44e-16`
+- `bench_refactor`
+  - `tridiag-200` = `1.72x`
+  - `tridiag-500` = `1.39x`
+  - `bcsstk04` = `1.52x`
+  - `nos4` = `1.49x`
+- `bench_refactor_csc nos4`
+  - `speedup_refactor = 1.08x`
+  - `res_public = 8.24e-16`
+  - `res_csc = 7.06e-16`
+
+Reviewed baseline:
+
+- `make quality-review-full`
+
+Passed with maintained anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 202.80 sec`
+
+### Day 11 result
+
+The Day 11 batch stayed inside the plan fence:
+
+- no public API changes
+- no benchmark-driver changes
+- no one-shot compatibility wording changes
+- one bounded addition to the public direct factor-many regression surface
+
+The main Day 11 gain is that the repeated-run direct path and the one-shot
+Cholesky compatibility path are now compared directly on the exact
+same-pattern value-update story that the benchmark and example surfaces teach.

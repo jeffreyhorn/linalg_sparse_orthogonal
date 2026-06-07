@@ -1569,6 +1569,100 @@ static void test_public_lifecycle_refactor_rejects_nnz_drift_and_preserves_old_f
     free(x);
 }
 
+static void test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesky(void) {
+    const idx_t n = 120;
+    SparseMatrix *A_base = build_tridiag_spd(n);
+    SparseMatrix *A_refactor1 = build_tridiag_spd(n);
+    SparseMatrix *A_refactor2 = build_tridiag_spd(n);
+    SparseMatrix *A_one_shot1 = build_tridiag_spd(n);
+    SparseMatrix *A_one_shot2 = build_tridiag_spd(n);
+    sparse_analysis_t analysis = {0};
+    sparse_factors_t factors = {0};
+    double *x_exact = NULL;
+    double *b1 = NULL;
+    double *b2 = NULL;
+    double *x_public1 = NULL;
+    double *x_public2 = NULL;
+    double *x_one_shot1 = NULL;
+    double *x_one_shot2 = NULL;
+
+    REQUIRE_OK(A_base && A_refactor1 && A_refactor2 && A_one_shot1 && A_one_shot2
+                   ? SPARSE_OK
+                   : SPARSE_ERR_ALLOC);
+
+    sparse_analysis_opts_t analysis_opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
+    sparse_cholesky_opts_t chol_opts = {
+        .reorder = SPARSE_REORDER_AMD,
+    };
+
+    ASSERT_EQ(sparse_analyze(A_base, &analysis_opts, &analysis), SPARSE_OK);
+    ASSERT_EQ(sparse_factor_numeric(A_base, &analysis, &factors), SPARSE_OK);
+
+    x_exact = malloc((size_t)n * sizeof(double));
+    b1 = malloc((size_t)n * sizeof(double));
+    b2 = malloc((size_t)n * sizeof(double));
+    x_public1 = malloc((size_t)n * sizeof(double));
+    x_public2 = malloc((size_t)n * sizeof(double));
+    x_one_shot1 = malloc((size_t)n * sizeof(double));
+    x_one_shot2 = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(x_exact && b1 && b2 && x_public1 && x_public2 && x_one_shot1 && x_one_shot2
+                   ? SPARSE_OK
+                   : SPARSE_ERR_ALLOC);
+
+    for (idx_t i = 0; i < n; i++) {
+        x_exact[i] = 0.5 + 0.125 * (double)i;
+        ASSERT_EQ(sparse_set(A_refactor1, i, i, 5.0), SPARSE_OK);
+        ASSERT_EQ(sparse_set(A_refactor2, i, i, 6.5 + 0.01 * (double)i), SPARSE_OK);
+        ASSERT_EQ(sparse_set(A_one_shot1, i, i, 5.0), SPARSE_OK);
+        ASSERT_EQ(sparse_set(A_one_shot2, i, i, 6.5 + 0.01 * (double)i), SPARSE_OK);
+    }
+
+    sparse_matvec(A_refactor1, x_exact, b1);
+    sparse_matvec(A_refactor2, x_exact, b2);
+
+    ASSERT_EQ(sparse_refactor_numeric(A_refactor1, &analysis, &factors), SPARSE_OK);
+    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b1, x_public1), SPARSE_OK);
+
+    ASSERT_EQ(sparse_cholesky_factor_opts(A_one_shot1, &chol_opts), SPARSE_OK);
+    ASSERT_EQ(sparse_cholesky_solve(A_one_shot1, b1, x_one_shot1), SPARSE_OK);
+
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_NEAR(x_public1[i], x_exact[i], 1e-12);
+        ASSERT_NEAR(x_one_shot1[i], x_exact[i], 1e-12);
+        ASSERT_NEAR(x_public1[i], x_one_shot1[i], 1e-12);
+    }
+
+    ASSERT_EQ(sparse_refactor_numeric(A_refactor2, &analysis, &factors), SPARSE_OK);
+    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b2, x_public2), SPARSE_OK);
+
+    ASSERT_EQ(sparse_cholesky_factor_opts(A_one_shot2, &chol_opts), SPARSE_OK);
+    ASSERT_EQ(sparse_cholesky_solve(A_one_shot2, b2, x_one_shot2), SPARSE_OK);
+
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_NEAR(x_public2[i], x_exact[i], 1e-12);
+        ASSERT_NEAR(x_one_shot2[i], x_exact[i], 1e-12);
+        ASSERT_NEAR(x_public2[i], x_one_shot2[i], 1e-12);
+    }
+
+    free(x_exact);
+    free(b1);
+    free(b2);
+    free(x_public1);
+    free(x_public2);
+    free(x_one_shot1);
+    free(x_one_shot2);
+    sparse_factor_free(&factors);
+    sparse_analysis_free(&analysis);
+    sparse_free(A_base);
+    sparse_free(A_refactor1);
+    sparse_free(A_refactor2);
+    sparse_free(A_one_shot1);
+    sparse_free(A_one_shot2);
+}
+
 /* SPARSE_ERR_CANCELLED string round-trips through sparse_strerror. */
 static void test_progress_cb_strerror(void) {
     const char *s = sparse_strerror(SPARSE_ERR_CANCELLED);
@@ -1865,6 +1959,7 @@ int main(void) {
     RUN_TEST(test_public_lifecycle_refactor_rejects_mismatched_existing_factors);
     RUN_TEST(test_public_lifecycle_refactor_preserves_old_factors_on_failure);
     RUN_TEST(test_public_lifecycle_refactor_rejects_nnz_drift_and_preserves_old_factors);
+    RUN_TEST(test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesky);
     RUN_TEST(test_progress_cb_strerror);
 
     /* Sprint 29 Day 7: progress / cancel coverage for QR, iterative

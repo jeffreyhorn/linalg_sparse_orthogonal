@@ -82,6 +82,8 @@ static void day9_assert_batched_matches_scalar(const SparseMatrix *A, const idx_
 static SparseMatrix *day11_build_spd(idx_t n, double density, unsigned int seed) {
     unsigned int rng = seed;
     SparseMatrix *A = sparse_create(n, n);
+    if (!A)
+        return NULL;
     for (idx_t i = 0; i < n; i++)
         sparse_insert(A, i, i, (double)n);
     for (idx_t i = 1; i < n; i++) {

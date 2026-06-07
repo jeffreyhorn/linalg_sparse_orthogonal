@@ -649,7 +649,7 @@ static void test_partial_svd_vectors_vs_full(void) {
 
 static void test_partial_svd_vectors_nos4(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t lerr = sparse_load_mm(&A, "tests/data/suitesparse/nos4.mtx");
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/nos4.mtx");
     if (lerr != SPARSE_OK || !A) {
         printf("    SKIP: nos4.mtx not found\n");
         return;

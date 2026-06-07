@@ -1336,8 +1336,8 @@ static void test_public_lifecycle_repeated_solve_and_free_zeroed(void) {
     sparse_matvec(A, x_exact1, b1);
     sparse_matvec(A, x_exact2, b2);
 
-    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b1, x1), SPARSE_OK);
-    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b2, x2), SPARSE_OK);
+    REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b1, x1));
+    REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b2, x2));
     for (idx_t i = 0; i < n; i++) {
         ASSERT_NEAR(x1[i], x_exact1[i], 1e-12);
         ASSERT_NEAR(x2[i], x_exact2[i], 1e-12);
@@ -1350,7 +1350,7 @@ static void test_public_lifecycle_repeated_solve_and_free_zeroed(void) {
     ASSERT_TRUE(factors.pivot_size == NULL);
     ASSERT_TRUE(factors.ldlt_perm == NULL);
     ASSERT_EQ(factors.n, 0);
-    ASSERT_NEAR(factors.factor_norm, 0.0, 0.0);
+    ASSERT_EQ(factors.factor_norm, 0.0);
 
     sparse_analysis_free(&analysis);
     ASSERT_TRUE(analysis.perm == NULL);
@@ -1362,7 +1362,7 @@ static void test_public_lifecycle_repeated_solve_and_free_zeroed(void) {
     ASSERT_TRUE(analysis.sym_U.row_idx == NULL);
     ASSERT_EQ(analysis.n, 0);
     ASSERT_EQ(analysis.source_nnz, 0);
-    ASSERT_NEAR(analysis.analysis_norm, 0.0, 0.0);
+    ASSERT_EQ(analysis.analysis_norm, 0.0);
 
     /* The lifecycle free entry points are documented as safe on zeroed state. */
     sparse_factor_free(&factors);
@@ -1623,11 +1623,11 @@ static void test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesk
     sparse_matvec(A_refactor1, x_exact, b1);
     sparse_matvec(A_refactor2, x_exact, b2);
 
-    ASSERT_EQ(sparse_refactor_numeric(A_refactor1, &analysis, &factors), SPARSE_OK);
-    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b1, x_public1), SPARSE_OK);
+    REQUIRE_OK(sparse_refactor_numeric(A_refactor1, &analysis, &factors));
+    REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b1, x_public1));
 
-    ASSERT_EQ(sparse_cholesky_factor_opts(A_one_shot1, &chol_opts), SPARSE_OK);
-    ASSERT_EQ(sparse_cholesky_solve(A_one_shot1, b1, x_one_shot1), SPARSE_OK);
+    REQUIRE_OK(sparse_cholesky_factor_opts(A_one_shot1, &chol_opts));
+    REQUIRE_OK(sparse_cholesky_solve(A_one_shot1, b1, x_one_shot1));
 
     for (idx_t i = 0; i < n; i++) {
         ASSERT_NEAR(x_public1[i], x_exact[i], 1e-12);
@@ -1635,11 +1635,11 @@ static void test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesk
         ASSERT_NEAR(x_public1[i], x_one_shot1[i], 1e-12);
     }
 
-    ASSERT_EQ(sparse_refactor_numeric(A_refactor2, &analysis, &factors), SPARSE_OK);
-    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b2, x_public2), SPARSE_OK);
+    REQUIRE_OK(sparse_refactor_numeric(A_refactor2, &analysis, &factors));
+    REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b2, x_public2));
 
-    ASSERT_EQ(sparse_cholesky_factor_opts(A_one_shot2, &chol_opts), SPARSE_OK);
-    ASSERT_EQ(sparse_cholesky_solve(A_one_shot2, b2, x_one_shot2), SPARSE_OK);
+    REQUIRE_OK(sparse_cholesky_factor_opts(A_one_shot2, &chol_opts));
+    REQUIRE_OK(sparse_cholesky_solve(A_one_shot2, b2, x_one_shot2));
 
     for (idx_t i = 0; i < n; i++) {
         ASSERT_NEAR(x_public2[i], x_exact[i], 1e-12);

@@ -1,0 +1,51 @@
+Sprint 58 Day 1 authoritative inputs
+====================================
+
+Planning sources
+----------------
+- docs/planning/EPIC_5/PROJECT_PLAN.md
+- docs/planning/EPIC_5/SPRINT_58/PLAN.md
+
+Inherited closeout / baseline sources
+-------------------------------------
+- docs/planning/EPIC_5/SPRINT_57/artifacts/day14-closeout-and-handoff.md
+- docs/planning/EPIC_5/SPRINT_57/RETROSPECTIVE.md
+- docs/planning/EPIC_5/reviews/review-codex-2026-05-31.md
+- docs/planning/EPIC_5/reviews/todo-codex-2026-05-31.md
+
+Validation anchors
+------------------
+- make quality-review-full
+- ctest -N --test-dir build/quality-review-cmake
+
+Primary public docs / example / benchmark hotspots
+--------------------------------------------------
+- README.md
+- docs/tutorial.md
+- include/sparse_analysis.h
+- include/sparse_iterative.h
+- include/sparse_eigs.h
+- include/sparse_lu.h
+- include/sparse_cholesky.h
+- include/sparse_ldlt.h
+- examples/README.md
+- examples/example_analysis.c
+- examples/example_iterative.c
+- examples/example_ic_minres.c
+- examples/example_eigs.c
+- examples/example_svd_lowrank.c
+- benchmarks/README.md
+- benchmarks/bench_refactor.c
+- benchmarks/bench_refactor_csc.c
+- benchmarks/bench_iterative_reuse.c
+- benchmarks/bench_eigs_reuse.c
+
+Key live symbols / seams
+------------------------
+- public sprint-history narrative on stable caller-facing surfaces
+- one-shot-first workflow guidance
+- advanced lifecycle / factor-many workflow guidance
+- public-header contract comments
+- example caller-story framing
+- benchmark taxonomy phrasing
+- product-level terminology vs sprint-local terminology

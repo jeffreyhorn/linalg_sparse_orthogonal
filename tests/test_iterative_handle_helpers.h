@@ -5,7 +5,7 @@
  * and zero-init on-demand growth should all follow the final public contract. */
 static void test_cg_public_handle_validation_reuse_and_on_demand(void) {
     SparseMatrix *A = build_spd_tridiag(8, 4.0, -1.0);
-    ASSERT_NOT_NULL(A);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     double x_exact[8];
     double b[8];
@@ -52,8 +52,7 @@ static void test_cg_public_handle_validation_reuse_and_on_demand(void) {
 static void test_gmres_public_handle_prepare_reuse_and_growth(void) {
     SparseMatrix *A_small = build_unsym_tridiag(8, 4.0, -0.5, -1.0);
     SparseMatrix *A_large = build_unsym_tridiag(12, 4.0, -0.5, -1.0);
-    ASSERT_NOT_NULL(A_small);
-    ASSERT_NOT_NULL(A_large);
+    REQUIRE_OK((A_small && A_large) ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     double x_exact_small[8];
     double b_small[8];
@@ -127,8 +126,7 @@ static void test_gmres_public_handle_prepare_reuse_and_growth(void) {
 static void test_minres_public_handle_prepare_reuse_and_growth(void) {
     SparseMatrix *A_small = build_spd_tridiag(8, 4.0, -1.0);
     SparseMatrix *A_large = build_spd_tridiag(12, 4.0, -1.0);
-    ASSERT_NOT_NULL(A_small);
-    ASSERT_NOT_NULL(A_large);
+    REQUIRE_OK((A_small && A_large) ? SPARSE_OK : SPARSE_ERR_ALLOC);
 
     double x_exact_small[8];
     double b_small[8];

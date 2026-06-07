@@ -9,10 +9,16 @@
 static void detect_supernodes_alloc(const CholCsc *L, idx_t min_size, idx_t **starts_out,
                                     idx_t **sizes_out, idx_t *count_out) {
     idx_t n = L->n;
+    *starts_out = NULL;
+    *sizes_out = NULL;
+    *count_out = 0;
     idx_t *starts = malloc((size_t)(n > 0 ? n : 1) * sizeof(idx_t));
     idx_t *sizes = malloc((size_t)(n > 0 ? n : 1) * sizeof(idx_t));
-    ASSERT_NOT_NULL(starts);
-    ASSERT_NOT_NULL(sizes);
+    if (!starts || !sizes) {
+        free(starts);
+        free(sizes);
+        REQUIRE_OK(SPARSE_ERR_ALLOC);
+    }
     idx_t count = 0;
     REQUIRE_OK(chol_csc_detect_supernodes(L, min_size, starts, sizes, &count));
     *starts_out = starts;

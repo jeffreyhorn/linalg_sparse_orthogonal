@@ -730,3 +730,143 @@ The first docs reduction boundary is now concrete:
 
 That gives Day 5 a clear starting point for the first bounded README/tutorial
 reduction batch.
+
+## Day 5
+
+**Objective:** Land the first bounded top-level docs simplification patch by
+reducing the README front-door workflow story, aligning the tutorial to the
+same one-shot-first and repeated-run-support boundary, and preserving the
+validated example/benchmark truthfulness fence without widening the touched
+scope into benchmark, header, or example-doc cleanup yet.
+
+### Commands Run
+
+1. Re-read the Sprint 58 Day 5 design boundary and the touched README/tutorial
+   seams:
+   - `sed -n '1,220p' docs/planning/EPIC_5/SPRINT_58/artifacts/day4-readme-tutorial-reduction-design.md`
+   - `sed -n '1,140p' README.md`
+   - `sed -n '400,485p' README.md`
+   - `sed -n '1,260p' docs/tutorial.md`
+2. Re-read the strongest example and benchmark truthfulness anchors for the
+   touched wording:
+   - `sed -n '1,220p' examples/example_analysis.c`
+   - `sed -n '1,200p' benchmarks/README.md`
+3. Apply the bounded docs reduction patch:
+   - `README.md`
+   - `docs/tutorial.md`
+4. Run targeted docs sanity checks:
+   - `git diff -- README.md docs/tutorial.md`
+   - `rg -n "Choose a Workflow|example_analysis|bench_refactor|bench_iterative_reuse|bench_eigs_reuse|BiCGSTAB|block iterative|CG|GMRES|MINRES|LOBPCG" README.md docs/tutorial.md`
+   - `wc -l README.md docs/tutorial.md`
+
+### Day 5 Findings
+
+#### 1. The README front door is now materially more workflow-first and less sprint-local
+
+The top of `README.md` changed in the intended direction:
+
+- the heaviest top-level feature ledger bullets were reduced into stable
+  product-level summaries for:
+  - direct solvers
+  - SVD
+  - iterative solvers
+- the new `Choose a Workflow` section now makes the final public story visible
+  near the top of the file:
+  - one-shot direct solves first
+  - explicit repeated direct lifecycle for stable-pattern reuse
+  - repeated iterative handles only for `CG`, `GMRES`, `MINRES`
+  - repeated eigensolver handle for grow-m, thick-restart, and explicit
+    `LOBPCG`
+  - workflow-local benchmark proof surfaces
+
+Interpretation:
+
+- the README now reads more like a product map and less like a sprint-by-sprint
+  feature ledger
+- the touched front-door story is shorter without hiding the important support
+  boundary
+
+#### 2. The tutorial stayed within the bounded alignment target rather than turning into a broader rewrite
+
+The tutorial changes stayed intentionally small:
+
+- added a `Choose a Workflow First` section near the top
+- made the repeated-run support boundary explicit
+- added a direct repeated-run pointer near the Cholesky section
+- added a repeated iterative-handle pointer near the GMRES section
+
+Interpretation:
+
+- `docs/tutorial.md` now matches the final workflow story better
+- the tutorial did not widen into a broad structural rewrite or a duplicate of
+  the README
+
+#### 3. The touched wording preserved the intended non-goal fence
+
+The Day 5 patch intentionally did not touch:
+
+- deep CSC historical performance sections
+- deep eigensolver chronology
+- benchmark taxonomy organization
+- `examples/README.md`
+- public headers
+
+Interpretation:
+
+- Day 5 stayed inside the Day 4 design boundary
+- later Sprint 58 days still own the benchmark, examples, and header cleanup
+  queue
+
+#### 4. The touched workflow wording stayed aligned with the current example and benchmark truthfulness anchors
+
+The Day 5 wording stays consistent with the live repo:
+
+- `example_analysis` remains the strongest direct repeated-run example
+- repeated iterative handles remain bounded to:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- repeated symmetric eigensolver handle wording remains bounded to:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+- benchmark pointers remain aligned to:
+  - `bench_refactor`
+  - `bench_refactor_csc`
+  - `bench_iterative_reuse`
+  - `bench_eigs_reuse`
+
+Interpretation:
+
+- the docs batch simplified wording without changing the public truthfulness
+  contract
+- no caller-facing contradiction was introduced against the existing examples
+  or benchmark docs
+
+#### 5. The size/result shape is now concrete from the landed patch
+
+Measured touched-surface result:
+
+- `README.md`: `987 -> 973`
+- `docs/tutorial.md`: `415 -> 453`
+
+Interpretation:
+
+- the README reduction is real
+- the tutorial grew modestly, but only because the repeated-run workflow
+  boundary is now explicit in the right place
+- that tradeoff is acceptable because Day 5 was about front-door clarity, not
+  raw line-count minimization in every touched file
+
+## Day 5 Close
+
+Day 5 landed the first bounded top-level docs simplification patch:
+
+- `README.md` front-door workflow story is shorter and more product-level
+- `docs/tutorial.md` now aligns more clearly to the final repeated-run support
+  boundary
+- example and benchmark truthfulness anchors remained intact
+- benchmark/example/header cleanup remains explicitly deferred
+
+That is enough to move to the Day 6 follow-through pass without reopening the
+Day 4 design boundary.

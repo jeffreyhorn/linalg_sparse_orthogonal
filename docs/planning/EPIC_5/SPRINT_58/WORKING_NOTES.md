@@ -993,3 +993,168 @@ Day 6 landed the bounded top-level docs follow-through patch:
 
 That is enough to move to the Day 7 public-header audit/design from a cleaner
 caller-facing docs baseline.
+
+## Day 7
+
+**Objective:** Reduce the public-header cleanup problem to a bounded offender
+list by auditing the strongest API-adjacent narrative hotspots directly,
+separating the real cleanup classes, ranking the touched headers by caller
+visibility and risk, and fixing the exact Day 8 header set plus wording
+invariants before any permanent header edits land.
+
+### Commands Run
+
+1. Re-read the Sprint 58 Day 7 plan item and confirm current branch state:
+   - `sed -n '241,320p' docs/planning/EPIC_5/SPRINT_58/PLAN.md`
+   - `git status --short --branch`
+2. Scan the strongest public-header offenders for live drift markers:
+   - `rg -n "Sprint|planned for Sprint|future sprint|repeated-run|handle|workflow|BiCGSTAB|block iterative|LOBPCG|factor-many|analyze once|analyze-once" include/sparse_analysis.h include/sparse_iterative.h include/sparse_eigs.h include/sparse_lu.h include/sparse_cholesky.h include/sparse_ldlt.h`
+3. Measure the live header sizes:
+   - `wc -l include/sparse_analysis.h include/sparse_iterative.h include/sparse_eigs.h include/sparse_lu.h include/sparse_cholesky.h include/sparse_ldlt.h`
+4. Read the highest-signal offending sections directly:
+   - `sed -n '1,260p' include/sparse_eigs.h`
+   - `sed -n '200,380p' include/sparse_iterative.h`
+   - `sed -n '1,220p' include/sparse_cholesky.h`
+   - `sed -n '1,220p' include/sparse_analysis.h`
+
+### Day 7 Findings
+
+#### 1. The public-header problem is concentrated in a small number of strong offenders rather than spread evenly across all public headers
+
+The live public-header surfaces do not all need the same treatment:
+
+- `include/sparse_eigs.h` = `687`
+  - strongest first target
+  - carries the heaviest stale sprint chronology
+  - also carries the heaviest future-work and tuning-local commentary
+- `include/sparse_iterative.h` = `765`
+  - strongest second target
+  - repeated-run handle wording is mostly good, but still has a few visible
+    support-boundary and narrative normalization seams
+- `include/sparse_analysis.h` = `375`
+  - meaningful third target
+  - mostly stable, but still carries overlong repeated-run explanatory mass at
+    the public-header layer
+- direct-family headers:
+  - `include/sparse_cholesky.h` = `204`
+  - `include/sparse_ldlt.h` = `334`
+  - `include/sparse_lu.h` = `337`
+  - these show smaller, more local cleanup seams rather than the main public
+    narrative burden
+
+Interpretation:
+
+- Sprint 58 should not try to touch every public header equally
+- Day 8 should stay focused on the strongest public narrative offenders first
+
+#### 2. `include/sparse_eigs.h` carries all four named Day 7 cleanup classes
+
+Live `sparse_eigs.h` drift classes:
+
+- stale sprint chronology
+  - section headings, overview text, enum docs, and option comments still
+    explain stable behavior through Sprint-day history
+- stale future-work wording
+  - phrases like `planned for Sprint 21` and `future sprints`
+- overlong lifecycle explanation
+  - the top-of-file overview and several option/result comments repeat internal
+    rationale at a depth better suited to planning docs or the algorithm docs
+- terminology mismatch with the current README/tutorial wording
+  - the stable repeated-run handle and AUTO routing story exist, but the
+    header still mixes them with historical bench-corpus and sprint-local
+    rationale
+
+Interpretation:
+
+- `include/sparse_eigs.h` is the strongest Day 8 target by both visibility and
+  cleanup payoff
+- it needs narrative reduction more than API redesign
+
+#### 3. `include/sparse_iterative.h` is the strongest repeated-run summary companion surface
+
+Live `sparse_iterative.h` cleanup classes:
+
+- stale sprint chronology
+  - much lighter than `sparse_eigs.h`, but still present in support-boundary
+    wording
+- overlong lifecycle explanation
+  - explicit repeated-run handle comments are useful, but some visible summary
+    wording can be tightened now that README/tutorial already carry the stable
+    public story
+- terminology mismatch
+  - the support boundary around `CG`, `GMRES`, `MINRES`, `BiCGSTAB`, and block
+    workflows should read exactly like the current README/tutorial wording
+
+Interpretation:
+
+- `include/sparse_iterative.h` is a good Day 8 companion target because it
+  carries a caller-visible repeated-run boundary that should now align tightly
+  with the simplified top-level docs
+- it does not require the same mass reduction as `sparse_eigs.h`
+
+#### 4. `include/sparse_analysis.h` is a plausible third target, but it is lower-risk and more deferrable than the two stronger surfaces
+
+Live `sparse_analysis.h` cleanup classes:
+
+- overlong lifecycle explanation
+  - the explicit repeated-run direct path is correctly documented, but the
+    top-of-file overview remains more verbose than the current top-level docs
+    now need
+- terminology mismatch
+  - small opportunity to align wording around analyze-once / factor-many
+    language with the README/tutorial cleanup
+
+Interpretation:
+
+- `include/sparse_analysis.h` is the strongest optional third header for Day 8
+- it should only be touched if the batch can stay bounded and docs-aligned
+
+#### 5. The direct-family headers should mostly stay deferred unless the Day 8 cleanup exposes a real contradiction
+
+The direct-family headers now read comparatively better:
+
+- `include/sparse_cholesky.h`
+  - one-shot-first posture is already explicit
+  - repeated-run direct path is already pointed to the shared lifecycle API
+- `include/sparse_lu.h`
+  - not a main public-sprint-history hotspot in this audit
+- `include/sparse_ldlt.h`
+  - not a main public-sprint-history hotspot in this audit
+
+Interpretation:
+
+- Day 8 should not widen into broad direct-family header cleanup by default
+- these headers remain secondary follow-ons only if the touched Day 8 wording
+  reveals a contradiction
+
+#### 6. The exact bounded Day 8 set and invariants are now explicit
+
+Selected Day 8 touched-header set:
+
+1. `include/sparse_eigs.h`
+2. `include/sparse_iterative.h`
+3. `include/sparse_analysis.h` only if the landed batch remains tight and
+   clearly aligned to the README/tutorial wording
+
+Preserved Day 8 invariants:
+
+- preserve API semantics
+- preserve ownership truth
+- keep concise behavioral comments that still help callers use the API safely
+- remove stale sprint-history and future-sprint narrative where it is no longer
+  needed to understand the contract
+- keep support-boundary wording aligned with the current README/tutorial story
+
+## Day 7 Close
+
+The public-header cleanup problem is now concrete:
+
+- `include/sparse_eigs.h` is the strongest first target
+- `include/sparse_iterative.h` is the strongest repeated-run companion target
+- `include/sparse_analysis.h` is an optional third target if the batch stays
+  bounded
+- the direct-family headers remain intentionally deferred unless the Day 8
+  batch exposes a real contradiction
+
+That gives Day 8 a clear bounded header set and wording invariant map before
+any API-adjacent text changes land.

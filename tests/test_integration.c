@@ -1350,7 +1350,7 @@ static void test_public_lifecycle_repeated_solve_and_free_zeroed(void) {
     ASSERT_TRUE(factors.pivot_size == NULL);
     ASSERT_TRUE(factors.ldlt_perm == NULL);
     ASSERT_EQ(factors.n, 0);
-    ASSERT_EQ(factors.factor_norm, 0.0);
+    ASSERT_TRUE(factors.factor_norm == 0.0);
 
     sparse_analysis_free(&analysis);
     ASSERT_TRUE(analysis.perm == NULL);
@@ -1362,7 +1362,7 @@ static void test_public_lifecycle_repeated_solve_and_free_zeroed(void) {
     ASSERT_TRUE(analysis.sym_U.row_idx == NULL);
     ASSERT_EQ(analysis.n, 0);
     ASSERT_EQ(analysis.source_nnz, 0);
-    ASSERT_EQ(analysis.analysis_norm, 0.0);
+    ASSERT_TRUE(analysis.analysis_norm == 0.0);
 
     /* The lifecycle free entry points are documented as safe on zeroed state. */
     sparse_factor_free(&factors);

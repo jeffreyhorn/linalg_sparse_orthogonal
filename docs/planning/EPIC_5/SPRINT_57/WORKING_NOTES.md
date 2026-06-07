@@ -1626,3 +1626,134 @@ The Day 11 batch stayed inside the plan fence:
 The main Day 11 gain is that the repeated-run direct path and the one-shot
 Cholesky compatibility path are now compared directly on the exact
 same-pattern value-update story that the benchmark and example surfaces teach.
+
+## Sprint 57 Day 12 - post-expansion compatibility audit
+
+Date: 2026-06-06 19:46:12 CDT
+Branch: `sprint-57`
+
+### Goal
+
+Re-audit the landed Sprint 57 branch after the test refactors and lifecycle
+regression additions, then lock the residual queue and final validation
+checklist from the actual branch state.
+
+### Audit scope
+
+Re-read from the landed tree:
+
+- direct giant-test surfaces
+  - `tests/test_chol_csc.c`
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_integration.c`
+- solver-family giant-test surfaces
+  - `tests/test_svd.c`
+  - `tests/test_iterative.c`
+  - helper seams extracted into:
+    - `tests/test_chol_csc_supernodal_helpers.h`
+    - `tests/test_svd_partial_helpers.h`
+    - `tests/test_iterative_handle_helpers.h`
+- caller-facing workflow wording
+  - `README.md`
+  - `examples/README.md`
+  - `benchmarks/README.md`
+  - `docs/tutorial.md`
+
+### Main audit result
+
+The landed Sprint 57 branch still matches the preserved Sprint 50-56 steady-
+state contract:
+
+- no public API redesign surfaced
+- no solver-family support-boundary drift surfaced
+- no benchmark/example contract drift surfaced
+- no behavior-visible direct repeated-run lifecycle drift surfaced
+
+The strongest structural compatibility fact is still explicit:
+
+- `master...HEAD` has no `include/` changes at all
+
+That means Sprint 57 has remained a proof-surface and maintainability sprint,
+not a hidden product-surface sprint.
+
+### Landed branch shape
+
+Direct-solver proof surfaces:
+
+- `tests/test_chol_csc.c` is smaller and less helper-dense after the Day 5
+  supernodal helper extraction
+- `tests/test_integration.c` now owns the strongest public direct lifecycle /
+  factor-many caller-story cluster
+- `tests/test_ldlt_csc.c` remains intentionally dense and is now the clearest
+  deferred direct-solver giant-test seam rather than an unnoticed drift
+
+Solver-family proof surfaces:
+
+- `tests/test_svd.c` is materially smaller after the partial-SVD family
+  extraction
+- `tests/test_iterative.c` is modestly smaller after the public handle-family
+  extraction
+- `tests/test_qr.c` remains unchanged and intentionally deferred
+
+Caller-facing workflow wording:
+
+- README still states:
+  - analyze once
+  - factor / solve
+  - refactor / solve many on same-pattern value changes
+  - one-shot LU / Cholesky / LDL^T remain first-class
+- benchmark docs still match the live proof surfaces:
+  - `bench_refactor`
+  - `bench_refactor_csc`
+  - `bench_iterative_reuse`
+  - `bench_eigs_reuse`
+- examples/tutorial still keep shipped examples one-shot-first while naming the
+  bounded repeated-run support surfaces explicitly
+
+### Residual queue
+
+The remaining queue is now bounded and consciously deferred:
+
+- direct-solver giant-test follow-on:
+  - `tests/test_ldlt_csc.c` helper-density seam
+- solver-family giant-test follow-on:
+  - `tests/test_qr.c` only if a later sprint needs broader proof-surface
+    cleanup
+- broader integration density:
+  - `tests/test_integration.c` remains intentionally dense because it is now
+    the main public caller-story surface
+
+No blocker-level contract drift surfaced from the Day 12 audit.
+
+### Final validation checklist
+
+Day 13 should validate exactly the landed branch state with:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- `ctest -N --test-dir build/quality-review-cmake`
+
+Targeted Sprint 57 follow-ons:
+
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+- `./build/test_svd`
+- `./build/test_iterative`
+- `./build/test_integration`
+- `./build/example_analysis`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+
+### Day 12 result
+
+Sprint 57’s landed branch now reads cleanly as:
+
+- giant-test maintainability improvement
+- direct repeated-run lifecycle proof tightening
+- factor-many / one-shot compatibility proof tightening
+
+without any hidden product-surface drift before the final validation sweep.

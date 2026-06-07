@@ -1399,3 +1399,116 @@ Intentionally deferred remaining density:
   clutter seam
 - `tests/test_qr.c` remains deferred unless a later sprint needs broader
   solver-family proof cleanup
+
+## Sprint 57 Day 10 - lifecycle regression expansion batch 1
+
+Date: 2026-06-06 18:56:28 CDT
+Branch: `sprint-57`
+
+### Goal
+
+Expand the public direct repeated-run lifecycle proof in the highest-signal
+remaining gap area without changing the Sprint 50-56 support boundary:
+
+- repeated solve behavior on one analyzed/factored direct path
+- explicit free-to-zero behavior for `sparse_factors_t`
+- explicit free-to-zero behavior for `sparse_analysis_t`
+- no widening into new lifecycle semantics or API changes
+
+### Re-audit result
+
+Post-Day-9 lifecycle proof shape:
+
+- `tests/test_integration.c` is still the right Day 10 surface because it owns
+  the public direct caller story rather than family-local numeric detail
+- existing public lifecycle proof already covered:
+  - zeroed-factor solve rejection
+  - mismatched analysis/factors rejection
+  - zero-init refactor acceptance
+  - same-pattern refactor and old-factor preservation on failure
+- the strongest still-implicit public contract seam was:
+  - repeated `sparse_factor_solve(...)` calls on one valid
+    `sparse_analysis_t` + `sparse_factors_t`
+  - explicit post-free zeroed state for both public lifecycle structs
+
+### Implementation
+
+Touched files:
+
+- `tests/test_integration.c`
+
+Landed batch:
+
+- added `test_public_lifecycle_repeated_solve_and_free_zeroed`
+- the new test:
+  - analyzes one SPD tridiagonal matrix
+  - performs numeric factorization once
+  - solves two distinct right-hand sides through the same public lifecycle
+    state
+  - verifies both recovered solutions exactly
+  - frees `sparse_factors_t` and proves the public struct returns to a zeroed
+    state
+  - frees `sparse_analysis_t` and proves the public struct returns to a zeroed
+    state
+  - calls both free entry points again on the zeroed state to prove no-op
+    safety
+
+Test-surface effect:
+
+- `./build/test_integration` now passes `38 / 38`
+- the new coverage lives alongside the existing public lifecycle rejection and
+  refactor tests instead of creating a new binary or broadening family-local
+  proof surfaces
+
+### Validation
+
+Required gate:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Focused direct follow-ons:
+
+- `./build/test_integration` -> `38 / 38`
+- `./build/example_analysis`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+
+Representative retained outputs:
+
+- `example_analysis`
+  - solve residual = `4.44e-16`
+- `bench_refactor_csc nos4`
+  - `speedup_refactor = 2.52x`
+  - `res_public = 8.24e-16`
+  - `res_csc = 7.06e-16`
+
+Reviewed baseline:
+
+- `make quality-review-full`
+
+Passed with maintained anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 203.98 sec`
+
+### Day 10 result
+
+The Day 10 lifecycle batch stayed inside the plan fence:
+
+- no public API changes
+- no new solver-family behavior
+- no support-boundary drift
+- one bounded addition to the public direct repeated-run caller proof
+
+The main Day 10 gain is that the public direct lifecycle story is now less
+implicit in two high-signal places:
+
+- repeated solve reuse on one analyzed/factored path is now direct proof, not
+  just inference from refactor tests
+- `sparse_factor_free(...)` and `sparse_analysis_free(...)` now have direct
+  zeroed-state proof in the lifecycle regression surface

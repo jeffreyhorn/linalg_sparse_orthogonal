@@ -392,3 +392,191 @@ Day 2 leaves Sprint 58 with an explicit validation and rerun contract:
 
 That is enough to move to the Day 3 public docs audit without validation
 ambiguity.
+
+## Day 3
+
+**Objective:** Reduce the strongest caller-facing docs to a concrete cleanup
+map by separating their live drift classes, ranking the real bounded
+simplification targets, and fixing the strongest first documentation landing
+boundary before any permanent wording changes land.
+
+### Commands Run
+
+1. Re-read the Sprint 58 Day 3 plan item and the current sprint notes:
+   - `sed -n '133,188p' docs/planning/EPIC_5/SPRINT_58/PLAN.md`
+   - `sed -n '1,320p' docs/planning/EPIC_5/SPRINT_58/WORKING_NOTES.md`
+2. Re-read the previous sprint’s audit artifact shape as a formatting sanity
+   check:
+   - `sed -n '1,220p' docs/planning/EPIC_5/SPRINT_57/artifacts/day3-direct-solver-giant-test-seam-audit.md`
+3. Scan the strongest caller-facing docs for live drift markers:
+   - `rg -n "Sprint|planned for Sprint|future sprint|workflow|repeated-run|factor-many|benchmark|example_analysis|example_ic_minres|bench_refactor|bench_iterative_reuse|bench_eigs_reuse" README.md docs/tutorial.md examples/README.md benchmarks/README.md`
+4. Read the highest-signal doc surfaces directly:
+   - `sed -n '1,120p' README.md`
+   - `sed -n '1,260p' docs/tutorial.md`
+   - `sed -n '1,180p' examples/README.md`
+   - `sed -n '1,220p' benchmarks/README.md`
+
+### Day 3 Findings
+
+#### 1. The public-docs problem is concentrated in a few high-signal surfaces rather than spread evenly across all docs
+
+The main Sprint 58 doc surfaces do not all need the same treatment:
+
+- `README.md`
+  - biggest public-surface wording target
+  - still carries the heaviest sprint-local chronology
+  - still mixes stable workflow guidance with historical implementation notes
+- `benchmarks/README.md`
+  - strongest secondary target
+  - already useful, but still mixes stable workflow groups with
+    sprint-stamped benchmark taxonomy
+- `examples/README.md`
+  - smaller, but still a high-value public entry surface
+  - contains a few explicit sprint-history references and support-boundary
+    statements that should be made more product-level
+- `docs/tutorial.md`
+  - comparatively stable already
+  - stronger candidate for bounded reduction and terminology alignment than for
+    broad structural rewrite
+
+Interpretation:
+
+- Sprint 58 should not distribute effort evenly across the docs set
+- the first landing should focus on the top-level README and the tutorial
+  boundary, with benchmark/examples docs following behind
+
+#### 2. `README.md` carries all five named drift classes from the Sprint 58 plan
+
+Live README drift classes:
+
+- stale sprint chronology
+  - feature bullets still explain stable capabilities through Sprint-day
+    history, especially CSC direct solvers, eigensolvers, and SVD
+- repeated-run workflow ambiguity
+  - the final public repeated-run story exists, but it is not the dominant
+    organizing principle
+- one-shot versus advanced-path imbalance
+  - many features are described in deep implementation detail before the
+    simpler caller story is made clear
+- example coverage mismatch
+  - the strongest shipped examples are referenced, but the README still reads
+    more like a feature ledger than a product-level example map
+- benchmark taxonomy mismatch
+  - benchmark surfaces are visible, but the benchmark story is still partly
+    framed in implementation-history language
+
+Interpretation:
+
+- `README.md` is the strongest Day 4-6 target because it is both the highest
+  visibility surface and the place where multiple drift classes overlap
+- the first cleanup should emphasize reduction, not more explanation
+
+#### 3. `docs/tutorial.md` is relatively healthy, but still needs bounded alignment with the final public workflow story
+
+The tutorial is not carrying the same heavy sprint-local burden:
+
+- no strong stale sprint chronology surfaced in the first-pass tutorial audit
+- the main remaining risk is repeated-run workflow ambiguity
+- the tutorial still leans naturally toward one-shot examples and API sampling
+- it should be tightened to stay aligned with the final one-shot-first story
+  while still pointing clearly at:
+  - repeated direct lifecycle
+  - iterative/eigensolver repeated-run handles
+  - example and header follow-through surfaces
+
+Interpretation:
+
+- `docs/tutorial.md` should be treated as a bounded alignment target, not a
+  major narrative-rewrite target
+- it pairs naturally with the README cleanup because it can absorb concise
+  workflow guidance without repeating implementation chronology
+
+#### 4. `examples/README.md` has lower mass but still carries visible support-boundary and chronology drift
+
+Live examples-doc drift classes:
+
+- stale sprint chronology
+  - explicit wording like `Sprint 54 intentionally does not broaden...`
+  - sprint-stamped eigensolver references in example descriptions
+- repeated-run workflow ambiguity
+  - the repeated-run handle and direct-lifecycle story is present, but still
+    reads partly as inherited sprint framing
+- one-shot versus advanced-path imbalance
+  - this surface is actually close to the intended one-shot-first posture, but
+    some support-boundary explanation is more detailed than necessary
+- example coverage mismatch
+  - low mismatch risk; the listed examples already broadly match the shipped
+    surfaces
+
+Interpretation:
+
+- `examples/README.md` is a worthwhile later target because it is small,
+  caller-facing, and likely cheap to simplify once README/tutorial wording is
+  settled
+- it should follow, not precede, the top-level docs reduction
+
+#### 5. `benchmarks/README.md` is already valuable, but still reflects benchmark-history accretion more than a final product taxonomy
+
+Live benchmark-doc drift classes:
+
+- stale sprint chronology
+  - explicit sprint-stamped benchmark references remain in section titles and
+    notes
+- benchmark taxonomy mismatch
+  - stable workflow categories are present, but they still coexist with older
+    benchmark-by-sprint framing
+- repeated-run workflow ambiguity
+  - the direct repeated-run and handle-reuse categories are good, but the file
+    still carries more benchmark-local historical detail than the final public
+    taxonomy likely needs
+- one-shot versus advanced-path imbalance
+  - less severe than in README, but still present where workflow grouping and
+    historical benchmark notes compete for space
+
+Interpretation:
+
+- `benchmarks/README.md` is the strongest Day 11 target because it needs
+  reorganization around stable workflow groups rather than a generic wording
+  trim
+- it depends on the README/example wording being simplified first so the
+  taxonomy can reuse the same final terminology
+
+#### 6. The first landing should be `README.md` plus bounded tutorial reduction, not benchmark or example cleanup first
+
+The ranked Day 3 cleanup order is now:
+
+1. `README.md`
+2. `docs/tutorial.md`
+3. `benchmarks/README.md`
+4. `examples/README.md`
+
+Why this order is strongest:
+
+- caller visibility is highest in the README
+- confusion risk is highest where sprint chronology overlaps with stable
+  workflow guidance
+- truthful simplification is easiest in the README/tutorial pair because the
+  final workflow contract is already validated
+- benchmark and example docs will be easier to align once the final top-level
+  terminology is fixed
+
+Rejected as the first Sprint 58 landing:
+
+- benchmark taxonomy cleanup first
+  - too dependent on final top-level terminology
+- example README cleanup first
+  - lower visibility and smaller payoff before README/tutorial reduction
+- broad tutorial rewrite
+  - too expansion-prone for a sprint explicitly about simplification
+
+## Day 3 Close
+
+The public-docs problem is now concrete:
+
+- `README.md` is the strongest first target
+- `docs/tutorial.md` is the strongest paired alignment target
+- `benchmarks/README.md` is the strongest later taxonomy target
+- `examples/README.md` is a smaller but still meaningful later cleanup target
+
+That gives Day 4 a clear starting point for the first bounded README/tutorial
+reduction design.

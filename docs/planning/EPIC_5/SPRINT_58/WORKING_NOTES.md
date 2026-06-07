@@ -870,3 +870,126 @@ Day 5 landed the first bounded top-level docs simplification patch:
 
 That is enough to move to the Day 6 follow-through pass without reopening the
 Day 4 design boundary.
+
+## Day 6
+
+**Objective:** Re-audit the landed README/tutorial state after Day 5, then
+finish the strongest remaining top-level drift by normalizing the most visible
+README summary sections and product-structure framing without widening the
+touched scope into benchmark, examples, or public-header cleanup yet.
+
+### Commands Run
+
+1. Re-read the Sprint 58 Day 6 plan item and the Day 5 landed batch:
+   - `sed -n '205,275p' docs/planning/EPIC_5/SPRINT_58/PLAN.md`
+   - `sed -n '1,240p' docs/planning/EPIC_5/SPRINT_58/artifacts/day5-readme-and-tutorial-reduction-batch1.md`
+2. Re-audit the strongest remaining README summary seams:
+   - `rg -n "Sprint|planned for Sprint|future sprint|workflow|repeated-run|factor-many|examples|benchmarks|BiCGSTAB|block iterative|LOBPCG|example_analysis|bench_refactor" README.md docs/tutorial.md`
+   - `sed -n '30,120p' README.md`
+   - `sed -n '390,470p' README.md`
+   - `sed -n '900,950p' README.md`
+   - `sed -n '1,80p' docs/tutorial.md`
+3. Apply the bounded Day 6 follow-through patch:
+   - `README.md`
+4. Run targeted docs sanity checks:
+   - `git diff -- README.md`
+   - `rg -n "Sparse Symmetric Eigensolver|bench_eigs|public repeated-run iterative handle support|Project Structure|planning/|CG|GMRES|MINRES|BiCGSTAB|LOBPCG" README.md`
+   - `wc -l README.md docs/tutorial.md`
+
+### Day 6 Findings
+
+#### 1. The remaining top-level drift after Day 5 was mostly concentrated in README summary sections, not in the tutorial
+
+Post-Day-5 re-audit showed:
+
+- `docs/tutorial.md` already sits close to the intended bounded alignment state
+- the strongest residual high-signal drift was in `README.md` summary sections:
+  - sparse symmetric eigensolver overview
+  - repeated iterative-handle support summary wording
+  - project-structure/example/benchmark framing
+
+Interpretation:
+
+- Day 6 was correctly a README-only follow-through pass
+- expanding the tutorial further would have added more text than clarity
+
+#### 2. The high-signal eigensolver summary is now more product-level and less sprint-local
+
+The touched `README.md` eigensolver overview now:
+
+- removes the sprint-stamped section heading
+- keeps the three concrete backends explicit:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - `LOBPCG`
+- keeps the AUTO dispatch story explicit
+- keeps shift-invert, refinement, and benchmark-driver guidance visible
+- removes the most visible sprint-day framing from that high-signal summary
+
+Interpretation:
+
+- the eigensolver overview is still informative
+- it now reads more like a stable capability summary than a sprint-local
+  chronology
+
+#### 3. The repeated-run support boundary wording is now more stable in the README summary layers
+
+The touched repeated-run iterative wording now:
+
+- drops the `Sprint 54` framing in the visible iterative-support summary
+- keeps the real boundary intact:
+  - repeated-run handles for `CG`, `GMRES`, `MINRES`
+  - `BiCGSTAB` and block iterative workflows remain one-shot compatibility
+    surfaces
+
+Interpretation:
+
+- the support boundary is still explicit to callers
+- the wording is now less tied to implementation history
+
+#### 4. The project-structure and entry-point framing is now less brittle and less count-heavy
+
+The touched `Project Structure` summary now:
+
+- removes brittle counts from:
+  - `include/`
+  - `src/`
+  - `tests/`
+- keeps examples and benchmarks visible as product surfaces
+- updates the planning subtree wording to the broader current planning layout
+
+Interpretation:
+
+- the top-level structure summary is now less likely to drift as files move
+- it reads more like a stable repository map and less like a frozen snapshot
+
+#### 5. The remaining docs queue is now smaller and more concrete after the README follow-through pass
+
+After Day 6, the strongest intentionally deferred docs queue is:
+
+- benchmark taxonomy cleanup:
+  - `benchmarks/README.md`
+- example-doc alignment:
+  - `examples/README.md`
+- public-header narrative cleanup:
+  - `include/sparse_analysis.h`
+  - `include/sparse_iterative.h`
+  - `include/sparse_eigs.h`
+
+Interpretation:
+
+- the top-level docs are now in a better state for the later benchmark,
+  examples, and header work
+- the remaining queue is smaller and more explicitly separated by surface type
+
+## Day 6 Close
+
+Day 6 landed the bounded top-level docs follow-through patch:
+
+- `README.md` summary layers are more product-level and less sprint-local
+- the tutorial intentionally stayed untouched because its post-Day-5 state was
+  already close to the target
+- the remaining queue is now clearly benchmark, examples, and headers
+
+That is enough to move to the Day 7 public-header audit/design from a cleaner
+caller-facing docs baseline.

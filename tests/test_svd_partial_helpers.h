@@ -711,7 +711,7 @@ static void test_partial_svd_vectors_nos4(void) {
 
 static void test_partial_svd_vectors_west0067(void) {
     SparseMatrix *A = NULL;
-    sparse_err_t lerr = sparse_load_mm(&A, "tests/data/suitesparse/west0067.mtx");
+    sparse_err_t lerr = sparse_load_mm(&A, SS_DIR "/west0067.mtx");
     if (lerr != SPARSE_OK || !A) {
         printf("    SKIP: west0067.mtx not found\n");
         return;

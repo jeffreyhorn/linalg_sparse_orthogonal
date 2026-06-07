@@ -1318,8 +1318,8 @@ static void test_public_lifecycle_repeated_solve_and_free_zeroed(void) {
         .factor_type = SPARSE_FACTOR_CHOLESKY,
         .reorder = SPARSE_REORDER_AMD,
     };
-    ASSERT_EQ(sparse_analyze(A, &analysis_opts, &analysis), SPARSE_OK);
-    ASSERT_EQ(sparse_factor_numeric(A, &analysis, &factors), SPARSE_OK);
+    REQUIRE_OK(sparse_analyze(A, &analysis_opts, &analysis));
+    REQUIRE_OK(sparse_factor_numeric(A, &analysis, &factors));
 
     x_exact1 = malloc((size_t)n * sizeof(double));
     x_exact2 = malloc((size_t)n * sizeof(double));
@@ -1598,8 +1598,8 @@ static void test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesk
         .reorder = SPARSE_REORDER_AMD,
     };
 
-    ASSERT_EQ(sparse_analyze(A_base, &analysis_opts, &analysis), SPARSE_OK);
-    ASSERT_EQ(sparse_factor_numeric(A_base, &analysis, &factors), SPARSE_OK);
+    REQUIRE_OK(sparse_analyze(A_base, &analysis_opts, &analysis));
+    REQUIRE_OK(sparse_factor_numeric(A_base, &analysis, &factors));
 
     x_exact = malloc((size_t)n * sizeof(double));
     b1 = malloc((size_t)n * sizeof(double));

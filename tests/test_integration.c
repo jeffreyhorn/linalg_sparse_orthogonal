@@ -1300,6 +1300,83 @@ static void test_public_lifecycle_solve_rejects_mismatched_analysis_and_preserve
     sparse_free(A_other_n);
 }
 
+static void test_public_lifecycle_repeated_solve_and_free_zeroed(void) {
+    const idx_t n = 40;
+    SparseMatrix *A = build_tridiag_spd(n);
+    sparse_analysis_t analysis = {0};
+    sparse_factors_t factors = {0};
+    double *x_exact1 = NULL;
+    double *x_exact2 = NULL;
+    double *b1 = NULL;
+    double *b2 = NULL;
+    double *x1 = NULL;
+    double *x2 = NULL;
+
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_analysis_opts_t analysis_opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
+    REQUIRE_OK(sparse_analyze(A, &analysis_opts, &analysis));
+    REQUIRE_OK(sparse_factor_numeric(A, &analysis, &factors));
+
+    x_exact1 = malloc((size_t)n * sizeof(double));
+    x_exact2 = malloc((size_t)n * sizeof(double));
+    b1 = malloc((size_t)n * sizeof(double));
+    b2 = malloc((size_t)n * sizeof(double));
+    x1 = malloc((size_t)n * sizeof(double));
+    x2 = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(x_exact1 && x_exact2 && b1 && b2 && x1 && x2 ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    for (idx_t i = 0; i < n; i++) {
+        x_exact1[i] = 1.0 + 0.25 * (double)i;
+        x_exact2[i] = (i % 2 == 0) ? 2.0 : -1.0;
+    }
+    sparse_matvec(A, x_exact1, b1);
+    sparse_matvec(A, x_exact2, b2);
+
+    REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b1, x1));
+    REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b2, x2));
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_NEAR(x1[i], x_exact1[i], 1e-12);
+        ASSERT_NEAR(x2[i], x_exact2[i], 1e-12);
+    }
+
+    sparse_factor_free(&factors);
+    ASSERT_TRUE(factors.F == NULL);
+    ASSERT_TRUE(factors.D == NULL);
+    ASSERT_TRUE(factors.D_offdiag == NULL);
+    ASSERT_TRUE(factors.pivot_size == NULL);
+    ASSERT_TRUE(factors.ldlt_perm == NULL);
+    ASSERT_EQ(factors.n, 0);
+    ASSERT_TRUE(factors.factor_norm == 0.0);
+
+    sparse_analysis_free(&analysis);
+    ASSERT_TRUE(analysis.perm == NULL);
+    ASSERT_TRUE(analysis.etree == NULL);
+    ASSERT_TRUE(analysis.postorder == NULL);
+    ASSERT_TRUE(analysis.sym_L.col_ptr == NULL);
+    ASSERT_TRUE(analysis.sym_L.row_idx == NULL);
+    ASSERT_TRUE(analysis.sym_U.col_ptr == NULL);
+    ASSERT_TRUE(analysis.sym_U.row_idx == NULL);
+    ASSERT_EQ(analysis.n, 0);
+    ASSERT_EQ(analysis.source_nnz, 0);
+    ASSERT_TRUE(analysis.analysis_norm == 0.0);
+
+    /* The lifecycle free entry points are documented as safe on zeroed state. */
+    sparse_factor_free(&factors);
+    sparse_analysis_free(&analysis);
+
+    free(x_exact1);
+    free(x_exact2);
+    free(b1);
+    free(b2);
+    free(x1);
+    free(x2);
+    sparse_free(A);
+}
+
 static void test_public_lifecycle_refactor_accepts_zeroed_factors(void) {
     const idx_t n = 50;
     SparseMatrix *A1 = build_tridiag_spd(n);
@@ -1490,6 +1567,100 @@ static void test_public_lifecycle_refactor_rejects_nnz_drift_and_preserves_old_f
     free(x_exact);
     free(b);
     free(x);
+}
+
+static void test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesky(void) {
+    const idx_t n = 120;
+    SparseMatrix *A_base = build_tridiag_spd(n);
+    SparseMatrix *A_refactor1 = build_tridiag_spd(n);
+    SparseMatrix *A_refactor2 = build_tridiag_spd(n);
+    SparseMatrix *A_one_shot1 = build_tridiag_spd(n);
+    SparseMatrix *A_one_shot2 = build_tridiag_spd(n);
+    sparse_analysis_t analysis = {0};
+    sparse_factors_t factors = {0};
+    double *x_exact = NULL;
+    double *b1 = NULL;
+    double *b2 = NULL;
+    double *x_public1 = NULL;
+    double *x_public2 = NULL;
+    double *x_one_shot1 = NULL;
+    double *x_one_shot2 = NULL;
+
+    REQUIRE_OK(A_base && A_refactor1 && A_refactor2 && A_one_shot1 && A_one_shot2
+                   ? SPARSE_OK
+                   : SPARSE_ERR_ALLOC);
+
+    sparse_analysis_opts_t analysis_opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
+    sparse_cholesky_opts_t chol_opts = {
+        .reorder = SPARSE_REORDER_AMD,
+    };
+
+    REQUIRE_OK(sparse_analyze(A_base, &analysis_opts, &analysis));
+    REQUIRE_OK(sparse_factor_numeric(A_base, &analysis, &factors));
+
+    x_exact = malloc((size_t)n * sizeof(double));
+    b1 = malloc((size_t)n * sizeof(double));
+    b2 = malloc((size_t)n * sizeof(double));
+    x_public1 = malloc((size_t)n * sizeof(double));
+    x_public2 = malloc((size_t)n * sizeof(double));
+    x_one_shot1 = malloc((size_t)n * sizeof(double));
+    x_one_shot2 = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(x_exact && b1 && b2 && x_public1 && x_public2 && x_one_shot1 && x_one_shot2
+                   ? SPARSE_OK
+                   : SPARSE_ERR_ALLOC);
+
+    for (idx_t i = 0; i < n; i++) {
+        x_exact[i] = 0.5 + 0.125 * (double)i;
+        ASSERT_EQ(sparse_set(A_refactor1, i, i, 5.0), SPARSE_OK);
+        ASSERT_EQ(sparse_set(A_refactor2, i, i, 6.5 + 0.01 * (double)i), SPARSE_OK);
+        ASSERT_EQ(sparse_set(A_one_shot1, i, i, 5.0), SPARSE_OK);
+        ASSERT_EQ(sparse_set(A_one_shot2, i, i, 6.5 + 0.01 * (double)i), SPARSE_OK);
+    }
+
+    sparse_matvec(A_refactor1, x_exact, b1);
+    sparse_matvec(A_refactor2, x_exact, b2);
+
+    REQUIRE_OK(sparse_refactor_numeric(A_refactor1, &analysis, &factors));
+    REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b1, x_public1));
+
+    REQUIRE_OK(sparse_cholesky_factor_opts(A_one_shot1, &chol_opts));
+    REQUIRE_OK(sparse_cholesky_solve(A_one_shot1, b1, x_one_shot1));
+
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_NEAR(x_public1[i], x_exact[i], 1e-12);
+        ASSERT_NEAR(x_one_shot1[i], x_exact[i], 1e-12);
+        ASSERT_NEAR(x_public1[i], x_one_shot1[i], 1e-12);
+    }
+
+    REQUIRE_OK(sparse_refactor_numeric(A_refactor2, &analysis, &factors));
+    REQUIRE_OK(sparse_factor_solve(&factors, &analysis, b2, x_public2));
+
+    REQUIRE_OK(sparse_cholesky_factor_opts(A_one_shot2, &chol_opts));
+    REQUIRE_OK(sparse_cholesky_solve(A_one_shot2, b2, x_one_shot2));
+
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_NEAR(x_public2[i], x_exact[i], 1e-12);
+        ASSERT_NEAR(x_one_shot2[i], x_exact[i], 1e-12);
+        ASSERT_NEAR(x_public2[i], x_one_shot2[i], 1e-12);
+    }
+
+    free(x_exact);
+    free(b1);
+    free(b2);
+    free(x_public1);
+    free(x_public2);
+    free(x_one_shot1);
+    free(x_one_shot2);
+    sparse_factor_free(&factors);
+    sparse_analysis_free(&analysis);
+    sparse_free(A_base);
+    sparse_free(A_refactor1);
+    sparse_free(A_refactor2);
+    sparse_free(A_one_shot1);
+    sparse_free(A_one_shot2);
 }
 
 /* SPARSE_ERR_CANCELLED string round-trips through sparse_strerror. */
@@ -1783,10 +1954,12 @@ int main(void) {
     RUN_TEST(test_public_lifecycle_ldlt_refactor_rejects_nnz_drift_and_preserves_old_factors_amd);
     RUN_TEST(test_public_lifecycle_solve_rejects_zeroed_factors);
     RUN_TEST(test_public_lifecycle_solve_rejects_mismatched_analysis_and_preserves_factors);
+    RUN_TEST(test_public_lifecycle_repeated_solve_and_free_zeroed);
     RUN_TEST(test_public_lifecycle_refactor_accepts_zeroed_factors);
     RUN_TEST(test_public_lifecycle_refactor_rejects_mismatched_existing_factors);
     RUN_TEST(test_public_lifecycle_refactor_preserves_old_factors_on_failure);
     RUN_TEST(test_public_lifecycle_refactor_rejects_nnz_drift_and_preserves_old_factors);
+    RUN_TEST(test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesky);
     RUN_TEST(test_progress_cb_strerror);
 
     /* Sprint 29 Day 7: progress / cancel coverage for QR, iterative

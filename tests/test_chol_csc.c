@@ -1999,22 +1999,9 @@ static void test_solve_detects_tiny_diagonal(void) {
  * Day 10: Supernode detection
  * ═══════════════════════════════════════════════════════════════════════ */
 
-/* Wrapper that allocates the parallel output arrays of size n, calls
- * chol_csc_detect_supernodes, and returns (count + arrays) to the
- * caller.  Caller frees both arrays.  Simplifies the test boilerplate. */
-static void detect_supernodes_alloc(const CholCsc *L, idx_t min_size, idx_t **starts_out,
-                                    idx_t **sizes_out, idx_t *count_out) {
-    idx_t n = L->n;
-    idx_t *starts = malloc((size_t)(n > 0 ? n : 1) * sizeof(idx_t));
-    idx_t *sizes = malloc((size_t)(n > 0 ? n : 1) * sizeof(idx_t));
-    ASSERT_NOT_NULL(starts);
-    ASSERT_NOT_NULL(sizes);
-    idx_t count = 0;
-    REQUIRE_OK(chol_csc_detect_supernodes(L, min_size, starts, sizes, &count));
-    *starts_out = starts;
-    *sizes_out = sizes;
-    *count_out = count;
-}
+static int day8_chol_csc_match(const CholCsc *a, const CholCsc *b, double tol);
+
+#include "test_chol_csc_supernodal_helpers.h"
 
 /* ─── Null / arg validation ────────────────────────────────────── */
 
@@ -2266,36 +2253,6 @@ static void test_detect_supernodes_suitesparse_report(void) {
  * etree/postorder).  Day 8 adds the corpus-safety contracts the plan
  * specifies + the empirical supernode-count check the Day-7 interim
  * doc surfaced. */
-
-/* Helper for Day-8 tests: detect fundamental supernodes in `factors->F`
- * by converting back to a CholCsc and calling chol_csc_detect_supernodes.
- * Returns total_grouped = sum(super_sizes) for size >= min_size.  Sets
- * *count_out to the supernode count.  Returns -1 on failure (caller
- * skips the assertion). */
-static idx_t day8_count_supernodes(const SparseMatrix *L_sparse, idx_t min_size, idx_t *count_out) {
-    CholCsc *L = NULL;
-    if (chol_csc_from_sparse(L_sparse, NULL, 2.0, &L) != SPARSE_OK)
-        return -1;
-    idx_t n = L->n;
-    idx_t *starts = malloc((size_t)(n > 0 ? n : 1) * sizeof(idx_t));
-    idx_t *sizes = malloc((size_t)(n > 0 ? n : 1) * sizeof(idx_t));
-    idx_t count = 0;
-    if (!starts || !sizes ||
-        chol_csc_detect_supernodes(L, min_size, starts, sizes, &count) != SPARSE_OK) {
-        free(starts);
-        free(sizes);
-        chol_csc_free(L);
-        return -1;
-    }
-    idx_t total = 0;
-    for (idx_t i = 0; i < count; i++)
-        total += sizes[i];
-    free(starts);
-    free(sizes);
-    chol_csc_free(L);
-    *count_out = count;
-    return total;
-}
 
 /* Day-8 plan task: "test_supernodal_postorder_residual_unchanged —
  * assert numeric factorization residuals stay within Sprint 27's
@@ -3853,30 +3810,6 @@ static void test_supernode_eliminate_panel_error_paths(void) {
  * Sprint 18 Day 9: parametrised scalar↔batched cross-check + boundary
  * ═══════════════════════════════════════════════════════════════════════ */
 
-/* Factor `A` twice — once through `chol_csc_eliminate` and once
- * through `chol_csc_eliminate_supernodal(min_size)` — and assert the
- * two factored CSCs are byte-identical (col_ptr, row_idx, values
- * within `tol`).  The `label` parameter is tagged onto any failing
- * ASSERT output so a regression can be traced to the specific
- * fixture / min_size combination that broke. */
-static void day9_assert_batched_matches_scalar(const SparseMatrix *A, const idx_t *perm,
-                                               idx_t min_size, double tol, const char *label) {
-    (void)label; /* reserved for future diagnostic messages */
-    CholCsc *Ls = NULL;
-    REQUIRE_OK(chol_csc_from_sparse(A, perm, 2.0, &Ls));
-    REQUIRE_OK(chol_csc_eliminate(Ls));
-
-    CholCsc *Ln = NULL;
-    REQUIRE_OK(chol_csc_from_sparse(A, perm, 2.0, &Ln));
-    REQUIRE_OK(chol_csc_eliminate_supernodal(Ln, min_size));
-    REQUIRE_OK(chol_csc_validate(Ln));
-
-    ASSERT_TRUE(day8_chol_csc_match(Ls, Ln, tol));
-
-    chol_csc_free(Ls);
-    chol_csc_free(Ln);
-}
-
 /* Parametrised cross-check: factor each SPD fixture scalar-vs-batched
  * across two reorder regimes (identity and AMD) and a range of
  * min_size thresholds.  Every combination must yield byte-identical
@@ -4239,30 +4172,6 @@ static void test_writeback_rejects_shape_mismatch(void) {
 /* ═══════════════════════════════════════════════════════════════════════
  * Sprint 18 Day 11: transparent dispatch in sparse_cholesky_factor_opts
  * ═══════════════════════════════════════════════════════════════════════ */
-
-/* Build a diagonally-dominant SPD matrix of size n with a fixed
- * sparsity pattern so repeated calls produce identical residuals. */
-static SparseMatrix *day11_build_spd(idx_t n, double density, unsigned int seed) {
-    unsigned int rng = seed;
-    SparseMatrix *A = sparse_create(n, n);
-    for (idx_t i = 0; i < n; i++)
-        sparse_insert(A, i, i, (double)n);
-    /* Add a sparse set of off-diagonals, mirrored; diagonal dominance
-     * keeps A SPD. */
-    for (idx_t i = 1; i < n; i++) {
-        for (idx_t j = 0; j < i; j++) {
-            rng = rng * 1664525u + 1013904223u;
-            double p = (double)(rng & 0xffffff) / (double)0x1000000;
-            if (p < density) {
-                rng = rng * 1664525u + 1013904223u;
-                double v = ((double)(rng & 0xffff) / (double)0x10000) - 0.5;
-                sparse_insert(A, i, j, v);
-                sparse_insert(A, j, i, v);
-            }
-        }
-    }
-    return A;
-}
 
 /* Small n = 10 matrix should take the linked-list path under AUTO. */
 static void test_dispatch_auto_small_uses_linked_list(void) {

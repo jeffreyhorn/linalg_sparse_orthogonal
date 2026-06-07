@@ -580,3 +580,153 @@ The public-docs problem is now concrete:
 
 That gives Day 4 a clear starting point for the first bounded README/tutorial
 reduction design.
+
+## Day 4
+
+**Objective:** Freeze the first bounded README/tutorial simplification
+boundary by selecting the exact top-level workflow sections Sprint 58 should
+reduce first, defining the wording invariants those edits must preserve, and
+recording the non-goal fence before any permanent prose changes land.
+
+### Commands Run
+
+1. Re-read the Sprint 58 Day 4 plan item and the Day 3 audit:
+   - `sed -n '167,240p' docs/planning/EPIC_5/SPRINT_58/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_58/artifacts/day3-public-docs-drift-audit.md`
+2. Scan the highest-signal README/tutorial workflow markers and sprint-history
+   hotspots:
+   - `rg -n "## Features|## Building|repeated-run|factor-many|examples|benchmarks|Sprint|planned for Sprint|future sprint|BiCGSTAB|block iterative|LOBPCG|example_analysis|bench_refactor" README.md docs/tutorial.md`
+3. Re-read the strongest touched-seam sections directly:
+   - `sed -n '1,120p' README.md`
+   - `sed -n '1,260p' docs/tutorial.md`
+
+### Day 4 Findings
+
+#### 1. The first landing should stay on top-level workflow framing, not on the deep feature ledger or benchmark-history sections
+
+The README drift audit shows two different cleanup scales:
+
+- top-level workflow framing:
+  - high caller visibility
+  - lower risk
+  - strongest overlap with the tutorial
+- deep feature ledger and historical performance sections:
+  - higher mass
+  - more coupled to later benchmark and header wording
+  - higher risk of accidental truthfulness drift if touched too early
+
+Interpretation:
+
+- Day 5 should stay on the highest-signal top-level public guidance first
+- it should not try to collapse the deeper CSC, eigensolver, and benchmark
+  historical sections in the same batch
+
+#### 2. The selected Day 5 README boundary is now exact
+
+The first README landing should cover:
+
+- top-level feature and workflow summaries near the front of the file
+- repeated-run versus one-shot positioning where the public caller story is
+  summarized
+- the brief benchmark/example summary wording that points users toward the
+  product surfaces rather than the sprint history
+- explicit exclusions or bounded support statements that should remain visible
+  but read more like stable product guidance
+
+The first README landing should intentionally defer:
+
+- deep CSC Cholesky / LDL^T historical performance narratives
+- deep eigensolver backend chronology
+- long benchmark-history sections
+- large test-history inventories
+
+Interpretation:
+
+- the correct first batch is a reduction of the public front door, not a
+  repo-wide README rewrite
+
+#### 3. The selected Day 5 tutorial boundary is now exact
+
+The first tutorial landing should cover:
+
+- concise workflow alignment around one-shot-first guidance
+- clearer pointers to the repeated direct lifecycle, iterative-handle, and
+  eigensolver-handle opt-in paths
+- wording that keeps the tutorial aligned with the final shipped example and
+  header story
+
+The first tutorial landing should intentionally defer:
+
+- broad structural reordering
+- large new sections
+- feature-deep expansion that duplicates the README or examples
+
+Interpretation:
+
+- the tutorial is a paired alignment target, not the main size-reduction
+  target
+- Day 5 should keep the tutorial changes smaller than the README changes
+
+#### 4. The preserved wording invariants are now explicit
+
+The Day 5 docs reduction must preserve:
+
+- truthful workflow claims
+  - one-shot APIs remain first-class
+  - repeated-run paths remain bounded opt-in workflows
+  - supported exclusions stay visible where they matter
+- alignment with validated example and benchmark behavior
+  - `example_analysis` remains the strongest direct repeated-run example
+  - iterative-handle support remains `CG`, `GMRES`, `MINRES`
+  - eigensolver-handle support remains grow-m, thick-restart, and explicit
+    `LOBPCG`
+  - benchmark workflow groupings remain anchored in the current drivers
+- stable top-level navigability
+  - the README must still function as the top-level product map
+  - the tutorial must still function as the practical getting-started guide
+
+Interpretation:
+
+- simplification is allowed
+- truthfulness loss is not
+
+#### 5. The cleanup policy and non-goal fence are now fixed for Day 5
+
+Cleanup policy for the first docs batch:
+
+- remove stale sprint-history narrative
+- keep product-level guidance
+- keep concise support-boundary caveats that matter to callers
+- prefer shorter workflow wording over richer implementation commentary
+
+Explicit non-goals for Day 5:
+
+- no broad tutorial rewrite
+- no benchmark taxonomy rewrite yet
+- no example README cleanup yet
+- no public-header cleanup yet
+- no attempt to normalize every historical README section in one pass
+
+Interpretation:
+
+- Day 5 can now land a bounded patch with a clear stop line
+- later Sprint 58 days still own benchmark, examples, and header cleanup
+
+## Day 4 Close
+
+The first docs reduction boundary is now concrete:
+
+- primary target:
+  - top-level `README.md` workflow framing
+- paired alignment target:
+  - bounded `docs/tutorial.md` workflow wording
+- preserved invariants:
+  - truthful workflow claims
+  - example/benchmark alignment
+  - stable top-level navigability
+- explicit non-goals:
+  - no broad rewrite
+  - no benchmark/examples/header work yet
+
+That gives Day 5 a clear starting point for the first bounded README/tutorial
+reduction batch.

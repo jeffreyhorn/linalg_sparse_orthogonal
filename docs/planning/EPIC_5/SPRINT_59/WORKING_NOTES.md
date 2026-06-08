@@ -2072,3 +2072,123 @@ Sprint 59 now has its final measured validation baseline:
 
 That is enough to move to the Day 14 closeout from a real validated branch
 state instead of from inherited Sprint 58 evidence.
+
+## Day 14 - closeout and handoff
+
+### Planned work
+
+1. Summarize the final Sprint 59 deliverables across:
+   - bounded quality/platform residual reconciliation
+   - final caller-story terminology reconciliation
+   - Epic 5 summary and handoff drafting
+   - project-level residual finalization
+2. Record the preserved quality/platform and workflow compatibility fence.
+3. Close the sprint from the Day 13 validated baseline.
+4. Capture the explicit deferred queue without hiding it inside the done state.
+5. Recheck whether `docs/planning/EPIC_5/PROJECT_PLAN.md` needs a corrective
+   update.
+6. Write the final closeout/handoff artifact and working-notes summary.
+
+### Day 14 Findings
+
+#### 1. Sprint 59 now hands off one coherent final quality/platform and Epic 5 closeout package
+
+The landed Sprint 59 deliverables close as four aligned groups:
+
+- bounded quality/platform residual reconciliation:
+  - `README.md`
+  - `docs/maintainer_guide.md`
+  - `Makefile`
+- final caller-story terminology reconciliation:
+  - `README.md`
+  - `docs/tutorial.md`
+- Epic 5 summary and handoff drafting:
+  - `docs/planning/EPIC_5/SPRINT_59/artifacts/day11-epic5-summary-and-handoff-batch.md`
+- project-level residual finalization:
+  - `docs/planning/EPIC_5/SPRINT_59/artifacts/day12-project-level-residual-finalization.md`
+
+Interpretation:
+
+- Sprint 59 closes Epic 5 by tightening the last maintained quality/platform
+  contract wording, reconciling the last top-level caller-story drift, and
+  packaging the full Epic 5 handoff from measured sprint inputs rather than
+  from open-ended cleanup
+
+#### 2. The preserved compatibility fence is still explicit at final closeout
+
+Sprint 59 closes with the same steady-state product and validation fence it
+started from:
+
+- `make quality-review-full` remains the strongest local reviewed baseline
+- `ctest -N --test-dir build/quality-review-cmake` remains the reviewed
+  parity-count anchor
+- Linux remains the enforced reviewed source-of-truth path
+- macOS dead-code remains staged pending fresh measurement
+- Windows reviewed CMake subset remains the enforced Windows truth surface
+  while broader wrapper/dead-code work stays deferred
+- one-shot APIs remain first-class/default workflows
+- repeated-run direct solves remain the explicit analysis/factors lifecycle
+- iterative handles remain limited to:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- eigensolver handle remains limited to:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+- `BiCGSTAB` and block iterative workflows remain one-shot compatibility
+  surfaces
+
+Interpretation:
+
+- Sprint 59 closed residual wording and handoff gaps without widening support,
+  reopening platform scope, or rewriting the settled workflow contract
+
+#### 3. Sprint 59 closes from the Day 13 validated baseline
+
+The final carried-forward validation baseline is:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All passed.
+
+Maintained reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 143.38 sec`
+
+Interpretation:
+
+- Sprint 59 now hands off one explicit final validated Epic 5 baseline rather
+  than only a docs-only closeout summary
+
+#### 4. The remaining queue is explicit and future-facing
+
+The deferred queue after Sprint 59 is now small and named:
+
+- serialized dead-code execution remains an operationally conscious limit
+- macOS dead-code remains staged pending fresh measurement
+- broader Windows reviewed-wrapper/dead-code work remains deferred
+- later bounded maintainability seams remain future work rather than hidden
+  Sprint 59 scope
+- later bounded docs-density cleanup remains future work rather than hidden
+  Sprint 59 scope
+
+I also rechecked whether `docs/planning/EPIC_5/PROJECT_PLAN.md` needs a Sprint
+59 correction, and it does not.
+
+### Day 14 Close
+
+Sprint 59 closes as one coherent final Epic 5 handoff package:
+
+- the quality/platform residual map is explicit and truthful
+- the top-level caller story now uses the settled lifecycle and handle
+  vocabulary
+- the final Epic 5 summary is packaged from measured Sprint 50-59 inputs
+- the Day 13 reviewed validation baseline is explicit at handoff
+- the residual queue is conscious future work rather than hidden drift

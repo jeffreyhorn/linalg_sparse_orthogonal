@@ -1331,3 +1331,167 @@ That leaves the remaining Sprint 58 queue smaller and more concrete:
 - examples doc cleanup
 - any later lower-priority header cleanup only if a real public contradiction
   remains after those caller-facing surfaces are simplified
+
+## Day 9
+
+**Objective:** Reduce the example-modernization problem to concrete
+caller-story gaps by auditing the highest-signal shipped examples and the
+example README directly, ranking the real modernization targets by caller
+value and wording drift, and defining the exact Day 10 touched-example
+boundary plus non-goals before any example or example-doc edits land.
+
+### Commands Run
+
+1. Re-read the Sprint 58 Day 9 plan item and the latest sprint notes:
+   - `sed -n '303,380p' docs/planning/EPIC_5/SPRINT_58/PLAN.md`
+   - `tail -n 180 docs/planning/EPIC_5/SPRINT_58/WORKING_NOTES.md`
+2. Re-read the current example-doc surface:
+   - `sed -n '1,220p' examples/README.md`
+3. Re-read the highest-signal shipped example sources:
+   - `sed -n '1,260p' examples/example_analysis.c`
+   - `sed -n '1,220p' examples/example_iterative.c`
+   - `sed -n '1,260p' examples/example_ic_minres.c`
+   - `sed -n '1,340p' examples/example_eigs.c`
+4. Scan the example surfaces for workflow/support-boundary and stale-history
+   wording:
+   - `rg -n "Sprint|handle|repeated-run|one-shot|workflow|stable-dimension|public handle|BiCGSTAB|block iterative|LOBPCG|analyze|refactor" examples/example_analysis.c examples/example_iterative.c examples/example_ic_minres.c examples/example_eigs.c examples/README.md`
+
+### Day 9 Findings
+
+#### 1. `example_analysis.c` is already the strongest aligned shipped example and should stay out of the first modernization batch
+
+The live `example_analysis.c` surface already does the highest-value caller
+work well:
+
+- teaches the analyze-once / factor-many direct lifecycle clearly
+- states the real same-pattern contract explicitly
+- keeps reuse/refactor semantics truthful:
+  - symbolic/permutation setup is reused
+  - stale numeric factor contents are not
+- uses clean output wording that already matches the README/tutorial story
+
+Interpretation:
+
+- this is not the right Day 10 target
+- it is now the model example surface Sprint 58 should avoid churning unless a
+  real contradiction appears
+
+#### 2. `example_eigs.c` is the strongest remaining example modernization target by both visibility and narrative drift
+
+Live `example_eigs.c` carries the largest remaining example-side drift:
+
+- stale sprint chronology in the file header and runtime banner
+- sprint-local framing in the part-by-part explanation
+- a correct but overly history-shaped description of the backend and
+  preconditioner story
+- weaker alignment with the new stable README/tutorial tone than the other
+  high-signal examples
+
+Important truthfulness point:
+
+- the numerical content is still strong
+- the problem is not behavior or proof quality
+- the problem is that the shipped example still reads like a sprint milestone
+  rather than a stable product example
+
+Interpretation:
+
+- `example_eigs.c` is the strongest first modernization target
+- the right Day 10 work is comment/output reduction and wording normalization,
+  not behavioral redesign
+
+#### 3. `examples/README.md` is the strongest paired example-doc target and the best companion to `example_eigs.c`
+
+The live example README now has two distinct states:
+
+- large parts are already well aligned:
+  - one-shot-first posture
+  - explicit repeated-run handle boundary
+  - `example_analysis` positioning
+- the strongest remaining drift is concentrated in a few visible areas:
+  - explicit sprint-history phrasing
+  - example descriptions that still explain stable behavior through sprint-era
+    chronology rather than product-level wording
+
+The strongest remaining README-local offender is the eigensolver example entry:
+
+- it still names `Sprint 20` and `Sprint 20 Days 4-6`
+- it is the clearest doc-level companion surface to the stale narrative still
+  present in `example_eigs.c`
+
+Interpretation:
+
+- the best Day 10 paired doc target is `examples/README.md`
+- the eigensolver entry should be simplified together with the example source
+  instead of as a separate later cleanup
+
+#### 4. The iterative examples are lower-risk secondary targets, not the first landed batch
+
+The two iterative examples differ in value:
+
+- `example_iterative.c`
+  - already reads as a clean one-shot GMRES + ILU example
+  - main possible improvement is a slightly clearer note about the public
+    repeated-run handle path for stable-dimension runs
+- `example_ic_minres.c`
+  - still reads more like a feature/demo bundle than a narrowly staged caller
+    story
+  - but its current drift is more about density and scope than about obviously
+    stale public wording
+
+Interpretation:
+
+- neither iterative example is the best Day 10 first target
+- if the Day 10 batch stays small, both should remain deferred rather than
+  widened into the patch by default
+
+#### 5. No bounded example addition is justified from the current example gap map
+
+The Day 9 plan explicitly allowed for one small new example only if a real gap
+appeared.
+
+No such gap surfaced:
+
+- one-shot direct path is already covered
+- explicit repeated-run direct path is already covered by `example_analysis`
+- one-shot iterative/eigensolver paths are already covered
+- public repeated-run iterative/eigensolver handles are better taught in
+  README/tutorial/docs and benchmark proof surfaces than by forcing a new
+  shipped example into this sprint
+
+Interpretation:
+
+- Day 10 should be an edit-and-alignment batch, not an example-addition batch
+
+#### 6. The exact Day 10 boundary and non-goals are now concrete
+
+Selected Day 10 touched set:
+
+1. `examples/example_eigs.c`
+2. `examples/README.md`
+
+Optional only if the batch remains tight and directly helpful:
+
+3. one small wording follow-through in `examples/example_iterative.c`
+
+Explicit non-goals:
+
+- no broad tutorial rewrite
+- no example explosion
+- no behavioral redesign
+- no change to validated solver-support boundaries
+- no attempt to convert every example into a repeated-run-handle showcase
+
+## Day 9 Close
+
+The example-modernization problem is now concrete:
+
+- `example_eigs.c` is the strongest first target
+- `examples/README.md` is the strongest paired doc target
+- `example_analysis.c` is already aligned enough to leave alone
+- the iterative examples are secondary follow-ons rather than the best first
+  landed batch
+- no new example is justified
+
+That gives Day 10 an explicit example/doc landing set and non-goal fence before
+any shipped example wording changes begin.

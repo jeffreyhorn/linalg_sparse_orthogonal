@@ -1635,3 +1635,129 @@ That leaves the remaining Sprint 58 queue smaller and more concrete:
 - benchmark taxonomy cleanup
 - any later lower-priority example/header follow-through only if a real
   contradiction remains after the benchmark/docs surfaces are simplified
+
+## Day 11 - benchmark taxonomy cleanup batch
+
+### Planned work
+
+1. Rework `benchmarks/README.md` around stable workflow groupings:
+   - one-shot compatibility/comparison
+   - direct repeated-run lifecycle
+   - iterative public-handle reuse
+   - eigensolver public-handle reuse
+2. Remove stale sprint-local naming/category drift from the highest-signal
+   benchmark documentation surface.
+3. Keep the benchmark README aligned with the live driver names, CLI roles, and
+   proof boundaries.
+4. Run targeted Day 11 sanity checks:
+   - `./build/bench_refactor`
+   - `./build/bench_refactor_csc`
+   - `./build/bench_iterative_reuse`
+   - `./build/bench_eigs_reuse`
+   - `rg` checks over the touched README wording
+
+### Day 11 Findings
+
+#### 1. The benchmark README now reads as a stable workflow map instead of a sprint history ledger
+
+The landed `benchmarks/README.md` batch:
+
+- normalized the benchmark summary table so the strongest workflow story is
+  visible directly in the per-driver topic labels
+- inserted one explicit `Workflow groups` section that groups the shipped
+  surfaces into:
+  - one-shot compatibility/comparison
+  - direct repeated-run lifecycle
+  - iterative public-handle reuse
+  - eigensolver public-handle reuse
+- kept the local compile-quality and reorder-coverage sections intact while
+  removing stale sprint-local framing from those high-signal sections
+
+Interpretation:
+
+- Day 11 stayed inside the planned taxonomy-cleanup fence
+- the benchmark README now matches the simplified top-level README/tutorial
+  story more closely
+
+#### 2. The highest-value stale benchmark labels and chronology markers are gone
+
+The landed cleanup removed the most visible stale narrative drift:
+
+- `Sprint 31` framing in reorder coverage
+- `Sprint 47` framing in the `bench_main` CLI note block
+- `Sprint 18` wording in the `bench_chol_csc` table entry
+- `Sprint 21 Day 11` wording in the `bench_eigs` section header
+- `Sprint 20/21` wording in the `bench_eigs` backend description
+- the stale “captured run” / day-specific compare-mode explanation
+
+The preserved contract stayed explicit:
+
+- `bench_refactor` and `bench_refactor_csc` remain the direct repeated-run
+  lifecycle proof surfaces
+- `bench_iterative_reuse` remains limited to:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- `bench_eigs_reuse` remains limited to:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+
+Interpretation:
+
+- the cleanup reduced caller-facing chronology noise without broadening any
+  benchmark claim
+- Day 11 improved taxonomy truthfulness more than it changed volume
+
+#### 3. The benchmark sanity checks stayed clean, with one deliberate bounded substitution
+
+Focused sanity checks passed:
+
+- `./build/bench_refactor`
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+
+For `bench_refactor_csc`, the first no-argument run was allowed to proceed for
+multiple minutes but remained in its larger sweep without completing during the
+bounded docs pass. Rather than leave Day 11 blocked on that longer run, the
+final check used the narrower live driver invocation already used elsewhere in
+Epic 5:
+
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+
+Representative retained outputs:
+
+- `bench_refactor`
+  - `tridiag-200 2.90x`
+  - `tridiag-500 1.27x`
+  - `bcsstk04 1.27x`
+  - `nos4 1.35x`
+- `bench_refactor_csc nos4 --repeat 1`
+  - `speedup_refactor = 1.76x`
+  - `res_public = 8.24e-16`
+  - `res_csc = 7.06e-16`
+- `bench_iterative_reuse`
+  - `cg-tridiag-300 1.18x`
+  - `gmres-unsym-220 1.89x`
+  - `minres-kkt-42 1.11x`
+- `bench_eigs_reuse`
+  - `growm-nos4-k5 1.19x`
+  - `thick-bcsstk14-k5 1.01x`
+  - `lobpcg-diag40-k3 1.01x`
+  - `|lambda|max diff = 0.000e+00`
+
+Drift checks also stayed clean:
+
+- `rg -n "Sprint" benchmarks/README.md`
+  returned no matches
+
+### Day 11 Close
+
+Sprint 58 Day 11 landed one bounded benchmark taxonomy cleanup batch:
+
+- `benchmarks/README.md` now reads as a workflow-first benchmark map
+- the strongest stale sprint-local labels are gone
+- the live benchmark proof boundaries remain explicit and unchanged
+- the targeted benchmark sanity set stayed clean, using a bounded `nos4`
+  verification for `bench_refactor_csc` instead of pretending the full longer
+  sweep was necessary for this docs pass

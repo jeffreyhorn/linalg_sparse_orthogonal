@@ -216,3 +216,175 @@ Sprint 59 now has an explicit starting point:
 
 That is enough to move to the Day 2 validation and truthfulness-anchor recheck
 without reopening Sprint 50-58 product-surface decisions.
+
+## Day 2
+
+**Objective:** Reconfirm the maintained reviewed validation baseline, the exact
+truthfulness anchors, and the final-sprint rerun set Sprint 59 must preserve
+before any quality/platform follow-through or Epic 5 closeout edits begin.
+
+### Commands Run
+
+1. Re-read the Sprint 59 Day 2 plan scope:
+   - `sed -n '80,120p' docs/planning/EPIC_5/SPRINT_59/PLAN.md`
+2. Re-read the current Sprint 59 working-notes starting state:
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_59/WORKING_NOTES.md`
+3. Reconfirm the inherited reviewed CMake baseline:
+   - `ctest -N --test-dir build/quality-review-cmake`
+4. Reconfirm the current maintained reviewed wrapper surface:
+   - `make -n quality-review-full`
+5. Re-read the live quality-contract wording across the main maintained
+   authority surfaces:
+   - `rg -n "strongest local reviewed baseline|quality-review-full|quality-review-cmake|deadcode-check|dead-code|coverage" README.md docs/maintainer_guide.md Makefile .github/workflows -g '!build'`
+6. Reconfirm the targeted final-sprint rerun set from the live build tree:
+   - `ls build/test_integration build/test_iterative build/test_eigs build/test_eigs_lobpcg build/test_chol_csc build/test_ldlt_csc build/example_analysis build/example_iterative build/example_ic_minres build/example_eigs build/example_svd_lowrank build/bench_refactor build/bench_refactor_csc build/bench_iterative_reuse build/bench_eigs_reuse`
+
+### Day 2 Findings
+
+#### 1. The maintained reviewed baseline remains unchanged and should stay the explicit final Epic 5 truthfulness anchor
+
+The maintained Sprint 59 baseline remains:
+
+- strongest local reviewed baseline:
+  - `make quality-review-full`
+- reviewed CMake parity anchor:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+The wrapper wording also remains exact:
+
+- `quality-review-full: strongest local reviewed baseline`
+- `quality-review-full: rerun failing phases directly with 'make quality-review' or 'make quality-review-cmake'`
+
+Interpretation:
+
+- Sprint 59 should keep using the exact `strongest local reviewed baseline`
+  wording
+- the reviewed CMake count and Makefile/CMake parity remain the main
+  truthfulness anchors for the final sprint
+
+#### 2. The authority split remains explicit and stable enough to carry unchanged through the final closeout
+
+The maintained authority split remains:
+
+- `make quality-review-full`
+  - strongest local reviewed baseline
+- `make quality-review`
+  - reviewed Makefile path
+- `make quality-review-cmake`
+  - reviewed CMake parity path
+- `make deadcode-check`
+  - report-completeness gate, not a zero-findings gate
+
+Interpretation:
+
+- Sprint 59 does not need to reopen the quality-contract hierarchy itself
+- the final Epic 5 closeout can keep treating `deadcode-check` as a
+  completeness and interpretation gate, not as a claim that dead-code findings
+  must be zero
+
+#### 3. The code-day validation boundary remains the same as the live repo contract
+
+The mandatory gate for later `*.c` / `*.h` days remains:
+
+- `make format`
+- `make lint`
+- `make test`
+
+And the stronger default for substantial quality/platform follow-through
+remains:
+
+- `make quality-review-full`
+
+Interpretation:
+
+- docs-only audit/design/summary days do not need the full code-day gate
+- any Sprint 59 code-touching day still does
+- substantial quality/platform changes should continue to use the stronger
+  reviewed wrapper path too
+
+#### 4. The maintained quality/platform wording is still aligned across the repo's authoritative surfaces
+
+The quality-contract wording remains aligned across:
+
+- `README.md`
+  - strongest local reviewed baseline command map
+  - dead-code completeness-gate meaning
+  - reviewed platform matrix and staged-platform caveats
+- `docs/maintainer_guide.md`
+  - maintainer-facing authority framing
+  - reviewed CMake parity anchor
+  - dead-code interpretation boundary
+- `Makefile`
+  - executable reviewed-target authority
+  - rerun guidance
+  - test-count parity checks
+- GitHub workflows
+  - reviewed CMake execution path
+  - dead-code report/check execution path
+  - coverage-contract execution path
+
+Interpretation:
+
+- Sprint 59 does not need to reopen baseline wording just to restate the
+  existing contract
+- the real remaining work is bounded residual disposition on staged/excluded
+  platform and dead-code surfaces, not rediscovering the quality hierarchy
+
+#### 5. The authoritative Sprint 59 rerun set is now fixed from the live build tree
+
+The main Sprint 59 follow-on binaries already present in `build/` are:
+
+- `./build/test_integration`
+- `./build/test_iterative`
+- `./build/test_eigs`
+- `./build/test_eigs_lobpcg`
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+- `./build/example_analysis`
+- `./build/example_iterative`
+- `./build/example_ic_minres`
+- `./build/example_eigs`
+- `./build/example_svd_lowrank`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc`
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+
+Interpretation:
+
+- Sprint 59 can keep its rerun focus on:
+  - direct/public lifecycle proof
+  - representative maintained examples
+  - representative maintained benchmark drivers
+  - the reviewed CMake parity anchor
+- no broader default rerun set is required on Day 2
+
+#### 6. Day 2 removes validation ambiguity before the final quality/platform audit begins
+
+Day 2 now leaves Sprint 59 with:
+
+- preserved reviewed baseline wording
+- exact reviewed CMake count anchor
+- explicit `*.c` / `*.h` code-day gate
+- explicit stronger reviewed-baseline default
+- authoritative final-sprint rerun set from the live build tree
+
+Interpretation:
+
+- the sprint can move to the Day 3 residual audit without uncertainty about
+  what the maintained validation contract actually is
+- any later change to the platform/quality story can now be judged against a
+  fixed, explicit baseline
+
+## Day 2 Close
+
+Sprint 59 now has an explicit validation and truthfulness boundary:
+
+- preserved reviewed baseline wording
+- explicit authority split
+- exact code-day validation gate
+- stronger reviewed-wrapper default for substantial follow-through
+- authoritative tests/examples/benchmarks rerun set from the live tree
+
+That is enough to move to the Day 3 quality/platform residual audit without
+validation ambiguity.

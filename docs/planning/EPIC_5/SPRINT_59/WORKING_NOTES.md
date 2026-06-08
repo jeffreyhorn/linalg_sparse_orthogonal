@@ -1911,3 +1911,164 @@ Sprint 59 now has an explicit project-level residual-finalization result:
 
 That is enough to move to the Day 13 validation sweep without any hidden
 project-level wording debt.
+
+## Day 13
+
+**Objective:** Run the full maintained quality gates, truthfulness anchors, and
+targeted final-sprint follow-ons from the landed Sprint 59 tree so the Epic 5
+finish closes from a measured validated baseline instead of from documentation
+intent alone.
+
+### Commands Run
+
+1. Run the required maintained gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+2. Reconfirm the targeted final-sprint follow-ons from the landed tree:
+   - `./build/test_integration`
+   - `./build/test_iterative`
+   - `./build/test_eigs`
+   - `./build/test_eigs_lobpcg`
+   - `./build/test_chol_csc`
+   - `./build/test_ldlt_csc`
+   - `./build/example_analysis`
+   - `./build/example_iterative`
+   - `./build/example_ic_minres`
+   - `./build/example_eigs`
+   - `./build/example_svd_lowrank`
+   - `./build/bench_refactor`
+   - `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/bench_iterative_reuse`
+   - `./build/bench_eigs_reuse`
+3. Reconfirm final branch cleanliness:
+   - `git status --short --branch`
+
+### Day 13 Findings
+
+#### 1. The full maintained validation gate passed from the landed Sprint 59 tree
+
+The required Day 13 gate completed successfully:
+
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+- `make quality-review-full` passed
+
+Interpretation:
+
+- the final Epic 5 branch still satisfies the strongest maintained local
+  reviewed baseline
+- Sprint 59’s docs-only finish did not introduce hidden validation drift
+
+#### 2. The reviewed truthfulness anchors remained exact
+
+The maintained reviewed anchors stayed exact on the Day 13 tree:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 143.38 sec`
+
+Interpretation:
+
+- the final Epic 5 branch still has the same authoritative test-count and
+  parity contract it carried through the earlier sprints
+- Day 13 now supersedes the inherited Sprint 58 timing baseline for the final
+  Sprint 59 closeout
+
+#### 3. The targeted final-sprint follow-ons all passed
+
+The explicit Sprint 59 follow-on set also passed from the landed tree:
+
+- `./build/test_integration` -> `39 / 39`
+- `./build/test_iterative` -> `79 / 79`
+- `./build/test_eigs` -> `30 / 30`
+- `./build/test_eigs_lobpcg` -> `26 / 26`
+- `./build/test_chol_csc` -> `137 / 137`
+- `./build/test_ldlt_csc` -> `96 / 96`
+- `./build/example_analysis`
+- `./build/example_iterative`
+- `./build/example_ic_minres`
+- `./build/example_eigs`
+- `./build/example_svd_lowrank`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+
+Interpretation:
+
+- the final Epic 5 branch still preserves the representative caller-story,
+  example, and benchmark surfaces selected at Sprint 59 start
+
+#### 4. Representative retained outputs still support the final Epic 5 story
+
+Representative direct / iterative / eigensolver / example outputs from the Day
+13 tree:
+
+- `example_analysis`:
+  - solve residual stayed `4.44e-16`
+- `example_iterative`:
+  - GMRES unpreconditioned = `25` iterations
+  - ILU(0)-GMRES = `9` iterations
+- `example_ic_minres`:
+  - MINRES on KKT `42x42` = `39` iterations
+  - Jacobi-MINRES = `26` iterations
+- `example_eigs`:
+  - nos4 = `5 / 5` pairs in `115` Lanczos iterations
+  - KKT nearest-sigma = `3 / 3` pairs in `6` Lanczos iterations
+  - explicit `LOBPCG` on `bcsstk04` = `3 / 3` pairs in `62` outer iterations
+    with reported residual `8.808e-09`
+- `example_svd_lowrank`:
+  - sparse low-rank `k=2` kept `22 -> 6` nnz and `3.7x` compression
+- `bench_refactor`:
+  - `tridiag-200 1.92x`
+  - `tridiag-500 1.36x`
+  - `bcsstk04 1.37x`
+  - `nos4 1.43x`
+- `bench_refactor_csc nos4`:
+  - `speedup_refactor = 2.25x`
+  - `res_public = 8.24e-16`
+  - `res_csc = 7.06e-16`
+- `bench_iterative_reuse`:
+  - `cg-tridiag-300 1.23x`
+  - `gmres-unsym-220 1.16x`
+  - `minres-kkt-42 1.02x`
+- `bench_eigs_reuse`:
+  - `growm-nos4-k5 1.09x`
+  - `thick-bcsstk14-k5 1.07x`
+  - `lobpcg-diag40-k3 1.00x`
+  - `|lambda|max diff = 0.000e+00`
+
+Interpretation:
+
+- the final branch still supports the claimed one-shot, repeated-run direct,
+  iterative-handle, and eigensolver-handle stories with real retained outputs
+
+#### 5. The only Day 13 warning note is non-blocking reviewed-build noise
+
+The reviewed CMake rebuild emitted ordinary compiler warnings while rebuilding
+`bench_eigs_reuse`:
+
+- `implicit conversion increases floating-point precision`
+- triggered by `NAN` macro use in the benchmark source
+
+Interpretation:
+
+- this did not fail the reviewed path
+- it is not blocker-level Sprint 59 drift
+- it should be recorded as ordinary reviewed-build noise rather than hidden
+
+## Day 13 Close
+
+Sprint 59 now has its final measured validation baseline:
+
+- the full maintained gate passed
+- reviewed parity stayed exact
+- the targeted final-sprint follow-ons all passed
+- representative retained outputs still support the final Epic 5 caller story
+
+That is enough to move to the Day 14 closeout from a real validated branch
+state instead of from inherited Sprint 58 evidence.

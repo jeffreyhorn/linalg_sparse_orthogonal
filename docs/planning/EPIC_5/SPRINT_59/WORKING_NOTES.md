@@ -1070,3 +1070,187 @@ Sprint 59 Day 6 closes with an explicit defer decision:
 
 That leaves Sprint 59 with a smaller and more concrete quality/platform queue
 before the final cross-surface compatibility audit begins.
+
+## Day 7
+
+**Objective:** Reduce the final Sprint 59 integration problem to explicit
+caller-story drift classes by auditing the strongest public workflow,
+example, benchmark, header, and proof surfaces before the last reconciliation
+batch lands.
+
+### Commands Run
+
+1. Re-read the Sprint 59 Day 7 plan scope:
+   - `sed -n '280,340p' docs/planning/EPIC_5/SPRINT_59/PLAN.md`
+2. Re-read the highest-signal public workflow docs:
+   - `sed -n '1,240p' README.md`
+   - `sed -n '1,240p' docs/tutorial.md`
+3. Re-read the example and benchmark caller-story surfaces:
+   - `sed -n '1,220p' examples/README.md`
+   - `sed -n '1,260p' benchmarks/README.md`
+4. Re-read the strongest direct lifecycle API/proof surfaces:
+   - `sed -n '1,220p' include/sparse_analysis.h`
+   - `sed -n '1,260p' tests/test_integration.c`
+5. Re-scan the support-boundary wording across the main public surfaces:
+   - `rg -n "repeated-run|analyze-once|factor-many|one-shot|CG|GMRES|MINRES|BiCGSTAB|LOBPCG|grow-m|thick-restart|block iterative|compatibility surfaces|staged" include/sparse_analysis.h include/sparse_iterative.h include/sparse_eigs.h README.md docs/tutorial.md examples/README.md benchmarks/README.md tests/test_integration.c`
+6. Re-read the main iterative/eigensolver public headers where lifecycle
+   language matters:
+   - `sed -n '1,220p' include/sparse_iterative.h`
+   - `sed -n '1,220p' include/sparse_eigs.h`
+7. Re-scan the integration proof names for the public lifecycle story:
+   - `rg -n "public_lifecycle|refactor|same_pattern|repeated_solve|factor_solve|analysis_free|factor_free" tests/test_integration.c`
+
+### Day 7 Findings
+
+#### 1. There is no blocker-level support-boundary contradiction left across the main public surfaces
+
+The main stable workflow fence still agrees across:
+
+- `README.md`
+- `docs/tutorial.md`
+- `examples/README.md`
+- `benchmarks/README.md`
+- `include/sparse_analysis.h`
+- `include/sparse_iterative.h`
+- `include/sparse_eigs.h`
+
+The agreed caller story remains:
+
+- one-shot APIs are still the default/front-door path
+- repeated direct solves use the explicit analysis/factors lifecycle
+- repeated-run iterative handles remain bounded to:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- repeated-run eigensolver handles remain bounded to:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+- `BiCGSTAB` and block iterative workflows remain one-shot compatibility
+  surfaces
+
+Interpretation:
+
+- Day 7 did not surface a blocker-level API/docs mismatch
+- the final integration problem is now about caller-story precision and
+  terminology, not about conflicting support boundaries
+
+#### 2. Example/docs alignment is mostly coherent, with one residual top-level emphasis seam
+
+The example-side story is already disciplined:
+
+- `examples/README.md` clearly says the shipped examples still lean on the
+  one-shot public APIs
+- `example_analysis` is still identified as the strongest shipped repeated-run
+  direct example
+- `example_eigs` is clearly one-shot by design even though the repeated-run
+  eigensolver handle exists
+- iterative handles are described as opt-in paths rather than default examples
+
+Interpretation:
+
+- there is no example/docs contradiction that requires a new example or a broad
+  example rewrite
+- the remaining seam is that the top-level docs can still present the repeated
+  paths a little more explicitly as opt-in lifecycle workflows, matching the
+  example-side phrasing
+
+#### 3. Benchmark/docs alignment is also coherent, and now reads more stable than the top-level docs in a few places
+
+The benchmark story is already explicit and workflow-first:
+
+- `bench_refactor` and `bench_refactor_csc`
+  - direct repeated-run lifecycle proof
+- `bench_iterative_reuse`
+  - public repeated-run iterative handle proof
+- `bench_eigs_reuse`
+  - public repeated-run eigensolver handle proof
+- intentional exclusions are already called out directly in
+  `benchmarks/README.md`
+
+Interpretation:
+
+- benchmark/docs mismatch is no longer a high-priority drift class
+- if anything, `benchmarks/README.md` now uses the most precise stable
+  lifecycle taxonomy of the audited caller-story surfaces
+
+#### 4. The strongest remaining drift class is terminology/positioning in the top-level docs, not support-boundary truth
+
+The strongest residual caller-story seam is now concentrated in:
+
+- `README.md`
+- `docs/tutorial.md`
+
+The pattern is:
+
+- top-level docs still sometimes say:
+  - `repeated direct solves`
+  - `repeated iterative solves`
+  - `repeated symmetric eigensolves`
+- while the tighter example/benchmark/header surfaces more consistently say:
+  - explicit repeated-run direct lifecycle
+  - explicit iterative handles
+  - explicit eigensolver handle
+
+Interpretation:
+
+- the highest-value remaining reconciliation target is not a new support
+  boundary or a new proof surface
+- it is a bounded top-level terminology/positioning pass so the front-door docs
+  match the more precise stable vocabulary already used lower in the tree
+
+#### 5. Test/story mismatch is low-risk and should stay out of the final integration batch
+
+The public lifecycle proof in `tests/test_integration.c` is now strong and
+specific:
+
+- repeated solve + zeroed free behavior
+- same-pattern refactor parity with one-shot Cholesky
+- LDL^T same-pattern indefinite repeated-run proof
+- failure-preservation and mismatch rejection cases
+
+Interpretation:
+
+- those tests are the right proof surfaces
+- but the top-level docs do not need to enumerate all of those regression
+  details
+- test/story mismatch is therefore a low-priority residual and not the best
+  Day 8 target
+
+#### 6. Day 8 now has one clean first reconciliation target
+
+The strongest final integration target is now explicit:
+
+- first Day 8 reconciliation seam:
+  - top-level README/tutorial terminology and positioning alignment
+
+Likely touched surfaces:
+
+- `README.md`
+- `docs/tutorial.md`
+
+Likely preserved non-goals:
+
+- no public-header batch
+- no example README rewrite
+- no benchmark README rewrite
+- no broad long-form README history cleanup
+- no test naming or proof-surface churn
+
+Interpretation:
+
+- Sprint 59 can land one caller-value-driven final integration batch without
+  turning the closeout into another broad docs sprint
+
+## Day 7 Close
+
+Sprint 59 now has a reduced final integration map:
+
+- no blocker-level support-boundary contradiction remains
+- example/docs and benchmark/docs alignment are mostly coherent already
+- the strongest remaining drift class is top-level terminology and workflow
+  positioning in `README.md` and `docs/tutorial.md`
+- test/story mismatch is low-risk and should stay out of the final batch
+
+That is enough to move to Day 8 from a concrete caller-story seam instead of a
+generic final integration backlog.

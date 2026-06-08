@@ -1158,3 +1158,176 @@ The public-header cleanup problem is now concrete:
 
 That gives Day 8 a clear bounded header set and wording invariant map before
 any API-adjacent text changes land.
+
+## Day 8
+
+**Objective:** Land the first bounded public-header narrative cleanup batch by
+reducing stale sprint-history and future-work wording in the highest-visibility
+public headers, aligning the public repeated-run and eigensolver wording with
+the simplified README/tutorial story, and preserving the API/lifecycle/support
+contract without widening into a broader direct-family header pass.
+
+### Commands Run
+
+1. Re-read the bounded Day 7 source and the exact touched sections:
+   - `sed -n '1,260p' include/sparse_eigs.h`
+   - `sed -n '180,420p' include/sparse_iterative.h`
+   - `sed -n '1,240p' docs/planning/EPIC_5/SPRINT_58/artifacts/day7-public-header-audit-and-design.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_58/WORKING_NOTES.md`
+2. Scan the touched headers for stale sprint-history and future-work wording:
+   - `rg -n "Sprint|future sprint|future-work|planned|Sprint 2|Sprint 5|Sprint 54|Sprint 58|future" include/sparse_eigs.h include/sparse_iterative.h include/sparse_analysis.h`
+3. Re-read the remaining touched narrative sections directly:
+   - `sed -n '260,520p' include/sparse_eigs.h`
+   - `sed -n '520,760p' include/sparse_eigs.h`
+   - `sed -n '1,220p' include/sparse_iterative.h`
+4. Land the bounded header cleanup batch:
+   - edited `include/sparse_eigs.h`
+   - edited `include/sparse_iterative.h`
+5. Recheck the touched-header drift after the edits:
+   - `rg -n "Sprint|future sprint|future" include/sparse_eigs.h include/sparse_iterative.h`
+   - `git diff -- include/sparse_eigs.h include/sparse_iterative.h`
+6. Run the required validation gate for touched public headers:
+   - `make format`
+   - `make lint`
+   - `make test`
+7. Measure the landed touched surfaces:
+   - `wc -l include/sparse_eigs.h include/sparse_iterative.h include/sparse_analysis.h`
+   - `git diff --stat`
+   - `git status --short --branch`
+
+### Day 8 Findings
+
+#### 1. The strongest public-header narrative offender is now substantially reduced without reopening the eigensolver API contract
+
+The landed `include/sparse_eigs.h` cleanup removed the main stale public
+narrative burdens:
+
+- stale sprint chronology
+- stale future-work wording
+- sprint-local benchmark-tuning explanation in caller-facing enum/threshold docs
+- overlong lifecycle commentary that was better suited to planning history than
+  to stable header usage
+
+The preserved public contract stayed intact:
+
+- the file still teaches the same supported backends:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit LOBPCG
+- shift-invert still clearly composes with the LDL^T path
+- the repeated-run eigensolver handle remains one bounded public lifecycle
+  surface rather than separate backend-specific public handles
+- the ABI-compatibility warnings remain, but they now read as stable release
+  notes rather than sprint chronology
+
+Measured touched-surface result:
+
+- `include/sparse_eigs.h`: `687 -> 646`
+
+Interpretation:
+
+- this landed the highest-value Sprint 58 public-header cleanup without any API
+  redesign
+- the header now reads more like a stable product surface and less like a
+  sprint-local implementation diary
+
+#### 2. The repeated-run iterative public story is now cleaner and better aligned with the README/tutorial boundary
+
+The landed `include/sparse_iterative.h` cleanup was intentionally smaller and
+more bounded:
+
+- removed the remaining sprint-local framing from the progress/cancellation
+  callback comments
+- preserved the explicit repeated-run handle surface for:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- preserved the existing support-boundary posture for:
+  - one-shot `BiCGSTAB`
+  - block iterative compatibility wrappers
+
+Important non-change:
+
+- the main repeated-run handle docs were already close enough to the Day 5-6
+  README/tutorial story that they did not need broad rewriting
+
+Measured touched-surface result:
+
+- `include/sparse_iterative.h`: stayed `765`
+
+Interpretation:
+
+- the iterative header was the right companion target, but it did not need the
+  same mass reduction as `include/sparse_eigs.h`
+- the landed cleanup improves wording consistency without churning stable
+  caller guidance unnecessarily
+
+#### 3. `include/sparse_analysis.h` was correctly deferred in this batch
+
+The optional third target stayed out of scope:
+
+- `include/sparse_analysis.h` remained untouched
+
+Reason:
+
+- no real contradiction surfaced between the current README/tutorial wording and
+  the existing analysis/factor/refactor header story
+- widening into a third header would have added scope without comparable Day 8
+  payoff
+
+Interpretation:
+
+- the Day 7 bounded-set decision held up under the real landing work
+- Sprint 58 continues to benefit more from narrowing than from broadening
+
+#### 4. The landed header batch preserved the intended invariants cleanly
+
+Confirmed preserved invariants:
+
+- API semantics unchanged
+- ownership truth unchanged
+- repeated-run support boundaries unchanged
+- no direct-family header churn
+- no lifecycle or solver-support redesign
+
+The strongest structural cleanup fact is now explicit:
+
+- the touched headers no longer contain the stale `Sprint` / `future` wording
+  classes that triggered the Day 7 batch in the first place
+
+Interpretation:
+
+- this was a real simplification batch, not just a wording shuffle
+- the public header layer is now closer to the final stable product posture
+
+#### 5. The required validation gate passed on the landed header batch
+
+Because `*.h` changed, the required gate was run:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Interpretation:
+
+- the public-header cleanup did not introduce build, lint, or test regressions
+- Sprint 58 still remains inside the preserved reviewed baseline fence
+
+## Day 8 Close
+
+Sprint 58 Day 8 landed one bounded public-header narrative cleanup batch:
+
+- `include/sparse_eigs.h` was materially reduced and de-historicized
+- `include/sparse_iterative.h` was lightly normalized to the current
+  repeated-run/public-support story
+- `include/sparse_analysis.h` stayed intentionally deferred
+- the required `format` / `lint` / `test` gate passed
+
+That leaves the remaining Sprint 58 queue smaller and more concrete:
+
+- benchmark doc taxonomy cleanup
+- examples doc cleanup
+- any later lower-priority header cleanup only if a real public contradiction
+  remains after those caller-facing surfaces are simplified

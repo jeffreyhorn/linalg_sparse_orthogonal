@@ -1894,3 +1894,129 @@ Sprint 58 Day 12 confirmed that:
 - the residual historical density is now consciously deferred rather than
   silently mixed into the Sprint 58 done state
 - the Day 13 validation scope is fixed from the landed tree
+
+## Day 13 - full validation sweep
+
+### Planned work
+
+1. Run the full required baseline:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+2. Reconfirm the reviewed CMake parity and test-count truthfulness anchors.
+3. Rerun the targeted Sprint 58 public-surface follow-ons:
+   - `./build/example_analysis`
+   - `./build/example_iterative`
+   - `./build/example_ic_minres`
+   - `./build/example_eigs`
+   - `./build/example_svd_lowrank`
+   - `./build/bench_refactor`
+   - `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/bench_iterative_reuse`
+   - `./build/bench_eigs_reuse`
+4. Record representative stable outputs that support the final Sprint 58
+   docs/example/benchmark story.
+
+### Day 13 Findings
+
+#### 1. The full required baseline passed from the final Sprint 58 tree
+
+The full Day 13 baseline was run:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All passed.
+
+Interpretation:
+
+- the Sprint 58 documentation/example/header/benchmark cleanup landed without
+  destabilizing the maintained repo baseline
+
+#### 2. Reviewed parity and truthfulness anchors stayed exact
+
+The reviewed CMake parity path remained exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 481.74 sec`
+
+One Day 13 nuance is worth recording explicitly:
+
+- the reviewed CMake rebuild emitted ordinary compiler warnings while building
+  some benchmark/example binaries, but the reviewed path still completed cleanly
+  and passed all parity gates
+
+Interpretation:
+
+- no blocker-level parity or reviewed-baseline drift surfaced
+
+#### 3. The targeted public-surface follow-ons all passed
+
+The Sprint 58 public-facing rerun set passed:
+
+- `./build/example_analysis`
+- `./build/example_iterative`
+- `./build/example_ic_minres`
+- `./build/example_eigs`
+- `./build/example_svd_lowrank`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+
+Representative retained outputs:
+
+- `example_analysis`
+  - solve residual stayed `4.44e-16`
+  - repeated-run message still clearly distinguishes reused
+    symbolic/permutation setup from non-reused stale numeric factors
+- `example_iterative`
+  - GMRES no-preconditioner: `25` iterations, residual `9.56e-11`
+  - ILU(0)-GMRES: `9` iterations, residual `3.14e-11`
+- `example_ic_minres`
+  - `MINRES` on KKT `42x42`: `39` iterations, residual `3.87e-11`
+  - `Jacobi-MINRES`: `26` iterations, residual `4.16e-11`
+- `example_eigs`
+  - nos4 largest-eigenvalue demo: `5 / 5` pairs in `115` Lanczos iterations
+  - KKT nearest-sigma demo: `3 / 3` pairs in `6` Lanczos iterations
+  - explicit `LOBPCG` on `bcsstk04`: `3 / 3` pairs in `62` outer iterations,
+    residual `8.808e-09`
+- `example_svd_lowrank`
+  - sparse low-rank `k=2`: `22 -> 6` nnz, `3.7x` compression
+- `bench_refactor`
+  - `tridiag-200 2.46x`
+  - `tridiag-500 1.25x`
+  - `bcsstk04 2.01x`
+  - `nos4 0.72x`
+- `bench_refactor_csc nos4 --repeat 1`
+  - `speedup_refactor = 2.66x`
+  - `res_public = 8.24e-16`
+  - `res_csc = 7.06e-16`
+- `bench_iterative_reuse`
+  - `cg-tridiag-300 2.55x`
+  - `gmres-unsym-220 1.26x`
+  - `minres-kkt-42 1.97x`
+- `bench_eigs_reuse`
+  - `growm-nos4-k5 1.31x`
+  - `thick-bcsstk14-k5 1.07x`
+  - `lobpcg-diag40-k3 1.00x`
+  - `|lambda|max diff = 0.000e+00`
+
+Interpretation:
+
+- the simplified Sprint 58 story still matches the live example and benchmark
+  outputs from the final tree
+
+### Day 13 Close
+
+Sprint 58 Day 13 fixed the final validation baseline:
+
+- all required validation passed
+- reviewed parity remained exact at `53`
+- the final example and benchmark reruns stayed clean
+- no blocker-level drift surfaced before closeout

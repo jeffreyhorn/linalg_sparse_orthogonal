@@ -818,7 +818,12 @@ For repository-wide interpretation of the dead-code evidence, completeness
 gate, and maintainer cleanup rules, use the
 [Maintainer Guide](docs/maintainer_guide.md). Operationally, run the
 `deadcode*` targets serially because they share `build/deadcode-cmake` and
-`build/deadcode/`.
+`build/deadcode/`. Current platform disposition:
+
+- Linux keeps the dead-code workflow in the enforced quality surface
+- macOS keeps dead-code staged pending fresh measurement
+- Windows keeps dead-code staged rather than claiming reviewed parity it does
+  not yet enforce
 
 ### Reviewed Local Quality Path
 
@@ -847,7 +852,7 @@ make quality-review-cmake
 | Platform | Enforced | Staged | Supplemental / Excluded |
 |--------|---------|---------|---------------------------|
 | Linux | `make quality-review-compile`; `make quality-review-cmake`; `make deadcode-report`; `make deadcode-check` | none inside the maintained reviewed baseline | direct runtime + `bench-fast`; TSan; coverage |
-| macOS | Apple Clang: `make quality-review-compile`; `make quality-review-cmake`; `make wall-check`; `make sanitize` | dead-code (`make deadcode-report`, `make deadcode-check`) | Homebrew GCC direct `make` + `make test` + `make wall-check`; install/pkg-config validation |
+| macOS | Apple Clang: `make quality-review-compile`; `make quality-review-cmake`; `make wall-check`; `make sanitize` | dead-code (`make deadcode-report`, `make deadcode-check`) pending fresh measurement | Homebrew GCC direct `make` + `make test` + `make wall-check`; install/pkg-config validation |
 | Windows | reviewed CMake configure/build; `ctest -N`; full `ctest` | `make quality-review-compile`; `make quality-review`; dead-code | excluded tests: `test_threads`, `test_sprint4_integration`, `test_fuzz` |
 
 Use the table above as the compact operator map for enforced, staged, and
@@ -868,6 +873,10 @@ Use this checklist for a concise release/readiness pass:
 - reviewed CMake parity still passes when that claim matters:
   - `ctest -N --test-dir build/quality-review-cmake`
   - `make quality-review-cmake`
+- remaining staged quality/platform limits stay explicit:
+  - serialized dead-code execution remains the current operational limit
+  - macOS dead-code remains staged pending measurement
+  - Windows reviewed-wrapper parity and dead-code remain staged
 - docs/examples/header usage stays aligned with shipped behavior
 - enforced/staged/excluded platform boundaries still match the
   `Cross-Platform CI Contract` table above

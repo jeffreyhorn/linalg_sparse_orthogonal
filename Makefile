@@ -498,7 +498,10 @@ check: format-check lint test
 # `check`, and `deadcode-check` while exposing the reviewed-target flow.
 # Keep them serial and bannered so failure attribution stays obvious and the
 # shared dead-code build/artifact paths are never driven as a sibling
-# prerequisite branch under `make -j`.
+# prerequisite branch under `make -j`.  That serialized dead-code topology is
+# still an intentional current operational limit; platform-specific staging
+# decisions live in the maintained docs/CI contract, not in alternate target
+# names here.
 QUALITY_REVIEW_CMAKE_DIR ?= build/quality-review-cmake
 
 .NOTPARALLEL: quality-review-compile quality-review quality-review-cmake-compile quality-review-cmake quality-review-full deadcode-compile-db deadcode deadcode-report deadcode-check
@@ -647,7 +650,7 @@ deadcode-check: $(DEADCODE_REPORT_STAMP)
 		--check \
 		"$(DEADCODE_ARTIFACTS_DIR)"
 	@echo "deadcode-check: report completeness checks passed (not a zero-findings or removal-ready gate)."
-	@echo "deadcode-check: residual buckets are closeout/supporting context only; authoritative execution remains serialized. Inspect $(DEADCODE_REPORT_MD) and $(DEADCODE_REPORT_TSV)."
+	@echo "deadcode-check: residual buckets are closeout/supporting context only; authoritative execution remains serialized under the current shared-path topology. Inspect $(DEADCODE_REPORT_MD) and $(DEADCODE_REPORT_TSV)."
 
 # Maintained specialized validation gate: performance regression check.
 #

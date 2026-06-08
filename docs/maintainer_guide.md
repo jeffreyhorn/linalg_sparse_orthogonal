@@ -144,6 +144,27 @@ Operational constraint:
 - run the `deadcode*` targets serially because they share
   `build/deadcode-cmake` and `build/deadcode/`
 
+### Current residual dispositions
+
+The remaining quality/platform residuals are intentionally narrower than a
+generic “platform cleanup” bucket:
+
+- serialized dead-code execution remains the current operational limit because
+  the workflow still shares one build/artifact topology
+- macOS dead-code remains staged pending fresh measurement rather than
+  speculative enablement
+- Windows keeps the reviewed CMake subset enforced while the Makefile reviewed
+  wrappers and dead-code flow remain staged
+- coverage remains a live supplemental signal and should not be treated as an
+  unresolved reviewed-baseline residual unless a new contradiction appears
+
+Interpretation:
+
+- keep these residual dispositions explicit across maintained surfaces
+- do not imply that staged limits are already solved
+- do not widen the repo into platform-expansion work without fresh
+  measurement-backed justification
+
 ## Documentation Ownership Rules
 
 Sprint 48 exists because too much maintainer policy drifted into user-facing

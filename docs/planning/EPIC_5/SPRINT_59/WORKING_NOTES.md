@@ -787,3 +787,132 @@ Sprint 59 now has an explicit first follow-through boundary:
 
 That is enough to move to Day 5 implementation from one bounded residual seam
 instead of a generic quality/platform cleanup intent.
+
+## Day 5
+
+**Objective:** Land the first bounded Sprint 59 quality/platform follow-through
+batch by tightening residual-disposition wording across the maintained
+contract surfaces without changing the reviewed baseline hierarchy or widening
+the sprint into platform-expansion work.
+
+### Commands Run
+
+1. Re-read the selected Day 4 landing boundary:
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_59/artifacts/day4-quality-follow-through-design.md`
+2. Re-read the touched maintained contract sections:
+   - `sed -n '780,880p' README.md`
+   - `sed -n '1,180p' docs/maintainer_guide.md`
+   - `sed -n '498,650p' Makefile`
+   - `sed -n '1,120p' .github/workflows/ci.yml`
+   - `sed -n '1,120p' .github/workflows/macos-ci.yml`
+   - `sed -n '1,120p' .github/workflows/windows-ci.yml`
+3. Review the landed diff and touched-surface wording:
+   - `git diff -- README.md docs/maintainer_guide.md Makefile`
+4. Run targeted post-edit sanity checks:
+   - `rg -n "deadcode|staged|coverage|quality-review-full|quality-review-cmake|Windows|macOS" README.md docs/maintainer_guide.md Makefile .github/workflows`
+   - `wc -l README.md docs/maintainer_guide.md Makefile`
+
+### Day 5 Findings
+
+#### 1. The first landed batch stayed inside the Day 4 residual-disposition fence
+
+The landed Day 5 patch is confined to:
+
+- `README.md`
+- `docs/maintainer_guide.md`
+- `Makefile`
+
+And it stays focused on:
+
+- making the dead-code residual disposition explicit
+- making the macOS dead-code staged state explicit as pending measurement
+- keeping Windows reviewed-wrapper/dead-code staging explicit
+- removing any implication that coverage is still an unresolved reviewed-baseline
+  residual
+
+Interpretation:
+
+- Day 5 did not widen into platform enablement or topology redesign
+- the first follow-through seam stayed a contract-tightening batch, exactly as
+  designed
+
+#### 2. README now gives operators a clearer final-sprint residual map
+
+The touched README sections now say more directly that:
+
+- dead-code remains operationally serialized because of the current shared
+  build/artifact topology
+- Linux keeps dead-code in the enforced quality surface
+- macOS keeps dead-code staged pending fresh measurement
+- Windows keeps dead-code staged rather than pretending reviewed parity that is
+  not yet enforced
+- the readiness checklist now carries the remaining staged limits explicitly
+
+Interpretation:
+
+- the top-level operator story is more truthful and easier to scan
+- the README still stays compact and does not collapse into a full maintainer
+  policy document
+
+#### 3. Maintainer policy now captures the final residual classes directly instead of leaving them implied
+
+The maintainer guide now has an explicit `Current residual dispositions`
+section covering:
+
+- serialized dead-code execution
+- macOS dead-code staging
+- Windows reviewed-wrapper/dead-code staging
+- coverage as a live supplemental signal rather than an unresolved baseline
+  gap
+
+Interpretation:
+
+- the repo now has one clear maintainer-policy home for the remaining
+  quality/platform limits
+- later Epic 5 closeout writing will not need to infer these residual classes
+  indirectly from several smaller surfaces
+
+#### 4. The Makefile wording is tighter without changing the target surface
+
+The touched Makefile wording now:
+
+- calls serialized dead-code topology an intentional current operational limit
+  in the reviewed-quality block comments
+- makes the `deadcode-check` completion message clearer about the shared-path
+  reason for serialized execution
+
+Interpretation:
+
+- the executable surface is more explicit without changing:
+  - target names
+  - target topology
+  - reviewed baseline hierarchy
+- this preserves stable local workflow while tightening truthfulness
+
+#### 5. Workflow files stayed untouched because they already matched the reconciled story
+
+The Day 4 plan allowed workflow-comment edits only if they materially disagreed
+with the maintained contract surfaces. After the Day 5 review:
+
+- `ci.yml` already matched Linux enforced + supplemental wording
+- `macos-ci.yml` already matched staged dead-code wording
+- `windows-ci.yml` already matched enforced reviewed CMake subset + staged
+  wrappers/dead-code wording
+
+Interpretation:
+
+- no workflow edit was needed
+- avoiding no-value comment churn kept the batch smaller and cleaner
+
+## Day 5 Close
+
+Sprint 59 now has its first landed follow-through batch:
+
+- `README.md` gives a clearer operator-facing residual map
+- `docs/maintainer_guide.md` owns the final residual dispositions directly
+- `Makefile` help/comment wording is tighter without changing target topology
+- workflow files did not need churn because they already matched the intended
+  contract
+
+That is enough to move to the next Sprint 59 measurement/reconciliation steps
+from a more explicit maintained quality/platform story.

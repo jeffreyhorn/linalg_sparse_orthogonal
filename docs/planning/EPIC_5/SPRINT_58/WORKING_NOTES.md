@@ -1761,3 +1761,136 @@ Sprint 58 Day 11 landed one bounded benchmark taxonomy cleanup batch:
 - the targeted benchmark sanity set stayed clean, using a bounded `nos4`
   verification for `bench_refactor_csc` instead of pretending the full longer
   sweep was necessary for this docs pass
+
+## Day 12 - post-landing compatibility audit
+
+### Planned work
+
+1. Re-audit the landed Sprint 58 public-surface set:
+   - `README.md`
+   - `docs/tutorial.md`
+   - touched public headers
+   - touched examples docs/source comments
+   - `benchmarks/README.md`
+2. Reconfirm the preserved steady-state workflow fence:
+   - one-shot APIs remain first-class
+   - repeated-run paths remain bounded opt-in workflows
+   - supported solver-family boundaries remain honest
+3. Identify any residual contradiction or wording overreach that would block
+   Day 13 validation.
+4. Lock the Day 13 validation checklist from the landed state.
+5. Record consciously deferred residual density instead of flattening it into
+   a false “everything is fully simplified” claim.
+
+### Day 12 Findings
+
+#### 1. The landed Sprint 58 public workflow fence is still coherent
+
+The re-audited touched surfaces still agree on the highest-signal public story:
+
+- one-shot entry points remain the default/front-door workflows
+- repeated-run direct solves remain a separate analyze-once / factor-many path
+- repeated-run iterative handles remain bounded to:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- repeated-run eigensolver handles remain bounded to:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+- `BiCGSTAB` and block iterative workflows still read as one-shot compatibility
+  surfaces rather than hidden partial handle support
+
+The strongest touched-surface agreement remains visible across:
+
+- `README.md`
+- `docs/tutorial.md`
+- `include/sparse_eigs.h`
+- `include/sparse_iterative.h`
+- `examples/README.md`
+- `examples/example_eigs.c`
+- `benchmarks/README.md`
+
+Interpretation:
+
+- Sprint 58 did not introduce public contract drift while simplifying the
+  workflow story
+- the landed wording still matches the validated product posture from Sprint 57
+
+#### 2. The remaining documentation density is now clearly residual, not blocker-level contradiction
+
+The Day 12 re-audit did surface one explicit truthfulness caveat:
+
+- deeper long-form historical sections in `README.md` still contain many
+  sprint-stamped chronology references
+
+That is now an intentionally retained residual rather than a Sprint 58 defect.
+The important distinction:
+
+- the top-level workflow framing, touched headers, example docs, and benchmark
+  taxonomy now read more like stable product surfaces
+- the deeper historical performance/test/reference sections in `README.md`
+  were not part of the bounded Sprint 58 landing set
+
+Interpretation:
+
+- no blocker-level contradiction remains before Day 13
+- the residual queue is now explicit instead of being hidden behind a vague
+  “docs cleanup still ongoing” label
+
+#### 3. The strongest structural compatibility fact remains unchanged
+
+Sprint 58 continued to avoid public API drift:
+
+- the branch touched only wording, comments, example framing, and benchmark
+  taxonomy
+- no public function signatures or struct layouts were changed
+- the `master...HEAD` diff for the Sprint 58 touched public surfaces is still
+  documentation/story cleanup rather than semantic API expansion
+
+Measured touched-surface line counts now stand at:
+
+- `README.md`: `973`
+- `docs/tutorial.md`: `453`
+- `include/sparse_eigs.h`: `646`
+- `include/sparse_iterative.h`: `765`
+- `examples/README.md`: `134`
+- `examples/example_eigs.c`: `287`
+- `benchmarks/README.md`: `248`
+
+Interpretation:
+
+- the sprint delivered simplification and normalization without reopening the
+  public surface shape
+
+#### 4. The Day 13 validation checklist is now fixed from the landed state
+
+Because the landed Sprint 58 tree includes touched `*.h` and `*.c` days, the
+final validation checklist remains:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+The targeted public-surface follow-ons are now fixed as:
+
+- `./build/example_analysis`
+- `./build/example_iterative`
+- `./build/example_ic_minres`
+- `./build/example_eigs`
+- `./build/example_svd_lowrank`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+
+### Day 12 Close
+
+Sprint 58 Day 12 confirmed that:
+
+- the landed public workflow fence is still coherent
+- no blocker-level wording contradiction remains before final validation
+- the residual historical density is now consciously deferred rather than
+  silently mixed into the Sprint 58 done state
+- the Day 13 validation scope is fixed from the landed tree

@@ -1370,3 +1370,122 @@ Sprint 59 now has its first final integration reconciliation patch:
 
 That is enough to move to the Day 9 re-audit from a smaller and more stable
 top-level integration story.
+
+## Day 9
+
+**Objective:** Re-audit the landed Day 8 integration surfaces, remove one last
+bounded pocket of sprint-local caller-story phrasing if it still remains
+meaningful, and explicitly record the now-lower-risk documentation density
+that should stay outside Sprint 59.
+
+### Commands Run
+
+1. Re-read the Day 9 plan boundary:
+   - `sed -n '300,335p' docs/planning/EPIC_5/SPRINT_59/PLAN.md`
+2. Re-read the Day 8 artifact and current Day 8 notes:
+   - `sed -n '1,220p' docs/planning/EPIC_5/SPRINT_59/artifacts/day8-final-integration-reconciliation-batch1.md`
+   - `sed -n '1250,1375p' docs/planning/EPIC_5/SPRINT_59/WORKING_NOTES.md`
+3. Re-scan the highest-value touched caller-story surfaces:
+   - `rg -n "repeated direct solves|repeated iterative solves|repeated symmetric eigensolves|explicit repeated-run direct lifecycle|iterative-handle|eigensolver-handle|iterative handles|eigensolver handle" README.md docs/tutorial.md examples/README.md benchmarks/README.md include/sparse_analysis.h include/sparse_iterative.h include/sparse_eigs.h`
+   - `sed -n '236,320p' README.md`
+   - `sed -n '236,290p' docs/tutorial.md`
+4. Re-scan for the last visible sprint-stamped phrasing on the touched
+   surfaces:
+   - `rg -n "Sprint 49|Sprint 54|repeated iterative solves|repeated symmetric eigensolves" README.md docs/tutorial.md`
+5. Review the bounded Day 9 diff:
+   - `git diff -- README.md docs/tutorial.md`
+6. Run targeted post-edit sanity checks:
+   - `rg -n "Sprint 49|Sprint 54|iterative-handle workflows|public repeated-run iterative handles are intentionally limited|the library does not expose public repeated-run handles" README.md docs/tutorial.md`
+   - `wc -l README.md docs/tutorial.md`
+
+### Day 9 Findings
+
+#### 1. One more bounded docs patch was still justified after Day 8
+
+The Day 8 patch materially reduced the strongest top-level drift, but one
+small caller-visible pocket still remained:
+
+- `README.md` still carried sprint-stamped wording inside the repeated-run
+  iterative-handle section:
+  - `Sprint 54's supported ...`
+  - `Sprint 54 does not expose ...`
+  - `not deprecated by Sprint 49`
+- `docs/tutorial.md` still used the looser phrase:
+  - `stable-dimension repeated iterative solves`
+
+Interpretation:
+
+- the remaining issue was no longer broad cross-surface disagreement
+- but it was still meaningful enough to justify one last narrow terminology
+  patch before closeout
+
+#### 2. README now prefers stable workflow categories over sprint-local chronology
+
+The Day 9 README patch now says:
+
+- public repeated-run iterative handles are intentionally limited to:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- the library does not expose public repeated-run handles for:
+  - `BiCGSTAB`
+  - block iterative workflows
+- existing one-shot entries remain the compatibility path and are not
+  deprecated
+
+Interpretation:
+
+- the support boundary is now stated as a stable product rule instead of a
+  sprint-history fact
+- the README repeated-run section now reads more like a maintained contract and
+  less like an implementation journal
+
+#### 3. Tutorial now points at the iterative reuse path using the same lifecycle framing
+
+The touched tutorial sentence now refers to:
+
+- `stable-dimension iterative-handle workflows`
+
+instead of:
+
+- `stable-dimension repeated iterative solves`
+
+Interpretation:
+
+- the tutorial now matches the README/examples/header vocabulary more closely
+- the remaining caller story is less likely to slide back toward generic
+  repeated-solve phrasing
+
+#### 4. The remaining drift is now mostly conscious density, not misleading terminology
+
+After the Day 9 patch:
+
+- top-level docs and lower-level public surfaces now agree more closely on:
+  - explicit repeated-run direct lifecycle
+  - iterative handles
+  - eigensolver handle
+  - one-shot compatibility surfaces
+- the remaining density is mostly:
+  - long-form historical detail
+  - deep benchmark/performance context
+  - header-local terminology that is already internally truthful
+
+Interpretation:
+
+- no second broad reconciliation batch is justified
+- the remaining queue is best treated as consciously deferred density rather
+  than active integration drift
+
+## Day 9 Close
+
+Sprint 59 now has a second and final bounded integration reconciliation patch:
+
+- the README repeated-run iterative section no longer relies on sprint-local
+  framing
+- the tutorial uses the same iterative-handle lifecycle framing as the other
+  public surfaces
+- the remaining cross-surface queue is now mostly optional density rather than
+  misleading terminology
+
+That is enough to move to the Day 10 closeout-input audit from a smaller and
+more stable final Epic 5 caller story.

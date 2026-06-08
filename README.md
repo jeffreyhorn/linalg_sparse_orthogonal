@@ -287,15 +287,15 @@ Important behavior:
   state
 - re-preparing may grow capacity and discards prior Krylov / Ritz /
   search-direction state
-- Sprint 54's supported iterative repeated-run handle families are:
+- public repeated-run iterative handles are intentionally limited to:
   - `CG`
   - `GMRES`
   - `MINRES`
-- Sprint 54 does not expose public repeated-run handles for:
+- the library does not expose public repeated-run handles for:
   - `BiCGSTAB`
   - block iterative workflows
 - existing one-shot entries remain the compatibility path and are not
-  deprecated by Sprint 49
+  deprecated
 
 ### Repeated-Run Direct Workflow
 

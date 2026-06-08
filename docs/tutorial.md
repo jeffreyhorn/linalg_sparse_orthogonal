@@ -245,9 +245,10 @@ memset(x, 0, N * sizeof(double));
 sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &result);
 ```
 
-For stable-dimension repeated iterative solves, prepare and reuse an explicit
-iterative handle instead of rebuilding scratch state every call. That repeated-
-run handle surface is intentionally limited to `CG`, `GMRES`, and `MINRES`.
+For stable-dimension iterative-handle workflows, prepare and reuse an explicit
+iterative handle instead of rebuilding scratch state every call. That
+repeated-run handle surface is intentionally limited to `CG`, `GMRES`, and
+`MINRES`.
 
 ### Preconditioning
 

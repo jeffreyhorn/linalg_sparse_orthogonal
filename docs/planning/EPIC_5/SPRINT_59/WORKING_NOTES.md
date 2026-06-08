@@ -1254,3 +1254,119 @@ Sprint 59 now has a reduced final integration map:
 
 That is enough to move to Day 8 from a concrete caller-story seam instead of a
 generic final integration backlog.
+
+## Day 8
+
+**Objective:** Land the first bounded final integration reconciliation patch by
+tightening the top-level README/tutorial terminology and workflow positioning
+so the front-door docs match the more precise stable vocabulary already used by
+the headers, examples, and benchmark docs.
+
+### Commands Run
+
+1. Re-read the selected Day 7 landing boundary:
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_59/artifacts/day7-cross-surface-compatibility-audit.md`
+2. Re-read the touched top-level workflow sections:
+   - `sed -n '70,120p' README.md`
+   - `sed -n '1,60p' docs/tutorial.md`
+   - `sed -n '160,190p' docs/tutorial.md`
+   - `sed -n '230,265p' README.md`
+   - `sed -n '300,330p' README.md`
+3. Review the landed diff for the touched docs:
+   - `git diff -- README.md docs/tutorial.md`
+4. Run targeted post-edit alignment checks:
+   - `rg -n "explicit repeated-run direct lifecycle|iterative handles|eigensolver handle|one-shot compatibility surfaces|BiCGSTAB|LOBPCG|grow-m|thick-restart" README.md docs/tutorial.md examples/README.md benchmarks/README.md include/sparse_analysis.h include/sparse_iterative.h include/sparse_eigs.h`
+   - `wc -l README.md docs/tutorial.md`
+
+### Day 8 Findings
+
+#### 1. The landed batch stayed inside the Day 7 caller-story fence
+
+The Day 8 patch is confined to:
+
+- `README.md`
+- `docs/tutorial.md`
+
+And it stays focused on:
+
+- replacing looser top-level phrases like:
+  - `repeated direct solves`
+  - `repeated iterative solves`
+  - `repeated symmetric eigensolves`
+- with the more precise stable vocabulary already used by the lower-level
+  surfaces:
+  - explicit repeated-run direct lifecycle
+  - iterative handles
+  - eigensolver handle
+
+Interpretation:
+
+- Day 8 did not widen into a header batch, example rewrite, benchmark rewrite,
+  or long-form README cleanup
+- the first final integration patch stayed caller-value driven and narrow
+
+#### 2. README now matches the lower-level lifecycle vocabulary more closely
+
+The touched README sections now:
+
+- describe the direct repeated path as the explicit repeated-run direct
+  lifecycle
+- describe repeated iterative use as the explicit iterative-handle path
+- describe repeated eigensolver use as the explicit eigensolver-handle path
+- remove the stale `Sprint 49` framing from the repeated-run handle section
+
+Interpretation:
+
+- the top-level product map now matches the lifecycle terminology already used
+  by:
+  - `include/sparse_analysis.h`
+  - `examples/README.md`
+  - `benchmarks/README.md`
+- the README front door is now closer to the repo's final stable product
+  vocabulary
+
+#### 3. Tutorial now reinforces the same explicit-lifecycle terminology
+
+The touched tutorial sections now:
+
+- describe the opt-in solver reuse paths as:
+  - explicit iterative-handle lifecycle
+  - explicit eigensolver-handle lifecycle
+- describe the direct repeated path as the explicit repeated-run direct
+  lifecycle
+
+Interpretation:
+
+- the tutorial now points users toward the same stable lifecycle categories the
+  README and lower-level surfaces use
+- the top-level docs are less likely to drift back toward generic
+  "repeated solve" phrasing that obscures the real public model
+
+#### 4. The strongest remaining cross-surface drift is now smaller and lower-risk
+
+After the Day 8 patch:
+
+- top-level docs, examples docs, benchmark docs, and public headers now agree
+  more closely on the core lifecycle terminology
+- the remaining density is mostly:
+  - long-form detail
+  - historical depth
+  - proof detail the top-level docs intentionally do not mirror
+
+Interpretation:
+
+- the strongest final caller-story mismatch has been materially reduced
+- the remaining queue is now more about optional density cleanup than about
+  misleading integration wording
+
+## Day 8 Close
+
+Sprint 59 now has its first final integration reconciliation patch:
+
+- `README.md` uses the more precise stable lifecycle vocabulary
+- `docs/tutorial.md` reinforces the same explicit direct/iterative/eigensolver
+  handle terminology
+- the patch stayed bounded to the selected caller-story seam
+
+That is enough to move to the Day 9 re-audit from a smaller and more stable
+top-level integration story.

@@ -10,7 +10,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 
 ### Direct Solvers
 - **One-shot direct solves** — LU, Cholesky, LDL^T, and QR remain the default public entry points for most callers.
-- **Repeated direct solves** — `sparse_analyze()` → `sparse_factor_numeric()` → `sparse_factor_solve()`, then `sparse_refactor_numeric()` between later `sparse_factor_solve()` calls, supports analyze-once / factor-many workflows when the sparsity pattern stays fixed.
+- **Explicit repeated-run direct lifecycle** — `sparse_analyze()` → `sparse_factor_numeric()` → `sparse_factor_solve()`, then `sparse_refactor_numeric()` between later `sparse_factor_solve()` calls, supports analyze-once / factor-many workflows when the sparsity pattern stays fixed.
 - **Dispatch-backed direct kernels** — CSR LU plus CSC Cholesky and LDL^T provide faster large-matrix paths behind the existing public APIs.
 - **Multi-RHS and refinement support** — block solves, iterative refinement, rank diagnostics, and minimum-norm QR paths stay available without changing the one-shot-first workflow.
 
@@ -77,10 +77,10 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 ## Choose a Workflow
 
 - **Small or occasional direct solves:** start with the one-shot LU, Cholesky, LDL^T, or QR entry points.
-- **Stable-pattern repeated direct solves:** use `sparse_analyze()` once, then `sparse_factor_numeric()` plus `sparse_factor_solve()`, with `sparse_refactor_numeric()` between later `sparse_factor_solve()` calls as values change. `example_analysis` is the strongest shipped reference.
-- **Repeated iterative solves on fixed dimension:** use explicit handles for `CG`, `GMRES`, or `MINRES`. `BiCGSTAB` and block iterative workflows remain one-shot compatibility surfaces.
-- **Repeated symmetric eigensolves on fixed dimension:** use the explicit eigensolver handle for grow-m Lanczos, thick-restart Lanczos, or explicit `LOBPCG`.
-- **Workflow-specific proof surfaces:** use `bench_refactor` / `bench_refactor_csc` for direct repeated-run workflows, `bench_iterative_reuse` for iterative handles, and `bench_eigs_reuse` for eigensolver handles.
+- **Stable-pattern repeated direct lifecycle:** use `sparse_analyze()` once, then `sparse_factor_numeric()` plus `sparse_factor_solve()`, with `sparse_refactor_numeric()` between later `sparse_factor_solve()` calls as values change. `example_analysis` is the strongest shipped reference.
+- **Explicit iterative handles on fixed dimension:** use the handle path for `CG`, `GMRES`, or `MINRES`. `BiCGSTAB` and block iterative workflows remain one-shot compatibility surfaces.
+- **Explicit eigensolver handle on fixed dimension:** use the handle path for grow-m Lanczos, thick-restart Lanczos, or explicit `LOBPCG`.
+- **Workflow-specific proof surfaces:** use `bench_refactor` / `bench_refactor_csc` for the repeated-run direct lifecycle, `bench_iterative_reuse` for iterative handles, and `bench_eigs_reuse` for the eigensolver handle path.
 
 The rest of this README keeps the deeper algorithm, API, and benchmark details.
 
@@ -230,9 +230,9 @@ factored or reordered, start from a fresh `sparse_copy()` of the original.
 
 ### Repeated-Run Lifecycle Handles
 
-Sprint 49 adds an explicit repeated-run handle path for callers solving many
-same-dimension problems while wanting to preserve allocation capacity between
-runs.
+The library exposes an explicit repeated-run handle path for callers solving
+many same-dimension problems while wanting to preserve allocation capacity
+between runs.
 
 The one-shot APIs remain fully supported:
 

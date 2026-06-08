@@ -1802,3 +1802,112 @@ Sprint 59 now has the main Epic 5 summary/handoff draft:
 That is enough to move to the Day 12 project-plan / residual finalization pass
 from a stable high-signal handoff draft instead of from scattered sprint
 closeouts.
+
+## Day 12
+
+**Objective:** Reconcile the final project-level residual and planning surfaces
+against the landed Sprint 59 state, update only what now genuinely requires a
+measured closure/defer-state correction, and explicitly record a no-op result
+if the existing project-level wording is already accurate enough.
+
+### Commands Run
+
+1. Re-read the Day 12 plan boundary:
+   - `sed -n '435,490p' docs/planning/EPIC_5/SPRINT_59/PLAN.md`
+2. Re-read the Day 11 Epic 5 handoff draft and current Sprint 59 notes:
+   - `sed -n '1,280p' docs/planning/EPIC_5/SPRINT_59/artifacts/day11-epic5-summary-and-handoff-batch.md`
+   - `tail -n 220 docs/planning/EPIC_5/SPRINT_59/WORKING_NOTES.md`
+3. Re-read the current project-level Epic 5 planning and residual sources:
+   - `sed -n '1,360p' docs/planning/EPIC_5/PROJECT_PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/reviews/todo-codex-2026-05-31.md`
+   - `sed -n '278,340p' docs/planning/EPIC_5/reviews/review-codex-2026-05-31.md`
+4. Re-scan the live repo for project-level Sprint 59 closeout surfaces:
+   - `find docs/planning/EPIC_5 -maxdepth 2 -type f | sort`
+5. Confirm whether any project-level file now shows a real wording mismatch:
+   - `git diff -- docs/planning/EPIC_5/PROJECT_PLAN.md docs/planning/EPIC_5/reviews/todo-codex-2026-05-31.md docs/planning/EPIC_5/reviews/review-codex-2026-05-31.md`
+6. Record the Day 12 finalization result and recheck branch state:
+   - `git status --short --branch`
+
+### Day 12 Findings
+
+#### 1. No project-level file currently requires a Day 12 correction
+
+After re-reading the project-level planning and residual surfaces against the
+landed Sprint 59 state:
+
+- `docs/planning/EPIC_5/PROJECT_PLAN.md`
+- `docs/planning/EPIC_5/reviews/todo-codex-2026-05-31.md`
+- `docs/planning/EPIC_5/reviews/review-codex-2026-05-31.md`
+
+there is no blocker-level mismatch that requires a Day 12 edit.
+
+Interpretation:
+
+- the Sprint 59 Day 11 handoff draft already translates the older review queue
+  into a measured present-tense closeout story
+- the project-level files remain useful as:
+  - the original Epic 5 plan
+  - the original Epic 5 review/todo source
+- they do not need to be rewritten into post-hoc closeout artifacts
+
+#### 2. `PROJECT_PLAN.md` still reads as a truthful plan, not as stale contradictory state
+
+The current `PROJECT_PLAN.md` still works as intended:
+
+- it accurately names the Sprint 50-59 sequence
+- it accurately describes each sprint goal at planning time
+- it does not falsely claim unfinished work as already closed
+- it does not need an extra “Epic 5 complete” patch before the final Day 13-14
+  validated closeout exists
+
+Interpretation:
+
+- changing `PROJECT_PLAN.md` on Day 12 would mostly be churn
+- the right place for the final measured closure language is still:
+  - Sprint 59 artifacts
+  - Sprint 59 closeout
+  - later Sprint 59 retrospective
+
+#### 3. The review/todo files should remain historical source inputs, not be rewritten into the final residual journal
+
+The Epic 5 review and todo files still serve a valid purpose:
+
+- they show the original gap list and rationale
+- they explain why Epic 5 existed
+- they do not need to be normalized into the final post-Epic state
+
+Interpretation:
+
+- the final residual journal should live in the Sprint 59 closeout lane
+- rewriting the source review/todo files now would blur:
+  - original diagnosis
+  - final closure state
+
+#### 4. The final Day 12 result is an explicit no-op plus a clearer non-goal note
+
+The real Day 12 output is now explicit:
+
+- no project-level planning file edit is justified yet
+- no review/todo rewrite is justified
+- the remaining non-goal fence stays:
+  - no reopening solved Sprint 50-59 scope
+  - no broad project-plan restatement for its own sake
+  - no rewriting historical review artifacts into present-tense closeout docs
+
+Interpretation:
+
+- Day 12 still reduced ambiguity, just by confirming which files should remain
+  untouched
+- that makes the Day 14 project-plan check more truthful and simpler
+
+## Day 12 Close
+
+Sprint 59 now has an explicit project-level residual-finalization result:
+
+- `PROJECT_PLAN.md` remains accurate enough and does not need a Day 12 patch
+- the Epic 5 review/todo files remain historical source inputs
+- the final residual journal stays in the Sprint 59 closeout lane
+- the remaining non-goal fence is explicit
+
+That is enough to move to the Day 13 validation sweep without any hidden
+project-level wording debt.

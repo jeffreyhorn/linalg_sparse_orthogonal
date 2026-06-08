@@ -916,3 +916,157 @@ Sprint 59 now has its first landed follow-through batch:
 
 That is enough to move to the next Sprint 59 measurement/reconciliation steps
 from a more explicit maintained quality/platform story.
+
+## Day 6
+
+**Objective:** Re-audit the landed Day 5 quality/platform surfaces and decide
+whether one more bounded follow-through batch is still justified or whether the
+remaining items should now be recorded explicitly as consciously deferred
+residuals.
+
+### Commands Run
+
+1. Re-read the Sprint 59 Day 6 plan scope:
+   - `sed -n '220,280p' docs/planning/EPIC_5/SPRINT_59/PLAN.md`
+2. Re-read the landed Day 5 batch artifact:
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_59/artifacts/day5-bounded-quality-follow-through-batch1.md`
+3. Re-read the strongest remaining staged platform surfaces:
+   - `sed -n '1,220p' .github/workflows/macos-ci.yml`
+   - `sed -n '120,220p' .github/workflows/ci.yml`
+   - `sed -n '1,260p' scripts/deadcode_workflow.sh`
+   - `sed -n '1,260p' scripts/deadcode_report.py`
+4. Re-read the Day 4 design fence and inherited Epic 5 residual guidance:
+   - `sed -n '1,220p' docs/planning/EPIC_5/SPRINT_59/artifacts/day4-quality-follow-through-design.md`
+   - `sed -n '1,220p' docs/planning/EPIC_5/reviews/todo-codex-2026-05-31.md`
+   - `sed -n '278,320p' docs/planning/EPIC_5/reviews/review-codex-2026-05-31.md`
+5. Re-scan the maintained residual wording after the Day 5 patch:
+   - `rg -n "macOS dead-code|dead-code remains staged|Windows reviewed-wrapper|coverage calibration|serialized dead-code|residual" README.md docs/maintainer_guide.md Makefile .github/workflows docs/planning/EPIC_5/SPRINT_59`
+
+### Day 6 Findings
+
+#### 1. Day 5 removed the last justified wording-only contradiction in the maintained quality/platform surfaces
+
+After the Day 5 patch:
+
+- `README.md` now gives operators an explicit residual map
+- `docs/maintainer_guide.md` now owns the current residual classes directly
+- `Makefile` now explains serialized dead-code topology more plainly
+- workflow comments still agree with the maintained contract surfaces
+
+Interpretation:
+
+- there is no remaining high-signal wording contradiction that clearly
+  justifies a second reconciliation patch
+- any additional Day 6 patch would need to rest on fresh platform evidence, not
+  on residual language drift
+
+#### 2. macOS dead-code still lacks the fresh evidence needed to justify enablement work
+
+The current macOS situation remains:
+
+- `macos-ci.yml` enforces the Apple Clang reviewed path plus
+  `wall-check`/`sanitize`
+- it does not install or build the Linux dead-code toolchain path:
+  - pinned `xunused`
+  - LLVM/Clang cmake setup used by the Linux dead-code job
+- `scripts/deadcode_workflow.sh` still carries Darwin-specific argument
+  shaping for `xunused`, which confirms macOS is not a no-op path, but it does
+  not by itself prove CI readiness
+
+Interpretation:
+
+- macOS dead-code remains a real residual
+- but Sprint 59 still does not have the fresh measurement needed to justify
+  either:
+  - enabling it
+  - or claiming it is permanently blocked
+- the correct Day 6 disposition remains:
+  - explicitly deferred pending measurement
+
+#### 3. Windows wrapper/dead-code follow-through still fails the bounded-cost test
+
+The live Windows surface remains:
+
+- enforced reviewed CMake subset in `windows-ci.yml`
+- explicit staged status for:
+  - Makefile reviewed wrappers
+  - dead-code
+- explicit excluded-test printout already preserved in job output
+
+Interpretation:
+
+- there is no hidden Windows truthfulness defect left after Day 5
+- expanding Windows further would move Sprint 59 toward platform implementation
+  work rather than final bounded reconciliation
+- the correct Day 6 disposition remains:
+  - explicitly deferred with current rationale
+
+#### 4. Serialized dead-code execution remains a consciously deferred operational limit, not a Day 6 fix target
+
+The current dead-code topology still depends on shared paths:
+
+- `build/deadcode-cmake`
+- `build/deadcode/`
+
+And the maintained surfaces already agree that:
+
+- authoritative execution remains serialized
+- the limitation is operational rather than a silent correctness problem
+
+Interpretation:
+
+- there is still no bounded Day 6 patch that would reduce this limit without
+  reopening topology/workflow redesign
+- the correct disposition remains:
+  - explicitly deferred with current rationale
+
+#### 5. Coverage calibration remains out of the active residual queue
+
+Nothing in the Day 5 re-audit reopens the coverage question:
+
+- `make coverage` is still live in CI
+- `80%` is still the enforced threshold
+- README, Makefile, and maintainer-facing wording still agree that coverage is
+  supplemental rather than part of the reviewed baseline
+
+Interpretation:
+
+- coverage calibration stays closed as an active Sprint 59 residual
+- Day 6 should not invent new work there
+
+#### 6. Day 6 is best recorded as an explicit defer decision rather than a cosmetic second patch
+
+The remaining quality/platform queue is now smaller and more concrete precisely
+because the repo can state what is still deferred and why:
+
+- macOS dead-code:
+  - deferred pending fresh measurement
+- Windows reviewed-wrapper parity:
+  - deferred because the reviewed CMake subset is already the enforced Windows
+    truth surface and broader parity would widen scope
+- Windows dead-code:
+  - deferred for the same bounded-scope reason
+- serialized dead-code topology:
+  - deferred because it still depends on shared-path workflow design rather
+    than wording drift
+- coverage calibration:
+  - removed from the active residual queue
+
+Interpretation:
+
+- no second landed patch is justified on Day 6
+- the correct output is a sharper deferred-residual note, not low-value churn
+
+## Day 6 Close
+
+Sprint 59 Day 6 closes with an explicit defer decision:
+
+- no second follow-through patch was justified after the Day 5 reconciliation
+- macOS dead-code remains the strongest measurement-dependent residual
+- Windows wrapper/dead-code follow-through remains consciously deferred
+- serialized dead-code topology remains a consciously deferred operational
+  limit
+- coverage stays out of the active residual queue
+
+That leaves Sprint 59 with a smaller and more concrete quality/platform queue
+before the final cross-surface compatibility audit begins.

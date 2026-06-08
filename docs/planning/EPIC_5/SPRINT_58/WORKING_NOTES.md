@@ -1495,3 +1495,143 @@ The example-modernization problem is now concrete:
 
 That gives Day 10 an explicit example/doc landing set and non-goal fence before
 any shipped example wording changes begin.
+
+## Day 10
+
+**Objective:** Land the highest-value bounded example modernization batch by
+reducing stale sprint-history framing in the strongest remaining shipped
+example surface, aligning the paired example README wording to the simplified
+product story, and preserving all validated example behavior and support
+boundaries without widening into a broader example rewrite.
+
+### Commands Run
+
+1. Re-read the bounded Day 9 source and touched example surfaces:
+   - `sed -n '1,340p' examples/example_eigs.c`
+   - `sed -n '90,150p' examples/README.md`
+   - `sed -n '1,220p' docs/planning/EPIC_5/SPRINT_58/artifacts/day9-example-modernization-audit-and-design.md`
+   - `tail -n 220 docs/planning/EPIC_5/SPRINT_58/WORKING_NOTES.md`
+2. Land the bounded example/doc cleanup batch:
+   - edited `examples/example_eigs.c`
+   - edited `examples/README.md`
+3. Run the required validation gate because `examples/example_eigs.c` changed:
+   - `make format`
+   - `make lint`
+   - `make test`
+4. Run focused Day 10 follow-ons and drift checks:
+   - `./build/example_eigs`
+   - `rg -n "Sprint" examples/example_eigs.c examples/README.md`
+   - `wc -l examples/example_eigs.c examples/README.md`
+   - `git diff --stat`
+
+### Day 10 Findings
+
+#### 1. The strongest remaining shipped example narrative offender is now normalized to the stable product story
+
+The landed `examples/example_eigs.c` batch removed the main stale public
+narrative burdens:
+
+- stale sprint chronology in the file header
+- sprint-local framing in the runtime banner
+- sprint-local explanation of the backend and preconditioner story
+- historical wording around the public preconditioner hook
+
+The preserved example contract stayed intact:
+
+- same three example workflows:
+  - largest eigenvalues on a small SPD SuiteSparse matrix
+  - nearest-sigma shift-invert on a KKT indefinite matrix
+  - explicit LOBPCG with IC(0) preconditioning on `bcsstk04`
+- same one-shot eigensolver entry point
+- same numerical output and residual checks
+- same stable support-boundary message:
+  - one-shot example first
+  - repeated-run handle path remains a separate public workflow
+
+Interpretation:
+
+- `example_eigs.c` was the right first modernization target
+- the landed change improved caller-story truthfulness without touching
+  behavior
+
+#### 2. The paired example README entry now matches the simplified example source and no longer leans on sprint chronology
+
+The landed `examples/README.md` cleanup:
+
+- removed the remaining eigensolver-example sprint framing
+- simplified the eigensolver entry into product-level workflow wording
+- removed the stale `Sprint 54` support-boundary line from the repeated-run
+  handle summary
+
+Important preserved boundary:
+
+- the example docs still state that repeated-run handles do not currently
+  broaden to:
+  - `BiCGSTAB`
+  - block iterative workflows
+
+Interpretation:
+
+- the example README is now aligned with the Day 10 source cleanup
+- the paired doc/source target set from Day 9 was correct
+
+#### 3. The iterative examples were correctly left alone
+
+The optional `example_iterative.c` follow-through was not needed.
+
+Reason:
+
+- no contradiction remained that justified widening the batch
+- `example_iterative.c` already reads as a clean one-shot example
+- Day 10 stayed higher signal by finishing the eigensolver seam cleanly instead
+  of broadening into additional low-payoff edits
+
+Interpretation:
+
+- the Day 9 non-goal fence held
+- Sprint 58 continues to benefit more from narrow alignment passes than from
+  touching every nearby example surface
+
+#### 4. The required validation gate and focused Day 10 follow-ons passed
+
+Because `examples/example_eigs.c` changed, the required gate was run:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Focused follow-on also passed:
+
+- `./build/example_eigs`
+
+Representative retained output:
+
+- nos4 largest-eigenvalue demo still converged `5 / 5` pairs in `115`
+  Lanczos iterations
+- KKT shift-invert demo still converged `3 / 3` pairs in `6` Lanczos
+  iterations
+- explicit LOBPCG on `bcsstk04` still converged `3 / 3` pairs in `62`
+  outer iterations with reported residual `8.808e-09`
+
+The final drift check is also explicit:
+
+- `rg -n "Sprint" examples/example_eigs.c examples/README.md`
+  returned no matches
+
+## Day 10 Close
+
+Sprint 58 Day 10 landed one bounded example modernization batch:
+
+- `examples/example_eigs.c` now reads like a stable shipped product example
+- `examples/README.md` now matches that simplified eigensolver story and keeps
+  the support boundary explicit
+- no iterative-example widening was needed
+- the required `format` / `lint` / `test` gate passed
+
+That leaves the remaining Sprint 58 queue smaller and more concrete:
+
+- benchmark taxonomy cleanup
+- any later lower-priority example/header follow-through only if a real
+  contradiction remains after the benchmark/docs surfaces are simplified

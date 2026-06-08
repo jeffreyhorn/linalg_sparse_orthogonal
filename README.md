@@ -10,7 +10,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 
 ### Direct Solvers
 - **One-shot direct solves** — LU, Cholesky, LDL^T, and QR remain the default public entry points for most callers.
-- **Repeated direct solves** — `sparse_analyze()` → `sparse_factor_numeric()` → `sparse_factor_solve()`, then `sparse_refactor_numeric()` between later `sparse_factor_solve()` calls, supports analyze-once / factor-many workflows when the sparsity pattern stays fixed.
+- **Explicit repeated-run direct lifecycle** — `sparse_analyze()` → `sparse_factor_numeric()` → `sparse_factor_solve()`, then `sparse_refactor_numeric()` between later `sparse_factor_solve()` calls, supports analyze-once / factor-many workflows when the sparsity pattern stays fixed.
 - **Dispatch-backed direct kernels** — CSR LU plus CSC Cholesky and LDL^T provide faster large-matrix paths behind the existing public APIs.
 - **Multi-RHS and refinement support** — block solves, iterative refinement, rank diagnostics, and minimum-norm QR paths stay available without changing the one-shot-first workflow.
 
@@ -77,10 +77,10 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 ## Choose a Workflow
 
 - **Small or occasional direct solves:** start with the one-shot LU, Cholesky, LDL^T, or QR entry points.
-- **Stable-pattern repeated direct solves:** use `sparse_analyze()` once, then `sparse_factor_numeric()` plus `sparse_factor_solve()`, with `sparse_refactor_numeric()` between later `sparse_factor_solve()` calls as values change. `example_analysis` is the strongest shipped reference.
-- **Repeated iterative solves on fixed dimension:** use explicit handles for `CG`, `GMRES`, or `MINRES`. `BiCGSTAB` and block iterative workflows remain one-shot compatibility surfaces.
-- **Repeated symmetric eigensolves on fixed dimension:** use the explicit eigensolver handle for grow-m Lanczos, thick-restart Lanczos, or explicit `LOBPCG`.
-- **Workflow-specific proof surfaces:** use `bench_refactor` / `bench_refactor_csc` for direct repeated-run workflows, `bench_iterative_reuse` for iterative handles, and `bench_eigs_reuse` for eigensolver handles.
+- **Stable-pattern repeated direct lifecycle:** use `sparse_analyze()` once, then `sparse_factor_numeric()` plus `sparse_factor_solve()`, with `sparse_refactor_numeric()` between later `sparse_factor_solve()` calls as values change. `example_analysis` is the strongest shipped reference.
+- **Explicit iterative handles on fixed dimension:** use the handle path for `CG`, `GMRES`, or `MINRES`. `BiCGSTAB` and block iterative workflows remain one-shot compatibility surfaces.
+- **Explicit eigensolver handle on fixed dimension:** use the handle path for grow-m Lanczos, thick-restart Lanczos, or explicit `LOBPCG`.
+- **Workflow-specific proof surfaces:** use `bench_refactor` / `bench_refactor_csc` for the repeated-run direct lifecycle, `bench_iterative_reuse` for iterative handles, and `bench_eigs_reuse` for the eigensolver handle path.
 
 The rest of this README keeps the deeper algorithm, API, and benchmark details.
 
@@ -230,9 +230,9 @@ factored or reordered, start from a fresh `sparse_copy()` of the original.
 
 ### Repeated-Run Lifecycle Handles
 
-Sprint 49 adds an explicit repeated-run handle path for callers solving many
-same-dimension problems while wanting to preserve allocation capacity between
-runs.
+The library exposes an explicit repeated-run handle path for callers solving
+many same-dimension problems while wanting to preserve allocation capacity
+between runs.
 
 The one-shot APIs remain fully supported:
 
@@ -287,15 +287,15 @@ Important behavior:
   state
 - re-preparing may grow capacity and discards prior Krylov / Ritz /
   search-direction state
-- Sprint 54's supported iterative repeated-run handle families are:
+- public repeated-run iterative handles are intentionally limited to:
   - `CG`
   - `GMRES`
   - `MINRES`
-- Sprint 54 does not expose public repeated-run handles for:
+- the library does not expose public repeated-run handles for:
   - `BiCGSTAB`
   - block iterative workflows
 - existing one-shot entries remain the compatibility path and are not
-  deprecated by Sprint 49
+  deprecated
 
 ### Repeated-Run Direct Workflow
 
@@ -818,7 +818,12 @@ For repository-wide interpretation of the dead-code evidence, completeness
 gate, and maintainer cleanup rules, use the
 [Maintainer Guide](docs/maintainer_guide.md). Operationally, run the
 `deadcode*` targets serially because they share `build/deadcode-cmake` and
-`build/deadcode/`.
+`build/deadcode/`. Current platform disposition:
+
+- Linux keeps the dead-code workflow in the enforced quality surface
+- macOS keeps dead-code staged pending fresh measurement
+- Windows keeps dead-code staged rather than claiming reviewed parity it does
+  not yet enforce
 
 ### Reviewed Local Quality Path
 
@@ -847,7 +852,7 @@ make quality-review-cmake
 | Platform | Enforced | Staged | Supplemental / Excluded |
 |--------|---------|---------|---------------------------|
 | Linux | `make quality-review-compile`; `make quality-review-cmake`; `make deadcode-report`; `make deadcode-check` | none inside the maintained reviewed baseline | direct runtime + `bench-fast`; TSan; coverage |
-| macOS | Apple Clang: `make quality-review-compile`; `make quality-review-cmake`; `make wall-check`; `make sanitize` | dead-code (`make deadcode-report`, `make deadcode-check`) | Homebrew GCC direct `make` + `make test` + `make wall-check`; install/pkg-config validation |
+| macOS | Apple Clang: `make quality-review-compile`; `make quality-review-cmake`; `make wall-check`; `make sanitize` | dead-code (`make deadcode-report`, `make deadcode-check`) pending fresh measurement | Homebrew GCC direct `make` + `make test` + `make wall-check`; install/pkg-config validation |
 | Windows | reviewed CMake configure/build; `ctest -N`; full `ctest` | `make quality-review-compile`; `make quality-review`; dead-code | excluded tests: `test_threads`, `test_sprint4_integration`, `test_fuzz` |
 
 Use the table above as the compact operator map for enforced, staged, and
@@ -868,6 +873,10 @@ Use this checklist for a concise release/readiness pass:
 - reviewed CMake parity still passes when that claim matters:
   - `ctest -N --test-dir build/quality-review-cmake`
   - `make quality-review-cmake`
+- remaining staged quality/platform limits stay explicit:
+  - serialized dead-code execution remains the current operational limit
+  - macOS dead-code remains staged pending measurement
+  - Windows reviewed-wrapper parity and dead-code remain staged
 - docs/examples/header usage stays aligned with shipped behavior
 - enforced/staged/excluded platform boundaries still match the
   `Cross-Platform CI Contract` table above

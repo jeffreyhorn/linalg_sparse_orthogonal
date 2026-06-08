@@ -12,8 +12,8 @@ Start with the smallest public path that matches the problem:
   entry points for most occasional solves
 - move to the explicit repeated-run direct lifecycle only when the sparsity
   pattern stays fixed across many solves
-- move to explicit iterative or eigensolver handles only when the matrix
-  dimension stays fixed and setup reuse matters
+- move to the explicit iterative-handle or eigensolver-handle lifecycle only
+  when the matrix dimension stays fixed and setup reuse matters
 
 The stable repeated-run support boundary is intentionally narrow:
 
@@ -170,9 +170,9 @@ sparse_free(L);
 ```
 
 For stable-pattern repeated direct solves, keep the one-shot Cholesky path for
-small usage examples and move to the explicit analysis/factors lifecycle only
-when you need analyze-once / factor-many reuse. The strongest shipped example
-for that path is `examples/example_analysis.c`.
+small usage examples and move to the explicit repeated-run direct lifecycle
+only when you need analyze-once / factor-many reuse. The strongest shipped
+example for that path is `examples/example_analysis.c`.
 
 ### QR Factorization
 
@@ -245,9 +245,10 @@ memset(x, 0, N * sizeof(double));
 sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &result);
 ```
 
-For stable-dimension repeated iterative solves, prepare and reuse an explicit
-iterative handle instead of rebuilding scratch state every call. That repeated-
-run handle surface is intentionally limited to `CG`, `GMRES`, and `MINRES`.
+For stable-dimension iterative-handle workflows, prepare and reuse an explicit
+iterative handle instead of rebuilding scratch state every call. That
+repeated-run handle surface is intentionally limited to `CG`, `GMRES`, and
+`MINRES`.
 
 ### Preconditioning
 

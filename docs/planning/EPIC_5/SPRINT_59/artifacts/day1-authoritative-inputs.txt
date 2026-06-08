@@ -1,0 +1,43 @@
+Sprint 59 Day 1 authoritative inputs
+====================================
+
+Planning sources
+----------------
+- docs/planning/EPIC_5/PROJECT_PLAN.md
+- docs/planning/EPIC_5/SPRINT_59/PLAN.md
+
+Inherited closeout / baseline sources
+-------------------------------------
+- docs/planning/EPIC_5/SPRINT_58/artifacts/day14-closeout-and-handoff.md
+- docs/planning/EPIC_5/SPRINT_58/RETROSPECTIVE.md
+- docs/planning/EPIC_5/reviews/review-codex-2026-05-31.md
+- docs/planning/EPIC_5/reviews/todo-codex-2026-05-31.md
+
+Validation anchors
+------------------
+- make quality-review-full
+- ctest -N --test-dir build/quality-review-cmake
+- make -n quality-review-full
+
+Primary quality / platform / closeout hotspots
+----------------------------------------------
+- README.md
+- Makefile
+- docs/maintainer_guide.md
+- .github/workflows/ci.yml
+- scripts/deadcode_workflow.sh
+- scripts/deadcode_report.py
+- docs/planning/EPIC_5/PROJECT_PLAN.md
+- docs/planning/EPIC_5/SPRINT_58/RETROSPECTIVE.md
+- docs/planning/EPIC_5/SPRINT_58/artifacts/day13-full-validation-sweep.md
+- docs/planning/EPIC_5/SPRINT_58/artifacts/day14-closeout-and-handoff.md
+
+Key live residual seams
+-----------------------
+- serialized dead-code execution
+- macOS dead-code staging
+- Windows reviewed-wrapper parity
+- Windows dead-code exclusion
+- 80% coverage calibration
+- final cross-surface truthfulness alignment
+- final Epic 5 residual disposition and handoff wording

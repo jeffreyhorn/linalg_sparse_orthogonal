@@ -1489,3 +1489,185 @@ Sprint 59 now has a second and final bounded integration reconciliation patch:
 
 That is enough to move to the Day 10 closeout-input audit from a smaller and
 more stable final Epic 5 caller story.
+
+## Day 10
+
+**Objective:** Gather the measured input set for the final Epic 5 summary,
+handoff, and residual-journal closeout by reducing Sprints 50-59 to explicit
+closed deliverable bands, preserved validation anchors, consciously deferred
+residuals, and a ranked closeout-writing queue.
+
+### Commands Run
+
+1. Re-read the Day 10 plan boundary:
+   - `sed -n '330,390p' docs/planning/EPIC_5/SPRINT_59/PLAN.md`
+2. Re-read the Sprint 59 landed close state so far:
+   - `tail -n 220 docs/planning/EPIC_5/SPRINT_59/WORKING_NOTES.md`
+3. Re-read the project-level Epic 5 plan source:
+   - `sed -n '1,240p' docs/planning/EPIC_5/PROJECT_PLAN.md`
+4. Re-read the inherited Epic 5 review/todo queue for the final quality and
+   integration closeout:
+   - `sed -n '278,340p' docs/planning/EPIC_5/reviews/review-codex-2026-05-31.md`
+   - `sed -n '196,214p' docs/planning/EPIC_5/reviews/todo-codex-2026-05-31.md`
+5. Re-read the closeout summaries for Sprint 50 through Sprint 58:
+   - `for s in 50 51 52 53 54 55 56 57 58; do sed -n '1,120p' docs/planning/EPIC_5/SPRINT_$s/artifacts/day14-closeout-and-handoff.md; done`
+6. Re-read the residual-debt sections for Sprint 50 through Sprint 58:
+   - `for s in 50 51 52 53 54 55 56 57 58; do ... sed -n ... docs/planning/EPIC_5/SPRINT_$s/RETROSPECTIVE.md; done`
+7. Confirm the branch state before writing the Day 10 audit:
+   - `git status --short --branch`
+
+### Day 10 Findings
+
+#### 1. Epic 5 now reduces cleanly to eight closed work bands plus one final closeout band
+
+From the Sprint 50-58 closeout summaries, the completed Epic 5 work now
+reduces to these closed bands:
+
+1. direct-solver lifecycle design fence
+   - Sprint 50
+2. public direct lifecycle implementation and deeper analysis/refactor
+   integration
+   - Sprints 51-52
+3. CSC direct-solver completion and dispatch follow-through
+   - Sprint 53
+4. public repeated-run solver lifecycle completion
+   - Sprint 54
+5. large-source decomposition
+   - Sprints 55-56
+6. giant-test refactor and lifecycle/factor-many regression expansion
+   - Sprint 57
+7. public-surface simplification across docs/examples/benchmarks/headers
+   - Sprint 58
+8. final quality/platform reconciliation and caller-story normalization
+   - Sprint 59 Days 1-9
+
+Interpretation:
+
+- the Day 11 Epic 5 summary does not need to narrate every day
+- it should be organized around these stable work bands instead
+
+#### 2. The final closeout package now has one clear inherited validation anchor set
+
+The strongest inherited measured baseline remains:
+
+- strongest local reviewed baseline:
+  - `make quality-review-full`
+- reviewed CMake count anchor:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity anchor:
+  - `53 vs 53`
+- full reviewed CMake `ctest` anchor:
+  - `53 / 53`
+
+And because Sprint 59 has still been docs-only through Day 10:
+
+- the latest full measured validation baseline is still the Sprint 58 Day 13
+  state:
+  - `make format` passed
+  - `make lint` passed
+  - `make test` passed
+  - `make quality-review-full` passed
+  - reviewed CMake total time = `481.74 sec`
+
+Interpretation:
+
+- the Day 11 summary should name the inherited validated baseline explicitly
+- the Day 13 Sprint 59 sweep should then supersede the time-sensitive measured
+  details with the final Epic 5 closeout baseline
+
+#### 3. The preserved compatibility fence is now stable enough to summarize once at the Epic 5 level
+
+Across Sprint 50-58 closeouts, the preserved contract now reads consistently:
+
+- one-shot APIs remain first-class/default workflows
+- repeated-run direct solves remain the explicit analysis/factors lifecycle:
+  - analyze once
+  - factor / solve
+  - refactor / solve many
+- repeated-run iterative handles remain limited to:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- repeated-run eigensolver handle remains limited to:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+- `BiCGSTAB` and block iterative workflows remain one-shot compatibility
+  surfaces
+- no broad public API redesign, raw internal storage exposure, or generic
+  universal solver handle was introduced
+
+Interpretation:
+
+- Day 11 can summarize one final preserved Epic 5 compatibility fence
+- it does not need to re-argue the same boundary sprint by sprint
+
+#### 4. The consciously deferred residual queue is now narrower than the original Epic 5 review implied
+
+The remaining future-facing queue now reduces to four real classes:
+
+- quality/platform residuals:
+  - dead-code execution remains serialized
+  - macOS dead-code remains staged pending fresh evidence
+  - broader Windows reviewed-wrapper parity remains deferred
+  - Windows dead-code remains deferred/excluded
+  - coverage calibration is no longer an active residual
+- maintainability residuals:
+  - later iterative decomposition:
+    - `GMRES`
+    - shared block-wrapper scaffolding
+  - possible later eigensolver/private-header cleanup
+  - later CSC decomposition/comment cleanup if still justified
+  - deferred giant-test seams:
+    - `tests/test_ldlt_csc.c`
+    - `tests/test_qr.c`
+    - intentionally retained dense `tests/test_integration.c`
+- public-surface density residuals:
+  - deeper long-form `README.md` chronology/performance-history cleanup
+  - broader docs-density reduction outside the bounded Sprint 58-59 target set
+- bounded family-local future work only if later justified:
+  - no reopened generic direct-handle redesign
+  - no reopened repeated-run support-boundary expansion by default
+
+Interpretation:
+
+- the final residual journal should be smaller and more explicit than the
+  original Epic 5 review queue
+- Sprint 59 should close with a consciously bounded future queue, not a vague
+  “miscellaneous cleanup remains” statement
+
+#### 5. The Day 11-12 writing queue is now ranked and concrete
+
+The remaining closeout-writing queue is now:
+
+1. main Epic 5 summary/handoff artifact
+   - summarize the eight closed work bands
+   - state the inherited validated baseline and the preserved compatibility
+     fence
+   - make the consciously deferred residual queue explicit
+2. project-level `PROJECT_PLAN.md` / residual wording check
+   - only if the landed Sprint 59 state now requires final measured closure or
+     defer wording
+3. Sprint 59 closeout package
+   - Day 13 validation sweep
+   - Day 14 branch closeout/handoff
+   - later Sprint 59 retrospective
+
+Interpretation:
+
+- Day 11 should write the high-signal Epic 5 handoff first
+- Day 12 should only touch project-level planning/residual surfaces if the Day
+  11 summary exposes a real mismatch
+
+## Day 10 Close
+
+Sprint 59 now has a concrete measured input set for the Epic 5 finish:
+
+- closed work bands across Sprints 50-59 are explicit
+- inherited validation anchors are explicit
+- the preserved compatibility fence is explicit
+- the consciously deferred residual queue is smaller and more concrete
+- the final closeout-writing queue is ranked
+
+That is enough to move to the Day 11 summary/handoff batch from a measured
+input set instead of a generic retrospective backlog.

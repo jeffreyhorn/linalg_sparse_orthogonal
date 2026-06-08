@@ -121,7 +121,7 @@ typedef struct {
     /** Optional progress / cancellation callback. Invoked at the top of
      *  each solver iteration with
      *  `phase = "cg" / "minres" / "bicgstab"` (matching the solver
-     *  the opts struct drives), `step = iter`, `total = max_iter`.
+     *  selected by the opts struct), `step = iter`, `total = max_iter`.
      *  Return 0 to continue; non-zero cancels — `SPARSE_ERR_CANCELLED`
      *  propagates.  NULL (default) disables.  Distinct from
      *  `callback` above: `callback` is verbose logging only (void

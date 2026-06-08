@@ -10,7 +10,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 
 ### Direct Solvers
 - **One-shot direct solves** — LU, Cholesky, LDL^T, and QR remain the default public entry points for most callers.
-- **Repeated direct solves** — `sparse_analyze()` → `sparse_factor_numeric()` → `sparse_refactor_numeric()` supports analyze-once / factor-many workflows when the sparsity pattern stays fixed.
+- **Repeated direct solves** — `sparse_analyze()` → `sparse_factor_numeric()` → `sparse_factor_solve()`, then `sparse_refactor_numeric()` between later `sparse_factor_solve()` calls, supports analyze-once / factor-many workflows when the sparsity pattern stays fixed.
 - **Dispatch-backed direct kernels** — CSR LU plus CSC Cholesky and LDL^T provide faster large-matrix paths behind the existing public APIs.
 - **Multi-RHS and refinement support** — block solves, iterative refinement, rank diagnostics, and minimum-norm QR paths stay available without changing the one-shot-first workflow.
 

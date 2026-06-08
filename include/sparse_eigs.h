@@ -54,10 +54,11 @@
  * fractional mixing — reproducible across runs and avoids
  * eigenvector alignment on diagonal fixtures). Grow-m retries
  * strictly extend the Krylov basis, so every pass benefits from
- * prior work. `result.residual_norm` reports the backend's final
- * convergence metric, and for the Lanczos-family backends it is
- * gated on the Wu/Simon residual `|beta_m * y_{m-1, j}| / |theta_j|`
- * of every selected Ritz pair. That residual bounds the
+ * prior work. `result.residual_norm` reports the maximum relative
+ * Ritz residual across the converged pairs, and for the Lanczos-family
+ * backends it is gated on the Wu/Simon residual
+ * `|beta_m * y_{m-1, j}| / |theta_j|` of every selected Ritz pair.
+ * That residual bounds the
  * eigen-equation relative error of whatever operator Lanczos is
  * running on:
  *   - `LARGEST` / `SMALLEST`: Lanczos runs on `A`, so the bound

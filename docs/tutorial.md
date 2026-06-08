@@ -4,6 +4,35 @@ A practical guide to using the sparse linear algebra library.
 
 ## Getting Started
 
+### Choose a Workflow First
+
+Start with the smallest public path that matches the problem:
+
+- use the one-shot LU, Cholesky, LDL^T, QR, iterative, SVD, or eigensolver
+  entry points for most occasional solves
+- move to the explicit repeated-run direct lifecycle only when the sparsity
+  pattern stays fixed across many solves
+- move to explicit iterative or eigensolver handles only when the matrix
+  dimension stays fixed and setup reuse matters
+
+The stable repeated-run support boundary is intentionally narrow:
+
+- direct repeated-run lifecycle:
+  - analyze once
+  - factor / solve
+  - refactor / solve many
+- iterative handles:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- eigensolver handle:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+
+`BiCGSTAB` and block iterative workflows remain one-shot compatibility
+surfaces.
+
 ### Building the Library
 
 ```bash
@@ -140,6 +169,11 @@ sparse_cholesky_solve(L, b, x);
 sparse_free(L);
 ```
 
+For stable-pattern repeated direct solves, keep the one-shot Cholesky path for
+small usage examples and move to the explicit analysis/factors lifecycle only
+when you need analyze-once / factor-many reuse. The strongest shipped example
+for that path is `examples/example_analysis.c`.
+
 ### QR Factorization
 
 For rectangular or rank-deficient systems. Use the original matrix view here:
@@ -210,6 +244,10 @@ memset(x, 0, N * sizeof(double));
 
 sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &result);
 ```
+
+For stable-dimension repeated iterative solves, prepare and reuse an explicit
+iterative handle instead of rebuilding scratch state every call. That repeated-
+run handle surface is intentionally limited to `CG`, `GMRES`, and `MINRES`.
 
 ### Preconditioning
 

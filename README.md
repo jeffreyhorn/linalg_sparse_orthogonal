@@ -9,63 +9,39 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Slab pool allocator** with free-list for fast node allocation and reuse
 
 ### Direct Solvers
-- **LU factorization** with complete or partial pivoting (P·A·Q = L·U)
-- **CSR LU factorization** — scatter-gather elimination on compressed sparse row arrays for >=2x speedup on large matrices, with dense subblock detection and in-place dense kernels
-- **Block LU solve** — solve A·X = B for multiple right-hand sides simultaneously (`sparse_lu_solve_block`)
-- **Cholesky factorization** for symmetric positive-definite matrices (A = L·L^T, ~50% less storage than LU)
-- **CSC Cholesky factorization** — column-oriented scatter-gather kernel with fundamental supernode detection, batched supernodal dense kernels (Sprint 18), and transparent size-based dispatch from `sparse_cholesky_factor_opts`; measured up to 4.4× one-shot speedup over the linked-list path on SuiteSparse SPD matrices (n ≤ 14 822), with further gains in the analyze-once / factor-many workflow (Sprint 17 + Sprint 18)
-- **LDL^T factorization** with Bunch-Kaufman symmetric pivoting for symmetric indefinite matrices (P·A·P^T = L·D·L^T) — 1x1 and 2x2 pivot blocks, inertia computation, iterative refinement, condition estimation
-- **CSC LDL^T factorization** — CSC storage for the L factor + auxiliary D/D_offdiag/pivot_size/perm arrays, scalar triangular + block-diagonal solve path, native Bunch-Kaufman kernel with 1×1 / 2×2 pivots and symmetric swaps (Sprint 18); per-row adjacency index for sparse-row cmod scaling (Sprint 19 Days 8-9); batched supernodal LDL^T mirroring the Cholesky batched path (Sprint 19 Days 10-13).  Native kernel reaches 3.5× factor speedup on bcsstk14 vs linked-list; batched supernodal reaches 6.8× on the same matrix.
-- **QR factorization** with column pivoting (A·P = Q·R) — Householder reflections, least-squares, rank estimation, null-space extraction, economy (thin) QR, sparse-mode QR without dense workspace
-- **QR minimum-norm solve** for underdetermined systems (m < n) — minimum 2-norm solution via QR of A^T (`sparse_qr_solve_minnorm`)
-- **QR rank diagnostics** — R diagonal extraction (`sparse_qr_diag_r`), rank info with condition estimate (`sparse_qr_rank_info`), quick condition estimator (`sparse_qr_condest`)
-- **QR iterative refinement** to improve least-squares and minimum-norm solutions
-- **Householder bidiagonalization** — reduces A to upper bidiagonal form B = U^T·A·V (SVD preprocessing)
-- **Direct solve** via forward/backward substitution with permutation handling
-- **Iterative refinement** to improve solution accuracy
+- **One-shot direct solves** — LU, Cholesky, LDL^T, and QR remain the default public entry points for most callers.
+- **Repeated direct solves** — `sparse_analyze()` → `sparse_factor_numeric()` → `sparse_factor_solve()`, then `sparse_refactor_numeric()` between later `sparse_factor_solve()` calls, supports analyze-once / factor-many workflows when the sparsity pattern stays fixed.
+- **Dispatch-backed direct kernels** — CSR LU plus CSC Cholesky and LDL^T provide faster large-matrix paths behind the existing public APIs.
+- **Multi-RHS and refinement support** — block solves, iterative refinement, rank diagnostics, and minimum-norm QR paths stay available without changing the one-shot-first workflow.
 
 ### Singular Value Decomposition (SVD)
-- **Full SVD** via Golub-Kahan bidiagonalization + implicit QR iteration (A = U·Σ·V^T)
-- **Partial/truncated SVD** via Lanczos bidiagonalization — k largest singular values with optional singular vectors
-- **Zero-diagonal chase** (Golub & Van Loan §8.6.2) for rank-deficient matrices
-- **Condition number** estimation via SVD (`sparse_cond`)
-- **Pseudoinverse** via SVD (`sparse_pinv`) — Moore-Penrose A^+
-- **Low-rank approximation** — dense (`sparse_svd_lowrank`) and sparse (`sparse_svd_lowrank_sparse`) output.  The sparse variant uses an outer-product accumulator (Sprint 29 Day 2) — each rank-1 pair `σ_i·u_i·v_i^T` folds directly into the sparse output, avoiding the m×n dense intermediate of earlier sprints.  Toggle via `SPARSE_SVD_LOWRANK_OUTER={off, on}` (Sprint 29 Day 2 default; see `docs/planning/EPIC_2/SPRINT_29/lowrank_sweep_day2.txt`).
-- **Full (non-economy) SVD U / V output** — `sparse_svd_opts_t.economy = 0` with `compute_uv = 1` (Sprint 29 Day 3 lit up the previously-stubbed `economy=0` branch).  When on, U is `m × m` orthonormal + V^T is `n × n` orthonormal (padded with Gram-Schmidt-completed basis columns / rows beyond the economy `min(m, n)` rank); needed for null-space analysis and full-spectrum reconstruction.  Default `economy = 1` (thin) — bit-identical to pre-Sprint-29.
-- **Numerical rank** estimation (`sparse_svd_rank`)
+- **Full and partial SVD** — dense full SVD plus Lanczos-based partial SVD for the largest singular values.
+- **Conditioning and inverse-style tools** — numerical rank, condition number estimation, pseudoinverse, and low-rank approximation.
+- **Low-rank output choices** — dense and sparse low-rank approximations stay available under the same public SVD surface.
 
 ### Iterative Solvers
-- **Conjugate Gradient (CG)** for SPD systems with optional preconditioning
-- **Block CG** — simultaneous CG for multiple RHS with shared SpMV and per-column convergence (`sparse_cg_solve_block`)
-- **Restarted GMRES(k)** for general unsymmetric systems with left and right preconditioning
-- **Multi-RHS GMRES** — restarted GMRES(k) applied independently per RHS with aggregated reporting (`sparse_gmres_solve_block`)
-- **Matrix-free variants** — CG, GMRES, and BiCGSTAB with user-supplied matvec callback (`sparse_solve_cg_mf`, `sparse_solve_gmres_mf`, `sparse_solve_bicgstab_mf`)
-- **MINRES** for symmetric (possibly indefinite) systems — Lanczos-based minimum residual with monotonic residual decrease (`sparse_solve_minres`, `sparse_minres_solve_block`)
-- **BiCGSTAB** for general nonsymmetric systems — stabilized bi-conjugate gradient with left preconditioning, O(n) storage (`sparse_solve_bicgstab`, `sparse_bicgstab_solve_block`, `sparse_solve_bicgstab_mf`)
-- **Stagnation detection** — optional sliding-window residual monitoring across all iterative solvers; early exit when residual stops decreasing (`stagnation_window` in opts)
-- **Convergence diagnostics** — optional per-iteration residual history recording (`residual_history` in opts) and user-supplied verbose callback (`sparse_iter_callback_fn`)
-- **Breakdown handling** — threshold-based detection and reporting for all solver breakdown conditions (CG p^T*Ap=0, GMRES lucky breakdown, MINRES Lanczos, BiCGSTAB rho=0/omega=0)
-- **ILU(0) preconditioner** — incomplete LU with no fill-in, 3-1000× iteration reduction
-- **ILUT preconditioner** — ILU with threshold dropping and controlled fill-in, handles zero-diagonal matrices, optional row partial pivoting
-- **IC(0) preconditioner** — incomplete Cholesky for SPD systems, symmetric analogue of ILU(0) (`sparse_ic_factor`, `sparse_ic_precond`)
+- **Core one-shot solvers** — CG for SPD systems, GMRES for general unsymmetric systems, MINRES for symmetric indefinite systems, and BiCGSTAB as a one-shot compatibility path.
+- **Repeated-run iterative handles** — explicit reusable-handle support is intentionally bounded to `CG`, `GMRES`, and `MINRES`.
+- **Preconditioning and matrix-free variants** — ILU(0), ILUT, IC(0), and matrix-free callbacks stay available without changing the public workflow boundary.
+- **Diagnostics** — residual histories, stagnation detection, and breakdown reporting remain built into the iterative solver surfaces.
 
 ### Eigenvalue Infrastructure
 - **Symmetric tridiagonal QR algorithm** — implicit QR with Wilkinson shifts and deflation (eigenvalues via `tridiag_qr_eigenvalues`, eigenpairs via `tridiag_qr_eigenpairs`)
 - **2×2 symmetric eigensolver** — numerically stable quadratic formula
 - **Dense matrix utilities** — Givens rotations, matrix-matrix/vector multiply
 
-### Sparse Symmetric Eigensolver (Sprints 20-21)
-- **`sparse_eigs_sym`** — k extreme or near-sigma eigenpairs of a symmetric sparse matrix.  Three concrete backends, picked transparently by `opts->backend = SPARSE_EIGS_BACKEND_AUTO` per the Sprint 21 Day 10 decision tree (overridable explicitly):
-  - **Grow-m Lanczos** (`SPARSE_EIGS_BACKEND_LANCZOS`, Sprint 20) — full MGS reorthogonalization with a growing-subspace outer loop.  Peak memory `O(m_cap · n)`.  AUTO default for `n < SPARSE_EIGS_THICK_RESTART_THRESHOLD` (500).
-  - **Wu/Simon thick-restart Lanczos** (`SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`, Sprint 21 Days 1-4) — preserves the converged Ritz subspace in a compact arrowhead basis between restart phases; peak memory `O((k + m_restart) · n)` regardless of total iteration count.  bcsstk14 (n = 1806, k = 5) drops from ~7 MB of `V` (grow-m) to ~565 KB.  AUTO default for `n ≥ 500` when no preconditioner is supplied.
-  - **LOBPCG** (`SPARSE_EIGS_BACKEND_LOBPCG`, Sprint 21 Days 7-10) — Knyazev's Locally Optimal Block Preconditioned Conjugate Gradient with block Rayleigh-Ritz over the `[X | W | P]` subspace, BLOPEX-style conditioning guard, and per-column soft-locking.  Plugs the Sprint 13 IC(0) / LDL^T preconditioners in via `opts->precond` (same `sparse_precond_fn` callback the iterative solvers use).  AUTO routes here for `n ≥ SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD` (1000) when `opts->precond != NULL` and the block size is at least 4.
-- Three `which` modes across all backends — `LARGEST`, `SMALLEST`, `NEAREST_SIGMA` (shift-invert via the Sprint 20 Day 4-6 `sparse_ldlt_factor_opts` AUTO LDL^T dispatch — composes with the CSC supernodal backend on n ≥ `SPARSE_CSC_THRESHOLD` indefinite inputs).
-- **Parallel MGS reorthogonalization** (Sprint 21 Days 5-6) — both Lanczos backends parallelise the inner-product / daxpy bodies under `-DSPARSE_OPENMP`, gated on `n ≥ SPARSE_EIGS_OMP_REORTH_MIN_N` (500) so small problems don't pay OMP fork/join overhead.  ~2× speedup at 4 threads on bcsstk14.  The outer `j` loop stays serial — modified Gram-Schmidt's stability bound requires each iteration to see the partially-orthogonalised vector from the previous subtraction (classical Gram-Schmidt parallelises `j` but loses the stability).
-- **Ritz-pair output** — optional eigenvectors via `compute_vectors = 1`; Wu/Simon per-pair residuals reported in `result.residual_norm`.
+### Sparse Symmetric Eigensolver
+- **`sparse_eigs_sym`** — k extreme or near-sigma eigenpairs of a symmetric sparse matrix. Three concrete backends are available behind `opts->backend = SPARSE_EIGS_BACKEND_AUTO` (overridable explicitly):
+  - **Grow-m Lanczos** (`SPARSE_EIGS_BACKEND_LANCZOS`) — full MGS reorthogonalization with a growing-subspace outer loop. Peak memory `O(m_cap · n)`. AUTO default for `n < SPARSE_EIGS_THICK_RESTART_THRESHOLD` (500).
+  - **Wu/Simon thick-restart Lanczos** (`SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`) — preserves the converged Ritz subspace in a compact arrowhead basis between restart phases; peak memory `O((k + m_restart) · n)` regardless of total iteration count. AUTO default for `n ≥ 500` when no preconditioner is supplied.
+  - **LOBPCG** (`SPARSE_EIGS_BACKEND_LOBPCG`) — Knyazev's Locally Optimal Block Preconditioned Conjugate Gradient with block Rayleigh-Ritz over the `[X | W | P]` subspace, BLOPEX-style conditioning guard, and per-column soft-locking. It composes with the existing IC(0) and LDL^T preconditioner callbacks and AUTO routes here for `n ≥ SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD` (1000) when `opts->precond != NULL` and the block size is at least 4.
+- Three `which` modes across all backends — `LARGEST`, `SMALLEST`, `NEAREST_SIGMA`. Shift-invert composes with `sparse_ldlt_factor_opts` and the existing LDL^T backend dispatch.
+- **Parallel MGS reorthogonalization** — both Lanczos backends parallelise the inner-product / daxpy bodies under `-DSPARSE_OPENMP`, gated on `n ≥ SPARSE_EIGS_OMP_REORTH_MIN_N` (500) so small problems don't pay OMP fork/join overhead.
+- **Ritz-pair output** — optional eigenvectors via `compute_vectors = 1`; `result.residual_norm` reports the maximum relative Ritz residual across the converged pairs.
 - **Observability** — `result.used_csc_path_ldlt` reports the LDL^T backend chosen on the shift-invert path; `result.peak_basis_size` reports the simultaneously-live `V` columns for memory budgeting; `result.backend_used` reports which backend AUTO actually picked.
-- **Optional inverse-iteration refinement post-pass** (Sprint 29 Day 5) — `opts->refine = 1` runs Rayleigh-quotient inverse iteration on each converged Ritz pair, refactoring `(A − λ_j I) = L D L^T` per-pair via the Sprint-20 `sparse_ldlt_factor_opts` AUTO dispatch (with retry under a small perturbation if the shifted matrix is singular at the converged Ritz value).  Tightens per-pair residuals to ~1e-13 on clustered spectra.  Default off — production accuracy contract remains Wu/Simon's `opts->tol`.  Budget-bound via `opts->refine_max_iters` (default 5).  Composes with all three backends.
+- **Optional inverse-iteration refinement post-pass** — `opts->refine = 1` runs Rayleigh-quotient inverse iteration on each converged Ritz pair, refactoring `(A − λ_j I) = L D L^T` per-pair via `sparse_ldlt_factor_opts` (with retry under a small perturbation if the shifted matrix is singular at the converged Ritz value). Default off; budget-bound via `opts->refine_max_iters` (default 5).
 - **Preconditioning speedup** — on bcsstk04 (n = 132, cond ≈ 5e6) k = 3 SMALLEST: vanilla LOBPCG saturates the 800-iteration cap with residual ~1e+01, IC(0) preconditioning converges in **62 iterations** at residual 8e-9, LDL^T preconditioning converges in **8 iterations** at residual 3e-9.
-- **`bench_eigs`** — permanent benchmark driver (Sprint 21 Day 11) at `benchmarks/bench_eigs.c`; CLI with `--sweep default`, `--compare`, and `--matrix <path>` modes, CSV output, configurable `--repeats`.  Run via `make bench-eigs` for the smoke target.  See `docs/planning/EPIC_2/SPRINT_21/bench_day14.txt` (full sweep) and `docs/planning/EPIC_2/SPRINT_21/bench_day14_compare.txt` (3-backend × 3-precond pivot) for the measured numbers; `benchmarks/README.md` documents the CSV schema.
+- **`bench_eigs`** — permanent benchmark driver at `benchmarks/bench_eigs.c`; CLI with `--sweep default`, `--compare`, and `--matrix <path>` modes, CSV output, and configurable `--repeats`. `benchmarks/README.md` documents the current CLI and CSV schema.
 
 **Picking a backend** — pass `SPARSE_EIGS_BACKEND_AUTO` (the zero default) and let the library choose: small problems run on grow-m Lanczos; medium-to-large problems route to thick-restart Lanczos for the bounded memory; large problems with a preconditioner route to LOBPCG.  Override with an explicit `opts->backend` when profiling or when the workload differs from the bench-corpus heuristics.
 
@@ -97,6 +73,16 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **errno capture** for I/O errors (`sparse_errno`)
 - **Progress / cancel callbacks** (Sprint 29 Days 6-7) — `sparse_progress_cb_t` + `opts->progress_cb` / `opts->progress_user` across LU (linked-list + CSR), Cholesky (linked-list), LDL^T (linked-list), QR, CG, GMRES, MINRES, BiCGSTAB, grow-m Lanczos, and LOBPCG.  The CSC supernodal Cholesky / LDL^T kernels and the Wu/Simon thick-restart Lanczos outer loop are NOT wired (Sprint 30+ follow-up).  Callback signature emits `phase` / `step` / `total` / `elapsed_s`; a non-zero return cancels with `SPARSE_ERR_CANCELLED`.  **Cancellation semantics:** LU and Cholesky factor in-place into the input matrix, so by the time the first callback fires `factor_norm` is cached, `factored` is cleared, and (Cholesky) the upper triangle is stripped — cancellation does not guarantee a bit-identical input.  LDL^T and QR factor into separate output structs (`sparse_ldlt_t` / `sparse_qr_t`) and take `const SparseMatrix *A`, so cancellation leaves the input matrix bit-identical.  Iterative solvers and eigensolvers don't write to `A` at all.  See `include/sparse_lu.h` / `include/sparse_cholesky.h` / `include/sparse_ldlt.h` opts headers for the per-routine contract.  Default `NULL` callback runs at zero overhead (no `make wall-check` regression vs Sprint 28).
 - **Continuous integration** — Linux (Ubuntu) + Windows (MSVC via CMake) + macOS (Apple Clang + Homebrew GCC) build matrix on every PR (Sprint 29 Days 7-9); ThreadSanitizer job on Linux (macOS-15+ TSan blocked by an upstream dyld issue — Sprint 28 inheritance, Sprint 29 Day 8 routes TSan to Linux).  Bench-step regression check via `make bench-fast` (Sprint 29 Day 13) — runs the fast bench subset in < 5 min on PR.
+
+## Choose a Workflow
+
+- **Small or occasional direct solves:** start with the one-shot LU, Cholesky, LDL^T, or QR entry points.
+- **Stable-pattern repeated direct solves:** use `sparse_analyze()` once, then `sparse_factor_numeric()` plus `sparse_factor_solve()`, with `sparse_refactor_numeric()` between later `sparse_factor_solve()` calls as values change. `example_analysis` is the strongest shipped reference.
+- **Repeated iterative solves on fixed dimension:** use explicit handles for `CG`, `GMRES`, or `MINRES`. `BiCGSTAB` and block iterative workflows remain one-shot compatibility surfaces.
+- **Repeated symmetric eigensolves on fixed dimension:** use the explicit eigensolver handle for grow-m Lanczos, thick-restart Lanczos, or explicit `LOBPCG`.
+- **Workflow-specific proof surfaces:** use `bench_refactor` / `bench_refactor_csc` for direct repeated-run workflows, `bench_iterative_reuse` for iterative handles, and `bench_eigs_reuse` for eigensolver handles.
+
+The rest of this README keeps the deeper algorithm, API, and benchmark details.
 
 ## Building
 
@@ -471,9 +457,9 @@ factor contents.
 - `sparse_bicgstab_solve_block(A, B, nrhs, X, &opts, precond, ctx, &result)` — Block BiCGSTAB for multiple RHS
 - `sparse_solve_bicgstab_mf(matvec, ctx, n, b, x, &opts, precond, ctx, &result)` — Matrix-free BiCGSTAB
 
-Sprint 54's public repeated-run iterative handle support remains intentionally
-bounded to `CG`, `GMRES`, and `MINRES`; `BiCGSTAB` and block iterative
-workflows remain one-shot compatibility surfaces.
+The public repeated-run iterative handle support remains intentionally bounded
+to `CG`, `GMRES`, and `MINRES`; `BiCGSTAB` and block iterative workflows
+remain one-shot compatibility surfaces.
 
 **ILU(0) / ILUT preconditioners:**
 - `sparse_ilu_factor(A, &ilu)` — ILU(0) factorization (no fill-in beyond A's pattern)
@@ -930,7 +916,7 @@ On Linux, `make asan` works with the default compiler.
 
 ```
 linalg_sparse_orthogonal/
-├── include/              Public headers (16 headers)
+├── include/              Public headers
 │   ├── sparse_types.h        Error codes, index type (includes sparse_version.h)
 │   ├── sparse_version.h      Version macros (generated from VERSION file)
 │   ├── sparse_matrix.h       Core data structure, SpMV, block SpMV, I/O
@@ -947,13 +933,13 @@ linalg_sparse_orthogonal/
 │   ├── sparse_reorder.h      Fill-reducing reordering (RCM, AMD, ND, COLAMD)
 │   ├── sparse_svd.h          SVD, condition number, pseudoinverse, low-rank
 │   └── sparse_vector.h       Dense vector utilities
-├── src/                  Library implementation (15 source files, ~10K lines)
-├── tests/                Unit tests (35 suites, 976 tests, ~30K lines)
+├── src/                  Library implementation
+├── tests/                Unit tests
 ├── cmake/                CMake config templates
-├── examples/             Standalone example programs + CMake integration example
-├── benchmarks/           Performance benchmarks (5 programs)
+├── examples/             Standalone example programs and CMake integration example
+├── benchmarks/           Performance benchmarks and workflow-specific reuse drivers
 ├── docs/                 Algorithm/format documentation + planning
-│   └── planning/EPIC_1/  Sprint plans, retrospectives, and project plan
+│   └── planning/         Sprint plans, retrospectives, and project plans
 ├── INSTALL.md            Cross-platform installation guide
 ├── sparse.pc.in          pkg-config template
 └── archive/              Original prototype files

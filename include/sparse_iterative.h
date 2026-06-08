@@ -118,14 +118,14 @@ typedef struct {
                                            instead of fprintf(stderr). NULL = use default verbose
                                            behavior (default). */
     void *callback_ctx;               /**< Context pointer passed to callback. */
-    /** Sprint 29 Day 7 (Item 4): optional progress / cancellation
-     *  callback.  Invoked at the top of each solver iteration with
+    /** Optional progress / cancellation callback. Invoked at the top of
+     *  each solver iteration with
      *  `phase = "cg" / "minres" / "bicgstab"` (matching the solver
-     *  the opts struct drives), `step = iter`, `total = max_iter`.
+     *  selected by the opts struct), `step = iter`, `total = max_iter`.
      *  Return 0 to continue; non-zero cancels — `SPARSE_ERR_CANCELLED`
      *  propagates.  NULL (default) disables.  Distinct from
      *  `callback` above: `callback` is verbose logging only (void
-     *  return), `progress_cb` adds cancellation.  Trailing field for
+     *  return), `progress_cb` adds cancellation. Trailing field for
      *  designated-init back-compat. */
     sparse_progress_cb_t progress_cb;
     /** Opaque context pointer passed through unchanged to
@@ -159,7 +159,7 @@ typedef struct {
     idx_t residual_history_len;         /**< See sparse_iter_opts_t::residual_history_len. */
     sparse_iter_callback_fn callback;   /**< See sparse_iter_opts_t::callback. */
     void *callback_ctx;                 /**< See sparse_iter_opts_t::callback_ctx. */
-    /** Sprint 29 Day 7 (Item 4): progress / cancel callback —
+    /** Progress / cancel callback —
      *  semantics identical to `sparse_iter_opts_t::progress_cb`.
      *  Emitted per GMRES inner Arnoldi iteration with `phase =
      *  "gmres"`, `step = total_iter`, `total = max_iter`.  Trailing

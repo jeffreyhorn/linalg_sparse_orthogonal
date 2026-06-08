@@ -32,9 +32,8 @@ benchmark-local command usage and surface-specific behavior.
 
 ## Reorder coverage
 
-Sprint 31 leaves the benchmark entry points with intentionally different
-reorder surfaces depending on what the underlying factorization path
-actually supports:
+The benchmark entry points intentionally expose different reorder surfaces
+depending on what the underlying factorization path actually supports:
 
 - `bench_main --reorder none|rcm|amd|nd`
   - solver-harness entry point for LU and `--cholesky`
@@ -54,31 +53,44 @@ actually supports:
   - keep their fixed reorder choices in the code path being compared so
     backend timings stay like-for-like
 
-| Binary              | Topic                                       | Smoke target          |
-|---------------------|---------------------------------------------|-----------------------|
-| `bench_main`        | LU decomposition over the SuiteSparse corpus | `make bench-suitesparse` |
-| `bench_scaling`     | LU scaling sweep                             | (in `make bench`)     |
-| `bench_fillin`      | Fill-in vs reordering quality                | (in `make bench`)     |
-| `bench_convergence` | Iterative-solver convergence rates           | (in `make bench`)     |
-| `bench_svd`         | Sparse SVD (bidiagonalisation + QR)          | (in `make bench`)     |
-| `bench_refactor`    | Cholesky analyze-once / refactor-many path   | (in `make bench`)     |
-| `bench_refactor_csc`| Repeated-run direct path proof: SPD Cholesky by default, plus optional indefinite LDL^T KKT mode | (in `make bench`)     |
-| `bench_iterative_reuse` | Public repeated-run iterative handle proof: CG, GMRES, MINRES | (in `make bench`) |
-| `bench_eigs_reuse`  | Public repeated-run eigensolver handle proof: grow-m, thick-restart, explicit LOBPCG | (in `make bench`) |
-| `bench_colamd`      | COLAMD ordering quality                      | (in `make bench`)     |
-| `bench_bicgstab`    | BiCGStab convergence                         | (in `make bench`)     |
-| `bench_chol_csc`    | CSC Cholesky (Sprint 18)                     | (in `make bench`)     |
-| `bench_ldlt_csc`    | LDL^T linked-list vs CSC + dispatch          | (in `make bench`)     |
-| `bench_eigs`        | Symmetric eigensolver (3 backends)           | `make bench-eigs`     |
+| Binary                 | Topic                                                   | Smoke target              |
+|------------------------|---------------------------------------------------------|---------------------------|
+| `bench_main`           | One-shot LU / Cholesky / SpMV / iterative harness       | `make bench-suitesparse`  |
+| `bench_scaling`        | LU scaling sweep                                        | (in `make bench`)         |
+| `bench_fillin`         | Fill-in vs reordering quality                           | (in `make bench`)         |
+| `bench_convergence`    | Iterative-solver convergence rates                      | (in `make bench`)         |
+| `bench_svd`            | Sparse SVD (bidiagonalisation + QR)                     | (in `make bench`)         |
+| `bench_refactor`       | Direct repeated-run lifecycle: Cholesky analyze once / refactor many | (in `make bench`) |
+| `bench_refactor_csc`   | Direct repeated-run lifecycle proof: SPD Cholesky by default, plus optional indefinite LDL^T KKT mode | (in `make bench`) |
+| `bench_iterative_reuse`| Public repeated-run iterative handle proof: CG, GMRES, MINRES | (in `make bench`)    |
+| `bench_eigs_reuse`     | Public repeated-run eigensolver handle proof: grow-m, thick-restart, explicit LOBPCG | (in `make bench`) |
+| `bench_colamd`         | QR/COLAMD ordering quality                              | (in `make bench`)         |
+| `bench_bicgstab`       | BiCGStab convergence                                    | (in `make bench`)         |
+| `bench_chol_csc`       | CSC Cholesky backend comparison                         | (in `make bench`)         |
+| `bench_ldlt_csc`       | LDL^T linked-list vs CSC + dispatch                     | (in `make bench`)         |
+| `bench_eigs`           | Symmetric eigensolver backend sweep                     | `make bench-eigs`         |
 
-The strongest benchmark-side public repeated-run adoption surfaces split into
-two bounded groups:
+## Workflow groups
 
+The shipped benchmark surfaces are easiest to read in four bounded groups:
+
+- one-shot compatibility/comparison:
+  - `bench_main`
+  - `bench_scaling`
+  - `bench_fillin`
+  - `bench_convergence`
+  - `bench_svd`
+  - `bench_colamd`
+  - `bench_bicgstab`
+  - `bench_chol_csc`
+  - `bench_ldlt_csc`
+  - `bench_eigs`
 - direct repeated-run lifecycle:
   - `bench_refactor`
   - `bench_refactor_csc`
-- iterative/eigensolver public handle proof:
+- iterative public-handle reuse:
   - `bench_iterative_reuse`
+- eigensolver public-handle reuse:
   - `bench_eigs_reuse`
 
 The two refactor benchmarks remain the strongest benchmark-side adoption
@@ -146,7 +158,7 @@ bench_main --size N
 bench_main --help
 ```
 
-Important touched behavior from Sprint 47:
+Important CLI behavior:
 
 - `--help` / `-h` now prints the live usage block
 - malformed numeric or enum-like arguments fail with explicit flag-local
@@ -162,9 +174,9 @@ Important touched behavior from Sprint 47:
   - `bench_reorder`
   - `bench_colamd`
 
-## bench_eigs (Sprint 21 Day 11)
+## bench_eigs
 
-Drives the three Sprint 20/21 eigensolver backends — grow-m Lanczos
+Drives the three symmetric eigensolver backends — grow-m Lanczos
 (`SPARSE_EIGS_BACKEND_LANCZOS`), Wu/Simon thick-restart Lanczos
 (`_LANCZOS_THICK_RESTART`), and Knyazev LOBPCG (`_LOBPCG`) — across
 the standard SuiteSparse + KKT corpus, with optional preconditioner
@@ -182,9 +194,9 @@ bench_eigs --matrix <path> --k N --which {LARGEST|SMALLEST|NEAREST}
 bench_eigs --help                                   # full help
 ```
 
-When no mode flag is given, `--sweep default` runs.  `--repeats`
-defaults to 3 for the smoke target; bump to 5 when capturing
-recorded numbers (e.g. for `docs/planning/EPIC_2/SPRINT_21/bench_day14.txt`).
+When no mode flag is given, `--sweep default` runs. `--repeats`
+defaults to 3 for the smoke target; bump to 5 when collecting more
+stable local timing numbers.
 
 ### CSV schema
 
@@ -230,6 +242,5 @@ M2-class development machine, ~25 seconds at `--repeats 3`.
 
 Smaller focused corpus (3 entries) × 3 preconditioners (NONE / IC0 /
 LDLT), pivoted so each row shows the three backends side-by-side.
-Demonstrates the Day 9 preconditioning speedup (e.g. bcsstk04
-SMALLEST k=3: vanilla LOBPCG 800 iters NOT_CONVERGED → IC0 LOBPCG
-62 iters OK → LDLT LOBPCG 8 iters OK on the captured run).
+Useful for comparing how the preconditioner choice changes LOBPCG
+iteration count and convergence status on the same matrix/workload.

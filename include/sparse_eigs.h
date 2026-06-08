@@ -3,21 +3,16 @@
 
 /**
  * @file sparse_eigs.h
- * @brief Sparse symmetric eigensolvers (Sprint 20).
+ * @brief Sparse symmetric eigensolvers.
  *
  * Provides `sparse_eigs_sym()` for computing k extreme or near-sigma
- * eigenpairs of a symmetric sparse matrix A via Lanczos with full
- * MGS reorthogonalisation and a growing-subspace outer loop (a true
- * Wu/Simon thick-restart backend is planned for Sprint 21).  Three
- * spectrum-selection modes (`SPARSE_EIGS_LARGEST`, `_SMALLEST`,
- * `_NEAREST_SIGMA`); interior eigenvalues are found via shift-invert
- * Lanczos, which composes with the LDL^T dispatch in
- * `sparse_ldlt.h` (see `sparse_ldlt_factor_opts` — the Sprint 20
- * Day 4-6 AUTO / LINKED_LIST / CSC backend selector routes through
- * the supernodal path on `n >= SPARSE_CSC_THRESHOLD`).  The SVD in
- * `sparse_svd.h` is a cousin API: singular values of a rectangular
- * A are related to eigenvalues of A^T·A (cross-checked in the
- * Sprint 20 Day 13 tests).
+ * eigenpairs of a symmetric sparse matrix A. The supported backends are
+ * grow-m Lanczos, thick-restart Lanczos, and explicit LOBPCG, all exposed
+ * through the same public options and result structs. Three spectrum-
+ * selection modes are available (`SPARSE_EIGS_LARGEST`, `_SMALLEST`,
+ * `_NEAREST_SIGMA`); interior eigenvalues use shift-invert and therefore
+ * compose with the LDL^T factorization path in `sparse_ldlt.h`. The SVD in
+ * `sparse_svd.h` is a related decomposition for rectangular matrices.
  *
  * **Usage pattern:**
  * @code
@@ -52,16 +47,20 @@
  *   free(vecs);
  * @endcode
  *
- * **Convergence.** `sparse_eigs_sym` runs a single growing-m
- * Lanczos sequence starting from a deterministic pseudo-random v0
- * (golden-ratio fractional mixing — reproducible across runs and
- * avoids eigenvector alignment on diagonal fixtures).  The
- * per-retry grow-m strategy strictly extends the Krylov basis, so
- * every pass benefits from prior work.  Convergence is gated on
- * the Wu/Simon residual `|beta_m * y_{m-1, j}| / |theta_j|` of
- * every selected Ritz pair and is reported in
- * `result.residual_norm`.  The residual bounds the eigen-equation
- * relative error of whatever operator Lanczos is running on:
+ * **Convergence.** `sparse_eigs_sym` routes through one of the
+ * supported symmetric eigensolver backends (grow-m Lanczos,
+ * thick-restart Lanczos, or explicit LOBPCG). The Lanczos-family
+ * paths start from a deterministic pseudo-random v0 (golden-ratio
+ * fractional mixing — reproducible across runs and avoids
+ * eigenvector alignment on diagonal fixtures). Grow-m retries
+ * strictly extend the Krylov basis, so every pass benefits from
+ * prior work. `result.residual_norm` reports the maximum relative
+ * Ritz residual across the converged pairs, and for the Lanczos-family
+ * backends it is gated on the Wu/Simon residual
+ * `|beta_m * y_{m-1, j}| / |theta_j|` of every selected Ritz pair.
+ * That residual bounds the
+ * eigen-equation relative error of whatever operator Lanczos is
+ * running on:
  *   - `LARGEST` / `SMALLEST`: Lanczos runs on `A`, so the bound
  *     applies to `||A v - λ v|| / (|λ| * ||v||)` directly.
  *   - `NEAREST_SIGMA`: Lanczos runs on `(A - sigma·I)^{-1}`, so
@@ -88,7 +87,7 @@
  * @see docs/algorithm.md — Lanczos theory and implementation notes.
  */
 
-#include "sparse_iterative.h" /* sparse_precond_fn for LOBPCG (Sprint 21 Day 7) */
+#include "sparse_iterative.h" /* sparse_precond_fn for LOBPCG */
 #include "sparse_matrix.h"
 #include "sparse_types.h"
 
@@ -120,57 +119,32 @@ typedef enum {
  * @brief Eigensolver backend selector.
  *
  * - `SPARSE_EIGS_BACKEND_AUTO` (default, zero-initialised): let the
- *   library pick.  Sprint 21 Day 10 routing decision tree:
- *
- *     if (opts->precond != NULL && n >= SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD
- *         && (opts->block_size == 0 ? k >= 4 : opts->block_size >= 4)):
- *         → SPARSE_EIGS_BACKEND_LOBPCG
- *     else if (n >= SPARSE_EIGS_THICK_RESTART_THRESHOLD):
- *         → SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART
- *     else:
- *         → SPARSE_EIGS_BACKEND_LANCZOS  (grow-m)
- *
- *   The thresholds are tuned on the Sprint 21 bench corpus
- *   (`docs/planning/EPIC_2/SPRINT_21/bench_day*.txt`); tune
- *   further in future sprints when the workload shifts by
- *   overriding `SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD` /
- *   `SPARSE_EIGS_THICK_RESTART_THRESHOLD` at compile time.
- *   `result->backend_used` records AUTO's choice on every call.
+ *   library pick. AUTO prefers LOBPCG when a preconditioner is supplied and
+ *   the problem is large enough to benefit from a block method; otherwise it
+ *   chooses between grow-m Lanczos and thick-restart Lanczos using the
+ *   compile-time thresholds below. `result->backend_used` records AUTO's
+ *   choice on every successful call.
  * - `SPARSE_EIGS_BACKEND_LANCZOS`: Lanczos with a growing-subspace
- *   outer loop and optional full reorthogonalization.  The Sprint 20
- *   workhorse.  Peak memory `O(m_cap · n)` across retries.
- * - `SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`: True Wu/Simon
- *   thick-restart Lanczos (Sprint 21 Day 3).  Preserves the
- *   converged Ritz subspace in a compact arrowhead basis between
- *   restart phases; peak memory `O((k + m_restart) · n)`
- *   regardless of total iteration count.  Use this for large-n
- *   problems where the grow-m path would blow memory holding V.
- * - `SPARSE_EIGS_BACKEND_LOBPCG` (Sprint 21 Days 7-10):
- *   Knyazev's Locally Optimal Block Preconditioned Conjugate
- *   Gradient (Knyazev 2001).  Iterates a block of `block_size`
- *   approximate eigenvectors X by block Rayleigh-Ritz on the
- *   subspace `[X, W, P]` where W is the (preconditioned) residual
- *   and P is the previous step's search direction.  Plugs the
- *   Sprint 13 IC(0) / LDL^T preconditioners in via `opts->precond`,
- *   composing with the rest of the eigensolver pipeline through the
- *   same `sparse_precond_fn` callback the iterative solvers use.
- *   Best for ill-conditioned SPD problems where a cheap
- *   preconditioner is available; vanilla (`precond == NULL`) LOBPCG
- *   is correct but converges slower than Lanczos on the well-
- *   conditioned corpus — which is why AUTO routes to LOBPCG only
- *   when a preconditioner is actually supplied.  All three `which`
- *   modes (LARGEST / SMALLEST / NEAREST_SIGMA) are supported;
- *   NEAREST_SIGMA composes with the same shift-invert LDL^T
+ *   outer loop and optional full reorthogonalization. Peak memory is
+ *   `O(m_cap · n)` across retries.
+ * - `SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART`: Wu/Simon
+ *   thick-restart Lanczos. Preserves the converged Ritz subspace in a compact
+ *   arrowhead basis between restart phases; peak memory is
+ *   `O((k + m_restart) · n)` regardless of total iteration count.
+ * - `SPARSE_EIGS_BACKEND_LOBPCG`: Knyazev's Locally Optimal Block
+ *   Preconditioned Conjugate Gradient. Iterates a block of `block_size`
+ *   approximate eigenvectors X by block Rayleigh-Ritz on `[X, W, P]`, where
+ *   W is the residual (optionally preconditioned) and P is the previous
+ *   search direction. Best suited to ill-conditioned SPD problems where a
+ *   useful preconditioner is available. All three `which` modes are
+ *   supported; `NEAREST_SIGMA` composes with the same shift-invert LDL^T
  *   pipeline the Lanczos backends use.
  */
 typedef enum {
     SPARSE_EIGS_BACKEND_AUTO = 0,
     SPARSE_EIGS_BACKEND_LANCZOS = 1,
-    /* `SPARSE_EIGS_BACKEND_LOBPCG = 2` was reserved by Sprint 20's
-     * `sparse_eigs_opts_t.backend` enum slot for the Sprint 21 LOBPCG
-     * landing.  Honour the originally-advertised mapping so any
-     * downstream config / int persistence written against Sprint 20
-     * docs continues to mean the same backend. */
+    /* Keep this numeric mapping stable so persisted backend selections and
+     * downstream integer configuration continue to identify LOBPCG. */
     SPARSE_EIGS_BACKEND_LOBPCG = 2,
     SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART = 3,
 } sparse_eigs_backend_t;
@@ -185,8 +159,8 @@ typedef enum {
  * NULL`, `n >= SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD`, and the
  * effective block size is at least 4).  In that Lanczos-only branch,
  * `sparse_rows(A) >= SPARSE_EIGS_THICK_RESTART_THRESHOLD` routes to
- * the bounded-memory thick-restart backend rather than the Sprint 20
- * grow-m path.  Below the threshold the grow-m path wins because its
+ * the bounded-memory thick-restart backend rather than the grow-m path.
+ * Below the threshold the grow-m path wins because its
  * full-basis Ritz extraction converges in slightly fewer matvecs on
  * small problems and memory isn't a concern — bcsstk04 (n = 132)
  * grow-m holds ~160 KB of V at m_cap = 130, which is cheap on modern
@@ -196,18 +170,16 @@ typedef enum {
  * at `m_restart + k_locked ≈ 35` columns regardless of total
  * iteration count.
  *
- * Provisional value: 500 (matches the nos4 / bcsstk04 / kkt-150
- * / bcsstk14 measured crossover in the Sprint 21 Day 4 benchmark
- * capture at `docs/planning/EPIC_2/SPRINT_21/bench_day4_restart.txt`).
- * Override at compile time with `-DSPARSE_EIGS_THICK_RESTART_THRESHOLD=N`
- * when profiling on a different corpus.
+ * Default: 500. Override at compile time with
+ * `-DSPARSE_EIGS_THICK_RESTART_THRESHOLD=N` when profiling on a different
+ * corpus.
  */
 #ifndef SPARSE_EIGS_THICK_RESTART_THRESHOLD
 #define SPARSE_EIGS_THICK_RESTART_THRESHOLD 500
 #endif
 
 /**
- * @brief AUTO routing crossover threshold for LOBPCG (Sprint 21 Day 10).
+ * @brief AUTO routing crossover threshold for LOBPCG.
  *
  * When `opts->backend == SPARSE_EIGS_BACKEND_AUTO`,
  * `opts->precond != NULL`, and `sparse_rows(A) >=
@@ -224,10 +196,9 @@ typedef enum {
  * AUTO path therefore declines to pick LOBPCG when `precond ==
  * NULL`.
  *
- * Provisional value: 1000 (matches the n-thresholds in PROJECT_PLAN
- * Sprint 21 PLAN.md Day 10 task 3).  Override at compile time with
- * `-DSPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD=N` when profiling on a
- * different corpus.
+ * Default: 1000. Override at compile time with
+ * `-DSPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD=N` when profiling on a different
+ * corpus.
  */
 #ifndef SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD
 #define SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD 1000
@@ -245,10 +216,10 @@ typedef enum {
  * LOBPCG; ignored for Lanczos), `lobpcg_soft_lock = 1` (per-column
  * freezing on; ignored for Lanczos).
  *
- * @warning **ABI break in v2.2.0.**  Sprint 21 Days 7-9 added the
+ * @warning **ABI break in v2.2.0.** This release added the
  * `block_size`, `precond`, `precond_ctx`, and `lobpcg_soft_lock`
  * fields at the end of this struct, changing its size relative to
- * the v2.1.x version shipped through Sprint 20.  Source-level
+ * the v2.1.x version. Source-level
  * compatibility is preserved: positional and designated initialisers
  * from v2.1.x continue to compile, leaving the new trailing fields
  * zero-initialised / unset.  That is *not* identical to passing
@@ -314,7 +285,7 @@ typedef struct {
      *  AUTO routes to Lanczos. */
     sparse_eigs_backend_t backend;
     /** LOBPCG block size — number of approximate eigenvector columns
-     *  iterated together (Sprint 21 Day 7).  Ignored unless
+     *  iterated together. Ignored unless
      *  `backend == SPARSE_EIGS_BACKEND_LOBPCG` (or AUTO routes
      *  there).  0 (the designated-init default) selects the library
      *  default `block_size = k`, which is the minimum that produces
@@ -326,10 +297,10 @@ typedef struct {
      *  SPARSE_ERR_BADARG.
      *
      *  Backwards compatibility: this field is trailing in the
-     *  struct, so designated-initialiser callers from before
-     *  Sprint 21 still compile and get the library default. */
+     *  struct, so older designated initialisers still compile and
+     *  get the library default. */
     idx_t block_size;
-    /** LOBPCG preconditioner callback (Sprint 21 Days 7-9).  When
+    /** LOBPCG preconditioner callback. When
      *  non-NULL, applied to each column of the residual block W in
      *  every LOBPCG iteration: `precond(precond_ctx, n, R[:, j],
      *  W[:, j])`.  NULL selects vanilla (unpreconditioned) LOBPCG —
@@ -348,7 +319,7 @@ typedef struct {
      *  `precond == NULL` is rejected as SPARSE_ERR_BADARG (the
      *  obvious user error of forgetting to set the callback). */
     const void *precond_ctx;
-    /** LOBPCG soft-locking flag (Sprint 21 Day 9).  Nonzero enables
+    /** LOBPCG soft-locking flag. Nonzero enables
      *  per-column convergence freezing: once a Ritz pair's residual
      *  drops below `tol`, the corresponding W (preconditioned
      *  residual) and P (search direction) columns are zeroed for
@@ -363,13 +334,12 @@ typedef struct {
      *  initialisers leave this field at 0 (off); set it to 1
      *  explicitly to enable.  Off is correct but slower on
      *  problems where the spectrum has a wide gap between the
-     *  bottom-k and the rest — typical of the ill-conditioned
-     *  fixtures the Day 9 preconditioning targets.
+     *  bottom-k and the rest.
      *
      *  Ignored when `backend != SPARSE_EIGS_BACKEND_LOBPCG`. */
     int lobpcg_soft_lock;
-    /** Sprint 29 Day 5 (Item 3): opt-in eigenpair refinement post-pass.
-     *  Nonzero enables Rayleigh-quotient iteration on each converged
+    /** Opt-in eigenpair refinement post-pass. Nonzero enables
+     *  Rayleigh-quotient iteration on each converged
      *  Ritz pair after the Lanczos / LOBPCG loop returns.  Each
      *  iteration solves `(A - lambda_j * I) * y = v_j` via a fresh
      *  LDL^T factor at the current Ritz value, normalises y, then
@@ -382,7 +352,7 @@ typedef struct {
      *  unrealistically strict for small-but-nonzero eigenvalues — see
      *  `src/sparse_eigs.c::s29_refine_anchor` for the implementation.
      *
-     *  Default 0 (refinement off; Sprint 28 behaviour bit-identical).
+     *  Default 0 keeps refinement off.
      *  Requires `compute_vectors = 1` — vectors are the input to
      *  inverse iteration; `refine = 1 && compute_vectors = 0` is
      *  rejected with SPARSE_ERR_BADARG.
@@ -393,13 +363,11 @@ typedef struct {
      *  `machine_eps * ||A||` rather than the default `1e-10`.
      *
      *  Backwards compatibility: this field is trailing in the
-     *  struct, so designated-initialiser callers from before
-     *  Sprint 29 still compile and get the library default (off).
-     *
-     *  See `docs/planning/EPIC_2/SPRINT_29/refinement_design_day4.md`. */
+     *  struct, so older designated initialisers still compile and
+     *  get the library default (off). */
     int refine;
-    /** Sprint 29 Day 5 (Item 3): cap on refinement iterations per
-     *  converged Ritz pair.  Default 0 selects the library default
+    /** Cap on refinement iterations per converged Ritz pair. Default 0
+     *  selects the library default
      *  (5).  Negative values rejected with SPARSE_ERR_BADARG.  Each
      *  iteration runs one LDL^T factor + solve + Rayleigh update.
      *  Rayleigh-quotient iteration converges cubically near simple
@@ -409,8 +377,8 @@ typedef struct {
      *
      *  Ignored when `refine == 0`. */
     idx_t refine_max_iters;
-    /** Sprint 29 Day 7 (Item 4): optional progress / cancellation
-     *  callback.  Invoked at the top of each outer eigsolver iteration
+    /** Optional progress / cancellation callback. Invoked at the top
+     *  of each outer eigensolver iteration
      *  on the **grow-m Lanczos** path (`phase = "lanczos"`) and the
      *  **LOBPCG** path (`phase = "lobpcg"`); `step = total_iter`,
      *  `total = max_iterations`.
@@ -422,12 +390,11 @@ typedef struct {
      *  the grow-m fast path only.  Callers that need progress/cancel on
      *  large `n` without a preconditioner can force the grow-m backend
      *  via `opts->backend = SPARSE_EIGS_BACKEND_LANCZOS` at the cost of
-     *  the higher peak-basis memory.  Thick-restart progress wiring is
-     *  routed to a Sprint 30+ follow-up.
+     *  the higher peak-basis memory.
      *
      *  Return 0 to continue; non-zero cancels — the library frees
      *  intermediate state and returns `SPARSE_ERR_CANCELLED`.  Default
-     *  NULL preserves Sprint 28 behaviour bit-identical.  Trailing
+     *  NULL leaves progress/cancel disabled. Trailing
      *  field for designated-init back-compat. */
     sparse_progress_cb_t progress_cb;
     /** Opaque context pointer passed through unchanged to
@@ -451,10 +418,10 @@ typedef struct {
  * Callers that want partial results in the unconverged case
  * should inspect `n_converged` before consuming `eigenvalues[]`.
  *
- * @warning **ABI break in v2.2.0.**  Sprint 21 Days 4 and 7 added
+ * @warning **ABI break in v2.2.0.** This release added
  * the `peak_basis_size` and `backend_used` fields at the end of
  * this struct, changing its size relative to the v2.1.x version
- * shipped through Sprint 20.  Source-level compatibility is
+ * shipped previously. Source-level compatibility is
  * preserved: positional and designated initialisers from v2.1.x
  * continue to compile.  Pre-compiled downstream binaries linked
  * against v2.1.x must be recompiled against v2.2.x because stack-
@@ -489,14 +456,13 @@ typedef struct {
      *  set to 1 when the internal `sparse_ldlt_factor_opts` call
      *  selected the CSC supernodal backend and 0 when it routed to
      *  the linked-list path.  Mirrors the Day 4-6 `used_csc_path`
-     *  telemetry on `sparse_ldlt_opts_t`.  Always 0 for
-     *  LARGEST / SMALLEST (no LDL^T factor involved).  Sprint 20
-     *  Day 13 observability. */
+     *  telemetry on `sparse_ldlt_opts_t`. Always 0 for
+     *  LARGEST / SMALLEST (no LDL^T factor involved). */
     int used_csc_path_ldlt;
     /** Output: peak Lanczos basis size (number of length-n columns
      *  held simultaneously in the dominant allocation) observed
-     *  during the run.  Sprint 21 Day 4 telemetry; lets callers
-     *  compare the grow-m path's monotonically-growing `m_cap` to
+     *  during the run. Lets callers compare the grow-m path's
+     *  monotonically-growing `m_cap` to
      *  the thick-restart path's bounded peak to verify the
      *  memory-savings claim on large-n problems.  Per-backend
      *  formula:
@@ -519,14 +485,12 @@ typedef struct {
      *  `opts->backend == SPARSE_EIGS_BACKEND_AUTO`, AUTO picks one
      *  of the concrete backends per the size threshold (currently
      *  LANCZOS below `SPARSE_EIGS_THICK_RESTART_THRESHOLD` and
-     *  LANCZOS_THICK_RESTART above; Sprint 21 Day 10 extends this
-     *  to also route LOBPCG when a preconditioner is supplied).
+     *  LANCZOS_THICK_RESTART above, with LOBPCG selected when the
+     *  AUTO rules for preconditioned block solves match).
      *  Set on every successful return.  On error returns, treat
      *  this field as unspecified / best-effort telemetry: backend
      *  selection may already have been recorded before a later
-     *  failure is detected.  Sprint 21 Day 7 observability — used
-     *  by the Day 11 `bench_eigs` driver to log AUTO's choice per
-     *  fixture in the CSV output. */
+     *  failure is detected. */
     sparse_eigs_backend_t backend_used;
 } sparse_eigs_t;
 
@@ -543,8 +507,8 @@ typedef struct {
  * for callers that want to preserve workspace capacity across solves while
  * keeping the existing options and result structs. The same handle surface
  * covers the supported symmetric eigensolver backends:
- * grow-m Lanczos, thick-restart Lanczos, and explicit LOBPCG. Sprint 54 does
- * not introduce separate backend-specific public handle types.
+ * grow-m Lanczos, thick-restart Lanczos, and explicit LOBPCG. There are no
+ * separate backend-specific public handle types.
  *
  * The layout is intentionally opaque at the public level: zero-initialize
  * the struct (`{0}`) or call sparse_eigs_handle_init() before first use,
@@ -604,12 +568,11 @@ sparse_err_t sparse_eigs_handle_prepare(sparse_eigs_handle_t *handle, idx_t n, i
 /**
  * @brief Compute k extreme or near-sigma eigenpairs of a symmetric matrix.
  *
- * Uses Lanczos (default) with a growing-subspace outer loop and
- * optional full reorthogonalization; shift-invert mode for interior
- * eigenvalues (`opts->which == SPARSE_EIGS_NEAREST_SIGMA`) factors
- * `A - sigma*I` via `sparse_ldlt_factor_opts` and applies its
- * inverse at every Lanczos step.  A true Wu/Simon thick-restart
- * backend is planned for Sprint 21.
+ * Uses the selected symmetric eigensolver backend (AUTO by default):
+ * grow-m Lanczos, thick-restart Lanczos, or explicit LOBPCG.
+ * Shift-invert mode for interior eigenvalues
+ * (`opts->which == SPARSE_EIGS_NEAREST_SIGMA`) factors `A - sigma*I`
+ * via `sparse_ldlt_factor_opts` and applies its inverse at every step.
  *
  * @pre A must be symmetric — `sparse_is_symmetric(A, 1e-12)` is
  *      checked at entry.  A must be square.

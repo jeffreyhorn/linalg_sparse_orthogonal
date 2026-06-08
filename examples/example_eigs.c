@@ -1,26 +1,29 @@
 /*
  * example_eigs.c — Compute symmetric eigenpairs with sparse_eigs_sym.
  *
- * Demonstrates the full Sprint 20-21 eigensolver surface across the
- * three concrete backends and the preconditioning hook:
+ * Demonstrates three high-signal symmetric eigensolver workflows:
  *
  *   (a) Five largest eigenvalues of a small SPD SuiteSparse matrix
  *       (nos4.mtx, n = 100) — the typical "modal analysis" query.
- *       Sprint 20 grow-m Lanczos (the AUTO default for n < 500).
+ *       AUTO stays on the grow-m Lanczos path at this size.
  *   (b) Three eigenvalues nearest a shift point sigma on a KKT-style
  *       indefinite saddle-point matrix — exercises shift-invert mode
- *       and the composition with the Sprint 20 Days 4-6 LDL^T
- *       dispatch.
- *   (c) Sprint 21 LOBPCG with IC(0) preconditioning on bcsstk04
+ *       and its composition with the LDL^T factorization path.
+ *   (c) Explicit LOBPCG with IC(0) preconditioning on bcsstk04
  *       (n = 132, cond ≈ 5e6) k = 3 SMALLEST — vanilla LOBPCG
  *       saturates the iteration cap on this fixture; with the
- *       Sprint 13 IC(0) factor plugged in via opts->precond, the
- *       same problem converges in dramatically fewer iterations.
+ *       IC(0) factor plugged in via opts->precond, the same problem
+ *       converges in dramatically fewer iterations.
  *
  * Each demo prints a per-pair residual check
  * (||A*v - lambda*v|| / (|lambda| * ||v||)) confirming each returned
  * Ritz pair satisfies the eigen-equation independently of the
  * solver's internal Wu/Simon bound.
+ *
+ * This example stays on the one-shot eigensolver entry point by design.
+ * The explicit repeated-run handle path is a separate public workflow for
+ * stable-dimension repeated solves, not a replacement for the small
+ * one-shot example here.
  *
  * Build:
  *   cc -O2 -Iinclude -o example_eigs examples/example_eigs.c \
@@ -86,7 +89,7 @@ static double ritz_residual(const SparseMatrix *A, double lambda, const double *
 }
 
 int main(void) {
-    printf("=== Sparse symmetric eigensolver (Sprints 20-21) ===\n\n");
+    printf("=== Sparse symmetric eigensolver example ===\n\n");
 
     /* ── (a) Five largest eigenvalues of nos4 (SuiteSparse SPD) ───── */
     printf("(a) Five largest eigenvalues of nos4.mtx (n = 100 SPD)\n");
@@ -204,7 +207,7 @@ int main(void) {
 
     /* ── (c) LOBPCG with IC(0) preconditioning on bcsstk04 ─────────── */
     printf("\n(c) Three smallest eigenvalues of bcsstk04 (n = 132 SPD, cond ~ 5e6)\n");
-    printf("    LOBPCG with Sprint 13 IC(0) preconditioning.\n");
+    printf("    LOBPCG with IC(0) preconditioning.\n");
     printf("---------------------------------------------------------------------\n");
     SparseMatrix *B = NULL;
     err = sparse_load_mm(&B, "tests/data/suitesparse/bcsstk04.mtx");
@@ -216,9 +219,8 @@ int main(void) {
     idx_t nb = sparse_rows(B);
     printf("  Loaded B: n = %d, nnz = %d\n", (int)nb, (int)sparse_nnz(B));
 
-    /* Build the IC(0) factor once.  sparse_ic_precond + the factor
-     * struct plug straight into the Sprint 21 sparse_eigs_opts_t
-     * preconditioner hook — no adapter glue required. */
+    /* Build the IC(0) factor once. `sparse_ic_precond` plugs directly into
+     * the public eigensolver preconditioner hook — no adapter glue needed. */
     sparse_ilu_t ic = {0};
     err = sparse_ic_factor(B, &ic);
     if (err != SPARSE_OK) {

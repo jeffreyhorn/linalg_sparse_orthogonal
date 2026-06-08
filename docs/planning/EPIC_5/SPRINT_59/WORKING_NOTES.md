@@ -388,3 +388,225 @@ Sprint 59 now has an explicit validation and truthfulness boundary:
 
 That is enough to move to the Day 3 quality/platform residual audit without
 validation ambiguity.
+
+## Day 3
+
+**Objective:** Reduce the remaining Sprint 59 quality/platform queue to named,
+defensible residual classes by separating already-honest staged limits from
+the few surfaces that still need fresh follow-through or measurement before the
+final Epic 5 closeout.
+
+### Commands Run
+
+1. Re-read the Sprint 59 Day 3 plan scope:
+   - `sed -n '120,170p' docs/planning/EPIC_5/SPRINT_59/PLAN.md`
+2. Re-read the main live quality/platform contract and policy surfaces:
+   - `sed -n '1,520p' README.md`
+   - `sed -n '1,360p' docs/maintainer_guide.md`
+   - `sed -n '1,320p' .github/workflows/ci.yml`
+   - `sed -n '1,260p' scripts/deadcode_workflow.sh`
+   - `sed -n '1,240p' scripts/deadcode_report.py`
+3. Re-read the Epic 5 review/todo guidance for the residual queue:
+   - `sed -n '1,320p' docs/planning/EPIC_5/reviews/review-codex-2026-05-31.md`
+   - `sed -n '1,260p' docs/planning/EPIC_5/reviews/todo-codex-2026-05-31.md`
+4. Reconfirm the cross-workflow platform coverage surfaces:
+   - `ls .github/workflows`
+   - `rg -n "windows|macos|quality-review|deadcode|coverage|ctest -N|quality-review-cmake" .github/workflows`
+   - `sed -n '1,220p' .github/workflows/windows-ci.yml`
+   - `sed -n '1,220p' .github/workflows/macos-ci.yml`
+5. Re-read the most relevant maintained contract sections directly:
+   - `sed -n '500,760p' Makefile`
+   - `sed -n '620,840p' README.md`
+6. Confirm branch cleanliness before writing the audit:
+   - `git status --short --branch`
+
+### Day 3 Findings
+
+#### 1. The active residual queue is now smaller than the project-plan summary initially implied
+
+The live repo already closes or stabilizes more of the quality/platform story
+than the raw Sprint 59 item list suggests:
+
+- Linux enforced reviewed paths are explicit and live in CI:
+  - `make quality-review-compile`
+  - `make quality-review-cmake`
+  - `make deadcode-report`
+  - `make deadcode-check`
+- Windows enforced reviewed CMake subset is explicit and live in:
+  - `.github/workflows/windows-ci.yml`
+- macOS enforced Apple Clang reviewed path is explicit and live in:
+  - `.github/workflows/macos-ci.yml`
+- coverage is already a live supplemental CI signal:
+  - `make coverage`
+
+Interpretation:
+
+- Sprint 59 is not recovering a vague or broken platform story
+- it is deciding which remaining staged limits are still justified and which
+  ones deserve one last bounded follow-through pass
+
+#### 2. Coverage calibration is no longer a real open residual by itself
+
+The inherited review queue named coverage calibration as a remaining quality
+surface, but the live repo state now makes its disposition much clearer:
+
+- the `Makefile` documents and enforces:
+  - `COV_THRESHOLD = 80`
+- the rationale for the 80% threshold remains embedded in the maintained
+  comments near the coverage targets
+- Linux CI still runs:
+  - `make coverage`
+- README and maintainer-facing wording already agree that coverage is:
+  - supplemental
+  - active
+  - calibrated to the current 80% enforced reality
+
+Interpretation:
+
+- coverage calibration should drop out of the active Sprint 59 implementation
+  queue
+- it is now better treated as:
+  - no longer justified by the current repo state
+- Day 4+ should not broaden into a new coverage-policy rewrite unless a real
+  contradiction surfaces elsewhere
+
+#### 3. Serialized dead-code execution remains a truthful and still-justified operational residual
+
+The live dead-code surfaces still explicitly require serialized execution:
+
+- `Makefile`
+  - `.NOTPARALLEL` covers the `deadcode*` targets
+  - `deadcode-check` still says authoritative execution remains serialized
+- `docs/maintainer_guide.md`
+  - tells maintainers to run `deadcode*` serially because they share
+    `build/deadcode-cmake` and `build/deadcode/`
+- `.github/workflows/ci.yml`
+  - keeps dead-code in one serial job because the shared build/artifact paths
+    would otherwise become flaky or misleading
+
+Interpretation:
+
+- this residual is still justified by the current repo topology
+- it is not primarily a truthfulness defect because the limitation is already
+  explicit across the maintained surfaces
+- it is better classified as:
+  - already acceptable as deferred residual
+- reworking it would imply broader path/topology redesign than Sprint 59 needs
+
+#### 4. macOS dead-code staging is the strongest remaining measurement seam
+
+The macOS story is now very specific:
+
+- `macos-ci.yml` enforces:
+  - `make quality-review-compile`
+  - `make quality-review-cmake`
+  - `make wall-check`
+  - `make sanitize`
+- README explicitly keeps macOS dead-code as:
+  - staged
+- no maintained macOS workflow currently runs:
+  - `make deadcode-report`
+  - `make deadcode-check`
+
+Interpretation:
+
+- this is still a real residual rather than historical wording
+- but the repo does not yet provide fresh evidence that the dead-code workflow
+  is either ready or clearly impossible on macOS
+- it is best classified as:
+  - needs measurement before any change
+
+#### 5. Windows reviewed-wrapper parity and Windows dead-code exclusion remain real but honestly bounded residuals
+
+The Windows surfaces are now clearer than the inherited review summary alone:
+
+- `.github/workflows/windows-ci.yml` enforces the reviewed CMake subset:
+  - configure
+  - build
+  - `ctest -N`
+  - full `ctest`
+- the workflow also publishes the current staged exclusions directly in job
+  output:
+  - `test_threads`
+  - `test_sprint4_integration`
+  - `test_fuzz`
+- README keeps Windows as:
+  - enforced reviewed CMake subset
+  - staged Makefile reviewed wrappers
+  - staged dead-code
+
+Interpretation:
+
+- Windows is not missing from CI
+- the real residual is narrower:
+  - local reviewed-wrapper parity remains staged
+  - dead-code remains excluded
+- both remain truthfully described today, so they are better classified as:
+  - already acceptable as deferred residual
+- if Sprint 59 lands a follow-through batch here, it should be wording and
+  residual-disposition cleanup first, not a fake promise of full Windows
+  Makefile/dead-code convergence
+
+#### 6. The strongest bounded follow-through target is now residual-disposition truthfulness, not platform-expansion ambition
+
+After separating the residual classes, the ranked queue becomes:
+
+1. macOS dead-code staging
+   - needs measurement before any change
+   - highest remaining platform-story uncertainty
+2. cross-surface residual wording reconciliation
+   - needs bounded follow-through now
+   - highest truthfulness value at low implementation cost
+3. serialized dead-code execution
+   - already acceptable as deferred residual
+4. Windows reviewed-wrapper parity
+   - already acceptable as deferred residual
+5. Windows dead-code exclusion
+   - already acceptable as deferred residual
+6. coverage calibration
+   - no longer justified as an active residual
+
+Interpretation:
+
+- Sprint 59 should not broaden into new platform ambition for its own sake
+- the best first landing seam is a bounded quality-contract reconciliation
+  batch driven by the measured residual classes above
+
+#### 7. Day 4 now has a concrete first boundary instead of a generic "platform cleanup" bucket
+
+The cleanest next step is now explicit:
+
+- first Day 4 design target:
+  - bounded residual-disposition reconciliation across the maintained
+    quality/platform contract surfaces
+- likely touched surfaces:
+  - `README.md`
+  - `docs/maintainer_guide.md`
+  - `Makefile`
+  - workflow comments only if they materially disagree
+- likely non-goal:
+  - no attempt to force full macOS dead-code or full Windows reviewed-wrapper
+    parity without fresh measurement and a clearly bounded path
+
+Interpretation:
+
+- Sprint 59 now has one concrete first implementation seam justified by
+  truthfulness risk and implementation cost
+- the sprint can design that batch without pretending the remaining staged
+  platform limits are all equally urgent
+
+## Day 3 Close
+
+Sprint 59 now has a concrete residual map:
+
+- coverage calibration drops out as an active residual
+- serialized dead-code execution remains an explicit and acceptable deferred
+  limit
+- macOS dead-code staging is the strongest remaining measurement seam
+- Windows reviewed-wrapper parity and dead-code remain honestly bounded staged
+  residuals
+- the strongest Day 4 landing target is bounded residual-disposition
+  reconciliation, not broad platform expansion
+
+That is enough to move to the Day 4 follow-through design from a ranked,
+defensible queue instead of a generic final-sprint cleanup bucket.

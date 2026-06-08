@@ -77,7 +77,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 ## Choose a Workflow
 
 - **Small or occasional direct solves:** start with the one-shot LU, Cholesky, LDL^T, or QR entry points.
-- **Stable-pattern repeated direct solves:** use `sparse_analyze()` once, then `sparse_factor_numeric()` and `sparse_refactor_numeric()` as values change. `example_analysis` is the strongest shipped reference.
+- **Stable-pattern repeated direct solves:** use `sparse_analyze()` once, then `sparse_factor_numeric()` plus `sparse_factor_solve()`, with `sparse_refactor_numeric()` between later `sparse_factor_solve()` calls as values change. `example_analysis` is the strongest shipped reference.
 - **Repeated iterative solves on fixed dimension:** use explicit handles for `CG`, `GMRES`, or `MINRES`. `BiCGSTAB` and block iterative workflows remain one-shot compatibility surfaces.
 - **Repeated symmetric eigensolves on fixed dimension:** use the explicit eigensolver handle for grow-m Lanczos, thick-restart Lanczos, or explicit `LOBPCG`.
 - **Workflow-specific proof surfaces:** use `bench_refactor` / `bench_refactor_csc` for direct repeated-run workflows, `bench_iterative_reuse` for iterative handles, and `bench_eigs_reuse` for eigensolver handles.

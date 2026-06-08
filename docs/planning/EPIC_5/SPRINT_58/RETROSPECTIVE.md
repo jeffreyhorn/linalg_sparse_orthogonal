@@ -42,7 +42,7 @@
 
 3. **The highest-value public headers were simplified without touching semantics.**
    Sprint 58 cleaned the strongest stale narrative offender directly:
-   - `include/sparse_eigs.h`: `687 -> 646`
+   - `include/sparse_eigs.h`: `687 -> 650`
    and normalized the repeated-run lifecycle wording in:
    - `include/sparse_iterative.h`
    The sprint removed stale sprint/future-work framing while preserving the
@@ -97,7 +97,7 @@
 2. **Not every touched surface got smaller.**
    Some surfaces improved mainly through clearer structure, not shorter size:
    - `docs/tutorial.md`: `415 -> 453`
-   - `benchmarks/README.md`: `235 -> 248`
+   - `benchmarks/README.md`: `235 -> 246`
    That is acceptable, but it means Sprint 58’s value is more about better
    workflow framing than raw line-count reduction.
 
@@ -151,14 +151,14 @@ Notes:
   - `README.md`: `987 -> 973`
   - `docs/tutorial.md`: `415 -> 453`
 - public headers cleaned:
-  - `include/sparse_eigs.h`: `687 -> 646`
+  - `include/sparse_eigs.h`: `687 -> 650`
   - `include/sparse_iterative.h`: `765 -> 765` (narrative cleanup without
     size change)
 - example surfaces modernized:
   - `examples/example_eigs.c`: `285 -> 287`
   - `examples/README.md`: `134 -> 134` (story alignment without size change)
 - benchmark docs surfaces reorganized:
-  - `benchmarks/README.md`: `235 -> 248`
+  - `benchmarks/README.md`: `235 -> 246`
 - touched public surfaces in the final handoff set:
   - `README.md`
   - `docs/tutorial.md`

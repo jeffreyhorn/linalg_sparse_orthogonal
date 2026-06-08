@@ -85,11 +85,11 @@ Measured touched-surface line counts:
 
 - `README.md`: `973`
 - `docs/tutorial.md`: `453`
-- `include/sparse_eigs.h`: `646`
+- `include/sparse_eigs.h`: `650`
 - `include/sparse_iterative.h`: `765`
 - `examples/README.md`: `134`
 - `examples/example_eigs.c`: `287`
-- `benchmarks/README.md`: `248`
+- `benchmarks/README.md`: `246`
 
 ## Day 13 validation checklist
 

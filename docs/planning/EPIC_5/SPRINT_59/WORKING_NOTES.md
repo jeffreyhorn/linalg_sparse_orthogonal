@@ -610,3 +610,180 @@ Sprint 59 now has a concrete residual map:
 
 That is enough to move to the Day 4 follow-through design from a ranked,
 defensible queue instead of a generic final-sprint cleanup bucket.
+
+## Day 4
+
+**Objective:** Freeze the first bounded Sprint 59 follow-through boundary by
+selecting the exact residual-disposition reconciliation seam, defining the
+truthfulness invariants it must preserve, and recording the non-goal fence
+before any maintained quality/platform surfaces are edited.
+
+### Commands Run
+
+1. Re-read the Sprint 59 Day 4 plan scope:
+   - `sed -n '170,220p' docs/planning/EPIC_5/SPRINT_59/PLAN.md`
+2. Re-read the Day 3 residual audit:
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_59/artifacts/day3-quality-platform-residual-audit.md`
+3. Re-read the current Sprint 59 notes state:
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_59/WORKING_NOTES.md`
+4. Re-read the closest prior bounded design artifact shape for wording and
+   fence discipline:
+   - `sed -n '1,220p' docs/planning/EPIC_5/SPRINT_58/artifacts/day4-readme-tutorial-reduction-design.md`
+
+### Day 4 Findings
+
+#### 1. The first follow-through seam should be residual-disposition reconciliation, not measurement or platform-expansion work
+
+Day 3 already fixed the ranked queue:
+
+- macOS dead-code staging
+  - needs measurement before any change
+- cross-surface residual wording reconciliation
+  - needs bounded follow-through now
+- serialized dead-code execution
+  - already acceptable as deferred residual
+- Windows reviewed-wrapper parity
+  - already acceptable as deferred residual
+- Windows dead-code exclusion
+  - already acceptable as deferred residual
+- coverage calibration
+  - no longer justified as an active residual
+
+Interpretation:
+
+- Day 5 should not start with macOS dead-code execution itself
+- the first landed batch should instead tighten how the current residual
+  dispositions are described across the maintained contract surfaces
+- that gives Sprint 59 one bounded patch with high truthfulness value and low
+  blast radius
+
+#### 2. The exact first landing boundary is now explicit
+
+The first bounded quality/platform landing should cover:
+
+- compact residual-disposition wording in:
+  - `README.md`
+  - `docs/maintainer_guide.md`
+- executable/help wording in:
+  - `Makefile`
+    - only where the current residual interpretations or rerun guidance can be
+      made clearer without changing the underlying targets
+- workflow-comment wording only if it materially disagrees with the surfaces
+  above:
+  - `.github/workflows/ci.yml`
+  - `.github/workflows/macos-ci.yml`
+  - `.github/workflows/windows-ci.yml`
+
+The first landing should intentionally defer:
+
+- running or enabling macOS dead-code in CI
+- expanding Windows to full Makefile reviewed-wrapper parity
+- expanding Windows dead-code execution
+- dead-code path/topology redesign
+- coverage-policy rewrite
+
+Interpretation:
+
+- this is a wording-and-contract reconciliation batch first
+- the touched logic surface should stay as close as possible to zero unless a
+  tiny guard/comment/help change is required for truthfulness
+
+#### 3. The preserved invariants are now fixed before Day 5
+
+The first follow-through batch must preserve:
+
+- reviewed baseline wording
+  - `make quality-review-full` remains the strongest local reviewed baseline
+- Makefile/CMake parity truthfulness
+  - `ctest -N --test-dir build/quality-review-cmake` remains the authoritative
+    parity-count anchor
+- platform-story honesty
+  - Linux enforced reviewed baseline remains the main source-of-truth path
+  - macOS dead-code remains staged unless fresh evidence changes that
+  - Windows reviewed CMake subset remains enforced while wrappers/dead-code
+    stay staged
+- stable local developer workflow
+  - no change to the normal operator command map
+  - no new target taxonomy
+  - no renamed reviewed or dead-code targets
+
+Interpretation:
+
+- Day 5 should improve residual disposition without moving the underlying
+  quality hierarchy
+- any wording simplification that weakens the current truthfulness anchors is
+  out of bounds
+
+#### 4. The cleanup policy is now explicit and narrow
+
+For the first quality/platform batch:
+
+- minimize blast radius
+- prefer measurement-backed wording or already-proven live CI facts
+- remove ambiguity before adding new explanation
+- avoid broad platform abstraction redesign
+- keep repo-wide interpretation in:
+  - `docs/maintainer_guide.md`
+- keep executable command detail in:
+  - `Makefile`
+- keep platform enforcement/staging snapshots concise in:
+  - `README.md`
+  - workflow comments
+
+Interpretation:
+
+- the patch should read like final contract tightening, not like a new platform
+  strategy document
+- if a point requires deeper rationale than a concise maintained surface can
+  support, it should remain deferred rather than being overexplained
+
+#### 5. The Day 5 landing checklist is now concrete
+
+Day 5 should:
+
+1. tighten residual-disposition wording across the selected maintained
+   surfaces
+2. explicitly preserve:
+   - serialized dead-code execution as a current deferred operational limit
+   - macOS dead-code as staged pending measurement
+   - Windows reviewed-wrapper/dead-code as staged rather than silently
+     incomplete
+3. remove coverage from any wording that still implies it is an unresolved
+   residual
+4. keep workflow comments aligned with the public and maintainer-facing
+   surfaces where needed
+5. avoid any behavior change that would force the batch to become a platform
+   implementation sprint
+
+Interpretation:
+
+- the design boundary is now exact enough to implement without vague cleanup
+  intent
+- the batch can be judged on truthfulness improvement and discipline, not on
+  how many platform knobs it touches
+
+## Day 4 Close
+
+Sprint 59 now has an explicit first follow-through boundary:
+
+- first target:
+  - residual-disposition reconciliation across maintained quality/platform
+    surfaces
+- likely touched files:
+  - `README.md`
+  - `docs/maintainer_guide.md`
+  - `Makefile`
+  - workflow comments only if needed for agreement
+- preserved invariants:
+  - reviewed baseline wording
+  - Makefile/CMake parity truthfulness
+  - platform-story honesty
+  - stable local developer workflow
+- explicit non-goals:
+  - no macOS dead-code enablement yet
+  - no Windows wrapper/dead-code expansion
+  - no coverage-policy rewrite
+  - no topology redesign
+
+That is enough to move to Day 5 implementation from one bounded residual seam
+instead of a generic quality/platform cleanup intent.

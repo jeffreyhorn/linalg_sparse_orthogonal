@@ -1671,3 +1671,134 @@ Sprint 59 now has a concrete measured input set for the Epic 5 finish:
 
 That is enough to move to the Day 11 summary/handoff batch from a measured
 input set instead of a generic retrospective backlog.
+
+## Day 11
+
+**Objective:** Land the main Epic 5 summary and handoff draft from the Day 10
+input set by organizing the work around the now-stable closed work bands,
+making the inherited validated baseline and preserved compatibility fence
+explicit, and stating the consciously deferred residual queue without closure
+inflation.
+
+### Commands Run
+
+1. Re-read the Day 11 plan boundary:
+   - `sed -n '390,435p' docs/planning/EPIC_5/SPRINT_59/PLAN.md`
+2. Re-read the Day 10 closeout-input audit and current Day 10 notes:
+   - `sed -n '1,260p' docs/planning/EPIC_5/SPRINT_59/artifacts/day10-epic5-closeout-input-audit.md`
+   - `tail -n 220 docs/planning/EPIC_5/SPRINT_59/WORKING_NOTES.md`
+3. Reconfirm whether an existing Epic 5 summary surface already exists:
+   - `find docs/planning -maxdepth 2 -type f | rg 'EPIC_[0-9]+.*(SUMMARY|CLOSEOUT|HANDOFF|RETROSPECTIVE)'`
+   - `ls docs/planning/EPIC_5`
+4. Re-read the highest-value inherited Sprint closeout inputs:
+   - `for s in 50 51 52 53 54 55 56 57 58; do sed -n '1,120p' docs/planning/EPIC_5/SPRINT_$s/artifacts/day14-closeout-and-handoff.md; done`
+5. Write the Day 11 Epic 5 summary/handoff artifact and re-read it for
+   internal consistency.
+6. Review the landed docs-only diff:
+   - `git diff -- docs/planning/EPIC_5/SPRINT_59/WORKING_NOTES.md docs/planning/EPIC_5/SPRINT_59/artifacts/day11-epic5-summary-and-handoff-batch.md`
+
+### Day 11 Findings
+
+#### 1. The right Day 11 output is a Sprint 59 Epic 5 handoff artifact, not an early project-level file edit
+
+The repo already has project-level retrospective files for:
+
+- `EPIC_2`
+- `EPIC_3`
+- `EPIC_4`
+
+But there is not yet a separate Epic 5 summary/handoff file outside the Sprint
+59 closeout lane.
+
+Interpretation:
+
+- Day 11 should land the main Epic 5 handoff draft as a Sprint 59 artifact
+- Day 12 can then decide whether any project-level file needs a final measured
+  update
+- this keeps the final writing sequence disciplined:
+  - summary first
+  - project-level follow-through only if needed
+
+#### 2. The Epic 5 summary now reads cleanly around the eight closed work bands
+
+The Day 11 handoff draft is now organized around the measured Epic 5 bands:
+
+1. direct-solver lifecycle design fence
+2. public direct lifecycle implementation and deeper integration
+3. CSC direct-solver completion and dispatch follow-through
+4. public repeated-run solver lifecycle completion
+5. large-source decomposition
+6. giant-test refactor and lifecycle/factor-many regression expansion
+7. public-surface simplification
+8. final quality/platform reconciliation and caller-story normalization
+
+Interpretation:
+
+- the final Epic 5 summary no longer depends on day-by-day narration
+- the work is now framed as a coherent productization arc instead of ten
+  partially overlapping sprint stories
+
+#### 3. The inherited validated baseline and preserved compatibility fence are now explicit in one place
+
+The Day 11 draft now states explicitly:
+
+- strongest local reviewed baseline:
+  - `make quality-review-full`
+- reviewed CMake parity/count anchor:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity:
+  - `53 vs 53`
+- full reviewed CMake `ctest`:
+  - `53 / 53`
+
+And it also states the stable Epic 5 workflow fence in one place:
+
+- one-shot APIs remain first-class/default workflows
+- repeated-run direct solves remain the explicit analysis/factors lifecycle
+- repeated-run iterative handles remain limited to:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- repeated-run eigensolver handle remains limited to:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+- `BiCGSTAB` and block iterative workflows remain one-shot compatibility
+  surfaces
+- no broad public API redesign or raw internal storage exposure was introduced
+
+Interpretation:
+
+- the main handoff story now has one stable measured validation baseline and
+  one stable compatibility fence
+- later closeout writing should reference this summary rather than restating
+  the same boundaries ad hoc
+
+#### 4. The residual queue is now summarized as consciously bounded future work rather than hidden unfinished closure
+
+The Day 11 draft now condenses the remaining queue to:
+
+- staged/deferred quality-platform residuals
+- later bounded maintainability seams
+- deferred giant-test seams
+- broader docs-density cleanup outside the bounded Sprint 58-59 scope
+
+Interpretation:
+
+- the final Epic 5 handoff no longer implies that “a little of everything is
+  still left”
+- it names the remaining queue as bounded future work with the solved scope
+  still preserved
+
+## Day 11 Close
+
+Sprint 59 now has the main Epic 5 summary/handoff draft:
+
+- the work is organized around the eight closed Epic 5 bands
+- the inherited validated baseline is explicit
+- the preserved compatibility fence is explicit
+- the consciously deferred residual queue is explicit
+
+That is enough to move to the Day 12 project-plan / residual finalization pass
+from a stable high-signal handoff draft instead of from scattered sprint
+closeouts.

@@ -47,16 +47,19 @@
  *   free(vecs);
  * @endcode
  *
- * **Convergence.** `sparse_eigs_sym` runs a single growing-m
- * Lanczos sequence starting from a deterministic pseudo-random v0
- * (golden-ratio fractional mixing — reproducible across runs and
- * avoids eigenvector alignment on diagonal fixtures).  The
- * per-retry grow-m strategy strictly extends the Krylov basis, so
- * every pass benefits from prior work.  Convergence is gated on
- * the Wu/Simon residual `|beta_m * y_{m-1, j}| / |theta_j|` of
- * every selected Ritz pair and is reported in
- * `result.residual_norm`.  The residual bounds the eigen-equation
- * relative error of whatever operator Lanczos is running on:
+ * **Convergence.** `sparse_eigs_sym` routes through one of the
+ * supported symmetric eigensolver backends (grow-m Lanczos,
+ * thick-restart Lanczos, or explicit LOBPCG). The Lanczos-family
+ * paths start from a deterministic pseudo-random v0 (golden-ratio
+ * fractional mixing — reproducible across runs and avoids
+ * eigenvector alignment on diagonal fixtures). Grow-m retries
+ * strictly extend the Krylov basis, so every pass benefits from
+ * prior work. `result.residual_norm` reports the backend's final
+ * convergence metric, and for the Lanczos-family backends it is
+ * gated on the Wu/Simon residual `|beta_m * y_{m-1, j}| / |theta_j|`
+ * of every selected Ritz pair. That residual bounds the
+ * eigen-equation relative error of whatever operator Lanczos is
+ * running on:
  *   - `LARGEST` / `SMALLEST`: Lanczos runs on `A`, so the bound
  *     applies to `||A v - λ v|| / (|λ| * ||v||)` directly.
  *   - `NEAREST_SIGMA`: Lanczos runs on `(A - sigma·I)^{-1}`, so

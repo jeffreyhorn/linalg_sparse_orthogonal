@@ -53,8 +53,6 @@ depending on what the underlying factorization path actually supports:
   - keep their fixed reorder choices in the code path being compared so
     backend timings stay like-for-like
 
-| Binary              | Topic                                       | Smoke target          |
-|---------------------|---------------------------------------------|-----------------------|
 | Binary                 | Topic                                                   | Smoke target              |
 |------------------------|---------------------------------------------------------|---------------------------|
 | `bench_main`           | One-shot LU / Cholesky / SpMV / iterative harness       | `make bench-suitesparse`  |

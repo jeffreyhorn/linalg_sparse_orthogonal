@@ -2020,3 +2020,119 @@ Sprint 58 Day 13 fixed the final validation baseline:
 - reviewed parity remained exact at `53`
 - the final example and benchmark reruns stayed clean
 - no blocker-level drift surfaced before closeout
+
+## Day 14 - closeout and handoff
+
+### Planned work
+
+1. Summarize the final Sprint 58 deliverables across:
+   - public docs reduction
+   - header cleanup
+   - example modernization
+   - benchmark taxonomy cleanup
+2. Record the preserved compatibility fence and the final validated baseline.
+3. Capture the explicit deferred queue without hiding it inside the done state.
+4. Recheck whether `docs/planning/EPIC_5/PROJECT_PLAN.md` needs a correction or
+   follow-on note.
+5. Write the final closeout/handoff artifact and working-notes summary.
+
+### Day 14 Findings
+
+#### 1. Sprint 58 now hands off one coherent public-surface simplification package
+
+The landed Sprint 58 deliverables close as four aligned groups:
+
+- public docs reduction:
+  - `README.md`
+  - `docs/tutorial.md`
+- public-header narrative cleanup:
+  - `include/sparse_eigs.h`
+  - `include/sparse_iterative.h`
+- bounded example modernization:
+  - `examples/example_eigs.c`
+  - `examples/README.md`
+- benchmark taxonomy cleanup:
+  - `benchmarks/README.md`
+
+Measured touched-surface end state:
+
+- `README.md`: `973`
+- `docs/tutorial.md`: `453`
+- `include/sparse_eigs.h`: `646`
+- `include/sparse_iterative.h`: `765`
+- `examples/README.md`: `134`
+- `examples/example_eigs.c`: `287`
+- `benchmarks/README.md`: `248`
+
+Interpretation:
+
+- Sprint 58 reduced the highest-signal caller-facing drift without reopening
+  implementation or API design
+
+#### 2. The preserved compatibility fence is still explicit at closeout
+
+Sprint 58 closes with the same steady-state contract it started from:
+
+- one-shot APIs remain first-class/default workflows
+- repeated-run direct solves remain an analyze-once / factor-many path
+- repeated-run iterative handles remain bounded to:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- repeated-run eigensolver handles remain bounded to:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+- `BiCGSTAB` and block iterative workflows remain one-shot compatibility
+  surfaces
+
+Interpretation:
+
+- the sprint simplified wording and examples without broadening the supported
+  workflow set
+
+#### 3. Sprint 58 closes from the Day 13 validated baseline
+
+The final carried-forward validation baseline is:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All passed.
+
+Maintained reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 481.74 sec`
+
+Interpretation:
+
+- Sprint 58 now hands off one explicit validated baseline rather than only a
+  wording cleanup summary
+
+#### 4. The remaining queue is explicit and future-facing
+
+The deferred queue after Sprint 58 is now small and named:
+
+- deeper long-form `README.md` chronology/performance-history cleanup
+- any lower-priority public-header follow-through only if a later contradiction
+  appears
+- broader docs-density reduction outside the bounded Sprint 58 target set
+
+I also rechecked whether `docs/planning/EPIC_5/PROJECT_PLAN.md` needs a Sprint
+58 correction, and it does not.
+
+### Day 14 Close
+
+Sprint 58 closes as one coherent simplified public-surface handoff:
+
+- top-level docs are more workflow-first
+- the strongest public header chronology drift is reduced
+- the highest-value shipped eigensolver example surface is modernized
+- the benchmark README now reads as a stable workflow map
+- the preserved support boundary and reviewed validation baseline are explicit
+- the residual queue is conscious future work, not hidden drift

@@ -1880,3 +1880,191 @@ Sprint 60 now has a draft Epic 6 architecture contract:
 That is enough to move to Day 10, where the validation and platform contract
 can be frozen against this architecture fence instead of against raw audit
 notes.
+
+## Day 10 — Validation and Platform Contract Freeze
+
+### Intent
+
+Freeze the validation, gate-selection, and platform-truthfulness contract that
+later Epic 6 implementation sprints must use.
+
+The Day 10 goal was to define:
+
+- the strongest reviewed local baseline
+- which gates later work should default to
+- when docs-only exceptions are valid
+- how Linux/macOS/Windows truthfulness should be described
+
+### What I checked
+
+- Day 10 scope/criteria in `PLAN.md`
+- Day 9 architecture contract draft
+- live validation and truthfulness surfaces in:
+  - `README.md`
+  - `docs/maintainer_guide.md`
+  - `Makefile`
+  - `.github/workflows/ci.yml`
+  - `.github/workflows/macos-ci.yml`
+  - `.github/workflows/windows-ci.yml`
+
+### Main contract decisions
+
+#### 1. The strongest local reviewed baseline stays `make quality-review-full`
+
+The Day 10 freeze keeps one top local authority:
+
+- `make quality-review-full`
+
+Interpretation:
+
+- later Epic 6 work should treat this as the main local truth surface for
+  substantial code and contract changes
+- later work should not create a stronger-sounding but unreviewed local path
+  and treat it as authoritative
+
+#### 2. The reviewed sub-paths remain distinct and meaningful
+
+The contract preserves the current reviewed path split:
+
+- `quality-review-compile`
+- `quality-review`
+- `quality-review-cmake-compile`
+- `quality-review-cmake`
+- `quality-review-full`
+
+Interpretation:
+
+- these are not redundant aliases
+- later Epic 6 work may extend them, but should not blur their meanings
+
+#### 3. Gate selection is now explicit
+
+Default code-touching local gate:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Default stronger gate for substantial architecture/performance/platform work:
+
+- `make quality-review-full`
+
+This especially applies to:
+
+- control-plane work
+- backend/AUTO-policy work
+- benchmark-governance work
+- build/package/platform work
+- validation/truthfulness contract work
+
+#### 4. Docs-only exceptions are valid, but narrow
+
+The Day 10 contract keeps docs-only exceptions real, but bounded:
+
+- valid when work is docs-only and does not modify `*.c`, `*.h`, build logic,
+  workflows, or executable scripts
+- still requires live-tree grounding through targeted diff and truthfulness
+  checks
+
+Interpretation:
+
+- docs-only does not mean aspirational or stale claims are acceptable
+- build/workflow/script edits are not docs-only just because they are not in
+  `src/`
+
+#### 5. Dead-code remains reviewed, serialized, and non-zero-findings by contract
+
+The Day 10 freeze preserves the live dead-code meaning:
+
+- `deadcode-check` is a report-completeness gate
+- it is not a zero-findings gate
+- it is not automatic deletion authority
+- serialized execution remains an intentional operational limit because the
+  workflow still shares one build/artifact topology
+
+Interpretation:
+
+- later Epic 6 work must not imply dead-code closure beyond the current truth
+  surface
+
+#### 6. Coverage remains supplemental rather than an active reviewed-baseline residual
+
+The current live policy remains:
+
+- `make coverage`
+- 80% line-coverage threshold
+- Linux supplemental CI signal
+
+Interpretation:
+
+- coverage still matters
+- but it is not the main active validation contract residual in Sprint 60
+
+#### 7. Platform truthfulness is now frozen explicitly by lane
+
+Linux remains the enforced reviewed source of truth:
+
+- reviewed Makefile compile-quality path
+- reviewed CMake parity path
+- dead-code report/check path
+
+Linux supplemental signals remain additive:
+
+- direct runtime path
+- `bench-fast`
+- TSan
+- coverage
+
+macOS remains an enforced but narrower reviewed platform:
+
+- Apple Clang reviewed Makefile compile-quality path
+- Apple Clang reviewed CMake parity path
+- `wall-check`
+- Apple Clang `sanitize`
+
+macOS remains staged or supplemental for:
+
+- dead-code
+- Homebrew GCC direct make/test path
+- install/pkg-config verification
+
+Windows remains an enforced reviewed CMake subset:
+
+- configure
+- build
+- `ctest -N`
+- full `ctest`
+
+with explicit staged exclusions:
+
+- `test_threads`
+- `test_sprint4_integration`
+- `test_fuzz`
+
+and explicit staged surfaces:
+
+- reviewed Makefile wrappers
+- dead-code flow
+
+#### 8. Platform claims now have one explicit truthfulness rule set
+
+The Day 10 contract fixes a simple policy:
+
+1. enforced, staged, and supplemental surfaces must stay labeled distinctly
+2. staged surfaces must not be described as reviewed parity
+3. platform-specific exclusions must remain explicit
+4. docs and workflows must agree on the same reviewed baseline story
+
+### Day 10 close
+
+Sprint 60 now has a frozen validation and platform contract:
+
+- strongest reviewed local baseline is explicit
+- gate-selection policy is explicit
+- docs-only exceptions are explicit
+- dead-code and coverage meanings are explicit
+- Linux/macOS/Windows truthfulness boundaries are explicit
+
+That is enough to move to Day 11, where the Sprint 60 target, audits,
+architecture contract, and validation contract can be re-read as one package
+for cross-surface reconciliation.

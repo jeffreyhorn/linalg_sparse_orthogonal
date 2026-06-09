@@ -1074,3 +1074,226 @@ Sprint 60 now has an explicit state-of-the-art target:
 That is enough to move to Day 6, where the architectural seams behind those
 goals can be audited without ambiguity about what the architecture is trying to
 serve.
+
+## Day 6
+
+**Objective:** Map the strongest architecture-sensitive seams that later Epic 6
+implementation work must preserve, so configuration, usability, backend, and
+platform changes can land against one explicit ownership contract instead of
+silently widening product-facing behavior.
+
+### Commands Run
+
+1. Re-read the Day 6 sprint-plan contract:
+   - `sed -n '230,320p' docs/planning/EPIC_6/SPRINT_60/PLAN.md`
+2. Re-read the Day 5 target-definition output:
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_60/artifacts/day5-state-of-the-art-target-definition.md`
+3. Scan the highest-value live product/validation/configuration seams:
+   - `rg -n "sparse_analyze|sparse_factor_numeric|sparse_refactor_numeric|sparse_factor_solve|sparse_iter_handle|sparse_solve_.*with_handle|SPARSE_ND_|SPARSE_FM_|SPARSE_SUPERNODAL_POSTORDER|quality-review-full|quality-review-cmake|deadcode-check|bench_iterative_reuse|bench_eigs_reuse|bench_refactor|bench_refactor_csc" README.md docs include src tests benchmarks examples Makefile .github/workflows -g '!build'`
+4. Re-read the strongest public direct lifecycle seam:
+   - `sed -n '1,260p' include/sparse_analysis.h`
+5. Re-read the strongest public iterative-handle seam:
+   - `sed -n '200,420p' include/sparse_iterative.h`
+6. Re-read the strongest public eigensolver-handle seam:
+   - `sed -n '320,620p' include/sparse_eigs.h`
+7. Re-read the current build/packaging entry surface:
+   - `sed -n '1,240p' CMakeLists.txt`
+
+### Day 6 Findings
+
+#### 1. The direct repeated-run public lifecycle already has a strong ownership seam, and later Epic 6 work must preserve it
+
+The direct repeated-run public model is now centered on one explicit seam:
+
+- `sparse_analysis_t`
+- `sparse_factors_t`
+- `sparse_analyze(...)`
+- `sparse_factor_numeric(...)`
+- `sparse_factor_solve(...)`
+- `sparse_refactor_numeric(...)`
+
+The ownership rule is already clear in `include/sparse_analysis.h`:
+
+- symbolic/permutation setup lives in `sparse_analysis_t`
+- numeric factor contents live in `sparse_factors_t`
+- repeated-run reuse preserves symbolic/permutation setup only
+- one-shot LU/Cholesky/LDL^T remain first-class peer entry points
+
+Architecture consequence:
+
+- Epic 6 may improve direct-solver usability and internal uniformity
+- Epic 6 should not replace this model with a generic universal direct handle
+- later usability work must converge the one-shot story toward this seam rather
+  than trying to invent a second repeated-run ownership model
+
+#### 2. The iterative and eigensolver repeated-run seams are intentionally explicit, opaque, and bounded
+
+The iterative-handle seam is:
+
+- `sparse_iter_handle_t`
+- `sparse_iter_handle_prepare_cg(...)`
+- `sparse_iter_handle_prepare_gmres(...)`
+- `sparse_iter_handle_prepare_minres(...)`
+- `sparse_solve_*_with_handle(...)`
+- `sparse_iter_handle_free(...)`
+
+The eigensolver-handle seam is:
+
+- `sparse_eigs_handle_t`
+- `sparse_eigs_handle_prepare(...)`
+- `sparse_eigs_sym_with_handle(...)`
+- `sparse_eigs_handle_free(...)`
+
+Shared architectural rules across both:
+
+- opaque public handle layout
+- explicit prepare / run / free lifecycle
+- reuse preserves allocation capacity, not prior numerical state
+- support boundary remains intentionally bounded
+
+Architecture consequence:
+
+- later Epic 6 work may improve configuration, observability, and proof around
+  these handles
+- later Epic 6 work should not silently broaden the public repeated-run family
+  set unless the target and contract explicitly reopen that decision
+
+#### 3. The configuration/control architecture is the most fragile high-leverage seam in the repo
+
+The current control placement is split across:
+
+- public option structs:
+  - direct analysis/factor options
+  - iterative opts
+  - eigensolver opts
+- compile-time switches:
+  - OpenMP
+  - mutex support
+  - sanitizers
+- process-global env vars:
+  - `SPARSE_ND_*`
+  - `SPARSE_FM_*`
+  - `SPARSE_SUPERNODAL_POSTORDER`
+  - additional SVD/profile/debug toggles
+
+This is fragile because later Epic 6 sprints could easily widen the product
+surface accidentally by:
+
+- moving internal controls straight into public docs without typed ownership
+- adding more global env-var behavior instead of consolidating it
+- conflating compile-time packaging switches with per-call algorithm control
+
+Architecture consequence:
+
+- later configuration work needs an explicit control-placement rule:
+  - public typed option
+  - internal typed option
+  - compile-time build switch
+  - narrow legacy env-var override
+- this is the highest-risk seam for product-coherence drift
+
+#### 4. Benchmark surfaces and benchmark-governance surfaces are related, but they are not the same architectural layer
+
+The live benchmark surface already separates into workflow-proof binaries:
+
+- direct lifecycle proof:
+  - `bench_refactor`
+  - `bench_refactor_csc`
+- iterative-handle proof:
+  - `bench_iterative_reuse`
+- eigensolver-handle proof:
+  - `bench_eigs_reuse`
+
+But the architecture seam is:
+
+- proof drivers should continue to prove supported workflows
+- governance work should define:
+  - which results are canonical
+  - which outputs are machine-readable
+  - which benches are regression-sensitive
+
+Architecture consequence:
+
+- later Epic 6 performance-governance work should build above the existing
+  proof-driver layer, not replace it with a broad benchmark-framework rewrite
+- workflow-proof binaries are product-surface evidence; governance is the
+  policy layer on top
+
+#### 5. The validation/platform contract is already a real architecture seam, not just documentation
+
+The quality/validation path is concretely structured around:
+
+- `quality-review-full`
+- `quality-review`
+- `quality-review-cmake`
+- `deadcode-check`
+- reviewed CMake parity
+- platform-specific staged limits in CI and docs
+
+The important architecture rule is:
+
+- Linux reviewed quality remains the main enforced truth surface
+- Windows and macOS surfaces are additive, staged, or subset-based according to
+  explicit reviewed measurement
+- `deadcode-check` is a completeness gate, not a zero-findings gate
+
+Architecture consequence:
+
+- later Epic 6 packaging/platform work must preserve this contract shape unless
+  fresh measured evidence justifies changing it
+- platform work is not free-form CI churn; it is contract-governed repo
+  behavior
+
+#### 6. The build/packaging seam is strong enough to extend, but still narrow enough that careless widening would create product confusion
+
+`CMakeLists.txt` currently fixes several important architecture facts:
+
+- one primary library target:
+  - `sparse_lu_ortho`
+- current build shape:
+  - `STATIC`
+- install/export surface exists
+- optional build switches are present but bounded
+- Windows benchmark/test gating is encoded explicitly in the build graph
+
+Architecture consequence:
+
+- later packaging/backend work must decide carefully what belongs in:
+  - build-system target shape
+  - public packaging contract
+  - optional runtime/backend contract
+- changing packaging or backend shape without a frozen architecture contract
+  would blur the line between:
+  - implementation convenience
+  - public product promise
+
+#### 7. The highest-risk Epic 6 seam interactions are now explicit
+
+The strongest seam interactions later sprints must watch are:
+
+1. direct usability changes vs preserved analysis/factors lifecycle ownership
+2. typed configuration modernization vs legacy env-var compatibility
+3. backend/performance abstraction vs self-contained default build contract
+4. benchmark-governance policy vs existing workflow-proof benchmark drivers
+5. packaging/platform ambition vs reviewed-measurement truthfulness
+6. assurance expansion vs already-large proof surfaces and maintainability debt
+
+Interpretation:
+
+- these are the main places where one good local change could still widen the
+  product surface accidentally
+- Day 7-10 should convert these seam interactions into explicit contract rules
+
+## Day 6 Close
+
+Sprint 60 now has a concrete architecture seam map:
+
+- direct repeated-run ownership seam fixed around `analysis` / `factors`
+- iterative/eigensolver repeated-run seams fixed around opaque prepared handles
+- configuration/control placement identified as the highest-risk drift seam
+- benchmark proof surfaces separated from later governance policy
+- validation/platform and packaging/build entry points identified as real
+  product architecture, not just docs
+
+That is enough to move to Day 7, where the env-var-driven and advanced control
+surfaces can be audited against this seam map instead of in isolation.

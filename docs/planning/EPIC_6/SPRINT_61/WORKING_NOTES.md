@@ -353,3 +353,236 @@ Sprint 61 now has a written validation baseline that matches the live repo:
 - docs-only versus bounded code-day versus stronger reviewed-path split fixed
   explicitly
 - no contradiction across the main quality/truthfulness surfaces
+
+## Day 3
+
+**Objective:** Reduce the broad Epic 6 “too env-var driven” claim to a
+concrete ranked Phase 1 configuration list by inventorying the live
+`SPARSE_ND_*`, `SPARSE_FM_*`, and adjacent analysis/reorder controls,
+classifying them by future ownership, and fixing the strongest Sprint 61 cut
+line before typed-option design begins.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 3 pass:
+   - `git status --short --branch`
+2. Re-read the Sprint 61 Day 3 plan slice and current sprint notes:
+   - `sed -n '120,190p' docs/planning/EPIC_6/SPRINT_61/PLAN.md`
+   - `sed -n '1,420p' docs/planning/EPIC_6/SPRINT_61/WORKING_NOTES.md`
+3. Re-read the strongest inherited Epic 6 configuration audit source:
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_60/artifacts/day7-configuration-and-performance-surface-audit-part1.md`
+4. Inventory the live control sites:
+   - `rg -n "SPARSE_(ND|FM|SUPERNODAL_POSTORDER|QG_PROFILE|SVD_LOWRANK_OUTER)|getenv\\(" src/sparse_analysis.c src/sparse_graph.c src/sparse_graph_coarsen.c src/sparse_graph_refine.c src/sparse_graph_separator.c src/sparse_graph_bisect.c src/sparse_reorder_nd.c src/sparse_reorder_amd_qg.c src/sparse_svd.c`
+5. Re-read the strongest public and implementation seam:
+   - `sed -n '1,260p' include/sparse_analysis.h`
+   - `sed -n '1,260p' src/sparse_analysis.c`
+   - `sed -n '1,240p' src/sparse_graph.c`
+   - `sed -n '1,220p' src/sparse_reorder_nd.c`
+   - `sed -n '1,220p' src/sparse_graph_refine.c`
+   - `sed -n '1,220p' src/sparse_graph_coarsen.c`
+6. Collapse the raw env-var surface to a unique control list:
+   - `rg -o "SPARSE_[A-Z0-9_]+" src/sparse_analysis.c src/sparse_graph.c src/sparse_graph_coarsen.c src/sparse_graph_refine.c src/sparse_graph_separator.c src/sparse_graph_bisect.c src/sparse_reorder_nd.c src/sparse_reorder_amd_qg.c src/sparse_svd.c | sort | uniq -c`
+7. Reconfirm the runtime-state coupling around FM / ND profiling:
+   - `rg -n "_Thread_local|sparse_graph_fm_runtime_get|sparse_graph_fm_runtime_set|forced_hem|profile" src/sparse_graph*.c src/sparse_reorder_nd.c src/sparse_reorder_amd_qg.c`
+8. Reconfirm the strongest proof and user-facing reference surfaces:
+   - `rg -n "SPARSE_(ND|FM|SUPERNODAL_POSTORDER|QG_PROFILE|SVD_LOWRANK_OUTER|HCC_DEBUG)" tests/test_graph.c tests/test_reorder_nd.c tests/test_reorder_amd_qg.c tests/test_integration.c README.md docs/tutorial.md docs/maintainer_guide.md`
+9. Re-measure the main Day 3 control/proof/docs hotspots:
+   - `wc -l include/sparse_analysis.h src/sparse_analysis.c src/sparse_graph.c src/sparse_graph_coarsen.c src/sparse_graph_refine.c src/sparse_graph_separator.c src/sparse_graph_bisect.c src/sparse_reorder_nd.c src/sparse_reorder_amd_qg.c tests/test_graph.c tests/test_reorder_nd.c tests/test_reorder_amd_qg.c README.md docs/tutorial.md docs/maintainer_guide.md`
+
+### Day 3 Findings
+
+#### 1. The live process-global control surface is concentrated enough to rank cleanly
+
+The unique current control list now reduces to four concrete classes rather than
+one generic env-var complaint:
+
+- caller-meaningful ND / analysis controls:
+  - `SPARSE_SUPERNODAL_POSTORDER`
+  - legacy `SPARSE_ND_SUPERNODAL_POSTORDER`
+  - `SPARSE_ND_COARSENING`
+  - `SPARSE_ND_COARSEST_BISECTION`
+  - `SPARSE_ND_ROOT_BISECT`
+  - `SPARSE_ND_ROOT_BISECT_MAX_N`
+  - `SPARSE_ND_SEP_LIFT_STRATEGY`
+  - `SPARSE_ND_SEP_LIFT_WEIGHT`
+- lower-level ND/FM tuning controls:
+  - `SPARSE_ND_COARSEN_FLOOR_RATIO`
+  - `SPARSE_ND_COARSENING_CV_FALLTHROUGH`
+  - `SPARSE_FM_INTERMEDIATE_PASSES`
+  - `SPARSE_FM_FINEST_PASSES`
+  - `SPARSE_FM_FINEST_STRATEGY`
+  - `SPARSE_FM_ENSEMBLE_STRATEGIES`
+  - `SPARSE_FM_ANNEALING_SCHEDULE`
+  - `SPARSE_FM_THICK_RESTART_PERTURB`
+  - `SPARSE_FM_GAIN_NOISE_SCHEDULE`
+- debug/profile-only controls:
+  - `SPARSE_ND_PROFILE`
+  - `SPARSE_QG_PROFILE`
+  - `SPARSE_HCC_DEBUG`
+  - `SPARSE_FM_ENSEMBLE_DEBUG`
+  - `SPARSE_FM_ANNEALING_DEBUG`
+  - `SPARSE_FM_THICK_RESTART_DEBUG`
+  - `SPARSE_FM_GAIN_NOISE_DEBUG`
+- adjacent non-Phase-1 controls:
+  - `SPARSE_SVD_LOWRANK_OUTER`
+
+Interpretation:
+
+- the strongest Sprint 61 surface is smaller and more coherent than the Epic 6
+  review summary implied
+- the main problem is not “all env vars”
+- the main problem is a mixed control plane inside the direct-analysis /
+  graph-ordering subsystem
+
+#### 2. The strongest Phase 1 public candidates are the controls that already read like analysis/reorder choices, not low-level FM experimentation
+
+The public typed-option candidates with the best Phase 1 case are:
+
+- `SPARSE_SUPERNODAL_POSTORDER`
+- `SPARSE_ND_COARSENING`
+- `SPARSE_ND_COARSEST_BISECTION`
+- `SPARSE_ND_ROOT_BISECT`
+- `SPARSE_ND_ROOT_BISECT_MAX_N`
+- `SPARSE_ND_SEP_LIFT_STRATEGY`
+- `SPARSE_ND_SEP_LIFT_WEIGHT`
+
+Why these rank first:
+
+- they change meaningful ordering/analysis behavior, not just internal search
+  heuristics
+- they are already close to the `sparse_analyze(...)` and `SPARSE_REORDER_ND`
+  front door
+- they are visible enough that tests and README-level wording already treat
+  them like real user-facing choices
+- they fit naturally under a future public analysis/reorder options surface
+
+Interpretation:
+
+- Sprint 61 Phase 1 should start with the analysis/reorder knobs that are
+  already behaving like product controls
+- this is a public control-surface modernization sprint, not a debug-flag
+  cleanup sprint
+
+#### 3. The strongest internal typed-policy candidates are the FM budget/schedule controls and adjacent ND tuning heuristics
+
+The strongest internal typed-policy candidates are:
+
+- `SPARSE_ND_COARSEN_FLOOR_RATIO`
+- `SPARSE_ND_COARSENING_CV_FALLTHROUGH`
+- `SPARSE_FM_INTERMEDIATE_PASSES`
+- `SPARSE_FM_FINEST_PASSES`
+- `SPARSE_FM_FINEST_STRATEGY`
+- `SPARSE_FM_ENSEMBLE_STRATEGIES`
+- `SPARSE_FM_ANNEALING_SCHEDULE`
+- `SPARSE_FM_THICK_RESTART_PERTURB`
+- `SPARSE_FM_GAIN_NOISE_SCHEDULE`
+
+Why these do not rank first as public knobs:
+
+- they are more tightly coupled to the multilevel partitioner’s internal search
+  and retry behavior
+- several are reinforced by `_Thread_local` FM runtime state and orchestration
+  save/restore helpers:
+  - `sparse_graph_fm_runtime_get(...)`
+  - `sparse_graph_fm_runtime_set(...)`
+- they carry meaning mainly inside the implementation, not at the library’s
+  main analysis front door
+
+Interpretation:
+
+- these controls should move away from raw process-global parsing too
+- but their most natural first ownership is internal typed policy rather than a
+  broad public API promise
+
+#### 4. The debug/profile controls should stay out of Phase 1 public design
+
+The clear stay-internal diagnostic/debug set is:
+
+- `SPARSE_ND_PROFILE`
+- `SPARSE_QG_PROFILE`
+- `SPARSE_HCC_DEBUG`
+- `SPARSE_FM_ENSEMBLE_DEBUG`
+- `SPARSE_FM_ANNEALING_DEBUG`
+- `SPARSE_FM_THICK_RESTART_DEBUG`
+- `SPARSE_FM_GAIN_NOISE_DEBUG`
+
+These already map to:
+
+- `_Thread_local` profiling accumulators in `src/sparse_reorder_nd.c`
+- profile-only stderr output in `src/sparse_reorder_amd_qg.c`
+- debug-only instrumentation in the graph subsystem
+
+Interpretation:
+
+- Sprint 61 should not promote these into public options
+- at most, later Epic 6 work can rationalize them as internal typed diagnostic
+  policy or leave them as bounded maintainer-only overrides
+
+#### 5. The current proof surface confirms which controls are already treated like real compatibility commitments
+
+The strongest proof burden sits in:
+
+- `tests/test_graph.c` = `2900`
+- `tests/test_reorder_nd.c` = `1594`
+- `tests/test_reorder_amd_qg.c` = `273`
+
+And those tests actively mutate the same high-value knobs Sprint 61 is
+considering:
+
+- `SPARSE_ND_COARSENING`
+- `SPARSE_ND_COARSEST_BISECTION`
+- `SPARSE_FM_INTERMEDIATE_PASSES`
+- `SPARSE_FM_FINEST_STRATEGY`
+- `SPARSE_FM_ENSEMBLE_STRATEGIES`
+- `SPARSE_ND_SEP_LIFT_STRATEGY`
+- `SPARSE_ND_SEP_LIFT_WEIGHT`
+- `SPARSE_ND_ROOT_BISECT`
+- `SPARSE_SUPERNODAL_POSTORDER`
+
+Interpretation:
+
+- these are not hypothetical knobs
+- the repo already treats them as contract-bearing enough to pin in regression
+  tests
+- moving them behind typed control placement will need proof-surface updates,
+  not just implementation edits
+
+#### 6. The strongest Phase 1 cut line is now explicit
+
+The highest-value Sprint 61 Phase 1 cut is:
+
+- public typed-option candidates:
+  - `SPARSE_SUPERNODAL_POSTORDER`
+  - `SPARSE_ND_COARSENING`
+  - `SPARSE_ND_COARSEST_BISECTION`
+  - `SPARSE_ND_ROOT_BISECT`
+  - `SPARSE_ND_ROOT_BISECT_MAX_N`
+  - `SPARSE_ND_SEP_LIFT_STRATEGY`
+  - `SPARSE_ND_SEP_LIFT_WEIGHT`
+- internal typed-policy candidates:
+  - `SPARSE_ND_COARSEN_FLOOR_RATIO`
+  - selected `SPARSE_FM_*` budget/strategy/schedule controls
+- explicit defer:
+  - profile/debug-only controls
+  - `SPARSE_SVD_LOWRANK_OUTER`
+  - broader compile-time threshold policy
+
+Interpretation:
+
+- Day 4 can now design a typed options surface against a real ranked control
+  set
+- Sprint 61 does not need to solve every runtime tuning seam at once
+- Phase 1 is analysis/reorder modernization first, deeper FM rationalization
+  second
+
+### Day 3 Close
+
+Sprint 61 now has a concrete ranked env-var inventory:
+
+- the strongest public candidates are explicit
+- the strongest internal typed-policy candidates are explicit
+- the debug/profile-only set is explicit
+- the proof burden and migration complexity are explicit
+- the next step is to define the exact typed-option and precedence contract for
+  that ranked Phase 1 cut instead of designing against a generic env-var
+  backlog

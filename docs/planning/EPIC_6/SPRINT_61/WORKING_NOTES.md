@@ -1250,3 +1250,273 @@ Sprint 61 now has the first landed Phase 1 configuration-modernization batch:
 - the first typed-over-env precedence proof is live
 - the Day 7 queue is now narrowed to the deeper selected ND/FM-adjacent
   controls instead of the initial bridge slice
+
+## Day 7
+
+**Objective:** Complete the remaining bounded Sprint 61 Phase 1
+analysis/reorder typed-configuration surface by landing the deeper selected ND
+controls on `sparse_analysis_opts_t`, threading them through the resolved
+internal ND policy seam, preserving legacy env-var compatibility for
+unspecified fields, and proving typed-over-env precedence on the live
+coarsening, coarsest-bisection, separator-lift-strategy, and
+separator-lift-weight paths.
+
+### Commands Run
+
+1. Re-read the Day 5-Day 6 landing design and the remaining Day 7 touch set:
+   - `sed -n '1,240p' docs/planning/EPIC_6/SPRINT_61/artifacts/day5-header-and-internal-surface-landing-design.md`
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_61/artifacts/day6-typed-analysis-reorder-option-batch1.md`
+   - `sed -n '1,260p' include/sparse_analysis.h`
+   - `sed -n '1,260p' src/sparse_analysis.c`
+   - `sed -n '1,260p' src/sparse_graph_internal.h`
+   - `sed -n '1,260p' src/sparse_reorder_nd.c`
+2. Edit the remaining public typed-option surface, internal ND policy seam,
+   graph/ND consumers, and proof surface:
+   - `include/sparse_analysis.h`
+   - `src/sparse_analysis.c`
+   - `src/sparse_graph_internal.h`
+   - `src/sparse_graph_coarsen.c`
+   - `src/sparse_graph_bisect.c`
+   - `src/sparse_graph_separator.c`
+   - `src/sparse_reorder_nd.c`
+   - `tests/test_reorder_nd.c`
+3. Start from a clean tree before rerunning the code gate because the
+   public-analysis header widened again:
+   - `make clean`
+4. Run the required direct gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+5. Run the stronger reviewed gate:
+   - `make quality-review-full`
+6. Capture the final touched-surface stats:
+   - `git diff --stat`
+   - `wc -l include/sparse_analysis.h src/sparse_analysis.c src/sparse_graph_internal.h src/sparse_graph_coarsen.c src/sparse_graph_bisect.c src/sparse_graph_separator.c src/sparse_reorder_nd.c tests/test_reorder_nd.c`
+
+### Day 7 Findings
+
+#### 1. The remaining selected public typed analysis/reorder controls now exist on `sparse_analysis_opts_t`
+
+`include/sparse_analysis.h` now completes the selected Sprint 61 Phase 1
+public analysis/reorder widening on `sparse_analysis_reorder_opts_t` by adding:
+
+- `nd_coarsening`
+- `nd_coarsest_bisection`
+- `nd_sep_lift_strategy`
+- `nd_sep_lift_weight`
+
+The new public zero-init-safe enums are now explicit:
+
+- `sparse_analysis_nd_coarsening_t`
+  - `DEFAULT`
+  - `HEAVY_EDGE`
+  - `HCC`
+- `sparse_analysis_nd_coarsest_bisection_t`
+  - `DEFAULT`
+  - `DEFAULT_ROUTING`
+  - `SPECTRAL`
+  - `GGGP`
+  - `BRUTE`
+- `sparse_analysis_nd_sep_lift_strategy_t`
+  - `DEFAULT`
+  - `SMALLER_WEIGHT`
+  - `BALANCED_BOUNDARY`
+  - `PER_VERTEX`
+  - `PER_VERTEX_BALANCE`
+  - `PER_VERTEX_DEGREE`
+  - `PER_VERTEX_FIXED_K`
+- `sparse_analysis_nd_sep_lift_weight_t`
+  - `DEFAULT`
+  - `HYBRID`
+  - `BALANCE`
+  - `DEGREE`
+
+Interpretation:
+
+- the public Phase 1 control-plane widening is now complete for the selected
+  analysis/reorder controls
+- the widening stayed on `sparse_analysis_opts_t`, not in a new top-level
+  configuration object
+- `include/sparse_reorder.h` still did not widen
+
+#### 2. The resolved internal ND policy model now covers the full selected Phase 1 set
+
+`src/sparse_graph_internal.h` now extends `sparse_graph_nd_policy_t` with the
+remaining selected controls:
+
+- `nd_coarsening`
+- `nd_coarsest_bisection`
+- `nd_sep_lift_strategy`
+- `nd_sep_lift_weight`
+
+It also now owns the internal typed policy enums used by the graph/ND
+consumers:
+
+- `sparse_graph_nd_coarsest_bisection_mode_t`
+- `sparse_graph_nd_sep_lift_strategy_mode_t`
+- `sparse_graph_nd_sep_lift_weight_mode_t`
+
+And the internal override hooks needed to thread the resolved policy through
+the existing graph subsystem:
+
+- `sparse_graph_coarsening_override_begin(...)`
+- `sparse_graph_coarsening_override_end(...)`
+- `sparse_graph_coarsest_bisection_override_begin(...)`
+- `sparse_graph_coarsest_bisection_override_end(...)`
+- `sparse_graph_sep_lift_override_begin(...)`
+- `sparse_graph_sep_lift_override_end(...)`
+
+Interpretation:
+
+- the Phase 1 bridge is no longer partial; the full selected ND policy set now
+  exists as one internal resolved-policy model
+- the public typed surface and the graph/ND implementation no longer need
+  parallel ad hoc translations for these controls
+- later Sprint 61+ work can extend this seam instead of inventing a new one
+
+#### 3. The remaining graph/ND consumers now honor typed policy first while preserving bounded compatibility behavior
+
+The Day 7 implementation widened the actual graph/ND consumer path:
+
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_graph_bisect.c`
+- `src/sparse_graph_separator.c`
+- `src/sparse_reorder_nd.c`
+
+The effective precedence chain now holds across the selected Day 7 controls:
+
+1. explicit typed option
+2. legacy compatibility override, only when the typed field remains
+   unspecified/default
+3. internal typed policy default
+
+Important bounded behavior was preserved:
+
+- the existing forced heavy-edge fallback for degenerate separator recovery
+  still wins when that internal recovery path is active
+- public compatibility callers using `sparse_reorder_nd(...)` still keep the
+  legacy env-var behavior
+- typed policy callers using `sparse_analyze(...)` now override the legacy env
+  path without a public reorder-API redesign
+
+Interpretation:
+
+- the public typed options now control the real graph/ND behavior instead of
+  stopping at the analysis entry surface
+- compatibility behavior for legacy env-var callers remains intact when typed
+  fields stay unspecified
+- the Sprint 61 contract from Day 4-Day 5 is now fully live in code
+
+#### 4. The typed-over-env precedence proof is now real on the remaining selected ND controls
+
+`tests/test_reorder_nd.c` now carries four new bounded Day 7 precedence tests:
+
+- `test_analysis_typed_nd_coarsening_overrides_env`
+- `test_analysis_typed_nd_coarsest_bisection_overrides_env`
+- `test_analysis_typed_nd_sep_lift_strategy_overrides_env`
+- `test_analysis_typed_nd_sep_lift_weight_overrides_env`
+
+These remain behavior-level proofs rather than parser-only checks:
+
+- they drive `sparse_analyze(...)`
+- they compare resulting symbolic behavior through actual fill-sensitive
+  analysis output
+- they use `SKIP_TEST` only when the chosen matrix/data path cannot
+  meaningfully distinguish the compared strategies
+
+Representative live proof points recorded in the reviewed path:
+
+- `bcsstk14`: HEM `nnz(L) = 129576`, HCC+Kuu-safe `nnz(L) = 130422`
+- `bcsstk04` fixed-K weight path:
+  - `hybrid = 3679`
+  - `balance = 4469`
+  - `degree = 4613`
+
+Interpretation:
+
+- the typed-over-env precedence contract now exists on the deeper ND policy
+  controls, not only on the Day 6 bridge slice
+- the proof surface remained bounded to `tests/test_reorder_nd.c`
+- no broad proof-surface churn in `tests/test_graph.c` or
+  `tests/test_integration.c` was needed for this batch
+
+#### 5. Sprint 61 Phase 1 now has one coherent selected analysis/reorder modernization slice instead of a partial bridge plus a deferred backlog
+
+Day 6 established the first public typed bridge for:
+
+- `SPARSE_SUPERNODAL_POSTORDER`
+- `SPARSE_ND_ROOT_BISECT`
+- `SPARSE_ND_ROOT_BISECT_MAX_N`
+
+Day 7 now completes the selected remaining public-candidate controls:
+
+- `SPARSE_ND_COARSENING`
+- `SPARSE_ND_COARSEST_BISECTION`
+- `SPARSE_ND_SEP_LIFT_STRATEGY`
+- `SPARSE_ND_SEP_LIFT_WEIGHT`
+
+Interpretation:
+
+- Sprint 61 now hands off one coherent Phase 1 typed analysis/reorder control
+  surface
+- the remaining Epic 6 configuration queue is now narrower and more honestly
+  deferred
+- the non-goal fence still holds:
+  - no public FM tuning controls
+  - no debug/profile option migration
+  - no repo-wide configuration helper layer
+  - no packaging/platform widening
+
+### Day 7 Validation
+
+Required gate after a clean rebuild:
+
+- `make clean`
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All passed.
+
+Maintained reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 320.27 sec`
+
+Representative retained proof points:
+
+- `test_reorder_nd` passed with the new typed-over-env Day 7 precedence tests
+- the reviewed path rebuilt and passed the live graph/reorder proof surface:
+  - `test_graph`
+  - `test_graph_fm_buckets`
+  - `test_reorder_nd`
+  - `test_reorder_amd_qg`
+
+One non-blocking Day 7 note is explicit:
+
+- the reviewed CMake rebuild again emitted ordinary compiler warnings while
+  rebuilding `bench_eigs_reuse`, but the full reviewed path still completed
+  cleanly and passed all parity gates
+
+Touched-surface diff summary:
+
+- `8` files changed
+- `666` insertions
+- `97` deletions
+
+### Day 7 Close
+
+Sprint 61 now has the full selected Phase 1 analysis/reorder typed-option
+landing:
+
+- the remaining selected public typed controls are live
+- the full selected ND policy bridge is live
+- the graph/ND consumers now honor typed policy first without reopening the
+  public reorder API
+- legacy env-var compatibility remains intact for unspecified typed fields
+- the deeper selected typed-over-env precedence proof is live
+- the remaining Epic 6 configuration queue is now narrower than the original
+  “too env-var driven” backlog

@@ -452,29 +452,36 @@ sparse_err_t graph_bisect_coarsest_spectral(const sparse_graph_t *G, idx_t *part
     return SPARSE_OK;
 }
 
-/* Sprint 25 Day 6: coarsest-bisection strategy enum + env-var
- * parser.  Mirrors Sprint 25 Day 1's `coarsening_strategy_t` /
- * `parse_coarsening_strategy` pattern for SPARSE_ND_COARSENING. */
-typedef enum {
-    COARSEST_BISECT_DEFAULT = 0, /* Sprint 22 routing: brute @ n≤20, GGGP otherwise */
-    COARSEST_BISECT_SPECTRAL = 1,
-    COARSEST_BISECT_GGGP = 2,
-    COARSEST_BISECT_BRUTE = 3,
-} coarsest_bisect_strategy_t;
+static _Thread_local int coarsest_bisection_override_active = 0;
+static _Thread_local sparse_graph_nd_coarsest_bisection_mode_t
+    coarsest_bisection_override_strategy = SPARSE_GRAPH_ND_COARSEST_BISECTION_DEFAULT_ROUTING;
 
-static coarsest_bisect_strategy_t parse_coarsest_bisect_strategy(void) {
+static sparse_graph_nd_coarsest_bisection_mode_t parse_coarsest_bisect_strategy(void) {
+    if (coarsest_bisection_override_active)
+        return coarsest_bisection_override_strategy;
     const char *env = getenv("SPARSE_ND_COARSEST_BISECTION");
     if (!env)
-        return COARSEST_BISECT_DEFAULT;
+        return SPARSE_GRAPH_ND_COARSEST_BISECTION_DEFAULT_ROUTING;
     if (strcmp(env, "spectral") == 0)
-        return COARSEST_BISECT_SPECTRAL;
+        return SPARSE_GRAPH_ND_COARSEST_BISECTION_SPECTRAL;
     if (strcmp(env, "gggp") == 0)
-        return COARSEST_BISECT_GGGP;
+        return SPARSE_GRAPH_ND_COARSEST_BISECTION_GGGP;
     if (strcmp(env, "brute") == 0)
-        return COARSEST_BISECT_BRUTE;
+        return SPARSE_GRAPH_ND_COARSEST_BISECTION_BRUTE;
     /* Silent fallback to default routing on unrecognized input,
      * matching Sprint 24 Day 5 / Sprint 25 Day 1 patterns. */
-    return COARSEST_BISECT_DEFAULT;
+    return SPARSE_GRAPH_ND_COARSEST_BISECTION_DEFAULT_ROUTING;
+}
+
+void sparse_graph_coarsest_bisection_override_begin(
+    sparse_graph_nd_coarsest_bisection_mode_t strategy) {
+    coarsest_bisection_override_strategy = strategy;
+    coarsest_bisection_override_active = 1;
+}
+
+void sparse_graph_coarsest_bisection_override_end(void) {
+    coarsest_bisection_override_active = 0;
+    coarsest_bisection_override_strategy = SPARSE_GRAPH_ND_COARSEST_BISECTION_DEFAULT_ROUTING;
 }
 
 sparse_err_t graph_bisect_coarsest(const sparse_graph_t *G, idx_t *part_out) {
@@ -492,18 +499,18 @@ sparse_err_t graph_bisect_coarsest(const sparse_graph_t *G, idx_t *part_out) {
      *   - brute: force brute @ n≤20; n>20 falls back to GGGP
      *     (brute on n>20 is intractable: 2^(n-1) patterns).
      * See docs/planning/EPIC_2/SPRINT_25/spectral_bisection_design.md. */
-    coarsest_bisect_strategy_t strategy = parse_coarsest_bisect_strategy();
+    sparse_graph_nd_coarsest_bisection_mode_t strategy = parse_coarsest_bisect_strategy();
 
     switch (strategy) {
-    case COARSEST_BISECT_SPECTRAL:
+    case SPARSE_GRAPH_ND_COARSEST_BISECTION_SPECTRAL:
         return graph_bisect_coarsest_spectral(G, part_out);
-    case COARSEST_BISECT_GGGP:
+    case SPARSE_GRAPH_ND_COARSEST_BISECTION_GGGP:
         return bisect_gggp(G, part_out);
-    case COARSEST_BISECT_BRUTE:
+    case SPARSE_GRAPH_ND_COARSEST_BISECTION_BRUTE:
         if (G->n <= 20)
             return bisect_brute_force(G, part_out);
         return bisect_gggp(G, part_out);
-    case COARSEST_BISECT_DEFAULT:
+    case SPARSE_GRAPH_ND_COARSEST_BISECTION_DEFAULT_ROUTING:
     default:
         break;
     }

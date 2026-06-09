@@ -97,6 +97,37 @@ typedef enum {
 } sparse_graph_nd_root_bisect_mode_t;
 
 /**
+ * @brief Resolved coarsest-level ND bisection policy.
+ */
+typedef enum {
+    SPARSE_GRAPH_ND_COARSEST_BISECTION_DEFAULT_ROUTING = 0,
+    SPARSE_GRAPH_ND_COARSEST_BISECTION_SPECTRAL = 1,
+    SPARSE_GRAPH_ND_COARSEST_BISECTION_GGGP = 2,
+    SPARSE_GRAPH_ND_COARSEST_BISECTION_BRUTE = 3,
+} sparse_graph_nd_coarsest_bisection_mode_t;
+
+/**
+ * @brief Resolved ND separator-lift strategy.
+ */
+typedef enum {
+    SPARSE_GRAPH_ND_SEP_LIFT_SMALLER_WEIGHT = 0,
+    SPARSE_GRAPH_ND_SEP_LIFT_BALANCED_BOUNDARY = 1,
+    SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_HYBRID = 2,
+    SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_BALANCE = 3,
+    SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_DEGREE = 4,
+    SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_FIXED_K = 5,
+} sparse_graph_nd_sep_lift_strategy_mode_t;
+
+/**
+ * @brief Resolved ND fixed-K separator-lift weight scheme.
+ */
+typedef enum {
+    SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_HYBRID = 0,
+    SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_BALANCE = 1,
+    SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_DEGREE = 2,
+} sparse_graph_nd_sep_lift_weight_mode_t;
+
+/**
  * @brief Resolved symmetric-analysis / ND policy snapshot.
  *
  * This is the internal typed-policy seam for `sparse_analyze(...)` and the
@@ -106,8 +137,12 @@ typedef enum {
  */
 typedef struct {
     sparse_graph_supernodal_postorder_mode_t supernodal_postorder;
+    coarsening_strategy_t nd_coarsening;
+    sparse_graph_nd_coarsest_bisection_mode_t nd_coarsest_bisection;
     sparse_graph_nd_root_bisect_mode_t nd_root_bisect;
     idx_t nd_root_bisect_max_n;
+    sparse_graph_nd_sep_lift_strategy_mode_t nd_sep_lift_strategy;
+    sparse_graph_nd_sep_lift_weight_mode_t nd_sep_lift_weight;
 } sparse_graph_nd_policy_t;
 
 /**
@@ -267,6 +302,20 @@ sparse_err_t graph_coarsen_hcc(const sparse_graph_t *fine, uint32_t seed,
 coarsening_strategy_t sparse_graph_coarsening_strategy_current(void);
 
 /**
+ * @brief Override the active ND coarsening strategy for the current
+ *        thread.
+ *
+ * Used by the typed analysis/reorder policy bridge. The begin/end calls must
+ * be paired.
+ */
+void sparse_graph_coarsening_override_begin(coarsening_strategy_t strategy);
+
+/**
+ * @brief Clear the current-thread ND coarsening strategy override.
+ */
+void sparse_graph_coarsening_override_end(void);
+
+/**
  * @brief Force temporary Heavy-Edge-Matching fallback for the current
  *        thread.
  *
@@ -280,6 +329,21 @@ void sparse_graph_force_hem_override_begin(void);
  *        current thread.
  */
 void sparse_graph_force_hem_override_end(void);
+
+/**
+ * @brief Override the active coarsest-level ND bisection strategy for the
+ *        current thread.
+ *
+ * Used by the typed analysis/reorder policy bridge. The begin/end calls must
+ * be paired.
+ */
+void sparse_graph_coarsest_bisection_override_begin(
+    sparse_graph_nd_coarsest_bisection_mode_t strategy);
+
+/**
+ * @brief Clear the current-thread coarsest-level ND bisection override.
+ */
+void sparse_graph_coarsest_bisection_override_end(void);
 
 /**
  * @brief Multilevel coarsening hierarchy.
@@ -637,6 +701,21 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
  * @return SPARSE_ERR_ALLOC on allocation failure.
  */
 sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, idx_t *part_io);
+
+/**
+ * @brief Override the active ND separator-lift strategy and weight scheme for
+ *        the current thread.
+ *
+ * Used by the typed analysis/reorder policy bridge. The begin/end calls must
+ * be paired.
+ */
+void sparse_graph_sep_lift_override_begin(sparse_graph_nd_sep_lift_strategy_mode_t strategy,
+                                          sparse_graph_nd_sep_lift_weight_mode_t weight);
+
+/**
+ * @brief Clear the current-thread ND separator-lift override.
+ */
+void sparse_graph_sep_lift_override_end(void);
 
 /**
  * @brief Spectral bisection on the input graph.

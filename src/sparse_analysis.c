@@ -77,6 +77,28 @@ static sparse_graph_nd_root_bisect_mode_t parse_nd_root_bisect_compat_override(v
     return SPARSE_GRAPH_ND_ROOT_BISECT_MULTILEVEL;
 }
 
+static coarsening_strategy_t parse_nd_coarsening_compat_override(void) {
+    const char *env = getenv("SPARSE_ND_COARSENING");
+    if (env && strcmp(env, "heavy_edge") == 0)
+        return COARSENING_HEAVY_EDGE;
+    if (env && strcmp(env, "hcc") == 0)
+        return COARSENING_HCC;
+    return COARSENING_HCC;
+}
+
+static sparse_graph_nd_coarsest_bisection_mode_t parse_nd_coarsest_bisection_compat_override(void) {
+    const char *env = getenv("SPARSE_ND_COARSEST_BISECTION");
+    if (!env)
+        return SPARSE_GRAPH_ND_COARSEST_BISECTION_DEFAULT_ROUTING;
+    if (strcmp(env, "spectral") == 0)
+        return SPARSE_GRAPH_ND_COARSEST_BISECTION_SPECTRAL;
+    if (strcmp(env, "gggp") == 0)
+        return SPARSE_GRAPH_ND_COARSEST_BISECTION_GGGP;
+    if (strcmp(env, "brute") == 0)
+        return SPARSE_GRAPH_ND_COARSEST_BISECTION_BRUTE;
+    return SPARSE_GRAPH_ND_COARSEST_BISECTION_DEFAULT_ROUTING;
+}
+
 static idx_t parse_nd_root_bisect_max_n_compat_override(void) {
     idx_t max_n = 50000;
     const char *env = getenv("SPARSE_ND_ROOT_BISECT_MAX_N");
@@ -87,6 +109,34 @@ static idx_t parse_nd_root_bisect_max_n_compat_override(void) {
             max_n = (idx_t)v;
     }
     return max_n;
+}
+
+static sparse_graph_nd_sep_lift_strategy_mode_t parse_nd_sep_lift_strategy_compat_override(void) {
+    const char *env = getenv("SPARSE_ND_SEP_LIFT_STRATEGY");
+    if (!env)
+        return SPARSE_GRAPH_ND_SEP_LIFT_SMALLER_WEIGHT;
+    if (strcmp(env, "balanced_boundary") == 0)
+        return SPARSE_GRAPH_ND_SEP_LIFT_BALANCED_BOUNDARY;
+    if (strcmp(env, "per_vertex") == 0)
+        return SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_HYBRID;
+    if (strcmp(env, "per_vertex_balance") == 0)
+        return SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_BALANCE;
+    if (strcmp(env, "per_vertex_degree") == 0)
+        return SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_DEGREE;
+    if (strcmp(env, "per_vertex_fixed_k") == 0)
+        return SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_FIXED_K;
+    return SPARSE_GRAPH_ND_SEP_LIFT_SMALLER_WEIGHT;
+}
+
+static sparse_graph_nd_sep_lift_weight_mode_t parse_nd_sep_lift_weight_compat_override(void) {
+    const char *env = getenv("SPARSE_ND_SEP_LIFT_WEIGHT");
+    if (!env)
+        return SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_HYBRID;
+    if (strcmp(env, "balance") == 0)
+        return SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_BALANCE;
+    if (strcmp(env, "degree") == 0)
+        return SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_DEGREE;
+    return SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_HYBRID;
 }
 
 static sparse_err_t resolve_analysis_nd_policy(const sparse_analysis_opts_t *opts,
@@ -100,8 +150,12 @@ static sparse_err_t resolve_analysis_nd_policy(const sparse_analysis_opts_t *opt
         reorder_opts = opts->reorder_opts;
 
     policy->supernodal_postorder = SPARSE_GRAPH_SUPERNODAL_POSTORDER_OFF;
+    policy->nd_coarsening = COARSENING_HCC;
+    policy->nd_coarsest_bisection = SPARSE_GRAPH_ND_COARSEST_BISECTION_DEFAULT_ROUTING;
     policy->nd_root_bisect = SPARSE_GRAPH_ND_ROOT_BISECT_MULTILEVEL;
     policy->nd_root_bisect_max_n = 50000;
+    policy->nd_sep_lift_strategy = SPARSE_GRAPH_ND_SEP_LIFT_SMALLER_WEIGHT;
+    policy->nd_sep_lift_weight = SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_HYBRID;
 
     switch (reorder_opts.supernodal_postorder) {
     case SPARSE_ANALYSIS_SUPERNODAL_POSTORDER_DEFAULT:
@@ -137,6 +191,83 @@ static sparse_err_t resolve_analysis_nd_policy(const sparse_analysis_opts_t *opt
         policy->nd_root_bisect_max_n = reorder_opts.nd_root_bisect_max_n;
     else
         policy->nd_root_bisect_max_n = parse_nd_root_bisect_max_n_compat_override();
+
+    switch (reorder_opts.nd_coarsening) {
+    case SPARSE_ANALYSIS_ND_COARSENING_DEFAULT:
+        policy->nd_coarsening = parse_nd_coarsening_compat_override();
+        break;
+    case SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE:
+        policy->nd_coarsening = COARSENING_HEAVY_EDGE;
+        break;
+    case SPARSE_ANALYSIS_ND_COARSENING_HCC:
+        policy->nd_coarsening = COARSENING_HCC;
+        break;
+    default:
+        return SPARSE_ERR_BADARG;
+    }
+
+    switch (reorder_opts.nd_coarsest_bisection) {
+    case SPARSE_ANALYSIS_ND_COARSEST_BISECTION_DEFAULT:
+        policy->nd_coarsest_bisection = parse_nd_coarsest_bisection_compat_override();
+        break;
+    case SPARSE_ANALYSIS_ND_COARSEST_BISECTION_DEFAULT_ROUTING:
+        policy->nd_coarsest_bisection = SPARSE_GRAPH_ND_COARSEST_BISECTION_DEFAULT_ROUTING;
+        break;
+    case SPARSE_ANALYSIS_ND_COARSEST_BISECTION_SPECTRAL:
+        policy->nd_coarsest_bisection = SPARSE_GRAPH_ND_COARSEST_BISECTION_SPECTRAL;
+        break;
+    case SPARSE_ANALYSIS_ND_COARSEST_BISECTION_GGGP:
+        policy->nd_coarsest_bisection = SPARSE_GRAPH_ND_COARSEST_BISECTION_GGGP;
+        break;
+    case SPARSE_ANALYSIS_ND_COARSEST_BISECTION_BRUTE:
+        policy->nd_coarsest_bisection = SPARSE_GRAPH_ND_COARSEST_BISECTION_BRUTE;
+        break;
+    default:
+        return SPARSE_ERR_BADARG;
+    }
+
+    switch (reorder_opts.nd_sep_lift_strategy) {
+    case SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_DEFAULT:
+        policy->nd_sep_lift_strategy = parse_nd_sep_lift_strategy_compat_override();
+        break;
+    case SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_SMALLER_WEIGHT:
+        policy->nd_sep_lift_strategy = SPARSE_GRAPH_ND_SEP_LIFT_SMALLER_WEIGHT;
+        break;
+    case SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_BALANCED_BOUNDARY:
+        policy->nd_sep_lift_strategy = SPARSE_GRAPH_ND_SEP_LIFT_BALANCED_BOUNDARY;
+        break;
+    case SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_PER_VERTEX:
+        policy->nd_sep_lift_strategy = SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_HYBRID;
+        break;
+    case SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_PER_VERTEX_BALANCE:
+        policy->nd_sep_lift_strategy = SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_BALANCE;
+        break;
+    case SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_PER_VERTEX_DEGREE:
+        policy->nd_sep_lift_strategy = SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_DEGREE;
+        break;
+    case SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_PER_VERTEX_FIXED_K:
+        policy->nd_sep_lift_strategy = SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_FIXED_K;
+        break;
+    default:
+        return SPARSE_ERR_BADARG;
+    }
+
+    switch (reorder_opts.nd_sep_lift_weight) {
+    case SPARSE_ANALYSIS_ND_SEP_LIFT_WEIGHT_DEFAULT:
+        policy->nd_sep_lift_weight = parse_nd_sep_lift_weight_compat_override();
+        break;
+    case SPARSE_ANALYSIS_ND_SEP_LIFT_WEIGHT_HYBRID:
+        policy->nd_sep_lift_weight = SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_HYBRID;
+        break;
+    case SPARSE_ANALYSIS_ND_SEP_LIFT_WEIGHT_BALANCE:
+        policy->nd_sep_lift_weight = SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_BALANCE;
+        break;
+    case SPARSE_ANALYSIS_ND_SEP_LIFT_WEIGHT_DEGREE:
+        policy->nd_sep_lift_weight = SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_DEGREE;
+        break;
+    default:
+        return SPARSE_ERR_BADARG;
+    }
 
     return SPARSE_OK;
 }

@@ -70,6 +70,8 @@ static int cmp_coarse_edge(const void *a, const void *b) {
  * begin/end helpers below before retrying a degenerate partition.
  * `_Thread_local` keeps concurrent partition calls race-free. */
 static _Thread_local int force_hem_override = 0;
+static _Thread_local int coarsening_override_active = 0;
+static _Thread_local coarsening_strategy_t coarsening_override_strategy = COARSENING_HCC;
 
 /* Parser for the active coarsening strategy. Exposed through
  * `sparse_graph_coarsening_strategy_current()` so the remaining
@@ -78,6 +80,8 @@ static _Thread_local int force_hem_override = 0;
 static coarsening_strategy_t parse_coarsening_strategy(void) {
     if (force_hem_override)
         return COARSENING_HEAVY_EDGE;
+    if (coarsening_override_active)
+        return coarsening_override_strategy;
     const char *env = getenv("SPARSE_ND_COARSENING");
     if (env && strcmp(env, "heavy_edge") == 0)
         return COARSENING_HEAVY_EDGE;
@@ -88,6 +92,16 @@ static coarsening_strategy_t parse_coarsening_strategy(void) {
 
 coarsening_strategy_t sparse_graph_coarsening_strategy_current(void) {
     return parse_coarsening_strategy();
+}
+
+void sparse_graph_coarsening_override_begin(coarsening_strategy_t strategy) {
+    coarsening_override_strategy = strategy;
+    coarsening_override_active = 1;
+}
+
+void sparse_graph_coarsening_override_end(void) {
+    coarsening_override_active = 0;
+    coarsening_override_strategy = COARSENING_HCC;
 }
 
 void sparse_graph_force_hem_override_begin(void) { force_hem_override = 1; }

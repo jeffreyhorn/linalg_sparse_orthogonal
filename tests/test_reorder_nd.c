@@ -392,6 +392,19 @@ static idx_t symbolic_cholesky_nnz(const SparseMatrix *A, sparse_reorder_t reord
     return nnz;
 }
 
+static idx_t symbolic_cholesky_nnz_with_analysis_opts(const SparseMatrix *A,
+                                                      const sparse_analysis_opts_t *opts) {
+    sparse_analysis_t analysis = {0};
+    sparse_err_t rc = sparse_analyze(A, opts, &analysis);
+    if (rc != SPARSE_OK) {
+        sparse_analysis_free(&analysis);
+        return -1;
+    }
+    idx_t nnz = analysis.sym_L.nnz;
+    sparse_analysis_free(&analysis);
+    return nnz;
+}
+
 /* Compute symbolic Cholesky nnz(L) on the ND-permuted matrix.  Builds
  * P A P^T via `sparse_permute` and analyses with REORDER_NONE so this
  * helper exercises the public `sparse_reorder_nd` entry point in
@@ -868,6 +881,217 @@ cleanup:
     sparse_analysis_free(&an_multi);
     sparse_analysis_free(&an_env_capped);
     sparse_analysis_free(&an_typed_spectral);
+    sparse_free(A);
+}
+
+static void test_analysis_typed_nd_coarsening_overrides_env(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    sparse_analysis_opts_t opts_typed_hem = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE,
+    };
+    sparse_analysis_opts_t opts_env = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+    };
+
+    idx_t nnz_hem = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_hem);
+    if (nnz_hem <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed heavy_edge) returned %d",
+                 (int)nnz_hem);
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_ND_COARSENING", "hcc") != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        goto cleanup;
+    }
+    idx_t nnz_env_hcc = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_env);
+    if (nnz_env_hcc <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(env hcc) returned %d", (int)nnz_env_hcc);
+        goto cleanup;
+    }
+    if (nnz_env_hcc == nnz_hem)
+        SKIP_TEST("bcsstk14 HCC env path did not differ from typed heavy_edge baseline");
+
+    idx_t nnz_typed_hem = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_hem);
+    if (nnz_typed_hem <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed heavy_edge under env) returned %d",
+                 (int)nnz_typed_hem);
+        goto cleanup;
+    }
+    ASSERT_EQ(nnz_typed_hem, nnz_hem);
+
+cleanup:
+    tf_unsetenv("SPARSE_ND_COARSENING");
+    sparse_free(A);
+}
+
+static void test_analysis_typed_nd_coarsest_bisection_overrides_env(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    sparse_analysis_opts_t opts_typed_default = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsest_bisection = SPARSE_ANALYSIS_ND_COARSEST_BISECTION_DEFAULT_ROUTING,
+    };
+    sparse_analysis_opts_t opts_env = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+    };
+
+    idx_t nnz_default = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_default);
+    if (nnz_default <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed default routing) returned %d",
+                 (int)nnz_default);
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_ND_COARSEST_BISECTION", "spectral") != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSEST_BISECTION failed)\n");
+        goto cleanup;
+    }
+    idx_t nnz_env_spectral = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_env);
+    if (nnz_env_spectral <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(env spectral) returned %d",
+                 (int)nnz_env_spectral);
+        goto cleanup;
+    }
+    if (nnz_env_spectral == nnz_default)
+        SKIP_TEST("bcsstk14 env spectral coarsest path did not differ from default routing");
+
+    idx_t nnz_typed_default = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_default);
+    if (nnz_typed_default <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed default under env) returned %d",
+                 (int)nnz_typed_default);
+        goto cleanup;
+    }
+    ASSERT_EQ(nnz_typed_default, nnz_default);
+
+cleanup:
+    tf_unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    sparse_free(A);
+}
+
+static void test_analysis_typed_nd_sep_lift_strategy_overrides_env(void) {
+    SparseMatrix *A = make_grid_2d(30, 30);
+    if (!A) {
+        TF_FAIL_("make_grid_2d(%d, %d) returned NULL (OOM)", 30, 30);
+        return;
+    }
+
+    sparse_analysis_opts_t opts_typed_per_vertex = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE,
+        .reorder_opts.nd_sep_lift_strategy = SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_PER_VERTEX,
+    };
+    sparse_analysis_opts_t opts_env = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE,
+    };
+
+    idx_t nnz_per_vertex = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_per_vertex);
+    if (nnz_per_vertex <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed per_vertex) returned %d",
+                 (int)nnz_per_vertex);
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_ND_SEP_LIFT_STRATEGY", "per_vertex_fixed_k") != 0) {
+        printf("    skipped (setenv SPARSE_ND_SEP_LIFT_STRATEGY failed)\n");
+        goto cleanup;
+    }
+    idx_t nnz_env_fixed_k = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_env);
+    if (nnz_env_fixed_k <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(env fixed_k) returned %d",
+                 (int)nnz_env_fixed_k);
+        goto cleanup;
+    }
+    if (nnz_env_fixed_k == nnz_per_vertex)
+        SKIP_TEST("30x30 grid fixed_k env path did not differ from typed per_vertex baseline");
+
+    idx_t nnz_typed_per_vertex =
+        symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_per_vertex);
+    if (nnz_typed_per_vertex <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed per_vertex under env) returned %d",
+                 (int)nnz_typed_per_vertex);
+        goto cleanup;
+    }
+    ASSERT_EQ(nnz_typed_per_vertex, nnz_per_vertex);
+
+cleanup:
+    tf_unsetenv("SPARSE_ND_SEP_LIFT_STRATEGY");
+    sparse_free(A);
+}
+
+static void test_analysis_typed_nd_sep_lift_weight_overrides_env(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk04 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    sparse_analysis_opts_t opts_typed_hybrid = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE,
+        .reorder_opts.nd_sep_lift_strategy =
+            SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_PER_VERTEX_FIXED_K,
+        .reorder_opts.nd_sep_lift_weight = SPARSE_ANALYSIS_ND_SEP_LIFT_WEIGHT_HYBRID,
+    };
+    sparse_analysis_opts_t opts_env = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE,
+        .reorder_opts.nd_sep_lift_strategy =
+            SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_PER_VERTEX_FIXED_K,
+    };
+
+    idx_t nnz_hybrid = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_hybrid);
+    if (nnz_hybrid <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed hybrid) returned %d",
+                 (int)nnz_hybrid);
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "balance") != 0) {
+        printf("    skipped (setenv SPARSE_ND_SEP_LIFT_WEIGHT failed)\n");
+        goto cleanup;
+    }
+    idx_t nnz_env_balance = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_env);
+    if (nnz_env_balance <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(env balance) returned %d",
+                 (int)nnz_env_balance);
+        goto cleanup;
+    }
+    if (nnz_env_balance == nnz_hybrid)
+        SKIP_TEST("bcsstk04 env balance weight did not differ from typed hybrid baseline");
+
+    idx_t nnz_typed_hybrid = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_hybrid);
+    if (nnz_typed_hybrid <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed hybrid under env) returned %d",
+                 (int)nnz_typed_hybrid);
+        goto cleanup;
+    }
+    ASSERT_EQ(nnz_typed_hybrid, nnz_hybrid);
+
+cleanup:
+    tf_unsetenv("SPARSE_ND_SEP_LIFT_WEIGHT");
     sparse_free(A);
 }
 
@@ -1781,6 +2005,10 @@ int main(void) {
     RUN_TEST(test_nd_root_spectral_pres_poisson_smoke);
     RUN_TEST(test_analysis_typed_nd_root_bisect_overrides_env);
     RUN_TEST(test_analysis_typed_nd_root_bisect_max_n_overrides_env);
+    RUN_TEST(test_analysis_typed_nd_coarsening_overrides_env);
+    RUN_TEST(test_analysis_typed_nd_coarsest_bisection_overrides_env);
+    RUN_TEST(test_analysis_typed_nd_sep_lift_strategy_overrides_env);
+    RUN_TEST(test_analysis_typed_nd_sep_lift_weight_overrides_env);
     /* Sprint 27 Day 11: thick-restart FM differs from baseline. */
     RUN_TEST(test_finest_fm_thick_restart_returns_to_anchor);
     RUN_TEST(test_hcc_kuu_safe_corpus_parity);

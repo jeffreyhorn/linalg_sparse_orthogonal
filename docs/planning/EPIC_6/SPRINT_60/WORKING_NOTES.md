@@ -1715,3 +1715,168 @@ Sprint 60 now has a unified configuration/performance surface map:
 
 That is enough to move to Day 9, where the audits can be turned into an
 explicit architecture contract instead of remaining as ranked observations.
+
+## Day 9 — Architecture Contract Design
+
+### Intent
+
+Turn the Sprint 60 Day 5-8 target and audit work into an explicit Epic 6
+architecture fence for later implementation sprints.
+
+The Day 9 goal was to define:
+
+- what later sprints may widen
+- what later sprints must preserve
+- how new controls should be placed
+- what kinds of apparently-helpful changes are actually off-limits
+
+### What I checked
+
+- Day 9 scope/criteria in `PLAN.md`
+- Day 5 target definition
+- Day 6 architecture seam audit
+- Day 7 configuration/control map
+- Day 8 configuration/performance map
+
+### Main contract decisions
+
+#### 1. One-shot and repeated-run workflow boundaries are now explicitly frozen
+
+The Day 9 contract keeps the public workflow fence intact:
+
+- one-shot solver families remain first-class entry points
+- repeated-run direct solves remain the explicit:
+  - `analysis`
+  - `factors`
+  lifecycle
+- iterative repeated-run handles remain bounded to:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- eigensolver repeated-run handles remain bounded to:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+
+Interpretation:
+
+- Epic 6 can improve usability and coherence around these paths
+- Epic 6 does not silently reopen the Epic 5 solver-boundary decision
+
+#### 2. Control placement now has an explicit four-class rule
+
+The contract fixes four allowed placement classes for future controls:
+
+1. public typed option
+2. internal typed policy
+3. compile-time build switch
+4. legacy compatibility override
+
+Interpretation:
+
+- later Epic 6 work should stop adding controls without an explicit ownership
+  class
+- this is the main anti-drift rule coming out of the Day 7 audit
+
+#### 3. Public typed options are reserved for supported per-call or per-object behavior
+
+The Day 9 contract narrows what counts as a public option:
+
+- caller-visible supported behavior
+- meaningful per-call or per-object scope
+- stable enough for product documentation
+- reasonable need for different values within one process
+
+This strongly supports later typed ownership for the highest-value ND/FM
+controls if they survive as supported behavior.
+
+#### 4. Internal policy and build-switch lanes are intentionally distinct
+
+The contract keeps separate:
+
+- internal typed policy
+  - AUTO heuristics
+  - implementation routing
+  - advisory strategy ownership
+- compile-time build switches
+  - `SPARSE_OPENMP`
+  - `SPARSE_MUTEX`
+  - `SANITIZE`
+
+Interpretation:
+
+- Epic 6 should not move build-shape controls into runtime API just for
+  symmetry
+- Epic 6 should not leave implementation policy leaking through public
+  mechanisms by accident
+
+#### 5. Benchmark proof versus governance is now a formal architecture rule
+
+The contract explicitly preserves the workflow-proof binaries as the evidence
+layer:
+
+- `bench_refactor`
+- `bench_refactor_csc`
+- `bench_iterative_reuse`
+- `bench_eigs_reuse`
+
+and defines governance as a separate layer above them:
+
+- canonical benchmark surfaces
+- stable output conventions
+- regression-sensitive tiers
+- claim-bearing versus smoke-only policy
+
+Interpretation:
+
+- later Epic 6 performance work should consolidate policy above the existing
+  binaries instead of replacing them casually
+
+#### 6. Validation/platform/packaging truthfulness is now bound to the reviewed baseline
+
+The Day 9 contract fixes a simple rule:
+
+- later platform and packaging ambition must remain subordinate to the reviewed
+  truth surface already established in Epic 5
+
+That means:
+
+- `quality-review-full`
+- reviewed CMake parity
+- current Linux/macOS/Windows disposition language
+
+remain authoritative until fresh measured evidence justifies change.
+
+#### 7. The non-goal fence is now directly attached to the architecture contract
+
+The Day 9 draft makes the non-goal fence operational rather than aspirational:
+
+- no distributed-memory / MPI scope
+- no vendor-backend parity as the headline goal
+- no broad new solver-family wave as the epic's center of gravity
+- no fake platform closure beyond reviewed evidence
+- no generic maintainability cleanup unless it materially supports product,
+  control, backend, benchmark, packaging, or assurance outcomes
+
+### Immediate implications for later Epic 6 work
+
+The contract now gives a clean near-term order:
+
+1. ND/FM control convergence is the first high-value configuration move
+2. backend AUTO policy cleanup is the second high-value move
+3. benchmark governance should build on existing proof binaries
+4. packaging/platform work should follow rather than lead control coherence
+
+### Day 9 close
+
+Sprint 60 now has a draft Epic 6 architecture contract:
+
+- workflow boundaries are explicit
+- control-placement rules are explicit
+- benchmark proof versus governance separation is explicit
+- validation/platform/packaging truthfulness rules are explicit
+- bounded widening and non-goal fences are explicit
+
+That is enough to move to Day 10, where the validation and platform contract
+can be frozen against this architecture fence instead of against raw audit
+notes.

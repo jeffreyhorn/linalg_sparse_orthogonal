@@ -9,24 +9,27 @@ compatibility fence.
 
 ## Readiness Findings
 
-### 1. Sprint 60 stayed docs-only and therefore did not widen runtime behavior
+### 1. Sprint 60 stayed in the planning/contract lane and therefore did not widen runtime behavior
 
-The branch diff from `master...HEAD` remains entirely inside the Sprint 60
-planning lane:
+The branch diff from `master...HEAD` remains almost entirely inside the Sprint
+60 planning lane:
 
 - `docs/planning/EPIC_6/SPRINT_60/PLAN.md`
 - `docs/planning/EPIC_6/SPRINT_60/WORKING_NOTES.md`
 - Sprint 60 artifacts
+- one bounded Windows workflow pin to preserve the reviewed MSVC/CMake lane
 
 No implementation, public-header, benchmark-driver, example-program, build
-graph, workflow, or script edits landed during Sprint 60 Days 1-12.
+graph, or script edits landed during Sprint 60 Days 1-12. The only workflow
+edit was the explicit `windows-2022` pin needed to preserve the reviewed
+Visual Studio 2022 generator path.
 
 Interpretation:
 
 - Sprint 60 has not silently widened solver behavior
 - Sprint 60 has not silently widened public API surface
 - Sprint 60 has not changed the reviewed validation/build contract by code
-  rather than by explicit later implementation work
+  rather than by that explicit Windows reviewed-lane preservation fix
 
 ### 2. The preserved product story still matches the live caller-facing surfaces
 

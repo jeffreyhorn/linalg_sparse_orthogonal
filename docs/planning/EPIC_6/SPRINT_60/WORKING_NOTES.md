@@ -2272,24 +2272,26 @@ checklist ambiguous.
 
 ### Day 12 Findings
 
-#### 1. Sprint 60 has remained docs-only and therefore has not widened runtime behavior by accident
+#### 1. Sprint 60 has stayed in the planning/contract lane and therefore has not widened runtime behavior by accident
 
-The branch diff from `master...HEAD` still sits entirely in the Sprint 60
-planning lane:
+The branch diff from `master...HEAD` still sits almost entirely in the Sprint
+60 planning lane:
 
 - sprint plan
 - sprint working notes
 - sprint artifacts
+- one bounded Windows workflow pin to preserve the reviewed MSVC/CMake lane
 
-There are still no implementation, public-header, build-logic, workflow, or
-script edits on the branch.
+There are still no implementation, public-header, build-logic, or script edits
+on the branch, and the only workflow edit is the explicit `windows-2022` pin
+needed to keep the reviewed Visual Studio 2022 generator path available.
 
 Interpretation:
 
 - Sprint 60 has not silently widened solver behavior
 - Sprint 60 has not silently widened public API
-- Sprint 60 has not silently changed the reviewed validation/build contract by
-  executable edits
+- Sprint 60 has not silently changed the reviewed validation/build contract
+  beyond that explicit Windows reviewed-lane preservation fix
 
 #### 2. The caller-facing workflow story still matches the frozen Sprint 60 contract
 

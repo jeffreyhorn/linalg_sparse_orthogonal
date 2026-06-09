@@ -430,3 +430,250 @@ Sprint 60 now has an explicit validation and truthfulness baseline:
 
 That is enough to move to the Day 3 productization inventory with the baseline
 and validation contract already frozen at the working-note level.
+
+## Day 3
+
+**Objective:** Reduce the broad Epic 6 review into a concrete, user-facing
+productization inventory grounded in the current repo, with named usability,
+configuration, onboarding, packaging, and benchmark-story gaps that later
+Sprint 60 days can rank and turn into a state-of-the-art target.
+
+### Commands Run
+
+1. Re-read the Day 3 sprint-plan contract:
+   - `sed -n '113,190p' docs/planning/EPIC_6/SPRINT_60/PLAN.md`
+2. Re-read the strongest top-level user-facing product surfaces:
+   - `sed -n '1,220p' README.md`
+   - `sed -n '1,220p' docs/tutorial.md`
+   - `sed -n '1,240p' examples/README.md`
+   - `sed -n '1,260p' benchmarks/README.md`
+3. Re-read the strongest public API/control surfaces:
+   - `sed -n '1,260p' include/sparse_analysis.h`
+   - `sed -n '1,280p' include/sparse_iterative.h`
+   - `sed -n '1,260p' include/sparse_eigs.h`
+4. Audit the current advanced-control and env-var-driven seams:
+   - `rg -n "SPARSE_(ND|FM|SUPERNODAL_POSTORDER)|getenv|environment" src include README.md docs/tutorial.md docs/maintainer_guide.md`
+5. Audit the current packaging/install/build-shape surfaces:
+   - `rg -n "add_library\\(|STATIC|SHARED|pkg-config|find_package|install\\(|EXPORT|VERSION|SOVERSION" CMakeLists.txt sparse.pc.in README.md INSTALL.md docs/maintainer_guide.md`
+   - `sed -n '1,220p' INSTALL.md`
+6. Re-read the strongest current shipped example and direct repeated-run proof
+   surfaces:
+   - `sed -n '1,220p' examples/example_analysis.c`
+   - `sed -n '1,240p' benchmarks/bench_refactor.c`
+
+### Day 3 Findings
+
+#### 1. The strongest user-facing product gap is still the split direct-solver workflow model
+
+The public story is materially better than it was pre-Epic-5:
+
+- `README.md`, `docs/tutorial.md`, and `include/sparse_analysis.h` all now
+  state the explicit repeated-run direct lifecycle clearly
+- `examples/example_analysis.c` is a strong shipped reference for the
+  analyze-once / factor-many path
+
+But the overall direct-solver surface still reads as two partially different
+product models:
+
+- one-shot direct APIs remain the default entry points
+- the repeated-run direct lifecycle is explicit and well-documented
+- the boundary between the two is conceptually clear, but still carries caller
+  discipline cost:
+  - one-shot paths remain mutation-oriented
+  - the safest usage pattern often still means copying or rebuilding matrices
+  - advanced callers still need to understand the matrix-state contract in
+    detail to avoid surprises
+
+Impact assessment:
+
+- **user-facing pain:** high
+- **architectural leverage:** high
+- **risk of misleading product claim:** medium-high
+- **implementation cost:** medium
+
+Interpretation:
+
+- this remains the strongest productization gap because it affects the simplest
+  “how should I solve my matrix?” story
+- it is real Epic 6 product work, not a stretch-goal luxury item
+
+#### 2. Advanced configuration remains too env-var-driven and under-exposed in the typed public surface
+
+The current tree still contains a broad env-var-driven control surface:
+
+- nested-dissection and graph/reordering knobs:
+  - `SPARSE_ND_*`
+  - `SPARSE_SUPERNODAL_POSTORDER`
+- Fiduccia-Mattheyses and refinement knobs:
+  - `SPARSE_FM_*`
+- additional advanced toggles:
+  - `SPARSE_SVD_LOWRANK_OUTER`
+  - profiling/debug env vars for graph/reorder/eigensolver-adjacent paths
+
+The problem is not only that these variables exist. It is that the strongest
+advanced tuning story still lives:
+
+- in internal `getenv(...)` logic
+- in long README prose
+- in implementation comments
+- and only weakly in typed public call surfaces
+
+Impact assessment:
+
+- **user-facing pain:** high for advanced users, medium for general users
+- **architectural leverage:** very high
+- **risk of misleading product claim:** high
+- **implementation cost:** medium-high
+
+Interpretation:
+
+- this is the strongest configuration-opacity problem in the repo
+- it is unquestionably real Epic 6 product work, not a future research goal
+
+#### 3. Onboarding and examples are coherent, but still denser and more policy-heavy than a product-like adoption path should be
+
+The current onboarding surfaces are much more honest than earlier epics:
+
+- `README.md` has a clear workflow-first front door
+- `docs/tutorial.md` teaches the public workflow boundaries cleanly
+- `examples/README.md` is intentionally scoped
+
+But the live surfaces still ask a new user to absorb a lot at once:
+
+- `README.md` is still very dense and mixes:
+  - product overview
+  - workflow selection
+  - algorithm detail
+  - benchmark notes
+  - quality/platform contract
+  - repository layout
+- `docs/tutorial.md` is practical, but still reads more like a broad reference
+  pass than a tightly tiered adoption path
+- examples still mostly lean on one-shot APIs, which is consistent, but leaves
+  the advanced repeated-run stories discoverable only after more reading
+
+Impact assessment:
+
+- **user-facing pain:** medium-high
+- **architectural leverage:** medium
+- **risk of misleading product claim:** medium
+- **implementation cost:** medium
+
+Interpretation:
+
+- the onboarding story is not broken
+- but it still reads more like a very capable engineering repo than a polished
+  product surface
+- this is real Epic 6 product work, though lower priority than direct
+  usability and configuration modernization
+
+#### 4. The benchmark story is rich, but still not yet a product-like performance-governance surface
+
+`benchmarks/README.md` is already much cleaner than it used to be:
+
+- workflow groups are explicit
+- repeated-run direct, iterative-handle, and eigensolver-handle proof benches
+  are all named clearly
+- benchmark-local scope is better bounded
+
+But the product gap remains:
+
+- benchmark binaries still read more as individually maintained tools than one
+  canonical performance program
+- there is still no compact top-level answer to:
+  - which results are regression-sensitive
+  - which are exploratory characterization only
+  - which numbers should anchor future product-performance claims
+- `bench_refactor.c` is a strong workflow-proof harness, but it still behaves
+  like an expert driver rather than a user-facing performance contract surface
+
+Impact assessment:
+
+- **user-facing pain:** medium
+- **architectural leverage:** medium-high
+- **risk of misleading product claim:** high
+- **implementation cost:** medium
+
+Interpretation:
+
+- this is real Epic 6 product work because “state of the art” claims need a
+  stronger performance-story contract
+- but it should follow direct usability/configuration decisions rather than
+  lead them
+
+#### 5. Packaging and install quality are credible, but still read as developer-install quality more than full product-distribution quality
+
+The current packaging surfaces are real and coherent:
+
+- `INSTALL.md` is substantial and current
+- `pkg-config` support exists
+- `find_package(Sparse)` support exists
+- `install(...)` and exported CMake targets are present
+
+The current build/release shape is still bounded, though:
+
+- `CMakeLists.txt` builds:
+  - `add_library(sparse_lu_ortho STATIC ...)`
+- the installed file list in `INSTALL.md` is static-library-first
+- there is no stronger shared-library / ABI / SOVERSION product story
+- Windows still uses the CMake path exclusively
+
+Impact assessment:
+
+- **user-facing pain:** medium
+- **architectural leverage:** medium-high
+- **risk of misleading product claim:** medium-high
+- **implementation cost:** medium-high
+
+Interpretation:
+
+- this is real Epic 6 product work
+- but it is not the first user-facing gap to attack
+- it belongs behind the baseline, target, and architecture-contract writing
+  rather than ahead of it
+
+#### 6. The Day 3 gap list already separates real Epic 6 product work from stretch-goal inflation
+
+The live repo supports a cleaner product/work split than the earlier review
+alone could provide:
+
+Real Epic 6 product work:
+
+- direct-solver usability convergence
+- typed configuration modernization
+- benchmark/performance-governance clarification
+- packaging/install maturity improvement
+- clearer onboarding and workflow tiering
+
+More likely later or bounded non-goal territory:
+
+- broad vendor-backend parity
+- distributed/HPC scope
+- universal shared-library/ABI guarantees on every platform immediately
+- massive new algorithm-family expansion
+
+Interpretation:
+
+- Day 3 already gives Day 4 and Day 5 a strong base for ranking and target
+  definition
+- the repo’s remaining productization gaps are now concrete enough to drive a
+  real “state of the art for this project” decision instead of vague ambition
+
+## Day 3 Close
+
+Sprint 60 now has a concrete first productization inventory:
+
+- strongest gap:
+  - split direct-solver usability model
+- strongest architecture/product-control gap:
+  - env-var-driven advanced configuration
+- strongest adoption-surface gap:
+  - dense onboarding and example discovery
+- strongest performance-story gap:
+  - fragmented benchmark/performance-governance surface
+- strongest release/productization gap:
+  - static-first packaging and limited ABI/distribution story
+
+That is enough to move to Day 4, where the non-usability gaps can be merged
+into a broader ranked Epic 6 map instead of continuing to talk about
+productization in generic terms.

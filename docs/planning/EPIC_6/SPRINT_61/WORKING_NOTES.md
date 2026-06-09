@@ -1725,3 +1725,247 @@ Sprint 61's post-Day-7 queue is now materially smaller and more concrete:
 - the FM family remains deferred
 - the exact Day 9 landing target is now a mixed public/internal
   coarsening-policy batch instead of another broad ND sweep
+
+## Day 9
+
+**Objective:** Convert the Day 8 residual coarsening-policy queue into one
+exact Day 10 implementation fence by defining the public/internal field split,
+the precedence and compatibility behavior, the touched-file set, and the
+explicit deferred-control list before more code lands.
+
+### Commands Run
+
+1. Re-read the Day 9-Day 10 plan slice and the Day 8 audit:
+   - `sed -n '300,380p' docs/planning/EPIC_6/SPRINT_61/PLAN.md`
+   - `tail -n 220 docs/planning/EPIC_6/SPRINT_61/WORKING_NOTES.md`
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_61/artifacts/day8-post-landing-analysis-postorder-audit.md`
+2. Reinspect the live public option surface and the residual coarsening seam:
+   - `sed -n '100,220p' include/sparse_analysis.h`
+   - `sed -n '120,220p' src/sparse_graph_coarsen.c`
+   - `sed -n '420,520p' src/sparse_graph_internal.h`
+   - `sed -n '280,360p' tests/test_reorder_nd.c`
+3. Reconfirm the branch cleanliness before a docs-only design landing:
+   - `git status --short`
+   - `git branch --show-current`
+
+### Day 9 Findings
+
+#### 1. The exact Day 10 control subset is now fixed: one public coarsening-threshold field plus one internal HCC fallback policy field
+
+The Day 8 audit left two residual analysis-time controls:
+
+- `SPARSE_ND_COARSEN_FLOOR_RATIO`
+- `SPARSE_ND_COARSENING_CV_FALLTHROUGH`
+
+The Day 9 design now separates them explicitly:
+
+- move publicly in Day 10:
+  - `SPARSE_ND_COARSEN_FLOOR_RATIO`
+- keep internal-typed in Day 10:
+  - `SPARSE_ND_COARSENING_CV_FALLTHROUGH`
+
+Why this split is now fixed:
+
+- `COARSEN_FLOOR_RATIO` has a real caller-facing story:
+  it controls the coarse-level stopping threshold used by the multilevel ND
+  hierarchy and already appears in public-facing algorithm notes
+- `COARSENING_CV_FALLTHROUGH` is still implementation-shaped:
+  it is an HCC-to-HEM safeguard threshold, not a stable user-level ordering
+  intent knob
+
+Interpretation:
+
+- Day 10 should not treat the two residual knobs symmetrically
+- the public/internal ownership split is now exact enough to implement without
+  reopening the Day 8 audit
+
+#### 2. The public Day 10 widening should stay on `sparse_analysis_reorder_opts_t` and use the existing zero-init-safe scalar pattern
+
+The strongest public field shape is:
+
+- `idx_t nd_coarsen_floor_ratio`
+
+Placement:
+
+- `include/sparse_analysis.h`
+- inside `sparse_analysis_reorder_opts_t`
+
+Semantics:
+
+- `0` means unspecified/default, preserving the current precedence model
+- positive values request an explicit typed override
+- negative values remain invalid
+
+Why this is the strongest public shape:
+
+- it matches the existing scalar pattern already used by
+  `nd_root_bisect_max_n`
+- it avoids inventing a new nested coarsening-options struct for a one-field
+  Phase 1 batch
+- it keeps the public API change minimal and coherent with the Day 6-7 design
+
+Recommended public field wording:
+
+- "Optional ND coarsening floor ratio divisor. Use 0 to leave unspecified."
+
+Interpretation:
+
+- Day 10 should widen the existing reorder-options struct, not create a second
+  Phase 1 configuration object
+- the public scalar should follow the established Sprint 61 zero-init-safe
+  convention exactly
+
+#### 3. The internal typed-policy addition should carry the exact semantics of today's coarsening implementation rather than pretending to be a broader public control
+
+The Day 10 internal addition should extend `sparse_graph_nd_policy_t` with
+two fields:
+
+- `idx_t nd_coarsen_floor_ratio`
+- `double nd_coarsening_cv_fallthrough`
+
+Internal defaults:
+
+- `nd_coarsen_floor_ratio = 100`
+- `nd_coarsening_cv_fallthrough = 0.30`
+
+Internal validation/meaning:
+
+- floor ratio:
+  - valid typed/internal domain: `1..100000`
+- HCC CV fallthrough:
+  - valid typed/internal domain: `0.0..100.0`
+  - `0.0` still means "disable the fallthrough threshold check", matching the
+    current implementation
+
+Why this is the strongest internal shape:
+
+- it matches the live implementation semantics exactly
+- it keeps the HCC fallthrough threshold out of the public API while still
+  removing it from direct env-only selection on the `sparse_analyze(...)`
+  path
+- it avoids creating a generic "all coarsening knobs" internal struct when the
+  only remaining justified fields are these two
+
+Interpretation:
+
+- Day 10 should modernize the residual coarsening seam without pretending
+  Sprint 61 is solving the broader FM/control-plane problem
+
+#### 4. The precedence and compatibility rules for Day 10 are now exact
+
+Public floor-ratio field:
+
+1. explicit typed `nd_coarsen_floor_ratio` when > 0
+2. legacy compatibility override from `SPARSE_ND_COARSEN_FLOOR_RATIO` when the
+   typed field is 0 / unspecified
+3. internal typed default = `100`
+
+Internal HCC CV fallthrough field:
+
+1. internal resolved-policy value
+2. compatibility override from `SPARSE_ND_COARSENING_CV_FALLTHROUGH` only when
+   the internal field remains unset by the caller path
+3. internal typed default = `0.30`
+
+Important Day 10 compatibility rule:
+
+- direct legacy callers going through public `sparse_reorder_nd(...)` still
+  keep the env-var behavior unless and until a future sprint widens that API
+
+Important Day 10 non-rule:
+
+- do not introduce a new public typed field for the CV threshold
+
+Interpretation:
+
+- the public precedence story remains consistent with Day 6-7
+- the internal precedence story is now explicit instead of implicit
+- Day 10 can land without ambiguity around legacy env support
+
+#### 5. The Day 10 touched-file fence is now precise and narrower than the Day 8 candidate set
+
+Required Day 10 touch set:
+
+- public:
+  - `include/sparse_analysis.h`
+- internal/public resolution:
+  - `src/sparse_analysis.c`
+  - `src/sparse_graph_internal.h`
+- implementation:
+  - `src/sparse_graph_coarsen.c`
+  - `src/sparse_reorder_nd.c`
+- proof:
+  - `tests/test_reorder_nd.c`
+
+Optional only if proof burden forces it:
+
+- `tests/test_graph.c`
+
+Explicit non-touch set for Day 10:
+
+- `src/sparse_graph_bisect.c`
+- `src/sparse_graph_separator.c`
+- `src/sparse_graph.c`
+- `src/sparse_graph_refine.c`
+- `src/sparse_reorder_amd_qg.c`
+- `README.md`
+- `docs/tutorial.md`
+- `docs/maintainer_guide.md`
+
+Interpretation:
+
+- the next code batch is now narrower than the Day 8 candidate envelope
+- there is no reason for Day 10 to reopen the bisect/separator slices or drift
+  into docs before the code lands
+
+#### 6. The regression obligation for Day 10 is now explicit and bounded
+
+Required proof additions in Day 10:
+
+- typed-over-env precedence proof for `nd_coarsen_floor_ratio`
+- stable-default proof when the typed field remains unspecified
+- bounded proof that the `sparse_analyze(...)` path now resolves the internal
+  HCC fallthrough threshold through the same resolved-policy seam, not by
+  directly competing parser paths
+
+Preferred proof home:
+
+- `tests/test_reorder_nd.c`
+
+Optional `tests/test_graph.c` widening only if needed for one of:
+
+- direct partition-shape differentiation that cannot be expressed cleanly
+  through `sparse_analyze(...)`
+- a tighter proof of the HCC fallthrough semantics
+
+Interpretation:
+
+- the proof burden is real but still bounded
+- Day 10 should default to strengthening `tests/test_reorder_nd.c` first
+
+### Day 9 Deferred-Control List
+
+Stay compatibility-only for now:
+
+- legacy `SPARSE_ND_SUPERNODAL_POSTORDER` alias
+
+Explicitly defer:
+
+- `SPARSE_ND_PROFILE`
+- `SPARSE_QG_PROFILE`
+- `SPARSE_HCC_DEBUG`
+- all `SPARSE_FM_*`
+- any widening of `sparse_reorder_nd(...)` itself
+- any repo-wide configuration helper layer
+
+### Day 9 Close
+
+Sprint 61 now has an exact Day 10 implementation fence instead of a generic
+“remaining analysis-time controls” queue:
+
+- the exact public field to add is fixed
+- the exact internal coarsening-policy fields are fixed
+- the precedence and compatibility rules are fixed
+- the required touched-file set is fixed
+- the proof obligations are fixed
+- the deferred-control list is now explicit rather than implicit

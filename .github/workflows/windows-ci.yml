@@ -24,9 +24,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # The CMake action ships preinstalled on GitHub's Windows images,
-      # so no setup step is needed. This lane is pinned to `windows-2022`
-      # specifically because it must provide the VS 2022 generator.
+      # CMake ships preinstalled on GitHub's Windows images, so no setup
+      # step is needed. This lane is pinned to `windows-2022` specifically
+      # because it must provide the VS 2022 generator.
 
       - name: Run enforced reviewed CMake configure path (MSVC, x64)
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64

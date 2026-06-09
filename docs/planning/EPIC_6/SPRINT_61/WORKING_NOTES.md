@@ -586,3 +586,231 @@ Sprint 61 now has a concrete ranked env-var inventory:
 - the next step is to define the exact typed-option and precedence contract for
   that ranked Phase 1 cut instead of designing against a generic env-var
   backlog
+
+## Day 4
+
+**Objective:** Turn the Day 3 ranked control inventory into an explicit Sprint
+61 Phase 1 options contract by defining the public typed-option model, the
+internal resolved-policy model, the exact precedence rules, the bounded legacy
+env-var translation story, and the first integration fence before any code
+changes begin.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 4 pass:
+   - `git status --short --branch`
+2. Re-read the Sprint 61 Day 4 plan slice and the current sprint notes:
+   - `sed -n '150,240p' docs/planning/EPIC_6/SPRINT_61/PLAN.md`
+   - `sed -n '1,700p' docs/planning/EPIC_6/SPRINT_61/WORKING_NOTES.md`
+3. Re-read the ranked Day 3 inventory:
+   - `sed -n '1,240p' docs/planning/EPIC_6/SPRINT_61/artifacts/day3-env-var-surface-inventory.md`
+4. Re-read the strongest current public/control seams:
+   - `sed -n '1,260p' include/sparse_analysis.h`
+   - `sed -n '1,220p' include/sparse_reorder.h`
+   - `sed -n '260,520p' src/sparse_analysis.c`
+5. Re-read the current internal seam definitions:
+   - `sed -n '1,260p' src/sparse_analysis_internal.h`
+   - `sed -n '1,320p' src/sparse_graph_internal.h`
+6. Reconfirm the current FM/runtime coupling and why it should stay internal
+   first:
+   - `sed -n '1,220p' src/sparse_graph_refine.c`
+   - `sed -n '1,220p' src/sparse_graph_coarsen.c`
+
+### Day 4 Findings
+
+#### 1. Phase 1 should widen `sparse_analysis_opts_t`, not invent a parallel public configuration object
+
+The strongest Phase 1 public controls all belong to the direct-analysis /
+reorder front door:
+
+- `SPARSE_SUPERNODAL_POSTORDER`
+- `SPARSE_ND_COARSENING`
+- `SPARSE_ND_COARSEST_BISECTION`
+- `SPARSE_ND_ROOT_BISECT`
+- `SPARSE_ND_ROOT_BISECT_MAX_N`
+- `SPARSE_ND_SEP_LIFT_STRATEGY`
+- `SPARSE_ND_SEP_LIFT_WEIGHT`
+
+They therefore fit most naturally as a bounded extension of
+`sparse_analysis_opts_t`, not as:
+
+- a new standalone public config object
+- graph-internal public headers
+- a generic repo-wide option bag
+
+Recommended public shape:
+
+- keep `sparse_analysis_opts_t` as the public entry point
+- add a nested advanced/reorder sub-struct rather than scattering many new
+  top-level fields
+- keep all new enum fields zero-init safe with `*_DEFAULT = 0`
+
+Interpretation:
+
+- callers already using the repeated-run direct lifecycle should not need a new
+  top-level API concept just to set reorder/analysis controls
+- Phase 1 should feel like a coherent analysis-surface widening, not a new
+  subsystem
+
+#### 2. The public typed-option model should cover caller-meaningful ND/postorder choices only
+
+The Day 4 recommended public surface is:
+
+- one reusable tri-state switch enum for bounded on/off/default controls:
+  - `SPARSE_OPTION_DEFAULT = 0`
+  - `SPARSE_OPTION_OFF = 1`
+  - `SPARSE_OPTION_ON = 2`
+- bounded analysis/reorder enums for:
+  - ND coarsening strategy
+  - ND coarsest bisection strategy
+  - ND separator-lift strategy
+  - ND separator-lift weight
+- one nested public sub-struct under `sparse_analysis_opts_t` holding:
+  - `supernodal_postorder`
+  - `nd_coarsening`
+  - `nd_coarsest_bisection`
+  - `nd_root_bisect`
+  - `nd_root_bisect_max_n`
+  - `nd_sep_lift_strategy`
+  - `nd_sep_lift_weight`
+
+Recommended representation rule:
+
+- enum fields:
+  - `DEFAULT = 0` means unspecified / use the normal resolution path
+- integer numeric threshold fields:
+  - `0` means unspecified / use the normal resolution path
+
+Interpretation:
+
+- zero-initialized `sparse_analysis_opts_t` stays valid
+- the existing caller ergonomics survive
+- the strongest public knobs become explicit without widening into FM internals
+
+#### 3. FM and lower-level ND tuning should move to an internal resolved-policy layer first, not straight into the public API
+
+The strongest internal typed-policy set remains:
+
+- `SPARSE_ND_COARSEN_FLOOR_RATIO`
+- `SPARSE_ND_COARSENING_CV_FALLTHROUGH`
+- `SPARSE_FM_INTERMEDIATE_PASSES`
+- `SPARSE_FM_FINEST_PASSES`
+- `SPARSE_FM_FINEST_STRATEGY`
+- `SPARSE_FM_ENSEMBLE_STRATEGIES`
+- `SPARSE_FM_ANNEALING_SCHEDULE`
+- `SPARSE_FM_THICK_RESTART_PERTURB`
+- `SPARSE_FM_GAIN_NOISE_SCHEDULE`
+
+The Day 4 design consequence is:
+
+- define one internal resolved-policy struct for the graph/reorder subsystem
+- populate it once near the analysis/reorder front door
+- pass typed values down instead of letting deep implementation files re-parse
+  raw env vars indefinitely
+
+Why this stays internal first:
+
+- several FM controls are coupled to `_Thread_local` runtime state
+- the graph partitioner already has save/restore runtime helpers
+- the semantics are more implementation-tuning than stable public contract
+
+Interpretation:
+
+- Phase 1 public design should stop at caller-meaningful analysis/reorder
+  choices
+- Phase 1 internal design should still modernize the FM/runtime path enough to
+  shrink raw `getenv(...)` ownership over time
+
+#### 4. The exact Phase 1 precedence contract is now explicit
+
+The Day 4 precedence rule is:
+
+1. explicit typed option value
+2. legacy compatibility override, but only when the typed field is left
+   unspecified/default
+3. internal typed policy default
+
+And the “default typed option values” rule is intentionally constrained:
+
+- a zero-initialized public options struct does not eagerly stamp concrete
+  defaults into every field
+- instead, `DEFAULT` / `0` means “unspecified; resolve through compatibility
+  override then internal default”
+- if a helper is added later to materialize recommended defaults, it must map
+  to the same resolved values as the unspecified path with no compatibility
+  override present
+
+Interpretation:
+
+- explicit typed values always win
+- env vars keep backward-compatible meaning only where the caller leaves the new
+  field unspecified
+- internal defaults remain the final source of truth after compatibility
+  translation
+
+#### 5. The bounded legacy compatibility story is now explicit
+
+The Day 4 compatibility rule is:
+
+- keep canonical env-var names working in Phase 1 when the new typed field is
+  unspecified
+- preserve the existing legacy alias only where it already exists today:
+  - `SPARSE_ND_SUPERNODAL_POSTORDER` as a compatibility alias for
+    `SPARSE_SUPERNODAL_POSTORDER`
+- do not create new legacy aliases just to soften the migration
+- keep debug/profile env vars as maintainer-only internal overrides
+- keep adjacent non-Phase-1 seams like `SPARSE_SVD_LOWRANK_OUTER` unchanged
+
+Recommended translation ownership:
+
+- compatibility parsing should be centralized behind one or a few translation
+  helpers instead of remaining spread across many deep implementation files
+
+Interpretation:
+
+- Sprint 61 does not promise immediate env-var removal
+- it promises explicit precedence and bounded compatibility
+
+#### 6. The first code landing fence is now exact enough for Day 5
+
+The Day 4 landing fence is:
+
+- Phase 1 public widening:
+  - `include/sparse_analysis.h`
+- Phase 1 public contract follow-through:
+  - likely small wording alignment in `README.md`, `docs/tutorial.md`, and
+    `docs/maintainer_guide.md` only after the code lands
+- Phase 1 front-door translation / resolved-policy seam:
+  - `src/sparse_analysis.c`
+- Phase 1 graph/reorder consumer seams:
+  - `src/sparse_graph.c`
+  - `src/sparse_graph_coarsen.c`
+  - `src/sparse_graph_refine.c`
+  - `src/sparse_graph_separator.c`
+  - `src/sparse_graph_bisect.c`
+  - `src/sparse_reorder_nd.c`
+- proof-surface follow-through later:
+  - `tests/test_graph.c`
+  - `tests/test_reorder_nd.c`
+  - `tests/test_integration.c`
+
+Explicit non-goals remain:
+
+- no public FM tuning explosion
+- no generic repo-wide configuration object
+- no migration of debug/profile-only controls into the public API
+- no packaging/platform widening
+- no backend/AUTO-policy rewrite inside the same sprint slice
+
+### Day 4 Close
+
+Sprint 61 now has an explicit typed-options and precedence contract:
+
+- the public Phase 1 surface is bounded to caller-meaningful
+  analysis/reorder/postorder controls
+- the lower-level FM and ND tuning controls are assigned to an internal
+  resolved-policy lane first
+- the precedence order is explicit
+- the compatibility story is explicit
+- the Day 5 landing design can now work from a real API/implementation contract
+  instead of a generic modernization intention

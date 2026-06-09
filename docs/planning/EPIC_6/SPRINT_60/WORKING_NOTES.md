@@ -1187,9 +1187,9 @@ Architecture consequence:
 
 - later configuration work needs an explicit control-placement rule:
   - public typed option
-  - internal typed option
+  - internal typed policy
   - compile-time build switch
-  - narrow legacy env-var override
+  - legacy compatibility override
 - this is the highest-risk seam for product-coherence drift
 
 #### 4. Benchmark surfaces and benchmark-governance surfaces are related, but they are not the same architectural layer

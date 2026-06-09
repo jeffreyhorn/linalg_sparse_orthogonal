@@ -54,9 +54,9 @@ currently split across:
 Later Epic 6 work needs an explicit placement rule for every control surface:
 
 - public typed option
-- internal typed option
-- compile-time switch
-- legacy env-var compatibility override
+- internal typed policy
+- compile-time build switch
+- legacy compatibility override
 
 ### 4. Benchmark proof vs governance seam
 

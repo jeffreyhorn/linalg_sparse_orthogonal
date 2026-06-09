@@ -2068,3 +2068,169 @@ Sprint 60 now has a frozen validation and platform contract:
 That is enough to move to Day 11, where the Sprint 60 target, audits,
 architecture contract, and validation contract can be re-read as one package
 for cross-surface reconciliation.
+
+## Day 11
+
+**Objective:** Re-read the Sprint 60 target definition, audits, architecture
+contract, and validation/platform contract as one package, collapse any
+remaining wording or interpretation drift, and record the exact residual open
+questions that should carry into Sprint 61+ rather than staying implicit.
+
+### Commands Run
+
+1. Re-read the Day 11 sprint-plan contract:
+   - `sed -n '423,455p' docs/planning/EPIC_6/SPRINT_60/PLAN.md`
+2. Re-read the strongest Sprint 60 contract/audit artifacts together:
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_60/artifacts/day5-state-of-the-art-target-definition.md`
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_60/artifacts/day6-architecture-seam-audit.md`
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_60/artifacts/day7-configuration-and-performance-surface-audit-part1.md`
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_60/artifacts/day8-configuration-and-performance-surface-audit-part2.md`
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_60/artifacts/day9-epic6-architecture-contract-draft.md`
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_60/artifacts/day10-validation-and-platform-contract-freeze.md`
+3. Cross-check the strongest repeated terms and possible drift markers:
+   - `rg -n "state of the art|non-goal|non-goals|Linux|macOS|Windows|quality-review-full|public typed option|legacy compatibility override|CG|GMRES|MINRES|LOBPCG|vendor|distributed|dead-code|coverage|packaging|governance|AUTO|env-var|typed" docs/planning/EPIC_6/SPRINT_60/artifacts/day5-state-of-the-art-target-definition.md docs/planning/EPIC_6/SPRINT_60/artifacts/day6-architecture-seam-audit.md docs/planning/EPIC_6/SPRINT_60/artifacts/day7-configuration-and-performance-surface-audit-part1.md docs/planning/EPIC_6/SPRINT_60/artifacts/day8-configuration-and-performance-surface-audit-part2.md docs/planning/EPIC_6/SPRINT_60/artifacts/day9-epic6-architecture-contract-draft.md docs/planning/EPIC_6/SPRINT_60/artifacts/day10-validation-and-platform-contract-freeze.md`
+4. Confirm branch cleanliness before the docs-only landing:
+   - `git status --short --branch`
+
+### Day 11 Findings
+
+#### 1. The strongest apparent Sprint 60 drift was really target-band language versus implementation-order language
+
+The main cross-surface ambiguity was not a real contradiction. It was the
+difference between:
+
+- Day 5 outcome bands
+- Day 7-8 ranked implementation order
+- Day 9 architecture rules
+- Day 10 proof/validation rules
+
+This now reconciles cleanly as:
+
+- Day 5 defines what Epic 6 should achieve
+- Day 7-8 define what likely needs to happen first
+- Day 9 defines what later implementation work must preserve
+- Day 10 defines how later implementation work must prove itself
+
+Interpretation:
+
+- packaging/platform maturity remains a real Epic 6 target band
+- but it does not outrank typed configuration convergence or backend/AUTO
+  rationalization in likely early implementation order
+
+#### 2. The preserved workflow/support fence stayed exact across every Sprint 60 contract surface
+
+No blocker-level workflow contradiction remained across Day 5-10.
+
+The package stayed exact on:
+
+- one-shot workflows remain first-class
+- repeated direct solves remain the explicit analysis/factors lifecycle
+- iterative repeated-run support remains bounded to:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- eigensolver repeated-run support remains bounded to:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+- `BiCGSTAB` and block iterative workflows remain one-shot compatibility
+  surfaces
+
+Interpretation:
+
+- Sprint 60 now clearly reads as productization and architecture convergence
+- it does not reopen Epic 5’s public repeated-run support boundary
+
+#### 3. The control-placement story is now coherent enough to hand directly to implementation sprints
+
+The Day 7-8 control audit and Day 9 contract now read as one stable rule:
+
+1. public typed option
+2. internal typed policy
+3. compile-time build switch
+4. legacy compatibility override
+
+Interpretation:
+
+- the package no longer describes env-var cleanup as a broad aesthetic goal
+- it now points to one concrete later migration target:
+  ND/FM ordering and refinement control
+
+#### 4. Benchmark proof and benchmark governance now have a clean layer boundary
+
+The strongest performance-story ambiguity from the Epic 6 review is now
+resolved:
+
+- existing benchmark binaries remain the proof/evidence layer
+- benchmark governance is a different layer above them
+
+Interpretation:
+
+- later Epic 6 performance work should govern canonical baselines,
+  machine-readable conventions, and regression-sensitive tiers above the
+  current workflow-proof binaries
+- it should not casually replace those binaries just because governance is
+  still fragmented
+
+#### 5. Packaging/platform maturity is now explicitly subordinate to the measured truthfulness contract
+
+Day 5 and Day 8 both rank packaging/platform maturity as real Epic 6 work.
+Day 10 constrains how that work can be claimed.
+
+The reconciled rule is:
+
+- packaging/platform maturity is a valid Epic 6 goal
+- it must remain subordinate to reviewed evidence
+- Linux remains the authoritative reviewed source of truth
+- macOS remains reviewed but narrower
+- Windows remains a reviewed CMake subset with explicit staged exclusions and
+  staged non-CMake surfaces
+
+Interpretation:
+
+- Sprint 60 no longer leaves room for platform-parity implication by wording
+  drift alone
+
+#### 6. Coverage is no longer an active ranked residual, while dead-code still is
+
+The Day 3 residual audit and Day 10 contract now read consistently:
+
+- coverage remains enforced and useful
+- coverage is not the main active reviewed-baseline residual
+- dead-code remains a real reviewed surface
+- serialized dead-code execution remains an intentional operational limit
+
+Interpretation:
+
+- later Epic 6 work should not waste early bandwidth pretending coverage policy
+  is still unsettled
+- dead-code topology and platform follow-through remain honest deferred work
+
+#### 7. Day 11 leaves a smaller and more concrete carry-forward queue rather than vague “future work”
+
+The remaining carry-forward questions now reduce to:
+
+- where direct usability convergence should start first
+- which ND/FM controls become public typed options versus internal policy
+- which AUTO/backend policy seam should be rationalized first
+- what the concrete benchmark-governance vehicle should be
+- how far packaging/platform maturity should go inside the reviewed truth fence
+
+Interpretation:
+
+- these are now Sprint 61+ planning questions
+- they are no longer Sprint 60 contract gaps
+
+### Day 11 Close
+
+Sprint 60’s target definition, non-goal fence, architecture rules, and
+validation/platform contract now read as one coherent package:
+
+- no blocker-level workflow contradiction remains
+- no target-order versus implementation-order ambiguity remains
+- no benchmark-proof versus governance ambiguity remains
+- no packaging/platform ambition now floats above the measured truthfulness
+  contract
+
+That gives Days 12-14 a stable writing and closeout base instead of another
+interpretation pass.

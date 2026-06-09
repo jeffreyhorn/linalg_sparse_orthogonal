@@ -2234,3 +2234,174 @@ validation/platform contract now read as one coherent package:
 
 That gives Days 12-14 a stable writing and closeout base instead of another
 interpretation pass.
+
+## Day 12
+
+**Objective:** Confirm the Sprint 60 baseline package is actually ready to hand
+off into implementation-oriented Epic 6 work without reopening baseline
+questions, silently widening public behavior, or leaving the Day 13 validation
+checklist ambiguous.
+
+### Commands Run
+
+1. Re-read the Day 12 sprint-plan contract:
+   - `sed -n '456,486p' docs/planning/EPIC_6/SPRINT_60/PLAN.md`
+2. Re-read the strongest Sprint 60 close-state notes:
+   - `tail -n 220 docs/planning/EPIC_6/SPRINT_60/WORKING_NOTES.md`
+3. Re-read the strongest live compatibility/truthfulness surfaces:
+   - `sed -n '1,140p' README.md`
+   - `sed -n '1,140p' docs/tutorial.md`
+   - `sed -n '1,200p' docs/maintainer_guide.md`
+   - `sed -n '1,220p' Makefile`
+   - `sed -n '1,220p' .github/workflows/ci.yml`
+   - `sed -n '1,140p' .github/workflows/macos-ci.yml`
+   - `sed -n '1,140p' .github/workflows/windows-ci.yml`
+   - `sed -n '1,180p' include/sparse_analysis.h`
+   - `sed -n '1,220p' include/sparse_iterative.h`
+   - `sed -n '1,220p' include/sparse_eigs.h`
+4. Re-read the strongest Sprint 60 contract artifacts together:
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_60/artifacts/day9-epic6-architecture-contract-draft.md`
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_60/artifacts/day10-validation-and-platform-contract-freeze.md`
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_60/artifacts/day11-cross-surface-reconciliation-audit.md`
+5. Confirm the branch-wide Sprint 60 edit surface:
+   - `git diff --stat master...HEAD`
+6. Cross-check the strongest live contract markers:
+   - `rg -n "quality-review-full|analysis/factors|iterative handles|eigensolver handle|CG|GMRES|MINRES|LOBPCG|BiCGSTAB|block iterative|Windows|macOS|dead-code|coverage" README.md docs/tutorial.md docs/maintainer_guide.md Makefile .github/workflows/ci.yml .github/workflows/macos-ci.yml .github/workflows/windows-ci.yml include/sparse_analysis.h include/sparse_iterative.h include/sparse_eigs.h benchmarks/README.md examples/README.md`
+7. Reconfirm the reviewed CMake parity-count anchor:
+   - `ctest -N --test-dir build/quality-review-cmake`
+
+### Day 12 Findings
+
+#### 1. Sprint 60 has remained docs-only and therefore has not widened runtime behavior by accident
+
+The branch diff from `master...HEAD` still sits entirely in the Sprint 60
+planning lane:
+
+- sprint plan
+- sprint working notes
+- sprint artifacts
+
+There are still no implementation, public-header, build-logic, workflow, or
+script edits on the branch.
+
+Interpretation:
+
+- Sprint 60 has not silently widened solver behavior
+- Sprint 60 has not silently widened public API
+- Sprint 60 has not silently changed the reviewed validation/build contract by
+  executable edits
+
+#### 2. The caller-facing workflow story still matches the frozen Sprint 60 contract
+
+The live caller-facing surfaces still align with the preserved workflow fence:
+
+- one-shot workflows remain first-class/default entry points
+- repeated direct solves remain the explicit analysis/factors lifecycle
+- iterative repeated-run support remains bounded to:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- eigensolver repeated-run support remains bounded to:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+- `BiCGSTAB` and block iterative workflows remain one-shot compatibility
+  surfaces
+
+Interpretation:
+
+- Sprint 60 did not silently rewrite the maintained product story
+- Sprint 61 can start from an already coherent caller-facing workflow fence
+
+#### 3. The validation/platform contract still matches the live repo truth surfaces
+
+The live repo still matches the Day 10 contract:
+
+- `make quality-review-full` remains the strongest local reviewed baseline
+- reviewed CMake parity is still anchored by:
+  - `ctest -N --test-dir build/quality-review-cmake`
+  - current count = `53`
+- Linux remains the authoritative reviewed source of truth
+- macOS remains reviewed but narrower
+- Windows remains the reviewed CMake subset with explicit staged exclusions and
+  staged non-CMake surfaces
+- dead-code remains reviewed, serialized, and non-zero-findings by contract
+- coverage remains enforced and useful, but supplemental rather than the main
+  active reviewed-baseline residual
+
+Interpretation:
+
+- Sprint 60 does not leave a hidden quality-contract rewrite behind
+- implementation work can begin from an already-frozen validation and platform
+  rule set
+
+#### 4. Sprint 60 now hands off a complete implementation-start package
+
+By Day 12, Sprint 60 has already fixed:
+
+- target definition
+- non-goal fence
+- ranked productization inventory
+- configuration/performance map
+- architecture contract
+- validation/platform contract
+- cross-surface reconciliation pass
+
+Interpretation:
+
+- Sprint 61 should not need another baseline sprint
+- it can begin directly from implementation-order choices inside the frozen
+  contract
+
+#### 5. The remaining uncertainty is implementation choice, not readiness ambiguity
+
+The surviving carry-forward queue remains:
+
+- where direct usability convergence should start first
+- which ND/FM controls should become public typed options versus internal typed
+  policy
+- which backend/AUTO seam should be rationalized first
+- what benchmark-governance vehicle should own canonical baselines
+- how far packaging/platform maturity should go within the reviewed truth fence
+
+Interpretation:
+
+- these are Sprint 61+ planning or implementation cut-line questions
+- they are not blockers on Sprint 60 close readiness
+
+#### 6. The Day 13 validation checklist is now fixed explicitly before the sweep
+
+The final Sprint 60 validation sweep should run:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- `ctest -N --test-dir build/quality-review-cmake`
+
+Targeted Sprint 60 follow-ons:
+
+- `./build/test_integration`
+- `./build/test_iterative`
+- `./build/test_eigs`
+- `./build/test_eigs_lobpcg`
+- `./build/test_chol_csc`
+- `./build/test_ldlt_csc`
+- `./build/example_analysis`
+- `./build/example_iterative`
+- `./build/example_ic_minres`
+- `./build/example_eigs`
+- `./build/example_svd_lowrank`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+
+### Day 12 Close
+
+Sprint 60 now has an explicit readiness close:
+
+- no hidden public-behavior widening landed
+- no hidden validation/platform rewrite landed
+- no unresolved baseline ambiguity remains
+- the Day 13 validation checklist is fixed before the final sweep

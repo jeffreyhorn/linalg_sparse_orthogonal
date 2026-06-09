@@ -677,3 +677,252 @@ Sprint 60 now has a concrete first productization inventory:
 That is enough to move to Day 4, where the non-usability gaps can be merged
 into a broader ranked Epic 6 map instead of continuing to talk about
 productization in generic terms.
+
+## Day 4
+
+**Objective:** Extend the Day 3 productization inventory into the strongest
+remaining non-usability gaps, then collapse the full Epic 6 queue into one
+ranked map with an explicit must-fix / important / maintainability / non-goal
+split that can drive the Day 5 target definition.
+
+### Commands Run
+
+1. Re-read the Day 4 sprint-plan contract:
+   - `sed -n '151,230p' docs/planning/EPIC_6/SPRINT_60/PLAN.md`
+2. Re-read the strongest inherited Epic 6 review/todo findings:
+   - `sed -n '1,240p' docs/planning/EPIC_6/reviews/review-codex-2026-06-08.md`
+   - `sed -n '1,240p' docs/planning/EPIC_6/reviews/todo-codex-2026-06-08.md`
+3. Re-read the Day 3 productization inventory:
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_60/artifacts/day3-productization-gap-inventory-part1.md`
+4. Re-rank the largest remaining implementation and proof hotspots:
+   - `wc -l src/*.c tests/*.c | sort -nr | head -n 30`
+5. Audit the current assurance/performance-governance evidence surface:
+   - `rg -n "oracle|differential|property|fuzz|random|stress|regression-sensitive|performance" tests benchmarks README.md docs include src -g '!build'`
+6. Re-read the Epic 5 residual queue for relevant carry-forward candidates:
+   - `sed -n '1,240p' docs/planning/EPIC_5/EPIC_5_RETROSPECTIVE.md`
+
+### Day 4 Findings
+
+#### 1. The strongest remaining non-usability gap is performance/backend architecture, not missing benchmark binaries
+
+The current repo already has real performance evidence and real high-value
+fast paths:
+
+- CSC direct kernels
+- repeated-run direct workflows
+- iterative/eigensolver reuse paths
+- benchmark families for one-shot, repeated-run, and eigensolver workloads
+
+But the strongest non-usability gap is still structural:
+
+- no bounded backend abstraction for dense kernels or future acceleration
+- no optional BLAS/LAPACK-style dense-kernel integration seam
+- limited shared threading-policy story
+- static-library-first build shape
+- benchmark evidence is still largely local/manual rather than tied to a
+  compact performance-governance layer
+
+Impact assessment:
+
+- **user-facing pain:** medium
+- **architectural leverage:** very high
+- **risk of misleading product claim:** high
+- **implementation cost:** high
+
+Interpretation:
+
+- this is the strongest remaining quality/performance gap after direct
+  usability and typed configuration
+- it is real Epic 6 work, but it should be bounded and staged rather than
+  treated as open-ended backend ambition
+
+#### 2. Packaging/platform maturity is real product work, but still secondary to direct usability, typed configuration, and backend architecture
+
+The current platform/packaging story is honest and significantly improved:
+
+- Linux remains the enforced reviewed source-of-truth path
+- macOS and Windows dispositions are explicit
+- install/export support is real
+- `INSTALL.md` is strong
+
+But there is still a product-maturity gap:
+
+- broader platform reviewed parity remains asymmetric
+- dead-code topology remains serialized/staged on non-Linux paths
+- Windows still closes on the reviewed CMake subset rather than a broader
+  fully symmetric reviewed-wrapper surface
+- packaging still reads static-library first with a bounded ABI/distribution
+  story
+
+Impact assessment:
+
+- **user-facing pain:** medium
+- **architectural leverage:** medium-high
+- **risk of misleading product claim:** medium-high
+- **implementation cost:** medium-high
+
+Interpretation:
+
+- this is important Epic 6 work
+- it is not the first axis to define the Epic 6 target around
+- the right Day 4 classification is “important quality/platform gap,” not
+  “primary product anchor”
+
+#### 3. Assurance depth is now the strongest quality-confidence gap after product-surface coherence
+
+The current assurance surface is already serious:
+
+- broad unit and integration coverage
+- fuzz coverage exists
+- stress and random-matrix checks exist in several solver families
+- dense-oracle and reference-path comparisons exist in some deep test surfaces
+
+But the assurance story still looks uneven when viewed as a product-quality
+claim:
+
+- property, oracle, and differential checks are present, but not yet clearly
+  tiered across the hardest workflows
+- fuzz remains excluded on Windows
+- the biggest lifecycle/CSC/repeated-run paths still rely heavily on
+  self-consistency and selected reference comparisons rather than a more
+  uniform second-layer assurance strategy
+- some of the strongest assurance logic still lives in the largest, hardest
+  test files
+
+Impact assessment:
+
+- **user-facing pain:** low-medium directly
+- **architectural leverage:** medium-high
+- **risk of misleading product claim:** high
+- **implementation cost:** medium-high
+
+Interpretation:
+
+- this is real Epic 6 work, not optional polish
+- but it belongs after the baseline, target, and architecture contracts are
+  written
+
+#### 4. The remaining maintainability hotspots are still concentrated enough to justify further bounded work, but they no longer define the whole epic
+
+The largest remaining hotspots are still explicit:
+
+- tests:
+  - `tests/test_chol_csc.c` = `4552`
+  - `tests/test_ldlt_csc.c` = `3680`
+  - `tests/test_qr.c` = `3197`
+  - `tests/test_etree.c` = `2962`
+  - `tests/test_graph.c` = `2900`
+  - `tests/test_iterative.c` = `2802`
+- implementations:
+  - `src/sparse_ldlt_csc.c` = `2127`
+  - `src/sparse_iterative.c` = `1985`
+  - `src/sparse_lu_csr.c` = `1666`
+  - `src/sparse_qr.c` = `1563`
+  - `src/sparse_eigs.c` = `1534`
+  - `src/sparse_chol_csc.c` = `1532`
+
+Epic 5 already removed the highest-value owned seams, so the remaining
+maintainability queue is narrower:
+
+- later iterative decomposition:
+  - `GMRES`
+  - shared block-wrapper scaffolding
+- later CSC residual cleanup if still justified
+- deferred giant-test seams:
+  - `tests/test_ldlt_csc.c`
+  - `tests/test_qr.c`
+  - intentionally retained dense `tests/test_integration.c`
+- graph/reorder residuals are now clearly live Epic 6 candidates
+
+Impact assessment:
+
+- **user-facing pain:** low directly
+- **architectural leverage:** medium
+- **risk of misleading product claim:** low-medium
+- **implementation cost:** medium
+
+Interpretation:
+
+- this is bounded maintainability debt, not the main Epic 6 product story
+- it still matters because the remaining hard files compete with future product
+  work in exactly the graph/reorder and direct/CSC areas Epic 6 will touch
+
+#### 5. The current benchmark/performance-governance story is an important quality/performance gap, but not a core architecture substitute
+
+The benchmark evidence is better than the repo’s old state:
+
+- reusable workflow-specific proof benches exist
+- repeated-run direct/iterative/eigensolver paths all have dedicated drivers
+- the README and benchmark docs already carry bounded “local evidence, not
+  universal claim” caveats
+
+But the current story still lacks:
+
+- a canonical regression-sensitive benchmark tier
+- machine-readable conventions tied to governance rather than only output
+  convenience
+- an explicit small set of stable product-performance baselines
+
+Interpretation:
+
+- this is an important quality/performance gap
+- it should complement the backend-architecture work, not replace it
+
+#### 6. The full Epic 6 queue now separates cleanly into four classes
+
+Based on Days 3-4 plus the inherited review/todo and Epic 5 residual queue,
+the current Epic 6 queue now separates into:
+
+**Must-fix product gaps**
+
+1. direct-solver usability convergence
+2. typed configuration replacing the highest-value env-var-driven controls
+3. bounded backend/performance architecture modernization
+
+**Important quality/performance/platform gaps**
+
+4. benchmark/performance-governance consolidation
+5. packaging/platform/release-shape convergence
+6. stronger second-layer assurance on the hardest workflows
+
+**Bounded maintainability debt**
+
+7. remaining large-source decomposition where the seam is real
+8. remaining giant-test refactor where the seam is real
+9. residual docs-density/reference layering cleanup
+
+**Explicit non-goal or stretch territory**
+
+10. distributed/HPC scope
+11. immediate vendor-backend parity
+12. broad universal shared-library/ABI guarantees without staged platform work
+13. major new algorithm-family expansion as the defining Epic 6 story
+
+Interpretation:
+
+- the Day 4 result is now concrete enough to drive Day 5
+- the queue is no longer “review findings” plus “some deferred work”; it is a
+  ranked Epic 6 execution map
+
+## Day 4 Close
+
+Sprint 60 now has a unified ranked Epic 6 gap map:
+
+- top tier:
+  - direct usability
+  - typed configuration
+  - bounded backend/performance architecture
+- second tier:
+  - benchmark/performance governance
+  - packaging/platform maturity
+  - stronger assurance depth
+- third tier:
+  - bounded maintainability and docs-density cleanup
+- explicit non-goals:
+  - distributed/HPC scope
+  - vendor-backend parity
+  - broad algorithm-surface expansion as the epic’s center of gravity
+
+That is enough to move to Day 5, where “state of the art for this project”
+can now be defined against a ranked live-repo gap map rather than against a
+generic aspiration list.

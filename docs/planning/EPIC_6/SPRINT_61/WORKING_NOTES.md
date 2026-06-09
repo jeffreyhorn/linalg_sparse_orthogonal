@@ -191,3 +191,165 @@ Sprint 61 now starts from one explicit Phase 1 configuration baseline:
   are explicit
 - the next step is to turn the live env-var inventory into an exact ranked
   Phase 1 candidate list before typed-option design begins
+
+## Day 2
+
+**Objective:** Freeze the validation and truthfulness baseline that Sprint 61
+configuration-surface code changes must preserve by reconfirming the reviewed
+baseline, the mandatory `*.c` / `*.h` gate, the stronger control-plane review
+path, and the exact rerun set for graph/reorder plus lifecycle-sensitive work.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 2 pass:
+   - `git status --short --branch`
+2. Re-read the current Sprint 61 notes plus the Day 2 plan slice:
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_61/WORKING_NOTES.md`
+   - `sed -n '85,140p' docs/planning/EPIC_6/SPRINT_61/PLAN.md`
+3. Re-read the strongest inherited Day 2 shape from Sprint 60:
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_60/artifacts/day2-validation-baseline-and-touched-surface-recheck.md`
+4. Reconfirm the inherited reviewed CMake baseline:
+   - `ctest -N --test-dir build/quality-review-cmake`
+5. Reconfirm the current maintained reviewed wrapper surface:
+   - `make -n quality-review-full`
+6. Re-read the current quality/truthfulness wording:
+   - `sed -n '1,220p' README.md`
+   - `sed -n '1,240p' docs/maintainer_guide.md`
+   - `rg -n "quality-review-full|quality-review-cmake|deadcode|Windows|macOS|Linux|coverage" Makefile README.md docs/maintainer_guide.md .github/workflows`
+7. Confirm the Sprint 61 targeted rerun-set presence in the live build tree:
+   - `for f in ./build/test_integration ./build/test_graph ./build/test_graph_fm_buckets ./build/test_reorder_nd ./build/test_reorder_amd_qg ./build/test_chol_csc ./build/test_ldlt_csc ./build/test_iterative ./build/test_eigs ./build/test_eigs_lobpcg ./build/example_analysis ./build/example_iterative ./build/example_ic_minres ./build/example_eigs ./build/example_svd_lowrank ./build/bench_refactor ./build/bench_refactor_csc ./build/bench_iterative_reuse ./build/bench_eigs_reuse; do [ -e "$f" ] && echo "$f"; done`
+8. Re-read the current Windows reviewed-lane definition for staged exclusions:
+   - `sed -n '1,120p' .github/workflows/windows-ci.yml`
+
+### Day 2 Findings
+
+#### 1. The strongest local reviewed baseline is still `make quality-review-full`
+
+Sprint 61 inherits the same authoritative local validation command as Sprint
+60:
+
+- `make quality-review-full`
+
+That remains the strongest local reviewed baseline because it preserves both:
+
+- the reviewed Makefile path
+- the reviewed CMake parity path
+
+Interpretation:
+
+- Sprint 61 should not invent a narrower local trust anchor for substantial
+  control-plane work
+- later implementation days can still use the bounded code-day gate when the
+  touched surface is limited, but the stronger local reviewed proof point is
+  unchanged
+
+#### 2. The reviewed CMake parity count remains the main exact truthfulness anchor
+
+The current reviewed CMake inventory remains:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+This still matters because it is the simplest exact proof that:
+
+- the reviewed CMake path still sees the maintained full local suite
+- Makefile/CMake parity has not drifted silently
+
+Interpretation:
+
+- Sprint 61 Day 2 should freeze `53` as the local parity-count anchor
+- later Sprint 61 code days should treat any parity-count movement as a
+  contract-level event, not incidental noise
+
+#### 3. The code-day gate versus stronger reviewed path split remains stable
+
+The maintained split is:
+
+- bounded `*.c` / `*.h` days:
+  - `make format`
+  - `make lint`
+  - `make test`
+- stronger default for substantial control-plane or architecture-sensitive work:
+  - `make quality-review-full`
+- docs-only days:
+  - no automatic code-quality gate required
+  - use targeted sanity checks instead
+
+Interpretation:
+
+- Sprint 61 should keep the same operating discipline as Sprint 60
+- the typed-configuration landing days should default upward to
+  `make quality-review-full` when they span public headers plus graph/reorder
+  implementation seams
+
+#### 4. The current quality/platform story is coherent across README, maintainer guide, Makefile, and workflows
+
+The main maintained surfaces still agree on the current contract:
+
+- Linux remains the enforced reviewed source-of-truth path
+- macOS remains reviewed but narrower, with dead-code still staged
+- Windows keeps the reviewed CMake subset enforced while reviewed Makefile
+  wrappers and dead-code stay staged
+- Windows staged exclusions remain explicit in the workflow:
+  - `test_threads`
+  - `test_sprint4_integration`
+  - `test_fuzz`
+- coverage remains a supplemental signal rather than an active reviewed-baseline
+  residual
+- dead-code remains operationally serialized and separate from `lint` and
+  `test`
+
+Interpretation:
+
+- Sprint 61 can proceed from a stable truthfulness contract rather than needing
+  a cleanup batch just to align validation wording
+- the Windows reviewed subset remains relevant context, but it does not change
+  the authoritative local Day 2 baseline
+
+#### 5. The targeted Sprint 61 rerun set is now fixed around configuration-sensitive proof surfaces rather than just inherited broad coverage
+
+The confirmed rerun set is:
+
+- direct lifecycle and integration proofs:
+  - `./build/test_integration`
+  - `./build/test_chol_csc`
+  - `./build/test_ldlt_csc`
+- graph/reorder-sensitive proofs:
+  - `./build/test_graph`
+  - `./build/test_graph_fm_buckets`
+  - `./build/test_reorder_nd`
+  - `./build/test_reorder_amd_qg`
+- adjacent repeated-run solver proofs that should not drift while public control
+  surfaces move:
+  - `./build/test_iterative`
+  - `./build/test_eigs`
+  - `./build/test_eigs_lobpcg`
+- representative examples:
+  - `./build/example_analysis`
+  - `./build/example_iterative`
+  - `./build/example_ic_minres`
+  - `./build/example_eigs`
+  - `./build/example_svd_lowrank`
+- representative benchmark surfaces:
+  - `./build/bench_refactor`
+  - `./build/bench_refactor_csc`
+  - `./build/bench_iterative_reuse`
+  - `./build/bench_eigs_reuse`
+
+Interpretation:
+
+- Sprint 61 now has a tighter rerun list aligned to its actual control-plane
+  risk
+- the graph/reorder-sensitive proofs are first-class for this sprint, not
+  optional follow-ons
+
+### Day 2 Close
+
+Sprint 61 now has a written validation baseline that matches the live repo:
+
+- strongest local reviewed baseline unchanged
+- reviewed CMake parity anchor unchanged at `53`
+- authoritative rerun set fixed from the current build tree around
+  lifecycle-sensitive and graph/reorder-sensitive proof surfaces
+- docs-only versus bounded code-day versus stronger reviewed-path split fixed
+  explicitly
+- no contradiction across the main quality/truthfulness surfaces

@@ -244,3 +244,189 @@ Sprint 60 now has an explicit starting point:
 That is enough to move to the Day 2 validation and truthfulness-anchor recheck
 without reopening Epic 5 decisions or pretending Epic 6 implementation work
 can start safely without a written baseline package.
+
+## Day 2
+
+**Objective:** Reconfirm the maintained reviewed baseline, the exact parity and
+truthfulness anchors, and the authoritative rerun set that Epic 6
+implementation work must preserve before the productization and architecture
+audits deepen.
+
+### Commands Run
+
+1. Re-read the Day 2 sprint-plan contract:
+   - `sed -n '76,150p' docs/planning/EPIC_6/SPRINT_60/PLAN.md`
+2. Reconfirm the reviewed CMake count anchor:
+   - `ctest -N --test-dir build/quality-review-cmake`
+3. Reconfirm the reviewed local wrapper surface:
+   - `make -n quality-review-full`
+4. Re-read the strongest user-facing quality/truthfulness wording:
+   - `sed -n '780,860p' README.md`
+5. Re-read the strongest maintainer-policy quality/truthfulness wording:
+   - `sed -n '100,220p' docs/maintainer_guide.md`
+6. Re-read the exact maintained wrapper semantics in the live `Makefile`:
+   - `sed -n '498,660p' Makefile`
+7. Confirm the targeted Sprint 60 rerun set is present in `build/`:
+   - `ls build | rg '^(test_integration|test_iterative|test_eigs|test_eigs_lobpcg|test_chol_csc|test_ldlt_csc|example_analysis|example_iterative|example_ic_minres|example_eigs|example_svd_lowrank|bench_refactor|bench_refactor_csc|bench_iterative_reuse|bench_eigs_reuse)$'`
+
+### Day 2 Findings
+
+#### 1. The strongest local reviewed baseline remains unchanged and should stay the default Epic 6 trust anchor
+
+The maintained local quality baseline is still:
+
+- strongest local reviewed baseline:
+  - `make quality-review-full`
+- reviewed CMake parity count anchor:
+  - `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+The wrapper surface is still explicit:
+
+- `quality-review-full`:
+  - strongest local reviewed baseline
+  - rerun guidance points to:
+    - `make quality-review`
+    - `make quality-review-cmake`
+- `quality-review`:
+  - reviewed local quality path
+  - includes:
+    - `format-check`
+    - `lint`
+    - `test`
+    - `deadcode-check`
+- `quality-review-cmake`:
+  - reviewed CMake parity path with full suite execution
+  - includes:
+    - configure
+    - clean rebuild
+    - `ctest -N`
+    - full `ctest`
+
+Interpretation:
+
+- Sprint 60 should keep treating `make quality-review-full` as the strongest
+  local reviewed baseline
+- reviewed CMake parity remains the main numerical truthfulness anchor
+- no new “Epic 6 baseline” command is needed or justified
+
+#### 2. The authoritative code-day gate remains smaller than the full reviewed baseline, but the stronger default for substantial work is still explicit
+
+The mandatory gate for later `*.c` / `*.h` days remains:
+
+- `make format`
+- `make lint`
+- `make test`
+
+The stronger default for substantial implementation work remains:
+
+- `make quality-review-full`
+
+Interpretation:
+
+- code-touching days can still use the lighter required gate when the change is
+  bounded and local
+- architecture-sensitive, performance-sensitive, or broad implementation days
+  should still bias toward the stronger reviewed baseline
+- Sprint 60 should write this split down explicitly so later Epic 6 sprints do
+  not drift into ad hoc validation choices
+
+#### 3. The README, maintainer guide, and Makefile still agree on the main quality/platform story
+
+The current maintained quality story remains coherent across the main surfaces:
+
+- `README.md` keeps the compact operator map:
+  - dead-code is separate from `lint` and `test`
+  - `quality-review-full` is the strongest local reviewed baseline
+  - Linux is the enforced full reviewed path
+  - macOS dead-code remains staged
+  - Windows keeps the reviewed CMake subset enforced while Makefile reviewed
+    wrappers and dead-code stay staged
+- `docs/maintainer_guide.md` owns the policy interpretation:
+  - reviewed baseline meaning
+  - dead-code meaning
+  - serialized dead-code topology
+  - current staged residual dispositions
+- `Makefile` owns the exact target semantics:
+  - serial `deadcode*` topology
+  - reviewed wrapper expansion
+  - Makefile/CMake test-count parity check
+
+Interpretation:
+
+- Sprint 60 Day 2 does not expose a new wording contradiction that needs an
+  immediate cleanup batch
+- the baseline contract is already trustworthy enough to support the deeper
+  productization and architecture audit work
+
+#### 4. The targeted Sprint 60 rerun set is present and already maps well onto the later Epic 6 work bands
+
+The confirmed targeted rerun set is:
+
+- direct lifecycle and CSC proof surfaces:
+  - `./build/test_integration`
+  - `./build/test_chol_csc`
+  - `./build/test_ldlt_csc`
+- iterative/eigensolver proof surfaces:
+  - `./build/test_iterative`
+  - `./build/test_eigs`
+  - `./build/test_eigs_lobpcg`
+- representative examples:
+  - `./build/example_analysis`
+  - `./build/example_iterative`
+  - `./build/example_ic_minres`
+  - `./build/example_eigs`
+  - `./build/example_svd_lowrank`
+- representative benchmark drivers:
+  - `./build/bench_refactor`
+  - `./build/bench_refactor_csc`
+  - `./build/bench_iterative_reuse`
+  - `./build/bench_eigs_reuse`
+
+Interpretation:
+
+- the rerun set already spans the main Epic 6 future themes:
+  - direct usability/lifecycle
+  - CSC/direct repeated-run behavior
+  - iterative/eigensolver product surfaces
+  - examples as caller-story proof
+  - benchmarks as performance-story proof
+- Sprint 60 does not need to invent a new validation inventory; it needs to
+  freeze this one cleanly
+
+#### 5. The docs-only versus code-day versus substantial-work validation boundary is now explicit enough to carry through the epic
+
+The current boundary is:
+
+- docs-only days:
+  - no automatic `make format` / `make lint` / `make test` requirement
+  - use targeted sanity checks against the touched surfaces instead
+- bounded `*.c` / `*.h` days:
+  - required gate:
+    - `make format`
+    - `make lint`
+    - `make test`
+- substantial implementation, architecture, performance, or cross-surface
+  code days:
+  - stronger default:
+    - `make quality-review-full`
+  - recheck reviewed CMake parity and representative proof surfaces as needed
+
+Interpretation:
+
+- this split matches the live repo’s actual operating discipline
+- Sprint 60 can now treat validation selection as a written contract instead of
+  tacit tribal knowledge
+
+## Day 2 Close
+
+Sprint 60 now has an explicit validation and truthfulness baseline:
+
+- strongest local reviewed baseline unchanged
+- reviewed CMake parity count fixed at `53`
+- code-day gate versus docs-only behavior versus stronger reviewed baseline
+  split made explicit
+- targeted rerun set fixed from the live `build/` tree
+- no immediate contradiction across README, maintainer guide, and Makefile
+
+That is enough to move to the Day 3 productization inventory with the baseline
+and validation contract already frozen at the working-note level.

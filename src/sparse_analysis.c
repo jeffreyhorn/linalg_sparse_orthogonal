@@ -3,11 +3,13 @@
 #include "sparse_analysis_internal.h"
 #include "sparse_chol_csc_internal.h"
 #include "sparse_cholesky.h"
+#include "sparse_graph_internal.h"
 #include "sparse_ldlt.h"
 #include "sparse_ldlt_csc_internal.h"
 #include "sparse_lu.h"
 #include "sparse_matrix_state_internal.h"
 #include "sparse_reorder.h"
+#include "sparse_reorder_nd_internal.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -53,12 +55,7 @@
  * of one `sparse_etree_compute` + `sparse_etree_postorder` + one
  * `sparse_permute` call — see `non_pipeline_interim_day7.txt` for the
  * measured per-fixture wall delta). */
-typedef enum {
-    SUPERNODAL_POSTORDER_OFF = 0, /* Default — Sprint 27 behaviour preserved */
-    SUPERNODAL_POSTORDER_ON = 1,  /* Day 7+ — Liu 1990 postorder composition */
-} supernodal_postorder_mode_t;
-
-static supernodal_postorder_mode_t parse_supernodal_postorder(void) {
+static sparse_graph_supernodal_postorder_mode_t parse_supernodal_postorder_compat_override(void) {
     /* Canonical name: `SPARSE_SUPERNODAL_POSTORDER` (PR #36 review).
      * Legacy name `SPARSE_ND_SUPERNODAL_POSTORDER` is still accepted
      * for back-compat with Sprint 28 captures + advisory recipes that
@@ -68,9 +65,80 @@ static supernodal_postorder_mode_t parse_supernodal_postorder(void) {
     if (!env || !*env)
         env = getenv("SPARSE_ND_SUPERNODAL_POSTORDER");
     if (env && strcmp(env, "on") == 0)
-        return SUPERNODAL_POSTORDER_ON;
+        return SPARSE_GRAPH_SUPERNODAL_POSTORDER_ON;
     /* Default + unrecognized + "off" all fall through. */
-    return SUPERNODAL_POSTORDER_OFF;
+    return SPARSE_GRAPH_SUPERNODAL_POSTORDER_OFF;
+}
+
+static sparse_graph_nd_root_bisect_mode_t parse_nd_root_bisect_compat_override(void) {
+    const char *env = getenv("SPARSE_ND_ROOT_BISECT");
+    if (env && strcmp(env, "spectral") == 0)
+        return SPARSE_GRAPH_ND_ROOT_BISECT_SPECTRAL;
+    return SPARSE_GRAPH_ND_ROOT_BISECT_MULTILEVEL;
+}
+
+static idx_t parse_nd_root_bisect_max_n_compat_override(void) {
+    idx_t max_n = 50000;
+    const char *env = getenv("SPARSE_ND_ROOT_BISECT_MAX_N");
+    if (env && *env) {
+        char *endp = NULL;
+        long v = strtol(env, &endp, 10);
+        if (env != endp && *endp == '\0' && v >= 1 && v <= 100000000)
+            max_n = (idx_t)v;
+    }
+    return max_n;
+}
+
+static sparse_err_t resolve_analysis_nd_policy(const sparse_analysis_opts_t *opts,
+                                               sparse_graph_nd_policy_t *policy) {
+    sparse_analysis_reorder_opts_t reorder_opts = {0};
+
+    if (!policy)
+        return SPARSE_ERR_NULL;
+
+    if (opts)
+        reorder_opts = opts->reorder_opts;
+
+    policy->supernodal_postorder = SPARSE_GRAPH_SUPERNODAL_POSTORDER_OFF;
+    policy->nd_root_bisect = SPARSE_GRAPH_ND_ROOT_BISECT_MULTILEVEL;
+    policy->nd_root_bisect_max_n = 50000;
+
+    switch (reorder_opts.supernodal_postorder) {
+    case SPARSE_ANALYSIS_SUPERNODAL_POSTORDER_DEFAULT:
+        policy->supernodal_postorder = parse_supernodal_postorder_compat_override();
+        break;
+    case SPARSE_ANALYSIS_SUPERNODAL_POSTORDER_OFF:
+        policy->supernodal_postorder = SPARSE_GRAPH_SUPERNODAL_POSTORDER_OFF;
+        break;
+    case SPARSE_ANALYSIS_SUPERNODAL_POSTORDER_ON:
+        policy->supernodal_postorder = SPARSE_GRAPH_SUPERNODAL_POSTORDER_ON;
+        break;
+    default:
+        return SPARSE_ERR_BADARG;
+    }
+
+    switch (reorder_opts.nd_root_bisect) {
+    case SPARSE_ANALYSIS_ND_ROOT_BISECT_DEFAULT:
+        policy->nd_root_bisect = parse_nd_root_bisect_compat_override();
+        break;
+    case SPARSE_ANALYSIS_ND_ROOT_BISECT_MULTILEVEL:
+        policy->nd_root_bisect = SPARSE_GRAPH_ND_ROOT_BISECT_MULTILEVEL;
+        break;
+    case SPARSE_ANALYSIS_ND_ROOT_BISECT_SPECTRAL:
+        policy->nd_root_bisect = SPARSE_GRAPH_ND_ROOT_BISECT_SPECTRAL;
+        break;
+    default:
+        return SPARSE_ERR_BADARG;
+    }
+
+    if (reorder_opts.nd_root_bisect_max_n < 0)
+        return SPARSE_ERR_BADARG;
+    if (reorder_opts.nd_root_bisect_max_n > 0)
+        policy->nd_root_bisect_max_n = reorder_opts.nd_root_bisect_max_n;
+    else
+        policy->nd_root_bisect_max_n = parse_nd_root_bisect_max_n_compat_override();
+
+    return SPARSE_OK;
 }
 
 /* Compose the etree postorder `po` into the caller's perm in place.
@@ -130,10 +198,14 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
     /* Default options: Cholesky, no reordering */
     sparse_factor_type_t ftype = SPARSE_FACTOR_CHOLESKY;
     sparse_reorder_t reorder = SPARSE_REORDER_NONE;
+    sparse_graph_nd_policy_t nd_policy = {0};
     if (opts) {
         ftype = opts->factor_type;
         reorder = opts->reorder;
     }
+    sparse_err_t err = resolve_analysis_nd_policy(opts, &nd_policy);
+    if (err != SPARSE_OK)
+        return err;
 
     idx_t n = A->rows;
     sparse_analysis_free(analysis); /* free any prior contents */
@@ -145,7 +217,6 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
     analysis->analysis_norm = sparse_norminf_const(A);
 
     /* Compute fill-reducing permutation if requested */
-    sparse_err_t err = SPARSE_OK;
     if (reorder != SPARSE_REORDER_NONE && n > 0) {
         if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&analysis->perm) != SPARSE_OK) {
             sparse_analysis_free(analysis);
@@ -162,7 +233,7 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
              * application, use sparse_qr_factor_opts with COLAMD instead. */
             err = sparse_reorder_colamd(A, analysis->perm);
         } else if (reorder == SPARSE_REORDER_ND) {
-            err = sparse_reorder_nd(A, analysis->perm);
+            err = sparse_reorder_nd_with_policy(A, analysis->perm, &nd_policy);
         } else {
             sparse_analysis_free(analysis);
             return SPARSE_ERR_BADARG;
@@ -229,7 +300,8 @@ sparse_err_t sparse_analyze(const SparseMatrix *A, const sparse_analysis_opts_t 
          * `analysis->perm` is NULL (no reordering requested — there's
          * nothing to compose) or the env var is unset (Sprint 27
          * behaviour preserved bit-identically). */
-        if (analysis->perm && parse_supernodal_postorder() == SUPERNODAL_POSTORDER_ON) {
+        if (analysis->perm &&
+            nd_policy.supernodal_postorder == SPARSE_GRAPH_SUPERNODAL_POSTORDER_ON) {
             err = apply_supernodal_postorder(analysis->postorder, n, analysis->perm);
             if (err) {
                 sparse_free(B_perm);

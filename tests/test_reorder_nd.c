@@ -724,6 +724,153 @@ cleanup:
     sparse_free(A);
 }
 
+static void test_analysis_typed_nd_root_bisect_overrides_env(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Pres_Poisson.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (Pres_Poisson fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+    idx_t n = sparse_rows(A);
+    int coarsening_set = 0;
+    int spectral_set = 0;
+
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+    };
+    sparse_analysis_opts_t opts_typed_multilevel = opts;
+    opts_typed_multilevel.reorder_opts.nd_root_bisect = SPARSE_ANALYSIS_ND_ROOT_BISECT_MULTILEVEL;
+
+    sparse_analysis_t an_multi = {0};
+    sparse_analysis_t an_env_spectral = {0};
+    sparse_analysis_t an_typed_multilevel = {0};
+
+    if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        sparse_free(A);
+        return;
+    }
+    coarsening_set = 1;
+
+    tf_unsetenv("SPARSE_ND_ROOT_BISECT");
+    rc = sparse_analyze(A, &opts, &an_multi);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze multilevel baseline: rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_ND_ROOT_BISECT", "spectral") != 0) {
+        TF_FAIL_("setenv SPARSE_ND_ROOT_BISECT=%s failed", "spectral");
+        goto cleanup;
+    }
+    spectral_set = 1;
+    rc = sparse_analyze(A, &opts, &an_env_spectral);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze env spectral: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    if (memcmp(an_multi.perm, an_env_spectral.perm, (size_t)n * sizeof(idx_t)) == 0) {
+        SKIP_TEST("Pres_Poisson spectral env path did not differ from multilevel baseline");
+    }
+
+    rc = sparse_analyze(A, &opts_typed_multilevel, &an_typed_multilevel);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze typed multilevel override: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    ASSERT_EQ(memcmp(an_multi.perm, an_typed_multilevel.perm, (size_t)n * sizeof(idx_t)), 0);
+
+cleanup:
+    if (spectral_set)
+        tf_unsetenv("SPARSE_ND_ROOT_BISECT");
+    if (coarsening_set)
+        tf_unsetenv("SPARSE_ND_COARSENING");
+    sparse_analysis_free(&an_multi);
+    sparse_analysis_free(&an_env_spectral);
+    sparse_analysis_free(&an_typed_multilevel);
+    sparse_free(A);
+}
+
+static void test_analysis_typed_nd_root_bisect_max_n_overrides_env(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Pres_Poisson.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (Pres_Poisson fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+    idx_t n = sparse_rows(A);
+    int coarsening_set = 0;
+    int spectral_set = 0;
+    int max_n_set = 0;
+
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+    };
+    sparse_analysis_opts_t opts_typed_spectral = opts;
+    opts_typed_spectral.reorder_opts.nd_root_bisect = SPARSE_ANALYSIS_ND_ROOT_BISECT_SPECTRAL;
+    opts_typed_spectral.reorder_opts.nd_root_bisect_max_n = 50000;
+
+    sparse_analysis_t an_multi = {0};
+    sparse_analysis_t an_env_capped = {0};
+    sparse_analysis_t an_typed_spectral = {0};
+
+    if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        sparse_free(A);
+        return;
+    }
+    coarsening_set = 1;
+
+    tf_unsetenv("SPARSE_ND_ROOT_BISECT");
+    tf_unsetenv("SPARSE_ND_ROOT_BISECT_MAX_N");
+    rc = sparse_analyze(A, &opts, &an_multi);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze multilevel baseline: rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_ND_ROOT_BISECT", "spectral") != 0) {
+        TF_FAIL_("setenv SPARSE_ND_ROOT_BISECT=%s failed", "spectral");
+        goto cleanup;
+    }
+    spectral_set = 1;
+    if (tf_setenv("SPARSE_ND_ROOT_BISECT_MAX_N", "1") != 0) {
+        TF_FAIL_("setenv SPARSE_ND_ROOT_BISECT_MAX_N=%s failed", "1");
+        goto cleanup;
+    }
+    max_n_set = 1;
+
+    rc = sparse_analyze(A, &opts, &an_env_capped);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze env capped spectral: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    ASSERT_EQ(memcmp(an_multi.perm, an_env_capped.perm, (size_t)n * sizeof(idx_t)), 0);
+
+    rc = sparse_analyze(A, &opts_typed_spectral, &an_typed_spectral);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze typed spectral max_n override: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    if (memcmp(an_multi.perm, an_typed_spectral.perm, (size_t)n * sizeof(idx_t)) == 0) {
+        SKIP_TEST("typed spectral max_n path did not differ from multilevel baseline");
+    }
+
+cleanup:
+    if (max_n_set)
+        tf_unsetenv("SPARSE_ND_ROOT_BISECT_MAX_N");
+    if (spectral_set)
+        tf_unsetenv("SPARSE_ND_ROOT_BISECT");
+    if (coarsening_set)
+        tf_unsetenv("SPARSE_ND_COARSENING");
+    sparse_analysis_free(&an_multi);
+    sparse_analysis_free(&an_env_capped);
+    sparse_analysis_free(&an_typed_spectral);
+    sparse_free(A);
+}
+
 /* Sprint 27 Day 6: SPARSE_FM_FINEST_STRATEGY=annealing produces a
  * different ND reorder output than baseline (smoke-level evidence
  * the annealing-acceptance overlay is firing).  Day 6's design pins
@@ -1186,6 +1333,75 @@ cleanup:
     sparse_free(A);
 }
 
+static void test_analysis_typed_supernodal_postorder_overrides_env(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+    idx_t n = sparse_rows(A);
+
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
+    sparse_analysis_opts_t opts_typed_off = opts;
+    opts_typed_off.reorder_opts.supernodal_postorder = SPARSE_ANALYSIS_SUPERNODAL_POSTORDER_OFF;
+
+    sparse_analysis_t analysis_off = {0};
+    sparse_analysis_t analysis_env_on = {0};
+    sparse_analysis_t analysis_typed_off = {0};
+    idx_t *expected_on = NULL;
+    int env_set = 0;
+
+    tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
+    rc = sparse_analyze(A, &opts, &analysis_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze baseline: rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    expected_on = malloc((size_t)n * sizeof(idx_t));
+    if (!expected_on) {
+        TF_FAIL_("malloc(expected_on) returned NULL (n=%d)", (int)n);
+        goto cleanup;
+    }
+    for (idx_t k = 0; k < n; k++)
+        expected_on[k] = analysis_off.perm[analysis_off.postorder[k]];
+    if (memcmp(expected_on, analysis_off.perm, (size_t)n * sizeof(idx_t)) == 0) {
+        SKIP_TEST("fixture baseline perm already matches the etree postorder composition");
+    }
+
+    if (tf_setenv("SPARSE_SUPERNODAL_POSTORDER", "on") != 0) {
+        TF_FAIL_("setenv SPARSE_SUPERNODAL_POSTORDER=%s failed", "on");
+        goto cleanup;
+    }
+    env_set = 1;
+    rc = sparse_analyze(A, &opts, &analysis_env_on);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze env on: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    ASSERT_EQ(memcmp(analysis_env_on.perm, expected_on, (size_t)n * sizeof(idx_t)), 0);
+
+    rc = sparse_analyze(A, &opts_typed_off, &analysis_typed_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze typed off override: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    ASSERT_EQ(memcmp(analysis_typed_off.perm, analysis_off.perm, (size_t)n * sizeof(idx_t)), 0);
+
+cleanup:
+    if (env_set)
+        tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
+    free(expected_on);
+    sparse_analysis_free(&analysis_off);
+    sparse_analysis_free(&analysis_env_on);
+    sparse_analysis_free(&analysis_typed_off);
+    sparse_free(A);
+}
+
 /* ─── Sprint 28 Day 8: supernodal-etree reordering corpus safety ─── */
 
 /* Day-8 corpus-safety: under `SPARSE_SUPERNODAL_POSTORDER=on`, the
@@ -1563,6 +1779,8 @@ int main(void) {
      * dispatch fires and produces a different cut.  Day 9's flip-or-
      * stay decision lands separately. */
     RUN_TEST(test_nd_root_spectral_pres_poisson_smoke);
+    RUN_TEST(test_analysis_typed_nd_root_bisect_overrides_env);
+    RUN_TEST(test_analysis_typed_nd_root_bisect_max_n_overrides_env);
     /* Sprint 27 Day 11: thick-restart FM differs from baseline. */
     RUN_TEST(test_finest_fm_thick_restart_returns_to_anchor);
     RUN_TEST(test_hcc_kuu_safe_corpus_parity);
@@ -1581,6 +1799,7 @@ int main(void) {
      * `non_pipeline_decision.md`); 0.85× Pres_Poisson target
      * formally RETIRED with 6-sprint empirical evidence. */
     RUN_TEST(test_supernodal_postorder_etree_contract);
+    RUN_TEST(test_analysis_typed_supernodal_postorder_overrides_env);
     /* Sprint 28 Day 8: corpus-safety + edge-case contracts. */
     RUN_TEST(test_supernodal_postorder_corpus_nnz_L_invariant);
     RUN_TEST(test_supernodal_postorder_no_reorder_skips);

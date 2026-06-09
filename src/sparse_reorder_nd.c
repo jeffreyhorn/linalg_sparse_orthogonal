@@ -234,20 +234,15 @@ fail:
  * Above the threshold, fall through to `multilevel` (Lanczos at
  * n > 100000 is > 30 s per Sprint 21 Day 5 scaling — not worth
  * the special path on production-scale fixtures). */
-typedef enum {
-    ND_ROOT_BISECT_MULTILEVEL = 0, /* Sprint 22 default — full pipeline */
-    ND_ROOT_BISECT_SPECTRAL = 1,   /* Sprint 27 Day 7-9 — Fiedler at root */
-} nd_root_bisect_strategy_t;
-
-static nd_root_bisect_strategy_t parse_nd_root_bisect_strategy(void) {
+static sparse_graph_nd_root_bisect_mode_t parse_nd_root_bisect_strategy_compat_override(void) {
     const char *env = getenv("SPARSE_ND_ROOT_BISECT");
     if (env && strcmp(env, "spectral") == 0)
-        return ND_ROOT_BISECT_SPECTRAL;
+        return SPARSE_GRAPH_ND_ROOT_BISECT_SPECTRAL;
     /* Default + unrecognized + "multilevel" all fall through. */
-    return ND_ROOT_BISECT_MULTILEVEL;
+    return SPARSE_GRAPH_ND_ROOT_BISECT_MULTILEVEL;
 }
 
-static idx_t parse_nd_root_bisect_max_n(void) {
+static idx_t parse_nd_root_bisect_max_n_compat_override(void) {
     idx_t max_n = 50000;
     const char *env = getenv("SPARSE_ND_ROOT_BISECT_MAX_N");
     if (env && *env) {
@@ -259,6 +254,15 @@ static idx_t parse_nd_root_bisect_max_n(void) {
     return max_n;
 }
 
+static sparse_graph_nd_policy_t sparse_reorder_nd_default_policy(void) {
+    sparse_graph_nd_policy_t policy = {
+        .supernodal_postorder = SPARSE_GRAPH_SUPERNODAL_POSTORDER_OFF,
+        .nd_root_bisect = parse_nd_root_bisect_strategy_compat_override(),
+        .nd_root_bisect_max_n = parse_nd_root_bisect_max_n_compat_override(),
+    };
+    return policy;
+}
+
 /* The driver is genuinely recursive — each level descends two
  * subgraphs.  Recursion depth is O(log n) on regular meshes (and
  * bounded by graph size in the worst case).  Suppress clang-tidy's
@@ -266,7 +270,7 @@ static idx_t parse_nd_root_bisect_max_n(void) {
  * algorithm without measurable benefit. */
 // NOLINTNEXTLINE(misc-no-recursion)
 static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_map, idx_t *perm,
-                               idx_t *next_pos, int depth) {
+                               idx_t *next_pos, int depth, const sparse_graph_nd_policy_t *policy) {
     idx_t n = G->n;
     if (n == 0)
         return SPARSE_OK;
@@ -367,9 +371,8 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
      * Day 6 behaviour preserved bit-identically. */
     int used_root_spectral = 0;
     if (depth == 0) {
-        nd_root_bisect_strategy_t root_strategy = parse_nd_root_bisect_strategy();
-        idx_t root_max_n = parse_nd_root_bisect_max_n();
-        if (root_strategy == ND_ROOT_BISECT_SPECTRAL && n <= root_max_n && n >= 3) {
+        if (policy->nd_root_bisect == SPARSE_GRAPH_ND_ROOT_BISECT_SPECTRAL &&
+            n <= policy->nd_root_bisect_max_n && n >= 3) {
             rc = graph_bisect_coarsest_spectral(G, part);
             if (rc == SPARSE_OK)
                 rc = graph_edge_separator_to_vertex_separator(G, part);
@@ -479,7 +482,7 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
         for (idx_t i = 0; i < n0; i++)
             // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.uninitialized.Assign)
             map0[i] = vertex_id_map[vs0[i]];
-        rc = nd_recurse(&G0, map0, perm, next_pos, depth + 1);
+        rc = nd_recurse(&G0, map0, perm, next_pos, depth + 1, policy);
         sparse_graph_free(&G0);
         free(map0);
         if (rc != SPARSE_OK) {
@@ -514,7 +517,7 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
         for (idx_t i = 0; i < n1; i++)
             // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.uninitialized.Assign)
             map1[i] = vertex_id_map[vs1[i]];
-        rc = nd_recurse(&G1, map1, perm, next_pos, depth + 1);
+        rc = nd_recurse(&G1, map1, perm, next_pos, depth + 1, policy);
         sparse_graph_free(&G1);
         free(map1);
         if (rc != SPARSE_OK) {
@@ -540,8 +543,11 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
     return SPARSE_OK;
 }
 
-sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm) {
+sparse_err_t sparse_reorder_nd_with_policy(const SparseMatrix *A, idx_t *perm,
+                                           const sparse_graph_nd_policy_t *policy) {
     if (!A || !perm)
+        return SPARSE_ERR_NULL;
+    if (!policy)
         return SPARSE_ERR_NULL;
     if (sparse_rows(A) != sparse_cols(A))
         return SPARSE_ERR_SHAPE;
@@ -597,7 +603,7 @@ sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm) {
         root_map[i] = i;
 
     idx_t next_pos = 0;
-    rc = nd_recurse(&G, root_map, perm, &next_pos, /*depth=*/0);
+    rc = nd_recurse(&G, root_map, perm, &next_pos, /*depth=*/0, policy);
 
     free(root_map);
     sparse_graph_free(&G);
@@ -639,4 +645,9 @@ sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm) {
         }
     }
     return rc;
+}
+
+sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm) {
+    sparse_graph_nd_policy_t policy = sparse_reorder_nd_default_policy();
+    return sparse_reorder_nd_with_policy(A, perm, &policy);
 }

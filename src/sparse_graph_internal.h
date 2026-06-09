@@ -80,6 +80,37 @@ typedef enum {
 } coarsening_strategy_t;
 
 /**
+ * @brief Resolved supernodal etree-postorder policy for the symmetric
+ *        analysis lane.
+ */
+typedef enum {
+    SPARSE_GRAPH_SUPERNODAL_POSTORDER_OFF = 0,
+    SPARSE_GRAPH_SUPERNODAL_POSTORDER_ON = 1,
+} sparse_graph_supernodal_postorder_mode_t;
+
+/**
+ * @brief Resolved root ND bisection policy.
+ */
+typedef enum {
+    SPARSE_GRAPH_ND_ROOT_BISECT_MULTILEVEL = 0,
+    SPARSE_GRAPH_ND_ROOT_BISECT_SPECTRAL = 1,
+} sparse_graph_nd_root_bisect_mode_t;
+
+/**
+ * @brief Resolved symmetric-analysis / ND policy snapshot.
+ *
+ * This is the internal typed-policy seam for `sparse_analyze(...)` and the
+ * policy-aware ND driver. Public typed options and legacy compatibility
+ * overrides are both normalized into this struct before the graph/reorder
+ * layer consumes them.
+ */
+typedef struct {
+    sparse_graph_supernodal_postorder_mode_t supernodal_postorder;
+    sparse_graph_nd_root_bisect_mode_t nd_root_bisect;
+    idx_t nd_root_bisect_max_n;
+} sparse_graph_nd_policy_t;
+
+/**
  * @brief Build the symmetric adjacency graph of A.
  *
  * Wraps the existing internal `sparse_build_adj` helper so the

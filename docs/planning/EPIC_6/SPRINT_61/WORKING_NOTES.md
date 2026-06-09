@@ -1038,3 +1038,215 @@ Sprint 61 now has an exact landing design for the first code batch:
 - the touched-file and non-touch file sets are explicit
 - the code-batch non-goal fence is explicit before any header or implementation
   edits begin
+
+## Day 6
+
+**Objective:** Land the first bounded Phase 1 configuration-modernization code
+batch by widening `sparse_analysis_opts_t` for the first selected
+analysis/reorder controls, translating those typed fields through a resolved
+internal ND policy seam, preserving legacy env-var compatibility when the typed
+fields remain unspecified, and proving typed-over-env precedence on the live ND
+and supernodal-postorder paths.
+
+### Commands Run
+
+1. Re-read the Day 5 landing design and the live Day 6 touch set:
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_61/artifacts/day5-header-and-internal-surface-landing-design.md`
+   - `sed -n '1,260p' include/sparse_analysis.h`
+   - `sed -n '1,260p' src/sparse_analysis.c`
+   - `sed -n '1,260p' src/sparse_reorder_nd.c`
+2. Edit the public typed-option surface, internal policy bridge, ND consumer,
+   and proof surface:
+   - `include/sparse_analysis.h`
+   - `src/sparse_graph_internal.h`
+   - `src/sparse_reorder_nd_internal.h`
+   - `src/sparse_analysis.c`
+   - `src/sparse_reorder_nd.c`
+   - `tests/test_reorder_nd.c`
+3. Review the landing diff:
+   - `git diff -- include/sparse_analysis.h src/sparse_graph_internal.h src/sparse_reorder_nd_internal.h src/sparse_analysis.c src/sparse_reorder_nd.c tests/test_reorder_nd.c`
+4. Run the required direct gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+5. Resolve a stale-object false negative caused by the header layout change:
+   - `make clean`
+   - `make format`
+   - `make lint`
+   - `make test`
+6. Run the stronger reviewed gate:
+   - `make quality-review-full`
+7. Capture the final touched-surface stats:
+   - `git diff --stat`
+   - `wc -l include/sparse_analysis.h src/sparse_graph_internal.h src/sparse_reorder_nd_internal.h src/sparse_analysis.c src/sparse_reorder_nd.c tests/test_reorder_nd.c`
+
+### Day 6 Findings
+
+#### 1. The first public typed-option widening now exists on `sparse_analysis_opts_t`, not in a new top-level configuration object
+
+The landed public addition is bounded to one nested analysis/reorder sub-struct
+inside `sparse_analysis_opts_t`:
+
+- `sparse_analysis_reorder_opts_t`
+  - `supernodal_postorder`
+  - `nd_root_bisect`
+  - `nd_root_bisect_max_n`
+
+And the first public zero-init-safe enums are now explicit:
+
+- `sparse_analysis_supernodal_postorder_t`
+  - `DEFAULT`
+  - `OFF`
+  - `ON`
+- `sparse_analysis_nd_root_bisect_t`
+  - `DEFAULT`
+  - `MULTILEVEL`
+  - `SPECTRAL`
+
+Interpretation:
+
+- Phase 1 now has a real caller-facing typed configuration seam
+- the widening stays on the existing direct-analysis configuration front door
+- the Day 6 batch did not widen `include/sparse_reorder.h`
+- the public surface stayed inside the Day 5 fence
+
+#### 2. The public-to-internal precedence bridge now exists and matches the Day 4 contract
+
+`src/sparse_analysis.c` now resolves the first selected controls through one
+explicit internal policy translation step before dispatching ND ordering:
+
+- explicit typed option when the field is not left at `DEFAULT` / `0`
+- otherwise legacy compatibility override from the canonical env var
+- otherwise internal typed policy default
+
+This is now applied for:
+
+- `SPARSE_SUPERNODAL_POSTORDER`
+- `SPARSE_ND_ROOT_BISECT`
+- `SPARSE_ND_ROOT_BISECT_MAX_N`
+
+The bridge is represented through the new internal policy types in
+`src/sparse_graph_internal.h` and the new internal ND entry declaration in
+`src/sparse_reorder_nd_internal.h`.
+
+Interpretation:
+
+- the precedence rule is no longer just documented; it now exists in code
+- public typed options and legacy env compatibility no longer compete
+  implicitly
+- later Sprint 61 controls can extend the same bridge instead of inventing a
+  parallel pattern
+
+#### 3. `sparse_analyze(...)` and public `sparse_reorder_nd(...)` now share one ND policy model without changing the public reorder API
+
+The Day 6 bridge kept the public reorder API intact:
+
+- `sparse_reorder_nd(...)` remains the public compatibility wrapper
+
+And added the internal policy-aware path needed by `sparse_analyze(...)`:
+
+- `sparse_reorder_nd_with_policy(...)`
+
+`src/sparse_reorder_nd.c` now threads a resolved
+`sparse_graph_nd_policy_t` through the root spectral-bisect decision and the
+ND recursion path, while the public wrapper still honors the legacy env-var
+behavior when callers do not go through `sparse_analysis_opts_t`.
+
+Interpretation:
+
+- Sprint 61 now has the exact internal bridge the Day 5 design called for
+- the Day 6 batch modernized control placement without widening the public
+  reorder API
+- compatibility behavior for legacy callers was preserved
+
+#### 4. The typed-over-env precedence proof is now real on the live ND and supernodal-postorder paths
+
+`tests/test_reorder_nd.c` now carries bounded Day 6 precedence tests for the
+first selected controls:
+
+- typed `nd_root_bisect = MULTILEVEL` overriding env
+  `SPARSE_ND_ROOT_BISECT=spectral`
+- typed `nd_root_bisect_max_n = 50000` overriding env
+  `SPARSE_ND_ROOT_BISECT_MAX_N=1`
+- typed `supernodal_postorder = OFF` overriding env
+  `SPARSE_SUPERNODAL_POSTORDER=on`
+
+The tests are intentionally proof-oriented rather than generic parser checks:
+
+- they exercise `sparse_analyze(...)`
+- they compare actual resulting permutations
+- they use `SKIP_TEST` only when the matrix/data path cannot distinguish the
+  compared strategies meaningfully
+
+Interpretation:
+
+- the Sprint 61 control-plane contract is now pinned on behavior, not just on
+  field parsing
+- the first Day 6 proof surface stayed bounded to `tests/test_reorder_nd.c`
+- `tests/test_graph.c` and `tests/test_integration.c` remain available for the
+  deeper Day 7 controls if needed
+
+#### 5. The first `make test` failure was a stale-build artifact, not a Day 6 logic regression
+
+The initial post-edit `make test` run produced false `SPARSE_ERR_BADARG`
+failures in integration paths that pass `sparse_analysis_opts_t` into already
+compiled direct-solver consumers.
+
+The root cause was:
+
+- `include/sparse_analysis.h` changed the `sparse_analysis_opts_t` layout
+- the normal Makefile path did not fully rebuild every dependent object from
+  that header change
+- some objects were still compiled against the old struct layout
+
+After `make clean`, the full gate passed cleanly.
+
+Interpretation:
+
+- the Day 6 code landing itself is sound
+- the failure was a build dependency/staleness issue, not a contract mismatch
+- the validated Day 6 baseline should be treated as the clean-rebuild result
+
+### Day 6 Validation
+
+After a clean rebuild:
+
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+- `make quality-review-full` passed
+
+Maintained reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 280.04 sec`
+
+Representative retained proof points:
+
+- `test_reorder_nd` passed with the new typed-over-env precedence tests
+- the full reviewed path rebuilt and passed the live graph/reorder surfaces:
+  - `test_graph`
+  - `test_graph_fm_buckets`
+  - `test_reorder_nd`
+  - `test_reorder_amd_qg`
+
+Touched-surface diff summary:
+
+- `6` files changed
+- `428` insertions
+- `36` deletions
+
+### Day 6 Close
+
+Sprint 61 now has the first landed Phase 1 configuration-modernization batch:
+
+- the first public typed analysis/reorder options are live
+- the public-to-internal precedence bridge is live
+- the internal ND policy-aware entry is live
+- legacy env-var compatibility remains intact when typed fields stay
+  unspecified
+- the first typed-over-env precedence proof is live
+- the Day 7 queue is now narrowed to the deeper selected ND/FM-adjacent
+  controls instead of the initial bridge slice

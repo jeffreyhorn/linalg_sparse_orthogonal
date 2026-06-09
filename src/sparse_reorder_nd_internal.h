@@ -31,6 +31,8 @@
  * itself.
  */
 
+#include "sparse_graph_internal.h"
+#include "sparse_matrix.h"
 #include "sparse_types.h"
 
 /**
@@ -66,5 +68,14 @@
  *          part of the public API.
  */
 extern idx_t sparse_reorder_nd_base_threshold;
+
+/**
+ * @brief Policy-aware ND entry point used by `sparse_analyze(...)`.
+ *
+ * Preserves the public `sparse_reorder_nd(...)` compatibility surface while
+ * allowing the explicit analysis lifecycle to pass resolved typed policy.
+ */
+sparse_err_t sparse_reorder_nd_with_policy(const SparseMatrix *A, idx_t *perm,
+                                           const sparse_graph_nd_policy_t *policy);
 
 #endif /* SPARSE_REORDER_ND_INTERNAL_H */

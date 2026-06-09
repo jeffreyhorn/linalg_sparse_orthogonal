@@ -1520,3 +1520,208 @@ landing:
 - the deeper selected typed-over-env precedence proof is live
 - the remaining Epic 6 configuration queue is now narrower than the original
   “too env-var driven” backlog
+
+## Day 8
+
+**Objective:** Re-audit the remaining analysis-time and postorder-adjacent
+env-var controls after the Day 6-7 landing, separate what still justifies
+Sprint 61 movement from what should remain compatibility-only or explicitly
+defer, and fix the exact bounded Day 9 landing target before any further code
+touches.
+
+### Commands Run
+
+1. Re-read the landed Day 6-7 contract and the Sprint 61 Day 8 plan scope:
+   - `sed -n '260,420p' docs/planning/EPIC_6/SPRINT_61/PLAN.md`
+   - `tail -n 180 docs/planning/EPIC_6/SPRINT_61/WORKING_NOTES.md`
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_61/artifacts/day6-typed-analysis-reorder-option-batch1.md`
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_61/artifacts/day7-typed-analysis-reorder-option-batch2.md`
+2. Re-inventory the still-live analysis/postorder-adjacent env-var seams:
+   - `rg -n "getenv\\(|SPARSE_ND_|SPARSE_SUPERNODAL_POSTORDER|SPARSE_ND_SUPERNODAL_POSTORDER|SPARSE_FM_|PROFILE|DEBUG" src/sparse_analysis.c src/sparse_graph*.c src/sparse_reorder_nd.c src/sparse_reorder_amd_qg.c include/sparse_analysis.h README.md docs/maintainer_guide.md`
+3. Inspect the remaining strongest implementation seams directly:
+   - `sed -n '1,260p' src/sparse_analysis.c`
+   - `sed -n '1,260p' src/sparse_graph_internal.h`
+   - `sed -n '60,220p' src/sparse_graph_coarsen.c`
+   - `sed -n '460,560p' src/sparse_graph_coarsen.c`
+   - `sed -n '430,520p' src/sparse_graph_bisect.c`
+   - `sed -n '1,120p' src/sparse_graph_separator.c`
+   - `sed -n '500,760p' src/sparse_reorder_nd.c`
+   - `sed -n '1,120p' src/sparse_reorder_amd_qg.c`
+4. Reconfirm the current proof/docs distribution for the residual controls:
+   - `rg -n "SPARSE_ND_COARSEN_FLOOR_RATIO|SPARSE_ND_COARSENING_CV_FALLTHROUGH|SPARSE_ND_SUPERNODAL_POSTORDER|SPARSE_ND_PROFILE|SPARSE_QG_PROFILE|SPARSE_HCC_DEBUG" tests README.md docs include src`
+5. Capture the current Sprint 61 branch shape and artifact set:
+   - `git diff --stat master...HEAD`
+   - `ls docs/planning/EPIC_6/SPRINT_61/artifacts`
+
+### Day 8 Findings
+
+#### 1. The strongest remaining analysis-time controls are now concentrated in one coarsening-policy seam, not spread across the whole ND path
+
+After the Day 6-7 landing, the public typed analysis/reorder surface already
+owns:
+
+- `SPARSE_SUPERNODAL_POSTORDER`
+- `SPARSE_ND_ROOT_BISECT`
+- `SPARSE_ND_ROOT_BISECT_MAX_N`
+- `SPARSE_ND_COARSENING`
+- `SPARSE_ND_COARSEST_BISECTION`
+- `SPARSE_ND_SEP_LIFT_STRATEGY`
+- `SPARSE_ND_SEP_LIFT_WEIGHT`
+
+What remains strongest on the analysis-time path is now narrow:
+
+- `SPARSE_ND_COARSEN_FLOOR_RATIO`
+- `SPARSE_ND_COARSENING_CV_FALLTHROUGH`
+
+Both still sit in the coarsening/hierarchy seam:
+
+- hierarchy stopping threshold in `sparse_graph_hierarchy_build(...)`
+- HCC-to-HEM fallthrough threshold inside `graph_coarsen_with_strategy(...)`
+
+Interpretation:
+
+- the post-Day-7 queue is no longer a generic "more ND env vars" backlog
+- the next justified Sprint 61 move is a bounded coarsening-policy slice
+- the bisect, separator-lift, and supernodal-postorder paths are no longer the
+  strongest residual Sprint 61 targets
+
+#### 2. The legacy supernodal-postorder alias is still real, but it is now a compatibility-only seam rather than another integration target
+
+`src/sparse_analysis.c` still accepts:
+
+- canonical:
+  - `SPARSE_SUPERNODAL_POSTORDER`
+- legacy compatibility alias:
+  - `SPARSE_ND_SUPERNODAL_POSTORDER`
+
+The alias still matters for back-compat with older Sprint 28 captures and
+advisory recipes, but it no longer justifies new public typed work:
+
+- the canonical control is already on `sparse_analysis_opts_t`
+- the alias is already explicitly subordinate to the canonical name
+- removing or widening the alias would create churn without productization
+  value
+
+Interpretation:
+
+- postorder itself is no longer an active Sprint 61 integration problem
+- the alias should stay compatibility-only for now
+- Day 9 should not widen into another postorder-specific batch
+
+#### 3. The remaining debug/profile seams are real, but they are not Sprint 61 Phase 1 control-surface candidates
+
+Still-live instrumentation/debug env vars include:
+
+- `SPARSE_ND_PROFILE`
+- `SPARSE_QG_PROFILE`
+- `SPARSE_HCC_DEBUG`
+
+These remain implementation-support surfaces rather than caller-facing product
+controls:
+
+- they emit profiling/debug traces
+- they do not define stable algorithm-choice intent
+- they are still coupled to implementation-local instrumentation and debug
+  output paths
+
+Interpretation:
+
+- they should not move into the public typed option surface in Sprint 61
+- if they need modernization later, it should happen under a tooling/support
+  or internal-policy lane, not in this Phase 1 caller-facing sprint
+- Day 9 should explicitly defer them
+
+#### 4. The FM family remains adjacent but still out of scope for this Sprint 61 slice
+
+The live `SPARSE_FM_*` family still exists in:
+
+- `src/sparse_graph.c`
+- `src/sparse_graph_refine.c`
+
+But after the Day 6-7 landing it is still not the strongest remaining
+analysis/postorder target:
+
+- it is broader
+- more tightly coupled to the refinement pipeline
+- more debug/strategy-heavy
+- riskier to widen without reopening the Sprint 61 non-goal fence
+
+Interpretation:
+
+- the FM family remains explicitly deferred after Day 8
+- Sprint 61 should not drift from coarsening-policy cleanup into refinement
+  strategy modernization
+- the Day 9 target should stay narrower than the original Day 3 inventory
+
+#### 5. The strongest Day 9 landing target is now one mixed public/internal coarsening-policy batch
+
+The strongest bounded next slice is:
+
+- public typed candidate:
+  - `SPARSE_ND_COARSEN_FLOOR_RATIO`
+- internal typed-policy candidate:
+  - `SPARSE_ND_COARSENING_CV_FALLTHROUGH`
+
+Why this is the best next batch:
+
+- both are still genuinely analysis-time controls
+- both live in the same coarsening seam
+- both fit the existing Day 6-7 resolved-policy bridge pattern
+- neither requires reopening the full FM or instrumentation surface
+
+Recommended Day 9 target:
+
+- widen `sparse_analysis_opts_t.reorder_opts` only if the field earns a real
+  caller-facing story:
+  - `nd_coarsen_floor_ratio`
+- keep the HCC CV fallthrough threshold in the internal resolved-policy lane
+  first:
+  - no debug/profile widening
+  - no FM strategy widening
+- preserve env-var compatibility when the new field or policy remains
+  unspecified
+
+Likely Day 9-10 touched surfaces:
+
+- `include/sparse_analysis.h`
+- `src/sparse_analysis.c`
+- `src/sparse_graph_internal.h`
+- `src/sparse_graph_coarsen.c`
+- `src/sparse_reorder_nd.c`
+- `tests/test_reorder_nd.c`
+- optional bounded `tests/test_graph.c` only if the proof burden genuinely
+  requires it
+
+#### 6. The landed typed path exposed one new maintenance risk: default and compatibility drift now concentrates in a smaller number of duplicated parser seams
+
+The Day 6-7 landing intentionally kept:
+
+- public typed resolution in `src/sparse_analysis.c`
+- env-compat behavior for direct graph entry surfaces inside the graph modules
+
+This preserved compatibility and minimized public churn, but it also makes the
+remaining risk more precise:
+
+- if the remaining defaults or compat parsers drift, they will now drift in a
+  small number of high-value coarsening-policy seams rather than across the
+  whole ND pipeline
+
+Interpretation:
+
+- this is a manageable risk, not a blocker
+- it argues for a narrow Day 9-10 batch that closes the strongest remaining
+  coarsening-policy gap cleanly
+- it argues against broadening into multiple unrelated residual env vars at
+  once
+
+### Day 8 Close
+
+Sprint 61's post-Day-7 queue is now materially smaller and more concrete:
+
+- the strongest remaining analysis-time controls are now narrowed to the
+  coarsening-policy seam
+- the supernodal-postorder legacy alias is compatibility-only
+- debug/profile controls are explicitly deferred
+- the FM family remains deferred
+- the exact Day 9 landing target is now a mixed public/internal
+  coarsening-policy batch instead of another broad ND sweep

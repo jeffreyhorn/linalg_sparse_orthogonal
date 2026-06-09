@@ -1494,3 +1494,224 @@ Sprint 60 now has a concrete first control-surface map:
 That is enough to move to Day 8, where the public/internal/build/runtime split
 can be tightened into an explicit architecture-contract direction instead of a
 general complaint.
+
+## Day 8 — Configuration & Performance Surface Audit II
+
+### Intent
+
+Extend the Day 7 control-surface audit into:
+
+- backend-sensitive direct paths
+- iterative/eigensolver workflow-sensitive surfaces
+- benchmark driver and README performance-story layers
+- packaging/platform surfaces that shape product performance claims
+
+The Day 8 goal was to leave Sprint 60 with one unified configuration and
+performance map rather than two separate audit fragments.
+
+### What I checked
+
+- Day 8 scope/criteria in `PLAN.md`
+- benchmark taxonomy and workflow-proof claims in:
+  - `benchmarks/README.md`
+- performance/truthfulness/quality sections in:
+  - `README.md`
+- build/package/platform surfaces in:
+  - `CMakeLists.txt`
+  - `Makefile`
+  - `INSTALL.md`
+  - CI workflow comments
+- backend-sensitive API/implementation and proof surfaces via targeted `rg` on:
+  - `used_csc_path`
+  - `backend_used`
+  - `SPARSE_*THRESHOLD`
+  - `SPARSE_OPENMP`
+  - `SPARSE_MUTEX`
+  - `AUTO`
+
+### Main findings
+
+#### 1. Direct backend sensitivity is already visible, but policy ownership is split
+
+The direct side already exposes meaningful typed backend controls and telemetry:
+
+- Cholesky:
+  - `sparse_chol_backend_t`
+  - `used_csc_path`
+- LDL^T:
+  - `sparse_ldlt_backend_t`
+  - `used_csc_path`
+- shared repeated-run direct lifecycle:
+  - still routes into CSC-vs-linked-list policy internally
+
+But the actual backend policy is spread across:
+
+1. explicit per-call backend forcing
+2. AUTO runtime dispatch
+3. public compile-time thresholds like `SPARSE_CSC_THRESHOLD`
+
+Interpretation:
+
+- backend visibility is not the main missing piece
+- the real gap is scattered policy ownership
+
+#### 2. Iterative control is comparatively healthy; eigensolvers are more mixed
+
+Iterative repeated-run support is already bounded and explicit:
+
+- handles only for:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+
+So the iterative Epic 6 performance/control issue is mostly:
+
+- build-shape sensitivity (`SPARSE_OPENMP`)
+- proof-surface governance
+- residual maintainability
+
+Eigensolvers are more mixed:
+
+- explicit backend selector already exists
+- `backend_used` already exposes AUTO's choice
+- `used_csc_path_ldlt` already exposes shift-invert LDL^T path selection
+- AUTO still depends on compile-time thresholds:
+  - `SPARSE_EIGS_THICK_RESTART_THRESHOLD`
+  - `SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD`
+
+Interpretation:
+
+- iterative control is mostly product-bounded already
+- eigensolvers still carry the same "public forcing plus compile-time AUTO
+  heuristic" pattern seen on the direct side
+
+#### 3. The benchmark drivers are already good workflow-proof binaries
+
+The live benchmark layer is better than a generic "performance story is weak"
+summary would imply.
+
+It already separates into coherent groups:
+
+- one-shot compatibility/comparison
+- direct repeated-run lifecycle
+- iterative public-handle reuse
+- eigensolver public-handle reuse
+
+Interpretation:
+
+- later Epic 6 work should preserve these binaries as proof surfaces
+- the benchmark gap is not missing drivers
+- the gap is governance above the current drivers
+
+#### 4. Performance governance is still fragmented across docs, wrappers, and per-binary conventions
+
+The repo already has strong evidence surfaces, but weaker centralized policy for
+how performance claims are made and maintained.
+
+Current governance is distributed across:
+
+- `README.md`
+- `benchmarks/README.md`
+- `Makefile`
+- CI comments
+- per-binary output conventions
+
+The still-fragmented policy questions are:
+
+- which benchmark surfaces are canonical
+- which outputs should be treated as stable machine-readable formats
+- which benches are regression-sensitive
+- which runs are claim-bearing versus smoke-only
+
+Interpretation:
+
+- this is real Epic 6 work
+- but it is policy-layer work above the existing proof binaries, not a reason
+  to replace them
+
+#### 5. Packaging/platform maturity still trails the workflow and quality story
+
+The repo already has:
+
+- install/export support
+- pkg-config support
+- `find_package(Sparse)` support
+- reviewed CMake parity
+- explicit Linux/macOS/Windows truthfulness wording
+
+But the product shape still reads more like a strong developer-install surface
+than a full release/distribution story:
+
+- primary library target remains `STATIC`
+- reviewed platform support remains intentionally asymmetric
+- Windows and macOS residual limits are explicit, but still real
+
+Interpretation:
+
+- packaging/platform follow-through belongs in Epic 6
+- but it is not the first lever compared with control-plane convergence and
+  backend-policy cleanup
+
+#### 6. The top-level performance story is now more coherent than the raw review implied, but still too policy-distributed
+
+The current product story is not missing performance material.
+
+What remains weaker is:
+
+- one compact canonical policy for performance baselines
+- one compact canonical policy for benchmark output conventions
+- one compact canonical policy for claim-bearing versus smoke-only benchmark
+  surfaces
+
+Interpretation:
+
+- the remaining story problem is governance coherence, not lack of evidence
+
+### Unified Day 7-8 map
+
+The repo now breaks cleanly into five configuration/performance bands:
+
+1. healthy public typed-control band
+   - direct lifecycle options
+   - one-shot direct options
+   - iterative options
+   - eigensolver options
+   - SVD options
+   - explicit backend selectors
+   - direct/eigensolver path telemetry
+2. must-converge configuration band
+   - ND/FM strategy and pass-budget controls
+3. must-rationalize backend-policy band
+   - direct/eigensolver AUTO threshold policy
+4. governance/policy band
+   - benchmark baselines
+   - machine-readable conventions
+   - regression-sensitive tiers
+   - packaging/platform truthfulness rules
+5. residual density/maintainability band
+   - docs density
+   - residual hotspot decomposition
+   - residual giant-test seams
+
+### Ranked future implementation queue
+
+1. typed configuration convergence for ND/FM and adjacent advisory controls
+2. backend/AUTO policy rationalization
+3. benchmark-governance consolidation
+4. packaging/platform/release-shape convergence
+5. documentation/performance-story compression after policy stabilizes
+
+### Day 8 close
+
+Sprint 60 now has a unified configuration/performance surface map:
+
+- typed solver controls are already a strong base
+- ND/FM process-global tuning is the strongest remaining productization gap
+- backend AUTO policy is the second strongest gap
+- benchmark drivers are already good workflow-proof surfaces
+- the main performance-story weakness is governance above those drivers
+- packaging/platform maturity is real Epic 6 work, but not the first
+  implementation lever
+
+That is enough to move to Day 9, where the audits can be turned into an
+explicit architecture contract instead of remaining as ranked observations.

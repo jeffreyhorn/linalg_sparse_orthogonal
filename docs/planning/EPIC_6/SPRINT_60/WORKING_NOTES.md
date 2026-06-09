@@ -2405,3 +2405,148 @@ Sprint 60 now has an explicit readiness close:
 - no hidden validation/platform rewrite landed
 - no unresolved baseline ambiguity remains
 - the Day 13 validation checklist is fixed before the final sweep
+
+## Day 13
+
+**Objective:** Validate the full Sprint 60 baseline package from the frozen
+Day 12 checklist so the sprint can close from one explicit reviewed baseline
+instead of from mixed intermediate checks.
+
+### Commands Run
+
+1. Run the required full validation gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+2. Reconfirm the maintained reviewed CMake parity-count anchor:
+   - `ctest -N --test-dir build/quality-review-cmake`
+3. Run the fixed Day 12 targeted follow-ons:
+   - `./build/test_integration`
+   - `./build/test_iterative`
+   - `./build/test_eigs`
+   - `./build/test_eigs_lobpcg`
+   - `./build/test_chol_csc`
+   - `./build/test_ldlt_csc`
+   - `./build/example_analysis`
+   - `./build/example_iterative`
+   - `./build/example_ic_minres`
+   - `./build/example_eigs`
+   - `./build/example_svd_lowrank`
+   - `./build/bench_refactor`
+   - `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/bench_iterative_reuse`
+   - `./build/bench_eigs_reuse`
+
+### Day 13 Findings
+
+#### 1. The full Sprint 60 validation gate passed cleanly
+
+The required full gate passed:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Interpretation:
+
+- Sprint 60 still closes against the real reviewed baseline rather than a
+  docs-only shortcut
+
+#### 2. The maintained reviewed anchors stayed exact
+
+The reviewed anchors remained:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- reviewed CMake total time from `make quality-review-full`:
+  - `Total Test time (real) = 199.78 sec`
+
+Interpretation:
+
+- the Sprint 60 baseline package did not disturb the maintained reviewed test
+  surface
+
+#### 3. The targeted Sprint 60 follow-ons all passed
+
+The fixed Day 12 follow-ons all passed:
+
+- `./build/test_integration` -> `39 / 39`
+- `./build/test_iterative` -> `79 / 79`
+- `./build/test_eigs` -> `30 / 30`
+- `./build/test_eigs_lobpcg` -> `26 / 26`
+- `./build/test_chol_csc` -> `137 / 137`
+- `./build/test_ldlt_csc` -> `96 / 96`
+- `./build/example_analysis`
+- `./build/example_iterative`
+- `./build/example_ic_minres`
+- `./build/example_eigs`
+- `./build/example_svd_lowrank`
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+
+Interpretation:
+
+- the Sprint 60 baseline package preserved the highest-signal direct,
+  iterative, eigensolver, CSC, example, and benchmark proof surfaces
+
+#### 4. Representative retained outputs stayed coherent with the Sprint 60 contract package
+
+Representative retained outputs from the follow-ons:
+
+- `example_analysis`
+  - residual = `4.44e-16`
+- `example_iterative`
+  - GMRES `25` iterations unpreconditioned
+  - ILU(0)-GMRES `9` iterations
+- `example_ic_minres`
+  - MINRES on KKT `42x42` = `39` iterations
+  - Jacobi-MINRES = `26` iterations
+- `example_eigs`
+  - `nos4`: `5 / 5` pairs in `115` Lanczos iterations
+  - KKT nearest-sigma: `3 / 3` pairs in `6` Lanczos iterations
+  - explicit `LOBPCG` on `bcsstk04`: `3 / 3` pairs in `62` outer iterations
+    with reported residual `8.808e-09`
+- `example_svd_lowrank`
+  - sparse low-rank `k=2`: `22 -> 6` nnz, `3.7x` compression
+- `bench_refactor`
+  - `tridiag-200 1.53x`
+  - `tridiag-500 1.23x`
+  - `bcsstk04 1.29x`
+  - `nos4 1.43x`
+- `bench_refactor_csc nos4`
+  - `speedup_refactor = 2.37x`
+  - residuals `8.24e-16` / `7.06e-16`
+- `bench_iterative_reuse`
+  - `cg-tridiag-300 1.06x`
+  - `gmres-unsym-220 1.11x`
+  - `minres-kkt-42 1.00x`
+- `bench_eigs_reuse`
+  - `growm-nos4-k5 1.03x`
+  - `thick-bcsstk14-k5 0.99x`
+  - `lobpcg-diag40-k3 0.97x`
+  - `|lambda|max diff = 0.000e+00`
+
+#### 5. One non-blocking reviewed-build note remains explicit
+
+The reviewed CMake rebuild emitted ordinary compiler warnings while rebuilding
+`bench_eigs_reuse`, but the reviewed path still completed cleanly and passed
+all parity gates.
+
+Interpretation:
+
+- this is a recorded observation, not a blocker-level Sprint 60 validation
+  drift
+
+### Day 13 Close
+
+Sprint 60 now has a full validated baseline package:
+
+- full reviewed local gate passed
+- reviewed CMake parity stayed exact
+- targeted workflow-proof tests/examples/benchmarks all passed
+- no new reconciliation queue surfaced during validation

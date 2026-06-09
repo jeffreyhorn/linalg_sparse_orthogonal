@@ -926,3 +926,151 @@ Sprint 60 now has a unified ranked Epic 6 gap map:
 That is enough to move to Day 5, where “state of the art for this project”
 can now be defined against a ranked live-repo gap map rather than against a
 generic aspiration list.
+
+## Day 5
+
+**Objective:** Convert the ranked Epic 6 gap map into an explicit target
+definition, non-goal fence, and success scorecard so later implementation
+sprints can be judged against one stable productization contract instead of a
+vague “state-of-the-art” aspiration.
+
+### Commands Run
+
+1. Re-read the Day 5 sprint-plan contract:
+   - `sed -n '189,270p' docs/planning/EPIC_6/SPRINT_60/PLAN.md`
+2. Re-read the Sprint 60 project-plan section to keep the target aligned with
+   the sprint-level epic charter:
+   - `sed -n '1,260p' docs/planning/EPIC_6/PROJECT_PLAN.md`
+3. Re-read the strongest inherited Epic 6 review/todo framing:
+   - `sed -n '1,260p' docs/planning/EPIC_6/reviews/review-codex-2026-06-08.md`
+   - `sed -n '1,260p' docs/planning/EPIC_6/reviews/todo-codex-2026-06-08.md`
+4. Re-read the Sprint 60 ranked inventory inputs:
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_60/artifacts/day3-productization-gap-inventory-part1.md`
+   - `sed -n '1,240p' docs/planning/EPIC_6/SPRINT_60/artifacts/day4-productization-gap-inventory-part2.md`
+5. Re-read the Epic 5 close-state contract so the Epic 6 target does not
+   silently reopen solved boundaries:
+   - `sed -n '1,220p' docs/planning/EPIC_5/EPIC_5_RETROSPECTIVE.md`
+
+### Day 5 Findings
+
+#### 1. “State of the art” for this repo should mean best-in-class single-node product quality, not maximal algorithm or platform scope
+
+The ranked Day 3-4 gap map supports a narrower and more defensible Epic 6
+target than a generic “be a top sparse library” claim.
+
+For this project, “state of the art” should mean:
+
+- a coherent single-node sparse linear algebra product surface
+- strong direct, iterative, eigensolver, and repeated-run workflow usability
+- typed advanced configuration instead of ambient process-global tuning for the
+  highest-value controls
+- a credible bounded performance/backend architecture with a stronger
+  performance-governance story
+- a more distribution-ready packaging and platform contract
+- stronger second-layer assurance on the hardest workflows
+
+It should not mean:
+
+- infinite algorithm breadth
+- distributed/HPC scope
+- vendor-tuned parity with specialized external solver stacks
+- universal platform guarantees that the current repo cannot measure honestly
+
+Interpretation:
+
+- the Epic 6 target is product-quality convergence, not open-ended scope
+  inflation
+
+#### 2. The top Epic 6 product goals now collapse to five primary outcome bands
+
+The current ranked inventory reduces cleanly to five primary outcome bands:
+
+1. direct-solver usability convergence
+2. typed advanced configuration and explicit precedence
+3. bounded backend/performance architecture modernization
+4. benchmark/platform/packaging maturity strong enough to support product
+   claims
+5. stronger assurance and residual maintainability cleanup where it unlocks the
+   first four bands
+
+Interpretation:
+
+- this matches the 10-sprint Epic 6 project plan
+- the goals are concrete enough to prioritize later implementation work
+
+#### 3. The direct-solver, iterative-handle, and eigensolver-handle support boundaries remain part of the preserved product contract, not candidate target churn
+
+Epic 5 already fixed the core workflow boundaries:
+
+- repeated direct solves remain the explicit analysis/factors lifecycle
+- iterative handles remain bounded to:
+  - `CG`
+  - `GMRES`
+  - `MINRES`
+- eigensolver handle remains bounded to:
+  - grow-m Lanczos
+  - thick-restart Lanczos
+  - explicit `LOBPCG`
+
+Interpretation:
+
+- Epic 6 should improve usability, configuration, architecture, and proof
+  around those boundaries
+- it should not silently broaden them as part of the target definition
+
+#### 4. The explicit Epic 6 non-goal fence is now narrow enough to prevent later sprint inflation
+
+The ranked inventory and inherited Epic 5 fence support a real non-goal list:
+
+- no distributed-memory or cluster/HPC scope
+- no broad vendor-backend parity target
+- no “support every iterative/eigensolver family with repeated-run handles”
+  goal
+- no major algorithm-family expansion as the center of gravity of the epic
+- no fake broad platform closure beyond what reviewed measurement can support
+- no broad packaging/ABI promise disconnected from the staged platform story
+- no maintainability cleanup justified only by line-count aesthetics
+
+Interpretation:
+
+- these are not secondary caveats
+- they are part of the Epic 6 target itself, because they keep the sprint queue
+  bounded and technically honest
+
+#### 5. A useful Epic 6 scorecard should be outcome-based rather than feature-count-based
+
+The candidate success scorecard should ask whether Epic 6 leaves the repo with:
+
+- a more coherent direct-solver story that reduces matrix-state surprise
+- a typed advanced-configuration story for the highest-value controls
+- a real bounded backend/performance seam on selected hot paths
+- a clearer canonical performance-governance surface
+- a more product-like packaging/platform story with explicit residual limits
+- stronger second-layer assurance on the hardest lifecycle/CSC/repeated-run
+  workflows
+- smaller remaining architecture/test hotspots in the surfaces most affected by
+  the epic
+- a final caller/maintainer story that stays coherent across API, docs,
+  examples, benchmarks, and validation surfaces
+
+Interpretation:
+
+- this scorecard can guide later sprint closeouts better than “did we add more
+  features?”
+- it is specific enough to evaluate the end of the epic without pretending to
+  measure things the project does not promise
+
+## Day 5 Close
+
+Sprint 60 now has an explicit state-of-the-art target:
+
+- best-in-class single-node product quality for this repo’s chosen solver and
+  workflow scope
+- no distributed/HPC or vendor-backend parity inflation
+- no silent reopening of the Epic 5 workflow fence
+- a concrete five-band goal structure
+- an explicit outcome-based scorecard for later Epic 6 closeout evaluation
+
+That is enough to move to Day 6, where the architectural seams behind those
+goals can be audited without ambiguity about what the architecture is trying to
+serve.

@@ -1,5 +1,9 @@
 # Sprint 60 Day 14: Closeout and Handoff
 
+Date: 2026-06-08
+Branch: `sprint-60`
+
+
 ## Purpose
 
 Package Sprint 60 into a clean Epic 6 implementation-start handoff so Sprint

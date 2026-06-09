@@ -1,5 +1,9 @@
 # Sprint 60 Day 5: State-of-the-Art Target Definition
 
+Date: 2026-06-08
+Branch: `sprint-60`
+
+
 ## Purpose
 
 Define what “state of the art” should actually mean for this project after the

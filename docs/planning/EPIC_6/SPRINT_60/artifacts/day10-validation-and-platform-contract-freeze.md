@@ -1,5 +1,9 @@
 # Sprint 60 Day 10: Validation and Platform Contract Freeze
 
+Date: 2026-06-08
+Branch: `sprint-60`
+
+
 ## Purpose
 
 Freeze the validation, gate-selection, and platform-truthfulness contract that

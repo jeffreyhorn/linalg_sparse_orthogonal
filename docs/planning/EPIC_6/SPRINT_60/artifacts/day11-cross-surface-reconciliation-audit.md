@@ -1,5 +1,9 @@
 # Sprint 60 Day 11: Cross-Surface Reconciliation Audit
 
+Date: 2026-06-08
+Branch: `sprint-60`
+
+
 ## Purpose
 
 Re-read the Sprint 60 target definition, architecture seam audit,

@@ -1,5 +1,9 @@
 # Sprint 60 Day 8: Configuration & Performance Surface Audit II
 
+Date: 2026-06-08
+Branch: `sprint-60`
+
+
 ## Purpose
 
 Extend the Day 7 control-surface audit into the backend-sensitive and

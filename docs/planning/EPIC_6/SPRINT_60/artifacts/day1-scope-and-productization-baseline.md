@@ -1,5 +1,9 @@
 # Sprint 60 Day 1: Scope and Productization Baseline
 
+Date: 2026-06-08
+Branch: `sprint-60`
+
+
 ## Purpose
 
 Freeze the starting point for Epic 6 before any implementation work begins by

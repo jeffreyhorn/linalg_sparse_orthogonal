@@ -1,5 +1,9 @@
 # Sprint 60 Day 9: Epic 6 Architecture Contract Draft
 
+Date: 2026-06-08
+Branch: `sprint-60`
+
+
 ## Purpose
 
 Convert the Sprint 60 Day 5-8 target definition and audit work into an

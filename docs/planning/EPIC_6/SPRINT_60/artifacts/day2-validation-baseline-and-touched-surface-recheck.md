@@ -1,5 +1,9 @@
 # Sprint 60 Day 2: Validation Baseline and Touched-Surface Recheck
 
+Date: 2026-06-08
+Branch: `sprint-60`
+
+
 ## Purpose
 
 Freeze the validation and truthfulness baseline that later Epic 6

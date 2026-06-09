@@ -15,15 +15,18 @@ on:
 jobs:
   build-and-test:
     name: Windows enforced reviewed CMake subset (MSVC)
-    runs-on: windows-latest
+    # This reviewed lane depends on the VS 2022 generator being present.
+    # `windows-latest` no longer guarantees that, so pin the runner to the
+    # image that actually carries the reviewed MSVC/CMake surface.
+    runs-on: windows-2022
     env:
       EXPECTED_WINDOWS_CTEST_COUNT: "50"
     steps:
       - uses: actions/checkout@v4
 
-      # The CMake action ships preinstalled on windows-latest images,
-      # so no setup step is needed.  MSVC `cl.exe` is available via
-      # the Visual Studio environment that GitHub's image initialises.
+      # CMake ships preinstalled on GitHub's Windows images, so no setup
+      # step is needed. This lane is pinned to `windows-2022` specifically
+      # because it must provide the VS 2022 generator.
 
       - name: Run enforced reviewed CMake configure path (MSVC, x64)
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64

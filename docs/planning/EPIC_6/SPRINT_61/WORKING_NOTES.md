@@ -814,3 +814,227 @@ Sprint 61 now has an explicit typed-options and precedence contract:
 - the compatibility story is explicit
 - the Day 5 landing design can now work from a real API/implementation contract
   instead of a generic modernization intention
+
+## Day 5
+
+**Objective:** Convert the Day 4 configuration contract into an exact Sprint 61
+implementation map by fixing the minimum viable public API additions, the
+internal policy bridge, the precise touched-file set, the Day 6 versus Day 7
+batch split, and the explicit non-goals before public-header or implementation
+edits begin.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 5 pass:
+   - `git status --short --branch`
+2. Re-read the Sprint 61 Day 5 plan slice and current notes:
+   - `sed -n '185,280p' docs/planning/EPIC_6/SPRINT_61/PLAN.md`
+   - `sed -n '1,920p' docs/planning/EPIC_6/SPRINT_61/WORKING_NOTES.md`
+3. Re-read the Day 4 contract artifact:
+   - `sed -n '1,240p' docs/planning/EPIC_6/SPRINT_61/artifacts/day4-typed-options-design-and-precedence-contract.md`
+4. Reconfirm the exact current analysis/reorder seams:
+   - `sed -n '1,260p' include/sparse_analysis.h`
+   - `sed -n '1,220p' include/sparse_reorder.h`
+   - `sed -n '260,520p' src/sparse_analysis.c`
+   - `sed -n '1,260p' src/sparse_reorder_nd_internal.h`
+   - `sed -n '220,760p' src/sparse_graph_internal.h`
+5. Reconfirm the exact env-var consumers and test pressure for the first batch:
+   - `rg -n "parse_supernodal_postorder|sparse_analyze\\(|SPARSE_SUPERNODAL_POSTORDER|SPARSE_ND_SUPERNODAL_POSTORDER" src/sparse_analysis.c include/sparse_analysis.h tests/test_reorder_nd.c README.md`
+   - `rg -n "SPARSE_ND_COARSENING|SPARSE_ND_COARSEST_BISECTION|SPARSE_ND_ROOT_BISECT|SPARSE_ND_SEP_LIFT_STRATEGY|SPARSE_ND_SEP_LIFT_WEIGHT|SPARSE_FM_" src/sparse_graph.c src/sparse_graph_coarsen.c src/sparse_graph_refine.c src/sparse_graph_separator.c src/sparse_graph_bisect.c src/sparse_reorder_nd.c tests/test_graph.c tests/test_reorder_nd.c`
+   - `rg -n "sparse_reorder_nd\\(|sparse_graph_partition\\(|graph_bisect_coarsest_spectral|graph_edge_separator_to_vertex_separator|sparse_graph_hierarchy_build" src/sparse_reorder_nd.c src/sparse_graph.c src/sparse_graph_bisect.c src/sparse_graph_separator.c src/sparse_graph_coarsen.c tests/test_reorder_nd.c tests/test_graph.c`
+
+### Day 5 Findings
+
+#### 1. The minimum viable public API addition is a bounded widening of `sparse_analysis_opts_t` only
+
+The smallest coherent public change is:
+
+- widen `include/sparse_analysis.h`
+- keep `include/sparse_reorder.h` unchanged
+- do not add a new public graph or ND options header
+- do not widen one-shot direct family option structs in the same batch
+
+Recommended public additions:
+
+- one tri-state enum for bounded on/off/default controls
+- one nested `analysis_reorder` or similarly named sub-struct inside
+  `sparse_analysis_opts_t`
+- public enums only for the caller-meaningful controls selected on Day 4
+
+Why this is the minimum viable surface:
+
+- `sparse_analyze(...)` is the explicit repeated-run direct front door
+- the targeted controls affect symbolic analysis and reorder behavior there
+- callers should not need to learn a second public API surface just to express
+  these choices
+
+Interpretation:
+
+- the first code batch should touch one public header, not many
+- Sprint 61 should preserve the public API’s conceptual center of gravity
+
+#### 2. The key implementation bridge is an internal policy-aware ND path, not a rewrite of the public reorder API
+
+The main landing constraint is explicit now:
+
+- `sparse_analyze(...)` can currently only reach ND through:
+  - `sparse_reorder_nd(A, perm)`
+- that public function has no typed options input today
+- but the Day 4 contract requires `sparse_analyze(...)` to honor typed controls
+  without breaking backward compatibility
+
+The smallest viable bridge is:
+
+- keep `sparse_reorder_nd(...)` as the public compatibility wrapper
+- add one internal policy-aware ND entry point used by `sparse_analyze(...)`
+- let the public `sparse_reorder_nd(...)` continue to resolve through the
+  env-var compatibility path when called directly
+
+Recommended ownership:
+
+- declare the new internal entry point in `src/sparse_reorder_nd_internal.h`
+- define the resolved policy structs/enums in `src/sparse_graph_internal.h`
+  because the graph/reorder consumers need them
+- resolve public options plus compatibility overrides in `src/sparse_analysis.c`
+  and pass typed policy into the internal ND entry point
+
+Interpretation:
+
+- Sprint 61 does not need a public reorder API redesign
+- it needs one internal bridge that lets `sparse_analyze(...)` bypass raw
+  process-global parsing on the selected path
+
+#### 3. The first code batch should avoid `src/sparse_graph.c` and `src/sparse_graph_refine.c`
+
+The exact env-var consumer map shows:
+
+- selected public-candidate controls are consumed in:
+  - `src/sparse_analysis.c`
+  - `src/sparse_graph_coarsen.c`
+  - `src/sparse_graph_bisect.c`
+  - `src/sparse_graph_separator.c`
+  - `src/sparse_reorder_nd.c`
+- the heaviest FM tuning and runtime-save/restore coupling sits in:
+  - `src/sparse_graph.c`
+  - `src/sparse_graph_refine.c`
+
+That means the first implementation batch should intentionally avoid:
+
+- `src/sparse_graph.c`
+- `src/sparse_graph_refine.c`
+
+unless the code landing proves they are required for compilation or policy
+threading.
+
+Interpretation:
+
+- the selected public-candidate path can stay narrower than the entire graph
+  subsystem
+- keeping `src/sparse_graph.c` and `src/sparse_graph_refine.c` out of the first
+  batch materially lowers risk
+
+#### 4. The exact Day 6 versus Day 7 split is now fixed
+
+Recommended Day 6 batch:
+
+- public header widening in:
+  - `include/sparse_analysis.h`
+- public-option resolution and compatibility translation in:
+  - `src/sparse_analysis.c`
+- internal policy scaffolding in:
+  - `src/sparse_graph_internal.h`
+  - `src/sparse_reorder_nd_internal.h`
+- first selected controls:
+  - `SPARSE_SUPERNODAL_POSTORDER`
+  - `SPARSE_ND_ROOT_BISECT`
+  - `SPARSE_ND_ROOT_BISECT_MAX_N`
+
+Why this is the strongest first batch:
+
+- it exercises the full public-to-internal precedence path
+- it stays close to the current `sparse_analyze(...)` and ND recursion seam
+- it avoids starting with the broader graph partitioner policy set
+
+Recommended Day 7 batch:
+
+- finish the remaining selected public-candidate controls in:
+  - `src/sparse_graph_coarsen.c`
+  - `src/sparse_graph_bisect.c`
+  - `src/sparse_graph_separator.c`
+  - `src/sparse_reorder_nd.c`
+- remaining selected controls:
+  - `SPARSE_ND_COARSENING`
+  - `SPARSE_ND_COARSEST_BISECTION`
+  - `SPARSE_ND_SEP_LIFT_STRATEGY`
+  - `SPARSE_ND_SEP_LIFT_WEIGHT`
+- proof-surface follow-through:
+  - `tests/test_reorder_nd.c`
+  - `tests/test_graph.c`
+  - bounded `tests/test_integration.c` only if the public analysis lifecycle
+    contract wording or behavior needs direct pinning
+
+Interpretation:
+
+- Day 6 proves the bridge and precedence model
+- Day 7 completes the rest of the selected public analysis/reorder surface
+
+#### 5. The exact touched-file plan is now explicit
+
+Expected Day 6-7 touched files:
+
+- public:
+  - `include/sparse_analysis.h`
+- internal headers:
+  - `src/sparse_graph_internal.h`
+  - `src/sparse_reorder_nd_internal.h`
+- implementation:
+  - `src/sparse_analysis.c`
+  - `src/sparse_reorder_nd.c`
+  - `src/sparse_graph_coarsen.c`
+  - `src/sparse_graph_bisect.c`
+  - `src/sparse_graph_separator.c`
+- likely docs follow-through after code lands:
+  - `README.md`
+  - `docs/tutorial.md`
+  - `docs/maintainer_guide.md`
+- likely proof follow-through:
+  - `tests/test_reorder_nd.c`
+  - `tests/test_graph.c`
+  - optional bounded `tests/test_integration.c`
+
+Expected non-touch set for the first landing unless implementation pressure
+forces it:
+
+- `include/sparse_reorder.h`
+- `src/sparse_graph.c`
+- `src/sparse_graph_refine.c`
+- `src/sparse_reorder_amd_qg.c`
+- `src/sparse_svd.c`
+
+Interpretation:
+
+- the first landing now has a genuinely bounded file set
+- the selected non-touch set is part of the safety fence, not an afterthought
+
+#### 6. The code-batch non-goals are now operational
+
+Do not widen the Day 6-7 implementation batch into:
+
+- public FM tuning controls
+- debug/profile option migration
+- compile-time threshold policy cleanup
+- new one-shot direct-family option surfaces
+- generic repo-wide configuration helpers
+- packaging/platform work
+- broader docs simplification beyond touched-surface truthfulness follow-through
+
+### Day 5 Close
+
+Sprint 61 now has an exact landing design for the first code batch:
+
+- the minimum viable public API addition is explicit
+- the internal policy bridge is explicit
+- the Day 6 versus Day 7 split is explicit
+- the touched-file and non-touch file sets are explicit
+- the code-batch non-goal fence is explicit before any header or implementation
+  edits begin

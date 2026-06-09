@@ -1297,3 +1297,200 @@ Sprint 60 now has a concrete architecture seam map:
 
 That is enough to move to Day 7, where the env-var-driven and advanced control
 surfaces can be audited against this seam map instead of in isolation.
+
+## Day 7 — Configuration & Performance Surface Audit I
+
+### Intent
+
+Take the broad Epic 6 "advanced tuning is too env-var driven" claim and reduce
+it to a concrete live-tree control map:
+
+- environment variables
+- compile-time switches
+- public option structs
+- process-global or thread-local behavior
+
+The Day 7 goal was to distinguish real productization work from mere wording
+cleanup.
+
+### What I checked
+
+- Day 7 scope/criteria in `PLAN.md`
+- live `getenv(...)` call sites across `src/` and `include/`
+- public typed option surfaces in:
+  - `include/sparse_analysis.h`
+  - `include/sparse_iterative.h`
+  - `include/sparse_eigs.h`
+  - `include/sparse_lu.h`
+  - `include/sparse_cholesky.h`
+  - `include/sparse_ldlt.h`
+  - `include/sparse_qr.h`
+  - `include/sparse_svd.h`
+- compile-time and build switches in:
+  - `include/sparse_matrix.h`
+  - `CMakeLists.txt`
+  - `Makefile`
+- representative runtime-control implementations in:
+  - `src/sparse_analysis.c`
+  - `src/sparse_graph.c`
+  - `src/sparse_graph_coarsen.c`
+  - `src/sparse_graph_refine.c`
+  - `src/sparse_graph_bisect.c`
+  - `src/sparse_reorder_nd.c`
+  - `src/sparse_reorder_amd_qg.c`
+  - `src/sparse_svd.c`
+
+### Main findings
+
+#### 1. The typed public control surface is already strong in solver-family front doors
+
+The repo is not missing a public option model in general.
+
+Stable typed controls already exist for:
+
+- direct repeated-run lifecycle:
+  - `sparse_analysis_opts_t`
+- one-shot direct families:
+  - LU
+  - Cholesky
+  - LDL^T
+  - QR
+- iterative solvers:
+  - CG / MINRES / BiCGSTAB via `sparse_iter_opts_t`
+  - GMRES via `sparse_gmres_opts_t`
+- eigensolvers:
+  - `sparse_eigs_opts_t`
+- SVD:
+  - `sparse_svd_opts_t`
+
+Interpretation:
+
+- Epic 6 does not need a repo-wide configuration model from scratch
+- the real productization gap is concentrated in a narrower set of advanced
+  runtime controls
+
+#### 2. The strongest env-var-driven gap is concentrated in ND/FM graph-ordering control
+
+The densest process-global runtime tuning surface is the nested-dissection and
+FM refinement stack, not the direct/iterative/eigensolver call layer.
+
+Main algorithm-selection env vars:
+
+- `SPARSE_ND_COARSENING`
+- `SPARSE_ND_COARSEST_BISECTION`
+- `SPARSE_ND_ROOT_BISECT`
+- `SPARSE_ND_SEP_LIFT_STRATEGY`
+- `SPARSE_ND_SEP_LIFT_WEIGHT`
+- `SPARSE_SUPERNODAL_POSTORDER`
+- `SPARSE_SVD_LOWRANK_OUTER`
+
+Main tuning env vars:
+
+- `SPARSE_ND_ROOT_BISECT_MAX_N`
+- `SPARSE_ND_COARSEN_FLOOR_RATIO`
+- `SPARSE_FM_FINEST_PASSES`
+- `SPARSE_FM_INTERMEDIATE_PASSES`
+- `SPARSE_FM_FINEST_STRATEGY`
+- `SPARSE_FM_ENSEMBLE_STRATEGIES`
+- `SPARSE_FM_ANNEALING_SCHEDULE`
+- `SPARSE_FM_THICK_RESTART_PERTURB`
+- `SPARSE_FM_GAIN_NOISE_SCHEDULE`
+
+Interpretation:
+
+- one large high-impact subsystem still bypasses the typed public option model
+- this is the clearest later Epic 6 candidate for typed public or typed
+  analysis-local controls
+
+#### 3. Compile-time switches are a smaller, cleaner layer — but not uniformly harmless
+
+Clear build-shape switches:
+
+- `SPARSE_OPENMP`
+- `SPARSE_MUTEX`
+- `SANITIZE`
+
+These read like honest build controls, not accidental runtime policy.
+
+But some compile-time macros are different because they shape runtime behavior
+or AUTO routing:
+
+- `SPARSE_NODES_PER_SLAB`
+- `SPARSE_DROP_TOL`
+- `SPARSE_CSC_THRESHOLD`
+- `SPARSE_EIGS_THICK_RESTART_THRESHOLD`
+- `SPARSE_EIGS_LOBPCG_AUTO_N_THRESHOLD`
+
+Interpretation:
+
+- the build-switch layer is not the main productization problem
+- the real concern is public compile-time leakage of performance policy and
+  numerical heuristics
+
+#### 4. Process-global control is reinforced by thread-local runtime state
+
+The env-var issue is not only discoverability.
+
+The implementation also uses `_Thread_local` runtime state for:
+
+- ND profiling accumulators
+- FM runtime configuration
+- forced HEM override
+
+and mutates FM runtime state through:
+
+- `sparse_graph_fm_runtime_get(...)`
+- `sparse_graph_fm_runtime_set(...)`
+
+Interpretation:
+
+- some behavior remains scoped to process or thread state rather than to a
+  typed call or owned object
+- this is a real architecture seam, not a docs-only problem
+
+#### 5. The candidate public/internal split is now clearer
+
+Strongest must-be-public-later candidates:
+
+- ND algorithm-family selection
+- FM pass-budget / strategy controls that survive as supported behavior
+- optional supernodal postorder behavior if it remains caller-meaningful
+
+Strongest must-be-internal-later candidates:
+
+- `SPARSE_QG_PROFILE`
+- `SPARSE_ND_PROFILE`
+- `SPARSE_HCC_DEBUG`
+- `SPARSE_FM_*_DEBUG`
+- forced-HEM retry plumbing
+- FM runtime save/restore internals
+
+Strongest stay-build-time candidates:
+
+- `SPARSE_OPENMP`
+- `SPARSE_MUTEX`
+- `SANITIZE`
+
+#### 6. The Epic 6 review claim was directionally right, but the live-tree version is narrower
+
+The review's broad claim that advanced tuning is too env-var driven is
+supported, but Day 7 narrows it:
+
+- the main offender is ND/FM and a few advisory performance toggles
+- solver-family front doors are already in better shape than the broad review
+  wording implied
+- compile-time build switches are not the main coherence problem
+
+### Day 7 close
+
+Sprint 60 now has a concrete first control-surface map:
+
+- typed solver options are already a strong product base
+- ND/FM tuning is the strongest remaining env-var-driven gap
+- public compile-time thresholds leak runtime AUTO-policy more than ideal
+- internal debug/profile surfaces can be separated cleanly from later public
+  control work
+
+That is enough to move to Day 8, where the public/internal/build/runtime split
+can be tightened into an explicit architecture-contract direction instead of a
+general complaint.

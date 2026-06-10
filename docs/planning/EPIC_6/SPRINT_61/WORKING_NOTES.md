@@ -2649,3 +2649,166 @@ configuration-modernization package:
 - the graph/reorder-sensitive proof home stayed clean
 - representative workflow examples and benchmark drivers stayed coherent
 - no new reconciliation queue surfaced during validation
+
+## Day 14 - Closeout and Handoff
+
+### Day 14 Goal
+
+Package Sprint 61 into one coherent Phase 1 configuration-modernization
+handoff so Sprint 62+ can build on the landed typed control surface without
+reopening the Sprint 60 architecture fence or the Sprint 61 precedence and
+compatibility decisions.
+
+### 1. Sprint 61 now closes one bounded Phase 1 configuration package
+
+Sprint 61 now hands off one coherent landed package across:
+
+- baseline and validation recheck
+- ranked env-var/control inventory
+- typed-options and precedence design
+- first reorder/ND typed-option landing
+- remaining analysis-time control landing
+- compatibility/default regression tightening
+- public/docs/maintainer story follow-through
+- full Day 13 validation sweep
+
+The strongest concrete landed configuration outcomes are now:
+
+- public typed `sparse_analysis_opts_t.reorder_opts` coverage for:
+  - `SPARSE_SUPERNODAL_POSTORDER`
+  - `SPARSE_ND_ROOT_BISECT`
+  - `SPARSE_ND_ROOT_BISECT_MAX_N`
+  - `SPARSE_ND_COARSENING`
+  - `SPARSE_ND_COARSEST_BISECTION`
+  - `SPARSE_ND_SEP_LIFT_STRATEGY`
+  - `SPARSE_ND_SEP_LIFT_WEIGHT`
+  - `SPARSE_ND_COARSEN_FLOOR_RATIO`
+- internal resolved-policy ownership for:
+  - `SPARSE_ND_COARSENING_CV_FALLTHROUGH`
+- explicit precedence:
+  1. explicit typed value
+  2. legacy compatibility env var when unspecified
+  3. internal default
+- preserved public compatibility wrapper:
+  - `sparse_reorder_nd(...)` stayed API-stable
+
+Interpretation:
+
+- Sprint 61 delivered the promised Phase 1 front door for the highest-value
+  analysis/reorder controls
+- the sprint did not widen into FM-family public tuning or broader repo-wide
+  configuration abstractions
+
+### 2. The frozen Sprint 61 compatibility fence is now explicit
+
+Sprint 61 closes with the following rules fixed:
+
+- `sparse_analysis_opts_t.reorder_opts` is now the preferred advanced
+  analysis/reorder control surface
+- explicit typed values win over env-var compatibility inputs
+- legacy env vars remain compatibility overrides only when the typed field is
+  left unspecified
+- `SPARSE_ND_SUPERNODAL_POSTORDER` remains compatibility-only
+- `SPARSE_ND_COARSENING_CV_FALLTHROUGH` remains internal-policy-only
+- debug/profile controls remain deferred and non-public:
+  - `SPARSE_ND_PROFILE`
+  - `SPARSE_QG_PROFILE`
+  - `SPARSE_HCC_DEBUG`
+- the `SPARSE_FM_*` family remains deferred for later Epic 6 work
+- the repeated-run workflow fence from Sprint 60 remained untouched
+
+Interpretation:
+
+- callers now have one real typed configuration path for the highest-value
+  controls
+- the remaining env-var surface is smaller, more intentional, and easier to
+  classify
+
+### 3. Sprint 61 closes from the Day 13 validated baseline
+
+Sprint 61 closes from the Day 13 validated baseline:
+
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+- `make quality-review-full` passed
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity stayed `53 vs 53`
+- full reviewed CMake `ctest` passed `53 / 53`
+- reviewed CMake total time from `make quality-review-full`:
+  - `368.17 sec`
+
+The strongest targeted retained proof surfaces also all passed:
+
+- direct lifecycle and CSC:
+  - `./build/test_integration`
+  - `./build/test_chol_csc`
+  - `./build/test_ldlt_csc`
+- graph/reorder-sensitive proof:
+  - `./build/test_graph`
+  - `./build/test_graph_fm_buckets`
+  - `./build/test_reorder_nd`
+  - `./build/test_reorder_amd_qg`
+- adjacent repeated-run solver proof:
+  - `./build/test_iterative`
+  - `./build/test_eigs`
+  - `./build/test_eigs_lobpcg`
+- representative examples and benchmarks:
+  - `./build/example_analysis`
+  - `./build/example_iterative`
+  - `./build/example_ic_minres`
+  - `./build/example_eigs`
+  - `./build/example_svd_lowrank`
+  - `./build/bench_refactor`
+  - `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `./build/bench_iterative_reuse`
+  - `./build/bench_eigs_reuse`
+
+### 4. The Sprint 62+ deferred queue is now explicit
+
+The remaining configuration queue after Sprint 61 is now smaller and more
+concrete:
+
+- later FM-family control rationalization:
+  - `SPARSE_FM_*`
+- later debug/profile control treatment:
+  - `SPARSE_ND_PROFILE`
+  - `SPARSE_QG_PROFILE`
+  - `SPARSE_HCC_DEBUG`
+- compatibility-only alias cleanup only if later work justifies it:
+  - `SPARSE_ND_SUPERNODAL_POSTORDER`
+- later broader configuration/policy rationalization outside the Sprint 61
+  analysis/reorder seam
+
+The immediate Epic 6 handoff priority remains:
+
+1. direct-solver usability and lifecycle coherence
+2. later configuration Phase 2 only where it stays compatible with the landed
+   Phase 1 model
+3. later backend/AUTO policy rationalization
+
+### 5. PROJECT_PLAN recheck
+
+`docs/planning/EPIC_6/PROJECT_PLAN.md` does not need a Sprint 61 correction.
+
+The landed sprint still matches the project-plan intent:
+
+- replace the highest-value process-global analysis/reorder controls with
+  typed options
+- make precedence explicit
+- preserve bounded compatibility behavior
+- add regression/docs support
+- close from a fully validated baseline
+
+### Day 14 Close
+
+Sprint 61 is now closed from a validated and bounded Phase 1 configuration
+package.
+
+Sprint 62+ can build from:
+
+- a real typed analysis/reorder control surface
+- an explicit precedence and compatibility contract
+- a smaller and more intentional deferred env-var queue
+- a reviewed local validation baseline that remained exact through the final
+  landed tree

@@ -2184,3 +2184,165 @@ work without widening beyond the planned Phase 1 fence:
   plumbing instead of competing parser paths
 - the proof burden stayed bounded to `tests/test_reorder_nd.c`
 - the full reviewed validation contract stayed clean
+
+## Day 11 - Compatibility Layer & Regression Sweep
+
+### Intent
+
+Day 11 is the planned compatibility sweep after the Day 6-Day 10 typed
+analysis/reorder landing:
+
+- re-read the full Phase 1 precedence model
+- prove stable default behavior explicitly
+- tighten any stale env-only wording left behind in the internal seams
+- close the batch from the full reviewed baseline
+
+### Landed Code/Test Scope
+
+Touched code/test surfaces:
+
+- `src/sparse_graph_internal.h`
+- `src/sparse_graph_coarsen.c`
+- `tests/test_reorder_nd.c`
+
+No public API/header widening was needed on Day 11. The shipped typed control
+surface from Days 6-10 stayed unchanged; this batch tightened compatibility
+proof and wording around it.
+
+### What Changed
+
+#### 1. The remaining stale env-only commentary on the landed ND/coarsening path is gone
+
+Updated internal commentary now matches the actual Phase 1 contract:
+
+- resolved ND policy comes first
+- legacy env vars are compatibility overrides only when the typed field stays
+  unspecified
+- internal defaults remain the final fallback
+
+This cleanup landed in:
+
+- `src/sparse_graph_internal.h`
+- `src/sparse_graph_coarsen.c`
+
+Interpretation:
+
+- the code comments no longer imply an older “env-var-only” control story on
+  paths that now run through the typed analysis/reorder bridge
+- the internal wording now matches the Day 4-Day 10 precedence contract:
+  - explicit typed option
+  - legacy compatibility override
+  - internal typed policy default
+
+#### 2. Stable default behavior is now explicitly proven for the two residual Day 10 controls
+
+Day 10 proved:
+
+- typed `nd_coarsen_floor_ratio` beats the legacy env override
+- `SPARSE_ND_COARSENING_CV_FALLTHROUGH` still affects the analysis path
+  through the resolved-policy seam
+
+Day 11 added the missing stable-default proofs in `tests/test_reorder_nd.c`:
+
+- `test_analysis_default_nd_coarsen_floor_ratio_matches_internal_default`
+- `test_analysis_nd_coarsening_cv_fallthrough_default_matches_compat_value`
+
+Interpretation:
+
+- the floor-ratio default path is now explicitly anchored to the shipped
+  internal default of `100`
+- the HCC CV-fallthrough compatibility lane is now explicitly anchored to the
+  shipped internal default of `0.30`
+- the Phase 1 story is no longer just “typed beats env”; it now also proves
+  that the unspecified/default path is stable and intentional
+
+#### 3. The proof burden stayed bounded to the selected reorder/ND proof home
+
+Day 11 did not need to widen into `tests/test_graph.c` or `tests/test_integration.c`.
+
+All new proof stayed in `tests/test_reorder_nd.c`, which now covers:
+
+- typed precedence over env for the landed public controls
+- compatibility fallback/default equivalence for the residual analysis-time
+  controls
+
+Interpretation:
+
+- the selected proof home remained strong enough through the compatibility pass
+- Sprint 61 still reads as one bounded Phase 1 configuration sprint rather
+  than a broad graph-test rewrite
+
+### Post-Landing Compatibility State
+
+After Day 11, the landed Phase 1 ND/reorder compatibility model is:
+
+1. explicit typed option value
+2. legacy compatibility override when the typed field is left unspecified
+3. internal default policy
+
+This is now explicitly proven across the strongest landed controls:
+
+- `SPARSE_SUPERNODAL_POSTORDER`
+- `SPARSE_ND_ROOT_BISECT`
+- `SPARSE_ND_ROOT_BISECT_MAX_N`
+- `SPARSE_ND_COARSENING`
+- `SPARSE_ND_COARSEST_BISECTION`
+- `SPARSE_ND_SEP_LIFT_STRATEGY`
+- `SPARSE_ND_SEP_LIFT_WEIGHT`
+- `SPARSE_ND_COARSEN_FLOOR_RATIO`
+- `SPARSE_ND_COARSENING_CV_FALLTHROUGH`
+
+Compatibility-only or deferred surfaces remain unchanged:
+
+- legacy `SPARSE_ND_SUPERNODAL_POSTORDER` alias
+- `SPARSE_ND_PROFILE`
+- `SPARSE_QG_PROFILE`
+- `SPARSE_HCC_DEBUG`
+- all `SPARSE_FM_*`
+
+### Day 11 Validation
+
+Because `*.c` / `*.h` changed, I ran:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All passed.
+
+Maintained reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 348.47 sec`
+
+Focused retained proof points:
+
+- `test_reorder_nd` passed with the new Day 11 default/compatibility proofs:
+  - `test_analysis_default_nd_coarsen_floor_ratio_matches_internal_default`
+  - `test_analysis_nd_coarsening_cv_fallthrough_default_matches_compat_value`
+- the full graph/reorder-sensitive reviewed surface stayed clean:
+  - `test_graph`
+  - `test_graph_fm_buckets`
+  - `test_reorder_nd`
+  - `test_reorder_amd_qg`
+
+Non-blocking Day 11 note:
+
+- the reviewed CMake rebuild again emitted ordinary compiler warnings while
+  rebuilding `bench_eigs_reuse`, but the full reviewed path still completed
+  cleanly and passed all parity gates
+
+### Day 11 Close
+
+Sprint 61 Day 11 closes the Phase 1 compatibility sweep cleanly:
+
+- stale env-only wording is removed from the landed internal seams
+- stable default behavior is now explicitly proven for the remaining residual
+  analysis-time controls
+- the typed/default/env compatibility story is now bounded, intentional, and
+  test-backed
+- the proof burden stayed in the selected reorder/ND proof home
+- the full reviewed validation contract remained clean

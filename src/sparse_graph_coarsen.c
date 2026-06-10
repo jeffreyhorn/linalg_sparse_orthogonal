@@ -77,10 +77,10 @@ static _Thread_local idx_t coarsen_floor_ratio_override = 100;
 static _Thread_local int coarsening_cv_fallthrough_override_active = 0;
 static _Thread_local double coarsening_cv_fallthrough_override = 0.30;
 
-/* Parser for the active coarsening strategy. Exposed through
+/* Resolve the active coarsening strategy. Exposed through
  * `sparse_graph_coarsening_strategy_current()` so the remaining
  * orchestration layer can query the current strategy without owning
- * the parser implementation directly. */
+ * the override + compatibility plumbing directly. */
 static coarsening_strategy_t parse_coarsening_strategy(void) {
     if (force_hem_override)
         return COARSENING_HEAVY_EDGE;

@@ -289,10 +289,11 @@ sparse_err_t graph_coarsen_heavy_edge_matching(const sparse_graph_t *fine, uint3
  * Same signature + collapse rule + shuffle-based visit order, but the
  * matching score is `edge_weight * min(deg(u), deg(v))` instead of just
  * `edge_weight`.  Tie-break on equal score: lower-id neighbour wins
- * (deterministic regardless of adjacency storage order).  Selected by
- * `sparse_graph_hierarchy_build` when env var
- * `SPARSE_ND_COARSENING=hcc` is set.  See
- * docs/planning/EPIC_2/SPRINT_25/hcc_design.md for the full contract.
+ * (deterministic regardless of adjacency storage order).  The active
+ * strategy is now selected through the resolved ND policy bridge first, with
+ * legacy `SPARSE_ND_COARSENING` env-var compatibility only when no typed
+ * override is active. See docs/planning/EPIC_2/SPRINT_25/hcc_design.md for
+ * the full contract.
  */
 sparse_err_t graph_coarsen_hcc(const sparse_graph_t *fine, uint32_t seed,
                                sparse_graph_t *coarse_out, idx_t *cmap_out);
@@ -454,8 +455,9 @@ typedef struct {
  *   1. `n_coarse <= MAX(20, root->n / divisor)` — coarsest level is
  *      small enough for the brute-force / GGGP bisection of Day 3.
  *      `divisor` is 100 by default (Sprint 22 calibration); the
- *      `SPARSE_ND_COARSEN_FLOOR_RATIO` env var (Sprint 24 Day 5)
- *      overrides it in [1, 100000] for tighter cuts on Pres_Poisson.
+ *      resolved ND policy can override it explicitly, with legacy
+ *      `SPARSE_ND_COARSEN_FLOOR_RATIO` env-var compatibility still available
+ *      when no typed override is active.
  *   2. `n_coarse > 0.9 * n_fine` — a coarsening pass made too little
  *      progress; further coarsening would just churn without
  *      shrinking the problem.
@@ -568,10 +570,11 @@ sparse_err_t graph_build_laplacian(const sparse_graph_t *G, SparseMatrix **L_out
  *
  * The multilevel coarsening (`sparse_graph_hierarchy_build`) drives
  * `n` toward MAX(20, n_orig / divisor) before the partitioner gets
- * here (divisor default 100, overridable via the
- * `SPARSE_ND_COARSEN_FLOOR_RATIO` env var added Sprint 24 Day 5);
- * on structurally regular inputs heavy-edge matching can saturate
- * before that target — GGGP handles whatever the hierarchy delivers.
+ * here (divisor default 100, overridable through the resolved ND
+ * policy, with legacy `SPARSE_ND_COARSEN_FLOOR_RATIO` compatibility
+ * still available when no typed override is active); on structurally
+ * regular inputs heavy-edge matching can saturate before that target —
+ * GGGP handles whatever the hierarchy delivers.
  *
  * @param G        Input graph.
  * @param part_out Caller-allocated array of length `G->n`; written
@@ -703,8 +706,9 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
  *
  * Given `part_io[i] ∈ {0, 1}`, marks every boundary vertex on one
  * side as the separator (`part_io[i] = 2`).  Two strategies select
- * which side to lift, switched by the `SPARSE_ND_SEP_LIFT_STRATEGY`
- * env var (Sprint 24 Day 6):
+ * which side to lift, now routed through the resolved ND policy
+ * bridge first, with legacy `SPARSE_ND_SEP_LIFT_STRATEGY` env-var
+ * compatibility when no typed override is active:
  *
  *   - `smaller_weight` (default; Sprint 22 Day 4 behaviour) — lift
  *     the side with smaller vertex weight (METIS convention; ties

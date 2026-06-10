@@ -1419,3 +1419,157 @@ Sprint 62 Day 9 fixed one exact Day 10 implementation fence:
 - the proof home stays centered on `tests/test_integration.c`
 - no-reorder Cholesky cancel semantics stay compatibility-only for now
 - the deferred queue is explicit instead of implied
+
+## Day 10
+
+**Objective:** Land the bounded Cholesky reordered-publication hardening slice
+from Day 9, prove that cancelled reordered one-shot attempts preserve caller
+state, and validate the branch from the reviewed baseline.
+
+### Commands Run
+
+1. Re-read the Day 9 design fence and the live Cholesky implementation seam:
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_62/artifacts/day9-cholesky-convergence-design.md`
+   - `sed -n '1,260p' include/sparse_cholesky.h`
+   - `sed -n '1,360p' src/sparse_cholesky.c`
+   - `rg -n "chol|cholesky|cancel|reorder|preserve|progress" tests/test_integration.c`
+2. Inspect the supporting state-transfer and permutation helpers before the
+   code change:
+   - `sed -n '1,260p' src/sparse_lu.c`
+   - `sed -n '1,180p' src/sparse_reorder.c`
+   - `sed -n '1,260p' src/sparse_matrix_state_internal.h`
+3. Land the bounded Cholesky/header/integration patch:
+   - `apply_patch` on:
+     - `include/sparse_cholesky.h`
+     - `src/sparse_cholesky.c`
+     - `tests/test_integration.c`
+4. Run the required validation gate for `*.c` / `*.h` lifecycle-sensitive work:
+   - `make format && make lint && make test && make quality-review-full`
+5. Resolve the one lint detour and rerun the full gate:
+   - flatten the reordered working-copy helper through a dedicated internal
+     no-reorder backend helper
+   - rerun:
+     - `make format && make lint && make test && make quality-review-full`
+6. Review the final touched diff and branch state:
+   - `git diff -- include/sparse_cholesky.h src/sparse_cholesky.c tests/test_integration.c`
+   - `git status --short --branch`
+
+### Day 10 Findings
+
+#### 1. Reordered Cholesky one-shot attempts now preserve caller state until success
+
+The landed implementation changed the exact seam Day 9 targeted:
+
+- reordered `sparse_cholesky_factor_opts(...)` attempts now permute into a
+  temporary working `SparseMatrix`
+- the working copy runs through the existing no-reorder Cholesky factor path
+- reordered/factored payload is only published back onto the caller matrix
+  after success
+
+Interpretation:
+
+- cancelled or failed reordered attempts no longer strand the caller matrix in
+  a partially reordered intermediate state
+- the change is bounded to the reordered publication boundary rather than a
+  broader lifecycle rewrite
+
+#### 2. The public Cholesky contract now states the strengthened reordered rule directly
+
+The public Day 10 header wording now makes the strengthened rule visible:
+
+- reordered one-shot Cholesky may factor a temporary reordered working copy
+- publish-back onto `mat` happens only on success
+- failed/cancelled reordered one-shot attempts leave the caller matrix in its
+  original coordinate space
+
+Interpretation:
+
+- the user-facing contract now matches the shipped implementation more
+  directly
+- the one-shot versus explicit shared lifecycle boundary stayed intact
+
+#### 3. The proof burden stayed bounded to the intended integration home
+
+The new public regression stayed inside `tests/test_integration.c`:
+
+- `test_progress_cb_cholesky_cancel_after_reorder_preserves_original_matrix`
+
+It proves:
+
+- reordered Cholesky cancel-at-step-0 preserves identity row/col perms and the
+  original caller matrix entries
+- the cancelled matrix remains unfactored (`sparse_cholesky_solve(...)` rejects
+  it)
+- a later reordered one-shot retry still succeeds on the same caller matrix
+
+Interpretation:
+
+- the proof surface remained integration-led as planned
+- Day 10 did not need to widen into `tests/test_cholesky.c`
+
+#### 4. The compatibility fence stayed exact
+
+Preserved:
+
+- one-shot Cholesky remains a first-class/default path
+- explicit repeated-run direct solves still live on
+  `sparse_analyze()` / `sparse_factor_numeric()` / `sparse_factor_solve()` /
+  `sparse_refactor_numeric()`
+- no-reorder linked-list cancel-at-step-0 remains compatibility-preserved and
+  non-bit-identical
+- backend selection still lives inside the existing Cholesky wrapper
+
+Strengthened:
+
+- reordered Cholesky failure/cancel no longer publishes partial reordered state
+- reordered retry remains possible on the same original caller matrix
+
+Interpretation:
+
+- Sprint 62 improved the highest-value Cholesky caller surprise without
+  overreaching into a universal mutation/cancel redesign
+
+#### 5. Validation closed cleanly after one bounded implementation detour
+
+The first implementation cut used recursion through
+`sparse_cholesky_factor_opts(...)` for the working-copy helper. `clang-tidy`
+rejected that with `misc-no-recursion`, so the landed version flattened the
+helper through a dedicated internal no-reorder backend function.
+
+The final validation passed:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 357.85 sec`
+
+Non-blocking note:
+
+- the reviewed CMake rebuild again emitted the ordinary
+  `bench_eigs_reuse.c` double-promotion warnings during compile, but the full
+  reviewed path still completed cleanly and passed all parity gates
+
+Interpretation:
+
+- the Day 10 Cholesky batch is validated from the strongest local reviewed
+  baseline
+- the only implementation detour was a lint-shape issue, not a behavioral
+  regression
+
+### Day 10 Close
+
+Sprint 62 Day 10 landed the bounded Cholesky preservation slice exactly as
+designed:
+
+- reordered one-shot Cholesky now publishes back only on success
+- the public header states that reordered preservation rule directly
+- the new integration proof covers cancel, preservation, and successful retry
+- the compatibility-only no-reorder cancel semantics stayed intact
+- the full reviewed validation path passed from the landed tree

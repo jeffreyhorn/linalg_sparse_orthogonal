@@ -170,7 +170,11 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat);
  * permuted before factorization. The reordering permutation is stored in
  * the matrix so that sparse_cholesky_solve() can automatically unpermute.
  * This remains a one-shot entry point; the repeated-run direct path is the
- * shared analysis/factor/refactor API in `sparse_analysis.h`.
+ * shared analysis/factor/refactor API in `sparse_analysis.h`. Reordered
+ * one-shot attempts may factor a temporary reordered working copy and publish
+ * that payload back to `mat` only after success, so cancelled or failed
+ * reordered attempts leave the caller-owned matrix in its original
+ * coordinate space.
  *
  * @param mat   The SPD matrix to factor (modified in-place).
  * @param opts  Factorization options.

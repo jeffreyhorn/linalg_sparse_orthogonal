@@ -24,6 +24,86 @@
 static sparse_err_t sparse_cholesky_factor_inner(SparseMatrix *mat,
                                                  sparse_progress_cb_t progress_cb,
                                                  void *progress_user);
+static sparse_err_t s62_cholesky_factor_opts_no_reorder(SparseMatrix *mat,
+                                                        const sparse_cholesky_opts_t *opts);
+static sparse_err_t s62_cholesky_factor_reordered_working_copy(SparseMatrix *mat, idx_t *perm,
+                                                               const sparse_cholesky_opts_t *opts);
+
+static void s62_cholesky_steal_factor_payload(SparseMatrix *dst, SparseMatrix *src) {
+    if (!dst || !src)
+        return;
+
+    pool_free_all(&dst->pool);
+    free(dst->row_headers);
+    free(dst->col_headers);
+    free(dst->row_perm);
+    free(dst->inv_row_perm);
+    free(dst->col_perm);
+    free(dst->inv_col_perm);
+    free(dst->factor_state);
+    free(dst->reorder_perm);
+
+    dst->row_headers = src->row_headers;
+    dst->col_headers = src->col_headers;
+    dst->row_perm = src->row_perm;
+    dst->inv_row_perm = src->inv_row_perm;
+    dst->col_perm = src->col_perm;
+    dst->inv_col_perm = src->inv_col_perm;
+    dst->pool = src->pool;
+    dst->nnz = src->nnz;
+    dst->cached_norm = src->cached_norm;
+    dst->factor_norm = src->factor_norm;
+    dst->factored = src->factored;
+    dst->factor_state = src->factor_state;
+    dst->reorder_perm = src->reorder_perm;
+
+    src->row_headers = NULL;
+    src->col_headers = NULL;
+    src->row_perm = NULL;
+    src->inv_row_perm = NULL;
+    src->col_perm = NULL;
+    src->inv_col_perm = NULL;
+    src->pool.head = NULL;
+    src->pool.current = NULL;
+    src->pool.free_list = NULL;
+    src->nnz = 0;
+    src->factor_norm = -1.0;
+    src->factored = 0;
+    src->factor_state = NULL;
+    src->reorder_perm = NULL;
+}
+
+/* Sprint 62 Day 10: reordered Cholesky one-shot calls now factor on a
+ * temporary permuted working copy and publish the reordered/factored payload
+ * back to the caller matrix only after success. */
+static sparse_err_t s62_cholesky_factor_reordered_working_copy(SparseMatrix *mat, idx_t *perm,
+                                                               const sparse_cholesky_opts_t *opts) {
+    if (!mat || !perm || !opts) {
+        free(perm);
+        return SPARSE_ERR_NULL;
+    }
+
+    SparseMatrix *PA = NULL;
+    sparse_err_t err = sparse_permute(mat, perm, perm, &PA);
+    if (err != SPARSE_OK) {
+        free(perm);
+        return err;
+    }
+
+    sparse_cholesky_opts_t work_opts = *opts;
+    work_opts.reorder = SPARSE_REORDER_NONE;
+    err = s62_cholesky_factor_opts_no_reorder(PA, &work_opts);
+    if (err != SPARSE_OK) {
+        sparse_free(PA);
+        free(perm);
+        return err;
+    }
+
+    sparse_factor_state_replace_reorder_perm(PA, perm);
+    s62_cholesky_steal_factor_payload(mat, PA);
+    sparse_free(PA);
+    return SPARSE_OK;
+}
 
 static double s29_now_s(void) {
     struct timespec ts;
@@ -240,6 +320,7 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
     idx_t n = mat->rows;
     if (n != mat->cols)
         return SPARSE_ERR_SHAPE;
+    int reorder_requested = (opts->reorder != SPARSE_REORDER_NONE) ? 1 : 0;
 
     /* Precondition check (matches `sparse_analyze`): reject non-
      * identity row/col permutations and already-factored inputs.
@@ -253,14 +334,10 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
     if (sparse_matrix_require_original_state(mat) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
 
-    /* Clear any previous reorder permutation */
-    sparse_factor_state_replace_reorder_perm(mat, NULL);
-
-    /* Apply fill-reducing reordering if requested.  This permutes the
-     * SparseMatrix into its final coordinate space and resets the
-     * internal row/col perms to identity — the same end-state both
-     * the linked-list factor and the CSC factor expect to start from. */
-    if (opts->reorder != SPARSE_REORDER_NONE && n > 1) {
+    /* Apply fill-reducing reordering if requested.  Sprint 62 Day 10 keeps
+     * the caller-owned matrix untouched until the reordered one-shot factor
+     * attempt actually succeeds. */
+    if (reorder_requested && n > 1) {
         idx_t *perm = malloc((size_t)n * sizeof(idx_t));
         if (!perm)
             return SPARSE_ERR_ALLOC;
@@ -285,49 +362,24 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
             free(perm);
             return err;
         }
-
-        /* Apply symmetric permutation in-place */
-        SparseMatrix *PA = NULL;
-        err = sparse_permute(mat, perm, perm, &PA);
-        if (err != SPARSE_OK) {
-            free(perm);
-            return err;
-        }
-
-        /* Swap internal data from PA into mat */
-        pool_free_all(&mat->pool);
-        free(mat->row_headers);
-        free(mat->col_headers);
-
-        mat->row_headers = PA->row_headers;
-        mat->col_headers = PA->col_headers;
-        mat->pool = PA->pool;
-        mat->nnz = PA->nnz;
-        mat->cached_norm = PA->cached_norm;
-        sparse_factor_state_set_factor_norm(mat, -1.0); /* reset: not Cholesky-factored */
-
-        PA->row_headers = NULL;
-        PA->col_headers = NULL;
-        PA->pool.head = NULL;
-        PA->pool.current = NULL;
-        PA->pool.free_list = NULL;
-        sparse_free(PA);
-
-        /* Reset permutations to identity */
-        for (idx_t i = 0; i < n; i++) {
-            mat->row_perm[i] = i;
-            mat->inv_row_perm[i] = i;
-            mat->col_perm[i] = i;
-            mat->inv_col_perm[i] = i;
-        }
-
-        /* Store reorder permutation for solve to unpermute */
-        sparse_factor_state_replace_reorder_perm(mat, perm);
+        return s62_cholesky_factor_reordered_working_copy(mat, perm, opts);
     }
+
+    return s62_cholesky_factor_opts_no_reorder(mat, opts);
+}
+
+static sparse_err_t s62_cholesky_factor_opts_no_reorder(SparseMatrix *mat,
+                                                        const sparse_cholesky_opts_t *opts) {
+    if (!mat || !opts)
+        return SPARSE_ERR_NULL;
+
+    /* Clear any previous reorder permutation before no-reorder factorization. */
+    sparse_factor_state_replace_reorder_perm(mat, NULL);
 
     /* Backend dispatch: AUTO compares against SPARSE_CSC_THRESHOLD;
      * LINKED_LIST / CSC force one branch.  Records the chosen path
      * back through the caller's opts->used_csc_path if provided. */
+    idx_t n = mat->rows;
     int use_csc;
     switch (opts->backend) {
     case SPARSE_CHOL_BACKEND_LINKED_LIST:

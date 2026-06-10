@@ -758,6 +758,7 @@ static void test_analysis_typed_nd_root_bisect_overrides_env(void) {
     sparse_analysis_t an_multi = {0};
     sparse_analysis_t an_env_spectral = {0};
     sparse_analysis_t an_typed_multilevel = {0};
+    const char *skip_reason = NULL;
 
     if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
         printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
@@ -784,7 +785,8 @@ static void test_analysis_typed_nd_root_bisect_overrides_env(void) {
         goto cleanup;
     }
     if (memcmp(an_multi.perm, an_env_spectral.perm, (size_t)n * sizeof(idx_t)) == 0) {
-        SKIP_TEST("Pres_Poisson spectral env path did not differ from multilevel baseline");
+        skip_reason = "Pres_Poisson spectral env path did not differ from multilevel baseline";
+        goto cleanup;
     }
 
     rc = sparse_analyze(A, &opts_typed_multilevel, &an_typed_multilevel);
@@ -803,6 +805,8 @@ cleanup:
     sparse_analysis_free(&an_env_spectral);
     sparse_analysis_free(&an_typed_multilevel);
     sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
 }
 
 static void test_analysis_typed_nd_root_bisect_max_n_overrides_env(void) {
@@ -828,6 +832,7 @@ static void test_analysis_typed_nd_root_bisect_max_n_overrides_env(void) {
     sparse_analysis_t an_multi = {0};
     sparse_analysis_t an_env_capped = {0};
     sparse_analysis_t an_typed_spectral = {0};
+    const char *skip_reason = NULL;
 
     if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
         printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
@@ -868,7 +873,8 @@ static void test_analysis_typed_nd_root_bisect_max_n_overrides_env(void) {
         goto cleanup;
     }
     if (memcmp(an_multi.perm, an_typed_spectral.perm, (size_t)n * sizeof(idx_t)) == 0) {
-        SKIP_TEST("typed spectral max_n path did not differ from multilevel baseline");
+        skip_reason = "typed spectral max_n path did not differ from multilevel baseline";
+        goto cleanup;
     }
 
 cleanup:
@@ -882,6 +888,8 @@ cleanup:
     sparse_analysis_free(&an_env_capped);
     sparse_analysis_free(&an_typed_spectral);
     sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
 }
 
 static void test_analysis_typed_nd_coarsen_floor_ratio_overrides_env(void) {
@@ -903,6 +911,7 @@ static void test_analysis_typed_nd_coarsen_floor_ratio_overrides_env(void) {
         .reorder = SPARSE_REORDER_ND,
         .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE,
     };
+    const char *skip_reason = NULL;
 
     idx_t nnz_default = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_default);
     if (nnz_default <= 0) {
@@ -922,7 +931,10 @@ static void test_analysis_typed_nd_coarsen_floor_ratio_overrides_env(void) {
         goto cleanup;
     }
     if (nnz_env_ratio_1 == nnz_default)
-        SKIP_TEST("bcsstk14 env floor-ratio path did not differ from typed floor-ratio baseline");
+        skip_reason =
+            "bcsstk14 env floor-ratio path did not differ from typed floor-ratio baseline";
+    if (skip_reason)
+        goto cleanup;
 
     idx_t nnz_typed_default = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_default);
     if (nnz_typed_default <= 0) {
@@ -936,6 +948,8 @@ static void test_analysis_typed_nd_coarsen_floor_ratio_overrides_env(void) {
 cleanup:
     tf_unsetenv("SPARSE_ND_COARSEN_FLOOR_RATIO");
     sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
 }
 
 static void test_analysis_default_nd_coarsen_floor_ratio_matches_internal_default(void) {
@@ -992,6 +1006,7 @@ static void test_analysis_typed_nd_coarsening_overrides_env(void) {
         .factor_type = SPARSE_FACTOR_CHOLESKY,
         .reorder = SPARSE_REORDER_ND,
     };
+    const char *skip_reason = NULL;
 
     idx_t nnz_hem = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_hem);
     if (nnz_hem <= 0) {
@@ -1010,7 +1025,9 @@ static void test_analysis_typed_nd_coarsening_overrides_env(void) {
         goto cleanup;
     }
     if (nnz_env_hcc == nnz_hem)
-        SKIP_TEST("bcsstk14 HCC env path did not differ from typed heavy_edge baseline");
+        skip_reason = "bcsstk14 HCC env path did not differ from typed heavy_edge baseline";
+    if (skip_reason)
+        goto cleanup;
 
     idx_t nnz_typed_hem = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_hem);
     if (nnz_typed_hem <= 0) {
@@ -1023,6 +1040,8 @@ static void test_analysis_typed_nd_coarsening_overrides_env(void) {
 cleanup:
     tf_unsetenv("SPARSE_ND_COARSENING");
     sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
 }
 
 static void test_analysis_nd_coarsening_cv_fallthrough_default_matches_compat_value(void) {
@@ -1079,6 +1098,7 @@ static void test_analysis_nd_coarsening_cv_fallthrough_env_affects_policy_path(v
         .reorder = SPARSE_REORDER_ND,
         .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HCC,
     };
+    const char *skip_reason = NULL;
 
     tf_unsetenv("SPARSE_ND_COARSENING_CV_FALLTHROUGH");
     idx_t nnz_default = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_hcc);
@@ -1100,11 +1120,16 @@ static void test_analysis_nd_coarsening_cv_fallthrough_env_affects_policy_path(v
         goto cleanup;
     }
     if (nnz_env_disabled == nnz_default)
-        SKIP_TEST("Kuu HCC CV fallthrough env path did not differ from the default analysis path");
+        skip_reason =
+            "Kuu HCC CV fallthrough env path did not differ from the default analysis path";
+    if (skip_reason)
+        goto cleanup;
 
 cleanup:
     tf_unsetenv("SPARSE_ND_COARSENING_CV_FALLTHROUGH");
     sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
 }
 
 static void test_analysis_typed_nd_coarsest_bisection_overrides_env(void) {
@@ -1124,6 +1149,7 @@ static void test_analysis_typed_nd_coarsest_bisection_overrides_env(void) {
         .factor_type = SPARSE_FACTOR_CHOLESKY,
         .reorder = SPARSE_REORDER_ND,
     };
+    const char *skip_reason = NULL;
 
     idx_t nnz_default = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_default);
     if (nnz_default <= 0) {
@@ -1143,7 +1169,9 @@ static void test_analysis_typed_nd_coarsest_bisection_overrides_env(void) {
         goto cleanup;
     }
     if (nnz_env_spectral == nnz_default)
-        SKIP_TEST("bcsstk14 env spectral coarsest path did not differ from default routing");
+        skip_reason = "bcsstk14 env spectral coarsest path did not differ from default routing";
+    if (skip_reason)
+        goto cleanup;
 
     idx_t nnz_typed_default = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_default);
     if (nnz_typed_default <= 0) {
@@ -1156,6 +1184,8 @@ static void test_analysis_typed_nd_coarsest_bisection_overrides_env(void) {
 cleanup:
     tf_unsetenv("SPARSE_ND_COARSEST_BISECTION");
     sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
 }
 
 static void test_analysis_typed_nd_sep_lift_strategy_overrides_env(void) {
@@ -1176,6 +1206,7 @@ static void test_analysis_typed_nd_sep_lift_strategy_overrides_env(void) {
         .reorder = SPARSE_REORDER_ND,
         .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE,
     };
+    const char *skip_reason = NULL;
 
     idx_t nnz_per_vertex = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_per_vertex);
     if (nnz_per_vertex <= 0) {
@@ -1195,7 +1226,9 @@ static void test_analysis_typed_nd_sep_lift_strategy_overrides_env(void) {
         goto cleanup;
     }
     if (nnz_env_fixed_k == nnz_per_vertex)
-        SKIP_TEST("30x30 grid fixed_k env path did not differ from typed per_vertex baseline");
+        skip_reason = "30x30 grid fixed_k env path did not differ from typed per_vertex baseline";
+    if (skip_reason)
+        goto cleanup;
 
     idx_t nnz_typed_per_vertex =
         symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_per_vertex);
@@ -1209,6 +1242,8 @@ static void test_analysis_typed_nd_sep_lift_strategy_overrides_env(void) {
 cleanup:
     tf_unsetenv("SPARSE_ND_SEP_LIFT_STRATEGY");
     sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
 }
 
 static void test_analysis_typed_nd_sep_lift_weight_overrides_env(void) {
@@ -1234,6 +1269,7 @@ static void test_analysis_typed_nd_sep_lift_weight_overrides_env(void) {
         .reorder_opts.nd_sep_lift_strategy =
             SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_PER_VERTEX_FIXED_K,
     };
+    const char *skip_reason = NULL;
 
     idx_t nnz_hybrid = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_hybrid);
     if (nnz_hybrid <= 0) {
@@ -1253,7 +1289,9 @@ static void test_analysis_typed_nd_sep_lift_weight_overrides_env(void) {
         goto cleanup;
     }
     if (nnz_env_balance == nnz_hybrid)
-        SKIP_TEST("bcsstk04 env balance weight did not differ from typed hybrid baseline");
+        skip_reason = "bcsstk04 env balance weight did not differ from typed hybrid baseline";
+    if (skip_reason)
+        goto cleanup;
 
     idx_t nnz_typed_hybrid = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_hybrid);
     if (nnz_typed_hybrid <= 0) {
@@ -1266,6 +1304,8 @@ static void test_analysis_typed_nd_sep_lift_weight_overrides_env(void) {
 cleanup:
     tf_unsetenv("SPARSE_ND_SEP_LIFT_WEIGHT");
     sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
 }
 
 /* Sprint 27 Day 6: SPARSE_FM_FINEST_STRATEGY=annealing produces a
@@ -1751,6 +1791,7 @@ static void test_analysis_typed_supernodal_postorder_overrides_env(void) {
     sparse_analysis_t analysis_typed_off = {0};
     idx_t *expected_on = NULL;
     int env_set = 0;
+    const char *skip_reason = NULL;
 
     tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
     rc = sparse_analyze(A, &opts, &analysis_off);
@@ -1767,7 +1808,8 @@ static void test_analysis_typed_supernodal_postorder_overrides_env(void) {
     for (idx_t k = 0; k < n; k++)
         expected_on[k] = analysis_off.perm[analysis_off.postorder[k]];
     if (memcmp(expected_on, analysis_off.perm, (size_t)n * sizeof(idx_t)) == 0) {
-        SKIP_TEST("fixture baseline perm already matches the etree postorder composition");
+        skip_reason = "fixture baseline perm already matches the etree postorder composition";
+        goto cleanup;
     }
 
     if (tf_setenv("SPARSE_SUPERNODAL_POSTORDER", "on") != 0) {
@@ -1797,6 +1839,8 @@ cleanup:
     sparse_analysis_free(&analysis_env_on);
     sparse_analysis_free(&analysis_typed_off);
     sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
 }
 
 /* ─── Sprint 28 Day 8: supernodal-etree reordering corpus safety ─── */

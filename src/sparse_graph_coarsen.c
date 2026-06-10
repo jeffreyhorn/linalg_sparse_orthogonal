@@ -72,6 +72,10 @@ static int cmp_coarse_edge(const void *a, const void *b) {
 static _Thread_local int force_hem_override = 0;
 static _Thread_local int coarsening_override_active = 0;
 static _Thread_local coarsening_strategy_t coarsening_override_strategy = COARSENING_HCC;
+static _Thread_local int coarsen_floor_ratio_override_active = 0;
+static _Thread_local idx_t coarsen_floor_ratio_override = 100;
+static _Thread_local int coarsening_cv_fallthrough_override_active = 0;
+static _Thread_local double coarsening_cv_fallthrough_override = 0.30;
 
 /* Parser for the active coarsening strategy. Exposed through
  * `sparse_graph_coarsening_strategy_current()` so the remaining
@@ -102,6 +106,26 @@ void sparse_graph_coarsening_override_begin(coarsening_strategy_t strategy) {
 void sparse_graph_coarsening_override_end(void) {
     coarsening_override_active = 0;
     coarsening_override_strategy = COARSENING_HCC;
+}
+
+void sparse_graph_coarsen_floor_ratio_override_begin(idx_t divisor) {
+    coarsen_floor_ratio_override = divisor;
+    coarsen_floor_ratio_override_active = 1;
+}
+
+void sparse_graph_coarsen_floor_ratio_override_end(void) {
+    coarsen_floor_ratio_override_active = 0;
+    coarsen_floor_ratio_override = 100;
+}
+
+void sparse_graph_coarsening_cv_fallthrough_override_begin(double threshold) {
+    coarsening_cv_fallthrough_override = threshold;
+    coarsening_cv_fallthrough_override_active = 1;
+}
+
+void sparse_graph_coarsening_cv_fallthrough_override_end(void) {
+    coarsening_cv_fallthrough_override_active = 0;
+    coarsening_cv_fallthrough_override = 0.30;
 }
 
 void sparse_graph_force_hem_override_begin(void) { force_hem_override = 1; }
@@ -141,12 +165,16 @@ static sparse_err_t graph_coarsen_with_strategy(const sparse_graph_t *fine, uint
 
     if (strategy == COARSENING_HCC && n_fine >= 2) {
         double cv_threshold = 0.30;
-        const char *env = getenv("SPARSE_ND_COARSENING_CV_FALLTHROUGH");
-        if (env && *env) {
-            char *endp = NULL;
-            double v = strtod(env, &endp);
-            if (env != endp && *endp == '\0' && v >= 0.0 && v <= 100.0)
-                cv_threshold = v;
+        if (coarsening_cv_fallthrough_override_active) {
+            cv_threshold = coarsening_cv_fallthrough_override;
+        } else {
+            const char *env = getenv("SPARSE_ND_COARSENING_CV_FALLTHROUGH");
+            if (env && *env) {
+                char *endp = NULL;
+                double v = strtod(env, &endp);
+                if (env != endp && *endp == '\0' && v >= 0.0 && v <= 100.0)
+                    cv_threshold = v;
+            }
         }
         if (cv_threshold > 0.0) {
             double sum = 0.0;
@@ -493,7 +521,9 @@ sparse_err_t sparse_graph_hierarchy_build(const sparse_graph_t *root, uint32_t s
 
     idx_t n_root = root->n;
     idx_t divisor = 100;
-    {
+    if (coarsen_floor_ratio_override_active) {
+        divisor = coarsen_floor_ratio_override;
+    } else {
         const char *env = getenv("SPARSE_ND_COARSEN_FLOOR_RATIO");
         if (env) {
             char *endp = NULL;

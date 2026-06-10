@@ -170,8 +170,10 @@ typedef struct {
         coarsest-level ND bisection strategy. */
     sparse_analysis_nd_root_bisect_t nd_root_bisect;               /**< Optional nested-
                       dissection root bisection policy. */
-    idx_t nd_root_bisect_max_n; /**< Optional upper bound for the root-level
-        spectral ND path. Use 0 to leave unspecified. */
+    idx_t nd_root_bisect_max_n;   /**< Optional upper bound for the root-level
+          spectral ND path. Use 0 to leave unspecified. */
+    idx_t nd_coarsen_floor_ratio; /**< Optional ND coarsening floor-ratio divisor.
+        Use 0 to leave unspecified. */
     sparse_analysis_nd_sep_lift_strategy_t nd_sep_lift_strategy; /**< Optional
         ND separator-lift strategy. */
     sparse_analysis_nd_sep_lift_weight_t nd_sep_lift_weight;     /**< Optional fixed-K

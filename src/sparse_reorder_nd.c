@@ -276,6 +276,30 @@ static idx_t parse_nd_root_bisect_max_n_compat_override(void) {
     return max_n;
 }
 
+static idx_t parse_nd_coarsen_floor_ratio_compat_override(void) {
+    idx_t divisor = 100;
+    const char *env = getenv("SPARSE_ND_COARSEN_FLOOR_RATIO");
+    if (env && *env) {
+        char *endp = NULL;
+        long v = strtol(env, &endp, 10);
+        if (env != endp && *endp == '\0' && v >= 1 && v <= 100000)
+            divisor = (idx_t)v;
+    }
+    return divisor;
+}
+
+static double parse_nd_coarsening_cv_fallthrough_compat_override(void) {
+    double threshold = 0.30;
+    const char *env = getenv("SPARSE_ND_COARSENING_CV_FALLTHROUGH");
+    if (env && *env) {
+        char *endp = NULL;
+        double v = strtod(env, &endp);
+        if (env != endp && *endp == '\0' && v >= 0.0 && v <= 100.0)
+            threshold = v;
+    }
+    return threshold;
+}
+
 static sparse_graph_nd_sep_lift_strategy_mode_t parse_nd_sep_lift_strategy_compat_override(void) {
     const char *env = getenv("SPARSE_ND_SEP_LIFT_STRATEGY");
     if (!env)
@@ -311,6 +335,8 @@ static sparse_graph_nd_policy_t sparse_reorder_nd_default_policy(void) {
         .nd_coarsest_bisection = parse_nd_coarsest_bisection_compat_override(),
         .nd_root_bisect = parse_nd_root_bisect_strategy_compat_override(),
         .nd_root_bisect_max_n = parse_nd_root_bisect_max_n_compat_override(),
+        .nd_coarsen_floor_ratio = parse_nd_coarsen_floor_ratio_compat_override(),
+        .nd_coarsening_cv_fallthrough = parse_nd_coarsening_cv_fallthrough_compat_override(),
         .nd_sep_lift_strategy = parse_nd_sep_lift_strategy_compat_override(),
         .nd_sep_lift_weight = parse_nd_sep_lift_weight_compat_override(),
     };
@@ -658,11 +684,15 @@ sparse_err_t sparse_reorder_nd_with_policy(const SparseMatrix *A, idx_t *perm,
 
     idx_t next_pos = 0;
     sparse_graph_coarsening_override_begin(policy->nd_coarsening);
+    sparse_graph_coarsen_floor_ratio_override_begin(policy->nd_coarsen_floor_ratio);
+    sparse_graph_coarsening_cv_fallthrough_override_begin(policy->nd_coarsening_cv_fallthrough);
     sparse_graph_coarsest_bisection_override_begin(policy->nd_coarsest_bisection);
     sparse_graph_sep_lift_override_begin(policy->nd_sep_lift_strategy, policy->nd_sep_lift_weight);
     rc = nd_recurse(&G, root_map, perm, &next_pos, /*depth=*/0, policy);
     sparse_graph_sep_lift_override_end();
     sparse_graph_coarsest_bisection_override_end();
+    sparse_graph_coarsening_cv_fallthrough_override_end();
+    sparse_graph_coarsen_floor_ratio_override_end();
     sparse_graph_coarsening_override_end();
 
     free(root_map);

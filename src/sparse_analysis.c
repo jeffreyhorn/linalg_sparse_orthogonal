@@ -111,6 +111,30 @@ static idx_t parse_nd_root_bisect_max_n_compat_override(void) {
     return max_n;
 }
 
+static idx_t parse_nd_coarsen_floor_ratio_compat_override(void) {
+    idx_t divisor = 100;
+    const char *env = getenv("SPARSE_ND_COARSEN_FLOOR_RATIO");
+    if (env && *env) {
+        char *endp = NULL;
+        long v = strtol(env, &endp, 10);
+        if (env != endp && *endp == '\0' && v >= 1 && v <= 100000)
+            divisor = (idx_t)v;
+    }
+    return divisor;
+}
+
+static double parse_nd_coarsening_cv_fallthrough_compat_override(void) {
+    double threshold = 0.30;
+    const char *env = getenv("SPARSE_ND_COARSENING_CV_FALLTHROUGH");
+    if (env && *env) {
+        char *endp = NULL;
+        double v = strtod(env, &endp);
+        if (env != endp && *endp == '\0' && v >= 0.0 && v <= 100.0)
+            threshold = v;
+    }
+    return threshold;
+}
+
 static sparse_graph_nd_sep_lift_strategy_mode_t parse_nd_sep_lift_strategy_compat_override(void) {
     const char *env = getenv("SPARSE_ND_SEP_LIFT_STRATEGY");
     if (!env)
@@ -154,6 +178,8 @@ static sparse_err_t resolve_analysis_nd_policy(const sparse_analysis_opts_t *opt
     policy->nd_coarsest_bisection = SPARSE_GRAPH_ND_COARSEST_BISECTION_DEFAULT_ROUTING;
     policy->nd_root_bisect = SPARSE_GRAPH_ND_ROOT_BISECT_MULTILEVEL;
     policy->nd_root_bisect_max_n = 50000;
+    policy->nd_coarsen_floor_ratio = 100;
+    policy->nd_coarsening_cv_fallthrough = 0.30;
     policy->nd_sep_lift_strategy = SPARSE_GRAPH_ND_SEP_LIFT_SMALLER_WEIGHT;
     policy->nd_sep_lift_weight = SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_HYBRID;
 
@@ -192,6 +218,15 @@ static sparse_err_t resolve_analysis_nd_policy(const sparse_analysis_opts_t *opt
     else
         policy->nd_root_bisect_max_n = parse_nd_root_bisect_max_n_compat_override();
 
+    if (reorder_opts.nd_coarsen_floor_ratio < 0)
+        return SPARSE_ERR_BADARG;
+    if (reorder_opts.nd_coarsen_floor_ratio > 100000)
+        return SPARSE_ERR_BADARG;
+    if (reorder_opts.nd_coarsen_floor_ratio > 0)
+        policy->nd_coarsen_floor_ratio = reorder_opts.nd_coarsen_floor_ratio;
+    else
+        policy->nd_coarsen_floor_ratio = parse_nd_coarsen_floor_ratio_compat_override();
+
     switch (reorder_opts.nd_coarsening) {
     case SPARSE_ANALYSIS_ND_COARSENING_DEFAULT:
         policy->nd_coarsening = parse_nd_coarsening_compat_override();
@@ -205,6 +240,8 @@ static sparse_err_t resolve_analysis_nd_policy(const sparse_analysis_opts_t *opt
     default:
         return SPARSE_ERR_BADARG;
     }
+
+    policy->nd_coarsening_cv_fallthrough = parse_nd_coarsening_cv_fallthrough_compat_override();
 
     switch (reorder_opts.nd_coarsest_bisection) {
     case SPARSE_ANALYSIS_ND_COARSEST_BISECTION_DEFAULT:

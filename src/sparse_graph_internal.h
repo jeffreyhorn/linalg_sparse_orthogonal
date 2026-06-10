@@ -141,6 +141,8 @@ typedef struct {
     sparse_graph_nd_coarsest_bisection_mode_t nd_coarsest_bisection;
     sparse_graph_nd_root_bisect_mode_t nd_root_bisect;
     idx_t nd_root_bisect_max_n;
+    idx_t nd_coarsen_floor_ratio;
+    double nd_coarsening_cv_fallthrough;
     sparse_graph_nd_sep_lift_strategy_mode_t nd_sep_lift_strategy;
     sparse_graph_nd_sep_lift_weight_mode_t nd_sep_lift_weight;
 } sparse_graph_nd_policy_t;
@@ -314,6 +316,34 @@ void sparse_graph_coarsening_override_begin(coarsening_strategy_t strategy);
  * @brief Clear the current-thread ND coarsening strategy override.
  */
 void sparse_graph_coarsening_override_end(void);
+
+/**
+ * @brief Override the active ND coarsening floor-ratio divisor for the
+ *        current thread.
+ *
+ * Used by the typed analysis/reorder policy bridge. The begin/end calls must
+ * be paired.
+ */
+void sparse_graph_coarsen_floor_ratio_override_begin(idx_t divisor);
+
+/**
+ * @brief Clear the current-thread ND coarsening floor-ratio override.
+ */
+void sparse_graph_coarsen_floor_ratio_override_end(void);
+
+/**
+ * @brief Override the active HCC CV fallthrough threshold for the current
+ *        thread.
+ *
+ * Used by the typed analysis/reorder policy bridge. The begin/end calls must
+ * be paired.
+ */
+void sparse_graph_coarsening_cv_fallthrough_override_begin(double threshold);
+
+/**
+ * @brief Clear the current-thread HCC CV fallthrough override.
+ */
+void sparse_graph_coarsening_cv_fallthrough_override_end(void);
 
 /**
  * @brief Force temporary Heavy-Edge-Matching fallback for the current

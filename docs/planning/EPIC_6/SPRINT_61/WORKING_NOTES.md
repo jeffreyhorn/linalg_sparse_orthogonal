@@ -1969,3 +1969,218 @@ Sprint 61 now has an exact Day 10 implementation fence instead of a generic
 - the required touched-file set is fixed
 - the proof obligations are fixed
 - the deferred-control list is now explicit rather than implicit
+
+## Day 10
+
+**Objective:** Land the remaining bounded analysis-time control batch by
+moving `SPARSE_ND_COARSEN_FLOOR_RATIO` onto the typed
+`sparse_analysis_reorder_opts_t` surface, resolving
+`SPARSE_ND_COARSENING_CV_FALLTHROUGH` through the internal ND policy seam, and
+proving the preserved precedence/compatibility rules.
+
+1. Re-read the Day 9 design fence and keep the touch set exact:
+
+- public:
+  - `include/sparse_analysis.h`
+- resolution/policy:
+  - `src/sparse_analysis.c`
+  - `src/sparse_graph_internal.h`
+- implementation:
+  - `src/sparse_graph_coarsen.c`
+  - `src/sparse_reorder_nd.c`
+- proof:
+  - `tests/test_reorder_nd.c`
+
+2. Land the public/internal field split exactly as designed:
+
+- added public typed field on `sparse_analysis_reorder_opts_t`:
+  - `idx_t nd_coarsen_floor_ratio`
+- completed the internal ND policy seam in `sparse_graph_nd_policy_t` with:
+  - `idx_t nd_coarsen_floor_ratio`
+  - `double nd_coarsening_cv_fallthrough`
+- kept zero-init safety and the bounded public scalar contract:
+  - `0` remains unspecified/default
+  - positive floor-ratio values become explicit typed overrides
+  - negative or out-of-range public values are rejected
+
+3. Route both remaining controls through one resolved-policy bridge instead of
+   direct competing parser paths:
+
+- `src/sparse_analysis.c` now resolves:
+  - typed `nd_coarsen_floor_ratio`
+  - legacy `SPARSE_ND_COARSEN_FLOOR_RATIO` compatibility override
+  - internal default `100`
+- the analysis path now also resolves internal
+  `SPARSE_ND_COARSENING_CV_FALLTHROUGH` through the same ND policy object,
+  instead of leaving that seam as a separate late parser
+- `src/sparse_reorder_nd.c` now carries both residual controls through the
+  policy-aware ND entry point for the explicit analysis lifecycle
+
+4. Complete the coarsening-side internal override plumbing without widening the
+   public reorder API:
+
+- `src/sparse_graph_coarsen.c` now owns thread-local begin/end overrides for:
+  - coarsening floor-ratio divisor
+  - HCC CV fallthrough threshold
+- precedence at the coarsening site is now exact:
+  - explicit internal override
+  - legacy compatibility env var
+  - internal default
+- `sparse_reorder_nd(...)` remains a compatibility wrapper rather than a newly
+  widened public configuration API
+
+5. Prove the landed precedence behavior on the live ND analysis path:
+
+- added `tests/test_reorder_nd.c` proof:
+  - `test_analysis_typed_nd_coarsen_floor_ratio_overrides_env`
+  - `test_analysis_nd_coarsening_cv_fallthrough_env_affects_policy_path`
+- preserved the existing Day 6-7 typed-over-env proof set for:
+  - root bisection
+  - root bisection max-N
+  - coarsening strategy
+  - coarsest bisection
+  - separator-lift strategy
+  - separator-lift weight
+  - supernodal postorder
+
+### Day 10 Findings
+
+#### 1. Sprint 61 Phase 1 is now materially complete for the justified public analysis/reorder controls
+
+The highest-value public analysis-time controls identified on Days 3-5 are now
+typed on `sparse_analysis_reorder_opts_t`:
+
+- `SPARSE_SUPERNODAL_POSTORDER`
+- `SPARSE_ND_ROOT_BISECT`
+- `SPARSE_ND_ROOT_BISECT_MAX_N`
+- `SPARSE_ND_COARSENING`
+- `SPARSE_ND_COARSEST_BISECTION`
+- `SPARSE_ND_COARSEN_FLOOR_RATIO`
+- `SPARSE_ND_SEP_LIFT_STRATEGY`
+- `SPARSE_ND_SEP_LIFT_WEIGHT`
+
+Interpretation:
+
+- the remaining Sprint 61 queue is no longer “move one more obvious public ND
+  control”
+- the broad env-var problem has now been reduced to deferred FM/debug/profile
+  seams plus the compatibility-only legacy alias
+
+#### 2. The residual HCC fallback threshold is no longer an ad hoc late parser on the analysis path
+
+Before Day 10:
+
+- `SPARSE_ND_COARSENING_CV_FALLTHROUGH` still lived only as a direct env read
+  inside the coarsening implementation
+
+After Day 10:
+
+- the explicit analysis lifecycle resolves that threshold into the internal
+  `sparse_graph_nd_policy_t`
+- the ND driver passes it through begin/end override plumbing just like the
+  other resolved policy fields
+- the low-level env parser remains only as the bounded compatibility lane when
+  no explicit internal override is active
+
+Interpretation:
+
+- the analysis path now has one coherent control-plane story instead of one
+  lingering special-case env seam
+- this closes the strongest remaining Day 8-Day 9 “post-landing analysis” gap
+
+#### 3. The landed proof burden stayed bounded to `tests/test_reorder_nd.c`
+
+Day 9 left open whether Day 10 would need to widen `tests/test_graph.c`.
+
+It did not.
+
+The new proof burden fit inside `tests/test_reorder_nd.c`:
+
+- typed floor-ratio precedence is proven there
+- HCC CV-threshold effect on the analysis path is proven there
+
+Interpretation:
+
+- the selected proof home was strong enough
+- Day 10 did not have to reopen lower-level graph-test ownership
+
+#### 4. The preserved non-goal fence stayed exact
+
+Day 10 did not widen into:
+
+- public FM tuning controls
+- debug/profile option migration
+- repo-wide configuration helper layers
+- packaging/platform work
+- backend/AUTO policy work
+- public `sparse_reorder_nd(...)` signature changes
+
+Interpretation:
+
+- Sprint 61 still reads as one coherent Phase 1 configuration-modernization
+  sprint rather than the start of a larger cross-cutting rewrite
+
+### Day 10 Validation
+
+Because `*.c` / `*.h` changed, I ran:
+
+- `make clean`
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All passed.
+
+Maintained reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 332.33 sec`
+
+Focused retained proof points:
+
+- `test_reorder_nd` passed with the two new Day 10 proofs:
+  - `test_analysis_typed_nd_coarsen_floor_ratio_overrides_env`
+  - `test_analysis_nd_coarsening_cv_fallthrough_env_affects_policy_path`
+- the full graph/reorder-sensitive rerun surface stayed clean through the
+  reviewed path:
+  - `test_graph`
+  - `test_graph_fm_buckets`
+  - `test_reorder_nd`
+  - `test_reorder_amd_qg`
+
+Non-blocking Day 10 note:
+
+- the reviewed CMake rebuild again emitted ordinary compiler warnings while
+  rebuilding `bench_eigs_reuse`, but the reviewed path still completed cleanly
+  and passed all parity gates
+
+### Day 10 Deferred-Control List
+
+Stay compatibility-only for now:
+
+- legacy `SPARSE_ND_SUPERNODAL_POSTORDER` alias
+
+Explicitly defer:
+
+- `SPARSE_ND_PROFILE`
+- `SPARSE_QG_PROFILE`
+- `SPARSE_HCC_DEBUG`
+- all `SPARSE_FM_*`
+- any widening of `sparse_reorder_nd(...)`
+- any repo-wide configuration helper layer
+
+### Day 10 Close
+
+Sprint 61 Day 10 lands the remaining justified analysis-time coarsening policy
+work without widening beyond the planned Phase 1 fence:
+
+- the last public ND scalar control moved onto the typed analysis options
+- the residual HCC fallback threshold moved into the internal resolved-policy
+  seam for the analysis path
+- the ND driver now carries both residual controls through explicit override
+  plumbing instead of competing parser paths
+- the proof burden stayed bounded to `tests/test_reorder_nd.c`
+- the full reviewed validation contract stayed clean

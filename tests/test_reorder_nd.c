@@ -884,6 +884,60 @@ cleanup:
     sparse_free(A);
 }
 
+static void test_analysis_typed_nd_coarsen_floor_ratio_overrides_env(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    sparse_analysis_opts_t opts_typed_default = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE,
+        .reorder_opts.nd_coarsen_floor_ratio = 100,
+    };
+    sparse_analysis_opts_t opts_env = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE,
+    };
+
+    idx_t nnz_default = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_default);
+    if (nnz_default <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed floor ratio 100) returned %d",
+                 (int)nnz_default);
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_ND_COARSEN_FLOOR_RATIO", "1") != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSEN_FLOOR_RATIO failed)\n");
+        goto cleanup;
+    }
+    idx_t nnz_env_ratio_1 = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_env);
+    if (nnz_env_ratio_1 <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(env floor ratio 1) returned %d",
+                 (int)nnz_env_ratio_1);
+        goto cleanup;
+    }
+    if (nnz_env_ratio_1 == nnz_default)
+        SKIP_TEST("bcsstk14 env floor-ratio path did not differ from typed floor-ratio baseline");
+
+    idx_t nnz_typed_default = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_default);
+    if (nnz_typed_default <= 0) {
+        TF_FAIL_(
+            "symbolic_cholesky_nnz_with_analysis_opts(typed floor ratio 100 under env) returned %d",
+            (int)nnz_typed_default);
+        goto cleanup;
+    }
+    ASSERT_EQ(nnz_typed_default, nnz_default);
+
+cleanup:
+    tf_unsetenv("SPARSE_ND_COARSEN_FLOOR_RATIO");
+    sparse_free(A);
+}
+
 static void test_analysis_typed_nd_coarsening_overrides_env(void) {
     SparseMatrix *A = NULL;
     sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
@@ -931,6 +985,47 @@ static void test_analysis_typed_nd_coarsening_overrides_env(void) {
 
 cleanup:
     tf_unsetenv("SPARSE_ND_COARSENING");
+    sparse_free(A);
+}
+
+static void test_analysis_nd_coarsening_cv_fallthrough_env_affects_policy_path(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Kuu.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (Kuu fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    sparse_analysis_opts_t opts_hcc = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HCC,
+    };
+
+    tf_unsetenv("SPARSE_ND_COARSENING_CV_FALLTHROUGH");
+    idx_t nnz_default = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_hcc);
+    if (nnz_default <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(default HCC CV threshold) returned %d",
+                 (int)nnz_default);
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_ND_COARSENING_CV_FALLTHROUGH", "0") != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING_CV_FALLTHROUGH failed)\n");
+        goto cleanup;
+    }
+    idx_t nnz_env_disabled = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_hcc);
+    if (nnz_env_disabled <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(env-disabled HCC CV threshold) "
+                 "returned %d",
+                 (int)nnz_env_disabled);
+        goto cleanup;
+    }
+    if (nnz_env_disabled == nnz_default)
+        SKIP_TEST("Kuu HCC CV fallthrough env path did not differ from the default analysis path");
+
+cleanup:
+    tf_unsetenv("SPARSE_ND_COARSENING_CV_FALLTHROUGH");
     sparse_free(A);
 }
 
@@ -2005,7 +2100,9 @@ int main(void) {
     RUN_TEST(test_nd_root_spectral_pres_poisson_smoke);
     RUN_TEST(test_analysis_typed_nd_root_bisect_overrides_env);
     RUN_TEST(test_analysis_typed_nd_root_bisect_max_n_overrides_env);
+    RUN_TEST(test_analysis_typed_nd_coarsen_floor_ratio_overrides_env);
     RUN_TEST(test_analysis_typed_nd_coarsening_overrides_env);
+    RUN_TEST(test_analysis_nd_coarsening_cv_fallthrough_env_affects_policy_path);
     RUN_TEST(test_analysis_typed_nd_coarsest_bisection_overrides_env);
     RUN_TEST(test_analysis_typed_nd_sep_lift_strategy_overrides_env);
     RUN_TEST(test_analysis_typed_nd_sep_lift_weight_overrides_env);

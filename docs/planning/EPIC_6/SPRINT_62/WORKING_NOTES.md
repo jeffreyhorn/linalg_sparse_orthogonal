@@ -496,3 +496,169 @@ statement:
 
 The next step is to turn that ranked map into an exact lifecycle/wrapper
 coherence design with preserved compatibility rules before code changes begin.
+
+## Day 4
+
+**Objective:** Define the bounded Sprint 62 lifecycle/wrapper hardening model
+and the exact preserved compatibility rules before code changes begin, so the
+first direct-usability batch lands against a real safety contract instead of a
+generic cleanup goal.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 4 design pass:
+   - `git status --short --branch`
+2. Re-read the current Sprint 62 notes and the Day 4-5 plan slice:
+   - `sed -n '1,560p' docs/planning/EPIC_6/SPRINT_62/WORKING_NOTES.md`
+   - `sed -n '181,320p' docs/planning/EPIC_6/SPRINT_62/PLAN.md`
+3. Re-read a recent Epic 6 design-contract artifact for shape:
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_61/artifacts/day4-typed-options-design-and-precedence-contract.md`
+4. Re-read the strongest current direct wrapper control flow:
+   - `sed -n '1,260p' include/sparse_analysis.h`
+   - `sed -n '1,320p' include/sparse_lu.h`
+   - `sed -n '1,260p' include/sparse_cholesky.h`
+   - `sed -n '1,360p' include/sparse_ldlt.h`
+   - `sed -n '220,340p' src/sparse_cholesky.c`
+   - `sed -n '330,470p' src/sparse_lu.c`
+   - `sed -n '1040,1135p' src/sparse_ldlt.c`
+
+### Day 4 Findings
+
+#### 1. The repeated-run direct lifecycle remains the canonical reuse contract
+
+Sprint 62 should preserve the current direct ownership split exactly:
+
+- one-shot wrappers remain first-class/default caller entry points
+- the explicit repeated-run contract remains:
+  - `sparse_analyze()`
+  - `sparse_factor_numeric()`
+  - `sparse_factor_solve()`
+  - `sparse_refactor_numeric()`
+- the one-shot wrappers may internally reuse lifecycle plumbing where they
+  already do so, but that does not make them the same public workflow
+
+Interpretation:
+
+- Sprint 62 should improve coherence, not erase the boundary
+- the lifecycle API remains the only public analyze-once / factor-many story
+- any usability gain must preserve that explicit ownership contract
+
+#### 2. Sprint 62 should reduce surprise by clarifying mutation and state publication, not by hiding it
+
+The strongest design rule is:
+
+- do not silently copy inside one-shot wrappers to “protect” callers
+- do not change family-local ownership models
+- do tighten preconditions, cleanup, invalidation, and documentation so the
+  actual mutation semantics are easier to understand and harder to misuse
+
+Family-specific preserved model:
+
+- LU:
+  - caller-owned matrix is still the one-shot factor container
+- Cholesky:
+  - caller-owned copied matrix is still mutated in place
+- LDL^T:
+  - family-local owned factor object is still the one-shot result
+- QR:
+  - unfactored/unreordered original-matrix expectation remains explicit
+
+Interpretation:
+
+- Sprint 62 is not a “transparent copy semantics” sprint
+- it is a “less surprising direct ownership semantics” sprint
+
+#### 3. LU should receive the first hardening batch, but only on bounded wrapper/lifecycle seams
+
+The strongest first landing should stay focused on LU:
+
+- wrapper/lifecycle crossover clarity
+- reorder-before-factor invalidation clarity
+- cancellation and compatibility-mirror cleanup behavior
+- preservation of the current one-shot public shape
+
+Recommended Day 6-7 target:
+
+- make the LU one-shot wrapper easier to reason about when:
+  - it stays in the one-shot path
+  - it routes through the shared lifecycle fast-path
+  - it exits early from reorder or cancellation-sensitive control flow
+
+Interpretation:
+
+- Sprint 62 should not start by touching all direct families at once
+- LU gives the highest value-to-risk ratio for the first hardening batch
+
+#### 4. Cholesky should be the strongest second batch, not part of the first fence
+
+Cholesky still matters, but its risk is different enough that it should follow
+the LU batch instead of mixing into it:
+
+- mutation surprise
+- backend clarity
+- cancellation caveats
+
+Interpretation:
+
+- Day 4 should keep Cholesky in the design contract
+- Day 5 should likely keep Cholesky out of the first exact touched-file fence
+- mixing LU and Cholesky too early would blur two different usability
+  problems
+
+#### 5. The implementation ownership split is now explicit
+
+Public wrapper behavior should own:
+
+- clearer precondition and mutation wording
+- clearer one-shot versus explicit lifecycle positioning
+- default-wrapper behavior normalization where the implementation already
+  promises equivalence
+
+Internal factor-state hardening should own:
+
+- reorder metadata invalidation/retention discipline
+- compatibility-mirror cleanup around early exits
+- wrapper/lifecycle fast-path coherence
+
+Lifecycle helper plumbing should own:
+
+- shared helper use only where it reduces ambiguity without widening API
+- alignment between one-shot wrappers and explicit lifecycle publish/free rules
+
+Docs/examples should own:
+
+- copy-discipline guidance
+- one-shot versus repeated-run workflow choice
+- family-specific mutation caveats only where callers actually need them
+
+#### 6. The explicit compatibility contract is now fixed
+
+Sprint 62 should preserve:
+
+- one-shot wrappers remain available as the default/simple entry points
+- no new top-level direct lifecycle object
+- no broad API rename or removal
+- no hidden broadening of repeated-run support boundaries
+- no silent semantic change that promises bit-identical no-mutation behavior on
+  paths that still mutate caller-owned matrices
+
+Sprint 62 may clarify:
+
+- when one-shot wrappers are the right default
+- when explicit lifecycle should replace them
+- which state becomes invalid on reorder/cancel/factor transitions
+- which wrapper behaviors already match explicit lifecycle outputs on the
+  supported path
+
+### Day 4 Close
+
+Sprint 62 now has an explicit lifecycle/wrapper safety contract:
+
+- repeated-run direct lifecycle remains the canonical reuse path
+- one-shot wrappers remain first-class/default peer entry points
+- Sprint 62 should reduce surprise by tightening mutation/state semantics, not
+  by hiding them
+- LU is the fixed first implementation target
+- Cholesky is the fixed second target
+- Day 5 can now define the exact first touched-file fence against this
+  preserved contract

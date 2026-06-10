@@ -390,8 +390,17 @@ static void test_error_recovery(void) {
  *     elimination phase (some emit n+1 if total includes a final
  *     k == n boundary; LDL^T may emit fewer than n for 2x2 pivots
  *     because k advances by 2).
- *   - cancellation at step=0 returns SPARSE_ERR_CANCELLED with the
- *     input matrix bit-identical to entry.
+ *   - cancellation semantics are family/path-local:
+ *       * LU no-reorder path: bit-identical at step 0
+ *       * LU reordered one-shot path: caller matrix preserved via
+ *         temporary working copy
+ *       * Cholesky no-reorder linked-list path: not bit-identical
+ *         because the upper triangle is stripped before the first
+ *         emission
+ *       * Cholesky reordered one-shot path: caller matrix preserved
+ *         via temporary working copy
+ *       * LDL^T: input matrix bit-identical because factor writes to
+ *         a separate owned factor object
  *   - default-NULL-callback path is bit-identical to Sprint 28.
  * ═══════════════════════════════════════════════════════════════════════ */
 
@@ -767,6 +776,79 @@ static void test_progress_cb_cholesky_cancel_after_reorder_preserves_original_ma
     };
     ASSERT_EQ(sparse_cholesky_factor_opts(A, &retry_opts), SPARSE_OK);
     ASSERT_EQ(sparse_cholesky_solve(A, b, x), SPARSE_OK);
+
+    sparse_free(A);
+    sparse_free(A_orig);
+}
+
+static void
+test_cholesky_refactor_attempt_rejects_existing_reordered_factor_and_preserves_old_factor(void) {
+    const idx_t n = 100;
+    SparseMatrix *A = build_tridiag_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_cholesky_opts_t factor_opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .backend = SPARSE_CHOL_BACKEND_LINKED_LIST,
+    };
+    ASSERT_EQ(sparse_cholesky_factor_opts(A, &factor_opts), SPARSE_OK);
+
+    double b[100];
+    double x_before[100];
+    double x_after[100];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = 1.0;
+    ASSERT_EQ(sparse_cholesky_solve(A, b, x_before), SPARSE_OK);
+
+    sparse_cholesky_opts_t retry_opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .backend = SPARSE_CHOL_BACKEND_LINKED_LIST,
+    };
+    ASSERT_EQ(sparse_cholesky_factor_opts(A, &retry_opts), SPARSE_ERR_BADARG);
+    ASSERT_EQ(sparse_cholesky_solve(A, b, x_after), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_after[i], x_before[i], 1e-12);
+
+    sparse_free(A);
+}
+
+static void test_cholesky_reordered_not_spd_preserves_original_matrix(void) {
+    SparseMatrix *A = sparse_create(3, 3);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_insert(A, 0, 0, 1.0);
+    sparse_insert(A, 0, 1, 2.0);
+    sparse_insert(A, 1, 0, 2.0);
+    sparse_insert(A, 1, 1, 1.0);
+    sparse_insert(A, 1, 2, 0.5);
+    sparse_insert(A, 2, 1, 0.5);
+    sparse_insert(A, 2, 2, 3.0);
+
+    SparseMatrix *A_orig = sparse_copy(A);
+    REQUIRE_OK(A_orig ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_cholesky_opts_t opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .backend = SPARSE_CHOL_BACKEND_LINKED_LIST,
+    };
+    ASSERT_EQ(sparse_cholesky_factor_opts(A, &opts), SPARSE_ERR_NOT_SPD);
+
+    const idx_t *rp = sparse_row_perm(A);
+    const idx_t *irp = sparse_inv_row_perm(A);
+    const idx_t *cp = sparse_col_perm(A);
+    const idx_t *icp = sparse_inv_col_perm(A);
+    for (idx_t i = 0; i < 3; i++) {
+        ASSERT_TRUE(rp[i] == i);
+        ASSERT_TRUE(irp[i] == i);
+        ASSERT_TRUE(cp[i] == i);
+        ASSERT_TRUE(icp[i] == i);
+        for (idx_t j = 0; j < 3; j++)
+            ASSERT_TRUE(sparse_get(A, i, j) == sparse_get(A_orig, i, j));
+    }
+
+    double b[3] = {1.0, 1.0, 1.0};
+    double x[3];
+    ASSERT_EQ(sparse_cholesky_solve(A, b, x), SPARSE_ERR_BADARG);
 
     sparse_free(A);
     sparse_free(A_orig);
@@ -2047,6 +2129,9 @@ int main(void) {
     RUN_TEST(test_lu_invalid_reorder_opts_preserve_existing_reordered_factor);
     RUN_TEST(test_progress_cb_cholesky_emits_cancel);
     RUN_TEST(test_progress_cb_cholesky_cancel_after_reorder_preserves_original_matrix);
+    RUN_TEST(
+        test_cholesky_refactor_attempt_rejects_existing_reordered_factor_and_preserves_old_factor);
+    RUN_TEST(test_cholesky_reordered_not_spd_preserves_original_matrix);
     RUN_TEST(test_progress_cb_ldlt_emits_cancel);
     RUN_TEST(test_progress_cb_null_default_unchanged);
     RUN_TEST(test_cholesky_default_wrapper_matches_default_opts);

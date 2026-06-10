@@ -69,10 +69,12 @@ typedef struct {
      *  the matrix with the first `step` columns fully eliminated.
      *  Cancellation at `step == 0` leaves the entry-value data with no
      *  in-loop mutation and restores the pre-entry factored-state
-     *  compatibility mirrors (`factored`, `factor_norm`).  This does
-     *  not undo any reorder that `sparse_lu_factor_opts()` may have
-     *  applied before the callback path begins.  NULL (default)
-     *  disables the callback — Sprint 28 behaviour bit-identical,
+     *  compatibility mirrors (`factored`, `factor_norm`) on the
+     *  no-reorder path. Reordered one-shot calls that use the callback
+     *  path factor a temporary reordered working copy and only publish
+     *  back on success, so cancellation leaves the caller-owned matrix
+     *  in its original coordinate space.  NULL (default) disables the
+     *  callback — Sprint 28 behaviour bit-identical,
      *  zero overhead.  See `sparse_progress_cb_t` in `sparse_types.h`
      *  for the generic callback contract and
      *  `docs/maintainer_guide.md` for the broader maintainer-policy

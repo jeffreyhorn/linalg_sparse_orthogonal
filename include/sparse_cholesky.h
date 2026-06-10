@@ -108,10 +108,14 @@ typedef struct {
      *  `SPARSE_ERR_CANCELLED` propagates up.  NULL (default)
      *  disables the callback.  Currently only the linked-list
      *  backend emits progress; the CSC supernodal backend's
-     *  emissions land in a future sprint.  The linked-list path
-     *  removes upper-triangle entries before the first emission, so
-     *  cancel-at-step-0 does not restore a bit-identical pre-call
-     *  matrix even though the factor is rejected as unfactored.
+     *  emissions land in a future sprint.  On the no-reorder
+     *  linked-list path, upper-triangle entries are removed before
+     *  the first emission, so cancel-at-step-0 does not restore a
+     *  bit-identical pre-call matrix even though the factor is
+     *  rejected as unfactored. Reordered one-shot attempts may still
+     *  preserve the caller-owned matrix because they factor a
+     *  temporary reordered working copy and only publish back on
+     *  success.
      *  See `sparse_progress_cb_t` in `sparse_types.h` for the
      *  generic callback contract and `docs/maintainer_guide.md`
      *  for the broader maintainer-policy interpretation.  Trailing

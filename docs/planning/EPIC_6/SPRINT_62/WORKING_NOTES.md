@@ -1573,3 +1573,159 @@ designed:
 - the new integration proof covers cancel, preservation, and successful retry
 - the compatibility-only no-reorder cancel semantics stayed intact
 - the full reviewed validation path passed from the landed tree
+
+## Day 11
+
+**Objective:** Tighten the post-Day-10 direct-lifecycle proof surface, remove
+stale one-shot compatibility wording, and validate the refined LU/Cholesky
+usability contract from the strongest reviewed baseline.
+
+### Commands Run
+
+1. Re-read the Day 10 landing and the Day 11 plan fence:
+   - `sed -n '1,240p' docs/planning/EPIC_6/SPRINT_62/artifacts/day10-cholesky-preservation-hardening-batch.md`
+   - `sed -n '378,412p' docs/planning/EPIC_6/SPRINT_62/PLAN.md`
+2. Inspect the live LU/Cholesky public wording and integration proof surface:
+   - `sed -n '1,220p' include/sparse_lu.h`
+   - `sed -n '1,260p' include/sparse_cholesky.h`
+   - `rg -n "cancel|reorder|progress|preserve|factor_opts" tests/test_integration.c`
+3. Land the bounded compatibility/regression patch:
+   - `apply_patch` on:
+     - `include/sparse_lu.h`
+     - `include/sparse_cholesky.h`
+     - `tests/test_integration.c`
+4. Run the required validation gate for `*.c` / `*.h` direct-lifecycle work:
+   - `make format && make lint && make test && make quality-review-full`
+5. Review the final touched diff and branch state:
+   - `git diff -- include/sparse_lu.h include/sparse_cholesky.h tests/test_integration.c`
+   - `git status --short --branch`
+
+### Day 11 Findings
+
+#### 1. The public LU and Cholesky callback story now matches the shipped path split
+
+The highest-value stale wording was in the family-local progress/cancel
+comments:
+
+- `include/sparse_lu.h` no longer implies that reordered one-shot cancellation
+  leaves the caller matrix reordered
+- `include/sparse_cholesky.h` now distinguishes the no-reorder linked-list
+  cancel path from the reordered working-copy preservation path
+
+Interpretation:
+
+- the caller-facing contract now matches the actual LU/Cholesky Day 6-10
+  implementation split
+- no stale comment still implies a broader mutation surprise than the shipped
+  code actually has
+
+#### 2. The integration proof surface now explicitly covers Cholesky reuse rejection and reordered failure preservation
+
+`tests/test_integration.c` gained two bounded regressions:
+
+- `test_cholesky_refactor_attempt_rejects_existing_reordered_factor_and_preserves_old_factor`
+- `test_cholesky_reordered_not_spd_preserves_original_matrix`
+
+They prove:
+
+- an already reordered/factored one-shot Cholesky matrix rejects an
+  incompatible refactor attempt with `SPARSE_ERR_BADARG`
+- the previously built factor remains usable for later solves after that
+  rejected retry
+- reordered `SPARSE_ERR_NOT_SPD` exits preserve identity perms and original
+  caller-owned matrix entries
+- failed reordered Cholesky attempts remain unfactored afterwards
+
+Interpretation:
+
+- the Day 10 preservation story is now covered for both cancellation and
+  structural/non-SPD failure
+- one-shot reuse rejection is now proved as a compatibility-preserving rule,
+  not just inferred from implementation shape
+
+#### 3. The top-level direct cancellation commentary now reflects family-local semantics instead of one generic promise
+
+The long integration comment block above the direct progress/cancel tests now
+states the exact shipped split:
+
+- LU no-reorder cancel-at-step-0 is bit-identical
+- LU reordered one-shot preserves the caller matrix through a temporary
+  reordered working copy
+- Cholesky no-reorder linked-list cancel is not bit-identical because the upper
+  triangle is stripped before the first emission
+- Cholesky reordered one-shot preserves the caller matrix through a temporary
+  reordered working copy
+- LDL^T leaves the input matrix bit-identical because factor state is
+  separately owned
+
+Interpretation:
+
+- the proof surface no longer implies a fake uniform direct-family cancel
+  contract
+- the remaining surprising behavior is bounded and intentional rather than
+  ambiguous
+
+#### 4. The Day 11 patch stayed inside the planned compatibility/regression fence
+
+Touched:
+
+- `include/sparse_lu.h`
+- `include/sparse_cholesky.h`
+- `tests/test_integration.c`
+
+Not widened into:
+
+- `src/sparse_lu.c`
+- `src/sparse_cholesky.c`
+- `src/sparse_analysis.c`
+- `tests/test_cholesky.c`
+- docs/example/benchmark surfaces
+
+Interpretation:
+
+- Day 11 stayed a true compatibility/regression tightening pass
+- Sprint 62 still closes as one bounded LU + Cholesky usability sprint instead
+  of drifting into a broader direct-family rewrite
+
+#### 5. Validation closed cleanly from the strongest reviewed baseline
+
+The final validation passed:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 285.48 sec`
+
+Non-blocking note:
+
+- the reviewed CMake rebuild again emitted the ordinary
+  `bench_eigs_reuse.c` double-promotion warnings while rebuilding that bench
+  binary, but the full reviewed path still completed cleanly and passed all
+  parity gates
+
+Interpretation:
+
+- the Day 11 compatibility sweep is validated from the strongest local
+  reviewed baseline
+- the remaining Sprint 62 queue is now primarily docs/adoption closeout work,
+  not unproven direct-lifecycle behavior
+
+### Day 11 Close
+
+Sprint 62 Day 11 completed the bounded regression/compatibility tightening
+pass exactly as planned:
+
+- stale LU/Cholesky one-shot cancel wording was aligned to the shipped
+  implementation
+- new Cholesky regressions now cover rejected one-shot reuse and reordered
+  non-SPD preservation
+- the direct-family cancellation commentary now reflects family-local behavior
+  instead of one generic promise
+- the full reviewed validation path passed from the landed tree

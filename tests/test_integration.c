@@ -556,7 +556,8 @@ static void test_progress_cb_lu_cancel(void) {
     sparse_free(A_orig);
 }
 
-static void test_progress_cb_lu_cancel_after_reordered_factor_invalidates_old_factor(void) {
+static void
+test_lu_refactor_attempt_rejects_existing_reordered_factor_and_preserves_old_factor(void) {
     const idx_t n = 100;
     SparseMatrix *A = build_tridiag_spd(n);
     REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
@@ -568,22 +569,22 @@ static void test_progress_cb_lu_cancel_after_reordered_factor_invalidates_old_fa
     };
     ASSERT_EQ(sparse_lu_factor_opts(A, &factor_opts), SPARSE_OK);
 
-    progress_counter_t ctx = {.cancel_after_step = 0};
-    sparse_lu_opts_t cancel_opts = {
+    sparse_lu_opts_t retry_opts = {
         .pivot = SPARSE_PIVOT_PARTIAL,
         .reorder = SPARSE_REORDER_NONE,
         .tol = 1e-12,
-        .progress_cb = progress_count_cb,
-        .progress_user = &ctx,
     };
-    ASSERT_EQ(sparse_lu_factor_opts(A, &cancel_opts), SPARSE_ERR_CANCELLED);
-    ASSERT_EQ(ctx.n_calls, 1);
+    ASSERT_EQ(sparse_lu_factor_opts(A, &retry_opts), SPARSE_ERR_BADARG);
 
     double b_cancel[100];
-    double x_cancel[100];
+    double x_before[100];
+    double x_after[100];
     for (idx_t i = 0; i < n; i++)
         b_cancel[i] = 1.0;
-    ASSERT_EQ(sparse_lu_solve(A, b_cancel, x_cancel), SPARSE_ERR_BADARG);
+    ASSERT_EQ(sparse_lu_solve(A, b_cancel, x_before), SPARSE_OK);
+    ASSERT_EQ(sparse_lu_solve(A, b_cancel, x_after), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x_after[i], x_before[i], 1e-12);
 
     sparse_free(A);
 }
@@ -1938,7 +1939,7 @@ int main(void) {
     /* Sprint 29 Day 6: progress / cancel callbacks (Item 4). */
     RUN_TEST(test_progress_cb_lu_emits);
     RUN_TEST(test_progress_cb_lu_cancel);
-    RUN_TEST(test_progress_cb_lu_cancel_after_reordered_factor_invalidates_old_factor);
+    RUN_TEST(test_lu_refactor_attempt_rejects_existing_reordered_factor_and_preserves_old_factor);
     RUN_TEST(test_lu_invalid_reorder_opts_preserve_existing_reordered_factor);
     RUN_TEST(test_progress_cb_cholesky_emits_cancel);
     RUN_TEST(test_progress_cb_ldlt_emits_cancel);

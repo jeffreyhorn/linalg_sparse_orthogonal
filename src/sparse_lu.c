@@ -136,6 +136,9 @@ static void swap_col_perm(SparseMatrix *mat, idx_t log_a, idx_t log_b) {
 /* ─── LU factorization ───────────────────────────────────────────────── */
 
 sparse_err_t sparse_lu_factor(SparseMatrix *mat, sparse_pivot_t pivot, double tol) {
+    sparse_err_t state_err = sparse_matrix_require_original_row_col_state(mat);
+    if (state_err != SPARSE_OK)
+        return state_err;
     return sparse_lu_factor_inner(mat, pivot, tol, NULL, NULL, 1);
 }
 
@@ -337,6 +340,10 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
     idx_t n = mat->rows;
     if (n != mat->cols)
         return SPARSE_ERR_SHAPE;
+
+    sparse_err_t state_err = sparse_matrix_require_original_row_col_state(mat);
+    if (state_err != SPARSE_OK)
+        return state_err;
 
     int outer_reorder_metadata_mutated = 0;
     int reorder_requested = (opts->reorder != SPARSE_REORDER_NONE) ? 1 : 0;

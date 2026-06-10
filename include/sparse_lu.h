@@ -87,14 +87,26 @@ typedef struct {
 /**
  * @brief Compute LU factorization with options including fill-reducing reordering.
  *
+ * This remains a one-shot entry point. Call it on a fresh matrix (or a fresh
+ * `sparse_copy()` of the original coefficients), not on a matrix that has
+ * already been factored, pivoted, or reordered by an earlier direct-solver
+ * call. For stable-pattern repeated runs, use the shared direct lifecycle in
+ * `sparse_analysis.h` instead of re-entering this wrapper on an old factor
+ * container.
+ *
  * If opts->reorder != SPARSE_REORDER_NONE, the matrix is symmetrically
  * permuted before factorization. The reordering permutation is stored in
  * the matrix so that sparse_lu_solve() can automatically unpermute the
- * solution.
+ * solution. When `opts->reorder == SPARSE_REORDER_NONE`, this wrapper stays
+ * on the same one-shot matrix contract as `sparse_lu_factor()`. When
+ * reordering is requested under the default-compatible option shape, the
+ * implementation may internally reuse shared lifecycle plumbing, but the
+ * public contract remains one-shot on the caller-owned matrix.
  *
  * @param mat   The matrix to factor (modified in-place: reordered, then factored).
  * @param opts  Factorization options.
  * @return SPARSE_OK on success, or an error code.
+ * @return SPARSE_ERR_BADARG if @p mat is already factored/pivoted/reordered.
  */
 sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *opts);
 
@@ -113,6 +125,9 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
  * change values, use the shared analyze/factor/refactor path in
  * `sparse_analysis.h` instead of repeatedly re-entering this one-shot API.
  *
+ * @pre mat must still be in its original row/column state. This one-shot
+ *      entry point rejects matrices that have already been factored, pivoted,
+ *      or reordered. Use a fresh matrix or `sparse_copy()` of the original.
  * @pre mat must not be needed after factorization — use sparse_copy() first
  *      to preserve the original.  The matrix is overwritten with L and U.
  *
@@ -137,6 +152,7 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if mat is NULL.
  * @return SPARSE_ERR_SHAPE if the matrix is not square.
+ * @return SPARSE_ERR_BADARG if mat has already been factored, pivoted, or reordered.
  * @return SPARSE_ERR_SINGULAR if a zero (or below-tolerance) pivot is encountered.
  * @return SPARSE_ERR_ALLOC if memory allocation fails during fill-in.
  *

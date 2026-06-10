@@ -821,3 +821,145 @@ Sprint 62 now has a precise first implementation boundary:
 - the helper/state support lane is bounded and optional rather than assumed
 - the Day 6 versus Day 7 split is fixed
 - the non-touch set is fixed before public-header or implementation edits begin
+
+## Day 6
+
+**Objective:** Land the first bounded LU one-shot hardening slice by making
+the one-shot wrapper contract reject reused matrix state earlier and more
+explicitly, while preserving the explicit `analysis` / `factors` lifecycle as
+the canonical repeated-run path.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 6 landing:
+   - `git status --short --branch`
+2. Re-read the current Sprint 62 notes plus the Day 6 plan slice:
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_62/WORKING_NOTES.md`
+   - `sed -n '220,280p' docs/planning/EPIC_6/SPRINT_62/PLAN.md`
+3. Re-read the Day 5 landing design:
+   - `sed -n '1,240p' docs/planning/EPIC_6/SPRINT_62/artifacts/day5-lu-landing-design.md`
+4. Inspect the live LU wrapper and matrix-state seams:
+   - `rg -n "sparse_lu_factor|sparse_lu_factor_opts|require_original_row_col_state|reorder|progress" include/sparse_lu.h src/sparse_lu.c src/sparse_matrix_state_internal.h tests/test_integration.c`
+5. Land the Day 6 code batch:
+   - `apply_patch` on:
+     - `include/sparse_lu.h`
+     - `src/sparse_lu.c`
+     - `tests/test_integration.c`
+6. Run the required code-day gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+7. Run the stronger reviewed baseline for this lifecycle-sensitive change:
+   - `make quality-review-full`
+
+### Day 6 Findings
+
+#### 1. LU one-shot wrappers now reject reused matrix state up front instead of re-entering the wrapper path on an already reordered/factored matrix
+
+The landed LU hardening slice adds
+`sparse_matrix_require_original_row_col_state(mat)` to:
+
+- `sparse_lu_factor(...)`
+- `sparse_lu_factor_opts(...)`
+
+Interpretation:
+
+- LU now matches the intended one-shot contract more closely
+- callers no longer get a second wrapper attempt on a matrix that has already
+  been reordered, pivoted, or factored
+- the explicit repeated-run lifecycle remains the supported reuse path rather
+  than something LU one-shot wrappers should approximate implicitly
+
+#### 2. The public LU header now states the one-shot versus explicit lifecycle boundary more directly
+
+The touched public header now makes three caller-facing points clearer:
+
+- LU one-shot entry points should be called on a fresh matrix or on a
+  `sparse_copy(...)`
+- stable-pattern repeated runs belong on the explicit
+  `sparse_analysis.h` lifecycle
+- reordered/default-compatible LU calls may internally reuse lifecycle
+  plumbing, but that does not relax the public one-shot matrix-state contract
+
+Interpretation:
+
+- Sprint 62 Day 6 reduced wrapper/lifecycle ambiguity without widening the
+  lifecycle API
+- the public story is now stricter and easier to follow
+- this is a usability hardening batch, not a hidden copy-semantics batch
+
+#### 3. The Day 6 proof stayed bounded to the required integration home and now proves old-factor preservation explicitly
+
+The integration proof home now carries the renamed regression:
+
+- `test_lu_refactor_attempt_rejects_existing_reordered_factor_and_preserves_old_factor`
+
+That proof now checks:
+
+- a reordered LU factorization succeeds
+- a second one-shot LU wrapper call on that same matrix is rejected with
+  `SPARSE_ERR_BADARG`
+- the previously built LU factor remains usable and produces the same solve
+  result
+
+Interpretation:
+
+- the most important Day 6 caller-risk seam is now covered where the public
+  lifecycle story already lives
+- the batch did not need to widen into `tests/test_sparse_lu.c`
+- Day 6 stayed inside the exact Day 5 proof fence
+
+#### 4. The only real Day 6 regression was error-code flattening, and the landed fix preserved the original NULL-path semantics
+
+The first cut of the state guard incorrectly flattened every precondition
+failure to `SPARSE_ERR_BADARG`.
+
+That broke:
+
+- `test_lu_null_matrix`
+
+The landed fix returns the exact `state_err` from
+`sparse_matrix_require_original_row_col_state(...)`.
+
+Interpretation:
+
+- the hardening change is still bounded and correct
+- the important compatibility detail is preserved:
+  - `NULL` stays `SPARSE_ERR_NULL`
+  - reused row/column state still rejects with `SPARSE_ERR_BADARG`
+
+#### 5. The full Day 6 validation close is clean
+
+The required code-day gate passed:
+
+- `make format`
+- `make lint`
+- `make test`
+
+The stronger reviewed baseline also passed:
+
+- `make quality-review-full`
+
+Reviewed anchors remained exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 222.54 sec`
+
+One non-blocking note remains the same as earlier sprint validation closes:
+
+- the reviewed CMake rebuild emitted ordinary compiler warnings while
+  rebuilding `bench_eigs_reuse`, but the full reviewed path still completed
+  cleanly and passed all parity gates
+
+### Day 6 Close
+
+Sprint 62 Day 6 landed one coherent first LU hardening slice:
+
+- LU one-shot wrappers now reject reused matrix state explicitly
+- the public LU header now states the one-shot versus explicit lifecycle split
+  more directly
+- the integration proof now checks both rejection and old-factor preservation
+- the batch stayed inside the Day 5 touched-file and proof fence
+- the full required and reviewed validation close passed from the landed state

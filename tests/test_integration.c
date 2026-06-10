@@ -556,6 +556,58 @@ static void test_progress_cb_lu_cancel(void) {
     sparse_free(A_orig);
 }
 
+static void test_progress_cb_lu_cancel_after_reorder_preserves_original_matrix(void) {
+    const idx_t n = 100;
+    SparseMatrix *A = build_tridiag_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    SparseMatrix *A_orig = sparse_copy(A);
+    REQUIRE_OK(A_orig ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    progress_counter_t ctx = {.cancel_after_step = 0};
+    sparse_lu_opts_t opts = {
+        .pivot = SPARSE_PIVOT_PARTIAL,
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 1e-12,
+        .progress_cb = progress_count_cb,
+        .progress_user = &ctx,
+    };
+    ASSERT_EQ(sparse_lu_factor_opts(A, &opts), SPARSE_ERR_CANCELLED);
+    ASSERT_EQ(ctx.n_calls, 1);
+
+    const idx_t *rp = sparse_row_perm(A);
+    const idx_t *irp = sparse_inv_row_perm(A);
+    const idx_t *cp = sparse_col_perm(A);
+    const idx_t *icp = sparse_inv_col_perm(A);
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_TRUE(rp[i] == i);
+        ASSERT_TRUE(irp[i] == i);
+        ASSERT_TRUE(cp[i] == i);
+        ASSERT_TRUE(icp[i] == i);
+        ASSERT_TRUE(sparse_get(A, i, i) == sparse_get(A_orig, i, i));
+        if (i > 0) {
+            ASSERT_TRUE(sparse_get(A, i, i - 1) == sparse_get(A_orig, i, i - 1));
+            ASSERT_TRUE(sparse_get(A, i - 1, i) == sparse_get(A_orig, i - 1, i));
+        }
+    }
+
+    double b[100];
+    double x[100];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = 1.0;
+    ASSERT_EQ(sparse_lu_solve(A, b, x), SPARSE_ERR_BADARG);
+    sparse_lu_opts_t retry_opts = {
+        .pivot = SPARSE_PIVOT_PARTIAL,
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 1e-12,
+    };
+    ASSERT_EQ(sparse_lu_factor_opts(A, &retry_opts), SPARSE_OK);
+    ASSERT_EQ(sparse_lu_solve(A, b, x), SPARSE_OK);
+
+    sparse_free(A);
+    sparse_free(A_orig);
+}
+
 static void
 test_lu_refactor_attempt_rejects_existing_reordered_factor_and_preserves_old_factor(void) {
     const idx_t n = 100;
@@ -1939,6 +1991,7 @@ int main(void) {
     /* Sprint 29 Day 6: progress / cancel callbacks (Item 4). */
     RUN_TEST(test_progress_cb_lu_emits);
     RUN_TEST(test_progress_cb_lu_cancel);
+    RUN_TEST(test_progress_cb_lu_cancel_after_reorder_preserves_original_matrix);
     RUN_TEST(test_lu_refactor_attempt_rejects_existing_reordered_factor_and_preserves_old_factor);
     RUN_TEST(test_lu_invalid_reorder_opts_preserve_existing_reordered_factor);
     RUN_TEST(test_progress_cb_cholesky_emits_cancel);

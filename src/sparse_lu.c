@@ -104,6 +104,36 @@ static sparse_err_t s51_lu_publish_analysis_factor(SparseMatrix *mat, sparse_ana
     return SPARSE_OK;
 }
 
+/* Sprint 62 Day 7: reordered LU one-shot calls now factor on a temporary
+ * working copy and only publish back to the caller matrix on success. */
+static sparse_err_t s62_lu_factor_reordered_working_copy(SparseMatrix *mat, idx_t *perm,
+                                                         const sparse_lu_opts_t *opts) {
+    if (!mat || !perm || !opts) {
+        free(perm);
+        return SPARSE_ERR_NULL;
+    }
+
+    SparseMatrix *PA = NULL;
+    sparse_err_t err = sparse_permute(mat, perm, perm, &PA);
+    if (err != SPARSE_OK) {
+        free(perm);
+        return err;
+    }
+
+    err = sparse_lu_factor_inner(PA, opts->pivot, opts->tol, opts->progress_cb, opts->progress_user,
+                                 1);
+    if (err != SPARSE_OK) {
+        sparse_free(PA);
+        free(perm);
+        return err;
+    }
+
+    sparse_factor_state_replace_reorder_perm(PA, perm);
+    s51_lu_steal_factor_payload(mat, PA);
+    sparse_free(PA);
+    return SPARSE_OK;
+}
+
 /* Sprint 29 Day 8 (Item 5): Windows-portable monotonic clock helper. */
 static double s29_now_s(void) {
     struct timespec ts;
@@ -375,7 +405,9 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
         return err;
     }
 
-    /* Apply fill-reducing reordering if requested */
+    /* Apply fill-reducing reordering if requested.  Sprint 62 Day 7 keeps
+     * the caller-owned matrix untouched until the reordered one-shot factor
+     * attempt actually succeeds. */
     if (reorder_requested && n > 1) {
         idx_t *perm = NULL;
         sparse_err_t err = sparse_malloc_idx_array(n, sizeof(*perm), (void **)&perm);
@@ -401,55 +433,10 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
             free(perm);
             return err;
         }
+        return s62_lu_factor_reordered_working_copy(mat, perm, opts);
+    }
 
-        /* Apply symmetric permutation in-place:
-         * Create permuted copy, then swap contents into mat */
-        SparseMatrix *PA = NULL;
-        err = sparse_permute(mat, perm, perm, &PA);
-        if (err != SPARSE_OK) {
-            free(perm);
-            return err;
-        }
-
-        /* The reordered working copy is ready, so the old factor's
-         * reorder metadata is no longer valid past this mutation
-         * boundary. */
-        sparse_factor_state_replace_reorder_perm(mat, NULL);
-        outer_reorder_metadata_mutated = 1;
-
-        /* Swap internal data from PA into mat:
-         * Free mat's old data, steal PA's data */
-        pool_free_all(&mat->pool);
-        free(mat->row_headers);
-        free(mat->col_headers);
-
-        mat->row_headers = PA->row_headers;
-        mat->col_headers = PA->col_headers;
-        mat->pool = PA->pool;
-        mat->nnz = PA->nnz;
-        mat->cached_norm = PA->cached_norm;
-
-        /* Prevent PA from freeing the data we stole */
-        PA->row_headers = NULL;
-        PA->col_headers = NULL;
-        PA->pool.head = NULL;
-        PA->pool.current = NULL;
-        PA->pool.free_list = NULL;
-        sparse_free(PA);
-
-        /* Reset row/col permutations to identity — the reordered matrix
-         * has fresh physical layout, so LU factorization must start from
-         * identity permutations regardless of any prior factorization. */
-        for (idx_t i = 0; i < n; i++) {
-            mat->row_perm[i] = i;
-            mat->inv_row_perm[i] = i;
-            mat->col_perm[i] = i;
-            mat->inv_col_perm[i] = i;
-        }
-
-        /* Store reorder permutation for solve to unpermute */
-        sparse_factor_state_replace_reorder_perm(mat, perm);
-    } else if (mat->reorder_perm != NULL) {
+    if (mat->reorder_perm != NULL) {
         /* No new reorder metadata will be published for this factor
          * attempt, so invalidate the old permutation immediately before
          * entering the inner LU path. */

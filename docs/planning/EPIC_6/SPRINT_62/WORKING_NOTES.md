@@ -963,3 +963,166 @@ Sprint 62 Day 6 landed one coherent first LU hardening slice:
 - the integration proof now checks both rejection and old-factor preservation
 - the batch stayed inside the Day 5 touched-file and proof fence
 - the full required and reviewed validation close passed from the landed state
+
+## Day 7
+
+**Objective:** Complete the bounded LU one-shot hardening follow-through by
+tightening the reordered wrapper publication seam so cancelled or failed
+reordered LU one-shot attempts preserve the caller-owned matrix state until a
+factorization actually succeeds.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 7 batch:
+   - `git status --short --branch`
+2. Re-read the Sprint 62 plan slice and Day 6 landed notes:
+   - `sed -n '150,230p' docs/planning/EPIC_6/SPRINT_62/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_62/WORKING_NOTES.md`
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_62/artifacts/day6-one-shot-hardening-batch1.md`
+3. Audit the remaining LU publication and factor-state seam:
+   - `sed -n '1,260p' include/sparse_lu.h`
+   - `sed -n '1,520p' src/sparse_lu.c`
+   - `sed -n '1,260p' src/sparse_factor_state_internal.c`
+   - `sed -n '1,260p' src/sparse_matrix_state_internal.h`
+   - `sed -n '1,260p' src/sparse_reorder.c`
+   - `sed -n '1,2400p' tests/test_integration.c`
+4. Land the bounded Day 7 code batch:
+   - `include/sparse_lu.h`
+   - `src/sparse_lu.c`
+   - `tests/test_integration.c`
+5. Run the required code-day gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+6. Run the stronger reviewed baseline for this lifecycle-sensitive change:
+   - `make quality-review-full`
+
+### Day 7 Findings
+
+#### 1. Reordered LU one-shot factorization now publishes back to the caller matrix only on success
+
+The strongest remaining Day 6 seam was not the fresh-matrix guard itself; it
+was the reordered one-shot publication boundary inside
+`sparse_lu_factor_opts(...)`.
+
+Before the Day 7 batch:
+
+- LU could reorder into a temporary matrix
+- steal the reordered payload back into `mat`
+- then fail or cancel during numeric factorization
+
+That left the caller-owned matrix partially transformed even though no usable
+LU factor had actually been produced.
+
+The landed Day 7 helper:
+
+- `s62_lu_factor_reordered_working_copy(...)`
+
+now keeps reordered LU one-shot work on a temporary copy and only steals the
+payload back into `mat` after `sparse_lu_factor_inner(...)` succeeds.
+
+Interpretation:
+
+- cancelled or failed reordered LU one-shot attempts no longer strand the
+  caller matrix in an intermediate reordered state
+- this tightens the one-shot safety contract without widening the explicit
+  repeated-run lifecycle API
+- the batch finishes the first LU hardening seam by fixing publication
+  timing rather than by adding hidden copy semantics to all direct wrappers
+
+#### 2. The public LU header now describes the reordered one-shot preservation rule truthfully
+
+`include/sparse_lu.h` now states that reordered one-shot LU calls outside the
+default-compatible fast path:
+
+- factor a temporary reordered working copy
+- publish back to the caller matrix only on success
+
+Interpretation:
+
+- the public LU contract now matches the actual reordered failure/cancel
+  behavior
+- callers have a clearer rule for what remains untouched after an interrupted
+  reordered one-shot attempt
+- Sprint 62 still preserves the same larger story:
+  - one-shot LU remains first-class/default
+  - explicit `analysis` / `factors` remains the canonical stable-pattern
+    repeated-run path
+
+#### 3. The Day 7 proof stayed bounded to `test_integration.c` and now covers reordered cancel preservation explicitly
+
+The new integration proof:
+
+- `test_progress_cb_lu_cancel_after_reorder_preserves_original_matrix`
+
+checks that a reordered LU one-shot call cancelled at the first progress step:
+
+- returns `SPARSE_ERR_CANCELLED`
+- leaves row/column permutation state at identity
+- preserves the original tridiagonal matrix entries
+- leaves the matrix unfactored for `sparse_lu_solve(...)`
+- still allows a later successful reordered LU one-shot retry
+
+Interpretation:
+
+- the strongest caller-risk seam now has direct public-lifecycle coverage
+- the proof stayed in the Day 5 required proof home instead of widening into
+  `tests/test_sparse_lu.c`
+- Day 7 remained a bounded support batch, not a broad direct-family sweep
+
+#### 4. The only Day 7 regression was a test-side retry mistake, not an implementation flaw
+
+The first Day 7 test cut incorrectly reused the same cancelling options for
+the “retry succeeds” half of the new integration proof.
+
+That caused the second factorization attempt to cancel again.
+
+The landed fix introduces a separate `retry_opts` object with:
+
+- the same reorder and pivot choices
+- no cancellation callback
+
+Interpretation:
+
+- the implementation seam held up under the first validation attempt
+- the only failure was in the test harness
+- the landed regression proof now matches the intended public caller story
+
+#### 5. The full Day 7 validation close is clean
+
+The required code-day gate passed:
+
+- `make format`
+- `make lint`
+- `make test`
+
+The stronger reviewed baseline also passed:
+
+- `make quality-review-full`
+
+Reviewed anchors remained exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 360.27 sec`
+
+One non-blocking note remains explicit:
+
+- the reviewed CMake rebuild again emitted ordinary compiler warnings while
+  rebuilding `bench_eigs_reuse`, but the full reviewed path still completed
+  cleanly and passed all parity gates
+
+### Day 7 Close
+
+Sprint 62 Day 7 completed the first bounded LU usability package:
+
+- reordered LU one-shot attempts now preserve the caller-owned matrix until
+  numeric factorization actually succeeds
+- the public LU header now describes that reordered preservation rule
+  directly
+- the integration proof now covers cancelled reordered one-shot preservation
+  plus later successful retry
+- the batch stayed inside the Day 5 optional support lane without widening
+  into Cholesky, LDL^T, QR, or broad docs/example work
+- the full required and reviewed validation close passed from the landed state

@@ -1880,3 +1880,172 @@ Sprint 62 Day 12 completed the bounded public/maintainer docs adoption pass:
   when to move to the explicit repeated-run lifecycle
 - the maintainer guide now owns the residual direct-usability queue explicitly
 - the batch stayed docs-only and ready for Day 13 full validation
+
+## Day 13
+
+**Objective:** Revalidate the full Sprint 62 landed state from the strongest
+reviewed baseline and rerun the targeted direct-family proof, example, and
+benchmark follow-ons fixed in the Sprint 62 validation checklist.
+
+### Commands Run
+
+1. Run the full required validation gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+2. Run the targeted Sprint 62 follow-ons from the Day 2 / Day 12 checklist:
+   - `./build/test_integration`
+   - `./build/test_chol_csc`
+   - `./build/test_ldlt_csc`
+   - `./build/test_cholesky`
+   - `./build/test_ldlt`
+   - `./build/test_sparse_lu`
+   - `./build/test_iterative`
+   - `./build/test_eigs`
+   - `./build/test_eigs_lobpcg`
+   - `./build/example_analysis`
+   - `./build/example_basic_solve`
+   - `./build/example_ldlt`
+   - `./build/example_iterative`
+   - `./build/example_ic_minres`
+   - `./build/example_eigs`
+   - `./build/example_svd_lowrank`
+   - `./build/bench_refactor`
+   - `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/bench_iterative_reuse`
+   - `./build/bench_eigs_reuse`
+3. Review the final branch state:
+   - `git status --short --branch`
+
+### Day 13 Findings
+
+#### 1. The full required gate passed from the landed Day 12 tree
+
+The final validation passed:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 377.56 sec`
+
+Interpretation:
+
+- Sprint 62 remains validated from the strongest local reviewed baseline
+- the Day 12 docs-only batch did not introduce drift in the reviewed truth
+  surface
+
+#### 2. The direct-lifecycle proof surface remained fully green
+
+Targeted direct proof follow-ons all passed:
+
+- `./build/test_integration` -> `43 / 43`
+- `./build/test_chol_csc` -> `137 / 137`
+- `./build/test_ldlt_csc` -> `96 / 96`
+- `./build/test_cholesky` -> `21 / 21`
+- `./build/test_ldlt` -> `84 / 84`
+- `./build/test_sparse_lu` -> `37 / 37`
+
+Interpretation:
+
+- the Sprint 62 LU/Cholesky one-shot hardening and compatibility-sweep proofs
+  remain stable after the docs adoption pass
+- adjacent direct-family and CSC proof surfaces did not regress
+
+#### 3. The adjacent repeated-run solver surfaces remained stable
+
+Targeted adjacent solver follow-ons all passed:
+
+- `./build/test_iterative` -> `79 / 79`
+- `./build/test_eigs` -> `30 / 30`
+- `./build/test_eigs_lobpcg` -> `26 / 26`
+
+Interpretation:
+
+- Sprint 62’s direct-family work did not bleed into the repeated-run
+  iterative/eigensolver support boundary
+
+#### 4. The representative examples and workflow benchmarks retained their expected story
+
+Examples all passed:
+
+- `./build/example_analysis`
+- `./build/example_basic_solve`
+- `./build/example_ldlt`
+- `./build/example_iterative`
+- `./build/example_ic_minres`
+- `./build/example_eigs`
+- `./build/example_svd_lowrank`
+
+Representative retained outputs:
+
+- `example_analysis` residual stayed `4.44e-16`
+- `example_basic_solve` residual stayed `0.00e+00`
+- `example_ldlt` relative residual stayed `1.555e-16`
+- `example_iterative`: GMRES `25` iterations unpreconditioned, `9` with ILU(0)
+- `example_ic_minres`: MINRES on KKT `42x42` at `39` iterations,
+  Jacobi-MINRES at `26`
+- `example_eigs`: `nos4` `5 / 5` pairs in `115` Lanczos iterations; KKT
+  nearest-sigma `3 / 3` in `6`; explicit `LOBPCG` on `bcsstk04` `3 / 3` in
+  `62` outer iterations with reported residual `8.808e-09`
+- `example_svd_lowrank`: sparse low-rank `k=2` kept `22 -> 6` nnz and `3.7x`
+  compression
+
+Benchmarks all passed:
+
+- `./build/bench_refactor`
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+
+Representative retained outputs:
+
+- `bench_refactor`: `tridiag-200 1.47x`, `tridiag-500 1.25x`,
+  `bcsstk04 1.30x`, `nos4 1.41x`
+- `bench_refactor_csc nos4`: `speedup_refactor = 0.61x`, residuals
+  `8.24e-16` / `7.06e-16`
+- `bench_iterative_reuse`: `cg-tridiag-300 1.01x`,
+  `gmres-unsym-220 1.02x`, `minres-kkt-42 1.01x`
+- `bench_eigs_reuse`: `growm-nos4-k5 1.01x`,
+  `thick-bcsstk14-k5 0.95x`, `lobpcg-diag40-k3 1.00x`, with
+  `|lambda|max diff = 0.000e+00`
+
+Interpretation:
+
+- the shipped example and benchmark stories still match the Sprint 62 direct
+  usage guidance
+- no contradiction surfaced between the docs adoption pass and the retained
+  workflow-proof binaries
+
+#### 5. The only non-blocking reviewed-path note remained the known bench warning
+
+The reviewed CMake rebuild again emitted the ordinary
+`bench_eigs_reuse.c` double-promotion warnings while rebuilding that bench
+binary, but:
+
+- the compile completed
+- `ctest -N` remained `53`
+- full reviewed CMake `ctest` passed `53 / 53`
+
+Interpretation:
+
+- the warning remains supporting context, not a Sprint 62 blocker
+- the validated close state is still clean for Day 14 closeout
+
+### Day 13 Close
+
+Sprint 62 Day 13 completed the full validation sweep successfully:
+
+- the strongest local reviewed baseline passed end to end
+- the direct-family proof surfaces remained green
+- the adjacent repeated-run solver surfaces remained green
+- the representative examples and workflow benchmarks retained their expected
+  output story
+- the branch is ready for Day 14 closeout from a validated Day 13 baseline

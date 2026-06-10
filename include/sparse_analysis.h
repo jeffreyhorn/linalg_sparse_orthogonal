@@ -160,6 +160,10 @@ typedef enum {
  * These controls only affect the symmetric-analysis lane used by
  * `sparse_analyze()`. Zero-init is safe and leaves all fields unspecified,
  * which preserves compatibility overrides and internal defaults.
+ *
+ * The public typed surface is intentionally limited to caller-meaningful
+ * analysis-time routing and ND policy. Lower-level FM tuning and
+ * debug/profile env vars remain internal or compatibility-only for now.
  */
 typedef struct {
     sparse_analysis_supernodal_postorder_t supernodal_postorder;   /**< Optional
@@ -206,8 +210,10 @@ typedef struct {
                                                       below for the QR-specific column-only
                                                       path. */
     sparse_analysis_reorder_opts_t reorder_opts; /**< Optional advanced
-        symmetric-reordering controls. Zero-init safe; typed fields only
-        override legacy compatibility env vars when explicitly set. */
+        symmetric-reordering controls. Zero-init safe; explicit typed values
+        win, legacy compatibility env vars are only consulted when the typed
+        field stays unspecified, and internal defaults remain the final
+        fallback. */
 } sparse_analysis_opts_t;
 
 /* ═══════════════════════════════════════════════════════════════════════════

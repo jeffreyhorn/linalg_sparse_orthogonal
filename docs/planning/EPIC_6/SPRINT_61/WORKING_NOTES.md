@@ -2346,3 +2346,161 @@ Sprint 61 Day 11 closes the Phase 1 compatibility sweep cleanly:
   test-backed
 - the proof burden stayed in the selected reorder/ND proof home
 - the full reviewed validation contract remained clean
+
+## Day 12 - Docs & Maintainer Story Update
+
+### Intent
+
+Day 12 is the planned caller-facing and maintainer-facing follow-through pass
+after the Day 6-Day 11 typed analysis/reorder landing:
+
+- make the preferred typed configuration path explicit on the highest-value
+  public surfaces
+- keep the precedence model consistent between the public header and the
+  maintainer-policy home
+- name the residual deferred env-var queue directly instead of leaving it
+  implicit in sprint-local notes
+
+### Landed Surface
+
+Touched files:
+
+- `README.md`
+- `include/sparse_analysis.h`
+- `docs/maintainer_guide.md`
+
+No implementation or test source widened on Day 12. The batch stayed in the
+planned docs/header lane.
+
+### What Changed
+
+#### 1. The top-level reordering story now points callers at the shipped typed path
+
+`README.md` previously still described the strongest analysis-time controls
+mostly through historical reordering prose plus env-var examples.
+
+After Day 12:
+
+- the reordering feature summary now names
+  `sparse_analysis_opts_t.reorder_opts` as the public typed analysis-time
+  surface
+- the legacy `SPARSE_SUPERNODAL_POSTORDER` / `SPARSE_ND_*` env vars now read
+  explicitly as compatibility overrides only when the typed field is left
+  unspecified
+- the sprint-local chronology in that reordering paragraph is gone
+
+Interpretation:
+
+- the top-level product story now matches the landed Phase 1 control plane
+- new callers are steered toward the typed path instead of the legacy env-var
+  lane
+
+#### 2. The public header now states the typed-path fence and precedence rule more directly
+
+`include/sparse_analysis.h` already had the right field-level mechanics, but
+the struct-level story still had room for ambiguity.
+
+Day 12 tightened that by making two points explicit:
+
+- `sparse_analysis_reorder_opts_t` is intentionally limited to
+  caller-meaningful analysis-time routing and ND policy
+- `sparse_analysis_opts_t.reorder_opts` now states the full shipped precedence
+  rule directly:
+  1. explicit typed value
+  2. legacy compatibility env var when unspecified
+  3. internal default fallback
+
+Interpretation:
+
+- the public header now tells the same story that Day 11 proved in tests
+- the remaining FM/debug/profile env vars are no longer easy to misread as
+  accidental omissions from a supposedly complete public configuration object
+
+#### 3. The maintainer-policy home now owns the residual deferred configuration queue
+
+`docs/maintainer_guide.md` now has an explicit configuration-surface ownership
+section covering:
+
+- preferred typed control path
+- precedence
+- public-vs-compatibility interpretation
+- residual deferred queue
+
+The deferred queue is now named directly in one maintained place:
+
+- compatibility-only alias:
+  - `SPARSE_ND_SUPERNODAL_POSTORDER`
+- internal/default-policy-only control:
+  - `SPARSE_ND_COARSENING_CV_FALLTHROUGH`
+- deferred debug/profile controls:
+  - `SPARSE_ND_PROFILE`
+  - `SPARSE_QG_PROFILE`
+  - `SPARSE_HCC_DEBUG`
+- deferred FM-family controls:
+  - all `SPARSE_FM_*`
+
+Interpretation:
+
+- the remaining env-var surface is now explicit rather than inferred from code
+  or sprint-local notes
+- future configuration work has one clear maintainer-policy checkpoint instead
+  of several softer references spread across the repo
+
+### Day 12 Compatibility/Readiness Read
+
+The landed Phase 1 configuration story now reads coherently across the highest-
+value maintained surfaces:
+
+- `README.md`
+- `include/sparse_analysis.h`
+- `docs/maintainer_guide.md`
+- the Day 11 proof surface in `tests/test_reorder_nd.c`
+
+The stable story is now:
+
+1. use `sparse_analysis_opts_t.reorder_opts` for the shipped advanced
+   analysis/reorder controls
+2. expect explicit typed values to win
+3. treat env vars as compatibility overrides only when the typed field is left
+   unspecified
+4. do not expect the Phase 1 public surface to cover FM tuning or
+   debug/profile controls yet
+
+### Day 12 Validation
+
+Because `include/sparse_analysis.h` changed, I ran the required gate:
+
+- `make format`
+- `make lint`
+- `make test`
+
+All passed.
+
+Focused retained proof points:
+
+- `test_reorder_nd` still passed the full Phase 1 precedence and default
+  coverage
+- the graph/reorder-sensitive test surface remained clean through the normal
+  `make test` lane:
+  - `test_graph`
+  - `test_graph_fm_buckets`
+  - `test_reorder_nd`
+  - `test_reorder_amd_qg`
+
+Day 12 note:
+
+- I did not rerun `make quality-review-full` on this batch because the landing
+  was a public-docs/header narrative follow-through with no implementation or
+  behavior change; the required `*.h` gate still passed cleanly
+
+### Day 12 Close
+
+Sprint 61 Day 12 completes the planned docs/maintainer follow-through:
+
+- the preferred typed configuration path is now explicit on the top-level
+  public surfaces
+- the public header now states the shipped precedence rule directly
+- the residual deferred env-var queue is now explicit in the maintainer-policy
+  home
+- no caller-facing contradiction remains on the touched Phase 1 configuration
+  surfaces

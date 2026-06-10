@@ -337,3 +337,162 @@ Sprint 62 now has a written validation baseline that matches the live repo:
   one-shot direct solver, and adjacent repeated-run regression surfaces
 - docs-only versus code-day versus stronger-review path split fixed explicitly
 - no contradiction across the main quality/truthfulness surfaces
+
+## Day 3
+
+**Objective:** Re-rank the live one-shot direct-solver pain points by mutation
+surprise, lifecycle ambiguity, cancellation/progress behavior, and caller-risk
+so Sprint 62 can move into design from a concrete ranked map rather than a
+generic usability claim.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 3 audit:
+   - `git status --short --branch`
+2. Re-read the current Sprint 62 notes and the Day 3 plan slice:
+   - `sed -n '1,420p' docs/planning/EPIC_6/SPRINT_62/WORKING_NOTES.md`
+   - `sed -n '151,240p' docs/planning/EPIC_6/SPRINT_62/PLAN.md`
+3. Inventory the strongest current direct-usage seams:
+   - `rg -n "sparse_(lu_factor|chol|cholesky|ldlt|qr)|factor_norm|refactor|analysis|progress_cb|cancel|in-place|bit-identical|copy\\(|mutable|mutates|input matrix|one-shot|wrapper" README.md docs/tutorial.md include/sparse_analysis.h include/sparse_cholesky.h include/sparse_ldlt.h include/sparse_lu.h include/sparse_qr.h src/sparse_analysis.c src/sparse_chol_csc.c src/sparse_ldlt.c src/sparse_lu.c src/sparse_qr.c tests/test_integration.c tests/test_chol_csc.c tests/test_ldlt.c tests/test_sparse_lu.c tests/test_qr.c`
+4. Re-read the direct public contract surfaces:
+   - `sed -n '1,320p' include/sparse_lu.h`
+   - `sed -n '1,260p' include/sparse_cholesky.h`
+   - `sed -n '1,360p' include/sparse_ldlt.h`
+   - `sed -n '1,260p' include/sparse_qr.h`
+5. Re-read the strongest implementation seams:
+   - `sed -n '1,120p' src/sparse_lu.c`
+   - `sed -n '330,470p' src/sparse_lu.c`
+   - `sed -n '1,260p' src/sparse_analysis.c`
+6. Re-read the strongest proof and teaching surfaces:
+   - `sed -n '740,960p' tests/test_integration.c`
+   - `sed -n '1,260p' docs/tutorial.md`
+   - `rg -n "test_.*(wrapper|one_shot|lifecycle|cancel|copy|preserve|matches_explicit_analysis_path|matches_default_opts|refactor_same_pattern|invalidates_old_factor)" tests/test_integration.c tests/test_chol_csc.c tests/test_ldlt.c tests/test_sparse_lu.c tests/test_qr.c`
+
+### Day 3 Findings
+
+#### 1. The broad Sprint 62 “direct usability” problem now reduces to four concrete pain-point classes
+
+The strongest live direct-usability pressure clusters into:
+
+1. mutable-matrix surprise on one-shot in-place paths
+2. wrapper versus explicit lifecycle ambiguity
+3. cancellation/progress semantics that differ by solver family
+4. copy-discipline and “fresh original matrix” friction in docs/examples
+
+Interpretation:
+
+- Sprint 62 does not need a vague product-usability sweep
+- it needs to tighten a small set of caller-risk seams that already recur
+  across direct docs, headers, wrappers, and integration proofs
+
+#### 2. LU is the strongest first hardening target
+
+LU is now the clearest first target because it has the most mixed public story:
+
+- it is still a first-class one-shot in-place surface
+- `sparse_lu_factor_opts(...)` can silently route through the shared
+  `analysis` / `factors` lifecycle when the option shape matches the shared
+  lifecycle fast-path criteria
+- reorder can mutate matrix layout before factorization proper begins
+- cancellation semantics are more nuanced than the other direct families:
+  - cancel-at-step-0 can preserve some compatibility mirrors
+  - reordered one-shot entry still does not promise a bit-identical matrix on
+    every cancellation path
+
+Interpretation:
+
+- LU has the highest wrapper/lifecycle ambiguity
+- LU has the highest “simple one-shot API, but subtle actual behavior” risk
+- LU is the strongest first Sprint 62 hardening seam
+
+#### 3. Cholesky is the strongest second target, but for a different reason than LU
+
+Cholesky is already more explicit than LU about being a copied-matrix one-shot
+surface, but it still carries meaningful usability risk:
+
+- the matrix is always mutated in place
+- the upper triangle is stripped during factorization
+- the CSC/linked-list backend split adds behavior detail to the same public
+  wrapper
+- cancellation semantics are family-specific and not bit-identical to the
+  pre-call state
+
+Interpretation:
+
+- Cholesky’s main risk is mutation surprise and backend-behavior opacity, not
+  lifecycle mixing
+- it is the strongest second target after LU
+- Sprint 62 should not treat “direct solvers” as one homogeneous usability
+  problem
+
+#### 4. LDL^T is cleaner than the Epic 6 review summary implied
+
+LDL^T still matters to the Sprint 62 story, but it is not the strongest first
+landing target:
+
+- the main family-local surface uses an owned `sparse_ldlt_t`, not in-place
+  matrix mutation
+- the header already states the distinction between the family-local factor
+  object and the shared repeated-run direct lifecycle
+- cancellation behavior is simpler because the input matrix is never mutated
+- the strongest remaining risk is coherence with the shared lifecycle story,
+  not one-shot mutation surprise
+
+Interpretation:
+
+- LDL^T should stay in the audit and later regression/design set
+- it should not define the first hardening batch
+- the repo is already closer to a coherent LDL^T usability story than the
+  top-level Epic 6 review suggested
+
+#### 5. QR matters mainly as a contrast surface, not as the defining Sprint 62 landing target
+
+QR still intersects the direct-usage story where caller expectations can drift:
+
+- it requires an unfactored, unreordered matrix with identity permutations
+- docs already tell callers to start from a fresh `sparse_copy()` when the
+  matrix may have been reused elsewhere
+- it has cancellation/progress semantics, but not the same shared
+  direct-lifecycle convergence story as LU/Cholesky/LDL^T
+
+Interpretation:
+
+- QR belongs in Sprint 62 mainly as a shared-expectation comparison surface
+- it should not be the main Batch 1 usability target
+- forcing QR into the first landing would spread the sprint too widely for too
+  little caller-value gain
+
+#### 6. The strongest current proof burden already sits in `tests/test_integration.c`, not in a missing test story
+
+The live proof map is already substantial:
+
+- wrapper/default-parity proofs exist
+- explicit-analysis-path parity proofs exist
+- lifecycle rejection/preservation proofs exist
+- cancellation proofs exist
+- one-shot versus lifecycle equivalence already exists for at least one
+  Cholesky repeated-run story
+
+Interpretation:
+
+- Sprint 62 is not blocked by missing proof infrastructure
+- the stronger need is to rebalance what the public and internal direct
+  surfaces promise, then add only the smallest new regression surface needed
+  to lock that contract down
+
+### Day 3 Close
+
+Sprint 62 now has a ranked direct-usability map instead of a generic problem
+statement:
+
+- strongest first target:
+  - LU one-shot wrapper and lifecycle coherence
+- strongest second target:
+  - Cholesky one-shot mutation and backend clarity
+- later target:
+  - LDL^T coherence follow-through
+- contrast/deferred surface:
+  - QR
+
+The next step is to turn that ranked map into an exact lifecycle/wrapper
+coherence design with preserved compatibility rules before code changes begin.

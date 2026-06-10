@@ -662,3 +662,162 @@ Sprint 62 now has an explicit lifecycle/wrapper safety contract:
 - Cholesky is the fixed second target
 - Day 5 can now define the exact first touched-file fence against this
   preserved contract
+
+## Day 5
+
+**Objective:** Turn the Day 4 lifecycle/wrapper safety contract into an exact
+touched-file and API/implementation boundary plan so the first LU hardening
+batch stays bounded and does not expand into a broad direct-solver rewrite.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 5 design pass:
+   - `git status --short --branch`
+2. Re-read the current Sprint 62 notes and the Day 5-8 plan slice:
+   - `sed -n '1,760p' docs/planning/EPIC_6/SPRINT_62/WORKING_NOTES.md`
+   - `sed -n '241,380p' docs/planning/EPIC_6/SPRINT_62/PLAN.md`
+3. Re-read a recent Epic 6 landing-design artifact for shape:
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_61/artifacts/day5-header-and-internal-surface-landing-design.md`
+4. Re-read the strongest LU proof/control seams:
+   - `sed -n '500,880p' tests/test_integration.c`
+   - `sed -n '1,260p' include/sparse_lu.h`
+   - `sed -n '1,140p' README.md`
+   - `rg -n "reorder_perm|factor_state|publish_factored|require_original_row_col_state|restore_compat_on_premutation_exit|progress_cb|CANCELLED" src/sparse_lu.c src/sparse_matrix_state_internal.h src/sparse_factor_state_internal.c`
+
+### Day 5 Findings
+
+#### 1. The minimum viable public surface for the first batch is LU-only
+
+Public surfaces to touch first:
+
+- `include/sparse_lu.h`
+
+Public surfaces to keep untouched in Batch 1:
+
+- `include/sparse_analysis.h`
+- `include/sparse_cholesky.h`
+- `include/sparse_ldlt.h`
+- `include/sparse_qr.h`
+
+Public design rule:
+
+- the first batch should normalize the LU one-shot contract in place
+- it should not widen the shared lifecycle header
+- it should not try to normalize every direct-family header at once
+
+#### 2. The smallest viable implementation bridge stays inside the LU wrapper and factor-state seam
+
+The core implementation lane should stay inside:
+
+- `src/sparse_lu.c`
+
+With helper/state support allowed only if the landed behavior proves it is
+necessary:
+
+- `src/sparse_factor_state_internal.c`
+- `src/sparse_matrix_state_internal.h`
+
+Why this matters:
+
+- the main Sprint 62 LU risk is wrapper/lifecycle crossover plus state
+  invalidation around reorder/cancel paths
+- those seams already live in `src/sparse_lu.c` and the factor-state helper
+  lane
+- widening into `src/sparse_analysis.c` on the first batch would turn the
+  usability sprint into a lifecycle-core rewrite too early
+
+#### 3. The first proof home should stay integration-led, with unit-level LU proof only if the landed path forces it
+
+Required proof surface:
+
+- `tests/test_integration.c`
+
+Optional only if the landed change needs tighter family-local proof:
+
+- `tests/test_sparse_lu.c`
+
+Reason:
+
+- the hardest Sprint 62 risks already show up at the integration boundary:
+  - cancel
+  - reorder invalidation
+  - one-shot versus explicit lifecycle parity
+- `tests/test_integration.c` is already the authoritative proof home for those
+  seams
+- a mandatory `test_sparse_lu.c` expansion on Day 6 would widen the batch
+  before the actual hardening proves it is needed
+
+#### 4. Docs follow-through should stay out of the Day 6 first patch unless the code change forces a compile-visible contract update
+
+Likely later docs surfaces:
+
+- `README.md`
+- `docs/tutorial.md`
+- `docs/maintainer_guide.md`
+
+But the first code batch should avoid starting there unless:
+
+- the LU header wording must move in the same patch for truthfulness
+- or the implementation change cannot be described correctly without a matching
+  public-header edit
+
+Interpretation:
+
+- Day 6 should prioritize code and proof
+- docs should mostly follow the landed LU behavior rather than precede it
+
+#### 5. The Day 6 versus Day 7 split is now explicit
+
+Day 6 target:
+
+- `include/sparse_lu.h`
+- `src/sparse_lu.c`
+- `tests/test_integration.c`
+
+Day 6 focus:
+
+- public wrapper wording normalization where needed
+- first LU wrapper/lifecycle hardening slice
+- first bounded regression additions for the exact landed path
+
+Day 7 optional/support set:
+
+- `src/sparse_factor_state_internal.c`
+- `src/sparse_matrix_state_internal.h`
+- `tests/test_sparse_lu.c`
+- small LU comment/wording follow-through in touched files only
+
+Day 7 focus:
+
+- cleanup/state-preservation tightening if the Day 6 landing proves it is
+  needed
+- helper hardening only where it directly supports the LU batch
+- regression expansion only where the Day 6 behavior exposed a real proof gap
+
+#### 6. The exact non-touch set for the first landing is now fixed
+
+Do not widen the first batch into:
+
+- `src/sparse_cholesky.c`
+- `src/sparse_chol_csc.c`
+- `src/sparse_ldlt.c`
+- `src/sparse_analysis.c`
+- `src/sparse_qr.c`
+- `include/sparse_cholesky.h`
+- `include/sparse_ldlt.h`
+- `include/sparse_qr.h`
+- broad docs simplification
+- benchmark/example edits
+- packaging/platform work
+- configuration-surface work
+
+### Day 5 Close
+
+Sprint 62 now has a precise first implementation boundary:
+
+- the minimum viable public surface is fixed to `include/sparse_lu.h`
+- the primary implementation seam is fixed to `src/sparse_lu.c`
+- the required proof home is fixed to `tests/test_integration.c`
+- the helper/state support lane is bounded and optional rather than assumed
+- the Day 6 versus Day 7 split is fixed
+- the non-touch set is fixed before public-header or implementation edits begin

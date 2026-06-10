@@ -1126,3 +1126,147 @@ Sprint 62 Day 7 completed the first bounded LU usability package:
 - the batch stayed inside the Day 5 optional support lane without widening
   into Cholesky, LDL^T, QR, or broad docs/example work
 - the full required and reviewed validation close passed from the landed state
+
+## Day 8
+
+**Objective:** Re-audit the remaining direct wrapper/lifecycle queue after the
+Day 6-7 LU landing so Sprint 62 narrows to one exact next convergence slice
+instead of carrying a generic “direct usability still needs work” backlog.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 8 audit:
+   - `git status --short --branch`
+2. Re-read the Day 8-10 plan fence plus the landed Day 7 artifact:
+   - `sed -n '230,360p' docs/planning/EPIC_6/SPRINT_62/PLAN.md`
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_62/artifacts/day7-one-shot-hardening-batch2.md`
+3. Re-read the current Sprint 62 notes through Day 7:
+   - `sed -n '820,1220p' docs/planning/EPIC_6/SPRINT_62/WORKING_NOTES.md`
+4. Re-scan the live direct wrapper / lifecycle wording surfaces:
+   - `rg -n "copy|fresh matrix|one-shot|analysis / factors|lifecycle|reorder" README.md docs/tutorial.md docs/maintainer_guide.md include/sparse_cholesky.h include/sparse_ldlt.h include/sparse_lu.h src/sparse_cholesky.c src/sparse_chol_csc.c src/sparse_ldlt.c src/sparse_lu.c tests/test_integration.c tests/test_cholesky.c tests/test_ldlt.c tests/test_sparse_lu.c`
+5. Inspect the next strongest family-local implementation seams:
+   - `sed -n '1,260p' include/sparse_cholesky.h`
+   - `sed -n '1,280p' include/sparse_ldlt.h`
+   - `sed -n '230,430p' src/sparse_cholesky.c`
+   - `sed -n '1040,1180p' src/sparse_ldlt.c`
+
+### Day 8 Findings
+
+#### 1. The post-Day-7 queue is now much smaller and no longer centered on LU
+
+Days 6-7 removed the highest-value LU one-shot surprises:
+
+- reused LU one-shot state now rejects explicitly
+- reordered LU one-shot failure/cancel no longer publishes partial caller
+  mutation
+- the public LU header now describes the strengthened one-shot contract
+  truthfully
+
+Interpretation:
+
+- LU is no longer the strongest remaining Sprint 62 lifecycle/wrapper seam
+- the broad “direct usability” backlog is now smaller and more family-local
+- the next Sprint 62 move should not reopen LU unless a later docs or proof
+  pass exposes a contradiction
+
+#### 2. Cholesky now owns the strongest remaining one-shot versus explicit-lifecycle mismatch
+
+The live Cholesky surface still carries the highest remaining caller-risk
+combination:
+
+- one-shot in-place mutation remains mandatory
+- reordered factorization still publishes the permuted working state onto the
+  caller matrix before factorization success is known
+- linked-list progress cancellation still documents a non-bit-identical
+  cancel-at-step-0 matrix outcome
+- CSC path progress emission remains absent, so callback semantics are still
+  family/backend asymmetric
+
+Interpretation:
+
+- Cholesky is now the exact strongest next convergence target
+- the highest-value next slice is not “all direct wrappers”
+- the strongest real mismatch is the Cholesky mutation/cancellation story, not
+  a missing shared lifecycle API
+
+#### 3. LDL^T is cleaner than the original Epic 6 review headline implied and should stay mostly compatibility-only in Sprint 62
+
+The live LDL^T family remains notably lower-risk than LU and Cholesky because:
+
+- the public family-local factor object is separate (`sparse_ldlt_t`)
+- factorization does not mutate the input matrix
+- cancellation already documents that `A` remains bit-identical
+- repeated-run direct convergence already lives more naturally on the shared
+  lifecycle side
+
+Interpretation:
+
+- LDL^T does not justify the next code batch
+- the remaining LDL^T work for Sprint 62 is mostly wording/alignment, not
+  immediate hardening
+- forcing LDL^T into the next batch would broaden scope for less caller value
+
+#### 4. The strongest remaining Sprint 62 changes now separate cleanly into “move now”, “compatibility-only”, and “defer”
+
+Move in Sprint 62:
+
+- bounded Cholesky one-shot mutation and cancel/publication hardening
+- Cholesky one-shot versus explicit lifecycle wording follow-through where the
+  code batch touches public comments or proof
+
+Keep compatibility-only for now:
+
+- LU docs/example follow-through unless a contradiction appears
+- LDL^T wording normalization where it helps the final sprint story
+- existing one-shot wrapper family boundaries
+
+Defer beyond Sprint 62:
+
+- backend-wide progress callback parity across CSC direct paths
+- broad QR convergence work
+- any hidden-copy semantics intended to erase one-shot mutation
+- broad direct-family API redesign
+
+Interpretation:
+
+- the sprint queue is now explicit instead of implied
+- the Day 9 design target can stay bounded to Cholesky
+- the audit does not require reopening the Sprint 62 non-goal fence
+
+#### 5. The exact Day 9 target is now fixed
+
+The next justified design batch should target:
+
+- `include/sparse_cholesky.h`
+- `src/sparse_cholesky.c`
+- `tests/test_integration.c`
+
+With optional support surfaces only if the proof burden forces them:
+
+- `tests/test_cholesky.c`
+- small touched commentary in `docs/tutorial.md` or `README.md`
+
+The bounded design problem is:
+
+- how much of the LU Day 6-7 preservation model should move onto Cholesky
+- which Cholesky cancellation/publication semantics stay compatibility-only
+- how to preserve the explicit one-shot versus shared lifecycle boundary while
+  reducing the highest-value mutation surprise
+
+Interpretation:
+
+- Day 9 should be a Cholesky convergence design, not another generic direct
+  usability pass
+- Day 10 should stay tightly bounded to that Cholesky slice if the design
+  still looks safe
+
+### Day 8 Close
+
+Sprint 62 Day 8 reduced the remaining direct-usability queue to one clear next
+target:
+
+- LU’s first usability package is now complete enough to leave alone
+- Cholesky now owns the strongest remaining one-shot/lifecycle mismatch
+- LDL^T is mostly a compatibility-follow-through surface for this sprint
+- the Day 9 target is fixed to a bounded Cholesky convergence design instead
+  of a broad direct-family rewrite

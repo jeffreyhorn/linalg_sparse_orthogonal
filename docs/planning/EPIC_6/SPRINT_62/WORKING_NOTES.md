@@ -1270,3 +1270,152 @@ target:
 - LDL^T is mostly a compatibility-follow-through surface for this sprint
 - the Day 9 target is fixed to a bounded Cholesky convergence design instead
   of a broad direct-family rewrite
+
+## Day 9
+
+**Objective:** Convert the remaining justified direct lifecycle/wrapper work
+into one exact Cholesky implementation fence, with explicit compatibility rules
+for what Sprint 62 will and will not change on the Cholesky one-shot path.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 9 design pass:
+   - `git status --short --branch`
+2. Re-read the Day 8-10 plan fence and the Day 8 audit:
+   - `sed -n '230,380p' docs/planning/EPIC_6/SPRINT_62/PLAN.md`
+   - `sed -n '1130,1295p' docs/planning/EPIC_6/SPRINT_62/WORKING_NOTES.md`
+   - `sed -n '1,240p' docs/planning/EPIC_6/SPRINT_62/artifacts/day8-post-lu-lifecycle-wrapper-audit.md`
+3. Inspect the concrete Cholesky publication / cancellation seams:
+   - `sed -n '1,260p' include/sparse_cholesky.h`
+   - `sed -n '230,430p' src/sparse_cholesky.c`
+   - `sed -n '430,860p' tests/test_integration.c`
+   - `sed -n '1,260p' tests/test_cholesky.c`
+4. Re-scan the exact caller-facing wording that the Day 10 batch must stay
+   aligned with:
+   - `rg -n "one-shot|copy|fresh matrix|analysis / factors|cancel|reorder" README.md docs/tutorial.md include/sparse_cholesky.h src/sparse_cholesky.c tests/test_integration.c`
+
+### Day 9 Findings
+
+#### 1. The exact Day 10 target is the reordered Cholesky publication seam, not the entire Cholesky cancel model
+
+The live Cholesky path has two different kinds of surprise:
+
+- reordered publication happens before factorization success is known
+- linked-list cancel-at-step-0 still does not preserve a bit-identical matrix
+  even with no reordering
+
+Only the first one is a good Sprint 62 move.
+
+Interpretation:
+
+- Day 10 should move the reordered publication boundary toward the LU Day 7
+  model
+- Day 10 should not try to “fix everything about Cholesky cancellation”
+- the no-reorder linked-list cancel behavior remains compatibility-sensitive
+  and should stay documented rather than silently redesigned here
+
+#### 2. The bounded Day 10 convergence subset is now explicit
+
+Move in Day 10:
+
+- `sparse_cholesky_factor_opts(...)` should stop publishing reordered matrix
+  state onto the caller-owned matrix before success is known
+- reordered Cholesky one-shot attempts should preserve caller state until the
+  selected backend actually succeeds
+- public Cholesky wording should explain the strengthened reordered one-shot
+  rule directly
+
+Do not move in Day 10:
+
+- the shared direct lifecycle API
+- no-reorder linked-list cancel-at-step-0 semantics
+- CSC progress callback parity
+- LDL^T or QR family behavior
+- broad example/tutorial cleanup
+
+Interpretation:
+
+- the next code batch is about publication timing and caller-state ownership
+- it is not a broad redesign of Cholesky factorization internals
+
+#### 3. The public/internal plumbing split is now fixed
+
+Public/front-door ownership:
+
+- `include/sparse_cholesky.h`
+- clarify that reordered one-shot Cholesky calls outside the trivial no-reorder
+  case may work on a temporary reordered copy and publish back only on success
+
+Primary implementation ownership:
+
+- `src/sparse_cholesky.c`
+- add a bounded reordered-working-copy helper for the one-shot path
+- keep backend selection inside the existing Cholesky wrapper rather than
+  widening into the shared lifecycle layer
+
+Proof ownership:
+
+- `tests/test_integration.c`
+- add one new public caller-story regression covering cancelled reordered
+  Cholesky preservation plus later successful retry
+
+Optional only if proof burden forces it:
+
+- `tests/test_cholesky.c`
+
+Interpretation:
+
+- the Day 10 fence is as tight as the LU Day 7 fence
+- the proof stays integration-led unless family-local detail genuinely forces
+  more unit coverage
+
+#### 4. The Day 10 compatibility contract is now explicit
+
+Preserve:
+
+- one-shot Cholesky remains first-class/default
+- explicit repeated-run direct solves still belong on
+  `sparse_analyze()` / `sparse_factor_numeric()` / `sparse_factor_solve()` /
+  `sparse_refactor_numeric()`
+- no-reorder in-place mutation remains part of the Cholesky one-shot identity
+- cancel-at-step-0 on the linked-list no-reorder path remains non-bit-identical
+  and documented as such
+
+Strengthen:
+
+- reordered Cholesky one-shot failure/cancel should no longer strand the
+  caller matrix in a partially reordered intermediate state
+- reordered Cholesky retry after cancellation/failure should remain possible on
+  the original caller matrix
+
+Interpretation:
+
+- Sprint 62 improves the highest-value caller surprise without faking a
+  universal “no mutation on cancel” promise
+- the Day 10 batch stays compatibility-aware instead of overreaching
+
+#### 5. The deferred list is now narrower and explicit
+
+Still deferred after Day 9:
+
+- no-reorder linked-list cancel bit-identity restoration
+- CSC progress callback emissions for Cholesky
+- LU/LDL^T docs follow-through beyond touched wording
+- broader direct-family docs/examples simplification
+- QR convergence work
+
+Interpretation:
+
+- the deferred queue is explicit rather than silently dropped
+- Sprint 62 can close with one coherent LU + Cholesky usability package
+  without pretending the whole direct family is now finished
+
+### Day 9 Close
+
+Sprint 62 Day 9 fixed one exact Day 10 implementation fence:
+
+- the next code batch is a bounded Cholesky reordered publication/preservation
+  hardening slice
+- the proof home stays centered on `tests/test_integration.c`
+- no-reorder Cholesky cancel semantics stay compatibility-only for now
+- the deferred queue is explicit instead of implied

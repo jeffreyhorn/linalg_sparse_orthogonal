@@ -51,6 +51,10 @@ Solve a 5x5 tridiagonal system `Ax = b` using LU factorization with partial
 pivoting. Demonstrates matrix creation, copying before in-place
 factorization, solve, and residual computation.
 
+This is the smallest shipped reference for the one-shot direct rule: if you
+still need the original matrix view after factorization, start from a fresh
+matrix copy and keep the one-shot mutation on that working factor matrix.
+
 ```bash
 ./build/example_basic_solve
 ```
@@ -68,6 +72,10 @@ Demonstrate the explicit repeated-run direct lifecycle:
 This is the strongest shipped example for stable-pattern repeated direct
 solves. It complements the smaller one-shot examples rather than replacing
 them.
+
+Use this path when reuse is the point. Keep the smaller LU/Cholesky/LDL^T
+examples for occasional one-shot solves and move here only when you want the
+explicit analyze / factor / solve / refactor lifecycle.
 
 ```bash
 ./build/example_analysis

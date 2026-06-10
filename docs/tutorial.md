@@ -151,6 +151,11 @@ sparse_lu_refine(A, LU, b, x, 3);
 sparse_free(LU);
 ```
 
+Treat LU as a one-shot direct entry point on a fresh matrix or a fresh
+`sparse_copy()` of the original coefficients. If you need analyze-once /
+factor-many reuse, move to the explicit repeated-run direct lifecycle in
+`example_analysis.c` instead of repeatedly re-entering the one-shot LU path.
+
 ### Cholesky Factorization
 
 For symmetric positive-definite (SPD) matrices — faster and uses half the storage:
@@ -173,6 +178,11 @@ For stable-pattern repeated direct solves, keep the one-shot Cholesky path for
 small usage examples and move to the explicit repeated-run direct lifecycle
 only when you need analyze-once / factor-many reuse. The strongest shipped
 example for that path is `examples/example_analysis.c`.
+
+For one-shot Cholesky, keep using a fresh matrix or a fresh `sparse_copy()` of
+the original coefficients when you still need the original matrix view later.
+That keeps the mutation/cancellation caveats local to the working factor copy
+instead of the caller's last original view.
 
 ### QR Factorization
 

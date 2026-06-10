@@ -1729,3 +1729,154 @@ pass exactly as planned:
 - the direct-family cancellation commentary now reflects family-local behavior
   instead of one generic promise
 - the full reviewed validation path passed from the landed tree
+
+## Day 12
+
+**Objective:** Align the highest-value caller-facing and maintainer-facing
+surfaces with the landed Sprint 62 LU/Cholesky usability story, while keeping
+the batch docs-only and leaving the remaining direct-usability queue explicit.
+
+### Commands Run
+
+1. Re-read the Day 12 plan fence and the Day 11 validated close:
+   - `sed -n '412,456p' docs/planning/EPIC_6/SPRINT_62/PLAN.md`
+   - `sed -n '1577,1715p' docs/planning/EPIC_6/SPRINT_62/WORKING_NOTES.md`
+2. Audit the highest-value live public/maintainer/example surfaces:
+   - `sed -n '72,95p' README.md`
+   - `sed -n '130,185p' docs/tutorial.md`
+   - `sed -n '240,315p' docs/maintainer_guide.md`
+   - `sed -n '1,85p' examples/README.md`
+3. Land the bounded docs-only follow-through:
+   - `apply_patch` on:
+     - `README.md`
+     - `docs/tutorial.md`
+     - `docs/maintainer_guide.md`
+     - `examples/README.md`
+4. Run the targeted docs/workflow sanity set:
+   - `git diff -- README.md docs/tutorial.md docs/maintainer_guide.md examples/README.md`
+   - `rg -n 'temporary reordered working copy|fresh matrix|sparse_copy\\(\\)|explicit repeated-run direct lifecycle|deferred direct-usability queue|non-bit-identical' README.md docs/tutorial.md examples/README.md docs/maintainer_guide.md`
+   - `wc -l README.md docs/tutorial.md examples/README.md docs/maintainer_guide.md`
+   - `git status --short --branch`
+
+### Day 12 Findings
+
+#### 1. The README now matches the shipped direct cancellation split instead of the old generic wording
+
+The highest-value public contradiction was in the top-level callback summary.
+`README.md` now states the exact shipped direct-family split:
+
+- LU no-reorder cancel-at-step-0 preserves the caller matrix
+- reordered LU one-shot attempts preserve the caller matrix through a
+  temporary reordered working copy
+- Cholesky no-reorder linked-list cancellation remains non-bit-identical
+- reordered Cholesky one-shot attempts preserve the caller matrix through a
+  temporary reordered working copy
+- LDL^T / QR keep the cleanest input-matrix preservation story
+
+Interpretation:
+
+- the public README no longer overstates direct mutation surprise on the
+  reordered LU/Cholesky paths
+- the top-level caller story now matches the Day 6-11 landed behavior
+
+#### 2. The workflow guidance now says when to stay one-shot and when to move to the explicit lifecycle
+
+`README.md`, `docs/tutorial.md`, and `examples/README.md` now align on one
+practical caller rule:
+
+- keep the one-shot direct entries for small or occasional solves
+- use a fresh matrix or a fresh `sparse_copy()` when you still need the
+  original coefficient view later
+- move to `example_analysis` and the explicit repeated-run direct lifecycle
+  only when stable-pattern reuse is the point
+
+Interpretation:
+
+- Sprint 62 did not blur one-shot direct APIs into the repeated-run lifecycle
+- the adoption story is now smaller and more concrete for new callers
+
+#### 3. The maintainer guide now owns the remaining direct-usability queue explicitly
+
+`docs/maintainer_guide.md` now carries one explicit post-Sprint-62 direct
+interpretation block plus the residual deferred queue:
+
+- one-shot LU / Cholesky / LDL^T remain first-class/default peer entry points
+- explicit repeated direct reuse belongs on the shared lifecycle
+- reordered LU / Cholesky working-copy preservation is now part of the stable
+  maintainer interpretation
+- deferred queue remains explicit:
+  - no-reorder linked-list Cholesky bit-identical cancellation restoration
+  - CSC progress-callback parity for Cholesky / LDL^T
+  - any broader LDL^T / QR wording follow-through only if a new contradiction
+    appears
+  - broader direct-family docs/examples simplification outside the bounded
+    Sprint 62 surfaces
+
+Interpretation:
+
+- maintainers now have one clear home for the remaining direct-usability queue
+- later direct-family work can extend from an explicit residual map instead of
+  re-auditing the whole Sprint 62 story
+
+#### 4. The Day 12 patch stayed inside the planned docs/adoption fence
+
+Touched:
+
+- `README.md`
+- `docs/tutorial.md`
+- `docs/maintainer_guide.md`
+- `examples/README.md`
+
+Not widened into:
+
+- public headers
+- `examples/*.c`
+- tests
+- benchmarks
+- implementation files
+
+Interpretation:
+
+- Day 12 stayed a true docs/adoption pass
+- no new runtime or API behavior was introduced under the cover of wording
+  cleanup
+
+#### 5. The docs-only sanity pass closed cleanly
+
+Sanity checks run:
+
+- `git diff -- README.md docs/tutorial.md docs/maintainer_guide.md examples/README.md`
+- terminology/alignment `rg`
+- touched-surface `wc -l`
+- branch status recheck
+
+Measured touched-surface result:
+
+- `README.md`: `982 -> 983`
+- `docs/tutorial.md`: `454 -> 464`
+- `examples/README.md`: `134 -> 142`
+- `docs/maintainer_guide.md`: `367 -> 391`
+
+Because this was a docs-only batch, I did not rerun:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Interpretation:
+
+- the Day 12 branch shape stays honest: docs-only follow-through on top of the
+  Day 11 validated baseline
+- the remaining Sprint 62 work now moves cleanly into Day 13 validation and
+  closeout
+
+### Day 12 Close
+
+Sprint 62 Day 12 completed the bounded public/maintainer docs adoption pass:
+
+- README cancellation semantics now match the landed LU/Cholesky split
+- tutorial and example docs now say more directly when to stay one-shot and
+  when to move to the explicit repeated-run lifecycle
+- the maintainer guide now owns the residual direct-usability queue explicitly
+- the batch stayed docs-only and ready for Day 13 full validation

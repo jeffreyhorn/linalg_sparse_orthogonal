@@ -3,7 +3,7 @@ Date: 2026-06-10
 Branch: sprint-62
 
 1. docs/planning/EPIC_6/PROJECT_PLAN.md
-   - Sprint 62 section: "Sprint 62: Direct-Solver Usability & Lifecylcle Coherence"
+   - Sprint 62 section: "Sprint 62: Direct-Solver Usability & Lifecycle Coherence"
 2. docs/planning/EPIC_6/SPRINT_62/PLAN.md
 3. docs/planning/EPIC_6/SPRINT_61/RETROSPECTIVE.md
 4. docs/planning/EPIC_6/SPRINT_61/artifacts/day14-closeout-and-handoff.md

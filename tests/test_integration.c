@@ -630,6 +630,13 @@ test_lu_refactor_attempt_rejects_existing_reordered_factor_and_preserves_old_fac
     };
     ASSERT_EQ(sparse_lu_factor_opts(A, &factor_opts), SPARSE_OK);
 
+    double b_cancel[100];
+    double x_before[100];
+    double x_after[100];
+    for (idx_t i = 0; i < n; i++)
+        b_cancel[i] = 1.0;
+    ASSERT_EQ(sparse_lu_solve(A, b_cancel, x_before), SPARSE_OK);
+
     sparse_lu_opts_t retry_opts = {
         .pivot = SPARSE_PIVOT_PARTIAL,
         .reorder = SPARSE_REORDER_NONE,
@@ -637,12 +644,6 @@ test_lu_refactor_attempt_rejects_existing_reordered_factor_and_preserves_old_fac
     };
     ASSERT_EQ(sparse_lu_factor_opts(A, &retry_opts), SPARSE_ERR_BADARG);
 
-    double b_cancel[100];
-    double x_before[100];
-    double x_after[100];
-    for (idx_t i = 0; i < n; i++)
-        b_cancel[i] = 1.0;
-    ASSERT_EQ(sparse_lu_solve(A, b_cancel, x_before), SPARSE_OK);
     ASSERT_EQ(sparse_lu_solve(A, b_cancel, x_after), SPARSE_OK);
     for (idx_t i = 0; i < n; i++)
         ASSERT_NEAR(x_after[i], x_before[i], 1e-12);

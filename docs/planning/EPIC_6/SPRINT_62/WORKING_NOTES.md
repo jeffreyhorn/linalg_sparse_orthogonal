@@ -2049,3 +2049,149 @@ Sprint 62 Day 13 completed the full validation sweep successfully:
 - the representative examples and workflow benchmarks retained their expected
   output story
 - the branch is ready for Day 14 closeout from a validated Day 13 baseline
+
+## Day 14
+
+**Objective:** Package Sprint 62 into one explicit validated direct-usability
+handoff by summarizing the landed behavior, preserved compatibility fence,
+deferred queue, and next-sprint starting point without reopening the Day 13
+validated baseline.
+
+### Commands Run
+
+1. Re-read the Day 14 sprint fence and project-plan scope:
+   - `sed -n '478,560p' docs/planning/EPIC_6/SPRINT_62/PLAN.md`
+   - `sed -n '88,140p' docs/planning/EPIC_6/PROJECT_PLAN.md`
+2. Re-read the current validated close state:
+   - `tail -n 220 docs/planning/EPIC_6/SPRINT_62/WORKING_NOTES.md`
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_62/artifacts/day13-full-validation-sweep.md`
+3. Write the closeout artifact and final synthesis:
+   - `docs/planning/EPIC_6/SPRINT_62/artifacts/day14-closeout-and-handoff.md`
+   - `docs/planning/EPIC_6/SPRINT_62/WORKING_NOTES.md`
+
+### Day 14 Findings
+
+#### 1. Sprint 62 now closes as one coherent direct-usability package
+
+The landed Sprint 62 work reduces to one bounded package instead of separate
+LU, Cholesky, and docs patches:
+
+- LU one-shot hardening:
+  - rejects reused row/column state up front
+  - keeps null-input handling distinct from reused-state rejection
+  - preserves the caller matrix on reordered cancel/failure by publishing back
+    only after successful factorization
+- Cholesky one-shot hardening:
+  - preserves the caller matrix on reordered cancel/failure by using a
+    temporary reordered working copy
+  - keeps the no-reorder linked-list path on its existing compatibility lane
+- direct adoption/docs follow-through:
+  - README, tutorial, examples, and maintainer guidance now say more directly
+    when one-shot direct solves are the right tool and when callers should move
+    to the explicit repeated-run direct lifecycle
+
+Interpretation:
+
+- Sprint 62 landed a real usability reduction, not just wording cleanup
+- the biggest mutable-matrix surprise points on the highest-value direct
+  surfaces are now narrower and more explicit
+
+#### 2. The preserved compatibility fence stayed explicit
+
+The closed Sprint 62 story still preserves the intended direct-family boundary:
+
+- one-shot direct wrappers remain first-class/default peer entry points
+- the explicit repeated-run direct lifecycle remains the canonical reuse path:
+  - `sparse_analyze()`
+  - `sparse_factor_numeric()`
+  - `sparse_factor_solve()`
+  - `sparse_refactor_numeric()`
+- Sprint 62 reduced surprise by hardening publication and precondition
+  behavior, not by silently copying everywhere or hiding family-local
+  ownership rules
+- reordered LU and reordered Cholesky now preserve the caller matrix on
+  cancel/failure
+- the no-reorder linked-list Cholesky cancellation model stays
+  compatibility-preserved and explicitly family-local
+- LDL^T remains a cleaner ownership surface and does not need forced widening
+  just to make the sprint look symmetrical
+
+Interpretation:
+
+- Sprint 62 improved coherence without pretending every direct family now has
+  identical internal behavior
+- the public direct story is simpler while the real compatibility edges remain
+  honest
+
+#### 3. The deferred direct-usability queue is now smaller and concrete
+
+The remaining queue after Sprint 62 is bounded rather than ambiguous:
+
+- no-reorder linked-list Cholesky cancellation restoration remains deferred
+  rather than silently redefined
+- broader LDL^T wording or compatibility follow-through is only needed if a
+  later contradiction appears
+- QR remains mainly a comparison/deferred surface, not an immediate Sprint 62
+  spillover target
+- broader direct-family docs/examples simplification outside the touched
+  high-signal surfaces remains future work
+- later direct-lifecycle uniformity and CSC/LU follow-through belongs to Sprint
+  63 rather than being smuggled into the Sprint 62 close
+
+Interpretation:
+
+- the next sprint can start from a clean residual map instead of re-auditing
+  what Sprint 62 already settled
+
+#### 4. The Day 13 validated baseline remains the authoritative close state
+
+Sprint 62 closes from the already validated Day 13 state:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Reviewed anchors remain:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 377.56 sec`
+
+Interpretation:
+
+- there is no reason to rerun validation for this docs-only closeout batch
+- Sprint 62 closes from a measured reviewed baseline, not from a narrative-only
+  summary
+
+#### 5. The project plan does not need a Sprint 62 correction
+
+Re-reading the Sprint 62 project-plan section showed the landed branch still
+matches the intended scope:
+
+- direct usability audit
+- lifecycle coherence design
+- one-shot hardening
+- lifecycle/wrapper convergence
+- example and doc adoption
+- regression expansion
+- validation and closeout
+
+Interpretation:
+
+- `docs/planning/EPIC_6/PROJECT_PLAN.md` does not need a Sprint 62 correction
+- the handoff can stay local to the Sprint 62 closeout surfaces
+
+### Day 14 Close
+
+Sprint 62 Day 14 completed the final closeout and handoff:
+
+- the landed LU and Cholesky one-shot hardening now reads as one coherent
+  direct-usability package
+- the preserved compatibility fence and explicit deferred queue are fixed in
+  writing
+- the sprint closes from the Day 13 validated baseline without reopening scope
+  or validation decisions
+- Sprint 63 can start from a clean direct-usability handoff instead of
+  re-litigating Sprint 62

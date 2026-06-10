@@ -165,6 +165,58 @@ Interpretation:
 - do not widen the repo into platform-expansion work without fresh
   measurement-backed justification
 
+## Configuration Surface Ownership
+
+Epic 6 Phase 1 moved the highest-value analysis/reorder env-var controls onto
+the public typed `sparse_analysis_opts_t.reorder_opts` surface.
+
+Current precedence:
+
+1. explicit typed option value
+2. legacy compatibility override when the typed field stays unspecified
+3. internal default policy
+
+Interpretation:
+
+- caller-facing docs and headers should present the typed path as the preferred
+  control surface
+- env vars should be described as compatibility overrides, not as the primary
+  front door for new callers
+- maintainer-facing docs should keep the precedence rule explicit so future
+  cleanup does not drift back into contradictory wording
+
+Current public typed analysis/reorder controls include:
+
+- supernodal etree postorder
+- ND root bisection mode
+- ND root spectral cutoff
+- ND coarsening strategy
+- ND coarsest bisection strategy
+- ND separator-lift strategy
+- ND separator-lift weight scheme
+- ND coarsening floor-ratio divisor
+
+Current residual deferred configuration queue:
+
+- compatibility-only legacy alias:
+  - `SPARSE_ND_SUPERNODAL_POSTORDER`
+- internal/default-policy-only analysis-time control:
+  - `SPARSE_ND_COARSENING_CV_FALLTHROUGH`
+- explicitly deferred debug/profile surfaces:
+  - `SPARSE_ND_PROFILE`
+  - `SPARSE_QG_PROFILE`
+  - `SPARSE_HCC_DEBUG`
+- explicitly deferred FM-family surfaces:
+  - all `SPARSE_FM_*`
+
+Interpretation:
+
+- do not silently promote deferred env vars into the public API
+- do not imply that the remaining env-var queue is gone; it is now smaller and
+  intentionally bounded
+- when future sprints move another control, update the typed path, the
+  precedence wording, and this residual queue together
+
 ## Documentation Ownership Rules
 
 Sprint 48 exists because too much maintainer policy drifted into user-facing

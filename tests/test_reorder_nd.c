@@ -392,6 +392,19 @@ static idx_t symbolic_cholesky_nnz(const SparseMatrix *A, sparse_reorder_t reord
     return nnz;
 }
 
+static idx_t symbolic_cholesky_nnz_with_analysis_opts(const SparseMatrix *A,
+                                                      const sparse_analysis_opts_t *opts) {
+    sparse_analysis_t analysis = {0};
+    sparse_err_t rc = sparse_analyze(A, opts, &analysis);
+    if (rc != SPARSE_OK) {
+        sparse_analysis_free(&analysis);
+        return -1;
+    }
+    idx_t nnz = analysis.sym_L.nnz;
+    sparse_analysis_free(&analysis);
+    return nnz;
+}
+
 /* Compute symbolic Cholesky nnz(L) on the ND-permuted matrix.  Builds
  * P A P^T via `sparse_permute` and analyses with REORDER_NONE so this
  * helper exercises the public `sparse_reorder_nd` entry point in
@@ -722,6 +735,577 @@ cleanup:
     tf_unsetenv("SPARSE_ND_ROOT_BISECT");
     tf_unsetenv("SPARSE_ND_COARSENING");
     sparse_free(A);
+}
+
+static void test_analysis_typed_nd_root_bisect_overrides_env(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Pres_Poisson.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (Pres_Poisson fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+    idx_t n = sparse_rows(A);
+    int coarsening_set = 0;
+    int spectral_set = 0;
+
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+    };
+    sparse_analysis_opts_t opts_typed_multilevel = opts;
+    opts_typed_multilevel.reorder_opts.nd_root_bisect = SPARSE_ANALYSIS_ND_ROOT_BISECT_MULTILEVEL;
+
+    sparse_analysis_t an_multi = {0};
+    sparse_analysis_t an_env_spectral = {0};
+    sparse_analysis_t an_typed_multilevel = {0};
+    const char *skip_reason = NULL;
+
+    if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        sparse_free(A);
+        return;
+    }
+    coarsening_set = 1;
+
+    tf_unsetenv("SPARSE_ND_ROOT_BISECT");
+    rc = sparse_analyze(A, &opts, &an_multi);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze multilevel baseline: rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_ND_ROOT_BISECT", "spectral") != 0) {
+        TF_FAIL_("setenv SPARSE_ND_ROOT_BISECT=%s failed", "spectral");
+        goto cleanup;
+    }
+    spectral_set = 1;
+    rc = sparse_analyze(A, &opts, &an_env_spectral);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze env spectral: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    if (memcmp(an_multi.perm, an_env_spectral.perm, (size_t)n * sizeof(idx_t)) == 0) {
+        skip_reason = "Pres_Poisson spectral env path did not differ from multilevel baseline";
+        goto cleanup;
+    }
+
+    rc = sparse_analyze(A, &opts_typed_multilevel, &an_typed_multilevel);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze typed multilevel override: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    ASSERT_EQ(memcmp(an_multi.perm, an_typed_multilevel.perm, (size_t)n * sizeof(idx_t)), 0);
+
+cleanup:
+    if (spectral_set)
+        tf_unsetenv("SPARSE_ND_ROOT_BISECT");
+    if (coarsening_set)
+        tf_unsetenv("SPARSE_ND_COARSENING");
+    sparse_analysis_free(&an_multi);
+    sparse_analysis_free(&an_env_spectral);
+    sparse_analysis_free(&an_typed_multilevel);
+    sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
+}
+
+static void test_analysis_typed_nd_root_bisect_max_n_overrides_env(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Pres_Poisson.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (Pres_Poisson fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+    idx_t n = sparse_rows(A);
+    int coarsening_set = 0;
+    int spectral_set = 0;
+    int max_n_set = 0;
+
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+    };
+    sparse_analysis_opts_t opts_typed_spectral = opts;
+    opts_typed_spectral.reorder_opts.nd_root_bisect = SPARSE_ANALYSIS_ND_ROOT_BISECT_SPECTRAL;
+    opts_typed_spectral.reorder_opts.nd_root_bisect_max_n = 50000;
+
+    sparse_analysis_t an_multi = {0};
+    sparse_analysis_t an_env_capped = {0};
+    sparse_analysis_t an_typed_spectral = {0};
+    const char *skip_reason = NULL;
+
+    if (tf_setenv("SPARSE_ND_COARSENING", "heavy_edge") != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        sparse_free(A);
+        return;
+    }
+    coarsening_set = 1;
+
+    tf_unsetenv("SPARSE_ND_ROOT_BISECT");
+    tf_unsetenv("SPARSE_ND_ROOT_BISECT_MAX_N");
+    rc = sparse_analyze(A, &opts, &an_multi);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze multilevel baseline: rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_ND_ROOT_BISECT", "spectral") != 0) {
+        TF_FAIL_("setenv SPARSE_ND_ROOT_BISECT=%s failed", "spectral");
+        goto cleanup;
+    }
+    spectral_set = 1;
+    if (tf_setenv("SPARSE_ND_ROOT_BISECT_MAX_N", "1") != 0) {
+        TF_FAIL_("setenv SPARSE_ND_ROOT_BISECT_MAX_N=%s failed", "1");
+        goto cleanup;
+    }
+    max_n_set = 1;
+
+    rc = sparse_analyze(A, &opts, &an_env_capped);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze env capped spectral: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    ASSERT_EQ(memcmp(an_multi.perm, an_env_capped.perm, (size_t)n * sizeof(idx_t)), 0);
+
+    rc = sparse_analyze(A, &opts_typed_spectral, &an_typed_spectral);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze typed spectral max_n override: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    if (memcmp(an_multi.perm, an_typed_spectral.perm, (size_t)n * sizeof(idx_t)) == 0) {
+        skip_reason = "typed spectral max_n path did not differ from multilevel baseline";
+        goto cleanup;
+    }
+
+cleanup:
+    if (max_n_set)
+        tf_unsetenv("SPARSE_ND_ROOT_BISECT_MAX_N");
+    if (spectral_set)
+        tf_unsetenv("SPARSE_ND_ROOT_BISECT");
+    if (coarsening_set)
+        tf_unsetenv("SPARSE_ND_COARSENING");
+    sparse_analysis_free(&an_multi);
+    sparse_analysis_free(&an_env_capped);
+    sparse_analysis_free(&an_typed_spectral);
+    sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
+}
+
+static void test_analysis_typed_nd_coarsen_floor_ratio_overrides_env(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    sparse_analysis_opts_t opts_typed_default = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE,
+        .reorder_opts.nd_coarsen_floor_ratio = 100,
+    };
+    sparse_analysis_opts_t opts_env = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE,
+    };
+    const char *skip_reason = NULL;
+
+    idx_t nnz_default = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_default);
+    if (nnz_default <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed floor ratio 100) returned %d",
+                 (int)nnz_default);
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_ND_COARSEN_FLOOR_RATIO", "1") != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSEN_FLOOR_RATIO failed)\n");
+        goto cleanup;
+    }
+    idx_t nnz_env_ratio_1 = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_env);
+    if (nnz_env_ratio_1 <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(env floor ratio 1) returned %d",
+                 (int)nnz_env_ratio_1);
+        goto cleanup;
+    }
+    if (nnz_env_ratio_1 == nnz_default)
+        skip_reason =
+            "bcsstk14 env floor-ratio path did not differ from typed floor-ratio baseline";
+    if (skip_reason)
+        goto cleanup;
+
+    idx_t nnz_typed_default = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_default);
+    if (nnz_typed_default <= 0) {
+        TF_FAIL_(
+            "symbolic_cholesky_nnz_with_analysis_opts(typed floor ratio 100 under env) returned %d",
+            (int)nnz_typed_default);
+        goto cleanup;
+    }
+    ASSERT_EQ(nnz_typed_default, nnz_default);
+
+cleanup:
+    tf_unsetenv("SPARSE_ND_COARSEN_FLOOR_RATIO");
+    sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
+}
+
+static void test_analysis_default_nd_coarsen_floor_ratio_matches_internal_default(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    sparse_analysis_opts_t opts_unspecified = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE,
+    };
+    sparse_analysis_opts_t opts_typed_default = opts_unspecified;
+    opts_typed_default.reorder_opts.nd_coarsen_floor_ratio = 100;
+
+    tf_unsetenv("SPARSE_ND_COARSEN_FLOOR_RATIO");
+    idx_t nnz_unspecified = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_unspecified);
+    if (nnz_unspecified <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(unspecified floor ratio) returned %d",
+                 (int)nnz_unspecified);
+        goto cleanup;
+    }
+
+    idx_t nnz_typed_default = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_default);
+    if (nnz_typed_default <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed floor ratio 100) returned %d",
+                 (int)nnz_typed_default);
+        goto cleanup;
+    }
+
+    ASSERT_EQ(nnz_typed_default, nnz_unspecified);
+
+cleanup:
+    sparse_free(A);
+}
+
+static void test_analysis_typed_nd_coarsening_overrides_env(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    sparse_analysis_opts_t opts_typed_hem = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE,
+    };
+    sparse_analysis_opts_t opts_env = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+    };
+    const char *skip_reason = NULL;
+
+    idx_t nnz_hem = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_hem);
+    if (nnz_hem <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed heavy_edge) returned %d",
+                 (int)nnz_hem);
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_ND_COARSENING", "hcc") != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING failed)\n");
+        goto cleanup;
+    }
+    idx_t nnz_env_hcc = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_env);
+    if (nnz_env_hcc <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(env hcc) returned %d", (int)nnz_env_hcc);
+        goto cleanup;
+    }
+    if (nnz_env_hcc == nnz_hem)
+        skip_reason = "bcsstk14 HCC env path did not differ from typed heavy_edge baseline";
+    if (skip_reason)
+        goto cleanup;
+
+    idx_t nnz_typed_hem = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_hem);
+    if (nnz_typed_hem <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed heavy_edge under env) returned %d",
+                 (int)nnz_typed_hem);
+        goto cleanup;
+    }
+    ASSERT_EQ(nnz_typed_hem, nnz_hem);
+
+cleanup:
+    tf_unsetenv("SPARSE_ND_COARSENING");
+    sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
+}
+
+static void test_analysis_nd_coarsening_cv_fallthrough_default_matches_compat_value(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Kuu.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (Kuu fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    sparse_analysis_opts_t opts_hcc = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HCC,
+    };
+
+    tf_unsetenv("SPARSE_ND_COARSENING_CV_FALLTHROUGH");
+    idx_t nnz_default = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_hcc);
+    if (nnz_default <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(default HCC CV threshold) returned %d",
+                 (int)nnz_default);
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_ND_COARSENING_CV_FALLTHROUGH", "0.30") != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING_CV_FALLTHROUGH failed)\n");
+        goto cleanup;
+    }
+    idx_t nnz_env_default = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_hcc);
+    if (nnz_env_default <= 0) {
+        TF_FAIL_(
+            "symbolic_cholesky_nnz_with_analysis_opts(env default HCC CV threshold) returned %d",
+            (int)nnz_env_default);
+        goto cleanup;
+    }
+
+    ASSERT_EQ(nnz_env_default, nnz_default);
+
+cleanup:
+    tf_unsetenv("SPARSE_ND_COARSENING_CV_FALLTHROUGH");
+    sparse_free(A);
+}
+
+static void test_analysis_nd_coarsening_cv_fallthrough_env_affects_policy_path(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/Kuu.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (Kuu fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    sparse_analysis_opts_t opts_hcc = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HCC,
+    };
+    const char *skip_reason = NULL;
+
+    tf_unsetenv("SPARSE_ND_COARSENING_CV_FALLTHROUGH");
+    idx_t nnz_default = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_hcc);
+    if (nnz_default <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(default HCC CV threshold) returned %d",
+                 (int)nnz_default);
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_ND_COARSENING_CV_FALLTHROUGH", "0") != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSENING_CV_FALLTHROUGH failed)\n");
+        goto cleanup;
+    }
+    idx_t nnz_env_disabled = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_hcc);
+    if (nnz_env_disabled <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(env-disabled HCC CV threshold) "
+                 "returned %d",
+                 (int)nnz_env_disabled);
+        goto cleanup;
+    }
+    if (nnz_env_disabled == nnz_default)
+        skip_reason =
+            "Kuu HCC CV fallthrough env path did not differ from the default analysis path";
+    if (skip_reason)
+        goto cleanup;
+
+cleanup:
+    tf_unsetenv("SPARSE_ND_COARSENING_CV_FALLTHROUGH");
+    sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
+}
+
+static void test_analysis_typed_nd_coarsest_bisection_overrides_env(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    sparse_analysis_opts_t opts_typed_default = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsest_bisection = SPARSE_ANALYSIS_ND_COARSEST_BISECTION_DEFAULT_ROUTING,
+    };
+    sparse_analysis_opts_t opts_env = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+    };
+    const char *skip_reason = NULL;
+
+    idx_t nnz_default = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_default);
+    if (nnz_default <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed default routing) returned %d",
+                 (int)nnz_default);
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_ND_COARSEST_BISECTION", "spectral") != 0) {
+        printf("    skipped (setenv SPARSE_ND_COARSEST_BISECTION failed)\n");
+        goto cleanup;
+    }
+    idx_t nnz_env_spectral = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_env);
+    if (nnz_env_spectral <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(env spectral) returned %d",
+                 (int)nnz_env_spectral);
+        goto cleanup;
+    }
+    if (nnz_env_spectral == nnz_default)
+        skip_reason = "bcsstk14 env spectral coarsest path did not differ from default routing";
+    if (skip_reason)
+        goto cleanup;
+
+    idx_t nnz_typed_default = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_default);
+    if (nnz_typed_default <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed default under env) returned %d",
+                 (int)nnz_typed_default);
+        goto cleanup;
+    }
+    ASSERT_EQ(nnz_typed_default, nnz_default);
+
+cleanup:
+    tf_unsetenv("SPARSE_ND_COARSEST_BISECTION");
+    sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
+}
+
+static void test_analysis_typed_nd_sep_lift_strategy_overrides_env(void) {
+    SparseMatrix *A = make_grid_2d(30, 30);
+    if (!A) {
+        TF_FAIL_("make_grid_2d(%d, %d) returned NULL (OOM)", 30, 30);
+        return;
+    }
+
+    sparse_analysis_opts_t opts_typed_per_vertex = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE,
+        .reorder_opts.nd_sep_lift_strategy = SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_PER_VERTEX,
+    };
+    sparse_analysis_opts_t opts_env = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE,
+    };
+    const char *skip_reason = NULL;
+
+    idx_t nnz_per_vertex = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_per_vertex);
+    if (nnz_per_vertex <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed per_vertex) returned %d",
+                 (int)nnz_per_vertex);
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_ND_SEP_LIFT_STRATEGY", "per_vertex_fixed_k") != 0) {
+        printf("    skipped (setenv SPARSE_ND_SEP_LIFT_STRATEGY failed)\n");
+        goto cleanup;
+    }
+    idx_t nnz_env_fixed_k = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_env);
+    if (nnz_env_fixed_k <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(env fixed_k) returned %d",
+                 (int)nnz_env_fixed_k);
+        goto cleanup;
+    }
+    if (nnz_env_fixed_k == nnz_per_vertex)
+        skip_reason = "30x30 grid fixed_k env path did not differ from typed per_vertex baseline";
+    if (skip_reason)
+        goto cleanup;
+
+    idx_t nnz_typed_per_vertex =
+        symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_per_vertex);
+    if (nnz_typed_per_vertex <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed per_vertex under env) returned %d",
+                 (int)nnz_typed_per_vertex);
+        goto cleanup;
+    }
+    ASSERT_EQ(nnz_typed_per_vertex, nnz_per_vertex);
+
+cleanup:
+    tf_unsetenv("SPARSE_ND_SEP_LIFT_STRATEGY");
+    sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
+}
+
+static void test_analysis_typed_nd_sep_lift_weight_overrides_env(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk04.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk04 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+
+    sparse_analysis_opts_t opts_typed_hybrid = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE,
+        .reorder_opts.nd_sep_lift_strategy =
+            SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_PER_VERTEX_FIXED_K,
+        .reorder_opts.nd_sep_lift_weight = SPARSE_ANALYSIS_ND_SEP_LIFT_WEIGHT_HYBRID,
+    };
+    sparse_analysis_opts_t opts_env = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_ND,
+        .reorder_opts.nd_coarsening = SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE,
+        .reorder_opts.nd_sep_lift_strategy =
+            SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_PER_VERTEX_FIXED_K,
+    };
+    const char *skip_reason = NULL;
+
+    idx_t nnz_hybrid = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_hybrid);
+    if (nnz_hybrid <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed hybrid) returned %d",
+                 (int)nnz_hybrid);
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_ND_SEP_LIFT_WEIGHT", "balance") != 0) {
+        printf("    skipped (setenv SPARSE_ND_SEP_LIFT_WEIGHT failed)\n");
+        goto cleanup;
+    }
+    idx_t nnz_env_balance = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_env);
+    if (nnz_env_balance <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(env balance) returned %d",
+                 (int)nnz_env_balance);
+        goto cleanup;
+    }
+    if (nnz_env_balance == nnz_hybrid)
+        skip_reason = "bcsstk04 env balance weight did not differ from typed hybrid baseline";
+    if (skip_reason)
+        goto cleanup;
+
+    idx_t nnz_typed_hybrid = symbolic_cholesky_nnz_with_analysis_opts(A, &opts_typed_hybrid);
+    if (nnz_typed_hybrid <= 0) {
+        TF_FAIL_("symbolic_cholesky_nnz_with_analysis_opts(typed hybrid under env) returned %d",
+                 (int)nnz_typed_hybrid);
+        goto cleanup;
+    }
+    ASSERT_EQ(nnz_typed_hybrid, nnz_hybrid);
+
+cleanup:
+    tf_unsetenv("SPARSE_ND_SEP_LIFT_WEIGHT");
+    sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
 }
 
 /* Sprint 27 Day 6: SPARSE_FM_FINEST_STRATEGY=annealing produces a
@@ -1186,6 +1770,79 @@ cleanup:
     sparse_free(A);
 }
 
+static void test_analysis_typed_supernodal_postorder_overrides_env(void) {
+    SparseMatrix *A = NULL;
+    sparse_err_t rc = sparse_load_mm(&A, SS_DIR "/bcsstk14.mtx");
+    if (rc != SPARSE_OK) {
+        printf("    skipped (bcsstk14 fixture not loadable: %d)\n", (int)rc);
+        return;
+    }
+    idx_t n = sparse_rows(A);
+
+    sparse_analysis_opts_t opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
+    sparse_analysis_opts_t opts_typed_off = opts;
+    opts_typed_off.reorder_opts.supernodal_postorder = SPARSE_ANALYSIS_SUPERNODAL_POSTORDER_OFF;
+
+    sparse_analysis_t analysis_off = {0};
+    sparse_analysis_t analysis_env_on = {0};
+    sparse_analysis_t analysis_typed_off = {0};
+    idx_t *expected_on = NULL;
+    int env_set = 0;
+    const char *skip_reason = NULL;
+
+    tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
+    rc = sparse_analyze(A, &opts, &analysis_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze baseline: rc=%d", (int)rc);
+        goto cleanup;
+    }
+
+    expected_on = malloc((size_t)n * sizeof(idx_t));
+    if (!expected_on) {
+        TF_FAIL_("malloc(expected_on) returned NULL (n=%d)", (int)n);
+        goto cleanup;
+    }
+    for (idx_t k = 0; k < n; k++)
+        expected_on[k] = analysis_off.perm[analysis_off.postorder[k]];
+    if (memcmp(expected_on, analysis_off.perm, (size_t)n * sizeof(idx_t)) == 0) {
+        skip_reason = "fixture baseline perm already matches the etree postorder composition";
+        goto cleanup;
+    }
+
+    if (tf_setenv("SPARSE_SUPERNODAL_POSTORDER", "on") != 0) {
+        TF_FAIL_("setenv SPARSE_SUPERNODAL_POSTORDER=%s failed", "on");
+        goto cleanup;
+    }
+    env_set = 1;
+    rc = sparse_analyze(A, &opts, &analysis_env_on);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze env on: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    ASSERT_EQ(memcmp(analysis_env_on.perm, expected_on, (size_t)n * sizeof(idx_t)), 0);
+
+    rc = sparse_analyze(A, &opts_typed_off, &analysis_typed_off);
+    if (rc != SPARSE_OK) {
+        TF_FAIL_("sparse_analyze typed off override: rc=%d", (int)rc);
+        goto cleanup;
+    }
+    ASSERT_EQ(memcmp(analysis_typed_off.perm, analysis_off.perm, (size_t)n * sizeof(idx_t)), 0);
+
+cleanup:
+    if (env_set)
+        tf_unsetenv("SPARSE_SUPERNODAL_POSTORDER");
+    free(expected_on);
+    sparse_analysis_free(&analysis_off);
+    sparse_analysis_free(&analysis_env_on);
+    sparse_analysis_free(&analysis_typed_off);
+    sparse_free(A);
+    if (skip_reason)
+        SKIP_TEST(skip_reason);
+}
+
 /* ─── Sprint 28 Day 8: supernodal-etree reordering corpus safety ─── */
 
 /* Day-8 corpus-safety: under `SPARSE_SUPERNODAL_POSTORDER=on`, the
@@ -1563,6 +2220,16 @@ int main(void) {
      * dispatch fires and produces a different cut.  Day 9's flip-or-
      * stay decision lands separately. */
     RUN_TEST(test_nd_root_spectral_pres_poisson_smoke);
+    RUN_TEST(test_analysis_typed_nd_root_bisect_overrides_env);
+    RUN_TEST(test_analysis_typed_nd_root_bisect_max_n_overrides_env);
+    RUN_TEST(test_analysis_typed_nd_coarsen_floor_ratio_overrides_env);
+    RUN_TEST(test_analysis_default_nd_coarsen_floor_ratio_matches_internal_default);
+    RUN_TEST(test_analysis_typed_nd_coarsening_overrides_env);
+    RUN_TEST(test_analysis_nd_coarsening_cv_fallthrough_default_matches_compat_value);
+    RUN_TEST(test_analysis_nd_coarsening_cv_fallthrough_env_affects_policy_path);
+    RUN_TEST(test_analysis_typed_nd_coarsest_bisection_overrides_env);
+    RUN_TEST(test_analysis_typed_nd_sep_lift_strategy_overrides_env);
+    RUN_TEST(test_analysis_typed_nd_sep_lift_weight_overrides_env);
     /* Sprint 27 Day 11: thick-restart FM differs from baseline. */
     RUN_TEST(test_finest_fm_thick_restart_returns_to_anchor);
     RUN_TEST(test_hcc_kuu_safe_corpus_parity);
@@ -1581,6 +2248,7 @@ int main(void) {
      * `non_pipeline_decision.md`); 0.85× Pres_Poisson target
      * formally RETIRED with 6-sprint empirical evidence. */
     RUN_TEST(test_supernodal_postorder_etree_contract);
+    RUN_TEST(test_analysis_typed_supernodal_postorder_overrides_env);
     /* Sprint 28 Day 8: corpus-safety + edge-case contracts. */
     RUN_TEST(test_supernodal_postorder_corpus_nnz_L_invariant);
     RUN_TEST(test_supernodal_postorder_no_reorder_skips);

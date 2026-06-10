@@ -68,6 +68,122 @@ typedef enum {
     SPARSE_FACTOR_LDLT = 2,     /**< LDL^T (P*A*P^T = L*D*L^T, symmetric indefinite) */
 } sparse_factor_type_t;
 
+/**
+ * @brief Optional supernodal etree-postorder composition policy.
+ *
+ * `DEFAULT` is zero-init safe and preserves the established compatibility
+ * precedence: typed field unspecified -> legacy compatibility override ->
+ * internal default.
+ */
+typedef enum {
+    SPARSE_ANALYSIS_SUPERNODAL_POSTORDER_DEFAULT = 0,
+    SPARSE_ANALYSIS_SUPERNODAL_POSTORDER_OFF = 1,
+    SPARSE_ANALYSIS_SUPERNODAL_POSTORDER_ON = 2,
+} sparse_analysis_supernodal_postorder_t;
+
+/**
+ * @brief Optional root nested-dissection bisection policy.
+ *
+ * `DEFAULT` is zero-init safe and preserves the established compatibility
+ * precedence: typed field unspecified -> legacy compatibility override ->
+ * internal default.
+ */
+typedef enum {
+    SPARSE_ANALYSIS_ND_ROOT_BISECT_DEFAULT = 0,
+    SPARSE_ANALYSIS_ND_ROOT_BISECT_MULTILEVEL = 1,
+    SPARSE_ANALYSIS_ND_ROOT_BISECT_SPECTRAL = 2,
+} sparse_analysis_nd_root_bisect_t;
+
+/**
+ * @brief Optional nested-dissection coarsening strategy.
+ *
+ * `DEFAULT` is zero-init safe and preserves the established compatibility
+ * precedence: typed field unspecified -> legacy compatibility override ->
+ * internal default.
+ */
+typedef enum {
+    SPARSE_ANALYSIS_ND_COARSENING_DEFAULT = 0,
+    SPARSE_ANALYSIS_ND_COARSENING_HEAVY_EDGE = 1,
+    SPARSE_ANALYSIS_ND_COARSENING_HCC = 2,
+} sparse_analysis_nd_coarsening_t;
+
+/**
+ * @brief Optional coarsest-level ND bisection strategy.
+ *
+ * `DEFAULT_ROUTING` means the established brute/gggp default routing, and is
+ * distinct from `DEFAULT`, which leaves the field unspecified for compatibility
+ * override resolution.
+ */
+typedef enum {
+    SPARSE_ANALYSIS_ND_COARSEST_BISECTION_DEFAULT = 0,
+    SPARSE_ANALYSIS_ND_COARSEST_BISECTION_DEFAULT_ROUTING = 1,
+    SPARSE_ANALYSIS_ND_COARSEST_BISECTION_SPECTRAL = 2,
+    SPARSE_ANALYSIS_ND_COARSEST_BISECTION_GGGP = 3,
+    SPARSE_ANALYSIS_ND_COARSEST_BISECTION_BRUTE = 4,
+} sparse_analysis_nd_coarsest_bisection_t;
+
+/**
+ * @brief Optional ND separator-lift strategy.
+ *
+ * `DEFAULT` is zero-init safe and preserves the established compatibility
+ * precedence: typed field unspecified -> legacy compatibility override ->
+ * internal default.
+ */
+typedef enum {
+    SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_DEFAULT = 0,
+    SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_SMALLER_WEIGHT = 1,
+    SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_BALANCED_BOUNDARY = 2,
+    SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_PER_VERTEX = 3,
+    SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_PER_VERTEX_BALANCE = 4,
+    SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_PER_VERTEX_DEGREE = 5,
+    SPARSE_ANALYSIS_ND_SEP_LIFT_STRATEGY_PER_VERTEX_FIXED_K = 6,
+} sparse_analysis_nd_sep_lift_strategy_t;
+
+/**
+ * @brief Optional ND fixed-K separator-lift weight scheme.
+ *
+ * `DEFAULT` is zero-init safe and preserves the established compatibility
+ * precedence: typed field unspecified -> legacy compatibility override ->
+ * internal default.
+ */
+typedef enum {
+    SPARSE_ANALYSIS_ND_SEP_LIFT_WEIGHT_DEFAULT = 0,
+    SPARSE_ANALYSIS_ND_SEP_LIFT_WEIGHT_HYBRID = 1,
+    SPARSE_ANALYSIS_ND_SEP_LIFT_WEIGHT_BALANCE = 2,
+    SPARSE_ANALYSIS_ND_SEP_LIFT_WEIGHT_DEGREE = 3,
+} sparse_analysis_nd_sep_lift_weight_t;
+
+/**
+ * @brief Optional analysis/reorder controls for advanced symmetric
+ *        ordering policy.
+ *
+ * These controls only affect the symmetric-analysis lane used by
+ * `sparse_analyze()`. Zero-init is safe and leaves all fields unspecified,
+ * which preserves compatibility overrides and internal defaults.
+ *
+ * The public typed surface is intentionally limited to caller-meaningful
+ * analysis-time routing and ND policy. Lower-level FM tuning and
+ * debug/profile env vars remain internal or compatibility-only for now.
+ */
+typedef struct {
+    sparse_analysis_supernodal_postorder_t supernodal_postorder;   /**< Optional
+          supernodal etree-postorder composition policy. */
+    sparse_analysis_nd_coarsening_t nd_coarsening;                 /**< Optional nested-
+                                    dissection coarsening strategy. */
+    sparse_analysis_nd_coarsest_bisection_t nd_coarsest_bisection; /**< Optional
+        coarsest-level ND bisection strategy. */
+    sparse_analysis_nd_root_bisect_t nd_root_bisect;               /**< Optional nested-
+                      dissection root bisection policy. */
+    idx_t nd_root_bisect_max_n;   /**< Optional upper bound for the root-level
+          spectral ND path. Use 0 to leave unspecified. */
+    idx_t nd_coarsen_floor_ratio; /**< Optional ND coarsening floor-ratio divisor.
+        Use 0 to leave unspecified. */
+    sparse_analysis_nd_sep_lift_strategy_t nd_sep_lift_strategy; /**< Optional
+        ND separator-lift strategy. */
+    sparse_analysis_nd_sep_lift_weight_t nd_sep_lift_weight;     /**< Optional fixed-K
+                    ND separator-lift weight scheme. */
+} sparse_analysis_reorder_opts_t;
+
 /* ═══════════════════════════════════════════════════════════════════════════
  * Analysis options
  * ═══════════════════════════════════════════════════════════════════════════ */
@@ -79,18 +195,25 @@ typedef enum {
  *   sparse_analysis_opts_t opts = {
  *       .factor_type = SPARSE_FACTOR_CHOLESKY,
  *       .reorder = SPARSE_REORDER_AMD,
+ *       .reorder_opts.supernodal_postorder =
+ *           SPARSE_ANALYSIS_SUPERNODAL_POSTORDER_ON,
  *   };
  * @endcode
  */
 typedef struct {
-    sparse_factor_type_t factor_type; /**< Target factorization type */
-    sparse_reorder_t reorder;         /**< Fill-reducing reordering. Use NONE, RCM,
-                                           AMD, or ND for the normal symmetric
-                                           analysis path. COLAMD is accepted,
-                                           but `sparse_analyze()` applies it as a
-                                           symmetric permutation; see the note
-                                           below for the QR-specific column-only
-                                           path. */
+    sparse_factor_type_t factor_type;            /**< Target factorization type */
+    sparse_reorder_t reorder;                    /**< Fill-reducing reordering. Use NONE, RCM,
+                                                      AMD, or ND for the normal symmetric
+                                                      analysis path. COLAMD is accepted,
+                                                      but `sparse_analyze()` applies it as a
+                                                      symmetric permutation; see the note
+                                                      below for the QR-specific column-only
+                                                      path. */
+    sparse_analysis_reorder_opts_t reorder_opts; /**< Optional advanced
+        symmetric-reordering controls. Zero-init safe; explicit typed values
+        win, legacy compatibility env vars are only consulted when the typed
+        field stays unspecified, and internal defaults remain the final
+        fallback. */
 } sparse_analysis_opts_t;
 
 /* ═══════════════════════════════════════════════════════════════════════════

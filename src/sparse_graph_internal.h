@@ -80,6 +80,74 @@ typedef enum {
 } coarsening_strategy_t;
 
 /**
+ * @brief Resolved supernodal etree-postorder policy for the symmetric
+ *        analysis lane.
+ */
+typedef enum {
+    SPARSE_GRAPH_SUPERNODAL_POSTORDER_OFF = 0,
+    SPARSE_GRAPH_SUPERNODAL_POSTORDER_ON = 1,
+} sparse_graph_supernodal_postorder_mode_t;
+
+/**
+ * @brief Resolved root ND bisection policy.
+ */
+typedef enum {
+    SPARSE_GRAPH_ND_ROOT_BISECT_MULTILEVEL = 0,
+    SPARSE_GRAPH_ND_ROOT_BISECT_SPECTRAL = 1,
+} sparse_graph_nd_root_bisect_mode_t;
+
+/**
+ * @brief Resolved coarsest-level ND bisection policy.
+ */
+typedef enum {
+    SPARSE_GRAPH_ND_COARSEST_BISECTION_DEFAULT_ROUTING = 0,
+    SPARSE_GRAPH_ND_COARSEST_BISECTION_SPECTRAL = 1,
+    SPARSE_GRAPH_ND_COARSEST_BISECTION_GGGP = 2,
+    SPARSE_GRAPH_ND_COARSEST_BISECTION_BRUTE = 3,
+} sparse_graph_nd_coarsest_bisection_mode_t;
+
+/**
+ * @brief Resolved ND separator-lift strategy.
+ */
+typedef enum {
+    SPARSE_GRAPH_ND_SEP_LIFT_SMALLER_WEIGHT = 0,
+    SPARSE_GRAPH_ND_SEP_LIFT_BALANCED_BOUNDARY = 1,
+    SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_HYBRID = 2,
+    SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_BALANCE = 3,
+    SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_DEGREE = 4,
+    SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_FIXED_K = 5,
+} sparse_graph_nd_sep_lift_strategy_mode_t;
+
+/**
+ * @brief Resolved ND fixed-K separator-lift weight scheme.
+ */
+typedef enum {
+    SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_HYBRID = 0,
+    SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_BALANCE = 1,
+    SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_DEGREE = 2,
+} sparse_graph_nd_sep_lift_weight_mode_t;
+
+/**
+ * @brief Resolved symmetric-analysis / ND policy snapshot.
+ *
+ * This is the internal typed-policy seam for `sparse_analyze(...)` and the
+ * policy-aware ND driver. Public typed options and legacy compatibility
+ * overrides are both normalized into this struct before the graph/reorder
+ * layer consumes them.
+ */
+typedef struct {
+    sparse_graph_supernodal_postorder_mode_t supernodal_postorder;
+    coarsening_strategy_t nd_coarsening;
+    sparse_graph_nd_coarsest_bisection_mode_t nd_coarsest_bisection;
+    sparse_graph_nd_root_bisect_mode_t nd_root_bisect;
+    idx_t nd_root_bisect_max_n;
+    idx_t nd_coarsen_floor_ratio;
+    double nd_coarsening_cv_fallthrough;
+    sparse_graph_nd_sep_lift_strategy_mode_t nd_sep_lift_strategy;
+    sparse_graph_nd_sep_lift_weight_mode_t nd_sep_lift_weight;
+} sparse_graph_nd_policy_t;
+
+/**
  * @brief Build the symmetric adjacency graph of A.
  *
  * Wraps the existing internal `sparse_build_adj` helper so the
@@ -221,10 +289,11 @@ sparse_err_t graph_coarsen_heavy_edge_matching(const sparse_graph_t *fine, uint3
  * Same signature + collapse rule + shuffle-based visit order, but the
  * matching score is `edge_weight * min(deg(u), deg(v))` instead of just
  * `edge_weight`.  Tie-break on equal score: lower-id neighbour wins
- * (deterministic regardless of adjacency storage order).  Selected by
- * `sparse_graph_hierarchy_build` when env var
- * `SPARSE_ND_COARSENING=hcc` is set.  See
- * docs/planning/EPIC_2/SPRINT_25/hcc_design.md for the full contract.
+ * (deterministic regardless of adjacency storage order).  The active
+ * strategy is now selected through the resolved ND policy bridge first, with
+ * legacy `SPARSE_ND_COARSENING` env-var compatibility only when no typed
+ * override is active. See docs/planning/EPIC_2/SPRINT_25/hcc_design.md for
+ * the full contract.
  */
 sparse_err_t graph_coarsen_hcc(const sparse_graph_t *fine, uint32_t seed,
                                sparse_graph_t *coarse_out, idx_t *cmap_out);
@@ -234,6 +303,48 @@ sparse_err_t graph_coarsen_hcc(const sparse_graph_t *fine, uint32_t seed,
  *        internal override state and environment parsing.
  */
 coarsening_strategy_t sparse_graph_coarsening_strategy_current(void);
+
+/**
+ * @brief Override the active ND coarsening strategy for the current
+ *        thread.
+ *
+ * Used by the typed analysis/reorder policy bridge. The begin/end calls must
+ * be paired.
+ */
+void sparse_graph_coarsening_override_begin(coarsening_strategy_t strategy);
+
+/**
+ * @brief Clear the current-thread ND coarsening strategy override.
+ */
+void sparse_graph_coarsening_override_end(void);
+
+/**
+ * @brief Override the active ND coarsening floor-ratio divisor for the
+ *        current thread.
+ *
+ * Used by the typed analysis/reorder policy bridge. The begin/end calls must
+ * be paired.
+ */
+void sparse_graph_coarsen_floor_ratio_override_begin(idx_t divisor);
+
+/**
+ * @brief Clear the current-thread ND coarsening floor-ratio override.
+ */
+void sparse_graph_coarsen_floor_ratio_override_end(void);
+
+/**
+ * @brief Override the active HCC CV fallthrough threshold for the current
+ *        thread.
+ *
+ * Used by the typed analysis/reorder policy bridge. The begin/end calls must
+ * be paired.
+ */
+void sparse_graph_coarsening_cv_fallthrough_override_begin(double threshold);
+
+/**
+ * @brief Clear the current-thread HCC CV fallthrough override.
+ */
+void sparse_graph_coarsening_cv_fallthrough_override_end(void);
 
 /**
  * @brief Force temporary Heavy-Edge-Matching fallback for the current
@@ -249,6 +360,21 @@ void sparse_graph_force_hem_override_begin(void);
  *        current thread.
  */
 void sparse_graph_force_hem_override_end(void);
+
+/**
+ * @brief Override the active coarsest-level ND bisection strategy for the
+ *        current thread.
+ *
+ * Used by the typed analysis/reorder policy bridge. The begin/end calls must
+ * be paired.
+ */
+void sparse_graph_coarsest_bisection_override_begin(
+    sparse_graph_nd_coarsest_bisection_mode_t strategy);
+
+/**
+ * @brief Clear the current-thread coarsest-level ND bisection override.
+ */
+void sparse_graph_coarsest_bisection_override_end(void);
 
 /**
  * @brief Multilevel coarsening hierarchy.
@@ -329,8 +455,9 @@ typedef struct {
  *   1. `n_coarse <= MAX(20, root->n / divisor)` — coarsest level is
  *      small enough for the brute-force / GGGP bisection of Day 3.
  *      `divisor` is 100 by default (Sprint 22 calibration); the
- *      `SPARSE_ND_COARSEN_FLOOR_RATIO` env var (Sprint 24 Day 5)
- *      overrides it in [1, 100000] for tighter cuts on Pres_Poisson.
+ *      resolved ND policy can override it explicitly, with legacy
+ *      `SPARSE_ND_COARSEN_FLOOR_RATIO` env-var compatibility still available
+ *      when no typed override is active.
  *   2. `n_coarse > 0.9 * n_fine` — a coarsening pass made too little
  *      progress; further coarsening would just churn without
  *      shrinking the problem.
@@ -443,10 +570,11 @@ sparse_err_t graph_build_laplacian(const sparse_graph_t *G, SparseMatrix **L_out
  *
  * The multilevel coarsening (`sparse_graph_hierarchy_build`) drives
  * `n` toward MAX(20, n_orig / divisor) before the partitioner gets
- * here (divisor default 100, overridable via the
- * `SPARSE_ND_COARSEN_FLOOR_RATIO` env var added Sprint 24 Day 5);
- * on structurally regular inputs heavy-edge matching can saturate
- * before that target — GGGP handles whatever the hierarchy delivers.
+ * here (divisor default 100, overridable through the resolved ND
+ * policy, with legacy `SPARSE_ND_COARSEN_FLOOR_RATIO` compatibility
+ * still available when no typed override is active); on structurally
+ * regular inputs heavy-edge matching can saturate before that target —
+ * GGGP handles whatever the hierarchy delivers.
  *
  * @param G        Input graph.
  * @param part_out Caller-allocated array of length `G->n`; written
@@ -578,8 +706,9 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
  *
  * Given `part_io[i] ∈ {0, 1}`, marks every boundary vertex on one
  * side as the separator (`part_io[i] = 2`).  Two strategies select
- * which side to lift, switched by the `SPARSE_ND_SEP_LIFT_STRATEGY`
- * env var (Sprint 24 Day 6):
+ * which side to lift, now routed through the resolved ND policy
+ * bridge first, with legacy `SPARSE_ND_SEP_LIFT_STRATEGY` env-var
+ * compatibility when no typed override is active:
  *
  *   - `smaller_weight` (default; Sprint 22 Day 4 behaviour) — lift
  *     the side with smaller vertex weight (METIS convention; ties
@@ -606,6 +735,21 @@ sparse_err_t graph_uncoarsen(const sparse_graph_t *root, const sparse_graph_hier
  * @return SPARSE_ERR_ALLOC on allocation failure.
  */
 sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, idx_t *part_io);
+
+/**
+ * @brief Override the active ND separator-lift strategy and weight scheme for
+ *        the current thread.
+ *
+ * Used by the typed analysis/reorder policy bridge. The begin/end calls must
+ * be paired.
+ */
+void sparse_graph_sep_lift_override_begin(sparse_graph_nd_sep_lift_strategy_mode_t strategy,
+                                          sparse_graph_nd_sep_lift_weight_mode_t weight);
+
+/**
+ * @brief Clear the current-thread ND separator-lift override.
+ */
+void sparse_graph_sep_lift_override_end(void);
 
 /**
  * @brief Spectral bisection on the input graph.

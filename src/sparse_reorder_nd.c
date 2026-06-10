@@ -234,20 +234,37 @@ fail:
  * Above the threshold, fall through to `multilevel` (Lanczos at
  * n > 100000 is > 30 s per Sprint 21 Day 5 scaling — not worth
  * the special path on production-scale fixtures). */
-typedef enum {
-    ND_ROOT_BISECT_MULTILEVEL = 0, /* Sprint 22 default — full pipeline */
-    ND_ROOT_BISECT_SPECTRAL = 1,   /* Sprint 27 Day 7-9 — Fiedler at root */
-} nd_root_bisect_strategy_t;
-
-static nd_root_bisect_strategy_t parse_nd_root_bisect_strategy(void) {
+static sparse_graph_nd_root_bisect_mode_t parse_nd_root_bisect_strategy_compat_override(void) {
     const char *env = getenv("SPARSE_ND_ROOT_BISECT");
     if (env && strcmp(env, "spectral") == 0)
-        return ND_ROOT_BISECT_SPECTRAL;
+        return SPARSE_GRAPH_ND_ROOT_BISECT_SPECTRAL;
     /* Default + unrecognized + "multilevel" all fall through. */
-    return ND_ROOT_BISECT_MULTILEVEL;
+    return SPARSE_GRAPH_ND_ROOT_BISECT_MULTILEVEL;
 }
 
-static idx_t parse_nd_root_bisect_max_n(void) {
+static coarsening_strategy_t parse_nd_coarsening_compat_override(void) {
+    const char *env = getenv("SPARSE_ND_COARSENING");
+    if (env && strcmp(env, "heavy_edge") == 0)
+        return COARSENING_HEAVY_EDGE;
+    if (env && strcmp(env, "hcc") == 0)
+        return COARSENING_HCC;
+    return COARSENING_HCC;
+}
+
+static sparse_graph_nd_coarsest_bisection_mode_t parse_nd_coarsest_bisection_compat_override(void) {
+    const char *env = getenv("SPARSE_ND_COARSEST_BISECTION");
+    if (!env)
+        return SPARSE_GRAPH_ND_COARSEST_BISECTION_DEFAULT_ROUTING;
+    if (strcmp(env, "spectral") == 0)
+        return SPARSE_GRAPH_ND_COARSEST_BISECTION_SPECTRAL;
+    if (strcmp(env, "gggp") == 0)
+        return SPARSE_GRAPH_ND_COARSEST_BISECTION_GGGP;
+    if (strcmp(env, "brute") == 0)
+        return SPARSE_GRAPH_ND_COARSEST_BISECTION_BRUTE;
+    return SPARSE_GRAPH_ND_COARSEST_BISECTION_DEFAULT_ROUTING;
+}
+
+static idx_t parse_nd_root_bisect_max_n_compat_override(void) {
     idx_t max_n = 50000;
     const char *env = getenv("SPARSE_ND_ROOT_BISECT_MAX_N");
     if (env && *env) {
@@ -259,6 +276,73 @@ static idx_t parse_nd_root_bisect_max_n(void) {
     return max_n;
 }
 
+static idx_t parse_nd_coarsen_floor_ratio_compat_override(void) {
+    idx_t divisor = 100;
+    const char *env = getenv("SPARSE_ND_COARSEN_FLOOR_RATIO");
+    if (env && *env) {
+        char *endp = NULL;
+        long v = strtol(env, &endp, 10);
+        if (env != endp && *endp == '\0' && v >= 1 && v <= 100000)
+            divisor = (idx_t)v;
+    }
+    return divisor;
+}
+
+static double parse_nd_coarsening_cv_fallthrough_compat_override(void) {
+    double threshold = 0.30;
+    const char *env = getenv("SPARSE_ND_COARSENING_CV_FALLTHROUGH");
+    if (env && *env) {
+        char *endp = NULL;
+        double v = strtod(env, &endp);
+        if (env != endp && *endp == '\0' && v >= 0.0 && v <= 100.0)
+            threshold = v;
+    }
+    return threshold;
+}
+
+static sparse_graph_nd_sep_lift_strategy_mode_t parse_nd_sep_lift_strategy_compat_override(void) {
+    const char *env = getenv("SPARSE_ND_SEP_LIFT_STRATEGY");
+    if (!env)
+        return SPARSE_GRAPH_ND_SEP_LIFT_SMALLER_WEIGHT;
+    if (strcmp(env, "balanced_boundary") == 0)
+        return SPARSE_GRAPH_ND_SEP_LIFT_BALANCED_BOUNDARY;
+    if (strcmp(env, "per_vertex") == 0)
+        return SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_HYBRID;
+    if (strcmp(env, "per_vertex_balance") == 0)
+        return SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_BALANCE;
+    if (strcmp(env, "per_vertex_degree") == 0)
+        return SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_DEGREE;
+    if (strcmp(env, "per_vertex_fixed_k") == 0)
+        return SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_FIXED_K;
+    return SPARSE_GRAPH_ND_SEP_LIFT_SMALLER_WEIGHT;
+}
+
+static sparse_graph_nd_sep_lift_weight_mode_t parse_nd_sep_lift_weight_compat_override(void) {
+    const char *env = getenv("SPARSE_ND_SEP_LIFT_WEIGHT");
+    if (!env)
+        return SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_HYBRID;
+    if (strcmp(env, "balance") == 0)
+        return SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_BALANCE;
+    if (strcmp(env, "degree") == 0)
+        return SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_DEGREE;
+    return SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_HYBRID;
+}
+
+static sparse_graph_nd_policy_t sparse_reorder_nd_default_policy(void) {
+    sparse_graph_nd_policy_t policy = {
+        .supernodal_postorder = SPARSE_GRAPH_SUPERNODAL_POSTORDER_OFF,
+        .nd_coarsening = parse_nd_coarsening_compat_override(),
+        .nd_coarsest_bisection = parse_nd_coarsest_bisection_compat_override(),
+        .nd_root_bisect = parse_nd_root_bisect_strategy_compat_override(),
+        .nd_root_bisect_max_n = parse_nd_root_bisect_max_n_compat_override(),
+        .nd_coarsen_floor_ratio = parse_nd_coarsen_floor_ratio_compat_override(),
+        .nd_coarsening_cv_fallthrough = parse_nd_coarsening_cv_fallthrough_compat_override(),
+        .nd_sep_lift_strategy = parse_nd_sep_lift_strategy_compat_override(),
+        .nd_sep_lift_weight = parse_nd_sep_lift_weight_compat_override(),
+    };
+    return policy;
+}
+
 /* The driver is genuinely recursive — each level descends two
  * subgraphs.  Recursion depth is O(log n) on regular meshes (and
  * bounded by graph size in the worst case).  Suppress clang-tidy's
@@ -266,7 +350,7 @@ static idx_t parse_nd_root_bisect_max_n(void) {
  * algorithm without measurable benefit. */
 // NOLINTNEXTLINE(misc-no-recursion)
 static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_map, idx_t *perm,
-                               idx_t *next_pos, int depth) {
+                               idx_t *next_pos, int depth, const sparse_graph_nd_policy_t *policy) {
     idx_t n = G->n;
     if (n == 0)
         return SPARSE_OK;
@@ -367,9 +451,8 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
      * Day 6 behaviour preserved bit-identically. */
     int used_root_spectral = 0;
     if (depth == 0) {
-        nd_root_bisect_strategy_t root_strategy = parse_nd_root_bisect_strategy();
-        idx_t root_max_n = parse_nd_root_bisect_max_n();
-        if (root_strategy == ND_ROOT_BISECT_SPECTRAL && n <= root_max_n && n >= 3) {
+        if (policy->nd_root_bisect == SPARSE_GRAPH_ND_ROOT_BISECT_SPECTRAL &&
+            n <= policy->nd_root_bisect_max_n && n >= 3) {
             rc = graph_bisect_coarsest_spectral(G, part);
             if (rc == SPARSE_OK)
                 rc = graph_edge_separator_to_vertex_separator(G, part);
@@ -479,7 +562,7 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
         for (idx_t i = 0; i < n0; i++)
             // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.uninitialized.Assign)
             map0[i] = vertex_id_map[vs0[i]];
-        rc = nd_recurse(&G0, map0, perm, next_pos, depth + 1);
+        rc = nd_recurse(&G0, map0, perm, next_pos, depth + 1, policy);
         sparse_graph_free(&G0);
         free(map0);
         if (rc != SPARSE_OK) {
@@ -514,7 +597,7 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
         for (idx_t i = 0; i < n1; i++)
             // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound,clang-analyzer-core.uninitialized.Assign)
             map1[i] = vertex_id_map[vs1[i]];
-        rc = nd_recurse(&G1, map1, perm, next_pos, depth + 1);
+        rc = nd_recurse(&G1, map1, perm, next_pos, depth + 1, policy);
         sparse_graph_free(&G1);
         free(map1);
         if (rc != SPARSE_OK) {
@@ -540,8 +623,11 @@ static sparse_err_t nd_recurse(const sparse_graph_t *G, const idx_t *vertex_id_m
     return SPARSE_OK;
 }
 
-sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm) {
+sparse_err_t sparse_reorder_nd_with_policy(const SparseMatrix *A, idx_t *perm,
+                                           const sparse_graph_nd_policy_t *policy) {
     if (!A || !perm)
+        return SPARSE_ERR_NULL;
+    if (!policy)
         return SPARSE_ERR_NULL;
     if (sparse_rows(A) != sparse_cols(A))
         return SPARSE_ERR_SHAPE;
@@ -597,7 +683,17 @@ sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm) {
         root_map[i] = i;
 
     idx_t next_pos = 0;
-    rc = nd_recurse(&G, root_map, perm, &next_pos, /*depth=*/0);
+    sparse_graph_coarsening_override_begin(policy->nd_coarsening);
+    sparse_graph_coarsen_floor_ratio_override_begin(policy->nd_coarsen_floor_ratio);
+    sparse_graph_coarsening_cv_fallthrough_override_begin(policy->nd_coarsening_cv_fallthrough);
+    sparse_graph_coarsest_bisection_override_begin(policy->nd_coarsest_bisection);
+    sparse_graph_sep_lift_override_begin(policy->nd_sep_lift_strategy, policy->nd_sep_lift_weight);
+    rc = nd_recurse(&G, root_map, perm, &next_pos, /*depth=*/0, policy);
+    sparse_graph_sep_lift_override_end();
+    sparse_graph_coarsest_bisection_override_end();
+    sparse_graph_coarsening_cv_fallthrough_override_end();
+    sparse_graph_coarsen_floor_ratio_override_end();
+    sparse_graph_coarsening_override_end();
 
     free(root_map);
     sparse_graph_free(&G);
@@ -639,4 +735,9 @@ sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm) {
         }
     }
     return rc;
+}
+
+sparse_err_t sparse_reorder_nd(const SparseMatrix *A, idx_t *perm) {
+    sparse_graph_nd_policy_t policy = sparse_reorder_nd_default_policy();
+    return sparse_reorder_nd_with_policy(A, perm, &policy);
 }

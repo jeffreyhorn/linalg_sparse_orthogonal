@@ -18,79 +18,62 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Sprint 26 Day 10: separator-lift strategy enum.  Day 10 extends
- * Sprint 24 Day 6's two-value scheme with a third `per_vertex` value:
- * score boundary vertices individually + greedily pick top-K
- * regardless of side (vs the Sprint 22 / 24 side-then-lift heuristics
- * which lift one entire side's boundary).  See
- * `docs/planning/EPIC_2/SPRINT_26/per_vertex_sep_design.md`. */
-typedef enum {
-    SEP_LIFT_SMALLER_WEIGHT = 0,    /* Sprint 22 default — METIS convention */
-    SEP_LIFT_BALANCED_BOUNDARY = 1, /* Sprint 24 Day 6 advisory */
-    /* Sprint 26 Day 10/12 — per-vertex score + top-K.  Three preset
-     * weight schemes per PLAN.md Day 12 task 1: hybrid (default;
-     * cross_deg-priority + balance tie-break — Day 10's formula),
-     * balance (balance-priority; balance-bonus dominates), degree
-     * (low-total-degree priority + balance tie-break).  All three
-     * use the same greedy 70/30-balance-respecting top-K selection;
-     * only the score formula differs. */
-    SEP_LIFT_PER_VERTEX_HYBRID = 2,  /* SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex */
-    SEP_LIFT_PER_VERTEX_BALANCE = 3, /* SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_balance */
-    SEP_LIFT_PER_VERTEX_DEGREE = 4,  /* SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_degree */
-    /* Sprint 27 Day 4 — fixed-K termination instead of the
-     * 70/30-balance gate.  K = min(boundary_count[0],
-     * boundary_count[1]).  Stacks with the orthogonal
-     * SPARSE_ND_SEP_LIFT_WEIGHT={hybrid (default), balance, degree}
-     * axis to differentiate the three weight schemes (which Sprint
-     * 26 Day 12 found bit-identical on 5 of 6 fixtures because the
-     * 70/30 balance gate dominates).  See
-     * `docs/planning/EPIC_2/SPRINT_27/per_vertex_fixed_k_decision.md`. */
-    SEP_LIFT_PER_VERTEX_FIXED_K = 5, /* SPARSE_ND_SEP_LIFT_STRATEGY=per_vertex_fixed_k */
-} sep_lift_strategy_t;
+static _Thread_local int sep_lift_override_active = 0;
+static _Thread_local sparse_graph_nd_sep_lift_strategy_mode_t sep_lift_override_strategy =
+    SPARSE_GRAPH_ND_SEP_LIFT_SMALLER_WEIGHT;
+static _Thread_local sparse_graph_nd_sep_lift_weight_mode_t sep_lift_override_weight =
+    SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_HYBRID;
 
-/* Sprint 27 Day 4 — orthogonal weight-scheme axis for the fixed-K
- * variant.  Set via SPARSE_ND_SEP_LIFT_WEIGHT={hybrid, balance,
- * degree}; default hybrid.  Only consulted when strategy ==
- * SEP_LIFT_PER_VERTEX_FIXED_K (the existing per_vertex_* strategies
- * keep their hardcoded weight schemes for backward compatibility
- * with Sprint 26 advisory env-var users). */
-typedef enum {
-    SEP_LIFT_WEIGHT_HYBRID = 0,
-    SEP_LIFT_WEIGHT_BALANCE = 1,
-    SEP_LIFT_WEIGHT_DEGREE = 2,
-} sep_lift_weight_t;
-
-static sep_lift_strategy_t parse_sep_lift_strategy(void) {
+static sparse_graph_nd_sep_lift_strategy_mode_t parse_sep_lift_strategy(void) {
+    if (sep_lift_override_active)
+        return sep_lift_override_strategy;
     const char *env = getenv("SPARSE_ND_SEP_LIFT_STRATEGY");
     if (!env)
-        return SEP_LIFT_SMALLER_WEIGHT;
+        return SPARSE_GRAPH_ND_SEP_LIFT_SMALLER_WEIGHT;
     if (strcmp(env, "balanced_boundary") == 0)
-        return SEP_LIFT_BALANCED_BOUNDARY;
+        return SPARSE_GRAPH_ND_SEP_LIFT_BALANCED_BOUNDARY;
     if (strcmp(env, "per_vertex") == 0)
-        return SEP_LIFT_PER_VERTEX_HYBRID;
+        return SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_HYBRID;
     if (strcmp(env, "per_vertex_balance") == 0)
-        return SEP_LIFT_PER_VERTEX_BALANCE;
+        return SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_BALANCE;
     if (strcmp(env, "per_vertex_degree") == 0)
-        return SEP_LIFT_PER_VERTEX_DEGREE;
+        return SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_DEGREE;
     if (strcmp(env, "per_vertex_fixed_k") == 0)
-        return SEP_LIFT_PER_VERTEX_FIXED_K;
-    return SEP_LIFT_SMALLER_WEIGHT;
+        return SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_FIXED_K;
+    return SPARSE_GRAPH_ND_SEP_LIFT_SMALLER_WEIGHT;
 }
 
-static sep_lift_weight_t parse_sep_lift_weight(void) {
+static sparse_graph_nd_sep_lift_weight_mode_t parse_sep_lift_weight(void) {
+    if (sep_lift_override_active)
+        return sep_lift_override_weight;
     const char *env = getenv("SPARSE_ND_SEP_LIFT_WEIGHT");
     if (!env)
-        return SEP_LIFT_WEIGHT_HYBRID;
+        return SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_HYBRID;
     if (strcmp(env, "balance") == 0)
-        return SEP_LIFT_WEIGHT_BALANCE;
+        return SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_BALANCE;
     if (strcmp(env, "degree") == 0)
-        return SEP_LIFT_WEIGHT_DEGREE;
-    return SEP_LIFT_WEIGHT_HYBRID;
+        return SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_DEGREE;
+    return SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_HYBRID;
 }
 
-static int is_per_vertex_strategy(sep_lift_strategy_t s) {
-    return s == SEP_LIFT_PER_VERTEX_HYBRID || s == SEP_LIFT_PER_VERTEX_BALANCE ||
-           s == SEP_LIFT_PER_VERTEX_DEGREE || s == SEP_LIFT_PER_VERTEX_FIXED_K;
+void sparse_graph_sep_lift_override_begin(sparse_graph_nd_sep_lift_strategy_mode_t strategy,
+                                          sparse_graph_nd_sep_lift_weight_mode_t weight) {
+    sep_lift_override_strategy = strategy;
+    sep_lift_override_weight = weight;
+    sep_lift_override_active = 1;
+}
+
+void sparse_graph_sep_lift_override_end(void) {
+    sep_lift_override_active = 0;
+    sep_lift_override_strategy = SPARSE_GRAPH_ND_SEP_LIFT_SMALLER_WEIGHT;
+    sep_lift_override_weight = SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_HYBRID;
+}
+
+static int is_per_vertex_strategy(sparse_graph_nd_sep_lift_strategy_mode_t s) {
+    return s == SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_HYBRID ||
+           s == SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_BALANCE ||
+           s == SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_DEGREE ||
+           s == SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_FIXED_K;
 }
 
 /* Sprint 26 Day 10/12: qsort comparator for per-vertex separator
@@ -157,13 +140,13 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
         }
     }
 
-    sep_lift_strategy_t strategy = parse_sep_lift_strategy();
+    sparse_graph_nd_sep_lift_strategy_mode_t strategy = parse_sep_lift_strategy();
     idx_t smaller_weight_side = (w[1] < w[0]) ? 1 : 0;
     idx_t lift_side = smaller_weight_side;
     int per_vertex_active = 0;
     int *per_vertex_lifted = NULL;
 
-    if (strategy == SEP_LIFT_BALANCED_BOUNDARY) {
+    if (strategy == SPARSE_GRAPH_ND_SEP_LIFT_BALANCED_BOUNDARY) {
         idx_t bb_side = (boundary_count[1] < boundary_count[0]) ? 1 : 0;
         idx_t lift_w = w[bb_side] - boundary_weight[bb_side];
         idx_t other_w = w[1 - bb_side];
@@ -186,25 +169,25 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
                 return rc;
             }
             idx_t larger_side = (w[0] >= w[1]) ? 0 : 1;
-            sep_lift_weight_t weight;
+            sparse_graph_nd_sep_lift_weight_mode_t weight;
             switch (strategy) {
-            case SEP_LIFT_PER_VERTEX_HYBRID:
+            case SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_HYBRID:
             default:
-                weight = SEP_LIFT_WEIGHT_HYBRID;
+                weight = SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_HYBRID;
                 break;
-            case SEP_LIFT_PER_VERTEX_BALANCE:
-                weight = SEP_LIFT_WEIGHT_BALANCE;
+            case SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_BALANCE:
+                weight = SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_BALANCE;
                 break;
-            case SEP_LIFT_PER_VERTEX_DEGREE:
-                weight = SEP_LIFT_WEIGHT_DEGREE;
+            case SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_DEGREE:
+                weight = SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_DEGREE;
                 break;
-            case SEP_LIFT_PER_VERTEX_FIXED_K:
+            case SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_FIXED_K:
                 weight = parse_sep_lift_weight();
                 break;
             }
 
             idx_t max_deg = 0;
-            if (weight == SEP_LIFT_WEIGHT_DEGREE) {
+            if (weight == SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_DEGREE) {
                 for (idx_t v = 0; v < G->n; v++) {
                     if (!is_boundary[v])
                         continue;
@@ -228,14 +211,14 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
                 idx_t balance_bonus = (side == larger_side) ? 1 : 0;
                 int64_t score = 0;
                 switch (weight) {
-                case SEP_LIFT_WEIGHT_HYBRID:
+                case SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_HYBRID:
                 default:
                     score = (int64_t)2 * (int64_t)cross_deg + (int64_t)balance_bonus;
                     break;
-                case SEP_LIFT_WEIGHT_BALANCE:
+                case SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_BALANCE:
                     score = (int64_t)1000 * (int64_t)balance_bonus + (int64_t)cross_deg;
                     break;
-                case SEP_LIFT_WEIGHT_DEGREE: {
+                case SPARSE_GRAPH_ND_SEP_LIFT_WEIGHT_DEGREE: {
                     idx_t deg = G->xadj[v + 1] - G->xadj[v];
                     score = (int64_t)1000 * (int64_t)(max_deg - deg) + (int64_t)balance_bonus;
                     break;
@@ -269,7 +252,7 @@ sparse_err_t graph_edge_separator_to_vertex_separator(const sparse_graph_t *G, i
                     new_w0 -= vw;
                 else
                     new_w1 -= vw;
-                if (strategy == SEP_LIFT_PER_VERTEX_FIXED_K) {
+                if (strategy == SPARSE_GRAPH_ND_SEP_LIFT_PER_VERTEX_FIXED_K) {
                     if (lifted_count >= fixed_k_target)
                         break;
                 } else {

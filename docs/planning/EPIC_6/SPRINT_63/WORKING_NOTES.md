@@ -2008,3 +2008,145 @@ Sprint 63 Day 13 validates the full landed branch state cleanly:
 - the targeted direct-lifecycle, CSC, example, and benchmark rerun set all
   passed
 - Sprint 63 is now ready to close from a validated branch state
+
+## Day 14
+
+**Objective:** Package Sprint 63 into a clean validated lifecycle-uniformity
+handoff by summarizing the landed LU and CSC outcomes, the preserved
+compatibility fence, the explicit deferred queue, and the next-sprint starting
+point.
+
+### Commands Run
+
+1. Re-read the validated Day 13 state and the Sprint 63 plan section:
+   - `sed -n '1,240p' docs/planning/EPIC_6/SPRINT_63/artifacts/day13-full-validation-sweep.md`
+   - `tail -n 160 docs/planning/EPIC_6/SPRINT_63/WORKING_NOTES.md`
+   - `sed -n '121,149p' docs/planning/EPIC_6/PROJECT_PLAN.md`
+   - `git status --short --branch`
+2. Write the Day 14 closeout material:
+   - `apply_patch` on:
+     - `docs/planning/EPIC_6/SPRINT_63/WORKING_NOTES.md`
+     - `docs/planning/EPIC_6/SPRINT_63/artifacts/day14-closeout-and-handoff.md`
+
+### Day 14 Findings
+
+#### 1. Sprint 63 now hands off one coherent direct-lifecycle uniformity package, not a mixed LU/CSC cleanup stack
+
+The landed Sprint 63 package now reads as one bounded implementation and
+proof pass across:
+
+- LU lifecycle follow-through
+- Cholesky CSC lifecycle follow-through
+- large-`n` CSC-backed repeated-run direct failure-preserve proof
+- compatibility/regression tightening
+- public/adoption/maintainer wording follow-through
+- validated Day 13 close
+
+Interpretation:
+
+- the sprint no longer depends on reading Day 6, Day 7, Day 10, Day 11, and
+  Day 12 as separate local fixes
+- the branch now hands off a single direct-lifecycle state that later Epic 6
+  work can build on without reopening the Sprint 63 core story
+
+#### 2. The strongest shipped outcomes are now explicit by lane
+
+LU lane:
+
+- invalid pivot and reorder enums reject before reorder or factor mutation
+- rejected one-shot LU reuse still preserves the previous usable factor
+- reordered LU one-shot cancel/failure still preserves the caller-owned matrix
+
+Cholesky / CSC lane:
+
+- invalid reorder and backend enums reject before reorder or factor mutation
+- reordered one-shot Cholesky cancel/failure still preserves the caller-owned
+  matrix
+- CSC backend selection and `used_csc_path` publication now read more
+  uniformly on the touched wrapper/dispatch path
+- the large-`n` CSC-backed repeated-run direct lane now explicitly preserves
+  old usable factors on:
+  - same-pattern non-SPD refactor failure
+  - obvious nnz drift rejection
+- the CSC supernodal path now has direct family-local proof for early
+  rejection on a stored non-positive diagonal
+
+Interpretation:
+
+- Sprint 63 closed the highest-value LU and CSC lifecycle seams without
+  widening into broader API redesign
+- the strongest remaining direct-family gaps are now later follow-through
+  issues, not blocker-level lifecycle ambiguity
+
+#### 3. The preserved compatibility fence stayed exact
+
+Still true after Sprint 63:
+
+- one-shot direct wrappers remain first-class/default peer entry points
+- the explicit repeated-run direct lifecycle remains:
+  - `sparse_analyze()`
+  - `sparse_factor_numeric()`
+  - `sparse_factor_solve()`
+  - `sparse_refactor_numeric()`
+- repeated direct reuse preserves symbolic/permutation setup, not stale numeric
+  factor contents
+- failed `sparse_refactor_numeric(...)` calls preserve the previous usable
+  factors on the public repeated-run direct path
+- reordered LU and reordered Cholesky preserve the caller-owned matrix on
+  cancel/failure through temporary reordered working copies
+- no-reorder linked-list Cholesky cancellation remains intentionally
+  non-bit-identical
+- LDL^T remains a cleaner separate-owner surface and was not widened just to
+  force fake family symmetry
+
+Interpretation:
+
+- Sprint 63 improved internal uniformity while preserving the real
+  family-local semantics that still differ intentionally
+- later work does not need to rediscover which direct-family differences are
+  real versus accidental
+
+#### 4. The deferred queue is now smaller and more concrete
+
+Explicit remaining queue after Sprint 63:
+
+- no-reorder linked-list Cholesky bit-identical cancellation restoration
+- CSC progress-callback parity for Cholesky / LDL^T
+- broader LDL^T or QR wording follow-through only if a later contradiction
+  appears
+- any later deeper direct-family docs/examples density cleanup outside the
+  touched high-signal surfaces
+- later direct-lifecycle/productization work above this now-stabilized LU/CSC
+  base
+
+Interpretation:
+
+- the remaining queue is no longer “finish direct lifecycle”
+- it is now a bounded set of consciously deferred follow-through seams
+
+#### 5. `PROJECT_PLAN.md` does not need a Sprint 63 correction
+
+Re-reading the Sprint 63 project-plan section against the landed tree showed no
+plan contradiction that justifies rewriting the epic plan:
+
+- the LU lifecycle follow-through item landed
+- the CSC repeated-run uniformity item landed in the bounded Cholesky/CSC
+  scope the sprint actually selected
+- the solve/refactor semantics alignment item landed on the large-`n`
+  CSC-backed Cholesky repeated-run lane
+- the validation/closeout item closed from a fully reviewed Day 13 baseline
+
+Interpretation:
+
+- the sprint closed inside the intended Epic 6 lane
+- later sprints can start from the plan as written
+
+### Day 14 Close
+
+Sprint 63 Day 14 closes the sprint from the validated Day 13 baseline:
+
+- the shipped LU and CSC lifecycle outcomes are now summarized in one place
+- the preserved compatibility fence is explicit
+- the deferred queue is bounded and future-facing
+- the next Epic 6 sprint can start from a stable validated direct-lifecycle
+  base without reopening Sprint 63 scope

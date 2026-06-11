@@ -706,3 +706,184 @@ Sprint 65 now has one explicit first target set before output design starts:
 - a still-real but explicitly secondary proof queue
 - a separate regression-sensitive runtime lane
 - a deferred exploratory benchmark queue that Sprint 65 should not absorb
+
+## Day 5
+
+**Objective:** Define the exact benchmark taxonomy vocabulary, normalized
+output contract, and ownership split for the first Sprint 65 normalization
+batch before any benchmark binaries or docs move.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 5 design pass:
+   - `git status --short --branch`
+2. Re-read the current Sprint 65 notes plus the Day 5-6 plan slice:
+   - `sed -n '520,760p' docs/planning/EPIC_6/SPRINT_65/WORKING_NOTES.md`
+   - `sed -n '170,310p' docs/planning/EPIC_6/SPRINT_65/PLAN.md`
+3. Re-read the Day 4 rerank artifact:
+   - `sed -n '1,240p' docs/planning/EPIC_6/SPRINT_65/artifacts/day4-benchmark-role-rerank-and-canonical-surface-candidates.md`
+4. Re-read the exact live output/contract shape for the four selected canonical candidates:
+   - `rg -n "Output|CSV|schema|speedup|csc_scalar_path|csc_supernodal_path|csc_supernodal_dense_kernel|workflow|median|repeated-call|wall time|wall_ms" benchmarks/bench_refactor_csc.c benchmarks/bench_chol_csc.c benchmarks/bench_iterative_reuse.c benchmarks/bench_eigs_reuse.c`
+   - `sed -n '1,140p' benchmarks/bench_refactor_csc.c`
+   - `sed -n '1,120p' benchmarks/bench_chol_csc.c`
+   - `sed -n '1,120p' benchmarks/bench_iterative_reuse.c`
+   - `sed -n '1,120p' benchmarks/bench_eigs_reuse.c`
+5. Re-read the current benchmark-side interpretation surfaces:
+   - `rg -n "regression-sensitive|proof|exploratory|canonical|performance surface|benchmark-side proof" benchmarks/README.md README.md docs/maintainer_guide.md`
+
+### Day 5 Findings
+
+#### 1. Sprint 65 needs a three-class maintained vocabulary, not one overloaded “benchmark” label
+
+The right maintained taxonomy is:
+
+1. `regression-sensitive`
+   - bounded local/CI runtime sentinel
+   - noise tolerance must be high enough for repeatable drift detection
+   - not automatically a product-claim benchmark
+2. `proof`
+   - benchmark-side evidence for a bounded shipped workflow or backend lane
+   - may be machine-readable or human-readable
+   - should stay narrower than broad comparison or sweep harnesses
+3. `exploratory`
+   - broader developer comparison, corpus sweep, or historical A/B surface
+   - useful, but outside the first authoritative regression/canonical lane
+
+Interpretation:
+
+- Day 6 should select canonical surfaces from within these classes
+- Sprint 65 should not overload “proof” and “regression-sensitive” into the
+  same meaning
+
+#### 2. The first normalization batch already splits into two output families
+
+The selected target set is not output-uniform today:
+
+- already structured CSV proof surfaces:
+  - `bench_refactor_csc`
+  - `bench_chol_csc`
+- currently human-readable repeated-run proof summaries:
+  - `bench_iterative_reuse`
+  - `bench_eigs_reuse`
+
+The two CSV surfaces already expose strong normalization anchors:
+
+- `bench_refactor_csc`
+  - `matrix`
+  - `workflow`
+  - `analyze_ms`
+  - `refactor_public_ms`
+  - `refactor_csc_ms`
+  - `solve_public_ms`
+  - `solve_csc_ms`
+  - `speedup_refactor`
+  - `res_public`
+  - `res_csc`
+- `bench_chol_csc`
+  - `matrix`
+  - `csc_scalar_path`
+  - `csc_supernodal_path`
+  - `csc_supernodal_dense_kernel`
+  - factor/solve timing columns
+  - speedup columns
+  - residual columns
+
+The two handle-reuse surfaces already expose stable conceptual summaries, but
+not yet a machine-readable schema:
+
+- one-shot wall time
+- reuse wall time
+- speedup
+- last-run solver summary
+
+Interpretation:
+
+- Day 7-8 should not force a fake identical schema across all four binaries
+- the first implementation batch should normalize around a shared contract
+  shape while respecting that direct/backend proof and handle-reuse proof are
+  different families
+
+#### 3. The normalized output contract should preserve family-local meaning while adding one shared top-level structure
+
+The first-batch normalized output contract should require:
+
+- stable benchmark identity field:
+  - benchmark or case label
+- stable category field:
+  - `proof`
+  - later `regression-sensitive`
+  - later `exploratory` only if output is intentionally surfaced
+- stable workflow or scenario field where applicable:
+  - repeated-run direct workflow
+  - Cholesky backend path
+  - iterative handle case
+  - eigensolver handle case
+- stable timing fields with `_ms` suffix for machine-readable timing output
+- explicit path/backend identity fields where relevant:
+  - already mandatory for `bench_chol_csc`
+- speedup fields only where the comparison semantics are honest and stable
+- residual or result-agreement fields where correctness signal is part of the
+  benchmark’s maintained story
+
+Interpretation:
+
+- Day 7 does not need to invent a universal giant schema
+- it needs a compact shared contract with family-local extensions
+
+#### 4. Ownership should be split cleanly across binaries, benchmark docs, maintainer policy, and CI/reporting
+
+The correct ownership split is:
+
+- benchmark binary output owns:
+  - stable emitted fields
+  - stable field names
+  - family-local scenario labels
+- `benchmarks/README.md` owns:
+  - category and usage explanation
+  - per-benchmark schema description
+  - interpretation notes for path/speedup/residual fields
+- `README.md` owns:
+  - compact top-level performance-governance story
+  - where to look for the maintained proof surfaces
+- `docs/maintainer_guide.md` owns:
+  - the authoritative category policy
+  - which surfaces are canonical candidates versus proof-only versus runtime
+    sentinels
+- CI/reporting owns:
+  - only bounded runtime-sentinel use
+  - no broad claim-bearing benchmark governance rewrite unless the local proof
+    surface stays maintainable
+
+Interpretation:
+
+- this prevents taxonomy drift between binary output, benchmark docs, repo
+  docs, and maintainer policy
+
+#### 5. The preserved compatibility fence is now explicit for the first implementation batch
+
+Sprint 65 should preserve the following rules when normalization begins:
+
+- no misleading benchmark claims
+- no unstable pseudo-regression gates
+- no output churn without category or interpretive clarity as the reason
+- no fake claim that all benchmark binaries are equal members of one canonical
+  performance set
+- no widening that turns human-readable exploratory tools into CI-authoritative
+  signals by accident
+
+Interpretation:
+
+- the first implementation batch should normalize only the bounded selected
+  surfaces and their explanation layers
+
+### Day 5 Close
+
+Sprint 65 now has an explicit normalization design before output edits start:
+
+- one three-class benchmark taxonomy
+- one shared normalized output contract with family-local extensions
+- one clean ownership split across binaries/docs/policy/CI
+- one preserved compatibility fence for the first implementation batch
+
+The next step is to convert this design into an exact canonical-surface plan
+and touched-file fence before the first edits land.

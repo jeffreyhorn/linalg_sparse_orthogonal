@@ -644,3 +644,186 @@ first code batch:
   becomes more uniform
 - Day 5 can now reduce this contract to an exact touched-file implementation
   fence
+
+## Day 5
+
+**Objective:** Convert the Day 4 lifecycle-uniformity contract into an exact
+Day 6-10 touched-file and helper-boundary plan so the first LU and CSC
+implementation batches stay narrow instead of drifting across unrelated direct
+families or docs surfaces.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 5 landing design:
+   - `git status --short --branch`
+2. Re-read the Day 5 sprint-plan slice plus current Sprint 63 notes:
+   - `sed -n '150,290p' docs/planning/EPIC_6/SPRINT_63/PLAN.md`
+   - `sed -n '1,760p' docs/planning/EPIC_6/SPRINT_63/WORKING_NOTES.md`
+3. Re-read the exact LU public and implementation seam:
+   - `sed -n '1,220p' include/sparse_lu.h`
+   - `sed -n '1,260p' src/sparse_lu.c`
+4. Re-read the exact Cholesky/CSC public and implementation seam:
+   - `sed -n '1,220p' include/sparse_cholesky.h`
+   - `sed -n '1,320p' src/sparse_cholesky.c`
+   - `sed -n '1,260p' src/sparse_chol_csc.c`
+5. Re-scan the helper and state-publication support lane:
+   - `rg -n "sparse_factor_state|matrix_state|publish_factored|replace_reorder_perm|used_csc_path|factor_numeric|refactor_numeric|writeback_to_sparse|from_sparse_with_analysis|with_analysis" src tests include`
+
+### Day 5 Findings
+
+#### 1. The minimum viable Sprint 63 public surface is smaller than the broad sprint scope suggests
+
+The first code landing does not need a wide public-surface sweep.
+
+Required public/header lane:
+
+- `include/sparse_lu.h`
+- `include/sparse_cholesky.h`
+
+Only if the landed implementation forces follow-through later:
+
+- `README.md`
+- `docs/tutorial.md`
+- `docs/maintainer_guide.md`
+
+Interpretation:
+
+- Day 6-10 should stay implementation-first
+- public header edits should be small truthfulness adjustments, not another
+  adoption-story rewrite
+- broader docs/example/benchmark follow-through should remain later and
+  conditional on real landed semantics
+
+#### 2. The exact first LU implementation fence is now fixed
+
+Required Day 6 LU lane:
+
+- `src/sparse_lu.c`
+- `tests/test_integration.c`
+
+Likely public/header companion:
+
+- `include/sparse_lu.h`
+
+Optional support/helper lane only if the first landing proves it necessary:
+
+- `src/sparse_factor_state_internal.c`
+- `src/sparse_matrix_internal.h`
+- `src/sparse_matrix_state_internal.h`
+- `tests/test_sparse_lu.c`
+
+The intended LU focus is narrow:
+
+- factor publication semantics
+- rejection/preservation of old factors on wrapper re-entry
+- solve/refactor-style result-state coherence where the one-shot wrapper and
+  shared lifecycle already meet
+
+Interpretation:
+
+- Day 6 should start in `src/sparse_lu.c` plus `tests/test_integration.c`
+- helper/state files should only move if the current factor-state seam is too
+  awkward to harden in place
+- `src/sparse_analysis.c` is not part of the first LU landing by default
+
+#### 3. The exact first Cholesky/CSC implementation fence is now fixed
+
+Required Day 7-10 CSC lane:
+
+- `src/sparse_cholesky.c`
+- `src/sparse_chol_csc.c`
+- `tests/test_integration.c`
+- `tests/test_chol_csc.c`
+
+Likely public/header companion:
+
+- `include/sparse_cholesky.h`
+
+Optional follow-through only if the CSC/public lifecycle seam proves it
+necessary:
+
+- `src/sparse_analysis.c`
+- `include/sparse_analysis.h`
+
+The intended CSC focus is also narrow:
+
+- CSC publication/write-back discipline
+- CSC dispatch/state-retention coherence
+- repeated-run solve/refactor behavior that is already supposed to look stable
+  through the explicit public lifecycle
+
+Interpretation:
+
+- Sprint 63 should touch `src/sparse_analysis.c` only if the Cholesky/CSC
+  landing proves that the public repeated-run path itself is the real seam
+- otherwise the right first reduction is local to `src/sparse_cholesky.c` and
+  `src/sparse_chol_csc.c`
+
+#### 4. The proof home split is now exact enough to stop new harness drift
+
+Primary proof surfaces:
+
+- `tests/test_integration.c`
+- `tests/test_chol_csc.c`
+
+Secondary/optional proof surface:
+
+- `tests/test_sparse_lu.c`
+
+Not part of the first landing by default:
+
+- `tests/test_ldlt.c`
+- `tests/test_ldlt_csc.c`
+- new bespoke lifecycle harness files
+
+Interpretation:
+
+- integration remains the public lifecycle truth surface
+- CSC-family proof remains in `tests/test_chol_csc.c`
+- LU family-local proof should widen only if the integration burden becomes too
+  awkward or too opaque
+
+#### 5. The Day 6-10 implementation boundary is now operational
+
+The exact implementation order is:
+
+1. Day 6:
+   - bounded LU lifecycle follow-through in:
+     - `src/sparse_lu.c`
+     - `tests/test_integration.c`
+     - optional small `include/sparse_lu.h` truthfulness follow-through
+2. Day 7:
+   - first bounded CSC repeated-run uniformity slice in:
+     - `src/sparse_cholesky.c`
+     - `src/sparse_chol_csc.c`
+     - `tests/test_integration.c`
+     - `tests/test_chol_csc.c`
+3. Day 8:
+   - post-landing audit on the remaining LU/CSC queue
+4. Day 9-10:
+   - second bounded follow-through slice only if the audit exposes a real
+     remaining lifecycle contradiction
+
+The explicit non-goal fence is now also exact:
+
+- no `src/sparse_ldlt.c`
+- no `src/sparse_ldlt_csc.c`
+- no `include/sparse_ldlt.h`
+- no `src/sparse_qr.c`
+- no `include/sparse_qr.h`
+- no broad `README.md` / tutorial rewrite
+- no benchmark-governance or packaging/platform work
+- no configuration-surface spillover
+
+### Day 5 Close
+
+Sprint 63 now has one exact implementation fence before the first code batch:
+
+- the minimum viable public surface is bounded to LU and Cholesky headers
+- the first LU landing is fixed to `src/sparse_lu.c` plus integration proof,
+  with helper/state files only optional
+- the first Cholesky/CSC landing is fixed to `src/sparse_cholesky.c`,
+  `src/sparse_chol_csc.c`, integration proof, and CSC-family proof
+- `src/sparse_analysis.c` is explicitly conditional rather than assumed
+- LDL^T, QR, docs simplification, packaging, and configuration work stay
+  outside the first implementation fence

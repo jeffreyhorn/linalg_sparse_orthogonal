@@ -328,3 +328,177 @@ begin:
 - the targeted Sprint 64 rerun set is fixed and present in `build/`
 - the next step is the deeper hotspot audit that ranks dense-kernel,
   supernodal, and related build/proof seams before design or code work lands
+
+## Day 3
+
+**Objective:** Reduce the broad Sprint 64 “performance backend architecture”
+claim to a ranked live seam map by auditing the current dense-kernel,
+supernodal, benchmark, and build-sensitive paths before choosing the first
+bounded implementation target.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 3 audit:
+   - `git status --short --branch`
+2. Re-read the Day 3 sprint-plan slice plus current Sprint 64 notes:
+   - `sed -n '120,230p' docs/planning/EPIC_6/SPRINT_64/PLAN.md`
+   - `sed -n '1,320p' docs/planning/EPIC_6/SPRINT_64/WORKING_NOTES.md`
+3. Re-read the strongest inherited Day 3 audit shape from Sprint 63:
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_63/artifacts/day3-internal-path-audit.md`
+4. Map the main backend, dense-kernel, supernodal, and proof-sensitive seams:
+   - `rg -n "supernod|dense|gemm|gemv|daxpy|matmul|dispatch|used_csc_path|backend|SPARSE_OPENMP|parallel|thread|auto" include/sparse_cholesky.h include/sparse_ldlt.h include/sparse_analysis.h src/sparse_dense.c src/sparse_chol_csc_supernodal.c src/sparse_ldlt_csc_supernodal.c src/sparse_chol_csc.c src/sparse_ldlt_csc.c src/sparse_qr.c src/sparse_svd.c benchmarks/bench_refactor.c benchmarks/bench_refactor_csc.c benchmarks/bench_chol_csc.c benchmarks/bench_ldlt_csc.c tests/test_integration.c tests/test_chol_csc.c tests/test_ldlt_csc.c examples/example_analysis.c`
+5. Re-read the strongest current implementation seams:
+   - `sed -n '1,260p' src/sparse_dense.c`
+   - `sed -n '1,260p' src/sparse_chol_csc_supernodal.c`
+   - `sed -n '1,260p' src/sparse_ldlt_csc_supernodal.c`
+6. Reconfirm how the dense helpers are exercised and proved:
+   - `rg -n "dense_gemm|dense_gemv|chol_dense_factor|chol_dense_solve_lower|ldlt_dense_factor|supernode_eliminate_panel|supernode_eliminate_diag" src tests benchmarks`
+   - `sed -n '1,260p' benchmarks/bench_chol_csc.c`
+   - `sed -n '1,260p' benchmarks/bench_ldlt_csc.c`
+
+### Day 3 Findings
+
+#### 1. The strongest first Sprint 64 target is the Cholesky CSC supernodal dense-kernel lane
+
+The live Cholesky CSC supernodal path now carries the strongest first-phase
+backend leverage:
+
+- `src/sparse_chol_csc_supernodal.c` owns the full batched supernodal flow:
+  - extract
+  - diagonal-block factor
+  - panel solve
+  - writeback
+- the dense diagonal/panel helpers are compact and self-contained:
+  - `chol_dense_factor`
+  - `chol_dense_solve_lower`
+- the path already has strong public and internal proof surfaces:
+  - `tests/test_chol_csc.c`
+  - `tests/test_integration.c`
+  - `benchmarks/bench_chol_csc.c`
+
+Interpretation:
+
+- this is the cleanest first backend-architecture landing because it combines
+  real runtime leverage with a bounded touched surface
+- the benchmark story is already established enough to measure a selected
+  backend-aware acceleration without creating a new framework
+- the fallback shape is already explicit because the scalar CSC and
+  linked-list lanes remain nearby and heavily exercised
+
+#### 2. LDL^T supernodal follow-through is the strongest second target, not the best first one
+
+The LDL^T CSC supernodal path is also backend-worthy, but it is more complex
+and more correctness-sensitive as a first landing:
+
+- `src/sparse_ldlt_csc_supernodal.c` mirrors the same extracted dense-panel
+  strategy
+- but it couples the dense block path to:
+  - Bunch-Kaufman pivot structure
+  - `D` / `D_offdiag` / `pivot_size` ownership
+  - stricter writeback and threshold semantics
+- it already has strong family-local proof and benchmark support:
+  - `tests/test_ldlt_csc.c`
+  - `benchmarks/bench_ldlt_csc.c`
+
+Interpretation:
+
+- this is the best second target after the abstraction seam is proved on the
+  Cholesky lane
+- it should not be the first landing because its proof burden and pivot-state
+  complexity are both higher
+- Sprint 64 should avoid pretending “shared dense kernels” means Cholesky and
+  LDL^T are equally cheap to modernize on the first pass
+
+#### 3. The generic dense helper layer is important, but only as a bounded internal seam
+
+`src/sparse_dense.c` is a real architecture seam, but it is not yet the whole
+story:
+
+- it currently owns only simple column-major helpers:
+  - `dense_gemm`
+  - `dense_gemv`
+- those helpers are well-covered in `tests/test_dense.c`
+- the hot CSC supernodal kernels still own their most performance-sensitive
+  dense logic locally rather than routing through a broader backend layer
+
+Interpretation:
+
+- the right Sprint 64 move is not “make sparse_dense.c the universal backend
+  hub”
+- the right move is a bounded internal dense-kernel abstraction used by the
+  selected supernodal lane first
+- broad QR/SVD dense unification would be a later-phase expansion, not a Day 5
+  landing target
+
+#### 4. Build and threading seams are real, but they should remain subordinate to the selected kernel path
+
+The live repo shows build and threading sensitivity mainly through:
+
+- `CMakeLists.txt`
+- `Makefile`
+- existing `SPARSE_OPENMP` build-time switches
+- benchmark and README wording around backend and dispatch behavior
+
+Interpretation:
+
+- build/options work is definitely part of Sprint 64
+- but the first abstraction choice should drive the build/option shape, not the
+  other way around
+- starting from OpenMP or a generic “parallel backend” layer would widen the
+  sprint too early and blur the self-contained default-build contract
+
+#### 5. QR and SVD remain later backend candidates, not the best first phase
+
+The live QR and SVD sources still expose dense-kernel opportunities:
+
+- `src/sparse_qr.c`
+- `src/sparse_svd.c`
+
+But they rank lower for Sprint 64 Phase 1 because:
+
+- the first benchmark/proof home is less tightly focused than the Cholesky CSC
+  lane
+- broad dense-kernel unification there would immediately widen the abstraction
+  surface
+- the fallback and public-story consequences are broader than the first CSC
+  supernodal landing
+
+Interpretation:
+
+- QR/SVD should stay in the later lane unless the Day 4 rerank exposes a much
+  lower-risk seam than the CSC supernodal path
+- Sprint 64 should resist turning “performance backend architecture” into a
+  repository-wide dense rewrite
+
+#### 6. The strongest current proof burden already has a natural home
+
+The existing proof burden is already split cleanly enough to support a bounded
+Phase 1 landing:
+
+1. `tests/test_chol_csc.c`
+2. `benchmarks/bench_chol_csc.c`
+3. `tests/test_ldlt_csc.c`
+4. `benchmarks/bench_ldlt_csc.c`
+5. `tests/test_dense.c`
+6. `tests/test_integration.c`
+
+Interpretation:
+
+- Sprint 64 does not need a new benchmark harness or a new backend test
+  framework just to start
+- the first kernel landing can be proved through the existing CSC family-local
+  tests plus the current benchmark surfaces
+- `test_dense.c` is the natural lower-level proof surface if the bounded
+  abstraction touches generic dense helpers
+
+### Day 3 Close
+
+Sprint 64 now has a ranked live hotspot map instead of a generic backend
+architecture backlog:
+
+- the Cholesky CSC supernodal dense-kernel lane is the strongest first target
+- LDL^T supernodal follow-through is the strongest second target
+- `src/sparse_dense.c` is an important internal seam, but not a universal
+  first-class backend hub yet
+- build/threading work is real but should follow the selected kernel path
+- QR/SVD remain later backend candidates rather than first-phase targets

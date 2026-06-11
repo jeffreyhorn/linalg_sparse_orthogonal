@@ -550,3 +550,159 @@ concrete role map:
 The next step is to rerank those lanes against the Epic 6 target and separate
 must-keep canonical surfaces from later exploratory or maintenance-only
 drivers.
+
+## Day 4
+
+**Objective:** Re-rank the Day 3 benchmark-role map into a smaller canonical
+candidate set, a first normalization target set, and an explicit deferred
+queue before output/taxonomy design begins.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 4 rerank:
+   - `git status --short --branch`
+2. Re-read the current Sprint 65 notes plus the Day 4-6 plan slice:
+   - `sed -n '320,520p' docs/planning/EPIC_6/SPRINT_65/WORKING_NOTES.md`
+   - `sed -n '140,260p' docs/planning/EPIC_6/SPRINT_65/PLAN.md`
+3. Re-read the Day 3 benchmark-role artifact:
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_65/artifacts/day3-benchmark-role-audit.md`
+4. Re-read the direct and backend proof surfaces most likely to define the canonical set:
+   - `sed -n '1,220p' benchmarks/bench_refactor.c`
+   - `sed -n '1,180p' benchmarks/bench_ldlt_csc.c`
+   - `rg -n "bench_refactor|bench_refactor_csc|bench_chol_csc|bench_ldlt_csc|bench_iterative_reuse|bench_eigs_reuse|bench-fast|canonical|proof surface|workflow-specific proof surfaces" README.md benchmarks/README.md docs/maintainer_guide.md Makefile`
+
+### Day 4 Findings
+
+#### 1. The strongest canonical-candidate set is smaller than the Day 3 proof lane
+
+After reranking against the Epic 6 target, the strongest canonical maintained
+performance-surface candidates are:
+
+- `bench_refactor_csc`
+- `bench_chol_csc`
+- `bench_iterative_reuse`
+- `bench_eigs_reuse`
+
+Why these four move to the top:
+
+- each maps to a narrow shipped workflow or bounded backend lane
+- each already has structured or naturally normalizable output
+- each carries a clearer stable story than the broader exploratory harnesses
+- together they cover:
+  - repeated-run direct throughput and CSC follow-through
+  - bounded backend/path identity
+  - iterative repeated-run efficiency
+  - eigensolver repeated-run efficiency
+
+Interpretation:
+
+- Sprint 65’s first normalization and canonical-surface work should start
+  from these four surfaces, not from the entire proof lane and not from the
+  full benchmark catalog
+
+#### 2. `bench_refactor` and `bench_ldlt_csc` should stay in the proof lane, but not in the first canonical normalization batch
+
+Both remain high-value surfaces, but they are weaker first-batch canonical
+candidates for different reasons:
+
+- `bench_refactor`
+  - high-signal repeated-run direct workflow proof
+  - still outputs a human-readable summary rather than a stable CSV schema
+  - overlaps materially with the more structured `bench_refactor_csc` direct
+    repeated-run story
+- `bench_ldlt_csc`
+  - strong backend-comparison and dispatch surface
+  - still mixes one-shot native/wrapper comparison and analyze-once supernodal
+    interpretation
+  - current docs do not yet explain its maintained role as tightly as the
+    Cholesky CSC and handle-reuse surfaces
+
+Interpretation:
+
+- these should remain benchmark-side proof surfaces
+- they should not define Day 5’s first normalization contract
+- they are better treated as second-wave or supporting normalization targets
+
+#### 3. The regression-sensitive runtime lane should stay distinct from the canonical maintained performance surface
+
+The Day 3 runtime subset remains:
+
+- `bench_scaling`
+- `bench_fillin`
+- `bench_colamd`
+- `bench_reorder --skip-factor`
+- possibly `bench_amd_qg`
+
+This lane still matters, but its ownership is different:
+
+- it supports bounded CI/local drift detection
+- it is runtime-pragmatic rather than product-claim canonical
+- it should not absorb the same output or interpretation burden as the
+  smaller canonical performance set
+
+Interpretation:
+
+- Day 5 should define separate normalized roles for:
+  - regression-sensitive runtime sentinels
+  - benchmark-side proof surfaces
+  - canonical maintained performance surfaces
+
+#### 4. The first Sprint 65 normalization target set is now explicit
+
+The first normalization target set should be:
+
+- binary output:
+  - `bench_refactor_csc`
+  - `bench_chol_csc`
+  - `bench_iterative_reuse`
+  - `bench_eigs_reuse`
+- documentation and maintainer explanation:
+  - `benchmarks/README.md`
+  - `README.md`
+  - `docs/maintainer_guide.md`
+
+That target set is small enough to support:
+
+- stable category vocabulary
+- stable machine-readable output expectations
+- explicit path/backend identifiers where relevant
+- a believable maintained canonical story
+
+Interpretation:
+
+- Day 5 now has an exact first design surface instead of another generic
+  “normalize benchmarks” prompt
+
+#### 5. The deferred benchmark queue is now explicit
+
+Sprint 65 should consciously defer or de-emphasize:
+
+- `bench_main`
+- `bench_convergence`
+- `bench_svd`
+- `bench_bicgstab`
+- `bench_eigs`
+- broader `bench_reorder` sweep behavior
+- `bench_amd_qg` as a long-term canonical signal unless a later pass justifies it
+
+It should also postpone first-batch canonical treatment for:
+
+- `bench_refactor`
+- `bench_ldlt_csc`
+
+Interpretation:
+
+- the Sprint 65 surface is now smaller and sharper than the broad Epic 6
+  review suggested
+- Day 5 can proceed without absorbing every valuable but lower-priority or
+  mixed-role benchmark
+
+### Day 4 Close
+
+Sprint 65 now has one explicit first target set before output design starts:
+
+- a four-surface canonical candidate set
+- a bounded first normalization batch
+- a still-real but explicitly secondary proof queue
+- a separate regression-sensitive runtime lane
+- a deferred exploratory benchmark queue that Sprint 65 should not absorb

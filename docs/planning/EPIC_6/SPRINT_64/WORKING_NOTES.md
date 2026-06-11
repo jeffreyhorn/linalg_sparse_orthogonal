@@ -502,3 +502,154 @@ architecture backlog:
   first-class backend hub yet
 - build/threading work is real but should follow the selected kernel path
 - QR/SVD remain later backend candidates rather than first-phase targets
+
+## Day 4
+
+**Objective:** Re-rank the Day 3 hotspot map against the explicit Epic 6
+state-of-the-art target and reduce Sprint 64 to one exact first landing
+boundary instead of a broad performance shortlist.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 4 rerank:
+   - `git status --short --branch`
+2. Re-read the Day 4 sprint-plan slice plus the Day 3 audit:
+   - `sed -n '160,260p' docs/planning/EPIC_6/SPRINT_64/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_64/artifacts/day3-performance-hotspot-audit-part1.md`
+3. Re-read the explicit Epic 6 state-of-the-art target definition:
+   - `sed -n '1,240p' docs/planning/EPIC_6/SPRINT_60/artifacts/day5-state-of-the-art-target-definition.md`
+4. Re-read the Epic 6 remediation plan section for backend architecture:
+   - `sed -n '1,220p' docs/planning/EPIC_6/reviews/todo-codex-2026-06-08.md`
+
+### Day 4 Findings
+
+#### 1. The first Phase 1 Sprint 64 landing should stay anchored to the Cholesky CSC supernodal lane
+
+Against the Epic 6 target definition, the Cholesky CSC supernodal path is
+still the best first landing because it satisfies the right combination of:
+
+- bounded touched surface
+- real runtime relevance
+- existing family-local proof
+- explicit fallback neighbors
+- low risk of widening the public product story
+
+Interpretation:
+
+- this is the strongest must-touch Phase 1 seam
+- it supports a real backend/performance architecture claim without pretending
+  the whole repository is already backend-pluggable
+- it fits the Epic 6 requirement for a bounded modern backend seam on selected
+  hot paths
+
+#### 2. LDL^T supernodal follow-through remains important, but should stay in the second slot
+
+The Day 3 ranking still holds after the target-definition rerank:
+
+- LDL^T supernodal work is valuable
+- but it is still more correctness-sensitive and pivot-state-heavy
+- it therefore belongs in the next backend follow-through lane, not in the
+  first abstraction-defining landing
+
+Interpretation:
+
+- this is an important later Sprint 64 or Sprint 65 seam
+- it should benefit from the first bounded kernel abstraction rather than force
+  that abstraction to absorb Bunch-Kaufman-specific complexity on day one
+
+#### 3. The generic dense helper layer belongs inside the first landing, but only as an internal dependency seam
+
+The rerank tightens the role of `src/sparse_dense.c`:
+
+- it is now confirmed as part of the first landing boundary
+- but only as an internal helper seam in service of the selected Cholesky CSC
+  path
+- it still should not become a broad “all dense math routes here” rewrite in
+  Sprint 64
+
+Interpretation:
+
+- Day 5 should treat `src/sparse_dense.c` as a likely touched implementation
+  seam
+- Day 5 should not treat QR/SVD-wide dense unification as part of the first
+  landing
+
+#### 4. Build/options work is required for Sprint 64, but only as support for the selected kernel path
+
+The rerank against the Epic 6 target confirms that build and option wiring is
+real work, but not the thing that defines the first landing:
+
+- it should follow the selected kernel abstraction
+- it should preserve the default self-contained build
+- it should avoid forcing a public API widening unless the first landing truly
+  needs it
+
+Interpretation:
+
+- build/options wiring is in-bounds for Sprint 64
+- broad platform or packaging work is not
+- Day 5 should design the kernel abstraction first and then derive the minimum
+  necessary build/option surface from it
+
+#### 5. Benchmark-governance and broad packaging work remain explicitly out of the first landing boundary
+
+The target-definition rerank makes the non-goal fence sharper:
+
+- benchmark proof refresh is still in scope
+- broad benchmark-governance redesign is not
+- platform/packaging maturity remains an Epic 6 band, but not part of the
+  first Sprint 64 landing
+
+Interpretation:
+
+- the first landing should only require:
+  - bounded benchmark proof
+  - bounded docs/maintainer truthfulness updates
+- it should not absorb:
+  - packaging strategy work
+  - release-shape work
+  - Windows/macOS parity expansion
+
+### First Selected Sprint 64 Landing Surface
+
+The exact first selected Sprint 64 landing surface is now:
+
+- required first kernel lane:
+  - Cholesky CSC supernodal dense-kernel path
+- required nearby internal seam:
+  - bounded dense-helper abstraction support
+- required proof surfaces:
+  - `tests/test_chol_csc.c`
+  - `tests/test_integration.c`
+  - `benchmarks/bench_chol_csc.c`
+- likely supporting truth surfaces later:
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+  - build wiring only if the selected abstraction actually needs it
+
+### Explicit Deferred / Later Queue
+
+The Day 4 rerank fixes the later queue explicitly:
+
+- second backend target:
+  - LDL^T supernodal follow-through
+- later dense-kernel/backend candidates:
+  - QR
+  - SVD
+- later support bands:
+  - broader benchmark-governance work
+  - packaging/platform maturity work
+  - broader threading-policy generalization
+
+### Day 4 Close
+
+Sprint 64 now has one exact first landing boundary instead of a generic
+backend shortlist:
+
+- the Cholesky CSC supernodal dense-kernel lane is fixed as the first landing
+- LDL^T supernodal follow-through remains the strongest second target
+- `src/sparse_dense.c` is part of the first landing only as a bounded internal
+  seam
+- build/options work is confirmed as support work, not the first design center
+- packaging/platform and broad benchmark-governance work remain explicitly out
+  of the first landing

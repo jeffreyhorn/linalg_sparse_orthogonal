@@ -24,10 +24,13 @@
 static sparse_err_t sparse_cholesky_factor_inner(SparseMatrix *mat,
                                                  sparse_progress_cb_t progress_cb,
                                                  void *progress_user);
-static sparse_err_t s62_cholesky_factor_opts_no_reorder(SparseMatrix *mat,
-                                                        const sparse_cholesky_opts_t *opts);
+static sparse_err_t s63_cholesky_dispatch_select_backend(const sparse_cholesky_opts_t *opts,
+                                                         idx_t n, int *use_csc_out);
+static sparse_err_t s63_cholesky_factor_opts_no_reorder_selected_backend(
+    SparseMatrix *mat, const sparse_cholesky_opts_t *opts, int use_csc);
 static sparse_err_t s62_cholesky_factor_reordered_working_copy(SparseMatrix *mat, idx_t *perm,
-                                                               const sparse_cholesky_opts_t *opts);
+                                                               const sparse_cholesky_opts_t *opts,
+                                                               int use_csc);
 
 static void s62_cholesky_steal_factor_payload(SparseMatrix *dst, SparseMatrix *src) {
     if (!dst || !src)
@@ -77,7 +80,8 @@ static void s62_cholesky_steal_factor_payload(SparseMatrix *dst, SparseMatrix *s
  * temporary permuted working copy and publish the reordered/factored payload
  * back to the caller matrix only after success. */
 static sparse_err_t s62_cholesky_factor_reordered_working_copy(SparseMatrix *mat, idx_t *perm,
-                                                               const sparse_cholesky_opts_t *opts) {
+                                                               const sparse_cholesky_opts_t *opts,
+                                                               int use_csc) {
     if (!mat || !perm || !opts) {
         free(perm);
         return SPARSE_ERR_NULL;
@@ -92,7 +96,7 @@ static sparse_err_t s62_cholesky_factor_reordered_working_copy(SparseMatrix *mat
 
     sparse_cholesky_opts_t work_opts = *opts;
     work_opts.reorder = SPARSE_REORDER_NONE;
-    err = s62_cholesky_factor_opts_no_reorder(PA, &work_opts);
+    err = s63_cholesky_factor_opts_no_reorder_selected_backend(PA, &work_opts, use_csc);
     if (err != SPARSE_OK) {
         sparse_free(PA);
         free(perm);
@@ -102,6 +106,33 @@ static sparse_err_t s62_cholesky_factor_reordered_working_copy(SparseMatrix *mat
     sparse_factor_state_replace_reorder_perm(PA, perm);
     s62_cholesky_steal_factor_payload(mat, PA);
     sparse_free(PA);
+    return SPARSE_OK;
+}
+
+static sparse_err_t s63_cholesky_dispatch_select_backend(const sparse_cholesky_opts_t *opts,
+                                                         idx_t n, int *use_csc_out) {
+    if (!opts || !use_csc_out)
+        return SPARSE_ERR_NULL;
+    if (opts->backend != SPARSE_CHOL_BACKEND_AUTO &&
+        opts->backend != SPARSE_CHOL_BACKEND_LINKED_LIST &&
+        opts->backend != SPARSE_CHOL_BACKEND_CSC)
+        return SPARSE_ERR_BADARG;
+
+    int use_csc;
+    switch (opts->backend) {
+    case SPARSE_CHOL_BACKEND_LINKED_LIST:
+        use_csc = 0;
+        break;
+    case SPARSE_CHOL_BACKEND_CSC:
+        use_csc = 1;
+        break;
+    case SPARSE_CHOL_BACKEND_AUTO:
+    default:
+        use_csc = (n >= SPARSE_CSC_THRESHOLD);
+        break;
+    }
+
+    *use_csc_out = use_csc;
     return SPARSE_OK;
 }
 
@@ -321,6 +352,7 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
     if (n != mat->cols)
         return SPARSE_ERR_SHAPE;
     int reorder_requested = (opts->reorder != SPARSE_REORDER_NONE) ? 1 : 0;
+    int use_csc = 0;
 
     /* Precondition check (matches `sparse_analyze`): reject non-
      * identity row/col permutations and already-factored inputs.
@@ -333,6 +365,13 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
      * `SPARSE_CSC_THRESHOLD`. */
     if (sparse_matrix_require_original_state(mat) != SPARSE_OK)
         return SPARSE_ERR_BADARG;
+
+    sparse_err_t dispatch_err = s63_cholesky_dispatch_select_backend(opts, n, &use_csc);
+    if (dispatch_err != SPARSE_OK)
+        return dispatch_err;
+
+    if (opts->used_csc_path)
+        *opts->used_csc_path = use_csc ? 1 : 0;
 
     /* Apply fill-reducing reordering if requested.  Sprint 62 Day 10 keeps
      * the caller-owned matrix untouched until the reordered one-shot factor
@@ -362,39 +401,19 @@ sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesk
             free(perm);
             return err;
         }
-        return s62_cholesky_factor_reordered_working_copy(mat, perm, opts);
+        return s62_cholesky_factor_reordered_working_copy(mat, perm, opts, use_csc);
     }
 
-    return s62_cholesky_factor_opts_no_reorder(mat, opts);
+    return s63_cholesky_factor_opts_no_reorder_selected_backend(mat, opts, use_csc);
 }
 
-static sparse_err_t s62_cholesky_factor_opts_no_reorder(SparseMatrix *mat,
-                                                        const sparse_cholesky_opts_t *opts) {
+static sparse_err_t s63_cholesky_factor_opts_no_reorder_selected_backend(
+    SparseMatrix *mat, const sparse_cholesky_opts_t *opts, int use_csc) {
     if (!mat || !opts)
         return SPARSE_ERR_NULL;
 
     /* Clear any previous reorder permutation before no-reorder factorization. */
     sparse_factor_state_replace_reorder_perm(mat, NULL);
-
-    /* Backend dispatch: AUTO compares against SPARSE_CSC_THRESHOLD;
-     * LINKED_LIST / CSC force one branch.  Records the chosen path
-     * back through the caller's opts->used_csc_path if provided. */
-    idx_t n = mat->rows;
-    int use_csc;
-    switch (opts->backend) {
-    case SPARSE_CHOL_BACKEND_LINKED_LIST:
-        use_csc = 0;
-        break;
-    case SPARSE_CHOL_BACKEND_CSC:
-        use_csc = 1;
-        break;
-    case SPARSE_CHOL_BACKEND_AUTO:
-    default:
-        use_csc = (n >= SPARSE_CSC_THRESHOLD);
-        break;
-    }
-    if (opts->used_csc_path)
-        *opts->used_csc_path = use_csc ? 1 : 0;
 
     if (!use_csc)
         return sparse_cholesky_factor_inner(mat, opts->progress_cb, opts->progress_user);

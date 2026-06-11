@@ -31,6 +31,10 @@ static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t piv
                                            sparse_progress_cb_t progress_cb, void *progress_user,
                                            int restore_compat_on_premutation_exit);
 
+static int s63_lu_pivot_is_valid(sparse_pivot_t pivot) {
+    return pivot == SPARSE_PIVOT_COMPLETE || pivot == SPARSE_PIVOT_PARTIAL;
+}
+
 static int s51_lu_opts_can_use_shared_lifecycle(const SparseMatrix *mat,
                                                 const sparse_lu_opts_t *opts) {
     if (!mat || !opts)
@@ -180,6 +184,8 @@ static sparse_err_t sparse_lu_factor_inner(SparseMatrix *mat, sparse_pivot_t piv
     idx_t n = mat->rows;
     if (n != mat->cols)
         return SPARSE_ERR_SHAPE;
+    if (!s63_lu_pivot_is_valid(pivot))
+        return SPARSE_ERR_BADARG;
 
     /*
      * Temporary buffer for collecting rows to eliminate.
@@ -370,6 +376,8 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
     idx_t n = mat->rows;
     if (n != mat->cols)
         return SPARSE_ERR_SHAPE;
+    if (!s63_lu_pivot_is_valid(opts->pivot))
+        return SPARSE_ERR_BADARG;
 
     sparse_err_t state_err = sparse_matrix_require_original_row_col_state(mat);
     if (state_err != SPARSE_OK)

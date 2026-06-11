@@ -109,6 +109,9 @@ surfaces for the public repeated-run direct lifecycle:
   - `--indefinite-kkt` switches to a synthetic above-threshold KKT saddle-point
     workload and compares the public repeated-run LDL^T path against the direct
     resolved-analysis CSC completion path
+  - reads as the main throughput/proof surface for the large-`n` CSC-backed
+    repeated-run direct lane, not as the error-path contract surface; failed
+    refactor preservation stays owned by `tests/test_integration.c`
   - reports CSV rows with:
     - `matrix`
     - `workflow`

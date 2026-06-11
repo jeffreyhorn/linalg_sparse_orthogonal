@@ -683,6 +683,55 @@ static void test_lu_invalid_reorder_opts_preserve_existing_reordered_factor(void
     sparse_free(A);
 }
 
+static void test_lu_invalid_pivot_opts_preserve_original_matrix_and_allow_retry(void) {
+    const idx_t n = 100;
+    SparseMatrix *A = build_tridiag_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    SparseMatrix *A_orig = sparse_copy(A);
+    REQUIRE_OK(A_orig ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_lu_opts_t invalid_opts = {
+        .pivot = (sparse_pivot_t)99,
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 1e-12,
+    };
+    ASSERT_EQ(sparse_lu_factor_opts(A, &invalid_opts), SPARSE_ERR_BADARG);
+
+    const idx_t *rp = sparse_row_perm(A);
+    const idx_t *irp = sparse_inv_row_perm(A);
+    const idx_t *cp = sparse_col_perm(A);
+    const idx_t *icp = sparse_inv_col_perm(A);
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_TRUE(rp[i] == i);
+        ASSERT_TRUE(irp[i] == i);
+        ASSERT_TRUE(cp[i] == i);
+        ASSERT_TRUE(icp[i] == i);
+        ASSERT_TRUE(sparse_get(A, i, i) == sparse_get(A_orig, i, i));
+        if (i > 0) {
+            ASSERT_TRUE(sparse_get(A, i, i - 1) == sparse_get(A_orig, i, i - 1));
+            ASSERT_TRUE(sparse_get(A, i - 1, i) == sparse_get(A_orig, i - 1, i));
+        }
+    }
+
+    double b[100];
+    double x[100];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = 1.0;
+    ASSERT_EQ(sparse_lu_solve(A, b, x), SPARSE_ERR_BADARG);
+
+    sparse_lu_opts_t retry_opts = {
+        .pivot = SPARSE_PIVOT_PARTIAL,
+        .reorder = SPARSE_REORDER_AMD,
+        .tol = 1e-12,
+    };
+    ASSERT_EQ(sparse_lu_factor_opts(A, &retry_opts), SPARSE_OK);
+    ASSERT_EQ(sparse_lu_solve(A, b, x), SPARSE_OK);
+
+    sparse_free(A);
+    sparse_free(A_orig);
+}
+
 static void test_progress_cb_cholesky_emits_cancel(void) {
     const idx_t n = 100;
     SparseMatrix *A = build_tridiag_spd(n);
@@ -850,6 +899,53 @@ static void test_cholesky_reordered_not_spd_preserves_original_matrix(void) {
     double b[3] = {1.0, 1.0, 1.0};
     double x[3];
     ASSERT_EQ(sparse_cholesky_solve(A, b, x), SPARSE_ERR_BADARG);
+
+    sparse_free(A);
+    sparse_free(A_orig);
+}
+
+static void test_cholesky_invalid_backend_preserves_original_matrix_and_allows_retry(void) {
+    const idx_t n = 120;
+    SparseMatrix *A = build_tridiag_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    SparseMatrix *A_orig = sparse_copy(A);
+    REQUIRE_OK(A_orig ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_cholesky_opts_t bad_opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .backend = (sparse_chol_backend_t)99,
+    };
+    ASSERT_EQ(sparse_cholesky_factor_opts(A, &bad_opts), SPARSE_ERR_BADARG);
+
+    const idx_t *rp = sparse_row_perm(A);
+    const idx_t *irp = sparse_inv_row_perm(A);
+    const idx_t *cp = sparse_col_perm(A);
+    const idx_t *icp = sparse_inv_col_perm(A);
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_TRUE(rp[i] == i);
+        ASSERT_TRUE(irp[i] == i);
+        ASSERT_TRUE(cp[i] == i);
+        ASSERT_TRUE(icp[i] == i);
+        ASSERT_TRUE(sparse_get(A, i, i) == sparse_get(A_orig, i, i));
+        if (i > 0) {
+            ASSERT_TRUE(sparse_get(A, i, i - 1) == sparse_get(A_orig, i, i - 1));
+            ASSERT_TRUE(sparse_get(A, i - 1, i) == sparse_get(A_orig, i - 1, i));
+        }
+    }
+
+    double b[120];
+    double x[120];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = 1.0;
+    ASSERT_EQ(sparse_cholesky_solve(A, b, x), SPARSE_ERR_BADARG);
+
+    sparse_cholesky_opts_t retry_opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .backend = SPARSE_CHOL_BACKEND_CSC,
+    };
+    ASSERT_EQ(sparse_cholesky_factor_opts(A, &retry_opts), SPARSE_OK);
+    ASSERT_EQ(sparse_cholesky_solve(A, b, x), SPARSE_OK);
 
     sparse_free(A);
     sparse_free(A_orig);
@@ -1691,7 +1787,7 @@ static void test_public_lifecycle_refactor_preserves_old_factors_on_failure(void
 
     A_bad = sparse_copy(A_good);
     REQUIRE_OK(A_bad ? SPARSE_OK : SPARSE_ERR_ALLOC);
-    ASSERT_EQ(sparse_set(A_bad, 0, 1, 0.25), SPARSE_OK);
+    ASSERT_EQ(sparse_set(A_bad, 0, 0, -1.0), SPARSE_OK);
 
     ASSERT_EQ(sparse_refactor_numeric(A_bad, &analysis, &factors), SPARSE_ERR_NOT_SPD);
 
@@ -1754,6 +1850,104 @@ static void test_public_lifecycle_refactor_rejects_nnz_drift_and_preserves_old_f
     free(x_exact);
     free(b);
     free(x);
+}
+
+static void test_public_lifecycle_cholesky_csc_refactor_preserves_old_factors_on_failure(void) {
+    const idx_t n = 120;
+    SparseMatrix *A_good = build_tridiag_spd(n);
+    SparseMatrix *A_bad = NULL;
+    sparse_analysis_t analysis = {0};
+    sparse_factors_t factors = {0};
+    double *x_exact = NULL;
+    double *b = NULL;
+    double *x = NULL;
+
+    REQUIRE_OK(A_good ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    ASSERT_TRUE(n >= SPARSE_CSC_THRESHOLD);
+
+    sparse_analysis_opts_t analysis_opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
+    ASSERT_EQ(sparse_analyze(A_good, &analysis_opts, &analysis), SPARSE_OK);
+    ASSERT_EQ(sparse_factor_numeric(A_good, &analysis, &factors), SPARSE_OK);
+
+    x_exact = malloc((size_t)n * sizeof(double));
+    b = malloc((size_t)n * sizeof(double));
+    x = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(x_exact && b && x ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = 1.0;
+    sparse_matvec(A_good, x_exact, b);
+
+    A_bad = sparse_copy(A_good);
+    REQUIRE_OK(A_bad ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    ASSERT_EQ(sparse_set(A_bad, 0, 0, -1.0), SPARSE_OK);
+
+    ASSERT_EQ(sparse_refactor_numeric(A_bad, &analysis, &factors), SPARSE_ERR_NOT_SPD);
+
+    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b, x), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x[i], x_exact[i], 1e-12);
+
+    free(x_exact);
+    free(b);
+    free(x);
+    sparse_factor_free(&factors);
+    sparse_analysis_free(&analysis);
+    sparse_free(A_bad);
+    sparse_free(A_good);
+}
+
+static void
+test_public_lifecycle_cholesky_csc_refactor_rejects_nnz_drift_and_preserves_old_factors(void) {
+    const idx_t n = 120;
+    SparseMatrix *A_good = build_tridiag_spd(n);
+    SparseMatrix *A_bad = NULL;
+    sparse_analysis_t analysis = {0};
+    sparse_factors_t factors = {0};
+    double *x_exact = NULL;
+    double *b = NULL;
+    double *x = NULL;
+
+    REQUIRE_OK(A_good ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    ASSERT_TRUE(n >= SPARSE_CSC_THRESHOLD);
+
+    sparse_analysis_opts_t analysis_opts = {
+        .factor_type = SPARSE_FACTOR_CHOLESKY,
+        .reorder = SPARSE_REORDER_AMD,
+    };
+    ASSERT_EQ(sparse_analyze(A_good, &analysis_opts, &analysis), SPARSE_OK);
+    ASSERT_EQ(sparse_factor_numeric(A_good, &analysis, &factors), SPARSE_OK);
+
+    x_exact = malloc((size_t)n * sizeof(double));
+    b = malloc((size_t)n * sizeof(double));
+    x = malloc((size_t)n * sizeof(double));
+    REQUIRE_OK(x_exact && b && x ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    for (idx_t i = 0; i < n; i++)
+        x_exact[i] = 1.0;
+    sparse_matvec(A_good, x_exact, b);
+
+    A_bad = sparse_copy(A_good);
+    REQUIRE_OK(A_bad ? SPARSE_OK : SPARSE_ERR_ALLOC);
+    ASSERT_EQ(sparse_set(A_bad, 0, 1, 0.0), SPARSE_OK);
+    ASSERT_EQ(sparse_set(A_bad, 1, 0, 0.0), SPARSE_OK);
+
+    ASSERT_EQ(sparse_refactor_numeric(A_bad, &analysis, &factors), SPARSE_ERR_BADARG);
+
+    ASSERT_EQ(sparse_factor_solve(&factors, &analysis, b, x), SPARSE_OK);
+    for (idx_t i = 0; i < n; i++)
+        ASSERT_NEAR(x[i], x_exact[i], 1e-12);
+
+    free(x_exact);
+    free(b);
+    free(x);
+    sparse_factor_free(&factors);
+    sparse_analysis_free(&analysis);
+    sparse_free(A_bad);
+    sparse_free(A_good);
 }
 
 static void test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesky(void) {
@@ -2128,11 +2322,13 @@ int main(void) {
     RUN_TEST(test_progress_cb_lu_cancel_after_reorder_preserves_original_matrix);
     RUN_TEST(test_lu_refactor_attempt_rejects_existing_reordered_factor_and_preserves_old_factor);
     RUN_TEST(test_lu_invalid_reorder_opts_preserve_existing_reordered_factor);
+    RUN_TEST(test_lu_invalid_pivot_opts_preserve_original_matrix_and_allow_retry);
     RUN_TEST(test_progress_cb_cholesky_emits_cancel);
     RUN_TEST(test_progress_cb_cholesky_cancel_after_reorder_preserves_original_matrix);
     RUN_TEST(
         test_cholesky_refactor_attempt_rejects_existing_reordered_factor_and_preserves_old_factor);
     RUN_TEST(test_cholesky_reordered_not_spd_preserves_original_matrix);
+    RUN_TEST(test_cholesky_invalid_backend_preserves_original_matrix_and_allows_retry);
     RUN_TEST(test_progress_cb_ldlt_emits_cancel);
     RUN_TEST(test_progress_cb_null_default_unchanged);
     RUN_TEST(test_cholesky_default_wrapper_matches_default_opts);
@@ -2151,6 +2347,9 @@ int main(void) {
     RUN_TEST(test_public_lifecycle_refactor_rejects_mismatched_existing_factors);
     RUN_TEST(test_public_lifecycle_refactor_preserves_old_factors_on_failure);
     RUN_TEST(test_public_lifecycle_refactor_rejects_nnz_drift_and_preserves_old_factors);
+    RUN_TEST(test_public_lifecycle_cholesky_csc_refactor_preserves_old_factors_on_failure);
+    RUN_TEST(
+        test_public_lifecycle_cholesky_csc_refactor_rejects_nnz_drift_and_preserves_old_factors);
     RUN_TEST(test_public_lifecycle_refactor_same_pattern_matches_one_shot_cholesky);
     RUN_TEST(test_progress_cb_strerror);
 

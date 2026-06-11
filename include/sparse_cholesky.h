@@ -174,15 +174,29 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat);
  * permuted before factorization. The reordering permutation is stored in
  * the matrix so that sparse_cholesky_solve() can automatically unpermute.
  * This remains a one-shot entry point; the repeated-run direct path is the
- * shared analysis/factor/refactor API in `sparse_analysis.h`. Reordered
- * one-shot attempts may factor a temporary reordered working copy and publish
- * that payload back to `mat` only after success, so cancelled or failed
- * reordered attempts leave the caller-owned matrix in its original
+ * shared analysis/factor/refactor API in `sparse_analysis.h`. Invalid reorder
+ * or backend enums are rejected before reorder or factor mutation begins.
+ * When opts->used_csc_path is non-NULL, the resolved CSC-dispatch decision is
+ * published after backend selection even if a later error prevents
+ * factorization from running to completion, so that field reports the chosen
+ * path rather than successful completion of that path.
+ * Reordered one-shot attempts may factor a temporary reordered working copy
+ * and publish that payload back to `mat` only after success, so cancelled or
+ * failed reordered attempts leave the caller-owned matrix in its original
  * coordinate space.
+ *
+ * @return SPARSE_OK on success.
+ * @return SPARSE_ERR_NULL if mat or opts is NULL.
+ * @return SPARSE_ERR_SHAPE if mat is not square.
+ * @return SPARSE_ERR_BADARG if opts->reorder or opts->backend is invalid, or
+ *         if mat is already factored / reordered / permuted.
+ * @return SPARSE_ERR_NOT_SPD if the matrix is not symmetric positive-definite.
+ * @return SPARSE_ERR_ALLOC if a required allocation fails.
+ * @return SPARSE_ERR_CANCELLED if the linked-list backend progress callback
+ *         cancels the factorization.
  *
  * @param mat   The SPD matrix to factor (modified in-place).
  * @param opts  Factorization options.
- * @return SPARSE_OK on success, or an error code.
  */
 sparse_err_t sparse_cholesky_factor_opts(SparseMatrix *mat, const sparse_cholesky_opts_t *opts);
 

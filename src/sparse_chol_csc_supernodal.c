@@ -173,6 +173,16 @@ sparse_err_t chol_csc_eliminate_supernodal(CholCsc *csc, idx_t min_size) {
     if (n == 0)
         return SPARSE_OK;
 
+    /* Keep the supernodal path aligned with the scalar CSC path on the
+     * simplest non-SPD contract: a stored diagonal that is already
+     * non-positive must reject immediately instead of slipping through
+     * supernode dispatch and producing a bogus successful factor. */
+    for (idx_t j = 0; j < n; j++) {
+        idx_t start = csc->col_ptr[j];
+        if (start < csc->col_ptr[j + 1] && csc->values[start] <= 0.0)
+            return SPARSE_ERR_NOT_SPD;
+    }
+
     idx_t *starts = NULL;
     idx_t *sizes = NULL;
     if (sparse_malloc_idx_array(n, sizeof(idx_t), (void **)&starts) != SPARSE_OK ||

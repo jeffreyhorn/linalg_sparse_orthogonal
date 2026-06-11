@@ -325,6 +325,11 @@ Important behavior:
 - the one-shot LU / Cholesky / LDL^T APIs remain first-class peer entry points
 - repeated direct reuse preserves symbolic/permutation setup, not old numeric
   factor contents
+- failed `sparse_refactor_numeric(...)` calls preserve the previously usable
+  factor state on the public repeated-run direct path
+- that same old-factor-preservation rule now holds on the large-`n`
+  CSC-backed Cholesky lane as well; same-pattern non-SPD retries and obvious
+  nnz drift reject instead of silently destroying the previous factor
 - `sparse_refactor_numeric(...)` is the public same-pattern numeric-refresh
   path, not a general “accept any changed matrix” rebuild path
 - the library now rejects obvious gross-structure drift cheaply, but it does

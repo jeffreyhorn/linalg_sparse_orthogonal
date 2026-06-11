@@ -103,16 +103,18 @@ typedef struct {
  * on the same one-shot matrix contract as `sparse_lu_factor()`. When
  * reordering is requested under the default-compatible option shape, the
  * implementation may internally reuse shared lifecycle plumbing, but the
- * public contract remains one-shot on the caller-owned matrix. For reordered
- * one-shot calls outside that default-compatible fast path, the implementation
- * factors a temporary reordered working copy and only publishes it back to
- * `mat` on success, so failed or cancelled attempts do not strand the caller
- * matrix in an intermediate reordered state.
+ * public contract remains one-shot on the caller-owned matrix. Invalid pivot
+ * or reorder enums are rejected before reorder or factor mutation begins.
+ * For reordered one-shot calls outside that default-compatible fast path, the
+ * implementation factors a temporary reordered working copy and only publishes
+ * it back to `mat` on success, so failed or cancelled attempts do not strand
+ * the caller matrix in an intermediate reordered state.
  *
  * @param mat   The matrix to factor (modified in-place: reordered, then factored).
  * @param opts  Factorization options.
  * @return SPARSE_OK on success, or an error code.
- * @return SPARSE_ERR_BADARG if @p mat is already factored/pivoted/reordered.
+ * @return SPARSE_ERR_BADARG if @p opts->pivot or @p opts->reorder is invalid,
+ *         or if @p mat is already factored/pivoted/reordered.
  */
 sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *opts);
 
@@ -158,7 +160,8 @@ sparse_err_t sparse_lu_factor_opts(SparseMatrix *mat, const sparse_lu_opts_t *op
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if mat is NULL.
  * @return SPARSE_ERR_SHAPE if the matrix is not square.
- * @return SPARSE_ERR_BADARG if mat has already been factored, pivoted, or reordered.
+ * @return SPARSE_ERR_BADARG if @p pivot is invalid, or if @p mat has already
+ *         been factored, pivoted, or reordered.
  * @return SPARSE_ERR_SINGULAR if a zero (or below-tolerance) pivot is encountered.
  * @return SPARSE_ERR_ALLOC if memory allocation fails during fill-in.
  *

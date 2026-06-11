@@ -3787,6 +3787,39 @@ static void test_eliminate_supernodal_bcsstk04_residual(void) {
     sparse_free(A);
 }
 
+/* Day 10 follow-through: the full supernodal entry must reject a
+ * non-positive stored diagonal before any supernode dispatch or writeback
+ * mutation begins. */
+static void test_eliminate_supernodal_rejects_nonpositive_stored_diagonal(void) {
+    idx_t n = 4;
+    SparseMatrix *A = sparse_create(n, n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t j = 0; j < n; j++) {
+            double v = 0.0;
+            if (i == j)
+                v = (i == 0) ? -1.0 : 4.0;
+            else if (labs((long)i - (long)j) == 1)
+                v = 0.25;
+            if (v != 0.0)
+                sparse_insert(A, i, j, v);
+        }
+    }
+
+    CholCsc *csc = NULL;
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 1.0, &csc));
+    ASSERT_TRUE(csc != NULL);
+    ASSERT_TRUE(csc->col_ptr[0] < csc->col_ptr[1]);
+    ASSERT_TRUE(csc->values[csc->col_ptr[0]] == -1.0);
+
+    ASSERT_ERR(chol_csc_eliminate_supernodal(csc, 2), SPARSE_ERR_NOT_SPD);
+    ASSERT_TRUE(csc->values[csc->col_ptr[0]] == -1.0);
+
+    chol_csc_free(csc);
+    sparse_free(A);
+}
+
 /* Panel helper: trivial null-arg / bad-range checks, plus a
  * panel_rows == 0 fast path that returns SPARSE_OK. */
 static void test_supernode_eliminate_panel_error_paths(void) {
@@ -4362,6 +4395,35 @@ static void test_dispatch_legacy_opts_still_work(void) {
     sparse_free(A);
 }
 
+/* Out-of-range backend value rejected as SPARSE_ERR_BADARG. */
+static void test_dispatch_invalid_backend_rejected(void) {
+    SparseMatrix *A = day11_build_spd(20, 0.1, 0x1234abcdu);
+    sparse_cholesky_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .backend = (sparse_chol_backend_t)99,
+        .used_csc_path = NULL,
+    };
+    ASSERT_ERR(sparse_cholesky_factor_opts(A, &opts), SPARSE_ERR_BADARG);
+    sparse_free(A);
+}
+
+/* `used_csc_path` is published before later reorder / factor errors so
+ * callers still observe the selected numeric path on failure. */
+static void test_dispatch_csc_reports_selected_path_before_reorder_error(void) {
+    SparseMatrix *A = day11_build_spd(20, 0.1, 0xbeef1234u);
+    int used = -1;
+    sparse_cholesky_opts_t opts = {
+        .reorder = (sparse_reorder_t)99,
+        .backend = SPARSE_CHOL_BACKEND_CSC,
+        .used_csc_path = &used,
+    };
+
+    ASSERT_ERR(sparse_cholesky_factor_opts(A, &opts), SPARSE_ERR_BADARG);
+    ASSERT_EQ(used, 1);
+
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Main
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -4523,6 +4585,7 @@ int main(void) {
     RUN_TEST(test_eliminate_supernodal_size1_matches_scalar);
     RUN_TEST(test_eliminate_supernodal_random_spd_sweep);
     RUN_TEST(test_eliminate_supernodal_bcsstk04_residual);
+    RUN_TEST(test_eliminate_supernodal_rejects_nonpositive_stored_diagonal);
     RUN_TEST(test_supernode_eliminate_panel_error_paths);
 
     /* Sprint 18 Day 9 — parametrised scalar↔batched cross-check + boundary */
@@ -4544,6 +4607,8 @@ int main(void) {
     RUN_TEST(test_dispatch_auto_large_uses_csc_and_solves);
     RUN_TEST(test_dispatch_forced_override_both_paths_agree);
     RUN_TEST(test_dispatch_legacy_opts_still_work);
+    RUN_TEST(test_dispatch_invalid_backend_rejected);
+    RUN_TEST(test_dispatch_csc_reports_selected_path_before_reorder_error);
 
     /* Sprint 18 Day 12 — larger SuiteSparse fixture residual spot-check */
     RUN_TEST(test_dispatch_day12_bcsstk14_residual);

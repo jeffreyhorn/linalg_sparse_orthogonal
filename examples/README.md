@@ -77,6 +77,11 @@ Use this path when reuse is the point. Keep the smaller LU/Cholesky/LDL^T
 examples for occasional one-shot solves and move here only when you want the
 explicit analyze / factor / solve / refactor lifecycle.
 
+Treat it as the main adoption example for the repeated-run direct path, not as
+the full error-path contract reference. Failed refactor preservation and
+large-`n` CSC-backed Cholesky rejection behavior stay intentionally owned by
+the integration proof surface.
+
 ```bash
 ./build/example_analysis
 ```

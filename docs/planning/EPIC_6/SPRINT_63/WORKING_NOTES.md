@@ -1444,3 +1444,118 @@ Sprint 63 Day 9 fixes one exact implementation fence for the remaining queue:
   real semantics gap
 - Day 10 can now land a bounded `tests/test_integration.c`-first batch instead
   of reopening a general lifecycle redesign
+
+## Day 10
+
+**Objective:** Land the bounded large-`n` CSC-backed Cholesky public lifecycle
+semantics batch by proving non-SPD and nnz-drift refactor failures preserve the
+old usable factors, and make only the smallest CSC supernodal implementation
+follow-through needed to keep that proof truthful.
+
+### Commands Run
+
+1. Re-read the Day 9 design fence and the live touched seams:
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_63/artifacts/day9-solve-refactor-semantics-design.md`
+   - `sed -n '1750,1905p' tests/test_integration.c`
+   - `sed -n '160,260p' src/sparse_chol_csc_supernodal.c`
+2. Inspect the live Day 10 diff while iterating on the proof:
+   - `git diff -- src/sparse_chol_csc_supernodal.c tests/test_integration.c`
+3. Run the required code-touch validation gate on the landed tree:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+
+### Day 10 Findings
+
+#### 1. The missing Sprint 63 proof really did sit on the large-`n` CSC-backed Cholesky public lifecycle lane
+
+The landed Day 10 proof stayed in `tests/test_integration.c` exactly as
+planned and added two CSC-backed public lifecycle regressions at `n = 120`,
+which is safely on the CSC side of `SPARSE_CSC_THRESHOLD`:
+
+- `test_public_lifecycle_cholesky_csc_refactor_preserves_old_factors_on_failure`
+- `test_public_lifecycle_cholesky_csc_refactor_rejects_nnz_drift_and_preserves_old_factors`
+
+That keeps the new coverage on the highest-signal public contract surface
+instead of widening into a family-local-only proof.
+
+#### 2. The strongest same-pattern failure proof now uses an unambiguous non-SPD trigger
+
+The non-SPD CSC-backed refactor proof now forces failure with a stored negative
+diagonal on the retry matrix:
+
+- `sparse_set(A_bad, 0, 0, -1.0)`
+
+That avoids relying on a weaker off-diagonal perturbation interpretation and
+pins the contract to the clearest possible public failure condition:
+
+- failing CSC-backed Cholesky refactor returns `SPARSE_ERR_NOT_SPD`
+- the old factors remain usable
+- a later solve still matches the pre-failure solution
+
+#### 3. One small CSC supernodal guard was enough to keep the CSC-backed failure contract explicit
+
+The only implementation follow-through needed was in
+`src/sparse_chol_csc_supernodal.c`.
+
+The landed guard now rejects a non-positive stored diagonal before supernode
+dispatch begins:
+
+- iterate columns
+- read the first stored entry in each non-empty column
+- if the diagonal entry is already non-positive, return `SPARSE_ERR_NOT_SPD`
+
+This keeps the supernodal CSC path aligned with the scalar CSC path on the
+simplest SPD contract instead of letting an already-invalid stored diagonal
+flow deeper into batched elimination.
+
+#### 4. Gross structure drift is now pinned on the same large-`n` CSC-backed lifecycle lane
+
+The second new integration proof removes both symmetric off-diagonal entries:
+
+- `sparse_set(A_bad, 0, 1, 0.0)`
+- `sparse_set(A_bad, 1, 0, 0.0)`
+
+and proves:
+
+- `sparse_refactor_numeric(...)` returns `SPARSE_ERR_BADARG`
+- the old CSC-backed factors are preserved
+- a later solve still succeeds and matches the baseline solution
+
+This closes the last Sprint 63 Day 9 asymmetry without widening into LDL^T or
+QR.
+
+### Validation
+
+Ran and passed:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 359.66 sec`
+
+### Non-Blocking Note
+
+The reviewed CMake rebuild again emitted the existing
+`bench_eigs_reuse.c` double-promotion warnings while rebuilding that bench
+binary, but the full reviewed path still completed cleanly and passed all
+parity gates.
+
+### Day 10 Close
+
+Sprint 63 Day 10 closes one bounded shared-lifecycle semantics slice:
+
+- large-`n` CSC-backed Cholesky refactor failure now has explicit public
+  old-factor-preservation proof for both non-SPD failure and gross nnz drift
+- the CSC supernodal path now rejects an already non-positive stored diagonal
+  up front
+- the sprint can move into final compatibility/documentation follow-through
+  without reopening the broader lifecycle design

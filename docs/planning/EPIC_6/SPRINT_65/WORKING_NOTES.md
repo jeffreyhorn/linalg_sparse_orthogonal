@@ -1069,3 +1069,149 @@ begins:
 - one exact Day 7-10 touched-file fence
 - one ranked solver-efficiency shortlist led by the direct repeated-run
   CSC/Cholesky lane
+
+## Day 7 - Efficiency Design
+
+### Goal
+
+Take the Day 3-6 benchmark-role, normalization, and canonical-surface work and
+turn it into one exact first solver-efficiency landing plan with a bounded
+implementation fence.
+
+### Actions
+
+1. Re-read the live canonical benchmark outputs against the solver seams they
+   actually exercise.
+2. Re-rank the first efficiency target by measured maintained-surface evidence,
+   touched-surface size, proof burden, and fallback risk.
+3. Freeze the first code-batch fence for the benchmark/doc normalization lane
+   versus the later solver-efficiency lane.
+4. Record the exact required, likely, conditional, and deferred files for the
+   first efficiency landing.
+
+### Findings
+
+#### 1. The strongest first efficiency target remains the direct repeated-run CSC/Cholesky lane
+
+The live benchmark evidence still ranks the first efficiency candidate as:
+
+1. direct repeated-run CSC/Cholesky follow-through
+2. iterative public-handle reuse follow-through
+3. eigensolver public-handle reuse follow-through
+
+The main reason is unchanged but now more concrete:
+
+- `bench_refactor_csc` already measures the public repeated-run direct path
+  against a more direct CSC path using stable CSV output
+- `bench_chol_csc` already reports linked-list versus CSC scalar versus CSC
+  supernodal path identity using stable CSV output
+- both surfaces point at the same direct CSC/Cholesky implementation family
+- the proof burden remains narrower than the iterative/eigensolver handle
+  workspace stories
+
+Interpretation:
+
+- Sprint 65 should not split the first efficiency landing across all four
+  canonical benchmark binaries just because all four are canonical
+
+#### 2. The first efficiency batch should stay on the Cholesky CSC side, not broaden to LDL^T or generic dense-kernel work
+
+The first efficiency landing should stay centered on:
+
+- `src/sparse_chol_csc_supernodal.c`
+
+Likely support only if the landed change truly needs it:
+
+- `src/sparse_chol_csc.c`
+- `src/sparse_dense.c`
+
+Not first-batch targets:
+
+- `src/sparse_ldlt_csc.c`
+- `src/sparse_ldlt_csc_supernodal.c`
+- `src/sparse_iterative.c`
+- `src/sparse_iterative_workspace_internal.c`
+- `src/sparse_eigs.c`
+- `src/sparse_eigs_workspace_internal.c`
+
+Interpretation:
+
+- the first efficiency landing should reduce duplicate or avoidable overhead on
+  the supernodal Cholesky CSC repeated-run lane, not reopen the broader backend
+  architecture question
+
+#### 3. The benchmark normalization batch and the solver-efficiency batch are related but not the same deliverable
+
+The first implementation sequence should now be:
+
+1. normalize the canonical maintained benchmark surface
+2. land one bounded direct repeated-run CSC/Cholesky efficiency follow-through
+3. document the maintained interpretation after the code path is stable
+
+Required benchmark/doc normalization surfaces:
+
+- `benchmarks/bench_refactor_csc.c`
+- `benchmarks/bench_chol_csc.c`
+- `benchmarks/bench_iterative_reuse.c`
+- `benchmarks/bench_eigs_reuse.c`
+- `benchmarks/README.md`
+- `README.md`
+- `docs/maintainer_guide.md`
+
+Required first efficiency surfaces:
+
+- `src/sparse_chol_csc_supernodal.c`
+
+Likely proof surfaces for the efficiency landing:
+
+- `tests/test_chol_csc.c`
+- `tests/test_integration.c`
+
+Conditional only if the implementation proves it necessary:
+
+- `src/sparse_chol_csc.c`
+- `src/sparse_dense.c`
+- `benchmarks/bench_chol_csc.c`
+- `benchmarks/bench_refactor_csc.c`
+
+Interpretation:
+
+- benchmark-output normalization should not be used as an excuse to widen the
+  first solver-efficiency batch
+- solver-efficiency work should not rewrite all benchmark outputs at the same
+  time
+
+#### 4. The first efficiency proof burden is now bounded enough to land without widening into public API or build-policy work
+
+The strongest proof home remains:
+
+- `tests/test_chol_csc.c`
+
+The bounded public non-regression home remains:
+
+- `tests/test_integration.c`
+
+The maintained runtime evidence remains:
+
+- `bench_refactor_csc`
+- `bench_chol_csc`
+
+Explicit non-goals for the first efficiency landing:
+
+- no public API or header widening
+- no build-option or CMake/Makefile changes unless the implementation is truly
+  blocked
+- no LDL^T symmetry batch
+- no iterative-handle or eigensolver-handle efficiency batch
+- no broad benchmark catalog rewrite
+- no CI runtime-lane expansion
+
+### Day 7 Close
+
+Sprint 65 now has:
+
+- one exact first solver-efficiency target chosen from maintained benchmark
+  evidence
+- one narrow implementation fence centered on the Cholesky CSC supernodal lane
+- one clear split between benchmark normalization work and later efficiency work
+- one bounded proof and non-goal set for the first code landing

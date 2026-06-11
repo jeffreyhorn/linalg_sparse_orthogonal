@@ -660,6 +660,32 @@ sparse_err_t chol_dense_factor(double *A, idx_t n, idx_t lda, double tol);
 sparse_err_t chol_dense_solve_lower(const double *L, idx_t n, idx_t lda, double *b);
 
 /**
+ * Internal dense-kernel descriptor for the Cholesky CSC supernodal lane.
+ *
+ * Sprint 64 Day 8 introduces the first bounded backend-aware abstraction
+ * around the dense diagonal-block factor and panel triangular solve without
+ * widening the public API.  The descriptor stays internal to the Cholesky CSC
+ * seam: it records which dense kernel set the supernodal path is using and
+ * provides the function pointers the hot path dispatches through.
+ */
+typedef struct {
+    const char *name;
+    sparse_err_t (*factor)(double *A, idx_t n, idx_t lda, double tol);
+    sparse_err_t (*solve_lower)(const double *L, idx_t n, idx_t lda, double *b);
+} chol_dense_kernels_t;
+
+/**
+ * Return the active dense-kernel descriptor for the Cholesky CSC supernodal
+ * lane.
+ *
+ * The current authoritative path remains the self-contained built-in kernel
+ * set.  The accessor exists so the supernodal path can depend on one bounded
+ * internal abstraction seam instead of hardcoding dense-kernel ownership into
+ * `src/sparse_chol_csc_supernodal.c`.
+ */
+const chol_dense_kernels_t *chol_csc_supernodal_dense_kernels(void);
+
+/**
  * Sprint 19 Day 11: Dense LDL^T factor with Bunch-Kaufman pivoting.
  *
  * Column-major analogue of `sparse_ldlt.c`'s BK kernel, intended for

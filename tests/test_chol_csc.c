@@ -2580,6 +2580,29 @@ static void test_chol_dense_solve_lower_3x3(void) {
     ASSERT_NEAR(b[2], 3.0, 1e-12);
 }
 
+static void test_supernodal_dense_backend_default_contract(void) {
+    const chol_dense_kernels_t *kernels = chol_csc_supernodal_dense_kernels();
+    ASSERT_NOT_NULL(kernels);
+    if (!kernels)
+        return;
+    ASSERT_NOT_NULL(kernels->name);
+    ASSERT_NOT_NULL(kernels->factor);
+    ASSERT_NOT_NULL(kernels->solve_lower);
+    if (!kernels->name || !kernels->factor || !kernels->solve_lower)
+        return;
+
+    double A[4] = {4.0, 2.0, 2.0, 5.0};
+    REQUIRE_OK(kernels->factor(A, 2, 2, 0.0));
+    ASSERT_NEAR(A[0], 2.0, 1e-12);
+    ASSERT_NEAR(A[1], 1.0, 1e-12);
+    ASSERT_NEAR(A[3], 2.0, 1e-12);
+
+    double b[2] = {2.0, 5.0};
+    REQUIRE_OK(kernels->solve_lower(A, 2, 2, b));
+    ASSERT_NEAR(b[0], 1.0, 1e-12);
+    ASSERT_NEAR(b[1], 2.0, 1e-12);
+}
+
 /* ─── Sprint 19 Day 11: ldlt_dense_factor (BK on column-major) ─── */
 
 /* Reconstruct A from factored L, D, D_offdiag, pivot_size and check
@@ -4554,6 +4577,7 @@ int main(void) {
     RUN_TEST(test_chol_dense_factor_not_spd);
     RUN_TEST(test_chol_dense_solve_null);
     RUN_TEST(test_chol_dense_solve_lower_3x3);
+    RUN_TEST(test_supernodal_dense_backend_default_contract);
 
     /* Sprint 19 Day 11: ldlt_dense_factor (BK on column-major) */
     RUN_TEST(test_ldlt_dense_factor_arg_checks);

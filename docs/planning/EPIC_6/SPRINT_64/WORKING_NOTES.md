@@ -1071,3 +1071,160 @@ Sprint 64 now has an exact first code-batch and proof plan:
 - regression proof and benchmark proof are explicitly separated
 - the minimum viable fallback-preserve behavior is fixed
 - the Day 9-12 follow-through queue is bounded before implementation begins
+
+## Day 8
+
+**Objective:** Land the first bounded backend-aware kernel integration slice on
+the Cholesky CSC supernodal path without widening the public surface, the
+build/option surface, or the sprint fence.
+
+### Commands Run
+
+1. Re-read the Day 7 landing fence and the selected implementation/proof
+   surfaces:
+   - `sed -n '1,240p' docs/planning/EPIC_6/SPRINT_64/artifacts/day7-kernel-integration-landing-design.md`
+   - `sed -n '1,220p' src/sparse_chol_csc_internal.h`
+   - `sed -n '1,260p' src/sparse_dense.c`
+   - `sed -n '1,320p' src/sparse_chol_csc_supernodal.c`
+   - `sed -n '4300,4475p' tests/test_chol_csc.c`
+2. Inspect the exact landed code diff:
+   - `git diff -- src/sparse_chol_csc_internal.h src/sparse_dense.c src/sparse_chol_csc_supernodal.c tests/test_chol_csc.c`
+3. Run the required formatting and compile-quality gates:
+   - `make format`
+   - `make lint`
+4. Run the local test gate and confirm the final result:
+   - `make test >/tmp/s64d8_make_test.log 2>&1`
+   - `tail -n 20 /tmp/s64d8_make_test.log`
+5. Run the strongest reviewed baseline and capture the final anchors:
+   - `make quality-review-full >/tmp/s64d8_quality_review_full.log 2>&1`
+   - `grep -n 'quality-review-cmake-compile: CMake tests:\\|Total Test time (real)\\|quality-review-cmake: passed\\|quality-review-full: passed' /tmp/s64d8_quality_review_full.log`
+   - `tail -n 80 /tmp/s64d8_quality_review_full.log`
+
+### Day 8 Findings
+
+#### 1. Sprint 64 now has its first bounded backend-aware integration seam
+
+The landed batch introduces one internal dense-kernel descriptor for the
+selected Cholesky CSC supernodal lane:
+
+- `chol_dense_kernels_t`
+- `chol_csc_supernodal_dense_kernels()`
+
+The ownership split stays inside the Day 7 fence:
+
+- declaration and contract:
+  - `src/sparse_chol_csc_internal.h`
+- default builtin kernel implementation and descriptor:
+  - `src/sparse_dense.c`
+- selected hot-path consumption:
+  - `src/sparse_chol_csc_supernodal.c`
+
+Interpretation:
+
+- Sprint 64 now has a real backend-aware integration seam
+- the seam is local to the selected hot path
+- the self-contained builtin path remains authoritative
+- no public API or build-surface widening was required for the first landing
+
+#### 2. The supernodal Cholesky lane no longer hardwires its dense helpers locally
+
+Before the Day 8 batch, the selected hot path owned local dense helper
+implementations directly inside `src/sparse_chol_csc_supernodal.c`.
+
+After the landing:
+
+- the dense factor helper and lower-triangular solve helper live in
+  `src/sparse_dense.c`
+- the supernodal path resolves them through the bounded internal descriptor
+- the call sites now defend against a missing descriptor or missing function
+  pointers with an explicit `SPARSE_ERR_INTERNAL`
+
+Interpretation:
+
+- the selected lane now reads as architecture-aware instead of file-local and
+  closed-over
+- the fallback/self-contained path is still the default shipped behavior
+- the first abstraction stayed narrow enough to avoid fake repository-wide
+  backend generalization
+
+#### 3. The first proof burden stayed family-local and bounded
+
+The Day 8 proof stayed in the natural family-local surface:
+
+- `tests/test_chol_csc.c`
+
+New proof added:
+
+- `test_supernodal_dense_backend_default_contract`
+
+That proof pins the minimum viable contract for the first landing:
+
+- `chol_csc_supernodal_dense_kernels()` is present
+- the builtin backend name is present
+- the factor and solve function pointers are present
+- the default builtin kernel pair still produces a correct small dense
+  factor/solve result
+
+Interpretation:
+
+- the first backend-aware proof did not need public lifecycle widening
+- `tests/test_integration.c` stayed untouched
+- benchmark proof can remain a later follow-through concern instead of a Day 8
+  blocker
+
+#### 4. The batch stayed completely inside the Day 7 non-goal fence
+
+The Day 8 landing did not widen into:
+
+- `src/sparse_ldlt_csc_supernodal.c`
+- `src/sparse_qr.c`
+- `src/sparse_svd.c`
+- `CMakeLists.txt`
+- `Makefile`
+- `include/` public headers
+- benchmark governance or platform work
+
+Interpretation:
+
+- the first Sprint 64 code batch is still one bounded Cholesky CSC supernodal
+  architecture slice
+- later build-option or benchmark follow-through can stay conditional on the
+  live branch state rather than being forced into the first landing
+
+#### 5. Validation completed cleanly from the strongest reviewed baseline
+
+Ran:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Result:
+
+- all passed
+
+Reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 355.19 sec`
+
+Non-blocking observation:
+
+- the reviewed CMake pass took longer than the ordinary local `make test` path
+  because `test_reorder_nd` ran to `229.54 sec` in the reviewed build tree,
+  but the full reviewed path still completed cleanly and passed all parity
+  gates
+
+### Day 8 Close
+
+Sprint 64 now has its first landed backend-aware integration batch:
+
+- the Cholesky CSC supernodal hot path resolves dense kernels through a bounded
+  internal descriptor
+- the builtin self-contained dense implementation remains the shipped default
+- family-local proof now pins the default backend contract explicitly
+- the batch stayed inside the planned touched-file fence and passed the full
+  reviewed validation baseline

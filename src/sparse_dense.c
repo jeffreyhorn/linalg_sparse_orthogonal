@@ -1,5 +1,6 @@
 #include "sparse_dense.h"
 #include "sparse_alloc_internal.h"
+#include "sparse_chol_csc_internal.h"
 #include "sparse_matrix_internal.h"
 #include <math.h>
 #include <stdint.h>
@@ -152,6 +153,81 @@ sparse_err_t dense_gemv(const dense_matrix_t *A, const double *x, double *y) {
     }
 
     return SPARSE_OK;
+}
+
+sparse_err_t chol_dense_factor(double *A, idx_t n, idx_t lda, double tol) {
+    if (!A)
+        return SPARSE_ERR_NULL;
+    if (n < 0 || lda < n)
+        return SPARSE_ERR_BADARG;
+    if (n == 0)
+        return SPARSE_OK;
+
+    /* Approximate reference norm from A's initial diagonal (before any
+     * updates) for relative tolerance scaling.  Keeps the kernel
+     * self-contained without forcing callers to pass ||A||_inf. */
+    double ref_norm = 0.0;
+    for (idx_t j = 0; j < n; j++) {
+        double d = fabs(A[j + j * lda]);
+        if (d > ref_norm)
+            ref_norm = d;
+    }
+    double sing_tol = sparse_rel_tol(ref_norm, tol > 0.0 ? tol : SPARSE_DROP_TOL);
+
+    for (idx_t k = 0; k < n; k++) {
+        /* Diagonal accumulator: A[k,k] - sum_{j<k} L[k,j]^2. */
+        double s = A[k + k * lda];
+        for (idx_t j = 0; j < k; j++) {
+            double l_kj = A[k + j * lda];
+            s -= l_kj * l_kj;
+        }
+        if (s < sing_tol)
+            return SPARSE_ERR_NOT_SPD;
+        double l_kk = sqrt(s);
+        A[k + k * lda] = l_kk;
+        double inv_l_kk = 1.0 / l_kk;
+
+        /* Below-diagonal column: L[i, k] = (A[i,k] - sum_{j<k} L[i,j]*L[k,j]) / L[k,k]. */
+        for (idx_t i = k + 1; i < n; i++) {
+            double t = A[i + k * lda];
+            for (idx_t j = 0; j < k; j++)
+                t -= A[i + j * lda] * A[k + j * lda];
+            A[i + k * lda] = t * inv_l_kk;
+        }
+    }
+    return SPARSE_OK;
+}
+
+sparse_err_t chol_dense_solve_lower(const double *L, idx_t n, idx_t lda, double *b) {
+    if (!L || !b)
+        return SPARSE_ERR_NULL;
+    if (n < 0 || lda < n)
+        return SPARSE_ERR_BADARG;
+    if (n == 0)
+        return SPARSE_OK;
+
+    /* Forward substitution: for each row i, b[i] -= L[i, j] * b[j] for
+     * j < i, then b[i] /= L[i, i]. */
+    for (idx_t i = 0; i < n; i++) {
+        double sum = b[i];
+        for (idx_t j = 0; j < i; j++)
+            sum -= L[i + j * lda] * b[j];
+        double l_ii = L[i + i * lda];
+        if (l_ii == 0.0)
+            return SPARSE_ERR_SINGULAR;
+        b[i] = sum / l_ii;
+    }
+    return SPARSE_OK;
+}
+
+static const chol_dense_kernels_t s64_builtin_chol_dense_kernels = {
+    .name = "builtin",
+    .factor = chol_dense_factor,
+    .solve_lower = chol_dense_solve_lower,
+};
+
+const chol_dense_kernels_t *chol_csc_supernodal_dense_kernels(void) {
+    return &s64_builtin_chol_dense_kernels;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

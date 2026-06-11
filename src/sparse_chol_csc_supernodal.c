@@ -78,71 +78,6 @@ sparse_err_t chol_csc_detect_supernodes(const CholCsc *L, idx_t min_size, idx_t 
     return SPARSE_OK;
 }
 
-sparse_err_t chol_dense_factor(double *A, idx_t n, idx_t lda, double tol) {
-    if (!A)
-        return SPARSE_ERR_NULL;
-    if (n < 0 || lda < n)
-        return SPARSE_ERR_BADARG;
-    if (n == 0)
-        return SPARSE_OK;
-
-    /* Approximate reference norm from A's initial diagonal (before any
-     * updates) for relative tolerance scaling.  Keeps the kernel
-     * self-contained without forcing callers to pass ||A||_inf. */
-    double ref_norm = 0.0;
-    for (idx_t j = 0; j < n; j++) {
-        double d = fabs(A[j + j * lda]);
-        if (d > ref_norm)
-            ref_norm = d;
-    }
-    double sing_tol = sparse_rel_tol(ref_norm, tol > 0.0 ? tol : SPARSE_DROP_TOL);
-
-    for (idx_t k = 0; k < n; k++) {
-        /* Diagonal accumulator: A[k,k] - sum_{j<k} L[k,j]^2. */
-        double s = A[k + k * lda];
-        for (idx_t j = 0; j < k; j++) {
-            double l_kj = A[k + j * lda];
-            s -= l_kj * l_kj;
-        }
-        if (s < sing_tol)
-            return SPARSE_ERR_NOT_SPD;
-        double l_kk = sqrt(s);
-        A[k + k * lda] = l_kk;
-        double inv_l_kk = 1.0 / l_kk;
-
-        /* Below-diagonal column: L[i, k] = (A[i,k] - sum_{j<k} L[i,j]*L[k,j]) / L[k,k]. */
-        for (idx_t i = k + 1; i < n; i++) {
-            double t = A[i + k * lda];
-            for (idx_t j = 0; j < k; j++)
-                t -= A[i + j * lda] * A[k + j * lda];
-            A[i + k * lda] = t * inv_l_kk;
-        }
-    }
-    return SPARSE_OK;
-}
-
-sparse_err_t chol_dense_solve_lower(const double *L, idx_t n, idx_t lda, double *b) {
-    if (!L || !b)
-        return SPARSE_ERR_NULL;
-    if (n < 0 || lda < n)
-        return SPARSE_ERR_BADARG;
-    if (n == 0)
-        return SPARSE_OK;
-
-    /* Forward substitution: for each row i, b[i] -= L[i, j] * b[j] for
-     * j < i, then b[i] /= L[i, i]. */
-    for (idx_t i = 0; i < n; i++) {
-        double sum = b[i];
-        for (idx_t j = 0; j < i; j++)
-            sum -= L[i + j * lda] * b[j];
-        double l_ii = L[i + i * lda];
-        if (l_ii == 0.0)
-            return SPARSE_ERR_SINGULAR;
-        b[i] = sum / l_ii;
-    }
-    return SPARSE_OK;
-}
-
 /* Fully integrated batched supernodal elimination.
  *
  * Walks the CSC column-by-column, dispatching to:
@@ -475,7 +410,10 @@ sparse_err_t chol_csc_supernode_eliminate_diag(const CholCsc *csc, idx_t s_start
     /* Dense Cholesky factor on the top s_size × s_size diagonal
      * block.  Reads the lower triangle only; writes the factor L back
      * in place over that same region. */
-    return chol_dense_factor(dense, s_size, lda, tol);
+    const chol_dense_kernels_t *kernels = chol_csc_supernodal_dense_kernels();
+    if (!kernels || !kernels->factor)
+        return SPARSE_ERR_BADARG;
+    return kernels->factor(dense, s_size, lda, tol);
 }
 
 sparse_err_t chol_csc_supernode_eliminate_panel(const double *L_diag, idx_t s_size, idx_t lda_diag,
@@ -497,10 +435,16 @@ sparse_err_t chol_csc_supernode_eliminate_panel(const double *L_diag, idx_t s_si
     if (!row_buf)
         return SPARSE_ERR_ALLOC;
 
+    const chol_dense_kernels_t *kernels = chol_csc_supernodal_dense_kernels();
+    if (!kernels || !kernels->solve_lower) {
+        free(row_buf);
+        return SPARSE_ERR_BADARG;
+    }
+
     for (idx_t i = 0; i < panel_rows; i++) {
         for (idx_t j = 0; j < s_size; j++)
             row_buf[j] = panel[i + j * lda_panel];
-        sparse_err_t err = chol_dense_solve_lower(L_diag, s_size, lda_diag, row_buf);
+        sparse_err_t err = kernels->solve_lower(L_diag, s_size, lda_diag, row_buf);
         if (err != SPARSE_OK) {
             free(row_buf);
             return err;

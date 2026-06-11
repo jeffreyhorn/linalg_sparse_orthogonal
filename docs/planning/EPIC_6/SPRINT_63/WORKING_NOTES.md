@@ -985,3 +985,121 @@ breaking the implementation fence:
 - a later valid one-shot retry still succeeds
 - the batch stayed inside `src/sparse_lu.c` plus header truthfulness and
   integration proof
+
+## Day 7 - 2026-06-10
+
+### Goal
+
+Land the first bounded Cholesky CSC repeated-run uniformity slice from the
+Sprint 63 Day 5 fence, keeping the work local to CSC dispatch coherence,
+header truthfulness, and the highest-signal direct proof homes.
+
+### What I changed
+
+I touched only the planned Day 7 surfaces:
+
+- `include/sparse_cholesky.h`
+- `src/sparse_cholesky.c`
+- `tests/test_integration.c`
+- `tests/test_chol_csc.c`
+
+The landed implementation tightened two concrete Cholesky/CSC seams:
+
+1. invalid backend values are now rejected deterministically with
+   `SPARSE_ERR_BADARG`
+2. `used_csc_path` is now published immediately after backend selection, before
+   later reorder/factor failures can return
+
+That required a small internal dispatch cleanup in `src/sparse_cholesky.c`:
+
+- select and validate the backend once at the wrapper boundary
+- thread the resolved `use_csc` decision into both the no-reorder and reordered
+  working-copy paths
+- remove the later duplicated backend-selection logic from the no-reorder path
+
+The public header was updated only enough to keep the truth surface exact:
+
+- `sparse_cholesky_factor_opts(...)` now explicitly documents invalid
+  `opts->backend` as a `SPARSE_ERR_BADARG` case alongside the existing invalid
+  reorder/state cases
+
+### Why this was the right Day 7 seam
+
+After the Sprint 62 Cholesky preservation work, the strongest remaining CSC
+follow-through hole was narrower than a broad “direct family asymmetry” label
+suggested:
+
+- Cholesky did not reject invalid backend enum values explicitly
+- Cholesky published `used_csc_path` later than LDLT, after other failures
+  could already have returned
+- that left wrapper dispatch/result semantics less uniform than the adjacent
+  CSC-backed direct family
+
+That made Day 7 a dispatch/result-state batch, not a lifecycle redesign:
+
+- reject invalid backend input early
+- publish CSC path telemetry before later reorder/factor failures
+- preserve caller-visible direct-lifecycle boundaries and the existing
+  cancel/failure model
+
+### Proof added
+
+The public proof expansion landed in `tests/test_integration.c`:
+
+- `test_cholesky_invalid_backend_preserves_original_matrix_and_allows_retry`
+
+It proves:
+
+- invalid backend through `sparse_cholesky_factor_opts(...)` returns
+  `SPARSE_ERR_BADARG`
+- the caller matrix remains in original identity-permutation state
+- no usable factor is published by the failed call
+- a later valid reordered CSC retry still succeeds
+
+The family-local CSC proof expansion landed in `tests/test_chol_csc.c`:
+
+- `test_dispatch_invalid_backend_rejected`
+- `test_dispatch_csc_reports_selected_path_before_reorder_error`
+
+Those prove:
+
+- invalid backend is rejected explicitly
+- `used_csc_path` is still reported as `1` on the selected CSC path even when a
+  later invalid reorder argument fails
+
+### Validation
+
+Because `*.c` / `*.h` changed, I ran:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All passed.
+
+Reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 311.10 sec`
+
+One non-blocking note remains unchanged from the inherited reviewed baseline:
+
+- the reviewed CMake rebuild again emitted the existing
+  `bench_eigs_reuse.c` double-promotion warnings
+- the full reviewed path still completed cleanly and passed all parity gates
+
+### Day 7 Close
+
+Sprint 63 Day 7 landed one bounded CSC lifecycle follow-through slice without
+widening the sprint:
+
+- invalid Cholesky backend input now rejects deterministically with
+  `SPARSE_ERR_BADARG`
+- CSC path telemetry is published earlier and more uniformly
+- invalid-backend failure preserves the caller matrix and allows a later valid
+  retry
+- the batch stayed inside `src/sparse_cholesky.c` plus header truthfulness,
+  integration proof, and family-local CSC proof

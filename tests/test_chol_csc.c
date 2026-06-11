@@ -4362,6 +4362,35 @@ static void test_dispatch_legacy_opts_still_work(void) {
     sparse_free(A);
 }
 
+/* Out-of-range backend value rejected as SPARSE_ERR_BADARG. */
+static void test_dispatch_invalid_backend_rejected(void) {
+    SparseMatrix *A = day11_build_spd(20, 0.1, 0x1234abcdu);
+    sparse_cholesky_opts_t opts = {
+        .reorder = SPARSE_REORDER_NONE,
+        .backend = (sparse_chol_backend_t)99,
+        .used_csc_path = NULL,
+    };
+    ASSERT_ERR(sparse_cholesky_factor_opts(A, &opts), SPARSE_ERR_BADARG);
+    sparse_free(A);
+}
+
+/* `used_csc_path` is published before later reorder / factor errors so
+ * callers still observe the selected numeric path on failure. */
+static void test_dispatch_csc_reports_selected_path_before_reorder_error(void) {
+    SparseMatrix *A = day11_build_spd(20, 0.1, 0xbeef1234u);
+    int used = -1;
+    sparse_cholesky_opts_t opts = {
+        .reorder = (sparse_reorder_t)99,
+        .backend = SPARSE_CHOL_BACKEND_CSC,
+        .used_csc_path = &used,
+    };
+
+    ASSERT_ERR(sparse_cholesky_factor_opts(A, &opts), SPARSE_ERR_BADARG);
+    ASSERT_EQ(used, 1);
+
+    sparse_free(A);
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Main
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -4544,6 +4573,8 @@ int main(void) {
     RUN_TEST(test_dispatch_auto_large_uses_csc_and_solves);
     RUN_TEST(test_dispatch_forced_override_both_paths_agree);
     RUN_TEST(test_dispatch_legacy_opts_still_work);
+    RUN_TEST(test_dispatch_invalid_backend_rejected);
+    RUN_TEST(test_dispatch_csc_reports_selected_path_before_reorder_error);
 
     /* Sprint 18 Day 12 — larger SuiteSparse fixture residual spot-check */
     RUN_TEST(test_dispatch_day12_bcsstk14_residual);

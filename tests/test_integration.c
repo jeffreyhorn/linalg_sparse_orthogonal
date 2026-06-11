@@ -904,6 +904,53 @@ static void test_cholesky_reordered_not_spd_preserves_original_matrix(void) {
     sparse_free(A_orig);
 }
 
+static void test_cholesky_invalid_backend_preserves_original_matrix_and_allows_retry(void) {
+    const idx_t n = 120;
+    SparseMatrix *A = build_tridiag_spd(n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    SparseMatrix *A_orig = sparse_copy(A);
+    REQUIRE_OK(A_orig ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    sparse_cholesky_opts_t bad_opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .backend = (sparse_chol_backend_t)99,
+    };
+    ASSERT_EQ(sparse_cholesky_factor_opts(A, &bad_opts), SPARSE_ERR_BADARG);
+
+    const idx_t *rp = sparse_row_perm(A);
+    const idx_t *irp = sparse_inv_row_perm(A);
+    const idx_t *cp = sparse_col_perm(A);
+    const idx_t *icp = sparse_inv_col_perm(A);
+    for (idx_t i = 0; i < n; i++) {
+        ASSERT_TRUE(rp[i] == i);
+        ASSERT_TRUE(irp[i] == i);
+        ASSERT_TRUE(cp[i] == i);
+        ASSERT_TRUE(icp[i] == i);
+        ASSERT_TRUE(sparse_get(A, i, i) == sparse_get(A_orig, i, i));
+        if (i > 0) {
+            ASSERT_TRUE(sparse_get(A, i, i - 1) == sparse_get(A_orig, i, i - 1));
+            ASSERT_TRUE(sparse_get(A, i - 1, i) == sparse_get(A_orig, i - 1, i));
+        }
+    }
+
+    double b[120];
+    double x[120];
+    for (idx_t i = 0; i < n; i++)
+        b[i] = 1.0;
+    ASSERT_EQ(sparse_cholesky_solve(A, b, x), SPARSE_ERR_BADARG);
+
+    sparse_cholesky_opts_t retry_opts = {
+        .reorder = SPARSE_REORDER_AMD,
+        .backend = SPARSE_CHOL_BACKEND_CSC,
+    };
+    ASSERT_EQ(sparse_cholesky_factor_opts(A, &retry_opts), SPARSE_OK);
+    ASSERT_EQ(sparse_cholesky_solve(A, b, x), SPARSE_OK);
+
+    sparse_free(A);
+    sparse_free(A_orig);
+}
+
 static void test_progress_cb_ldlt_emits_cancel(void) {
     const idx_t n = 100;
     SparseMatrix *A = build_tridiag_spd(n);
@@ -2183,6 +2230,7 @@ int main(void) {
     RUN_TEST(
         test_cholesky_refactor_attempt_rejects_existing_reordered_factor_and_preserves_old_factor);
     RUN_TEST(test_cholesky_reordered_not_spd_preserves_original_matrix);
+    RUN_TEST(test_cholesky_invalid_backend_preserves_original_matrix_and_allows_retry);
     RUN_TEST(test_progress_cb_ldlt_emits_cancel);
     RUN_TEST(test_progress_cb_null_default_unchanged);
     RUN_TEST(test_cholesky_default_wrapper_matches_default_opts);

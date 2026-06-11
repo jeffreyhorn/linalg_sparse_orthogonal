@@ -1810,3 +1810,166 @@ Sprint 64 Day 12 now leaves a smaller final queue:
   interpretation
 - Day 13 can proceed from a cleaner validated-surface story instead of
   lingering docs/header drift
+
+## Day 13
+
+**Objective:** Run the full reviewed validation set from the landed Sprint 64
+state, then rerun the targeted backend-aware proof surfaces and capture the
+retained benchmark/example signals for closeout.
+
+### Commands Run
+
+1. Run the full required validation gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+2. Reconfirm the reviewed CMake parity anchor from the reviewed wrapper path:
+   - `ctest -N --test-dir build/quality-review-cmake`
+3. Re-run the targeted Sprint 64 proof surface:
+   - `./build/test_integration | tail -n 8`
+   - `./build/test_chol_csc | tail -n 8`
+   - `./build/test_ldlt_csc | tail -n 8`
+   - `./build/test_cholesky | tail -n 8`
+   - `./build/test_ldlt | tail -n 8`
+   - `./build/test_sparse_lu | tail -n 8`
+   - `./build/test_qr | tail -n 8`
+   - `./build/test_svd | tail -n 14`
+   - `./build/example_analysis | tail -n 12`
+   - `./build/example_basic_solve | tail -n 12`
+   - `./build/example_ldlt | tail -n 12`
+   - `./build/example_svd_lowrank | tail -n 12`
+   - `./build/bench_refactor | tail -n 12`
+   - `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1 | tail -n 12`
+   - `./build/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1 | tail -n 6`
+   - `./build/bench_chol_csc tests/data/suitesparse/bcsstk04.mtx --repeat 1 | tail -n 6`
+   - `./build/bench_ldlt_csc tests/data/suitesparse/nos4.mtx --repeat 1 | tail -n 12`
+   - `./build/bench_iterative_reuse | rg "speedup=|CG repeated|GMRES repeated|MINRES repeated" -n`
+   - `./build/bench_eigs_reuse | rg "speedup=|Grow-m|Thick-restart|LOBPCG|parity:" -n`
+
+### Day 13 Findings
+
+#### 1. The full Sprint 64 validation baseline passed from the landed state
+
+Ran:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Result:
+
+- all passed
+
+The reviewed anchors stayed exact:
+
+- reviewed CMake parity count: `53`
+- Makefile/CMake test-count parity: `53 vs 53`
+- full reviewed CMake `ctest`: `53 / 53`
+- reviewed CMake total test time: `574.42 sec`
+
+Interpretation:
+
+- Sprint 64 still closes from the strongest maintained local baseline
+- the bounded backend-aware Cholesky CSC landing did not drift the reviewed
+  parity contract
+
+#### 2. The targeted CSC and direct proof binaries all still pass cleanly
+
+The targeted Sprint 64 rerun set passed:
+
+- `test_integration`: `47 / 47`
+- `test_chol_csc`: `144 / 144`
+- `test_ldlt_csc`: `96 / 96`
+- `test_cholesky`: `21 / 21`
+- `test_ldlt`: `84 / 84`
+- `test_sparse_lu`: `37 / 37`
+- `test_qr`: `72 / 72`
+- `test_svd`: `97 / 97`
+
+Interpretation:
+
+- the backend-aware supernodal Cholesky seam did not break the family-local CSC
+  proof surface
+- adjacent direct/CSC/dense-kernel sentinels stayed stable
+
+#### 3. The retained example signals still match the shipped repeated-run and solver story
+
+Representative retained example outputs:
+
+- `example_analysis`: repeated direct lifecycle residual stayed `4.44e-16`
+- `example_basic_solve`: residual stayed `0.00e+00`
+- `example_ldlt`: refinement residual stayed `0.000e+00`; `cond_1(K) ~ 26.89`
+- `example_svd_lowrank`: sparse low-rank `k=2` kept `22 -> 6` nnz for `3.7x`
+  compression
+
+Interpretation:
+
+- Sprint 64 did not disturb the user-facing direct lifecycle examples
+- dense/SVD-adjacent example behavior still matches the pre-Day-8 story
+
+#### 4. The retained benchmark proof surface reflects the new backend-aware lane truthfully
+
+Representative retained benchmark outputs:
+
+- `bench_refactor`:
+  - `tridiag-200 1.78x`
+  - `tridiag-500 1.34x`
+  - `bcsstk04 1.34x`
+  - `nos4 1.66x`
+- `bench_refactor_csc nos4`:
+  - `speedup_refactor = 1.63x`
+  - residuals `8.24e-16` / `7.06e-16`
+- `bench_chol_csc nos4`:
+  - `csc_scalar_path=scalar`
+  - `csc_supernodal_path=supernodal`
+  - `csc_supernodal_dense_kernel=builtin`
+  - `speedup_csc_sn = 0.70x`
+  - residuals `7.06e-16`, `5.89e-16`, `5.89e-16`
+- `bench_chol_csc bcsstk04`:
+  - `csc_scalar_path=scalar`
+  - `csc_supernodal_path=supernodal`
+  - `csc_supernodal_dense_kernel=builtin`
+  - `speedup_csc = 1.20x`
+  - `speedup_csc_sn = 1.17x`
+- `bench_ldlt_csc nos4`:
+  - `speedup_csc_native = 1.60x`
+  - residuals `5.89e-16` / `5.89e-16`
+- `bench_iterative_reuse`:
+  - `cg-tridiag-300 1.07x`
+  - `gmres-unsym-220 1.03x`
+  - `minres-kkt-42 1.00x`
+- `bench_eigs_reuse`:
+  - `growm-nos4-k5 1.05x`
+  - `thick-bcsstk14-k5 1.00x`
+  - `lobpcg-diag40-k3 1.04x`
+  - `|lambda|max diff = 0.000e+00`
+
+Interpretation:
+
+- the new Sprint 64 benchmark-side path-identification fields stayed stable
+- the current default backend-aware lane still reads truthfully as
+  `scalar/supernodal/builtin`
+
+#### 5. The reviewed CMake rebuild still carries the existing non-blocking warning note
+
+The reviewed CMake rebuild again emitted the existing `bench_eigs_reuse.c`
+double-promotion warnings while rebuilding `bench_eigs_reuse`.
+
+Interpretation:
+
+- this remains a known non-blocking warning seam
+- it does not change the Day 13 pass/fail baseline because the full reviewed
+  path still completed cleanly and passed all parity gates
+
+### Day 13 Close
+
+Sprint 64 Day 13 now leaves a validated closeout baseline:
+
+- the full required validation gate passed
+- the reviewed parity anchors remained exact at `53`
+- the targeted CSC/direct/example/benchmark proof surfaces all still pass from
+  the landed Sprint 64 state
+- Day 14 can now close from a fully validated backend-aware baseline rather
+  than from partial benchmark or docs evidence

@@ -653,3 +653,140 @@ backend shortlist:
 - build/options work is confirmed as support work, not the first design center
 - packaging/platform and broad benchmark-governance work remain explicitly out
   of the first landing
+
+## Day 5
+
+**Objective:** Define the bounded backend abstraction contract for the selected
+Sprint 64 hot path, including exact ownership across the local kernel seam,
+fallback behavior, proof surfaces, and the Day 6-10 touched-file fence.
+
+### Commands Run
+
+1. Re-read the Day 5-6 sprint-plan slice plus the landed Day 4 rerank:
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_64/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_64/artifacts/day4-performance-hotspot-rerank-and-first-landing-boundary.md`
+2. Inspect the live selected-kernel and helper seams directly:
+   - `sed -n '1,260p' src/sparse_chol_csc_supernodal.c`
+   - `sed -n '1,260p' src/sparse_dense.c`
+3. Reconfirm the actual helper/proof footprint around the selected lane:
+   - `rg -n "chol_dense_|dense_gemm|dense_gemv|supernodal" src/sparse_chol_csc_supernodal.c src/sparse_dense.c src/sparse_chol_csc.c src/sparse_ldlt_csc_supernodal.c tests/test_chol_csc.c benchmarks/bench_chol_csc.c`
+
+### Day 5 Findings
+
+#### 1. The first Sprint 64 backend abstraction should stay local to the Cholesky CSC supernodal lane
+
+The selected first landing does not justify a generic repository-wide backend
+layer.
+
+The live code already shows a tighter and safer boundary:
+
+- `src/sparse_chol_csc_supernodal.c` owns the selected hot path directly
+- the densest local operations are currently:
+  - `chol_dense_factor(...)`
+  - `chol_dense_solve_lower(...)`
+- those kernels are tightly coupled to:
+  - supernode extract
+  - diagonal-block factor
+  - panel solve
+  - writeback
+
+Interpretation:
+
+- the first abstraction should be lane-local
+- it should not try to turn all dense math in the repository into one new
+  universal backend interface
+
+#### 2. The generic dense helper seam belongs in-bounds, but only for bounded support
+
+The live helper layer in `src/sparse_dense.c` matters, but its role in Sprint
+64 is narrower than “new dense backend hub”:
+
+- existing generic helpers:
+  - `dense_gemm(...)`
+  - `dense_gemv(...)`
+- selected Cholesky CSC kernels still live outside that file
+- the first landing therefore needs a bounded helper/support seam, not a
+  repo-wide relocation of every dense operation
+
+Interpretation:
+
+- Day 6 should treat `src/sparse_dense.c` as optional support plumbing only if
+  the selected Cholesky CSC kernel path actually benefits from shared helper
+  entry points
+- Day 6 should not widen into QR/SVD dense unification
+
+#### 3. The default-path and fallback contract is now explicit
+
+The first backend-aware landing must preserve the current authoritative path:
+
+- the self-contained default build remains the truth surface
+- any backend-aware fast path must be optional and bounded
+- scalar CSC and current supernodal semantics remain the fallback/correctness
+  anchors
+- proof must demonstrate equivalence or preserved contract, not merely the
+  presence of a new dispatch seam
+
+Interpretation:
+
+- Sprint 64 should prefer internal dispatch and build-time enablement first
+- public option widening is only justified if the selected kernel path truly
+  needs a caller-visible control
+
+#### 4. The strongest proof home is already exact enough for the first landing
+
+The first implementation batch does not need a new proof framework.
+
+The natural proof split is already present:
+
+- family-local correctness:
+  - `tests/test_chol_csc.c`
+- public lifecycle/non-regression:
+  - `tests/test_integration.c`
+- throughput/proof benchmark:
+  - `benchmarks/bench_chol_csc.c`
+
+Interpretation:
+
+- Day 6-10 should keep the first proof burden centered there
+- broader benchmark README or maintainer-guide truth surfaces should only move
+  after the implementation shape is real
+
+#### 5. The Day 6-10 touched-file fence is now exact
+
+The first implementation fence is now:
+
+- required implementation seam:
+  - `src/sparse_chol_csc_supernodal.c`
+- likely bounded support seam:
+  - `src/sparse_dense.c`
+- likely CSC wrapper/dispatch seam only if required by the landed contract:
+  - `src/sparse_chol_csc.c`
+- required proof surfaces:
+  - `tests/test_chol_csc.c`
+  - `tests/test_integration.c`
+  - `benchmarks/bench_chol_csc.c`
+- likely build/options surfaces only if the selected abstraction truly needs
+  them:
+  - `CMakeLists.txt`
+  - `Makefile`
+
+Explicit non-goals for the first landing:
+
+- `src/sparse_ldlt_csc_supernodal.c`
+- `src/sparse_qr.c`
+- `src/sparse_svd.c`
+- public API/header widening by default
+- packaging/platform work
+- broad benchmark-governance work
+- threading-policy generalization beyond the selected kernel path
+
+### Day 5 Close
+
+Sprint 64 now has an exact backend abstraction contract for the first landing:
+
+- the abstraction stays local to the Cholesky CSC supernodal lane
+- `src/sparse_dense.c` is only a bounded support seam
+- default-build and fallback correctness stay authoritative
+- the proof home is fixed to `test_chol_csc`, `test_integration`, and
+  `bench_chol_csc`
+- the Day 6-10 touched-file fence is explicit before implementation begins

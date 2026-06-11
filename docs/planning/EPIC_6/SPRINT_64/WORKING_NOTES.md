@@ -1228,3 +1228,154 @@ Sprint 64 now has its first landed backend-aware integration batch:
 - family-local proof now pins the default backend contract explicitly
 - the batch stayed inside the planned touched-file fence and passed the full
   reviewed validation baseline
+
+## Day 9
+
+**Objective:** Re-rank the remaining Sprint 64 backend queue from the live
+Day 8 branch state, fix the highest-value missing fallback/truthfulness proof,
+and bound the Day 10-12 follow-through to real residual seams instead of the
+pre-landing design assumptions.
+
+### Commands Run
+
+1. Re-read the Day 8-10 sprint-plan slice plus the landed Day 8 artifact:
+   - `sed -n '300,380p' docs/planning/EPIC_6/SPRINT_64/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_64/artifacts/day8-kernel-integration-batch1.md`
+2. Re-read the live Day 8 implementation seams:
+   - `sed -n '620,710p' src/sparse_chol_csc_internal.h`
+   - `sed -n '200,260p' src/sparse_dense.c`
+   - `sed -n '380,470p' src/sparse_chol_csc_supernodal.c`
+3. Re-read the current family-local and benchmark proof surfaces:
+   - `sed -n '2560,2615p' tests/test_chol_csc.c`
+   - `sed -n '1,260p' benchmarks/bench_chol_csc.c`
+4. Re-scan the current backend- and telemetry-sensitive wording:
+   - `rg -n "backend|used_csc_path|supernodal|chol_dense|name|SPARSE_ERR_INTERNAL|SPARSE_ERR_BADARG" src tests benchmarks README.md docs/maintainer_guide.md include/sparse_cholesky.h`
+5. Reconfirm branch cleanliness before the docs-only Day 9 writeup:
+   - `git status --short --branch`
+
+### Day 9 Findings
+
+#### 1. The Day 8 landing closed the broad “first backend abstraction” problem
+
+After the landed Day 8 batch, Sprint 64 no longer has a generic “introduce a
+backend-aware seam” backlog item.
+
+Already true on the live branch:
+
+- the Cholesky CSC supernodal lane resolves dense helpers through one bounded
+  internal descriptor
+- the builtin self-contained kernel set remains the authoritative default
+- family-local proof now pins the default descriptor contract directly
+- no public runtime/backend surface or build-surface widening was needed for
+  the first landing
+
+Interpretation:
+
+- the remaining Sprint 64 queue is no longer abstraction-first
+- the remaining queue is now about bounded fallback/error-path truthfulness,
+  proof placement, and later benchmark/docs follow-through only where the
+  landed semantics actually require it
+
+#### 2. The strongest remaining seam is now the internal fallback/error-path contract, not selection policy
+
+The live Day 8 branch exposes one clear residual seam:
+
+- `src/sparse_chol_csc_supernodal.c` now treats a missing dense-kernel
+  descriptor or missing function pointer as an explicit error-path case
+- the landed Day 8 notes/artifact describe that path as
+  `SPARSE_ERR_INTERNAL`
+- the live code currently returns `SPARSE_ERR_BADARG`
+
+Interpretation:
+
+- the strongest remaining Day 10 target is no longer broad build-option wiring
+- it is one small fallback-truthfulness follow-through on the exact internal
+  dense-kernel seam that Day 8 introduced
+- the right next move is to align the shipped error classification and then
+  prove it in the family-local test surface
+
+#### 3. Benchmark proof is no longer the next implementation blocker
+
+The current benchmark surface in `benchmarks/bench_chol_csc.c` still measures:
+
+- linked-list baseline
+- CSC scalar path
+- CSC supernodal path
+- factor/solve timings
+- residual checks
+
+What it does not yet surface is the internal dense-kernel descriptor name.
+
+Interpretation:
+
+- that is real later observability work
+- it is not yet the strongest Day 10 target because the first landing still
+  has only one authoritative builtin descriptor
+- Day 11 should only widen benchmark output if the Day 10 follow-through
+  introduces an observable internal-selection or fallback distinction worth
+  printing
+
+#### 4. Public docs/header follow-through is now secondary to the internal proof seam
+
+No public header or README contradiction appeared after the Day 8 landing:
+
+- no public backend selector was widened
+- no public lifecycle rule moved
+- no benchmark/docs claim currently depends on the dense-kernel descriptor name
+
+Interpretation:
+
+- Day 12 should stay conditional
+- maintainer/docs truth surfaces should only move after the Day 10 internal
+  seam lands, if the final error/fallback contract becomes sharper in a way
+  worth recording
+
+#### 5. The Day 10-12 queue is now exact and smaller than the Day 7 design implied
+
+Updated rank order:
+
+1. strongest next target:
+   - internal fallback/error-path truthfulness on the Day 8 dense-kernel seam
+2. secondary target:
+   - family-local proof expansion for that seam
+3. conditional later target:
+   - benchmark observability follow-through only if the landed Day 10 shape
+     creates a real output distinction
+4. conditional later target:
+   - maintainer/docs wording only if the landed Day 10 contract materially
+     sharpens the current story
+
+Exact Day 10 touched-file fence:
+
+- required:
+  - `src/sparse_chol_csc_supernodal.c`
+  - `tests/test_chol_csc.c`
+- likely support:
+  - `src/sparse_chol_csc_internal.h`
+  - `src/sparse_dense.c`
+- explicitly not required unless the implementation proves otherwise:
+  - `CMakeLists.txt`
+  - `Makefile`
+  - `tests/test_integration.c`
+  - `benchmarks/bench_chol_csc.c`
+  - public headers or top-level docs
+
+The intended Day 10 proof shape is now explicit:
+
+- keep the proof family-local in `tests/test_chol_csc.c`
+- add a bounded override or test seam only if needed to simulate a missing
+  descriptor or missing function pointer
+- prove the supernodal lane returns the final intended internal error code
+  explicitly rather than relying on the implicit builtin-always-present
+  assumption
+
+### Day 9 Close
+
+Sprint 64 Day 9 closes with a materially smaller remaining queue:
+
+- the first backend-aware abstraction problem is already solved
+- the strongest remaining seam is the internal fallback/error-path contract on
+  the new dense-kernel descriptor lane
+- benchmark and docs follow-through are now conditional, not automatic
+- Day 10 can proceed from an exact touched-file fence and a consciously
+  smaller proof queue

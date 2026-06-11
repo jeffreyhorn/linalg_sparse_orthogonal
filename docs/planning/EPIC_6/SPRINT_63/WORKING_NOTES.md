@@ -1699,3 +1699,152 @@ Sprint 63 Day 11 closes the planned compatibility/regression sweep cleanly:
   semantics directly
 - the full reviewed validation path and bounded targeted follow-ons both
   passed from the landed tree
+
+## Day 12
+
+**Objective:** Align the highest-signal caller-facing and maintainer-facing
+docs, examples, and benchmark wording with the landed Sprint 63
+lifecycle-uniformity story, while keeping the batch bounded and docs-only.
+
+### Commands Run
+
+1. Re-read the Day 12 plan fence and the Day 11 validated close:
+   - `sed -n '412,470p' docs/planning/EPIC_6/SPRINT_63/PLAN.md`
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_63/artifacts/day11-compatibility-layer-and-regression-sweep.md`
+2. Inspect the highest-signal adoption and maintainer surfaces:
+   - `sed -n '1,220p' README.md`
+   - `sed -n '1,260p' docs/tutorial.md`
+   - `sed -n '1,220p' examples/README.md`
+   - `sed -n '1,240p' benchmarks/README.md`
+   - `sed -n '260,360p' docs/maintainer_guide.md`
+3. Land the bounded docs-only follow-through patch:
+   - `apply_patch` on:
+     - `README.md`
+     - `docs/tutorial.md`
+     - `examples/README.md`
+     - `benchmarks/README.md`
+     - `docs/maintainer_guide.md`
+4. Run the targeted Day 12 sanity set:
+   - `git diff -- README.md docs/tutorial.md examples/README.md benchmarks/README.md docs/maintainer_guide.md`
+   - `rg -n "old-factor|nnz drift|example_analysis|bench_refactor_csc|repeated-run direct" README.md docs/tutorial.md examples/README.md benchmarks/README.md docs/maintainer_guide.md`
+   - `wc -l README.md docs/tutorial.md examples/README.md benchmarks/README.md docs/maintainer_guide.md`
+   - `git status --short --branch`
+
+### Day 12 Findings
+
+#### 1. The top-level repeated-run direct story now says the shipped failure-preserve rule directly
+
+The highest-value missing caller-facing point after Day 11 was in the
+top-level repeated-run direct workflow summary in `README.md`.
+
+Day 12 adds the missing explicit rule:
+
+- failed `sparse_refactor_numeric(...)` calls preserve the previous usable
+  factor state
+- the large-`n` CSC-backed Cholesky lane follows that same rule on same-pattern
+  non-SPD failure and on obvious nnz drift rejection
+
+Interpretation:
+
+- the README no longer stops at “same-pattern numeric refresh”
+- the repeated-run direct lifecycle now tells callers what happens on the
+  highest-signal failure lane, not just on the success lane
+
+#### 2. The tutorial now teaches the repeated-run direct failure contract at the actual adoption point
+
+The strongest bounded tutorial insertion point was the Cholesky section
+immediately after the `example_analysis.c` handoff.
+
+Day 12 adds one explicit tutorial note:
+
+- failed same-pattern refactors keep the previous usable factor state intact
+- obvious nnz drift is rejected as a lifecycle-contract violation, not treated
+  as an implicit rebuild request
+
+Interpretation:
+
+- the tutorial now teaches the Sprint 63 public lifecycle contract where users
+  actually move from one-shot direct solves to analyze/factor/refactor reuse
+- the new wording stays usage-focused instead of expanding into a maintainer
+  policy block
+
+#### 3. Example and benchmark docs now separate adoption proof from error-path proof
+
+The example and benchmark follow-through stayed intentionally small:
+
+- `examples/README.md`
+  - `example_analysis` is now called out as the main adoption example for the
+    repeated-run direct path, not as the full error-path contract reference
+- `benchmarks/README.md`
+  - `bench_refactor_csc` is now described as the main throughput/proof surface
+    for the large-`n` CSC-backed repeated-run direct lane, while failed
+    refactor preservation remains owned by `tests/test_integration.c`
+
+Interpretation:
+
+- the docs no longer blur together:
+  - adoption example
+  - throughput benchmark
+  - failure-contract proof
+- the strongest user-facing surfaces now point to the correct proof home
+  without widening into general documentation cleanup
+
+#### 4. The maintainer guide now owns the post-Sprint-63 interpretation explicitly
+
+`docs/maintainer_guide.md` now updates the direct-family interpretation from
+Sprint 62 to Sprint 63:
+
+- invalid LU pivot/reorder enums and invalid Cholesky reorder/backend enums
+  reject before reorder or factor mutation begins
+- the public repeated-run direct lifecycle preserves old usable factors on
+  refactor failure
+- the large-`n` CSC-backed Cholesky lane follows that same old-factor-
+  preservation rule on same-pattern non-SPD failure and obvious nnz drift
+
+Interpretation:
+
+- maintainer ownership now matches the landed Day 6-Day 11 implementation and
+  proof state
+- the remaining deferred queue stays explicit without reopening the sprint
+
+#### 5. The batch stayed bounded and docs-only
+
+Touched:
+
+- `README.md`
+- `docs/tutorial.md`
+- `examples/README.md`
+- `benchmarks/README.md`
+- `docs/maintainer_guide.md`
+
+Not widened into:
+
+- public headers
+- implementation
+- tests
+- benchmarks or examples themselves
+
+Measured touched-surface result:
+
+- `README.md`: `982 -> 988`
+- `docs/tutorial.md`: `464 -> 469`
+- `examples/README.md`: `142 -> 147`
+- `benchmarks/README.md`: `246 -> 249`
+- `docs/maintainer_guide.md`: `391 -> 398`
+
+Interpretation:
+
+- Day 12 stayed a true docs/example/benchmark follow-through pass
+- Sprint 63 remains ready for final validation without another implementation
+  widening
+
+### Day 12 Close
+
+Sprint 63 Day 12 completes the bounded public/maintainer wording follow-through:
+
+- the README and tutorial now state the shipped repeated-run direct
+  failure-preserve rule directly
+- the example and benchmark docs now separate adoption, throughput, and
+  failure-proof roles more cleanly
+- the maintainer guide now owns the post-Sprint-63 direct-family
+  interpretation explicitly

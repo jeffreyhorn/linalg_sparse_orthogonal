@@ -294,12 +294,19 @@ Current stable interpretation:
   a documentation smell; keep the concise local truth and move the broader
   policy explanation here
 
-Current direct-family interpretation after Sprint 62:
+Current direct-family interpretation after Sprint 63:
 
 - one-shot LU / Cholesky / LDL^T remain first-class/default peer entry points
+- invalid LU pivot/reorder enums and invalid Cholesky reorder/backend enums
+  should reject before reorder or factor mutation begins
 - stable-pattern repeated direct reuse belongs on the explicit
   `sparse_analyze()` / `sparse_factor_numeric()` / `sparse_factor_solve()` /
   `sparse_refactor_numeric()` lifecycle
+- that public repeated-run lifecycle preserves symbolic/permutation setup
+  across successful refactors and preserves the previous usable numeric factor
+  state on refactor failure
+- the large-`n` CSC-backed Cholesky lane now follows that same old-factor-
+  preservation rule on both same-pattern non-SPD failure and obvious nnz drift
 - reordered LU and reordered Cholesky one-shot attempts can preserve the
   caller-owned matrix because they factor a temporary reordered working copy
   and publish back only on success

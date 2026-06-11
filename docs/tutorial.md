@@ -179,6 +179,11 @@ small usage examples and move to the explicit repeated-run direct lifecycle
 only when you need analyze-once / factor-many reuse. The strongest shipped
 example for that path is `examples/example_analysis.c`.
 
+On that explicit repeated-run direct path, failed same-pattern refactors keep
+the previous usable factor state intact. Obvious nnz drift is still rejected
+as a lifecycle contract violation rather than being treated as an implicit
+rebuild request.
+
 For one-shot Cholesky, keep using a fresh matrix or a fresh `sparse_copy()` of
 the original coefficients when you still need the original matrix view later.
 That keeps the mutation/cancellation caveats local to the working factor copy

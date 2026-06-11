@@ -344,3 +344,209 @@ Sprint 65 now has a written validation baseline that matches the live repo:
   proof, direct/CSC proof, and adjacent solver sentinels
 - docs-only versus code-day versus stronger-review path split fixed explicitly
 - no contradiction across the main quality/truthfulness surfaces
+
+## Day 3
+
+**Objective:** Reduce the broad Sprint 65 “performance governance” problem to
+one explicit benchmark-role map by classifying the live benchmark binaries into
+regression-sensitive, proof, and exploratory lanes from the current repo
+state.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 3 audit:
+   - `git status --short --branch`
+2. Re-read the current Sprint 65 notes plus the Day 3-5 plan slice:
+   - `sed -n '1,320p' docs/planning/EPIC_6/SPRINT_65/WORKING_NOTES.md`
+   - `sed -n '110,240p' docs/planning/EPIC_6/SPRINT_65/PLAN.md`
+3. Re-read the current benchmark-local docs and inventory the benchmark set:
+   - `sed -n '1,260p' benchmarks/README.md`
+   - `ls benchmarks/*.c | sed 's#benchmarks/##' | sort`
+   - `wc -l benchmarks/*.c`
+4. Re-read the current CI/runtime subset and smoke-target positioning:
+   - `sed -n '260,330p' Makefile`
+   - `rg -n "bench-fast|bench-suitesparse|bench-eigs|Workflow groups|Compile-only gate|csc_supernodal_dense_kernel|speedup_refactor|speedup_csc_native|speedup_auto_vs_ll" benchmarks/README.md Makefile README.md docs/maintainer_guide.md`
+5. Re-read the maintainer-facing benchmark policy and representative benchmark headers:
+   - `sed -n '320,390p' docs/maintainer_guide.md`
+   - `sed -n '560,620p' README.md`
+   - `for f in benchmarks/*.c; do echo "=== ${f} ==="; sed -n '1,28p' "$f"; echo; done`
+   - `sed -n '1,120p' benchmarks/bench_reorder.c`
+   - `sed -n '1,120p' benchmarks/bench_chol_csc.c`
+   - `sed -n '1,120p' benchmarks/bench_refactor_csc.c`
+   - `sed -n '1,120p' benchmarks/bench_iterative_reuse.c`
+   - `sed -n '1,120p' benchmarks/bench_eigs_reuse.c`
+   - `sed -n '1,90p' benchmarks/bench_convergence.c`
+
+### Day 3 Findings
+
+#### 1. The live benchmark surface already separates into regression-sensitive, proof, and exploratory lanes, but that split is not written down cleanly in one place
+
+The current benchmark inventory is `16` binaries:
+
+- `bench_amd_qg`
+- `bench_bicgstab`
+- `bench_chol_csc`
+- `bench_colamd`
+- `bench_convergence`
+- `bench_eigs`
+- `bench_eigs_reuse`
+- `bench_fillin`
+- `bench_iterative_reuse`
+- `bench_ldlt_csc`
+- `bench_main`
+- `bench_refactor`
+- `bench_refactor_csc`
+- `bench_reorder`
+- `bench_scaling`
+- `bench_svd`
+
+The live repo already implies three real role classes:
+
+- regression-sensitive runtime sentinels:
+  - `bench_scaling`
+  - `bench_fillin`
+  - `bench_colamd`
+  - `bench_amd_qg`
+  - `bench_reorder --skip-factor`
+- maintained proof surfaces:
+  - `bench_refactor`
+  - `bench_refactor_csc`
+  - `bench_chol_csc`
+  - `bench_iterative_reuse`
+  - `bench_eigs_reuse`
+  - likely `bench_ldlt_csc` as a strong backend-comparison candidate
+- exploratory or broad comparison surfaces:
+  - `bench_main`
+  - `bench_convergence`
+  - `bench_svd`
+  - `bench_bicgstab`
+  - `bench_eigs`
+  - parts of `bench_reorder`
+
+Interpretation:
+
+- Sprint 65 does not need to invent new benchmark categories
+- it needs to formalize the role split the repo is already using implicitly
+
+#### 2. The current strongest maintained proof surfaces are narrower and better defined than the README table alone suggests
+
+The current docs and headers already elevate a bounded set of benchmark-side
+proof surfaces:
+
+- repeated-run direct lifecycle:
+  - `bench_refactor`
+  - `bench_refactor_csc`
+- bounded backend-aware Cholesky CSC proof:
+  - `bench_chol_csc`
+- iterative public-handle reuse:
+  - `bench_iterative_reuse`
+- eigensolver public-handle reuse:
+  - `bench_eigs_reuse`
+
+Those surfaces have the strongest current claim-bearing properties:
+
+- they are tied directly to shipped public workflows or bounded backend lanes
+- they have explicit output fields the docs already interpret
+- they have adjacent correctness proof homes in tests and examples
+- they are already treated more like product-facing proof than like open-ended
+  sweep harnesses
+
+Interpretation:
+
+- the canonical Sprint 65 performance surface is more likely to come from this
+  smaller set than from the entire benchmark catalog
+- Day 4 should start by preserving these proof surfaces and shrinking the
+  authoritative set around them
+
+#### 3. The current regression-sensitive runtime subset is real, but it is CI-pragmatic rather than product-claim canonical
+
+`make bench-fast` currently runs:
+
+- `bench_scaling`
+- `bench_fillin`
+- `bench_colamd`
+- `bench_amd_qg`
+- `bench_reorder --skip-factor`
+
+That subset exists because it stays within CI runtime limits and still gives a
+bounded runtime regression signal. But it is not the same thing as the
+strongest benchmark-side product proof surface.
+
+Interpretation:
+
+- Sprint 65 should not collapse “runs in CI quickly” into “canonical
+  performance benchmark”
+- the regression-sensitive lane and the claim-bearing proof lane need distinct
+  names and ownership
+
+#### 4. The strongest current category mismatches are now explicit
+
+The current live mismatches are:
+
+- `bench_reorder` has mixed roles:
+  - CI runtime sentinel through `--skip-factor`
+  - exploratory threshold and cross-ordering sweep harness otherwise
+- `bench_amd_qg` remains in `bench-fast`, but its header is explicitly a
+  historical A/B harness for a deleted bitset implementation rather than an
+  enduring product benchmark
+- `bench_main` still reads like a broad benchmark entry point, but it is too
+  multi-mode and wide to be a clean canonical benchmark surface
+- `bench_convergence`, `bench_bicgstab`, and `bench_eigs` are valuable
+  exploratory comparison tools, but their wider sweep nature makes them poor
+  first candidates for normalized regression-sensitive reporting
+- `bench_ldlt_csc` is high-value and close to the proof lane, but the docs do
+  not yet interpret it as clearly as `bench_chol_csc` or the repeated-run
+  proof surfaces
+
+Interpretation:
+
+- Sprint 65 should normalize around stable role ownership first
+- only after that should it decide which outputs need machine-readable
+  normalization and which should remain broader exploratory tools
+
+#### 5. The first canonical-surface candidate set is already smaller than the full benchmark catalog
+
+The strongest current candidates for the canonical Sprint 65 surface are:
+
+- `bench_refactor`
+- `bench_refactor_csc`
+- `bench_chol_csc`
+- `bench_iterative_reuse`
+- `bench_eigs_reuse`
+- likely `bench_ldlt_csc`
+
+The strongest current candidates for the regression-sensitive runtime lane are:
+
+- `bench_scaling`
+- `bench_fillin`
+- `bench_colamd`
+- `bench_reorder --skip-factor`
+- possibly `bench_amd_qg`, but with a weaker long-term claim than the others
+
+The strongest current exploratory/developer-investigation lane is:
+
+- `bench_main`
+- `bench_convergence`
+- `bench_svd`
+- `bench_bicgstab`
+- `bench_eigs`
+- the non-`--skip-factor` wider modes of `bench_reorder`
+
+Interpretation:
+
+- Day 4 can now rerank a smaller real candidate set instead of treating all
+  `16` benchmark binaries as equally authoritative
+
+### Day 3 Close
+
+Sprint 65’s broad benchmark/performance-governance claim has now reduced to a
+concrete role map:
+
+- one CI-pragmatic regression-sensitive runtime lane
+- one smaller proof-oriented candidate canonical surface
+- one exploratory comparison lane
+- one explicit mismatch queue where current binaries still mix roles
+
+The next step is to rerank those lanes against the Epic 6 target and separate
+must-keep canonical surfaces from later exploratory or maintenance-only
+drivers.

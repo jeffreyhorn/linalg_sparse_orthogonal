@@ -43,6 +43,8 @@ const char *sparse_strerror(sparse_err_t err) {
         return "operation cancelled via progress callback";
     case SPARSE_ERR_PIVOT_REJECTED:
         return "cached pivot pattern rejected";
+    case SPARSE_ERR_BACKEND_CONTRACT:
+        return "internal backend contract violated";
     }
     return "unknown error";
 }

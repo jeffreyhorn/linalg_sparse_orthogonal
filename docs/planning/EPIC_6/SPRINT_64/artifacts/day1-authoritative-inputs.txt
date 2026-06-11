@@ -1,0 +1,37 @@
+Sprint 64 Day 1 Authoritative Inputs
+Date: 2026-06-11
+Branch: sprint-64
+
+1. docs/planning/EPIC_6/PROJECT_PLAN.md
+   - Sprint 64 section: "Sprint 64: Performance Backend Architecture Phase 1"
+2. docs/planning/EPIC_6/SPRINT_64/PLAN.md
+3. docs/planning/EPIC_6/SPRINT_63/RETROSPECTIVE.md
+4. docs/planning/EPIC_6/SPRINT_63/artifacts/day14-closeout-and-handoff.md
+5. Reviewed baseline/parity surfaces
+   - ctest -N --test-dir build/quality-review-cmake
+   - make -n quality-review-full
+6. Live docs/build/kernel/benchmark/proof surfaces measured directly
+   - README.md
+   - docs/tutorial.md
+   - docs/maintainer_guide.md
+   - benchmarks/README.md
+   - CMakeLists.txt
+   - Makefile
+   - include/sparse_analysis.h
+   - include/sparse_cholesky.h
+   - include/sparse_ldlt.h
+   - src/sparse_dense.c
+   - src/sparse_chol_csc_supernodal.c
+   - src/sparse_ldlt_csc_supernodal.c
+   - src/sparse_chol_csc.c
+   - src/sparse_ldlt_csc.c
+   - src/sparse_qr.c
+   - src/sparse_svd.c
+   - benchmarks/bench_refactor.c
+   - benchmarks/bench_refactor_csc.c
+   - benchmarks/bench_chol_csc.c
+   - benchmarks/bench_ldlt_csc.c
+   - tests/test_integration.c
+   - tests/test_chol_csc.c
+   - tests/test_ldlt_csc.c
+   - examples/example_analysis.c

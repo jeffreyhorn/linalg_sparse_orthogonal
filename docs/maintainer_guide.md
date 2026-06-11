@@ -325,6 +325,50 @@ Current deferred direct-usability queue:
 - broader direct-family docs/examples simplification outside the bounded Sprint
   62 surfaces
 
+## Backend-Aware Performance Surface Ownership
+
+Sprint 64's first backend-aware landing is intentionally narrower than a
+general backend framework.
+
+Current stable interpretation after Sprint 64 Day 12:
+
+- the first backend-aware lane is local to CSC supernodal Cholesky
+- the default shipped dense-kernel descriptor for that lane remains
+  `builtin`
+- `bench_chol_csc` is the maintained benchmark-side proof surface for:
+  - linked-list baseline timing
+  - CSC scalar timing
+  - CSC supernodal timing
+  - active dense-kernel descriptor identity
+- the benchmark path fields should stay read as bounded proof signals:
+  - `csc_scalar_path = scalar`
+  - `csc_supernodal_path = supernodal`
+  - `csc_supernodal_dense_kernel = builtin` on the default build
+- `SPARSE_ERR_BACKEND_CONTRACT` is a real public error code, but its meaning is
+  intentionally narrow:
+  - the caller contract was valid
+  - the selected internal backend-owned helper/callback contract failed
+  - do not collapse this back into `SPARSE_ERR_BADARG`
+  - do not over-document it as a generic user-tuning failure mode
+
+Current deferred backend/performance queue:
+
+- broader LDL^T backend-aware follow-through
+- any later QR / SVD backend layering only if a later sprint justifies it
+- optional build-option or pluggable-kernel widening only if the self-contained
+  default build and fallback truthfulness stay explicit
+- broader benchmark-governance consolidation outside the bounded Sprint 64
+  proof refresh
+
+Interpretation:
+
+- keep backend-aware path claims local to the surfaces that actually prove
+  them
+- prefer benchmark-side measurability and header-local truth over broad README
+  architecture marketing
+- treat the default self-contained path as authoritative until a later sprint
+  lands and validates a wider backend story
+
 ## Stable Repo Norms
 
 ### Non-default option examples

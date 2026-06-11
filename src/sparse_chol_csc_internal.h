@@ -686,6 +686,22 @@ typedef struct {
 const chol_dense_kernels_t *chol_csc_supernodal_dense_kernels(void);
 
 /**
+ * Test-only override for the Cholesky CSC supernodal dense-kernel descriptor.
+ *
+ * Passing `NULL` is meaningful: while the override is enabled, the accessor
+ * should return `NULL` rather than falling back to the builtin descriptor.
+ * This keeps Sprint 64 Day 10's fallback/error-path proof family-local to
+ * `tests/test_chol_csc.c` without widening the public surface.
+ */
+void chol_csc_supernodal_set_dense_kernels_override_for_test(const chol_dense_kernels_t *kernels);
+
+/**
+ * Clear the test-only dense-kernel override and restore the builtin descriptor
+ * path for the Cholesky CSC supernodal lane.
+ */
+void chol_csc_supernodal_clear_dense_kernels_override_for_test(void);
+
+/**
  * Sprint 19 Day 11: Dense LDL^T factor with Bunch-Kaufman pivoting.
  *
  * Column-major analogue of `sparse_ldlt.c`'s BK kernel, intended for

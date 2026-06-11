@@ -60,7 +60,7 @@ Instead:
 - the supernodal Cholesky path resolves them through the bounded internal
   descriptor
 - the supernodal call sites now guard against a missing descriptor or missing
-  function pointers and return `SPARSE_ERR_INTERNAL` explicitly rather than
+  function pointers and return `SPARSE_ERR_BACKEND_CONTRACT` explicitly rather than
   assuming an always-inlined local helper
 
 This keeps the first Sprint 64 abstraction:

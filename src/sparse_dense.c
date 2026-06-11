@@ -226,8 +226,23 @@ static const chol_dense_kernels_t s64_builtin_chol_dense_kernels = {
     .solve_lower = chol_dense_solve_lower,
 };
 
+static const chol_dense_kernels_t *s64_test_override_dense_kernels = NULL;
+static int s64_test_override_dense_kernels_enabled = 0;
+
 const chol_dense_kernels_t *chol_csc_supernodal_dense_kernels(void) {
+    if (s64_test_override_dense_kernels_enabled)
+        return s64_test_override_dense_kernels;
     return &s64_builtin_chol_dense_kernels;
+}
+
+void chol_csc_supernodal_set_dense_kernels_override_for_test(const chol_dense_kernels_t *kernels) {
+    s64_test_override_dense_kernels = kernels;
+    s64_test_override_dense_kernels_enabled = 1;
+}
+
+void chol_csc_supernodal_clear_dense_kernels_override_for_test(void) {
+    s64_test_override_dense_kernels = NULL;
+    s64_test_override_dense_kernels_enabled = 0;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════

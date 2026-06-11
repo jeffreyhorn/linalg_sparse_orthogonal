@@ -1137,7 +1137,7 @@ After the landing:
   `src/sparse_dense.c`
 - the supernodal path resolves them through the bounded internal descriptor
 - the call sites now defend against a missing descriptor or missing function
-  pointers with an explicit `SPARSE_ERR_INTERNAL`
+  pointers with an explicit `SPARSE_ERR_BACKEND_CONTRACT`
 
 Interpretation:
 
@@ -1249,7 +1249,7 @@ pre-landing design assumptions.
    - `sed -n '2560,2615p' tests/test_chol_csc.c`
    - `sed -n '1,260p' benchmarks/bench_chol_csc.c`
 4. Re-scan the current backend- and telemetry-sensitive wording:
-   - `rg -n "backend|used_csc_path|supernodal|chol_dense|name|SPARSE_ERR_INTERNAL|SPARSE_ERR_BADARG" src tests benchmarks README.md docs/maintainer_guide.md include/sparse_cholesky.h`
+   - `rg -n "backend|used_csc_path|supernodal|chol_dense|name|SPARSE_ERR_BACKEND_CONTRACT|SPARSE_ERR_BADARG" src tests benchmarks README.md docs/maintainer_guide.md include/sparse_cholesky.h`
 5. Reconfirm branch cleanliness before the docs-only Day 9 writeup:
    - `git status --short --branch`
 
@@ -1282,8 +1282,8 @@ The live Day 8 branch exposes one clear residual seam:
 
 - `src/sparse_chol_csc_supernodal.c` now treats a missing dense-kernel
   descriptor or missing function pointer as an explicit error-path case
-- the landed Day 8 notes/artifact describe that path as
-  `SPARSE_ERR_INTERNAL`
+- the landed Day 8 notes/artifact already treat that path as a distinct
+  backend-contract failure lane
 - the live code currently returns `SPARSE_ERR_BADARG`
 
 Interpretation:
@@ -1379,3 +1379,154 @@ Sprint 64 Day 9 closes with a materially smaller remaining queue:
 - benchmark and docs follow-through are now conditional, not automatic
 - Day 10 can proceed from an exact touched-file fence and a consciously
   smaller proof queue
+
+## Day 10
+
+**Objective:** Land the bounded fallback/error-path truthfulness slice on the
+Day 8 dense-kernel seam by introducing a real public backend-contract error
+code, wiring the supernodal Cholesky lane to use it, and proving the new
+contract in the family-local test surface.
+
+### Commands Run
+
+1. Re-read the Day 9 design plus the touched implementation/proof surfaces:
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_64/artifacts/day9-post-landing-safety-audit-and-proof-rerank.md`
+   - `sed -n '390,455p' src/sparse_chol_csc_supernodal.c`
+   - `sed -n '55,95p' include/sparse_types.h`
+   - `sed -n '1,120p' src/sparse_types.c`
+   - `sed -n '3838,3875p' tests/test_chol_csc.c`
+2. Inspect the exact landed code diff:
+   - `git diff -- include/sparse_types.h src/sparse_types.c src/sparse_chol_csc_internal.h src/sparse_dense.c src/sparse_chol_csc_supernodal.c tests/test_chol_csc.c`
+3. Run the required code-day validation gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+4. Run the stronger reviewed baseline:
+   - `make quality-review-full >/tmp/s64d10_quality_review_full.log 2>&1`
+   - `grep -n 'quality-review-cmake-compile: CMake tests:\\|Total Test time \\(real\\)\\|quality-review-cmake: passed\\|quality-review-full: passed' /tmp/s64d10_quality_review_full.log`
+   - `tail -n 80 /tmp/s64d10_quality_review_full.log`
+
+### Day 10 Findings
+
+#### 1. Sprint 64 now has a real public error-taxonomy answer for backend-contract failure
+
+The blocked Day 10 question was whether the new supernodal dense-kernel seam
+should keep using `SPARSE_ERR_BADARG` or grow a dedicated error code.
+
+The landed answer is explicit now:
+
+- new public error enum value:
+  - `SPARSE_ERR_BACKEND_CONTRACT`
+- public declaration:
+  - `include/sparse_types.h`
+- stringification:
+  - `src/sparse_types.c`
+
+Interpretation:
+
+- the backend-aware seam no longer overloads `BADARG` for an internal
+  implementation-contract violation
+- the repo now has a stable public error code for “the caller contract was
+  valid, but the selected backend path could not resolve a required internal
+  helper/callback”
+
+#### 2. The supernodal Cholesky dense-kernel seam now uses the final shipped classification
+
+The selected hot path now returns `SPARSE_ERR_BACKEND_CONTRACT` when:
+
+- the dense-kernel descriptor is missing
+- the descriptor is present but `factor` is missing
+- the descriptor is present but `solve_lower` is missing
+
+Touched implementation surfaces:
+
+- `src/sparse_chol_csc_supernodal.c`
+- `src/sparse_chol_csc_internal.h`
+- `src/sparse_dense.c`
+
+Interpretation:
+
+- Sprint 64 no longer has a truthfulness mismatch between the Day 8/9 design
+  and the live code
+- the fallback/error-path contract on the first backend-aware seam is now
+  explicit and stable
+
+#### 3. The family-local proof now exercises the seam directly instead of assuming the builtin descriptor always exists
+
+`tests/test_chol_csc.c` now includes a bounded test-only override seam for the
+active dense-kernel descriptor:
+
+- `chol_csc_supernodal_set_dense_kernels_override_for_test(...)`
+- `chol_csc_supernodal_clear_dense_kernels_override_for_test(...)`
+
+New proofs now pass:
+
+- `test_supernode_eliminate_diag_missing_dense_kernel_descriptor_is_backend_contract_error`
+- `test_supernode_eliminate_diag_missing_factor_kernel_is_backend_contract_error`
+- `test_supernode_eliminate_panel_missing_solve_kernel_is_backend_contract_error`
+
+Interpretation:
+
+- the missing-descriptor and missing-function-pointer paths are now proved
+  explicitly
+- the proof stayed inside the Day 9 fence:
+  - no `tests/test_integration.c`
+  - no benchmark widening
+  - no public docs/header follow-through yet
+
+#### 4. The Day 10 batch stayed tightly bounded
+
+The landed batch did not widen into:
+
+- `CMakeLists.txt`
+- `Makefile`
+- `tests/test_integration.c`
+- `benchmarks/bench_chol_csc.c`
+- public Cholesky headers or top-level docs
+- LDL^T / QR / SVD follow-through
+
+Interpretation:
+
+- Day 10 is one bounded contract-tightening slice, not a second architecture
+  redesign
+- Sprint 64 can still decide later whether benchmark observability or docs
+  follow-through are justified from the actual landed semantics
+
+#### 5. Validation completed cleanly from the reviewed baseline
+
+Ran:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+Result:
+
+- all passed
+
+Reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 365.95 sec`
+
+Non-blocking note:
+
+- `make test` continued to show the usual long `test_reorder_nd` tail
+- the reviewed CMake path again re-emitted the ordinary
+  `bench_eigs_reuse.c` double-promotion warnings while rebuilding
+  `bench_eigs_reuse`, but still completed cleanly and passed all parity gates
+
+### Day 10 Close
+
+Sprint 64 Day 10 now hands off a much smaller queue:
+
+- the first backend-aware Cholesky CSC seam has a real public error-taxonomy
+  answer
+- the supernodal path now reports internal backend-contract failure explicitly
+- family-local proof now exercises missing descriptor and missing function
+  pointer paths directly
+- the next work can stay focused on whether benchmark or maintainer/docs
+  follow-through is actually justified from the landed semantics

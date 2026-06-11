@@ -66,7 +66,8 @@ The landed implementation now contains an explicit error path for:
 
 But the current branch still carries one truthfulness mismatch:
 
-- the Day 8 notes/artifact describe that path as `SPARSE_ERR_INTERNAL`
+- the Day 8 notes/artifact already treat that path as a distinct
+  backend-contract failure lane
 - the live code still returns `SPARSE_ERR_BADARG`
 
 This is now the highest-value remaining Sprint 64 seam because it sits exactly

@@ -3862,6 +3862,77 @@ static void test_supernode_eliminate_panel_error_paths(void) {
     ASSERT_ERR(chol_csc_supernode_eliminate_panel(L_diag, 2, 2, panel, 0, 1), SPARSE_ERR_BADARG);
 }
 
+static void
+test_supernode_eliminate_diag_missing_dense_kernel_descriptor_is_backend_contract_error(void) {
+    SparseMatrix *A = sparse_create(2, 2);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 4.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 3.0);
+
+    CholCsc *csc = NULL;
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &csc));
+
+    idx_t row_map[2] = {0, 1};
+    double dense[4] = {4.0, 1.0, 1.0, 3.0};
+
+    chol_csc_supernodal_set_dense_kernels_override_for_test(NULL);
+    ASSERT_ERR(chol_csc_supernode_eliminate_diag(csc, 0, 2, dense, 2, row_map, 2, 0.0),
+               SPARSE_ERR_BACKEND_CONTRACT);
+    chol_csc_supernodal_clear_dense_kernels_override_for_test();
+
+    chol_csc_free(csc);
+    sparse_free(A);
+}
+
+static void test_supernode_eliminate_diag_missing_factor_kernel_is_backend_contract_error(void) {
+    SparseMatrix *A = sparse_create(2, 2);
+    ASSERT_NOT_NULL(A);
+    if (!A)
+        return;
+    sparse_insert(A, 0, 0, 4.0);
+    sparse_insert(A, 0, 1, 1.0);
+    sparse_insert(A, 1, 0, 1.0);
+    sparse_insert(A, 1, 1, 3.0);
+
+    CholCsc *csc = NULL;
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 2.0, &csc));
+
+    idx_t row_map[2] = {0, 1};
+    double dense[4] = {4.0, 1.0, 1.0, 3.0};
+    static const chol_dense_kernels_t missing_factor = {
+        .name = "missing-factor",
+        .factor = NULL,
+        .solve_lower = chol_dense_solve_lower,
+    };
+
+    chol_csc_supernodal_set_dense_kernels_override_for_test(&missing_factor);
+    ASSERT_ERR(chol_csc_supernode_eliminate_diag(csc, 0, 2, dense, 2, row_map, 2, 0.0),
+               SPARSE_ERR_BACKEND_CONTRACT);
+    chol_csc_supernodal_clear_dense_kernels_override_for_test();
+
+    chol_csc_free(csc);
+    sparse_free(A);
+}
+
+static void test_supernode_eliminate_panel_missing_solve_kernel_is_backend_contract_error(void) {
+    double L_diag[4] = {2.0, 1.0, 0.0, 2.0};
+    double panel[2] = {2.0, 5.0};
+    static const chol_dense_kernels_t missing_solve_lower = {
+        .name = "missing-solve-lower",
+        .factor = chol_dense_factor,
+        .solve_lower = NULL,
+    };
+
+    chol_csc_supernodal_set_dense_kernels_override_for_test(&missing_solve_lower);
+    ASSERT_ERR(chol_csc_supernode_eliminate_panel(L_diag, 2, 2, panel, 1, 1),
+               SPARSE_ERR_BACKEND_CONTRACT);
+    chol_csc_supernodal_clear_dense_kernels_override_for_test();
+}
+
 /* ═══════════════════════════════════════════════════════════════════════
  * Sprint 18 Day 9: parametrised scalar↔batched cross-check + boundary
  * ═══════════════════════════════════════════════════════════════════════ */
@@ -4611,6 +4682,10 @@ int main(void) {
     RUN_TEST(test_eliminate_supernodal_bcsstk04_residual);
     RUN_TEST(test_eliminate_supernodal_rejects_nonpositive_stored_diagonal);
     RUN_TEST(test_supernode_eliminate_panel_error_paths);
+    RUN_TEST(
+        test_supernode_eliminate_diag_missing_dense_kernel_descriptor_is_backend_contract_error);
+    RUN_TEST(test_supernode_eliminate_diag_missing_factor_kernel_is_backend_contract_error);
+    RUN_TEST(test_supernode_eliminate_panel_missing_solve_kernel_is_backend_contract_error);
 
     /* Sprint 18 Day 9 — parametrised scalar↔batched cross-check + boundary */
     RUN_TEST(test_supernodal_parametrised_cross_check);

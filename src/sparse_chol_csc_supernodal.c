@@ -412,7 +412,7 @@ sparse_err_t chol_csc_supernode_eliminate_diag(const CholCsc *csc, idx_t s_start
      * in place over that same region. */
     const chol_dense_kernels_t *kernels = chol_csc_supernodal_dense_kernels();
     if (!kernels || !kernels->factor)
-        return SPARSE_ERR_BADARG;
+        return SPARSE_ERR_BACKEND_CONTRACT;
     return kernels->factor(dense, s_size, lda, tol);
 }
 
@@ -438,7 +438,7 @@ sparse_err_t chol_csc_supernode_eliminate_panel(const double *L_diag, idx_t s_si
     const chol_dense_kernels_t *kernels = chol_csc_supernodal_dense_kernels();
     if (!kernels || !kernels->solve_lower) {
         free(row_buf);
-        return SPARSE_ERR_BADARG;
+        return SPARSE_ERR_BACKEND_CONTRACT;
     }
 
     for (idx_t i = 0; i < panel_rows; i++) {

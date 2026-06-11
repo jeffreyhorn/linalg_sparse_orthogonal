@@ -827,3 +827,161 @@ Sprint 63 now has one exact implementation fence before the first code batch:
 - `src/sparse_analysis.c` is explicitly conditional rather than assumed
 - LDL^T, QR, docs simplification, packaging, and configuration work stay
   outside the first implementation fence
+
+## Day 6 - 2026-06-10
+
+### Goal
+
+Land the first bounded LU lifecycle follow-through slice inside the Day 5
+fence:
+
+- keep the work in `src/sparse_lu.c` plus integration proof
+- tighten wrapper/shared-lifecycle rejection semantics where the current seam is
+  genuinely under-specified
+- preserve Sprint 62 caller-matrix preservation guarantees and avoid widening
+  into Cholesky, LDL^T, QR, or broad docs work
+
+### Actions
+
+1. Re-read the live LU one-shot and integration proof seam in:
+   - `include/sparse_lu.h`
+   - `src/sparse_lu.c`
+   - `tests/test_integration.c`
+2. Re-read the adjacent factor-state and matrix-state helpers to confirm whether
+   Day 6 really needed support-lane widening:
+   - `src/sparse_factor_state_internal.c`
+   - `src/sparse_matrix_internal.h`
+   - `src/sparse_matrix_state_internal.h`
+3. Identify the smallest real lifecycle contradiction still left in the LU
+   wrapper path.
+4. Land the implementation and proof only in the minimum file set that closes
+   that contradiction.
+5. Run the full required validation gate for `*.c` / `*.h` direct-lifecycle
+   work.
+
+### Findings
+
+#### 1. The real Day 6 seam was invalid LU pivot handling, not a broader state helper rewrite
+
+After re-reading the live path, the highest-value remaining LU contradiction was
+not reorder publication anymore; Sprint 62 had already closed that. The live
+remaining hole was narrower:
+
+- `reorder` was validated explicitly
+- `pivot` was not validated explicitly before entering the one-shot factor path
+- this left invalid enum values under-specified at the wrapper boundary
+
+That made invalid pivot handling the right Day 6 seam because it sits directly
+at the one-shot wrapper/shared-lifecycle contract:
+
+- callers should get a deterministic `SPARSE_ERR_BADARG`
+- the matrix should remain unchanged
+- a later valid retry should still work
+
+#### 2. The fix stayed inside the planned first landing fence
+
+The landed Day 6 patch only touched:
+
+- `include/sparse_lu.h`
+- `src/sparse_lu.c`
+- `tests/test_integration.c`
+
+I did not need to widen into:
+
+- `src/sparse_factor_state_internal.c`
+- `src/sparse_matrix_internal.h`
+- `src/sparse_matrix_state_internal.h`
+- `tests/test_sparse_lu.c`
+- `src/sparse_analysis.c`
+
+That kept the LU batch aligned to the Day 5 promise: first harden the wrapper
+boundary in place, then widen helper/state files only if the seam proves it is
+actually necessary.
+
+#### 3. Invalid pivot values now reject cleanly before mutation
+
+The implementation change in `src/sparse_lu.c` is intentionally small:
+
+- add a local LU-pivot validation helper
+- reject invalid pivot values in both:
+  - `sparse_lu_factor_inner(...)`
+  - `sparse_lu_factor_opts(...)`
+
+Result:
+
+- invalid pivot now returns `SPARSE_ERR_BADARG`
+- the rejection happens before reorder/factor mutation work begins
+- the wrapper semantics now match the already-explicit invalid-`reorder` lane
+
+This is the right kind of Sprint 63 uniformity work:
+
+- clearer wrapper contract
+- no ownership redesign
+- no hidden copy behavior
+- no compatibility break in valid paths
+
+#### 4. The public header truth surface now says the invalid-pivot contract directly
+
+`include/sparse_lu.h` was updated only enough to keep the public contract
+truthful:
+
+- `sparse_lu_factor_opts(...)` now explicitly lists invalid `opts->pivot` as a
+  `SPARSE_ERR_BADARG` case
+- `sparse_lu_factor(...)` now explicitly lists invalid `pivot` as a
+  `SPARSE_ERR_BADARG` case
+
+This keeps the header aligned with the shipped wrapper behavior without turning
+Day 6 into a larger docs pass.
+
+#### 5. Integration proof now shows preserved original state and successful retry
+
+The new integration proof is:
+
+- `test_lu_invalid_pivot_opts_preserve_original_matrix_and_allow_retry`
+
+It proves the exact Day 6 contract:
+
+- invalid pivot through `sparse_lu_factor_opts(...)` returns `SPARSE_ERR_BADARG`
+- the matrix row/column permutation state stays identity
+- representative matrix entries remain unchanged
+- no factor is published by the failed call
+- a later valid LU one-shot retry still succeeds
+
+This keeps the proof where the public lifecycle story already lives instead of
+spreading the same story into another family-local harness too early.
+
+### Validation
+
+Because `*.c` / `*.h` changed, I ran:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All passed.
+
+Reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 299.14 sec`
+
+One non-blocking note remains unchanged from the inherited reviewed baseline:
+
+- the reviewed CMake rebuild again emitted the existing
+  `bench_eigs_reuse.c` double-promotion warnings
+- the full reviewed path still completed cleanly and passed all parity gates
+
+### Day 6 Close
+
+Sprint 63 Day 6 landed one bounded LU lifecycle follow-through slice without
+breaking the implementation fence:
+
+- invalid LU pivot values now reject deterministically with `SPARSE_ERR_BADARG`
+- the rejection happens before reorder/factor mutation
+- the caller matrix stays unchanged on that failure path
+- a later valid one-shot retry still succeeds
+- the batch stayed inside `src/sparse_lu.c` plus header truthfulness and
+  integration proof

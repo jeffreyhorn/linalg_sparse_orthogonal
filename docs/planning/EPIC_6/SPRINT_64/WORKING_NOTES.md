@@ -790,3 +790,148 @@ Sprint 64 now has an exact backend abstraction contract for the first landing:
 - the proof home is fixed to `test_chol_csc`, `test_integration`, and
   `bench_chol_csc`
 - the Day 6-10 touched-file fence is explicit before implementation begins
+
+## Day 6
+
+**Objective:** Convert the Day 5 backend contract into an exact build/options
+wiring plan without widening the public surface or weakening the self-contained
+default build.
+
+### Commands Run
+
+1. Re-read the Day 6 sprint-plan slice plus the landed Day 5 contract:
+   - `sed -n '120,260p' docs/planning/EPIC_6/SPRINT_64/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_64/artifacts/day5-backend-abstraction-contract-design.md`
+2. Re-read the live build surfaces directly:
+   - `sed -n '1,260p' CMakeLists.txt`
+   - `sed -n '1,260p' Makefile`
+3. Re-read the current internal CSC/Cholesky seam and existing build-option vocabulary:
+   - `sed -n '1,260p' src/sparse_chol_csc_internal.h`
+   - `rg -n "SPARSE_OPENMP|SPARSE_MUTEX|option\\(|find_package\\(|compile_definitions|backend" src include CMakeLists.txt Makefile docs/maintainer_guide.md benchmarks/README.md README.md`
+4. Re-read the Day 7-12 sprint-plan slice to make the implementation fence line up with later batches:
+   - `sed -n '260,420p' docs/planning/EPIC_6/SPRINT_64/PLAN.md`
+
+### Day 6 Findings
+
+#### 1. Sprint 64 does not justify a new public runtime/backend option
+
+The live repository already uses public-facing backend selectors where the
+product contract truly needs them:
+
+- `sparse_cholesky_opts_t::backend`
+- `sparse_ldlt_opts_t::backend`
+- `sparse_eigs_opts_t::backend`
+
+The first Sprint 64 landing does not meet that bar.
+
+Interpretation:
+
+- no new public header field should be added for the first backend-aware kernel
+  slice
+- no new README/tutorial/runtime option should be introduced in Day 7-10
+- no env-var control should be added
+
+#### 2. If a toggle is needed, it should be build-time, target-private, and default-safe
+
+The live build surface already distinguishes optional implementation features
+through compile-time switches:
+
+- `SPARSE_OPENMP`
+- `SPARSE_MUTEX`
+
+That pattern is the closest existing fit for Sprint 64, but the first landing
+should be narrower:
+
+- any Sprint 64 backend-selection toggle should be `PRIVATE` to the library
+  target
+- it should not become a documented general product feature during the first
+  landing
+- the default setting should preserve the current authoritative self-contained
+  path
+
+Interpretation:
+
+- the preferred Day 10 wiring shape is a bounded compile-time switch only if
+  the implementation truly needs a selectable local-versus-helper-backed path
+- otherwise the first landing should avoid adding any new build option at all
+
+#### 3. The natural internal policy home is the Cholesky CSC internal seam, not a new public config layer
+
+The live code already has the right internal seam:
+
+- `src/sparse_chol_csc_internal.h`
+
+Interpretation:
+
+- any first-landing policy enum, macro, or helper declaration should live in
+  the Cholesky CSC internal seam
+- Sprint 64 should not add a new repository-wide backend-config header
+- Sprint 64 should not widen `include/` just to expose an implementation-local
+  toggle
+
+#### 4. The minimum viable build-surface plan is now explicit
+
+The Day 6 wiring plan is:
+
+- first preference:
+  - no new build toggle if the landed kernel modernization can stay on the
+    existing authoritative path directly
+- second preference only if the implementation actually needs a selectable
+  branch:
+  - `CMakeLists.txt` gains one bounded cache/string or ON/OFF option for the
+    selected Cholesky CSC supernodal kernel lane
+  - `Makefile` mirrors that switch with the same semantics
+  - both surfaces emit only a target-private compile definition
+  - default remains the current self-contained path
+
+The selected path should therefore be:
+
+1. default authoritative local/self-contained path
+2. optional bounded compile-time-selected Sprint 64 kernel path, only if
+   needed
+3. no public runtime/backend forcing in this phase
+
+#### 5. The Day 7-10 touched-file fence is now exact
+
+Required first-landing implementation surface:
+
+- `src/sparse_chol_csc_supernodal.c`
+
+Likely internal support surface:
+
+- `src/sparse_chol_csc_internal.h`
+- `src/sparse_dense.c`
+
+Likely proof surfaces:
+
+- `tests/test_chol_csc.c`
+- `tests/test_integration.c`
+- `benchmarks/bench_chol_csc.c`
+
+Conditional wiring surfaces only if the implementation proves they are needed:
+
+- `CMakeLists.txt`
+- `Makefile`
+- later truth surfaces:
+  - `benchmarks/README.md`
+  - `docs/maintainer_guide.md`
+
+Explicit non-goals:
+
+- no new public option in `include/sparse_cholesky.h`
+- no new repo-wide backend-config layer
+- no widening into `src/sparse_ldlt_csc_supernodal.c`
+- no widening into QR/SVD
+- no benchmark-governance redesign
+- no packaging/platform spillover
+
+### Day 6 Close
+
+Sprint 64 now has an exact build/options wiring plan before implementation:
+
+- no new public runtime/backend option is justified for the first landing
+- any needed toggle should be build-time, target-private, and default-safe
+- the natural internal policy home is `src/sparse_chol_csc_internal.h`
+- `CMakeLists.txt` and `Makefile` are conditional support surfaces, not
+  mandatory first-batch edits
+- the Day 7-10 implementation fence is explicit before code moves

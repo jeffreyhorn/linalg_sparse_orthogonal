@@ -1288,3 +1288,159 @@ question instead of one generic “more lifecycle uniformity” bucket:
   solve/refactor semantics on the large-`n` CSC-backed Cholesky lane
 - Day 9 can proceed from the landed branch state with an exact touched-file
   fence and a smaller deferred queue
+
+## Day 9 - 2026-06-10
+
+### Goal
+
+Turn the Day 8 rerank into one exact Day 10 code fence for the remaining
+shared direct lifecycle semantics lane, without reopening wrapper-entry,
+configuration, or broad docs work.
+
+### What I re-read
+
+I re-read the live shared lifecycle path in:
+
+- `src/sparse_analysis.c`
+- `tests/test_integration.c`
+
+I also rechecked the adjacent public-story surfaces that explain the repeated-
+run contract:
+
+- `include/sparse_analysis.h`
+- `examples/example_analysis.c`
+- `benchmarks/bench_refactor.c`
+
+### Main design result
+
+The remaining Sprint 63 semantics queue is now reduced to one exact Day 10
+question:
+
+- how should the shared direct lifecycle prove and, if needed, tighten the
+  large-`n` CSC-backed Cholesky factor/refactor retention contract?
+
+This is a narrower question than “more direct lifecycle uniformity”:
+
+- `sparse_factor_numeric(...)` already builds a temporary `new_factors` object
+  and only swaps it into the caller `factors` object after success
+- `sparse_refactor_numeric(...)` already validates existing factors, factors
+  into a temporary, and preserves old factors on error
+- the missing strength is not the broad mechanism
+- the missing strength is the explicit large-`n` CSC-backed Cholesky proof and,
+  only if needed, the smallest semantics follow-through that makes that proof
+  read as one coherent public contract
+
+### What is already strong enough
+
+The current branch already has the following high-signal proof:
+
+- public lifecycle solve rejects zeroed factors
+- public lifecycle solve rejects mismatched analysis and preserves factors
+- public lifecycle refactor accepts zeroed factors as a first factorization
+- public lifecycle refactor rejects mismatched existing factors
+- public lifecycle refactor preserves old factors on failure
+- public lifecycle refactor rejects nnz drift and preserves old factors
+- public lifecycle same-pattern Cholesky success parity against one-shot
+  factorization at `n = 120`, which is already on the CSC side of
+  `SPARSE_CSC_THRESHOLD`
+
+That means Day 10 should not try to redesign `sparse_factor_numeric(...)` or
+`sparse_refactor_numeric(...)` from scratch.
+
+### What is still not explicit enough
+
+The remaining proof asymmetry is:
+
+- linked-list Cholesky failure-preserve proof exists on the public lifecycle
+  path (`n = 40`)
+- large-`n` LDL^T failure-preserve proof exists on the public lifecycle path
+  (`n = 150`)
+- large-`n` Cholesky success parity exists on the public lifecycle path
+  (`n = 120`)
+- but large-`n` CSC-backed Cholesky failure-preserve semantics are not yet
+  pinned with the same explicitness
+
+That is the right Day 10 seam because it is:
+
+- public repeated-run direct lifecycle behavior
+- CSC-sensitive
+- already close to fully covered
+- small enough to land without widening into unrelated direct-family work
+
+### Exact Day 10 target
+
+The next implementation batch should land one bounded CSC-backed public
+lifecycle semantics slice:
+
+1. prove that large-`n` CSC-backed Cholesky refactor failure preserves the old
+   usable factors on the public lifecycle path
+2. prove that the same large-`n` lane rejects gross structure drift while still
+   preserving old usable factors
+3. only if the proof exposes a real gap, make the smallest `src/sparse_analysis.c`
+   follow-through needed to keep the factor/refactor swap semantics uniform and
+   explicit
+
+### Exact touched-file fence
+
+Required:
+
+- `tests/test_integration.c`
+
+Likely:
+
+- `src/sparse_analysis.c`
+
+Likely header truth follow-through only if the landed semantics actually move
+the contract wording:
+
+- `include/sparse_analysis.h`
+
+Optional only if the proof burden forces it:
+
+- `tests/test_chol_csc.c`
+- `examples/example_analysis.c`
+- `benchmarks/bench_refactor.c`
+
+### Intended proof shape
+
+The intended Day 10 proof should stay in `tests/test_integration.c`, not widen
+into a new harness.
+
+The best shape is:
+
+- start from the existing large-`n` Cholesky public lifecycle lane (`n = 120`)
+- first build a usable baseline factor and solve
+- then refactor on:
+  - a same-pattern but no-longer-SPD matrix, or
+  - a gross-structure-drift matrix,
+  whichever closes the strongest missing CSC-backed retention fact first
+- prove the failing refactor returns the expected error
+- prove a later solve with the old factors still succeeds and matches the
+  pre-failure solution
+
+That keeps the proof aligned with the strongest public contract:
+
+- reuse preserves symbolic/permutation setup
+- failed refactor does not silently destroy the previous usable numeric factor
+
+### Explicit non-goals
+
+Day 10 should not widen into:
+
+- LU wrapper follow-through
+- LDL^T symmetry cleanup
+- QR comparison work
+- benchmark-governance or packaging/platform work
+- broad docs/example cleanup unless the landed semantics actually require a
+  wording correction
+
+### Day 9 Close
+
+Sprint 63 Day 9 fixes one exact implementation fence for the remaining queue:
+
+- the shared direct lifecycle mechanism itself is already mostly right
+- the missing strength is explicit large-`n` CSC-backed Cholesky
+  failure-preserve proof, with code follow-through only if the proof exposes a
+  real semantics gap
+- Day 10 can now land a bounded `tests/test_integration.c`-first batch instead
+  of reopening a general lifecycle redesign

@@ -294,6 +294,30 @@ Current stable interpretation:
   a documentation smell; keep the concise local truth and move the broader
   policy explanation here
 
+Current direct-family interpretation after Sprint 62:
+
+- one-shot LU / Cholesky / LDL^T remain first-class/default peer entry points
+- stable-pattern repeated direct reuse belongs on the explicit
+  `sparse_analyze()` / `sparse_factor_numeric()` / `sparse_factor_solve()` /
+  `sparse_refactor_numeric()` lifecycle
+- reordered LU and reordered Cholesky one-shot attempts can preserve the
+  caller-owned matrix because they factor a temporary reordered working copy
+  and publish back only on success
+- no-reorder linked-list Cholesky cancellation remains intentionally
+  non-bit-identical because the upper triangle is stripped before the first
+  emission
+- LDL^T keeps the cleanest cancellation story because factor state is owned
+  separately from the input matrix
+
+Current deferred direct-usability queue:
+
+- no-reorder linked-list Cholesky bit-identical cancellation restoration
+- CSC progress-callback parity for Cholesky / LDL^T
+- any broader LDL^T / QR wording follow-through only if a new contradiction
+  appears
+- broader direct-family docs/examples simplification outside the bounded Sprint
+  62 surfaces
+
 ## Stable Repo Norms
 
 ### Non-default option examples

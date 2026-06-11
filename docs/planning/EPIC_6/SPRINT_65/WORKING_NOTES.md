@@ -1215,3 +1215,138 @@ Sprint 65 now has:
 - one narrow implementation fence centered on the Cholesky CSC supernodal lane
 - one clear split between benchmark normalization work and later efficiency work
 - one bounded proof and non-goal set for the first code landing
+
+## Day 8 - Output Batch I
+
+### Goal
+
+Land the first bounded taxonomy/output normalization slice on the direct
+canonical benchmark surfaces without widening into the later iterative,
+eigensolver, or solver-efficiency batches.
+
+### Actions
+
+1. Normalize the direct canonical CSV surfaces first:
+   - `bench_refactor_csc`
+   - `bench_chol_csc`
+2. Keep the first batch limited to stable per-row identity/category/scenario
+   fields rather than broad schema churn.
+3. Update benchmark-local docs only where the new fields need explanation.
+4. Run the required benchmark-governance validation gate and inspect retained
+   benchmark output.
+
+### Findings
+
+#### 1. The first normalization slice can stay narrow because the direct canonical surfaces were already structurally close
+
+Before Day 8:
+
+- `bench_refactor_csc` already emitted stable CSV timing and residual fields
+- `bench_chol_csc` already emitted stable CSV timing, residual, and path fields
+- the main missing governance fields were:
+  - stable benchmark identity
+  - stable category
+  - stable scenario/workflow naming
+
+Interpretation:
+
+- the first batch did not need a broad format rewrite
+- it only needed to add the missing governance fields on the direct canonical
+  CSV surfaces
+
+#### 2. The landed normalized direct schema now has stable identity, category, and scenario fields
+
+The Day 8 batch now makes both direct canonical CSV surfaces start with:
+
+- `benchmark`
+- `category`
+- `matrix`
+- `scenario`
+
+Landed values are intentionally explicit and stable:
+
+- `bench_refactor_csc`
+  - `benchmark = bench_refactor_csc`
+  - `category = proof`
+  - `scenario = chol_spd | ldlt_kkt`
+- `bench_chol_csc`
+  - `benchmark = bench_chol_csc`
+  - `category = proof`
+  - `scenario = chol_backend_compare`
+
+Interpretation:
+
+- the maintained direct benchmark outputs can now be identified and grouped
+  without relying on binary name or external context
+- the batch stayed compatible with the Day 5 normalization contract:
+  - timing fields stayed `_ms`
+  - path/backend identity fields stayed explicit where relevant
+  - speedup and residual fields stayed unchanged where their meaning was
+    already stable
+
+#### 3. The batch stayed inside the Day 7 fence
+
+Touched implementation surfaces:
+
+- `benchmarks/bench_refactor_csc.c`
+- `benchmarks/bench_chol_csc.c`
+
+Touched benchmark-local docs:
+
+- `benchmarks/README.md`
+
+Not touched:
+
+- `benchmarks/bench_iterative_reuse.c`
+- `benchmarks/bench_eigs_reuse.c`
+- `README.md`
+- `docs/maintainer_guide.md`
+- solver implementation files
+- proof tests
+- CI/build wiring
+
+Interpretation:
+
+- the first output batch stayed on the direct canonical lane only
+- the later canonical-surface consolidation and solver-efficiency batches
+  remain clearly separated
+
+#### 4. Validation and retained output checks stayed clean
+
+Because benchmark `*.c` files changed, the Day 8 validation gate was:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All passed.
+
+The maintained reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 686.65 sec`
+
+The retained benchmark-proof spot checks were:
+
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `./build/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+
+Representative retained normalized rows are now:
+
+- `bench_refactor_csc,proof,nos4.mtx,chol_spd,100,594,0.622,0.340,0.205,0.014,0.009,1.66,8.24e-16,7.06e-16`
+- `bench_chol_csc,proof,nos4.mtx,chol_backend_compare,100,594,scalar,supernodal,builtin,3.252,1.076,0.597,0.017,0.007,0.006,3.02,5.45,7.06e-16,5.89e-16,5.89e-16`
+
+### Day 8 Close
+
+Sprint 65 now has:
+
+- the first normalized canonical output slice landed on the direct benchmark
+  lane
+- stable `benchmark` / `category` / `scenario` fields on both direct canonical
+  CSV surfaces
+- benchmark-local documentation aligned to the new fields
+- the iterative/eigensolver canonical normalization batch still cleanly
+  deferred to Day 9

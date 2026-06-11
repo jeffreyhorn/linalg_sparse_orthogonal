@@ -30,7 +30,7 @@
  *   explicitly instead of re-entering the public one-shot wrapper path
  *
  * Output is CSV on stdout:
- *   matrix,workflow,n,nnz,analyze_ms,
+ *   benchmark,category,matrix,scenario,n,nnz,analyze_ms,
  *   refactor_public_ms,refactor_csc_ms,
  *   solve_public_ms,solve_csc_ms,
  *   speedup_refactor,res_public,res_csc
@@ -176,13 +176,13 @@ static sparse_err_t perturb_kkt_values_in_place(SparseMatrix *A, idx_t n_top, id
     return SPARSE_OK;
 }
 
-static void emit_csv_row(const char *matrix, const char *workflow, idx_t n, idx_t nnz,
+static void emit_csv_row(const char *matrix, const char *scenario, idx_t n, idx_t nnz,
                          double analyze_ms, double refactor_public_ms, double refactor_csc_ms,
                          double solve_public_ms, double solve_csc_ms, double speedup,
                          double res_public, double res_csc) {
-    printf("%s,%s,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2e,%.2e\n", matrix, workflow, (int)n,
-           (int)nnz, analyze_ms, refactor_public_ms, refactor_csc_ms, solve_public_ms, solve_csc_ms,
-           speedup, res_public, res_csc);
+    printf("bench_refactor_csc,proof,%s,%s,%d,%d,%.3f,%.3f,%.3f,%.3f,%.3f,%.2f,%.2e,%.2e\n", matrix,
+           scenario, (int)n, (int)nnz, analyze_ms, refactor_public_ms, refactor_csc_ms,
+           solve_public_ms, solve_csc_ms, speedup, res_public, res_csc);
 }
 
 /* SPD / Cholesky matrix runner: analyze once, refactor N times, emit one CSV row. */
@@ -593,7 +593,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    printf("matrix,workflow,n,nnz,analyze_ms,"
+    printf("benchmark,category,matrix,scenario,n,nnz,analyze_ms,"
            "refactor_public_ms,refactor_csc_ms,"
            "solve_public_ms,solve_csc_ms,"
            "speedup_refactor,res_public,res_csc\n");

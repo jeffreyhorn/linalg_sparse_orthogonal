@@ -113,8 +113,10 @@ surfaces for the public repeated-run direct lifecycle:
     repeated-run direct lane, not as the error-path contract surface; failed
     refactor preservation stays owned by `tests/test_integration.c`
   - reports CSV rows with:
+    - `benchmark`
+    - `category`
     - `matrix`
-    - `workflow`
+    - `scenario`
     - `analyze_ms`
     - `refactor_public_ms`
     - `refactor_csc_ms`
@@ -131,6 +133,9 @@ first Sprint 64 backend-aware Cholesky CSC lane:
   one fixed AMD-reordered workload so fallback and accelerated paths stay
   comparable
 - each CSV row now also reports:
+  - `benchmark`
+  - `category`
+  - `scenario`
   - `csc_scalar_path`
   - `csc_supernodal_path`
   - `csc_supernodal_dense_kernel`

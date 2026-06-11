@@ -887,3 +887,185 @@ Sprint 65 now has an explicit normalization design before output edits start:
 
 The next step is to convert this design into an exact canonical-surface plan
 and touched-file fence before the first edits land.
+
+## Day 6
+
+**Objective:** Convert the Day 5 taxonomy and normalization design into one
+exact canonical maintained performance surface, one explicit non-canonical
+queue, and one Day 7-10 touched-file fence before implementation starts.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 6 design pass:
+   - `git status --short --branch`
+2. Re-read the current Sprint 65 notes plus the Day 6-8 plan slice:
+   - `sed -n '760,1040p' docs/planning/EPIC_6/SPRINT_65/WORKING_NOTES.md`
+   - `sed -n '220,360p' docs/planning/EPIC_6/SPRINT_65/PLAN.md`
+3. Re-read the Day 5 normalization-design artifact:
+   - `sed -n '1,240p' docs/planning/EPIC_6/SPRINT_65/artifacts/day5-output-and-taxonomy-normalization-design.md`
+4. Re-measure the selected canonical candidates and their nearest solver/proof seams:
+   - `wc -l benchmarks/bench_refactor_csc.c benchmarks/bench_chol_csc.c benchmarks/bench_iterative_reuse.c benchmarks/bench_eigs_reuse.c src/sparse_chol_csc.c src/sparse_chol_csc_supernodal.c src/sparse_ldlt_csc.c src/sparse_ldlt_csc_supernodal.c src/sparse_iterative.c src/sparse_iterative_workspace_internal.c src/sparse_eigs.c src/sparse_eigs_workspace_internal.c tests/test_chol_csc.c tests/test_integration.c tests/test_iterative.c tests/test_eigs.c`
+5. Re-read the live output/identity signals and benchmark-policy wording:
+   - `rg -n "one-shot=|reuse=|speedup=|speedup_refactor|csc_supernodal_dense_kernel|workflow,|matrix,workflow|category|canonical" benchmarks/bench_refactor_csc.c benchmarks/bench_chol_csc.c benchmarks/bench_iterative_reuse.c benchmarks/bench_eigs_reuse.c README.md benchmarks/README.md docs/maintainer_guide.md`
+   - `sed -n '150,340p' benchmarks/bench_iterative_reuse.c`
+   - `sed -n '120,220p' benchmarks/bench_eigs_reuse.c`
+
+### Day 6 Findings
+
+#### 1. The canonical maintained Sprint 65 performance surface should be four benchmark binaries, not the whole proof lane
+
+The exact maintained canonical surface should be:
+
+- `bench_refactor_csc`
+- `bench_chol_csc`
+- `bench_iterative_reuse`
+- `bench_eigs_reuse`
+
+What each canonical surface proves:
+
+- `bench_refactor_csc`
+  - repeated-run direct throughput and CSC follow-through on the maintained
+    analyze-once / factor-many lane
+- `bench_chol_csc`
+  - backend/path identity and bounded Cholesky CSC throughput signal on the
+    first backend-aware lane
+- `bench_iterative_reuse`
+  - repeated-run iterative public-handle efficiency signal
+- `bench_eigs_reuse`
+  - repeated-run eigensolver public-handle efficiency signal
+
+Interpretation:
+
+- Sprint 65’s canonical maintained performance story is now smaller than both
+  the full benchmark catalog and the broader proof lane
+
+#### 2. Important proof surfaces remain real, but intentionally non-canonical
+
+The following should remain proof surfaces without becoming first-tier
+canonical maintained baselines:
+
+- `bench_refactor`
+- `bench_ldlt_csc`
+
+Why:
+
+- `bench_refactor` overlaps substantially with `bench_refactor_csc` while
+  still using a human-readable summary contract
+- `bench_ldlt_csc` remains valuable, but its one-shot native/wrapper versus
+  analyze-once supernodal interpretation is still more complex than the first
+  canonical Cholesky CSC lane
+
+Interpretation:
+
+- Day 7-10 should not widen into these surfaces unless the first selected
+  efficiency target truly forces it
+
+#### 3. The regression-sensitive runtime lane and exploratory queue are now explicitly non-canonical
+
+The explicit non-canonical sets are:
+
+- regression-sensitive runtime:
+  - `bench_scaling`
+  - `bench_fillin`
+  - `bench_colamd`
+  - `bench_reorder --skip-factor`
+  - maybe `bench_amd_qg`
+- exploratory or later:
+  - `bench_main`
+  - `bench_convergence`
+  - `bench_svd`
+  - `bench_bicgstab`
+  - `bench_eigs`
+  - broader `bench_reorder`
+
+Interpretation:
+
+- Sprint 65 should normalize and document these roles, but it should not make
+  them the first maintained performance-baseline batch
+
+#### 4. The Day 7-10 touched-file fence is now explicit
+
+Required first-batch benchmark/doc surfaces:
+
+- `benchmarks/bench_refactor_csc.c`
+- `benchmarks/bench_chol_csc.c`
+- `benchmarks/bench_iterative_reuse.c`
+- `benchmarks/bench_eigs_reuse.c`
+- `benchmarks/README.md`
+- `README.md`
+- `docs/maintainer_guide.md`
+
+Likely proof surfaces if output or efficiency follow-through requires them:
+
+- `tests/test_chol_csc.c`
+- `tests/test_integration.c`
+- `tests/test_iterative.c`
+- `tests/test_eigs.c`
+
+Likely solver/hotspot surfaces if the first efficiency target lands on the
+direct repeated-run or backend-aware path:
+
+- `src/sparse_chol_csc.c`
+- `src/sparse_chol_csc_supernodal.c`
+
+Conditional only if the chosen efficiency target forces them:
+
+- `src/sparse_iterative.c`
+- `src/sparse_iterative_workspace_internal.c`
+- `src/sparse_eigs.c`
+- `src/sparse_eigs_workspace_internal.c`
+- `src/sparse_ldlt_csc.c`
+- `src/sparse_ldlt_csc_supernodal.c`
+
+Interpretation:
+
+- the first implementation batch is now bounded enough to land without
+  widening into the full benchmark catalog or every large solver file
+
+#### 5. The first solver-efficiency shortlist now emerges from the benchmark audit instead of assumption
+
+The ranked shortlist is:
+
+1. direct repeated-run CSC/Cholesky follow-through
+   - strongest evidence surfaces:
+     - `bench_refactor_csc`
+     - `bench_chol_csc`
+   - likely touched solver seams:
+     - `src/sparse_chol_csc.c`
+     - `src/sparse_chol_csc_supernodal.c`
+   - strongest proof homes:
+     - `tests/test_integration.c`
+     - `tests/test_chol_csc.c`
+2. iterative public-handle reuse follow-through
+   - strongest evidence surface:
+     - `bench_iterative_reuse`
+   - likely touched solver seams:
+     - `src/sparse_iterative.c`
+     - `src/sparse_iterative_workspace_internal.c`
+   - proof home:
+     - `tests/test_iterative.c`
+3. eigensolver public-handle reuse follow-through
+   - strongest evidence surface:
+     - `bench_eigs_reuse`
+   - likely touched solver seams:
+     - `src/sparse_eigs.c`
+     - `src/sparse_eigs_workspace_internal.c`
+   - proof home:
+     - `tests/test_eigs.c`
+
+Interpretation:
+
+- the direct repeated-run CSC/Cholesky lane is the strongest first candidate
+  because two canonical benchmark surfaces already point at it and the solver
+  proof burden is narrower than the iterative/eigensolver workspace stories
+
+### Day 6 Close
+
+Sprint 65 now has an exact canonical-surface plan before implementation
+begins:
+
+- one four-binary maintained canonical performance surface
+- one explicit non-canonical proof/runtime/exploratory split
+- one exact Day 7-10 touched-file fence
+- one ranked solver-efficiency shortlist led by the direct repeated-run
+  CSC/Cholesky lane

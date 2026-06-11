@@ -176,6 +176,10 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat);
  * This remains a one-shot entry point; the repeated-run direct path is the
  * shared analysis/factor/refactor API in `sparse_analysis.h`. Invalid reorder
  * or backend enums are rejected before reorder or factor mutation begins.
+ * When opts->used_csc_path is non-NULL, the resolved CSC-dispatch decision is
+ * published after backend selection even if a later error prevents
+ * factorization from running to completion, so that field reports the chosen
+ * path rather than successful completion of that path.
  * Reordered one-shot attempts may factor a temporary reordered working copy
  * and publish that payload back to `mat` only after success, so cancelled or
  * failed reordered attempts leave the caller-owned matrix in its original

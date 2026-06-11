@@ -184,6 +184,10 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat);
  * and publish that payload back to `mat` only after success, so cancelled or
  * failed reordered attempts leave the caller-owned matrix in its original
  * coordinate space.
+ * On the CSC supernodal lane, `SPARSE_ERR_BACKEND_CONTRACT` is reserved for
+ * the bounded Sprint 64 backend-aware dense-kernel seam: the caller request
+ * was otherwise valid, but the selected internal dense-kernel descriptor or a
+ * required callback could not be resolved.
  *
  * @return SPARSE_OK on success.
  * @return SPARSE_ERR_NULL if mat or opts is NULL.
@@ -191,6 +195,8 @@ sparse_err_t sparse_cholesky_factor(SparseMatrix *mat);
  * @return SPARSE_ERR_BADARG if opts->reorder or opts->backend is invalid, or
  *         if mat is already factored / reordered / permuted.
  * @return SPARSE_ERR_NOT_SPD if the matrix is not symmetric positive-definite.
+ * @return SPARSE_ERR_BACKEND_CONTRACT if the CSC supernodal lane cannot
+ *         resolve its required internal dense-kernel descriptor or callback.
  * @return SPARSE_ERR_ALLOC if a required allocation fails.
  * @return SPARSE_ERR_CANCELLED if the linked-list backend progress callback
  *         cancels the factorization.

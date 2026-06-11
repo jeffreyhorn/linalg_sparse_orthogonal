@@ -1676,3 +1676,137 @@ Sprint 64 Day 11 now hands off a smaller final queue:
   CSV surface
 - Day 12 can stay focused on any remaining bounded regression/docs/maintainer
   follow-through instead of reopening benchmark proof questions
+
+## Day 12
+
+**Objective:** Close the remaining bounded public-header, README, and
+maintainer-story gaps around the Sprint 64 backend-aware Cholesky CSC lane so
+the new benchmark/output truth and the new public error taxonomy read
+coherently across maintained surfaces.
+
+### Commands Run
+
+1. Re-read the Day 12 sprint fence and the current touched surfaces:
+   - `sed -n '420,520p' docs/planning/EPIC_6/SPRINT_64/PLAN.md`
+   - `sed -n '150,215p' include/sparse_cholesky.h`
+   - `sed -n '280,335p' docs/maintainer_guide.md`
+   - `sed -n '520,590p' README.md`
+   - `sed -n '80,155p' benchmarks/README.md`
+2. Land the bounded follow-through batch:
+   - `include/sparse_cholesky.h`
+   - `docs/maintainer_guide.md`
+   - `README.md`
+3. Run the required code-day validation gate because a public header changed:
+   - `make format`
+   - `make lint`
+   - `make test`
+4. Recheck touched-surface alignment:
+   - `rg -n "SPARSE_ERR_BACKEND_CONTRACT|csc_supernodal_dense_kernel|bench_chol_csc|builtin|supernodal" README.md docs/maintainer_guide.md benchmarks/README.md include/sparse_cholesky.h include/sparse_types.h`
+   - `git diff -- README.md docs/maintainer_guide.md benchmarks/README.md include/sparse_cholesky.h`
+
+### Day 12 Findings
+
+#### 1. The remaining contradiction was public/header interpretation, not more kernel or benchmark work
+
+After Day 11, the repo already had:
+
+- the backend-aware dense-kernel seam
+- family-local error-path proof
+- benchmark-side path measurability
+
+The strongest remaining gap was narrower:
+
+- `SPARSE_ERR_BACKEND_CONTRACT` existed publicly
+- `bench_chol_csc` exposed the active dense-kernel descriptor publicly
+- but the affected public/header and maintainer-facing interpretation surfaces
+  did not yet explain how those fit together
+
+Interpretation:
+
+- Day 12 did not need more implementation work
+- it needed one bounded cross-surface truthfulness pass
+
+#### 2. The public Cholesky header now states the shipped backend-contract lane directly
+
+`include/sparse_cholesky.h` now makes two things explicit for
+`sparse_cholesky_factor_opts(...)`:
+
+- the CSC supernodal lane can surface `SPARSE_ERR_BACKEND_CONTRACT`
+- that code is reserved for the bounded Sprint 64 backend-aware dense-kernel
+  seam, not for ordinary caller misuse
+
+Interpretation:
+
+- callers now have the real API-local contract at the call site
+- the error taxonomy no longer depends on maintainers remembering a sprint note
+
+#### 3. The README and maintainer guide now align on what Sprint 64 actually landed
+
+`README.md` now teaches the bounded backend-aware Cholesky CSC story at the
+existing transparent-dispatch adoption point:
+
+- `bench_chol_csc` reports:
+  - `csc_scalar_path`
+  - `csc_supernodal_path`
+  - `csc_supernodal_dense_kernel`
+- the default build reports:
+  - `scalar`
+  - `supernodal`
+  - `builtin`
+- `SPARSE_ERR_BACKEND_CONTRACT` is the public error code if that internal
+  supernodal dense-kernel seam cannot resolve its required descriptor/callback
+
+`docs/maintainer_guide.md` now owns the narrower policy interpretation:
+
+- Sprint 64 is still a bounded CSC supernodal Cholesky lane, not a general
+  backend framework
+- `bench_chol_csc` is the maintained benchmark-side proof surface for this
+  lane
+- `SPARSE_ERR_BACKEND_CONTRACT` should stay narrow and should not be collapsed
+  back into `SPARSE_ERR_BADARG`
+- the deferred backend queue remains future-facing instead of implied solved
+
+#### 4. The Day 12 batch stayed tightly bounded
+
+The landed Day 12 batch did not widen into:
+
+- `src/`
+- benchmark binaries
+- tests beyond the required validation gate
+- `CMakeLists.txt`
+- `Makefile`
+- LDL^T / QR / SVD follow-through
+
+Touched surfaces stayed bounded to:
+
+- `include/sparse_cholesky.h`
+- `README.md`
+- `docs/maintainer_guide.md`
+
+Interpretation:
+
+- Sprint 64 now has one coherent public/maintainer narrative for the backend
+  lane without inflating the sprint into broader architecture marketing
+
+#### 5. Validation completed cleanly for the bounded header/docs follow-through
+
+Ran:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Result:
+
+- all passed
+
+### Day 12 Close
+
+Sprint 64 Day 12 now leaves a smaller final queue:
+
+- the backend-aware Cholesky CSC lane is described coherently across the
+  public header, README, benchmark docs, and maintainer policy surface
+- the benchmark proof and public error taxonomy no longer rely on sprint-local
+  interpretation
+- Day 13 can proceed from a cleaner validated-surface story instead of
+  lingering docs/header drift

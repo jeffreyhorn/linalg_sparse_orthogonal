@@ -1103,3 +1103,188 @@ widening the sprint:
   retry
 - the batch stayed inside `src/sparse_cholesky.c` plus header truthfulness,
   integration proof, and family-local CSC proof
+
+## Day 8 - 2026-06-10
+
+### Goal
+
+Re-rank the remaining Sprint 63 lifecycle queue from the landed Day 6-7 branch
+state instead of from the pre-landing audit, then fix the exact Day 9-10
+target for the next implementation slice.
+
+### What I reviewed
+
+I re-read the live direct-lifecycle seams across:
+
+- `src/sparse_lu.c`
+- `src/sparse_cholesky.c`
+- `src/sparse_ldlt.c`
+- `src/sparse_analysis.c`
+- `src/sparse_chol_csc.c`
+- `src/sparse_ldlt_csc.c`
+- `tests/test_integration.c`
+- `tests/test_sparse_lu.c`
+- `tests/test_chol_csc.c`
+- `tests/test_ldlt.c`
+- `tests/test_ldlt_csc.c`
+- `examples/example_analysis.c`
+- `benchmarks/bench_refactor.c`
+
+I also rechecked the public truth surfaces in:
+
+- `include/sparse_analysis.h`
+- `include/sparse_lu.h`
+- `include/sparse_cholesky.h`
+- `include/sparse_ldlt.h`
+- `README.md`
+- `docs/tutorial.md`
+- `docs/maintainer_guide.md`
+
+### Main result
+
+After the Day 6-7 landings, Sprint 63 no longer has a broad wrapper-entry
+problem.
+
+The strongest remaining queue is now narrower and more specific:
+
+1. shared public lifecycle solve/refactor semantics
+2. large-`n` CSC-backed Cholesky lifecycle failure-path proof
+3. docs/example/benchmark follow-through only after the semantics lane is fixed
+4. LDL^T remains a lower-priority comparison surface, not the next target
+
+### Why the queue changed
+
+#### 1. LU is no longer the strongest remaining lifecycle seam
+
+The Day 6 batch closed the highest-value LU wrapper contradiction:
+
+- invalid pivot is rejected deterministically
+- rejection happens before mutation
+- preserved-state retry behavior is explicit and tested
+
+That means LU is no longer the best next implementation target unless a later
+solve/refactor semantics pass proves it needs small follow-through.
+
+#### 2. The Day 7 Cholesky CSC dispatch seam is materially reduced
+
+The Day 7 batch closed the highest-value Cholesky CSC wrapper asymmetry:
+
+- invalid backend now rejects explicitly
+- CSC dispatch is selected once
+- `used_csc_path` is published before later failures
+
+That leaves Cholesky less as a wrapper-entry problem and more as a shared
+lifecycle semantics / proof problem.
+
+#### 3. The strongest remaining hole now sits in the shared lifecycle layer
+
+The live code now points to `src/sparse_analysis.c` as the highest-leverage
+remaining Sprint 63 seam.
+
+What is already true:
+
+- `sparse_factor_numeric(...)` factors into temporary storage and only replaces
+  the caller `factors` object after success
+- `sparse_refactor_numeric(...)` validates the existing factor object, factors
+  into a temporary, and preserves old factors on error
+- `tests/test_integration.c` already proves:
+  - zeroed-factor solve rejection
+  - mismatched-analysis solve rejection with preserved factors
+  - zeroed-factor refactor acceptance
+  - mismatched-existing-factor refactor rejection
+  - old-factor preservation on refactor failure
+  - same-pattern Cholesky public-lifecycle parity against one-shot factorization
+
+What is still uneven:
+
+- the strongest refactor-failure preservation proof is still concentrated in:
+  - sub-threshold linked-list Cholesky (`n = 40`)
+  - large-`n` LDL^T (`n = 150`) on the indefinite KKT path
+- the large-`n` Cholesky public lifecycle path is already proven on success
+  (`n = 120`), but its CSC-backed failure/retention semantics are not yet
+  pinned with the same strength
+- `example_analysis.c` and `bench_refactor.c` correctly describe successful
+  same-pattern reuse, but they are not proof surfaces for failure-path
+  retention semantics
+
+That makes the remaining Sprint 63 problem a solve/refactor semantics problem,
+not another wrapper-entry cleanup.
+
+### Updated rank order
+
+#### 1. Strongest next target: shared direct lifecycle semantics on the CSC-backed Cholesky lane
+
+This is now the best Day 9-10 target because it sits at the intersection of:
+
+- public repeated-run direct lifecycle truthfulness
+- CSC-backed direct follow-through
+- factor-retention semantics
+- already-existing high-signal proof homes
+
+The specific hole is:
+
+- success parity for large-`n` Cholesky public lifecycle is already explicit
+- failure-path retention semantics for that same CSC-backed lane are not yet as
+  explicit as the linked-list Cholesky and large-`n` LDL^T lanes
+
+#### 2. Secondary target: bounded docs/header/example follow-through
+
+This remains real, but it should only move after the next semantics slice is
+landed. The current docs already say the right high-level workflow story; the
+remaining issue is precision around what reuse preserves and what failure
+retains.
+
+#### 3. Deferred target: LDL^T follow-through
+
+LDL^T is no longer the next best Sprint 63 code target:
+
+- it already has large-`n` public lifecycle same-pattern and failure-preserve
+  proof on the KKT path
+- its CSC dispatch/result semantics were already tighter than Cholesky before
+  Day 7
+
+That leaves LDL^T in the comparison/deferred lane unless the next pass exposes
+an actual contradiction.
+
+### Exact Day 9 target
+
+The next design batch should focus on one bounded shared-lifecycle semantics
+question:
+
+- how should Sprint 63 pin large-`n` CSC-backed Cholesky
+  `factor` / `refactor` / `solve` retention semantics so they read as one
+  coherent public direct lifecycle?
+
+The likely touched-file fence is now:
+
+- required:
+  - `src/sparse_analysis.c`
+  - `tests/test_integration.c`
+- likely header truth follow-through only if the landed semantics move it:
+  - `include/sparse_analysis.h`
+- optional only if family-local proof burden forces it:
+  - `tests/test_chol_csc.c`
+  - `examples/example_analysis.c`
+  - `benchmarks/bench_refactor.c`
+
+### Explicit non-targets after Day 8
+
+The post-landing audit also makes the non-targets clearer:
+
+- no reopening LU one-shot semantics unless the shared lifecycle pass exposes a
+  real regression
+- no broad LDL^T widening for symmetry
+- no benchmark-governance or packaging/platform spillover
+- no general docs cleanup while the remaining semantics lane is still moving
+
+### Day 8 Close
+
+Sprint 63 Day 8 reduces the remaining queue to one concrete implementation
+question instead of one generic “more lifecycle uniformity” bucket:
+
+- LU wrapper follow-through is no longer the strongest remaining seam
+- Cholesky CSC dispatch follow-through is no longer the strongest remaining seam
+- the strongest remaining work is now shared direct lifecycle
+  solve/refactor semantics on the large-`n` CSC-backed Cholesky lane
+- Day 9 can proceed from the landed branch state with an exact touched-file
+  fence and a smaller deferred queue

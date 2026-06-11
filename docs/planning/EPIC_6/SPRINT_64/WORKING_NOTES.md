@@ -196,3 +196,135 @@ baseline:
   explicit
 - the next step is to rank those live hotspots precisely before writing the
   bounded backend abstraction design
+
+## Day 2
+
+**Objective:** Freeze the validation and truthfulness baseline that Sprint 64
+backend, build-option, and kernel implementation work must preserve before the
+sprint moves into the deeper hotspot audit.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 2 pass:
+   - `git status --short --branch`
+2. Re-read the current Sprint 64 notes plus the Day 2 plan slice:
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_64/WORKING_NOTES.md`
+   - `sed -n '80,160p' docs/planning/EPIC_6/SPRINT_64/PLAN.md`
+3. Re-read the strongest inherited Day 2 shape from Sprint 63:
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_63/artifacts/day2-validation-baseline-and-touched-surface-recheck.md`
+4. Reconfirm the inherited reviewed CMake baseline:
+   - `ctest -N --test-dir build/quality-review-cmake`
+5. Reconfirm the current maintained reviewed wrapper surface:
+   - `make -n quality-review-full`
+6. Re-read the current quality/truthfulness wording:
+   - `rg -n "quality-review-full|quality-review-cmake|deadcode|Windows|macOS|Linux|coverage" README.md docs/maintainer_guide.md Makefile .github/workflows`
+7. Confirm the Sprint 64 targeted rerun-set presence in the live build tree:
+   - `for f in ./build/test_integration ./build/test_chol_csc ./build/test_ldlt_csc ./build/test_cholesky ./build/test_ldlt ./build/test_sparse_lu ./build/test_qr ./build/test_svd ./build/example_analysis ./build/example_basic_solve ./build/example_ldlt ./build/example_svd_lowrank ./build/bench_refactor ./build/bench_refactor_csc ./build/bench_chol_csc ./build/bench_ldlt_csc ./build/bench_eigs_reuse ./build/bench_iterative_reuse; do [ -x "$f" ] && echo "present $f" || echo "missing $f"; done`
+
+### Day 2 Findings
+
+#### 1. The strongest local reviewed baseline is still `make quality-review-full`
+
+Sprint 64 inherits the same authoritative local validation command as the
+Sprint 63 close state:
+
+- `make quality-review-full`
+
+That remains the strongest local reviewed baseline because it preserves both:
+
+- the reviewed Makefile path
+- the reviewed CMake parity path
+
+#### 2. The reviewed CMake parity count is still the main numerical truthfulness anchor
+
+The current reviewed CMake inventory remains:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+
+That count still matters because it is the simplest exact proof that:
+
+- the reviewed CMake path still sees the maintained local full test surface
+- Makefile/CMake parity has not drifted silently
+
+#### 3. The current code-day gate versus stronger reviewed baseline split is stable
+
+The maintained split is:
+
+- bounded `*.c` / `*.h` days:
+  - `make format`
+  - `make lint`
+  - `make test`
+- stronger default for substantial backend, build-option, or
+  performance-sensitive work:
+  - `make quality-review-full`
+- docs-only days:
+  - no automatic code-quality gate required
+  - use targeted sanity checks instead
+
+That remains consistent with the repo’s current Sprint 63 close discipline and
+does not need reinterpretation on Sprint 64 Day 2.
+
+#### 4. The current quality/platform story is coherent across README, maintainer guide, Makefile, and workflows
+
+The main maintained surfaces still agree on the current contract:
+
+- Linux remains the enforced reviewed source-of-truth path
+- macOS remains reviewed but narrower, with dead-code still staged
+- Windows keeps the reviewed CMake subset enforced while the broader Makefile
+  reviewed wrappers stay staged
+- coverage remains a supplemental signal, not an active reviewed-baseline
+  residual
+- dead-code remains serialized and separate from the core format/lint/test
+  gate
+
+That means Sprint 64 can proceed from a stable truthfulness contract rather
+than needing a wording-reconciliation batch just to start backend or build
+implementation work.
+
+#### 5. The targeted Sprint 64 rerun set is present and aligned to the actual backend-risk surface
+
+The confirmed rerun set is:
+
+- direct lifecycle and CSC proof surfaces:
+  - `./build/test_integration`
+  - `./build/test_chol_csc`
+  - `./build/test_ldlt_csc`
+  - `./build/test_cholesky`
+  - `./build/test_ldlt`
+  - `./build/test_sparse_lu`
+- adjacent dense-kernel and factor/spectral proof sentinels:
+  - `./build/test_qr`
+  - `./build/test_svd`
+- representative examples:
+  - `./build/example_analysis`
+  - `./build/example_basic_solve`
+  - `./build/example_ldlt`
+  - `./build/example_svd_lowrank`
+- representative workflow benchmarks:
+  - `./build/bench_refactor`
+  - `./build/bench_refactor_csc`
+  - `./build/bench_chol_csc`
+  - `./build/bench_ldlt_csc`
+  - `./build/bench_eigs_reuse`
+  - `./build/bench_iterative_reuse`
+
+Interpretation:
+
+- Sprint 64 already has a concrete validation surface that matches the actual
+  backend-risk concentration
+- CSC and supernodal work already has natural family-local proof homes
+- the benchmark rerun set is strong enough to support bounded backend proof
+  without widening into broad benchmark-governance work
+
+### Day 2 Close
+
+Sprint 64 now has one explicit validation contract before backend code changes
+begin:
+
+- `make quality-review-full` remains the strongest local reviewed baseline
+- the reviewed CMake parity anchor remains exact at `53`
+- the maintained quality/platform story is coherent across the live repo
+  surfaces
+- the targeted Sprint 64 rerun set is fixed and present in `build/`
+- the next step is the deeper hotspot audit that ranks dense-kernel,
+  supernodal, and related build/proof seams before design or code work lands

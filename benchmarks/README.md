@@ -124,6 +124,25 @@ surfaces for the public repeated-run direct lifecycle:
     - `res_public`
     - `res_csc`
 
+`bench_chol_csc` remains the maintained benchmark-side proof surface for the
+first Sprint 64 backend-aware Cholesky CSC lane:
+
+- it still compares linked-list, CSC scalar, and CSC supernodal timings on
+  one fixed AMD-reordered workload so fallback and accelerated paths stay
+  comparable
+- each CSV row now also reports:
+  - `csc_scalar_path`
+  - `csc_supernodal_path`
+  - `csc_supernodal_dense_kernel`
+- the path columns stay intentionally stable at:
+  - `scalar`
+  - `supernodal`
+- `csc_supernodal_dense_kernel` identifies the active dense-kernel descriptor
+  behind the supernodal lane; on the current default build it reports
+  `builtin`
+- this keeps the Sprint 64 benchmark refresh bounded to path measurability and
+  truthfulness, not broad benchmark-governance churn
+
 The two reuse benchmarks stay intentionally narrow and should be read as public
 handle-path proof surfaces, not broad solver bake-offs:
 

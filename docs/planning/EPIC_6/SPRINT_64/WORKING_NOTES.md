@@ -1530,3 +1530,149 @@ Sprint 64 Day 10 now hands off a much smaller queue:
   pointer paths directly
 - the next work can stay focused on whether benchmark or maintainer/docs
   follow-through is actually justified from the landed semantics
+
+## Day 11
+
+**Objective:** Refresh the maintained benchmark proof surface for the landed
+Sprint 64 Cholesky CSC backend-aware path so the benchmark output identifies
+the active dense-kernel descriptor directly without widening into broad
+benchmark-governance work.
+
+### Commands Run
+
+1. Re-read the Day 11 sprint fence and the landed Day 10 backend seam:
+   - `sed -n '300,390p' docs/planning/EPIC_6/SPRINT_64/PLAN.md`
+   - `sed -n '650,730p' src/sparse_chol_csc_internal.h`
+   - `sed -n '390,460p' src/sparse_chol_csc_supernodal.c`
+   - `sed -n '3840,3965p' tests/test_chol_csc.c`
+   - `sed -n '1,260p' benchmarks/bench_chol_csc.c`
+   - `sed -n '1,240p' benchmarks/README.md`
+2. Land the bounded benchmark refresh:
+   - `benchmarks/bench_chol_csc.c`
+   - `benchmarks/README.md`
+3. Run the required code-day validation gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+4. Re-run the selected benchmark proof set:
+   - `./build/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+   - `./build/bench_chol_csc tests/data/suitesparse/bcsstk04.mtx --repeat 1`
+   - `./build/bench_chol_csc --small-corpus --repeat 1 | head -n 6`
+
+### Day 11 Findings
+
+#### 1. The strongest remaining benchmark gap was path measurability, not another timing column
+
+Before the Day 11 batch, `bench_chol_csc` already exposed:
+
+- linked-list timing
+- CSC scalar timing
+- CSC supernodal timing
+- residuals for all three
+
+What it did not expose was the active dense-kernel descriptor behind the new
+Sprint 64 backend-aware supernodal lane.
+
+Interpretation:
+
+- the maintained benchmark surface could show supernodal timing
+- but it could not prove which dense-kernel descriptor backed that lane on the
+  actual run
+- the right Day 11 refresh was a narrow output-surface addition, not new
+  benchmark workflows
+
+#### 2. `bench_chol_csc` now identifies the maintained scalar lane, supernodal lane, and active dense-kernel descriptor explicitly
+
+The benchmark CSV now adds three path-identification fields:
+
+- `csc_scalar_path`
+- `csc_supernodal_path`
+- `csc_supernodal_dense_kernel`
+
+The shipped default values are now explicit in the maintained proof surface:
+
+- `csc_scalar_path = scalar`
+- `csc_supernodal_path = supernodal`
+- `csc_supernodal_dense_kernel = builtin`
+
+Interpretation:
+
+- the benchmark can now show that the maintained fallback lane is still the
+  scalar CSC path
+- the benchmark can now show that the accelerated lane is the supernodal path
+- the benchmark can now show which dense-kernel descriptor backed the
+  supernodal lane for the reported numbers
+
+#### 3. The benchmark refresh stayed inside the bounded Sprint 64 fence
+
+The landed Day 11 batch did not widen into:
+
+- `tests/test_integration.c`
+- `tests/test_chol_csc.c`
+- `src/sparse_chol_csc_supernodal.c`
+- `src/sparse_dense.c`
+- `CMakeLists.txt`
+- `Makefile`
+- benchmark-governance policy rewrites
+
+Touched surfaces stayed bounded to:
+
+- `benchmarks/bench_chol_csc.c`
+- `benchmarks/README.md`
+
+Interpretation:
+
+- Day 11 is a benchmark proof refresh, not another backend-implementation
+  sprint inside the sprint
+- the measured path now reads truthfully without widening the kernel or build
+  contract
+
+#### 4. The refreshed benchmark output is now concrete and representative
+
+Representative retained outputs:
+
+- `./build/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+  - `nos4.mtx,100,594,scalar,supernodal,builtin,0.800,1.024,0.715,0.010,0.010,0.005,0.78,1.12,7.06e-16,5.89e-16,5.89e-16`
+- `./build/bench_chol_csc tests/data/suitesparse/bcsstk04.mtx --repeat 1`
+  - `bcsstk04.mtx,132,3648,scalar,supernodal,builtin,4.375,4.144,4.347,0.047,0.023,0.018,1.06,1.01,6.05e-16,1.06e-15,9.08e-16`
+- `./build/bench_chol_csc --small-corpus --repeat 1 | head -n 6`
+  - header plus small-corpus rows now all carry `scalar,supernodal,builtin`
+
+Interpretation:
+
+- the benchmark proof surface now demonstrates the active dense-kernel
+  descriptor directly on both SuiteSparse and threshold-retrospective rows
+- the timing columns remain comparable because the refreshed fields only add
+  identification, not a new measurement mode
+
+#### 5. Validation completed cleanly for the bounded benchmark-surface change
+
+Ran:
+
+- `make format`
+- `make lint`
+- `make test`
+
+Result:
+
+- all passed
+
+Day 11 note:
+
+- this was a bounded benchmark-surface refresh on a benchmark-only `*.c`
+  binary plus benchmark docs
+- I did not rerun `make quality-review-full` because the Day 11 batch did not
+  change library implementation, public headers, build wiring, or fallback
+  semantics; the required code-day gate plus the refreshed benchmark proof set
+  were sufficient for this slice
+
+### Day 11 Close
+
+Sprint 64 Day 11 now hands off a smaller final queue:
+
+- the maintained benchmark proof surface for the first backend-aware Cholesky
+  CSC lane now identifies the active dense-kernel descriptor directly
+- fallback and accelerated CSC lanes remain measurable and comparable in one
+  CSV surface
+- Day 12 can stay focused on any remaining bounded regression/docs/maintainer
+  follow-through instead of reopening benchmark proof questions

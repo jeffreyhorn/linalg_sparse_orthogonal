@@ -935,3 +935,139 @@ Sprint 64 now has an exact build/options wiring plan before implementation:
 - `CMakeLists.txt` and `Makefile` are conditional support surfaces, not
   mandatory first-batch edits
 - the Day 7-10 implementation fence is explicit before code moves
+
+## Day 7
+
+**Objective:** Convert the abstraction and option design into the exact
+touched-file and proof plan for the first Sprint 64 code batch.
+
+### Commands Run
+
+1. Re-read the Day 7-9 sprint-plan slice plus the landed Day 5-6 contracts:
+   - `sed -n '260,360p' docs/planning/EPIC_6/SPRINT_64/PLAN.md`
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_64/artifacts/day5-backend-abstraction-contract-design.md`
+   - `sed -n '1,260p' docs/planning/EPIC_6/SPRINT_64/artifacts/day6-build-option-surface-design.md`
+2. Re-read the live family-local and public proof homes around the selected lane:
+   - `sed -n '3750,3895p' tests/test_chol_csc.c`
+   - `sed -n '1760,1945p' tests/test_integration.c`
+3. Re-read the maintained benchmark proof surface:
+   - `sed -n '1,280p' benchmarks/bench_chol_csc.c`
+
+### Day 7 Findings
+
+#### 1. The Day 8 implementation batch should stay centered on the supernodal Cholesky kernel file
+
+The selected first code batch should keep one clear implementation center:
+
+- `src/sparse_chol_csc_supernodal.c`
+
+Interpretation:
+
+- Day 8 should land the first backend-aware kernel slice there first
+- `src/sparse_dense.c` should only move if the selected kernel change actually
+  needs bounded helper support
+- `src/sparse_chol_csc.c` should only move if the implementation truly needs a
+  small dispatch or contract bridge
+
+#### 2. Regression proof and benchmark proof are now explicitly separated
+
+The live proof surfaces already split cleanly enough for the first landing:
+
+- family-local correctness:
+  - `tests/test_chol_csc.c`
+- public lifecycle/non-regression:
+  - `tests/test_integration.c`
+- benchmark proof:
+  - `benchmarks/bench_chol_csc.c`
+
+Interpretation:
+
+- Day 8 should use `tests/test_chol_csc.c` for kernel-local equivalence,
+  fallback, and error-path checks
+- Day 8 should use `tests/test_integration.c` only for the smallest public
+  contract proof if the landed semantics cross the family boundary
+- Day 8 should not widen benchmark proof into benchmark-governance work
+
+#### 3. The minimum viable fallback-preserve contract is now fixed
+
+The first backend-aware landing does not need to solve every backend/fallback
+question in Sprint 64.
+
+The minimum viable fallback-preserve rule is:
+
+- the default self-contained path remains authoritative
+- any new helper-backed or backend-aware fast path must preserve scalar CSC and
+  current supernodal correctness where the same matrix lands on the same
+  public workflow
+- failure or unsupported-path behavior must remain explicit and non-silent
+
+Interpretation:
+
+- the first landing should prefer bounded equivalence/fallback proof over broad
+  new dispatch policy
+- Day 9 should audit any remaining missing truthfulness around selection or
+  fallback after the code lands
+
+#### 4. The minimum viable benchmark signal is now explicit
+
+The maintained benchmark surface already provides the right first proof shape:
+
+- linked-list baseline
+- CSC scalar comparison lane
+- CSC supernodal comparison lane
+- comparable factor/solve timing columns
+- residual checks
+
+Interpretation:
+
+- Day 8 does not need a new benchmark format
+- Day 11 can refresh the benchmark proof surface only if the landed kernel path
+  needs one or two extra signal fields to show:
+  - selected path used
+  - fallback path preserved
+  - performance comparison still interpretable
+
+#### 5. The Day 8 and Day 9-12 fence is now exact
+
+Day 8 first code-batch fence:
+
+- required implementation seam:
+  - `src/sparse_chol_csc_supernodal.c`
+- optional bounded support seam only if the landed code proves it necessary:
+  - `src/sparse_dense.c`
+- optional dispatch/bridge seam only if required:
+  - `src/sparse_chol_csc.c`
+- required proof surfaces:
+  - `tests/test_chol_csc.c`
+  - optional bounded `tests/test_integration.c`
+
+Day 9-12 follow-through queue:
+
+- Day 9:
+  - post-landing safety audit
+  - remaining selection/fallback/error-path proof rerank
+- Day 10:
+  - smallest required build/dispatch follow-through only if Day 8 proves it
+    necessary
+- Day 11:
+  - bounded benchmark proof refresh in `benchmarks/bench_chol_csc.c`
+- Day 12:
+  - docs/maintainer truth follow-through only after landed semantics are real
+
+Explicit non-goals:
+
+- no LDL^T batch in the first landing
+- no QR/SVD widening
+- no public header widening
+- no broad benchmark README rewrite in Day 8
+- no packaging/platform or threading-policy widening
+
+### Day 7 Close
+
+Sprint 64 now has an exact first code-batch and proof plan:
+
+- Day 8 should center on `src/sparse_chol_csc_supernodal.c`
+- `src/sparse_dense.c` and `src/sparse_chol_csc.c` are conditional only
+- regression proof and benchmark proof are explicitly separated
+- the minimum viable fallback-preserve behavior is fixed
+- the Day 9-12 follow-through queue is bounded before implementation begins

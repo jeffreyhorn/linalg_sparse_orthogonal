@@ -1559,3 +1559,143 @@ Sprint 63 Day 10 closes one bounded shared-lifecycle semantics slice:
   up front
 - the sprint can move into final compatibility/documentation follow-through
   without reopening the broader lifecycle design
+
+## Day 11
+
+**Objective:** Tighten the post-Day-10 lifecycle and CSC compatibility surface
+by adding the missing family-local CSC regression, removing stale public
+header wording, and revalidating the landed state from the strongest reviewed
+baseline.
+
+### Commands Run
+
+1. Re-read the Day 10 landing and the Day 11 plan fence:
+   - `sed -n '1,220p' docs/planning/EPIC_6/SPRINT_63/artifacts/day10-large-n-csc-cholesky-lifecycle-semantics-batch.md`
+   - `sed -n '379,414p' docs/planning/EPIC_6/SPRINT_63/PLAN.md`
+2. Inspect the live touched CSC/header seams:
+   - `sed -n '1,260p' include/sparse_lu.h`
+   - `sed -n '1,260p' include/sparse_cholesky.h`
+   - `rg -n "supernodal|invalid backend|invalid reorder|stored diagonal" tests/test_chol_csc.c`
+3. Land the bounded compatibility/regression patch:
+   - `apply_patch` on:
+     - `include/sparse_lu.h`
+     - `include/sparse_cholesky.h`
+     - `tests/test_chol_csc.c`
+4. Run the required code-day validation gate:
+   - `make format`
+   - `make lint`
+   - `make test`
+   - `make quality-review-full`
+5. Run the bounded targeted follow-ons for the selected direct proof homes:
+   - `./build/test_chol_csc`
+   - `./build/test_integration`
+
+### Day 11 Findings
+
+#### 1. The missing family-local CSC proof was exactly one early-rejection regression
+
+Day 10 added the public lifecycle proof and one small CSC supernodal guard.
+The strongest remaining gap was a family-local regression that proves the new
+guard fires before the supernodal path mutates CSC state.
+
+Day 11 adds that exact proof in `tests/test_chol_csc.c`:
+
+- `test_eliminate_supernodal_rejects_nonpositive_stored_diagonal`
+
+It builds a small CSC input with a stored negative diagonal and proves:
+
+- `chol_csc_eliminate_supernodal(...)` returns `SPARSE_ERR_NOT_SPD`
+- the stored diagonal entry remains unchanged at the point of rejection
+
+Interpretation:
+
+- the Day 10 supernodal guard is now directly regression-proven at the
+  family-local CSC seam
+- the public lifecycle proof in `tests/test_integration.c` is no longer the
+  only evidence for that rejection path
+
+#### 2. The touched LU and Cholesky headers now state the shipped early-rejection semantics directly
+
+The highest-value stale wording left after Days 6-10 was not broad workflow
+story drift; it was the family-local precondition wording on the touched
+wrapper entry points.
+
+Day 11 tightens:
+
+- `include/sparse_lu.h`
+- `include/sparse_cholesky.h`
+
+The landed wording now says explicitly that invalid pivot, reorder, or backend
+enums are rejected before reorder or factor mutation begins.
+
+Interpretation:
+
+- the public header comments now match the shipped Day 6-Day 10 behavior
+- callers no longer need to infer the safety property from tests or
+  implementation shape alone
+
+#### 3. The Day 11 proof burden stayed bounded to the selected CSC home
+
+No implementation widening was needed on Day 11.
+
+Touched:
+
+- `include/sparse_lu.h`
+- `include/sparse_cholesky.h`
+- `tests/test_chol_csc.c`
+
+Not widened into:
+
+- `src/sparse_lu.c`
+- `src/sparse_cholesky.c`
+- `src/sparse_analysis.c`
+- `src/sparse_chol_csc_supernodal.c`
+- docs/example/benchmark surfaces
+
+Interpretation:
+
+- Day 11 stayed a true compatibility/regression sweep
+- Sprint 63 remains a bounded lifecycle-uniformity sprint instead of drifting
+  into another implementation phase after the Day 10 semantics batch
+
+### Validation
+
+Ran and passed:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- `./build/test_chol_csc`
+- `./build/test_integration`
+
+Reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 396.79 sec`
+
+Focused retained proof points:
+
+- `test_chol_csc` passed with the new Day 11 CSC regression:
+  - `test_eliminate_supernodal_rejects_nonpositive_stored_diagonal`
+- `test_integration` stayed clean at `47 / 47`
+
+### Non-Blocking Note
+
+The reviewed CMake rebuild again emitted the existing
+`bench_eigs_reuse.c` double-promotion warnings while rebuilding that bench
+binary, but the full reviewed path still completed cleanly and passed all
+parity gates.
+
+### Day 11 Close
+
+Sprint 63 Day 11 closes the planned compatibility/regression sweep cleanly:
+
+- the missing family-local CSC proof now covers early supernodal rejection on
+  a stored non-positive diagonal
+- the touched LU and Cholesky headers now state the shipped early-rejection
+  semantics directly
+- the full reviewed validation path and bounded targeted follow-ons both
+  passed from the landed tree

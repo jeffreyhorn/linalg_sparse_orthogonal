@@ -103,11 +103,12 @@ typedef struct {
  * on the same one-shot matrix contract as `sparse_lu_factor()`. When
  * reordering is requested under the default-compatible option shape, the
  * implementation may internally reuse shared lifecycle plumbing, but the
- * public contract remains one-shot on the caller-owned matrix. For reordered
- * one-shot calls outside that default-compatible fast path, the implementation
- * factors a temporary reordered working copy and only publishes it back to
- * `mat` on success, so failed or cancelled attempts do not strand the caller
- * matrix in an intermediate reordered state.
+ * public contract remains one-shot on the caller-owned matrix. Invalid pivot
+ * or reorder enums are rejected before reorder or factor mutation begins.
+ * For reordered one-shot calls outside that default-compatible fast path, the
+ * implementation factors a temporary reordered working copy and only publishes
+ * it back to `mat` on success, so failed or cancelled attempts do not strand
+ * the caller matrix in an intermediate reordered state.
  *
  * @param mat   The matrix to factor (modified in-place: reordered, then factored).
  * @param opts  Factorization options.

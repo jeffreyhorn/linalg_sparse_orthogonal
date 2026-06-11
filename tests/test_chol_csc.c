@@ -3787,6 +3787,39 @@ static void test_eliminate_supernodal_bcsstk04_residual(void) {
     sparse_free(A);
 }
 
+/* Day 10 follow-through: the full supernodal entry must reject a
+ * non-positive stored diagonal before any supernode dispatch or writeback
+ * mutation begins. */
+static void test_eliminate_supernodal_rejects_nonpositive_stored_diagonal(void) {
+    idx_t n = 4;
+    SparseMatrix *A = sparse_create(n, n);
+    REQUIRE_OK(A ? SPARSE_OK : SPARSE_ERR_ALLOC);
+
+    for (idx_t i = 0; i < n; i++) {
+        for (idx_t j = 0; j < n; j++) {
+            double v = 0.0;
+            if (i == j)
+                v = (i == 0) ? -1.0 : 4.0;
+            else if (labs((long)i - (long)j) == 1)
+                v = 0.25;
+            if (v != 0.0)
+                sparse_insert(A, i, j, v);
+        }
+    }
+
+    CholCsc *csc = NULL;
+    REQUIRE_OK(chol_csc_from_sparse(A, NULL, 1.0, &csc));
+    ASSERT_TRUE(csc != NULL);
+    ASSERT_TRUE(csc->col_ptr[0] < csc->col_ptr[1]);
+    ASSERT_TRUE(csc->values[csc->col_ptr[0]] == -1.0);
+
+    ASSERT_ERR(chol_csc_eliminate_supernodal(csc, 2), SPARSE_ERR_NOT_SPD);
+    ASSERT_TRUE(csc->values[csc->col_ptr[0]] == -1.0);
+
+    chol_csc_free(csc);
+    sparse_free(A);
+}
+
 /* Panel helper: trivial null-arg / bad-range checks, plus a
  * panel_rows == 0 fast path that returns SPARSE_OK. */
 static void test_supernode_eliminate_panel_error_paths(void) {
@@ -4552,6 +4585,7 @@ int main(void) {
     RUN_TEST(test_eliminate_supernodal_size1_matches_scalar);
     RUN_TEST(test_eliminate_supernodal_random_spd_sweep);
     RUN_TEST(test_eliminate_supernodal_bcsstk04_residual);
+    RUN_TEST(test_eliminate_supernodal_rejects_nonpositive_stored_diagonal);
     RUN_TEST(test_supernode_eliminate_panel_error_paths);
 
     /* Sprint 18 Day 9 — parametrised scalar↔batched cross-check + boundary */

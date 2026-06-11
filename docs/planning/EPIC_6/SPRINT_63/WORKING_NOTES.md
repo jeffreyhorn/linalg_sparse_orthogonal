@@ -323,35 +323,164 @@ The confirmed rerun set is:
   - `./build/bench_iterative_reuse`
   - `./build/bench_eigs_reuse`
 
-That is already strong enough to support:
+Interpretation:
 
-- LU repeated-run follow-through
-- CSC lifecycle and dispatch verification
-- representative direct example sanity checks after behavior-affecting edits
-- adjacent repeated-run regression verification so Sprint 63 does not widen
-  solver-support boundaries by accident
+- Sprint 63 already has a concrete validation surface that matches the actual
+  direct lifecycle risk
+- the integration proof remains the first public lifecycle truth surface
+- LU, Cholesky, and CSC-specific tests already provide natural family-local
+  follow-through proof homes
 
-### Authoritative Day 2 Validation Boundary
+### Day 2 Close
 
-- docs-only days:
-  - use targeted sanity checks, not the full code-day gate by default
-- bounded `*.c` / `*.h` days:
-  - run:
-    - `make format`
-    - `make lint`
-    - `make test`
-- substantial LU/CSC lifecycle or semantics-sensitive code days:
-  - prefer:
-    - `make quality-review-full`
-  - and refresh representative proof/benchmark/example surfaces as needed
+Sprint 63 now has one explicit validation contract before lifecycle code
+changes begin:
 
-### Day 2 Exit State
+- `make quality-review-full` remains the strongest local reviewed baseline
+- the reviewed CMake parity anchor remains exact at `53`
+- the maintained quality/platform story is coherent across the live repo
+  surfaces
+- the targeted Sprint 63 rerun set is fixed and present in `build/`
+- the next step is the deeper internal-path audit that ranks LU, CSC, and
+  remaining direct-family lifecycle seams before design or code work lands
 
-Sprint 63 now has a written validation baseline that matches the live repo:
+## Day 3
 
-- strongest local reviewed baseline unchanged
-- reviewed CMake parity anchor unchanged
-- rerun set fixed from the current build tree around direct lifecycle, LU,
-  CSC, and adjacent repeated-run regression surfaces
-- docs-only versus code-day versus stronger-review path split fixed explicitly
-- no contradiction across the main quality/truthfulness surfaces
+**Objective:** Reduce the broad Sprint 63 “direct-lifecycle uniformity” claim
+to a ranked live seam map by auditing the current LU, Cholesky/CSC, and LDL^T
+internal paths before choosing the first bounded implementation target.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 3 audit:
+   - `git status --short --branch`
+2. Re-read the Day 3 sprint-plan slice plus current Sprint 63 notes:
+   - `sed -n '115,210p' docs/planning/EPIC_6/SPRINT_63/PLAN.md`
+   - `sed -n '1,360p' docs/planning/EPIC_6/SPRINT_63/WORKING_NOTES.md`
+3. Map the main direct lifecycle and CSC-sensitive seams:
+   - `rg -n "sparse_analyze|sparse_factor_numeric|sparse_factor_solve|sparse_refactor_numeric|reorder|publish|cancel|working copy|analysis|factors" include/sparse_analysis.h include/sparse_lu.h include/sparse_cholesky.h include/sparse_ldlt.h src/sparse_analysis.c src/sparse_lu.c src/sparse_cholesky.c src/sparse_chol_csc.c src/sparse_ldlt.c src/sparse_ldlt_csc.c tests/test_integration.c tests/test_sparse_lu.c tests/test_chol_csc.c tests/test_ldlt.c tests/test_ldlt_csc.c benchmarks/bench_refactor.c examples/example_analysis.c`
+4. Re-read the main public direct/lifecycle headers:
+   - `sed -n '1,260p' include/sparse_analysis.h`
+   - `sed -n '1,260p' include/sparse_lu.h`
+   - `sed -n '1,240p' include/sparse_cholesky.h`
+   - `sed -n '1,260p' include/sparse_ldlt.h`
+5. Re-read the strongest current internal implementation seams:
+   - `sed -n '1,260p' src/sparse_lu.c`
+   - `sed -n '1,260p' src/sparse_cholesky.c`
+   - `sed -n '1,260p' src/sparse_chol_csc.c`
+   - `sed -n '1,260p' src/sparse_ldlt.c`
+   - `sed -n '1,260p' src/sparse_ldlt_csc.c`
+
+### Day 3 Findings
+
+#### 1. LU now owns the strongest remaining direct-lifecycle follow-through seam
+
+The live LU surface is materially cleaner than before Sprint 62, but it still
+has the strongest remaining lifecycle crossover:
+
+- the public wrapper story is now explicit about fresh-matrix versus explicit
+  repeated-run lifecycle use
+- reordered one-shot publication already preserves the caller matrix on
+  cancel/failure
+- but the implementation still contains the strongest wrapper-to-lifecycle
+  crossover logic through the default-compatible shared-lifecycle path and
+  publish-back behavior
+
+Interpretation:
+
+- LU is the best first Sprint 63 implementation target
+- the main remaining LU problem is no longer basic one-shot mutation surprise
+- the main remaining LU problem is lifecycle/result/factor-state coherence
+  where one-shot behavior and the shared repeated-run machinery still meet
+
+#### 2. Cholesky now owns the strongest CSC repeated-run uniformity seam
+
+The public Cholesky story is also materially cleaner than before Sprint 62:
+
+- reordered one-shot preservation is already hardened
+- the public header already describes the shipped reordered-path preservation
+  rule
+- the remaining pressure is now mostly internal rather than caller-story first
+
+The strongest live asymmetry sits behind the public surface:
+
+- linked-list versus CSC path differences
+- CSC conversion, write-back, and backend dispatch behavior
+- analysis-aware repeated-run coherence on the CSC side
+
+Interpretation:
+
+- Cholesky is now the strongest second target
+- the right Sprint 63 Cholesky work is CSC/lifecycle uniformity follow-through,
+  not another broad public-wrapper cleanup pass
+- the strongest proof burden after LU remains split between
+  `tests/test_integration.c` and `tests/test_chol_csc.c`
+
+#### 3. LDL^T is cleaner than the top-level Sprint 63 headline might suggest
+
+The live LDL^T surfaces are comparatively less urgent:
+
+- the family-local ownership model is already explicit
+- the one-shot path is less entangled with the shared lifecycle than LU
+- CSC complexity exists, but it is not currently the strongest first
+  contradiction in the direct repeated-run story
+
+Interpretation:
+
+- LDL^T remains a later follow-through target, not the best first Sprint 63
+  landing
+- Sprint 63 should not widen into LDL^T just to create cosmetic family
+  symmetry
+- LDL^T should only move early if a later design pass exposes a concrete
+  contradiction that LU and Cholesky do not already cover
+
+#### 4. The proof burden already has a clear home and does not need a new harness
+
+The current proof split is already strong enough for the next design step:
+
+- `tests/test_integration.c` remains the highest-signal public lifecycle proof
+  home
+- `tests/test_sparse_lu.c` is the natural family-local LU follow-through proof
+  surface if needed later
+- `tests/test_chol_csc.c` is the natural CSC repeated-run proof home
+- the example and benchmark follow-through surfaces should stay later and
+  downstream:
+  - `examples/example_analysis.c`
+  - `benchmarks/bench_refactor.c`
+
+Interpretation:
+
+- Sprint 63 does not need a new bespoke lifecycle harness
+- the right next step is a bounded design pass over the existing public and
+  family-local proof homes
+- example and benchmark updates should follow landed lifecycle semantics rather
+  than lead them
+
+#### 5. The exact Day 4 target is now fixed
+
+The broad Day 1 lifecycle map now reduces to a concrete ranked queue:
+
+1. LU lifecycle follow-through
+2. Cholesky CSC repeated-run uniformity
+3. LDL^T follow-through only if later needed
+4. QR remains a comparison/deferred surface
+
+Interpretation:
+
+- Day 4 should design the LU first landing explicitly
+- Day 4 should also fix the Cholesky/CSC second-cut fence
+- Sprint 63 should stay out of QR and broad LDL^T work unless the design pass
+  proves they are actually blocking the direct control plane
+
+### Day 3 Close
+
+Sprint 63’s broad lifecycle-uniformity claim is now reduced to one ranked live
+seam map:
+
+- LU is the strongest first follow-through target
+- Cholesky is the strongest second target through CSC repeated-run asymmetry
+- LDL^T is cleaner and stays in the later/deferred lane
+- the regression burden already has a clear home in the current integration and
+  family-local proof surfaces
+- the next step is a bounded Day 4 design that turns this ranking into an
+  exact first implementation fence

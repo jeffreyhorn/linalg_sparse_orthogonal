@@ -484,3 +484,163 @@ seam map:
   family-local proof surfaces
 - the next step is a bounded Day 4 design that turns this ranking into an
   exact first implementation fence
+
+## Day 4
+
+**Objective:** Turn the Day 3 ranking into an explicit lifecycle-uniformity
+design and safety contract by separating what Sprint 63 should normalize in
+public behavior, what it should harden internally, and what it should leave on
+the compatibility/deferred lane.
+
+### Commands Run
+
+1. Confirm branch cleanliness before the Day 4 design pass:
+   - `git status --short --branch`
+2. Re-read the Day 4-5 sprint-plan slice plus current Sprint 63 notes:
+   - `sed -n '120,240p' docs/planning/EPIC_6/SPRINT_63/PLAN.md`
+   - `sed -n '1,520p' docs/planning/EPIC_6/SPRINT_63/WORKING_NOTES.md`
+3. Re-scan the strongest LU lifecycle crossover seam:
+   - `rg -n "s51_lu_opts_can_use_shared_lifecycle|s51_lu_publish_analysis_factor|sparse_factor_solve|sparse_refactor_numeric|publish|working copy|reorder|cancel|analysis|factors" src/sparse_lu.c include/sparse_lu.h tests/test_integration.c tests/test_sparse_lu.c`
+4. Re-scan the strongest Cholesky/CSC publication and dispatch seams:
+   - `rg -n "working copy|publish|reorder|cancel|analysis|factors|refactor|solve|csc" src/sparse_cholesky.c src/sparse_chol_csc.c include/sparse_cholesky.h tests/test_integration.c tests/test_chol_csc.c`
+
+### Day 4 Findings
+
+#### 1. Sprint 63 should normalize lifecycle interpretation, not redesign the direct API split
+
+The preserved direct workflow fence stays exact:
+
+- one-shot direct wrappers remain first-class/default peer entry points
+- the explicit repeated-run direct lifecycle remains:
+  - `sparse_analyze()`
+  - `sparse_factor_numeric()`
+  - `sparse_factor_solve()`
+  - `sparse_refactor_numeric()`
+
+Interpretation:
+
+- Sprint 63 should not hide the public difference between one-shot wrappers and
+  the explicit repeated-run lifecycle
+- Sprint 63 should instead make the internal ownership and result semantics
+  more coherent where the same direct family already crosses between those
+  paths
+
+#### 2. LU should land first as factor-state and result-semantics follow-through
+
+The strongest LU seam is now exact:
+
+- default-compatible reordered LU already crosses into the shared lifecycle
+  machinery
+- reordered one-shot publication already preserves the caller matrix on
+  cancel/failure
+- the remaining risk is lifecycle/result/factor-state coherence when one-shot
+  LU succeeds, fails, or rejects refactor-like re-entry on an already
+  reordered/factored matrix
+
+The right Sprint 63 LU ownership split is:
+
+- public behavior:
+  - clearer one-shot versus lifecycle positioning where still useful
+  - no new top-level direct API
+- internal hardening:
+  - factor publication semantics
+  - rejection/preservation semantics on old factors
+  - wrapper/shared-lifecycle coherence for solve/refactor-like outcomes
+- proof:
+  - `tests/test_integration.c` first
+  - `tests/test_sparse_lu.c` only if the family-local burden becomes real
+
+Interpretation:
+
+- LU Day 6-7 work should target factor-state/result semantics first
+- it should not widen into broad docs/examples or other direct families
+
+#### 3. Cholesky should land second as CSC repeated-run publication and dispatch follow-through
+
+The strongest Cholesky seam is also now exact:
+
+- reordered one-shot preservation is already hardened
+- the remaining mismatch is internal, especially where the CSC-backed path
+  carries analysis-aware conversion, write-back, and repeated-run behavior that
+  is less uniform than the public lifecycle story
+
+The right Sprint 63 Cholesky ownership split is:
+
+- public behavior:
+  - only minimal wording follow-through if the landed internal behavior needs
+    it
+- internal hardening:
+  - CSC dispatch/lifecycle coherence
+  - solve/refactor publication discipline
+  - repeated-run state retention where CSC and linked-list paths currently
+    diverge more than justified
+- proof:
+  - `tests/test_integration.c` for public lifecycle semantics
+  - `tests/test_chol_csc.c` for CSC-family repeated-run proof
+
+Interpretation:
+
+- Cholesky Day 8-10 work should be a CSC follow-through sprint inside Sprint 63
+- it should not reopen the already-settled one-shot reordered preservation
+  story unless a concrete contradiction appears
+
+#### 4. Compatibility rules are now explicit enough to guide the code batches
+
+The preserved compatibility behavior is:
+
+- one-shot wrappers remain one-shot and caller-owned
+- the explicit repeated-run lifecycle remains the only canonical reuse path
+- LU and Cholesky reordered one-shot calls keep their Sprint 62 caller-matrix
+  preservation guarantees on cancel/failure
+- family-local cancellation differences that were intentionally preserved in
+  Sprint 62 stay family-local unless Sprint 63 proves a tighter change is both
+  safe and high-value
+
+What becomes more uniform in Sprint 63:
+
+- factor-state publication and old-factor preservation semantics
+- solve/refactor interpretation across LU and CSC-backed repeated-run direct
+  paths
+- internal CSC dispatch and state-retention discipline where the public
+  lifecycle story already promises a coherent repeated-run path
+
+What stays out of scope:
+
+- no fake family identity across LU, Cholesky, LDL^T, and QR
+- no broad cancellation-model rewrite
+- no direct-API redesign
+- no packaging/platform/configuration spillover
+
+#### 5. The first implementation fence is now fixed
+
+The exact Sprint 63 implementation order is now:
+
+1. LU lifecycle follow-through
+2. Cholesky CSC repeated-run uniformity
+3. later proof/example/benchmark refresh if the landed semantics justify it
+4. LDL^T only if a later contradiction appears
+5. QR deferred
+
+The likely ownership lanes are now explicit:
+
+- public/header/doc surface:
+  - small, bounded, only if implementation landing needs it
+- internal implementation surface:
+  - primary ownership for Sprint 63
+- proof surface:
+  - `tests/test_integration.c`
+  - `tests/test_chol_csc.c`
+  - optional bounded `tests/test_sparse_lu.c`
+
+### Day 4 Close
+
+Sprint 63 now has one explicit lifecycle-uniformity design contract before the
+first code batch:
+
+- the direct API split remains preserved
+- LU is fixed as a factor-state/result-semantics first landing
+- Cholesky is fixed as a CSC repeated-run follow-through second landing
+- compatibility behavior is explicit about what stays unchanged versus what
+  becomes more uniform
+- Day 5 can now reduce this contract to an exact touched-file implementation
+  fence

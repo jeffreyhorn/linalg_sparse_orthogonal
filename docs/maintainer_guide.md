@@ -191,6 +191,17 @@ Interpretation:
   truth, macOS remains narrower with supplemental install validation, and
   Windows remains the reviewed CMake subset and install-consumer lane
 
+Focused install/package regression ownership:
+
+- `tests/test_install.sh` is the local Unix-side proof for Make
+  install/uninstall plus `pkg-config`
+- `tests/test_cmake_install.sh` is the local Unix-side proof for CMake
+  install/export plus `find_package(Sparse)`
+- macOS CI carries only a narrower supplemental Make install/`pkg-config`
+  verification lane
+- Windows does not currently claim a separate reviewed install-validation lane;
+  it keeps the reviewed CMake subset plus the CMake-first consumer story
+
 ## Configuration Surface Ownership
 
 Epic 6 Phase 1 moved the highest-value analysis/reorder env-var controls onto

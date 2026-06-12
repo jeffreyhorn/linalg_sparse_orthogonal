@@ -220,3 +220,16 @@ For CMake integration verification:
 ```sh
 bash tests/test_cmake_install.sh
 ```
+
+These focused regression scripts are Unix-oriented local proof surfaces for the
+maintained static-first install/export contract:
+
+- `tests/test_install.sh` covers Make install/uninstall plus `pkg-config`
+- `tests/test_cmake_install.sh` covers CMake install/export plus
+  `find_package(Sparse)`
+
+They complement, rather than replace, the narrower reviewed platform lanes:
+
+- Linux remains the strongest reviewed source of truth
+- macOS carries supplemental Make install/`pkg-config` verification
+- Windows remains the reviewed CMake subset and CMake-first consumer path

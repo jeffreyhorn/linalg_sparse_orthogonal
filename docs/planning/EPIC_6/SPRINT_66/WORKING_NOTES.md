@@ -1256,3 +1256,159 @@ Sprint 66 now has:
 - one reranked remaining queue centered on workflow/install-contract
   reconciliation
 - one explicit Day 10 target set with a bounded support surface
+
+## Day 10 - Workflow and Install-Contract Reconciliation Batch
+
+### Goal
+
+Land the bounded Day 10 follow-through from the Day 9 rerank: reconcile the
+shipped static-first package story with the cross-platform workflow and proof
+ownership surfaces, without reopening build/install mechanics or widening the
+repo's ABI/platform claims.
+
+### Actions
+
+1. Tightened the `Cross-Platform CI Contract` table and installation proof
+   ownership wording in `README.md`.
+2. Tightened `INSTALL.md` so the focused install/package regression scripts are
+   described explicitly as Unix-oriented local proof surfaces for the static-
+   first package contract.
+3. Added the matching install/package regression ownership section to
+   `docs/maintainer_guide.md`.
+4. Reconciled the workflow commentary in:
+   - `.github/workflows/ci.yml`
+   - `.github/workflows/macos-ci.yml`
+   - `.github/workflows/windows-ci.yml`
+   so the enforced/supplemental/staged wording matches the shipped
+   package/platform interpretation directly.
+5. Ran the stronger reviewed baseline plus the focused install/package
+   regressions:
+   - `make quality-review-full`
+   - `bash tests/test_install.sh`
+   - `bash tests/test_cmake_install.sh`
+
+### Findings
+
+#### 1. The remaining contradiction was proof ownership, not package mechanics
+
+Before Day 10:
+
+- the maintained static-first install/export story was already coherent across
+  the main build/docs surfaces
+- but the ownership of install/package proof was still too implicit and uneven
+  across:
+  - `README.md`
+  - `INSTALL.md`
+  - `docs/maintainer_guide.md`
+  - workflow comments/job names
+
+After Day 10:
+
+- the local Unix-side install proof surfaces are explicit:
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+- macOS CI is now described more precisely as a narrower supplemental Make
+  install/`pkg-config` verification lane
+- Windows is now described more precisely as the reviewed CMake subset and
+  CMake-first consumer story, not as a separate reviewed install-validation
+  lane
+- Linux remains the strongest reviewed source of truth without implicitly
+  claiming a separate install-validation CI lane
+
+Interpretation:
+
+- the Day 10 batch closed a real contract-ownership contradiction
+- no build/install behavior change was needed to do it honestly
+
+#### 2. The landed batch stayed bounded to the Day 9 surface
+
+Touched Day 10 surfaces:
+
+- `README.md`
+- `INSTALL.md`
+- `docs/maintainer_guide.md`
+- `.github/workflows/ci.yml`
+- `.github/workflows/macos-ci.yml`
+- `.github/workflows/windows-ci.yml`
+
+Untouched Day 10 surfaces:
+
+- `CMakeLists.txt`
+- `Makefile`
+- `tests/test_install.sh`
+- `tests/test_cmake_install.sh`
+- dead-code scripts/topology
+- any shared-library or ABI-widening surface
+
+Interpretation:
+
+- the reconciliation stayed inside the exact Day 9 fence
+- Sprint 66 still has not drifted into platform or packaging sprawl
+
+#### 3. The stronger reviewed baseline and focused install/package proofs both passed
+
+Because this was substantial packaging/platform/workflow contract work, the
+stronger reviewed baseline was used:
+
+- `make quality-review-full`
+
+Retained reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 523.37 sec`
+
+Because the install/package contract wording moved materially, the focused
+proof surfaces were also rerun:
+
+- `bash tests/test_install.sh`
+- `bash tests/test_cmake_install.sh`
+
+Retained focused proof points:
+
+- Make install/uninstall path passed
+- CMake install/export/find-package path passed
+- installed `pkg-config` version stayed `2.2.0`
+
+One non-blocking note remains the same as the recent reviewed baselines:
+
+- `test_reorder_nd` still dominated the reviewed CMake path at `369.10 sec`
+  out of `523.37 sec`, but the full reviewed path completed cleanly and all
+  parity anchors stayed exact
+
+Interpretation:
+
+- the Day 10 contract batch closes from both the strongest reviewed baseline
+  and the exact install/package proof surfaces it names
+
+#### 4. The strongest remaining Sprint 66 queue is now residual tightening, not another implementation batch
+
+After Day 10, the strongest remaining queue is now:
+
+- residual packaging/platform interpretation tightening
+- closeout-oriented docs/maintainer follow-through
+- final validation and handoff
+
+Still explicitly deferred:
+
+- broad shared-library enablement
+- ABI guarantee widening
+- Windows Makefile reviewed-wrapper parity
+- macOS dead-code enforcement
+- Windows dead-code enforcement
+- dead-code topology redesign
+
+Interpretation:
+
+- Sprint 66 no longer needs another core implementation batch to stay honest
+- the remaining days should close the converged contract, not search for new
+  scope
+
+### Day 10 Close
+
+Sprint 66 now has:
+
+- one reconciled workflow/install-contract ownership story
+- one validated proof chain for the shipped static-first package surface
+- one much smaller remaining queue centered on residual tightening and closeout

@@ -870,8 +870,8 @@ make quality-review-cmake
 | Platform | Enforced | Staged | Supplemental / Excluded |
 |--------|---------|---------|---------------------------|
 | Linux | `make quality-review-compile`; `make quality-review-cmake`; `make deadcode-report`; `make deadcode-check` | none inside the maintained reviewed baseline | direct runtime + `bench-fast`; TSan; coverage |
-| macOS | Apple Clang: `make quality-review-compile`; `make quality-review-cmake`; `make wall-check`; `make sanitize` | dead-code (`make deadcode-report`, `make deadcode-check`) pending fresh measurement | Homebrew GCC direct `make` + `make test` + `make wall-check`; install/pkg-config validation |
-| Windows | reviewed CMake configure/build; `ctest -N`; full `ctest` | `make quality-review-compile`; `make quality-review`; dead-code | excluded tests: `test_threads`, `test_sprint4_integration`, `test_fuzz` |
+| macOS | Apple Clang: `make quality-review-compile`; `make quality-review-cmake`; `make wall-check`; `make sanitize` | dead-code (`make deadcode-report`, `make deadcode-check`) pending fresh measurement | Homebrew GCC direct `make` + `make test` + `make wall-check`; supplemental static-first Make install/uninstall + `pkg-config` verification |
+| Windows | reviewed CMake configure/build; `ctest -N`; full `ctest` | `make quality-review-compile`; `make quality-review`; dead-code | excluded tests: `test_threads`, `test_sprint4_integration`, `test_fuzz`; no separate reviewed install-validation lane beyond the CMake-first consumer story |
 
 Use the table above as the compact operator map for enforced, staged, and
 supplemental/excluded boundaries. For repository-wide interpretation of those
@@ -996,6 +996,16 @@ The maintained package surface is intentionally static-first:
 - version metadata is single-sourced from `VERSION`
 - this is a real install/export contract, not a broad shared-library or
   dynamic-ABI guarantee
+
+Focused local proof for that package surface stays explicit:
+
+- `bash tests/test_install.sh` proves the Unix-side Make install/uninstall +
+  `pkg-config` path
+- `bash tests/test_cmake_install.sh` proves the Unix-side CMake install/export
+  + `find_package(Sparse)` path
+- macOS CI carries a narrower supplemental Make install/`pkg-config` check
+- Windows remains the reviewed CMake build/test subset rather than a separate
+  reviewed install-validation lane
 
 ## Documentation
 

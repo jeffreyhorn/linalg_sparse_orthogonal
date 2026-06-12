@@ -147,3 +147,156 @@ Sprint 66 now has:
 - one fixed rerun set centered on productization-sensitive proofs and canonical
   maintained benchmarks
 - one clear Day 3 starting point for the packaging and ABI surface audit
+
+## Day 3 - Packaging and ABI Surface Audit
+
+### Goal
+
+Reduce Sprint 66's broad packaging and ABI question to the live repo seams that
+actually define product maturity today: release shape, install/export truth,
+versioning signals, and platform-claim asymmetries.
+
+### Actions
+
+1. Re-read the current build/install/export surface in `CMakeLists.txt`.
+2. Re-read the user-facing install contract in `INSTALL.md` and the top-level
+   packaging claims in `README.md`.
+3. Re-read the maintainer and workflow truth surfaces most likely to constrain
+   any later packaging or platform work:
+   - `docs/maintainer_guide.md`
+   - `.github/workflows/windows-ci.yml`
+   - `.github/workflows/macos-ci.yml`
+4. Ran targeted `rg` scans across the build/docs/workflow surfaces for:
+   - install/export/package config
+   - static/shared wording
+   - version and downstream-consumption claims
+   - Windows/macOS install-path verification
+5. Re-ranked the likely Sprint 66 first implementation target from the live
+   repo state instead of from generic productization language.
+
+### Findings
+
+#### 1. The repo already has a real install/export surface; the strongest gap is not "missing packaging"
+
+The current packaging surface is materially real:
+
+- `CMakeLists.txt` installs the library target, public headers, generated
+  `sparse_version.h`, CMake package config files, and a `pkg-config`
+  descriptor
+- `INSTALL.md` documents both Makefile install and CMake install flows
+- `README.md` advertises downstream `pkg-config` and `find_package(Sparse)`
+  consumption
+- macOS CI already includes a supplemental install and `pkg-config`
+  verification lane
+
+Interpretation:
+
+- Sprint 66 should not behave as if the repo has no packaging story
+- the live repo already supports credible developer-install consumption through
+  both Make and CMake
+- the real audit question is how narrow that shipped story still is
+
+#### 2. The strongest packaging/productization gap is the static-first release shape
+
+The current primary library target is still:
+
+- `add_library(sparse_lu_ortho STATIC ...)`
+
+The install/export surface is therefore real but intentionally narrow:
+
+- static archive install is first-class
+- CMake exported target is first-class
+- `pkg-config` support is first-class
+- a broader shared-library / ABI-distribution promise is not yet present
+
+Interpretation:
+
+- the strongest Day 3 gap is not "can consumers install this?"
+- the strongest Day 3 gap is that the shipped release shape is still
+  static-first and effectively static-only
+- Sprint 66 should treat any shared-library or ABI widening as an explicit
+  product decision, not as a hidden side effect of install cleanup
+
+#### 3. The versioning source of truth is healthier than the sprint headline implies, but the ABI story is still narrow
+
+The current versioning chain is already coherent:
+
+- root `VERSION` file is the single source of truth
+- `project(... VERSION ...)` reads from that file
+- generated `sparse_version.h` is installed
+- `SparseConfigVersion.cmake` is generated with `SameMajorVersion`
+  compatibility
+- `sparse.pc` is generated from the same project version
+
+Interpretation:
+
+- the versioning surface itself is not the strongest weak point
+- the weaker point is that the repo still does not present a broader shared ABI
+  promise that would make those version signals carry more distribution weight
+- Sprint 66 should distinguish "version metadata exists" from "ABI contract is
+  mature"
+
+#### 4. The downstream-consumption story is already stronger than the static/shared story
+
+The repo already supports two real downstream consumption paths:
+
+- Makefile install + `pkg-config`
+- CMake install + `find_package(Sparse)` + `Sparse::sparse_lu_ortho`
+
+Platform truth is also narrower and more explicit than a generic packaging
+review would suggest:
+
+- Windows currently enforces the reviewed CMake subset only
+- macOS already carries a supplemental install + `pkg-config` verification lane
+- README and `INSTALL.md` already steer Windows to the CMake workflow
+
+Interpretation:
+
+- the strongest Day 3 platform/productization gap is not absent consumption
+  paths
+- the stronger remaining gap is convergence and truthfulness across those paths
+- Sprint 66 should prioritize reconciling release/install claims and reviewed
+  platform lanes before inventing new packaging fronts
+
+#### 5. The likely first Sprint 66 implementation target is now explicit
+
+From the live repo state, the strongest likely first target is:
+
+- packaging/productization convergence around the existing static-first
+  install/export surface
+
+That means the highest-value first-touch surfaces are likely:
+
+- `CMakeLists.txt`
+- `INSTALL.md`
+- `README.md`
+- `docs/maintainer_guide.md`
+- reviewed workflow files only where platform truth must move with the
+  packaging contract
+
+Measured Day 3 hotspot sizes for the main packaging/ABI truth surfaces:
+
+- `README.md` = `1000`
+- `INSTALL.md` = `206`
+- `docs/maintainer_guide.md` = `511`
+- `CMakeLists.txt` = `397`
+- `.github/workflows/windows-ci.yml` = `57`
+- `.github/workflows/macos-ci.yml` = `111`
+
+Interpretation:
+
+- Sprint 66's first landing should start with release/install truth and
+  bounded build-surface convergence
+- broader shared-library ambition, ABI widening, and platform follow-through
+  should only happen where the audit proves they are justified
+
+### Day 3 Close
+
+Sprint 66 now has:
+
+- one explicit packaging/ABI baseline grounded in the live install/export
+  surface
+- one ranked gap map that separates "real install support exists" from
+  "release shape is still narrow"
+- one clear Day 4 starting point for the platform-residual recheck and the
+  later packaging/productization batch

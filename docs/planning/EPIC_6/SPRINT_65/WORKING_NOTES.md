@@ -1482,3 +1482,113 @@ Sprint 65 now has:
 - one compact top-level performance-governance story instead of a broad mixed
   benchmark catalog
 - one fixed direct CSC/Cholesky efficiency target carried into Day 10
+
+## Day 10 - Direct CSC/Cholesky Efficiency Batch
+
+### Goal
+
+Land one bounded real efficiency follow-through on the CSC supernodal
+Cholesky path without widening into LDL^T, iterative/eigensolver reuse, public
+headers, or broader benchmark-governance work.
+
+### Actions
+
+1. Keep the code batch centered on `src/sparse_chol_csc_supernodal.c`.
+2. Replace repeated row-map binary searches on sorted CSC walks with a
+   monotonic row-map seek on the supernodal hot path.
+3. Keep proof burden bounded to the existing Cholesky CSC and integration
+   surfaces, then rerun the maintained direct benchmark proof rows.
+
+### Findings
+
+#### 1. The strongest remaining Day 10 waste was repeated row-map restart work, not missing algorithm coverage
+
+Before this batch:
+
+- supernode extract walked sorted CSC rows but restarted a binary search into
+  `row_map` for every stored entry
+- supernode diagonal-block cmod did the same while walking sorted prior-column
+  rows
+- supernode writeback again restarted the same binary search per stored entry
+
+Interpretation:
+
+- the missing Day 10 follow-through was a hot-path lookup cleanup inside the
+  existing CSC supernodal lane, not another backend-architecture redesign
+
+#### 2. The landed change is a bounded monotonic row-map seek on the sorted supernodal paths
+
+The batch replaced restart-from-top binary search with a forward-only cursor on
+the three sorted row-walk sites:
+
+- `chol_csc_supernode_extract(...)`
+- `chol_csc_supernode_eliminate_diag(...)`
+- `chol_csc_supernode_writeback(...)`
+
+Landed contract:
+
+- the helper only moves forward through sorted `row_map`
+- exact-match requirements stayed unchanged on extract/writeback
+- cmod still skips non-panel rows safely, but no longer pays repeated
+  binary-search restarts while scanning a sorted prior column
+
+Interpretation:
+
+- this is a real repeated-run CSC/Cholesky efficiency follow-through
+- it stays local to the Sprint 64 backend-aware supernodal lane instead of
+  inventing a wider abstraction batch
+
+#### 3. The maintained direct benchmark surface stayed honest after the landing
+
+The retained direct benchmark proof reruns were:
+
+- `./build/bench_refactor_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+- `./build/bench_chol_csc tests/data/suitesparse/nos4.mtx --repeat 1`
+
+Representative retained rows are now:
+
+- `bench_refactor_csc,proof,nos4.mtx,chol_spd,100,594,0.640,0.426,0.168,0.011,0.006,2.54,8.24e-16,7.06e-16`
+- `bench_chol_csc,proof,nos4.mtx,chol_backend_compare,100,594,scalar,supernodal,builtin,0.620,0.732,0.958,0.013,0.018,0.009,0.85,0.65,7.06e-16,5.89e-16,5.89e-16`
+
+Interpretation:
+
+- the repeated-run direct CSC proof surface retained clean residuals and a
+  stronger `speedup_refactor` row on the sampled `nos4` rerun
+- the one-shot backend-comparison row stayed truthful but remains a narrower
+  backend/path-identification surface, not the main repeated-run claim-bearing
+  benchmark
+
+#### 4. Validation stayed on the full code-touching benchmark-governance gate
+
+Because `src/sparse_chol_csc_supernodal.c` changed, the Day 10 validation gate
+was:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+The touched family-local and public proof surfaces remained the key risk homes:
+
+- `tests/test_chol_csc.c`
+- `tests/test_integration.c`
+
+All passed. The reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 578.20 sec`
+
+One non-blocking note is retained for the Day 10 close: the reviewed CMake
+path still spent most of its wall time in `test_reorder_nd`, but the full
+reviewed path completed cleanly and passed all parity gates.
+
+### Day 10 Close
+
+Sprint 65 now has:
+
+- one bounded CSC supernodal hot-path efficiency follow-through landed
+- one preserved direct maintained benchmark story with fresh retained proof rows
+- one still-bounded carry-forward queue for any later LDL^T or wider solver
+  efficiency work

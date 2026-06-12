@@ -7,10 +7,10 @@
  *   - scalar GMRES on a generated nonsymmetric tridiagonal
  *   - scalar MINRES on a generated symmetric-indefinite KKT system
  *
- * Reports repeated-call wall time, last-iteration summary, and a simple
- * speedup ratio. This is evidence for allocator-churn reduction through the
- * final public repeated-run contract, not a machine-independent performance
- * claim.
+ * Reports CSV rows with stable benchmark/category/scenario identity plus the
+ * repeated-call timing, last-iteration summary, and a simple speedup ratio.
+ * This is evidence for allocator-churn reduction through the final public
+ * repeated-run contract, not a machine-independent performance claim.
  */
 #define _POSIX_C_SOURCE 200809L
 #include "sparse_iterative.h"
@@ -112,6 +112,31 @@ static double compute_rel_residual(const SparseMatrix *A, const double *b, const
     return (bn > 0.0) ? rn / bn : 0.0;
 }
 
+static const char *iter_status_name(sparse_err_t err) {
+    switch (err) {
+    case SPARSE_OK:
+        return "OK";
+    case SPARSE_ERR_NOT_CONVERGED:
+        return "NOT_CONVERGED";
+    default:
+        return "ERROR";
+    }
+}
+
+static void emit_iterative_csv_row(const char *matrix, const char *solver, idx_t n, idx_t repeats,
+                                   double one_shot_total_ms, double reuse_total_ms, double speedup,
+                                   const sparse_iter_result_t *one_shot,
+                                   const sparse_iter_result_t *reuse, double one_shot_relres,
+                                   double reuse_relres, sparse_err_t one_shot_err,
+                                   sparse_err_t reuse_err) {
+    printf("bench_iterative_reuse,proof,%s,iter_handle_reuse,%s,%d,%d,%.4f,%.4f,%.2f,%d,%d,%.3e,"
+           "%.3e,%d,%d,%s,%s\n",
+           matrix, solver, (int)n, (int)repeats, one_shot_total_ms, reuse_total_ms, speedup,
+           (int)one_shot->iterations, (int)reuse->iterations, one_shot_relres, reuse_relres,
+           one_shot->converged, reuse->converged, iter_status_name(one_shot_err),
+           iter_status_name(reuse_err));
+}
+
 static sparse_err_t run_cg_repeated_case(const char *name, SparseMatrix *A, idx_t repeats) {
     idx_t n = sparse_rows(A);
     double *x_exact = malloc((size_t)n * sizeof(double));
@@ -132,11 +157,14 @@ static sparse_err_t run_cg_repeated_case(const char *name, SparseMatrix *A, idx_
     sparse_iter_result_t one_shot = {0};
     sparse_iter_result_t reuse = {0};
     sparse_err_t err = SPARSE_OK;
+    sparse_err_t one_shot_err = SPARSE_OK;
+    sparse_err_t reuse_err = SPARSE_OK;
 
     double t0 = wall_time();
     for (idx_t rep = 0; rep < repeats; rep++) {
         vec_zero(x, n);
         err = sparse_solve_cg(A, b, x, &opts, NULL, NULL, &one_shot);
+        one_shot_err = err;
         if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED)
             break;
     }
@@ -153,6 +181,7 @@ static sparse_err_t run_cg_repeated_case(const char *name, SparseMatrix *A, idx_
     for (idx_t rep = 0; rep < repeats; rep++) {
         vec_zero(x, n);
         err = sparse_solve_cg_with_handle(A, b, x, &opts, NULL, NULL, &reuse, &handle);
+        reuse_err = err;
         if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED)
             break;
     }
@@ -161,12 +190,9 @@ static sparse_err_t run_cg_repeated_case(const char *name, SparseMatrix *A, idx_
     sparse_iter_handle_free(&handle);
 
     if (err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED) {
-        printf("  %-18s one-shot=%8.4f ms  reuse=%8.4f ms  speedup=%5.2fx\n", name,
-               t_one_shot * 1000.0, t_reuse * 1000.0, t_reuse > 0.0 ? t_one_shot / t_reuse : 0.0);
-        printf("    last one-shot: iters=%4d relres=%.3e conv=%d\n", (int)one_shot.iterations,
-               one_shot_rr, one_shot.converged);
-        printf("    last reuse:    iters=%4d relres=%.3e conv=%d\n", (int)reuse.iterations,
-               reuse_rr, reuse.converged);
+        emit_iterative_csv_row(name, "cg", n, repeats, t_one_shot * 1000.0, t_reuse * 1000.0,
+                               t_reuse > 0.0 ? t_one_shot / t_reuse : 0.0, &one_shot, &reuse,
+                               one_shot_rr, reuse_rr, one_shot_err, reuse_err);
     }
 
 cleanup:
@@ -196,11 +222,14 @@ static sparse_err_t run_gmres_repeated_case(const char *name, SparseMatrix *A, i
     sparse_iter_result_t one_shot = {0};
     sparse_iter_result_t reuse = {0};
     sparse_err_t err = SPARSE_OK;
+    sparse_err_t one_shot_err = SPARSE_OK;
+    sparse_err_t reuse_err = SPARSE_OK;
 
     double t0 = wall_time();
     for (idx_t rep = 0; rep < repeats; rep++) {
         vec_zero(x, n);
         err = sparse_solve_gmres(A, b, x, &opts, NULL, NULL, &one_shot);
+        one_shot_err = err;
         if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED)
             break;
     }
@@ -217,6 +246,7 @@ static sparse_err_t run_gmres_repeated_case(const char *name, SparseMatrix *A, i
     for (idx_t rep = 0; rep < repeats; rep++) {
         vec_zero(x, n);
         err = sparse_solve_gmres_with_handle(A, b, x, &opts, NULL, NULL, &reuse, &handle);
+        reuse_err = err;
         if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED)
             break;
     }
@@ -225,12 +255,9 @@ static sparse_err_t run_gmres_repeated_case(const char *name, SparseMatrix *A, i
     sparse_iter_handle_free(&handle);
 
     if (err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED) {
-        printf("  %-18s one-shot=%8.4f ms  reuse=%8.4f ms  speedup=%5.2fx\n", name,
-               t_one_shot * 1000.0, t_reuse * 1000.0, t_reuse > 0.0 ? t_one_shot / t_reuse : 0.0);
-        printf("    last one-shot: iters=%4d relres=%.3e conv=%d\n", (int)one_shot.iterations,
-               one_shot_rr, one_shot.converged);
-        printf("    last reuse:    iters=%4d relres=%.3e conv=%d\n", (int)reuse.iterations,
-               reuse_rr, reuse.converged);
+        emit_iterative_csv_row(name, "gmres", n, repeats, t_one_shot * 1000.0, t_reuse * 1000.0,
+                               t_reuse > 0.0 ? t_one_shot / t_reuse : 0.0, &one_shot, &reuse,
+                               one_shot_rr, reuse_rr, one_shot_err, reuse_err);
     }
 
 cleanup:
@@ -260,11 +287,14 @@ static sparse_err_t run_minres_repeated_case(const char *name, SparseMatrix *A, 
     sparse_iter_result_t one_shot = {0};
     sparse_iter_result_t reuse = {0};
     sparse_err_t err = SPARSE_OK;
+    sparse_err_t one_shot_err = SPARSE_OK;
+    sparse_err_t reuse_err = SPARSE_OK;
 
     double t0 = wall_time();
     for (idx_t rep = 0; rep < repeats; rep++) {
         vec_zero(x, n);
         err = sparse_solve_minres(A, b, x, &opts, NULL, NULL, &one_shot);
+        one_shot_err = err;
         if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED)
             break;
     }
@@ -283,6 +313,7 @@ static sparse_err_t run_minres_repeated_case(const char *name, SparseMatrix *A, 
     for (idx_t rep = 0; rep < repeats; rep++) {
         vec_zero(x, n);
         err = sparse_solve_minres_with_handle(A, b, x, &opts, NULL, NULL, &reuse, &handle);
+        reuse_err = err;
         if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED)
             break;
     }
@@ -291,12 +322,9 @@ static sparse_err_t run_minres_repeated_case(const char *name, SparseMatrix *A, 
     sparse_iter_handle_free(&handle);
 
     if (err == SPARSE_OK || err == SPARSE_ERR_NOT_CONVERGED) {
-        printf("  %-18s one-shot=%8.4f ms  reuse=%8.4f ms  speedup=%5.2fx\n", name,
-               t_one_shot * 1000.0, t_reuse * 1000.0, t_reuse > 0.0 ? t_one_shot / t_reuse : 0.0);
-        printf("    last one-shot: iters=%4d relres=%.3e conv=%d\n", (int)one_shot.iterations,
-               one_shot_rr, one_shot.converged);
-        printf("    last reuse:    iters=%4d relres=%.3e conv=%d\n", (int)reuse.iterations,
-               reuse_rr, reuse.converged);
+        emit_iterative_csv_row(name, "minres", n, repeats, t_one_shot * 1000.0, t_reuse * 1000.0,
+                               t_reuse > 0.0 ? t_one_shot / t_reuse : 0.0, &one_shot, &reuse,
+                               one_shot_rr, reuse_rr, one_shot_err, reuse_err);
     }
 
 cleanup:
@@ -311,9 +339,9 @@ int main(void) {
     const idx_t gmres_repeats = 300;
     const idx_t minres_repeats = 250;
 
-    printf("=== Sprint 45/49/54 Iterative Repeated-Run Benchmark ===\n\n");
-    printf("Repeated-call comparison only; results are local evidence, not universal performance "
-           "claims. The reuse path now exercises the public handle API.\n\n");
+    printf("benchmark,category,matrix,scenario,solver,n,repeats,one_shot_total_ms,"
+           "reuse_total_ms,speedup,one_shot_iters,reuse_iters,one_shot_relres,reuse_relres,"
+           "one_shot_converged,reuse_converged,one_shot_status,reuse_status\n");
 
     SparseMatrix *cg_A = make_spd_tridiag(300, 4.0, -1.0);
     if (!cg_A) {
@@ -334,7 +362,6 @@ int main(void) {
         return 1;
     }
 
-    printf("CG repeated-solve case (SPD tridiag, repeats=%d)\n", (int)cg_repeats);
     sparse_err_t err = run_cg_repeated_case("cg-tridiag-300", cg_A, cg_repeats);
     if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED) {
         fprintf(stderr, "CG repeated benchmark failed: %s\n", sparse_strerror(err));
@@ -343,7 +370,6 @@ int main(void) {
         return 1;
     }
 
-    printf("\nGMRES repeated-solve case (nonsymmetric tridiag, repeats=%d)\n", (int)gmres_repeats);
     err = run_gmres_repeated_case("gmres-unsym-220", gmres_A, gmres_repeats);
     if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED) {
         fprintf(stderr, "GMRES repeated benchmark failed: %s\n", sparse_strerror(err));
@@ -353,7 +379,6 @@ int main(void) {
         return 1;
     }
 
-    printf("\nMINRES repeated-solve case (KKT 42x42, repeats=%d)\n", (int)minres_repeats);
     err = run_minres_repeated_case("minres-kkt-42", minres_A, minres_repeats);
     if (err != SPARSE_OK && err != SPARSE_ERR_NOT_CONVERGED) {
         fprintf(stderr, "MINRES repeated benchmark failed: %s\n", sparse_strerror(err));

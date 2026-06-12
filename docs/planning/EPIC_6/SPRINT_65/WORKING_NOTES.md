@@ -1350,3 +1350,135 @@ Sprint 65 now has:
 - benchmark-local documentation aligned to the new fields
 - the iterative/eigensolver canonical normalization batch still cleanly
   deferred to Day 9
+
+## Day 9 - Output Batch II
+
+### Goal
+
+Complete the canonical maintained performance surface by normalizing the
+iterative and eigensolver reuse benchmarks and tightening the repo-level
+classification story around the smaller Sprint 65 surface.
+
+### Actions
+
+1. Normalize the two remaining canonical benchmark binaries:
+   - `bench_iterative_reuse`
+   - `bench_eigs_reuse`
+2. Keep the batch on output/schema and documentation consolidation only.
+3. Align benchmark-local, README, and maintainer-facing ownership around the
+   canonical / regression-sensitive / exploratory split.
+4. Run the required benchmark-governance validation gate and rerun the two
+   touched benchmark proof surfaces.
+
+### Findings
+
+#### 1. The main remaining contradiction after Day 8 was output shape, not benchmark selection
+
+Before Day 9:
+
+- the direct canonical surfaces already emitted stable CSV rows
+- the iterative and eigensolver canonical surfaces still emitted
+  human-readable prose summaries
+- the benchmark selection itself was already settled by Day 6-8
+
+Interpretation:
+
+- the missing Day 9 work was canonical-surface consolidation, not another
+  taxonomy rerank
+
+#### 2. The full canonical maintained surface now emits stable machine-readable rows
+
+The remaining two canonical surfaces now also begin with the stable governance
+prefix:
+
+- `benchmark`
+- `category`
+- `matrix`
+- `scenario`
+
+Landed interpretations:
+
+- `bench_iterative_reuse`
+  - `benchmark = bench_iterative_reuse`
+  - `category = proof`
+  - `scenario = iter_handle_reuse`
+  - adds stable solver/timing/residual/convergence/status columns for:
+    - `CG`
+    - `GMRES`
+    - `MINRES`
+- `bench_eigs_reuse`
+  - `benchmark = bench_eigs_reuse`
+  - `category = proof`
+  - `scenario = eigs_handle_reuse`
+  - adds stable backend/timing/convergence/agreement columns for:
+    - grow-m Lanczos
+    - thick-restart Lanczos
+    - explicit LOBPCG
+
+Interpretation:
+
+- the compact canonical maintained surface is now explicit in output, not just
+  in docs
+- the iterative/eigensolver surfaces stayed proof-oriented rather than turning
+  into broad solver bake-off CSVs
+
+#### 3. The classification story is now coherent across benchmark-local, top-level, and maintainer surfaces
+
+The landed docs now split the benchmark world into:
+
+- canonical maintained performance surface
+- regression-sensitive runtime lane
+- exploratory or broader comparison lane
+
+Ownership is now explicit:
+
+- benchmark binaries own emitted fields
+- `benchmarks/README.md` owns benchmark-local schema explanation
+- `README.md` owns only the compact top-level canonical-surface summary
+- `docs/maintainer_guide.md` owns the authoritative category policy
+
+Interpretation:
+
+- Sprint 65 no longer relies on one giant benchmark catalog as the project’s
+  “performance story”
+- the maintained claim-bearing surface is now smaller and easier to keep honest
+
+#### 4. Validation and retained output checks stayed clean
+
+Because benchmark `*.c` files changed, the Day 9 validation gate was:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+
+All passed. The maintained reviewed anchors stayed exact:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 571.75 sec`
+
+The retained benchmark-proof spot checks were:
+
+- `./build/bench_iterative_reuse`
+- `./build/bench_eigs_reuse`
+
+Representative retained normalized rows are now:
+
+- `bench_iterative_reuse,proof,cg-tridiag-300,iter_handle_reuse,cg,300,400,112.1140,91.2320,1.23,17,17,5.192e-11,5.192e-11,1,1,OK,OK`
+- `bench_iterative_reuse,proof,gmres-unsym-220,iter_handle_reuse,gmres,220,300,64.2980,60.8370,1.06,12,12,7.364e-11,7.364e-11,1,1,OK,OK`
+- `bench_iterative_reuse,proof,minres-kkt-42,iter_handle_reuse,minres,42,250,20.7880,30.5190,0.68,39,39,3.870e-11,3.870e-11,1,1,OK,OK`
+- `bench_eigs_reuse,proof,growm-nos4-k5,eigs_handle_reuse,lanczos_growm,100,5,40,3.9310,5.6480,0.70,115,115,5,5,4.326e-14,4.326e-14,100,100,0.000e+00,0.000e+00,lanczos_growm,OK,OK`
+- `bench_eigs_reuse,proof,thick-bcsstk14-k5,eigs_handle_reuse,lanczos_thick_restart,1806,5,8,175.3030,153.8770,1.14,105,105,5,5,7.864e-14,7.864e-14,40,40,0.000e+00,0.000e+00,lanczos_thick_restart,OK,OK`
+- `bench_eigs_reuse,proof,lobpcg-diag40-k3,eigs_handle_reuse,lobpcg,40,3,40,2.6230,2.4450,1.07,45,45,3,3,6.696e-11,6.696e-11,30,30,0.000e+00,0.000e+00,lobpcg,OK,OK`
+
+### Day 9 Close
+
+Sprint 65 now has:
+
+- one fully normalized four-binary canonical maintained performance surface
+- one explicit canonical / runtime / exploratory split across outputs and docs
+- one compact top-level performance-governance story instead of a broad mixed
+  benchmark catalog
+- one fixed direct CSC/Cholesky efficiency target carried into Day 10

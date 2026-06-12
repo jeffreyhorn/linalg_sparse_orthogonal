@@ -369,6 +369,63 @@ Interpretation:
 - treat the default self-contained path as authoritative until a later sprint
   lands and validates a wider backend story
 
+## Benchmark Governance Ownership
+
+Current stable interpretation after Sprint 65 Day 9:
+
+- canonical maintained performance surface:
+  - `bench_refactor_csc`
+  - `bench_chol_csc`
+  - `bench_iterative_reuse`
+  - `bench_eigs_reuse`
+- regression-sensitive runtime lane:
+  - `bench_scaling`
+  - `bench_fillin`
+  - `bench_colamd`
+  - `bench_reorder --skip-factor`
+  - bounded adjacent lane:
+    - `bench_amd_qg`
+- exploratory or broader comparison lane:
+  - `bench_main`
+  - `bench_convergence`
+  - `bench_svd`
+  - `bench_bicgstab`
+  - `bench_eigs`
+  - broader `bench_reorder`
+
+Canonical output ownership:
+
+- all four canonical maintained surfaces should expose stable row identity with:
+  - `benchmark`
+  - `category`
+  - `matrix`
+  - `scenario`
+- direct canonical surfaces keep their path/backend-specific proof fields:
+  - `speedup_refactor`
+  - `csc_scalar_path`
+  - `csc_supernodal_path`
+  - `csc_supernodal_dense_kernel`
+- iterative/eigensolver canonical surfaces keep their repeated-run proof fields:
+  - one-shot timing
+  - reuse timing
+  - speedup
+  - last-run convergence/residual agreement fields
+
+Ownership split:
+
+- benchmark binaries own the emitted fields and their semantics
+- `benchmarks/README.md` owns the benchmark-local schema explanation
+- `README.md` owns only the compact top-level canonical-surface summary
+- this maintainer guide owns the authoritative canonical / runtime /
+  exploratory classification
+
+Interpretation:
+
+- do not widen the canonical maintained performance surface casually
+- do not turn the runtime lane into threshold-heavy pseudo-governance
+- do not let exploratory benchmark breadth blur the smaller claim-bearing
+  maintained surface
+
 ## Stable Repo Norms
 
 ### Non-default option examples

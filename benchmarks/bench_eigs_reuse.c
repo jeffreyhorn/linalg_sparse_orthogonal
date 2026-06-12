@@ -7,10 +7,11 @@
  *   - thick-restart Lanczos on bcsstk14
  *   - explicit LOBPCG on a generated diagonal SPD fixture
  *
- * Reports median repeated-call wall time, last-run solver summaries, and a
- * simple speedup ratio. This is local evidence for reduced repeated allocation
- * churn through the final public repeated-run contract, not a machine-
- * independent performance claim.
+ * Reports CSV rows with stable benchmark/category/scenario identity plus the
+ * median repeated-call wall time, last-run solver summaries, and a simple
+ * speedup ratio. This is local evidence for reduced repeated allocation churn
+ * through the final public repeated-run contract, not a machine-independent
+ * performance claim.
  */
 #define _POSIX_C_SOURCE 200809L
 
@@ -56,6 +57,47 @@ static double max_abs_eig_diff(const sparse_eigs_t *a, const sparse_eigs_t *b) {
 }
 
 static double abs_diff(double a, double b) { return fabs(a - b); }
+
+static const char *eigs_status_name(sparse_err_t err) {
+    switch (err) {
+    case SPARSE_OK:
+        return "OK";
+    case SPARSE_ERR_NOT_CONVERGED:
+        return "NOT_CONVERGED";
+    default:
+        return "ERROR";
+    }
+}
+
+static const char *eigs_backend_name(sparse_eigs_backend_t backend) {
+    switch (backend) {
+    case SPARSE_EIGS_BACKEND_LANCZOS:
+        return "lanczos_growm";
+    case SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART:
+        return "lanczos_thick_restart";
+    case SPARSE_EIGS_BACKEND_LOBPCG:
+        return "lobpcg";
+    case SPARSE_EIGS_BACKEND_AUTO:
+        return "auto";
+    default:
+        return "unknown";
+    }
+}
+
+static void emit_eigs_csv_row(const char *matrix, const char *scenario, idx_t n, idx_t k,
+                              idx_t repeats, double one_shot_median_ms, double reuse_median_ms,
+                              double speedup, const sparse_eigs_t *one_shot,
+                              const sparse_eigs_t *reuse, double max_eig_diff, double residual_diff,
+                              sparse_err_t one_shot_err, sparse_err_t reuse_err) {
+    printf("bench_eigs_reuse,proof,%s,eigs_handle_reuse,%s,%d,%d,%d,%.4f,%.4f,%.2f,%d,%d,%d,%d,"
+           "%.3e,%.3e,%d,%d,%.3e,%.3e,%s,%s,%s\n",
+           matrix, scenario, (int)n, (int)k, (int)repeats, one_shot_median_ms, reuse_median_ms,
+           speedup, (int)one_shot->iterations, (int)reuse->iterations, (int)one_shot->n_converged,
+           (int)reuse->n_converged, one_shot->residual_norm, reuse->residual_norm,
+           (int)one_shot->peak_basis_size, (int)reuse->peak_basis_size, max_eig_diff, residual_diff,
+           eigs_backend_name(reuse->backend_used), eigs_status_name(one_shot_err),
+           eigs_status_name(reuse_err));
+}
 
 static SparseMatrix *build_diag(idx_t n, const double *diag) {
     SparseMatrix *A = sparse_create(n, n);
@@ -125,47 +167,32 @@ static sparse_err_t run_repeated_case_matrix(const char *name, SparseMatrix *A, 
     double med_one = median_double(times_one, repeats);
     double med_reuse = median_double(times_reuse, repeats);
     int parity_match = (one_err == reuse_err) && (one_shot.n_converged == reuse.n_converged);
-    double max_eig_diff = parity_match ? max_abs_eig_diff(&one_shot, &reuse) : NAN;
+    double max_eig_diff = parity_match ? max_abs_eig_diff(&one_shot, &reuse) : nan("");
     double residual_diff =
-        parity_match ? abs_diff(one_shot.residual_norm, reuse.residual_norm) : NAN;
+        parity_match ? abs_diff(one_shot.residual_norm, reuse.residual_norm) : nan("");
     const double eig_tol = 1e-9;
     const double residual_tol = 1e-12;
 
-    printf("  %-24s one-shot=%8.4f ms  reuse=%8.4f ms  speedup=%5.2fx\n", name, med_one * 1000.0,
-           med_reuse * 1000.0, med_reuse > 0.0 ? med_one / med_reuse : 0.0);
-    printf("    last one-shot: iters=%4d conv=%d nconv=%d relres=%.3e peak=%d\n",
-           (int)one_shot.iterations, (one_err == SPARSE_OK), (int)one_shot.n_converged,
-           one_shot.residual_norm, (int)one_shot.peak_basis_size);
-    printf("    last reuse:    iters=%4d conv=%d nconv=%d relres=%.3e peak=%d\n",
-           (int)reuse.iterations, (reuse_err == SPARSE_OK), (int)reuse.n_converged,
-           reuse.residual_norm, (int)reuse.peak_basis_size);
     if (!parity_match) {
-        printf("    parity:        FAILED status_one=%d status_reuse=%d nconv_one=%d "
-               "nconv_reuse=%d\n",
-               (int)one_err, (int)reuse_err, (int)one_shot.n_converged, (int)reuse.n_converged);
         err = SPARSE_ERR_BADARG;
         goto cleanup;
     }
     if (one_err != SPARSE_OK) {
-        printf("    parity:        FAILED matched non-success status=%d\n", (int)one_err);
         err = SPARSE_ERR_NOT_CONVERGED;
         goto cleanup;
     }
     if (one_shot.iterations != reuse.iterations) {
-        printf("    parity:        FAILED iter_one=%d iter_reuse=%d\n", (int)one_shot.iterations,
-               (int)reuse.iterations);
         err = SPARSE_ERR_BADARG;
         goto cleanup;
     }
     if (max_eig_diff > eig_tol || residual_diff > residual_tol) {
-        printf("    parity:        FAILED |lambda|max diff=%.3e relres diff=%.3e "
-               "(tol eig=%.1e relres=%.1e)\n",
-               max_eig_diff, residual_diff, eig_tol, residual_tol);
         err = SPARSE_ERR_BADARG;
         goto cleanup;
     }
-    printf("    parity:        |lambda|max diff=%.3e backend=%d\n", max_eig_diff,
-           (int)reuse.backend_used);
+    emit_eigs_csv_row(name, eigs_backend_name(opts->backend), sparse_rows(A), k, repeats,
+                      med_one * 1000.0, med_reuse * 1000.0,
+                      med_reuse > 0.0 ? med_one / med_reuse : 0.0, &one_shot, &reuse, max_eig_diff,
+                      residual_diff, one_err, reuse_err);
 
 cleanup:
     free(vals_one);
@@ -202,11 +229,11 @@ int main(void) {
     const idx_t thick_repeats = 8;
     const idx_t lobpcg_repeats = 40;
 
-    printf("=== Sprint 46/49/54 Eigensolver Repeated-Run Benchmark ===\n\n");
-    printf("Repeated-call comparison only; results are local evidence, not universal performance "
-           "claims. The reuse path now exercises the public handle API.\n\n");
+    printf("benchmark,category,matrix,scenario,backend,n,k,repeats,one_shot_median_ms,"
+           "reuse_median_ms,speedup,one_shot_iters,reuse_iters,one_shot_nconv,reuse_nconv,"
+           "one_shot_relres,reuse_relres,one_shot_peak_basis,reuse_peak_basis,lambda_max_diff,"
+           "residual_diff,backend_used,one_shot_status,reuse_status\n");
 
-    printf("Grow-m Lanczos repeated-run case (nos4, k=5, repeats=%d)\n", (int)growm_repeats);
     sparse_err_t err = run_repeated_case_file("growm-nos4-k5", "tests/data/suitesparse/nos4.mtx", 5,
                                               SPARSE_EIGS_BACKEND_LANCZOS, growm_repeats);
     if (err != SPARSE_OK) {
@@ -214,7 +241,6 @@ int main(void) {
         return 1;
     }
 
-    printf("\nThick-restart repeated-run case (bcsstk14, k=5, repeats=%d)\n", (int)thick_repeats);
     err = run_repeated_case_file("thick-bcsstk14-k5", "tests/data/suitesparse/bcsstk14.mtx", 5,
                                  SPARSE_EIGS_BACKEND_LANCZOS_THICK_RESTART, thick_repeats);
     if (err != SPARSE_OK) {
@@ -241,7 +267,6 @@ int main(void) {
         .block_size = 3,
         .lobpcg_soft_lock = 1,
     };
-    printf("\nExplicit LOBPCG repeated-run case (diag40, k=3, repeats=%d)\n", (int)lobpcg_repeats);
     err = run_repeated_case_matrix("lobpcg-diag40-k3", lobpcg_A, 3, &lobpcg_opts, lobpcg_repeats);
     sparse_free(lobpcg_A);
     if (err != SPARSE_OK) {

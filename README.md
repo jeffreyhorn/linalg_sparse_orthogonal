@@ -82,6 +82,7 @@ A C library for sparse matrices using the **orthogonal linked-list** (cross-link
 - **Explicit iterative handles on fixed dimension:** use the handle path for `CG`, `GMRES`, or `MINRES`. `BiCGSTAB` and block iterative workflows remain one-shot compatibility surfaces.
 - **Explicit eigensolver handle on fixed dimension:** use the handle path for grow-m Lanczos, thick-restart Lanczos, or explicit `LOBPCG`.
 - **Workflow-specific proof surfaces:** use `bench_refactor` / `bench_refactor_csc` for the repeated-run direct lifecycle, `bench_iterative_reuse` for iterative handles, and `bench_eigs_reuse` for the eigensolver handle path.
+- **Canonical maintained performance surface:** the compact maintained benchmark face is `bench_refactor_csc`, `bench_chol_csc`, `bench_iterative_reuse`, and `bench_eigs_reuse`; broader benches stay useful, but they are not the first claim-bearing performance surface.
 
 The rest of this README keeps the deeper algorithm, API, and benchmark details.
 

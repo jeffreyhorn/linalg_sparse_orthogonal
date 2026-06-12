@@ -2058,3 +2058,167 @@ Sprint 65 now has:
   eigensolver reuse rows
 - one exact Day 14 closeout starting point grounded in a clean reviewed CMake
   parity run
+
+## Day 14 - Closeout and Handoff
+
+### Goal
+
+Convert the validated Sprint 65 branch into one coherent closeout package for
+the next Epic 6 productization and platform-quality sprint.
+
+### Actions
+
+1. Re-read the Sprint 65 Day 8-13 artifacts and the validated Day 13 sweep.
+2. Collapse the sprint result into one explicit outcome package:
+   - benchmark-role audit
+   - normalized canonical performance surface
+   - bounded solver-efficiency follow-through
+   - local/CI-friendly reporting surface
+   - docs/example/benchmark alignment
+3. Fix the preserved compatibility and truthfulness fence in writing.
+4. Recheck the Sprint 65 section of `docs/planning/EPIC_6/PROJECT_PLAN.md` for
+   any correction now that the sprint is complete.
+5. Write the Day 14 handoff artifact and final close notes from the Day 13
+   validated baseline only.
+
+### Findings
+
+#### 1. Sprint 65 closes with one coherent performance-governance package
+
+Sprint 65 now hands off five concrete outcomes:
+
+- a benchmark-role audit that separates:
+  - `regression-sensitive`
+  - `proof`
+  - `exploratory`
+  benchmark lanes from the live repo state
+- one canonical maintained performance surface narrowed to:
+  - `bench_refactor_csc`
+  - `bench_chol_csc`
+  - `bench_iterative_reuse`
+  - `bench_eigs_reuse`
+- normalized machine-readable output on that canonical surface with stable
+  benchmark/category/scenario identity fields
+- one bounded local/CI-friendly reporting surface via
+  `make bench-canonical-report`
+- one bounded direct repeated-run CSC/Cholesky efficiency follow-through on the
+  strongest measured seam
+
+Interpretation:
+
+- Sprint 65 no longer reads like “some benchmark cleanup plus a small speed
+  tweak”
+- it now reads like one coherent benchmark-governance and maintained
+  performance-proof package
+
+#### 2. The preserved benchmark-governance and truthfulness fence stayed intact
+
+Sprint 65 preserves the following explicit contract:
+
+- the reviewed baseline remains:
+  - `make quality-review-full`
+- the canonical maintained performance surface is intentionally small and
+  bounded
+- `make bench-canonical-report` is a threshold-free snapshot/report surface,
+  not a timing-threshold gate
+- examples remain the workflow/adoption teaching surface
+- benchmarks remain the retained workflow/performance proof surface
+- the self-contained default build remains authoritative
+- the Sprint 65 solver-efficiency landing stays bounded to the direct repeated
+  CSC/Cholesky lane
+
+What Sprint 65 did **not** do:
+
+- it did not turn benchmark output normalization into a broad CI threshold
+  policy
+- it did not widen into generic benchmark-governance sprawl across every
+  benchmark binary
+- it did not reopen backend-architecture or platform-packaging work that belongs
+  to later sprints
+
+#### 3. Sprint 65 closes from the Day 13 validated baseline
+
+Sprint 65 closes from the validated Day 13 state:
+
+- `make format` passed
+- `make lint` passed
+- `make test` passed
+- `make quality-review-full` passed
+
+Reviewed anchors retained exactly:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 784.97 sec`
+
+Strong retained proof signals:
+
+- `test_integration` = `47 / 47`
+- `test_chol_csc` = `144 / 144`
+- `test_ldlt_csc` = `96 / 96`
+- `test_qr` = `72 / 72`
+- `test_svd` = `97 / 97`
+- `bench_refactor_csc nos4`: `speedup_refactor = 0.85x`
+- `bench_chol_csc nos4` still reports:
+  - `scalar`
+  - `supernodal`
+  - `builtin`
+- `bench_iterative_reuse`:
+  - `cg-tridiag-300 1.17x`
+  - `gmres-unsym-220 1.02x`
+  - `minres-kkt-42 1.40x`
+- `bench_eigs_reuse`:
+  - `growm-nos4-k5 1.08x`
+  - `thick-bcsstk14-k5 1.07x`
+  - `lobpcg-diag40-k3 1.01x`
+
+Interpretation:
+
+- the normalized canonical performance surface is now validated, not just
+  designed
+- the bounded Cholesky CSC efficiency follow-through remains correctness-clean
+  under the full reviewed path
+
+#### 4. The Sprint 66 carry-forward queue is now ranked explicitly
+
+Ranked carry-forward queue after Sprint 65:
+
+1. packaging, ABI, and platform-quality convergence
+2. platform residual recheck against the preserved reviewed truthfulness fence
+3. bounded packaging/productization batch where the release/install story most
+   needs tightening
+4. dead-code and platform follow-through only where the audited productization
+   story justifies it
+5. CI and contract reconciliation around the resulting packaging/platform
+   surface
+
+Interpretation:
+
+- Sprint 65 did not invalidate the Epic 6 plan
+- it did sharpen the next priority: productization and platform convergence now
+  matter more than additional benchmark-governance churn
+
+#### 5. The project plan does not need a Sprint 65 correction
+
+Rechecked the Sprint 65 section of `docs/planning/EPIC_6/PROJECT_PLAN.md`.
+
+Result:
+
+- no correction required
+
+Interpretation:
+
+- the landed sprint outcome still fits the planned Epic 6 sequencing:
+  - Sprint 64 backend-aware Phase 1
+  - Sprint 65 performance governance and bounded efficiency follow-through
+  - Sprint 66 packaging/platform convergence
+
+### Day 14 Close
+
+Sprint 65 now hands off:
+
+- one coherent performance-governance package
+- one explicit benchmark-governance and truthfulness fence
+- one fully validated close baseline
+- one ranked Sprint 66 queue instead of a generic post-performance backlog

@@ -300,3 +300,179 @@ Sprint 66 now has:
   "release shape is still narrow"
 - one clear Day 4 starting point for the platform-residual recheck and the
   later packaging/productization batch
+
+## Day 4 - Platform Residual Recheck
+
+### Goal
+
+Reassess the live macOS, Windows, and dead-code residual queue against the
+current reviewed truthfulness contract so Sprint 66 carries only the bounded
+platform/productization work that is actually justified.
+
+### Actions
+
+1. Re-read the compact cross-platform truth surfaces in:
+   - `README.md`
+   - `docs/maintainer_guide.md`
+   - `INSTALL.md`
+   - `Makefile`
+   - `.github/workflows/ci.yml`
+   - `.github/workflows/macos-ci.yml`
+   - `.github/workflows/windows-ci.yml`
+2. Re-read the current dead-code workflow topology:
+   - `Makefile`
+   - `scripts/deadcode_workflow.sh`
+   - `scripts/deadcode_report.py`
+3. Re-ranked the active residuals into:
+   - real Sprint 66 platform-quality work
+   - operational limits that remain explicit but should not drive the sprint
+   - later stretch/non-goal platform work
+4. Checked whether the current Windows and macOS lanes already verify the
+   install/package claims from the Day 3 packaging audit.
+5. Fixed the first platform/dead-code target set in writing before Day 5-6
+   design begins.
+
+### Findings
+
+#### 1. The platform contract is already intentionally asymmetric, and that asymmetry is truthful
+
+The current cross-platform contract is already explicit:
+
+- Linux enforces:
+  - reviewed Makefile compile-quality path
+  - reviewed CMake parity path
+  - dead-code report and completeness path
+- macOS enforces:
+  - reviewed Apple Clang quality path
+  - reviewed CMake parity path
+  - supplemental install and `pkg-config` verification
+  - dead-code remains staged
+- Windows enforces:
+  - reviewed CMake configure/build/`ctest -N`/full `ctest`
+  - Makefile reviewed wrappers remain staged
+  - dead-code remains staged
+
+Interpretation:
+
+- Sprint 66 should not treat the current asymmetry as accidental drift
+- the live repo already distinguishes enforced, staged, and supplemental lanes
+  on purpose
+- the correct question is which staged limits are still productization-relevant
+  enough to touch now
+
+#### 2. The strongest Day 4 platform gap is not "missing Windows Makefile parity"
+
+Windows still routes to the reviewed CMake subset only, and that is consistent
+across:
+
+- `README.md`
+- `INSTALL.md`
+- `docs/maintainer_guide.md`
+- `.github/workflows/windows-ci.yml`
+
+Interpretation:
+
+- the Windows reviewed-wrapper gap is real only if the repo were claiming a
+  reviewed Windows Makefile path
+- it is not the strongest Sprint 66 contradiction because the repo already says
+  Windows should use the CMake workflow exclusively
+- forcing Windows Makefile parity in Sprint 66 would be broader build-surface
+  expansion, not bounded productization cleanup
+
+#### 3. macOS dead-code remains a real residual, but still reads as staged-by-design rather than the first implementation target
+
+The current macOS contract still says:
+
+- dead-code is staged pending fresh measurement
+- Apple Clang and Homebrew GCC cover build/test/wall/sanitize and install
+  support, but not the dead-code workflow
+
+Interpretation:
+
+- macOS dead-code is still a real residual
+- the repo does not currently present fresh measurement or a maintained macOS
+  dead-code toolchain path that would justify claiming closure
+- this should remain a bounded residual unless later Sprint 66 work proves a
+  narrower, measurement-backed change is affordable
+
+#### 4. Windows dead-code is also still a real residual, but weaker than the packaging/productization lane
+
+Windows currently keeps dead-code staged rather than reviewed, and the active
+dead-code workflow still depends on:
+
+- a generated compile database
+- `bash`
+- `python3`
+- `cppcheck`
+- `xunused`
+- one serialized shared-path artifact topology
+
+Interpretation:
+
+- Windows dead-code is not just a missing CI step
+- it is tied to the current Linux-centered dead-code execution model
+- that makes it a weaker first Sprint 66 target than the packaging/install
+  contract itself
+
+#### 5. Serialized dead-code execution remains the strongest real operational limit
+
+The dead-code workflow still shares:
+
+- `build/deadcode-cmake`
+- `build/deadcode/`
+
+And the maintained docs/workflow surfaces still state that the `deadcode*`
+targets must run serially.
+
+Interpretation:
+
+- serialized dead-code execution remains the clearest active operational limit
+- but it is still an execution-topology limit, not automatically the highest
+  productization target
+- Sprint 66 should keep that limit explicit and only touch it if a later batch
+  can improve truthfulness without widening into a broad dead-code redesign
+
+#### 6. The first platform/dead-code target set is now explicit
+
+From the live repo state, the highest-value platform follow-through set is:
+
+- docs/workflow/contract reconciliation around the staged platform lanes
+- install/package/platform truth alignment where the packaging batch changes the
+  released story
+- bounded dead-code/platform wording cleanup where current residual language is
+  still too generic
+
+The weaker or deferred set is now explicit too:
+
+- Windows Makefile reviewed-wrapper parity
+- Windows dead-code enforcement
+- macOS dead-code enforcement
+- broad dead-code topology redesign
+- fake cross-platform closure beyond measured reviewed evidence
+
+Measured Day 4 hotspot sizes for the main platform/dead-code truth surfaces:
+
+- `README.md` = `1000`
+- `docs/maintainer_guide.md` = `511`
+- `INSTALL.md` = `206`
+- `Makefile` = `897`
+- `.github/workflows/ci.yml` = `221`
+- `.github/workflows/macos-ci.yml` = `111`
+- `.github/workflows/windows-ci.yml` = `57`
+
+Interpretation:
+
+- the strongest Sprint 66 platform work is still contract convergence, not a
+  platform-expansion sprint
+- Day 5-6 design should stay bounded to packaging/productization plus explicit
+  staged-lane reconciliation
+
+### Day 4 Close
+
+Sprint 66 now has:
+
+- one sharper platform/dead-code residual map
+- one explicit split between real Sprint 66 platform-quality work and deferred
+  platform-expansion work
+- one fixed starting point for the Day 5 packaging design and Day 6 platform
+  follow-through design

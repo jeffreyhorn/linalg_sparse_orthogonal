@@ -15,11 +15,11 @@ Optional:
 
 | platform | toolchain | CI job | notes |
 |---|---|---|---|
-| Linux (Ubuntu) | gcc | `.github/workflows/ci.yml` | primary; tsan job runs here (Sprint 29 Day 8 routes from macOS) |
-| Linux (Ubuntu) | clang | `.github/workflows/ci.yml::tsan` | TSan + OpenMP build |
-| macOS | Apple Clang | `.github/workflows/macos-ci.yml::apple-clang` | Sprint 29 Day 9; runs `make sanitize` |
-| macOS | Homebrew GCC (`gcc-15`) | `.github/workflows/macos-ci.yml::homebrew-gcc` | Sprint 29 Day 9 |
-| Windows | MSVC 2022 via CMake | `.github/workflows/windows-ci.yml` | Sprint 29 Days 7-8 |
+| Linux (Ubuntu) | gcc | `.github/workflows/ci.yml` | strongest reviewed source of truth: reviewed Makefile quality, reviewed CMake parity, dead-code; supplemental direct runtime and `bench-fast` also live here |
+| Linux (Ubuntu) | clang | `.github/workflows/ci.yml::tsan` | supplemental ThreadSanitizer + OpenMP lane |
+| macOS | Apple Clang | `.github/workflows/macos-ci.yml::apple-clang` | reviewed macOS lane: `make quality-review-compile`, `make quality-review-cmake`, `make wall-check`, `make sanitize`; same workflow also carries supplemental static-first Make install/`pkg-config` verification |
+| macOS | Homebrew GCC (`gcc-15`) | `.github/workflows/macos-ci.yml::homebrew-gcc` | supplemental second-compiler direct build/test/wall-check coverage |
+| Windows | MSVC 2022 via CMake | `.github/workflows/windows-ci.yml` | reviewed CMake subset only; supports the maintained CMake-first consumer story rather than a separate reviewed install-validation lane |
 
 `make tsan` on macOS 15+ is blocked by an upstream dyld initialization
 hang (Sprint 28 inheritance; macOS 15.7 platform issue not specific to

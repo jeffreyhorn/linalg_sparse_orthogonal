@@ -1412,3 +1412,138 @@ Sprint 66 now has:
 - one reconciled workflow/install-contract ownership story
 - one validated proof chain for the shipped static-first package surface
 - one much smaller remaining queue centered on residual tightening and closeout
+
+## Day 11 - CI and Command-Surface Reconciliation
+
+### Goal
+
+Align the remaining maintained command and CI truth surfaces with the landed
+Sprint 66 packaging/platform contract, remove stale sprint-era commentary that
+now obscures the reviewed lane model, and fix the exact Day 12-14 queue.
+
+### Actions
+
+1. Re-read the current Day 10 landed state across:
+   - `README.md`
+   - `INSTALL.md`
+   - `docs/maintainer_guide.md`
+   - `.github/workflows/ci.yml`
+   - `.github/workflows/macos-ci.yml`
+   - `.github/workflows/windows-ci.yml`
+2. Re-read the maintained command/help surface in `Makefile` to check whether
+   any command-story contradiction remained after Day 10.
+3. Ran targeted `rg` scans across the command/docs/workflow surfaces for:
+   - `install`
+   - `pkg-config`
+   - `find_package(Sparse)`
+   - `supplemental`
+   - `reviewed CMake subset`
+   - `install-validation`
+4. Tightened the stale contract wording that still remained:
+   - top-level CI summary in `README.md`
+   - platform notes table in `INSTALL.md`
+5. Re-ranked the remaining queue from the landed tree, including the exact
+   proof gap still visible on the Unix-side Make install regression path.
+
+### Findings
+
+#### 1. The remaining stale commentary was in command-facing summaries, not in the reviewed contract core
+
+After Day 10, the main packaging/platform contract surfaces were already
+aligned.
+
+The remaining stale wording was narrower:
+
+- the top-level CI summary in `README.md` was still too generic for the current
+  reviewed/enforced/supplemental split
+- the `INSTALL.md` supported-platform table still leaned on older sprint-era
+  notes instead of describing the live reviewed lane model directly
+
+After Day 11:
+
+- `README.md` now summarizes CI in the same contract language as the maintained
+  Sprint 66 state:
+  - Linux strongest reviewed source of truth
+  - macOS reviewed Apple Clang path plus supplemental GCC and static-first
+    install/`pkg-config`
+  - Windows reviewed CMake subset and CMake-first consumer story
+- `INSTALL.md` now uses the supported-platform table to describe actual current
+  lane ownership instead of historical sprint references
+
+Interpretation:
+
+- the remaining contradiction was presentation drift in operator-facing
+  summaries
+- the Day 11 batch closed that without widening the implementation surface
+
+#### 2. No Makefile or workflow behavior change was required
+
+The Day 11 reread did not uncover a remaining contradiction that required:
+
+- `Makefile` command-surface changes
+- workflow job behavior changes
+- install/export implementation changes
+
+Interpretation:
+
+- the Day 10-11 convergence work is now primarily about keeping the touched
+  truth surfaces coherent
+- Sprint 66 still does not need speculative CI expansion or packaging behavior
+  churn
+
+#### 3. The exact Day 12 proof gap is now explicit
+
+The strongest remaining Day 12 proof gap is now narrower than the original
+Sprint 66 wording implied:
+
+- `tests/test_cmake_install.sh` already checks installed `pkg-config` version
+  against the repo `VERSION` file
+- `tests/test_install.sh` still only proves that `pkg-config --modversion
+  sparse` is non-empty, not that it matches the same source of truth
+
+Interpretation:
+
+- the highest-value Day 12 target is focused install/package regression
+  tightening on the Unix-side Make install path
+- Sprint 66 does not need broad new assurance surfaces to close honestly
+
+#### 4. The exact remaining Day 12-14 queue is now fixed
+
+Day 12:
+
+- focused install/package regression tightening on:
+  - `tests/test_install.sh`
+- support only if the landed proof burden requires it:
+  - `tests/test_cmake_install.sh`
+  - `INSTALL.md`
+  - `README.md`
+
+Day 13:
+
+- full validation sweep:
+  - `make format`
+  - `make lint`
+  - `make test`
+  - `make quality-review-full`
+- targeted install/package proof reruns:
+  - `bash tests/test_install.sh`
+  - `bash tests/test_cmake_install.sh`
+
+Day 14:
+
+- closeout and handoff from the Day 13 validated baseline
+
+Interpretation:
+
+- the remaining queue is now narrowed to proof tightening, validation, and
+  close
+- Sprint 66 no longer has another real implementation-front hiding in the
+  residual set
+
+### Day 11 Close
+
+Sprint 66 now has:
+
+- one reconciled command-facing CI/platform summary story
+- one explicit Day 12 proof gap on the Unix-side Make install regression path
+- one fixed Day 12-14 close sequence

@@ -1547,3 +1547,110 @@ Sprint 66 now has:
 - one reconciled command-facing CI/platform summary story
 - one explicit Day 12 proof gap on the Unix-side Make install regression path
 - one fixed Day 12-14 close sequence
+
+## Day 12 - Install and Package Regression Coverage
+
+### Goal
+
+Close the exact Day 11 proof gap by tightening the Unix-side Make install
+regression so it uses the same version-source-of-truth contract as the focused
+CMake install regression, without widening Sprint 66 into broader assurance
+expansion.
+
+### Actions
+
+1. Tightened `tests/test_install.sh` so it now reads the expected installed
+   package version from the repo `VERSION` file.
+2. Replaced the prior non-empty `pkg-config --modversion sparse` check with an
+   exact comparison against that `VERSION` source of truth.
+3. Re-ran the focused install/package proof surfaces:
+   - `bash tests/test_install.sh`
+   - `bash tests/test_cmake_install.sh`
+4. Reconfirmed the retained installed package version from both proof surfaces.
+
+### Findings
+
+#### 1. The exact Day 11 proof gap is now closed
+
+Before Day 12:
+
+- `tests/test_cmake_install.sh` already required installed `pkg-config`
+  version to equal the repo `VERSION`
+- `tests/test_install.sh` only required `pkg-config --modversion sparse` to be
+  non-empty
+
+After Day 12:
+
+- both focused install/package regression surfaces now use the same exact
+  version-source-of-truth rule
+- the Unix-side Make install proof no longer accepts a mismatched installed
+  package version as a pass
+
+Interpretation:
+
+- Sprint 66 now has a tighter and more uniform install/package proof story
+- this closes the strongest remaining proof inconsistency without needing new
+  coverage fronts
+
+#### 2. The landed proof tightening stayed bounded to the intended surface
+
+Touched Day 12 surface:
+
+- `tests/test_install.sh`
+
+Untouched Day 12 surfaces:
+
+- `tests/test_cmake_install.sh`
+- `README.md`
+- `INSTALL.md`
+- workflows
+- build/install implementation
+
+Interpretation:
+
+- the proof tightening stayed exactly where Day 11 said it should
+- no late sprint assurance sprawl was needed
+
+#### 3. The focused install/package proof surfaces both passed
+
+Rerun proof surfaces:
+
+- `bash tests/test_install.sh`
+- `bash tests/test_cmake_install.sh`
+
+Retained proof points:
+
+- Make install/uninstall path passed
+- CMake install/export/find-package path passed
+- both scripts reported installed `pkg-config` version `2.2.0`
+
+Interpretation:
+
+- the two maintained local install/package proof surfaces now agree on the same
+  installed version contract and both still pass from the landed tree
+
+#### 4. The exact Day 13 rerun set is now fixed
+
+Day 13 should run:
+
+- `make format`
+- `make lint`
+- `make test`
+- `make quality-review-full`
+- `bash tests/test_install.sh`
+- `bash tests/test_cmake_install.sh`
+
+Interpretation:
+
+- the final validation sweep now has one explicit install/package rerun set
+  attached to the touched productization surface
+- Sprint 66 can close from a known proof map rather than an inferred one
+
+### Day 12 Close
+
+Sprint 66 now has:
+
+- one closed Unix-side Make install proof gap
+- one uniform version-source-of-truth rule across the two maintained local
+  install/package regressions
+- one explicit Day 13 rerun set for the touched productization surface

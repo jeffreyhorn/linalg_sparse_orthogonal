@@ -7,6 +7,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 TMPDIR="$(mktemp -d "${TMPDIR:-/tmp}/sparse.XXXXXX")"
 trap 'rm -rf "$TMPDIR"' EXIT
 
+EXPECTED_VERSION="$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")"
 PREFIX="$TMPDIR/usr"
 PASS=0
 FAIL=0
@@ -75,10 +76,10 @@ else
 fi
 
 PC_VERSION="$(pkg-config --modversion sparse 2>/dev/null || true)"
-if [ -n "$PC_VERSION" ]; then
+if [ "$PC_VERSION" = "$EXPECTED_VERSION" ]; then
     pass "pkg-config --modversion returns $PC_VERSION"
 else
-    fail "pkg-config --modversion empty"
+    fail "pkg-config --modversion expected $EXPECTED_VERSION, got '$PC_VERSION'"
 fi
 
 # ── 4. Compile and link a test program against installed library ────

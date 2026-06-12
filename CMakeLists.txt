@@ -7,6 +7,17 @@ string(STRIP "${SPARSE_VERSION_STRING_FILE}" SPARSE_VERSION_STRING_FILE)
 
 project(linalg_sparse_orthogonal VERSION ${SPARSE_VERSION_STRING_FILE} LANGUAGES C)
 
+# The maintained Sprint 66 package surface is static-first. Keep that explicit
+# in the configure path so `BUILD_SHARED_LIBS=ON` is not mistaken for an active
+# shared-library packaging contract.
+if(BUILD_SHARED_LIBS)
+    message(STATUS
+        "BUILD_SHARED_LIBS=ON requested, but sparse_lu_ortho remains a "
+        "maintained static archive package surface; continuing with STATIC "
+        "library output."
+    )
+endif()
+
 # Generate sparse_version.h from template and VERSION file
 set(SPARSE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
 set(SPARSE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
@@ -114,6 +125,11 @@ add_library(sparse_lu_ortho STATIC
     src/sparse_graph.c
     src/sparse_reorder_nd.c
     src/sparse_reorder_amd_qg.c
+)
+
+set_target_properties(sparse_lu_ortho PROPERTIES
+    EXPORT_NAME sparse_lu_ortho
+    OUTPUT_NAME sparse_lu_ortho
 )
 
 # Optional OpenMP support for parallel SpMV: cmake -DSPARSE_OPENMP=ON ..

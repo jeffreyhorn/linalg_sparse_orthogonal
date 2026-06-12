@@ -973,3 +973,129 @@ Sprint 66 now has:
 - one concrete proof and validation plan
 - one explicit Day 8-12 landing order
 - one bounded implementation map for the rest of the sprint
+
+## Day 8 - Packaging and Productization Batch 1
+
+### Goal
+
+Land the highest-value first Sprint 66 packaging/productization slice inside
+the Day 7 fence: make the maintained static-first install/export contract
+explicit in the build and docs surfaces, and align the focused CMake install
+regression with the repo's single `VERSION` source of truth.
+
+### Actions
+
+1. Updated `CMakeLists.txt` so the configure path states the maintained
+   static-first package contract explicitly:
+   - `BUILD_SHARED_LIBS=ON` now emits an explicit status note that the shipped
+     package surface still remains the static archive output
+   - the library export/output naming is now set explicitly on the maintained
+     target
+2. Tightened the operator-facing install story in `INSTALL.md`:
+   - the shipped install/export surface is now described directly as
+     static-first
+   - the current version metadata propagation chain is stated explicitly
+   - Windows remains explicitly CMake-first
+3. Tightened the top-level package/install summary in `README.md` so the
+   downstream `pkg-config` and `find_package(Sparse)` story reads as one
+   intentional static-first package surface instead of an implied broader
+   release promise.
+4. Added the matching maintainer-policy interpretation in
+   `docs/maintainer_guide.md`:
+   - real install/export surface
+   - static-first release shape
+   - narrow ABI promise
+   - platform truth fence
+5. Updated `tests/test_cmake_install.sh` to read the expected installed package
+   version from the repo `VERSION` file instead of hardcoding `1.0.0`.
+
+### Findings
+
+#### 1. The highest-value first contradiction is now closed
+
+Before Day 8:
+
+- the repo shipped a real static-first install/export surface
+- but the build/docs surfaces did not state that maintained release shape as
+  directly as they should
+- and the focused CMake install regression still hardcoded a package version
+  instead of following the single version source of truth
+
+After Day 8:
+
+- the build configure path states the static-first package shape explicitly
+- the user-facing install/docs surfaces state the same contract explicitly
+- the maintainer guide now owns the narrow ABI/platform interpretation
+- the focused CMake install regression now follows `VERSION`
+
+Interpretation:
+
+- the first Sprint 66 productization batch resolved a real packaging truth
+  contradiction instead of just rephrasing the same ambiguity
+
+#### 2. The landed batch stayed inside the Day 7 fence
+
+Touched Day 8 surfaces:
+
+- `CMakeLists.txt`
+- `INSTALL.md`
+- `README.md`
+- `docs/maintainer_guide.md`
+- `tests/test_cmake_install.sh`
+
+Untouched Day 8 surfaces:
+
+- workflows
+- `Makefile`
+- `tests/test_install.sh`
+- dead-code scripts
+- any shared-library or ABI-widening surface
+
+Interpretation:
+
+- the batch stayed inside the required first-batch surface, with only one
+  optional proof surface moving because the version-source-of-truth check
+  required it
+
+#### 3. The proof burden for this landing is now explicit and passed
+
+Because this was substantial packaging/productization work, the stronger
+reviewed baseline was used:
+
+- `make quality-review-full`
+
+Retained reviewed anchors:
+
+- `ctest -N --test-dir build/quality-review-cmake` = `53`
+- Makefile/CMake parity = `53 vs 53`
+- full reviewed CMake `ctest` = `53 / 53`
+- `Total Test time (real) = 820.96 sec`
+
+Because the package/install contract moved materially, the focused install
+regressions were also run:
+
+- `bash tests/test_install.sh`
+- `bash tests/test_cmake_install.sh`
+
+Retained focused install/package proof points:
+
+- Make install/uninstall path passed
+- `pkg-config --modversion sparse` reported `2.2.0`
+- CMake install/export/find-package path passed
+- the CMake install regression now verified `pkg-config` version against the
+  repo `VERSION` value instead of a stale literal
+
+Interpretation:
+
+- Day 8 closes from both the strongest reviewed baseline and the exact install
+  proof homes fixed in the Day 7 plan
+
+### Day 8 Close
+
+Sprint 66 now has:
+
+- one landed static-first packaging/productization batch
+- one resolved version-source-of-truth regression contradiction
+- one explicit maintained packaging contract shared across build, install, top
+  level, and maintainer surfaces
+- one concrete Day 9 starting point for the post-landing rerank

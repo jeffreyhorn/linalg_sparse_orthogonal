@@ -988,6 +988,15 @@ After installation, downstream projects can use:
 - **pkg-config:** `pkg-config --cflags --libs sparse`
 - **CMake:** `find_package(Sparse REQUIRED)` + `target_link_libraries(... Sparse::sparse_lu_ortho)`
 
+The maintained package surface is intentionally static-first:
+
+- the installed library is `libsparse_lu_ortho.a`
+- the exported CMake target and `pkg-config` metadata both describe that same
+  static archive surface
+- version metadata is single-sourced from `VERSION`
+- this is a real install/export contract, not a broad shared-library or
+  dynamic-ABI guarantee
+
 ## Documentation
 
 - [Algorithm Description](docs/algorithm.md) — data structure, LU algorithm, complexity analysis

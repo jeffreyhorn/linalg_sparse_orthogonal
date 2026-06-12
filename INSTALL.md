@@ -49,6 +49,22 @@ The default `PREFIX` is `/usr/local`. Set `DESTDIR` for staged installs
 make install PREFIX=/usr DESTDIR=/tmp/staging
 ```
 
+### Maintained release shape
+
+The maintained install surface is intentionally static-first:
+
+- `make install` installs the static archive `libsparse_lu_ortho.a`
+- `cmake --install` exports the same static library through
+  `Sparse::sparse_lu_ortho`
+- `pkg-config` and `find_package(Sparse)` both describe that installed static
+  archive surface
+- version metadata comes from the repo `VERSION` file and is propagated through
+  `sparse_version.h`, `SparseConfigVersion.cmake`, and `sparse.pc`
+
+This install/export story is real and maintained, but it is not a broad shared
+library or dynamic-ABI promise. On Windows, the maintained consumer path
+remains the reviewed CMake workflow.
+
 ### Installed files
 
 | Path | Contents |

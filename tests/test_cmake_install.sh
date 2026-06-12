@@ -7,6 +7,7 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 TMPDIR="$(mktemp -d "${TMPDIR:-/tmp}/sparse.XXXXXX")"
 trap 'rm -rf "$TMPDIR"' EXIT
 
+EXPECTED_VERSION="$(tr -d '[:space:]' < "$ROOT_DIR/VERSION")"
 PREFIX="$TMPDIR/usr"
 BUILD="$TMPDIR/build"
 EXAMPLE_BUILD="$TMPDIR/example_build"
@@ -125,10 +126,10 @@ echo "--- Version checks ---"
 # pkg-config version
 export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
 PC_VERSION="$(pkg-config --modversion sparse 2>/dev/null || true)"
-if [ "$PC_VERSION" = "1.0.0" ]; then
+if [ "$PC_VERSION" = "$EXPECTED_VERSION" ]; then
     pass "pkg-config version = $PC_VERSION"
 else
-    fail "pkg-config version" "expected 1.0.0, got '$PC_VERSION'"
+    fail "pkg-config version" "expected $EXPECTED_VERSION, got '$PC_VERSION'"
 fi
 
 # ── Summary ─────────────────────────────────────────────────────────

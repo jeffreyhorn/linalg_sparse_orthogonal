@@ -1099,3 +1099,160 @@ Sprint 66 now has:
 - one explicit maintained packaging contract shared across build, install, top
   level, and maintainer surfaces
 - one concrete Day 9 starting point for the post-landing rerank
+
+## Day 9 - Post-Landing Audit and Rerank
+
+### Goal
+
+Reassess the Sprint 66 queue after the Day 8 packaging landing and determine
+whether any real packaging/productization contradiction still justifies a
+second core implementation batch, or whether the remaining work has narrowed to
+workflow/install-contract reconciliation.
+
+### Actions
+
+1. Re-read the Day 8 landing notes in this file and the Day 8 artifact to
+   confirm the exact contract that actually shipped.
+2. Re-ran targeted `rg` scans across the live packaging, install, maintainer,
+   workflow, and focused regression surfaces for:
+   - `static-first`
+   - `BUILD_SHARED_LIBS`
+   - `shared-library`
+   - `dynamic-ABI`
+   - `VERSION`
+   - `pkg-config`
+   - `find_package(Sparse)`
+   - `reviewed CMake subset`
+3. Re-read the current top-level packaging summary in `README.md` and the
+   focused CMake install regression in `tests/test_cmake_install.sh`.
+4. Rechecked the current Sprint 66 branch shape with:
+   - `git diff --stat master...HEAD`
+5. Re-ranked the remaining Sprint 66 queue from the landed repo state instead
+   of assuming a second packaging batch was automatically required.
+
+### Findings
+
+#### 1. Day 8 closed the strongest packaging contradiction
+
+After the Day 8 landing, the maintained package story now reads coherently
+across the live build and docs surfaces:
+
+- `CMakeLists.txt` states that the maintained package surface remains
+  static-first even when `BUILD_SHARED_LIBS=ON` is requested
+- `INSTALL.md` treats `make install`, `cmake --install`, `pkg-config`, and
+  `find_package(Sparse)` as one intentional static archive distribution story
+- `README.md` states the same compact top-level package contract directly
+- `docs/maintainer_guide.md` now owns the narrow ABI/platform interpretation
+- `tests/test_cmake_install.sh` now verifies installed package version against
+  the repo `VERSION` file
+
+Interpretation:
+
+- the highest-value Day 8 target was real and is now closed
+- Sprint 66 no longer has a first-order contradiction around whether the repo
+  has a real install/export surface or what release shape that surface implies
+
+#### 2. No new core packaging contradiction is visible after the Day 8 landing
+
+The post-landing reread did not uncover a second unresolved build/install
+contradiction of the same weight as the Day 8 batch:
+
+- the release shape still intentionally stays static-first
+- the version metadata chain still stays coherent and single-sourced from
+  `VERSION`
+- downstream `pkg-config` and `find_package(Sparse)` consumption still point at
+  the same maintained archive surface
+- the repo still does not imply a broader shared-library or dynamic-ABI promise
+
+Interpretation:
+
+- Day 10 should not invent a second packaging batch just to make the sprint
+  look symmetrical
+- a broad shared-library or wider ABI move would still be a separate product
+  decision, not normal Sprint 66 cleanup
+
+#### 3. The strongest remaining queue is now contract reconciliation, not package-shape redesign
+
+The strongest remaining residual after Day 8 is now the cross-surface
+ownership/truth story around enforced, supplemental, and staged lanes:
+
+- workflow comments and job labels still need to read as one coherent reviewed
+  platform contract
+- install/package regression ownership should stay explicit:
+  - `tests/test_install.sh`
+  - `tests/test_cmake_install.sh`
+- top-level and maintainer wording should stay aligned with the platform fence:
+  - Linux strongest reviewed source of truth
+  - macOS reviewed quality plus supplemental install/`pkg-config`
+  - Windows reviewed CMake subset only
+
+Interpretation:
+
+- the next highest-value Sprint 66 target is workflow/CI/contract
+  reconciliation
+- the remaining work now sits above the shipped package surface, not inside the
+  core release-shape machinery
+
+#### 4. The current branch shape confirms Sprint 66 has stayed bounded
+
+Current branch-diff shape against `master...HEAD` is still narrow:
+
+- first batch packaging/build/docs surfaces:
+  - `CMakeLists.txt`
+  - `INSTALL.md`
+  - `README.md`
+  - `docs/maintainer_guide.md`
+  - `tests/test_cmake_install.sh`
+- planning/doc surfaces for Sprint 66
+
+Interpretation:
+
+- Sprint 66 has not drifted into broad platform or ABI sprawl
+- the Day 9 rerank can stay honest about what has and has not actually moved so
+  far
+
+#### 5. The exact Day 10 target is now fixed
+
+The next strongest target is:
+
+- workflow/CI/install-contract reconciliation around the shipped packaging and
+  platform truth story
+
+Likely touched surfaces:
+
+- `README.md`
+- `INSTALL.md`
+- `docs/maintainer_guide.md`
+- `.github/workflows/ci.yml`
+- `.github/workflows/macos-ci.yml`
+- `.github/workflows/windows-ci.yml`
+
+Support only if the landing proves it is required:
+
+- `Makefile`
+- `tests/test_install.sh`
+- `tests/test_cmake_install.sh`
+
+Explicit non-goals remain:
+
+- broad shared-library enablement
+- ABI guarantee widening
+- Windows Makefile reviewed-wrapper parity
+- macOS dead-code enforcement
+- Windows dead-code enforcement
+- dead-code topology redesign
+
+Interpretation:
+
+- the remaining Sprint 66 work now has one exact ownership focus
+- Day 10 should change only the surfaces needed to keep packaging, platform,
+  and regression truth aligned
+
+### Day 9 Close
+
+Sprint 66 now has:
+
+- one confirmed closed Day 8 packaging contradiction
+- one reranked remaining queue centered on workflow/install-contract
+  reconciliation
+- one explicit Day 10 target set with a bounded support surface
